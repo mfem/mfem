@@ -40,6 +40,9 @@ protected:
    OperatorHandle fw_t_oper; ///< Forward true-dof operator
    OperatorHandle bw_t_oper; ///< Backward true-dof operator
 
+   bool uniform_refinement;
+   bool verify_solution;
+
 #ifdef MFEM_USE_MPI
    bool parallel;
 #endif
@@ -64,6 +67,12 @@ public:
 
    /// Virtual destructor
    virtual ~GridTransfer() { }
+
+   void UniformRefinement(bool unif_refinement) { uniform_refinement = unif_refinement;}
+
+   void VerifySolution(bool verify) { verify_solution = verify;}
+
+
 
    /** @brief Set the desired Operator::Type for the construction of all
        operators defined by the underlying transfer algorithm. */
@@ -170,6 +179,7 @@ public:
 class L2ProjectionGridTransfer : public GridTransfer
 {
 protected:
+
    /** Abstract class representing projection operator between a high-order
        finite element space on a coarse mesh, and a low-order finite element
        space on a refined mesh (LOR). We assume that the low-order space,
@@ -206,7 +216,15 @@ protected:
                          const FiniteElement& fe_lor, ElementTransformation* el_tr,
                          IntegrationPointTransformation& ip_tr,
                          DenseMatrix& M_mixed_el) const;
+
+      void ElemMixedMass(Geometry::Type geom, const FiniteElement& fe_ho,
+                         const FiniteElement& fe_lor, ElementTransformation* el_tr,
+                         IntegrationPointTransformation& ip_tr,
+                         DenseMatrix& B_L, DenseMatrix& B_H) const;
    };
+
+   //Class below must be public as we now have device code
+public:
 
    /** Class for projection operator between a L2 high-order finite element
        space on a coarse mesh, and a L2 low-order finite element space on a
@@ -219,11 +237,20 @@ protected:
       // arrays. The entries of the i'th high-order element are stored at the
       // index given by offsets[i].
       mutable Array<double> R, P;
+      mutable Array<double> R_ea, P_ea;
       Array<int> offsets;
+
+      const bool uniform_refinement, verify_solution;
 
    public:
       L2ProjectionL2Space(const FiniteElementSpace& fes_ho_,
-                          const FiniteElementSpace& fes_lor_);
+                          const FiniteElementSpace& fes_lor_,
+                          const bool uniform_refinement_, const bool verify_solution_);
+
+      /*Same as above but assembles and stores R_ea, P_ea */
+      void DeviceL2ProjectionL2Space(const FiniteElementSpace& fes_ho_,
+                                     const FiniteElementSpace& fes_lor_);
+
       /// Maps <tt>x</tt>, primal field coefficients defined on a coarse mesh
       /// with a higher order L2 finite element space, to <tt>y</tt>, primal
       /// field coefficients defined on a refined mesh with a low order L2
@@ -231,6 +258,10 @@ protected:
       /// the coarse mesh. Coefficients are computed through minimization of L2
       /// error between the fields.
       virtual void Mult(const Vector& x, Vector& y) const;
+
+      //Perform mult on the device (same as above)
+      void DeviceMult(const Vector& x, Vector& y) const;
+
       /// Maps <tt>x</tt>, dual field coefficients defined on a refined mesh
       /// with a low order L2 finite element space, to <tt>y</tt>, dual field
       /// coefficients defined on a coarse mesh with a higher order L2 finite
@@ -239,6 +270,9 @@ protected:
       /// error between the primal fields. Note, if the <tt>x</tt>-coefficients
       /// come from ProlongateTranspose, then mass is conserved.
       virtual void MultTranspose(const Vector& x, Vector& y) const;
+
+      void DeviceMultTranspose(const Vector& x, Vector& y) const;
+
       /// Maps <tt>x</tt>, primal field coefficients defined on a refined mesh
       /// with a low order L2 finite element space, to <tt>y</tt>, primal field
       /// coefficients defined on a coarse mesh with a higher order L2 finite
@@ -247,6 +281,9 @@ protected:
       /// left-inverse prolongation operation. This functionality is also
       /// provided as an Operator by L2Prolongation.
       virtual void Prolongate(const Vector& x, Vector& y) const;
+
+      void DeviceProlongate(const Vector& x, Vector& y) const;
+
       /// Maps <tt>x</tt>, dual field coefficients defined on a coarse mesh with
       /// a higher order L2 finite element space, to <tt>y</tt>, dual field
       /// coefficients defined on a refined mesh with a low order L2 finite
@@ -255,9 +292,19 @@ protected:
       /// conservative left-inverse prolongation operation. This functionality
       /// is also provided as an Operator by L2Prolongation.
       virtual void ProlongateTranspose(const Vector& x, Vector& y) const;
+
+      void DeviceProlongateTranspose(const Vector& x, Vector& y) const;
+
+
       virtual void SetRelTol(double p_rtol_) { } ///< No-op.
       virtual void SetAbsTol(double p_atol_) { } ///< No-op.
+
+      //friend class L2ProjectionGridTransfer;
    };
+
+protected:
+
+   friend class L2ProjectionL2Space;
 
    /** Projection operator between a H1 high-order finite element space on a
        coarse mesh, and a H1 low-order finite element space on a refined mesh
@@ -391,6 +438,7 @@ public:
    virtual bool SupportsBackwardsOperator() const;
 private:
    void BuildF();
+
 };
 
 /// Matrix-free transfer operator between finite element spaces

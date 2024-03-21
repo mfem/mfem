@@ -13,6 +13,9 @@
 #include "bilinearform.hpp"
 #include "../general/forall.hpp"
 
+//Tolerance for comparing between non-uniform and uniform transfers
+constexpr double ho_lor_tol = 1e-10;
+
 namespace mfem
 {
 
@@ -20,7 +23,7 @@ GridTransfer::GridTransfer(FiniteElementSpace &dom_fes_,
                            FiniteElementSpace &ran_fes_)
    : dom_fes(dom_fes_), ran_fes(ran_fes_),
      oper_type(Operator::ANY_TYPE),
-     fw_t_oper(), bw_t_oper()
+     fw_t_oper(), bw_t_oper(), uniform_refinement(false), verify_solution(false)
 {
 #ifdef MFEM_USE_MPI
    const bool par_dom = dynamic_cast<ParFiniteElementSpace*>(&dom_fes);
@@ -282,10 +285,56 @@ void L2ProjectionGridTransfer::L2Projection::ElemMixedMass(
    }
 }
 
-L2ProjectionGridTransfer::L2ProjectionL2Space::L2ProjectionL2Space(
-   const FiniteElementSpace &fes_ho_, const FiniteElementSpace &fes_lor_)
-   : L2Projection(fes_ho_, fes_lor_)
+void L2ProjectionGridTransfer::L2Projection::ElemMixedMass(
+   Geometry::Type geom, const FiniteElement& fe_ho,
+   const FiniteElement& fe_lor, ElementTransformation* el_tr,
+   IntegrationPointTransformation& ip_tr,
+   DenseMatrix& B_L, DenseMatrix& B_H) const
 {
+   int order = fe_lor.GetOrder() + fe_ho.GetOrder() + el_tr->OrderW();
+   const IntegrationRule* ir = &IntRules.Get(geom, order);
+
+   DenseMatrix M_mixed_el(fe_lor.GetDof(), fe_ho.GetDof());
+   M_mixed_el = 0.0;
+
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint& ip_lor = ir->IntPoint(i);
+      IntegrationPoint ip_ho;
+
+      //maps integration point ip_lor -> ip_ho
+      ip_tr.Transform(ip_lor, ip_ho);
+      Vector shape_lor(fe_lor.GetDof());
+      fe_lor.CalcShape(ip_lor, shape_lor);
+      Vector shape_ho(fe_ho.GetDof());
+      fe_ho.CalcShape(ip_ho, shape_ho);
+
+      for (int j=0; j<shape_lor.Size(); ++j)
+      {
+         B_L(i, j) = shape_lor(j);
+      }
+
+      for (int j=0; j<shape_ho.Size(); ++j)
+      {
+         B_H(i, j) = shape_ho(j);
+      }
+   }
+
+}
+
+L2ProjectionGridTransfer::L2ProjectionL2Space::L2ProjectionL2Space
+(const FiniteElementSpace &fes_ho_, const FiniteElementSpace &fes_lor_,
+ const bool uniform_refinement_, const bool verify_solution_)
+   : L2Projection(fes_ho_, fes_lor_),
+     uniform_refinement(uniform_refinement_), verify_solution(verify_solution_)
+{
+
+   if (uniform_refinement)
+   {
+      DeviceL2ProjectionL2Space(fes_ho_, fes_lor_);
+      if (!verify_solution) {return;}
+   }
+
    Mesh *mesh_ho = fes_ho.GetMesh();
    Mesh *mesh_lor = fes_lor.GetMesh();
    int nel_ho = mesh_ho->GetNE();
@@ -401,11 +450,472 @@ L2ProjectionGridTransfer::L2ProjectionL2Space::L2ProjectionL2Space(
          RtMlorR_inv.Mult(RtMlor, P_iho);
       }
    }
+
+
+   if (verify_solution)
+   {
+      double R_error = 0.0, P_error = 0.0;
+      for (int i=0; i<R.Size(); ++i)
+      {
+         R_error += (R[i] - R_ea.HostRead()[i])*(R[i] - R_ea.HostRead()[i]);
+      }
+      R_error = std::sqrt(R_error);
+
+      for (int j=0; j<P.Size(); ++j)
+      {
+         P_error += (P[j] - P_ea.HostRead()[j])*(P[j] - P_ea.HostRead()[j]);
+      }
+      P_error = std::sqrt(P_error);
+
+      if (R_error > ho_lor_tol || P_error > ho_lor_tol)
+      {
+         MFEM_VERIFY(false,
+                     "Error in operator assembly R_error = "<<R_error<<" P_error ="<<P_error);
+      }
+   }
+}
+
+void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
+(const FiniteElementSpace &fes_ho_, const FiniteElementSpace &fes_lor_)
+{
+
+   Mesh *mesh_ho = fes_ho.GetMesh();
+   Mesh *mesh_lor = fes_lor.GetMesh();
+   int nel_ho = mesh_ho->GetNE();
+   int nel_lor = mesh_lor->GetNE();
+
+   // The prolongation operation is only well-defined when the LOR space has at
+   // least as many DOFs as the high-order space.
+   const bool build_P = fes_lor.GetTrueVSize() >= fes_ho.GetTrueVSize();
+
+   // If the local mesh is empty, skip all computations
+   if (nel_ho == 0) { return; }
+
+   const CoarseFineTransformations &cf_tr = mesh_lor->GetRefinementTransforms();
+
+   int nref_max = 0;
+   Array<Geometry::Type> geoms;
+   mesh_ho->GetGeometries(mesh_ho->Dimension(), geoms);
+   for (int ig = 0; ig < geoms.Size(); ++ig)
+   {
+      Geometry::Type geom = geoms[ig];
+      nref_max = std::max(nref_max, cf_tr.point_matrices[geom].SizeK());
+   }
+
+   BuildHo2Lor(nel_ho, nel_lor, cf_tr);
+
+   offsets.SetSize(nel_ho+1);
+   offsets[0] = 0;
+   for (int iho = 0; iho < nel_ho; ++iho)
+   {
+      int nref = ho2lor.RowSize(iho);
+      const FiniteElement &fe_ho = *fes_ho.GetFE(iho);
+      const FiniteElement &fe_lor = *fes_lor.GetFE(ho2lor.GetRow(iho)[0]);
+      offsets[iho+1] = offsets[iho] + fe_ho.GetDof()*fe_lor.GetDof()*nref;
+   }
+
+   // R_ea will contain the restriction (L^2 projection operator) defined on each
+   // coarse HO element (and corresponding patch of LOR elements)
+   R_ea.SetSize(offsets[nel_ho]);
+
+   if (build_P)
+   {
+      // P will contain the corresponding prolongation operator
+      P_ea.SetSize(offsets[nel_ho]);
+   }
+
+   IntegrationPointTransformation ip_tr;
+   IsoparametricTransformation &emb_tr = ip_tr.Transf;
+
+   //Gather basis functions (B_L, B_HO)
+   //and data at quadrature points
+   DenseTensor B_L, B_H, D;
+   {
+      //Assume all HO elements are LOR in the same way
+      const int iho = 0;
+      {
+         Array<int> lor_els;
+         ho2lor.GetRow(iho, lor_els);
+         int nref = ho2lor.RowSize(iho);
+
+         Geometry::Type geom = mesh_ho->GetElementBaseGeometry(iho);
+         const FiniteElement &fe_ho = *fes_ho.GetFE(iho);
+         const FiniteElement &fe_lor = *fes_lor.GetFE(lor_els[0]);
+         int ndof_ho = fe_ho.GetDof();
+         int ndof_lor = fe_lor.GetDof();
+
+         //Allocate space for DenseTensors
+         ElementTransformation *el_tr = fes_lor.GetElementTransformation(0);
+         int order = fe_lor.GetOrder() + fe_ho.GetOrder() + el_tr->OrderW();
+         const IntegrationRule* ir = &IntRules.Get(geom, order);
+         int qPts = ir->GetNPoints();
+
+         //Containers for the basis functions sampled
+         //at quadrature points
+         B_L.SetSize(qPts, fe_lor.GetDof(), nref);
+         B_H.SetSize(qPts, fe_ho.GetDof(), nref);
+         D.SetSize(qPts, nref, nel_ho);
+
+         const DofToQuad *maps_lor = &fe_lor.GetDofToQuad(*ir, DofToQuad::TENSOR);
+
+         const GeometricFactors *geo_facts =
+            mesh_lor->GetGeometricFactors(*ir, GeometricFactors::DETERMINANTS);
+
+         const int Q1D         = maps_lor->nqpt;
+
+         const int dim = mesh_ho->Dimension();
+
+         MFEM_ASSERT(nel_ho*nref == nel_lor, "we expect nel_ho*nref == nel_lor");
+
+         //*********************************
+         // Setup data at quadrature points
+         //*********************************
+         if (dim == 1)
+         {
+
+            const auto W = Reshape(ir->GetWeights().Read(), Q1D);
+            const auto J = Reshape(geo_facts->detJ.Read(), Q1D, nel_lor);
+            const auto d_D = Reshape(D.Write(), qPts, nref, nel_ho);
+
+            mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int iho)
+            {
+               for (int iref = 0; iref < nref; ++iref)
+               {
+                  const int lo_el_id = iref + nref*iho;
+                  for (int qx=0; qx<Q1D; ++qx)
+                  {
+
+                     const double detJ = J(qx, lo_el_id);
+                     d_D(qx, iref, iho) = W(qx) * detJ;
+                  }
+               }
+            });
+
+         }
+
+         if (dim == 2)
+         {
+
+            const auto W = Reshape(ir->GetWeights().Read(), Q1D, Q1D);
+            const auto J = Reshape(geo_facts->detJ.Read(), Q1D,Q1D, nel_lor);
+            const auto d_D = Reshape(D.Write(), qPts, nref, nel_ho);
+
+            mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int iho)
+            {
+               for (int iref = 0; iref < nref; ++iref)
+               {
+
+                  const int lo_el_id = iref + nref*iho;
+                  for (int qy=0; qy<Q1D; ++qy)
+                  {
+                     for (int qx=0; qx<Q1D; ++qx)
+                     {
+                        const int q = qx + Q1D*qy;
+                        const double detJ = J(qx, qy, lo_el_id);
+                        d_D(q, iref, iho) = W(qx, qy) * detJ;
+                     }
+                  }
+
+               }
+            });
+         }
+
+         if (dim == 3)
+         {
+
+            const auto W = Reshape(ir->GetWeights().Read(), Q1D, Q1D, Q1D);
+            const auto J = Reshape(geo_facts->detJ.Read(), Q1D, Q1D, Q1D, nel_lor);
+            const auto d_D = Reshape(D.Write(), qPts, nref, nel_ho);
+
+            mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int iho)
+            {
+               for (int iref = 0; iref < nref; ++iref)
+               {
+
+                  const int lo_el_id = iref + nref*iho;
+
+                  for (int qz=0; qz<Q1D; qz++)
+                  {
+                     for (int qy=0; qy<Q1D; ++qy)
+                     {
+                        for (int qx=0; qx<Q1D; ++qx)
+                        {
+
+                           const int q = qx + Q1D*qy + Q1D*Q1D*qz;
+                           const double detJ = J(qx, qy, qz, lo_el_id);
+                           d_D(q, iref, iho) = W(qx, qy, qz) * detJ;
+                        }
+                     }
+                  }
+
+               }
+            });
+         }
+
+         emb_tr.SetIdentityTransformation(geom);
+         const DenseTensor &pmats = cf_tr.point_matrices[geom];
+
+         //Collect the basis functions
+         for (int iref = 0; iref < nref; ++iref)
+         {
+
+            int ilor = lor_els[iref];
+
+            // Now assemble the block-row of the mixed mass matrix associated
+            // with integrating HO functions against LOR functions on the LOR
+            // sub-element.
+
+            // Create the transformation that embeds the fine low-order element
+            // within the coarse high-order element in reference space
+            emb_tr.SetPointMat(pmats(cf_tr.embeddings[ilor].matrix));
+
+            DenseMatrix &b_lo = B_L(ilor);
+            DenseMatrix &b_ho = B_H(ilor);
+
+            ElemMixedMass(geom, fe_ho, fe_lor, el_tr, ip_tr, b_lo, b_ho);
+
+         }//loop over subcells of ho element
+
+         //-------[End of quadrature point setup]-----
+      }//
+
+   } //Competed setup of basis function and quadrature point
+
+   //Assemble mixed mass matrix
+   Vector M_mixed_all;
+   Vector M_ea_lor;
+   int ndof_lor;
+   int ndof_ho;
+   int nref;
+   {
+      int iho = 0;
+      Array<int> lor_els;
+      ho2lor.GetRow(iho, lor_els);
+      nref = ho2lor.RowSize(iho);
+
+      Geometry::Type geom = mesh_ho->GetElementBaseGeometry(iho);
+      const FiniteElement &fe_ho = *fes_ho.GetFE(iho);
+      const FiniteElement &fe_lor = *fes_lor.GetFE(lor_els[0]);
+      ndof_ho = fe_ho.GetDof();
+      ndof_lor = fe_lor.GetDof();
+
+      M_ea_lor.SetSize(ndof_lor*ndof_lor*nel_lor);
+
+      const int qPts = D.SizeI();
+
+      M_mixed_all.SetSize(ndof_lor*ndof_ho*nref*nel_ho);
+
+      //Rows x columns
+      //Recall MFEM is column major
+
+      //rows x columns is inverted  - matrix is ndof_lor x ndof_ho
+      auto v_M_mixed_all = mfem::Reshape(M_mixed_all.Write(), ndof_lor, ndof_ho, nref,
+                                         nel_ho);
+
+      const int fe_ho_ndof = fe_ho.GetDof();
+      const int fe_lor_ndof = fe_lor.GetDof();
+
+      auto d_B_L = mfem::Reshape(B_L.Read(), qPts, fe_lor_ndof, nref);
+      auto d_B_H = mfem::Reshape(B_H.Read(), qPts, fe_ho_ndof, nref);
+      auto d_D   = mfem::Reshape(D.Read(), qPts, nref, nel_ho);
+
+      mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int iho)
+      {
+
+         for (int iref = 0; iref < nref; ++iref)
+         {
+            // (B_lo_dofs x Q) x (Q x B_ho_dofs)
+            for (int bh=0; bh<fe_ho_ndof; ++bh)
+            {
+               for (int bl=0; bl<fe_lor_ndof; ++bl)
+               {
+
+                  double dot = 0.0;
+                  for (int qi=0; qi<qPts; ++qi)
+                  {
+                     dot += d_B_L(qi, bl, iref) *  d_D(qi, iref, iho) * d_B_H(qi, bh, iref);
+                  }
+
+                  //column major storange
+                  v_M_mixed_all(bl, bh, iref, iho) = dot;
+               }
+            }
+
+         }
+      });
+   } // end of mixed assembly mass matrix
+
+
+   //R = inv(M_L) * M_mixed
+   //Need to compute M_L
+   MassIntegrator mi;
+
+   const bool add = false;
+   mi.AssembleEA(fes_lor, M_ea_lor, add);
+
+   DenseTensor MLU_ea_lor(ndof_lor, ndof_lor, nel_lor);
+
+   LibBatchSolver batchSolver(LibBatchSolver::SolveMode::INVERSE);
+   batchSolver.AssignMatrices(M_ea_lor, ndof_lor, nel_lor);
+
+   DenseTensor Minv_ear_lor(ndof_lor, ndof_lor, nel_lor);
+   batchSolver.GetInverse(Minv_ear_lor);
+
+   //compute batch inverse of M_ea_lor;
+   //mfem::Array<int> P;
+
+
+   //Recall mfem is column major
+   // ndof_lor x ndof_ho
+   auto v_M_mixed_all = mfem::Reshape(M_mixed_all.Read(), ndof_lor, ndof_ho, nref,
+                                      nel_ho);
+
+   //matrix is symmetric
+   auto v_Minv_ear_lor = mfem::Reshape(Minv_ear_lor.Read(), ndof_lor, ndof_lor,
+                                       nel_lor);
+
+   //ndof_lor x ndof_ho
+   auto v_R_ea = mfem::Reshape(R_ea.Write(), ndof_lor, nref, ndof_ho, nel_ho);
+
+   MFEM_VERIFY(nel_lor==nel_ho*nref, "nel_lor != nel_ho*nref");
+
+   // (ndofs_lor x ndofs_lor) x (ndofs_lor x ndof_ho)
+   mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int iho)
+   {
+      for (int j=0; j<ndof_ho; ++j)
+      {
+         for (int iref = 0; iref < nref; ++iref)
+         {
+            const int lor_idx = iref + iho * nref;
+            for (int i=0; i<ndof_lor; ++i)
+            {
+
+               //matrices are stored in the transpose position
+               double dot = 0.0;
+               for (int k=0; k<ndof_lor; ++k)
+               {
+                  dot += v_Minv_ear_lor(i, k, lor_idx) * v_M_mixed_all(k, j, iref, iho);
+               }
+               v_R_ea(i, iref, j, iho) = dot;
+            }
+         }
+      }
+   });
+
+   if (build_P)
+   {
+      //P = inv(R^T M_L R) * R^T M_L
+
+      //M_lor is size of ndof_lor x ndof_lor
+      //R is size of (ndof_lor x nref x ndof_ho)
+      auto v_M_ea_lor = mfem::Reshape(M_ea_lor.Read(), ndof_lor, ndof_lor, nel_lor);
+      auto v_R_ea = mfem::Reshape(R_ea.Read(), ndof_lor, nref, ndof_ho, nel_ho);
+      //R^T M_LO is of size nref x ndof_lor
+
+      //Compute R^T M_L
+      mfem::Vector RtM_L(ndof_ho*nref*ndof_lor*nel_ho);
+      auto v_RtM_L = mfem::Reshape(RtM_L.Write(), ndof_ho, ndof_lor, nref, nel_ho);
+
+      mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int e)
+      {
+
+         for (int iho=0; iho<ndof_ho; ++iho)
+         {
+            for (int iref=0; iref<nref; ++iref)
+            {
+               for (int jlo=0; jlo<ndof_lor; ++jlo)
+               {
+
+                  const int lor_idx = iref + e * nref;
+
+                  double dot = 0.0;
+                  for (int t=0; t<ndof_lor; ++t)
+                  {
+                     dot += v_R_ea(t, iref, iho, e) * v_M_ea_lor(t, jlo, lor_idx);
+                  }
+
+                  v_RtM_L(iho, jlo, iref, e) = dot;
+
+               }
+            }
+         }
+      });
+
+      //resulting matrix should be: ndof_ho x ndof_ho
+      //R^T M_L x R
+      mfem::Vector RtM_LR(ndof_ho * ndof_ho * nel_ho);
+      auto v_RtM_LR = mfem::Reshape(RtM_LR.Write(), ndof_ho, ndof_ho, nel_ho);
+
+      mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int e)
+      {
+         for (int iho=0; iho<ndof_ho; ++iho)
+         {
+            for (int jho=0; jho<ndof_ho; ++jho)
+            {
+               double dot = 0.0;
+               for (int iref=0; iref<nref; ++iref)
+               {
+                  for (int ilo=0; ilo<ndof_lor; ++ilo)
+                  {
+                     dot += v_RtM_L(iho, ilo, iref, e) *  v_R_ea(ilo, iref, jho, e);
+                  }
+               }
+               v_RtM_LR(iho, jho, e) = dot;
+            }
+         }
+      });
+
+      //recycle batch solver from above
+      batchSolver.AssignMatrices(RtM_LR, ndof_ho, nel_ho);
+
+      DenseTensor InvRtM_LR_LU(ndof_ho, ndof_ho, nel_ho);
+      batchSolver.GetInverse(InvRtM_LR_LU);
+
+
+      //Form P_ea
+      //P_ea should be of dimension (ndof_ho x ndof_ho) x (ndof_ho x nref*ndof_lor)
+      //P_ea ndof_ho x nref*ndof_lor
+      auto v_InvRtM_LR_LU = mfem::Reshape(InvRtM_LR_LU.Read(), ndof_ho, ndof_ho,
+                                          nel_ho);
+      auto v_P_ea = mfem::Reshape(P_ea.Write(), ndof_ho, ndof_lor, nref, nel_ho);
+
+      mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int e)
+      {
+         for (int iho=0; iho<ndof_ho; ++iho)
+         {
+            for (int iref=0; iref<nref; ++iref)
+            {
+               for (int ilo=0; ilo<ndof_lor; ++ilo)
+               {
+
+                  double dot = 0.0;
+                  for (int t=0; t<ndof_ho; ++t)
+                  {
+                     dot += v_InvRtM_LR_LU(iho, t, e) * v_RtM_L(t, ilo, iref, e);
+                  }
+                  v_P_ea(iho, ilo, iref, e) = dot;
+
+               }
+            }
+
+         }
+
+      });
+
+   }
 }
 
 void L2ProjectionGridTransfer::L2ProjectionL2Space::Mult(
    const Vector &x, Vector &y) const
 {
+
+   if (uniform_refinement)
+   {
+      DeviceMult(x,y);
+      if (!verify_solution) {return;}
+   }
+
+
    int vdim = fes_ho.GetVDim();
    Array<int> vdofs;
    DenseMatrix xel_mat, yel_mat;
@@ -433,11 +943,65 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::Mult(
          }
       }
    }
+
+   if (verify_solution)
+   {
+      Vector y_temp(y.Size());
+      DeviceMult(x, y_temp);
+      y_temp -= y;
+      double error = y_temp.Norml2();
+      if (error > ho_lor_tol)
+      {
+         MFEM_VERIFY(false, "Mult difference too high = "<<error);
+      }
+   }
 }
+
+void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceMult(
+   const Vector &x, Vector &y) const
+{
+   const int vdim = fes_ho.GetVDim();
+   const int iho = 0;
+   const int nref = ho2lor.RowSize(iho);
+   const int ndof_ho = fes_ho.GetFE(iho)->GetDof();
+   const int ndof_lor = fes_lor.GetFE(ho2lor.GetRow(iho)[0])->GetDof();
+   const Mesh *mesh_ho = fes_ho.GetMesh();
+   const int nel_ho = mesh_ho->GetNE();
+
+   auto v_R_ea = mfem::Reshape(R_ea.Read(), ndof_lor, nref, ndof_ho, nel_ho);
+   auto v_x    = mfem::Reshape(x.Read(), ndof_ho, nel_ho);
+   auto v_y    = mfem::Reshape(y.Write(), ndof_lor, nref, nel_ho);
+
+   mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int iho)
+   {
+      for (int i=0; i<nref; ++i)
+      {
+         for (int j=0; j<ndof_lor; ++j)
+         {
+
+            double dot = 0.0;
+            for (int k=0; k<ndof_ho; ++k)
+            {
+               dot += v_R_ea(j, i, k, iho) * v_x(k, iho);
+            }
+            v_y(j, i, iho) = dot;
+         }
+      }
+   });
+
+}
+
 
 void L2ProjectionGridTransfer::L2ProjectionL2Space::MultTranspose(
    const Vector &x, Vector &y) const
 {
+
+   if (uniform_refinement)
+   {
+      DeviceMult(x,y);
+      if (!verify_solution) {return;}
+   }
+
    int vdim = fes_ho.GetVDim();
    Array<int> vdofs;
    DenseMatrix xel_mat, yel_mat;
@@ -468,11 +1032,65 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::MultTranspose(
       fes_ho.GetElementVDofs(iho, vdofs);
       y.AddElementVector(vdofs, yel_mat.GetData());
    }
+
+   if (verify_solution)
+   {
+      Vector y_temp(y.Size());
+      DeviceMultTranspose(x, y_temp);
+      y_temp -= y;
+      double error = y_temp.Norml2();
+      if (error > ho_lor_tol)
+      {
+         MFEM_VERIFY(false, "MultTranspose difference too high = "<<error);
+      }
+   }
+
+}
+
+void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceMultTranspose(
+   const Vector &x, Vector &y) const
+{
+   const int vdim = fes_ho.GetVDim();
+   const int iho = 0;
+   const int nref = ho2lor.RowSize(iho);
+   const int ndof_ho = fes_ho.GetFE(iho)->GetDof();
+   const int ndof_lor = fes_lor.GetFE(ho2lor.GetRow(iho)[0])->GetDof();
+   const Mesh *mesh_ho = fes_ho.GetMesh();
+   const int nel_ho = mesh_ho->GetNE();
+
+   auto v_R_ea = mfem::Reshape(R_ea.Read(), ndof_lor, nref, ndof_ho, nel_ho);
+   auto v_x    = mfem::Reshape(x.Read(), ndof_lor, nref, nel_ho);
+   auto v_y    = mfem::Reshape(y.Write(), ndof_ho, nel_ho);
+
+   mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int iho)
+   {
+      for (int k=0; k<ndof_ho; ++k)
+      {
+
+         double dot = 0.0;
+         for (int i=0; i<nref; ++i)
+         {
+            for (int j=0; j<ndof_lor; ++j)
+            {
+               dot += v_R_ea(j, i, k, iho) * v_x(j, i, iho);
+            }
+
+            v_y(k, iho) = dot;
+         }
+      }
+   });
 }
 
 void L2ProjectionGridTransfer::L2ProjectionL2Space::Prolongate(
    const Vector &x, Vector &y) const
 {
+
+   if (uniform_refinement)
+   {
+      DeviceProlongate(x,y);
+      if (!verify_solution) {return;}
+   }
+
    if (fes_ho.GetNE() == 0) { return; }
    MFEM_VERIFY(P.Size() > 0, "Prolongation not supported for these spaces.")
    int vdim = fes_ho.GetVDim();
@@ -505,11 +1123,68 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::Prolongate(
       fes_ho.GetElementVDofs(iho, vdofs);
       y.AddElementVector(vdofs, yel_mat.GetData());
    }
+
+   if (verify_solution)
+   {
+      Vector y_temp(y.Size());
+      DeviceProlongate(x, y_temp);
+      y_temp -= y;
+      double error = y_temp.Norml2();
+      if (error > ho_lor_tol)
+      {
+         MFEM_VERIFY(false, "Prolongate difference too high = "<<error);
+      }
+   }
+
+}
+
+void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceProlongate(
+   const Vector &x, Vector &y) const
+{
+
+   const int vdim = fes_ho.GetVDim();
+   const int iho = 0;
+   const int nref = ho2lor.RowSize(iho);
+   const int ndof_ho = fes_ho.GetFE(iho)->GetDof();
+   const int ndof_lor = fes_lor.GetFE(ho2lor.GetRow(iho)[0])->GetDof();
+   const Mesh *mesh_ho = fes_ho.GetMesh();
+   const int nel_ho = mesh_ho->GetNE();
+
+   auto v_P_ea = mfem::Reshape(P_ea.Read(), ndof_ho, ndof_lor, nref, nel_ho);
+   auto v_x    = mfem::Reshape(x.Read(), ndof_lor, nref, nel_ho);
+   auto v_y    = mfem::Reshape(y.Write(), ndof_ho, nel_ho);
+
+   mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int e)
+   {
+      for (int iho=0; iho<ndof_ho; ++iho)
+      {
+
+         double dot = 0.0;
+         for (int iref=0; iref<nref; ++iref)
+         {
+            for (int ilo=0; ilo<ndof_lor; ++ilo)
+            {
+               dot += v_P_ea(iho, ilo, iref, e) * v_x(ilo, iref, e);
+            }
+         }
+         v_y(iho, e) = dot;
+
+      }
+   });
+
 }
 
 void L2ProjectionGridTransfer::L2ProjectionL2Space::ProlongateTranspose(
    const Vector &x, Vector &y) const
 {
+
+   if (uniform_refinement)
+   {
+      DeviceProlongateTranspose(x,y);
+      if (!verify_solution) {return;}
+   }
+
+
    if (fes_ho.GetNE() == 0) { return; }
    MFEM_VERIFY(P.Size() > 0, "Prolongation not supported for these spaces.")
    int vdim = fes_ho.GetVDim();
@@ -540,6 +1215,56 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::ProlongateTranspose(
          }
       }
    }
+
+   if (verify_solution)
+   {
+      Vector y_temp(y.Size());
+      DeviceProlongateTranspose(x, y_temp);
+      y_temp -= y;
+      double error = y_temp.Norml2();
+      if (error > ho_lor_tol)
+      {
+         MFEM_VERIFY(false, "Prolongate transpose difference too high = "<<error);
+      }
+   }
+
+}
+
+void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceProlongateTranspose(
+   const Vector &x, Vector &y) const
+{
+
+   const int vdim = fes_ho.GetVDim();
+   const int iho = 0;
+   const int nref = ho2lor.RowSize(iho);
+   const int ndof_ho = fes_ho.GetFE(iho)->GetDof();
+   const int ndof_lor = fes_lor.GetFE(ho2lor.GetRow(iho)[0])->GetDof();
+   const Mesh *mesh_ho = fes_ho.GetMesh();
+   const int nel_ho = mesh_ho->GetNE();
+
+   auto v_P_ea = mfem::Reshape(P_ea.Read(), ndof_ho, ndof_lor, nref, nel_ho);
+   auto v_x    = mfem::Reshape(x.Read(), ndof_ho, nel_ho);
+   auto v_y    = mfem::Reshape(y.Write(), ndof_lor, nref, nel_ho);
+
+   //for (int e = 0; e < nel_ho; ++e)
+   mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int e)
+   {
+      for (int iref=0; iref<nref; ++iref)
+      {
+         for (int ilo=0; ilo<ndof_lor; ++ilo)
+         {
+
+            double dot = 0.0;
+            for (int iho=0; iho<ndof_ho; ++iho)
+            {
+               dot += v_P_ea(iho, ilo, iref, e) * v_x(iho, e);
+            }
+            v_y(ilo, iref, e) = dot;
+
+         }
+      }
+   });
+
 }
 
 L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
@@ -1154,7 +1879,8 @@ void L2ProjectionGridTransfer::BuildF()
    }
    else
    {
-      F = new L2ProjectionL2Space(dom_fes, ran_fes);
+      F = new L2ProjectionL2Space(dom_fes, ran_fes, uniform_refinement,
+                                  verify_solution);
    }
 }
 
