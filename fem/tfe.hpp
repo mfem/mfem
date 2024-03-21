@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -24,9 +24,9 @@ namespace mfem
     element.
     For tensor product evaluation, this is only called on the 1D reference
     element, and higher dimensions are put together from that.
-    The element mass matrix can be written \f$ M_E = B^T D_E B \f$ where the B
+    The element mass matrix can be written $ M_E = B^T D_E B $ where the B
     built here is the B, and is unchanging across the mesh. The diagonal matrix
-    \f$ D_E \f$ then contains all the element-specific geometry and physics data.
+    $ D_E $ then contains all the element-specific geometry and physics data.
     @param fe the element we are calculating on
     @param ir the integration rule to calculate the shape matrix on
     @param B must be (nip x dof) with column major storage
@@ -58,12 +58,12 @@ void CalcShapeMatrix(const FiniteElement &fe, const IntegrationRule &ir,
     For tensor product evaluation, this is only called on the 1D reference
     element, and higher dimensions are put together from that.
     The element stiffness matrix can be written
-    \f[
+    $$
        S_E = \sum_{k=1}^{nq} G_{k,i}^T (D_E^G)_{k,k} G_{k,j}
-    \f]
-    where \f$ nq \f$ is the number of quadrature points, \f$ D_E^G \f$ contains
+    $$
+    where $ nq $ is the number of quadrature points, $ D_E^G $ contains
     all the information about the element geometry and coefficients (Jacobians
-    etc.), and \f$ G \f$ is the matrix built in this routine, which is the same
+    etc.), and $ G $ is the matrix built in this routine, which is the same
     for all elements in a mesh.
     @param fe the element we are calculating on
     @param ir the integration rule to calculate the gradients on

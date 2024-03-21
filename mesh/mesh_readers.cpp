@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1280,9 +1280,10 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
                  curved, read_gf, finalize_topo);
 } // end ReadVTKMesh
 
-void Mesh::ReadNURBSMesh(std::istream &input, int &curved, int &read_gf)
+void Mesh::ReadNURBSMesh(std::istream &input, int &curved, int &read_gf,
+                         bool spacing)
 {
-   NURBSext = new NURBSExtension(input);
+   NURBSext = new NURBSExtension(input, spacing);
 
    Dim              = NURBSext->Dimension();
    NumOfVertices    = NURBSext->GetNV();

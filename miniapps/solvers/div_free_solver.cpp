@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -12,17 +12,11 @@
 #include "div_free_solver.hpp"
 
 using namespace std;
-using namespace mfem;
-using namespace blocksolvers;
 
-void SetOptions(IterativeSolver& solver, const IterSolveParameters& param)
+namespace mfem
 {
-   solver.SetPrintLevel(param.print_level);
-   solver.SetMaxIter(param.max_iter);
-   solver.SetAbsTol(param.abs_tol);
-   solver.SetRelTol(param.rel_tol);
-}
-
+namespace blocksolvers
+{
 HypreParMatrix* TwoStepsRAP(const HypreParMatrix& Rt, const HypreParMatrix& A,
                             const HypreParMatrix& P)
 {
@@ -53,9 +47,12 @@ DFSSpaces::DFSSpaces(int order, int num_refine, ParMesh *mesh,
    : hdiv_fec_(order, mesh->Dimension()), l2_fec_(order, mesh->Dimension()),
      l2_0_fec_(0, mesh->Dimension()), ess_bdr_attr_(ess_attr), level_(0)
 {
-   if (mesh->GetElement(0)->GetType() == Element::TETRAHEDRON && order)
+   if (mesh->GetNE() > 0)
    {
-      mfem_error("DFSDataCollector: High order spaces on tetrahedra are not supported");
+      if (mesh->GetElement(0)->GetType() == Element::TETRAHEDRON && order)
+      {
+         MFEM_ABORT("DFSDataCollector: High order spaces on tetrahedra are not supported");
+      }
    }
 
    data_.param = param;
@@ -167,13 +164,14 @@ void DFSSpaces::CollectDFSData()
 
    GetP(data_.P_hcurl[level_], coarse_hcurl_fes_, *hcurl_fes_, true);
 
-   Vector trash1(hcurl_fes_->GetVSize()), trash2(hdiv_fes_->GetVSize());
    ParDiscreteLinearOperator curl(hcurl_fes_.get(), hdiv_fes_.get());
    curl.AddDomainInterpolator(new CurlInterpolator);
    curl.Assemble();
-   curl.EliminateTrialDofs(ess_bdr_attr_, trash1, trash2);
    curl.Finalize();
    data_.C[level_+1].Reset(curl.ParallelAssemble());
+   mfem::Array<int> ess_hcurl_tdof;
+   hcurl_fes_->GetEssentialTrueDofs(ess_bdr_attr_, ess_hcurl_tdof);
+   data_.C[level_+1].As<HypreParMatrix>()->EliminateCols(ess_hcurl_tdof);
 
    ++level_;
 
@@ -314,37 +312,6 @@ void SaddleSchwarzSmoother::Mult(const Vector & x, Vector & y) const
    blk_y.GetBlock(1) -= coarse_l2_projection;
 }
 
-BDPMinresSolver::BDPMinresSolver(HypreParMatrix& M, HypreParMatrix& B,
-                                 IterSolveParameters param)
-   : DarcySolver(M.NumRows(), B.NumRows()), op_(offsets_), prec_(offsets_),
-     BT_(B.Transpose()), solver_(M.GetComm())
-{
-   op_.SetBlock(0,0, &M);
-   op_.SetBlock(0,1, BT_.As<HypreParMatrix>());
-   op_.SetBlock(1,0, &B);
-
-   Vector Md;
-   M.GetDiag(Md);
-   BT_.As<HypreParMatrix>()->InvScaleRows(Md);
-   S_.Reset(ParMult(&B, BT_.As<HypreParMatrix>()));
-   BT_.As<HypreParMatrix>()->ScaleRows(Md);
-
-   prec_.SetDiagonalBlock(0, new HypreDiagScale(M));
-   prec_.SetDiagonalBlock(1, new HypreBoomerAMG(*S_.As<HypreParMatrix>()));
-   static_cast<HypreBoomerAMG&>(prec_.GetDiagonalBlock(1)).SetPrintLevel(0);
-   prec_.owns_blocks = true;
-
-   SetOptions(solver_, param);
-   solver_.SetOperator(op_);
-   solver_.SetPreconditioner(prec_);
-}
-
-void BDPMinresSolver::Mult(const Vector & x, Vector & y) const
-{
-   solver_.Mult(x, y);
-   for (int dof : ess_zero_dofs_) { y[dof] = 0.0; }
-}
-
 DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
                              const DFSData& data)
    : DarcySolver(M.NumRows(), B.NumRows()), data_(data), param_(data.param),
@@ -360,8 +327,8 @@ DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
 
    for (int l = data.P_l2.size(); l >= 0; --l)
    {
-      auto& M_f = static_cast<HypreParMatrix&>(ops_[l]->GetBlock(0, 0));
-      auto& B_f = static_cast<HypreParMatrix&>(ops_[l]->GetBlock(1, 0));
+      auto& M_f = static_cast<const HypreParMatrix&>(ops_[l]->GetBlock(0, 0));
+      auto& B_f = static_cast<const HypreParMatrix&>(ops_[l]->GetBlock(1, 0));
 
       if (l == 0)
       {
@@ -586,7 +553,7 @@ void DivFreeSolver::Mult(const Vector & x, Vector & y) const
       ch.Clear();
       ch.Start();
 
-      auto M = dynamic_cast<HypreParMatrix&>(ops_.Last()->GetBlock(0, 0));
+      auto& M = dynamic_cast<const HypreParMatrix&>(ops_.Last()->GetBlock(0, 0));
       M.Mult(-1.0, correction.GetBlock(0), 1.0, resid.GetBlock(0));
       SolvePotential(resid.GetBlock(0), correction.GetBlock(1));
       blk_y.GetBlock(1) += correction.GetBlock(1);
@@ -606,3 +573,5 @@ int DivFreeSolver::GetNumIterations() const
    }
    return solver_.As<IterativeSolver>()->GetNumIterations();
 }
+} // namespace blocksolvers
+} // namespace mfem
