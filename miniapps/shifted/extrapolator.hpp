@@ -93,7 +93,7 @@ public:
    using VectorCoefficient::Eval;
 
    virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip)
+                     const IntegrationPoint &ip) const
    {
       Vector grad_ls(vdim), n(vdim);
       ls_gf.GetGradient(T, grad_ls);
@@ -116,7 +116,7 @@ private:
 public:
    GradComponentCoeff(const ParGridFunction &u, int c) : u_gf(u), comp(c) { }
 
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip) const
    {
       Vector grad_u(T.GetDimension());
       u_gf.GetGradient(T, grad_u);
@@ -134,7 +134,7 @@ public:
    NormalGradCoeff(const ParGridFunction &u, VectorCoefficient &n)
       : u_gf(u), n_coeff(n) { }
 
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip) const
    {
       const int dim = T.GetDimension();
       Vector n(dim), grad_u(dim);
@@ -155,7 +155,7 @@ public:
                             const ParGridFunction &dy, VectorCoefficient &n)
       : du_dx(dx), du_dy(dy), n_coeff(n) { }
 
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip) const
    {
       const int dim = T.GetDimension();
       Vector n(dim), grad_u(dim);

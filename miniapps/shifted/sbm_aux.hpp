@@ -143,7 +143,7 @@ public:
    Dist_Level_Set_Coefficient(int type_)
       : Coefficient(), type(type_) { }
 
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip) const
    {
       Vector x(3);
       T.Transform(ip, x);
@@ -166,7 +166,7 @@ public:
 
    int GetNLevelSets() { return dls.Size(); }
 
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip) const
    {
       MFEM_VERIFY(dls.Size() > 0,
                   "Add at least 1 Dist_level_Set_Coefficient to the Combo.");
@@ -192,7 +192,7 @@ public:
    using VectorCoefficient::Eval;
 
    virtual void Eval(Vector &p, ElementTransformation &T,
-                     const IntegrationPoint &ip)
+                     const IntegrationPoint &ip) const
    {
       Vector x;
       T.Transform(ip, x);

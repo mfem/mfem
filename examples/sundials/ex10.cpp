@@ -195,7 +195,7 @@ private:
 public:
    ElasticEnergyCoefficient(HyperelasticModel &m, const GridFunction &x_)
       : model(m), x(x_) { }
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip) const;
    virtual ~ElasticEnergyCoefficient() { }
 };
 
@@ -798,7 +798,7 @@ HyperelasticOperator::~HyperelasticOperator()
 
 
 double ElasticEnergyCoefficient::Eval(ElementTransformation &T,
-                                      const IntegrationPoint &ip)
+                                      const IntegrationPoint &ip) const
 {
    model.SetTransformation(T);
    x.GetVectorGradient(T, J);

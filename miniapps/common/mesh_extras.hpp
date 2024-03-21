@@ -76,20 +76,20 @@ public:
    }
 
    // 1D transformation at the right boundary.
-   double right(const double eps, const double x)
+   double right(const double eps, const double x) const
    {
       return (x <= 0.5) ? (2-eps) * x : 1 + eps*(x-1);
    }
 
    // 1D transformation at the left boundary
-   double left(const double eps, const double x)
+   double left(const double eps, const double x) const
    {
       return 1-right(eps,1-x);
    }
 
    // Transition from a value of "a" for x=0, to a value of "b" for x=1.
    // Controlled through "smooth" parameter.
-   double step(const double a, const double b, double x)
+   double step(const double a, const double b, double x) const
    {
       if (x <= 0) { return a; }
       if (x >= 1) { return b; }
@@ -99,7 +99,7 @@ public:
    }
 
    virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+                     const IntegrationPoint &ip) const;
 
    using VectorCoefficient::Eval;
 };

@@ -81,7 +81,7 @@ public:
    PmlCoefficient(double (*F)(const Vector &, CartesianPML *), CartesianPML * pml_)
       : pml(pml_), Function(F)
    {}
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip) const
    {
       double x[3];
       Vector transip(x, 3);
@@ -102,7 +102,7 @@ public:
       : MatrixCoefficient(dim), pml(pml_), Function(F)
    {}
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
-                     const IntegrationPoint &ip)
+                     const IntegrationPoint &ip) const
    {
       double x[3];
       Vector transip(x, 3);

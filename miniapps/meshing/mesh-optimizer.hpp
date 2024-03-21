@@ -139,7 +139,7 @@ public:
       : TMOPMatrixCoefficient(dim), metric(metric_id) { }
 
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
-                     const IntegrationPoint &ip)
+                     const IntegrationPoint &ip) const
    {
       Vector pos(3);
       T.Transform(ip, pos);
@@ -250,7 +250,7 @@ public:
         hr_target_type(hr_target_type_) { }
 
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
-                     const IntegrationPoint &ip)
+                     const IntegrationPoint &ip) const
    {
       Vector pos(3);
       T.Transform(ip, pos);

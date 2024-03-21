@@ -16,7 +16,7 @@ namespace mfem
 
 double ShiftedFunctionCoefficient::Eval(ElementTransformation & T,
                                         const IntegrationPoint & ip,
-                                        const Vector &D)
+                                        const Vector &D) const
 {
    if (constantcoefficient) { return constant; }
 
@@ -33,7 +33,7 @@ double ShiftedFunctionCoefficient::Eval(ElementTransformation & T,
 void ShiftedVectorFunctionCoefficient::Eval(Vector &V,
                                             ElementTransformation & T,
                                             const IntegrationPoint & ip,
-                                            const Vector &D)
+                                            const Vector &D) const
 {
    Vector transip;
    T.Transform(ip, transip);

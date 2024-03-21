@@ -4449,7 +4449,7 @@ double ComputeElementLpDistance(double p, int i,
 
 
 double ExtrudeCoefficient::Eval(ElementTransformation &T,
-                                const IntegrationPoint &ip)
+                                const IntegrationPoint &ip) const
 {
    ElementTransformation *T_in =
       mesh_in->GetElementTransformation(T.ElementNo / n);

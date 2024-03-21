@@ -874,7 +874,8 @@ private:
 public:
    ExtrudeCoefficient(Mesh *m, Coefficient &s, int n_)
       : n(n_), mesh_in(m), sol_in(s) { }
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+   using Coefficient::Eval;
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip) const;
    virtual ~ExtrudeCoefficient() { }
 };
 

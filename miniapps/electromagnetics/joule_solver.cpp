@@ -902,7 +902,7 @@ void MagneticDiffusionEOperator::Debug(const char *base, double)
 }
 
 double JouleHeatingCoefficient::Eval(ElementTransformation &T,
-                                     const IntegrationPoint &ip)
+                                     const IntegrationPoint &ip) const
 {
    Vector E;
    double thisSigma;
@@ -930,7 +930,7 @@ MeshDependentCoefficient::MeshDependentCoefficient(
 }
 
 double MeshDependentCoefficient::Eval(ElementTransformation &T,
-                                      const IntegrationPoint &ip)
+                                      const IntegrationPoint &ip) const
 {
    // given the attribute, extract the coefficient value from the map
    std::map<int, double>::iterator it;
@@ -957,7 +957,7 @@ ScaledGFCoefficient::ScaledGFCoefficient(GridFunction *gf,
    : GridFunctionCoefficient(gf), mdc(input_mdc) {}
 
 double ScaledGFCoefficient::Eval(ElementTransformation &T,
-                                 const IntegrationPoint &ip)
+                                 const IntegrationPoint &ip) const
 {
    return mdc.Eval(T,ip) * GridFunctionCoefficient::Eval(T,ip);
 }

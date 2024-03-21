@@ -50,7 +50,7 @@ public:
    virtual void SetTime(double t) { time = t; }
 
    /// Get the time for time dependent coefficients
-   double GetTime() { return time; }
+   double GetTime() const { return time; }
 
    /** @brief Evaluate the coefficient in the element described by @a T at the
        point @a ip. */
@@ -58,7 +58,18 @@ public:
        IntegrationPoint associated with @a T is the same as @a ip. This can be
        achieved by calling T.SetIntPoint(&ip). */
    virtual double Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip) = 0;
+                       const IntegrationPoint &ip) const
+   {
+      mfem_error ("Coefficient::Eval(...) const\n"
+                  "   is not implemented for this class.");
+      return 0.0;
+   }
+
+   /** @deprecated Overload the const- version of this member function instead*/
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      return const_cast<const Coefficient*>(this)->Eval(T,ip);
+   }
 
    /** @brief Evaluate the coefficient in the element described by @a T at the
        point @a ip at time @a t. */
@@ -74,7 +85,7 @@ public:
 
    /// @brief Fill the QuadratureFunction @a qf by evaluating the coefficient at
    /// the quadrature points.
-   virtual void Project(QuadratureFunction &qf);
+   virtual void Project(QuadratureFunction &qf) const;
 
    virtual ~Coefficient() { }
 };
@@ -89,13 +100,14 @@ public:
    /// c is value of constant function
    explicit ConstantCoefficient(double c = 1.0) { constant=c; }
 
+   using Coefficient::Eval;
    /// Evaluate the coefficient at @a ip.
    virtual double Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip)
+                       const IntegrationPoint &ip) const
    { return (constant); }
 
    /// Fill the QuadratureFunction @a qf with the constant value.
-   void Project(QuadratureFunction &qf);
+   void Project(QuadratureFunction &qf) const;
 };
 
 /** @brief A piecewise constant coefficient with the constants keyed
@@ -127,11 +139,12 @@ public:
    void operator=(double c) { constants = c; }
 
    /// Returns the number of constants representing different attributes.
-   int GetNConst() { return constants.Size(); }
+   int GetNConst() const { return constants.Size(); }
 
+   using Coefficient::Eval;
    /// Evaluate the coefficient.
    virtual double Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip);
+                       const IntegrationPoint &ip) const;
 };
 
 /** @brief A piecewise coefficient with the pieces keyed off the element
@@ -210,9 +223,10 @@ public:
    void ZeroCoefficient(int attr)
    { pieces.erase(attr); }
 
+   using Coefficient::Eval;
    /// Evaluate the coefficient.
    virtual double Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip);
+                       const IntegrationPoint &ip) const;
 };
 
 /// A general function coefficient
@@ -253,9 +267,10 @@ public:
       TDFunction = reinterpret_cast<double(*)(const Vector&,double)>(tdf);
    }
 
+   using Coefficient::Eval;
    /// Evaluate the coefficient at @a ip.
    virtual double Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip);
+                       const IntegrationPoint &ip) const;
 };
 
 /// A common base class for returning individual components of the domain's
@@ -270,9 +285,10 @@ protected:
    CartesianCoefficient(int comp_) : comp(comp_), transip(3) {}
 
 public:
+   using Coefficient::Eval;
    /// Evaluate the coefficient at @a ip.
    virtual double Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip);
+                       const IntegrationPoint &ip) const;
 };
 
 /// Scalar coefficient which returns the x-component of the evaluation point
@@ -306,9 +322,10 @@ private:
 public:
    CylindricalRadialCoefficient() : transip(3) {}
 
+   using Coefficient::Eval;
    /// Evaluate the coefficient at @a ip.
    virtual double Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip);
+                       const IntegrationPoint &ip) const;
 };
 
 /// Scalar coefficient which returns the angular position or azimuth (often
@@ -322,9 +339,10 @@ private:
 public:
    CylindricalAzimuthalCoefficient() : transip(3) {}
 
+   using Coefficient::Eval;
    /// Evaluate the coefficient at @a ip.
    virtual double Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip);
+                       const IntegrationPoint &ip) const;
 };
 
 /// Scalar coefficient which returns the height or altitude of
@@ -341,9 +359,10 @@ private:
 public:
    SphericalRadialCoefficient() : transip(3) {}
 
+   using Coefficient::Eval;
    /// Evaluate the coefficient at @a ip.
    virtual double Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip);
+                       const IntegrationPoint &ip) const;
 };
 
 /// Scalar coefficient which returns the azimuthal angle (often denoted by phi)
@@ -356,9 +375,10 @@ private:
 public:
    SphericalAzimuthalCoefficient() : transip(3) {}
 
+   using Coefficient::Eval;
    /// Evaluate the coefficient at @a ip.
    virtual double Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip);
+                       const IntegrationPoint &ip) const;
 };
 
 /// Scalar coefficient which returns the polar angle (often denoted by theta)
@@ -371,9 +391,10 @@ private:
 public:
    SphericalPolarCoefficient() : transip(3) {}
 
+   using Coefficient::Eval;
    /// Evaluate the coefficient at @a ip.
    virtual double Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip);
+                       const IntegrationPoint &ip) const;
 };
 
 class GridFunction;
@@ -398,16 +419,17 @@ public:
    /// Get the internal GridFunction
    const GridFunction * GetGridFunction() const { return GridF; }
 
+   using Coefficient::Eval;
    /// Evaluate the coefficient at @a ip.
    virtual double Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip);
+                       const IntegrationPoint &ip) const;
 
    /// @brief Fill the QuadratureFunction @a qf by evaluating the coefficient at
    /// the quadrature points.
    ///
    /// This function uses the efficient QuadratureFunction::ProjectGridFunction
    /// to fill the QuadratureFunction.
-   virtual void Project(QuadratureFunction &qf);
+   virtual void Project(QuadratureFunction &qf) const;
 };
 
 
@@ -435,8 +457,9 @@ public:
    /// Set the time for internally stored coefficients
    void SetTime(double t);
 
+   using Coefficient::Eval;
    /// Evaluate the coefficient at @a ip.
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip) const;
 };
 
 /** @brief Delta function coefficient optionally multiplied by a weight
@@ -519,22 +542,25 @@ public:
    /** @brief Return the scale factor times the optional time dependent
        function.  Returns $ s T(t) $ with $ T(t) = 1 $ when
        not set by the user. */
-   double Scale() { return tdf ? (*tdf)(GetTime())*scale : scale; }
+   double Scale() const { return tdf ? (*tdf)(GetTime())*scale : scale; }
 
    /// Return the tolerance used to identify the mesh vertices
-   double Tol() { return tol; }
+   double Tol() const { return tol; }
 
    /// See SetWeight() for description of the weight Coefficient.
    Coefficient *Weight() { return weight; }
 
    /// Write the center of the delta function into @a center.
-   void GetDeltaCenter(Vector& center);
+   void GetDeltaCenter(Vector& center) const;
 
    /// The value of the function assuming we are evaluating at the delta center.
-   virtual double EvalDelta(ElementTransformation &T, const IntegrationPoint &ip);
+   virtual double EvalDelta(ElementTransformation &T,
+                            const IntegrationPoint &ip) const;
+
+   using Coefficient::Eval;
    /** @brief A DeltaFunction cannot be evaluated. Calling this method will
        cause an MFEM error, terminating the application. */
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip) const
    { mfem_error("DeltaCoefficient::Eval"); return 0.; }
    virtual ~DeltaCoefficient() { delete weight; }
 };
@@ -557,8 +583,9 @@ public:
    /// Set the time for internally stored coefficients
    void SetTime(double t);
 
+   using Coefficient::Eval;
    /// Evaluate the coefficient at @a ip.
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip) const
    { return active_attr[T.Attribute-1] ? c->Eval(T, ip, GetTime()) : 0.0; }
 };
 
@@ -577,10 +604,10 @@ public:
    virtual void SetTime(double t) { time = t; }
 
    /// Get the time for time dependent coefficients
-   double GetTime() { return time; }
+   double GetTime() const { return time; }
 
    /// Returns dimension of the vector.
-   int GetVDim() { return vdim; }
+   int GetVDim() const { return vdim; }
 
    /** @brief Evaluate the vector coefficient in the element described by @a T
        at the point @a ip, storing the result in @a V. */
@@ -588,7 +615,19 @@ public:
        IntegrationPoint associated with @a T is the same as @a ip. This can be
        achieved by calling T.SetIntPoint(&ip). */
    virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip) = 0;
+                     const IntegrationPoint &ip) const
+   {
+      mfem_error ("VectorCoefficient::Eval(...) const\n"
+                  "   is not implemented for this class.");
+   }
+
+   /** @deprecated Use/overload the const- version of this member function instead */
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   {
+      const_cast<const VectorCoefficient*>(this)->Eval(V, T, ip);
+   }
+
 
    /** @brief Evaluate the vector coefficient in the element described by @a T
        at all points of @a ir, storing the result in @a M. */
@@ -603,14 +642,14 @@ public:
        method will generally modify this IntegrationPoint associated with @a T.
    */
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
-                     const IntegrationRule &ir);
+                     const IntegrationRule &ir) const;
 
    /// @brief Fill the QuadratureFunction @a qf by evaluating the coefficient at
    /// the quadrature points.
    ///
    /// The @a vdim of the VectorCoefficient should be equal to the @a vdim of
    /// the QuadratureFunction.
-   virtual void Project(QuadratureFunction &qf);
+   virtual void Project(QuadratureFunction &qf) const;
 
    virtual ~VectorCoefficient() { }
 };
@@ -629,7 +668,7 @@ public:
 
    ///  Evaluate the vector coefficient at @a ip.
    virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip) { V = vec; }
+                     const IntegrationPoint &ip) const { V = vec; }
 
    /// Return a reference to the constant vector in this class.
    const Vector& GetVec() const { return vec; }
@@ -714,7 +753,7 @@ public:
 
    /// Evaluate the coefficient.
    virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+                     const IntegrationPoint &ip) const;
    using VectorCoefficient::Eval;
 };
 
@@ -729,7 +768,7 @@ public:
    using VectorCoefficient::Eval;
    /// Evaluate the vector coefficient at @a ip.
    virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+                     const IntegrationPoint &ip) const;
 
    virtual ~PositionVectorCoefficient() { }
 };
@@ -763,10 +802,13 @@ public:
       : VectorCoefficient(dim), TDFunction(std::move(TDF)), Q(q)
    { }
 
+   /// Set the time for time dependent coefficients
+   virtual void SetTime(double t);
+
    using VectorCoefficient::Eval;
    /// Evaluate the vector coefficient at @a ip.
    virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+                     const IntegrationPoint &ip) const;
 
    virtual ~VectorFunctionCoefficient() { }
 };
@@ -800,14 +842,14 @@ public:
 
    /// Evaluates i'th component of the vector of coefficients and returns the
    /// value.
-   double Eval(int i, ElementTransformation &T, const IntegrationPoint &ip)
+   double Eval(int i, ElementTransformation &T, const IntegrationPoint &ip) const
    { return Coeff[i] ? Coeff[i]->Eval(T, ip, GetTime()) : 0.0; }
 
    using VectorCoefficient::Eval;
    /** @brief Evaluate the coefficient. Each element of vector V comes from the
        associated array of scalar coefficients. */
    virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+                     const IntegrationPoint &ip) const;
 
    /// Destroys vector coefficient.
    virtual ~VectorArrayCoefficient();
@@ -835,22 +877,23 @@ public:
    ///  Returns a pointer to the grid function in this Coefficient
    const GridFunction * GetGridFunction() const { return GridFunc; }
 
+   using VectorCoefficient::Eval;
    /// Evaluate the vector coefficient at @a ip.
    virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+                     const IntegrationPoint &ip) const;
 
    /** @brief Evaluate the vector coefficients at all of the locations in the
        integration rule and write the vectors into the columns of matrix @a
        M. */
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
-                     const IntegrationRule &ir);
+                     const IntegrationRule &ir) const;
 
    /// @brief Fill the QuadratureFunction @a qf by evaluating the coefficient at
    /// the quadrature points.
    ///
    /// This function uses the efficient QuadratureFunction::ProjectGridFunction
    /// to fill the QuadratureFunction.
-   virtual void Project(QuadratureFunction &qf);
+   virtual void Project(QuadratureFunction &qf) const;
 
    virtual ~VectorGridFunctionCoefficient() { }
 };
@@ -873,15 +916,16 @@ public:
    ///Get the scalar grid function.
    const GridFunction * GetGridFunction() const { return GridFunc; }
 
+   using VectorCoefficient::Eval;
    /// Evaluate the gradient vector coefficient at @a ip.
    virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+                     const IntegrationPoint &ip) const;
 
    /** @brief Evaluate the gradient vector coefficient at all of the locations
        in the integration rule and write the vectors into columns of matrix @a
        M. */
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
-                     const IntegrationRule &ir);
+                     const IntegrationRule &ir) const;
 
    virtual ~GradientGridFunctionCoefficient() { }
 };
@@ -906,7 +950,7 @@ public:
    using VectorCoefficient::Eval;
    /// Evaluate the vector curl coefficient at @a ip.
    virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+                     const IntegrationPoint &ip) const;
 
    virtual ~CurlGridFunctionCoefficient() { }
 };
@@ -928,9 +972,10 @@ public:
    /// Get the vector grid function.
    const GridFunction * GetGridFunction() const { return GridFunc; }
 
+   using Coefficient::Eval;
    /// Evaluate the scalar divergence coefficient at @a ip.
    virtual double Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip);
+                       const IntegrationPoint &ip) const;
 
    virtual ~DivergenceGridFunctionCoefficient() { }
 };
@@ -987,19 +1032,19 @@ public:
    void SetDirection(const Vector& d_);
 
    void SetDeltaCenter(const Vector& center) { d.SetDeltaCenter(center); }
-   void GetDeltaCenter(Vector& center) { d.GetDeltaCenter(center); }
+   void GetDeltaCenter(Vector& center) const { d.GetDeltaCenter(center); }
 
    /** @brief Return the specified direction vector multiplied by the value
        returned by DeltaCoefficient::EvalDelta() of the associated scalar
        DeltaCoefficient. */
    virtual void EvalDelta(Vector &V, ElementTransformation &T,
-                          const IntegrationPoint &ip);
+                          const IntegrationPoint &ip) const;
 
    using VectorCoefficient::Eval;
    /** @brief A VectorDeltaFunction cannot be evaluated. Calling this method
        will cause an MFEM error, terminating the application. */
    virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip)
+                     const IntegrationPoint &ip) const
    { mfem_error("VectorDeltaCoefficient::Eval"); }
    virtual ~VectorDeltaCoefficient() { }
 };
@@ -1023,15 +1068,16 @@ public:
    /// Set the time for internally stored coefficients
    void SetTime(double t);
 
+   using VectorCoefficient::Eval;
    /// Evaluate the vector coefficient at @a ip.
    virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+                     const IntegrationPoint &ip) const;
 
    /** @brief Evaluate the vector coefficient at all of the locations in the
        integration rule and write the vectors into the columns of matrix @a
        M. */
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
-                     const IntegrationRule &ir);
+                     const IntegrationRule &ir) const;
 };
 
 typedef VectorCoefficient DiagonalMatrixCoefficient;
@@ -1057,7 +1103,7 @@ public:
    virtual void SetTime(double t) { time = t; }
 
    /// Get the time for time dependent coefficients
-   double GetTime() { return time; }
+   double GetTime() const { return time; }
 
    /// Get the height of the matrix.
    int GetHeight() const { return height; }
@@ -1077,15 +1123,25 @@ public:
        IntegrationPoint associated with @a T is the same as @a ip. This can be
        achieved by calling T.SetIntPoint(&ip). */
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
-                     const IntegrationPoint &ip) = 0;
+                     const IntegrationPoint &ip) const
+   {
+      mfem_error ("MatrixCoefficient::Eval(...) const\n"
+                  "   is not implemented for this class.");
+   }
 
+   /** @deprecated Use/overload the const- version of this member function instead*/
+   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   {
+      const_cast<const MatrixCoefficient*>(this)->Eval(K, T, ip);
+   }
    /// @brief Fill the QuadratureFunction @a qf by evaluating the coefficient at
    /// the quadrature points. The matrix will be transposed or not according to
    /// the boolean argument @a transpose.
    ///
    /// The @a vdim of the QuadratureFunction should be equal to the height times
    /// the width of the matrix.
-   virtual void Project(QuadratureFunction &qf, bool transpose=false);
+   virtual void Project(QuadratureFunction &qf, bool transpose=false) const;
 
    /// (DEPRECATED) Evaluate a symmetric matrix coefficient.
    /** @brief Evaluate the upper triangular entries of the matrix coefficient
@@ -1114,7 +1170,7 @@ public:
    using MatrixCoefficient::Eval;
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
-                     const IntegrationPoint &ip) { M = mat; }
+                     const IntegrationPoint &ip) const { M = mat; }
    /// Return a reference to the constant matrix.
    const DenseMatrix& GetMatrix() { return mat; }
 };
@@ -1221,9 +1277,10 @@ public:
    void ZeroCoefficient(int attr)
    { pieces.erase(attr); }
 
+   using MatrixCoefficient::Eval;
    /// Evaluate the coefficient.
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+                     const IntegrationPoint &ip) const;
 };
 
 /** @brief A matrix coefficient with an optional scalar coefficient multiplier
@@ -1282,9 +1339,10 @@ public:
    /// Set the time for internally stored coefficients
    void SetTime(double t);
 
+   using MatrixCoefficient::Eval;
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+                     const IntegrationPoint &ip) const;
 
    /// (DEPRECATED) Evaluate the symmetric matrix coefficient at @a ip.
    /** @deprecated Use Eval() instead. */
@@ -1324,12 +1382,13 @@ public:
 
    /// Evaluate coefficient located at (i,j) in the matrix using integration
    /// point @a ip.
-   double Eval(int i, int j, ElementTransformation &T, const IntegrationPoint &ip)
+   double Eval(int i, int j, ElementTransformation &T,
+               const IntegrationPoint &ip) const
    { return Coeff[i*width+j] ? Coeff[i*width+j] -> Eval(T, ip, GetTime()) : 0.0; }
 
    /// Evaluate the matrix coefficient @a ip.
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+                     const IntegrationPoint &ip) const;
 
    virtual ~MatrixArrayCoefficient();
 };
@@ -1354,9 +1413,10 @@ public:
    /// Set the time for internally stored coefficients
    void SetTime(double t);
 
+   using MatrixCoefficient::Eval;
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+                     const IntegrationPoint &ip) const;
 };
 
 /// Coefficients based on sums, products, or other functions of coefficients.
@@ -1395,12 +1455,16 @@ public:
    /// Reset the first term in the linear combination
    void SetACoef(Coefficient &A) { a = &A; }
    /// Return the first term in the linear combination
-   Coefficient * GetACoef() const { return a; }
+   const Coefficient * GetACoef() const { return a; }
+   /// Return the first term in the linear combination
+   Coefficient * GetACoef() { return a; }
 
    /// Reset the second term in the linear combination
    void SetBCoef(Coefficient &B) { b = &B; }
    /// Return the second term in the linear combination
-   Coefficient * GetBCoef() const { return b; }
+   const Coefficient * GetBCoef() const { return b; }
+   /// Return the second term in the linear combination
+   Coefficient * GetBCoef() { return b; }
 
    /// Reset the factor in front of the first term in the linear combination
    void SetAlpha(double alpha_) { alpha = alpha_; }
@@ -1412,9 +1476,10 @@ public:
    /// Return the factor in front of the second term in the linear combination
    double GetBeta() const { return beta; }
 
+   using Coefficient::Eval;
    /// Evaluate the coefficient at @a ip.
    virtual double Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip)
+                       const IntegrationPoint &ip) const
    {
       return alpha * ((a == NULL ) ? aConst : a->Eval(T, ip) )
              + beta * b->Eval(T, ip);
@@ -1427,7 +1492,7 @@ class SymmetricMatrixCoefficient : public MatrixCoefficient
 {
 protected:
    /// Internal matrix used when evaluating this coefficient as a DenseMatrix.
-   DenseSymmetricMatrix mat;
+   mutable DenseSymmetricMatrix mat;
 public:
    /// Construct a dim x dim matrix coefficient.
    explicit SymmetricMatrixCoefficient(int dimension)
@@ -1451,8 +1516,20 @@ public:
        IntegrationPoint associated with @a T is the same as @a ip. This can be
        achieved by calling T.SetIntPoint(&ip). */
    virtual void Eval(DenseSymmetricMatrix &K, ElementTransformation &T,
-                     const IntegrationPoint &ip) = 0;
+                     const IntegrationPoint &ip) const
+   {
+      mfem_error ("SymmetricMatrixCoefficient::Eval(...) const\n"
+                  "   is not implemented for this class.");
+   }
 
+   /** @deprecated Use/overload the const- version of this member function instead*/
+   virtual void Eval(DenseSymmetricMatrix &K, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   {
+      const_cast<const SymmetricMatrixCoefficient*>(this)->Eval(K, T, ip);
+   }
+
+   using MatrixCoefficient::Eval;
    /** @brief Evaluate the matrix coefficient in the element described by @a T
        at the point @a ip, storing the result as a dense matrix @a K. */
    /** This function allows the use of SymmetricMatrixCoefficient in situations
@@ -1462,10 +1539,10 @@ public:
        IntegrationPoint associated with @a T is the same as @a ip. This can be
        achieved by calling T.SetIntPoint(&ip). */
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+                     const IntegrationPoint &ip) const;
 
    /// Return a reference to the constant matrix.
-   const DenseSymmetricMatrix& GetMatrix() { return mat; }
+   const DenseSymmetricMatrix& GetMatrix() const { return mat; }
 
    virtual ~SymmetricMatrixCoefficient() { }
 };
@@ -1484,7 +1561,7 @@ public:
    using SymmetricMatrixCoefficient::Eval;
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseSymmetricMatrix &M, ElementTransformation &T,
-                     const IntegrationPoint &ip) { M = mat; }
+                     const IntegrationPoint &ip) const { M = mat; }
 };
 
 
@@ -1535,7 +1612,7 @@ public:
    using SymmetricMatrixCoefficient::Eval;
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseSymmetricMatrix &K, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+                     const IntegrationPoint &ip) const;
 
    virtual ~SymmetricMatrixFunctionCoefficient() { }
 };
@@ -1570,16 +1647,21 @@ public:
    /// Reset the first term in the product
    void SetACoef(Coefficient &A) { a = &A; }
    /// Return the first term in the product
-   Coefficient * GetACoef() const { return a; }
+   const Coefficient * GetACoef() const { return a; }
+   /// Return the first term in the product
+   Coefficient * GetACoef() { return a; }
 
    /// Reset the second term in the product
    void SetBCoef(Coefficient &B) { b = &B; }
    /// Return the second term in the product
-   Coefficient * GetBCoef() const { return b; }
+   const Coefficient * GetBCoef() const { return b; }
+   /// Return the second term in the product
+   Coefficient * GetBCoef() { return b; }
 
+   using Coefficient::Eval;
    /// Evaluate the coefficient at @a ip.
    virtual double Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip)
+                       const IntegrationPoint &ip) const
    { return ((a == NULL ) ? aConst : a->Eval(T, ip) ) * b->Eval(T, ip); }
 };
 
@@ -1623,16 +1705,21 @@ public:
    /// Reset the numerator in the ratio
    void SetACoef(Coefficient &A) { a = &A; }
    /// Return the numerator of the ratio
-   Coefficient * GetACoef() const { return a; }
+   const Coefficient * GetACoef() const { return a; }
+   /// Return the numerator of the ratio
+   Coefficient * GetACoef() { return a; }
 
    /// Reset the denominator in the ratio
    void SetBCoef(Coefficient &B) { b = &B; }
    /// Return the denominator of the ratio
-   Coefficient * GetBCoef() const { return b; }
+   const Coefficient * GetBCoef() const { return b; }
+   /// Return the denominator of the ratio
+   Coefficient * GetBCoef() { return b; }
 
+   using Coefficient::Eval;
    /// Evaluate the coefficient
    virtual double Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip)
+                       const IntegrationPoint &ip) const
    {
       double den = (b == NULL ) ? bConst : b->Eval(T, ip);
       MFEM_ASSERT(den != 0.0, "Division by zero in RatioCoefficient");
@@ -1659,16 +1746,18 @@ public:
    /// Reset the base coefficient
    void SetACoef(Coefficient &A) { a = &A; }
    /// Return the base coefficient
-   Coefficient * GetACoef() const { return a; }
-
+   const Coefficient * GetACoef() const { return a; }
+   /// Return the base coefficient
+   Coefficient * GetACoef() { return a; }
    /// Reset the exponent
    void SetExponent(double p_) { p = p_; }
    /// Return the exponent
    double GetExponent() const { return p; }
 
+   using Coefficient::Eval;
    /// Evaluate the coefficient at @a ip.
    virtual double Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip)
+                       const IntegrationPoint &ip) const
    { return pow(a->Eval(T, ip), p); }
 };
 
@@ -1692,16 +1781,21 @@ public:
    /// Reset the first vector in the inner product
    void SetACoef(VectorCoefficient &A) { a = &A; }
    /// Return the first vector coefficient in the inner product
-   VectorCoefficient * GetACoef() const { return a; }
+   const VectorCoefficient * GetACoef() const { return a; }
+   /// Return the first vector coefficient in the inner product
+   VectorCoefficient * GetACoef() { return a; }
 
    /// Reset the second vector in the inner product
    void SetBCoef(VectorCoefficient &B) { b = &B; }
    /// Return the second vector coefficient in the inner product
-   VectorCoefficient * GetBCoef() const { return b; }
+   const VectorCoefficient * GetBCoef() const { return b; }
+   /// Return the second vector coefficient in the inner product
+   VectorCoefficient * GetBCoef() { return b; }
 
+   using Coefficient::Eval;
    /// Evaluate the coefficient at @a ip.
    virtual double Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip);
+                       const IntegrationPoint &ip) const;
 };
 
 /// Scalar coefficient defined as a cross product of two vectors in the xy-plane.
@@ -1724,16 +1818,21 @@ public:
    /// Reset the first vector in the product
    void SetACoef(VectorCoefficient &A) { a = &A; }
    /// Return the first vector of the product
-   VectorCoefficient * GetACoef() const { return a; }
+   const VectorCoefficient * GetACoef() const { return a; }
+   /// Return the first vector of the product
+   VectorCoefficient * GetACoef() { return a; }
 
    /// Reset the second vector in the product
    void SetBCoef(VectorCoefficient &B) { b = &B; }
    /// Return the second vector of the product
-   VectorCoefficient * GetBCoef() const { return b; }
+   const VectorCoefficient * GetBCoef() const { return b; }
+   /// Return the second vector of the product
+   VectorCoefficient * GetBCoef() { return b; }
 
+   using Coefficient::Eval;
    /// Evaluate the coefficient at @a ip.
    virtual double Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip);
+                       const IntegrationPoint &ip) const;
 };
 
 /// Scalar coefficient defined as the determinant of a matrix coefficient
@@ -1754,11 +1853,14 @@ public:
    /// Reset the matrix coefficient
    void SetACoef(MatrixCoefficient &A) { a = &A; }
    /// Return the matrix coefficient
-   MatrixCoefficient * GetACoef() const { return a; }
+   const MatrixCoefficient * GetACoef() const { return a; }
+   /// Return the matrix coefficient
+   MatrixCoefficient * GetACoef() { return a; }
 
+   using Coefficient::Eval;
    /// Evaluate the determinant coefficient at @a ip.
    virtual double Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip);
+                       const IntegrationPoint &ip) const;
 };
 
 /// Vector coefficient defined as the linear combination of two vectors
@@ -1768,14 +1870,14 @@ private:
    VectorCoefficient * ACoef;
    VectorCoefficient * BCoef;
 
-   Vector A;
-   Vector B;
+   mutable Vector A;
+   mutable Vector B;
 
    Coefficient * alphaCoef;
    Coefficient * betaCoef;
 
-   double alpha;
-   double beta;
+   mutable double alpha;
+   mutable double beta;
 
    mutable Vector va;
 
@@ -1800,22 +1902,30 @@ public:
    /// Reset the first vector coefficient
    void SetACoef(VectorCoefficient &A_) { ACoef = &A_; }
    /// Return the first vector coefficient
-   VectorCoefficient * GetACoef() const { return ACoef; }
+   const VectorCoefficient * GetACoef() const { return ACoef; }
+   /// Return the first vector coefficient
+   VectorCoefficient * GetACoef() { return ACoef; }
 
    /// Reset the second vector coefficient
    void SetBCoef(VectorCoefficient &B_) { BCoef = &B_; }
    /// Return the second vector coefficient
-   VectorCoefficient * GetBCoef() const { return BCoef; }
+   const VectorCoefficient * GetBCoef() const { return BCoef; }
+   /// Return the second vector coefficient
+   VectorCoefficient * GetBCoef() { return BCoef; }
 
    /// Reset the factor in front of the first vector coefficient
    void SetAlphaCoef(Coefficient &A_) { alphaCoef = &A_; }
    /// Return the factor in front of the first vector coefficient
-   Coefficient * GetAlphaCoef() const { return alphaCoef; }
+   const Coefficient * GetAlphaCoef() const { return alphaCoef; }
+   /// Return the factor in front of the first vector coefficient
+   Coefficient * GetAlphaCoef() { return alphaCoef; }
 
    /// Reset the factor in front of the second vector coefficient
    void SetBetaCoef(Coefficient &B_) { betaCoef = &B_; }
    /// Return the factor in front of the second vector coefficient
-   Coefficient * GetBetaCoef() const { return betaCoef; }
+   const Coefficient * GetBetaCoef() const { return betaCoef; }
+   /// Return the factor in front of the second vector coefficient
+   Coefficient * GetBetaCoef() { return betaCoef; }
 
    /// Reset the first vector as a constant
    void SetA(const Vector &A_) { A = A_; ACoef = NULL; }
@@ -1839,7 +1949,7 @@ public:
 
    /// Evaluate the coefficient at @a ip.
    virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+                     const IntegrationPoint &ip) const;
    using VectorCoefficient::Eval;
 };
 
@@ -1869,16 +1979,20 @@ public:
    /// Reset the scalar factor
    void SetACoef(Coefficient &A) { a = &A; }
    /// Return the scalar factor
-   Coefficient * GetACoef() const { return a; }
+   const Coefficient * GetACoef() const { return a; }
+   /// Return the scalar factor
+   Coefficient * GetACoef() { return a; }
 
    /// Reset the vector factor
    void SetBCoef(VectorCoefficient &B) { b = &B; }
    /// Return the vector factor
-   VectorCoefficient * GetBCoef() const { return b; }
+   const VectorCoefficient * GetBCoef() const { return b; }
+   /// Return the vector factor
+   VectorCoefficient * GetBCoef() { return b; }
 
    /// Evaluate the coefficient at @a ip.
    virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+                     const IntegrationPoint &ip) const;
    using VectorCoefficient::Eval;
 };
 
@@ -1905,11 +2019,13 @@ public:
    /// Reset the vector coefficient
    void SetACoef(VectorCoefficient &A) { a = &A; }
    /// Return the vector coefficient
-   VectorCoefficient * GetACoef() const { return a; }
+   const VectorCoefficient * GetACoef() const { return a; }
+   /// Return the vector coefficient
+   VectorCoefficient * GetACoef() { return a; }
 
    /// Evaluate the coefficient at @a ip.
    virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+                     const IntegrationPoint &ip) const;
    using VectorCoefficient::Eval;
 };
 
@@ -1933,16 +2049,20 @@ public:
    /// Reset the first term in the product
    void SetACoef(VectorCoefficient &A) { a = &A; }
    /// Return the first term in the product
-   VectorCoefficient * GetACoef() const { return a; }
+   const VectorCoefficient * GetACoef() const { return a; }
+   /// Return the first term in the product
+   VectorCoefficient * GetACoef() { return a; }
 
    /// Reset the second term in the product
    void SetBCoef(VectorCoefficient &B) { b = &B; }
    /// Return the second term in the product
-   VectorCoefficient * GetBCoef() const { return b; }
+   const VectorCoefficient * GetBCoef() const { return b; }
+   /// Return the second term in the product
+   VectorCoefficient * GetBCoef() { return b; }
 
    /// Evaluate the coefficient at @a ip.
    virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+                     const IntegrationPoint &ip) const;
    using VectorCoefficient::Eval;
 };
 
@@ -1967,16 +2087,20 @@ public:
    /// Reset the matrix coefficient
    void SetACoef(MatrixCoefficient &A) { a = &A; }
    /// Return the matrix coefficient
-   MatrixCoefficient * GetACoef() const { return a; }
+   const MatrixCoefficient * GetACoef() const { return a; }
+   /// Return the matrix coefficient
+   MatrixCoefficient * GetACoef() { return a; }
 
    /// Reset the vector coefficient
    void SetBCoef(VectorCoefficient &B) { b = &B; }
    /// Return the vector coefficient
-   VectorCoefficient * GetBCoef() const { return b; }
+   const VectorCoefficient * GetBCoef() const { return b; }
+   /// Return the vector coefficient
+   VectorCoefficient * GetBCoef() { return b; }
 
    /// Evaluate the vector coefficient at @a ip.
    virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+                     const IntegrationPoint &ip) const;
    using VectorCoefficient::Eval;
 };
 
@@ -1994,9 +2118,10 @@ public:
    IdentityMatrixCoefficient(int d)
       : MatrixCoefficient(d, d), dim(d) { }
 
+   using MatrixCoefficient::Eval;
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+                     const IntegrationPoint &ip) const;
 };
 
 /// Matrix coefficient defined as the linear combination of two matrices
@@ -2022,12 +2147,16 @@ public:
    /// Reset the first matrix coefficient
    void SetACoef(MatrixCoefficient &A) { a = &A; }
    /// Return the first matrix coefficient
-   MatrixCoefficient * GetACoef() const { return a; }
+   const MatrixCoefficient * GetACoef() const { return a; }
+   /// Return the first matrix coefficient
+   MatrixCoefficient * GetACoef() { return a; }
 
    /// Reset the second matrix coefficient
    void SetBCoef(MatrixCoefficient &B) { b = &B; }
    /// Return the second matrix coefficient
-   MatrixCoefficient * GetBCoef() const { return b; }
+   const MatrixCoefficient * GetBCoef() const { return b; }
+   /// Return the second matrix coefficient
+   MatrixCoefficient * GetBCoef() { return b; }
 
    /// Reset the factor in front of the first matrix coefficient
    void SetAlpha(double alpha_) { alpha = alpha_; }
@@ -2039,9 +2168,10 @@ public:
    /// Return the factor in front of the second matrix coefficient
    double GetBeta() const { return beta; }
 
+   using MatrixCoefficient::Eval;
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+                     const IntegrationPoint &ip) const;
 };
 
 /// Matrix coefficient defined as the product of two matrices
@@ -2061,16 +2191,21 @@ public:
    /// Reset the first matrix coefficient
    void SetACoef(MatrixCoefficient &A) { a = &A; }
    /// Return the first matrix coefficient
-   MatrixCoefficient * GetACoef() const { return a; }
+   const MatrixCoefficient * GetACoef() const { return a; }
+   /// Return the first matrix coefficient
+   MatrixCoefficient * GetACoef() { return a; }
 
    /// Reset the second matrix coefficient
    void SetBCoef(MatrixCoefficient &B) { b = &B; }
    /// Return the second matrix coefficient
-   MatrixCoefficient * GetBCoef() const { return b; }
+   const MatrixCoefficient * GetBCoef() const { return b; }
+   /// Return the second matrix coefficient
+   MatrixCoefficient * GetBCoef() { return b; }
 
+   using MatrixCoefficient::Eval;
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+                     const IntegrationPoint &ip) const;
 };
 
 /** @brief Matrix coefficient defined as a product of a scalar coefficient and a
@@ -2100,16 +2235,21 @@ public:
    /// Reset the scalar factor
    void SetACoef(Coefficient &A) { a = &A; }
    /// Return the scalar factor
-   Coefficient * GetACoef() const { return a; }
+   const Coefficient * GetACoef() const { return a; }
+   /// Return the scalar factor
+   Coefficient * GetACoef() { return a; }
 
    /// Reset the matrix factor
    void SetBCoef(MatrixCoefficient &B) { b = &B; }
    /// Return the matrix factor
-   MatrixCoefficient * GetBCoef() const { return b; }
+   const MatrixCoefficient * GetBCoef() const { return b; }
+   /// Return the matrix factor
+   MatrixCoefficient * GetBCoef() { return b; }
 
+   using MatrixCoefficient::Eval;
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+                     const IntegrationPoint &ip) const;
 };
 
 /// Matrix coefficient defined as the transpose a matrix coefficient
@@ -2128,11 +2268,14 @@ public:
    /// Reset the matrix coefficient
    void SetACoef(MatrixCoefficient &A) { a = &A; }
    /// Return the matrix coefficient
-   MatrixCoefficient * GetACoef() const { return a; }
+   const MatrixCoefficient * GetACoef() const { return a; }
+   /// Return the matrix coefficient
+   MatrixCoefficient * GetACoef() { return a; }
 
+   using MatrixCoefficient::Eval;
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+                     const IntegrationPoint &ip) const;
 };
 
 /// Matrix coefficient defined as the inverse a matrix coefficient.
@@ -2151,11 +2294,14 @@ public:
    /// Reset the matrix coefficient
    void SetACoef(MatrixCoefficient &A) { a = &A; }
    /// Return the matrix coefficient
-   MatrixCoefficient * GetACoef() const { return a; }
+   const MatrixCoefficient * GetACoef() const { return a; }
+   /// Return the matrix coefficient
+   MatrixCoefficient * GetACoef() { return a; }
 
+   using MatrixCoefficient::Eval;
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+                     const IntegrationPoint &ip) const;
 };
 
 /// Matrix coefficient defined as the outer product of two vector coefficients.
@@ -2178,16 +2324,21 @@ public:
    /// Reset the first vector in the outer product
    void SetACoef(VectorCoefficient &A) { a = &A; }
    /// Return the first vector coefficient in the outer product
-   VectorCoefficient * GetACoef() const { return a; }
+   const VectorCoefficient * GetACoef() const { return a; }
+   /// Return the first vector coefficient in the outer product
+   VectorCoefficient * GetACoef() { return a; }
 
    /// Reset the second vector in the outer product
    void SetBCoef(VectorCoefficient &B) { b = &B; }
    /// Return the second vector coefficient in the outer product
-   VectorCoefficient * GetBCoef() const { return b; }
+   const VectorCoefficient * GetBCoef() const { return b; }
+   /// Return the second vector coefficient in the outer product
+   VectorCoefficient * GetBCoef() { return b; }
 
+   using MatrixCoefficient::Eval;
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+                     const IntegrationPoint &ip) const;
 };
 
 /** @brief Matrix coefficient defined as -a k x k x, for a vector k and scalar a
@@ -2221,16 +2372,21 @@ public:
    /// Reset the scalar factor
    void SetACoef(Coefficient &A) { a = &A; }
    /// Return the scalar factor
-   Coefficient * GetACoef() const { return a; }
+   const Coefficient * GetACoef() const { return a; }
+   /// Return the scalar factor
+   Coefficient * GetACoef() { return a; }
 
    /// Reset the vector factor
    void SetKCoef(VectorCoefficient &K) { k = &K; }
    /// Return the vector factor
-   VectorCoefficient * GetKCoef() const { return k; }
+   const VectorCoefficient * GetKCoef() const { return k; }
+   /// Return the vector factor
+   VectorCoefficient * GetKCoef() { return k; }
 
+   using MatrixCoefficient::Eval;
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+                     const IntegrationPoint &ip) const;
 };
 ///@}
 
@@ -2256,9 +2412,9 @@ public:
 
    using VectorCoefficient::Eval;
    virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+                     const IntegrationPoint &ip) const;
 
-   virtual void Project(QuadratureFunction &qf);
+   virtual void Project(QuadratureFunction &qf) const;
 
    virtual ~VectorQuadratureFunctionCoefficient() { }
 };
@@ -2277,9 +2433,10 @@ public:
 
    const QuadratureFunction& GetQuadFunction() const { return QuadF; }
 
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+   using Coefficient::Eval;
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip) const;
 
-   virtual void Project(QuadratureFunction &qf);
+   virtual void Project(QuadratureFunction &qf) const;
 
    virtual ~QuadratureFunctionCoefficient() { }
 };

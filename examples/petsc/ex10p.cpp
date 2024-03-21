@@ -170,7 +170,7 @@ private:
 public:
    ElasticEnergyCoefficient(HyperelasticModel &m, const ParGridFunction &x_)
       : model(m), x(x_) { }
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip) const;
    virtual ~ElasticEnergyCoefficient() { }
 };
 
@@ -743,7 +743,7 @@ Solver* PreconditionerFactory::NewPreconditioner(const mfem::OperatorHandle& oh)
 }
 
 double ElasticEnergyCoefficient::Eval(ElementTransformation &T,
-                                      const IntegrationPoint &ip)
+                                      const IntegrationPoint &ip) const
 {
    model.SetTransformation(T);
    x.GetVectorGradient(T, J);

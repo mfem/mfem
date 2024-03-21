@@ -103,7 +103,7 @@ public:
    using VectorCoefficient::Eval;
 
    virtual void Eval(Vector &K, ElementTransformation &T,
-                     const IntegrationPoint &ip)
+                     const IntegrationPoint &ip) const
    {
       double x[3];
       Vector transip(x, 3);
