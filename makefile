@@ -679,7 +679,6 @@ status info:
 	$(info MFEM_USE_METIS_5       = $(MFEM_USE_METIS_5))
 	$(info MFEM_PRECISION         = \
 	   $(if $(MFEM_USE_SINGLE:NO=),single,double))
-	$(info MFEM_USE_SINGLE        = $(MFEM_USE_SINGLE))
 	$(info MFEM_USE_DOUBLE        = $(MFEM_USE_DOUBLE))
 	$(info MFEM_USE_SINGLE        = $(MFEM_USE_SINGLE))
 	$(info MFEM_DEBUG             = $(MFEM_DEBUG))
