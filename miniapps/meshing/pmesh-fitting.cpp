@@ -397,7 +397,7 @@ int main (int argc, char *argv[])
    ParFiniteElementSpace *surf_fit_hess_fes = NULL;
    ParGridFunction *surf_fit_hess = NULL;
 
-   if (surf_bg_mesh)
+   if (pmesh_surf_fit_bg)
    {
       pmesh_surf_fit_bg->SetCurvature(1);
 
@@ -539,7 +539,7 @@ int main (int argc, char *argv[])
          pmesh->GeneralRefinement(refinements, conforming_amr ? 0 : -1);
          HRUpdater.Update();
 
-         if (surf_bg_mesh)
+         if (remap_from_bg)
          {
             remap_from_bg->ComputeAtNewPosition(*pmesh->GetNodes(),
                                                 surf_fit_gf0,
