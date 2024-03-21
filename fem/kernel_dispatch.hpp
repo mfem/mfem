@@ -83,7 +83,7 @@ template <typename KeyType, typename KernelType, typename HashFunction>
 class DispatchTable
 {
 protected:
-   static std::unordered_map<KeyType, KernelType, HashFunction> table;
+   std::unordered_map<KeyType, KernelType, HashFunction> table;
 };
 
 
@@ -113,7 +113,10 @@ public:
 };
 
 template<typename... T>
-class KernelDispatchTable {};
+class KernelDispatchTable
+{
+   //std::unordered_map<T...> table;
+};
 
 template <typename ApplyKernelsHelperClass, typename... UserParams, typename... KernelParams>
 class KernelDispatchTable<ApplyKernelsHelperClass, internal::KernelTypeList<UserParams...>, internal::KernelTypeList<KernelParams...>> :
@@ -125,6 +128,8 @@ class KernelDispatchTable<ApplyKernelsHelperClass, internal::KernelTypeList<User
    using KernelArgTypes2D = typename ApplyKernelsHelperClass::KernelArgTypes2D;
    using KernelArgTypes3D = typename ApplyKernelsHelperClass::KernelArgTypes3D;
    using Signature = typename ApplyKernelsHelperClass::KernelSignature;
+
+   //static std::unordered_map<std::tuple<int, UserParams...>, Signature, KernelDispatchKeyHash<int, UserParams...>> table;
 
 private:
    // If the type U has member U::NBZ, this overload will be selected, and will
@@ -162,6 +167,7 @@ public:
       }
       else
       {
+         printf("falling back.\n");
          ApplyKernelsHelperClass::Fallback2D()(args...);
       }
    }
@@ -178,6 +184,7 @@ public:
       }
       else
       {
+         printf("falling back.\n");
          ApplyKernelsHelperClass::Fallback3D()(args...);
       }
    }
@@ -199,11 +206,14 @@ public:
       }
 
    }
-
+   using SpecializedTableType =
+      KernelDispatchTable<ApplyKernelsHelperClass, internal::KernelTypeList<UserParams...>, internal::KernelTypeList<KernelParams...>>;
+   /// Functors are needed here instead of functions because of a bug in GCC where a variadic
+   /// type template cannot be used to define a parameter pack.
    template<UserParams... params>
    struct AddSpecialization2D
    {
-      void operator()(KernelDispatchTable* table_ptr)
+      void operator()(SpecializedTableType* table_ptr)
       {
          constexpr int DIM = 2;
          constexpr std::tuple<int, UserParams...> param_tuple = std::make_tuple(DIM,
@@ -222,7 +232,7 @@ public:
    template<UserParams... params>
    struct AddSpecialization3D
    {
-      void operator()(KernelDispatchTable* table_ptr)
+      void operator()(SpecializedTableType* table_ptr)
       {
          constexpr int DIM = 3;
          constexpr std::tuple<int, UserParams...> param_tuple = std::make_tuple(DIM,
