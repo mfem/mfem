@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -938,7 +938,7 @@ Mesh* ReflectHighOrderMesh(Mesh & mesh, Vector origin, Vector normal)
 
          mfem::Swap(rv[0], rv[2]);  // Fix the orientation
 
-         const Geometry::Type orig_geom = mesh.GetBdrElementBaseGeometry(i);
+         const Geometry::Type orig_geom = mesh.GetBdrElementGeometry(i);
          Element *rbe = reflected->NewElement(orig_geom);
          rbe->SetVertices(v);
          reflected->AddBdrElement(rbe);

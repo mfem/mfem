@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -43,10 +43,18 @@ Hexahedron::Hexahedron(int ind1, int ind2, int ind3, int ind4,
 void Hexahedron::GetVertices(Array<int> &v) const
 {
    v.SetSize(8);
-   for (int i = 0; i < 8; i++)
-   {
-      v[i] = indices[i];
-   }
+   std::copy(indices, indices + 8, v.begin());
+}
+
+void Hexahedron::SetVertices(const Array<int> &v)
+{
+   MFEM_ASSERT(v.Size() == 8, "!");
+   std::copy(v.begin(), v.end(), indices);
+}
+
+void Hexahedron::SetVertices(const int *ind)
+{
+   std::copy(ind, ind + 8, indices);
 }
 
 TriLinear3DFiniteElement HexahedronFE;

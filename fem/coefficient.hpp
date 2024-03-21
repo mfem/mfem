@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -414,7 +414,7 @@ public:
 /** @brief A coefficient that depends on 1 or 2 parent coefficients and a
     transformation rule represented by a C-function.
 
-    \f$ C(x,t) = T(Q1(x,t)) \f$ or \f$ C(x,t) = T(Q1(x,t), Q2(x,t)) \f$
+    $ C(x,t) = T(Q1(x,t)) $ or $ C(x,t) = T(Q1(x,t), Q2(x,t)) $
 
     where T is the transformation rule, and Q1/Q2 are the parent coefficients.*/
 class TransformedCoefficient : public Coefficient
@@ -442,7 +442,7 @@ public:
 /** @brief Delta function coefficient optionally multiplied by a weight
     coefficient and a scaled time dependent C-function.
 
-    \f$ F(x,t) = w(x,t) s T(t) d(x - xc) \f$
+    $ F(x,t) = w(x,t) s T(t) d(x - xc) $
 
     where w is the optional weight coefficient, @a s is a scale factor
     T is an optional time-dependent function and d is a delta function.
@@ -517,7 +517,7 @@ public:
    const double *Center() { return center; }
 
    /** @brief Return the scale factor times the optional time dependent
-       function.  Returns \f$ s T(t) \f$ with \f$ T(t) = 1 \f$ when
+       function.  Returns $ s T(t) $ with $ T(t) = 1 $ when
        not set by the user. */
    double Scale() { return tdf ? (*tdf)(GetTime())*scale : scale; }
 
@@ -1683,7 +1683,7 @@ private:
    mutable Vector va;
    mutable Vector vb;
 public:
-   /// Construct with the two vector coefficients.  Result is \f$ A \cdot B \f$.
+   /// Construct with the two vector coefficients.  Result is $ A \cdot B $.
    InnerProductCoefficient(VectorCoefficient &A, VectorCoefficient &B);
 
    /// Set the time for internally stored coefficients
@@ -1715,7 +1715,7 @@ private:
    mutable Vector vb;
 
 public:
-   /// Constructor with two vector coefficients.  Result is \f$ A_x B_y - A_y * B_x; \f$.
+   /// Constructor with two vector coefficients.  Result is $ A_x B_y - A_y * B_x; $.
    VectorRotProductCoefficient(VectorCoefficient &A, VectorCoefficient &B);
 
    /// Set the time for internally stored coefficients
@@ -2119,7 +2119,7 @@ private:
    MatrixCoefficient * a;
 
 public:
-   /// Construct with the matrix coefficient.  Result is \f$ A^T \f$.
+   /// Construct with the matrix coefficient.  Result is $ A^T $.
    TransposeMatrixCoefficient(MatrixCoefficient &A);
 
    /// Set the time for internally stored coefficients
@@ -2142,7 +2142,7 @@ private:
    MatrixCoefficient * a;
 
 public:
-   /// Construct with the matrix coefficient.  Result is \f$ A^{-1} \f$.
+   /// Construct with the matrix coefficient.  Result is $ A^{-1} $.
    InverseMatrixCoefficient(MatrixCoefficient &A);
 
    /// Set the time for internally stored coefficients
@@ -2169,7 +2169,7 @@ private:
    mutable Vector vb;
 
 public:
-   /// Construct with two vector coefficients.  Result is \f$ A B^T \f$.
+   /// Construct with two vector coefficients.  Result is $ A B^T $.
    OuterProductCoefficient(VectorCoefficient &A, VectorCoefficient &B);
 
    /// Set the time for internally stored coefficients
@@ -2192,8 +2192,8 @@ public:
 
 /** @brief Matrix coefficient defined as -a k x k x, for a vector k and scalar a
 
-    This coefficient returns \f$a * (|k|^2 I - k \otimes k)\f$, where I is
-    the identity matrix and \f$\otimes\f$ indicates the outer product.  This
+    This coefficient returns $a * (|k|^2 I - k \otimes k)$, where I is
+    the identity matrix and $\otimes$ indicates the outer product.  This
     can be evaluated for vectors of any dimension but in three
     dimensions it corresponds to computing the cross product with k twice.
 */
@@ -2245,7 +2245,7 @@ private:
 
 public:
    /// Constructor with a quadrature function as input
-   VectorQuadratureFunctionCoefficient(QuadratureFunction &qf);
+   VectorQuadratureFunctionCoefficient(const QuadratureFunction &qf);
 
    /** Set the starting index within the QuadFunc that'll be used to project
        outwards as well as the corresponding length. The projected length should
@@ -2273,7 +2273,7 @@ private:
 
 public:
    /// Constructor with a quadrature function as input
-   QuadratureFunctionCoefficient(QuadratureFunction &qf);
+   QuadratureFunctionCoefficient(const QuadratureFunction &qf);
 
    const QuadratureFunction& GetQuadFunction() const { return QuadF; }
 
@@ -2397,23 +2397,23 @@ public:
 };
 
 /** @brief Compute the Lp norm of a function f.
-    \f$ \| f \|_{Lp} = ( \int_\Omega | f |^p d\Omega)^{1/p} \f$ */
+    $ \| f \|_{Lp} = ( \int_\Omega | f |^p d\Omega)^{1/p} $ */
 double ComputeLpNorm(double p, Coefficient &coeff, Mesh &mesh,
                      const IntegrationRule *irs[]);
 
 /** @brief Compute the Lp norm of a vector function f = {f_i}_i=1...N.
-    \f$ \| f \|_{Lp} = ( \sum_i \| f_i \|_{Lp}^p )^{1/p} \f$ */
+    $ \| f \|_{Lp} = ( \sum_i \| f_i \|_{Lp}^p )^{1/p} $ */
 double ComputeLpNorm(double p, VectorCoefficient &coeff, Mesh &mesh,
                      const IntegrationRule *irs[]);
 
 #ifdef MFEM_USE_MPI
 /** @brief Compute the global Lp norm of a function f.
-    \f$ \| f \|_{Lp} = ( \int_\Omega | f |^p d\Omega)^{1/p} \f$ */
+    $ \| f \|_{Lp} = ( \int_\Omega | f |^p d\Omega)^{1/p} $ */
 double ComputeGlobalLpNorm(double p, Coefficient &coeff, ParMesh &pmesh,
                            const IntegrationRule *irs[]);
 
 /** @brief Compute the global Lp norm of a vector function f = {f_i}_i=1...N.
-    \f$ \| f \|_{Lp} = ( \sum_i \| f_i \|_{Lp}^p )^{1/p} \f$ */
+    $ \| f \|_{Lp} = ( \sum_i \| f_i \|_{Lp}^p )^{1/p} $ */
 double ComputeGlobalLpNorm(double p, VectorCoefficient &coeff, ParMesh &pmesh,
                            const IntegrationRule *irs[]);
 #endif
