@@ -43,19 +43,6 @@
 #error "MFEM_USE_HIP=YES is required when HYPRE is built with HIP!"
 #endif
 
-// MFEM_HYPRE_FORALL is a macro similar to mfem::forall, but it executes on the
-// device that hypre was configured with (no matter what device was selected
-// in MFEM's runtime configuration).
-#if defined(HYPRE_USING_CUDA)
-#define MFEM_HYPRE_FORALL(i, N,...) CuWrap1D(N, [=] MFEM_DEVICE      \
-                                       (int i) {__VA_ARGS__})
-#elif defined(HYPRE_USING_HIP)
-#define MFEM_HYPRE_FORALL(i, N,...) HipWrap1D(N, [=] MFEM_DEVICE     \
-                                        (int i) {__VA_ARGS__})
-#else
-#define MFEM_HYPRE_FORALL(i, N,...) for (int i = 0; i < N; i++) { __VA_ARGS__ }
-#endif
-
 #include "sparsemat.hpp"
 #include "hypre_parcsr.hpp"
 
@@ -134,14 +121,19 @@ inline int to_int(HYPRE_Int i)
 
 
 /// The MemoryClass used by Hypre objects.
-inline constexpr MemoryClass GetHypreMemoryClass()
+inline MemoryClass GetHypreMemoryClass()
 {
 #if !defined(HYPRE_USING_GPU)
    return MemoryClass::HOST;
 #elif defined(HYPRE_USING_UNIFIED_MEMORY)
    return MemoryClass::MANAGED;
 #else
+#if MFEM_HYPRE_VERSION >= 23100
+   return (GetHypreMemoryLocation() == HYPRE_MEMORY_DEVICE) ? MemoryClass::DEVICE :
+          MemoryClass::HOST;
+#else // MFEM_HYPRE_VERSION >= 23100
    return MemoryClass::DEVICE;
+#endif // MFEM_HYPRE_VERSION >= 23100
 #endif
 }
 
@@ -153,7 +145,27 @@ inline MemoryType GetHypreMemoryType()
 #elif defined(HYPRE_USING_UNIFIED_MEMORY)
    return MemoryType::MANAGED;
 #else
+#if MFEM_HYPRE_VERSION >= 23100
+   return (GetHypreMemoryLocation() == HYPRE_MEMORY_DEVICE) ? MemoryType::DEVICE :
+          Device::GetHostMemoryType();
+#else // MFEM_HYPRE_VERSION >= 23100
    return MemoryType::DEVICE;
+#endif // MFEM_HYPRE_VERSION >= 23100
+#endif
+}
+
+inline bool HypreUsingGPU()
+{
+#ifdef HYPRE_USING_GPU
+#if MFEM_HYPRE_VERSION >= 23100
+   HYPRE_MemoryLocation loc;
+   HYPRE_GetMemoryLocation(&loc);
+   return loc == HYPRE_MEMORY_DEVICE;
+#else // MFEM_HYPRE_VERSION >= 23100
+   return true;
+#endif // MFEM_HYPRE_VERSION >= 23100
+#else
+   return false;
 #endif
 }
 
@@ -1026,6 +1038,7 @@ protected:
 
 public:
    /** Hypre smoother types:
+      -1    = Undefined, replaced with DefaultType() in constructors
        0    = Jacobi
        1    = l1-scaled Jacobi
        2    = l1-scaled block Gauss-Seidel/SSOR
@@ -1036,18 +1049,18 @@ public:
        16   = Chebyshev
        1001 = Taubin polynomial smoother
        1002 = FIR polynomial smoother. */
-   enum Type { Jacobi = 0, l1Jacobi = 1, l1GS = 2, l1GStr = 4, lumpedJacobi = 5,
+   enum Type { Undefined = -1, Jacobi = 0, l1Jacobi = 1, l1GS = 2, l1GStr = 4, lumpedJacobi = 5,
                GS = 6, OPFS = 10, Chebyshev = 16, Taubin = 1001, FIR = 1002
              };
-#if !defined(HYPRE_USING_GPU)
-   static constexpr Type default_type = l1GS;
-#else
-   static constexpr Type default_type = l1Jacobi;
-#endif
+
+   Type DefaultType()
+   {
+      return HypreUsingGPU() ? l1Jacobi : l1GS;
+   }
 
    HypreSmoother();
 
-   HypreSmoother(const HypreParMatrix &A_, int type = default_type,
+   HypreSmoother(const HypreParMatrix &A_, int type = Undefined,
                  int relax_times = 1, double relax_weight = 1.0,
                  double omega = 1.0, int poly_order = 2,
                  double poly_fraction = .3, int eig_est_cg_iter = 10);

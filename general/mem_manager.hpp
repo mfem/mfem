@@ -1000,7 +1000,7 @@ inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
    if (!(base.flags & Registered))
    {
       if (
-#if !defined(HYPRE_USING_GPU)
+#if !defined(HYPRE_USING_GPU) || MFEM_HYPRE_VERSION >= 23100
          // If the following condition is true then MemoryManager::Exists()
          // should also be true:
          IsDeviceMemory(MemoryManager::GetDeviceMemoryType())

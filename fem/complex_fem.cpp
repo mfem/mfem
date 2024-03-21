@@ -1243,25 +1243,28 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
          HypreParMatrix * Ah;
          A_i.Get(Ah);
          hypre_ParCSRMatrix *Aih = *Ah;
-#if !defined(HYPRE_USING_GPU)
-         ess_tdof_list.HostRead();
-         for (int k = 0; k < n; k++)
+         if (!HypreUsingGPU())
          {
-            const int j = ess_tdof_list[k];
-            Aih->diag->data[Aih->diag->i[j]] = 0.0;
+            ess_tdof_list.HostRead();
+            for (int k = 0; k < n; k++)
+            {
+               const int j = ess_tdof_list[k];
+               Aih->diag->data[Aih->diag->i[j]] = 0.0;
+            }
          }
-#else
-         Ah->HypreReadWrite();
-         const int *d_ess_tdof_list =
-            ess_tdof_list.GetMemory().Read(MemoryClass::DEVICE, n);
-         const int *d_diag_i = Aih->diag->i;
-         double *d_diag_data = Aih->diag->data;
-         MFEM_GPU_FORALL(k, n,
+         else
          {
-            const int j = d_ess_tdof_list[k];
-            d_diag_data[d_diag_i[j]] = 0.0;
-         });
-#endif
+            Ah->HypreReadWrite();
+            const int *d_ess_tdof_list =
+               ess_tdof_list.GetMemory().Read(MemoryClass::DEVICE, n);
+            HYPRE_Int *d_diag_i = Aih->diag->i;
+            double *d_diag_data = Aih->diag->data;
+            mfem::forall(n, [=] MFEM_HOST_DEVICE (int k)
+            {
+               const int j = d_ess_tdof_list[k];
+               d_diag_data[d_diag_i[j]] = 0.0;
+            });
+         }
       }
       else
       {
