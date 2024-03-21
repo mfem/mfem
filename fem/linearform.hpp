@@ -185,6 +185,11 @@ public:
    /// Access all integrators added with AddInteriorFaceIntegrator().
    Array<LinearFormIntegrator*> *GetIFLFI() { return &interior_face_integs; }
 
+   /** @brief Access all boundary markers added with AddBoundaryIntegrator().
+       If no marker was specified when the integrator was added, the
+       corresponding pointer (to Array<int>) will be NULL. */
+   Array<Array<int>*> *GetBLFI_Marker() { return &boundary_integs_marker; }
+
    /** @brief Access all boundary markers added with AddBdrFaceIntegrator().
        If no marker was specified when the integrator was added, the
        corresponding pointer (to Array<int>) will be NULL. */
