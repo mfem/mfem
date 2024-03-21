@@ -25,11 +25,10 @@ static void GenerateExodusIIElementBlocksFromMesh(Mesh & mesh,
                                                   std::map<int, std::vector<int>>  & element_ids_for_block_id,
                                                   std::map<int, Element::Type> & element_type_for_block_id);
 
-static void GenerateExodusIISideSetsFromMesh(Mesh & mesh,
-                                             std::vector<int> & boundary_ids,
-                                             std::map<int, int> & num_elements_for_boundary_id,
-                                             std::map<int, std::vector<int>> & element_ids_for_boundary_id,
-                                             std::map<int, std::vector<int>> & side_ids_for_boundary_id);
+static void GenerateExodusIIBoundaryInfo(Mesh & mesh,
+                                         std::vector<int> & unique_boundary_ids,
+                                         std::map<int, std::vector<int>> & elements_for_boundary_id,
+                                         std::map<int, std::vector<int>> & sides_for_boundary_id);
 
 static void GenerateExodusIINodeIDsFromMesh(Mesh & mesh, int & num_nodes);
 
@@ -47,7 +46,6 @@ static void WriteNodeConnectivityForBlock(int ncid, Mesh & mesh,
 static void WriteSideSetInformationForMesh(int ncid, Mesh & mesh,
                                            const int * num_dim_id_ptr,
                                            const std::vector<int> & boundary_ids,
-                                           const std::map<int, int> & num_elements_for_boundary_id,
                                            const std::map<int, std::vector<int>> & element_ids_for_boundary_id,
                                            const std::map<int, std::vector<int>> & side_ids_for_boundary_id);
 
@@ -124,14 +122,10 @@ void Mesh::WriteExodusII(const std::string fpath)
    // Set # side sets ("boundaries")
    //
    std::vector<int> boundary_ids;
-   std::map<int, int> num_elements_for_boundary_id;
    std::map<int, std::vector<int>> element_ids_for_boundary_id;
    std::map<int, std::vector<int>> side_ids_for_boundary_id;
-
-   GenerateExodusIISideSetsFromMesh(*this, boundary_ids,
-                                    num_elements_for_boundary_id,
-                                    element_ids_for_boundary_id,
-                                    side_ids_for_boundary_id);
+   GenerateExodusIIBoundaryInfo(*this, boundary_ids, element_ids_for_boundary_id,
+                                side_ids_for_boundary_id);
 
    int num_side_sets_ids;
    status = nc_def_dim(ncid, "num_side_sets", (int)boundary_ids.size(),
@@ -240,7 +234,6 @@ void Mesh::WriteExodusII(const std::string fpath)
    // Write sideset information.
    //
    WriteSideSetInformationForMesh(ncid, *this, &num_dim_id, boundary_ids,
-                                  num_elements_for_boundary_id,
                                   element_ids_for_boundary_id,
                                   side_ids_for_boundary_id);
 
@@ -269,7 +262,6 @@ static void WriteBlockIDs(int ncid, const int * num_dim_id_ptr,
 static void WriteSideSetInformationForMesh(int ncid, Mesh & mesh,
                                            const int * num_dim_id_ptr,
                                            const std::vector<int> & boundary_ids,
-                                           const std::map<int, int> & num_elements_for_boundary_id,
                                            const std::map<int, std::vector<int>> & element_ids_for_boundary_id,
                                            const std::map<int, std::vector<int>> & side_ids_for_boundary_id)
 {
@@ -291,11 +283,14 @@ static void WriteSideSetInformationForMesh(int ncid, Mesh & mesh,
 
    for (int boundary_id : boundary_ids)
    {
+      size_t num_elements_for_boundary = element_ids_for_boundary_id.at(
+                                            boundary_id).size();
+
       sprintf(name_buffer, "num_side_ss%d", boundary_id);
 
       int num_side_ss_id;
-      status = nc_def_dim(ncid, name_buffer,
-                          (size_t)num_elements_for_boundary_id.at(boundary_id), &num_side_ss_id);
+      status = nc_def_dim(ncid, name_buffer, num_elements_for_boundary,
+                          &num_side_ss_id);
       HandleNetCDFStatus(status);
    }
 
@@ -512,48 +507,64 @@ static void GenerateExodusIINodeIDsFromMesh(Mesh & mesh, int & num_nodes)
    num_nodes = (int)node_ids.size();
 }
 
-
-static void GenerateExodusIISideSetsFromMesh(Mesh & mesh,
-                                             std::vector<int> & boundary_ids,
-                                             std::map<int, int> & num_elements_for_boundary_id,
-                                             std::map<int, std::vector<int>> & element_ids_for_boundary_id,
-                                             std::map<int, std::vector<int>> & side_ids_for_boundary_id)
+static void GenerateExodusIIBoundaryInfo(Mesh & mesh,
+                                         std::vector<int> & unique_boundary_ids,
+                                         std::map<int, std::vector<int>> & elements_for_boundary_id,
+                                         std::map<int, std::vector<int>> & sides_for_boundary_id)
 {
-   boundary_ids.clear();
-   num_elements_for_boundary_id.clear();
-   element_ids_for_boundary_id.clear();
-   side_ids_for_boundary_id.clear();
+   // Store the unique boundary IDs.
+   unique_boundary_ids.clear();
+   elements_for_boundary_id.clear();
+   sides_for_boundary_id.clear();
 
-   // Iterate over boundary elements.
-   std::set<int> boundaries_seen;
+   for (int bdr_attribute : mesh.bdr_attributes)
+   {
+      unique_boundary_ids.push_back(bdr_attribute);
+   }
+
+   std::map<int, std::vector<int>> elements_for_face_index;
+   std::map<int, std::vector<int>> sides_for_face_index;
+
+   // Iterate over the elements and store a mapping from the face IDs to the elements that have that face.
+   // Note that interior faces will have multiple elements sharing a face. However, we are only interested
+   // in boundary faces (will lie on the outside) and so will only have a single element owning that face.
+   // We also want to store information about which side of an element this face lies on!
+   for (int ielement = 0; ielement < mesh.GetNE(); ielement++)
+   {
+      Array<int> faces, orientations;
+      mesh.GetElementFaces(ielement, faces, orientations);
+
+      for (int side = 0; side < faces.Size(); side++)
+      {
+         int face_index = faces[side];
+
+         elements_for_face_index[face_index].push_back(ielement);
+         sides_for_face_index[face_index].push_back(side);
+      }
+   }
 
    for (int ibdr_element = 0; ibdr_element < mesh.GetNBE(); ibdr_element++)
    {
       int boundary_id = mesh.GetBdrAttribute(ibdr_element);
 
-      if (boundaries_seen.count(boundary_id) == 0)
+      int face_index, orientation;
+      mesh.GetBdrElementFace(ibdr_element, &face_index, &orientation);
+
+      // Look up in the maps. We MUST have a single element for each boundary side
+      // as you would expect because it lies on the outside.
+      auto & elements = elements_for_face_index.at(face_index);
+      auto & sides = sides_for_face_index.at(face_index);
+
+      if (elements.size() != 1 || sides.size() != 1)
       {
-         boundaries_seen.insert(boundary_id);
-         boundary_ids.push_back(boundary_id);
-         num_elements_for_boundary_id[boundary_id] = 1;
-      }
-      else
-      {
-         num_elements_for_boundary_id[boundary_id]++;
+         MFEM_ABORT("No one-to-one mapping between boundary face index and elements.");
       }
 
-      // Returns the boundary face index of the boundary element. We need to convert these to Exodus II face indices. For now, we assume that MFEM and
-      // Exodus II use the same mappings (this is almost certainly not the case). We also need to add 1 since MFEM uses 0-based indexing and Exodus II
-      // uses 1-based indexing.
-      int face_index, face_orientation;
-      mesh.GetBdrElementFace(ibdr_element, &face_index, &face_orientation);
+      int element_id = elements.front();
+      int side_id = sides.front();
 
-      side_ids_for_boundary_id[boundary_id].push_back(face_orientation + 1);
-
-      // TODO: - Need to create a vector containing all elements for that boundary ID. Since these are the boundary elements, we need to
-      // figure-out what MFEM element (stored in elements) this is!
-      element_ids_for_boundary_id[boundary_id].push_back(
-         ibdr_element); // NOT CORRECT!!!
+      elements_for_boundary_id[boundary_id].push_back(element_id);
+      sides_for_boundary_id[boundary_id].push_back(side_id);
    }
 }
 
