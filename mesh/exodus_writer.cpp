@@ -79,13 +79,6 @@ void Mesh::WriteExodusII(const std::string fpath)
    HandleNetCDFStatus(status);
 
    //
-   // Set dimension.
-   //
-   int num_dim_id;
-   status = nc_def_dim(ncid, "num_dim", Dim, &num_dim_id);
-   HandleNetCDFStatus(status);
-
-   //
    // Set # nodes. NB: - Assume 1st order currently so NumOfVertices == # nodes
    //
    int num_nodes_id;
@@ -94,6 +87,13 @@ void Mesh::WriteExodusII(const std::string fpath)
    GenerateExodusIINodeIDsFromMesh(*this, num_nodes);
 
    status = nc_def_dim(ncid, "num_nodes", num_nodes, &num_nodes_id);
+   HandleNetCDFStatus(status);
+
+   //
+   // Set dimension.
+   //
+   int num_dim_id;
+   status = nc_def_dim(ncid, "num_dim", Dim, &num_dim_id);
    HandleNetCDFStatus(status);
 
    //
@@ -118,6 +118,13 @@ void Mesh::WriteExodusII(const std::string fpath)
    HandleNetCDFStatus(status);
 
    //
+   // Set # node sets - TODO: add this (currently, set to 0).
+   //
+   int num_node_sets_ids;
+   status = nc_def_dim(ncid, "num_node_sets", 0, &num_node_sets_ids);
+   HandleNetCDFStatus(status);
+
+   //
    // Set # side sets ("boundaries")
    //
    std::vector<int> boundary_ids;
@@ -133,11 +140,44 @@ void Mesh::WriteExodusII(const std::string fpath)
    HandleNetCDFStatus(status);
 
    //
-   // Set # node sets - TODO: add this (currently, set to 0).
+   // Set database version #
    //
-   int num_node_sets_ids;
-   status = nc_def_dim(ncid, "num_node_sets", 0, &num_node_sets_ids);
+
+   //
+   // Set API version #
+   //
+   float version = 4.72;   // Current version as of 2024-03-21.
+   status = nc_put_att_float(ncid, NC_GLOBAL, "api_version", NC_FLOAT, 1,
+                             &version);
    HandleNetCDFStatus(status);
+
+   //
+   // Set I/O word size
+   //
+
+   //
+   // Set length of character strings.
+   //
+   int line_dim;
+   status = nc_def_dim(ncid, "len_line", (80L + 1L), &line_dim);
+   HandleNetCDFStatus(status);
+
+   int info_records_var;
+   status = nc_def_var(ncid, "info_records", NC_CHAR, 1, &line_dim,
+                       &info_records_var);
+   HandleNetCDFStatus(status);
+
+   //
+   // ---------------------------------------------------------------------------------
+   //
+
+   //
+   // Quality Assurance Data
+   //
+
+   //
+   // Information Data
+   //
 
    //
    // Define nodal coordinates.
