@@ -212,7 +212,7 @@ ifneq ($(filter double Double DOUBLE,$(MFEM_PRECISION)),)
 else ifneq ($(filter single Single SINGLE,$(MFEM_PRECISION)),)
    MFEM_USE_DOUBLE ?= NO
    MFEM_USE_SINGLE ?= YES
-else
+else ifeq ($(MAKECMDGOALS),config)
    $(error Invalid floating-point precision: \
      MFEM_PRECISION = $(MFEM_PRECISION))
 endif
@@ -677,6 +677,9 @@ status info:
 	$(info MFEM_USE_MPI           = $(MFEM_USE_MPI))
 	$(info MFEM_USE_METIS         = $(MFEM_USE_METIS))
 	$(info MFEM_USE_METIS_5       = $(MFEM_USE_METIS_5))
+	$(info MFEM_PRECISION         = \
+	   $(if $(MFEM_USE_SINGLE:NO=),single,double))
+	$(info MFEM_USE_SINGLE        = $(MFEM_USE_SINGLE))
 	$(info MFEM_USE_DOUBLE        = $(MFEM_USE_DOUBLE))
 	$(info MFEM_USE_SINGLE        = $(MFEM_USE_SINGLE))
 	$(info MFEM_DEBUG             = $(MFEM_DEBUG))
