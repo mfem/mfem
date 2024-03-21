@@ -47,7 +47,9 @@ New and updated examples and miniapps
 
 Miscellaneous
 -------------
-- The ReadCubit Genesis mesh importer has been rewritten to improve readability.
+- The ReadCubit mesh importer has been rewritten to improve readability and can now handle Pyramid 
+  and Wedge finite element types. Mixed meshes are also now supported.
+- Added Exodus unit tests.
 
 - Updated the Doxygen documentation style, which now requires Doxygen version
   1.9.8 or later. See the doc/ directory.
