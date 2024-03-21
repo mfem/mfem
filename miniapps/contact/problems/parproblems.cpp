@@ -138,7 +138,7 @@ void ParContactProblem::SetupTribol()
    auto A_blk = tribol::getMfemBlockJacobian(coupling_scheme_id);
    
    HypreParMatrix * Mfull = (HypreParMatrix *)(&A_blk->GetBlock(1,0));
-
+   Mfull->EliminateCols(prob->GetEssentialDofs());
    int h = Mfull->Height();
    SparseMatrix merged;
    Mfull->MergeDiagAndOffd(merged);
@@ -203,6 +203,8 @@ void ParContactProblem::SetupTribol()
 
    // find elast dofs in contact;
    HypreParMatrix * Jt = (HypreParMatrix *)(&A_blk->GetBlock(0,1));
+   Jt->EliminateRows(prob->GetEssentialDofs());
+
    int hJt = Jt->Height();
    SparseMatrix mergedJt;
    Jt->MergeDiagAndOffd(mergedJt);

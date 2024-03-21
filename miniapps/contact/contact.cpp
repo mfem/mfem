@@ -15,6 +15,29 @@
 using namespace std;
 using namespace mfem;
 
+void OutputData(ostringstream & file_name, double E0, double Ef, int dofs, int constr, int optit, const Array<int> & iters)
+{
+   file_name << ".csv";
+   std::ofstream outputfile(file_name.str().c_str());
+   if (!outputfile.is_open()) 
+   {
+      MFEM_ABORT("Failed to open file for writing.\n");
+   }
+   outputfile << "Initial Energy objective        = " << E0 << endl;
+   outputfile << "Final Energy objective          = " << Ef << endl;
+   outputfile << "Global number of dofs           = " << dofs << endl;
+   outputfile << "Global number of constraints    = " << constr << endl;
+   outputfile << "Optimizer number of iterations  = " << optit << endl;
+   outputfile << "CG iteration numbers            = "; iters.Print(outputfile, iters.Size());
+   outputfile << "OptimizerIteration,CGIterations" << endl;
+   for (int i = 0; i< iters.Size(); i++)
+   {
+      outputfile << i+1 <<","<< iters[i] << endl;
+   }
+   outputfile.close();   
+   std::cout << " Data has been written to " << file_name.str().c_str() << endl;
+}
+
 int main(int argc, char *argv[])
 {
    Mpi::Init();
@@ -210,7 +233,7 @@ int main(int argc, char *argv[])
    Array<int> ess_bdr(pmesh->bdr_attributes.Max());
 
    ess_values = 0.0;
-   ConstantCoefficient one(-10.0);
+   ConstantCoefficient one(-1.0);
 
    std::set<int> mortar_attr;
    std::set<int> nonmortar_attr;
@@ -318,7 +341,9 @@ int main(int argc, char *argv[])
          mfem::out << " CG no Contact iteration numbers = " ;
          CGNoContactIterations.Print(mfem::out, CGNoContactIterations.Size());
       }
-
+      ostringstream file_name;
+      file_name << "output/Testno-"<<testNo<<"-sref-"<<sref; 
+      OutputData(file_name, Einitial, Efinal, gndofs,numconstr, optimizer.GetNumIterations(), CGiterations);
    }
 
    // MFEM_VERIFY(optimizer.GetConverged(),
@@ -335,7 +360,6 @@ int main(int argc, char *argv[])
       ParGridFunction x_gf(fes);
 
       x_gf.SetFromTrueDofs(X_new);
-      // x_gf*=-1.0;
 
       pmesh->MoveNodes(x_gf);
 
