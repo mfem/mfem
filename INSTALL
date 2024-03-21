@@ -290,7 +290,8 @@ MFEM_PRECISION = double/Double/DOUBLE/single/Single/SINGLE
    defining exactly one of the macros: MFEM_USE_DOUBLE, or MFEM_USE_SINGLE.
    In the exported config files 'config.mk' and 'MFEMConfig.cmake', the option
    is represented by the variables MFEM_USE_DOUBLE and MFEM_USE_SINGLE defined
-   as YES/NO (make) or ON/OFF (cmake).
+   as YES/NO (make) or ON/OFF (cmake). For more details see
+   https://github.com/orgs/mfem/discussions/4207
 
 MFEM_DEBUG = YES/NO
    Choose debug/optimized build. The debug build enables a number of messages
