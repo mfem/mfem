@@ -247,8 +247,17 @@ int main(int argc, char *argv[])
    // Test if the result for the test run is as expected.
    if (ctx.checkres)
    {
+#if defined(MFEM_USE_DOUBLE)
       real_t tol_u = 1e-6;
       real_t tol_p = 1e-5;
+#elif defined(MFEM_USE_SINGLE)
+      real_t tol_u = 1e-5;
+      real_t tol_p = 1e-4;
+#else
+#error "Only single and double precision are supported!"
+      real_t tol_u = 0;
+      real_t tol_p = 0;
+#endif
       if (err_u > tol_u || err_p > tol_p)
       {
          if (Mpi::Root())

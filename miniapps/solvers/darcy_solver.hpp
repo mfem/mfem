@@ -24,8 +24,17 @@ struct IterSolveParameters
 {
    int print_level = 0;
    int max_iter = 500;
-   double abs_tol = 1e-12;
-   double rel_tol = 1e-9;
+#if defined(MFEM_USE_DOUBLE)
+   real_t abs_tol = 1e-12;
+   real_t rel_tol = 1e-9;
+#elif defined(MFEM_USE_SINGLE)
+   real_t abs_tol = 1e-8;
+   real_t rel_tol = 1e-5;
+#else
+#error "Only single and double precision are supported!"
+   real_t abs_tol = 1e-12;
+   real_t rel_tol = 1e-9;
+#endif
 };
 
 void SetOptions(IterativeSolver& solver, const IterSolveParameters& param);

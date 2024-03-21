@@ -167,18 +167,32 @@ HypreParMatrix *BramblePasciakSolver::ConstructMassPreconditioner(
       Vector x(M_i.Height()), Mx(M_i.Height()), diff(M_i.Height());
       real_t eval_prev = 0.0;
       int iter = 0;
-      x.Randomize();
+      x.Randomize(696383552+779345*i);
+#if defined(MFEM_USE_DOUBLE)
+      const real_t rel_tol = 1e-12;
+#elif defined(MFEM_USE_SINGLE)
+      const real_t rel_tol = 1e-6;
+#else
+#error "Only single and double precision are supported!"
+      const real_t rel_tol = 1e-12;
+#endif
+      DenseMatrixInverse M_i_inv(M_i);
       do
       {
          eval_prev = eval_i;
-         M_i.Inverse()->Mult(x, Mx);
+         M_i_inv.Mult(x, Mx);
          eval_i = Mx.Norml2();
          x.Set(1.0/eval_i, Mx);
          ++iter;
       }
-      while ((iter < 1000) && (fabs(eval_i - eval_prev)/fabs(eval_i) > 1e-12));
-      MFEM_VERIFY((iter <= 1000) && (fabs(eval_i - eval_prev)/fabs(eval_i) <= 1e-12),
-                  "Inverse power method did not converge.");
+      while ((iter < 1000) && (fabs(eval_i - eval_prev)/fabs(eval_i) > rel_tol));
+      MFEM_VERIFY(fabs(eval_i - eval_prev)/fabs(eval_i) <= rel_tol,
+                  "Inverse power method did not converge."
+                  << "\n\t iter      = " << iter
+                  << "\n\t eval_i    = " << eval_i
+                  << "\n\t eval_prev = " << eval_prev
+                  << "\n\t fabs(eval_i - eval_prev)/fabs(eval_i) = "
+                  << fabs(eval_i - eval_prev)/fabs(eval_i));
       eval_i = 1.0/eval_i;
 #endif
       scaling = q_scaling*eval_i;
