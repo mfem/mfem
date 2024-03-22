@@ -263,7 +263,7 @@ void NavierSolver::Setup(real_t dt)
    MvInv->SetOperator(*Mv);
    MvInv->SetPreconditioner(*MvInvPC);
    MvInv->SetPrintLevel(pl_mvsolve);
-   MvInv->SetRelTol(1e-12);
+   MvInv->SetRelTol(rtol_mvsolve);
    MvInv->SetMaxIter(200);
 
    if (partial_assembly)
@@ -620,7 +620,7 @@ void NavierSolver::Step(real_t &time, real_t dt, int current_step,
          mfem::out << std::setw(5) << "MVIN " << std::setw(5) << std::fixed
                    << iter_mvsolve << "   " << std::setw(3)
                    << std::setprecision(2) << std::scientific << res_mvsolve
-                   << "   " << 1e-12 << "\n";
+                   << "   " << rtol_mvsolve << "\n";
       }
       mfem::out << std::setw(5) << "PRES " << std::setw(5) << std::fixed
                 << iter_spsolve << "   " << std::setw(3) << std::setprecision(2)
@@ -631,7 +631,7 @@ void NavierSolver::Step(real_t &time, real_t dt, int current_step,
                 << std::scientific << res_hsolve << "   " << rtol_hsolve
                 << "\n";
       mfem::out << std::setprecision(8);
-      mfem::out << std::fixed;
+      mfem::out << std::scientific;
    }
 }
 

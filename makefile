@@ -205,6 +205,18 @@ MFEM_SHARED_BUILD = $(MFEM_SHARED)
 override static = $(if $(MFEM_STATIC:YES=),,YES)
 override shared = $(if $(MFEM_SHARED:YES=),,YES)
 
+# Process MFEM_PRECISION -> MFEM_USE_SINGLE, MFEM_USE_DOUBLE
+ifneq ($(filter double Double DOUBLE,$(MFEM_PRECISION)),)
+   MFEM_USE_DOUBLE ?= YES
+   MFEM_USE_SINGLE ?= NO
+else ifneq ($(filter single Single SINGLE,$(MFEM_PRECISION)),)
+   MFEM_USE_DOUBLE ?= NO
+   MFEM_USE_SINGLE ?= YES
+else ifeq ($(MAKECMDGOALS),config)
+   $(error Invalid floating-point precision: \
+     MFEM_PRECISION = $(MFEM_PRECISION))
+endif
+
 # The default value of CXXFLAGS is based on the value of MFEM_DEBUG
 ifeq ($(MFEM_DEBUG),YES)
    CXXFLAGS ?= $(DEBUG_FLAGS)
@@ -665,6 +677,8 @@ status info:
 	$(info MFEM_USE_MPI           = $(MFEM_USE_MPI))
 	$(info MFEM_USE_METIS         = $(MFEM_USE_METIS))
 	$(info MFEM_USE_METIS_5       = $(MFEM_USE_METIS_5))
+	$(info MFEM_PRECISION         = \
+	   $(if $(MFEM_USE_SINGLE:NO=),single,double))
 	$(info MFEM_USE_DOUBLE        = $(MFEM_USE_DOUBLE))
 	$(info MFEM_USE_SINGLE        = $(MFEM_USE_SINGLE))
 	$(info MFEM_DEBUG             = $(MFEM_DEBUG))
