@@ -226,8 +226,8 @@ public:
    /// (ii) surface fitting weight.
    virtual void ProcessNewState(const Vector &x) const;
 
-   /** @name Methods for adaptive surface fitting weight and controlling the
-       convergence of the solver. (Experimental) */
+   /** @name Methods for adaptive surface fitting. These control the behavior of
+       the weight and the termination of the solver. (Experimental) */
    /// Enable/Disable adaptive surface fitting weight.
    /// The weight is modified after each TMOPNewtonSolver iteration as:
    /// w_{k+1} = w_{k} * @a surf_fit_scale_factor if (a) relative change in

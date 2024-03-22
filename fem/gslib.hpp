@@ -305,15 +305,15 @@ public:
 /// [3, 2] on rank 2,
 /// [1, 2, 1, 3] on rank 3.
 /// A gather-scatter "minimum" operation, done as follows:
-/// /// GSOPGSLIB gs = GSOPGSLIB(MPI_COMM_WORLD);
+/// GSOPGSLIB gs = GSOPGSLIB(MPI_COMM_WORLD);
 /// gs.Setup(a);
-/// gs.GOP(v, GSOpType::Min)
+/// gs.GOP(v, GSOpType::Min);
 /// would return:
 /// [0.3, 0.1, 0.] on rank 1,
 /// [0., 0.1] on rank 2,
 /// [0.3, 0.1, 0.3, 0] on rank 3,
-/// where the values have been compared across all processors based on the integer
-/// identifier.
+/// where the values have been compared across all processors based on the
+/// integer identifier.
 class GSOPGSLIB
 {
 protected:

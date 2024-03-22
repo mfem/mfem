@@ -217,7 +217,7 @@ public:
    virtual WorstCaseType GetWorstCaseType() { return wctype; }
 };
 
-/// 0 metric because TMOP_Integrator must have a metric.
+/// Used to create TMOP_Integrators without a metric contribution.
 class TMOP_Metric_000 : public TMOP_QualityMetric
 {
 public:
@@ -228,7 +228,7 @@ public:
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const {A = 0.0;}
 
-   virtual int Id() const { return 1; }
+   virtual int Id() const { return 0; }
 };
 
 /// 2D non-barrier metric without a type.

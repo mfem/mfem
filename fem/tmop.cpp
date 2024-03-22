@@ -3039,7 +3039,7 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
 
    // Store DOF indices that are marked for fitting. Used to reduce work for
    // transferring information between source/background and current mesh.
-   // This is also used for setting inital fitting weight
+   // This is also used for setting initial fitting weight.
    surf_fit_marker_dof_index.SetSize(0);
    for (int i = 0; i < surf_fit_marker->Size(); i++)
    {
