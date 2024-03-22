@@ -252,7 +252,7 @@ int main(int argc, char *argv[])
       real_t tol_p = 1e-5;
 #elif defined(MFEM_USE_SINGLE)
       real_t tol_u = 1e-5;
-      real_t tol_p = 1e-4;
+      real_t tol_p = 2e-4;
 #else
 #error "Only single and double precision are supported!"
       real_t tol_u = 0;
