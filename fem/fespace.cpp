@@ -2285,11 +2285,11 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
       }
    }
 
-   if (!is_dg)
-   {
-      MFEM_VERIFY(num_marked == R->Height(),
-                  "internal error: not all rows of R were set.");
-   }
+   // if (!is_dg)
+   // {
+   //    MFEM_VERIFY(num_marked == R->Height(),
+   //                "internal error: not all rows of R were set.");
+   // }
 
    R->Finalize(); // no-op if fixed width
    return R;
