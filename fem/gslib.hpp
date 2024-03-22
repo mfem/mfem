@@ -30,10 +30,11 @@ namespace mfem
 {
 
 /** \brief FindPointsGSLIB can robustly evaluate a GridFunction on an arbitrary
- *  collection of points. There are three key functions in FindPointsGSLIB:
+ *  collection of points.
+ *
+ *  There are three key functions in FindPointsGSLIB:
  *
  *  1. Setup - constructs the internal data structures of gslib.
- *
  *  2. FindPoints - for any given arbitrary set of points in physical space,
  *     gslib finds the element number, MPI rank, and the reference space
  *     coordinates inside the element that each point is located in. gslib also
@@ -44,7 +45,6 @@ namespace mfem
  *     returns a distance to the border. Points near (but outside) the domain
  *     boundary must then be marked as not found using the distance returned
  *     by gslib.
- *
  *  3. Interpolate - Interpolates any grid function at the points found using 2.
  *
  *  FindPointsGSLIB provides interface to use these functions individually or
@@ -300,21 +300,25 @@ public:
     the corresponding true DOF index. Operations currently supported are
     min, max, sum, and multiplication. Note: identifier 0 does not participate
     in the gather-scatter operation.
+
     For example, consider a vector, v:
-    [0.3, 0.4, 0.25] on rank1,
-     0.6, 0.1] on rank 2,
-    [-0.2, 0.3, 0.7, 0.] on rank 3.
+    - v = [0.3, 0.4, 0.25] on rank1,
+    - v = [0.6, 0.1] on rank 2,
+    - v = [-0.2, 0.3, 0.7, 0.] on rank 3.
+
     Consider a corresponding Array<int>, a:
-    [1, 2, 3] on rank 1,
-    [3, 2] on rank 2,
-    [1, 2, 0, 3] on rank 3.
+    - a = [1, 2, 3] on rank 1,
+    - a = [3, 2] on rank 2,
+    - a = [1, 2, 0, 3] on rank 3.
+
     A gather-scatter "minimum" operation, done as follows:
     GSOPGSLIB gs = GSOPGSLIB(MPI_COMM_WORLD, a);
     gs.GSOP(v, GSOpType::MIN);
     would return into v:
-    [-0.2, 0.1, 0.] on rank 1,
-    [0., 0.1] on rank 2,
-    [-0.2, 0.1, 0.7, 0] on rank 3,
+    - v = [-0.2, 0.1, 0.] on rank 1,
+    - v = [0., 0.1] on rank 2,
+    - v = [-0.2, 0.1, 0.7, 0] on rank 3,
+
     where the values have been compared across all processors based on the
     integer identifier. */
 class GSOPGSLIB
