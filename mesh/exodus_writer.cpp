@@ -61,8 +61,8 @@ void Mesh::WriteExodusII(const std::string fpath)
    // Open file
    //
 
-   int flags = NC_CLOBBER |
-               NC_NETCDF4; // Overwrite existing files and use NetCDF4 mode (avoid classic).
+   int flags =
+      NC_CLOBBER; // Overwrite existing files and use NetCDF4 mode (avoid classic).
 
    status = nc_create(fpath.c_str(), flags, &ncid);
    HandleNetCDFStatus(status);
@@ -324,8 +324,10 @@ static void WriteBlockIDs(int ncid, const std::vector<int> & unique_block_ids)
                        &unique_block_ids_ptr);
    HandleNetCDFStatus(status);
 
+   nc_enddef(ncid);
    status = nc_put_var_int(ncid, unique_block_ids_ptr, unique_block_ids.data());
    HandleNetCDFStatus(status);
+   nc_redef(ncid);
 }
 
 static void WriteSideSetInformationForMesh(int ncid, Mesh & mesh,
@@ -347,8 +349,10 @@ static void WriteSideSetInformationForMesh(int ncid, Mesh & mesh,
                        &boundary_ids_ptr);
    HandleNetCDFStatus(status);
 
+   nc_enddef(ncid);
    status = nc_put_var_int(ncid, boundary_ids_ptr, boundary_ids.data());
    HandleNetCDFStatus(status);
+   nc_redef(ncid);
 
    //
    // Add the number of elements for each boundary_id.
@@ -387,8 +391,10 @@ static void WriteSideSetInformationForMesh(int ncid, Mesh & mesh,
       status = nc_def_var(ncid, name_buffer, NC_INT, 1,  &side_id_dim, &side_id_ptr);
       HandleNetCDFStatus(status);
 
+      nc_enddef(ncid);
       status = nc_put_var_int(ncid, side_id_ptr, side_ids.data());
       HandleNetCDFStatus(status);
+      nc_redef(ncid);
    }
 
    //
@@ -412,8 +418,10 @@ static void WriteSideSetInformationForMesh(int ncid, Mesh & mesh,
       status = nc_def_var(ncid, name_buffer, NC_INT, 1, &elem_ids_dim, &elem_ids_ptr);
       HandleNetCDFStatus(status);
 
+      nc_enddef(ncid);
       status = nc_put_var_int(ncid, elem_ids_ptr, element_ids.data());
       HandleNetCDFStatus(status);
+      nc_redef(ncid);
    }
 }
 
@@ -455,8 +463,10 @@ static void WriteNodeConnectivityForBlock(int ncid, Mesh & mesh,
                        &connect_id);
    HandleNetCDFStatus(status);
 
+   nc_enddef(ncid);
    status = nc_put_var_int(ncid, connect_id, block_node_connectivity.data());
    HandleNetCDFStatus(status);
+   nc_redef(ncid);
 }
 
 
@@ -492,6 +502,8 @@ static void WriteNodalCoordinatesFromMesh(int ncid,
    status = nc_inq_varid(ncid, "coordx", &coordx_id);
    HandleNetCDFStatus(status);
 
+   nc_enddef(ncid);
+
    status = nc_put_var_double(ncid, coordx_id, coordx.data());
    HandleNetCDFStatus(status);
 
@@ -509,6 +521,8 @@ static void WriteNodalCoordinatesFromMesh(int ncid,
       status = nc_put_var_double(ncid, coordz_id, coordz.data());
       HandleNetCDFStatus(status);
    }
+
+   nc_redef(ncid);
 }
 
 /// @brief Aborts with description of error.
