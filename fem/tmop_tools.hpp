@@ -228,6 +228,7 @@ public:
 
    /** @name Methods for adaptive surface fitting. These control the behavior of
        the weight and the termination of the solver. (Experimental) */
+   ///@{
    /// Enable/Disable adaptive surface fitting weight.
    /// The weight is modified after each TMOPNewtonSolver iteration as:
    /// w_{k+1} = w_{k} * @a surf_fit_scale_factor if (a) relative change in
@@ -275,6 +276,7 @@ public:
    {
       surf_fit_converge_based_on_error = mode;
    }
+   ///@}
 
    /// Set minimum determinant enforced during line-search.
    void SetMinimumDeterminantThreshold(double threshold)

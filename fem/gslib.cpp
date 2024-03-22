@@ -1337,7 +1337,7 @@ void OversetFindPointsGSLIB::Interpolate(const Vector &point_pos,
 }
 
 
-GSOPGSLIB::GSOPGSLIB()
+GSOPGSLIB::GSOPGSLIB(Array<long long> &ids)
 {
    gsl_comm = new gslib::comm;
    cr       = new gslib::crystal;
@@ -1351,39 +1351,38 @@ GSOPGSLIB::GSOPGSLIB()
    comm_init(gsl_comm, 0);
 #endif
    crystal_init(cr, gsl_comm);
+   UpdateIdentifiers(ids);
 }
 
 #ifdef MFEM_USE_MPI
-GSOPGSLIB::GSOPGSLIB(MPI_Comm comm_)
+GSOPGSLIB::GSOPGSLIB(MPI_Comm comm_, Array<long long> &ids)
    : cr(NULL), gsl_comm(NULL)
 {
    gsl_comm = new gslib::comm;
    cr      = new gslib::crystal;
    comm_init(gsl_comm, comm_);
    crystal_init(cr, gsl_comm);
+   UpdateIdentifiers(ids);
 }
 #endif
 
-void GSOPGSLIB::FreeData()
+GSOPGSLIB::~GSOPGSLIB()
 {
    crystal_free(cr);
    gslib_gs_free(gsl_data);
-}
-
-GSOPGSLIB::~GSOPGSLIB()
-{
    comm_free(gsl_comm);
    delete gsl_comm;
    delete cr;
 }
 
-void GSOPGSLIB::Setup(Array<long long> &ids)
+void GSOPGSLIB::UpdateIdentifiers(Array<long long> &ids)
 {
+   if (gsl_data != NULL) { gslib_gs_free(gsl_data); }
    num_ids = ids.Size();
    gsl_data = gslib_gs_setup(ids.GetData(),
                              ids.Size(),
                              gsl_comm, 0,
-                             gslib::gs_crystal_router, 1);
+                             gslib::gs_crystal_router, 0);
 }
 
 void GSOPGSLIB::GSOP(Vector &senddata, GSOpType op)

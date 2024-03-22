@@ -907,9 +907,12 @@ int main (int argc, char *argv[])
 
    if (surface_fit_const > 0.0)
    {
+      tmop_integ->RemapSurfaceFittingLevelSet(surf_fit_gf0);
       if (visualization)
       {
-         socketstream vis2, vis3;
+         socketstream vis1, vis2, vis3;
+         common::VisualizeField(vis1, "localhost", 19916, surf_fit_gf0,
+                                "Level Set", 000, 400, 300, 300);
          common::VisualizeField(vis2, "localhost", 19916, mat,
                                 "Materials", 300, 400, 300, 300);
          common::VisualizeField(vis3, "localhost", 19916, surf_fit_mat_gf,

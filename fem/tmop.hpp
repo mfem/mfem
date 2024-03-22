@@ -2001,7 +2001,7 @@ protected:
 
    // Remaps the internal surface fitting gridfunction object at provided
    // locations.
-   void ReMapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
+   void RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
                                            int new_x_ordering = Ordering::byNODES);
 public:
    /** @param[in] m    TMOP_QualityMetric for r-adaptivity (not owned).
@@ -2120,6 +2120,13 @@ public:
                              AdaptivityEvaluator &ae);
 
 #ifdef MFEM_USE_MPI
+   /** @brief Parallel version of EnableSurfaceFitting. There are two optional
+   parameters, @a aegrad and @a aehess. When specified, the derivatives are
+   first computed on the mesh and then interpolated when needed. Otherwise,
+   only the level-set values on the element of interest are interpolated and
+   used to compute the derivatives. Use of @a aegrad and @a aehess thus leads
+   to smoother approximation and works better for coarse grids.
+   */
    void EnableSurfaceFitting(const ParGridFunction &s0,
                              Array<bool> &smarker, Coefficient &coeff,
                              AdaptivityEvaluator &ae,
@@ -2266,7 +2273,7 @@ public:
 
    /// Remap the surface fitting level-set function to the provided GridFunction
    /// Assumes @a s0 and mesh nodes share the same finite element space.
-   void ReMapSurfaceFittingLevelSet(GridFunction &s0);
+   void RemapSurfaceFittingLevelSet(GridFunction &s0);
 
    /// Update the surface fitting weight as surf_fit_coeff *= factor;
    void UpdateSurfaceFittingWeight(double factor);

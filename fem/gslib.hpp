@@ -291,54 +291,58 @@ public:
    using FindPointsGSLIB::Interpolate;
 };
 
-/// Class for gather-scatter (gs) operations on Vectors based on corresponding
-/// global identifiers. This functionality is useful for gs-ops on
-/// DOF values across processor boundary, where the global identifier would be
-/// the corresponding true DOF index. Operations currently supported are
-/// min, max, sum, and multiplication.
-/// For example, consider a vector, v:
-/// [0.3, 0.4, 0.25] on rank1,
-/// [0.6, 0.1] on rank 2,
-/// [0.4, 0.3, 0.7, 0.] on rank 3.
-/// Consider a corresponding Array<int>, a:
-/// [1, 2, 3] on rank 1,
-/// [3, 2] on rank 2,
-/// [1, 2, 1, 3] on rank 3.
-/// A gather-scatter "minimum" operation, done as follows:
-/// GSOPGSLIB gs = GSOPGSLIB(MPI_COMM_WORLD);
-/// gs.Setup(a);
-/// gs.GOP(v, GSOpType::Min);
-/// would return:
-/// [0.3, 0.1, 0.] on rank 1,
-/// [0., 0.1] on rank 2,
-/// [0.3, 0.1, 0.3, 0] on rank 3,
-/// where the values have been compared across all processors based on the
-/// integer identifier.
+
+/** \brief  Class for gather-scatter (gs) operations on Vectors based on
+    corresponding global identifiers. This functionality is useful for gs-ops on
+    DOF values across processor boundary, where the global identifier would be
+    the corresponding true DOF index. Operations currently supported are
+    min, max, sum, and multiplication. Note: identifier 0 does not participate
+    in the gather-scatter operation.
+    For example, consider a vector, v:
+    [0.3, 0.4, 0.25] on rank1,
+     0.6, 0.1] on rank 2,
+    [-0.2, 0.3, 0.7, 0.] on rank 3.
+    Consider a corresponding Array<int>, a:
+    [1, 2, 3] on rank 1,
+    [3, 2] on rank 2,
+    [1, 2, 0, 3] on rank 3.
+    A gather-scatter "minimum" operation, done as follows:
+    GSOPGSLIB gs = GSOPGSLIB(MPI_COMM_WORLD, a);
+    gs.GSOP(v, GSOpType::MIN);
+    would return into v:
+    [-0.2, 0.1, 0.] on rank 1,
+    [0., 0.1] on rank 2,
+    [-0.2, 0.1, 0.7, 0] on rank 3,
+    where the values have been compared across all processors based on the
+    integer identifier. */
 class GSOPGSLIB
 {
 protected:
-   struct gslib::crystal *cr;             // gslib's internal data
-   struct gslib::comm *gsl_comm;          // gslib's internal data
-   struct gslib::gs_data *gsl_data;
+   struct gslib::crystal *cr;               // gslib's internal data
+   struct gslib::comm *gsl_comm;            // gslib's internal data
+   struct gslib::gs_data *gsl_data = NULL;
    int num_ids;
 
 public:
-   GSOPGSLIB();
+   GSOPGSLIB(Array<long long> &ids);
 
 #ifdef MFEM_USE_MPI
-   GSOPGSLIB(MPI_Comm comm_);
+   GSOPGSLIB(MPI_Comm comm_, Array<long long> &ids);
 #endif
 
    virtual ~GSOPGSLIB();
 
-   // Same ids get grouped together. id == 0 does not participate.
-   virtual void Setup(Array<long long> &ids);
-
-   // supported operation types
+   /// Supported operation types. See class description.
    enum GSOpType {ADD, MUL, MIN, MAX};
-   virtual void GSOP(Vector &senddata, GSOpType op);
 
-   virtual void FreeData();
+   /// Update the identifiers used for the gather-scatter operator.
+   /// Same @a ids get grouped together and id == 0 does not participate.
+   /// See class description.
+   virtual void UpdateIdentifiers(Array<long long> &ids);
+
+   /// Gather-Scatter operation on senddata. Must match length of unique
+   /// identifiers used in the constructor. See class description.
+   virtual void GSOP(Vector &senddata, GSOpType op);
 };
 
 } // namespace mfem

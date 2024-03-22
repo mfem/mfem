@@ -3059,43 +3059,36 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
    const H1_FECollection *fec = dynamic_cast<const H1_FECollection *>
                                 (surf_fit_gf->FESpace()->FEColl());
    if (!fec)  { return; }
-   H1_FECollection *fec_grad = new H1_FECollection(fec->GetOrder(),
-                                                   dim,
+   H1_FECollection *fec_grad = new H1_FECollection(fec->GetOrder(), dim,
                                                    fec->GetBasisType());
-   ParFiniteElementSpace *fes_grad = new ParFiniteElementSpace
-   (pmesh,
-    fec_grad,
-    dim);
-   ParGridFunction *surf_fit_grad_dummy = new ParGridFunction(fes_grad);
-   surf_fit_grad_dummy->MakeOwner(fec_grad);
+   ParFiniteElementSpace *fes_grad = new ParFiniteElementSpace(pmesh, fec_grad,
+                                                               dim);
+   ParGridFunction *grad_dummy = new ParGridFunction(fes_grad);
+   grad_dummy->MakeOwner(fec_grad);
 
    for (int d = 0; d < dim; d++)
    {
-      ParGridFunction surf_fit_grad_comp(fes,
-                                         surf_fit_grad_dummy->GetData()+d*s0.Size());
+      ParGridFunction surf_fit_grad_comp(fes, grad_dummy->GetData()+d*s0.Size());
       s0.GetDerivative(1, d, surf_fit_grad_comp);
    }
 
-   surf_fit_grad = surf_fit_grad_dummy;
+   surf_fit_grad = grad_dummy;
    surf_fit_eval_bg_grad = aegrad;
    surf_fit_eval_bg_grad->SetParMetaInfo(*
-                                         (surf_fit_grad_dummy->ParFESpace()->GetParMesh()),
-                                         *(surf_fit_grad_dummy->ParFESpace()));
+                                         (grad_dummy->ParFESpace()->GetParMesh()),
+                                         *(grad_dummy->ParFESpace()));
    surf_fit_eval_bg_grad->SetInitialField
-   (*surf_fit_grad_dummy->FESpace()->GetMesh()->GetNodes(), *surf_fit_grad_dummy);
+   (*grad_dummy->FESpace()->GetMesh()->GetNodes(), *grad_dummy);
 
    MFEM_VERIFY(aehess,"Specify an adaptivity evaluator for the Hessian terms"
                "also.");
    delete surf_fit_hess;
-   H1_FECollection *fec_hess = new H1_FECollection(fec->GetOrder(),
-                                                   dim,
+   H1_FECollection *fec_hess = new H1_FECollection(fec->GetOrder(), dim,
                                                    fec->GetBasisType());
-   ParFiniteElementSpace *fes_hess = new ParFiniteElementSpace
-   (pmesh,
-    fec_hess,
-    dim*dim);
-   ParGridFunction *surf_fit_hess_dummy = new ParGridFunction(fes_hess);
-   surf_fit_hess_dummy->MakeOwner(fec_hess);
+   ParFiniteElementSpace *fes_hess = new ParFiniteElementSpace(pmesh, fec_hess,
+                                                               dim*dim);
+   ParGridFunction *hess_dummy = new ParGridFunction(fes_hess);
+   hess_dummy->MakeOwner(fec_hess);
 
    int id = 0;
    for (int d = 0; d < dim; d++)
@@ -3103,21 +3096,21 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
       for (int idir = 0; idir < dim; idir++)
       {
          ParGridFunction surf_fit_grad_comp(fes,
-                                            surf_fit_grad_dummy->GetData()+d*s0.Size());
+                                            grad_dummy->GetData()+d*s0.Size());
          ParGridFunction surf_fit_hess_comp(fes,
-                                            surf_fit_hess_dummy->GetData()+id*s0.Size());
+                                            hess_dummy->GetData()+id*s0.Size());
          surf_fit_grad_comp.GetDerivative(1, idir, surf_fit_hess_comp);
          id++;
       }
    }
 
-   surf_fit_hess = surf_fit_hess_dummy;
+   surf_fit_hess = hess_dummy;
    surf_fit_eval_bg_hess = aehess;
    surf_fit_eval_bg_hess->SetParMetaInfo(
-      *surf_fit_hess_dummy->ParFESpace()->GetParMesh(),
-      *surf_fit_hess_dummy->ParFESpace());
+      *hess_dummy->ParFESpace()->GetParMesh(),
+      *hess_dummy->ParFESpace());
    surf_fit_eval_bg_hess->SetInitialField
-   (*surf_fit_hess_dummy->FESpace()->GetMesh()->GetNodes(), *surf_fit_hess_dummy);
+   (*hess_dummy->FESpace()->GetMesh()->GetNodes(), *hess_dummy);
 
    surf_fit_gf_bg = true;
 
@@ -3230,19 +3223,20 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
 }
 #endif
 
-void TMOP_Integrator::ReMapSurfaceFittingLevelSet(GridFunction &s0)
+void TMOP_Integrator::RemapSurfaceFittingLevelSet(GridFunction &s0)
 {
    MFEM_VERIFY(surf_fit_gf, "Surface fitting has not been enabled.");
-   //Remap back to the current mesh right away
+   MFEM_VERIFY(surf_fit_gf->Size() == s0.Size(),
+               "Input grid function must use the same space as the level-set"
+               "function used in EnableSurfaceFitting method");
    GridFunction *nodes = s0.FESpace()->GetMesh()->GetNodes();
    MFEM_VERIFY(s0.Size() == nodes->Size()/s0.FESpace()->GetMesh()->Dimension(),
                "Gridfunction and mesh nodes must be in the same space.");
-   surf_fit_eval->ComputeAtNewPosition(*nodes, *surf_fit_gf,
+   surf_fit_eval->ComputeAtNewPosition(*nodes, s0,
                                        nodes->FESpace()->GetOrdering());
-   s0 = *surf_fit_gf;
 }
 
-void TMOP_Integrator::ReMapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
+void TMOP_Integrator::RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
                                                          int new_x_ordering)
 {
    if (!surf_fit_gf) { return; }
@@ -4609,8 +4603,7 @@ void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
             {
                const IntegrationPoint &ip_s = ir_s.IntPoint(s);
                Tpr->SetIntPoint(&ip_s);
-               surf_fit_gf_energy += surf_fit_coeff->Eval(*Tpr, ip_s) *
-                                     sigma_e(s) * sigma_e(s) *
+               surf_fit_gf_energy += sigma_e(s) * sigma_e(s) *
                                      1.0/surf_fit_dof_count[dofs[s]];
             }
          }
@@ -4692,7 +4685,7 @@ UpdateAfterMeshPositionChange(const Vector &x_new,
    // Update surf_fit_gf if surface fitting is enabled.
    if (surf_fit_gf)
    {
-      ReMapSurfaceFittingLevelSetAtNodes(x_new, ordering);
+      RemapSurfaceFittingLevelSetAtNodes(x_new, ordering);
    }
 }
 
