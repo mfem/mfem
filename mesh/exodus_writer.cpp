@@ -142,6 +142,10 @@ void Mesh::WriteExodusII(const std::string fpath)
    //
    // Set database version #
    //
+   float database_version = 4.72;
+   status = nc_put_att_float(ncid, NC_GLOBAL, "version", NC_FLOAT, 1,
+                             &database_version);
+   HandleNetCDFStatus(status);
 
    //
    // Set API version #
@@ -152,19 +156,34 @@ void Mesh::WriteExodusII(const std::string fpath)
    HandleNetCDFStatus(status);
 
    //
-   // Set I/O word size
+   // Set I/O word size as an attribute (float == 4; double == 8)
    //
+   const int word_size = 8;
+   status = nc_put_att_int(ncid, NC_GLOBAL, "floating_point_word_size", NC_INT, 1,
+                           &word_size);
+   HandleNetCDFStatus(status);
+
+   //
+   // Store Exodus file size (normal==0; large==1)
+   //
+   const int file_size = 0;
+   status = nc_put_att_int(ncid, NC_GLOBAL, "file_size", NC_INT, 1, &file_size);
+   HandleNetCDFStatus(status);
 
    //
    // Set length of character strings.
    //
-   int line_dim;
-   status = nc_def_dim(ncid, "len_line", (80L + 1L), &line_dim);
+   const int max_name_length = 80;
+   status = nc_put_att_int(ncid, NC_GLOBAL, "maxiumum_name_length", NC_INT, 1,
+                           &max_name_length);
    HandleNetCDFStatus(status);
 
-   int info_records_var;
-   status = nc_def_var(ncid, "info_records", NC_CHAR, 1, &line_dim,
-                       &info_records_var);
+   //
+   // Set length of character lines.
+   //
+   const int max_line_length = 80;
+   status = nc_put_att_int(ncid, NC_GLOBAL, "maximum_line_length", NC_INT, 1,
+                           &max_name_length);
    HandleNetCDFStatus(status);
 
    //
