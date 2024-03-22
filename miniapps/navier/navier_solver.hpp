@@ -439,8 +439,20 @@ protected:
    int pl_amg = 0;
 
    // Relative tolerances.
+#if defined(MFEM_USE_DOUBLE)
+   real_t rtol_mvsolve = 1e-12;
    real_t rtol_spsolve = 1e-6;
    real_t rtol_hsolve = 1e-8;
+#elif defined(MFEM_USE_SINGLE)
+   real_t rtol_mvsolve = 1e-9;
+   real_t rtol_spsolve = 1e-5;
+   real_t rtol_hsolve = 1e-7;
+#else
+#error "Only single and double precision are supported!"
+   real_t rtol_mvsolve = 1e-12;
+   real_t rtol_spsolve = 1e-6;
+   real_t rtol_hsolve = 1e-8;
+#endif
 
    // Iteration counts.
    int iter_mvsolve = 0, iter_spsolve = 0, iter_hsolve = 0;
