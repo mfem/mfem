@@ -2125,7 +2125,7 @@ public:
    first computed on the mesh and then interpolated when needed. Otherwise,
    only the level-set values on the element of interest are interpolated and
    used to compute the derivatives. Use of @a aegrad and @a aehess thus leads
-   to smoother approximation and works better for coarse grids.
+   to smoother approximation and works better for coarse meshes.
    */
    void EnableSurfaceFitting(const ParGridFunction &s0,
                              Array<bool> &smarker, Coefficient &coeff,

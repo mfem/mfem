@@ -69,7 +69,7 @@ int main (int argc, char *argv[])
    int lin_solver        = 2;
    int max_lin_iter      = 100;
    bool move_bnd         = true;
-   bool visualization    = true;
+   bool visualization    = false;
    int verbosity_level   = 0;
    int adapt_eval        = 0;
    const char *devopt    = "cpu";
@@ -243,6 +243,8 @@ int main (int argc, char *argv[])
    AdaptivityEvaluator *remap_from_bg = NULL;
    if (surf_bg_mesh)
    {
+      MFEM_VERIFY(adapt_eval == 1, "Background mesh requires GSLIB-based"
+                  "interpolation.");
 #ifndef MFEM_USE_GSLIB
       MFEM_ABORT("Background mesh requires GSLIB.");
 #endif
@@ -641,7 +643,7 @@ int main (int argc, char *argv[])
    {
       adapt_surface = new AdvectorCG;
    }
-   else if (surf_bg_mesh)
+   else
    {
 #ifdef MFEM_USE_GSLIB
       adapt_surface = new InterpolatorFP;
@@ -651,14 +653,12 @@ int main (int argc, char *argv[])
       MFEM_ABORT("MFEM is not built with GSLIB support!");
 #endif
    }
-   else { MFEM_ABORT("Bad interpolation option."); }
 
    if (!surf_bg_mesh)
    {
       tmop_integ->EnableSurfaceFitting(surf_fit_gf0, surf_fit_marker,
                                        surf_fit_coeff, *adapt_surface,
-                                       adapt_grad_surface,
-                                       adapt_hess_surface);
+                                       adapt_grad_surface, adapt_hess_surface);
    }
    else
    {

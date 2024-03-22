@@ -293,7 +293,9 @@ public:
 
 
 /** \brief  Class for gather-scatter (gs) operations on Vectors based on
-    corresponding global identifiers. This functionality is useful for gs-ops on
+    corresponding global identifiers.
+
+    This functionality is useful for gs-ops on
     DOF values across processor boundary, where the global identifier would be
     the corresponding true DOF index. Operations currently supported are
     min, max, sum, and multiplication. Note: identifier 0 does not participate

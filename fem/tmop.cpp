@@ -3000,14 +3000,13 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
                "Mesh and level-set polynomial order must be the same.");
 
    delete surf_fit_gf;
-   ParGridFunction *surf_fit_gf_dummy = new ParGridFunction(s0);
-   surf_fit_gf = surf_fit_gf_dummy;
+   surf_fit_gf = new GridFunction(s0);
    s0.CountElementsPerVDof(surf_fit_dof_count);
    surf_fit_marker = &smarker;
    surf_fit_coeff = &coeff;
    surf_fit_eval = &ae;
 
-   surf_fit_eval->SetParMetaInfo(*s0.ParFESpace()->GetParMesh(),
+   surf_fit_eval->SetParMetaInfo(*pmesh,
                                  *s0.ParFESpace());
    surf_fit_eval->SetInitialField
    (*surf_fit_gf->FESpace()->GetMesh()->GetNodes(), *surf_fit_gf);
@@ -3063,32 +3062,28 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
                                                    fec->GetBasisType());
    ParFiniteElementSpace *fes_grad = new ParFiniteElementSpace(pmesh, fec_grad,
                                                                dim);
-   ParGridFunction *grad_dummy = new ParGridFunction(fes_grad);
-   grad_dummy->MakeOwner(fec_grad);
+   surf_fit_grad = new GridFunction(fes_grad);
+   surf_fit_grad->MakeOwner(fec_grad);
 
    for (int d = 0; d < dim; d++)
    {
-      ParGridFunction surf_fit_grad_comp(fes, grad_dummy->GetData()+d*s0.Size());
+      ParGridFunction surf_fit_grad_comp(fes, surf_fit_grad->GetData()+d*s0.Size());
       s0.GetDerivative(1, d, surf_fit_grad_comp);
    }
 
-   surf_fit_grad = grad_dummy;
    surf_fit_eval_bg_grad = aegrad;
-   surf_fit_eval_bg_grad->SetParMetaInfo(*
-                                         (grad_dummy->ParFESpace()->GetParMesh()),
-                                         *(grad_dummy->ParFESpace()));
-   surf_fit_eval_bg_grad->SetInitialField
-   (*grad_dummy->FESpace()->GetMesh()->GetNodes(), *grad_dummy);
+   surf_fit_eval_bg_grad->SetParMetaInfo(*pmesh, *fes_grad);
+   surf_fit_eval_bg_grad->SetInitialField(*pmesh->GetNodes(), *surf_fit_grad);
 
    MFEM_VERIFY(aehess,"Specify an adaptivity evaluator for the Hessian terms"
-               "also.");
+               "as well.");
    delete surf_fit_hess;
    H1_FECollection *fec_hess = new H1_FECollection(fec->GetOrder(), dim,
                                                    fec->GetBasisType());
    ParFiniteElementSpace *fes_hess = new ParFiniteElementSpace(pmesh, fec_hess,
                                                                dim*dim);
-   ParGridFunction *hess_dummy = new ParGridFunction(fes_hess);
-   hess_dummy->MakeOwner(fec_hess);
+   surf_fit_hess = new GridFunction(fes_hess);
+   surf_fit_hess->MakeOwner(fec_hess);
 
    int id = 0;
    for (int d = 0; d < dim; d++)
@@ -3096,21 +3091,17 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
       for (int idir = 0; idir < dim; idir++)
       {
          ParGridFunction surf_fit_grad_comp(fes,
-                                            grad_dummy->GetData()+d*s0.Size());
+                                            surf_fit_grad->GetData()+d*s0.Size());
          ParGridFunction surf_fit_hess_comp(fes,
-                                            hess_dummy->GetData()+id*s0.Size());
+                                            surf_fit_hess->GetData()+id*s0.Size());
          surf_fit_grad_comp.GetDerivative(1, idir, surf_fit_hess_comp);
          id++;
       }
    }
 
-   surf_fit_hess = hess_dummy;
    surf_fit_eval_bg_hess = aehess;
-   surf_fit_eval_bg_hess->SetParMetaInfo(
-      *hess_dummy->ParFESpace()->GetParMesh(),
-      *hess_dummy->ParFESpace());
-   surf_fit_eval_bg_hess->SetInitialField
-   (*hess_dummy->FESpace()->GetMesh()->GetNodes(), *hess_dummy);
+   surf_fit_eval_bg_hess->SetParMetaInfo(*pmesh, *fes_hess);
+   surf_fit_eval_bg_hess->SetInitialField(*pmesh->GetNodes(), *surf_fit_hess);
 
    surf_fit_gf_bg = true;
 
@@ -3143,8 +3134,7 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
 
    // Setup for level set function
    delete surf_fit_gf;
-   ParGridFunction *surf_fit_gf_dummy = new ParGridFunction(s0);
-   surf_fit_gf = surf_fit_gf_dummy;
+   surf_fit_gf = new GridFunction(s0);
    *surf_fit_gf = 0.0;
    surf_fit_marker = &smarker;
    surf_fit_coeff = &coeff;
