@@ -164,9 +164,10 @@ void Mesh::WriteExodusII(const std::string fpath)
    HandleNetCDFStatus(status);
 
    //
-   // Store Exodus file size (normal==0; large==1)
+   // Store Exodus file size (normal==0; large==1). NB: coordinates specifed separately as components
+   // for large file.
    //
-   const int file_size = 0;
+   const int file_size = 1;
    status = nc_put_att_int(ncid, NC_GLOBAL, "file_size", NC_INT, 1, &file_size);
    HandleNetCDFStatus(status);
 
@@ -184,6 +185,13 @@ void Mesh::WriteExodusII(const std::string fpath)
    const int max_line_length = 80;
    status = nc_put_att_int(ncid, NC_GLOBAL, "maximum_line_length", NC_INT, 1,
                            &max_name_length);
+   HandleNetCDFStatus(status);
+
+   //
+   // Set # timesteps (ASSUME no timesteps for initial verision)
+   //
+   int timesteps_dim;
+   status = nc_def_dim(ncid, "time_step", 1, &timesteps_dim);
    HandleNetCDFStatus(status);
 
    //
@@ -289,6 +297,44 @@ void Mesh::WriteExodusII(const std::string fpath)
       //
       WriteNodeConnectivityForBlock(ncid, *this, block_id,
                                     element_ids_for_block_id);
+
+      //
+      // Define the element type.
+      //
+      std::string element_type;
+
+      switch (front_element->GetType())
+      {
+         case Geometry::Type::CUBE:
+            element_type = "hex";
+            break;
+         case Geometry::Type::TETRAHEDRON:
+            element_type = "tet";
+            break;
+         case Geometry::Type::PRISM:
+            element_type = "wedge";
+            break;
+         case Geometry::Type::TRIANGLE:
+            element_type = "tri";
+            break;
+         default:
+            MFEM_ABORT("Unsupported MFEM element type: " << front_element->GetType());
+      }
+
+      int elem_type_dim;
+      status = nc_def_dim(ncid, "elem_type", element_type.length(), &elem_type_dim);
+      HandleNetCDFStatus(status);
+
+      char name_buffer[100];
+      sprintf(name_buffer, "connect%d", block_id);
+
+      int connect_id;
+      status = nc_inq_varid(ncid, name_buffer, &connect_id);
+      HandleNetCDFStatus(status);
+
+      status = nc_put_att_text(ncid, connect_id, "elem_type", element_type.length(),
+                               element_type.c_str());
+      HandleNetCDFStatus(status);
    }
 
    //
