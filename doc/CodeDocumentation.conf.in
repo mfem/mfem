@@ -987,6 +987,7 @@ INPUT                  = @MFEM_SOURCE_DIR@/doc/CodeDocumentation.dox \
                          @MFEM_SOURCE_DIR@/miniapps/solvers \
                          @MFEM_SOURCE_DIR@/miniapps/tools \
                          @MFEM_SOURCE_DIR@/miniapps/toys \
+                         @MFEM_SOURCE_DIR@/miniapps/tribol \
                          @MFEM_SOURCE_DIR@/miniapps/spde \
                          @MFEM_SOURCE_DIR@/miniapps/dpg \
                          @MFEM_SOURCE_DIR@/miniapps/dpg/util

@@ -166,6 +166,7 @@ MFEM_USE_ADFORWARD     = NO
 MFEM_USE_CODIPACK      = NO
 MFEM_USE_BENCHMARK     = NO
 MFEM_USE_PARELAG       = NO
+MFEM_USE_TRIBOL        = NO
 MFEM_USE_ENZYME        = NO
 
 # MPI library compile and link flags
@@ -569,6 +570,17 @@ MKL_PARDISO_LIB = $(XLINKER)-rpath,$(MKL_PARDISO_DIR)/$(MKL_LIBRARY_SUBDIR)\
 PARELAG_DIR = @MFEM_DIR@/../parelag
 PARELAG_OPT = -I$(PARELAG_DIR)/src -I$(PARELAG_DIR)/build/src
 PARELAG_LIB = -L$(PARELAG_DIR)/build/src -lParELAG
+
+# Tribol library configuration
+ifeq ($(MFEM_USE_TRIBOL),YES)
+   BASE_FLAGS = -std=c++14
+endif
+AXOM_DIR = @MFEM_DIR@/../axom
+TRIBOL_DIR = @MFEM_DIR@/../tribol
+TRIBOL_OPT = -I$(TRIBOL_DIR)/include -I$(AXOM_DIR)/include -I$(CONDUIT_DIR)/include/conduit
+TRIBOL_LIB = -L$(TRIBOL_DIR)/lib -ltribol -lredecomp -L$(AXOM_DIR)/lib -laxom_mint\
+   -laxom_sidre -laxom_slam -laxom_slic -laxom_core -L$(CONDUIT_DIR)/lib -lconduit\
+   -lconduit_blueprint -lconduit_blueprint_mpi -lconduit_relay -lconduit_relay_mpi
 
 # Enzyme configuration
 
