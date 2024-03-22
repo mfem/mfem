@@ -224,7 +224,7 @@ class DarcyHybridization : public Hybridization
                                 const DenseMatrix &elmat, int ioff=0);
    void ConstructC();
    void ComputeH();
-   void GetCt(int el, DenseMatrix &Ct_l, Array<int> &c_dofs) const;
+   void GetCtElementMatrix(int el, DenseMatrix &Ct_l, Array<int> &c_dofs) const;
    void MultInv(int el, const Vector &bu, const Vector &bp, Vector &u,
                 Vector &p) const;
 

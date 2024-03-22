@@ -936,7 +936,7 @@ void DarcyHybridization::ComputeH()
       LU_S.Factor(d_dofs_size);
 #ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
       // Get C^T
-      GetCt(el, Ct_l, c_dofs);
+      GetCtElementMatrix(el, Ct_l, c_dofs);
 
       //-C A^-1 C^T
       AiCt.SetSize(Ct_l.Height(), Ct_l.Width());
@@ -996,8 +996,8 @@ void DarcyHybridization::ComputeH()
 #endif //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
 }
 
-void DarcyHybridization::GetCt(int el, DenseMatrix &Ct_l,
-                               Array<int> &c_dofs) const
+void DarcyHybridization::GetCtElementMatrix(int el, DenseMatrix &Ct_l,
+                                            Array<int> &c_dofs) const
 {
    c_fes->GetElementVDofs(el, c_dofs);
    const int f_size = Af_f_offsets[el+1] - Af_f_offsets[el  ];
@@ -1179,7 +1179,7 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
 
 #ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
       // Get C^T
-      GetCt(el, Ct_l, c_dofs);
+      GetCtElementMatrix(el, Ct_l, c_dofs);
 
       b_rl.SetSize(c_dofs.Size());
       Ct_l.MultTranspose(u_l, b_rl);
@@ -1240,7 +1240,7 @@ void DarcyHybridization::ComputeSolution(const BlockVector &b,
 
 #ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
       // Get C^T
-      GetCt(el, Ct_l, c_dofs);
+      GetCtElementMatrix(el, Ct_l, c_dofs);
 
       // bu - C^T sol
       sol_r.GetSubVector(c_dofs, sol_rl);
