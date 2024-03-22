@@ -206,6 +206,27 @@ void Mesh::WriteExodusII(const std::string fpath)
    // Information Data
    //
 
+
+   //
+   // NB: LibMesh has a dodgy bug where it will skip the x-coordinate if coordx_id == 0.
+   // To prevent this, the first variable to be defined will be a dummy variable which will
+   // have a variable id of 0.
+   {
+      int dummy_var_id, dummy_var_dim_id, dummy_value = 1;
+
+      status = nc_def_dim(ncid, "dummy_var_dim", 1, &dummy_var_dim_id);
+      HandleNetCDFStatus(status);
+
+      status = nc_def_var(ncid, "dummy_var", NC_INT, 1, &dummy_var_dim_id,
+                          &dummy_var_id);
+      HandleNetCDFStatus(status);
+
+      nc_enddef(ncid);
+      status = nc_put_var_int(ncid, dummy_var_id, &dummy_value);
+      HandleNetCDFStatus(status);
+      nc_redef(ncid);
+   }
+
    //
    // Define nodal coordinates.
    // https://docs.unidata.ucar.edu/netcdf-c/current/group__variables.html#gac7e8662c51f3bb07d1fc6d6c6d9052c8
@@ -213,22 +234,19 @@ void Mesh::WriteExodusII(const std::string fpath)
    // ndims = 1 (vectors).
    int coordx_id, coordy_id, coordz_id;
 
-   std::vector<double> coordx, coordy, coordz;
+   std::vector<double> coordx(num_nodes), coordy(num_nodes),
+       coordz(Dim == 3 ? num_nodes : 0);
    ExtractVertexCoordinatesFromMesh(ncid, *this, coordx, coordy, coordz);
 
-   int coord_dim;
-   status = nc_def_dim(ncid, "coord_dim", coordx.size(), &coord_dim);
+   status = nc_def_var(ncid, "coordx", NC_DOUBLE, 1, &num_nodes_id, &coordx_id);
    HandleNetCDFStatus(status);
 
-   status = nc_def_var(ncid, "coordx", NC_DOUBLE, 1, &coord_dim, &coordx_id);
-   HandleNetCDFStatus(status);
-
-   status = nc_def_var(ncid, "coordy", NC_DOUBLE, 1, &coord_dim, &coordy_id);
+   status = nc_def_var(ncid, "coordy", NC_DOUBLE, 1, &num_nodes_id, &coordy_id);
    HandleNetCDFStatus(status);
 
    if (Dim == 3)
    {
-      status = nc_def_var(ncid, "coordz", NC_DOUBLE, 1, &coord_dim, &coordz_id);
+      status = nc_def_var(ncid, "coordz", NC_DOUBLE, 1, &num_nodes_id, &coordz_id);
       HandleNetCDFStatus(status);
    }
 
@@ -520,10 +538,6 @@ static void ExtractVertexCoordinatesFromMesh(int ncid, Mesh & mesh,
                                              std::vector<double> & coordx, std::vector<double> & coordy,
                                              std::vector<double> & coordz)
 {
-   coordx.resize(mesh.GetNV());
-   coordy.resize(mesh.GetNV());
-   coordz.resize(mesh.Dimension() == 3 ? mesh.GetNV() : 0);
-
    for (int ivertex = 0; ivertex < mesh.GetNV(); ivertex++)
    {
       double * coordinates = mesh.GetVertex(ivertex);
@@ -545,10 +559,10 @@ static void WriteNodalCoordinatesFromMesh(int ncid,
    int coordx_id, coordy_id, coordz_id;
    int status = NC_NOERR;
 
+   nc_enddef(ncid);
+
    status = nc_inq_varid(ncid, "coordx", &coordx_id);
    HandleNetCDFStatus(status);
-
-   nc_enddef(ncid);
 
    status = nc_put_var_double(ncid, coordx_id, coordx.data());
    HandleNetCDFStatus(status);
