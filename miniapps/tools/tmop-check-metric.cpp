@@ -166,7 +166,7 @@ int main(int argc, char *argv[])
    integ->AssembleElementVector(fe, Tr, x_loc, dF_0);
    if (verbose) { cout << "***\ndF = \n"; dF_0.Print(); cout << "***\n"; }
    real_t dx = 0.1;
-   real_t rate_dF_sum = 0.0, err_old;
+   real_t rate_dF_sum = 0.0, err_old = 1.0;
    for (int k = 0; k < convergence_iter; k++)
    {
       real_t err_k = 0.0;
