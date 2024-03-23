@@ -70,7 +70,11 @@ int main (int argc, char *argv[])
    int quad_order        = 8;
    int solver_type       = 0;
    int solver_iter       = 20;
+#ifdef MFEM_USE_SINGLE
+   real_t solver_rtol    = 1e-4;
+#else
    real_t solver_rtol    = 1e-10;
+#endif
    int solver_art_type   = 0;
    int lin_solver        = 2;
    int max_lin_iter      = 100;
@@ -737,7 +741,11 @@ int main (int argc, char *argv[])
    // 15. As we use the Newton method to solve the resulting nonlinear system,
    //     here we setup the linear solver for the system's Jacobian.
    Solver *S = NULL, *S_prec = NULL;
+#ifdef MFEM_USE_SINGLE
+   const real_t linsol_rtol = 1e-5;
+#else
    const real_t linsol_rtol = 1e-12;
+#endif
    if (lin_solver == 0)
    {
       S = new DSmoother(1, 1.0, max_lin_iter);

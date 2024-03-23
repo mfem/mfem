@@ -245,7 +245,12 @@ void SerialAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
       lin_solver.SetOperator(M.SpMat());
    }
    lin_solver.SetPreconditioner(*prec);
-   lin_solver.SetRelTol(1e-12); lin_solver.SetAbsTol(0.0);
+#ifdef MFEM_USE_SINGLE
+   const real_t rtol = 1e-4;
+#else
+   const real_t rtol = 1e-12;
+#endif
+   lin_solver.SetRelTol(rtol); lin_solver.SetAbsTol(0.0);
    lin_solver.SetMaxIter(100);
    lin_solver.SetPrintLevel(0);
    lin_solver.Mult(rhs, di_dt);
@@ -321,8 +326,12 @@ void ParAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
    CGSolver lin_solver(M.ParFESpace()->GetParMesh()->GetComm());
    lin_solver.SetPreconditioner(*prec);
    lin_solver.SetOperator(*Mop);
-   lin_solver.SetRelTol(1e-8);
-   lin_solver.SetAbsTol(0.0);
+#ifdef MFEM_USE_SINGLE
+   const real_t rtol = 1e-4;
+#else
+   const real_t rtol = 1e-8;
+#endif
+   lin_solver.SetRelTol(rtol); lin_solver.SetAbsTol(0.0);
    lin_solver.SetMaxIter(100);
    lin_solver.SetPrintLevel(0);
    lin_solver.Mult(*RHS, X);
