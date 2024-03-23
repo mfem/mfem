@@ -60,8 +60,8 @@ public:
 
    /// Create a dense matrix using a braced initializer list
    /// The inner lists correspond to rows of the matrix
-   template <int M, int N>
-   explicit DenseMatrix(const real_t (&values)[M][N]) : DenseMatrix(M, N)
+   template <int M, int N, typename T = real_t>
+   explicit DenseMatrix(const T (&values)[M][N]) : DenseMatrix(M, N)
    {
       // DenseMatrix is column-major so copies have to be element-wise
       for (int i = 0; i < M; i++)

@@ -99,8 +99,8 @@ public:
       : data(size_, h_mt, d_mt), size(size_) { }
 
    /// Create a vector using a braced initializer list
-   template <int N>
-   explicit Vector(const real_t (&values)[N]) : Vector(N)
+   template <int N, typename T = real_t>
+   explicit Vector(const T (&values)[N]) : Vector(N)
    { std::copy(values, values + N, GetData()); }
 
    /// Enable execution of Vector operations using the mfem::Device.
