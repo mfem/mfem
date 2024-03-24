@@ -551,8 +551,15 @@ void SparseMatrix::SortColumnIndices()
       hipsparseCreateIdentityPermutation(handle, nnzA, P);
       hipsparseXcsrsort(handle, n, m, nnzA, descrA, d_ia, d_ja_sorted, P, pBuffer);
 
+#if defined(MFEM_USE_SINGLE)
+      hipsparseSgthr(handle, nnzA, d_a_sorted, d_a_tmp, P,
+                     HIPSPARSE_INDEX_BASE_ZERO);
+#elif defined(MFEM_USE_DOUBLE)
       hipsparseDgthr(handle, nnzA, d_a_sorted, d_a_tmp, P,
                      HIPSPARSE_INDEX_BASE_ZERO);
+#else
+      MFEM_ABORT("Unsupported floating point type!");
+#endif
 
       A.CopyFrom( a_tmp.GetMemory(), nnzA );
       hipsparseDestroyMatDescr( descrA );

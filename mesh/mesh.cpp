@@ -10634,7 +10634,7 @@ void Mesh::RandomRefinement(real_t prob, bool aniso, int nonconforming,
    Array<Refinement> refs;
    for (int i = 0; i < GetNE(); i++)
    {
-      if ((real_t) rand() / RAND_MAX < prob)
+      if ((real_t) rand() / real_t(RAND_MAX) < prob)
       {
          int type = 7;
          if (aniso)
@@ -11983,7 +11983,7 @@ void Mesh::PrintVTK(std::ostream &os, int ref, int field_data)
    {
       Array<int> coloring;
       srand((unsigned)time(0));
-      real_t a = real_t(rand()) / (real_t(RAND_MAX) + 1.);
+      real_t a = rand_real();
       int el0 = (int)floor(a * GetNE());
       GetElementColoring(coloring, el0);
       os << "SCALARS element_coloring int\n"
