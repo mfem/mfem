@@ -619,7 +619,6 @@ public:
    void Randomize(int seed = 0)
    {
       // static unsigned int seed = time(0);
-      const real_t max = (real_t) (RAND_MAX) + 1.;
 
       if (seed == 0)
       {
@@ -631,7 +630,7 @@ public:
 
       for (int i = 0; i < size; i++)
       {
-         data[i] = std::abs(rand() / max);
+         data[i] = rand_real();
       }
    }
    /// Returns the l2 norm of the vector.

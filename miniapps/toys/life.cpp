@@ -137,7 +137,7 @@ int main(int argc, char *argv[])
    {
       for (int i=0; i<len; i++)
       {
-         real_t rv = real_t(rand()) / RAND_MAX;
+         real_t rv = real_t(rand()) / real_t(RAND_MAX);
          vb0[i] = (rv <= r);
          vb1[i] = false;
       }

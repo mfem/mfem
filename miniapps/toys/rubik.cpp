@@ -1172,7 +1172,7 @@ void determine_random_moves(Array<Move> & moves)
 {
    for (int i=0; i<moves.Size(); i++)
    {
-      real_t ran = real_t(rand()) / RAND_MAX;
+      real_t ran = real_t(rand()) / real_t(RAND_MAX);
       int  ir   = (int)(26 * ran);
       int  incr = (ir % 3) + 1; ir /= 3;
       int  tier = (ir % 3) + 1; ir /= 3;

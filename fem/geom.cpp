@@ -319,11 +319,11 @@ void Geometry::GetRandomPoint(int GeomType, IntegrationPoint &ip)
          ip.x = 0.0;
          break;
       case Geometry::SEGMENT:
-         ip.x = real_t(rand()) / RAND_MAX;
+         ip.x = real_t(rand()) / real_t(RAND_MAX);
          break;
       case Geometry::TRIANGLE:
-         ip.x = real_t(rand()) / RAND_MAX;
-         ip.y = real_t(rand()) / RAND_MAX;
+         ip.x = real_t(rand()) / real_t(RAND_MAX);
+         ip.y = real_t(rand()) / real_t(RAND_MAX);
          if (ip.x + ip.y > 1.0)
          {
             ip.x = 1.0 - ip.x;
@@ -331,13 +331,13 @@ void Geometry::GetRandomPoint(int GeomType, IntegrationPoint &ip)
          }
          break;
       case Geometry::SQUARE:
-         ip.x = real_t(rand()) / RAND_MAX;
-         ip.y = real_t(rand()) / RAND_MAX;
+         ip.x = real_t(rand()) / real_t(RAND_MAX);
+         ip.y = real_t(rand()) / real_t(RAND_MAX);
          break;
       case Geometry::TETRAHEDRON:
-         ip.x = real_t(rand()) / RAND_MAX;
-         ip.y = real_t(rand()) / RAND_MAX;
-         ip.z = real_t(rand()) / RAND_MAX;
+         ip.x = real_t(rand()) / real_t(RAND_MAX);
+         ip.y = real_t(rand()) / real_t(RAND_MAX);
+         ip.z = real_t(rand()) / real_t(RAND_MAX);
          // map to the triangular prism obtained by extruding the reference
          // triangle in z direction
          if (ip.x + ip.y > 1.0)
@@ -366,14 +366,14 @@ void Geometry::GetRandomPoint(int GeomType, IntegrationPoint &ip)
          }
          break;
       case Geometry::CUBE:
-         ip.x = real_t(rand()) / RAND_MAX;
-         ip.y = real_t(rand()) / RAND_MAX;
-         ip.z = real_t(rand()) / RAND_MAX;
+         ip.x = real_t(rand()) / real_t(RAND_MAX);
+         ip.y = real_t(rand()) / real_t(RAND_MAX);
+         ip.z = real_t(rand()) / real_t(RAND_MAX);
          break;
       case Geometry::PRISM:
-         ip.x = real_t(rand()) / RAND_MAX;
-         ip.y = real_t(rand()) / RAND_MAX;
-         ip.z = real_t(rand()) / RAND_MAX;
+         ip.x = real_t(rand()) / real_t(RAND_MAX);
+         ip.y = real_t(rand()) / real_t(RAND_MAX);
+         ip.z = real_t(rand()) / real_t(RAND_MAX);
          if (ip.x + ip.y > 1.0)
          {
             ip.x = 1.0 - ip.x;
@@ -381,9 +381,9 @@ void Geometry::GetRandomPoint(int GeomType, IntegrationPoint &ip)
          }
          break;
       case Geometry::PYRAMID:
-         ip.x = real_t(rand()) / RAND_MAX;
-         ip.y = real_t(rand()) / RAND_MAX;
-         ip.z = real_t(rand()) / RAND_MAX;
+         ip.x = real_t(rand()) / real_t(RAND_MAX);
+         ip.y = real_t(rand()) / real_t(RAND_MAX);
+         ip.z = real_t(rand()) / real_t(RAND_MAX);
          if (ip.x + ip.z > 1.0 && ip.y < ip.x)
          {
             real_t x = ip.x;

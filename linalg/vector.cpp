@@ -22,7 +22,6 @@
 #include <iostream>
 #include <iomanip>
 #include <cmath>
-#include <cstdlib>
 #include <ctime>
 #include <limits>
 
@@ -816,8 +815,6 @@ void Vector::PrintHash(std::ostream &os) const
 
 void Vector::Randomize(int seed)
 {
-   const real_t max = (real_t)(RAND_MAX) + 1.;
-
    if (seed == 0)
    {
       seed = (int)time(0);
@@ -828,7 +825,7 @@ void Vector::Randomize(int seed)
    HostWrite();
    for (int i = 0; i < size; i++)
    {
-      data[i] = std::abs(rand()/max);
+      data[i] = rand_real();
    }
 }
 

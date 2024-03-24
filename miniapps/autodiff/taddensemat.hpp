@@ -300,7 +300,6 @@ public:
    void Randomize(int seed)
    {
       // static unsigned int seed = time(0);
-      const real_t max = (real_t) (RAND_MAX) + 1.;
 
       if (seed == 0)
       {
@@ -312,14 +311,13 @@ public:
 
       for (int i = 0; i < capacity; i++)
       {
-         data[i] = (dtype)(std::abs(rand() / max));
+         data[i] = (dtype)(rand_real());
       }
    }
 
    void RandomizeDiag(int seed)
    {
       // static unsigned int seed = time(0);
-      const real_t max = (real_t) (RAND_MAX) + 1.;
 
       if (seed == 0)
       {
@@ -331,7 +329,7 @@ public:
 
       for (int i = 0; i < std::min(height, width); i++)
       {
-         Elem(i, i) = (dtype)(std::abs(rand() / max));
+         Elem(i, i) = (dtype)(rand_real());
       }
    }
 
