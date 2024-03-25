@@ -1067,12 +1067,18 @@ void DarcyHybridization::GetCtSubMatrix(int el, const Array<int> c_dofs,
    const int hat_offset = hat_offsets[el  ];
    const int hat_size = hat_offsets[el+1] - hat_offset;
    const int f_size = Af_f_offsets[el+1] - Af_f_offsets[el];
+
+   Array<int> vdofs;
+   fes->GetElementVDofs(el, vdofs);
+
    Ct_l.SetSize(f_size, c_dofs.Size());
    Ct_l = 0.;
+
    int i = 0;
    for (int row = hat_offset; row < hat_offset + hat_size; row++)
    {
       if (hat_dofs_marker[row] == 1) { continue; }
+      double s = (vdofs[row - hat_offset] >= 0)?(+1.):(-1.);
       int col = 0;
       const int ncols = Ct->RowSize(row);
       const int *cols = Ct->GetRowColumns(row);
@@ -1081,8 +1087,8 @@ void DarcyHybridization::GetCtSubMatrix(int el, const Array<int> c_dofs,
       {
          const int cdof = (c_dofs[j]>=0)?(c_dofs[j]):(-1-c_dofs[j]);
          if (cols[col] != cdof) { continue; }
-         Ct_l(i,j) = vals[col++];
-         if (c_dofs[j] < 0) { Ct_l(i,j) *= -1.; }
+         double sj = (c_dofs[j] >= 0)?(+s):(-s);
+         Ct_l(i,j) = vals[col++] * sj;
       }
       i++;
    }
