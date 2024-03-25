@@ -149,6 +149,7 @@ set(SRCS
   tmop_amr.cpp
   gslib.cpp
   transfer.cpp
+  hyperbolic.cpp
   )
 
 set(HDRS
@@ -243,6 +244,7 @@ set(HDRS
   tmop_amr.hpp
   gslib.hpp
   transfer.hpp
+  hyperbolic.hpp
   )
 
 if (MFEM_USE_SIDRE)
