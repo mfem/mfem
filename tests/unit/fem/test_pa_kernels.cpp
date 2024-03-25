@@ -713,4 +713,121 @@ TEST_CASE("PA Boundary Mass", "[PartialAssembly], [CUDA]")
    REQUIRE(y_fa.Normlinf() == MFEM_Approx(0.0));
 }
 
+TEST_CASE("PA DG Diffusion", "[PartialAssembly], [CUDA]")
+{
+   std::vector<std::string> mesh_filenames =
+   {
+      "../../data/star.mesh",
+      "../../data/star-q3.mesh",
+      "../../data/fichera.mesh",
+      "../../data/fichera-q3.mesh",
+   };
+   const bool have_data_dir = mfem_data_dir != "";
+   if (have_data_dir)
+   {
+      mesh_filenames.push_back(mfem_data_dir + "/gmsh/v22/unstructured_quad.v22.msh");
+      mesh_filenames.push_back(mfem_data_dir + "/gmsh/v22/unstructured_hex.v22.msh");
+   }
+
+   const int order = GENERATE(1, 2);
+   const auto mesh_fname = GENERATE_COPY(from_range(mesh_filenames));
+
+   CAPTURE(order, mesh_fname);
+
+   Mesh mesh = Mesh::LoadFromFile(mesh_fname.c_str());
+   const int dim = mesh.Dimension();
+
+   DG_FECollection fec(order, dim, BasisType::GaussLobatto);
+   FiniteElementSpace fes(&mesh, &fec);
+
+   GridFunction x(&fes), y_fa(&fes), y_pa(&fes);
+   x.Randomize(1);
+
+   ConstantCoefficient pi(3.14159);
+
+   const double sigma = -1.0;
+   const double kappa = 10.0;
+
+   BilinearForm blf_fa(&fes);
+   blf_fa.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
+   blf_fa.AddBdrFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
+   blf_fa.Assemble();
+   blf_fa.Finalize();
+   blf_fa.Mult(x, y_fa);
+
+   BilinearForm blf_pa(&fes);
+   blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   blf_pa.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
+   blf_pa.AddBdrFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
+   blf_pa.Assemble();
+   blf_pa.Mult(x, y_pa);
+
+   y_fa -= y_pa;
+
+   REQUIRE(y_fa.Normlinf() == MFEM_Approx(0.0));
+}
+
+#ifdef MFEM_USE_MPI
+
+TEST_CASE("Parallel PA DG Diffusion", "[PartialAssembly][Parallel][CUDA]")
+{
+   std::vector<std::string> mesh_filenames =
+   {
+      "../../data/star.mesh",
+      "../../data/star-q3.mesh",
+      "../../data/fichera.mesh",
+      "../../data/fichera-q3.mesh",
+   };
+   const bool have_data_dir = mfem_data_dir != "";
+   if (have_data_dir)
+   {
+      mesh_filenames.push_back(mfem_data_dir + "/gmsh/v22/unstructured_quad.v22.msh");
+      mesh_filenames.push_back(mfem_data_dir + "/gmsh/v22/unstructured_hex.v22.msh");
+   }
+
+   const int order = GENERATE(1, 2);
+   const auto mesh_fname = GENERATE_COPY(from_range(mesh_filenames));
+
+   CAPTURE(order, mesh_fname);
+
+   Mesh serial_mesh = Mesh::LoadFromFile(mesh_fname.c_str());
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
+   serial_mesh.Clear();
+
+   const int dim = mesh.Dimension();
+
+   DG_FECollection fec(order, dim, BasisType::GaussLobatto);
+   ParFiniteElementSpace fes(&mesh, &fec);
+
+   ParGridFunction x(&fes), y_fa(&fes), y_pa(&fes);
+   x.Randomize(1);
+
+   ConstantCoefficient pi(3.14159);
+
+   const double sigma = -1.0;
+   const double kappa = 20.0;
+
+   ParBilinearForm blf_fa(&fes);
+   blf_fa.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
+   blf_fa.AddBdrFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
+   blf_fa.Assemble();
+   blf_fa.Finalize();
+   OperatorHandle A_fa(Operator::Hypre_ParCSR);
+   blf_fa.ParallelAssemble(A_fa);
+   A_fa->Mult(x, y_fa);
+
+   ParBilinearForm blf_pa(&fes);
+   blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   blf_pa.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
+   blf_pa.AddBdrFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
+   blf_pa.Assemble();
+   blf_pa.Mult(x, y_pa);
+
+   y_fa -= y_pa;
+
+   REQUIRE(y_fa.Normlinf() == MFEM_Approx(0.0, 1e-10));
+}
+
+#endif
+
 } // namespace pa_kernels

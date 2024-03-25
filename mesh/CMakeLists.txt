@@ -11,6 +11,7 @@
 
 set(SRCS
   element.cpp
+  face_nbr_geom.cpp
   gmsh.cpp
   hexahedron.cpp
   mesh.cpp
@@ -35,6 +36,7 @@ set(SRCS
 
 set(HDRS
   element.hpp
+  face_nbr_geom.hpp
   gmsh.hpp
   hexahedron.hpp
   mesh.hpp
