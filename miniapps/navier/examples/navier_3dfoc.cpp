@@ -8,27 +8,10 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
-//
-// Navier double shear layer example
-//
-// Solve the double shear problem in the following configuration.
-//
-//       +-------------------+
-//       |                   |
-//       |      u0 = ua      |
-//       |                   |
-//  -------------------------------- y = 0.5
-//       |                   |
-//       |      u0 = ub      |
-//       |                   |
-//       +-------------------+
-//
-// The initial condition u0 is chosen to be a varying velocity in the y
-// direction. It includes a perturbation at x = 0.5 which leads to an
-// instability and the dynamics of the flow. The boundary conditions are fully
-// periodic.
 
-#include "navier_solver.hpp"
+// 3D flow over a cylinder benchmark example
+
+#include "lib/navier_solver.hpp"
 #include <fstream>
 
 using namespace mfem;
@@ -36,30 +19,31 @@ using namespace navier;
 
 struct s_NavierContext
 {
-   int order = 6;
-   double kinvis = 1.0 / 100000.0;
-   double t_final = 10 * 1e-3;
+   int order = 4;
+   double kin_vis = 0.001;
+   double t_final = 8.0;
    double dt = 1e-3;
 } ctx;
 
-void vel_shear_ic(const Vector &x, double t, Vector &u)
+void vel(const Vector &x, double t, Vector &u)
 {
    double xi = x(0);
    double yi = x(1);
+   double zi = x(2);
 
-   double rho = 30.0;
-   double delta = 0.05;
+   double U = 2.25;
 
-   if (yi <= 0.5)
+   if (xi <= 1e-8)
    {
-      u(0) = tanh(rho * (yi - 0.25));
+      u(0) = 16.0 * U * yi * zi * sin(M_PI * t / 8.0) * (0.41 - yi)
+             * (0.41 - zi) / pow(0.41, 4.0);
    }
    else
    {
-      u(0) = tanh(rho * (0.75 - yi));
+      u(0) = 0.0;
    }
-
-   u(1) = delta * sin(2.0 * M_PI * xi);
+   u(1) = 0.0;
+   u(2) = 0.0;
 }
 
 int main(int argc, char *argv[])
@@ -67,13 +51,9 @@ int main(int argc, char *argv[])
    Mpi::Init(argc, argv);
    Hypre::Init();
 
-   int serial_refinements = 2;
+   int serial_refinements = 0;
 
-   Mesh *mesh = new Mesh("../../data/periodic-square.mesh");
-   mesh->EnsureNodes();
-   GridFunction *nodes = mesh->GetNodes();
-   *nodes -= -1.0;
-   *nodes /= 2.0;
+   Mesh *mesh = new Mesh("box-cylinder.mesh");
 
    for (int i = 0; i < serial_refinements; ++i)
    {
@@ -89,13 +69,21 @@ int main(int argc, char *argv[])
    delete mesh;
 
    // Create the flow solver.
-   NavierSolver flowsolver(pmesh, ctx.order, ctx.kinvis);
-   flowsolver.EnablePA(true);
+   NavierSolver flowsolver(pmesh, ctx.order, ctx.kin_vis);
 
    // Set the initial condition.
    ParGridFunction *u_ic = flowsolver.GetCurrentVelocity();
-   VectorFunctionCoefficient u_excoeff(pmesh->Dimension(), vel_shear_ic);
+   VectorFunctionCoefficient u_excoeff(pmesh->Dimension(), vel);
    u_ic->ProjectCoefficient(u_excoeff);
+
+   // Add Dirichlet boundary conditions to velocity space restricted to
+   // selected attributes on the mesh.
+   Array<int> attr(pmesh->bdr_attributes.Max());
+   // Inlet is attribute 1.
+   attr[0] = 1;
+   // Walls is attribute 3.
+   attr[2] = 1;
+   flowsolver.AddVelDirichletBC(vel, attr);
 
    double t = 0.0;
    double dt = ctx.dt;
@@ -107,10 +95,7 @@ int main(int argc, char *argv[])
    ParGridFunction *u_gf = flowsolver.GetCurrentVelocity();
    ParGridFunction *p_gf = flowsolver.GetCurrentPressure();
 
-   ParGridFunction w_gf(*u_gf);
-   flowsolver.ComputeCurl2D(*u_gf, w_gf);
-
-   ParaViewDataCollection pvdc("shear_output", pmesh);
+   ParaViewDataCollection pvdc("3dfoc", pmesh);
    pvdc.SetDataFormat(VTKFormat::BINARY32);
    pvdc.SetHighOrderOutput(true);
    pvdc.SetLevelsOfDetail(ctx.order);
@@ -118,7 +103,6 @@ int main(int argc, char *argv[])
    pvdc.SetTime(t);
    pvdc.RegisterField("velocity", u_gf);
    pvdc.RegisterField("pressure", p_gf);
-   pvdc.RegisterField("vorticity", &w_gf);
    pvdc.Save();
 
    for (int step = 0; !last_step; ++step)
@@ -132,7 +116,6 @@ int main(int argc, char *argv[])
 
       if (step % 10 == 0)
       {
-         flowsolver.ComputeCurl2D(*u_gf, w_gf);
          pvdc.SetCycle(step);
          pvdc.SetTime(t);
          pvdc.Save();

@@ -9,7 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 //
-// Navier Kovasznay example with variable time step
+// Navier Kovasznay example
 //
 // Solve for the steady Kovasznay flow at Re = 40 defined by
 //
@@ -38,12 +38,8 @@
 // and Dirichlet boundary conditions are applied for the velocity on every
 // boundary. The problem, although steady state, is time integrated up to the
 // final time and the solution is compared with the known exact solution.
-//
-// Additionally, this example shows the usage of variable time steps with
-// Navier. A basic sample algorithm for determining the next time step is
-// provided based on a CFL restriction on the velocity.
 
-#include "navier_solver.hpp"
+#include "lib/navier_solver.hpp"
 #include <fstream>
 
 using namespace mfem;
@@ -54,14 +50,12 @@ struct s_NavierContext
    int ser_ref_levels = 1;
    int order = 6;
    double kinvis = 1.0 / 40.0;
-   double t_final = 10 * 0.001;
-   double dt = 0.001;
+   double dt = 1e-3;
+   double t_final = 10 * dt;
    double reference_pressure = 0.0;
    double reynolds = 1.0 / kinvis;
    double lam = 0.5 * reynolds
                 - sqrt(0.25 * reynolds * reynolds + 4.0 * M_PI * M_PI);
-   bool pa = true;
-   bool ni = false;
    bool visualization = false;
    bool checkres = false;
 } ctx;
@@ -98,18 +92,6 @@ int main(int argc, char *argv[])
                   "Order (degree) of the finite elements.");
    args.AddOption(&ctx.dt, "-dt", "--time-step", "Time step.");
    args.AddOption(&ctx.t_final, "-tf", "--final-time", "Final time.");
-   args.AddOption(&ctx.pa,
-                  "-pa",
-                  "--enable-pa",
-                  "-no-pa",
-                  "--disable-pa",
-                  "Enable partial assembly.");
-   args.AddOption(&ctx.ni,
-                  "-ni",
-                  "--enable-ni",
-                  "-no-ni",
-                  "--disable-ni",
-                  "Enable numerical integration rules.");
    args.AddOption(&ctx.visualization,
                   "-vis",
                   "--visualization",
@@ -137,7 +119,7 @@ int main(int argc, char *argv[])
       args.PrintOptions(mfem::out);
    }
 
-   Mesh mesh = Mesh::MakeCartesian2D(2, 4, Element::QUADRILATERAL, false, 1.5,
+   Mesh mesh = Mesh::MakeCartesian2D(3, 4, Element::QUADRILATERAL, false, 1.5,
                                      2.0);
 
    mesh.EnsureNodes();
@@ -159,8 +141,6 @@ int main(int argc, char *argv[])
 
    // Create the flow solver.
    NavierSolver flowsolver(pmesh, ctx.order, ctx.kinvis);
-   flowsolver.EnablePA(ctx.pa);
-   flowsolver.EnableNI(ctx.ni);
 
    // Set the initial condition.
    ParGridFunction *u_ic = flowsolver.GetCurrentVelocity();
@@ -184,15 +164,12 @@ int main(int argc, char *argv[])
 
    double err_u = 0.0;
    double err_p = 0.0;
-   ParGridFunction *u_next_gf = nullptr;
    ParGridFunction *u_gf = nullptr;
    ParGridFunction *p_gf = nullptr;
 
+   ParGridFunction u_ex_gf(flowsolver.GetCurrentVelocity()->ParFESpace());
    ParGridFunction p_ex_gf(flowsolver.GetCurrentPressure()->ParFESpace());
    GridFunctionCoefficient p_ex_gf_coeff(&p_ex_gf);
-
-   double cfl_max = 0.8;
-   double cfl_tol = 1e-4;
 
    for (int step = 0; !last_step; ++step)
    {
@@ -201,44 +178,9 @@ int main(int argc, char *argv[])
          last_step = true;
       }
 
-      // Take a provisional step
-      flowsolver.Step(t, dt, step, true);
+      flowsolver.Step(t, dt, step);
 
-      // Retrieve the computed provisional velocity
-      u_next_gf = flowsolver.GetProvisionalVelocity();
-
-      // Compute the CFL based on the provisional velocity
-      double cfl = flowsolver.ComputeCFL(*u_next_gf, dt);
-
-      double error_est = cfl / (cfl_max + cfl_tol);
-      if (error_est >= 1.0)
-      {
-         // Reject the time step
-         if (Mpi::Root())
-         {
-            std::cout
-                  << "Step reached maximum CFL, retrying with smaller step size..."
-                  << std::endl;
-         }
-         dt *= 0.5;
-         step -= 1;
-      }
-      else
-      {
-         // Accept the time step
-         t += dt;
-
-         // Predict new step size
-         double fac_safety = 2.0;
-         double eta = pow(1.0 / (fac_safety * error_est), 1.0 / (1.0 + 3.0));
-         double fac_min = 0.1;
-         double fac_max = 1.4;
-         dt = dt * std::min(fac_max, std::max(fac_min, eta));
-
-         // Queue new time step in the history array
-         flowsolver.UpdateTimestepHistory(dt);
-      }
-
+      // Compare against exact solution of velocity and pressure.
       u_gf = flowsolver.GetCurrentVelocity();
       p_gf = flowsolver.GetCurrentPressure();
 
@@ -249,8 +191,18 @@ int main(int argc, char *argv[])
       p_ex_gf.ProjectCoefficient(p_excoeff);
       flowsolver.MeanZero(p_ex_gf);
 
-      err_u = u_gf->ComputeL2Error(u_excoeff);
+      const IntegrationRule *irs[Geometry::NumGeom];
+      for (int i=0; i < Geometry::NumGeom; ++i)
+      {
+         irs[i] = &(flowsolver.gll_rules.Get(i, 2 * ctx.order - 1));
+      }
+
+      err_u = u_gf->ComputeL2Error(u_excoeff, irs);
+      err_u = sqrt((err_u*err_u) / flowsolver.volume);
+
       err_p = p_gf->ComputeL2Error(p_ex_gf_coeff);
+
+      double cfl = flowsolver.ComputeCFL(*u_gf, dt);
 
       if (Mpi::Root())
       {

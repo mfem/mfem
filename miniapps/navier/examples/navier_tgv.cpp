@@ -13,7 +13,7 @@
 // Unsteady flow of a decaying vortex is computed and compared against a known,
 // analytical solution.
 
-#include "navier_solver.hpp"
+#include "lib/navier_solver.hpp"
 #include <fstream>
 
 using namespace mfem;
@@ -26,8 +26,6 @@ struct s_NavierContext
    double kinvis = 1.0 / 1600.0;
    double t_final = 10 * 1e-3;
    double dt = 1e-3;
-   bool pa = true;
-   bool ni = false;
    bool visualization = false;
    bool checkres = false;
 } ctx;
@@ -224,18 +222,6 @@ int main(int argc, char *argv[])
                   "Order (degree) of the finite elements.");
    args.AddOption(&ctx.dt, "-dt", "--time-step", "Time step.");
    args.AddOption(&ctx.t_final, "-tf", "--final-time", "Final time.");
-   args.AddOption(&ctx.pa,
-                  "-pa",
-                  "--enable-pa",
-                  "-no-pa",
-                  "--disable-pa",
-                  "Enable partial assembly.");
-   args.AddOption(&ctx.ni,
-                  "-ni",
-                  "--enable-ni",
-                  "-no-ni",
-                  "--disable-ni",
-                  "Enable numerical integration rules.");
    args.AddOption(&ctx.visualization,
                   "-vis",
                   "--visualization",
@@ -283,8 +269,6 @@ int main(int argc, char *argv[])
 
    // Create the flow solver.
    NavierSolver flowsolver(pmesh, ctx.order, ctx.kinvis);
-   flowsolver.EnablePA(ctx.pa);
-   flowsolver.EnableNI(ctx.ni);
 
    // Set the initial condition.
    ParGridFunction *u_ic = flowsolver.GetCurrentVelocity();
@@ -303,7 +287,12 @@ int main(int argc, char *argv[])
 
    ParGridFunction w_gf(*u_gf);
    ParGridFunction q_gf(*p_gf);
-   flowsolver.ComputeCurl3D(*u_gf, w_gf);
+   CurlEvaluator curl_evaluator(*u_gf->ParFESpace());
+   Vector utdof(u_gf->ParFESpace()->GetTrueVSize());
+   Vector wtdof(u_gf->ParFESpace()->GetTrueVSize());
+   u_gf->GetTrueDofs(utdof);
+   curl_evaluator.ComputeCurl(utdof, wtdof);
+   w_gf.Distribute(wtdof);
    ComputeQCriterion(*u_gf, q_gf);
 
    QuantitiesOfInterest kin_energy(pmesh);
@@ -359,7 +348,9 @@ int main(int argc, char *argv[])
 
       if ((step + 1) % 100 == 0 || last_step)
       {
-         flowsolver.ComputeCurl3D(*u_gf, w_gf);
+         u_gf->GetTrueDofs(utdof);
+         curl_evaluator.ComputeCurl(utdof, wtdof);
+         w_gf.Distribute(wtdof);
          ComputeQCriterion(*u_gf, q_gf);
          pvdc.SetCycle(step);
          pvdc.SetTime(t);

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -8,38 +8,8 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
-//
-// Navier Kovasznay example
-//
-// Solve for the steady Kovasznay flow at Re = 40 defined by
-//
-// u = [1 - exp(L * x) * cos(2 * pi * y),
-//      L / (2 * pi) * exp(L * x) * sin(2 * pi * y)],
-//
-// p = 1/2 * (1 - exp(2 * L * x)),
-//
-// with L = Re/2 - sqrt(Re^2/4 + 4 * pi^2).
-//
-// The problem domain is set up like this
-//
-//            +-------------+
-//            |             |
-//            |             |
-//            |             |
-//            |             |
-//  Inflow -> |             | -> Outflow
-//            |             |
-//            |             |
-//            |             |
-//            |             |
-//            |             |
-//            +-------------+
-//
-// and Dirichlet boundary conditions are applied for the velocity on every
-// boundary. The problem, although steady state, is time integrated up to the
-// final time and the solution is compared with the known exact solution.
 
-#include "navier_solver.hpp"
+#include "lib/navier_solver.hpp"
 #include <fstream>
 
 using namespace mfem;
@@ -51,31 +21,39 @@ struct s_NavierContext
    int order = 6;
    double kinvis = 1.0 / 40.0;
    double t_final = 10 * 0.001;
-   double dt = 0.001;
+   double dt = 1.0e-3;
    double reference_pressure = 0.0;
-   double reynolds = 1.0 / kinvis;
-   double lam = 0.5 * reynolds
-                - sqrt(0.25 * reynolds * reynolds + 4.0 * M_PI * M_PI);
-   bool pa = true;
-   bool ni = false;
    bool visualization = false;
    bool checkres = false;
 } ctx;
 
-void vel_kovasznay(const Vector &x, double t, Vector &u)
+double nu_tg(const Vector &c)
 {
-   double xi = x(0);
-   double yi = x(1);
-
-   u(0) = 1.0 - exp(ctx.lam * xi) * cos(2.0 * M_PI * yi);
-   u(1) = ctx.lam / (2.0 * M_PI) * exp(ctx.lam * xi) * sin(2.0 * M_PI * yi);
+   double x = c(0);
+   double y = c(1);
+   return (2 + sin(x) * cos(y)) / 40.0;
+   // return ctx.kinvis;
 }
 
-double pres_kovasznay(const Vector &x, double t)
+double F_tg(const Vector &x, const double t)
 {
-   double xi = x(0);
+   return exp(-2.0 * nu_tg(x) * t);
+}
 
-   return 0.5 * (1.0 - exp(2.0 * ctx.lam * xi)) + ctx.reference_pressure;
+void vel_tg(const Vector &c, double t, Vector &u)
+{
+   double x = c(0);
+   double y = c(1);
+   u(0) = cos(x) * sin(y) * F_tg(c, t);
+   u(1) = -sin(x) * cos(y) * F_tg(c, t);
+}
+
+double pres_tg(const Vector &c, double t)
+{
+   double x = c(0);
+   double y = c(1);
+   return -0.25 * (cos(2.0*x) + cos(2.0*y)) * pow(F_tg(c, t),
+                                                  2.0) + ctx.reference_pressure;
 }
 
 int main(int argc, char *argv[])
@@ -94,18 +72,6 @@ int main(int argc, char *argv[])
                   "Order (degree) of the finite elements.");
    args.AddOption(&ctx.dt, "-dt", "--time-step", "Time step.");
    args.AddOption(&ctx.t_final, "-tf", "--final-time", "Final time.");
-   args.AddOption(&ctx.pa,
-                  "-pa",
-                  "--enable-pa",
-                  "-no-pa",
-                  "--disable-pa",
-                  "Enable partial assembly.");
-   args.AddOption(&ctx.ni,
-                  "-ni",
-                  "--enable-ni",
-                  "-no-ni",
-                  "--disable-ni",
-                  "Enable numerical integration rules.");
    args.AddOption(&ctx.visualization,
                   "-vis",
                   "--visualization",
@@ -133,12 +99,8 @@ int main(int argc, char *argv[])
       args.PrintOptions(mfem::out);
    }
 
-   Mesh mesh = Mesh::MakeCartesian2D(2, 4, Element::QUADRILATERAL, false, 1.5,
-                                     2.0);
-
-   mesh.EnsureNodes();
-   GridFunction *nodes = mesh.GetNodes();
-   *nodes -= 0.5;
+   Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL, false, 2*M_PI,
+                                     2.0*M_PI);
 
    for (int i = 0; i < ctx.ser_ref_levels; ++i)
    {
@@ -155,21 +117,23 @@ int main(int argc, char *argv[])
 
    // Create the flow solver.
    NavierSolver flowsolver(pmesh, ctx.order, ctx.kinvis);
-   flowsolver.EnablePA(ctx.pa);
-   flowsolver.EnableNI(ctx.ni);
+
+   auto kv_gf = flowsolver.GetVariableViscosity();
+   FunctionCoefficient kv_coeff(nu_tg);
+   kv_gf->ProjectCoefficient(kv_coeff);
 
    // Set the initial condition.
    ParGridFunction *u_ic = flowsolver.GetCurrentVelocity();
-   VectorFunctionCoefficient u_excoeff(pmesh->Dimension(), vel_kovasznay);
+   VectorFunctionCoefficient u_excoeff(pmesh->Dimension(), vel_tg);
    u_ic->ProjectCoefficient(u_excoeff);
 
-   FunctionCoefficient p_excoeff(pres_kovasznay);
+   FunctionCoefficient p_excoeff(pres_tg);
 
    // Add Dirichlet boundary conditions to velocity space restricted to
    // selected attributes on the mesh.
    Array<int> attr(pmesh->bdr_attributes.Max());
    attr = 1;
-   flowsolver.AddVelDirichletBC(vel_kovasznay, attr);
+   flowsolver.AddVelDirichletBC(vel_tg, attr);
 
    double t = 0.0;
    double dt = ctx.dt;
@@ -183,8 +147,14 @@ int main(int argc, char *argv[])
    ParGridFunction *u_gf = nullptr;
    ParGridFunction *p_gf = nullptr;
 
+   ParGridFunction u_ex_gf(flowsolver.GetCurrentVelocity()->ParFESpace());
    ParGridFunction p_ex_gf(flowsolver.GetCurrentPressure()->ParFESpace());
    GridFunctionCoefficient p_ex_gf_coeff(&p_ex_gf);
+
+   char vishost[] = "128.15.198.77";
+   int visport = 19916;
+   socketstream sol_sock(vishost, visport);
+   sol_sock.precision(8);
 
    for (int step = 0; !last_step; ++step)
    {
@@ -206,7 +176,15 @@ int main(int argc, char *argv[])
       p_ex_gf.ProjectCoefficient(p_excoeff);
       flowsolver.MeanZero(p_ex_gf);
 
-      err_u = u_gf->ComputeL2Error(u_excoeff);
+      const IntegrationRule *irs[Geometry::NumGeom];
+      for (int i=0; i < Geometry::NumGeom; ++i)
+      {
+         irs[i] = &(flowsolver.gll_rules.Get(i, 2 * ctx.order - 1));
+      }
+
+      err_u = u_gf->ComputeL2Error(u_excoeff, irs);
+      err_u = sqrt((err_u*err_u) / flowsolver.volume);
+
       err_p = p_gf->ComputeL2Error(p_ex_gf_coeff);
 
       double cfl = flowsolver.ComputeCFL(*u_gf, dt);
@@ -229,17 +207,12 @@ int main(int argc, char *argv[])
                 err_p);
          fflush(stdout);
       }
-   }
 
-   if (ctx.visualization)
-   {
-      char vishost[] = "localhost";
-      int visport = 19916;
-      socketstream sol_sock(vishost, visport);
-      sol_sock.precision(8);
-      sol_sock << "parallel " << Mpi::WorldSize() << " "
-               << Mpi::WorldRank() << "\n";
-      sol_sock << "solution\n" << *pmesh << *u_ic << std::flush;
+      {
+         sol_sock << "parallel " << Mpi::WorldSize() << " "
+                  << Mpi::WorldRank() << "\n";
+         sol_sock << "solution\n" << *pmesh << *u_gf << std::flush;
+      }
    }
 
    flowsolver.PrintTimingData();

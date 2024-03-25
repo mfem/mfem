@@ -15,7 +15,7 @@
 //
 // [1] https://how5.cenaero.be/content/ws2-les-plane-channel-ret550
 
-#include "navier_solver.hpp"
+#include "lib/navier_solver.hpp"
 #include <fstream>
 #include <cmath>
 
@@ -138,7 +138,6 @@ int main(int argc, char *argv[])
 
    // Create the flow solver.
    NavierSolver flowsolver(pmesh, ctx.order, ctx.kin_vis);
-   flowsolver.EnablePA(true);
 
    // Set the initial condition.
    ParGridFunction *u_gf = flowsolver.GetCurrentVelocity();

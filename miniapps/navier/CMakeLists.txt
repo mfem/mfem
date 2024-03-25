@@ -10,62 +10,124 @@
 # CONTRIBUTING.md for details.
 
 if (MFEM_USE_MPI)
-  list(APPEND NAVIER_COMMON_SOURCES
-      navier_solver.cpp)
-  list(APPEND NAVIER_COMMON_HEADERS
-      navier_solver.hpp)
+add_subdirectory(lib)
 
-  convert_filenames_to_full_paths(NAVIER_COMMON_SOURCES)
-  convert_filenames_to_full_paths(NAVIER_COMMON_HEADERS)
+  set(NAVIER_DIR ${CMAKE_SOURCE_DIR}/miniapps/navier)
+  set(NAVIER_EXTRA_INCLUDE_DIRECTORIES
+    ${NAVIER_DIR}
+    ${CMAKE_SOURCE_DIR}/miniapps/common
+    ${CMAKE_SOURCE_DIR}/miniapps/hooke/kernels)
 
-  set(NAVIER_COMMON_FILES
-      EXTRA_SOURCES ${NAVIER_COMMON_SOURCES}
-      EXTRA_HEADERS ${NAVIER_COMMON_HEADERS})
+  add_library(navier
+    ${NAVIER_DIR}/lib/navier_solver.cpp
+    ${NAVIER_DIR}/kernels/mean_evaluator.cpp
+    ${NAVIER_DIR}/kernels/curl_evaluator.cpp
+    ${NAVIER_DIR}/kernels/stress_integrator.cpp
+    ${NAVIER_DIR}/kernels/shear_stress_evaluator.cpp
+    ${CMAKE_SOURCE_DIR}/miniapps/common/dist_solver.cpp)
+
+  target_include_directories(navier PRIVATE
+    ${CMAKE_SOURCE_DIR}
+    ${MFEM_INCLUDE_DIRS}
+    ${TPL_INCLUDE_DIRS}
+    ${NAVIER_EXTRA_INCLUDE_DIRECTORIES})
+
+  target_link_libraries(navier
+    mfem
+    ${TPL_LIBRARIES})
 
   add_mfem_miniapp(navier_mms
-    MAIN navier_mms.cpp
+    MAIN examples/navier_mms.cpp
     ${NAVIER_COMMON_FILES}
-    LIBRARIES mfem)
+    LIBRARIES mfem navier)
+
+  target_include_directories(navier_mms
+    PRIVATE ${NAVIER_EXTRA_INCLUDE_DIRECTORIES})
+
+  add_mfem_miniapp(navier_mms2
+    MAIN examples/navier_mms2.cpp
+    ${NAVIER_COMMON_FILES}
+    LIBRARIES mfem navier)
+
+  target_include_directories(navier_mms2
+    PRIVATE ${NAVIER_EXTRA_INCLUDE_DIRECTORIES})
 
   add_mfem_miniapp(navier_kovasznay
-    MAIN navier_kovasznay.cpp
+    MAIN examples/navier_kovasznay.cpp
     ${NAVIER_COMMON_FILES}
-    LIBRARIES mfem)
+    LIBRARIES mfem navier)
+
+  target_include_directories(navier_kovasznay
+    PRIVATE ${NAVIER_EXTRA_INCLUDE_DIRECTORIES})
 
   add_mfem_miniapp(navier_kovasznay_vs
-    MAIN navier_kovasznay_vs.cpp
+    MAIN examples/navier_kovasznay_vs.cpp
     ${NAVIER_COMMON_FILES}
-    LIBRARIES mfem)
+    LIBRARIES mfem navier)
+
+  target_include_directories(navier_kovasznay_vs
+    PRIVATE ${NAVIER_EXTRA_INCLUDE_DIRECTORIES})
 
   add_mfem_miniapp(navier_tgv
-    MAIN navier_tgv.cpp
+    MAIN examples/navier_tgv.cpp
     ${NAVIER_COMMON_FILES}
-    LIBRARIES mfem)
+    LIBRARIES mfem navier)
+
+  target_include_directories(navier_tgv
+    PRIVATE ${NAVIER_EXTRA_INCLUDE_DIRECTORIES})
 
   add_mfem_miniapp(navier_shear
-    MAIN navier_shear.cpp
+    MAIN examples/navier_shear.cpp
     ${NAVIER_COMMON_FILES}
-    LIBRARIES mfem)
+    LIBRARIES mfem navier)
+
+  target_include_directories(navier_shear
+    PRIVATE ${NAVIER_EXTRA_INCLUDE_DIRECTORIES})
 
   add_mfem_miniapp(navier_3dfoc
-    MAIN navier_3dfoc.cpp
+    MAIN examples/navier_3dfoc.cpp
     ${NAVIER_COMMON_FILES}
-    LIBRARIES mfem)
+    LIBRARIES mfem navier)
+
+ target_include_directories(navier_3dfoc
+    PRIVATE ${NAVIER_EXTRA_INCLUDE_DIRECTORIES})
 
   add_mfem_miniapp(navier_turbchan
-    MAIN navier_turbchan.cpp
+    MAIN examples/navier_turbchan.cpp
     ${NAVIER_COMMON_FILES}
-    LIBRARIES mfem)
+    LIBRARIES mfem navier)
+
+  target_include_directories(navier_turbchan
+    PRIVATE ${NAVIER_EXTRA_INCLUDE_DIRECTORIES})
+
+  add_mfem_miniapp(navier_tgv2d
+    MAIN examples/navier_tgv2d.cpp
+    ${NAVIER_COMMON_FILES}
+    LIBRARIES mfem navier)
+
+  target_include_directories(navier_tgv2d
+    PRIVATE ${NAVIER_EXTRA_INCLUDE_DIRECTORIES})
 
   if (MFEM_USE_GSLIB)
     add_mfem_miniapp(navier_cht
-      MAIN navier_cht.cpp
+      MAIN examples/navier_cht.cpp
       ${NAVIER_COMMON_FILES}
-      LIBRARIES mfem)
+      LIBRARIES mfem navier)
+
+    target_include_directories(navier_cht
+      PRIVATE ${NAVIER_EXTRA_INCLUDE_DIRECTORIES})
+  
+    add_mfem_miniapp(navier_fsi
+      MAIN examples/navier_fsi.cpp
+      ${NAVIER_COMMON_FILES}
+      LIBRARIES mfem navier)
+
+    target_include_directories(navier_fsi
+      PRIVATE ${NAVIER_EXTRA_INCLUDE_DIRECTORIES})  
 
     LIST(APPEND NAVIER_MESH_FILES
-        fluid-cht.mesh
-        solid-cht.mesh)
+        examples/fluid-cht.mesh
+        examples/solid-cht.mesh)
     foreach(MESH_FILE ${NAVIER_MESH_FILES})
         add_custom_command(
           TARGET navier_cht POST_BUILD #OUTPUT ${MESH_FILE}
@@ -84,4 +146,4 @@ if (MFEM_USE_MPI)
         ${MPIEXEC_POSTFLAGS})
     endforeach()
 endif()
-endif ()
+endif () #MFEM_USE_MPI

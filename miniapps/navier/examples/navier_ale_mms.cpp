@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -31,14 +31,15 @@ using namespace navier;
 struct s_NavierContext
 {
    int ser_ref_levels = 1;
-   int order = 5;
-   double kinvis = 1.0;
-   double t_final = 10 * 0.25e-4;
-   double dt = 0.25e-4;
+   int order = 4;
+   double kinvis = 1.0 / 40.0;
+   double dt = 1e-5;
+   double t_final = 10.0 * dt;
    bool pa = true;
    bool ni = false;
    bool visualization = false;
    bool checkres = false;
+   double A = 0.3;
 } ctx;
 
 void vel(const Vector &x, double t, Vector &u)
@@ -46,8 +47,10 @@ void vel(const Vector &x, double t, Vector &u)
    double xi = x(0);
    double yi = x(1);
 
-   u(0) = M_PI * sin(t) * pow(sin(M_PI * xi), 2.0) * sin(2.0 * M_PI * yi);
-   u(1) = -(M_PI * sin(t) * sin(2.0 * M_PI * xi) * pow(sin(M_PI * yi), 2.0));
+   double e = exp(-2.0 * t * ctx.kinvis);
+
+   u(0) = cos(xi) * sin(yi) * e;
+   u(1) = -sin(xi) * cos(yi) * e;
 }
 
 double p(const Vector &x, double t)
@@ -55,37 +58,22 @@ double p(const Vector &x, double t)
    double xi = x(0);
    double yi = x(1);
 
-   return cos(M_PI * xi) * sin(t) * sin(M_PI * yi);
+   double e = exp(-2.0 * t * ctx.kinvis);
+
+   return -0.25 * (cos(2.0 * xi) + cos(2.0 * yi)) * e * e;
 }
 
 void accel(const Vector &x, double t, Vector &u)
 {
-   double xi = x(0);
-   double yi = x(1);
-
-   u(0) = M_PI * sin(t) * sin(M_PI * xi) * sin(M_PI * yi)
-          * (-1.0
-             + 2.0 * pow(M_PI, 2.0) * sin(t) * sin(M_PI * xi)
-             * sin(2.0 * M_PI * xi) * sin(M_PI * yi))
-          + M_PI
-          * (2.0 * ctx.kinvis * pow(M_PI, 2.0)
-             * (1.0 - 2.0 * cos(2.0 * M_PI * xi)) * sin(t)
-             + cos(t) * pow(sin(M_PI * xi), 2.0))
-          * sin(2.0 * M_PI * yi);
-
-   u(1) = M_PI * cos(M_PI * yi) * sin(t)
-          * (cos(M_PI * xi)
-             + 2.0 * ctx.kinvis * pow(M_PI, 2.0) * cos(M_PI * yi)
-             * sin(2.0 * M_PI * xi))
-          - M_PI * (cos(t) + 6.0 * ctx.kinvis * pow(M_PI, 2.0) * sin(t))
-          * sin(2.0 * M_PI * xi) * pow(sin(M_PI * yi), 2.0)
-          + 4.0 * pow(M_PI, 3.0) * cos(M_PI * yi) * pow(sin(t), 2.0)
-          * pow(sin(M_PI * xi), 2.0) * pow(sin(M_PI * yi), 3.0);
+   u(0) = 0.0;
+   u(1) = 0.0;
 }
 
 int main(int argc, char *argv[])
 {
    Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
    Hypre::Init();
 
    OptionsParser args(argc, argv);
@@ -124,25 +112,15 @@ int main(int argc, char *argv[])
       "-no-cr",
       "--no-checkresult",
       "Enable or disable checking of the result. Returns -1 on failure.");
-   args.Parse();
-   if (!args.Good())
-   {
-      if (Mpi::Root())
-      {
-         args.PrintUsage(mfem::out);
-      }
-      return 1;
-   }
-   if (Mpi::Root())
-   {
-      args.PrintOptions(mfem::out);
-   }
+   args.ParseCheck();
 
+   // Mesh *mesh = new Mesh("../../data/periodic-square.mesh");
    Mesh *mesh = new Mesh("../../data/inline-quad.mesh");
-   mesh->EnsureNodes();
+   mesh->SetCurvature(ctx.order);
    GridFunction *nodes = mesh->GetNodes();
-   *nodes *= 2.0;
-   *nodes -= 1.0;
+   // *nodes += 1.0;
+   // *nodes *= 0.5;
+   *nodes *= 2.0 * M_PI;
 
    for (int i = 0; i < ctx.ser_ref_levels; ++i)
    {
@@ -159,8 +137,6 @@ int main(int argc, char *argv[])
 
    // Create the flow solver.
    NavierSolver naviersolver(pmesh, ctx.order, ctx.kinvis);
-   naviersolver.EnablePA(ctx.pa);
-   naviersolver.EnableNI(ctx.ni);
 
    // Set the initial condition.
    ParGridFunction *u_ic = naviersolver.GetCurrentVelocity();
@@ -186,12 +162,104 @@ int main(int argc, char *argv[])
 
    naviersolver.Setup(dt);
 
-   double err_u = 0.0;
-   double err_p = 0.0;
+   double errl2_u = 0.0;
+   double errlinf_u = 0.0;
+   double errl2_p = 0.0;
+   double errlinf_p = 0.0;
    ParGridFunction *u_gf = nullptr;
    ParGridFunction *p_gf = nullptr;
+   ParGridFunction *u_next_gf = nullptr;
+   GridFunction *wg_gf = nullptr;
+   u_next_gf = naviersolver.GetProvisionalVelocity();
+   u_next_gf->ProjectCoefficient(u_excoeff);
    u_gf = naviersolver.GetCurrentVelocity();
    p_gf = naviersolver.GetCurrentPressure();
+   wg_gf = naviersolver.GetCurrentMeshVelocity();
+
+   // This is just to initialize some datastructres in navier
+   p_gf->ProjectCoefficient(p_excoeff);
+   naviersolver.MeanZero(*p_gf);
+   *p_gf = 0.0;
+
+   ParGridFunction u_ex(*u_gf);
+   ParGridFunction p_ex(*p_gf);
+
+   auto userchk = [&](int step)
+   {
+      u_ex.ProjectCoefficient(u_excoeff);
+      for (int i = 0; i < u_ex.Size(); ++i)
+      {
+         u_ex[i] = (*u_next_gf)[i] - u_ex[i];
+      }
+
+      p_ex.ProjectCoefficient(p_excoeff);
+      for (int i = 0; i < p_ex.Size(); ++i)
+      {
+         p_ex[i] = (*p_gf)[i] - p_ex[i];
+      }
+
+      // Compare against exact solution of velocity and pressure.
+      errl2_u = naviersolver.NekNorm(u_ex, 0, true);
+      errl2_p = naviersolver.NekNorm(p_ex, 0, false);
+      errlinf_u = naviersolver.NekNorm(u_ex, 1, true);
+      errlinf_p = naviersolver.NekNorm(p_ex, 1, false);
+
+
+      if (Mpi::Root())
+      {
+         if (step == -1)
+         {
+            printf("%18s %18s %18s %18s %18s %18s errlog\n",
+                   "time",
+                   "dt",
+                   "errl2_u",
+                   "errl2_p",
+                   "errlinf_u",
+                   "errlinf_p");
+         }
+         printf("%18.12E %18.12E %18.12E %18.12E %18.12E %18.12E errlog\n",
+                t,
+                dt,
+                errl2_u,
+                errl2_p,
+                errlinf_u,
+                errlinf_p);
+         fflush(stdout);
+      }
+   };
+
+   userchk(-1);
+
+   auto xi_0 = new GridFunction(*pmesh->GetNodes());
+
+   VectorFunctionCoefficient
+   mesh_nodes(2, [&](const Vector &cin, double t, Vector &cout)
+   {
+      double x = cin(0);
+      double y = cin(1);
+      cout(0) = x + ctx.A * sin(t) * sin(x) * sin(y);
+      cout(1) = y + ctx.A * sin(t) * sin(x) * sin(y);
+   });
+
+   VectorFunctionCoefficient
+   mesh_nodes_velocity(2, [&](const Vector &cin, double t, Vector &cout)
+   {
+      double x = cin(0);
+      double y = cin(1);
+      cout(0) = ctx.A * cos(t) * sin(x) * sin(y);
+      cout(1) = ctx.A * cos(t) * sin(x) * sin(y);
+   });
+
+   ParaViewDataCollection paraview_dc("output", pmesh);
+   paraview_dc.SetLevelsOfDetail(ctx.order);
+   paraview_dc.SetCycle(0);
+   paraview_dc.SetDataFormat(VTKFormat::BINARY);
+   paraview_dc.SetHighOrderOutput(true);
+   paraview_dc.SetTime(t);
+   paraview_dc.RegisterField("velocity", u_gf);
+   paraview_dc.RegisterField("pressure", p_gf);
+   paraview_dc.RegisterField("velocity_error", &u_ex);
+   paraview_dc.RegisterField("pressure_error", &p_ex);
 
    for (int step = 0; !last_step; ++step)
    {
@@ -200,48 +268,51 @@ int main(int argc, char *argv[])
          last_step = true;
       }
 
-      naviersolver.Step(t, dt, step);
+      *pmesh->GetNodes() = *xi_0;
 
-      // Compare against exact solution of velocity and pressure.
+      mesh_nodes_velocity.SetTime(t + dt);
+      wg_gf->ProjectCoefficient(mesh_nodes_velocity);
+
+      mesh_nodes.SetTime(t);
+      naviersolver.TransformMesh(mesh_nodes);
+
+      naviersolver.Step(t, dt, step, true);
+      t += dt;
+
       u_excoeff.SetTime(t);
       p_excoeff.SetTime(t);
-      err_u = u_gf->ComputeL2Error(u_excoeff);
-      err_p = p_gf->ComputeL2Error(p_excoeff);
 
-      if (Mpi::Root())
+      if (step < 5)
       {
-         printf("%11s %11s %11s %11s\n", "Time", "dt", "err_u", "err_p");
-         printf("%.5E %.5E %.5E %.5E err\n", t, dt, err_u, err_p);
-         fflush(stdout);
+         u_next_gf->ProjectCoefficient(u_excoeff);
+         p_gf->ProjectCoefficient(p_excoeff);
       }
+
+      userchk(step);
+
+      naviersolver.UpdateTimestepHistory(dt);
+
+      paraview_dc.SetCycle(step + 1);
+      paraview_dc.SetTime(t);
+      paraview_dc.Save();
    }
 
    if (ctx.visualization)
    {
       char vishost[] = "localhost";
       int visport = 19916;
-      socketstream sol_sock(vishost, visport);
-      sol_sock << "parallel " << Mpi::WorldSize() << " "
-               << Mpi::WorldRank() << "\n";
-      sol_sock << "solution\n" << *pmesh << *u_ic << std::flush;
+      socketstream u_sock(vishost, visport);
+      u_sock << "parallel " << num_procs << " " << myid
+             << "\n";
+      u_sock << "solution\n" << *pmesh << u_ex << std::flush;
+
+      socketstream p_sock(vishost, visport);
+      p_sock << "parallel " << num_procs << " " << myid
+             << "\n";
+      p_sock << "solution\n" << *pmesh << p_ex << std::flush;
    }
 
    naviersolver.PrintTimingData();
-
-   // Test if the result for the test run is as expected.
-   if (ctx.checkres)
-   {
-      double tol = 1e-3;
-      if (err_u > tol || err_p > tol)
-      {
-         if (Mpi::Root())
-         {
-            mfem::out << "Result has a larger error than expected."
-                      << std::endl;
-         }
-         return -1;
-      }
-   }
 
    delete pmesh;
 
