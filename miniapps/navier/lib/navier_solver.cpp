@@ -18,7 +18,8 @@
 using namespace mfem;
 using namespace navier;
 
-NavierSolver::NavierSolver(ParMesh *mesh, int order, double kin_vis, const double density)
+NavierSolver::NavierSolver(ParMesh *mesh, int order, double kin_vis,
+                           const double density)
    : pmesh(mesh), order(order), kin_vis(kin_vis), density(density),
      gll_rules(0, Quadrature1D::GaussLobatto)
 {
@@ -561,9 +562,9 @@ void NavierSolver::Step(double &time, double dt, int current_step,
       const auto ab3_ = ab3;
       mfem::forall(Lext.Size(), [=] MFEM_HOST_DEVICE (int i)
       {
-         d_Lext[i] = ab1_ * d_un[i] +
-                     ab2_ * d_unm1[i] +
-                     ab3_ * d_unm2[i];
+         d_u_ext[i] = ab1_ * d_un[i] +
+                      ab2_ * d_unm1[i] +
+                      ab3_ * d_unm2[i];
       });
    }
 
@@ -695,20 +696,6 @@ void NavierSolver::Step(double &time, double dt, int current_step,
    {
       UpdateTimestepHistory(dt);
       time += dt;
-   }
-
-   if (filter_alpha != 0.0)
-   {
-      un_NM1_gf.ProjectGridFunction(un_gf);
-      un_filtered_gf.ProjectGridFunction(un_NM1_gf);
-      const auto d_un_filtered_gf = un_filtered_gf.Read();
-      auto d_un_gf = un_gf.ReadWrite();
-      const auto filter_alpha_ = filter_alpha;
-      mfem::forall(un_gf.Size(), [=] MFEM_HOST_DEVICE (int i)
-      {
-         d_un_gf[i] = (1.0 - filter_alpha_) * d_un_gf[i]
-                      + filter_alpha_ * d_un_filtered_gf[i];
-      });
    }
 
    sw_step.Stop();
