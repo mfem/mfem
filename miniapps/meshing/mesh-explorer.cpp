@@ -895,7 +895,7 @@ int main (int argc, char *argv[])
          {
             Array<int> coloring;
             srand(time(0));
-            real_t a = real_t(rand()) / (real_t(RAND_MAX) + 1.);
+            real_t a = rand_real();
             int el0 = (int)floor(a * mesh->GetNE());
             cout << "Generating coloring starting with element " << el0+1
                  << " / " << mesh->GetNE() << endl;

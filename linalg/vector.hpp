@@ -21,6 +21,7 @@
 #include "../general/device.hpp"
 
 #include <cmath>
+#include <cstdlib>
 #include <iostream>
 #include <limits>
 #if defined(_MSC_VER) && (_MSC_VER < 1800)
@@ -53,6 +54,26 @@ inline real_t infinity()
 // see https://en.wikipedia.org/wiki/Newlib, http://www.sourceware.org/newlib.
 using ::infinity;
 #endif
+
+/// Generate a random `real_t` number in the interval [0,1) using rand().
+inline real_t rand_real()
+{
+   constexpr real_t max = (real_t)(RAND_MAX) + 1_r;
+#if defined(MFEM_USE_SINGLE)
+   // Note: For RAND_MAX = 2^31-1, float(RAND_MAX) = 2^31, and
+   // max = float(RAND_MAX)+1.0f is equal to 2^31 too; this is the actual value
+   // that we want for max. However, this rounding behavior means that for a
+   // range of values of rand() close to RAND_MAX, the expression
+   // float(rand())/max will give 1.0f.
+   //
+   // Therefore, to ensure we return a number less than 1, we take the minimum
+   // of float(rand())/max and (1 - 2^(-24)), where the latter number is the
+   // largest float less than 1.
+   return std::fmin(real_t(rand())/max, 0.9999999403953552_r);
+#else
+   return real_t(rand())/max;
+#endif
+}
 
 /// Vector data type.
 class Vector
