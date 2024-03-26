@@ -701,6 +701,47 @@ static void CopyCSR_J(const int nnz, const MemoryIJData &mem_csr,
 }
 #endif
 
+// Method called after hypre_CSRMatrixReorder()
+static void SyncBackCSR(SparseMatrix *csr, MemoryIJData &mem_csr)
+{
+   const MemoryClass hypre_mc = GetHypreMemoryClass();
+   const bool data_shallow = CanShallowCopy(csr->GetMemoryData(), hypre_mc);
+
+#if !defined(HYPRE_BIGINT) && defined(MFEM_DEBUG)
+   const bool J_shallow = CanShallowCopy(csr->GetMemoryJ(), hypre_mc);
+   MFEM_ASSERT(J_shallow == data_shallow, "unsupported state");
+#endif
+
+   if (data_shallow)
+   {
+      // I is not modified
+#ifndef HYPRE_BIGINT
+      csr->GetMemoryJ().Sync(mem_csr.J);
+#else
+      // We use nnz = csr->GetMemoryJ().Capacity() which is the same as the
+      // value used in CopyConvertMemory() in CopyCSR().
+      CopyCSR_J(csr->GetMemoryJ().Capacity(), mem_csr, csr->GetMemoryJ());
+#endif
+      csr->GetMemoryData().Sync(mem_csr.data);
+   }
+}
+
+// Method called after hypre_CSRMatrixReorder()
+static void SyncBackBoolCSR(Table *bool_csr, MemoryIJData &mem_csr)
+{
+   const MemoryClass hypre_mc = GetHypreMemoryClass();
+   const bool J_shallow = CanShallowCopy(bool_csr->GetJMemory(), hypre_mc);
+   if (J_shallow)
+   {
+      // I is not modified
+#ifndef HYPRE_BIGINT
+      bool_csr->GetJMemory().Sync(mem_csr.J);
+#else
+      // No need to sync the J array back to the Table
+#endif
+   }
+}
+
 // static method
 signed char HypreParMatrix::HypreCsrToMem(hypre_CSRMatrix *h_mat,
                                           MemoryType h_mat_mt,
@@ -798,12 +839,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, HYPRE_BigInt glob_size,
    /* Make sure that the first entry in each row is the diagonal one. */
    HypreReadWrite();
    hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
-#ifdef HYPRE_BIGINT
-   if (CanShallowCopy(diag->GetMemoryData(), GetHypreMemoryClass()))
-   {
-      CopyCSR_J(A->diag->num_nonzeros, mem_diag, diag->GetMemoryJ());
-   }
-#endif
+   SyncBackCSR(diag, mem_diag); // update diag, if needed
 
    hypre_MatvecCommPkgCreate(A);
 }
@@ -842,12 +878,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    {
       HypreReadWrite();
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
-#ifdef HYPRE_BIGINT
-      if (CanShallowCopy(diag->GetMemoryData(), GetHypreMemoryClass()))
-      {
-         CopyCSR_J(A->diag->num_nonzeros, mem_diag, diag->GetMemoryJ());
-      }
-#endif
+      SyncBackCSR(diag, mem_diag); // update diag, if needed
    }
 
    hypre_MatvecCommPkgCreate(A);
@@ -897,12 +928,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    {
       HypreReadWrite();
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
-#ifdef HYPRE_BIGINT
-      if (CanShallowCopy(diag->GetMemoryData(), GetHypreMemoryClass()))
-      {
-         CopyCSR_J(A->diag->num_nonzeros, mem_diag, diag->GetMemoryJ());
-      }
-#endif
+      SyncBackCSR(diag, mem_diag); // update diag, if needed
    }
 
    hypre_MatvecCommPkgCreate(A);
@@ -1060,10 +1086,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    {
       HypreReadWrite();
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
-#ifdef HYPRE_BIGINT
-      // No need to sync the J array back to the Table diag.
-      // CopyCSR_J(A->diag->num_nonzeros, mem_diag, diag->GetJMemory());
-#endif
+      SyncBackBoolCSR(diag, mem_diag); // update diag, if needed
    }
 
    hypre_MatvecCommPkgCreate(A);
