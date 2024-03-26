@@ -332,7 +332,10 @@ int main(int argc, char *argv[])
       cyl_sol_sock << "parallel " << num_procs << " " << myid << "\n";
       cyl_sol_sock.precision(8);
       cyl_sol_sock << "solution\n" << cylinder_submesh
-                   << magnetic_field_cylinder_gf << "pause\n" << std::flush;
+                   << magnetic_field_cylinder_gf
+                   << "window_title \"Time step: " << 0 << "\""
+                   << "keys cvv\n autoscale off\n valuerange 0 1.414\n"
+                   << "pause\n" << std::flush;
    }
    socketstream block_sol_sock;
    if (visualization)
@@ -340,7 +343,11 @@ int main(int argc, char *argv[])
       block_sol_sock.open(vishost, visport);
       block_sol_sock << "parallel " << num_procs << " " << myid << "\n";
       block_sol_sock.precision(8);
-      block_sol_sock << "solution\n" << block_submesh << magnetic_field_block_gf
+      block_sol_sock << "solution\n" << block_submesh
+                     << magnetic_field_block_gf
+                     << "window_title \"Time step: " << 0 << "\""
+                     << "window_geometry 400 0 400 350\n"
+                     << "keys cvv\n autoscale off\n valuerange 0 1.414\n"
                      << "pause\n" << std::flush;
    }
 
@@ -388,10 +395,14 @@ int main(int argc, char *argv[])
          {
             cyl_sol_sock << "parallel " << num_procs << " " << myid << "\n";
             cyl_sol_sock << "solution\n" << cylinder_submesh
-                         << magnetic_field_cylinder_gf << std::flush;
+                         << magnetic_field_cylinder_gf
+                         << "window_title \"Time step: " << ti << "\""
+                         << std::flush;
             block_sol_sock << "parallel " << num_procs << " " << myid << "\n";
             block_sol_sock << "solution\n" << block_submesh
-                           << magnetic_field_block_gf << std::flush;
+                           << magnetic_field_block_gf
+                           << "window_title \"Time step: " << ti << "\""
+                           << std::flush;
          }
       }
    }
