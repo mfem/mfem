@@ -204,7 +204,7 @@ int main(int argc, char *argv[])
       //     The system will be solved for true (unconstrained/unique) DOFs only.
       Array<int> ess_tdof_list;
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-      double time;
+      real_t time;
       const int copy_interior = 1;
 
       if (use_petsc)
