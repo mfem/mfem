@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -38,9 +38,9 @@ public:
    {
       MFEM_ASSERT(residual_size==4,
                   "PLaplacianResidual residual_size should be equal to 4!");
-      double pp = vparam[0];
-      double ee = vparam[1];
-      double ff = vparam[2];
+      real_t pp = vparam[0];
+      real_t ee = vparam[1];
+      real_t ff = vparam[2];
 
       // The vector rr holds the gradients of the following expression:
       // (u_x^2+u_y^2+u_z^2+\varepsilon^2)^(p/2)-f.u,
@@ -78,9 +78,9 @@ public:
    {
       MFEM_ASSERT(state_size==4,"MyEnergyFunctor state_size should be equal to 4!");
       MFEM_ASSERT(param_size==3,"MyEnergyFunctor param_size should be equal to 3!");
-      double pp = vparam[0];
-      double ee = vparam[1];
-      double ff = vparam[2];
+      real_t pp = vparam[0];
+      real_t ee = vparam[1];
+      real_t ff = vparam[2];
 
       TDataType u = uu[3];
       TDataType norm2 = uu[0] * uu[0] + uu[1] * uu[1] + uu[2] * uu[2];
@@ -143,11 +143,11 @@ public:
 
    virtual ~pLaplaceAD() {}
 
-   virtual double GetElementEnergy(const FiniteElement &el,
+   virtual real_t GetElementEnergy(const FiniteElement &el,
                                    ElementTransformation &trans,
                                    const Vector &elfun)
    {
-      double energy = 0.0;
+      real_t energy = 0.0;
       const int ndof = el.GetDof();
       const int ndim = el.GetDim();
       const int spaceDim = trans.GetSpaceDim();
@@ -167,10 +167,10 @@ public:
       uu = 0.0;
 
       // Calculates the functional/energy at an integration point.
-      MyEnergyFunctor<double,Vector,Vector,4,3> qfunc;
+      MyEnergyFunctor<real_t,Vector,Vector,4,3> qfunc;
 
-      double w;
-      double detJ;
+      real_t w;
+      real_t detJ;
 
       for (int i = 0; i < ir.GetNPoints(); i++)
       {
@@ -241,7 +241,7 @@ public:
       Vector du(4);
       B = 0.0;
       uu = 0.0;
-      double w;
+      real_t w;
 
       for (int i = 0; i < ir.GetNPoints(); i++)
       {
@@ -312,7 +312,7 @@ public:
       B = 0.0;
       uu = 0.0;
 
-      double w;
+      real_t w;
 
       for (int i = 0; i < ir.GetNPoints(); i++)
       {
@@ -389,11 +389,11 @@ public:
 
    virtual ~pLaplace() {}
 
-   virtual double GetElementEnergy(const FiniteElement &el,
+   virtual real_t GetElementEnergy(const FiniteElement &el,
                                    ElementTransformation &trans,
                                    const Vector &elfun)
    {
-      double energy = 0.0;
+      real_t energy = 0.0;
       const int ndof = el.GetDof();
       const int ndim = el.GetDim();
       const int spaceDim = trans.GetSpaceDim();
@@ -406,11 +406,11 @@ public:
       DenseMatrix dshape_xyz(ndof, spaceDim);
       Vector grad(spaceDim);
 
-      double w;
-      double detJ;
-      double nrgrad2;
-      double ppp = 2.0;
-      double eee = 0.0;
+      real_t w;
+      real_t detJ;
+      real_t nrgrad2;
+      real_t ppp = 2.0;
+      real_t eee = 0.0;
 
       for (int i = 0; i < ir.GetNPoints(); i++)
       {
@@ -474,12 +474,12 @@ public:
       elvect.SetSize(ndof);
       elvect = 0.0;
 
-      double w;
-      double detJ;
-      double nrgrad;
-      double aa;
-      double ppp = 2.0;
-      double eee = 0.0;
+      real_t w;
+      real_t detJ;
+      real_t nrgrad;
+      real_t aa;
+      real_t ppp = 2.0;
+      real_t eee = 0.0;
 
       for (int i = 0; i < ir.GetNPoints(); i++)
       {
@@ -548,13 +548,13 @@ public:
       elmat.SetSize(ndof, ndof);
       elmat = 0.0;
 
-      double w; // integration weight
-      double detJ;
-      double nrgrad; // norm of the gradient
-      double aa0; // original nonlinear diffusion coefficient
-      double aa1; // gradient of the above
-      double ppp = 2.0; // power in the P-Laplacian
-      double eee = 0.0; // regularization parameter
+      real_t w; // integration weight
+      real_t detJ;
+      real_t nrgrad; // norm of the gradient
+      real_t aa0; // original nonlinear diffusion coefficient
+      real_t aa1; // gradient of the above
+      real_t ppp = 2.0; // power in the P-Laplacian
+      real_t eee = 0.0; // regularization parameter
 
       for (int i = 0; i < ir.GetNPoints(); i++)
       {
@@ -629,11 +629,11 @@ public:
 
    virtual ~pLaplaceSL() {}
 
-   virtual double GetElementEnergy(const FiniteElement &el,
+   virtual real_t GetElementEnergy(const FiniteElement &el,
                                    ElementTransformation &trans,
                                    const Vector &elfun)
    {
-      double energy = 0.0;
+      real_t energy = 0.0;
       const int ndof = el.GetDof();
       const int ndim = el.GetDim();
       const int spaceDim = trans.GetSpaceDim();
@@ -646,11 +646,11 @@ public:
       DenseMatrix dshape_xyz(ndof, spaceDim);
       Vector grad(spaceDim);
 
-      double w;
-      double detJ;
-      double nrgrad2;
-      double ppp = 2.0;
-      double eee = 0.0;
+      real_t w;
+      real_t detJ;
+      real_t nrgrad2;
+      real_t ppp = 2.0;
+      real_t eee = 0.0;
 
       for (int i = 0; i < ir.GetNPoints(); i++)
       {
@@ -714,12 +714,12 @@ public:
       elvect.SetSize(ndof);
       elvect = 0.0;
 
-      double w;
-      double detJ;
-      double nrgrad;
-      double aa;
-      double ppp = 2.0;
-      double eee = 0.0;
+      real_t w;
+      real_t detJ;
+      real_t nrgrad;
+      real_t aa;
+      real_t ppp = 2.0;
+      real_t eee = 0.0;
 
       for (int i = 0; i < ir.GetNPoints(); i++)
       {
@@ -785,10 +785,10 @@ public:
       elmat.SetSize(ndof, ndof);
       elmat = 0.0;
 
-      double w;
-      double detJ;
-      double ppp = 2.0;
-      double eee = 0.0;
+      real_t w;
+      real_t detJ;
+      real_t ppp = 2.0;
+      real_t eee = 0.0;
 
       mfem::Vector param(3); param=0.0;
 

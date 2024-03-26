@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -21,13 +21,13 @@ namespace mfem
 /// Arbitrary order Nedelec elements in 3D on a cube
 class ND_HexahedronElement : public VectorTensorFiniteElement
 {
-   static const double tk[18];
+   static const real_t tk[18];
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_cx, shape_ox, shape_cy, shape_oy, shape_cz, shape_oz;
    mutable Vector dshape_cx, dshape_cy, dshape_cz;
 #endif
    Array<int> dof2tk;
-   const double *cp;
+   const real_t *cp;
 
 public:
    /** @brief Construct the ND_HexahedronElement of order @a p and closed and
@@ -103,14 +103,14 @@ protected:
 /// Arbitrary order Nedelec elements in 2D on a square
 class ND_QuadrilateralElement : public VectorTensorFiniteElement
 {
-   static const double tk[8];
+   static const real_t tk[8];
 
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_cx, shape_ox, shape_cy, shape_oy;
    mutable Vector dshape_cx, dshape_cy;
 #endif
    Array<int> dof2tk;
-   const double *cp;
+   const real_t *cp;
 
 public:
    /** @brief Construct the ND_QuadrilateralElement of order @a p and closed and
@@ -169,7 +169,7 @@ protected:
 /// Arbitrary order Nedelec elements in 3D on a tetrahedron
 class ND_TetrahedronElement : public VectorFiniteElement
 {
-   static const double tk[18], c;
+   static const real_t tk[18], c;
 
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, shape_y, shape_z, shape_l;
@@ -179,7 +179,7 @@ class ND_TetrahedronElement : public VectorFiniteElement
    Array<int> dof2tk;
    DenseMatrixInverse Ti;
 
-   mutable ND_TetStatelessDofTransformation doftrans;
+   ND_TetDofTransformation doftrans;
 
 public:
    /// Construct the ND_TetrahedronElement of order @a p
@@ -201,7 +201,7 @@ public:
                                   ElementTransformation &Trans,
                                   DenseMatrix &I) const
    { LocalInterpolation_ND(CheckVectorFE(fe), tk, dof2tk, Trans, I); }
-   virtual StatelessDofTransformation * GetDofTransformation() const
+   virtual const StatelessDofTransformation *GetDofTransformation() const
    { return &doftrans; }
    using FiniteElement::Project;
    virtual void Project(VectorCoefficient &vc,
@@ -231,7 +231,7 @@ public:
 /// Arbitrary order Nedelec elements in 2D on a triangle
 class ND_TriangleElement : public VectorFiniteElement
 {
-   static const double tk[8], c;
+   static const real_t tk[8], c;
 
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, shape_y, shape_l;
@@ -242,7 +242,7 @@ class ND_TriangleElement : public VectorFiniteElement
    Array<int> dof2tk;
    DenseMatrixInverse Ti;
 
-   mutable ND_TriStatelessDofTransformation doftrans;
+   ND_TriDofTransformation doftrans;
 
 public:
    /// Construct the ND_TriangleElement of order @a p
@@ -264,7 +264,7 @@ public:
                                   ElementTransformation &Trans,
                                   DenseMatrix &I) const
    { LocalInterpolation_ND(CheckVectorFE(fe), tk, dof2tk, Trans, I); }
-   virtual StatelessDofTransformation * GetDofTransformation() const
+   virtual const StatelessDofTransformation *GetDofTransformation() const
    { return &doftrans; }
    using FiniteElement::Project;
    virtual void Project(VectorCoefficient &vc,
@@ -290,7 +290,7 @@ public:
 /// Arbitrary order Nedelec elements in 1D on a segment
 class ND_SegmentElement : public VectorTensorFiniteElement
 {
-   static const double tk[1];
+   static const real_t tk[1];
 
    Array<int> dof2tk;
 
@@ -337,7 +337,7 @@ public:
 class ND_WedgeElement : public VectorFiniteElement
 {
 private:
-   static const double tk[15];
+   static const real_t tk[15];
 
 #ifndef MFEM_THREAD_SAFE
    mutable Vector      t1_shape, s1_shape;
@@ -346,7 +346,7 @@ private:
 #endif
    Array<int> dof2tk, t_dof, s_dof;
 
-   mutable ND_WedgeStatelessDofTransformation doftrans;
+   ND_WedgeDofTransformation doftrans;
 
    H1_TriangleElement H1TriangleFE;
    ND_TriangleElement NDTriangleFE;
@@ -379,7 +379,7 @@ public:
                                   DenseMatrix &I) const
    { LocalInterpolation_ND(CheckVectorFE(fe), tk, dof2tk, Trans, I); }
 
-   virtual StatelessDofTransformation * GetDofTransformation() const
+   virtual const StatelessDofTransformation *GetDofTransformation() const
    { return &doftrans; }
 
    using FiniteElement::Project;
@@ -415,7 +415,7 @@ public:
 */
 class ND_R1D_PointElement : public VectorFiniteElement
 {
-   static const double tk[9];
+   static const real_t tk[9];
 
 public:
    /** @brief Construct the ND_R1D_PointElement */
@@ -436,7 +436,7 @@ public:
 */
 class ND_R1D_SegmentElement : public VectorFiniteElement
 {
-   static const double tk[9];
+   static const real_t tk[9];
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_cx, shape_ox;
    mutable Vector dshape_cx;
@@ -514,7 +514,7 @@ public:
 */
 class ND_R2D_SegmentElement : public VectorFiniteElement
 {
-   static const double tk[4];
+   static const real_t tk[4];
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_cx, shape_ox;
    mutable Vector dshape_cx;
@@ -566,10 +566,10 @@ public:
 class ND_R2D_FiniteElement : public VectorFiniteElement
 {
 protected:
-   const double *tk;
+   const real_t *tk;
    Array<int> dof_map, dof2tk;
 
-   ND_R2D_FiniteElement(int p, Geometry::Type G, int Do, const double *tk_fe);
+   ND_R2D_FiniteElement(int p, Geometry::Type G, int Do, const real_t *tk_fe);
 
 private:
    void LocalInterpolation(const VectorFiniteElement &cfe,
@@ -615,7 +615,7 @@ public:
 class ND_R2D_TriangleElement : public ND_R2D_FiniteElement
 {
 private:
-   static const double tk_t[15];
+   static const real_t tk_t[15];
 
 #ifndef MFEM_THREAD_SAFE
    mutable DenseMatrix nd_shape;
@@ -645,7 +645,7 @@ public:
 /// Arbitrary order Nedelec 3D elements in 2D on a square
 class ND_R2D_QuadrilateralElement : public ND_R2D_FiniteElement
 {
-   static const double tk_q[15];
+   static const real_t tk_q[15];
 
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_cx, shape_ox, shape_cy, shape_oy;

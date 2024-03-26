@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -65,7 +65,7 @@ SubMesh::SubMesh(const Mesh &parent, From from,
 
       for (int i = 0; i < NumOfBdrElements; i++)
       {
-         int pbeid = parent_face_to_be[parent_face_ids_[GetBdrFace(i)]];
+         int pbeid = parent_face_to_be[parent_face_ids_[GetBdrElementFaceIndex(i)]];
          if (pbeid != -1)
          {
             int attr = parent.GetBdrElement(pbeid)->GetAttribute();
@@ -117,7 +117,7 @@ SubMesh::SubMesh(const Mesh &parent, From from,
 
          for (int i = 0; i < NumOfBdrElements; i++)
          {
-            int pbeid = parent_face_to_be[parent_edge_ids_[GetBdrFace(i)]];
+            int pbeid = parent_face_to_be[parent_edge_ids_[GetBdrElementFaceIndex(i)]];
             if (pbeid != -1)
             {
                int attr = parent.GetBdrElement(pbeid)->GetAttribute();

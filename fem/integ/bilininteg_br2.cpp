@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -17,19 +17,19 @@ namespace mfem
 {
 
 DGDiffusionBR2Integrator::DGDiffusionBR2Integrator(
-   FiniteElementSpace &fes, double e) : eta(e), Q(NULL)
+   FiniteElementSpace &fes, real_t e) : eta(e), Q(NULL)
 {
    PrecomputeMassInverse(fes);
 }
 
 DGDiffusionBR2Integrator::DGDiffusionBR2Integrator(
-   FiniteElementSpace &fes, Coefficient &Q_, double e) : eta(e), Q(&Q_)
+   FiniteElementSpace &fes, Coefficient &Q_, real_t e) : eta(e), Q(&Q_)
 {
    PrecomputeMassInverse(fes);
 }
 
 DGDiffusionBR2Integrator::DGDiffusionBR2Integrator(
-   FiniteElementSpace *fes, double e) : eta(e), Q(NULL)
+   FiniteElementSpace *fes, real_t e) : eta(e), Q(NULL)
 {
    PrecomputeMassInverse(*fes);
 }
@@ -97,7 +97,7 @@ void DGDiffusionBR2Integrator::PrecomputeMassInverse(FiniteElementSpace &fes)
 #endif
       }
       int dof = fe->GetDof();
-      double *Minv_el = &Minv[Minv_offsets[i]];
+      real_t *Minv_el = &Minv[Minv_offsets[i]];
       int *ipiv_el = &ipiv[ipiv_offsets[i]];
       DenseMatrix Me(Minv_el, dof, dof);
       mi.AssembleElementMatrix(*fe, *tr, Me);
@@ -119,7 +119,7 @@ void DGDiffusionBR2Integrator::AssembleFaceMatrix(
                    &ipiv[ipiv_offsets[Trans.Elem1No]]);
    LUFactors M2inv;
 
-   double factor = Geometries.NumBdr(Trans.Elem1->GetGeometryType());
+   real_t factor = Geometries.NumBdr(Trans.Elem1->GetGeometryType());
 
    int ndof2;
    if (Trans.Elem2No >= 0)
@@ -137,7 +137,7 @@ void DGDiffusionBR2Integrator::AssembleFaceMatrix(
       R22 = 0.0;
 
       Geometry::Type geom2 = Trans.Elem2->GetGeometryType();
-      factor = std::max(factor, double(Geometries.NumBdr(geom2)));
+      factor = std::max(factor, real_t(Geometries.NumBdr(geom2)));
    }
    else
    {
@@ -174,7 +174,7 @@ void DGDiffusionBR2Integrator::AssembleFaceMatrix(
 
       const IntegrationPoint &eip1 = Trans.Elem1->GetIntPoint();
       el1.CalcShape(eip1, shape1);
-      double q = Q ? Q->Eval(*Trans.Elem1, eip1) : 1.0;
+      real_t q = Q ? Q->Eval(*Trans.Elem1, eip1) : 1.0;
       if (ndof2)
       {
          const IntegrationPoint &eip2 = Trans.Elem2->GetIntPoint();
@@ -184,14 +184,14 @@ void DGDiffusionBR2Integrator::AssembleFaceMatrix(
       }
       // Take sqrt here because
       //    eta (r_e([u]), r_e([v])) = (sqrt(eta) r_e([u]), sqrt(eta) r_e([v]))
-      double w = sqrt((factor + 1)*eta*q)*ip.weight*Trans.Face->Weight();
+      real_t w = sqrt((factor + (real_t) 1.0)*eta*q)*ip.weight*Trans.Face->Weight();
       // r_e is defined by, (r_e([u]), tau) = <[u], {tau}>, so we pick up a
       // factor of 0.5 on interior faces from the average term.
       if (ndof2) { w *= 0.5; }
 
       for (int i = 0; i < ndof1; i++)
       {
-         const double wsi = w*shape1(i);
+         const real_t wsi = w*shape1(i);
          for (int j = 0; j < ndof1; j++)
          {
             R11(i, j) += wsi*shape1(j);
@@ -202,7 +202,7 @@ void DGDiffusionBR2Integrator::AssembleFaceMatrix(
       {
          for (int i = 0; i < ndof2; i++)
          {
-            const double wsi = w*shape2(i);
+            const real_t wsi = w*shape2(i);
             for (int j = 0; j < ndof1; j++)
             {
                R21(i, j) += wsi*shape1(j);

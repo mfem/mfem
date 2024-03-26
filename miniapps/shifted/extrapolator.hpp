@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -69,16 +69,16 @@ public:
    // The known values taken from elements where level_set > 0, and extrapolated
    // to all other elements. The known values are not changed.
    void Extrapolate(Coefficient &level_set, const ParGridFunction &input,
-                    const double time_period, ParGridFunction &xtrap);
+                    const real_t time_period, ParGridFunction &xtrap);
 
    // Errors in cut elements, given an exact solution.
    void ComputeLocalErrors(Coefficient &level_set, const ParGridFunction &exact,
                            const ParGridFunction &xtrap,
-                           double &err_L1, double &err_L2, double &err_LI);
+                           real_t &err_L1, real_t &err_L2, real_t &err_LI);
 
 private:
-   void TimeLoop(ParGridFunction &sltn, ODESolver &ode_solver, double t_final,
-                 double dt, int vis_x_pos, std::string vis_name);
+   void TimeLoop(ParGridFunction &sltn, ODESolver &ode_solver, real_t t_final,
+                 real_t dt, int vis_x_pos, std::string vis_name);
 };
 
 class LevelSetNormalGradCoeff : public VectorCoefficient
@@ -97,7 +97,7 @@ public:
    {
       Vector grad_ls(vdim), n(vdim);
       ls_gf.GetGradient(T, grad_ls);
-      const double norm_grad = grad_ls.Norml2();
+      const real_t norm_grad = grad_ls.Norml2();
       V = grad_ls;
       if (norm_grad > 0.0) { V /= norm_grad; }
 
@@ -116,7 +116,7 @@ private:
 public:
    GradComponentCoeff(const ParGridFunction &u, int c) : u_gf(u), comp(c) { }
 
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip)
    {
       Vector grad_u(T.GetDimension());
       u_gf.GetGradient(T, grad_u);
@@ -134,7 +134,7 @@ public:
    NormalGradCoeff(const ParGridFunction &u, VectorCoefficient &n)
       : u_gf(u), n_coeff(n) { }
 
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip)
    {
       const int dim = T.GetDimension();
       Vector n(dim), grad_u(dim);
@@ -155,7 +155,7 @@ public:
                             const ParGridFunction &dy, VectorCoefficient &n)
       : du_dx(dx), du_dy(dy), n_coeff(n) { }
 
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip)
    {
       const int dim = T.GetDimension();
       Vector n(dim), grad_u(dim);

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -21,10 +21,10 @@ namespace mfem
 // PA Convection Assemble 2D kernel
 static void PAConvectionSetup2D(const int NQ,
                                 const int NE,
-                                const Array<double> &w,
+                                const Array<real_t> &w,
                                 const Vector &j,
                                 const Vector &vel,
-                                const double alpha,
+                                const real_t alpha,
                                 Vector &op)
 {
    constexpr int DIM = 2;
@@ -42,15 +42,15 @@ static void PAConvectionSetup2D(const int NQ,
    {
       const int e = q_global / NQ;
       const int q = q_global % NQ;
-      const double J11 = J(q,0,0,e);
-      const double J21 = J(q,1,0,e);
-      const double J12 = J(q,0,1,e);
-      const double J22 = J(q,1,1,e);
-      const double w = alpha * W[q];
-      const double v0 = const_v ? V(0,0,0) : V(0,q,e);
-      const double v1 = const_v ? V(1,0,0) : V(1,q,e);
-      const double wx = w * v0;
-      const double wy = w * v1;
+      const real_t J11 = J(q,0,0,e);
+      const real_t J21 = J(q,1,0,e);
+      const real_t J12 = J(q,0,1,e);
+      const real_t J22 = J(q,1,1,e);
+      const real_t w = alpha * W[q];
+      const real_t v0 = const_v ? V(0,0,0) : V(0,q,e);
+      const real_t v1 = const_v ? V(1,0,0) : V(1,q,e);
+      const real_t wx = w * v0;
+      const real_t wy = w * v1;
       // y = alpha * W * det(J) * J^{-1} . v = adj(J) . { wx, wy }
       y(q,0,e) =  wx * J22 - wy * J12; // 1
       y(q,1,e) = -wx * J21 + wy * J11; // 2
@@ -60,10 +60,10 @@ static void PAConvectionSetup2D(const int NQ,
 // PA Convection Assemble 3D kernel
 static void PAConvectionSetup3D(const int NQ,
                                 const int NE,
-                                const Array<double> &w,
+                                const Array<real_t> &w,
                                 const Vector &j,
                                 const Vector &vel,
-                                const double alpha,
+                                const real_t alpha,
                                 Vector &op)
 {
    constexpr int DIM = 3;
@@ -79,32 +79,32 @@ static void PAConvectionSetup3D(const int NQ,
    {
       const int e = q_global / NQ;
       const int q = q_global % NQ;
-      const double J11 = J(q,0,0,e);
-      const double J12 = J(q,0,1,e);
-      const double J13 = J(q,0,2,e);
-      const double J21 = J(q,1,0,e);
-      const double J22 = J(q,1,1,e);
-      const double J23 = J(q,1,2,e);
-      const double J31 = J(q,2,0,e);
-      const double J32 = J(q,2,1,e);
-      const double J33 = J(q,2,2,e);
-      const double w = alpha * W(q);
-      const double v0 = const_v ? V(0,0,0) : V(0,q,e);
-      const double v1 = const_v ? V(1,0,0) : V(1,q,e);
-      const double v2 = const_v ? V(2,0,0) : V(2,q,e);
-      const double wx = w * v0;
-      const double wy = w * v1;
-      const double wz = w * v2;
+      const real_t J11 = J(q,0,0,e);
+      const real_t J12 = J(q,0,1,e);
+      const real_t J13 = J(q,0,2,e);
+      const real_t J21 = J(q,1,0,e);
+      const real_t J22 = J(q,1,1,e);
+      const real_t J23 = J(q,1,2,e);
+      const real_t J31 = J(q,2,0,e);
+      const real_t J32 = J(q,2,1,e);
+      const real_t J33 = J(q,2,2,e);
+      const real_t w = alpha * W(q);
+      const real_t v0 = const_v ? V(0,0,0) : V(0,q,e);
+      const real_t v1 = const_v ? V(1,0,0) : V(1,q,e);
+      const real_t v2 = const_v ? V(2,0,0) : V(2,q,e);
+      const real_t wx = w * v0;
+      const real_t wy = w * v1;
+      const real_t wz = w * v2;
       // A = adj(J)
-      const double A11 = (J22 * J33) - (J23 * J32);
-      const double A12 = (J32 * J13) - (J12 * J33);
-      const double A13 = (J12 * J23) - (J22 * J13);
-      const double A21 = (J31 * J23) - (J21 * J33);
-      const double A22 = (J11 * J33) - (J13 * J31);
-      const double A23 = (J21 * J13) - (J11 * J23);
-      const double A31 = (J21 * J32) - (J31 * J22);
-      const double A32 = (J31 * J12) - (J11 * J32);
-      const double A33 = (J11 * J22) - (J12 * J21);
+      const real_t A11 = (J22 * J33) - (J23 * J32);
+      const real_t A12 = (J32 * J13) - (J12 * J33);
+      const real_t A13 = (J12 * J23) - (J22 * J13);
+      const real_t A21 = (J31 * J23) - (J21 * J33);
+      const real_t A22 = (J11 * J33) - (J13 * J31);
+      const real_t A23 = (J21 * J13) - (J11 * J23);
+      const real_t A31 = (J21 * J32) - (J31 * J22);
+      const real_t A32 = (J31 * J12) - (J11 * J32);
+      const real_t A33 = (J11 * J22) - (J12 * J21);
       // y = alpha * W * det(J) * J^{-1} . v = adj(J) . { wx, wy, wz }
       y(q,0,e) = wx * A11 + wy * A12 + wz * A13;
       y(q,1,e) = wx * A21 + wy * A22 + wz * A23;
@@ -115,10 +115,10 @@ static void PAConvectionSetup3D(const int NQ,
 static void PAConvectionSetup(const int dim,
                               const int NQ,
                               const int NE,
-                              const Array<double> &W,
+                              const Array<real_t> &W,
                               const Vector &J,
                               const Vector &coeff,
-                              const double alpha,
+                              const real_t alpha,
                               Vector &op)
 {
    if (dim == 1) { MFEM_ABORT("dim==1 not supported in PAConvectionSetup"); }
@@ -190,10 +190,10 @@ void ConvectionIntegrator::AssembleDiagonalPA(Vector &diag)
 // PA Convection Apply 2D kernel
 template<int T_D1D = 0, int T_Q1D = 0> static
 void PAConvectionApply2D(const int ne,
-                         const Array<double> &b,
-                         const Array<double> &g,
-                         const Array<double> &bt,
-                         const Array<double> &gt,
+                         const Array<real_t> &b,
+                         const Array<real_t> &g,
+                         const Array<real_t> &bt,
+                         const Array<real_t> &gt,
                          const Vector &op_,
                          const Vector &x_,
                          Vector &y_,
@@ -219,7 +219,7 @@ void PAConvectionApply2D(const int ne,
       constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
-      double u[max_D1D][max_D1D];
+      real_t u[max_D1D][max_D1D];
       for (int dy = 0; dy < D1D; ++dy)
       {
          for (int dx = 0; dx < D1D; ++dx)
@@ -227,8 +227,8 @@ void PAConvectionApply2D(const int ne,
             u[dy][dx] = x(dx,dy,e);
          }
       }
-      double Bu[max_D1D][max_Q1D];
-      double Gu[max_D1D][max_Q1D];
+      real_t Bu[max_D1D][max_Q1D];
+      real_t Gu[max_D1D][max_Q1D];
       for (int dy = 0; dy < D1D; ++dy)
       {
          for (int qx = 0; qx < Q1D; ++qx)
@@ -237,16 +237,16 @@ void PAConvectionApply2D(const int ne,
             Gu[dy][qx] = 0.0;
             for (int dx = 0; dx < D1D; ++dx)
             {
-               const double bx = B(qx,dx);
-               const double gx = G(qx,dx);
-               const double x = u[dy][dx];
+               const real_t bx = B(qx,dx);
+               const real_t gx = G(qx,dx);
+               const real_t x = u[dy][dx];
                Bu[dy][qx] += bx * x;
                Gu[dy][qx] += gx * x;
             }
          }
       }
-      double GBu[max_Q1D][max_Q1D];
-      double BGu[max_Q1D][max_Q1D];
+      real_t GBu[max_Q1D][max_Q1D];
+      real_t BGu[max_Q1D][max_Q1D];
       for (int qx = 0; qx < Q1D; ++qx)
       {
          for (int qy = 0; qy < Q1D; ++qy)
@@ -255,29 +255,29 @@ void PAConvectionApply2D(const int ne,
             BGu[qy][qx] = 0.0;
             for (int dy = 0; dy < D1D; ++dy)
             {
-               const double bx = B(qy,dy);
-               const double gx = G(qy,dy);
+               const real_t bx = B(qy,dy);
+               const real_t gx = G(qy,dy);
                GBu[qy][qx] += gx * Bu[dy][qx];
                BGu[qy][qx] += bx * Gu[dy][qx];
             }
          }
       }
       // Calculate Dxy, xDy in plane
-      double DGu[max_Q1D][max_Q1D];
+      real_t DGu[max_Q1D][max_Q1D];
       for (int qy = 0; qy < Q1D; ++qy)
       {
          for (int qx = 0; qx < Q1D; ++qx)
          {
-            const double O1 = op(qx,qy,0,e);
-            const double O2 = op(qx,qy,1,e);
+            const real_t O1 = op(qx,qy,0,e);
+            const real_t O2 = op(qx,qy,1,e);
 
-            const double gradX = BGu[qy][qx];
-            const double gradY = GBu[qy][qx];
+            const real_t gradX = BGu[qy][qx];
+            const real_t gradY = GBu[qy][qx];
 
             DGu[qy][qx] = (O1 * gradX) + (O2 * gradY);
          }
       }
-      double BDGu[max_D1D][max_Q1D];
+      real_t BDGu[max_D1D][max_Q1D];
       for (int qx = 0; qx < Q1D; ++qx)
       {
          for (int dy = 0; dy < D1D; ++dy)
@@ -285,7 +285,7 @@ void PAConvectionApply2D(const int ne,
             BDGu[dy][qx] = 0.0;
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               const double w = Bt(dy,qy);
+               const real_t w = Bt(dy,qy);
                BDGu[dy][qx] += w * DGu[qy][qx];
             }
          }
@@ -294,10 +294,10 @@ void PAConvectionApply2D(const int ne,
       {
          for (int dy = 0; dy < D1D; ++dy)
          {
-            double BBDGu = 0.0;
+            real_t BBDGu = 0.0;
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               const double w = Bt(dx,qx);
+               const real_t w = Bt(dx,qx);
                BBDGu += w * BDGu[dy][qx];
             }
             y(dx,dy,e) += BBDGu;
@@ -309,10 +309,10 @@ void PAConvectionApply2D(const int ne,
 // Optimized PA Convection Apply 2D kernel
 template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0> static
 void SmemPAConvectionApply2D(const int ne,
-                             const Array<double> &b,
-                             const Array<double> &g,
-                             const Array<double> &bt,
-                             const Array<double> &gt,
+                             const Array<real_t> &b,
+                             const Array<real_t> &g,
+                             const Array<real_t> &bt,
+                             const Array<real_t> &gt,
                              const Vector &op_,
                              const Vector &x_,
                              Vector &y_,
@@ -341,7 +341,7 @@ void SmemPAConvectionApply2D(const int ne,
       constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       // constexpr int MDQ = (max_Q1D > max_D1D) ? max_Q1D : max_D1D;
-      MFEM_SHARED double u[NBZ][max_D1D][max_D1D];
+      MFEM_SHARED real_t u[NBZ][max_D1D][max_D1D];
       MFEM_FOREACH_THREAD(dy,y,D1D)
       {
          MFEM_FOREACH_THREAD(dx,x,D1D)
@@ -351,8 +351,8 @@ void SmemPAConvectionApply2D(const int ne,
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_SHARED double Bu[NBZ][max_D1D][max_Q1D];
-      MFEM_SHARED double Gu[NBZ][max_D1D][max_Q1D];
+      MFEM_SHARED real_t Bu[NBZ][max_D1D][max_Q1D];
+      MFEM_SHARED real_t Gu[NBZ][max_D1D][max_Q1D];
       MFEM_FOREACH_THREAD(dy,y,D1D)
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
@@ -361,17 +361,17 @@ void SmemPAConvectionApply2D(const int ne,
             Gu[tidz][dy][qx] = 0.0;
             for (int dx = 0; dx < D1D; ++dx)
             {
-               const double bx = B(qx,dx);
-               const double gx = G(qx,dx);
-               const double x = u[tidz][dy][dx];
+               const real_t bx = B(qx,dx);
+               const real_t gx = G(qx,dx);
+               const real_t x = u[tidz][dy][dx];
                Bu[tidz][dy][qx] += bx * x;
                Gu[tidz][dy][qx] += gx * x;
             }
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_SHARED double GBu[NBZ][max_Q1D][max_Q1D];
-      MFEM_SHARED double BGu[NBZ][max_Q1D][max_Q1D];
+      MFEM_SHARED real_t GBu[NBZ][max_Q1D][max_Q1D];
+      MFEM_SHARED real_t BGu[NBZ][max_Q1D][max_Q1D];
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
          MFEM_FOREACH_THREAD(qy,y,Q1D)
@@ -380,8 +380,8 @@ void SmemPAConvectionApply2D(const int ne,
             BGu[tidz][qy][qx] = 0.0;
             for (int dy = 0; dy < D1D; ++dy)
             {
-               const double bx = B(qy,dy);
-               const double gx = G(qy,dy);
+               const real_t bx = B(qy,dy);
+               const real_t gx = G(qy,dy);
                GBu[tidz][qy][qx] += gx * Bu[tidz][dy][qx];
                BGu[tidz][qy][qx] += bx * Gu[tidz][dy][qx];
             }
@@ -389,22 +389,22 @@ void SmemPAConvectionApply2D(const int ne,
       }
       MFEM_SYNC_THREAD;
       // Calculate Dxy, xDy in plane
-      MFEM_SHARED double DGu[NBZ][max_Q1D][max_Q1D];
+      MFEM_SHARED real_t DGu[NBZ][max_Q1D][max_Q1D];
       MFEM_FOREACH_THREAD(qy,y,Q1D)
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            const double O1 = op(qx,qy,0,e);
-            const double O2 = op(qx,qy,1,e);
+            const real_t O1 = op(qx,qy,0,e);
+            const real_t O2 = op(qx,qy,1,e);
 
-            const double gradX = BGu[tidz][qy][qx];
-            const double gradY = GBu[tidz][qy][qx];
+            const real_t gradX = BGu[tidz][qy][qx];
+            const real_t gradY = GBu[tidz][qy][qx];
 
             DGu[tidz][qy][qx] = (O1 * gradX) + (O2 * gradY);
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_SHARED double BDGu[NBZ][max_D1D][max_Q1D];
+      MFEM_SHARED real_t BDGu[NBZ][max_D1D][max_Q1D];
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
          MFEM_FOREACH_THREAD(dy,y,D1D)
@@ -412,7 +412,7 @@ void SmemPAConvectionApply2D(const int ne,
             BDGu[tidz][dy][qx] = 0.0;
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               const double w = Bt(dy,qy);
+               const real_t w = Bt(dy,qy);
                BDGu[tidz][dy][qx] += w * DGu[tidz][qy][qx];
             }
          }
@@ -422,10 +422,10 @@ void SmemPAConvectionApply2D(const int ne,
       {
          MFEM_FOREACH_THREAD(dy,y,D1D)
          {
-            double BBDGu = 0.0;
+            real_t BBDGu = 0.0;
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               const double w = Bt(dx,qx);
+               const real_t w = Bt(dx,qx);
                BBDGu += w * BDGu[tidz][dy][qx];
             }
             y(dx,dy,e) += BBDGu;
@@ -437,10 +437,10 @@ void SmemPAConvectionApply2D(const int ne,
 // PA Convection Apply 3D kernel
 template<int T_D1D = 0, int T_Q1D = 0> static
 void PAConvectionApply3D(const int ne,
-                         const Array<double> &b,
-                         const Array<double> &g,
-                         const Array<double> &bt,
-                         const Array<double> &gt,
+                         const Array<real_t> &b,
+                         const Array<real_t> &g,
+                         const Array<real_t> &bt,
+                         const Array<real_t> &gt,
                          const Vector &op_,
                          const Vector &x_,
                          Vector &y_,
@@ -466,7 +466,7 @@ void PAConvectionApply3D(const int ne,
       constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
-      double u[max_D1D][max_D1D][max_D1D];
+      real_t u[max_D1D][max_D1D][max_D1D];
       for (int dz = 0; dz < D1D; ++dz)
       {
          for (int dy = 0; dy < D1D; ++dy)
@@ -477,8 +477,8 @@ void PAConvectionApply3D(const int ne,
             }
          }
       }
-      double Bu[max_D1D][max_D1D][max_Q1D];
-      double Gu[max_D1D][max_D1D][max_Q1D];
+      real_t Bu[max_D1D][max_D1D][max_Q1D];
+      real_t Gu[max_D1D][max_D1D][max_Q1D];
       for (int dz = 0; dz < D1D; ++dz)
       {
          for (int dy = 0; dy < D1D; ++dy)
@@ -489,18 +489,18 @@ void PAConvectionApply3D(const int ne,
                Gu[dz][dy][qx] = 0.0;
                for (int dx = 0; dx < D1D; ++dx)
                {
-                  const double bx = B(qx,dx);
-                  const double gx = G(qx,dx);
-                  const double x = u[dz][dy][dx];
+                  const real_t bx = B(qx,dx);
+                  const real_t gx = G(qx,dx);
+                  const real_t x = u[dz][dy][dx];
                   Bu[dz][dy][qx] += bx * x;
                   Gu[dz][dy][qx] += gx * x;
                }
             }
          }
       }
-      double BBu[max_D1D][max_Q1D][max_Q1D];
-      double GBu[max_D1D][max_Q1D][max_Q1D];
-      double BGu[max_D1D][max_Q1D][max_Q1D];
+      real_t BBu[max_D1D][max_Q1D][max_Q1D];
+      real_t GBu[max_D1D][max_Q1D][max_Q1D];
+      real_t BGu[max_D1D][max_Q1D][max_Q1D];
       for (int dz = 0; dz < D1D; ++dz)
       {
          for (int qx = 0; qx < Q1D; ++qx)
@@ -512,8 +512,8 @@ void PAConvectionApply3D(const int ne,
                BGu[dz][qy][qx] = 0.0;
                for (int dy = 0; dy < D1D; ++dy)
                {
-                  const double bx = B(qy,dy);
-                  const double gx = G(qy,dy);
+                  const real_t bx = B(qy,dy);
+                  const real_t gx = G(qy,dy);
                   BBu[dz][qy][qx] += bx * Bu[dz][dy][qx];
                   GBu[dz][qy][qx] += gx * Bu[dz][dy][qx];
                   BGu[dz][qy][qx] += bx * Gu[dz][dy][qx];
@@ -521,9 +521,9 @@ void PAConvectionApply3D(const int ne,
             }
          }
       }
-      double GBBu[max_Q1D][max_Q1D][max_Q1D];
-      double BGBu[max_Q1D][max_Q1D][max_Q1D];
-      double BBGu[max_Q1D][max_Q1D][max_Q1D];
+      real_t GBBu[max_Q1D][max_Q1D][max_Q1D];
+      real_t BGBu[max_Q1D][max_Q1D][max_Q1D];
+      real_t BBGu[max_Q1D][max_Q1D][max_Q1D];
       for (int qx = 0; qx < Q1D; ++qx)
       {
          for (int qy = 0; qy < Q1D; ++qy)
@@ -535,8 +535,8 @@ void PAConvectionApply3D(const int ne,
                BBGu[qz][qy][qx] = 0.0;
                for (int dz = 0; dz < D1D; ++dz)
                {
-                  const double bx = B(qz,dz);
-                  const double gx = G(qz,dz);
+                  const real_t bx = B(qz,dz);
+                  const real_t gx = G(qz,dz);
                   GBBu[qz][qy][qx] += gx * BBu[dz][qy][qx];
                   BGBu[qz][qy][qx] += bx * GBu[dz][qy][qx];
                   BBGu[qz][qy][qx] += bx * BGu[dz][qy][qx];
@@ -545,26 +545,26 @@ void PAConvectionApply3D(const int ne,
          }
       }
       // Calculate Dxy, xDy in plane
-      double DGu[max_Q1D][max_Q1D][max_Q1D];
+      real_t DGu[max_Q1D][max_Q1D][max_Q1D];
       for (int qz = 0; qz < Q1D; ++qz)
       {
          for (int qy = 0; qy < Q1D; ++qy)
          {
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               const double O1 = op(qx,qy,qz,0,e);
-               const double O2 = op(qx,qy,qz,1,e);
-               const double O3 = op(qx,qy,qz,2,e);
+               const real_t O1 = op(qx,qy,qz,0,e);
+               const real_t O2 = op(qx,qy,qz,1,e);
+               const real_t O3 = op(qx,qy,qz,2,e);
 
-               const double gradX = BBGu[qz][qy][qx];
-               const double gradY = BGBu[qz][qy][qx];
-               const double gradZ = GBBu[qz][qy][qx];
+               const real_t gradX = BBGu[qz][qy][qx];
+               const real_t gradY = BGBu[qz][qy][qx];
+               const real_t gradZ = GBBu[qz][qy][qx];
 
                DGu[qz][qy][qx] = (O1 * gradX) + (O2 * gradY) + (O3 * gradZ);
             }
          }
       }
-      double BDGu[max_D1D][max_Q1D][max_Q1D];
+      real_t BDGu[max_D1D][max_Q1D][max_Q1D];
       for (int qx = 0; qx < Q1D; ++qx)
       {
          for (int qy = 0; qy < Q1D; ++qy)
@@ -574,13 +574,13 @@ void PAConvectionApply3D(const int ne,
                BDGu[dz][qy][qx] = 0.0;
                for (int qz = 0; qz < Q1D; ++qz)
                {
-                  const double w = Bt(dz,qz);
+                  const real_t w = Bt(dz,qz);
                   BDGu[dz][qy][qx] += w * DGu[qz][qy][qx];
                }
             }
          }
       }
-      double BBDGu[max_D1D][max_D1D][max_Q1D];
+      real_t BBDGu[max_D1D][max_D1D][max_Q1D];
       for (int dz = 0; dz < D1D; ++dz)
       {
          for (int qx = 0; qx < Q1D; ++qx)
@@ -590,7 +590,7 @@ void PAConvectionApply3D(const int ne,
                BBDGu[dz][dy][qx] = 0.0;
                for (int qy = 0; qy < Q1D; ++qy)
                {
-                  const double w = Bt(dy,qy);
+                  const real_t w = Bt(dy,qy);
                   BBDGu[dz][dy][qx] += w * BDGu[dz][qy][qx];
                }
             }
@@ -602,10 +602,10 @@ void PAConvectionApply3D(const int ne,
          {
             for (int dx = 0; dx < D1D; ++dx)
             {
-               double BBBDGu = 0.0;
+               real_t BBBDGu = 0.0;
                for (int qx = 0; qx < Q1D; ++qx)
                {
-                  const double w = Bt(dx,qx);
+                  const real_t w = Bt(dx,qx);
                   BBBDGu += w * BBDGu[dz][dy][qx];
                }
                y(dx,dy,dz,e) += BBBDGu;
@@ -618,10 +618,10 @@ void PAConvectionApply3D(const int ne,
 // Optimized PA Convection Apply 3D kernel
 template<int T_D1D = 0, int T_Q1D = 0> static
 void SmemPAConvectionApply3D(const int ne,
-                             const Array<double> &b,
-                             const Array<double> &g,
-                             const Array<double> &bt,
-                             const Array<double> &gt,
+                             const Array<real_t> &b,
+                             const Array<real_t> &g,
+                             const Array<real_t> &bt,
+                             const Array<real_t> &gt,
                              const Vector &op_,
                              const Vector &x_,
                              Vector &y_,
@@ -647,14 +647,14 @@ void SmemPAConvectionApply3D(const int ne,
       constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       constexpr int max_DQ = (max_Q1D > max_D1D) ? max_Q1D : max_D1D;
-      MFEM_SHARED double sm0[max_DQ*max_DQ*max_DQ];
-      MFEM_SHARED double sm1[max_DQ*max_DQ*max_DQ];
-      MFEM_SHARED double sm2[max_DQ*max_DQ*max_DQ];
-      MFEM_SHARED double sm3[max_DQ*max_DQ*max_DQ];
-      MFEM_SHARED double sm4[max_DQ*max_DQ*max_DQ];
-      MFEM_SHARED double sm5[max_DQ*max_DQ*max_DQ];
+      MFEM_SHARED real_t sm0[max_DQ*max_DQ*max_DQ];
+      MFEM_SHARED real_t sm1[max_DQ*max_DQ*max_DQ];
+      MFEM_SHARED real_t sm2[max_DQ*max_DQ*max_DQ];
+      MFEM_SHARED real_t sm3[max_DQ*max_DQ*max_DQ];
+      MFEM_SHARED real_t sm4[max_DQ*max_DQ*max_DQ];
+      MFEM_SHARED real_t sm5[max_DQ*max_DQ*max_DQ];
 
-      double (*u)[max_D1D][max_D1D] = (double (*)[max_D1D][max_D1D]) sm0;
+      real_t (*u)[max_D1D][max_D1D] = (real_t (*)[max_D1D][max_D1D]) sm0;
       MFEM_FOREACH_THREAD(dz,z,D1D)
       {
          MFEM_FOREACH_THREAD(dy,y,D1D)
@@ -666,21 +666,21 @@ void SmemPAConvectionApply3D(const int ne,
          }
       }
       MFEM_SYNC_THREAD;
-      double (*Bu)[max_D1D][max_Q1D] = (double (*)[max_D1D][max_Q1D])sm1;
-      double (*Gu)[max_D1D][max_Q1D] = (double (*)[max_D1D][max_Q1D])sm2;
+      real_t (*Bu)[max_D1D][max_Q1D] = (real_t (*)[max_D1D][max_Q1D])sm1;
+      real_t (*Gu)[max_D1D][max_Q1D] = (real_t (*)[max_D1D][max_Q1D])sm2;
       MFEM_FOREACH_THREAD(dz,z,D1D)
       {
          MFEM_FOREACH_THREAD(dy,y,D1D)
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               double Bu_ = 0.0;
-               double Gu_ = 0.0;
+               real_t Bu_ = 0.0;
+               real_t Gu_ = 0.0;
                for (int dx = 0; dx < D1D; ++dx)
                {
-                  const double bx = B(qx,dx);
-                  const double gx = G(qx,dx);
-                  const double x = u[dz][dy][dx];
+                  const real_t bx = B(qx,dx);
+                  const real_t gx = G(qx,dx);
+                  const real_t x = u[dz][dy][dx];
                   Bu_ += bx * x;
                   Gu_ += gx * x;
                }
@@ -690,22 +690,22 @@ void SmemPAConvectionApply3D(const int ne,
          }
       }
       MFEM_SYNC_THREAD;
-      double (*BBu)[max_Q1D][max_Q1D] = (double (*)[max_Q1D][max_Q1D])sm3;
-      double (*GBu)[max_Q1D][max_Q1D] = (double (*)[max_Q1D][max_Q1D])sm4;
-      double (*BGu)[max_Q1D][max_Q1D] = (double (*)[max_Q1D][max_Q1D])sm5;
+      real_t (*BBu)[max_Q1D][max_Q1D] = (real_t (*)[max_Q1D][max_Q1D])sm3;
+      real_t (*GBu)[max_Q1D][max_Q1D] = (real_t (*)[max_Q1D][max_Q1D])sm4;
+      real_t (*BGu)[max_Q1D][max_Q1D] = (real_t (*)[max_Q1D][max_Q1D])sm5;
       MFEM_FOREACH_THREAD(dz,z,D1D)
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             MFEM_FOREACH_THREAD(qy,y,Q1D)
             {
-               double BBu_ = 0.0;
-               double GBu_ = 0.0;
-               double BGu_ = 0.0;
+               real_t BBu_ = 0.0;
+               real_t GBu_ = 0.0;
+               real_t BGu_ = 0.0;
                for (int dy = 0; dy < D1D; ++dy)
                {
-                  const double bx = B(qy,dy);
-                  const double gx = G(qy,dy);
+                  const real_t bx = B(qy,dy);
+                  const real_t gx = G(qy,dy);
                   BBu_ += bx * Bu[dz][dy][qx];
                   GBu_ += gx * Bu[dz][dy][qx];
                   BGu_ += bx * Gu[dz][dy][qx];
@@ -717,22 +717,22 @@ void SmemPAConvectionApply3D(const int ne,
          }
       }
       MFEM_SYNC_THREAD;
-      double (*GBBu)[max_Q1D][max_Q1D] = (double (*)[max_Q1D][max_Q1D])sm0;
-      double (*BGBu)[max_Q1D][max_Q1D] = (double (*)[max_Q1D][max_Q1D])sm1;
-      double (*BBGu)[max_Q1D][max_Q1D] = (double (*)[max_Q1D][max_Q1D])sm2;
+      real_t (*GBBu)[max_Q1D][max_Q1D] = (real_t (*)[max_Q1D][max_Q1D])sm0;
+      real_t (*BGBu)[max_Q1D][max_Q1D] = (real_t (*)[max_Q1D][max_Q1D])sm1;
+      real_t (*BBGu)[max_Q1D][max_Q1D] = (real_t (*)[max_Q1D][max_Q1D])sm2;
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
          MFEM_FOREACH_THREAD(qy,y,Q1D)
          {
             MFEM_FOREACH_THREAD(qz,z,Q1D)
             {
-               double GBBu_ = 0.0;
-               double BGBu_ = 0.0;
-               double BBGu_ = 0.0;
+               real_t GBBu_ = 0.0;
+               real_t BGBu_ = 0.0;
+               real_t BBGu_ = 0.0;
                for (int dz = 0; dz < D1D; ++dz)
                {
-                  const double bx = B(qz,dz);
-                  const double gx = G(qz,dz);
+                  const real_t bx = B(qz,dz);
+                  const real_t gx = G(qz,dz);
                   GBBu_ += gx * BBu[dz][qy][qx];
                   BGBu_ += bx * GBu[dz][qy][qx];
                   BBGu_ += bx * BGu[dz][qy][qx];
@@ -744,37 +744,37 @@ void SmemPAConvectionApply3D(const int ne,
          }
       }
       MFEM_SYNC_THREAD;
-      double (*DGu)[max_Q1D][max_Q1D] = (double (*)[max_Q1D][max_Q1D])sm3;
+      real_t (*DGu)[max_Q1D][max_Q1D] = (real_t (*)[max_Q1D][max_Q1D])sm3;
       MFEM_FOREACH_THREAD(qz,z,Q1D)
       {
          MFEM_FOREACH_THREAD(qy,y,Q1D)
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               const double O1 = op(qx,qy,qz,0,e);
-               const double O2 = op(qx,qy,qz,1,e);
-               const double O3 = op(qx,qy,qz,2,e);
+               const real_t O1 = op(qx,qy,qz,0,e);
+               const real_t O2 = op(qx,qy,qz,1,e);
+               const real_t O3 = op(qx,qy,qz,2,e);
 
-               const double gradX = BBGu[qz][qy][qx];
-               const double gradY = BGBu[qz][qy][qx];
-               const double gradZ = GBBu[qz][qy][qx];
+               const real_t gradX = BBGu[qz][qy][qx];
+               const real_t gradY = BGBu[qz][qy][qx];
+               const real_t gradZ = GBBu[qz][qy][qx];
 
                DGu[qz][qy][qx] = (O1 * gradX) + (O2 * gradY) + (O3 * gradZ);
             }
          }
       }
       MFEM_SYNC_THREAD;
-      double (*BDGu)[max_Q1D][max_Q1D] = (double (*)[max_Q1D][max_Q1D])sm4;
+      real_t (*BDGu)[max_Q1D][max_Q1D] = (real_t (*)[max_Q1D][max_Q1D])sm4;
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
          MFEM_FOREACH_THREAD(qy,y,Q1D)
          {
             MFEM_FOREACH_THREAD(dz,z,D1D)
             {
-               double BDGu_ = 0.0;
+               real_t BDGu_ = 0.0;
                for (int qz = 0; qz < Q1D; ++qz)
                {
-                  const double w = Bt(dz,qz);
+                  const real_t w = Bt(dz,qz);
                   BDGu_ += w * DGu[qz][qy][qx];
                }
                BDGu[dz][qy][qx] = BDGu_;
@@ -782,17 +782,17 @@ void SmemPAConvectionApply3D(const int ne,
          }
       }
       MFEM_SYNC_THREAD;
-      double (*BBDGu)[max_D1D][max_Q1D] = (double (*)[max_D1D][max_Q1D])sm5;
+      real_t (*BBDGu)[max_D1D][max_Q1D] = (real_t (*)[max_D1D][max_Q1D])sm5;
       MFEM_FOREACH_THREAD(dz,z,D1D)
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             MFEM_FOREACH_THREAD(dy,y,D1D)
             {
-               double BBDGu_ = 0.0;
+               real_t BBDGu_ = 0.0;
                for (int qy = 0; qy < Q1D; ++qy)
                {
-                  const double w = Bt(dy,qy);
+                  const real_t w = Bt(dy,qy);
                   BBDGu_ += w * BDGu[dz][qy][qx];
                }
                BBDGu[dz][dy][qx] = BBDGu_;
@@ -806,10 +806,10 @@ void SmemPAConvectionApply3D(const int ne,
          {
             MFEM_FOREACH_THREAD(dx,x,D1D)
             {
-               double BBBDGu = 0.0;
+               real_t BBBDGu = 0.0;
                for (int qx = 0; qx < Q1D; ++qx)
                {
-                  const double w = Bt(dx,qx);
+                  const real_t w = Bt(dx,qx);
                   BBBDGu += w * BBDGu[dz][dy][qx];
                }
                y(dx,dy,dz,e) += BBBDGu;
@@ -822,10 +822,10 @@ void SmemPAConvectionApply3D(const int ne,
 // PA Convection Apply 2D kernel
 template<int T_D1D = 0, int T_Q1D = 0> static
 void PAConvectionApplyT2D(const int ne,
-                          const Array<double> &b,
-                          const Array<double> &g,
-                          const Array<double> &bt,
-                          const Array<double> &gt,
+                          const Array<real_t> &b,
+                          const Array<real_t> &g,
+                          const Array<real_t> &bt,
+                          const Array<real_t> &gt,
                           const Vector &op_,
                           const Vector &x_,
                           Vector &y_,
@@ -851,7 +851,7 @@ void PAConvectionApplyT2D(const int ne,
       constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
-      double u[max_D1D][max_D1D];
+      real_t u[max_D1D][max_D1D];
       for (int dy = 0; dy < D1D; ++dy)
       {
          for (int dx = 0; dx < D1D; ++dx)
@@ -859,7 +859,7 @@ void PAConvectionApplyT2D(const int ne,
             u[dy][dx] = x(dx,dy,e);
          }
       }
-      double Bu[max_D1D][max_Q1D];
+      real_t Bu[max_D1D][max_Q1D];
       for (int dy = 0; dy < D1D; ++dy)
       {
          for (int qx = 0; qx < Q1D; ++qx)
@@ -867,13 +867,13 @@ void PAConvectionApplyT2D(const int ne,
             Bu[dy][qx] = 0.0;
             for (int dx = 0; dx < D1D; ++dx)
             {
-               const double bx = B(qx,dx);
-               const double x = u[dy][dx];
+               const real_t bx = B(qx,dx);
+               const real_t x = u[dy][dx];
                Bu[dy][qx] += bx * x;
             }
          }
       }
-      double BBu[max_Q1D][max_Q1D];
+      real_t BBu[max_Q1D][max_Q1D];
       for (int qx = 0; qx < Q1D; ++qx)
       {
          for (int qy = 0; qy < Q1D; ++qy)
@@ -881,27 +881,27 @@ void PAConvectionApplyT2D(const int ne,
             BBu[qy][qx] = 0.0;
             for (int dy = 0; dy < D1D; ++dy)
             {
-               const double bx = B(qy,dy);
+               const real_t bx = B(qy,dy);
                BBu[qy][qx] += bx * Bu[dy][qx];
             }
          }
       }
       // Calculate Dxy, xDy in plane
-      double DBu[max_Q1D][max_Q1D][2];
+      real_t DBu[max_Q1D][max_Q1D][2];
       for (int qy = 0; qy < Q1D; ++qy)
       {
          for (int qx = 0; qx < Q1D; ++qx)
          {
-            const double O1 = op(qx,qy,0,e);
-            const double O2 = op(qx,qy,1,e);
+            const real_t O1 = op(qx,qy,0,e);
+            const real_t O2 = op(qx,qy,1,e);
 
-            const double X = BBu[qy][qx];
+            const real_t X = BBu[qy][qx];
 
             DBu[qy][qx][0] = O1 * X;
             DBu[qy][qx][1] = O2 * X;
          }
       }
-      double GDBu[max_D1D][max_Q1D][2];
+      real_t GDBu[max_D1D][max_Q1D][2];
       for (int qx = 0; qx < Q1D; ++qx)
       {
          for (int dy = 0; dy < D1D; ++dy)
@@ -910,8 +910,8 @@ void PAConvectionApplyT2D(const int ne,
             GDBu[dy][qx][1] = 0.0;
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               const double by = Bt(dy,qy);
-               const double gy = Gt(dy,qy);
+               const real_t by = Bt(dy,qy);
+               const real_t gy = Gt(dy,qy);
                GDBu[dy][qx][0] += by * DBu[qy][qx][0];
                GDBu[dy][qx][1] += gy * DBu[qy][qx][1];
             }
@@ -921,11 +921,11 @@ void PAConvectionApplyT2D(const int ne,
       {
          for (int dy = 0; dy < D1D; ++dy)
          {
-            double res = 0.0;
+            real_t res = 0.0;
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               const double bx = Bt(dx,qx);
-               const double gx = Gt(dx,qx);
+               const real_t bx = Bt(dx,qx);
+               const real_t gx = Gt(dx,qx);
                res += gx * GDBu[dy][qx][0] + bx * GDBu[dy][qx][1];
             }
             y(dx,dy,e) += res;
@@ -937,10 +937,10 @@ void PAConvectionApplyT2D(const int ne,
 // Optimized PA Convection Apply 2D kernel
 template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0> static
 void SmemPAConvectionApplyT2D(const int ne,
-                              const Array<double> &b,
-                              const Array<double> &g,
-                              const Array<double> &bt,
-                              const Array<double> &gt,
+                              const Array<real_t> &b,
+                              const Array<real_t> &g,
+                              const Array<real_t> &bt,
+                              const Array<real_t> &gt,
                               const Vector &op_,
                               const Vector &x_,
                               Vector &y_,
@@ -968,7 +968,7 @@ void SmemPAConvectionApplyT2D(const int ne,
       constexpr int NBZ = T_NBZ ? T_NBZ : 1;
       constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
-      MFEM_SHARED double u[NBZ][max_D1D][max_D1D];
+      MFEM_SHARED real_t u[NBZ][max_D1D][max_D1D];
       MFEM_FOREACH_THREAD(dy,y,D1D)
       {
          MFEM_FOREACH_THREAD(dx,x,D1D)
@@ -978,7 +978,7 @@ void SmemPAConvectionApplyT2D(const int ne,
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_SHARED double Bu[NBZ][max_D1D][max_Q1D];
+      MFEM_SHARED real_t Bu[NBZ][max_D1D][max_Q1D];
       MFEM_FOREACH_THREAD(dy,y,D1D)
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
@@ -986,14 +986,14 @@ void SmemPAConvectionApplyT2D(const int ne,
             Bu[tidz][dy][qx] = 0.0;
             for (int dx = 0; dx < D1D; ++dx)
             {
-               const double bx = B(qx,dx);
-               const double x = u[tidz][dy][dx];
+               const real_t bx = B(qx,dx);
+               const real_t x = u[tidz][dy][dx];
                Bu[tidz][dy][qx] += bx * x;
             }
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_SHARED double BBu[NBZ][max_Q1D][max_Q1D];
+      MFEM_SHARED real_t BBu[NBZ][max_Q1D][max_Q1D];
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
          MFEM_FOREACH_THREAD(qy,y,Q1D)
@@ -1001,29 +1001,29 @@ void SmemPAConvectionApplyT2D(const int ne,
             BBu[tidz][qy][qx] = 0.0;
             for (int dy = 0; dy < D1D; ++dy)
             {
-               const double bx = B(qy,dy);
+               const real_t bx = B(qy,dy);
                BBu[tidz][qy][qx] += bx * Bu[tidz][dy][qx];
             }
          }
       }
       MFEM_SYNC_THREAD;
       // Calculate Dxy, xDy in plane
-      MFEM_SHARED double DBu[NBZ][max_Q1D][max_Q1D][2];
+      MFEM_SHARED real_t DBu[NBZ][max_Q1D][max_Q1D][2];
       MFEM_FOREACH_THREAD(qy,y,Q1D)
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            const double O1 = op(qx,qy,0,e);
-            const double O2 = op(qx,qy,1,e);
+            const real_t O1 = op(qx,qy,0,e);
+            const real_t O2 = op(qx,qy,1,e);
 
-            const double X = BBu[tidz][qy][qx];
+            const real_t X = BBu[tidz][qy][qx];
 
             DBu[tidz][qy][qx][0] = O1 * X;
             DBu[tidz][qy][qx][1] = O2 * X;
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_SHARED double GDBu[NBZ][max_D1D][max_Q1D][2];
+      MFEM_SHARED real_t GDBu[NBZ][max_D1D][max_Q1D][2];
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
          MFEM_FOREACH_THREAD(dy,y,D1D)
@@ -1032,8 +1032,8 @@ void SmemPAConvectionApplyT2D(const int ne,
             GDBu[tidz][dy][qx][1] = 0.0;
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               const double by = Bt(dy,qy);
-               const double gy = Gt(dy,qy);
+               const real_t by = Bt(dy,qy);
+               const real_t gy = Gt(dy,qy);
                GDBu[tidz][dy][qx][0] += by * DBu[tidz][qy][qx][0];
                GDBu[tidz][dy][qx][1] += gy * DBu[tidz][qy][qx][1];
             }
@@ -1044,11 +1044,11 @@ void SmemPAConvectionApplyT2D(const int ne,
       {
          MFEM_FOREACH_THREAD(dy,y,D1D)
          {
-            double res = 0.0;
+            real_t res = 0.0;
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               const double bx = Bt(dx,qx);
-               const double gx = Gt(dx,qx);
+               const real_t bx = Bt(dx,qx);
+               const real_t gx = Gt(dx,qx);
                res += gx * GDBu[tidz][dy][qx][0] + bx * GDBu[tidz][dy][qx][1];
             }
             y(dx,dy,e) += res;
@@ -1060,10 +1060,10 @@ void SmemPAConvectionApplyT2D(const int ne,
 // PA Convection Apply 3D kernel
 template<int T_D1D = 0, int T_Q1D = 0> static
 void PAConvectionApplyT3D(const int ne,
-                          const Array<double> &b,
-                          const Array<double> &g,
-                          const Array<double> &bt,
-                          const Array<double> &gt,
+                          const Array<real_t> &b,
+                          const Array<real_t> &g,
+                          const Array<real_t> &bt,
+                          const Array<real_t> &gt,
                           const Vector &op_,
                           const Vector &x_,
                           Vector &y_,
@@ -1089,7 +1089,7 @@ void PAConvectionApplyT3D(const int ne,
       constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
-      double u[max_D1D][max_D1D][max_D1D];
+      real_t u[max_D1D][max_D1D][max_D1D];
       for (int dz = 0; dz < D1D; ++dz)
       {
          for (int dy = 0; dy < D1D; ++dy)
@@ -1100,7 +1100,7 @@ void PAConvectionApplyT3D(const int ne,
             }
          }
       }
-      double Bu[max_D1D][max_D1D][max_Q1D];
+      real_t Bu[max_D1D][max_D1D][max_Q1D];
       for (int dz = 0; dz < D1D; ++dz)
       {
          for (int dy = 0; dy < D1D; ++dy)
@@ -1110,14 +1110,14 @@ void PAConvectionApplyT3D(const int ne,
                Bu[dz][dy][qx] = 0.0;
                for (int dx = 0; dx < D1D; ++dx)
                {
-                  const double bx = B(qx,dx);
-                  const double x = u[dz][dy][dx];
+                  const real_t bx = B(qx,dx);
+                  const real_t x = u[dz][dy][dx];
                   Bu[dz][dy][qx] += bx * x;
                }
             }
          }
       }
-      double BBu[max_D1D][max_Q1D][max_Q1D];
+      real_t BBu[max_D1D][max_Q1D][max_Q1D];
       for (int dz = 0; dz < D1D; ++dz)
       {
          for (int qx = 0; qx < Q1D; ++qx)
@@ -1127,13 +1127,13 @@ void PAConvectionApplyT3D(const int ne,
                BBu[dz][qy][qx] = 0.0;
                for (int dy = 0; dy < D1D; ++dy)
                {
-                  const double bx = B(qy,dy);
+                  const real_t bx = B(qy,dy);
                   BBu[dz][qy][qx] += bx * Bu[dz][dy][qx];
                }
             }
          }
       }
-      double BBBu[max_Q1D][max_Q1D][max_Q1D];
+      real_t BBBu[max_Q1D][max_Q1D][max_Q1D];
       for (int qx = 0; qx < Q1D; ++qx)
       {
          for (int qy = 0; qy < Q1D; ++qy)
@@ -1143,25 +1143,25 @@ void PAConvectionApplyT3D(const int ne,
                BBBu[qz][qy][qx] = 0.0;
                for (int dz = 0; dz < D1D; ++dz)
                {
-                  const double bx = B(qz,dz);
+                  const real_t bx = B(qz,dz);
                   BBBu[qz][qy][qx] += bx * BBu[dz][qy][qx];
                }
             }
          }
       }
       // Calculate Dxy, xDy in plane
-      double DBu[max_Q1D][max_Q1D][max_Q1D][3];
+      real_t DBu[max_Q1D][max_Q1D][max_Q1D][3];
       for (int qz = 0; qz < Q1D; ++qz)
       {
          for (int qy = 0; qy < Q1D; ++qy)
          {
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               const double O1 = op(qx,qy,qz,0,e);
-               const double O2 = op(qx,qy,qz,1,e);
-               const double O3 = op(qx,qy,qz,2,e);
+               const real_t O1 = op(qx,qy,qz,0,e);
+               const real_t O2 = op(qx,qy,qz,1,e);
+               const real_t O3 = op(qx,qy,qz,2,e);
 
-               const double X = BBBu[qz][qy][qx];
+               const real_t X = BBBu[qz][qy][qx];
 
                DBu[qz][qy][qx][0] = O1 * X;
                DBu[qz][qy][qx][1] = O2 * X;
@@ -1169,7 +1169,7 @@ void PAConvectionApplyT3D(const int ne,
             }
          }
       }
-      double GDBu[max_D1D][max_Q1D][max_Q1D][3];
+      real_t GDBu[max_D1D][max_Q1D][max_Q1D][3];
       for (int qx = 0; qx < Q1D; ++qx)
       {
          for (int qy = 0; qy < Q1D; ++qy)
@@ -1181,8 +1181,8 @@ void PAConvectionApplyT3D(const int ne,
                GDBu[dz][qy][qx][2] = 0.0;
                for (int qz = 0; qz < Q1D; ++qz)
                {
-                  const double bz = Bt(dz,qz);
-                  const double gz = Gt(dz,qz);
+                  const real_t bz = Bt(dz,qz);
+                  const real_t gz = Gt(dz,qz);
                   GDBu[dz][qy][qx][0] += bz * DBu[qz][qy][qx][0];
                   GDBu[dz][qy][qx][1] += bz * DBu[qz][qy][qx][1];
                   GDBu[dz][qy][qx][2] += gz * DBu[qz][qy][qx][2];
@@ -1190,7 +1190,7 @@ void PAConvectionApplyT3D(const int ne,
             }
          }
       }
-      double GGDBu[max_D1D][max_D1D][max_Q1D][3];
+      real_t GGDBu[max_D1D][max_D1D][max_Q1D][3];
       for (int dz = 0; dz < D1D; ++dz)
       {
          for (int qx = 0; qx < Q1D; ++qx)
@@ -1202,8 +1202,8 @@ void PAConvectionApplyT3D(const int ne,
                GGDBu[dz][dy][qx][2] = 0.0;
                for (int qy = 0; qy < Q1D; ++qy)
                {
-                  const double by = Bt(dy,qy);
-                  const double gy = Gt(dy,qy);
+                  const real_t by = Bt(dy,qy);
+                  const real_t gy = Gt(dy,qy);
                   GGDBu[dz][dy][qx][0] += by * GDBu[dz][qy][qx][0];
                   GGDBu[dz][dy][qx][1] += gy * GDBu[dz][qy][qx][1];
                   GGDBu[dz][dy][qx][2] += by * GDBu[dz][qy][qx][2];
@@ -1217,11 +1217,11 @@ void PAConvectionApplyT3D(const int ne,
          {
             for (int dx = 0; dx < D1D; ++dx)
             {
-               double res = 0.0;
+               real_t res = 0.0;
                for (int qx = 0; qx < Q1D; ++qx)
                {
-                  const double bx = Bt(dx,qx);
-                  const double gx = Gt(dx,qx);
+                  const real_t bx = Bt(dx,qx);
+                  const real_t gx = Gt(dx,qx);
                   res += gx * GGDBu[dz][dy][qx][0];
                   res += bx * GGDBu[dz][dy][qx][1];
                   res += bx * GGDBu[dz][dy][qx][2];
@@ -1236,10 +1236,10 @@ void PAConvectionApplyT3D(const int ne,
 // Optimized PA Convection Apply 3D kernel
 template<int T_D1D = 0, int T_Q1D = 0> static
 void SmemPAConvectionApplyT3D(const int ne,
-                              const Array<double> &b,
-                              const Array<double> &g,
-                              const Array<double> &bt,
-                              const Array<double> &gt,
+                              const Array<real_t> &b,
+                              const Array<real_t> &g,
+                              const Array<real_t> &bt,
+                              const Array<real_t> &gt,
                               const Vector &op_,
                               const Vector &x_,
                               Vector &y_,
@@ -1265,10 +1265,10 @@ void SmemPAConvectionApplyT3D(const int ne,
       constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       constexpr int max_DQ = (max_Q1D > max_D1D) ? max_Q1D : max_D1D;
-      MFEM_SHARED double sm0[3*max_DQ*max_DQ*max_DQ];
-      MFEM_SHARED double sm1[3*max_DQ*max_DQ*max_DQ];
+      MFEM_SHARED real_t sm0[3*max_DQ*max_DQ*max_DQ];
+      MFEM_SHARED real_t sm1[3*max_DQ*max_DQ*max_DQ];
 
-      double (*u)[max_D1D][max_D1D] = (double (*)[max_D1D][max_D1D]) sm0;
+      real_t (*u)[max_D1D][max_D1D] = (real_t (*)[max_D1D][max_D1D]) sm0;
       MFEM_FOREACH_THREAD(dz,z,D1D)
       {
          MFEM_FOREACH_THREAD(dy,y,D1D)
@@ -1280,18 +1280,18 @@ void SmemPAConvectionApplyT3D(const int ne,
          }
       }
       MFEM_SYNC_THREAD;
-      double (*Bu)[max_D1D][max_Q1D] = (double (*)[max_D1D][max_Q1D])sm1;
+      real_t (*Bu)[max_D1D][max_Q1D] = (real_t (*)[max_D1D][max_Q1D])sm1;
       MFEM_FOREACH_THREAD(dz,z,D1D)
       {
          MFEM_FOREACH_THREAD(dy,y,D1D)
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               double Bu_ = 0.0;
+               real_t Bu_ = 0.0;
                for (int dx = 0; dx < D1D; ++dx)
                {
-                  const double bx = B(qx,dx);
-                  const double x = u[dz][dy][dx];
+                  const real_t bx = B(qx,dx);
+                  const real_t x = u[dz][dy][dx];
                   Bu_ += bx * x;
                }
                Bu[dz][dy][qx] = Bu_;
@@ -1299,17 +1299,17 @@ void SmemPAConvectionApplyT3D(const int ne,
          }
       }
       MFEM_SYNC_THREAD;
-      double (*BBu)[max_Q1D][max_Q1D] = (double (*)[max_Q1D][max_Q1D])sm0;
+      real_t (*BBu)[max_Q1D][max_Q1D] = (real_t (*)[max_Q1D][max_Q1D])sm0;
       MFEM_FOREACH_THREAD(dz,z,D1D)
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             MFEM_FOREACH_THREAD(qy,y,Q1D)
             {
-               double BBu_ = 0.0;
+               real_t BBu_ = 0.0;
                for (int dy = 0; dy < D1D; ++dy)
                {
-                  const double bx = B(qy,dy);
+                  const real_t bx = B(qy,dy);
                   BBu_ += bx * Bu[dz][dy][qx];
                }
                BBu[dz][qy][qx] = BBu_;
@@ -1317,17 +1317,17 @@ void SmemPAConvectionApplyT3D(const int ne,
          }
       }
       MFEM_SYNC_THREAD;
-      double (*BBBu)[max_Q1D][max_Q1D] = (double (*)[max_Q1D][max_Q1D])sm1;
+      real_t (*BBBu)[max_Q1D][max_Q1D] = (real_t (*)[max_Q1D][max_Q1D])sm1;
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
          MFEM_FOREACH_THREAD(qy,y,Q1D)
          {
             MFEM_FOREACH_THREAD(qz,z,Q1D)
             {
-               double BBBu_ = 0.0;
+               real_t BBBu_ = 0.0;
                for (int dz = 0; dz < D1D; ++dz)
                {
-                  const double bx = B(qz,dz);
+                  const real_t bx = B(qz,dz);
                   BBBu_ += bx * BBu[dz][qy][qx];
                }
                BBBu[qz][qy][qx] = BBBu_;
@@ -1335,18 +1335,18 @@ void SmemPAConvectionApplyT3D(const int ne,
          }
       }
       MFEM_SYNC_THREAD;
-      double (*DBu)[max_Q1D][max_Q1D][3] = (double (*)[max_Q1D][max_Q1D][3])sm0;
+      real_t (*DBu)[max_Q1D][max_Q1D][3] = (real_t (*)[max_Q1D][max_Q1D][3])sm0;
       MFEM_FOREACH_THREAD(qz,z,Q1D)
       {
          MFEM_FOREACH_THREAD(qy,y,Q1D)
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               const double O1 = op(qx,qy,qz,0,e);
-               const double O2 = op(qx,qy,qz,1,e);
-               const double O3 = op(qx,qy,qz,2,e);
+               const real_t O1 = op(qx,qy,qz,0,e);
+               const real_t O2 = op(qx,qy,qz,1,e);
+               const real_t O3 = op(qx,qy,qz,2,e);
 
-               const double X = BBBu[qz][qy][qx];
+               const real_t X = BBBu[qz][qy][qx];
 
                DBu[qz][qy][qx][0] = O1 * X;
                DBu[qz][qy][qx][1] = O2 * X;
@@ -1355,20 +1355,20 @@ void SmemPAConvectionApplyT3D(const int ne,
          }
       }
       MFEM_SYNC_THREAD;
-      double (*GDBu)[max_Q1D][max_Q1D][3] = (double (*)[max_Q1D][max_Q1D][3])sm1;
+      real_t (*GDBu)[max_Q1D][max_Q1D][3] = (real_t (*)[max_Q1D][max_Q1D][3])sm1;
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
          MFEM_FOREACH_THREAD(qy,y,Q1D)
          {
             MFEM_FOREACH_THREAD(dz,z,D1D)
             {
-               double GDBu0 = 0.0;
-               double GDBu1 = 0.0;
-               double GDBu2 = 0.0;
+               real_t GDBu0 = 0.0;
+               real_t GDBu1 = 0.0;
+               real_t GDBu2 = 0.0;
                for (int qz = 0; qz < Q1D; ++qz)
                {
-                  const double bz = Bt(dz,qz);
-                  const double gz = Gt(dz,qz);
+                  const real_t bz = Bt(dz,qz);
+                  const real_t gz = Gt(dz,qz);
                   GDBu0 += bz * DBu[qz][qy][qx][0];
                   GDBu1 += bz * DBu[qz][qy][qx][1];
                   GDBu2 += gz * DBu[qz][qy][qx][2];
@@ -1380,20 +1380,20 @@ void SmemPAConvectionApplyT3D(const int ne,
          }
       }
       MFEM_SYNC_THREAD;
-      double (*GGDBu)[max_D1D][max_Q1D][3] = (double (*)[max_D1D][max_Q1D][3])sm0;
+      real_t (*GGDBu)[max_D1D][max_Q1D][3] = (real_t (*)[max_D1D][max_Q1D][3])sm0;
       MFEM_FOREACH_THREAD(dz,z,D1D)
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             MFEM_FOREACH_THREAD(dy,y,D1D)
             {
-               double GGDBu0 = 0.0;
-               double GGDBu1 = 0.0;
-               double GGDBu2 = 0.0;
+               real_t GGDBu0 = 0.0;
+               real_t GGDBu1 = 0.0;
+               real_t GGDBu2 = 0.0;
                for (int qy = 0; qy < Q1D; ++qy)
                {
-                  const double by = Bt(dy,qy);
-                  const double gy = Gt(dy,qy);
+                  const real_t by = Bt(dy,qy);
+                  const real_t gy = Gt(dy,qy);
                   GGDBu0 += by * GDBu[dz][qy][qx][0];
                   GGDBu1 += gy * GDBu[dz][qy][qx][1];
                   GGDBu2 += by * GDBu[dz][qy][qx][2];
@@ -1411,11 +1411,11 @@ void SmemPAConvectionApplyT3D(const int ne,
          {
             MFEM_FOREACH_THREAD(dx,x,D1D)
             {
-               double res = 0.0;
+               real_t res = 0.0;
                for (int qx = 0; qx < Q1D; ++qx)
                {
-                  const double bx = Bt(dx,qx);
-                  const double gx = Gt(dx,qx);
+                  const real_t bx = Bt(dx,qx);
+                  const real_t gx = Gt(dx,qx);
                   res += gx * GGDBu[dz][dy][qx][0];
                   res += bx * GGDBu[dz][dy][qx][1];
                   res += bx * GGDBu[dz][dy][qx][2];
@@ -1431,10 +1431,10 @@ static void PAConvectionApply(const int dim,
                               const int D1D,
                               const int Q1D,
                               const int NE,
-                              const Array<double> &B,
-                              const Array<double> &G,
-                              const Array<double> &Bt,
-                              const Array<double> &Gt,
+                              const Array<real_t> &B,
+                              const Array<real_t> &G,
+                              const Array<real_t> &Bt,
+                              const Array<real_t> &Gt,
                               const Vector &op,
                               const Vector &x,
                               Vector &y)
@@ -1483,10 +1483,10 @@ static void PAConvectionApplyT(const int dim,
                                const int D1D,
                                const int Q1D,
                                const int NE,
-                               const Array<double> &B,
-                               const Array<double> &G,
-                               const Array<double> &Bt,
-                               const Array<double> &Gt,
+                               const Array<real_t> &B,
+                               const Array<real_t> &G,
+                               const Array<real_t> &Bt,
+                               const Array<real_t> &Gt,
                                const Vector &op,
                                const Vector &x,
                                Vector &y)

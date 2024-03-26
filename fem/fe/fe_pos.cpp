@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -118,8 +118,8 @@ BiQuadPos2DFiniteElement::BiQuadPos2DFiniteElement()
 void BiQuadPos2DFiniteElement::CalcShape(const IntegrationPoint &ip,
                                          Vector &shape) const
 {
-   double x = ip.x, y = ip.y;
-   double l1x, l2x, l3x, l1y, l2y, l3y;
+   real_t x = ip.x, y = ip.y;
+   real_t l1x, l2x, l3x, l1y, l2y, l3y;
 
    l1x = (1. - x) * (1. - x);
    l2x = 2. * x * (1. - x);
@@ -142,9 +142,9 @@ void BiQuadPos2DFiniteElement::CalcShape(const IntegrationPoint &ip,
 void BiQuadPos2DFiniteElement::CalcDShape(const IntegrationPoint &ip,
                                           DenseMatrix &dshape) const
 {
-   double x = ip.x, y = ip.y;
-   double l1x, l2x, l3x, l1y, l2y, l3y;
-   double d1x, d2x, d3x, d1y, d2y, d3y;
+   real_t x = ip.x, y = ip.y;
+   real_t l1x, l2x, l3x, l1y, l2y, l3y;
+   real_t d1x, d2x, d3x, d1y, d2y, d3y;
 
    l1x = (1. - x) * (1. - x);
    l2x = 2. * x * (1. - x);
@@ -191,7 +191,7 @@ void BiQuadPos2DFiniteElement::CalcDShape(const IntegrationPoint &ip,
 void BiQuadPos2DFiniteElement::GetLocalInterpolation(
    ElementTransformation &Trans, DenseMatrix &I) const
 {
-   double s[9];
+   real_t s[9];
    IntegrationPoint tr_ip;
    Vector xx(&tr_ip.x, 2), shape(s, 9);
 
@@ -207,7 +207,7 @@ void BiQuadPos2DFiniteElement::GetLocalInterpolation(
    }
    for (int i = 0; i < 9; i++)
    {
-      double *d = &I(0,i);
+      real_t *d = &I(0,i);
       d[4] = 2. * d[4] - 0.5 * (d[0] + d[1]);
       d[5] = 2. * d[5] - 0.5 * (d[1] + d[2]);
       d[6] = 2. * d[6] - 0.5 * (d[2] + d[3]);
@@ -220,7 +220,7 @@ void BiQuadPos2DFiniteElement::GetLocalInterpolation(
 void BiQuadPos2DFiniteElement::Project(
    Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const
 {
-   double *d = dofs.GetData();
+   real_t *d = dofs.GetData();
 
    for (int i = 0; i < 9; i++)
    {
@@ -240,7 +240,7 @@ void BiQuadPos2DFiniteElement::Project (
    VectorCoefficient &vc, ElementTransformation &Trans,
    Vector &dofs) const
 {
-   double v[3];
+   real_t v[3];
    Vector x (v, vc.GetVDim());
 
    for (int i = 0; i < 9; i++)
@@ -255,7 +255,7 @@ void BiQuadPos2DFiniteElement::Project (
    }
    for (int j = 0; j < x.Size(); j++)
    {
-      double *d = &dofs(9*j);
+      real_t *d = &dofs(9*j);
 
       d[4] = 2. * d[4] - 0.5 * (d[0] + d[1]);
       d[5] = 2. * d[5] - 0.5 * (d[1] + d[2]);
@@ -278,7 +278,7 @@ QuadPos1DFiniteElement::QuadPos1DFiniteElement()
 void QuadPos1DFiniteElement::CalcShape(const IntegrationPoint &ip,
                                        Vector &shape) const
 {
-   const double x = ip.x, x1 = 1. - x;
+   const real_t x = ip.x, x1 = 1. - x;
 
    shape(0) = x1 * x1;
    shape(1) = x * x;
@@ -288,7 +288,7 @@ void QuadPos1DFiniteElement::CalcShape(const IntegrationPoint &ip,
 void QuadPos1DFiniteElement::CalcDShape(const IntegrationPoint &ip,
                                         DenseMatrix &dshape) const
 {
-   const double x = ip.x;
+   const real_t x = ip.x;
 
    dshape(0,0) = 2. * x - 2.;
    dshape(1,0) = 2. * x;
@@ -310,7 +310,7 @@ H1Pos_SegmentElement::H1Pos_SegmentElement(const int p)
    Nodes.IntPoint(1).x = 1.0;
    for (int i = 1; i < p; i++)
    {
-      Nodes.IntPoint(i+1).x = double(i)/p;
+      Nodes.IntPoint(i+1).x = real_t(i)/p;
    }
 }
 
@@ -377,7 +377,7 @@ H1Pos_QuadrilateralElement::H1Pos_QuadrilateralElement(const int p)
    for (int j = 0; j <= p; j++)
       for (int i = 0; i <= p; i++)
       {
-         Nodes.IntPoint(dof_map[o++]).Set2(double(i)/p, double(j)/p);
+         Nodes.IntPoint(dof_map[o++]).Set2(real_t(i)/p, real_t(j)/p);
       }
 }
 
@@ -447,8 +447,8 @@ H1Pos_HexahedronElement::H1Pos_HexahedronElement(const int p)
    for (int k = 0; k <= p; k++)
       for (int j = 0; j <= p; j++)
          for (int i = 0; i <= p; i++)
-            Nodes.IntPoint(dof_map[o++]).Set3(double(i)/p, double(j)/p,
-                                              double(k)/p);
+            Nodes.IntPoint(dof_map[o++]).Set3(real_t(i)/p, real_t(j)/p,
+                                              real_t(k)/p);
 }
 
 void H1Pos_HexahedronElement::CalcShape(const IntegrationPoint &ip,
@@ -535,17 +535,17 @@ H1Pos_TriangleElement::H1Pos_TriangleElement(const int p)
    for (int i = 1; i < p; i++)
    {
       dof_map[idx(i,0)] = o;
-      Nodes.IntPoint(o++).Set2(double(i)/p, 0.);
+      Nodes.IntPoint(o++).Set2(real_t(i)/p, 0.);
    }
    for (int i = 1; i < p; i++)
    {
       dof_map[idx(p-i,i)] = o;
-      Nodes.IntPoint(o++).Set2(double(p-i)/p, double(i)/p);
+      Nodes.IntPoint(o++).Set2(real_t(p-i)/p, real_t(i)/p);
    }
    for (int i = 1; i < p; i++)
    {
       dof_map[idx(0,p-i)] = o;
-      Nodes.IntPoint(o++).Set2(0., double(p-i)/p);
+      Nodes.IntPoint(o++).Set2(0., real_t(p-i)/p);
    }
 
    // interior
@@ -553,15 +553,15 @@ H1Pos_TriangleElement::H1Pos_TriangleElement(const int p)
       for (int i = 1; i + j < p; i++)
       {
          dof_map[idx(i,j)] = o;
-         Nodes.IntPoint(o++).Set2(double(i)/p, double(j)/p);
+         Nodes.IntPoint(o++).Set2(real_t(i)/p, real_t(j)/p);
       }
 }
 
 // static method
 void H1Pos_TriangleElement::CalcShape(
-   const int p, const double l1, const double l2, double *shape)
+   const int p, const real_t l1, const real_t l2, real_t *shape)
 {
-   const double l3 = 1. - l1 - l2;
+   const real_t l3 = 1. - l1 - l2;
 
    // The (i,j) basis function is given by: T(i,j,p-i-j) l1^i l2^j l3^{p-i-j},
    // where T(i,j,k) = (i+j+k)! / (i! j! k!)
@@ -570,11 +570,11 @@ void H1Pos_TriangleElement::CalcShape(
    //       \sum_{j=0}^p \binom{p}{j} l2^j
    //          \sum_{i=0}^{p-j} \binom{p-j}{i} l1^i l3^{p-j-i}
    const int *bp = Poly_1D::Binom(p);
-   double z = 1.;
+   real_t z = 1.;
    for (int o = 0, j = 0; j <= p; j++)
    {
       Poly_1D::CalcBinomTerms(p - j, l1, l3, &shape[o]);
-      double s = bp[j]*z;
+      real_t s = bp[j]*z;
       for (int i = 0; i <= p - j; i++)
       {
          shape[o++] *= s;
@@ -585,18 +585,18 @@ void H1Pos_TriangleElement::CalcShape(
 
 // static method
 void H1Pos_TriangleElement::CalcDShape(
-   const int p, const double l1, const double l2,
-   double *dshape_1d, double *dshape)
+   const int p, const real_t l1, const real_t l2,
+   real_t *dshape_1d, real_t *dshape)
 {
    const int dof = ((p + 1)*(p + 2))/2;
-   const double l3 = 1. - l1 - l2;
+   const real_t l3 = 1. - l1 - l2;
 
    const int *bp = Poly_1D::Binom(p);
-   double z = 1.;
+   real_t z = 1.;
    for (int o = 0, j = 0; j <= p; j++)
    {
       Poly_1D::CalcDBinomTerms(p - j, l1, l3, dshape_1d);
-      double s = bp[j]*z;
+      real_t s = bp[j]*z;
       for (int i = 0; i <= p - j; i++)
       {
          dshape[o++] = s*dshape_1d[i];
@@ -607,7 +607,7 @@ void H1Pos_TriangleElement::CalcDShape(
    for (int i = 0; i <= p; i++)
    {
       Poly_1D::CalcDBinomTerms(p - i, l2, l3, dshape_1d);
-      double s = bp[i]*z;
+      real_t s = bp[i]*z;
       for (int o = i, j = 0; j <= p - i; j++)
       {
          dshape[dof + o] = s*dshape_1d[j];
@@ -685,32 +685,32 @@ H1Pos_TetrahedronElement::H1Pos_TetrahedronElement(const int p)
    for (int i = 1; i < p; i++)  // (0,1)
    {
       dof_map[idx(i,0,0)] = o;
-      Nodes.IntPoint(o++).Set3(double(i)/p, 0., 0.);
+      Nodes.IntPoint(o++).Set3(real_t(i)/p, 0., 0.);
    }
    for (int i = 1; i < p; i++)  // (0,2)
    {
       dof_map[idx(0,i,0)] = o;
-      Nodes.IntPoint(o++).Set3(0., double(i)/p, 0.);
+      Nodes.IntPoint(o++).Set3(0., real_t(i)/p, 0.);
    }
    for (int i = 1; i < p; i++)  // (0,3)
    {
       dof_map[idx(0,0,i)] = o;
-      Nodes.IntPoint(o++).Set3(0., 0., double(i)/p);
+      Nodes.IntPoint(o++).Set3(0., 0., real_t(i)/p);
    }
    for (int i = 1; i < p; i++)  // (1,2)
    {
       dof_map[idx(p-i,i,0)] = o;
-      Nodes.IntPoint(o++).Set3(double(p-i)/p, double(i)/p, 0.);
+      Nodes.IntPoint(o++).Set3(real_t(p-i)/p, real_t(i)/p, 0.);
    }
    for (int i = 1; i < p; i++)  // (1,3)
    {
       dof_map[idx(p-i,0,i)] = o;
-      Nodes.IntPoint(o++).Set3(double(p-i)/p, 0., double(i)/p);
+      Nodes.IntPoint(o++).Set3(real_t(p-i)/p, 0., real_t(i)/p);
    }
    for (int i = 1; i < p; i++)  // (2,3)
    {
       dof_map[idx(0,p-i,i)] = o;
-      Nodes.IntPoint(o++).Set3(0., double(p-i)/p, double(i)/p);
+      Nodes.IntPoint(o++).Set3(0., real_t(p-i)/p, real_t(i)/p);
    }
 
    // faces (see Mesh::GenerateFaces in mesh/mesh.cpp)
@@ -718,25 +718,25 @@ H1Pos_TetrahedronElement::H1Pos_TetrahedronElement(const int p)
       for (int i = 1; i + j < p; i++)  // (1,2,3)
       {
          dof_map[idx(p-i-j,i,j)] = o;
-         Nodes.IntPoint(o++).Set3(double(p-i-j)/p, double(i)/p, double(j)/p);
+         Nodes.IntPoint(o++).Set3(real_t(p-i-j)/p, real_t(i)/p, real_t(j)/p);
       }
    for (int j = 1; j < p; j++)
       for (int i = 1; i + j < p; i++)  // (0,3,2)
       {
          dof_map[idx(0,j,i)] = o;
-         Nodes.IntPoint(o++).Set3(0., double(j)/p, double(i)/p);
+         Nodes.IntPoint(o++).Set3(0., real_t(j)/p, real_t(i)/p);
       }
    for (int j = 1; j < p; j++)
       for (int i = 1; i + j < p; i++)  // (0,1,3)
       {
          dof_map[idx(i,0,j)] = o;
-         Nodes.IntPoint(o++).Set3(double(i)/p, 0., double(j)/p);
+         Nodes.IntPoint(o++).Set3(real_t(i)/p, 0., real_t(j)/p);
       }
    for (int j = 1; j < p; j++)
       for (int i = 1; i + j < p; i++)  // (0,2,1)
       {
          dof_map[idx(j,i,0)] = o;
-         Nodes.IntPoint(o++).Set3(double(j)/p, double(i)/p, 0.);
+         Nodes.IntPoint(o++).Set3(real_t(j)/p, real_t(i)/p, 0.);
       }
 
    // interior
@@ -745,16 +745,16 @@ H1Pos_TetrahedronElement::H1Pos_TetrahedronElement(const int p)
          for (int i = 1; i + j + k < p; i++)
          {
             dof_map[idx(i,j,k)] = o;
-            Nodes.IntPoint(o++).Set3(double(i)/p, double(j)/p, double(k)/p);
+            Nodes.IntPoint(o++).Set3(real_t(i)/p, real_t(j)/p, real_t(k)/p);
          }
 }
 
 // static method
 void H1Pos_TetrahedronElement::CalcShape(
-   const int p, const double l1, const double l2, const double l3,
-   double *shape)
+   const int p, const real_t l1, const real_t l2, const real_t l3,
+   real_t *shape)
 {
-   const double l4 = 1. - l1 - l2 - l3;
+   const real_t l4 = 1. - l1 - l2 - l3;
 
    // The basis functions are the terms in the expansion:
    //   (l1 + l2 + l3 + l4)^p =
@@ -762,16 +762,16 @@ void H1Pos_TetrahedronElement::CalcShape(
    //         \sum_{j=0}^{p-k} \binom{p-k}{j} l2^j
    //            \sum_{i=0}^{p-k-j} \binom{p-k-j}{i} l1^i l4^{p-k-j-i}
    const int *bp = Poly_1D::Binom(p);
-   double l3k = 1.;
+   real_t l3k = 1.;
    for (int o = 0, k = 0; k <= p; k++)
    {
       const int *bpk = Poly_1D::Binom(p - k);
-      const double ek = bp[k]*l3k;
-      double l2j = 1.;
+      const real_t ek = bp[k]*l3k;
+      real_t l2j = 1.;
       for (int j = 0; j <= p - k; j++)
       {
          Poly_1D::CalcBinomTerms(p - k - j, l1, l4, &shape[o]);
-         double ekj = ek*bpk[j]*l2j;
+         real_t ekj = ek*bpk[j]*l2j;
          for (int i = 0; i <= p - k - j; i++)
          {
             shape[o++] *= ekj;
@@ -784,27 +784,27 @@ void H1Pos_TetrahedronElement::CalcShape(
 
 // static method
 void H1Pos_TetrahedronElement::CalcDShape(
-   const int p, const double l1, const double l2, const double l3,
-   double *dshape_1d, double *dshape)
+   const int p, const real_t l1, const real_t l2, const real_t l3,
+   real_t *dshape_1d, real_t *dshape)
 {
    const int dof = ((p + 1)*(p + 2)*(p + 3))/6;
-   const double l4 = 1. - l1 - l2 - l3;
+   const real_t l4 = 1. - l1 - l2 - l3;
 
    // For the x derivatives, differentiate the terms of the expression:
    //   \sum_{k=0}^p \binom{p}{k} l3^k
    //      \sum_{j=0}^{p-k} \binom{p-k}{j} l2^j
    //         \sum_{i=0}^{p-k-j} \binom{p-k-j}{i} l1^i l4^{p-k-j-i}
    const int *bp = Poly_1D::Binom(p);
-   double l3k = 1.;
+   real_t l3k = 1.;
    for (int o = 0, k = 0; k <= p; k++)
    {
       const int *bpk = Poly_1D::Binom(p - k);
-      const double ek = bp[k]*l3k;
-      double l2j = 1.;
+      const real_t ek = bp[k]*l3k;
+      real_t l2j = 1.;
       for (int j = 0; j <= p - k; j++)
       {
          Poly_1D::CalcDBinomTerms(p - k - j, l1, l4, dshape_1d);
-         double ekj = ek*bpk[j]*l2j;
+         real_t ekj = ek*bpk[j]*l2j;
          for (int i = 0; i <= p - k - j; i++)
          {
             dshape[o++] = dshape_1d[i]*ekj;
@@ -821,12 +821,12 @@ void H1Pos_TetrahedronElement::CalcDShape(
    for (int ok = 0, k = 0; k <= p; k++)
    {
       const int *bpk = Poly_1D::Binom(p - k);
-      const double ek = bp[k]*l3k;
-      double l1i = 1.;
+      const real_t ek = bp[k]*l3k;
+      real_t l1i = 1.;
       for (int i = 0; i <= p - k; i++)
       {
          Poly_1D::CalcDBinomTerms(p - k - i, l2, l4, dshape_1d);
-         double eki = ek*bpk[i]*l1i;
+         real_t eki = ek*bpk[i]*l1i;
          int o = ok + i;
          for (int j = 0; j <= p - k - i; j++)
          {
@@ -842,16 +842,16 @@ void H1Pos_TetrahedronElement::CalcDShape(
    //   \sum_{j=0}^p \binom{p}{j} l2^j
    //      \sum_{i=0}^{p-j} \binom{p-j}{i} l1^i
    //         \sum_{k=0}^{p-j-i} \binom{p-j-i}{k} l3^k l4^{p-k-j-i}
-   double l2j = 1.;
+   real_t l2j = 1.;
    for (int j = 0; j <= p; j++)
    {
       const int *bpj = Poly_1D::Binom(p - j);
-      const double ej = bp[j]*l2j;
-      double l1i = 1.;
+      const real_t ej = bp[j]*l2j;
+      real_t l1i = 1.;
       for (int i = 0; i <= p - j; i++)
       {
          Poly_1D::CalcDBinomTerms(p - j - i, l3, l4, dshape_1d);
-         double eji = ej*bpj[i]*l1i;
+         real_t eji = ej*bpj[i]*l1i;
          int m = ((p + 2)*(p + 1))/2;
          int n = ((p - j + 2)*(p - j + 1))/2;
          for (int o = i, k = 0; k <= p - j - i; k++)
@@ -1058,7 +1058,7 @@ L2Pos_SegmentElement::L2Pos_SegmentElement(const int p)
    {
       for (int i = 0; i <= p; i++)
       {
-         Nodes.IntPoint(i).x = double(i)/p;
+         Nodes.IntPoint(i).x = real_t(i)/p;
       }
    }
 }
@@ -1106,7 +1106,7 @@ L2Pos_QuadrilateralElement::L2Pos_QuadrilateralElement(const int p)
       for (int o = 0, j = 0; j <= p; j++)
          for (int i = 0; i <= p; i++)
          {
-            Nodes.IntPoint(o++).Set2(double(i)/p, double(j)/p);
+            Nodes.IntPoint(o++).Set2(real_t(i)/p, real_t(j)/p);
          }
    }
 }
@@ -1187,7 +1187,7 @@ L2Pos_HexahedronElement::L2Pos_HexahedronElement(const int p)
          for (int j = 0; j <= p; j++)
             for (int i = 0; i <= p; i++)
             {
-               Nodes.IntPoint(o++).Set3(double(i)/p, double(j)/p, double(k)/p);
+               Nodes.IntPoint(o++).Set3(real_t(i)/p, real_t(j)/p, real_t(k)/p);
             }
    }
 }
@@ -1273,7 +1273,7 @@ L2Pos_TriangleElement::L2Pos_TriangleElement(const int p)
       for (int o = 0, j = 0; j <= p; j++)
          for (int i = 0; i + j <= p; i++)
          {
-            Nodes.IntPoint(o++).Set2(double(i)/p, double(j)/p);
+            Nodes.IntPoint(o++).Set2(real_t(i)/p, real_t(j)/p);
          }
    }
 }
@@ -1325,7 +1325,7 @@ L2Pos_TetrahedronElement::L2Pos_TetrahedronElement(const int p)
          for (int j = 0; j + k <= p; j++)
             for (int i = 0; i + j + k <= p; i++)
             {
-               Nodes.IntPoint(o++).Set3(double(i)/p, double(j)/p, double(k)/p);
+               Nodes.IntPoint(o++).Set3(real_t(i)/p, real_t(j)/p, real_t(k)/p);
             }
    }
 }

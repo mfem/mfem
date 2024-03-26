@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -23,14 +23,14 @@ namespace mfem
 class RT_QuadrilateralElement : public VectorTensorFiniteElement
 {
 private:
-   static const double nk[8];
+   static const real_t nk[8];
 
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_cx, shape_ox, shape_cy, shape_oy;
    mutable Vector dshape_cx, dshape_cy;
 #endif
    Array<int> dof2nk;
-   const double *cp;
+   const real_t *cp;
 
 public:
    /** @brief Construct the RT_QuadrilateralElement of order @a p and closed and
@@ -93,14 +93,14 @@ protected:
 /// Arbitrary order Raviart-Thomas elements in 3D on a cube
 class RT_HexahedronElement : public VectorTensorFiniteElement
 {
-   static const double nk[18];
+   static const real_t nk[18];
 
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_cx, shape_ox, shape_cy, shape_oy, shape_cz, shape_oz;
    mutable Vector dshape_cx, dshape_cy, dshape_cz;
 #endif
    Array<int> dof2nk;
-   const double *cp;
+   const real_t *cp;
 
 public:
    /** @brief Construct the RT_HexahedronElement of order @a p and closed and
@@ -162,7 +162,7 @@ protected:
 /// Arbitrary order Raviart-Thomas elements in 2D on a triangle
 class RT_TriangleElement : public VectorFiniteElement
 {
-   static const double nk[6], c;
+   static const real_t nk[6], c;
 
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, shape_y, shape_l;
@@ -222,7 +222,7 @@ public:
 /// Arbitrary order Raviart-Thomas elements in 3D on a tetrahedron
 class RT_TetrahedronElement : public VectorFiniteElement
 {
-   static const double nk[12], c;
+   static const real_t nk[12], c;
 
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, shape_y, shape_z, shape_l;
@@ -274,7 +274,7 @@ public:
 
 class RT_WedgeElement : public VectorFiniteElement
 {
-   static const double nk[15];
+   static const real_t nk[15];
 
 #ifndef MFEM_THREAD_SAFE
    mutable Vector      tl2_shape;
@@ -337,7 +337,7 @@ public:
 */
 class RT_R1D_SegmentElement : public VectorFiniteElement
 {
-   static const double nk[9];
+   static const real_t nk[9];
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_cx, shape_ox;
    mutable Vector dshape_cx;
@@ -382,7 +382,7 @@ public:
 */
 class RT_R2D_SegmentElement : public VectorFiniteElement
 {
-   static const double nk[2];
+   static const real_t nk[2];
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_ox;
 #endif
@@ -427,10 +427,10 @@ public:
 class RT_R2D_FiniteElement : public VectorFiniteElement
 {
 protected:
-   const double *nk;
+   const real_t *nk;
    Array<int> dof_map, dof2nk;
 
-   RT_R2D_FiniteElement(int p, Geometry::Type G, int Do, const double *nk_fe);
+   RT_R2D_FiniteElement(int p, Geometry::Type G, int Do, const real_t *nk_fe);
 
 private:
    void LocalInterpolation(const VectorFiniteElement &cfe,
@@ -472,7 +472,7 @@ public:
 class RT_R2D_TriangleElement : public RT_R2D_FiniteElement
 {
 private:
-   static const double nk_t[12];
+   static const real_t nk_t[12];
 
 #ifndef MFEM_THREAD_SAFE
    mutable DenseMatrix rt_shape;
@@ -500,7 +500,7 @@ public:
 class RT_R2D_QuadrilateralElement : public RT_R2D_FiniteElement
 {
 private:
-   static const double nk_q[15];
+   static const real_t nk_q[15];
 
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_cx, shape_ox, shape_cy, shape_oy;

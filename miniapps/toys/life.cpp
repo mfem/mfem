@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -55,7 +55,7 @@ int main(int argc, char *argv[])
    int nx = 20;
    int ny = 20;
    int rs = -1;
-   double r = -1.0;
+   real_t r = -1.0;
    Array<int> sketch_pad_params(0);
    Array<int> blinker_params(0);
    Array<int> glider_params(0);
@@ -137,7 +137,7 @@ int main(int argc, char *argv[])
    {
       for (int i=0; i<len; i++)
       {
-         double rv = double(rand()) / RAND_MAX;
+         real_t rv = real_t(rand()) / real_t(RAND_MAX);
          vb0[i] = (rv <= r);
          vb1[i] = false;
       }
@@ -276,7 +276,7 @@ void ProjectStep(const vector<bool> & b, GridFunction & x, int n)
 {
    for (int i=0; i<n; i++)
    {
-      x[i] = (double)b[i];
+      x[i] = (real_t)b[i];
    }
 }
 

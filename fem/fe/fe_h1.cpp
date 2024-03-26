@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -21,7 +21,7 @@ using namespace std;
 H1_SegmentElement::H1_SegmentElement(const int p, const int btype)
    : NodalTensorFiniteElement(1, p, VerifyClosed(btype), H1_DOF_MAP)
 {
-   const double *cp = poly1d.ClosedPoints(p, b_type);
+   const real_t *cp = poly1d.ClosedPoints(p, b_type);
 
 #ifndef MFEM_THREAD_SAFE
    shape_x.SetSize(p+1);
@@ -97,7 +97,7 @@ void H1_SegmentElement::CalcHessian(const IntegrationPoint &ip,
 void H1_SegmentElement::ProjectDelta(int vertex, Vector &dofs) const
 {
    const int p = order;
-   const double *cp = poly1d.ClosedPoints(p, b_type);
+   const real_t *cp = poly1d.ClosedPoints(p, b_type);
 
    switch (vertex)
    {
@@ -125,7 +125,7 @@ void H1_SegmentElement::ProjectDelta(int vertex, Vector &dofs) const
 H1_QuadrilateralElement::H1_QuadrilateralElement(const int p, const int btype)
    : NodalTensorFiniteElement(2, p, VerifyClosed(btype), H1_DOF_MAP)
 {
-   const double *cp = poly1d.ClosedPoints(p, b_type);
+   const real_t *cp = poly1d.ClosedPoints(p, b_type);
 
 #ifndef MFEM_THREAD_SAFE
    const int p1 = p + 1;
@@ -216,7 +216,7 @@ void H1_QuadrilateralElement::CalcHessian(const IntegrationPoint &ip,
 void H1_QuadrilateralElement::ProjectDelta(int vertex, Vector &dofs) const
 {
    const int p = order;
-   const double *cp = poly1d.ClosedPoints(p, b_type);
+   const real_t *cp = poly1d.ClosedPoints(p, b_type);
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_x(p+1), shape_y(p+1);
@@ -265,7 +265,7 @@ void H1_QuadrilateralElement::ProjectDelta(int vertex, Vector &dofs) const
 H1_HexahedronElement::H1_HexahedronElement(const int p, const int btype)
    : NodalTensorFiniteElement(3, p, VerifyClosed(btype), H1_DOF_MAP)
 {
-   const double *cp = poly1d.ClosedPoints(p, b_type);
+   const real_t *cp = poly1d.ClosedPoints(p, b_type);
 
 #ifndef MFEM_THREAD_SAFE
    const int p1 = p + 1;
@@ -367,7 +367,7 @@ void H1_HexahedronElement::CalcHessian(const IntegrationPoint &ip,
 void H1_HexahedronElement::ProjectDelta(int vertex, Vector &dofs) const
 {
    const int p = order;
-   const double *cp = poly1d.ClosedPoints(p,b_type);
+   const real_t *cp = poly1d.ClosedPoints(p,b_type);
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_x(p+1), shape_y(p+1);
@@ -452,7 +452,7 @@ H1_TriangleElement::H1_TriangleElement(const int p, const int btype)
    : NodalFiniteElement(2, Geometry::TRIANGLE, ((p + 1)*(p + 2))/2, p,
                         FunctionSpace::Pk)
 {
-   const double *cp = poly1d.ClosedPoints(p, VerifyNodal(VerifyClosed(btype)));
+   const real_t *cp = poly1d.ClosedPoints(p, VerifyNodal(VerifyClosed(btype)));
 
 #ifndef MFEM_THREAD_SAFE
    shape_x.SetSize(p + 1);
@@ -505,7 +505,7 @@ H1_TriangleElement::H1_TriangleElement(const int p, const int btype)
    for (int j = 1; j < p; j++)
       for (int i = 1; i + j < p; i++)
       {
-         const double w = cp[i] + cp[j] + cp[p-i-j];
+         const real_t w = cp[i] + cp[j] + cp[p-i-j];
          lex_ordering[idx(i,j)] = o;
          Nodes.IntPoint(o++).Set2(cp[i]/w, cp[j]/w);
       }
@@ -618,7 +618,7 @@ H1_TetrahedronElement::H1_TetrahedronElement(const int p, const int btype)
    : NodalFiniteElement(3, Geometry::TETRAHEDRON, ((p + 1)*(p + 2)*(p + 3))/6,
                         p, FunctionSpace::Pk)
 {
-   const double *cp = poly1d.ClosedPoints(p, VerifyNodal(VerifyClosed(btype)));
+   const real_t *cp = poly1d.ClosedPoints(p, VerifyNodal(VerifyClosed(btype)));
 
 #ifndef MFEM_THREAD_SAFE
    shape_x.SetSize(p + 1);
@@ -698,28 +698,28 @@ H1_TetrahedronElement::H1_TetrahedronElement(const int p, const int btype)
       for (int i = 1; i + j < p; i++)  // (1,2,3)
       {
          lex_ordering[idx(p-i-j,i,j)] = o;
-         double w = cp[i] + cp[j] + cp[p-i-j];
+         real_t w = cp[i] + cp[j] + cp[p-i-j];
          Nodes.IntPoint(o++).Set3(cp[p-i-j]/w, cp[i]/w, cp[j]/w);
       }
    for (int j = 1; j < p; j++)
       for (int i = 1; i + j < p; i++)  // (0,3,2)
       {
          lex_ordering[idx(0,j,i)] = o;
-         double w = cp[i] + cp[j] + cp[p-i-j];
+         real_t w = cp[i] + cp[j] + cp[p-i-j];
          Nodes.IntPoint(o++).Set3(cp[0], cp[j]/w, cp[i]/w);
       }
    for (int j = 1; j < p; j++)
       for (int i = 1; i + j < p; i++)  // (0,1,3)
       {
          lex_ordering[idx(i,0,j)] = o;
-         double w = cp[i] + cp[j] + cp[p-i-j];
+         real_t w = cp[i] + cp[j] + cp[p-i-j];
          Nodes.IntPoint(o++).Set3(cp[i]/w, cp[0], cp[j]/w);
       }
    for (int j = 1; j < p; j++)
       for (int i = 1; i + j < p; i++)  // (0,2,1)
       {
          lex_ordering[idx(j,i,0)] = o;
-         double w = cp[i] + cp[j] + cp[p-i-j];
+         real_t w = cp[i] + cp[j] + cp[p-i-j];
          Nodes.IntPoint(o++).Set3(cp[j]/w, cp[i]/w, cp[0]);
       }
 
@@ -729,7 +729,7 @@ H1_TetrahedronElement::H1_TetrahedronElement(const int p, const int btype)
          for (int i = 1; i + j + k < p; i++)
          {
             lex_ordering[idx(i,j,k)] = o;
-            double w = cp[i] + cp[j] + cp[k] + cp[p-i-j-k];
+            real_t w = cp[i] + cp[j] + cp[k] + cp[p-i-j-k];
             Nodes.IntPoint(o++).Set3(cp[i]/w, cp[j]/w, cp[k]/w);
          }
 

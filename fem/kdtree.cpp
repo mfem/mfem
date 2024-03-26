@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -16,13 +16,13 @@ namespace mfem
 
 template<>
 void KDTreeNodalProjection<2>::Project(const Vector& coords,const Vector& src,
-                                       int ordering, double lerr)
+                                       int ordering, real_t lerr)
 {
    const int dim=dest->FESpace()->GetMesh()->SpaceDimension();
    const int vd=dest->VectorDim(); // dimension of the vector field
    const int np=src.Size()/vd; // number of points
    int ind;
-   double dist;
+   real_t dist;
    bool pt_inside_bbox;
    KDTree2D::PointND pnd;
    for (int i=0; i<np; i++)
@@ -83,13 +83,13 @@ void KDTreeNodalProjection<2>::Project(const Vector& coords,const Vector& src,
 
 template<>
 void KDTreeNodalProjection<3>::Project(const Vector& coords,const Vector& src,
-                                       int ordering, double lerr)
+                                       int ordering, real_t lerr)
 {
    const int dim=dest->FESpace()->GetMesh()->SpaceDimension();
    const int vd=dest->VectorDim(); // dimension of the vector field
    const int np=src.Size()/vd; // number of points
    int ind;
-   double dist;
+   real_t dist;
    bool pt_inside_bbox;
    KDTree3D::PointND pnd;
    for (int i=0; i<np; i++)
@@ -150,7 +150,7 @@ void KDTreeNodalProjection<3>::Project(const Vector& coords,const Vector& src,
 }
 
 template<>
-void KDTreeNodalProjection<2>::Project(const GridFunction& gf, double lerr)
+void KDTreeNodalProjection<2>::Project(const GridFunction& gf, real_t lerr)
 {
    int ordering = gf.FESpace()->GetOrdering();
    Vector coo;
@@ -158,7 +158,7 @@ void KDTreeNodalProjection<2>::Project(const GridFunction& gf, double lerr)
    coo.SetSize(np*2);
    int vd=dest->VectorDim();
    int ind;
-   double dist;
+   real_t dist;
 
    Vector maxbb_src(2);
    Vector minbb_src(2);
@@ -275,7 +275,7 @@ void KDTreeNodalProjection<2>::Project(const GridFunction& gf, double lerr)
 }
 
 template<>
-void KDTreeNodalProjection<3>::Project(const GridFunction& gf, double lerr)
+void KDTreeNodalProjection<3>::Project(const GridFunction& gf, real_t lerr)
 {
    int ordering = gf.FESpace()->GetOrdering();
    int dim=dest->FESpace()->GetMesh()->SpaceDimension();
@@ -284,7 +284,7 @@ void KDTreeNodalProjection<3>::Project(const GridFunction& gf, double lerr)
    coo.SetSize(np*dim);
    int vd=dest->VectorDim();
    int ind;
-   double dist;
+   real_t dist;
 
    Vector maxbb_src(dim);
    Vector minbb_src(dim);

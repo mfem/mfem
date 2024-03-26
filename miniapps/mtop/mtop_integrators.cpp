@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,7 +14,7 @@
 namespace mfem
 {
 
-double ParametricLinearDiffusion::GetElementEnergy(const
+real_t ParametricLinearDiffusion::GetElementEnergy(const
                                                    Array<const FiniteElement *> &el,
                                                    const Array<const FiniteElement *> &pel,
                                                    ElementTransformation &Tr,
@@ -39,12 +39,12 @@ double ParametricLinearDiffusion::GetElementEnergy(const
    DenseMatrix B(dof_u0, 4);
    B=0.0;
 
-   double w;
+   real_t w;
 
    Vector param(1); param=0.0;
    Vector uu(4); uu=0.0;
 
-   double energy =0.0;
+   real_t energy =0.0;
 
    const IntegrationRule *ir;
    {
@@ -108,7 +108,7 @@ void ParametricLinearDiffusion::AssembleElementVector(const
    DenseMatrix B(dof_u0, 4);
    B=0.0;
 
-   double w;
+   real_t w;
 
    Vector param(1); param=0.0;
    Vector uu(4); uu=0.0;
@@ -179,7 +179,7 @@ void ParametricLinearDiffusion::AssembleElementGrad(const
    DenseMatrix B(dof_u0, 4);
    DenseMatrix A(dof_u0, 4);
    B=0.0;
-   double w;
+   real_t w;
 
    Vector param(1); param=0.0;
    Vector uu(4); uu=0.0;
@@ -249,7 +249,7 @@ void ParametricLinearDiffusion::AssemblePrmElementVector(
    DenseMatrix B(dof_u0, 4);
    B=0.0;
 
-   double w;
+   real_t w;
 
    Vector param(1); param=0.0;
    Vector uu(4); uu=0.0;
@@ -295,7 +295,7 @@ void ParametricLinearDiffusion::AssemblePrmElementVector(
    }
 }
 
-double DiffusionObjIntegrator::GetElementEnergy(const
+real_t DiffusionObjIntegrator::GetElementEnergy(const
                                                 Array<const FiniteElement *> &el,
                                                 ElementTransformation &Tr,
                                                 const Array<const Vector *> &elfun)
@@ -312,10 +312,10 @@ double DiffusionObjIntegrator::GetElementEnergy(const
    // shape functions
    Vector shu0(dof_u0);
 
-   double w;
-   double val;
+   real_t w;
+   real_t val;
 
-   double energy = 0.0;
+   real_t energy = 0.0;
 
    const IntegrationRule *ir;
    {
@@ -361,8 +361,8 @@ void DiffusionObjIntegrator::AssembleElementVector(const
    // shape functions
    Vector shu0(dof_u0);
 
-   double w;
-   double val;
+   real_t w;
+   real_t val;
 
    const IntegrationRule *ir;
    {

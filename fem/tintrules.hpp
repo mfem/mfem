@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -234,7 +234,7 @@ public:
    }
 };
 
-template <Geometry::Type G, int Order, typename real_t = double>
+template <Geometry::Type G, int Order, typename real_t = real_t>
 class TIntegrationRule;
 
 template <int Order, typename real_t>

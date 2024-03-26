@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -26,7 +26,7 @@ public:
    Edge(const Vector &start, const Vector &end) : start_(start), end_(end) {}
 
    /// Compute the distance between a point and the edge.
-   double GetDistanceTo(const Vector &x) const;
+   real_t GetDistanceTo(const Vector &x) const;
 
 private:
    const Vector &start_;
@@ -40,7 +40,7 @@ public:
    virtual ~MaterialTopology() = default;
 
    /// Compute the metric rho describing the material topology.
-   virtual double ComputeMetric(const Vector &x) = 0;
+   virtual real_t ComputeMetric(const Vector &x) = 0;
 };
 
 /// Class that implements the particle topology.
@@ -53,9 +53,9 @@ public:
    /// @param[in]  (length_x, length_y, length_z) - particle shape
    /// @param[in]  random_positions - vector with random positions for particles
    /// @param[in]  random_rotations - vector with random rotations for particles
-   ParticleTopology(double length_x, double length_y, double length_z,
-                    std::vector<double> &random_positions,
-                    std::vector<double> &random_rotations)
+   ParticleTopology(real_t length_x, real_t length_y, real_t length_z,
+                    std::vector<real_t> &random_positions,
+                    std::vector<real_t> &random_rotations)
       : particle_shape_({length_x, length_y, length_z}),
    number_of_particles_(random_positions.size() / 3u)
    {
@@ -66,12 +66,12 @@ public:
    /// this function returns the shortest distance to any of the particles. The
    /// individual is computed as || A_k (x-x_k) ||_2. (A allows do distort the
    /// particle shape.)
-   double ComputeMetric(const Vector &x) final;
+   real_t ComputeMetric(const Vector &x) final;
 
 private:
    /// Initialize the particle topology with positions x_k and matrices A_k.
-   void Initialize(std::vector<double> &random_positions,
-                   std::vector<double> &random_rotations);
+   void Initialize(std::vector<real_t> &random_positions,
+                   std::vector<real_t> &random_rotations);
 
    std::vector<Vector> particle_positions_;          // A_k * x_k, scaled!
    std::vector<DenseMatrix> particle_orientations_;  // Random rotations of shape
@@ -87,7 +87,7 @@ public:
    OctetTrussTopology() { Initialize(); }
 
    // Compute the distance, i.e. distance to the closest edge.
-   double ComputeMetric(const Vector &x) final;
+   real_t ComputeMetric(const Vector &x) final;
 
 private:
    /// Initialize the topology, e.g. define the edges.

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -176,6 +176,42 @@ void TMOP_Integrator::ComputeAllElementTargets(const Vector &xe) const
    targetC->ComputeAllElementTargets(*fes, ir, xe, PA.Jtr);
 }
 
+void TMOP_Integrator::UpdateCoefficientsPA(const Vector &x_loc)
+{
+   // Both are constant or not specified.
+   if (PA.MC.Size() == 1 && PA.C0.Size() == 1) { return; }
+
+   // Coefficients are always evaluated on the CPU for now.
+   PA.MC.HostWrite();
+   PA.C0.HostWrite();
+
+   const IntegrationRule &ir = *PA.ir;
+   auto T = new IsoparametricTransformation;
+   for (int e = 0; e < PA.ne; ++e)
+   {
+      // Uses the node positions in x_loc.
+      PA.fes->GetMesh()->GetElementTransformation(e, x_loc, T);
+
+      if (PA.MC.Size() > 1)
+      {
+         for (int q = 0; q < PA.nq; ++q)
+         {
+            PA.MC(q + e * PA.nq) = metric_coeff->Eval(*T, ir.IntPoint(q));
+         }
+      }
+
+      if (PA.C0.Size() > 1)
+      {
+         for (int q = 0; q < PA.nq; ++q)
+         {
+            PA.C0(q + e * PA.nq) = lim_coeff->Eval(*T, ir.IntPoint(q));
+         }
+      }
+   }
+
+   delete T;
+}
+
 void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
 {
    const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
@@ -212,6 +248,35 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    // Scalar Q-vector of '1', used to compute sums via dot product
    PA.O.SetSize(ne*nq, Device::GetDeviceMemoryType());
    PA.O = 1.0;
+
+   if (metric_coeff)
+   {
+      if (auto cc = dynamic_cast<ConstantCoefficient *>(metric_coeff))
+      {
+         PA.MC.SetSize(1, Device::GetMemoryType());
+         PA.MC.HostWrite();
+         PA.MC(0) = cc->constant;
+      }
+      else
+      {
+         PA.MC.SetSize(PA.nq * PA.ne, Device::GetMemoryType());
+         auto M0 = Reshape(PA.MC.HostWrite(), PA.nq, PA.ne);
+         for (int e = 0; e < PA.ne; ++e)
+         {
+            ElementTransformation& T = *PA.fes->GetElementTransformation(e);
+            for (int q = 0; q < ir.GetNPoints(); ++q)
+            {
+               M0(q,e) = metric_coeff->Eval(T, ir.IntPoint(q));
+            }
+         }
+      }
+   }
+   else
+   {
+      PA.MC.SetSize(1, Device::GetMemoryType());
+      PA.MC.HostWrite();
+      PA.MC(0) = 1.0;
+   }
 
    // Setup ref->target Jacobians, PA.Jtr, (dim x dim) Q-vector, DenseTensor
    PA.Jtr.SetSize(dim, dim, PA.ne*PA.nq, mt);
@@ -294,11 +359,11 @@ void TMOP_Integrator::AddMultGradPA(const Vector &re, Vector &ce) const
    }
 }
 
-double TMOP_Integrator::GetLocalStateEnergyPA(const Vector &xe) const
+real_t TMOP_Integrator::GetLocalStateEnergyPA(const Vector &xe) const
 {
    // This method must be called after AssemblePA().
 
-   double energy = 0.0;
+   real_t energy = 0.0;
 
    if (PA.Jtr_needs_update || targetC->UsesPhysicalCoordinates())
    {

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -27,9 +27,9 @@ ParNonlinearForm::ParNonlinearForm(ParFiniteElementSpace *pf)
    MFEM_VERIFY(!Serial(), "internal MFEM error");
 }
 
-double ParNonlinearForm::GetParGridFunctionEnergy(const Vector &x) const
+real_t ParNonlinearForm::GetParGridFunctionEnergy(const Vector &x) const
 {
-   double loc_energy, glob_energy;
+   real_t loc_energy, glob_energy;
 
    loc_energy = GetGridFunctionEnergy(x);
 
@@ -38,7 +38,8 @@ double ParNonlinearForm::GetParGridFunctionEnergy(const Vector &x) const
       MFEM_ABORT("TODO: add energy contribution from shared faces");
    }
 
-   MPI_Allreduce(&loc_energy, &glob_energy, 1, MPI_DOUBLE, MPI_SUM,
+   MPI_Allreduce(&loc_energy, &glob_energy, 1, MPITypeMap<real_t>::mpi_type,
+                 MPI_SUM,
                  ParFESpace()->GetComm());
 
    return glob_energy;
@@ -216,7 +217,7 @@ void ParBlockNonlinearForm::SetEssentialBC(const
    }
 }
 
-double ParBlockNonlinearForm::GetEnergy(const Vector &x) const
+real_t ParBlockNonlinearForm::GetEnergy(const Vector &x) const
 {
    // xs_true is not modified, so const_cast is okay
    xs_true.Update(const_cast<Vector &>(x), block_trueOffsets);
@@ -227,10 +228,10 @@ double ParBlockNonlinearForm::GetEnergy(const Vector &x) const
       fes[s]->GetProlongationMatrix()->Mult(xs_true.GetBlock(s), xs.GetBlock(s));
    }
 
-   double enloc = BlockNonlinearForm::GetEnergyBlocked(xs);
-   double englo = 0.0;
+   real_t enloc = BlockNonlinearForm::GetEnergyBlocked(xs);
+   real_t englo = 0.0;
 
-   MPI_Allreduce(&enloc, &englo, 1, MPI_DOUBLE, MPI_SUM,
+   MPI_Allreduce(&enloc, &englo, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
                  ParFESpace(0)->GetComm());
 
    return englo;

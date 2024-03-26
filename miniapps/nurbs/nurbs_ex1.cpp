@@ -10,12 +10,12 @@
 //               nurbs_ex1 -m ../../data/disc-nurbs.mesh -o -1
 //               nurbs_ex1 -m ../../data/pipe-nurbs.mesh -o -1
 //               nurbs_ex1 -m ../../data/beam-hex-nurbs.mesh -pm 1 -ps 2
-//               nurbs_ex1 -m ../../data/two-squares-nurbs.mesh -o 1 -rf ../../data/two-squares.ref
-//               nurbs_ex1 -m ../../data/two-squares-nurbs-rot.mesh -o 1 -rf ../../data/two-squares.ref
-//               nurbs_ex1 -m ../../data/two-squares-nurbs-autoedge.mesh -o 1 -rf ../../data/two-squares.ref
-//               nurbs_ex1 -m ../../data/two-cubes-nurbs.mesh -o 1 -r 3 -rf ../../data/two-cubes.ref
-//               nurbs_ex1 -m ../../data/two-cubes-nurbs-rot.mesh -o 1 -r 3 -rf ../../data/two-cubes.ref
-//               nurbs_ex1 -m ../../data/two-cubes-nurbs-autoedge.mesh -o 1 -r 3 -rf ../../data/two-cubes.ref
+//               nurbs_ex1 -m meshes/two-squares-nurbs.mesh -o 1 -rf meshes/two-squares.ref
+//               nurbs_ex1 -m meshes/two-squares-nurbs-rot.mesh -o 1 -rf meshes/two-squares.ref
+//               nurbs_ex1 -m meshes/two-squares-nurbs-autoedge.mesh -o 1 -rf meshes/two-squares.ref
+//               nurbs_ex1 -m meshes/two-cubes-nurbs.mesh -o 1 -r 3 -rf meshes/two-cubes.ref
+//               nurbs_ex1 -m meshes/two-cubes-nurbs-rot.mesh -o 1 -r 3 -rf meshes/two-cubes.ref
+//               nurbs_ex1 -m meshes/two-cubes-nurbs-autoedge.mesh -o 1 -r 3 -rf meshes/two-cubes.ref
 //               nurbs_ex1 -m ../../data/segment-nurbs.mesh -r 2 -o 2 -lod 3
 //
 // Description:  This example code demonstrates the use of MFEM to define a
@@ -45,12 +45,12 @@ using namespace mfem;
 class Data
 {
 public:
-   double x,val;
-   Data(double x_, double val_) {x=x_; val=val_;};
+   real_t x,val;
+   Data(real_t x_, real_t val_) {x=x_; val=val_;};
 };
 
-inline bool operator==(const Data& d1,const Data& d2) { return (d1.x == d2.x); };
-inline bool operator <(const Data& d1,const Data& d2) { return (d1.x  < d2.x); };
+inline bool operator==(const Data& d1,const Data& d2) { return (d1.x == d2.x); }
+inline bool operator <(const Data& d1,const Data& d2) { return (d1.x  < d2.x); }
 
 /** Class for integrating the bilinear form a(u,v) := (Q Laplace u, v) where Q
     can be a scalar coefficient. */
@@ -77,7 +77,7 @@ public:
    {
       int nd = el.GetDof();
       int dim = el.GetDim();
-      double w;
+      real_t w;
 
 #ifdef MFEM_THREAD_SAFE
       Vector shape(nd);
@@ -152,7 +152,7 @@ int main(int argc, char *argv[])
    int lod = 0;
    bool ibp = 1;
    bool strongBC = 1;
-   double kappa = -1;
+   real_t kappa = -1;
    Array<int> order(1);
    order[0] = 1;
 

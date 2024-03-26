@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -24,7 +24,7 @@ class ParametricBNLFormIntegrator
 {
 public:
    /// Compute the local energy
-   virtual double GetElementEnergy(const Array<const FiniteElement *>&el,
+   virtual real_t GetElementEnergy(const Array<const FiniteElement *>&el,
                                    const Array<const FiniteElement *>&pel,
                                    ElementTransformation &Tr,
                                    const Array<const Vector *>&elfun,
@@ -178,7 +178,7 @@ protected:
 
    const BlockVector &ParamProlongate(const BlockVector &bx) const;
 
-   double GetEnergyBlocked(const BlockVector &bx, const BlockVector &dx) const;
+   real_t GetEnergyBlocked(const BlockVector &bx, const BlockVector &dx) const;
 
 
    /// Specialized version of Mult() for BlockVector%s
@@ -267,7 +267,7 @@ public:
 
 
    /// Computes the energy for a state vector x.
-   virtual double GetEnergy(const Vector &x) const;
+   virtual real_t GetEnergy(const Vector &x) const;
 
    /// Method is only called in serial, the parallel version calls MultBlocked
    /// directly.

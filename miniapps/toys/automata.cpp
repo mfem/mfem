@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -196,6 +196,6 @@ void ProjectStep(const vector<bool> & b, GridFunction & x, int ns, int s)
 {
    for (int i=0; i<2*ns-1; i++)
    {
-      x[s*(2*ns-1)+i] = (double)b[i];
+      x[s*(2*ns-1)+i] = (real_t)b[i];
    }
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,9 +14,9 @@
 namespace mfem
 {
 
-double ParticleTopology::ComputeMetric(const Vector &x)
+real_t ParticleTopology::ComputeMetric(const Vector &x)
 {
-   std::vector<double> dist_vector;
+   std::vector<real_t> dist_vector;
    dist_vector.resize(particle_positions_.size());
    // 1. Compute the distance to each particle.
    for (size_t i = 0; i < particle_positions_.size(); i++)
@@ -26,12 +26,12 @@ double ParticleTopology::ComputeMetric(const Vector &x)
       dist_vector[i] = particle_positions_[i].DistanceTo(y);
    }
    // 2. Choose smallest number in the vector dist_vector.
-   double min_dist = *std::min_element(dist_vector.begin(), dist_vector.end());
+   real_t min_dist = *std::min_element(dist_vector.begin(), dist_vector.end());
    return min_dist;
 }
 
-void ParticleTopology::Initialize(std::vector<double> &random_positions,
-                                  std::vector<double> &random_rotations)
+void ParticleTopology::Initialize(std::vector<real_t> &random_positions,
+                                  std::vector<real_t> &random_rotations)
 {
    // 1. Initialize the particle positions.
    particle_positions_.resize(number_of_particles_);
@@ -69,19 +69,19 @@ void ParticleTopology::Initialize(std::vector<double> &random_positions,
    }
 }
 
-double Edge::GetDistanceTo(const Vector &x) const
+real_t Edge::GetDistanceTo(const Vector &x) const
 {
    // Implements formula used in [2, Example 5].
-   const double a = start_.DistanceTo(x);
-   const double b = end_.DistanceTo(x);
-   const double c = start_.DistanceTo(end_);
-   const double s1 = (pow(a, 2) + pow(b, 2)) / 2;
-   const double s2 = pow(c, 2) / 4;
-   const double s3 = pow((pow(a, 2) - pow(b, 2)) / (2 * c), 2);
+   const real_t a = start_.DistanceTo(x);
+   const real_t b = end_.DistanceTo(x);
+   const real_t c = start_.DistanceTo(end_);
+   const real_t s1 = (pow(a, 2) + pow(b, 2)) / 2;
+   const real_t s2 = pow(c, 2) / 4;
+   const real_t s3 = pow((pow(a, 2) - pow(b, 2)) / (2 * c), 2);
    return sqrt(abs(s1 - s2 - s3));
 }
 
-double OctetTrussTopology::ComputeMetric(const Vector &x)
+real_t OctetTrussTopology::ComputeMetric(const Vector &x)
 {
    // Define the point in the vector which differentiates between the periodic
    // points and the inner points.
@@ -91,7 +91,7 @@ double OctetTrussTopology::ComputeMetric(const Vector &x)
    //    of the topology.
    std::vector<Vector> periodic_points;
    CreatePeriodicPoints(x, periodic_points);
-   std::vector<double> dist_vector;
+   std::vector<real_t> dist_vector;
 
    // 2. Compute the distance to each periodic points to the outer edges.
    for (const auto &point : periodic_points)
@@ -109,7 +109,7 @@ double OctetTrussTopology::ComputeMetric(const Vector &x)
    }
 
    // 3. Choose the smallest number in the vector dist_vector.
-   double min_dist = *std::min_element(dist_vector.begin(), dist_vector.end());
+   real_t min_dist = *std::min_element(dist_vector.begin(), dist_vector.end());
    return min_dist;
 }
 
@@ -117,10 +117,10 @@ void OctetTrussTopology::Initialize()
 {
    // 1. Create the points defining the topology (begin and end points of the
    //    edges). Outer structure
-   double p1_data[3] = {0, 0, 0};
-   double p2_data[3] = {0, 1, 1};
-   double p3_data[3] = {1, 0, 1};
-   double p4_data[3] = {1, 1, 0};
+   real_t p1_data[3] = {0, 0, 0};
+   real_t p2_data[3] = {0, 1, 1};
+   real_t p3_data[3] = {1, 0, 1};
+   real_t p4_data[3] = {1, 1, 0};
 
    Vector p1(p1_data, 3);
    Vector p2(p2_data, 3);
@@ -133,12 +133,12 @@ void OctetTrussTopology::Initialize()
    points_.push_back(p4);
 
    // 2. Create the inner structure
-   double p5_data[3] = {0, 0.5, 0.5};   // left
-   double p6_data[3] = {1, 0.5, 0.5};   // right
-   double p7_data[3] = {0.5, 0, 0.5};   // bottom
-   double p8_data[3] = {0.5, 1, 0.5};   // top
-   double p9_data[3] = {0.5, 0.5, 0};   // front
-   double p10_data[3] = {0.5, 0.5, 1};  // back
+   real_t p5_data[3] = {0, 0.5, 0.5};   // left
+   real_t p6_data[3] = {1, 0.5, 0.5};   // right
+   real_t p7_data[3] = {0.5, 0, 0.5};   // bottom
+   real_t p8_data[3] = {0.5, 1, 0.5};   // top
+   real_t p9_data[3] = {0.5, 0.5, 0};   // front
+   real_t p10_data[3] = {0.5, 0.5, 1};  // back
 
    Vector p5(p5_data, 3);
    Vector p6(p6_data, 3);
@@ -199,9 +199,9 @@ void OctetTrussTopology::CreatePeriodicPoints(
 {
    Vector xx(x);
    // Compute the displaced ghost points. Computation assumes domain [0,1]^3.
-   double d_x[3] = {1, 0, 0};
-   double d_y[3] = {0, 1, 0};
-   double d_z[3] = {0, 0, 1};
+   real_t d_x[3] = {1, 0, 0};
+   real_t d_y[3] = {0, 1, 0};
+   real_t d_z[3] = {0, 0, 1};
 
    Vector dispcement_x(d_x, 3);
    Vector dispcement_y(d_y, 3);

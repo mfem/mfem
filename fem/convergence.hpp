@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -47,12 +47,12 @@ private:
    int print_flag=1;
 
    // exact solution and derivatives
-   double CoeffNorm;
-   double CoeffDNorm;
+   real_t CoeffNorm;
+   real_t CoeffDNorm;
 
    // Arrays to store error/rates
-   Array<double> L2Errors, DGFaceErrors, DErrors, EnErrors;
-   Array<double> L2Rates, DGFaceRates, DRates, EnRates;
+   Array<real_t> L2Errors, DGFaceErrors, DErrors, EnErrors;
+   Array<real_t> L2Rates, DGFaceRates, DRates, EnRates;
    Array<int> ndofs;
 
    void AddL2Error(GridFunction *gf, Coefficient *scalar_u,
@@ -64,7 +64,7 @@ private:
    void AddGf(GridFunction *gf, VectorCoefficient *vector_u,
               VectorCoefficient *curl, Coefficient *div);
    // returns the L2-norm of scalar_u or vector_u
-   double GetNorm(GridFunction *gf, Coefficient *scalar_u,
+   real_t GetNorm(GridFunction *gf, Coefficient *scalar_u,
                   VectorCoefficient *vector_u);
 
 public:
@@ -104,40 +104,40 @@ public:
    }
 
    /// Get the L2 error at step n
-   double GetL2Error(int n)
+   real_t GetL2Error(int n)
    {
       MFEM_VERIFY( n <= counter,"Step out of bounds")
       return L2Errors[n];
    }
 
    /// Get all L2 errors
-   void GetL2Errors(Array<double> & L2Errors_)
+   void GetL2Errors(Array<real_t> & L2Errors_)
    {
       L2Errors_ = L2Errors;
    }
 
    /// Get the Grad/Curl/Div error at step n
-   double GetDError(int n)
+   real_t GetDError(int n)
    {
       MFEM_VERIFY(n <= dcounter,"Step out of bounds")
       return DErrors[n];
    }
 
    /// Get all Grad/Curl/Div errors
-   void GetDErrors(Array<double> & DErrors_)
+   void GetDErrors(Array<real_t> & DErrors_)
    {
       DErrors_ = DErrors;
    }
 
    /// Get the DGFaceJumps error at step n
-   double GetDGFaceJumpsError(int n)
+   real_t GetDGFaceJumpsError(int n)
    {
       MFEM_VERIFY(n<= fcounter,"Step out of bounds")
       return DGFaceErrors[n];
    }
 
    /// Get all DGFaceJumps errors
-   void GetDGFaceJumpsErrors(Array<double> & DGFaceErrors_)
+   void GetDGFaceJumpsErrors(Array<real_t> & DGFaceErrors_)
    {
       DGFaceErrors_ = DGFaceErrors;
    }

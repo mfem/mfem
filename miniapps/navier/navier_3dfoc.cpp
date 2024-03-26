@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -20,18 +20,18 @@ using namespace navier;
 struct s_NavierContext
 {
    int order = 4;
-   double kin_vis = 0.001;
-   double t_final = 8.0;
-   double dt = 1e-3;
+   real_t kin_vis = 0.001;
+   real_t t_final = 8.0;
+   real_t dt = 1e-3;
 } ctx;
 
-void vel(const Vector &x, double t, Vector &u)
+void vel(const Vector &x, real_t t, Vector &u)
 {
-   double xi = x(0);
-   double yi = x(1);
-   double zi = x(2);
+   real_t xi = x(0);
+   real_t yi = x(1);
+   real_t zi = x(2);
 
-   double U = 2.25;
+   real_t U = 2.25;
 
    if (xi <= 1e-8)
    {
@@ -86,9 +86,9 @@ int main(int argc, char *argv[])
    attr[2] = 1;
    flowsolver.AddVelDirichletBC(vel, attr);
 
-   double t = 0.0;
-   double dt = ctx.dt;
-   double t_final = ctx.t_final;
+   real_t t = 0.0;
+   real_t dt = ctx.dt;
+   real_t t_final = ctx.t_final;
    bool last_step = false;
 
    flowsolver.Setup(dt);

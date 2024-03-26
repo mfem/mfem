@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -23,20 +23,20 @@ struct s_NavierContext
 {
    int element_subdivisions = 1;
    int order = 4;
-   double kinvis = 1.0 / 1600.0;
-   double t_final = 10 * 1e-3;
-   double dt = 1e-3;
+   real_t kinvis = 1.0 / 1600.0;
+   real_t t_final = 10 * 1e-3;
+   real_t dt = 1e-3;
    bool pa = true;
    bool ni = false;
    bool visualization = false;
    bool checkres = false;
 } ctx;
 
-void vel_tgv(const Vector &x, double t, Vector &u)
+void vel_tgv(const Vector &x, real_t t, Vector &u)
 {
-   double xi = x(0);
-   double yi = x(1);
-   double zi = x(2);
+   real_t xi = x(0);
+   real_t yi = x(1);
+   real_t zi = x(2);
 
    u(0) = sin(xi) * cos(yi) * cos(zi);
    u(1) = -cos(xi) * sin(yi) * cos(zi);
@@ -62,10 +62,10 @@ public:
       volume = mass_lf->operator()(one_gf);
    };
 
-   double ComputeKineticEnergy(ParGridFunction &v)
+   real_t ComputeKineticEnergy(ParGridFunction &v)
    {
       Vector velx, vely, velz;
-      double integ = 0.0;
+      real_t integ = 0.0;
       const FiniteElement *fe;
       ElementTransformation *T;
       FiniteElementSpace *fes = v.FESpace();
@@ -86,18 +86,18 @@ public:
             const IntegrationPoint &ip = ir->IntPoint(j);
             T->SetIntPoint(&ip);
 
-            double vel2 = velx(j) * velx(j) + vely(j) * vely(j)
+            real_t vel2 = velx(j) * velx(j) + vely(j) * vely(j)
                           + velz(j) * velz(j);
 
             integ += ip.weight * T->Weight() * vel2;
          }
       }
 
-      double global_integral = 0.0;
+      real_t global_integral = 0.0;
       MPI_Allreduce(&integ,
                     &global_integral,
                     1,
-                    MPI_DOUBLE,
+                    MPITypeMap<real_t>::mpi_type,
                     MPI_SUM,
                     MPI_COMM_WORLD);
 
@@ -109,7 +109,7 @@ public:
 private:
    ConstantCoefficient onecoeff;
    ParLinearForm *mass_lf;
-   double volume;
+   real_t volume;
 };
 
 template<typename T>
@@ -170,7 +170,7 @@ void ComputeQCriterion(ParGridFunction &u, ParGridFunction &q)
          grad.SetSize(grad_hat.Height(), Jinv.Width());
          Mult(grad_hat, Jinv, grad);
 
-         double q_val = 0.5 * (sq(grad(0, 0)) + sq(grad(1, 1)) + sq(grad(2, 2)))
+         real_t q_val = 0.5 * (sq(grad(0, 0)) + sq(grad(1, 1)) + sq(grad(2, 2)))
                         + grad(0, 1) * grad(1, 0) + grad(0, 2) * grad(2, 0)
                         + grad(1, 2) * grad(2, 1);
 
@@ -194,8 +194,8 @@ void ComputeQCriterion(ParGridFunction &u, ParGridFunction &q)
    gcomm.Bcast(zones_per_vdof);
 
    // Accumulate for all vdofs.
-   gcomm.Reduce<double>(q.GetData(), GroupCommunicator::Sum);
-   gcomm.Bcast<double>(q.GetData());
+   gcomm.Reduce<real_t>(q.GetData(), GroupCommunicator::Sum);
+   gcomm.Bcast<real_t>(q.GetData());
 
    // Compute means
    for (int i = 0; i < q.Size(); i++)
@@ -291,9 +291,9 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient u_excoeff(pmesh->Dimension(), vel_tgv);
    u_ic->ProjectCoefficient(u_excoeff);
 
-   double t = 0.0;
-   double dt = ctx.dt;
-   double t_final = ctx.t_final;
+   real_t t = 0.0;
+   real_t dt = ctx.dt;
+   real_t t_final = ctx.t_final;
    bool last_step = false;
 
    flowsolver.Setup(dt);
@@ -320,11 +320,11 @@ int main(int argc, char *argv[])
    pvdc.RegisterField("qcriterion", &q_gf);
    pvdc.Save();
 
-   double u_inf_loc = u_gf->Normlinf();
-   double p_inf_loc = p_gf->Normlinf();
-   double u_inf = GlobalLpNorm(infinity(), u_inf_loc, MPI_COMM_WORLD);
-   double p_inf = GlobalLpNorm(infinity(), p_inf_loc, MPI_COMM_WORLD);
-   double ke = kin_energy.ComputeKineticEnergy(*u_gf);
+   real_t u_inf_loc = u_gf->Normlinf();
+   real_t p_inf_loc = p_gf->Normlinf();
+   real_t u_inf = GlobalLpNorm(infinity(), u_inf_loc, MPI_COMM_WORLD);
+   real_t p_inf = GlobalLpNorm(infinity(), p_inf_loc, MPI_COMM_WORLD);
+   real_t ke = kin_energy.ComputeKineticEnergy(*u_gf);
 
    std::string fname = "tgv_out_p_" + std::to_string(ctx.order) + ".txt";
    FILE *f = NULL;
@@ -385,8 +385,8 @@ int main(int argc, char *argv[])
    // Test if the result for the test run is as expected.
    if (ctx.checkres)
    {
-      double tol = 2e-5;
-      double ke_expected = 1.25e-1;
+      real_t tol = 2e-5;
+      real_t ke_expected = 1.25e-1;
       if (fabs(ke - ke_expected) > tol)
       {
          if (Mpi::Root())

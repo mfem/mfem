@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -33,7 +33,7 @@
 using namespace std;
 using namespace mfem;
 
-double num_twists = 0.5;
+real_t num_twists = 0.5;
 void mobius_trans(const Vector &x, Vector &p);
 
 int main(int argc, char *argv[])
@@ -154,7 +154,7 @@ int main(int argc, char *argv[])
 
 void mobius_trans(const Vector &x, Vector &p)
 {
-   double a = 1.0 + 0.5 * (x[1] - 1.0) * cos( num_twists * x[0] );
+   real_t a = 1.0 + 0.5 * (x[1] - 1.0) * cos( num_twists * x[0] );
 
    p.SetSize(3);
    p[0] = a * cos( x[0] );

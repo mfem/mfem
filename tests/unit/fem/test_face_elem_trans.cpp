@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -48,9 +48,9 @@ TEST_CASE("3D FaceElementTransformations",
                          << " " << T->Elem2No << std::endl;
             }
 
-            double tip_data[3];
-            double tip1_data[3];
-            double tip2_data[3];
+            real_t tip_data[3];
+            real_t tip1_data[3];
+            real_t tip2_data[3];
             Vector tip(tip_data, 3);
             Vector tip1(tip1_data, 3);
             Vector tip2(tip2_data, 3);

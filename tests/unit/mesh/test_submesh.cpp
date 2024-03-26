@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -62,7 +62,7 @@ void test_2d(Element::Type element_type,
    constexpr int dim = 2;
    const int vdim = (field_type == FieldType::SCALAR ||
                      fec_type == ND) ? 1 : dim;
-   double Hy = 1.0;
+   real_t Hy = 1.0;
    Mesh mesh = Mesh::MakeCartesian2D(5, 5, element_type, true, 1.0, Hy, false);
 
    if (from == SubMesh::From::Boundary)
@@ -101,7 +101,7 @@ void test_2d(Element::Type element_type,
 
          for (int j = 0; j < vertices.Size(); j++)
          {
-            double *coords = mesh.GetVertex(vertices[j]);
+            real_t *coords = mesh.GetVertex(vertices[j]);
 
             if (coords[0] >= 0.25 &&
                 coords[0] <= 0.75 &&
@@ -122,8 +122,8 @@ void test_2d(Element::Type element_type,
    auto node_movement_coeff = VectorFunctionCoefficient(mesh.Dimension(),
                                                         [](const Vector &coords, Vector &u)
    {
-      double x = coords(0);
-      double y = coords(1);
+      real_t x = coords(0);
+      real_t y = coords(1);
 
       u(0) = x;
       u(1) = y + 0.05 * sin(x * 2.0 * M_PI);
@@ -139,8 +139,8 @@ void test_2d(Element::Type element_type,
 
    auto coeff = FunctionCoefficient([](const Vector &coords)
    {
-      double x = coords(0);
-      double y = coords(1);
+      real_t x = coords(0);
+      real_t y = coords(1);
       return y + 0.05 * sin(x * 2.0 * M_PI);
    });
 
@@ -148,8 +148,8 @@ void test_2d(Element::Type element_type,
                                                    Vector &V)
    {
       V.SetSize(2);
-      double x = coords(0);
-      double y = coords(1);
+      real_t x = coords(0);
+      real_t y = coords(1);
 
       V(0) = y + 0.05 * sin(x * 2.0 * M_PI);
       V(1) = x + 0.05 * sin(y * 2.0 * M_PI);
@@ -238,7 +238,7 @@ void test_3d(Element::Type element_type,
    constexpr int dim = 3;
    const int vdim = (field_type == FieldType::SCALAR ||
                      fec_type == ND) ? 1 : dim;
-   double Hy = 1.0;
+   real_t Hy = 1.0;
    Mesh mesh = Mesh::MakeCartesian3D(5, 5, 5, element_type, 1.0, Hy, 1.0, false);
 
    if (from == SubMesh::From::Boundary)
@@ -298,9 +298,9 @@ void test_3d(Element::Type element_type,
    auto node_movement_coeff = VectorFunctionCoefficient(mesh.Dimension(),
                                                         [](const Vector &coords, Vector &u)
    {
-      double x = coords(0);
-      double y = coords(1);
-      double z = coords(2);
+      real_t x = coords(0);
+      real_t y = coords(1);
+      real_t z = coords(2);
 
       u(0) = x;
       u(1) = y + 0.05 * sin(x * 2.0 * M_PI);
@@ -316,9 +316,9 @@ void test_3d(Element::Type element_type,
 
    auto coeff = FunctionCoefficient([](const Vector &coords)
    {
-      double x = coords(0);
-      double y = coords(1);
-      double z = coords(2);
+      real_t x = coords(0);
+      real_t y = coords(1);
+      real_t z = coords(2);
       return y + 0.05 * sin(x * 2.0 * M_PI) + z;
    });
 
@@ -326,9 +326,9 @@ void test_3d(Element::Type element_type,
                                                    Vector &V)
    {
       V.SetSize(3);
-      double x = coords(0);
-      double y = coords(1);
-      double z = coords(2);
+      real_t x = coords(0);
+      real_t y = coords(1);
+      real_t z = coords(2);
 
       V(0) = y + 0.05 * sin(x * 2.0 * M_PI) + z;
       V(1) = z + 0.05 * sin(y * 2.0 * M_PI) + x;

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -80,7 +80,7 @@ void testGridFunctions(FEColType& fec, Mesh& mesh, int expScalarDofs)
       }
 
       // Test access to the dof values by getting the value at the elt midpoint
-      double centerValue = gf.GetValue( eltId, Geometries.GetCenter(geom) );
+      real_t centerValue = gf.GetValue( eltId, Geometries.GetCenter(geom) );
       REQUIRE( centerValue > 0. );
       REQUIRE( centerValue < 1. );
    }
@@ -128,7 +128,7 @@ void testGridFunctions(FEColType& fec, Mesh& mesh, int expScalarDofs)
          const int nv = vertIndices.Size();
          for (int i=0; i < nv; ++i)
          {
-            double* vertPos = mesh.GetVertex(vertIndices[i]);
+            real_t* vertPos = mesh.GetVertex(vertIndices[i]);
 
             for (int j=0; j < vdim; ++j)
             {

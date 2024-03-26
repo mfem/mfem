@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -48,6 +48,11 @@ using namespace std;
 
 int main (int argc, char *argv[])
 {
+#ifdef HYPRE_USING_GPU
+   cout << "\nThis miniapp is NOT supported with the GPU version of hypre.\n\n";
+   return MFEM_SKIP_RETURN_VALUE;
+#endif
+
    // 0. Initialize MPI and HYPRE.
    Mpi::Init(argc, argv);
    int myid = Mpi::WorldRank();
@@ -60,12 +65,16 @@ int main (int argc, char *argv[])
    int rp_levels         = 0;
    int metric_id         = 2;
    int target_id         = 1;
-   double surface_fit_const = 100.0;
+   real_t surface_fit_const = 100.0;
    int quad_type         = 1;
    int quad_order        = 8;
    int solver_type       = 0;
    int solver_iter       = 20;
-   double solver_rtol    = 1e-10;
+#ifdef MFEM_USE_SINGLE
+   real_t solver_rtol    = 1e-4;
+#else
+   real_t solver_rtol    = 1e-10;
+#endif
    int solver_art_type   = 0;
    int lin_solver        = 2;
    int max_lin_iter      = 100;
@@ -74,8 +83,8 @@ int main (int argc, char *argv[])
    int verbosity_level   = 0;
    int adapt_eval        = 0;
    const char *devopt    = "cpu";
-   double surface_fit_adapt = 0.0;
-   double surface_fit_threshold = -10;
+   real_t surface_fit_adapt = 0.0;
+   real_t surface_fit_threshold = -10;
    bool adapt_marking     = false;
    bool surf_bg_mesh     = false;
    bool comp_dist     = false;
@@ -359,7 +368,6 @@ int main (int argc, char *argv[])
    }
    pmesh->ExchangeFaceNbrData();
 
-
    // Surface fitting.
    L2_FECollection mat_coll(0, dim);
    H1_FECollection surf_fit_fec(mesh_poly_deg, dim);
@@ -402,7 +410,7 @@ int main (int argc, char *argv[])
       {
          for (int d = 0; d < dim; d++)
          {
-            double length_d = p_max(d) - p_min(d),
+            real_t length_d = p_max(d) - p_min(d),
                    extra_d = 0.2 * length_d;
             x_bg(i + d*num_nodes) = p_min(d) - extra_d +
                                     x_bg(i + d*num_nodes) * (length_d + 2*extra_d);
@@ -431,7 +439,6 @@ int main (int argc, char *argv[])
                                               *surf_fit_bg_gf0);
          }
          else { surf_fit_bg_gf0->ProjectCoefficient(*ls_coeff); }
-
 
          surf_fit_bg_grad_fes =
             new ParFiniteElementSpace(pmesh_surf_fit_bg, surf_fit_bg_fec, dim);
@@ -630,6 +637,7 @@ int main (int argc, char *argv[])
          }
       }
    }
+   pmesh->SetAttributes();
 
    // 13. Setup the final NonlinearForm (which defines the integral of interest,
    //     its first and second derivatives). Here we can use a combination of
@@ -642,7 +650,7 @@ int main (int argc, char *argv[])
    a.AddDomainIntegrator(tmop_integ);
 
    // Compute the minimum det(J) of the starting mesh.
-   double min_detJ = infinity();
+   real_t min_detJ = infinity();
    const int NE = pmesh->GetNE();
    for (int i = 0; i < NE; i++)
    {
@@ -656,14 +664,14 @@ int main (int argc, char *argv[])
       }
    }
    MPI_Allreduce(MPI_IN_PLACE, &min_detJ, 1,
-                 MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+                 MPITypeMap<real_t>::mpi_type, MPI_MIN, MPI_COMM_WORLD);
    if (myid == 0)
    { cout << "Minimum det(J) of the original mesh is " << min_detJ << endl; }
 
    MFEM_VERIFY(min_detJ > 0, "The input mesh is inverted, use mesh-optimizer.");
 
-   const double init_energy = a.GetParGridFunctionEnergy(x);
-   double init_metric_energy = init_energy;
+   const real_t init_energy = a.GetParGridFunctionEnergy(x);
+   real_t init_metric_energy = init_energy;
    if (surface_fit_const > 0.0)
    {
       surf_fit_coeff.constant   = 0.0;
@@ -733,7 +741,11 @@ int main (int argc, char *argv[])
    // 15. As we use the Newton method to solve the resulting nonlinear system,
    //     here we setup the linear solver for the system's Jacobian.
    Solver *S = NULL, *S_prec = NULL;
-   const double linsol_rtol = 1e-12;
+#ifdef MFEM_USE_SINGLE
+   const real_t linsol_rtol = 1e-5;
+#else
+   const real_t linsol_rtol = 1e-12;
+#endif
    if (lin_solver == 0)
    {
       S = new DSmoother(1, 1.0, max_lin_iter);
@@ -811,8 +823,8 @@ int main (int argc, char *argv[])
    }
 
    // Compute the final energy of the functional.
-   const double fin_energy = a.GetParGridFunctionEnergy(x);
-   double fin_metric_energy = fin_energy;
+   const real_t fin_energy = a.GetParGridFunctionEnergy(x);
+   real_t fin_metric_energy = fin_energy;
    if (surface_fit_const > 0.0)
    {
       surf_fit_coeff.constant  = 0.0;
@@ -843,7 +855,7 @@ int main (int argc, char *argv[])
          common::VisualizeField(vis3, "localhost", 19916, surf_fit_mat_gf,
                                 "Surface DOFs", 600, 400, 300, 300);
       }
-      double err_avg, err_max;
+      real_t err_avg, err_max;
       tmop_integ->GetSurfaceFittingErrors(x, err_avg, err_max);
       if (myid == 0)
       {

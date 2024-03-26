@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -130,7 +130,7 @@ int BlockMatrix::NumNonZeroElems() const
 }
 
 
-double& BlockMatrix::Elem (int i, int j)
+real_t& BlockMatrix::Elem (int i, int j)
 {
    int iloc, iblock;
    int jloc, jblock;
@@ -146,9 +146,9 @@ double& BlockMatrix::Elem (int i, int j)
    return Aij(iblock, jblock)->Elem(iloc, jloc);
 }
 
-const double& BlockMatrix::Elem (int i, int j) const
+const real_t& BlockMatrix::Elem (int i, int j) const
 {
-   static const double zero = 0.0;
+   static const real_t zero = 0.0;
    int iloc, iblock;
    int jloc, jblock;
 
@@ -192,7 +192,7 @@ int BlockMatrix::GetRow(const int row, Array<int> &cols, Vector &srow) const
    Vector bsrow;
 
    int * it_cols = cols.GetData();
-   double *it_srow = srow.GetData();
+   real_t *it_srow = srow.GetData();
 
    for (int jblock = 0; jblock < nColBlocks; ++jblock)
    {
@@ -367,7 +367,7 @@ void BlockMatrix::EliminateRowCols(const Array<int> & vdofs, BlockMatrix *Ae,
    }
 }
 
-void BlockMatrix::EliminateZeroRows(const double threshold)
+void BlockMatrix::EliminateZeroRows(const real_t threshold)
 {
    MFEM_VERIFY(nRowBlocks == nColBlocks, "not a square matrix");
 
@@ -375,7 +375,7 @@ void BlockMatrix::EliminateZeroRows(const double threshold)
    {
       if (Aij(iblock,iblock))
       {
-         double norm;
+         real_t norm;
          for (int i = 0; i < Aij(iblock, iblock)->NumRows(); ++i)
          {
             norm = 0.;
@@ -400,7 +400,7 @@ void BlockMatrix::EliminateZeroRows(const double threshold)
       }
       else
       {
-         double norm;
+         real_t norm;
          for (int i = 0; i < row_offsets[iblock+1] - row_offsets[iblock]; ++i)
          {
             norm = 0.;
@@ -450,7 +450,7 @@ void BlockMatrix::Mult(const Vector & x, Vector & y) const
    AddMult(x, y, 1.0);
 }
 
-void BlockMatrix::AddMult(const Vector & x, Vector & y, const double val) const
+void BlockMatrix::AddMult(const Vector & x, Vector & y, const real_t val) const
 {
    if (x.GetData() == y.GetData())
    {
@@ -490,7 +490,7 @@ void BlockMatrix::MultTranspose(const Vector & x, Vector & y) const
 }
 
 void BlockMatrix::AddMultTranspose(const Vector & x, Vector & y,
-                                   const double val) const
+                                   const real_t val) const
 {
    if (x.GetData() == y.GetData())
    {
@@ -528,7 +528,7 @@ void BlockMatrix::PartMult(const Array<int> &rows, const Vector &x,
       int dof = (rows[i]>=0) ? rows[i] : -1-rows[i];
       GetRow(dof,cols,srow);
 
-      double s=0.0;
+      real_t s=0.0;
       for (int k = 0; k <cols.Size(); k++)
       {
          s += srow[k] * x[cols[k]];
@@ -538,7 +538,7 @@ void BlockMatrix::PartMult(const Array<int> &rows, const Vector &x,
 }
 void BlockMatrix::PartAddMult(const Array<int> &rows, const Vector &x,
                               Vector &y,
-                              const double a) const
+                              const real_t a) const
 {
    Array<int> cols;
    Vector srow;
@@ -547,7 +547,7 @@ void BlockMatrix::PartAddMult(const Array<int> &rows, const Vector &x,
       int dof = (rows[i]>=0) ? rows[i] : -1-rows[i];
       GetRow(dof,cols,srow);
 
-      double s=0.0;
+      real_t s=0.0;
       for (int k = 0; k <cols.Size(); k++)
       {
          s += srow[k] * x[cols[k]];
@@ -563,7 +563,7 @@ SparseMatrix * BlockMatrix::CreateMonolithic() const
 
    int * i_amono = Memory<int>(row_offsets[nRowBlocks]+2);
    int * j_amono = Memory<int>(nnz);
-   double * data = Memory<double>(nnz);
+   real_t * data = Memory<real_t>(nnz);
 
    for (int i = 0; i < row_offsets[nRowBlocks]+2; i++)
    {
@@ -598,7 +598,7 @@ SparseMatrix * BlockMatrix::CreateMonolithic() const
             int nrow = row_offsets[iblock+1]-row_offsets[iblock];
             int * i_aij = Aij(iblock, jblock)->GetI();
             int * j_aij = Aij(iblock, jblock)->GetJ();
-            double * data_aij = Aij(iblock, jblock)->GetData();
+            real_t * data_aij = Aij(iblock, jblock)->GetData();
             int *i_it = i_amono_construction+row_offsets[iblock];
 
             int loc_start_index = 0;

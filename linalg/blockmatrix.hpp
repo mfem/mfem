@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -101,9 +101,9 @@ public:
    ///@{
 
    /// Returns reference to a_{ij}.
-   virtual double& Elem (int i, int j);
+   virtual real_t& Elem (int i, int j);
    /// Returns constant reference to a_{ij}.
-   virtual const double& Elem (int i, int j) const;
+   virtual const real_t& Elem (int i, int j) const;
    /// Returns a pointer to (approximation) of the matrix inverse.
    virtual MatrixInverse * Inverse() const
    {
@@ -126,17 +126,17 @@ public:
 
        If entry (i,i) does not belong to the sparsity pattern of A, then a error
        will occur. */
-   virtual void EliminateZeroRows(const double threshold = 1e-12);
+   virtual void EliminateZeroRows(const real_t threshold = 1e-12);
 
    /// Matrix-Vector Multiplication y = A*x
    virtual void Mult(const Vector & x, Vector & y) const;
    /// Matrix-Vector Multiplication y = y + val*A*x
-   virtual void AddMult(const Vector & x, Vector & y, const double val = 1.) const;
+   virtual void AddMult(const Vector & x, Vector & y, const real_t val = 1.) const;
    /// MatrixTranspose-Vector Multiplication y = A'*x
    virtual void MultTranspose(const Vector & x, Vector & y) const;
    /// MatrixTranspose-Vector Multiplication y = y + val*A'*x
    virtual void AddMultTranspose(const Vector & x, Vector & y,
-                                 const double val = 1.) const;
+                                 const real_t val = 1.) const;
    ///@}
 
    /** @brief Partial matrix vector multiplication of (*this) with @a x
@@ -146,7 +146,7 @@ public:
        involving only the rows given by @a rows. The result is multiplied by
        @a a and added to @a y */
    void PartAddMult(const Array<int> &rows, const Vector &x, Vector &y,
-                    const double a=1.0) const;
+                    const real_t a=1.0) const;
 
    //! Destructor
    virtual ~BlockMatrix();

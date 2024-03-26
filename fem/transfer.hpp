@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -184,12 +184,12 @@ protected:
       /// solver.
       ///
       /// Only used for H1 spaces.
-      virtual void SetRelTol(double p_rtol_) = 0;
+      virtual void SetRelTol(real_t p_rtol_) = 0;
       /// @brief Sets absolute tolerance in preconditioned conjugate gradient
       /// solver.
       ///
       /// Only used for H1 spaces.
-      virtual void SetAbsTol(double p_atol_) = 0;
+      virtual void SetAbsTol(real_t p_atol_) = 0;
    protected:
       const FiniteElementSpace& fes_ho;
       const FiniteElementSpace& fes_lor;
@@ -218,7 +218,7 @@ protected:
       // meshes or p-refinement). The matrix entries are stored in the R and P
       // arrays. The entries of the i'th high-order element are stored at the
       // index given by offsets[i].
-      mutable Array<double> R, P;
+      mutable Array<real_t> R, P;
       Array<int> offsets;
 
    public:
@@ -255,8 +255,8 @@ protected:
       /// conservative left-inverse prolongation operation. This functionality
       /// is also provided as an Operator by L2Prolongation.
       virtual void ProlongateTranspose(const Vector& x, Vector& y) const;
-      virtual void SetRelTol(double p_rtol_) { } ///< No-op.
-      virtual void SetAbsTol(double p_atol_) { } ///< No-op.
+      virtual void SetRelTol(real_t p_rtol_) { } ///< No-op.
+      virtual void SetAbsTol(real_t p_atol_) { } ///< No-op.
    };
 
    /** Projection operator between a H1 high-order finite element space on a
@@ -302,8 +302,8 @@ protected:
       /// conservative left-inverse prolongation operation. This functionality
       /// is also provided as an Operator by L2Prolongation.
       virtual void ProlongateTranspose(const Vector& x, Vector& y) const;
-      virtual void SetRelTol(double p_rtol_);
-      virtual void SetAbsTol(double p_atol_);
+      virtual void SetRelTol(real_t p_rtol_);
+      virtual void SetAbsTol(real_t p_atol_);
    protected:
       /// Sets up the PCG solver (sets parameters, operator, and preconditioner)
       void SetupPCG();
@@ -465,8 +465,8 @@ private:
    int NE;
    int D1D;
    int Q1D;
-   Array<double> B;
-   Array<double> Bt;
+   Array<real_t> B;
+   Array<real_t> Bt;
    const Operator* elem_restrict_lex_l;
    const Operator* elem_restrict_lex_h;
    Vector mask;

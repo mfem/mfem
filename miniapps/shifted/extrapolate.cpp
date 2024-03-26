@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -45,11 +45,11 @@ using namespace mfem;
 
 int problem = 0;
 
-double domainLS(const Vector &coord)
+real_t domainLS(const Vector &coord)
 {
    // Map from [0,1] to [-1,1].
    const int dim = coord.Size();
-   const double x = coord(0)*2.0 - 1.0,
+   const real_t x = coord(0)*2.0 - 1.0,
                 y = (dim > 1) ? coord(1)*2.0 - 1.0 : 0.0,
                 z = (dim > 2) ? coord(2)*2.0 - 1.0 : 0.0;
 
@@ -74,11 +74,11 @@ double domainLS(const Vector &coord)
    }
 }
 
-double solution0(const Vector &coord)
+real_t solution0(const Vector &coord)
 {
    // Map from [0,1] to [-1,1].
    const int dim = coord.Size();
-   const double x = coord(0)*2.0 - 1.0 + 0.25,
+   const real_t x = coord(0)*2.0 - 1.0 + 0.25,
                 y = (dim > 1) ? coord(1)*2.0 - 1.0 : 0.0,
                 z = (dim > 2) ? coord(2)*2.0 - 1.0 : 0.0;
 
@@ -87,8 +87,9 @@ double solution0(const Vector &coord)
 
 void PrintNorm(int myid, Vector &v, std::string text)
 {
-   double norm = v.Norml1();
-   MPI_Allreduce(MPI_IN_PLACE, &norm, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+   real_t norm = v.Norml1();
+   MPI_Allreduce(MPI_IN_PLACE, &norm, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                 MPI_COMM_WORLD);
    if (myid == 0)
    {
       std::cout << std::setprecision(12) << std::fixed
@@ -99,7 +100,7 @@ void PrintNorm(int myid, Vector &v, std::string text)
 void PrintIntegral(int myid, ParGridFunction &g, std::string text)
 {
    ConstantCoefficient zero(0.0);
-   double norm = g.ComputeL1Error(zero);
+   real_t norm = g.ComputeL1Error(zero);
    if (myid == 0)
    {
       std::cout << std::setprecision(12) << std::fixed
@@ -111,7 +112,7 @@ int main(int argc, char *argv[])
 {
    // Initialize MPI and HYPRE.
    Mpi::Init();
-   int myid = Mpi::WorldRank();;
+   int myid = Mpi::WorldRank();
    Hypre::Init();
 
    // Parse command-line options.
@@ -121,7 +122,7 @@ int main(int argc, char *argv[])
    AdvectionOper::AdvectionMode dg_mode = AdvectionOper::HO;
    int ex_degree = 1;
    int order = 2;
-   double distance = 0.35;
+   real_t distance = 0.35;
    bool vis_on = true;
    int vis_steps_cnt = 50;
 
@@ -187,14 +188,14 @@ int main(int argc, char *argv[])
    PrintIntegral(myid, ux, "Solution L1 norm: ");
 
    GridFunctionCoefficient u_exact_coeff(&u);
-   double err_L1 = ux.ComputeL1Error(u_exact_coeff),
+   real_t err_L1 = ux.ComputeL1Error(u_exact_coeff),
           err_L2 = ux.ComputeL2Error(u_exact_coeff);
    if (myid == 0)
    {
       std::cout << "Global L1 error: " << err_L1 << std::endl
                 << "Global L2 error: " << err_L2 << std::endl;
    }
-   double loc_error_L1, loc_error_L2, loc_error_LI;
+   real_t loc_error_L1, loc_error_L2, loc_error_LI;
    xtrap.ComputeLocalErrors(ls_coeff, u, ux,
                             loc_error_L1, loc_error_L2, loc_error_LI);
    if (myid == 0)

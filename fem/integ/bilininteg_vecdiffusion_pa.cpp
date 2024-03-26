@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -21,7 +21,7 @@ namespace mfem
 // PA Diffusion Assemble 2D kernel
 static void PAVectorDiffusionSetup2D(const int Q1D,
                                      const int NE,
-                                     const Array<double> &w,
+                                     const Array<real_t> &w,
                                      const Vector &j,
                                      const Vector &c,
                                      Vector &op)
@@ -41,13 +41,13 @@ static void PAVectorDiffusionSetup2D(const int Q1D,
    {
       for (int q = 0; q < NQ; ++q)
       {
-         const double J11 = J(q,0,0,e);
-         const double J21 = J(q,1,0,e);
-         const double J12 = J(q,0,1,e);
-         const double J22 = J(q,1,1,e);
+         const real_t J11 = J(q,0,0,e);
+         const real_t J21 = J(q,1,0,e);
+         const real_t J12 = J(q,0,1,e);
+         const real_t J22 = J(q,1,1,e);
 
-         const double C1 = const_c ? C(0,0) : C(q,e);
-         const double c_detJ = W[q] * C1 / ((J11*J22)-(J21*J12));
+         const real_t C1 = const_c ? C(0,0) : C(q,e);
+         const real_t c_detJ = W[q] * C1 / ((J11*J22)-(J21*J12));
          y(q,0,e) =  c_detJ * (J12*J12 + J22*J22); // 1,1
          y(q,1,e) = -c_detJ * (J12*J11 + J22*J21); // 1,2
          y(q,2,e) =  c_detJ * (J11*J11 + J21*J21); // 2,2
@@ -58,7 +58,7 @@ static void PAVectorDiffusionSetup2D(const int Q1D,
 // PA Diffusion Assemble 3D kernel
 static void PAVectorDiffusionSetup3D(const int Q1D,
                                      const int NE,
-                                     const Array<double> &w,
+                                     const Array<real_t> &w,
                                      const Vector &j,
                                      const Vector &c,
                                      Vector &op)
@@ -77,32 +77,32 @@ static void PAVectorDiffusionSetup3D(const int Q1D,
    {
       for (int q = 0; q < NQ; ++q)
       {
-         const double J11 = J(q,0,0,e);
-         const double J21 = J(q,1,0,e);
-         const double J31 = J(q,2,0,e);
-         const double J12 = J(q,0,1,e);
-         const double J22 = J(q,1,1,e);
-         const double J32 = J(q,2,1,e);
-         const double J13 = J(q,0,2,e);
-         const double J23 = J(q,1,2,e);
-         const double J33 = J(q,2,2,e);
-         const double detJ = J11 * (J22 * J33 - J32 * J23) -
+         const real_t J11 = J(q,0,0,e);
+         const real_t J21 = J(q,1,0,e);
+         const real_t J31 = J(q,2,0,e);
+         const real_t J12 = J(q,0,1,e);
+         const real_t J22 = J(q,1,1,e);
+         const real_t J32 = J(q,2,1,e);
+         const real_t J13 = J(q,0,2,e);
+         const real_t J23 = J(q,1,2,e);
+         const real_t J33 = J(q,2,2,e);
+         const real_t detJ = J11 * (J22 * J33 - J32 * J23) -
                              J21 * (J12 * J33 - J32 * J13) +
                              J31 * (J12 * J23 - J22 * J13);
 
-         const double C1 = const_c ? C(0,0) : C(q,e);
+         const real_t C1 = const_c ? C(0,0) : C(q,e);
 
-         const double c_detJ = W[q] * C1 / detJ;
+         const real_t c_detJ = W[q] * C1 / detJ;
          // adj(J)
-         const double A11 = (J22 * J33) - (J23 * J32);
-         const double A12 = (J32 * J13) - (J12 * J33);
-         const double A13 = (J12 * J23) - (J22 * J13);
-         const double A21 = (J31 * J23) - (J21 * J33);
-         const double A22 = (J11 * J33) - (J13 * J31);
-         const double A23 = (J21 * J13) - (J11 * J23);
-         const double A31 = (J21 * J32) - (J31 * J22);
-         const double A32 = (J31 * J12) - (J11 * J32);
-         const double A33 = (J11 * J22) - (J12 * J21);
+         const real_t A11 = (J22 * J33) - (J23 * J32);
+         const real_t A12 = (J32 * J13) - (J12 * J33);
+         const real_t A13 = (J12 * J23) - (J22 * J13);
+         const real_t A21 = (J31 * J23) - (J21 * J33);
+         const real_t A22 = (J11 * J33) - (J13 * J31);
+         const real_t A23 = (J21 * J13) - (J11 * J23);
+         const real_t A31 = (J21 * J32) - (J31 * J22);
+         const real_t A32 = (J31 * J12) - (J11 * J32);
+         const real_t A33 = (J11 * J22) - (J12 * J21);
          // detJ J^{-1} J^{-T} = (1/detJ) adj(J) adj(J)^T
          y(q,0,e) = c_detJ * (A11*A11 + A12*A12 + A13*A13); // 1,1
          y(q,1,e) = c_detJ * (A11*A21 + A12*A22 + A13*A23); // 2,1
@@ -117,7 +117,7 @@ static void PAVectorDiffusionSetup3D(const int Q1D,
 static void PAVectorDiffusionSetup(const int dim,
                                    const int Q1D,
                                    const int NE,
-                                   const Array<double> &W,
+                                   const Array<real_t> &W,
                                    const Vector &J,
                                    const Vector &C,
                                    Vector &op)
@@ -176,7 +176,7 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    QuadratureSpace qs(*mesh, *ir);
    CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
 
-   const Array<double> &w = ir->GetWeights();
+   const Array<real_t> &w = ir->GetWeights();
    const Vector &j = geom->J;
    Vector &d = pa_data;
    if (dim == 1) { MFEM_ABORT("dim==1 not supported in PAVectorDiffusionSetup"); }
@@ -197,19 +197,19 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
       {
          for (int q = 0; q < NQ; ++q)
          {
-            const double wq = W[q];
-            const double J11 = J(q,0,0,e);
-            const double J21 = J(q,1,0,e);
-            const double J31 = J(q,2,0,e);
-            const double J12 = J(q,0,1,e);
-            const double J22 = J(q,1,1,e);
-            const double J32 = J(q,2,1,e);
-            const double E = J11*J11 + J21*J21 + J31*J31;
-            const double G = J12*J12 + J22*J22 + J32*J32;
-            const double F = J11*J12 + J21*J22 + J31*J32;
-            const double iw = 1.0 / sqrt(E*G - F*F);
-            const double C1 = const_c ? C(0,0) : C(q,e);
-            const double alpha = wq * C1 * iw;
+            const real_t wq = W[q];
+            const real_t J11 = J(q,0,0,e);
+            const real_t J21 = J(q,1,0,e);
+            const real_t J31 = J(q,2,0,e);
+            const real_t J12 = J(q,0,1,e);
+            const real_t J22 = J(q,1,1,e);
+            const real_t J32 = J(q,2,1,e);
+            const real_t E = J11*J11 + J21*J21 + J31*J31;
+            const real_t G = J12*J12 + J22*J22 + J32*J32;
+            const real_t F = J11*J12 + J21*J22 + J31*J32;
+            const real_t iw = 1.0 / sqrt(E*G - F*F);
+            const real_t C1 = const_c ? C(0,0) : C(q,e);
+            const real_t alpha = wq * C1 * iw;
             D(q,0,e) =  alpha * G; // 1,1
             D(q,1,e) = -alpha * F; // 1,2
             D(q,2,e) =  alpha * E; // 2,2
@@ -224,8 +224,8 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
 template<int T_D1D = 0, int T_Q1D = 0>
 static void PAVectorDiffusionDiagonal2D(const int NE,
-                                        const Array<double> &b,
-                                        const Array<double> &g,
+                                        const Array<real_t> &b,
+                                        const Array<real_t> &g,
                                         const Vector &d,
                                         Vector &y,
                                         const int d1d = 0,
@@ -248,9 +248,9 @@ static void PAVectorDiffusionDiagonal2D(const int NE,
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       // gradphi \cdot Q \gradphi has four terms
-      double QD0[MQ1][MD1];
-      double QD1[MQ1][MD1];
-      double QD2[MQ1][MD1];
+      real_t QD0[MQ1][MD1];
+      real_t QD1[MQ1][MD1];
+      real_t QD2[MQ1][MD1];
       for (int qx = 0; qx < Q1D; ++qx)
       {
          for (int dy = 0; dy < D1D; ++dy)
@@ -261,9 +261,9 @@ static void PAVectorDiffusionDiagonal2D(const int NE,
             for (int qy = 0; qy < Q1D; ++qy)
             {
                const int q = qx + qy * Q1D;
-               const double D0 = D(q,0,e);
-               const double D1 = D(q,1,e);
-               const double D2 = D(q,2,e);
+               const real_t D0 = D(q,0,e);
+               const real_t D1 = D(q,1,e);
+               const real_t D2 = D(q,2,e);
                QD0[qx][dy] += B(qy, dy) * B(qy, dy) * D0;
                QD1[qx][dy] += B(qy, dy) * G(qy, dy) * D1;
                QD2[qx][dy] += G(qy, dy) * G(qy, dy) * D2;
@@ -274,7 +274,7 @@ static void PAVectorDiffusionDiagonal2D(const int NE,
       {
          for (int dx = 0; dx < D1D; ++dx)
          {
-            double temp = 0.0;
+            real_t temp = 0.0;
             for (int qx = 0; qx < Q1D; ++qx)
             {
                temp += G(qx, dx) * G(qx, dx) * QD0[qx][dy];
@@ -291,8 +291,8 @@ static void PAVectorDiffusionDiagonal2D(const int NE,
 
 template<int T_D1D = 0, int T_Q1D = 0>
 static void PAVectorDiffusionDiagonal3D(const int NE,
-                                        const Array<double> &b,
-                                        const Array<double> &g,
+                                        const Array<real_t> &b,
+                                        const Array<real_t> &g,
                                         const Vector &d,
                                         Vector &y,
                                         const int d1d = 0,
@@ -315,8 +315,8 @@ static void PAVectorDiffusionDiagonal3D(const int NE,
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
-      double QQD[MQ1][MQ1][MD1];
-      double QDD[MQ1][MD1][MD1];
+      real_t QQD[MQ1][MQ1][MD1];
+      real_t QDD[MQ1][MD1][MD1];
       for (int i = 0; i < DIM; ++i)
       {
          for (int j = 0; j < DIM; ++j)
@@ -335,11 +335,11 @@ static void PAVectorDiffusionDiagonal3D(const int NE,
                         const int k = j >= i ?
                                       3 - (3-i)*(2-i)/2 + j:
                                       3 - (3-j)*(2-j)/2 + i;
-                        const double O = Q(q,k,e);
-                        const double Bz = B(qz,dz);
-                        const double Gz = G(qz,dz);
-                        const double L = i==2 ? Gz : Bz;
-                        const double R = j==2 ? Gz : Bz;
+                        const real_t O = Q(q,k,e);
+                        const real_t Bz = B(qz,dz);
+                        const real_t Gz = G(qz,dz);
+                        const real_t L = i==2 ? Gz : Bz;
+                        const real_t R = j==2 ? Gz : Bz;
                         QQD[qx][qy][dz] += L * O * R;
                      }
                   }
@@ -355,10 +355,10 @@ static void PAVectorDiffusionDiagonal3D(const int NE,
                      QDD[qx][dy][dz] = 0.0;
                      for (int qy = 0; qy < Q1D; ++qy)
                      {
-                        const double By = B(qy,dy);
-                        const double Gy = G(qy,dy);
-                        const double L = i==1 ? Gy : By;
-                        const double R = j==1 ? Gy : By;
+                        const real_t By = B(qy,dy);
+                        const real_t Gy = G(qy,dy);
+                        const real_t L = i==1 ? Gy : By;
+                        const real_t R = j==1 ? Gy : By;
                         QDD[qx][dy][dz] += L * QQD[qx][qy][dz] * R;
                      }
                   }
@@ -371,13 +371,13 @@ static void PAVectorDiffusionDiagonal3D(const int NE,
                {
                   for (int dx = 0; dx < D1D; ++dx)
                   {
-                     double temp = 0.0;
+                     real_t temp = 0.0;
                      for (int qx = 0; qx < Q1D; ++qx)
                      {
-                        const double Bx = B(qx,dx);
-                        const double Gx = G(qx,dx);
-                        const double L = i==0 ? Gx : Bx;
-                        const double R = j==0 ? Gx : Bx;
+                        const real_t Bx = B(qx,dx);
+                        const real_t Gx = G(qx,dx);
+                        const real_t L = i==0 ? Gx : Bx;
+                        const real_t R = j==0 ? Gx : Bx;
                         temp += L * QDD[qx][dy][dz] * R;
                      }
                      Y(dx, dy, dz, 0, e) += temp;
@@ -395,8 +395,8 @@ static void PAVectorDiffusionAssembleDiagonal(const int dim,
                                               const int D1D,
                                               const int Q1D,
                                               const int NE,
-                                              const Array<double> &B,
-                                              const Array<double> &G,
+                                              const Array<real_t> &B,
+                                              const Array<real_t> &G,
                                               const Vector &op,
                                               Vector &y)
 {
@@ -428,10 +428,10 @@ void VectorDiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
 // PA Diffusion Apply 2D kernel
 template<int T_D1D = 0, int T_Q1D = 0, int T_VDIM = 0> static
 void PAVectorDiffusionApply2D(const int NE,
-                              const Array<double> &b,
-                              const Array<double> &g,
-                              const Array<double> &bt,
-                              const Array<double> &gt,
+                              const Array<real_t> &b,
+                              const Array<real_t> &g,
+                              const Array<real_t> &bt,
+                              const Array<real_t> &gt,
                               const Vector &d_,
                               const Vector &x_,
                               Vector &y_,
@@ -459,7 +459,7 @@ void PAVectorDiffusionApply2D(const int NE,
       constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
-      double grad[max_Q1D][max_Q1D][2];
+      real_t grad[max_Q1D][max_Q1D][2];
       for (int c = 0; c < VDIM; c++)
       {
          for (int qy = 0; qy < Q1D; ++qy)
@@ -472,7 +472,7 @@ void PAVectorDiffusionApply2D(const int NE,
          }
          for (int dy = 0; dy < D1D; ++dy)
          {
-            double gradX[max_Q1D][2];
+            real_t gradX[max_Q1D][2];
             for (int qx = 0; qx < Q1D; ++qx)
             {
                gradX[qx][0] = 0.0;
@@ -480,7 +480,7 @@ void PAVectorDiffusionApply2D(const int NE,
             }
             for (int dx = 0; dx < D1D; ++dx)
             {
-               const double s = x(dx,dy,c,e);
+               const real_t s = x(dx,dy,c,e);
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   gradX[qx][0] += s * B(qx,dx);
@@ -489,8 +489,8 @@ void PAVectorDiffusionApply2D(const int NE,
             }
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               const double wy  = B(qy,dy);
-               const double wDy = G(qy,dy);
+               const real_t wy  = B(qy,dy);
+               const real_t wDy = G(qy,dy);
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   grad[qy][qx][0] += gradX[qx][1] * wy;
@@ -504,18 +504,18 @@ void PAVectorDiffusionApply2D(const int NE,
             for (int qx = 0; qx < Q1D; ++qx)
             {
                const int q = qx + qy * Q1D;
-               const double O11 = D(q,0,e);
-               const double O12 = D(q,1,e);
-               const double O22 = D(q,2,e);
-               const double gradX = grad[qy][qx][0];
-               const double gradY = grad[qy][qx][1];
+               const real_t O11 = D(q,0,e);
+               const real_t O12 = D(q,1,e);
+               const real_t O22 = D(q,2,e);
+               const real_t gradX = grad[qy][qx][0];
+               const real_t gradY = grad[qy][qx][1];
                grad[qy][qx][0] = (O11 * gradX) + (O12 * gradY);
                grad[qy][qx][1] = (O12 * gradX) + (O22 * gradY);
             }
          }
          for (int qy = 0; qy < Q1D; ++qy)
          {
-            double gradX[max_D1D][2];
+            real_t gradX[max_D1D][2];
             for (int dx = 0; dx < D1D; ++dx)
             {
                gradX[dx][0] = 0.0;
@@ -523,20 +523,20 @@ void PAVectorDiffusionApply2D(const int NE,
             }
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               const double gX = grad[qy][qx][0];
-               const double gY = grad[qy][qx][1];
+               const real_t gX = grad[qy][qx][0];
+               const real_t gY = grad[qy][qx][1];
                for (int dx = 0; dx < D1D; ++dx)
                {
-                  const double wx  = Bt(dx,qx);
-                  const double wDx = Gt(dx,qx);
+                  const real_t wx  = Bt(dx,qx);
+                  const real_t wDx = Gt(dx,qx);
                   gradX[dx][0] += gX * wDx;
                   gradX[dx][1] += gY * wx;
                }
             }
             for (int dy = 0; dy < D1D; ++dy)
             {
-               const double wy  = Bt(dy,qy);
-               const double wDy = Gt(dy,qy);
+               const real_t wy  = Bt(dy,qy);
+               const real_t wDy = Gt(dy,qy);
                for (int dx = 0; dx < D1D; ++dx)
                {
                   y(dx,dy,c,e) += ((gradX[dx][0] * wy) + (gradX[dx][1] * wDy));
@@ -551,10 +551,10 @@ void PAVectorDiffusionApply2D(const int NE,
 template<const int T_D1D = 0,
          const int T_Q1D = 0> static
 void PAVectorDiffusionApply3D(const int NE,
-                              const Array<double> &b,
-                              const Array<double> &g,
-                              const Array<double> &bt,
-                              const Array<double> &gt,
+                              const Array<real_t> &b,
+                              const Array<real_t> &g,
+                              const Array<real_t> &bt,
+                              const Array<real_t> &gt,
                               const Vector &op_,
                               const Vector &x_,
                               Vector &y_,
@@ -580,7 +580,7 @@ void PAVectorDiffusionApply3D(const int NE,
       constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       for (int c = 0; c < VDIM; ++ c)
       {
-         double grad[max_Q1D][max_Q1D][max_Q1D][3];
+         real_t grad[max_Q1D][max_Q1D][max_Q1D][3];
          for (int qz = 0; qz < Q1D; ++qz)
          {
             for (int qy = 0; qy < Q1D; ++qy)
@@ -595,7 +595,7 @@ void PAVectorDiffusionApply3D(const int NE,
          }
          for (int dz = 0; dz < D1D; ++dz)
          {
-            double gradXY[max_Q1D][max_Q1D][3];
+            real_t gradXY[max_Q1D][max_Q1D][3];
             for (int qy = 0; qy < Q1D; ++qy)
             {
                for (int qx = 0; qx < Q1D; ++qx)
@@ -607,7 +607,7 @@ void PAVectorDiffusionApply3D(const int NE,
             }
             for (int dy = 0; dy < D1D; ++dy)
             {
-               double gradX[max_Q1D][2];
+               real_t gradX[max_Q1D][2];
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   gradX[qx][0] = 0.0;
@@ -615,7 +615,7 @@ void PAVectorDiffusionApply3D(const int NE,
                }
                for (int dx = 0; dx < D1D; ++dx)
                {
-                  const double s = x(dx,dy,dz,c,e);
+                  const real_t s = x(dx,dy,dz,c,e);
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
                      gradX[qx][0] += s * B(qx,dx);
@@ -624,12 +624,12 @@ void PAVectorDiffusionApply3D(const int NE,
                }
                for (int qy = 0; qy < Q1D; ++qy)
                {
-                  const double wy  = B(qy,dy);
-                  const double wDy = G(qy,dy);
+                  const real_t wy  = B(qy,dy);
+                  const real_t wDy = G(qy,dy);
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
-                     const double wx  = gradX[qx][0];
-                     const double wDx = gradX[qx][1];
+                     const real_t wx  = gradX[qx][0];
+                     const real_t wDx = gradX[qx][1];
                      gradXY[qy][qx][0] += wDx * wy;
                      gradXY[qy][qx][1] += wx  * wDy;
                      gradXY[qy][qx][2] += wx  * wy;
@@ -638,8 +638,8 @@ void PAVectorDiffusionApply3D(const int NE,
             }
             for (int qz = 0; qz < Q1D; ++qz)
             {
-               const double wz  = B(qz,dz);
-               const double wDz = G(qz,dz);
+               const real_t wz  = B(qz,dz);
+               const real_t wDz = G(qz,dz);
                for (int qy = 0; qy < Q1D; ++qy)
                {
                   for (int qx = 0; qx < Q1D; ++qx)
@@ -659,15 +659,15 @@ void PAVectorDiffusionApply3D(const int NE,
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   const int q = qx + (qy + qz * Q1D) * Q1D;
-                  const double O11 = op(q,0,e);
-                  const double O12 = op(q,1,e);
-                  const double O13 = op(q,2,e);
-                  const double O22 = op(q,3,e);
-                  const double O23 = op(q,4,e);
-                  const double O33 = op(q,5,e);
-                  const double gradX = grad[qz][qy][qx][0];
-                  const double gradY = grad[qz][qy][qx][1];
-                  const double gradZ = grad[qz][qy][qx][2];
+                  const real_t O11 = op(q,0,e);
+                  const real_t O12 = op(q,1,e);
+                  const real_t O13 = op(q,2,e);
+                  const real_t O22 = op(q,3,e);
+                  const real_t O23 = op(q,4,e);
+                  const real_t O33 = op(q,5,e);
+                  const real_t gradX = grad[qz][qy][qx][0];
+                  const real_t gradY = grad[qz][qy][qx][1];
+                  const real_t gradZ = grad[qz][qy][qx][2];
                   grad[qz][qy][qx][0] = (O11*gradX)+(O12*gradY)+(O13*gradZ);
                   grad[qz][qy][qx][1] = (O12*gradX)+(O22*gradY)+(O23*gradZ);
                   grad[qz][qy][qx][2] = (O13*gradX)+(O23*gradY)+(O33*gradZ);
@@ -676,7 +676,7 @@ void PAVectorDiffusionApply3D(const int NE,
          }
          for (int qz = 0; qz < Q1D; ++qz)
          {
-            double gradXY[max_D1D][max_D1D][3];
+            real_t gradXY[max_D1D][max_D1D][3];
             for (int dy = 0; dy < D1D; ++dy)
             {
                for (int dx = 0; dx < D1D; ++dx)
@@ -688,7 +688,7 @@ void PAVectorDiffusionApply3D(const int NE,
             }
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               double gradX[max_D1D][3];
+               real_t gradX[max_D1D][3];
                for (int dx = 0; dx < D1D; ++dx)
                {
                   gradX[dx][0] = 0;
@@ -697,13 +697,13 @@ void PAVectorDiffusionApply3D(const int NE,
                }
                for (int qx = 0; qx < Q1D; ++qx)
                {
-                  const double gX = grad[qz][qy][qx][0];
-                  const double gY = grad[qz][qy][qx][1];
-                  const double gZ = grad[qz][qy][qx][2];
+                  const real_t gX = grad[qz][qy][qx][0];
+                  const real_t gY = grad[qz][qy][qx][1];
+                  const real_t gZ = grad[qz][qy][qx][2];
                   for (int dx = 0; dx < D1D; ++dx)
                   {
-                     const double wx  = Bt(dx,qx);
-                     const double wDx = Gt(dx,qx);
+                     const real_t wx  = Bt(dx,qx);
+                     const real_t wDx = Gt(dx,qx);
                      gradX[dx][0] += gX * wDx;
                      gradX[dx][1] += gY * wx;
                      gradX[dx][2] += gZ * wx;
@@ -711,8 +711,8 @@ void PAVectorDiffusionApply3D(const int NE,
                }
                for (int dy = 0; dy < D1D; ++dy)
                {
-                  const double wy  = Bt(dy,qy);
-                  const double wDy = Gt(dy,qy);
+                  const real_t wy  = Bt(dy,qy);
+                  const real_t wDy = Gt(dy,qy);
                   for (int dx = 0; dx < D1D; ++dx)
                   {
                      gradXY[dy][dx][0] += gradX[dx][0] * wy;
@@ -723,8 +723,8 @@ void PAVectorDiffusionApply3D(const int NE,
             }
             for (int dz = 0; dz < D1D; ++dz)
             {
-               const double wz  = Bt(dz,qz);
-               const double wDz = Gt(dz,qz);
+               const real_t wz  = Bt(dz,qz);
+               const real_t wDz = Gt(dz,qz);
                for (int dy = 0; dy < D1D; ++dy)
                {
                   for (int dx = 0; dx < D1D; ++dx)
@@ -752,10 +752,10 @@ void VectorDiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
    {
       const int D1D = dofs1D;
       const int Q1D = quad1D;
-      const Array<double> &B = maps->B;
-      const Array<double> &G = maps->G;
-      const Array<double> &Bt = maps->Bt;
-      const Array<double> &Gt = maps->Gt;
+      const Array<real_t> &B = maps->B;
+      const Array<real_t> &G = maps->G;
+      const Array<real_t> &Bt = maps->Bt;
+      const Array<real_t> &Gt = maps->Gt;
       const Vector &D = pa_data;
 
       if (dim == 2 && sdim == 3)

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -47,9 +47,9 @@ namespace ElasticityKernels
  */
 template <int d1d, int q1d, typename material_type> static inline
 void Apply3D(const int ne,
-             const Array<double> &B_,
-             const Array<double> &G_,
-             const Array<double> &W_,
+             const Array<real_t> &B_,
+             const Array<real_t> &G_,
+             const Array<real_t> &W_,
              const Vector &Jacobian_,
              const Vector &detJ_,
              const Vector &X_, Vector &Y_,
@@ -58,10 +58,10 @@ void Apply3D(const int ne,
    static constexpr int dim = 3;
    KernelHelpers::CheckMemoryRestriction(d1d, q1d);
 
-   const tensor<double, q1d, d1d> &B =
+   const tensor<real_t, q1d, d1d> &B =
    make_tensor<q1d, d1d>([&](int i, int j) { return B_[i + q1d*j]; });
 
-   const tensor<double, q1d, d1d> &G =
+   const tensor<real_t, q1d, d1d> &G =
    make_tensor<q1d, d1d>([&](int i, int j) { return G_[i + q1d*j]; });
 
    const auto qweights = Reshape(W_.Read(), q1d, q1d, q1d);
@@ -73,11 +73,11 @@ void Apply3D(const int ne,
    mfem::forall_3D(ne, q1d, q1d, q1d, [=] MFEM_HOST_DEVICE (int e)
    {
       // shared memory placeholders for temporary contraction results
-      MFEM_SHARED tensor<double, 2, 3, q1d, q1d, q1d> smem;
+      MFEM_SHARED tensor<real_t, 2, 3, q1d, q1d, q1d> smem;
       // cauchy stress
-      MFEM_SHARED_3D_BLOCK_TENSOR(invJ_sigma_detJw, double, q1d, q1d, q1d, dim, dim);
+      MFEM_SHARED_3D_BLOCK_TENSOR(invJ_sigma_detJw, real_t, q1d, q1d, q1d, dim, dim);
       // du/dxi
-      MFEM_SHARED_3D_BLOCK_TENSOR(dudxi, double, q1d, q1d, q1d, dim, dim);
+      MFEM_SHARED_3D_BLOCK_TENSOR(dudxi, real_t, q1d, q1d, q1d, dim, dim);
 
       const auto U_el = Reshape(&U(0, 0, 0, 0, e), d1d, d1d, d1d, dim);
       KernelHelpers::CalcGrad(B, G, smem, U_el, dudxi);
@@ -140,8 +140,8 @@ void Apply3D(const int ne,
  */
 template <int d1d, int q1d, typename material_type> static inline
 void ApplyGradient3D(const int ne,
-                     const Array<double> &B_, const Array<double> &G_,
-                     const Array<double> &W_, const Vector &Jacobian_,
+                     const Array<real_t> &B_, const Array<real_t> &G_,
+                     const Array<real_t> &W_, const Vector &Jacobian_,
                      const Vector &detJ_, const Vector &dU_, Vector &dF_,
                      const Vector &U_, const material_type &material,
                      const bool use_cache_, const bool recompute_cache_,
@@ -150,10 +150,10 @@ void ApplyGradient3D(const int ne,
    static constexpr int dim = 3;
    KernelHelpers::CheckMemoryRestriction(d1d, q1d);
 
-   const tensor<double, q1d, d1d> &B =
+   const tensor<real_t, q1d, d1d> &B =
    make_tensor<q1d, d1d>([&](int i, int j) { return B_[i + q1d*j]; });
 
-   const tensor<double, q1d, d1d> &G =
+   const tensor<real_t, q1d, d1d> &G =
    make_tensor<q1d, d1d>([&](int i, int j) { return G_[i + q1d*j]; });
 
    const auto qweights = Reshape(W_.Read(), q1d, q1d, q1d);
@@ -169,12 +169,12 @@ void ApplyGradient3D(const int ne,
    mfem::forall_3D(ne, q1d, q1d, q1d, [=] MFEM_HOST_DEVICE (int e)
    {
       // shared memory placeholders for temporary contraction results
-      MFEM_SHARED tensor<double, 2, 3, q1d, q1d, q1d> smem;
+      MFEM_SHARED tensor<real_t, 2, 3, q1d, q1d, q1d> smem;
       // cauchy stress
-      MFEM_SHARED tensor<double, q1d, q1d, q1d, dim, dim> invJ_dsigma_detJw;
+      MFEM_SHARED tensor<real_t, q1d, q1d, q1d, dim, dim> invJ_dsigma_detJw;
       // du/dxi, ddu/dxi
-      MFEM_SHARED_3D_BLOCK_TENSOR( dudxi, double, q1d, q1d, q1d, dim, dim);
-      MFEM_SHARED_3D_BLOCK_TENSOR(ddudxi, double, q1d, q1d, q1d, dim, dim);
+      MFEM_SHARED_3D_BLOCK_TENSOR( dudxi, real_t, q1d, q1d, q1d, dim, dim);
+      MFEM_SHARED_3D_BLOCK_TENSOR(ddudxi, real_t, q1d, q1d, q1d, dim, dim);
 
       const auto U_el = Reshape(&U(0, 0, 0, 0, e), d1d, d1d, d1d, dim);
       KernelHelpers::CalcGrad(B, G, smem, U_el, dudxi);
@@ -197,7 +197,7 @@ void ApplyGradient3D(const int ne,
                if (use_cache_)
                {
                   // C = dsigma/dudx
-                  tensor<double, dim, dim, dim, dim> C;
+                  tensor<real_t, dim, dim, dim, dim> C;
 
                   auto C_cache = make_tensor<dim, dim, dim, dim>(
                   [&](int i, int j, int k, int l) { return dsigma_cache(e, qx, qy, qz, i, j, k, l); });
@@ -267,9 +267,9 @@ void ApplyGradient3D(const int ne,
  */
 template <int d1d, int q1d, typename material_type> static inline
 void AssembleGradientDiagonal3D(const int ne,
-                                const Array<double> &B_,
-                                const Array<double> &G_,
-                                const Array<double> &W_,
+                                const Array<real_t> &B_,
+                                const Array<real_t> &G_,
+                                const Array<real_t> &W_,
                                 const Vector &Jacobian_,
                                 const Vector &detJ_,
                                 const Vector &X_,
@@ -279,10 +279,10 @@ void AssembleGradientDiagonal3D(const int ne,
    static constexpr int dim = 3;
    KernelHelpers::CheckMemoryRestriction(d1d, q1d);
 
-   const tensor<double, q1d, d1d> &B =
+   const tensor<real_t, q1d, d1d> &B =
    make_tensor<q1d, d1d>([&](int i, int j) { return B_[i + q1d*j]; });
 
-   const tensor<double, q1d, d1d> &G =
+   const tensor<real_t, q1d, d1d> &G =
    make_tensor<q1d, d1d>([&](int i, int j) { return G_[i + q1d*j]; });
 
    const auto qweights = Reshape(W_.Read(), q1d, q1d, q1d);
@@ -296,11 +296,11 @@ void AssembleGradientDiagonal3D(const int ne,
    mfem::forall_3D(ne, q1d, q1d, q1d, [=] MFEM_HOST_DEVICE (int e)
    {
       // shared memory placeholders for temporary contraction results
-      MFEM_SHARED tensor<double, 2, 3, q1d, q1d, q1d> smem;
+      MFEM_SHARED tensor<real_t, 2, 3, q1d, q1d, q1d> smem;
 
       // du/dxi
-      MFEM_SHARED_3D_BLOCK_TENSOR(dudxi, double, q1d, q1d, q1d, dim, dim);
-      MFEM_SHARED_3D_BLOCK_TENSOR(Ke_diag, double, d1d, d1d, d1d, dim, dim);
+      MFEM_SHARED_3D_BLOCK_TENSOR(dudxi, real_t, q1d, q1d, q1d, dim, dim);
+      MFEM_SHARED_3D_BLOCK_TENSOR(Ke_diag, real_t, d1d, d1d, d1d, dim, dim);
 
       const auto U_el = Reshape(&U(0, 0, 0, 0, e), d1d, d1d, d1d, dim);
       KernelHelpers::CalcGrad(B, G, smem, U_el, dudxi);
@@ -320,7 +320,7 @@ void AssembleGradientDiagonal3D(const int ne,
 
                const auto dsigma_ddudx = material.gradient(dudx);
 
-               const double JxW = detJ(qx, qy, qz, e) * qweights(qx, qy, qz);
+               const real_t JxW = detJ(qx, qy, qz, e) * qweights(qx, qy, qz);
                const auto dphidx = KernelHelpers::GradAllShapeFunctions(qx, qy, qz, B, G,
                                                                         invJqp);
 

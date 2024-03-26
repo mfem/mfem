@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -23,8 +23,8 @@ namespace mfem
 static void PAHcurlApplyGradient2D(const int c_dofs1D,
                                    const int o_dofs1D,
                                    const int NE,
-                                   const Array<double> &B_,
-                                   const Array<double> &G_,
+                                   const Array<real_t> &B_,
+                                   const Array<real_t> &G_,
                                    const Vector &x_,
                                    Vector &y_)
 {
@@ -40,7 +40,7 @@ static void PAHcurlApplyGradient2D(const int c_dofs1D,
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       constexpr static int MAX_D1D = DofQuadLimits::HCURL_MAX_D1D;
-      double w[MAX_D1D][MAX_D1D];
+      real_t w[MAX_D1D][MAX_D1D];
 
       // horizontal part
       for (int dx = 0; dx < c_dofs1D; ++dx)
@@ -59,7 +59,7 @@ static void PAHcurlApplyGradient2D(const int c_dofs1D,
       {
          for (int ex = 0; ex < o_dofs1D; ++ex)
          {
-            double s = 0.0;
+            real_t s = 0.0;
             for (int dx = 0; dx < c_dofs1D; ++dx)
             {
                s += G(ex, dx) * w[dx][ey];
@@ -86,7 +86,7 @@ static void PAHcurlApplyGradient2D(const int c_dofs1D,
       {
          for (int ex = 0; ex < c_dofs1D; ++ex)
          {
-            double s = 0.0;
+            real_t s = 0.0;
             for (int dx = 0; dx < c_dofs1D; ++dx)
             {
                s += B(ex, dx) * w[dx][ey];
@@ -102,7 +102,7 @@ static void PAHcurlApplyGradient2D(const int c_dofs1D,
 static void PAHcurlApplyGradient2DBId(const int c_dofs1D,
                                       const int o_dofs1D,
                                       const int NE,
-                                      const Array<double> &G_,
+                                      const Array<real_t> &G_,
                                       const Vector &x_,
                                       Vector &y_)
 {
@@ -117,7 +117,7 @@ static void PAHcurlApplyGradient2DBId(const int c_dofs1D,
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       constexpr static int MAX_D1D = DofQuadLimits::HCURL_MAX_D1D;
-      double w[MAX_D1D][MAX_D1D];
+      real_t w[MAX_D1D][MAX_D1D];
 
       // horizontal part
       for (int dx = 0; dx < c_dofs1D; ++dx)
@@ -133,7 +133,7 @@ static void PAHcurlApplyGradient2DBId(const int c_dofs1D,
       {
          for (int ex = 0; ex < o_dofs1D; ++ex)
          {
-            double s = 0.0;
+            real_t s = 0.0;
             for (int dx = 0; dx < c_dofs1D; ++dx)
             {
                s += G(ex, dx) * w[dx][ey];
@@ -161,7 +161,7 @@ static void PAHcurlApplyGradient2DBId(const int c_dofs1D,
          for (int ex = 0; ex < c_dofs1D; ++ex)
          {
             const int dx = ex;
-            const double s = w[dx][ey];
+            const real_t s = w[dx][ey];
             const int local_index = c_dofs1D * o_dofs1D + ey*c_dofs1D + ex;
             y(local_index, e) += s;
          }
@@ -171,7 +171,7 @@ static void PAHcurlApplyGradient2DBId(const int c_dofs1D,
 
 static void PAHcurlApplyGradientTranspose2D(
    const int c_dofs1D, const int o_dofs1D, const int NE,
-   const Array<double> &B_, const Array<double> &G_,
+   const Array<real_t> &B_, const Array<real_t> &G_,
    const Vector &x_, Vector &y_)
 {
    auto B = Reshape(B_.Read(), c_dofs1D, c_dofs1D);
@@ -186,7 +186,7 @@ static void PAHcurlApplyGradientTranspose2D(
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       constexpr static int MAX_D1D = DofQuadLimits::HCURL_MAX_D1D;
-      double w[MAX_D1D][MAX_D1D];
+      real_t w[MAX_D1D][MAX_D1D];
 
       // horizontal part (open x, closed y)
       for (int dy = 0; dy < c_dofs1D; ++dy)
@@ -206,7 +206,7 @@ static void PAHcurlApplyGradientTranspose2D(
       {
          for (int dx = 0; dx < c_dofs1D; ++dx)
          {
-            double s = 0.0;
+            real_t s = 0.0;
             for (int ex = 0; ex < o_dofs1D; ++ex)
             {
                s += G(ex, dx) * w[dy][ex];
@@ -233,7 +233,7 @@ static void PAHcurlApplyGradientTranspose2D(
       {
          for (int dx = 0; dx < c_dofs1D; ++dx)
          {
-            double s = 0.0;
+            real_t s = 0.0;
             for (int ex = 0; ex < c_dofs1D; ++ex)
             {
                s += B(ex, dx) * w[dy][ex];
@@ -248,7 +248,7 @@ static void PAHcurlApplyGradientTranspose2D(
 // B is identity
 static void PAHcurlApplyGradientTranspose2DBId(
    const int c_dofs1D, const int o_dofs1D, const int NE,
-   const Array<double> &G_,
+   const Array<real_t> &G_,
    const Vector &x_, Vector &y_)
 {
    auto G = Reshape(G_.Read(), o_dofs1D, c_dofs1D);
@@ -262,7 +262,7 @@ static void PAHcurlApplyGradientTranspose2DBId(
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       constexpr static int MAX_D1D = DofQuadLimits::HCURL_MAX_D1D;
-      double w[MAX_D1D][MAX_D1D];
+      real_t w[MAX_D1D][MAX_D1D];
 
       // horizontal part (open x, closed y)
       for (int dy = 0; dy < c_dofs1D; ++dy)
@@ -279,7 +279,7 @@ static void PAHcurlApplyGradientTranspose2DBId(
       {
          for (int dx = 0; dx < c_dofs1D; ++dx)
          {
-            double s = 0.0;
+            real_t s = 0.0;
             for (int ex = 0; ex < o_dofs1D; ++ex)
             {
                s += G(ex, dx) * w[dy][ex];
@@ -307,7 +307,7 @@ static void PAHcurlApplyGradientTranspose2DBId(
          for (int dx = 0; dx < c_dofs1D; ++dx)
          {
             const int ex = dx;
-            const double s = w[dy][ex];
+            const real_t s = w[dy][ex];
             y(dx, dy, e) += s;
          }
       }
@@ -317,8 +317,8 @@ static void PAHcurlApplyGradientTranspose2DBId(
 static void PAHcurlApplyGradient3D(const int c_dofs1D,
                                    const int o_dofs1D,
                                    const int NE,
-                                   const Array<double> &B_,
-                                   const Array<double> &G_,
+                                   const Array<real_t> &B_,
+                                   const Array<real_t> &G_,
                                    const Vector &x_,
                                    Vector &y_)
 {
@@ -334,8 +334,8 @@ static void PAHcurlApplyGradient3D(const int c_dofs1D,
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       constexpr static int MAX_D1D = DofQuadLimits::HCURL_MAX_D1D;
-      double w1[MAX_D1D][MAX_D1D][MAX_D1D];
-      double w2[MAX_D1D][MAX_D1D][MAX_D1D];
+      real_t w1[MAX_D1D][MAX_D1D][MAX_D1D];
+      real_t w2[MAX_D1D][MAX_D1D][MAX_D1D];
 
       // ---
       // dofs that point parallel to x-axis (open in x, closed in y, z)
@@ -380,7 +380,7 @@ static void PAHcurlApplyGradient3D(const int c_dofs1D,
          {
             for (int ex = 0; ex < o_dofs1D; ++ex)
             {
-               double s = 0.0;
+               real_t s = 0.0;
                for (int dx = 0; dx < c_dofs1D; ++dx)
                {
                   s += G(ex, dx) * w2[dx][ey][ez];
@@ -434,7 +434,7 @@ static void PAHcurlApplyGradient3D(const int c_dofs1D,
          {
             for (int ex = 0; ex < c_dofs1D; ++ex)
             {
-               double s = 0.0;
+               real_t s = 0.0;
                for (int dx = 0; dx < c_dofs1D; ++dx)
                {
                   s += B(ex, dx) * w2[dx][ey][ez];
@@ -489,7 +489,7 @@ static void PAHcurlApplyGradient3D(const int c_dofs1D,
          {
             for (int ex = 0; ex < c_dofs1D; ++ex)
             {
-               double s = 0.0;
+               real_t s = 0.0;
                for (int dx = 0; dx < c_dofs1D; ++dx)
                {
                   s += B(ex, dx) * w2[dx][ey][ez];
@@ -507,7 +507,7 @@ static void PAHcurlApplyGradient3D(const int c_dofs1D,
 static void PAHcurlApplyGradient3DBId(const int c_dofs1D,
                                       const int o_dofs1D,
                                       const int NE,
-                                      const Array<double> &G_,
+                                      const Array<real_t> &G_,
                                       const Vector &x_,
                                       Vector &y_)
 {
@@ -523,8 +523,8 @@ static void PAHcurlApplyGradient3DBId(const int c_dofs1D,
    {
       constexpr static int MAX_D1D = DofQuadLimits::HCURL_MAX_D1D;
 
-      double w1[MAX_D1D][MAX_D1D][MAX_D1D];
-      double w2[MAX_D1D][MAX_D1D][MAX_D1D];
+      real_t w1[MAX_D1D][MAX_D1D][MAX_D1D];
+      real_t w2[MAX_D1D][MAX_D1D][MAX_D1D];
 
       // ---
       // dofs that point parallel to x-axis (open in x, closed in y, z)
@@ -563,7 +563,7 @@ static void PAHcurlApplyGradient3DBId(const int c_dofs1D,
          {
             for (int ex = 0; ex < o_dofs1D; ++ex)
             {
-               double s = 0.0;
+               real_t s = 0.0;
                for (int dx = 0; dx < c_dofs1D; ++dx)
                {
                   s += G(ex, dx) * w2[dx][ey][ez];
@@ -615,7 +615,7 @@ static void PAHcurlApplyGradient3DBId(const int c_dofs1D,
             for (int ex = 0; ex < c_dofs1D; ++ex)
             {
                const int dx = ex;
-               const double s = w2[dx][ey][ez];
+               const real_t s = w2[dx][ey][ez];
                const int local_index = c_dofs1D*c_dofs1D*o_dofs1D +
                                        ez*c_dofs1D*o_dofs1D + ey*c_dofs1D + ex;
                y(local_index, e) += s;
@@ -664,7 +664,7 @@ static void PAHcurlApplyGradient3DBId(const int c_dofs1D,
             for (int ex = 0; ex < c_dofs1D; ++ex)
             {
                const int dx = ex;
-               const double s = w2[dx][ey][ez];
+               const real_t s = w2[dx][ey][ez];
                const int local_index = 2*c_dofs1D*c_dofs1D*o_dofs1D +
                                        ez*c_dofs1D*c_dofs1D + ey*c_dofs1D + ex;
                y(local_index, e) += s;
@@ -676,7 +676,7 @@ static void PAHcurlApplyGradient3DBId(const int c_dofs1D,
 
 static void PAHcurlApplyGradientTranspose3D(
    const int c_dofs1D, const int o_dofs1D, const int NE,
-   const Array<double> &B_, const Array<double> &G_,
+   const Array<real_t> &B_, const Array<real_t> &G_,
    const Vector &x_, Vector &y_)
 {
    auto B = Reshape(B_.Read(), c_dofs1D, c_dofs1D);
@@ -691,8 +691,8 @@ static void PAHcurlApplyGradientTranspose3D(
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       constexpr static int MAX_D1D = DofQuadLimits::HCURL_MAX_D1D;
-      double w1[MAX_D1D][MAX_D1D][MAX_D1D];
-      double w2[MAX_D1D][MAX_D1D][MAX_D1D];
+      real_t w1[MAX_D1D][MAX_D1D][MAX_D1D];
+      real_t w2[MAX_D1D][MAX_D1D][MAX_D1D];
       // ---
       // dofs that point parallel to x-axis (open in x, closed in y, z)
       // ---
@@ -737,7 +737,7 @@ static void PAHcurlApplyGradientTranspose3D(
          {
             for (int dx = 0; dx < c_dofs1D; ++dx)
             {
-               double s = 0.0;
+               real_t s = 0.0;
                for (int ex = 0; ex < o_dofs1D; ++ex)
                {
                   s += G(ex, dx) * w2[ex][dy][dz];
@@ -792,7 +792,7 @@ static void PAHcurlApplyGradientTranspose3D(
          {
             for (int dx = 0; dx < c_dofs1D; ++dx)
             {
-               double s = 0.0;
+               real_t s = 0.0;
                for (int ex = 0; ex < c_dofs1D; ++ex)
                {
                   s += B(ex, dx) * w2[ex][dy][dz];
@@ -847,7 +847,7 @@ static void PAHcurlApplyGradientTranspose3D(
          {
             for (int dx = 0; dx < c_dofs1D; ++dx)
             {
-               double s = 0.0;
+               real_t s = 0.0;
                for (int ex = 0; ex < c_dofs1D; ++ex)
                {
                   s += B(ex, dx) * w2[ex][dy][dz];
@@ -863,7 +863,7 @@ static void PAHcurlApplyGradientTranspose3D(
 // B is identity
 static void PAHcurlApplyGradientTranspose3DBId(
    const int c_dofs1D, const int o_dofs1D, const int NE,
-   const Array<double> &G_,
+   const Array<real_t> &G_,
    const Vector &x_, Vector &y_)
 {
    auto G = Reshape(G_.Read(), o_dofs1D, c_dofs1D);
@@ -878,8 +878,8 @@ static void PAHcurlApplyGradientTranspose3DBId(
    {
       constexpr static int MAX_D1D = DofQuadLimits::HCURL_MAX_D1D;
 
-      double w1[MAX_D1D][MAX_D1D][MAX_D1D];
-      double w2[MAX_D1D][MAX_D1D][MAX_D1D];
+      real_t w1[MAX_D1D][MAX_D1D][MAX_D1D];
+      real_t w2[MAX_D1D][MAX_D1D][MAX_D1D];
       // ---
       // dofs that point parallel to x-axis (open in x, closed in y, z)
       // ---
@@ -918,7 +918,7 @@ static void PAHcurlApplyGradientTranspose3DBId(
          {
             for (int dx = 0; dx < c_dofs1D; ++dx)
             {
-               double s = 0.0;
+               real_t s = 0.0;
                for (int ex = 0; ex < o_dofs1D; ++ex)
                {
                   s += G(ex, dx) * w2[ex][dy][dz];
@@ -971,7 +971,7 @@ static void PAHcurlApplyGradientTranspose3DBId(
             for (int dx = 0; dx < c_dofs1D; ++dx)
             {
                const int ex = dx;
-               double s = w2[ex][dy][dz];
+               real_t s = w2[ex][dy][dz];
                y(dx, dy, dz, e) += s;
             }
          }
@@ -1020,7 +1020,7 @@ static void PAHcurlApplyGradientTranspose3DBId(
             for (int dx = 0; dx < c_dofs1D; ++dx)
             {
                const int ex = dx;
-               double s = w2[ex][dy][dz];
+               real_t s = w2[ex][dy][dz];
                y(dx, dy, dz, e) += s;
             }
          }
@@ -1148,8 +1148,8 @@ void GradientInterpolator::AddMultTransposePA(const Vector &x, Vector &y) const
 static void PAHcurlVecH1IdentityApply2D(const int c_dofs1D,
                                         const int o_dofs1D,
                                         const int NE,
-                                        const Array<double> &Bclosed,
-                                        const Array<double> &Bopen,
+                                        const Array<real_t> &Bclosed,
+                                        const Array<real_t> &Bopen,
                                         const Vector &pa_data,
                                         const Vector &x_,
                                         Vector &y_)
@@ -1169,7 +1169,7 @@ static void PAHcurlVecH1IdentityApply2D(const int c_dofs1D,
    {
       constexpr static int MAX_D1D = DofQuadLimits::HCURL_MAX_D1D;
 
-      double w[2][MAX_D1D][MAX_D1D];
+      real_t w[2][MAX_D1D][MAX_D1D];
 
       // dofs that point parallel to x-axis (open in x, closed in y)
 
@@ -1196,7 +1196,7 @@ static void PAHcurlVecH1IdentityApply2D(const int c_dofs1D,
          {
             for (int j=0; j<2; ++j)
             {
-               double s = 0.0;
+               real_t s = 0.0;
                for (int dx = 0; dx < c_dofs1D; ++dx)
                {
                   s += Bo(ex, dx) * w[j][dx][ey];
@@ -1232,7 +1232,7 @@ static void PAHcurlVecH1IdentityApply2D(const int c_dofs1D,
          {
             for (int j=0; j<2; ++j)
             {
-               double s = 0.0;
+               real_t s = 0.0;
                for (int dx = 0; dx < c_dofs1D; ++dx)
                {
                   s += Bc(ex, dx) * w[j][dx][ey];
@@ -1248,8 +1248,8 @@ static void PAHcurlVecH1IdentityApply2D(const int c_dofs1D,
 static void PAHcurlVecH1IdentityApplyTranspose2D(const int c_dofs1D,
                                                  const int o_dofs1D,
                                                  const int NE,
-                                                 const Array<double> &Bclosed,
-                                                 const Array<double> &Bopen,
+                                                 const Array<real_t> &Bclosed,
+                                                 const Array<real_t> &Bopen,
                                                  const Vector &pa_data,
                                                  const Vector &x_,
                                                  Vector &y_)
@@ -1269,7 +1269,7 @@ static void PAHcurlVecH1IdentityApplyTranspose2D(const int c_dofs1D,
    {
       constexpr static int MAX_D1D = DofQuadLimits::HCURL_MAX_D1D;
 
-      double w[2][MAX_D1D][MAX_D1D];
+      real_t w[2][MAX_D1D][MAX_D1D];
 
       // dofs that point parallel to x-axis (open in x, closed in y)
 
@@ -1283,7 +1283,7 @@ static void PAHcurlVecH1IdentityApplyTranspose2D(const int c_dofs1D,
          for (int ex = 0; ex < o_dofs1D; ++ex)
          {
             const int local_index = ey*o_dofs1D + ex;
-            const double xd = x(local_index, e);
+            const real_t xd = x(local_index, e);
 
             for (int dx = 0; dx < c_dofs1D; ++dx)
             {
@@ -1302,7 +1302,7 @@ static void PAHcurlVecH1IdentityApplyTranspose2D(const int c_dofs1D,
          {
             for (int j=0; j<2; ++j)
             {
-               double s = 0.0;
+               real_t s = 0.0;
                for (int ey = 0; ey < c_dofs1D; ++ey)
                {
                   s += w[j][dx][ey] * Bc(ey, dy);
@@ -1324,7 +1324,7 @@ static void PAHcurlVecH1IdentityApplyTranspose2D(const int c_dofs1D,
          for (int ex = 0; ex < c_dofs1D; ++ex)
          {
             const int local_index = c_dofs1D*o_dofs1D + ey*c_dofs1D + ex;
-            const double xd = x(local_index, e);
+            const real_t xd = x(local_index, e);
             for (int dx = 0; dx < c_dofs1D; ++dx)
             {
                for (int j=0; j<2; ++j)
@@ -1342,7 +1342,7 @@ static void PAHcurlVecH1IdentityApplyTranspose2D(const int c_dofs1D,
          {
             for (int j=0; j<2; ++j)
             {
-               double s = 0.0;
+               real_t s = 0.0;
                for (int ey = 0; ey < o_dofs1D; ++ey)
                {
                   s += w[j][dx][ey] * Bo(ey, dy);
@@ -1357,8 +1357,8 @@ static void PAHcurlVecH1IdentityApplyTranspose2D(const int c_dofs1D,
 static void PAHcurlVecH1IdentityApply3D(const int c_dofs1D,
                                         const int o_dofs1D,
                                         const int NE,
-                                        const Array<double> &Bclosed,
-                                        const Array<double> &Bopen,
+                                        const Array<real_t> &Bclosed,
+                                        const Array<real_t> &Bopen,
                                         const Vector &pa_data,
                                         const Vector &x_,
                                         Vector &y_)
@@ -1378,8 +1378,8 @@ static void PAHcurlVecH1IdentityApply3D(const int c_dofs1D,
    {
       constexpr static int MAX_D1D = DofQuadLimits::HCURL_MAX_D1D;
 
-      double w1[3][MAX_D1D][MAX_D1D][MAX_D1D];
-      double w2[3][MAX_D1D][MAX_D1D][MAX_D1D];
+      real_t w1[3][MAX_D1D][MAX_D1D][MAX_D1D];
+      real_t w2[3][MAX_D1D][MAX_D1D][MAX_D1D];
 
       // dofs that point parallel to x-axis (open in x, closed in y, z)
 
@@ -1430,7 +1430,7 @@ static void PAHcurlVecH1IdentityApply3D(const int c_dofs1D,
             {
                for (int j=0; j<3; ++j)
                {
-                  double s = 0.0;
+                  real_t s = 0.0;
                   for (int dx = 0; dx < c_dofs1D; ++dx)
                   {
                      s += Bo(ex, dx) * w2[j][dx][ey][ez];
@@ -1491,7 +1491,7 @@ static void PAHcurlVecH1IdentityApply3D(const int c_dofs1D,
             {
                for (int j=0; j<3; ++j)
                {
-                  double s = 0.0;
+                  real_t s = 0.0;
                   for (int dx = 0; dx < c_dofs1D; ++dx)
                   {
                      s += Bc(ex, dx) * w2[j][dx][ey][ez];
@@ -1553,7 +1553,7 @@ static void PAHcurlVecH1IdentityApply3D(const int c_dofs1D,
             {
                for (int j=0; j<3; ++j)
                {
-                  double s = 0.0;
+                  real_t s = 0.0;
                   for (int dx = 0; dx < c_dofs1D; ++dx)
                   {
                      s += Bc(ex, dx) * w2[j][dx][ey][ez];
@@ -1571,8 +1571,8 @@ static void PAHcurlVecH1IdentityApply3D(const int c_dofs1D,
 static void PAHcurlVecH1IdentityApplyTranspose3D(const int c_dofs1D,
                                                  const int o_dofs1D,
                                                  const int NE,
-                                                 const Array<double> &Bclosed,
-                                                 const Array<double> &Bopen,
+                                                 const Array<real_t> &Bclosed,
+                                                 const Array<real_t> &Bopen,
                                                  const Vector &pa_data,
                                                  const Vector &x_,
                                                  Vector &y_)
@@ -1593,8 +1593,8 @@ static void PAHcurlVecH1IdentityApplyTranspose3D(const int c_dofs1D,
    {
       constexpr static int MAX_D1D = DofQuadLimits::HCURL_MAX_D1D;
 
-      double w1[3][MAX_D1D][MAX_D1D][MAX_D1D];
-      double w2[3][MAX_D1D][MAX_D1D][MAX_D1D];
+      real_t w1[3][MAX_D1D][MAX_D1D][MAX_D1D];
+      real_t w2[3][MAX_D1D][MAX_D1D][MAX_D1D];
 
       // dofs that point parallel to x-axis (open in x, closed in y, z)
 
@@ -1612,7 +1612,7 @@ static void PAHcurlVecH1IdentityApplyTranspose3D(const int c_dofs1D,
                for (int ex = 0; ex < o_dofs1D; ++ex)
                {
                   const int local_index = ez*c_dofs1D*o_dofs1D + ey*o_dofs1D + ex;
-                  const double xv = x(local_index, e) * vk(j, local_index, e);
+                  const real_t xv = x(local_index, e) * vk(j, local_index, e);
                   for (int dx = 0; dx < c_dofs1D; ++dx)
                   {
                      w2[j][dx][ey][ez] += xv * Bo(ex, dx);
@@ -1650,7 +1650,7 @@ static void PAHcurlVecH1IdentityApplyTranspose3D(const int c_dofs1D,
             {
                for (int j=0; j<3; ++j)
                {
-                  double s = 0.0;
+                  real_t s = 0.0;
                   for (int ez = 0; ez < c_dofs1D; ++ez)
                   {
                      s += w1[j][dx][dy][ez] * Bc(ez, dz);
@@ -1678,7 +1678,7 @@ static void PAHcurlVecH1IdentityApplyTranspose3D(const int c_dofs1D,
                {
                   const int local_index = c_dofs1D*c_dofs1D*o_dofs1D +
                                           ez*c_dofs1D*o_dofs1D + ey*c_dofs1D + ex;
-                  const double xv = x(local_index, e) * vk(j, local_index, e);
+                  const real_t xv = x(local_index, e) * vk(j, local_index, e);
                   for (int dx = 0; dx < c_dofs1D; ++dx)
                   {
                      w2[j][dx][ey][ez] += xv * Bc(ex, dx);
@@ -1716,7 +1716,7 @@ static void PAHcurlVecH1IdentityApplyTranspose3D(const int c_dofs1D,
             {
                for (int j=0; j<3; ++j)
                {
-                  double s = 0.0;
+                  real_t s = 0.0;
                   for (int ez = 0; ez < c_dofs1D; ++ez)
                   {
                      s += w1[j][dx][dy][ez] * Bc(ez, dz);
@@ -1744,7 +1744,7 @@ static void PAHcurlVecH1IdentityApplyTranspose3D(const int c_dofs1D,
                {
                   const int local_index = 2*c_dofs1D*c_dofs1D*o_dofs1D +
                                           ez*c_dofs1D*c_dofs1D + ey*c_dofs1D + ex;
-                  const double xv = x(local_index, e) * vk(j, local_index, e);
+                  const real_t xv = x(local_index, e) * vk(j, local_index, e);
                   for (int dx = 0; dx < c_dofs1D; ++dx)
                   {
                      w2[j][dx][ey][ez] += xv * Bc(ex, dx);
@@ -1782,7 +1782,7 @@ static void PAHcurlVecH1IdentityApplyTranspose3D(const int c_dofs1D,
             {
                for (int j=0; j<3; ++j)
                {
-                  double s = 0.0;
+                  real_t s = 0.0;
                   for (int ez = 0; ez < o_dofs1D; ++ez)
                   {
                      s += w1[j][dx][dy][ez] * Bo(ez, dz);
@@ -1855,7 +1855,7 @@ void IdentityInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
       // the last 3 having negative signs. Here the signs are all positive, as
       // signs are applied in ElementRestriction.
 
-      const double tk[9] = { 1.,0.,0.,  0.,1.,0.,  0.,0.,1. };
+      const real_t tk[9] = { 1.,0.,0.,  0.,1.,0.,  0.,0.,1. };
 
       for (int c=0; c<3; ++c)
       {
@@ -1869,7 +1869,7 @@ void IdentityInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
 
             for (int e=0; e<ne; ++e)
             {
-               double v[3];
+               real_t v[3];
                ElementTransformation *tr = mesh->GetElementTransformation(e);
                tr->SetIntPoint(&Nodes.IntPoint(id));
                tr->Jacobian().Mult(tk + dof2tk*dim, v);
@@ -1884,7 +1884,7 @@ void IdentityInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
    }
    else // 2D case
    {
-      const double tk[4] = { 1.,0.,  0.,1. };
+      const real_t tk[4] = { 1.,0.,  0.,1. };
       for (int c=0; c<2; ++c)
       {
          for (int i=0; i<ndof_test/2; ++i)
@@ -1897,7 +1897,7 @@ void IdentityInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
 
             for (int e=0; e<ne; ++e)
             {
-               double v[2];
+               real_t v[2];
                ElementTransformation *tr = mesh->GetElementTransformation(e);
                tr->SetIntPoint(&Nodes.IntPoint(id));
                tr->Jacobian().Mult(tk + dof2tk*dim, v);
