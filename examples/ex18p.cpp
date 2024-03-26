@@ -52,11 +52,11 @@ int problem;
 
 // Equation constant parameters.
 const int num_equation = 4;
-const double specific_heat_ratio = 1.4;
-const double gas_constant = 1.0;
+const real_t specific_heat_ratio = 1.4;
+const real_t gas_constant = 1.0;
 
 // Maximum characteristic speed (updated by integrators)
-double max_char_speed;
+real_t max_char_speed;
 
 int main(int argc, char *argv[])
 {
@@ -71,9 +71,9 @@ int main(int argc, char *argv[])
    int par_ref_levels = 1;
    int order = 3;
    int ode_solver_type = 4;
-   double t_final = 2.0;
-   double dt = -0.01;
-   double cfl = 0.3;
+   real_t t_final = 2.0;
+   real_t dt = -0.01;
+   real_t cfl = 0.3;
    bool visualization = true;
    int vis_steps = 50;
 
@@ -270,23 +270,24 @@ int main(int argc, char *argv[])
    }
 
    // Determine the minimum element size.
-   double hmin;
+   real_t hmin;
    if (cfl > 0)
    {
-      double my_hmin = pmesh.GetElementSize(0, 1);
+      real_t my_hmin = pmesh.GetElementSize(0, 1);
       for (int i = 1; i < pmesh.GetNE(); i++)
       {
          my_hmin = min(pmesh.GetElementSize(i, 1), my_hmin);
       }
       // Reduce to find the global minimum element size
-      MPI_Allreduce(&my_hmin, &hmin, 1, MPI_DOUBLE, MPI_MIN, pmesh.GetComm());
+      MPI_Allreduce(&my_hmin, &hmin, 1, MPITypeMap<real_t>::mpi_type,
+                    MPI_MIN, pmesh.GetComm());
    }
 
    // Start the timer.
    tic_toc.Clear();
    tic_toc.Start();
 
-   double t = 0.0;
+   real_t t = 0.0;
    euler.SetTime(t);
    ode_solver->Init(euler);
 
@@ -299,9 +300,9 @@ int main(int argc, char *argv[])
       A.Mult(sol, z);
       // Reduce to find the global maximum wave speed
       {
-         double all_max_char_speed;
-         MPI_Allreduce(&max_char_speed, &all_max_char_speed,
-                       1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
+         real_t all_max_char_speed;
+         MPI_Allreduce(&max_char_speed, &all_max_char_speed, 1,
+                       MPITypeMap<real_t>::mpi_type, MPI_MAX, pmesh.GetComm());
          max_char_speed = all_max_char_speed;
       }
       dt = cfl * hmin / max_char_speed / (2*order+1);
@@ -311,16 +312,16 @@ int main(int argc, char *argv[])
    bool done = false;
    for (int ti = 0; !done; )
    {
-      double dt_real = min(dt, t_final - t);
+      real_t dt_real = min(dt, t_final - t);
 
       ode_solver->Step(sol, t, dt_real);
       if (cfl > 0)
       {
          // Reduce to find the global maximum wave speed
          {
-            double all_max_char_speed;
-            MPI_Allreduce(&max_char_speed, &all_max_char_speed,
-                          1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
+            real_t all_max_char_speed;
+            MPI_Allreduce(&max_char_speed, &all_max_char_speed, 1,
+                          MPITypeMap<real_t>::mpi_type, MPI_MAX, pmesh.GetComm());
             max_char_speed = all_max_char_speed;
          }
          dt = cfl * hmin / max_char_speed / (2*order+1);
@@ -366,7 +367,7 @@ int main(int argc, char *argv[])
    // 12. Compute the L2 solution error summed for all components.
    if (t_final == 2.0)
    {
-      const double error = sol.ComputeLpError(2, u0);
+      const real_t error = sol.ComputeLpError(2, u0);
       if (Mpi::Root())
       {
          cout << "Solution error: " << error << endl;

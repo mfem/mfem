@@ -45,7 +45,7 @@ TEST_CASE("NURBS knot insertion and removal", "[NURBS]")
 
    Vector d(*mesh1.GetNodes());
    d -= *mesh2.GetNodes();
-   const double error = d.Norml2();
+   const real_t error = d.Norml2();
    REQUIRE(error == MFEM_Approx(0.0));
 }
 
@@ -81,6 +81,6 @@ TEST_CASE("NURBS refinement and coarsening by spacing formulas", "[NURBS]")
 
    Vector d(*mesh1.GetNodes());
    d -= *mesh2.GetNodes();
-   const double error = d.Norml2();
+   const real_t error = d.Norml2();
    REQUIRE(error == MFEM_Approx(0.0));
 }

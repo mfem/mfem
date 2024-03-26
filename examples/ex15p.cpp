@@ -68,8 +68,8 @@ int problem;
 int nfeatures;
 
 // Prescribed time-dependent boundary and right-hand side functions.
-double bdr_func(const Vector &pt, double t);
-double rhs_func(const Vector &pt, double t);
+real_t bdr_func(const Vector &pt, real_t t);
+real_t rhs_func(const Vector &pt, real_t t);
 
 // Update the finite element space, interpolate the solution and perform
 // parallel load balancing.
@@ -91,9 +91,9 @@ int main(int argc, char *argv[])
    nfeatures = 1;
    const char *mesh_file = "../data/star-hilbert.mesh";
    int order = 2;
-   double t_final = 1.0;
-   double max_elem_error = 1.0e-4;
-   double hysteresis = 0.25; // derefinement safety coefficient
+   real_t t_final = 1.0;
+   real_t max_elem_error = 1.0e-4;
+   real_t hysteresis = 0.25; // derefinement safety coefficient
    int ref_levels = 0;
    int nc_limit = 3;         // maximum level of hanging nodes
    bool visualization = true;
@@ -282,7 +282,7 @@ int main(int argc, char *argv[])
    //     solve the problem on the current mesh, visualize the solution and
    //     refine the mesh as many times as necessary. Then we derefine any
    //     elements which have very small errors.
-   for (double time = 0.0; time < t_final + 1e-10; time += 0.01)
+   for (real_t time = 0.0; time < t_final + 1e-10; time += 0.01)
    {
       if (myid == 0)
       {
@@ -427,47 +427,47 @@ void UpdateAndRebalance(ParMesh &pmesh, ParFiniteElementSpace &fespace,
 }
 
 
-const double alpha = 0.02;
+const real_t alpha = 0.02;
 
 // Spherical front with a Gaussian cross section and radius t
-double front(double x, double y, double z, double t, int)
+real_t front(real_t x, real_t y, real_t z, real_t t, int)
 {
-   double r = sqrt(x*x + y*y + z*z);
+   real_t r = sqrt(x*x + y*y + z*z);
    return exp(-0.5*pow((r - t)/alpha, 2));
 }
 
-double front_laplace(double x, double y, double z, double t, int dim)
+real_t front_laplace(real_t x, real_t y, real_t z, real_t t, int dim)
 {
-   double x2 = x*x, y2 = y*y, z2 = z*z, t2 = t*t;
-   double r = sqrt(x2 + y2 + z2);
-   double a2 = alpha*alpha, a4 = a2*a2;
+   real_t x2 = x*x, y2 = y*y, z2 = z*z, t2 = t*t;
+   real_t r = sqrt(x2 + y2 + z2);
+   real_t a2 = alpha*alpha, a4 = a2*a2;
    return -exp(-0.5*pow((r - t)/alpha, 2)) / a4 *
           (-2*t*(x2 + y2 + z2 - (dim-1)*a2/2)/r + x2 + y2 + z2 + t2 - dim*a2);
 }
 
 // Smooth spherical step function with radius t
-double ball(double x, double y, double z, double t, int)
+real_t ball(real_t x, real_t y, real_t z, real_t t, int)
 {
-   double r = sqrt(x*x + y*y + z*z);
+   real_t r = sqrt(x*x + y*y + z*z);
    return -atan(2*(r - t)/alpha);
 }
 
-double ball_laplace(double x, double y, double z, double t, int dim)
+real_t ball_laplace(real_t x, real_t y, real_t z, real_t t, int dim)
 {
-   double x2 = x*x, y2 = y*y, z2 = z*z, t2 = 4*t*t;
-   double r = sqrt(x2 + y2 + z2);
-   double a2 = alpha*alpha;
-   double den = pow(-a2 - 4*(x2 + y2 + z2 - 2*r*t) - t2, 2.0);
+   real_t x2 = x*x, y2 = y*y, z2 = z*z, t2 = 4*t*t;
+   real_t r = sqrt(x2 + y2 + z2);
+   real_t a2 = alpha*alpha;
+   real_t den = pow(-a2 - 4*(x2 + y2 + z2 - 2*r*t) - t2, 2.0);
    return (dim == 2) ? 2*alpha*(a2 + t2 - 4*x2 - 4*y2)/r/den
           /*      */ : 4*alpha*(a2 + t2 - 4*r*t)/r/den;
 }
 
 // Composes several features into one function
 template<typename F0, typename F1>
-double composite_func(const Vector &pt, double t, F0 f0, F1 f1)
+real_t composite_func(const Vector &pt, real_t t, F0 f0, F1 f1)
 {
    int dim = pt.Size();
-   double x = pt(0), y = pt(1), z = 0.0;
+   real_t x = pt(0), y = pt(1), z = 0.0;
    if (dim == 3) { z = pt(2); }
 
    if (problem == 0)
@@ -478,11 +478,11 @@ double composite_func(const Vector &pt, double t, F0 f0, F1 f1)
       }
       else
       {
-         double sum = 0.0;
+         real_t sum = 0.0;
          for (int i = 0; i < nfeatures; i++)
          {
-            double x0 = 0.5*cos(2*M_PI * i / nfeatures);
-            double y0 = 0.5*sin(2*M_PI * i / nfeatures);
+            real_t x0 = 0.5*cos(2*M_PI * i / nfeatures);
+            real_t y0 = 0.5*sin(2*M_PI * i / nfeatures);
             sum += f0(x - x0, y - y0, z, t, dim);
          }
          return sum;
@@ -490,11 +490,11 @@ double composite_func(const Vector &pt, double t, F0 f0, F1 f1)
    }
    else
    {
-      double sum = 0.0;
+      real_t sum = 0.0;
       for (int i = 0; i < nfeatures; i++)
       {
-         double x0 = 0.5*cos(2*M_PI * i / nfeatures + M_PI*t);
-         double y0 = 0.5*sin(2*M_PI * i / nfeatures + M_PI*t);
+         real_t x0 = 0.5*cos(2*M_PI * i / nfeatures + M_PI*t);
+         real_t y0 = 0.5*sin(2*M_PI * i / nfeatures + M_PI*t);
          sum += f1(x - x0, y - y0, z, 0.25, dim);
       }
       return sum;
@@ -502,13 +502,13 @@ double composite_func(const Vector &pt, double t, F0 f0, F1 f1)
 }
 
 // Exact solution, used for the Dirichlet BC.
-double bdr_func(const Vector &pt, double t)
+real_t bdr_func(const Vector &pt, real_t t)
 {
    return composite_func(pt, t, front, ball);
 }
 
 // Laplace of the exact solution, used for the right hand side.
-double rhs_func(const Vector &pt, double t)
+real_t rhs_func(const Vector &pt, real_t t)
 {
    return composite_func(pt, t, front_laplace, ball_laplace);
 }
