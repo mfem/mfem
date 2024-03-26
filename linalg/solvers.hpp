@@ -45,13 +45,13 @@ public:
    virtual ~IterativeSolverMonitor() {}
 
    /// Monitor the residual vector r
-   virtual void MonitorResidual(int it, double norm, const Vector &r,
+   virtual void MonitorResidual(int it, real_t norm, const Vector &r,
                                 bool final)
    {
    }
 
    /// Monitor the solution vector x
-   virtual void MonitorSolution(int it, double norm, const Vector &x,
+   virtual void MonitorSolution(int it, real_t norm, const Vector &x,
                                 bool final)
    {
    }
@@ -152,10 +152,10 @@ protected:
    int max_iter;
 
    /// Relative tolerance.
-   double rel_tol;
+   real_t rel_tol;
 
    /// Absolute tolerance.
-   double abs_tol;
+   real_t abs_tol;
 
    ///@}
 
@@ -165,18 +165,22 @@ protected:
 
    mutable int final_iter = -1;
    mutable bool converged = false;
-   mutable double initial_norm = -1.0, final_norm = -1.0;
+   mutable real_t initial_norm = -1.0, final_norm = -1.0;
 
    ///@}
 
-   /// Return the dot product of @a x and @a y
-   double Dot(const Vector &x, const Vector &y) const;
+   /** @brief Return the standard (l2, i.e., Euclidean) inner product of
+       @a x and @a y
+       @details Overriding this method in a derived class enables a
+       custom inner product.
+      */
+   virtual real_t Dot(const Vector &x, const Vector &y) const;
 
-   /// Return the 2-norm of @a x
-   double Norm(const Vector &x) const { return sqrt(Dot(x, x)); }
+   /// Return the inner product norm of @a x, using the inner product defined by Dot()
+   real_t Norm(const Vector &x) const { return sqrt(Dot(x, x)); }
 
    /// Monitor both the residual @a r and the solution @a x
-   void Monitor(int it, double norm, const Vector& r, const Vector& x,
+   void Monitor(int it, real_t norm, const Vector& r, const Vector& x,
                 bool final=false) const;
 
 public:
@@ -192,18 +196,18 @@ public:
        @details While the convergence criterion is solver specific, most of the
        provided iterative solvers use one of the following criteria
 
-       \f$ ||r||_X \leq tol_{rel}||r_0||_X \f$,
+       $ ||r||_X \leq tol_{rel}||r_0||_X $,
 
-       \f$ ||r||_X \leq tol_{abs} \f$,
+       $ ||r||_X \leq tol_{abs} $,
 
-       \f$ ||r||_X \leq \max\{ tol_{abs}, tol_{rel} ||r_0||_X \} \f$,
+       $ ||r||_X \leq \max\{ tol_{abs}, tol_{rel} ||r_0||_X \} $,
 
        where X denotes the space in which the norm is measured. The choice of
        X depends on the specific iterative solver.
       */
    ///@{
-   void SetRelTol(double rtol) { rel_tol = rtol; }
-   void SetAbsTol(double atol) { abs_tol = atol; }
+   void SetRelTol(real_t rtol) { rel_tol = rtol; }
+   void SetAbsTol(real_t atol) { abs_tol = atol; }
    void SetMaxIter(int max_it) { max_iter = max_it; }
    ///@}
 
@@ -261,20 +265,20 @@ public:
    /// This function returns the norm of the residual (or preconditioned
    /// residual, depending on the solver), computed before the start of the
    /// iteration.
-   double GetInitialNorm() const { return initial_norm; }
+   real_t GetInitialNorm() const { return initial_norm; }
    /// @brief Returns the final residual norm after termination of the solver
    /// during the last call to Mult().
    ///
    /// This function returns the norm of the residual (or preconditioned
    /// residual, depending on the solver), corresponding to the returned
    /// solution.
-   double GetFinalNorm() const { return final_norm; }
+   real_t GetFinalNorm() const { return final_norm; }
    /// @brief Returns the final residual norm after termination of the solver
    /// during the last call to Mult(), divided by the initial residual norm.
    /// Returns -1 if one of these norms is left undefined by the solver.
    ///
    /// @sa GetFinalNorm(), GetInitialNorm()
-   double GetFinalRelNorm() const
+   real_t GetFinalRelNorm() const
    {
       if (final_norm < 0.0 || initial_norm < 0.0) { return -1.0; }
       return final_norm / initial_norm;
@@ -311,7 +315,7 @@ public:
    /** @brief Default constructor: the diagonal will be computed by subsequent
        calls to SetOperator() using the Operator method AssembleDiagonal. */
    /** In this case the array of essential tdofs will be empty. */
-   OperatorJacobiSmoother(const double damping=1.0);
+   OperatorJacobiSmoother(const real_t damping=1.0);
 
    /** Setup a Jacobi smoother with the diagonal of @a a obtained by calling
        a.AssembleDiagonal(). It is assumed that the underlying operator acts as
@@ -324,7 +328,7 @@ public:
        original behavior of this class. */
    OperatorJacobiSmoother(const BilinearForm &a,
                           const Array<int> &ess_tdof_list,
-                          const double damping=1.0);
+                          const real_t damping=1.0);
 
    /** Application is by the *inverse* of the given vector. It is assumed that
        the underlying operator acts as the identity on entries in ess_tdof_list,
@@ -337,7 +341,7 @@ public:
        original behavior of this class. */
    OperatorJacobiSmoother(const Vector &d,
                           const Array<int> &ess_tdof_list,
-                          const double damping=1.0);
+                          const real_t damping=1.0);
 
    ~OperatorJacobiSmoother() {}
 
@@ -366,7 +370,7 @@ public:
 
 private:
    Vector dinv;
-   const double damping;
+   const real_t damping;
    const Array<int> *ess_tdof_list; // not owned; may be NULL
    mutable Vector residual;
    /// Uses absolute values of the diagonal entries.
@@ -397,13 +401,13 @@ public:
        max_eig_estimate. */
    OperatorChebyshevSmoother(const Operator &oper_, const Vector &d,
                              const Array<int>& ess_tdof_list,
-                             int order, double max_eig_estimate);
+                             int order, real_t max_eig_estimate);
 
    /// Deprecated: see pass-by-reference version above
    MFEM_DEPRECATED
    OperatorChebyshevSmoother(const Operator* oper_, const Vector &d,
                              const Array<int>& ess_tdof_list,
-                             int order, double max_eig_estimate);
+                             int order, real_t max_eig_estimate);
 
    /** Application is by *inverse* of the given vector. It is assumed the
        underlying operator acts as the identity on entries in ess_tdof_list,
@@ -417,7 +421,7 @@ public:
                              const Array<int>& ess_tdof_list,
                              int order, MPI_Comm comm = MPI_COMM_NULL,
                              int power_iterations = 10,
-                             double power_tolerance = 1e-8);
+                             real_t power_tolerance = 1e-8);
 
    /// Deprecated: see pass-by-reference version above
    MFEM_DEPRECATED
@@ -425,19 +429,19 @@ public:
                              const Array<int>& ess_tdof_list,
                              int order, MPI_Comm comm = MPI_COMM_NULL,
                              int power_iterations = 10,
-                             double power_tolerance = 1e-8);
+                             real_t power_tolerance = 1e-8);
 #else
    OperatorChebyshevSmoother(const Operator &oper_, const Vector &d,
                              const Array<int>& ess_tdof_list,
                              int order, int power_iterations = 10,
-                             double power_tolerance = 1e-8);
+                             real_t power_tolerance = 1e-8);
 
    /// Deprecated: see pass-by-reference version above
    MFEM_DEPRECATED
    OperatorChebyshevSmoother(const Operator* oper_, const Vector &d,
                              const Array<int>& ess_tdof_list,
                              int order, int power_iterations = 10,
-                             double power_tolerance = 1e-8);
+                             real_t power_tolerance = 1e-8);
 #endif
 
    ~OperatorChebyshevSmoother() {}
@@ -459,11 +463,11 @@ public:
 
 private:
    const int order;
-   double max_eig_estimate;
+   real_t max_eig_estimate;
    const int N;
    Vector dinv;
    const Vector &diag;
-   Array<double> coeffs;
+   Array<real_t> coeffs;
    const Array<int>& ess_tdof_list;
    mutable Vector residual;
    mutable Vector helperVector;
@@ -496,12 +500,12 @@ public:
 /// Stationary linear iteration. (tolerances are squared)
 void SLI(const Operator &A, const Vector &b, Vector &x,
          int print_iter = 0, int max_num_iter = 1000,
-         double RTOLERANCE = 1e-12, double ATOLERANCE = 1e-24);
+         real_t RTOLERANCE = 1e-12, real_t ATOLERANCE = 1e-24);
 
 /// Preconditioned stationary linear iteration. (tolerances are squared)
 void SLI(const Operator &A, Solver &B, const Vector &b, Vector &x,
          int print_iter = 0, int max_num_iter = 1000,
-         double RTOLERANCE = 1e-12, double ATOLERANCE = 1e-24);
+         real_t RTOLERANCE = 1e-12, real_t ATOLERANCE = 1e-24);
 
 
 /// Conjugate gradient method
@@ -530,12 +534,12 @@ public:
 /// Conjugate gradient method. (tolerances are squared)
 void CG(const Operator &A, const Vector &b, Vector &x,
         int print_iter = 0, int max_num_iter = 1000,
-        double RTOLERANCE = 1e-12, double ATOLERANCE = 1e-24);
+        real_t RTOLERANCE = 1e-12, real_t ATOLERANCE = 1e-24);
 
 /// Preconditioned conjugate gradient method. (tolerances are squared)
 void PCG(const Operator &A, Solver &B, const Vector &b, Vector &x,
          int print_iter = 0, int max_num_iter = 1000,
-         double RTOLERANCE = 1e-12, double ATOLERANCE = 1e-24);
+         real_t RTOLERANCE = 1e-12, real_t ATOLERANCE = 1e-24);
 
 
 /// GMRES method
@@ -579,12 +583,12 @@ public:
 
 /// GMRES method. (tolerances are squared)
 int GMRES(const Operator &A, Vector &x, const Vector &b, Solver &M,
-          int &max_iter, int m, double &tol, double atol, int printit);
+          int &max_iter, int m, real_t &tol, real_t atol, int printit);
 
 /// GMRES method. (tolerances are squared)
 void GMRES(const Operator &A, Solver &B, const Vector &b, Vector &x,
            int print_iter = 0, int max_num_iter = 1000, int m = 50,
-           double rtol = 1e-12, double atol = 1e-24);
+           real_t rtol = 1e-12, real_t atol = 1e-24);
 
 
 /// BiCGSTAB method
@@ -611,12 +615,12 @@ public:
 
 /// BiCGSTAB method. (tolerances are squared)
 int BiCGSTAB(const Operator &A, Vector &x, const Vector &b, Solver &M,
-             int &max_iter, double &tol, double atol, int printit);
+             int &max_iter, real_t &tol, real_t atol, int printit);
 
 /// BiCGSTAB method. (tolerances are squared)
 void BiCGSTAB(const Operator &A, Solver &B, const Vector &b, Vector &x,
               int print_iter = 0, int max_num_iter = 1000,
-              double rtol = 1e-12, double atol = 1e-24);
+              real_t rtol = 1e-12, real_t atol = 1e-24);
 
 
 /// MINRES method
@@ -647,12 +651,12 @@ public:
 
 /// MINRES method without preconditioner. (tolerances are squared)
 void MINRES(const Operator &A, const Vector &b, Vector &x, int print_it = 0,
-            int max_it = 1000, double rtol = 1e-12, double atol = 1e-24);
+            int max_it = 1000, real_t rtol = 1e-12, real_t atol = 1e-24);
 
 /// MINRES method with preconditioner. (tolerances are squared)
 void MINRES(const Operator &A, Solver &B, const Vector &b, Vector &x,
             int print_it = 0, int max_it = 1000,
-            double rtol = 1e-12, double atol = 1e-24);
+            real_t rtol = 1e-12, real_t atol = 1e-24);
 
 
 /// Newton's method for solving F(x)=b for a given operator F.
@@ -670,32 +674,32 @@ protected:
    // Method to determine rtol, 0 means the adaptive algorithm is deactivated.
    int lin_rtol_type = 0;
    // rtol to use in first iteration
-   double lin_rtol0;
+   real_t lin_rtol0;
    // Maximum rtol
-   double lin_rtol_max;
+   real_t lin_rtol_max;
    // Function norm ||F(x)|| of the previous iterate
-   mutable double fnorm_last = 0.0;
+   mutable real_t fnorm_last = 0.0;
    // Linear residual norm of the previous iterate
-   mutable double lnorm_last = 0.0;
+   mutable real_t lnorm_last = 0.0;
    // Forcing term (linear residual rtol) from the previous iterate
-   mutable double eta_last = 0.0;
+   mutable real_t eta_last = 0.0;
    // Eisenstat-Walker factor gamma
-   double gamma;
+   real_t gamma;
    // Eisenstat-Walker factor alpha
-   double alpha;
+   real_t alpha;
 
    /** @brief Method for the adaptive linear solver rtol invoked before the
        linear solve. */
    void AdaptiveLinRtolPreSolve(const Vector &x,
                                 const int it,
-                                const double fnorm) const;
+                                const real_t fnorm) const;
 
    /** @brief Method for the adaptive linear solver rtol invoked after the
        linear solve. */
    void AdaptiveLinRtolPostSolve(const Vector &x,
                                  const Vector &b,
                                  const int it,
-                                 const double fnorm) const;
+                                 const real_t fnorm) const;
 
 public:
    NewtonSolver() { }
@@ -717,7 +721,7 @@ public:
        search algorithms. */
    /** The base class implementation (NewtonSolver) simply returns 1. A return
        value of 0 indicates a failure, interrupting the Newton iteration. */
-   virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const
+   virtual real_t ComputeScalingFactor(const Vector &x, const Vector &b) const
    { return 1.0; }
 
    /** @brief This method can be overloaded in derived classes to perform
@@ -736,10 +740,10 @@ public:
     in an inexact Newton method."
     */
    void SetAdaptiveLinRtol(const int type = 2,
-                           const double rtol0 = 0.5,
-                           const double rtol_max = 0.9,
-                           const double alpha = 0.5 * (1.0 + sqrt(5.0)),
-                           const double gamma = 1.0);
+                           const real_t rtol0 = 0.5,
+                           const real_t rtol_max = 0.9,
+                           const real_t alpha = 0.5 * (1.0 + sqrt(5.0)),
+                           const real_t gamma = 1.0);
 };
 
 /** L-BFGS method for solving F(x)=b for a given operator F, by minimizing
@@ -811,8 +815,8 @@ public:
     cf(=0.4) is a desired convergence factor. */
 int aGMRES(const Operator &A, Vector &x, const Vector &b,
            const Operator &M, int &max_iter,
-           int m_max, int m_min, int m_step, double cf,
-           double &tol, double &atol, int printit);
+           int m_max, int m_min, int m_step, real_t cf,
+           real_t &tol, real_t &atol, int printit);
 
 #ifdef MFEM_USE_HIOP
 class HiopOptimizationProblem;
@@ -862,7 +866,7 @@ public:
    OptimizationProblem(int insize, const Operator *C_, const Operator *D_);
 
    /// Objective F(x). In parallel, the result should be reduced over tasks.
-   virtual double CalcObjective(const Vector &x) const = 0;
+   virtual real_t CalcObjective(const Vector &x) const = 0;
    /// The result grad is expected to enter with the correct size.
    virtual void CalcObjectiveGrad(const Vector &x, Vector &grad) const
    { MFEM_ABORT("The objective gradient is not implemented."); }
@@ -919,10 +923,10 @@ class SLBQPOptimizer : public OptimizationSolver
 {
 protected:
    Vector lo, hi, w;
-   double a;
+   real_t a;
 
    /// Solve QP at fixed lambda
-   inline double solve(double l, const Vector &xt, Vector &x, int &nclip) const
+   inline real_t solve(real_t l, const Vector &xt, Vector &x, int &nclip) const
    {
       add(xt, l, w, x);
       if (problem == NULL) { x.median(lo,hi); }
@@ -943,7 +947,7 @@ protected:
       }
    }
 
-   inline void print_iteration(int it, double r, double l) const;
+   inline void print_iteration(int it, real_t r, real_t l) const;
 
 public:
    SLBQPOptimizer() { }
@@ -958,7 +962,7 @@ public:
    virtual void SetOptimizationProblem(const OptimizationProblem &prob);
 
    void SetBounds(const Vector &lo_, const Vector &hi_);
-   void SetLinearConstraint(const Vector &w_, double a_);
+   void SetLinearConstraint(const Vector &w_, real_t a_);
 
    /** We let the target values play the role of the initial vector xt, from
     *  which the operator generates the optimal vector x. */
@@ -1030,7 +1034,7 @@ public:
    /** Get the data array for the block CSR representation of the factorization.
     *  Similar to SparseMatrix::GetData(). Mostly used for testing.
     */
-   double *GetBlockData() { return AB.Data(); }
+   real_t *GetBlockData() { return AB.Data(); }
 
 private:
    /// Set up the block CSR structure corresponding to a sparse matrix @a A
@@ -1080,7 +1084,7 @@ public:
    ResidualBCMonitor(const Array<int> &ess_dofs_list_)
       : ess_dofs_list(&ess_dofs_list_) { }
 
-   void MonitorResidual(int it, double norm, const Vector &r,
+   void MonitorResidual(int it, real_t norm, const Vector &r,
                         bool final) override;
 };
 
@@ -1099,8 +1103,8 @@ protected:
    void Init();
 
 public:
-   double Control[UMFPACK_CONTROL];
-   mutable double Info[UMFPACK_INFO];
+   real_t Control[UMFPACK_CONTROL];
+   mutable real_t Info[UMFPACK_INFO];
 
    /** @brief For larger matrices, if the solver fails, set the parameter @a
        use_long_ints_ = true. */
@@ -1305,7 +1309,7 @@ public:
    void SetVerbosity(int v) { verbosity_ = v; }
 
    /// Set the target absolute residual norm tolerance for convergence
-   void SetTolerance(double tol) { const_tol_ = tol; }
+   void SetTolerance(real_t tol) { const_tol_ = tol; }
 
    /// Set the minimum number of nonzeros required for the solution.
    void SetMinNNZ(int min_nnz) { min_nnz_ = min_nnz; }
@@ -1316,15 +1320,15 @@ public:
 
    /** @brief Set threshold on relative change in residual over nStallCheck_
        iterations. */
-   void SetResidualChangeTolerance(double tol)
+   void SetResidualChangeTolerance(real_t tol)
    { res_change_termination_tol_ = tol; }
 
    /** @brief Set the magnitude of projected residual entries that are
        considered zero.  Increasing this value relaxes solution constraints. */
-   void SetZeroTolerance(double tol) { zero_tol_ = tol; }
+   void SetZeroTolerance(real_t tol) { zero_tol_ = tol; }
 
    /// Set RHS vector constant shift, defining rhs_lb and rhs_ub in Solve().
-   void SetRHSDelta(double d) { rhs_delta_ = d; }
+   void SetRHSDelta(real_t d) { rhs_delta_ = d; }
 
    /// Set the maximum number of outer iterations in Solve().
    void SetOuterIterations(int n) { n_outer_ = n; }
@@ -1379,7 +1383,7 @@ public:
 private:
    const DenseMatrix *mat;
 
-   double const_tol_;
+   real_t const_tol_;
    int min_nnz_; // minimum number of nonzero entries
    mutable int max_nnz_; // maximum number of nonzero entries
    int verbosity_;
@@ -1388,10 +1392,10 @@ private:
     * @brief Threshold on relative change in residual over nStallCheck_
     * iterations, for stall sensing.
     */
-   double res_change_termination_tol_;
+   real_t res_change_termination_tol_;
 
-   double zero_tol_;
-   double rhs_delta_;
+   real_t zero_tol_;
+   real_t rhs_delta_;
    int n_outer_;
    int n_inner_;
    int nStallCheck_;

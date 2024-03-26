@@ -52,11 +52,11 @@ int problem;
 
 // Equation constant parameters.
 const int num_equation = 4;
-const double specific_heat_ratio = 1.4;
-const double gas_constant = 1.0;
+const real_t specific_heat_ratio = 1.4;
+const real_t gas_constant = 1.0;
 
 // Maximum characteristic speed (updated by integrators)
-double max_char_speed;
+real_t max_char_speed;
 
 int main(int argc, char *argv[])
 {
@@ -66,9 +66,9 @@ int main(int argc, char *argv[])
    int ref_levels = 1;
    int order = 3;
    int ode_solver_type = 4;
-   double t_final = 2.0;
-   double dt = -0.01;
-   double cfl = 0.3;
+   real_t t_final = 2.0;
+   real_t dt = -0.01;
+   real_t cfl = 0.3;
    bool visualization = true;
    int vis_steps = 50;
 
@@ -228,7 +228,7 @@ int main(int argc, char *argv[])
    }
 
    // Determine the minimum element size.
-   double hmin = 0.0;
+   real_t hmin = 0.0;
    if (cfl > 0)
    {
       hmin = mesh.GetElementSize(0, 1);
@@ -242,7 +242,7 @@ int main(int argc, char *argv[])
    tic_toc.Clear();
    tic_toc.Start();
 
-   double t = 0.0;
+   real_t t = 0.0;
    euler.SetTime(t);
    ode_solver->Init(euler);
 
@@ -260,7 +260,7 @@ int main(int argc, char *argv[])
    bool done = false;
    for (int ti = 0; !done; )
    {
-      double dt_real = min(dt, t_final - t);
+      real_t dt_real = min(dt, t_final - t);
 
       ode_solver->Step(sol, t, dt_real);
       if (cfl > 0)
@@ -298,7 +298,7 @@ int main(int argc, char *argv[])
    // 10. Compute the L2 solution error summed for all components.
    if (t_final == 2.0)
    {
-      const double error = sol.ComputeLpError(2, u0);
+      const real_t error = sol.ComputeLpError(2, u0);
       cout << "Solution error: " << error << endl;
    }
 

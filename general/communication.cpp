@@ -349,6 +349,7 @@ void GroupTopology::Swap(GroupTopology &other)
 
 // Initialize the static mpi_type for the specializations of MPITypeMap:
 const MPI_Datatype MPITypeMap<int>::mpi_type = MPI_INT;
+const MPI_Datatype MPITypeMap<float>::mpi_type = MPI_FLOAT;
 const MPI_Datatype MPITypeMap<double>::mpi_type = MPI_DOUBLE;
 
 
@@ -1312,6 +1313,12 @@ template void GroupCommunicator::ReduceBegin<double>(const double *) const;
 template void GroupCommunicator::ReduceEnd<double>(
    double *, int, void (*)(OpData<double>)) const;
 
+template void GroupCommunicator::BcastBegin<float>(float *, int) const;
+template void GroupCommunicator::BcastEnd<float>(float *, int) const;
+template void GroupCommunicator::ReduceBegin<float>(const float *) const;
+template void GroupCommunicator::ReduceEnd<float>(
+   float *, int, void (*)(OpData<float>)) const;
+
 // @endcond
 
 // instantiate reduce operators for int and double
@@ -1323,6 +1330,10 @@ template void GroupCommunicator::BitOR<int>(OpData<int>);
 template void GroupCommunicator::Sum<double>(OpData<double>);
 template void GroupCommunicator::Min<double>(OpData<double>);
 template void GroupCommunicator::Max<double>(OpData<double>);
+
+template void GroupCommunicator::Sum<float>(OpData<float>);
+template void GroupCommunicator::Min<float>(OpData<float>);
+template void GroupCommunicator::Max<float>(OpData<float>);
 
 
 #ifdef __bgq__

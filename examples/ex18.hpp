@@ -9,11 +9,11 @@ using namespace mfem;
 extern int problem;
 
 // Maximum characteristic speed (updated by integrators)
-extern double max_char_speed;
+extern real_t max_char_speed;
 
 extern const int num_equation;
-extern const double specific_heat_ratio;
-extern const double gas_constant;
+extern const real_t specific_heat_ratio;
+extern const real_t gas_constant;
 
 // Time-dependent operator for the right-hand side of the ODE representing the
 // DG weak form.
@@ -52,7 +52,7 @@ private:
 
 public:
    RiemannSolver();
-   double Eval(const Vector &state1, const Vector &state2,
+   real_t Eval(const Vector &state1, const Vector &state2,
                const Vector &nor, Vector &flux);
 };
 
@@ -149,13 +149,13 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
 bool StateIsPhysical(const Vector &state, const int dim);
 
 // Pressure (EOS) computation
-inline double ComputePressure(const Vector &state, int dim)
+inline real_t ComputePressure(const Vector &state, int dim)
 {
-   const double den = state(0);
+   const real_t den = state(0);
    const Vector den_vel(state.GetData() + 1, dim);
-   const double den_energy = state(1 + dim);
+   const real_t den_energy = state(1 + dim);
 
-   double den_vel2 = 0;
+   real_t den_vel2 = 0;
    for (int d = 0; d < dim; d++) { den_vel2 += den_vel(d) * den_vel(d); }
    den_vel2 /= den;
 
@@ -165,13 +165,13 @@ inline double ComputePressure(const Vector &state, int dim)
 // Compute the vector flux F(u)
 void ComputeFlux(const Vector &state, int dim, DenseMatrix &flux)
 {
-   const double den = state(0);
+   const real_t den = state(0);
    const Vector den_vel(state.GetData() + 1, dim);
-   const double den_energy = state(1 + dim);
+   const real_t den_energy = state(1 + dim);
 
    MFEM_ASSERT(StateIsPhysical(state, dim), "");
 
-   const double pres = ComputePressure(state, dim);
+   const real_t pres = ComputePressure(state, dim);
 
    for (int d = 0; d < dim; d++)
    {
@@ -183,7 +183,7 @@ void ComputeFlux(const Vector &state, int dim, DenseMatrix &flux)
       flux(1+d, d) += pres;
    }
 
-   const double H = (den_energy + pres) / den;
+   const real_t H = (den_energy + pres) / den;
    for (int d = 0; d < dim; d++)
    {
       flux(1+dim, d) = den_vel(d) * H;
@@ -196,15 +196,15 @@ void ComputeFluxDotN(const Vector &state, const Vector &nor,
 {
    // NOTE: nor in general is not a unit normal
    const int dim = nor.Size();
-   const double den = state(0);
+   const real_t den = state(0);
    const Vector den_vel(state.GetData() + 1, dim);
-   const double den_energy = state(1 + dim);
+   const real_t den_energy = state(1 + dim);
 
    MFEM_ASSERT(StateIsPhysical(state, dim), "");
 
-   const double pres = ComputePressure(state, dim);
+   const real_t pres = ComputePressure(state, dim);
 
-   double den_velN = 0;
+   real_t den_velN = 0;
    for (int d = 0; d < dim; d++) { den_velN += den_vel(d) * nor(d); }
 
    fluxN(0) = den_velN;
@@ -213,23 +213,23 @@ void ComputeFluxDotN(const Vector &state, const Vector &nor,
       fluxN(1+d) = den_velN * den_vel(d) / den + pres * nor(d);
    }
 
-   const double H = (den_energy + pres) / den;
+   const real_t H = (den_energy + pres) / den;
    fluxN(1 + dim) = den_velN * H;
 }
 
 // Compute the maximum characteristic speed.
-inline double ComputeMaxCharSpeed(const Vector &state, const int dim)
+inline real_t ComputeMaxCharSpeed(const Vector &state, const int dim)
 {
-   const double den = state(0);
+   const real_t den = state(0);
    const Vector den_vel(state.GetData() + 1, dim);
 
-   double den_vel2 = 0;
+   real_t den_vel2 = 0;
    for (int d = 0; d < dim; d++) { den_vel2 += den_vel(d) * den_vel(d); }
    den_vel2 /= den;
 
-   const double pres = ComputePressure(state, dim);
-   const double sound = sqrt(specific_heat_ratio * pres / den);
-   const double vel = sqrt(den_vel2 / den);
+   const real_t pres = ComputePressure(state, dim);
+   const real_t sound = sqrt(specific_heat_ratio * pres / den);
+   const real_t vel = sqrt(den_vel2 / den);
 
    return vel + sound;
 }
@@ -254,7 +254,7 @@ void FE_Evolution::GetFlux(const DenseMatrix &x_, DenseTensor &flux_) const
       }
 
       // Update max char speed
-      const double mcs = ComputeMaxCharSpeed(state, flux_dim);
+      const real_t mcs = ComputeMaxCharSpeed(state, flux_dim);
       if (mcs > max_char_speed) { max_char_speed = mcs; }
    }
 }
@@ -264,7 +264,7 @@ RiemannSolver::RiemannSolver() :
    flux1(num_equation),
    flux2(num_equation) { }
 
-double RiemannSolver::Eval(const Vector &state1, const Vector &state2,
+real_t RiemannSolver::Eval(const Vector &state1, const Vector &state2,
                            const Vector &nor, Vector &flux)
 {
    // NOTE: nor in general is not a unit normal
@@ -273,15 +273,15 @@ double RiemannSolver::Eval(const Vector &state1, const Vector &state2,
    MFEM_ASSERT(StateIsPhysical(state1, dim), "");
    MFEM_ASSERT(StateIsPhysical(state2, dim), "");
 
-   const double maxE1 = ComputeMaxCharSpeed(state1, dim);
-   const double maxE2 = ComputeMaxCharSpeed(state2, dim);
+   const real_t maxE1 = ComputeMaxCharSpeed(state1, dim);
+   const real_t maxE2 = ComputeMaxCharSpeed(state2, dim);
 
-   const double maxE = max(maxE1, maxE2);
+   const real_t maxE = max(maxE1, maxE2);
 
    ComputeFluxDotN(state1, nor, flux1);
    ComputeFluxDotN(state2, nor, flux2);
 
-   double normag = 0;
+   real_t normag = 0;
    for (int i = 0; i < dim; i++)
    {
       normag += nor(i) * nor(i);
@@ -359,7 +359,7 @@ void FaceIntegrator::AssembleFaceVector(const FiniteElement &el1,
 
       // Get the normal vector and the flux on the face
       CalcOrtho(Tr.Jacobian(), nor);
-      const double mcs = rsolver.Eval(funval1, funval2, nor, fluxN);
+      const real_t mcs = rsolver.Eval(funval1, funval2, nor, fluxN);
 
       // Update max char speed
       if (mcs > max_char_speed) { max_char_speed = mcs; }
@@ -382,9 +382,9 @@ void FaceIntegrator::AssembleFaceVector(const FiniteElement &el1,
 // Check that the state is physical - enabled in debug mode
 bool StateIsPhysical(const Vector &state, const int dim)
 {
-   const double den = state(0);
+   const real_t den = state(0);
    const Vector den_vel(state.GetData() + 1, dim);
-   const double den_energy = state(1 + dim);
+   const real_t den_energy = state(1 + dim);
 
    if (den < 0)
    {
@@ -407,11 +407,11 @@ bool StateIsPhysical(const Vector &state, const int dim)
       return false;
    }
 
-   double den_vel2 = 0;
+   real_t den_vel2 = 0;
    for (int i = 0; i < dim; i++) { den_vel2 += den_vel(i) * den_vel(i); }
    den_vel2 /= den;
 
-   const double pres = (specific_heat_ratio - 1.0) * (den_energy - 0.5 * den_vel2);
+   const real_t pres = (specific_heat_ratio - 1.0) * (den_energy - 0.5 * den_vel2);
 
    if (pres <= 0)
    {
@@ -431,7 +431,7 @@ void InitialCondition(const Vector &x, Vector &y)
 {
    MFEM_ASSERT(x.Size() == 2, "");
 
-   double radius = 0, Minf = 0, beta = 0;
+   real_t radius = 0, Minf = 0, beta = 0;
    if (problem == 1)
    {
       // "Fast vortex"
@@ -452,36 +452,36 @@ void InitialCondition(const Vector &x, Vector &y)
                  "Options are: 1 - fast vortex, 2 - slow vortex");
    }
 
-   const double xc = 0.0, yc = 0.0;
+   const real_t xc = 0.0, yc = 0.0;
 
    // Nice units
-   const double vel_inf = 1.;
-   const double den_inf = 1.;
+   const real_t vel_inf = 1.;
+   const real_t den_inf = 1.;
 
    // Derive remainder of background state from this and Minf
-   const double pres_inf = (den_inf / specific_heat_ratio) * (vel_inf / Minf) *
+   const real_t pres_inf = (den_inf / specific_heat_ratio) * (vel_inf / Minf) *
                            (vel_inf / Minf);
-   const double temp_inf = pres_inf / (den_inf * gas_constant);
+   const real_t temp_inf = pres_inf / (den_inf * gas_constant);
 
-   double r2rad = 0.0;
+   real_t r2rad = 0.0;
    r2rad += (x(0) - xc) * (x(0) - xc);
    r2rad += (x(1) - yc) * (x(1) - yc);
    r2rad /= (radius * radius);
 
-   const double shrinv1 = 1.0 / (specific_heat_ratio - 1.);
+   const real_t shrinv1 = 1.0 / (specific_heat_ratio - 1.);
 
-   const double velX = vel_inf * (1 - beta * (x(1) - yc) / radius * exp(
+   const real_t velX = vel_inf * (1 - beta * (x(1) - yc) / radius * exp(
                                      -0.5 * r2rad));
-   const double velY = vel_inf * beta * (x(0) - xc) / radius * exp(-0.5 * r2rad);
-   const double vel2 = velX * velX + velY * velY;
+   const real_t velY = vel_inf * beta * (x(0) - xc) / radius * exp(-0.5 * r2rad);
+   const real_t vel2 = velX * velX + velY * velY;
 
-   const double specific_heat = gas_constant * specific_heat_ratio * shrinv1;
-   const double temp = temp_inf - 0.5 * (vel_inf * beta) *
+   const real_t specific_heat = gas_constant * specific_heat_ratio * shrinv1;
+   const real_t temp = temp_inf - 0.5 * (vel_inf * beta) *
                        (vel_inf * beta) / specific_heat * exp(-r2rad);
 
-   const double den = den_inf * pow(temp/temp_inf, shrinv1);
-   const double pres = den * gas_constant * temp;
-   const double energy = shrinv1 * pres / den + 0.5 * vel2;
+   const real_t den = den_inf * pow(temp/temp_inf, shrinv1);
+   const real_t pres = den * gas_constant * temp;
+   const real_t energy = shrinv1 * pres / den + 0.5 * vel2;
 
    y(0) = den;
    y(1) = den * velX;

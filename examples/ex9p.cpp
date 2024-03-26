@@ -59,10 +59,10 @@ int problem;
 void velocity_function(const Vector &x, Vector &v);
 
 // Initial condition
-double u0_function(const Vector &x);
+real_t u0_function(const Vector &x);
 
 // Inflow boundary condition
-double inflow_function(const Vector &x);
+real_t inflow_function(const Vector &x);
 
 // Mesh bounding box
 Vector bb_min, bb_max;
@@ -135,7 +135,7 @@ private:
    HypreParMatrix *A;
    GMRESSolver linear_solver;
    Solver *prec;
-   double dt;
+   real_t dt;
 public:
    DG_Solver(HypreParMatrix &M_, HypreParMatrix &K_, const FiniteElementSpace &fes,
              PrecType prec_type)
@@ -169,7 +169,7 @@ public:
       M.GetDiag(M_diag);
    }
 
-   void SetTimeStep(double dt_)
+   void SetTimeStep(real_t dt_)
    {
       if (dt_ != dt)
       {
@@ -224,7 +224,7 @@ public:
                 PrecType prec_type);
 
    virtual void Mult(const Vector &x, Vector &y) const;
-   virtual void ImplicitSolve(const double dt, const Vector &x, Vector &k);
+   virtual void ImplicitSolve(const real_t dt, const Vector &x, Vector &k);
 
    virtual ~FE_Evolution();
 };
@@ -249,8 +249,8 @@ int main(int argc, char *argv[])
    bool fa = false;
    const char *device_config = "cpu";
    int ode_solver_type = 4;
-   double t_final = 10.0;
-   double dt = 0.01;
+   real_t t_final = 10.0;
+   real_t dt = 0.01;
    bool visualization = true;
    bool visit = false;
    bool paraview = false;
@@ -425,7 +425,7 @@ int main(int argc, char *argv[])
    }
 
    m->AddDomainIntegrator(new MassIntegrator);
-   constexpr double alpha = -1.0;
+   constexpr real_t alpha = -1.0;
    k->AddDomainIntegrator(new ConvectionIntegrator(velocity, alpha));
    k->AddInteriorFaceIntegrator(
       new NonconservativeDGTraceIntegrator(velocity, alpha));
@@ -566,14 +566,14 @@ int main(int argc, char *argv[])
    //     iterations, ti, with a time-step dt).
    FE_Evolution adv(*m, *k, *B, prec_type);
 
-   double t = 0.0;
+   real_t t = 0.0;
    adv.SetTime(t);
    ode_solver->Init(adv);
 
    bool done = false;
    for (int ti = 0; !done; )
    {
-      double dt_real = min(dt, t_final - t);
+      real_t dt_real = min(dt, t_final - t);
       ode_solver->Step(*U, t, dt_real);
       ti++;
 
@@ -704,7 +704,7 @@ FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
 //    u_t = M^{-1}(Ku + b),
 // by solving associated linear system
 //    (M - dt*K) d = K*u + b
-void FE_Evolution::ImplicitSolve(const double dt, const Vector &x, Vector &k)
+void FE_Evolution::ImplicitSolve(const real_t dt, const Vector &x, Vector &k)
 {
    K->Mult(x, z);
    z += b;
@@ -736,7 +736,7 @@ void velocity_function(const Vector &x, Vector &v)
    Vector X(dim);
    for (int i = 0; i < dim; i++)
    {
-      double center = (bb_min[i] + bb_max[i]) * 0.5;
+      real_t center = (bb_min[i] + bb_max[i]) * 0.5;
       X(i) = 2 * (x(i) - center) / (bb_max[i] - bb_min[i]);
    }
 
@@ -758,7 +758,7 @@ void velocity_function(const Vector &x, Vector &v)
       case 2:
       {
          // Clockwise rotation in 2D around the origin
-         const double w = M_PI/2;
+         const real_t w = M_PI/2;
          switch (dim)
          {
             case 1: v(0) = 1.0; break;
@@ -770,8 +770,8 @@ void velocity_function(const Vector &x, Vector &v)
       case 3:
       {
          // Clockwise twisting rotation in 2D around the origin
-         const double w = M_PI/2;
-         double d = max((X(0)+1.)*(1.-X(0)),0.) * max((X(1)+1.)*(1.-X(1)),0.);
+         const real_t w = M_PI/2;
+         real_t d = max((X(0)+1.)*(1.-X(0)),0.) * max((X(1)+1.)*(1.-X(1)),0.);
          d = d*d;
          switch (dim)
          {
@@ -785,7 +785,7 @@ void velocity_function(const Vector &x, Vector &v)
 }
 
 // Initial condition
-double u0_function(const Vector &x)
+real_t u0_function(const Vector &x)
 {
    int dim = x.Size();
 
@@ -793,7 +793,7 @@ double u0_function(const Vector &x)
    Vector X(dim);
    for (int i = 0; i < dim; i++)
    {
-      double center = (bb_min[i] + bb_max[i]) * 0.5;
+      real_t center = (bb_min[i] + bb_max[i]) * 0.5;
       X(i) = 2 * (x(i) - center) / (bb_max[i] - bb_min[i]);
    }
 
@@ -809,28 +809,28 @@ double u0_function(const Vector &x)
             case 2:
             case 3:
             {
-               double rx = 0.45, ry = 0.25, cx = 0., cy = -0.2, w = 10.;
+               real_t rx = 0.45, ry = 0.25, cx = 0., cy = -0.2, w = 10.;
                if (dim == 3)
                {
-                  const double s = (1. + 0.25*cos(2*M_PI*X(2)));
+                  const real_t s = (1. + 0.25*cos(2*M_PI*X(2)));
                   rx *= s;
                   ry *= s;
                }
-               return ( erfc(w*(X(0)-cx-rx))*erfc(-w*(X(0)-cx+rx)) *
-                        erfc(w*(X(1)-cy-ry))*erfc(-w*(X(1)-cy+ry)) )/16;
+               return ( std::erfc(w*(X(0)-cx-rx))*std::erfc(-w*(X(0)-cx+rx)) *
+                        std::erfc(w*(X(1)-cy-ry))*std::erfc(-w*(X(1)-cy+ry)) )/16;
             }
          }
       }
       case 2:
       {
-         double x_ = X(0), y_ = X(1), rho, phi;
-         rho = hypot(x_, y_);
+         real_t x_ = X(0), y_ = X(1), rho, phi;
+         rho = std::hypot(x_, y_);
          phi = atan2(y_, x_);
          return pow(sin(M_PI*rho),2)*sin(3*phi);
       }
       case 3:
       {
-         const double f = M_PI;
+         const real_t f = M_PI;
          return sin(f*X(0))*sin(f*X(1));
       }
    }
@@ -838,7 +838,7 @@ double u0_function(const Vector &x)
 }
 
 // Inflow boundary condition (zero for the problems considered in this example)
-double inflow_function(const Vector &x)
+real_t inflow_function(const Vector &x)
 {
    switch (problem)
    {
