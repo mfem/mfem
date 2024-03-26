@@ -543,6 +543,9 @@ protected:
    // Used in the methods FinalizeXXXMesh() and FinalizeTopology()
    void FinalizeCheck();
 
+   /// Used in Finalize() after the topology changes
+   virtual void UpdatedTopology() { }
+
    void Loader(std::istream &input, int generate_edges = 0,
                std::string parse_tag = "");
 
@@ -960,7 +963,8 @@ public:
 
    int AddBdrPoint(int v, int attr = 1);
 
-   void GenerateBoundaryElements();
+   virtual void GenerateBoundaryElements();
+
    /// Finalize the construction of a triangular Mesh.
    void FinalizeTriMesh(int generate_edges = 0, int refine = 0,
                         bool fix_orientation = true);

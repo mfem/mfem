@@ -106,6 +106,9 @@ protected:
    // Convert the local 'meshgen' to a global one.
    void ReduceMeshGen();
 
+   /// Used in Finalize() after the topology changes
+   void UpdatedTopology() override { FinalizeParTopo(); }
+
    // Determine sedge_ledge and sface_lface.
    void FinalizeParTopo();
 
@@ -645,6 +648,8 @@ public:
        Similarly, if type==Interior, only the true interior faces (including
        shared faces) are counted excluding all master non-conforming faces. */
    int GetNFbyType(FaceType type) const override;
+
+   void GenerateBoundaryElements() override;
 
    /// See the remarks for the serial version in mesh.hpp
    MFEM_DEPRECATED void ReorientTetMesh() override;

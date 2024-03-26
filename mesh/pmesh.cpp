@@ -1125,6 +1125,9 @@ void ParMesh::LoadSharedEntities(istream &input)
          group_squad.GetJ()[i] = i;
       }
    }
+
+   // Setup secondary parallel mesh data: sedge_ledge, sface_lface
+   FinalizeParTopo();
 }
 
 ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
@@ -1525,9 +1528,6 @@ void ParMesh::Finalize(bool refine, bool fix_orientation)
    meshgen = meshgen_save;
    // Note: if Mesh::Finalize() calls MarkTetMeshForRefinement() then the
    //       shared_trias have been rotated as necessary.
-
-   // Setup secondary parallel mesh data: sedge_ledge, sface_lface
-   FinalizeParTopo();
 }
 
 int ParMesh::GetLocalElementNum(long long global_element_num) const
@@ -3189,6 +3189,53 @@ int ParMesh::GetNFbyType(FaceType type) const
 {
    const_cast<ParMesh*>(this)->ExchangeFaceNbrData();
    return Mesh::GetNFbyType(type);
+}
+
+void ParMesh::GenerateBoundaryElements()
+{
+   for (auto &b : boundary)
+   {
+      FreeElement(b);
+   }
+
+   if (Dim == 3)
+   {
+      delete bel_to_edge;
+      bel_to_edge = NULL;
+   }
+
+   const Array<int> *s2l_face;
+   if (Dim == 1) { s2l_face = &svert_lvert; }
+   else if (Dim == 2) { s2l_face = &sedge_ledge; }
+   else { s2l_face = &sface_lface; }
+
+   // mark the shared local elements
+   Array<bool> l2s_marker(GetNumFaces());
+   l2s_marker = false;
+   for (int l : *s2l_face) { l2s_marker[l] = true; }
+
+   // count the 'NumOfBdrElements'
+   NumOfBdrElements = 0;
+   for (int i = 0; i < faces_info.Size(); i++)
+   {
+      const auto &fi = faces_info[i];
+      if (fi.Elem2No < 0 && !l2s_marker[i])
+      { ++NumOfBdrElements; }
+   }
+
+   // Add the boundary elements
+   boundary.SetSize(NumOfBdrElements);
+   be_to_face.SetSize(NumOfBdrElements);
+   for (int i = 0, j = 0; i < faces_info.Size(); i++)
+   {
+      if (faces_info[i].Elem2No < 0 && !l2s_marker[i])
+      {
+         boundary[j] = faces[i]->Duplicate(this);
+         be_to_face[j++] = i;
+      }
+   }
+
+   // Note: in 3D, 'bel_to_edge' is destroyed but it's not updated.
 }
 
 // shift cyclically 3 integers a, b, c, so that the smallest of

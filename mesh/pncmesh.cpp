@@ -923,6 +923,9 @@ void ParNCMesh::GetConformingSharedStructures(ParMesh &pmesh)
       entity_conf_group[ent].DeleteAll();
       entity_elem_local[ent].DeleteAll();
    }
+
+   // Setup secondary parallel mesh data: sedge_ledge, sface_lface
+   pmesh.FinalizeParTopo();
 }
 
 void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
