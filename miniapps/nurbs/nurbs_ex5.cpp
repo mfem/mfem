@@ -318,8 +318,8 @@ int main(int argc, char *argv[])
 
    // 11. Solve the linear system with MINRES.
    //     Check the norm of the unpreconditioned residual.
-   int maxIter(1000);
-   double rtol(1.e-6);
+   int maxIter(10000);
+   double rtol(1.e-10);
    double atol(1.e-10);
 
    chrono.Clear();
