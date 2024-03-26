@@ -558,12 +558,18 @@ HyperelasticOperator::HyperelasticOperator(ParFiniteElementSpace &f,
                                            Array<int> &ess_bdr, real_t visc,
                                            real_t mu, real_t K, bool use_petsc,
                                            bool use_petsc_factory)
-   : TimeDependentOperator(2*f.TrueVSize(), 0.0), fespace(f),
+   : TimeDependentOperator(2*f.TrueVSize(), static_cast<real_t>(0.0)), fespace(f),
      M(&fespace), S(&fespace), H(&fespace),
      viscosity(visc), M_solver(f.GetComm()),
      newton_solver(f.GetComm()), pnewton_solver(NULL), z(height/2)
 {
+#if defined(MFEM_USE_DOUBLE)
    const real_t rel_tol = 1e-8;
+   const real_t newton_abs_tol = 0.0;
+#elif defined(MFEM_USE_SINGLE)
+   const real_t rel_tol = 1e-3;
+   const real_t newton_abs_tol = 1e-4;
+#endif
    const int skip_zero_entries = 0;
 
    const real_t ref_density = 1.0; // density in the reference configuration
@@ -617,7 +623,7 @@ HyperelasticOperator::HyperelasticOperator(ParFiniteElementSpace &f,
       newton_solver.SetOperator(*reduced_oper);
       newton_solver.SetPrintLevel(1); // print Newton iterations
       newton_solver.SetRelTol(rel_tol);
-      newton_solver.SetAbsTol(0.0);
+      newton_solver.SetAbsTol(newton_abs_tol);
       newton_solver.SetMaxIter(10);
    }
    else
@@ -638,7 +644,7 @@ HyperelasticOperator::HyperelasticOperator(ParFiniteElementSpace &f,
       }
       pnewton_solver->SetPrintLevel(1); // print Newton iterations
       pnewton_solver->SetRelTol(rel_tol);
-      pnewton_solver->SetAbsTol(0.0);
+      pnewton_solver->SetAbsTol(newton_abs_tol);
       pnewton_solver->SetMaxIter(10);
    }
 }
@@ -705,7 +711,7 @@ real_t HyperelasticOperator::KineticEnergy(const ParGridFunction &v) const
 {
    real_t loc_energy = 0.5*M.InnerProduct(v, v);
    real_t energy;
-   MPI_Allreduce(&loc_energy, &energy, 1, MPI_DOUBLE, MPI_SUM,
+   MPI_Allreduce(&loc_energy, &energy, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
                  fespace.GetComm());
    return energy;
 }
