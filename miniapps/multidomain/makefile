@@ -25,7 +25,7 @@ MULTIDOMAIN_SRC = multidomain.cpp
 MULTIDOMAIN_OBJ = $(MULTIDOMAIN_SRC:.cpp=.o)
 
 SEQ_MINIAPPS =
-PAR_MINIAPPS = multidomain
+PAR_MINIAPPS = multidomain multidomain_nd multidomain_rt
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
