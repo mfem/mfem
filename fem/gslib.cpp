@@ -93,21 +93,6 @@ extern "C" {
 
 namespace mfem
 {
-dlong getHashSize3(const struct gslib::findpts_data_3 *fd,
-                   dlong nel, dlong max_hash_size)
-{
-   const gslib::findpts_local_data_3 *fd_local = &fd->local;
-   auto hash_data_copy = fd_local->hd;
-   return hash_opt_size_3(&hash_data_copy, fd_local->obb, nel, max_hash_size);
-}
-
-dlong getHashSize2(const struct gslib::findpts_data_2 *fd,
-                   dlong nel, dlong max_hash_size)
-{
-   const gslib::findpts_local_data_2 *fd_local = &fd->local;
-   auto hash_data_copy = fd_local->hd;
-   return hash_opt_size_2(&hash_data_copy, fd_local->obb, nel, max_hash_size);
-}
 
 FindPointsGSLIB::FindPointsGSLIB()
    : mesh(NULL),
@@ -247,7 +232,11 @@ void FindPointsGSLIB::Setup(Mesh &m, const double bb_t, const double newt_tol,
    {
       unsigned nr[2] = { dof1D, dof1D };
       unsigned mr[2] = { 2*dof1D, 2*dof1D };
-      double * const elx[2] = { &gsl_mesh(0), &gsl_mesh(mesh_points_cnt) };
+      double * const elx[2] =
+      {
+         mesh_points_cnt == 0 ? nullptr : &gsl_mesh(0),
+         mesh_points_cnt == 0 ? nullptr : &gsl_mesh(mesh_points_cnt)
+      };
       fdataD = findpts_setup_2(gsl_comm, elx, nr, NE_split_total, mr, bb_t,
                                DEV.local_hash_size,
                                mesh_points_cnt, npt_max, newt_tol);
@@ -257,7 +246,11 @@ void FindPointsGSLIB::Setup(Mesh &m, const double bb_t, const double newt_tol,
       unsigned nr[3] = { dof1D, dof1D, dof1D };
       unsigned mr[3] = { 2*dof1D, 2*dof1D, 2*dof1D };
       double * const elx[3] =
-      { &gsl_mesh(0), &gsl_mesh(mesh_points_cnt), &gsl_mesh(2*mesh_points_cnt) };
+      {
+         mesh_points_cnt == 0 ? nullptr : &gsl_mesh(0),
+         mesh_points_cnt == 0 ? nullptr : &gsl_mesh(mesh_points_cnt),
+         mesh_points_cnt == 0 ? nullptr : &gsl_mesh(2*mesh_points_cnt)
+      };
       fdataD = findpts_setup_3(gsl_comm, elx, nr, NE_split_total, mr, bb_t,
                                DEV.local_hash_size,
                                mesh_points_cnt, npt_max, newt_tol);
@@ -409,13 +402,26 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
    }
    else
    {
-      FindPointsLocal3(point_pos,
-                       point_pos_ordering,
-                       gsl_code_dev,
-                       gsl_elem_dev,
-                       gsl_ref,
-                       gsl_dist,
-                       points_cnt);
+      if (gpu_code == 1)
+      {
+         FindPointsLocal32(point_pos,
+                           point_pos_ordering,
+                           gsl_code_dev,
+                           gsl_elem_dev,
+                           gsl_ref,
+                           gsl_dist,
+                           points_cnt);
+      }
+      else
+      {
+         FindPointsLocal3(point_pos,
+                          point_pos_ordering,
+                          gsl_code_dev,
+                          gsl_elem_dev,
+                          gsl_ref,
+                          gsl_dist,
+                          points_cnt);
+      }
    }
 
    // TODO: Only transfer information for points found
@@ -486,7 +492,7 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
             x[d] = point_pos(idx);
          }
          *proc = id;
-         if (*code != 0)
+         if (*code != CODE_INTERNAL)
          {
             find_elsewhere++;
             const auto hi = dim == 2 ? hash_index_2(DEV.hash2, x) :
@@ -614,13 +620,26 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
       }
       else
       {
-         FindPointsLocal3(point_pos_l,
-                          point_pos_ordering,
-                          gsl_code_dev,
-                          gsl_elem_dev,
-                          gsl_ref_l,
-                          gsl_dist_l,
-                          n);
+         if (gpu_code == 1)
+         {
+            FindPointsLocal32(point_pos_l,
+                              point_pos_ordering,
+                              gsl_code_dev,
+                              gsl_elem_dev,
+                              gsl_ref_l,
+                              gsl_dist_l,
+                              n);
+         }
+         else
+         {
+            FindPointsLocal3(point_pos_l,
+                             point_pos_ordering,
+                             gsl_code_dev,
+                             gsl_elem_dev,
+                             gsl_ref_l,
+                             gsl_dist_l,
+                             n);
+         }
       }
 
       gsl_ref_l.HostReadWrite();
@@ -702,8 +721,6 @@ void FindPointsGSLIB::SetupDevice(MemoryType mt)
       DEV.hash2 = &findptsData2->hash;
    }
    DEV.cr = dim == 2 ? &findptsData2->cr : &findptsData3->cr;
-
-   const int mesh_pts_cnt = gsl_mesh.Size()/dim;
 
    gsl_mesh.UseDevice(true);
 
@@ -798,19 +815,9 @@ void FindPointsGSLIB::SetupDevice(MemoryType mt)
       DEV.hash_n = hash.hash_n;
    }
 
-   dlong hd_d_size = 0;
-   if (dim == 3)
-   {
-      hd_d_size = getHashSize3(findptsData3,
-                               NE_split_total,
-                               DEV.local_hash_size);
-   }
-   else
-   {
-      hd_d_size = getHashSize2(findptsData2,
-                               NE_split_total,
-                               DEV.local_hash_size);
-   }
+   dlong hd_d_size = dim == 2 ?
+                     findptsData2->local.hd.offset[(int)std::pow(DEV.hash_n, dim)] :
+                     findptsData3->local.hd.offset[(int)std::pow(DEV.hash_n, dim)];
 
    DEV.o_offset.SetSize(hd_d_size);
    auto p_o_offset = DEV.o_offset.HostWrite();
@@ -845,6 +852,496 @@ void FindPointsGSLIB::SetupDevice(MemoryType mt)
    DEV.info = -1;
 
    MFEM_DEVICE_SYNC;
+}
+
+Mesh* FindPointsGSLIB::GetBoundingBoxMesh(int type)
+{
+   MFEM_VERIFY(setupflag, "Call FindPointsGSLIB::Setup method first");
+
+   auto *findptsData3 = (gslib::findpts_data_3 *)this->fdataD;
+   auto *findptsData2 = (gslib::findpts_data_2 *)this->fdataD;
+
+   int myid = gsl_comm->id;
+   int save_rank = 0;
+   int nve   = dim == 2 ? 4 : 8;
+   int nel = 0;
+   int hash_l_n = dim == 2 ? findptsData2->local.hd.hash_n :
+                  findptsData3->local.hd.hash_n;
+   int hash_g_n = dim == 2 ? findptsData2->hash.hash_n :
+                  findptsData3->hash.hash_n;
+
+   if (type == 0 || type == 1)
+   {
+      nel = NE_split_total;
+   }
+   else if (type == 2)
+   {
+      nel = std::pow(hash_l_n, dim);
+   }
+   else if (type == 3)
+   {
+      nel = std::pow(hash_g_n, dim);
+   }
+
+   Vector hashlmin(dim), hashlmax(dim), dxyzl(dim);
+   for (int d = 0; d < dim; d++)
+   {
+      hashlmin[d] = dim == 2 ? findptsData2->local.hd.bnd[d].min :
+                    findptsData3->local.hd.bnd[d].min;
+      hashlmax[d] =  dim == 2 ? findptsData2->local.hd.bnd[d].max :
+                     findptsData3->local.hd.bnd[d].max;
+      dxyzl[d] = (hashlmax[d]-hashlmin[d])/hash_l_n;
+   }
+
+   Vector hashgmin(dim), hashgmax(dim), dxyzg(dim);
+   for (int d = 0; d < dim; d++)
+   {
+      hashgmin[d] = dim == 2 ? findptsData2->hash.bnd[d].min :
+                    findptsData3->hash.bnd[d].min;
+      hashgmax[d] =  dim == 2 ? findptsData2->hash.bnd[d].max :
+                     findptsData3->hash.bnd[d].max;
+      dxyzg[d] = (hashgmax[d]-hashgmin[d])/hash_g_n;
+   }
+
+   long long nel_l = nel;
+   long long nel_glob_l = nel_l;
+   int ne_glob;
+
+   if (type == 0 || type == 1 || type == 2)
+   {
+#ifdef MFEM_USE_MPI
+      MPI_Reduce(&nel_l, &nel_glob_l, 1, MPI_LONG_LONG, MPI_SUM, save_rank,
+                 gsl_comm->c);
+#endif
+      ne_glob = int(nel_glob_l);
+   }
+   else
+   {
+      ne_glob = nel;
+   }
+
+   int nverts = nve*ne_glob;
+   Vector o_xyz(dim*nel*nve);
+
+   Mesh *meshbb = NULL;
+   if (gsl_comm->id == save_rank)
+   {
+      meshbb = new Mesh(dim, nverts, ne_glob, 0, dim);
+   }
+
+   Array<int> hash_el_count(gsl_comm->np);
+   hash_el_count[0] = nel;
+
+   if (dim == 3)
+   {
+      for (int e = 0; e < nel; e++)
+      {
+         auto box = findptsData3->local.obb[e];
+         if (type == 0)
+         {
+            Vector minn(dim), maxx(dim);
+            for (int d = 0; d < dim; d++)
+            {
+               minn[d] = box.x[d].min;
+               maxx[d] = box.x[d].max;
+            }
+            int c = 0;
+            o_xyz(e*nve*dim + c++) = minn[0];
+            o_xyz(e*nve*dim + c++) = minn[1];
+            o_xyz(e*nve*dim + c++) = minn[2];
+
+            o_xyz(e*nve*dim + c++) = maxx[0];
+            o_xyz(e*nve*dim + c++) = minn[1];
+            o_xyz(e*nve*dim + c++) = minn[2];
+
+            o_xyz(e*nve*dim + c++) = maxx[0];
+            o_xyz(e*nve*dim + c++) = maxx[1];
+            o_xyz(e*nve*dim + c++) = minn[2];
+
+            o_xyz(e*nve*dim + c++) = minn[0];
+            o_xyz(e*nve*dim + c++) = maxx[1];
+            o_xyz(e*nve*dim + c++) = minn[2];
+
+            o_xyz(e*nve*dim + c++) = minn[0];
+            o_xyz(e*nve*dim + c++) = minn[1];
+            o_xyz(e*nve*dim + c++) = maxx[2];
+
+            o_xyz(e*nve*dim + c++) = maxx[0];
+            o_xyz(e*nve*dim + c++) = minn[1];
+            o_xyz(e*nve*dim + c++) = maxx[2];
+
+            o_xyz(e*nve*dim + c++) = maxx[0];
+            o_xyz(e*nve*dim + c++) = maxx[1];
+            o_xyz(e*nve*dim + c++) = maxx[2];
+
+            o_xyz(e*nve*dim + c++) = minn[0];
+            o_xyz(e*nve*dim + c++) = maxx[1];
+            o_xyz(e*nve*dim + c++) = maxx[2];
+         }
+         else if (type == 1)
+         {
+            Vector center(dim), A(dim*dim);
+            for (int d = 0; d < dim; d++)
+            {
+               center[d] = box.c0[d];
+            }
+            for (int d = 0; d < dim*dim; d++)
+            {
+               A[d] = box.A[d];
+            }
+
+            DenseMatrix Amat(A.GetData(), dim, dim);
+            Amat.Transpose();
+            Amat.Invert();
+
+            Vector v1(dim);
+            Vector temp;
+
+            v1(0) = -1.0; v1(1) = -1.0; v1(2) = -1.0;
+            temp.SetDataAndSize(o_xyz.GetData() + e*nve*dim + 0, dim);
+            Amat.Mult(v1, temp);
+            temp += center;
+
+            v1(0) = 1.0; v1(1) = -1.0; v1(2) = -1.0;
+            temp.SetDataAndSize(o_xyz.GetData() + e*nve*dim + 3, dim);
+            Amat.Mult(v1, temp);
+            temp += center;
+
+            v1(0) = 1.0; v1(1) = 1.0; v1(2) = -1.0;
+            temp.SetDataAndSize(o_xyz.GetData() + e*nve*dim + 6, dim);
+            Amat.Mult(v1, temp);
+            temp += center;
+
+            v1(0) = -1.0; v1(1) = 1.0; v1(2) = -1.0;
+            temp.SetDataAndSize(o_xyz.GetData() + e*nve*dim + 9, dim);
+            Amat.Mult(v1, temp);
+            temp += center;
+
+            v1(0) = -1.0; v1(1) = -1.0; v1(2) = 1.0;
+            temp.SetDataAndSize(o_xyz.GetData() + e*nve*dim + 0, dim);
+            Amat.Mult(v1, temp);
+            temp += center;
+
+            v1(0) = 1.0; v1(1) = -1.0; v1(2) = 1.0;
+            temp.SetDataAndSize(o_xyz.GetData() + e*nve*dim + 3, dim);
+            Amat.Mult(v1, temp);
+            temp += center;
+
+            v1(0) = 1.0; v1(1) = 1.0; v1(2) = 1.0;
+            temp.SetDataAndSize(o_xyz.GetData() + e*nve*dim + 6, dim);
+            Amat.Mult(v1, temp);
+            temp += center;
+
+            v1(0) = -1.0; v1(1) = 1.0; v1(2) = 1.0;
+            temp.SetDataAndSize(o_xyz.GetData() + e*nve*dim + 9, dim);
+            Amat.Mult(v1, temp);
+            temp += center;
+         } //type == 1
+      } // e < nel
+      if (type == 2)
+      {
+         int ec = 0;
+         for (int l = 0; l < hash_l_n; l++)
+         {
+            for (int k = 0; k < hash_l_n; k++)
+            {
+               for (int j = 0; j < hash_l_n; j++)
+               {
+                  double x0 = hashlmin[0] + j*dxyzl[0];
+                  double y0 = hashlmin[1] + k*dxyzl[1];
+                  double z0 = hashlmin[2] + l*dxyzl[2];
+                  o_xyz(ec*nve*dim + 0) = x0;
+                  o_xyz(ec*nve*dim + 1) = y0;
+                  o_xyz(ec*nve*dim + 2) = z0;
+
+                  o_xyz(ec*nve*dim + 3) = x0+dxyzl[0];
+                  o_xyz(ec*nve*dim + 4) = y0;
+                  o_xyz(ec*nve*dim + 5) = z0;
+
+                  o_xyz(ec*nve*dim + 6) = x0+dxyzl[0];
+                  o_xyz(ec*nve*dim + 7) = y0+dxyzl[1];
+                  o_xyz(ec*nve*dim + 8) = z0;
+
+                  o_xyz(ec*nve*dim + 9) = x0;
+                  o_xyz(ec*nve*dim + 10) = y0+dxyzl[1];
+                  o_xyz(ec*nve*dim + 11) = z0;
+
+                  o_xyz(ec*nve*dim + 12) = x0;
+                  o_xyz(ec*nve*dim + 13) = y0;
+                  o_xyz(ec*nve*dim + 14) = z0+dxyzl[2];
+
+                  o_xyz(ec*nve*dim + 15) = x0+dxyzl[0];
+                  o_xyz(ec*nve*dim + 16) = y0;
+                  o_xyz(ec*nve*dim + 17) = z0+dxyzl[2];
+
+                  o_xyz(ec*nve*dim + 18) = x0+dxyzl[0];
+                  o_xyz(ec*nve*dim + 19) = y0+dxyzl[1];
+                  o_xyz(ec*nve*dim + 20) = z0+dxyzl[2];
+
+                  o_xyz(ec*nve*dim + 21) = x0;
+                  o_xyz(ec*nve*dim + 22) = y0+dxyzl[1];
+                  o_xyz(ec*nve*dim + 23) = z0+dxyzl[2];
+
+                  ec++;
+               }
+            }
+         }
+      } //type == 2
+      else if (type == 3)
+      {
+         int ec = 0;
+         for (int l = 0; l < hash_g_n; l++)
+         {
+            for (int k = 0; k < hash_g_n; k++)
+            {
+               for (int j = 0; j < hash_g_n; j++)
+               {
+                  double x0 = hashgmin[0] + j*dxyzg[0];
+                  double y0 = hashgmin[1] + k*dxyzg[1];
+                  double z0 = hashgmin[2] + l*dxyzg[2];
+                  o_xyz(ec*nve*dim + 0) = x0;
+                  o_xyz(ec*nve*dim + 1) = y0;
+                  o_xyz(ec*nve*dim + 2) = z0;
+
+                  o_xyz(ec*nve*dim + 3) = x0+dxyzg[0];
+                  o_xyz(ec*nve*dim + 4) = y0;
+                  o_xyz(ec*nve*dim + 5) = z0;
+
+                  o_xyz(ec*nve*dim + 6) = x0+dxyzg[0];
+                  o_xyz(ec*nve*dim + 7) = y0+dxyzg[1];
+                  o_xyz(ec*nve*dim + 8) = z0;
+
+                  o_xyz(ec*nve*dim + 9) = x0;
+                  o_xyz(ec*nve*dim + 10) = y0+dxyzg[1];
+                  o_xyz(ec*nve*dim + 11) = z0;
+
+                  o_xyz(ec*nve*dim + 12) = x0;
+                  o_xyz(ec*nve*dim + 13) = y0;
+                  o_xyz(ec*nve*dim + 14) = z0+dxyzg[2];
+
+                  o_xyz(ec*nve*dim + 15) = x0+dxyzg[0];
+                  o_xyz(ec*nve*dim + 16) = y0;
+                  o_xyz(ec*nve*dim + 17) = z0+dxyzg[2];
+
+                  o_xyz(ec*nve*dim + 18) = x0+dxyzg[0];
+                  o_xyz(ec*nve*dim + 19) = y0+dxyzg[1];
+                  o_xyz(ec*nve*dim + 20) = z0+dxyzg[2];
+
+                  o_xyz(ec*nve*dim + 21) = x0;
+                  o_xyz(ec*nve*dim + 22) = y0+dxyzg[1];
+                  o_xyz(ec*nve*dim + 23) = z0+dxyzg[2];
+
+                  ec++;
+               }
+            }
+         }
+      }
+   }
+   else
+   {
+      for (int e = 0; e < nel; e++)
+      {
+         auto box = findptsData2->local.obb[e];
+         if (type == 0)
+         {
+            Vector minn(dim), maxx(dim);
+            for (int d = 0; d < dim; d++)
+            {
+               minn[d] = box.x[d].min;
+               maxx[d] = box.x[d].max;
+            }
+            o_xyz(e*nve*dim + 0) = minn[0];
+            o_xyz(e*nve*dim + 1) = minn[1];
+
+            o_xyz(e*nve*dim + 2) = maxx[0];
+            o_xyz(e*nve*dim + 3) = minn[1];
+
+            o_xyz(e*nve*dim + 4) = maxx[0];
+            o_xyz(e*nve*dim + 5) = maxx[1];
+
+            o_xyz(e*nve*dim + 6) = minn[0];
+            o_xyz(e*nve*dim + 7) = maxx[1];
+         }
+         else if (type == 1)
+         {
+            Vector center(dim), A(dim*dim);
+            for (int d = 0; d < dim; d++)
+            {
+               center[d] = box.c0[d];
+            }
+            for (int d = 0; d < dim*dim; d++)
+            {
+               A[d] = box.A[d];
+            }
+
+            DenseMatrix Amat(A.GetData(), dim, dim);
+            Amat.Transpose();
+            Amat.Invert();
+
+            Vector v1(dim);
+            Vector temp;
+
+            v1(0) = -1.0; v1(1) = -1.0;
+            temp.SetDataAndSize(o_xyz.GetData() + e*nve*dim + 0, dim);
+            Amat.Mult(v1, temp);
+            temp += center;
+
+            v1(0) = 1.0; v1(1) = -1.0;
+            temp.SetDataAndSize(o_xyz.GetData() + e*nve*dim + 2, dim);
+            Amat.Mult(v1, temp);
+            temp += center;
+
+            v1(0) = 1.0; v1(1) = 1.0;
+            temp.SetDataAndSize(o_xyz.GetData() + e*nve*dim + 4, dim);
+            Amat.Mult(v1, temp);
+            temp += center;
+
+            v1(0) = -1.0; v1(1) = 1.0;
+            temp.SetDataAndSize(o_xyz.GetData() + e*nve*dim + 6, dim);
+            Amat.Mult(v1, temp);
+            temp += center;
+         } //type == 1
+      } // e < nel
+      if (type == 2)
+      {
+         int ec = 0;
+         for (int k = 0; k < hash_l_n; k++)
+         {
+            for (int j = 0; j < hash_l_n; j++)
+            {
+               double x0 = hashlmin[0] + j*dxyzl[0];
+               double y0 = hashlmin[1] + k*dxyzl[1];
+               o_xyz(ec*nve*dim + 0) = x0;
+               o_xyz(ec*nve*dim + 1) = y0;
+
+               o_xyz(ec*nve*dim + 2) = x0+dxyzl[0];
+               o_xyz(ec*nve*dim + 3) = y0;
+
+               o_xyz(ec*nve*dim + 4) = x0+dxyzl[0];
+               o_xyz(ec*nve*dim + 5) = y0+dxyzl[1];
+
+               o_xyz(ec*nve*dim + 6) = x0;
+               o_xyz(ec*nve*dim + 7) = y0+dxyzl[1];
+
+               ec++;
+            }
+         }
+      }
+      else if (type == 3)
+      {
+         int ec = 0;
+         for (int k = 0; k < hash_g_n; k++)
+         {
+            for (int j = 0; j < hash_g_n; j++)
+            {
+               double x0 = hashgmin[0] + j*dxyzg[0];
+               double y0 = hashgmin[1] + k*dxyzg[1];
+               o_xyz(ec*nve*dim + 0) = x0;
+               o_xyz(ec*nve*dim + 1) = y0;
+
+               o_xyz(ec*nve*dim + 2) = x0+dxyzg[0];
+               o_xyz(ec*nve*dim + 3) = y0;
+
+               o_xyz(ec*nve*dim + 4) = x0+dxyzg[0];
+               o_xyz(ec*nve*dim + 5) = y0+dxyzg[1];
+
+               o_xyz(ec*nve*dim + 6) = x0;
+               o_xyz(ec*nve*dim + 7) = y0+dxyzg[1];
+
+               ec++;
+            }
+         }
+      }
+   }
+
+   int nsend = type == 3 ? 0 : nel*nve*dim;
+   int nrecv = 0;
+   MPI_Status status;
+   int vidx = 0;
+   int eidx = 0;
+   int proc_hash_loc_idx = 0;
+   if (myid == save_rank)
+   {
+      for (int p = 0; p < gsl_comm->np; p++)
+      {
+         if (p != save_rank)
+         {
+            MPI_Recv(&nrecv, 1, MPI_INT, p, 444, gsl_comm->c, &status);
+            o_xyz.SetSize(nrecv);
+            if (nrecv)
+            {
+               MPI_Recv(o_xyz.GetData(), nrecv, MPI_DOUBLE, p, 445, gsl_comm->c, &status);
+            }
+         }
+         else
+         {
+            nrecv = type == 3 ? nel*nve*dim : nsend;
+         }
+         int nel_recv = nrecv/(dim*nve);
+
+         // we keep track of how many hash cells are coming from each rank
+         if (p != save_rank)
+         {
+            hash_el_count[p] = hash_el_count[p-1] + nel_recv;
+         }
+         for (int e = 0; e < nel_recv; e++)
+         {
+            for (int j = 0; j < nve; j++)
+            {
+               Vector ver(o_xyz.GetData() + e*nve*dim + j*dim, dim);
+               meshbb->AddVertex(ver);
+            }
+
+            if (dim == 2)
+            {
+               const int inds[4] = {vidx++, vidx++, vidx++, vidx++};
+               int attr = eidx+1;
+               // for type == 2, we set element attribute based on the
+               // proc from which the element must have come.
+               if (type == 2)
+               {
+                  if (eidx >= hash_el_count[proc_hash_loc_idx])
+                  {
+                     proc_hash_loc_idx++;
+                  }
+                  attr = proc_hash_loc_idx+1;
+               }
+               else if (type == 3)
+               {
+                  attr = eidx % gsl_comm->np;
+                  attr += 1;
+               }
+               meshbb->AddQuad(inds, attr);
+               eidx++;
+            }
+            else
+            {
+               const int inds[8] = {vidx++, vidx++, vidx++, vidx++,
+                                    vidx++, vidx++, vidx++, vidx++
+                                   };
+               meshbb->AddHex(inds, (eidx++)+1);
+            }
+         }
+      }
+      if (dim == 2)
+      {
+         meshbb->FinalizeQuadMesh(1, 1, true);
+      }
+      else
+      {
+         meshbb->FinalizeHexMesh(1, 1, true);
+      }
+   }
+   else
+   {
+      MPI_Send(&nsend, 1, MPI_INT, save_rank, 444, gsl_comm->c);
+      if (nsend)
+      {
+         MPI_Send(o_xyz.GetData(), nsend, MPI_DOUBLE, save_rank, 445, gsl_comm->c);
+      }
+   }
+
+   return meshbb;
 }
 
 void FindPointsGSLIB::FindPoints(Mesh &m, const Vector &point_pos,
@@ -2136,7 +2633,11 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
 //   {
 //      unsigned nr[2] = { dof1D, dof1D };
 //      unsigned mr[2] = { 2*dof1D, 2*dof1D };
-//      double * const elx[2] = { &gsl_mesh(0), &gsl_mesh(pts_cnt) };
+//      double * const elx[2] =
+//      {
+//         pts_cnt == 0 ? nullptr : &gsl_mesh(0),
+//         pts_cnt == 0 ? nullptr : &gsl_mesh(pts_cnt)
+//      };
 //      fdata2D = findptsms_setup_2(gsl_comm, elx, nr, NEtot, mr, bb_t,
 //                                  pts_cnt, pts_cnt, npt_max, newt_tol,
 //                                  &u_meshid, &distfint(0));
@@ -2146,10 +2647,14 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
 //      unsigned nr[3] = { dof1D, dof1D, dof1D };
 //      unsigned mr[3] = { 2*dof1D, 2*dof1D, 2*dof1D };
 //      double * const elx[3] =
-//      { &gsl_mesh(0), &gsl_mesh(pts_cnt), &gsl_mesh(2*pts_cnt) };
-//      fdataD = findptsms_setup_3(gsl_comm, elx, nr, NEtot, mr, bb_t,
-//                                 pts_cnt, pts_cnt, npt_max, newt_tol,
-//                                 &u_meshid, &distfint(0));
+//      {
+//         pts_cnt == 0 ? nullptr : &gsl_mesh(0),
+//         pts_cnt == 0 ? nullptr : &gsl_mesh(pts_cnt),
+//         pts_cnt == 0 ? nullptr : &gsl_mesh(2*pts_cnt)
+//      };
+//      fdata3D = findptsms_setup_3(gsl_comm, elx, nr, NEtot, mr, bb_t,
+//                                  pts_cnt, pts_cnt, npt_max, newt_tol,
+//                                  &u_meshid, &distfint(0));
 //   }
 //   setupflag = true;
 //   overset   = true;

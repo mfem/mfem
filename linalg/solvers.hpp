@@ -169,10 +169,14 @@ protected:
 
    ///@}
 
-   /// Return the dot product of @a x and @a y
-   double Dot(const Vector &x, const Vector &y) const;
+   /** @brief Return the standard (l2, i.e., Euclidean) inner product of
+       @a x and @a y
+       @details Overriding this method in a derived class enables a
+       custom inner product.
+      */
+   virtual double Dot(const Vector &x, const Vector &y) const;
 
-   /// Return the 2-norm of @a x
+   /// Return the inner product norm of @a x, using the inner product defined by Dot()
    double Norm(const Vector &x) const { return sqrt(Dot(x, x)); }
 
    /// Monitor both the residual @a r and the solution @a x
@@ -192,11 +196,11 @@ public:
        @details While the convergence criterion is solver specific, most of the
        provided iterative solvers use one of the following criteria
 
-       \f$ ||r||_X \leq tol_{rel}||r_0||_X \f$,
+       $ ||r||_X \leq tol_{rel}||r_0||_X $,
 
-       \f$ ||r||_X \leq tol_{abs} \f$,
+       $ ||r||_X \leq tol_{abs} $,
 
-       \f$ ||r||_X \leq \max\{ tol_{abs}, tol_{rel} ||r_0||_X \} \f$,
+       $ ||r||_X \leq \max\{ tol_{abs}, tol_{rel} ||r_0||_X \} $,
 
        where X denotes the space in which the norm is measured. The choice of
        X depends on the specific iterative solver.

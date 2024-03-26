@@ -497,12 +497,12 @@ void ParFiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs,
    {
       bdr_elem_dof->GetRow(i, dofs);
 
-      if (DoFTransArray[mesh->GetBdrElementBaseGeometry(i)])
+      if (DoFTransArray[mesh->GetBdrElementGeometry(i)])
       {
          Array<int> Fo;
          bdr_elem_fos->GetRow(i, Fo);
          doftrans.SetDofTransformation(
-            *DoFTransArray[mesh->GetBdrElementBaseGeometry(i)]);
+            *DoFTransArray[mesh->GetBdrElementGeometry(i)]);
          doftrans.SetFaceOrientations(Fo);
          doftrans.SetVDim();
       }
