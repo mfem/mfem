@@ -212,7 +212,7 @@ TEST_CASE("H1 Assembly Levels", "[AssemblyLevel], [PartialAssembly], [CUDA]")
 
    SECTION("Nonconforming")
    {
-      // Test AMR cases (DG not implemented)
+      // Test AMR cases
       SECTION("AMR 2D")
       {
          auto order = !all_tests ? GENERATE(2, 3) : GENERATE(1, 2, 3);
@@ -268,9 +268,9 @@ TEST_CASE("L2 Assembly Levels", "[AssemblyLevel], [PartialAssembly], [CUDA]")
 
    SECTION("Nonconforming")
    {
-      // Full assembly DG not implemented on NCMesh
       auto assembly = GENERATE(AssemblyLevel::PARTIAL,
-                               AssemblyLevel::ELEMENT);
+                               AssemblyLevel::ELEMENT,
+                               AssemblyLevel::FULL);
 
       SECTION("AMR 2D")
       {
