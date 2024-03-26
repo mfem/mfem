@@ -51,5 +51,15 @@ if (MFEM_USE_MPI)
       COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
       ${MPIEXEC_PREFLAGS} $<TARGET_FILE:multidomain> -no-vis -tf 0.001
       ${MPIEXEC_POSTFLAGS})
+
+    add_test(NAME multidomain_nd_np${MFEM_MPI_NP}
+      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+      ${MPIEXEC_PREFLAGS} $<TARGET_FILE:multidomain_nd> -no-vis -tf 0.001
+      ${MPIEXEC_POSTFLAGS})
+
+    add_test(NAME multidomain_rt_np${MFEM_MPI_NP}
+      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+      ${MPIEXEC_PREFLAGS} $<TARGET_FILE:multidomain_rt> -no-vis -tf 0.001
+      ${MPIEXEC_POSTFLAGS})
   endif()
 endif()
