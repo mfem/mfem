@@ -642,8 +642,10 @@ void NURBS_HDiv3DFiniteElement::CalcVShape(ElementTransformation &Trans,
    {
       double sx = shape(i, 0);
       double sy = shape(i, 1);
-      shape(i, 0) = sx * J(0, 0) + sy * J(0, 1);
-      shape(i, 1) = sx * J(1, 0) + sy * J(1, 1);
+      double sz = shape(i, 2);
+      shape(i, 0) = sx * J(0, 0) + sy * J(0, 1) + sz * J(0, 2);
+      shape(i, 1) = sx * J(1, 0) + sy * J(1, 1) + sz * J(1, 2);
+      shape(i, 2) = sx * J(2, 0) + sy * J(2, 1) + sz * J(2, 2);
    }
    shape *= (1.0 / Trans.Weight());
 }
