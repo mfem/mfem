@@ -635,7 +635,7 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         true_obj *= 0.5;
         double test_obj = op.compute_obj(x);
         printf("objective test: yKy=%e, formula=%e, diff=%e\n", true_obj, test_obj, true_obj - test_obj);
-
+      
         double regularization = (H->InnerProduct(*uv, *uv));
 
         if (i == 0) {
@@ -684,13 +684,7 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         SparseMatrix *FinvH = Mult(*F, *invH);
         SparseMatrix *mMuFinvHFT = Add(op.get_mu(), *mFinvHFT, 0.0, *mFinvHFT);
         SparseMatrix *MuFinvH = Add(op.get_mu(), *FinvH, 0.0, *FinvH);
-        // SparseMatrix *CMat = Add(op.get_mu(), *mFinvHFT, 0.0, *mFinvHFT);
-
-        double scale = 1.0 / sqrt(mMuFinvHFT->MaxNorm());
-        // scale = 1.0;
-        SparseMatrix *CMat = Add(scale * scale, *mMuFinvHFT, 0.0, *mMuFinvHFT);
-        // // das without C
-        // SparseMatrix *CMat_ = Add(0.0, *mMuFinvHFT, 0.0, *mMuFinvHFT);
+        SparseMatrix *CMat = Add(- op.get_mu(), *mFinvHFT, 0.0, *mFinvHFT);
 
         Vector ones(pv.Size());
         Vector lump(pv.Size());
@@ -699,18 +693,12 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         ones = 1.0;
         AMat->Mult(ones, lump);
         double alpha_ = .001;
-        SparseMatrix *ApaI_app;
-        ApaI_app = new SparseMatrix(pv.Size(), pv.Size());
         invApaI = new SparseMatrix(pv.Size(), pv.Size());
         aI = new SparseMatrix(pv.Size(), pv.Size());
         for (int j = 0; j < pv.Size(); ++j) {
           // invApaI->Set(j, j, 1.0 / (alpha_ + lump(j)));
           // invApaI->Set(j, j, 1.0 / (alpha_ + (*AMat)(j, j)));
-
           invApaI->Set(j, j, 1.0 / (alpha_ + diag(j)));
-          // invApaI->Set(j, j, 1.0);
-          ApaI_app->Set(j, j, (alpha_ + diag(j)));
-          // ApaI_app->Set(j, j, 1.0);
           aI->Set(j, j, alpha_);
         }
         aI->Finalize();
@@ -721,8 +709,8 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         for (int j = 0; j < pv.Size(); ++j) {
           for (int k = 0; k < pv.Size(); ++k) {
             if (Ba(j) * Cy(k) != 0.0) {
-              CyBa->Set(j, k, Cy(j) * Ba(k) / Ca);
-              BaCy->Set(k, j, Cy(j) * Ba(k) / Ca);
+              CyBa->Set(j, k, Cy(j) * Ba(k));
+              BaCy->Set(k, j, Cy(j) * Ba(k));
             }
           }
         }
@@ -730,41 +718,15 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         BaCy->Finalize();
 
         SparseMatrix *ApaI = Add(1.0, *AMat, 1.0, *aI);
-        SparseMatrix *BMat = Add(scale, *ByT, -scale, *CyBa);
+        SparseMatrix *BMat = Add(1.0, *ByT, -1.0, *CyBa);
         SparseMatrix *BTMat = Transpose(*BMat);
-        // SparseMatrix *mBTMat = Add(-1.0, *BTMat, 0.0, *BTMat);
-        // SparseMatrix *BTMat = Transpose(*ByT);
-        // SparseMatrix *mBTMat = Add(-1.0, *BTMat, 0.0, *BTMat);
+        SparseMatrix *mBTMat = Add(-1.0, *BTMat, 0.0, *BTMat);
 
-        // C - B^T invApaI B
+        // C + B^T invApaI B
         SparseMatrix *op1 = Mult(*invApaI, *BMat);
-        SparseMatrix *op2 = Mult(*BTMat, *op1);
-        // das correct
+        SparseMatrix *op2 = Mult(*mBTMat, *op1);
         SparseMatrix *SC_op = Add(1.0, *CMat, -1.0, *op2);
-        // // das without C
-        // SparseMatrix *SC_op = Add(0.0, *op2, -1.0, *op2);
 
-
-        SparseMatrix *BiHarm = Mult(*BTMat, *BMat);
-
-        HypreParMatrix *BiHarm_Hypre = convert_to_hypre(BiHarm);
-        HypreBoomerAMG *BiHarm_AMG = new HypreBoomerAMG(*BiHarm_Hypre);
-        
-        CGSolver CGS;
-        CGS.SetAbsTol(1e-16);
-        CGS.SetRelTol(krylov_tol);
-        CGS.SetMaxIter(max_krylov_iter);
-        CGS.SetOperator(*BiHarm);
-        CGS.SetPreconditioner(*BiHarm_AMG);
-        CGS.SetPrintLevel(1);
-
-        CGS.Mult(b1, x);
-        if (true) {
-          return;
-        }
-        
-
-        
         /*
           dx1 = [dy; dp]
           dx2 = [da; dl]
@@ -776,42 +738,39 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         BlockOperator BlockSystem(row_offsets);
         BlockSystem.SetBlock(0, 0, AMat);
         BlockSystem.SetBlock(0, 1, BMat);
-        BlockSystem.SetBlock(1, 0, BTMat);
+        BlockSystem.SetBlock(1, 0, mBTMat);
         BlockSystem.SetBlock(1, 1, CMat);
 
         // Define rhs
         // rhs = [b3 + mu F H^{-1} b_2 - Ba b5 / Ca; b1 - Cy b4 / Ca]
         BlockVector rhs(row_offsets);
-        rhs = 0;
         add(1.0, b1, -b4 / Ca, Cy, rhs.GetBlock(0));
 
         MuFinvH->Mult(b2, rhs.GetBlock(1));
         rhs.GetBlock(1) += b3;
         add(1.0, rhs.GetBlock(1), - b5 / Ca, Ba, rhs.GetBlock(1));
-        rhs.GetBlock(1) *= scale;
-        
-        // rhs.GetBlock(1) *= -1.0;
+        rhs.GetBlock(1) *= -1.0;
 
         Solver *inv_ApaI, *inv_SC;
 
-        // HypreParMatrix * ApaI_Hypre = convert_to_hypre(ApaI);
+        HypreParMatrix * ApaI_Hypre = convert_to_hypre(ApaI);
         HypreParMatrix * SC_Hypre = convert_to_hypre(SC_op);
 
         //https://hypre.readthedocs.io/en/latest/api-sol-parcsr.html
-        // HypreBoomerAMG *ApaI_AMG = new HypreBoomerAMG(*ApaI_Hypre);
+        HypreBoomerAMG *ApaI_AMG = new HypreBoomerAMG(*ApaI_Hypre);
         HypreBoomerAMG *SC_AMG = new HypreBoomerAMG(*SC_Hypre);
         
         // 1: V cycle
         // 2: W cycle
-        // ApaI_AMG->SetPrintLevel(0);
-        // ApaI_AMG->SetCycleType(1);
-        // ApaI_AMG->SetCycleNumSweeps(1, 1);
-        // ApaI_AMG->SetMaxIter(3);
+        ApaI_AMG->SetPrintLevel(0);
+        ApaI_AMG->SetCycleType(1);
+        ApaI_AMG->SetCycleNumSweeps(1, 1);
+        ApaI_AMG->SetMaxIter(3);
 
         SC_AMG->SetPrintLevel(0);
         SC_AMG->SetCycleType(1);
         SC_AMG->SetCycleNumSweeps(1, 1);
-        SC_AMG->SetMaxIter(10);
+        SC_AMG->SetMaxIter(3);
 
         // inv_ApaI = ApaI_AMG;
         inv_SC = SC_AMG;
@@ -819,7 +778,7 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         GSSmoother ojs(*ApaI, 0, 2);
         inv_ApaI = &ojs;
         
-        SchurComplement SC(ApaI, BMat, BTMat, CMat, inv_ApaI);
+        SchurComplement SC(ApaI, BMat, mBTMat, CMat, inv_ApaI);
         SchurComplementInverse SCinv(&SC, inv_SC);
 
 
@@ -836,22 +795,21 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         // define preconditioner
         BlockDiagonalPreconditioner BlockPrec(row_offsets);
         BlockPrec.SetDiagonalBlock(0, &ApaIinv);
-        // BlockPrec.SetDiagonalBlock(1, &ApaIinv);
         BlockPrec.SetDiagonalBlock(1, &SCinv);
 
         // solve
         GMRESSolver solver;
-        // MINRESSolver solver;
         solver.SetAbsTol(1e-16);
         solver.SetRelTol(krylov_tol);
         solver.SetMaxIter(max_krylov_iter);
         solver.SetOperator(BlockSystem);
         solver.SetPreconditioner(BlockPrec);
         solver.SetKDim(kdim);
-        solver.SetPrintLevel(-1);
+        solver.SetPrintLevel(0);
 
         BlockVector dx(row_offsets);
         dx = 0.0;
+
 
         // DAS - test individual components
 
@@ -866,7 +824,7 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         
         solver.Mult(rhs, dx);
 
-        printf("ApaIinv average iterations:                        %d\n", ApaIinv.GetNumIterations());
+        printf("ApaIinv average iterations:                      %d\n", ApaIinv.GetNumIterations());
         printf("SchurComplement.SC average iterations:           %.2f\n", SC.GetAvgIterations());
         printf("SchurComplementInverse.SCinv average iterations: %.2f\n", SCinv.GetAvgIterations());
         printf("BlockOperator.BlockSystem iterations:            %d\n", solver.GetNumIterations());
@@ -885,8 +843,10 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
                       << " iterations. Residual norm is " << solver.GetFinalNorm()
                       << ".\n";
           }
+        // if (true) {
+        //   return;
+        // }
 
-        dx.GetBlock(1) *= scale;
         // get solution
         x += dx.GetBlock(0);
         pv += dx.GetBlock(1);
@@ -894,48 +854,15 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         invHFT->AddMult(dx.GetBlock(1), *uv);
         invH->AddMult(b2, *uv);
 
-        double dalpha = (b5 - (Cy * dx.GetBlock(0))) / Ca;
-        double dlv = (b4 - (Ba * dx.GetBlock(1))) / Ca;
-        alpha += dalpha;
-        lv += dlv;
+        alpha += (b5 - (Cy * dx.GetBlock(0))) / Ca;
+        lv += (b4 - (Ba * dx.GetBlock(1))) / Ca;
 
-        // calculate residuals
-        Vector res1(pv.Size());
-        res1 = 0.0;
-        AMat->AddMult(dx.GetBlock(0), res1);
-        ByT->AddMult(dx.GetBlock(1), res1);
-        add(res1, dlv, Cy, res1);
-        add(res1, -1.0, b1, res1);
-
-        Vector res2(pv.Size());
-        res2 = 0.0;
-        // BTMat->AddMult(dx.GetBlock(0), res2);
-        // CMat->AddMult(dx.GetBlock(1), res2);
-        // add(res2, -1.0, rhs.GetBlock(1), res2);
-        
-        mMuFinvHFT->AddMult(dx.GetBlock(1), res2);
-        MuFinvH->Mult(b2, res2);
-        res2 *= -1.0;
-        By.AddMult(dx.GetBlock(0), res2);
-        mMuFinvHFT->AddMult(dx.GetBlock(1), res2);
-        add(res2, dalpha, Ba, res2);
-        add(res2, -1.0, b3, res2);
-
-        double res3 = (Ba * dx.GetBlock(1)) + Ca * dlv - b4;
-        double res4 = (Cy * dx.GetBlock(0)) + Ca * dalpha - b5;
-
-        printf("res1: %.2e\n", GetMaxError(res1));
-        printf("res2: %.2e\n", GetMaxError(res2));
-        printf("res3: %.2e\n", res3);
-        printf("res4: %.2e\n", res4);
-
-          
         printf("currents: [");
         for (int i = 0; i < uv->Size(); ++i) {
           printf("%.3e ", (*uv)[i]);
         }
         printf("]\n");
-
+      
         x.Save("gf/xtmp.gf");
         char name[60];
         sprintf(name, "gf/xtmp_amr%d_i%d.gf", it_amr, i);
@@ -950,10 +877,6 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         Br_field.ProjectCoefficient(BrCoeff);
         Bp_field.ProjectCoefficient(BpCoeff);
         Bz_field.ProjectCoefficient(BzCoeff);
-
-        // if (true) {
-        //   return;
-        // }
 
         visit_dc.Save();
       }

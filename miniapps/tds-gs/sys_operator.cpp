@@ -514,17 +514,13 @@ void SysOperator::NonlinearEquationRes(GridFunction &psi, Vector *currents, doub
     Mat_Prelim->EliminateRow((boundary_dofs)[k], DIAG_ONE);
   }
 
+  By_symmetric = Add(1.0, *Mat_Prelim, 0.0, *Mat_Prelim);
   if (!include_plasma) {
     By = Add(1.0, *Mat_Prelim, 0.0, *Mat_Prelim);
   } else {
     By = Add(*Mat_Prelim, *psi_x_psi_ma_coeff_sp_mat);
   }
-  // By->Finalize();
 
-  // printf("----------*****----\n");
-  // By->PrintMatlab();
-  // ------------------------------------------------
-  // *** compute B_alpha ***
   
   // derivative with respect to alpha
   NonlinearGridCoefficient nlgcoeff_5(model, 5, &x, psi_ma, psi_x, plasma_inds, attr_lim);
@@ -569,176 +565,10 @@ void SysOperator::NonlinearEquationRes(GridFunction &psi, Vector *currents, doub
 }
 
 
-////////////////////////////////////////////////////////////////
 void SysOperator::Mult(const Vector &psi, Vector &y) const {
-  // diff_operator * psi - plasma_term(psi) * psi - coil_term
-  
-  GridFunction x(fespace);
-  x = psi;
-  // x.Save("x.gf");
-  model->set_alpha_bar(*alpha_bar);
-  
-  double val_ma, val_x;
-  int iprint = 0;
-  set<int> plasma_inds_;
-  compute_plasma_points(&x, *mesh, vertex_map, plasma_inds_, ind_ma, ind_x, val_ma, val_x, iprint);
-  psi_x = val_x;
-  psi_ma = val_ma;
-  plasma_inds = plasma_inds_;
-
-  double* x_ma_ = mesh->GetVertex(ind_ma);
-  double* x_x_ = mesh->GetVertex(ind_x);
-  x_ma = x_ma_;
-  x_x = x_x_;
-
-  NonlinearGridCoefficient nlgcoeff0(model, 0, &x, val_ma, val_x, plasma_inds, attr_lim);
-  GridFunction f(fespace);
-  f.ProjectCoefficient(nlgcoeff0);
-  f.Save("f.gf");
-  
-  NonlinearGridCoefficient nlgcoeff1(model, 1, &x, val_ma, val_x, plasma_inds, attr_lim);
-  if ((iprint) || (false)) {
-    printf(" val_ma: %f, val_x: %f \n", val_ma, val_x);
-    printf(" ind_ma: %d, ind_x: %d \n", ind_ma, ind_x);
-  }
-
-  // GridFunction pt(fespace);
-  // pt.ProjectCoefficient(nlgcoeff1);
-  // pt.Save("pt.gf");
-  
-  LinearForm plasma_term(fespace);
-  plasma_term.AddDomainIntegrator(new DomainLFIntegrator(nlgcoeff1));
-  plasma_term.Assemble();
-
-  Plasma_Current = plasma_term(ones);
-  Plasma_Current *= -1.0;
-  
-  // note: coil term no longer includes current contributions
-  // that is included in F matrix below...
-  diff_operator->Mult(psi, y);
-  // add(y, -1.0, *coil_term, y);
-  if (include_plasma) {
-    add(y, -1.0, plasma_term, y);
-  }
-
-  double weight = 1.0;
-  // F->AddMult(*uv_currents, y, -1.0 / weight);
-  F->AddMult(*uv_currents, y, -model->get_mu());
-
-  // deal with boundary conditions
-  Vector u_b_exact, u_tmp, u_b;
-  psi.GetSubVector(boundary_dofs, u_b);
-  u_tmp = u_b;
-  u_boundary->GetSubVector(boundary_dofs, u_b_exact);
-  u_tmp -= u_b_exact;
-  y.SetSubVector(boundary_dofs, u_tmp);
-
-  for (int k = 0; k < psi.Size(); ++k) {
-    y[k] *= hat[k];
-  }
 }
 
-
-
-
 Operator &SysOperator::GetGradient(const Vector &psi) const {
-  // diff_operator - sum_{i=1}^3 diff_plasma_term_i(psi)
-
-  delete Mat;
-  GridFunction x(fespace);
-  x = psi;
-  model->set_alpha_bar(*alpha_bar);
-
-  // first nonlinear contribution: bilinear operator
-  NonlinearGridCoefficient nlgcoeff_2(model, 2, &x, psi_ma, psi_x, plasma_inds, attr_lim);
-  BilinearForm diff_plasma_term_2(fespace);
-  diff_plasma_term_2.AddDomainIntegrator(new MassIntegrator(nlgcoeff_2));
-  // diff_plasma_term_2.EliminateEssentialBC(boundary_dofs, DIAG_ZERO);
-  diff_plasma_term_2.Assemble();
-
-  // second nonlinear contribution: corresponds to the magnetic axis point column in jacobian
-  NonlinearGridCoefficient nlgcoeff_3(model, 3, &x, psi_ma, psi_x, plasma_inds, attr_lim);
-  LinearForm diff_plasma_term_3(fespace);
-  diff_plasma_term_3.AddDomainIntegrator(new DomainLFIntegrator(nlgcoeff_3));
-  diff_plasma_term_3.Assemble();
-
-  // third nonlinear contribution: corresponds to the x-point column in jacobian
-  NonlinearGridCoefficient nlgcoeff_4(model, 4, &x, psi_ma, psi_x, plasma_inds, attr_lim);
-  LinearForm diff_plasma_term_4(fespace);
-  diff_plasma_term_4.AddDomainIntegrator(new DomainLFIntegrator(nlgcoeff_4));
-  diff_plasma_term_4.Assemble();
-
-  // turn diff_operator and diff_plasma_term_2 into sparse matrices
-  SparseMatrix M1 = diff_operator->SpMat();
-  SparseMatrix M2 = diff_plasma_term_2.SpMat();
-
-  M1.Finalize();
-  M2.Finalize();
-
-  // create a new sparse matrix, Mat, that will combine all terms
-  int m = fespace->GetTrueVSize();
-
-  // 
-  Mat = new SparseMatrix(m, m);
-  for (int k = 0; k < m; ++k) {
-    Mat->Add(k, ind_ma, -diff_plasma_term_3[k]);
-    Mat->Add(k, ind_x, -diff_plasma_term_4[k]);
-    // note, when no saddles are found, derivative is different?
-  }
-  Mat->Finalize();
-
-  SparseMatrix *Mat_;
-  if (!include_plasma) {
-    Mat_ = Add(1.0, M1, 0.0, M1);
-  } else {
-    Mat_ = Add(1.0, M1, -1.0, M2);
-  }
-  for (int k = 0; k < boundary_dofs.Size(); ++k) {
-    Mat_->EliminateRow((boundary_dofs)[k], DIAG_ONE);
-  }
-
-  SparseMatrix *Final;
-  if (!include_plasma) {
-    Final = Add(1.0, *Mat_, 0.0, *Mat_);
-  } else {
-    Final = Add(*Mat_, *Mat);
-  }
-
-  // what is this?
-  // for (int k = 0; k < psi.Size(); ++k) {
-  //   if (abs(psi[k]) > 1e-6) {
-  //     Final->EliminateRow(k, DIAG_ONE);
-  //   }
-  // }
-  
-  // Ip = int ...
-  // d_\psi ...
-  SparseMatrix *Mat_Plasma;
-  Mat_Plasma = Add(-1.0, *Mat, 1.0, M2);
-  GridFunction ones(fespace);
-  ones = 1.0;
-  Vector Plasma_Vec_(m);
-  Mat_Plasma->MultTranspose(ones, Plasma_Vec_);
-  Plasma_Vec_ *= -1.0;
-  Plasma_Vec = Plasma_Vec_;
-
-  // derivative with respect to alpha
-  NonlinearGridCoefficient nlgcoeff_5(model, 5, &x, psi_ma, psi_x, plasma_inds, attr_lim);
-
-  // int_{Omega} 1 / (mu r) \frac{d \bar{S}_{ff'}}{da} v dr dz
-  LinearForm diff_plasma_term_5(fespace);
-  diff_plasma_term_5.AddDomainIntegrator(new DomainLFIntegrator(nlgcoeff_5));
-  diff_plasma_term_5.Assemble();
-
-  B_alpha = diff_plasma_term_5;
-  B_alpha *= -1.0;
-
-  // - int_{Omega_p} 1 / (mu r) \frac{d \bar{S}_{ff'}}{da} dr dz
-  Alpha_Term = diff_plasma_term_5(ones);
-  Alpha_Term *= -1.0;
-  
-  return *Final;
-    
 }
 
 
@@ -768,6 +598,9 @@ void SchurComplement::Mult(const Vector &x, Vector &y) const {
   C->Mult(b, y);
 
   D->AddMult(x, y);
+
+  total_calls += 1;
+  total_iterations += solver.GetNumIterations();
 }
 
 void SchurComplementInverse::Mult(const Vector &x, Vector &y) const {
@@ -776,15 +609,11 @@ void SchurComplementInverse::Mult(const Vector &x, Vector &y) const {
   b = 0.0;
   solver.Mult(x, b);
   y = b;
+
+  total_calls += 1;
+  total_iterations += solver.GetNumIterations();
 }
 
-// void mFinvHFT::Mult(const Vector &k, Vector &y) const {
-//   // - F H^{-1} F^T
-//   F->MultTranspose(k, y);
-//   invH->Mult(y, y);
-//   F->Mult(y, y);
-//   add(-1.0, y, 0.0, y, y);
-// };
 
 void WoodburyInverse::Mult(const Vector &x, Vector &y) const {
   // (A + uv^T)^{-1} = A^{-1} - A^{-1} u v^T A^{-1} / (1 + v^T A^{-1} u)
@@ -795,6 +624,23 @@ void WoodburyInverse::Mult(const Vector &x, Vector &y) const {
   // A_prec->Mult(x, a);
   a = 0.0;
   solver.Mult(x, a);
+
+  add(1.0, a, - scale * ((*V) * a) / (1.0 + scale * dot), b, y);
+
+  total_calls += 1;
+  total_iterations += solver.GetNumIterations();
+};
+
+
+void WoodburyInversePC::Mult(const Vector &x, Vector &y) const {
+  // (A + uv^T)^{-1} = A^{-1} - A^{-1} u v^T A^{-1} / (1 + v^T A^{-1} u)
+  //
+  // A^{-1} x = a
+  // A^{-1} u = b
+
+  // A_prec->Mult(x, a);
+  a = 0.0;
+  A_prec->Mult(x, a);
 
   add(1.0, a, - scale * ((*V) * a) / (1.0 + scale * dot), b, y);
 };

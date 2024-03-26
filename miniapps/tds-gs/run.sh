@@ -35,8 +35,8 @@ do_initial=0
 # linear solver parameters
 max_krylov_iter=10000
 max_newton_iter=8
-krylov_tol=1e-9 # check this...
-newton_tol=1e-12
+krylov_tol=1e-6
+newton_tol=1e-8
 
 # poloidal flux coils
 c6=-4.552585e+06

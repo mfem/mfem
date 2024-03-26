@@ -1,3 +1,61 @@
+true
+currents: [-7.272e+07 6.247e+07 -5.715e+07 1.666e+07 -2.994e+07 2.504e+06 2.299e+06 7.134e+05 -5.160e+06 2.467e+07 -3.668e+07 ]
+-0.260
+-0.042
+
+currents: [7.042e+09 -1.475e+10 1.704e+10 -1.067e+10 8.247e+09 6.118e+09 -1.486e+10 -1.541e+08 -3.243e+09 -3.400e+09 3.886e+09 ]
+-0.437
+-0.014
+
+
+currents: [-2.792e+09 -4.338e+08 4.354e+09 6.545e+09 2.628e+09 8.727e+08 6.859e+08 -1.102e+09 7.839e+08 -1.976e+09 1.086e+08 ]
+-0.065
+0.005
+
+
+
+
+gs_backup2.cpp (11/11, before symmetric preconditioner)
+
+
+AMG(ByT_plus_MuKinvAFinvHFT_min_CyBa)
+W(5, 5)
+WoodburyInverse.Ainv average iterations:         16.19
+SchurComplement.SC average iterations:           15.88
+SchurComplementInverse.SCinv average iterations: 42.27
+BlockOperator.BlockSystem iterations:            14
+
+AMG(ByT)
+W(5, 5)
+WoodburyInverse.Ainv average iterations:         16.19
+SchurComplement.SC average iterations:           15.88
+SchurComplementInverse.SCinv average iterations: 42.27
+BlockOperator.BlockSystem iterations:            14
+
+AMG(ByT)
+V(5, 5)
+WoodburyInverse.Ainv average iterations:         16.12
+SchurComplement.SC average iterations:           15.88
+SchurComplementInverse.SCinv average iterations: 42.27
+BlockOperator.BlockSystem iterations:            14
+
+
+AMG(ByT)
+V(10, 10)
+WoodburyInverse.Ainv average iterations:         16.12
+SchurComplement.SC average iterations:           15.80
+SchurComplementInverse.SCinv average iterations: 33.73
+BlockOperator.BlockSystem iterations:            14
+
+AMG(ByT)
+V(20, 20)
+WoodburyInverse.Ainv average iterations:         16.06
+SchurComplement.SC average iterations:           15.65
+SchurComplementInverse.SCinv average iterations: 29.07
+BlockOperator.BlockSystem iterations:            14
+
+
+
 time elapsed: 315.264785 seconds
 
 time elapsed: 244.677483 seconds

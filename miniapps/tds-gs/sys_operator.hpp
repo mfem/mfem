@@ -66,14 +66,12 @@ private:
   GridFunction res;
   GridFunction Ba;
   GridFunction Cy;
-  // Vector res;
-  // Vector Ba;
-  // Vector Cy;
   SparseMatrix *By;
+  SparseMatrix *By_symmetric;
   double plasma_current;
   double Ca;
   double obj_weight = 1.0;
-  
+
   
 public:
   SysOperator(BilinearForm *diff_operator_, LinearForm *coil_term_,
@@ -221,6 +219,7 @@ public:
   Vector get_res() {return res;}
   // GridFunction* get_res() {return res;}
   SparseMatrix get_By() {return *By;}
+  SparseMatrix get_By_symmetric() {return *By_symmetric;}
   Vector get_Ba() {return Ba;}
   double get_plasma_current() {return plasma_current;}
   Vector get_Cy() {return Cy;}
@@ -269,8 +268,11 @@ private:
   const Operator *B;
   const Operator *A;
   Solver *A_prec;
-  GMRESSolver solver;
+  // GMRESSolver solver;
+  CGSolver solver;
   mutable Vector a, b;
+  mutable int total_iterations=0;
+  mutable int total_calls=0;
   
 public:
   SchurComplement(Operator *A_, Operator *B_, Operator *C_, Operator *D_, Solver *A_prec_) :
@@ -280,19 +282,19 @@ public:
     width = A->Height();
     height = A->Height();
 
-    double krylov_tol = 1e-12;
-    double krylov_tol_light = 1e-12;
+    double krylov_tol = 1e-4;
     int max_krylov_iter = 1000;
     int kdim = 1000;
-    
+
     solver.SetAbsTol(0.0);
     solver.SetRelTol(krylov_tol);
     solver.SetMaxIter(max_krylov_iter);
     solver.SetOperator(*A);
     solver.SetPreconditioner(*A_prec);
-    solver.SetKDim(kdim);
-    solver.SetPrintLevel(0);
-    
+    // solver.SetKDim(kdim);
+    solver.SetPrintLevel(1);
+    // solver.SetMaxIter(40);
+
     Vector a_(A->Height());
     Vector b_(A->Height());
     a_ = 0.0;
@@ -302,6 +304,10 @@ public:
 
   }
 
+  double GetAvgIterations() const {
+    return ((double) total_iterations) / ((double) total_calls);
+  }
+  
   virtual void Mult(const Vector &k, Vector &y) const;
 
   virtual ~SchurComplement() {}
@@ -316,6 +322,8 @@ private:
   Solver *SC_prec;
   GMRESSolver solver;
   mutable Vector a, b;
+  mutable int total_iterations=0;
+  mutable int total_calls=0;
   
 public:
   SchurComplementInverse(SchurComplement *SC_, Solver *SC_prec_) :
@@ -325,8 +333,7 @@ public:
     width = SC->Height();
     height = SC->Height();
 
-    double krylov_tol = 1e-12;
-    double krylov_tol_light = 1e-12;
+    double krylov_tol = 1e-8;
     int max_krylov_iter = 1000;
     int kdim = 1000;
     
@@ -336,7 +343,8 @@ public:
     solver.SetOperator(*SC_);
     solver.SetPreconditioner(*SC_prec_);
     solver.SetKDim(kdim);
-    solver.SetPrintLevel(0);
+    solver.SetPrintLevel(-1);
+    // solver.SetMaxIter(40);
     
     Vector a_(SC->Height());
     Vector b_(SC->Height());
@@ -346,37 +354,14 @@ public:
     a = a_;
 
   }
-
+  double GetAvgIterations() const {
+    return ((double) total_iterations) / ((double) total_calls);
+  }
+  
   virtual void Mult(const Vector &k, Vector &y) const;
 
   virtual ~SchurComplementInverse() {}
 };
-
-
-
-
-// /*
-//   -F H^{-1} F^T
-//  */
-// class mMuFinvHFT : public Operator{
-// private:
-//   const SparseMatrix *F;
-//   const SparseMatrix *invH;
-
-// public:
-//   //set parameters
-//   mFinvHFT(SparseMatrix *F_, SparseMatrix *invH_) :
-//     F(F_), invH(invH_)
-//   {
-//     width = F_->Height();
-//     height = F_->Height();
-//   }
-
-//   // set action
-//   virtual void Mult(const Vector &k, Vector &y) const;
-
-//   virtual ~mFinvHFT() {}
-// };
 
 
 class WoodburyInverse : public Operator {
@@ -388,6 +373,10 @@ private:
   GMRESSolver solver;
   mutable Vector a, b;
   double dot;
+
+  mutable int total_iterations=0;
+  mutable int total_calls=0;
+  
 public:
   // set parameters
   WoodburyInverse(SparseMatrix *A_, Solver *A_prec_, Vector *U_, Vector *V_, double scale_) :
@@ -396,8 +385,8 @@ public:
     width = U_->Size();
     height = U_->Size();
 
-    double krylov_tol = 1e-12;
-    double krylov_tol_light = 1e-12;
+    double krylov_tol = 1e-8;
+    double krylov_tol_light = 1e-8;
     int max_krylov_iter = 1000;
     int kdim = 1000;
 
@@ -416,18 +405,8 @@ public:
 
     solver.Mult(*U, b_);
 
-    if (solver.GetConverged())
-      {
-        std::cout << "GMRES converged in " << solver.GetNumIterations()
-                  << " iterations with a residual norm of "
-                  << solver.GetFinalNorm() << ".\n";
-      }
-    else
-      {
-        std::cout << "GMRES did not converge in " << solver.GetNumIterations()
-                  << " iterations. Residual norm is " << solver.GetFinalNorm()
-                  << ".\n";
-      }
+    total_calls += 1;
+    total_iterations += solver.GetNumIterations();
 
     b = b_;
     a = a_;
@@ -437,10 +416,50 @@ public:
     dot = (*V) * b;
   }
 
+  double GetAvgIterations() const {
+    return ((double) total_iterations) / ((double) total_calls);
+  }
+
   // set action
   virtual void Mult(const Vector &k, Vector &y) const;
 
   virtual ~WoodburyInverse() {}
+};
+
+
+class WoodburyInversePC : public Solver {
+private:
+  Solver *A_prec;
+  const Vector *U, *V;
+  const double scale;
+  mutable Vector a, b;
+  double dot;
+
+public:
+  // set parameters
+  WoodburyInversePC(Solver *A_prec_, Vector *U_, Vector *V_, double scale_) :
+    A_prec(A_prec_), U(U_), V(V_), scale(scale_)
+  {
+    width = U_->Size();
+    height = U_->Size();
+
+    Vector a_(U_->Size());
+    Vector b_(U_->Size());
+    a_ = 0.0;
+    b_ = 0.0;
+
+    A_prec->Mult(*U, b_);
+
+    b = b_;
+    a = a_;
+
+    dot = (*V) * b;
+  }
+
+  // set action
+  virtual void Mult(const Vector &k, Vector &y) const;
+  virtual void SetOperator(const Operator &op) {};
+  virtual ~WoodburyInversePC() {}
 };
 
 
