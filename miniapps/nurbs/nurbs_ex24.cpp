@@ -148,6 +148,7 @@ int main(int argc, char *argv[])
          trial_fec = new NURBS_HDivFECollection(order, dim);
          test_fec  = new NURBSFECollection(order);
       }
+      mfem::out<<"Create NURBS fec and ext"<<std::endl;
    }
    else
    {
@@ -338,7 +339,7 @@ int main(int argc, char *argv[])
    }
    else
    {
-      int order_quad = max(2, 2*order+1);
+      int order_quad = max(3, 2*order+1);
       const IntegrationRule *irs[Geometry::NumGeom];
       for (int i=0; i < Geometry::NumGeom; ++i)
       {
