@@ -143,10 +143,10 @@ int main(int argc, char *argv[])
    FiniteElementCollection *hdiv_coll(new RT_FECollection(order, dim));
    FiniteElementCollection *l2_coll(new L2_FECollection(order, dim));
 
-   FiniteElementSpace *R_space = new FiniteElementSpace(mesh, hdiv_coll);
+   FiniteElementSpace *V_space = new FiniteElementSpace(mesh, hdiv_coll);
    FiniteElementSpace *W_space = new FiniteElementSpace(mesh, l2_coll);
 
-   DarcyForm *darcy = new DarcyForm(R_space, W_space);
+   DarcyForm *darcy = new DarcyForm(V_space, W_space);
 
    // 6. Define the BlockStructure of the problem, i.e. define the array of
    //    offsets for each variable. The last component of the Array is the sum
@@ -185,7 +185,7 @@ int main(int argc, char *argv[])
    BlockVector x(block_offsets, mt), rhs(block_offsets, mt);
 
    LinearForm *fform(new LinearForm);
-   fform->Update(R_space, rhs.GetBlock(0), 0);
+   fform->Update(V_space, rhs.GetBlock(0), 0);
    //fform->AddDomainIntegrator(new VectorFEDomainLFIntegrator(fcoeff));
    //fform->AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(fnatcoeff));
    fform->Assemble();
@@ -207,22 +207,22 @@ int main(int argc, char *argv[])
    //                                [ B   0  ]
    //     where:
    //
-   //     M = \int_\Omega k u_h \cdot v_h d\Omega   u_h, v_h \in R_h
-   //     B   = -\int_\Omega \div u_h q_h d\Omega   u_h \in R_h, q_h \in W_h
-   //BilinearForm *mVarf(new BilinearForm(R_space));
-   //MixedBilinearForm *bVarf(new MixedBilinearForm(R_space, W_space));
-   BilinearForm *mVarf = darcy->GetFluxMassForm();
-   MixedBilinearForm *bVarf = darcy->GetFluxDivForm();
+   //     M = \int_\Omega k u_h \cdot v_h d\Omega   q_h, v_h \in V_h
+   //     B   = -\int_\Omega \div u_h q_h d\Omega   q_h \in V_h, w_h \in W_h
+   //BilinearForm *Mq(new BilinearForm(V_space));
+   //MixedBilinearForm *B(new MixedBilinearForm(V_space, W_space));
+   BilinearForm *Mq = darcy->GetFluxMassForm();
+   MixedBilinearForm *B = darcy->GetFluxDivForm();
 
-   //if (pa) { mVarf->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   mVarf->AddDomainIntegrator(new VectorFEMassIntegrator(ikcoeff));
-   //mVarf->Assemble();
-   //if (!pa) { mVarf->Finalize(); }
+   //if (pa) { Mq->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   Mq->AddDomainIntegrator(new VectorFEMassIntegrator(ikcoeff));
+   //Mq->Assemble();
+   //if (!pa) { Mq->Finalize(); }
 
-   //if (pa) { bVarf->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   bVarf->AddDomainIntegrator(new VectorFEDivergenceIntegrator);
-   //bVarf->Assemble();
-   //if (!pa) { bVarf->Finalize(); }
+   //if (pa) { B->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   B->AddDomainIntegrator(new VectorFEDivergenceIntegrator);
+   //B->Assemble();
+   //if (!pa) { B->Finalize(); }
 
    //set hybridization / assembly level
 
@@ -230,7 +230,7 @@ int main(int argc, char *argv[])
    /*Array<int> bdr_is_ess(mesh->bdr_attributes.Max());
    bdr_is_ess = 0;
    bdr_is_ess[3] = -1;
-   R_space->GetEssentialTrueDofs(bdr_is_ess, ess_flux_tdofs_list);*/
+   V_space->GetEssentialTrueDofs(bdr_is_ess, ess_flux_tdofs_list);*/
 
    FiniteElementCollection *trace_coll = NULL;
    FiniteElementSpace *trace_space = NULL;
@@ -259,16 +259,16 @@ int main(int argc, char *argv[])
 
    /*if (pa)
    {
-      Bt = new TransposeOperator(bVarf);
+      Bt = new TransposeOperator(B);
 
-      darcyOp.SetBlock(0,0, mVarf);
+      darcyOp.SetBlock(0,0, Mq);
       darcyOp.SetBlock(0,1, Bt, -1.0);
-      darcyOp.SetBlock(1,0, bVarf, -1.0);
+      darcyOp.SetBlock(1,0, B, -1.0);
    }
    else
    {
-      SparseMatrix &M(mVarf->SpMat());
-      SparseMatrix &B(bVarf->SpMat());
+      SparseMatrix &M(Mq->SpMat());
+      SparseMatrix &B(B->SpMat());
       B *= -1.;
       Bt = new TransposeOperator(&B);
 
@@ -278,11 +278,11 @@ int main(int argc, char *argv[])
    }*/
 
    OperatorHandle pDarcyOp;
-   Vector X, B;
+   Vector X, RHS;
    //x = 1./ny;
    //darcy->FormSystemMatrix(ess_flux_tdofs_list, pDarcyOp);
    darcy->FormLinearSystem(ess_flux_tdofs_list, x, rhs,
-                           pDarcyOp, X, B);
+                           pDarcyOp, X, RHS);
 
    chrono.Stop();
    std::cout << "Assembly took " << chrono.RealTime() << "s.\n";
@@ -313,7 +313,7 @@ int main(int argc, char *argv[])
       solver.SetPreconditioner(prec);
       solver.SetPrintLevel(1);
 
-      solver.Mult(B, X);
+      solver.Mult(RHS, X);
       darcy->RecoverFEMSolution(X, rhs, x);
 
       chrono.Stop();
@@ -342,7 +342,7 @@ int main(int argc, char *argv[])
       //     Here we use Symmetric Gauss-Seidel to approximate the inverse of the
       //     temperature Schur Complement
       SparseMatrix *MinvBt = NULL;
-      Vector Md(mVarf->Height());
+      Vector Md(Mq->Height());
 
       BlockDiagonalPreconditioner darcyPrec(block_offsets);
       Solver *invM, *invS;
@@ -350,16 +350,16 @@ int main(int argc, char *argv[])
 
       if (pa)
       {
-         mVarf->AssembleDiagonal(Md);
+         Mq->AssembleDiagonal(Md);
          auto Md_host = Md.HostRead();
-         Vector invMd(mVarf->Height());
-         for (int i=0; i<mVarf->Height(); ++i)
+         Vector invMd(Mq->Height());
+         for (int i=0; i<Mq->Height(); ++i)
          {
             invMd(i) = 1.0 / Md_host[i];
          }
 
-         Vector BMBt_diag(bVarf->Height());
-         bVarf->AssembleDiagonal_ADAt(invMd, BMBt_diag);
+         Vector BMBt_diag(B->Height());
+         B->AssembleDiagonal_ADAt(invMd, BMBt_diag);
 
          Array<int> ess_tdof_list;  // empty
 
@@ -368,21 +368,21 @@ int main(int argc, char *argv[])
       }
       else
       {
-         SparseMatrix &M(mVarf->SpMat());
-         M.GetDiag(Md);
+         SparseMatrix &Mm(Mq->SpMat());
+         Mm.GetDiag(Md);
          Md.HostReadWrite();
 
-         SparseMatrix &B(bVarf->SpMat());
-         MinvBt = Transpose(B);
+         SparseMatrix &Bm(B->SpMat());
+         MinvBt = Transpose(Bm);
 
          for (int i = 0; i < Md.Size(); i++)
          {
             MinvBt->ScaleRow(i, 1./Md(i));
          }
 
-         S = Mult(B, *MinvBt);
+         S = Mult(Bm, *MinvBt);
 
-         invM = new DSmoother(M);
+         invM = new DSmoother(Mm);
 
 #ifndef MFEM_USE_SUITESPARSE
          invS = new GSSmoother(*S);
@@ -410,7 +410,7 @@ int main(int argc, char *argv[])
       solver.SetPreconditioner(darcyPrec);
       solver.SetPrintLevel(1);
 
-      solver.Mult(B, X);
+      solver.Mult(RHS, X);
       darcy->RecoverFEMSolution(X, rhs, x);
 
       if (device.IsEnabled()) { x.HostRead(); }
@@ -439,7 +439,7 @@ int main(int argc, char *argv[])
 
    // 12. Create the grid functions q and t. Compute the L2 error norms.
    GridFunction q, t;
-   q.MakeRef(R_space, x.GetBlock(0), 0);
+   q.MakeRef(V_space, x.GetBlock(0), 0);
    t.MakeRef(W_space, x.GetBlock(1), 0);
 
    int order_quad = max(2, 2*order+1);
@@ -510,11 +510,11 @@ int main(int argc, char *argv[])
    // 17. Free the used memory.
    delete fform;
    delete gform;
-   //delete mVarf;
-   //delete bVarf;
+   //delete Mq;
+   //delete B;
    delete darcy;
    delete W_space;
-   delete R_space;
+   delete V_space;
    delete trace_space;
    delete l2_coll;
    delete hdiv_coll;
