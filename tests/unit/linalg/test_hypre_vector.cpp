@@ -103,7 +103,7 @@ TEST_CASE("HypreParVector Move Constructor", "[Parallel], [HypreParVector]")
    HypreParVector v1_copy(v1);
 
    // Also save off the data pointer
-   double* v1_data = v1.GetData();
+   real_t* v1_data = v1.GetData();
 
    // Now move from the original and compare
    HypreParVector v1_move(std::move(v1));
@@ -144,7 +144,7 @@ TEST_CASE("HypreParVector Move Assignment", "[Parallel], [HypreParVector]")
    HypreParVector v1_copy(v1);
 
    // Also save off the data pointer
-   double* v1_data = v1.GetData();
+   real_t* v1_data = v1.GetData();
 
    // Now move from the original and compare
    HypreParVector v1_move;

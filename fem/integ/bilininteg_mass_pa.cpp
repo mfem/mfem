@@ -77,8 +77,8 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
          {
             MFEM_FOREACH_THREAD(qy,y,Q1D)
             {
-               const double detJ = J(qx,qy,e);
-               const double coeff = const_c ? C(0,0,0) : C(qx,qy,e);
+               const real_t detJ = J(qx,qy,e);
+               const real_t coeff = const_c ? C(0,0,0) : C(qx,qy,e);
                v(qx,qy,e) =  W(qx,qy) * coeff * (by_val ? detJ : 1.0/detJ);
             }
          }
@@ -103,8 +103,8 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
             {
                MFEM_FOREACH_THREAD(qz,z,Q1D)
                {
-                  const double detJ = J(qx,qy,qz,e);
-                  const double coeff = const_c ? C(0,0,0,0) : C(qx,qy,qz,e);
+                  const real_t detJ = J(qx,qy,qz,e);
+                  const real_t coeff = const_c ? C(0,0,0,0) : C(qx,qy,qz,e);
                   v(qx,qy,qz,e) = W(qx,qy,qz) * coeff * (by_val ? detJ : 1.0/detJ);
                }
             }
@@ -155,8 +155,8 @@ void MassIntegrator::AssemblePABoundary(const FiniteElementSpace &fes)
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            const double detJ = J(qx,e);
-            const double coeff = const_c ? C(0,0) : C(qx,e);
+            const real_t detJ = J(qx,e);
+            const real_t coeff = const_c ? C(0,0) : C(qx,e);
             v(qx,e) =  W(qx) * coeff * (by_val ? detJ : 1.0/detJ);
          }
       });
@@ -174,8 +174,8 @@ void MassIntegrator::AssemblePABoundary(const FiniteElementSpace &fes)
          {
             MFEM_FOREACH_THREAD(qy,y,Q1D)
             {
-               const double detJ = J(qx,qy,e);
-               const double coeff = const_c ? C(0,0,0) : C(qx,qy,e);
+               const real_t detJ = J(qx,qy,e);
+               const real_t coeff = const_c ? C(0,0,0) : C(qx,qy,e);
                v(qx,qy,e) =  W(qx,qy) * coeff * (by_val ? detJ : 1.0/detJ);
             }
          }

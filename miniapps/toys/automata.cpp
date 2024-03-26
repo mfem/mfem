@@ -196,6 +196,6 @@ void ProjectStep(const vector<bool> & b, GridFunction & x, int ns, int s)
 {
    for (int i=0; i<2*ns-1; i++)
    {
-      x[s*(2*ns-1)+i] = (double)b[i];
+      x[s*(2*ns-1)+i] = (real_t)b[i];
    }
 }

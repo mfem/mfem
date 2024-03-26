@@ -61,7 +61,7 @@ Mesh MakeCartesianNonaligned(const int dim, const int ne)
    // Remap vertices so that the mesh is not aligned with axes.
    for (int i=0; i<mesh.GetNV(); ++i)
    {
-      double *vcrd = mesh.GetVertex(i);
+      real_t *vcrd = mesh.GetVertex(i);
       vcrd[1] += 0.2 * vcrd[0];
       if (dim == 3) { vcrd[2] += 0.3 * vcrd[0]; }
    }
@@ -69,7 +69,7 @@ Mesh MakeCartesianNonaligned(const int dim, const int ne)
    return mesh;
 }
 
-double zero_field(const Vector &x)
+real_t zero_field(const Vector &x)
 {
    MFEM_CONTRACT_VAR(x);
    return 0.0;
@@ -87,7 +87,7 @@ void non_solenoidal_field2d(const Vector &x, Vector &u)
    u(1) = -x(0) + x(1);
 }
 
-double div_non_solenoidal_field2d(const Vector &x)
+real_t div_non_solenoidal_field2d(const Vector &x)
 {
    return 1.0 + x(1);
 }
@@ -106,14 +106,14 @@ void non_solenoidal_field3d(const Vector &x, Vector &u)
    u(2) = x(2)*x(2);
 }
 
-double div_non_solenoidal_field3d(const Vector &x)
+real_t div_non_solenoidal_field3d(const Vector &x)
 {
    return 2*(x(0) + x(1) + x(2));
 }
 
 void pa_divergence_testnd(int dim,
                           void (*f1)(const Vector &, Vector &),
-                          double (*divf1)(const Vector &))
+                          real_t (*divf1)(const Vector &))
 {
    Mesh mesh = MakeCartesianNonaligned(dim, 2);
    int order = 4;
@@ -211,9 +211,9 @@ TEST_CASE("PA VectorDivergence", "[PartialAssembly], [CUDA]")
    }
 }
 
-double f1(const Vector &x)
+real_t f1(const Vector &x)
 {
-   double r = pow(x(0),2);
+   real_t r = pow(x(0),2);
    if (x.Size() >= 2) { r += pow(x(1), 3); }
    if (x.Size() >= 3) { r += pow(x(2), 4); }
    return r;
@@ -227,7 +227,7 @@ void gradf1(const Vector &x, Vector &u)
 }
 
 void pa_gradient_testnd(int dim, FECType fec_type,
-                        double (*f1)(const Vector &),
+                        real_t (*f1)(const Vector &),
                         void (*gradf1)(const Vector &, Vector &))
 {
    Mesh mesh = MakeCartesianNonaligned(dim, 2);
@@ -302,7 +302,7 @@ TEST_CASE("PA Gradient", "[PartialAssembly], [CUDA]")
    }
 }
 
-double test_nl_convection_nd(int dim)
+real_t test_nl_convection_nd(int dim)
 {
    Mesh mesh = MakeCartesianNonaligned(dim, 2);
    int order = 2;
@@ -323,7 +323,7 @@ double test_nl_convection_nd(int dim)
    nlf_pa.Mult(x, y_pa);
 
    y_fa -= y_pa;
-   double difference = y_fa.Norml2();
+   real_t difference = y_fa.Norml2();
 
 
    return difference;
@@ -343,7 +343,7 @@ TEST_CASE("Nonlinear Convection", "[PartialAssembly], [NonlinearPA], [CUDA]")
 }
 
 template <typename INTEGRATOR>
-double test_vector_pa_integrator(int dim)
+real_t test_vector_pa_integrator(int dim)
 {
    Mesh mesh = MakeCartesianNonaligned(dim, 2);
    int order = 2;
@@ -366,7 +366,7 @@ double test_vector_pa_integrator(int dim)
    blf_pa.Mult(x, y_pa);
 
    y_fa -= y_pa;
-   double difference = y_fa.Norml2();
+   real_t difference = y_fa.Norml2();
 
    return difference;
 }
