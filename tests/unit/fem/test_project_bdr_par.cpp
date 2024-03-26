@@ -63,14 +63,15 @@ TEST_CASE("ProjectBdrCoefficient", "[Parallel]")
    ParFiniteElementSpace h1fes(&par_mesh, &h1fec);
 
    ParGridFunction gf(&h1fes);
+   gf = 0.0;
 
-   ConstantCoefficient coeff(123.456);
 
    int par_bdr_max = par_mesh.bdr_attributes.Max();
 
    Array<int> all_bdr(par_bdr_max);
    all_bdr = 1;
 
+   ConstantCoefficient coeff(123.456);
    gf.ProjectBdrCoefficient(coeff, all_bdr);
 
    // We projected a value to all interior and exterior boundary elements.
