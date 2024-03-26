@@ -687,7 +687,7 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         // SparseMatrix *CMat = Add(op.get_mu(), *mFinvHFT, 0.0, *mFinvHFT);
 
         double scale = 1.0 / sqrt(mMuFinvHFT->MaxNorm());
-        // scale = 1.0;
+        // double scale = 1.0;
         SparseMatrix *CMat = Add(scale * scale, *mMuFinvHFT, 0.0, *mMuFinvHFT);
         // // das without C
         // SparseMatrix *CMat_ = Add(0.0, *mMuFinvHFT, 0.0, *mMuFinvHFT);
@@ -745,23 +745,23 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         // SparseMatrix *SC_op = Add(0.0, *op2, -1.0, *op2);
 
 
-        SparseMatrix *BiHarm = Mult(*BTMat, *BMat);
+        // SparseMatrix *BiHarm = Mult(*BTMat, *BMat);
 
-        HypreParMatrix *BiHarm_Hypre = convert_to_hypre(BiHarm);
-        HypreBoomerAMG *BiHarm_AMG = new HypreBoomerAMG(*BiHarm_Hypre);
+        // HypreParMatrix *BiHarm_Hypre = convert_to_hypre(BiHarm);
+        // HypreBoomerAMG *BiHarm_AMG = new HypreBoomerAMG(*BiHarm_Hypre);
         
-        CGSolver CGS;
-        CGS.SetAbsTol(1e-16);
-        CGS.SetRelTol(krylov_tol);
-        CGS.SetMaxIter(max_krylov_iter);
-        CGS.SetOperator(*BiHarm);
-        CGS.SetPreconditioner(*BiHarm_AMG);
-        CGS.SetPrintLevel(1);
+        // CGSolver CGS;
+        // CGS.SetAbsTol(1e-16);
+        // CGS.SetRelTol(krylov_tol);
+        // CGS.SetMaxIter(max_krylov_iter);
+        // CGS.SetOperator(*BiHarm);
+        // CGS.SetPreconditioner(*BiHarm_AMG);
+        // CGS.SetPrintLevel(1);
 
-        CGS.Mult(b1, x);
-        if (true) {
-          return;
-        }
+        // CGS.Mult(b1, x);
+        // if (true) {
+        //   return;
+        // }
         
 
         
@@ -792,15 +792,29 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         
         // rhs.GetBlock(1) *= -1.0;
 
-        Solver *inv_ApaI, *inv_SC;
+        Solver *inv_ApaI, *inv_SC, *inv_BlockMatrix;
 
-        // HypreParMatrix * ApaI_Hypre = convert_to_hypre(ApaI);
+        HypreParMatrix * ApaI_Hypre = convert_to_hypre(ApaI);
+        HypreParMatrix * AMat_Hypre = convert_to_hypre(AMat);
+        HypreParMatrix * BMat_Hypre = convert_to_hypre(BMat);
+        HypreParMatrix * BTMat_Hypre = convert_to_hypre(BTMat);
+        HypreParMatrix * CMat_Hypre = convert_to_hypre(CMat);
+
+        Array2D<HypreParMatrix *> Block(2, 2);
+        // Block(0, 0) = AMat_Hypre;
+        Block(0, 0) = ApaI_Hypre;
+        Block(0, 1) = BMat_Hypre;
+        Block(1, 0) = BTMat_Hypre;
+        Block(1, 1) = CMat_Hypre;
+
+        HypreParMatrix * BlockMatrix_Hypre = HypreParMatrixFromBlocks(Block);
         HypreParMatrix * SC_Hypre = convert_to_hypre(SC_op);
 
         //https://hypre.readthedocs.io/en/latest/api-sol-parcsr.html
         // HypreBoomerAMG *ApaI_AMG = new HypreBoomerAMG(*ApaI_Hypre);
         HypreBoomerAMG *SC_AMG = new HypreBoomerAMG(*SC_Hypre);
-        
+        HypreBoomerAMG *BlockMatrix_AMG = new HypreBoomerAMG(*SC_Hypre);
+
         // 1: V cycle
         // 2: W cycle
         // ApaI_AMG->SetPrintLevel(0);
@@ -813,15 +827,20 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         SC_AMG->SetCycleNumSweeps(1, 1);
         SC_AMG->SetMaxIter(10);
 
+        BlockMatrix_AMG->SetPrintLevel(0);
+        BlockMatrix_AMG->SetCycleType(1);
+        BlockMatrix_AMG->SetCycleNumSweeps(1, 1);
+        BlockMatrix_AMG->SetMaxIter(10);
+
         // inv_ApaI = ApaI_AMG;
         inv_SC = SC_AMG;
+        inv_BlockMatrix = BlockMatrix_AMG;
 
         GSSmoother ojs(*ApaI, 0, 2);
         inv_ApaI = &ojs;
-        
+
         SchurComplement SC(ApaI, BMat, BTMat, CMat, inv_ApaI);
         SchurComplementInverse SCinv(&SC, inv_SC);
-
 
         CGSolver ApaIinv;
         ApaIinv.SetAbsTol(1e-16);
@@ -847,6 +866,7 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         solver.SetMaxIter(max_krylov_iter);
         solver.SetOperator(BlockSystem);
         solver.SetPreconditioner(BlockPrec);
+        // solver.SetPreconditioner(*inv_BlockMatrix);
         solver.SetKDim(kdim);
         solver.SetPrintLevel(-1);
 

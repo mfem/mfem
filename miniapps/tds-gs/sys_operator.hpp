@@ -292,7 +292,7 @@ public:
     solver.SetOperator(*A);
     solver.SetPreconditioner(*A_prec);
     // solver.SetKDim(kdim);
-    solver.SetPrintLevel(1);
+    solver.SetPrintLevel(-1);
     // solver.SetMaxIter(40);
 
     Vector a_(A->Height());
@@ -401,7 +401,7 @@ public:
     solver.SetOperator(*A);
     solver.SetPreconditioner(*A_prec);
     solver.SetKDim(kdim);
-    solver.SetPrintLevel(0);
+    solver.SetPrintLevel(-1);
 
     solver.Mult(*U, b_);
 
