@@ -257,7 +257,8 @@ int main(int argc, char *argv[])
       if (use_nonoverlapping)
       {
          ParFiniteElementSpace *prec_fespace =
-            (a->StaticCondensationIsEnabled() ? a->SCParFESpace() : fespace);
+            (a->StaticCondensationIsEnabled() ? a->SCParFESpace() :
+             (hfes ? NULL : fespace));
 
          // Auxiliary class for BDDC customization
          PetscBDDCSolverParams opts;
