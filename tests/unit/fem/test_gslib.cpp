@@ -374,17 +374,16 @@ TEST_CASE("GSLIBGSOP",  "[GSLIBGSOP][Parallel][GSLIB]")
    int myid;
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
-   Array<long long> ids(5);
-   Vector vals(5);
+   int nlen = 10;
+   Array<long long> ids(nlen);
+   Vector vals(nlen);
    vals.Randomize(myid+1);
-
-   int range = 6;
 
    // Force minimum values based on the identifier for deterministic behavior
    // on rank 0 and randomize the identifier on other ranks.
    if (myid == 0)
    {
-      for (int i = 0; i < 5; i++)
+      for (int i = 0; i < nlen; i++)
       {
          ids[i] = i+1;
          vals(i) = -ids[i];
@@ -392,9 +391,9 @@ TEST_CASE("GSLIBGSOP",  "[GSLIBGSOP][Parallel][GSLIB]")
    }
    else
    {
-      for (int i = 0; i < 5; i++)
+      for (int i = 0; i < nlen; i++)
       {
-         int num = rand() % range + 1;
+         int num = rand() % nlen + 1;
          ids[i] = num;
       }
    }
@@ -404,7 +403,7 @@ TEST_CASE("GSLIBGSOP",  "[GSLIBGSOP][Parallel][GSLIB]")
    gs.GS(vals, GSOPGSLIB::GSOp::MIN);
 
    // Check for minimum value
-   for (int i = 0; i < 5; i++)
+   for (int i = 0; i < nlen; i++)
    {
       int id = ids[i];
       REQUIRE(vals(i) == -1.0*id);
@@ -416,7 +415,7 @@ TEST_CASE("GSLIBGSOP",  "[GSLIBGSOP][Parallel][GSLIB]")
    gs.GS(vals, GSOPGSLIB::GSOp::ADD);
 
    // Check for added value to match what was originally set on rank 0.
-   for (int i = 0; i < 5; i++)
+   for (int i = 0; i < nlen; i++)
    {
       int id = ids[i];
       REQUIRE(vals(i) == -1.0*id);
@@ -428,7 +427,7 @@ TEST_CASE("GSLIBGSOP",  "[GSLIBGSOP][Parallel][GSLIB]")
    gs.GS(vals, GSOPGSLIB::GSOp::MUL);
 
    // Check for multipled values to be negative
-   for (int i = 0; i < 5; i++)
+   for (int i = 0; i < nlen; i++)
    {
       REQUIRE(vals(i) < 0);
    }
