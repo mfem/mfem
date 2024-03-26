@@ -2898,7 +2898,11 @@ HypreParMatrix * RAP(const HypreParMatrix *A, const HypreParMatrix *P)
       hypre_ParCSRMatrixOwnsColStarts((hypre_ParCSRMatrix*)(*P));
 #endif
 
+#if MFEM_HYPRE_VERSION < 21900
    hypre_BoomerAMGBuildCoarseOperator(*P,*A,*P,&rap);
+#else
+   rap = hypre_ParCSRMatrixRAP(*P,*A,*P);
+#endif
 
 #if MFEM_HYPRE_VERSION <= 22200
    /* Warning: hypre_BoomerAMGBuildCoarseOperator steals the col_starts
@@ -2937,7 +2941,11 @@ HypreParMatrix * RAP(const HypreParMatrix * Rt, const HypreParMatrix *A,
       hypre_ParCSRMatrixOwnsColStarts((hypre_ParCSRMatrix*)(*Rt));
 #endif
 
+#if MFEM_HYPRE_VERSION < 21900
    hypre_BoomerAMGBuildCoarseOperator(*Rt,*A,*P,&rap);
+#else
+   rap = hypre_ParCSRMatrixRAP(*Rt,*A,*P);
+#endif
 
 #if MFEM_HYPRE_VERSION <= 22200
    /* Warning: hypre_BoomerAMGBuildCoarseOperator steals the col_starts
