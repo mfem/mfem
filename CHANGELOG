@@ -11,6 +11,12 @@
 Version 4.6.1 (development)
 ===========================
 
+Meshing improvements
+--------------------
+- Introduced formulas for refinement of patches in NURBS meshes. Refinement by
+  arbitrary integer factors is also enabled, e.g. in the mesh-explorer miniapp.
+  NURBS coarsening and knot removal are also introduced.
+
 Discretization improvements
 ---------------------------
 - Introduced support for higher order non conformal Nedelec elements on
@@ -49,6 +55,9 @@ Miscellaneous
 - Improved thread safety for global variables in the library, for example
   IntegrationRules IntRules, RefinedIntRules, GeometryRefiner
   GlobGeometryRefiner, and FiniteElement::dof2quad_array.
+
+- RAJA backend will use seq_exec for serial loop execution when RAJA
+  v2023.06.00 and beyond is detected as loop_exec is deprecated.
 
 
 Version 4.6, released on September 27, 2023
