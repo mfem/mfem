@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -56,7 +56,7 @@ class DSmoother : public SparseSmoother
 {
 protected:
    int type; // 0, 1, 2 - scaled Jacobi, scaled l1-Jacobi, scaled lumped-Jacobi
-   double scale;
+   real_t scale;
    int iterations;
    /// Uses abs values of the diagonal entries. Relevant only when type = 0.
    bool use_abs_diag = false;
@@ -65,11 +65,11 @@ protected:
 
 public:
    /// Create Jacobi smoother.
-   DSmoother(int t = 0, double s = 1., int it = 1)
+   DSmoother(int t = 0, real_t s = 1., int it = 1)
    { type = t; scale = s; iterations = it; }
 
    /// Create Jacobi smoother.
-   DSmoother(const SparseMatrix &a, int t = 0, double s = 1., int it = 1);
+   DSmoother(const SparseMatrix &a, int t = 0, real_t s = 1., int it = 1);
 
    /// Replace diag entries with their abs values. Relevant only when type = 0.
    void SetPositiveDiagonal(bool pos_diag = true) { use_abs_diag = pos_diag; }

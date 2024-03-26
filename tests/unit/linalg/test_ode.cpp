@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -17,7 +17,7 @@ using namespace mfem;
 
 TEST_CASE("First order ODE methods", "[ODE]")
 {
-   double tol = 0.1;
+   real_t tol = 0.1;
 
    // Class for simple linear first order ODE.
    //    du/dt  + a u = 0
@@ -27,7 +27,8 @@ TEST_CASE("First order ODE methods", "[ODE]")
       DenseMatrix A,I,T;
       Vector r;
    public:
-      ODE(double a00,double a01,double a10,double a11) : TimeDependentOperator(2, 0.0)
+      ODE(real_t a00,real_t a01,real_t a10,real_t a11) :
+         TimeDependentOperator(2, (real_t) 0.0)
       {
          A.SetSize(2,2);
          I.SetSize(2,2);
@@ -49,7 +50,7 @@ TEST_CASE("First order ODE methods", "[ODE]")
          dudt.Neg();
       }
 
-      virtual void ImplicitSolve(const double dt, const Vector &u, Vector &dudt)
+      virtual void ImplicitSolve(const real_t dt, const Vector &u, Vector &dudt)
       {
          // Residual
          A.Mult(u,r);
@@ -73,7 +74,7 @@ TEST_CASE("First order ODE methods", "[ODE]")
    protected:
       int ti_steps,levels;
       Vector u0;
-      double t_final,dt;
+      real_t t_final,dt;
       ODE *oper;
    public:
       CheckODE()
@@ -86,16 +87,16 @@ TEST_CASE("First order ODE methods", "[ODE]")
          u0    = 1.0;
 
          t_final = M_PI;
-         dt = t_final/double(ti_steps);
+         dt = t_final/real_t(ti_steps);
       };
 
-      void init_hist(ODESolver* ode_solver,double dt_)
+      void init_hist(ODESolver* ode_solver,real_t dt_)
       {
          int nstate = ode_solver->GetStateSize();
 
          for (int s = 0; s< nstate; s++)
          {
-            double t = -(s)*dt_;
+            real_t t = -(s)*dt_;
             Vector uh(2);
             uh[0] = -cos(t) - sin(t);
             uh[1] =  cos(t) - sin(t);
@@ -103,15 +104,15 @@ TEST_CASE("First order ODE methods", "[ODE]")
          }
       }
 
-      double order(ODESolver* ode_solver, bool init_hist_ = false)
+      real_t order(ODESolver* ode_solver, bool init_hist_ = false)
       {
-         double dt_order,t;
+         real_t dt_order,t;
          Vector u(2);
          Vector error(levels);
          int steps = ti_steps;
 
          t = 0.0;
-         dt_order = t_final/double(steps);
+         dt_order = t_final/real_t(steps);
          u = u0;
          ode_solver->Init(*oper);
          if (init_hist_) { init_hist(ode_solver,dt_order); }
@@ -189,61 +190,61 @@ TEST_CASE("First order ODE methods", "[ODE]")
    // Implicit L-stable methods
    SECTION("BackwardEuler")
    {
-      double conv_rate = check.order(new BackwardEulerSolver);
+      real_t conv_rate = check.order(new BackwardEulerSolver);
       REQUIRE(conv_rate + tol > 1.0);
    }
 
    SECTION("SDIRK23Solver(2)")
    {
-      double conv_rate = check.order(new SDIRK23Solver(2));
+      real_t conv_rate = check.order(new SDIRK23Solver(2));
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("SDIRK33Solver")
    {
-      double conv_rate = check.order(new SDIRK33Solver);
+      real_t conv_rate = check.order(new SDIRK33Solver);
       REQUIRE(conv_rate + tol > 3.0);
    }
 
    SECTION("ForwardEulerSolver")
    {
-      double conv_rate = check.order(new ForwardEulerSolver);
+      real_t conv_rate = check.order(new ForwardEulerSolver);
       REQUIRE(conv_rate + tol > 1.0);
    }
 
    SECTION("RK2Solver(0.5)")
    {
-      double conv_rate = check.order(new RK2Solver(0.5));
+      real_t conv_rate = check.order(new RK2Solver(0.5));
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("RK3SSPSolver")
    {
-      double conv_rate = check.order(new RK3SSPSolver);
+      real_t conv_rate = check.order(new RK3SSPSolver);
       REQUIRE(conv_rate + tol > 3.0);
    }
 
    SECTION("RK4Solver")
    {
-      double conv_rate = check.order(new RK4Solver);
+      real_t conv_rate = check.order(new RK4Solver);
       REQUIRE(conv_rate + tol > 4.0);
    }
 
    SECTION("ImplicitMidpointSolver")
    {
-      double conv_rate = check.order(new ImplicitMidpointSolver);
+      real_t conv_rate = check.order(new ImplicitMidpointSolver);
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("SDIRK23Solver")
    {
-      double conv_rate = check.order(new SDIRK23Solver);
+      real_t conv_rate = check.order(new SDIRK23Solver);
       REQUIRE(conv_rate + tol > 3.0);
    }
 
    SECTION("SDIRK34Solver")
    {
-      double conv_rate = check.order(new SDIRK34Solver);
+      real_t conv_rate = check.order(new SDIRK34Solver);
       REQUIRE(conv_rate + tol > 4.0);
    }
 
@@ -265,123 +266,123 @@ TEST_CASE("First order ODE methods", "[ODE]")
    // Generalized-alpha
    SECTION("GeneralizedAlphaSolver(1.0)")
    {
-      double conv_rate = check.order(new GeneralizedAlphaSolver(1.0));
+      real_t conv_rate = check.order(new GeneralizedAlphaSolver(1.0));
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("GeneralizedAlphaSolver(0.5)")
    {
-      double conv_rate = check.order(new GeneralizedAlphaSolver(0.5));
+      real_t conv_rate = check.order(new GeneralizedAlphaSolver(0.5));
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("GeneralizedAlphaSolver(0.5) - restart")
    {
-      double conv_rate = check.order(new GeneralizedAlphaSolver(0.5), true);
+      real_t conv_rate = check.order(new GeneralizedAlphaSolver(0.5), true);
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("GeneralizedAlphaSolver(0.0)")
    {
-      double conv_rate = check.order(new GeneralizedAlphaSolver(0.0));
+      real_t conv_rate = check.order(new GeneralizedAlphaSolver(0.0));
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    // Adams-Bashforth
    SECTION("AB1Solver()")
    {
-      double conv_rate = check.order(new AB1Solver());
+      real_t conv_rate = check.order(new AB1Solver());
       REQUIRE(conv_rate + tol > 1.0);
    }
 
    SECTION("AB1Solver() - restart")
    {
-      double conv_rate = check.order(new AB1Solver(), true);
+      real_t conv_rate = check.order(new AB1Solver(), true);
       REQUIRE(conv_rate + tol > 1.0);
    }
 
    SECTION("AB2Solver()")
    {
-      double conv_rate = check.order(new AB2Solver());
+      real_t conv_rate = check.order(new AB2Solver());
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("AB2Solver() - restart")
    {
-      double conv_rate = check.order(new AB2Solver(), true);
+      real_t conv_rate = check.order(new AB2Solver(), true);
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("AB3Solver()")
    {
-      double conv_rate = check.order(new AB3Solver());
+      real_t conv_rate = check.order(new AB3Solver());
       REQUIRE(conv_rate + tol > 3.0);
    }
 
    SECTION("AB4Solver()")
    {
-      double conv_rate = check.order(new AB4Solver());
+      real_t conv_rate = check.order(new AB4Solver());
       REQUIRE(conv_rate + tol > 4.0);
    }
 
    SECTION("AB5Solver()")
    {
-      double conv_rate = check.order(new AB5Solver());
+      real_t conv_rate = check.order(new AB5Solver());
       REQUIRE(conv_rate + tol > 5.0);
    }
 
    SECTION("AB5Solver() - restart")
    {
-      double conv_rate = check.order(new AB5Solver(), true);
+      real_t conv_rate = check.order(new AB5Solver(), true);
       REQUIRE(conv_rate + tol > 5.0);
    }
 
    // Adams-Moulton
    SECTION("AM0Solver()")
    {
-      double conv_rate = check.order(new AM0Solver());
+      real_t conv_rate = check.order(new AM0Solver());
       REQUIRE(conv_rate + tol > 1.0);
    }
 
    SECTION("AM1Solver()")
    {
-      double conv_rate = check.order(new AM1Solver());
+      real_t conv_rate = check.order(new AM1Solver());
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("AM1Solver() - restart")
    {
-      double conv_rate = check.order(new AM1Solver(), true);
+      real_t conv_rate = check.order(new AM1Solver(), true);
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("AM2Solver()")
    {
-      double conv_rate = check.order(new AM2Solver());
+      real_t conv_rate = check.order(new AM2Solver());
       REQUIRE(conv_rate + tol > 3.0);
    }
 
    SECTION("AM2Solver() - restart")
    {
-      double conv_rate = check.order(new AM2Solver(), true);
+      real_t conv_rate = check.order(new AM2Solver(), true);
       REQUIRE(conv_rate + tol > 1.0);
    }
 
    SECTION("AM3Solver()")
    {
-      double conv_rate = check.order(new AM3Solver());
+      real_t conv_rate = check.order(new AM3Solver());
       REQUIRE(conv_rate + tol > 4.0);
    }
 
    SECTION("AM4Solver()")
    {
-      double conv_rate = check.order(new AM4Solver());
+      real_t conv_rate = check.order(new AM4Solver());
       REQUIRE(conv_rate + tol > 5.0);
    }
 
    SECTION("AM4Solver() - restart")
    {
-      double conv_rate = check.order(new AM4Solver(),true);
+      real_t conv_rate = check.order(new AM4Solver(),true);
       REQUIRE(conv_rate + tol > 5.0);
    }
 }

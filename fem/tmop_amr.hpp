@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -34,9 +34,9 @@ protected:
    Array<int> aniso_flags;
    // An element is refined only if
    // [mean TMOPEnergy(children)]*energy_scaling_factor < TMOPEnergy(parent)
-   double energy_scaling_factor;
+   real_t energy_scaling_factor;
    GridFunction *spat_gf;   // If specified, can be used to specify the
-   double spat_gf_critical; // region where hr-adaptivity is done.
+   real_t spat_gf_critical; // region where hr-adaptivity is done.
 
    /// Check if the mesh of the solution was modified.
    bool MeshIsModified()
@@ -113,15 +113,15 @@ public:
 
    /// Scaling factor for the TMOP refinement energy. An element is refined if
    /// [mean TMOPEnergy(children)]*energy_scaling_factor < TMOPEnergy(parent)
-   void SetEnergyScalingFactor(double scale) { energy_scaling_factor = scale; }
+   void SetEnergyScalingFactor(real_t scale) { energy_scaling_factor = scale; }
 
    /// Spatial indicator function (eta) that can be used to prevent elements
    /// from being refined even if the energy criterion is met. Using this,
    /// an element E is not refined if mean(@a spat_gf(E)) < @a spat_gf_critical.
    void SetSpatialIndicator(GridFunction &spat_gf_,
-                            double spat_gf_critical_ = 0.5)
+                            real_t spat_gf_critical_ = 0.5)
    { spat_gf = &spat_gf_; spat_gf_critical = spat_gf_critical_; }
-   void SetSpatialIndicatorCritical(double val_) { spat_gf_critical = val_; }
+   void SetSpatialIndicatorCritical(real_t val_) { spat_gf_critical = val_; }
 
    /// Reset the error estimator.
    virtual void Reset() { current_sequence = -1; }

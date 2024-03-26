@@ -53,13 +53,13 @@ private:
    int dim;
 
    // Length of the PML Region in each direction
-   Array2D<double> length;
+   Array2D<real_t> length;
 
    // Computational Domain Boundary
-   Array2D<double> comp_dom_bdr;
+   Array2D<real_t> comp_dom_bdr;
 
    // Domain Boundary
-   Array2D<double> dom_bdr;
+   Array2D<real_t> dom_bdr;
 
    // Integer Array identifying elements in the PML
    // 0: in the PML, 1: not in the PML
@@ -70,13 +70,13 @@ private:
 
 public:
    // Constructor
-   PML(Mesh *mesh_,Array2D<double> length_);
+   PML(Mesh *mesh_,Array2D<real_t> length_);
 
    // Return Computational Domain Boundary
-   Array2D<double> GetCompDomainBdr() {return comp_dom_bdr;}
+   Array2D<real_t> GetCompDomainBdr() {return comp_dom_bdr;}
 
    // Return Domain Boundary
-   Array2D<double> GetDomainBdr() {return dom_bdr;}
+   Array2D<real_t> GetDomainBdr() {return dom_bdr;}
 
    // Return Markers list for elements
    Array<int> * GetMarkedPMLElements() {return &elems;}
@@ -85,7 +85,7 @@ public:
    void SetAttributes(Mesh *mesh_);
 
    // PML complex stretching function
-   void StretchFunction(const Vector &x, vector<complex<double>> &dxs);
+   void StretchFunction(const Vector &x, vector<complex<real_t>> &dxs);
 };
 
 // Class for returning the PML coefficients of the bilinear form
@@ -106,7 +106,7 @@ public:
    virtual void Eval(Vector &K, ElementTransformation &T,
                      const IntegrationPoint &ip)
    {
-      double x[3];
+      real_t x[3];
       Vector transip(x, 3);
       T.Transform(ip, transip);
       K.SetSize(vdim);
@@ -114,7 +114,7 @@ public:
    }
 };
 
-void maxwell_solution(const Vector &x, vector<complex<double>> &Eval);
+void maxwell_solution(const Vector &x, vector<complex<real_t>> &Eval);
 
 void E_bdr_data_Re(const Vector &x, Vector &E);
 void E_bdr_data_Im(const Vector &x, Vector &E);
@@ -134,14 +134,16 @@ void detJ_inv_JT_J_Re(const Vector &x, PML * pml, Vector &D);
 void detJ_inv_JT_J_Im(const Vector &x, PML * pml, Vector &D);
 void detJ_inv_JT_J_abs(const Vector &x, PML * pml, Vector &D);
 
-Array2D<double> comp_domain_bdr;
-Array2D<double> domain_bdr;
+Array2D<real_t> comp_domain_bdr;
+Array2D<real_t> domain_bdr;
 
-double mu = 1.0;
-double epsilon = 1.0;
-double omega;
+real_t mu = 1.0;
+real_t epsilon = 1.0;
+real_t omega;
 int dim;
 bool exact_known = false;
+
+template <typename T> T pow2(const T &x) { return x*x; }
 
 enum prob_type
 {
@@ -160,7 +162,7 @@ int main(int argc, char *argv[])
    int order = 1;
    int ref_levels = 3;
    int iprob = 4;
-   double freq = 5.0;
+   real_t freq = 5.0;
    bool herm_conv = true;
    bool umf_solver = false;
    bool visualization = 1;
@@ -241,10 +243,10 @@ int main(int argc, char *argv[])
    dim = mesh->Dimension();
 
    // Angular frequency
-   omega = 2.0 * M_PI * freq;
+   omega = real_t(2.0 * M_PI) * freq;
 
    // Setup PML length
-   Array2D<double> length(dim, 2); length = 0.0;
+   Array2D<real_t> length(dim, 2); length = 0.0;
 
    // 4. Setup the Cartesian PML region.
    switch (prob)
@@ -305,21 +307,22 @@ int main(int argc, char *argv[])
          for (int j = 0; j < mesh->GetNBE(); j++)
          {
             Vector center(dim);
-            int bdrgeom = mesh->GetBdrElementBaseGeometry(j);
+            int bdrgeom = mesh->GetBdrElementGeometry(j);
             ElementTransformation * tr = mesh->GetBdrElementTransformation(j);
             tr->Transform(Geometries.GetCenter(bdrgeom),center);
             int k = mesh->GetBdrAttribute(j);
             switch (prob)
             {
                case lshape:
-                  if (center[0] == 1.0 || center[0] == 0.5 || center[1] == 0.5)
+                  if (center[0] == 1_r || center[0] == 0.5_r ||
+                      center[1] == 0.5_r)
                   {
                      ess_bdr[k - 1] = 1;
                   }
                   break;
                case fichera:
-                  if (center[0] == -1.0 || center[0] == 0.0 ||
-                      center[1] ==  0.0 || center[2] == 0.0)
+                  if (center[0] == -1_r || center[0] == 0_r ||
+                      center[1] ==  0_r || center[2] == 0_r)
                   {
                      ess_bdr[k - 1] = 1;
                   }
@@ -378,8 +381,8 @@ int main(int argc, char *argv[])
       }
    }
 
-   ConstantCoefficient muinv(1.0/mu);
-   ConstantCoefficient omeg(-pow(omega, 2) * epsilon);
+   ConstantCoefficient muinv(1_r / mu);
+   ConstantCoefficient omeg(-pow2(omega) * epsilon);
    RestrictedCoefficient restr_muinv(muinv,attr);
    RestrictedCoefficient restr_omeg(omeg,attr);
 
@@ -439,7 +442,7 @@ int main(int argc, char *argv[])
    //              + omega^2 * epsilon (abs(det(J) * (J^T J)^-1) * E, F)
    if (pa || !umf_solver)
    {
-      ConstantCoefficient absomeg(pow(omega, 2) * epsilon);
+      ConstantCoefficient absomeg(pow2(omega) * epsilon);
       RestrictedCoefficient restr_absomeg(absomeg,attr);
 
       BilinearForm prec(fespace);
@@ -470,7 +473,7 @@ int main(int argc, char *argv[])
 
       std::unique_ptr<Operator> pc_r;
       std::unique_ptr<Operator> pc_i;
-      double s = (conv == ComplexOperator::HERMITIAN) ? -1.0 : 1.0;
+      real_t s = (conv == ComplexOperator::HERMITIAN) ? -1_r : 1_r;
       if (pa)
       {
          // Jacobi Smoother
@@ -519,14 +522,14 @@ int main(int argc, char *argv[])
          irs[i] = &(IntRules.Get(i, order_quad));
       }
 
-      double L2Error_Re = x.real().ComputeL2Error(E_ex_Re, irs,
+      real_t L2Error_Re = x.real().ComputeL2Error(E_ex_Re, irs,
                                                   pml->GetMarkedPMLElements());
-      double L2Error_Im = x.imag().ComputeL2Error(E_ex_Im, irs,
+      real_t L2Error_Im = x.imag().ComputeL2Error(E_ex_Im, irs,
                                                   pml->GetMarkedPMLElements());
 
       ComplexGridFunction x_gf0(fespace);
       x_gf0 = 0.0;
-      double norm_E_Re, norm_E_Im;
+      real_t norm_E_Re, norm_E_Im;
       norm_E_Re = x_gf0.real().ComputeL2Error(E_ex_Re, irs,
                                               pml->GetMarkedPMLElements());
       norm_E_Im = x_gf0.imag().ComputeL2Error(E_ex_Im, irs,
@@ -593,12 +596,12 @@ int main(int argc, char *argv[])
       int i = 0;
       while (sol_sock)
       {
-         double t = (double)(i % num_frames) / num_frames;
+         real_t t = (real_t)(i % num_frames) / num_frames;
          ostringstream oss;
          oss << "Harmonic Solution (t = " << t << " T)";
 
-         add(cos(2.0 * M_PI * t), x.real(),
-             sin(2.0 * M_PI * t), x.imag(), x_t);
+         add(cos(real_t(2.0 * M_PI) * t), x.real(),
+             sin(real_t(2.0 * M_PI) * t), x.imag(), x_t);
          sol_sock << "solution\n"
                   << *mesh << x_t
                   << "window_title '" << oss.str() << "'" << flush;
@@ -617,20 +620,20 @@ int main(int argc, char *argv[])
 void source(const Vector &x, Vector &f)
 {
    Vector center(dim);
-   double r = 0.0;
+   real_t r = 0.0;
    for (int i = 0; i < dim; ++i)
    {
-      center(i) = 0.5 * (comp_domain_bdr(i, 0) + comp_domain_bdr(i, 1));
-      r += pow(x[i] - center[i], 2.);
+      center(i) = 0.5_r * (comp_domain_bdr(i, 0) + comp_domain_bdr(i, 1));
+      r += pow2(x[i] - center[i]);
    }
-   double n = 5.0 * omega * sqrt(epsilon * mu) / M_PI;
-   double coeff = pow(n, 2) / M_PI;
-   double alpha = -pow(n, 2) * r;
+   real_t n = 5_r * omega * sqrt(epsilon * mu) / real_t(M_PI);
+   real_t coeff = pow2(n) / real_t(M_PI);
+   real_t alpha = -pow2(n) * r;
    f = 0.0;
    f[0] = coeff * exp(alpha);
 }
 
-void maxwell_solution(const Vector &x, vector<complex<double>> &E)
+void maxwell_solution(const Vector &x, vector<complex<real_t>> &E)
 {
    // Initialize
    for (int i = 0; i < dim; ++i)
@@ -638,8 +641,8 @@ void maxwell_solution(const Vector &x, vector<complex<double>> &E)
       E[i] = 0.0;
    }
 
-   complex<double> zi = complex<double>(0., 1.);
-   double k = omega * sqrt(epsilon * mu);
+   constexpr complex<real_t> zi = complex<real_t>(0., 1.);
+   real_t k = omega * sqrt(epsilon * mu);
    switch (prob)
    {
       case disc:
@@ -654,58 +657,58 @@ void maxwell_solution(const Vector &x, vector<complex<double>> &E)
 
          if (dim == 2)
          {
-            double x0 = x(0) + shift(0);
-            double x1 = x(1) + shift(1);
-            double r = sqrt(x0 * x0 + x1 * x1);
-            double beta = k * r;
+            real_t x0 = x(0) + shift(0);
+            real_t x1 = x(1) + shift(1);
+            real_t r = sqrt(x0 * x0 + x1 * x1);
+            real_t beta = k * r;
 
             // Bessel functions
-            complex<double> Ho, Ho_r, Ho_rr;
-            Ho = jn(0, beta) + zi * yn(0, beta);
-            Ho_r = -k * (jn(1, beta) + zi * yn(1, beta));
-            Ho_rr = -k * k * (1.0 / beta *
-                              (jn(1, beta) + zi * yn(1, beta)) -
-                              (jn(2, beta) + zi * yn(2, beta)));
+            complex<real_t> Ho, Ho_r, Ho_rr;
+            Ho = real_t(jn(0, beta)) + zi * real_t(yn(0, beta));
+            Ho_r = -k * (real_t(jn(1, beta)) + zi * real_t(yn(1, beta)));
+            Ho_rr = -k * k * (1_r / beta *
+                              (real_t(jn(1, beta)) + zi * real_t(yn(1, beta))) -
+                              (real_t(jn(2, beta)) + zi * real_t(yn(2, beta))));
 
             // First derivatives
-            double r_x = x0 / r;
-            double r_y = x1 / r;
-            double r_xy = -(r_x / r) * r_y;
-            double r_xx = (1.0 / r) * (1.0 - r_x * r_x);
+            real_t r_x = x0 / r;
+            real_t r_y = x1 / r;
+            real_t r_xy = -(r_x / r) * r_y;
+            real_t r_xx = (1_r / r) * (1_r - r_x * r_x);
 
-            complex<double> val, val_xx, val_xy;
-            val = 0.25 * zi * Ho;
-            val_xx = 0.25 * zi * (r_xx * Ho_r + r_x * r_x * Ho_rr);
-            val_xy = 0.25 * zi * (r_xy * Ho_r + r_x * r_y * Ho_rr);
+            complex<real_t> val, val_xx, val_xy;
+            val = real_t(0.25) * zi * Ho;
+            val_xx = real_t(0.25) * zi * (r_xx * Ho_r + r_x * r_x * Ho_rr);
+            val_xy = real_t(0.25) * zi * (r_xy * Ho_r + r_x * r_y * Ho_rr);
             E[0] = zi / k * (k * k * val + val_xx);
             E[1] = zi / k * val_xy;
          }
          else if (dim == 3)
          {
-            double x0 = x(0) + shift(0);
-            double x1 = x(1) + shift(1);
-            double x2 = x(2) + shift(2);
-            double r = sqrt(x0 * x0 + x1 * x1 + x2 * x2);
+            real_t x0 = x(0) + shift(0);
+            real_t x1 = x(1) + shift(1);
+            real_t x2 = x(2) + shift(2);
+            real_t r = sqrt(x0 * x0 + x1 * x1 + x2 * x2);
 
-            double r_x = x0 / r;
-            double r_y = x1 / r;
-            double r_z = x2 / r;
-            double r_xx = (1.0 / r) * (1.0 - r_x * r_x);
-            double r_yx = -(r_y / r) * r_x;
-            double r_zx = -(r_z / r) * r_x;
+            real_t r_x = x0 / r;
+            real_t r_y = x1 / r;
+            real_t r_z = x2 / r;
+            real_t r_xx = (1_r / r) * (1_r - r_x * r_x);
+            real_t r_yx = -(r_y / r) * r_x;
+            real_t r_zx = -(r_z / r) * r_x;
 
-            complex<double> val, val_r, val_rr;
+            complex<real_t> val, val_r, val_rr;
             val = exp(zi * k * r) / r;
-            val_r = val / r * (zi * k * r - 1.0);
+            val_r = val / r * (zi * k * r - 1_r);
             val_rr = val / (r * r) * (-k * k * r * r
-                                      - 2.0 * zi * k * r + 2.0);
+                                      - real_t(2) * zi * k * r + real_t(2));
 
-            complex<double> val_xx, val_yx, val_zx;
+            complex<real_t> val_xx, val_yx, val_zx;
             val_xx = val_rr * r_x * r_x + val_r * r_xx;
             val_yx = val_rr * r_x * r_y + val_r * r_yx;
             val_zx = val_rr * r_x * r_z + val_r * r_zx;
 
-            complex<double> alpha = zi * k / 4.0 / M_PI / k / k;
+            complex<real_t> alpha = zi * k / real_t(4) / (real_t) M_PI / k / k;
             E[0] = alpha * (k * k * val + val_xx);
             E[1] = alpha * val_yx;
             E[2] = alpha * val_zx;
@@ -717,12 +720,13 @@ void maxwell_solution(const Vector &x, vector<complex<double>> &E)
          // T_10 mode
          if (dim == 3)
          {
-            double k10 = sqrt(k * k - M_PI * M_PI);
-            E[1] = -zi * k / M_PI * sin(M_PI*x(2))*exp(zi * k10 * x(0));
+            real_t k10 = sqrt(k * k - real_t(M_PI * M_PI));
+            E[1] = -zi * k / (real_t) M_PI *
+                   sin((real_t) M_PI*x(2))*exp(zi * k10 * x(0));
          }
          else if (dim == 2)
          {
-            E[1] = -zi * k / M_PI * exp(zi * k * x(0));
+            E[1] = -zi * k / (real_t) M_PI * exp(zi * k * x(0));
          }
          break;
       }
@@ -733,7 +737,7 @@ void maxwell_solution(const Vector &x, vector<complex<double>> &E)
 
 void E_exact_Re(const Vector &x, Vector &E)
 {
-   vector<complex<double>> Eval(E.Size());
+   vector<complex<real_t>> Eval(E.Size());
    maxwell_solution(x, Eval);
    for (int i = 0; i < dim; ++i)
    {
@@ -743,7 +747,7 @@ void E_exact_Re(const Vector &x, Vector &E)
 
 void E_exact_Im(const Vector &x, Vector &E)
 {
-   vector<complex<double>> Eval(E.Size());
+   vector<complex<real_t>> Eval(E.Size());
    maxwell_solution(x, Eval);
    for (int i = 0; i < dim; ++i)
    {
@@ -759,8 +763,8 @@ void E_bdr_data_Re(const Vector &x, Vector &E)
    for (int i = 0; i < dim; ++i)
    {
       // check if in PML
-      if (x(i) - comp_domain_bdr(i, 0) < 0.0 ||
-          x(i) - comp_domain_bdr(i, 1) > 0.0)
+      if (x(i) - comp_domain_bdr(i, 0) < 0_r ||
+          x(i) - comp_domain_bdr(i, 1) > 0_r)
       {
          in_pml = true;
          break;
@@ -768,7 +772,7 @@ void E_bdr_data_Re(const Vector &x, Vector &E)
    }
    if (!in_pml)
    {
-      vector<complex<double>> Eval(E.Size());
+      vector<complex<real_t>> Eval(E.Size());
       maxwell_solution(x, Eval);
       for (int i = 0; i < dim; ++i)
       {
@@ -786,8 +790,8 @@ void E_bdr_data_Im(const Vector &x, Vector &E)
    for (int i = 0; i < dim; ++i)
    {
       // check if in PML
-      if (x(i) - comp_domain_bdr(i, 0) < 0.0 ||
-          x(i) - comp_domain_bdr(i, 1) > 0.0)
+      if (x(i) - comp_domain_bdr(i, 0) < 0_r ||
+          x(i) - comp_domain_bdr(i, 1) > 0_r)
       {
          in_pml = true;
          break;
@@ -795,7 +799,7 @@ void E_bdr_data_Im(const Vector &x, Vector &E)
    }
    if (!in_pml)
    {
-      vector<complex<double>> Eval(E.Size());
+      vector<complex<real_t>> Eval(E.Size());
       maxwell_solution(x, Eval);
       for (int i = 0; i < dim; ++i)
       {
@@ -806,8 +810,8 @@ void E_bdr_data_Im(const Vector &x, Vector &E)
 
 void detJ_JT_J_inv_Re(const Vector &x, PML * pml, Vector &D)
 {
-   vector<complex<double>> dxs(dim);
-   complex<double> det(1.0, 0.0);
+   vector<complex<real_t>> dxs(dim);
+   complex<real_t> det(1.0, 0.0);
    pml->StretchFunction(x, dxs);
 
    for (int i = 0; i < dim; ++i)
@@ -817,14 +821,14 @@ void detJ_JT_J_inv_Re(const Vector &x, PML * pml, Vector &D)
 
    for (int i = 0; i < dim; ++i)
    {
-      D(i) = (det / pow(dxs[i], 2)).real();
+      D(i) = (det / pow2(dxs[i])).real();
    }
 }
 
 void detJ_JT_J_inv_Im(const Vector &x, PML * pml, Vector &D)
 {
-   vector<complex<double>> dxs(dim);
-   complex<double> det = 1.0;
+   vector<complex<real_t>> dxs(dim);
+   complex<real_t> det = 1.0;
    pml->StretchFunction(x, dxs);
 
    for (int i = 0; i < dim; ++i)
@@ -834,14 +838,14 @@ void detJ_JT_J_inv_Im(const Vector &x, PML * pml, Vector &D)
 
    for (int i = 0; i < dim; ++i)
    {
-      D(i) = (det / pow(dxs[i], 2)).imag();
+      D(i) = (det / pow2(dxs[i])).imag();
    }
 }
 
 void detJ_JT_J_inv_abs(const Vector &x, PML * pml, Vector &D)
 {
-   vector<complex<double>> dxs(dim);
-   complex<double> det = 1.0;
+   vector<complex<real_t>> dxs(dim);
+   complex<real_t> det = 1.0;
    pml->StretchFunction(x, dxs);
 
    for (int i = 0; i < dim; ++i)
@@ -851,14 +855,14 @@ void detJ_JT_J_inv_abs(const Vector &x, PML * pml, Vector &D)
 
    for (int i = 0; i < dim; ++i)
    {
-      D(i) = abs(det / pow(dxs[i], 2));
+      D(i) = abs(det / pow2(dxs[i]));
    }
 }
 
 void detJ_inv_JT_J_Re(const Vector &x, PML * pml, Vector &D)
 {
-   vector<complex<double>> dxs(dim);
-   complex<double> det(1.0, 0.0);
+   vector<complex<real_t>> dxs(dim);
+   complex<real_t> det(1.0, 0.0);
    pml->StretchFunction(x, dxs);
 
    for (int i = 0; i < dim; ++i)
@@ -869,21 +873,21 @@ void detJ_inv_JT_J_Re(const Vector &x, PML * pml, Vector &D)
    // in the 2D case the coefficient is scalar 1/det(J)
    if (dim == 2)
    {
-      D = (1.0 / det).real();
+      D = (1_r / det).real();
    }
    else
    {
       for (int i = 0; i < dim; ++i)
       {
-         D(i) = (pow(dxs[i], 2) / det).real();
+         D(i) = (pow2(dxs[i]) / det).real();
       }
    }
 }
 
 void detJ_inv_JT_J_Im(const Vector &x, PML * pml, Vector &D)
 {
-   vector<complex<double>> dxs(dim);
-   complex<double> det = 1.0;
+   vector<complex<real_t>> dxs(dim);
+   complex<real_t> det = 1.0;
    pml->StretchFunction(x, dxs);
 
    for (int i = 0; i < dim; ++i)
@@ -893,21 +897,21 @@ void detJ_inv_JT_J_Im(const Vector &x, PML * pml, Vector &D)
 
    if (dim == 2)
    {
-      D = (1.0 / det).imag();
+      D = (1_r / det).imag();
    }
    else
    {
       for (int i = 0; i < dim; ++i)
       {
-         D(i) = (pow(dxs[i], 2) / det).imag();
+         D(i) = (pow2(dxs[i]) / det).imag();
       }
    }
 }
 
 void detJ_inv_JT_J_abs(const Vector &x, PML * pml, Vector &D)
 {
-   vector<complex<double>> dxs(dim);
-   complex<double> det = 1.0;
+   vector<complex<real_t>> dxs(dim);
+   complex<real_t> det = 1.0;
    pml->StretchFunction(x, dxs);
 
    for (int i = 0; i < dim; ++i)
@@ -917,18 +921,18 @@ void detJ_inv_JT_J_abs(const Vector &x, PML * pml, Vector &D)
 
    if (dim == 2)
    {
-      D = abs(1.0 / det);
+      D = abs(1_r / det);
    }
    else
    {
       for (int i = 0; i < dim; ++i)
       {
-         D(i) = abs(pow(dxs[i], 2) / det);
+         D(i) = abs(pow2(dxs[i]) / det);
       }
    }
 }
 
-PML::PML(Mesh *mesh_, Array2D<double> length_)
+PML::PML(Mesh *mesh_, Array2D<real_t> length_)
    : mesh(mesh_), length(length_)
 {
    dim = mesh->Dimension();
@@ -979,7 +983,7 @@ void PML::SetAttributes(Mesh *mesh_)
       for (int iv = 0; iv < nrvert; ++iv)
       {
          int vert_idx = vertices[iv];
-         double *coords = mesh_->GetVertex(vert_idx);
+         real_t *coords = mesh_->GetVertex(vert_idx);
          for (int comp = 0; comp < dim; ++comp)
          {
             if (coords[comp] > comp_dom_bdr(comp, 1) ||
@@ -1000,14 +1004,14 @@ void PML::SetAttributes(Mesh *mesh_)
 }
 
 void PML::StretchFunction(const Vector &x,
-                          vector<complex<double>> &dxs)
+                          vector<complex<real_t>> &dxs)
 {
-   complex<double> zi = complex<double>(0., 1.);
+   constexpr complex<real_t> zi = complex<real_t>(0., 1.);
 
-   double n = 2.0;
-   double c = 5.0;
-   double coeff;
-   double k = omega * sqrt(epsilon * mu);
+   real_t n = 2.0;
+   real_t c = 5.0;
+   real_t coeff;
+   real_t k = omega * sqrt(epsilon * mu);
 
    // Stretch in each direction independently
    for (int i = 0; i < dim; ++i)
@@ -1016,14 +1020,14 @@ void PML::StretchFunction(const Vector &x,
       if (x(i) >= comp_domain_bdr(i, 1))
       {
          coeff = n * c / k / pow(length(i, 1), n);
-         dxs[i] = 1.0 + zi * coeff *
-                  abs(pow(x(i) - comp_domain_bdr(i, 1), n - 1.0));
+         dxs[i] = 1_r + zi * coeff *
+                  abs(pow(x(i) - comp_domain_bdr(i, 1), n - 1_r));
       }
       if (x(i) <= comp_domain_bdr(i, 0))
       {
          coeff = n * c / k / pow(length(i, 0), n);
-         dxs[i] = 1.0 + zi * coeff *
-                  abs(pow(x(i) - comp_domain_bdr(i, 0), n - 1.0));
+         dxs[i] = 1_r + zi * coeff *
+                  abs(pow(x(i) - comp_domain_bdr(i, 0), n - 1_r));
       }
    }
 }

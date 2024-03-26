@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -87,7 +87,7 @@ report_baseline:
         # We create an autotest-email.html file, because that's how we signal
         # that there was an error / diff (temporary).
         if [[ -f ${rundir}/${BASELINE_TEST}.err ]] || \
-           [[ -f ${rundir}/${BASELINE_TEST}-${SYS_TYPE}.diff ]]; then
+           [[ -f ${rundir}/${BASELINE_TEST}-${MACHINE_NAME}.diff ]]; then
           cp ${rundir}/pipeline.txt ${rundir}/autotest-email.html
         fi
         msg="GitLab CI log for ${BASELINE_TEST} on ${MACHINE_NAME} ($(date +%Y-%m-%d))"

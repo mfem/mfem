@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -39,11 +39,11 @@ void TensorPhysDerivatives<QVectorLayout::byNODES>(const int NE,
 
    const int sdim = geom.mesh->SpaceDimension();
 
-   const double *B = maps.B.Read();
-   const double *G = maps.G.Read();
-   const double *J = geom.J.Read();
-   const double *X = e_vec.Read();
-   double *Y = q_der.Write();
+   const real_t *B = maps.B.Read();
+   const real_t *G = maps.G.Read();
+   const real_t *J = geom.J.Read();
+   const real_t *X = e_vec.Read();
+   real_t *Y = q_der.Write();
 
    constexpr QVectorLayout L = QVectorLayout::byNODES;
    constexpr bool P = true; // GRAD_PHYS

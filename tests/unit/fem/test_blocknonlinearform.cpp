@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -16,14 +16,14 @@ using namespace mfem;
 
 namespace blocknonlinearform
 {
-double rf0(const Vector &coords)
+real_t rf0(const Vector &coords)
 {
-   double x = coords(0);
-   double y = coords(1);
-   double z = coords(2);
+   real_t x = coords(0);
+   real_t y = coords(1);
+   real_t z = coords(2);
 
-   double p = std::sqrt(x * x + y * y + z * z);
-   double rez = 0.0;
+   real_t p = std::sqrt(x * x + y * y + z * z);
+   real_t rez = 0.0;
    if (p < 1.0)
    {
       rez = 1.0;
@@ -31,14 +31,14 @@ double rf0(const Vector &coords)
    return rez;
 }
 
-double uf0(const Vector &coords)
+real_t uf0(const Vector &coords)
 {
-   double x = coords(0);
-   double y = coords(1);
-   double z = coords(2);
+   real_t x = coords(0);
+   real_t y = coords(1);
+   real_t z = coords(2);
 
-   double p = std::sqrt(x * x + y * y + z * z);
-   double rez = 0.0;
+   real_t p = std::sqrt(x * x + y * y + z * z);
+   real_t rez = 0.0;
    if (p < 1.5)
    {
       rez = 1;
@@ -53,11 +53,11 @@ public:
    CExample() {}
    virtual ~CExample() {}
 
-   virtual double GetElementEnergy(const Array<const FiniteElement *> &el,
+   virtual real_t GetElementEnergy(const Array<const FiniteElement *> &el,
                                    ElementTransformation &trans,
                                    const Array<const Vector *> &elfun)
    {
-      double energy = 0;
+      real_t energy = 0;
       int dof_u = el[0]->GetDof();
       int dof_r = el[1]->GetDof();
 
@@ -67,8 +67,8 @@ public:
       Vector shaperr(dof_r); // densities
       Vector shaperu(dof_u); // prime field
 
-      double w;
-      double c1, c2;
+      real_t w;
+      real_t c1, c2;
       for (int i = 0; i < ir->GetNPoints(); i++)
       {
          const IntegrationPoint &ip = ir->IntPoint(i);
@@ -148,7 +148,7 @@ TEST_CASE("ParBlockNonlinearForm",
       nf->AddDomainIntegrator(new CExample());
 
       // Compute the energy: integral over 1/8 sphere = Pi*1*1*1/6
-      double A4 = nf->GetEnergy(x);
+      real_t A4 = nf->GetEnergy(x);
 
       mfem::out << "Rank " << my_rank
                 << ": ParBlockNonlinearForm::GetEnergy = " << A4

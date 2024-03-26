@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -130,8 +130,8 @@ int main(int argc, char *argv[])
    hh1.Print(std::cout);
 
 
-   double kappa = param[0];
-   double load =  param[1];
+   mfem::real_t kappa = param[0];
+   mfem::real_t load =  param[1];
    // using lambda expression
    auto func01 = [&kappa,&load](mfem::Vector& vparam,
                                 mfem::ad::ADVectorType& uu,

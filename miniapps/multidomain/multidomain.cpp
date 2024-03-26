@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -51,10 +51,10 @@ using namespace mfem;
 // directly at the cylinder wall boundary.
 void velocity_profile(const Vector &c, Vector &q)
 {
-   double A = 1.0;
-   double x = c(0);
-   double y = c(1);
-   double r = sqrt(pow(x, 2.0) + pow(y, 2.0));
+   real_t A = 1.0;
+   real_t x = c(0);
+   real_t y = c(1);
+   real_t r = sqrt(pow(x, 2.0) + pow(y, 2.0));
 
    q(0) = 0.0;
    q(1) = 0.0;
@@ -91,8 +91,8 @@ public:
     */
    ConvectionDiffusionTDO(ParFiniteElementSpace &fes,
                           Array<int> ess_tdofs,
-                          double alpha = 1.0,
-                          double kappa = 1.0e-1)
+                          real_t alpha = 1.0,
+                          real_t kappa = 1.0e-1)
       : TimeDependentOperator(fes.GetTrueVSize()),
         Mform(&fes),
         Kform(&fes),
@@ -189,7 +189,7 @@ public:
    /// when using an H1 space.
    Array<int> ess_tdofs_;
 
-   double current_dt = -1.0;
+   real_t current_dt = -1.0;
 
    /// Mass matrix solver
    CGSolver M_solver;
@@ -209,8 +209,8 @@ int main(int argc, char *argv[])
    int myid = Mpi::WorldRank();
 
    int order = 2;
-   double t_final = 5.0;
-   double dt = 1.0e-5;
+   real_t t_final = 5.0;
+   real_t dt = 1.0e-5;
    bool visualization = true;
    int vis_steps = 10;
 
@@ -322,17 +322,19 @@ int main(int argc, char *argv[])
 
    char vishost[] = "localhost";
    int  visport   = 19916;
-   socketstream cyl_sol_sock(vishost, visport);
+   socketstream cyl_sol_sock;
    if (visualization)
    {
+      cyl_sol_sock.open(vishost, visport);
       cyl_sol_sock << "parallel " << num_procs << " " << myid << "\n";
       cyl_sol_sock.precision(8);
       cyl_sol_sock << "solution\n" << cylinder_submesh << temperature_cylinder_gf <<
                    "pause\n" << std::flush;
    }
-   socketstream block_sol_sock(vishost, visport);
+   socketstream block_sol_sock;
    if (visualization)
    {
+      block_sol_sock.open(vishost, visport);
       block_sol_sock << "parallel " << num_procs << " " << myid << "\n";
       block_sol_sock.precision(8);
       block_sol_sock << "solution\n" << block_submesh << temperature_block_gf <<
@@ -344,7 +346,7 @@ int main(int argc, char *argv[])
                                                temperature_block_gf,
                                                temperature_cylinder_gf);
 
-   double t = 0.0;
+   real_t t = 0.0;
    bool last_step = false;
    for (int ti = 1; !last_step; ti++)
    {

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -145,13 +145,13 @@ MemoryClass operator*(MemoryClass mc1, MemoryClass mc2)
 }
 
 
-// Instantiate Memory<T>::PrintFlags for T = int and T = double.
+// Instantiate Memory<T>::PrintFlags for T = int and T = real_t.
 template void Memory<int>::PrintFlags() const;
-template void Memory<double>::PrintFlags() const;
+template void Memory<real_t>::PrintFlags() const;
 
-// Instantiate Memory<T>::CompareHostAndDevice for T = int and T = double.
+// Instantiate Memory<T>::CompareHostAndDevice for T = int and T = real_t.
 template int Memory<int>::CompareHostAndDevice(int size) const;
-template int Memory<double>::CompareHostAndDevice(int size) const;
+template int Memory<real_t>::CompareHostAndDevice(int size) const;
 
 
 namespace internal

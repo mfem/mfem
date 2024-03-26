@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -50,7 +50,7 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
    pa_data.SetSize(ne*nq, Device::GetDeviceMemoryType());
-   double coeff = 1.0;
+   real_t coeff = 1.0;
    if (Q)
    {
       ConstantCoefficient *cQ = dynamic_cast<ConstantCoefficient*>(Q);
@@ -63,7 +63,7 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
    if (dim == 2)
    {
-      const double constant = coeff;
+      const real_t constant = coeff;
       const int NE = ne;
       const int NQ = nq;
       auto w = ir->GetWeights().Read();
@@ -73,18 +73,18 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       {
          for (int q = 0; q < NQ; ++q)
          {
-            const double J11 = J(q,0,0,e);
-            const double J12 = J(q,1,0,e);
-            const double J21 = J(q,0,1,e);
-            const double J22 = J(q,1,1,e);
-            const double detJ = (J11*J22)-(J21*J12);
+            const real_t J11 = J(q,0,0,e);
+            const real_t J12 = J(q,1,0,e);
+            const real_t J21 = J(q,0,1,e);
+            const real_t J22 = J(q,1,1,e);
+            const real_t detJ = (J11*J22)-(J21*J12);
             v(q,e) =  w[q] * constant * detJ;
          }
       });
    }
    if (dim == 3)
    {
-      const double constant = coeff;
+      const real_t constant = coeff;
       const int NE = ne;
       const int NQ = nq;
       auto W = ir->GetWeights().Read();
@@ -94,10 +94,10 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       {
          for (int q = 0; q < NQ; ++q)
          {
-            const double J11 = J(q,0,0,e), J12 = J(q,0,1,e), J13 = J(q,0,2,e);
-            const double J21 = J(q,1,0,e), J22 = J(q,1,1,e), J23 = J(q,1,2,e);
-            const double J31 = J(q,2,0,e), J32 = J(q,2,1,e), J33 = J(q,2,2,e);
-            const double detJ = J11 * (J22 * J33 - J32 * J23) -
+            const real_t J11 = J(q,0,0,e), J12 = J(q,0,1,e), J13 = J(q,0,2,e);
+            const real_t J21 = J(q,1,0,e), J22 = J(q,1,1,e), J23 = J(q,1,2,e);
+            const real_t J31 = J(q,2,0,e), J32 = J(q,2,1,e), J33 = J(q,2,2,e);
+            const real_t detJ = J11 * (J22 * J33 - J32 * J23) -
                                 J21 * (J12 * J33 - J32 * J13) +
                                 J31 * (J12 * J23 - J22 * J13);
             v(q,e) = W[q] * constant * detJ;
@@ -108,8 +108,8 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
 template<const int T_D1D = 0, const int T_Q1D = 0>
 static void PAVectorMassAssembleDiagonal2D(const int NE,
-                                           const Array<double> &B_,
-                                           const Array<double> &Bt_,
+                                           const Array<real_t> &B_,
+                                           const Array<real_t> &Bt_,
                                            const Vector &op_,
                                            Vector &diag_,
                                            const int d1d = 0,
@@ -130,7 +130,7 @@ static void PAVectorMassAssembleDiagonal2D(const int NE,
       constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
-      double temp[max_Q1D][max_D1D];
+      real_t temp[max_Q1D][max_D1D];
       for (int qx = 0; qx < Q1D; ++qx)
       {
          for (int dy = 0; dy < D1D; ++dy)
@@ -146,7 +146,7 @@ static void PAVectorMassAssembleDiagonal2D(const int NE,
       {
          for (int dx = 0; dx < D1D; ++dx)
          {
-            double temp1 = 0.0;
+            real_t temp1 = 0.0;
             for (int qx = 0; qx < Q1D; ++qx)
             {
                temp1 += B(qx, dx) * B(qx, dx) * temp[qx][dy];
@@ -160,8 +160,8 @@ static void PAVectorMassAssembleDiagonal2D(const int NE,
 
 template<const int T_D1D = 0, const int T_Q1D = 0>
 static void PAVectorMassAssembleDiagonal3D(const int NE,
-                                           const Array<double> &B_,
-                                           const Array<double> &Bt_,
+                                           const Array<real_t> &B_,
+                                           const Array<real_t> &Bt_,
                                            const Vector &op_,
                                            Vector &diag_,
                                            const int d1d = 0,
@@ -183,7 +183,7 @@ static void PAVectorMassAssembleDiagonal3D(const int NE,
       constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
-      double temp[max_Q1D][max_Q1D][max_D1D];
+      real_t temp[max_Q1D][max_Q1D][max_D1D];
       for (int qx = 0; qx < Q1D; ++qx)
       {
          for (int qy = 0; qy < Q1D; ++qy)
@@ -198,7 +198,7 @@ static void PAVectorMassAssembleDiagonal3D(const int NE,
             }
          }
       }
-      double temp2[max_Q1D][max_D1D][max_D1D];
+      real_t temp2[max_Q1D][max_D1D][max_D1D];
       for (int qx = 0; qx < Q1D; ++qx)
       {
          for (int dz = 0; dz < D1D; ++dz)
@@ -219,7 +219,7 @@ static void PAVectorMassAssembleDiagonal3D(const int NE,
          {
             for (int dx = 0; dx < D1D; ++dx)
             {
-               double temp3 = 0.0;
+               real_t temp3 = 0.0;
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   temp3 += B(qx, dx) * B(qx, dx)
@@ -238,8 +238,8 @@ static void PAVectorMassAssembleDiagonal(const int dim,
                                          const int D1D,
                                          const int Q1D,
                                          const int NE,
-                                         const Array<double> &B,
-                                         const Array<double> &Bt,
+                                         const Array<real_t> &B,
+                                         const Array<real_t> &Bt,
                                          const Vector &op,
                                          Vector &y)
 {
@@ -270,8 +270,8 @@ void VectorMassIntegrator::AssembleDiagonalPA(Vector &diag)
 
 template<const int T_D1D = 0, const int T_Q1D = 0>
 static void PAVectorMassApply2D(const int NE,
-                                const Array<double> &B_,
-                                const Array<double> &Bt_,
+                                const Array<real_t> &B_,
+                                const Array<real_t> &Bt_,
                                 const Vector &op_,
                                 const Vector &x_,
                                 Vector &y_,
@@ -295,7 +295,7 @@ static void PAVectorMassApply2D(const int NE,
       // the following variables are evaluated at compile time
       constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
-      double sol_xy[max_Q1D][max_Q1D];
+      real_t sol_xy[max_Q1D][max_Q1D];
       for (int c = 0; c < VDIM; ++c)
       {
          for (int qy = 0; qy < Q1D; ++qy)
@@ -307,14 +307,14 @@ static void PAVectorMassApply2D(const int NE,
          }
          for (int dy = 0; dy < D1D; ++dy)
          {
-            double sol_x[max_Q1D];
+            real_t sol_x[max_Q1D];
             for (int qy = 0; qy < Q1D; ++qy)
             {
                sol_x[qy] = 0.0;
             }
             for (int dx = 0; dx < D1D; ++dx)
             {
-               const double s = x(dx,dy,c,e);
+               const real_t s = x(dx,dy,c,e);
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   sol_x[qx] += B(qx,dx)* s;
@@ -322,7 +322,7 @@ static void PAVectorMassApply2D(const int NE,
             }
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               const double d2q = B(qy,dy);
+               const real_t d2q = B(qy,dy);
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   sol_xy[qy][qx] += d2q * sol_x[qx];
@@ -338,14 +338,14 @@ static void PAVectorMassApply2D(const int NE,
          }
          for (int qy = 0; qy < Q1D; ++qy)
          {
-            double sol_x[max_D1D];
+            real_t sol_x[max_D1D];
             for (int dx = 0; dx < D1D; ++dx)
             {
                sol_x[dx] = 0.0;
             }
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               const double s = sol_xy[qy][qx];
+               const real_t s = sol_xy[qy][qx];
                for (int dx = 0; dx < D1D; ++dx)
                {
                   sol_x[dx] += Bt(dx,qx) * s;
@@ -353,7 +353,7 @@ static void PAVectorMassApply2D(const int NE,
             }
             for (int dy = 0; dy < D1D; ++dy)
             {
-               const double q2d = Bt(dy,qy);
+               const real_t q2d = Bt(dy,qy);
                for (int dx = 0; dx < D1D; ++dx)
                {
                   y(dx,dy,c,e) += q2d * sol_x[dx];
@@ -366,8 +366,8 @@ static void PAVectorMassApply2D(const int NE,
 
 template<const int T_D1D = 0, const int T_Q1D = 0>
 static void PAVectorMassApply3D(const int NE,
-                                const Array<double> &B_,
-                                const Array<double> &Bt_,
+                                const Array<real_t> &B_,
+                                const Array<real_t> &Bt_,
                                 const Vector &op_,
                                 const Vector &x_,
                                 Vector &y_,
@@ -390,7 +390,7 @@ static void PAVectorMassApply3D(const int NE,
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
-      double sol_xyz[max_Q1D][max_Q1D][max_Q1D];
+      real_t sol_xyz[max_Q1D][max_Q1D][max_Q1D];
       for (int c = 0; c < VDIM; ++ c)
       {
          for (int qz = 0; qz < Q1D; ++qz)
@@ -405,7 +405,7 @@ static void PAVectorMassApply3D(const int NE,
          }
          for (int dz = 0; dz < D1D; ++dz)
          {
-            double sol_xy[max_Q1D][max_Q1D];
+            real_t sol_xy[max_Q1D][max_Q1D];
             for (int qy = 0; qy < Q1D; ++qy)
             {
                for (int qx = 0; qx < Q1D; ++qx)
@@ -415,14 +415,14 @@ static void PAVectorMassApply3D(const int NE,
             }
             for (int dy = 0; dy < D1D; ++dy)
             {
-               double sol_x[max_Q1D];
+               real_t sol_x[max_Q1D];
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   sol_x[qx] = 0;
                }
                for (int dx = 0; dx < D1D; ++dx)
                {
-                  const double s = x(dx,dy,dz,c,e);
+                  const real_t s = x(dx,dy,dz,c,e);
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
                      sol_x[qx] += B(qx,dx) * s;
@@ -430,7 +430,7 @@ static void PAVectorMassApply3D(const int NE,
                }
                for (int qy = 0; qy < Q1D; ++qy)
                {
-                  const double wy = B(qy,dy);
+                  const real_t wy = B(qy,dy);
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
                      sol_xy[qy][qx] += wy * sol_x[qx];
@@ -439,7 +439,7 @@ static void PAVectorMassApply3D(const int NE,
             }
             for (int qz = 0; qz < Q1D; ++qz)
             {
-               const double wz = B(qz,dz);
+               const real_t wz = B(qz,dz);
                for (int qy = 0; qy < Q1D; ++qy)
                {
                   for (int qx = 0; qx < Q1D; ++qx)
@@ -461,7 +461,7 @@ static void PAVectorMassApply3D(const int NE,
          }
          for (int qz = 0; qz < Q1D; ++qz)
          {
-            double sol_xy[max_D1D][max_D1D];
+            real_t sol_xy[max_D1D][max_D1D];
             for (int dy = 0; dy < D1D; ++dy)
             {
                for (int dx = 0; dx < D1D; ++dx)
@@ -471,14 +471,14 @@ static void PAVectorMassApply3D(const int NE,
             }
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               double sol_x[max_D1D];
+               real_t sol_x[max_D1D];
                for (int dx = 0; dx < D1D; ++dx)
                {
                   sol_x[dx] = 0;
                }
                for (int qx = 0; qx < Q1D; ++qx)
                {
-                  const double s = sol_xyz[qz][qy][qx];
+                  const real_t s = sol_xyz[qz][qy][qx];
                   for (int dx = 0; dx < D1D; ++dx)
                   {
                      sol_x[dx] += Bt(dx,qx) * s;
@@ -486,7 +486,7 @@ static void PAVectorMassApply3D(const int NE,
                }
                for (int dy = 0; dy < D1D; ++dy)
                {
-                  const double wy = Bt(dy,qy);
+                  const real_t wy = Bt(dy,qy);
                   for (int dx = 0; dx < D1D; ++dx)
                   {
                      sol_xy[dy][dx] += wy * sol_x[dx];
@@ -495,7 +495,7 @@ static void PAVectorMassApply3D(const int NE,
             }
             for (int dz = 0; dz < D1D; ++dz)
             {
-               const double wz = Bt(dz,qz);
+               const real_t wz = Bt(dz,qz);
                for (int dy = 0; dy < D1D; ++dy)
                {
                   for (int dx = 0; dx < D1D; ++dx)
@@ -513,8 +513,8 @@ static void PAVectorMassApply(const int dim,
                               const int D1D,
                               const int Q1D,
                               const int NE,
-                              const Array<double> &B,
-                              const Array<double> &Bt,
+                              const Array<real_t> &B,
+                              const Array<real_t> &Bt,
                               const Vector &op,
                               const Vector &x,
                               Vector &y)

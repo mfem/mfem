@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -43,11 +43,11 @@ static Element::Type el_type_ = Element::WEDGE;
 static int    order_  = 3;
 static int    nphi_   = 8;
 static int    ns_     = 0;
-static double R_      = 1.0;
-static double r_      = 0.2;
-static double theta0_ = 0.0;
+static real_t R_      = 1.0;
+static real_t r_      = 0.2;
+static real_t theta0_ = 0.0;
 
-void pts(int iphi, int t, double x[]);
+void pts(int iphi, int t, real_t x[]);
 void trans(const Vector &x, Vector &p);
 
 int main(int argc, char *argv[])
@@ -107,7 +107,7 @@ int main(int argc, char *argv[])
    mesh = new Mesh(3, nnode * (nphi_+1), nphi_);
 
    // Add vertices for a stack of elements
-   double c[3];
+   real_t c[3];
    for (int i=0; i<=nphi_; i++)
    {
       c[0] = 0.0; c[1] = 0.0; c[2] = i;
@@ -242,11 +242,11 @@ void trans(const Vector &x, Vector &p)
 {
    int nnode = (el_type_ == Element::WEDGE)? 3:4;
 
-   double phi = 2.0 * M_PI * x[2] / nphi_;
-   double theta = theta0_ + phi * ns_ / nnode;
+   real_t phi = 2.0 * M_PI * x[2] / nphi_;
+   real_t theta = theta0_ + phi * ns_ / nnode;
 
-   double u = (1.5 * (x[0] + x[1]) - 1.0) * r_;
-   double v = sqrt(0.75) * (x[0] - x[1]) * r_;
+   real_t u = (1.5 * (x[0] + x[1]) - 1.0) * r_;
+   real_t v = sqrt(0.75) * (x[0] - x[1]) * r_;
 
    if (el_type_ == Element::WEDGE)
    {

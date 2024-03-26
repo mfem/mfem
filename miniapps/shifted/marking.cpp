@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -24,8 +24,8 @@ void ShiftedFaceMarker::MarkElements(const ParGridFunction &ls_func,
    IntegrationRules IntRulesLo(0, Quadrature1D::GaussLobatto);
 
    // This tolerance is relevant for points that are exactly on the zero LS.
-   const double eps = 1e-10;
-   auto outside_of_domain = [&](double value)
+   const real_t eps = 1e-10;
+   auto outside_of_domain = [&](real_t value)
    {
       if (include_cut_cell)
       {
@@ -160,7 +160,7 @@ void ShiftedFaceMarker::ListShiftedFaceDofs(const Array<int> &elem_marker,
          {
             if (elem_marker[tr->Elem1No] >= SBElementType::CUT)
             {
-               pfes_sltn->GetFaceDofs(pmesh.GetBdrFace(i), dofs);
+               pfes_sltn->GetFaceDofs(pmesh.GetBdrElementFaceIndex(i), dofs);
                sface_dof_list.Append(dofs);
             }
          }
@@ -343,7 +343,7 @@ void ShiftedFaceMarker::ListShiftedFaceDofs2(const Array<int> &elem_marker,
          {
             if (elem_marker[tr->Elem1No] >= SBElementType::CUT)
             {
-               pfes_sltn->GetFaceDofs(pmesh.GetBdrFace(i), dofs);
+               pfes_sltn->GetFaceDofs(pmesh.GetBdrElementFaceIndex(i), dofs);
                sface_dof_list.Append(dofs);
             }
          }

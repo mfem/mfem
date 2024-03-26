@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -176,10 +176,10 @@ protected:
    /**  When cycle >= 0, it is appended to directory names. */
    int cycle;
    /// Physical time (for time-dependent simulations)
-   double time;
+   real_t time;
 
    /// Time step i.e. delta_t (for time-dependent simulations)
-   double time_step;
+   real_t time_step;
 
    /// Serial or parallel run? False iff mesh is a ParMesh
    bool serial;
@@ -318,17 +318,17 @@ public:
    /// Set time cycle (for time-dependent simulations)
    void SetCycle(int c) { cycle = c; }
    /// Set physical time (for time-dependent simulations)
-   void SetTime(double t) { time = t; }
+   void SetTime(real_t t) { time = t; }
 
    /// Set the simulation time step (for time-dependent simulations)
-   void SetTimeStep(double ts) { time_step = ts; }
+   void SetTimeStep(real_t ts) { time_step = ts; }
 
    /// Get time cycle (for time-dependent simulations)
    int GetCycle() const { return cycle; }
    /// Get physical time (for time-dependent simulations)
-   double GetTime() const { return time; }
+   real_t GetTime() const { return time; }
    /// Get the simulation time step (for time-dependent simulations)
-   double GetTimeStep() const { return time_step; }
+   real_t GetTimeStep() const { return time_step; }
 
    /// Get the name of the collection
    const std::string& GetCollectionName() const { return name; }

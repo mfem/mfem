@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -99,7 +99,7 @@ public:
    }
 
    /// Add a double option and set 'var' to receive the value.
-   void AddOption(double *var, const char *short_name, const char *long_name,
+   void AddOption(real_t *var, const char *short_name, const char *long_name,
                   const char *description, bool required = false)
    {
       options.Append(Option(DOUBLE, var, short_name, long_name, description,

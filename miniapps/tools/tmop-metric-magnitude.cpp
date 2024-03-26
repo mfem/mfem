@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -28,17 +28,17 @@
 using namespace mfem;
 using namespace std;
 
-void Form2DJac(double perturb_v, double perturb_ar, double perturb_s,
+void Form2DJac(real_t perturb_v, real_t perturb_ar, real_t perturb_s,
                DenseMatrix &J);
-void Form3DJac(double perturb_v, double perturb_ar, double perturb_s,
+void Form3DJac(real_t perturb_v, real_t perturb_ar, real_t perturb_s,
                DenseMatrix &J);
 
 int main(int argc, char *argv[])
 {
    int metric_id = 2;
-   double perturb_v = 1.0;
-   double perturb_ar = 1.0;
-   double perturb_s  = 1.0;
+   real_t perturb_v = 1.0;
+   real_t perturb_ar = 1.0;
+   real_t perturb_s  = 1.0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&metric_id, "-mid", "--metric-id", "Metric id");
@@ -141,26 +141,26 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-void Form2DJac(double perturb_v, double perturb_ar, double perturb_s,
+void Form2DJac(real_t perturb_v, real_t perturb_ar, real_t perturb_s,
                DenseMatrix &J)
 {
    // Volume.
-   const double volume = 1.0 * perturb_v;
+   const real_t volume = 1.0 * perturb_v;
 
    // Aspect Ratio.
-   const double a_r = 1.0 * perturb_ar;
+   const real_t a_r = 1.0 * perturb_ar;
    DenseMatrix M_ar(2); M_ar = 0.0;
    M_ar(0, 0) = 1.0 / sqrt(a_r);
    M_ar(1, 1) = sqrt(a_r);
 
    // Skew.
-   const double skew_angle = M_PI / 2.0 / perturb_s;
+   const real_t skew_angle = M_PI / 2.0 / perturb_s;
    DenseMatrix M_skew(2);
    M_skew(0, 0) = 1.0; M_skew(0, 1) = cos(skew_angle);
    M_skew(1, 0) = 0.0; M_skew(1, 1) = sin(skew_angle);
 
    // Rotation.
-   const double rot_angle = 0.0; // not sure how to choose
+   const real_t rot_angle = 0.0; // not sure how to choose
    DenseMatrix M_rot(2);
    M_rot(0, 0) = cos(rot_angle); M_rot(0, 1) = -sin(rot_angle);
    M_rot(1, 0) = sin(rot_angle); M_rot(1, 1) =  cos(rot_angle);
@@ -173,19 +173,19 @@ void Form2DJac(double perturb_v, double perturb_ar, double perturb_s,
    J *= sqrt(volume / sin(skew_angle));
 }
 
-void Form3DJac(double perturb_v, double perturb_ar, double perturb_s,
+void Form3DJac(real_t perturb_v, real_t perturb_ar, real_t perturb_s,
                DenseMatrix &J)
 {
    // Volume.
-   const double volume = 1.0 * perturb_v;
+   const real_t volume = 1.0 * perturb_v;
 
    // Aspect Ratio - only in one direction, the others are uniform.
-   const double ar_1 = 1.0 * perturb_ar,
+   const real_t ar_1 = 1.0 * perturb_ar,
                 ar_2 = 1.0,
                 ar_3 = 1.0;
 
    // Skew - only in one direction, the others are pi/2.
-   const double skew_angle_12 = M_PI / 2.0 / perturb_s,
+   const real_t skew_angle_12 = M_PI / 2.0 / perturb_s,
                 skew_angle_13 = M_PI / 2.0,
                 skew_angle_23 = M_PI / 2.0;
 
@@ -206,7 +206,7 @@ void Form3DJac(double perturb_v, double perturb_ar, double perturb_s,
    J(2, 2) = pow(ar_3, 1.0/3.0) * sin(skew_angle_13) * sin(skew_angle_23);
    //
 
-   double sin3 = sin(skew_angle_12)*sin(skew_angle_13)*sin(skew_angle_23),
+   real_t sin3 = sin(skew_angle_12)*sin(skew_angle_13)*sin(skew_angle_23),
           ar3  = pow(ar_1, 1.0/3.0) * pow(ar_2, 1.0/3.0) * pow(ar_3, 1.0/3.0);
    J *= pow(volume / (sin3 * ar3), 1.0/3.0);
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -17,9 +17,9 @@ using namespace mfem;
 namespace eigs
 {
 
-static double a_ = M_PI;
-static double b_ = M_PI / sqrt(2.0);
-static double c_ = M_PI / 2.0;
+static real_t a_ = M_PI;
+static real_t b_ = M_PI / sqrt(2.0);
+static real_t c_ = M_PI / 2.0;
 
 enum MeshType
 {
@@ -100,7 +100,7 @@ TEST_CASE("Laplacian Eigenvalues",
       m.AddDomainIntegrator(new MassIntegrator);
       m.Assemble();
       // shift the eigenvalue corresponding to eliminated dofs to a large value
-      m.EliminateEssentialBCDiag(ess_bdr, std::numeric_limits<double>::min());
+      m.EliminateEssentialBCDiag(ess_bdr, std::numeric_limits<real_t>::min());
       m.Finalize();
 
       DenseMatrix Ad(size);
@@ -140,12 +140,12 @@ TEST_CASE("Laplacian Eigenvalues",
 
       Array<int> exact_eigs(&eigs[7 * (dim - 1)], 7);
 
-      double max_err = 0.0;
+      real_t max_err = 0.0;
       for (int i=bsize; i<std::min(size,bsize+nev); i++)
       {
-         double lc = deigs[i];
-         double le = exact_eigs[i-bsize];
-         double err = 100.0 * fabs(le - lc) / le;
+         real_t lc = deigs[i];
+         real_t le = exact_eigs[i-bsize];
+         real_t err = 100.0 * fabs(le - lc) / le;
          max_err = std::max(max_err, err);
          REQUIRE(err < 5.0);
       }
@@ -219,7 +219,7 @@ TEST_CASE("Laplacian Eigenvalues in Parallel",
       m.AddDomainIntegrator(new MassIntegrator);
       m.Assemble();
       // shift the eigenvalue corresponding to eliminated dofs to a large value
-      m.EliminateEssentialBCDiag(ess_bdr, std::numeric_limits<double>::min());
+      m.EliminateEssentialBCDiag(ess_bdr, std::numeric_limits<real_t>::min());
       m.Finalize();
 
       HypreParMatrix *A = a.ParallelAssemble();
@@ -241,18 +241,18 @@ TEST_CASE("Laplacian Eigenvalues in Parallel",
       lobpcg.SetMassMatrix(*M);
       lobpcg.SetOperator(*A);
 
-      Array<double> eigenvalues;
+      Array<real_t> eigenvalues;
       lobpcg.Solve();
       lobpcg.GetEigenvalues(eigenvalues);
 
       Array<int> exact_eigs(&eigs[7 * (dim - 1)], 7);
 
-      double max_err = 0.0;
+      real_t max_err = 0.0;
       for (int i=0; i<nev; i++)
       {
-         double lc = eigenvalues[i];
-         double le = exact_eigs[i];
-         double err = 100.0 * fabs(le - lc) / le;
+         real_t lc = eigenvalues[i];
+         real_t le = exact_eigs[i];
+         real_t err = 100.0 * fabs(le - lc) / le;
          max_err = std::max(max_err, err);
          REQUIRE(err < 5.0);
       }
@@ -268,7 +268,7 @@ TEST_CASE("Laplacian Eigenvalues in Parallel",
 Mesh * GetMesh(MeshType type)
 {
    Mesh * mesh = NULL;
-   double c[3];
+   real_t c[3];
    int    v[8];
 
    switch (type)

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -15,15 +15,15 @@
 namespace mfem
 {
 
-void FillWithRandomNumbers(std::vector<double> &x, double a, double b)
+void FillWithRandomNumbers(std::vector<real_t> &x, real_t a, real_t b)
 {
    std::random_device rd;
    std::mt19937 gen(rd());
    std::uniform_real_distribution<> dis(a, b);
-   std::for_each(x.begin(), x.end(), [&](double &v) { v = dis(gen); });
+   std::for_each(x.begin(), x.end(), [&](real_t &v) { v = dis(gen); });
 }
 
-void FillWithRandomRotations(std::vector<double> &x)
+void FillWithRandomRotations(std::vector<real_t> &x)
 {
    std::random_device rd;
    std::mt19937 gen(rd());
@@ -31,15 +31,15 @@ void FillWithRandomRotations(std::vector<double> &x)
    for (size_t i = 0; i < x.size(); i += 9)
    {
       // Get a random rotation matrix via uniform Euler angles.
-      double e1 = 2 * M_PI * dis(gen);
-      double e2 = 2 * M_PI * dis(gen);
-      double e3 = 2 * M_PI * dis(gen);
-      const double c1 = cos(e1);
-      const double s1 = sin(e1);
-      const double c2 = cos(e2);
-      const double s2 = sin(e2);
-      const double c3 = cos(e3);
-      const double s3 = sin(e3);
+      real_t e1 = 2 * M_PI * dis(gen);
+      real_t e2 = 2 * M_PI * dis(gen);
+      real_t e3 = 2 * M_PI * dis(gen);
+      const real_t c1 = cos(e1);
+      const real_t s1 = sin(e1);
+      const real_t c2 = cos(e2);
+      const real_t s2 = sin(e2);
+      const real_t c3 = cos(e3);
+      const real_t s3 = sin(e3);
 
       // Fill the rotation matrix R with the Euler angles. See for instance
       // the definition in Wikipedia.

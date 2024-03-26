@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -19,8 +19,8 @@ namespace mfem
 
 MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_2D,
                            const int NE,
-                           const Array<double> &b_,
-                           const Array<double> &g_,
+                           const Array<real_t> &b_,
+                           const Array<real_t> &g_,
                            const DenseTensor &j_,
                            const Vector &h_,
                            const Vector &x_,
@@ -49,10 +49,10 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_2D,
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
-      MFEM_SHARED double BG[2][MQ1*MD1];
-      MFEM_SHARED double XY[2][NBZ][MD1*MD1];
-      MFEM_SHARED double DQ[4][NBZ][MD1*MQ1];
-      MFEM_SHARED double QQ[4][NBZ][MQ1*MQ1];
+      MFEM_SHARED real_t BG[2][MQ1*MD1];
+      MFEM_SHARED real_t XY[2][NBZ][MD1*MD1];
+      MFEM_SHARED real_t DQ[4][NBZ][MD1*MQ1];
+      MFEM_SHARED real_t QQ[4][NBZ][MQ1*MQ1];
 
       kernels::internal::LoadX<MD1,NBZ>(e,D1D,X,XY);
       kernels::internal::LoadBG<MD1,MQ1>(D1D,Q1D,b,g,BG);
@@ -64,22 +64,22 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_2D,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            const double *Jtr = &J(0,0,qx,qy,e);
+            const real_t *Jtr = &J(0,0,qx,qy,e);
 
             // Jrt = Jtr^{-1}
-            double Jrt[4];
+            real_t Jrt[4];
             kernels::CalcInverse<2>(Jtr, Jrt);
 
             // Jpr = X^T.DSh
-            double Jpr[4];
+            real_t Jpr[4];
             kernels::internal::PullGrad<MQ1,NBZ>(Q1D,qx,qy,QQ,Jpr);
 
             // Jpt = Jpr . Jrt
-            double Jpt[4];
+            real_t Jpt[4];
             kernels::Mult(2,2,2, Jpr, Jrt, Jpt);
 
             // B = Jpt : H
-            double B[4];
+            real_t B[4];
             DeviceMatrix M(B,2,2);
             ConstDeviceMatrix J(Jpt,2,2);
             for (int i = 0; i < DIM; i++)
@@ -97,7 +97,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_2D,
                }
             }
             // C = Jrt . B
-            double C[4];
+            real_t C[4];
             kernels::MultABt(2,2,2, Jrt, B, C);
 
             // Overwrite QQ = Jrt . (Jpt : H)^t
@@ -118,8 +118,8 @@ void TMOP_Integrator::AddMultGradPA_2D(const Vector &R, Vector &C) const
    const int Q1D = PA.maps->nqpt;
    const int id = (D1D << 4 ) | Q1D;
    const DenseTensor &J = PA.Jtr;
-   const Array<double> &B = PA.maps->B;
-   const Array<double> &G = PA.maps->G;
+   const Array<real_t> &B = PA.maps->B;
+   const Array<real_t> &G = PA.maps->G;
    const Vector &H = PA.H;
 
    MFEM_LAUNCH_TMOP_KERNEL(AddMultGradPA_Kernel_2D,id,N,B,G,J,H,R,C);

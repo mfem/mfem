@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -20,7 +20,7 @@ namespace mfem
 
 using namespace std;
 
-const double RT_QuadrilateralElement::nk[8] =
+const real_t RT_QuadrilateralElement::nk[8] =
 { 0., -1.,  1., 0.,  0., 1.,  -1., 0. };
 
 RT_QuadrilateralElement::RT_QuadrilateralElement(const int p,
@@ -35,7 +35,7 @@ RT_QuadrilateralElement::RT_QuadrilateralElement(const int p,
 
    dof_map.SetSize(dof);
 
-   const double *op = poly1d.OpenPoints(p, ob_type);
+   const real_t *op = poly1d.OpenPoints(p, ob_type);
    const int dof2 = dof/2;
 
 #ifndef MFEM_THREAD_SAFE
@@ -260,7 +260,7 @@ void RT_QuadrilateralElement::ProjectIntegrated(VectorCoefficient &vc,
                                                 Vector &dofs) const
 {
    MFEM_ASSERT(obasis1d.IsIntegratedType(), "Not integrated type");
-   double vk[Geometry::MaxDim];
+   real_t vk[Geometry::MaxDim];
    Vector xk(vk, vc.GetVDim());
 
    const IntegrationRule &ir = IntRules.Get(Geometry::SEGMENT, order);
@@ -279,8 +279,8 @@ void RT_QuadrilateralElement::ProjectIntegrated(VectorCoefficient &vc,
             int idx = dof_map[o++];
             if (idx < 0) { idx = -1 - idx; }
             int ic = (c == 0) ? j : i;
-            const double h = cp[ic+1] - cp[ic];
-            double val = 0.0;
+            const real_t h = cp[ic+1] - cp[ic];
+            real_t val = 0.0;
             for (int k = 0; k < nqpt; k++)
             {
                const IntegrationPoint &ip1d = ir.IntPoint(k);
@@ -289,7 +289,7 @@ void RT_QuadrilateralElement::ProjectIntegrated(VectorCoefficient &vc,
                Trans.SetIntPoint(&ip2d);
                vc.Eval(xk, Trans, ip2d);
                // nk^t adj(J) xk
-               const double ipval = Trans.AdjugateJacobian().InnerProduct(vk,
+               const real_t ipval = Trans.AdjugateJacobian().InnerProduct(vk,
                                                                           nk + dof2nk[idx]*dim);
                val += ip1d.weight*ipval;
             }
@@ -320,7 +320,7 @@ void RT_QuadrilateralElement::GetFaceMap(const int face_id,
 }
 
 
-const double RT_HexahedronElement::nk[18] =
+const real_t RT_HexahedronElement::nk[18] =
 { 0.,0.,-1.,  0.,-1.,0.,  1.,0.,0.,  0.,1.,0.,  -1.,0.,0.,  0.,0.,1. };
 
 RT_HexahedronElement::RT_HexahedronElement(const int p,
@@ -335,7 +335,7 @@ RT_HexahedronElement::RT_HexahedronElement(const int p,
 
    dof_map.SetSize(dof);
 
-   const double *op = poly1d.OpenPoints(p, ob_type);
+   const real_t *op = poly1d.OpenPoints(p, ob_type);
    const int dof3 = dof/3;
 
 #ifndef MFEM_THREAD_SAFE
@@ -663,7 +663,7 @@ void RT_HexahedronElement::ProjectIntegrated(VectorCoefficient &vc,
                                              Vector &dofs) const
 {
    MFEM_ASSERT(obasis1d.IsIntegratedType(), "Not integrated type");
-   double vq[Geometry::MaxDim];
+   real_t vq[Geometry::MaxDim];
    Vector xq(vq, vc.GetVDim());
 
    const IntegrationRule &ir2d = IntRules.Get(Geometry::SQUARE, order);
@@ -687,9 +687,9 @@ void RT_HexahedronElement::ProjectIntegrated(VectorCoefficient &vc,
                if (c == 0) { ic1 = j; ic2 = k; }
                else if (c == 1) { ic1 = i; ic2 = k; }
                else { ic1 = i; ic2 = j; }
-               const double h1 = cp[ic1+1] - cp[ic1];
-               const double h2 = cp[ic2+1] - cp[ic2];
-               double val = 0.0;
+               const real_t h1 = cp[ic1+1] - cp[ic1];
+               const real_t h2 = cp[ic2+1] - cp[ic2];
+               real_t val = 0.0;
                for (int q = 0; q < nqpt; q++)
                {
                   const IntegrationPoint &ip2d = ir2d.IntPoint(q);
@@ -699,7 +699,7 @@ void RT_HexahedronElement::ProjectIntegrated(VectorCoefficient &vc,
                   Trans.SetIntPoint(&ip3d);
                   vc.Eval(xq, Trans, ip3d);
                   // nk^t adj(J) xq
-                  const double ipval
+                  const real_t ipval
                      = Trans.AdjugateJacobian().InnerProduct(vq, nk + dof2nk[idx]*dim);
                   val += ip2d.weight*ipval;
                }
@@ -738,18 +738,18 @@ void RT_HexahedronElement::GetFaceMap(const int face_id,
 }
 
 
-const double RT_TriangleElement::nk[6] =
+const real_t RT_TriangleElement::nk[6] =
 { 0., -1., 1., 1., -1., 0. };
 
-const double RT_TriangleElement::c = 1./3.;
+const real_t RT_TriangleElement::c = 1./3.;
 
 RT_TriangleElement::RT_TriangleElement(const int p)
    : VectorFiniteElement(2, Geometry::TRIANGLE, (p + 1)*(p + 3), p + 1,
                          H_DIV, FunctionSpace::Pk),
      dof2nk(dof)
 {
-   const double *iop = (p > 0) ? poly1d.OpenPoints(p - 1) : NULL;
-   const double *bop = poly1d.OpenPoints(p);
+   const real_t *iop = (p > 0) ? poly1d.OpenPoints(p - 1) : NULL;
+   const real_t *bop = poly1d.OpenPoints(p);
 
 #ifndef MFEM_THREAD_SAFE
    shape_x.SetSize(p + 1);
@@ -786,7 +786,7 @@ RT_TriangleElement::RT_TriangleElement(const int p)
    for (int j = 0; j < p; j++)
       for (int i = 0; i + j < p; i++)
       {
-         double w = iop[i] + iop[j] + iop[p-1-i-j];
+         real_t w = iop[i] + iop[j] + iop[p-1-i-j];
          Nodes.IntPoint(o).Set2(iop[i]/w, iop[j]/w);
          dof2nk[o++] = 0;
          Nodes.IntPoint(o).Set2(iop[i]/w, iop[j]/w);
@@ -800,19 +800,19 @@ RT_TriangleElement::RT_TriangleElement(const int p)
       poly1d.CalcBasis(p, ip.x, shape_x);
       poly1d.CalcBasis(p, ip.y, shape_y);
       poly1d.CalcBasis(p, 1. - ip.x - ip.y, shape_l);
-      const double *n_k = nk + 2*dof2nk[k];
+      const real_t *n_k = nk + 2*dof2nk[k];
 
       o = 0;
       for (int j = 0; j <= p; j++)
          for (int i = 0; i + j <= p; i++)
          {
-            double s = shape_x(i)*shape_y(j)*shape_l(p-i-j);
+            real_t s = shape_x(i)*shape_y(j)*shape_l(p-i-j);
             T(o++, k) = s*n_k[0];
             T(o++, k) = s*n_k[1];
          }
       for (int i = 0; i <= p; i++)
       {
-         double s = shape_x(i)*shape_y(p-i);
+         real_t s = shape_x(i)*shape_y(p-i);
          T(o++, k) = s*((ip.x - c)*n_k[0] + (ip.y - c)*n_k[1]);
       }
    }
@@ -839,13 +839,13 @@ void RT_TriangleElement::CalcVShape(const IntegrationPoint &ip,
    for (int j = 0; j <= p; j++)
       for (int i = 0; i + j <= p; i++)
       {
-         double s = shape_x(i)*shape_y(j)*shape_l(p-i-j);
+         real_t s = shape_x(i)*shape_y(j)*shape_l(p-i-j);
          u(o,0) = s;  u(o,1) = 0;  o++;
          u(o,0) = 0;  u(o,1) = s;  o++;
       }
    for (int i = 0; i <= p; i++)
    {
-      double s = shape_x(i)*shape_y(p-i);
+      real_t s = shape_x(i)*shape_y(p-i);
       u(o,0) = (ip.x - c)*s;
       u(o,1) = (ip.y - c)*s;
       o++;
@@ -890,19 +890,19 @@ void RT_TriangleElement::CalcDivShape(const IntegrationPoint &ip,
 }
 
 
-const double RT_TetrahedronElement::nk[12] =
+const real_t RT_TetrahedronElement::nk[12] =
 { 1,1,1,  -1,0,0,  0,-1,0,  0,0,-1 };
 // { .5,.5,.5, -.5,0,0, 0,-.5,0, 0,0,-.5}; // n_F |F|
 
-const double RT_TetrahedronElement::c = 1./4.;
+const real_t RT_TetrahedronElement::c = 1./4.;
 
 RT_TetrahedronElement::RT_TetrahedronElement(const int p)
    : VectorFiniteElement(3, Geometry::TETRAHEDRON, (p + 1)*(p + 2)*(p + 4)/2,
                          p + 1, H_DIV, FunctionSpace::Pk),
      dof2nk(dof)
 {
-   const double *iop = (p > 0) ? poly1d.OpenPoints(p - 1) : NULL;
-   const double *bop = poly1d.OpenPoints(p);
+   const real_t *iop = (p > 0) ? poly1d.OpenPoints(p - 1) : NULL;
+   const real_t *bop = poly1d.OpenPoints(p);
 
 #ifndef MFEM_THREAD_SAFE
    shape_x.SetSize(p + 1);
@@ -925,28 +925,28 @@ RT_TetrahedronElement::RT_TetrahedronElement(const int p)
    for (int j = 0; j <= p; j++)
       for (int i = 0; i + j <= p; i++)  // (1,2,3)
       {
-         double w = bop[i] + bop[j] + bop[p-i-j];
+         real_t w = bop[i] + bop[j] + bop[p-i-j];
          Nodes.IntPoint(o).Set3(bop[p-i-j]/w, bop[i]/w, bop[j]/w);
          dof2nk[o++] = 0;
       }
    for (int j = 0; j <= p; j++)
       for (int i = 0; i + j <= p; i++)  // (0,3,2)
       {
-         double w = bop[i] + bop[j] + bop[p-i-j];
+         real_t w = bop[i] + bop[j] + bop[p-i-j];
          Nodes.IntPoint(o).Set3(0., bop[j]/w, bop[i]/w);
          dof2nk[o++] = 1;
       }
    for (int j = 0; j <= p; j++)
       for (int i = 0; i + j <= p; i++)  // (0,1,3)
       {
-         double w = bop[i] + bop[j] + bop[p-i-j];
+         real_t w = bop[i] + bop[j] + bop[p-i-j];
          Nodes.IntPoint(o).Set3(bop[i]/w, 0., bop[j]/w);
          dof2nk[o++] = 2;
       }
    for (int j = 0; j <= p; j++)
       for (int i = 0; i + j <= p; i++)  // (0,2,1)
       {
-         double w = bop[i] + bop[j] + bop[p-i-j];
+         real_t w = bop[i] + bop[j] + bop[p-i-j];
          Nodes.IntPoint(o).Set3(bop[j]/w, bop[i]/w, 0.);
          dof2nk[o++] = 3;
       }
@@ -956,7 +956,7 @@ RT_TetrahedronElement::RT_TetrahedronElement(const int p)
       for (int j = 0; j + k < p; j++)
          for (int i = 0; i + j + k < p; i++)
          {
-            double w = iop[i] + iop[j] + iop[k] + iop[p-1-i-j-k];
+            real_t w = iop[i] + iop[j] + iop[k] + iop[p-1-i-j-k];
             Nodes.IntPoint(o).Set3(iop[i]/w, iop[j]/w, iop[k]/w);
             dof2nk[o++] = 1;
             Nodes.IntPoint(o).Set3(iop[i]/w, iop[j]/w, iop[k]/w);
@@ -973,14 +973,14 @@ RT_TetrahedronElement::RT_TetrahedronElement(const int p)
       poly1d.CalcBasis(p, ip.y, shape_y);
       poly1d.CalcBasis(p, ip.z, shape_z);
       poly1d.CalcBasis(p, 1. - ip.x - ip.y - ip.z, shape_l);
-      const double *nm = nk + 3*dof2nk[m];
+      const real_t *nm = nk + 3*dof2nk[m];
 
       o = 0;
       for (int k = 0; k <= p; k++)
          for (int j = 0; j + k <= p; j++)
             for (int i = 0; i + j + k <= p; i++)
             {
-               double s = shape_x(i)*shape_y(j)*shape_z(k)*shape_l(p-i-j-k);
+               real_t s = shape_x(i)*shape_y(j)*shape_z(k)*shape_l(p-i-j-k);
                T(o++, m) = s * nm[0];
                T(o++, m) = s * nm[1];
                T(o++, m) = s * nm[2];
@@ -988,7 +988,7 @@ RT_TetrahedronElement::RT_TetrahedronElement(const int p)
       for (int j = 0; j <= p; j++)
          for (int i = 0; i + j <= p; i++)
          {
-            double s = shape_x(i)*shape_y(j)*shape_z(p-i-j);
+            real_t s = shape_x(i)*shape_y(j)*shape_z(p-i-j);
             T(o++, m) = s*((ip.x - c)*nm[0] + (ip.y - c)*nm[1] +
                            (ip.z - c)*nm[2]);
          }
@@ -1018,7 +1018,7 @@ void RT_TetrahedronElement::CalcVShape(const IntegrationPoint &ip,
       for (int j = 0; j + k <= p; j++)
          for (int i = 0; i + j + k <= p; i++)
          {
-            double s = shape_x(i)*shape_y(j)*shape_z(k)*shape_l(p-i-j-k);
+            real_t s = shape_x(i)*shape_y(j)*shape_z(k)*shape_l(p-i-j-k);
             u(o,0) = s;  u(o,1) = 0;  u(o,2) = 0;  o++;
             u(o,0) = 0;  u(o,1) = s;  u(o,2) = 0;  o++;
             u(o,0) = 0;  u(o,1) = 0;  u(o,2) = s;  o++;
@@ -1026,7 +1026,7 @@ void RT_TetrahedronElement::CalcVShape(const IntegrationPoint &ip,
    for (int j = 0; j <= p; j++)
       for (int i = 0; i + j <= p; i++)
       {
-         double s = shape_x(i)*shape_y(j)*shape_z(p-i-j);
+         real_t s = shape_x(i)*shape_y(j)*shape_z(p-i-j);
          u(o,0) = (ip.x - c)*s;  u(o,1) = (ip.y - c)*s;  u(o,2) = (ip.z - c)*s;
          o++;
       }
@@ -1076,7 +1076,7 @@ void RT_TetrahedronElement::CalcDivShape(const IntegrationPoint &ip,
    Ti.Mult(divu, divshape);
 }
 
-const double RT_WedgeElement::nk[15] =
+const real_t RT_WedgeElement::nk[15] =
 { 0,0,-1, 0,0,1, 0,-1,0, 1,1,0, -1,0,0};
 
 RT_WedgeElement::RT_WedgeElement(const int p)
@@ -1224,7 +1224,7 @@ void RT_WedgeElement::CalcVShape(const IntegrationPoint &ip,
       }
       else
       {
-         double s = (dof2nk[i] == 0) ? -1.0 : 1.0;
+         real_t s = (dof2nk[i] == 0) ? -1.0 : 1.0;
          shape(i, 0) = 0.0;
          shape(i, 1) = 0.0;
          shape(i, 2) = s * tl2_shape[t_dof[i]] * sh1_shape(s_dof[i]);
@@ -1258,13 +1258,13 @@ void RT_WedgeElement::CalcDivShape(const IntegrationPoint &ip,
       }
       else
       {
-         double s = (dof2nk[i] == 0) ? -1.0 : 1.0;
+         real_t s = (dof2nk[i] == 0) ? -1.0 : 1.0;
          divshape(i) = s * tl2_shape(t_dof[i]) * sh1_dshape(s_dof[i], 0);
       }
    }
 }
 
-const double RT_R1D_SegmentElement::nk[9] = { 1.,0.,0., 0.,1.,0., 0.,0.,1. };
+const real_t RT_R1D_SegmentElement::nk[9] = { 1.,0.,0., 0.,1.,0., 0.,0.,1. };
 
 RT_R1D_SegmentElement::RT_R1D_SegmentElement(const int p,
                                              const int cb_type,
@@ -1278,8 +1278,8 @@ RT_R1D_SegmentElement::RT_R1D_SegmentElement(const int p,
    // Override default dimension for VectorFiniteElements
    vdim = 3;
 
-   const double *cp = poly1d.ClosedPoints(p + 1, cb_type);
-   const double *op = poly1d.OpenPoints(p, ob_type);
+   const real_t *cp = poly1d.ClosedPoints(p + 1, cb_type);
+   const real_t *op = poly1d.OpenPoints(p, ob_type);
 
 #ifndef MFEM_THREAD_SAFE
    shape_cx.SetSize(p + 2);
@@ -1411,11 +1411,11 @@ void RT_R1D_SegmentElement::Project(VectorCoefficient &vc,
                                     ElementTransformation &Trans,
                                     Vector &dofs) const
 {
-   double data[3];
+   real_t data[3];
    Vector vk1(data, 1);
    Vector vk3(data, 3);
 
-   double * nk_ptr = const_cast<double*>(nk);
+   real_t * nk_ptr = const_cast<real_t*>(nk);
 
    for (int k = 0; k < dof; k++)
    {
@@ -1438,10 +1438,10 @@ void RT_R1D_SegmentElement::Project(const FiniteElement &fe,
 {
    if (fe.GetRangeType() == SCALAR)
    {
-      double vk[Geometry::MaxDim];
+      real_t vk[Geometry::MaxDim];
       Vector shape(fe.GetDof());
 
-      double * nk_ptr = const_cast<double*>(nk);
+      real_t * nk_ptr = const_cast<real_t*>(nk);
 
       I.SetSize(dof, vdim*fe.GetDof());
       for (int k = 0; k < dof; k++)
@@ -1460,7 +1460,7 @@ void RT_R1D_SegmentElement::Project(const FiniteElement &fe,
          vk[2] = n3[2] * Trans.Weight();
          if (fe.GetMapType() == INTEGRAL)
          {
-            double w = 1.0/Trans.Weight();
+            real_t w = 1.0/Trans.Weight();
             for (int d = 0; d < 1; d++)
             {
                vk[d] *= w;
@@ -1469,7 +1469,7 @@ void RT_R1D_SegmentElement::Project(const FiniteElement &fe,
 
          for (int j = 0; j < shape.Size(); j++)
          {
-            double s = shape(j);
+            real_t s = shape(j);
             if (fabs(s) < 1e-12)
             {
                s = 0.0;
@@ -1485,10 +1485,10 @@ void RT_R1D_SegmentElement::Project(const FiniteElement &fe,
    }
    else
    {
-      double vk[Geometry::MaxDim];
+      real_t vk[Geometry::MaxDim];
       DenseMatrix vshape(fe.GetDof(), fe.GetRangeDim());
 
-      double * nk_ptr = const_cast<double*>(nk);
+      real_t * nk_ptr = const_cast<real_t*>(nk);
 
       I.SetSize(dof, fe.GetDof());
       for (int k = 0; k < dof; k++)
@@ -1526,7 +1526,7 @@ void RT_R1D_SegmentElement::ProjectCurl(const FiniteElement &fe,
    DenseMatrix curl_shape(fe.GetDof(), fe.GetRangeDim());
    Vector curl_k(fe.GetDof());
 
-   double * nk_ptr = const_cast<double*>(nk);
+   real_t * nk_ptr = const_cast<real_t*>(nk);
 
    curl.SetSize(dof, fe.GetDof());
    for (int k = 0; k < dof; k++)
@@ -1540,7 +1540,7 @@ void RT_R1D_SegmentElement::ProjectCurl(const FiniteElement &fe,
    }
 }
 
-const double RT_R2D_SegmentElement::nk[2] = { 0.,1.};
+const real_t RT_R2D_SegmentElement::nk[2] = { 0.,1.};
 
 RT_R2D_SegmentElement::RT_R2D_SegmentElement(const int p,
                                              const int ob_type)
@@ -1552,7 +1552,7 @@ RT_R2D_SegmentElement::RT_R2D_SegmentElement(const int p,
    // Override default dimension for VectorFiniteElements
    vdim = 2;
 
-   const double *op = poly1d.OpenPoints(p, ob_type);
+   const real_t *op = poly1d.OpenPoints(p, ob_type);
 
 #ifndef MFEM_THREAD_SAFE
    shape_ox.SetSize(p+1);
@@ -1616,12 +1616,12 @@ void RT_R2D_SegmentElement::LocalInterpolation(const VectorFiniteElement &cfe,
                                                ElementTransformation &Trans,
                                                DenseMatrix &I) const
 {
-   double vk[Geometry::MaxDim]; vk[1] = 0.0; vk[2] = 0.0;
+   real_t vk[Geometry::MaxDim]; vk[1] = 0.0; vk[2] = 0.0;
    Vector xk(vk, dim);
    IntegrationPoint ip;
    DenseMatrix vshape(cfe.GetDof(), vdim);
 
-   double * nk_ptr = const_cast<double*>(nk);
+   real_t * nk_ptr = const_cast<real_t*>(nk);
 
    I.SetSize(dof, vshape.Height());
 
@@ -1640,7 +1640,7 @@ void RT_R2D_SegmentElement::LocalInterpolation(const VectorFiniteElement &cfe,
       // I_k = vshape_k.adj(J)^t.n_k, k=1,...,dof
       for (int j = 0; j < vshape.Height(); j++)
       {
-         double Ikj = 0.;
+         real_t Ikj = 0.;
          /*
               for (int i = 0; i < dim; i++)
               {
@@ -1654,7 +1654,7 @@ void RT_R2D_SegmentElement::LocalInterpolation(const VectorFiniteElement &cfe,
 }
 
 RT_R2D_FiniteElement::RT_R2D_FiniteElement(int p, Geometry::Type G, int Do,
-                                           const double *nk_fe)
+                                           const real_t *nk_fe)
    : VectorFiniteElement(2, G, Do, p + 1,
                          H_DIV, FunctionSpace::Pk),
      nk(nk_fe),
@@ -1675,8 +1675,8 @@ void RT_R2D_FiniteElement::CalcVShape(ElementTransformation &Trans,
                "3 dimensional spaces");
    for (int i=0; i<dof; i++)
    {
-      double sx = shape(i, 0);
-      double sy = shape(i, 1);
+      real_t sx = shape(i, 0);
+      real_t sy = shape(i, 1);
       shape(i, 0) = sx * J(0, 0) + sy * J(0, 1);
       shape(i, 1) = sx * J(1, 0) + sy * J(1, 1);
    }
@@ -1688,12 +1688,12 @@ RT_R2D_FiniteElement::LocalInterpolation(const VectorFiniteElement &cfe,
                                          ElementTransformation &Trans,
                                          DenseMatrix &I) const
 {
-   double vk[Geometry::MaxDim]; vk[2] = 0.0;
+   real_t vk[Geometry::MaxDim]; vk[2] = 0.0;
    Vector xk(vk, dim);
    IntegrationPoint ip;
    DenseMatrix vshape(cfe.GetDof(), vdim);
 
-   double * nk_ptr = const_cast<double*>(nk);
+   real_t * nk_ptr = const_cast<real_t*>(nk);
 
    I.SetSize(dof, vshape.Height());
 
@@ -1713,7 +1713,7 @@ RT_R2D_FiniteElement::LocalInterpolation(const VectorFiniteElement &cfe,
       // I_k = vshape_k.adj(J)^t.n_k, k=1,...,dof
       for (int j = 0; j < vshape.Height(); j++)
       {
-         double Ikj = 0.;
+         real_t Ikj = 0.;
          for (int i = 0; i < dim; i++)
          {
             Ikj += vshape(j, i) * vk[i];
@@ -1727,7 +1727,7 @@ RT_R2D_FiniteElement::LocalInterpolation(const VectorFiniteElement &cfe,
 void RT_R2D_FiniteElement::GetLocalRestriction(ElementTransformation &Trans,
                                                DenseMatrix &R) const
 {
-   double pt_data[Geometry::MaxDim];
+   real_t pt_data[Geometry::MaxDim];
    IntegrationPoint ip;
    Vector pt(pt_data, dim);
 
@@ -1735,11 +1735,11 @@ void RT_R2D_FiniteElement::GetLocalRestriction(ElementTransformation &Trans,
    DenseMatrix vshape(dof, vdim);
 #endif
 
-   double * nk_ptr = const_cast<double*>(nk);
+   real_t * nk_ptr = const_cast<real_t*>(nk);
 
    Trans.SetIntPoint(&Geometries.GetCenter(geom_type));
    const DenseMatrix &J = Trans.Jacobian();
-   const double weight = Trans.Weight();
+   const real_t weight = Trans.Weight();
    for (int j = 0; j < dof; j++)
    {
       Vector n2(&nk_ptr[dof2nk[j] * 3], 2);
@@ -1754,7 +1754,7 @@ void RT_R2D_FiniteElement::GetLocalRestriction(ElementTransformation &Trans,
          pt /= weight;
          for (int k = 0; k < dof; k++)
          {
-            double R_jk = 0.0;
+            real_t R_jk = 0.0;
             for (int d = 0; d < dim; d++)
             {
                R_jk += vshape(k,d)*pt_data[d];
@@ -1776,11 +1776,11 @@ void RT_R2D_FiniteElement::Project(VectorCoefficient &vc,
                                    ElementTransformation &Trans,
                                    Vector &dofs) const
 {
-   double data[3];
+   real_t data[3];
    Vector vk2(data, 2);
    Vector vk3(data, 3);
 
-   double * nk_ptr = const_cast<double*>(nk);
+   real_t * nk_ptr = const_cast<real_t*>(nk);
 
    for (int k = 0; k < dof; k++)
    {
@@ -1802,10 +1802,10 @@ void RT_R2D_FiniteElement::Project(const FiniteElement &fe,
 {
    if (fe.GetRangeType() == SCALAR)
    {
-      double vk[Geometry::MaxDim];
+      real_t vk[Geometry::MaxDim];
       Vector shape(fe.GetDof());
 
-      double * nk_ptr = const_cast<double*>(nk);
+      real_t * nk_ptr = const_cast<real_t*>(nk);
 
       I.SetSize(dof, vdim*fe.GetDof());
       for (int k = 0; k < dof; k++)
@@ -1823,7 +1823,7 @@ void RT_R2D_FiniteElement::Project(const FiniteElement &fe,
          vk[2] = n3[2] * Trans.Weight();
          if (fe.GetMapType() == INTEGRAL)
          {
-            double w = 1.0/Trans.Weight();
+            real_t w = 1.0/Trans.Weight();
             for (int d = 0; d < 2; d++)
             {
                vk[d] *= w;
@@ -1832,7 +1832,7 @@ void RT_R2D_FiniteElement::Project(const FiniteElement &fe,
 
          for (int j = 0; j < shape.Size(); j++)
          {
-            double s = shape(j);
+            real_t s = shape(j);
             if (fabs(s) < 1e-12)
             {
                s = 0.0;
@@ -1848,10 +1848,10 @@ void RT_R2D_FiniteElement::Project(const FiniteElement &fe,
    }
    else
    {
-      double vk[Geometry::MaxDim];
+      real_t vk[Geometry::MaxDim];
       DenseMatrix vshape(fe.GetDof(), fe.GetRangeDim());
 
-      double * nk_ptr = const_cast<double*>(nk);
+      real_t * nk_ptr = const_cast<real_t*>(nk);
 
       I.SetSize(dof, fe.GetDof());
       for (int k = 0; k < dof; k++)
@@ -1891,7 +1891,7 @@ void RT_R2D_FiniteElement::ProjectCurl(const FiniteElement &fe,
    DenseMatrix curl_shape(fe.GetDof(), fe.GetRangeDim());
    Vector curl_k(fe.GetDof());
 
-   double * nk_ptr = const_cast<double*>(nk);
+   real_t * nk_ptr = const_cast<real_t*>(nk);
 
    curl.SetSize(dof, fe.GetDof());
    for (int k = 0; k < dof; k++)
@@ -1905,7 +1905,7 @@ void RT_R2D_FiniteElement::ProjectCurl(const FiniteElement &fe,
    }
 }
 
-const double RT_R2D_TriangleElement::nk_t[12] =
+const real_t RT_R2D_TriangleElement::nk_t[12] =
 { 0.,-1.,0.,  1.,1.,0.,  -1.,0.,0., 0.,0.,1. };
 
 RT_R2D_TriangleElement::RT_R2D_TriangleElement(const int p)
@@ -2028,7 +2028,7 @@ void RT_R2D_TriangleElement::CalcDivShape(const IntegrationPoint &ip,
    }
 }
 
-const double RT_R2D_QuadrilateralElement::nk_q[15] =
+const real_t RT_R2D_QuadrilateralElement::nk_q[15] =
 { 0., -1., 0.,  1., 0., 0.,  0., 1., 0.,  -1., 0., 0.,  0., 0., 1. };
 
 RT_R2D_QuadrilateralElement::RT_R2D_QuadrilateralElement(const int p,
@@ -2038,8 +2038,8 @@ RT_R2D_QuadrilateralElement::RT_R2D_QuadrilateralElement(const int p,
      cbasis1d(poly1d.GetBasis(p + 1, VerifyClosed(cb_type))),
      obasis1d(poly1d.GetBasis(p, VerifyOpen(ob_type)))
 {
-   const double *cp = poly1d.ClosedPoints(p + 1, cb_type);
-   const double *op = poly1d.OpenPoints(p, ob_type);
+   const real_t *cp = poly1d.ClosedPoints(p + 1, cb_type);
+   const real_t *op = poly1d.OpenPoints(p, ob_type);
    const int dofx = (p + 1)*(p + 2);
    const int dofy = (p + 1)*(p + 2);
    const int dofxy = dofx + dofy;

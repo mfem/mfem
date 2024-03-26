@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -23,7 +23,7 @@ struct NullBuf: public std::streambuf { int overflow(int c) { return c; }};
 
 static void TestMemoryTypes(MemoryType mt, bool use_dev, int N = 1024)
 {
-   Memory<double> mem(N, mt);
+   Memory<real_t> mem(N, mt);
    REQUIRE(mem.Capacity() == N);
    Vector y;
    y.NewMemoryAndSize(mem, N, true);
@@ -69,9 +69,9 @@ void Aliases(const int N = 0x1234)
    const int Xsz = 3*N;
    const int Vsz = 3*N;
    const int Esz = N;
-   X.NewMemoryAndSize(Memory<double>(S.GetMemory(), 0, Xsz), Xsz, true);
-   V.NewMemoryAndSize(Memory<double>(S.GetMemory(), Xsz, Vsz), Vsz, true);
-   E.NewMemoryAndSize(Memory<double>(S.GetMemory(), Xsz + Vsz, Esz), Esz, true);
+   X.NewMemoryAndSize(Memory<real_t>(S.GetMemory(), 0, Xsz), Xsz, true);
+   V.NewMemoryAndSize(Memory<real_t>(S.GetMemory(), Xsz, Vsz), Vsz, true);
+   E.NewMemoryAndSize(Memory<real_t>(S.GetMemory(), Xsz + Vsz, Esz), Esz, true);
    X = 1.0;
    X.SyncAliasMemory(S);
    S.HostWrite();

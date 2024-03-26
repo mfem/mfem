@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -141,7 +141,7 @@ public:
       SetSize(s);
 
       int p = 0;
-      double tmpd;
+      real_t tmpd;
       for (i = 0; i < np; i++)
       {
          for (j = 0; j < dim[i]; j++)
@@ -156,7 +156,7 @@ public:
    void Load(std::istream &in, int Size)
    {
       SetSize(Size);
-      double tmpd;
+      real_t tmpd;
       for (int i = 0; i < size; i++)
       {
          in >> tmpd;
@@ -619,7 +619,6 @@ public:
    void Randomize(int seed = 0)
    {
       // static unsigned int seed = time(0);
-      const double max = (double) (RAND_MAX) + 1.;
 
       if (seed == 0)
       {
@@ -631,7 +630,7 @@ public:
 
       for (int i = 0; i < size; i++)
       {
-         data[i] = std::abs(rand() / max);
+         data[i] = rand_real();
       }
    }
    /// Returns the l2 norm of the vector.

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -94,11 +94,11 @@ public:
    { mfem_error("Operator::MultTranspose() is not overridden!"); }
 
    /// Operator application: `y+=A(x)` (default) or `y+=a*A(x)`.
-   virtual void AddMult(const Vector &x, Vector &y, const double a = 1.0) const;
+   virtual void AddMult(const Vector &x, Vector &y, const real_t a = 1.0) const;
 
    /// Operator transpose application: `y+=A^t(x)` (default) or `y+=a*A^t(x)`.
    virtual void AddMultTranspose(const Vector &x, Vector &y,
-                                 const double a = 1.0) const;
+                                 const real_t a = 1.0) const;
 
    /// Operator application on a matrix: `Y=A(X)`.
    virtual void ArrayMult(const Array<const Vector *> &X,
@@ -110,12 +110,12 @@ public:
 
    /// Operator application on a matrix: `Y+=A(X)` (default) or `Y+=a*A(X)`.
    virtual void ArrayAddMult(const Array<const Vector *> &X, Array<Vector *> &Y,
-                             const double a = 1.0) const;
+                             const real_t a = 1.0) const;
 
    /** @brief Operator transpose application on a matrix: `Y+=A^t(X)` (default)
        or `Y+=a*A^t(X)`. */
    virtual void ArrayAddMultTranspose(const Array<const Vector *> &X,
-                                      Array<Vector *> &Y, const double a = 1.0) const;
+                                      Array<Vector *> &Y, const real_t a = 1.0) const;
 
    /** @brief Evaluate the gradient operator at the point @a x. The default
        behavior in class Operator is to generate an error. */
@@ -337,27 +337,27 @@ public:
    };
 
 protected:
-   double t;  ///< Current time.
+   real_t t;  ///< Current time.
    Type type; ///< Describes the form of the TimeDependentOperator.
    EvalMode eval_mode; ///< Current evaluation mode.
 
 public:
    /** @brief Construct a "square" TimeDependentOperator y = f(x,t), where x and
        y have the same dimension @a n. */
-   explicit TimeDependentOperator(int n = 0, double t_ = 0.0,
+   explicit TimeDependentOperator(int n = 0, real_t t_ = 0.0,
                                   Type type_ = EXPLICIT)
       : Operator(n) { t = t_; type = type_; eval_mode = NORMAL; }
 
    /** @brief Construct a TimeDependentOperator y = f(x,t), where x and y have
        dimensions @a w and @a h, respectively. */
-   TimeDependentOperator(int h, int w, double t_ = 0.0, Type type_ = EXPLICIT)
+   TimeDependentOperator(int h, int w, real_t t_ = 0.0, Type type_ = EXPLICIT)
       : Operator(h, w) { t = t_; type = type_; eval_mode = NORMAL; }
 
    /// Read the currently set time.
-   virtual double GetTime() const { return t; }
+   virtual real_t GetTime() const { return t; }
 
    /// Set the current time.
-   virtual void SetTime(const double t_) { t = t_; }
+   virtual void SetTime(const real_t t_) { t = t_; }
 
    /// True if #type is #EXPLICIT.
    bool isExplicit() const { return (type == EXPLICIT); }
@@ -418,7 +418,7 @@ public:
        methods and the backward Euler method in particular.
 
        If not re-implemented, this method simply generates an error. */
-   virtual void ImplicitSolve(const double dt, const Vector &x, Vector &k);
+   virtual void ImplicitSolve(const real_t dt, const Vector &x, Vector &k);
 
    /** @brief Return an Operator representing (dF/dk @a shift + dF/dx) at the
        given @a x, @a k, and the currently set time.
@@ -426,7 +426,7 @@ public:
        Presently, this method is used by some PETSc ODE solvers, for more
        details, see the PETSc Manual. */
    virtual Operator& GetImplicitGradient(const Vector &x, const Vector &k,
-                                         double shift) const;
+                                         real_t shift) const;
 
    /** @brief Return an Operator representing dG/dx at the given point @a x and
        the currently set time.
@@ -435,11 +435,11 @@ public:
        details, see the PETSc Manual. */
    virtual Operator& GetExplicitGradient(const Vector &x) const;
 
-   /** @brief Setup the ODE linear system \f$ A(x,t) = (I - gamma J) \f$ or
-       \f$ A = (M - gamma J) \f$, where \f$ J(x,t) = \frac{df}{dt(x,t)} \f$.
+   /** @brief Setup the ODE linear system $ A(x,t) = (I - gamma J) $ or
+       $ A = (M - gamma J) $, where $ J(x,t) = \frac{df}{dt(x,t)} $.
 
-       @param[in]  x     The state at which \f$A(x,t)\f$ should be evaluated.
-       @param[in]  fx    The current value of the ODE rhs function, \f$f(x,t)\f$.
+       @param[in]  x     The state at which $A(x,t)$ should be evaluated.
+       @param[in]  fx    The current value of the ODE rhs function, $f(x,t)$.
        @param[in]  jok   Flag indicating if the Jacobian should be updated.
        @param[out] jcur  Flag to signal if the Jacobian was updated.
        @param[in]  gamma The scaled time step value.
@@ -449,9 +449,9 @@ public:
        Presently, this method is used by SUNDIALS ODE solvers, for more
        details, see the SUNDIALS User Guides. */
    virtual int SUNImplicitSetup(const Vector &x, const Vector &fx,
-                                int jok, int *jcur, double gamma);
+                                int jok, int *jcur, real_t gamma);
 
-   /** @brief Solve the ODE linear system \f$ A x = b \f$ as setup by
+   /** @brief Solve the ODE linear system $ A x = b $ as setup by
        the method SUNImplicitSetup().
 
        @param[in]      b   The linear system right-hand side.
@@ -462,9 +462,9 @@ public:
 
        Presently, this method is used by SUNDIALS ODE solvers, for more
        details, see the SUNDIALS User Guides. */
-   virtual int SUNImplicitSolve(const Vector &b, Vector &x, double tol);
+   virtual int SUNImplicitSolve(const Vector &b, Vector &x, real_t tol);
 
-   /** @brief Setup the mass matrix in the ODE system \f$ M y' = f(y,t) \f$ .
+   /** @brief Setup the mass matrix in the ODE system $ M y' = f(y,t) $ .
 
        If not re-implemented, this method simply generates an error.
 
@@ -472,7 +472,7 @@ public:
        details, see the ARKode User Guide. */
    virtual int SUNMassSetup();
 
-   /** @brief Solve the mass matrix linear system \f$ M x = b \f$
+   /** @brief Solve the mass matrix linear system $ M x = b $
        as setup by the method SUNMassSetup().
 
        @param[in]      b   The linear system right-hand side.
@@ -483,9 +483,9 @@ public:
 
        Presently, this method is used by SUNDIALS ARKStep integrator, for more
        details, see the ARKode User Guide. */
-   virtual int SUNMassSolve(const Vector &b, Vector &x, double tol);
+   virtual int SUNMassSolve(const Vector &b, Vector &x, real_t tol);
 
-   /** @brief Compute the mass matrix-vector product \f$ v = M x \f$ .
+   /** @brief Compute the mass matrix-vector product $ v = M x $ .
 
        @param[in]   x The vector to multiply.
        @param[out]  v The result of the matrix-vector product.
@@ -535,7 +535,7 @@ public:
       \param[in] t Starting time to set
       \param[in] type The TimeDependentOperator type
    */
-   TimeDependentAdjointOperator(int dim, int adjdim, double t = 0.,
+   TimeDependentAdjointOperator(int dim, int adjdim, real_t t = 0.,
                                 Type type = EXPLICIT) :
       TimeDependentOperator(dim, t, type),
       adjoint_height(adjdim)
@@ -574,13 +574,13 @@ public:
    virtual void QuadratureSensitivityMult(const Vector &y, const Vector &yB,
                                           Vector &qBdot) const {}
 
-   /** @brief Setup the ODE linear system \f$ A(x,t) = (I - gamma J) \f$ or
-       \f$ A = (M - gamma J) \f$, where \f$ J(x,t) = \frac{df}{dt(x,t)} \f$.
+   /** @brief Setup the ODE linear system $ A(x,t) = (I - gamma J) $ or
+       $ A = (M - gamma J) $, where $ J(x,t) = \frac{df}{dt(x,t)} $.
 
        @param[in]  t     The current time
-       @param[in]  x     The state at which \f$A(x,xB,t)\f$ should be evaluated.
-       @param[in]  xB    The state at which \f$A(x,xB,t)\f$ should be evaluated.
-       @param[in]  fxB   The current value of the ODE rhs function, \f$f(x,t)\f$.
+       @param[in]  x     The state at which $A(x,xB,t)$ should be evaluated.
+       @param[in]  xB    The state at which $A(x,xB,t)$ should be evaluated.
+       @param[in]  fxB   The current value of the ODE rhs function, $f(x,t)$.
        @param[in]  jokB   Flag indicating if the Jacobian should be updated.
        @param[out] jcurB  Flag to signal if the Jacobian was updated.
        @param[in]  gammaB The scaled time step value.
@@ -590,16 +590,16 @@ public:
        Presently, this method is used by SUNDIALS ODE solvers, for more details,
        see the SUNDIALS User Guides.
    */
-   virtual int SUNImplicitSetupB(const double t, const Vector &x,
+   virtual int SUNImplicitSetupB(const real_t t, const Vector &x,
                                  const Vector &xB, const Vector &fxB,
-                                 int jokB, int *jcurB, double gammaB)
+                                 int jokB, int *jcurB, real_t gammaB)
    {
       mfem_error("TimeDependentAdjointOperator::SUNImplicitSetupB() is not "
                  "overridden!");
       return (-1);
    }
 
-   /** @brief Solve the ODE linear system \f$ A(x,xB,t) xB = b \f$ as setup by
+   /** @brief Solve the ODE linear system $ A(x,xB,t) xB = b $ as setup by
        the method SUNImplicitSetup().
 
        @param[in]      b   The linear system right-hand side.
@@ -610,7 +610,7 @@ public:
 
        Presently, this method is used by SUNDIALS ODE solvers, for more details,
        see the SUNDIALS User Guides. */
-   virtual int SUNImplicitSolveB(Vector &x, const Vector &b, double tol)
+   virtual int SUNImplicitSolveB(Vector &x, const Vector &b, real_t tol)
    {
       mfem_error("TimeDependentAdjointOperator::SUNImplicitSolveB() is not "
                  "overridden!");
@@ -636,13 +636,13 @@ class SecondOrderTimeDependentOperator : public TimeDependentOperator
 public:
    /** @brief Construct a "square" SecondOrderTimeDependentOperator
        y = f(x,dxdt,t), where x, dxdt and y have the same dimension @a n. */
-   explicit SecondOrderTimeDependentOperator(int n = 0, double t_ = 0.0,
+   explicit SecondOrderTimeDependentOperator(int n = 0, real_t t_ = 0.0,
                                              Type type_ = EXPLICIT)
       : TimeDependentOperator(n, t_,type_) { }
 
    /** @brief Construct a SecondOrderTimeDependentOperator y = f(x,dxdt,t),
        where x, dxdt and y have the same dimension @a n. */
-   SecondOrderTimeDependentOperator(int h, int w, double t_ = 0.0,
+   SecondOrderTimeDependentOperator(int h, int w, real_t t_ = 0.0,
                                     Type type_ = EXPLICIT)
       : TimeDependentOperator(h, w, t_,type_) { }
 
@@ -670,7 +670,7 @@ public:
        integration methods.
 
        If not re-implemented, this method simply generates an error. */
-   virtual void ImplicitSolve(const double fac0, const double fac1,
+   virtual void ImplicitSolve(const real_t fac0, const real_t fac1,
                               const Vector &x, const Vector &dxdt, Vector &k);
 
 
@@ -727,11 +727,11 @@ class ScaledOperator : public Operator
 {
 private:
    const Operator &A_;
-   double a_;
+   real_t a_;
 
 public:
    /// Create an operator which is a scalar multiple of A.
-   explicit ScaledOperator(const Operator *A, double a)
+   explicit ScaledOperator(const Operator *A, real_t a)
       : Operator(A->Height(), A->Width()), A_(*A), a_(a) { }
 
    /// Operator application
@@ -769,6 +769,28 @@ public:
    { A.Mult(x, y); }
 };
 
+/// General linear combination operator: x -> a A(x) + b B(x).
+class SumOperator : public Operator
+{
+   const Operator *A, *B;
+   const real_t alpha, beta;
+   bool ownA, ownB;
+   mutable Vector z;
+
+public:
+   SumOperator(
+      const Operator *A, const real_t alpha,
+      const Operator *B, const real_t beta,
+      bool ownA, bool ownB);
+
+   virtual void Mult(const Vector &x, Vector &y) const
+   { z.SetSize(A->Height()); A->Mult(x, z); B->Mult(x, y); add(alpha, z, beta, y, y); }
+
+   virtual void MultTranspose(const Vector &x, Vector &y) const
+   { z.SetSize(A->Width()); A->MultTranspose(x, z); B->MultTranspose(x, y); add(alpha, z, beta, y, y); }
+
+   virtual ~SumOperator();
+};
 
 /// General product operator: x -> (A*B)(x) = A(B(x)).
 class ProductOperator : public Operator
@@ -892,14 +914,14 @@ public:
                        DiagonalPolicy diag_policy = DIAG_ONE);
 
    /// Returns the type of memory in which the solution and temporaries are stored.
-   virtual MemoryClass GetMemoryClass() const { return mem_class; }
+   MemoryClass GetMemoryClass() const override { return mem_class; }
 
    /// Set the diagonal policy for the constrained operator.
    void SetDiagonalPolicy(const DiagonalPolicy diag_policy_)
    { diag_policy = diag_policy_; }
 
    /// Diagonal of A, modified according to the used DiagonalPolicy.
-   virtual void AssembleDiagonal(Vector &diag) const;
+   void AssembleDiagonal(Vector &diag) const override;
 
    /** @brief Eliminate "essential boundary condition" values specified in @a x
        from the given right-hand side @a b.
@@ -922,10 +944,19 @@ public:
 
        where the "_b" subscripts denote the essential (boundary) indices/dofs of
        the vectors, and "_i" -- the rest of the entries. */
-   virtual void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
+
+   void AddMult(const Vector &x, Vector &y, const real_t a = 1.0) const override;
+
+   void MultTranspose(const Vector &x, Vector &y) const override;
+
+   /** @brief Implementation of Mult or MultTranspose.
+    *  TODO - Generalize to allow constraining rows and columns differently.
+   */
+   void ConstrainedMult(const Vector &x, Vector &y, const bool transpose) const;
 
    /// Destructor: destroys the unconstrained Operator, if owned.
-   virtual ~ConstrainedOperator() { if (own_A) { delete A; } }
+   ~ConstrainedOperator() override { if (own_A) { delete A; } }
 };
 
 /** @brief Rectangular Operator for imposing essential boundary conditions on
@@ -1009,8 +1040,8 @@ public:
        The maximum number of iterations may set with \p numSteps, the relative
        tolerance with \p tolerance and the seed of the random initialization of
        \p v0 with \p seed. If \p seed is 0 \p v0 will not be random-initialized. */
-   double EstimateLargestEigenvalue(Operator& opr, Vector& v0,
-                                    int numSteps = 10, double tolerance = 1e-8,
+   real_t EstimateLargestEigenvalue(Operator& opr, Vector& v0,
+                                    int numSteps = 10, real_t tolerance = 1e-8,
                                     int seed = 12345);
 };
 

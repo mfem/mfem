@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -31,7 +31,7 @@ public:
 
    // Returns the energy at an integration point.
    virtual
-   double QEnergy(ElementTransformation &T, const IntegrationPoint &ip,
+   real_t QEnergy(ElementTransformation &T, const IntegrationPoint &ip,
                   mfem::Vector &dd, mfem::Vector &uu)
    {
       return 0.0;
@@ -70,7 +70,7 @@ class QLinearDiffusion:public BaseQFunction
 {
 public:
    QLinearDiffusion(mfem::Coefficient& diffco, mfem::Coefficient& hsrco,
-                    double pp=1.0, double minrho=1e-7, double betac=4.0, double etac=0.5):
+                    real_t pp=1.0, real_t minrho=1e-7, real_t betac=4.0, real_t etac=0.5):
       diff(diffco),load(hsrco), powerc(pp), rhomin(minrho), beta(betac), eta(etac)
    {
 
@@ -82,7 +82,7 @@ public:
    }
 
    virtual
-   double QEnergy(ElementTransformation &T, const IntegrationPoint &ip,
+   real_t QEnergy(ElementTransformation &T, const IntegrationPoint &ip,
                   Vector &dd, Vector &uu) override
    {
       // dd[0] - density
@@ -91,15 +91,15 @@ public:
       // uu[2] - grad_z
       // uu[3] - temperature/scalar field
 
-      double di=diff.Eval(T,ip);
-      double ll=load.Eval(T,ip);
+      real_t di=diff.Eval(T,ip);
+      real_t ll=load.Eval(T,ip);
       // Computes the physical density using projection.
-      double rz=0.5+0.5*std::tanh(beta*(dd[0]-eta)); //projection
+      real_t rz=0.5+0.5*std::tanh(beta*(dd[0]-eta)); //projection
       // Computes the diffusion coefficient at the integration point.
-      double fd=di*(std::pow(rz,powerc)+rhomin);
+      real_t fd=di*(std::pow(rz,powerc)+rhomin);
       // Computes the sum of the energy and the product of the temperature and
       // the external input at the integration point.
-      double rez = 0.5*(uu[0]*uu[0]+uu[1]*uu[1]+uu[2]*uu[2])*fd-uu[3]*ll;
+      real_t rez = 0.5*(uu[0]*uu[0]+uu[1]*uu[1]+uu[2]*uu[2])*fd-uu[3]*ll;
       return rez;
    }
 
@@ -108,10 +108,10 @@ public:
    void QResidual(ElementTransformation &T, const IntegrationPoint &ip,
                   Vector &dd, Vector &uu, Vector &rr) override
    {
-      double di=diff.Eval(T,ip);
-      double ll=load.Eval(T,ip);
-      double rz=0.5+0.5*std::tanh(beta*(dd[0]-eta));
-      double fd=di*(std::pow(rz,powerc)+rhomin);
+      real_t di=diff.Eval(T,ip);
+      real_t ll=load.Eval(T,ip);
+      real_t rz=0.5+0.5*std::tanh(beta*(dd[0]-eta));
+      real_t fd=di*(std::pow(rz,powerc)+rhomin);
 
       rr[0]=uu[0]*fd;
       rr[1]=uu[1]*fd;
@@ -126,10 +126,10 @@ public:
    void AQResidual(ElementTransformation &T, const IntegrationPoint &ip,
                    Vector &dd, Vector &uu, Vector &aa, Vector &rr) override
    {
-      double di=diff.Eval(T,ip);
-      double tt=std::tanh(beta*(dd[0]-eta));
-      double rz=0.5+0.5*tt;
-      double fd=di*powerc*std::pow(rz,powerc-1.0)*0.5*(1.0-tt*tt)*beta;
+      real_t di=diff.Eval(T,ip);
+      real_t tt=std::tanh(beta*(dd[0]-eta));
+      real_t rz=0.5+0.5*tt;
+      real_t fd=di*powerc*std::pow(rz,powerc-1.0)*0.5*(1.0-tt*tt)*beta;
 
       rr[0] = -(aa[0]*uu[0]+aa[1]*uu[1]+aa[2]*uu[2])*fd;
    }
@@ -140,10 +140,10 @@ public:
    void QGradResidual(ElementTransformation &T, const IntegrationPoint &ip,
                       Vector &dd, Vector &uu, DenseMatrix &hh) override
    {
-      double di=diff.Eval(T,ip);
-      double tt=std::tanh(beta*(dd[0]-eta));
-      double rz=0.5+0.5*tt;
-      double fd=di*(std::pow(rz,powerc)+rhomin);
+      real_t di=diff.Eval(T,ip);
+      real_t tt=std::tanh(beta*(dd[0]-eta));
+      real_t rz=0.5+0.5*tt;
+      real_t fd=di*(std::pow(rz,powerc)+rhomin);
       hh=0.0;
 
       hh(0,0)=fd;
@@ -155,10 +155,10 @@ public:
 private:
    mfem::Coefficient& diff; //diffusion coefficient
    mfem::Coefficient& load; //load coefficient
-   double powerc; //penalization coefficient
-   double rhomin; //lower bound for the density
-   double beta;   //controls the sharpness of the projection
-   double eta;    //projection threshold for tanh
+   real_t powerc; //penalization coefficient
+   real_t rhomin; //lower bound for the density
+   real_t beta;   //controls the sharpness of the projection
+   real_t eta;    //projection threshold for tanh
 };
 
 /// Provides implementation of an integrator for linear diffusion with
@@ -174,7 +174,7 @@ public:
 
    /// Computes the local energy.
    virtual
-   double GetElementEnergy(const Array<const FiniteElement *> &el,
+   real_t GetElementEnergy(const Array<const FiniteElement *> &el,
                            const Array<const FiniteElement *> &pel,
                            ElementTransformation &Tr,
                            const Array<const Vector *> &elfun,
@@ -214,7 +214,7 @@ private:
 
 
 /// Computes an example of nonlinear objective
-/// \f$\int \rm{field}*\rm{field}*\rm{weight})\rm{d}\Omega_e\f$.
+/// $\int \rm{field}*\rm{field}*\rm{weight})\rm{d}\Omega_e$.
 class DiffusionObjIntegrator:public BlockNonlinearFormIntegrator
 {
 public:
@@ -226,7 +226,7 @@ public:
 
    /// Returns the objective contribution at element level.
    virtual
-   double GetElementEnergy(const Array<const FiniteElement *> &el,
+   real_t GetElementEnergy(const Array<const FiniteElement *> &el,
                            ElementTransformation &Tr,
                            const Array<const Vector *> &elfun) override;
 

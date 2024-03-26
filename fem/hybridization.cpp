@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -364,7 +364,7 @@ void Hybridization::Init(const Array<int> &ess_tdof_list)
 #undef MFEM_DEBUG_HERE
 #endif
 
-   Af_data = new double[Af_offsets[NE]];
+   Af_data = new real_t[Af_offsets[NE]];
    Af_ipiv = new int[Af_f_offsets[NE]];
 
 #ifdef MFEM_DEBUG
@@ -391,7 +391,7 @@ void Hybridization::Init(const Array<int> &ess_tdof_list)
 
       const int ncols = R->RowSize(tdof);
       const int *cols = R->GetRowColumns(tdof);
-      const double *vals = R->GetRowEntries(tdof);
+      const real_t *vals = R->GetRowEntries(tdof);
       for (int j = 0; j < ncols; j++)
       {
          if (std::abs(vals[j]) != 0.0 && vdof_marker[cols[j]] == 0)
@@ -590,8 +590,8 @@ void Hybridization::ComputeH()
       GetBDofs(el, i_dofs_size, b_dofs);
 
       LUFactors LU_ii(Af_data + Af_offsets[el], Af_ipiv + Af_f_offsets[el]);
-      double *A_ib_data = LU_ii.data + i_dofs_size*i_dofs_size;
-      double *A_bi_data = A_ib_data + i_dofs_size*b_dofs.Size();
+      real_t *A_ib_data = LU_ii.data + i_dofs_size*i_dofs_size;
+      real_t *A_bi_data = A_ib_data + i_dofs_size*b_dofs.Size();
       LUFactors LU_bb(A_bi_data + i_dofs_size*b_dofs.Size(),
                       LU_ii.ipiv + i_dofs_size);
 
@@ -624,7 +624,7 @@ void Hybridization::ComputeH()
          const int row = b_dofs[i];
          const int ncols = Ct->RowSize(row);
          const int *cols = Ct->GetRowColumns(row);
-         const double *vals = Ct->GetRowEntries(row);
+         const real_t *vals = Ct->GetRowEntries(row);
          for (int j = 0; j < ncols; j++)
          {
             const int loc_j = c_dof_marker[cols[j]] - c_mark_start;
@@ -786,8 +786,8 @@ void Hybridization::MultAfInv(const Vector &b, const Vector &lambda, Vector &bf,
       el_vals.GetSubVector(b_dofs, b_vals);
 
       LUFactors LU_ii(Af_data + Af_offsets[i], Af_ipiv + Af_f_offsets[i]);
-      double *U_ib = LU_ii.data + i_dofs.Size()*i_dofs.Size();
-      double *L_bi = U_ib + i_dofs.Size()*b_dofs.Size();
+      real_t *U_ib = LU_ii.data + i_dofs.Size()*i_dofs.Size();
+      real_t *L_bi = U_ib + i_dofs.Size()*b_dofs.Size();
       LUFactors LU_bb(L_bi + b_dofs.Size()*i_dofs.Size(),
                       LU_ii.ipiv + i_dofs.Size());
       LU_ii.BlockForwSolve(i_dofs.Size(), b_dofs.Size(), 1, L_bi,

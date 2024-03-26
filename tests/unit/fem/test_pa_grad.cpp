@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -30,7 +30,7 @@ Mesh MakeCartesianNonaligned(const int dim, const int ne)
    // Remap vertices so that the mesh is not aligned with axes.
    for (int i=0; i<mesh.GetNV(); ++i)
    {
-      double *vcrd = mesh.GetVertex(i);
+      real_t *vcrd = mesh.GetVertex(i);
       vcrd[1] += 0.2 * vcrd[0];
       if (dim == 3) { vcrd[2] += 0.3 * vcrd[0]; }
    }
@@ -38,7 +38,7 @@ Mesh MakeCartesianNonaligned(const int dim, const int ne)
    return mesh;
 }
 
-double compare_pa_assembly(int dim, int num_elements, int order, bool transpose)
+real_t compare_pa_assembly(int dim, int num_elements, int order, bool transpose)
 {
    Mesh mesh;
    if (num_elements == 0)
@@ -103,7 +103,7 @@ double compare_pa_assembly(int dim, int num_elements, int order, bool transpose)
    }
 
    pa_y -= assembled_y;
-   double error = pa_y.Norml2() / assembled_y.Norml2();
+   real_t error = pa_y.Norml2() / assembled_y.Norml2();
    INFO("dim " << dim << " ne " << num_elements << " order " << order
         << (transpose ? " T:" : ":") << " error in PA gradient: " << error);
 
@@ -120,13 +120,13 @@ TEST_CASE("PAGradient", "[CUDA]")
    auto dim = GENERATE(2, 3);
    auto num_elements = GENERATE(0, 1, 2, 3, 4);
 
-   double error = compare_pa_assembly(dim, num_elements, order, transpose);
+   real_t error = compare_pa_assembly(dim, num_elements, order, transpose);
    REQUIRE(error == MFEM_Approx(0.0, 1.0e-14));
 }
 
 #ifdef MFEM_USE_MPI
 
-double par_compare_pa_assembly(int dim, int num_elements, int order,
+real_t par_compare_pa_assembly(int dim, int num_elements, int order,
                                bool transpose)
 {
    int rank;
@@ -189,7 +189,7 @@ double par_compare_pa_assembly(int dim, int num_elements, int order,
    error_vec -= assembled_y;
    // serial norms and serial error; we are enforcing equality on each processor
    // in the test
-   double error = error_vec.Norml2() / assembled_y.Norml2();
+   real_t error = error_vec.Norml2() / assembled_y.Norml2();
 
    for (int p = 0; p < size; ++p)
    {
@@ -217,7 +217,7 @@ TEST_CASE("ParallelPAGradient", "[Parallel], [ParallelPAGradient]")
    auto dim = GENERATE(2, 3);
    auto num_elements = GENERATE(4, 5);
 
-   double error = par_compare_pa_assembly(dim, num_elements, order, transpose);
+   real_t error = par_compare_pa_assembly(dim, num_elements, order, transpose);
    REQUIRE(error == MFEM_Approx(0.0, 1.0e-14));
 }
 

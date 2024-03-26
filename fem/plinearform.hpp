@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -51,7 +51,7 @@ public:
        Vector constructors for externally allocated array, the pointer @a data
        can be NULL. The data array can be replaced later using the method
        SetData(). */
-   ParLinearForm(ParFiniteElementSpace *pf, double *data) :
+   ParLinearForm(ParFiniteElementSpace *pf, real_t *data) :
       LinearForm(pf, data), pfes(pf) { }
 
    /** @brief Create a ParLinearForm on the ParFiniteElementSpace @a *pf, using
@@ -135,13 +135,13 @@ public:
        real numbers. This method performs this mapping which in this case is
        equivalent as an inner product of the ParLinearForm and
        ParGridFunction. */
-   double operator()(const ParGridFunction &gf) const
+   real_t operator()(const ParGridFunction &gf) const
    {
       return InnerProduct(pfes->GetComm(), *this, gf);
    }
 
    /// Assign constant values to the ParLinearForm data.
-   ParLinearForm &operator=(double value)
+   ParLinearForm &operator=(real_t value)
    { LinearForm::operator=(value); return *this; }
 
    /// Copy the data from a Vector to the ParLinearForm data.

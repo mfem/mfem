@@ -112,6 +112,7 @@ namespace mfem {
  * - <a class="el" href="ex36p_8cpp_source.html">Example 36p</a>: parallel Proximal Galerkin FEM for the obstacle problem
  * - <a class="el" href="ex37_8cpp_source.html">Example 37</a>: Topology optimization
  * - <a class="el" href="ex37p_8cpp_source.html">Example 37p</a>: parallel topology optimization
+ * - <a class="el" href="ex38_8cpp_source.html">Example 38</a>: cut-surface and cut-volume integration
  *
  * <H4>AmgX Examples</H4>
  * - Variants of Examples
@@ -215,6 +216,7 @@ namespace mfem {
  * - <a class="el" href="generate__random__field_8cpp_source.html">SPDE Solvers</a>: SPDE solver random field generation
  * - <a class="el" href="pdiffusion_8cpp_source.html">DPG Diffusion example</a>: DPG formulation for the diffusion problem
  * - <a class="el" href="pmaxwell_8cpp_source.html">DPG Maxwell example</a>: DPG formulation for the indefinite Maxwell problem
+ * - <a class="el" href="lor__elast_8cpp_source.html">LOR Elasticity</a>: solve linear elasticity with LOR preconditioning on GPUs
  *
  * See also the <a class="el" href="https://mfem.org/examples/">examples documentation</a> online.
  */

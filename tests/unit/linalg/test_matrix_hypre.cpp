@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -55,7 +55,7 @@ TEST_CASE("HypreParMatrixAbsMult",  "[Parallel], [HypreParMatrixAbsMult]")
       }
 #else
       Aabs->HypreReadWrite();
-      double *d_diag_data = AparCSR->diag->data;
+      real_t *d_diag_data = AparCSR->diag->data;
       MFEM_GPU_FORALL(i, nnzd,
       {
          d_diag_data[i] = fabs(d_diag_data[i]);
@@ -69,7 +69,7 @@ TEST_CASE("HypreParMatrixAbsMult",  "[Parallel], [HypreParMatrixAbsMult]")
          AparCSR->offd->data[j] = fabs(AparCSR->offd->data[j]);
       }
 #else
-      double *d_offd_data = AparCSR->offd->data;
+      real_t *d_offd_data = AparCSR->offd->data;
       MFEM_GPU_FORALL(i, nnzoffd,
       {
          d_offd_data[i] = fabs(d_offd_data[i]);

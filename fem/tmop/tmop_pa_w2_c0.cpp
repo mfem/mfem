@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -18,15 +18,15 @@
 namespace mfem
 {
 
-MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_2D,
-                           const double lim_normal,
+MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_C0_2D,
+                           const real_t lim_normal,
                            const Vector &lim_dist,
                            const Vector &c0_,
                            const int NE,
                            const DenseTensor &j_,
-                           const Array<double> &w_,
-                           const Array<double> &b_,
-                           const Array<double> &bld_,
+                           const Array<real_t> &w_,
+                           const Array<real_t> &b_,
+                           const Array<real_t> &bld_,
                            const Vector &x0_,
                            const Vector &x1_,
                            const Vector &ones,
@@ -64,20 +64,20 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_2D,
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
-      MFEM_SHARED double B[MQ1*MD1];
-      MFEM_SHARED double BLD[MQ1*MD1];
+      MFEM_SHARED real_t B[MQ1*MD1];
+      MFEM_SHARED real_t BLD[MQ1*MD1];
 
-      MFEM_SHARED double XY[NBZ][MD1*MD1];
-      MFEM_SHARED double DQ[NBZ][MD1*MQ1];
-      MFEM_SHARED double QQ[NBZ][MQ1*MQ1];
+      MFEM_SHARED real_t XY[NBZ][MD1*MD1];
+      MFEM_SHARED real_t DQ[NBZ][MD1*MQ1];
+      MFEM_SHARED real_t QQ[NBZ][MQ1*MQ1];
 
-      MFEM_SHARED double XY0[2][NBZ][MD1*MD1];
-      MFEM_SHARED double DQ0[2][NBZ][MD1*MQ1];
-      MFEM_SHARED double QQ0[2][NBZ][MQ1*MQ1];
+      MFEM_SHARED real_t XY0[2][NBZ][MD1*MD1];
+      MFEM_SHARED real_t DQ0[2][NBZ][MD1*MQ1];
+      MFEM_SHARED real_t QQ0[2][NBZ][MQ1*MQ1];
 
-      MFEM_SHARED double XY1[2][NBZ][MD1*MD1];
-      MFEM_SHARED double DQ1[2][NBZ][MD1*MQ1];
-      MFEM_SHARED double QQ1[2][NBZ][MQ1*MQ1];
+      MFEM_SHARED real_t XY1[2][NBZ][MD1*MD1];
+      MFEM_SHARED real_t DQ1[2][NBZ][MD1*MQ1];
+      MFEM_SHARED real_t QQ1[2][NBZ][MQ1*MQ1];
 
       kernels::internal::LoadX<MD1,NBZ>(e,D1D,LD,XY);
       kernels::internal::LoadX<MD1,NBZ>(e,D1D,X0,XY0);
@@ -99,17 +99,17 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_2D,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            double ld, p0[2], p1[2];
-            const double *Jtr = &J(0,0,qx,qy,e);
-            const double detJtr = kernels::Det<2>(Jtr);
-            const double weight = W(qx,qy) * detJtr;
-            const double coeff0 = const_c0 ? C0(0,0,0) : C0(qx,qy,e);
+            real_t ld, p0[2], p1[2];
+            const real_t *Jtr = &J(0,0,qx,qy,e);
+            const real_t detJtr = kernels::Det<2>(Jtr);
+            const real_t weight = W(qx,qy) * detJtr;
+            const real_t coeff0 = const_c0 ? C0(0,0,0) : C0(qx,qy,e);
             kernels::internal::PullEval<MQ1,NBZ>(Q1D,qx,qy,QQ,ld);
             kernels::internal::PullEval<MQ1,NBZ>(Q1D,qx,qy,QQ0,p0);
             kernels::internal::PullEval<MQ1,NBZ>(Q1D,qx,qy,QQ1,p1);
-            const double dist = ld; // GetValues, default comp set to 0
-            double id2 = 0.0;
-            double dsq = 0.0;
+            const real_t dist = ld; // GetValues, default comp set to 0
+            real_t id2 = 0.0;
+            real_t dsq = 0.0;
             if (!exp_lim)
             {
                id2 = 0.5 / (dist*dist);
@@ -128,18 +128,18 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_2D,
    return energy * ones;
 }
 
-double TMOP_Integrator::GetLocalStateEnergyPA_C0_2D(const Vector &X) const
+real_t TMOP_Integrator::GetLocalStateEnergyPA_C0_2D(const Vector &X) const
 {
    const int N = PA.ne;
    const int D1D = PA.maps->ndof;
    const int Q1D = PA.maps->nqpt;
    const int id = (D1D << 4 ) | Q1D;
-   const double ln = lim_normal;
+   const real_t ln = lim_normal;
    const Vector &LD = PA.LD;
    const DenseTensor &J = PA.Jtr;
-   const Array<double> &W   = PA.ir->GetWeights();
-   const Array<double> &B   = PA.maps->B;
-   const Array<double> &BLD = PA.maps_lim->B;
+   const Array<real_t> &W   = PA.ir->GetWeights();
+   const Array<real_t> &B   = PA.maps->B;
+   const Array<real_t> &BLD = PA.maps_lim->B;
    MFEM_VERIFY(PA.maps_lim->ndof == D1D, "");
    MFEM_VERIFY(PA.maps_lim->nqpt == Q1D, "");
    const Vector &X0 = PA.X0;

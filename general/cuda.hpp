@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -22,7 +22,7 @@
 #define MFEM_USE_CUDA_OR_HIP
 #define MFEM_DEVICE __device__
 #define MFEM_LAMBDA __host__
-#define MFEM_HOST_DEVICE __host__ __device__
+// #define MFEM_HOST_DEVICE __host__ __device__ // defined in config/config.hpp
 #define MFEM_DEVICE_SYNC MFEM_GPU_CHECK(cudaDeviceSynchronize())
 #define MFEM_STREAM_SYNC MFEM_GPU_CHECK(cudaStreamSynchronize(0))
 // Define a CUDA error check macro, MFEM_GPU_CHECK(x), where x returns/is of

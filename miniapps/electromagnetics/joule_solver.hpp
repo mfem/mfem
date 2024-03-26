@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -27,7 +27,7 @@ namespace electromagnetics
 {
 
 // Some global variable for convenience
-const double       SOLVER_TOL = 1.0e-9;
+const real_t       SOLVER_TOL = 1.0e-9;
 const int       SOLVER_MAX_IT = 1000;
 // Initialized in joule.cpp and used in joule_solver.cpp:
 extern int SOLVER_PRINT_LEVEL;
@@ -35,10 +35,10 @@ extern int        STATIC_COND;
 
 // These are defined in joule.cpp
 void edot_bc(const Vector &x, Vector &E);
-void e_exact(const Vector &x, double t, Vector &E);
-void b_exact(const Vector &x, double t, Vector &B);
-double p_bc(const Vector &x, double t);
-double t_exact(const Vector &x);
+void e_exact(const Vector &x, real_t t, Vector &E);
+void b_exact(const Vector &x, real_t t, Vector &B);
+real_t p_bc(const Vector &x, real_t t);
+real_t t_exact(const Vector &x);
 
 // A Coefficient is an object with a function Eval that returns a double.  A
 // MeshDependentCoefficient returns a different value depending upon the given
@@ -47,14 +47,14 @@ double t_exact(const Vector &x);
 class MeshDependentCoefficient: public Coefficient
 {
 private:
-   std::map<int, double> *materialMap;
-   double scaleFactor;
+   std::map<int, real_t> *materialMap;
+   real_t scaleFactor;
 public:
-   MeshDependentCoefficient(const std::map<int, double> &inputMap,
-                            double scale = 1.0);
+   MeshDependentCoefficient(const std::map<int, real_t> &inputMap,
+                            real_t scale = 1.0);
    MeshDependentCoefficient(const MeshDependentCoefficient &cloneMe);
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
-   void SetScaleFactor(const double &scale) { scaleFactor = scale; }
+   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip);
+   void SetScaleFactor(const real_t &scale) { scaleFactor = scale; }
    virtual ~MeshDependentCoefficient()
    {
       if (materialMap != NULL) { delete materialMap; }
@@ -70,7 +70,7 @@ private:
    MeshDependentCoefficient mdc;
 public:
    ScaledGFCoefficient(GridFunction *gf, MeshDependentCoefficient &input_mdc);
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip);
    void SetMDC(const MeshDependentCoefficient &input_mdc) { mdc = input_mdc; }
    virtual ~ScaledGFCoefficient() {}
 };
@@ -156,22 +156,22 @@ protected:
    mutable Array<int> poisson_ess_bdr_vdofs;
 
    MeshDependentCoefficient *sigma, *Tcapacity, *InvTcap, *InvTcond;
-   double mu, dt_A1, dt_A2;
+   real_t mu, dt_A1, dt_A2;
 
    // The method builA2 creates the ParBilinearForm a2, the HypreParMatrix A2,
    // and the solver and preconditioner pcg_a2 and amg_a2. The other build
    // functions do similar things.
    void buildA0(MeshDependentCoefficient &sigma);
-   void buildA1(double muInv, MeshDependentCoefficient &sigma, double dt);
+   void buildA1(real_t muInv, MeshDependentCoefficient &sigma, real_t dt);
    void buildA2(MeshDependentCoefficient &InvTcond,
-                MeshDependentCoefficient &InvTcap, double dt);
+                MeshDependentCoefficient &InvTcap, real_t dt);
    void buildM1(MeshDependentCoefficient &sigma);
    void buildM2(MeshDependentCoefficient &alpha);
    void buildM3(MeshDependentCoefficient &Tcap);
-   void buildS1(double muInv);
+   void buildS1(real_t muInv);
    void buildS2(MeshDependentCoefficient &alpha);
    void buildGrad();
-   void buildCurl(double muInv);
+   void buildCurl(real_t muInv);
    void buildDiv( MeshDependentCoefficient &InvTcap);
 
 public:
@@ -183,11 +183,11 @@ public:
                               Array<int> &ess_bdr,
                               Array<int> &thermal_ess_bdr,
                               Array<int> &poisson_ess_bdr,
-                              double mu,
-                              std::map<int, double> sigmaAttMap,
-                              std::map<int, double> TcapacityAttMap,
-                              std::map<int, double> InvTcapAttMap,
-                              std::map<int, double> InvTcondAttMap
+                              real_t mu,
+                              std::map<int, real_t> sigmaAttMap,
+                              std::map<int, real_t> TcapacityAttMap,
+                              std::map<int, real_t> InvTcapAttMap,
+                              std::map<int, real_t> InvTcondAttMap
                              );
 
    // Initialize the fields. This is where restart would go to.
@@ -201,23 +201,23 @@ public:
    // Solve the Backward-Euler equation: k = f(x + dt*k, t), for the unknown
    // slope k. This is the only requirement for high-order SDIRK implicit
    // integration. This is a virtual function of class TimeDependentOperator.
-   virtual void ImplicitSolve(const double dt, const Vector &x, Vector &k);
+   virtual void ImplicitSolve(const real_t dt, const Vector &x, Vector &k);
 
    // Compute B^T M2 B, where M2 is the HDiv mass matrix with permeability
    // coefficient.
-   // double MagneticEnergy(ParGridFunction &B_gf) const;
+   // real_t MagneticEnergy(ParGridFunction &B_gf) const;
 
    // Compute E^T M1 E, where M1 is the HCurl mass matrix with conductivity
    // coefficient.
-   double ElectricLosses(ParGridFunction &E_gf) const;
+   real_t ElectricLosses(ParGridFunction &E_gf) const;
 
    // E is the input, w is the output which is L2 heating.
    void GetJouleHeating(ParGridFunction &E_gf, ParGridFunction &w_gf) const;
 
-   void SetTime(const double t_);
+   void SetTime(const real_t t_);
 
    // Write all the hypre matrices and vectors to disk.
-   void Debug(const char *basefilename, double time);
+   void Debug(const char *basefilename, real_t time);
 
    virtual ~MagneticDiffusionEOperator();
 };
@@ -235,7 +235,7 @@ public:
    JouleHeatingCoefficient(const MeshDependentCoefficient &sigma_,
                            ParGridFunction &E_gf_)
       : E_gf(E_gf_), sigma(sigma_) {}
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip);
    virtual ~JouleHeatingCoefficient() {}
 };
 

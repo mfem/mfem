@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -34,14 +34,14 @@ public:
    /// distance between them is smaller than lerr.
    virtual
    void Project(const Vector& coords,const Vector& src,
-                int ordering, double lerr) = 0;
+                int ordering, real_t lerr) = 0;
 
    /// The project method can be called as many times as necessary with
    /// different grid functions gf. A node in the target grid function is
    /// matching a node from the source grid function if the distance
    /// between them is smaller than lerr.
    virtual
-   void Project(const GridFunction& gf, double lerr) = 0;
+   void Project(const GridFunction& gf, real_t lerr) = 0;
 };
 
 /// The class provides methods for projecting function values evaluated on a
@@ -57,7 +57,7 @@ class KDTreeNodalProjection : public BaseKDTreeNodalProjection
 {
 private:
    /// Pointer to the KDTree
-   std::unique_ptr<KDTree<int,double,kdim>> kdt;
+   std::unique_ptr<KDTree<int,real_t,kdim>> kdt;
 
    /// Pointer to the target grid function
    GridFunction* dest;
@@ -87,8 +87,8 @@ public:
       const int dim=mesh->SpaceDimension();
       MFEM_VERIFY(kdim==dim, "GridFunction dimension does not match!");
 
-      kdt=std::unique_ptr<KDTree<int,double,kdim>>(
-             new KDTree<int,double,kdim>());
+      kdt=std::unique_ptr<KDTree<int,real_t,kdim>>(
+             new KDTree<int,real_t,kdim>());
 
       std::vector<bool> indt;
       indt.resize(space->GetVSize()/space->GetVDim(), true);
@@ -162,14 +162,14 @@ public:
    /// distance between them is smaller than lerr.
    virtual
    void Project(const Vector& coords,const Vector& src,
-                int ordering=Ordering::byNODES, double lerr=1e-8);
+                int ordering=Ordering::byNODES, real_t lerr=1e-8);
 
    /// The project method can be called as many times as necessary with
    /// different grid functions gf. A node in the target grid function is
    /// matching a node from the source grid function if the distance
    /// between them is smaller than lerr.
    virtual
-   void Project(const GridFunction& gf, double lerr=1e-8);
+   void Project(const GridFunction& gf, real_t lerr=1e-8);
 };
 
 } // namespace mfem

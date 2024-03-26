@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -38,15 +38,15 @@ using namespace std;
 
 struct Params2
 {
-   double r, dr;
-   double a, da;
+   real_t r, dr;
+   real_t a, da;
 
    Params2() = default;
-   Params2(double r0, double r1, double a0, double a1)
+   Params2(real_t r0, real_t r1, real_t a0, real_t a1)
       : r(r0), dr(r1 - r0), a(a0), da(a1 - a0) {}
 };
 
-Mesh* Make2D(int nsteps, double rstep, double phi, double aspect, int order,
+Mesh* Make2D(int nsteps, real_t rstep, real_t phi, real_t aspect, int order,
              bool sfc)
 {
    Mesh *mesh = new Mesh(2, 0, 0);
@@ -57,17 +57,17 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect, int order,
    int n = 1;
    while (phi * rstep/2 / n * aspect > rstep) { n++; }
 
-   double r = rstep;
+   real_t r = rstep;
    int first = mesh->AddVertex(r, 0.0);
 
    Array<Params2> params;
    Array<Pair<int, int>> blocks;
 
    // create triangles around the origin
-   double prev_alpha = 0.0;
+   real_t prev_alpha = 0.0;
    for (int i = 0; i < n; i++)
    {
-      double alpha = phi * (i+1) / n;
+      real_t alpha = phi * (i+1) / n;
       mesh->AddVertex(r*cos(alpha), r*sin(alpha));
       mesh->AddTriangle(origin, first+i, first+i+1);
 
@@ -84,7 +84,7 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect, int order,
       int m = n;
       int prev_first = first;
 
-      double prev_r = r;
+      real_t prev_r = r;
       r += rstep;
 
       if (phi * (r + prev_r)/2 / n * aspect < rstep * sqrt(2))
@@ -98,7 +98,7 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect, int order,
          prev_alpha = 0.0;
          for (int i = 0; i < n; i++)
          {
-            double alpha = phi * (i+1) / n;
+            real_t alpha = phi * (i+1) / n;
             mesh->AddVertex(r*cos(alpha), r*sin(alpha));
             mesh->AddQuad(prev_first+i, first+i, first+i+1, prev_first+i+1);
 
@@ -118,7 +118,7 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect, int order,
          int hang = 0; // init to suppress gcc warning
          for (int i = 0; i < m; i++)
          {
-            double alpha = phi * (2*i+1) / n;
+            real_t alpha = phi * (2*i+1) / n;
             int index = mesh->AddVertex(prev_r*cos(alpha), prev_r*sin(alpha));
             mesh->AddVertexParents(index, prev_first+i, prev_first+i+1);
             if (!i) { hang = index; }
@@ -135,10 +135,10 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect, int order,
          {
             int c = hang+i, e = a+1;
 
-            double alpha_half = phi * (2*i+1) / n;
+            real_t alpha_half = phi * (2*i+1) / n;
             int d = mesh->AddVertex(r*cos(alpha_half), r*sin(alpha_half));
 
-            double alpha = phi * (2*i+2) / n;
+            real_t alpha = phi * (2*i+2) / n;
             int f = mesh->AddVertex(r*cos(alpha), r*sin(alpha));
 
             mesh->AddQuad(a, b, d, c);
@@ -221,7 +221,7 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect, int order,
 
          for (int j = 0; j < dofs.Size(); j++)
          {
-            double a;
+            real_t a;
             if (geom == Geometry::SQUARE)
             {
                r = par.r + ir[j].x * par.dr;
@@ -229,7 +229,7 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect, int order,
             }
             else
             {
-               double rr = ir[j].x + ir[j].y;
+               real_t rr = ir[j].x + ir[j].y;
                if (std::abs(rr) < 1e-12) { continue; }
                r = par.r + rr * par.dr;
                a = par.a + ir[j].y/rr * par.da;
@@ -246,17 +246,17 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect, int order,
 }
 
 
-const double pi2 = M_PI / 2;
+const real_t pi2 = M_PI / 2;
 
 struct Params3
 {
-   double r, dr;
-   double u1, u2, u3;
-   double v1, v2, v3;
+   real_t r, dr;
+   real_t u1, u2, u3;
+   real_t v1, v2, v3;
 
    Params3() = default;
-   Params3(double r0, double r1,
-           double u1, double v1, double u2, double v2, double u3, double v3)
+   Params3(real_t r0, real_t r1,
+           real_t u1, real_t v1, real_t u2, real_t v2, real_t u3, real_t v3)
       : r(r0), dr(r1 - r0), u1(u1), u2(u2), u3(u3), v1(v1), v2(v2), v3(v3) {}
 };
 
@@ -265,7 +265,7 @@ struct Vert : public Hashed2
    int id;
 };
 
-int GetMidVertex(int v1, int v2, double r, double u, double v, bool hanging,
+int GetMidVertex(int v1, int v2, real_t r, real_t u, real_t v, bool hanging,
                  Mesh *mesh, HashTable<Vert> &hash)
 {
    int vmid = hash.FindId(v1, v2);
@@ -273,8 +273,8 @@ int GetMidVertex(int v1, int v2, double r, double u, double v, bool hanging,
    {
       vmid = hash.GetId(v1, v2);
 
-      double w = 1.0 - u - v;
-      double q = r / sqrt(u*u + v*v + w*w);
+      real_t w = 1.0 - u - v;
+      real_t q = r / sqrt(u*u + v*v + w*w);
       int index = mesh->AddVertex(u*q, v*q, w*q);
 
       if (hanging) { mesh->AddVertexParents(index, v1, v2); }
@@ -285,8 +285,8 @@ int GetMidVertex(int v1, int v2, double r, double u, double v, bool hanging,
 }
 
 void MakeLayer(int vx1, int vy1, int vz1, int vx2, int vy2, int vz2, int level,
-               double r1, double r2, double u1, double v1, double u2, double v2,
-               double u3, double v3, bool bnd1, bool bnd2, bool bnd3, bool bnd4,
+               real_t r1, real_t r2, real_t u1, real_t v1, real_t u2, real_t v2,
+               real_t u3, real_t v3, bool bnd1, bool bnd2, bool bnd3, bool bnd4,
                Mesh *mesh, HashTable<Vert> &hash, Array<Params3> &params)
 {
    if (!level)
@@ -302,9 +302,9 @@ void MakeLayer(int vx1, int vy1, int vz1, int vx2, int vy2, int vz2, int level,
    }
    else
    {
-      double u12 = (u1+u2)/2, v12 = (v1+v2)/2;
-      double u23 = (u2+u3)/2, v23 = (v2+v3)/2;
-      double u31 = (u3+u1)/2, v31 = (v3+v1)/2;
+      real_t u12 = (u1+u2)/2, v12 = (v1+v2)/2;
+      real_t u23 = (u2+u3)/2, v23 = (v2+v3)/2;
+      real_t u31 = (u3+u1)/2, v31 = (v3+v1)/2;
 
       bool hang = (level == 1);
 
@@ -330,8 +330,8 @@ void MakeLayer(int vx1, int vy1, int vz1, int vx2, int vy2, int vz2, int level,
    }
 }
 
-void MakeCenter(int origin, int vx, int vy, int vz, int level, double r,
-                double u1, double v1, double u2, double v2, double u3, double v3,
+void MakeCenter(int origin, int vx, int vy, int vz, int level, real_t r,
+                real_t u1, real_t v1, real_t u2, real_t v2, real_t u3, real_t v3,
                 bool bnd1, bool bnd2, bool bnd3, bool bnd4,
                 Mesh *mesh, HashTable<Vert> &hash, Array<Params3> &params)
 {
@@ -348,9 +348,9 @@ void MakeCenter(int origin, int vx, int vy, int vz, int level, double r,
    }
    else
    {
-      double u12 = (u1+u2)/2, v12 = (v1+v2)/2;
-      double u23 = (u2+u3)/2, v23 = (v2+v3)/2;
-      double u31 = (u3+u1)/2, v31 = (v3+v1)/2;
+      real_t u12 = (u1+u2)/2, v12 = (v1+v2)/2;
+      real_t u23 = (u2+u3)/2, v23 = (v2+v3)/2;
+      real_t u31 = (u3+u1)/2, v31 = (v3+v1)/2;
 
       int vxy = GetMidVertex(vx, vy, r, u12, v12, false, mesh, hash);
       int vyz = GetMidVertex(vy, vz, r, u23, v23, false, mesh, hash);
@@ -367,7 +367,7 @@ void MakeCenter(int origin, int vx, int vy, int vz, int level, double r,
    }
 }
 
-Mesh* Make3D(int nsteps, double rstep, double aspect, int order, bool sfc)
+Mesh* Make3D(int nsteps, real_t rstep, real_t aspect, int order, bool sfc)
 {
    Mesh *mesh = new Mesh(3, 0, 0);
 
@@ -376,7 +376,7 @@ Mesh* Make3D(int nsteps, double rstep, double aspect, int order, bool sfc)
 
    int origin = mesh->AddVertex(0, 0, 0);
 
-   double r = rstep;
+   real_t r = rstep;
    int a = mesh->AddVertex(r, 0, 0);
    int b = mesh->AddVertex(0, r, 0);
    int c = mesh->AddVertex(0, 0, r);
@@ -389,7 +389,7 @@ Mesh* Make3D(int nsteps, double rstep, double aspect, int order, bool sfc)
 
    for (int k = 1; k < nsteps; k++)
    {
-      double prev_r = r;
+      real_t prev_r = r;
       r += rstep;
 
       if ((prev_r + rstep/2) * pi2 * aspect / (1 << levels) > rstep * sqrt(2))
@@ -449,11 +449,11 @@ Mesh* Make3D(int nsteps, double rstep, double aspect, int order, bool sfc)
          {
             const IntegrationPoint &ip = ir[j];
 
-            double u, v, w;
+            real_t u, v, w;
             if (geom == Geometry::PRISM)
             {
-               double l1 = 1.0 - ip.x - ip.y;
-               double l2 = ip.x, l3 = ip.y;
+               real_t l1 = 1.0 - ip.x - ip.y;
+               real_t l2 = ip.x, l3 = ip.y;
                u = l1 * par.u1 + l2 * par.u2 + l3 * par.u3;
                v = l1 * par.v1 + l2 * par.v2 + l3 * par.v3;
                w = 1.0 - u - v;
@@ -463,13 +463,13 @@ Mesh* Make3D(int nsteps, double rstep, double aspect, int order, bool sfc)
             {
                u = ip.x * par.u1 + ip.y * par.u2 + ip.z * par.u3;
                v = ip.x * par.v1 + ip.y * par.v2 + ip.z * par.v3;
-               double rr = ip.x + ip.y + ip.z;
+               real_t rr = ip.x + ip.y + ip.z;
                if (std::abs(rr) < 1e-12) { continue; }
                w = rr - u - v;
                r = par.r + rr * par.dr;
             }
 
-            double q = r / sqrt(u*u + v*v + w*w);
+            real_t q = r / sqrt(u*u + v*v + w*w);
             (*nodes)(fes->DofToVDof(dofs[j], 0)) = u*q;
             (*nodes)(fes->DofToVDof(dofs[j], 1)) = v*q;
             (*nodes)(fes->DofToVDof(dofs[j], 2)) = w*q;
@@ -486,10 +486,10 @@ Mesh* Make3D(int nsteps, double rstep, double aspect, int order, bool sfc)
 int main(int argc, char *argv[])
 {
    int dim = 2;
-   double radius = 1.0;
+   real_t radius = 1.0;
    int nsteps = 10;
-   double angle = 90;
-   double aspect = 1.0;
+   real_t angle = 90;
+   real_t aspect = 1.0;
    int order = 2;
    bool sfc = true;
    bool visualization = true;
@@ -525,7 +525,7 @@ int main(int argc, char *argv[])
    MFEM_VERIFY(angle > 0 && angle < 360, "");
    MFEM_VERIFY(nsteps > 0, "");
 
-   double phi = angle * M_PI / 180;
+   real_t phi = angle * M_PI / 180;
 
    // generate
    Mesh *mesh;

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -178,13 +178,13 @@ protected:
    ErrorEstimator &estimator;
    AnisotropicErrorEstimator *aniso_estimator;
 
-   double total_norm_p;
-   double total_err_goal;
-   double total_fraction;
-   double local_err_goal;
+   real_t total_norm_p;
+   real_t total_err_goal;
+   real_t total_fraction;
+   real_t local_err_goal;
    long long max_elements;
 
-   double threshold;
+   real_t threshold;
    long long num_marked_elements;
 
    Array<Refinement> marked_elements;
@@ -193,7 +193,7 @@ protected:
    int non_conforming;
    int nc_limit;
 
-   double GetNorm(const Vector &local_err, Mesh &mesh) const;
+   real_t GetNorm(const Vector &local_err, Mesh &mesh) const;
 
    /** @brief Apply the operator to the mesh.
        @return STOP if a stopping criterion is satisfied or no elements were
@@ -208,24 +208,24 @@ public:
 
    /** @brief Set the exponent, p, of the discrete p-norm used to compute the
        total error from the local element errors. */
-   void SetTotalErrorNormP(double norm_p = infinity())
+   void SetTotalErrorNormP(real_t norm_p = infinity())
    { total_norm_p = norm_p; }
 
    /** @brief Set the total error stopping criterion: stop when
        total_err <= total_err_goal. The default value is zero. */
-   void SetTotalErrorGoal(double err_goal) { total_err_goal = err_goal; }
+   void SetTotalErrorGoal(real_t err_goal) { total_err_goal = err_goal; }
 
    /** @brief Set the total fraction used in the computation of the threshold.
        The default value is 1/2.
        @note If fraction == 0, total_err is essentially ignored in the threshold
        computation, i.e. threshold = local error goal. */
-   void SetTotalErrorFraction(double fraction) { total_fraction = fraction; }
+   void SetTotalErrorFraction(real_t fraction) { total_fraction = fraction; }
 
    /** @brief Set the local stopping criterion: stop when
        local_err_i <= local_err_goal. The default value is zero.
        @note If local_err_goal == 0, it is essentially ignored in the threshold
        computation. */
-   void SetLocalErrorGoal(double err_goal) { local_err_goal = err_goal; }
+   void SetLocalErrorGoal(real_t err_goal) { local_err_goal = err_goal; }
 
    /** @brief Set the maximum number of elements stopping criterion: stop when
        the input mesh has num_elements >= max_elem. The default value is
@@ -251,7 +251,7 @@ public:
    long long GetNumMarkedElements() const { return num_marked_elements; }
 
    /// Get the threshold used in the last Apply() call.
-   double GetThreshold() const { return threshold; }
+   real_t GetThreshold() const { return threshold; }
 
    /// Reset the associated estimator.
    virtual void Reset();
@@ -273,7 +273,7 @@ class ThresholdDerefiner : public MeshOperator
 protected:
    ErrorEstimator &estimator;
 
-   double threshold;
+   real_t threshold;
    int nc_limit, op;
 
    /** @brief Apply the operator to the mesh.
@@ -294,7 +294,7 @@ public:
    // default destructor (virtual)
 
    /// Set the de-refinement threshold. The default value is zero.
-   void SetThreshold(double thresh) { threshold = thresh; }
+   void SetThreshold(real_t thresh) { threshold = thresh; }
 
    void SetOp(int oper) { op = oper; }
 
@@ -336,8 +336,8 @@ protected:
    int nonconforming = -1;
    int order;
    long long max_elements = std::numeric_limits<long long>::max();
-   double threshold = 1.0e-2;
-   double global_osc = NAN;
+   real_t threshold = 1.0e-2;
+   real_t global_osc = NAN;
    Array<int> mesh_refinements;
    Vector element_oscs;
    Coefficient *coeff = NULL;
@@ -373,7 +373,7 @@ public:
    }
 
    /// Set the refinement threshold. The default value is 1.0e-2.
-   void SetThreshold(double threshold_) { threshold = threshold_; }
+   void SetThreshold(real_t threshold_) { threshold = threshold_; }
 
    /** @brief Set the maximum number of elements stopping criterion: stop when
        the input mesh has num_elements >= max_elem. The default value is
@@ -408,7 +408,7 @@ public:
    void PrintWarnings() { print_level = true; }
 
    // Return the value of the global relative data oscillation
-   double GetOsc() const { return global_osc; }
+   real_t GetOsc() const { return global_osc; }
 
    // Return the local relative data oscillation errors
    const Vector & GetLocalOscs() const

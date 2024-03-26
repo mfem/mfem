@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -49,12 +49,12 @@ struct s_NavierContext
 {
    int ser_ref_levels = 1;
    int order = 6;
-   double kinvis = 1.0 / 40.0;
-   double t_final = 10 * 0.001;
-   double dt = 0.001;
-   double reference_pressure = 0.0;
-   double reynolds = 1.0 / kinvis;
-   double lam = 0.5 * reynolds
+   real_t kinvis = 1.0 / 40.0;
+   real_t t_final = 10 * 0.001;
+   real_t dt = 0.001;
+   real_t reference_pressure = 0.0;
+   real_t reynolds = 1.0 / kinvis;
+   real_t lam = 0.5 * reynolds
                 - sqrt(0.25 * reynolds * reynolds + 4.0 * M_PI * M_PI);
    bool pa = true;
    bool ni = false;
@@ -62,18 +62,18 @@ struct s_NavierContext
    bool checkres = false;
 } ctx;
 
-void vel_kovasznay(const Vector &x, double t, Vector &u)
+void vel_kovasznay(const Vector &x, real_t t, Vector &u)
 {
-   double xi = x(0);
-   double yi = x(1);
+   real_t xi = x(0);
+   real_t yi = x(1);
 
    u(0) = 1.0 - exp(ctx.lam * xi) * cos(2.0 * M_PI * yi);
    u(1) = ctx.lam / (2.0 * M_PI) * exp(ctx.lam * xi) * sin(2.0 * M_PI * yi);
 }
 
-double pres_kovasznay(const Vector &x, double t)
+real_t pres_kovasznay(const Vector &x, real_t t)
 {
-   double xi = x(0);
+   real_t xi = x(0);
 
    return 0.5 * (1.0 - exp(2.0 * ctx.lam * xi)) + ctx.reference_pressure;
 }
@@ -171,15 +171,15 @@ int main(int argc, char *argv[])
    attr = 1;
    flowsolver.AddVelDirichletBC(vel_kovasznay, attr);
 
-   double t = 0.0;
-   double dt = ctx.dt;
-   double t_final = ctx.t_final;
+   real_t t = 0.0;
+   real_t dt = ctx.dt;
+   real_t t_final = ctx.t_final;
    bool last_step = false;
 
    flowsolver.Setup(dt);
 
-   double err_u = 0.0;
-   double err_p = 0.0;
+   real_t err_u = 0.0;
+   real_t err_p = 0.0;
    ParGridFunction *u_gf = nullptr;
    ParGridFunction *p_gf = nullptr;
 
@@ -209,7 +209,7 @@ int main(int argc, char *argv[])
       err_u = u_gf->ComputeL2Error(u_excoeff);
       err_p = p_gf->ComputeL2Error(p_ex_gf_coeff);
 
-      double cfl = flowsolver.ComputeCFL(*u_gf, dt);
+      real_t cfl = flowsolver.ComputeCFL(*u_gf, dt);
 
       if (Mpi::Root())
       {
@@ -247,8 +247,17 @@ int main(int argc, char *argv[])
    // Test if the result for the test run is as expected.
    if (ctx.checkres)
    {
-      double tol_u = 1e-6;
-      double tol_p = 1e-5;
+#if defined(MFEM_USE_DOUBLE)
+      real_t tol_u = 1e-6;
+      real_t tol_p = 1e-5;
+#elif defined(MFEM_USE_SINGLE)
+      real_t tol_u = 1e-5;
+      real_t tol_p = 2e-4;
+#else
+#error "Only single and double precision are supported!"
+      real_t tol_u = 0;
+      real_t tol_p = 0;
+#endif
       if (err_u > tol_u || err_p > tol_p)
       {
          if (Mpi::Root())

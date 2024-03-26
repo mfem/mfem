@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -171,7 +171,7 @@ public:
 
    /** @brief Compute @a y += @a a (P^t A P) @a x, where @a x and @a y are
        vectors on the true dofs. */
-   void TrueAddMult(const Vector &x, Vector &y, const double a = 1.0) const;
+   void TrueAddMult(const Vector &x, Vector &y, const real_t a = 1.0) const;
 
    /// Return the parallel FE space associated with the ParBilinearForm.
    ParFiniteElementSpace *ParFESpace() const { return pfes; }
@@ -297,7 +297,7 @@ public:
                                             Vector &B);
 
    /// Compute y += a (P^t A P) x, where x and y are vectors on the true dofs
-   void TrueAddMult(const Vector &x, Vector &y, const double a = 1.0) const;
+   void TrueAddMult(const Vector &x, Vector &y, const real_t a = 1.0) const;
 
    virtual ~ParMixedBilinearForm() { }
 };

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -34,7 +34,7 @@ Mesh MakeCartesianNonaligned(const int dim, const int ne)
    // Remap vertices so that the mesh is not aligned with axes.
    for (int i=0; i<mesh.GetNV(); ++i)
    {
-      double *vcrd = mesh.GetVertex(i);
+      real_t *vcrd = mesh.GetVertex(i);
       vcrd[1] += 0.2 * vcrd[0];
       if (dim == 3) { vcrd[2] += 0.3 * vcrd[0]; }
    }
@@ -42,7 +42,7 @@ Mesh MakeCartesianNonaligned(const int dim, const int ne)
    return mesh;
 }
 
-double coeffFunction(const Vector& x)
+real_t coeffFunction(const Vector& x)
 {
    if (dimension == 2)
    {
@@ -70,7 +70,7 @@ void vectorCoeffFunction(const Vector & x, Vector & f)
    }
 }
 
-double linearFunction(const Vector & x)
+real_t linearFunction(const Vector & x)
 {
    if (dimension == 3)
    {
@@ -244,11 +244,11 @@ TEST_CASE("H1 PA Coefficient", "[PartialAssembly][Coefficient]")
                A_explicit.Mult(xin, y_mat);
 
                y_pa -= y_mat;
-               double pa_error = y_pa.Norml2();
+               real_t pa_error = y_pa.Norml2();
                REQUIRE(pa_error < 1.e-12);
 
                y_assembly -= y_mat;
-               double assembly_error = y_assembly.Norml2();
+               real_t assembly_error = y_assembly.Norml2();
                REQUIRE(assembly_error < 1.e-12);
 
                delete coeff;
@@ -265,338 +265,254 @@ TEST_CASE("H1 PA Coefficient", "[PartialAssembly][Coefficient]")
 TEST_CASE("Hcurl/Hdiv PA Coefficient",
           "[CUDA][PartialAssembly][Coefficient]")
 {
-   for (dimension = 2; dimension < 4; ++dimension)
+   const bool all_tests = launch_all_non_regression_tests;
+   enum MixedSpaces {Hcurl, Hdiv, HcurlHdiv, HdivHcurl, NumSpaceTypes};
+   // coeff_type: 0 - ConstantCoefficient
+   //             1 - FunctionCoefficient
+   //             2 - VectorFunctionCoefficient
+   //             3 - SymmetricMatrixFunctionCoefficient
+   //             4 - MatrixFunctionCoefficient
+
+   dimension = GENERATE(2, 3);
+   const int order = all_tests ? GENERATE(1, 2, 3) : GENERATE(1, 2);
+   const int coeff_type = GENERATE(0, 1, 2, 3, 4); // see comment above
+   const MixedSpaces space_type = GENERATE(Hcurl, Hdiv, HcurlHdiv, HdivHcurl);
+   CAPTURE(space_type, dimension, coeff_type, order);
+
+   const int ne = 2;
+   Mesh mesh = MakeCartesianNonaligned(dimension, ne);
+
+   std::unique_ptr<Coefficient> coeff;
+   std::unique_ptr<Coefficient> coeff2;
+   std::unique_ptr<VectorCoefficient> vcoeff;
+   std::unique_ptr<MatrixCoefficient> mcoeff;
+
+   if (coeff_type == 0)
    {
-      const int ne = 3;
-      Mesh mesh = MakeCartesianNonaligned(dimension, ne);
+      coeff.reset(new ConstantCoefficient(12.34));
+      coeff2.reset(new ConstantCoefficient(12.34));
+   }
+   else if (coeff_type == 1)
+   {
+      coeff.reset(new FunctionCoefficient(&coeffFunction));
+      coeff2.reset(new FunctionCoefficient(&linearFunction));
+   }
+   else if (coeff_type == 2)
+   {
+      vcoeff.reset(new VectorFunctionCoefficient(dimension, &vectorCoeffFunction));
+      coeff2.reset(new FunctionCoefficient(&linearFunction));
+   }
+   else if (coeff_type == 3)
+   {
+      mcoeff.reset(new SymmetricMatrixFunctionCoefficient(dimension,
+                                                          &symmetricMatrixCoeffFunction));
+      coeff2.reset(new FunctionCoefficient(&linearFunction));
+   }
+   else if (coeff_type == 4)
+   {
+      mcoeff.reset(new MatrixFunctionCoefficient(dimension,
+                                                 &asymmetricMatrixCoeffFunction));
+      coeff2.reset(new FunctionCoefficient(&linearFunction));
+   }
 
-      for (int coeffType = 0; coeffType < 5; ++coeffType)
+   std::unique_ptr<FiniteElementCollection> fec;
+   if (space_type == Hcurl || space_type == HcurlHdiv)
+   {
+      fec.reset(new ND_FECollection(order, dimension));
+   }
+   else if (space_type == HdivHcurl)
+   {
+      fec.reset(new RT_FECollection(order - 1, dimension));
+   }
+   else
+   {
+      fec.reset(new RT_FECollection(order, dimension));
+   }
+
+   FiniteElementSpace fes(&mesh, fec.get());
+
+   // Set essential boundary conditions on the entire boundary.
+   Array<int> ess_tdof_list;
+   fes.GetBoundaryTrueDofs(ess_tdof_list);
+
+   Vector xin(fes.GetTrueVSize());
+   xin.Randomize(1);
+
+   Vector y_fa, y_pa;
+
+   if (space_type == HcurlHdiv || space_type == HdivHcurl)
+   {
+      std::unique_ptr<FiniteElementCollection> fec_test;
+      if (space_type == HcurlHdiv)
       {
-         Coefficient* coeff = nullptr;
-         Coefficient* coeff2 = nullptr;
-         VectorCoefficient* vcoeff = nullptr;
-         MatrixCoefficient* mcoeff = nullptr;
-         if (coeffType == 0)
-         {
-            coeff = new ConstantCoefficient(12.34);
-            coeff2 = new ConstantCoefficient(12.34);
-         }
-         else if (coeffType == 1)
-         {
-            coeff = new FunctionCoefficient(&coeffFunction);
-            coeff2 = new FunctionCoefficient(&linearFunction);
-         }
-         else if (coeffType == 2)
-         {
-            vcoeff = new VectorFunctionCoefficient(dimension, &vectorCoeffFunction);
-            coeff2 = new FunctionCoefficient(&linearFunction);
-         }
-         else if (coeffType == 3)
-         {
-            mcoeff = new SymmetricMatrixFunctionCoefficient(dimension,
-                                                            &symmetricMatrixCoeffFunction);
-            coeff2 = new FunctionCoefficient(&linearFunction);
-         }
-         else if (coeffType == 4)
-         {
-            mcoeff = new MatrixFunctionCoefficient(dimension,
-                                                   &asymmetricMatrixCoeffFunction);
-            coeff2 = new FunctionCoefficient(&linearFunction);
-         }
+         fec_test.reset(new RT_FECollection(order - 1, dimension));
+      }
+      else
+      {
+         fec_test.reset(new ND_FECollection(order, dimension));
+      }
 
-         enum MixedSpaces {Hcurl, Hdiv, HcurlHdiv, HdivHcurl, NumSpaceTypes};
+      FiniteElementSpace fes_test(&mesh, fec_test.get());
 
-         for (int spaceType = 0; spaceType < NumSpaceTypes; ++spaceType)
+      MixedBilinearForm pa_form(&fes, &fes_test);
+      pa_form.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      MixedBilinearForm fa_form(&fes, &fes_test);
+
+      const int ndof_test = fes_test.GetTrueVSize();
+      y_fa.SetSize(ndof_test);
+      y_pa.SetSize(ndof_test);
+
+      if (mcoeff)
+      {
+         pa_form.AddDomainIntegrator(new VectorFEMassIntegrator(*mcoeff));
+         fa_form.AddDomainIntegrator(new VectorFEMassIntegrator(*mcoeff));
+      }
+      else if (vcoeff)
+      {
+         pa_form.AddDomainIntegrator(new VectorFEMassIntegrator(*vcoeff));
+         fa_form.AddDomainIntegrator(new VectorFEMassIntegrator(*vcoeff));
+      }
+      else
+      {
+         pa_form.AddDomainIntegrator(new VectorFEMassIntegrator(*coeff));
+         fa_form.AddDomainIntegrator(new VectorFEMassIntegrator(*coeff));
+      }
+
+      if (dimension == 3)
+      {
+         if (vcoeff)
          {
-            const int numIntegrators =
-               (spaceType >= HcurlHdiv) ? 1 : ((coeffType == 2) ? 2 : 3);
-
-            for (int integrator = 0; integrator < numIntegrators; ++integrator)
+            if (space_type == HcurlHdiv)
             {
-               for (int order = 1; order < 4; ++order)
-               {
-                  CAPTURE(spaceType, dimension, coeffType, integrator, order);
-
-                  FiniteElementCollection* fec = nullptr;
-                  if (spaceType == Hcurl || spaceType == HcurlHdiv)
-                  {
-                     fec = (FiniteElementCollection*) new ND_FECollection(order, dimension);
-                  }
-                  else if (spaceType == HdivHcurl)
-                  {
-                     fec = (FiniteElementCollection*) new RT_FECollection(order - 1, dimension);
-                  }
-                  else
-                  {
-                     fec = (FiniteElementCollection*) new RT_FECollection(order, dimension);
-                  }
-
-                  FiniteElementSpace fespace(&mesh, fec);
-
-                  // Set essential boundary conditions on the entire boundary.
-                  Array<int> tdof_ess(fespace.GetVSize());
-                  tdof_ess = 0;
-
-                  for (int i=0; i<mesh.GetNBE(); ++i)
-                  {
-                     Array<int> dofs;
-                     fespace.GetBdrElementDofs(i, dofs);
-                     for (int j=0; j<dofs.Size(); ++j)
-                     {
-                        const int dof_j = (dofs[j] >= 0) ? dofs[j] : -1 - dofs[j];
-                        tdof_ess[dof_j] = 1;
-                     }
-                  }
-
-                  int num_ess = 0;
-                  for (int i=0; i<fespace.GetVSize(); ++i)
-                  {
-                     if (tdof_ess[i] == 1)
-                     {
-                        num_ess++;
-                     }
-                  }
-
-                  Array<int> ess_tdof_list(num_ess);
-                  num_ess = 0;
-                  for (int i=0; i<fespace.GetVSize(); ++i)
-                  {
-                     if (tdof_ess[i] == 1)
-                     {
-                        ess_tdof_list[num_ess] = i;
-                        num_ess++;
-                     }
-                  }
-
-                  Vector xin(fespace.GetTrueVSize());
-                  xin.Randomize(1);
-
-                  Vector y_mat, y_assembly, y_pa;
-
-                  if (spaceType >= HcurlHdiv)
-                  {
-                     FiniteElementCollection* fecTest = nullptr;
-                     if (spaceType == HcurlHdiv)
-                     {
-                        fecTest = (FiniteElementCollection*) new RT_FECollection(order - 1, dimension);
-                     }
-                     else
-                     {
-                        fecTest = (FiniteElementCollection*) new ND_FECollection(order, dimension);
-                     }
-
-                     FiniteElementSpace fespaceTest(&mesh, fecTest);
-
-                     MixedBilinearForm *paform = new MixedBilinearForm(&fespace, &fespaceTest);
-                     paform->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-                     MixedBilinearForm *assemblyform = new MixedBilinearForm(&fespace, &fespaceTest);
-
-                     const int testSize = fespaceTest.GetTrueVSize();
-                     y_mat.SetSize(testSize);
-                     y_mat = 0.0;
-                     y_assembly.SetSize(testSize);
-                     y_assembly = 0.0;
-                     y_pa.SetSize(testSize);
-                     y_pa = 0.0;
-
-                     if (coeffType >= 3)
-                     {
-                        paform->AddDomainIntegrator(new VectorFEMassIntegrator(*mcoeff));
-                        assemblyform->AddDomainIntegrator(new VectorFEMassIntegrator(*mcoeff));
-                     }
-                     else if (coeffType == 2)
-                     {
-                        paform->AddDomainIntegrator(new VectorFEMassIntegrator(*vcoeff));
-                        assemblyform->AddDomainIntegrator(new VectorFEMassIntegrator(*vcoeff));
-                     }
-                     else
-                     {
-                        paform->AddDomainIntegrator(new VectorFEMassIntegrator(*coeff));
-                        assemblyform->AddDomainIntegrator(new VectorFEMassIntegrator(*coeff));
-                     }
-
-                     if (dimension == 3 && (spaceType == HcurlHdiv || spaceType == HdivHcurl))
-                     {
-                        if (coeffType == 2)
-                        {
-                           if (spaceType == HcurlHdiv)
-                           {
-                              paform->AddDomainIntegrator(new MixedVectorCurlIntegrator(*vcoeff));
-                              assemblyform->AddDomainIntegrator(new MixedVectorCurlIntegrator(*vcoeff));
-                           }
-                           else
-                           {
-                              paform->AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(*vcoeff));
-                              assemblyform->AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(*vcoeff));
-                           }
-                        }
-                        else if (coeffType < 2)
-                        {
-                           if (spaceType == HcurlHdiv)
-                           {
-                              paform->AddDomainIntegrator(new MixedVectorCurlIntegrator(*coeff));
-                              assemblyform->AddDomainIntegrator(new MixedVectorCurlIntegrator(*coeff));
-                           }
-                           else
-                           {
-                              paform->AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(*coeff));
-                              assemblyform->AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(*coeff));
-                           }
-                        }
-                     }
-
-                     Array<int> empty_ess; // empty
-
-                     paform->Assemble();
-                     OperatorHandle paopr;
-                     paform->FormRectangularSystemMatrix(ess_tdof_list, empty_ess, paopr);
-
-                     assemblyform->Assemble();
-                     assemblyform->Finalize();
-
-                     OperatorPtr A_explicit;
-                     assemblyform->FormRectangularSystemMatrix(ess_tdof_list, empty_ess, A_explicit);
-
-                     paopr->Mult(xin, y_pa);
-                     assemblyform->Mult(xin, y_assembly);
-                     A_explicit->Mult(xin, y_mat);
-
-                     // Test the transpose
-                     if ((spaceType == HcurlHdiv || spaceType == HdivHcurl) &&
-                         dimension == 3)
-                     {
-                        Vector u(testSize);
-                        u.Randomize();
-
-                        Vector v_mat(fespace.GetTrueVSize());
-                        v_mat = 0.0;
-                        Vector v_assembly(fespace.GetTrueVSize());
-                        v_assembly = 0.0;
-                        Vector v_pa(fespace.GetTrueVSize());
-                        v_pa = 0.0;
-
-                        const SparseMatrix& A_spmat = assemblyform->SpMat();
-                        paopr->MultTranspose(u, v_pa);
-                        assemblyform->MultTranspose(u, v_assembly);
-                        A_spmat.MultTranspose(u, v_mat);
-
-                        v_pa -= v_mat;
-                        double pa_error = v_pa.Norml2();
-                        REQUIRE(pa_error < 1.e-12);
-
-                        v_assembly -= v_mat;
-                        double assembly_error = v_assembly.Norml2();
-                        REQUIRE(assembly_error < 1.e-12);
-                     }
-
-                     delete paform;
-                     delete assemblyform;
-                     delete fecTest;
-                  }
-                  else
-                  {
-                     BilinearForm *paform = new BilinearForm(&fespace);
-                     paform->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-                     BilinearForm *assemblyform = new BilinearForm(&fespace);
-
-                     y_mat.SetSize(xin.Size());
-                     y_mat = 0.0;
-                     y_assembly.SetSize(xin.Size());
-                     y_assembly = 0.0;
-                     y_pa.SetSize(xin.Size());
-                     y_pa = 0.0;
-
-                     if (integrator < 2)
-                     {
-                        if (coeffType >= 3)
-                        {
-                           paform->AddDomainIntegrator(new VectorFEMassIntegrator(*mcoeff));
-                           assemblyform->AddDomainIntegrator(new VectorFEMassIntegrator(*mcoeff));
-                        }
-                        else if (coeffType == 2)
-                        {
-                           paform->AddDomainIntegrator(new VectorFEMassIntegrator(*vcoeff));
-                           assemblyform->AddDomainIntegrator(new VectorFEMassIntegrator(*vcoeff));
-
-                        }
-                        else
-                        {
-                           paform->AddDomainIntegrator(new VectorFEMassIntegrator(*coeff));
-                           assemblyform->AddDomainIntegrator(new VectorFEMassIntegrator(*coeff));
-                        }
-                     }
-                     if (integrator > 0)
-                     {
-                        if (spaceType == Hcurl)
-                        {
-                           const FiniteElement *fel = fespace.GetFE(0);
-                           const IntegrationRule *intRule = &MassIntegrator::GetRule(*fel, *fel,
-                                                                                     *mesh.GetElementTransformation(0));
-
-                           if (coeffType >= 3 && dimension == 3)
-                           {
-                              paform->AddDomainIntegrator(new CurlCurlIntegrator(*mcoeff, intRule));
-                              assemblyform->AddDomainIntegrator(new CurlCurlIntegrator(*mcoeff, intRule));
-                           }
-                           else if (coeffType == 2 && dimension == 3)
-                           {
-                              paform->AddDomainIntegrator(new CurlCurlIntegrator(*vcoeff, intRule));
-                              assemblyform->AddDomainIntegrator(new CurlCurlIntegrator(*vcoeff, intRule));
-                           }
-                           else
-                           {
-                              paform->AddDomainIntegrator(new CurlCurlIntegrator(*coeff2));
-                              assemblyform->AddDomainIntegrator(new CurlCurlIntegrator(*coeff2));
-                           }
-                        }
-                        else
-                        {
-                           paform->AddDomainIntegrator(new DivDivIntegrator(*coeff2));
-                           assemblyform->AddDomainIntegrator(new DivDivIntegrator(*coeff2));
-                        }
-                     }
-                     paform->Assemble();
-                     OperatorHandle paopr;
-                     paform->FormSystemMatrix(ess_tdof_list, paopr);
-
-                     assemblyform->SetDiagonalPolicy(Matrix::DIAG_ONE);
-                     assemblyform->Assemble();
-                     OperatorPtr A_explicit;
-                     assemblyform->FormSystemMatrix(ess_tdof_list, A_explicit);
-
-                     paopr->Mult(xin, y_pa);
-                     assemblyform->Mult(xin, y_assembly);
-                     A_explicit->Mult(xin, y_mat);
-
-                     delete paform;
-                     delete assemblyform;
-                  }
-
-                  y_pa -= y_mat;
-                  double pa_error = y_pa.Norml2();
-                  REQUIRE(pa_error < 1.e-10);
-
-                  y_assembly -= y_mat;
-                  double assembly_error = y_assembly.Norml2();
-                  REQUIRE(assembly_error < 1.e-12);
-
-                  delete fec;
-               }
+               pa_form.AddDomainIntegrator(new MixedVectorCurlIntegrator(*vcoeff));
+               fa_form.AddDomainIntegrator(new MixedVectorCurlIntegrator(*vcoeff));
+            }
+            else
+            {
+               pa_form.AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(*vcoeff));
+               fa_form.AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(*vcoeff));
             }
          }
-
-         delete coeff;
-         delete coeff2;
-         delete vcoeff;
-         delete mcoeff;
+         else
+         {
+            if (space_type == HcurlHdiv)
+            {
+               pa_form.AddDomainIntegrator(new MixedVectorCurlIntegrator(*coeff));
+               fa_form.AddDomainIntegrator(new MixedVectorCurlIntegrator(*coeff));
+            }
+            else
+            {
+               pa_form.AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(*coeff));
+               fa_form.AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(*coeff));
+            }
+         }
       }
+
+      Array<int> empty_ess; // empty
+
+      OperatorHandle pa_op;
+      pa_form.Assemble();
+      pa_form.FormRectangularSystemMatrix(ess_tdof_list, empty_ess, pa_op);
+
+      OperatorPtr fa_op;
+      fa_form.Assemble();
+      fa_form.Finalize();
+      fa_form.FormRectangularSystemMatrix(ess_tdof_list, empty_ess, fa_op);
+
+      // Test the transpose
+      if (dimension == 3)
+      {
+         Vector u(ndof_test);
+         u.Randomize();
+
+         Vector v_pa(fes.GetTrueVSize());
+         Vector v_fa(fes.GetTrueVSize());
+
+         pa_op->MultTranspose(u, v_pa);
+         fa_op->MultTranspose(u, v_fa);
+
+         v_pa -= v_fa;
+         REQUIRE(v_pa.Norml2() == MFEM_Approx(0.0));
+      }
+
+      pa_op->Mult(xin, y_pa);
+      fa_op->Mult(xin, y_fa);
    }
+   else
+   {
+      BilinearForm pa_form(&fes);
+      pa_form.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      BilinearForm fa_form(&fes);
+
+      y_fa.SetSize(xin.Size());
+      y_pa.SetSize(xin.Size());
+
+      if (mcoeff)
+      {
+         pa_form.AddDomainIntegrator(new VectorFEMassIntegrator(*mcoeff));
+         fa_form.AddDomainIntegrator(new VectorFEMassIntegrator(*mcoeff));
+      }
+      else if (vcoeff)
+      {
+         pa_form.AddDomainIntegrator(new VectorFEMassIntegrator(*vcoeff));
+         fa_form.AddDomainIntegrator(new VectorFEMassIntegrator(*vcoeff));
+
+      }
+      else
+      {
+         pa_form.AddDomainIntegrator(new VectorFEMassIntegrator(*coeff));
+         fa_form.AddDomainIntegrator(new VectorFEMassIntegrator(*coeff));
+      }
+
+      if (space_type == Hcurl)
+      {
+         const FiniteElement *fel = fes.GetFE(0);
+         const IntegrationRule &ir =
+            MassIntegrator::GetRule(*fel, *fel, *mesh.GetElementTransformation(0));
+
+         if (coeff_type >= 3 && dimension == 3)
+         {
+            pa_form.AddDomainIntegrator(new CurlCurlIntegrator(*mcoeff, &ir));
+            fa_form.AddDomainIntegrator(new CurlCurlIntegrator(*mcoeff, &ir));
+         }
+         else if (coeff_type == 2 && dimension == 3)
+         {
+            pa_form.AddDomainIntegrator(new CurlCurlIntegrator(*vcoeff, &ir));
+            fa_form.AddDomainIntegrator(new CurlCurlIntegrator(*vcoeff, &ir));
+         }
+         else
+         {
+            pa_form.AddDomainIntegrator(new CurlCurlIntegrator(*coeff2));
+            fa_form.AddDomainIntegrator(new CurlCurlIntegrator(*coeff2));
+         }
+      }
+      else // space_type == Hdiv
+      {
+         pa_form.AddDomainIntegrator(new DivDivIntegrator(*coeff2));
+         fa_form.AddDomainIntegrator(new DivDivIntegrator(*coeff2));
+      }
+
+      OperatorHandle pa_op;
+      pa_form.Assemble();
+      pa_form.FormSystemMatrix(ess_tdof_list, pa_op);
+
+      OperatorPtr fa_op;
+      fa_form.SetDiagonalPolicy(Matrix::DIAG_ONE);
+      fa_form.Assemble();
+      fa_form.FormSystemMatrix(ess_tdof_list, fa_op);
+
+      pa_op->Mult(xin, y_pa);
+      fa_op->Mult(xin, y_fa);
+   }
+
+   y_pa -= y_fa;
+   REQUIRE(y_pa.Norml2() == MFEM_Approx(0.0, 1e-10));
 }
 
 TEST_CASE("Hcurl/Hdiv Mixed PA Coefficient",
           "[CUDA][PartialAssembly][Coefficient]")
 {
-   const double tol = 4e-12;
+   const real_t tol = 4e-12;
 
    for (dimension = 2; dimension < 4; ++dimension)
    {
@@ -776,11 +692,11 @@ TEST_CASE("Hcurl/Hdiv Mixed PA Coefficient",
                   A_explicit.Mult(xin, y_mat);
 
                   y_pa -= y_mat;
-                  double pa_error = y_pa.Norml2();
+                  real_t pa_error = y_pa.Norml2();
                   REQUIRE(pa_error == MFEM_Approx(0, tol, tol));
 
                   y_assembly -= y_mat;
-                  double assembly_error = y_assembly.Norml2();
+                  real_t assembly_error = y_assembly.Norml2();
                   REQUIRE(assembly_error == MFEM_Approx(0, tol, tol));
 
                   if (spaceType == HdivL2 || spaceType == HdivL2_Integral ||

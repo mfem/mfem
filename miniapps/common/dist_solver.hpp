@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -22,7 +22,7 @@ namespace mfem
 namespace common
 {
 
-double AvgElementSize(ParMesh &pmesh);
+real_t AvgElementSize(ParMesh &pmesh);
 
 class DistanceSolver
 {
@@ -60,7 +60,7 @@ public:
 class HeatDistanceSolver : public DistanceSolver
 {
 public:
-   HeatDistanceSolver(double diff_coeff)
+   HeatDistanceSolver(real_t diff_coeff)
       : DistanceSolver(), parameter_t(diff_coeff), smooth_steps(0),
         diffuse_iter(1), transform(true), vis_glvis(false) { }
 
@@ -70,7 +70,7 @@ public:
    void ComputeScalarDistance(Coefficient &zero_level_set,
                               ParGridFunction &distance);
 
-   double parameter_t;
+   real_t parameter_t;
    int smooth_steps, diffuse_iter;
    bool transform, vis_glvis;
 };
@@ -90,7 +90,7 @@ private:
 
    public:
       NormalizationCoeff(ParGridFunction &u_gf) : u(u_gf) { }
-      virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+      virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip);
    };
 
 public:
@@ -106,7 +106,7 @@ class PLapDistanceSolver : public DistanceSolver
 {
 public:
    PLapDistanceSolver(int maxp_ = 30, int newton_iter_ = 10,
-                      double rtol = 1e-7, double atol = 1e-12)
+                      real_t rtol = 1e-7, real_t atol = 1e-12)
       : maxp(maxp_), newton_iter(newton_iter_),
         newton_rel_tol(rtol), newton_abs_tol(atol) { }
 
@@ -118,7 +118,7 @@ public:
 private:
    int maxp; // maximum value of the power p
    const int newton_iter;
-   const double newton_rel_tol, newton_abs_tol;
+   const real_t newton_rel_tol, newton_abs_tol;
 };
 
 class NormalizedGradCoefficient : public VectorCoefficient
@@ -137,7 +137,7 @@ public:
       T.SetIntPoint(&ip);
 
       u.GetGradient(T, V);
-      const double norm = V.Norml2() + 1e-12;
+      const real_t norm = V.Norml2() + 1e-12;
       V /= -norm;
    }
 };
@@ -153,11 +153,11 @@ public:
    PProductCoefficient(Coefficient& basec_, Coefficient& corrc_)
       : basef(basec_), corrf(corrc_) { }
 
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip)
    {
       T.SetIntPoint(&ip);
-      double u = basef.Eval(T,ip);
-      double c = corrf.Eval(T,ip);
+      real_t u = basef.Eval(T,ip);
+      real_t c = corrf.Eval(T,ip);
       if (u<0.0) { u*=-1.0; }
       return u*c;
    }
@@ -172,13 +172,13 @@ public:
 class ScreenedPoisson: public NonlinearFormIntegrator
 {
 protected:
-   double diffcoef;
+   real_t diffcoef;
    Coefficient *func;
 
 public:
-   ScreenedPoisson(Coefficient &nfunc, double rh):func(&nfunc)
+   ScreenedPoisson(Coefficient &nfunc, real_t rh):func(&nfunc)
    {
-      double rd=rh/(2*std::sqrt(3.0));
+      real_t rd=rh/(2*std::sqrt(3.0));
       diffcoef= rd*rd;
    }
 
@@ -186,7 +186,7 @@ public:
 
    void SetInput(Coefficient &nfunc) { func = &nfunc; }
 
-   virtual double GetElementEnergy(const FiniteElement &el,
+   virtual real_t GetElementEnergy(const FiniteElement &el,
                                    ElementTransformation &trans,
                                    const Vector &elfun) override;
 
@@ -209,7 +209,7 @@ protected:
    Coefficient *func;
    VectorCoefficient *fgrad;
    bool ownership;
-   double pp, ee;
+   real_t pp, ee;
 
 public:
    // The VectorCoefficent should contain a vector with entries:
@@ -220,8 +220,8 @@ public:
                  bool ownership_=true)
       : func(nfunc), fgrad(nfgrad), ownership(ownership_), pp(2.0), ee(1e-7) { }
 
-   void SetPower(double pp_) { pp = pp_; }
-   void SetReg(double ee_)   { ee = ee_; }
+   void SetPower(real_t pp_) { pp = pp_; }
+   void SetReg(real_t ee_)   { ee = ee_; }
 
    virtual ~PUMPLaplacian()
    {
@@ -232,7 +232,7 @@ public:
       }
    }
 
-   virtual double GetElementEnergy(const FiniteElement &el,
+   virtual real_t GetElementEnergy(const FiniteElement &el,
                                    ElementTransformation &trans,
                                    const Vector &elfun) override;
 
@@ -253,9 +253,9 @@ public:
 class PDEFilter
 {
 public:
-   PDEFilter(ParMesh &mesh, double rh, int order = 2,
-             int maxiter = 100, double rtol = 1e-12,
-             double atol = 1e-15, int print_lv = 0)
+   PDEFilter(ParMesh &mesh, real_t rh, int order = 2,
+             int maxiter = 100, real_t rtol = 1e-12,
+             real_t atol = 1e-15, int print_lv = 0)
       : rr(rh),
         fecp(order, mesh.Dimension()),
         fesp(&mesh, &fecp, 1),
@@ -295,7 +295,7 @@ public:
    void Filter(Coefficient &func, ParGridFunction &ffield);
 
 private:
-   const double rr;
+   const real_t rr;
    H1_FECollection fecp;
    ParFiniteElementSpace fesp;
    ParGridFunction gf;

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -85,7 +85,7 @@ struct TMassKernel
    void Action(const int k, const T_result_t &F,
                const Q_t &Q, const q_t &q, S_data_t &R)
    {
-      typedef typename T_result_t::Jt_type::data_type real_t;
+      typedef typename T_result_t::Jt_type::data_type real_t_;
       const int M = S_data_t::eval_type::qpts;
       const int NC = S_data_t::eval_type::vdim;
       MFEM_STATIC_ASSERT(T_result_t::Jt_type::layout_type::dim_1 == M,
@@ -94,7 +94,7 @@ struct TMassKernel
       for (int i = 0; i < M; i++)
       {
          const complex_t wi =
-            Q.get(q,i,k) * TDet<real_t>(F.Jt.layout.ind14(i,k), F.Jt);
+            Q.get(q,i,k) * TDet<real_t_>(F.Jt.layout.ind14(i,k), F.Jt);
          for (int j = 0; j < NC; j++)
          {
             R.val_qpts(i,j,k) *= wi;
@@ -117,14 +117,14 @@ struct TMassKernel
    void Assemble(const int k, const T_result_t &F,
                  const Q_t &Q, const q_t &q, TVector<qpts,complex_t> &A)
    {
-      typedef typename T_result_t::Jt_type::data_type real_t;
+      typedef typename T_result_t::Jt_type::data_type real_t_;
 
       const int M = T_result_t::Jt_type::layout_type::dim_1;
       MFEM_STATIC_ASSERT(qpts == M, "incompatible dimensions");
       MFEM_FLOPS_ADD(M); // TDet counts its flops
       for (int i = 0; i < M; i++)
       {
-         A[i] = Q.get(q,i,k) * TDet<real_t>(F.Jt.layout.ind14(i,k), F.Jt);
+         A[i] = Q.get(q,i,k) * TDet<real_t_>(F.Jt.layout.ind14(i,k), F.Jt);
       }
    }
 
@@ -333,11 +333,11 @@ struct TDiffusionKernel<2,2,complex_t>
       MFEM_FLOPS_ADD(M*(4+NC*14));
       for (int i = 0; i < M; i++)
       {
-         typedef typename T_result_t::Jt_type::data_type real_t;
-         const real_t J11 = F.Jt(i,0,0,k);
-         const real_t J12 = F.Jt(i,1,0,k);
-         const real_t J21 = F.Jt(i,0,1,k);
-         const real_t J22 = F.Jt(i,1,1,k);
+         typedef typename T_result_t::Jt_type::data_type real_t_;
+         const real_t_ J11 = F.Jt(i,0,0,k);
+         const real_t_ J12 = F.Jt(i,1,0,k);
+         const real_t_ J21 = F.Jt(i,0,1,k);
+         const real_t_ J22 = F.Jt(i,1,1,k);
          const complex_t w_det_J = Q.get(q,i,k) / (J11 * J22 - J21 * J12);
          for (int j = 0; j < NC; j++)
          {
@@ -369,7 +369,7 @@ struct TDiffusionKernel<2,2,complex_t>
    void Assemble(const int k, const T_result_t &F,
                  const Q_t &Q, const q_t &q, asm_type &A)
    {
-      typedef typename T_result_t::Jt_type::data_type real_t;
+      typedef typename T_result_t::Jt_type::data_type real_t_;
       const int M = T_result_t::Jt_type::layout_type::dim_1;
       MFEM_STATIC_ASSERT(asm_type::layout_type::dim_1 == M,
                          "incompatible dimensions");
@@ -377,10 +377,10 @@ struct TDiffusionKernel<2,2,complex_t>
       const bool Symm = (asm_type::layout_type::rank == 2);
       for (int i = 0; i < M; i++)
       {
-         const real_t J11 = F.Jt(i,0,0,k);
-         const real_t J12 = F.Jt(i,1,0,k);
-         const real_t J21 = F.Jt(i,0,1,k);
-         const real_t J22 = F.Jt(i,1,1,k);
+         const real_t_ J11 = F.Jt(i,0,0,k);
+         const real_t_ J12 = F.Jt(i,1,0,k);
+         const real_t_ J21 = F.Jt(i,0,1,k);
+         const real_t_ J22 = F.Jt(i,1,1,k);
          const complex_t w_det_J = Q.get(q,i,k) / (J11 * J22 - J21 * J12);
          internal::MatrixOps<2,2>::Symm<Symm>::Set(
             A.layout.ind1(i), A,
@@ -478,12 +478,12 @@ struct TDiffusionKernel<3,3,complex_t>
       MFEM_FLOPS_ADD(M); // just need to count Q/detJ
       for (int i = 0; i < M; i++)
       {
-         typedef typename T_result_t::Jt_type::data_type real_t;
-         TMatrix<3,3,real_t> adj_J;
+         typedef typename T_result_t::Jt_type::data_type real_t_;
+         TMatrix<3,3,real_t_> adj_J;
          const complex_t w_det_J =
             (Q.get(q,i,k) /
-             TAdjDet<real_t>(F.Jt.layout.ind14(i,k).transpose_12(), F.Jt,
-                             adj_J.layout, adj_J));
+             TAdjDet<real_t_>(F.Jt.layout.ind14(i,k).transpose_12(), F.Jt,
+                              adj_J.layout, adj_J));
          TMatrix<3,NC,complex_t> z; // z = adj(J)^t x
          sMult_AB<false>(adj_J.layout.transpose_12(), adj_J,
                          R.grad_qpts.layout.ind14(i,k), R.grad_qpts,
@@ -512,7 +512,7 @@ struct TDiffusionKernel<3,3,complex_t>
    void Assemble(const int k, const T_result_t &F,
                  const Q_t &Q, const q_t &q, asm_type &A)
    {
-      typedef typename T_result_t::Jt_type::data_type real_t;
+      typedef typename T_result_t::Jt_type::data_type real_t_;
       const int M = T_result_t::Jt_type::layout_type::dim_1;
       MFEM_STATIC_ASSERT(asm_type::layout_type::dim_1 == M,
                          "incompatible dimensions");
@@ -520,11 +520,11 @@ struct TDiffusionKernel<3,3,complex_t>
       const bool Symm = (asm_type::layout_type::rank == 2);
       for (int i = 0; i < M; i++)
       {
-         TMatrix<3,3,real_t> B; // = adj(J)
+         TMatrix<3,3,real_t_> B; // = adj(J)
          const complex_t u =
             (Q.get(q,i,k) /
-             TAdjDet<real_t>(F.Jt.layout.ind14(i,k).transpose_12(), F.Jt,
-                             B.layout, B));
+             TAdjDet<real_t_>(F.Jt.layout.ind14(i,k).transpose_12(), F.Jt,
+                              B.layout, B));
          internal::MatrixOps<3,3>::Symm<Symm>::Set(
             A.layout.ind1(i), A,
             u*(B(0,0)*B(0,0)+B(0,1)*B(0,1)+B(0,2)*B(0,2)), // 1,1

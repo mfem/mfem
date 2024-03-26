@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -35,9 +35,9 @@ void TensorValues<QVectorLayout::byNODES>(const int NE,
    const int dim = maps.FE->GetDim();
    const int D1D = maps.ndof;
    const int Q1D = maps.nqpt;
-   const double *B = maps.B.Read();
-   const double *X = e_vec.Read();
-   double *Y = q_val.Write();
+   const real_t *B = maps.B.Read();
+   const real_t *X = e_vec.Read();
+   real_t *Y = q_val.Write();
 
    constexpr QVectorLayout L = QVectorLayout::byNODES;
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -21,10 +21,10 @@ namespace electromagnetics
 // Physical Constants
 
 // Permittivity of Free Space (units F/m)
-static const double epsilon0_ = 8.8541878176e-12;
+static const real_t epsilon0_ = 8.8541878176e-12;
 
 // Permeability of Free Space (units H/m)
-static const double mu0_ = 4.0e-7*M_PI;
+static const real_t mu0_ = 4.0e-7*M_PI;
 
 } // namespace electromagnetics
 
