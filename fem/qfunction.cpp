@@ -18,7 +18,7 @@
 namespace mfem
 {
 
-QuadratureFunction &QuadratureFunction::operator=(double value)
+QuadratureFunction &QuadratureFunction::operator=(real_t value)
 {
    Vector::operator=(value);
    return *this;
@@ -242,23 +242,24 @@ void QuadratureFunction::SaveVTU(const std::string &filename, VTKFormat format,
    SaveVTU(f, format, compression_level, field_name);
 }
 
-static double ReduceDouble(const Mesh *mesh, double value)
+static real_t ReduceReal(const Mesh *mesh, real_t value)
 {
 #ifdef MFEM_USE_MPI
    if (auto *pmesh = dynamic_cast<const ParMesh*>(mesh))
    {
       MPI_Comm comm = pmesh->GetComm();
-      MPI_Allreduce(MPI_IN_PLACE, &value, 1, MPI_DOUBLE, MPI_SUM, comm);
+      MPI_Allreduce(MPI_IN_PLACE, &value, 1, MPITypeMap<real_t>::mpi_type,
+                    MPI_SUM, comm);
    }
 #endif
    return value;
 }
 
-double QuadratureFunction::Integrate() const
+real_t QuadratureFunction::Integrate() const
 {
    MFEM_VERIFY(vdim == 1, "Only scalar functions are supported.")
-   const double local_integral = InnerProduct(*this, qspace->GetWeights());
-   return ReduceDouble(qspace->GetMesh(), local_integral);
+   const real_t local_integral = InnerProduct(*this, qspace->GetWeights());
+   return ReduceReal(qspace->GetMesh(), local_integral);
 }
 
 void QuadratureFunction::Integrate(Vector &integrals) const
@@ -269,18 +270,18 @@ void QuadratureFunction::Integrate(Vector &integrals) const
    QuadratureFunction component(qspace);
    const int N = component.Size();
    const int VDIM = vdim; // avoid capturing 'this' in lambda body
-   const double *d_v = Read();
+   const real_t *d_v = Read();
 
    for (int vd = 0; vd < vdim; ++vd)
    {
       // Extract the component 'vd' into component.
-      double *d_c = component.Write();
+      real_t *d_c = component.Write();
       mfem::forall(N, [=] MFEM_HOST_DEVICE (int i)
       {
          d_c[i] = d_v[vd + i*VDIM];
       });
-      integrals[vd] = ReduceDouble(qspace->GetMesh(),
-                                   InnerProduct(component, weights));
+      integrals[vd] = ReduceReal(qspace->GetMesh(),
+                                 InnerProduct(component, weights));
    }
 }
 

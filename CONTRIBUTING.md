@@ -362,6 +362,8 @@ Before you can start, you need a GitHub account, here are a few suggestions:
     conflicted files in the commit message.
   - All significant new features and changes should be documented in CHANGELOG.
   - New examples and miniapps should have documentation on the MFEM webpage.
+  - The general floating-point type `real_t` should be used, rather than
+    `float` or `double`, except in special cases where only one is possible.
 
 
 ### Pull Requests
