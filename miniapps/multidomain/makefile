@@ -63,6 +63,10 @@ include $(MFEM_TEST_MK)
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 multidomain-test-par: multidomain
 	@$(call mfem-test,$<, $(RUN_MPI), Multidomain miniapp,-tf 0.001)
+multidomain_nd-test-par: multidomain_nd
+	@$(call mfem-test,$<, $(RUN_MPI), Multidomain ND miniapp,-tf 0.001)
+multidomain_rt-test-par: multidomain_rt
+	@$(call mfem-test,$<, $(RUN_MPI), Multidomain RT iniapp,-tf 0.001)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
