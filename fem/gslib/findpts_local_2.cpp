@@ -676,6 +676,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
    const int MD1 = T_D1D ? T_D1D : 14;
    const int D1D = T_D1D ? T_D1D : pN;
    const int p_NE = D1D*D1D;
+   const int p_NEL = nel*p_NE;
    MFEM_VERIFY(MD1 <= 14,"Increase Max allowable polynomial order.");
    MFEM_VERIFY(D1D != 0, "Polynomial order not specified.");
    const int nThreads = MAX_CONST(2*MD1, 4);
@@ -754,10 +755,8 @@ static void FindPointsLocal2D_Kernel(const int npt,
 
                for (int d = 0; d < dim; d++)
                {
-                  elx[d] = xElemCoord + d*nel*p_NE + el * p_NE;
+                  elx[d] = xElemCoord + d*p_NEL + el * p_NE;
                }
-               //               elx[0] = xElem + el * p_NE;
-               //               elx[1] = yElem + el * p_NE;
 
                //// findpts_el ////
                {
@@ -809,7 +808,6 @@ static void FindPointsLocal2D_Kernel(const int npt,
                      }
                      MFEM_SYNC_THREAD;
                   } //seed done
-
 
                   MFEM_FOREACH_THREAD(j,x,nThreads)
                   {

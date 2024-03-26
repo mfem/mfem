@@ -94,6 +94,7 @@ protected:
    int        mesh_points_cnt;
    // Tolerance to ignore points just outside elements at the boundary.
    double     bdr_tol;
+   int        gpu_code = 0;
 
    void * findptsData2;
    void * findptsData3;
@@ -165,6 +166,13 @@ protected:
                          Vector &gsl_ref_l,
                          Vector &gsl_dist_l,
                          int npt);
+   void FindPointsLocal32(const Vector &point_pos,
+                          int point_pos_ordering,
+                          Array<int> &gsl_code_dev_l,
+                          Array<int> &gsl_elem_dev_l,
+                          Vector &gsl_ref_l,
+                          Vector &gsl_dist_l,
+                          int npt);
    void FindPointsLocal2(const Vector &point_pos,
                          int point_pos_ordering,
                          Array<int> &gsl_code_dev_l,
@@ -316,6 +324,15 @@ public:
                             const int nel, const int ncomp,
                             const int dof1dsol, const int gf_ordering,
                             MemoryType mt);
+
+   // Bounding box mesh.
+   // 0 - element-wise axis-aligned bounding box. NE_split_total elem per proc
+   // 1 - element-wise oriented     bounding box. NE_split_total elem per proc
+   // 2 - proc-wise    axis-aligned bounding box. size depends on setup parameters
+   // 3 - global hash mesh.                       depends on setup parameters.
+   virtual Mesh* GetBoundingBoxMesh(int type = 0);
+
+   void SetGPUCode(int code_) { gpu_code = code_; }
 };
 
 /** \brief OversetFindPointsGSLIB enables use of findpts for arbitrary number of

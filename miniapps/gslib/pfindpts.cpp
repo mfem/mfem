@@ -108,6 +108,8 @@ int main (int argc, char *argv[])
    int nx                = 6; //points per proc
    int dim               = 3;
    int etype             = 0;
+   bool visit            = false;
+   int gpucode           = 0;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -158,6 +160,11 @@ int main (int argc, char *argv[])
                   "Dimension");
    args.AddOption(&etype, "-et", "--et",
                   "element type: 0 - quad/hex, 1 - triangle/tetrahedron");
+   args.AddOption(&visit, "-visit", "--visit", "-no-visit",
+                  "--no-visit",
+                  "Enable or disable VISIT output");
+   args.AddOption(&gpucode, "-gpucode", "--gpucode",
+                  "code for custom gpu kernels");
    args.Parse();
    if (!args.Good())
    {
@@ -360,26 +367,20 @@ int main (int argc, char *argv[])
    // Display the mesh and the field through glvis.
    if (visualization)
    {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      socketstream sout;
-      sout.open(vishost, visport);
-      if (!sout)
+      socketstream sock;
+      if (myid == 0)
       {
-         if (myid == 0)
-         {
-            cout << "Unable to connect to GLVis server at "
-                 << vishost << ':' << visport << endl;
-         }
+         sock.open("localhost", 19916);
+         sock << "solution\n";
       }
-      else
+      pmesh.PrintAsOne(sock);
+      field_vals.SaveAsOne(sock);
+      if (myid == 0)
       {
-         sout << "parallel " << num_procs << " " << myid << "\n";
-         sout.precision(8);
-         sout << "solution\n" << pmesh << field_vals;
-         if (dim == 2) { sout << "keys RmjA*****\n"; }
-         if (dim == 3) { sout << "keys mA\n"; }
-         sout << flush;
+         sock << "window_title 'Solution'\n"
+              << "window_geometry "
+              << 400 << " " << 0 << " " << 400 << " " << 400 << "\n"
+              << "keys RmjApp" << endl;
       }
    }
 
@@ -403,6 +404,7 @@ int main (int argc, char *argv[])
 
    FindPointsGSLIB finder(MPI_COMM_WORLD);
    finder.Setup(pmesh);
+   finder.SetGPUCode(gpucode);
    finder.SetDistanceToleranceForPointsFoundOnBoundary(10);
    finder.FindPoints(vxyz, point_ordering);
    MPI_Barrier(MPI_COMM_WORLD);
@@ -570,6 +572,102 @@ int main (int argc, char *argv[])
            finder.interpolate_l2_pass2_time << "," <<
            std::endl;
    }
+
+   Mesh *mesh_abb = finder.GetBoundingBoxMesh(0);
+   Mesh *mesh_obb = finder.GetBoundingBoxMesh(1);
+   Mesh *mesh_lhbb = finder.GetBoundingBoxMesh(2);
+   Mesh *mesh_ghbb = finder.GetBoundingBoxMesh(3);
+
+   if (visit && myid == 0)
+   {
+      VisItDataCollection dc("finderabb", mesh_abb);
+      dc.SetFormat(DataCollection::SERIAL_FORMAT);
+      dc.Save();
+
+      Array<int> attrlist(1);
+      for (int i = 0; i < mesh_abb->GetNE(); i++)
+      {
+         attrlist[0] = i+1;
+         auto mesh_abbt = SubMesh::CreateFromDomain(*mesh_abb, attrlist);
+         VisItDataCollection dct("finderabbt", &mesh_abbt);
+         dct.SetFormat(DataCollection::SERIAL_FORMAT);
+         dct.SetCycle(i);
+         dct.SetTime(i*1.0);
+         dct.Save();
+      }
+   }
+   MPI_Barrier(MPI_COMM_WORLD);
+
+   if (visit && myid == 0)
+   {
+      VisItDataCollection dc("finderobb", mesh_obb);
+      dc.SetFormat(DataCollection::SERIAL_FORMAT);
+      dc.Save();
+
+      Array<int> attrlist(1);
+      for (int i = 0; i < mesh_obb->GetNE(); i++)
+      {
+         attrlist[0] = i+1;
+         auto mesh_abbt = SubMesh::CreateFromDomain(*mesh_obb, attrlist);
+         VisItDataCollection dct("finderobbt", &mesh_abbt);
+         dct.SetFormat(DataCollection::SERIAL_FORMAT);
+         dct.SetCycle(i);
+         dct.SetTime(i*1.0);
+         dct.Save();
+      }
+   }
+   MPI_Barrier(MPI_COMM_WORLD);
+
+   if (visit && myid == 0)
+   {
+      std::cout << mesh_lhbb->GetNE() << " k10localmeshhashbounding\n";
+      VisItDataCollection dc("finderlhbb", mesh_lhbb);
+      dc.SetFormat(DataCollection::SERIAL_FORMAT);
+      dc.Save();
+
+      Array<int> attrlist(1);
+      for (int i = 0; i < num_procs; i++)
+      {
+         attrlist[0] = i+1;
+         auto mesh_abbt = SubMesh::CreateFromDomain(*mesh_lhbb, attrlist);
+         VisItDataCollection dct("finderlhbbt", &mesh_abbt);
+         dct.SetFormat(DataCollection::SERIAL_FORMAT);
+         dct.SetCycle(i);
+         dct.SetTime(i*1.0);
+         dct.Save();
+      }
+   }
+   MPI_Barrier(MPI_COMM_WORLD);
+
+   if (visit && myid == 0)
+   {
+      VisItDataCollection dc("finderghbb", mesh_ghbb);
+      dc.SetFormat(DataCollection::SERIAL_FORMAT);
+      dc.Save();
+   }
+   MPI_Barrier(MPI_COMM_WORLD);
+
+   if (visit)
+   {
+      L2_FECollection pl2c(0, dim);
+      ParFiniteElementSpace pl2fes(&pmesh, &pl2c);
+      ParGridFunction pl2g(&pl2fes);
+      ParGridFunction prankg(&pl2fes);
+      pmesh.ExchangeFaceNbrData();
+      for (int e = 0; e < pmesh.GetNE(); e++)
+      {
+         pl2g(e) = pmesh.GetGlobalElementNum(e);
+         prankg(e) = myid;
+      }
+
+      VisItDataCollection dc("finder", &pmesh);
+      dc.RegisterField("solution", &field_vals);
+      dc.RegisterField("elemnum", &pl2g);
+      dc.RegisterField("proc", &prankg);
+      dc.SetFormat(DataCollection::PARALLEL_FORMAT);
+      dc.Save();
+   }
+   MPI_Barrier(MPI_COMM_WORLD);
 
    // Free the internal gslib data.
    finder.FreeData();

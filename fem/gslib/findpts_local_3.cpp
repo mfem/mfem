@@ -984,7 +984,6 @@ static void FindPointsLocal3D_Kernel(const int npt,
                                      const double *maxBound,
                                      const int hash_n,
                                      const double *hashMin,
-                                     const double *hashMax,
                                      const double *hashFac,
                                      int *hashOffset,
                                      int *const code_base,
@@ -999,10 +998,11 @@ static void FindPointsLocal3D_Kernel(const int npt,
 #define MAX_CONST(a, b) (((a) > (b)) ? (a) : (b))
    const int dim = 3;
    const int dim2 = dim*dim;
-   const int MD1 = T_D1D ? T_D1D : 14;
+   const int pMax = 10;
+   const int MD1 = T_D1D ? T_D1D : 10;
    const int D1D = T_D1D ? T_D1D : pN;
    const int p_NE = D1D*D1D*D1D;
-   MFEM_VERIFY(MD1 <= 14,"Increase Max allowable polynomial order.");
+   MFEM_VERIFY(MD1 <= pMax, "Increase Max allowable polynomial order.");
    MFEM_VERIFY(D1D != 0, "Polynomial order not specified.");
    const int nThreads = 32;
 
@@ -1052,16 +1052,7 @@ static void FindPointsLocal3D_Kernel(const int npt,
       *code_i = CODE_NOT_FOUND;
       *dist2_i = DBL_MAX;
 
-      //first check hash box limit
-      obbox_t hashBox;
-      for (int d = 0; d < dim; ++d)
-      {
-         hashBox.x[d].min = hashMin[d];
-         hashBox.x[d].max = hashMax[d];
-      }
-      double hashBoxTest = obbox_axis_test(&hashBox, x_i);
-
-      for (; elp != ele && hashBoxTest >= 0; ++elp)
+      for (; elp != ele; ++elp)
       {
          //elp
 
@@ -1486,17 +1477,13 @@ static void FindPointsLocal3D_Kernel(const int npt,
                                        else
                                        {
                                           double rh[3];
-                                          rh[0] = hes[0], rh[1] = hes[1], rh[2] = hes[3];
-                                          newton_face(fpt,
-                                                      jac,
-                                                      rh,
-                                                      resid,
-                                                      de,
-                                                      dn1,
-                                                      dn2,
+                                          rh[0] = hes[0];
+                                          rh[1] = hes[1];
+                                          rh[2] = hes[3];
+                                          newton_face(fpt, jac, rh, resid, de,
+                                                      dn1, dn2,
                                                       tmp->flags & (3u << (dn2 * 2)),
-                                                      tmp,
-                                                      tol);
+                                                      tmp, tol);
                                        }
                                     }
                                     else
@@ -1505,29 +1492,17 @@ static void FindPointsLocal3D_Kernel(const int npt,
                                        {
                                           double rh[3];
                                           rh[0] = hes[4], rh[1] = hes[2], rh[2] = hes[0];
-                                          newton_face(fpt,
-                                                      jac,
-                                                      rh,
-                                                      resid,
-                                                      dn2,
-                                                      de,
-                                                      dn1,
+                                          newton_face(fpt, jac, rh, resid, dn2,
+                                                      de, dn1,
                                                       tmp->flags & (3u << (dn1 * 2)),
-                                                      tmp,
-                                                      tol);
+                                                      tmp, tol);
                                        }
                                        else
                                        {
-                                          newton_edge(fpt,
-                                                      jac,
-                                                      hes[0],
-                                                      resid,
-                                                      de,
-                                                      dn1,
-                                                      dn2,
+                                          newton_edge(fpt, jac, hes[0], resid,
+                                                      de, dn1, dn2,
                                                       tmp->flags & FLAG_MASK,
-                                                      tmp,
-                                                      tol);
+                                                      tmp, tol);
                                        }
                                     }
                                  }
@@ -1575,22 +1550,19 @@ static void FindPointsLocal3D_Kernel(const int npt,
                                           {
                                              d1 = 0, d2 = 1, dn = 2, hi0 = 0, hi1 = 1, hi2 = 3;
                                              double rh[3];
-                                             rh[0] = resid[0] * hes[hi0] + resid[1] * hes[6 + hi0] + resid[2] * hes[12 +
-                                                                                                                    hi0],
-                                                     rh[1] = resid[0] * hes[hi1] + resid[1] * hes[6 + hi1] + resid[2] * hes[12 +
-                                                                                                                            hi1],
-                                                             rh[2] = resid[0] * hes[hi2] + resid[1] * hes[6 + hi2] + resid[2] * hes[12 +
-                                                                     hi2];
-                                             newton_face(fpt,
-                                                         jac,
-                                                         rh,
-                                                         resid,
-                                                         d1,
-                                                         d2,
-                                                         dn,
+                                             rh[0] = resid[0] * hes[hi0] +
+                                                     resid[1] * hes[6 + hi0] +
+                                                     resid[2] * hes[12 + hi0];
+                                             rh[1] = resid[0] * hes[hi1] +
+                                                     resid[1] * hes[6 + hi1] +
+                                                     resid[2] * hes[12 + hi1];
+                                             rh[2] = resid[0] * hes[hi2] +
+                                                     resid[1] * hes[6 + hi2] +
+                                                     resid[2] * hes[12 + hi2];
+                                             newton_face(fpt, jac, rh, resid,
+                                                         d1, d2, dn,
                                                          (tmp->flags) & (3u << (2 * dn)),
-                                                         tmp,
-                                                         tol);
+                                                         tmp, tol);
                                           }
                                        }
                                        else
@@ -1608,32 +1580,22 @@ static void FindPointsLocal3D_Kernel(const int npt,
                                              rh[2] = resid[0] * hes[hi2] +
                                                      resid[1] * hes[6 + hi2] +
                                                      resid[2] * hes[12 + hi2];
-                                             newton_face(fpt,
-                                                         jac,
-                                                         rh,
-                                                         resid,
-                                                         d1,
-                                                         d2,
-                                                         dn,
+                                             newton_face(fpt, jac, rh, resid,
+                                                         d1, d2, dn,
                                                          (tmp->flags) & (3u << (2 * dn)),
-                                                         tmp,
-                                                         tol);
+                                                         tmp, tol);
                                           }
                                           else
                                           {
                                              de = 0, dn1 = 1, dn2 = 2, hi0 = 0;
                                              const double rh =
-                                                resid[0] * hes[hi0] + resid[1] * hes[6 + hi0] + resid[2] * hes[12 + hi0];
-                                             newton_edge(fpt,
-                                                         jac,
-                                                         rh,
-                                                         resid,
-                                                         de,
-                                                         dn1,
-                                                         dn2,
+                                                resid[0] * hes[hi0] +
+                                                resid[1] * hes[6 + hi0] +
+                                                resid[2] * hes[12 + hi0];
+                                             newton_edge(fpt, jac, rh, resid,
+                                                         de, dn1, dn2,
                                                          tmp->flags & (~(3u << (2 * de))),
-                                                         tmp,
-                                                         tol);
+                                                         tmp, tol);
                                           }
                                        }
                                     }
@@ -1645,38 +1607,31 @@ static void FindPointsLocal3D_Kernel(const int npt,
                                           {
                                              d1 = 1, d2 = 2, dn = 0, hi0 = 3, hi1 = 4, hi2 = 5;
                                              double rh[3];
-                                             rh[0] = resid[0] * hes[hi0] + resid[1] * hes[6 + hi0] + resid[2] * hes[12 +
-                                                                                                                    hi0],
-                                                     rh[1] = resid[0] * hes[hi1] + resid[1] * hes[6 + hi1] + resid[2] * hes[12 +
-                                                                                                                            hi1],
-                                                             rh[2] = resid[0] * hes[hi2] + resid[1] * hes[6 + hi2] + resid[2] * hes[12 +
-                                                                     hi2];
-                                             newton_face(fpt,
-                                                         jac,
-                                                         rh,
-                                                         resid,
-                                                         d1,
-                                                         d2,
-                                                         dn,
+                                             rh[0] = resid[0] * hes[hi0] +
+                                                     resid[1] * hes[6 + hi0] +
+                                                     resid[2] * hes[12 + hi0];
+                                             rh[1] = resid[0] * hes[hi1] +
+                                                     resid[1] * hes[6 + hi1] +
+                                                     resid[2] * hes[12 + hi1];
+                                             rh[2] = resid[0] * hes[hi2] +
+                                                     resid[1] * hes[6 + hi2] +
+                                                     resid[2] * hes[12 + hi2];
+                                             newton_face(fpt, jac, rh, resid,
+                                                         d1, d2, dn,
                                                          (tmp->flags) & (3u << (2 * dn)),
-                                                         tmp,
-                                                         tol);
+                                                         tmp, tol);
                                           }
                                           else
                                           {
                                              de = 1, dn1 = 2, dn2 = 0, hi0 = 3;
                                              const double rh =
-                                                resid[0] * hes[hi0] + resid[1] * hes[6 + hi0] + resid[2] * hes[12 + hi0];
-                                             newton_edge(fpt,
-                                                         jac,
-                                                         rh,
-                                                         resid,
-                                                         de,
-                                                         dn1,
-                                                         dn2,
+                                                resid[0] * hes[hi0] +
+                                                resid[1] * hes[6 + hi0] +
+                                                resid[2] * hes[12 + hi0];
+                                             newton_edge(fpt, jac, rh, resid,
+                                                         de, dn1, dn2,
                                                          tmp->flags & (~(3u << (2 * de))),
-                                                         tmp,
-                                                         tol);
+                                                         tmp, tol);
                                           }
                                        }
                                        else
@@ -1685,21 +1640,19 @@ static void FindPointsLocal3D_Kernel(const int npt,
                                           {
                                              de = 2, dn1 = 0, dn2 = 1, hi0 = 5;
                                              const double rh =
-                                                resid[0] * hes[hi0] + resid[1] * hes[6 + hi0] + resid[2] * hes[12 + hi0];
-                                             newton_edge(fpt,
-                                                         jac,
-                                                         rh,
-                                                         resid,
-                                                         de,
-                                                         dn1,
-                                                         dn2,
+                                                resid[0] * hes[hi0] +
+                                                resid[1] * hes[6 + hi0] +
+                                                resid[2] * hes[12 + hi0];
+                                             newton_edge(fpt, jac, rh, resid,
+                                                         de, dn1, dn2,
                                                          tmp->flags & (~(3u << (2 * de))),
-                                                         tmp,
-                                                         tol);
+                                                         tmp, tol);
                                           }
                                           else
                                           {
-                                             fpt->r[0] = tmp->r[0], fpt->r[1] = tmp->r[1], fpt->r[2] = tmp->r[2];
+                                             fpt->r[0] = tmp->r[0];
+                                             fpt->r[1] = tmp->r[1];
+                                             fpt->r[2] = tmp->r[2];
                                              fpt->dist2p = 0;
                                              fpt->flags = tmp->flags | CONVERGED_FLAG;
                                           }
@@ -1773,7 +1726,6 @@ void FindPointsGSLIB::FindPointsLocal3(const Vector &point_pos,
                                                     DEV.o_c.Read(), DEV.o_A.Read(),
                                                     DEV.o_min.Read(), DEV.o_max.Read(),
                                                     DEV.hash_n, DEV.o_hashMin.Read(),
-                                                    DEV.o_hashMax.Read(),
                                                     DEV.o_hashFac.Read(),
                                                     DEV.o_offset.ReadWrite(),
                                                     code.Write(), elem.Write(),
@@ -1788,7 +1740,6 @@ void FindPointsGSLIB::FindPointsLocal3(const Vector &point_pos,
                                                     DEV.o_c.Read(), DEV.o_A.Read(),
                                                     DEV.o_min.Read(), DEV.o_max.Read(),
                                                     DEV.hash_n, DEV.o_hashMin.Read(),
-                                                    DEV.o_hashMax.Read(),
                                                     DEV.o_hashFac.Read(),
                                                     DEV.o_offset.ReadWrite(),
                                                     code.Write(), elem.Write(),
@@ -1803,7 +1754,6 @@ void FindPointsGSLIB::FindPointsLocal3(const Vector &point_pos,
                                                     DEV.o_c.Read(), DEV.o_A.Read(),
                                                     DEV.o_min.Read(), DEV.o_max.Read(),
                                                     DEV.hash_n, DEV.o_hashMin.Read(),
-                                                    DEV.o_hashMax.Read(),
                                                     DEV.o_hashFac.Read(),
                                                     DEV.o_offset.ReadWrite(),
                                                     code.Write(), elem.Write(),
@@ -1818,7 +1768,6 @@ void FindPointsGSLIB::FindPointsLocal3(const Vector &point_pos,
                                                     DEV.o_c.Read(), DEV.o_A.Read(),
                                                     DEV.o_min.Read(), DEV.o_max.Read(),
                                                     DEV.hash_n, DEV.o_hashMin.Read(),
-                                                    DEV.o_hashMax.Read(),
                                                     DEV.o_hashFac.Read(),
                                                     DEV.o_offset.ReadWrite(),
                                                     code.Write(), elem.Write(),
@@ -1833,7 +1782,6 @@ void FindPointsGSLIB::FindPointsLocal3(const Vector &point_pos,
                                                   DEV.o_c.Read(), DEV.o_A.Read(),
                                                   DEV.o_min.Read(), DEV.o_max.Read(),
                                                   DEV.hash_n, DEV.o_hashMin.Read(),
-                                                  DEV.o_hashMax.Read(),
                                                   DEV.o_hashFac.Read(),
                                                   DEV.o_offset.ReadWrite(),
                                                   code.Write(), elem.Write(),

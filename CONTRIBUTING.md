@@ -346,6 +346,9 @@ Before you can start, you need a GitHub account, here are a few suggestions:
 - Code specifics
   - All new public, protected, and private classes, methods, data members, and
     functions have Doxygen-style documentation in source comments.
+  - Math formulas can be included in the Doxygen comments either with standard
+    LaTeX (`$..$` and `$$..$$`) for portions that need detailed explanation, or with
+    [Unicode](https://www.unicodeit.net/) or plain text when short or readable description is preferable.
   - In addition to arguments and functionality, documentation should include the
     current limitations of the code, any background information that is
     implicitly assumed in the implementation, and the ownership and lifetime
