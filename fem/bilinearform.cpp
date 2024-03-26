@@ -56,7 +56,7 @@ void BilinearForm::AllocMat()
 
    int *I = dof_dof.GetI();
    int *J = dof_dof.GetJ();
-   double *data = Memory<double>(I[height]);
+   real_t *data = Memory<real_t>(I[height]);
 
    mat = new SparseMatrix(I, J, data, height, height, true, true, true);
    *mat = 0.0;
@@ -209,12 +209,12 @@ void BilinearForm::UseSparsity(SparseMatrix &A)
    UseSparsity(A.GetI(), A.GetJ(), A.ColumnsAreSorted());
 }
 
-double& BilinearForm::Elem (int i, int j)
+real_t& BilinearForm::Elem (int i, int j)
 {
    return mat -> Elem(i,j);
 }
 
-const double& BilinearForm::Elem (int i, int j) const
+const real_t& BilinearForm::Elem (int i, int j) const
 {
    return mat -> Elem(i,j);
 }
@@ -1001,7 +1001,7 @@ void BilinearForm::EliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
 }
 
 void BilinearForm::EliminateEssentialBCDiag (const Array<int> &bdr_attr_is_ess,
-                                             double value)
+                                             real_t value)
 {
    Array<int> ess_dofs, conf_ess_dofs;
    fes->GetEssentialVDofs(bdr_attr_is_ess, ess_dofs);
@@ -1088,7 +1088,7 @@ void BilinearForm::EliminateEssentialBCFromDofs (const Array<int> &ess_dofs,
 }
 
 void BilinearForm::EliminateEssentialBCFromDofsDiag (const Array<int> &ess_dofs,
-                                                     double value)
+                                                     real_t value)
 {
    MFEM_ASSERT(ess_dofs.Size() == height,
                "incorrect dof Array size: " << ess_dofs.Size() << ' ' << height);
@@ -1274,12 +1274,12 @@ void MixedBilinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
    }
 }
 
-double & MixedBilinearForm::Elem (int i, int j)
+real_t & MixedBilinearForm::Elem (int i, int j)
 {
    return (*mat)(i, j);
 }
 
-const double & MixedBilinearForm::Elem (int i, int j) const
+const real_t & MixedBilinearForm::Elem (int i, int j) const
 {
    return (*mat)(i, j);
 }
@@ -1291,7 +1291,7 @@ void MixedBilinearForm::Mult(const Vector & x, Vector & y) const
 }
 
 void MixedBilinearForm::AddMult(const Vector & x, Vector & y,
-                                const double a) const
+                                const real_t a) const
 {
    if (ext)
    {
@@ -1310,7 +1310,7 @@ void MixedBilinearForm::MultTranspose(const Vector & x, Vector & y) const
 }
 
 void MixedBilinearForm::AddMultTranspose(const Vector & x, Vector & y,
-                                         const double a) const
+                                         const real_t a) const
 {
    if (ext)
    {

@@ -55,9 +55,9 @@
 using namespace std;
 using namespace mfem;
 
-static double mu_ = 1.0;
-static double epsilon_ = 1.0;
-static double sigma_ = 2.0;
+static real_t mu_ = 1.0;
+static real_t epsilon_ = 1.0;
+static real_t sigma_ = 2.0;
 
 void SetPortBC(int prob, int dim, int mode, ParGridFunction &port_bc);
 
@@ -77,9 +77,9 @@ int main(int argc, char *argv[])
    Array<int> port_bc_attr;
    int prob = 0;
    int mode = 1;
-   double freq = -1.0;
-   double omega = 2.0 * M_PI;
-   double a_coef = 0.0;
+   real_t freq = -1.0;
+   real_t omega = 2.0 * M_PI;
+   real_t a_coef = 0.0;
    bool herm_conv = true;
    bool slu_solver  = false;
    bool visualization = 1;
@@ -587,7 +587,7 @@ int main(int argc, char *argv[])
       int i = 0;
       while (sol_sock)
       {
-         double t = (double)(i % num_frames) / num_frames;
+         real_t t = (real_t)(i % num_frames) / num_frames;
          ostringstream oss;
          oss << "Harmonic Solution (t = " << t << " T)";
 
@@ -637,7 +637,7 @@ void ScalarWaveGuide(int mode, ParGridFunction &x)
    m.AddDomainIntegrator(new MassIntegrator);
    m.Assemble();
    // shift the eigenvalue corresponding to eliminated dofs to a large value
-   m.EliminateEssentialBCDiag(ess_bdr, numeric_limits<double>::min());
+   m.EliminateEssentialBCDiag(ess_bdr, numeric_limits<real_t>::min());
    m.Finalize();
 
    HypreParMatrix *A = a.ParallelAssemble();
@@ -694,7 +694,7 @@ void VectorWaveGuide(int mode, ParGridFunction &x)
    m.AddDomainIntegrator(new VectorFEMassIntegrator);
    m.Assemble();
    // shift the eigenvalue corresponding to eliminated dofs to a large value
-   m.EliminateEssentialBCDiag(ess_bdr, numeric_limits<double>::min());
+   m.EliminateEssentialBCDiag(ess_bdr, numeric_limits<real_t>::min());
    m.Finalize();
 
    HypreParMatrix *A = a.ParallelAssemble();

@@ -22,7 +22,7 @@ const char *Geometry::Name[NumGeom] =
    "Pyramid"
 };
 
-const double Geometry::Volume[NumGeom] =
+const real_t Geometry::Volume[NumGeom] =
 { 1.0, 1.0, 0.5, 1.0, 1./6, 1.0, 0.5, 1./3 };
 
 Geometry::Geometry()
@@ -252,6 +252,34 @@ Geometry::Geometry()
    }
 }
 
+template <Geometry::Type GEOM>
+int GetInverseOrientation_(int orientation)
+{
+   using geom_t = Geometry::Constants<GEOM>;
+   MFEM_ASSERT(0 <= orientation && orientation < geom_t::NumOrient,
+               "Invalid orientation");
+   return geom_t::InvOrient[orientation];
+}
+
+int Geometry::GetInverseOrientation(Type geom_type, int orientation)
+{
+   switch (geom_type)
+   {
+      case Geometry::POINT:
+         return GetInverseOrientation_<Geometry::POINT>(orientation);
+      case Geometry::SEGMENT:
+         return GetInverseOrientation_<Geometry::SEGMENT>(orientation);
+      case Geometry::TRIANGLE:
+         return GetInverseOrientation_<Geometry::TRIANGLE>(orientation);
+      case Geometry::SQUARE:
+         return GetInverseOrientation_<Geometry::SQUARE>(orientation);
+      case Geometry::TETRAHEDRON:
+         return GetInverseOrientation_<Geometry::TETRAHEDRON>(orientation);
+      default:
+         MFEM_ABORT("Geometry type does not have inverse orientations");
+   }
+}
+
 Geometry::~Geometry()
 {
    for (int i = 0; i < NumGeom; i++)
@@ -291,11 +319,11 @@ void Geometry::GetRandomPoint(int GeomType, IntegrationPoint &ip)
          ip.x = 0.0;
          break;
       case Geometry::SEGMENT:
-         ip.x = double(rand()) / RAND_MAX;
+         ip.x = real_t(rand()) / real_t(RAND_MAX);
          break;
       case Geometry::TRIANGLE:
-         ip.x = double(rand()) / RAND_MAX;
-         ip.y = double(rand()) / RAND_MAX;
+         ip.x = real_t(rand()) / real_t(RAND_MAX);
+         ip.y = real_t(rand()) / real_t(RAND_MAX);
          if (ip.x + ip.y > 1.0)
          {
             ip.x = 1.0 - ip.x;
@@ -303,13 +331,13 @@ void Geometry::GetRandomPoint(int GeomType, IntegrationPoint &ip)
          }
          break;
       case Geometry::SQUARE:
-         ip.x = double(rand()) / RAND_MAX;
-         ip.y = double(rand()) / RAND_MAX;
+         ip.x = real_t(rand()) / real_t(RAND_MAX);
+         ip.y = real_t(rand()) / real_t(RAND_MAX);
          break;
       case Geometry::TETRAHEDRON:
-         ip.x = double(rand()) / RAND_MAX;
-         ip.y = double(rand()) / RAND_MAX;
-         ip.z = double(rand()) / RAND_MAX;
+         ip.x = real_t(rand()) / real_t(RAND_MAX);
+         ip.y = real_t(rand()) / real_t(RAND_MAX);
+         ip.z = real_t(rand()) / real_t(RAND_MAX);
          // map to the triangular prism obtained by extruding the reference
          // triangle in z direction
          if (ip.x + ip.y > 1.0)
@@ -330,7 +358,7 @@ void Geometry::GetRandomPoint(int GeomType, IntegrationPoint &ip)
          else if (ip.x + ip.y + ip.z > 1.0)
          {
             // tet with vertices: (0,1,1),(0,1,0),(0,0,1),(1,0,0)
-            double x = ip.x;
+            real_t x = ip.x;
             ip.x = 1.0 - x - ip.z;
             ip.y = 1.0 - x - ip.y;
             ip.z = x;
@@ -338,14 +366,14 @@ void Geometry::GetRandomPoint(int GeomType, IntegrationPoint &ip)
          }
          break;
       case Geometry::CUBE:
-         ip.x = double(rand()) / RAND_MAX;
-         ip.y = double(rand()) / RAND_MAX;
-         ip.z = double(rand()) / RAND_MAX;
+         ip.x = real_t(rand()) / real_t(RAND_MAX);
+         ip.y = real_t(rand()) / real_t(RAND_MAX);
+         ip.z = real_t(rand()) / real_t(RAND_MAX);
          break;
       case Geometry::PRISM:
-         ip.x = double(rand()) / RAND_MAX;
-         ip.y = double(rand()) / RAND_MAX;
-         ip.z = double(rand()) / RAND_MAX;
+         ip.x = real_t(rand()) / real_t(RAND_MAX);
+         ip.y = real_t(rand()) / real_t(RAND_MAX);
+         ip.z = real_t(rand()) / real_t(RAND_MAX);
          if (ip.x + ip.y > 1.0)
          {
             ip.x = 1.0 - ip.x;
@@ -353,19 +381,19 @@ void Geometry::GetRandomPoint(int GeomType, IntegrationPoint &ip)
          }
          break;
       case Geometry::PYRAMID:
-         ip.x = double(rand()) / RAND_MAX;
-         ip.y = double(rand()) / RAND_MAX;
-         ip.z = double(rand()) / RAND_MAX;
+         ip.x = real_t(rand()) / real_t(RAND_MAX);
+         ip.y = real_t(rand()) / real_t(RAND_MAX);
+         ip.z = real_t(rand()) / real_t(RAND_MAX);
          if (ip.x + ip.z > 1.0 && ip.y < ip.x)
          {
-            double x = ip.x;
+            real_t x = ip.x;
             ip.x = ip.y;
             ip.y = 1.0 - ip.z;
             ip.z = 1.0 - x;
          }
          else if (ip.y + ip.z > 1.0)
          {
-            double z = ip.z;
+            real_t z = ip.z;
             ip.z = 1.0 - ip.y;
             ip.y = ip.x;
             ip.x = 1.0 - z;
@@ -382,21 +410,21 @@ namespace internal
 {
 
 // Fuzzy equality operator with absolute tolerance eps.
-inline bool NearlyEqual(double x, double y, double eps)
+inline bool NearlyEqual(real_t x, real_t y, real_t eps)
 {
    return std::abs(x-y) <= eps;
 }
 
 // Fuzzy greater than comparison operator with absolute tolerance eps.
 // Returns true when x is greater than y by at least eps.
-inline bool FuzzyGT(double x, double y, double eps)
+inline bool FuzzyGT(real_t x, real_t y, real_t eps)
 {
    return (x > y + eps);
 }
 
 // Fuzzy less than comparison operator with absolute tolerance eps.
 // Returns true when x is less than y by at least eps.
-inline bool FuzzyLT(double x, double y, double eps)
+inline bool FuzzyLT(real_t x, real_t y, real_t eps)
 {
    return (x < y - eps);
 }
@@ -445,7 +473,7 @@ bool Geometry::CheckPoint(int GeomType, const IntegrationPoint &ip)
 }
 
 // static method
-bool Geometry::CheckPoint(int GeomType, const IntegrationPoint &ip, double eps)
+bool Geometry::CheckPoint(int GeomType, const IntegrationPoint &ip, real_t eps)
 {
    switch (GeomType)
    {
@@ -532,14 +560,14 @@ namespace internal
 {
 
 template <int N, int dim>
-inline bool IntersectSegment(double lbeg[N], double lend[N],
+inline bool IntersectSegment(real_t lbeg[N], real_t lend[N],
                              IntegrationPoint &end)
 {
-   double t = 1.0;
+   real_t t = 1.0;
    bool out = false;
    for (int i = 0; i < N; i++)
    {
-      lbeg[i] = std::max(lbeg[i], 0.0); // remove round-off
+      lbeg[i] = std::max(lbeg[i], (real_t) 0.0); // remove round-off
       if (lend[i] < 0.0)
       {
          out = true;
@@ -556,7 +584,7 @@ inline bool IntersectSegment(double lbeg[N], double lend[N],
    return true;
 }
 
-inline bool ProjectTriangle(double &x, double &y)
+inline bool ProjectTriangle(real_t &x, real_t &y)
 {
    if (x < 0.0)
    {
@@ -571,7 +599,7 @@ inline bool ProjectTriangle(double &x, double &y)
       y = 0.0;
       return false;
    }
-   const double l3 = 1.0-x-y;
+   const real_t l3 = 1.0-x-y;
    if (l3 < 0.0)
    {
       if (y - x > 1.0)       { x = 0.0; y = 1.0; }
@@ -588,6 +616,8 @@ inline bool ProjectTriangle(double &x, double &y)
 bool Geometry::ProjectPoint(int GeomType, const IntegrationPoint &beg,
                             IntegrationPoint &end)
 {
+   constexpr real_t fone = 1.0;
+
    switch (GeomType)
    {
       case Geometry::POINT:
@@ -603,45 +633,45 @@ bool Geometry::ProjectPoint(int GeomType, const IntegrationPoint &beg,
       }
       case Geometry::TRIANGLE:
       {
-         double lend[3] = { end.x, end.y, 1.0-end.x-end.y };
-         double lbeg[3] = { beg.x, beg.y, 1.0-beg.x-beg.y };
+         real_t lend[3] = { end.x, end.y, fone-end.x-end.y };
+         real_t lbeg[3] = { beg.x, beg.y, fone-beg.x-beg.y };
          return internal::IntersectSegment<3,2>(lbeg, lend, end);
       }
       case Geometry::SQUARE:
       {
-         double lend[4] = { end.x, end.y, 1.0-end.x, 1.0-end.y };
-         double lbeg[4] = { beg.x, beg.y, 1.0-beg.x, 1.0-beg.y };
+         real_t lend[4] = { end.x, end.y, fone-end.x, fone-end.y };
+         real_t lbeg[4] = { beg.x, beg.y, fone-beg.x, fone-beg.y };
          return internal::IntersectSegment<4,2>(lbeg, lend, end);
       }
       case Geometry::TETRAHEDRON:
       {
-         double lend[4] = { end.x, end.y, end.z, 1.0-end.x-end.y-end.z };
-         double lbeg[4] = { beg.x, beg.y, beg.z, 1.0-beg.x-beg.y-beg.z };
+         real_t lend[4] = { end.x, end.y, end.z, fone-end.x-end.y-end.z };
+         real_t lbeg[4] = { beg.x, beg.y, beg.z, fone-beg.x-beg.y-beg.z };
          return internal::IntersectSegment<4,3>(lbeg, lend, end);
       }
       case Geometry::CUBE:
       {
-         double lend[6] = { end.x, end.y, end.z,
-                            1.0-end.x, 1.0-end.y, 1.0-end.z
+         real_t lend[6] = { end.x, end.y, end.z,
+                            fone-end.x, fone-end.y, fone-end.z
                           };
-         double lbeg[6] = { beg.x, beg.y, beg.z,
-                            1.0-beg.x, 1.0-beg.y, 1.0-beg.z
+         real_t lbeg[6] = { beg.x, beg.y, beg.z,
+                            fone-beg.x, fone-beg.y, fone-beg.z
                           };
          return internal::IntersectSegment<6,3>(lbeg, lend, end);
       }
       case Geometry::PRISM:
       {
-         double lend[5] = { end.x, end.y, end.z, 1.0-end.x-end.y, 1.0-end.z };
-         double lbeg[5] = { beg.x, beg.y, beg.z, 1.0-beg.x-beg.y, 1.0-beg.z };
+         real_t lend[5] = { end.x, end.y, end.z, fone-end.x-end.y, fone-end.z };
+         real_t lbeg[5] = { beg.x, beg.y, beg.z, fone-beg.x-beg.y, fone-beg.z };
          return internal::IntersectSegment<5,3>(lbeg, lend, end);
       }
       case Geometry::PYRAMID:
       {
-         double lend[6] = { end.x, end.y, end.z,
-                            1.0-end.x-end.z, 1.0-end.y-end.z, 1.0-end.z
+         real_t lend[6] = { end.x, end.y, end.z,
+                            fone-end.x-end.z, fone-end.y-end.z, fone-end.z
                           };
-         double lbeg[6] = { beg.x, beg.y, beg.z,
-                            1.0-beg.x-beg.z, 1.0-beg.y-beg.z, 1.0-beg.z
+         real_t lbeg[6] = { beg.x, beg.y, beg.z,
+                            fone-beg.x-beg.z, fone-beg.y-beg.z, fone-beg.z
                           };
          return internal::IntersectSegment<6,3>(lbeg, lend, end);
       }
@@ -705,10 +735,10 @@ bool Geometry::ProjectPoint(int GeomType, IntegrationPoint &ip)
             internal::ProjectTriangle(ip.y, ip.z);
             return false;
          }
-         const double l4 = 1.0-ip.x-ip.y-ip.z;
+         const real_t l4 = 1.0-ip.x-ip.y-ip.z;
          if (l4 < 0.0)
          {
-            const double l4_3 = l4/3;
+            const real_t l4_3 = l4/3;
             ip.x += l4_3;
             ip.y += l4_3;
             internal::ProjectTriangle(ip.x, ip.y);
@@ -1110,7 +1140,7 @@ RefinedGeometry *GeometryRefiner::Refine(Geometry::Type Geom, int Times,
    int i, j, k, l, m;
    Times = std::max(Times, 1);
    ETimes = Geometry::Dimension[Geom] <= 1 ? 0 : std::max(ETimes, 1);
-   const double *cp = poly1d.GetPoints(Times, BasisType::GetNodalBasis(Type));
+   const real_t *cp = poly1d.GetPoints(Times, BasisType::GetNodalBasis(Type));
 
 #if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
    #pragma omp critical (Refine)
@@ -1359,7 +1389,7 @@ RefinedGeometry *GeometryRefiner::Refine(Geometry::Type Geom, int Times,
                      for (int ii = 0; ii <= n-jj-kk; ii++)
                      {
                         IntegrationPoint &ip = RG->RefPts.IntPoint(m);
-                        double w = cp[ii] + cp[jj] + cp[kk] + cp[Times-ii-jj-kk];
+                        real_t w = cp[ii] + cp[jj] + cp[kk] + cp[Times-ii-jj-kk];
                         ip.x = cp[ii]/w;
                         ip.y = cp[jj]/w;
                         ip.z = cp[kk]/w;
@@ -1468,7 +1498,7 @@ RefinedGeometry *GeometryRefiner::Refine(Geometry::Type Geom, int Times,
                m = 0;
                for (k = 0; k <= n; k++)
                {
-                  const double *cpij =
+                  const real_t *cpij =
                      poly1d.GetPoints(Times - k, BasisType::GetNodalBasis(Type));
                   for (j = 0; j <= n - k; j++)
                   {
@@ -1477,9 +1507,9 @@ RefinedGeometry *GeometryRefiner::Refine(Geometry::Type Geom, int Times,
                         IntegrationPoint &ip = RG->RefPts.IntPoint(m);
                         if (Type == 0)
                         {
-                           ip.x = (n > k) ? (double(i) / (n - k)) : 0.0;
-                           ip.y = (n > k) ? (double(j) / (n - k)) : 0.0;
-                           ip.z = double(k) / n;
+                           ip.x = (n > k) ? (real_t(i) / (n - k)) : 0.0;
+                           ip.y = (n > k) ? (real_t(j) / (n - k)) : 0.0;
+                           ip.z = real_t(k) / n;
                         }
                         else
                         {
@@ -1661,7 +1691,7 @@ const IntegrationRule *GeometryRefiner::RefineInterior(Geometry::Type Geom,
                for (int i = 1; i < Times; i++)
                {
                   IntegrationPoint &ip = ir->IntPoint(i-1);
-                  ip.x = double(i) / Times;
+                  ip.x = real_t(i) / Times;
                   ip.y = ip.z = 0.0;
                }
 
@@ -1690,8 +1720,8 @@ const IntegrationRule *GeometryRefiner::RefineInterior(Geometry::Type Geom,
                   for (int i = 1; i < Times-j; i++, k++)
                   {
                      IntegrationPoint &ip = ir->IntPoint(k);
-                     ip.x = double(i) / Times;
-                     ip.y = double(j) / Times;
+                     ip.x = real_t(i) / Times;
+                     ip.y = real_t(j) / Times;
                      ip.z = 0.0;
                   }
                }
@@ -1721,8 +1751,8 @@ const IntegrationRule *GeometryRefiner::RefineInterior(Geometry::Type Geom,
                   for (int i = 1; i < Times; i++, k++)
                   {
                      IntegrationPoint &ip = ir->IntPoint(k);
-                     ip.x = double(i) / Times;
-                     ip.y = double(j) / Times;
+                     ip.x = real_t(i) / Times;
+                     ip.y = real_t(j) / Times;
                      ip.z = 0.0;
                   }
                }

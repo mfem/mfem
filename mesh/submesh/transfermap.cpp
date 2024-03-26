@@ -156,7 +156,7 @@ void TransferMap::Transfer(const GridFunction &src,
       dst.HostWrite(); // dst is fully overwritten
       for (int i = 0; i < sub1_to_parent_map_.Size(); i++)
       {
-         double s = 1.0;
+         real_t s = 1.0;
          int j = FiniteElementSpace::DecodeDof(sub1_to_parent_map_[i], s);
          dst(i) = s * src(j);
       }
@@ -174,7 +174,7 @@ void TransferMap::Transfer(const GridFunction &src,
       dst.HostReadWrite(); // dst is only partially overwritten
       for (int i = 0; i < sub1_to_parent_map_.Size(); i++)
       {
-         double s = 1.0;
+         real_t s = 1.0;
          int j = FiniteElementSpace::DecodeDof(sub1_to_parent_map_[i], s);
          dst(j) = s * src(i);
       }
@@ -195,7 +195,7 @@ void TransferMap::Transfer(const GridFunction &src,
 
       for (int i = 0; i < sub2_to_parent_map_.Size(); i++)
       {
-         double s = 1.0;
+         real_t s = 1.0;
          int j = FiniteElementSpace::DecodeDof(sub2_to_parent_map_[i], s);
          z_(j) = s * dst(i);
       }
@@ -205,7 +205,7 @@ void TransferMap::Transfer(const GridFunction &src,
 
       for (int i = 0; i < sub1_to_parent_map_.Size(); i++)
       {
-         double s = 1.0;
+         real_t s = 1.0;
          int j = FiniteElementSpace::DecodeDof(sub1_to_parent_map_[i], s);
          z_(j) = s * src(i);
       }
@@ -215,7 +215,7 @@ void TransferMap::Transfer(const GridFunction &src,
 
       for (int i = 0; i < sub2_to_parent_map_.Size(); i++)
       {
-         double s = 1.0;
+         real_t s = 1.0;
          int j = FiniteElementSpace::DecodeDof(sub2_to_parent_map_[i], s);
          dst(i) = s * z_(j);
       }
@@ -285,12 +285,12 @@ void TransferMap::CorrectFaceOrientations(const FiniteElementSpace &fes,
 
       for (int j = 0; j < vdofs.Size(); j++)
       {
-         double s = 1.0;
+         real_t s = 1.0;
          int k = FiniteElementSpace::DecodeDof(vdofs[j], s);
 
          if (sub_to_parent_map)
          {
-            double sps = 1.0;
+            real_t sps = 1.0;
             int spk = FiniteElementSpace::DecodeDof((*sub_to_parent_map)[k],
                                                     sps);
             s *= sps;

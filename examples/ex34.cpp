@@ -69,7 +69,7 @@ int main(int argc, char *argv[])
    Array<int> jn_zero_attr;
    int ref_levels = 1;
    int order = 1;
-   double delta_const = 1e-6;
+   real_t delta_const = 1e-6;
    bool mixed = true;
    bool static_cond = false;
    const char *device_config = "cpu";
