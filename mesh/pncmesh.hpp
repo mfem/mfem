@@ -67,7 +67,7 @@ public:
    /// Construct by partitioning a serial NCMesh.
    /** SFC partitioning is used by default. A user-specified partition can be
        passed in 'part', where part[i] is the desired MPI rank for element i. */
-   ParNCMesh(MPI_Comm comm, const NCMesh& ncmesh, int* part = NULL);
+   ParNCMesh(MPI_Comm comm, const NCMesh& ncmesh, const int* part = NULL);
 
    /** Load from a stream, parallel version. See the serial NCMesh::NCMesh
        counterpart for a description of the parameters. */
