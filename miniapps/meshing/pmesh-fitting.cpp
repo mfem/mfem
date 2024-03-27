@@ -38,8 +38,10 @@
 //    mpirun -np 4 pmesh-fitting -m square01-tri.mesh -o 3 -rs 0 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 1e4 -rtol 1e-5
 //  Surface fitting with weight adaptation and termination based on fitting error:
 //    mpirun -np 4 pmesh-fitting -o 2 -mid 2 -tid 1 -ni 100 -vl 2 -sfc 10 -rtol 1e-20 -st 0 -sfa 10.0 -sft 1e-5
+//  Surface fitting with weight adaptation, max weight, and convergence based on residual.
+//  * make pmesh-fitting -j && mpirun -np 4 pmesh-fitting -m ../../data/inline-tri.mesh -o 2 -mid 2 -tid 4 -ni 100 -vl 2 -sfc 10 -rtol 1e-10 -st 0 -sfa 10.0 -sft 1e-5 -bgamriter 3 -sbgmesh -ae 1 -marking -slstype 3 -resid -sfcmax 1000 -mod-bndr-attr
 //  Fitting to Fischer-Tropsch reactor like domain (requires GSLIB):
-//  * mpirun -np 6 pmesh-fitting -m ../../data/inline-tri.mesh -o 2 -rs 4 -mid 2 -tid 1 -vl 2 -sfc 100 -rtol 1e-12 -ni 100 -li 40 -ae 1 -bnd -sbgmesh -slstype 2 -smtype 0 -sfa 10.0 -sft 1e-4 -amriter 5 -dist -mod-bndr-attr
+//  * mpirun -np 6 pmesh-fitting -m ../../data/inline-tri.mesh -o 2 -rs 4 -mid 2 -tid 1 -vl 2 -sfc 100 -rtol 1e-12 -ni 100 -li 40 -ae 1 -bnd -sbgmesh -slstype 2 -smtype 0 -sfa 10.0 -sft 1e-4 -bgamriter 5 -dist -mod-bndr-attr
 
 #include "mesh-fitting.hpp"
 
@@ -48,12 +50,12 @@ using namespace std;
 
 int main (int argc, char *argv[])
 {
-   // 0. Initialize MPI and HYPRE.
+   // Initialize MPI and HYPRE.
    Mpi::Init(argc, argv);
    int myid = Mpi::WorldRank();
    Hypre::Init();
 
-   // 1. Set the method's default parameters.
+   // Set the method's default parameters.
    const char *mesh_file = "square01.mesh";
    int mesh_poly_deg     = 1;
    int rs_levels         = 1;
@@ -70,13 +72,14 @@ int main (int argc, char *argv[])
    int lin_solver        = 2;
    int max_lin_iter      = 100;
    bool move_bnd         = true;
-   bool visualization    = true;
+   bool visualization    = false;
    int verbosity_level   = 0;
    int adapt_eval        = 0;
    const char *devopt    = "cpu";
-   double surface_fit_adapt = 0.0;
+   double surface_fit_adapt     = 0.0;
    double surface_fit_threshold = -10;
-   bool adapt_marking     = false;
+   double surf_fit_const_max    = 1e20;
+   bool adapt_marking           = false;
    bool surf_bg_mesh     = false;
    bool comp_dist     = false;
    int surf_ls_type      = 1;
@@ -84,9 +87,10 @@ int main (int argc, char *argv[])
    bool mod_bndr_attr    = false;
    bool material         = false;
    int mesh_node_ordering = 0;
-   int amr_iters         = 0;
+   int bg_amr_iters         = 0;
+   bool conv_residual    = false;
 
-   // 2. Parse command-line options.
+   // Parse command-line options.
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
@@ -147,10 +151,12 @@ int main (int argc, char *argv[])
    args.AddOption(&devopt, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&surface_fit_adapt, "-sfa", "--adaptive-surface-fit",
-                  "Enable or disable adaptive surface fitting.");
+                  "Scaling factor for surface fitting weight.");
    args.AddOption(&surface_fit_threshold, "-sft", "--surf-fit-threshold",
                   "Set threshold for surface fitting. TMOP solver will"
                   "terminate when max surface fitting error is below this limit");
+   args.AddOption(&surf_fit_const_max, "-sfcmax", "--surf-fit-const-max",
+                  "Max surface fitting weight allowed");
    args.AddOption(&adapt_marking, "-marking", "--adaptive-marking", "-no-amarking",
                   "--no-adaptive-marking",
                   "Enable or disable adaptive marking surface fitting.");
@@ -161,9 +167,9 @@ int main (int argc, char *argv[])
                   "-no-dist","--no-comp-dist",
                   "Compute distance from 0 level set or not.");
    args.AddOption(&surf_ls_type, "-slstype", "--surf-ls-type",
-                  "1 - Circle (DEFAULT), 2 - Squircle, 3 - Butterfly.");
+                  "1 - Circle (DEFAULT), 2 - reactor level-set, 3 - squircle.");
    args.AddOption(&marking_type, "-smtype", "--surf-marking-type",
-                  "1 - Interface (DEFAULT), 2 - Boundary attribute.");
+                  "0 - Interface (DEFAULT), otherwise Boundary attribute.");
    args.AddOption(&mod_bndr_attr, "-mod-bndr-attr", "--modify-boundary-attribute",
                   "-fix-bndr-attr", "--fix-boundary-attribute",
                   "Change boundary attribute based on alignment with Cartesian axes.");
@@ -172,8 +178,11 @@ int main (int argc, char *argv[])
    args.AddOption(&mesh_node_ordering, "-mno", "--mesh_node_ordering",
                   "Ordering of mesh nodes."
                   "0 (default): byNodes, 1: byVDIM");
-   args.AddOption(&amr_iters, "-amriter", "--amr-iter",
+   args.AddOption(&bg_amr_iters, "-bgamriter", "--amr-iter",
                   "Number of amr iterations on background mesh");
+   args.AddOption(&conv_residual, "-resid", "--resid", "-no-resid",
+                  "--no-resid",
+                  "Enable residual based convergence.");
    args.Parse();
    if (!args.Good())
    {
@@ -185,7 +194,11 @@ int main (int argc, char *argv[])
    Device device(devopt);
    if (myid == 0) { device.Print();}
 
-   // 3. Initialize and refine the starting mesh.
+   MFEM_VERIFY(surface_fit_const > 0.0,
+               "This miniapp is for surface fitting only. See (p)mesh-optimizer"
+               "miniapps for general high-order mesh optimization.");
+
+   // Initialize and refine the starting mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
    for (int lev = 0; lev < rs_levels; lev++)
    {
@@ -203,6 +216,10 @@ int main (int argc, char *argv[])
    {
       ls_coeff = new FunctionCoefficient(reactor);
    }
+   else if (surf_ls_type == 3) //squircle
+   {
+      ls_coeff = new FunctionCoefficient(squircle_level_set);
+   }
    else if (surf_ls_type == 6) // 3D shape
    {
       ls_coeff = new FunctionCoefficient(csg_cubecylsph);
@@ -216,7 +233,7 @@ int main (int argc, char *argv[])
    delete mesh;
    for (int lev = 0; lev < rp_levels; lev++) { pmesh->UniformRefinement(); }
 
-   // 4. Setup background mesh for surface fitting
+   // Setup background mesh for surface fitting
    ParMesh *pmesh_surf_fit_bg = NULL;
    if (surf_bg_mesh)
    {
@@ -236,10 +253,10 @@ int main (int argc, char *argv[])
       delete mesh_surf_fit_bg;
    }
 
-   // 5. Define a finite element space on the mesh. Here we use vector finite
-   //    elements which are tensor products of quadratic finite elements. The
-   //    number of components in the vector finite element space is specified by
-   //    the last parameter of the FiniteElementSpace constructor.
+   // Define a finite element space on the mesh. Here we use vector finite
+   // elements which are tensor products of quadratic finite elements. The
+   // number of components in the vector finite element space is specified by
+   // the last parameter of the FiniteElementSpace constructor.
    FiniteElementCollection *fec;
    if (mesh_poly_deg <= 0)
    {
@@ -250,21 +267,21 @@ int main (int argc, char *argv[])
    ParFiniteElementSpace *pfespace =
       new ParFiniteElementSpace(pmesh, fec, dim, mesh_node_ordering);
 
-   // 6. Make the mesh curved based on the above finite element space. This
-   //    means that we define the mesh elements through a fespace-based
-   //    transformation of the reference element.
+   // Make the mesh curved based on the above finite element space. This
+   // means that we define the mesh elements through a fespace-based
+   // transformation of the reference element.
    pmesh->SetNodalFESpace(pfespace);
 
-   // 7. Get the mesh nodes (vertices and other degrees of freedom in the finite
-   //    element space) as a finite element grid function in fespace. Note that
-   //    changing x automatically changes the shapes of the mesh elements.
+   // Get the mesh nodes (vertices and other degrees of freedom in the finite
+   // element space) as a finite element grid function in fespace. Note that
+   // changing x automatically changes the shapes of the mesh elements.
    ParGridFunction x(pfespace);
    pmesh->SetNodalGridFunction(&x);
    x.SetTrueVector();
 
-   // 10. Save the starting (prior to the optimization) mesh to a file. This
-   //     output can be viewed later using GLVis: "glvis -m perturbed -np
-   //     num_mpi_tasks".
+   // Save the starting (prior to the optimization) mesh to a file. This
+   // output can be viewed later using GLVis: "glvis -m perturbed -np
+   // num_mpi_tasks".
    {
       ostringstream mesh_name;
       mesh_name << "perturbed.mesh";
@@ -419,7 +436,7 @@ int main (int argc, char *argv[])
       if (surf_bg_mesh)
       {
          OptimizeMeshWithAMRAroundZeroLevelSet(*pmesh_surf_fit_bg, *ls_coeff,
-                                               amr_iters, *surf_fit_bg_gf0);
+                                               bg_amr_iters, *surf_fit_bg_gf0);
          pmesh_surf_fit_bg->Rebalance();
          surf_fit_bg_fes->Update();
          surf_fit_bg_gf0->Update();
@@ -628,7 +645,6 @@ int main (int argc, char *argv[])
          }
       }
    }
-   pmesh->SetAttributes();
 
    // 13. Setup the final NonlinearForm (which defines the integral of interest,
    //     its first and second derivatives). Here we can use a combination of
@@ -778,6 +794,12 @@ int main (int argc, char *argv[])
    {
       solver.SetTerminationWithMaxSurfaceFittingError(surface_fit_threshold);
    }
+   solver.SetFittingConvergenceBasedOnError(!conv_residual);
+   if (conv_residual)
+   {
+      solver.SetMaximumFittingWeightLimit(surf_fit_const_max);
+   }
+
    // Provide all integration rules in case of a mixed mesh.
    solver.SetIntegrationRules(*irules, quad_order);
    if (solver_type == 0)
@@ -789,10 +811,6 @@ int main (int argc, char *argv[])
    solver.SetRelTol(solver_rtol);
    solver.SetAbsTol(0.0);
    solver.SetMinimumDeterminantThreshold(0.001*min_detJ);
-   if (solver_art_type > 0)
-   {
-      solver.SetAdaptiveLinRtol(solver_art_type, 0.5, 0.9);
-   }
    solver.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
    solver.SetOperator(a);
    Vector b(0);

@@ -141,11 +141,13 @@ protected:
    mutable double surf_fit_err_avg_prvs = 10000.0;
    mutable double surf_fit_err_avg, surf_fit_err_max;
    mutable bool update_surf_fit_coeff = false;
-   double surf_fit_max_threshold = -1.0;
+   double surf_fit_max_threshold = 1e-6;
    double surf_fit_rel_change_threshold = 0.001;
    double surf_fit_scale_factor = 0.0;
    mutable int adapt_inc_count = 0;
    mutable int max_adapt_inc_count = 10;
+   mutable double fit_weight_max_limit = 1e10;
+   bool surf_fit_converge_based_on_error = false;
 
    // Minimum determinant over the whole mesh. Used for mesh untangling.
    double *min_det_ptr = nullptr;
@@ -191,6 +193,9 @@ protected:
    void GetSurfaceFittingWeight(Array<double> &weights) const;
    ///@}
 
+   /// Check if surface fitting is enabled.
+   bool IsSurfaceFittingEnabled() const;
+
 public:
 #ifdef MFEM_USE_MPI
    TMOPNewtonSolver(MPI_Comm comm, const IntegrationRule &irule, int type = 0)
@@ -224,18 +229,33 @@ public:
    /// (ii) surface fitting weight.
    virtual void ProcessNewState(const Vector &x) const;
 
-   /** @name Methods for adaptive surface fitting weight. (Experimental) */
+   /** @name Methods for adaptive surface fitting. These control the behavior of
+          the weight and the termination of the solver. (Experimental) */
+   ///@{
    /// Enable/Disable adaptive surface fitting weight.
    /// The weight is modified after each TMOPNewtonSolver iteration as:
-   /// w_{k+1} = w_{k} * @a surf_fit_scale_factor if relative change in
-   /// max surface fitting error < @a surf_fit_rel_change_threshold.
-   /// The solver terminates if the maximum surface fitting error does
-   /// not sufficiently decrease for @a max_adapt_inc_count consecutive
-   /// solver iterations or if the max error falls below @a surf_fit_max_threshold.
+   /// w_{k+1} = w_{k} * @a surf_fit_scale_factor if the relative
+   /// change in max surface fitting error < @a surf_fit_rel_change_threshold.
+   /// When converging based on the residual, we enforce the fitting weight
+   /// to be at-most @a fit_weight_max_limit, and increase it only if the
+   /// fitting error is below user prescribed threshold (@a surf_fit_max_threshold).
+   ///
+   /// There are three termination modes with surface fitting.
+   /// (i) Residual based: Solver terminates when the norm of the gradient of
+   /// the TMOP objective reaches the prescribed tolerance. This method is best
+   /// used with a reasonable value for @a fit_weight_max_limit when the
+   /// adaptive surface fitting scheme is used.
+   /// Note: The residual mode is technically always active in the solver.
+   /// (ii) Error based: Solver terminates when the maximum fitting error
+   /// reaches the user-prescribed threshold, @a surf_fit_max_threshold.
+   /// In this case, @a fit_weight_max_limit is ignored during weight adaptation.
+   /// (iii) When the maximum surface fitting error does not sufficiently
+   /// decrease for @a max_adapt_inc_count consecutive solver iterations. This
+   /// typically occurs when the mesh cannot align with the level-set without
+   /// degrading element quality. [only active with adaptive surface fitting.]
    void EnableAdaptiveSurfaceFitting()
    {
       surf_fit_scale_factor = 10.0;
-      surf_fit_rel_change_threshold = 0.001;
    }
    void SetAdaptiveSurfaceFittingScalingFactor(double factor)
    {
@@ -252,7 +272,30 @@ public:
    void SetTerminationWithMaxSurfaceFittingError(double max_error)
    {
       surf_fit_max_threshold = max_error;
+      surf_fit_converge_based_on_error = true;
    }
+   void SetMaxSurfaceFittingError(double max_error)
+   {
+      surf_fit_max_threshold = max_error;
+   }
+   void SetMaximumFittingWeightLimit(double weight)
+   {
+      fit_weight_max_limit = weight;
+   }
+   void SetFittingConvergenceBasedOnError(bool mode)
+   {
+      surf_fit_converge_based_on_error = mode;
+      if (surf_fit_converge_based_on_error)
+      {
+         MFEM_VERIFY(surf_fit_max_threshold > 0,
+                     "Fitting error based convergence requires the user to first"
+                     "set the error threshold."
+                     "See SetTerminationWithMaxSurfaceFittingError");
+      }
+   }
+   ///@}
+
+   /// Set minimum determinant enforced during line-search.
    void SetMinimumDeterminantThreshold(double threshold)
    {
       min_detJ_threshold = threshold;
