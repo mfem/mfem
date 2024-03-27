@@ -394,6 +394,30 @@ public:
    /// Get a const reference to the nodes of the element
    const IntegrationRule & GetNodes() const { return Nodes; }
 
+   /** @brief Evaluate the Hessians of all shape functions of a scalar finite
+       element in reference space at the given point @a ip. */
+   /** Each row of the result DenseMatrix @a Hessian contains upper triangular
+       part of the Hessian of one shape function.
+       The order in 2D is {u_xx, u_xy, u_yy}.
+       The size (#dof x (#dim (#dim+1)/2) of @a Hessian must be set in advance.*/
+   virtual void CalcHessian(const IntegrationPoint &ip,
+                            DenseMatrix &Hessian) const;
+
+   /** @brief Evaluate the Hessian of all shape functions of a scalar finite
+       element in reference space at the given point @a ip. */
+   /** The size (#dof, #dim*(#dim+1)/2) of @a Hessian must be set in advance. */
+   void CalcPhysHessian(ElementTransformation &Trans,
+                        DenseMatrix& Hessian) const;
+
+   /** @brief Evaluate the Laplacian of all shape functions of a scalar finite
+       element in reference space at the given point @a ip. */
+   /** The size (#dof) of @a Laplacian must be set in advance. */
+   void CalcPhysLaplacian(ElementTransformation &Trans,
+                          Vector& Laplacian) const;
+
+   void CalcPhysLinLaplacian(ElementTransformation &Trans,
+                             Vector& Laplacian) const;
+
    // virtual functions for finite elements on vector spaces
 
    /** @brief Evaluate the values of all shape functions of a *vector* finite
@@ -448,35 +472,14 @@ public:
    virtual void CalcPhysCurlShape(ElementTransformation &Trans,
                                   DenseMatrix &curl_shape) const;
 
+   //------------------------------------------------------------------------------
+   //
+   //------------------------------------------------------------------------------
    /** @brief Get the dofs associated with the given @a face.
        @a *dofs is set to an internal array of the local dofc on the
        face, while *ndofs is set to the number of dofs on that face.
    */
    virtual void GetFaceDofs(int face, int **dofs, int *ndofs) const;
-
-   /** @brief Evaluate the Hessians of all shape functions of a scalar finite
-       element in reference space at the given point @a ip. */
-   /** Each row of the result DenseMatrix @a Hessian contains upper triangular
-       part of the Hessian of one shape function.
-       The order in 2D is {u_xx, u_xy, u_yy}.
-       The size (#dof x (#dim (#dim+1)/2) of @a Hessian must be set in advance.*/
-   virtual void CalcHessian(const IntegrationPoint &ip,
-                            DenseMatrix &Hessian) const;
-
-   /** @brief Evaluate the Hessian of all shape functions of a scalar finite
-       element in reference space at the given point @a ip. */
-   /** The size (#dof, #dim*(#dim+1)/2) of @a Hessian must be set in advance. */
-   virtual void CalcPhysHessian(ElementTransformation &Trans,
-                                DenseMatrix& Hessian) const;
-
-   /** @brief Evaluate the Laplacian of all shape functions of a scalar finite
-       element in reference space at the given point @a ip. */
-   /** The size (#dof) of @a Laplacian must be set in advance. */
-   virtual void CalcPhysLaplacian(ElementTransformation &Trans,
-                                  Vector& Laplacian) const;
-
-   virtual void CalcPhysLinLaplacian(ElementTransformation &Trans,
-                                     Vector& Laplacian) const;
 
    /** @brief Return the local interpolation matrix @a I (Dof x Dof) where the
        fine element is the image of the base geometry under the given
