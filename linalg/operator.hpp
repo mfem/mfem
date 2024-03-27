@@ -457,7 +457,7 @@ public:
 
          1. F(u,k,t) = k and G(u,t) = inv(M) g(u,t)
          2. F(u,k,t) = M k and G(u,t) = g(u,t)
-         3. F(u,k,t) = M k - g(u,t)
+         3. F(u,k,t) = M k - g(u,t) and G(u,t) = 0
 
        Regardless of the choice of F and G, this function should solve for @a k
        in M @a k = g(@a u + @a gamma @a k, t).
