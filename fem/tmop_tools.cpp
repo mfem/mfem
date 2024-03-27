@@ -416,11 +416,13 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 #endif
 
    double scale = 1.0;
-   double avg_surf_fit_err, max_surf_fit_err = 0.0;
-   if (surf_fit_max_threshold > 0.0)
+   bool fitting = IsSurfaceFittingEnabled();
+   double avg_init_fit_err, max_init_fit_err = 0.0;
+   if (fitting && surf_fit_converge_based_on_error)
    {
-      GetSurfaceFittingError(x_out_loc, avg_surf_fit_err, max_surf_fit_err);
-      if (max_surf_fit_err < surf_fit_max_threshold)
+      GetSurfaceFittingError(x_out_loc, avg_init_fit_err, max_init_fit_err);
+      // Check for convergence
+      if (max_init_fit_err < surf_fit_max_threshold)
       {
          if (print_options.iterations)
          {
@@ -431,6 +433,8 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
          return scale;
       }
    }
+
+
    if (adapt_inc_count >= max_adapt_inc_count)
    {
       if (print_options.iterations)
@@ -465,6 +469,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    bool x_out_ok = false;
    double energy_out = 0.0, min_detT_out;
    const double norm_in = Norm(r);
+   double avg_fit_err, max_fit_err = 0.0;
 
    const double detJ_factor = (solver_type == 1) ? 0.25 : 0.5;
    compute_metric_quantile_flag = false;
@@ -475,6 +480,9 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    // Perform the line search.
    for (int i = 0; i < 12; i++)
    {
+      avg_fit_err = 0.0;
+      max_fit_err = 0.0;
+
       // Update the mesh and get the L-vector in x_out_loc.
       add(x, -scale, c, x_out);
       if (serial)
@@ -516,18 +524,19 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       // Check the changes in total energy.
       ProcessNewState(x_out);
 
-      double avg_fit_err, max_fit_err = 0.0;
-      if (surf_fit_max_threshold > 0.0)
+      // Ensure sufficient decrease in fitting error if we are trying to
+      // converge based on error.
+      if (fitting && surf_fit_converge_based_on_error)
       {
          GetSurfaceFittingError(x_out_loc, avg_fit_err, max_fit_err);
-      }
-      if (surf_fit_max_threshold > 0.0 && max_fit_err >= 1.2*max_surf_fit_err)
-      {
-         if (print_options.iterations)
+         if (max_fit_err >= 1.2*max_init_fit_err)
          {
-            mfem::out << "Scale = " << scale << " Surf fit err increased.\n";
+            if (print_options.iterations)
+            {
+               mfem::out << "Scale = " << scale << " Surf fit err increased.\n";
+            }
+            scale *= 0.5; continue;
          }
-         scale *= 0.5; continue;
       }
 
       if (serial)
@@ -644,7 +653,7 @@ void TMOPNewtonSolver::GetSurfaceFittingWeight(Array<double> &weights) const
    for (int i = 0; i < integs.Size(); i++)
    {
       ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
-      if (ti)
+      if (ti && ti->IsSurfaceFittingEnabled())
       {
          weight = ti->GetSurfaceFittingWeight();
          weights.Append(weight);
@@ -655,8 +664,11 @@ void TMOPNewtonSolver::GetSurfaceFittingWeight(Array<double> &weights) const
          Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
          for (int j = 0; j < ati.Size(); j++)
          {
-            weight = ati[j]->GetSurfaceFittingWeight();
-            weights.Append(weight);
+            if (ati[j]->IsSurfaceFittingEnabled())
+            {
+               weight = ati[j]->GetSurfaceFittingWeight();
+               weights.Append(weight);
+            }
          }
       }
    }
@@ -701,6 +713,39 @@ void TMOPNewtonSolver::GetSurfaceFittingError(const Vector &x_loc,
          }
       }
    }
+}
+
+bool TMOPNewtonSolver::IsSurfaceFittingEnabled() const
+{
+   const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
+   const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
+   TMOP_Integrator *ti  = NULL;
+   TMOPComboIntegrator *co = NULL;
+
+   for (int i = 0; i < integs.Size(); i++)
+   {
+      ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
+      if (ti)
+      {
+         if (ti->IsSurfaceFittingEnabled())
+         {
+            return true;
+         }
+      }
+      co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
+      if (co)
+      {
+         Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
+         for (int j = 0; j < ati.Size(); j++)
+         {
+            if (ati[j]->IsSurfaceFittingEnabled())
+            {
+               return true;
+            }
+         }
+      }
+   }
+   return false;
 }
 
 void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
@@ -793,8 +838,8 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
       // Get surface fitting errors.
       GetSurfaceFittingError(x_loc, surf_fit_err_avg, surf_fit_err_max);
       // Get array with surface fitting weights.
-      Array<double> weights;
-      GetSurfaceFittingWeight(weights);
+      Array<double> fitweights;
+      GetSurfaceFittingWeight(fitweights);
 
       if (print_options.iterations)
       {
@@ -802,16 +847,24 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
                    surf_fit_err_avg << " " <<
                    surf_fit_err_max << "\n";
          mfem::out << "Min/Max surface fitting weight: " <<
-                   weights.Min() << " " << weights.Max() << "\n";
+                   fitweights.Min() << " " << fitweights.Max() << "\n";
       }
 
       double change_surf_fit_err = surf_fit_err_avg_prvs-surf_fit_err_avg;
       double rel_change_surf_fit_err = change_surf_fit_err/surf_fit_err_avg_prvs;
+
       // Increase the surface fitting coefficient if the surface fitting error
-      // does not decrease sufficiently.
-      if (rel_change_surf_fit_err < surf_fit_rel_change_threshold)
+      // does not decrease sufficiently. If we are converging based on residual,
+      // also make sure we have not reached the maximum fitting weight and
+      // error threshold.
+      if (rel_change_surf_fit_err < surf_fit_rel_change_threshold &&
+          (surf_fit_converge_based_on_error ||
+           (fitweights.Max() < fit_weight_max_limit &&
+            surf_fit_err_max > surf_fit_max_threshold)))
       {
-         UpdateSurfaceFittingWeight(surf_fit_scale_factor);
+         double scale_factor = std::min(surf_fit_scale_factor,
+                                        fit_weight_max_limit/fitweights.Max());
+         UpdateSurfaceFittingWeight(scale_factor);
          adapt_inc_count += 1;
       }
       else
