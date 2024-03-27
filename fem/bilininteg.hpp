@@ -19,6 +19,8 @@
 #include "qfunction.hpp"
 #include <memory>
 
+#include "kernel_dispatch.hpp"
+
 namespace mfem
 {
 
@@ -2094,6 +2096,60 @@ public:
     can be a scalar or a matrix coefficient. */
 class DiffusionIntegrator: public BilinearFormIntegrator
 {
+public:
+
+   using KernelType = void(*)(const int, const bool, const Array<real_t>&,
+                              const Array<real_t>&, const Array<real_t>&,
+                              const Array<real_t>&,
+                              const Vector&, const Vector&,
+                              Vector&, const int, const int);
+
+   using DiagonalKernelType = void(*)(const int, const bool, const Array<real_t>&,
+                                      const Array<real_t>&, const Vector&, Vector&,
+                                      const int, const int);
+
+   using UserParams = internal::KernelTypeList<int, int>;
+   using KernelParams = internal::KernelTypeList<int, int, int>;
+
+   class ApplyPAKernels :  public
+      ApplyPAKernelsClassTemplate<KernelType, UserParams, KernelParams>
+   {
+   public:
+      static KernelSignature Kernel1D();
+      template<int, int, int>
+      static KernelSignature Kernel2D();
+      template<int, int>
+      static KernelSignature Kernel3D();
+      static KernelSignature Fallback2D();
+      static KernelSignature Fallback3D();
+   };
+
+   class DiagonalPAKernels : public
+      DiagonalPAKernelsClassTemplate<DiagonalKernelType, UserParams, KernelParams>
+   {
+   public:
+      static KernelSignature Kernel1D();
+      template<int, int, int>
+      static KernelSignature Kernel2D();
+      template<int, int>
+      static KernelSignature Kernel3D();
+      static KernelSignature Fallback2D();
+      static KernelSignature Fallback3D();
+   };
+
+   using ApplyKernelsType =
+      KernelDispatchTable<ApplyPAKernels, UserParams, KernelParams>;
+   using DiagKernelsType =
+      KernelDispatchTable<DiagonalPAKernels, UserParams, KernelParams>;
+
+   struct Kernels
+   {
+      ApplyKernelsType apply;
+      DiagKernelsType diag;
+      Kernels();
+   };
+   static Kernels kernels;
+
 protected:
    Coefficient *Q;
    VectorCoefficient *VQ;
@@ -2254,6 +2310,24 @@ public:
    bool SupportsCeed() const { return DeviceCanUseCeed(); }
 
    Coefficient *GetCoefficient() const { return Q; }
+
+   template <int D1D, int Q1D>
+   static void AddSpecialization2D()
+   {
+      ApplyKernelsType:: template AddSpecialization2D<D1D, Q1D>  apply_helper_functor;
+      DiagKernelsType:: template AddSpecialization2D<D1D, Q1D>  diag_helper_functor;
+      apply_helper_functor(&kernels.apply);
+      diag_helper_functor(&kernels.diag);
+   }
+
+   template <int D1D, int Q1D>
+   static void AddSpecialization3D()
+   {
+      ApplyKernelsType:: template AddSpecialization3D<D1D, Q1D>  apply_helper_functor;
+      DiagKernelsType:: template AddSpecialization3D<D1D, Q1D>  diag_helper_functor;
+      apply_helper_functor(&kernels.apply);
+      diag_helper_functor(&kernels.diag);
+   }
 };
 
 /** Class for local mass matrix assembling $a(u,v) := (Q u, v)$ */
@@ -2272,6 +2346,57 @@ protected:
    const GeometricFactors *geom;          ///< Not owned
    const FaceGeometricFactors *face_geom; ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
+
+public:
+
+   using KernelType = void(*)(const int, const Array<real_t>&,
+                              const Array<real_t>&, const Vector&, const Vector&,
+                              Vector&, const int, const int);
+
+   using DiagonalKernelType =  void(*)(const int, const Array<real_t>&,
+                                       const Vector&, Vector&, const int, const int);
+
+   using UserParams = internal::KernelTypeList<int, int>;
+   using KernelParams = internal::KernelTypeList<int, int, int>;
+
+   class ApplyPAKernels :  public
+      ApplyPAKernelsClassTemplate<KernelType, UserParams, KernelParams>
+   {
+   public:
+      static KernelSignature Kernel1D();
+      template<int, int, int>
+      static KernelSignature Kernel2D();
+      template<int, int>
+      static KernelSignature Kernel3D();
+      static KernelSignature Fallback2D();
+      static KernelSignature Fallback3D();
+   };
+
+   class DiagonalPAKernels : public
+      DiagonalPAKernelsClassTemplate<DiagonalKernelType, UserParams, KernelParams>
+   {
+   public:
+      static KernelSignature Kernel1D();
+      template<int, int, int>
+      static KernelSignature Kernel2D();
+      template<int, int>
+      static KernelSignature Kernel3D();
+      static KernelSignature Fallback2D();
+      static KernelSignature Fallback3D();
+   };
+
+   using ApplyKernelsType =
+      KernelDispatchTable<ApplyPAKernels, UserParams, KernelParams>;
+   using DiagKernelsType =
+      KernelDispatchTable<DiagonalPAKernels, UserParams, KernelParams>;
+
+   struct Kernels
+   {
+      ApplyKernelsType apply;
+      DiagKernelsType diag;
+      Kernels();
+   };
+   static Kernels kernels;
 
 public:
    MassIntegrator(const IntegrationRule *ir = NULL)
@@ -2318,6 +2443,33 @@ public:
    bool SupportsCeed() const { return DeviceCanUseCeed(); }
 
    const Coefficient *GetCoefficient() const { return Q; }
+
+   static void AddSpecialization1D()
+   {
+      // D1D and Q1D are unused in the actual implementation.
+      ApplyKernelsType:: template AddSpecialization1D<0, 0>  apply_helper_functor;
+      DiagKernelsType:: template AddSpecialization1D<0, 0>  diag_helper_functor;
+      apply_helper_functor(&kernels.apply);
+      diag_helper_functor(&kernels.diag);
+   }
+
+   template <int D1D, int Q1D>
+   static void AddSpecialization2D()
+   {
+      ApplyKernelsType:: template AddSpecialization2D<D1D, Q1D>  apply_helper_functor;
+      DiagKernelsType:: template AddSpecialization2D<D1D, Q1D>  diag_helper_functor;
+      apply_helper_functor(&kernels.apply);
+      diag_helper_functor(&kernels.diag);
+   }
+
+   template <int D1D, int Q1D>
+   static void AddSpecialization3D()
+   {
+      ApplyKernelsType:: template AddSpecialization3D<D1D, Q1D>  apply_helper_functor;
+      DiagKernelsType:: template AddSpecialization3D<D1D, Q1D>  diag_helper_functor;
+      apply_helper_functor(&kernels.apply);
+      diag_helper_functor(&kernels.diag);
+   }
 };
 
 /** Mass integrator $(u, v)$ restricted to the boundary of a domain */

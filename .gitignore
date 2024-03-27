@@ -15,6 +15,9 @@
 CMakeCache.txt
 CMakeFiles/
 
+# Clangd server cache
+*.cache*
+
 # Backup files
 *~
 

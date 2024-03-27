@@ -12,6 +12,7 @@
 #ifndef MFEM_BILININTEG_DIFFUSION_KERNELS_HPP
 #define MFEM_BILININTEG_DIFFUSION_KERNELS_HPP
 
+#include "../kernel_dispatch.hpp"
 #include "../../config/config.hpp"
 #include "../../general/array.hpp"
 #include "../../general/forall.hpp"
@@ -36,7 +37,7 @@ void PADiffusionSetup(const int dim,
                       const Vector &C,
                       Vector &D);
 
-// PA Diffusion Assemble 2D kernel
+// PA Diffusion Assemble 2D f
 template<int T_SDIM>
 void PADiffusionSetup2D(const int Q1D,
                         const int coeffDim,
@@ -633,6 +634,8 @@ inline void SmemPADiffusionApply2D(const int NE,
                                    const bool symmetric,
                                    const Array<real_t> &b_,
                                    const Array<real_t> &g_,
+                                   const Array<real_t> &bt_,
+                                   const Array<real_t> &gt_,
                                    const Vector &d_,
                                    const Vector &x_,
                                    Vector &y_,
@@ -984,6 +987,8 @@ inline void SmemPADiffusionApply3D(const int NE,
                                    const bool symmetric,
                                    const Array<real_t> &b_,
                                    const Array<real_t> &g_,
+                                   const Array<real_t> &,
+                                   const Array<real_t> &,
                                    const Vector &d_,
                                    const Vector &x_,
                                    Vector &y_,
@@ -1203,6 +1208,41 @@ inline void SmemPADiffusionApply3D(const int NE,
 
 } // namespace internal
 
+template<int T_D1D, int T_Q1D, int T_NBZ>
+inline
+DiffusionIntegrator::ApplyPAKernels::KernelSignature
+DiffusionIntegrator::ApplyPAKernels::Kernel2D() { return internal::SmemPADiffusionApply2D<T_D1D, T_Q1D, T_NBZ>; }
+
+template<int T_D1D, int T_Q1D>
+inline
+DiffusionIntegrator::ApplyPAKernels::KernelSignature
+DiffusionIntegrator::ApplyPAKernels::Kernel3D() { return internal::SmemPADiffusionApply3D<T_D1D, T_Q1D>; }
+
+inline
+DiffusionIntegrator::ApplyPAKernels::KernelSignature
+DiffusionIntegrator::ApplyPAKernels::Fallback2D() { return internal::PADiffusionApply2D<0,0>; }
+
+inline
+DiffusionIntegrator::ApplyPAKernels::KernelSignature
+DiffusionIntegrator::ApplyPAKernels::Fallback3D() { return internal::PADiffusionApply3D<0,0>; }
+
+template<int T_D1D, int T_Q1D, int T_NBZ>
+inline
+DiffusionIntegrator::DiagonalPAKernels::KernelSignature
+DiffusionIntegrator::DiagonalPAKernels::Kernel2D() { return internal::SmemPADiffusionDiagonal2D<T_D1D, T_Q1D, T_NBZ>; }
+
+template<int T_D1D, int T_Q1D  >
+inline
+DiffusionIntegrator::DiagonalPAKernels::KernelSignature
+DiffusionIntegrator::DiagonalPAKernels::Kernel3D() { return internal::SmemPADiffusionDiagonal3D<T_D1D, T_Q1D>; }
+
+inline
+DiffusionIntegrator::DiagonalPAKernels::KernelSignature
+DiffusionIntegrator::DiagonalPAKernels::Fallback2D() { return internal::PADiffusionDiagonal2D<0,0>; }
+
+inline
+DiffusionIntegrator::DiagonalPAKernels::KernelSignature
+DiffusionIntegrator::DiagonalPAKernels::Fallback3D() { return internal::PADiffusionDiagonal3D<0,0>; }
 } // namespace mfem
 
 #endif

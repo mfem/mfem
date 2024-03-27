@@ -19,6 +19,83 @@
 namespace mfem
 {
 
+void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
+{
+   if (DeviceCanUseCeed())
+   {
+      ceedOp->GetDiagonal(diag);
+   }
+   else
+   {
+      if (pa_data.Size()==0) { AssemblePA(*fespace); }
+
+      const int D1D = dofs1D;
+      const int Q1D = quad1D;
+      const int NE = ne;
+      const bool symm = symmetric;
+      const Array<real_t> &B = maps->B;
+      const Array<real_t> &G = maps->G;
+      // These two arrays are left empty as they are unused in diagonal diffusion
+      // kernels.
+      const Vector &Dv = pa_data;
+
+      kernels.diag.Run(dim, D1D, Q1D, NE, symm, B, G, Dv, diag, D1D, Q1D);
+   }
+}
+
+// PA Diffusion Apply kernel
+void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
+{
+   if (DeviceCanUseCeed())
+   {
+      ceedOp->AddMult(x, y);
+   }
+   else
+   {
+      const int D1D = dofs1D;
+      const int Q1D = quad1D;
+      const int NE = ne;
+      const bool symm = symmetric;
+      const Array<real_t> &B = maps->B;
+      const Array<real_t> &G = maps->G;
+      const Array<real_t> &Bt = maps->Bt;
+      const Array<real_t> &Gt = maps->Gt;
+      const Vector &Dv = pa_data;
+
+#ifdef MFEM_USE_OCCA
+      if (DeviceCanUseOcca())
+      {
+         if (dim == 2)
+         {
+            OccaPADiffusionApply2D(D1D,Q1D,NE,B,G,Bt,Gt,Dv,x,y);
+            return;
+         }
+         if (dim == 3)
+         {
+            OccaPADiffusionApply3D(D1D,Q1D,NE,B,G,Bt,Gt,Dv,x,y);
+            return;
+         }
+         MFEM_ABORT("OCCA PADiffusionApply unknown kernel!");
+      }
+#endif // MFEM_USE_OCCA
+
+      kernels.apply.Run(dim, D1D, Q1D, NE, symm, B, G, Bt, Gt, Dv, x, y, D1D, Q1D);
+   }
+}
+
+void DiffusionIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
+{
+   if (symmetric)
+   {
+      AddMultPA(x, y);
+   }
+   else
+   {
+      MFEM_ABORT("DiffusionIntegrator::AddMultTransposePA only implemented in "
+                 "the symmetric case.")
+   }
+}
+
 void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
    const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
@@ -96,47 +173,6 @@ void DiffusionIntegrator::AssemblePatchPA(const int patch,
    SetupPatchBasisData(mesh, patch);
 
    SetupPatchPA(patch, mesh);  // For full quadrature, unitWeights = false
-}
-
-void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
-{
-   if (DeviceCanUseCeed())
-   {
-      ceedOp->GetDiagonal(diag);
-   }
-   else
-   {
-      if (pa_data.Size()==0) { AssemblePA(*fespace); }
-      internal::PADiffusionAssembleDiagonal(dim, dofs1D, quad1D, ne, symmetric,
-                                            maps->B, maps->G, pa_data, diag);
-   }
-}
-
-void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
-{
-   if (DeviceCanUseCeed())
-   {
-      ceedOp->AddMult(x, y);
-   }
-   else
-   {
-      internal::PADiffusionApply(dim, dofs1D, quad1D, ne, symmetric,
-                                 maps->B, maps->G, maps->Bt, maps->Gt,
-                                 pa_data, x, y);
-   }
-}
-
-void DiffusionIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
-{
-   if (symmetric)
-   {
-      AddMultPA(x, y);
-   }
-   else
-   {
-      MFEM_ABORT("DiffusionIntegrator::AddMultTransposePA only implemented in "
-                 "the symmetric case.")
-   }
 }
 
 // This version uses full 1D quadrature rules, taking into account the
