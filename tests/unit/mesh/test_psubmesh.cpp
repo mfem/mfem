@@ -622,7 +622,6 @@ Array<int> count_be(ParMesh &mesh)
 
 TEST_CASE("ParSubMesh Interior Boundaries", "[Parallel],[ParSubMesh]")
 {
-   /*
     int num_procs = Mpi::WorldSize();
 
     Mesh serial_mesh = Mesh::MakeCartesian3D(num_procs, num_procs, 1,
@@ -699,7 +698,6 @@ TEST_CASE("ParSubMesh Interior Boundaries", "[Parallel],[ParSubMesh]")
           REQUIRE(be2[attr] == 1);
        }
     }
-   */
 }
 
 } // namespace ParSubMeshTests
