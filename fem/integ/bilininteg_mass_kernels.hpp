@@ -31,6 +31,96 @@ void PAMassAssembleDiagonal(const int dim, const int D1D,
                             const Vector &D,
                             Vector &Y);
 
+// PA Mass Diagonal 1D kernel
+static void PAMassAssembleDiagonal1D(const int NE,
+                                     const Array<double> &b,
+                                     const Vector &d,
+                                     Vector &y,
+                                     const int D1D,
+                                     const int Q1D)
+{
+   auto B = Reshape(b.Read(), Q1D, D1D);
+   auto D = Reshape(d.Read(), Q1D, NE);
+   auto Y = Reshape(y.ReadWrite(), D1D, NE);
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   {
+      for (int dx = 0; dx < D1D; ++dx)
+      {
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            Y(dx, e) += B(qx, dx) * B(qx, dx) * D(qx, e);
+         }
+      }
+   });
+}
+
+MFEM_HOST_DEVICE inline
+void PAMassApply1D_Element(const int e,
+                           const int NE,
+                           const double *b_,
+                           const double *bt_,
+                           const double *d_,
+                           const double *x_,
+                           double *y_,
+                           const int d1d = 0,
+                           const int q1d = 0)
+{
+   const int D1D = d1d;
+   const int Q1D = q1d;
+   auto B = ConstDeviceMatrix(b_, Q1D, D1D);
+   auto Bt = ConstDeviceMatrix(bt_, D1D, Q1D);
+   auto D = ConstDeviceMatrix(d_, Q1D, NE);
+   auto X = ConstDeviceMatrix(x_, D1D, NE);
+   auto Y = DeviceMatrix(y_, D1D, NE);
+
+   double XQ[DofQuadLimits::MAX_Q1D];
+   for (int qx = 0; qx < Q1D; ++qx)
+   {
+      XQ[qx] = 0.0;
+   }
+   for (int dx = 0; dx < D1D; ++dx)
+   {
+      const double s = X(dx,e);
+      for (int qx = 0; qx < Q1D; ++qx)
+      {
+         XQ[qx] += B(qx,dx)*s;
+      }
+   }
+   for (int qx = 0; qx < Q1D; ++qx)
+   {
+      const double q = XQ[qx]*D(qx,e);
+      for (int dx = 0; dx < D1D; ++dx)
+      {
+         Y(dx,e) += Bt(dx,qx) * q;
+      }
+   }
+}
+
+// PA Mass Apply 1D kernel
+static void PAMassApply1D(const int NE,
+                          const Array<double> &b_,
+                          const Array<double> &bt_,
+                          const Vector &d_,
+                          const Vector &x_,
+                          Vector &y_,
+                          const int d1d = 0,
+                          const int q1d = 0)
+{
+   MFEM_VERIFY(d1d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(q1d <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
+
+   const auto B = b_.Read();
+   const auto Bt = bt_.Read();
+   const auto D = d_.Read();
+   const auto X = x_.Read();
+   auto Y = y_.ReadWrite();
+
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   {
+      internal::PAMassApply1D_Element(e, NE, B, Bt, D, X, Y, d1d, q1d);
+   });
+}
+
 // PA Mass Diagonal 2D kernel
 template<int T_D1D = 0, int T_Q1D = 0>
 inline void PAMassAssembleDiagonal2D(const int NE,
@@ -1052,6 +1142,9 @@ inline void SmemPAMassApply3D(const int NE,
 using KernelType = MassIntegrator::KernelType;
 using DiagonalKernelType = MassIntegrator::DiagonalKernelType;
 
+inline
+KernelType MassIntegrator::ApplyPAKernels::Kernel1D() { return internal::PAMassApply1D; }
+
 template<int T_D1D, int T_Q1D, int T_NBZ>
 inline
 KernelType MassIntegrator::ApplyPAKernels::Kernel2D() { return internal::SmemPAMassApply2D<T_D1D,T_Q1D,T_NBZ>; }
@@ -1065,6 +1158,9 @@ KernelType MassIntegrator::ApplyPAKernels::Fallback2D()  { return internal::PAMa
 
 inline
 KernelType MassIntegrator::ApplyPAKernels::Fallback3D() { return internal::PAMassApply3D<0,0>; }
+
+inline
+DiagonalKernelType MassIntegrator::DiagonalPAKernels::Kernel1D() { return internal::PAMassAssembleDiagonal1D; }
 
 template<int T_D1D, int T_Q1D, int T_NBZ>
 inline

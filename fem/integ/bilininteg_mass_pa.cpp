@@ -16,8 +16,6 @@
 #include "../ceed/integrators/mass/mass.hpp"
 #include "bilininteg_mass_kernels.hpp"
 
-using namespace std;
-
 namespace mfem
 {
 
@@ -26,6 +24,8 @@ namespace mfem
 MassIntegrator::Kernels MassIntegrator::kernels;
 MassIntegrator::Kernels::Kernels()
 {
+   // 1D
+   MassIntegrator::AddSpecialization1D();
    // 2D
    MassIntegrator::AddSpecialization2D<2,2>();
    MassIntegrator::AddSpecialization2D<3,3>();

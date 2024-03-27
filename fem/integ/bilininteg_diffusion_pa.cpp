@@ -19,7 +19,6 @@
 namespace mfem
 {
 
-
 void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
 {
    if (DeviceCanUseCeed())

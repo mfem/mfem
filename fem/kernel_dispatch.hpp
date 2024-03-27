@@ -17,6 +17,7 @@
 #include <functional>
 #include <unordered_map>
 #include <tuple>
+#include <cmath>
 
 namespace mfem
 {
@@ -41,13 +42,13 @@ private:
    constexpr static int D(int D1D) { return (11 - D1D) / 2; }
 public:
    using KernelSignature = Signature;
-   using KernelArgTypes2D = internal::KernelTypeList<UserParams...>;
-   using KernelArgTypes3D = internal::KernelTypeList<KernelParams...>;
 
    constexpr static int NBZ(int D1D, int Q1D)
    {
       return ipow(2, D(D1D) >= 0 ? D(D1D) : 0);
    }
+
+   static KernelSignature Kernel1D();
 
    template<KernelParams... params>
    static KernelSignature Kernel2D();
@@ -67,6 +68,8 @@ public:
    using KernelSignature = Signature;
    using KernelArgTypes2D = internal::KernelTypeList<UserParams...>;
    using KernelArgTypes3D = internal::KernelTypeList<KernelParams...>;
+
+   static KernelSignature Kernel1D();
 
    template<KernelParams... params>
    static KernelSignature Kernel2D();
@@ -115,7 +118,7 @@ public:
 template<typename... T>
 class KernelDispatchTable
 {
-   //std::unordered_map<T...> table;
+
 };
 
 template <typename ApplyKernelsHelperClass, typename... UserParams, typename... KernelParams>
@@ -125,11 +128,7 @@ class KernelDispatchTable<ApplyKernelsHelperClass, internal::KernelTypeList<User
 
    // These typedefs prevent AddSpecialization from compiling unless the provided
    // kernel parameters match the kernel parameters specified to ApplyKernelsHelperClass.
-   using KernelArgTypes2D = typename ApplyKernelsHelperClass::KernelArgTypes2D;
-   using KernelArgTypes3D = typename ApplyKernelsHelperClass::KernelArgTypes3D;
    using Signature = typename ApplyKernelsHelperClass::KernelSignature;
-
-   //static std::unordered_map<std::tuple<int, UserParams...>, Signature, KernelDispatchKeyHash<int, UserParams...>> table;
 
 private:
    // If the type U has member U::NBZ, this overload will be selected, and will
@@ -156,7 +155,26 @@ public:
    // TODO(bowen) Force this to use the same signature as the Signature typedef
    // above.
    template<typename... KernelArgs>
-   void Run2D(UserParams... params, KernelArgs... args)
+   void Run1D(UserParams... params, KernelArgs&... args)
+   {
+      std::tuple<int, UserParams...> key;
+      std::get<0>(key) = 1;
+      const auto it = this->table.find(key);
+      if (it != this->table.end())
+      {
+         printf("Specialized.\n");
+         it->second(args...);
+      }
+      else
+      {
+         MFEM_ABORT("1 dimensional kernel not registered.  This is an internal MFEM error.")
+      }
+   }
+
+   // TODO(bowen) Force this to use the same signature as the Signature typedef
+   // above.
+   template<typename... KernelArgs>
+   void Run2D(UserParams... params, KernelArgs&... args)
    {
       auto key = std::make_tuple(2, params...);
       const auto it = this->table.find(key);
@@ -173,7 +191,7 @@ public:
    }
 
    template<typename... KernelArgs>
-   void Run3D(UserParams... params, KernelArgs... args)
+   void Run3D(UserParams... params, KernelArgs&... args)
    {
       auto key = std::make_tuple(3, params...);
       const auto it = this->table.find(key);
@@ -190,9 +208,13 @@ public:
    }
 
    template<typename... KernelArgs>
-   void Run(int dim, UserParams... params, KernelArgs... args)
+   void Run(int dim, UserParams... params, KernelArgs&... args)
    {
-      if (dim == 2)
+      if (dim == 1)
+      {
+         Run1D(params..., args...);
+      }
+      else if (dim == 2)
       {
          Run2D(params..., args...);
       }
@@ -208,6 +230,25 @@ public:
    }
    using SpecializedTableType =
       KernelDispatchTable<ApplyKernelsHelperClass, internal::KernelTypeList<UserParams...>, internal::KernelTypeList<KernelParams...>>;
+
+   template<UserParams... params>
+   struct AddSpecialization1D
+   {
+      void operator()(SpecializedTableType* table_ptr)
+      {
+         constexpr int DIM = 1;
+         constexpr std::tuple<int, UserParams...> param_tuple = std::make_tuple(DIM,
+                                                                                params...);
+         // All kernels require at least D1D and Q1D
+         static_assert(sizeof...(params) >= 2,
+                       "All specializations require at least two template parameters");
+
+         table_ptr->table[param_tuple] = ApplyKernelsHelperClass::template
+                                         Kernel1D();
+      }
+   };
+
+   constexpr static int D(int D1D) { return (11 - D1D) / 2; }
    /// Functors are needed here instead of functions because of a bug in GCC where a variadic
    /// type template cannot be used to define a parameter pack.
    template<UserParams... params>

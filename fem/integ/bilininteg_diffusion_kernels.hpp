@@ -1211,7 +1211,7 @@ inline void SmemPADiffusionApply3D(const int NE,
 template<int T_D1D, int T_Q1D, int T_NBZ>
 inline
 DiffusionIntegrator::ApplyPAKernels::KernelSignature
-DiffusionIntegrator::ApplyPAKernels::Kernel2D() { return internal::SmemPADiffusionApply2D<T_D1D, T_Q1D, 1>; }
+DiffusionIntegrator::ApplyPAKernels::Kernel2D() { return internal::SmemPADiffusionApply2D<T_D1D, T_Q1D, T_NBZ>; }
 
 template<int T_D1D, int T_Q1D>
 inline

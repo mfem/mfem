@@ -2115,6 +2115,7 @@ public:
       ApplyPAKernelsClassTemplate<KernelType, UserParams, KernelParams>
    {
    public:
+      static KernelSignature Kernel1D();
       template<int, int, int>
       static KernelSignature Kernel2D();
       template<int, int>
@@ -2127,6 +2128,7 @@ public:
       DiagonalPAKernelsClassTemplate<DiagonalKernelType, UserParams, KernelParams>
    {
    public:
+      static KernelSignature Kernel1D();
       template<int, int, int>
       static KernelSignature Kernel2D();
       template<int, int>
@@ -2361,6 +2363,7 @@ public:
       ApplyPAKernelsClassTemplate<KernelType, UserParams, KernelParams>
    {
    public:
+      static KernelSignature Kernel1D();
       template<int, int, int>
       static KernelSignature Kernel2D();
       template<int, int>
@@ -2373,6 +2376,7 @@ public:
       DiagonalPAKernelsClassTemplate<DiagonalKernelType, UserParams, KernelParams>
    {
    public:
+      static KernelSignature Kernel1D();
       template<int, int, int>
       static KernelSignature Kernel2D();
       template<int, int>
@@ -2439,6 +2443,15 @@ public:
    bool SupportsCeed() const { return DeviceCanUseCeed(); }
 
    const Coefficient *GetCoefficient() const { return Q; }
+
+   static void AddSpecialization1D()
+   {
+      // D1D and Q1D are unused in the actual implementation.
+      ApplyKernelsType:: template AddSpecialization1D<0, 0>  apply_helper_functor;
+      DiagKernelsType:: template AddSpecialization1D<0, 0>  diag_helper_functor;
+      apply_helper_functor(&kernels.apply);
+      diag_helper_functor(&kernels.diag);
+   }
 
    template <int D1D, int Q1D>
    static void AddSpecialization2D()
