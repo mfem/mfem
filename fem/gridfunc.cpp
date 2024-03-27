@@ -2461,7 +2461,6 @@ void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff)
    {
       // Define and assemble linear form
       LinearForm b(fes);
-      //  b.AddDomainIntegrator(new DomainLFIntegrator(coeff));
       b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(vcoeff));
       b.Assemble();
 

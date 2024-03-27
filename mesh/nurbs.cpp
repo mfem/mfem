@@ -4021,10 +4021,6 @@ void NURBSExtension::Generate3DBdrElementDofTable()
       const int ord1 = kv[1]->GetOrder();
 
       // Check if dofs are actually defined on boundary
-      //bool add_dofs = true;
-      // if ((mode == Mode::H_DIV)  && (ord0 != ord1)) { add_dofs = false; }
-      // if ((mode == Mode::H_CURL) && (ord0 == ord1)) { add_dofs = false; }
-
       bool add_dofs = true;
       int  s = 1;
 
@@ -4307,7 +4303,7 @@ NURBSExtension* NURBSExtension::GetDivExtension(int component)
    // Smarter routine
    if (GetNP() > 1)
    {
-      mfem_error("NURBSExtension::GetDivExtension currently"
+      mfem_error("NURBSExtension::GetDivExtension currently "
                  "only works for single patch NURBS meshes ");
    }
 
@@ -4323,7 +4319,7 @@ NURBSExtension* NURBSExtension::GetCurlExtension(int component)
    // Smarter routine
    if (GetNP() > 1)
    {
-      mfem_error("NURBSExtension::GetCurlExtension currently"
+      mfem_error("NURBSExtension::GetCurlExtension currently "
                  "only works for single patch NURBS meshes ");
    }
 
