@@ -39,7 +39,7 @@ public:
 #endif
    void Mult(const mfem::Vector &x, mfem::Vector &y) const override;
    void AddMult(const mfem::Vector &x, mfem::Vector &y,
-                const double a = 1.0) const override;
+                const real_t a = 1.0) const override;
    void GetDiagonal(mfem::Vector &diag) const;
    using mfem::Operator::SetupRAP;
    virtual ~Operator()
