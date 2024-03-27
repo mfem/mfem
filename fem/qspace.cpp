@@ -44,8 +44,8 @@ void ScaleByQuadratureWeights(Vector &weights, const IntegrationRule &ir)
 {
    const int N = weights.Size();
    const int n = ir.Size();
-   double *d_weights = weights.ReadWrite();
-   const double *d_w = ir.GetWeights().Read();
+   real_t *d_weights = weights.ReadWrite();
+   const real_t *d_w = ir.GetWeights().Read();
 
    mfem::forall(N, [=] MFEM_HOST_DEVICE (int i)
    {
@@ -78,7 +78,7 @@ const Vector &QuadratureSpaceBase::GetWeights() const
    return weights;
 }
 
-double QuadratureSpaceBase::Integrate(Coefficient &coeff) const
+real_t QuadratureSpaceBase::Integrate(Coefficient &coeff) const
 {
    QuadratureFunction qf(const_cast<QuadratureSpaceBase*>(this));
    coeff.Project(qf);

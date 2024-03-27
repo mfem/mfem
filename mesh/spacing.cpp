@@ -89,18 +89,18 @@ void GeometricSpacingFunction::CalculateSpacing()
 
    // Find the root of g(r) = s * (r^n - 1) - r + 1 by Newton's method.
 
-   constexpr double convTol = 1.0e-8;
+   constexpr real_t convTol = 1.0e-8;
    constexpr int maxIter = 20;
 
-   const double s_unif = 1.0 / ((double) n);
+   const real_t s_unif = 1.0 / ((real_t) n);
 
    r = s < s_unif ? 1.5 : 0.5;  // Initial guess
 
    bool converged = false;
    for (int iter=0; iter<maxIter; ++iter)
    {
-      const double g = (s * (std::pow(r,n) - 1.0)) - r + 1.0;
-      const double dg = (n * s * std::pow(r,n-1)) - 1.0;
+      const real_t g = (s * (std::pow(r,n) - 1.0)) - r + 1.0;
+      const real_t dg = (n * s * std::pow(r,n-1)) - 1.0;
       r -= g / dg;
 
       if (std::abs(g / dg) < convTol)
@@ -121,7 +121,7 @@ void BellSpacingFunction::CalculateSpacing()
    // requested, we simply use uniform spacing.
    if (n < 3)
    {
-      s = 1.0 / ((double) n);
+      s = 1.0 / ((real_t) n);
       return;
    }
 
@@ -139,10 +139,10 @@ void BellSpacingFunction::CalculateSpacing()
    }
 
    // For more than 3 intervals, solve a system iteratively.
-   double urk = 1.0;
+   real_t urk = 1.0;
 
    // Initialize unknown entries of s.
-   double initialGuess = (1.0 - s0 - s1) / ((double) (n - 2));
+   real_t initialGuess = (1.0 - s0 - s1) / ((real_t) (n - 2));
    for (int i=1; i<n-1; ++i)
    {
       s[i] = initialGuess;
@@ -172,7 +172,7 @@ void BellSpacingFunction::CalculateSpacing()
    gamma[1] = s0;
 
    constexpr int maxIter = 100;
-   constexpr double convTol = 1.0e-10;
+   constexpr real_t convTol = 1.0e-10;
    bool converged = false;
    for (int iter=0; iter<maxIter; ++iter)
    {
@@ -229,7 +229,7 @@ void BellSpacingFunction::CalculateSpacing()
 
       s = s_new;
 
-      const double res = sqrt(wk[6] / wk[5]);
+      const real_t res = sqrt(wk[6] / wk[5]);
       if (res < convTol)
       {
          converged = true;
@@ -247,7 +247,7 @@ void GaussianSpacingFunction::CalculateSpacing()
    // requested, we simply use uniform spacing.
    if (n < 3)
    {
-      s = 1.0 / ((double) n);
+      s = 1.0 / ((real_t) n);
       return;
    }
 
@@ -263,42 +263,42 @@ void GaussianSpacingFunction::CalculateSpacing()
 
    // For more than 3 intervals, solve a system iteratively.
 
-   const double lnz01 = log(s0 / s1);
+   const real_t lnz01 = log(s0 / s1);
 
-   const double h = 1.0 / ((double) n-1);
+   const real_t h = 1.0 / ((real_t) n-1);
 
    // Determine concavity by first determining linear spacing and comparing
    // the total spacing to 1.
    // Linear formula: z_i = z0 + (i*h) * (z1-z0), 0 <= i <= n-1
    // \sum_{i=0}^{nzones-1} z_i = n * z0 + h * (z1-z0) * nz * (nz-1) / 2
 
-   const double slinear = n * (s0 + (h * (s1 - s0) * 0.5 * (n-1)));
+   const real_t slinear = n * (s0 + (h * (s1 - s0) * 0.5 * (n-1)));
 
    MFEM_VERIFY(std::abs(slinear - 1.0) > 1.0e-8, "Bell distribution is too "
                << "close to linear.");
 
-   const double u = slinear < 1.0 ? 1.0 : -1.0;
+   const real_t u = slinear < 1.0 ? 1.0 : -1.0;
 
-   double c = 0.3;  // Initial guess
+   real_t c = 0.3;  // Initial guess
 
    // Newton iterations
    constexpr int maxIter = 10;
-   constexpr double convTol = 1.0e-8;
+   constexpr real_t convTol = 1.0e-8;
    bool converged = false;
    for (int iter=0; iter<maxIter; ++iter)
    {
-      const double c2 = c * c;
+      const real_t c2 = c * c;
 
-      const double m = 0.5 * (1.0 - (u * c2 * lnz01));
-      const double dmdc = -u * c * lnz01;
+      const real_t m = 0.5 * (1.0 - (u * c2 * lnz01));
+      const real_t dmdc = -u * c * lnz01;
 
-      double r = 0.0;  // Residual
-      double drdc = 0.0;  // Derivative of residual
+      real_t r = 0.0;  // Residual
+      real_t drdc = 0.0;  // Derivative of residual
 
       for (int i=0; i<n; ++i)
       {
-         const double x = i * h;
-         const double ti = exp((-(x * x) + (2.0 * x * m)) * u / c2); // Gaussian
+         const real_t x = i * h;
+         const real_t ti = exp((-(x * x) + (2.0 * x * m)) * u / c2); // Gaussian
          r += ti;
 
          // Derivative of Gaussian
@@ -318,21 +318,21 @@ void GaussianSpacingFunction::CalculateSpacing()
       drdc *= s0 * u;
 
       // Newton update is -r / drdc, limited by factors of 1/2 and 2.
-      double dc = std::max(-r / drdc, -0.5*c);
-      dc = std::min(dc, 2.0*c);
+      real_t dc = std::max(-r / drdc, (real_t) -0.5*c);
+      dc = std::min(dc, (real_t) 2.0*c);
 
       c += dc;
    }
 
    MFEM_VERIFY(converged, "Convergence failure in GaussianSpacingFunction");
 
-   const double c2 = c * c;
-   const double m = 0.5 * (1.0 - (u * c2 * lnz01));
-   const double q = s0 * exp(u*m*m / c2);
+   const real_t c2 = c * c;
+   const real_t m = 0.5 * (1.0 - (u * c2 * lnz01));
+   const real_t q = s0 * exp(u*m*m / c2);
 
    for (int i=0; i<n; ++i)
    {
-      const double x = (i * h) - m;
+      const real_t x = (i * h) - m;
       s[i] = q * exp(-u*x*x / c2);
    }
 }
@@ -355,13 +355,13 @@ void LogarithmicSpacingFunction::CalculateSymmetric()
    const int M0 = n / 2;
    const int M = odd ? (M0 + 1) : M0;
 
-   const double h = 1.0 / ((double) M);
+   const real_t h = 1.0 / ((real_t) M);
 
-   double p = 1.0;  // Initialize at right endpoint of [0,1].
+   real_t p = 1.0;  // Initialize at right endpoint of [0,1].
 
    for (int i=M-2; i>=0; --i)
    {
-      const double p_i = (pow(logBase, (i+1)*h) - 1.0) / (logBase - 1.0);
+      const real_t p_i = (pow(logBase, (i+1)*h) - 1.0) / (logBase - 1.0);
       s[i+1] = p - p_i;
       p = p_i;
    }
@@ -373,7 +373,7 @@ void LogarithmicSpacingFunction::CalculateSymmetric()
    // Odd case for spacing: [s[0], ..., s[M-1], s[M-2], ..., s[0]]
    //   covers interval [0,2-s[M-1]]
 
-   const double t = odd ? 1.0 / (2.0 - s[M-1]) : 0.5;
+   const real_t t = odd ? 1.0 / (2.0 - s[M-1]) : 0.5;
 
    for (int i=0; i<M; ++i)
    {
@@ -390,13 +390,13 @@ void LogarithmicSpacingFunction::CalculateNonsymmetric()
 {
    s.SetSize(n);
 
-   const double h = 1.0 / ((double) n);
+   const real_t h = 1.0 / ((real_t) n);
 
-   double p = 1.0;  // Initialize at right endpoint of [0,1].
+   real_t p = 1.0;  // Initialize at right endpoint of [0,1].
 
    for (int i=n-2; i>=0; --i)
    {
-      const double p_i = (pow(logBase, (i+1)*h) - 1.0) / (logBase - 1.0);
+      const real_t p_i = (pow(logBase, (i+1)*h) - 1.0) / (logBase - 1.0);
       s[i+1] = p - p_i;
       p = p_i;
    }
@@ -469,7 +469,7 @@ void PiecewiseSpacingFunction::SetupPieces(Array<int> const& ipar,
    n0 = n_total;
 }
 
-void PiecewiseSpacingFunction::ScaleParameters(double a)
+void PiecewiseSpacingFunction::ScaleParameters(real_t a)
 {
    for (auto& p : pieces) { p->ScaleParameters(a); }
 }
@@ -580,9 +580,9 @@ void PiecewiseSpacingFunction::CalculateSpacing()
          pieces[p]->SetSize(ref * npartition[p]);
       }
 
-      const double p0 = (p == 0) ? 0.0 : partition[p-1];
-      const double p1 = (p == np - 1) ? 1.0 : partition[p];
-      const double h_p = p1 - p0;
+      const real_t p0 = (p == 0) ? 0.0 : partition[p-1];
+      const real_t p1 = (p == np - 1) ? 1.0 : partition[p];
+      const real_t h_p = p1 - p0;
 
       for (int i=0; i<pieces[p]->Size(); ++i)
       {

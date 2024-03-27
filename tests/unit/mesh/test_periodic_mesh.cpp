@@ -34,7 +34,7 @@ TEST_CASE("Periodic mesh", "[Mesh]")
    SECTION("1D periodic mesh")
    {
       Mesh orig_mesh = Mesh::MakeCartesian1D(n);
-      std::vector<Vector> translations = {Vector({1.0})};
+      std::vector<Vector> translations = {Vector({(real_t) 1.0})};
       Mesh mesh = Mesh::MakePeriodic(
                      orig_mesh,
                      orig_mesh.CreatePeriodicVertexMapping(translations));
