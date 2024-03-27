@@ -692,7 +692,7 @@ void ParGridFunction::ProjectBdrCoefficient(
       }
    }
    // Broadcast values to other processors to have a consistent GridFunction
-   gcomm.Bcast<double>((*this).HostReadWrite());
+   gcomm.Bcast<real_t>((*this).HostReadWrite());
 
 #ifdef MFEM_DEBUG
    Array<int> ess_vdofs_marker;
@@ -748,7 +748,7 @@ void ParGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
       }
    }
    // Broadcast values to other processors to have a consistent GridFunction
-   gcomm.Bcast<double>((*this).HostReadWrite());
+   gcomm.Bcast<real_t>((*this).HostReadWrite());
 
 #ifdef MFEM_DEBUG
    Array<int> ess_vdofs_marker;
