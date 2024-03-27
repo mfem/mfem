@@ -27,14 +27,14 @@ private:
    RK4Solver ode_solver;
    Vector nodes0;
    Vector field0;
-   const double dt_scale;
+   const real_t dt_scale;
    const AssemblyLevel al;
    MemoryType opt_mt = MemoryType::DEFAULT;
 
    void ComputeAtNewPositionScalar(const Vector &new_nodes, Vector &new_field);
 public:
    AdvectorCG(AssemblyLevel al = AssemblyLevel::LEGACY,
-              double timestep_scale = 0.5)
+              real_t timestep_scale = 0.5)
       : AdaptivityEvaluator(),
         ode_solver(), nodes0(), field0(), dt_scale(timestep_scale), al(al) { }
 
@@ -135,20 +135,20 @@ protected:
    bool parallel;
 
    // Line search step is rejected if min(detJ) <= min_detJ_threshold.
-   double min_detJ_threshold = 0.0;
+   real_t min_detJ_threshold = 0.0;
 
    // Surface fitting variables.
-   mutable double surf_fit_err_avg_prvs = 10000.0;
-   mutable double surf_fit_err_avg, surf_fit_err_max;
+   mutable real_t surf_fit_err_avg_prvs = 10000.0;
+   mutable real_t surf_fit_err_avg, surf_fit_err_max;
    mutable bool update_surf_fit_coeff = false;
-   double surf_fit_max_threshold = -1.0;
-   double surf_fit_rel_change_threshold = 0.001;
-   double surf_fit_scale_factor = 0.0;
+   real_t surf_fit_max_threshold = -1.0;
+   real_t surf_fit_rel_change_threshold = 0.001;
+   real_t surf_fit_scale_factor = 0.0;
    mutable int adapt_inc_count = 0;
    mutable int max_adapt_inc_count = 10;
 
    // Minimum determinant over the whole mesh. Used for mesh untangling.
-   double *min_det_ptr = nullptr;
+   real_t *min_det_ptr = nullptr;
    // Flag to compute minimum determinant and maximum metric in ProcessNewState,
    // which is required for TMOP_WorstCaseUntangleOptimizer_Metric.
    mutable bool compute_metric_quantile_flag = true;
@@ -170,11 +170,11 @@ protected:
       return ir;
    }
 
-   double ComputeMinDet(const Vector &x_loc,
+   real_t ComputeMinDet(const Vector &x_loc,
                         const FiniteElementSpace &fes) const;
 
-   double MinDetJpr_2D(const FiniteElementSpace*, const Vector&) const;
-   double MinDetJpr_3D(const FiniteElementSpace*, const Vector&) const;
+   real_t MinDetJpr_2D(const FiniteElementSpace*, const Vector&) const;
+   real_t MinDetJpr_3D(const FiniteElementSpace*, const Vector&) const;
 
    /** @name Methods for adaptive surface fitting weight. */
    ///@{
@@ -182,13 +182,13 @@ protected:
    /// If there is more than 1 TMOP integrator, we get the maximum of the
    /// average and maximum error over all integrators.
    virtual void GetSurfaceFittingError(const Vector &x_loc,
-                                       double &err_avg, double &err_max) const;
+                                       real_t &err_avg, real_t &err_max) const;
 
    /// Update surface fitting weight as surf_fit_weight *= factor.
-   void UpdateSurfaceFittingWeight(double factor) const;
+   void UpdateSurfaceFittingWeight(real_t factor) const;
 
    /// Get the surface fitting weight for all the TMOP integrators.
-   void GetSurfaceFittingWeight(Array<double> &weights) const;
+   void GetSurfaceFittingWeight(Array<real_t> &weights) const;
    ///@}
 
 public:
@@ -210,7 +210,7 @@ public:
       integ_order = order;
    }
 
-   void SetMinDetPtr(double *md_ptr) { min_det_ptr = md_ptr; }
+   void SetMinDetPtr(real_t *md_ptr) { min_det_ptr = md_ptr; }
 
    /// Set the memory type for temporary memory allocations.
    void SetTempMemoryType(MemoryType mt) { temp_mt = mt; }
@@ -218,7 +218,7 @@ public:
    /// Compute scaling factor for the node movement direction using line-search.
    /// We impose constraints on TMOP energy, gradient, minimum Jacobian of
    /// the mesh, and (optionally) on the surface fitting error.
-   virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const;
+   virtual real_t ComputeScalingFactor(const Vector &x, const Vector &b) const;
 
    /// Update (i) discrete functions at new nodal positions, and
    /// (ii) surface fitting weight.
@@ -237,11 +237,11 @@ public:
       surf_fit_scale_factor = 10.0;
       surf_fit_rel_change_threshold = 0.001;
    }
-   void SetAdaptiveSurfaceFittingScalingFactor(double factor)
+   void SetAdaptiveSurfaceFittingScalingFactor(real_t factor)
    {
       surf_fit_scale_factor = factor;
    }
-   void SetAdaptiveSurfaceFittingRelativeChangeThreshold(double threshold)
+   void SetAdaptiveSurfaceFittingRelativeChangeThreshold(real_t threshold)
    {
       surf_fit_rel_change_threshold = threshold;
    }
@@ -249,11 +249,11 @@ public:
    {
       max_adapt_inc_count = count;
    }
-   void SetTerminationWithMaxSurfaceFittingError(double max_error)
+   void SetTerminationWithMaxSurfaceFittingError(real_t max_error)
    {
       surf_fit_max_threshold = max_error;
    }
-   void SetMinimumDeterminantThreshold(double threshold)
+   void SetMinimumDeterminantThreshold(real_t threshold)
    {
       min_detJ_threshold = threshold;
    }

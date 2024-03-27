@@ -425,12 +425,12 @@ public:
 class VectorBoundaryFluxLFIntegrator : public LinearFormIntegrator
 {
 private:
-   double Sign;
+   real_t Sign;
    Coefficient *F;
    Vector shape, nor;
 
 public:
-   VectorBoundaryFluxLFIntegrator(Coefficient &f, double s = 1.0,
+   VectorBoundaryFluxLFIntegrator(Coefficient &f, real_t s = 1.0,
                                   const IntegrationRule *ir = NULL)
       : LinearFormIntegrator(ir), Sign(s), F(&f) { }
 
@@ -499,17 +499,17 @@ class BoundaryFlowIntegrator : public LinearFormIntegrator
 private:
    Coefficient *f;
    VectorCoefficient *u;
-   double alpha, beta;
+   real_t alpha, beta;
 
    Vector shape;
 
 public:
    BoundaryFlowIntegrator(Coefficient &f_, VectorCoefficient &u_,
-                          double a)
+                          real_t a)
    { f = &f_; u = &u_; alpha = a; beta = 0.5*a; }
 
    BoundaryFlowIntegrator(Coefficient &f_, VectorCoefficient &u_,
-                          double a, double b)
+                          real_t a, real_t b)
    { f = &f_; u = &u_; alpha = a; beta = b; }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
@@ -538,20 +538,20 @@ class DGDirichletLFIntegrator : public LinearFormIntegrator
 protected:
    Coefficient *uD, *Q;
    MatrixCoefficient *MQ;
-   double sigma, kappa;
+   real_t sigma, kappa;
 
    // these are not thread-safe!
    Vector shape, dshape_dn, nor, nh, ni;
    DenseMatrix dshape, mq, adjJ;
 
 public:
-   DGDirichletLFIntegrator(Coefficient &u, const double s, const double k)
+   DGDirichletLFIntegrator(Coefficient &u, const real_t s, const real_t k)
       : uD(&u), Q(NULL), MQ(NULL), sigma(s), kappa(k) { }
    DGDirichletLFIntegrator(Coefficient &u, Coefficient &q,
-                           const double s, const double k)
+                           const real_t s, const real_t k)
       : uD(&u), Q(&q), MQ(NULL), sigma(s), kappa(k) { }
    DGDirichletLFIntegrator(Coefficient &u, MatrixCoefficient &q,
-                           const double s, const double k)
+                           const real_t s, const real_t k)
       : uD(&u), Q(NULL), MQ(&q), sigma(s), kappa(k) { }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
@@ -580,7 +580,7 @@ class DGElasticityDirichletLFIntegrator : public LinearFormIntegrator
 protected:
    VectorCoefficient &uD;
    Coefficient *lambda, *mu;
-   double alpha, kappa;
+   real_t alpha, kappa;
 
 #ifndef MFEM_THREAD_SAFE
    Vector shape;
@@ -596,7 +596,7 @@ protected:
 public:
    DGElasticityDirichletLFIntegrator(VectorCoefficient &uD_,
                                      Coefficient &lambda_, Coefficient &mu_,
-                                     double alpha_, double kappa_)
+                                     real_t alpha_, real_t kappa_)
       : uD(uD_), lambda(&lambda_), mu(&mu_), alpha(alpha_), kappa(kappa_) { }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
@@ -634,7 +634,7 @@ class WhiteGaussianNoiseDomainLFIntegrator : public LinearFormIntegrator
 
    // Define random generator with Gaussian distribution
    std::default_random_engine generator;
-   std::normal_distribution<double> dist;
+   std::normal_distribution<real_t> dist;
 
    bool save_factors = false;
 public:

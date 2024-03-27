@@ -31,7 +31,7 @@ H1Ser_QuadrilateralElement::H1Ser_QuadrilateralElement(const int p)
                          TensorBasisElement::DofMapType::Sr_DOF_MAP);
    const Array<int> tp_dof_map = tbeTemp.GetDofMap();
 
-   const double *cp = poly1d.ClosedPoints(p, BasisType::GaussLobatto);
+   const real_t *cp = poly1d.ClosedPoints(p, BasisType::GaussLobatto);
 
    // Fixing the Nodes is exactly the same as the H1_QuadrilateralElement
    // constructor except we only use those values of the associated tensor
@@ -57,7 +57,7 @@ void H1Ser_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
                                            Vector &shape) const
 {
    int p = (this)->GetOrder();
-   double x = ip.x, y = ip.y;
+   real_t x = ip.x, y = ip.y;
 
    Poly_1D::Basis &edgeNodalBasis = poly1d.GetBasis(p, BasisType::GaussLobatto);
    Vector nodalX(p+1);
@@ -80,17 +80,17 @@ void H1Ser_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
    Vector bilinearsAtIP(4);
    bilinear.CalcShape(ip, bilinearsAtIP);
 
-   const double *edgePts(poly1d.ClosedPoints(p, BasisType::GaussLobatto));
+   const real_t *edgePts(poly1d.ClosedPoints(p, BasisType::GaussLobatto));
 
    // Next, set the shape function associated with vertex V, evaluated at (x,y)
    // to be: bilinear function associated to V, evaluated at (x,y) - sum (shape
    // function at edge point P, weighted by bilinear function for V evaluated at
    // P) where the sum is taken only for points P on edges incident to V.
 
-   double vtx0fix =0;
-   double vtx1fix =0;
-   double vtx2fix =0;
-   double vtx3fix =0;
+   real_t vtx0fix =0;
+   real_t vtx1fix =0;
+   real_t vtx2fix =0;
+   real_t vtx3fix =0;
    for (int i = 0; i<p-1; i++)
    {
       vtx0fix += (1-edgePts[i+1])*(shape(4 + i) +
@@ -111,8 +111,8 @@ void H1Ser_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
    // bubble functions.
    if (p > 3)
    {
-      double *legX = new double[p-1];
-      double *legY = new double[p-1];
+      real_t *legX = new real_t[p-1];
+      real_t *legY = new real_t[p-1];
 
       Poly_1D::CalcLegendre(p-2, x, legX);
       Poly_1D::CalcLegendre(p-2, y, legY);
@@ -137,7 +137,7 @@ void H1Ser_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
                                             DenseMatrix &dshape) const
 {
    int p = (this)->GetOrder();
-   double x = ip.x, y = ip.y;
+   real_t x = ip.x, y = ip.y;
 
    Poly_1D::Basis &edgeNodalBasis = poly1d.GetBasis(p, BasisType::GaussLobatto);
    Vector nodalX(p+1);
@@ -164,7 +164,7 @@ void H1Ser_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
    DenseMatrix DbilinearsAtIP(4);
    bilinear.CalcDShape(ip, DbilinearsAtIP);
 
-   const double *edgePts(poly1d.ClosedPoints(p, BasisType::GaussLobatto));
+   const real_t *edgePts(poly1d.ClosedPoints(p, BasisType::GaussLobatto));
 
    dshape(0,0) = DbilinearsAtIP(0,0);
    dshape(0,1) = DbilinearsAtIP(0,1);
@@ -197,10 +197,10 @@ void H1Ser_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
 
    if (p > 3)
    {
-      double *legX = new double[p-1];
-      double *legY = new double[p-1];
-      double *DlegX = new double[p-1];
-      double *DlegY = new double[p-1];
+      real_t *legX = new real_t[p-1];
+      real_t *legY = new real_t[p-1];
+      real_t *DlegX = new real_t[p-1];
+      real_t *DlegY = new real_t[p-1];
 
       Poly_1D::CalcLegendre(p-2, x, legX, DlegX);
       Poly_1D::CalcLegendre(p-2, y, legY, DlegY);

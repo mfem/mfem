@@ -19,8 +19,8 @@ namespace mfem
 
 MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_3D,
                            const int NE,
-                           const Array<double> &b,
-                           const Array<double> &g,
+                           const Array<real_t> &b,
+                           const Array<real_t> &g,
                            const DenseTensor &j,
                            const Vector &h,
                            Vector &diagonal,
@@ -47,8 +47,8 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_3D,
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
       // Takes into account Jtr by replacing H with Href at all quad points.
-      MFEM_SHARED double Href_data[DIM*DIM*DIM*MQ1*MQ1*MQ1];
-      DeviceTensor<6, double> Href(Href_data, DIM, DIM, DIM, MQ1, MQ1, MQ1);
+      MFEM_SHARED real_t Href_data[DIM*DIM*DIM*MQ1*MQ1*MQ1];
+      DeviceTensor<6, real_t> Href(Href_data, DIM, DIM, DIM, MQ1, MQ1, MQ1);
       for (int v = 0; v < DIM; v++)
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
@@ -57,8 +57,8 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_3D,
             {
                MFEM_FOREACH_THREAD(qz,z,Q1D)
                {
-                  const double *Jtr = &J(0,0,qx,qy,qz,e);
-                  double Jrt_data[9];
+                  const real_t *Jtr = &J(0,0,qx,qy,qz,e);
+                  real_t Jrt_data[9];
                   ConstDeviceMatrix Jrt(Jrt_data,3,3);
                   kernels::CalcInverse<3>(Jtr, Jrt_data);
 
@@ -84,10 +84,10 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_3D,
          }
       }
 
-      MFEM_SHARED double qqd[DIM*DIM*MQ1*MQ1*MD1];
-      MFEM_SHARED double qdd[DIM*DIM*MQ1*MD1*MD1];
-      DeviceTensor<5,double> QQD(qqd, DIM, DIM, MQ1, MQ1, MD1);
-      DeviceTensor<5,double> QDD(qdd, DIM, DIM, MQ1, MD1, MD1);
+      MFEM_SHARED real_t qqd[DIM*DIM*MQ1*MQ1*MD1];
+      MFEM_SHARED real_t qdd[DIM*DIM*MQ1*MD1*MD1];
+      DeviceTensor<5,real_t> QQD(qqd, DIM, DIM, MQ1, MQ1, MD1);
+      DeviceTensor<5,real_t> QDD(qdd, DIM, DIM, MQ1, MD1, MD1);
 
       for (int v = 0; v < DIM; ++v)
       {
@@ -109,14 +109,14 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_3D,
                   MFEM_UNROLL(MQ1)
                   for (int qz = 0; qz < Q1D; ++qz)
                   {
-                     const double Bz = B(qz,dz);
-                     const double Gz = G(qz,dz);
+                     const real_t Bz = B(qz,dz);
+                     const real_t Gz = G(qz,dz);
                      for (int m = 0; m < DIM; m++)
                      {
                         for (int n = 0; n < DIM; n++)
                         {
-                           const double L = (m == 2 ? Gz : Bz);
-                           const double R = (n == 2 ? Gz : Bz);
+                           const real_t L = (m == 2 ? Gz : Bz);
+                           const real_t R = (n == 2 ? Gz : Bz);
                            QQD(m,n,qx,qy,dz) += L * Href(v,m,n,qx,qy,qz) * R;
                         }
                      }
@@ -144,14 +144,14 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_3D,
                   MFEM_UNROLL(MQ1)
                   for (int qy = 0; qy < Q1D; ++qy)
                   {
-                     const double By = B(qy,dy);
-                     const double Gy = G(qy,dy);
+                     const real_t By = B(qy,dy);
+                     const real_t Gy = G(qy,dy);
                      for (int m = 0; m < DIM; m++)
                      {
                         for (int n = 0; n < DIM; n++)
                         {
-                           const double L = (m == 1 ? Gy : By);
-                           const double R = (n == 1 ? Gy : By);
+                           const real_t L = (m == 1 ? Gy : By);
+                           const real_t R = (n == 1 ? Gy : By);
                            QDD(m,n,qx,dy,dz) += L * QQD(m,n,qx,qy,dz) * R;
                         }
                      }
@@ -168,18 +168,18 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_3D,
             {
                MFEM_FOREACH_THREAD(dx,x,D1D)
                {
-                  double d = 0.0;
+                  real_t d = 0.0;
                   MFEM_UNROLL(MQ1)
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
-                     const double Bx = B(qx,dx);
-                     const double Gx = G(qx,dx);
+                     const real_t Bx = B(qx,dx);
+                     const real_t Gx = G(qx,dx);
                      for (int m = 0; m < DIM; m++)
                      {
                         for (int n = 0; n < DIM; n++)
                         {
-                           const double L = (m == 0 ? Gx : Bx);
-                           const double R = (n == 0 ? Gx : Bx);
+                           const real_t L = (m == 0 ? Gx : Bx);
+                           const real_t R = (n == 0 ? Gx : Bx);
                            d += L * QDD(m,n,qx,dy,dz) * R;
                         }
                      }
@@ -200,8 +200,8 @@ void TMOP_Integrator::AssembleDiagonalPA_3D(Vector &D) const
    const int Q1D = PA.maps->nqpt;
    const int id = (D1D << 4 ) | Q1D;
    const DenseTensor &J = PA.Jtr;
-   const Array<double> &B = PA.maps->B;
-   const Array<double> &G = PA.maps->G;
+   const Array<real_t> &B = PA.maps->B;
+   const Array<real_t> &G = PA.maps->G;
    const Vector &H = PA.H;
 
    MFEM_LAUNCH_TMOP_KERNEL(AssembleDiagonalPA_Kernel_3D,id,N,B,G,J,H,D);

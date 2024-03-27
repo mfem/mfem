@@ -46,6 +46,12 @@
 // Requires an MPI compiler, and the libraries HYPRE and METIS.
 // #define MFEM_USE_MPI
 
+// Use double-precision floating point type
+// #define MFEM_USE_DOUBLE
+
+// Use single-precision floating point type
+// #define MFEM_USE_SINGLE
+
 // Enable debug checks in MFEM.
 // #define MFEM_DEBUG
 
