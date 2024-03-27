@@ -90,7 +90,6 @@ if (MFEM_USE_MPI)
     ex35p.cpp
     ex36p.cpp
     ex37p.cpp
-    kernel_specialization.cpp
     )
 endif()
 
