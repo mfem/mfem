@@ -59,6 +59,11 @@ const int mfem_to_exodusII_side_map_tet4[] =
    2, 3, 1, 4
 };
 
+const int mfem_to_exodusII_side_map_hex8[] =
+{
+   5, 1, 2, 3, 4, 6
+};
+
 
 void Mesh::WriteExodusII(const std::string fpath)
 {
@@ -760,6 +765,9 @@ static void GenerateExodusIIBoundaryInfo(Mesh & mesh,
       {
          case Element::Type::TETRAHEDRON:
             exodusII_face_id = mfem_to_exodusII_side_map_tet4[iface];
+            break;
+         case Element::Type::HEXAHEDRON:
+            exodusII_face_id = mfem_to_exodusII_side_map_hex8[iface];
             break;
          default:
             MFEM_ABORT("Cannot handle element of type " << element_type);
