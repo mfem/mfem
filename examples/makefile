@@ -88,7 +88,7 @@ SUBDIRS_TPRINT = $(addsuffix /test-print,$(SUBDIRS))
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -c -o $@ $(MFEM_LIBS)
 
 %: $(SRC)%.o $(MFEM_LIB_FILE) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) $(filter $^,$(wildcard *.o)) -o $@ $(MFEM_LIBS)
+	$(MFEM_CXX) $(MFEM_FLAGS) $(filter %.o, $^) -o $@ $(MFEM_LIBS)
 
 all: $(EXAMPLES) $(SUBDIRS_ALL)
 
