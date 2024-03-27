@@ -1783,7 +1783,7 @@ void ParMesh::MarkTetMeshForRefinement(const DSTable &v_to_v)
 
 #ifdef MFEM_DEBUG
    {
-      Array<Pair<int, double> > ilen_len(order.Size());
+      Array<Pair<int, real_t> > ilen_len(order.Size());
 
       for (int i = 0; i < NumOfVertices; i++)
       {
@@ -1795,9 +1795,9 @@ void ParMesh::MarkTetMeshForRefinement(const DSTable &v_to_v)
          }
       }
 
-      SortPairs<int, double>(ilen_len, order.Size());
+      SortPairs<int, real_t>(ilen_len, order.Size());
 
-      double d_max = 0.;
+      real_t d_max = 0.;
       for (int i = 1; i < order.Size(); i++)
       {
          d_max = std::max(d_max, ilen_len[i-1].two-ilen_len[i].two);
@@ -1809,8 +1809,9 @@ void ParMesh::MarkTetMeshForRefinement(const DSTable &v_to_v)
                 << endl;
 #else
       // Debug message just from rank 0.
-      double glob_d_max;
-      MPI_Reduce(&d_max, &glob_d_max, 1, MPI_DOUBLE, MPI_MAX, 0, MyComm);
+      real_t glob_d_max;
+      MPI_Reduce(&d_max, &glob_d_max, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX, 0,
+                 MyComm);
       if (MyRank == 0)
       {
          mfem::out << "glob_d_max = " << glob_d_max << endl;
@@ -2580,12 +2581,12 @@ void ParMesh::ExchangeFaceNbrNodes()
 
          MPI_Isend(send_vertices[send_face_nbr_vertices.GetI()[fn]](),
                    3*send_face_nbr_vertices.RowSize(fn),
-                   MPI_DOUBLE, nbr_rank, tag, MyComm, &send_requests[fn]);
+                   MPITypeMap<real_t>::mpi_type, nbr_rank, tag, MyComm, &send_requests[fn]);
 
          MPI_Irecv(face_nbr_vertices[face_nbr_vertices_offset[fn]](),
                    3*(face_nbr_vertices_offset[fn+1] -
                       face_nbr_vertices_offset[fn]),
-                   MPI_DOUBLE, nbr_rank, tag, MyComm, &recv_requests[fn]);
+                   MPITypeMap<real_t>::mpi_type, nbr_rank, tag, MyComm, &recv_requests[fn]);
       }
 
       MPI_Waitall(num_face_nbrs, recv_requests, statuses);
@@ -3034,7 +3035,7 @@ void ParMesh::GetSharedFaceTransformationsByLocalIndex(
    // periodic boundary faces, so we keep it disabled in general.
 #if 0
 #ifdef MFEM_DEBUG
-   double dist = FElTr.CheckConsistency();
+   real_t dist = FElTr.CheckConsistency();
    if (dist >= 1e-12)
    {
       mfem::out << "\nInternal error: face id = " << FaceNo
@@ -3138,7 +3139,7 @@ void ParMesh::GetFaceNbrElementTransformation(
    }
 }
 
-double ParMesh::GetFaceNbrElementSize(int i, int type)
+real_t ParMesh::GetFaceNbrElementSize(int i, int type)
 {
    return GetElementSize(GetFaceNbrElementTransformation(i), type);
 }
@@ -3861,7 +3862,7 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
          CoarseFineTr.embeddings[new_e] = Embedding(i, Geometry::SEGMENT, 2);
       }
 
-      static double seg_children[3*2] = { 0.0,1.0, 0.0,0.5, 0.5,1.0 };
+      static real_t seg_children[3*2] = { 0.0,1.0, 0.0,0.5, 0.5,1.0 };
       CoarseFineTr.point_matrices[Geometry::SEGMENT].
       UseExternalData(seg_children, 1, 2, 3);
 
@@ -3933,8 +3934,8 @@ void ParMesh::NonconformingRefinement(const Array<Refinement> &refinements,
    UpdateNodes();
 }
 
-bool ParMesh::NonconformingDerefinement(Array<double> &elem_error,
-                                        double threshold, int nc_limit, int op)
+bool ParMesh::NonconformingDerefinement(Array<real_t> &elem_error,
+                                        real_t threshold, int nc_limit, int op)
 {
    MFEM_VERIFY(pncmesh, "Only supported for non-conforming meshes.");
    MFEM_VERIFY(!NURBSext, "Derefinement of NURBS meshes is not supported. "
@@ -3955,7 +3956,7 @@ bool ParMesh::NonconformingDerefinement(Array<double> &elem_error,
    {
       if (nc_limit > 0 && !level_ok[i]) { continue; }
 
-      double error =
+      real_t error =
          AggregateError(elem_error, dt.GetRow(i), dt.RowSize(i), op);
 
       if (error < threshold) { derefs.Append(i); }
@@ -4548,7 +4549,7 @@ void ParMesh::UniformRefinement3D()
    UpdateNodes();
 }
 
-void ParMesh::NURBSUniformRefinement(int rf, double tol)
+void ParMesh::NURBSUniformRefinement(int rf, real_t tol)
 {
    if (MyRank == 0)
    {
@@ -4556,7 +4557,7 @@ void ParMesh::NURBSUniformRefinement(int rf, double tol)
    }
 }
 
-void ParMesh::NURBSUniformRefinement(const Array<int> &rf, double tol)
+void ParMesh::NURBSUniformRefinement(const Array<int> &rf, real_t tol)
 {
    if (MyRank == 0)
    {
@@ -4930,7 +4931,7 @@ void ParMesh::PrintAsOne(std::ostream &os, const std::string &comments) const
    int i, j, k, p, nv_ne[2], &nv = nv_ne[0], &ne = nv_ne[1], vc;
    const int *v;
    MPI_Status status;
-   Array<double> vert;
+   Array<real_t> vert;
    Array<int> ints;
 
    if (MyRank == 0)
@@ -5176,7 +5177,8 @@ void ParMesh::PrintAsOne(std::ostream &os, const std::string &comments) const
             vert.SetSize(nv*spaceDim);
             if (nv)
             {
-               MPI_Recv(&vert[0], nv*spaceDim, MPI_DOUBLE, p, 449, MyComm, &status);
+               MPI_Recv(&vert[0], nv*spaceDim, MPITypeMap<real_t>::mpi_type, p, 449, MyComm,
+                        &status);
             }
             for (i = 0; i < nv; i++)
             {
@@ -5203,7 +5205,8 @@ void ParMesh::PrintAsOne(std::ostream &os, const std::string &comments) const
          }
          if (NumOfVertices)
          {
-            MPI_Send(&vert[0], NumOfVertices*spaceDim, MPI_DOUBLE, 0, 449, MyComm);
+            MPI_Send(&vert[0], NumOfVertices*spaceDim, MPITypeMap<real_t>::mpi_type, 0, 449,
+                     MyComm);
          }
       }
    }
@@ -5285,7 +5288,7 @@ Mesh ParMesh::GetSerialMesh(int save_rank) const
 
    int n_send_recv;
    MPI_Status status;
-   Array<double> vert;
+   Array<real_t> vert;
    Array<int> ints, dofs;
 
    // First set the connectivity of serial mesh using the True Dofs from
@@ -5468,8 +5471,8 @@ Mesh ParMesh::GetSerialMesh(int save_rank) const
             serialmesh.GetElementVertices(elem_count++, ints_serial);
             for (int i = 0; i < ints.Size(); i++)
             {
-               const double *vdata = GetVertex(ints[i]);
-               double *vdata_serial = serialmesh.GetVertex(ints_serial[i]);
+               const real_t *vdata = GetVertex(ints[i]);
+               real_t *vdata_serial = serialmesh.GetVertex(ints_serial[i]);
                for (int d = 0; d < spaceDim; d++)
                {
                   vdata_serial[d] = vdata[d];
@@ -5485,7 +5488,8 @@ Mesh ParMesh::GetSerialMesh(int save_rank) const
          vert.SetSize(n_send_recv);
          if (n_send_recv)
          {
-            MPI_Recv(&vert[0], n_send_recv, MPI_DOUBLE, p, 449, MyComm, &status);
+            MPI_Recv(&vert[0], n_send_recv, MPITypeMap<real_t>::mpi_type, p, 449, MyComm,
+                     &status);
          }
          for (int i = 0; i < n_send_recv; )
          {
@@ -5500,7 +5504,7 @@ Mesh ParMesh::GetSerialMesh(int save_rank) const
                serialmesh.GetElementVertices(elem_count++, ints_serial);
                for (int j = 0; j < ints_serial.Size(); j++)
                {
-                  double *vdata_serial = serialmesh.GetVertex(ints_serial[j]);
+                  real_t *vdata_serial = serialmesh.GetVertex(ints_serial[j]);
                   for (int d = 0; d < spaceDim; d++)
                   {
                      vdata_serial[d] = vert[i++];
@@ -5544,7 +5548,7 @@ Mesh ParMesh::GetSerialMesh(int save_rank) const
             GetElementVertices(e, ints);
             for (int i = 0; i < ints.Size(); i++)
             {
-               const double *vdata = GetVertex(ints[i]);
+               const real_t *vdata = GetVertex(ints[i]);
                for (int d = 0; d < spaceDim; d++)
                {
                   vert.Append(vdata[d]);
@@ -5554,7 +5558,8 @@ Mesh ParMesh::GetSerialMesh(int save_rank) const
       }
       if (n_send_recv)
       {
-         MPI_Send(&vert[0], n_send_recv, MPI_DOUBLE, save_rank, 449, MyComm);
+         MPI_Send(&vert[0], n_send_recv, MPITypeMap<real_t>::mpi_type, save_rank, 449,
+                  MyComm);
       }
    }
 
@@ -5581,7 +5586,7 @@ void ParMesh::PrintAsOneXG(std::ostream &os)
       int i, j, k, nv, ne, p;
       const int *ind, *v;
       MPI_Status status;
-      Array<double> vert;
+      Array<real_t> vert;
       Array<int> ints;
 
       if (MyRank == 0)
@@ -5603,7 +5608,8 @@ void ParMesh::PrintAsOneXG(std::ostream &os)
          {
             MPI_Recv(&nv, 1, MPI_INT, p, 444, MyComm, &status);
             vert.SetSize(Dim*nv);
-            MPI_Recv(&vert[0], Dim*nv, MPI_DOUBLE, p, 445, MyComm, &status);
+            MPI_Recv(&vert[0], Dim*nv, MPITypeMap<real_t>::mpi_type, p, 445, MyComm,
+                     &status);
             for (i = 0; i < nv; i++)
             {
                for (j = 0; j < Dim; j++)
@@ -5707,7 +5713,7 @@ void ParMesh::PrintAsOneXG(std::ostream &os)
             {
                vert[Dim*i+j] = vertices[i](j);
             }
-         MPI_Send(&vert[0], Dim*NumOfVertices, MPI_DOUBLE,
+         MPI_Send(&vert[0], Dim*NumOfVertices, MPITypeMap<real_t>::mpi_type,
                   0, 445, MyComm);
          // elements
          ne = NumOfElements;
@@ -5756,7 +5762,7 @@ void ParMesh::PrintAsOneXG(std::ostream &os)
       int i, j, k, nv, ne, p;
       const int *ind, *v;
       MPI_Status status;
-      Array<double> vert;
+      Array<real_t> vert;
       Array<int> ints;
 
       int TG_nv, TG_ne, TG_nbe;
@@ -5786,7 +5792,8 @@ void ParMesh::PrintAsOneXG(std::ostream &os)
          {
             MPI_Recv(&nv, 1, MPI_INT, p, 444, MyComm, &status);
             vert.SetSize(Dim*nv);
-            MPI_Recv(&vert[0], Dim*nv, MPI_DOUBLE, p, 445, MyComm, &status);
+            MPI_Recv(&vert[0], Dim*nv, MPITypeMap<real_t>::mpi_type, p, 445, MyComm,
+                     &status);
             for (i = 0; i < nv; i++)
             {
                os << i+1 << " 0.0 " << vert[Dim*i] << " " << vert[Dim*i+1]
@@ -5887,7 +5894,8 @@ void ParMesh::PrintAsOneXG(std::ostream &os)
             {
                vert[Dim*i+j] = vertices[i](j);
             }
-         MPI_Send(&vert[0], Dim*NumOfVertices, MPI_DOUBLE, 0, 445, MyComm);
+         MPI_Send(&vert[0], Dim*NumOfVertices, MPITypeMap<real_t>::mpi_type, 0, 445,
+                  MyComm);
          // elements
          MPI_Send(&NumOfVertices, 1, MPI_INT, 0, 444, MyComm);
          MPI_Send(&NumOfElements, 1, MPI_INT, 0, 446, MyComm);
@@ -5931,7 +5939,7 @@ void ParMesh::PrintAsOneXG(std::ostream &os)
       int i, j, k, attr, nv, ne, p;
       Array<int> v;
       MPI_Status status;
-      Array<double> vert;
+      Array<real_t> vert;
       Array<int> ints;
 
       if (MyRank == 0)
@@ -6035,7 +6043,8 @@ void ParMesh::PrintAsOneXG(std::ostream &os)
          {
             MPI_Recv(&nv, 1, MPI_INT, p, 444, MyComm, &status);
             vert.SetSize(Dim*nv);
-            MPI_Recv(&vert[0], Dim*nv, MPI_DOUBLE, p, 445, MyComm, &status);
+            MPI_Recv(&vert[0], Dim*nv, MPITypeMap<real_t>::mpi_type, p, 445, MyComm,
+                     &status);
             for (i = 0; i < nv; i++)
             {
                for (j = 0; j < Dim; j++)
@@ -6097,7 +6106,7 @@ void ParMesh::PrintAsOneXG(std::ostream &os)
             {
                vert[Dim*i+j] = vertices[i](j);
             }
-         MPI_Send(&vert[0], Dim*NumOfVertices, MPI_DOUBLE,
+         MPI_Send(&vert[0], Dim*NumOfVertices, MPITypeMap<real_t>::mpi_type,
                   0, 445, MyComm);
       }
    }
@@ -6115,30 +6124,36 @@ void ParMesh::GetBoundingBox(Vector &gp_min, Vector &gp_max, int ref)
    gp_min.SetSize(sdim);
    gp_max.SetSize(sdim);
 
-   MPI_Allreduce(p_min.GetData(), gp_min.GetData(), sdim, MPI_DOUBLE,
+   MPI_Allreduce(p_min.GetData(), gp_min.GetData(), sdim,
+                 MPITypeMap<real_t>::mpi_type,
                  MPI_MIN, MyComm);
-   MPI_Allreduce(p_max.GetData(), gp_max.GetData(), sdim, MPI_DOUBLE,
+   MPI_Allreduce(p_max.GetData(), gp_max.GetData(), sdim,
+                 MPITypeMap<real_t>::mpi_type,
                  MPI_MAX, MyComm);
 }
 
-void ParMesh::GetCharacteristics(double &gh_min, double &gh_max,
-                                 double &gk_min, double &gk_max)
+void ParMesh::GetCharacteristics(real_t &gh_min, real_t &gh_max,
+                                 real_t &gk_min, real_t &gk_max)
 {
-   double h_min, h_max, kappa_min, kappa_max;
+   real_t h_min, h_max, kappa_min, kappa_max;
 
    this->Mesh::GetCharacteristics(h_min, h_max, kappa_min, kappa_max);
 
-   MPI_Allreduce(&h_min, &gh_min, 1, MPI_DOUBLE, MPI_MIN, MyComm);
-   MPI_Allreduce(&h_max, &gh_max, 1, MPI_DOUBLE, MPI_MAX, MyComm);
-   MPI_Allreduce(&kappa_min, &gk_min, 1, MPI_DOUBLE, MPI_MIN, MyComm);
-   MPI_Allreduce(&kappa_max, &gk_max, 1, MPI_DOUBLE, MPI_MAX, MyComm);
+   MPI_Allreduce(&h_min, &gh_min, 1, MPITypeMap<real_t>::mpi_type, MPI_MIN,
+                 MyComm);
+   MPI_Allreduce(&h_max, &gh_max, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX,
+                 MyComm);
+   MPI_Allreduce(&kappa_min, &gk_min, 1, MPITypeMap<real_t>::mpi_type, MPI_MIN,
+                 MyComm);
+   MPI_Allreduce(&kappa_max, &gk_max, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX,
+                 MyComm);
 }
 
 void ParMesh::PrintInfo(std::ostream &os)
 {
    int i;
    DenseMatrix J(Dim);
-   double h_min, h_max, kappa_min, kappa_max, h, kappa;
+   real_t h_min, h_max, kappa_min, kappa_max, h, kappa;
 
    if (MyRank == 0)
    {
@@ -6148,7 +6163,7 @@ void ParMesh::PrintInfo(std::ostream &os)
    for (i = 0; i < NumOfElements; i++)
    {
       GetElementJacobian(i, J);
-      h = pow(fabs(J.Weight()), 1.0/double(Dim));
+      h = pow(fabs(J.Weight()), 1.0/real_t(Dim));
       kappa = (Dim == spaceDim) ?
               J.CalcSingularvalue(0) / J.CalcSingularvalue(Dim-1) : -1.0;
       if (i == 0)
@@ -6165,11 +6180,15 @@ void ParMesh::PrintInfo(std::ostream &os)
       }
    }
 
-   double gh_min, gh_max, gk_min, gk_max;
-   MPI_Reduce(&h_min, &gh_min, 1, MPI_DOUBLE, MPI_MIN, 0, MyComm);
-   MPI_Reduce(&h_max, &gh_max, 1, MPI_DOUBLE, MPI_MAX, 0, MyComm);
-   MPI_Reduce(&kappa_min, &gk_min, 1, MPI_DOUBLE, MPI_MIN, 0, MyComm);
-   MPI_Reduce(&kappa_max, &gk_max, 1, MPI_DOUBLE, MPI_MAX, 0, MyComm);
+   real_t gh_min, gh_max, gk_min, gk_max;
+   MPI_Reduce(&h_min, &gh_min, 1, MPITypeMap<real_t>::mpi_type, MPI_MIN, 0,
+              MyComm);
+   MPI_Reduce(&h_max, &gh_max, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX, 0,
+              MyComm);
+   MPI_Reduce(&kappa_min, &gk_min, 1, MPITypeMap<real_t>::mpi_type, MPI_MIN, 0,
+              MyComm);
+   MPI_Reduce(&kappa_max, &gk_max, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX, 0,
+              MyComm);
 
    // TODO: collect and print stats by geometry
 

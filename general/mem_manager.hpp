@@ -544,12 +544,12 @@ public:
 
    /// Print the internal flags.
    /** This method can be useful for debugging. It is explicitly instantiated
-       for Memory<T> with T = int and T = double. */
+       for Memory<T> with T = int and T = real_t. */
    inline void PrintFlags() const;
 
    /// If both the host and the device data are valid, compare their contents.
    /** This method can be useful for debugging. It is explicitly instantiated
-       for Memory<T> with T = int and T = double. */
+       for Memory<T> with T = int and T = real_t. */
    inline int CompareHostAndDevice(int size) const;
 
 private:

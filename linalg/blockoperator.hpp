@@ -61,14 +61,14 @@ public:
     * op: the Operator to be inserted.
     * c: optional scalar multiple for this block.
     */
-   void SetDiagonalBlock(int iblock, const Operator *op, double c = 1.0);
+   void SetDiagonalBlock(int iblock, const Operator *op, real_t c = 1.0);
    //! Add a block op in the block-entry (iblock, jblock).
    /**
     * irow, icol: The block will be inserted in location (irow, icol).
     * op: the Operator to be inserted.
     * c: optional scalar multiple for this block.
     */
-   void SetBlock(int iRow, int iCol, const Operator *op, double c = 1.0);
+   void SetBlock(int iRow, int iCol, const Operator *op, real_t c = 1.0);
 
    //! Return the number of row blocks
    int NumRowBlocks() const { return nRowBlocks; }
@@ -81,10 +81,10 @@ public:
    const Operator & GetBlock(int i, int j) const
    { MFEM_VERIFY(op(i,j), ""); return *op(i,j); }
    //! Return the coefficient for block i,j
-   double GetBlockCoef(int i, int j) const
+   real_t GetBlockCoef(int i, int j) const
    { MFEM_VERIFY(op(i,j), ""); return coef(i,j); }
    //! Set the coefficient for block i,j
-   void SetBlockCoef(int i, int j, double c)
+   void SetBlockCoef(int i, int j, real_t c)
    { MFEM_VERIFY(op(i,j), ""); coef(i,j) = c; }
 
    //! Return the row offsets for block starts
@@ -122,7 +122,7 @@ private:
    //! 2D array that stores each block of the operator.
    Array2D<const Operator *> op;
    //! 2D array that stores a coefficient for each block of the operator.
-   Array2D<double> coef;
+   Array2D<real_t> coef;
 
    //! Temporary Vectors used to efficiently apply the Mult and MultTranspose methods.
    mutable BlockVector xblock;
