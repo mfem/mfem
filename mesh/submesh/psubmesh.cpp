@@ -396,7 +396,7 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
       Array<int> vdofs;
       DofTransformation doftrans;
       int dof, faceIdx;
-      double sign, w;
+      real_t sign, w;
 
       // Copy boundary attribute numbers into local portion of a parallel
       // grid function
