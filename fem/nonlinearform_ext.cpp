@@ -38,9 +38,9 @@ PANonlinearFormExtension::PANonlinearFormExtension(const NonlinearForm *nlf):
    ye.UseDevice(true);
 }
 
-double PANonlinearFormExtension::GetGridFunctionEnergy(const Vector &x) const
+real_t PANonlinearFormExtension::GetGridFunctionEnergy(const Vector &x) const
 {
-   double energy = 0.0;
+   real_t energy = 0.0;
 
    elemR->Mult(x, xe);
    for (int i = 0; i < dnfi.Size(); i++)
