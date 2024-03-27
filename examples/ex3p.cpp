@@ -55,7 +55,7 @@ using namespace mfem;
 // Exact solution, E, and r.h.s., f. See below for implementation.
 void E_exact(const Vector &, Vector &);
 void f_exact(const Vector &, Vector &);
-double freq = 1.0, kappa;
+real_t freq = 1.0, kappa;
 int dim;
 
 int main(int argc, char *argv[])
@@ -263,7 +263,7 @@ int main(int argc, char *argv[])
 
    // 15. Compute and print the L^2 norm of the error.
    {
-      double error = x.ComputeL2Error(E);
+      real_t error = x.ComputeL2Error(E);
       if (myid == 0)
       {
          cout << "\n|| E_h - E ||_{L^2} = " << error << '\n' << endl;

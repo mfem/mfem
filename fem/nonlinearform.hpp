@@ -39,6 +39,10 @@ protected:
    Array<NonlinearFormIntegrator*> dnfi; // owned
    Array<Array<int>*>              dnfi_marker; // not owned
 
+   /// Set of Boundary Integrators to be assembled (added).
+   Array<NonlinearFormIntegrator*> bnfi; // owned
+   Array<Array<int>*> bnfi_marker; // not owned
+
    /// Set of interior face Integrators to be assembled (added).
    Array<NonlinearFormIntegrator*> fnfi; // owned
 
@@ -120,6 +124,19 @@ public:
    Array<NonlinearFormIntegrator*> *GetDNFI() { return &dnfi; }
    const Array<NonlinearFormIntegrator*> *GetDNFI() const { return &dnfi; }
 
+   /// Adds new Boundary Integrator.
+   void AddBoundaryIntegrator(NonlinearFormIntegrator *nlfi)
+   { bnfi.Append(nlfi); bnfi_marker.Append(NULL); }
+
+   /// Adds new Boundary Integrator, restricted to specific attributes.
+   void AddBoundaryIntegrator(NonlinearFormIntegrator *nlfi,
+                              Array<int> &elem_marker)
+   { bnfi.Append(nlfi); bnfi_marker.Append(&elem_marker); }
+
+   /// Access all integrators added with AddBoundaryIntegrator().
+   Array<NonlinearFormIntegrator*> *GetBNFI() { return &bnfi; }
+   const Array<NonlinearFormIntegrator*> *GetBNFI() const { return &bnfi; }
+
    /// Adds new Interior Face Integrator.
    void AddInteriorFaceIntegrator(NonlinearFormIntegrator *nlfi)
    { fnfi.Append(nlfi); }
@@ -168,13 +185,13 @@ public:
 
        The state @a x must be a "GridFunction size" vector, i.e. its size must
        be fes->GetVSize(). */
-   double GetGridFunctionEnergy(const Vector &x) const;
+   real_t GetGridFunctionEnergy(const Vector &x) const;
 
    /// Compute the energy corresponding to the state @a x.
    /** In general, @a x may have non-homogeneous essential boundary values.
 
        The state @a x must be a true-dof vector. */
-   virtual double GetEnergy(const Vector &x) const
+   virtual real_t GetEnergy(const Vector &x) const
    { return GetGridFunctionEnergy(Prolongate(x)); }
 
    /// Evaluate the action of the NonlinearForm.
@@ -235,6 +252,10 @@ protected:
    Array<BlockNonlinearFormIntegrator*> dnfi;
    Array<Array<int>*>                   dnfi_marker;
 
+   /// Set of Boundary Integrators to be assembled (added).
+   Array<BlockNonlinearFormIntegrator*> bnfi;
+   Array<Array<int>*> bnfi_marker;
+
    /// Set of interior face Integrators to be assembled (added).
    Array<BlockNonlinearFormIntegrator*> fnfi;
 
@@ -273,7 +294,7 @@ protected:
    const BlockVector &Prolongate(const BlockVector &bx) const;
 
    /// Specialized version of GetEnergy() for BlockVectors
-   double GetEnergyBlocked(const BlockVector &bx) const;
+   real_t GetEnergyBlocked(const BlockVector &bx) const;
 
    /// Specialized version of Mult() for BlockVector%s
    /// Block L-Vector to Block L-Vector
@@ -312,6 +333,15 @@ public:
                             Array<int> &elem_marker)
    { dnfi.Append(nlfi); dnfi_marker.Append(&elem_marker); }
 
+   /// Adds new Boundary Integrator.
+   void AddBoundaryIntegrator(BlockNonlinearFormIntegrator *nlfi)
+   { bnfi.Append(nlfi); bnfi_marker.Append(NULL); }
+
+   /// Adds new Boundary Integrator, restricted to specific attributes.
+   void AddBoundaryIntegrator(BlockNonlinearFormIntegrator *nlfi,
+                              Array<int> &elem_marker)
+   { bnfi.Append(nlfi); bnfi_marker.Append(&elem_marker); }
+
    /// Adds new Interior Face Integrator.
    void AddInteriorFaceIntegrator(BlockNonlinearFormIntegrator *nlfi)
    { fnfi.Append(nlfi); }
@@ -329,7 +359,7 @@ public:
    virtual void SetEssentialBC(const Array<Array<int> *>&bdr_attr_is_ess,
                                Array<Vector *> &rhs);
 
-   virtual double GetEnergy(const Vector &x) const;
+   virtual real_t GetEnergy(const Vector &x) const;
 
    /// Method is only called in serial, the parallel version calls MultBlocked
    /// directly.

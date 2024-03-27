@@ -69,7 +69,7 @@ public:
    void SetDisplacement(GridFunction &u_) { u = &u_; }
    void SetComponent(int i, int j) { si = i; sj = j; }
 
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
 
 // Simple GLVis visualization manager.
@@ -108,8 +108,8 @@ int main(int argc, char *argv[])
    int ser_ref_levels = -1;
    int par_ref_levels = 1;
    int order = 1;
-   double alpha = -1.0;
-   double kappa = -1.0;
+   real_t alpha = -1.0;
+   real_t kappa = -1.0;
    bool amg_elast = false;
    bool visualization = 1;
 
@@ -268,7 +268,7 @@ int main(int argc, char *argv[])
    // 11. Define a simple symmetric Gauss-Seidel preconditioner and use it to
    //     solve the system Ax=b with PCG for the symmetric formulation, or GMRES
    //     for the non-symmetric.
-   const double rtol = 1e-6;
+   const real_t rtol = 1e-6;
    HypreBoomerAMG amg(A);
    if (amg_elast)
    {
@@ -376,17 +376,17 @@ void InitDisplacement(const Vector &x, Vector &u)
 }
 
 
-double StressCoefficient::Eval(ElementTransformation &T,
+real_t StressCoefficient::Eval(ElementTransformation &T,
                                const IntegrationPoint &ip)
 {
    MFEM_ASSERT(u != NULL, "displacement field is not set");
 
-   double L = lambda.Eval(T, ip);
-   double M = mu.Eval(T, ip);
+   real_t L = lambda.Eval(T, ip);
+   real_t M = mu.Eval(T, ip);
    u->GetVectorGradient(T, grad);
    if (si == sj)
    {
-      double div_u = grad.Trace();
+      real_t div_u = grad.Trace();
       return L*div_u + 2*M*grad(si,si);
    }
    else
