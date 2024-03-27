@@ -19,17 +19,19 @@
 // Sample runs:  nurbs_solenoidal -m ../../data/square-nurbs.mesh -o 2
 //               nurbs_solenoidal -m ../../data/cube-nurbs.mesh -o 2
 //               nurbs_solenoidal -m ../../data/pipe-nurbs-2d.mesh -o 2
-//               nurbs_solenoidal -m ../../data/pipe-nurbs.mesh -o -1
 //
 // Description:  This code projects a velocity field, and forces this field
 //               to be solenoidal, viz. the divergence is zero. If the correct
 //               discrete spaces are chosen the divergence is pointwise zero.
 //
-//               This achived by solving a simple 2D/3D mixed Darcy problem
+//               This is achieved by solving a simple 2D/3D mixed Darcy problem
 //               corresponding to the saddle point system   (similar to ex5)
 //
 //                                 u + grad p = u_ex
 //                                    - div u = 0
+//
+//               NURBS-based H(div) spaces only implemented for meshes
+//               consisting of a single patch.
 //
 //               Here, u_ex is the specified velocity field. If u_ex is
 //               divergence free, we expect the pressure to converge to zero.
@@ -118,10 +120,10 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      args.PrintUsage(cout);
+      args.PrintUsage(mfem::out);
       return 1;
    }
-   args.PrintOptions(cout);
+   args.PrintOptions(mfem::out);
 
    // 2. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
@@ -156,7 +158,7 @@ int main(int argc, char *argv[])
    FiniteElementCollection *l2_coll = nullptr;
    NURBSExtension *NURBSext = nullptr;
 
-   if (mesh->NURBSext&& NURBS)//(false) //(mesh->NURBSext)
+   if (mesh->NURBSext&& NURBS)
    {
       hdiv_coll = new NURBS_HDivFECollection(order, dim);
       l2_coll   = new NURBSFECollection(order);
@@ -185,11 +187,11 @@ int main(int argc, char *argv[])
    block_offsets[2] = W_space->GetVSize();
    block_offsets.PartialSum();
 
-   std::cout << "***********************************************************\n";
-   std::cout << "dim(R) = " << block_offsets[1] - block_offsets[0] << "\n";
-   std::cout << "dim(W) = " << block_offsets[2] - block_offsets[1] << "\n";
-   std::cout << "dim(R+W) = " << block_offsets.Last() << "\n";
-   std::cout << "***********************************************************\n";
+   mfem::out << "***********************************************************\n";
+   mfem::out << "dim(R) = " << block_offsets[1] - block_offsets[0] << "\n";
+   mfem::out << "dim(W) = " << block_offsets[2] - block_offsets[1] << "\n";
+   mfem::out << "dim(R+W) = " << block_offsets.Last() << "\n";
+   mfem::out << "***********************************************************\n";
 
    // 7. Define the coefficients, analytical solution, and rhs of the PDE.
    ConstantCoefficient one(1.0);
@@ -293,17 +295,17 @@ int main(int argc, char *argv[])
 
    if (solver.GetConverged())
    {
-      std::cout << "MINRES converged in " << solver.GetNumIterations()
+      mfem::out << "MINRES converged in " << solver.GetNumIterations()
                 << " iterations with a residual norm of "
                 << solver.GetFinalNorm() << ".\n";
    }
    else
    {
-      std::cout << "MINRES did not converge in " << solver.GetNumIterations()
+      mfem::out << "MINRES did not converge in " << solver.GetNumIterations()
                 << " iterations. Residual norm is " << solver.GetFinalNorm()
                 << ".\n";
    }
-   std::cout << "MINRES solver took " << chrono.RealTime() << "s.\n";
+   mfem::out << "MINRES solver took " << chrono.RealTime() << "s.\n";
 
    // 12. Create the grid functions u and p
    GridFunction u, p, uu, vv, ww;
@@ -311,10 +313,10 @@ int main(int argc, char *argv[])
    p.MakeRef(W_space, x.GetBlock(1), 0);
 
    // 13. Save the mesh and the solution. This output can be viewed later using
-   //     GLVis: "glvis -m ex5.mesh -g sol_u.gf" or "glvis -m ex5.mesh -g
+   //     GLVis: "glvis -m exsol.mesh -g sol_u.gf" or "glvis -m exsol.mesh -g
    //     sol_p.gf".
    {
-      ofstream mesh_ofs("ex5.mesh");
+      ofstream mesh_ofs("exsol.mesh");
       mesh_ofs.precision(8);
       mesh->Print(mesh_ofs);
 
@@ -370,9 +372,9 @@ int main(int argc, char *argv[])
    double err_p  = p.ComputeL2Error(zero, irs);
    double err_div  = u.ComputeDivError(&zero, irs);
 
-   std::cout << "|| u_h - u_ex ||  = " << err_u  << "\n";
-   std::cout << "|| div u_h - div u_ex ||  = " << err_div  << "\n";
-   std::cout << "|| p_h - p_ex ||  = " << err_p  << "\n";
+   mfem::out << "|| u_h - u_ex ||  = " << err_u  << "\n";
+   mfem::out << "|| div u_h - div u_ex ||  = " << err_div  << "\n";
+   mfem::out << "|| p_h - p_ex ||  = " << err_p  << "\n";
 
    // 18. Free the used memory.
    delete fform;

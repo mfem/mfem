@@ -19,6 +19,9 @@
 //               error when the exact solution is known. Static condensation is
 //               also illustrated.
 //
+//               NURBS-based H(curl) spaces only implemented for meshes
+//               consisting of a single patch.
+//
 //               We recommend viewing examples 1-2 before viewing this example.
 
 #include "mfem.hpp"

@@ -11,9 +11,9 @@
 //               nurbs_ex5 -m ../../data/fichera.mesh
 //
 // Device sample runs -- do not work for NURBS:
-//               nurbs_ex5 -m ../../data/square-nurbs -pa -d cuda
-//               nurbs_ex5 -m ../../data/square-nurbs -pa -d raja-cuda
-//               nurbs_ex5 -m ../../data/square-nurbs -pa -d raja-omp
+//               nurbs_ex5 -m ../../data/escher.mesh -pa -d cuda
+//               nurbs_ex5 -m ../../data/escher.mesh -pa -d raja-cuda
+//               nurbs_ex5 -m ../../data/escher.mesh -pa -d raja-omp
 //
 // Description:  This example code solves a simple 2D/3D mixed Darcy problem
 //               corresponding to the saddle point system
@@ -26,6 +26,9 @@
 //               corresponding r.h.s. (f,g).  We discretize with Raviart-Thomas
 //               finite elements (velocity u) and piecewise discontinuous
 //               polynomials (pressure p).
+//
+//               NURBS-based H(div) spaces only implemented for meshes
+//               consisting of a single patch.
 //
 //               The example demonstrates the use of the BlockOperator class, as
 //               well as the collective saving of several grid functions in
