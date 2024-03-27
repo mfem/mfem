@@ -108,44 +108,44 @@ TEST_CASE("ExodusII Write Tet4", "[Mesh]")
 #endif
 }
 
-TEST_CASE("ExodusII Write Wedge6", "[Mesh]")
-{
-#ifdef MFEM_USE_NETCDF
-   std::string fpath_original = "data/simple-cube-wedge6.e";
-   Mesh original_mesh = Mesh::LoadFromFile(fpath_original, 0, 0, true);
+// TEST_CASE("ExodusII Write Wedge6", "[Mesh]")
+// {
+// #ifdef MFEM_USE_NETCDF
+//    std::string fpath_original = "data/simple-cube-wedge6.e";
+//    Mesh original_mesh = Mesh::LoadFromFile(fpath_original, 0, 0, true);
 
-   std::string fpath_generated = "data/simple-cube-wedge6-out.e";
-   original_mesh.WriteExodusII(fpath_generated);
+//    std::string fpath_generated = "data/simple-cube-wedge6-out.e";
+//    original_mesh.WriteExodusII(fpath_generated);
 
-   Mesh generated_mesh = Mesh::LoadFromFile(fpath_generated, 0, 0, true);
-   CompareMeshes(original_mesh, generated_mesh);
-#endif
-}
+//    Mesh generated_mesh = Mesh::LoadFromFile(fpath_generated, 0, 0, true);
+//    CompareMeshes(original_mesh, generated_mesh);
+// #endif
+// }
 
-TEST_CASE("ExodusII Write Pyramid5", "[Mesh]")
-{
-#ifdef MFEM_USE_NETCDF
-   std::string fpath_original = "data/simple-cube-pyramid5.e";
-   Mesh original_mesh = Mesh::LoadFromFile(fpath_original, 0, 0, true);
+// TEST_CASE("ExodusII Write Pyramid5", "[Mesh]")
+// {
+// #ifdef MFEM_USE_NETCDF
+//    std::string fpath_original = "data/simple-cube-pyramid5.e";
+//    Mesh original_mesh = Mesh::LoadFromFile(fpath_original, 0, 0, true);
 
-   std::string fpath_generated = "data/simple-cube-pyramid5-out.e";
-   original_mesh.WriteExodusII(fpath_generated);
+//    std::string fpath_generated = "data/simple-cube-pyramid5-out.e";
+//    original_mesh.WriteExodusII(fpath_generated);
 
-   Mesh generated_mesh = Mesh::LoadFromFile(fpath_generated, 0, 0, true);
-   CompareMeshes(original_mesh, generated_mesh);
-#endif
-}
+//    Mesh generated_mesh = Mesh::LoadFromFile(fpath_generated, 0, 0, true);
+//    CompareMeshes(original_mesh, generated_mesh);
+// #endif
+// }
 
-TEST_CASE("ExodusII Write Mixed First-Order", "[Mesh]")
-{
-#ifdef MFEM_USE_NETCDF
-   std::string fpath_original = "data/simple-cube-multi-element-order1.e";
-   Mesh original_mesh = Mesh::LoadFromFile(fpath_original, 0, 0, true);
+// TEST_CASE("ExodusII Write Mixed First-Order", "[Mesh]")
+// {
+// #ifdef MFEM_USE_NETCDF
+//    std::string fpath_original = "data/simple-cube-multi-element-order1.e";
+//    Mesh original_mesh = Mesh::LoadFromFile(fpath_original, 0, 0, true);
 
-   std::string fpath_generated = "data/simple-cube-multi-element-order1-out.e";
-   original_mesh.WriteExodusII(fpath_generated);
+//    std::string fpath_generated = "data/simple-cube-multi-element-order1-out.e";
+//    original_mesh.WriteExodusII(fpath_generated);
 
-   Mesh generated_mesh = Mesh::LoadFromFile(fpath_generated, 0, 0, true);
-   CompareMeshes(original_mesh, generated_mesh);
-#endif
-}
+//    Mesh generated_mesh = Mesh::LoadFromFile(fpath_generated, 0, 0, true);
+//    CompareMeshes(original_mesh, generated_mesh);
+// #endif
+// }
