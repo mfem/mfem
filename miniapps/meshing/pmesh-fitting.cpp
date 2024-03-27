@@ -63,12 +63,10 @@ int main (int argc, char *argv[])
    int metric_id         = 2;
    int target_id         = 1;
    double surface_fit_const = 100.0;
-   int quad_type         = 1;
    int quad_order        = 8;
    int solver_type       = 0;
    int solver_iter       = 20;
    double solver_rtol    = 1e-10;
-   int solver_art_type   = 0;
    int lin_solver        = 2;
    int max_lin_iter      = 100;
    bool move_bnd         = true;
@@ -111,11 +109,6 @@ int main (int argc, char *argv[])
                   "5: Ideal shape, given size (in physical space)");
    args.AddOption(&surface_fit_const, "-sfc", "--surface-fit-const",
                   "Surface preservation constant.");
-   args.AddOption(&quad_type, "-qt", "--quad-type",
-                  "Quadrature rule type:\n\t"
-                  "1: Gauss-Lobatto\n\t"
-                  "2: Gauss-Legendre\n\t"
-                  "3: Closed uniform points");
    args.AddOption(&quad_order, "-qo", "--quad_order",
                   "Order of the quadrature rule.");
    args.AddOption(&solver_type, "-st", "--solver-type",
@@ -124,11 +117,6 @@ int main (int argc, char *argv[])
                   "Maximum number of Newton iterations.");
    args.AddOption(&solver_rtol, "-rtol", "--newton-rel-tolerance",
                   "Relative tolerance for the Newton solver.");
-   args.AddOption(&solver_art_type, "-art", "--adaptive-rel-tol",
-                  "Type of adaptive relative linear solver tolerance:\n\t"
-                  "0: None (default)\n\t"
-                  "1: Eisenstat-Walker type 1\n\t"
-                  "2: Eisenstat-Walker type 2");
    args.AddOption(&lin_solver, "-ls", "--lin-solver",
                   "Linear solver:\n\t"
                   "0: l1-Jacobi\n\t"
@@ -339,16 +327,7 @@ int main (int argc, char *argv[])
    TMOP_Integrator *tmop_integ = new TMOP_Integrator(metric, target_c);
 
    // Setup the quadrature rules for the TMOP integrator.
-   IntegrationRules *irules = NULL;
-   switch (quad_type)
-   {
-      case 1: irules = &IntRulesLo; break;
-      case 2: irules = &IntRules; break;
-      case 3: irules = &IntRulesCU; break;
-      default:
-         if (myid == 0) { cout << "Unknown quad_type: " << quad_type << endl; }
-         return 3;
-   }
+   IntegrationRules *irules = &IntRulesLo;
    tmop_integ->SetIntegrationRules(*irules, quad_order);
    if (myid == 0 && dim == 2)
    {
