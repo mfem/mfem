@@ -179,7 +179,7 @@ void DarcyForm::Assemble(int skip_zeros)
 #ifndef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
             M_p->AssembleElementMatrix(i, elmat, skip_zeros);
 #endif //!MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
-            hybridization->AssembleFluxMassMatrix(i, elmat);
+            hybridization->AssemblePotMassMatrix(i, elmat);
          }
 
          AssembleHDGFaces(skip_zeros);
@@ -316,11 +316,6 @@ void DarcyForm::RecoverFEMSolution(const Vector &X, const BlockVector &b,
       if (M_p)
       {
          M_p->RecoverFEMSolution(X_b.GetBlock(1), b.GetBlock(1), x.GetBlock(1));
-         if (bsym)
-         {
-            //In the case of the symmetrized system, the sign is oppposite!
-            x.GetBlock(1).Neg();
-         }
       }
    }
 }
