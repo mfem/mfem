@@ -47,6 +47,10 @@ New and updated examples and miniapps
 
 Miscellaneous
 -------------
+- Added support for single and double precision, with corresponding hypre build.
+  Generalized the floating point type from `double` to `real_t`. For more
+  details see https://github.com/orgs/mfem/discussions/4207.
+
 - The ReadCubit Genesis mesh importer has been rewritten to improve readability.
 
 - Updated the Doxygen documentation style, which now requires Doxygen version
