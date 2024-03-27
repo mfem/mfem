@@ -69,6 +69,11 @@ const int mfem_to_exodusII_side_map_wedge6[] =
    4, 5, 1, 2, 3
 };
 
+const int mfem_to_exodusII_side_map_pyramid5[] =
+{
+   5, 1, 2, 3, 4
+};
+
 
 void Mesh::WriteExodusII(const std::string fpath)
 {
@@ -350,8 +355,8 @@ void Mesh::WriteExodusII(const std::string fpath)
          case Geometry::Type::PRISM:
             element_type = "wedge";
             break;
-         case Geometry::Type::TRIANGLE:
-            element_type = "tri";
+         case Geometry::Type::PYRAMID:
+            element_type = "pyramid";
             break;
          default:
             MFEM_ABORT("Unsupported MFEM element type: " << front_element->GetType());
@@ -777,6 +782,9 @@ static void GenerateExodusIIBoundaryInfo(Mesh & mesh,
             break;
          case Element::Type::WEDGE:
             exodusII_face_id = mfem_to_exodusII_side_map_wedge6[iface];
+            break;
+         case Element::Type::PYRAMID:
+            exodusII_face_id = mfem_to_exodusII_side_map_pyramid5[iface];
             break;
          default:
             MFEM_ABORT("Cannot handle element of type " << element_type);
