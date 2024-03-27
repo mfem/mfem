@@ -291,7 +291,7 @@ void Mesh::ReadTrueGridMesh(std::istream &input)
    if (Dim == 2)
    {
       int vari;
-      double varf;
+      real_t varf;
 
       input >> vari >> NumOfVertices >> vari >> vari >> NumOfElements;
       input.getline(buf, buflen);
@@ -327,7 +327,7 @@ void Mesh::ReadTrueGridMesh(std::istream &input)
    else if (Dim == 3)
    {
       int vari;
-      double varf;
+      real_t varf;
       input >> vari >> NumOfVertices >> NumOfElements;
       input.getline(buf, buflen);
       input.getline(buf, buflen);
@@ -453,7 +453,7 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
    spaceDim = 0;
    if (np > 0)
    {
-      double min_value, max_value;
+      real_t min_value, max_value;
       for (int d = 3; d > 0; --d)
       {
          min_value = max_value = points(3*0 + d-1);
@@ -1304,9 +1304,10 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
                  curved, read_gf, finalize_topo);
 } // end ReadVTKMesh
 
-void Mesh::ReadNURBSMesh(std::istream &input, int &curved, int &read_gf)
+void Mesh::ReadNURBSMesh(std::istream &input, int &curved, int &read_gf,
+                         bool spacing)
 {
-   NURBSext = new NURBSExtension(input);
+   NURBSext = new NURBSExtension(input, spacing);
 
    Dim              = NURBSext->Dimension();
    NumOfVertices    = NURBSext->GetNV();
@@ -1353,9 +1354,9 @@ void Mesh::ReadInlineMesh(std::istream &input, bool generate_edges)
    int nx = -1;
    int ny = -1;
    int nz = -1;
-   double sx = -1.0;
-   double sy = -1.0;
-   double sz = -1.0;
+   real_t sx = -1.0;
+   real_t sy = -1.0;
+   real_t sz = -1.0;
    Element::Type type = Element::POINT;
 
    while (true)
@@ -1508,7 +1509,7 @@ void Mesh::ReadInlineMesh(std::istream &input, bool generate_edges)
 void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
 {
    string buff;
-   double version;
+   real_t version;
    int binary, dsize;
    input >> version >> binary >> dsize;
    if (version < 2.2)
@@ -1552,9 +1553,9 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
    // is non-trivial. Note that with these assumptions a 2D mesh parallel to the
    // yz plane will be considered a surface mesh embedded in 3D whereas the same
    // 2D mesh parallel to the xy plane will be considered a 2D mesh.
-   double bb_tol = 1e-14;
-   double bb_min[3];
-   double bb_max[3];
+   real_t bb_tol = 1e-14;
+   real_t bb_min[3];
+   real_t bb_max[3];
 
    // Mesh order
    int mesh_order = 1;
@@ -1576,7 +1577,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          vertices.SetSize(NumOfVertices);
          int serial_number;
          const int gmsh_dim = 3; // Gmsh always outputs 3 coordinates
-         double coord[gmsh_dim];
+         real_t coord[gmsh_dim];
          for (int ver = 0; ver < NumOfVertices; ++ver)
          {
             if (binary)
@@ -1603,7 +1604,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                             std::max(bb_max[ci], coord[ci]);
             }
          }
-         double bb_size = std::max(bb_max[0] - bb_min[0],
+         real_t bb_size = std::max(bb_max[0] - bb_min[0],
                                    std::max(bb_max[1] - bb_min[1],
                                             bb_max[2] - bb_min[2]));
          spaceDim = 1;
@@ -2605,7 +2606,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
 
                for (int v = 0; v<nv; v++)
                {
-                  double * c = GetVertex((*ho_verts)[vm[v]]);
+                  real_t * c = GetVertex((*ho_verts)[vm[v]]);
                   for (int d=0; d<spaceDim; d++)
                   {
                      Nodes_gf(spaceDim * (o + v) + d) = c[d];

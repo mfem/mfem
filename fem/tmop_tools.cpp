@@ -83,7 +83,7 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
    // This will be used to move the positions.
    GridFunction *mesh_nodes = m->GetNodes();
    *mesh_nodes = nodes0;
-   double minv = new_field.Min(), maxv = new_field.Max();
+   real_t minv = new_field.Min(), maxv = new_field.Max();
 
    // Velocity of the positions.
    GridFunction u(mesh_nodes->FESpace());
@@ -112,18 +112,18 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
    ode_solver.Init(*oper);
 
    // Compute some time step [mesh_size / speed].
-   double h_min = std::numeric_limits<double>::infinity();
+   real_t h_min = std::numeric_limits<real_t>::infinity();
    for (int i = 0; i < m->GetNE(); i++)
    {
       h_min = std::min(h_min, m->GetElementSize(i));
    }
-   double v_max = 0.0;
+   real_t v_max = 0.0;
    const int s = new_field.Size();
 
    u.HostReadWrite();
    for (int i = 0; i < s; i++)
    {
-      double vel = 0.;
+      real_t vel = 0.;
       for (int j = 0; j < m->Dimension(); j++)
       {
          vel += u(i+j*s)*u(i+j*s);
@@ -134,9 +134,11 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
 #ifdef MFEM_USE_MPI
    if (pfes)
    {
-      double v_loc = v_max, h_loc = h_min;
-      MPI_Allreduce(&v_loc, &v_max, 1, MPI_DOUBLE, MPI_MAX, pfes->GetComm());
-      MPI_Allreduce(&h_loc, &h_min, 1, MPI_DOUBLE, MPI_MIN, pfes->GetComm());
+      real_t v_loc = v_max, h_loc = h_min;
+      MPI_Allreduce(&v_loc, &v_max, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX,
+                    pfes->GetComm());
+      MPI_Allreduce(&h_loc, &h_min, 1, MPITypeMap<real_t>::mpi_type, MPI_MIN,
+                    pfes->GetComm());
    }
 #endif
 
@@ -151,9 +153,9 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
    }
 
    v_max = std::sqrt(v_max);
-   double dt = dt_scale * h_min / v_max;
+   real_t dt = dt_scale * h_min / v_max;
 
-   double t = 0.0;
+   real_t t = 0.0;
    bool last_step = false;
    while (!last_step)
    {
@@ -165,13 +167,15 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
       ode_solver.Step(new_field, t, dt);
    }
 
-   double glob_minv = minv,
+   real_t glob_minv = minv,
           glob_maxv = maxv;
 #ifdef MFEM_USE_MPI
    if (pfes)
    {
-      MPI_Allreduce(&minv, &glob_minv, 1, MPI_DOUBLE, MPI_MIN, pfes->GetComm());
-      MPI_Allreduce(&maxv, &glob_maxv, 1, MPI_DOUBLE, MPI_MAX, pfes->GetComm());
+      MPI_Allreduce(&minv, &glob_minv, 1, MPITypeMap<real_t>::mpi_type, MPI_MIN,
+                    pfes->GetComm());
+      MPI_Allreduce(&maxv, &glob_maxv, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX,
+                    pfes->GetComm());
    }
 #endif
 
@@ -214,7 +218,7 @@ SerialAdvectorCGOper::SerialAdvectorCGOper(const Vector &x_start,
 void SerialAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
 {
    // Move the mesh.
-   const double t = GetTime();
+   const real_t t = GetTime();
    add(x0, t, u, x_now);
    K.FESpace()->GetMesh()->NodesUpdated();
 
@@ -241,7 +245,12 @@ void SerialAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
       lin_solver.SetOperator(M.SpMat());
    }
    lin_solver.SetPreconditioner(*prec);
-   lin_solver.SetRelTol(1e-12); lin_solver.SetAbsTol(0.0);
+#ifdef MFEM_USE_SINGLE
+   const real_t rtol = 1e-4;
+#else
+   const real_t rtol = 1e-12;
+#endif
+   lin_solver.SetRelTol(rtol); lin_solver.SetAbsTol(0.0);
    lin_solver.SetMaxIter(100);
    lin_solver.SetPrintLevel(0);
    lin_solver.Mult(rhs, di_dt);
@@ -283,7 +292,7 @@ ParAdvectorCGOper::ParAdvectorCGOper(const Vector &x_start,
 void ParAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
 {
    // Move the mesh.
-   const double t = GetTime();
+   const real_t t = GetTime();
    add(x0, t, u, x_now);
    K.ParFESpace()->GetParMesh()->NodesUpdated();
 
@@ -317,8 +326,12 @@ void ParAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
    CGSolver lin_solver(M.ParFESpace()->GetParMesh()->GetComm());
    lin_solver.SetPreconditioner(*prec);
    lin_solver.SetOperator(*Mop);
-   lin_solver.SetRelTol(1e-8);
-   lin_solver.SetAbsTol(0.0);
+#ifdef MFEM_USE_SINGLE
+   const real_t rtol = 1e-4;
+#else
+   const real_t rtol = 1e-8;
+#endif
+   lin_solver.SetRelTol(rtol); lin_solver.SetAbsTol(0.0);
    lin_solver.SetMaxIter(100);
    lin_solver.SetPrintLevel(0);
    lin_solver.Mult(*RHS, X);
@@ -340,8 +353,8 @@ void InterpolatorFP::SetInitialField(const Vector &init_nodes,
 #endif
    m->SetNodes(nodes0);
 
-   const double rel_bbox_el = 0.1;
-   const double newton_tol  = 1.0e-12;
+   const real_t rel_bbox_el = 0.1;
+   const real_t newton_tol  = 1.0e-12;
    const int npts_at_once   = 256;
 
    if (finder)
@@ -376,11 +389,11 @@ void InterpolatorFP::ComputeAtNewPosition(const Vector &new_nodes,
 
 #endif
 
-double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
+real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
                                               const Vector &b) const
 {
    const FiniteElementSpace *fes = NULL;
-   double energy_in = 0.0;
+   real_t energy_in = 0.0;
 #ifdef MFEM_USE_MPI
    const ParNonlinearForm *p_nlf = dynamic_cast<const ParNonlinearForm *>(oper);
    MFEM_VERIFY(!(parallel && p_nlf == NULL), "Invalid Operator subclass.");
@@ -415,8 +428,8 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    }
 #endif
 
-   double scale = 1.0;
-   double avg_surf_fit_err, max_surf_fit_err = 0.0;
+   real_t scale = 1.0;
+   real_t avg_surf_fit_err, max_surf_fit_err = 0.0;
    if (surf_fit_max_threshold > 0.0)
    {
       GetSurfaceFittingError(x_out_loc, avg_surf_fit_err, max_surf_fit_err);
@@ -445,9 +458,9 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
    // Check if the starting mesh (given by x) is inverted. Note that x hasn't
    // been modified by the Newton update yet.
-   const double min_detT_in = ComputeMinDet(x_out_loc, *fes);
+   const real_t min_detT_in = ComputeMinDet(x_out_loc, *fes);
    const bool untangling = (min_detT_in <= 0.0) ? true : false;
-   const double untangle_factor = 1.5;
+   const real_t untangle_factor = 1.5;
    if (untangling)
    {
       // Needed for the line search below. The untangling metrics see this
@@ -463,10 +476,10 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
    Vector x_out(x.Size());
    bool x_out_ok = false;
-   double energy_out = 0.0, min_detT_out;
-   const double norm_in = Norm(r);
+   real_t energy_out = 0.0, min_detT_out;
+   const real_t norm_in = Norm(r);
 
-   const double detJ_factor = (solver_type == 1) ? 0.25 : 0.5;
+   const real_t detJ_factor = (solver_type == 1) ? 0.25 : 0.5;
    compute_metric_quantile_flag = false;
    // TODO:
    // - Customized line search for worst-quality optimization.
@@ -516,7 +529,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       // Check the changes in total energy.
       ProcessNewState(x_out);
 
-      double avg_fit_err, max_fit_err = 0.0;
+      real_t avg_fit_err, max_fit_err = 0.0;
       if (surf_fit_max_threshold > 0.0)
       {
          GetSurfaceFittingError(x_out_loc, avg_fit_err, max_fit_err);
@@ -554,7 +567,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       // Check the changes in the Newton residual.
       oper->Mult(x_out, r);
       if (have_b) { r -= b; }
-      double norm_out = Norm(r);
+      real_t norm_out = Norm(r);
 
       if (norm_out > 1.2*norm_in)
       {
@@ -607,7 +620,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    return scale;
 }
 
-void TMOPNewtonSolver::UpdateSurfaceFittingWeight(double factor) const
+void TMOPNewtonSolver::UpdateSurfaceFittingWeight(real_t factor) const
 {
    const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
    const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
@@ -632,14 +645,14 @@ void TMOPNewtonSolver::UpdateSurfaceFittingWeight(double factor) const
    }
 }
 
-void TMOPNewtonSolver::GetSurfaceFittingWeight(Array<double> &weights) const
+void TMOPNewtonSolver::GetSurfaceFittingWeight(Array<real_t> &weights) const
 {
    const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
    const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
    TMOP_Integrator *ti  = NULL;
    TMOPComboIntegrator *co = NULL;
    weights.SetSize(0);
-   double weight;
+   real_t weight;
 
    for (int i = 0; i < integs.Size(); i++)
    {
@@ -663,8 +676,8 @@ void TMOPNewtonSolver::GetSurfaceFittingWeight(Array<double> &weights) const
 }
 
 void TMOPNewtonSolver::GetSurfaceFittingError(const Vector &x_loc,
-                                              double &err_avg,
-                                              double &err_max) const
+                                              real_t &err_avg,
+                                              real_t &err_max) const
 {
    const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
    const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
@@ -673,7 +686,7 @@ void TMOPNewtonSolver::GetSurfaceFittingError(const Vector &x_loc,
 
    err_avg = 0.0;
    err_max = 0.0;
-   double err_avg_loc, err_max_loc;
+   real_t err_avg_loc, err_max_loc;
    for (int i = 0; i < integs.Size(); i++)
    {
       ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
@@ -682,8 +695,8 @@ void TMOPNewtonSolver::GetSurfaceFittingError(const Vector &x_loc,
          if (ti->IsSurfaceFittingEnabled())
          {
             ti->GetSurfaceFittingErrors(x_loc, err_avg_loc, err_max_loc);
-            err_avg = std::fmax(err_avg_loc, err_avg);
-            err_max = std::fmax(err_max_loc, err_max);
+            err_avg = std::max(err_avg_loc, err_avg);
+            err_max = std::max(err_max_loc, err_max);
          }
       }
       co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
@@ -695,8 +708,8 @@ void TMOPNewtonSolver::GetSurfaceFittingError(const Vector &x_loc,
             if (ati[j]->IsSurfaceFittingEnabled())
             {
                ati[j]->GetSurfaceFittingErrors(x_loc, err_avg_loc, err_max_loc);
-               err_avg = std::fmax(err_avg_loc, err_avg);
-               err_max = std::fmax(err_max_loc, err_max);
+               err_avg = std::max(err_avg_loc, err_avg);
+               err_max = std::max(err_max_loc, err_max);
             }
          }
       }
@@ -793,7 +806,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
       // Get surface fitting errors.
       GetSurfaceFittingError(x_loc, surf_fit_err_avg, surf_fit_err_max);
       // Get array with surface fitting weights.
-      Array<double> weights;
+      Array<real_t> weights;
       GetSurfaceFittingWeight(weights);
 
       if (print_options.iterations)
@@ -805,8 +818,8 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
                    weights.Min() << " " << weights.Max() << "\n";
       }
 
-      double change_surf_fit_err = surf_fit_err_avg_prvs-surf_fit_err_avg;
-      double rel_change_surf_fit_err = change_surf_fit_err/surf_fit_err_avg_prvs;
+      real_t change_surf_fit_err = surf_fit_err_avg_prvs-surf_fit_err_avg;
+      real_t rel_change_surf_fit_err = change_surf_fit_err/surf_fit_err_avg_prvs;
       // Increase the surface fitting coefficient if the surface fitting error
       // does not decrease sufficiently.
       if (rel_change_surf_fit_err < surf_fit_rel_change_threshold)
@@ -823,10 +836,10 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
    }
 }
 
-double TMOPNewtonSolver::ComputeMinDet(const Vector &x_loc,
+real_t TMOPNewtonSolver::ComputeMinDet(const Vector &x_loc,
                                        const FiniteElementSpace &fes) const
 {
-   double min_detJ = infinity();
+   real_t min_detJ = infinity();
    const int NE = fes.GetNE(), dim = fes.GetMesh()->Dimension();
    Array<int> xdofs;
    DenseMatrix Jpr(dim);
@@ -857,12 +870,13 @@ double TMOPNewtonSolver::ComputeMinDet(const Vector &x_loc,
       min_detJ = dim == 2 ? MinDetJpr_2D(&fes, x_loc) :
                  dim == 3 ? MinDetJpr_3D(&fes, x_loc) : 0.0;
    }
-   double min_detT_all = min_detJ;
+   real_t min_detT_all = min_detJ;
 #ifdef MFEM_USE_MPI
    if (parallel)
    {
       auto p_nlf = dynamic_cast<const ParNonlinearForm *>(oper);
-      MPI_Allreduce(&min_detJ, &min_detT_all, 1, MPI_DOUBLE, MPI_MIN,
+      MPI_Allreduce(&min_detJ, &min_detT_all, 1, MPITypeMap<real_t>::mpi_type,
+                    MPI_MIN,
                     p_nlf->ParFESpace()->GetComm());
    }
 #endif

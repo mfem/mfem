@@ -19,7 +19,8 @@
 namespace mfem
 {
 
-/** Auxiliary class Hybridization, used to implement BilinearForm hybridization.
+/** @brief Auxiliary class Hybridization, used to implement BilinearForm
+    hybridization.
 
     Hybridization can be viewed as a technique for solving linear systems
     obtained through finite element assembly. The assembled matrix $ A $ can
@@ -67,7 +68,7 @@ protected:
 
    Array<int> hat_offsets, hat_dofs_marker;
    Array<int> Af_offsets, Af_f_offsets;
-   double *Af_data;
+   real_t *Af_data;
    int *Af_ipiv;
 
 #ifdef MFEM_USE_MPI
