@@ -121,3 +121,17 @@ TEST_CASE("ExodusII Write Wedge6", "[Mesh]")
    CompareMeshes(original_mesh, generated_mesh);
 #endif
 }
+
+TEST_CASE("ExodusII Write Pyramid5", "[Mesh]")
+{
+#ifdef MFEM_USE_NETCDF
+   std::string fpath_original = "data/simple-cube-pyramid5.e";
+   Mesh original_mesh = Mesh::LoadFromFile(fpath_original, 0, 0, true);
+
+   std::string fpath_generated = "data/simple-cube-pyramid5-out.e";
+   original_mesh.WriteExodusII(fpath_generated);
+
+   Mesh generated_mesh = Mesh::LoadFromFile(fpath_generated, 0, 0, true);
+   CompareMeshes(original_mesh, generated_mesh);
+#endif
+}
