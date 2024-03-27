@@ -237,8 +237,7 @@ public:
       void operator()(SpecializedTableType* table_ptr)
       {
          constexpr int DIM = 1;
-         constexpr std::tuple<int, UserParams...> param_tuple = std::make_tuple(DIM,
-                                                                                params...);
+         std::tuple<int, UserParams...> param_tuple  (DIM, params...);
          // All kernels require at least D1D and Q1D
          static_assert(sizeof...(params) >= 2,
                        "All specializations require at least two template parameters");
@@ -247,7 +246,16 @@ public:
       }
    };
 
-   constexpr static int D(int D1D) { return (11 - D1D) / 2; }
+   template<typename ... args>
+   static constexpr int getD1D(int D1D, args...)
+   {
+      return D1D;
+   }
+   template<typename ... args>
+   static constexpr int getQ1D(int /*D1D*/, int Q1D, args...)
+   {
+      return Q1D;
+   }
    /// Functors are needed here instead of functions because of a bug in GCC where a variadic
    /// type template cannot be used to define a parameter pack.
    template<UserParams... params>
@@ -256,13 +264,15 @@ public:
       void operator()(SpecializedTableType* table_ptr)
       {
          constexpr int DIM = 2;
-         constexpr std::tuple<int, UserParams...> param_tuple = std::make_tuple(DIM,
-                                                                                params...);
-         // All kernels require at least D1D and Q1D
+         std::tuple<int, UserParams...> param_tuple (DIM, params...);
+         // All kernels require at least D1D and Q1D, which are listed first in a
+         // parameter pack.
          static_assert(sizeof...(params) >= 2,
                        "All specializations require at least two template parameters");
 
-         constexpr int NBZ = GetNBZ(std::get<0>(param_tuple), std::get<1>(param_tuple));
+         constexpr int D1D = getD1D(params...);
+         constexpr int Q1D = getQ1D(params...);
+         constexpr int NBZ = GetNBZ(D1D, Q1D);
 
          table_ptr->table[param_tuple] = ApplyKernelsHelperClass::template
                                          Kernel2D<params..., NBZ>();
@@ -275,8 +285,7 @@ public:
       void operator()(SpecializedTableType* table_ptr)
       {
          constexpr int DIM = 3;
-         constexpr std::tuple<int, UserParams...> param_tuple = std::make_tuple(DIM,
-                                                                                params...);
+         std::tuple<int, UserParams...> param_tuple (DIM, params...);
          static_assert(sizeof...(UserParams) >= 2,
                        "All specializations require at least two template parameters");
 
