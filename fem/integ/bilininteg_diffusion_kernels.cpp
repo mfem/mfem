@@ -27,7 +27,7 @@ DiffusionIntegrator::Kernels::Kernels()
    DiffusionIntegrator::AddSpecialization2D<6,6>();
    DiffusionIntegrator::AddSpecialization2D<7,7>();
    DiffusionIntegrator::AddSpecialization2D<8,8>();
-   DiffusionIntegrator::AddSpecialization2D<9,9>();
+   //DiffusionIntegrator::AddSpecialization2D<9,9>();
    // 3D
    DiffusionIntegrator::AddSpecialization3D<2,2>();
    DiffusionIntegrator::AddSpecialization3D<2,3>();
