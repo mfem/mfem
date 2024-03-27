@@ -539,7 +539,7 @@ int main (int argc, char *argv[])
    if (myid == 0)
    {
       cout << "FindPointsGSLIB-Timing-info " <<
-           "jobid,devid,ne,np,dim,meshorder,solorder,funcorder,fieldtype,smooth,npts,nptt,"
+           "jobid,devid,gpucode,ne,np,dim,meshorder,solorder,funcorder,fieldtype,smooth,npts,nptt,"
            <<
            "foundloc,foundaway,notfound,foundface,maxerr,maxdist,"<<
            "setup_split,setup_nodalmapping,setup_setup,findpts_findpts,findpts_device_setup,findpts_mapelemrst,"
@@ -547,6 +547,7 @@ int main (int argc, char *argv[])
            "interpolate_h1,interpolate_general,interpolate_l2_pass2 " <<
            jobid << "," <<
            device.GetId() << "," <<
+           gpucode << "," <<
            nelemglob << "," <<
            num_procs << "," <<
            dim << "," <<
@@ -573,10 +574,13 @@ int main (int argc, char *argv[])
            std::endl;
    }
 
-   Mesh *mesh_abb = finder.GetBoundingBoxMesh(0);
-   Mesh *mesh_obb = finder.GetBoundingBoxMesh(1);
-   Mesh *mesh_lhbb = finder.GetBoundingBoxMesh(2);
-   Mesh *mesh_ghbb = finder.GetBoundingBoxMesh(3);
+   Mesh *mesh_abb, *mesh_obb, *mesh_lhbb, *mesh_ghbb;
+   if (visit) {
+    mesh_abb = finder.GetBoundingBoxMesh(0);
+    mesh_obb = finder.GetBoundingBoxMesh(1);
+    mesh_lhbb = finder.GetBoundingBoxMesh(2);
+    mesh_ghbb = finder.GetBoundingBoxMesh(3);
+   }
 
    if (visit && myid == 0)
    {

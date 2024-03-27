@@ -228,7 +228,7 @@ get_face(const double *elx[3], const double *wtend, int fi,
    const int side_n = fi & 1;
    const int p_Nfr = pN*pN;
    findptsElementGFace_t face;
-   const int j  = jidx % pN;
+   const int jj = jidx % pN;
    const int dd = jidx / pN;
    for (int d = 0; d < 3; ++d)
    {
@@ -246,15 +246,15 @@ get_face(const double *elx[3], const double *wtend, int fi,
          for (int k = 0; k < pN; ++k)
          {
             // copy first/last entries in normal direction
-            face.x[dd][j + k * pN] = ELX(dd, j, k, side_n * (pN - 1));
+            face.x[dd][jj + k * pN] = ELX(dd, jj, k, side_n * (pN - 1));
 
             // tensor product between elx and the derivative in the normal direction
             double sum_l = 0;
             for (int l = 0; l < pN; ++l)
             {
-               sum_l += wtend[pN + l] * ELX(dd, j, k, l);
+               sum_l += wtend[pN + l] * ELX(dd, jj, k, l);
             }
-            face.dxdn[dd][j + k * pN] = sum_l;
+            face.dxdn[dd][jj + k * pN] = sum_l;
          }
       }
 #undef ELX
@@ -275,16 +275,16 @@ get_edge(const double *elx[3], const double *wtend, int ei,
    const int in1 = side_n1 * (pN - 1), in2 = side_n2 * (pN - 1);
    const double *wt1 = wtend + side_n1 * pN * 3;
    const double *wt2 = wtend + side_n2 * pN * 3;
+   const int jj = jidx % pN;
+   const int dd = jidx / pN;
    for (int d = 0; d < 3; ++d)
    {
       edge.x[d] = workspace + d * pN;
       edge.dxdn1[d] = workspace + (3 + d) * pN;
       edge.dxdn2[d] = workspace + (6 + d) * pN;
-      edge.d2xdn1[d] = workspace + (7 + d) * pN;
-      edge.d2xdn2[d] = workspace + (8 + d) * pN;
+      edge.d2xdn1[d] = workspace + (9 + d) * pN;
+      edge.d2xdn2[d] = workspace + (12 + d) * pN;
    }
-   const int j  = jidx % pN;
-   const int dd = jidx / pN;
 
    const int mask = 8u << (ei / 2);
    if ((side_init & mask) == 0)
@@ -294,59 +294,34 @@ get_edge(const double *elx[3], const double *wtend, int ei,
          const int elx_stride[3] = {1, pN, pN * pN};
 #define ELX(d, j, k, l) elx[d][j * elx_stride[de] + k * elx_stride[dn1] + l * elx_stride[dn2]]
          // copy first/last entries in normal directions
-         edge.x[dd][j] = ELX(dd, j, in1, in2);
+         edge.x[dd][jj] = ELX(dd, jj, in1, in2);
          // tensor product between elx (w/ first/last entries in second direction)
          // and the derivatives in the first normal direction
          double sums_k[2] = {0, 0};
          for (int k = 0; k < pN; ++k)
          {
-            sums_k[0] += wt1[pN + k] * ELX(dd, j, k, in2);
-            sums_k[1] += wt1[2 * pN + k] * ELX(dd, j, k, in2);
+            sums_k[0] += wt1[pN + k] * ELX(dd, jj, k, in2);
+            sums_k[1] += wt1[2 * pN + k] * ELX(dd, jj, k, in2);
          }
-         edge.dxdn1[dd][j] = sums_k[0];
-         edge.d2xdn1[dd][j] = sums_k[1];
+         edge.dxdn1[dd][jj] = sums_k[0];
+         edge.d2xdn1[dd][jj] = sums_k[1];
          // tensor product between elx (w/ first/last entries in first direction)
          // and the derivatives in the second normal direction
          sums_k[0] = 0, sums_k[1] = 0;
          for (int k = 0; k < pN; ++k)
          {
-            sums_k[0] += wt2[pN + k] * ELX(dd, j, in1, k);
-            sums_k[1] += wt2[2 * pN + k] * ELX(dd, j, in1, k);
+            sums_k[0] += wt2[pN + k] * ELX(dd, jj, in1, k);
+            sums_k[1] += wt2[2 * pN + k] * ELX(dd, jj, in1, k);
          }
-         edge.dxdn2[dd][j] = sums_k[0];
-         edge.d2xdn2[dd][j] = sums_k[1];
-
-         //         for (int d = 0; d < 3; ++d)
-         //         {
-         //            // copy first/last entries in normal directions
-         //            edge.x[d][j] = ELX(d, j, in1, in2);
-         //            // tensor product between elx (w/ first/last entries in second direction)
-         //            // and the derivatives in the first normal direction
-         //            double sums_k[2] = {0, 0};
-         //            for (int k = 0; k < pN; ++k)
-         //            {
-         //               sums_k[0] += wt1[pN + k] * ELX(d, j, k, in2);
-         //               sums_k[1] += wt1[2 * pN + k] * ELX(d, j, k, in2);
-         //            }
-         //            edge.dxdn1[d][j] = sums_k[0];
-         //            edge.d2xdn1[d][j] = sums_k[1];
-         //            // tensor product between elx (w/ first/last entries in first direction)
-         //            // and the derivatives in the second normal direction
-         //            sums_k[0] = 0, sums_k[1] = 0;
-         //            for (int k = 0; k < pN; ++k)
-         //            {
-         //               sums_k[0] += wt2[pN + k] * ELX(d, j, in1, k);
-         //               sums_k[1] += wt2[2 * pN + k] * ELX(d, j, in1, k);
-         //            }
-         //            edge.dxdn2[d][j] = sums_k[0];
-         //            edge.d2xdn2[d][j] = sums_k[1];
-         //         }
+         edge.dxdn2[dd][jj] = sums_k[0];
+         edge.d2xdn2[dd][jj] = sums_k[1];
 #undef ELX
       }
       side_init = mask;
    }
    return edge;
 }
+
 static MFEM_HOST_DEVICE inline findptsElementGPT_t get_pt(const double *elx[3],
                                                           const double *wtend, int pi, int pN)
 {
@@ -1034,7 +1009,7 @@ static void FindPointsLocal32D_Kernel(const int npt,
    {
       constexpr int size1 = MAX_CONST(4, MD1 + 1) *
                             (3 * 3 + 2 * 3) + 3 * 2 * MD1 + 5;
-      constexpr int size2 = MAX_CONST(MD1 *MD1 * 6, MD1 * 3 * 3);
+      constexpr int size2 = MAX_CONST(MD1 *MD1 * 6, MD1 * 3 * 5); // size depends on max of info for faces and edges
       MFEM_SHARED double r_workspace[size1];
       MFEM_SHARED findptsElementPoint_t el_pts[2];
 
