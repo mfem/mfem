@@ -10,6 +10,7 @@
 # CONTRIBUTING.md for details.
 
 set(SRCS
+  attribute_sets.cpp
   element.cpp
   gmsh.cpp
   hexahedron.cpp
@@ -34,6 +35,7 @@ set(SRCS
   )
 
 set(HDRS
+  attribute_sets.hpp
   element.hpp
   gmsh.hpp
   hexahedron.hpp

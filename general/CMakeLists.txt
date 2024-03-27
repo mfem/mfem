@@ -36,6 +36,7 @@ list(APPEND SRCS
 list(APPEND HDRS
   annotation.hpp
   array.hpp
+  arrays_by_name.hpp
   backends.hpp
   binaryio.hpp
   cuda.hpp

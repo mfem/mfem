@@ -17,6 +17,7 @@
 #include "general/error.hpp"
 #include "general/device.hpp"
 #include "general/array.hpp"
+#include "general/arrays_by_name.hpp"
 #include "general/sets.hpp"
 #include "general/hash.hpp"
 #include "general/mem_alloc.hpp"
