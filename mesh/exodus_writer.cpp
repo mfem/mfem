@@ -183,7 +183,7 @@ void Mesh::WriteExodusII(const std::string fpath)
    // Set length of character strings.
    //
    const int max_name_length = 80;
-   status = nc_put_att_int(ncid, NC_GLOBAL, "maxiumum_name_length", NC_INT, 1,
+   status = nc_put_att_int(ncid, NC_GLOBAL, "maximum_name_length", NC_INT, 1,
                            &max_name_length);
    HandleNetCDFStatus(status);
 
