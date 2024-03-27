@@ -239,8 +239,8 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    {
       const int D1D = dofs1D;
       const int Q1D = quad1D;
-      const Array<double> &B = maps->B;
-      const Array<double> &Bt = maps->Bt;
+      const Array<real_t> &B = maps->B;
+      const Array<real_t> &Bt = maps->Bt;
       const Vector &D = pa_data;
 #ifdef MFEM_USE_OCCA
       if (DeviceCanUseOcca())
