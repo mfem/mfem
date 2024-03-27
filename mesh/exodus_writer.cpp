@@ -47,8 +47,8 @@ static void WriteNodeConnectivityForBlock(int ncid, Mesh & mesh,
 
 static void WriteSideSetInformationForMesh(int ncid, Mesh & mesh,
                                            const std::vector<int> & boundary_ids,
-                                           const std::map<int, std::vector<int>> & element_ids_for_boundary_id,
-                                           const std::map<int, std::vector<int>> & side_ids_for_boundary_id);
+                                           const std::map<int, std::vector<int>> & exodusII_element_ids_for_boundary_id,
+                                           const std::map<int, std::vector<int>> & exodusII_side_ids_for_boundary_id);
 
 static void WriteBlockIDs(int ncid, const std::vector<int> & unique_block_ids);
 
@@ -62,6 +62,11 @@ const int mfem_to_exodusII_side_map_tet4[] =
 const int mfem_to_exodusII_side_map_hex8[] =
 {
    5, 1, 2, 3, 4, 6
+};
+
+const int mfem_to_exodusII_side_map_wedge6[] =
+{
+   4, 5, 1, 2, 3
 };
 
 
@@ -409,8 +414,8 @@ static void WriteBlockIDs(int ncid, const std::vector<int> & unique_block_ids)
 
 static void WriteSideSetInformationForMesh(int ncid, Mesh & mesh,
                                            const std::vector<int> & boundary_ids,
-                                           const std::map<int, std::vector<int>> & element_ids_for_boundary_id,
-                                           const std::map<int, std::vector<int>> & side_ids_for_boundary_id)
+                                           const std::map<int, std::vector<int>> & exodusII_element_ids_for_boundary_id,
+                                           const std::map<int, std::vector<int>> & exodusII_side_ids_for_boundary_id)
 {
    //
    // Add the boundary IDs
@@ -438,7 +443,7 @@ static void WriteSideSetInformationForMesh(int ncid, Mesh & mesh,
 
    for (int boundary_id : boundary_ids)
    {
-      size_t num_elements_for_boundary = element_ids_for_boundary_id.at(
+      size_t num_elements_for_boundary = exodusII_element_ids_for_boundary_id.at(
                                             boundary_id).size();
 
       sprintf(name_buffer, "num_side_ss%d", boundary_id);
@@ -454,7 +459,8 @@ static void WriteSideSetInformationForMesh(int ncid, Mesh & mesh,
    //
    for (int boundary_id : boundary_ids)
    {
-      const std::vector<int> & side_ids = side_ids_for_boundary_id.at(boundary_id);
+      const std::vector<int> & side_ids = exodusII_side_ids_for_boundary_id.at(
+                                             boundary_id);
 
       sprintf(name_buffer, "side_ss%d_dim", boundary_id);
 
@@ -480,7 +486,7 @@ static void WriteSideSetInformationForMesh(int ncid, Mesh & mesh,
    for (int boundary_id : boundary_ids)
    {
       // TODO: - need to figure-out correct element ids (we only have local element indexes into the boundaries array!)
-      const std::vector<int> & element_ids = element_ids_for_boundary_id.at(
+      const std::vector<int> & element_ids = exodusII_element_ids_for_boundary_id.at(
                                                 boundary_id);
 
       sprintf(name_buffer, "elem_ss%d_dim", boundary_id);
@@ -768,6 +774,9 @@ static void GenerateExodusIIBoundaryInfo(Mesh & mesh,
             break;
          case Element::Type::HEXAHEDRON:
             exodusII_face_id = mfem_to_exodusII_side_map_hex8[iface];
+            break;
+         case Element::Type::WEDGE:
+            exodusII_face_id = mfem_to_exodusII_side_map_wedge6[iface];
             break;
          default:
             MFEM_ABORT("Cannot handle element of type " << element_type);
