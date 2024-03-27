@@ -51,10 +51,10 @@ using namespace mfem;
 // directly at the cylinder wall boundary.
 void velocity_profile(const Vector &c, Vector &q)
 {
-   double A = 1.0;
-   double x = c(0);
-   double y = c(1);
-   double r = sqrt(pow(x, 2.0) + pow(y, 2.0));
+   real_t A = 1.0;
+   real_t x = c(0);
+   real_t y = c(1);
+   real_t r = sqrt(pow(x, 2.0) + pow(y, 2.0));
 
    q(0) = 0.0;
    q(1) = 0.0;
@@ -101,8 +101,8 @@ public:
     */
    ConvectionDiffusionTDO(ParFiniteElementSpace &fes,
                           Array<int> ess_tdofs,
-                          double alpha = 1.0,
-                          double sigma = 1.0e-1)
+                          real_t alpha = 1.0,
+                          real_t sigma = 1.0e-1)
       : TimeDependentOperator(fes.GetTrueVSize()),
         Mform(&fes),
         Kform(&fes),
@@ -191,7 +191,7 @@ public:
    /// when using a Nedelec space.
    Array<int> ess_tdofs_;
 
-   double current_dt = -1.0;
+   real_t current_dt = -1.0;
 
    /// Mass matrix solver
    CGSolver M_solver;
@@ -211,8 +211,8 @@ int main(int argc, char *argv[])
    int myid = Mpi::WorldRank();
 
    int order = 2;
-   double t_final = 5.0;
-   double dt = 1.0e-5;
+   real_t t_final = 5.0;
+   real_t dt = 1.0e-5;
    bool visualization = true;
    int vis_steps = 10;
 
@@ -356,7 +356,7 @@ int main(int argc, char *argv[])
                                                   magnetic_field_block_gf,
                                                   magnetic_field_cylinder_gf);
 
-   double t = 0.0;
+   real_t t = 0.0;
    bool last_step = false;
    for (int ti = 1; !last_step; ti++)
    {
