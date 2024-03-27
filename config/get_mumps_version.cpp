@@ -9,7 +9,11 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#ifdef MFEM_USE_SINGLE
+#include "smumps_c.h"
+#else
 #include "dmumps_c.h"
+#endif
 #include <string>
 #include <iostream>
 #include <algorithm>

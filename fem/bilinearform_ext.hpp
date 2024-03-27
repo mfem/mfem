@@ -248,7 +248,7 @@ protected:
    void SetupMultInputs(const Operator *elem_restrict_x,
                         const Vector &x, Vector &localX,
                         const Operator *elem_restrict_y,
-                        Vector &y, Vector &localY, const double c) const;
+                        Vector &y, Vector &localY, const real_t c) const;
 
 public:
    PAMixedBilinearFormExtension(MixedBilinearForm *form);
@@ -277,11 +277,11 @@ public:
    /// y = A*x
    void Mult(const Vector &x, Vector &y) const;
    /// y += c*A*x
-   void AddMult(const Vector &x, Vector &y, const double c=1.0) const;
+   void AddMult(const Vector &x, Vector &y, const real_t c=1.0) const;
    /// y = A^T*x
    void MultTranspose(const Vector &x, Vector &y) const;
    /// y += c*A^T*x
-   void AddMultTranspose(const Vector &x, Vector &y, const double c=1.0) const;
+   void AddMultTranspose(const Vector &x, Vector &y, const real_t c=1.0) const;
    /// Assemble the diagonal of ADA^T for a diagonal vector D.
    void AssembleDiagonal_ADAt(const Vector &D, Vector &diag) const;
 
@@ -305,9 +305,9 @@ public:
    /// Partial assembly of all internal integrators
    void Assemble();
 
-   void AddMult(const Vector &x, Vector &y, const double c=1.0) const;
+   void AddMult(const Vector &x, Vector &y, const real_t c=1.0) const;
 
-   void AddMultTranspose(const Vector &x, Vector &y, const double c=1.0) const;
+   void AddMultTranspose(const Vector &x, Vector &y, const real_t c=1.0) const;
 
    void FormRectangularSystemOperator(const Array<int>&, const Array<int>&,
                                       OperatorHandle& A);
