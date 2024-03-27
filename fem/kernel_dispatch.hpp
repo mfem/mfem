@@ -238,10 +238,6 @@ public:
       {
          constexpr int DIM = 1;
          std::tuple<int, UserParams...> param_tuple  (DIM, params...);
-         // All kernels require at least D1D and Q1D
-         static_assert(sizeof...(params) >= 2,
-                       "All specializations require at least two template parameters");
-
          table_ptr->table[param_tuple] = ApplyKernelsHelperClass::Kernel1D();
       }
    };
@@ -265,11 +261,9 @@ public:
       {
          constexpr int DIM = 2;
          std::tuple<int, UserParams...> param_tuple (DIM, params...);
+
          // All kernels require at least D1D and Q1D, which are listed first in a
          // parameter pack.
-         static_assert(sizeof...(params) >= 2,
-                       "All specializations require at least two template parameters");
-
          constexpr int D1D = getD1D(params...);
          constexpr int Q1D = getQ1D(params...);
          constexpr int NBZ = GetNBZ(D1D, Q1D);
@@ -286,9 +280,6 @@ public:
       {
          constexpr int DIM = 3;
          std::tuple<int, UserParams...> param_tuple (DIM, params...);
-         static_assert(sizeof...(UserParams) >= 2,
-                       "All specializations require at least two template parameters");
-
          table_ptr->table[param_tuple] = ApplyKernelsHelperClass::template
                                          Kernel3D<params...>();
       }
