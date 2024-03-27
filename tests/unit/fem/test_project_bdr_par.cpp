@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
+#include "mpi.h"
 #include "unit_tests.hpp"
 
 using namespace mfem;
@@ -65,7 +66,6 @@ TEST_CASE("ProjectBdrCoefficient", "[Parallel]")
    ParGridFunction gf(&h1fes);
    gf = 0.0;
 
-
    int par_bdr_max = par_mesh.bdr_attributes.Max();
 
    Array<int> all_bdr(par_bdr_max);
@@ -78,23 +78,29 @@ TEST_CASE("ProjectBdrCoefficient", "[Parallel]")
    // An interior boundary element is only owned by one of the two sharing processors
    // and we expect the GridFunction on each of the two processors to be the same value
    // on that face. We test this by checking that each element sum is the same.
-   double local_sum_expected = 0.0;
-   double local_sum = 0.0;
+   real_t local_sum_expected = 0.0;
+   real_t local_sum = 0.0;
    for (int e = 0; e < par_mesh.GetNE(); e++)
    {
       Vector dof_vals;
       gf.GetElementDofValues(e, dof_vals);
 
-      double e_sum = dof_vals.Sum();
+      real_t e_sum = dof_vals.Sum();
 
       if (e == 0) { local_sum_expected = e_sum * par_mesh.GetGlobalNE(); }
 
       local_sum += e_sum;
    }
-   double global_sum = 0.0, global_sum_expected = 0.0;
+   real_t global_sum = 0.0, global_sum_expected = 0.0;
+#ifdef MFEM_USE_DOUBLE
    MPI_Allreduce(&local_sum, &global_sum, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
    MPI_Allreduce(&local_sum_expected, &global_sum_expected, 1, MPI_DOUBLE, MPI_MAX,
                  MPI_COMM_WORLD);
+#else
+   MPI_Allreduce(&local_sum, &global_sum, 1, MPI_FLOAT, MPI_SUM, MPI_COMM_WORLD);
+   MPI_Allreduce(&local_sum_expected, &global_sum_expected, 1, MPI_FLOAT, MPI_MAX,
+                 MPI_COMM_WORLD);
+#endif
 
    REQUIRE(global_sum == global_sum_expected);
 }
