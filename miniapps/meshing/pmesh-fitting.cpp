@@ -500,6 +500,7 @@ int main (int argc, char *argv[])
          ModifyAttributeForMarkingDOFS(pmesh, mat, 0);
          ModifyAttributeForMarkingDOFS(pmesh, mat, 1);
       }
+      pmesh->SetAttributes();
 
       GridFunctionCoefficient coeff_mat(&mat);
       surf_fit_mat_gf.ProjectDiscCoefficient(coeff_mat,
@@ -780,9 +781,9 @@ int main (int argc, char *argv[])
    {
       solver.SetTerminationWithMaxSurfaceFittingError(surface_fit_threshold);
    }
-   solver.SetFittingConvergenceBasedOnError(!conv_residual);
    if (conv_residual)
    {
+      solver.SetFittingConvergenceBasedOnError(!conv_residual);
       solver.SetMaximumFittingWeightLimit(surf_fit_const_max);
    }
 
