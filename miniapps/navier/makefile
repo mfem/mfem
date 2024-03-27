@@ -53,6 +53,7 @@ endif
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
 .PHONY: all clean clean-build clean-exec
+.PRECIOUS: %.cpp.o
 
 all: $(MINIAPPS)
 
