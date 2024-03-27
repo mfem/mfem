@@ -243,8 +243,7 @@ public:
          static_assert(sizeof...(params) >= 2,
                        "All specializations require at least two template parameters");
 
-         table_ptr->table[param_tuple] = ApplyKernelsHelperClass::template
-                                         Kernel1D();
+         table_ptr->table[param_tuple] = ApplyKernelsHelperClass::Kernel1D();
       }
    };
 
