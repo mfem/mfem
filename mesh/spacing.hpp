@@ -48,7 +48,7 @@ public:
    void SetReverse(bool r) { reverse = r; }
 
    /// Returns the width of interval @a p (between 0 and @a Size() - 1).
-   virtual double Eval(int p) const = 0;
+   virtual real_t Eval(int p) const = 0;
 
    /// Returns the width of all intervals, resizing @a s to @a Size().
    void EvalAll(Vector & s) const
@@ -65,7 +65,7 @@ public:
        Note that parameters may be scaled inversely during coarsening and
        refining, so the scaling should be linear in the sense that scaling by a
        number followed by scaling by its inverse has no effect on parameters. */
-   virtual void ScaleParameters(double a) { }
+   virtual void ScaleParameters(real_t a) { }
 
    /// Returns the spacing type, indicating the derived class.
    virtual SpacingType GetSpacingType() const = 0;
@@ -124,7 +124,7 @@ public:
       CalculateSpacing();
    }
 
-   double Eval(int p) const override
+   real_t Eval(int p) const override
    {
       return s;
    }
@@ -160,13 +160,13 @@ public:
    }
 
 private:
-   double s; ///< Width of each interval (element)
+   real_t s; ///< Width of each interval (element)
 
    /// Calculate interval width @a s
    void CalculateSpacing()
    {
       // Spacing is 1 / n
-      s = 1.0 / ((double) n);
+      s = 1.0 / ((real_t) n);
    }
 };
 
@@ -179,7 +179,7 @@ private:
 class LinearSpacingFunction : public SpacingFunction
 {
 public:
-   LinearSpacingFunction(int n, bool r, double s, bool scale)
+   LinearSpacingFunction(int n, bool r, real_t s, bool scale)
       : SpacingFunction(n, r, scale), s(s)
    {
       MFEM_VERIFY(0.0 < s && s < 1.0, "Initial spacing must be in (0,1)");
@@ -192,7 +192,7 @@ public:
       CalculateDifference();
    }
 
-   void ScaleParameters(double a) override
+   void ScaleParameters(real_t a) override
    {
       if (scale)
       {
@@ -201,7 +201,7 @@ public:
       }
    }
 
-   double Eval(int p) const override
+   real_t Eval(int p) const override
    {
       MFEM_ASSERT(0 <= p && p < n, "Access element " << p
                   << " of spacing function, size = " << n);
@@ -243,7 +243,7 @@ public:
    }
 
 private:
-   double s, d;  ///< Spacing parameters, set by @a CalculateDifference
+   real_t s, d;  ///< Spacing parameters, set by @a CalculateDifference
 
    void CalculateDifference()
    {
@@ -255,7 +255,7 @@ private:
 
       // Spacings are s, s + d, ..., s + (n-1)d, which must sum to 1:
       // 1 = ns + dn(n-1)/2
-      d = 2.0 * (1.0 - (n * s)) / ((double) (n*(n-1)));
+      d = 2.0 * (1.0 - (n * s)) / ((real_t) (n*(n-1)));
 
       if (s + ((n-1) * d) <= 0.0)
       {
@@ -275,7 +275,7 @@ private:
 class GeometricSpacingFunction : public SpacingFunction
 {
 public:
-   GeometricSpacingFunction(int n, bool r, double s, bool scale)
+   GeometricSpacingFunction(int n, bool r, real_t s, bool scale)
       : SpacingFunction(n, r, scale), s(s)
    {
       CalculateSpacing();
@@ -287,7 +287,7 @@ public:
       CalculateSpacing();
    }
 
-   void ScaleParameters(double a) override
+   void ScaleParameters(real_t a) override
    {
       if (scale)
       {
@@ -296,7 +296,7 @@ public:
       }
    }
 
-   double Eval(int p) const override
+   real_t Eval(int p) const override
    {
       const int i = reverse ? n - 1 - p : p;
       return n == 1 ? 1.0 : s * std::pow(r, i);
@@ -337,8 +337,8 @@ public:
    }
 
 private:
-   double s;  ///< Initial spacing
-   double r;  ///< Ratio
+   real_t s;  ///< Initial spacing
+   real_t r;  ///< Ratio
 
    /// Calculate parameters used by @a Eval and @a EvalAll
    void CalculateSpacing();
@@ -364,7 +364,7 @@ public:
    @param[in] s  Whether to scale parameters by the refinement or coarsening
                   factor, in the function @a SpacingFunction::ScaleParameters.
    */
-   BellSpacingFunction(int n, bool r, double s0, double s1, bool s)
+   BellSpacingFunction(int n, bool r, real_t s0, real_t s1, bool s)
       : SpacingFunction(n, r, s), s0(s0), s1(s1)
    {
       CalculateSpacing();
@@ -376,7 +376,7 @@ public:
       CalculateSpacing();
    }
 
-   void ScaleParameters(double a) override
+   void ScaleParameters(real_t a) override
    {
       if (scale)
       {
@@ -386,7 +386,7 @@ public:
       }
    }
 
-   double Eval(int p) const override
+   real_t Eval(int p) const override
    {
       const int i = reverse ? n - 1 - p : p;
       return s[i];
@@ -427,7 +427,7 @@ public:
    }
 
 private:
-   double s0, s1; ///< First and last interval widths
+   real_t s0, s1; ///< First and last interval widths
    Vector s;  ///< Stores the spacings calculated by @a CalculateSpacing
 
    /// Calculate parameters used by @a Eval and @a EvalAll
@@ -455,7 +455,7 @@ public:
    @param[in] s  Whether to scale parameters by the refinement or coarsening
                   factor, in the function @a SpacingFunction::ScaleParameters.
    */
-   GaussianSpacingFunction(int n, bool r, double s0, double s1, bool s)
+   GaussianSpacingFunction(int n, bool r, real_t s0, real_t s1, bool s)
       : SpacingFunction(n, r, s), s0(s0), s1(s1)
    {
       CalculateSpacing();
@@ -467,7 +467,7 @@ public:
       CalculateSpacing();
    }
 
-   void ScaleParameters(double a) override
+   void ScaleParameters(real_t a) override
    {
       if (scale)
       {
@@ -477,7 +477,7 @@ public:
       }
    }
 
-   double Eval(int p) const override
+   real_t Eval(int p) const override
    {
       const int i = reverse ? n - 1 - p : p;
       return s[i];
@@ -518,7 +518,7 @@ public:
    }
 
 private:
-   double s0, s1; ///< First and last interval widths
+   real_t s0, s1; ///< First and last interval widths
    Vector s;  ///< Stores the spacings calculated by @a CalculateSpacing
 
    /// Calculate parameters used by @a Eval and @a EvalAll
@@ -535,7 +535,7 @@ private:
 class LogarithmicSpacingFunction : public SpacingFunction
 {
 public:
-   LogarithmicSpacingFunction(int n, bool r, bool sym=false, double b=10.0)
+   LogarithmicSpacingFunction(int n, bool r, bool sym=false, real_t b=10.0)
       : SpacingFunction(n, r), sym(sym), logBase(b)
    {
       CalculateSpacing();
@@ -547,7 +547,7 @@ public:
       CalculateSpacing();
    }
 
-   double Eval(int p) const override
+   real_t Eval(int p) const override
    {
       const int i = reverse ? n - 1 - p : p;
       return s[i];
@@ -589,7 +589,7 @@ public:
 
 private:
    bool sym;  ///< Whether to make the spacing symmetric
-   double logBase;  ///< Base of the logarithmic function
+   real_t logBase;  ///< Base of the logarithmic function
    Vector s;  ///< Stores the spacings calculated by @a CalculateSpacing
 
    /// Calculate parameters used by @a Eval and @a EvalAll
@@ -662,13 +662,13 @@ public:
       CalculateSpacing();
    }
 
-   double Eval(int p) const override
+   real_t Eval(int p) const override
    {
       const int i = reverse ? n - 1 - p : p;
       return s[i];
    }
 
-   void ScaleParameters(double a) override;
+   void ScaleParameters(real_t a) override;
 
    void Print(std::ostream &os) const override;
 
