@@ -58,7 +58,7 @@ namespace blocksolvers
 struct BPSParameters : IterSolveParameters
 {
    bool use_bpcg = true;   // whether to use BPCG
-   double q_scaling = 0.5; // scaling (> 0 and < 1) of the Q preconditioner
+   real_t q_scaling = 0.5; // scaling (> 0 and < 1) of the Q preconditioner
 };
 
 /// Bramble-Pasciak Conjugate Gradient
@@ -159,7 +159,7 @@ public:
                                 M_T x_T = lambda_T diag(M_T) x_T.
        We set Q_T = alpha * min(lambda_T) * diag(M_T), 0 < alpha < 1. */
    static HypreParMatrix *ConstructMassPreconditioner(ParBilinearForm &mVarf,
-                                                      double alpha = 0.5);
+                                                      real_t alpha = 0.5);
 
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual void SetOperator(const Operator &op) { }

@@ -40,13 +40,13 @@ public:
 
        The state @a x must be a "GridFunction size" vector, i.e. its size must
        be fes->GetVSize(). */
-   double GetParGridFunctionEnergy(const Vector &x) const;
+   real_t GetParGridFunctionEnergy(const Vector &x) const;
 
    /// Compute the energy of a ParGridFunction
-   double GetEnergy(const ParGridFunction &x) const
+   real_t GetEnergy(const ParGridFunction &x) const
    { return GetParGridFunctionEnergy(x); }
 
-   virtual double GetEnergy(const Vector &x) const
+   virtual real_t GetEnergy(const Vector &x) const
    { return GetParGridFunctionEnergy(Prolongate(x)); }
 
    virtual void Mult(const Vector &x, Vector &y) const;
@@ -83,7 +83,7 @@ protected:
 
 public:
    /// Computes the energy of the system
-   virtual double GetEnergy(const Vector &x) const;
+   virtual real_t GetEnergy(const Vector &x) const;
 
    /// Construct an empty ParBlockNonlinearForm. Initialize with SetParSpaces().
    ParBlockNonlinearForm() : pBlockGrad(NULL) { }

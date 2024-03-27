@@ -17,7 +17,7 @@
 namespace mfem
 {
 
-double ParametricBNLFormIntegrator::GetElementEnergy(const
+real_t ParametricBNLFormIntegrator::GetElementEnergy(const
                                                      Array<const FiniteElement *> &el,
                                                      const Array<const FiniteElement *> &pel,
                                                      ElementTransformation &Tr,
@@ -254,7 +254,7 @@ void ParametricBNLForm::AddBdrFaceIntegrator(ParametricBNLFormIntegrator *nlfi,
    bfnfi_marker.Append(&bdr_marker);
 }
 
-double ParametricBNLForm::GetEnergyBlocked(const BlockVector &bx,
+real_t ParametricBNLForm::GetEnergyBlocked(const BlockVector &bx,
                                            const BlockVector &dx) const
 {
    Array<Array<int> *> vdofs(fes.Size());
@@ -268,7 +268,7 @@ double ParametricBNLForm::GetEnergyBlocked(const BlockVector &bx,
    Array<const Vector *> prmel_x_const(paramfes.Size());
    Array<const FiniteElement *> prmfe(paramfes.Size());
 
-   double energy = 0.0;
+   real_t energy = 0.0;
 
    for (int i=0; i<fes.Size(); ++i)
    {
@@ -386,7 +386,7 @@ void ParametricBNLForm::SetParamFields(const Vector &dv) const
    }
 }
 
-double ParametricBNLForm::GetEnergy(const Vector &x) const
+real_t ParametricBNLForm::GetEnergy(const Vector &x) const
 {
    xs.Update(const_cast<Vector&>(x),block_offsets);
    return GetEnergyBlocked(xs,xdv);
