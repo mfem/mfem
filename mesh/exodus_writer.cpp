@@ -362,10 +362,6 @@ void Mesh::WriteExodusII(const std::string fpath)
             MFEM_ABORT("Unsupported MFEM element type: " << front_element->GetType());
       }
 
-      int elem_type_dim;
-      status = nc_def_dim(ncid, "elem_type", element_type.length(), &elem_type_dim);
-      HandleNetCDFStatus(status);
-
       char name_buffer[100];
       sprintf(name_buffer, "connect%d", block_id);
 
