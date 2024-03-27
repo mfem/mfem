@@ -612,6 +612,7 @@ Array<int> count_be(ParMesh &mesh)
    }
 
    Array<int> glb_counts(bdr_max + 1);
+   glb_counts = 0;
    MPI_Reduce(counts, glb_counts, bdr_max + 1,
               MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
 
@@ -620,84 +621,86 @@ Array<int> count_be(ParMesh &mesh)
 
 TEST_CASE("ParSubMesh Interior Boundaries", "[Parallel],[ParSubMesh]")
 {
-   /*
-    int num_procs = Mpi::WorldSize();
+   int num_procs = Mpi::WorldSize();
 
-    Mesh serial_mesh = Mesh::MakeCartesian3D(num_procs, num_procs, 1,
-                                             Element::HEXAHEDRON,
-                                             1.0, 1.0, 0.1, false);
+   Mesh serial_mesh = Mesh::MakeCartesian3D(num_procs, num_procs, 1,
+                                            Element::HEXAHEDRON,
+                                            1.0, 1.0, 0.1, false);
 
-    // Assign alternating element attributes to each element to create a
-    // checkerboard pattern
-    for (int i=0; i < serial_mesh.GetNE(); i++)
-    {
-       int attr = (i + (1 + num_procs % 2) * (i / num_procs)) % 2 + 1;
-       serial_mesh.SetAttribute(i, attr);
-    }
+   // Assign alternating element attributes to each element to create a
+   // checkerboard pattern
+   for (int i=0; i < serial_mesh.GetNE(); i++)
+   {
+      int attr = (i + (1 + num_procs % 2) * (i / num_procs)) % 2 + 1;
+      serial_mesh.SetAttribute(i, attr);
+   }
 
-    int bdr_max = serial_mesh.bdr_attributes.Max();
+   int bdr_max = serial_mesh.bdr_attributes.Max();
 
-    // Label all interior faces as boundary elements
-    Array<int> v(4);
-    for (int i=0; i < serial_mesh.GetNumFaces(); i++)
-    {
-       if (serial_mesh.FaceIsInterior(i))
-       {
-          serial_mesh.GetFaceVertices(i, v);
-          serial_mesh.AddBdrQuad(v, bdr_max + i + 1);
-       }
-    }
-    serial_mesh.FinalizeMesh();
-    serial_mesh.SetAttributes();
+   // Label all interior faces as boundary elements
+   Array<int> v(4);
+   for (int i=0; i < serial_mesh.GetNumFaces(); i++)
+   {
+      if (serial_mesh.FaceIsInterior(i))
+      {
+         serial_mesh.GetFaceVertices(i, v);
+         serial_mesh.AddBdrQuad(v, bdr_max + i + 1);
+      }
+   }
+   serial_mesh.FinalizeMesh();
+   serial_mesh.SetAttributes();
 
-    // Create an intentionally bad partitioning
-    Array<int> partitioning(num_procs * num_procs);
-    for (int i = 0; i < num_procs * num_procs; i++)
-    {
-       // The following creates a shifting pattern where neighboring elements
-       // are never owned by the same processor
-       partitioning[i] = (2 * num_procs - 1 - (i % num_procs) -
-                          i / num_procs) % num_procs;
-    }
+   // Create an intentionally bad partitioning
+   Array<int> partitioning(num_procs * num_procs);
+   for (int i = 0; i < num_procs * num_procs; i++)
+   {
+      // The following creates a shifting pattern where neighboring elements
+      // are never owned by the same processor
+      partitioning[i] = (2 * num_procs - 1 - (i % num_procs) -
+                         i / num_procs) % num_procs;
+   }
 
-    ParMesh parent_mesh(MPI_COMM_WORLD, serial_mesh, partitioning);
+   ParMesh parent_mesh(MPI_COMM_WORLD, serial_mesh, partitioning);
 
-    // Create a pair of domain-based sub meshes
-    Array<int> domain1(1);
-    domain1[0] = 1;
+   // Create a pair of domain-based sub meshes
+   Array<int> domain1(1);
+   domain1[0] = 1;
 
-    Array<int> domain2(1);
-    domain2[0] = 2;
+   Array<int> domain2(1);
+   domain2[0] = 2;
 
-    auto domain1_submesh = ParSubMesh::CreateFromDomain(parent_mesh,
-                                                        domain1);
+   auto domain1_submesh = ParSubMesh::CreateFromDomain(parent_mesh,
+                                                       domain1);
 
-    auto domain2_submesh = ParSubMesh::CreateFromDomain(parent_mesh,
-                                                        domain2);
+   auto domain2_submesh = ParSubMesh::CreateFromDomain(parent_mesh,
+                                                       domain2);
 
-    // Create histograms of boundary attributes in each sub-domain
-    auto be1 = count_be(domain1_submesh);
-    auto be2 = count_be(domain2_submesh);
+   // Create histograms of boundary attributes in each sub-domain
+   auto be1 = count_be(domain1_submesh);
+   auto be2 = count_be(domain2_submesh);
 
-    // Verify that all exterior boundary elements were accounted for
-    REQUIRE(be1[1] + be2[1] == num_procs * num_procs);
-    REQUIRE(be1[2] + be2[2] == num_procs);
-    REQUIRE(be1[3] + be2[3] == num_procs);
-    REQUIRE(be1[4] + be2[4] == num_procs);
-    REQUIRE(be1[5] + be2[5] == num_procs);
-    REQUIRE(be1[6] + be2[6] == num_procs * num_procs);
+   // Only the root process has valid histograms
+   if (Mpi::Root())
+   {
+      // Verify that all exterior boundary elements were accounted for
+      REQUIRE(be1[1] + be2[1] == num_procs * num_procs);
+      REQUIRE(be1[2] + be2[2] == num_procs);
+      REQUIRE(be1[3] + be2[3] == num_procs);
+      REQUIRE(be1[4] + be2[4] == num_procs);
+      REQUIRE(be1[5] + be2[5] == num_procs);
+      REQUIRE(be1[6] + be2[6] == num_procs * num_procs);
 
-    // Verify that all interior boundary elements appear once in each submesh
-    for (int i=0; i < serial_mesh.GetNumFaces(); i++)
-    {
-       if (serial_mesh.FaceIsInterior(i))
-       {
-          const int attr = bdr_max + i + 1;
-          REQUIRE(be1[attr] == 1);
-          REQUIRE(be2[attr] == 1);
-       }
-    }
-   */
+      // Verify that all interior boundary elements appear once in each submesh
+      for (int i=0; i < serial_mesh.GetNumFaces(); i++)
+      {
+         if (serial_mesh.FaceIsInterior(i))
+         {
+            const int attr = bdr_max + i + 1;
+            REQUIRE(be1[attr] == 1);
+            REQUIRE(be2[attr] == 1);
+         }
+      }
+   }
 }
 
 } // namespace ParSubMeshTests
