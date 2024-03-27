@@ -292,6 +292,7 @@ miniapps/nurbs/Solenoidal*
 miniapps/nurbs/ParaView
 miniapps/nurbs/sin-fit.mesh
 miniapps/nurbs/ex5.mesh
+miniapps/nurbs/exsol.mesh
 miniapps/nurbs/CurveInt
 miniapps/nurbs/nurbs_naca_cmesh
 miniapps/nurbs/naca-cmesh.mesh
