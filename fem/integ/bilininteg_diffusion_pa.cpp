@@ -33,8 +33,8 @@ void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
       const int Q1D = quad1D;
       const int NE = ne;
       const bool symm = symmetric;
-      const Array<double> &B = maps->B;
-      const Array<double> &G = maps->G;
+      const Array<real_t> &B = maps->B;
+      const Array<real_t> &G = maps->G;
       // These two arrays are left empty as they are unused in diagonal diffusion
       // kernels.
       const Vector &Dv = pa_data;
@@ -56,10 +56,10 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
       const int Q1D = quad1D;
       const int NE = ne;
       const bool symm = symmetric;
-      const Array<double> &B = maps->B;
-      const Array<double> &G = maps->G;
-      const Array<double> &Bt = maps->Bt;
-      const Array<double> &Gt = maps->Gt;
+      const Array<real_t> &B = maps->B;
+      const Array<real_t> &G = maps->G;
+      const Array<real_t> &Bt = maps->Bt;
+      const Array<real_t> &Gt = maps->Gt;
       const Vector &Dv = pa_data;
 
 #ifdef MFEM_USE_OCCA

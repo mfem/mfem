@@ -33,7 +33,7 @@ void PAMassAssembleDiagonal(const int dim, const int D1D,
 
 // PA Mass Diagonal 1D kernel
 static void PAMassAssembleDiagonal1D(const int NE,
-                                     const Array<double> &b,
+                                     const Array<real_t> &b,
                                      const Vector &d,
                                      Vector &y,
                                      const int D1D,
@@ -57,11 +57,11 @@ static void PAMassAssembleDiagonal1D(const int NE,
 MFEM_HOST_DEVICE inline
 void PAMassApply1D_Element(const int e,
                            const int NE,
-                           const double *b_,
-                           const double *bt_,
-                           const double *d_,
-                           const double *x_,
-                           double *y_,
+                           const real_t *b_,
+                           const real_t *bt_,
+                           const real_t *d_,
+                           const real_t *x_,
+                           real_t *y_,
                            const int d1d = 0,
                            const int q1d = 0)
 {
@@ -73,14 +73,14 @@ void PAMassApply1D_Element(const int e,
    auto X = ConstDeviceMatrix(x_, D1D, NE);
    auto Y = DeviceMatrix(y_, D1D, NE);
 
-   double XQ[DofQuadLimits::MAX_Q1D];
+   real_t XQ[DofQuadLimits::MAX_Q1D];
    for (int qx = 0; qx < Q1D; ++qx)
    {
       XQ[qx] = 0.0;
    }
    for (int dx = 0; dx < D1D; ++dx)
    {
-      const double s = X(dx,e);
+      const real_t s = X(dx,e);
       for (int qx = 0; qx < Q1D; ++qx)
       {
          XQ[qx] += B(qx,dx)*s;
@@ -98,8 +98,8 @@ void PAMassApply1D_Element(const int e,
 
 // PA Mass Apply 1D kernel
 static void PAMassApply1D(const int NE,
-                          const Array<double> &b_,
-                          const Array<double> &bt_,
+                          const Array<real_t> &b_,
+                          const Array<real_t> &bt_,
                           const Vector &d_,
                           const Vector &x_,
                           Vector &y_,
