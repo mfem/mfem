@@ -282,15 +282,14 @@ class NURBSExtension
    friend class NURBSPatchMap;
 
 protected:
-   enum Mode
+   /// Flag for indicating what type of NURBS fespace this extension is used for.
+   enum class Mode
    {
-      HP,
-      H_DIV,
-      H_CURL,
+      H_1,    ///> Extension for a standard scalar-valued space
+      H_DIV,  ///> Extension for a divergence conforming vector-valued space
+      H_CURL, ///> Extension for a curl conforming vector-valued space
    };
-
-   Mode mode = Mode::HP;
-
+   Mode mode = Mode::H_1;
 
    int mOrder; // see GetOrder() for description
    Array<int> mOrders;
@@ -464,7 +463,7 @@ public:
    /** If a knot vector in @a parent already has order greater than or equal to
        the corresponding entry in @a newOrder, it will be used unmodified. */
    NURBSExtension(NURBSExtension *parent, const Array<int> &newOrders,
-                  Mode mode = Mode::HP);
+                  Mode mode = Mode::H_1);
    /// Construct a NURBSExtension by merging a partitioned NURBS mesh
    NURBSExtension(Mesh *mesh_array[], int num_pieces);
 
