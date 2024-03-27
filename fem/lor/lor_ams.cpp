@@ -305,13 +305,13 @@ void BatchedLOR_AMS::FormCoordinateVectors(const Vector &X_vert)
    HYPRE_BigInt glob_size = vert_fes.GlobalTrueVSize();
    HYPRE_BigInt *cols = vert_fes.GetTrueDofOffsets();
 
-   double *d_x_ptr = xyz_tv + 0*ntdofs;
+   real_t *d_x_ptr = xyz_tv + 0*ntdofs;
    x = new HypreParVector(vert_fes.GetComm(), glob_size, d_x_ptr, cols, dev);
-   double *d_y_ptr = xyz_tv + 1*ntdofs;
+   real_t *d_y_ptr = xyz_tv + 1*ntdofs;
    y = new HypreParVector(vert_fes.GetComm(), glob_size, d_y_ptr, cols, dev);
    if (sdim == 3)
    {
-      double *d_z_ptr = xyz_tv + 2*ntdofs;
+      real_t *d_z_ptr = xyz_tv + 2*ntdofs;
       z = new HypreParVector(vert_fes.GetComm(), glob_size, d_z_ptr, cols, dev);
    }
    else

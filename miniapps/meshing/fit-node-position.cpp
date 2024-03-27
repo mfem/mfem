@@ -105,7 +105,7 @@ int main (int argc, char *argv[])
       for (int j = 0; j < nd; j++)
       {
          int j_x = vdofs[j], j_y = vdofs[nd+j];
-         const double x = coord(j_x),
+         const real_t x = coord(j_x),
                       z = (dim == 2) ? 0.0 : coord(vdofs[2*nd + j]);
          fit_marker[pfes_mesh.VDofToDof(j_x)] = true;
          fit_marker_vis_gf(j_x) = 1.0;
