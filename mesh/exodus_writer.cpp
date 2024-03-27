@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "mesh_headers.hpp"
+#include <unordered_set>
 
 #ifdef MFEM_USE_NETCDF
 #include "netcdf.h"
@@ -27,8 +28,8 @@ static void GenerateExodusIIElementBlocksFromMesh(Mesh & mesh,
 
 static void GenerateExodusIIBoundaryInfo(Mesh & mesh,
                                          std::vector<int> & unique_boundary_ids,
-                                         std::map<int, std::vector<int>> & elements_for_boundary_id_1based,
-                                         std::map<int, std::vector<int>> & sides_for_boundary_id_1based);
+                                         std::map<int, std::vector<int>> & exodusII_element_ids_for_boundary_id,
+                                         std::map<int, std::vector<int>> & exodusII_side_ids_for_boundary_id);
 
 static void GenerateExodusIINodeIDsFromMesh(Mesh & mesh, int & num_nodes);
 
@@ -50,6 +51,13 @@ static void WriteSideSetInformationForMesh(int ncid, Mesh & mesh,
                                            const std::map<int, std::vector<int>> & side_ids_for_boundary_id);
 
 static void WriteBlockIDs(int ncid, const std::vector<int> & unique_block_ids);
+
+
+// Returns the Exodus II face ID for the MFEM face index.
+const int mfem_to_exodusII_side_map_tet4[] =
+{
+   2, 3, 1, 4
+};
 
 
 void Mesh::WriteExodusII(const std::string fpath)
@@ -128,11 +136,11 @@ void Mesh::WriteExodusII(const std::string fpath)
    // Set # side sets ("boundaries")
    //
    std::vector<int> boundary_ids;
-   std::map<int, std::vector<int>> element_ids_for_boundary_id_1based;
-   std::map<int, std::vector<int>> side_ids_for_boundary_id_1based;
+   std::map<int, std::vector<int>> exodusII_element_ids_for_boundary_id;
+   std::map<int, std::vector<int>> exodusII_side_ids_for_boundary_id;
    GenerateExodusIIBoundaryInfo(*this, boundary_ids,
-                                element_ids_for_boundary_id_1based,
-                                side_ids_for_boundary_id_1based);
+                                exodusII_element_ids_for_boundary_id,
+                                exodusII_side_ids_for_boundary_id);
 
    int num_side_sets_ids;
    status = nc_def_dim(ncid, "num_side_sets", (int)boundary_ids.size(),
@@ -364,8 +372,8 @@ void Mesh::WriteExodusII(const std::string fpath)
    // Write sideset information.
    //
    WriteSideSetInformationForMesh(ncid, *this, boundary_ids,
-                                  element_ids_for_boundary_id_1based,
-                                  side_ids_for_boundary_id_1based);
+                                  exodusII_element_ids_for_boundary_id,
+                                  exodusII_side_ids_for_boundary_id);
 
    //
    // Close file
@@ -675,63 +683,91 @@ static void GenerateExodusIINodeIDsFromMesh(Mesh & mesh, int & num_nodes)
 
 static void GenerateExodusIIBoundaryInfo(Mesh & mesh,
                                          std::vector<int> & unique_boundary_ids,
-                                         std::map<int, std::vector<int>> & elements_for_boundary_id_1based,
-                                         std::map<int, std::vector<int>> & sides_for_boundary_id_1based)
+                                         std::map<int, std::vector<int>> & exodusII_element_ids_for_boundary_id,
+                                         std::map<int, std::vector<int>> & exodusII_side_ids_for_boundary_id)
 {
    // Store the unique boundary IDs.
    unique_boundary_ids.clear();
-   elements_for_boundary_id_1based.clear();
-   sides_for_boundary_id_1based.clear();
+   exodusII_element_ids_for_boundary_id.clear();
+   exodusII_side_ids_for_boundary_id.clear();
 
    for (int bdr_attribute : mesh.bdr_attributes)
    {
       unique_boundary_ids.push_back(bdr_attribute);
    }
 
-   std::map<int, std::vector<int>> elements_for_face_index;
-   std::map<int, std::vector<int>> sides_for_face_index;
+   // Generate a mapping from the MFEM face index to the MFEM element ID.
+   // Note that if we have multiple element IDs for a face index then the
+   // face is shared between them and it cannot possibly be a boundary face
+   // since that can only have a single element associated with it. Therefore
+   // we remove it from the array.
+   struct GlobalFaceIndexInfo
+   {
+      int element_index;
+      int local_face_index;
+   };
 
-   // Iterate over the elements and store a mapping from the face IDs to the elements that have that face.
-   // Note that interior faces will have multiple elements sharing a face. However, we are only interested
-   // in boundary faces (will lie on the outside) and so will only have a single element owning that face.
-   // We also want to store information about which side of an element this face lies on!
+   std::unordered_map<int, GlobalFaceIndexInfo>
+   mfem_face_index_info_for_global_face_index;
+   std::unordered_set<int> blacklisted_global_face_indices;
+
+   Array<int> global_face_indices, orient;
    for (int ielement = 0; ielement < mesh.GetNE(); ielement++)
    {
-      Array<int> faces, orientations;
-      mesh.GetElementFaces(ielement, faces, orientations);
+      mesh.GetElementFaces(ielement, global_face_indices, orient);
 
-      for (int side = 0; side < faces.Size(); side++)
+      for (int iface = 0; iface < global_face_indices.Size(); iface++)
       {
-         int face_index = faces[side];
+         int face_index = global_face_indices[iface];
 
-         elements_for_face_index[face_index].push_back(ielement);
-         sides_for_face_index[face_index].push_back(side);
+         if (blacklisted_global_face_indices.count(face_index))
+         {
+            continue;
+         }
+
+         if (mfem_face_index_info_for_global_face_index.count(
+                face_index)) // Now we've seen it twice!
+         {
+            blacklisted_global_face_indices.insert(face_index);
+            mfem_face_index_info_for_global_face_index.erase(face_index);
+            continue;
+         }
+
+         mfem_face_index_info_for_global_face_index[face_index] = { .element_index = ielement, .local_face_index = iface };
       }
    }
 
    for (int ibdr_element = 0; ibdr_element < mesh.GetNBE(); ibdr_element++)
    {
       int boundary_id = mesh.GetBdrAttribute(ibdr_element);
+      int bdr_element_face_index = mesh.GetBdrElementFaceIndex(ibdr_element);
 
-      int face_index, orientation;
-      mesh.GetBdrElementFace(ibdr_element, &face_index, &orientation);
+      // Locate match.
+      auto & element_face_info = mfem_face_index_info_for_global_face_index.at(
+                                    bdr_element_face_index);
 
-      // Look up in the maps. We MUST have a single element for each boundary side
-      // as you would expect because it lies on the outside.
-      auto & elements = elements_for_face_index.at(face_index);
-      auto & sides = sides_for_face_index.at(face_index);
+      int ielement = element_face_info.element_index;
+      int iface = element_face_info.local_face_index;
 
-      if (elements.size() != 1 || sides.size() != 1)
+      // 1. Convert MFEM 0-based element index to 1-based Exodus II element ID.
+      int exodusII_element_id = ielement + 1;
+
+      // 2. Convert 0-based MFEM face index to Exodus II 1-based face ID (different ordering).
+      int exodusII_face_id;
+
+      Element::Type element_type = mesh.GetElementType(ielement);
+      switch (element_type)
       {
-         MFEM_ABORT("No one-to-one mapping between boundary face index and elements.");
+         case Element::Type::TETRAHEDRON:
+            exodusII_face_id = mfem_to_exodusII_side_map_tet4[iface];
+            break;
+         default:
+            MFEM_ABORT("Cannot handle element of type " << element_type);
       }
 
-      int element_id = elements.front();
-      int side_id = sides.front();
-
-      elements_for_boundary_id_1based[boundary_id].push_back(element_id +
-                                                             1);  // 1-based indexing.
-      sides_for_boundary_id_1based[boundary_id].push_back(side_id);
+      exodusII_element_ids_for_boundary_id[boundary_id].push_back(
+         exodusII_element_id);
+      exodusII_side_ids_for_boundary_id[boundary_id].push_back(exodusII_face_id);
    }
 }
 
