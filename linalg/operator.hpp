@@ -371,7 +371,8 @@ public:
 
 protected:
    double t;  ///< Current time.
-   Type type; ///< Describes the form of the TimeDependentOperator.
+   Type type; /**< @brief Describes the form of the TimeDependentOperator, see
+                   the documentation of #Type. */
    EvalMode eval_mode; ///< Current evaluation mode.
 
 public:
