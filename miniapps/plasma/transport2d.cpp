@@ -20,6 +20,11 @@
 // mpirun -np 10 ./transport2d -vs 1 -epus -tf 1 -op 2 -l 1 -m annulus-quad-o3.mesh -p 1 -nn-min 1e15 -nn-max 1e15 -nn-exp 2e15 -ni-min 3e19 -ni-max 3e19 -Ti-min 10 -Ti-max 10 -Te-min 200 -Te-max 200 -dt 1e-9 -visit -bc transport2d_bc.inp
 
 #include "mfem.hpp"
+
+#ifdef MFEM_USE_OPENMP
+#include <omp.h>
+#endif
+
 #include <fstream>
 #include <sstream>
 #include <iostream>
@@ -945,6 +950,34 @@ void AdaptInitialMesh(ParMesh &pmesh, ParFiniteElementSpace &err_fespace,
 
 void InitialCondition(const Vector &x, Vector &y);
 
+class DoubleWithUnits
+{
+public:
+  DoubleWithUnits(double val) : value(val) {}
+
+  double value;
+
+  friend std::ostream& operator<<(std::ostream& stream,
+				  const DoubleWithUnits& dwu);
+};
+
+std::ostream& operator<<(std::ostream& stream, const DoubleWithUnits& dwu)
+{
+    const char prefix[11] = {' ',
+			     'K', 'M', 'G',
+			     'T', 'P', 'E',
+			     'Z', 'Y', 'R',
+			     'Q'};
+    double d = dwu.value;
+    int p = 0;
+    while (d > 1024. && p < 10)
+    {
+      d /= 1024.;
+      p++;
+    }
+    return stream << fixed << setprecision(3) << d << " " << prefix[p] << "B";
+}
+
 void record_cmd_line(int argc, char *argv[]);
 
 int main(int argc, char *argv[])
@@ -1170,7 +1203,7 @@ int main(int argc, char *argv[])
    args.AddOption(&ttol.ss_rel_tol, "-srtol", "--steady-state-rel-tolerance",
                   "Relative tolerance for Steady State detection.");
    args.AddOption(&ttol.prec.type, "-pt", "--prec-type",
-                  "Type of preconditioner: 1-AMG, 2-SuperLU");
+                  "Type of preconditioner: 1-AMG, 2-SuperLU, 3-MUMPS, 4-STRUMPACK");
    args.AddOption(&ttol.prec.log_lvl, "-plog", "--prec-logging-level",
                   "Output level for preconditioner.");
    args.AddOption(&ttol.prec.l_use_algebraic_D_cg, "-alg-cg",
@@ -1459,6 +1492,18 @@ int main(int argc, char *argv[])
    }
    if (Mpi::Root()) { args.PrintOptions(cout); cout << '\n'; }
 
+#ifdef MFE_USE_OPENMP
+   #pragma omp parallel
+   {
+      int thread_id = omp_get_thread_num();
+      if (Mpi::Root() && thread_id == 0)
+      {
+         int num_threads = omp_get_num_threads();
+         cout << "Number of threads: "<< num_threads << endl;
+      }
+   }
+#endif
+   
    // 3. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
    Device device(device_config);
@@ -1670,10 +1715,34 @@ int main(int argc, char *argv[])
    HYPRE_Int glob_size_sca = fes.GlobalTrueVSize();
    HYPRE_Int glob_size_tot = ffes.GlobalTrueVSize();
    if (Mpi::Root())
-   { cout << "Number of unknowns per field: " << glob_size_sca << endl; }
+   {
+     cout << "Number of unknowns per field: " << glob_size_sca
+	  << " ("  << fixed << setprecision(3)
+	  << DoubleWithUnits(8. * glob_size_sca) << ")" << endl;
+   }
    if (Mpi::Root())
-   { cout << "Total number of unknowns:     " << glob_size_tot << endl; }
-
+   {
+     cout << "Total number of unknowns:     " << glob_size_tot
+	  << " ("
+	  << DoubleWithUnits(8. * glob_size_tot) << ")" << endl;
+   }
+   if (Mpi::Root())
+   {
+     cout << "Approximate number of nonzeros per mass matrix: "
+	  << pow(order + 1, dim) * glob_size_sca
+	  << " ("
+	  << DoubleWithUnits((12. * pow(order + 1, dim) + 1.) * glob_size_sca)
+	  << ")" << endl;
+   }
+   if (Mpi::Root())
+   {
+     cout << "Approximate number of nonzeros per stiffness matrix: "
+	  << 5 * pow(order + 1, dim) * glob_size_sca
+	  << " ("
+	  << DoubleWithUnits((60. * pow(order + 1, dim) + 1.) * glob_size_sca)
+	  << ")" << endl;
+   }
+   
    // 8. Define the initial conditions, save the corresponding mesh and grid
    //    functions to a file. This can be opened with GLVis with the -gc option.
 

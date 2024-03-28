@@ -2430,7 +2430,8 @@ void DGTransportTDO::TransportLeftPrec::SetOperator(const Operator &op)
                dynamic_cast<const HypreParMatrix&>(diag_op);
 
 #ifdef MFEM_USE_SUPERLU
-            if (p_.type == 2 || p_.l_use_superlu)
+            if (comb_op_.IsEquationActive(i) &&
+                (p_.type == 2 || p_.l_use_superlu))
             {
                delete slu_mat_[i];
                slu_mat_[i] = new SuperLURowLocMatrix(M);
@@ -2451,7 +2452,42 @@ void DGTransportTDO::TransportLeftPrec::SetOperator(const Operator &op)
             }
             else
 #endif
+#ifdef MFEM_USE_MUMPS
+            if (comb_op_.IsEquationActive(i) &&
+                (p_.type == 3 || p_.l_use_mumps))
             {
+	      MUMPSSolver * mumps = new MUMPSSolver(MPI_COMM_WORLD);
+	      mumps->SetOperator(M);
+	      diag_prec_[i] = mumps;
+	    }
+	    else
+#endif
+#ifdef MFEM_USE_STRUMPACK
+            if (comb_op_.IsEquationActive(i) &&
+                (p_.type == 4 || p_.l_use_strumpack))
+            {
+               delete stp_mat_[i];
+               stp_mat_[i] = new STRUMPACKRowLocMatrix(M);
+
+               if (Mpi::Root() && logging_ > 0)
+               {
+                  cout << "Building STRUMPACK solver for the " << i
+                       << " diagonal block" << endl;
+               }
+	       STRUMPACKSolver * strumpack =
+		  new STRUMPACKSolver(argc, argv, MPI_COMM_WORLD);
+	       strumpack->SetPrintFactorStatistics(true);
+	       strumpack->SetPrintSolveStatistics(false);
+	       strumpack->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
+	       strumpack->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
+	       strumpack->DisableMatching();
+	       strumpack->SetOperator(*str_mat_[i]);
+	       strumpack->SetFromCommandLine();
+               diag_prec_[i] = strumpack;
+	    }
+	    else
+#endif
+	    {
                if (Mpi::Root() && logging_ > 0)
                {
                   cout << "Using CombinedOp precond solver for the " << i

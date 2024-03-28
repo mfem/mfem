@@ -917,6 +917,12 @@ struct TransPrecParams
 #ifdef MFEM_USE_SUPERLU
    bool l_use_superlu = false;
 #endif
+#ifdef MFEM_USE_MUMPS
+   bool l_use_mumps = false;
+#endif
+#ifdef MFEM_USE_STRUMPACK
+   bool l_use_strumpack = false;
+#endif
    bool l_use_algebraic_D_cg = false;
    bool l_use_lor_cg = true;
    bool l_use_air_cg = true;
