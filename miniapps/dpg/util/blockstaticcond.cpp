@@ -508,7 +508,7 @@ void BlockStaticCondensation::AssembleReducedSystem(int el,
       }
 
       // assemble rhs
-      double * data = rvecptr->GetData();
+      real_t * data = rvecptr->GetData();
       Vector vec1;
       // ref subvector
       vec1.SetDataAndSize(&data[offsets[i]],

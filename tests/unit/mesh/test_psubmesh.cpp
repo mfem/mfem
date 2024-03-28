@@ -47,7 +47,7 @@ void multidomain_test_2d(FECType fec_type)
 {
    constexpr int dim = 2;
    const int p = 2;
-   double Hy = 1.0;
+   real_t Hy = 1.0;
    Mesh serial_parent_mesh = Mesh::MakeCartesian2D(5, 5,
                                                    Element::QUADRILATERAL, true, 1.0, Hy,
                                                    false);
@@ -83,7 +83,7 @@ void multidomain_test_2d(FECType fec_type)
 
       for (int j = 0; j < vertices.Size(); j++)
       {
-         double *coords = serial_parent_mesh.GetVertex(vertices[j]);
+         real_t *coords = serial_parent_mesh.GetVertex(vertices[j]);
 
          if (coords[0] >= 0.25 &&
              coords[0] <= 0.75 &&
@@ -102,8 +102,8 @@ void multidomain_test_2d(FECType fec_type)
                                  serial_parent_mesh.Dimension(),
                                  [](const Vector &coords, Vector &u)
    {
-      double x = coords(0);
-      double y = coords(1);
+      real_t x = coords(0);
+      real_t y = coords(1);
 
       u(0) = x;
       u(1) = y + 0.05 * sin(x * 2.0 * M_PI);
@@ -143,8 +143,8 @@ void multidomain_test_2d(FECType fec_type)
 
    auto coeff = FunctionCoefficient([](const Vector &coords)
    {
-      double x = coords(0);
-      double y = coords(1);
+      real_t x = coords(0);
+      real_t y = coords(1);
       return y + 0.05 * sin(x * 2.0 * M_PI);
    });
 
@@ -152,8 +152,8 @@ void multidomain_test_2d(FECType fec_type)
                                                    Vector &V)
    {
       V.SetSize(2);
-      double x = coords(0);
-      double y = coords(1);
+      real_t x = coords(0);
+      real_t y = coords(1);
 
       V(0) = y + 0.05 * sin(x * 2.0 * M_PI);
       V(1) = x + 0.05 * sin(y * 2.0 * M_PI);
@@ -178,9 +178,9 @@ void multidomain_test_2d(FECType fec_type)
 
    auto CHECK_GLOBAL_NORM = [](Vector &v)
    {
-      double norm_local = v.Norml2(), norm_global = 0.0;
-      MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_SUM,
-                    MPI_COMM_WORLD);
+      real_t norm_local = v.Norml2(), norm_global = 0.0;
+      MPI_Allreduce(&norm_local, &norm_global, 1, MPITypeMap<real_t>::mpi_type,
+                    MPI_SUM, MPI_COMM_WORLD);
       REQUIRE(norm_global < 1e-8);
    };
 
@@ -299,9 +299,9 @@ void multidomain_test_3d(FECType fec_type)
 
    auto coeff = FunctionCoefficient([](const Vector &coords)
    {
-      double x = coords(0);
-      double y = coords(1);
-      double z = coords(2);
+      real_t x = coords(0);
+      real_t y = coords(1);
+      real_t z = coords(2);
       return y + 0.05 * sin(x * 2.0 * M_PI) + z;
    });
 
@@ -309,9 +309,9 @@ void multidomain_test_3d(FECType fec_type)
                                                    Vector &V)
    {
       V.SetSize(3);
-      double x = coords(0);
-      double y = coords(1);
-      double z = coords(2);
+      real_t x = coords(0);
+      real_t y = coords(1);
+      real_t z = coords(2);
 
       V(0) = y + 0.05 * sin(x * 2.0 * M_PI) + z;
       V(1) = z + 0.05 * sin(y * 2.0 * M_PI) + x;
@@ -339,9 +339,9 @@ void multidomain_test_3d(FECType fec_type)
 
    auto CHECK_GLOBAL_NORM = [](Vector &v)
    {
-      double norm_local = v.Norml2(), norm_global = 0.0;
-      MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_SUM,
-                    MPI_COMM_WORLD);
+      real_t norm_local = v.Norml2(), norm_global = 0.0;
+      MPI_Allreduce(&norm_local, &norm_global, 1, MPITypeMap<real_t>::mpi_type,
+                    MPI_SUM, MPI_COMM_WORLD);
       REQUIRE(norm_global < 1e-8);
    };
 

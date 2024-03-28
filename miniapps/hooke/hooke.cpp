@@ -176,7 +176,13 @@ int main(int argc, char *argv[])
    NewtonSolver newton(MPI_COMM_WORLD);
    newton.SetSolver(cg);
    newton.SetOperator(elasticity_op);
+#ifdef MFEM_USE_SINGLE
+   newton.SetRelTol(1e-4);
+#elif defined MFEM_USE_DOUBLE
    newton.SetRelTol(1e-6);
+#else
+   MFEM_ABORT("Floating point type undefined");
+#endif
    newton.SetMaxIter(10);
    newton.SetPrintLevel(1);
 

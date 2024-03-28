@@ -113,7 +113,7 @@ void ParBilinearForm::pAllocMat()
    int *I = dof_dof.GetI();
    int *J = dof_dof.GetJ();
    int nrows = dof_dof.Size();
-   double *data = Memory<double>(I[nrows]);
+   real_t *data = Memory<real_t>(I[nrows]);
 
    mat = new SparseMatrix(I, J, data, nrows, height + nbr_size);
    *mat = 0.0;
@@ -344,7 +344,7 @@ ParallelEliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
    return A.EliminateRowsCols(dof_list);
 }
 
-void ParBilinearForm::TrueAddMult(const Vector &x, Vector &y, const double a)
+void ParBilinearForm::TrueAddMult(const Vector &x, Vector &y, const real_t a)
 const
 {
    const Operator *P = pfes->GetProlongationMatrix();
@@ -368,20 +368,21 @@ const
    y.Add(a, Ytmp);
 }
 
-double ParBilinearForm::InnerProduct(const ParGridFunction &x,
+real_t ParBilinearForm::InnerProduct(const ParGridFunction &x,
                                      const ParGridFunction &y) const
 {
    MFEM_ASSERT(mat != NULL, "local matrix must be assembled");
 
-   double loc = BilinearForm::InnerProduct(x, y);
-   double glob = 0.;
+   real_t loc = BilinearForm::InnerProduct(x, y);
+   real_t glob = 0.;
 
-   MPI_Allreduce(&loc, &glob, 1, MPI_DOUBLE, MPI_SUM, pfes->GetComm());
+   MPI_Allreduce(&loc, &glob, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                 pfes->GetComm());
 
    return glob;
 }
 
-double ParBilinearForm::TrueInnerProduct(const ParGridFunction &x,
+real_t ParBilinearForm::TrueInnerProduct(const ParGridFunction &x,
                                          const ParGridFunction &y) const
 {
    MFEM_ASSERT(x.ParFESpace() == pfes, "the parallel spaces must match");
@@ -390,7 +391,7 @@ double ParBilinearForm::TrueInnerProduct(const ParGridFunction &x,
    HypreParVector *x_p = x.ParallelProject();
    HypreParVector *y_p = y.ParallelProject();
 
-   double res = TrueInnerProduct(*x_p, *y_p);
+   real_t res = TrueInnerProduct(*x_p, *y_p);
 
    delete x_p;
    delete y_p;
@@ -398,7 +399,7 @@ double ParBilinearForm::TrueInnerProduct(const ParGridFunction &x,
    return res;
 }
 
-double ParBilinearForm::TrueInnerProduct(HypreParVector &x,
+real_t ParBilinearForm::TrueInnerProduct(HypreParVector &x,
                                          HypreParVector &y) const
 {
    MFEM_VERIFY(p_mat.Ptr() != NULL, "parallel matrix must be assembled");
@@ -407,7 +408,7 @@ double ParBilinearForm::TrueInnerProduct(HypreParVector &x,
    HypreParMatrix *A = p_mat.As<HypreParMatrix>();
    A->Mult(x, *Ax);
 
-   double res = mfem::InnerProduct(y, *Ax);
+   real_t res = mfem::InnerProduct(y, *Ax);
 
    delete Ax;
 
@@ -609,7 +610,7 @@ void ParMixedBilinearForm::ParallelAssemble(OperatorHandle &A)
 
 /// Compute y += a (P^t A P) x, where x and y are vectors on the true dofs
 void ParMixedBilinearForm::TrueAddMult(const Vector &x, Vector &y,
-                                       const double a) const
+                                       const real_t a) const
 {
    if (Xaux.ParFESpace() != trial_pfes)
    {

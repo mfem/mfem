@@ -284,6 +284,15 @@ MFEM_USE_METIS = YES/NO
    option in the library will be Cartesian partitioning with box meshes, and
    thus most of the parallel examples and miniapps will fail.
 
+MFEM_PRECISION = double/Double/DOUBLE/single/Single/SINGLE
+   Use single (float type) or double floating-point precision. In the
+   configuration header 'config/_config.hpp' this option is represented by
+   defining exactly one of the macros: MFEM_USE_DOUBLE, or MFEM_USE_SINGLE.
+   In the exported config files 'config.mk' and 'MFEMConfig.cmake', the option
+   is represented by the variables MFEM_USE_DOUBLE and MFEM_USE_SINGLE defined
+   as YES/NO (make) or ON/OFF (cmake). For more details see
+   https://github.com/orgs/mfem/discussions/4207
+
 MFEM_DEBUG = YES/NO
    Choose debug/optimized build. The debug build enables a number of messages
    and consistency checks that may simplify bug-hunting.
@@ -959,6 +968,7 @@ The following options are equivalent to the GNU make options with the same name:
 
 MFEM_USE_MPI
 MFEM_USE_METIS - Set to ${MFEM_USE_MPI}, can be overwritten.
+MFEM_PRECISION
 MFEM_USE_LIBUNWIND
 MFEM_USE_LAPACK
 MFEM_THREAD_SAFE

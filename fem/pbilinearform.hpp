@@ -171,7 +171,7 @@ public:
 
    /** @brief Compute @a y += @a a (P^t A P) @a x, where @a x and @a y are
        vectors on the true dofs. */
-   void TrueAddMult(const Vector &x, Vector &y, const double a = 1.0) const;
+   void TrueAddMult(const Vector &x, Vector &y, const real_t a = 1.0) const;
 
    /// Compute \f$ y^T M x \f$
    /** @warning The calculation is performed on local dofs, assuming that
@@ -182,20 +182,20 @@ public:
        @note It is assumed that the local matrix is assembled and it has
        not been replaced by the parallel matrix through FormSystemMatrix().
        @see TrueInnerProduct(const ParGridFunction&, const ParGridFunction&) */
-   double InnerProduct(const ParGridFunction &x,
+   real_t InnerProduct(const ParGridFunction &x,
                        const ParGridFunction &y) const;
 
    /// Compute \f$ y^T M x \f$ on true dofs (grid function version)
    /** @note It is assumed that the parallel system matrix is assembled,
        see FormSystemMatrix().
        @see InnerProduct(const ParGridFunction&, const ParGridFunction&) */
-   double TrueInnerProduct(const ParGridFunction &x,
+   real_t TrueInnerProduct(const ParGridFunction &x,
                            const ParGridFunction &y) const;
 
    /// Compute \f$ y^T M x \f$ on true dofs (vector version)
    /** @note It is assumed that the parallel system matrix is assembled,
        see FormSystemMatrix(). */
-   double TrueInnerProduct(HypreParVector &x, HypreParVector &y) const;
+   real_t TrueInnerProduct(HypreParVector &x, HypreParVector &y) const;
 
    /// Return the parallel FE space associated with the ParBilinearForm.
    ParFiniteElementSpace *ParFESpace() const { return pfes; }
@@ -321,7 +321,7 @@ public:
                                             Vector &B);
 
    /// Compute y += a (P^t A P) x, where x and y are vectors on the true dofs
-   void TrueAddMult(const Vector &x, Vector &y, const double a = 1.0) const;
+   void TrueAddMult(const Vector &x, Vector &y, const real_t a = 1.0) const;
 
    virtual ~ParMixedBilinearForm() { }
 };

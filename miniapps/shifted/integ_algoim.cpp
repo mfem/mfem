@@ -46,7 +46,7 @@ const IntegrationRule* AlgoimIntegrationRule::GetVolumeIntegrationRule()
    if (dim==2)
    {
       LevelSet2D ls(pe,lsvec);
-      auto q = Algoim::quadGen<2>(ls,Algoim::BoundingBox<double,2>(0.0,1.0),
+      auto q = Algoim::quadGen<2>(ls,Algoim::BoundingBox<real_t,2>(0.0,1.0),
                                   -1, -1, np1d);
 
       vir=new IntegrationRule(q.nodes.size());
@@ -60,7 +60,7 @@ const IntegrationRule* AlgoimIntegrationRule::GetVolumeIntegrationRule()
    else
    {
       LevelSet3D ls(pe,lsvec);
-      auto q = Algoim::quadGen<3>(ls,Algoim::BoundingBox<double,3>(0.0,1.0),
+      auto q = Algoim::quadGen<3>(ls,Algoim::BoundingBox<real_t,3>(0.0,1.0),
                                   -1, -1, np1d);
 
       vir=new IntegrationRule(q.nodes.size());
@@ -84,7 +84,7 @@ const IntegrationRule* AlgoimIntegrationRule::GetSurfaceIntegrationRule()
    if (dim==2)
    {
       LevelSet2D ls(pe,lsvec);
-      auto q = Algoim::quadGen<2>(ls,Algoim::BoundingBox<double,2>(0.0,1.0),
+      auto q = Algoim::quadGen<2>(ls,Algoim::BoundingBox<real_t,2>(0.0,1.0),
                                   2, -1, np1d);
 
       sir=new IntegrationRule(q.nodes.size());
@@ -98,7 +98,7 @@ const IntegrationRule* AlgoimIntegrationRule::GetSurfaceIntegrationRule()
    else
    {
       LevelSet3D ls(pe,lsvec);
-      auto q = Algoim::quadGen<3>(ls,Algoim::BoundingBox<double,3>(0.0,1.0),
+      auto q = Algoim::quadGen<3>(ls,Algoim::BoundingBox<real_t,3>(0.0,1.0),
                                   3, -1, np1d);
 
       sir=new IntegrationRule(q.nodes.size());

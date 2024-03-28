@@ -48,10 +48,10 @@ struct VisWinLayout
 // Data structure used to define simple coordinate transformations
 struct DeformationData
 {
-   double uniformScale;
+   real_t uniformScale;
 
    int    squeezeAxis;
-   double squeezeFactor;
+   real_t squeezeFactor;
 
    int    shearAxis;
    Vector shearVec;

@@ -99,7 +99,7 @@ namespace mfem
 struct MemoryIJData
 {
    Memory<HYPRE_Int> I, J;
-   Memory<double> data;
+   Memory<real_t> data;
 };
 
 namespace internal
