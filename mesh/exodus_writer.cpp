@@ -32,14 +32,14 @@ public:
 
    void GenerateExodusIIBoundaryInfo();
 
-   void GenerateExodusIINodeIDsFromMesh(int & num_nodes);
+   void GenerateExodusIINodeIDsFromMesh();
 
-   void ExtractVertexCoordinatesFromMesh(int ncid,
-                                         std::vector<double> & coordx, std::vector<double> & coordy,
+   void ExtractVertexCoordinatesFromMesh(std::vector<double> & coordx,
+                                         std::vector<double> & coordy,
                                          std::vector<double> & coordz);
 
-   void WriteNodalCoordinatesFromMesh(int ncid,
-                                      std::vector<double> & coordx, std::vector<double> & coordy,
+   void WriteNodalCoordinatesFromMesh(std::vector<double> & coordx,
+                                      std::vector<double> & coordy,
                                       std::vector<double> & coordz);
 
    void WriteNodeConnectivityForBlock(int ncid,
@@ -74,6 +74,10 @@ public:
 
    void WriteNumBoundaries();
 
+   void WriteNumNodes();
+
+   void WriteNodalCoordinates();
+
 private:
    // ExodusII file ID.
    int _exid{0};
@@ -92,6 +96,9 @@ private:
    std::vector<int> _boundary_ids;
    std::map<int, std::vector<int>> _exodusII_element_ids_for_boundary_id;
    std::map<int, std::vector<int>> _exodusII_side_ids_for_boundary_id;
+
+   int _num_nodes;
+   int _num_nodes_id;
 };
 
 
@@ -141,13 +148,8 @@ void Mesh::WriteExodusII(const std::string fpath)
    //
    // Set # nodes. NB: - Assume 1st order currently so NumOfVertices == # nodes
    //
-   int num_nodes_id;
-   int num_nodes;
-
-   writer.GenerateExodusIINodeIDsFromMesh(num_nodes);
-
-   status = nc_def_dim(ncid, "num_nodes", num_nodes, &num_nodes_id);
-   writer.HandleNetCDFStatus(status);
+   writer.GenerateExodusIINodeIDsFromMesh();
+   writer.WriteNumNodes();
 
    //
    // Set dimension.
@@ -256,32 +258,9 @@ void Mesh::WriteExodusII(const std::string fpath)
    }
 
    //
-   // Define nodal coordinates.
-   // https://docs.unidata.ucar.edu/netcdf-c/current/group__variables.html#gac7e8662c51f3bb07d1fc6d6c6d9052c8
-   // NB: assume we have doubles (could be floats!)
-   // ndims = 1 (vectors).
-   int coordx_id, coordy_id, coordz_id;
-
-   std::vector<double> coordx(num_nodes), coordy(num_nodes),
-       coordz(Dim == 3 ? num_nodes : 0);
-   writer.ExtractVertexCoordinatesFromMesh(ncid, coordx, coordy, coordz);
-
-   status = nc_def_var(ncid, "coordx", NC_DOUBLE, 1, &num_nodes_id, &coordx_id);
-   writer.HandleNetCDFStatus(status);
-
-   status = nc_def_var(ncid, "coordy", NC_DOUBLE, 1, &num_nodes_id, &coordy_id);
-   writer.HandleNetCDFStatus(status);
-
-   if (Dim == 3)
-   {
-      status = nc_def_var(ncid, "coordz", NC_DOUBLE, 1, &num_nodes_id, &coordz_id);
-      writer.HandleNetCDFStatus(status);
-   }
-
-   //
    // Write nodal coordinates.
    //
-   writer.WriteNodalCoordinatesFromMesh(ncid, coordx, coordy, coordz);
+   writer.WriteNodalCoordinates();
 
    //
    // Write element block parameters.
@@ -494,6 +473,45 @@ void ExodusIIWriter::WriteElementBlockParameters(int block_id)
    HandleNetCDFStatus(status);
 }
 
+void ExodusIIWriter::WriteNumNodes()
+{
+   int status = nc_def_dim(_exid, "num_nodes", _num_nodes, &_num_nodes_id);
+   HandleNetCDFStatus(status);
+}
+
+void ExodusIIWriter::WriteNodalCoordinates()
+{
+   //
+   // Define nodal coordinates.
+   // https://docs.unidata.ucar.edu/netcdf-c/current/group__variables.html#gac7e8662c51f3bb07d1fc6d6c6d9052c8
+   // NB: assume we have doubles (could be floats!)
+   // ndims = 1 (vectors).
+   int coordx_id, coordy_id, coordz_id;
+
+   std::vector<double> coordx(_num_nodes), coordy(_num_nodes),
+       coordz(_mesh.Dimension() == 3 ? _num_nodes : 0);
+
+   ExtractVertexCoordinatesFromMesh(coordx, coordy, coordz);
+
+   int status = nc_def_var(_exid, "coordx", NC_DOUBLE, 1, &_num_nodes_id,
+                           &coordx_id);
+   HandleNetCDFStatus(status);
+
+   status = nc_def_var(_exid, "coordy", NC_DOUBLE, 1, &_num_nodes_id, &coordy_id);
+   HandleNetCDFStatus(status);
+
+   if (_mesh.Dimension() == 3)
+   {
+      status = nc_def_var(_exid, "coordz", NC_DOUBLE, 1, &_num_nodes_id, &coordz_id);
+      HandleNetCDFStatus(status);
+   }
+
+   //
+   // Write nodal coordinates.
+   //
+   WriteNodalCoordinatesFromMesh(coordx, coordy, coordz);
+}
+
 void ExodusIIWriter::WriteSideSetInformationForMesh()
 {
    //
@@ -633,8 +651,8 @@ void ExodusIIWriter::WriteNodeConnectivityForBlock(int ncid,
 }
 
 
-void ExodusIIWriter::ExtractVertexCoordinatesFromMesh(int ncid,
-                                                      std::vector<double> & coordx, std::vector<double> & coordy,
+void ExodusIIWriter::ExtractVertexCoordinatesFromMesh(std::vector<double> &
+                                                      coordx, std::vector<double> & coordy,
                                                       std::vector<double> & coordz)
 {
    for (int ivertex = 0; ivertex < _mesh.GetNV(); ivertex++)
@@ -651,37 +669,37 @@ void ExodusIIWriter::ExtractVertexCoordinatesFromMesh(int ncid,
    }
 }
 
-void ExodusIIWriter::WriteNodalCoordinatesFromMesh(int ncid,
-                                                   std::vector<double> & coordx, std::vector<double> & coordy,
+void ExodusIIWriter::WriteNodalCoordinatesFromMesh(std::vector<double> & coordx,
+                                                   std::vector<double> & coordy,
                                                    std::vector<double> & coordz)
 {
    int coordx_id, coordy_id, coordz_id;
    int status = NC_NOERR;
 
-   nc_enddef(ncid);
+   nc_enddef(_exid);
 
-   status = nc_inq_varid(ncid, "coordx", &coordx_id);
+   status = nc_inq_varid(_exid, "coordx", &coordx_id);
    HandleNetCDFStatus(status);
 
-   status = nc_put_var_double(ncid, coordx_id, coordx.data());
+   status = nc_put_var_double(_exid, coordx_id, coordx.data());
    HandleNetCDFStatus(status);
 
-   status = nc_inq_varid(ncid, "coordy", &coordy_id);
+   status = nc_inq_varid(_exid, "coordy", &coordy_id);
    HandleNetCDFStatus(status);
 
-   status = nc_put_var_double(ncid, coordy_id, coordy.data());
+   status = nc_put_var_double(_exid, coordy_id, coordy.data());
    HandleNetCDFStatus(status);
 
    if (coordz.size() != 0)
    {
-      status = nc_inq_varid(ncid, "coordz", &coordz_id);
+      status = nc_inq_varid(_exid, "coordz", &coordz_id);
       HandleNetCDFStatus(status);
 
-      status = nc_put_var_double(ncid, coordz_id, coordz.data());
+      status = nc_put_var_double(_exid, coordz_id, coordz.data());
       HandleNetCDFStatus(status);
    }
 
-   nc_redef(ncid);
+   nc_redef(_exid);
 }
 
 /// @brief Aborts with description of error.
@@ -745,8 +763,7 @@ void ExodusIIWriter::WriteNumElementBlocks()
 }
 
 /// @brief Iterates over the elements of the mesh to extract a unique set of node IDs (or vertex IDs if first-order).
-void ExodusIIWriter::GenerateExodusIINodeIDsFromMesh(
-   int & num_nodes)
+void ExodusIIWriter::GenerateExodusIINodeIDsFromMesh()
 {
    std::set<int> node_ids;
 
@@ -775,7 +792,7 @@ void ExodusIIWriter::GenerateExodusIINodeIDsFromMesh(
       }
    }
 
-   num_nodes = (int)node_ids.size();
+   _num_nodes = (int)node_ids.size();
 }
 
 void ExodusIIWriter::WriteNumBoundaries()
