@@ -64,6 +64,7 @@ int main(int argc, char *argv[])
    int order = 1;
    double ks = 1.;
    double ka = 0.;
+   double a = 0.;
    bool hybridization = false;
    bool pa = false;
    const char *device_config = "cpu";
@@ -82,6 +83,8 @@ int main(int argc, char *argv[])
                   "Symmetric anisotropy of the heat conductivity tensor");
    args.AddOption(&ka, "-ka", "--kappa_anti",
                   "Antisymmetric anisotropy of the heat conductivity tensor");
+   args.AddOption(&a, "-a", "--heat_capacity",
+                  "Heat capacity coefficient (0=indefinite problem)");
    args.AddOption(&hybridization, "-hb", "--hybridization", "-no-hb",
                   "--no-hybridization", "Enable hybridization.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
@@ -161,8 +164,9 @@ int main(int argc, char *argv[])
 
    // 7. Define the coefficients, analytical solution, and rhs of the PDE.
    const double t_0 = 1.; //base temperature
-   const double a = 1.; //heat capacity
    const double k = 1.; //base heat conductivity
+
+   ConstantCoefficient acoeff(a);
 
    auto kFun = GetKFun(k, ks, ka);
    MatrixFunctionCoefficient kcoeff(dim, kFun);
@@ -171,7 +175,7 @@ int main(int argc, char *argv[])
    auto tFun = GetTFun(t_0, a, kFun);
    FunctionCoefficient tcoeff(tFun);
    SumCoefficient gcoeff(0, tcoeff, 1.,
-                         -1.);//<-- due to symmetrization, the sign is opposite
+                         -((a>0.)?(a):(1.)));//<-- due to symmetrization, the sign is opposite
 
    auto qFun = GetQFun(t_0, a, kFun);
    VectorFunctionCoefficient qcoeff(dim, qFun);
@@ -213,6 +217,7 @@ int main(int argc, char *argv[])
    //MixedBilinearForm *B(new MixedBilinearForm(V_space, W_space));
    BilinearForm *Mq = darcy->GetFluxMassForm();
    MixedBilinearForm *B = darcy->GetFluxDivForm();
+   BilinearForm *Mt = (a > 0.)?(darcy->GetPotentialMassForm()):(NULL);
 
    //if (pa) { Mq->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    Mq->AddDomainIntegrator(new VectorFEMassIntegrator(ikcoeff));
@@ -223,6 +228,14 @@ int main(int argc, char *argv[])
    B->AddDomainIntegrator(new VectorFEDivergenceIntegrator);
    //B->Assemble();
    //if (!pa) { B->Finalize(); }
+
+   if (Mt)
+   {
+      //if (pa) { Mt->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+      Mt->AddDomainIntegrator(new MassIntegrator(acoeff));
+      //Mt->Assemble();
+      //if (!pa) { Mt->Finalize(); }
+   }
 
    //set hybridization / assembly level
 
@@ -368,8 +381,8 @@ int main(int argc, char *argv[])
       }
       else
       {
-         SparseMatrix &Mm(Mq->SpMat());
-         Mm.GetDiag(Md);
+         SparseMatrix &Mqm(Mq->SpMat());
+         Mqm.GetDiag(Md);
          Md.HostReadWrite();
 
          SparseMatrix &Bm(B->SpMat());
@@ -381,8 +394,13 @@ int main(int argc, char *argv[])
          }
 
          S = Mult(Bm, *MinvBt);
+         if (Mt)
+         {
+            SparseMatrix &Mtm(Mt->SpMat());
+            *S += Mtm;
+         }
 
-         invM = new DSmoother(Mm);
+         invM = new DSmoother(Mqm);
 
 #ifndef MFEM_USE_SUITESPARSE
          invS = new GSSmoother(*S);
@@ -448,6 +466,9 @@ int main(int argc, char *argv[])
    {
       irs[i] = &(IntRules.Get(i, order_quad));
    }
+
+   qcoeff.SetTime(1.);
+   tcoeff.SetTime(1.);
 
    double err_q  = q.ComputeL2Error(qcoeff, irs);
    double norm_q = ComputeLpNorm(2., qcoeff, *mesh, irs);
@@ -534,6 +555,8 @@ TDFunc GetTFun(double t_0, double a, const MatFunc &kFun)
       {
          t0 *= sin(M_PI*x(2));
       }
+
+      if (a <= 0.) { return t0; }
 
       Vector ddT((ndim<=2)?(2):(4));
       ddT(0) = -t_0 * M_PI*M_PI * sin(M_PI*x(0)) * sin(M_PI*x(1));//xx,yy
