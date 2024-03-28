@@ -164,7 +164,6 @@ int main(int argc, char *argv[])
 
    // 7. Define the coefficients, analytical solution, and rhs of the PDE.
    const double t_0 = 1.; //base temperature
-   const double a = 1.; //heat capacity
    const double k = 1.; //base heat conductivity
 
    ConstantCoefficient acoeff(a);
