@@ -63,6 +63,16 @@ public:
 
    void WriteNumOfElements();
 
+   void WriteFloatingPointWordSize();
+
+   void WriteAPIVersion();
+
+   void WriteDatabaseVersion();
+
+   void WriteMaxLineLength();
+
+   void WriteMaxNameLength();
+
 
 private:
    // ExodusII file ID.
@@ -181,26 +191,17 @@ void Mesh::WriteExodusII(const std::string fpath)
    //
    // Set database version #
    //
-   float database_version = 4.72;
-   status = nc_put_att_float(ncid, NC_GLOBAL, "version", NC_FLOAT, 1,
-                             &database_version);
-   writer.HandleNetCDFStatus(status);
+   writer.WriteDatabaseVersion();
 
    //
    // Set API version #
    //
-   float version = 4.72;   // Current version as of 2024-03-21.
-   status = nc_put_att_float(ncid, NC_GLOBAL, "api_version", NC_FLOAT, 1,
-                             &version);
-   writer.HandleNetCDFStatus(status);
+   writer.WriteAPIVersion();
 
    //
    // Set I/O word size as an attribute (float == 4; double == 8)
    //
-   const int word_size = 8;
-   status = nc_put_att_int(ncid, NC_GLOBAL, "floating_point_word_size", NC_INT, 1,
-                           &word_size);
-   writer.HandleNetCDFStatus(status);
+   writer.WriteFloatingPointWordSize();
 
    //
    // Store Exodus file size (normal==0; large==1). NB: coordinates specifed separately as components
@@ -213,18 +214,12 @@ void Mesh::WriteExodusII(const std::string fpath)
    //
    // Set length of character strings.
    //
-   const int max_name_length = 80;
-   status = nc_put_att_int(ncid, NC_GLOBAL, "maximum_name_length", NC_INT, 1,
-                           &max_name_length);
-   writer.HandleNetCDFStatus(status);
+   writer.WriteMaxNameLength();
 
    //
    // Set length of character lines.
    //
-   const int max_line_length = 80;
-   status = nc_put_att_int(ncid, NC_GLOBAL, "maximum_line_length", NC_INT, 1,
-                           &max_name_length);
-   writer.HandleNetCDFStatus(status);
+   writer.WriteMaxLineLength();
 
    //
    // Set # timesteps (ASSUME no timesteps for initial verision)
@@ -433,6 +428,47 @@ void ExodusIIWriter::WriteNumOfElements()
    int num_elem_id;
 
    int status = nc_def_dim(_exid, "num_elem", _mesh.GetNE(), &num_elem_id);
+   HandleNetCDFStatus(status);
+}
+
+void ExodusIIWriter::WriteFloatingPointWordSize()
+{
+   const int word_size = 8;
+   int status = nc_put_att_int(_exid, NC_GLOBAL, "floating_point_word_size",
+                               NC_INT, 1,
+                               &word_size);
+   HandleNetCDFStatus(status);
+}
+
+void ExodusIIWriter::WriteAPIVersion()
+{
+   float version = 4.72;   // Current version as of 2024-03-21.
+   int status = nc_put_att_float(_exid, NC_GLOBAL, "api_version", NC_FLOAT, 1,
+                                 &version);
+   HandleNetCDFStatus(status);
+}
+
+void ExodusIIWriter::WriteDatabaseVersion()
+{
+   float database_version = 4.72;
+   int status = nc_put_att_float(_exid, NC_GLOBAL, "version", NC_FLOAT, 1,
+                                 &database_version);
+   HandleNetCDFStatus(status);
+}
+
+void ExodusIIWriter::WriteMaxNameLength()
+{
+   const int max_name_length = 80;
+   int status = nc_put_att_int(_exid, NC_GLOBAL, "maximum_name_length", NC_INT, 1,
+                               &max_name_length);
+   HandleNetCDFStatus(status);
+}
+
+void ExodusIIWriter::WriteMaxLineLength()
+{
+   const int max_line_length = 80;
+   int status = nc_put_att_int(_exid, NC_GLOBAL, "maximum_line_length", NC_INT, 1,
+                               &max_line_length);
    HandleNetCDFStatus(status);
 }
 
