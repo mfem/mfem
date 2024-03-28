@@ -26,13 +26,24 @@ public:
 
    /// @brief Default constructor. Opens ExodusII file.
    /// @param mesh The mesh to write to the file.
-   /// @param fpath The path to the file.
-   /// @param flags NC_CLOBBER will overwrite existing file.
-   ExodusIIWriter(Mesh & mesh, std::string fpath, int flags = NC_CLOBBER);
+   ExodusIIWriter(Mesh & mesh) : _mesh{mesh} {}
 
    /// @brief Closes ExodusII file.
    ~ExodusIIWriter();
 
+   void OpenExodusII(std::string fpath, int flags);
+   void CloseExodusII();
+
+   /// @brief Static method for writing a mesh to an ExodusII file.
+   static void WriteExodusII(Mesh & mesh, std::string fpath,
+                             int flags = NC_CLOBBER);
+
+   /// @brief Writes the mesh to an ExodusII file.
+   /// @param fpath The path to the file.
+   /// @param flags NC_CLOBBER will overwrite existing file.
+   void WriteExodusII(std::string fpath, int flags = NC_CLOBBER);
+
+protected:
    void HandleNetCDFStatus();
 
    void GenerateExodusIIElementBlocksFromMesh();
@@ -91,7 +102,6 @@ public:
 
    void WriteDummyVariable();
 
-protected:
    /// @brief Wrapper around nc_def_dim with error handling.
    void DefineDimension(const char *name, size_t len, int *dim_id);
 
@@ -161,90 +171,85 @@ const int mfem_to_exodusII_side_map_pyramid5[] =
    5, 1, 2, 3, 4
 };
 
-
-void Mesh::WriteExodusII(const std::string fpath)
+void ExodusIIWriter::WriteExodusII(std::string fpath, int flags)
 {
-   ExodusIIWriter writer(*this, std::move(fpath));
-
-   //
-   // Generate Initialization Parameters
-   //
+   OpenExodusII(fpath, flags);
 
    //
    // Add title.
    //
-   writer.WriteTitle();
+   WriteTitle();
 
    //
    // Set # nodes. NB: - Assume 1st order currently so NumOfVertices == # nodes
    //
-   writer.GenerateExodusIINodeIDsFromMesh();
-   writer.WriteNumNodes();
+   GenerateExodusIINodeIDsFromMesh();
+   WriteNumNodes();
 
    //
    // Set dimension.
    //
-   writer.WriteDimension();
+   WriteDimension();
 
    //
    // Set # elements.
    //
-   writer.WriteNumOfElements();
+   WriteNumOfElements();
 
    //
    // Set # element blocks.
    //
-   writer.GenerateExodusIIElementBlocksFromMesh();
+   GenerateExodusIIElementBlocksFromMesh();
 
-   writer.WriteNumElementBlocks();
+   WriteNumElementBlocks();
 
    //
    // Set # node sets - TODO: add this (currently, set to 0).
    //
-   writer.WriteNodeSets();
+   WriteNodeSets();
 
    //
    // Set # side sets ("boundaries")
    //
-   writer.GenerateExodusIIBoundaryInfo();
+   GenerateExodusIIBoundaryInfo();
 
-   writer.WriteNumBoundaries();
+   WriteNumBoundaries();
 
    //
    // Set database version #
    //
-   writer.WriteDatabaseVersion();
+   WriteDatabaseVersion();
 
    //
    // Set API version #
    //
-   writer.WriteAPIVersion();
+   WriteAPIVersion();
 
    //
    // Set I/O word size as an attribute (float == 4; double == 8)
    //
-   writer.WriteFloatingPointWordSize();
+   WriteFloatingPointWordSize();
 
    //
    // Store Exodus file size (normal==0; large==1). NB: coordinates specifed separately as components
    // for large file.
    //
-   writer.WriteFileSize();
+   WriteFileSize();
 
    //
    // Set length of character strings.
    //
-   writer.WriteMaxNameLength();
+   WriteMaxNameLength();
 
    //
    // Set length of character lines.
    //
-   writer.WriteMaxLineLength();
+   WriteMaxLineLength();
 
    //
    // Set # timesteps (ASSUME no timesteps for initial verision)
    //
-   writer.WriteTimesteps();
+   WriteTimesteps();
 
    //
    // ---------------------------------------------------------------------------------
@@ -263,42 +268,60 @@ void Mesh::WriteExodusII(const std::string fpath)
    // NB: LibMesh has a dodgy bug where it will skip the x-coordinate if coordx_id == 0.
    // To prevent this, the first variable to be defined will be a dummy variable which will
    // have a variable id of 0.
-   writer.WriteDummyVariable();
+   WriteDummyVariable();
 
    //
    // Write nodal coordinates.
    //
-   writer.WriteNodalCoordinates();
+   WriteNodalCoordinates();
 
    //
    // Write element block parameters.
    //
-   writer.WriteElementBlockParameters();
+   WriteElementBlockParameters();
 
    //
    // Write block IDs.
    //
-   writer.WriteBlockIDs();
+   WriteBlockIDs();
 
    //
    // Write sideset information.
    //
-   writer.WriteSideSetInformationForMesh();
+   WriteSideSetInformationForMesh();
 
    mfem::out << "Mesh successfully written to Exodus II file" << std::endl;
+
 }
 
-ExodusIIWriter::ExodusIIWriter(Mesh & mesh, std::string fpath,
-                               int flags) : _mesh{mesh}
+void ExodusIIWriter::WriteExodusII(Mesh & mesh, std::string fpath,
+                                   int flags)
+{
+   ExodusIIWriter writer(mesh);
+
+   writer.WriteExodusII(fpath, flags);
+}
+
+void Mesh::WriteExodusII(const std::string fpath)
+{
+   ExodusIIWriter::WriteExodusII(*this, fpath);
+}
+
+void ExodusIIWriter::OpenExodusII(std::string fpath, int flags)
 {
    _status = nc_create(fpath.c_str(), flags, &_exid);
    HandleNetCDFStatus();
 }
 
-ExodusIIWriter::~ExodusIIWriter()
+void ExodusIIWriter::CloseExodusII()
 {
    _status = nc_close(_exid);
    HandleNetCDFStatus();
+}
+
+ExodusIIWriter::~ExodusIIWriter()
+{
+   CloseExodusII();
 }
 
 void ExodusIIWriter::WriteTitle()
@@ -655,8 +678,6 @@ void ExodusIIWriter::WriteNodalCoordinatesFromMesh(std::vector<double> & coordx,
                                                    std::vector<double> & coordy,
                                                    std::vector<double> & coordz)
 {
-   _status = NC_NOERR;
-
    nc_enddef(_exid);
 
    _status = nc_put_var_double(_exid, _coordx_id, coordx.data());
