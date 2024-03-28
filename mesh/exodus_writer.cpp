@@ -24,6 +24,8 @@ class ExodusIIWriter
 public:
    ExodusIIWriter(Mesh & mesh) : _mesh{mesh} {}
 
+   inline int GetExodusFileID() const { return _exid; }
+
    void HandleNetCDFStatus(int status);
 
    void GenerateExodusIIElementBlocksFromMesh(std::vector<int> & unique_block_ids,
@@ -54,6 +56,14 @@ public:
                                        const std::map<int, std::vector<int>> & exodusII_side_ids_for_boundary_id);
 
    void WriteBlockIDs(int ncid, const std::vector<int> & unique_block_ids);
+
+   void CreateEmptyFile(const std::string & fpath);
+
+   void WriteTitle();
+
+   void WriteNumOfElements();
+
+
 private:
    // ExodusII file ID.
    int _exid{0};
@@ -91,19 +101,14 @@ const int mfem_to_exodusII_side_map_pyramid5[] =
 void Mesh::WriteExodusII(const std::string fpath)
 {
    int status = NC_NOERR;
-   int ncid  = 0;  // File descriptor.
 
    ExodusIIWriter writer(*this);
 
    //
    // Open file
    //
-
-   int flags =
-      NC_CLOBBER; // Overwrite existing files and use NetCDF4 mode (avoid classic).
-
-   status = nc_create(fpath.c_str(), flags, &ncid);
-   writer.HandleNetCDFStatus(status);
+   writer.CreateEmptyFile(fpath);
+   int ncid = writer.GetExodusFileID();
 
    //
    // Generate Initialization Parameters
@@ -112,9 +117,7 @@ void Mesh::WriteExodusII(const std::string fpath)
    //
    // Add title.
    //
-   const char *title = "MFEM mesh";
-   status = nc_put_att_text(ncid, NC_GLOBAL, "title", strlen(title), title);
-   writer.HandleNetCDFStatus(status);
+   writer.WriteTitle();
 
    //
    // Set # nodes. NB: - Assume 1st order currently so NumOfVertices == # nodes
@@ -137,9 +140,7 @@ void Mesh::WriteExodusII(const std::string fpath)
    //
    // Set # elements.
    //
-   int num_elem_id;
-   status = nc_def_dim(ncid, "num_elem", NumOfElements, &num_elem_id);
-   writer.HandleNetCDFStatus(status);
+   writer.WriteNumOfElements();
 
    //
    // Set # element blocks.
@@ -409,6 +410,33 @@ void Mesh::WriteExodusII(const std::string fpath)
 
    mfem::out << "Mesh successfully written to Exodus II file" << std::endl;
 }
+
+void ExodusIIWriter::CreateEmptyFile(const std::string & fpath)
+{
+   // Overwrite existing file; use older file version.
+   int flags = NC_CLOBBER;
+
+   int status = nc_create(fpath.c_str(), flags, &_exid);
+   HandleNetCDFStatus(status);
+}
+
+void ExodusIIWriter::WriteTitle()
+{
+   const char *title = "MFEM mesh";
+
+   int status = nc_put_att_text(_exid, NC_GLOBAL, "title", strlen(title), title);
+   HandleNetCDFStatus(status);
+}
+
+void ExodusIIWriter::WriteNumOfElements()
+{
+   int num_elem_id;
+
+   int status = nc_def_dim(_exid, "num_elem", _mesh.GetNE(), &num_elem_id);
+   HandleNetCDFStatus(status);
+}
+
+
 
 void ExodusIIWriter::WriteBlockIDs(int ncid,
                                    const std::vector<int> & unique_block_ids)
