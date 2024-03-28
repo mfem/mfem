@@ -848,10 +848,10 @@ public:
         to it.  Used for transferring ownership. */
    SparseMatrix *LoseMat() { SparseMatrix *tmp = mat; mat = NULL; return tmp; }
 
-   /// Returns a const reference to the sparse matrix of eliminated b.c.:  \f$ M_e \f$
+   /// Returns a const reference to the sparse matrix of eliminated b.c.:  $ M_e $
    const SparseMatrix &SpMatElim() const { return *mat_e; }
 
-   /// Returns a reference to the sparse matrix of eliminated b.c.:  \f$ M_e \f$
+   /// Returns a reference to the sparse matrix of eliminated b.c.:  $ M_e $
    SparseMatrix &SpMatElim() { return *mat_e; }
 
    /// Adds a domain integrator. Assumes ownership of @a bfi.
@@ -1012,12 +1012,12 @@ public:
    { EliminateTrialEssentialBC(bdr_attr_is_ess, sol, rhs); }
 
    /// Eliminate the given trial @a vdofs. NOTE: here, @a vdofs is a list of DOFs.
-   /** In this case the eliminations are applied to the internal \f$ M \f$
-       and @a rhs without storing the elimination matrix \f$ M_e \f$. */
+   /** In this case the eliminations are applied to the internal $ M $
+       and @a rhs without storing the elimination matrix $ M_e $. */
    void EliminateTrialVDofs(const Array<int> &vdofs, const Vector &sol,
                             Vector &rhs);
 
-   /// Eliminate the given trial @a vdofs, storing the eliminated part internally in \f$ M_e \f$.
+   /// Eliminate the given trial @a vdofs, storing the eliminated part internally in $ M_e $.
    /** This method works in conjunction with EliminateVDofsInRHS() and allows
        elimination of boundary conditions in multiple right-hand sides. In this
        method, @a vdofs is a list of DOFs. */
