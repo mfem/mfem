@@ -26,19 +26,17 @@ public:
 
    void HandleNetCDFStatus(int status);
 
-   void GenerateExodusIIElementBlocksFromMesh(Mesh & mesh,
-                                              std::vector<int> & unique_block_ids,
+   void GenerateExodusIIElementBlocksFromMesh(std::vector<int> & unique_block_ids,
                                               std::map<int, std::vector<int>>  & element_ids_for_block_id,
                                               std::map<int, Element::Type> & element_type_for_block_id);
 
-   void GenerateExodusIIBoundaryInfo(Mesh & mesh,
-                                     std::vector<int> & unique_boundary_ids,
+   void GenerateExodusIIBoundaryInfo(std::vector<int> & unique_boundary_ids,
                                      std::map<int, std::vector<int>> & exodusII_element_ids_for_boundary_id,
                                      std::map<int, std::vector<int>> & exodusII_side_ids_for_boundary_id);
 
-   void GenerateExodusIINodeIDsFromMesh(Mesh & mesh, int & num_nodes);
+   void GenerateExodusIINodeIDsFromMesh(int & num_nodes);
 
-   void ExtractVertexCoordinatesFromMesh(int ncid, Mesh & mesh,
+   void ExtractVertexCoordinatesFromMesh(int ncid,
                                          std::vector<double> & coordx, std::vector<double> & coordy,
                                          std::vector<double> & coordz);
 
@@ -46,11 +44,11 @@ public:
                                       std::vector<double> & coordx, std::vector<double> & coordy,
                                       std::vector<double> & coordz);
 
-   void WriteNodeConnectivityForBlock(int ncid, Mesh & mesh,
+   void WriteNodeConnectivityForBlock(int ncid,
                                       const int block_id,
                                       const std::map<int, std::vector<int>> & element_ids_for_block_id);
 
-   void WriteSideSetInformationForMesh(int ncid, Mesh & mesh,
+   void WriteSideSetInformationForMesh(int ncid,
                                        const std::vector<int> & boundary_ids,
                                        const std::map<int, std::vector<int>> & exodusII_element_ids_for_boundary_id,
                                        const std::map<int, std::vector<int>> & exodusII_side_ids_for_boundary_id);
@@ -124,7 +122,7 @@ void Mesh::WriteExodusII(const std::string fpath)
    int num_nodes_id;
    int num_nodes;
 
-   writer.GenerateExodusIINodeIDsFromMesh(*this, num_nodes);
+   writer.GenerateExodusIINodeIDsFromMesh(num_nodes);
 
    status = nc_def_dim(ncid, "num_nodes", num_nodes, &num_nodes_id);
    writer.HandleNetCDFStatus(status);
@@ -149,7 +147,7 @@ void Mesh::WriteExodusII(const std::string fpath)
    std::vector<int> unique_block_ids;
    std::map<int, Element::Type> element_type_for_block_id;
    std::map<int, std::vector<int>> element_ids_for_block_id;
-   writer.GenerateExodusIIElementBlocksFromMesh(*this, unique_block_ids,
+   writer.GenerateExodusIIElementBlocksFromMesh(unique_block_ids,
                                                 element_ids_for_block_id, element_type_for_block_id);
 
    int num_elem_blk_id;
@@ -170,7 +168,7 @@ void Mesh::WriteExodusII(const std::string fpath)
    std::vector<int> boundary_ids;
    std::map<int, std::vector<int>> exodusII_element_ids_for_boundary_id;
    std::map<int, std::vector<int>> exodusII_side_ids_for_boundary_id;
-   writer.GenerateExodusIIBoundaryInfo(*this, boundary_ids,
+   writer.GenerateExodusIIBoundaryInfo(boundary_ids,
                                        exodusII_element_ids_for_boundary_id,
                                        exodusII_side_ids_for_boundary_id);
 
@@ -276,7 +274,7 @@ void Mesh::WriteExodusII(const std::string fpath)
 
    std::vector<double> coordx(num_nodes), coordy(num_nodes),
        coordz(Dim == 3 ? num_nodes : 0);
-   writer.ExtractVertexCoordinatesFromMesh(ncid, *this, coordx, coordy, coordz);
+   writer.ExtractVertexCoordinatesFromMesh(ncid, coordx, coordy, coordz);
 
    status = nc_def_var(ncid, "coordx", NC_DOUBLE, 1, &num_nodes_id, &coordx_id);
    writer.HandleNetCDFStatus(status);
@@ -353,7 +351,7 @@ void Mesh::WriteExodusII(const std::string fpath)
       //
       // Define element node connectivity for block.
       //
-      writer.WriteNodeConnectivityForBlock(ncid, *this, block_id,
+      writer.WriteNodeConnectivityForBlock(ncid, block_id,
                                            element_ids_for_block_id);
 
       //
@@ -399,7 +397,7 @@ void Mesh::WriteExodusII(const std::string fpath)
    //
    // Write sideset information.
    //
-   writer.WriteSideSetInformationForMesh(ncid, *this, boundary_ids,
+   writer.WriteSideSetInformationForMesh(ncid, boundary_ids,
                                          exodusII_element_ids_for_boundary_id,
                                          exodusII_side_ids_for_boundary_id);
 
@@ -431,7 +429,7 @@ void ExodusIIWriter::WriteBlockIDs(int ncid,
    nc_redef(ncid);
 }
 
-void ExodusIIWriter::WriteSideSetInformationForMesh(int ncid, Mesh & mesh,
+void ExodusIIWriter::WriteSideSetInformationForMesh(int ncid,
                                                     const std::vector<int> & boundary_ids,
                                                     const std::map<int, std::vector<int>> & exodusII_element_ids_for_boundary_id,
                                                     const std::map<int, std::vector<int>> & exodusII_side_ids_for_boundary_id)
@@ -527,7 +525,7 @@ void ExodusIIWriter::WriteSideSetInformationForMesh(int ncid, Mesh & mesh,
    }
 }
 
-void ExodusIIWriter::WriteNodeConnectivityForBlock(int ncid, Mesh & mesh,
+void ExodusIIWriter::WriteNodeConnectivityForBlock(int ncid,
                                                    const int block_id,
                                                    const std::map<int, std::vector<int>> & element_ids_for_block_id)
 {
@@ -543,7 +541,7 @@ void ExodusIIWriter::WriteNodeConnectivityForBlock(int ncid, Mesh & mesh,
       // NB: assume first-order elements only for now.
       // NB: - need to convert from 0-based indexing --> 1-based indexing.
       mfem::Array<int> element_vertices;
-      mesh.GetElementVertices(element_id, element_vertices);
+      _mesh.GetElementVertices(element_id, element_vertices);
 
       for (int vertex_id : element_vertices)
       {
@@ -572,18 +570,18 @@ void ExodusIIWriter::WriteNodeConnectivityForBlock(int ncid, Mesh & mesh,
 }
 
 
-void ExodusIIWriter::ExtractVertexCoordinatesFromMesh(int ncid, Mesh & mesh,
+void ExodusIIWriter::ExtractVertexCoordinatesFromMesh(int ncid,
                                                       std::vector<double> & coordx, std::vector<double> & coordy,
                                                       std::vector<double> & coordz)
 {
-   for (int ivertex = 0; ivertex < mesh.GetNV(); ivertex++)
+   for (int ivertex = 0; ivertex < _mesh.GetNV(); ivertex++)
    {
-      double * coordinates = mesh.GetVertex(ivertex);
+      double * coordinates = _mesh.GetVertex(ivertex);
 
       coordx[ivertex] = coordinates[0];
       coordy[ivertex] = coordinates[1];
 
-      if (mesh.Dimension() == 3)
+      if (_mesh.Dimension() == 3)
       {
          coordz[ivertex] = coordinates[2];
       }
@@ -637,10 +635,10 @@ void ExodusIIWriter::HandleNetCDFStatus(int status)
 /// all elements belonging to the same block will have the same attribute. We can perform a safety check as well
 /// by ensuring that all elements in the block have the same element type. If this is not the case then something
 /// has gone horribly wrong!
-void ExodusIIWriter::GenerateExodusIIElementBlocksFromMesh(Mesh & mesh,
-                                                           std::vector<int> & unique_block_ids,
-                                                           std::map<int, std::vector<int>>  & element_ids_for_block_id,
-                                                           std::map<int, Element::Type> & element_type_for_block_id)
+void ExodusIIWriter::GenerateExodusIIElementBlocksFromMesh(
+   std::vector<int> & unique_block_ids,
+   std::map<int, std::vector<int>>  & element_ids_for_block_id,
+   std::map<int, Element::Type> & element_type_for_block_id)
 {
    unique_block_ids.clear();
    element_ids_for_block_id.clear();
@@ -649,11 +647,11 @@ void ExodusIIWriter::GenerateExodusIIElementBlocksFromMesh(Mesh & mesh,
    std::set<int> observed_block_ids;
 
    // Iterate over the elements in the mesh.
-   for (int ielement = 0; ielement < mesh.GetNE(); ielement++)
+   for (int ielement = 0; ielement < _mesh.GetNE(); ielement++)
    {
-      Element::Type element_type = mesh.GetElementType(ielement);
+      Element::Type element_type = _mesh.GetElementType(ielement);
 
-      int block_id = mesh.GetAttribute(ielement);
+      int block_id = _mesh.GetAttribute(ielement);
 
       if (observed_block_ids.count(block_id) == 0)
       {
@@ -679,16 +677,16 @@ void ExodusIIWriter::GenerateExodusIIElementBlocksFromMesh(Mesh & mesh,
 }
 
 /// @brief Iterates over the elements of the mesh to extract a unique set of node IDs (or vertex IDs if first-order).
-void ExodusIIWriter::GenerateExodusIINodeIDsFromMesh(Mesh & mesh,
-                                                     int & num_nodes)
+void ExodusIIWriter::GenerateExodusIINodeIDsFromMesh(
+   int & num_nodes)
 {
    std::set<int> node_ids;
 
-   const FiniteElementSpace * fespace = mesh.GetNodalFESpace();
+   const FiniteElementSpace * fespace = _mesh.GetNodalFESpace();
 
    mfem::Array<int> dofs;
 
-   for (int ielement = 0; ielement < mesh.GetNE(); ielement++)
+   for (int ielement = 0; ielement < _mesh.GetNE(); ielement++)
    {
       if (fespace)   // Higher-order
       {
@@ -699,7 +697,7 @@ void ExodusIIWriter::GenerateExodusIINodeIDsFromMesh(Mesh & mesh,
       else
       {
          mfem::Array<int> vertex_indices;
-         mesh.GetElementVertices(ielement, vertex_indices);
+         _mesh.GetElementVertices(ielement, vertex_indices);
 
          // TODO: - Hmmmm. These are not actually the dofs. Just the vertex offsets.
          for (int vertex_index : vertex_indices)
@@ -712,17 +710,17 @@ void ExodusIIWriter::GenerateExodusIINodeIDsFromMesh(Mesh & mesh,
    num_nodes = (int)node_ids.size();
 }
 
-void ExodusIIWriter::GenerateExodusIIBoundaryInfo(Mesh & mesh,
-                                                  std::vector<int> & unique_boundary_ids,
-                                                  std::map<int, std::vector<int>> & exodusII_element_ids_for_boundary_id,
-                                                  std::map<int, std::vector<int>> & exodusII_side_ids_for_boundary_id)
+void ExodusIIWriter::GenerateExodusIIBoundaryInfo(
+   std::vector<int> & unique_boundary_ids,
+   std::map<int, std::vector<int>> & exodusII_element_ids_for_boundary_id,
+   std::map<int, std::vector<int>> & exodusII_side_ids_for_boundary_id)
 {
    // Store the unique boundary IDs.
    unique_boundary_ids.clear();
    exodusII_element_ids_for_boundary_id.clear();
    exodusII_side_ids_for_boundary_id.clear();
 
-   for (int bdr_attribute : mesh.bdr_attributes)
+   for (int bdr_attribute : _mesh.bdr_attributes)
    {
       unique_boundary_ids.push_back(bdr_attribute);
    }
@@ -743,9 +741,9 @@ void ExodusIIWriter::GenerateExodusIIBoundaryInfo(Mesh & mesh,
    std::unordered_set<int> blacklisted_global_face_indices;
 
    Array<int> global_face_indices, orient;
-   for (int ielement = 0; ielement < mesh.GetNE(); ielement++)
+   for (int ielement = 0; ielement < _mesh.GetNE(); ielement++)
    {
-      mesh.GetElementFaces(ielement, global_face_indices, orient);
+      _mesh.GetElementFaces(ielement, global_face_indices, orient);
 
       for (int iface = 0; iface < global_face_indices.Size(); iface++)
       {
@@ -768,10 +766,10 @@ void ExodusIIWriter::GenerateExodusIIBoundaryInfo(Mesh & mesh,
       }
    }
 
-   for (int ibdr_element = 0; ibdr_element < mesh.GetNBE(); ibdr_element++)
+   for (int ibdr_element = 0; ibdr_element < _mesh.GetNBE(); ibdr_element++)
    {
-      int boundary_id = mesh.GetBdrAttribute(ibdr_element);
-      int bdr_element_face_index = mesh.GetBdrElementFaceIndex(ibdr_element);
+      int boundary_id = _mesh.GetBdrAttribute(ibdr_element);
+      int bdr_element_face_index = _mesh.GetBdrElementFaceIndex(ibdr_element);
 
       // Locate match.
       auto & element_face_info = mfem_face_index_info_for_global_face_index.at(
@@ -786,7 +784,7 @@ void ExodusIIWriter::GenerateExodusIIBoundaryInfo(Mesh & mesh,
       // 2. Convert 0-based MFEM face index to Exodus II 1-based face ID (different ordering).
       int exodusII_face_id;
 
-      Element::Type element_type = mesh.GetElementType(ielement);
+      Element::Type element_type = _mesh.GetElementType(ielement);
       switch (element_type)
       {
          case Element::Type::TETRAHEDRON:
