@@ -22,13 +22,13 @@ namespace mfem
 class ExodusIIWriter
 {
 public:
-   ExodusIIWriter() = delete;
-
    /// @brief Default constructor. Opens ExodusII file.
    /// @param mesh The mesh to write to the file.
    ExodusIIWriter(Mesh & mesh) : _mesh{mesh} {}
 
-   /// @brief Closes ExodusII file.
+   ExodusIIWriter() = delete;
+
+   /// @brief Closes ExodusII file if it has been opened.
    ~ExodusIIWriter();
 
    /// @brief Writes the mesh to an ExodusII file.
@@ -37,69 +37,105 @@ public:
    void WriteExodusII(std::string fpath, int flags = NC_CLOBBER);
 
    /// @brief Static method for writing a mesh to an ExodusII file.
+   /// @param mesh The mesh to write to the file.
+   /// @param fpath The path to the file.
+   /// @param flags NetCDF file flags.
    static void WriteExodusII(Mesh & mesh, std::string fpath,
                              int flags = NC_CLOBBER);
 
 protected:
+   /// @brief Closes any open file and creates a NetCDF file using selected flags.
    void OpenExodusII(std::string fpath, int flags);
+
+   /// @brief Closes any open file.
    void CloseExodusII();
 
+   /// @brief Calls MFEM_ABORT with an error message for the error if _status != NC_NOERR.
    void HandleNetCDFStatus();
 
+   /// @brief Extracts block ids, element ids for each block and element type for each block.
    void GenerateExodusIIElementBlocks();
 
+   /// @brief Extracts boundary ids and determines the element IDs and side IDs (Exodus II) for
+   /// each boundary element.
    void GenerateExodusIIBoundaryInfo();
 
+   /// @brief sets @a _num_nodes.
    void FindNumUniqueNodes();
 
+   /// @brief Populates vectors with x, y, z coordinates from mesh.
    void ExtractVertexCoordinates(std::vector<double> & coordx,
                                  std::vector<double> & coordy,
                                  std::vector<double> & coordz);
 
+   /// @brief Writes nodal coordinates to file.
    void WriteNodalCoordinates(std::vector<double> & coordx,
                               std::vector<double> & coordy,
                               std::vector<double> & coordz);
 
+   /// @brief Writes node connectivity for a particular block.
+   /// @param block_id The block to write to the file.
    void WriteNodeConnectivityForBlock(const int block_id);
 
+   /// @brief Writes boundary information to file. @a GenerateExodusIIBoundaryInfo must be called first.
    void WriteSideSetInformation();
 
+   /// @brief Writes the block IDs to the file.
    void WriteBlockIDs();
 
+   /// @brief Writes a title to the file.
    void WriteTitle();
 
+   /// @brief Writes the number of elements in the mesh.
    void WriteNumOfElements();
 
+   /// @brief Writes the floating-point word size (4 == float; 8 == double).
    void WriteFloatingPointWordSize();
 
+   /// @brief Writes the API version.
    void WriteAPIVersion();
 
+   /// @brief Writes the database version.
    void WriteDatabaseVersion();
 
+   /// @brief Writes the maximum length of a line.
    void WriteMaxLineLength();
 
+   /// @brief Writes the maximum length of a name.
    void WriteMaxNameLength();
 
+   /// @brief  Writes the number of blocks.
    void WriteNumElementBlocks();
 
+   /// @brief Writes all element block parameters.
    void WriteElementBlockParameters();
 
+   /// @brief Called by @a WriteElementBlockParameters in for-loop.
+   /// @param block_id Block to write parameters.
    void WriteElementBlockParameters(int block_id);
 
+   /// @brief Writes the number of boundaries.
    void WriteNumBoundaries();
 
+   /// @brief Writes the number of nodes in the mesh.
    void WriteNumNodes();
 
+   /// @brief Writes the coordinates of nodes.
    void WriteNodalCoordinates();
 
+   /// @brief Writes the file size (normal=0; large=1). Coordinates are specified separately as components for large files (i.e. xxx, yyy, zzz) as opposed to (xyz, xyz, xyz) for normal files.
    void WriteFileSize();
 
+   /// @brief Writes the nodesets. Currently, we do not support nodesets.
    void WriteNodeSets();
 
+   /// @brief Writes the mesh dimension.
    void WriteDimension();
 
+   /// @brief Writes the number of timesteps. Currently, we do not support multiple timesteps.
    void WriteTimesteps();
 
+   /// @brief Writes a dummy variable. This is to circumvent a bug in LibMesh where it will skip the x-coordinate when reading in an ExodusII file if the id of the x-coordinates is 0. To prevent this, we define a dummy variable before defining the coordinates. This ensures that the coordinate variable IDs have values greater than zero.
    void WriteDummyVariable();
 
    /// @brief Wrapper around nc_def_dim with error handling.
@@ -113,6 +149,7 @@ private:
    // ExodusII file ID.
    int _exid{-1};
 
+   /// Flag to check if a file is currently open.
    bool _file_open{false};
 
    // NetCDF status.
@@ -121,7 +158,7 @@ private:
    // Reference to mesh we would like to write-out.
    Mesh & _mesh;
 
-   // Mesh info.
+   // Block information.
    std::vector<int> _block_ids;
    std::map<int, Element::Type> _element_type_for_block_id;
    std::map<int, std::vector<int>> _element_ids_for_block_id;
