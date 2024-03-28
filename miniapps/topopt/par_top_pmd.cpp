@@ -185,6 +185,7 @@ int main(int argc, char *argv[])
                           ess_bdr_filter, true);
    LatentDesignDensity density(control_fes, filter, vol_fraction,
                                FermiDiracEntropy, inv_sigmoid, sigmoid, false, false);
+   density.UsePrimalFilter(true);
 
    ConstantCoefficient E_cf(E), nu_cf(nu);
    ParametrizedElasticityEquation elasticity(state_fes,
@@ -228,6 +229,7 @@ int main(int argc, char *argv[])
       projected_grad_selfload->AddDomainIntegrator(new L2ProjectionLFIntegrator(
                                                       *gradH1_selfload));
       density.SetVolumeConstraintType(-1);
+      density.GetGridFunction() = inv_sigmoid(0.8);
    }
    density.ComputeVolume();
    // 10. Connect to GLVis. Prepare for VisIt output.
@@ -305,7 +307,7 @@ int main(int argc, char *argv[])
                 << "Start Projected Mirror Descent Step." << "\n" << std::endl;
 
    double compliance = optprob.Eval();
-   double step_size(0), volume(density.GetVolume()),
+   double step_size(1.0), volume(density.GetVolume() / density.GetDomainVolume()),
           stationarityError(infinity()), stationarityError_bregman(infinity());
    int num_reeval(0);
    double old_compliance;
@@ -325,8 +327,7 @@ int main(int argc, char *argv[])
    for (int k = 0; k < max_it; k++)
    {
       // Step 1. Compute Step size
-      if (k == 0) { step_size = 1.0; }
-      else
+      if (k > 0)
       {
          diff_rho_form.Assemble();
          old_psi -= psi;
@@ -380,17 +381,17 @@ int main(int argc, char *argv[])
       {
          if (sout_SIMP.is_open())
          {
-            designDensity_gf->ProjectCoefficient(densityProjector.GetPhysicalDensity(
-                                                    density.GetFilteredDensity()));
+            // designDensity_gf->ProjectCoefficient(densityProjector.GetPhysicalDensity(
+            //                                         density.GetFilteredDensity()));
             sout_SIMP << "parallel " << num_procs << " " << myid << "\n";
-            sout_SIMP << "solution\n" << *pmesh << *designDensity_gf
+            sout_SIMP << "solution\n" << *pmesh << rho_filter
                       << flush;
             MPI_Barrier(MPI_COMM_WORLD); // try to prevent streams from mixing
          }
          if (sout_r.is_open())
          {
             sout_r << "parallel " << num_procs << " " << myid << "\n";
-            sout_r << "solution\n" << *pmesh << *rho_gf
+            sout_r << "solution\n" << *pmesh << psi
                    << flush;
             MPI_Barrier(MPI_COMM_WORLD); // try to prevent streams from mixing
          }

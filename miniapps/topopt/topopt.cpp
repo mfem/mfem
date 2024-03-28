@@ -577,7 +577,8 @@ LatentDesignDensity::LatentDesignDensity(FiniteElementSpace &fes,
    DesignDensity(fes, filter, vol_frac),
    h(h), p2d(primal2dual), d2p(dual2primal),
    clip_lower(clip_lower), clip_upper(clip_upper),
-   zero_gf(MakeGridFunction(&fes))
+   zero_gf(MakeGridFunction(&fes)),
+   use_primal_filter(true)
 {
    *x_gf = p2d(vol_frac);
    rho_cf.reset(new MappedGridFunctionCoefficient(x_gf.get(), d2p));

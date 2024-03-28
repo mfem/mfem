@@ -50,7 +50,7 @@ int main(int argc, char *argv[])
    // Volume fraction. Use problem-dependent default value if not provided.
    // See switch statements below
    double vol_fraction = -1;
-   int max_it = 2e2;
+   int max_it = 2e4;
    double rho_min = 1e-06;
    double exponent = 3.0;
    double E = 1.0;
@@ -171,9 +171,17 @@ int main(int argc, char *argv[])
    TopOptProblem optprob(elasticity.GetLinearForm(), elasticity, density, false,
                          false);
 
-   ParGridFunction &u = *dynamic_cast<ParGridFunction*>(&optprob.GetState());
-   ParGridFunction &rho_filter = *dynamic_cast<ParGridFunction*>
-                                 (&density.GetFilteredDensity());
+   ParGridFunction &u = static_cast<ParGridFunction&>(optprob.GetState());
+   ParGridFunction &rho_filter = static_cast<ParGridFunction&>
+                                 (density.GetFilteredDensity());
+   ParGridFunction &grad(static_cast<ParGridFunction&>(optprob.GetGradient()));
+   ParGridFunction &rho(static_cast<ParGridFunction&>
+                        (density.GetGridFunction()));
+   ParGridFunction old_rho(&control_fes);
+
+   ParLinearForm diff_rho_form(&control_fes);
+   std::unique_ptr<Coefficient> diff_rho(optprob.GetDensityDiffCoeff(old_rho));
+   diff_rho_form.AddDomainIntegrator(new DomainLFIntegrator(*diff_rho));
    {
       // Apply Filter material boundary, ess_bdr_filter == 1
       Array<int> material_bdr(ess_bdr_filter);
@@ -195,18 +203,18 @@ int main(int argc, char *argv[])
    std::unique_ptr<ParGridFunction> designDensity_gf, rho_gf;
    if (glvis_visualization)
    {
-      MPI_Barrier(MPI_COMM_WORLD);
-      designDensity_gf.reset(new ParGridFunction(&filter_fes));
-      rho_gf.reset(new ParGridFunction(&filter_fes));
-      designDensity_gf->ProjectCoefficient(simp_rule.GetPhysicalDensity(
-                                              density.GetFilteredDensity()));
-      rho_gf->ProjectCoefficient(density.GetDensityCoefficient());
+      // MPI_Barrier(MPI_COMM_WORLD);
+      // designDensity_gf.reset(new ParGridFunction(&filter_fes));
+      // rho_gf.reset(new ParGridFunction(&filter_fes));
+      // designDensity_gf->ProjectCoefficient(simp_rule.GetPhysicalDensity(
+      //                                         density.GetFilteredDensity()));
+      // rho_gf->ProjectCoefficient(density.GetDensityCoefficient());
       sout_SIMP.open(vishost, visport);
       if (sout_SIMP.is_open())
       {
          sout_SIMP << "parallel " << num_procs << " " << myid << "\n";
          sout_SIMP.precision(8);
-         sout_SIMP << "solution\n" << *pmesh << *designDensity_gf
+         sout_SIMP << "solution\n" << *pmesh << rho_filter
                    << "window_title 'Design density r(ρ̃) - OC "
                    << problem << "'\n"
                    << "keys Rjl***************\n"
@@ -218,7 +226,7 @@ int main(int argc, char *argv[])
       {
          sout_r << "parallel " << num_procs << " " << myid << "\n";
          sout_r.precision(8);
-         sout_r << "solution\n" << *pmesh << *rho_gf
+         sout_r << "solution\n" << *pmesh << rho
                 << "window_title 'Raw density ρ - OC "
                 << problem << "'\n"
                 << "keys Rjl***************\n"
@@ -242,14 +250,6 @@ int main(int argc, char *argv[])
    }
 
    // 11. Iterate
-   ParGridFunction &grad(*dynamic_cast<ParGridFunction*>(&optprob.GetGradient()));
-   ParGridFunction &rho(*dynamic_cast<ParGridFunction*>
-                        (&density.GetGridFunction()));
-   ParGridFunction old_rho(&control_fes);
-
-   ParLinearForm diff_rho_form(&control_fes);
-   std::unique_ptr<Coefficient> diff_rho(optprob.GetDensityDiffCoeff(old_rho));
-   diff_rho_form.AddDomainIntegrator(new DomainLFIntegrator(*diff_rho));
 
    if (Mpi::Root())
       mfem::out << "\n"
@@ -314,18 +314,18 @@ int main(int argc, char *argv[])
       {
          if (sout_SIMP.is_open())
          {
-            designDensity_gf->ProjectCoefficient(simp_rule.GetPhysicalDensity(
-                                                    density.GetFilteredDensity()));
+            // designDensity_gf->ProjectCoefficient(simp_rule.GetPhysicalDensity(
+            //                                         density.GetFilteredDensity()));
             sout_SIMP << "parallel " << num_procs << " " << myid << "\n";
-            sout_SIMP << "solution\n" << *pmesh << *designDensity_gf
+            sout_SIMP << "solution\n" << *pmesh << rho_filter
                       << flush;
             MPI_Barrier(MPI_COMM_WORLD); // try to prevent streams from mixing
          }
          if (sout_r.is_open())
          {
-            rho_gf->ProjectCoefficient(density.GetDensityCoefficient());
+            // rho_gf->ProjectCoefficient(density.GetDensityCoefficient());
             sout_r << "parallel " << num_procs << " " << myid << "\n";
-            sout_r << "solution\n" << *pmesh << *rho_gf
+            sout_r << "solution\n" << *pmesh << rho
                    << flush;
             MPI_Barrier(MPI_COMM_WORLD); // try to prevent streams from mixing
          }

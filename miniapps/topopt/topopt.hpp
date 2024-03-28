@@ -1,4 +1,5 @@
-#pragma once
+#ifndef TOPOPT_HPP
+#define TOPOPT_HPP
 #include "mfem.hpp"
 #include "helper.hpp"
 #include <functional>
@@ -48,6 +49,69 @@ inline double der2_simp(const double x, const double rho_0,
 {
    return k * (k - 1.0) * std::pow(x, k - 2.0) * (rho_max - rho_0);
 }
+
+class LegendreFunction
+{
+private:
+   std::function<double(const double)> f;
+   std::function<double(const double)> df;
+   std::function<double(const double)> inv_df;
+protected:
+public:
+   double operator()(const double x) { return f(x); }
+   std::function<double(const double)> &GetForwardMap() { return df; }
+   std::function<double(const double)> &GetInverseMap() { return inv_df; }
+   void SetLegendre(std::function<double(const double)> h) { f = h; }
+   void SetForwardMap(std::function<double(const double)> p2l) { df = p2l; }
+   void SetInverseMap(std::function<double(const double)> l2p) { inv_df = l2p; }
+};
+
+// Fermi-Dirac function, xlog(x) + (1-x)log(1-x)
+class FermiDirac: public LegendreFunction
+{
+public:
+   // Fermi-Dirac function with safe logarithm
+   FermiDirac(const double eps=1e-12):LegendreFunction()
+   {
+      // Fermi-Dirac
+      SetLegendre([eps](const double x) {
+         const double y = 1.0 - x;
+         return (x < eps ? 0 : x*log(x))
+                + (y < eps ? 0 : y*log(y));
+      });
+      // Derivative, logit = log(x/(1-x))
+      SetForwardMap([eps](const double x) {
+         const double y = x > 0.5 ? 1.0 - x : x;
+         const double z = y / (1.0 - y);
+         const double result = z < eps ? std::log(eps) : std::log(z);
+         return x > 0.5 ? -result : result;
+      });
+      // Inverse of Derivative, sigmoid
+      SetInverseMap(sigmoid);
+   }
+};
+
+// Shannon entropy, xlog(x) - x
+class Shannon : public LegendreFunction
+{
+public:
+   // Shannon entropy, xlog(x) - x
+   Shannon(const double eps):LegendreFunction()
+   {
+      // Shannon entropy
+      SetLegendre([eps](const double x) {
+         return x < eps ? -x : x*std::log(x) - x;
+      });
+      // Derivative, safe log(x)
+      SetForwardMap([eps](const double x) {
+         return x < eps ? std::log(eps) : std::log(x);
+      });
+      // Inverse of Derivative, exp
+      SetInverseMap([](const double x) {
+         return std::exp(x);
+      });
+   }
+};
 
 inline double FermiDiracEntropy(const double x)
 {
@@ -355,7 +419,7 @@ public:
    GridFunction &GetGridFunction() { return *x_gf; }
    Coefficient &GetDensityCoefficient() { return *rho_cf; }
    GridFunction &GetFilteredDensity() { return *frho; }
-   void UpdateFilteredDensity()
+   virtual void UpdateFilteredDensity()
    {
       filter.Apply(*rho_cf, *frho);
    }
@@ -420,6 +484,7 @@ private:
    std::function<double(double)> d2p;
    bool clip_lower, clip_upper;
    std::unique_ptr<GridFunction> zero_gf;
+   bool use_primal_filter;
    // functions
 public:
    LatentDesignDensity(FiniteElementSpace &fes,
@@ -449,6 +514,20 @@ public:
       return std::unique_ptr<Coefficient>(new MappedPairGridFunctionCoeffitient(
                                              x_gf.get(), &other_gf,
       [this](double x, double y) {return d2p(x) - d2p(y);}));
+   }
+   void UsePrimalFilter(bool flag) {use_primal_filter = flag;}
+   bool UsingPrimalFilter() {return use_primal_filter;}
+   void UpdateFilteredDensity() override
+   {
+      if (use_primal_filter)
+      {
+         filter.Apply(*rho_cf, *frho);
+      }
+      else
+      {
+         filter.Apply(*x_gf, *frho);
+         frho->ApplyMap(d2p);
+      }
    }
 protected:
 private:
@@ -815,3 +894,4 @@ public:
    void UpdateSize();
 };
 }
+#endif

@@ -23,9 +23,7 @@ void initialDesign(GridFunction& psi, Vector domain_center,
    FunctionCoefficient dist([&domain_center, &ports](const Vector &x)
    {
       double d = infinity();
-      for (int i=0; i<ports.Size(); i++) {d = std::min(d, DistanceToSegment(x, domain_center, *(ports[i])));}
-      // double d = x.DistanceTo(domain_center);
-      // for (int i=0; i<ports.Size(); i++) {d = std::min(d, x.DistanceTo(*(ports[i])));}
+      for (auto &port : ports) {d = std::min(d, DistanceToSegment(x, domain_center, *port));}
       return d;
    });
    psi.ProjectCoefficient(dist);
@@ -236,8 +234,7 @@ void MBBPreRefine(double &filter_radius, double &vol_fraction,
    if (vol_fraction < 0) { vol_fraction = 0.5; }
 
    *mesh = Mesh::MakeCartesian2D(3, 1, mfem::Element::Type::QUADRILATERAL, true,
-                                 3.0,
-                                 1.0);
+                                 3.0, 1.0);
    ess_bdr.SetSize(3, 5);
    ess_bdr_filter.SetSize(5);
    ess_bdr = 0; ess_bdr_filter = 0;
@@ -248,7 +245,7 @@ void MBBPreRefine(double &filter_radius, double &vol_fraction,
                                                              Vector &f)
    {
       f = 0.0;
-      if (x.DistanceTo(center) < 0.05) { f(1) = -1.0; }
+      if (x.DistanceTo(center) < 0.05) { f(1) = -1.0/0.01/0.01/25/M_PI; }
    }));
 }
 void MBBPostRefine(int ser_ref_levels, int par_ref_levels,
@@ -334,7 +331,7 @@ void Cantilever3PreRefine(double &filter_radius, double &vol_fraction,
    ess_bdr = 0; ess_bdr_filter = 0;
    ess_bdr(0, 4) = 1;
 
-   const Vector center({1.9, 0.1, 0.25});
+   const Vector center({1.9, 0.1, 0.1});
    // force(0) = 0.0; force(1) = 0.0; force(2) = -1.0;
    vforce_cf.reset(new VectorFunctionCoefficient(3, [center](const Vector &x,
                                                              Vector &f)
@@ -452,7 +449,7 @@ void SelfLoading3PreRefine(double &filter_radius, double &vol_fraction,
                            std::unique_ptr<Mesh> &mesh, Array2D<int> &ess_bdr, Array<int> &ess_bdr_filter,
                            std::unique_ptr<VectorCoefficient> &vforce_cf)
 {
-   if (filter_radius < 0) { filter_radius = 3e-02; }
+   if (filter_radius < 0) { filter_radius = 5e-02; }
    if (vol_fraction < 0) { vol_fraction = 0.07; }
 
    // [1: bottom,
