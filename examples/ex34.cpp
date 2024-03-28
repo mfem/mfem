@@ -567,6 +567,7 @@ void ComputeCurrentDensityOnSubMesh(int order,
       a_h1.RecoverFEMSolution(X, b_h1, phi_h1);
    }
 
+   if (visualization)
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
