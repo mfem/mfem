@@ -173,6 +173,30 @@ public:
        vectors on the true dofs. */
    void TrueAddMult(const Vector &x, Vector &y, const real_t a = 1.0) const;
 
+   /// Compute $ y^T M x $
+   /** @warning The calculation is performed on local dofs, assuming that
+       the local vectors are consistent with the prolongations of the true
+       vectors (see ParGridFunction::Distribute()). If this is not the case,
+       use TrueInnerProduct(const ParGridFunction &, const ParGridFunction &)
+       instead.
+       @note It is assumed that the local matrix is assembled and it has
+       not been replaced by the parallel matrix through FormSystemMatrix().
+       @see TrueInnerProduct(const ParGridFunction&, const ParGridFunction&) */
+   real_t InnerProduct(const ParGridFunction &x,
+                       const ParGridFunction &y) const;
+
+   /// Compute $ y^T M x $ on true dofs (grid function version)
+   /** @note It is assumed that the parallel system matrix is assembled,
+       see FormSystemMatrix().
+       @see InnerProduct(const ParGridFunction&, const ParGridFunction&) */
+   real_t TrueInnerProduct(const ParGridFunction &x,
+                           const ParGridFunction &y) const;
+
+   /// Compute $ y^T M x $ on true dofs (vector version)
+   /** @note It is assumed that the parallel system matrix is assembled,
+       see FormSystemMatrix(). */
+   real_t TrueInnerProduct(HypreParVector &x, HypreParVector &y) const;
+
    /// Return the parallel FE space associated with the ParBilinearForm.
    ParFiniteElementSpace *ParFESpace() const { return pfes; }
 

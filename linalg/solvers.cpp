@@ -1188,6 +1188,8 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
 
    final_norm = std::max(rel_tol*beta, abs_tol);
 
+   converged = false;
+
    if (beta <= final_norm)
    {
       final_norm = beta;
@@ -1303,8 +1305,6 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
       MFEM_ASSERT(IsFinite(beta), "beta = " << beta);
       if (beta <= final_norm)
       {
-         final_norm = beta;
-         final_iter = j;
          converged = true;
 
          break;
@@ -1317,7 +1317,9 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
       if (v[i]) { delete v[i]; }
       if (z[i]) { delete z[i]; }
    }
-   converged = false;
+
+   final_norm = beta;
+   final_iter = j;
 
    // Note: j is off by one when we arrive here
    if (!print_options.iterations && print_options.first_and_last)

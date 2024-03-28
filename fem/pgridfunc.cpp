@@ -681,9 +681,10 @@ void ParGridFunction::ProjectBdrCoefficient(
    // Count the values globally.
    GroupCommunicator &gcomm = pfes->GroupComm();
    gcomm.Reduce<int>(values_counter.HostReadWrite(), GroupCommunicator::Sum);
+   gcomm.Bcast<int>(values_counter.HostReadWrite());
    // Accumulate the values globally.
    gcomm.Reduce<real_t>(values.HostReadWrite(), GroupCommunicator::Sum);
-   // Only the values in the master are guaranteed to be correct!
+   gcomm.Bcast<real_t>(values.HostReadWrite());
    for (int i = 0; i < values.Size(); i++)
    {
       if (values_counter[i])
@@ -713,8 +714,7 @@ void ParGridFunction::ProjectBdrCoefficient(
    }
    for (int i = 0; i < values_counter.Size(); i++)
    {
-      MFEM_ASSERT(pfes->GetLocalTDofNumber(i) == -1 ||
-                  bool(values_counter[i]) == bool(ess_vdofs_marker[i]),
+      MFEM_ASSERT(bool(values_counter[i]) == bool(ess_vdofs_marker[i]),
                   "internal error");
    }
 #endif
@@ -735,9 +735,10 @@ void ParGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
    // Count the values globally.
    GroupCommunicator &gcomm = pfes->GroupComm();
    gcomm.Reduce<int>(values_counter.HostReadWrite(), GroupCommunicator::Sum);
+   gcomm.Bcast<int>(values_counter.HostReadWrite());
    // Accumulate the values globally.
    gcomm.Reduce<real_t>(values.HostReadWrite(), GroupCommunicator::Sum);
-   // Only the values in the master are guaranteed to be correct!
+   gcomm.Bcast<real_t>(values.HostReadWrite());
    for (int i = 0; i < values.Size(); i++)
    {
       if (values_counter[i])
@@ -751,8 +752,7 @@ void ParGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
    pfes->GetEssentialVDofs(bdr_attr, ess_vdofs_marker);
    for (int i = 0; i < values_counter.Size(); i++)
    {
-      MFEM_ASSERT(pfes->GetLocalTDofNumber(i) == -1 ||
-                  bool(values_counter[i]) == bool(ess_vdofs_marker[i]),
+      MFEM_ASSERT(bool(values_counter[i]) == bool(ess_vdofs_marker[i]),
                   "internal error: " << pfes->GetLocalTDofNumber(i) << ' ' << bool(
                      values_counter[i]));
    }

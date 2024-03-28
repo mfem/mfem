@@ -124,7 +124,7 @@ T Array<T>::Sum()
 }
 
 template <class T>
-int Array<T>::IsSorted()
+int Array<T>::IsSorted() const
 {
    T val_prev = operator[](0), val;
    for (int i = 1; i < size; i++)
