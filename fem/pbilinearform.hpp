@@ -173,7 +173,7 @@ public:
        vectors on the true dofs. */
    void TrueAddMult(const Vector &x, Vector &y, const real_t a = 1.0) const;
 
-   /// Compute \f$ y^T M x \f$
+   /// Compute $ y^T M x $
    /** @warning The calculation is performed on local dofs, assuming that
        the local vectors are consistent with the prolongations of the true
        vectors (see ParGridFunction::Distribute()). If this is not the case,
@@ -185,14 +185,14 @@ public:
    real_t InnerProduct(const ParGridFunction &x,
                        const ParGridFunction &y) const;
 
-   /// Compute \f$ y^T M x \f$ on true dofs (grid function version)
+   /// Compute $ y^T M x $ on true dofs (grid function version)
    /** @note It is assumed that the parallel system matrix is assembled,
        see FormSystemMatrix().
        @see InnerProduct(const ParGridFunction&, const ParGridFunction&) */
    real_t TrueInnerProduct(const ParGridFunction &x,
                            const ParGridFunction &y) const;
 
-   /// Compute \f$ y^T M x \f$ on true dofs (vector version)
+   /// Compute $ y^T M x $ on true dofs (vector version)
    /** @note It is assumed that the parallel system matrix is assembled,
        see FormSystemMatrix(). */
    real_t TrueInnerProduct(HypreParVector &x, HypreParVector &y) const;
