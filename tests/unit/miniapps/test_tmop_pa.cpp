@@ -134,7 +134,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
    REQUIRE(order > 0);
    H1_FECollection fec(order, dim);
    ParFiniteElementSpace fes(pmesh, &fec, dim);
-   ParGridFunction x0(&fes), x(&fes);
+   ParGridFunction x0(&fes), x(&fes), x0_before_jitter(&fes);
    pmesh->SetNodalGridFunction(&x);
 
    Vector h0(fes.GetNDofs());
@@ -154,6 +154,10 @@ int tmop(int id, Req &res, int argc, char *argv[])
       }
    }
    const real_t small_phys_size = pow(volume, 1.0 / dim) / 100.0;
+
+   // When the target is GIVEN_SHAPE_AND_SIZE, we want to call tc->SetNodes()
+   // with something other than x0 (otherwise all metrics would be 0).
+   x0_before_jitter = x;
 
    ParGridFunction rdm(&fes);
    rdm.Randomize(seed);
@@ -249,6 +253,10 @@ int tmop(int id, Req &res, int argc, char *argv[])
          target_c = tc;
          break;
       }
+      case 8: // fully specified through the initial mesh, 2D or 3D.
+      {
+         target_t = TargetConstructor::GIVEN_SHAPE_AND_SIZE; break;
+      }
       default:
       {
          if (id == 0) { cout << "Unknown target_id: " << target_id << endl; }
@@ -266,7 +274,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
       target_c = new TargetConstructor(target_t);
    }
 #endif
-   target_c->SetNodes(x0);
+   target_c->SetNodes(x0_before_jitter);
 
    // Setup the quadrature rule for the non-linear form integrator.
    const IntegrationRule *ir = nullptr;
@@ -769,6 +777,19 @@ static void tmop_tests(int id = 0, bool all = false)
           MESH("../../data/star.mesh").REFINE(1).JI(jitter).
           POR({1,2}).QOR({2,3}).
           TID({3}).MID({2})).Run(id,all);
+
+   Launch(Launch::Args("TC_GIVEN_SHAPE_AND_SIZE_2D_KERNEL").
+          MESH("../../data/star.mesh").REFINE(1).JI(jitter).
+          NORMALIZATION(true).
+          POR({1,2}).QOR({2,3}).
+          TID({8}).MID({94}).LS({3})).Run(id,all);
+
+   Launch(Launch::Args("TC_GIVEN_SHAPE_AND_SIZE_3D_KERNEL").
+          MESH("../../data/toroid-hex.mesh").
+          LIMITING(M_PI).LIMIT_TYPE(1).REFINE(1).JI(jitter).
+          NORMALIZATION(true).
+          POR({2}).QOR({4}).
+          TID({8}).MID({338}).LS({3})).Run(id,all);
 
    Launch(Launch::Args("TC_IDEAL_SHAPE_UNIT_SIZE_3D_KERNEL").
           MESH("../../miniapps/meshing/cube.mesh").REFINE(1).JI(jitter).
