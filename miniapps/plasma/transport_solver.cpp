@@ -3138,7 +3138,7 @@ double DGTransportTDO::CheckGradient()
    ConstantCoefficient zeroCoef(0.0);
    for (int i=0; i<5; i++)
    {
-      double nrm = ((op_flag_ >> i) & 1) ?
+      double nrm = IsEquationActive(i) ?
                    yGF_[i]->ComputeMaxError(zeroCoef) : 0.0;
 
       for (int j=0; j<fsize; j++)
@@ -3240,7 +3240,7 @@ void DGTransportTDO::ImplicitSolve(const double dt, const Vector &y,
       ConstantCoefficient zeroCoef(0.0);
       for (int i=0; i<kGF_.Size(); i++)
       {
-         if ((op_flag_ >> i) & 1)
+         if (IsEquationActive(i))
          {
             double kNrm = kGF_[i]->ComputeL2Error(zeroCoef);
             kMax_[i] = std::max(kMax_[i], kNrm);
@@ -4529,7 +4529,7 @@ void DGTransportTDO::TransportOp::SetTimeDerivativeTerm(
          }
          blf_[i]->AddDomainIntegrator(new MassIntegrator(*coef));
 
-         if (index_ == i && h1_fes_ != NULL )
+         if (index_ == i && h1_fes_ != NULL)
          {
             if (cgblf_[i] == NULL)
             {
@@ -5690,6 +5690,7 @@ DGTransportTDO::CombinedOp::CombinedOp(const DGParams & dg,
                                        unsigned int op_flag, int logging)
    : neq_(5),
      logging_(logging),
+     op_flag_(op_flag),
      fes_(*yGF[0]->ParFESpace()),
      // yGF_(yGF),
      kGF_(kGF),
@@ -5728,7 +5729,7 @@ DGTransportTDO::CombinedOp::CombinedOp(const DGParams & dg,
    hContGF_.ProjectDiscCoefficient(hDiscCoef_, GridFunction::MAXIMUM);
    hContGF_.ExchangeFaceNbrData();
 
-   if ((op_flag >> 0) & 1)
+   if (IsEquationActive(0))
    {
       op_[0] = new NeutralDensityOp(dg, plasma, h1_fes, yGF, kGF,
                                     elOrdContGF_, hContGF_,
@@ -5749,7 +5750,7 @@ DGTransportTDO::CombinedOp::CombinedOp(const DGParams & dg,
                            logging, "n_n (dummy): ");
    }
 
-   if ((op_flag >> 1) & 1)
+   if (IsEquationActive(1))
    {
       op_[1] = new IonDensityOp(dg, av[1], plasma, vfes, h1_fes, yGF, kGF,
                                 elOrdContGF_, hContGF_,
@@ -5770,7 +5771,7 @@ DGTransportTDO::CombinedOp::CombinedOp(const DGParams & dg,
                            logging, "n_i (dummy): ");
    }
 
-   if ((op_flag >> 2) & 1)
+   if (IsEquationActive(2))
    {
       op_[2] = new IonMomentumOp(dg, av[2], plasma, vfes, h1_fes, yGF, kGF,
                                  elOrdContGF_, hContGF_,
@@ -5829,7 +5830,7 @@ DGTransportTDO::CombinedOp::CombinedOp(const DGParams & dg,
                            logging, "T_e (dummy): ");
    }
    */
-   if ((op_flag >> 3) & 1)
+   if (IsEquationActive(3))
    {
       op_[3] = new IonTotalEnergyOp(dg, plasma, vfes, h1_fes, yGF, kGF,
                                     elOrdContGF_, hContGF_,
@@ -5850,7 +5851,7 @@ DGTransportTDO::CombinedOp::CombinedOp(const DGParams & dg,
                            logging, "T_i (dummy): ");
    }
 
-   if ((op_flag >> 4) & 1)
+   if (IsEquationActive(4))
    {
       op_[4] = new ElectronTotalEnergyOp(dg, plasma, vfes, h1_fes,
                                          yGF, kGF,

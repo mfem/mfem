@@ -1472,12 +1472,12 @@ private:
                      RECYCLING_BDR_SOURCE_TERM,
                      NUM_TERMS
                     };
-      enum VisField {DIFFUSION_COEF = 0,
+      enum VisField {DIFFUSION_COEF = 1,
                      RECOMBINATION_SOURCE_COEF,
                      IONIZATION_SINK_COEF,
                      SOURCE_COEF,
                      DIFFUSIVE_FLUX,
-                     NUM_FIELDS
+                     NUM_FIELDS_PLUS_ONE
                     };
 
       const NeutralDensityCoefs & ndcoefs_;
@@ -1574,7 +1574,7 @@ private:
                      RECYCLING_BDR_SINK_TERM,
                      NUM_TERMS
                     };
-      enum VisField {DIFFUSION_PARA_COEF = 0,
+      enum VisField {DIFFUSION_PARA_COEF = 1,
                      DIFFUSION_PERP_COEF,
                      ADVECTION_COEF,
                      IONIZATION_SOURCE_COEF,
@@ -1582,7 +1582,7 @@ private:
                      SOURCE_COEF,
                      DIFFUSIVE_FLUX,
                      ADVECTIVE_FLUX,
-                     NUM_FIELDS
+                     NUM_FIELDS_PLUS_ONE
                     };
 
       const IonDensityCoefs & idcoefs_;
@@ -1685,13 +1685,13 @@ private:
                      SOURCE_TERM,
                      NUM_TERMS
                     };
-      enum VisField {DIFFUSION_PARA_COEF = 0, DIFFUSION_PERP_COEF,
+      enum VisField {DIFFUSION_PARA_COEF = 1, DIFFUSION_PERP_COEF,
                      ADVECTION_COEF, GRADP_SOURCE_COEF,
                      IONIZATION_SOURCE_COEF,
                      RECOMBINATION_SINK_COEF, CHARGE_EXCHANGE_SOURCE_COEF,
                      SOURCE_COEF,
                      ION_PARA_MOMENTUM,
-                     NUM_FIELDS
+                     NUM_FIELDS_PLUS_ONE
                     };
 
       const IonMomentumCoefs & imcoefs_;
@@ -1825,8 +1825,8 @@ private:
    {
    private:
       enum TermFlag {DIFFUSION_TERM = 0, ADVECTION_TERM, SOURCE_TERM, NUM_TERMS};
-      enum VisField {DIFFUSION_PARA_COEF = 0, DIFFUSION_PERP_COEF,
-                     SOURCE_COEF, NUM_FIELDS
+      enum VisField {DIFFUSION_PARA_COEF = 1, DIFFUSION_PERP_COEF,
+                     SOURCE_COEF, NUM_FIELDS_PLUS_ONE
                     };
 
       const IonStaticPressureCoefs & ispcoefs_;
@@ -1912,8 +1912,8 @@ private:
    {
    private:
       enum TermFlag {DIFFUSION_TERM = 0, ADVECTION_TERM, SOURCE_TERM, NUM_TERMS};
-      enum VisField {DIFFUSION_PARA_COEF = 0, DIFFUSION_PERP_COEF,
-                     SOURCE_COEF, NUM_FIELDS
+      enum VisField {DIFFUSION_PARA_COEF = 1, DIFFUSION_PERP_COEF,
+                     SOURCE_COEF, NUM_FIELDS_PLUS_ONE
                     };
 
       const ElectronStaticPressureCoefs & espcoefs_;
@@ -2011,14 +2011,14 @@ private:
                      EQUIPARTITION_SOURCE_TERM, SOURCE_TERM, NUM_TERMS
                     };
 
-      enum VisField {DIFFUSION_PARA_COEF = 0, DIFFUSION_PERP_COEF,
+      enum VisField {DIFFUSION_PARA_COEF = 1, DIFFUSION_PERP_COEF,
                      ADVECTION_COEF, IONIZATION_SOURCE_COEF,
                      RECOMBINATION_SINK_COEF, CHARGE_EXCHANGE_SOURCE_COEF,
                      EQUIPARTITION_SOURCE_COEF, SOURCE_COEF,
                      ION_TOTAL_ENERGY,
                      DIFFUSIVE_FLUX,
                      ADVECTIVE_FLUX,
-                     NUM_FIELDS
+                     NUM_FIELDS_PLUS_ONE
                     };
 
       const IonTotalEnergyCoefs & itecoefs_;
@@ -2101,10 +2101,10 @@ private:
                      EQUIPARTITION_SOURCE_TERM, SOURCE_TERM, NUM_TERMS
                     };
 
-      enum VisField {DIFFUSION_PARA_COEF = 0, DIFFUSION_PERP_COEF,
+      enum VisField {DIFFUSION_PARA_COEF = 1, DIFFUSION_PERP_COEF,
                      ADVECTION_COEF, IONIZATION_SINK_COEF,
                      RECOMBINATION_SINK_COEF, EQUIPARTITION_SOURCE_COEF,
-                     SOURCE_COEF, ELECTRON_TOTAL_ENERGY, NUM_FIELDS
+                     SOURCE_COEF, ELECTRON_TOTAL_ENERGY, NUM_FIELDS_PLUS_ONE
                     };
 
       const ElectronTotalEnergyCoefs & etecoefs_;
@@ -2214,6 +2214,7 @@ private:
    private:
       int neq_;
       int logging_;
+      int op_flag_;
 
       ParFiniteElementSpace &fes_;
       // ParGridFunctionArray  &yGF_;
@@ -2261,6 +2262,8 @@ private:
       void SetTime(double t);
       void SetTimeStep(double dt);
       void SetLogging(int logging);
+
+      bool IsEquationActive(int eq) const { return  (op_flag_ >> eq) & 1; }
 
       inline Coefficient * GetDnCoef()
       { return op_[0]->GetDiffusionCoef(); }
@@ -2497,6 +2500,8 @@ public:
 
    void SetTime(const double _t);
    void SetLogging(int logging);
+
+   bool IsEquationActive(int eq) const { return  (op_flag_ >> eq) & 1; }
 
    double CheckGradient();
 
