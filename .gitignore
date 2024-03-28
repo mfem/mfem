@@ -354,6 +354,8 @@ miniapps/parelag/MultilevelHcurlHdivSolver
 miniapps/parelag/*.mesh
 
 miniapps/multidomain/multidomain
+miniapps/multidomain/multidomain_nd
+miniapps/multidomain/multidomain_rt
 miniapps/hooke/hooke
 
 miniapps/dpg/diffusion
