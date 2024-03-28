@@ -28,9 +28,7 @@ public:
 
    void HandleNetCDFStatus(int status);
 
-   void GenerateExodusIIElementBlocksFromMesh(std::vector<int> & unique_block_ids,
-                                              std::map<int, std::vector<int>>  & element_ids_for_block_id,
-                                              std::map<int, Element::Type> & element_type_for_block_id);
+   void GenerateExodusIIElementBlocksFromMesh();
 
    void GenerateExodusIIBoundaryInfo(std::vector<int> & unique_boundary_ids,
                                      std::map<int, std::vector<int>> & exodusII_element_ids_for_boundary_id,
@@ -55,7 +53,7 @@ public:
                                        const std::map<int, std::vector<int>> & exodusII_element_ids_for_boundary_id,
                                        const std::map<int, std::vector<int>> & exodusII_side_ids_for_boundary_id);
 
-   void WriteBlockIDs(int ncid, const std::vector<int> & unique_block_ids);
+   void WriteBlockIDs();
 
    void CreateEmptyFile(const std::string & fpath);
 
@@ -73,6 +71,12 @@ public:
 
    void WriteMaxNameLength();
 
+   void WriteNumElementBlocks();
+
+   void WriteElementBlockParameters();
+
+   void WriteElementBlockParameters(int block_id);
+
 
 private:
    // ExodusII file ID.
@@ -83,6 +87,15 @@ private:
 
    // Reference to mesh we would like to write-out.
    Mesh & _mesh;
+
+   // Mesh info.
+   std::vector<int> _block_ids;
+   std::map<int, Element::Type> _element_type_for_block_id;
+   std::map<int, std::vector<int>> _element_ids_for_block_id;
+
+   std::vector<int> _exodusII_boundary_ids;
+   std::map<int, std::vector<int>> _exodusII_element_ids_for_boundary_id;
+   std::map<int, std::vector<int>> _exodusII_side_ids_for_boundary_id;
 };
 
 
@@ -155,16 +168,9 @@ void Mesh::WriteExodusII(const std::string fpath)
    //
    // Set # element blocks.
    //
-   std::vector<int> unique_block_ids;
-   std::map<int, Element::Type> element_type_for_block_id;
-   std::map<int, std::vector<int>> element_ids_for_block_id;
-   writer.GenerateExodusIIElementBlocksFromMesh(unique_block_ids,
-                                                element_ids_for_block_id, element_type_for_block_id);
+   writer.GenerateExodusIIElementBlocksFromMesh();
 
-   int num_elem_blk_id;
-   status = nc_def_dim(ncid, "num_el_blk", (int)unique_block_ids.size(),
-                       &num_elem_blk_id);
-   writer.HandleNetCDFStatus(status);
+   writer.WriteNumElementBlocks();
 
    //
    // Set # node sets - TODO: add this (currently, set to 0).
@@ -292,103 +298,12 @@ void Mesh::WriteExodusII(const std::string fpath)
    //
    // Write element block parameters.
    //
-   char name_buffer[100];
-
-   for (int block_id : unique_block_ids)
-   {
-      const auto & block_element_ids = element_ids_for_block_id.at(block_id);
-      //
-      // TODO: - element block IDs 0-indexed MFEM --> 1-indexed Exodus II
-      //
-
-      Element * front_element = GetElement(block_element_ids.front());
-
-      //
-      // Define # elements in the block.
-      //
-      sprintf(name_buffer, "num_el_in_blk%d", block_id);
-
-      int num_el_in_blk_id;
-      status = nc_def_dim(ncid, name_buffer, block_element_ids.size(),
-                          &num_el_in_blk_id);
-      writer.HandleNetCDFStatus(status);
-
-
-      //
-      // Define # nodes per element. NB: - assume first-order elements currently!!
-      //
-      sprintf(name_buffer, "num_nod_per_el%d", block_id);
-
-      int num_node_per_el_id;
-      status = nc_def_dim(ncid, name_buffer, front_element->GetNVertices(),
-                          &num_node_per_el_id);
-      writer.HandleNetCDFStatus(status);
-
-      //
-      // Define # edges per element:
-      //
-      sprintf(name_buffer, "num_edg_per_el%d", block_id);
-
-      int num_edg_per_el_id;
-      status = nc_def_dim(ncid, name_buffer, front_element->GetNEdges(),
-                          &num_edg_per_el_id);
-      writer.HandleNetCDFStatus(status);
-
-      //
-      // Define # faces per element.
-      //
-      sprintf(name_buffer, "num_fac_per_el%d", block_id);
-
-      int num_fac_per_el_id;
-      status = nc_def_dim(ncid, name_buffer, front_element->GetNFaces(),
-                          &num_fac_per_el_id);
-      writer.HandleNetCDFStatus(status);
-
-      //
-      // Define element node connectivity for block.
-      //
-      writer.WriteNodeConnectivityForBlock(ncid, block_id,
-                                           element_ids_for_block_id);
-
-      //
-      // Define the element type.
-      //
-      std::string element_type;
-
-      switch (front_element->GetType())
-      {
-         case Geometry::Type::CUBE:
-            element_type = "hex";
-            break;
-         case Geometry::Type::TETRAHEDRON:
-            element_type = "tet";
-            break;
-         case Geometry::Type::PRISM:
-            element_type = "wedge";
-            break;
-         case Geometry::Type::PYRAMID:
-            element_type = "pyramid";
-            break;
-         default:
-            MFEM_ABORT("Unsupported MFEM element type: " << front_element->GetType());
-      }
-
-      char name_buffer[100];
-      sprintf(name_buffer, "connect%d", block_id);
-
-      int connect_id;
-      status = nc_inq_varid(ncid, name_buffer, &connect_id);
-      writer.HandleNetCDFStatus(status);
-
-      status = nc_put_att_text(ncid, connect_id, "elem_type", element_type.length(),
-                               element_type.c_str());
-      writer.HandleNetCDFStatus(status);
-   }
+   writer.WriteElementBlockParameters();
 
    //
    // Write block IDs.
    //
-   writer.WriteBlockIDs(ncid, unique_block_ids);
+   writer.WriteBlockIDs();
 
    //
    // Write sideset information.
@@ -474,23 +389,123 @@ void ExodusIIWriter::WriteMaxLineLength()
 
 
 
-void ExodusIIWriter::WriteBlockIDs(int ncid,
-                                   const std::vector<int> & unique_block_ids)
+void ExodusIIWriter::WriteBlockIDs()
 {
    int status, unique_block_ids_ptr;
 
    int block_dim;
-   status = nc_def_dim(ncid, "block_dim", unique_block_ids.size(), &block_dim);
+   status = nc_def_dim(_exid, "block_dim", _block_ids.size(), &block_dim);
    HandleNetCDFStatus(status);
 
-   status = nc_def_var(ncid, "eb_prop1", NC_INT, 1, &block_dim,
+   status = nc_def_var(_exid, "eb_prop1", NC_INT, 1, &block_dim,
                        &unique_block_ids_ptr);
    HandleNetCDFStatus(status);
 
-   nc_enddef(ncid);
-   status = nc_put_var_int(ncid, unique_block_ids_ptr, unique_block_ids.data());
+   nc_enddef(_exid);
+   status = nc_put_var_int(_exid, unique_block_ids_ptr, _block_ids.data());
    HandleNetCDFStatus(status);
-   nc_redef(ncid);
+   nc_redef(_exid);
+}
+
+void ExodusIIWriter::WriteElementBlockParameters()
+{
+   for (int block_id : _block_ids)
+   {
+      WriteElementBlockParameters(block_id);
+   }
+}
+
+void ExodusIIWriter::WriteElementBlockParameters(int block_id)
+{
+   int status{NC_NOERR};
+   char name_buffer[100];
+
+   const auto & block_element_ids = _element_ids_for_block_id.at(block_id);
+   //
+   // TODO: - element block IDs 0-indexed MFEM --> 1-indexed Exodus II
+   //
+
+   Element * front_element = _mesh.GetElement(block_element_ids.front());
+
+   //
+   // Define # elements in the block.
+   //
+   sprintf(name_buffer, "num_el_in_blk%d", block_id);
+
+   int num_el_in_blk_id;
+   status = nc_def_dim(_exid, name_buffer, block_element_ids.size(),
+                       &num_el_in_blk_id);
+   HandleNetCDFStatus(status);
+
+
+   //
+   // Define # nodes per element. NB: - assume first-order elements currently!!
+   //
+   sprintf(name_buffer, "num_nod_per_el%d", block_id);
+
+   int num_node_per_el_id;
+   status = nc_def_dim(_exid, name_buffer, front_element->GetNVertices(),
+                       &num_node_per_el_id);
+   HandleNetCDFStatus(status);
+
+   //
+   // Define # edges per element:
+   //
+   sprintf(name_buffer, "num_edg_per_el%d", block_id);
+
+   int num_edg_per_el_id;
+   status = nc_def_dim(_exid, name_buffer, front_element->GetNEdges(),
+                       &num_edg_per_el_id);
+   HandleNetCDFStatus(status);
+
+   //
+   // Define # faces per element.
+   //
+   sprintf(name_buffer, "num_fac_per_el%d", block_id);
+
+   int num_fac_per_el_id;
+   status = nc_def_dim(_exid, name_buffer, front_element->GetNFaces(),
+                       &num_fac_per_el_id);
+   HandleNetCDFStatus(status);
+
+   //
+   // Define element node connectivity for block.
+   //
+   WriteNodeConnectivityForBlock(_exid, block_id,
+                                 _element_ids_for_block_id);
+
+   //
+   // Define the element type.
+   //
+   std::string element_type;
+
+   switch (front_element->GetType())
+   {
+      case Geometry::Type::CUBE:
+         element_type = "hex";
+         break;
+      case Geometry::Type::TETRAHEDRON:
+         element_type = "tet";
+         break;
+      case Geometry::Type::PRISM:
+         element_type = "wedge";
+         break;
+      case Geometry::Type::PYRAMID:
+         element_type = "pyramid";
+         break;
+      default:
+         MFEM_ABORT("Unsupported MFEM element type: " << front_element->GetType());
+   }
+
+   sprintf(name_buffer, "connect%d", block_id);
+
+   int connect_id;
+   status = nc_inq_varid(_exid, name_buffer, &connect_id);
+   HandleNetCDFStatus(status);
+
+   status = nc_put_att_text(_exid, connect_id, "elem_type", element_type.length(),
+                            element_type.c_str());
+   HandleNetCDFStatus(status);
 }
 
 void ExodusIIWriter::WriteSideSetInformationForMesh(int ncid,
@@ -699,14 +714,11 @@ void ExodusIIWriter::HandleNetCDFStatus(int status)
 /// all elements belonging to the same block will have the same attribute. We can perform a safety check as well
 /// by ensuring that all elements in the block have the same element type. If this is not the case then something
 /// has gone horribly wrong!
-void ExodusIIWriter::GenerateExodusIIElementBlocksFromMesh(
-   std::vector<int> & unique_block_ids,
-   std::map<int, std::vector<int>>  & element_ids_for_block_id,
-   std::map<int, Element::Type> & element_type_for_block_id)
+void ExodusIIWriter::GenerateExodusIIElementBlocksFromMesh()
 {
-   unique_block_ids.clear();
-   element_ids_for_block_id.clear();
-   element_type_for_block_id.clear();
+   _block_ids.clear();
+   _element_ids_for_block_id.clear();
+   _element_type_for_block_id.clear();
 
    std::set<int> observed_block_ids;
 
@@ -719,25 +731,33 @@ void ExodusIIWriter::GenerateExodusIIElementBlocksFromMesh(
 
       if (observed_block_ids.count(block_id) == 0)
       {
-         unique_block_ids.push_back(block_id);
+         _block_ids.push_back(block_id);
 
-         element_type_for_block_id[block_id] = element_type;
-         element_ids_for_block_id[block_id] = { ielement };
+         _element_type_for_block_id[block_id] = element_type;
+         _element_ids_for_block_id[block_id] = { ielement };
 
          observed_block_ids.insert(block_id);
       }
       else
       {
-         auto & block_element_ids = element_ids_for_block_id.at(block_id);
+         auto & block_element_ids = _element_ids_for_block_id.at(block_id);
          block_element_ids.push_back(ielement);
 
          // Safety check: ensure that the element type matches what we have on record for the block.
-         if (element_type != element_type_for_block_id.at(block_id))
+         if (element_type != _element_type_for_block_id.at(block_id))
          {
             MFEM_ABORT("Multiple element types are defined for block: " << block_id);
          }
       }
    }
+}
+
+void ExodusIIWriter::WriteNumElementBlocks()
+{
+   int num_elem_blk_id;
+   int status = nc_def_dim(_exid, "num_el_blk", (int)_block_ids.size(),
+                           &num_elem_blk_id);
+   HandleNetCDFStatus(status);
 }
 
 /// @brief Iterates over the elements of the mesh to extract a unique set of node IDs (or vertex IDs if first-order).
