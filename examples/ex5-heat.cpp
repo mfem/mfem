@@ -190,8 +190,6 @@ int main(int argc, char *argv[])
 
    LinearForm *fform(new LinearForm);
    fform->Update(V_space, rhs.GetBlock(0), 0);
-   //fform->AddDomainIntegrator(new VectorFEDomainLFIntegrator(fcoeff));
-   //fform->AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(fnatcoeff));
    fform->Assemble();
    fform->SyncAliasMemory(rhs);
 
@@ -213,28 +211,16 @@ int main(int argc, char *argv[])
    //
    //     M = \int_\Omega k u_h \cdot v_h d\Omega   q_h, v_h \in V_h
    //     B   = -\int_\Omega \div u_h q_h d\Omega   q_h \in V_h, w_h \in W_h
-   //BilinearForm *Mq(new BilinearForm(V_space));
-   //MixedBilinearForm *B(new MixedBilinearForm(V_space, W_space));
    BilinearForm *Mq = darcy->GetFluxMassForm();
    MixedBilinearForm *B = darcy->GetFluxDivForm();
    BilinearForm *Mt = (a > 0.)?(darcy->GetPotentialMassForm()):(NULL);
 
-   //if (pa) { Mq->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    Mq->AddDomainIntegrator(new VectorFEMassIntegrator(ikcoeff));
-   //Mq->Assemble();
-   //if (!pa) { Mq->Finalize(); }
-
-   //if (pa) { B->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    B->AddDomainIntegrator(new VectorFEDivergenceIntegrator);
-   //B->Assemble();
-   //if (!pa) { B->Finalize(); }
 
    if (Mt)
    {
-      //if (pa) { Mt->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
       Mt->AddDomainIntegrator(new MassIntegrator(acoeff));
-      //Mt->Assemble();
-      //if (!pa) { Mt->Finalize(); }
    }
 
    //set hybridization / assembly level
@@ -264,36 +250,10 @@ int main(int argc, char *argv[])
    if (pa) { darcy->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
 
    darcy->Assemble();
-   //if (!pa) { darcy->Finalize(); }
-
-   //BlockOperator darcyOp(block_offsets);
-
-   //TransposeOperator *Bt = NULL;
-
-   /*if (pa)
-   {
-      Bt = new TransposeOperator(B);
-
-      darcyOp.SetBlock(0,0, Mq);
-      darcyOp.SetBlock(0,1, Bt, -1.0);
-      darcyOp.SetBlock(1,0, B, -1.0);
-   }
-   else
-   {
-      SparseMatrix &M(Mq->SpMat());
-      SparseMatrix &B(B->SpMat());
-      B *= -1.;
-      Bt = new TransposeOperator(&B);
-
-      darcyOp.SetBlock(0,0, &M);
-      darcyOp.SetBlock(0,1, Bt);
-      darcyOp.SetBlock(1,0, &B);
-   }*/
 
    OperatorHandle pDarcyOp;
    Vector X, RHS;
    //x = 1./ny;
-   //darcy->FormSystemMatrix(ess_flux_tdofs_list, pDarcyOp);
    darcy->FormLinearSystem(ess_flux_tdofs_list, x, rhs,
                            pDarcyOp, X, RHS);
 
@@ -309,10 +269,6 @@ int main(int argc, char *argv[])
    {
       // 10. Construct the preconditioner
       GSSmoother prec(*pDarcyOp.As<SparseMatrix>());
-
-      //ofstream ofs("H.txt");
-      //pDarcyOp.As<SparseMatrix>()->PrintMM(ofs);
-      //ofs.close();
 
       // 11. Solve the linear system with GMRES.
       //     Check the norm of the unpreconditioned residual.
