@@ -18,6 +18,23 @@
 
 namespace mfem
 {
+
+class ExodusIIWriter
+{
+public:
+   ExodusIIWriter(Mesh & mesh) : _mesh{mesh} {}
+private:
+   // ExodusII file ID.
+   int _exid{0};
+
+   // NetCDF status.
+   int _status{NC_NOERR};
+
+   // Reference to mesh we would like to write-out.
+   Mesh & _mesh;
+};
+
+
 /// Function Prototypes.
 static void HandleNetCDFStatus(int status);
 
