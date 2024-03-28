@@ -178,8 +178,8 @@ void Array2D<T>::Print(std::ostream &os, int width_)
 template class Array<char>;
 template class Array<int>;
 template class Array<long long>;
-template class Array<double>;
+template class Array<real_t>;
 template class Array2D<int>;
-template class Array2D<double>;
+template class Array2D<real_t>;
 
 } // namespace mfem

@@ -140,7 +140,7 @@ protected:
 
 public:
    /// Constructs an empty multigrid hierarchy
-   Multigrid();
+   Multigrid() = default;
 
    /// Constructs a multigrid hierarchy from the given inputs
    /** Inputs include operators and smoothers on all levels, prolongation
@@ -162,7 +162,7 @@ private:
 };
 
 /// Geometric multigrid associated with a hierarchy of finite element spaces
-class GeometricMultigrid : public MultigridBase
+class GeometricMultigrid : public Multigrid
 {
 protected:
    const FiniteElementSpaceHierarchy& fespaces;
@@ -170,9 +170,27 @@ protected:
    Array<BilinearForm*> bfs;
 
 public:
-   /** Construct an empty multigrid object for the given finite element space
-       hierarchy @a fespaces_ */
+   /// @brief Deprecated.
+   ///
+   /// Construct an empty geometric multigrid object for the given finite
+   /// element space hierarchy @a fespaces_.
+   ///
+   /// @deprecated Use GeometricMultigrid::GeometricMultigrid(const
+   /// FiniteElementSpaceHierarchy&, const Array<int>&) instead. This version
+   /// constructs prolongation and restriction operators without eliminated
+   /// essential boundary conditions.
+   MFEM_DEPRECATED
    GeometricMultigrid(const FiniteElementSpaceHierarchy& fespaces_);
+
+   /// @brief Construct a geometric multigrid object for the given finite
+   /// element space hierarchy @a fespaces_, where @a ess_bdr is a list of
+   /// mesh boundary element attributes that define the essential DOFs.
+   ///
+   /// If @a ess_bdr is empty, or all its entries are 0, then no essential
+   /// boundary conditions are imposed and the protected array essentialTrueDofs
+   /// remains empty.
+   GeometricMultigrid(const FiniteElementSpaceHierarchy& fespaces_,
+                      const Array<int> &ess_bdr);
 
    /// Destructor
    virtual ~GeometricMultigrid();
@@ -184,13 +202,6 @@ public:
 
    /// Recover the solution of a linear system formed with FormFineLinearSystem()
    void RecoverFineFEMSolution(const Vector& X, const Vector& b, Vector& x);
-
-private:
-   /// Returns prolongation operator at given level
-   virtual const Operator* GetProlongationAtLevel(int level) const override
-   {
-      return fespaces.GetProlongationAtLevel(level);
-   }
 };
 
 } // namespace mfem
