@@ -27,9 +27,29 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_3D,
                            const int d1d,
                            const int q1d)
 {
+   // This kernel uses its own CUDA/ROCM limits: runtime values:
+   int r_MAX_D1D, r_MAX_Q1D;
+   if (Device::Allows(Backend::CUDA_MASK))
+   {
+      r_MAX_D1D = 6; r_MAX_Q1D = 7;
+   }
+   else if (Device::Allows(Backend::HIP_MASK))
+   {
+      r_MAX_D1D = 7; r_MAX_Q1D = 7;
+   }
+   else
+   {
+      r_MAX_D1D = DeviceDofQuadLimits::Get().MAX_D1D;
+      r_MAX_Q1D = DeviceDofQuadLimits::Get().MAX_Q1D;
+   }
+
    constexpr int DIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= r_MAX_D1D,
+               "D1D: " << D1D << ", r_MAX_D1D: " << r_MAX_D1D);
+   MFEM_VERIFY(Q1D <= r_MAX_Q1D,
+               "Q1D: " << Q1D << ", r_MAX_Q1D: " << r_MAX_Q1D);
 
    const auto B = Reshape(b.Read(), Q1D, D1D);
    const auto G = Reshape(g.Read(), Q1D, D1D);
@@ -40,11 +60,23 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_3D,
 
    mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
+      // This kernel uses its own CUDA/ROCM limits: compile time values:
+#if defined(__CUDA_ARCH__)
+      constexpr int MAX_D1D = 6;
+      constexpr int MAX_Q1D = 7;
+#elif defined(__HIP_DEVICE_COMPILE__)
+      constexpr int MAX_D1D = 7;
+      constexpr int MAX_Q1D = 7;
+#else
+      constexpr int MAX_D1D = DofQuadLimits::MAX_D1D;
+      constexpr int MAX_Q1D = DofQuadLimits::MAX_Q1D;
+#endif
+
       constexpr int DIM = 3;
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
 
       MFEM_SHARED real_t bg[2*MQ1*MD1];
       DeviceMatrix B_sm(bg,         MQ1, MD1);
