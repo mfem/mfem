@@ -11,6 +11,7 @@
 
 set(SRCS
   element.cpp
+  exodus_writer.cpp
   gmsh.cpp
   hexahedron.cpp
   mesh.cpp

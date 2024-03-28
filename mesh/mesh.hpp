@@ -288,6 +288,11 @@ public:
    // (true) is set in mesh_readers.cpp.
    static bool remove_unused_vertices;
 
+#ifdef MFEM_USE_NETCDF
+   /// @brief Export a mesh to an Exodus II file.
+   void WriteExodusII(const std::string fpath);
+#endif
+
 protected:
    Operation last_operation;
 
