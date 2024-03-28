@@ -431,7 +431,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    real_t scale = 1.0;
    bool fitting = IsSurfaceFittingEnabled();
    real_t avg_init_fit_err, max_init_fit_err = 0.0;
-   if (fitting && surf_fit_converge_based_on_error)
+   if (fitting && surf_fit_converge_error)
    {
       GetSurfaceFittingError(x_out_loc, avg_init_fit_err, max_init_fit_err);
       // Check for convergence
@@ -539,7 +539,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
       // Ensure sufficient decrease in fitting error if we are trying to
       // converge based on error.
-      if (fitting && surf_fit_converge_based_on_error)
+      if (fitting && surf_fit_converge_error)
       {
          GetSurfaceFittingError(x_out_loc, avg_fit_err, max_fit_err);
          if (max_fit_err >= 1.2*max_init_fit_err)
@@ -871,11 +871,11 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
       // also make sure we have not reached the maximum fitting weight and
       // error threshold.
       if (rel_change_surf_fit_err < surf_fit_rel_change_threshold &&
-          (surf_fit_converge_based_on_error ||
+          (surf_fit_converge_error ||
            (fitweights.Max() < fit_weight_max_limit &&
             surf_fit_err_max > surf_fit_max_threshold)))
       {
-         double scale_factor = std::min(surf_fit_scale_factor,
+         real_t scale_factor = std::min(surf_fit_scale_factor,
                                         fit_weight_max_limit/fitweights.Max());
          UpdateSurfaceFittingWeight(scale_factor);
          adapt_inc_count += 1;

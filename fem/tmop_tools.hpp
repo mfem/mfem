@@ -146,8 +146,8 @@ protected:
    real_t surf_fit_scale_factor = 0.0;
    mutable int adapt_inc_count = 0;
    mutable int max_adapt_inc_count = 10;
-   mutable double fit_weight_max_limit = 1e10;
-   bool surf_fit_converge_based_on_error = false;
+   mutable real_t fit_weight_max_limit = 1e10;
+   bool surf_fit_converge_error = false;
 
    // Minimum determinant over the whole mesh. Used for mesh untangling.
    real_t *min_det_ptr = nullptr;
@@ -272,22 +272,22 @@ public:
    void SetTerminationWithMaxSurfaceFittingError(real_t max_error)
    {
       surf_fit_max_threshold = max_error;
-      surf_fit_converge_based_on_error = true;
+      surf_fit_converge_error = true;
    }
    void SetMaxSurfaceFittingError(real_t max_error)
    {
       surf_fit_max_threshold = max_error;
    }
-   void SetMaximumFittingWeightLimit(real_t weight)
+   void SetMaxFittingWeight(real_t weight)
    {
       fit_weight_max_limit = weight;
    }
    void SetFittingConvergenceBasedOnError(bool mode)
    {
-      surf_fit_converge_based_on_error = mode;
-      if (surf_fit_converge_based_on_error)
+      surf_fit_converge_error = mode;
+      if (surf_fit_converge_error)
       {
-         MFEM_VERIFY(surf_fit_max_threshold > 0,
+         MFEM_VERIFY(surf_fit_max_threshold >= 0,
                      "Fitting error based convergence requires the user to first"
                      "set the error threshold."
                      "See SetTerminationWithMaxSurfaceFittingError");
