@@ -40,3 +40,8 @@ if (MFEM_USE_MPI)
    add_mfem_miniapp(nodal-transfer
      MAIN nodal-transfer.cpp LIBRARIES mfem)
 endif()
+
+if (MFEM_USE_MPI)
+   add_mfem_miniapp(compare-dc
+     MAIN compare-dc.cpp LIBRARIES mfem)
+endif()
