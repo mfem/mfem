@@ -23,6 +23,39 @@ class ExodusIIWriter
 {
 public:
    ExodusIIWriter(Mesh & mesh) : _mesh{mesh} {}
+
+   void HandleNetCDFStatus(int status);
+
+   void GenerateExodusIIElementBlocksFromMesh(Mesh & mesh,
+                                              std::vector<int> & unique_block_ids,
+                                              std::map<int, std::vector<int>>  & element_ids_for_block_id,
+                                              std::map<int, Element::Type> & element_type_for_block_id);
+
+   void GenerateExodusIIBoundaryInfo(Mesh & mesh,
+                                     std::vector<int> & unique_boundary_ids,
+                                     std::map<int, std::vector<int>> & exodusII_element_ids_for_boundary_id,
+                                     std::map<int, std::vector<int>> & exodusII_side_ids_for_boundary_id);
+
+   void GenerateExodusIINodeIDsFromMesh(Mesh & mesh, int & num_nodes);
+
+   void ExtractVertexCoordinatesFromMesh(int ncid, Mesh & mesh,
+                                         std::vector<double> & coordx, std::vector<double> & coordy,
+                                         std::vector<double> & coordz);
+
+   void WriteNodalCoordinatesFromMesh(int ncid,
+                                      std::vector<double> & coordx, std::vector<double> & coordy,
+                                      std::vector<double> & coordz);
+
+   void WriteNodeConnectivityForBlock(int ncid, Mesh & mesh,
+                                      const int block_id,
+                                      const std::map<int, std::vector<int>> & element_ids_for_block_id);
+
+   void WriteSideSetInformationForMesh(int ncid, Mesh & mesh,
+                                       const std::vector<int> & boundary_ids,
+                                       const std::map<int, std::vector<int>> & exodusII_element_ids_for_boundary_id,
+                                       const std::map<int, std::vector<int>> & exodusII_side_ids_for_boundary_id);
+
+   void WriteBlockIDs(int ncid, const std::vector<int> & unique_block_ids);
 private:
    // ExodusII file ID.
    int _exid{0};
@@ -33,41 +66,6 @@ private:
    // Reference to mesh we would like to write-out.
    Mesh & _mesh;
 };
-
-
-/// Function Prototypes.
-static void HandleNetCDFStatus(int status);
-
-static void GenerateExodusIIElementBlocksFromMesh(Mesh & mesh,
-                                                  std::vector<int> & unique_block_ids,
-                                                  std::map<int, std::vector<int>>  & element_ids_for_block_id,
-                                                  std::map<int, Element::Type> & element_type_for_block_id);
-
-static void GenerateExodusIIBoundaryInfo(Mesh & mesh,
-                                         std::vector<int> & unique_boundary_ids,
-                                         std::map<int, std::vector<int>> & exodusII_element_ids_for_boundary_id,
-                                         std::map<int, std::vector<int>> & exodusII_side_ids_for_boundary_id);
-
-static void GenerateExodusIINodeIDsFromMesh(Mesh & mesh, int & num_nodes);
-
-static void ExtractVertexCoordinatesFromMesh(int ncid, Mesh & mesh,
-                                             std::vector<double> & coordx, std::vector<double> & coordy,
-                                             std::vector<double> & coordz);
-
-static void WriteNodalCoordinatesFromMesh(int ncid,
-                                          std::vector<double> & coordx, std::vector<double> & coordy,
-                                          std::vector<double> & coordz);
-
-static void WriteNodeConnectivityForBlock(int ncid, Mesh & mesh,
-                                          const int block_id,
-                                          const std::map<int, std::vector<int>> & element_ids_for_block_id);
-
-static void WriteSideSetInformationForMesh(int ncid, Mesh & mesh,
-                                           const std::vector<int> & boundary_ids,
-                                           const std::map<int, std::vector<int>> & exodusII_element_ids_for_boundary_id,
-                                           const std::map<int, std::vector<int>> & exodusII_side_ids_for_boundary_id);
-
-static void WriteBlockIDs(int ncid, const std::vector<int> & unique_block_ids);
 
 
 // Returns the Exodus II face ID for the MFEM face index.
@@ -97,6 +95,8 @@ void Mesh::WriteExodusII(const std::string fpath)
    int status = NC_NOERR;
    int ncid  = 0;  // File descriptor.
 
+   ExodusIIWriter writer(*this);
+
    //
    // Open file
    //
@@ -105,7 +105,7 @@ void Mesh::WriteExodusII(const std::string fpath)
       NC_CLOBBER; // Overwrite existing files and use NetCDF4 mode (avoid classic).
 
    status = nc_create(fpath.c_str(), flags, &ncid);
-   HandleNetCDFStatus(status);
+   writer.HandleNetCDFStatus(status);
 
    //
    // Generate Initialization Parameters
@@ -116,7 +116,7 @@ void Mesh::WriteExodusII(const std::string fpath)
    //
    const char *title = "MFEM mesh";
    status = nc_put_att_text(ncid, NC_GLOBAL, "title", strlen(title), title);
-   HandleNetCDFStatus(status);
+   writer.HandleNetCDFStatus(status);
 
    //
    // Set # nodes. NB: - Assume 1st order currently so NumOfVertices == # nodes
@@ -124,24 +124,24 @@ void Mesh::WriteExodusII(const std::string fpath)
    int num_nodes_id;
    int num_nodes;
 
-   GenerateExodusIINodeIDsFromMesh(*this, num_nodes);
+   writer.GenerateExodusIINodeIDsFromMesh(*this, num_nodes);
 
    status = nc_def_dim(ncid, "num_nodes", num_nodes, &num_nodes_id);
-   HandleNetCDFStatus(status);
+   writer.HandleNetCDFStatus(status);
 
    //
    // Set dimension.
    //
    int num_dim_id;
    status = nc_def_dim(ncid, "num_dim", Dim, &num_dim_id);
-   HandleNetCDFStatus(status);
+   writer.HandleNetCDFStatus(status);
 
    //
    // Set # elements.
    //
    int num_elem_id;
    status = nc_def_dim(ncid, "num_elem", NumOfElements, &num_elem_id);
-   HandleNetCDFStatus(status);
+   writer.HandleNetCDFStatus(status);
 
    //
    // Set # element blocks.
@@ -149,20 +149,20 @@ void Mesh::WriteExodusII(const std::string fpath)
    std::vector<int> unique_block_ids;
    std::map<int, Element::Type> element_type_for_block_id;
    std::map<int, std::vector<int>> element_ids_for_block_id;
-   GenerateExodusIIElementBlocksFromMesh(*this, unique_block_ids,
-                                         element_ids_for_block_id, element_type_for_block_id);
+   writer.GenerateExodusIIElementBlocksFromMesh(*this, unique_block_ids,
+                                                element_ids_for_block_id, element_type_for_block_id);
 
    int num_elem_blk_id;
    status = nc_def_dim(ncid, "num_el_blk", (int)unique_block_ids.size(),
                        &num_elem_blk_id);
-   HandleNetCDFStatus(status);
+   writer.HandleNetCDFStatus(status);
 
    //
    // Set # node sets - TODO: add this (currently, set to 0).
    //
    int num_node_sets_ids;
    status = nc_def_dim(ncid, "num_node_sets", 0, &num_node_sets_ids);
-   HandleNetCDFStatus(status);
+   writer.HandleNetCDFStatus(status);
 
    //
    // Set # side sets ("boundaries")
@@ -170,14 +170,14 @@ void Mesh::WriteExodusII(const std::string fpath)
    std::vector<int> boundary_ids;
    std::map<int, std::vector<int>> exodusII_element_ids_for_boundary_id;
    std::map<int, std::vector<int>> exodusII_side_ids_for_boundary_id;
-   GenerateExodusIIBoundaryInfo(*this, boundary_ids,
-                                exodusII_element_ids_for_boundary_id,
-                                exodusII_side_ids_for_boundary_id);
+   writer.GenerateExodusIIBoundaryInfo(*this, boundary_ids,
+                                       exodusII_element_ids_for_boundary_id,
+                                       exodusII_side_ids_for_boundary_id);
 
    int num_side_sets_ids;
    status = nc_def_dim(ncid, "num_side_sets", (int)boundary_ids.size(),
                        &num_side_sets_ids);
-   HandleNetCDFStatus(status);
+   writer.HandleNetCDFStatus(status);
 
    //
    // Set database version #
@@ -185,7 +185,7 @@ void Mesh::WriteExodusII(const std::string fpath)
    float database_version = 4.72;
    status = nc_put_att_float(ncid, NC_GLOBAL, "version", NC_FLOAT, 1,
                              &database_version);
-   HandleNetCDFStatus(status);
+   writer.HandleNetCDFStatus(status);
 
    //
    // Set API version #
@@ -193,7 +193,7 @@ void Mesh::WriteExodusII(const std::string fpath)
    float version = 4.72;   // Current version as of 2024-03-21.
    status = nc_put_att_float(ncid, NC_GLOBAL, "api_version", NC_FLOAT, 1,
                              &version);
-   HandleNetCDFStatus(status);
+   writer.HandleNetCDFStatus(status);
 
    //
    // Set I/O word size as an attribute (float == 4; double == 8)
@@ -201,7 +201,7 @@ void Mesh::WriteExodusII(const std::string fpath)
    const int word_size = 8;
    status = nc_put_att_int(ncid, NC_GLOBAL, "floating_point_word_size", NC_INT, 1,
                            &word_size);
-   HandleNetCDFStatus(status);
+   writer.HandleNetCDFStatus(status);
 
    //
    // Store Exodus file size (normal==0; large==1). NB: coordinates specifed separately as components
@@ -209,7 +209,7 @@ void Mesh::WriteExodusII(const std::string fpath)
    //
    const int file_size = 1;
    status = nc_put_att_int(ncid, NC_GLOBAL, "file_size", NC_INT, 1, &file_size);
-   HandleNetCDFStatus(status);
+   writer.HandleNetCDFStatus(status);
 
    //
    // Set length of character strings.
@@ -217,7 +217,7 @@ void Mesh::WriteExodusII(const std::string fpath)
    const int max_name_length = 80;
    status = nc_put_att_int(ncid, NC_GLOBAL, "maximum_name_length", NC_INT, 1,
                            &max_name_length);
-   HandleNetCDFStatus(status);
+   writer.HandleNetCDFStatus(status);
 
    //
    // Set length of character lines.
@@ -225,14 +225,14 @@ void Mesh::WriteExodusII(const std::string fpath)
    const int max_line_length = 80;
    status = nc_put_att_int(ncid, NC_GLOBAL, "maximum_line_length", NC_INT, 1,
                            &max_name_length);
-   HandleNetCDFStatus(status);
+   writer.HandleNetCDFStatus(status);
 
    //
    // Set # timesteps (ASSUME no timesteps for initial verision)
    //
    int timesteps_dim;
    status = nc_def_dim(ncid, "time_step", 1, &timesteps_dim);
-   HandleNetCDFStatus(status);
+   writer.HandleNetCDFStatus(status);
 
    //
    // ---------------------------------------------------------------------------------
@@ -255,15 +255,15 @@ void Mesh::WriteExodusII(const std::string fpath)
       int dummy_var_id, dummy_var_dim_id, dummy_value = 1;
 
       status = nc_def_dim(ncid, "dummy_var_dim", 1, &dummy_var_dim_id);
-      HandleNetCDFStatus(status);
+      writer.HandleNetCDFStatus(status);
 
       status = nc_def_var(ncid, "dummy_var", NC_INT, 1, &dummy_var_dim_id,
                           &dummy_var_id);
-      HandleNetCDFStatus(status);
+      writer.HandleNetCDFStatus(status);
 
       nc_enddef(ncid);
       status = nc_put_var_int(ncid, dummy_var_id, &dummy_value);
-      HandleNetCDFStatus(status);
+      writer.HandleNetCDFStatus(status);
       nc_redef(ncid);
    }
 
@@ -276,24 +276,24 @@ void Mesh::WriteExodusII(const std::string fpath)
 
    std::vector<double> coordx(num_nodes), coordy(num_nodes),
        coordz(Dim == 3 ? num_nodes : 0);
-   ExtractVertexCoordinatesFromMesh(ncid, *this, coordx, coordy, coordz);
+   writer.ExtractVertexCoordinatesFromMesh(ncid, *this, coordx, coordy, coordz);
 
    status = nc_def_var(ncid, "coordx", NC_DOUBLE, 1, &num_nodes_id, &coordx_id);
-   HandleNetCDFStatus(status);
+   writer.HandleNetCDFStatus(status);
 
    status = nc_def_var(ncid, "coordy", NC_DOUBLE, 1, &num_nodes_id, &coordy_id);
-   HandleNetCDFStatus(status);
+   writer.HandleNetCDFStatus(status);
 
    if (Dim == 3)
    {
       status = nc_def_var(ncid, "coordz", NC_DOUBLE, 1, &num_nodes_id, &coordz_id);
-      HandleNetCDFStatus(status);
+      writer.HandleNetCDFStatus(status);
    }
 
    //
    // Write nodal coordinates.
    //
-   WriteNodalCoordinatesFromMesh(ncid, coordx, coordy, coordz);
+   writer.WriteNodalCoordinatesFromMesh(ncid, coordx, coordy, coordz);
 
    //
    // Write element block parameters.
@@ -317,7 +317,7 @@ void Mesh::WriteExodusII(const std::string fpath)
       int num_el_in_blk_id;
       status = nc_def_dim(ncid, name_buffer, block_element_ids.size(),
                           &num_el_in_blk_id);
-      HandleNetCDFStatus(status);
+      writer.HandleNetCDFStatus(status);
 
 
       //
@@ -328,7 +328,7 @@ void Mesh::WriteExodusII(const std::string fpath)
       int num_node_per_el_id;
       status = nc_def_dim(ncid, name_buffer, front_element->GetNVertices(),
                           &num_node_per_el_id);
-      HandleNetCDFStatus(status);
+      writer.HandleNetCDFStatus(status);
 
       //
       // Define # edges per element:
@@ -338,7 +338,7 @@ void Mesh::WriteExodusII(const std::string fpath)
       int num_edg_per_el_id;
       status = nc_def_dim(ncid, name_buffer, front_element->GetNEdges(),
                           &num_edg_per_el_id);
-      HandleNetCDFStatus(status);
+      writer.HandleNetCDFStatus(status);
 
       //
       // Define # faces per element.
@@ -348,13 +348,13 @@ void Mesh::WriteExodusII(const std::string fpath)
       int num_fac_per_el_id;
       status = nc_def_dim(ncid, name_buffer, front_element->GetNFaces(),
                           &num_fac_per_el_id);
-      HandleNetCDFStatus(status);
+      writer.HandleNetCDFStatus(status);
 
       //
       // Define element node connectivity for block.
       //
-      WriteNodeConnectivityForBlock(ncid, *this, block_id,
-                                    element_ids_for_block_id);
+      writer.WriteNodeConnectivityForBlock(ncid, *this, block_id,
+                                           element_ids_for_block_id);
 
       //
       // Define the element type.
@@ -384,35 +384,36 @@ void Mesh::WriteExodusII(const std::string fpath)
 
       int connect_id;
       status = nc_inq_varid(ncid, name_buffer, &connect_id);
-      HandleNetCDFStatus(status);
+      writer.HandleNetCDFStatus(status);
 
       status = nc_put_att_text(ncid, connect_id, "elem_type", element_type.length(),
                                element_type.c_str());
-      HandleNetCDFStatus(status);
+      writer.HandleNetCDFStatus(status);
    }
 
    //
    // Write block IDs.
    //
-   WriteBlockIDs(ncid, unique_block_ids);
+   writer.WriteBlockIDs(ncid, unique_block_ids);
 
    //
    // Write sideset information.
    //
-   WriteSideSetInformationForMesh(ncid, *this, boundary_ids,
-                                  exodusII_element_ids_for_boundary_id,
-                                  exodusII_side_ids_for_boundary_id);
+   writer.WriteSideSetInformationForMesh(ncid, *this, boundary_ids,
+                                         exodusII_element_ids_for_boundary_id,
+                                         exodusII_side_ids_for_boundary_id);
 
    //
    // Close file
    //
    status = nc_close(ncid);
-   HandleNetCDFStatus(status);
+   writer.HandleNetCDFStatus(status);
 
    mfem::out << "Mesh successfully written to Exodus II file" << std::endl;
 }
 
-static void WriteBlockIDs(int ncid, const std::vector<int> & unique_block_ids)
+void ExodusIIWriter::WriteBlockIDs(int ncid,
+                                   const std::vector<int> & unique_block_ids)
 {
    int status, unique_block_ids_ptr;
 
@@ -430,10 +431,10 @@ static void WriteBlockIDs(int ncid, const std::vector<int> & unique_block_ids)
    nc_redef(ncid);
 }
 
-static void WriteSideSetInformationForMesh(int ncid, Mesh & mesh,
-                                           const std::vector<int> & boundary_ids,
-                                           const std::map<int, std::vector<int>> & exodusII_element_ids_for_boundary_id,
-                                           const std::map<int, std::vector<int>> & exodusII_side_ids_for_boundary_id)
+void ExodusIIWriter::WriteSideSetInformationForMesh(int ncid, Mesh & mesh,
+                                                    const std::vector<int> & boundary_ids,
+                                                    const std::map<int, std::vector<int>> & exodusII_element_ids_for_boundary_id,
+                                                    const std::map<int, std::vector<int>> & exodusII_side_ids_for_boundary_id)
 {
    //
    // Add the boundary IDs
@@ -526,9 +527,9 @@ static void WriteSideSetInformationForMesh(int ncid, Mesh & mesh,
    }
 }
 
-static void WriteNodeConnectivityForBlock(int ncid, Mesh & mesh,
-                                          const int block_id,
-                                          const std::map<int, std::vector<int>> & element_ids_for_block_id)
+void ExodusIIWriter::WriteNodeConnectivityForBlock(int ncid, Mesh & mesh,
+                                                   const int block_id,
+                                                   const std::map<int, std::vector<int>> & element_ids_for_block_id)
 {
    int status{NC_NOERR}, connect_id;
 
@@ -571,9 +572,9 @@ static void WriteNodeConnectivityForBlock(int ncid, Mesh & mesh,
 }
 
 
-static void ExtractVertexCoordinatesFromMesh(int ncid, Mesh & mesh,
-                                             std::vector<double> & coordx, std::vector<double> & coordy,
-                                             std::vector<double> & coordz)
+void ExodusIIWriter::ExtractVertexCoordinatesFromMesh(int ncid, Mesh & mesh,
+                                                      std::vector<double> & coordx, std::vector<double> & coordy,
+                                                      std::vector<double> & coordz)
 {
    for (int ivertex = 0; ivertex < mesh.GetNV(); ivertex++)
    {
@@ -589,9 +590,9 @@ static void ExtractVertexCoordinatesFromMesh(int ncid, Mesh & mesh,
    }
 }
 
-static void WriteNodalCoordinatesFromMesh(int ncid,
-                                          std::vector<double> & coordx, std::vector<double> & coordy,
-                                          std::vector<double> & coordz)
+void ExodusIIWriter::WriteNodalCoordinatesFromMesh(int ncid,
+                                                   std::vector<double> & coordx, std::vector<double> & coordy,
+                                                   std::vector<double> & coordz)
 {
    int coordx_id, coordy_id, coordz_id;
    int status = NC_NOERR;
@@ -623,7 +624,7 @@ static void WriteNodalCoordinatesFromMesh(int ncid,
 }
 
 /// @brief Aborts with description of error.
-static void HandleNetCDFStatus(int status)
+void ExodusIIWriter::HandleNetCDFStatus(int status)
 {
    if (status != NC_NOERR)
    {
@@ -636,10 +637,10 @@ static void HandleNetCDFStatus(int status)
 /// all elements belonging to the same block will have the same attribute. We can perform a safety check as well
 /// by ensuring that all elements in the block have the same element type. If this is not the case then something
 /// has gone horribly wrong!
-static void GenerateExodusIIElementBlocksFromMesh(Mesh & mesh,
-                                                  std::vector<int> & unique_block_ids,
-                                                  std::map<int, std::vector<int>>  & element_ids_for_block_id,
-                                                  std::map<int, Element::Type> & element_type_for_block_id)
+void ExodusIIWriter::GenerateExodusIIElementBlocksFromMesh(Mesh & mesh,
+                                                           std::vector<int> & unique_block_ids,
+                                                           std::map<int, std::vector<int>>  & element_ids_for_block_id,
+                                                           std::map<int, Element::Type> & element_type_for_block_id)
 {
    unique_block_ids.clear();
    element_ids_for_block_id.clear();
@@ -678,7 +679,8 @@ static void GenerateExodusIIElementBlocksFromMesh(Mesh & mesh,
 }
 
 /// @brief Iterates over the elements of the mesh to extract a unique set of node IDs (or vertex IDs if first-order).
-static void GenerateExodusIINodeIDsFromMesh(Mesh & mesh, int & num_nodes)
+void ExodusIIWriter::GenerateExodusIINodeIDsFromMesh(Mesh & mesh,
+                                                     int & num_nodes)
 {
    std::set<int> node_ids;
 
@@ -710,10 +712,10 @@ static void GenerateExodusIINodeIDsFromMesh(Mesh & mesh, int & num_nodes)
    num_nodes = (int)node_ids.size();
 }
 
-static void GenerateExodusIIBoundaryInfo(Mesh & mesh,
-                                         std::vector<int> & unique_boundary_ids,
-                                         std::map<int, std::vector<int>> & exodusII_element_ids_for_boundary_id,
-                                         std::map<int, std::vector<int>> & exodusII_side_ids_for_boundary_id)
+void ExodusIIWriter::GenerateExodusIIBoundaryInfo(Mesh & mesh,
+                                                  std::vector<int> & unique_boundary_ids,
+                                                  std::map<int, std::vector<int>> & exodusII_element_ids_for_boundary_id,
+                                                  std::map<int, std::vector<int>> & exodusII_side_ids_for_boundary_id)
 {
    // Store the unique boundary IDs.
    unique_boundary_ids.clear();
