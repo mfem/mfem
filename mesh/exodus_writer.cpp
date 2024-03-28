@@ -95,6 +95,10 @@ protected:
    /// @brief Wrapper around nc_def_dim with error handling.
    void DefineDimension(const char *name, size_t len, int *dim_id);
 
+   /// @brief Wrapper around nc_def_var with error handling.
+   void DefineVar(const char *name, nc_type xtype, int ndims, const int *dimidsp,
+                  int *varidp);
+
 private:
    // ExodusII file ID.
    int _exid{0};
@@ -125,6 +129,13 @@ private:
 void ExodusIIWriter::DefineDimension(const char *name, size_t len, int *dim_id)
 {
    _status = nc_def_dim(_exid, name, len, dim_id);
+   HandleNetCDFStatus();
+}
+
+void ExodusIIWriter::DefineVar(const char *name, nc_type xtype, int ndims,
+                               const int *dimidsp, int *varidp)
+{
+   _status = nc_def_var(_exid, name, xtype, ndims, dimidsp, varidp);
    HandleNetCDFStatus();
 }
 
@@ -354,9 +365,8 @@ void ExodusIIWriter::WriteBlockIDs()
    int block_dim;
    DefineDimension("block_dim", _block_ids.size(), &block_dim);
 
-   _status = nc_def_var(_exid, "eb_prop1", NC_INT, 1, &block_dim,
-                        &unique_block_ids_ptr);
-   HandleNetCDFStatus();
+   DefineVar("eb_prop1", NC_INT, 1, &block_dim,
+             &unique_block_ids_ptr);
 
    nc_enddef(_exid);
    _status = nc_put_var_int(_exid, unique_block_ids_ptr, _block_ids.data());
@@ -476,19 +486,16 @@ void ExodusIIWriter::WriteNodalCoordinates()
 
    ExtractVertexCoordinatesFromMesh(coordx, coordy, coordz);
 
-   _status = nc_def_var(_exid, "coordx", NC_DOUBLE, 1, &_num_nodes_id,
-                        &_coordx_id);
-   HandleNetCDFStatus();
+   DefineVar("coordx", NC_DOUBLE, 1, &_num_nodes_id,
+             &_coordx_id);
 
-   _status = nc_def_var(_exid, "coordy", NC_DOUBLE, 1, &_num_nodes_id,
-                        &_coordy_id);
-   HandleNetCDFStatus();
+   DefineVar("coordy", NC_DOUBLE, 1, &_num_nodes_id,
+             &_coordy_id);
 
    if (_mesh.Dimension() == 3)
    {
-      _status = nc_def_var(_exid, "coordz", NC_DOUBLE, 1, &_num_nodes_id,
-                           &_coordz_id);
-      HandleNetCDFStatus();
+      DefineVar("coordz", NC_DOUBLE, 1, &_num_nodes_id,
+                &_coordz_id);
    }
 
    //
@@ -508,9 +515,8 @@ void ExodusIIWriter::WriteSideSetInformationForMesh()
    DefineDimension("boundary_ids_dim", _boundary_ids.size(),
                    &boundary_ids_dim);
 
-   _status = nc_def_var(_exid, "ss_prop1", NC_INT, 1, &boundary_ids_dim,
-                        &boundary_ids_ptr);
-   HandleNetCDFStatus();
+   DefineVar("ss_prop1", NC_INT, 1, &boundary_ids_dim,
+             &boundary_ids_ptr);
 
    nc_enddef(_exid);
    _status = nc_put_var_int(_exid, boundary_ids_ptr, _boundary_ids.data());
@@ -550,9 +556,8 @@ void ExodusIIWriter::WriteSideSetInformationForMesh()
       sprintf(name_buffer, "side_ss%d", boundary_id);
 
       int side_id_ptr;
-      _status = nc_def_var(_exid, name_buffer, NC_INT, 1,  &side_id_dim,
-                           &side_id_ptr);
-      HandleNetCDFStatus();
+      DefineVar(name_buffer, NC_INT, 1,  &side_id_dim,
+                &side_id_ptr);
 
       nc_enddef(_exid);
       _status = nc_put_var_int(_exid, side_id_ptr, side_ids.data());
@@ -577,9 +582,8 @@ void ExodusIIWriter::WriteSideSetInformationForMesh()
       sprintf(name_buffer, "elem_ss%d", boundary_id);
 
       int elem_ids_ptr;
-      _status = nc_def_var(_exid, name_buffer, NC_INT, 1, &elem_ids_dim,
-                           &elem_ids_ptr);
-      HandleNetCDFStatus();
+      DefineVar(name_buffer, NC_INT, 1, &elem_ids_dim,
+                &elem_ids_ptr);
 
       nc_enddef(_exid);
       _status = nc_put_var_int(_exid, elem_ids_ptr, element_ids.data());
@@ -619,9 +623,8 @@ void ExodusIIWriter::WriteNodeConnectivityForBlock(const int block_id)
    // NB: 1 == vector!; name is arbitrary; NC_INT or NCINT64??
    sprintf(name_buffer, "connect%d", block_id);
 
-   _status = nc_def_var(_exid, name_buffer, NC_INT, 1, &node_connectivity_dim,
-                        &connect_id);
-   HandleNetCDFStatus();
+   DefineVar(name_buffer, NC_INT, 1, &node_connectivity_dim,
+             &connect_id);
 
    nc_enddef(_exid);
    _status = nc_put_var_int(_exid, connect_id, block_node_connectivity.data());
@@ -721,8 +724,8 @@ void ExodusIIWriter::WriteDummyVariable()
 
    DefineDimension("dummy_var_dim", 1, &dummy_var_dim_id);
 
-   _status = nc_def_var(_exid, "dummy_var", NC_INT, 1, &dummy_var_dim_id,
-                        &dummy_var_id);
+   DefineVar("dummy_var", NC_INT, 1, &dummy_var_dim_id,
+             &dummy_var_id);
    HandleNetCDFStatus();
 
    nc_enddef(_exid);
