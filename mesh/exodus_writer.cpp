@@ -42,9 +42,7 @@ public:
                                       std::vector<double> & coordy,
                                       std::vector<double> & coordz);
 
-   void WriteNodeConnectivityForBlock(int ncid,
-                                      const int block_id,
-                                      const std::map<int, std::vector<int>> & element_ids_for_block_id);
+   void WriteNodeConnectivityForBlock(const int block_id);
 
    void WriteSideSetInformationForMesh();
 
@@ -78,6 +76,18 @@ public:
 
    void WriteNodalCoordinates();
 
+   void WriteFileSize();
+
+   void WriteNodeSets();
+
+   void WriteDimension();
+
+   void WriteTimesteps();
+
+   void CloseExodusIIFile();
+
+   void WriteDummyVariable();
+
 private:
    // ExodusII file ID.
    int _exid{0};
@@ -99,6 +109,10 @@ private:
 
    int _num_nodes;
    int _num_nodes_id;
+   int _num_dim_id;
+   int _coordx_id;
+   int _coordy_id;
+   int _coordz_id;
 };
 
 
@@ -154,9 +168,7 @@ void Mesh::WriteExodusII(const std::string fpath)
    //
    // Set dimension.
    //
-   int num_dim_id;
-   status = nc_def_dim(ncid, "num_dim", Dim, &num_dim_id);
-   writer.HandleNetCDFStatus(status);
+   writer.WriteDimension();
 
    //
    // Set # elements.
@@ -173,9 +185,7 @@ void Mesh::WriteExodusII(const std::string fpath)
    //
    // Set # node sets - TODO: add this (currently, set to 0).
    //
-   int num_node_sets_ids;
-   status = nc_def_dim(ncid, "num_node_sets", 0, &num_node_sets_ids);
-   writer.HandleNetCDFStatus(status);
+   writer.WriteNodeSets();
 
    //
    // Set # side sets ("boundaries")
@@ -203,9 +213,7 @@ void Mesh::WriteExodusII(const std::string fpath)
    // Store Exodus file size (normal==0; large==1). NB: coordinates specifed separately as components
    // for large file.
    //
-   const int file_size = 1;
-   status = nc_put_att_int(ncid, NC_GLOBAL, "file_size", NC_INT, 1, &file_size);
-   writer.HandleNetCDFStatus(status);
+   writer.WriteFileSize();
 
    //
    // Set length of character strings.
@@ -220,9 +228,7 @@ void Mesh::WriteExodusII(const std::string fpath)
    //
    // Set # timesteps (ASSUME no timesteps for initial verision)
    //
-   int timesteps_dim;
-   status = nc_def_dim(ncid, "time_step", 1, &timesteps_dim);
-   writer.HandleNetCDFStatus(status);
+   writer.WriteTimesteps();
 
    //
    // ---------------------------------------------------------------------------------
@@ -241,21 +247,7 @@ void Mesh::WriteExodusII(const std::string fpath)
    // NB: LibMesh has a dodgy bug where it will skip the x-coordinate if coordx_id == 0.
    // To prevent this, the first variable to be defined will be a dummy variable which will
    // have a variable id of 0.
-   {
-      int dummy_var_id, dummy_var_dim_id, dummy_value = 1;
-
-      status = nc_def_dim(ncid, "dummy_var_dim", 1, &dummy_var_dim_id);
-      writer.HandleNetCDFStatus(status);
-
-      status = nc_def_var(ncid, "dummy_var", NC_INT, 1, &dummy_var_dim_id,
-                          &dummy_var_id);
-      writer.HandleNetCDFStatus(status);
-
-      nc_enddef(ncid);
-      status = nc_put_var_int(ncid, dummy_var_id, &dummy_value);
-      writer.HandleNetCDFStatus(status);
-      nc_redef(ncid);
-   }
+   writer.WriteDummyVariable();
 
    //
    // Write nodal coordinates.
@@ -280,8 +272,7 @@ void Mesh::WriteExodusII(const std::string fpath)
    //
    // Close file
    //
-   status = nc_close(ncid);
-   writer.HandleNetCDFStatus(status);
+   writer.CloseExodusIIFile();
 
    mfem::out << "Mesh successfully written to Exodus II file" << std::endl;
 }
@@ -292,6 +283,12 @@ void ExodusIIWriter::CreateEmptyFile(const std::string & fpath)
    int flags = NC_CLOBBER;
 
    int status = nc_create(fpath.c_str(), flags, &_exid);
+   HandleNetCDFStatus(status);
+}
+
+void ExodusIIWriter::CloseExodusIIFile()
+{
+   int status = nc_close(_exid);
    HandleNetCDFStatus(status);
 }
 
@@ -436,8 +433,7 @@ void ExodusIIWriter::WriteElementBlockParameters(int block_id)
    //
    // Define element node connectivity for block.
    //
-   WriteNodeConnectivityForBlock(_exid, block_id,
-                                 _element_ids_for_block_id);
+   WriteNodeConnectivityForBlock(block_id);
 
    //
    // Define the element type.
@@ -486,23 +482,21 @@ void ExodusIIWriter::WriteNodalCoordinates()
    // https://docs.unidata.ucar.edu/netcdf-c/current/group__variables.html#gac7e8662c51f3bb07d1fc6d6c6d9052c8
    // NB: assume we have doubles (could be floats!)
    // ndims = 1 (vectors).
-   int coordx_id, coordy_id, coordz_id;
-
    std::vector<double> coordx(_num_nodes), coordy(_num_nodes),
        coordz(_mesh.Dimension() == 3 ? _num_nodes : 0);
 
    ExtractVertexCoordinatesFromMesh(coordx, coordy, coordz);
 
    int status = nc_def_var(_exid, "coordx", NC_DOUBLE, 1, &_num_nodes_id,
-                           &coordx_id);
+                           &_coordx_id);
    HandleNetCDFStatus(status);
 
-   status = nc_def_var(_exid, "coordy", NC_DOUBLE, 1, &_num_nodes_id, &coordy_id);
+   status = nc_def_var(_exid, "coordy", NC_DOUBLE, 1, &_num_nodes_id, &_coordy_id);
    HandleNetCDFStatus(status);
 
    if (_mesh.Dimension() == 3)
    {
-      status = nc_def_var(_exid, "coordz", NC_DOUBLE, 1, &_num_nodes_id, &coordz_id);
+      status = nc_def_var(_exid, "coordz", NC_DOUBLE, 1, &_num_nodes_id, &_coordz_id);
       HandleNetCDFStatus(status);
    }
 
@@ -606,9 +600,7 @@ void ExodusIIWriter::WriteSideSetInformationForMesh()
    }
 }
 
-void ExodusIIWriter::WriteNodeConnectivityForBlock(int ncid,
-                                                   const int block_id,
-                                                   const std::map<int, std::vector<int>> & element_ids_for_block_id)
+void ExodusIIWriter::WriteNodeConnectivityForBlock(const int block_id)
 {
    int status{NC_NOERR}, connect_id;
 
@@ -617,7 +609,7 @@ void ExodusIIWriter::WriteNodeConnectivityForBlock(int ncid,
 
    std::vector<int> block_node_connectivity;
 
-   for (int element_id : element_ids_for_block_id.at(block_id))
+   for (int element_id : _element_ids_for_block_id.at(block_id))
    {
       // NB: assume first-order elements only for now.
       // NB: - need to convert from 0-based indexing --> 1-based indexing.
@@ -633,21 +625,21 @@ void ExodusIIWriter::WriteNodeConnectivityForBlock(int ncid,
    sprintf(name_buffer, "connect%d_dim", block_id);
 
    int node_connectivity_dim;
-   status = nc_def_dim(ncid, name_buffer, block_node_connectivity.size(),
+   status = nc_def_dim(_exid, name_buffer, block_node_connectivity.size(),
                        &node_connectivity_dim);
    HandleNetCDFStatus(status);
 
    // NB: 1 == vector!; name is arbitrary; NC_INT or NCINT64??
    sprintf(name_buffer, "connect%d", block_id);
 
-   status = nc_def_var(ncid, name_buffer, NC_INT, 1, &node_connectivity_dim,
+   status = nc_def_var(_exid, name_buffer, NC_INT, 1, &node_connectivity_dim,
                        &connect_id);
    HandleNetCDFStatus(status);
 
-   nc_enddef(ncid);
-   status = nc_put_var_int(ncid, connect_id, block_node_connectivity.data());
+   nc_enddef(_exid);
+   status = nc_put_var_int(_exid, connect_id, block_node_connectivity.data());
    HandleNetCDFStatus(status);
-   nc_redef(ncid);
+   nc_redef(_exid);
 }
 
 
@@ -673,29 +665,19 @@ void ExodusIIWriter::WriteNodalCoordinatesFromMesh(std::vector<double> & coordx,
                                                    std::vector<double> & coordy,
                                                    std::vector<double> & coordz)
 {
-   int coordx_id, coordy_id, coordz_id;
    int status = NC_NOERR;
 
    nc_enddef(_exid);
 
-   status = nc_inq_varid(_exid, "coordx", &coordx_id);
+   status = nc_put_var_double(_exid, _coordx_id, coordx.data());
    HandleNetCDFStatus(status);
 
-   status = nc_put_var_double(_exid, coordx_id, coordx.data());
-   HandleNetCDFStatus(status);
-
-   status = nc_inq_varid(_exid, "coordy", &coordy_id);
-   HandleNetCDFStatus(status);
-
-   status = nc_put_var_double(_exid, coordy_id, coordy.data());
+   status = nc_put_var_double(_exid, _coordy_id, coordy.data());
    HandleNetCDFStatus(status);
 
    if (coordz.size() != 0)
    {
-      status = nc_inq_varid(_exid, "coordz", &coordz_id);
-      HandleNetCDFStatus(status);
-
-      status = nc_put_var_double(_exid, coordz_id, coordz.data());
+      status = nc_put_var_double(_exid, _coordz_id, coordz.data());
       HandleNetCDFStatus(status);
    }
 
@@ -709,6 +691,61 @@ void ExodusIIWriter::HandleNetCDFStatus(int status)
    {
       MFEM_ABORT("NetCDF error: " << nc_strerror(status));
    }
+}
+
+void ExodusIIWriter::WriteFileSize()
+{
+   // Store Exodus file size (normal==0; large==1). NB: coordinates specifed separately as components
+   // for large file.
+   const int file_size = 1;
+
+   int status = nc_put_att_int(_exid, NC_GLOBAL, "file_size", NC_INT, 1,
+                               &file_size);
+   HandleNetCDFStatus(status);
+}
+
+void ExodusIIWriter::WriteDimension()
+{
+   int status = nc_def_dim(_exid, "num_dim", _mesh.Dimension(), &_num_dim_id);
+   HandleNetCDFStatus(status);
+}
+
+void ExodusIIWriter::WriteNodeSets()
+{
+   // Set # node sets - TODO: add this (currently, set to 0).
+   int num_node_sets_ids;
+
+   int status = nc_def_dim(_exid, "num_node_sets", 0, &num_node_sets_ids);
+   HandleNetCDFStatus(status);
+}
+
+void ExodusIIWriter::WriteTimesteps()
+{
+   // Set # timesteps (ASSUME no timesteps for initial verision)
+   int timesteps_dim;
+
+   int status = nc_def_dim(_exid, "time_step", 1, &timesteps_dim);
+   HandleNetCDFStatus(status);
+}
+
+void ExodusIIWriter::WriteDummyVariable()
+{
+   // NB: LibMesh has a dodgy bug where it will skip the x-coordinate if coordx_id == 0.
+   // To prevent this, the first variable to be defined will be a dummy variable which will
+   // have a variable id of 0.
+   int dummy_var_id, dummy_var_dim_id, dummy_value = 1;
+
+   int status = nc_def_dim(_exid, "dummy_var_dim", 1, &dummy_var_dim_id);
+   HandleNetCDFStatus(status);
+
+   status = nc_def_var(_exid, "dummy_var", NC_INT, 1, &dummy_var_dim_id,
+                       &dummy_var_id);
+   HandleNetCDFStatus(status);
+
+   nc_enddef(_exid);
+   status = nc_put_var_int(_exid, dummy_var_id, &dummy_value);
+   HandleNetCDFStatus(status);
+   nc_redef(_exid);
 }
 
 /// @brief Generates blocks based on the elements in the mesh. We assume that this was originally an Exodus II
