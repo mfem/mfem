@@ -39,12 +39,12 @@ real_t squircle_level_set(const Vector &x)
    const int dim = x.Size();
    if (dim == 2)
    {
-      const double xc = x(0) - 0.5, yc = x(1) - 0.5;
+      const real_t xc = x(0) - 0.5, yc = x(1) - 0.5;
       return std::pow(xc, 4.0) + std::pow(yc, 4.0) - std::pow(0.24, 4.0);
    }
    else
    {
-      const double xc = x(0) - 0.5, yc = x(1) - 0.5, zc = x(2) - 0.5;
+      const real_t xc = x(0) - 0.5, yc = x(1) - 0.5, zc = x(2) - 0.5;
       return std::pow(xc, 4.0) + std::pow(yc, 4.0) +
              std::pow(zc, 4.0) - std::pow(0.24, 4.0);
    }

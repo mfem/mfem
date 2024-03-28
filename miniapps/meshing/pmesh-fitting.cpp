@@ -784,7 +784,7 @@ int main (int argc, char *argv[])
    if (conv_residual)
    {
       solver.SetFittingConvergenceBasedOnError(!conv_residual);
-      solver.SetMaximumFittingWeightLimit(surf_fit_const_max);
+      solver.SetMaxFittingWeight(surf_fit_const_max);
    }
 
    // Provide all integration rules in case of a mixed mesh.
