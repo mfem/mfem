@@ -31,38 +31,38 @@ public:
    /// @brief Closes ExodusII file.
    ~ExodusIIWriter();
 
-   void OpenExodusII(std::string fpath, int flags);
-   void CloseExodusII();
-
-   /// @brief Static method for writing a mesh to an ExodusII file.
-   static void WriteExodusII(Mesh & mesh, std::string fpath,
-                             int flags = NC_CLOBBER);
-
    /// @brief Writes the mesh to an ExodusII file.
    /// @param fpath The path to the file.
    /// @param flags NC_CLOBBER will overwrite existing file.
    void WriteExodusII(std::string fpath, int flags = NC_CLOBBER);
 
+   /// @brief Static method for writing a mesh to an ExodusII file.
+   static void WriteExodusII(Mesh & mesh, std::string fpath,
+                             int flags = NC_CLOBBER);
+
 protected:
+   void OpenExodusII(std::string fpath, int flags);
+   void CloseExodusII();
+
    void HandleNetCDFStatus();
 
-   void GenerateExodusIIElementBlocksFromMesh();
+   void GenerateExodusIIElementBlocks();
 
    void GenerateExodusIIBoundaryInfo();
 
-   void GenerateExodusIINodeIDsFromMesh();
+   void FindNumUniqueNodes();
 
-   void ExtractVertexCoordinatesFromMesh(std::vector<double> & coordx,
-                                         std::vector<double> & coordy,
-                                         std::vector<double> & coordz);
+   void ExtractVertexCoordinates(std::vector<double> & coordx,
+                                 std::vector<double> & coordy,
+                                 std::vector<double> & coordz);
 
-   void WriteNodalCoordinatesFromMesh(std::vector<double> & coordx,
-                                      std::vector<double> & coordy,
-                                      std::vector<double> & coordz);
+   void WriteNodalCoordinates(std::vector<double> & coordx,
+                              std::vector<double> & coordy,
+                              std::vector<double> & coordz);
 
    void WriteNodeConnectivityForBlock(const int block_id);
 
-   void WriteSideSetInformationForMesh();
+   void WriteSideSetInformation();
 
    void WriteBlockIDs();
 
@@ -111,7 +111,9 @@ protected:
 
 private:
    // ExodusII file ID.
-   int _exid{0};
+   int _exid{-1};
+
+   bool _file_open{false};
 
    // NetCDF status.
    int _status{NC_NOERR};
@@ -183,7 +185,7 @@ void ExodusIIWriter::WriteExodusII(std::string fpath, int flags)
    //
    // Set # nodes. NB: - Assume 1st order currently so NumOfVertices == # nodes
    //
-   GenerateExodusIINodeIDsFromMesh();
+   FindNumUniqueNodes();
    WriteNumNodes();
 
    //
@@ -199,7 +201,7 @@ void ExodusIIWriter::WriteExodusII(std::string fpath, int flags)
    //
    // Set # element blocks.
    //
-   GenerateExodusIIElementBlocksFromMesh();
+   GenerateExodusIIElementBlocks();
 
    WriteNumElementBlocks();
 
@@ -288,10 +290,11 @@ void ExodusIIWriter::WriteExodusII(std::string fpath, int flags)
    //
    // Write sideset information.
    //
-   WriteSideSetInformationForMesh();
+   WriteSideSetInformation();
+
+   CloseExodusII();
 
    mfem::out << "Mesh successfully written to Exodus II file" << std::endl;
-
 }
 
 void ExodusIIWriter::WriteExodusII(Mesh & mesh, std::string fpath,
@@ -309,14 +312,23 @@ void Mesh::WriteExodusII(const std::string fpath)
 
 void ExodusIIWriter::OpenExodusII(std::string fpath, int flags)
 {
+   CloseExodusII();  // Close any open files.
+
    _status = nc_create(fpath.c_str(), flags, &_exid);
    HandleNetCDFStatus();
+
+   _file_open = true;
 }
 
 void ExodusIIWriter::CloseExodusII()
 {
+   if (!_file_open) { return; }   // No files open.
+
    _status = nc_close(_exid);
    HandleNetCDFStatus();
+
+   _file_open = false;
+   _exid = (-1);  // Set to negative value (valid IDs are positive!)
 }
 
 ExodusIIWriter::~ExodusIIWriter()
@@ -507,7 +519,7 @@ void ExodusIIWriter::WriteNodalCoordinates()
    std::vector<double> coordx(_num_nodes), coordy(_num_nodes),
        coordz(_mesh.Dimension() == 3 ? _num_nodes : 0);
 
-   ExtractVertexCoordinatesFromMesh(coordx, coordy, coordz);
+   ExtractVertexCoordinates(coordx, coordy, coordz);
 
    DefineVar("coordx", NC_DOUBLE, 1, &_num_nodes_id,
              &_coordx_id);
@@ -524,10 +536,10 @@ void ExodusIIWriter::WriteNodalCoordinates()
    //
    // Write nodal coordinates.
    //
-   WriteNodalCoordinatesFromMesh(coordx, coordy, coordz);
+   WriteNodalCoordinates(coordx, coordy, coordz);
 }
 
-void ExodusIIWriter::WriteSideSetInformationForMesh()
+void ExodusIIWriter::WriteSideSetInformation()
 {
    //
    // Add the boundary IDs
@@ -656,9 +668,9 @@ void ExodusIIWriter::WriteNodeConnectivityForBlock(const int block_id)
 }
 
 
-void ExodusIIWriter::ExtractVertexCoordinatesFromMesh(std::vector<double> &
-                                                      coordx, std::vector<double> & coordy,
-                                                      std::vector<double> & coordz)
+void ExodusIIWriter::ExtractVertexCoordinates(std::vector<double> &
+                                              coordx, std::vector<double> & coordy,
+                                              std::vector<double> & coordz)
 {
    for (int ivertex = 0; ivertex < _mesh.GetNV(); ivertex++)
    {
@@ -674,9 +686,9 @@ void ExodusIIWriter::ExtractVertexCoordinatesFromMesh(std::vector<double> &
    }
 }
 
-void ExodusIIWriter::WriteNodalCoordinatesFromMesh(std::vector<double> & coordx,
-                                                   std::vector<double> & coordy,
-                                                   std::vector<double> & coordz)
+void ExodusIIWriter::WriteNodalCoordinates(std::vector<double> & coordx,
+                                           std::vector<double> & coordy,
+                                           std::vector<double> & coordz)
 {
    nc_enddef(_exid);
 
@@ -760,7 +772,7 @@ void ExodusIIWriter::WriteDummyVariable()
 /// all elements belonging to the same block will have the same attribute. We can perform a safety check as well
 /// by ensuring that all elements in the block have the same element type. If this is not the case then something
 /// has gone horribly wrong!
-void ExodusIIWriter::GenerateExodusIIElementBlocksFromMesh()
+void ExodusIIWriter::GenerateExodusIIElementBlocks()
 {
    _block_ids.clear();
    _element_ids_for_block_id.clear();
@@ -806,7 +818,7 @@ void ExodusIIWriter::WriteNumElementBlocks()
 }
 
 /// @brief Iterates over the elements of the mesh to extract a unique set of node IDs (or vertex IDs if first-order).
-void ExodusIIWriter::GenerateExodusIINodeIDsFromMesh()
+void ExodusIIWriter::FindNumUniqueNodes()
 {
    std::set<int> node_ids;
 
@@ -827,7 +839,6 @@ void ExodusIIWriter::GenerateExodusIINodeIDsFromMesh()
          mfem::Array<int> vertex_indices;
          _mesh.GetElementVertices(ielement, vertex_indices);
 
-         // TODO: - Hmmmm. These are not actually the dofs. Just the vertex offsets.
          for (int vertex_index : vertex_indices)
          {
             node_ids.insert(vertex_index);
