@@ -300,13 +300,13 @@ void CompareMatricesNonZeros(SparseMatrix &A1, const SparseMatrix &A2,
 
    const int *I1 = A1.HostReadI();
    const int *J1 = A1.HostReadJ();
-   const double *V1 = A1.HostReadData();
+   const real_t *V1 = A1.HostReadData();
 
    A2.HostReadI();
    A2.HostReadJ();
    A2.HostReadData();
 
-   double error = 0.0;
+   real_t error = 0.0;
 
    for (int i=0; i<n; ++i)
    {
