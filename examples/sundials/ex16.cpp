@@ -120,7 +120,7 @@ public:
        Because these are equivalent systems, this function does not assume the
        ODE is in a particular form. The approximation Jf(u) = -K(u_n) is used.*/
    int SUNImplicitSetup(const Vector &u, const Vector &fu, int jok, int *jcur,
-                        double gamma) override;
+                        double gam) override;
 
    /** Solves for dk in the system in SUNImplicitSetup, with G - F provided as
        r, to the given tolerance.*/
@@ -476,6 +476,7 @@ ConductionOperator::ConductionOperator(FiniteElementSpace &fes,
 
 void ConductionOperator::SetConductionTensor(const Vector &u)
 {
+   // Compute K(u_n)
    GridFunction u_alpha_gf(&fespace);
    u_alpha_gf.SetFromTrueDofs(u);
    for (int i = 0; i < u_alpha_gf.Size(); i++)
@@ -507,21 +508,21 @@ void ConductionOperator::Mult(const Vector &u, Vector &k) const
 void ConductionOperator::ImplicitSolve(const double gam, const Vector &u,
                                        Vector &k)
 {
-   // Solve for k in M k = - K(u_n) [u + gam*k], assuming K(u_n) has been set
+   // Solve for k in M k = - K(u_n) [u + gam*k]
+   //              <=> k = - inv(M) K(u_n) [u + gam*K]
+   ExplicitMult(u, z);
    T = std::unique_ptr<SparseMatrix>(Add(1.0, Mmat, gam, Kmat));
    T_solver.SetOperator(*T);
-   Kmat.Mult(u, z);
-   z.Neg();
    T_solver.Mult(z, k);
 }
 
 int ConductionOperator::SUNImplicitSetup(const Vector &u, const Vector &fu,
-                                         int jok, int *jcur, double gamma)
+                                         int jok, int *jcur, double gam)
 {
-   // Compute T = M + gamma K(u_n), assuming K(u_n) has been set
-   T = std::unique_ptr<SparseMatrix>(Add(1.0, Mmat, gamma, Kmat));
+   // Compute T = M + gamma K(u_n)
+   T = std::unique_ptr<SparseMatrix>(Add(1.0, Mmat, gam, Kmat));
    T_solver.SetOperator(*T);
-   *jcur = 1; // set flag to true indicating Jacobian is current
+   *jcur = SUNFALSE; // set flag to note Jacobian is using K(u_n) approximation
    return SUNLS_SUCCESS;
 }
 
