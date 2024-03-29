@@ -229,6 +229,7 @@ public:
 
 /** \brief OversetFindPointsGSLIB enables use of findpts for arbitrary number of
     overlapping grids.
+
     The parameters in this class are the same as FindPointsGSLIB with the
     difference of additional inputs required to account for more than 1 mesh. */
 class OversetFindPointsGSLIB : public FindPointsGSLIB
@@ -295,6 +296,7 @@ public:
 
 /** \brief  Class for gather-scatter (gs) operations on Vectors based on
     corresponding global identifiers.
+
     This functionality is useful for gs-ops on
     DOF values across processor boundary, where the global identifier would be
     the corresponding true DOF index. Operations currently supported are
@@ -304,17 +306,19 @@ public:
     - v = [0.3, 0.4, 0.25] on rank1,
     - v = [0.6, 0.1] on rank 2,
     - v = [-0.2, 0.3, 0.7, 0.] on rank 3.
+
     Consider a corresponding Array<int>, a:
     - a = [1, 2, 3] on rank 1,
     - a = [3, 2] on rank 2,
     - a = [1, 2, 0, 3] on rank 3.
+
     A gather-scatter "minimum" operation, done as follows:
     GSOPGSLIB gs = GSOPGSLIB(MPI_COMM_WORLD, a);
     gs.GS(v, GSOp::MIN);
     would return into v:
     - v = [-0.2, 0.1, 0.] on rank 1,
     - v = [0., 0.1] on rank 2,
-    - v = [-0.2, 0.1, 0.7, 0] on rank 3,
+    - v = [-0.2, 0.1, 0.7, 0.] on rank 3,
     where the values have been compared across all processors based on the
     integer identifier. */
 class GSOPGSLIB

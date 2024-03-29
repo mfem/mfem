@@ -369,7 +369,7 @@ TEST_CASE("GSLIBInterpolateL2ElementBoundary",
 }
 
 #ifdef MFEM_USE_MPI
-TEST_CASE("GSLIBGSOP",  "[GSLIBGSOP][Parallel][GSLIB]")
+TEST_CASE("GSLIBGSOP", "[GSLIBGSOP][Parallel][GSLIB]")
 {
    int myid;
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
