@@ -21,7 +21,11 @@
 #include "hypre.hpp"
 #include <mpi.h>
 
+#ifdef MFEM_USE_SINGLE
+#include "smumps_c.h"
+#else
 #include "dmumps_c.h"
+#endif
 
 namespace mfem
 {
@@ -218,7 +222,11 @@ private:
    int row_start;
 
    // MUMPS object
+#ifdef MFEM_USE_SINGLE
+   SMUMPS_STRUC_C *id;
+#else
    DMUMPS_STRUC_C *id;
+#endif
 
    /// Method for initialization
    void Init(MPI_Comm comm_);
@@ -236,17 +244,17 @@ private:
 
    // Row maps and storage for distributed RHS and solution
    int *irhs_loc, *isol_loc;
-   mutable double *rhs_loc, *sol_loc;
+   mutable real_t *rhs_loc, *sol_loc;
 
    // These two methods are needed to distribute the local solution
    // vectors returned by MUMPS to the original MFEM parallel partition
    int GetRowRank(int i, const Array<int> &row_starts_) const;
-   void RedistributeSol(const int *rmap, const double *x, const int lx_loc,
+   void RedistributeSol(const int *rmap, const real_t *x, const int lx_loc,
                         Array<Vector *> &Y) const;
 #else
    // Arrays needed for MPI_Gatherv and MPI_Scatterv
    int *recv_counts, *displs;
-   mutable double *rhs_glob;
+   mutable real_t *rhs_glob;
 #endif
 }; // mfem::MUMPSSolver class
 

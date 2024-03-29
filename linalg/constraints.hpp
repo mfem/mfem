@@ -320,10 +320,10 @@ class PenaltyConstrainedSolver : public ConstrainedSolver
 {
 public:
    PenaltyConstrainedSolver(HypreParMatrix& A, SparseMatrix& B,
-                            double penalty_);
+                            real_t penalty_);
 
    PenaltyConstrainedSolver(HypreParMatrix& A, HypreParMatrix& B,
-                            double penalty_);
+                            real_t penalty_);
 
    PenaltyConstrainedSolver(HypreParMatrix& A, HypreParMatrix& B,
                             Vector& penalty_);
@@ -362,13 +362,13 @@ protected:
 class PenaltyPCGSolver : public PenaltyConstrainedSolver
 {
 public:
-   PenaltyPCGSolver(HypreParMatrix& A, SparseMatrix& B, double penalty_,
+   PenaltyPCGSolver(HypreParMatrix& A, SparseMatrix& B, real_t penalty_,
                     int dimension=0, bool reorder=false) :
       PenaltyConstrainedSolver(A, B, penalty_),
       dimension_(dimension), reorder_(reorder)
    { }
 
-   PenaltyPCGSolver(HypreParMatrix& A, HypreParMatrix& B, double penalty_,
+   PenaltyPCGSolver(HypreParMatrix& A, HypreParMatrix& B, real_t penalty_,
                     int dimension=0, bool reorder=false) :
       PenaltyConstrainedSolver(A, B, penalty_),
       dimension_(dimension), reorder_(reorder)
@@ -401,13 +401,13 @@ private:
 class PenaltyGMRESSolver : public PenaltyConstrainedSolver
 {
 public:
-   PenaltyGMRESSolver(HypreParMatrix& A, SparseMatrix& B, double penalty_,
+   PenaltyGMRESSolver(HypreParMatrix& A, SparseMatrix& B, real_t penalty_,
                       int dimension=0, bool reorder=false) :
       PenaltyConstrainedSolver(A, B, penalty_),
       dimension_(dimension), reorder_(reorder)
    { }
 
-   PenaltyGMRESSolver(HypreParMatrix& A, HypreParMatrix& B, double penalty_,
+   PenaltyGMRESSolver(HypreParMatrix& A, HypreParMatrix& B, real_t penalty_,
                       int dimension=0, bool reorder=false) :
       PenaltyConstrainedSolver(A, B, penalty_),
       dimension_(dimension), reorder_(reorder)

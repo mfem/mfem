@@ -12,6 +12,8 @@
 #ifndef MFEM_KDTREE_HPP
 #define MFEM_KDTREE_HPP
 
+#include "../config/config.hpp"
+
 #include <vector>
 #include <algorithm>
 #include <fstream>
@@ -636,13 +638,13 @@ private:
 };
 
 /// Defines KDTree in 3D
-typedef KDTree<int,double,3> KDTree3D;
+typedef KDTree<int,real_t,3> KDTree3D;
 
 /// Defines KDTree in 2D
-typedef KDTree<int,double,2> KDTree2D;
+typedef KDTree<int,real_t,2> KDTree2D;
 
 /// Defines KDTree in 1D
-typedef KDTree<int,double,1> KDTree1D;
+typedef KDTree<int,real_t,1> KDTree1D;
 
 } // namespace mfem
 
