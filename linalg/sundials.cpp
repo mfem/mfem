@@ -1341,38 +1341,59 @@ CVODESSolver::~CVODESSolver()
 // ARKStep interface
 // ---------------------------------------------------------------------------
 
-int ARKStepSolver::RHS1(realtype t, const N_Vector y, N_Vector ydot,
+int ARKStepSolver::RHS1(realtype t, const N_Vector y, N_Vector result,
                         void *user_data)
 {
    // Get data from N_Vectors
    const SundialsNVector mfem_y(y);
-   SundialsNVector mfem_ydot(ydot);
+   SundialsNVector mfem_result(result);
    ARKStepSolver *self = static_cast<ARKStepSolver*>(user_data);
 
-   // Compute f(t, y) in y' = f(t, y) or fe(t, y) in y' = fe(t, y) + fi(t, y)
+   // Compute either f(t, y) in one of
+   //   1. y' = f(t, y)
+   //   2. M y' = f(t, y)
+   // or fe(t, y) in one of
+   //   1. y' = fe(t, y) + fi(t, y)
+   //   2. M y' = fe(t, y) + fi(t, y)
    self->f->SetTime(t);
    if (self->rk_type == IMEX)
    {
       self->f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
    }
-   self->f->Mult(mfem_y, mfem_ydot);
+   if (self->LSM == NULL) // ODE is in form 1
+   {
+      self->f->Mult(mfem_y, mfem_result);
+   }
+   else // ODE is in form 2
+   {
+      self->f->ExplicitMult(mfem_y, mfem_result);
+   }
 
    // Return success
    return (0);
 }
 
-int ARKStepSolver::RHS2(realtype t, const N_Vector y, N_Vector ydot,
+int ARKStepSolver::RHS2(realtype t, const N_Vector y, N_Vector result,
                         void *user_data)
 {
    // Get data from N_Vectors
    const SundialsNVector mfem_y(y);
-   SundialsNVector mfem_ydot(ydot);
+   SundialsNVector mfem_result(result);
    ARKStepSolver *self = static_cast<ARKStepSolver*>(user_data);
 
-   // Compute fi(t, y) in y' = fe(t, y) + fi(t, y)
+   // Compute fi(t, y) in one of
+   //   1. y' = fe(t, y) + fi(t, y)
+   //   2. M y' = fe(t, y) + fi(y, t)
    self->f->SetTime(t);
    self->f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
-   self->f->Mult(mfem_y, mfem_ydot);
+   if (self->LSM == NULL) // ODE is in form 1
+   {
+      self->f->Mult(mfem_y, mfem_result);
+   }
+   else // ODE is in form 2
+   {
+      self->f->ExplicitMult(mfem_y, mfem_result);
+   }
 
    // Return success
    return (0);
