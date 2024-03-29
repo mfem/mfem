@@ -91,7 +91,8 @@ public:
         2. - inv(M) K(u) u  (factored form)
         Because the factored form makes this function redundant with Mult, this
         function assumes the ODE is in mass form and computes - K(u) u. Note
-        that instead of K(u) u, the approximation K(u_n) u is used.*/
+        that instead of K(u) u, the approximation K(u_n) u is used. This is used
+        by the ARKODE time integrators if UseMFEMMassLinearSolver() is called. */
    void ExplicitMult(const Vector &u, Vector &y) const override;
 
    /** Solves for k in F(u, k, t) = G(u, t). Generally, this results in solving
@@ -100,7 +101,7 @@ public:
         2.   k = - inv(M) K(u) u  (factored form)
        Because these are equivalent actions, this function does not assume the
        ODE is in a particular form. Note that instead of K(u) u, the
-       approximation K(u_n) u is used.*/
+       approximation K(u_n) u is used. */
    void Mult(const Vector &u, Vector &k) const override;
 
    /** Solves for k in F(u + gam*k, k, t) = G(u + gam*k, t). Generally, this
@@ -109,7 +110,8 @@ public:
         2.   k = - inv(M) K(u + gam*k) [u + gam*k]  (factored form)
        Because these are equivalent actions, this function does not assume the
        ODE is in a particular form. Note that instead of
-       K(u + gam*k) [u + gam*k], the approximation K(u_n) [u + gam*k] is used.*/
+       K(u + gam*k) [u + gam*k], the approximation K(u_n) [u + gam*k] is used.
+       This is used by the implicit MFEM time integrators. */
    void ImplicitSolve(const double gam, const Vector &u, Vector &k) override;
 
    /** Setup to solve for dk in [dF/dk + gam*dF/du - gam*dG/du] dk = G - F,
@@ -120,7 +122,8 @@ public:
         2. [I - gam inv(M) Jf(u)] dk = inv(M) f(u) - kn  (factored form)
        where Jf(u) is an approximation of the Jacobian of f(u) = -K(u) u.
        Because these are equivalent systems, this function does not assume the
-       ODE is in a particular form. The approximation Jf(u) = -K(u_n) is used.*/
+       ODE is in a particular form. The approximation Jf(u) = -K(u_n) is used.
+       This is used by the implicit SUNDIALS time integrators. */
    int SUNImplicitSetup(const Vector &u, const Vector &fu, int jok, int *jcur,
                         double gam) override;
 
@@ -128,18 +131,17 @@ public:
        r, to the given tolerance.*/
    int SUNImplicitSolve(const Vector &r, Vector &dk, double tol) override;
 
-   /** Setup to solve for x in M x = b. This method is used by the SUNDIALS
-       ARKODE solvers. */
+   /** Setup to solve for x in M x = b. This method is used by the ARKODE time
+       integrators if UseMFEMMassLinearSolver() is called. */
    int SUNMassSetup() override;
 
-   /** Solve for x in the system in SUNMassSetup to the given tolerance. This
-       method is used by the SUNDIALS ARKODE solvers. */
+   /** Solve for x in the system in SUNMassSetup to the given tolerance. */
    int SUNMassSolve(const Vector &b, Vector &x, double tol) override;
 
-   /// Compute v = M x.  This method is used by the SUNDIALS ARKODE solvers.
+   /** Compute v = M x.  This method is used by the ARKODE time integrators if
+       UseMFEMMassLinearSolver() is called. */
    int SUNMassMult(const Vector &x, Vector &v) override;
 };
-
 
 double InitialTemperature(const Vector &x)
 {
@@ -256,7 +258,7 @@ int main(int argc, char *argv[])
    Vector u;
    u_gf.GetTrueDofs(u);
 
-   // 6. Initialize the conduction tensor and the visualization.
+   // 6. Initialize the conduction ODE operator and the visualization.
    ConductionOperator oper(fespace, alpha, kappa, u);
 
    u_gf.SetFromTrueDofs(u);
@@ -524,12 +526,12 @@ int ConductionOperator::SUNImplicitSetup(const Vector &u, const Vector &fu,
    // Compute T = M + gamma K(u_n)
    T = std::unique_ptr<SparseMatrix>(Add(1.0, Mmat, gam, Kmat));
    T_solver.SetOperator(*T);
-   *jcur = SUNFALSE; // set flag to note Jacobian is using K(u_n) approximation
+   *jcur = SUNTRUE; // this should eventually only be set true if K(u) is used
    return SUNLS_SUCCESS;
 }
 
 int ConductionOperator::SUNImplicitSolve(const Vector &r, Vector &dk,
-                                           double tol)
+                                         double tol)
 {
    // Solve the system [M + gamma K(u_n)] dk = M r to the specified tolerance.
    T_solver.SetRelTol(tol);
