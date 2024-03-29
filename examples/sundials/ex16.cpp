@@ -113,9 +113,11 @@ public:
    void ImplicitSolve(const double gam, const Vector &u, Vector &k) override;
 
    /** Setup to solve for dk in [dF/dk + gam*dF/du - gam*dG/du] dk = G - F,
-       where it is assumed dF/du = 0. Generally, this results in solving either
-        1. [M - gam Jf(u)] dk = f(u) - M k              (mass form)
-        2. [I - gam inv(M) Jf(u)] dk = inv(M) f(u) - k  (factored form)
+       where it is assumed dF/du = 0. Note this is called from a modified Newton
+       solver that is solving for k in F(u + gam*k, k, t) = G(u + gam*k, t),
+       where k = kn + dk. Generally, this results in solving either
+        1. [M - gam Jf(u)] dk = f(u) - M kn              (mass form)
+        2. [I - gam inv(M) Jf(u)] dk = inv(M) f(u) - kn  (factored form)
        where Jf(u) is an approximation of the Jacobian of f(u) = -K(u) u.
        Because these are equivalent systems, this function does not assume the
        ODE is in a particular form. The approximation Jf(u) = -K(u_n) is used.*/
