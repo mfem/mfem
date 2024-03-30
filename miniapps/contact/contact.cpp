@@ -290,7 +290,6 @@ int main(int argc, char *argv[])
       nonmortar_attr.insert(7);
       nonmortar_attr.insert(8);
    }
-   else
    {
       if (testNo == -1 || testNo == 41)
       {
@@ -301,14 +300,22 @@ int main(int argc, char *argv[])
          ess_values[2] = 1.0/1.4/nsteps;
          // ess_values[0] = -2.0/nsteps;
       }
-      essbdr_attr = 2;
+      essbdr_attr = (testNo == 40) ? 1 : 2;
       ess_bdr = 0; ess_bdr[essbdr_attr - 1] = 1;
       prob->SetDisplacementDirichletData(ess_values, ess_bdr);
-      essbdr_attr = 6;
+      essbdr_attr = (testNo == 40) ? 10 : 6;
       ess_values = 0.0; ess_bdr = 0; ess_bdr[essbdr_attr - 1] = 1;
       prob->SetDisplacementDirichletData(ess_values, ess_bdr);
-      mortar_attr.insert(3);
-      nonmortar_attr.insert(4);
+      if (testNo == 40)
+      {
+         mortar_attr.insert(4);
+         nonmortar_attr.insert(7);
+      }
+      else
+      {
+         mortar_attr.insert(3);
+         nonmortar_attr.insert(4);
+      }
    }
 
    ParFiniteElementSpace * fes = prob->GetFESpace();
