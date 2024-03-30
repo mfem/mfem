@@ -74,6 +74,8 @@ class SurfaceNormalCoef : public VectorCoefficient
 public:
    SurfaceNormalCoef(int dim) : VectorCoefficient(dim) {}
 
+   using VectorCoefficient::Eval;
+
    void Eval(Vector &V, ElementTransformation &T,
              const IntegrationPoint &ip)
    {
