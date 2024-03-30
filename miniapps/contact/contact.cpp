@@ -61,6 +61,8 @@ int main(int argc, char *argv[])
    bool elast = false;
    bool nocontact = false;
    int testNo = -1; // 0-6
+   int nsteps = 1;
+   bool outputfiles = false;
    // 1. Parse command-line options.
    OptionsParser args(argc, argv);
    args.AddOption(&testNo, "-testno", "--test-number",
@@ -78,7 +80,9 @@ int main(int argc, char *argv[])
    args.AddOption(&attr, "-at", "--attributes-surf",
                   "Attributes of boundary faces on contact surface for mesh 2.");
    args.AddOption(&sref, "-sr", "--serial-refinements",
-                  "Number of uniform refinements.");
+                  "Number of uniform refinements.");                  
+   args.AddOption(&nsteps, "-nsteps", "--nsteps",
+                  "Number of steps.");
    args.AddOption(&pref, "-pr", "--parallel-refinements",
                   "Number of uniform refinements.");
    args.AddOption(&linsolverrtol, "-srtol", "--solver-rel-tol",
@@ -110,6 +114,9 @@ int main(int argc, char *argv[])
    args.AddOption(&paraview, "-paraview", "--paraview", "-no-paraview",
                   "--no-paraview",
                   "Enable or disable ParaView visualization.");
+   args.AddOption(&outputfiles, "-out", "--output", "-no-out",
+                  "--no-ouput",
+                  "Enable or disable ouput to files.");                  
    args.Parse();
    if (!args.Good())
    {
@@ -147,6 +154,9 @@ int main(int argc, char *argv[])
       case 4:
          mesh_file = "meshes/Test4.mesh";
          break;
+      case 40:
+         mesh_file = "meshes/Test40.mesh";
+         break;   
       case 41:
          mesh_file = "meshes/Test41.mesh";
          break;
@@ -166,6 +176,9 @@ int main(int argc, char *argv[])
          // Something wrong with this mesh
          mesh_file = "meshes/Test61.mesh";
          break;
+      case 62:
+         mesh_file = "meshes/Test62.mesh";
+         break;         
       default:
          MFEM_ABORT("Should be unreachable");
          break;
@@ -193,6 +206,16 @@ int main(int argc, char *argv[])
       ess_bdr_attr.Append(4); ess_bdr_attr_comp.Append(0);
       ess_bdr_attr.Append(5); ess_bdr_attr_comp.Append(-1);
    }
+   else if (testNo == 62)
+   {
+      ess_bdr_attr.Append(4); ess_bdr_attr_comp.Append(0);
+      ess_bdr_attr.Append(5); ess_bdr_attr_comp.Append(-1);
+   }
+   else if (testNo == 40)
+   {
+      ess_bdr_attr.Append(1); ess_bdr_attr_comp.Append(-1);
+      ess_bdr_attr.Append(10); ess_bdr_attr_comp.Append(-1);
+   }
    else
    {
       ess_bdr_attr.Append(2); ess_bdr_attr_comp.Append(-1);
@@ -202,17 +225,14 @@ int main(int argc, char *argv[])
                                                           ess_bdr_attr,ess_bdr_attr_comp,
                                                           order);
    Vector lambda(prob->GetMesh()->attributes.Max());
-
-
    Vector mu(prob->GetMesh()->attributes.Max());
-
 
    if (testNo == -1 )
    {
       lambda = 57.6923076923;
       mu = 38.4615384615;
    }
-   else if (testNo == 6 || testNo == 61 )
+   else if (testNo == 6 || testNo == 61 || testNo == 62)
    {
       lambda = (1000*0.3)/(1.3*0.4);
       mu = 500/(1.3);
@@ -233,30 +253,13 @@ int main(int argc, char *argv[])
    Array<int> ess_bdr(pmesh->bdr_attributes.Max());
 
    ess_values = 0.0;
-   ConstantCoefficient one(-1.0);
+   ConstantCoefficient one(-20.0/nsteps);
 
    std::set<int> mortar_attr;
    std::set<int> nonmortar_attr;
 
    if (testNo == 6 || testNo == 61)
    {
-      /* material 1: e = 1000
-                     nu = 0.3
-         material 2: e = 1000
-                     nu = 0.3
-         material 3: e = 1000
-                     nu = 0.3
-         Attr    value
-         1      Dirichlet y = 0
-         2      Dirichlet z = 0
-         3      Neuman = 1.0
-         4      Dirichlet x = 0
-         5      Dirichlet x=y=z=0
-         6      Mortar
-         7      NonMortar
-         8      NonMortar
-         9      Mortar
-      */
       ess_values = 0.0;
       ess_bdr = 0;
       ess_bdr[0] = 1;
@@ -272,15 +275,31 @@ int main(int argc, char *argv[])
       nonmortar_attr.insert(7);
       nonmortar_attr.insert(8);
    }
+   else if(testNo == 62)
+   {
+      ess_values = 0.0;
+      ess_bdr = 0;
+      ess_bdr[3] = 1;
+      ess_bdr[4] = 1;
+      prob->SetDisplacementDirichletData(ess_values, ess_bdr);
+      ess_bdr = 0;
+      ess_bdr[2] = 1;
+      prob->SetNeumanPressureData(one,ess_bdr);
+      mortar_attr.insert(6);
+      mortar_attr.insert(9);
+      nonmortar_attr.insert(7);
+      nonmortar_attr.insert(8);
+   }
    else
    {
       if (testNo == -1 || testNo == 41)
       {
-         ess_values[0] = 0.1;
+         ess_values[0] = 0.1/nsteps;
       }
       else
       {
-         ess_values[2] = 0.7;
+         ess_values[2] = 1.0/1.4/nsteps;
+         // ess_values[0] = -2.0/nsteps;
       }
       essbdr_attr = 2;
       ess_bdr = 0; ess_bdr[essbdr_attr - 1] = 1;
@@ -292,105 +311,111 @@ int main(int argc, char *argv[])
       nonmortar_attr.insert(4);
    }
 
-
-
-   ParContactProblem contact(prob, mortar_attr, nonmortar_attr);
-   QPOptParContactProblem qpopt(&contact);
-   int numconstr = contact.GetGlobalNumConstraints();
-   ParInteriorPointSolver optimizer(&qpopt);
-   optimizer.SetTol(optimizer_tol);
-   optimizer.SetMaxIter(optimizer_maxit);
-   optimizer.SetLinearSolver(linsolver);
-   optimizer.SetLinearSolveRelTol(linsolverrtol);
-   optimizer.SetLinearSolveAbsTol(linsolveratol);
-   optimizer.SetLinearSolveRelaxType(relax_type);
-   if (nocontact)
+   ParFiniteElementSpace * fes = prob->GetFESpace();
+   ParGridFunction x_gf(fes); x_gf = 0.0;
+   ParGridFunction xnew(fes); xnew = 0.0;
+   ParaViewDataCollection * paraview_dc = nullptr;
+   
+   if (paraview)
    {
-      optimizer.EnableNoContactSolve();
+      std::ostringstream paraview_file_name;
+      paraview_file_name << "QPContact-Test_" << testNo
+                         << "_par_ref_" << pref
+                         << "_ser_ref_" << sref;
+      paraview_dc = new ParaViewDataCollection(paraview_file_name.str(), pmesh);
+      paraview_dc->SetPrefixPath("ParaView");
+      paraview_dc->SetLevelsOfDetail(1);
+      paraview_dc->SetDataFormat(VTKFormat::BINARY);
+      paraview_dc->SetHighOrderOutput(true);
+      paraview_dc->RegisterField("u", &x_gf);
    }
-   if (elast)
+   socketstream sol_sock;
+   if (visualization)
    {
-      optimizer.SetElasticityOptions(prob->GetFESpace());
+      char vishost[] = "localhost";
+      int visport = 19916;
+      sol_sock.open(vishost, visport);
+      sol_sock.precision(8);
    }
-   ParGridFunction x = prob->GetDisplacementGridFunction();
-   Vector x0 = x.GetTrueVector();
-   int ndofs = x0.Size();
-   Vector xf(ndofs); xf = 0.0;
-   optimizer.Mult(x0, xf);
-   double Einitial = contact.E(x0);
-   double Efinal = contact.E(xf);
-   Array<int> & CGiterations = optimizer.GetCGIterNumbers();
-   int gndofs = prob->GetGlobalNumDofs();
-   if (Mpi::Root())
+   
+   for (int i = 0; i<nsteps; i++)
    {
-      mfem::out << endl;
-      mfem::out << " Initial Energy objective        = " << Einitial << endl;
-      mfem::out << " Final Energy objective          = " << Efinal << endl;
-      mfem::out << " Global number of dofs           = " << gndofs << endl;
-      mfem::out << " Global number of constraints    = " << numconstr << endl;
-      mfem::out << " Optimizer number of iterations  = " <<
-                optimizer.GetNumIterations() << endl;
-      if (linsolver == 2 || linsolver == 3 || linsolver == 4)
-      {
-         mfem::out << " CG iteration numbers            = " ;
-         CGiterations.Print(mfem::out, CGiterations.Size());
-      }
+      ParContactProblem contact(prob, mortar_attr, nonmortar_attr);
+      QPOptParContactProblem qpopt(&contact);
+      int numconstr = contact.GetGlobalNumConstraints();
+      ParInteriorPointSolver optimizer(&qpopt);
+      optimizer.SetTol(optimizer_tol);
+      optimizer.SetMaxIter(optimizer_maxit);
+      optimizer.SetLinearSolver(linsolver);
+      optimizer.SetLinearSolveRelTol(linsolverrtol);
+      optimizer.SetLinearSolveAbsTol(linsolveratol);
+      optimizer.SetLinearSolveRelaxType(relax_type);
       if (nocontact)
       {
-         Array<int> & CGNoContactIterations = optimizer.GetCGNoContactIterNumbers();
-         mfem::out << " CG no Contact iteration numbers = " ;
-         CGNoContactIterations.Print(mfem::out, CGNoContactIterations.Size());
+         optimizer.EnableNoContactSolve();
       }
-      ostringstream file_name;
-      file_name << "output/Testno-"<<testNo<<"-sref-"<<sref; 
-      OutputData(file_name, Einitial, Efinal, gndofs,numconstr, optimizer.GetNumIterations(), CGiterations);
-   }
-
-   // MFEM_VERIFY(optimizer.GetConverged(),
-   //             "Interior point solver did not converge.");
-
-
-   if (visualization || paraview)
-   {
-      ParFiniteElementSpace * fes = prob->GetFESpace();
-      ParMesh * pmesh = fes->GetParMesh();
-
-      Vector X_new(xf.GetData(),fes->GetTrueVSize());
-
-      ParGridFunction x_gf(fes);
-
-      x_gf.SetFromTrueDofs(X_new);
-
-      pmesh->MoveNodes(x_gf);
-
-      if (paraview)
+      if (elast)
       {
-         std::ostringstream paraview_file_name;
-         paraview_file_name << "QPContactBodyTribol"
-                            << "_par_ref_" << pref
-                            << "_ser_ref_" << sref;
-         ParaViewDataCollection paraview_dc(paraview_file_name.str(), pmesh);
-         paraview_dc.SetPrefixPath("ParaView");
-         paraview_dc.SetLevelsOfDetail(1);
-         paraview_dc.SetDataFormat(VTKFormat::BINARY);
-         paraview_dc.SetHighOrderOutput(true);
-         paraview_dc.SetCycle(0);
-         paraview_dc.SetTime(0.0);
-         paraview_dc.RegisterField("Body", &x_gf);
-         paraview_dc.Save();
+         optimizer.SetElasticityOptions(prob->GetFESpace());
       }
-
-
-      if (visualization)
+      ParGridFunction x = prob->GetDisplacementGridFunction();
+      Vector x0 = x.GetTrueVector();
+      int ndofs = x0.Size();
+      Vector xf(ndofs); xf = 0.0;
+      optimizer.Mult(x0, xf);
+      double Einitial = contact.E(x0);
+      double Efinal = contact.E(xf);
+      Array<int> & CGiterations = optimizer.GetCGIterNumbers();
+      int gndofs = prob->GetGlobalNumDofs();
+      if (Mpi::Root())
       {
-         char vishost[] = "localhost";
-         int visport = 19916;
-
-         socketstream sol_sock(vishost, visport);
-         sol_sock.precision(8);
-         sol_sock << "parallel " << num_procs << " " << myid << "\n"
-                  << "solution\n" << *pmesh << x_gf << flush;
+         mfem::out << endl;
+         mfem::out << " Initial Energy objective        = " << Einitial << endl;
+         mfem::out << " Final Energy objective          = " << Efinal << endl;
+         mfem::out << " Global number of dofs           = " << gndofs << endl;
+         mfem::out << " Global number of constraints    = " << numconstr << endl;
+         mfem::out << " Optimizer number of iterations  = " <<
+                optimizer.GetNumIterations() << endl;
+         if (linsolver == 2 || linsolver == 3 || linsolver == 4)
+         {
+            mfem::out << " CG iteration numbers            = " ;
+            CGiterations.Print(mfem::out, CGiterations.Size());
+         }
+         if (nocontact)
+         {
+            Array<int> & CGNoContactIterations = optimizer.GetCGNoContactIterNumbers();
+            mfem::out << " CG no Contact iteration numbers = " ;
+            CGNoContactIterations.Print(mfem::out, CGNoContactIterations.Size());
+         }
+         if (outputfiles)
+         {
+            ostringstream file_name;
+            file_name << "output/Testno-"<<testNo<<"-ref-"<<sref+pref << "-step-" << i; 
+            OutputData(file_name, Einitial, Efinal, gndofs,numconstr, optimizer.GetNumIterations(), CGiterations);
+         }
       }
+
+      if (visualization || paraview)
+      {
+         Vector X_new(xf.GetData(),fes->GetTrueVSize());
+         xnew.SetFromTrueDofs(X_new);
+         x_gf+= xnew;
+         pmesh->MoveNodes(xnew);
+
+         if (paraview)
+         {
+            paraview_dc->SetCycle(i);
+            paraview_dc->SetTime(double(i));
+            paraview_dc->Save();
+         }
+
+         if (visualization)
+         {
+            sol_sock << "parallel " << num_procs << " " << myid << "\n"
+                     << "solution\n" << *pmesh << x_gf << flush;
+         }
+      }
+      prob->UpdateStep();
    }
 
    delete prob;

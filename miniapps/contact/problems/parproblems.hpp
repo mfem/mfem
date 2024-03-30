@@ -89,6 +89,36 @@ public:
       b.AddBoundaryIntegrator(new VectorBoundaryFluxLFIntegrator(pressure_cf),bdr_marker);
    }
 
+   void UpdateEssentialBC(Array<int> & ess_bdr_attr_, Array<int> & ess_bdr_attr_comp_)
+   {
+      ess_bdr_attr = ess_bdr_attr_;
+      ess_bdr_attr_comp = ess_bdr_attr_comp_;
+      ess_tdof_list.SetSize(0);
+      if (pmesh->bdr_attributes.Size())
+      {
+         ess_bdr.SetSize(pmesh->bdr_attributes.Max());
+      }
+      ess_bdr = 0; 
+      Array<int> ess_tdof_list_temp;
+      for (int i = 0; i < ess_bdr_attr.Size(); i++ )
+      {
+         ess_bdr[ess_bdr_attr[i]-1] = 1;
+         fes->GetEssentialTrueDofs(ess_bdr,ess_tdof_list_temp,ess_bdr_attr_comp[i]);
+         ess_tdof_list.Append(ess_tdof_list_temp);
+         ess_bdr[ess_bdr_attr[i]-1] = 0;
+      }
+   }
+
+   void UpdateStep()
+   {
+      if (formsystem)
+      {
+         b.Update();
+         a->Update();
+         formsystem = false;
+      }
+   }
+
    void FormLinearSystem();
    void UpdateLinearSystem();
 

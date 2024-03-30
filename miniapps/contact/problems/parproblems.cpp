@@ -51,12 +51,7 @@ void ParElasticityProblem::FormLinearSystem()
 
 void ParElasticityProblem::UpdateLinearSystem()
 {
-   if (formsystem)
-   {
-      b.Update();
-      a->Update();
-      formsystem = false;
-   }
+   UpdateStep();
    FormLinearSystem();
 }
 
