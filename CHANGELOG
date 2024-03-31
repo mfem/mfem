@@ -8,8 +8,12 @@
                                https://mfem.org
 
 
-Version 4.7, released on March 29, 2024
-=======================================
+Version 4.7, released on April 5, 2024
+======================================
+
+- Added support for single and double precision, with corresponding hypre build.
+  Generalized the floating point type from `double` to `real_t`. For details see
+  https://github.com/orgs/mfem/discussions/4207.
 
 Meshing improvements
 --------------------
@@ -29,8 +33,8 @@ Discretization improvements
   IntegrationRules through a moment-fitting approach. The cut is specified by
   the zero level set of a Coefficient. See fem/intrules_cut.hpp and Example 38.
 
-- Introduced support for higher order nonconformal Nedelec elements on
-  simplices in ParMesh.
+- Introduced support for higher order nonconformal Nedelec elements on simplices
+  in ParMesh.
 
 GPU computing
 --------------------------
@@ -41,6 +45,9 @@ GPU computing
 
 - Added partial assembly for linear elasticity. Does not use sum factorization
   for now.
+
+- RAJA backend will use seq_exec for serial loop execution when RAJA v2023.06.00
+  and beyond is detected as loop_exec is deprecated.
 
 New and updated examples and miniapps
 -------------------------------------
@@ -55,21 +62,11 @@ New and updated examples and miniapps
 
 Miscellaneous
 -------------
-- Added support for single and double precision, with corresponding hypre build.
-  Generalized the floating point type from `double` to `real_t`. For more
-  details see https://github.com/orgs/mfem/discussions/4207.
-
-- The ReadCubit Genesis mesh importer has been rewritten to improve readability.
-
 - Updated the Doxygen documentation style, which now requires Doxygen version
   1.9.8 or later. See the doc/ directory.
 
-- Improved thread safety for global variables in the library, for example in
-  IntegrationRules, IntRules, RefinedIntRules, GeometryRefiner
-  GlobGeometryRefiner, and FiniteElement::dof2quad_array.
-
-- RAJA backend will use seq_exec for serial loop execution when RAJA
-  v2023.06.00 and beyond is detected as loop_exec is deprecated.
+- Improved thread safety for global variables in the library, e.g. for IntRules,
+  RefinedIntRules, GlobGeometryRefiner, and FiniteElement::dof2quad_array.
 
 
 Version 4.6, released on September 27, 2023
