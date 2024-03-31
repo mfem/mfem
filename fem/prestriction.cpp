@@ -226,6 +226,7 @@ void ParNCH1FaceRestriction::ComputeScatterIndicesAndOffsets(
       }
       else if (face_type==FaceType::Boundary && face.IsBoundary())
       {
+         interpolations.RegisterFaceConformingInterpolation(face,f_ind);
          SetFaceDofsScatterIndices(face, f_ind, f_ordering);
          f_ind++;
       }
@@ -849,7 +850,30 @@ void ParNCL2FaceRestriction::AddMultTransposeInPlace(Vector& x, Vector& y) const
 void ParNCL2FaceRestriction::FillI(SparseMatrix &mat,
                                    const bool keep_nbr_block) const
 {
-   MFEM_ABORT("Not yet implemented.");
+   if (keep_nbr_block)
+   {
+      return NCL2FaceRestriction::FillI(mat, keep_nbr_block);
+   }
+   const int nface_dofs = face_dofs;
+   const int Ndofs = ndofs;
+   auto d_indices1 = scatter_indices1.Read();
+   auto d_indices2 = scatter_indices2.Read();
+   auto I = mat.ReadWriteI();
+   mfem::forall(nf*nface_dofs, [=] MFEM_HOST_DEVICE (int fdof)
+   {
+      const int f  = fdof/nface_dofs;
+      const int iF = fdof%nface_dofs;
+      const int iE1 = d_indices1[f*nface_dofs+iF];
+      if (iE1 < Ndofs)
+      {
+         AddNnz(iE1,I,nface_dofs);
+      }
+      const int iE2 = d_indices2[f*nface_dofs+iF];
+      if (iE2 < Ndofs)
+      {
+         AddNnz(iE2,I,nface_dofs);
+      }
+   });
 }
 
 void ParNCL2FaceRestriction::FillI(SparseMatrix &mat,
@@ -858,11 +882,94 @@ void ParNCL2FaceRestriction::FillI(SparseMatrix &mat,
    MFEM_ABORT("Not yet implemented.");
 }
 
-void ParNCL2FaceRestriction::FillJAndData(const Vector &ea_data,
+void ParNCL2FaceRestriction::FillJAndData(const Vector &fea_data,
                                           SparseMatrix &mat,
                                           const bool keep_nbr_block) const
 {
-   MFEM_ABORT("Not yet implemented.");
+   if (keep_nbr_block)
+   {
+      return NCL2FaceRestriction::FillJAndData(fea_data, mat, keep_nbr_block);
+   }
+   const int nface_dofs = face_dofs;
+   const int Ndofs = ndofs;
+   auto d_indices1 = scatter_indices1.Read();
+   auto d_indices2 = scatter_indices2.Read();
+   auto I = mat.ReadWriteI();
+   auto mat_fea = Reshape(fea_data.Read(), nface_dofs, nface_dofs, 2, nf);
+   auto J = mat.WriteJ();
+   auto Data = mat.WriteData();
+   auto interp_config_ptr = interpolations.GetFaceInterpConfig().Read();
+   auto interpolators = interpolations.GetInterpolators().Read();
+   const int nc_size = interpolations.GetNumInterpolators();
+   auto d_interp = Reshape(interpolators, nface_dofs, nface_dofs, nc_size);
+   mfem::forall(nf*nface_dofs, [=] MFEM_HOST_DEVICE (int fdof)
+   {
+      const int f  = fdof/nface_dofs;
+      const InterpConfig conf = interp_config_ptr[f];
+      const int master_side = conf.master_side;
+      const int interp_index = conf.index;
+      const int iF = fdof%nface_dofs;
+      const int iE1 = d_indices1[f*nface_dofs+iF];
+      if (iE1 < Ndofs)
+      {
+         const int offset1 = AddNnz(iE1,I,nface_dofs);
+         for (int jF = 0; jF < nface_dofs; jF++)
+         {
+            const int jE2 = d_indices2[f*nface_dofs+jF];
+            J[offset1+jF] = jE2;
+            double val2 = 0.0;
+            if ( conf.is_non_conforming && master_side==0 )
+            {
+               for (int kF = 0; kF < nface_dofs; kF++)
+               {
+                  val2 += d_interp(kF, iF, interp_index) * mat_fea(jF,kF,1,f);
+               }
+            }
+            else if ( conf.is_non_conforming && master_side==1 )
+            {
+               for (int kF = 0; kF < nface_dofs; kF++)
+               {
+                  val2 += mat_fea(kF,iF,1,f) * d_interp(kF, jF, interp_index);
+               }
+            }
+            else
+            {
+               val2 = mat_fea(jF,iF,1,f);
+            }
+            Data[offset1+jF] = val2;
+         }
+      }
+      const int iE2 = d_indices2[f*nface_dofs+iF];
+      if (iE2 < Ndofs)
+      {
+         const int offset2 = AddNnz(iE2,I,nface_dofs);
+         for (int jF = 0; jF < nface_dofs; jF++)
+         {
+            const int jE1 = d_indices1[f*nface_dofs+jF];
+            J[offset2+jF] = jE1;
+            double val1 = 0.0;
+            if ( conf.is_non_conforming && master_side==0 )
+            {
+               for (int kF = 0; kF < nface_dofs; kF++)
+               {
+                  val1 += mat_fea(kF,iF,0,f) * d_interp(kF, jF, interp_index);
+               }
+            }
+            else if ( conf.is_non_conforming && master_side==1 )
+            {
+               for (int kF = 0; kF < nface_dofs; kF++)
+               {
+                  val1 += d_interp(kF, iF, interp_index) * mat_fea(jF,kF,0,f);
+               }
+            }
+            else
+            {
+               val1 = mat_fea(jF,iF,0,f);
+            }
+            Data[offset2+jF] = val1;
+         }
+      }
+   });
 }
 
 void ParNCL2FaceRestriction::FillJAndData(const Vector &ea_data,
@@ -933,6 +1040,7 @@ void ParNCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
       }
       else if (type==FaceType::Boundary && face.IsBoundary())
       {
+         interpolations.RegisterFaceConformingInterpolation(face,f_ind);
          SetFaceDofsScatterIndices1(face,f_ind);
          if ( m==L2FaceValues::DoubleValued )
          {
