@@ -1340,7 +1340,7 @@ Mesh::FaceInformation::operator Mesh::FaceInfo() const
    return res;
 }
 
-std::ostream& operator<<(std::ostream& os, const Mesh::FaceInformation& info)
+std::ostream &operator<<(std::ostream &os, const Mesh::FaceInformation& info)
 {
    os << "face topology=";
    switch (info.topology)
@@ -3211,7 +3211,7 @@ void Mesh::FinalizeTopology(bool generate_bdr)
    if (Dim == 1)
    {
       GenerateFaces();
-      if (NumOfBdrElements == 0 && generate_bdr)
+      if (ReduceInt(NumOfBdrElements) == 0 && generate_bdr)
       {
          // be_to_face will be set inside GenerateBoundaryElements
          GenerateBoundaryElements();
@@ -13607,7 +13607,7 @@ MeshPartitioner::MeshPartitioner(Mesh &mesh_,
    {
       for (int i = 0; i < boundary_to_part.Size(); i++)
       {
-         int edge = mesh.GetBdrElementEdgeIndex(i);
+         int edge = mesh.GetBdrElementFaceIndex(i);
          int el1 = edge_to_element.GetRow(edge)[0];
          boundary_to_part[i] = partitioning[el1];
       }
@@ -13616,7 +13616,7 @@ MeshPartitioner::MeshPartitioner(Mesh &mesh_,
    {
       for (int i = 0; i < boundary_to_part.Size(); i++)
       {
-         int vert = mesh.GetBdrElementEdgeIndex(i);
+         int vert = mesh.GetBdrElementFaceIndex(i);
          int el1, el2;
          mesh.GetFaceElements(vert, &el1, &el2);
          boundary_to_part[i] = partitioning[el1];
