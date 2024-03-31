@@ -21,6 +21,17 @@ CC = $(MFEM_CXX)
 CCOPTS = -g
 CCC = $(CC) $(CCOPTS)
 
+NOTMAC := $(subst Darwin,,$(shell uname -s))
+ifneq ($(NOTMAC),)
+   AR      = ar
+   ARFLAGS = crv
+   RANLIB  = ranlib
+else
+   AR      = ar
+   ARFLAGS = Scrv
+   RANLIB  = ranlib -no_warning_for_no_symbols
+endif
+
 # -I$(MFEM_DIR) is needed by some tests, e.g. to #include "general/text.hpp"
 INCLUDES = -I$(or $(SRC:%/=%),.) -I$(MFEM_DIR)
 
@@ -31,6 +42,7 @@ SOURCE_FILES := $(filter-out \
    $(CEED_SOURCE_FILES) $(MINI_SOURCE_FILES), $(SOURCE_FILES))
 HEADER_FILES = $(SRC)catch.hpp $(SRC)unit_tests.hpp
 OBJECT_FILES = $(SOURCE_FILES:$(SRC)%.cpp=%.o)
+LIBTESTS_A = libtests.a
 DATA_DIR = data
 
 SEQ_MAIN_OBJ = unit_test_main.o
@@ -105,17 +117,17 @@ all: $(UNIT_TESTS)
 .SUFFIXES: .cpp .o
 .PHONY: all clean
 
-unit_tests: $(SEQ_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
-	$(CCC) $(SEQ_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
+unit_tests: $(SEQ_MAIN_OBJ) $(LIBTESTS_A) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
+	$(CCC) $(SEQ_MAIN_OBJ) $(LIBTESTS_A) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
 
-punit_tests: $(PAR_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
-	$(CCC) $(PAR_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
+punit_tests: $(PAR_MAIN_OBJ) $(LIBTESTS_A) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
+	$(CCC) $(PAR_MAIN_OBJ) $(LIBTESTS_A) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
 
-cunit_tests: $(CUDA_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
-	$(CCC) $(CUDA_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
+cunit_tests: $(CUDA_MAIN_OBJ) $(LIBTESTS_A) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
+	$(CCC) $(CUDA_MAIN_OBJ) $(LIBTESTS_A) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
 
-pcunit_tests: $(PCUDA_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
-	$(CCC) $(PCUDA_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
+pcunit_tests: $(PCUDA_MAIN_OBJ) $(LIBTESTS_A) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
+	$(CCC) $(PCUDA_MAIN_OBJ) $(LIBTESTS_A) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
 
 ceed_tests: $(CEED_OBJ) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
 	$(CCC) $(CEED_OBJ) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
@@ -124,6 +136,10 @@ $(DEBUG_DEVICE_TEST): $(DEBUG_DEVICE_OBJ) $(MFEM_LIB_FILE) \
  $(CONFIG_MK)
 	$(CCC) $(DEBUG_DEVICE_OBJ) $(MFEM_LINK_FLAGS) \
 	   $(MFEM_LIBS) -o $(@)
+
+$(LIBTESTS_A): $(OBJECT_FILES)
+	$(AR) $(ARFLAGS) $(@) $(OBJECT_FILES)
+	$(RANLIB) $(@)
 
 # Note: in this rule, we always use the full path to the source file as a
 # workaround for an issue with coveralls.
@@ -253,5 +269,5 @@ $(MFEM_LIB_FILE):
 	$(error The MFEM library is not built)
 
 clean:
-	rm -f $(SEQ_UNIT_TESTS) $(PAR_UNIT_TESTS) *.o */*.o */*~ *~
+	rm -f $(SEQ_UNIT_TESTS) $(PAR_UNIT_TESTS) *.o */*.o *.a */*~ *~
 	rm -rf *.dSYM output_meshes parallel_in_serial.mesh parallel_in_serial.gf
