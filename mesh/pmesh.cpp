@@ -6308,7 +6308,7 @@ void ParMesh::ParPrint(ostream &os, const std::string &comments) const
    {
       os << "total_shared_faces " << sface_lface.Size() << '\n';
    }
-   out << "\n# group 0 has no shared entities\n";
+   os << "\n# group 0 has no shared entities\n";
    for (int gr = 1; gr < GetNGroups(); gr++)
    {
       {
