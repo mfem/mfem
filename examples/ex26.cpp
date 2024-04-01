@@ -43,43 +43,38 @@ using namespace mfem;
 class DiffusionMultigrid : public GeometricMultigrid
 {
 private:
-   ConstantCoefficient one;
+   ConstantCoefficient coeff;
 
 public:
    // Constructs a diffusion multigrid for the given FiniteElementSpaceHierarchy
    // and the array of essential boundaries
    DiffusionMultigrid(FiniteElementSpaceHierarchy& fespaces, Array<int>& ess_bdr)
-      : GeometricMultigrid(fespaces), one(1.0)
+      : GeometricMultigrid(fespaces, ess_bdr), coeff(1.0)
    {
-      ConstructCoarseOperatorAndSolver(fespaces.GetFESpaceAtLevel(0), ess_bdr);
-
+      ConstructCoarseOperatorAndSolver(fespaces.GetFESpaceAtLevel(0));
       for (int level = 1; level < fespaces.GetNumLevels(); ++level)
       {
-         ConstructOperatorAndSmoother(fespaces.GetFESpaceAtLevel(level), ess_bdr);
+         ConstructOperatorAndSmoother(fespaces.GetFESpaceAtLevel(level), level);
       }
    }
 
 private:
-   void ConstructBilinearForm(FiniteElementSpace& fespace, Array<int>& ess_bdr)
+   void ConstructBilinearForm(FiniteElementSpace& fespace)
    {
       BilinearForm* form = new BilinearForm(&fespace);
       form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      form->AddDomainIntegrator(new DiffusionIntegrator(one));
+      form->AddDomainIntegrator(new DiffusionIntegrator(coeff));
       form->Assemble();
       bfs.Append(form);
-
-      essentialTrueDofs.Append(new Array<int>());
-      fespace.GetEssentialTrueDofs(ess_bdr, *essentialTrueDofs.Last());
    }
 
-   void ConstructCoarseOperatorAndSolver(FiniteElementSpace& coarse_fespace,
-                                         Array<int>& ess_bdr)
+   void ConstructCoarseOperatorAndSolver(FiniteElementSpace& coarse_fespace)
    {
-      ConstructBilinearForm(coarse_fespace, ess_bdr);
+      ConstructBilinearForm(coarse_fespace);
 
       OperatorPtr opr;
       opr.SetType(Operator::ANY_TYPE);
-      bfs.Last()->FormSystemMatrix(*essentialTrueDofs.Last(), opr);
+      bfs[0]->FormSystemMatrix(*essentialTrueDofs[0], opr);
       opr.SetOperatorOwner(false);
 
       CGSolver* pcg = new CGSolver();
@@ -92,21 +87,20 @@ private:
       AddLevel(opr.Ptr(), pcg, true, true);
    }
 
-   void ConstructOperatorAndSmoother(FiniteElementSpace& fespace,
-                                     Array<int>& ess_bdr)
+   void ConstructOperatorAndSmoother(FiniteElementSpace& fespace, int level)
    {
-      ConstructBilinearForm(fespace, ess_bdr);
+      const Array<int> &ess_tdof_list = *essentialTrueDofs[level];
+      ConstructBilinearForm(fespace);
 
       OperatorPtr opr;
       opr.SetType(Operator::ANY_TYPE);
-      bfs.Last()->FormSystemMatrix(*essentialTrueDofs.Last(), opr);
+      bfs[level]->FormSystemMatrix(ess_tdof_list, opr);
       opr.SetOperatorOwner(false);
 
       Vector diag(fespace.GetTrueVSize());
-      bfs.Last()->AssembleDiagonal(diag);
+      bfs[level]->AssembleDiagonal(diag);
 
-      Solver* smoother = new OperatorChebyshevSmoother(*opr, diag,
-                                                       *essentialTrueDofs.Last(), 2);
+      Solver* smoother = new OperatorChebyshevSmoother(*opr, diag, ess_tdof_list, 2);
       AddLevel(opr.Ptr(), smoother, true, true);
    }
 };

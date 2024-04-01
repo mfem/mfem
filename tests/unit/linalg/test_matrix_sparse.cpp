@@ -56,7 +56,7 @@ TEST_CASE("SparseMatrixAbsMult", "[SparseMatrixAbsMult]")
       A.AbsMult(X0,Y0);
       Aabs->Mult(X0,Y1);
 
-      Y1 -=Y0;
+      Y1 -= Y0;
       double error = Y1.Norml2();
 
       REQUIRE(error == MFEM_Approx(0.0));
@@ -66,7 +66,7 @@ TEST_CASE("SparseMatrixAbsMult", "[SparseMatrixAbsMult]")
       X1.Randomize(1);
       A.AbsMultTranspose(Y0,X0);
       Aabs->MultTranspose(Y0,X1);
-      X1 -=X0;
+      X1 -= X0;
 
       error = X1.Norml2();
 
