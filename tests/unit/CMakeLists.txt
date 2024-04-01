@@ -102,6 +102,7 @@ set(UNIT_TESTS_SRCS
   fem/test_pa_kernels.cpp
   fem/test_pgridfunc_save_serial.cpp
   fem/test_project_bdr.cpp
+  fem/test_project_bdr_par.cpp
   fem/test_quadf_coef.cpp
   fem/test_quadinterpolator.cpp
   fem/test_quadraturefunc.cpp
@@ -155,7 +156,9 @@ COMMAND ${CMAKE_COMMAND} -E copy_directory
 # The unit tests can be built and run separately from the rest of the tests:
 #   make unit_tests
 #   ctest -R unit_tests [-V]
-add_test(NAME unit_tests COMMAND unit_tests)
+if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
+  add_test(NAME unit_tests COMMAND unit_tests)
+endif()
 
 #-----------------------------------------------------------
 # SERIAL CUDA TESTS: cunit_tests
@@ -168,7 +171,9 @@ if (MFEM_USE_CUDA)
    target_link_libraries(cunit_tests mfem)
    add_dependencies(cunit_tests copy_data)
    add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} cunit_tests)
-   add_test(NAME cunit_tests COMMAND cunit_tests)
+   if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
+      add_test(NAME cunit_tests COMMAND cunit_tests)
+   endif()
 endif()
 
 #-----------------------------------------------------------
@@ -194,20 +199,26 @@ function(add_serial_miniapp_test name test_uvm)
     target_compile_definitions(${name}_tests_cpu PUBLIC MFEM_${NAME}_DEVICE="cpu")
     target_link_libraries(${name}_tests_cpu mfem)
     add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} ${name}_tests_cpu)
-    add_test(NAME ${name}_tests_cpu COMMAND ${name}_tests_cpu)
+    if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
+        add_test(NAME ${name}_tests_cpu COMMAND ${name}_tests_cpu)
+    endif()
 
     mfem_add_executable(${name}_tests_debug ${${NAME}_TESTS_SRCS})
     target_compile_definitions(${name}_tests_debug PUBLIC MFEM_${NAME}_DEVICE="debug")
     target_link_libraries(${name}_tests_debug mfem)
     add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} ${name}_tests_debug)
-    add_test(NAME ${name}_tests_debug COMMAND ${name}_tests_debug)
+    if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
+        add_test(NAME ${name}_tests_debug COMMAND ${name}_tests_debug)
+    endif()
 
     if (MFEM_USE_CUDA)
        mfem_add_executable(${name}_tests_cuda ${${NAME}_TESTS_SRCS})
        target_compile_definitions(${name}_tests_cuda PUBLIC MFEM_${NAME}_DEVICE="cuda")
        target_link_libraries(${name}_tests_cuda mfem)
        add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} ${name}_tests_cuda)
-       add_test(NAME ${name}_tests_cuda COMMAND ${name}_tests_cuda)
+       if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
+           add_test(NAME ${name}_tests_cuda COMMAND ${name}_tests_cuda)
+       endif()
 
        if (test_uvm)
            mfem_add_executable(${name}_tests_cuda_uvm ${${NAME}_TESTS_SRCS})
@@ -216,7 +227,9 @@ function(add_serial_miniapp_test name test_uvm)
            target_link_libraries(${name}_tests_cuda_uvm mfem)
            add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME}
                ${name}_tests_cuda_uvm)
-           add_test(NAME ${name}_tests_cuda_uvm COMMAND ${name}_tests_cuda_uvm)
+           if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
+               add_test(NAME ${name}_tests_cuda_uvm COMMAND ${name}_tests_cuda_uvm)
+           endif()
        endif()
     endif(MFEM_USE_CUDA)
 endfunction(add_serial_miniapp_test)
@@ -268,10 +281,12 @@ if (MFEM_USE_MPI)
    target_link_libraries(punit_tests mfem)
    add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} punit_tests)
    foreach(np 1 ${MFEM_MPI_NP})
-      add_test(NAME punit_tests_np=${np}
-               COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${np}
-               ${MPIEXEC_PREFLAGS} $<TARGET_FILE:punit_tests>
-               ${MPIEXEC_POSTFLAGS})
+      if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
+         add_test(NAME punit_tests_np=${np}
+                  COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${np}
+                  ${MPIEXEC_PREFLAGS} $<TARGET_FILE:punit_tests>
+                  ${MPIEXEC_POSTFLAGS})
+      endif()
    endforeach()
    if (MFEM_USE_CUDA)
       set(PCUNIT_TESTS_SRCS pcunit_test_main.cpp)
@@ -281,10 +296,12 @@ if (MFEM_USE_MPI)
       target_link_libraries(pcunit_tests mfem)
       add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} pcunit_tests)
       foreach(np 1 ${MFEM_MPI_NP})
-         add_test(NAME pcunit_tests_np=${np}
-                  COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${np}
-                  ${MPIEXEC_PREFLAGS} $<TARGET_FILE:pcunit_tests>
-                  ${MPIEXEC_POSTFLAGS})
+         if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
+            add_test(NAME pcunit_tests_np=${np}
+                     COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${np}
+                     ${MPIEXEC_PREFLAGS} $<TARGET_FILE:pcunit_tests>
+                     ${MPIEXEC_POSTFLAGS})
+         endif()
       endforeach()
    endif()
 endif(MFEM_USE_MPI)
@@ -311,10 +328,12 @@ function(add_parallel_miniapp_test name HYPRE_MM)
 
     function(add_mpi_unit_test DEV NP)
         set(test_name p${name}_tests_${DEV})
-        add_test(NAME ${test_name}_np=${NP}
-            COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${NP}
-            ${MPIEXEC_PREFLAGS} $<TARGET_FILE:${test_name}>
-            ${MPIEXEC_POSTFLAGS})
+        if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
+            add_test(NAME ${test_name}_np=${NP}
+                COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${NP}
+                ${MPIEXEC_PREFLAGS} $<TARGET_FILE:${test_name}>
+                ${MPIEXEC_POSTFLAGS})
+        endif()
     endfunction()
 
     set(PAR_${NAME}_TESTS_SRCS punit_test_main.cpp miniapps/test_${name}.cpp)
