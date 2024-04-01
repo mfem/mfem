@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -37,38 +37,42 @@ public:
          int attr = 1);
 
    /// Return element's type.
-   virtual Type GetType() const { return Element::WEDGE; }
+   Type GetType() const override { return Element::WEDGE; }
 
-   /// Set the vertices according to the given input.
-   virtual void SetVertices(const int *ind);
+   /// Get the indices defining the vertices.
+   void GetVertices(Array<int> &v) const override;
 
-   /// Returns the indices of the element's  vertices.
-   virtual void GetVertices(Array<int> &v) const;
+   /// Set the indices defining the vertices.
+   void SetVertices(const Array<int> &v) override;
 
-   virtual int *GetVertices() { return indices; }
+   /// @note The returned array should NOT be deleted by the caller.
+   int * GetVertices () override { return indices; }
 
-   virtual int GetNVertices() const { return 6; }
+   /// Set the indices defining the vertices.
+   void SetVertices(const int *ind) override;
 
-   virtual int GetNEdges() const { return 9; }
+   int GetNVertices() const override { return 6; }
 
-   virtual const int *GetEdgeVertices(int ei) const
+   int GetNEdges() const override { return 9; }
+
+   const int *GetEdgeVertices(int ei) const override
    { return geom_t::Edges[ei]; }
 
    /// @deprecated Use GetNFaces(void) and GetNFaceVertices(int) instead.
-   MFEM_DEPRECATED virtual int GetNFaces(int &nFaceVertices) const;
+   MFEM_DEPRECATED int GetNFaces(int &nFaceVertices) const override;
 
-   virtual int GetNFaces() const { return 5; }
+   int GetNFaces() const override { return 5; }
 
-   virtual int GetNFaceVertices(int fi) const
+   int GetNFaceVertices(int fi) const override
    { return (fi < 2) ? 3 : 4; }
 
-   virtual const int *GetFaceVertices(int fi) const
+   const int *GetFaceVertices(int fi) const override
    { return geom_t::FaceVert[fi]; }
 
-   virtual Element *Duplicate(Mesh *m) const
+   Element *Duplicate(Mesh *m) const override
    { return new Wedge(indices, attribute); }
 
-   virtual ~Wedge() { }
+   virtual ~Wedge() = default;
 };
 
 extern MFEM_EXPORT class LinearWedgeFiniteElement WedgeFE;

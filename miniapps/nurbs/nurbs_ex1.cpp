@@ -10,6 +10,12 @@
 //               nurbs_ex1 -m ../../data/disc-nurbs.mesh -o -1
 //               nurbs_ex1 -m ../../data/pipe-nurbs.mesh -o -1
 //               nurbs_ex1 -m ../../data/beam-hex-nurbs.mesh -pm 1 -ps 2
+//               nurbs_ex1 -m meshes/two-squares-nurbs.mesh -o 1 -rf meshes/two-squares.ref
+//               nurbs_ex1 -m meshes/two-squares-nurbs-rot.mesh -o 1 -rf meshes/two-squares.ref
+//               nurbs_ex1 -m meshes/two-squares-nurbs-autoedge.mesh -o 1 -rf meshes/two-squares.ref
+//               nurbs_ex1 -m meshes/two-cubes-nurbs.mesh -o 1 -r 3 -rf meshes/two-cubes.ref
+//               nurbs_ex1 -m meshes/two-cubes-nurbs-rot.mesh -o 1 -r 3 -rf meshes/two-cubes.ref
+//               nurbs_ex1 -m meshes/two-cubes-nurbs-autoedge.mesh -o 1 -r 3 -rf meshes/two-cubes.ref
 //               nurbs_ex1 -m ../../data/segment-nurbs.mesh -r 2 -o 2 -lod 3
 //
 // Description:  This example code demonstrates the use of MFEM to define a
@@ -39,12 +45,12 @@ using namespace mfem;
 class Data
 {
 public:
-   double x,val;
-   Data(double x_, double val_) {x=x_; val=val_;};
+   real_t x,val;
+   Data(real_t x_, real_t val_) {x=x_; val=val_;};
 };
 
-inline bool operator==(const Data& d1,const Data& d2) { return (d1.x == d2.x); };
-inline bool operator <(const Data& d1,const Data& d2) { return (d1.x  < d2.x); };
+inline bool operator==(const Data& d1,const Data& d2) { return (d1.x == d2.x); }
+inline bool operator <(const Data& d1,const Data& d2) { return (d1.x  < d2.x); }
 
 /** Class for integrating the bilinear form a(u,v) := (Q Laplace u, v) where Q
     can be a scalar coefficient. */
@@ -71,7 +77,7 @@ public:
    {
       int nd = el.GetDof();
       int dim = el.GetDim();
-      double w;
+      real_t w;
 
 #ifdef MFEM_THREAD_SAFE
       Vector shape(nd);
@@ -137,6 +143,7 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    const char *mesh_file = "../../data/star.mesh";
    const char *per_file  = "none";
+   const char *ref_file  = "";
    int ref_levels = -1;
    Array<int> master(0);
    Array<int> slave(0);
@@ -145,7 +152,7 @@ int main(int argc, char *argv[])
    int lod = 0;
    bool ibp = 1;
    bool strongBC = 1;
-   double kappa = -1;
+   real_t kappa = -1;
    Array<int> order(1);
    order[0] = 1;
 
@@ -156,6 +163,8 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly, -1 for auto.");
    args.AddOption(&per_file, "-p", "--per",
                   "Periodic BCS file.");
+   args.AddOption(&ref_file, "-rf", "--ref-file",
+                  "File with refinement data");
    args.AddOption(&master, "-pm", "--master",
                   "Master boundaries for periodic BCs");
    args.AddOption(&slave, "-ps", "--slave",
@@ -198,10 +207,16 @@ int main(int argc, char *argv[])
    int dim = mesh->Dimension();
 
    // 3. Refine the mesh to increase the resolution. In this example we do
-   //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
-   //    largest number that gives a final mesh with no more than 50,000
-   //    elements.
+   //    'ref_levels' of uniform refinement and knot insertion of knots defined
+   //    in a refinement file. We choose 'ref_levels' to be the largest number
+   //    that gives a final mesh with no more than 50,000 elements.
    {
+      // Mesh refinement as defined in refinement file
+      if (mesh->NURBSext && (strlen(ref_file) != 0))
+      {
+         mesh->RefineNURBSFromFile(ref_file);
+      }
+
       if (ref_levels < 0)
       {
          ref_levels =

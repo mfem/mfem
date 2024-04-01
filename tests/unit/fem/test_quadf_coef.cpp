@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,11 +14,9 @@
 
 using namespace mfem;
 
-namespace qf_coeff
-{
 
 TEST_CASE("Quadrature Function Coefficients",
-          "[Quadrature Function Coefficients]")
+          "[Coefficient][QuadratureFunction][QuadratureFunctionCoefficient]")
 {
    int order_h1 = 2, n = 4, dim = 3;
    double tol = 1e-14;
@@ -35,7 +33,7 @@ TEST_CASE("Quadrature Function Coefficients",
 
    REQUIRE(quadf_coeff.UseDevice());
 
-   const IntegrationRule ir = qspace.GetElementIntRule(0);
+   const IntegrationRule &ir = qspace.GetElementIntRule(0);
 
    const GeometricFactors *geom_facts =
       mesh.GetGeometricFactors(ir, GeometricFactors::COORDINATES);
@@ -154,7 +152,150 @@ TEST_CASE("Quadrature Function Coefficients",
 
       REQUIRE(output.Norml2() < tol);
    }
-
 }
 
-} // namespace qf_coeff
+TEST_CASE("Quadrature Function Integration", "[QuadratureFunction][CUDA]")
+{
+   auto fname = GENERATE(
+                   "../../data/star.mesh",
+                   "../../data/star-q3.mesh",
+                   "../../data/fichera.mesh",
+                   "../../data/fichera-q3.mesh"
+                );
+   const int order = GENERATE(1, 2, 3);
+
+   CAPTURE(fname, order);
+
+   Mesh mesh = Mesh::LoadFromFile(fname);
+   H1_FECollection fec(1, mesh.Dimension());
+   FiniteElementSpace fes(&mesh, &fec);
+
+   int int_order = 2*order + 1;
+
+   SECTION("QuadratureSpace")
+   {
+      QuadratureSpace qs(&mesh, int_order);
+
+      // Make sure invalidating the cached weights works properly
+      qs.GetWeights();
+      mesh.Transform([](const Vector &xold, Vector &xnew)
+      {
+         xnew = xold;
+         xnew *= 1.1;
+      });
+
+      const IntegrationRule &ir = qs.GetIntRule(0);
+
+      QuadratureFunction qf(qs);
+      qf.Randomize(1);
+      QuadratureFunctionCoefficient qf_coeff(qf);
+
+      LinearForm lf(&fes);
+      lf.AddDomainIntegrator(new DomainLFIntegrator(qf_coeff, &ir));
+      lf.Assemble();
+      const double integ_1 = lf.Sum();
+      const double integ_2 = qf.Integrate();
+      const double integ_3 = qs.Integrate(qf_coeff);
+
+      REQUIRE(integ_1 == MFEM_Approx(integ_2));
+      REQUIRE(integ_1 == MFEM_Approx(integ_3));
+   }
+
+   SECTION("Vector-valued")
+   {
+      const int vdim = 3;
+      const int ordering = Ordering::byNODES;
+      FiniteElementSpace fes_vec(&mesh, &fec, vdim, ordering);
+
+      QuadratureSpace qs(&mesh, int_order);
+      const IntegrationRule &ir = qs.GetIntRule(0);
+
+      QuadratureFunction qf(qs, vdim);
+      qf.Randomize(1);
+      VectorQuadratureFunctionCoefficient qf_coeff(qf);
+
+      LinearForm lf(&fes_vec);
+      auto *integrator = new VectorDomainLFIntegrator(qf_coeff);
+      integrator->SetIntRule(&ir);
+      lf.AddDomainIntegrator(integrator);
+      lf.Assemble();
+
+      Vector integrals_1(vdim);
+      Vector integrals_2(vdim);
+
+      qf.Integrate(integrals_1);
+      qs.Integrate(qf_coeff, integrals_2);
+
+      const int ndof = fes.GetNDofs();
+      for (int vd = 0; vd < vdim; ++vd)
+      {
+         double integ = 0.0;
+         for (int i = 0; i < ndof; ++i)
+         {
+            integ += lf[i + vd*ndof];
+         }
+         REQUIRE(integ == MFEM_Approx(integrals_1[vd]));
+         REQUIRE(integ == MFEM_Approx(integrals_2[vd]));
+      }
+   }
+
+   SECTION("FaceQuadratureSpace")
+   {
+      FaceQuadratureSpace qs(mesh, int_order, FaceType::Boundary);
+      const IntegrationRule &ir = qs.GetIntRule(0);
+
+      QuadratureFunction qf(qs);
+      qf.Randomize(1);
+      QuadratureFunctionCoefficient qf_coeff(qf);
+
+      LinearForm lf(&fes);
+      auto *integ = new BoundaryLFIntegrator(qf_coeff);
+      integ->SetIntRule(&ir);
+      lf.AddBoundaryIntegrator(integ);
+      lf.Assemble();
+      const double integ_1 = lf.Sum();
+      const double integ_2 = qf.Integrate();
+      REQUIRE(integ_1 == MFEM_Approx(integ_2));
+   }
+}
+
+namespace lin_interp
+{
+double f3(const Vector &x);
+void F3(const Vector &x, Vector &v);
+}
+
+TEST_CASE("Face Quadrature Function Coefficients", "[Coefficient]")
+{
+   auto ftype = GENERATE(FaceType::Interior, FaceType::Boundary);
+   auto int_order = GENERATE(3, 5);
+   int n = 4, dim = 3;
+
+   Mesh mesh = Mesh::MakeCartesian3D(
+                  n, n, n, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
+
+   FunctionCoefficient f_coeff(lin_interp::f3);
+   VectorFunctionCoefficient vf_coeff(dim, lin_interp::F3);
+
+   FaceQuadratureSpace qspace(mesh, int_order, ftype);
+
+   QuadratureFunction qf(qspace);
+   QuadratureFunction vqf(&qspace, dim);
+
+   f_coeff.Project(qf);
+   vf_coeff.Project(vqf);
+
+   QuadratureFunctionCoefficient qf_coeff(qf);
+   VectorQuadratureFunctionCoefficient vqf_coeff(vqf);
+
+   for (int i = 0; i < qspace.GetNE(); ++i)
+   {
+      const IntegrationRule &ir = qspace.GetIntRule(i);
+      ElementTransformation &T = *qspace.GetTransformation(i);
+      for (int iq = 0; iq < ir.Size(); ++iq)
+      {
+         const IntegrationPoint &ip = ir[iq];
+         REQUIRE(f_coeff.Eval(T, ip) == qf_coeff.Eval(T, ip));
+      }
+   }
+}

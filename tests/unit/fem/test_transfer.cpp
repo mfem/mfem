@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -423,6 +423,41 @@ TEST_CASE("Variable Order True Transfer", "[Transfer][VariableOrder]")
    delete c_fespace;
    delete f_fec;
    delete c_fec;
+}
+
+TEST_CASE("Restriction Transpose Operator")
+{
+   int order = GENERATE(1, 2);
+   auto mesh_fname = GENERATE("../../data/amr-quad.mesh",
+                              "../../data/fichera-amr.mesh");
+
+   Mesh mesh = Mesh::LoadFromFile(mesh_fname);
+   H1_FECollection fec(order, mesh.Dimension());
+   FiniteElementSpace fes(&mesh, &fec);
+
+   BilinearForm a(&fes);
+
+   const Operator *R = fes.GetRestrictionOperator();
+   const Operator *Rt = fes.GetRestrictionTransposeOperator();
+   const Operator *Rt_2 = a.GetOutputRestrictionTranspose();
+
+   REQUIRE(R);
+   REQUIRE(Rt);
+   REQUIRE(Rt_2);
+
+   Vector x(R->Height()), y1(R->Width()), y2(Rt->Height()), y3(Rt_2->Height());
+
+   x.Randomize(1);
+
+   R->MultTranspose(x, y1);
+   Rt->Mult(x, y2);
+   Rt_2->Mult(x, y3);
+
+   y2 -= y1;
+   REQUIRE(y2.Normlinf() == MFEM_Approx(0.0));
+
+   y3 -= y1;
+   REQUIRE(y3.Normlinf() == MFEM_Approx(0.0));
 }
 
 #ifdef MFEM_USE_MPI

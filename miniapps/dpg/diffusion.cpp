@@ -1,3 +1,14 @@
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+//
 //                       MFEM Ultraweak DPG example for diffusion
 //
 // Compile with: make diffusion
@@ -70,13 +81,13 @@ enum prob_type
 
 prob_type prob;
 
-double exact_u(const Vector & X);
+real_t exact_u(const Vector & X);
 void exact_gradu(const Vector & X, Vector &gradu);
-double exact_laplacian_u(const Vector & X);
+real_t exact_laplacian_u(const Vector & X);
 void exact_sigma(const Vector & X, Vector & sigma);
-double exact_hatu(const Vector & X);
+real_t exact_hatu(const Vector & X);
 void exact_hatsigma(const Vector & X, Vector & hatsigma);
-double f_exact(const Vector & X);
+real_t f_exact(const Vector & X);
 
 int main(int argc, char *argv[])
 {
@@ -239,7 +250,7 @@ int main(int argc, char *argv[])
                 << endl;
    }
 
-   double err0 = 0.;
+   real_t err0 = 0.;
    int dof0=0.;
    if (static_cond) { a->EnableStaticCondensation(); }
    for (int it = 0; it<=ref; it++)
@@ -307,10 +318,10 @@ int main(int argc, char *argv[])
       if (prob == prob_type::manufactured)
       {
          int l2dofs = u_fes->GetVSize() + sigma_fes->GetVSize();
-         double u_err = u_gf.ComputeL2Error(uex);
-         double sigma_err = sigma_gf.ComputeL2Error(sigmaex);
-         double L2Error = sqrt(u_err*u_err + sigma_err*sigma_err);
-         double rate_err = (it) ? dim*log(err0/L2Error)/log((double)dof0/l2dofs) : 0.0;
+         real_t u_err = u_gf.ComputeL2Error(uex);
+         real_t sigma_err = sigma_gf.ComputeL2Error(sigmaex);
+         real_t L2Error = sqrt(u_err*u_err + sigma_err*sigma_err);
+         real_t rate_err = (it) ? dim*log(err0/L2Error)/log((real_t)dof0/l2dofs) : 0.0;
          err0 = L2Error;
          dof0 = l2dofs;
 
@@ -363,16 +374,16 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-double exact_u(const Vector & X)
+real_t exact_u(const Vector & X)
 {
-   double alpha = M_PI * (X.Sum());
+   real_t alpha = M_PI * (X.Sum());
    return sin(alpha);
 }
 
 void exact_gradu(const Vector & X, Vector & du)
 {
    du.SetSize(X.Size());
-   double alpha = M_PI * (X.Sum());
+   real_t alpha = M_PI * (X.Sum());
    du.SetSize(X.Size());
    for (int i = 0; i<du.Size(); i++)
    {
@@ -380,10 +391,10 @@ void exact_gradu(const Vector & X, Vector & du)
    }
 }
 
-double exact_laplacian_u(const Vector & X)
+real_t exact_laplacian_u(const Vector & X)
 {
-   double alpha = M_PI * (X.Sum());
-   double u = sin(alpha);
+   real_t alpha = M_PI * (X.Sum());
+   real_t u = sin(alpha);
    return - M_PI*M_PI * u * X.Size();
 }
 
@@ -393,7 +404,7 @@ void exact_sigma(const Vector & X, Vector & sigma)
    exact_gradu(X,sigma);
 }
 
-double exact_hatu(const Vector & X)
+real_t exact_hatu(const Vector & X)
 {
    return exact_u(X);
 }
@@ -404,7 +415,7 @@ void exact_hatsigma(const Vector & X, Vector & hatsigma)
    hatsigma *= -1.;
 }
 
-double f_exact(const Vector & X)
+real_t f_exact(const Vector & X)
 {
    return -exact_laplacian_u(X);
 }

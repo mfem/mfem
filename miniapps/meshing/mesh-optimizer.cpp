@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -35,7 +35,7 @@
 //   Adapted analytic shape:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -bnd -qt 1 -qo 8
 //   Adapted analytic size+orientation:
-//     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 14 -tid 4 -ni 100 -bnd -qt 1 -qo 8 -fd
+//     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 14 -tid 4 -ni 100 -bnd -qt 1 -qo 8
 //   Adapted analytic shape+orientation:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 85 -tid 4 -ni 100 -bnd -qt 1 -qo 8 -fd
 //
@@ -118,16 +118,20 @@ int main(int argc, char *argv[])
    const char *mesh_file = "icf.mesh";
    int mesh_poly_deg     = 1;
    int rs_levels         = 0;
-   double jitter         = 0.0;
+   real_t jitter         = 0.0;
    int metric_id         = 1;
    int target_id         = 1;
-   double lim_const      = 0.0;
-   double adapt_lim_const   = 0.0;
+   real_t lim_const      = 0.0;
+   real_t adapt_lim_const   = 0.0;
    int quad_type         = 1;
    int quad_order        = 8;
    int solver_type       = 0;
    int solver_iter       = 20;
-   double solver_rtol    = 1e-10;
+#ifdef MFEM_USE_SINGLE
+   real_t solver_rtol    = 1e-4;
+#else
+   real_t solver_rtol    = 1e-10;
+#endif
    int solver_art_type   = 0;
    int lin_solver        = 2;
    int max_lin_iter      = 100;
@@ -142,6 +146,7 @@ int main(int argc, char *argv[])
    bool fdscheme         = false;
    int adapt_eval        = 0;
    bool exactaction      = false;
+   bool integ_over_targ  = true;
    const char *devopt    = "cpu";
    bool pa               = false;
    int n_hr_iter         = 5;
@@ -270,11 +275,18 @@ int main(int argc, char *argv[])
    args.AddOption(&exactaction, "-ex", "--exact_action",
                   "-no-ex", "--no-exact-action",
                   "Enable exact action of TMOP_Integrator.");
+   args.AddOption(&integ_over_targ, "-it", "--integrate-target",
+                  "-ir", "--integrate-reference",
+                  "Integrate over target (-it) or reference (-ir) element.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.AddOption(&verbosity_level, "-vl", "--verbosity-level",
-                  "Set the verbosity level - 0, 1, or 2.");
+                  "Verbosity level for the involved iterative solvers:\n\t"
+                  "0: no output\n\t"
+                  "1: Newton iterations\n\t"
+                  "2: Newton iterations + linear solver summaries\n\t"
+                  "3: newton iterations + linear solver iterations");
    args.AddOption(&adapt_eval, "-ae", "--adaptivity-evaluator",
                   "0 - Advection based (DEFAULT), 1 - GSLIB.");
    args.AddOption(&devopt, "-d", "--device",
@@ -357,21 +369,21 @@ int main(int argc, char *argv[])
    //    In addition, compute average mesh size and total volume.
    Vector h0(fespace->GetNDofs());
    h0 = infinity();
-   double mesh_volume = 0.0;
+   real_t mesh_volume = 0.0;
    Array<int> dofs;
    for (int i = 0; i < mesh->GetNE(); i++)
    {
       // Get the local scalar element degrees of freedom in dofs.
       fespace->GetElementDofs(i, dofs);
       // Adjust the value of h0 in dofs based on the local mesh size.
-      const double hi = mesh->GetElementSize(i);
+      const real_t hi = mesh->GetElementSize(i);
       for (int j = 0; j < dofs.Size(); j++)
       {
          h0(dofs[j]) = min(h0(dofs[j]), hi);
       }
       mesh_volume += mesh->GetElementVolume(i);
    }
-   const double small_phys_size = pow(mesh_volume, 1.0 / dim) / 100.0;
+   const real_t small_phys_size = pow(mesh_volume, 1.0 / dim) / 100.0;
 
    // 8. Add a random perturbation to the nodes in the interior of the domain.
    //    We define a random grid function of fespace and make sure that it is
@@ -415,7 +427,7 @@ int main(int argc, char *argv[])
    x0 = x;
 
    // 11. Form the integrator that uses the chosen metric and target.
-   double min_detJ = -0.1;
+   real_t min_detJ = -0.1;
    TMOP_QualityMetric *metric = NULL;
    switch (metric_id)
    {
@@ -623,16 +635,16 @@ int main(int argc, char *argv[])
          {
             size(i) = std::pow(d_x(i),2)+std::pow(d_y(i),2);
          }
-         const double max = size.Max();
+         const real_t max = size.Max();
 
          for (int i = 0; i < d_x.Size(); i++)
          {
             d_x(i) = std::abs(d_x(i));
             d_y(i) = std::abs(d_y(i));
          }
-         const double eps = 0.01;
-         const double aspr_ratio = 20.0;
-         const double size_ratio = 40.0;
+         const real_t eps = 0.01;
+         const real_t aspr_ratio = 20.0;
+         const real_t size_ratio = 40.0;
 
          for (int i = 0; i < size.Size(); i++)
          {
@@ -644,7 +656,7 @@ int main(int argc, char *argv[])
          }
          Vector vals;
          const int NE = mesh->GetNE();
-         double volume = 0.0, volume_ind = 0.0;
+         real_t volume = 0.0, volume_ind = 0.0;
 
          for (int i = 0; i < NE; i++)
          {
@@ -661,19 +673,19 @@ int main(int argc, char *argv[])
             }
          }
 
-         const double avg_zone_size = volume / NE;
+         const real_t avg_zone_size = volume / NE;
 
-         const double small_avg_ratio = (volume_ind + (volume - volume_ind) /
+         const real_t small_avg_ratio = (volume_ind + (volume - volume_ind) /
                                          size_ratio) /
                                         volume;
 
-         const double small_zone_size = small_avg_ratio * avg_zone_size;
-         const double big_zone_size   = size_ratio * small_zone_size;
+         const real_t small_zone_size = small_avg_ratio * avg_zone_size;
+         const real_t big_zone_size   = size_ratio * small_zone_size;
 
          for (int i = 0; i < size.Size(); i++)
          {
-            const double val = size(i);
-            const double a = (big_zone_size - small_zone_size) / small_zone_size;
+            const real_t val = size(i);
+            const real_t a = (big_zone_size - small_zone_size) / small_zone_size;
             size(i) = big_zone_size / (1.0+a*val);
          }
 
@@ -767,8 +779,8 @@ int main(int argc, char *argv[])
    TMOP_QualityMetric *metric_to_use = barrier_type > 0 || worst_case_type > 0
                                        ? untangler_metric
                                        : metric;
-   TMOP_Integrator *tmop_integ = new TMOP_Integrator(metric_to_use, target_c,
-                                                     h_metric);
+   auto tmop_integ = new TMOP_Integrator(metric_to_use, target_c, h_metric);
+   tmop_integ->IntegrateOverTarget(integ_over_targ);
    if (barrier_type > 0 || worst_case_type > 0)
    {
       tmop_integ->ComputeUntangleMetricQuantiles(x, *fespace);
@@ -889,6 +901,7 @@ int main(int argc, char *argv[])
          tmop_integ2->SetCoefficient(metric_coeff2);
       }
       else { tmop_integ2 = new TMOP_Integrator(metric2, target_c, h_metric); }
+      tmop_integ2->IntegrateOverTarget(integ_over_targ);
       tmop_integ2->SetIntegrationRules(*irules, quad_order);
       if (fdscheme) { tmop_integ2->EnableFiniteDifferences(x); }
       tmop_integ2->SetExactActionFlag(exactaction);
@@ -944,9 +957,9 @@ int main(int argc, char *argv[])
    }
 
    // For HR tests, the energy is normalized by the number of elements.
-   const double init_energy = a.GetGridFunctionEnergy(x) /
+   const real_t init_energy = a.GetGridFunctionEnergy(x) /
                               (hradaptivity ? mesh->GetNE() : 1);
-   double init_metric_energy = init_energy;
+   real_t init_metric_energy = init_energy;
    if (lim_const > 0.0 || adapt_lim_const > 0.0)
    {
       lim_coeff.constant = 0.0;
@@ -1021,10 +1034,20 @@ int main(int argc, char *argv[])
       a.SetEssentialVDofs(ess_vdofs);
    }
 
-   // 14. As we use the Newton method to solve the resulting nonlinear system,
-   //     here we setup the linear solver for the system's Jacobian.
+   // As we use the inexact Newton method to solve the resulting nonlinear
+   // system, here we setup the linear solver for the system's Jacobian.
    Solver *S = NULL, *S_prec = NULL;
-   const double linsol_rtol = 1e-12;
+#ifdef MFEM_USE_SINGLE
+   const real_t linsol_rtol = 1e-5;
+#else
+   const real_t linsol_rtol = 1e-12;
+#endif
+   // Level of output.
+   IterativeSolver::PrintLevel linsolver_print;
+   if (verbosity_level == 2)
+   { linsolver_print.Errors().Warnings().FirstAndLast(); }
+   if (verbosity_level > 2)
+   { linsolver_print.Errors().Warnings().Iterations(); }
    if (lin_solver == 0)
    {
       S = new DSmoother(1, 1.0, max_lin_iter);
@@ -1035,7 +1058,7 @@ int main(int argc, char *argv[])
       cg->SetMaxIter(max_lin_iter);
       cg->SetRelTol(linsol_rtol);
       cg->SetAbsTol(0.0);
-      cg->SetPrintLevel(verbosity_level >= 2 ? 3 : -1);
+      cg->SetPrintLevel(linsolver_print);
       S = cg;
    }
    else
@@ -1044,8 +1067,7 @@ int main(int argc, char *argv[])
       minres->SetMaxIter(max_lin_iter);
       minres->SetRelTol(linsol_rtol);
       minres->SetAbsTol(0.0);
-      if (verbosity_level > 2) { minres->SetPrintLevel(1); }
-      minres->SetPrintLevel(verbosity_level == 2 ? 3 : -1);
+      minres->SetPrintLevel(linsolver_print);
       if (lin_solver == 3 || lin_solver == 4)
       {
          if (pa)
@@ -1066,17 +1088,16 @@ int main(int argc, char *argv[])
       S = minres;
    }
 
+   //
    // Perform the nonlinear optimization.
+   //
    const IntegrationRule &ir =
       irules->Get(fespace->GetFE(0)->GetGeomType(), quad_order);
    TMOPNewtonSolver solver(ir, solver_type);
    // Provide all integration rules in case of a mixed mesh.
    solver.SetIntegrationRules(*irules, quad_order);
-   if (solver_type == 0)
-   {
-      // Specify linear solver when we use a Newton-based solver.
-      solver.SetPreconditioner(*S);
-   }
+   // Specify linear solver when we use a Newton-based solver.
+   if (solver_type == 0) { solver.SetPreconditioner(*S); }
    // For untangling, the solver will update the min det(T) values.
    solver.SetMinDetPtr(&min_detJ);
    solver.SetMaxIter(solver_iter);
@@ -1086,8 +1107,11 @@ int main(int argc, char *argv[])
    {
       solver.SetAdaptiveLinRtol(solver_art_type, 0.5, 0.9);
    }
-   solver.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
-
+   // Level of output.
+   IterativeSolver::PrintLevel newton_print;
+   if (verbosity_level > 0)
+   { newton_print.Errors().Warnings().Iterations(); }
+   solver.SetPrintLevel(newton_print);
    // hr-adaptivity solver.
    // If hr-adaptivity is disabled, r-adaptivity is done once using the
    // TMOPNewtonSolver.
@@ -1116,9 +1140,9 @@ int main(int argc, char *argv[])
    }
 
    // Report the final energy of the functional.
-   const double fin_energy = a.GetGridFunctionEnergy(x) /
+   const real_t fin_energy = a.GetGridFunctionEnergy(x) /
                              (hradaptivity ? mesh->GetNE() : 1);
-   double fin_metric_energy = fin_energy;
+   real_t fin_metric_energy = fin_energy;
    if (lim_const > 0.0 || adapt_lim_const > 0.0)
    {
       lim_coeff.constant = 0.0;

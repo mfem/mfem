@@ -280,15 +280,16 @@ int main(int argc, char *argv[])
       k.SetAssemblyLevel(AssemblyLevel::FULL);
    }
    m.AddDomainIntegrator(new MassIntegrator);
-   k.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
+   constexpr double alpha = -1.0;
+   k.AddDomainIntegrator(new ConvectionIntegrator(velocity, alpha));
    k.AddInteriorFaceIntegrator(
-      new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
+      new NonconservativeDGTraceIntegrator(velocity, alpha));
    k.AddBdrFaceIntegrator(
-      new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
+      new NonconservativeDGTraceIntegrator(velocity, alpha));
 
    LinearForm b(&fes);
    b.AddBdrFaceIntegrator(
-      new BoundaryFlowIntegrator(inflow, velocity, -1.0, -0.5));
+      new BoundaryFlowIntegrator(inflow, velocity, alpha));
 
    m.Assemble();
    int skip_zeros = 0;
@@ -475,7 +476,8 @@ int main(int argc, char *argv[])
 
 // Implementation of class FE_Evolution
 FE_Evolution::FE_Evolution(BilinearForm &M_, BilinearForm &K_, const Vector &b_)
-   : TimeDependentOperator(M_.Height()), M(M_), K(K_), b(b_), z(M_.Height())
+   : TimeDependentOperator(M_.FESpace()->GetTrueVSize()),
+     M(M_), K(K_), b(b_), z(height)
 {
    Array<int> ess_tdof_list;
    if (M.GetAssemblyLevel() == AssemblyLevel::LEGACY)

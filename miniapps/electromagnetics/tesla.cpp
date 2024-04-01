@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -74,8 +74,8 @@ static Vector pw_mu_(0);      // Piecewise permeability values
 static Vector pw_mu_inv_(0);  // Piecewise inverse permeability values
 static Vector ms_params_(0);  // Center, Inner and Outer Radii, and
 //                               Permeability of magnetic shell
-double magnetic_shell(const Vector &);
-double magnetic_shell_inv(const Vector & x) { return 1.0/magnetic_shell(x); }
+real_t magnetic_shell(const Vector &);
+real_t magnetic_shell_inv(const Vector & x) { return 1.0/magnetic_shell(x); }
 
 // Current Density Function
 static Vector cr_params_(0);  // Axis Start, Axis End, Inner Ring Radius,
@@ -99,7 +99,7 @@ static Vector b_uniform_(0);
 void a_bc_uniform(const Vector &, Vector&);
 
 // Phi_M Boundary Condition for H = (0,0,1)
-double phi_m_bc_uniform(const Vector &x);
+real_t phi_m_bc_uniform(const Vector &x);
 
 // Prints the program's logo to the given output stream
 void display_banner(ostream & os);
@@ -332,15 +332,15 @@ int main(int argc, char *argv[])
       Vector errors(pmesh.GetNE());
       Tesla.GetErrorEstimates(errors);
 
-      double local_max_err = errors.Max();
-      double global_max_err;
+      real_t local_max_err = errors.Max();
+      real_t global_max_err;
       MPI_Allreduce(&local_max_err, &global_max_err, 1,
-                    MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
+                    MPITypeMap<real_t>::mpi_type, MPI_MAX, pmesh.GetComm());
 
       // Refine the elements whose error is larger than a fraction of the
       // maximum element error.
-      const double frac = 0.5;
-      double threshold = frac * global_max_err;
+      const real_t frac = 0.5;
+      real_t threshold = frac * global_max_err;
       if (Mpi::Root()) { cout << "Refining ..." << endl; }
       pmesh.RefineByError(errors, threshold);
 
@@ -405,9 +405,9 @@ SetupInvPermeabilityCoefficient()
 // A spherical shell with constant permeability.  The sphere has inner
 // and outer radii, center, and relative permeability specified on the
 // command line and stored in ms_params_.
-double magnetic_shell(const Vector &x)
+real_t magnetic_shell(const Vector &x)
 {
-   double r2 = 0.0;
+   real_t r2 = 0.0;
 
    for (int i = 0; i < x.Size(); i++)
    {
@@ -443,29 +443,29 @@ void current_ring(const Vector &x, Vector &j)
       a[i]   = cr_params_[x.Size()+i] - cr_params_[i];
    }
 
-   double h = a.Norml2();
+   real_t h = a.Norml2();
 
    if ( h == 0.0 )
    {
       return;
    }
 
-   double ra = cr_params_[2*x.Size()+0];
-   double rb = cr_params_[2*x.Size()+1];
+   real_t ra = cr_params_[2*x.Size()+0];
+   real_t rb = cr_params_[2*x.Size()+1];
    if ( ra > rb )
    {
-      double rc = ra;
+      real_t rc = ra;
       ra = rb;
       rb = rc;
    }
-   double xa = xu*a;
+   real_t xa = xu*a;
 
    if ( h > 0.0 )
    {
       xu.Add(-xa/(h*h),a);
    }
 
-   double xp = xu.Norml2();
+   real_t xp = xu.Norml2();
 
    if ( xa >= 0.0 && xa <= h*h && xp >= ra && xp <= rb )
    {
@@ -497,22 +497,22 @@ void bar_magnet(const Vector &x, Vector &m)
       a[i]   = bm_params_[x.Size()+i] - bm_params_[i];
    }
 
-   double h = a.Norml2();
+   real_t h = a.Norml2();
 
    if ( h == 0.0 )
    {
       return;
    }
 
-   double  r = bm_params_[2*x.Size()];
-   double xa = xu*a;
+   real_t  r = bm_params_[2*x.Size()];
+   real_t xa = xu*a;
 
    if ( h > 0.0 )
    {
       xu.Add(-xa/(h*h),a);
    }
 
-   double xp = xu.Norml2();
+   real_t xp = xu.Norml2();
 
    if ( xa >= 0.0 && xa <= h*h && xp <= r )
    {
@@ -558,7 +558,7 @@ void a_bc_uniform(const Vector & x, Vector & a)
 
 // To produce a uniform magnetic field the scalar potential can be set
 // to -z (or -y in 2D).
-double phi_m_bc_uniform(const Vector &x)
+real_t phi_m_bc_uniform(const Vector &x)
 {
    return -x(x.Size()-1);
 }

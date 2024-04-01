@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -14,9 +14,13 @@
 #   - HYPRE_LIBRARIES
 #   - HYPRE_INCLUDE_DIRS
 #   - HYPRE_VERSION
+#   - HYPRE_USING_CUDA (internal)
 #   - HYPRE_USING_HIP (internal)
 
 if (HYPRE_FOUND)
+  if (HYPRE_USING_CUDA)
+    find_package(CUDAToolkit REQUIRED)
+  endif()
   if (HYPRE_USING_HIP)
     find_package(rocsparse REQUIRED)
     find_package(rocrand REQUIRED)
@@ -27,6 +31,20 @@ endif()
 include(MfemCmakeUtilities)
 mfem_find_package(HYPRE HYPRE HYPRE_DIR "include" "HYPRE.h" "lib" "HYPRE"
   "Paths to headers required by HYPRE." "Libraries required by HYPRE."
+  CHECK_BUILD HYPRE_USING_CUDA FALSE
+  "
+#undef HYPRE_USING_CUDA
+#include <HYPRE_config.h>
+
+#ifndef HYPRE_USING_CUDA
+#error HYPRE is built without CUDA.
+#endif
+
+int main()
+{
+   return 0;
+}
+"
   CHECK_BUILD HYPRE_USING_HIP FALSE
   "
 #undef HYPRE_USING_HIP
@@ -55,6 +73,18 @@ if (HYPRE_FOUND AND (NOT HYPRE_VERSION))
   else()
     message(FATAL_ERROR "Unable to determine HYPRE version.")
   endif()
+endif()
+
+if (HYPRE_FOUND AND HYPRE_USING_CUDA)
+  find_package(CUDAToolkit REQUIRED)
+  get_target_property(CUSPARSE_LIBRARIES CUDA::cusparse LOCATION)
+  get_target_property(CURAND_LIBRARIES CUDA::curand LOCATION)
+  get_target_property(CUBLAS_LIBRARIES CUDA::cublas LOCATION)
+  list(APPEND HYPRE_LIBRARIES ${CUSPARSE_LIBRARIES} ${CURAND_LIBRARIES}
+       ${CUBLAS_LIBRARIES})
+  set(HYPRE_LIBRARIES ${HYPRE_LIBRARIES} CACHE STRING
+      "HYPRE libraries + dependencies." FORCE)
+  message(STATUS "Updated HYPRE_LIBRARIES: ${HYPRE_LIBRARIES}")
 endif()
 
 if (HYPRE_FOUND AND HYPRE_USING_HIP)

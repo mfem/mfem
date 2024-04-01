@@ -520,10 +520,10 @@ int main(int argc, char *argv[])
 // Implementation of class FE_Evolution
 FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
                            const Vector &b_,bool M_in_lhs)
-   : TimeDependentOperator(M_.Height(), 0.0,
+   : TimeDependentOperator(M_.ParFESpace()->GetTrueVSize(), 0.0,
                            M_in_lhs ? TimeDependentOperator::IMPLICIT
                            : TimeDependentOperator::EXPLICIT),
-     b(b_), comm(M_.ParFESpace()->GetComm()), M_solver(comm), z(M_.Height()),
+     b(b_), comm(M_.ParFESpace()->GetComm()), M_solver(comm), z(height),
      iJacobian(NULL), rJacobian(NULL)
 {
    MAlev = M_.GetAssemblyLevel();

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -67,7 +67,7 @@ void ParNCH1FaceRestriction::NonconformingInterpolation(Vector& y) const
    MFEM_VERIFY(nface_dofs<=max_nd, "Too many degrees of freedom.");
    mfem::forall_2D(num_nc_faces, nface_dofs, 1, [=] MFEM_HOST_DEVICE (int nc_face)
    {
-      MFEM_SHARED double dof_values[max_nd];
+      MFEM_SHARED real_t dof_values[max_nd];
       const NCInterpConfig conf = interp_config_ptr[nc_face];
       if ( conf.is_non_conforming && conf.master_side == 0 )
       {
@@ -82,7 +82,7 @@ void ParNCH1FaceRestriction::NonconformingInterpolation(Vector& y) const
             MFEM_SYNC_THREAD;
             MFEM_FOREACH_THREAD(dof_out,x,nface_dofs)
             {
-               double res = 0.0;
+               real_t res = 0.0;
                for (int dof_in = 0; dof_in<nface_dofs; dof_in++)
                {
                   res += d_interp(dof_out, dof_in, interp_index)*dof_values[dof_in];
@@ -96,7 +96,7 @@ void ParNCH1FaceRestriction::NonconformingInterpolation(Vector& y) const
 }
 
 void ParNCH1FaceRestriction::AddMultTranspose(const Vector &x, Vector &y,
-                                              const double a) const
+                                              const real_t a) const
 {
    MFEM_VERIFY(a == 1.0, "General coefficient case is not yet supported!");
    if (nf==0) { return; }
@@ -144,7 +144,7 @@ void ParNCH1FaceRestriction::NonconformingTransposeInterpolationInPlace(
       mfem::forall_2D(num_nc_faces, nface_dofs, 1,
                       [=] MFEM_HOST_DEVICE (int nc_face)
       {
-         MFEM_SHARED double dof_values[max_nd];
+         MFEM_SHARED real_t dof_values[max_nd];
          const NCInterpConfig conf = interp_config_ptr[nc_face];
          const int master_side = conf.master_side;
          if ( conf.is_non_conforming && master_side==0 )
@@ -161,7 +161,7 @@ void ParNCH1FaceRestriction::NonconformingTransposeInterpolationInPlace(
                MFEM_SYNC_THREAD;
                MFEM_FOREACH_THREAD(dof_out,x,nface_dofs)
                {
-                  double res = 0.0;
+                  real_t res = 0.0;
                   for (int dof_in = 0; dof_in<nface_dofs; dof_in++)
                   {
                      res += d_interp(dof_in, dof_out, interp_index)*dof_values[dof_in];
@@ -311,7 +311,13 @@ void ParL2FaceRestriction::DoubleValuedConformingMult(
    ParGridFunction x_gf;
    x_gf.MakeRef(const_cast<ParFiniteElementSpace*>(&pfes),
                 const_cast<Vector&>(x), 0);
-   x_gf.ExchangeFaceNbrData();
+   // Face-neighbor information is only needed for interior faces. For boundary
+   // faces, no communication is required.
+   if (type == FaceType::Interior) { x_gf.ExchangeFaceNbrData(); }
+
+   // Early return only after calling ParGridFunction::ExchangeFaceNbrData,
+   // otherwise MPI communication can hang.
+   if (nf == 0) { return; }
 
    // Assumes all elements have the same number of dofs
    const int nface_dofs = face_dofs;
@@ -356,7 +362,6 @@ void ParL2FaceRestriction::DoubleValuedConformingMult(
 
 void ParL2FaceRestriction::Mult(const Vector& x, Vector& y) const
 {
-   if (nf==0) { return; }
    if (m==L2FaceValues::DoubleValued)
    {
       DoubleValuedConformingMult(x, y);
@@ -670,6 +675,7 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
 void ParNCL2FaceRestriction::SingleValuedNonconformingMult(
    const Vector& x, Vector& y) const
 {
+   if (nf == 0) { return; }
    MFEM_ASSERT(
       m == L2FaceValues::SingleValued,
       "This method should be called when m == L2FaceValues::SingleValued.");
@@ -689,7 +695,7 @@ void ParNCL2FaceRestriction::SingleValuedNonconformingMult(
    MFEM_VERIFY(nface_dofs<=max_nd, "Too many degrees of freedom.");
    mfem::forall_2D(nf, nface_dofs, 1, [=] MFEM_HOST_DEVICE (int face)
    {
-      MFEM_SHARED double dof_values[max_nd];
+      MFEM_SHARED real_t dof_values[max_nd];
       const InterpConfig conf = interp_config_ptr[face];
       const int master_side = conf.master_side;
       const int interp_index = conf.index;
@@ -736,7 +742,7 @@ void ParNCL2FaceRestriction::SingleValuedNonconformingMult(
             MFEM_SYNC_THREAD;
             MFEM_FOREACH_THREAD(dof_out,x,nface_dofs)
             {
-               double res = 0.0;
+               real_t res = 0.0;
                for (int dof_in = 0; dof_in<nface_dofs; dof_in++)
                {
                   res += d_interp(dof_out, dof_in, interp_index)*dof_values[dof_in];
@@ -758,7 +764,6 @@ void ParNCL2FaceRestriction::DoubleValuedNonconformingMult(
 
 void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
 {
-   if (nf==0) { return; }
    if ( type==FaceType::Interior && m==L2FaceValues::DoubleValued )
    {
       DoubleValuedNonconformingMult(x, y);
@@ -782,7 +787,7 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
 }
 
 void ParNCL2FaceRestriction::AddMultTranspose(const Vector &x, Vector &y,
-                                              const double a) const
+                                              const real_t a) const
 {
    MFEM_VERIFY(a == 1.0, "General coefficient case is not yet supported!");
    if (nf==0) { return; }
