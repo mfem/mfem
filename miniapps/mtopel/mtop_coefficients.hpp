@@ -730,6 +730,76 @@ private:
 
 };
 
+class RandDiscreteShootingCoefficient:public Coefficient
+{
+public:
+    RandDiscreteShootingCoefficient(Mesh* mesh_, double r,
+                                    int nx_=1, int ny_=1, int nz_=1)
+    {
+        radius=r;
+        mesh=mesh_;
+        mesh->GetBoundingBox(cmin,cmax);
+
+        center.SetSize(cmin.Size());
+        center=0.0;
+
+        tmpv.SetSize(cmin.Size());
+        tmpv=0.0;
+
+        nx=nx_;
+        ny=ny_;
+        nz=nz_;
+
+        udist=nullptr;
+
+        dx.SetSize(cmin.Size());
+        dx[0]=(cmax[0]-cmin[0])/nx;
+        if(cmin.Size()>1){ dx[1]=(cmax[1]-cmin[1])/ny;}
+        if(cmin.Size()>2){ dx[1]=(cmax[2]-cmin[2])/nz;}
+
+        Sample();
+    }
+
+    virtual
+    ~RandDiscreteShootingCoefficient(){
+        delete udist;
+    }
+
+    int TotalPositions(){ return nx*ny*nz;}
+
+    int GetNumX(){ return nx;}
+    int GetNumY(){ return ny;}
+    int GetNumZ(){ return nz;}
+
+    void GetPosition(int i, Vector& p);
+
+    /// Evaluates the coefficient
+    virtual
+    double Eval(ElementTransformation& T, const IntegrationPoint& ip);
+
+    /// Generates a new random center for the ball.
+    void Sample();
+
+    void Sample(int gi);
+private:
+
+    Mesh* mesh;
+
+    double radius;
+    Vector center;
+    Vector cmin;
+    Vector cmax;
+
+    int nx,ny,nz;
+
+    Vector tmpv;
+    Vector dx;
+
+    std::default_random_engine generator;
+    std::uniform_int_distribution<int>* udist;
+};
+
+
 class LognormalDistributionCoefficient:public Coefficient
 {
 public:
