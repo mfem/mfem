@@ -502,7 +502,7 @@ public:
    double StationarityError(const GridFunction &grad, bool useL2norm,
                             const double eps=1e-03);
    double StationarityErrorL2(GridFunction &grad, const double eps=1e-03);
-   double ComputeBregmanDivergence(GridFunction &p, GridFunction &q);
+   double ComputeBregmanDivergence(const GridFunction &p, const GridFunction &q);
    double ComputeVolume() override
    {
       current_volume = zero_gf->ComputeL1Error(*rho_cf);
@@ -642,6 +642,7 @@ public:
    GridFunction &GetGridFunction() { return density.GetGridFunction(); }
    Coefficient &GetDensity() { return density.GetDensityCoefficient(); }
    double GetVolLagrange() {return vol_lagrange; }
+   DesignDensity &GetDesignDensity() {return density;}
    // ρ - ρ_other where ρ_other is the provided density.
    // Assume ρ is constructed by the same mapping.
    // @note If you need different mapping between two grid functions,
@@ -858,6 +859,10 @@ int Step_Armijo(TopOptProblem &problem, const GridFunction &x0,
                 LinearForm &diff_densityForm, const double c1,
                 double &step_size, const int max_it=20, const double shrink_factor=0.5);
 
+int Step_Bregman(TopOptProblem &problem, const GridFunction &x0,
+                const GridFunction &direction,
+                LinearForm &diff_densityForm, 
+                double &step_size, const int max_it=20, const double shrink_factor=0.5);
 /// @brief Volumetric force for linear elasticity
 class VolumeForceCoefficient : public VectorCoefficient
 {

@@ -662,8 +662,8 @@ double LatentDesignDensity::StationarityError(const GridFunction &grad,
    return d/eps;
 }
 
-double LatentDesignDensity::ComputeBregmanDivergence(GridFunction &p,
-                                                     GridFunction &q)
+double LatentDesignDensity::ComputeBregmanDivergence(const GridFunction &p,
+                                                     const GridFunction &q)
 {
    MappedPairGridFunctionCoeffitient Dh(&p, &q, [this](double x, double y)
    {
@@ -1098,6 +1098,48 @@ void LineVolumeForceCoefficient::Set(double r_,Vector & center_,
 void LineVolumeForceCoefficient::UpdateSize()
 {
    VectorCoefficient::vdim = center.Size();
+}
+
+int Step_Bregman(TopOptProblem &problem, const GridFunction &x0,
+                const GridFunction &direction,
+                LinearForm &diff_densityForm, 
+                double &step_size, const int max_it, const double shrink_factor)
+{
+   // obtain current point and gradient
+   GridFunction &x_gf = problem.GetGridFunction();
+   GridFunction &grad = problem.GetGradient();
+   const double val = problem.GetValue();
+   int myrank = 0;
+#ifdef MFEM_USE_MPI
+   auto pgrad = dynamic_cast<ParGridFunction*>(&grad);
+   MPI_Comm comm;
+   if (pgrad) { comm = pgrad->ParFESpace()->GetComm(); }
+   if (Mpi::IsInitialized()) { myrank = Mpi::WorldRank(); }
+#endif
+   auto &density = static_cast<LatentDesignDensity&>(problem.GetDesignDensity());
+
+   double new_val, d;
+   int i;
+   step_size /= shrink_factor;
+   for (i=0; i<max_it; i++)
+   {
+      if (myrank == 0) { out << i << std::flush << "\r"; }
+      step_size *= shrink_factor; // reduce step size
+      x_gf = x0; // restore original position
+      x_gf.Add(-step_size, direction); // advance by updated step size
+      new_val = problem.Eval(); // re-evaluate at the updated point
+      diff_densityForm.Assemble(); // re-evaluate density difference inner-product
+      d = (diff_densityForm)(grad);
+#ifdef MFEM_USE_MPI
+      if (pgrad)
+      {
+         MPI_Allreduce(MPI_IN_PLACE, &d, 1, MPI_DOUBLE, MPI_SUM, comm);
+      }
+#endif
+      if (new_val < val + d + 1.0 / step_size * density.ComputeBregmanDivergence(x_gf, x0) && d < 0) { break; }
+   }
+
+   return i;
 }
 
 int Step_Armijo(TopOptProblem &problem, const GridFunction &x0,
