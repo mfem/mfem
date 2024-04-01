@@ -231,7 +231,6 @@ int main(int argc, char *argv[])
       density.SetVolumeConstraintType(-1);
       density.GetGridFunction() = inv_sigmoid(0.8);
    }
-   density.ComputeVolume();
    // 10. Connect to GLVis. Prepare for VisIt output.
    char vishost[] = "localhost";
    int  visport   = 19916;
@@ -307,23 +306,28 @@ int main(int argc, char *argv[])
                 << "Start Projected Mirror Descent Step." << "\n" << std::endl;
 
    double compliance = optprob.Eval();
+   optprob.UpdateGradient();
    double step_size(1.0), volume(density.GetVolume() / density.GetDomainVolume()),
-          stationarityError(infinity()), stationarityError_bregman(infinity());
+          stationarityError(density.StationarityErrorL2(grad)), stationarityError_bregman(density.StationarityError(grad));
    int num_reeval(0);
    double old_compliance;
-
+   double stationarityError0(stationarityError), stationarityError_bregman0(stationarityError_bregman);
+   double relative_stationarity(1.0), relative_stationarity_bregman(1.0);
    TableLogger logger;
    logger.Append(std::string("Volume"), volume);
    logger.Append(std::string("Compliance"), compliance);
-   logger.Append(std::string("Stationarity"), stationarityError);
+   logger.Append(std::string("Stationarity (Rel)"), relative_stationarity);
    logger.Append(std::string("Re-evel"), num_reeval);
    logger.Append(std::string("Step Size"), step_size);
-   logger.Append(std::string("Stationarity-Bregman"), stationarityError_bregman);
+   logger.Append(std::string("Stationarity-Bregman (Rel)"), relative_stationarity_bregman);
    logger.SaveWhenPrint(filename_prefix.str());
    logger.Print();
 
-   optprob.UpdateGradient();
    bool converged = false;
+   ConstantCoefficient zero_cf(0.0);
+   ParBilinearForm mass(&control_fes);
+   mass.AddDomainIntegrator(new MassIntegrator());
+   mass.Assemble();
    for (int k = 0; k < max_it; k++)
    {
       // Step 1. Compute Step size
@@ -342,6 +346,7 @@ int main(int argc, char *argv[])
 
       // Step 3. Step and upate gradient
       num_reeval = Step_Armijo(optprob, old_psi, grad, diff_rho_form, c1, step_size);
+      // num_reeval = Step_Bregman(optprob, old_psi, grad, diff_rho_form, step_size);
       compliance = optprob.GetValue();
       volume = density.GetVolume() / density.GetDomainVolume();
       optprob.UpdateGradient();
@@ -408,8 +413,10 @@ int main(int argc, char *argv[])
       stationarityError_bregman = density.StationarityError(grad);
 
       logger.Print();
+      relative_stationarity = stationarityError/stationarityError0;
+      relative_stationarity_bregman = stationarityError_bregman/stationarityError_bregman0;
 
-      if ((use_bregman ? stationarityError_bregman : stationarityError) <
+      if ((use_bregman ? relative_stationarity_bregman : relative_stationarity) <
           tol_stationarity &&
           std::fabs((old_compliance - compliance)/compliance) < tol_compliance)
       {
