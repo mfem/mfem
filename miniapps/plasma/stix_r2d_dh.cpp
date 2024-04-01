@@ -1635,13 +1635,13 @@ int main(int argc, char *argv[])
 
    for (int i=0; i<=numbers.Size(); i++)
    {
-      temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(i));
+      temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(i).GetData());
       temperature_gf.ProjectCoefficient(tempCoef);
    }
 
    for (int i=0; i<charges.Size(); i++)
    {
-      density_gf.MakeRef(&L2FESpace, density.GetBlock(i));
+      density_gf.MakeRef(&L2FESpace, density.GetBlock(i).GetData());
       density_gf.ProjectCoefficient(rhoCoef);
       density_gf *= numbers[i]/numbers[0];
    }
@@ -2236,10 +2236,10 @@ int main(int argc, char *argv[])
    {
       CPD.RegisterVisItFields(visit_dc);
 
-      temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(0));
+      temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(0).GetData());
       visit_dc.RegisterField("Electron_Temp", &temperature_gf);
 
-      density_gf.MakeRef(&L2FESpace, density.GetBlock(0));
+      density_gf.MakeRef(&L2FESpace, density.GetBlock(0).GetData());
       visit_dc.RegisterField("Electron_Density", &density_gf);
 
       //nu_gf *= 1/omega;
@@ -2631,7 +2631,7 @@ void Update(ParFiniteElementSpace & H1FESpace,
    density.Update(density_offsets);
    for (int i=0; i<density_offsets.Size()-1; i++)
    {
-      density_gf.MakeRef(&L2FESpace, density.GetBlock(i));
+      density_gf.MakeRef(&L2FESpace, density.GetBlock(i).GetData());
       density_gf.ProjectCoefficient(rhoCoef);
    }
 
@@ -2643,7 +2643,7 @@ void Update(ParFiniteElementSpace & H1FESpace,
    temperature.Update(temperature_offsets);
    for (int i=0; i<temperature_offsets.Size()-1; i++)
    {
-      temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(i));
+      temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(i).GetData());
       temperature_gf.ProjectCoefficient(TCoef);
    }
 }
