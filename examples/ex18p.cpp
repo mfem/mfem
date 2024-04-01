@@ -277,7 +277,8 @@ int main(int argc, char *argv[])
       euler.Mult(sol, z);
 
       real_t max_char_speed = euler.GetMaxCharSpeed();
-      MPI_Allreduce(MPI_IN_PLACE, &max_char_speed, 1,  MPITypeMap<real_t>::mpi_type, MPI_MAX,
+      MPI_Allreduce(MPI_IN_PLACE, &max_char_speed, 1,  MPITypeMap<real_t>::mpi_type,
+                    MPI_MAX,
                     pmesh.GetComm());
       dt = cfl * hmin / max_char_speed / (2 * order + 1);
    }
@@ -301,7 +302,8 @@ int main(int argc, char *argv[])
       if (cfl > 0) // update time step size with CFL
       {
          real_t max_char_speed = euler.GetMaxCharSpeed();
-         MPI_Allreduce(MPI_IN_PLACE, &max_char_speed, 1,  MPITypeMap<real_t>::mpi_type, MPI_MAX,
+         MPI_Allreduce(MPI_IN_PLACE, &max_char_speed, 1,  MPITypeMap<real_t>::mpi_type,
+                       MPI_MAX,
                        pmesh.GetComm());
          dt = cfl * hmin / max_char_speed / (2 * order + 1);
       }
