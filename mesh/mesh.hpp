@@ -2115,7 +2115,11 @@ public:
    /// Set the curvature of the mesh nodes using the given polynomial degree.
    /** Creates a nodal GridFunction if one doesn't already exist.
 
-       @param[in]  order       Polynomial degree of the nodal FE space.
+       @param[in]  order       Polynomial degree of the nodal FE space. If this
+                               value is <= 0 then the method will remove the
+                               nodal GridFunction and the Mesh will use the
+                               vertices array instead; the other arguments are
+                               ignored in this case.
        @param[in]  discont     Whether to use a discontinuous or continuous
                                finite element space (continuous is default).
        @param[in]  space_dim   The space dimension (optional).
@@ -2528,7 +2532,7 @@ public:
    // or 0 when the vertex coordinates are not used, i.e. when the MeshPart uses
    // a nodal GridFunction to describe its location in physical space. This
    // array uses Ordering::byVDIM: "X0,Y0,Z0, X1,Y1,Z1, ...".
-   Array<double> vertex_coordinates;
+   Array<real_t> vertex_coordinates;
 
    // Optional serial Mesh object constructed on demand using the method
    // GetMesh(). One use case for it is when one wants to construct FE spaces
