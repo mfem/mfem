@@ -340,11 +340,11 @@ public:
    /// Update the identifiers used for the gather-scatter operator.
    /// Same @a ids get grouped together and id == 0 does not participate.
    /// See class description.
-   virtual void UpdateIdentifiers(Array<long long> &ids);
+   void UpdateIdentifiers(const Array<long long> &ids);
 
    /// Gather-Scatter operation on senddata. Must match length of unique
    /// identifiers used in the constructor. See class description.
-   virtual void GS(Vector &senddata, GSOp op);
+   void GS(Vector &senddata, GSOp op);
 };
 
 } // namespace mfem

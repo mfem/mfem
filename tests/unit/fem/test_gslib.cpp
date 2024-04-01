@@ -374,7 +374,9 @@ TEST_CASE("GSLIBGSOP",  "[GSLIBGSOP][Parallel][GSLIB]")
    int myid;
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
-   int nlen = 10;
+   int nlen = 5 + rand() % 1000;
+   MPI_Allreduce(MPI_IN_PLACE, &nlen, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+
    Array<long long> ids(nlen);
    Vector vals(nlen);
    vals.Randomize(myid+1);
