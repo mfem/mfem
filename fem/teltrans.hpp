@@ -29,7 +29,7 @@ namespace mfem
     points. The desired result is specified through the template subclass Result
     and stored in an object of the same type.
 */
-template <typename Mesh_t, typename IR, typename real_t = double>
+template <typename Mesh_t, typename IR, typename real_t = real_t>
 class TElementTransformation
 {
 public:

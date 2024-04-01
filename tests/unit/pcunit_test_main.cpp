@@ -20,6 +20,12 @@
 
 int main(int argc, char *argv[])
 {
+#ifdef MFEM_USE_SINGLE
+   std::cout << "\nThe parallel CUDA unit tests are not supported in single"
+             " precision.\n\n";
+   return MFEM_SKIP_RETURN_VALUE;
+#endif
+
    mfem::Device device("cuda");
 #ifdef MFEM_USE_MPI
    mfem::Mpi::Init();

@@ -76,9 +76,9 @@ int main(int argc, char *argv[])
    int par_ref_levels = 1;
    int order = 3;
    int ode_solver_type = 4;
-   double t_final = 2.0;
-   double dt = -0.01;
-   double cfl = 0.3;
+   real_t t_final = 2.0;
+   real_t dt = -0.01;
+   real_t cfl = 0.3;
    bool visualization = true;
    bool preassembleWeakDiv = true;
    int vis_steps = 50;
@@ -295,7 +295,7 @@ int main(int argc, char *argv[])
    bool done = false;
    for (int ti = 0; !done;)
    {
-      double dt_real = min(dt, t_final - t);
+      real_t dt_real = min(dt, t_final - t);
 
       ode_solver->Step(sol, t, dt_real);
       if (cfl > 0) // update time step size with CFL
