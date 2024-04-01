@@ -530,7 +530,7 @@ double SheathBase::EvalIonDensity(ElementTransformation &T,
                                   const IntegrationPoint &ip)
 {
    density_gf_.MakeRef(const_cast<ParFiniteElementSpace*>(&L2FESpace_),
-                       const_cast<Vector&>(density_.GetBlock(1)));
+                       density_.GetBlock(1).GetData());
    return density_gf_.GetValue(T, ip);
 }
 
@@ -538,7 +538,7 @@ double SheathBase::EvalElectronTemp(ElementTransformation &T,
                                     const IntegrationPoint &ip)
 {
    temperature_gf_.MakeRef(const_cast<ParFiniteElementSpace*>(&H1FESpace_),
-                           const_cast<Vector&>(temp_.GetBlock(0)));
+                           temp_.GetBlock(0).GetData());
    return temperature_gf_.GetValue(T, ip);
 }
 
@@ -766,7 +766,7 @@ void StixCoefBase::fillDensityVals(ElementTransformation &T,
    for (int i=0; i<density_vals_.Size(); i++)
    {
       density_gf_.MakeRef(const_cast<ParFiniteElementSpace*>(&L2FESpace_),
-                          const_cast<Vector&>(density_.GetBlock(i)));
+                          density_.GetBlock(i).GetData());
       density_vals_[i] = std::max(density_gf_.GetValue(T.ElementNo, ip),
                                   min_den);
    }
@@ -778,7 +778,7 @@ void StixCoefBase::fillTemperatureVals(ElementTransformation &T,
    for (int i=0; i<temp_vals_.Size(); i++)
    {
       temperature_gf_.MakeRef(const_cast<ParFiniteElementSpace*>(&H1FESpace_),
-                              const_cast<Vector&>(temp_.GetBlock(i)));
+                              temp_.GetBlock(i).GetData());
       temp_vals_[i] = temperature_gf_.GetValue(T.ElementNo, ip);
    }
 }

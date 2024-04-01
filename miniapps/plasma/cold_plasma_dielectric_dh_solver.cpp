@@ -3379,14 +3379,14 @@ void
 CPDSolverDH::DisplayToGLVis()
 {
    if (myid_ == 0) { cout << "Sending data to GLVis ..." << flush; }
-
+   /*
    char vishost[] = "localhost";
    int  visport   = 19916;
 
    int Wx = 0, Wy = 0; // window position
    int Ww = 350, Wh = 350; // window size
    int offx = Ww+10, offy = Wh+45; // window offsets
-
+   */
    prepareVisFields();
    /*
    if (kReCoef_ || kImCoef_)
@@ -3569,7 +3569,7 @@ CPDSolverDH::DisplayToGLVis()
    */
    if ( j_ )
    {
-      Wx = 0; Wy += offy; // next line
+      // Wx = 0; Wy += offy; // next line
 
       // j_->ProjectCoefficient(*jrCoef_, *jiCoef_);
       /*
@@ -3604,7 +3604,7 @@ CPDSolverDH::DisplayToGLVis()
       }
       */
    }
-   Wx = 0; Wy += offy; // next line
+   // Wx = 0; Wy += offy; // next line
    /*
    if ( u_ )
    {
@@ -3634,7 +3634,7 @@ CPDSolverDH::DisplayToGLVis()
                      S_->imag(), "Poynting Vector, Im(S)", Wx, Wy, Ww, Wh);
    }
    */
-   Wx = 0; Wy += offy; // next line
+   // Wx = 0; Wy += offy; // next line
    /*
    if ( k_ )
    {

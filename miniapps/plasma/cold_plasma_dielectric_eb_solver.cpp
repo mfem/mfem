@@ -1195,6 +1195,7 @@ void SheathPotential::PrintStatistics() const
    int glbminit = INT_MAX;
    int glbmaxit = 0;
    int glbfpslv = 0;
+   long int sumit = sumit_; // Avoids type warning in MPI_Allreduce
    long int glbsumit = 0;
 
    MPI_Allreduce(&minit_, &glbminit, 1, MPI_INTEGER, MPI_MIN,
@@ -1203,7 +1204,7 @@ void SheathPotential::PrintStatistics() const
                  fes_rt_.GetComm());
    MPI_Allreduce(&fpslv_, &glbfpslv, 1, MPI_INTEGER, MPI_SUM,
                  fes_rt_.GetComm());
-   MPI_Allreduce(&sumit_, &glbsumit, 1, MPI_LONG, MPI_SUM,
+   MPI_Allreduce(&sumit, &glbsumit, 1, MPI_LONG, MPI_SUM,
                  fes_rt_.GetComm());
 
    int myrank = 0;
