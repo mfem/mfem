@@ -291,9 +291,9 @@ complex<double> P_cold_plasma(double omega,
       val -= w_p * w_p / (omega * omega);
    }
    if (fabs(val.real()) < 1e-4)
-     {
-       cout << "P near zero: " << val << endl;
-     }
+   {
+      cout << "P near zero: " << val << endl;
+   }
    return val;
 }
 // """""""""""""""""""""""""""""""""""""""""""""""""""""""

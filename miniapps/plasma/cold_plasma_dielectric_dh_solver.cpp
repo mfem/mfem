@@ -249,7 +249,7 @@ void nxGradIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
                                               DenseMatrix &elmat)
 {
    int   test_nd = test_fe.GetDof();
-   int test_vdim = test_fe.GetVDim() + 1;
+   int test_vdim = test_fe.GetRangeDim() + 1;
    int  trial_nd = trial_fe.GetDof();
    int      sdim = Trans.GetSpaceDim();
    double w;
@@ -333,7 +333,7 @@ void nxkIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
                                            DenseMatrix &elmat)
 {
    int   test_nd = test_fe.GetDof();
-   int test_vdim = test_fe.GetVDim() + 1;
+   int test_vdim = test_fe.GetRangeDim() + 1;
    int  trial_nd = trial_fe.GetDof();
    int      kdim = K->GetVDim();
    int      sdim = Trans.GetSpaceDim();
@@ -478,7 +478,7 @@ void zkxIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
 {
    int    test_nd = test_fe.GetDof();
    int   trial_nd = trial_fe.GetDof();
-   int trial_vdim = trial_fe.GetVDim() + 1;
+   int trial_vdim = trial_fe.GetRangeDim() + 1;
    int       sdim = Trans.GetSpaceDim();
    double w;
 

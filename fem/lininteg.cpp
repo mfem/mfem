@@ -712,7 +712,7 @@ void VectorFEBoundaryTangentialLFIntegrator::AssembleRHSElementVect(
 {
    int dof = el.GetDof();
    int dim = el.GetDim();
-   int vdim = el.GetVDim();
+   int vdim = el.GetRangeDim();
    DenseMatrix vshape(dof, vdim);
    Vector f_loc(3);
    Vector f_hat(2);

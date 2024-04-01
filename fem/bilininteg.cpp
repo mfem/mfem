@@ -4361,7 +4361,7 @@ ScalarVectorProductInterpolator::AssembleElementMatrix2(
       }
    };
 
-   VShapeCoefficient dom_shape_coeff(*Q, dom_fe, dom_fe.GetVDim());
+   VShapeCoefficient dom_shape_coeff(*Q, dom_fe, dom_fe.GetRangeDim());
 
    elmat.SetSize(ran_fe.GetDof(),dom_fe.GetDof());
 

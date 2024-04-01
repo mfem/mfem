@@ -553,8 +553,7 @@ public:
    virtual ~StixInvSPCoef() {}
 };
 
-void AdaptInitialMesh(MPI_Session &mpi,
-                      ParMesh &pmesh,
+void AdaptInitialMesh(ParMesh &pmesh,
                       ParFiniteElementSpace &err_fespace,
                       ParFiniteElementSpace & H1FESpace,
                       ParFiniteElementSpace & HCurlFESpace,
@@ -618,12 +617,12 @@ void record_cmd_line(int argc, char *argv[]);
 
 int main(int argc, char *argv[])
 {
-   MPI_Session mpi(argc, argv);
-   if (!mpi.Root()) { mfem::out.Disable(); mfem::err.Disable(); }
+   Mpi::Init(argc, argv);
+   if (!Mpi::Root()) { mfem::out.Disable(); mfem::err.Disable(); }
 
    display_banner(mfem::out);
 
-   if (mpi.Root()) { record_cmd_line(argc, argv); }
+   if (Mpi::Root()) { record_cmd_line(argc, argv); }
 
    int logging = 1;
 
@@ -967,7 +966,7 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          args.PrintUsage(cout);
       }
@@ -978,7 +977,7 @@ int main(int argc, char *argv[])
       return 1;
    }
    Device device(device_config);
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       device.Print();
    }
@@ -1294,7 +1293,7 @@ int main(int argc, char *argv[])
       phase_shift = true;
    }
 
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       args.PrintOptions(cout);
    }
@@ -1302,7 +1301,7 @@ int main(int argc, char *argv[])
    ComplexOperator::Convention conv =
       herm_conv ? ComplexOperator::HERMITIAN : ComplexOperator::BLOCK_SYMMETRIC;
    /*
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       double lam0 = c0_ / freq;
       double Bmag = BVec.Norml2();
@@ -1378,7 +1377,7 @@ int main(int argc, char *argv[])
    // Read the (serial) mesh from the given mesh file on all processors.  We
    // can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    // and volume meshes with the same code.
-   if ( mpi.Root() && logging > 0 )
+   if ( Mpi::Root() && logging > 0 )
    {
       cout << "Building 2D Mesh ..." << endl;
    }
@@ -1410,7 +1409,7 @@ int main(int argc, char *argv[])
       mesh = new Mesh(mesh_file, 1, 1);
    }
 
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       cout << "Created mesh object with element attributes: ";
       mesh->attributes.Print(cout);
@@ -1420,7 +1419,7 @@ int main(int argc, char *argv[])
 
    if (flip_mesh)
    {
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          cout << "Swapping x and y coordinates of mesh." << endl;
       }
@@ -1429,7 +1428,7 @@ int main(int argc, char *argv[])
    }
    if (rot_mesh)
    {
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          cout << "Rotating x and y coordinates of mesh." << endl;
       }
@@ -1464,7 +1463,7 @@ int main(int argc, char *argv[])
    */
    tic_toc.Stop();
 
-   if (mpi.Root() && logging > 0 )
+   if (Mpi::Root() && logging > 0 )
    {
       cout << " done in " << tic_toc.RealTime() << " seconds." << endl;
    }
@@ -1475,7 +1474,7 @@ int main(int argc, char *argv[])
    // Define a parallel mesh by a partitioning of the serial mesh. Refine
    // this mesh further in parallel to increase the resolution. Once the
    // parallel mesh is defined, the serial mesh can be deleted.
-   if ( mpi.Root() && logging > 0 )
+   if ( Mpi::Root() && logging > 0 )
    { cout << "Building Parallel Mesh ..." << endl; }
    ParMesh pmesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
@@ -1487,7 +1486,7 @@ int main(int argc, char *argv[])
 
    // Mesh * mesh3d = Extrude2D(&pmesh, 1, hz);
 
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       cout << "Starting initialization." << endl;
    }
@@ -1523,7 +1522,7 @@ int main(int argc, char *argv[])
       if (ieqdsk)
       {
          eqdsk = new G_EQDSK_Data(ieqdsk);
-         if (mpi.Root())
+         if (Mpi::Root())
          {
             eqdsk->PrintInfo();
             if (logging > 0)
@@ -1566,7 +1565,7 @@ int main(int argc, char *argv[])
    BlockVector density(density_offsets);
    BlockVector temperature(temperature_offsets);
 
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       cout << "Creating plasma profile." << endl;
    }
@@ -1593,14 +1592,14 @@ int main(int argc, char *argv[])
           strcmp(init_amr,"L") && strcmp(init_amr,"R") &&
           strcmp(init_amr,"ISP"))
       {
-         if (mpi.Root())
+         if (Mpi::Root())
          {
             cout << "Unrecognized parameter for initial AMR loop '"
                  << init_amr << "' coefficient." << endl;
          }
          return 1;
       }
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          if (strcmp(init_amr,"ISP"))
          {
@@ -1676,7 +1675,7 @@ int main(int argc, char *argv[])
 
       L2_ParFESpace err_fes(&pmesh, 0, pmesh.Dimension());
 
-      AdaptInitialMesh(mpi, pmesh, err_fes,
+      AdaptInitialMesh(pmesh, err_fes,
                        H1FESpace, HCurlFESpace, HDivFESpace,
                        L2FESpace, L2V2FESpace,
                        BCoef, rhoCoef, tempCoef, nueCoef, nuiCoef,
@@ -1693,7 +1692,7 @@ int main(int argc, char *argv[])
       delete ImCoefPtr;
    }
 
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       cout << "Creating coefficients for Maxwell equations." << endl;
    }
@@ -1786,7 +1785,7 @@ int main(int argc, char *argv[])
          if (nrmRe + nrmIm > 1e-13)
          {
             cout << "element " << i << " on processor "
-                 << mpi.WorldRank() << endl;
+                 << Mpi::WorldRank() << endl;
             IRe.Print(cout);
             IIm.Print(cout);
             cout << endl;
@@ -1868,7 +1867,7 @@ int main(int argc, char *argv[])
    /*
    if (visualization && wave_type[0] != ' ')
    {
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          cout << "Visualize input fields." << endl;
       }
@@ -1948,7 +1947,7 @@ int main(int argc, char *argv[])
       }
    }
    */
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       cout << "Setup boundary conditions." << endl;
    }
@@ -2137,7 +2136,7 @@ int main(int argc, char *argv[])
        curve_params_.Size() > 0||
        wham_params_.Size() > 0)
    {
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          cout << "Adding volumetric current source." << endl;
       }
@@ -2148,7 +2147,7 @@ int main(int argc, char *argv[])
       stixBCs.AddCurrentSrc(jsrca, jrCoef, jiCoef);
    }
 
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       cout << "Creating Cold Plasma Dielectric solver." << endl;
    }
@@ -2216,7 +2215,7 @@ int main(int argc, char *argv[])
 
       CPD.WriteVisItFields(0);
    }
-   if (mpi.Root()) { cout << "Initialization done." << endl; }
+   if (Mpi::Root()) { cout << "Initialization done." << endl; }
 
    // The main AMR loop. In each iteration we solve the problem on the current
    // mesh, visualize the solution, estimate the error on all elements, refine
@@ -2226,7 +2225,7 @@ int main(int argc, char *argv[])
    const int max_dofs = 10000000;
    for (int it = 1; it <= maxit; it++)
    {
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          cout << "\nAMR Iteration " << it << endl;
       }
@@ -2247,14 +2246,14 @@ int main(int argc, char *argv[])
             // Compute error
             /*
              double glb_error_H = CPD.GetHFieldError(HReCoef, HImCoef);
-                  if (mpi.Root())
+                  if (Mpi::Root())
                   {
                      cout << "Global L2 Error in H field " << glb_error_H << endl;
                   }
             */
             /*
                  double glb_error_E = CPD.GetEFieldError(EReCoef, EImCoef);
-                 if (mpi.Root())
+                 if (Mpi::Root())
                  {
                     cout << "Global L2 Error in E field " << glb_error_E << endl;
                  }
@@ -2273,12 +2272,12 @@ int main(int argc, char *argv[])
             CPD.DisplayToGLVis();
          }
 
-         if (mpi.Root())
+         if (Mpi::Root())
          {
             cout << "Sheath BC iteration " << sit << " complete." << endl;
          }
       }
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          cout << "AMR iteration " << it << " complete." << endl;
       }
@@ -2289,7 +2288,7 @@ int main(int argc, char *argv[])
       // Check stopping criteria
       if (prob_size > max_dofs)
       {
-         if (mpi.Root())
+         if (Mpi::Root())
          {
             cout << "Reached maximum number of dofs, exiting..." << endl;
          }
@@ -2302,7 +2301,7 @@ int main(int argc, char *argv[])
 
       // Wait for user input. Ask every 10th iteration.
       char c = 'c';
-      if (mpi.Root() && (it % 50 == 0))
+      if (Mpi::Root() && (it % 50 == 0))
       {
          cout << "press (q)uit or (c)ontinue --> " << flush;
          cin >> c;
@@ -2327,7 +2326,7 @@ int main(int argc, char *argv[])
       // maximum element error.
       const double frac = 0.5;
       double threshold = frac * global_max_err;
-      if (mpi.Root()) { cout << "Refining ..." << endl; }
+      if (Mpi::Root()) { cout << "Refining ..." << endl; }
       {
          pmesh.RefineByError(errors, threshold);
       }
@@ -2341,9 +2340,9 @@ int main(int argc, char *argv[])
              BField, BField_v, density_gf, temperature_gf, nue_gf, nui_gf);
       CPD.Update();
 
-      if (pmesh.Nonconforming() && mpi.WorldSize() > 1 && false)
+      if (pmesh.Nonconforming() && Mpi::WorldSize() > 1 && false)
       {
-         if (mpi.Root()) { cout << "Rebalancing ..." << endl; }
+         if (Mpi::Root()) { cout << "Rebalancing ..." << endl; }
          pmesh.Rebalance();
 
          // Update again after rebalancing
@@ -2378,8 +2377,7 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-void AdaptInitialMesh(MPI_Session &mpi,
-                      ParMesh &pmesh, ParFiniteElementSpace &err_fespace,
+void AdaptInitialMesh(ParMesh &pmesh, ParFiniteElementSpace &err_fespace,
                       ParFiniteElementSpace & H1FESpace,
                       ParFiniteElementSpace & HCurlFESpace,
                       ParFiniteElementSpace & HDivFESpace,
@@ -2429,7 +2427,7 @@ void AdaptInitialMesh(MPI_Session &mpi,
    for (int it = 0; it < max_its; it++)
    {
       HYPRE_Int global_dofs = L2FESpace.GlobalTrueVSize();
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          cout << "\nAMR iteration " << it << endl;
          cout << "Number of L2 unknowns: " << global_dofs << endl;
@@ -2439,7 +2437,7 @@ void AdaptInitialMesh(MPI_Session &mpi,
 
       double l2_nrm = gf.ComputeL2Error(zeroCoef, zeroCoef);
       double l2_err = gf.ComputeL2Error(ReCoef, ImCoef);
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          if (l2_nrm > 0.0)
          {
@@ -2467,7 +2465,7 @@ void AdaptInitialMesh(MPI_Session &mpi,
 
       if (global_dofs > max_dofs)
       {
-         if (mpi.Root())
+         if (Mpi::Root())
          {
             cout << "Reached the maximum number of dofs. Stop." << endl;
          }
@@ -2481,7 +2479,7 @@ void AdaptInitialMesh(MPI_Session &mpi,
       refiner.Apply(pmesh);
       if (refiner.Stop())
       {
-         if (mpi.Root())
+         if (Mpi::Root())
          {
             cout << "Stopping criterion satisfied. Stop." << endl;
          }
@@ -2522,7 +2520,7 @@ void AdaptInitialMesh(MPI_Session &mpi,
          gf.Update();
       }
    }
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       cout << endl;
    }
