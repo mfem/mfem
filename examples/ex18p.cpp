@@ -67,8 +67,8 @@ int main(int argc, char *argv[])
 
    // 1. Parse command-line options.
    int problem = 1;
-   const double specific_heat_ratio = 1.4;
-   const double gas_constant = 1.0;
+   const real_t specific_heat_ratio = 1.4;
+   const real_t gas_constant = 1.0;
 
    string mesh_file = "";
    int IntOrderOffset = 1;
@@ -261,14 +261,14 @@ int main(int argc, char *argv[])
 
    // When dt is not specified, use CFL condition.
    // Compute h_min and initial maximum characteristic speed
-   double hmin = infinity();
+   real_t hmin = infinity();
    if (cfl > 0)
    {
       for (int i = 0; i < pmesh.GetNE(); i++)
       {
          hmin = min(pmesh.GetElementSize(i, 1), hmin);
       }
-      MPI_Allreduce(MPI_IN_PLACE, &hmin, 1, MPI_DOUBLE, MPI_MIN,
+      MPI_Allreduce(MPI_IN_PLACE, &hmin, 1,  MPITypeMap<real_t>::mpi_type, MPI_MIN,
                     pmesh.GetComm());
       // Find a safe dt, using a temporary vector. Calling Mult() computes the
       // maximum char speed at all quadrature points on all faces (and all
@@ -276,8 +276,8 @@ int main(int argc, char *argv[])
       Vector z(sol.Size());
       euler.Mult(sol, z);
 
-      double max_char_speed = euler.GetMaxCharSpeed();
-      MPI_Allreduce(MPI_IN_PLACE, &max_char_speed, 1, MPI_DOUBLE, MPI_MAX,
+      real_t max_char_speed = euler.GetMaxCharSpeed();
+      MPI_Allreduce(MPI_IN_PLACE, &max_char_speed, 1,  MPITypeMap<real_t>::mpi_type, MPI_MAX,
                     pmesh.GetComm());
       dt = cfl * hmin / max_char_speed / (2 * order + 1);
    }
@@ -287,7 +287,7 @@ int main(int argc, char *argv[])
    tic_toc.Start();
 
    // Init time integration
-   double t = 0.0;
+   real_t t = 0.0;
    euler.SetTime(t);
    ode_solver->Init(euler);
 
@@ -300,8 +300,8 @@ int main(int argc, char *argv[])
       ode_solver->Step(sol, t, dt_real);
       if (cfl > 0) // update time step size with CFL
       {
-         double max_char_speed = euler.GetMaxCharSpeed();
-         MPI_Allreduce(MPI_IN_PLACE, &max_char_speed, 1, MPI_DOUBLE, MPI_MAX,
+         real_t max_char_speed = euler.GetMaxCharSpeed();
+         MPI_Allreduce(MPI_IN_PLACE, &max_char_speed, 1,  MPITypeMap<real_t>::mpi_type, MPI_MAX,
                        pmesh.GetComm());
          dt = cfl * hmin / max_char_speed / (2 * order + 1);
       }
@@ -352,7 +352,7 @@ int main(int argc, char *argv[])
    }
 
    // 10. Compute the L2 solution error summed for all components.
-   const double error = sol.ComputeLpError(2, u0);
+   const real_t error = sol.ComputeLpError(2, u0);
    if (Mpi::Root())
    {
       cout << "Solution error: " << error << endl;

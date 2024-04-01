@@ -42,7 +42,7 @@ private:
    std::vector<DenseMatrix> invmass; // local scalar inverse mass.
    std::vector<DenseMatrix> weakdiv; // local weakdivergence. Trial space is ByDim.
    // global maximum characteristic speed. Updated by form integrators
-   mutable double max_char_speed;
+   mutable real_t max_char_speed;
    // auxiliary variable used in Mult
    mutable Vector z;
 
@@ -73,7 +73,7 @@ public:
    void Mult(const Vector &x, Vector &y) const override;
    // get global maximum characteristic speed to be used in CFL condition
    // where max_char_speed is updated during Mult.
-   double GetMaxCharSpeed() { return max_char_speed; }
+   real_t GetMaxCharSpeed() { return max_char_speed; }
    void Update();
 
 };
@@ -247,47 +247,47 @@ void DGHyperbolicConservationLaws::Update()
 }
 
 std::function<void(const Vector&, Vector&)> GetMovingVortexInit(
-   const double radius, const double Minf, const double beta,
-   const double gas_constant, const double specific_heat_ratio)
+   const real_t radius, const real_t Minf, const real_t beta,
+   const real_t gas_constant, const real_t specific_heat_ratio)
 {
    return [specific_heat_ratio,
            gas_constant, Minf, radius, beta](const Vector &x, Vector &y)
    {
       MFEM_ASSERT(x.Size() == 2, "");
 
-      const double xc = 0.0, yc = 0.0;
+      const real_t xc = 0.0, yc = 0.0;
 
       // Nice units
-      const double vel_inf = 1.;
-      const double den_inf = 1.;
+      const real_t vel_inf = 1.;
+      const real_t den_inf = 1.;
 
       // Derive remainder of background state from this and Minf
-      const double pres_inf = (den_inf / specific_heat_ratio) *
+      const real_t pres_inf = (den_inf / specific_heat_ratio) *
                               (vel_inf / Minf) * (vel_inf / Minf);
-      const double temp_inf = pres_inf / (den_inf * gas_constant);
+      const real_t temp_inf = pres_inf / (den_inf * gas_constant);
 
-      double r2rad = 0.0;
+      real_t r2rad = 0.0;
       r2rad += (x(0) - xc) * (x(0) - xc);
       r2rad += (x(1) - yc) * (x(1) - yc);
       r2rad /= (radius * radius);
 
-      const double shrinv1 = 1.0 / (specific_heat_ratio - 1.);
+      const real_t shrinv1 = 1.0 / (specific_heat_ratio - 1.);
 
-      const double velX =
-         vel_inf * (1 - beta * (x(1) - yc) / radius * exp(-0.5 * r2rad));
-      const double velY =
-         vel_inf * beta * (x(0) - xc) / radius * exp(-0.5 * r2rad);
-      const double vel2 = velX * velX + velY * velY;
+      const real_t velX =
+         vel_inf * (1 - beta * (x(1) - yc) / radius * std::exp(-0.5 * r2rad));
+      const real_t velY =
+         vel_inf * beta * (x(0) - xc) / radius * std::exp(-0.5 * r2rad);
+      const real_t vel2 = velX * velX + velY * velY;
 
-      const double specific_heat =
+      const real_t specific_heat =
          gas_constant * specific_heat_ratio * shrinv1;
-      const double temp = temp_inf - 0.5 * (vel_inf * beta) *
+      const real_t temp = temp_inf - 0.5 * (vel_inf * beta) *
                           (vel_inf * beta) / specific_heat *
-                          exp(-r2rad);
+                          std::exp(-r2rad);
 
-      const double den = den_inf * pow(temp / temp_inf, shrinv1);
-      const double pres = den * gas_constant * temp;
-      const double energy = shrinv1 * pres / den + 0.5 * vel2;
+      const real_t den = den_inf * std::pow(temp / temp_inf, shrinv1);
+      const real_t pres = den * gas_constant * temp;
+      const real_t energy = shrinv1 * pres / den + 0.5 * vel2;
 
       y(0) = den;
       y(1) = den * velX;
@@ -315,8 +315,8 @@ Mesh EulerMesh(const int problem)
 
 // Initial condition
 VectorFunctionCoefficient EulerInitialCondition(const int problem,
-                                                const double specific_heat_ratio,
-                                                const double gas_constant)
+                                                const real_t specific_heat_ratio,
+                                                const real_t gas_constant)
 {
    switch (problem)
    {
@@ -332,11 +332,11 @@ VectorFunctionCoefficient EulerInitialCondition(const int problem,
          return VectorFunctionCoefficient(4, [](const Vector &x, Vector &y)
          {
             MFEM_ASSERT(x.Size() == 2, "");
-            const double density = 1.0 + 0.2 * sin(M_PI*(x(0) + x(1)));
-            const double velocity_x = 0.7;
-            const double velocity_y = 0.3;
-            const double pressure = 1.0;
-            const double energy =
+            const real_t density = 1.0 + 0.2 * std::sin(M_PI*(x(0) + x(1)));
+            const real_t velocity_x = 0.7;
+            const real_t velocity_y = 0.3;
+            const real_t pressure = 1.0;
+            const real_t energy =
                pressure / (1.4 - 1.0) +
                density * 0.5 * (velocity_x * velocity_x + velocity_y * velocity_y);
 
@@ -349,10 +349,10 @@ VectorFunctionCoefficient EulerInitialCondition(const int problem,
          return VectorFunctionCoefficient(3, [](const Vector &x, Vector &y)
          {
             MFEM_ASSERT(x.Size() == 1, "");
-            const double density = 1.0 + 0.2 * sin(M_PI * 2 * x(0));
-            const double velocity_x = 1.0;
-            const double pressure = 1.0;
-            const double energy =
+            const real_t density = 1.0 + 0.2 * std::sin(M_PI * 2 * x(0));
+            const real_t velocity_x = 1.0;
+            const real_t pressure = 1.0;
+            const real_t energy =
                pressure / (1.4 - 1.0) + density * 0.5 * (velocity_x * velocity_x);
 
             y(0) = density;

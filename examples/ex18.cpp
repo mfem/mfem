@@ -61,8 +61,8 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    int problem = 1;
-   const double specific_heat_ratio = 1.4;
-   const double gas_constant = 1.0;
+   const real_t specific_heat_ratio = 1.4;
+   const real_t gas_constant = 1.0;
 
    string mesh_file = "";
    int IntOrderOffset = 1;
@@ -225,7 +225,7 @@ int main(int argc, char *argv[])
 
    // When dt is not specified, use CFL condition.
    // Compute h_min and initial maximum characteristic speed
-   double hmin = infinity();
+   real_t hmin = infinity();
    if (cfl > 0)
    {
       for (int i = 0; i < mesh.GetNE(); i++)
@@ -238,7 +238,7 @@ int main(int argc, char *argv[])
       Vector z(sol.Size());
       euler.Mult(sol, z);
 
-      double max_char_speed = euler.GetMaxCharSpeed();
+      real_t max_char_speed = euler.GetMaxCharSpeed();
       dt = cfl * hmin / max_char_speed / (2 * order + 1);
    }
 
@@ -247,7 +247,7 @@ int main(int argc, char *argv[])
    tic_toc.Start();
 
    // Init time integration
-   double t = 0.0;
+   real_t t = 0.0;
    euler.SetTime(t);
    ode_solver->Init(euler);
 
@@ -260,7 +260,7 @@ int main(int argc, char *argv[])
       ode_solver->Step(sol, t, dt_real);
       if (cfl > 0) // update time step size with CFL
       {
-         double max_char_speed = euler.GetMaxCharSpeed();
+         real_t max_char_speed = euler.GetMaxCharSpeed();
          dt = cfl * hmin / max_char_speed / (2 * order + 1);
       }
       ti++;
@@ -301,7 +301,7 @@ int main(int argc, char *argv[])
    }
 
    // 10. Compute the L2 solution error summed for all components.
-   const double error = sol.ComputeLpError(2, u0);
+   const real_t error = sol.ComputeLpError(2, u0);
    cout << "Solution error: " << error << endl;
 
    // Free the used memory.

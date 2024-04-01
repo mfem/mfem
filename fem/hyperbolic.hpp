@@ -81,11 +81,11 @@ public:
     * @param[in] state value of state at the current integration point
     * @param[in] Tr element information
     * @param[out] flux F(u, x)
-    * @return double maximum characteristic speed
+    * @return real_t maximum characteristic speed
     *
     * @note One can put assertion in here to detect non-physical solution
     */
-   virtual double ComputeFlux(const Vector &state, ElementTransformation &Tr,
+   virtual real_t ComputeFlux(const Vector &state, ElementTransformation &Tr,
                               DenseMatrix &flux) const = 0;
    /**
     * @brief Compute normal flux. Optionally overloadded in the
@@ -96,9 +96,9 @@ public:
     * @param[in] Tr face information
     * @param[out] fluxDotN normal flux from the given element at the current
     * integration point
-    * @return double maximum (normal) characteristic velocity
+    * @return real_t maximum (normal) characteristic velocity
     */
-   virtual double ComputeFluxDotN(const Vector &state, const Vector &normal,
+   virtual real_t ComputeFluxDotN(const Vector &state, const Vector &normal,
                                   FaceElementTransformations &Tr,
                                   Vector &fluxDotN) const;
 
@@ -147,7 +147,7 @@ public:
     * @param[in] Tr face information
     * @param[out] flux numerical flux (num_equations)
     */
-   virtual double Eval(const Vector &state1, const Vector &state2,
+   virtual real_t Eval(const Vector &state1, const Vector &state2,
                        const Vector &nor, FaceElementTransformations &Tr,
                        Vector &flux) const = 0;
 
@@ -169,7 +169,7 @@ class HyperbolicFormIntegrator : public NonlinearFormIntegrator
 {
 private:
    // The maximum characterstic speed, updated during element/face vector assembly
-   double max_char_speed;
+   real_t max_char_speed;
    const RiemannSolver &rsolver;   // Numerical flux that maps F(u±,x) to hat(F)
    const FluxFunction &fluxFunction;
    const int IntOrderOffset; // integration order offset, 2*p + IntOrderOffset.
@@ -209,7 +209,7 @@ public:
       max_char_speed = 0.0;
    }
 
-   double GetMaxCharSpeed()
+   real_t GetMaxCharSpeed()
    {
       return max_char_speed;
    }
@@ -275,7 +275,7 @@ public:
     * @param[in] Tr face element transformation
     * @param[out] flux ½(F(u⁺,x)n + F(u⁻,x)n) - ½λ(u⁺ - u⁻)
     */
-   double Eval(const Vector &state1, const Vector &state2,
+   real_t Eval(const Vector &state1, const Vector &state2,
                const Vector &nor, FaceElementTransformations &Tr,
                Vector &flux) const override;
 
@@ -315,9 +315,9 @@ public:
     * @param state state (u) at current integration point
     * @param Tr current element transformation with integration point
     * @param flux F(u) = ubᵀ
-    * @return double maximum characteristic speed, |b|
+    * @return real_t maximum characteristic speed, |b|
     */
-   double ComputeFlux(const Vector &state, ElementTransformation &Tr,
+   real_t ComputeFlux(const Vector &state, ElementTransformation &Tr,
                       DenseMatrix &flux) const override;
 };
 
@@ -339,16 +339,16 @@ public:
     * @param state state (u) at current integration point
     * @param Tr current element transformation with integration point
     * @param flux F(u) = ½u²*1ᵀ where 1 is (dim) vector
-    * @return double maximum characteristic speed, |u|
+    * @return real_t maximum characteristic speed, |u|
     */
-   double ComputeFlux(const Vector &state, ElementTransformation &Tr,
+   real_t ComputeFlux(const Vector &state, ElementTransformation &Tr,
                       DenseMatrix &flux) const override;
 };
 
 class ShallowWaterFlux : public FluxFunction
 {
 private:
-   const double g;  // gravity constant
+   const real_t g;  // gravity constant
 
 public:
    /**
@@ -358,7 +358,7 @@ public:
     * @param dim spatial dimension
     * @param g gravity constant
     */
-   ShallowWaterFlux(const int dim, const double g=9.8)
+   ShallowWaterFlux(const int dim, const real_t g=9.8)
       : FluxFunction(dim + 1, dim), g(g) {}
 
    /**
@@ -367,9 +367,9 @@ public:
     * @param state state (h, hu) at current integration point
     * @param Tr current element transformation with integration point
     * @param flux F(h, hu) = [huᵀ; huuᵀ + ½gh²I]
-    * @return double maximum characteristic speed, |u| + √(gh)
+    * @return real_t maximum characteristic speed, |u| + √(gh)
     */
-   double ComputeFlux(const Vector &state, ElementTransformation &Tr,
+   real_t ComputeFlux(const Vector &state, ElementTransformation &Tr,
                       DenseMatrix &flux) const override;
 
    /**
@@ -379,9 +379,9 @@ public:
     * @param normal normal vector, usually not a unit vector
     * @param Tr current element transformation with integration point
     * @param fluxN F(ρ, ρu, E)n = [ρu⋅n; ρu(u⋅n) + pn; (u⋅n)(E + p)]
-    * @return double maximum characteristic speed, |u| + √(γp/ρ)
+    * @return real_t maximum characteristic speed, |u| + √(γp/ρ)
     */
-   double ComputeFluxDotN(const Vector &state, const Vector &normal,
+   real_t ComputeFluxDotN(const Vector &state, const Vector &normal,
                           FaceElementTransformations &Tr,
                           Vector &fluxN) const override;
 };
@@ -389,8 +389,8 @@ public:
 class EulerFlux : public FluxFunction
 {
 private:
-   const double specific_heat_ratio;  // specific heat ratio, γ
-   // const double gas_constant;         // gas constant
+   const real_t specific_heat_ratio;  // specific heat ratio, γ
+   // const real_t gas_constant;         // gas constant
 
 public:
    /**
@@ -400,7 +400,7 @@ public:
     * @param dim spatial dimension
     * @param specific_heat_ratio specific heat ratio, γ
     */
-   EulerFlux(const int dim, const double specific_heat_ratio)
+   EulerFlux(const int dim, const real_t specific_heat_ratio)
       : FluxFunction(dim + 2, dim),
         specific_heat_ratio(specific_heat_ratio) {}
 
@@ -410,9 +410,9 @@ public:
     * @param state state (ρ, ρu, E) at current integration point
     * @param Tr current element transformation with integration point
     * @param flux F(ρ, ρu, E) = [ρuᵀ; ρuuᵀ + pI; uᵀ(E + p)]
-    * @return double maximum characteristic speed, |u| + √(γp/ρ)
+    * @return real_t maximum characteristic speed, |u| + √(γp/ρ)
     */
-   double ComputeFlux(const Vector &state, ElementTransformation &Tr,
+   real_t ComputeFlux(const Vector &state, ElementTransformation &Tr,
                       DenseMatrix &flux) const override;
 
    /**
@@ -422,9 +422,9 @@ public:
     * @param normal normal vector, usually not a unit vector
     * @param Tr current element transformation with integration point
     * @param fluxN F(ρ, ρu, E)n = [ρu⋅n; ρu(u⋅n) + pn; (u⋅n)(E + p)]
-    * @return double maximum characteristic speed, |u| + √(γp/ρ)
+    * @return real_t maximum characteristic speed, |u| + √(γp/ρ)
     */
-   double ComputeFluxDotN(const Vector &x, const Vector &normal,
+   real_t ComputeFluxDotN(const Vector &x, const Vector &normal,
                           FaceElementTransformations &Tr,
                           Vector &fluxN) const override;
 };
