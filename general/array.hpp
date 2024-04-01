@@ -209,6 +209,8 @@ public:
    inline void Copy(Array &copy) const;
 
    /// Make this Array a reference to a pointer.
+   /** When @a own_data is true, the pointer @a data_ must be allocated with
+       MemoryType given by MemoryManager::GetHostMemoryType(). */
    inline void MakeRef(T *data_, int size_, bool own_data = false);
 
    /// Make this Array a reference to 'master'.

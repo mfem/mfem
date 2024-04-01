@@ -13829,7 +13829,7 @@ void MeshPartitioner::ExtractPart(int part_id, MeshPart &mesh_part) const
       mesh_part.vertex_coordinates.SetSize(sdim*vertex_loc_to_glob.Size());
       for (int i = 0; i < vertex_loc_to_glob.Size(); i++)
       {
-         const double *coord = mesh.GetVertex(vertex_loc_to_glob[i]);
+         const real_t *coord = mesh.GetVertex(vertex_loc_to_glob[i]);
          for (int d = 0; d < sdim; d++)
          {
             mesh_part.vertex_coordinates[i*sdim+d] = coord[d];
