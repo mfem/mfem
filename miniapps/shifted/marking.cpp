@@ -24,8 +24,8 @@ void ShiftedFaceMarker::MarkElements(const ParGridFunction &ls_func,
    IntegrationRules IntRulesLo(0, Quadrature1D::GaussLobatto);
 
    // This tolerance is relevant for points that are exactly on the zero LS.
-   const double eps = 1e-10;
-   auto outside_of_domain = [&](double value)
+   const real_t eps = 1e-10;
+   auto outside_of_domain = [&](real_t value)
    {
       if (include_cut_cell)
       {
