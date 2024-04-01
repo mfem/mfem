@@ -1390,8 +1390,12 @@ GSOPGSLIB::~GSOPGSLIB()
    delete cr;
 }
 
-void GSOPGSLIB::UpdateIdentifiers(Array<long long> &ids)
+void GSOPGSLIB::UpdateIdentifiers(const Array<long long> &ids)
 {
+   long long minval = ids.Min();
+   MPI_Allreduce(MPI_IN_PLACE, &minval, 1, MPI_LONG_LONG_INT,
+                 MPI_MIN, gsl_comm->c);
+   MFEM_VERIFY(minval >= 0, "Unique identifier cannot be negative.");
    if (gsl_data != NULL) { gslib_gs_free(gsl_data); }
    num_ids = ids.Size();
    gsl_data = gslib_gs_setup(ids.GetData(),
@@ -1405,19 +1409,19 @@ void GSOPGSLIB::GS(Vector &senddata, GSOp op)
    MFEM_VERIFY(senddata.Size() == num_ids,"Incompatible setup and GOP operation.");
    if (op == GSOp::ADD)
    {
-      gslib_gs(senddata.GetData(), gslib::gs_double, gslib::gs_add, 0, gsl_data, 0);
+      gslib_gs(senddata.GetData(),gslib::gs_double,gslib::gs_add,0,gsl_data,0);
    }
    else if (op == GSOp::MUL)
    {
-      gslib_gs(senddata.GetData(), gslib::gs_double, gslib::gs_mul, 0, gsl_data, 0);
+      gslib_gs(senddata.GetData(),gslib::gs_double,gslib::gs_mul,0,gsl_data,0);
    }
    else if (op == GSOp::MAX)
    {
-      gslib_gs(senddata.GetData(), gslib::gs_double, gslib::gs_max, 0, gsl_data, 0);
+      gslib_gs(senddata.GetData(),gslib::gs_double,gslib::gs_max,0,gsl_data,0);
    }
    else if (op == GSOp::MIN)
    {
-      gslib_gs(senddata.GetData(), gslib::gs_double, gslib::gs_min, 0, gsl_data, 0);
+      gslib_gs(senddata.GetData(),gslib::gs_double,gslib::gs_min,0,gsl_data,0);
    }
    else
    {

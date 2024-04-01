@@ -59,6 +59,8 @@ Miscellaneous
 - RAJA backend will use seq_exec for serial loop execution when RAJA
   v2023.06.00 and beyond is detected as loop_exec is deprecated.
 
+- Added GSLIB-based gather-scatter operator.
+
 
 Version 4.6, released on September 27, 2023
 ===========================================
