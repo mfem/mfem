@@ -629,16 +629,16 @@ public:
 #ifdef MFEM_USE_MPI
    /** @brief Construct a new ComplexLpErrorEstimator object for a scalar field.
        @param p    Integer which selects which Lp norm to use.
-       @param sol  The ComplexGridFunction representation of the scalar field.
+       @param psol The ComplexGridFunction representation of the scalar field.
        Note: the coefficient must be set before use with the SetCoef method.
    */
-   ComplexLpErrorEstimator(int p, ParComplexGridFunction &par_sol)
+   ComplexLpErrorEstimator(int p, ParComplexGridFunction &psol)
       : current_sequence(-1), local_norm_p(p),
         error_estimates(0),
         real_coef(NULL), imag_coef(NULL),
         real_vcoef(NULL), imag_vcoef(NULL),
-        sol(NULL), par_sol(&par_sol),
-        real_estimator(p, par_sol.real()), imag_estimator(p, par_sol.imag()) { }
+        sol(NULL), par_sol(&psol),
+        real_estimator(p, psol.real()), imag_estimator(p, psol.imag()) { }
 
    /** @brief Construct a new ComplexLpErrorEstimator object for a scalar field.
        @param p    Integer which selects which Lp norm to use.
@@ -646,18 +646,18 @@ public:
                         the solution.
        @param imag_coef The scalar Coefficient to compare to the imaginary part
                         of the solution.
-       @param sol  The ComplexGridFunction representation of the scalar field.
+       @param psol The ComplexGridFunction representation of the scalar field.
    */
    ComplexLpErrorEstimator(int p,
                            Coefficient &real_coef, Coefficient &imag_coef,
-                           ParComplexGridFunction &par_sol)
+                           ParComplexGridFunction &psol)
       : current_sequence(-1), local_norm_p(p),
         error_estimates(0),
         real_coef(&real_coef), imag_coef(&imag_coef),
         real_vcoef(NULL), imag_vcoef(NULL),
-        sol(NULL), par_sol(&par_sol),
-        real_estimator(p, real_coef, par_sol.real()),
-        imag_estimator(p, imag_coef, par_sol.imag()) { }
+        sol(NULL), par_sol(&psol),
+        real_estimator(p, real_coef, psol.real()),
+        imag_estimator(p, imag_coef, psol.imag()) { }
 
    /** @brief Construct a new ComplexLpErrorEstimator object for a vector field.
        @param p    Integer which selects which Lp norm to use.
@@ -665,19 +665,19 @@ public:
                         part of the solution.
        @param imag_coef The vector VectorCoefficient to compare to the
                         imaginary part of the solution.
-       @param sol  The ComplexGridFunction representation of the vector field.
+       @param psol The ComplexGridFunction representation of the vector field.
    */
    ComplexLpErrorEstimator(int p,
                            VectorCoefficient &real_coef,
                            VectorCoefficient &imag_coef,
-                           ParComplexGridFunction &par_sol)
+                           ParComplexGridFunction &psol)
       : current_sequence(-1), local_norm_p(p),
         error_estimates(0),
         real_coef(NULL), imag_coef(NULL),
         real_vcoef(&real_coef), imag_vcoef(&imag_coef),
-        sol(NULL), par_sol(&par_sol),
-        real_estimator(p, real_coef, par_sol.real()),
-        imag_estimator(p, imag_coef, par_sol.imag()) { }
+        sol(NULL), par_sol(&psol),
+        real_estimator(p, real_coef, psol.real()),
+        imag_estimator(p, imag_coef, psol.imag()) { }
 #endif
 
    /** @brief Set the exponent, p, of the Lp norm used for computing the local
