@@ -212,6 +212,14 @@ const int mfem_to_exodusII_side_map_pyramid5[] =
 
 void ExodusIIWriter::WriteExodusII(std::string fpath, int flags)
 {
+   //
+   // Safety checks.
+   //
+   if (_mesh.GetNodalFESpace() != nullptr)
+   {
+      MFEM_ABORT("ExodusII writer does not currently support higher-order elements.");
+   }
+
    OpenExodusII(fpath, flags);
 
    //
