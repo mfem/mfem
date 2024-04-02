@@ -342,7 +342,7 @@ public:
    /// Construct the NURBS_HCurl22DFiniteElement with x-order @a px and y-order @a py
    NURBS_HCurl2DFiniteElement(int px, int py, int vdim)
       : VectorFiniteElement(2, Geometry::SQUARE,
-                            (px + 2)*(py + 1)+(px + 1)*(py + 2),
+                            (px + 1)*(py + 2)+(px + 2)*(py + 1),
                             std::max(px, py), H_CURL, FunctionSpace::Qk),
         NURBSFiniteElement(2),
         shape_x(px + 1), shape_y(py + 1), dshape_x(px + 1),
