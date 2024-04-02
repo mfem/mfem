@@ -144,6 +144,11 @@ protected:
    /// with error handling.
    void PutVar(int varid, const void * data);
 
+   /// @brief Combine DefineVar with PutVar.
+   void DefineAndPutVar(const char *name, nc_type xtype, int ndims,
+                        const int *dimidsp, const void *data);
+
+
    /// @brief Write attribute to the file. This is a wrapper around nc_put_att with
    /// error handling.
    void PutAtt(int varid, const char *name, nc_type xtype, size_t len,
@@ -208,6 +213,14 @@ void ExodusIIWriter::PutVar(int varid, const void * data)
 
    _status = nc_put_var(_exid, varid, data);
    HandleNetCDFStatus();
+}
+
+void ExodusIIWriter::DefineAndPutVar(const char *name, nc_type xtype, int ndims,
+                                     const int *dimidsp, const void *data)
+{
+   int varid;
+   DefineVar(name, xtype, ndims, dimidsp, &varid);
+   PutVar(varid, data);
 }
 
 
@@ -453,15 +466,11 @@ void ExodusIIWriter::WriteMaxLineLength()
 
 void ExodusIIWriter::WriteBlockIDs()
 {
-   int unique_block_ids_ptr;
-
    int block_dim;
    DefineDimension("block_dim", _block_ids.size(), &block_dim);
 
-   DefineVar("eb_prop1", NC_INT, 1, &block_dim,
-             &unique_block_ids_ptr);
-
-   PutVar(unique_block_ids_ptr, _block_ids.data());
+   DefineAndPutVar("eb_prop1", NC_INT, 1, &block_dim,
+                   _block_ids.data());
 }
 
 void ExodusIIWriter::WriteElementBlockParameters()
@@ -556,7 +565,6 @@ void ExodusIIWriter::WriteElementBlockParameters(int block_id)
 
    PutAtt(connect_id, "elem_type", NC_CHAR, element_type.length(),
           element_type.c_str());
-   HandleNetCDFStatus();
 }
 
 void ExodusIIWriter::WriteNumNodes()
@@ -570,33 +578,18 @@ void ExodusIIWriter::WriteNodalCoordinates()
    // https://docs.unidata.ucar.edu/netcdf-c/current/group__variables.html#gac7e8662c51f3bb07d1fc6d6c6d9052c8
    // NB: assume we have doubles (could be floats!)
    // ndims = 1 (vectors).
-   int coordx_id, coordy_id, coordz_id;
-
    std::vector<double> coordx(_num_nodes);
    std::vector<double> coordy(_num_nodes);
    std::vector<double> coordz(_mesh.Dimension() == 3 ? _num_nodes : 0);
 
    ExtractVertexCoordinates(coordx, coordy, coordz);
 
-   // x:
-   DefineVar("coordx", NC_DOUBLE, 1, &_num_nodes_id,
-             &coordx_id);
-
-   PutVar(coordx_id, coordx.data());
-
-   // y:
-   DefineVar("coordy", NC_DOUBLE, 1, &_num_nodes_id,
-             &coordy_id);
-
-   PutVar(coordy_id, coordy.data());
+   DefineAndPutVar("coordx", NC_DOUBLE, 1, &_num_nodes_id, coordx.data());
+   DefineAndPutVar("coordy", NC_DOUBLE, 1, &_num_nodes_id, coordy.data());
 
    if (_mesh.Dimension() == 3)
    {
-      // z:
-      DefineVar("coordz", NC_DOUBLE, 1, &_num_nodes_id,
-                &coordz_id);
-
-      PutVar(coordz_id, coordz.data());
+      DefineAndPutVar("coordz", NC_DOUBLE, 1, &_num_nodes_id, coordz.data());
    }
 }
 
@@ -605,16 +598,11 @@ void ExodusIIWriter::WriteSideSetInformation()
    //
    // Add the boundary IDs
    //
-   int boundary_ids_ptr;
-
    int boundary_ids_dim;
    DefineDimension("boundary_ids_dim", _boundary_ids.size(),
                    &boundary_ids_dim);
 
-   DefineVar("ss_prop1", NC_INT, 1, &boundary_ids_dim,
-             &boundary_ids_ptr);
-
-   PutVar(boundary_ids_ptr, _boundary_ids.data());
+   DefineAndPutVar("ss_prop1", NC_INT, 1, &boundary_ids_dim, _boundary_ids.data());
 
    //
    // Add the number of elements for each boundary_id.
@@ -648,11 +636,7 @@ void ExodusIIWriter::WriteSideSetInformation()
 
       sprintf(name_buffer, "side_ss%d", boundary_id);
 
-      int side_id_ptr;
-      DefineVar(name_buffer, NC_INT, 1,  &side_id_dim,
-                &side_id_ptr);
-
-      PutVar(side_id_ptr, side_ids.data());
+      DefineAndPutVar(name_buffer, NC_INT, 1,  &side_id_dim, side_ids.data());
    }
 
    //
@@ -671,18 +655,13 @@ void ExodusIIWriter::WriteSideSetInformation()
 
       sprintf(name_buffer, "elem_ss%d", boundary_id);
 
-      int elem_ids_ptr;
-      DefineVar(name_buffer, NC_INT, 1, &elem_ids_dim,
-                &elem_ids_ptr);
-
-      PutVar(elem_ids_ptr, element_ids.data());
+      DefineAndPutVar(name_buffer, NC_INT, 1, &elem_ids_dim,
+                      element_ids.data());
    }
 }
 
 void ExodusIIWriter::WriteNodeConnectivityForBlock(const int block_id)
 {
-   int connect_id;
-
    // Generate arbitrary name:
    char name_buffer[100];
 
@@ -710,10 +689,8 @@ void ExodusIIWriter::WriteNodeConnectivityForBlock(const int block_id)
    // NB: 1 == vector!; name is arbitrary; NC_INT or NCINT64??
    sprintf(name_buffer, "connect%d", block_id);
 
-   DefineVar(name_buffer, NC_INT, 1, &node_connectivity_dim,
-             &connect_id);
-
-   PutVar(connect_id, block_node_connectivity.data());
+   DefineAndPutVar(name_buffer, NC_INT, 1, &node_connectivity_dim,
+                   block_node_connectivity.data());
 }
 
 
@@ -779,14 +756,12 @@ void ExodusIIWriter::WriteDummyVariable()
    // NB: LibMesh has a dodgy bug where it will skip the x-coordinate if coordx_id == 0.
    // To prevent this, the first variable to be defined will be a dummy variable which will
    // have a variable id of 0.
-   int dummy_var_id, dummy_var_dim_id, dummy_value = 1;
+   int dummy_var_dim_id, dummy_value = 1;
 
    DefineDimension("dummy_var_dim", 1, &dummy_var_dim_id);
 
-   DefineVar("dummy_var", NC_INT, 1, &dummy_var_dim_id,
-             &dummy_var_id);
-
-   PutVar(dummy_var_id, &dummy_value);
+   DefineAndPutVar("dummy_var", NC_INT, 1, &dummy_var_dim_id,
+                   &dummy_value);
 }
 
 /// @brief Generates blocks based on the elements in the mesh. We assume that this was originally an Exodus II
