@@ -14,6 +14,15 @@
 
 #ifdef MFEM_USE_NETCDF
 #include "netcdf.h"
+
+#define CHECK_NETCDF_CODE(return_code)\
+({\
+   if ((return_code) != NC_NOERR)\
+   {\
+      MFEM_ABORT("NetCDF error: " << nc_strerror((return_code)));\
+   }\
+})
+
 #endif
 
 namespace mfem
@@ -49,9 +58,6 @@ protected:
 
    /// @brief Closes any open file.
    void CloseExodusII();
-
-   /// @brief Calls MFEM_ABORT with an error message for the error if _status != NC_NOERR.
-   void HandleNetCDFStatus();
 
    /// @brief Extracts block ids, element ids for each block and element type for each block.
    void GenerateExodusIIElementBlocks();
@@ -161,9 +167,6 @@ private:
    /// Flag to check if a file is currently open.
    bool _file_open{false};
 
-   // NetCDF status.
-   int _status{NC_NOERR};
-
    // Reference to mesh we would like to write-out.
    Mesh & _mesh;
 
@@ -184,35 +187,28 @@ private:
 void ExodusIIWriter::DefineDimension(const char *name, size_t len, int *dim_id)
 {
    nc_redef(_exid);
-
-   _status = nc_def_dim(_exid, name, len, dim_id);
-   HandleNetCDFStatus();
+   CHECK_NETCDF_CODE(nc_def_dim(_exid, name, len, dim_id));
 }
 
 void ExodusIIWriter::DefineVar(const char *name, nc_type xtype, int ndims,
                                const int *dimidsp, int *varidp)
 {
    nc_redef(_exid);  // Switch to define mode.
-
-   _status = nc_def_var(_exid, name, xtype, ndims, dimidsp, varidp);
-   HandleNetCDFStatus();
+   CHECK_NETCDF_CODE(nc_def_var(_exid, name, xtype, ndims, dimidsp,
+                                varidp));
 }
 
 void ExodusIIWriter::PutAtt(int varid, const char *name, nc_type xtype,
                             size_t len, const void * data)
 {
    nc_redef(_exid);
-
-   _status = nc_put_att(_exid, varid, name, xtype, len, data);
-   HandleNetCDFStatus();
+   CHECK_NETCDF_CODE(nc_put_att(_exid, varid, name, xtype, len, data));
 }
 
 void ExodusIIWriter::PutVar(int varid, const void * data)
 {
    nc_enddef(_exid); // Switch to data mode.
-
-   _status = nc_put_var(_exid, varid, data);
-   HandleNetCDFStatus();
+   CHECK_NETCDF_CODE(nc_put_var(_exid, varid, data));
 }
 
 void ExodusIIWriter::DefineAndPutVar(const char *name, nc_type xtype, int ndims,
@@ -393,8 +389,7 @@ void ExodusIIWriter::OpenExodusII(std::string fpath, int flags)
 {
    CloseExodusII();  // Close any open files.
 
-   _status = nc_create(fpath.c_str(), flags, &_exid);
-   HandleNetCDFStatus();
+   CHECK_NETCDF_CODE(nc_create(fpath.c_str(), flags, &_exid));
 
    _file_open = true;
 }
@@ -403,8 +398,7 @@ void ExodusIIWriter::CloseExodusII()
 {
    if (!_file_open) { return; }   // No files open.
 
-   _status = nc_close(_exid);
-   HandleNetCDFStatus();
+   CHECK_NETCDF_CODE(nc_close(_exid));
 
    _file_open = false;
    _exid = (-1);  // Set to negative value (valid IDs are positive!)
@@ -560,8 +554,7 @@ void ExodusIIWriter::WriteElementBlockParameters(int block_id)
    sprintf(name_buffer, "connect%d", block_id);
 
    int connect_id;
-   _status = nc_inq_varid(_exid, name_buffer, &connect_id);
-   HandleNetCDFStatus();
+   CHECK_NETCDF_CODE(nc_inq_varid(_exid, name_buffer, &connect_id));
 
    PutAtt(connect_id, "elem_type", NC_CHAR, element_type.length(),
           element_type.c_str());
@@ -709,15 +702,6 @@ void ExodusIIWriter::ExtractVertexCoordinates(std::vector<double> &
       {
          coordz[ivertex] = coordinates[2];
       }
-   }
-}
-
-/// @brief Aborts with description of error.
-void ExodusIIWriter::HandleNetCDFStatus()
-{
-   if (_status != NC_NOERR)
-   {
-      MFEM_ABORT("NetCDF error: " << nc_strerror(_status));
    }
 }
 
