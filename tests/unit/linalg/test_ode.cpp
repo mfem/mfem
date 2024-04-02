@@ -103,7 +103,7 @@ TEST_CASE("First order ODE methods", "[ODE]")
             ode_solver->GetState().Set(s,uh);
          }
       }
- 
+
       void writeHeader(real_t error)
       {
          mfem::out<<std::setw(12)<<"Error"
