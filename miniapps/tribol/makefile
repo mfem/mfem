@@ -69,3 +69,5 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
+	@rm -rf ContactPatchTestSurface_*
+	@rm -rf ContactPatchTestVolume_*
