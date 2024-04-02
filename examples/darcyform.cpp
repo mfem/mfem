@@ -849,63 +849,56 @@ void DarcyHybridization::ConstructC()
    return;
 #endif //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK_ASSEMBLY
 
-   if (bhdg)
+   FaceElementTransformations *FTr;
+   Mesh *mesh = fes->GetMesh();
+   int num_faces = mesh->GetNumFaces();
+   Array<int> c_vdofs;
+
+   // Define Ct_offsets and allocate Ct_data
+   Ct_offsets.SetSize(num_faces+1);
+   Ct_offsets[0] = 0;
+   for (int f = 0; f < num_faces; f++)
    {
-      MFEM_ABORT("Not implemented yet");
+      FTr = mesh->GetInteriorFaceTransformations(f, 3);
+      if (!FTr)
+      {
+         Ct_offsets[f+1] = Ct_offsets[f];
+         continue;
+      }
+      const int f_size_1 = Af_f_offsets[FTr->Elem1No+1] - Af_f_offsets[FTr->Elem1No];
+      const int f_size_2 = Af_f_offsets[FTr->Elem2No+1] - Af_f_offsets[FTr->Elem2No];
+      c_fes->GetFaceVDofs(f, c_vdofs);
+      Ct_offsets[f+1] = Ct_offsets[f] + c_vdofs.Size() * (f_size_1 + f_size_2);
+   }
+
+   Ct_data = new double[Ct_offsets[num_faces]]();//init by zeros
+
+   // Assemble the constraint element matrices
+   if (c_bfi)
+   {
+      DenseMatrix elmat;
+
+      for (int f = 0; f < num_faces; f++)
+      {
+         FTr = mesh->GetInteriorFaceTransformations(f);
+         if (!FTr) { continue; }
+
+         const FiniteElement *fe1 = fes->GetFE(FTr->Elem1No);
+         const FiniteElement *fe2 = fes->GetFE(FTr->Elem2No);
+
+         c_bfi->AssembleFaceMatrix(*c_fes->GetFaceElement(f),
+                                   *fe1, *fe2, *FTr, elmat);
+         // zero-out small elements in elmat
+         elmat.Threshold(1e-12 * elmat.MaxMaxNorm());
+
+         // assemble the matrix
+         AssembleCtFaceMatrix(f, FTr->Elem1No, FTr->Elem2No, elmat);
+      }
    }
    else
    {
-      FaceElementTransformations *FTr;
-      Mesh *mesh = fes->GetMesh();
-      int num_faces = mesh->GetNumFaces();
-      Array<int> c_vdofs;
-
-      // Define Ct_offsets and allocate Ct_data
-      Ct_offsets.SetSize(num_faces+1);
-      Ct_offsets[0] = 0;
-      for (int f = 0; f < num_faces; f++)
-      {
-         FTr = mesh->GetInteriorFaceTransformations(f, 3);
-         if (!FTr)
-         {
-            Ct_offsets[f+1] = Ct_offsets[f];
-            continue;
-         }
-         const int f_size_1 = Af_f_offsets[FTr->Elem1No+1] - Af_f_offsets[FTr->Elem1No];
-         const int f_size_2 = Af_f_offsets[FTr->Elem2No+1] - Af_f_offsets[FTr->Elem2No];
-         c_fes->GetFaceVDofs(f, c_vdofs);
-         Ct_offsets[f+1] = Ct_offsets[f] + c_vdofs.Size() * (f_size_1 + f_size_2);
-      }
-
-      Ct_data = new double[Ct_offsets[num_faces]]();//init by zeros
-
-      // Assemble the constraint element matrices
-      if (c_bfi)
-      {
-         DenseMatrix elmat;
-
-         for (int f = 0; f < num_faces; f++)
-         {
-            FTr = mesh->GetInteriorFaceTransformations(f);
-            if (!FTr) { continue; }
-
-            const FiniteElement *fe1 = fes->GetFE(FTr->Elem1No);
-            const FiniteElement *fe2 = fes->GetFE(FTr->Elem2No);
-
-            c_bfi->AssembleFaceMatrix(*c_fes->GetFaceElement(f),
-                                      *fe1, *fe2, *FTr, elmat);
-            // zero-out small elements in elmat
-            elmat.Threshold(1e-12 * elmat.MaxMaxNorm());
-
-            // assemble the matrix
-            AssembleCtFaceMatrix(f, FTr->Elem1No, FTr->Elem2No, elmat);
-         }
-      }
-      else
-      {
-         // Check if c_fes is really needed here.
-         MFEM_ABORT("TODO: algebraic definition of C");
-      }
+      // Check if c_fes is really needed here.
+      MFEM_ABORT("TODO: algebraic definition of C");
    }
 }
 
