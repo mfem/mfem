@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -142,16 +142,16 @@ void Boundary::ComputeBoundaryError(const ParGridFunction &solution)
       mfem::out << "   GetVDim: " << fes.GetVDim() << "\n";
    }
 
-   double alpha{0.0};
-   double beta{1.0};
-   double gamma{0.0};
+   real_t alpha{0.0};
+   real_t beta{1.0};
+   real_t gamma{0.0};
 
    // Index i needs to be incremented by one to map to the boundary attributes
    // in the mesh.
    for (int i = 0; i < pmesh.bdr_attributes.Max(); i++)
    {
-      double error{0};
-      double avg{0};
+      real_t error{0};
+      real_t avg{0};
       Array<int> bdr(pmesh.bdr_attributes.Max());
       bdr = 0;
       bdr[i] = 1;
@@ -175,8 +175,8 @@ void Boundary::ComputeBoundaryError(const ParGridFunction &solution)
    }
 }
 
-void Boundary::UpdateIntegrationCoefficients(int i, double &alpha, double &beta,
-                                             double &gamma)
+void Boundary::UpdateIntegrationCoefficients(int i, real_t &alpha, real_t &beta,
+                                             real_t &gamma)
 {
    // Check if i is a key in boundary_attributes
    if (boundary_attributes.find(i) != boundary_attributes.end())
@@ -228,24 +228,24 @@ void Boundary::AddHomogeneousBoundaryCondition(int boundary,
 }
 
 void Boundary::AddInhomogeneousDirichletBoundaryCondition(int boundary,
-                                                          double coefficient)
+                                                          real_t coefficient)
 {
    boundary_attributes[boundary] = BoundaryType::kDirichlet;
    dirichlet_coefficients[boundary] = coefficient;
 }
 
-void Boundary::SetRobinCoefficient(double coefficient)
+void Boundary::SetRobinCoefficient(real_t coefficient)
 {
    robin_coefficient = coefficient;
 }
 
-double IntegrateBC(const ParGridFunction &x, const Array<int> &bdr,
-                   double alpha, double beta, double gamma, double &glb_err)
+real_t IntegrateBC(const ParGridFunction &x, const Array<int> &bdr,
+                   real_t alpha, real_t beta, real_t gamma, real_t &glb_err)
 {
-   double loc_vals[3];
-   double &nrm = loc_vals[0];
-   double &avg = loc_vals[1];
-   double &error = loc_vals[2];
+   real_t loc_vals[3];
+   real_t &nrm = loc_vals[0];
+   real_t &avg = loc_vals[1];
+   real_t &error = loc_vals[2];
 
    nrm = 0.0;
    avg = 0.0;
@@ -298,8 +298,8 @@ double IntegrateBC(const ParGridFunction &x, const Array<int> &bdr,
          IntegrationPoint eip;
          FTr->Loc1.Transform(ip, eip);
          FTr->Face->SetIntPoint(&ip);
-         double face_weight = FTr->Face->Weight();
-         double val = 0.0;
+         real_t face_weight = FTr->Face->Weight();
+         real_t val = 0.0;
          if (!a_is_zero)
          {
             FTr->Elem1->SetIntPoint(&eip);
@@ -325,11 +325,12 @@ double IntegrateBC(const ParGridFunction &x, const Array<int> &bdr,
       }
    }
 
-   double glb_vals[3];
-   MPI_Allreduce(loc_vals, glb_vals, 3, MPI_DOUBLE, MPI_SUM, fes.GetComm());
+   real_t glb_vals[3];
+   MPI_Allreduce(loc_vals, glb_vals, 3, MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                 fes.GetComm());
 
-   double glb_nrm = glb_vals[0];
-   double glb_avg = glb_vals[1];
+   real_t glb_nrm = glb_vals[0];
+   real_t glb_avg = glb_vals[1];
    glb_err = glb_vals[2];
 
    // Normalize by the length of the boundary
@@ -347,9 +348,9 @@ double IntegrateBC(const ParGridFunction &x, const Array<int> &bdr,
    return glb_avg;
 }
 
-SPDESolver::SPDESolver(double nu, const Boundary &bc,
-                       ParFiniteElementSpace *fespace, double l1, double l2,
-                       double l3, double e1, double e2, double e3)
+SPDESolver::SPDESolver(real_t nu, const Boundary &bc,
+                       ParFiniteElementSpace *fespace, real_t l1, real_t l2,
+                       real_t l3, real_t e1, real_t e2, real_t e3)
    : k_(fespace),
      m_(fespace),
      fespace_ptr_(fespace),
@@ -412,7 +413,7 @@ SPDESolver::SPDESolver(double nu, const Boundary &bc,
    int space_dim = fespace_ptr_->GetParMesh()->SpaceDimension();
    alpha_ = (nu_ + dim / 2.0) / 2.0;  // fractional exponent
    integer_order_of_exponent_ = static_cast<int>(std::floor(alpha_));
-   double exponent_to_approximate = alpha_ - integer_order_of_exponent_;
+   real_t exponent_to_approximate = alpha_ - integer_order_of_exponent_;
 
    // Compute the rational approximation coefficients.
    ComputeRationalCoefficients(exponent_to_approximate);
@@ -559,7 +560,7 @@ void SPDESolver::GenerateRandomField(ParGridFunction &x)
    }
    // Create stochastic load
    b_wn->Assemble();
-   double normalization = ConstructNormalizationCoefficient(
+   real_t normalization = ConstructNormalizationCoefficient(
                              nu_, l1_, l2_, l3_, fespace_ptr_->GetParMesh()->Dimension());
    (*b_wn) *= normalization;
 
@@ -567,13 +568,13 @@ void SPDESolver::GenerateRandomField(ParGridFunction &x)
    Solve(*b_wn, x);
 }
 
-double SPDESolver::ConstructNormalizationCoefficient(double nu, double l1,
-                                                     double l2, double l3,
+real_t SPDESolver::ConstructNormalizationCoefficient(real_t nu, real_t l1,
+                                                     real_t l2, real_t l3,
                                                      int dim)
 {
    // Computation considers squaring components, computing determinant, and
    // squaring
-   double det = 0;
+   real_t det = 0;
    if (dim == 1)
    {
       det = l1;
@@ -586,26 +587,26 @@ double SPDESolver::ConstructNormalizationCoefficient(double nu, double l1,
    {
       det = l1 * l2 * l3;
    }
-   const double gamma1 = tgamma(nu + static_cast<double>(dim) / 2.0);
-   const double gamma2 = tgamma(nu);
+   const real_t gamma1 = tgamma(nu + static_cast<real_t>(dim) / 2.0);
+   const real_t gamma2 = tgamma(nu);
    return sqrt(pow(2 * M_PI, dim / 2.0) * det * gamma1 /
                (gamma2 * pow(nu, dim / 2.0)));
 }
 
-DenseMatrix SPDESolver::ConstructMatrixCoefficient(double l1, double l2,
-                                                   double l3, double e1,
-                                                   double e2, double e3,
-                                                   double nu, int dim)
+DenseMatrix SPDESolver::ConstructMatrixCoefficient(real_t l1, real_t l2,
+                                                   real_t l3, real_t e1,
+                                                   real_t e2, real_t e3,
+                                                   real_t nu, int dim)
 {
    if (dim == 3)
    {
       // Compute cosine and sine of the angles e1, e2, e3
-      const double c1 = cos(e1);
-      const double s1 = sin(e1);
-      const double c2 = cos(e2);
-      const double s2 = sin(e2);
-      const double c3 = cos(e3);
-      const double s3 = sin(e3);
+      const real_t c1 = cos(e1);
+      const real_t s1 = sin(e1);
+      const real_t c2 = cos(e2);
+      const real_t s2 = sin(e2);
+      const real_t c3 = cos(e3);
+      const real_t s3 = sin(e3);
 
       // Fill the rotation matrix R with the Euler angles.
       DenseMatrix R(3, 3);
@@ -634,8 +635,8 @@ DenseMatrix SPDESolver::ConstructMatrixCoefficient(double l1, double l2,
    }
    else if (dim == 2)
    {
-      const double c1 = cos(e1);
-      const double s1 = sin(e1);
+      const real_t c1 = cos(e1);
+      const real_t s1 = sin(e1);
       DenseMatrix Rt(2, 2);
       Rt(0, 0) =  c1;
       Rt(0, 1) =  s1;
@@ -657,8 +658,8 @@ DenseMatrix SPDESolver::ConstructMatrixCoefficient(double l1, double l2,
    }
 }
 
-void SPDESolver::Solve(const ParLinearForm &b, ParGridFunction &x, double alpha,
-                       double beta, int exponent)
+void SPDESolver::Solve(const ParLinearForm &b, ParGridFunction &x, real_t alpha,
+                       real_t beta, int exponent)
 {
    // Form system of equations. This is less general than
    // BilinearForm::FormLinearSystem and kind of resembles the necessary subset
@@ -785,7 +786,7 @@ void SPDESolver::SolveLinearSystem(const HypreParMatrix *Op)
    cg.Mult(B_, X_);
 }
 
-void SPDESolver::ComputeRationalCoefficients(double exponent)
+void SPDESolver::ComputeRationalCoefficients(real_t exponent)
 {
    if (abs(exponent) > 1e-12)
    {

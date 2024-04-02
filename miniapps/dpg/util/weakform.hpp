@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -45,15 +45,15 @@ protected:
    Array<int> dof_offsets;
    Array<int> tdof_offsets;
 
-   /// Block matrix \f$ M \f$ to be associated with the Block bilinear form. Owned.
+   /// Block matrix $ M $ to be associated with the Block bilinear form. Owned.
    BlockMatrix *mat = nullptr;
 
-   /// Block vector \f$ y \f$ to be associated with the Block linear form
+   /// Block vector $ y $ to be associated with the Block linear form
    BlockVector * y = nullptr;
 
-   /** @brief Block Matrix \f$ M_e \f$ used to store the eliminations
+   /** @brief Block Matrix $ M_e $ used to store the eliminations
         from the b.c.  Owned.
-       \f$ M + M_e = M_{original} \f$ */
+       $ M + M_e = M_{original} $ */
    BlockMatrix *mat_e = nullptr;
 
    /// Trial FE spaces
@@ -152,14 +152,14 @@ public:
    ///  Finalizes the matrix initialization.
    void Finalize(int skip_zeros = 1);
 
-   /// Returns a reference to the BlockMatrix:  \f$ M \f$
+   /// Returns a reference to the BlockMatrix:  $ M $
    BlockMatrix &BlockMat()
    {
       MFEM_VERIFY(mat, "mat is NULL and can't be dereferenced");
       return *mat;
    }
 
-   /// Returns a reference to the sparse matrix of eliminated b.c.: \f$ M_e \f$
+   /// Returns a reference to the sparse matrix of eliminated b.c.: $ M_e $
    BlockMatrix &BlockMatElim()
    {
       MFEM_VERIFY(mat_e, "mat_e is NULL and can't be dereferenced");
@@ -236,7 +236,7 @@ public:
       A.MakeRef(*A_ptr);
    }
 
-   /// Eliminate the given @a vdofs, storing the eliminated part internally in \f$ M_e \f$.
+   /// Eliminate the given @a vdofs, storing the eliminated part internally in $ M_e $.
    /** This method works in conjunction with EliminateVDofsInRHS() and allows
        elimination of boundary conditions in multiple right-hand sides. In this
        method, @a vdofs is a list of DOFs. */
