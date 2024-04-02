@@ -68,11 +68,6 @@ protected:
                                  std::vector<double> & coordy,
                                  std::vector<double> & coordz);
 
-   /// @brief Writes nodal coordinates to file.
-   void WriteNodalCoordinates(std::vector<double> & coordx,
-                              std::vector<double> & coordy,
-                              std::vector<double> & coordz);
-
    /// @brief Writes node connectivity for a particular block.
    /// @param block_id The block to write to the file.
    void WriteNodeConnectivityForBlock(const int block_id);
@@ -179,9 +174,6 @@ private:
    int _num_nodes;
    int _num_nodes_id;
    int _num_dim_id;
-   int _coordx_id;
-   int _coordy_id;
-   int _coordz_id;
 };
 
 void ExodusIIWriter::DefineDimension(const char *name, size_t len, int *dim_id)
@@ -574,32 +566,38 @@ void ExodusIIWriter::WriteNumNodes()
 
 void ExodusIIWriter::WriteNodalCoordinates()
 {
-   //
    // Define nodal coordinates.
    // https://docs.unidata.ucar.edu/netcdf-c/current/group__variables.html#gac7e8662c51f3bb07d1fc6d6c6d9052c8
    // NB: assume we have doubles (could be floats!)
    // ndims = 1 (vectors).
-   std::vector<double> coordx(_num_nodes), coordy(_num_nodes),
-       coordz(_mesh.Dimension() == 3 ? _num_nodes : 0);
+   int coordx_id, coordy_id, coordz_id;
+
+   std::vector<double> coordx(_num_nodes);
+   std::vector<double> coordy(_num_nodes);
+   std::vector<double> coordz(_mesh.Dimension() == 3 ? _num_nodes : 0);
 
    ExtractVertexCoordinates(coordx, coordy, coordz);
 
+   // x:
    DefineVar("coordx", NC_DOUBLE, 1, &_num_nodes_id,
-             &_coordx_id);
+             &coordx_id);
 
+   PutVar(coordx_id, coordx.data());
+
+   // y:
    DefineVar("coordy", NC_DOUBLE, 1, &_num_nodes_id,
-             &_coordy_id);
+             &coordy_id);
+
+   PutVar(coordy_id, coordy.data());
 
    if (_mesh.Dimension() == 3)
    {
+      // z:
       DefineVar("coordz", NC_DOUBLE, 1, &_num_nodes_id,
-                &_coordz_id);
-   }
+                &coordz_id);
 
-   //
-   // Write nodal coordinates.
-   //
-   WriteNodalCoordinates(coordx, coordy, coordz);
+      PutVar(coordz_id, coordz.data());
+   }
 }
 
 void ExodusIIWriter::WriteSideSetInformation()
@@ -734,19 +732,6 @@ void ExodusIIWriter::ExtractVertexCoordinates(std::vector<double> &
       {
          coordz[ivertex] = coordinates[2];
       }
-   }
-}
-
-void ExodusIIWriter::WriteNodalCoordinates(std::vector<double> & coordx,
-                                           std::vector<double> & coordy,
-                                           std::vector<double> & coordz)
-{
-   PutVar(_coordx_id, coordx.data());
-   PutVar(_coordy_id, coordy.data());
-
-   if (coordz.size() != 0)
-   {
-      PutVar(_coordz_id, coordz.data());
    }
 }
 
