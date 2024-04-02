@@ -145,6 +145,10 @@ protected:
    void DefineVar(const char *name, nc_type xtype, int ndims, const int *dimidsp,
                   int *varidp);
 
+   /// @brief Write variable data to the file. This is a wrapper around nc_put_var
+   /// with error handling.
+   void PutVar(int varid, const void * data);
+
 private:
    // ExodusII file ID.
    int _exid{-1};
@@ -185,6 +189,13 @@ void ExodusIIWriter::DefineVar(const char *name, nc_type xtype, int ndims,
                                const int *dimidsp, int *varidp)
 {
    _status = nc_def_var(_exid, name, xtype, ndims, dimidsp, varidp);
+   HandleNetCDFStatus();
+}
+
+
+void ExodusIIWriter::PutVar(int varid, const void * data)
+{
+   _status = nc_put_var(_exid, varid, data);
    HandleNetCDFStatus();
 }
 
@@ -309,7 +320,6 @@ void ExodusIIWriter::WriteExodusII(std::string fpath, int flags)
    //
    // Information Data
    //
-
 
    //
    // NB: LibMesh has a dodgy bug where it will skip the x-coordinate if coordx_id == 0.
@@ -436,8 +446,6 @@ void ExodusIIWriter::WriteMaxLineLength()
    HandleNetCDFStatus();
 }
 
-
-
 void ExodusIIWriter::WriteBlockIDs()
 {
    int unique_block_ids_ptr;
@@ -449,8 +457,7 @@ void ExodusIIWriter::WriteBlockIDs()
              &unique_block_ids_ptr);
 
    nc_enddef(_exid);
-   _status = nc_put_var_int(_exid, unique_block_ids_ptr, _block_ids.data());
-   HandleNetCDFStatus();
+   PutVar(unique_block_ids_ptr, _block_ids.data());
    nc_redef(_exid);
 }
 
@@ -599,8 +606,7 @@ void ExodusIIWriter::WriteSideSetInformation()
              &boundary_ids_ptr);
 
    nc_enddef(_exid);
-   _status = nc_put_var_int(_exid, boundary_ids_ptr, _boundary_ids.data());
-   HandleNetCDFStatus();
+   PutVar(boundary_ids_ptr, _boundary_ids.data());
    nc_redef(_exid);
 
    //
@@ -640,8 +646,7 @@ void ExodusIIWriter::WriteSideSetInformation()
                 &side_id_ptr);
 
       nc_enddef(_exid);
-      _status = nc_put_var_int(_exid, side_id_ptr, side_ids.data());
-      HandleNetCDFStatus();
+      PutVar(side_id_ptr, side_ids.data());
       nc_redef(_exid);
    }
 
@@ -666,8 +671,7 @@ void ExodusIIWriter::WriteSideSetInformation()
                 &elem_ids_ptr);
 
       nc_enddef(_exid);
-      _status = nc_put_var_int(_exid, elem_ids_ptr, element_ids.data());
-      HandleNetCDFStatus();
+      PutVar(elem_ids_ptr, element_ids.data());
       nc_redef(_exid);
    }
 }
@@ -707,8 +711,7 @@ void ExodusIIWriter::WriteNodeConnectivityForBlock(const int block_id)
              &connect_id);
 
    nc_enddef(_exid);
-   _status = nc_put_var_int(_exid, connect_id, block_node_connectivity.data());
-   HandleNetCDFStatus();
+   PutVar(connect_id, block_node_connectivity.data());
    nc_redef(_exid);
 }
 
@@ -737,16 +740,12 @@ void ExodusIIWriter::WriteNodalCoordinates(std::vector<double> & coordx,
 {
    nc_enddef(_exid);
 
-   _status = nc_put_var_double(_exid, _coordx_id, coordx.data());
-   HandleNetCDFStatus();
-
-   _status = nc_put_var_double(_exid, _coordy_id, coordy.data());
-   HandleNetCDFStatus();
+   PutVar(_coordx_id, coordx.data());
+   PutVar(_coordy_id, coordy.data());
 
    if (coordz.size() != 0)
    {
-      _status = nc_put_var_double(_exid, _coordz_id, coordz.data());
-      HandleNetCDFStatus();
+      PutVar(_coordz_id, coordz.data());
    }
 
    nc_redef(_exid);
@@ -807,8 +806,7 @@ void ExodusIIWriter::WriteDummyVariable()
    HandleNetCDFStatus();
 
    nc_enddef(_exid);
-   _status = nc_put_var_int(_exid, dummy_var_id, &dummy_value);
-   HandleNetCDFStatus();
+   PutVar(dummy_var_id, &dummy_value);
    nc_redef(_exid);
 }
 
