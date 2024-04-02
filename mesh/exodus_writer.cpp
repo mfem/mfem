@@ -59,11 +59,12 @@ protected:
    /// @brief Closes any open file.
    void CloseExodusII();
 
-   /// @brief Extracts block ids, element ids for each block and element type for each block.
+   /// @brief Extracts block ids, element ids for each block and element type for
+   /// each block.
    void GenerateExodusIIElementBlocks();
 
-   /// @brief Extracts boundary ids and determines the element IDs and side IDs (Exodus II) for
-   /// each boundary element.
+   /// @brief Extracts boundary ids and determines the element IDs and side IDs
+   /// (Exodus II) for  each boundary element.
    void GenerateExodusIIBoundaryInfo();
 
    /// @brief sets @a _num_nodes.
@@ -78,7 +79,8 @@ protected:
    /// @param block_id The block to write to the file.
    void WriteNodeConnectivityForBlock(const int block_id);
 
-   /// @brief Writes boundary information to file. @a GenerateExodusIIBoundaryInfo must be called first.
+   /// @brief Writes boundary information to file. @a GenerateExodusIIBoundaryInfo
+   /// must be called first.
    void WriteBoundaries();
 
    /// @brief Writes the block IDs to the file.
@@ -124,7 +126,9 @@ protected:
    /// @brief Writes the coordinates of nodes.
    void WriteNodalCoordinates();
 
-   /// @brief Writes the file size (normal=0; large=1). Coordinates are specified separately as components for large files (i.e. xxx, yyy, zzz) as opposed to (xyz, xyz, xyz) for normal files.
+   /// @brief Writes the file size (normal=0; large=1). Coordinates are specified
+   /// separately as components for large files (i.e. xxx, yyy, zzz) as opposed to
+   /// (xyz, xyz, xyz) for normal files.
    void WriteFileSize();
 
    /// @brief Writes the nodesets. Currently, we do not support nodesets.
@@ -133,10 +137,15 @@ protected:
    /// @brief Writes the mesh dimension.
    void WriteDimension();
 
-   /// @brief Writes the number of timesteps. Currently, we do not support multiple timesteps.
+   /// @brief Writes the number of timesteps. Currently, we do not support multiple
+   /// timesteps.
    void WriteTimesteps();
 
-   /// @brief Writes a dummy variable. This is to circumvent a bug in LibMesh where it will skip the x-coordinate when reading in an ExodusII file if the id of the x-coordinates is 0. To prevent this, we define a dummy variable before defining the coordinates. This ensures that the coordinate variable IDs have values greater than zero.
+   /// @brief Writes a dummy variable. This is to circumvent a bug in LibMesh where
+   /// it will skip the x-coordinate when reading in an ExodusII file if the id of
+   /// the x-coordinates is 0. To prevent this, we define a dummy variable before
+   /// defining the coordinates. This ensures that the coordinate variable IDs have
+   /// values greater than zero.
    void WriteDummyVariable();
 
    /// @brief Wrapper around nc_def_dim with error handling.
@@ -221,6 +230,22 @@ void ExodusIIWriter::DefineAndPutVar(const char *name, nc_type xtype, int ndims,
    PutVar(varid, data);
 }
 
+const char * EXODUS_TITLE_LABEL = "title";
+const char * EXODUS_NUM_ELEM_LABEL = "num_elem";
+const char * EXODUS_FLOATING_POINT_WORD_SIZE_LABEL = "floating_point_word_size";
+const char * EXODUS_API_VERSION_LABEL = "api_version";
+const char * EXODUS_DATABASE_VERSION_LABEL = "version";
+const char * EXODUS_MAX_NAME_LENGTH_LABEL = "maximum_name_length";
+const char * EXODUS_MAX_LINE_LENGTH_LABEL = "maximum_line_length";
+const char * EXODUS_NUM_BLOCKS_LABEL = "block_dim";
+const char * EXODUS_COORDX_LABEL = "coordx";
+const char * EXODUS_COORDY_LABEL = "coordy";
+const char * EXODUS_COORDZ_LABEL = "coordz";
+const char * EXODUS_NUM_BOUNDARIES_LABEL = "boundary_ids_dim";
+const char * EXODUS_FILE_SIZE_LABEL = "file_size";
+const char * EXODUS_NUM_DIM_LABEL = "num_dim";
+const char * EXODUS_NUM_NODE_SETS_LABEL = "num_node_sets";
+const char * EXODUS_TIME_STEP_LABEL = "time_step";
 
 // Returns the Exodus II face ID for the MFEM face index.
 const int mfem_to_exodusII_side_map_tet4[] =
@@ -411,23 +436,24 @@ ExodusIIWriter::~ExodusIIWriter()
    CloseExodusII();
 }
 
+
 void ExodusIIWriter::WriteTitle()
 {
    const char *title = "MFEM mesh";
 
-   PutAtt(NC_GLOBAL, "title", NC_CHAR, strlen(title), title);
+   PutAtt(NC_GLOBAL, EXODUS_TITLE_LABEL, NC_CHAR, strlen(title), title);
 }
 
 void ExodusIIWriter::WriteNumOfElements()
 {
    int num_elem_id;
-   DefineDimension("num_elem", _mesh.GetNE(), &num_elem_id);
+   DefineDimension(EXODUS_NUM_ELEM_LABEL, _mesh.GetNE(), &num_elem_id);
 }
 
 void ExodusIIWriter::WriteFloatingPointWordSize()
 {
    const int word_size = 8;
-   PutAtt(NC_GLOBAL, "floating_point_word_size",
+   PutAtt(NC_GLOBAL, EXODUS_FLOATING_POINT_WORD_SIZE_LABEL,
           NC_INT, 1,
           &word_size);
 }
@@ -435,35 +461,35 @@ void ExodusIIWriter::WriteFloatingPointWordSize()
 void ExodusIIWriter::WriteAPIVersion()
 {
    float version = 4.72;   // Current version as of 2024-03-21.
-   PutAtt(NC_GLOBAL, "api_version", NC_FLOAT, 1,
+   PutAtt(NC_GLOBAL, EXODUS_API_VERSION_LABEL, NC_FLOAT, 1,
           &version);
 }
 
 void ExodusIIWriter::WriteDatabaseVersion()
 {
    float database_version = 4.72;
-   PutAtt(NC_GLOBAL, "version", NC_FLOAT, 1,
+   PutAtt(NC_GLOBAL, EXODUS_DATABASE_VERSION_LABEL, NC_FLOAT, 1,
           &database_version);
 }
 
 void ExodusIIWriter::WriteMaxNameLength()
 {
    const int max_name_length = 80;
-   PutAtt(NC_GLOBAL, "maximum_name_length", NC_INT, 1,
+   PutAtt(NC_GLOBAL, EXODUS_MAX_NAME_LENGTH_LABEL, NC_INT, 1,
           &max_name_length);
 }
 
 void ExodusIIWriter::WriteMaxLineLength()
 {
    const int max_line_length = 80;
-   PutAtt(NC_GLOBAL, "maximum_line_length", NC_INT, 1,
+   PutAtt(NC_GLOBAL, EXODUS_MAX_LINE_LENGTH_LABEL, NC_INT, 1,
           &max_line_length);
 }
 
 void ExodusIIWriter::WriteBlockIDs()
 {
    int block_dim;
-   DefineDimension("block_dim", _block_ids.size(), &block_dim);
+   DefineDimension(EXODUS_NUM_BLOCKS_LABEL, _block_ids.size(), &block_dim);
 
    DefineAndPutVar("eb_prop1", NC_INT, 1, &block_dim,
                    _block_ids.data());
@@ -501,12 +527,9 @@ void ExodusIIWriter::WriteElementBlockParameters(int block_id)
 {
    char * label{nullptr};
 
-   const auto & block_element_ids = _element_ids_for_block_id.at(block_id);
-   //
-   // TODO: - element block IDs 0-indexed MFEM --> 1-indexed Exodus II
-   //
-
-   Element * front_element = _mesh.GetElement(block_element_ids.front());
+   const std::vector<int> & block_element_ids = _element_ids_for_block_id.at(
+                                                   block_id);
+   const Element * front_element = _mesh.GetElement(block_element_ids.front());
 
    //
    // Define # elements in the block.
@@ -599,12 +622,15 @@ void ExodusIIWriter::WriteNodalCoordinates()
 
    ExtractVertexCoordinates(coordx, coordy, coordz);
 
-   DefineAndPutVar("coordx", NC_DOUBLE, 1, &_num_nodes_id, coordx.data());
-   DefineAndPutVar("coordy", NC_DOUBLE, 1, &_num_nodes_id, coordy.data());
+   DefineAndPutVar(EXODUS_COORDX_LABEL, NC_DOUBLE, 1, &_num_nodes_id,
+                   coordx.data());
+   DefineAndPutVar(EXODUS_COORDY_LABEL, NC_DOUBLE, 1, &_num_nodes_id,
+                   coordy.data());
 
    if (_mesh.Dimension() == 3)
    {
-      DefineAndPutVar("coordz", NC_DOUBLE, 1, &_num_nodes_id, coordz.data());
+      DefineAndPutVar(EXODUS_COORDZ_LABEL, NC_DOUBLE, 1, &_num_nodes_id,
+                      coordz.data());
    }
 }
 
@@ -614,7 +640,7 @@ void ExodusIIWriter::WriteBoundaries()
    // Add the boundary IDs
    //
    int boundary_ids_dim;
-   DefineDimension("boundary_ids_dim", _boundary_ids.size(),
+   DefineDimension(EXODUS_NUM_BOUNDARIES_LABEL, _boundary_ids.size(),
                    &boundary_ids_dim);
 
    DefineAndPutVar("ss_prop1", NC_INT, 1, &boundary_ids_dim, _boundary_ids.data());
@@ -656,7 +682,8 @@ void ExodusIIWriter::WriteBoundaries()
    //
    for (int boundary_id : _boundary_ids)
    {
-      // TODO: - need to figure-out correct element ids (we only have local element indexes into the boundaries array!)
+      // TODO: - need to figure-out correct element ids (we only have local element
+      /// indexes into the boundaries array!)
       const std::vector<int> & element_ids = _exodusII_element_ids_for_boundary_id.at(
                                                 boundary_id);
 
@@ -721,16 +748,16 @@ void ExodusIIWriter::ExtractVertexCoordinates(std::vector<double> &
 
 void ExodusIIWriter::WriteFileSize()
 {
-   // Store Exodus file size (normal==0; large==1). NB: coordinates specifed separately as components
-   // for large file.
+   // Store Exodus file size (normal==0; large==1). NB: coordinates specifed
+   // separately as components for large file.
    const int file_size = 1;
 
-   PutAtt(NC_GLOBAL, "file_size", NC_INT, 1, &file_size);
+   PutAtt(NC_GLOBAL, EXODUS_FILE_SIZE_LABEL, NC_INT, 1, &file_size);
 }
 
 void ExodusIIWriter::WriteDimension()
 {
-   DefineDimension("num_dim", _mesh.Dimension(), &_num_dim_id);
+   DefineDimension(EXODUS_NUM_DIM_LABEL, _mesh.Dimension(), &_num_dim_id);
 }
 
 void ExodusIIWriter::WriteNodeSets()
@@ -738,7 +765,7 @@ void ExodusIIWriter::WriteNodeSets()
    // Set # node sets - TODO: add this (currently, set to 0).
    int num_node_sets_ids;
 
-   DefineDimension("num_node_sets", 0, &num_node_sets_ids);
+   DefineDimension(EXODUS_NUM_NODE_SETS_LABEL, 0, &num_node_sets_ids);
 }
 
 void ExodusIIWriter::WriteTimesteps()
@@ -746,14 +773,14 @@ void ExodusIIWriter::WriteTimesteps()
    // Set # timesteps (ASSUME no timesteps for initial verision)
    int timesteps_dim;
 
-   DefineDimension("time_step", 1, &timesteps_dim);
+   DefineDimension(EXODUS_TIME_STEP_LABEL, 1, &timesteps_dim);
 }
 
 void ExodusIIWriter::WriteDummyVariable()
 {
-   // NB: LibMesh has a dodgy bug where it will skip the x-coordinate if coordx_id == 0.
-   // To prevent this, the first variable to be defined will be a dummy variable which will
-   // have a variable id of 0.
+   // NB: LibMesh has a dodgy bug where it will skip the x-coordinate if
+   // coordx_id == 0. To prevent this, the first variable to be defined will be
+   // a dummy variable which will have a variable id of 0.
    int dummy_var_dim_id, dummy_value = 1;
 
    DefineDimension("dummy_var_dim", 1, &dummy_var_dim_id);
@@ -762,11 +789,12 @@ void ExodusIIWriter::WriteDummyVariable()
                    &dummy_value);
 }
 
-/// @brief Generates blocks based on the elements in the mesh. We assume that this was originally an Exodus II
-/// mesh. Therefore, we iterate over the elements and use the attributes as the element blocks. We assume that
-/// all elements belonging to the same block will have the same attribute. We can perform a safety check as well
-/// by ensuring that all elements in the block have the same element type. If this is not the case then something
-/// has gone horribly wrong!
+/// @brief Generates blocks based on the elements in the mesh. We assume that
+/// this was originally an Exodus II mesh. Therefore, we iterate over the elements
+/// and use the attributes as the element blocks. We assume that all elements
+/// belonging to the same block will have the same attribute. We can perform a
+/// safety check as well  by ensuring that all elements in the block have the same
+/// element type. If this is not the case then something has gone horribly wrong!
 void ExodusIIWriter::GenerateExodusIIElementBlocks()
 {
    _block_ids.clear();
@@ -796,7 +824,8 @@ void ExodusIIWriter::GenerateExodusIIElementBlocks()
          auto & block_element_ids = _element_ids_for_block_id.at(block_id);
          block_element_ids.push_back(ielement);
 
-         // Safety check: ensure that the element type matches what we have on record for the block.
+         // Safety check: ensure that the element type matches what we have on record
+         // for the block.
          if (element_type != _element_type_for_block_id.at(block_id))
          {
             MFEM_ABORT("Multiple element types are defined for block: " << block_id);
@@ -812,7 +841,8 @@ void ExodusIIWriter::WriteNumElementBlocks()
                    &num_elem_blk_id);
 }
 
-/// @brief Iterates over the elements of the mesh to extract a unique set of node IDs (or vertex IDs if first-order).
+/// @brief Iterates over the elements of the mesh to extract a unique set of node
+/// IDs (or vertex IDs if first-order).
 void ExodusIIWriter::FindNumUniqueNodes()
 {
    std::set<int> node_ids;
@@ -900,7 +930,11 @@ void ExodusIIWriter::GenerateExodusIIBoundaryInfo()
             continue;
          }
 
-         mfem_face_index_info_for_global_face_index[face_index] = { .element_index = ielement, .local_face_index = iface };
+         mfem_face_index_info_for_global_face_index[face_index] =
+         {
+            .element_index = ielement,
+            .local_face_index = iface
+         };
       }
    }
 
