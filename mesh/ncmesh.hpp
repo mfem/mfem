@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -293,6 +293,7 @@ public:
       mutable std::unordered_map<int, std::pair<MeshIdType, int>> inv_index;
    };
 
+
    /// Return the current list of conforming and nonconforming faces.
    const NCList& GetFaceList()
    {
@@ -336,13 +337,13 @@ public:
    /** After refinement, calculate the relation of each fine element to its
        parent coarse element. Note that Refine() or LimitNCLevel() can be called
        multiple times between MarkCoarseLevel() and this function. */
-   const CoarseFineTransformations& GetRefinementTransforms();
+   const CoarseFineTransformations& GetRefinementTransforms() const;
 
    /** After derefinement, calculate the relations of previous fine elements
        (some of which may no longer exist) to the current leaf elements.
        Unlike for refinement, Derefine() may only be called once before this
        function so there is no MarkFineLevel(). */
-   const CoarseFineTransformations& GetDerefinementTransforms();
+   const CoarseFineTransformations& GetDerefinementTransforms() const;
 
    /// Free all internal data created by the above three functions.
    void ClearTransforms();
@@ -389,14 +390,32 @@ public:
        parent. */
    int GetEdgeMaster(int v1, int v2) const;
 
-   /** Get a list of vertices (2D/3D) and edges (3D) that coincide with boundary
-       elements with the specified attributes (marked in 'bdr_attr_is_ess').
-       In 3D this function also reveals "hidden" boundary edges. In parallel it
-       helps identifying boundary vertices/edges affected by non-local boundary
-       elements. */
+   /** Get a list of vertices (2D/3D), edges (3D) and faces (3D) that coincide
+       with boundary elements with the specified attributes (marked in
+       'bdr_attr_is_ess'). In 3D this function also reveals "hidden" boundary
+       edges. In parallel it helps identifying boundary vertices/edges/faces
+       affected by non-local boundary elements. Hidden faces can occur for an
+       internal boundary coincident to a processor boundary.
+       */
+
+   /**
+    * @brief Get a list of vertices (2D/3D), edges (3D) and faces (3D) that
+    * coincide with boundary elements with the specified attributes (marked in
+    * 'bdr_attr_is_ess').
+    *
+    * @details In 3D this function also reveals "hidden" boundary edges. In
+    * parallel it helps identifying boundary vertices/edges/faces affected by
+    * non-local boundary elements. Hidden faces can occur for an internal
+    * boundary coincident to a processor boundary.
+    *
+    * @param bdr_attr_is_ess Indicator if a given attribute is essential.
+    * @param bdr_vertices Array of vertices that are essential.
+    * @param bdr_edges Array of edges that are essential.
+    * @param bdr_faces Array of faces that are essential.
+    */
    virtual void GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
                                    Array<int> &bdr_vertices,
-                                   Array<int> &bdr_edges);
+                                   Array<int> &bdr_edges, Array<int> &bdr_faces);
 
    /// Return element geometry type. @a index is the Mesh element number.
    Geometry::Type GetElementGeometry(int index) const
@@ -421,8 +440,10 @@ public:
                                   Array<int> &fattr) const;
 
 
-   /// I/O: Print the mesh in "MFEM NC mesh v1.0" format.
-   void Print(std::ostream &out) const;
+   /** I/O: Print the mesh in "MFEM NC mesh v1.0" format. If @a comments is
+       non-empty, it will be printed after the first line of the file, and each
+       line should begin with '#'. */
+   void Print(std::ostream &out, const std::string &comments = "") const;
 
    /// I/O: Return true if the mesh was loaded from the legacy v1.1 format.
    bool IsLegacyLoaded() const { return Legacy; }
@@ -455,7 +476,6 @@ protected: // non-public interface for the Mesh class
    /** Delete top-level vertex coordinates if the Mesh became curved, e.g.,
        by calling Mesh::SetCurvature or otherwise setting the Nodes. */
    void MakeTopologyOnly() { coordinates.DeleteAll(); }
-
 
 protected: // implementation
 
@@ -562,7 +582,7 @@ protected: // implementation
 
    /** Coordinates of top-level vertices (organized as triples). If empty,
        the Mesh is curved (Nodes != NULL) and NCMesh is topology-only. */
-   Array<double> coordinates;
+   Array<real_t> coordinates;
 
 
    // secondary data
@@ -593,7 +613,6 @@ protected: // implementation
    Array<char> face_geom; ///< face geometry by face index, set by OnMeshUpdated
 
    Table element_vertex; ///< leaf-element to vertex table, see FindSetNeighbors
-
 
    /// Update the leaf elements indices in leaf_elements
    void UpdateLeafElements();
@@ -712,10 +731,79 @@ protected: // implementation
 
    mfem::Element* NewMeshElement(int geom) const;
 
-   int QuadFaceSplitType(int v1, int v2, int v3, int v4, int mid[5]
+   /**
+    * @brief Given a quad face defined by four vertices, establish which edges
+    * of this face have been split, and if so optionally return the mid points
+    * of those edges.
+    *
+    * @param n1 The first node defining the face
+    * @param n2 The second node defining the face
+    * @param n3 The third node defining the face
+    * @param n4 The fourth node defining the face
+    * @param mid optional return of the edge mid points.
+    * @return int 0 -- no split, 1 -- "vertical" split, 2 -- "horizontal" split
+    */
+   int QuadFaceSplitType(int n1, int n2, int n3, int n4, int mid[5]
                          = NULL /*optional output of mid-edge nodes*/) const;
 
-   bool TriFaceSplit(int v1, int v2, int v3, int mid[3] = NULL) const;
+   /**
+    * @brief Given a tri face defined by three vertices, establish whether the
+    * edges that make up this face have been split, and if so optionally return
+    * the midpoints.
+    * @details This is a necessary condition for this face to have been split,
+    * but is not sufficient. Consider a triangle attached to three refined
+    * triangles, in this scenario all edges can be split but this face not be
+    * split. In this case, it is necessary to check if there is a face made up
+    * of the returned midpoint nodes.
+    *
+    * @param n1 The first node defining the face
+    * @param n2 The second node defining the face
+    * @param n3 The third node defining the face
+    * @param mid optional return of the edge mid points.
+    * @return true Splits for all edges have been found
+    * @return false
+    */
+   bool TriFaceSplit(int n1, int n2, int n3, int mid[3] = NULL) const;
+
+   /**
+    * @brief Determine if a Triangle face is a master face
+    * @details This check requires looking for the edges making up the triangle
+    * being split, if nodes exist at their midpoints, and there are vertices at
+    * them, this implies the face COULD be split. To determine if it is, we then
+    * check whether these midpoints have all been connected, this is required to
+    * discriminate between an internal master face surrounded by nonconformal
+    * refinements and a conformal boundary face surrounded by refinements.
+    *
+    * @param n1 The first node defining the face
+    * @param n2 The second node defining the face
+    * @param n3 The third node defining the face
+    * @return true The face is a master
+    * @return false The face is not a master
+    */
+   inline bool TriFaceIsMaster(int n1, int n2, int n3) const
+   {
+      int mid[3];
+      return !(!TriFaceSplit(n1, n2, n3, mid) // The edges aren't split
+               // OR none of the midpoints are connected.
+               || (nodes.FindId(mid[0], mid[1]) < 0 &&
+                   nodes.FindId(mid[0], mid[2]) < 0 &&
+                   nodes.FindId(mid[1], mid[2]) < 0));
+   }
+
+   /**
+    * @brief Determine if a Quad face is a master face
+    *
+    * @param n1 The first node defining the face
+    * @param n2 The second node defining the face
+    * @param n3 The third node defining the face
+    * @param n4 The fourth node defining the face
+    * @return true The quad face is a master face
+    * @return false The quad face is not a master face
+    */
+   inline bool QuadFaceIsMaster(int n1, int n2, int n3, int n4) const
+   {
+      return QuadFaceSplitType(n1, n2, n3, n4) != 0;
+   }
 
    void ForceRefinement(int vn1, int vn2, int vn3, int vn4);
 
@@ -781,7 +869,7 @@ protected: // implementation
                                           MatrixMap &matrix_map);
    void TraverseTetEdge(int vn0, int vn1, const Point &p0, const Point &p1,
                         MatrixMap &matrix_map);
-   void TraverseEdge(int vn0, int vn1, double t0, double t1, int flags,
+   void TraverseEdge(int vn0, int vn1, real_t t0, real_t t1, int flags,
                      int level, MatrixMap &matrix_map);
 
    virtual void BuildFaceList();
@@ -791,7 +879,6 @@ protected: // implementation
    virtual void ElementSharesFace(int elem, int local, int face) {} // ParNCMesh
    virtual void ElementSharesEdge(int elem, int local, int enode) {} // ParNCMesh
    virtual void ElementSharesVertex(int elem, int local, int vnode) {} // ParNCMesh
-
 
    // neighbors / element_vertex table
 
@@ -848,19 +935,19 @@ protected: // implementation
    struct Point
    {
       int dim;
-      double coord[3];
+      real_t coord[3];
 
       Point() { dim = 0; }
 
       Point(const Point &) = default;
 
-      Point(double x)
+      Point(real_t x)
       { dim = 1; coord[0] = x; }
 
-      Point(double x, double y)
+      Point(real_t x, real_t y)
       { dim = 2; coord[0] = x; coord[1] = y; }
 
-      Point(double x, double y, double z)
+      Point(real_t x, real_t y, real_t z)
       { dim = 3; coord[0] = x; coord[1] = y; coord[2] = z; }
 
       Point(const Point& p0, const Point& p1)
@@ -965,15 +1052,15 @@ protected: // implementation
    static const PointMatrix& GetGeomIdentity(Geometry::Type geom);
 
    void GetPointMatrix(Geometry::Type geom, const char* ref_path,
-                       DenseMatrix& matrix);
+                       DenseMatrix& matrix) const;
 
    typedef std::map<std::string, int> RefPathMap;
 
    void TraverseRefinements(int elem, int coarse_index,
-                            std::string &ref_path, RefPathMap &map);
+                            std::string &ref_path, RefPathMap &map) const;
 
    /// storage for data returned by Get[De]RefinementTransforms()
-   CoarseFineTransformations transforms;
+   mutable CoarseFineTransformations transforms;
 
    /// state of leaf_elements before Refine(), set by MarkCoarseLevel()
    Array<int> coarse_elements;
@@ -981,31 +1068,75 @@ protected: // implementation
    void InitDerefTransforms();
    void SetDerefMatrixCodes(int parent, Array<int> &fine_coarse);
 
-
    // vertex temporary data, used by GetMeshComponents
-
    struct TmpVertex
    {
       bool valid, visited;
-      double pos[3];
+      real_t pos[3];
       TmpVertex() : valid(false), visited(false) {}
    };
 
    mutable TmpVertex* tmp_vertex;
 
-   const double *CalcVertexPos(int node) const;
+   const real_t *CalcVertexPos(int node) const;
 
 
    // utility
 
    int GetEdgeMaster(int node) const;
 
-   void FindFaceNodes(int face, int node[4]);
+   void FindFaceNodes(int face, int node[4]) const;
 
+   /**
+    * @brief Return the number of splits of this edge that have occurred in the
+    * NCMesh. If zero, this means the segment is not the master of any other segments.
+    *
+    * @param vn1 The first vertex making up the segment
+    * @param vn2 The second vertex making up the segment
+    * @return int The depth of splits of this segment that are present in the mesh.
+    */
    int EdgeSplitLevel(int vn1, int vn2) const;
+   /**
+    * @brief Return the number of splits of this triangle that have occurred in
+    * the NCMesh. If zero, this means the triangle is neither split, nor the
+    * master of a split face.
+    *
+    * @param vn1 The first vertex making up the triangle
+    * @param vn2 The second vertex making up the triangle
+    * @param vn3 The third vertex making up the triangle
+    * @return int The depth of splits of this triangle that are present in the mesh.
+    */
    int TriFaceSplitLevel(int vn1, int vn2, int vn3) const;
+   /**
+    * @brief Computes the number of horizontal and vertical splits of this quad
+    * that have occurred in the NCMesh. If zero, this means the quad is not
+    * the master of any other quad.
+    *
+    * @param vn1 The first vertex making up the quad
+    * @param vn2 The second vertex making up the quad
+    * @param vn3 The third vertex making up the quad
+    * @param vn4 The fourth vertex making up the quad
+    * @param h_level The number of "horizontal" splits of the quad
+    * @param v_level The number of "vertical" splits of the quad
+    */
    void QuadFaceSplitLevel(int vn1, int vn2, int vn3, int vn4,
                            int& h_level, int& v_level) const;
+   /**
+    * @brief Returns the total number of splits of this quad that have occurred
+    * in the NCMesh. If zero, this means the quad is not
+    * the master of any other quad.
+    * @details This is a convenience wrapper that sums the horizontal and
+    * vertical levels from the full method.
+    *
+    * @param vn1 The first vertex making up the quad
+    * @param vn2 The second vertex making up the quad
+    * @param vn3 The third vertex making up the quad
+    * @param vn4 The fourth vertex making up the quad
+    * @return int The depth of splits of this triangle that are present in the
+    * mesh. NB: An isotropic refinement has a level of 2, one horizontal split,
+    * followed by a vertical split.
+    */
+   int QuadFaceSplitLevel(int vn1, int vn2, int vn3, int vn4) const;
 
    void CountSplits(int elem, int splits[3]) const;
    void GetLimitRefinements(Array<Refinement> &refinements, int max_level);
@@ -1041,7 +1172,6 @@ protected: // implementation
    void CopyElements(int elem, const BlockArray<Element> &tmp_elements);
    /// Load the deprecated MFEM mesh v1.1 format for backward compatibility.
    void LoadLegacyFormat(std::istream &input, int &curved, int &is_nc);
-
 
    // geometry
 

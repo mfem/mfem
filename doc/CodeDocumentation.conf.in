@@ -1125,7 +1125,13 @@ IMAGE_PATH             =
 # need to set EXTENSION_MAPPING for the extension otherwise the files are not
 # properly processed by doxygen.
 
-INPUT_FILTER           =
+# Allow the use of standard LaTeX formulas in MFEM comments by replacing
+# $$...$$ with \f[...\f] and $...$ with \f$...\f$ before running Doxygen.
+# The regular expression ((?:.|\n)+?) is a lazy match for one or more
+# characters, include newline. If present, Doxygen-style LaTeX commands
+# such as \f$, \f[, etc., are left unchanged.
+
+INPUT_FILTER           = "perl -0777 -pe 's/\$\$((?:.|\n)+?)\$\$/\\f[\1\\f]/g; s/(?<!\\f)\$((?:.|\n)+?)\$/\\f\$\1\\f\$/g'"
 
 # The FILTER_PATTERNS tag can be used to specify filters on a per file pattern
 # basis. Doxygen will compare the file name with each pattern and apply the
@@ -1782,7 +1788,7 @@ USE_MATHJAX            = YES
 # The default value is: MathJax_2.
 # This tag requires that the tag USE_MATHJAX is set to YES.
 
-MATHJAX_VERSION        = MathJax_2
+MATHJAX_VERSION        = MathJax_3
 
 # When MathJax is enabled you can set the default output format to be used for
 # the MathJax output. For more details about the output format see MathJax
@@ -1799,7 +1805,7 @@ MATHJAX_VERSION        = MathJax_2
 # The default value is: HTML-CSS.
 # This tag requires that the tag USE_MATHJAX is set to YES.
 
-MATHJAX_FORMAT         = HTML-CSS
+MATHJAX_FORMAT         =
 
 # When MathJax is enabled you need to specify the location relative to the HTML
 # output directory using the MATHJAX_RELPATH option. The destination directory
@@ -1813,7 +1819,7 @@ MATHJAX_FORMAT         = HTML-CSS
 # - in case of MathJax version 3: https://cdn.jsdelivr.net/npm/mathjax@3
 # This tag requires that the tag USE_MATHJAX is set to YES.
 
-MATHJAX_RELPATH        = http://cdn.mathjax.org/mathjax/latest
+MATHJAX_RELPATH        =
 
 # The MATHJAX_EXTENSIONS tag can be used to specify one or more MathJax
 # extension names that should be enabled during MathJax rendering. For example
@@ -1825,8 +1831,7 @@ MATHJAX_RELPATH        = http://cdn.mathjax.org/mathjax/latest
 # MATHJAX_EXTENSIONS = ams
 # This tag requires that the tag USE_MATHJAX is set to YES.
 
-MATHJAX_EXTENSIONS     = TeX/AMSmath \
-                         TeX/AMSsymbols
+MATHJAX_EXTENSIONS     = ams
 
 # The MATHJAX_CODEFILE tag can be used to specify a file with javascript pieces
 # of code that will be used on startup of the MathJax code. See the MathJax site

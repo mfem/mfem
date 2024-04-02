@@ -342,6 +342,7 @@ miniapps/toys/mondrian.mesh
 miniapps/solvers/block-solvers
 miniapps/solvers/lor_solvers
 miniapps/solvers/plor_solvers
+miniapps/solvers/lor_elast
 miniapps/solvers/ParaView
 miniapps/solvers/mesh.*
 miniapps/solvers/sol.*

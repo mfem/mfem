@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -41,8 +41,8 @@ static int notch_ = 0;
 static int step_  = 0;
 static int nstep_ = 6;
 
-static double cosa_ = cos(0.5 * M_PI / nstep_);
-static double sina_ = sin(0.5 * M_PI / nstep_);
+static real_t cosa_ = cos(0.5 * M_PI / nstep_);
+static real_t sina_ = sin(0.5 * M_PI / nstep_);
 
 /** Pre-programmed configurations (feel free to add your own).
 
@@ -190,7 +190,7 @@ int main(int argc, char *argv[])
    Mesh mesh(3, 6 * 24, 24);
 
    // Add vertices for 24 elements
-   double c[9];
+   real_t c[9];
    int v[6];
    for (int i=0; i<12; i++)
    {
@@ -313,11 +313,11 @@ int main(int argc, char *argv[])
 }
 
 void
-rotate(double * x)
+rotate(real_t * x)
 {
    if (notch_ == 0) { return; }
 
-   double cent[3];
+   real_t cent[3];
    Vector cVec(cent,3);
    Vector xVec(x,3);
 
@@ -384,11 +384,11 @@ trans(const int * new_conf, Mesh & mesh)
 }
 
 void
-rotate_step(double * x)
+rotate_step(real_t * x)
 {
    if (notch_ == 0) { return; }
 
-   double cent[3], y[3];
+   real_t cent[3], y[3];
    Vector cVec(cent,3);
    Vector xVec(x,3);
    Vector yVec(y,3);
