@@ -28,6 +28,9 @@ Discretization improvements
   IntegrationRules through a moment-fitting approach. The cut is specified by
   the zero level set of a Coefficient. See fem/intrules_cut.hpp and Example 38.
 
+- Added NURBS-based H(div) and H(curl) elements in 2D and 3D. Only on single 
+  patch meshes. Only implemented for serial computations.
+
 GPU support
 ----------------------------
 - Added support for full assembly on simplices.
@@ -44,6 +47,8 @@ New and updated examples and miniapps
 - Added miniapp to demonstrate new elasticity integrator and unstructured element GPU support,
   and a block diagonal preconditioner using low order refinement. Allows comparison with
   currently existing legacy mode integrator. See miniapps/solvers/lor_elast.
+
+- Added miniapps to demonstrate the H(div) and H(curl) NURBS elements.
 
 Miscellaneous
 -------------
