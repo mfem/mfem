@@ -917,7 +917,7 @@ void ParNCL2FaceRestriction::FillJAndData(const Vector &fea_data,
          {
             const int jE2 = d_indices2[f*nface_dofs+jF];
             J[offset1+jF] = jE2;
-            double val2 = 0.0;
+            real_t val2 = 0.0;
             if ( conf.is_non_conforming && master_side==0 )
             {
                for (int kF = 0; kF < nface_dofs; kF++)
@@ -947,7 +947,7 @@ void ParNCL2FaceRestriction::FillJAndData(const Vector &fea_data,
          {
             const int jE1 = d_indices1[f*nface_dofs+jF];
             J[offset2+jF] = jE1;
-            double val1 = 0.0;
+            real_t val1 = 0.0;
             if ( conf.is_non_conforming && master_side==0 )
             {
                for (int kF = 0; kF < nface_dofs; kF++)
