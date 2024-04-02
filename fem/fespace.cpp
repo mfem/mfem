@@ -2313,6 +2313,8 @@ void FiniteElementSpace::UpdateNURBS()
    face_dof = NULL;
    face_to_be.DeleteAll();
 
+   // Depending on the element type create the appropriate extensions
+   // for the individual components.
    dynamic_cast<const NURBSFECollection *>(fec)->Reset();
 
    if (dynamic_cast<const NURBS_HDivFECollection *>(fec))
@@ -2333,6 +2335,8 @@ void FiniteElementSpace::UpdateNURBS()
       }
    }
 
+   // If required: concatenate the dof tables of the individual components into
+   // one dof table for the vector fespace.
    if (VNURBSext.Size() == 2)
    {
       int offset1 = VNURBSext[0]->GetNDof();
