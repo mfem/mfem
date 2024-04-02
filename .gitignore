@@ -294,6 +294,9 @@ miniapps/performance/refined.mesh
 miniapps/performance/mesh.*
 miniapps/performance/sol.*
 
+miniapps/plasma/stix_r2d_dh
+miniapps/plasma/stix_r2d_eb
+
 miniapps/shifted/distance
 miniapps/shifted/ParaViewDistance
 miniapps/shifted/ParaViewLSF
