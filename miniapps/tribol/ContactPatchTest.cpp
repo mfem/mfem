@@ -288,6 +288,7 @@ int main(int argc, char *argv[])
    solver.SetPrintLevel(3);
    solver.SetOperator(*A_hyprePar);
    mfem::HypreDiagScale prec(*A_hyprePar);
+   prec.SetErrorMode(mfem::HypreSolver::IGNORE_HYPRE_ERRORS);
    solver.SetPreconditioner(prec);
 #endif
    solver.Mult(B_blk, X_blk);
