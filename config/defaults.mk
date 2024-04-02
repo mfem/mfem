@@ -583,10 +583,9 @@ ifeq ($(MFEM_USE_TRIBOL),YES)
 endif
 AXOM_DIR = @MFEM_DIR@/../axom
 TRIBOL_DIR = @MFEM_DIR@/../tribol
-TRIBOL_OPT = -I$(TRIBOL_DIR)/include -I$(AXOM_DIR)/include -I$(CONDUIT_DIR)/include/conduit
+TRIBOL_OPT = -I$(TRIBOL_DIR)/include -I$(AXOM_DIR)/include
 TRIBOL_LIB = -L$(TRIBOL_DIR)/lib -ltribol -lredecomp -L$(AXOM_DIR)/lib -laxom_mint\
-   -laxom_sidre -laxom_slam -laxom_slic -laxom_core -L$(CONDUIT_DIR)/lib -lconduit\
-   -lconduit_blueprint -lconduit_blueprint_mpi -lconduit_relay -lconduit_relay_mpi
+   -laxom_slam -laxom_slic -laxom_core
 
 # Enzyme configuration
 
