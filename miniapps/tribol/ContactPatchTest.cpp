@@ -50,6 +50,14 @@
 #include "tribol/interface/tribol.hpp"
 #include "tribol/interface/mfem_tribol.hpp"
 
+// Define MPI_REAL_T
+#if defined(MFEM_USE_DOUBLE)
+   #define MPI_REAL_T MPI_DOUBLE
+#else
+   #error "Tribol requires MFEM built with double precision!"
+#endif
+
+
 int main(int argc, char *argv[])
 {
    // Initialize MPI
@@ -61,8 +69,8 @@ int main(int argc, char *argv[])
 
    // Define command line options
    int ref_levels = 2;   // number of times to uniformly refine the serial mesh
-   double lambda = 50.0; // Lame parameter lambda
-   double mu = 50.0;     // Lame parameter mu (shear modulus)
+   mfem::real_t lambda = 50.0; // Lame parameter lambda
+   mfem::real_t mu = 50.0;     // Lame parameter mu (shear modulus)
 
    // Parse command line options
    mfem::OptionsParser args(argc, argv);
@@ -216,8 +224,8 @@ int main(int argc, char *argv[])
 
    // #5: Update contact gaps, forces, and tangent stiffness contributions
    int cycle = 1;   // pseudo cycle
-   double t = 1.0;  // pseudo time
-   double dt = 1.0; // pseudo dt
+   mfem::real_t t = 1.0;  // pseudo time
+   mfem::real_t dt = 1.0; // pseudo dt
    tribol::update(cycle, t, dt);
 
    // #6a: Return contact contribution to the tangent stiffness matrix as a
@@ -319,13 +327,13 @@ int main(int argc, char *argv[])
    auto resid_linf = resid_true.Normlinf();
    if (mfem::Mpi::Root())
    {
-      MPI_Reduce(MPI_IN_PLACE, &resid_linf, 1, MPI_DOUBLE, MPI_MAX, 0,
+      MPI_Reduce(MPI_IN_PLACE, &resid_linf, 1, MPI_REAL_T, MPI_MAX, 0,
                  MPI_COMM_WORLD);
       std::cout << "|| force residual ||_(infty) = " << resid_linf << std::endl;
    }
    else
    {
-      MPI_Reduce(&resid_linf, &resid_linf, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+      MPI_Reduce(&resid_linf, &resid_linf, 1, MPI_REAL_T, MPI_MAX, 0, MPI_COMM_WORLD);
    }
 
    // Verify the gap is closed by the displacements, i.e. B*u = gap
@@ -337,13 +345,13 @@ int main(int argc, char *argv[])
    auto gap_resid_linf = gap_resid_true.Normlinf();
    if (mfem::Mpi::Root())
    {
-      MPI_Reduce(MPI_IN_PLACE, &gap_resid_linf, 1, MPI_DOUBLE, MPI_MAX, 0,
+      MPI_Reduce(MPI_IN_PLACE, &gap_resid_linf, 1, MPI_REAL_T, MPI_MAX, 0,
                  MPI_COMM_WORLD);
       std::cout << "|| gap residual ||_(infty) = " << gap_resid_linf << std::endl;
    }
    else
    {
-      MPI_Reduce(&gap_resid_linf, &gap_resid_linf, 1, MPI_DOUBLE, MPI_MAX, 0,
+      MPI_Reduce(&gap_resid_linf, &gap_resid_linf, 1, MPI_REAL_T, MPI_MAX, 0,
                  MPI_COMM_WORLD);
    }
 
