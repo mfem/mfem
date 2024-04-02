@@ -79,7 +79,7 @@ protected:
    void WriteNodeConnectivityForBlock(const int block_id);
 
    /// @brief Writes boundary information to file. @a GenerateExodusIIBoundaryInfo must be called first.
-   void WriteSideSetInformation();
+   void WriteBoundaries();
 
    /// @brief Writes the block IDs to the file.
    void WriteBlockIDs();
@@ -159,6 +159,8 @@ protected:
    /// error handling.
    void PutAtt(int varid, const char *name, nc_type xtype, size_t len,
                const void * data);
+
+   char * GenerateLabel(const char * format, ...);
 
 private:
    // ExodusII file ID.
@@ -365,7 +367,7 @@ void ExodusIIWriter::WriteExodusII(std::string fpath, int flags)
    //
    // Write sideset information.
    //
-   WriteSideSetInformation();
+   WriteBoundaries();
 
    CloseExodusII();
 
@@ -475,9 +477,29 @@ void ExodusIIWriter::WriteElementBlockParameters()
    }
 }
 
+char * ExodusIIWriter::GenerateLabel(const char * format, ...)
+{
+   va_list arglist;
+   va_start(arglist, format);
+
+   const size_t buffer_size = 100;
+
+   static char buffer[buffer_size];
+   int nwritten = vsnprintf(buffer, buffer_size, format, arglist);
+
+   bool ok = (nwritten > 0 && nwritten < buffer_size);
+   if (!ok)
+   {
+      MFEM_ABORT("Unable to write characters to buffer.");
+   }
+
+   va_end(arglist);
+   return buffer;
+}
+
 void ExodusIIWriter::WriteElementBlockParameters(int block_id)
 {
-   char name_buffer[100];
+   char * label{nullptr};
 
    const auto & block_element_ids = _element_ids_for_block_id.at(block_id);
    //
@@ -489,38 +511,38 @@ void ExodusIIWriter::WriteElementBlockParameters(int block_id)
    //
    // Define # elements in the block.
    //
-   sprintf(name_buffer, "num_el_in_blk%d", block_id);
+   label = GenerateLabel("num_el_in_blk%d", block_id);
 
    int num_el_in_blk_id;
-   DefineDimension(name_buffer, block_element_ids.size(),
+   DefineDimension(label, block_element_ids.size(),
                    &num_el_in_blk_id);
 
 
    //
    // Define # nodes per element. NB: - assume first-order elements currently!!
    //
-   sprintf(name_buffer, "num_nod_per_el%d", block_id);
+   label = GenerateLabel("num_nod_per_el%d", block_id);
 
    int num_node_per_el_id;
-   DefineDimension(name_buffer, front_element->GetNVertices(),
+   DefineDimension(label, front_element->GetNVertices(),
                    &num_node_per_el_id);
 
    //
    // Define # edges per element:
    //
-   sprintf(name_buffer, "num_edg_per_el%d", block_id);
+   label = GenerateLabel("num_edg_per_el%d", block_id);
 
    int num_edg_per_el_id;
-   DefineDimension(name_buffer, front_element->GetNEdges(),
+   DefineDimension(label, front_element->GetNEdges(),
                    &num_edg_per_el_id);
 
    //
    // Define # faces per element.
    //
-   sprintf(name_buffer, "num_fac_per_el%d", block_id);
+   label = GenerateLabel("num_fac_per_el%d", block_id);
 
    int num_fac_per_el_id;
-   DefineDimension(name_buffer, front_element->GetNFaces(),
+   DefineDimension(label, front_element->GetNFaces(),
                    &num_fac_per_el_id);
 
    //
@@ -551,10 +573,10 @@ void ExodusIIWriter::WriteElementBlockParameters(int block_id)
          MFEM_ABORT("Unsupported MFEM element type: " << front_element->GetType());
    }
 
-   sprintf(name_buffer, "connect%d", block_id);
+   label = GenerateLabel("connect%d", block_id);
 
    int connect_id;
-   CHECK_NETCDF_CODE(nc_inq_varid(_exid, name_buffer, &connect_id));
+   CHECK_NETCDF_CODE(nc_inq_varid(_exid, label, &connect_id));
 
    PutAtt(connect_id, "elem_type", NC_CHAR, element_type.length(),
           element_type.c_str());
@@ -586,7 +608,7 @@ void ExodusIIWriter::WriteNodalCoordinates()
    }
 }
 
-void ExodusIIWriter::WriteSideSetInformation()
+void ExodusIIWriter::WriteBoundaries()
 {
    //
    // Add the boundary IDs
@@ -600,17 +622,15 @@ void ExodusIIWriter::WriteSideSetInformation()
    //
    // Add the number of elements for each boundary_id.
    //
-   char name_buffer[100];
-
    for (int boundary_id : _boundary_ids)
    {
       size_t num_elements_for_boundary = _exodusII_element_ids_for_boundary_id.at(
                                             boundary_id).size();
 
-      sprintf(name_buffer, "num_side_ss%d", boundary_id);
+      char * label = GenerateLabel("num_side_ss%d", boundary_id);
 
       int num_side_ss_id;
-      DefineDimension(name_buffer, num_elements_for_boundary,
+      DefineDimension(label, num_elements_for_boundary,
                       &num_side_ss_id);
    }
 
@@ -622,14 +642,13 @@ void ExodusIIWriter::WriteSideSetInformation()
       const std::vector<int> & side_ids = _exodusII_side_ids_for_boundary_id.at(
                                              boundary_id);
 
-      sprintf(name_buffer, "side_ss%d_dim", boundary_id);
+      char * label = GenerateLabel("side_ss%d_dim", boundary_id);
 
       int side_id_dim;
-      DefineDimension(name_buffer, side_ids.size(), &side_id_dim);
+      DefineDimension(label, side_ids.size(), &side_id_dim);
 
-      sprintf(name_buffer, "side_ss%d", boundary_id);
-
-      DefineAndPutVar(name_buffer, NC_INT, 1,  &side_id_dim, side_ids.data());
+      label = GenerateLabel("side_ss%d", boundary_id);
+      DefineAndPutVar(label, NC_INT, 1,  &side_id_dim, side_ids.data());
    }
 
    //
@@ -641,23 +660,19 @@ void ExodusIIWriter::WriteSideSetInformation()
       const std::vector<int> & element_ids = _exodusII_element_ids_for_boundary_id.at(
                                                 boundary_id);
 
-      sprintf(name_buffer, "elem_ss%d_dim", boundary_id);
+      char * label = GenerateLabel("elem_ss%d_dim", boundary_id);
 
       int elem_ids_dim;
-      DefineDimension(name_buffer, element_ids.size(), &elem_ids_dim);
+      DefineDimension(label, element_ids.size(), &elem_ids_dim);
 
-      sprintf(name_buffer, "elem_ss%d", boundary_id);
-
-      DefineAndPutVar(name_buffer, NC_INT, 1, &elem_ids_dim,
+      label = GenerateLabel("elem_ss%d", boundary_id);
+      DefineAndPutVar(label, NC_INT, 1, &elem_ids_dim,
                       element_ids.data());
    }
 }
 
 void ExodusIIWriter::WriteNodeConnectivityForBlock(const int block_id)
 {
-   // Generate arbitrary name:
-   char name_buffer[100];
-
    std::vector<int> block_node_connectivity;
 
    for (int element_id : _element_ids_for_block_id.at(block_id))
@@ -673,16 +688,15 @@ void ExodusIIWriter::WriteNodeConnectivityForBlock(const int block_id)
       }
    }
 
-   sprintf(name_buffer, "connect%d_dim", block_id);
+   char * label = GenerateLabel("connect%d_dim", block_id);
 
    int node_connectivity_dim;
-   DefineDimension(name_buffer, block_node_connectivity.size(),
+   DefineDimension(label, block_node_connectivity.size(),
                    &node_connectivity_dim);
 
    // NB: 1 == vector!; name is arbitrary; NC_INT or NCINT64??
-   sprintf(name_buffer, "connect%d", block_id);
-
-   DefineAndPutVar(name_buffer, NC_INT, 1, &node_connectivity_dim,
+   label = GenerateLabel("connect%d", block_id);
+   DefineAndPutVar(label, NC_INT, 1, &node_connectivity_dim,
                    block_node_connectivity.data());
 }
 
