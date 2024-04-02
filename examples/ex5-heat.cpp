@@ -62,6 +62,7 @@ int main(int argc, char *argv[])
    int nx = 0;
    int ny = 0;
    int order = 1;
+   bool dg = false;
    double ks = 1.;
    double ka = 0.;
    double a = 0.;
@@ -79,6 +80,8 @@ int main(int argc, char *argv[])
                   "Number of cells in y.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
+   args.AddOption(&dg, "-dg", "--discontinuous", "-no-dg",
+                  "--no-discontinuous", "Enable DG elements for fluxes.");
    args.AddOption(&ks, "-ks", "--kappa_sym",
                   "Symmetric anisotropy of the heat conductivity tensor");
    args.AddOption(&ka, "-ka", "--kappa_anti",
@@ -143,11 +146,23 @@ int main(int argc, char *argv[])
 
    // 5. Define a finite element space on the mesh. Here we use the
    //    Raviart-Thomas finite elements of the specified order.
-   FiniteElementCollection *hdiv_coll(new RT_FECollection(order, dim));
-   FiniteElementCollection *l2_coll(new L2_FECollection(order, dim));
+   FiniteElementCollection *V_coll;
+   if (dg)
+   {
+      // In the case of LDG formulation, we chose a closed basis as it
+      // is customary for HDG to match trace DOFs, but an open basis can
+      // be used instead.
+      V_coll = new L2_FECollection(order, dim, BasisType::GaussLobatto);
+   }
+   else
+   {
+      V_coll = new RT_FECollection(order, dim);
+   }
+   FiniteElementCollection *W_coll = new L2_FECollection(order, dim);
 
-   FiniteElementSpace *V_space = new FiniteElementSpace(mesh, hdiv_coll);
-   FiniteElementSpace *W_space = new FiniteElementSpace(mesh, l2_coll);
+   FiniteElementSpace *V_space = new FiniteElementSpace(mesh, V_coll,
+                                                        (dg)?(dim):(1));
+   FiniteElementSpace *W_space = new FiniteElementSpace(mesh, W_coll);
 
    DarcyForm *darcy = new DarcyForm(V_space, W_space);
 
@@ -215,8 +230,18 @@ int main(int argc, char *argv[])
    MixedBilinearForm *B = darcy->GetFluxDivForm();
    BilinearForm *Mt = (a > 0.)?(darcy->GetPotentialMassForm()):(NULL);
 
-   Mq->AddDomainIntegrator(new VectorFEMassIntegrator(ikcoeff));
-   B->AddDomainIntegrator(new VectorFEDivergenceIntegrator);
+   if (dg)
+   {
+      Mq->AddDomainIntegrator(new VectorMassIntegrator(ikcoeff));
+      B->AddDomainIntegrator(new VectorDivergenceIntegrator());
+      B->AddInteriorFaceIntegrator(new TransposeIntegrator(
+                                      new DGNormalTraceIntegrator(-1.)));
+   }
+   else
+   {
+      Mq->AddDomainIntegrator(new VectorFEMassIntegrator(ikcoeff));
+      B->AddDomainIntegrator(new VectorFEDivergenceIntegrator());
+   }
 
    if (Mt)
    {
@@ -493,8 +518,8 @@ int main(int argc, char *argv[])
    delete W_space;
    delete V_space;
    delete trace_space;
-   delete l2_coll;
-   delete hdiv_coll;
+   delete W_coll;
+   delete V_coll;
    delete trace_coll;
    delete mesh;
 
