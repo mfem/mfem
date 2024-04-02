@@ -62,7 +62,9 @@ include $(MFEM_TEST_MK)
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 stix1d-test-par:
 	@true
-stix2d-test-par:
+stix_r2d_dh-test-par:
+	@true
+stix_r2d_eb-test-par:
 	@true
 stix3d-test-par:
 	@true
