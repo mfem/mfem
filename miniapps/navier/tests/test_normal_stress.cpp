@@ -9,9 +9,6 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "fem/eltrans.hpp"
-#include "fem/gslib.hpp"
-#include "fem/intrules.hpp"
 #include "lib/navier_solver.hpp"
 #include "kernels/contact_qoi_evaluator.hpp"
 #include <fstream>
