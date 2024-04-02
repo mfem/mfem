@@ -3733,7 +3733,6 @@ void DGNormalTraceIntegrator::AssembleFaceMatrix(const FiniteElement &trial_fe1,
 
       Trans.Face->SetIntPoint(&ip);
 
-      u->Eval(vu, *Trans.Elem1, eip1);
 
       if (dim == 1)
       {
@@ -3744,9 +3743,17 @@ void DGNormalTraceIntegrator::AssembleFaceMatrix(const FiniteElement &trial_fe1,
          CalcOrtho(Trans.Face->Jacobian(), nor);
       }
 
-      un = vu * nor;
       a = 0.5 * alpha;
-      b = (un != 0.)?(beta * fabs(un) / un):(0.);
+      if (beta != 0.)
+      {
+         u->Eval(vu, *Trans.Elem1, eip1);
+         un = vu * nor;
+         b = (un != 0.)?(beta * fabs(un) / un):(0.);
+      }
+      else
+      {
+         b = 0.;
+      }
       // note: if |alpha/2|==|beta| then |a|==|b|, i.e. (a==b) or (a==-b)
       //       and therefore two blocks in the element matrix contribution
       //       (from the current quadrature point) are 0

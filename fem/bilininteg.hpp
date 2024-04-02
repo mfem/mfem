@@ -3337,6 +3337,10 @@ private:
    Vector tr_shape1, te_shape1, tr_shape2, te_shape2;
 
 public:
+   /// Construct integrator with $\rho = 1$, $\beta = 0$.
+   DGNormalTraceIntegrator(real_t a)
+   { rho = NULL; u = NULL; alpha = a; beta = 0.; }
+
    /// Construct integrator with $\rho = 1$, $\beta = \alpha/2$.
    DGNormalTraceIntegrator(VectorCoefficient &u_, real_t a)
    { rho = NULL; u = &u_; alpha = a; beta = 0.5*a; }
