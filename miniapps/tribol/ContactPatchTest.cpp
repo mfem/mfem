@@ -246,7 +246,7 @@ int main(int argc, char *argv[])
          if (A_blk->GetBlock(i, j).Height() != 0 && A_blk->GetBlock(i, j).Width() != 0)
          {
             hypre_blocks(i, j) = const_cast<mfem::HypreParMatrix*>(
-               dynamic_cast<const mfem::HypreParMatrix*>(&A_blk->GetBlock(i, j)));
+                                    dynamic_cast<const mfem::HypreParMatrix*>(&A_blk->GetBlock(i, j)));
          }
          else
          {
