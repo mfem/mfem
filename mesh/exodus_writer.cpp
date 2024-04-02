@@ -407,8 +407,7 @@ void ExodusIIWriter::WriteTitle()
 {
    const char *title = "MFEM mesh";
 
-   _status = nc_put_att_text(_exid, NC_GLOBAL, "title", strlen(title), title);
-   HandleNetCDFStatus();
+   PutAtt(NC_GLOBAL, "title", NC_CHAR, strlen(title), title);
 }
 
 void ExodusIIWriter::WriteNumOfElements()
@@ -558,8 +557,8 @@ void ExodusIIWriter::WriteElementBlockParameters(int block_id)
    _status = nc_inq_varid(_exid, name_buffer, &connect_id);
    HandleNetCDFStatus();
 
-   _status = nc_put_att_text(_exid, connect_id, "elem_type", element_type.length(),
-                             element_type.c_str());
+   PutAtt(connect_id, "elem_type", NC_CHAR, element_type.length(),
+          element_type.c_str());
    HandleNetCDFStatus();
 }
 
@@ -773,9 +772,7 @@ void ExodusIIWriter::WriteFileSize()
    // for large file.
    const int file_size = 1;
 
-   _status = nc_put_att_int(_exid, NC_GLOBAL, "file_size", NC_INT, 1,
-                            &file_size);
-   HandleNetCDFStatus();
+   PutAtt(NC_GLOBAL, "file_size", NC_INT, 1, &file_size);
 }
 
 void ExodusIIWriter::WriteDimension()
