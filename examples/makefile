@@ -187,11 +187,11 @@ clean-exec:
 	@rm -f deformed.* velocity.* elastic_energy.* mode_* mode_deriv_* flux.*
 	@rm -f ex5-p-*.bp ex9-p-*.bp ex12-p-*.bp ex16-p-*.bp
 	@rm -f ex16.mesh ex16-mesh.* ex16-init.* ex16-final.*
-	@rm -f vortex-mesh.* vortex.mesh vortex-?-init.* vortex-?-final.*
 	@rm -f deformation.* pressure.*
 	@rm -f ex20.dat ex20p_?????.dat gnuplot_ex20.inp gnuplot_ex20p.inp
 	@rm -f ex21*.mesh ex21*.sol ex21p_*.*
 	@rm -f ex23.mesh ex23-*.gf
 	@rm -f ex25.mesh ex25-*.gf ex25p-*.*
+	@rm -f euler-?-final.* euler-?-init.* euler-mesh-final.* euler-mesh.*
 	@rm -rf ex28_* ex28p_*
 	@rm -rf cond.* cond_mesh.* cond_j.* dsol.* port_mesh.* port_mode.*
