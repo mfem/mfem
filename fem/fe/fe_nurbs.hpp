@@ -39,15 +39,25 @@ public:
       kv.SetSize(dim);
    }
 
+   /// Resets the patch and element data stored in the element
    void                 Reset      ()         const { patch = elem = -1; }
+   /// Set which IJK in patch should be evaluated
    void                 SetIJK     (const int *IJK) const { ijk = IJK; }
+   /// Get which patch is currently considered
    int                  GetPatch   ()         const { return patch; }
+   /// Set which patch should be evaluated
    void                 SetPatch   (int p)    const { patch = p; }
+   /// Set which elemenet should be evaluated
    int                  GetElement ()         const { return elem; }
+   /// Get which element is currently considered
    void                 SetElement (int e)    const { elem = e; }
+   /// Get the KnotVectors
    Array <const KnotVector*> &KnotVectors()   const { return kv; }
+   /// Get the Weights
    Vector              &Weights    ()         const { return weights; }
-   /// Update the NURBSFiniteElement according to the currently set knot vectors
+   /// Update the polynomial order according to the currently set knotvectors
+   /// Resizes all internal data members to have the correct size
+   /// related to the polynomial order
    virtual void         SetOrder   ()         const { }
 
    /// Returns the indices (i,j) in 2D or (i,j,k) in 3D of this element in the
