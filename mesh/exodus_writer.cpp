@@ -149,6 +149,11 @@ protected:
    /// with error handling.
    void PutVar(int varid, const void * data);
 
+   /// @brief Write attribute to the file. This is a wrapper around nc_put_att with
+   /// error handling.
+   void PutAtt(int varid, const char *name, nc_type xtype, size_t len,
+               const void * data);
+
 private:
    // ExodusII file ID.
    int _exid{-1};
@@ -196,6 +201,13 @@ void ExodusIIWriter::DefineVar(const char *name, nc_type xtype, int ndims,
 void ExodusIIWriter::PutVar(int varid, const void * data)
 {
    _status = nc_put_var(_exid, varid, data);
+   HandleNetCDFStatus();
+}
+
+void ExodusIIWriter::PutAtt(int varid, const char *name, nc_type xtype,
+                            size_t len, const void * data)
+{
+   _status = nc_put_att(_exid, varid, name, xtype, len, data);
    HandleNetCDFStatus();
 }
 
@@ -408,42 +420,37 @@ void ExodusIIWriter::WriteNumOfElements()
 void ExodusIIWriter::WriteFloatingPointWordSize()
 {
    const int word_size = 8;
-   _status = nc_put_att_int(_exid, NC_GLOBAL, "floating_point_word_size",
-                            NC_INT, 1,
-                            &word_size);
-   HandleNetCDFStatus();
+   PutAtt(NC_GLOBAL, "floating_point_word_size",
+          NC_INT, 1,
+          &word_size);
 }
 
 void ExodusIIWriter::WriteAPIVersion()
 {
    float version = 4.72;   // Current version as of 2024-03-21.
-   _status = nc_put_att_float(_exid, NC_GLOBAL, "api_version", NC_FLOAT, 1,
-                              &version);
-   HandleNetCDFStatus();
+   PutAtt(NC_GLOBAL, "api_version", NC_FLOAT, 1,
+          &version);
 }
 
 void ExodusIIWriter::WriteDatabaseVersion()
 {
    float database_version = 4.72;
-   _status = nc_put_att_float(_exid, NC_GLOBAL, "version", NC_FLOAT, 1,
-                              &database_version);
-   HandleNetCDFStatus();
+   PutAtt(NC_GLOBAL, "version", NC_FLOAT, 1,
+          &database_version);
 }
 
 void ExodusIIWriter::WriteMaxNameLength()
 {
    const int max_name_length = 80;
-   _status = nc_put_att_int(_exid, NC_GLOBAL, "maximum_name_length", NC_INT, 1,
-                            &max_name_length);
-   HandleNetCDFStatus();
+   PutAtt(NC_GLOBAL, "maximum_name_length", NC_INT, 1,
+          &max_name_length);
 }
 
 void ExodusIIWriter::WriteMaxLineLength()
 {
    const int max_line_length = 80;
-   _status = nc_put_att_int(_exid, NC_GLOBAL, "maximum_line_length", NC_INT, 1,
-                            &max_line_length);
-   HandleNetCDFStatus();
+   PutAtt(NC_GLOBAL, "maximum_line_length", NC_INT, 1,
+          &max_line_length);
 }
 
 void ExodusIIWriter::WriteBlockIDs()
