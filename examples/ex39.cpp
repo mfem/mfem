@@ -6,9 +6,6 @@
 //               ex39 -ess "Southern Boundary"
 //               ex39 -src Base
 //
-// Device sample runs:
-//               ex39 -fa -d cuda
-//
 // Description:  This example code demonstrates the use of named attribute
 //               sets in MFEM to specify material regions, boundary regions,
 //               or source regions by name rather than attribute numbers. It
