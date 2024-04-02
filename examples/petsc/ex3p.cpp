@@ -109,6 +109,16 @@ int main(int argc, char *argv[])
    //    and volume meshes with the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    dim = mesh->Dimension();
+#if PETSC_VERSION_LT(3,21,0)
+   if (dim == 3 && use_petsc && use_nonoverlapping)
+   {
+      cout << "\nFor three-dimensional runs you need a version of PETSc greater or equal 3.21.\n\n";
+      delete mesh;
+      MFEMFinalizePetsc();
+      Mpi::Finalize();
+      return MFEM_SKIP_RETURN_VALUE;
+   }
+#endif
    int sdim = mesh->SpaceDimension();
 
    // 4. Refine the serial mesh on all processors to increase the resolution. In
