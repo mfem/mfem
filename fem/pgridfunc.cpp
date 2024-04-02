@@ -683,7 +683,7 @@ void ParGridFunction::ProjectBdrCoefficient(
    gcomm.Reduce<int>(values_counter.HostReadWrite(), GroupCommunicator::Sum);
    // Accumulate the values globally.
    gcomm.Reduce<real_t>(values.HostReadWrite(), GroupCommunicator::Sum);
-   // Only the values in the master are guaranteed to be correct!
+
    for (int i = 0; i < values.Size(); i++)
    {
       if (values_counter[i])
@@ -691,6 +691,8 @@ void ParGridFunction::ProjectBdrCoefficient(
          (*this)(i) = values(i)/values_counter[i];
       }
    }
+   // Broadcast values to other processors to have a consistent GridFunction
+   gcomm.Bcast<real_t>((*this).HostReadWrite());
 
 #ifdef MFEM_DEBUG
    Array<int> ess_vdofs_marker;
@@ -737,7 +739,7 @@ void ParGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
    gcomm.Reduce<int>(values_counter.HostReadWrite(), GroupCommunicator::Sum);
    // Accumulate the values globally.
    gcomm.Reduce<real_t>(values.HostReadWrite(), GroupCommunicator::Sum);
-   // Only the values in the master are guaranteed to be correct!
+
    for (int i = 0; i < values.Size(); i++)
    {
       if (values_counter[i])
@@ -745,6 +747,8 @@ void ParGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
          (*this)(i) = values(i)/values_counter[i];
       }
    }
+   // Broadcast values to other processors to have a consistent GridFunction
+   gcomm.Bcast<real_t>((*this).HostReadWrite());
 
 #ifdef MFEM_DEBUG
    Array<int> ess_vdofs_marker;
