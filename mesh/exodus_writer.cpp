@@ -186,6 +186,8 @@ private:
 
 void ExodusIIWriter::DefineDimension(const char *name, size_t len, int *dim_id)
 {
+   nc_redef(_exid);
+
    _status = nc_def_dim(_exid, name, len, dim_id);
    HandleNetCDFStatus();
 }
@@ -193,21 +195,26 @@ void ExodusIIWriter::DefineDimension(const char *name, size_t len, int *dim_id)
 void ExodusIIWriter::DefineVar(const char *name, nc_type xtype, int ndims,
                                const int *dimidsp, int *varidp)
 {
+   nc_redef(_exid);  // Switch to define mode.
+
    _status = nc_def_var(_exid, name, xtype, ndims, dimidsp, varidp);
-   HandleNetCDFStatus();
-}
-
-
-void ExodusIIWriter::PutVar(int varid, const void * data)
-{
-   _status = nc_put_var(_exid, varid, data);
    HandleNetCDFStatus();
 }
 
 void ExodusIIWriter::PutAtt(int varid, const char *name, nc_type xtype,
                             size_t len, const void * data)
 {
+   nc_redef(_exid);
+
    _status = nc_put_att(_exid, varid, name, xtype, len, data);
+   HandleNetCDFStatus();
+}
+
+void ExodusIIWriter::PutVar(int varid, const void * data)
+{
+   nc_enddef(_exid); // Switch to data mode.
+
+   _status = nc_put_var(_exid, varid, data);
    HandleNetCDFStatus();
 }
 
@@ -462,9 +469,7 @@ void ExodusIIWriter::WriteBlockIDs()
    DefineVar("eb_prop1", NC_INT, 1, &block_dim,
              &unique_block_ids_ptr);
 
-   nc_enddef(_exid);
    PutVar(unique_block_ids_ptr, _block_ids.data());
-   nc_redef(_exid);
 }
 
 void ExodusIIWriter::WriteElementBlockParameters()
@@ -611,9 +616,7 @@ void ExodusIIWriter::WriteSideSetInformation()
    DefineVar("ss_prop1", NC_INT, 1, &boundary_ids_dim,
              &boundary_ids_ptr);
 
-   nc_enddef(_exid);
    PutVar(boundary_ids_ptr, _boundary_ids.data());
-   nc_redef(_exid);
 
    //
    // Add the number of elements for each boundary_id.
@@ -651,9 +654,7 @@ void ExodusIIWriter::WriteSideSetInformation()
       DefineVar(name_buffer, NC_INT, 1,  &side_id_dim,
                 &side_id_ptr);
 
-      nc_enddef(_exid);
       PutVar(side_id_ptr, side_ids.data());
-      nc_redef(_exid);
    }
 
    //
@@ -676,9 +677,7 @@ void ExodusIIWriter::WriteSideSetInformation()
       DefineVar(name_buffer, NC_INT, 1, &elem_ids_dim,
                 &elem_ids_ptr);
 
-      nc_enddef(_exid);
       PutVar(elem_ids_ptr, element_ids.data());
-      nc_redef(_exid);
    }
 }
 
@@ -716,9 +715,7 @@ void ExodusIIWriter::WriteNodeConnectivityForBlock(const int block_id)
    DefineVar(name_buffer, NC_INT, 1, &node_connectivity_dim,
              &connect_id);
 
-   nc_enddef(_exid);
    PutVar(connect_id, block_node_connectivity.data());
-   nc_redef(_exid);
 }
 
 
@@ -744,8 +741,6 @@ void ExodusIIWriter::WriteNodalCoordinates(std::vector<double> & coordx,
                                            std::vector<double> & coordy,
                                            std::vector<double> & coordz)
 {
-   nc_enddef(_exid);
-
    PutVar(_coordx_id, coordx.data());
    PutVar(_coordy_id, coordy.data());
 
@@ -753,8 +748,6 @@ void ExodusIIWriter::WriteNodalCoordinates(std::vector<double> & coordx,
    {
       PutVar(_coordz_id, coordz.data());
    }
-
-   nc_redef(_exid);
 }
 
 /// @brief Aborts with description of error.
@@ -807,11 +800,8 @@ void ExodusIIWriter::WriteDummyVariable()
 
    DefineVar("dummy_var", NC_INT, 1, &dummy_var_dim_id,
              &dummy_var_id);
-   HandleNetCDFStatus();
 
-   nc_enddef(_exid);
    PutVar(dummy_var_id, &dummy_value);
-   nc_redef(_exid);
 }
 
 /// @brief Generates blocks based on the elements in the mesh. We assume that this was originally an Exodus II
