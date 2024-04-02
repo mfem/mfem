@@ -1406,7 +1406,8 @@ void GSOPGSLIB::UpdateIdentifiers(const Array<long long> &ids)
 
 void GSOPGSLIB::GS(Vector &senddata, GSOp op)
 {
-   MFEM_VERIFY(senddata.Size() == num_ids,"Incompatible setup and GOP operation.");
+   MFEM_VERIFY(senddata.Size() == num_ids,
+               "Incompatible setup and GOP operation.");
    if (op == GSOp::ADD)
    {
       gslib_gs(senddata.GetData(),gslib::gs_double,gslib::gs_add,0,gsl_data,0);
