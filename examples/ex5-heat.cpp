@@ -45,13 +45,13 @@ using namespace std;
 using namespace mfem;
 
 // Define the analytical solution and forcing terms / boundary conditions
-typedef std::function<double(const Vector &, double t)> TDFunc;
+typedef std::function<real_t(const Vector &, real_t t)> TDFunc;
 typedef std::function<void(const Vector &, Vector &)> VecFunc;
 typedef std::function<void(const Vector &, DenseMatrix &)> MatFunc;
 
-TDFunc GetTFun(double t_0, double a, const MatFunc &kFun);
-VecFunc GetQFun(double t_0, double a, const MatFunc &kFun);
-MatFunc GetKFun(double k, double ks, double ka);
+TDFunc GetTFun(real_t t_0, real_t a, const MatFunc &kFun);
+VecFunc GetQFun(real_t t_0, real_t a, const MatFunc &kFun);
+MatFunc GetKFun(real_t k, real_t ks, real_t ka);
 
 int main(int argc, char *argv[])
 {
@@ -63,9 +63,9 @@ int main(int argc, char *argv[])
    int ny = 0;
    int order = 1;
    bool dg = false;
-   double ks = 1.;
-   double ka = 0.;
-   double a = 0.;
+   real_t ks = 1.;
+   real_t ka = 0.;
+   real_t a = 0.;
    bool hybridization = false;
    bool pa = false;
    const char *device_config = "cpu";
@@ -178,8 +178,8 @@ int main(int argc, char *argv[])
    std::cout << "***********************************************************\n";
 
    // 7. Define the coefficients, analytical solution, and rhs of the PDE.
-   const double t_0 = 1.; //base temperature
-   const double k = 1.; //base heat conductivity
+   const real_t t_0 = 1.; //base temperature
+   const real_t k = 1.; //base heat conductivity
 
    ConstantCoefficient acoeff(a);
 
@@ -287,8 +287,8 @@ int main(int argc, char *argv[])
 
 
    int maxIter(1000);
-   double rtol(1.e-6);
-   double atol(1.e-10);
+   real_t rtol(1.e-6);
+   real_t atol(1.e-10);
 
    if (hybridization)
    {
@@ -451,10 +451,10 @@ int main(int argc, char *argv[])
    qcoeff.SetTime(1.);
    tcoeff.SetTime(1.);
 
-   double err_q  = q.ComputeL2Error(qcoeff, irs);
-   double norm_q = ComputeLpNorm(2., qcoeff, *mesh, irs);
-   double err_t  = t.ComputeL2Error(tcoeff, irs);
-   double norm_t = ComputeLpNorm(2., tcoeff, *mesh, irs);
+   real_t err_q  = q.ComputeL2Error(qcoeff, irs);
+   real_t norm_q = ComputeLpNorm(2., qcoeff, *mesh, irs);
+   real_t err_t  = t.ComputeL2Error(tcoeff, irs);
+   real_t norm_t = ComputeLpNorm(2., tcoeff, *mesh, irs);
 
    std::cout << "|| q_h - q_ex || / || q_ex || = " << err_q / norm_q << "\n";
    std::cout << "|| t_h - t_ex || / || t_ex || = " << err_t / norm_t << "\n";
@@ -526,12 +526,12 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-TDFunc GetTFun(double t_0, double a, const MatFunc &kFun)
+TDFunc GetTFun(real_t t_0, real_t a, const MatFunc &kFun)
 {
-   return [=](const Vector &x, double t) -> double
+   return [=](const Vector &x, real_t t) -> real_t
    {
       const int ndim = x.Size();
-      double t0 = t_0 * sin(M_PI*x(0)) * sin(M_PI*x(1));
+      real_t t0 = t_0 * sin(M_PI*x(0)) * sin(M_PI*x(1));
       if (ndim > 2)
       {
          t0 *= sin(M_PI*x(2));
@@ -556,7 +556,7 @@ TDFunc GetTFun(double t_0, double a, const MatFunc &kFun)
       DenseMatrix kappa;
       kFun(x, kappa);
 
-      double div = -(kappa(0,0) + kappa(1,1)) * ddT(0) - (kappa(0,1) + kappa(1,0)) * ddT(1);
+      real_t div = -(kappa(0,0) + kappa(1,1)) * ddT(0) - (kappa(0,1) + kappa(1,0)) * ddT(1);
       if (ndim > 2)
       {
          div += -kappa(2,2) * ddT(0) - (kappa(0,2) + kappa(2,0)) * ddT(2) - (kappa(1,
@@ -566,7 +566,7 @@ TDFunc GetTFun(double t_0, double a, const MatFunc &kFun)
    };
 }
 
-VecFunc GetQFun(double t_0, double a, const MatFunc &kFun)
+VecFunc GetQFun(real_t t_0, real_t a, const MatFunc &kFun)
 {
    return [=](const Vector &x, Vector &v)
    {
@@ -600,7 +600,7 @@ VecFunc GetQFun(double t_0, double a, const MatFunc &kFun)
    };
 }
 
-MatFunc GetKFun(double k, double ks, double ka)
+MatFunc GetKFun(real_t k, real_t ks, real_t ka)
 {
    return [=](const Vector &x, DenseMatrix &kappa)
    {
