@@ -761,7 +761,7 @@ public:
    const ParMixedBilinearForm & real() const { return *pblfr; }
    const ParMixedBilinearForm & imag() const { return *pblfi; }
 
-   /// Matrix multiplication: \f$ y = M x \f$
+   /// Matrix multiplication: $ y = M x $
    void Mult(const ParComplexGridFunction & x,
              ParComplexLinearForm & y) const;
 

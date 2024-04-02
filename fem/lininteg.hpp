@@ -490,7 +490,7 @@ public:
 };
 
 
-/// Class for boundary integration \f$ L(v) = (n \times (f \times n), v) \f$
+/// Class for boundary integration $ L(v) = (n \times (f \times n), v) $
 class VectorFEBoundaryTangentialLFIntegrator : public LinearFormIntegrator
 {
 private:
