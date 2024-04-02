@@ -15,6 +15,8 @@
 
 #ifdef MFEM_USE_MPI
 
+#include <climits>
+
 using namespace std;
 
 namespace mfem
