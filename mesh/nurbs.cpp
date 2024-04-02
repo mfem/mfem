@@ -3963,7 +3963,7 @@ void NURBSExtension::Generate2DBdrElementDofTable()
       else if (mode == Mode::H_CURL)
       {
          int fn = patchTopo->GetBdrElementFaceIndex(b);
-         if (ord0 == mOrders.Min()) { add_dofs = false; }
+         if (ord0 == mOrders.Max()) { add_dofs = false; }
          if (fn == -9999) { s = -1; }
          if (fn == -9999) { s = -1; }
       }
