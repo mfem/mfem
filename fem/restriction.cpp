@@ -2179,7 +2179,7 @@ const
                for (int i = 0; i < nface_dofs; i++)
                {
                   const int iB2 = d_indices2[f*nface_dofs+i]%nelem_dofs;
-                  double val = 0.0;
+                  real_t val = 0.0;
                   if ( conf.is_non_conforming && master_side==1 )
                   {
                      for (int k = 0; k < nface_dofs; k++)
