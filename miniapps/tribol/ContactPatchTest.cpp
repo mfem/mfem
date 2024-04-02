@@ -52,9 +52,9 @@
 
 // Define MPI_REAL_T
 #if defined(MFEM_USE_DOUBLE)
-   #define MPI_REAL_T MPI_DOUBLE
+#define MPI_REAL_T MPI_DOUBLE
 #else
-   #error "Tribol requires MFEM built with double precision!"
+#error "Tribol requires MFEM built with double precision!"
 #endif
 
 
