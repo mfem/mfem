@@ -59,8 +59,12 @@ protected:
    /// @brief Closes any open file.
    void CloseExodusII();
 
-   /// @brief Extracts block ids, element ids for each block and element type for
-   /// each block.
+   /// @brief Generates blocks based on the elements in the mesh. We assume that
+   /// this was originally an Exodus II mesh. Therefore, we iterate over the elements
+   /// and use the attributes as the element blocks. We assume that all elements
+   /// belonging to the same block will have the same attribute. We can perform a
+   /// safety check as well by ensuring that all elements in the block have the same
+   /// element type. If this is not the case then something has gone horribly wrong!
    void GenerateExodusIIElementBlocks();
 
    /// @brief Extracts boundary ids and determines the element IDs and side IDs
@@ -112,7 +116,7 @@ protected:
    void WriteNumElementBlocks();
 
    /// @brief Writes all element block parameters.
-   void WriteElementBlockParameters();
+   void WriteElementBlocks();
 
    /// @brief Called by @a WriteElementBlockParameters in for-loop.
    /// @param block_id Block to write parameters.
@@ -288,17 +292,6 @@ void ExodusIIWriter::WriteExodusII(std::string fpath, int flags)
    //
    WriteNumOfElements();
 
-   //
-   // Set # element blocks.
-   //
-   GenerateExodusIIElementBlocks();
-
-   WriteNumElementBlocks();
-
-   //
-   // Set # node sets - TODO: add this (currently, set to 0).
-   //
-   WriteNodeSets();
 
    //
    // Set database version #
@@ -337,10 +330,6 @@ void ExodusIIWriter::WriteExodusII(std::string fpath, int flags)
    WriteTimesteps();
 
    //
-   // ---------------------------------------------------------------------------------
-   //
-
-   //
    // Quality Assurance Data
    //
 
@@ -348,30 +337,17 @@ void ExodusIIWriter::WriteExodusII(std::string fpath, int flags)
    // Information Data
    //
 
-   //
-   // NB: LibMesh has a dodgy bug where it will skip the x-coordinate if coordx_id == 0.
-   // To prevent this, the first variable to be defined will be a dummy variable which will
-   // have a variable id of 0.
    WriteDummyVariable();
 
-   //
-   // Write nodal coordinates.
-   //
    WriteNodalCoordinates();
 
-   //
-   // Write element block parameters.
-   //
-   WriteElementBlockParameters();
+   WriteElementBlocks();
 
    //
-   // Write block IDs.
+   // Set # node sets - TODO: add this (currently, set to 0).
    //
-   WriteBlockIDs();
+   WriteNodeSets();
 
-   //
-   // Write sideset information.
-   //
    WriteBoundaries();
 
    CloseExodusII();
@@ -475,8 +451,13 @@ void ExodusIIWriter::WriteBlockIDs()
                    _block_ids.data());
 }
 
-void ExodusIIWriter::WriteElementBlockParameters()
+void ExodusIIWriter::WriteElementBlocks()
 {
+   GenerateExodusIIElementBlocks();
+
+   WriteNumElementBlocks();
+   WriteBlockIDs();
+
    for (int block_id : _block_ids)
    {
       WriteElementBlockParameters(block_id);
@@ -771,12 +752,6 @@ void ExodusIIWriter::WriteDummyVariable()
                    &dummy_value);
 }
 
-/// @brief Generates blocks based on the elements in the mesh. We assume that
-/// this was originally an Exodus II mesh. Therefore, we iterate over the elements
-/// and use the attributes as the element blocks. We assume that all elements
-/// belonging to the same block will have the same attribute. We can perform a
-/// safety check as well  by ensuring that all elements in the block have the same
-/// element type. If this is not the case then something has gone horribly wrong!
 void ExodusIIWriter::GenerateExodusIIElementBlocks()
 {
    _block_ids.clear();
