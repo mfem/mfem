@@ -81,7 +81,7 @@ public:
    inline const Vector &operator[](int i) const { return data[idx[i]]; };
 
    /// Print state data
-   void Print(std::ostream &out = mfem::out) const ;
+   void Print(std::ostream &os = mfem::out) const ;
 
    int  MaxSize() const override { return smax; };
 
