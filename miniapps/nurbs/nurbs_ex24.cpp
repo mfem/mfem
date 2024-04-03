@@ -12,8 +12,6 @@
 //               nurbs_ex24 -m ../../data/fichera.mesh
 //               nurbs_ex24 -m ../../data/fichera-q2.vtk
 //               nurbs_ex24 -m ../../data/fichera-q3.mesh
-//               nurbs_ex24 -m ../../data/square-disc-nurbs.mesh
-//               nurbs_ex24 -m ../../data/beam-hex-nurbs.mesh
 //               nurbs_ex24 -m ../../data/amr-quad.mesh -o 2
 //               nurbs_ex24 -m ../../data/amr-hex.mesh
 //
