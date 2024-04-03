@@ -67,6 +67,12 @@ const int mfem_to_exodusII_side_map_pyramid5[] =
    5, 1, 2, 3, 4
 };
 
+// 1-based node-ordering for Tet10. Convert to this ordering for ExodusII files.
+const int mfem_to_exodusII_node_ordering_tet10[] =
+{
+   1, 2, 3, 4, 5, 8, 6, 7, 9, 10
+};
+
 /**
  * Helper class for writing a mesh to an ExodusII file.
  */
@@ -319,7 +325,9 @@ void ExodusIIWriter::EnsureMeshIsFirstOrder()
 
 void ExodusIIWriter::WriteExodusII(std::string fpath, int flags)
 {
-   EnsureMeshIsFirstOrder();
+   mfem::out << "Starting to write ExodusII file" << std::endl;
+
+   //EnsureMeshIsFirstOrder();
 
    OpenExodusII(fpath, flags);
 
@@ -367,7 +375,6 @@ ExodusIIWriter::~ExodusIIWriter()
 {
    CloseExodusII();
 }
-
 
 void ExodusIIWriter::WriteTitle()
 {
@@ -479,13 +486,31 @@ void ExodusIIWriter::WriteElementBlockParameters(int block_id)
 
 
    //
-   // Define # nodes per element. NB: - assume first-order elements currently!!
+   // Define # nodes per element.
    //
    label = GenerateLabel("num_nod_per_el%d", block_id);
 
    int num_node_per_el_id;
-   DefineDimension(label, front_element->GetNVertices(),
-                   &num_node_per_el_id);
+   if (_mesh.GetNodalFESpace())  // Hmmmm. But what about first-order elements and second-order mixed meshes?!?
+   {
+      // Higher order. Get the first element from the block.
+      auto * fespace = _mesh.GetNodalFESpace();
+
+      auto & block_elements = _element_ids_for_block_id.at(block_id);
+
+      int first_element_id = block_elements.front();
+
+      Array<int> dofs;
+      fespace->GetElementDofs(first_element_id, dofs);
+
+      DefineDimension(label, dofs.Size(),
+                      &num_node_per_el_id);
+   }
+   else
+   {
+      DefineDimension(label, front_element->GetNVertices(),
+                      &num_node_per_el_id);
+   }
 
    //
    // Define # edges per element:
@@ -640,16 +665,47 @@ void ExodusIIWriter::WriteNodeConnectivityForBlock(const int block_id)
 {
    std::vector<int> block_node_connectivity;
 
+   const FiniteElementSpace * fespace = _mesh.GetNodalFESpace();
+
    for (int element_id : _element_ids_for_block_id.at(block_id))
    {
-      // NB: assume first-order elements only for now.
-      // NB: - need to convert from 0-based indexing --> 1-based indexing.
-      mfem::Array<int> element_vertices;
-      _mesh.GetElementVertices(element_id, element_vertices);
-
-      for (int vertex_id : element_vertices)
+      if (fespace)
       {
-         block_node_connectivity.push_back(vertex_id + 1);  // 1-based indexing.
+         mfem::Array<int> dofs;
+         fespace->GetElementDofs(element_id, dofs);
+
+         int * node_ordering_map = nullptr;
+
+         // Apply mappings to convert from MFEM --> Exodus II orderings.
+         switch (_element_type_for_block_id.at(block_id))
+         {
+            case Element::Type::TETRAHEDRON: // Tet10.
+               node_ordering_map = (int *)mfem_to_exodusII_node_ordering_tet10;
+               break;
+            default:
+               MFEM_ABORT("Higher-order elements of this type are not currently supported.");
+         }
+
+         for (int j = 0; j < dofs.Size(); j++)
+         {
+            int dof_index = mfem_to_exodusII_node_ordering_tet10[j] - 1;
+
+            int dof = dofs[dof_index];
+
+            block_node_connectivity.push_back(dof + 1);  // 1-based indexing.
+         }
+      }
+      else
+      {
+         // NB: assume first-order elements only for now.
+         // NB: - need to convert from 0-based indexing --> 1-based indexing.
+         mfem::Array<int> element_vertices;
+         _mesh.GetElementVertices(element_id, element_vertices);
+
+         for (int vertex_id : element_vertices)
+         {
+            block_node_connectivity.push_back(vertex_id + 1);  // 1-based indexing.
+         }
       }
    }
 
@@ -666,20 +722,48 @@ void ExodusIIWriter::WriteNodeConnectivityForBlock(const int block_id)
 }
 
 
-void ExodusIIWriter::ExtractVertexCoordinates(std::vector<double> &
-                                              coordx, std::vector<double> & coordy,
+void ExodusIIWriter::ExtractVertexCoordinates(std::vector<double> & coordx,
+                                              std::vector<double> & coordy,
                                               std::vector<double> & coordz)
 {
-   for (int ivertex = 0; ivertex < _mesh.GetNV(); ivertex++)
+   if (_mesh.GetNodalFESpace()) // Higher-order.
    {
-      double * coordinates = _mesh.GetVertex(ivertex);
+      std::unordered_set<int> unordered_node_ids = GenerateUniqueNodeIDs();
 
-      coordx[ivertex] = coordinates[0];
-      coordy[ivertex] = coordinates[1];
+      std::vector<int> sorted_node_ids(unordered_node_ids.size());
+      sorted_node_ids.assign(unordered_node_ids.begin(), unordered_node_ids.end());
+      std::sort(sorted_node_ids.begin(), sorted_node_ids.end());
 
-      if (_mesh.Dimension() == 3)
+      // TODO: - is it numbered from zero and increasing?!?
+      double coordinates[3];
+      for (size_t i = 0; i < sorted_node_ids.size(); i++)
       {
-         coordz[ivertex] = coordinates[2];
+         int node_id = sorted_node_ids[i];
+
+         _mesh.GetNode(node_id, coordinates);
+
+         coordx[node_id] = coordinates[0];
+         coordy[node_id] = coordinates[1];
+
+         if (_mesh.Dimension() == 3)
+         {
+            coordz[node_id] = coordinates[2];
+         }
+      }
+   }
+   else // First-order.
+   {
+      for (int ivertex = 0; ivertex < _mesh.GetNV(); ivertex++)
+      {
+         double * coordinates = _mesh.GetVertex(ivertex);
+
+         coordx[ivertex] = coordinates[0];
+         coordy[ivertex] = coordinates[1];
+
+         if (_mesh.Dimension() == 3)
+         {
+            coordz[ivertex] = coordinates[2];
+         }
       }
    }
 }
