@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -152,7 +152,7 @@ int main(int argc, char *argv[])
          // sophisticated logic can be implemented here -- e.g. don't refine
          // the interfaces between certain materials.
          Array<int> mat(ir.GetNPoints());
-         double matsum = 0.0;
+         real_t matsum = 0.0;
          for (int j = 0; j < ir.GetNPoints(); j++)
          {
             T->Transform(ir.IntPoint(j), pt);

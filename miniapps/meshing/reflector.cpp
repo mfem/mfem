@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -39,7 +39,7 @@ void ReflectPoint(Vector & p, Vector const& origin, Vector const& normal)
    Vector diff(3);
    Vector proj(3);
    subtract(p, origin, diff);
-   const double ip = diff * normal;
+   const real_t ip = diff * normal;
 
    diff = normal;
    diff *= -2.0 * ip;
@@ -76,7 +76,7 @@ public:
 void ReflectedCoefficient::Eval(Vector &V, ElementTransformation &T,
                                 const IntegrationPoint &ip)
 {
-   double x[3];
+   real_t x[3];
    Vector transip(x, 3);
 
    T.Transform(ip, transip);
@@ -222,7 +222,7 @@ public:
    }
 
    /** @brief Add a single vertex to the mesh, specified by 3 coordinates. */
-   int AddVertex(const double *coords) const
+   int AddVertex(const real_t *coords) const
    {
       return mesh->AddVertex(coords);
    }
@@ -642,20 +642,20 @@ void HexMeshBuilder::SaveHexFaces(const int elem, Array<int> const& hex)
    }
 }
 
-double GetElementEdgeMin(Mesh const& mesh, const int elem)
+real_t GetElementEdgeMin(Mesh const& mesh, const int elem)
 {
    Array<int> edges, cor;
    mesh.GetElementEdges(elem, edges, cor);
 
-   double diam = -1.0;
+   real_t diam = -1.0;
    for (auto e : edges)
    {
       Array<int> vert;
       mesh.GetEdgeVertices(e, vert);
-      const double *v0 = mesh.GetVertex(vert[0]);
-      const double *v1 = mesh.GetVertex(vert[1]);
+      const real_t *v0 = mesh.GetVertex(vert[0]);
+      const real_t *v1 = mesh.GetVertex(vert[1]);
 
-      double L = 0.0;
+      real_t L = 0.0;
       for (int i=0; i<3; ++i)
       {
          L += (v0[i] - v1[i]) * (v0[i] - v1[i]);
@@ -672,19 +672,19 @@ double GetElementEdgeMin(Mesh const& mesh, const int elem)
 void FindElementsTouchingPlane(Mesh const& mesh, Vector const& origin,
                                Vector const& normal, std::vector<int> & el)
 {
-   const double relTol = 1.0e-6;
+   const real_t relTol = 1.0e-6;
    Vector diff(3);
 
    for (int e=0; e<mesh.GetNE(); ++e)
    {
-      const double diam = GetElementEdgeMin(mesh, e);
+      const real_t diam = GetElementEdgeMin(mesh, e);
       Array<int> vert;
       mesh.GetElementVertices(e, vert);
 
       bool onplane = false;
       for (auto v : vert)
       {
-         const double *vcrd = mesh.GetVertex(v);
+         const real_t *vcrd = mesh.GetVertex(v);
          for (int i=0; i<3; ++i)
          {
             diff[i] = vcrd[i] - origin[i];
@@ -767,7 +767,7 @@ Mesh* ReflectHighOrderMesh(Mesh & mesh, Vector origin, Vector normal)
    MFEM_VERIFY(mesh.Dimension() == 3, "Only 3D meshes can be reflected");
 
    // Find the minimum edge length, to use for a relative tolerance.
-   double minLength = 0.0;
+   real_t minLength = 0.0;
    for (int i=0; i<mesh.GetNE(); i++)
    {
       Array<int> vert;
@@ -776,14 +776,14 @@ Mesh* ReflectHighOrderMesh(Mesh & mesh, Vector origin, Vector normal)
       const Vector v1(mesh.GetVertex(vert[1]), 3);
       Vector diff(3);
       subtract(v0, v1, diff);
-      const double length = diff.Norml2();
+      const real_t length = diff.Norml2();
       if (i == 0 || length < minLength)
       {
          minLength = length;
       }
    }
 
-   const double relTol = 1.0e-6;
+   const real_t relTol = 1.0e-6;
 
    // Find vertices in reflection plane.
    std::set<int> planeVertices;
@@ -792,8 +792,8 @@ Mesh* ReflectHighOrderMesh(Mesh & mesh, Vector origin, Vector normal)
       Vector v(mesh.GetVertex(i), 3);
       Vector diff(3);
       subtract(v, origin, diff);
-      const double ip = diff * normal;
-      if (fabs(ip) < relTol * minLength)
+      const real_t ip = diff * normal;
+      if (std::abs(ip) < relTol * minLength)
       {
          planeVertices.insert(i);
       }
@@ -938,7 +938,7 @@ Mesh* ReflectHighOrderMesh(Mesh & mesh, Vector origin, Vector normal)
 
          mfem::Swap(rv[0], rv[2]);  // Fix the orientation
 
-         const Geometry::Type orig_geom = mesh.GetBdrElementBaseGeometry(i);
+         const Geometry::Type orig_geom = mesh.GetBdrElementGeometry(i);
          Element *rbe = reflected->NewElement(orig_geom);
          rbe->SetVertices(v);
          reflected->AddBdrElement(rbe);
@@ -1039,7 +1039,7 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   MFEM_VERIFY(fabs(normal.Norml2() - 1.0) < 1.0e-14, "");
+   MFEM_VERIFY(std::abs(normal.Norml2() - 1.0) < 1.0e-14, "");
 
    Mesh mesh(mesh_file, 0, 0);
 

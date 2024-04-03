@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -45,7 +45,7 @@ public:
    void Update();
 
    /// Assign constant values to the ComplexGridFunction data.
-   ComplexGridFunction &operator=(const std::complex<double> & value)
+   ComplexGridFunction &operator=(const std::complex<real_t> & value)
    { *gfr = value.real(); *gfi = value.imag(); return *this; }
 
    virtual void ProjectCoefficient(Coefficient &real_coeff,
@@ -184,7 +184,7 @@ public:
    /// Assembles the linear form i.e. sums over all domain/bdr integrators.
    void Assemble();
 
-   std::complex<double> operator()(const ComplexGridFunction &gf) const;
+   std::complex<real_t> operator()(const ComplexGridFunction &gf) const;
 };
 
 
@@ -357,7 +357,7 @@ public:
    void Update();
 
    /// Assign constant values to the ParComplexGridFunction data.
-   ParComplexGridFunction &operator=(const std::complex<double> & value)
+   ParComplexGridFunction &operator=(const std::complex<real_t> & value)
    { *pgfr = value.real(); *pgfi = value.imag(); return *this; }
 
    virtual void ProjectCoefficient(Coefficient &real_coeff,
@@ -401,21 +401,21 @@ public:
    void SyncAlias() { pgfr->SyncAliasMemory(*this); pgfi->SyncAliasMemory(*this); }
 
 
-   virtual double ComputeL2Error(Coefficient &exsolr, Coefficient &exsoli,
+   virtual real_t ComputeL2Error(Coefficient &exsolr, Coefficient &exsoli,
                                  const IntegrationRule *irs[] = NULL) const
    {
-      double err_r = pgfr->ComputeL2Error(exsolr, irs);
-      double err_i = pgfi->ComputeL2Error(exsoli, irs);
+      real_t err_r = pgfr->ComputeL2Error(exsolr, irs);
+      real_t err_i = pgfi->ComputeL2Error(exsoli, irs);
       return sqrt(err_r * err_r + err_i * err_i);
    }
 
-   virtual double ComputeL2Error(VectorCoefficient &exsolr,
+   virtual real_t ComputeL2Error(VectorCoefficient &exsolr,
                                  VectorCoefficient &exsoli,
                                  const IntegrationRule *irs[] = NULL,
                                  Array<int> *elems = NULL) const
    {
-      double err_r = pgfr->ComputeL2Error(exsolr, irs, elems);
-      double err_i = pgfi->ComputeL2Error(exsoli, irs, elems);
+      real_t err_r = pgfr->ComputeL2Error(exsolr, irs, elems);
+      real_t err_i = pgfi->ComputeL2Error(exsoli, irs, elems);
       return sqrt(err_r * err_r + err_i * err_i);
    }
 
@@ -535,7 +535,7 @@ public:
    /// Returns the vector assembled on the true dofs, i.e. P^t v.
    HypreParVector *ParallelAssemble();
 
-   std::complex<double> operator()(const ParComplexGridFunction &gf) const;
+   std::complex<real_t> operator()(const ParComplexGridFunction &gf) const;
 
 };
 

@@ -44,7 +44,7 @@ public:
       pmesh(m),
       pgf(f) {}
 
-   void MonitorSolution(int i, double norm, const Vector &x, bool final)
+   void MonitorSolution(int i, real_t norm, const Vector &x, bool final)
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
@@ -81,9 +81,9 @@ int main(int argc, char *argv[])
    int ser_ref_levels = -1;
    int par_ref_levels = 2;
    int order = 1;
-   double sigma = -1.0;
-   double kappa = -1.0;
-   double eta = 0.0;
+   real_t sigma = -1.0;
+   real_t kappa = -1.0;
+   real_t eta = 0.0;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);

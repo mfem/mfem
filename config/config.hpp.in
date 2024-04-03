@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -45,6 +45,12 @@
 // Build the parallel MFEM library.
 // Requires an MPI compiler, and the libraries HYPRE and METIS.
 // #define MFEM_USE_MPI
+
+// Use double-precision floating point type
+// #define MFEM_USE_DOUBLE
+
+// Use single-precision floating point type
+// #define MFEM_USE_SINGLE
 
 // Enable debug checks in MFEM.
 // #define MFEM_DEBUG

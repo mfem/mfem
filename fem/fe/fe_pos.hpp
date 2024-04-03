@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -191,12 +191,12 @@ public:
    H1Pos_TriangleElement(const int p);
 
    // The size of shape is (p+1)(p+2)/2 (dof).
-   static void CalcShape(const int p, const double x, const double y,
-                         double *shape);
+   static void CalcShape(const int p, const real_t x, const real_t y,
+                         real_t *shape);
 
    // The size of dshape_1d is p+1; the size of dshape is (dof x dim).
-   static void CalcDShape(const int p, const double x, const double y,
-                          double *dshape_1d, double *dshape);
+   static void CalcDShape(const int p, const real_t x, const real_t y,
+                          real_t *dshape_1d, real_t *dshape);
 
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
@@ -220,12 +220,12 @@ public:
    H1Pos_TetrahedronElement(const int p);
 
    // The size of shape is (p+1)(p+2)(p+3)/6 (dof).
-   static void CalcShape(const int p, const double x, const double y,
-                         const double z, double *shape);
+   static void CalcShape(const int p, const real_t x, const real_t y,
+                         const real_t z, real_t *shape);
 
    // The size of dshape_1d is p+1; the size of dshape is (dof x dim).
-   static void CalcDShape(const int p, const double x, const double y,
-                          const double z, double *dshape_1d, double *dshape);
+   static void CalcDShape(const int p, const real_t x, const real_t y,
+                          const real_t z, real_t *dshape_1d, real_t *dshape);
 
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
