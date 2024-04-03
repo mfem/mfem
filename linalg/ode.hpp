@@ -176,13 +176,19 @@ public:
    static MFEM_EXPORT std::string Types;
 
    /// Function for selecting the desired ODESolver (Explicit and Implicit)
+   /// Returns an ODESolver pointer based on an type
+   /// Caller gets ownership of the object and is responsible for its deletion
    static MFEM_EXPORT std::unique_ptr<ODESolver> Select(const int ode_solver_type);
 
    /// Function for selecting the desired Explicit ODESolver
+   /// Returns an ODESolver pointer based on an type
+   /// Caller gets ownership of the object and is responsible for its deletion
    static MFEM_EXPORT std::unique_ptr<ODESolver> SelectExplicit(
       const int ode_solver_type);
 
    /// Function for selecting the desired Implicit ODESolver
+   /// Returns an ODESolver pointer based on an type
+   /// Caller gets ownership of the object and is responsible for its deletion
    static MFEM_EXPORT std::unique_ptr<ODESolver> SelectImplicit(
       const int ode_solver_type);
 
