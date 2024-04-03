@@ -269,6 +269,7 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
       boundary.SetSize(NumOfBdrElements);
       be_to_face.SetSize(NumOfBdrElements);
       Array<int> parent_face_to_be = parent.GetFaceToBdrElMap();
+      int max_bdr_attr = parent.bdr_attributes.Max();
 
       for (int i = 0, j = 0; i < num_codim_1; i++)
       {
@@ -287,7 +288,7 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
                }
                else
                {
-                  boundary[j]->SetAttribute(SubMesh::GENERATED_ATTRIBUTE + 1);
+                  boundary[j]->SetAttribute(max_bdr_attr + 1);
                }
             }
             else
