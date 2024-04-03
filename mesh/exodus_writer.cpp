@@ -540,19 +540,22 @@ void ExodusIIWriter::WriteElementBlockParameters(int block_id)
    //
    std::string element_type;
 
+   // TODO: - add safety checks in here.
+   bool higher_order = (_mesh.GetNodes() != nullptr);
+
    switch (front_element->GetType())
    {
       case Geometry::Type::CUBE:
-         element_type = "hex";
+         element_type = higher_order ? "HEX27" : "Hex8";
          break;
       case Geometry::Type::TETRAHEDRON:
-         element_type = "tet";
+         element_type = higher_order ? "TETRA10" : "TETRA4";
          break;
       case Geometry::Type::PRISM:
-         element_type = "wedge";
+         element_type = higher_order ? "WEDGE18" : "WEDGE6";
          break;
       case Geometry::Type::PYRAMID:
-         element_type = "pyramid";
+         element_type = higher_order ? "PYRAMID14" : "PYRAMID5";
          break;
       default:
          MFEM_ABORT("Unsupported MFEM element type: " << front_element->GetType());
