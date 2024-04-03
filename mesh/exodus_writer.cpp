@@ -134,7 +134,7 @@ protected:
    void WriteNodeSets();
 
    /// @brief Writes the mesh dimension.
-   void WriteDimension();
+   void WriteMeshDimension();
 
    /// @brief Writes the number of timesteps. Currently, we do not support multiple
    /// timesteps.
@@ -171,6 +171,10 @@ protected:
    /// @brief Returns a pointer to a static buffer containing the character
    /// string with formatting. Used to generate variable labels.
    char * GenerateLabel(const char * format, ...);
+
+   /// @brief Writes boiler-plate information for ExodusII file format including
+   /// title, database version, file size etc.
+   void WriteExodusIIFileInformation();
 
 private:
    // ExodusII file ID.
@@ -265,6 +269,23 @@ const int mfem_to_exodusII_side_map_pyramid5[] =
    5, 1, 2, 3, 4
 };
 
+void ExodusIIWriter::WriteExodusIIFileInformation()
+{
+   WriteTitle();
+
+   WriteDatabaseVersion();
+   WriteAPIVersion();
+
+   WriteFloatingPointWordSize();
+
+   WriteFileSize();
+
+   WriteMaxNameLength();
+   WriteMaxLineLength();
+
+   WriteDummyVariable();
+}
+
 void ExodusIIWriter::WriteExodusII(std::string fpath, int flags)
 {
    //
@@ -277,75 +298,18 @@ void ExodusIIWriter::WriteExodusII(std::string fpath, int flags)
 
    OpenExodusII(fpath, flags);
 
-   //
-   // Add title.
-   //
-   WriteTitle();
+   WriteExodusIIFileInformation();
 
-   //
-   // Set dimension.
-   //
-   WriteDimension();
+   WriteMeshDimension();
 
-   //
-   // Set # elements.
-   //
    WriteNumOfElements();
 
-
-   //
-   // Set database version #
-   //
-   WriteDatabaseVersion();
-
-   //
-   // Set API version #
-   //
-   WriteAPIVersion();
-
-   //
-   // Set I/O word size as an attribute (float == 4; double == 8)
-   //
-   WriteFloatingPointWordSize();
-
-   //
-   // Store Exodus file size (normal==0; large==1). NB: coordinates specifed separately as components
-   // for large file.
-   //
-   WriteFileSize();
-
-   //
-   // Set length of character strings.
-   //
-   WriteMaxNameLength();
-
-   //
-   // Set length of character lines.
-   //
-   WriteMaxLineLength();
-
-   //
-   // Set # timesteps (ASSUME no timesteps for initial verision)
-   //
    WriteTimesteps();
-
-   //
-   // Quality Assurance Data
-   //
-
-   //
-   // Information Data
-   //
-
-   WriteDummyVariable();
 
    WriteNodalCoordinates();
 
    WriteElementBlocks();
 
-   //
-   // Set # node sets - TODO: add this (currently, set to 0).
-   //
    WriteNodeSets();
 
    WriteBoundaries();
@@ -717,7 +681,7 @@ void ExodusIIWriter::WriteFileSize()
    PutAtt(NC_GLOBAL, EXODUS_FILE_SIZE_LABEL, NC_INT, 1, &file_size);
 }
 
-void ExodusIIWriter::WriteDimension()
+void ExodusIIWriter::WriteMeshDimension()
 {
    int num_dim_id;
    DefineDimension(EXODUS_NUM_DIM_LABEL, _mesh.Dimension(), &num_dim_id);
