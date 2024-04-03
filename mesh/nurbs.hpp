@@ -17,6 +17,7 @@
 #include "../linalg/vector.hpp"
 #include "element.hpp"
 #include "mesh.hpp"
+#include "spacing.hpp"
 #ifdef MFEM_USE_MPI
 #include "../general/communication.hpp"
 #endif
@@ -92,11 +93,11 @@ public:
 
    /** @brief Return the parameter for element reference coordinate @a xi
        in [0,1], for the element beginning at knot @a ni. */
-   double getKnotLocation(double xi, int ni) const
+   real_t getKnotLocation(real_t xi, int ni) const
    { return (xi*knot(ni+1) + (1. - xi)*knot(ni)); }
 
    /// Return the index of the knot span containing parameter @a u.
-   int findKnotSpan(double u) const;
+   int findKnotSpan(real_t u) const;
 
    // The following functions evaluate shape functions, which are B-spline basis
    // functions.
@@ -104,20 +105,20 @@ public:
    /** @brief Calculate the nonvanishing shape function values in @a shape for
        the element corresponding to knot index @a i and element reference
        coordinate @a xi. */
-   void CalcShape  (Vector &shape, int i, double xi) const;
+   void CalcShape  (Vector &shape, int i, real_t xi) const;
 
    /** @brief Calculate derivatives of the nonvanishing shape function values in
        @a grad for the element corresponding to knot index @a i and element
        reference coordinate @a xi. */
-   void CalcDShape (Vector &grad,  int i, double xi) const;
+   void CalcDShape (Vector &grad,  int i, real_t xi) const;
 
    /** @brief Calculate n-th derivatives (order @a n) of the nonvanishing shape
        function values in @a grad for the element corresponding to knot index
        @a i and element reference coordinate @a xi. */
-   void CalcDnShape(Vector &gradn, int n, int i, double xi) const;
+   void CalcDnShape(Vector &gradn, int n, int i, real_t xi) const;
 
    /// Calculate second-order shape function derivatives, using CalcDnShape.
-   void CalcD2Shape(Vector &grad2, int i, double xi) const
+   void CalcD2Shape(Vector &grad2, int i, real_t xi) const
    { CalcDnShape(grad2, 2, i, xi); }
 
    /** @brief Gives the locations of the maxima of the KnotVector in reference
@@ -138,8 +139,20 @@ public:
        behavior, as @a diff may have unset entries at the end. */
    void Difference(const KnotVector &kv, Vector &diff) const;
 
-   /// Uniformly refine by inserting the midpoint of each knot span.
-   void UniformRefinement(Vector &newknots) const;
+   /// Uniformly refine by factor @a rf, by inserting knots in each span.
+   void UniformRefinement(Vector &newknots, int rf) const;
+
+   /// Refine with refinement factor @a rf.
+   void Refinement(Vector &newknots, int rf) const;
+
+   /** Returns the coarsening factor needed for non-nested nonuniform spacing
+       functions, to result in a single element from which refinement can be
+       done. The return value is 1 if uniform or nested spacing is used. */
+   int GetCoarseningFactor() const;
+
+   /** For a given coarsening factor @a cf, find the fine knots between the
+       coarse knots. */
+   Vector GetFineKnots(const int cf) const;
 
    /** @brief Return a new KnotVector with elevated degree by repeating the
        endpoints of the KnotVector. */
@@ -165,10 +178,17 @@ public:
    ~KnotVector() { }
 
    /// Access function to knot @a i.
-   double &operator[](int i) { return knot(i); }
+   real_t &operator[](int i) { return knot(i); }
 
    /// Const access function to knot @a i.
-   const double &operator[](int i) const { return knot(i); }
+   const real_t &operator[](int i) const { return knot(i); }
+
+   /// Function to define the distribution of knots for any number of knot spans.
+   std::shared_ptr<SpacingFunction> spacing;
+
+   /** Flag to indicate whether the KnotVector has been coarsened, which means
+       it is ready for non-nested refinement. */
+   bool coarse;
 };
 
 
@@ -177,6 +197,7 @@ public:
 class NURBSPatch
 {
 protected:
+
    /// B-NET dimensions
    int ni, nj, nk;
 
@@ -184,30 +205,35 @@ protected:
    int Dim;
 
    /// Data with the layout (Dim x ni x nj x nk)
-   double *data;
+   real_t *data;
 
    /// KnotVectors in each direction
    Array<KnotVector *> kv;
 
    // Special B-NET access functions
    //  - SetLoopDirection(int dir) flattens the multi-dimensional B-NET in the
-   //    requested direction. It effectively creates a 1D net.
-   //  - The slice(int, int) operator is the access function in that flattened structure.
-   //    The first int gives the slice and the second int the element in that slice.
-   //  - Both routines are used in 'InsertKnot', 'DegreeElevate' and 'UniformRefinement'.
-   //  - In older implementations slice(int int) was implemented as operator()(int, int)
-   int nd; // Number of knots in flattened structure
-   int ls; // Number of variables per knot in flattened structure
+   //    requested direction. It effectively creates a 1D net in homogeneous
+   //    coordinates.
+   //  - The slice(int, int) operator is the access function in that flattened
+   //    structure. The first int gives the slice and the second int the element
+   //    in that slice.
+   //  - Both routines are used in 'KnotInsert', `KnotRemove`, 'DegreeElevate',
+   //    and 'UniformRefinement'.
+   //  - In older implementations, slice(int, int) was implemented as
+   //    operator()(int, int).
+   int nd; // Number of control points in flattened structure
+   int ls; // Number of variables per control point in flattened structure
    int sd; // Stride for data access
 
    /** @brief Flattens the B-NET in direction @a dir, producing a 1D net.
        Returns the number of variables per knot in flattened structure. */
    int SetLoopDirection(int dir);
 
+
    /** @brief Access function for the effectively 1D flattened net, where @a i
        is a knot index, and @a j is an index of a variable per knot. */
-   inline       double &slice(int i, int j);
-   inline const double &slice(int i, int j) const;
+   inline       real_t &slice(int i, int j);
+   inline const real_t &slice(int i, int j) const;
 
    /// Copy constructor
    NURBSPatch(NURBSPatch *parent, int dir, int Order, int NCP);
@@ -262,14 +288,53 @@ public:
 
    /// Call KnotInsert for each direction with the corresponding @a knot entry.
    void KnotInsert(Array<Vector *> &knot);
+   /// Insert knots from @a knot determined by @a Difference, in each direction.
    void KnotInsert(Array<KnotVector *> &knot);
 
-   /// Call DegreeElevate for all directions.
+   /** @brief Remove knot with value @a knot from direction @a dir.
+
+       The optional input parameter @a ntimes specifies the number of times the
+       knot should be removed, default 1. The knot is removed only if the new
+       curve (in direction @a dir) deviates from the old curve by less than
+       @a tol.
+
+       @returns The number of times the knot was successfully removed. */
+   int KnotRemove(int dir, real_t knot, int ntimes=1, real_t tol = 1.0e-12);
+
+   /// Remove all knots in @a knot once.
+   void KnotRemove(int dir, Vector const& knot, real_t tol = 1.0e-12);
+   /// Remove all knots in @a knot once, for each direction.
+   void KnotRemove(Array<Vector *> &knot, real_t tol = 1.0e-12);
+
    void DegreeElevate(int t);
 
-   /** @brief Uniformly refine the elements in the patch by calling
-       UniformRefinement for each KnotVector in each direction. */
-   void UniformRefinement();
+   /** @brief Refine with optional refinement factor @a rf. Uniform means
+       refinement is done everywhere by the same factor, although nonuniform
+       spacing functions may be used.
+
+       @param[in] rf Optional refinement factor. If scalar, the factor is used
+                     for all dimensions. If an array, factors can be specified
+                     for each dimension. */
+   void UniformRefinement(int rf = 2);
+   void UniformRefinement(Array<int> const& rf);
+
+   /** @brief Coarsen with optional coarsening factor @a cf which divides the
+       number of elements in each dimension. Nonuniform spacing functions may be
+       used in each direction.
+
+       @param[in] cf  Optional coarsening factor. If scalar, the factor is used
+                      for all dimensions. If an array, factors can be specified
+                      for each dimension.
+       @param[in] tol NURBS geometry deviation tolerance, cf. Algorithm A5.8 of
+       "The NURBS Book", 2nd ed, Piegl and Tiller. */
+   void Coarsen(int cf = 2, real_t tol = 1.0e-12);
+   void Coarsen(Array<int> const& cf, real_t tol = 1.0e-12);
+
+   /// Calls KnotVector::GetCoarseningFactor for each direction.
+   void GetCoarseningFactors(Array<int> & f) const;
+
+   /// Marks the KnotVector in each dimension as coarse.
+   void SetKnotVectorsCoarse(bool c);
 
    /// Return the number of components stored in the NURBSPatch
    int GetNC() const { return Dim; }
@@ -284,26 +349,26 @@ public:
    // Standard B-NET access functions
 
    /// 1D access function. @a i is a B-NET index, and @a l is a variable index.
-   inline       double &operator()(int i, int l);
-   inline const double &operator()(int i, int l) const;
+   inline       real_t &operator()(int i, int l);
+   inline const real_t &operator()(int i, int l) const;
 
    /** @brief 2D access function. @a i, @a j are B-NET indices, and @a l is a
        variable index. */
-   inline       double &operator()(int i, int j, int l);
-   inline const double &operator()(int i, int j, int l) const;
+   inline       real_t &operator()(int i, int j, int l);
+   inline const real_t &operator()(int i, int j, int l) const;
 
    /** @brief 3D access function. @a i, @a j, @a k are B-NET indices, and @a l
        is a variable index. */
-   inline       double &operator()(int i, int j, int k, int l);
-   inline const double &operator()(int i, int j, int k, int l) const;
+   inline       real_t &operator()(int i, int j, int k, int l);
+   inline const real_t &operator()(int i, int j, int k, int l) const;
 
    /// Compute the 2D rotation matrix @a T for angle @a angle.
-   static void Get2DRotationMatrix(double angle, DenseMatrix &T);
+   static void Get2DRotationMatrix(real_t angle, DenseMatrix &T);
 
    /** @brief Compute the 3D rotation matrix @a T for angle @a angle around
        axis @a n (a 3D vector, not necessarily normalized) and scalar factor
        @a r. */
-   static void Get3DRotationMatrix(double n[], double angle, double r,
+   static void Get3DRotationMatrix(real_t n[], real_t angle, real_t r,
                                    DenseMatrix &T);
 
    /// Reverse data and knots in direction @a dir.
@@ -317,13 +382,13 @@ public:
    /// Rotate the NURBSPatch in 2D or 3D..
    /** A rotation of a 2D NURBS-patch requires an angle only. Rotating
        a 3D NURBS-patch requires a normal as well.*/
-   void Rotate(double angle, double normal[]= NULL);
+   void Rotate(real_t angle, real_t normal[]= NULL);
 
    /// Rotate the NURBSPatch, 2D case.
-   void Rotate2D(double angle);
+   void Rotate2D(real_t angle);
 
    /// Rotate the NURBSPatch, 3D case.
-   void Rotate3D(double normal[], double angle);
+   void Rotate3D(real_t normal[], real_t angle);
 
    /** Elevate KnotVectors in all directions to degree @a degree if given,
        otherwise to the maximum current degree among all directions. */
@@ -336,7 +401,7 @@ public:
 
    /// Create and return a new patch by revolving @a patch in 3D.
    /// @note The returned object should be deleted by the caller.
-   friend NURBSPatch *Revolve3D(NURBSPatch &patch, double n[], double ang,
+   friend NURBSPatch *Revolve3D(NURBSPatch &patch, real_t n[], real_t ang,
                                 int times);
 };
 
@@ -574,8 +639,8 @@ protected:
 public:
    /// Copy constructor: deep copy
    NURBSExtension(const NURBSExtension &orig);
-   /// Read-in a NURBSExtension from a stream @a input.
-   NURBSExtension(std::istream &input);
+   /// Read-in a NURBSExtension from a stream @a input..
+   NURBSExtension(std::istream &input, bool spacing=false);
    /** @brief Create a NURBSExtension with elevated order by repeating the
        endpoints of the KnotVectors and using uniform weights of 1. */
    /** @note If a KnotVector in @a parent already has order greater than or
@@ -758,15 +823,29 @@ public:
        KnotVector, the new degree is
        max(old_degree, min(old_degree + rel_degree, degree)). */
    void DegreeElevate(int rel_degree, int degree = 16);
-   /** @brief Uniformly refine the entire mesh by calling @a UniformRefinement
-       for all patches. */
-   void UniformRefinement();
+
+   /** @brief Refine with optional refinement factor @a rf. Uniform means
+   refinement is done everywhere by the same factor, although nonuniform
+   spacing functions may be used.
+   */
+   void UniformRefinement(int rf = 2);
+   void UniformRefinement(Array<int> const& rf);
+   void Coarsen(int cf = 2, real_t tol = 1.0e-12);
+   void Coarsen(Array<int> const& cf, real_t tol = 1.0e-12);
+
    /** @brief Insert knots from @a kv into all KnotVectors in all patches. The
-       size of @a kv should be the same as @a knotVectors. */
+        size of @a kv should be the same as @a knotVectors. */
    void KnotInsert(Array<KnotVector *> &kv);
    void KnotInsert(Array<Vector *> &kv);
 
-   /// Return the index of the patch containing element @a elem.
+   void KnotRemove(Array<Vector *> &kv, real_t tol = 1.0e-12);
+
+   /** Calls GetCoarseningFactors for each patch and finds the minimum factor
+       for each direction that ensures refinement will work in the case of
+       non-nested spacing functions. */
+   void GetCoarseningFactors(Array<int> & f) const;
+
+   /// Returns the index of the patch containing element @a elem.
    int GetElementPatch(int elem) const { return el_to_patch[elem]; }
 
    /** @brief Return Cartesian indices (i,j) in 2D or (i,j,k) in 3D of element
@@ -901,7 +980,7 @@ public:
 
 // Inline function implementations
 
-inline double &NURBSPatch::slice(int i, int j)
+inline real_t &NURBSPatch::slice(int i, int j)
 {
 #ifdef MFEM_DEBUG
    if (data == 0 || i < 0 || i >= nd || j < 0 || j > ls)
@@ -912,7 +991,7 @@ inline double &NURBSPatch::slice(int i, int j)
    return data[j%sd + sd*(i + (j/sd)*nd)];
 }
 
-inline const double &NURBSPatch::slice(int i, int j) const
+inline const real_t &NURBSPatch::slice(int i, int j) const
 {
 #ifdef MFEM_DEBUG
    if (data == 0 || i < 0 || i >= nd || j < 0 || j > ls)
@@ -924,7 +1003,7 @@ inline const double &NURBSPatch::slice(int i, int j) const
 }
 
 
-inline double &NURBSPatch::operator()(int i, int l)
+inline real_t &NURBSPatch::operator()(int i, int l)
 {
 #ifdef MFEM_DEBUG
    if (data == 0 || i < 0 || i >= ni || nj > 0 || nk > 0 ||
@@ -937,7 +1016,7 @@ inline double &NURBSPatch::operator()(int i, int l)
    return data[i*Dim+l];
 }
 
-inline const double &NURBSPatch::operator()(int i, int l) const
+inline const real_t &NURBSPatch::operator()(int i, int l) const
 {
 #ifdef MFEM_DEBUG
    if (data == 0 || i < 0 || i >= ni ||  nj > 0 || nk > 0 ||
@@ -950,7 +1029,7 @@ inline const double &NURBSPatch::operator()(int i, int l) const
    return data[i*Dim+l];
 }
 
-inline double &NURBSPatch::operator()(int i, int j, int l)
+inline real_t &NURBSPatch::operator()(int i, int j, int l)
 {
 #ifdef MFEM_DEBUG
    if (data == 0 || i < 0 || i >= ni || j < 0 || j >= nj || nk > 0 ||
@@ -963,7 +1042,7 @@ inline double &NURBSPatch::operator()(int i, int j, int l)
    return data[(i+j*ni)*Dim+l];
 }
 
-inline const double &NURBSPatch::operator()(int i, int j, int l) const
+inline const real_t &NURBSPatch::operator()(int i, int j, int l) const
 {
 #ifdef MFEM_DEBUG
    if (data == 0 || i < 0 || i >= ni || j < 0 || j >= nj || nk > 0 ||
@@ -976,7 +1055,7 @@ inline const double &NURBSPatch::operator()(int i, int j, int l) const
    return data[(i+j*ni)*Dim+l];
 }
 
-inline double &NURBSPatch::operator()(int i, int j, int k, int l)
+inline real_t &NURBSPatch::operator()(int i, int j, int k, int l)
 {
 #ifdef MFEM_DEBUG
    if (data == 0 || i < 0 || i >= ni || j < 0 || j >= nj || k < 0 ||
@@ -989,7 +1068,7 @@ inline double &NURBSPatch::operator()(int i, int j, int k, int l)
    return data[(i+(j+k*nj)*ni)*Dim+l];
 }
 
-inline const double &NURBSPatch::operator()(int i, int j, int k, int l) const
+inline const real_t &NURBSPatch::operator()(int i, int j, int k, int l) const
 {
 #ifdef MFEM_DEBUG
    if (data == 0 || i < 0 || i >= ni || j < 0 || j >= nj || k < 0 ||

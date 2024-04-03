@@ -113,7 +113,7 @@ void ParBilinearForm::pAllocMat()
    int *I = dof_dof.GetI();
    int *J = dof_dof.GetJ();
    int nrows = dof_dof.Size();
-   double *data = Memory<double>(I[nrows]);
+   real_t *data = Memory<real_t>(I[nrows]);
 
    mat = new SparseMatrix(I, J, data, nrows, height + nbr_size);
    *mat = 0.0;
@@ -344,7 +344,7 @@ ParallelEliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
    return A.EliminateRowsCols(dof_list);
 }
 
-void ParBilinearForm::TrueAddMult(const Vector &x, Vector &y, const double a)
+void ParBilinearForm::TrueAddMult(const Vector &x, Vector &y, const real_t a)
 const
 {
    const Operator *P = pfes->GetProlongationMatrix();
@@ -563,7 +563,7 @@ void ParMixedBilinearForm::ParallelAssemble(OperatorHandle &A)
 
 /// Compute y += a (P^t A P) x, where x and y are vectors on the true dofs
 void ParMixedBilinearForm::TrueAddMult(const Vector &x, Vector &y,
-                                       const double a) const
+                                       const real_t a) const
 {
    if (Xaux.ParFESpace() != trial_pfes)
    {
