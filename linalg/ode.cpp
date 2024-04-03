@@ -530,7 +530,7 @@ void AdamsBashforthSolver::CheckTimestep(real_t dt)
       if (print())
       {
          mfem::out << "WARNING:" << std::endl;
-         mfem::out << " - Time stepchanged" << std::endl;
+         mfem::out << " - Time step changed" << std::endl;
          mfem::out << " - Purging time stepping history" << std::endl;
          mfem::out << " - Will run Runge-Kutta to rebuild history" << std::endl;
       }
@@ -576,7 +576,7 @@ void AdamsMoultonSolver::Step(Vector &x, real_t &t, real_t &dt)
       if (print())
       {
          mfem::out << "WARNING:" << std::endl;
-         mfem::out << " - Time stepchanged" << std::endl;
+         mfem::out << " - Time step changed" << std::endl;
          mfem::out << " - Purging time stepping history" << std::endl;
          mfem::out << " - Will run Runge-Kutta to rebuild history" << std::endl;
       }
