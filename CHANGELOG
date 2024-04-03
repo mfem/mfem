@@ -28,6 +28,17 @@ Discretization improvements
   IntegrationRules through a moment-fitting approach. The cut is specified by
   the zero level set of a Coefficient. See fem/intrules_cut.hpp and Example 38.
 
+- Added ODE solvers selection routines. This creates a uniformity across examples,
+  miniapps and other executables in regard to ODE(time-integrator) selection.
+
+- Added new mechanism for retrieving and setting state vectors in ODE solvers.
+  This is relevant for AB/AM and gen-alpha solvers.
+
+- Fixed AB/AM solvers startup bug.
+
+- Added ODEsolver/ODEsolver2 unit tests to verify order of convergence and
+  read/write functionality.
+
 GPU support
 ----------------------------
 - Added support for full assembly on simplices.
