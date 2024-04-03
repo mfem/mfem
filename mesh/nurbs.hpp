@@ -30,7 +30,11 @@ class GridFunction;
 
 
 /** @brief A vector of knots in one dimension, with B-spline basis functions of
-    a prescribed order. */
+    a prescribed order.
+
+    @note Order is defined in the sense of "The NURBS book" - 2nd ed - Piegl and
+    Tiller, cf. section 2.2.
+*/
 class KnotVector
 {
 protected:
@@ -39,7 +43,7 @@ protected:
    /// Stores the values of all knots.
    Vector knot;
 
-   /// Order or degree of the B-spline basis functions.
+   /// Order of the B-spline basis functions.
    int Order;
 
    /// Number of control points.
@@ -70,7 +74,7 @@ public:
    /// Return the number of control points.
    int GetNCP()   const { return NumOfControlPoints; }
 
-   /// Return the order (degree).
+   /// Return the order.
    int GetOrder() const { return Order; }
 
    /// Return the number of knots, including multiplicities.
@@ -244,11 +248,11 @@ public:
        called by NURBSExtension::Print. */
    void Print(std::ostream &os) const;
 
-   /// Increase the degree (order) in direction @a dir by @a t >= 0.
+   /// Increase the order in direction @a dir by @a t >= 0.
    void DegreeElevate(int dir, int t);
 
    /**  @brief Insert any new knots from @a knot in direction @a dir. If the
-        order (degree) of @a knot is higher than the current order in direction
+        order of @a knot is higher than the current order in direction
         @a dir, then the order is elevated in that direction to match. */
    void KnotInsert(int dir, const KnotVector &knot);
 
@@ -321,8 +325,8 @@ public:
    /// Rotate the NURBSPatch, 3D case.
    void Rotate3D(double normal[], double angle);
 
-   /** Elevate KnotVectors in all directions to degree (order) @a degree if
-       given, otherwise to the maximum current degree among all directions. */
+   /** Elevate KnotVectors in all directions to degree @a degree if given,
+       otherwise to the maximum current degree among all directions. */
    int MakeUniformDegree(int degree = -1);
 
    /** @brief Given two patches @a p1 and @a p2 of the same dimensions, create
