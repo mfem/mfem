@@ -963,6 +963,7 @@ static __global__ void cuKernelMin(const int N, real_t *gdsr, const real_t *x)
    if (tid==0) { gdsr[bid] = s_min[0]; }
 }
 
+mfem::MemoryType device_reduce_buf_type = mfem::MemoryType::DEFAULT;
 static Array<real_t> cuda_reduce_buf;
 
 static real_t cuVectorMin(const int N, const real_t *X)
@@ -971,7 +972,7 @@ static real_t cuVectorMin(const int N, const real_t *X)
    const int blockSize = MFEM_CUDA_BLOCKS;
    const int gridSize = (N+blockSize-1)/blockSize;
    const int min_sz = (N%tpb)==0? (N/tpb) : (1+N/tpb);
-   cuda_reduce_buf.SetSize(min_sz);
+   cuda_reduce_buf.SetSize(min_sz, device_reduce_buf_type);
    Memory<real_t> &buf = cuda_reduce_buf.GetMemory();
    real_t *d_min = buf.Write(MemoryClass::DEVICE, min_sz);
    cuKernelMin<<<gridSize,blockSize>>>(N, d_min, X);
@@ -1014,7 +1015,7 @@ static real_t cuVectorDot(const int N, const real_t *X, const real_t *Y)
    const int blockSize = MFEM_CUDA_BLOCKS;
    const int gridSize = (N+blockSize-1)/blockSize;
    const int dot_sz = (N%tpb)==0? (N/tpb) : (1+N/tpb);
-   cuda_reduce_buf.SetSize(dot_sz, Device::GetDeviceMemoryType());
+   cuda_reduce_buf.SetSize(dot_sz, device_reduce_buf_type);
    Memory<real_t> &buf = cuda_reduce_buf.GetMemory();
    real_t *d_dot = buf.Write(MemoryClass::DEVICE, dot_sz);
    cuKernelDot<<<gridSize,blockSize>>>(N, d_dot, X, Y);
@@ -1052,6 +1053,7 @@ static __global__ void hipKernelMin(const int N, real_t *gdsr, const real_t *x)
    if (tid==0) { gdsr[bid] = s_min[0]; }
 }
 
+mfem::MemoryType device_reduce_buf_type = mfem::MemoryType::DEFAULT;
 static Array<real_t> hip_reduce_buf;
 
 static real_t hipVectorMin(const int N, const real_t *X)
@@ -1060,7 +1062,7 @@ static real_t hipVectorMin(const int N, const real_t *X)
    const int blockSize = MFEM_HIP_BLOCKS;
    const int gridSize = (N+blockSize-1)/blockSize;
    const int min_sz = (N%tpb)==0 ? (N/tpb) : (1+N/tpb);
-   hip_reduce_buf.SetSize(min_sz);
+   hip_reduce_buf.SetSize(min_sz, device_reduce_buf_type);
    Memory<real_t> &buf = hip_reduce_buf.GetMemory();
    real_t *d_min = buf.Write(MemoryClass::DEVICE, min_sz);
    hipLaunchKernelGGL(hipKernelMin,gridSize,blockSize,0,0,N,d_min,X);
@@ -1103,7 +1105,7 @@ static real_t hipVectorDot(const int N, const real_t *X, const real_t *Y)
    const int blockSize = MFEM_HIP_BLOCKS;
    const int gridSize = (N+blockSize-1)/blockSize;
    const int dot_sz = (N%tpb)==0 ? (N/tpb) : (1+N/tpb);
-   hip_reduce_buf.SetSize(dot_sz);
+   hip_reduce_buf.SetSize(dot_sz, device_reduce_buf_type);
    Memory<real_t> &buf = hip_reduce_buf.GetMemory();
    real_t *d_dot = buf.Write(MemoryClass::DEVICE, dot_sz);
    hipLaunchKernelGGL(hipKernelDot,gridSize,blockSize,0,0,N,d_dot,X,Y);

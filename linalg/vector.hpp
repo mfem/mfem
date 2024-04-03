@@ -36,6 +36,10 @@
 namespace mfem
 {
 
+// Optional MemoryType for the reduction buffer when using CUDA or HIP,
+// the default is MemoryType::DEFAULT
+extern mfem::MemoryType device_reduce_buf_type;
+
 /** Count the number of entries in an array of doubles for which isfinite
     is false, i.e. the entry is a NaN or +/-Inf. */
 inline int CheckFinite(const real_t *v, const int n);
