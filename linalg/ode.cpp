@@ -16,15 +16,17 @@
 namespace mfem
 {
 
-std::string ODESolver::ExplicitTypes = "\n\tExplicit solver: \n\t"
-                                       "        RK      :  1 - Forward Euler, 2 - RK2(0.5), 3 - RK3 SSP, 4 - RK4,\n\t"
-                                       "        AB      : 11 - AB1, 12 - AB2, 13 - AB3, 14 - AB4, 15 - AB5\n";
+std::string ODESolver::ExplicitTypes =
+   "\n\tExplicit solver: \n\t"
+   "        RK      :  1 - Forward Euler, 2 - RK2(0.5), 3 - RK3 SSP, 4 - RK4,\n\t"
+   "        AB      : 11 - AB1, 12 - AB2, 13 - AB3, 14 - AB4, 15 - AB5\n";
 
-std::string ODESolver::ImplicitTypes  = "\n\tImplicit solver: \n\t"
-                                        "        (L-Stab): 21 - Backward Euler, 22 - SDIRK23(2), 23 - SDIRK33,\n\t"
-                                        "        (A-Stab): 32 - Implicit Midpoint, 33 - SDIRK23, 34 - SDIRK34,\n\t"
-                                        "        GA      : 40 -- 50  - Generalized-alpha,\n\t"
-                                        "        AM      : 51 - AM1, 52 - AM2, 53 - AM3, 54 - AM4\n";
+std::string ODESolver::ImplicitTypes  =
+   "\n\tImplicit solver: \n\t"
+   "        (L-Stab): 21 - Backward Euler, 22 - SDIRK23(2), 23 - SDIRK33,\n\t"
+   "        (A-Stab): 32 - Implicit Midpoint, 33 - SDIRK23, 34 - SDIRK34,\n\t"
+   "        GA      : 40 -- 50  - Generalized-alpha,\n\t"
+   "        AM      : 51 - AM1, 52 - AM2, 53 - AM3, 54 - AM4\n";
 
 std::string ODESolver::Types = ODESolver::ExplicitTypes +
                                ODESolver::ImplicitTypes;
