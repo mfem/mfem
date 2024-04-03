@@ -476,6 +476,7 @@ const real_t RK8Solver::c[] =
    1.,
 };
 
+
 AdamsBashforthSolver::AdamsBashforthSolver(int s_, const real_t *a_):
    stages(s_)
 {
@@ -548,6 +549,7 @@ const real_t AB4Solver::a[] =
 const real_t AB5Solver::a[] =
 {1901.0/720.0,-2774.0/720.0, 2616.0/720.0,-1274.0/720.0, 251.0/720.0};
 
+
 AdamsMoultonSolver::AdamsMoultonSolver(int s_, const real_t *a_):
    stages(s_)
 {
@@ -618,6 +620,7 @@ const real_t AM3Solver::a[] =
 const real_t AM4Solver::a[] =
 {251.0/720.0,646.0/720.0,-264.0/720.0, 106.0/720.0, -19.0/720.0};
 
+
 void BackwardEulerSolver::Init(TimeDependentOperator &f_)
 {
    ODESolver::Init(f_);
@@ -632,6 +635,7 @@ void BackwardEulerSolver::Step(Vector &x, real_t &t, real_t &dt)
    t += dt;
 }
 
+
 void ImplicitMidpointSolver::Init(TimeDependentOperator &f_)
 {
    ODESolver::Init(f_);
@@ -645,6 +649,7 @@ void ImplicitMidpointSolver::Step(Vector &x, real_t &t, real_t &dt)
    x.Add(dt, k);
    t += dt;
 }
+
 
 SDIRK23Solver::SDIRK23Solver(int gamma_opt)
 {
