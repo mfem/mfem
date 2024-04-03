@@ -28,6 +28,48 @@
 namespace mfem
 {
 
+// Variable labels
+const char * EXODUS_TITLE_LABEL = "title";
+const char * EXODUS_NUM_ELEM_LABEL = "num_elem";
+const char * EXODUS_FLOATING_POINT_WORD_SIZE_LABEL = "floating_point_word_size";
+const char * EXODUS_API_VERSION_LABEL = "api_version";
+const char * EXODUS_DATABASE_VERSION_LABEL = "version";
+const char * EXODUS_MAX_NAME_LENGTH_LABEL = "maximum_name_length";
+const char * EXODUS_MAX_LINE_LENGTH_LABEL = "maximum_line_length";
+const char * EXODUS_NUM_BLOCKS_LABEL = "block_dim";
+const char * EXODUS_COORDX_LABEL = "coordx";
+const char * EXODUS_COORDY_LABEL = "coordy";
+const char * EXODUS_COORDZ_LABEL = "coordz";
+const char * EXODUS_NUM_BOUNDARIES_LABEL = "boundary_ids_dim";
+const char * EXODUS_FILE_SIZE_LABEL = "file_size";
+const char * EXODUS_NUM_DIM_LABEL = "num_dim";
+const char * EXODUS_NUM_NODE_SETS_LABEL = "num_node_sets";
+const char * EXODUS_TIME_STEP_LABEL = "time_step";
+
+// Returns the Exodus II face ID for the MFEM face index.
+const int mfem_to_exodusII_side_map_tet4[] =
+{
+   2, 3, 1, 4
+};
+
+const int mfem_to_exodusII_side_map_hex8[] =
+{
+   5, 1, 2, 3, 4, 6
+};
+
+const int mfem_to_exodusII_side_map_wedge6[] =
+{
+   4, 5, 1, 2, 3
+};
+
+const int mfem_to_exodusII_side_map_pyramid5[] =
+{
+   5, 1, 2, 3, 4
+};
+
+/**
+ * Helper class for writing a mesh to an ExodusII file.
+ */
 class ExodusIIWriter
 {
 public:
@@ -235,44 +277,6 @@ void ExodusIIWriter::DefineAndPutVar(const char *name, nc_type xtype, int ndims,
    DefineVar(name, xtype, ndims, dimidsp, &varid);
    PutVar(varid, data);
 }
-
-const char * EXODUS_TITLE_LABEL = "title";
-const char * EXODUS_NUM_ELEM_LABEL = "num_elem";
-const char * EXODUS_FLOATING_POINT_WORD_SIZE_LABEL = "floating_point_word_size";
-const char * EXODUS_API_VERSION_LABEL = "api_version";
-const char * EXODUS_DATABASE_VERSION_LABEL = "version";
-const char * EXODUS_MAX_NAME_LENGTH_LABEL = "maximum_name_length";
-const char * EXODUS_MAX_LINE_LENGTH_LABEL = "maximum_line_length";
-const char * EXODUS_NUM_BLOCKS_LABEL = "block_dim";
-const char * EXODUS_COORDX_LABEL = "coordx";
-const char * EXODUS_COORDY_LABEL = "coordy";
-const char * EXODUS_COORDZ_LABEL = "coordz";
-const char * EXODUS_NUM_BOUNDARIES_LABEL = "boundary_ids_dim";
-const char * EXODUS_FILE_SIZE_LABEL = "file_size";
-const char * EXODUS_NUM_DIM_LABEL = "num_dim";
-const char * EXODUS_NUM_NODE_SETS_LABEL = "num_node_sets";
-const char * EXODUS_TIME_STEP_LABEL = "time_step";
-
-// Returns the Exodus II face ID for the MFEM face index.
-const int mfem_to_exodusII_side_map_tet4[] =
-{
-   2, 3, 1, 4
-};
-
-const int mfem_to_exodusII_side_map_hex8[] =
-{
-   5, 1, 2, 3, 4, 6
-};
-
-const int mfem_to_exodusII_side_map_wedge6[] =
-{
-   4, 5, 1, 2, 3
-};
-
-const int mfem_to_exodusII_side_map_pyramid5[] =
-{
-   5, 1, 2, 3, 4
-};
 
 void ExodusIIWriter::WriteExodusIIFileInformation()
 {
@@ -697,9 +701,8 @@ void ExodusIIWriter::WriteMeshDimension()
 
 void ExodusIIWriter::WriteNodeSets()
 {
-   // Set # node sets - TODO: add this (currently, set to 0).
+   // Nodesets are not currently implemented; set to zero.
    int num_node_sets_ids;
-
    DefineDimension(EXODUS_NUM_NODE_SETS_LABEL, 0, &num_node_sets_ids);
 }
 
@@ -707,15 +710,11 @@ void ExodusIIWriter::WriteTimesteps()
 {
    // Set # timesteps (ASSUME no timesteps for initial verision)
    int timesteps_dim;
-
    DefineDimension(EXODUS_TIME_STEP_LABEL, 1, &timesteps_dim);
 }
 
 void ExodusIIWriter::WriteDummyVariable()
 {
-   // NB: LibMesh has a dodgy bug where it will skip the x-coordinate if
-   // coordx_id == 0. To prevent this, the first variable to be defined will be
-   // a dummy variable which will have a variable id of 0.
    int dummy_var_dim_id, dummy_value = 1;
 
    DefineDimension("dummy_var_dim", 1, &dummy_var_dim_id);
@@ -730,7 +729,7 @@ void ExodusIIWriter::GenerateExodusIIElementBlocks()
    _element_ids_for_block_id.clear();
    _element_type_for_block_id.clear();
 
-   std::set<int> observed_block_ids;
+   std::unordered_set<int> observed_block_ids;
 
    // Iterate over the elements in the mesh.
    for (int ielement = 0; ielement < _mesh.GetNE(); ielement++)
