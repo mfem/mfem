@@ -744,19 +744,19 @@ private:
       {
          case MT::HOST_DEBUG: return new MmuHostMemorySpace();
 #ifdef MFEM_USE_UMPIRE
+         case MT::HOST_UMPIRE:
+            return new UmpireHostMemorySpace(
+                      MemoryManager::GetUmpireHostAllocatorName());
          case MT::MANAGED_UMPIRE:
             return new ManagedUmpireHostMemorySpace(
                       MemoryManager::GetUmpireManagedAllocatorName());
          case MT::MANAGED_UMPIRE_2:
             return new ManagedUmpireHostMemorySpace(
                       MemoryManager::GetUmpireManaged2AllocatorName());
-         case MT::HOST_UMPIRE:
-            return new UmpireHostMemorySpace(
-                      MemoryManager::GetUmpireHostAllocatorName());
 #else
+         case MT::HOST_UMPIRE: return new NoHostMemorySpace();
          case MT::MANAGED_UMPIRE: return new NoHostMemorySpace();
          case MT::MANAGED_UMPIRE_2: return new NoHostMemorySpace();
-         case MT::HOST_UMPIRE: return new NoHostMemorySpace();
 #endif
          case MT::HOST_PINNED: return new HostPinnedMemorySpace();
          default: MFEM_ABORT("Unknown host memory controller!");
