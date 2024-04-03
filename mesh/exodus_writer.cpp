@@ -73,6 +73,13 @@ const int mfem_to_exodusII_node_ordering_tet10[] =
    1, 2, 3, 4, 5, 8, 6, 7, 9, 10
 };
 
+const int mfem_to_exodusII_node_ordering_hex27[] =
+{
+   1, 2, 3, 4, 5, 6, 7, 8, 9,
+   10, 11, 12, 17, 18, 19, 20, 13, 14,
+   15, 16, 27, 21, 26, 25, 23, 22, 24
+};
+
 /**
  * Helper class for writing a mesh to an ExodusII file.
  */
@@ -325,8 +332,6 @@ void ExodusIIWriter::EnsureMeshIsFirstOrder()
 
 void ExodusIIWriter::WriteExodusII(std::string fpath, int flags)
 {
-   mfem::out << "Starting to write ExodusII file" << std::endl;
-
    //EnsureMeshIsFirstOrder();
 
    OpenExodusII(fpath, flags);
@@ -685,13 +690,16 @@ void ExodusIIWriter::WriteNodeConnectivityForBlock(const int block_id)
             case Element::Type::TETRAHEDRON: // Tet10.
                node_ordering_map = (int *)mfem_to_exodusII_node_ordering_tet10;
                break;
+            case Element::Type::HEXAHEDRON:  // Hex27.
+               node_ordering_map = (int *)mfem_to_exodusII_node_ordering_hex27;
+               break;
             default:
                MFEM_ABORT("Higher-order elements of this type are not currently supported.");
          }
 
          for (int j = 0; j < dofs.Size(); j++)
          {
-            int dof_index = mfem_to_exodusII_node_ordering_tet10[j] - 1;
+            int dof_index = node_ordering_map[j] - 1;
 
             int dof = dofs[dof_index];
 
