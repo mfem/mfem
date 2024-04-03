@@ -1910,7 +1910,7 @@ void ND_R1D_SegmentElement::Project(const FiniteElement &fe,
    }
 }
 
-const real_t ND_R2D_SegmentElement::tk[6] = { 1.,0.,0., 0.,0.,1. };
+const real_t ND_R2D_SegmentElement::tk[4] = { 1.,0., 0.,1. };
 
 ND_R2D_SegmentElement::ND_R2D_SegmentElement(const int p,
                                              const int cb_type,
@@ -1922,8 +1922,8 @@ ND_R2D_SegmentElement::ND_R2D_SegmentElement(const int p,
      obasis1d(poly1d.GetBasis(p - 1, VerifyOpen(ob_type)))
 {
    // Override default dimensions for VectorFiniteElements
-   vdim = 3;
-   cdim = 3;
+   vdim = 2;
+   cdim = 1;
 
    const real_t *cp = poly1d.ClosedPoints(p, cb_type);
    const real_t *op = poly1d.OpenPoints(p - 1, ob_type);
@@ -1980,15 +1980,13 @@ void ND_R2D_SegmentElement::CalcVShape(const IntegrationPoint &ip,
       int idx = dof_map[o++];
       shape(idx,0) = shape_ox(i);
       shape(idx,1) = 0.;
-      shape(idx,2) = 0.;
    }
    // z-components
    for (int i = 0; i <= p; i++)
    {
       int idx = dof_map[o++];
       shape(idx,0) = 0.;
-      shape(idx,1) = 0.;
-      shape(idx,2) = shape_cx(i);
+      shape(idx,1) = shape_cx(i);
    }
 }
 
@@ -2003,11 +2001,10 @@ void ND_R2D_SegmentElement::CalcVShape(ElementTransformation &Trans,
    for (int i=0; i<dof; i++)
    {
       double sx = shape(i, 0);
-      // sy = shape(i, 1) should always be zero
-      // sz = shape(i, 2) remains unchanged
+      double sz = shape(i, 1);
       shape(i, 0) = sx * JI(0,0);
       shape(i, 1) = sx * JI(0,1);
-      // leave shape(i, 2) unchanged
+      shape(i, 2) = sz;
    }
 }
 
@@ -2025,21 +2022,17 @@ void ND_R2D_SegmentElement::CalcCurlShape(const IntegrationPoint &ip,
    obasis1d.Eval(ip.x, shape_ox);
 
    int o = 0;
-   // x-components = Curl(f_x[x] i) = 0
+   // x-components
    for (int i = 0; i < p; i++)
    {
       int idx = dof_map[o++];
       curl_shape(idx,0) = 0.;
-      curl_shape(idx,1) = 0.;
-      curl_shape(idx,2) = 0.;
    }
-   // z-components = Curl(f_z[x] k) = -df_z/dx j
+   // z-components
    for (int i = 0; i <= p; i++)
    {
       int idx = dof_map[o++];
-      curl_shape(idx,0) = 0.;
       curl_shape(idx,1) = -dshape_cx(i);
-      curl_shape(idx,2) = 0.;
    }
 }
 
@@ -2078,8 +2071,8 @@ void ND_R2D_SegmentElement::LocalInterpolation(const VectorFiniteElement &cfe,
    const DenseMatrix &J = Trans.Jacobian();
    for (int k = 0; k < dof; k++)
    {
-      Vector t1(&tk_ptr[dof2tk[k] * 3], 1);
-      Vector t3(&tk_ptr[dof2tk[k] * 3], 3);
+      Vector t1(&tk_ptr[dof2tk[k] * 2], 1);
+      Vector t2(&tk_ptr[dof2tk[k] * 2], 2);
 
       Trans.Transform(Nodes.IntPoint(k), xk);
       ip.Set3(vk);
@@ -2094,7 +2087,7 @@ void ND_R2D_SegmentElement::LocalInterpolation(const VectorFiniteElement &cfe,
          {
             Ikj += vshape(j, i) * vk[i];
          }
-         Ikj += vshape(j, 2) * t3(2);
+         Ikj += vshape(j, 1) * t2(1);
          I(k, j) = (fabs(Ikj) < 1e-12) ? 0.0 : Ikj;
       }
    }
@@ -2105,6 +2098,7 @@ void ND_R2D_SegmentElement::Project(VectorCoefficient &vc,
                                     Vector &dofs) const
 {
    real_t data[3];
+   Vector vk1(data, 1);
    Vector vk2(data, 2);
    Vector vk3(data, 3);
 
@@ -2116,11 +2110,10 @@ void ND_R2D_SegmentElement::Project(VectorCoefficient &vc,
 
       vc.Eval(vk3, Trans, Nodes.IntPoint(k));
       // dof_k = vk^t J tk
-      Vector t1(&tk_ptr[dof2tk[k] * 3], 1);
-      Vector t3(&tk_ptr[dof2tk[k] * 3], 3);
+      Vector t1(&tk_ptr[dof2tk[k] * 2], 1);
+      Vector t2(&tk_ptr[dof2tk[k] * 2], 2);
 
-      // Jacobian should be 2x1 indicating a 1D reference space embedded in 2D
-      dofs(k) = Trans.Jacobian().InnerProduct(t1, vk2) + t3(2) * vk3(2);
+      dofs(k) = Trans.Jacobian().InnerProduct(t1, vk2) + t2(1) * vk3(2);
    }
 
 }
