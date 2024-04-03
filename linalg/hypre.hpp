@@ -1061,14 +1061,14 @@ public:
                GS = 6, OPFS = 10, Chebyshev = 16, Taubin = 1001, FIR = 1002
              };
 
-   Type DefaultType()
+   static Type DefaultType()
    {
       return HypreUsingGPU() ? l1Jacobi : l1GS;
    }
 
    HypreSmoother();
 
-   HypreSmoother(const HypreParMatrix &A_, int type = default_type,
+   HypreSmoother(const HypreParMatrix &A_, int type = Undefined,
                  int relax_times = 1, real_t relax_weight = 1.0,
                  real_t omega = 1.0, int poly_order = 2,
                  real_t poly_fraction = .3, int eig_est_cg_iter = 10);
