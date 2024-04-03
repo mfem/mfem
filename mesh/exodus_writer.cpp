@@ -179,6 +179,8 @@ protected:
    /// @brief Writes all information about the mesh to the ExodusII file.
    void WriteExodusIIMeshInformation();
 
+   /// @brief Sanity check. Higher-order meshes are currently not supported.
+   void EnsureMeshIsFirstOrder();
 private:
    // ExodusII file ID.
    int _exid{-1};
@@ -303,15 +305,17 @@ void ExodusIIWriter::WriteExodusIIMeshInformation()
    WriteNodeSets();
 }
 
-void ExodusIIWriter::WriteExodusII(std::string fpath, int flags)
+void ExodusIIWriter::EnsureMeshIsFirstOrder()
 {
-   //
-   // Safety checks.
-   //
    if (_mesh.GetNodalFESpace() != nullptr)
    {
       MFEM_ABORT("ExodusII writer does not currently support higher-order elements.");
    }
+}
+
+void ExodusIIWriter::WriteExodusII(std::string fpath, int flags)
+{
+   EnsureMeshIsFirstOrder();
 
    OpenExodusII(fpath, flags);
 
