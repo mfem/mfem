@@ -109,6 +109,24 @@ TEST_CASE("ExodusII Write Hex8", "[Mesh]")
 #endif
 }
 
+TEST_CASE("ExodusII Write Hex27", "[Mesh]")
+{
+#ifdef MFEM_USE_NETCDF
+   // Load Exodus II mesh from file.
+   std::string fpath_original = "data/simple-cube-hex27.e";
+   Mesh original_mesh = Mesh::LoadFromFile(fpath_original, 0, 0, true);
+
+   // Write generated Exodus II mesh to file.
+   std::string fpath_generated = "data/simple-cube-hex27-out.e";
+   original_mesh.WriteExodusII(fpath_generated);
+
+   // Load generated Exodus II mesh.
+   Mesh generated_mesh = Mesh::LoadFromFile(fpath_generated, 0, 0, true);
+
+   CompareMeshes(original_mesh, generated_mesh);
+#endif
+}
+
 TEST_CASE("ExodusII Write Tet4", "[Mesh]")
 {
 #ifdef MFEM_USE_NETCDF
