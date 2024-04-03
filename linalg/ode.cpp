@@ -31,8 +31,6 @@ std::string ODESolver::ImplicitTypes  =
 std::string ODESolver::Types = ODESolver::ExplicitTypes +
                                ODESolver::ImplicitTypes;
 
-/// Return a ODESolver pointer based on an type
-/// Caller gets ownership of the object and is responsible for its deletion
 std::unique_ptr<ODESolver> ODESolver::Select(int ode_solver_type)
 {
    if (ode_solver_type < 20)
@@ -45,8 +43,6 @@ std::unique_ptr<ODESolver> ODESolver::Select(int ode_solver_type)
    }
 }
 
-/// Return a ODESolver pointer based on an type
-/// Caller gets ownership of the object and is responsible for its deletion
 std::unique_ptr<ODESolver> ODESolver::SelectExplicit(int ode_solver_type)
 {
    using ode_ptr = std::unique_ptr<ODESolver>;
@@ -70,8 +66,6 @@ std::unique_ptr<ODESolver> ODESolver::SelectExplicit(int ode_solver_type)
    }
 }
 
-/// Return a ODESolver pointer based on an type
-/// Caller gets ownership of the object and is responsible for its deletion
 std::unique_ptr<ODESolver> ODESolver::SelectImplicit(int ode_solver_type)
 {
    using ode_ptr = std::unique_ptr<ODESolver>;
@@ -130,7 +124,7 @@ void ODEStateDataVector::SetSize(int stages, int vsize, MemoryType m_t)
 void ODEStateDataVector::Get(int i, Vector &state) const
 {
    MFEM_ASSERT( (i >= 0) && ( i < ss ),
-                " LMSSolver::GetStateVector \n" <<
+                " ODEStateDataVector::Get \n" <<
                 " - Tried to get non-existent state "<<i);
 
    state = data[idx[i]];
@@ -139,7 +133,7 @@ void ODEStateDataVector::Get(int i, Vector &state) const
 const Vector &ODEStateDataVector::Get(int i) const
 {
    MFEM_ASSERT( (i >= 0) && ( i < ss ),
-                " LMSSolver::GetStateVector \n" <<
+                " ODEStateDataVector::Get \n" <<
                 " - Tried to get non-existent state "<<i);
 
    return data[idx[i]];
@@ -148,7 +142,7 @@ const Vector &ODEStateDataVector::Get(int i) const
 void ODEStateDataVector::Set(int i, Vector &state)
 {
    MFEM_ASSERT( (i >= 0) && ( i < smax ),
-                " LMSSolver::SetStateVector \n" <<
+                " ODEStateDataVector::Set \n" <<
                 " - Tried to set non-existent state "<<i);
    data[idx[i]] = state;
 }
