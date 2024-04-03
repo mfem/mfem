@@ -118,9 +118,6 @@ protected:
    /// @param block_id Block to write parameters.
    void WriteElementBlockParameters(int block_id);
 
-   /// @brief Writes the number of boundaries.
-   void WriteNumBoundaries();
-
    /// @brief Writes the coordinates of nodes.
    void WriteNodalCoordinates();
 
@@ -302,13 +299,6 @@ void ExodusIIWriter::WriteExodusII(std::string fpath, int flags)
    // Set # node sets - TODO: add this (currently, set to 0).
    //
    WriteNodeSets();
-
-   //
-   // Set # side sets ("boundaries")
-   //
-   GenerateExodusIIBoundaryInfo();
-
-   WriteNumBoundaries();
 
    //
    // Set database version #
@@ -629,18 +619,22 @@ void ExodusIIWriter::WriteNodalCoordinates()
 
 void ExodusIIWriter::WriteBoundaries()
 {
-   //
-   // Add the boundary IDs
-   //
+   // 0. Generate boundary info.
+   GenerateExodusIIBoundaryInfo();
+
+   // 1. Define the number of boundaries.
+   int num_side_sets_ids;
+   DefineDimension("num_side_sets", _boundary_ids.size(),
+                   &num_side_sets_ids);
+
+   // 2. Boundary IDs.
    int boundary_ids_dim;
    DefineDimension(EXODUS_NUM_BOUNDARIES_LABEL, _boundary_ids.size(),
                    &boundary_ids_dim);
 
    DefineAndPutVar("ss_prop1", NC_INT, 1, &boundary_ids_dim, _boundary_ids.data());
 
-   //
-   // Add the number of elements for each boundary_id.
-   //
+   // 3. Number of boundary elements.
    for (int boundary_id : _boundary_ids)
    {
       size_t num_elements_for_boundary = _exodusII_element_ids_for_boundary_id.at(
@@ -653,9 +647,7 @@ void ExodusIIWriter::WriteBoundaries()
                       &num_side_ss_id);
    }
 
-   //
-   // Add the faces here.
-   //
+   // 4. Boundary side IDs.
    for (int boundary_id : _boundary_ids)
    {
       const std::vector<int> & side_ids = _exodusII_side_ids_for_boundary_id.at(
@@ -670,13 +662,9 @@ void ExodusIIWriter::WriteBoundaries()
       DefineAndPutVar(label, NC_INT, 1,  &side_id_dim, side_ids.data());
    }
 
-   //
-   // Add the boundary elements here.
-   //
+   // 5. Boundary element IDs.
    for (int boundary_id : _boundary_ids)
    {
-      // TODO: - need to figure-out correct element ids (we only have local element
-      /// indexes into the boundaries array!)
       const std::vector<int> & element_ids = _exodusII_element_ids_for_boundary_id.at(
                                                 boundary_id);
 
@@ -865,13 +853,6 @@ std::unordered_set<int> ExodusIIWriter::GenerateUniqueNodeIDs()
    }
 
    return unique_node_ids;
-}
-
-void ExodusIIWriter::WriteNumBoundaries()
-{
-   int num_side_sets_ids;
-   DefineDimension("num_side_sets", _boundary_ids.size(),
-                   &num_side_sets_ids);
 }
 
 void ExodusIIWriter::GenerateExodusIIBoundaryInfo()
