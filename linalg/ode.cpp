@@ -124,7 +124,6 @@ void ODEStateDataVector::SetSize(int stages, int vsize, MemoryType m_t)
 void ODEStateDataVector::Get(int i, Vector &state) const
 {
    MFEM_ASSERT( (i >= 0) && ( i < ss ),
-                " ODEStateDataVector::Get \n" <<
                 " - Tried to get non-existent state "<<i);
 
    state = data[idx[i]];
@@ -133,7 +132,6 @@ void ODEStateDataVector::Get(int i, Vector &state) const
 const Vector &ODEStateDataVector::Get(int i) const
 {
    MFEM_ASSERT( (i >= 0) && ( i < ss ),
-                " ODEStateDataVector::Get \n" <<
                 " - Tried to get non-existent state "<<i);
 
    return data[idx[i]];
@@ -142,7 +140,6 @@ const Vector &ODEStateDataVector::Get(int i) const
 void ODEStateDataVector::Set(int i, Vector &state)
 {
    MFEM_ASSERT( (i >= 0) && ( i < smax ),
-                " ODEStateDataVector::Set \n" <<
                 " - Tried to set non-existent state "<<i);
    data[idx[i]] = state;
 }
