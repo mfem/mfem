@@ -36,9 +36,9 @@ BDPMinresSolver::BDPMinresSolver(const HypreParMatrix& M,
    : DarcySolver(M.NumRows(), B.NumRows()), op_(offsets_), prec_(offsets_),
      BT_(B.Transpose()), solver_(M.GetComm())
 {
-   op_.SetBlock(0,0, &M);
+   op_.SetBlock(0,0, const_cast<HypreParMatrix*>(&M));
    op_.SetBlock(0,1, BT_.As<HypreParMatrix>());
-   op_.SetBlock(1,0, &B);
+   op_.SetBlock(1,0, const_cast<HypreParMatrix*>(&B));
 
    Vector Md;
    M.GetDiag(Md);
