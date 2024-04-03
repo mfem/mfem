@@ -97,7 +97,7 @@ else
    DEP_FLAGS := -Wno-unused-command-line-argument $(DEP_FLAGS)
    # Silence "ignoring duplicate libraries" warnings on new (Xcode 15) linker
    ifneq (,$(findstring PROJECT:dyld,$(shell ld -v 2>&1)))
-      LDFLAGS = -Xlinker -no_warn_duplicate_libraries
+      LDFLAGS_INTERNAL = -Xlinker -no_warn_duplicate_libraries
    endif
 endif
 
