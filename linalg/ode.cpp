@@ -121,12 +121,6 @@ void ODEStateDataVector::SetSize(int stages, int vsize, MemoryType m_t)
    ss = 0;
 }
 
-void ODEStateDataVector::Get(int i, Vector &state) const
-{
-   MFEM_ASSERT_INDEX_IN_RANGE(i,0,ss);
-   state = data[idx[i]];
-}
-
 const Vector &ODEStateDataVector::Get(int i) const
 {
    MFEM_ASSERT_INDEX_IN_RANGE(i,0,ss);

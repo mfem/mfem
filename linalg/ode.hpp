@@ -32,7 +32,7 @@ public:
    virtual int Size() const = 0;
 
    /// Get the ith state vector
-   virtual void Get(int i, Vector &state) const = 0;
+   virtual void Get(int i, Vector &state) const { state = Get(i);};
 
    /// Get the ith state vector
    virtual const Vector &Get(int i) const = 0;
@@ -86,8 +86,6 @@ public:
    int  MaxSize() const override { return smax; };
 
    int  Size() const override { return ss; };
-
-   void Get(int i, Vector &state) const override;
 
    const Vector &Get(int i) const override;
 
