@@ -1043,10 +1043,11 @@ SIAVSolver::Step(Vector &q, Vector &p, real_t &t, real_t &dt)
    }
 }
 
-std::string SecondOrderODESolver::Types  = "ODE solver: \n\t"
-                                           "  [0--10] - GeneralizedAlpha(0.1 * s),\n\t"
-                                           "  11 - Average Acceleration, 12 - Linear Acceleration\n\t"
-                                           "  13 - CentralDifference, 14 - FoxGoodwin";
+std::string SecondOrderODESolver::Types =
+   "ODE solver: \n\t"
+   "  [0--10] - GeneralizedAlpha(0.1 * s),\n\t"
+   "  11 - Average Acceleration, 12 - Linear Acceleration\n\t"
+   "  13 - CentralDifference, 14 - FoxGoodwin";
 
 SecondOrderODESolver* SecondOrderODESolver::Select(int ode_solver_type)
 {
