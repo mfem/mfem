@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -22,6 +22,8 @@ endif()
 option(BUILD_SHARED_LIBS "Enable shared library build of MFEM" OFF)
 option(MFEM_USE_MPI "Enable MPI parallel build" OFF)
 option(MFEM_USE_METIS "Enable METIS usage" ${MFEM_USE_MPI})
+set(MFEM_PRECISION "double" CACHE STRING
+    "Floating-point precision to use: single, or double")
 option(MFEM_USE_EXCEPTIONS "Enable the use of exceptions" OFF)
 option(MFEM_USE_ZLIB "Enable zlib for compressed data streams." OFF)
 option(MFEM_USE_LIBUNWIND "Enable backtrace for errors." OFF)

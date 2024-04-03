@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -34,13 +34,13 @@ void TestSameMatrices(SparseMatrix &A1, const SparseMatrix &A2,
 
    const int *I1 = A1.HostReadI();
    const int *J1 = A1.HostReadJ();
-   const double *V1 = A1.HostReadData();
+   const real_t *V1 = A1.HostReadData();
 
    A2.HostReadI();
    A2.HostReadJ();
    A2.HostReadData();
 
-   double error = 0.0;
+   real_t error = 0.0;
 
    for (int i=0; i<n; ++i)
    {
@@ -292,7 +292,7 @@ TEST_CASE("LOR AMS", "[LOR][BatchedLOR][AMS][Parallel][CUDA]")
    ParGridFunction z_coord(&vert_fespace);
    for (int i = 0; i < edge_fespace.GetMesh()->GetNV(); i++)
    {
-      const double *coord = edge_fespace.GetMesh()->GetVertex(i);
+      const real_t *coord = edge_fespace.GetMesh()->GetVertex(i);
       x_coord(i) = coord[0];
       y_coord(i) = coord[1];
       if (sdim == 3) { z_coord(i) = coord[2]; }

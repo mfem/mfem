@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -26,7 +26,7 @@ protected:
    const IntegrationPoint *IntPoint;
    DenseMatrix dFdx, adjJ, invJ;
    DenseMatrix d2Fdx2, adjJT;
-   double Wght;
+   real_t Wght;
    int EvalState;
    enum StateMasks
    {
@@ -47,7 +47,7 @@ protected:
        store it in d2Fdx2. */
    virtual const DenseMatrix &EvalHessian() = 0;
 
-   double EvalWeight();
+   real_t EvalWeight();
    const DenseMatrix &EvalAdjugateJ();
    const DenseMatrix &EvalTransAdjugateJ();
    const DenseMatrix &EvalInverseJ();
@@ -127,8 +127,8 @@ public:
 
    /** @brief Return the weight of the Jacobian matrix of the transformation
        at the currently set IntegrationPoint.
-       The Weight evaluates to \f$ \sqrt{\lvert J^T J \rvert} \f$. */
-   double Weight() { return (EvalState & WEIGHT_MASK) ? Wght : EvalWeight(); }
+       The Weight evaluates to $ \sqrt{\lvert J^T J \rvert} $. */
+   real_t Weight() { return (EvalState & WEIGHT_MASK) ? Wght : EvalWeight(); }
 
    /** @brief Return the adjugate of the Jacobian matrix of the transformation
         at the currently set IntegrationPoint. */
@@ -155,7 +155,7 @@ public:
        of the transformation. */
    virtual int OrderW() const = 0;
 
-   /// Return the order of \f$ adj(J)^T \nabla fi \f$
+   /// Return the order of $ adj(J)^T \nabla fi $
    virtual int OrderGrad(const FiniteElement *fe) const = 0;
 
    /// Return the Geometry::Type of the reference element.
@@ -170,12 +170,13 @@ public:
    virtual int GetSpaceDim() const = 0;
 
    /** @brief Transform a point @a pt from physical space to a point @a ip in
-       reference space. */
+       reference space and optionally can set a solver tolerance using @a phys_tol. */
    /** Attempt to find the IntegrationPoint that is transformed into the given
        point in physical space. If the inversion fails a non-zero value is
        returned. This method is not 100 percent reliable for non-linear
        transformations. */
-   virtual int TransformBack(const Vector &pt, IntegrationPoint &ip) = 0;
+   virtual int TransformBack(const Vector &pt, IntegrationPoint &ip,
+                             const real_t phys_tol = 1e-15) = 0;
 
    virtual ~ElementTransformation() { }
 };
@@ -237,12 +238,12 @@ protected:
    int rel_qpts_order; // num_1D_qpts = max(trans_order+rel_qpts_order,0)+1
    int solver_type; // solution strategy to use
    int max_iter; // max. number of Newton iterations
-   double ref_tol; // reference space tolerance
-   double phys_rtol; // physical space tolerance (relative)
-   double ip_tol; // tolerance for checking if a point is inside the ref. elem.
+   real_t ref_tol; // reference space tolerance
+   real_t phys_rtol; // physical space tolerance (relative)
+   real_t ip_tol; // tolerance for checking if a point is inside the ref. elem.
    int print_level;
 
-   void NewtonPrint(int mode, double val);
+   void NewtonPrint(int mode, real_t val);
    void NewtonPrintPoint(const char *prefix, const Vector &pt,
                          const char *suffix);
    int NewtonSolve(const Vector &pt, IntegrationPoint &ip);
@@ -317,15 +318,15 @@ public:
    void SetMaxIter(int max_it) { max_iter = max_it; }
 
    /// Set the reference-space convergence tolerance.
-   void SetReferenceTol(double ref_sp_tol) { ref_tol = ref_sp_tol; }
+   void SetReferenceTol(real_t ref_sp_tol) { ref_tol = ref_sp_tol; }
 
    /// Set the relative physical-space convergence tolerance.
-   void SetPhysicalRelTol(double phys_rel_tol) { phys_rtol = phys_rel_tol; }
+   void SetPhysicalRelTol(real_t phys_rel_tol) { phys_rtol = phys_rel_tol; }
 
    /** @brief Set the tolerance used to determine if a point lies inside or
        outside of the reference element. */
    /** This tolerance is used only with the pure #Newton solver. */
-   void SetElementTol(double el_tol) { ip_tol = el_tol; }
+   void SetElementTol(real_t el_tol) { ip_tol = el_tol; }
 
    /// Set the desired print level, useful for debugging.
    /** The valid options are: -1 - never print (default); 0 - print only errors;
@@ -391,11 +392,11 @@ public:
    /// @brief Set the underlying point matrix describing the transformation.
    /** The dimensions of the matrix are space-dim x dof. The transformation is
        defined as
-           \f$ x = F( \hat x ) = P \phi( \hat x ) \f$
+           $ x = F( \hat x ) = P \phi( \hat x ) $
 
-       where \f$ \hat x \f$  is the reference point, @a x is the corresponding
-       physical point, @a P is the point matrix, and \f$ \phi( \hat x ) \f$ is
-       the column-vector of all basis functions evaluated at \f$ \hat x \f$ .
+       where $ \hat x $  is the reference point, @a x is the corresponding
+       physical point, @a P is the point matrix, and $ \phi( \hat x ) $ is
+       the column-vector of all basis functions evaluated at $ \hat x $ .
        The columns of @a P represent the control points in physical space
        defining the transformation. */
    void SetPointMat(const DenseMatrix &pm) { PointMat = pm; EvalState = 0; }
@@ -436,20 +437,22 @@ public:
        of the transformation. */
    virtual int OrderW() const;
 
-   /// Return the order of \f$ adj(J)^T \nabla fi \f$
+   /// Return the order of $ adj(J)^T \nabla fi $
    virtual int OrderGrad(const FiniteElement *fe) const;
 
    virtual int GetSpaceDim() const { return PointMat.Height(); }
 
    /** @brief Transform a point @a pt from physical space to a point @a ip in
-       reference space. */
+       reference space and optionally can set a solver tolerance using @a phys_tol. */
    /** Attempt to find the IntegrationPoint that is transformed into the given
        point in physical space. If the inversion fails a non-zero value is
        returned. This method is not 100 percent reliable for non-linear
        transformations. */
-   virtual int TransformBack(const Vector & v, IntegrationPoint & ip)
+   virtual int TransformBack(const Vector & v, IntegrationPoint & ip,
+                             const real_t phys_rel_tol = 1e-15)
    {
       InverseElementTransformation inv_tr(this);
+      inv_tr.SetPhysicalRelTol(phys_rel_tol);
       return inv_tr.Transform(v, ip);
    }
 
@@ -612,7 +615,7 @@ public:
 
        @warning This check will generally fail on periodic boundary faces.
    */
-   double CheckConsistency(int print_level = 0,
+   real_t CheckConsistency(int print_level = 0,
                            std::ostream &out = mfem::out);
 };
 
