@@ -99,7 +99,7 @@ public:
                                  const Vector &elfun, DenseMatrix &elmat);
 
    /// Compute the local energy
-   virtual double GetElementEnergy(const FiniteElement &el,
+   virtual real_t GetElementEnergy(const FiniteElement &el,
                                    ElementTransformation &Tr,
                                    const Vector &elfun);
 
@@ -124,7 +124,7 @@ public:
    /// Compute the local (to the MPI rank) energy with partial assembly.
    /** Here the state @a x is an E-vector. This method can be called only after
        the method AssemblePA() has been called. */
-   virtual double GetLocalStateEnergyPA(const Vector &x) const;
+   virtual real_t GetLocalStateEnergyPA(const Vector &x) const;
 
    /// Method for partially assembled action.
    /** Perform the action of integrator on the input @a x and add the result to
@@ -179,7 +179,7 @@ class BlockNonlinearFormIntegrator
 {
 public:
    /// Compute the local energy
-   virtual double GetElementEnergy(const Array<const FiniteElement *>&el,
+   virtual real_t GetElementEnergy(const Array<const FiniteElement *>&el,
                                    ElementTransformation &Tr,
                                    const Array<const Vector *>&elfun);
 
@@ -231,7 +231,7 @@ public:
    /** @brief Evaluate the strain energy density function, W = W(Jpt).
        @param[in] Jpt  Represents the target->physical transformation
                        Jacobian matrix. */
-   virtual double EvalW(const DenseMatrix &Jpt) const = 0;
+   virtual real_t EvalW(const DenseMatrix &Jpt) const = 0;
 
    /** @brief Evaluate the 1st Piola-Kirchhoff stress tensor, P = P(Jpt).
        @param[in] Jpt  Represents the target->physical transformation
@@ -253,7 +253,7 @@ public:
        the matrix invariants and their derivatives.
    */
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const = 0;
+                          const real_t weight, DenseMatrix &A) const = 0;
 };
 
 
@@ -267,12 +267,12 @@ protected:
    mutable DenseMatrix G, C; // dof x dim
 
 public:
-   virtual double EvalW(const DenseMatrix &J) const;
+   virtual real_t EvalW(const DenseMatrix &J) const;
 
    virtual void EvalP(const DenseMatrix &J, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &J, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const;
+                          const real_t weight, DenseMatrix &A) const;
 };
 
 
@@ -284,7 +284,7 @@ public:
 class NeoHookeanModel : public HyperelasticModel
 {
 protected:
-   mutable double mu, K, g;
+   mutable real_t mu, K, g;
    Coefficient *c_mu, *c_K, *c_g;
    bool have_coeffs;
 
@@ -294,19 +294,19 @@ protected:
    inline void EvalCoeffs() const;
 
 public:
-   NeoHookeanModel(double mu_, double K_, double g_ = 1.0)
+   NeoHookeanModel(real_t mu_, real_t K_, real_t g_ = 1.0)
       : mu(mu_), K(K_), g(g_), have_coeffs(false) { c_mu = c_K = c_g = NULL; }
 
    NeoHookeanModel(Coefficient &mu_, Coefficient &K_, Coefficient *g_ = NULL)
       : mu(0.0), K(0.0), g(1.0), c_mu(&mu_), c_K(&K_), c_g(g_),
         have_coeffs(true) { }
 
-   virtual double EvalW(const DenseMatrix &J) const;
+   virtual real_t EvalW(const DenseMatrix &J) const;
 
    virtual void EvalP(const DenseMatrix &J, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &J, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const;
+                          const real_t weight, DenseMatrix &A) const;
 };
 
 
@@ -342,7 +342,7 @@ public:
        @param[in] el     Type of FiniteElement.
        @param[in] Ttr    Represents ref->target coordinates transformation.
        @param[in] elfun  Physical coordinates of the zone. */
-   virtual double GetElementEnergy(const FiniteElement &el,
+   virtual real_t GetElementEnergy(const FiniteElement &el,
                                    ElementTransformation &Ttr,
                                    const Vector &elfun);
 
@@ -369,7 +369,7 @@ private:
 public:
    IncompressibleNeoHookeanIntegrator(Coefficient &mu_) : c_mu(&mu_) { }
 
-   virtual double GetElementEnergy(const Array<const FiniteElement *>&el,
+   virtual real_t GetElementEnergy(const Array<const FiniteElement *>&el,
                                    ElementTransformation &Tr,
                                    const Array<const Vector *> &elfun);
 

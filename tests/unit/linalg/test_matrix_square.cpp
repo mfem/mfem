@@ -15,7 +15,7 @@
 namespace mfem
 {
 
-constexpr double EPS = 1.e-12;
+constexpr real_t EPS = 1.e-12;
 
 TEST_CASE("FormLinearSystem", "[FormLinearSystem]")
 {
@@ -73,7 +73,7 @@ TEST_CASE("FormLinearSystem", "[FormLinearSystem]")
             fa.RecoverFEMSolution(X[1], b, x1);
 
             x0 -= x1;
-            double error = x0.Norml2();
+            real_t error = x0.Norml2();
             CAPTURE(error, order);
             REQUIRE(x0.Norml2() == MFEM_Approx(0.0, 1e2*EPS));
 
@@ -158,7 +158,7 @@ TEST_CASE("ParallelFormLinearSystem", "[Parallel], [ParallelFormLinearSystem]")
             fa.RecoverFEMSolution(X[1], b, x1);
 
             x0 -= x1;
-            double error = x0.Norml2();
+            real_t error = x0.Norml2();
             CAPTURE(order, error);
             REQUIRE(x0.Norml2() == MFEM_Approx(0.0, 2e2*EPS));
 
@@ -240,7 +240,7 @@ TEST_CASE("HypreParMatrixBlocksSquare",
       hBlocks(1, 0) = B;
       hBlocks(1, 1) = MW;
 
-      Array2D<double> blockCoeff(2,2);
+      Array2D<real_t> blockCoeff(2,2);
       blockCoeff = 1.0;
       blockCoeff(1, 1) = 3.14;
       HypreParMatrix *H = HypreParMatrixFromBlocks(hBlocks, &blockCoeff);
@@ -259,7 +259,7 @@ TEST_CASE("HypreParMatrixBlocksSquare",
       H->GetDiag(yH);
 
       yH -= yB;
-      double error = yH.Norml2();
+      real_t error = yH.Norml2();
       mfem::out << "  order: " << order
                 << ", block matrix error norm on rank " << rank << ": " << error << std::endl;
       REQUIRE(error < EPS);
