@@ -67,8 +67,9 @@ protected:
    /// (Exodus II) for  each boundary element.
    void GenerateExodusIIBoundaryInfo();
 
-   /// @brief sets @a _num_nodes.
-   void FindNumUniqueNodes();
+   /// @brief Iterates over the elements to extract a unique set of node IDs
+   /// (or vertex IDs if first-order).
+   std::unordered_set<int> GenerateUniqueNodeIDs();
 
    /// @brief Populates vectors with x, y, z coordinates from mesh.
    void ExtractVertexCoordinates(std::vector<double> & coordx,
@@ -120,9 +121,6 @@ protected:
    /// @brief Writes the number of boundaries.
    void WriteNumBoundaries();
 
-   /// @brief Writes the number of nodes in the mesh.
-   void WriteNumNodes();
-
    /// @brief Writes the coordinates of nodes.
    void WriteNodalCoordinates();
 
@@ -169,6 +167,8 @@ protected:
    void PutAtt(int varid, const char *name, nc_type xtype, size_t len,
                const void * data);
 
+   /// @brief Returns a pointer to a static buffer containing the character
+   /// string with formatting. Used to generate variable labels.
    char * GenerateLabel(const char * format, ...);
 
 private:
@@ -189,10 +189,6 @@ private:
    std::vector<int> _boundary_ids;
    std::map<int, std::vector<int>> _exodusII_element_ids_for_boundary_id;
    std::map<int, std::vector<int>> _exodusII_side_ids_for_boundary_id;
-
-   int _num_nodes;
-   int _num_nodes_id;
-   int _num_dim_id;
 };
 
 void ExodusIIWriter::DefineDimension(const char *name, size_t len, int *dim_id)
@@ -284,12 +280,6 @@ void ExodusIIWriter::WriteExodusII(std::string fpath, int flags)
    // Add title.
    //
    WriteTitle();
-
-   //
-   // Set # nodes. NB: - Assume 1st order currently so NumOfVertices == # nodes
-   //
-   FindNumUniqueNodes();
-   WriteNumNodes();
 
    //
    // Set dimension.
@@ -605,31 +595,34 @@ void ExodusIIWriter::WriteElementBlockParameters(int block_id)
           element_type.c_str());
 }
 
-void ExodusIIWriter::WriteNumNodes()
-{
-   DefineDimension("num_nodes", _num_nodes, &_num_nodes_id);
-}
-
 void ExodusIIWriter::WriteNodalCoordinates()
 {
-   // Define nodal coordinates.
+   // 1. Generate the unique node IDs.
+   std::unordered_set<int> unique_node_ids = GenerateUniqueNodeIDs();
+   const size_t num_nodes = unique_node_ids.size();
+
+   // 2. Define the "num_nodes" dimension.
+   int num_nodes_id;
+   DefineDimension("num_nodes", num_nodes, &num_nodes_id);
+
+   // 3. Extract the nodal coordinates.
+   // NB: assume doubles (could be floats!); ndims = 1 (vector).
    // https://docs.unidata.ucar.edu/netcdf-c/current/group__variables.html#gac7e8662c51f3bb07d1fc6d6c6d9052c8
-   // NB: assume we have doubles (could be floats!)
-   // ndims = 1 (vectors).
-   std::vector<double> coordx(_num_nodes);
-   std::vector<double> coordy(_num_nodes);
-   std::vector<double> coordz(_mesh.Dimension() == 3 ? _num_nodes : 0);
+   std::vector<double> coordx(num_nodes);
+   std::vector<double> coordy(num_nodes);
+   std::vector<double> coordz(_mesh.Dimension() == 3 ? num_nodes : 0);
 
    ExtractVertexCoordinates(coordx, coordy, coordz);
 
-   DefineAndPutVar(EXODUS_COORDX_LABEL, NC_DOUBLE, 1, &_num_nodes_id,
+   // 4. Define and put the nodal coordinates.
+   DefineAndPutVar(EXODUS_COORDX_LABEL, NC_DOUBLE, 1, &num_nodes_id,
                    coordx.data());
-   DefineAndPutVar(EXODUS_COORDY_LABEL, NC_DOUBLE, 1, &_num_nodes_id,
+   DefineAndPutVar(EXODUS_COORDY_LABEL, NC_DOUBLE, 1, &num_nodes_id,
                    coordy.data());
 
    if (_mesh.Dimension() == 3)
    {
-      DefineAndPutVar(EXODUS_COORDZ_LABEL, NC_DOUBLE, 1, &_num_nodes_id,
+      DefineAndPutVar(EXODUS_COORDZ_LABEL, NC_DOUBLE, 1, &num_nodes_id,
                       coordz.data());
    }
 }
@@ -757,7 +750,8 @@ void ExodusIIWriter::WriteFileSize()
 
 void ExodusIIWriter::WriteDimension()
 {
-   DefineDimension(EXODUS_NUM_DIM_LABEL, _mesh.Dimension(), &_num_dim_id);
+   int num_dim_id;
+   DefineDimension(EXODUS_NUM_DIM_LABEL, _mesh.Dimension(), &num_dim_id);
 }
 
 void ExodusIIWriter::WriteNodeSets()
@@ -841,11 +835,10 @@ void ExodusIIWriter::WriteNumElementBlocks()
                    &num_elem_blk_id);
 }
 
-/// @brief Iterates over the elements of the mesh to extract a unique set of node
-/// IDs (or vertex IDs if first-order).
-void ExodusIIWriter::FindNumUniqueNodes()
+
+std::unordered_set<int> ExodusIIWriter::GenerateUniqueNodeIDs()
 {
-   std::set<int> node_ids;
+   std::unordered_set<int> unique_node_ids;
 
    const FiniteElementSpace * fespace = _mesh.GetNodalFESpace();
 
@@ -857,7 +850,7 @@ void ExodusIIWriter::FindNumUniqueNodes()
       {
          fespace->GetElementDofs(ielement, dofs);
 
-         for (int dof : dofs) { node_ids.insert(dof); }
+         for (int dof : dofs) { unique_node_ids.insert(dof); }
       }
       else
       {
@@ -866,12 +859,12 @@ void ExodusIIWriter::FindNumUniqueNodes()
 
          for (int vertex_index : vertex_indices)
          {
-            node_ids.insert(vertex_index);
+            unique_node_ids.insert(vertex_index);
          }
       }
    }
 
-   _num_nodes = (int)node_ids.size();
+   return unique_node_ids;
 }
 
 void ExodusIIWriter::WriteNumBoundaries()
