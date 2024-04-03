@@ -537,6 +537,9 @@ protected:
    umpire::Allocator allocator;
    bool owns_allocator{false};
 
+   void * Allocate(size_t bytes) { return allocator.allocate(bytes); }
+   void Deallocate(void * ptr) { allocator.deallocate(ptr); }
+
 public:
    // TODO: this only releases unused memory
    virtual ~UmpireMemorySpace() { if (owns_allocator) { allocator.release(); } }
@@ -563,45 +566,50 @@ class UmpireHostMemorySpace : public HostMemorySpace, public UmpireMemorySpace
 private:
    umpire::strategy::AllocationStrategy *strat;
 public:
-   UmpireHostMemorySpace(const char * name)
+   UmpireHostMemorySpace(const char * name, const char * space = "HOST")
       : HostMemorySpace(),
-        UmpireMemorySpace(name, "HOST"),
+        UmpireMemorySpace(name, space),
         strat(allocator.getAllocationStrategy()) {}
    void Alloc(void **ptr, size_t bytes) override
-   { *ptr = allocator.allocate(bytes); }
-   void Dealloc(void *ptr) override { allocator.deallocate(ptr); }
+   { *ptr = Allocate(bytes); }
+   void Dealloc(void *ptr) override { Deallocate(ptr); }
    void Insert(void *ptr, size_t bytes)
    { rm.registerAllocation(ptr, {ptr, bytes, strat}); }
 };
 
-/// The Umpire device memory space
+class ManagedUmpireHostMemorySpace : public UmpireHostMemorySpace
+{
+public:
+   ManagedUmpireHostMemorySpace(const char * name) : UmpireHostMemorySpace(name,
+                                                                              "MANAGED") {}
+};
+
+/// The Umpire device memory space and the Umpire managed memory space
 #if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
 class UmpireDeviceMemorySpace : public DeviceMemorySpace,
    public UmpireMemorySpace
 {
 public:
-   UmpireDeviceMemorySpace(const char * name)
+   UmpireDeviceMemorySpace(const char * name, const char * space = "DEVICE")
       : DeviceMemorySpace(),
-        UmpireMemorySpace(name, "DEVICE") {}
+        UmpireMemorySpace(name, space) {}
    void Alloc(Memory &base) override
-   { base.d_ptr = allocator.allocate(base.bytes); }
-   void Dealloc(Memory &base) override { rm.deallocate(base.d_ptr); }
+   { base.d_ptr = Allocate(base.bytes); }
+   void Dealloc(Memory &base) override { Deallocate(base.d_ptr); }
    void *HtoD(void *dst, const void *src, size_t bytes) override
    {
-#ifdef MFEM_USE_CUDA
+#if defined(MFEM_USE_CUDA)
       return CuMemcpyHtoD(dst, src, bytes);
-#endif
-#ifdef MFEM_USE_HIP
+#elif defined(MFEM_USE_HIP)
       return HipMemcpyHtoD(dst, src, bytes);
 #endif
       // rm.copy(dst, const_cast<void*>(src), bytes); return dst;
    }
    void *DtoD(void* dst, const void* src, size_t bytes) override
    {
-#ifdef MFEM_USE_CUDA
+#if defined(MFEM_USE_CUDA)
       return CuMemcpyDtoD(dst, src, bytes);
-#endif
-#ifdef MFEM_USE_HIP
+#elif defined(MFEM_USE_HIP)
       // Unlike cudaMemcpy(DtoD), hipMemcpy(DtoD) causes a host-side synchronization so
       // instead we use hipMemcpyAsync to get similar behavior.
       // for more info see: https://github.com/mfem/mfem/pull/2780
@@ -611,20 +619,49 @@ public:
    }
    void *DtoH(void *dst, const void *src, size_t bytes) override
    {
-#ifdef MFEM_USE_CUDA
+#if defined(MFEM_USE_CUDA)
       return CuMemcpyDtoH(dst, src, bytes);
-#endif
-#ifdef MFEM_USE_HIP
+#elif defined(MFEM_USE_HIP)
       return HipMemcpyDtoH(dst, src, bytes);
 #endif
       // rm.copy(dst, const_cast<void*>(src), bytes); return dst;
    }
 };
-#else
+
+class ManagedUmpireDeviceMemorySpace : public UmpireDeviceMemorySpace
+{
+public:
+   ManagedUmpireDeviceMemorySpace(const char * name)
+      : UmpireDeviceMemorySpace(name, "MANAGED")
+   {}
+
+   void Alloc(Memory &base) override { base.d_ptr = base.h_ptr; }
+   void Dealloc(Memory &/*base*/) override {}
+
+   void *HtoD(void *dst, const void *src, size_t bytes) override
+   {
+      if (dst == src) { return dst; }
+      return UmpireDeviceMemorySpace::HtoD(dst, src, bytes);
+   }
+   void *DtoD(void* dst, const void* src, size_t bytes) override
+   { return UmpireDeviceMemorySpace::DtoD(dst, src, bytes); }
+   void *DtoH(void *dst, const void *src, size_t bytes) override
+   {
+      if (dst == src) { MFEM_STREAM_SYNC; return dst; }
+      return UmpireDeviceMemorySpace::DtoH(dst, src, bytes);
+   }
+};
+#else // MFEM_USE_CUDA || MFEM_USE_HIP
 class UmpireDeviceMemorySpace : public NoDeviceMemorySpace
 {
 public:
    UmpireDeviceMemorySpace(const char * /*unused*/) {}
+};
+
+class ManagedUmpireDeviceMemorySpace : public NoDeviceMemorySpace
+{
+public:
+   ManagedUmpireDeviceMemorySpace(const char * /*name*/) {}
 };
 #endif // MFEM_USE_CUDA || MFEM_USE_HIP
 #endif // MFEM_USE_UMPIRE
@@ -658,12 +695,16 @@ public:
       host[static_cast<int>(MT::HOST_DEBUG)] = nullptr;
       host[static_cast<int>(MT::HOST_UMPIRE)] = nullptr;
       host[static_cast<int>(MT::MANAGED)] = new UvmHostMemorySpace();
+      host[static_cast<int>(MT::MANAGED_UMPIRE)] = nullptr;
+      host[static_cast<int>(MT::MANAGED_UMPIRE_2)] = nullptr;
 
       // Filling the device memory backends, shifting with the device size
       constexpr int shift = DeviceMemoryType;
       device[static_cast<int>(MT::MANAGED)-shift] = new UvmCudaMemorySpace();
       // All other devices controllers are delayed
-      device[static_cast<int>(MemoryType::DEVICE)-shift] = nullptr;
+      device[static_cast<int>(MT::MANAGED_UMPIRE)-shift] = nullptr;
+      device[static_cast<int>(MT::MANAGED_UMPIRE_2)-shift] = nullptr;
+      device[static_cast<int>(MT::DEVICE)-shift] = nullptr;
       device[static_cast<int>(MT::DEVICE_DEBUG)-shift] = nullptr;
       device[static_cast<int>(MT::DEVICE_UMPIRE)-shift] = nullptr;
       device[static_cast<int>(MT::DEVICE_UMPIRE_2)-shift] = nullptr;
@@ -703,10 +744,18 @@ private:
       {
          case MT::HOST_DEBUG: return new MmuHostMemorySpace();
 #ifdef MFEM_USE_UMPIRE
+         case MT::MANAGED_UMPIRE:
+            return new ManagedUmpireHostMemorySpace(
+                      MemoryManager::GetUmpireManagedAllocatorName());
+         case MT::MANAGED_UMPIRE_2:
+            return new ManagedUmpireHostMemorySpace(
+                      MemoryManager::GetUmpireManaged2AllocatorName());
          case MT::HOST_UMPIRE:
             return new UmpireHostMemorySpace(
                       MemoryManager::GetUmpireHostAllocatorName());
 #else
+         case MT::MANAGED_UMPIRE: return new NoHostMemorySpace();
+         case MT::MANAGED_UMPIRE_2: return new NoHostMemorySpace();
          case MT::HOST_UMPIRE: return new NoHostMemorySpace();
 #endif
          case MT::HOST_PINNED: return new HostPinnedMemorySpace();
@@ -720,6 +769,12 @@ private:
       switch (mt)
       {
 #ifdef MFEM_USE_UMPIRE
+         case MT::MANAGED_UMPIRE:
+            return new ManagedUmpireDeviceMemorySpace(
+                      MemoryManager::GetUmpireManagedAllocatorName());
+         case MT::MANAGED_UMPIRE_2:
+            return new ManagedUmpireDeviceMemorySpace(
+                      MemoryManager::GetUmpireManaged2AllocatorName());
          case MT::DEVICE_UMPIRE:
             return new UmpireDeviceMemorySpace(
                       MemoryManager::GetUmpireDeviceAllocatorName());
@@ -727,6 +782,8 @@ private:
             return new UmpireDeviceMemorySpace(
                       MemoryManager::GetUmpireDevice2AllocatorName());
 #else
+         case MT::MANAGED_UMPIRE: return new NoDeviceMemorySpace();
+         case MT::MANAGED_UMPIRE_2: return new NoDeviceMemorySpace();
          case MT::DEVICE_UMPIRE: return new NoDeviceMemorySpace();
          case MT::DEVICE_UMPIRE_2: return new NoDeviceMemorySpace();
 #endif
@@ -1006,13 +1063,21 @@ bool MemoryManager::MemoryClassCheck_(MemoryClass mc, void *h_ptr,
                      d_mt == MemoryType::DEVICE_DEBUG ||
                      d_mt == MemoryType::DEVICE_UMPIRE ||
                      d_mt == MemoryType::DEVICE_UMPIRE_2 ||
-                     d_mt == MemoryType::MANAGED,"");
+                     d_mt == MemoryType::MANAGED ||
+                     d_mt == MemoryType::MANAGED_UMPIRE ||
+                     d_mt == MemoryType::MANAGED_UMPIRE_2,
+                     "");
          return true;
       }
       case MemoryClass::MANAGED:
       {
          MFEM_VERIFY((h_mt == MemoryType::MANAGED &&
-                      d_mt == MemoryType::MANAGED),"");
+                      d_mt == MemoryType::MANAGED) ||
+                     (h_mt == MemoryType::MANAGED_UMPIRE &&
+                      d_mt == MemoryType::MANAGED_UMPIRE) ||
+                     (h_mt == MemoryType::MANAGED_UMPIRE_2 &&
+                      d_mt == MemoryType::MANAGED_UMPIRE_2),
+                     "");
          return true;
       }
       default: break;
@@ -1718,23 +1783,27 @@ MemoryType MemoryManager::device_mem_type = MemoryType::HOST;
 
 MemoryType MemoryManager::dual_map[MemoryTypeSize] =
 {
-   /* HOST            */  MemoryType::DEVICE,
-   /* HOST_32         */  MemoryType::DEVICE,
-   /* HOST_64         */  MemoryType::DEVICE,
-   /* HOST_DEBUG      */  MemoryType::DEVICE_DEBUG,
-   /* HOST_UMPIRE     */  MemoryType::DEVICE_UMPIRE,
-   /* HOST_PINNED     */  MemoryType::DEVICE,
-   /* MANAGED         */  MemoryType::MANAGED,
-   /* DEVICE          */  MemoryType::HOST,
-   /* DEVICE_DEBUG    */  MemoryType::HOST_DEBUG,
-   /* DEVICE_UMPIRE   */  MemoryType::HOST_UMPIRE,
-   /* DEVICE_UMPIRE_2 */  MemoryType::HOST_UMPIRE
+   /* HOST             */  MemoryType::DEVICE,
+   /* HOST_32          */  MemoryType::DEVICE,
+   /* HOST_64          */  MemoryType::DEVICE,
+   /* HOST_DEBUG       */  MemoryType::DEVICE_DEBUG,
+   /* HOST_UMPIRE      */  MemoryType::DEVICE_UMPIRE,
+   /* HOST_PINNED      */  MemoryType::DEVICE,
+   /* MANAGED          */  MemoryType::MANAGED,
+   /* MANAGED_UMPIRE   */  MemoryType::MANAGED_UMPIRE,
+   /* MANAGED_UMPIRE_2 */  MemoryType::MANAGED_UMPIRE_2,
+   /* DEVICE           */  MemoryType::HOST,
+   /* DEVICE_DEBUG     */  MemoryType::HOST_DEBUG,
+   /* DEVICE_UMPIRE    */  MemoryType::HOST_UMPIRE,
+   /* DEVICE_UMPIRE_2  */  MemoryType::HOST_UMPIRE
 };
 
 #ifdef MFEM_USE_UMPIRE
 const char * MemoryManager::h_umpire_name = "MFEM_HOST";
 const char * MemoryManager::d_umpire_name = "MFEM_DEVICE";
 const char * MemoryManager::d_umpire_2_name = "MFEM_DEVICE_2";
+const char * MemoryManager::managed_umpire_name = "MFEM_MANAGED";
+const char * MemoryManager::managed_umpire_2_name = "MFEM_MANAGED_2";
 #endif
 
 
@@ -1743,12 +1812,18 @@ const char *MemoryTypeName[MemoryTypeSize] =
    "host-std", "host-32", "host-64", "host-debug", "host-umpire", "host-pinned",
 #if defined(MFEM_USE_CUDA)
    "cuda-uvm",
+   "cuda-managed-umpire",
+   "cuda-managed-umpire-2",
    "cuda",
 #elif defined(MFEM_USE_HIP)
    "hip-uvm",
+   "hip-managed-umpire",
+   "hip-managed-umpire-2",
    "hip",
 #else
    "managed",
+   "managed-umpire",
+   "managed-umpire-2",
    "device",
 #endif
    "device-debug",
