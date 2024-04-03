@@ -961,6 +961,10 @@ void NURBS_HCurl3DFiniteElement::CalcCurlShape(const IntegrationPoint &ip,
    kv[1]->CalcShape ( shape_y, ijk[1], ip.y);
    kv[2]->CalcShape ( shape_z, ijk[2], ip.z);
 
+   kv1[0]->CalcShape(shape1_x, ijk[0], ip.x);
+   kv1[1]->CalcShape(shape1_y, ijk[1], ip.y);
+   kv1[2]->CalcShape(shape1_z, ijk[2], ip.z);
+
    kv1[0]->CalcDShape(dshape1_x, ijk[0], ip.x);
    kv1[1]->CalcDShape(dshape1_y, ijk[1], ip.y);
    kv1[2]->CalcDShape(dshape1_z, ijk[2], ip.z);
