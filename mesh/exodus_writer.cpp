@@ -176,6 +176,9 @@ protected:
    /// title, database version, file size etc.
    void WriteExodusIIFileInformation();
 
+   /// @brief Writes all information about the mesh to the ExodusII file.
+   void WriteExodusIIMeshInformation();
+
 private:
    // ExodusII file ID.
    int _exid{-1};
@@ -286,6 +289,20 @@ void ExodusIIWriter::WriteExodusIIFileInformation()
    WriteDummyVariable();
 }
 
+void ExodusIIWriter::WriteExodusIIMeshInformation()
+{
+   WriteMeshDimension();
+   WriteNumOfElements();
+
+   WriteTimesteps();
+
+   WriteNodalCoordinates();
+
+   WriteElementBlocks();
+   WriteBoundaries();
+   WriteNodeSets();
+}
+
 void ExodusIIWriter::WriteExodusII(std::string fpath, int flags)
 {
    //
@@ -299,20 +316,7 @@ void ExodusIIWriter::WriteExodusII(std::string fpath, int flags)
    OpenExodusII(fpath, flags);
 
    WriteExodusIIFileInformation();
-
-   WriteMeshDimension();
-
-   WriteNumOfElements();
-
-   WriteTimesteps();
-
-   WriteNodalCoordinates();
-
-   WriteElementBlocks();
-
-   WriteNodeSets();
-
-   WriteBoundaries();
+   WriteExodusIIMeshInformation();
 
    CloseExodusII();
 
