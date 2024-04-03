@@ -21,9 +21,14 @@ static void CompareMeshes(Mesh & mesh1, Mesh & mesh2)
    REQUIRE(mesh1.GetNBE() == mesh2.GetNBE());
    REQUIRE(mesh1.GetNFaces() == mesh2.GetNFaces());
 
+   const FiniteElementSpace * fespace1 = mesh1.GetNodalFESpace();
+   const FiniteElementSpace * fespace2 = mesh2.GetNodalFESpace();
+
    // Check elements.
    Array<int> element_faces1, element_faces2;
    Array<int> element_orient1, element_orient2;
+   Array<int> dofs1, dofs2;
+
    for (int ielement = 0; ielement < mesh1.GetNE(); ielement++)
    {
       int attr1 = mesh1.GetAttribute(ielement);
@@ -41,6 +46,19 @@ static void CompareMeshes(Mesh & mesh1, Mesh & mesh2)
 
       REQUIRE(element_faces1 == element_faces2);
       REQUIRE(element_orient1 == element_orient2);
+
+      if (fespace1 && fespace2)
+      {
+         fespace1->GetElementDofs(ielement, dofs1);
+         fespace2->GetElementDofs(ielement, dofs2);
+      }
+      else
+      {
+         mesh1.GetElementVertices(ielement, dofs1);
+         mesh2.GetElementVertices(ielement, dofs2);
+      }
+
+      REQUIRE(dofs1 == dofs2);
    }
 
    // Check bdr elements.
@@ -97,8 +115,27 @@ TEST_CASE("ExodusII Write Tet4", "[Mesh]")
    // Load Exodus II mesh from file. NB: - Do NOT refine as this changes vertex ordering!
    std::string fpath_original = "data/simple-cube-tet4.e";
    Mesh original_mesh = Mesh::LoadFromFile(fpath_original, 0, 0, true);
+
    // Write generated Exodus II mesh to file.
    std::string fpath_generated = "data/simple-cube-tet4-out.e";
+   original_mesh.WriteExodusII(fpath_generated);
+
+   // Load generated Exodus II mesh.
+   Mesh generated_mesh = Mesh::LoadFromFile(fpath_generated, 0, 0, true);
+
+   CompareMeshes(original_mesh, generated_mesh);
+#endif
+}
+
+TEST_CASE("ExodusII Write Tet10", "[Mesh]")
+{
+#ifdef MFEM_USE_NETCDF
+   // Load Exodus II mesh from file.
+   std::string fpath_original = "data/simple-cube-tet10.e";
+   Mesh original_mesh = Mesh::LoadFromFile(fpath_original, 0, 0, true);
+
+   // Write generated Exodus II mesh to file.
+   std::string fpath_generated = "data/simple-cube-tet10-out.e";
    original_mesh.WriteExodusII(fpath_generated);
 
    // Load generated Exodus II mesh.
