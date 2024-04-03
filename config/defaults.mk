@@ -169,6 +169,18 @@ MFEM_USE_BENCHMARK     = NO
 MFEM_USE_PARELAG       = NO
 MFEM_USE_ENZYME        = NO
 
+# Process MFEM_PRECISION -> MFEM_USE_SINGLE, MFEM_USE_DOUBLE
+ifneq ($(filter double Double DOUBLE,$(MFEM_PRECISION)),)
+   MFEM_USE_DOUBLE ?= YES
+   MFEM_USE_SINGLE ?= NO
+else ifneq ($(filter single Single SINGLE,$(MFEM_PRECISION)),)
+   MFEM_USE_DOUBLE ?= NO
+   MFEM_USE_SINGLE ?= YES
+else ifeq ($(MAKECMDGOALS),config)
+   $(error Invalid floating-point precision: \
+     MFEM_PRECISION = $(MFEM_PRECISION))
+endif
+
 # MPI library compile and link flags
 # These settings are used only when building MFEM with MPI + HIP
 ifeq ($(MFEM_USE_MPI)$(MFEM_USE_HIP),YESYES)
