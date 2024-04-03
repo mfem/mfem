@@ -514,7 +514,7 @@ public:
 */
 class ND_R2D_SegmentElement : public VectorFiniteElement
 {
-   static const real_t tk[4];
+   static const real_t tk[6];
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_cx, shape_ox;
    mutable Vector dshape_cx;
