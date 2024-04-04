@@ -662,8 +662,6 @@ void ExodusIIWriter::WriteNodeConnectivityForBlock(const int block_id)
 {
    std::vector<int> block_node_connectivity;
 
-   const FiniteElementSpace * fespace = _mesh.GetNodalFESpace();
-
    int * node_ordering_map = nullptr;
 
    // Apply mappings to convert from MFEM --> ExodusII orderings.
@@ -688,28 +686,28 @@ void ExodusIIWriter::WriteNodeConnectivityForBlock(const int block_id)
                     "' are not supported.");
    }
 
+   const FiniteElementSpace * fespace = _mesh.GetNodalFESpace();
+
+   Array<int> element_dofs;
    for (int element_id : _element_ids_for_block_id.at(block_id))
    {
       if (fespace)
       {
-         mfem::Array<int> dofs;
-         fespace->GetElementDofs(element_id, dofs);
+         fespace->GetElementDofs(element_id, element_dofs);
 
-         for (int j = 0; j < dofs.Size(); j++)
+         for (int j = 0; j < element_dofs.Size(); j++)
          {
             int dof_index = node_ordering_map[j] - 1;
-
-            int dof = dofs[dof_index];
+            int dof = element_dofs[dof_index];
 
             block_node_connectivity.push_back(dof + 1);  // 1-based indexing.
          }
       }
       else
       {
-         mfem::Array<int> element_vertices;
-         _mesh.GetElementVertices(element_id, element_vertices);
+         _mesh.GetElementVertices(element_id, element_dofs);
 
-         for (int vertex_id : element_vertices)
+         for (int vertex_id : element_dofs)
          {
             block_node_connectivity.push_back(vertex_id + 1);  // 1-based indexing.
          }
@@ -866,25 +864,21 @@ std::unordered_set<int> ExodusIIWriter::GenerateUniqueNodeIDs()
 
    const FiniteElementSpace * fespace = _mesh.GetNodalFESpace();
 
-   mfem::Array<int> dofs;
-
+   mfem::Array<int> element_dofs;
    for (int ielement = 0; ielement < _mesh.GetNE(); ielement++)
    {
       if (fespace)   // Higher-order
       {
-         fespace->GetElementDofs(ielement, dofs);
-
-         for (int dof : dofs) { unique_node_ids.insert(dof); }
+         fespace->GetElementDofs(ielement, element_dofs);
       }
       else
       {
-         mfem::Array<int> vertex_indices;
-         _mesh.GetElementVertices(ielement, vertex_indices);
+         _mesh.GetElementVertices(ielement, element_dofs);
+      }
 
-         for (int vertex_index : vertex_indices)
-         {
-            unique_node_ids.insert(vertex_index);
-         }
+      for (int dof : element_dofs)
+      {
+         unique_node_ids.insert(dof);
       }
    }
 
