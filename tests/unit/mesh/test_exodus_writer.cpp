@@ -177,6 +177,20 @@ TEST_CASE("ExodusII Write Tet10", "[Mesh]")
 // #endif
 // }
 
+// TEST_CASE("ExodusII Write Wedge18", "[Mesh]")
+// {
+// #ifdef MFEM_USE_NETCDF
+//    std::string fpath_original = "data/simple-cube-wedge18.e";
+//    Mesh original_mesh = Mesh::LoadFromFile(fpath_original, 0, 0, true);
+
+//    std::string fpath_generated = "data/simple-cube-wedge18-out.e";
+//    original_mesh.WriteExodusII(fpath_generated);
+
+//    Mesh generated_mesh = Mesh::LoadFromFile(fpath_generated, 0, 0, true);
+//    CompareMeshes(original_mesh, generated_mesh);
+// #endif
+// }
+
 // TEST_CASE("ExodusII Write Pyramid5", "[Mesh]")
 // {
 // #ifdef MFEM_USE_NETCDF
@@ -184,6 +198,20 @@ TEST_CASE("ExodusII Write Tet10", "[Mesh]")
 //    Mesh original_mesh = Mesh::LoadFromFile(fpath_original, 0, 0, true);
 
 //    std::string fpath_generated = "data/simple-cube-pyramid5-out.e";
+//    original_mesh.WriteExodusII(fpath_generated);
+
+//    Mesh generated_mesh = Mesh::LoadFromFile(fpath_generated, 0, 0, true);
+//    CompareMeshes(original_mesh, generated_mesh);
+// #endif
+// }
+
+// TEST_CASE("ExodusII Write Pyramid14", "[Mesh]")
+// {
+// #ifdef MFEM_USE_NETCDF
+//    std::string fpath_original = "data/simple-cube-pyramid14.e";
+//    Mesh original_mesh = Mesh::LoadFromFile(fpath_original, 0, 0, true);
+
+//    std::string fpath_generated = "data/simple-cube-pyramid14-out.e";
 //    original_mesh.WriteExodusII(fpath_generated);
 
 //    Mesh generated_mesh = Mesh::LoadFromFile(fpath_generated, 0, 0, true);
@@ -204,3 +232,17 @@ TEST_CASE("ExodusII Write Tet10", "[Mesh]")
 //    CompareMeshes(original_mesh, generated_mesh);
 // #endif
 // }
+
+TEST_CASE("ExodusII Write Mixed Second-Order", "[Mesh]")
+{
+#ifdef MFEM_USE_NETCDF
+   std::string fpath_original = "data/simple-cube-multi-element-order2.e";
+   Mesh original_mesh = Mesh::LoadFromFile(fpath_original, 0, 0, true);
+
+   std::string fpath_generated = "data/simple-cube-multi-element-order2-out.e";
+   original_mesh.WriteExodusII(fpath_generated);
+
+   Mesh generated_mesh = Mesh::LoadFromFile(fpath_generated, 0, 0, true);
+   CompareMeshes(original_mesh, generated_mesh);
+#endif
+}
