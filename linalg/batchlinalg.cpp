@@ -15,11 +15,6 @@
 #include "batchlinalg.hpp"
 #include "../general/forall.hpp"
 
-#if defined(MFEM_USE_UMPIRE)
-#define MFEM_RELEASE_MEM(o) o.GetMemory().DeleteDevice(false)
-#else
-#define MFEM_RELEASE_MEM(o)
-#endif
 
 #if defined(MFEM_USE_CUDA)
 #include <cublas_v2.h>
@@ -381,10 +376,10 @@ void BatchSolver::Mult(const mfem::Vector &b, mfem::Vector &x) const
 
 void BatchSolver::ReleaseMemory()
 {
-   MFEM_RELEASE_MEM(LUMatrixBatch_);
-   MFEM_RELEASE_MEM(InvMatrixBatch_);
-   MFEM_RELEASE_MEM(P_);
-   MFEM_RELEASE_MEM(lu_ptr_array_);
+   LUMatrixBatch_.GetMemory().ReleaseDeviceMemory(false);
+   InvMatrixBatch_.GetMemory().ReleaseDeviceMemory(false);
+   P_.GetMemory().ReleaseDeviceMemory(false);
+   lu_ptr_array_.GetMemory().ReleaseDeviceMemory(false);
 }
 
 

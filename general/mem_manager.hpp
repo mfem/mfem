@@ -417,7 +417,7 @@ public:
    /** @brief Delete the device pointer, if owned. If @a copy_to_host is true
        and the data is valid only on device, move it to host before deleting.
        Invalidates the device memory. */
-   inline void DeleteDevice(bool copy_to_host = true);
+   inline void ReleaseDeviceMemory(bool copy_to_host = true);
 
    /// Array subscript operator for host memory.
    inline T &operator[](int idx);
@@ -668,7 +668,7 @@ private: // Static methods used by the Memory<T> class
                                                 unsigned flags);
 
    /// Free device memory identified by its host pointer
-   static void DeleteDevice_(void *h_ptr, unsigned & flags);
+   static void ReleaseDeviceMemory_(void *h_ptr, unsigned & flags);
 
    /// Check if the memory types given the memory class are valid
    static bool MemoryClassCheck_(MemoryClass mc, void *h_ptr,
@@ -1061,12 +1061,12 @@ inline void Memory<T>::Delete()
 }
 
 template <typename T>
-inline void Memory<T>::DeleteDevice(bool copy_to_host)
+inline void Memory<T>::ReleaseDeviceMemory(bool copy_to_host)
 {
    if (flags & Registered)
    {
       if (copy_to_host) { Read(MemoryClass::HOST, capacity); }
-      MemoryManager::DeleteDevice_((void*)h_ptr, flags);
+      MemoryManager::ReleaseDeviceMemory_((void*)h_ptr, flags);
    }
 }
 
