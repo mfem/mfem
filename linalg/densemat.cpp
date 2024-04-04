@@ -543,9 +543,11 @@ void DenseMatrix::Exponential()
    switch (Height())
    {
       case 1:
+      {
          data[0] = std::exp(data[0]);
-
+      }
       case 2:
+      {
          /// Formulas from Corollary 2.4 of doi:10.1109/9.233156
          /// Note typo in the paper, in the prefactor in the equation under (i).
          real_t a = data[0];
@@ -579,10 +581,15 @@ void DenseMatrix::Exponential()
          {
             data[i] *= f;
          }
+      }
       case 3:
+      {
          MFEM_ABORT("3x3 matrices are not currently supported");
+      }
       default:
+      {
          MFEM_ABORT("Only 1x1 and 2x2 matrices are currently supported");
+      }
    }
 }
 
