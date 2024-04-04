@@ -839,10 +839,6 @@ public:
    virtual ~NURBS_HCurlFECollection();
 };
 
-
-
-
-
 /// Piecewise-(bi/tri)linear continuous finite elements.
 class LinearFECollection : public FiniteElementCollection
 {

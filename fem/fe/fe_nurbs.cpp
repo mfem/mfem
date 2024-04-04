@@ -582,6 +582,7 @@ void NURBS_HDiv3DFiniteElement::CalcVShape(const IntegrationPoint &ip,
    kv1[1]->CalcShape(shape1_y, ijk[1], ip.y);
    kv1[2]->CalcShape(shape1_z, ijk[2], ip.z);
 
+   shape = 0.0;
    int o = 0;
    for (int k = 0; k <= orders[2]; k++)
    {
@@ -592,7 +593,6 @@ void NURBS_HDiv3DFiniteElement::CalcVShape(const IntegrationPoint &ip,
          for (int i = 0; i <= orders[0]+1; i++, o++)
          {
             shape(o,0) = shape1_x(i)*sy_sz;
-            shape(o,1) = shape(o,2) = 0.0;
          }
       }
    }
@@ -606,7 +606,6 @@ void NURBS_HDiv3DFiniteElement::CalcVShape(const IntegrationPoint &ip,
          for (int i = 0; i <= orders[0]; i++, o++)
          {
             shape(o,1) = shape_x(i)*sy1_sz;
-            shape(o,0) = shape(o,2) = 0.0;
          }
       }
    }
@@ -620,7 +619,6 @@ void NURBS_HDiv3DFiniteElement::CalcVShape(const IntegrationPoint &ip,
          for (int i = 0; i <= orders[0]; i++, o++)
          {
             shape(o,2) = shape_x(i)*sy_sz1;
-            shape(o,0) = shape(o,1) = 0.0;
          }
       }
    }
@@ -884,6 +882,7 @@ void NURBS_HCurl3DFiniteElement::CalcVShape(const IntegrationPoint &ip,
    kv1[1]->CalcShape(shape1_y, ijk[1], ip.y);
    kv1[2]->CalcShape(shape1_z, ijk[2], ip.z);
 
+   shape = 0.0;
    int o = 0;
    for (int  k = 0; k <= orders[2]+1; k++)
    {
@@ -894,7 +893,6 @@ void NURBS_HCurl3DFiniteElement::CalcVShape(const IntegrationPoint &ip,
          for (int i = 0; i <= orders[0]; i++, o++)
          {
             shape(o,0) = shape_x(i)*sy1_sz1;
-            shape(o,1) = shape(o,2) = 0.0;
          }
       }
    }
@@ -908,7 +906,6 @@ void NURBS_HCurl3DFiniteElement::CalcVShape(const IntegrationPoint &ip,
          for (int i = 0; i <= orders[0]+1; i++, o++)
          {
             shape(o,1) = shape1_x(i)*sy_sz1;
-            shape(o,0) = shape(o,2) = 0.0;
          }
       }
    }
@@ -922,7 +919,6 @@ void NURBS_HCurl3DFiniteElement::CalcVShape(const IntegrationPoint &ip,
          for (int i = 0; i <= orders[0]+1; i++, o++)
          {
             shape(o,2) = shape1_x(i)*sy1_sz;
-            shape(o,0) = shape(o,1) = 0.0;
          }
       }
    }
