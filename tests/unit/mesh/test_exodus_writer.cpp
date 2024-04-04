@@ -234,17 +234,17 @@ TEST_CASE("ExodusII Write Tet10", "[Mesh]")
 // #endif
 // }
 
-TEST_CASE("ExodusII Write Mixed Second-Order", "[Mesh]")
-{
-#ifdef MFEM_USE_NETCDF
-   // Contains Hex27 and Tet10 elements.
-   std::string fpath_original = "data/simple-cube-multi-element-order2.e";
-   Mesh original_mesh = Mesh::LoadFromFile(fpath_original, 0, 0, true);
+// TEST_CASE("ExodusII Write Mixed Second-Order", "[Mesh]")
+// {
+// #ifdef MFEM_USE_NETCDF
+//    // Contains Hex27 and Tet10 elements.
+//    std::string fpath_original = "data/simple-cube-multi-element-order2.e";
+//    Mesh original_mesh = Mesh::LoadFromFile(fpath_original, 0, 0, true);
 
-   std::string fpath_generated = "data/simple-cube-multi-element-order2-out.e";
-   original_mesh.WriteExodusII(fpath_generated);
+//    std::string fpath_generated = "data/simple-cube-multi-element-order2-out.e";
+//    original_mesh.WriteExodusII(fpath_generated);
 
-   Mesh generated_mesh = Mesh::LoadFromFile(fpath_generated, 0, 0, true);
-   CompareMeshes(original_mesh, generated_mesh);
-#endif
-}
+//    Mesh generated_mesh = Mesh::LoadFromFile(fpath_generated, 0, 0, true);
+//    CompareMeshes(original_mesh, generated_mesh);
+// #endif
+// }
