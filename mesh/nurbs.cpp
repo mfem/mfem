@@ -4299,7 +4299,6 @@ void NURBSExtension::DegreeElevate(int rel_degree, int degree)
 
 NURBSExtension* NURBSExtension::GetDivExtension(int component)
 {
-   // TODO IDO
    // Smarter routine
    if (GetNP() > 1)
    {
@@ -4315,7 +4314,6 @@ NURBSExtension* NURBSExtension::GetDivExtension(int component)
 
 NURBSExtension* NURBSExtension::GetCurlExtension(int component)
 {
-   // TODO IDO
    // Smarter routine
    if (GetNP() > 1)
    {

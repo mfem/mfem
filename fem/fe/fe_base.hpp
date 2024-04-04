@@ -415,10 +415,11 @@ public:
    void CalcPhysLaplacian(ElementTransformation &Trans,
                           Vector& Laplacian) const;
 
+   /** @brief Evaluate the Laplacian of all shape functions of a scalar finite
+       element in physical space at the given point @a ip. */
+   /** The size (#dof) of @a Laplacian must be set in advance. */
    void CalcPhysLinLaplacian(ElementTransformation &Trans,
                              Vector& Laplacian) const;
-
-   // virtual functions for finite elements on vector spaces
 
    /** @brief Evaluate the values of all shape functions of a *vector* finite
        element in reference space at the given point @a ip. */
@@ -472,9 +473,6 @@ public:
    virtual void CalcPhysCurlShape(ElementTransformation &Trans,
                                   DenseMatrix &curl_shape) const;
 
-   //------------------------------------------------------------------------------
-   //
-   //------------------------------------------------------------------------------
    /** @brief Get the dofs associated with the given @a face.
        @a *dofs is set to an internal array of the local dofc on the
        face, while *ndofs is set to the number of dofs on that face.

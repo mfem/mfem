@@ -592,11 +592,13 @@ public:
    void KnotInsert(Array<Vector *> &kv);
 
    /** Returns the NURBSExtension to be used for @a component of
-       an H(Div) conforming NURBS space.*/
+       an H(div) conforming NURBS space. Caller gets ownership of
+       the returned object, and is responsible for deletion.*/
    NURBSExtension* GetDivExtension(int component);
 
    /** Returns the NURBSExtension to be used for @a component of
-       an H(curl) conforming NURBS space.*/
+       an H(curl) conforming NURBS space. Caller gets ownership of
+       the returned object, and is responsible for deletion.*/
    NURBSExtension* GetCurlExtension(int component);
 
    void KnotRemove(Array<Vector *> &kv, real_t tol = 1.0e-12);
