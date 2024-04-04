@@ -10,6 +10,7 @@
 # CONTRIBUTING.md for details.
 
 set(SRCS
+  attribute_sets.cpp
   element.cpp
   gmsh.cpp
   hexahedron.cpp
@@ -22,6 +23,7 @@ set(SRCS
   pyramid.cpp
   quadrilateral.cpp
   segment.cpp
+  spacing.cpp
   tetrahedron.cpp
   triangle.cpp
   vertex.cpp
@@ -33,6 +35,7 @@ set(SRCS
   )
 
 set(HDRS
+  attribute_sets.hpp
   element.hpp
   gmsh.hpp
   hexahedron.hpp
@@ -45,6 +48,7 @@ set(HDRS
   pyramid.hpp
   quadrilateral.hpp
   segment.hpp
+  spacing.hpp
   tetrahedron.hpp
   tmesh.hpp
   triangle.hpp
