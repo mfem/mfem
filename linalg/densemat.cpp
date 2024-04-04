@@ -545,6 +545,7 @@ void DenseMatrix::Exponential()
       case 1:
       {
          data[0] = std::exp(data[0]);
+         break;
       }
       case 2:
       {
@@ -581,6 +582,7 @@ void DenseMatrix::Exponential()
          {
             data[i] *= f;
          }
+         break;
       }
       case 3:
       {
