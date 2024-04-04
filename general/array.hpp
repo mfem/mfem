@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -74,9 +74,8 @@ public:
    inline Array(int asize, MemoryType mt)
       : size(asize) { asize > 0 ? data.New(asize, mt) : data.Reset(mt); }
 
-   /** @brief Creates array using an existing c-array of asize elements;
-       allocsize is set to -asize to indicate that the data will not
-       be deleted. */
+   /** @brief Creates array using an externally allocated pointer @a data_ to
+       @a asize elements. The data pointer will not be deleted by Array. */
    inline Array(T *data_, int asize)
    { data.Wrap(data_, asize, false); size = asize; }
 
@@ -125,7 +124,7 @@ public:
    /// Return the device flag of the Memory object used by the Array
    bool UseDevice() const { return data.UseDevice(); }
 
-   /// Return true if the data will be deleted by the array
+   /// Return true if the data will be deleted by the Array
    inline bool OwnsData() const { return data.OwnsHostPtr(); }
 
    /// Changes the ownership of the data

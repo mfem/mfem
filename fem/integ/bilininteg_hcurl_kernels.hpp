@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -33,8 +33,8 @@ void PAHcurlMassAssembleDiagonal2D(const int D1D,
                                    const int Q1D,
                                    const int NE,
                                    const bool symmetric,
-                                   const Array<double> &bo,
-                                   const Array<double> &bc,
+                                   const Array<real_t> &bo,
+                                   const Array<real_t> &bc,
                                    const Vector &pa_data,
                                    Vector &diag);
 
@@ -43,8 +43,8 @@ void PAHcurlMassAssembleDiagonal3D(const int D1D,
                                    const int Q1D,
                                    const int NE,
                                    const bool symmetric,
-                                   const Array<double> &bo,
-                                   const Array<double> &bc,
+                                   const Array<real_t> &bo,
+                                   const Array<real_t> &bc,
                                    const Vector &pa_data,
                                    Vector &diag);
 
@@ -54,8 +54,8 @@ inline void SmemPAHcurlMassAssembleDiagonal3D(const int d1d,
                                               const int q1d,
                                               const int NE,
                                               const bool symmetric,
-                                              const Array<double> &bo,
-                                              const Array<double> &bc,
+                                              const Array<real_t> &bo,
+                                              const Array<real_t> &bc,
                                               const Vector &pa_data,
                                               Vector &diag)
 {
@@ -79,11 +79,11 @@ inline void SmemPAHcurlMassAssembleDiagonal3D(const int d1d,
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-      MFEM_SHARED double sBo[MQ1D][MD1D];
-      MFEM_SHARED double sBc[MQ1D][MD1D];
+      MFEM_SHARED real_t sBo[MQ1D][MD1D];
+      MFEM_SHARED real_t sBc[MQ1D][MD1D];
 
-      double op3[3];
-      MFEM_SHARED double sop[3][MQ1D][MQ1D];
+      real_t op3[3];
+      MFEM_SHARED real_t sop[3][MQ1D][MQ1D];
 
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
@@ -125,7 +125,7 @@ inline void SmemPAHcurlMassAssembleDiagonal3D(const int d1d,
          const int D1Dy = (c == 1) ? D1D - 1 : D1D;
          const int D1Dx = (c == 0) ? D1D - 1 : D1D;
 
-         double dxyz = 0.0;
+         real_t dxyz = 0.0;
 
          for (int qz=0; qz < Q1D; ++qz)
          {
@@ -141,7 +141,7 @@ inline void SmemPAHcurlMassAssembleDiagonal3D(const int d1d,
 
             MFEM_FOREACH_THREAD(dz,z,D1Dz)
             {
-               const double wz = ((c == 2) ? sBo[qz][dz] : sBc[qz][dz]);
+               const real_t wz = ((c == 2) ? sBo[qz][dz] : sBc[qz][dz]);
 
                MFEM_FOREACH_THREAD(dy,y,D1Dy)
                {
@@ -149,11 +149,11 @@ inline void SmemPAHcurlMassAssembleDiagonal3D(const int d1d,
                   {
                      for (int qy = 0; qy < Q1D; ++qy)
                      {
-                        const double wy = ((c == 1) ? sBo[qy][dy] : sBc[qy][dy]);
+                        const real_t wy = ((c == 1) ? sBo[qy][dy] : sBc[qy][dy]);
 
                         for (int qx = 0; qx < Q1D; ++qx)
                         {
-                           const double wx = ((c == 0) ? sBo[qx][dx] : sBc[qx][dx]);
+                           const real_t wx = ((c == 0) ? sBo[qx][dx] : sBc[qx][dx]);
                            dxyz += sop[c][qx][qy] * wx * wx * wy * wy * wz * wz;
                         }
                      }
@@ -185,10 +185,10 @@ void PAHcurlMassApply2D(const int D1D,
                         const int Q1D,
                         const int NE,
                         const bool symmetric,
-                        const Array<double> &bo,
-                        const Array<double> &bc,
-                        const Array<double> &bot,
-                        const Array<double> &bct,
+                        const Array<real_t> &bo,
+                        const Array<real_t> &bc,
+                        const Array<real_t> &bot,
+                        const Array<real_t> &bct,
                         const Vector &pa_data,
                         const Vector &x,
                         Vector &y);
@@ -198,10 +198,10 @@ void PAHcurlMassApply3D(const int D1D,
                         const int Q1D,
                         const int NE,
                         const bool symmetric,
-                        const Array<double> &bo,
-                        const Array<double> &bc,
-                        const Array<double> &bot,
-                        const Array<double> &bct,
+                        const Array<real_t> &bo,
+                        const Array<real_t> &bc,
+                        const Array<real_t> &bot,
+                        const Array<real_t> &bct,
                         const Vector &pa_data,
                         const Vector &x,
                         Vector &y);
@@ -212,10 +212,10 @@ inline void SmemPAHcurlMassApply3D(const int d1d,
                                    const int q1d,
                                    const int NE,
                                    const bool symmetric,
-                                   const Array<double> &bo,
-                                   const Array<double> &bc,
-                                   const Array<double> &bot,
-                                   const Array<double> &bct,
+                                   const Array<real_t> &bo,
+                                   const Array<real_t> &bc,
+                                   const Array<real_t> &bot,
+                                   const Array<real_t> &bct,
                                    const Vector &pa_data,
                                    const Vector &x,
                                    Vector &y)
@@ -243,14 +243,14 @@ inline void SmemPAHcurlMassApply3D(const int d1d,
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-      MFEM_SHARED double sBo[MQ1D][MD1D];
-      MFEM_SHARED double sBc[MQ1D][MD1D];
+      MFEM_SHARED real_t sBo[MQ1D][MD1D];
+      MFEM_SHARED real_t sBc[MQ1D][MD1D];
 
-      double op9[9];
-      MFEM_SHARED double sop[9*MQ1D*MQ1D];
-      MFEM_SHARED double mass[MQ1D][MQ1D][3];
+      real_t op9[9];
+      MFEM_SHARED real_t sop[9*MQ1D*MQ1D];
+      MFEM_SHARED real_t mass[MQ1D][MQ1D][3];
 
-      MFEM_SHARED double sX[MD1D][MD1D][MD1D];
+      MFEM_SHARED real_t sX[MD1D][MD1D][MD1D];
 
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
@@ -318,18 +318,18 @@ inline void SmemPAHcurlMassApply3D(const int d1d,
                {
                   MFEM_FOREACH_THREAD(qx,x,Q1D)
                   {
-                     double u = 0.0;
+                     real_t u = 0.0;
 
                      for (int dz = 0; dz < D1Dz; ++dz)
                      {
-                        const double wz = (c == 2) ? sBo[qz][dz] : sBc[qz][dz];
+                        const real_t wz = (c == 2) ? sBo[qz][dz] : sBc[qz][dz];
                         for (int dy = 0; dy < D1Dy; ++dy)
                         {
-                           const double wy = (c == 1) ? sBo[qy][dy] : sBc[qy][dy];
+                           const real_t wy = (c == 1) ? sBo[qy][dy] : sBc[qy][dy];
                            for (int dx = 0; dx < D1Dx; ++dx)
                            {
-                              const double t = sX[dz][dy][dx];
-                              const double wx = (c == 0) ? sBo[qx][dx] : sBc[qx][dx];
+                              const real_t t = sX[dz][dy][dx];
+                              const real_t wx = (c == 0) ? sBo[qx][dx] : sBc[qx][dx];
                               u += t * wx * wy * wz;
                            }
                         }
@@ -353,11 +353,11 @@ inline void SmemPAHcurlMassApply3D(const int d1d,
             const int D1Dy = (c == 1) ? D1D - 1 : D1D;
             const int D1Dx = (c == 0) ? D1D - 1 : D1D;
 
-            double dxyz = 0.0;
+            real_t dxyz = 0.0;
 
             MFEM_FOREACH_THREAD(dz,z,D1Dz)
             {
-               const double wz = (c == 2) ? sBo[qz][dz] : sBc[qz][dz];
+               const real_t wz = (c == 2) ? sBo[qz][dz] : sBc[qz][dz];
 
                MFEM_FOREACH_THREAD(dy,y,D1Dy)
                {
@@ -365,7 +365,7 @@ inline void SmemPAHcurlMassApply3D(const int d1d,
                   {
                      for (int qy = 0; qy < Q1D; ++qy)
                      {
-                        const double wy = (c == 1) ? sBo[qy][dy] : sBc[qy][dy];
+                        const real_t wy = (c == 1) ? sBo[qy][dy] : sBc[qy][dy];
                         for (int qx = 0; qx < Q1D; ++qx)
                         {
                            const int os = (dataSize*qx) + (dataSize*Q1D*qy);
@@ -376,10 +376,10 @@ inline void SmemPAHcurlMassApply3D(const int d1d,
                            const int id3 = os + ((c == 0) ? 2 : ((c == 1) ? (symmetric ? 4 : 5) :
                                                                  (symmetric ? 5 : 8))); // O13, O23, O33
 
-                           const double m_c = (sop[id1] * mass[qy][qx][0]) + (sop[id2] * mass[qy][qx][1]) +
+                           const real_t m_c = (sop[id1] * mass[qy][qx][0]) + (sop[id2] * mass[qy][qx][1]) +
                                               (sop[id3] * mass[qy][qx][2]);
 
-                           const double wx = (c == 0) ? sBo[qx][dx] : sBc[qx][dx];
+                           const real_t wx = (c == 0) ? sBo[qx][dx] : sBc[qx][dx];
                            dxyz += m_c * wx * wy * wz;
                         }
                      }
@@ -409,7 +409,7 @@ inline void SmemPAHcurlMassApply3D(const int d1d,
 // PA H(curl) curl-curl Assemble 2D kernel
 void PACurlCurlSetup2D(const int Q1D,
                        const int NE,
-                       const Array<double> &w,
+                       const Array<real_t> &w,
                        const Vector &j,
                        Vector &coeff,
                        Vector &op);
@@ -418,7 +418,7 @@ void PACurlCurlSetup2D(const int Q1D,
 void PACurlCurlSetup3D(const int Q1D,
                        const int coeffDim,
                        const int NE,
-                       const Array<double> &w,
+                       const Array<real_t> &w,
                        const Vector &j,
                        Vector &coeff,
                        Vector &op);
@@ -427,8 +427,8 @@ void PACurlCurlSetup3D(const int Q1D,
 void PACurlCurlAssembleDiagonal2D(const int D1D,
                                   const int Q1D,
                                   const int NE,
-                                  const Array<double> &bo,
-                                  const Array<double> &gc,
+                                  const Array<real_t> &bo,
+                                  const Array<real_t> &gc,
                                   const Vector &pa_data,
                                   Vector &diag);
 
@@ -438,10 +438,10 @@ inline void PACurlCurlAssembleDiagonal3D(const int d1d,
                                          const int q1d,
                                          const bool symmetric,
                                          const int NE,
-                                         const Array<double> &bo,
-                                         const Array<double> &bc,
-                                         const Array<double> &go,
-                                         const Array<double> &gc,
+                                         const Array<real_t> &bo,
+                                         const Array<real_t> &bc,
+                                         const Array<real_t> &go,
+                                         const Array<real_t> &gc,
                                          const Vector &pa_data,
                                          Vector &diag)
 {
@@ -495,7 +495,7 @@ inline void PACurlCurlAssembleDiagonal3D(const int d1d,
          const int D1Dy = (c == 1) ? D1D - 1 : D1D;
          const int D1Dx = (c == 0) ? D1D - 1 : D1D;
 
-         double zt[MQ1D][MQ1D][MD1D][9][3];
+         real_t zt[MQ1D][MQ1D][MD1D][9][3];
 
          // z contraction
          for (int qx = 0; qx < Q1D; ++qx)
@@ -514,8 +514,8 @@ inline void PACurlCurlAssembleDiagonal3D(const int d1d,
 
                   for (int qz = 0; qz < Q1D; ++qz)
                   {
-                     const double wz = ((c == 2) ? Bo(qz,dz) : Bc(qz,dz));
-                     const double wDz = ((c == 2) ? Go(qz,dz) : Gc(qz,dz));
+                     const real_t wz = ((c == 2) ? Bo(qz,dz) : Bc(qz,dz));
+                     const real_t wDz = ((c == 2) ? Go(qz,dz) : Gc(qz,dz));
 
                      for (int i=0; i<s; ++i)
                      {
@@ -528,7 +528,7 @@ inline void PACurlCurlAssembleDiagonal3D(const int d1d,
             }
          }  // end of z contraction
 
-         double yt[MQ1D][MD1D][MD1D][9][3][3];
+         real_t yt[MQ1D][MD1D][MD1D][9][3][3];
 
          // y contraction
          for (int qx = 0; qx < Q1D; ++qx)
@@ -548,8 +548,8 @@ inline void PACurlCurlAssembleDiagonal3D(const int d1d,
 
                   for (int qy = 0; qy < Q1D; ++qy)
                   {
-                     const double wy = ((c == 1) ? Bo(qy,dy) : Bc(qy,dy));
-                     const double wDy = ((c == 1) ? Go(qy,dy) : Gc(qy,dy));
+                     const real_t wy = ((c == 1) ? Bo(qy,dy) : Bc(qy,dy));
+                     const real_t wDy = ((c == 1) ? Go(qy,dy) : Gc(qy,dy));
 
                      for (int i=0; i<s; ++i)
                      {
@@ -574,8 +574,8 @@ inline void PACurlCurlAssembleDiagonal3D(const int d1d,
                {
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
-                     const double wx = ((c == 0) ? Bo(qx,dx) : Bc(qx,dx));
-                     const double wDx = ((c == 0) ? Go(qx,dx) : Gc(qx,dx));
+                     const real_t wx = ((c == 0) ? Bo(qx,dx) : Bc(qx,dx));
+                     const real_t wDx = ((c == 0) ? Go(qx,dx) : Gc(qx,dx));
 
                      // Using (\nabla\times u) F = 1/det(dF) dF \hat{\nabla}\times\hat{u} (p. 78 of Monk), we get
                      // (\nabla\times u) \cdot (\nabla\times u) = 1/det(dF)^2 \hat{\nabla}\times\hat{u}^T dF^T dF \hat{\nabla}\times\hat{u}
@@ -595,7 +595,7 @@ inline void PACurlCurlAssembleDiagonal3D(const int d1d,
                      if (c == 0)
                      {
                         // (u_0)_{x_2} (O22 (u_0)_{x_2} - O23 (u_0)_{x_1}) - (u_0)_{x_1} (O32 (u_0)_{x_2} - O33 (u_0)_{x_1})
-                        const double sumy = yt[qx][dy][dz][i22][2][0] - yt[qx][dy][dz][i23][1][1]
+                        const real_t sumy = yt[qx][dy][dz][i22][2][0] - yt[qx][dy][dz][i23][1][1]
                                             - yt[qx][dy][dz][i32][1][1] + yt[qx][dy][dz][i33][0][2];
 
                         D(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += sumy * wx * wx;
@@ -603,7 +603,7 @@ inline void PACurlCurlAssembleDiagonal3D(const int d1d,
                      else if (c == 1)
                      {
                         // (u_1)_{x_2} (O11 (u_1)_{x_2} - O13 (u_1)_{x_0}) + (u_1)_{x_0} (-O31 (u_1)_{x_2} + O33 (u_1)_{x_0})
-                        const double d = (yt[qx][dy][dz][i11][2][0] * wx * wx)
+                        const real_t d = (yt[qx][dy][dz][i11][2][0] * wx * wx)
                                          - ((yt[qx][dy][dz][i13][1][0] + yt[qx][dy][dz][i31][1][0]) * wDx * wx)
                                          + (yt[qx][dy][dz][i33][0][0] * wDx * wDx);
 
@@ -612,7 +612,7 @@ inline void PACurlCurlAssembleDiagonal3D(const int d1d,
                      else
                      {
                         // (u_2)_{x_1} (O11 (u_2)_{x_1} - O12 (u_2)_{x_0}) - (u_2)_{x_0} (O21 (u_2)_{x_1} - O22 (u_2)_{x_0})
-                        const double d = (yt[qx][dy][dz][i11][0][2] * wx * wx)
+                        const real_t d = (yt[qx][dy][dz][i11][0][2] * wx * wx)
                                          - ((yt[qx][dy][dz][i12][0][1] + yt[qx][dy][dz][i21][0][1]) * wDx * wx)
                                          + (yt[qx][dy][dz][i22][0][0] * wDx * wDx);
 
@@ -634,10 +634,10 @@ inline void SmemPACurlCurlAssembleDiagonal3D(const int d1d,
                                              const int q1d,
                                              const bool symmetric,
                                              const int NE,
-                                             const Array<double> &bo,
-                                             const Array<double> &bc,
-                                             const Array<double> &go,
-                                             const Array<double> &gc,
+                                             const Array<real_t> &bo,
+                                             const Array<real_t> &bc,
+                                             const Array<real_t> &go,
+                                             const Array<real_t> &gc,
                                              const Vector &pa_data,
                                              Vector &diag)
 {
@@ -680,13 +680,13 @@ inline void SmemPACurlCurlAssembleDiagonal3D(const int d1d,
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-      MFEM_SHARED double sBo[MQ1D][MD1D];
-      MFEM_SHARED double sBc[MQ1D][MD1D];
-      MFEM_SHARED double sGo[MQ1D][MD1D];
-      MFEM_SHARED double sGc[MQ1D][MD1D];
+      MFEM_SHARED real_t sBo[MQ1D][MD1D];
+      MFEM_SHARED real_t sBc[MQ1D][MD1D];
+      MFEM_SHARED real_t sGo[MQ1D][MD1D];
+      MFEM_SHARED real_t sGc[MQ1D][MD1D];
 
-      double ope[9];
-      MFEM_SHARED double sop[9][MQ1D][MQ1D];
+      real_t ope[9];
+      MFEM_SHARED real_t sop[9][MQ1D][MQ1D];
 
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
@@ -731,7 +731,7 @@ inline void SmemPACurlCurlAssembleDiagonal3D(const int d1d,
          const int D1Dy = (c == 1) ? D1D - 1 : D1D;
          const int D1Dx = (c == 0) ? D1D - 1 : D1D;
 
-         double dxyz = 0.0;
+         real_t dxyz = 0.0;
 
          for (int qz=0; qz < Q1D; ++qz)
          {
@@ -747,8 +747,8 @@ inline void SmemPACurlCurlAssembleDiagonal3D(const int d1d,
 
             MFEM_FOREACH_THREAD(dz,z,D1Dz)
             {
-               const double wz = ((c == 2) ? sBo[qz][dz] : sBc[qz][dz]);
-               const double wDz = ((c == 2) ? sGo[qz][dz] : sGc[qz][dz]);
+               const real_t wz = ((c == 2) ? sBo[qz][dz] : sBc[qz][dz]);
+               const real_t wDz = ((c == 2) ? sGo[qz][dz] : sGc[qz][dz]);
 
                MFEM_FOREACH_THREAD(dy,y,D1Dy)
                {
@@ -756,13 +756,13 @@ inline void SmemPACurlCurlAssembleDiagonal3D(const int d1d,
                   {
                      for (int qy = 0; qy < Q1D; ++qy)
                      {
-                        const double wy = ((c == 1) ? sBo[qy][dy] : sBc[qy][dy]);
-                        const double wDy = ((c == 1) ? sGo[qy][dy] : sGc[qy][dy]);
+                        const real_t wy = ((c == 1) ? sBo[qy][dy] : sBc[qy][dy]);
+                        const real_t wDy = ((c == 1) ? sGo[qy][dy] : sGc[qy][dy]);
 
                         for (int qx = 0; qx < Q1D; ++qx)
                         {
-                           const double wx = ((c == 0) ? sBo[qx][dx] : sBc[qx][dx]);
-                           const double wDx = ((c == 0) ? sGo[qx][dx] : sGc[qx][dx]);
+                           const real_t wx = ((c == 0) ? sBo[qx][dx] : sBc[qx][dx]);
+                           const real_t wDx = ((c == 0) ? sGo[qx][dx] : sGc[qx][dx]);
 
                            if (c == 0)
                            {
@@ -832,10 +832,10 @@ inline void SmemPACurlCurlAssembleDiagonal3D(const int d1d,
 void PACurlCurlApply2D(const int D1D,
                        const int Q1D,
                        const int NE,
-                       const Array<double> &bo,
-                       const Array<double> &bot,
-                       const Array<double> &gc,
-                       const Array<double> &gct,
+                       const Array<real_t> &bo,
+                       const Array<real_t> &bot,
+                       const Array<real_t> &gc,
+                       const Array<real_t> &gct,
                        const Vector &pa_data,
                        const Vector &x,
                        Vector &y);
@@ -846,12 +846,12 @@ inline void PACurlCurlApply3D(const int d1d,
                               const int q1d,
                               const bool symmetric,
                               const int NE,
-                              const Array<double> &bo,
-                              const Array<double> &bc,
-                              const Array<double> &bot,
-                              const Array<double> &bct,
-                              const Array<double> &gc,
-                              const Array<double> &gct,
+                              const Array<real_t> &bo,
+                              const Array<real_t> &bc,
+                              const Array<real_t> &bot,
+                              const Array<real_t> &bct,
+                              const Array<real_t> &gc,
+                              const Array<real_t> &gct,
                               const Vector &pa_data,
                               const Vector &x,
                               Vector &y)
@@ -889,7 +889,7 @@ inline void PACurlCurlApply3D(const int d1d,
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-      double curl[MQ1D][MQ1D][MQ1D][VDIM];
+      real_t curl[MQ1D][MQ1D][MQ1D][VDIM];
       // curl[qz][qy][qx] will be computed as the vector curl at each quadrature point.
 
       for (int qz = 0; qz < Q1D; ++qz)
@@ -918,7 +918,7 @@ inline void PACurlCurlApply3D(const int d1d,
 
          for (int dz = 0; dz < D1Dz; ++dz)
          {
-            double gradXY[MQ1D][MQ1D][2];
+            real_t gradXY[MQ1D][MQ1D][2];
             for (int qy = 0; qy < Q1D; ++qy)
             {
                for (int qx = 0; qx < Q1D; ++qx)
@@ -932,7 +932,7 @@ inline void PACurlCurlApply3D(const int d1d,
 
             for (int dy = 0; dy < D1Dy; ++dy)
             {
-               double massX[MQ1D];
+               real_t massX[MQ1D];
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   massX[qx] = 0.0;
@@ -940,7 +940,7 @@ inline void PACurlCurlApply3D(const int d1d,
 
                for (int dx = 0; dx < D1Dx; ++dx)
                {
-                  const double t = X(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                  const real_t t = X(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
                      massX[qx] += t * Bo(qx,dx);
@@ -949,11 +949,11 @@ inline void PACurlCurlApply3D(const int d1d,
 
                for (int qy = 0; qy < Q1D; ++qy)
                {
-                  const double wy = Bc(qy,dy);
-                  const double wDy = Gc(qy,dy);
+                  const real_t wy = Bc(qy,dy);
+                  const real_t wDy = Gc(qy,dy);
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
-                     const double wx = massX[qx];
+                     const real_t wx = massX[qx];
                      gradXY[qy][qx][0] += wx * wDy;
                      gradXY[qy][qx][1] += wx * wy;
                   }
@@ -962,8 +962,8 @@ inline void PACurlCurlApply3D(const int d1d,
 
             for (int qz = 0; qz < Q1D; ++qz)
             {
-               const double wz = Bc(qz,dz);
-               const double wDz = Gc(qz,dz);
+               const real_t wz = Bc(qz,dz);
+               const real_t wDz = Gc(qz,dz);
                for (int qy = 0; qy < Q1D; ++qy)
                {
                   for (int qx = 0; qx < Q1D; ++qx)
@@ -987,7 +987,7 @@ inline void PACurlCurlApply3D(const int d1d,
 
          for (int dz = 0; dz < D1Dz; ++dz)
          {
-            double gradXY[MQ1D][MQ1D][2];
+            real_t gradXY[MQ1D][MQ1D][2];
             for (int qy = 0; qy < Q1D; ++qy)
             {
                for (int qx = 0; qx < Q1D; ++qx)
@@ -1001,7 +1001,7 @@ inline void PACurlCurlApply3D(const int d1d,
 
             for (int dx = 0; dx < D1Dx; ++dx)
             {
-               double massY[MQ1D];
+               real_t massY[MQ1D];
                for (int qy = 0; qy < Q1D; ++qy)
                {
                   massY[qy] = 0.0;
@@ -1009,7 +1009,7 @@ inline void PACurlCurlApply3D(const int d1d,
 
                for (int dy = 0; dy < D1Dy; ++dy)
                {
-                  const double t = X(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                  const real_t t = X(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
                   for (int qy = 0; qy < Q1D; ++qy)
                   {
                      massY[qy] += t * Bo(qy,dy);
@@ -1018,11 +1018,11 @@ inline void PACurlCurlApply3D(const int d1d,
 
                for (int qx = 0; qx < Q1D; ++qx)
                {
-                  const double wx = Bc(qx,dx);
-                  const double wDx = Gc(qx,dx);
+                  const real_t wx = Bc(qx,dx);
+                  const real_t wDx = Gc(qx,dx);
                   for (int qy = 0; qy < Q1D; ++qy)
                   {
-                     const double wy = massY[qy];
+                     const real_t wy = massY[qy];
                      gradXY[qy][qx][0] += wDx * wy;
                      gradXY[qy][qx][1] += wx * wy;
                   }
@@ -1031,8 +1031,8 @@ inline void PACurlCurlApply3D(const int d1d,
 
             for (int qz = 0; qz < Q1D; ++qz)
             {
-               const double wz = Bc(qz,dz);
-               const double wDz = Gc(qz,dz);
+               const real_t wz = Bc(qz,dz);
+               const real_t wDz = Gc(qz,dz);
                for (int qy = 0; qy < Q1D; ++qy)
                {
                   for (int qx = 0; qx < Q1D; ++qx)
@@ -1056,7 +1056,7 @@ inline void PACurlCurlApply3D(const int d1d,
 
          for (int dx = 0; dx < D1Dx; ++dx)
          {
-            double gradYZ[MQ1D][MQ1D][2];
+            real_t gradYZ[MQ1D][MQ1D][2];
             for (int qz = 0; qz < Q1D; ++qz)
             {
                for (int qy = 0; qy < Q1D; ++qy)
@@ -1070,7 +1070,7 @@ inline void PACurlCurlApply3D(const int d1d,
 
             for (int dy = 0; dy < D1Dy; ++dy)
             {
-               double massZ[MQ1D];
+               real_t massZ[MQ1D];
                for (int qz = 0; qz < Q1D; ++qz)
                {
                   massZ[qz] = 0.0;
@@ -1078,7 +1078,7 @@ inline void PACurlCurlApply3D(const int d1d,
 
                for (int dz = 0; dz < D1Dz; ++dz)
                {
-                  const double t = X(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                  const real_t t = X(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
                   for (int qz = 0; qz < Q1D; ++qz)
                   {
                      massZ[qz] += t * Bo(qz,dz);
@@ -1087,11 +1087,11 @@ inline void PACurlCurlApply3D(const int d1d,
 
                for (int qy = 0; qy < Q1D; ++qy)
                {
-                  const double wy = Bc(qy,dy);
-                  const double wDy = Gc(qy,dy);
+                  const real_t wy = Bc(qy,dy);
+                  const real_t wDy = Gc(qy,dy);
                   for (int qz = 0; qz < Q1D; ++qz)
                   {
-                     const double wz = massZ[qz];
+                     const real_t wz = massZ[qz];
                      gradYZ[qz][qy][0] += wz * wy;
                      gradYZ[qz][qy][1] += wz * wDy;
                   }
@@ -1100,8 +1100,8 @@ inline void PACurlCurlApply3D(const int d1d,
 
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               const double wx = Bc(qx,dx);
-               const double wDx = Gc(qx,dx);
+               const real_t wx = Bc(qx,dx);
+               const real_t wDx = Gc(qx,dx);
 
                for (int qy = 0; qy < Q1D; ++qy)
                {
@@ -1123,21 +1123,21 @@ inline void PACurlCurlApply3D(const int d1d,
          {
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               const double O11 = op(qx,qy,qz,0,e);
-               const double O12 = op(qx,qy,qz,1,e);
-               const double O13 = op(qx,qy,qz,2,e);
-               const double O21 = symmetric ? O12 : op(qx,qy,qz,3,e);
-               const double O22 = symmetric ? op(qx,qy,qz,3,e) : op(qx,qy,qz,4,e);
-               const double O23 = symmetric ? op(qx,qy,qz,4,e) : op(qx,qy,qz,5,e);
-               const double O31 = symmetric ? O13 : op(qx,qy,qz,6,e);
-               const double O32 = symmetric ? O23 : op(qx,qy,qz,7,e);
-               const double O33 = symmetric ? op(qx,qy,qz,5,e) : op(qx,qy,qz,8,e);
+               const real_t O11 = op(qx,qy,qz,0,e);
+               const real_t O12 = op(qx,qy,qz,1,e);
+               const real_t O13 = op(qx,qy,qz,2,e);
+               const real_t O21 = symmetric ? O12 : op(qx,qy,qz,3,e);
+               const real_t O22 = symmetric ? op(qx,qy,qz,3,e) : op(qx,qy,qz,4,e);
+               const real_t O23 = symmetric ? op(qx,qy,qz,4,e) : op(qx,qy,qz,5,e);
+               const real_t O31 = symmetric ? O13 : op(qx,qy,qz,6,e);
+               const real_t O32 = symmetric ? O23 : op(qx,qy,qz,7,e);
+               const real_t O33 = symmetric ? op(qx,qy,qz,5,e) : op(qx,qy,qz,8,e);
 
-               const double c1 = (O11 * curl[qz][qy][qx][0]) + (O12 * curl[qz][qy][qx][1]) +
+               const real_t c1 = (O11 * curl[qz][qy][qx][0]) + (O12 * curl[qz][qy][qx][1]) +
                                  (O13 * curl[qz][qy][qx][2]);
-               const double c2 = (O21 * curl[qz][qy][qx][0]) + (O22 * curl[qz][qy][qx][1]) +
+               const real_t c2 = (O21 * curl[qz][qy][qx][0]) + (O22 * curl[qz][qy][qx][1]) +
                                  (O23 * curl[qz][qy][qx][2]);
-               const double c3 = (O31 * curl[qz][qy][qx][0]) + (O32 * curl[qz][qy][qx][1]) +
+               const real_t c3 = (O31 * curl[qz][qy][qx][0]) + (O32 * curl[qz][qy][qx][1]) +
                                  (O33 * curl[qz][qy][qx][2]);
 
                curl[qz][qy][qx][0] = c1;
@@ -1156,8 +1156,8 @@ inline void PACurlCurlApply3D(const int d1d,
 
          for (int qz = 0; qz < Q1D; ++qz)
          {
-            double gradXY12[MD1D][MD1D];
-            double gradXY21[MD1D][MD1D];
+            real_t gradXY12[MD1D][MD1D];
+            real_t gradXY21[MD1D][MD1D];
 
             for (int dy = 0; dy < D1Dy; ++dy)
             {
@@ -1169,7 +1169,7 @@ inline void PACurlCurlApply3D(const int d1d,
             }
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               double massX[MD1D][2];
+               real_t massX[MD1D][2];
                for (int dx = 0; dx < D1Dx; ++dx)
                {
                   for (int n = 0; n < 2; ++n)
@@ -1181,7 +1181,7 @@ inline void PACurlCurlApply3D(const int d1d,
                {
                   for (int dx = 0; dx < D1Dx; ++dx)
                   {
-                     const double wx = Bot(dx,qx);
+                     const real_t wx = Bot(dx,qx);
 
                      massX[dx][0] += wx * curl[qz][qy][qx][1];
                      massX[dx][1] += wx * curl[qz][qy][qx][2];
@@ -1189,8 +1189,8 @@ inline void PACurlCurlApply3D(const int d1d,
                }
                for (int dy = 0; dy < D1Dy; ++dy)
                {
-                  const double wy = Bct(dy,qy);
-                  const double wDy = Gct(dy,qy);
+                  const real_t wy = Bct(dy,qy);
+                  const real_t wDy = Gct(dy,qy);
 
                   for (int dx = 0; dx < D1Dx; ++dx)
                   {
@@ -1202,8 +1202,8 @@ inline void PACurlCurlApply3D(const int d1d,
 
             for (int dz = 0; dz < D1Dz; ++dz)
             {
-               const double wz = Bct(dz,qz);
-               const double wDz = Gct(dz,qz);
+               const real_t wz = Bct(dz,qz);
+               const real_t wDz = Gct(dz,qz);
                for (int dy = 0; dy < D1Dy; ++dy)
                {
                   for (int dx = 0; dx < D1Dx; ++dx)
@@ -1228,8 +1228,8 @@ inline void PACurlCurlApply3D(const int d1d,
 
          for (int qz = 0; qz < Q1D; ++qz)
          {
-            double gradXY02[MD1D][MD1D];
-            double gradXY20[MD1D][MD1D];
+            real_t gradXY02[MD1D][MD1D];
+            real_t gradXY20[MD1D][MD1D];
 
             for (int dy = 0; dy < D1Dy; ++dy)
             {
@@ -1241,7 +1241,7 @@ inline void PACurlCurlApply3D(const int d1d,
             }
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               double massY[MD1D][2];
+               real_t massY[MD1D][2];
                for (int dy = 0; dy < D1Dy; ++dy)
                {
                   massY[dy][0] = 0.0;
@@ -1251,7 +1251,7 @@ inline void PACurlCurlApply3D(const int d1d,
                {
                   for (int dy = 0; dy < D1Dy; ++dy)
                   {
-                     const double wy = Bot(dy,qy);
+                     const real_t wy = Bot(dy,qy);
 
                      massY[dy][0] += wy * curl[qz][qy][qx][2];
                      massY[dy][1] += wy * curl[qz][qy][qx][0];
@@ -1259,8 +1259,8 @@ inline void PACurlCurlApply3D(const int d1d,
                }
                for (int dx = 0; dx < D1Dx; ++dx)
                {
-                  const double wx = Bct(dx,qx);
-                  const double wDx = Gct(dx,qx);
+                  const real_t wx = Bct(dx,qx);
+                  const real_t wDx = Gct(dx,qx);
 
                   for (int dy = 0; dy < D1Dy; ++dy)
                   {
@@ -1272,8 +1272,8 @@ inline void PACurlCurlApply3D(const int d1d,
 
             for (int dz = 0; dz < D1Dz; ++dz)
             {
-               const double wz = Bct(dz,qz);
-               const double wDz = Gct(dz,qz);
+               const real_t wz = Bct(dz,qz);
+               const real_t wDz = Gct(dz,qz);
                for (int dy = 0; dy < D1Dy; ++dy)
                {
                   for (int dx = 0; dx < D1Dx; ++dx)
@@ -1298,8 +1298,8 @@ inline void PACurlCurlApply3D(const int d1d,
 
          for (int qx = 0; qx < Q1D; ++qx)
          {
-            double gradYZ01[MD1D][MD1D];
-            double gradYZ10[MD1D][MD1D];
+            real_t gradYZ01[MD1D][MD1D];
+            real_t gradYZ10[MD1D][MD1D];
 
             for (int dy = 0; dy < D1Dy; ++dy)
             {
@@ -1311,7 +1311,7 @@ inline void PACurlCurlApply3D(const int d1d,
             }
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               double massZ[MD1D][2];
+               real_t massZ[MD1D][2];
                for (int dz = 0; dz < D1Dz; ++dz)
                {
                   for (int n = 0; n < 2; ++n)
@@ -1323,7 +1323,7 @@ inline void PACurlCurlApply3D(const int d1d,
                {
                   for (int dz = 0; dz < D1Dz; ++dz)
                   {
-                     const double wz = Bot(dz,qz);
+                     const real_t wz = Bot(dz,qz);
 
                      massZ[dz][0] += wz * curl[qz][qy][qx][0];
                      massZ[dz][1] += wz * curl[qz][qy][qx][1];
@@ -1331,8 +1331,8 @@ inline void PACurlCurlApply3D(const int d1d,
                }
                for (int dy = 0; dy < D1Dy; ++dy)
                {
-                  const double wy = Bct(dy,qy);
-                  const double wDy = Gct(dy,qy);
+                  const real_t wy = Bct(dy,qy);
+                  const real_t wDy = Gct(dy,qy);
 
                   for (int dz = 0; dz < D1Dz; ++dz)
                   {
@@ -1344,8 +1344,8 @@ inline void PACurlCurlApply3D(const int d1d,
 
             for (int dx = 0; dx < D1Dx; ++dx)
             {
-               const double wx = Bct(dx,qx);
-               const double wDx = Gct(dx,qx);
+               const real_t wx = Bct(dx,qx);
+               const real_t wDx = Gct(dx,qx);
 
                for (int dy = 0; dy < D1Dy; ++dy)
                {
@@ -1369,12 +1369,12 @@ inline void SmemPACurlCurlApply3D(const int d1d,
                                   const int q1d,
                                   const bool symmetric,
                                   const int NE,
-                                  const Array<double> &bo,
-                                  const Array<double> &bc,
-                                  const Array<double> &bot,
-                                  const Array<double> &bct,
-                                  const Array<double> &gc,
-                                  const Array<double> &gct,
+                                  const Array<real_t> &bo,
+                                  const Array<real_t> &bc,
+                                  const Array<real_t> &bot,
+                                  const Array<real_t> &bct,
+                                  const Array<real_t> &gc,
+                                  const Array<real_t> &gct,
                                   const Vector &pa_data,
                                   const Vector &x,
                                   Vector &y)
@@ -1409,15 +1409,15 @@ inline void SmemPACurlCurlApply3D(const int d1d,
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-      MFEM_SHARED double sBo[MD1D][MQ1D];
-      MFEM_SHARED double sBc[MD1D][MQ1D];
-      MFEM_SHARED double sGc[MD1D][MQ1D];
+      MFEM_SHARED real_t sBo[MD1D][MQ1D];
+      MFEM_SHARED real_t sBc[MD1D][MQ1D];
+      MFEM_SHARED real_t sGc[MD1D][MQ1D];
 
-      double ope[9];
-      MFEM_SHARED double sop[9][MQ1D][MQ1D];
-      MFEM_SHARED double curl[MQ1D][MQ1D][3];
+      real_t ope[9];
+      MFEM_SHARED real_t sop[9][MQ1D][MQ1D];
+      MFEM_SHARED real_t curl[MQ1D][MQ1D][3];
 
-      MFEM_SHARED double sX[MD1D][MD1D][MD1D];
+      MFEM_SHARED real_t sX[MD1D][MD1D][MD1D];
 
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
@@ -1503,8 +1503,8 @@ inline void SmemPACurlCurlApply3D(const int d1d,
                {
                   MFEM_FOREACH_THREAD(qx,x,Q1D)
                   {
-                     double u = 0.0;
-                     double v = 0.0;
+                     real_t u = 0.0;
+                     real_t v = 0.0;
 
                      // We treat x, y, z components separately for optimization specific to each.
                      if (c == 0) // x component
@@ -1513,17 +1513,17 @@ inline void SmemPACurlCurlApply3D(const int d1d,
 
                         for (int dz = 0; dz < D1Dz; ++dz)
                         {
-                           const double wz = sBc[dz][qz];
-                           const double wDz = sGc[dz][qz];
+                           const real_t wz = sBc[dz][qz];
+                           const real_t wDz = sGc[dz][qz];
 
                            for (int dy = 0; dy < D1Dy; ++dy)
                            {
-                              const double wy = sBc[dy][qy];
-                              const double wDy = sGc[dy][qy];
+                              const real_t wy = sBc[dy][qy];
+                              const real_t wDy = sGc[dy][qy];
 
                               for (int dx = 0; dx < D1Dx; ++dx)
                               {
-                                 const double wx = sX[dz][dy][dx] * sBo[dx][qx];
+                                 const real_t wx = sX[dz][dy][dx] * sBo[dx][qx];
                                  u += wx * wDy * wz;
                                  v += wx * wy * wDz;
                               }
@@ -1539,18 +1539,18 @@ inline void SmemPACurlCurlApply3D(const int d1d,
 
                         for (int dz = 0; dz < D1Dz; ++dz)
                         {
-                           const double wz = sBc[dz][qz];
-                           const double wDz = sGc[dz][qz];
+                           const real_t wz = sBc[dz][qz];
+                           const real_t wDz = sGc[dz][qz];
 
                            for (int dy = 0; dy < D1Dy; ++dy)
                            {
-                              const double wy = sBo[dy][qy];
+                              const real_t wy = sBo[dy][qy];
 
                               for (int dx = 0; dx < D1Dx; ++dx)
                               {
-                                 const double t = sX[dz][dy][dx];
-                                 const double wx = t * sBc[dx][qx];
-                                 const double wDx = t * sGc[dx][qx];
+                                 const real_t t = sX[dz][dy][dx];
+                                 const real_t wx = t * sBc[dx][qx];
+                                 const real_t wDx = t * sGc[dx][qx];
 
                                  u += wDx * wy * wz;
                                  v += wx * wy * wDz;
@@ -1567,18 +1567,18 @@ inline void SmemPACurlCurlApply3D(const int d1d,
 
                         for (int dz = 0; dz < D1Dz; ++dz)
                         {
-                           const double wz = sBo[dz][qz];
+                           const real_t wz = sBo[dz][qz];
 
                            for (int dy = 0; dy < D1Dy; ++dy)
                            {
-                              const double wy = sBc[dy][qy];
-                              const double wDy = sGc[dy][qy];
+                              const real_t wy = sBc[dy][qy];
+                              const real_t wDy = sGc[dy][qy];
 
                               for (int dx = 0; dx < D1Dx; ++dx)
                               {
-                                 const double t = sX[dz][dy][dx];
-                                 const double wx = t * sBc[dx][qx];
-                                 const double wDx = t * sGc[dx][qx];
+                                 const real_t t = sX[dz][dy][dx];
+                                 const real_t wx = t * sBc[dx][qx];
+                                 const real_t wDx = t * sGc[dx][qx];
 
                                  u += wDx * wy * wz;
                                  v += wx * wDy * wz;
@@ -1597,15 +1597,15 @@ inline void SmemPACurlCurlApply3D(const int d1d,
             MFEM_SYNC_THREAD;
          } // c
 
-         double dxyz1 = 0.0;
-         double dxyz2 = 0.0;
-         double dxyz3 = 0.0;
+         real_t dxyz1 = 0.0;
+         real_t dxyz2 = 0.0;
+         real_t dxyz3 = 0.0;
 
          MFEM_FOREACH_THREAD(dz,z,D1D)
          {
-            const double wcz = sBc[dz][qz];
-            const double wcDz = sGc[dz][qz];
-            const double wz = (dz < D1D-1) ? sBo[dz][qz] : 0.0;
+            const real_t wcz = sBc[dz][qz];
+            const real_t wcDz = sGc[dz][qz];
+            const real_t wz = (dz < D1D-1) ? sBo[dz][qz] : 0.0;
 
             MFEM_FOREACH_THREAD(dy,y,D1D)
             {
@@ -1613,37 +1613,37 @@ inline void SmemPACurlCurlApply3D(const int d1d,
                {
                   for (int qy = 0; qy < Q1D; ++qy)
                   {
-                     const double wcy = sBc[dy][qy];
-                     const double wcDy = sGc[dy][qy];
-                     const double wy = (dy < D1D-1) ? sBo[dy][qy] : 0.0;
+                     const real_t wcy = sBc[dy][qy];
+                     const real_t wcDy = sGc[dy][qy];
+                     const real_t wy = (dy < D1D-1) ? sBo[dy][qy] : 0.0;
 
                      for (int qx = 0; qx < Q1D; ++qx)
                      {
-                        const double O11 = sop[0][qx][qy];
-                        const double O12 = sop[1][qx][qy];
-                        const double O13 = sop[2][qx][qy];
-                        const double O21 = symmetric ? O12 : sop[3][qx][qy];
-                        const double O22 = symmetric ? sop[3][qx][qy] : sop[4][qx][qy];
-                        const double O23 = symmetric ? sop[4][qx][qy] : sop[5][qx][qy];
-                        const double O31 = symmetric ? O13 : sop[6][qx][qy];
-                        const double O32 = symmetric ? O23 : sop[7][qx][qy];
-                        const double O33 = symmetric ? sop[5][qx][qy] : sop[8][qx][qy];
+                        const real_t O11 = sop[0][qx][qy];
+                        const real_t O12 = sop[1][qx][qy];
+                        const real_t O13 = sop[2][qx][qy];
+                        const real_t O21 = symmetric ? O12 : sop[3][qx][qy];
+                        const real_t O22 = symmetric ? sop[3][qx][qy] : sop[4][qx][qy];
+                        const real_t O23 = symmetric ? sop[4][qx][qy] : sop[5][qx][qy];
+                        const real_t O31 = symmetric ? O13 : sop[6][qx][qy];
+                        const real_t O32 = symmetric ? O23 : sop[7][qx][qy];
+                        const real_t O33 = symmetric ? sop[5][qx][qy] : sop[8][qx][qy];
 
-                        const double c1 = (O11 * curl[qy][qx][0]) + (O12 * curl[qy][qx][1]) +
+                        const real_t c1 = (O11 * curl[qy][qx][0]) + (O12 * curl[qy][qx][1]) +
                                           (O13 * curl[qy][qx][2]);
-                        const double c2 = (O21 * curl[qy][qx][0]) + (O22 * curl[qy][qx][1]) +
+                        const real_t c2 = (O21 * curl[qy][qx][0]) + (O22 * curl[qy][qx][1]) +
                                           (O23 * curl[qy][qx][2]);
-                        const double c3 = (O31 * curl[qy][qx][0]) + (O32 * curl[qy][qx][1]) +
+                        const real_t c3 = (O31 * curl[qy][qx][0]) + (O32 * curl[qy][qx][1]) +
                                           (O33 * curl[qy][qx][2]);
 
-                        const double wcx = sBc[dx][qx];
-                        const double wDx = sGc[dx][qx];
+                        const real_t wcx = sBc[dx][qx];
+                        const real_t wDx = sGc[dx][qx];
 
                         if (dx < D1D-1)
                         {
                            // \hat{\nabla}\times\hat{u} is [0, (u_0)_{x_2}, -(u_0)_{x_1}]
                            // (u_0)_{x_2} * (op * curl)_1 - (u_0)_{x_1} * (op * curl)_2
-                           const double wx = sBo[dx][qx];
+                           const real_t wx = sBo[dx][qx];
                            dxyz1 += (wx * c2 * wcy * wcDz) - (wx * c3 * wcDy * wcz);
                         }
 
@@ -1697,7 +1697,7 @@ inline void SmemPACurlCurlApply3D(const int d1d,
 // PA H(curl)-L2 Assemble 2D kernel
 void PAHcurlL2Setup2D(const int Q1D,
                       const int NE,
-                      const Array<double> &w,
+                      const Array<real_t> &w,
                       Vector &coeff,
                       Vector &op);
 
@@ -1705,7 +1705,7 @@ void PAHcurlL2Setup2D(const int Q1D,
 void PAHcurlL2Setup3D(const int NQ,
                       const int coeffDim,
                       const int NE,
-                      const Array<double> &w,
+                      const Array<real_t> &w,
                       Vector &coeff,
                       Vector &op);
 
@@ -1714,10 +1714,10 @@ void PAHcurlL2Apply2D(const int D1D,
                       const int D1Dtest,
                       const int Q1D,
                       const int NE,
-                      const Array<double> &bo,
-                      const Array<double> &bot,
-                      const Array<double> &bt,
-                      const Array<double> &gc,
+                      const Array<real_t> &bo,
+                      const Array<real_t> &bot,
+                      const Array<real_t> &bt,
+                      const Array<real_t> &gc,
                       const Vector &pa_data,
                       const Vector &x,
                       Vector &y);
@@ -1727,10 +1727,10 @@ void PAHcurlL2ApplyTranspose2D(const int D1D,
                                const int D1Dtest,
                                const int Q1D,
                                const int NE,
-                               const Array<double> &bo,
-                               const Array<double> &bot,
-                               const Array<double> &b,
-                               const Array<double> &gct,
+                               const Array<real_t> &bo,
+                               const Array<real_t> &bot,
+                               const Array<real_t> &b,
+                               const Array<real_t> &gct,
                                const Vector &pa_data,
                                const Vector &x,
                                Vector &y);
@@ -1741,11 +1741,11 @@ inline void PAHcurlL2Apply3D(const int d1d,
                              const int q1d,
                              const int coeffDim,
                              const int NE,
-                             const Array<double> &bo,
-                             const Array<double> &bc,
-                             const Array<double> &bot,
-                             const Array<double> &bct,
-                             const Array<double> &gc,
+                             const Array<real_t> &bo,
+                             const Array<real_t> &bc,
+                             const Array<real_t> &bot,
+                             const Array<real_t> &bct,
+                             const Array<real_t> &gc,
                              const Vector &pa_data,
                              const Vector &x,
                              Vector &y)
@@ -1783,7 +1783,7 @@ inline void PAHcurlL2Apply3D(const int d1d,
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-      double curl[MQ1D][MQ1D][MQ1D][VDIM];
+      real_t curl[MQ1D][MQ1D][MQ1D][VDIM];
       // curl[qz][qy][qx] will be computed as the vector curl at each quadrature point.
 
       for (int qz = 0; qz < Q1D; ++qz)
@@ -1812,7 +1812,7 @@ inline void PAHcurlL2Apply3D(const int d1d,
 
          for (int dz = 0; dz < D1Dz; ++dz)
          {
-            double gradXY[MQ1D][MQ1D][2];
+            real_t gradXY[MQ1D][MQ1D][2];
             for (int qy = 0; qy < Q1D; ++qy)
             {
                for (int qx = 0; qx < Q1D; ++qx)
@@ -1826,7 +1826,7 @@ inline void PAHcurlL2Apply3D(const int d1d,
 
             for (int dy = 0; dy < D1Dy; ++dy)
             {
-               double massX[MQ1D];
+               real_t massX[MQ1D];
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   massX[qx] = 0.0;
@@ -1834,7 +1834,7 @@ inline void PAHcurlL2Apply3D(const int d1d,
 
                for (int dx = 0; dx < D1Dx; ++dx)
                {
-                  const double t = X(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                  const real_t t = X(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
                      massX[qx] += t * Bo(qx,dx);
@@ -1843,11 +1843,11 @@ inline void PAHcurlL2Apply3D(const int d1d,
 
                for (int qy = 0; qy < Q1D; ++qy)
                {
-                  const double wy = Bc(qy,dy);
-                  const double wDy = Gc(qy,dy);
+                  const real_t wy = Bc(qy,dy);
+                  const real_t wDy = Gc(qy,dy);
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
-                     const double wx = massX[qx];
+                     const real_t wx = massX[qx];
                      gradXY[qy][qx][0] += wx * wDy;
                      gradXY[qy][qx][1] += wx * wy;
                   }
@@ -1856,8 +1856,8 @@ inline void PAHcurlL2Apply3D(const int d1d,
 
             for (int qz = 0; qz < Q1D; ++qz)
             {
-               const double wz = Bc(qz,dz);
-               const double wDz = Gc(qz,dz);
+               const real_t wz = Bc(qz,dz);
+               const real_t wDz = Gc(qz,dz);
                for (int qy = 0; qy < Q1D; ++qy)
                {
                   for (int qx = 0; qx < Q1D; ++qx)
@@ -1881,7 +1881,7 @@ inline void PAHcurlL2Apply3D(const int d1d,
 
          for (int dz = 0; dz < D1Dz; ++dz)
          {
-            double gradXY[MQ1D][MQ1D][2];
+            real_t gradXY[MQ1D][MQ1D][2];
             for (int qy = 0; qy < Q1D; ++qy)
             {
                for (int qx = 0; qx < Q1D; ++qx)
@@ -1895,7 +1895,7 @@ inline void PAHcurlL2Apply3D(const int d1d,
 
             for (int dx = 0; dx < D1Dx; ++dx)
             {
-               double massY[MQ1D];
+               real_t massY[MQ1D];
                for (int qy = 0; qy < Q1D; ++qy)
                {
                   massY[qy] = 0.0;
@@ -1903,7 +1903,7 @@ inline void PAHcurlL2Apply3D(const int d1d,
 
                for (int dy = 0; dy < D1Dy; ++dy)
                {
-                  const double t = X(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                  const real_t t = X(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
                   for (int qy = 0; qy < Q1D; ++qy)
                   {
                      massY[qy] += t * Bo(qy,dy);
@@ -1912,11 +1912,11 @@ inline void PAHcurlL2Apply3D(const int d1d,
 
                for (int qx = 0; qx < Q1D; ++qx)
                {
-                  const double wx = Bc(qx,dx);
-                  const double wDx = Gc(qx,dx);
+                  const real_t wx = Bc(qx,dx);
+                  const real_t wDx = Gc(qx,dx);
                   for (int qy = 0; qy < Q1D; ++qy)
                   {
-                     const double wy = massY[qy];
+                     const real_t wy = massY[qy];
                      gradXY[qy][qx][0] += wDx * wy;
                      gradXY[qy][qx][1] += wx * wy;
                   }
@@ -1925,8 +1925,8 @@ inline void PAHcurlL2Apply3D(const int d1d,
 
             for (int qz = 0; qz < Q1D; ++qz)
             {
-               const double wz = Bc(qz,dz);
-               const double wDz = Gc(qz,dz);
+               const real_t wz = Bc(qz,dz);
+               const real_t wDz = Gc(qz,dz);
                for (int qy = 0; qy < Q1D; ++qy)
                {
                   for (int qx = 0; qx < Q1D; ++qx)
@@ -1950,7 +1950,7 @@ inline void PAHcurlL2Apply3D(const int d1d,
 
          for (int dx = 0; dx < D1Dx; ++dx)
          {
-            double gradYZ[MQ1D][MQ1D][2];
+            real_t gradYZ[MQ1D][MQ1D][2];
             for (int qz = 0; qz < Q1D; ++qz)
             {
                for (int qy = 0; qy < Q1D; ++qy)
@@ -1964,7 +1964,7 @@ inline void PAHcurlL2Apply3D(const int d1d,
 
             for (int dy = 0; dy < D1Dy; ++dy)
             {
-               double massZ[MQ1D];
+               real_t massZ[MQ1D];
                for (int qz = 0; qz < Q1D; ++qz)
                {
                   massZ[qz] = 0.0;
@@ -1972,7 +1972,7 @@ inline void PAHcurlL2Apply3D(const int d1d,
 
                for (int dz = 0; dz < D1Dz; ++dz)
                {
-                  const double t = X(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                  const real_t t = X(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
                   for (int qz = 0; qz < Q1D; ++qz)
                   {
                      massZ[qz] += t * Bo(qz,dz);
@@ -1981,11 +1981,11 @@ inline void PAHcurlL2Apply3D(const int d1d,
 
                for (int qy = 0; qy < Q1D; ++qy)
                {
-                  const double wy = Bc(qy,dy);
-                  const double wDy = Gc(qy,dy);
+                  const real_t wy = Bc(qy,dy);
+                  const real_t wDy = Gc(qy,dy);
                   for (int qz = 0; qz < Q1D; ++qz)
                   {
-                     const double wz = massZ[qz];
+                     const real_t wz = massZ[qz];
                      gradYZ[qz][qy][0] += wz * wy;
                      gradYZ[qz][qy][1] += wz * wDy;
                   }
@@ -1994,8 +1994,8 @@ inline void PAHcurlL2Apply3D(const int d1d,
 
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               const double wx = Bc(qx,dx);
-               const double wDx = Gc(qx,dx);
+               const real_t wx = Bc(qx,dx);
+               const real_t wDx = Gc(qx,dx);
 
                for (int qy = 0; qy < Q1D; ++qy)
                {
@@ -2017,7 +2017,7 @@ inline void PAHcurlL2Apply3D(const int d1d,
          {
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               const double O11 = op(0,qx,qy,qz,e);
+               const real_t O11 = op(0,qx,qy,qz,e);
                if (coeffDim == 1)
                {
                   for (int c = 0; c < VDIM; ++c)
@@ -2027,17 +2027,17 @@ inline void PAHcurlL2Apply3D(const int d1d,
                }
                else
                {
-                  const double O21 = op(1,qx,qy,qz,e);
-                  const double O31 = op(2,qx,qy,qz,e);
-                  const double O12 = op(3,qx,qy,qz,e);
-                  const double O22 = op(4,qx,qy,qz,e);
-                  const double O32 = op(5,qx,qy,qz,e);
-                  const double O13 = op(6,qx,qy,qz,e);
-                  const double O23 = op(7,qx,qy,qz,e);
-                  const double O33 = op(8,qx,qy,qz,e);
-                  const double curlX = curl[qz][qy][qx][0];
-                  const double curlY = curl[qz][qy][qx][1];
-                  const double curlZ = curl[qz][qy][qx][2];
+                  const real_t O21 = op(1,qx,qy,qz,e);
+                  const real_t O31 = op(2,qx,qy,qz,e);
+                  const real_t O12 = op(3,qx,qy,qz,e);
+                  const real_t O22 = op(4,qx,qy,qz,e);
+                  const real_t O32 = op(5,qx,qy,qz,e);
+                  const real_t O13 = op(6,qx,qy,qz,e);
+                  const real_t O23 = op(7,qx,qy,qz,e);
+                  const real_t O33 = op(8,qx,qy,qz,e);
+                  const real_t curlX = curl[qz][qy][qx][0];
+                  const real_t curlY = curl[qz][qy][qx][1];
+                  const real_t curlZ = curl[qz][qy][qx][2];
                   curl[qz][qy][qx][0] = (O11*curlX)+(O12*curlY)+(O13*curlZ);
                   curl[qz][qy][qx][1] = (O21*curlX)+(O22*curlY)+(O23*curlZ);
                   curl[qz][qy][qx][2] = (O31*curlX)+(O32*curlY)+(O33*curlZ);
@@ -2048,7 +2048,7 @@ inline void PAHcurlL2Apply3D(const int d1d,
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         double massXY[MD1D][MD1D];
+         real_t massXY[MD1D][MD1D];
 
          osc = 0;
 
@@ -2067,7 +2067,7 @@ inline void PAHcurlL2Apply3D(const int d1d,
             }
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               double massX[MD1D];
+               real_t massX[MD1D];
                for (int dx = 0; dx < D1Dx; ++dx)
                {
                   massX[dx] = 0.0;
@@ -2082,7 +2082,7 @@ inline void PAHcurlL2Apply3D(const int d1d,
 
                for (int dy = 0; dy < D1Dy; ++dy)
                {
-                  const double wy = (c == 1) ? Bot(dy,qy) : Bct(dy,qy);
+                  const real_t wy = (c == 1) ? Bot(dy,qy) : Bct(dy,qy);
                   for (int dx = 0; dx < D1Dx; ++dx)
                   {
                      massXY[dy][dx] += massX[dx] * wy;
@@ -2092,7 +2092,7 @@ inline void PAHcurlL2Apply3D(const int d1d,
 
             for (int dz = 0; dz < D1Dz; ++dz)
             {
-               const double wz = (c == 2) ? Bot(dz,qz) : Bct(dz,qz);
+               const real_t wz = (c == 2) ? Bot(dz,qz) : Bct(dz,qz);
                for (int dy = 0; dy < D1Dy; ++dy)
                {
                   for (int dx = 0; dx < D1Dx; ++dx)
@@ -2114,9 +2114,9 @@ inline void SmemPAHcurlL2Apply3D(const int d1d,
                                  const int q1d,
                                  const int coeffDim,
                                  const int NE,
-                                 const Array<double> &bo,
-                                 const Array<double> &bc,
-                                 const Array<double> &gc,
+                                 const Array<real_t> &bo,
+                                 const Array<real_t> &bc,
+                                 const Array<real_t> &gc,
                                  const Vector &pa_data,
                                  const Vector &x,
                                  Vector &y)
@@ -2144,15 +2144,15 @@ inline void SmemPAHcurlL2Apply3D(const int d1d,
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-      MFEM_SHARED double sBo[MD1D][MQ1D];
-      MFEM_SHARED double sBc[MD1D][MQ1D];
-      MFEM_SHARED double sGc[MD1D][MQ1D];
+      MFEM_SHARED real_t sBo[MD1D][MQ1D];
+      MFEM_SHARED real_t sBc[MD1D][MQ1D];
+      MFEM_SHARED real_t sGc[MD1D][MQ1D];
 
-      double opc[maxCoeffDim];
-      MFEM_SHARED double sop[maxCoeffDim][MQ1D][MQ1D];
-      MFEM_SHARED double curl[MQ1D][MQ1D][3];
+      real_t opc[maxCoeffDim];
+      MFEM_SHARED real_t sop[maxCoeffDim][MQ1D][MQ1D];
+      MFEM_SHARED real_t curl[MQ1D][MQ1D][3];
 
-      MFEM_SHARED double sX[MD1D][MD1D][MD1D];
+      MFEM_SHARED real_t sX[MD1D][MD1D][MD1D];
 
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
@@ -2238,8 +2238,8 @@ inline void SmemPAHcurlL2Apply3D(const int d1d,
                {
                   MFEM_FOREACH_THREAD(qx,x,Q1D)
                   {
-                     double u = 0.0;
-                     double v = 0.0;
+                     real_t u = 0.0;
+                     real_t v = 0.0;
 
                      // We treat x, y, z components separately for optimization specific to each.
                      if (c == 0) // x component
@@ -2248,17 +2248,17 @@ inline void SmemPAHcurlL2Apply3D(const int d1d,
 
                         for (int dz = 0; dz < D1Dz; ++dz)
                         {
-                           const double wz = sBc[dz][qz];
-                           const double wDz = sGc[dz][qz];
+                           const real_t wz = sBc[dz][qz];
+                           const real_t wDz = sGc[dz][qz];
 
                            for (int dy = 0; dy < D1Dy; ++dy)
                            {
-                              const double wy = sBc[dy][qy];
-                              const double wDy = sGc[dy][qy];
+                              const real_t wy = sBc[dy][qy];
+                              const real_t wDy = sGc[dy][qy];
 
                               for (int dx = 0; dx < D1Dx; ++dx)
                               {
-                                 const double wx = sX[dz][dy][dx] * sBo[dx][qx];
+                                 const real_t wx = sX[dz][dy][dx] * sBo[dx][qx];
                                  u += wx * wDy * wz;
                                  v += wx * wy * wDz;
                               }
@@ -2274,18 +2274,18 @@ inline void SmemPAHcurlL2Apply3D(const int d1d,
 
                         for (int dz = 0; dz < D1Dz; ++dz)
                         {
-                           const double wz = sBc[dz][qz];
-                           const double wDz = sGc[dz][qz];
+                           const real_t wz = sBc[dz][qz];
+                           const real_t wDz = sGc[dz][qz];
 
                            for (int dy = 0; dy < D1Dy; ++dy)
                            {
-                              const double wy = sBo[dy][qy];
+                              const real_t wy = sBo[dy][qy];
 
                               for (int dx = 0; dx < D1Dx; ++dx)
                               {
-                                 const double t = sX[dz][dy][dx];
-                                 const double wx = t * sBc[dx][qx];
-                                 const double wDx = t * sGc[dx][qx];
+                                 const real_t t = sX[dz][dy][dx];
+                                 const real_t wx = t * sBc[dx][qx];
+                                 const real_t wDx = t * sGc[dx][qx];
 
                                  u += wDx * wy * wz;
                                  v += wx * wy * wDz;
@@ -2302,18 +2302,18 @@ inline void SmemPAHcurlL2Apply3D(const int d1d,
 
                         for (int dz = 0; dz < D1Dz; ++dz)
                         {
-                           const double wz = sBo[dz][qz];
+                           const real_t wz = sBo[dz][qz];
 
                            for (int dy = 0; dy < D1Dy; ++dy)
                            {
-                              const double wy = sBc[dy][qy];
-                              const double wDy = sGc[dy][qy];
+                              const real_t wy = sBc[dy][qy];
+                              const real_t wDy = sGc[dy][qy];
 
                               for (int dx = 0; dx < D1Dx; ++dx)
                               {
-                                 const double t = sX[dz][dy][dx];
-                                 const double wx = t * sBc[dx][qx];
-                                 const double wDx = t * sGc[dx][qx];
+                                 const real_t t = sX[dz][dy][dx];
+                                 const real_t wx = t * sBc[dx][qx];
+                                 const real_t wDx = t * sGc[dx][qx];
 
                                  u += wDx * wy * wz;
                                  v += wx * wDy * wz;
@@ -2332,14 +2332,14 @@ inline void SmemPAHcurlL2Apply3D(const int d1d,
             MFEM_SYNC_THREAD;
          } // c
 
-         double dxyz1 = 0.0;
-         double dxyz2 = 0.0;
-         double dxyz3 = 0.0;
+         real_t dxyz1 = 0.0;
+         real_t dxyz2 = 0.0;
+         real_t dxyz3 = 0.0;
 
          MFEM_FOREACH_THREAD(dz,z,D1D)
          {
-            const double wcz = sBc[dz][qz];
-            const double wz = (dz < D1D-1) ? sBo[dz][qz] : 0.0;
+            const real_t wcz = sBc[dz][qz];
+            const real_t wz = (dz < D1D-1) ? sBo[dz][qz] : 0.0;
 
             MFEM_FOREACH_THREAD(dy,y,D1D)
             {
@@ -2347,13 +2347,13 @@ inline void SmemPAHcurlL2Apply3D(const int d1d,
                {
                   for (int qy = 0; qy < Q1D; ++qy)
                   {
-                     const double wcy = sBc[dy][qy];
-                     const double wy = (dy < D1D-1) ? sBo[dy][qy] : 0.0;
+                     const real_t wcy = sBc[dy][qy];
+                     const real_t wy = (dy < D1D-1) ? sBo[dy][qy] : 0.0;
 
                      for (int qx = 0; qx < Q1D; ++qx)
                      {
-                        const double O11 = sop[0][qx][qy];
-                        double c1, c2, c3;
+                        const real_t O11 = sop[0][qx][qy];
+                        real_t c1, c2, c3;
                         if (coeffDim == 1)
                         {
                            c1 = O11 * curl[qy][qx][0];
@@ -2362,24 +2362,24 @@ inline void SmemPAHcurlL2Apply3D(const int d1d,
                         }
                         else
                         {
-                           const double O21 = sop[1][qx][qy];
-                           const double O31 = sop[2][qx][qy];
-                           const double O12 = sop[3][qx][qy];
-                           const double O22 = sop[4][qx][qy];
-                           const double O32 = sop[5][qx][qy];
-                           const double O13 = sop[6][qx][qy];
-                           const double O23 = sop[7][qx][qy];
-                           const double O33 = sop[8][qx][qy];
+                           const real_t O21 = sop[1][qx][qy];
+                           const real_t O31 = sop[2][qx][qy];
+                           const real_t O12 = sop[3][qx][qy];
+                           const real_t O22 = sop[4][qx][qy];
+                           const real_t O32 = sop[5][qx][qy];
+                           const real_t O13 = sop[6][qx][qy];
+                           const real_t O23 = sop[7][qx][qy];
+                           const real_t O33 = sop[8][qx][qy];
                            c1 = (O11*curl[qy][qx][0])+(O12*curl[qy][qx][1])+(O13*curl[qy][qx][2]);
                            c2 = (O21*curl[qy][qx][0])+(O22*curl[qy][qx][1])+(O23*curl[qy][qx][2]);
                            c3 = (O31*curl[qy][qx][0])+(O32*curl[qy][qx][1])+(O33*curl[qy][qx][2]);
                         }
 
-                        const double wcx = sBc[dx][qx];
+                        const real_t wcx = sBc[dx][qx];
 
                         if (dx < D1D-1)
                         {
-                           const double wx = sBo[dx][qx];
+                           const real_t wx = sBo[dx][qx];
                            dxyz1 += c1 * wx * wcy * wcz;
                         }
 
@@ -2431,11 +2431,11 @@ inline void PAHcurlL2ApplyTranspose3D(const int d1d,
                                       const int q1d,
                                       const int coeffDim,
                                       const int NE,
-                                      const Array<double> &bo,
-                                      const Array<double> &bc,
-                                      const Array<double> &bot,
-                                      const Array<double> &bct,
-                                      const Array<double> &gct,
+                                      const Array<real_t> &bo,
+                                      const Array<real_t> &bc,
+                                      const Array<real_t> &bot,
+                                      const Array<real_t> &bct,
+                                      const Array<real_t> &gct,
                                       const Vector &pa_data,
                                       const Vector &x,
                                       Vector &y)
@@ -2465,7 +2465,7 @@ inline void PAHcurlL2ApplyTranspose3D(const int d1d,
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-      double mass[MQ1D][MQ1D][MQ1D][VDIM];
+      real_t mass[MQ1D][MQ1D][MQ1D][VDIM];
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
@@ -2491,7 +2491,7 @@ inline void PAHcurlL2ApplyTranspose3D(const int d1d,
 
          for (int dz = 0; dz < D1Dz; ++dz)
          {
-            double massXY[MQ1D][MQ1D];
+            real_t massXY[MQ1D][MQ1D];
             for (int qy = 0; qy < Q1D; ++qy)
             {
                for (int qx = 0; qx < Q1D; ++qx)
@@ -2502,7 +2502,7 @@ inline void PAHcurlL2ApplyTranspose3D(const int d1d,
 
             for (int dy = 0; dy < D1Dy; ++dy)
             {
-               double massX[MQ1D];
+               real_t massX[MQ1D];
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   massX[qx] = 0.0;
@@ -2510,7 +2510,7 @@ inline void PAHcurlL2ApplyTranspose3D(const int d1d,
 
                for (int dx = 0; dx < D1Dx; ++dx)
                {
-                  const double t = X(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                  const real_t t = X(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
                      massX[qx] += t * ((c == 0) ? Bo(qx,dx) : Bc(qx,dx));
@@ -2519,10 +2519,10 @@ inline void PAHcurlL2ApplyTranspose3D(const int d1d,
 
                for (int qy = 0; qy < Q1D; ++qy)
                {
-                  const double wy = (c == 1) ? Bo(qy,dy) : Bc(qy,dy);
+                  const real_t wy = (c == 1) ? Bo(qy,dy) : Bc(qy,dy);
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
-                     const double wx = massX[qx];
+                     const real_t wx = massX[qx];
                      massXY[qy][qx] += wx * wy;
                   }
                }
@@ -2530,7 +2530,7 @@ inline void PAHcurlL2ApplyTranspose3D(const int d1d,
 
             for (int qz = 0; qz < Q1D; ++qz)
             {
-               const double wz = (c == 2) ? Bo(qz,dz) : Bc(qz,dz);
+               const real_t wz = (c == 2) ? Bo(qz,dz) : Bc(qz,dz);
                for (int qy = 0; qy < Q1D; ++qy)
                {
                   for (int qx = 0; qx < Q1D; ++qx)
@@ -2551,7 +2551,7 @@ inline void PAHcurlL2ApplyTranspose3D(const int d1d,
          {
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               const double O11 = op(0,qx,qy,qz,e);
+               const real_t O11 = op(0,qx,qy,qz,e);
                if (coeffDim == 1)
                {
                   for (int c = 0; c < VDIM; ++c)
@@ -2561,17 +2561,17 @@ inline void PAHcurlL2ApplyTranspose3D(const int d1d,
                }
                else
                {
-                  const double O12 = op(1,qx,qy,qz,e);
-                  const double O13 = op(2,qx,qy,qz,e);
-                  const double O21 = op(3,qx,qy,qz,e);
-                  const double O22 = op(4,qx,qy,qz,e);
-                  const double O23 = op(5,qx,qy,qz,e);
-                  const double O31 = op(6,qx,qy,qz,e);
-                  const double O32 = op(7,qx,qy,qz,e);
-                  const double O33 = op(8,qx,qy,qz,e);
-                  const double massX = mass[qz][qy][qx][0];
-                  const double massY = mass[qz][qy][qx][1];
-                  const double massZ = mass[qz][qy][qx][2];
+                  const real_t O12 = op(1,qx,qy,qz,e);
+                  const real_t O13 = op(2,qx,qy,qz,e);
+                  const real_t O21 = op(3,qx,qy,qz,e);
+                  const real_t O22 = op(4,qx,qy,qz,e);
+                  const real_t O23 = op(5,qx,qy,qz,e);
+                  const real_t O31 = op(6,qx,qy,qz,e);
+                  const real_t O32 = op(7,qx,qy,qz,e);
+                  const real_t O33 = op(8,qx,qy,qz,e);
+                  const real_t massX = mass[qz][qy][qx][0];
+                  const real_t massY = mass[qz][qy][qx][1];
+                  const real_t massZ = mass[qz][qy][qx][2];
                   mass[qz][qy][qx][0] = (O11*massX)+(O12*massY)+(O13*massZ);
                   mass[qz][qy][qx][1] = (O21*massX)+(O22*massY)+(O23*massZ);
                   mass[qz][qy][qx][2] = (O31*massX)+(O32*massY)+(O33*massZ);
@@ -2589,8 +2589,8 @@ inline void PAHcurlL2ApplyTranspose3D(const int d1d,
 
          for (int qz = 0; qz < Q1D; ++qz)
          {
-            double gradXY12[MD1D][MD1D];
-            double gradXY21[MD1D][MD1D];
+            real_t gradXY12[MD1D][MD1D];
+            real_t gradXY21[MD1D][MD1D];
 
             for (int dy = 0; dy < D1Dy; ++dy)
             {
@@ -2602,7 +2602,7 @@ inline void PAHcurlL2ApplyTranspose3D(const int d1d,
             }
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               double massX[MD1D][2];
+               real_t massX[MD1D][2];
                for (int dx = 0; dx < D1Dx; ++dx)
                {
                   for (int n = 0; n < 2; ++n)
@@ -2614,7 +2614,7 @@ inline void PAHcurlL2ApplyTranspose3D(const int d1d,
                {
                   for (int dx = 0; dx < D1Dx; ++dx)
                   {
-                     const double wx = Bot(dx,qx);
+                     const real_t wx = Bot(dx,qx);
 
                      massX[dx][0] += wx * mass[qz][qy][qx][1];
                      massX[dx][1] += wx * mass[qz][qy][qx][2];
@@ -2622,8 +2622,8 @@ inline void PAHcurlL2ApplyTranspose3D(const int d1d,
                }
                for (int dy = 0; dy < D1Dy; ++dy)
                {
-                  const double wy = Bct(dy,qy);
-                  const double wDy = Gct(dy,qy);
+                  const real_t wy = Bct(dy,qy);
+                  const real_t wDy = Gct(dy,qy);
 
                   for (int dx = 0; dx < D1Dx; ++dx)
                   {
@@ -2635,8 +2635,8 @@ inline void PAHcurlL2ApplyTranspose3D(const int d1d,
 
             for (int dz = 0; dz < D1Dz; ++dz)
             {
-               const double wz = Bct(dz,qz);
-               const double wDz = Gct(dz,qz);
+               const real_t wz = Bct(dz,qz);
+               const real_t wDz = Gct(dz,qz);
                for (int dy = 0; dy < D1Dy; ++dy)
                {
                   for (int dx = 0; dx < D1Dx; ++dx)
@@ -2661,8 +2661,8 @@ inline void PAHcurlL2ApplyTranspose3D(const int d1d,
 
          for (int qz = 0; qz < Q1D; ++qz)
          {
-            double gradXY02[MD1D][MD1D];
-            double gradXY20[MD1D][MD1D];
+            real_t gradXY02[MD1D][MD1D];
+            real_t gradXY20[MD1D][MD1D];
 
             for (int dy = 0; dy < D1Dy; ++dy)
             {
@@ -2674,7 +2674,7 @@ inline void PAHcurlL2ApplyTranspose3D(const int d1d,
             }
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               double massY[MD1D][2];
+               real_t massY[MD1D][2];
                for (int dy = 0; dy < D1Dy; ++dy)
                {
                   massY[dy][0] = 0.0;
@@ -2684,7 +2684,7 @@ inline void PAHcurlL2ApplyTranspose3D(const int d1d,
                {
                   for (int dy = 0; dy < D1Dy; ++dy)
                   {
-                     const double wy = Bot(dy,qy);
+                     const real_t wy = Bot(dy,qy);
 
                      massY[dy][0] += wy * mass[qz][qy][qx][2];
                      massY[dy][1] += wy * mass[qz][qy][qx][0];
@@ -2692,8 +2692,8 @@ inline void PAHcurlL2ApplyTranspose3D(const int d1d,
                }
                for (int dx = 0; dx < D1Dx; ++dx)
                {
-                  const double wx = Bct(dx,qx);
-                  const double wDx = Gct(dx,qx);
+                  const real_t wx = Bct(dx,qx);
+                  const real_t wDx = Gct(dx,qx);
 
                   for (int dy = 0; dy < D1Dy; ++dy)
                   {
@@ -2705,8 +2705,8 @@ inline void PAHcurlL2ApplyTranspose3D(const int d1d,
 
             for (int dz = 0; dz < D1Dz; ++dz)
             {
-               const double wz = Bct(dz,qz);
-               const double wDz = Gct(dz,qz);
+               const real_t wz = Bct(dz,qz);
+               const real_t wDz = Gct(dz,qz);
                for (int dy = 0; dy < D1Dy; ++dy)
                {
                   for (int dx = 0; dx < D1Dx; ++dx)
@@ -2731,8 +2731,8 @@ inline void PAHcurlL2ApplyTranspose3D(const int d1d,
 
          for (int qx = 0; qx < Q1D; ++qx)
          {
-            double gradYZ01[MD1D][MD1D];
-            double gradYZ10[MD1D][MD1D];
+            real_t gradYZ01[MD1D][MD1D];
+            real_t gradYZ10[MD1D][MD1D];
 
             for (int dy = 0; dy < D1Dy; ++dy)
             {
@@ -2744,7 +2744,7 @@ inline void PAHcurlL2ApplyTranspose3D(const int d1d,
             }
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               double massZ[MD1D][2];
+               real_t massZ[MD1D][2];
                for (int dz = 0; dz < D1Dz; ++dz)
                {
                   for (int n = 0; n < 2; ++n)
@@ -2756,7 +2756,7 @@ inline void PAHcurlL2ApplyTranspose3D(const int d1d,
                {
                   for (int dz = 0; dz < D1Dz; ++dz)
                   {
-                     const double wz = Bot(dz,qz);
+                     const real_t wz = Bot(dz,qz);
 
                      massZ[dz][0] += wz * mass[qz][qy][qx][0];
                      massZ[dz][1] += wz * mass[qz][qy][qx][1];
@@ -2764,8 +2764,8 @@ inline void PAHcurlL2ApplyTranspose3D(const int d1d,
                }
                for (int dy = 0; dy < D1Dy; ++dy)
                {
-                  const double wy = Bct(dy,qy);
-                  const double wDy = Gct(dy,qy);
+                  const real_t wy = Bct(dy,qy);
+                  const real_t wDy = Gct(dy,qy);
 
                   for (int dz = 0; dz < D1Dz; ++dz)
                   {
@@ -2777,8 +2777,8 @@ inline void PAHcurlL2ApplyTranspose3D(const int d1d,
 
             for (int dx = 0; dx < D1Dx; ++dx)
             {
-               const double wx = Bct(dx,qx);
-               const double wDx = Gct(dx,qx);
+               const real_t wx = Bct(dx,qx);
+               const real_t wDx = Gct(dx,qx);
 
                for (int dy = 0; dy < D1Dy; ++dy)
                {
@@ -2802,9 +2802,9 @@ inline void SmemPAHcurlL2ApplyTranspose3D(const int d1d,
                                           const int q1d,
                                           const int coeffDim,
                                           const int NE,
-                                          const Array<double> &bo,
-                                          const Array<double> &bc,
-                                          const Array<double> &gc,
+                                          const Array<real_t> &bo,
+                                          const Array<real_t> &bc,
+                                          const Array<real_t> &gc,
                                           const Vector &pa_data,
                                           const Vector &x,
                                           Vector &y)
@@ -2832,15 +2832,15 @@ inline void SmemPAHcurlL2ApplyTranspose3D(const int d1d,
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-      MFEM_SHARED double sBo[MD1D][MQ1D];
-      MFEM_SHARED double sBc[MD1D][MQ1D];
-      MFEM_SHARED double sGc[MD1D][MQ1D];
+      MFEM_SHARED real_t sBo[MD1D][MQ1D];
+      MFEM_SHARED real_t sBc[MD1D][MQ1D];
+      MFEM_SHARED real_t sGc[MD1D][MQ1D];
 
-      double opc[maxCoeffDim];
-      MFEM_SHARED double sop[maxCoeffDim][MQ1D][MQ1D];
-      MFEM_SHARED double mass[MQ1D][MQ1D][3];
+      real_t opc[maxCoeffDim];
+      MFEM_SHARED real_t sop[maxCoeffDim][MQ1D][MQ1D];
+      MFEM_SHARED real_t mass[MQ1D][MQ1D][3];
 
-      MFEM_SHARED double sX[MD1D][MD1D][MD1D];
+      MFEM_SHARED real_t sX[MD1D][MD1D][MD1D];
 
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
@@ -2926,19 +2926,19 @@ inline void SmemPAHcurlL2ApplyTranspose3D(const int d1d,
                {
                   MFEM_FOREACH_THREAD(qx,x,Q1D)
                   {
-                     double u = 0.0;
+                     real_t u = 0.0;
 
                      for (int dz = 0; dz < D1Dz; ++dz)
                      {
-                        const double wz = (c == 2) ? sBo[dz][qz] : sBc[dz][qz];
+                        const real_t wz = (c == 2) ? sBo[dz][qz] : sBc[dz][qz];
 
                         for (int dy = 0; dy < D1Dy; ++dy)
                         {
-                           const double wy = (c == 1) ? sBo[dy][qy] : sBc[dy][qy];
+                           const real_t wy = (c == 1) ? sBo[dy][qy] : sBc[dy][qy];
 
                            for (int dx = 0; dx < D1Dx; ++dx)
                            {
-                              const double wx = sX[dz][dy][dx] * ((c == 0) ? sBo[dx][qx] : sBc[dx][qx]);
+                              const real_t wx = sX[dz][dy][dx] * ((c == 0) ? sBo[dx][qx] : sBc[dx][qx]);
                               u += wx * wy * wz;
                            }
                         }
@@ -2953,15 +2953,15 @@ inline void SmemPAHcurlL2ApplyTranspose3D(const int d1d,
             MFEM_SYNC_THREAD;
          } // c
 
-         double dxyz1 = 0.0;
-         double dxyz2 = 0.0;
-         double dxyz3 = 0.0;
+         real_t dxyz1 = 0.0;
+         real_t dxyz2 = 0.0;
+         real_t dxyz3 = 0.0;
 
          MFEM_FOREACH_THREAD(dz,z,D1D)
          {
-            const double wcz = sBc[dz][qz];
-            const double wcDz = sGc[dz][qz];
-            const double wz = (dz < D1D-1) ? sBo[dz][qz] : 0.0;
+            const real_t wcz = sBc[dz][qz];
+            const real_t wcDz = sGc[dz][qz];
+            const real_t wz = (dz < D1D-1) ? sBo[dz][qz] : 0.0;
 
             MFEM_FOREACH_THREAD(dy,y,D1D)
             {
@@ -2969,14 +2969,14 @@ inline void SmemPAHcurlL2ApplyTranspose3D(const int d1d,
                {
                   for (int qy = 0; qy < Q1D; ++qy)
                   {
-                     const double wcy = sBc[dy][qy];
-                     const double wcDy = sGc[dy][qy];
-                     const double wy = (dy < D1D-1) ? sBo[dy][qy] : 0.0;
+                     const real_t wcy = sBc[dy][qy];
+                     const real_t wcDy = sGc[dy][qy];
+                     const real_t wy = (dy < D1D-1) ? sBo[dy][qy] : 0.0;
 
                      for (int qx = 0; qx < Q1D; ++qx)
                      {
-                        const double O11 = sop[0][qx][qy];
-                        double c1, c2, c3;
+                        const real_t O11 = sop[0][qx][qy];
+                        real_t c1, c2, c3;
                         if (coeffDim == 1)
                         {
                            c1 = O11 * mass[qy][qx][0];
@@ -2985,26 +2985,26 @@ inline void SmemPAHcurlL2ApplyTranspose3D(const int d1d,
                         }
                         else
                         {
-                           const double O12 = sop[1][qx][qy];
-                           const double O13 = sop[2][qx][qy];
-                           const double O21 = sop[3][qx][qy];
-                           const double O22 = sop[4][qx][qy];
-                           const double O23 = sop[5][qx][qy];
-                           const double O31 = sop[6][qx][qy];
-                           const double O32 = sop[7][qx][qy];
-                           const double O33 = sop[8][qx][qy];
+                           const real_t O12 = sop[1][qx][qy];
+                           const real_t O13 = sop[2][qx][qy];
+                           const real_t O21 = sop[3][qx][qy];
+                           const real_t O22 = sop[4][qx][qy];
+                           const real_t O23 = sop[5][qx][qy];
+                           const real_t O31 = sop[6][qx][qy];
+                           const real_t O32 = sop[7][qx][qy];
+                           const real_t O33 = sop[8][qx][qy];
 
                            c1 = (O11*mass[qy][qx][0])+(O12*mass[qy][qx][1])+(O13*mass[qy][qx][2]);
                            c2 = (O21*mass[qy][qx][0])+(O22*mass[qy][qx][1])+(O23*mass[qy][qx][2]);
                            c3 = (O31*mass[qy][qx][0])+(O32*mass[qy][qx][1])+(O33*mass[qy][qx][2]);
                         }
 
-                        const double wcx = sBc[dx][qx];
-                        const double wDx = sGc[dx][qx];
+                        const real_t wcx = sBc[dx][qx];
+                        const real_t wDx = sGc[dx][qx];
 
                         if (dx < D1D-1)
                         {
-                           const double wx = sBo[dx][qx];
+                           const real_t wx = sBo[dx][qx];
                            dxyz1 += (wx * c2 * wcy * wcDz) - (wx * c3 * wcDy * wcz);
                         }
 

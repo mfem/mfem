@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -132,24 +132,24 @@ int CeedOperatorGetActiveField(CeedOperator oper, CeedOperatorField *field)
 {
    int ierr;
    Ceed ceed;
-   ierr = CeedOperatorGetCeed(oper, &ceed); CeedChk(ierr);
+   ierr = CeedOperatorGetCeed(oper, &ceed); PCeedChk(ierr);
 
    CeedQFunction qf;
    bool isComposite;
-   ierr = CeedOperatorIsComposite(oper, &isComposite); CeedChk(ierr);
+   ierr = CeedOperatorIsComposite(oper, &isComposite); PCeedChk(ierr);
    CeedOperator *subops;
    if (isComposite)
    {
 #if CEED_VERSION_GE(0, 10, 2)
-      ierr = CeedCompositeOperatorGetSubList(oper, &subops); CeedChk(ierr);
+      ierr = CeedCompositeOperatorGetSubList(oper, &subops); PCeedChk(ierr);
 #else
-      ierr = CeedOperatorGetSubList(oper, &subops); CeedChk(ierr);
+      ierr = CeedOperatorGetSubList(oper, &subops); PCeedChk(ierr);
 #endif
-      ierr = CeedOperatorGetQFunction(subops[0], &qf); CeedChk(ierr);
+      ierr = CeedOperatorGetQFunction(subops[0], &qf); PCeedChk(ierr);
    }
    else
    {
-      ierr = CeedOperatorGetQFunction(oper, &qf); CeedChk(ierr);
+      ierr = CeedOperatorGetQFunction(oper, &qf); PCeedChk(ierr);
    }
    CeedInt numinputfields, numoutputfields;
    ierr = CeedQFunctionGetNumArgs(qf, &numinputfields, &numoutputfields);
@@ -157,12 +157,12 @@ int CeedOperatorGetActiveField(CeedOperator oper, CeedOperatorField *field)
    if (isComposite)
    {
       ierr = CeedOperatorGetFields(subops[0], &numinputfields, &inputfields,
-                                   &numoutputfields, NULL); CeedChk(ierr);
+                                   &numoutputfields, NULL); PCeedChk(ierr);
    }
    else
    {
       ierr = CeedOperatorGetFields(oper, &numinputfields, &inputfields,
-                                   &numoutputfields, NULL); CeedChk(ierr);
+                                   &numoutputfields, NULL); PCeedChk(ierr);
    }
 
    CeedVector if_vector;
@@ -170,7 +170,7 @@ int CeedOperatorGetActiveField(CeedOperator oper, CeedOperatorField *field)
    int found_index = -1;
    for (int i = 0; i < numinputfields; ++i)
    {
-      ierr = CeedOperatorFieldGetVector(inputfields[i], &if_vector); CeedChk(ierr);
+      ierr = CeedOperatorFieldGetVector(inputfields[i], &if_vector); PCeedChk(ierr);
       if (if_vector == CEED_VECTOR_ACTIVE)
       {
          if (found)

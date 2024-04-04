@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -15,7 +15,7 @@
 namespace mfem
 {
 
-Vertex::Vertex (double *xx, int dim)
+Vertex::Vertex (real_t *xx, int dim)
 {
    for (int i = 0; i < dim; i++)
    {
