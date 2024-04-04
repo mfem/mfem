@@ -18,6 +18,7 @@ include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
 #    for d in general linalg mesh fem enzyme; do ls -1 $d/*.cpp; done
 set(UNIT_TESTS_SRCS
   general/test_array.cpp
+  general/test_arrays_by_name.cpp
   general/test_error.cpp
   general/test_mem.cpp
   general/test_text.cpp
@@ -102,6 +103,7 @@ set(UNIT_TESTS_SRCS
   fem/test_pa_kernels.cpp
   fem/test_pgridfunc_save_serial.cpp
   fem/test_project_bdr.cpp
+  fem/test_project_bdr_par.cpp
   fem/test_quadf_coef.cpp
   fem/test_quadinterpolator.cpp
   fem/test_quadraturefunc.cpp
