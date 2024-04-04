@@ -43,13 +43,9 @@ list(APPEND ALL_EXE_SRCS
   ex34.cpp
   ex36.cpp
   ex37.cpp
-  )
-
-if(MFEM_USE_LAPACK)
-list(APPEND ALL_EXE_SRCS
   ex38.cpp
+  ex39.cpp
   )
-endif()
 
 if (MFEM_USE_MPI)
   list(APPEND ALL_EXE_SRCS
@@ -90,7 +86,8 @@ if (MFEM_USE_MPI)
     ex35p.cpp
     ex36p.cpp
     ex37p.cpp
-    )
+    ex39p.cpp
+  )
 endif()
 
 # Examples that return MFEM_SKIP_RETURN_VALUE in some cases:
@@ -100,6 +97,9 @@ if (HYPRE_USING_CUDA OR HYPRE_USING_HIP)
 endif()
 if (MFEM_USE_SINGLE)
   list(APPEND SKIP_TESTS ex33.cpp ex33p.cpp)
+endif()
+if (NOT MFEM_USE_LAPACK)
+  list(APPEND SKIP_TESTS ex38.cpp)
 endif()
 
 # Include the source directory where mfem.hpp and mfem-performance.hpp are.
