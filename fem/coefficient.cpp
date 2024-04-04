@@ -1326,6 +1326,30 @@ void InverseMatrixCoefficient::Eval(DenseMatrix &M,
    M.Invert();
 }
 
+ExponentialMatrixCoefficient::ExponentialMatrixCoefficient(MatrixCoefficient &A)
+   : MatrixCoefficient(A.GetHeight(), A.GetWidth()), a(&A)
+{
+   MFEM_ASSERT(A.GetHeight() == A.GetWidth() && A.GetHeight() == 2,
+               "ExponentialMatrixCoefficient:  "
+               << "Argument must be a square 2x2 matrix."
+               << "  Height = " << A.GetHeight()
+               << ", Width = " << A.GetWidth());
+}
+
+void ExponentialMatrixCoefficient::SetTime(real_t t)
+{
+   if (a) { a->SetTime(t); }
+   this->MatrixCoefficient::SetTime(t);
+}
+
+void ExponentialMatrixCoefficient::Eval(DenseMatrix &M,
+                                    ElementTransformation &T,
+                                    const IntegrationPoint &ip)
+{
+   a->Eval(M, T, ip);
+   M.Exponential();
+}
+
 OuterProductCoefficient::OuterProductCoefficient(VectorCoefficient &A,
                                                  VectorCoefficient &B)
    : MatrixCoefficient(A.GetVDim(), B.GetVDim()), a(&A), b(&B),
