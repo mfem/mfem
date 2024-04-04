@@ -29,9 +29,9 @@ typedef HYPRE_Int HYPRE_BigInt;
 #define HYPRE_MPI_BIG_INT HYPRE_MPI_INT
 #endif
 
-
 namespace mfem
 {
+
 #if MFEM_HYPRE_VERSION >= 23100
 inline HYPRE_MemoryLocation GetHypreMemoryLocation()
 {
@@ -55,7 +55,8 @@ inline HYPRE_MemoryLocation GetHypreMemoryLocation()
 #endif // HYPRE_USING_GPU
 }
 #endif
-};
+
+} // namespace mfem
 
 // Define macro wrappers for hypre_TAlloc, hypre_CTAlloc and hypre_TFree:
 // mfem_hypre_TAlloc, mfem_hypre_CTAlloc, and mfem_hypre_TFree, respectively.
