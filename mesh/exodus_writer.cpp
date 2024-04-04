@@ -13,6 +13,8 @@
 #include <unordered_set>
 #include "netcdf.h"
 
+/// @brief Call NetCDF functions inside the macro. This will provide basic
+/// error-handling.
 #define CHECK_NETCDF_CODE(return_code)\
 {\
    if ((return_code) != NC_NOERR)\
@@ -41,8 +43,21 @@ const char * EXODUS_FILE_SIZE_LABEL = "file_size";
 const char * EXODUS_NUM_DIM_LABEL = "num_dim";
 const char * EXODUS_NUM_NODE_SETS_LABEL = "num_node_sets";
 const char * EXODUS_TIME_STEP_LABEL = "time_step";
+const char * EXODUS_ELEMENT_TYPE_LABEL = "elem_type";
+const char * EXODUS_NUM_SIDE_SETS_LABEL = "num_side_sets";
+const char * EXODUS_SIDE_SET_IDS_LABEL = "ss_prop1";
+const char * EXODUS_ELEMENT_BLOCK_IDS_LABEL = "eb_prop1";
+const char * EXODUS_NUM_ELEMENT_BLOCKS_LABEL = "num_el_blk";
 
-// Returns the Exodus II face ID for the MFEM face index.
+const char * EXODUS_MESH_TITLE = "MFEM mesh";
+
+const float EXODUS_API_VERSION = 4.72;    // Current version as of 2024-03-21.
+const float EXODUS_DATABASE_VERSION = 4.72;
+
+const int EXODUS_MAX_NAME_LENGTH = 80;
+const int EXODUS_MAX_LINE_LENGTH = 80;
+
+/// Convert from the MFEM face numbering to the ExodusII face numbering.
 const int mfem_to_exodusII_side_map_tet4[] =
 {
    2, 3, 1, 4
@@ -63,7 +78,8 @@ const int mfem_to_exodusII_side_map_pyramid5[] =
    5, 1, 2, 3, 4
 };
 
-// 1-based node-ordering for Tet10. Convert to this ordering for ExodusII files.
+/// Convert from the MFEM (0-based) node ordering to the ExodusII 1-based node
+/// ordering.
 const int mfem_to_exodusII_node_ordering_tet10[] =
 {
    1, 2, 3, 4, 5, 8, 6, 7, 9, 10
@@ -120,16 +136,15 @@ protected:
    /// @brief Closes any open file.
    void CloseExodusII();
 
-   /// @brief Generates blocks based on the elements in the mesh. We assume that
-   /// this was originally an Exodus II mesh. Therefore, we iterate over the elements
-   /// and use the attributes as the element blocks. We assume that all elements
-   /// belonging to the same block will have the same attribute. We can perform a
-   /// safety check as well by ensuring that all elements in the block have the same
-   /// element type. If this is not the case then something has gone horribly wrong!
+   /// @brief Generates blocks based on the elements in the mesh. We iterate
+   /// over the mehs elements and use the attributes as the element blocks. We
+   /// assume that all elements belonging to the same block will share the same
+   /// attribute. We perform a safety check to verify that all elements in the
+   /// block have the same element type.
    void GenerateExodusIIElementBlocks();
 
    /// @brief Extracts boundary ids and determines the element IDs and side IDs
-   /// (Exodus II) for  each boundary element.
+   /// (Exodus II) for each boundary element.
    void GenerateExodusIIBoundaryInfo();
 
    /// @brief Iterates over the elements to extract a unique set of node IDs
@@ -145,8 +160,7 @@ protected:
    /// @param block_id The block to write to the file.
    void WriteNodeConnectivityForBlock(const int block_id);
 
-   /// @brief Writes boundary information to file. @a GenerateExodusIIBoundaryInfo
-   /// must be called first.
+   /// @brief Writes boundary information to file.
    void WriteBoundaries();
 
    /// @brief Writes the block IDs to the file.
@@ -173,7 +187,7 @@ protected:
    /// @brief Writes the maximum length of a name.
    void WriteMaxNameLength();
 
-   /// @brief  Writes the number of blocks.
+   /// @brief Writes the number of blocks.
    void WriteNumElementBlocks();
 
    /// @brief Writes all element block parameters.
@@ -187,8 +201,8 @@ protected:
    void WriteNodalCoordinates();
 
    /// @brief Writes the file size (normal=0; large=1). Coordinates are specified
-   /// separately as components for large files (i.e. xxx, yyy, zzz) as opposed to
-   /// (xyz, xyz, xyz) for normal files.
+   /// separately as components for large files (i.e. xxx, yyy, zzz) as opposed
+   /// to (xyz, xyz, xyz) for normal files.
    void WriteFileSize();
 
    /// @brief Writes the nodesets. Currently, we do not support nodesets.
@@ -197,8 +211,8 @@ protected:
    /// @brief Writes the mesh dimension.
    void WriteMeshDimension();
 
-   /// @brief Writes the number of timesteps. Currently, we do not support multiple
-   /// timesteps.
+   /// @brief Writes the number of timesteps. Currently, we do not support
+   /// multiple timesteps.
    void WriteTimesteps();
 
    /// @brief Writes a dummy variable. This is to circumvent a bug in LibMesh where
@@ -208,24 +222,23 @@ protected:
    /// values greater than zero.
    void WriteDummyVariable();
 
-   /// @brief Wrapper around nc_def_dim with error handling.
+   /// @brief Wrapper around @a nc_def_dim with error handling.
    void DefineDimension(const char *name, size_t len, int *dim_id);
 
-   /// @brief Wrapper around nc_def_var with error handling.
+   /// @brief Wrapper around @a nc_def_var with error handling.
    void DefineVar(const char *name, nc_type xtype, int ndims, const int *dimidsp,
                   int *varidp);
 
-   /// @brief Write variable data to the file. This is a wrapper around nc_put_var
-   /// with error handling.
+   /// @brief Write variable data to the file. This is a wrapper around
+   /// @a nc_put_var with error handling.
    void PutVar(int varid, const void * data);
 
-   /// @brief Combine DefineVar with PutVar.
+   /// @brief Combine @a DefineVar with @a PutVar.
    void DefineAndPutVar(const char *name, nc_type xtype, int ndims,
                         const int *dimidsp, const void *data);
 
-
-   /// @brief Write attribute to the file. This is a wrapper around nc_put_att with
-   /// error handling.
+   /// @brief Write attribute to the file. This is a wrapper around @a nc_put_att
+   /// with error handling.
    void PutAtt(int varid, const char *name, nc_type xtype, size_t len,
                const void * data);
 
@@ -240,8 +253,6 @@ protected:
    /// @brief Writes all information about the mesh to the ExodusII file.
    void WriteExodusIIMeshInformation();
 
-   /// @brief Sanity check. Higher-order meshes are currently not supported.
-   void EnsureMeshIsFirstOrder();
 private:
    // ExodusII file ID.
    int _exid{-1};
@@ -261,6 +272,11 @@ private:
    std::map<int, std::vector<int>> _exodusII_element_ids_for_boundary_id;
    std::map<int, std::vector<int>> _exodusII_side_ids_for_boundary_id;
 };
+
+void Mesh::WriteExodusII(const std::string fpath)
+{
+   ExodusIIWriter::WriteExodusII(*this, fpath);
+}
 
 void ExodusIIWriter::DefineDimension(const char *name, size_t len, int *dim_id)
 {
@@ -328,18 +344,8 @@ void ExodusIIWriter::WriteExodusIIMeshInformation()
    WriteNodeSets();
 }
 
-void ExodusIIWriter::EnsureMeshIsFirstOrder()
-{
-   if (_mesh.GetNodalFESpace() != nullptr)
-   {
-      MFEM_ABORT("ExodusII writer does not currently support higher-order elements.");
-   }
-}
-
 void ExodusIIWriter::WriteExodusII(std::string fpath, int flags)
 {
-   //EnsureMeshIsFirstOrder();
-
    OpenExodusII(fpath, flags);
 
    WriteExodusIIFileInformation();
@@ -357,13 +363,6 @@ void ExodusIIWriter::WriteExodusII(Mesh & mesh, std::string fpath,
 
    writer.WriteExodusII(fpath, flags);
 }
-
-#ifdef MFEM_USE_NETCDF
-void Mesh::WriteExodusII(const std::string fpath)
-{
-   ExodusIIWriter::WriteExodusII(*this, fpath);
-}
-#endif
 
 void ExodusIIWriter::OpenExodusII(std::string fpath, int flags)
 {
@@ -391,9 +390,8 @@ ExodusIIWriter::~ExodusIIWriter()
 
 void ExodusIIWriter::WriteTitle()
 {
-   const char *title = "MFEM mesh";
-
-   PutAtt(NC_GLOBAL, EXODUS_TITLE_LABEL, NC_CHAR, strlen(title), title);
+   PutAtt(NC_GLOBAL, EXODUS_TITLE_LABEL, NC_CHAR, strlen(EXODUS_MESH_TITLE),
+          EXODUS_MESH_TITLE);
 }
 
 void ExodusIIWriter::WriteNumOfElements()
@@ -412,30 +410,26 @@ void ExodusIIWriter::WriteFloatingPointWordSize()
 
 void ExodusIIWriter::WriteAPIVersion()
 {
-   float version = 4.72;   // Current version as of 2024-03-21.
    PutAtt(NC_GLOBAL, EXODUS_API_VERSION_LABEL, NC_FLOAT, 1,
-          &version);
+          &EXODUS_API_VERSION);
 }
 
 void ExodusIIWriter::WriteDatabaseVersion()
 {
-   float database_version = 4.72;
    PutAtt(NC_GLOBAL, EXODUS_DATABASE_VERSION_LABEL, NC_FLOAT, 1,
-          &database_version);
+          &EXODUS_DATABASE_VERSION);
 }
 
 void ExodusIIWriter::WriteMaxNameLength()
 {
-   const int max_name_length = 80;
    PutAtt(NC_GLOBAL, EXODUS_MAX_NAME_LENGTH_LABEL, NC_INT, 1,
-          &max_name_length);
+          &EXODUS_MAX_NAME_LENGTH);
 }
 
 void ExodusIIWriter::WriteMaxLineLength()
 {
-   const int max_line_length = 80;
    PutAtt(NC_GLOBAL, EXODUS_MAX_LINE_LENGTH_LABEL, NC_INT, 1,
-          &max_line_length);
+          &EXODUS_MAX_LINE_LENGTH);
 }
 
 void ExodusIIWriter::WriteBlockIDs()
@@ -443,7 +437,7 @@ void ExodusIIWriter::WriteBlockIDs()
    int block_dim;
    DefineDimension(EXODUS_NUM_BLOCKS_LABEL, _block_ids.size(), &block_dim);
 
-   DefineAndPutVar("eb_prop1", NC_INT, 1, &block_dim,
+   DefineAndPutVar(EXODUS_ELEMENT_BLOCK_IDS_LABEL, NC_INT, 1, &block_dim,
                    _block_ids.data());
 }
 
@@ -488,26 +482,21 @@ void ExodusIIWriter::WriteElementBlockParameters(int block_id)
                                                    block_id);
    const Element * front_element = _mesh.GetElement(block_element_ids.front());
 
-   //
-   // Define # elements in the block.
-   //
+   // 1. Define number of elements in the block.
    label = GenerateLabel("num_el_in_blk%d", block_id);
 
    int num_el_in_blk_id;
    DefineDimension(label, block_element_ids.size(),
                    &num_el_in_blk_id);
 
-
-   //
-   // Define # nodes per element.
-   //
+   // 2. Define number of nodes per element.
    label = GenerateLabel("num_nod_per_el%d", block_id);
 
    int num_node_per_el_id;
-   if (_mesh.GetNodalFESpace())  // Hmmmm. But what about first-order elements and second-order mixed meshes?!?
+   if (_mesh.GetNodes())
    {
       // Higher order. Get the first element from the block.
-      auto * fespace = _mesh.GetNodalFESpace();
+      const FiniteElementSpace * fespace = _mesh.GetNodalFESpace();
 
       auto & block_elements = _element_ids_for_block_id.at(block_id);
 
@@ -525,35 +514,26 @@ void ExodusIIWriter::WriteElementBlockParameters(int block_id)
                       &num_node_per_el_id);
    }
 
-   //
-   // Define # edges per element:
-   //
+   // 3. Define number of edges per element:
    label = GenerateLabel("num_edg_per_el%d", block_id);
 
    int num_edg_per_el_id;
    DefineDimension(label, front_element->GetNEdges(),
                    &num_edg_per_el_id);
 
-   //
-   // Define # faces per element.
-   //
+   // 4. Define number of faces per element.
    label = GenerateLabel("num_fac_per_el%d", block_id);
 
    int num_fac_per_el_id;
    DefineDimension(label, front_element->GetNFaces(),
                    &num_fac_per_el_id);
 
-   //
-   // Define element node connectivity for block.
-   //
+   // 5. Define element node connectivity for block.
    WriteNodeConnectivityForBlock(block_id);
 
-   //
-   // Define the element type.
-   //
+   // 6. Define the element type.
    std::string element_type;
 
-   // TODO: - add safety checks in here.
    bool higher_order = (_mesh.GetNodes() != nullptr);
 
    switch (front_element->GetType())
@@ -579,7 +559,7 @@ void ExodusIIWriter::WriteElementBlockParameters(int block_id)
    int connect_id;
    CHECK_NETCDF_CODE(nc_inq_varid(_exid, label, &connect_id));
 
-   PutAtt(connect_id, "elem_type", NC_CHAR, element_type.length(),
+   PutAtt(connect_id, EXODUS_ELEMENT_TYPE_LABEL, NC_CHAR, element_type.length(),
           element_type.c_str());
 }
 
@@ -617,22 +597,23 @@ void ExodusIIWriter::WriteNodalCoordinates()
 
 void ExodusIIWriter::WriteBoundaries()
 {
-   // 0. Generate boundary info.
+   // 1. Generate boundary info.
    GenerateExodusIIBoundaryInfo();
 
-   // 1. Define the number of boundaries.
+   // 2. Define the number of boundaries.
    int num_side_sets_ids;
-   DefineDimension("num_side_sets", _boundary_ids.size(),
+   DefineDimension(EXODUS_NUM_SIDE_SETS_LABEL, _boundary_ids.size(),
                    &num_side_sets_ids);
 
-   // 2. Boundary IDs.
+   // 3. Boundary IDs.
    int boundary_ids_dim;
    DefineDimension(EXODUS_NUM_BOUNDARIES_LABEL, _boundary_ids.size(),
                    &boundary_ids_dim);
 
-   DefineAndPutVar("ss_prop1", NC_INT, 1, &boundary_ids_dim, _boundary_ids.data());
+   DefineAndPutVar(EXODUS_SIDE_SET_IDS_LABEL, NC_INT, 1, &boundary_ids_dim,
+                   _boundary_ids.data());
 
-   // 3. Number of boundary elements.
+   // 4. Number of boundary elements.
    for (int boundary_id : _boundary_ids)
    {
       size_t num_elements_for_boundary = _exodusII_element_ids_for_boundary_id.at(
@@ -645,7 +626,7 @@ void ExodusIIWriter::WriteBoundaries()
                       &num_side_ss_id);
    }
 
-   // 4. Boundary side IDs.
+   // 5. Boundary side IDs.
    for (int boundary_id : _boundary_ids)
    {
       const std::vector<int> & side_ids = _exodusII_side_ids_for_boundary_id.at(
@@ -660,7 +641,7 @@ void ExodusIIWriter::WriteBoundaries()
       DefineAndPutVar(label, NC_INT, 1,  &side_id_dim, side_ids.data());
    }
 
-   // 5. Boundary element IDs.
+   // 6. Boundary element IDs.
    for (int boundary_id : _boundary_ids)
    {
       const std::vector<int> & element_ids = _exodusII_element_ids_for_boundary_id.at(
@@ -683,33 +664,36 @@ void ExodusIIWriter::WriteNodeConnectivityForBlock(const int block_id)
 
    const FiniteElementSpace * fespace = _mesh.GetNodalFESpace();
 
+   int * node_ordering_map = nullptr;
+
+   // Apply mappings to convert from MFEM --> ExodusII orderings.
+   Element::Type block_type = _element_type_for_block_id.at(block_id);
+
+   switch (block_type)
+   {
+      case Element::Type::TETRAHEDRON:
+         node_ordering_map = (int *)mfem_to_exodusII_node_ordering_tet10;
+         break;
+      case Element::Type::HEXAHEDRON:
+         node_ordering_map = (int *)mfem_to_exodusII_node_ordering_hex27;
+         break;
+      case Element::Type::WEDGE:
+         node_ordering_map = (int *)mfem_to_exodusII_node_ordering_wedge18;
+         break;
+      case Element::Type::PYRAMID:
+         node_ordering_map = (int *)mfem_to_exodusII_node_ordering_pyramid14;
+         break;
+      default:
+         MFEM_ABORT("Higher-order elements of type '" << block_type <<
+                    "' are not supported.");
+   }
+
    for (int element_id : _element_ids_for_block_id.at(block_id))
    {
       if (fespace)
       {
          mfem::Array<int> dofs;
          fespace->GetElementDofs(element_id, dofs);
-
-         int * node_ordering_map = nullptr;
-
-         // Apply mappings to convert from MFEM --> Exodus II orderings.
-         switch (_element_type_for_block_id.at(block_id))
-         {
-            case Element::Type::TETRAHEDRON: // Tet10.
-               node_ordering_map = (int *)mfem_to_exodusII_node_ordering_tet10;
-               break;
-            case Element::Type::HEXAHEDRON:  // Hex27.
-               node_ordering_map = (int *)mfem_to_exodusII_node_ordering_hex27;
-               break;
-            case Element::Type::WEDGE: // Wedge18.
-               node_ordering_map = (int *)mfem_to_exodusII_node_ordering_wedge18;
-               break;
-            case Element::Type::PYRAMID:
-               node_ordering_map = (int *)mfem_to_exodusII_node_ordering_pyramid14;
-               break;
-            default:
-               MFEM_ABORT("Higher-order elements of this type are not currently supported.");
-         }
 
          for (int j = 0; j < dofs.Size(); j++)
          {
@@ -722,8 +706,6 @@ void ExodusIIWriter::WriteNodeConnectivityForBlock(const int block_id)
       }
       else
       {
-         // NB: assume first-order elements only for now.
-         // NB: - need to convert from 0-based indexing --> 1-based indexing.
          mfem::Array<int> element_vertices;
          _mesh.GetElementVertices(element_id, element_vertices);
 
@@ -740,7 +722,7 @@ void ExodusIIWriter::WriteNodeConnectivityForBlock(const int block_id)
    DefineDimension(label, block_node_connectivity.size(),
                    &node_connectivity_dim);
 
-   // NB: 1 == vector!; name is arbitrary; NC_INT or NCINT64??
+   // NB: 1 == vector!; name is arbitrary; NC_INT or NCINT64?
    label = GenerateLabel("connect%d", block_id);
    DefineAndPutVar(label, NC_INT, 1, &node_connectivity_dim,
                    block_node_connectivity.data());
@@ -751,7 +733,7 @@ void ExodusIIWriter::ExtractVertexCoordinates(std::vector<double> & coordx,
                                               std::vector<double> & coordy,
                                               std::vector<double> & coordz)
 {
-   if (_mesh.GetNodalFESpace()) // Higher-order.
+   if (_mesh.GetNodes()) // Higher-order.
    {
       std::unordered_set<int> unordered_node_ids = GenerateUniqueNodeIDs();
 
@@ -759,7 +741,6 @@ void ExodusIIWriter::ExtractVertexCoordinates(std::vector<double> & coordx,
       sorted_node_ids.assign(unordered_node_ids.begin(), unordered_node_ids.end());
       std::sort(sorted_node_ids.begin(), sorted_node_ids.end());
 
-      // TODO: - is it numbered from zero and increasing?!?
       double coordinates[3];
       for (size_t i = 0; i < sorted_node_ids.size(); i++)
       {
@@ -817,7 +798,7 @@ void ExodusIIWriter::WriteNodeSets()
 
 void ExodusIIWriter::WriteTimesteps()
 {
-   // Set # timesteps (ASSUME no timesteps for initial verision)
+   // Set number of timesteps (ASSUME single timestep for initial verision).
    int timesteps_dim;
    DefineDimension(EXODUS_TIME_STEP_LABEL, 1, &timesteps_dim);
 }
@@ -874,7 +855,7 @@ void ExodusIIWriter::GenerateExodusIIElementBlocks()
 void ExodusIIWriter::WriteNumElementBlocks()
 {
    int num_elem_blk_id;
-   DefineDimension("num_el_blk", _block_ids.size(),
+   DefineDimension(EXODUS_NUM_ELEMENT_BLOCKS_LABEL, _block_ids.size(),
                    &num_elem_blk_id);
 }
 
@@ -959,9 +940,9 @@ void ExodusIIWriter::GenerateExodusIIBoundaryInfo()
             continue;
          }
 
-         if (mfem_face_index_info_for_global_face_index.count(
-                face_index)) // Now we've seen it twice!
+         if (mfem_face_index_info_for_global_face_index.count(face_index))
          {
+            // Now we've seen it twice!
             blacklisted_global_face_indices.insert(face_index);
             mfem_face_index_info_for_global_face_index.erase(face_index);
             continue;
@@ -984,10 +965,10 @@ void ExodusIIWriter::GenerateExodusIIBoundaryInfo()
       int ielement = element_face_info.element_index;
       int iface = element_face_info.local_face_index;
 
-      // 1. Convert MFEM 0-based element index to 1-based Exodus II element ID.
+      // 1. Convert MFEM 0-based element index to ExodusII 1-based element ID.
       int exodusII_element_id = ielement + 1;
 
-      // 2. Convert 0-based MFEM face index to Exodus II 1-based face ID (different ordering).
+      // 2. Convert MFEM 0-based face index to ExodusII 1-based face ID (different ordering).
       int exodusII_face_id;
 
       Element::Type element_type = _mesh.GetElementType(ielement);
