@@ -3962,7 +3962,6 @@ void NURBSExtension::Generate2DBdrElementDofTable()
       }
       else if (mode == Mode::H_CURL)
       {
-         int fn = patchTopo->GetBdrElementFaceIndex(b);
          if (ord0 == mOrders.Max()) { add_dofs = false; }
       }
 
@@ -4032,7 +4031,6 @@ void NURBSExtension::Generate3DBdrElementDofTable()
       }
       else if (mode == Mode::H_CURL)
       {
-         int fn = patchTopo->GetBdrElementFaceIndex(b);
          if (ord0 == ord1) { add_dofs = false; }
       }
 
