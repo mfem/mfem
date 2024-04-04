@@ -1553,8 +1553,8 @@ double PlasmaProfile::Eval(ElementTransformation &T,
 
          if (z >= -1.183 && z <= 1.19) {bool_limits = 1;}
 
-         double norm_sqrt_psi = 1.0;
-         if (val < 1 && bool_limits == 1) {norm_sqrt_psi = sqrt(val);}
+         // double norm_sqrt_psi = 1.0;
+         // if (val < 1 && bool_limits == 1) {norm_sqrt_psi = sqrt(val);}
 
          // FLOOR DENSITY:
          double ne = 1e12;
