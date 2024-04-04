@@ -723,7 +723,7 @@ EABilinearFormExtension::EABilinearFormExtension(BilinearForm *form)
    : PABilinearFormExtension(form),
      factorize_face_terms(false)
 {
-   if (form->FESpace()->IsDGSpace() && form->FESpace()->Conforming())
+   if ( form->FESpace()->IsDGSpace() )
    {
       factorize_face_terms = true;
    }
@@ -822,7 +822,7 @@ void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
       {
          const int e = glob_j/NDOFS;
          const int j = glob_j%NDOFS;
-         double res = 0.0;
+         real_t res = 0.0;
          for (int i = 0; i < NDOFS; i++)
          {
             res += A(i, j, e)*X(i, e);
@@ -857,7 +857,7 @@ void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
             {
                const int f = glob_j/NDOFS;
                const int j = glob_j%NDOFS;
-               double res = 0.0;
+               real_t res = 0.0;
                for (int i = 0; i < NDOFS; i++)
                {
                   res += A_int(i, j, 0, f)*X(i, 0, f);
@@ -876,7 +876,7 @@ void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
          {
             const int f = glob_j/NDOFS;
             const int j = glob_j%NDOFS;
-            double res = 0.0;
+            real_t res = 0.0;
             for (int i = 0; i < NDOFS; i++)
             {
                res += A_ext(i, j, 0, f)*X(i, 0, f);
@@ -913,7 +913,7 @@ void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
          {
             const int f = glob_j/NDOFS;
             const int j = glob_j%NDOFS;
-            double res = 0.0;
+            real_t res = 0.0;
             for (int i = 0; i < NDOFS; i++)
             {
                res += A(i, j, f)*X(i, f);
@@ -950,7 +950,7 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
       {
          const int e = glob_j/NDOFS;
          const int j = glob_j%NDOFS;
-         double res = 0.0;
+         real_t res = 0.0;
          for (int i = 0; i < NDOFS; i++)
          {
             res += A(j, i, e)*X(i, e);
@@ -985,7 +985,7 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
             {
                const int f = glob_j/NDOFS;
                const int j = glob_j%NDOFS;
-               double res = 0.0;
+               real_t res = 0.0;
                for (int i = 0; i < NDOFS; i++)
                {
                   res += A_int(j, i, 0, f)*X(i, 0, f);
@@ -1004,7 +1004,7 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
          {
             const int f = glob_j/NDOFS;
             const int j = glob_j%NDOFS;
-            double res = 0.0;
+            real_t res = 0.0;
             for (int i = 0; i < NDOFS; i++)
             {
                res += A_ext(j, i, 1, f)*X(i, 0, f);
@@ -1041,7 +1041,7 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
          {
             const int f = glob_j/NDOFS;
             const int j = glob_j%NDOFS;
-            double res = 0.0;
+            real_t res = 0.0;
             for (int i = 0; i < NDOFS; i++)
             {
                res += A(j, i, f)*X(i, f);
@@ -1134,9 +1134,6 @@ void FABilinearFormExtension::Assemble()
             static_cast<const L2ElementRestriction*>(elem_restrict);
          const L2FaceRestriction *restF =
             static_cast<const L2FaceRestriction*>(int_face_restrict_lex);
-         MFEM_VERIFY(
-            fes.Conforming(),
-            "Full Assembly not yet supported on NCMesh.");
          // 1. Fill I
          mat->GetMemoryI().New(height+1, mat->GetMemoryI().GetMemoryType());
          //  1.1 Increment with restE
@@ -1469,7 +1466,7 @@ void PAMixedBilinearFormExtension::SetupMultInputs(
    const Operator *elem_restrict_y,
    Vector &y,
    Vector &localY,
-   const double c) const
+   const real_t c) const
 {
    // * G operation: localX = c*local(x)
    if (elem_restrict_x)
@@ -1509,7 +1506,7 @@ void PAMixedBilinearFormExtension::Mult(const Vector &x, Vector &y) const
 }
 
 void PAMixedBilinearFormExtension::AddMult(const Vector &x, Vector &y,
-                                           const double c) const
+                                           const real_t c) const
 {
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int iSz = integrators.Size();
@@ -1541,7 +1538,7 @@ void PAMixedBilinearFormExtension::MultTranspose(const Vector &x,
 }
 
 void PAMixedBilinearFormExtension::AddMultTranspose(const Vector &x, Vector &y,
-                                                    const double c) const
+                                                    const real_t c) const
 {
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int iSz = integrators.Size();
@@ -1675,7 +1672,7 @@ void PADiscreteLinearOperatorExtension::Assemble()
 }
 
 void PADiscreteLinearOperatorExtension::AddMult(
-   const Vector &x, Vector &y, const double c) const
+   const Vector &x, Vector &y, const real_t c) const
 {
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int iSz = integrators.Size();
@@ -1708,7 +1705,7 @@ void PADiscreteLinearOperatorExtension::AddMult(
 }
 
 void PADiscreteLinearOperatorExtension::AddMultTranspose(
-   const Vector &x, Vector &y, const double c) const
+   const Vector &x, Vector &y, const real_t c) const
 {
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int iSz = integrators.Size();

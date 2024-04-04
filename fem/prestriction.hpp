@@ -68,7 +68,7 @@ public:
        @param[in,out] y The L-vector degrees of freedom.
        @param[in]  a Scalar coefficient for addition. */
    void AddMultTranspose(const Vector &x, Vector &y,
-                         const double a = 1.0) const override;
+                         const real_t a = 1.0) const override;
 
    /** @brief Gather the degrees of freedom, i.e. goes from face E-Vector to
        L-Vector.
@@ -307,7 +307,7 @@ public:
        @param[in,out] y The L-vector degrees of freedom.
        @param[in]  a Scalar coefficient for addition. */
    void AddMultTranspose(const Vector &x, Vector &y,
-                         const double a = 1.0) const override;
+                         const real_t a = 1.0) const override;
 
    /** @brief Gather the degrees of freedom, i.e. goes from face E-Vector to
        L-Vector.
