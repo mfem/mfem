@@ -2224,7 +2224,6 @@ void DenseMatrix::Print(std::ostream &os, int width_) const
    ios::fmtflags old_flags = os.flags();
    // output flags = scientific + show sign
    os << setiosflags(ios::scientific | ios::showpos);
-   //os << setiosflags(ios::scientific | ios::showpos);
    for (int i = 0; i < height; i++)
    {
       os << "[row " << i << "]\n";
