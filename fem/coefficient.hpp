@@ -2112,7 +2112,7 @@ public:
                      const IntegrationPoint &ip);
 };
 
-/// Matrix coefficient defined as the transpose a matrix coefficient
+/// Matrix coefficient defined as the transpose of a matrix coefficient
 class TransposeMatrixCoefficient : public MatrixCoefficient
 {
 private:
@@ -2135,7 +2135,7 @@ public:
                      const IntegrationPoint &ip);
 };
 
-/// Matrix coefficient defined as the inverse a matrix coefficient.
+/// Matrix coefficient defined as the inverse of a matrix coefficient.
 class InverseMatrixCoefficient : public MatrixCoefficient
 {
 private:
@@ -2144,6 +2144,29 @@ private:
 public:
    /// Construct with the matrix coefficient.  Result is $ A^{-1} $.
    InverseMatrixCoefficient(MatrixCoefficient &A);
+
+   /// Set the time for internally stored coefficients
+   void SetTime(real_t t);
+
+   /// Reset the matrix coefficient
+   void SetACoef(MatrixCoefficient &A) { a = &A; }
+   /// Return the matrix coefficient
+   MatrixCoefficient * GetACoef() const { return a; }
+
+   /// Evaluate the matrix coefficient at @a ip.
+   virtual void Eval(DenseMatrix &M, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+};
+
+/// Matrix coefficient defined as the exponential of a matrix coefficient.
+class ExponentialMatrixCoefficient : public MatrixCoefficient
+{
+private:
+   MatrixCoefficient * a;
+
+public:
+   /// Construct the matrix coefficient.  Result is $ \exp(A) $.
+   ExponentialMatrixCoefficient(MatrixCoefficient &A);
 
    /// Set the time for internally stored coefficients
    void SetTime(real_t t);
