@@ -52,7 +52,7 @@ public:
    void SetBlock( int   iRow,
                   int   iCol,
                   Operator *  op,
-                  double   c = 1.0) {A.SetBlock(iRow, iCol, op, c);};
+                  real_t   c = 1.0) {A.SetBlock(iRow, iCol, op, c);};
 };
 
 }//namespace mfem

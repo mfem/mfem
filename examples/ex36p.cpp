@@ -37,8 +37,8 @@
 using namespace std;
 using namespace mfem;
 
-double spherical_obstacle(const Vector &pt);
-double exact_solution_obstacle(const Vector &pt);
+real_t spherical_obstacle(const Vector &pt);
+real_t exact_solution_obstacle(const Vector &pt);
 void exact_solution_gradient_obstacle(const Vector &pt, Vector &grad);
 
 class LogarithmGridFunctionCoefficient : public Coefficient
@@ -46,14 +46,14 @@ class LogarithmGridFunctionCoefficient : public Coefficient
 protected:
    GridFunction *u; // grid function
    Coefficient *obstacle;
-   double min_val;
+   real_t min_val;
 
 public:
    LogarithmGridFunctionCoefficient(GridFunction &u_, Coefficient &obst_,
-                                    double min_val_=-36)
+                                    real_t min_val_=-36)
       : u(&u_), obstacle(&obst_), min_val(min_val_) { }
 
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
 
 class ExponentialGridFunctionCoefficient : public Coefficient
@@ -61,15 +61,15 @@ class ExponentialGridFunctionCoefficient : public Coefficient
 protected:
    GridFunction *u;
    Coefficient *obstacle;
-   double min_val;
-   double max_val;
+   real_t min_val;
+   real_t max_val;
 
 public:
    ExponentialGridFunctionCoefficient(GridFunction &u_, Coefficient &obst_,
-                                      double min_val_=0.0, double max_val_=1e6)
+                                      real_t min_val_=0.0, real_t max_val_=1e6)
       : u(&u_), obstacle(&obst_), min_val(min_val_), max_val(max_val_) { }
 
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
 
 int main(int argc, char *argv[])
@@ -84,8 +84,8 @@ int main(int argc, char *argv[])
    int order = 1;
    int max_it = 10;
    int ref_levels = 3;
-   double alpha = 1.0;
-   double tol = 1e-5;
+   real_t alpha = 1.0;
+   real_t tol = 1e-5;
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -136,7 +136,7 @@ int main(int argc, char *argv[])
 
    // 3C. Rescale the domain to a unit circle (radius = 1).
    GridFunction *nodes = mesh.GetNodes();
-   double scale = 2*sqrt(2);
+   real_t scale = 2*sqrt(2);
    *nodes /= scale;
 
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
@@ -192,8 +192,8 @@ int main(int argc, char *argv[])
    // 6. Define an initial guess for the solution.
    auto IC_func = [](const Vector &x)
    {
-      double r0 = 1.0;
-      double rr = 0.0;
+      real_t r0 = 1.0;
+      real_t rr = 0.0;
       for (int i=0; i<x.Size(); i++)
       {
          rr += x(i)*x(i);
@@ -243,7 +243,7 @@ int main(int argc, char *argv[])
    // 10. Iterate
    int k;
    int total_iterations = 0;
-   double increment_u = 0.1;
+   real_t increment_u = 0.1;
    for (k = 0; k < max_it; k++)
    {
       ParGridFunction u_tmp(&H1fes);
@@ -346,10 +346,10 @@ int main(int argc, char *argv[])
          delta_psi_gf.SetFromTrueDofs(tx.GetBlock(1));
 
          u_tmp -= u_gf;
-         double Newton_update_size = u_tmp.ComputeL2Error(zero);
+         real_t Newton_update_size = u_tmp.ComputeL2Error(zero);
          u_tmp = u_gf;
 
-         double gamma = 1.0;
+         real_t gamma = 1.0;
          delta_psi_gf *= gamma;
          psi_gf += delta_psi_gf;
 
@@ -391,7 +391,7 @@ int main(int argc, char *argv[])
          break;
       }
 
-      double H1_error = u_gf.ComputeH1Error(&exact_coef,&exact_grad_coef);
+      real_t H1_error = u_gf.ComputeH1Error(&exact_coef,&exact_grad_coef);
       if (myid == 0)
       {
          mfem::out << "H1-error  (|| u - uₕᵏ||)       = " << H1_error << endl;
@@ -423,13 +423,13 @@ int main(int argc, char *argv[])
    }
 
    {
-      double L2_error = u_gf.ComputeL2Error(exact_coef);
-      double H1_error = u_gf.ComputeH1Error(&exact_coef,&exact_grad_coef);
+      real_t L2_error = u_gf.ComputeL2Error(exact_coef);
+      real_t H1_error = u_gf.ComputeH1Error(&exact_coef,&exact_grad_coef);
 
       ExponentialGridFunctionCoefficient u_alt_cf(psi_gf,obstacle);
       ParGridFunction u_alt_gf(&L2fes);
       u_alt_gf.ProjectCoefficient(u_alt_cf);
-      double L2_error_alt = u_alt_gf.ComputeL2Error(exact_coef);
+      real_t L2_error_alt = u_alt_gf.ComputeL2Error(exact_coef);
 
       if (myid == 0)
       {
@@ -444,35 +444,35 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-double LogarithmGridFunctionCoefficient::Eval(ElementTransformation &T,
+real_t LogarithmGridFunctionCoefficient::Eval(ElementTransformation &T,
                                               const IntegrationPoint &ip)
 {
    MFEM_ASSERT(u != NULL, "grid function is not set");
 
-   double val = u->GetValue(T, ip) - obstacle->Eval(T, ip);
+   real_t val = u->GetValue(T, ip) - obstacle->Eval(T, ip);
    return max(min_val, log(val));
 }
 
-double ExponentialGridFunctionCoefficient::Eval(ElementTransformation &T,
+real_t ExponentialGridFunctionCoefficient::Eval(ElementTransformation &T,
                                                 const IntegrationPoint &ip)
 {
    MFEM_ASSERT(u != NULL, "grid function is not set");
 
-   double val = u->GetValue(T, ip);
+   real_t val = u->GetValue(T, ip);
    return min(max_val, max(min_val, exp(val) + obstacle->Eval(T, ip)));
 }
 
-double spherical_obstacle(const Vector &pt)
+real_t spherical_obstacle(const Vector &pt)
 {
-   double x = pt(0), y = pt(1);
-   double r = sqrt(x*x + y*y);
-   double r0 = 0.5;
-   double beta = 0.9;
+   real_t x = pt(0), y = pt(1);
+   real_t r = sqrt(x*x + y*y);
+   real_t r0 = 0.5;
+   real_t beta = 0.9;
 
-   double b = r0*beta;
-   double tmp = sqrt(r0*r0 - b*b);
-   double B = tmp + b*b/tmp;
-   double C = -b/tmp;
+   real_t b = r0*beta;
+   real_t tmp = sqrt(r0*r0 - b*b);
+   real_t B = tmp + b*b/tmp;
+   real_t C = -b/tmp;
 
    if (r > b)
    {
@@ -484,13 +484,13 @@ double spherical_obstacle(const Vector &pt)
    }
 }
 
-double exact_solution_obstacle(const Vector &pt)
+real_t exact_solution_obstacle(const Vector &pt)
 {
-   double x = pt(0), y = pt(1);
-   double r = sqrt(x*x + y*y);
-   double r0 = 0.5;
-   double a =  0.348982574111686;
-   double A = -0.340129705945858;
+   real_t x = pt(0), y = pt(1);
+   real_t r = sqrt(x*x + y*y);
+   real_t r0 = 0.5;
+   real_t a =  0.348982574111686;
+   real_t A = -0.340129705945858;
 
    if (r > a)
    {
@@ -504,11 +504,11 @@ double exact_solution_obstacle(const Vector &pt)
 
 void exact_solution_gradient_obstacle(const Vector &pt, Vector &grad)
 {
-   double x = pt(0), y = pt(1);
-   double r = sqrt(x*x + y*y);
-   double r0 = 0.5;
-   double a =  0.348982574111686;
-   double A = -0.340129705945858;
+   real_t x = pt(0), y = pt(1);
+   real_t r = sqrt(x*x + y*y);
+   real_t r0 = 0.5;
+   real_t a =  0.348982574111686;
+   real_t A = -0.340129705945858;
 
    if (r > a)
    {

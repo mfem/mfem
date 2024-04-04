@@ -101,7 +101,7 @@ static void Eval1D(const int NE,
          {
             for (int c = 0; c < vdim; c++)
             {
-               double q_val = 0.0;
+               real_t q_val = 0.0;
                for (int d = 0; d < nd; ++d)
                {
                   q_val += B(q,d)*E(d,c,e);
@@ -116,7 +116,7 @@ static void Eval1D(const int NE,
          {
             for (int c = 0; c < vdim; c++)
             {
-               double q_d = 0.0;
+               real_t q_d = 0.0;
                for (int d = 0; d < nd; ++d)
                {
                   q_d += G(q,d)*E(d,c,e);
@@ -189,7 +189,7 @@ static void Eval2D(const int NE,
       const int VDIM = T_VDIM ? T_VDIM : vdim;
       constexpr int max_ND = T_ND ? T_ND : QI::MAX_ND2D;
       constexpr int max_VDIM = T_VDIM ? T_VDIM : QI::MAX_VDIM2D;
-      MFEM_SHARED double s_E[max_VDIM*max_ND];
+      MFEM_SHARED real_t s_E[max_VDIM*max_ND];
       MFEM_FOREACH_THREAD(d, x, ND)
       {
          for (int c = 0; c < VDIM; c++)
@@ -203,11 +203,11 @@ static void Eval2D(const int NE,
       {
          if (eval_flags & QI::VALUES)
          {
-            double ed[max_VDIM];
+            real_t ed[max_VDIM];
             for (int c = 0; c < VDIM; c++) { ed[c] = 0.0; }
             for (int d = 0; d < ND; ++d)
             {
-               const double b = B(q,d);
+               const real_t b = B(q,d);
                for (int c = 0; c < VDIM; c++) { ed[c] += b*s_E[c+d*VDIM]; }
             }
             for (int c = 0; c < VDIM; c++)
@@ -221,15 +221,15 @@ static void Eval2D(const int NE,
              (eval_flags & QI::DETERMINANTS))
          {
             // use MAX_VDIM2D to avoid "subscript out of range" warnings
-            double D[QI::MAX_VDIM2D*2];
+            real_t D[QI::MAX_VDIM2D*2];
             for (int i = 0; i < 2*VDIM; i++) { D[i] = 0.0; }
             for (int d = 0; d < ND; ++d)
             {
-               const double wx = G(q,0,d);
-               const double wy = G(q,1,d);
+               const real_t wx = G(q,0,d);
+               const real_t wy = G(q,1,d);
                for (int c = 0; c < VDIM; c++)
                {
-                  double s_e = s_E[c+d*VDIM];
+                  real_t s_e = s_E[c+d*VDIM];
                   D[c+VDIM*0] += s_e * wx;
                   D[c+VDIM*1] += s_e * wy;
                }
@@ -252,7 +252,7 @@ static void Eval2D(const int NE,
             }
             if (eval_flags & QI::PHYSICAL_DERIVATIVES)
             {
-               double Jloc[4], Jinv[4];
+               real_t Jloc[4], Jinv[4];
                Jloc[0] = J(q,0,0,e);
                Jloc[1] = J(q,1,0,e);
                Jloc[2] = J(q,0,1,e);
@@ -260,10 +260,10 @@ static void Eval2D(const int NE,
                kernels::CalcInverse<2>(Jloc, Jinv);
                for (int c = 0; c < VDIM; c++)
                {
-                  const double u = D[c+VDIM*0];
-                  const double v = D[c+VDIM*1];
-                  const double JiU = Jinv[0]*u + Jinv[1]*v;
-                  const double JiV = Jinv[2]*u + Jinv[3]*v;
+                  const real_t u = D[c+VDIM*0];
+                  const real_t v = D[c+VDIM*1];
+                  const real_t JiU = Jinv[0]*u + Jinv[1]*v;
+                  const real_t JiV = Jinv[2]*u + Jinv[3]*v;
                   if (q_layout == QVectorLayout::byVDIM)
                   {
                      der(c,0,q,e) = JiU;
@@ -343,7 +343,7 @@ static void Eval3D(const int NE,
       const int VDIM = T_VDIM ? T_VDIM : vdim;
       constexpr int max_ND = T_ND ? T_ND : QI::MAX_ND3D;
       constexpr int max_VDIM = T_VDIM ? T_VDIM : QI::MAX_VDIM3D;
-      MFEM_SHARED double s_E[max_VDIM*max_ND];
+      MFEM_SHARED real_t s_E[max_VDIM*max_ND];
       MFEM_FOREACH_THREAD(d, x, ND)
       {
          for (int c = 0; c < VDIM; c++)
@@ -357,11 +357,11 @@ static void Eval3D(const int NE,
       {
          if (eval_flags & QI::VALUES)
          {
-            double ed[max_VDIM];
+            real_t ed[max_VDIM];
             for (int c = 0; c < VDIM; c++) { ed[c] = 0.0; }
             for (int d = 0; d < ND; ++d)
             {
-               const double b = B(q,d);
+               const real_t b = B(q,d);
                for (int c = 0; c < VDIM; c++) { ed[c] += b*s_E[c+d*VDIM]; }
             }
             for (int c = 0; c < VDIM; c++)
@@ -375,16 +375,16 @@ static void Eval3D(const int NE,
              (eval_flags & QI::DETERMINANTS))
          {
             // use MAX_VDIM3D to avoid "subscript out of range" warnings
-            double D[QI::MAX_VDIM3D*3];
+            real_t D[QI::MAX_VDIM3D*3];
             for (int i = 0; i < 3*VDIM; i++) { D[i] = 0.0; }
             for (int d = 0; d < ND; ++d)
             {
-               const double wx = G(q,0,d);
-               const double wy = G(q,1,d);
-               const double wz = G(q,2,d);
+               const real_t wx = G(q,0,d);
+               const real_t wy = G(q,1,d);
+               const real_t wz = G(q,2,d);
                for (int c = 0; c < VDIM; c++)
                {
-                  double s_e = s_E[c+d*VDIM];
+                  real_t s_e = s_E[c+d*VDIM];
                   D[c+VDIM*0] += s_e * wx;
                   D[c+VDIM*1] += s_e * wy;
                   D[c+VDIM*2] += s_e * wz;
@@ -410,7 +410,7 @@ static void Eval3D(const int NE,
             }
             if (eval_flags & QI::PHYSICAL_DERIVATIVES)
             {
-               double Jloc[9], Jinv[9];
+               real_t Jloc[9], Jinv[9];
                for (int col = 0; col < 3; col++)
                {
                   for (int row = 0; row < 3; row++)
@@ -421,12 +421,12 @@ static void Eval3D(const int NE,
                kernels::CalcInverse<3>(Jloc, Jinv);
                for (int c = 0; c < VDIM; c++)
                {
-                  const double u = D[c+VDIM*0];
-                  const double v = D[c+VDIM*1];
-                  const double w = D[c+VDIM*2];
-                  const double JiU = Jinv[0]*u + Jinv[1]*v + Jinv[2]*w;
-                  const double JiV = Jinv[3]*u + Jinv[4]*v + Jinv[5]*w;
-                  const double JiW = Jinv[6]*u + Jinv[7]*v + Jinv[8]*w;
+                  const real_t u = D[c+VDIM*0];
+                  const real_t v = D[c+VDIM*1];
+                  const real_t w = D[c+VDIM*2];
+                  const real_t JiU = Jinv[0]*u + Jinv[1]*v + Jinv[2]*w;
+                  const real_t JiV = Jinv[3]*u + Jinv[4]*v + Jinv[5]*w;
+                  const real_t JiW = Jinv[6]*u + Jinv[7]*v + Jinv[8]*w;
                   if (q_layout == QVectorLayout::byVDIM)
                   {
                      der(c,0,q,e) = JiU;

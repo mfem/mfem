@@ -459,7 +459,16 @@ template <typename HBODY>
 void RajaSeqWrap(const int N, HBODY &&h_body)
 {
 #ifdef MFEM_USE_RAJA
-   RAJA::forall<RAJA::loop_exec>(RAJA::RangeSegment(0,N), h_body);
+
+#if (RAJA_VERSION_MAJOR >= 2023)
+   //loop_exec was marked deprecated in RAJA version 2023.06.0
+   //and will be removed. We now use seq_exec.
+   using raja_forall_pol = RAJA::seq_exec;
+#else
+   using raja_forall_pol = RAJA::loop_exec;
+#endif
+
+   RAJA::forall<raja_forall_pol>(RAJA::RangeSegment(0,N), h_body);
 #else
    MFEM_CONTRACT_VAR(N);
    MFEM_CONTRACT_VAR(h_body);
