@@ -3521,7 +3521,7 @@ HypreSmoother::HypreSmoother(const HypreParMatrix &A_, int type_,
                              real_t omega_, int poly_order_,
                              real_t poly_fraction_, int eig_est_cg_iter_)
 {
-   type = (type_ == Type::Undefined) ? DefaultType() : type_;
+   type = type_;
    relax_times = relax_times_;
    relax_weight = relax_weight_;
    omega = omega_;
