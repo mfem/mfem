@@ -69,7 +69,7 @@ const MFEM_cu_or_hip(blasHandle_t) & DeviceBlasHandle()
 #endif
 
 
-LibBatchSolver::LibBatchSolver(const DenseTensor &MatrixBatch,
+BatchSolver::BatchSolver(const DenseTensor &MatrixBatch,
                                const SolveMode mode)
    : mode_(mode)
      // TODO: should this really be a copy?
@@ -81,9 +81,9 @@ LibBatchSolver::LibBatchSolver(const DenseTensor &MatrixBatch,
    }
 }
 
-LibBatchSolver::LibBatchSolver(const SolveMode mode) : mode_(mode) {}
+BatchSolver::BatchSolver(const SolveMode mode) : mode_(mode) {}
 
-void LibBatchSolver::AssignMatrices(const mfem::DenseTensor &MatrixBatch)
+void BatchSolver::AssignMatrices(const mfem::DenseTensor &MatrixBatch)
 {
    // TODO: should this really be a copy?
    LUMatrixBatch_ = MatrixBatch;
@@ -97,7 +97,7 @@ void LibBatchSolver::AssignMatrices(const mfem::DenseTensor &MatrixBatch)
    }
 }
 
-void LibBatchSolver::AssignMatrices(const mfem::Vector &vMatrixBatch,
+void BatchSolver::AssignMatrices(const mfem::Vector &vMatrixBatch,
                                     const int ndofs,
                                     const int num_matrices)
 {
@@ -112,7 +112,7 @@ void LibBatchSolver::AssignMatrices(const mfem::Vector &vMatrixBatch,
    AssignMatrices(LUMatrixBatch_);
 }
 
-void LibBatchSolver::GetInverse(mfem::DenseTensor &InvMatBatch) const
+void BatchSolver::GetInverse(mfem::DenseTensor &InvMatBatch) const
 {
 
    /*
@@ -125,7 +125,7 @@ void LibBatchSolver::GetInverse(mfem::DenseTensor &InvMatBatch) const
 
    if (!setup_)
    {
-      mfem_error("LibBatchSolver has not been setup");
+      mfem_error("BatchSolver has not been setup");
    }
 
    // use existing inverse
@@ -149,7 +149,7 @@ void LibBatchSolver::GetInverse(mfem::DenseTensor &InvMatBatch) const
    }
 }
 
-void LibBatchSolver::ComputeLU()
+void BatchSolver::ComputeLU()
 {
    if (lu_valid_)
    {
@@ -185,7 +185,7 @@ void LibBatchSolver::ComputeLU()
 }
 
 
-void LibBatchSolver::ComputeInverse(mfem::DenseTensor &InvMatBatch) const
+void BatchSolver::ComputeInverse(mfem::DenseTensor &InvMatBatch) const
 {
 
    MFEM_VERIFY(lu_valid_, "LU must be valid");
@@ -232,7 +232,7 @@ void LibBatchSolver::ComputeInverse(mfem::DenseTensor &InvMatBatch) const
    }
 }
 
-void LibBatchSolver::SolveLU(const mfem::Vector &b, mfem::Vector &x) const
+void BatchSolver::SolveLU(const mfem::Vector &b, mfem::Vector &x) const
 {
 
    x = b;
@@ -324,14 +324,14 @@ void ApplyBlkMult(const mfem::DenseTensor &Mat, const mfem::Vector &x,
 }
 
 
-void LibBatchSolver::ApplyInverse(const mfem::Vector &b, mfem::Vector &x) const
+void BatchSolver::ApplyInverse(const mfem::Vector &b, mfem::Vector &x) const
 {
    //Extend with vendor library capabilities
    ApplyBlkMult(InvMatrixBatch_, b, x);
 }
 
 
-void LibBatchSolver::Setup()
+void BatchSolver::Setup()
 {
    matrix_size_  = LUMatrixBatch_.SizeI();
    num_matrices_ = LUMatrixBatch_.SizeK();
@@ -367,7 +367,7 @@ void LibBatchSolver::Setup()
    setup_ = true;
 }
 
-void LibBatchSolver::Mult(const mfem::Vector &b, mfem::Vector &x) const
+void BatchSolver::Mult(const mfem::Vector &b, mfem::Vector &x) const
 {
    switch (mode_)
    {
@@ -379,7 +379,7 @@ void LibBatchSolver::Mult(const mfem::Vector &b, mfem::Vector &x) const
    }
 }
 
-void LibBatchSolver::ReleaseMemory()
+void BatchSolver::ReleaseMemory()
 {
    MFEM_RELEASE_MEM(LUMatrixBatch_);
    MFEM_RELEASE_MEM(InvMatrixBatch_);

@@ -20,7 +20,7 @@
 namespace mfem
 {
 
-class LibBatchSolver
+class BatchSolver
 {
 public:
    enum struct SolveMode : int
@@ -33,7 +33,7 @@ public:
    static void GetInverse(const mfem::DenseTensor &M, mfem::DenseTensor &M_inv);
 
 private:
-   LibBatchSolver::SolveMode mode_;
+   BatchSolver::SolveMode mode_;
 
    bool setup_    = false;
    bool lu_valid_ = false;
@@ -58,11 +58,11 @@ public:
    void ComputeInverse(mfem::DenseTensor &InvMatBatch) const;
 
 public:
-   LibBatchSolver() = delete;
+   BatchSolver() = delete;
 
-   LibBatchSolver(const SolveMode mode);
+   BatchSolver(const SolveMode mode);
 
-   LibBatchSolver(const mfem::DenseTensor &MatrixBatch, const SolveMode mode);
+   BatchSolver(const mfem::DenseTensor &MatrixBatch, const SolveMode mode);
 
    void AssignMatrices(const mfem::DenseTensor &MatrixBatch);
 

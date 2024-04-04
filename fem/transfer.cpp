@@ -755,7 +755,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
 
    DenseTensor MLU_ea_lor(ndof_lor, ndof_lor, nel_lor);
 
-   LibBatchSolver batchSolver(LibBatchSolver::SolveMode::INVERSE);
+   BatchSolver batchSolver(BatchSolver::SolveMode::INVERSE);
    batchSolver.AssignMatrices(M_ea_lor, ndof_lor, nel_lor);
 
    DenseTensor Minv_ear_lor(ndof_lor, ndof_lor, nel_lor);
