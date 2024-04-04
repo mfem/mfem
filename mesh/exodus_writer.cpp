@@ -11,19 +11,15 @@
 
 #include "mesh_headers.hpp"
 #include <unordered_set>
-
-#ifdef MFEM_USE_NETCDF
 #include "netcdf.h"
 
 #define CHECK_NETCDF_CODE(return_code)\
-({\
+{\
    if ((return_code) != NC_NOERR)\
    {\
       MFEM_ABORT("NetCDF error: " << nc_strerror((return_code)));\
    }\
-})
-
-#endif
+}
 
 namespace mfem
 {
@@ -362,10 +358,12 @@ void ExodusIIWriter::WriteExodusII(Mesh & mesh, std::string fpath,
    writer.WriteExodusII(fpath, flags);
 }
 
+#ifdef MFEM_USE_NETCDF
 void Mesh::WriteExodusII(const std::string fpath)
 {
    ExodusIIWriter::WriteExodusII(*this, fpath);
 }
+#endif
 
 void ExodusIIWriter::OpenExodusII(std::string fpath, int flags)
 {
@@ -467,7 +465,7 @@ char * ExodusIIWriter::GenerateLabel(const char * format, ...)
    va_list arglist;
    va_start(arglist, format);
 
-   const size_t buffer_size = 100;
+   const int buffer_size = 100;
 
    static char buffer[buffer_size];
    int nwritten = vsnprintf(buffer, buffer_size, format, arglist);
@@ -933,6 +931,14 @@ void ExodusIIWriter::GenerateExodusIIBoundaryInfo()
    {
       int element_index;
       int local_face_index;
+
+      GlobalFaceIndexInfo() : element_index{0}, local_face_index{0} {}
+
+      GlobalFaceIndexInfo(int element_index, int local_face_index)
+      {
+         this->element_index = element_index;
+         this->local_face_index = local_face_index;
+      }
    };
 
    std::unordered_map<int, GlobalFaceIndexInfo>
@@ -961,11 +967,8 @@ void ExodusIIWriter::GenerateExodusIIBoundaryInfo()
             continue;
          }
 
-         mfem_face_index_info_for_global_face_index[face_index] =
-         {
-            .element_index = ielement,
-            .local_face_index = iface
-         };
+         mfem_face_index_info_for_global_face_index[face_index] = GlobalFaceIndexInfo(
+                                                                     ielement, iface);
       }
    }
 
