@@ -766,12 +766,12 @@ TEST_CASE("Exponential", "[DenseMatrix]")
    A(1,1) = 8.0;
    A.Exponential();
 
-   expA(0,0) = std::exp(9.0) * (std::sin(std::sqrt(3.0)) / std::sqrt(
-                                   3.0) + std::cos(std::sqrt(3.0)));
+   expA(0,0) = std::exp(9.0) * (std::sin(std::sqrt(3.0)) / std::sqrt(3.0)
+                                + std::cos(std::sqrt(3.0)));
    expA(0,1) = 2.0 * std::exp(9.0) * std::sin(std::sqrt(3.0)) / std::sqrt(3.0);
-   expA(1,0) = - 2.0 * std::exp(9.0) * std::sin(std::sqrt(3.0))  / std::sqrt(3.0);
-   expA(1,1) = std::exp(9.0) * (std::cos(std::sqrt(3.0)) - std::sin(std::sqrt(
-                                                                       3.0)) / std::sqrt(3.0));
+   expA(1,0) = - 2.0 * std::exp(9.0) * std::sin(std::sqrt(3.0)) / std::sqrt(3.0);
+   expA(1,1) = std::exp(9.0) * (std::cos(std::sqrt(3.0))
+                                - std::sin(std::sqrt(3.0)) / std::sqrt(3.0));
 
    REQUIRE(A(0,0) == MFEM_Approx(expA(0,0)));
    REQUIRE(A(0,1) == MFEM_Approx(expA(0,1)));
