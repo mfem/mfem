@@ -236,7 +236,7 @@ void LibBatchSolver::SolveLU(const mfem::Vector &b, mfem::Vector &x) const
 {
 
    x = b;
-#if defined(MFEM_USE_CUDA)
+#if defined(MFEM_USE_CUDA_OR_HIP)
    if (Device::Allows(Backend::DEVICE_MASK))
    {
       mfem::Array<double *> vector_array(num_matrices_); //need to move to TEMP memory
