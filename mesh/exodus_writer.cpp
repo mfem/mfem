@@ -11,7 +11,10 @@
 
 #include "mesh_headers.hpp"
 #include <unordered_set>
+
+#ifdef MFEM_USE_NETCDF
 #include "netcdf.h"
+#endif
 
 /// @brief Call NetCDF functions inside the macro. This will provide basic
 /// error-handling.
@@ -25,6 +28,8 @@
 
 namespace mfem
 {
+
+#ifdef MFEM_USE_NETCDF
 
 // Variable labels
 const char * EXODUS_TITLE_LABEL = "title";
@@ -989,5 +994,7 @@ void ExodusIIWriter::GenerateExodusIIBoundaryInfo()
       _exodusII_side_ids_for_boundary_id[boundary_id].push_back(exodusII_face_id);
    }
 }
+
+#endif
 
 }
