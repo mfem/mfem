@@ -1343,8 +1343,8 @@ void ExponentialMatrixCoefficient::SetTime(real_t t)
 }
 
 void ExponentialMatrixCoefficient::Eval(DenseMatrix &M,
-                                    ElementTransformation &T,
-                                    const IntegrationPoint &ip)
+                                        ElementTransformation &T,
+                                        const IntegrationPoint &ip)
 {
    a->Eval(M, T, ip);
    M.Exponential();
