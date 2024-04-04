@@ -8,8 +8,8 @@
                                https://mfem.org
 
 
-Version 4.7, released on April 5, 2024
-======================================
+Version 4.7, released on April 12, 2024
+=======================================
 
 - Added support for single and double precision, with corresponding hypre build.
   Generalized the floating point type from `double` to `real_t`. For details see
@@ -36,11 +36,11 @@ Discretization improvements
   advection, Burgers', shallow-water, Euler equations (see, Example 18) are
   available.
 
-- Added functionality for construction of cut-surface and cut-volume
-  IntegrationRules through a moment-fitting approach. The cut is specified by
-  the zero level set of a Coefficient. See fem/intrules_cut.hpp and Example 38.
+- Added a capability to construct cut-surface and cut-volume IntegrationRules
+  through a moment-fitting approach. The cut is specified by the zero level set
+  of a Coefficient. See fem/intrules_cut.hpp and Example 38.
 
-- Introduced support for higher order nonconformal Nedelec elements on simplicesa
+- Introduced support for higher order nonconformal Nedelec elements on simplices
   in ParMesh.
 
 GPU computing
