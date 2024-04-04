@@ -164,7 +164,17 @@ public:
 };
 
 
-/// An arbitrary order H(div)-conforming 2D NURBS element on a square
+/** An arbitrary order H(div)-conforming 2D NURBS element on a square.
+    More details in the following papers:
+
+[1] Annalisa Buffa, Carlo De Falco, Giancarlo Sangalli
+"Isogeometric analysis: stable elements for the 2D Stokes equation."
+International Journal for Numerical Methods in Fluids 65 (11‐12) 1407-1422
+
+[2] John A Evans, Thomas JR Hughes
+"Isogeometric divergence-conforming B-splines for the unsteady Navier–Stokes equations."
+Journal of Computational Physics (241) 141-167
+*/
 class NURBS_HDiv2DFiniteElement : public VectorFiniteElement,
    public NURBSFiniteElement
 {
@@ -236,7 +246,17 @@ public:
 };
 
 
-/// An arbitrary order H(div)-conforming 3D NURBS element on a cube
+/** An arbitrary order H(div)-conforming 3D NURBS element on a cube
+    More details in the following papers:
+
+    [1] Annalisa Buffa, Carlo De Falco, Giancarlo Sangalli
+    "Isogeometric analysis: stable elements for the 2D Stokes equation."
+    International Journal for Numerical Methods in Fluids 65 (11‐12) 1407-1422
+
+    [2] John A Evans, Thomas JR Hughes
+    "Isogeometric divergence-conforming B-splines for the unsteady
+    Navier–Stokes equations."
+    Journal of Computational Physics (241) 141-167 */
 class NURBS_HDiv3DFiniteElement : public VectorFiniteElement,
    public NURBSFiniteElement
 {
@@ -320,7 +340,12 @@ public:
 };
 
 
-/// An arbitrary order H(curl)-conforming 2D NURBS element on a square
+/** An arbitrary order H(curl)-conforming 2D NURBS element on a square
+    More details in the following paper:
+
+    [1] Annalisa Buffa, Giancarlo Sangalli, Rafael Vázquez
+    "Isogeometric analysis in electromagnetics: B-splines approximation."
+    Computer Methods in Applied Mechanics and Engineering (199) 1143-1152 */
 class NURBS_HCurl2DFiniteElement : public VectorFiniteElement,
    public NURBSFiniteElement
 {
@@ -394,7 +419,12 @@ public:
 };
 
 
-/// An arbitrary order H(curl)-conforming 3D NURBS element on a cube
+/** An arbitrary order H(curl)-conforming 3D NURBS element on a cube
+    More details in the following paper:
+
+    [1] Annalisa Buffa, Giancarlo Sangalli, Rafael Vázquez
+    "Isogeometric analysis in electromagnetics: B-splines approximation."
+    Computer Methods in Applied Mechanics and Engineering (199) 1143-1152 */
 class NURBS_HCurl3DFiniteElement : public VectorFiniteElement,
    public NURBSFiniteElement
 {
