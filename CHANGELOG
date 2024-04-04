@@ -58,6 +58,9 @@ Miscellaneous
   Generalized the floating point type from `double` to `real_t`. For more
   details see https://github.com/orgs/mfem/discussions/4207.
 
+- Added ExodusII output capability. The writer can handle first-order (Pyramid5, 
+  Wedge6, Hex8, Tet4) and second-order FE types (Pyramid14, Wedge18, Hex27, Tet10).
+
 - The ReadCubit Genesis mesh importer has been rewritten to improve readability.
 
 - Updated the Doxygen documentation style, which now requires Doxygen version
