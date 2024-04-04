@@ -348,9 +348,5 @@ int main(int argc, char *argv[])
       cout << "Solution error: " << error << endl;
    }
 
-   // Free the used memory.
-   delete ode_solver;
-
-
    return 0;
 }
