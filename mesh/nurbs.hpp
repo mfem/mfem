@@ -89,7 +89,9 @@ public:
        an element. */
    bool isElement(int i) const { return (knot(Order+i) != knot(Order+i+1)); }
 
-   /// Return the number of control points minus the order.
+   /** @brief Return the number of control points minus the order. This is not
+       the number of knot spans, but it gives the number of knots to be checked
+       with @a isElement for non-empty knot spans (elements). */
    int GetNKS() const { return NumOfControlPoints - Order; }
 
    /** @brief Return the parameter for element reference coordinate @a xi
