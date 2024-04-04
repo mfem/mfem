@@ -127,13 +127,19 @@ const Vector &ODEStateDataVector::Get(int i) const
    return data[idx[i]];
 }
 
+Vector &ODEStateDataVector::Get(int i)
+{
+   MFEM_ASSERT_INDEX_IN_RANGE(i,0,ss);
+   return data[idx[i]];
+}
+
 void ODEStateDataVector::Set(int i, Vector &state)
 {
    MFEM_ASSERT_INDEX_IN_RANGE(i,0,smax);
    data[idx[i]] = state;
 }
 
-void ODEStateDataVector::Add(Vector &state)
+void ODEStateDataVector::Append(Vector &state)
 {
    ShiftStages();
    data[idx[0]] = state;

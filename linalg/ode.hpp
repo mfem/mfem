@@ -37,11 +37,14 @@ public:
    /// Get the ith state vector
    virtual const Vector &Get(int i) const = 0;
 
+   /// Get the ith state vector - non-const version
+   virtual Vector &Get(int i) = 0;
+
    /// Set the ith state vector
    virtual void Set(int i, Vector &state) = 0;
 
    /// Add state vector and increment state size
-   virtual void Add(Vector &state) = 0;
+   virtual void Append(Vector &state) = 0;
 
    /// Virtual destructor
    virtual ~ODEStateData() = default;
@@ -88,10 +91,11 @@ public:
    int  Size() const override { return ss; };
 
    const Vector &Get(int i) const override;
+   Vector &Get(int i) override;
 
    void Set(int i, Vector &state) override;
 
-   void Add(Vector &state) override;
+   void Append(Vector &state) override;
 };
 
 
