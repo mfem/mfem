@@ -85,6 +85,11 @@ const int mfem_to_exodusII_node_ordering_wedge18[] =
    1, 2, 3, 4, 5, 6, 7, 8, 9, 13, 14, 15, 10, 11, 12, 16, 17, 18
 };
 
+const int mfem_to_exodusII_node_ordering_pyramid14[] =
+{
+   1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14
+};
+
 /**
  * Helper class for writing a mesh to an ExodusII file.
  */
@@ -700,6 +705,9 @@ void ExodusIIWriter::WriteNodeConnectivityForBlock(const int block_id)
                break;
             case Element::Type::WEDGE: // Wedge18.
                node_ordering_map = (int *)mfem_to_exodusII_node_ordering_wedge18;
+               break;
+            case Element::Type::PYRAMID:
+               node_ordering_map = (int *)mfem_to_exodusII_node_ordering_pyramid14;
                break;
             default:
                MFEM_ABORT("Higher-order elements of this type are not currently supported.");
