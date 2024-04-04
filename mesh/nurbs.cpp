@@ -3964,8 +3964,6 @@ void NURBSExtension::Generate2DBdrElementDofTable()
       {
          int fn = patchTopo->GetBdrElementFaceIndex(b);
          if (ord0 == mOrders.Max()) { add_dofs = false; }
-         if (fn == -9999) { s = -1; }
-         if (fn == -9999) { s = -1; }
       }
 
       for (int i = 0; i < nks0; i++)
