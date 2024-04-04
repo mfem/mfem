@@ -35,17 +35,17 @@ using namespace mfem;
 using namespace std;
 
 //Level set function for sphere in 3D and circle in 2D
-double sphere_ls(const Vector &x)
+real_t sphere_ls(const Vector &x)
 {
-   double r2= x*x;
+   real_t r2= x*x;
    return -sqrt(r2)+1.0;//the radius is 1.0
 }
 
 //Level set function for a sinusoidal wave.
 //Resulting zero isocontour is at y=0.5-(0.1*sin(3*pi*x+pi/2))
-double sinusoidal_ls(const Vector &x)
+real_t sinusoidal_ls(const Vector &x)
 {
-   double a1 = 20., a2 = 2., a3 = 3.;
+   real_t a1 = 20., a2 = 2., a3 = 3.;
    return tanh(a1*(x(1)-0.5) + a2*sin(a3*(x(0)-0.5)*M_PI));
 }
 
@@ -150,7 +150,7 @@ int main(int argc, char *argv[])
    }
 
    // Exact volume and area
-   double exact_volume = -10, exact_area = -10;
+   real_t exact_volume = -10, exact_area = -10;
    if (ls_type == 1)
    {
       if (strncmp(mesh_file,"../../data/star-q3.mesh",100) == 0)
@@ -178,10 +178,10 @@ int main(int argc, char *argv[])
    const IntegrationRule* ir=nullptr;
 
    // Integration with algoim
-   double vol=0.0;
+   real_t vol=0.0;
 
 #ifdef MFEM_USE_ALGOIM
-   double area=0.0;
+   real_t area=0.0;
    DenseMatrix bmat; //gradients of the shape functions in isoparametric space
    DenseMatrix pmat; //gradients of the shape functions in physical space
    Vector inormal; //normal to the level set in isoparametric space
@@ -260,7 +260,7 @@ int main(int argc, char *argv[])
       {
          const IntegrationPoint &ip = ir->IntPoint(j);
          trans->SetIntPoint(&ip);
-         double vlsf=x.GetValue(*trans,ip);
+         real_t vlsf=x.GetValue(*trans,ip);
          if (vlsf>=0.0)
          {
             vol += ip.weight * trans->Weight();
