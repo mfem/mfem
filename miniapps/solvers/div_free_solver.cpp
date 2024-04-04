@@ -37,7 +37,7 @@ SparseMatrix ElemToDof(const ParFiniteElementSpace& fes)
    Array<int> J(new int[I[fes.GetNE()]], I[fes.GetNE()]);
    copy_n(fes.GetElementToDofTable().GetJ(), J.Size(), J.begin());
    fes.AdjustVDofs(J);
-   double* D = new double[J.Size()];
+   real_t* D = new real_t[J.Size()];
    fill_n(D, J.Size(), 1.0);
    return SparseMatrix(I, J, D, fes.GetNE(), fes.GetVSize());
 }
@@ -119,7 +119,7 @@ SparseMatrix* AggToInteriorDof(const Array<int>& bdr_truedofs,
       J[counter++] = tdof_agg.GetRowColumns(i)[0];
    }
 
-   double * D = new double[I[tdof_agg.NumRows()]];
+   real_t * D = new real_t[I[tdof_agg.NumRows()]];
    std::fill_n(D, I[tdof_agg.NumRows()], 1.0);
 
    SparseMatrix intdof_agg(I, J, D, tdof_agg.NumRows(), tdof_agg.NumCols());
@@ -231,7 +231,7 @@ LocalSolver::LocalSolver(const DenseMatrix& M, const DenseMatrix& B)
 
 void LocalSolver::Mult(const Vector &x, Vector &y) const
 {
-   const double x0 = x[offset_];
+   const real_t x0 = x[offset_];
    const_cast<Vector&>(x)[offset_] = 0.0;
 
    y.SetSize(local_system_.NumRows());
@@ -456,7 +456,7 @@ void DivFreeSolver::SolveParticular(const Vector& rhs, Vector& sol) const
    std::vector<Vector> rhss(smoothers_.Size());
    std::vector<Vector> sols(smoothers_.Size());
 
-   rhss.back().SetDataAndSize(const_cast<double*>(rhs.HostRead()), rhs.Size());
+   rhss.back().SetDataAndSize(const_cast<real_t*>(rhs.HostRead()), rhs.Size());
    sols.back().SetDataAndSize(sol.HostWrite(), sol.Size());
 
    for (int l = blk_Ps_.Size()-1; l >= 0; --l)

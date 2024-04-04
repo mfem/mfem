@@ -338,7 +338,7 @@ public:
    { return (new HypreParVector(MyComm,GlobalTrueVSize(),GetTrueDofOffsets()));}
 
    /// Scale a vector of true dofs
-   void DivideByGroupSize(double *vec);
+   void DivideByGroupSize(real_t *vec);
 
    /// Return a reference to the internal GroupCommunicator (on VDofs)
    GroupCommunicator &GroupComm() { return *gcomm; }

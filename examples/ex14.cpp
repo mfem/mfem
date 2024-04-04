@@ -43,9 +43,9 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/star.mesh";
    int ref_levels = -1;
    int order = 1;
-   double sigma = -1.0;
-   double kappa = -1.0;
-   double eta = 0.0;
+   real_t sigma = -1.0;
+   real_t kappa = -1.0;
+   real_t eta = 0.0;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
