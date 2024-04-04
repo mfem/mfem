@@ -398,7 +398,6 @@ void NURBS3DFiniteElement::CalcHessian (const IntegrationPoint &ip,
       hessian(o,5) = hessian(o,5)*sum
                      - 2*du(o,1)*sum*dsum[1]
                      + u[o]*sum*(2*dsum[1]*dsum[1] - d2sum[5]);
-
    }
 }
 
@@ -443,7 +442,6 @@ void NURBS_HDiv2DFiniteElement::SetOrder() const
 void NURBS_HDiv2DFiniteElement::CalcVShape(const IntegrationPoint &ip,
                                            DenseMatrix &shape) const
 {
-
    kv[0]->CalcShape(shape_x, ijk[0], ip.x);
    kv[1]->CalcShape(shape_y, ijk[1], ip.y);
 
@@ -517,7 +515,6 @@ void NURBS_HDiv2DFiniteElement::CalcDivShape(const IntegrationPoint &ip,
          divshape(o) = shape_x(i)*dsy1;
       }
    }
-
 }
 
 NURBS_HDiv2DFiniteElement::~NURBS_HDiv2DFiniteElement()
@@ -577,7 +574,6 @@ void NURBS_HDiv3DFiniteElement::SetOrder() const
 void NURBS_HDiv3DFiniteElement::CalcVShape(const IntegrationPoint &ip,
                                            DenseMatrix &shape) const
 {
-
    kv[0]->CalcShape(shape_x, ijk[0], ip.x);
    kv[1]->CalcShape(shape_y, ijk[1], ip.y);
    kv[2]->CalcShape(shape_z, ijk[2], ip.z);
@@ -700,7 +696,6 @@ void NURBS_HDiv3DFiniteElement::CalcDivShape(const IntegrationPoint &ip,
          }
       }
    }
-
 }
 
 NURBS_HDiv3DFiniteElement::~NURBS_HDiv3DFiniteElement()
@@ -750,7 +745,6 @@ void NURBS_HCurl2DFiniteElement::SetOrder() const
 void NURBS_HCurl2DFiniteElement::CalcVShape(const IntegrationPoint &ip,
                                             DenseMatrix &shape) const
 {
-
    kv[0]->CalcShape(shape_x, ijk[0], ip.x);
    kv[1]->CalcShape(shape_y, ijk[1], ip.y);
 
@@ -882,7 +876,6 @@ void NURBS_HCurl3DFiniteElement::SetOrder() const
 void NURBS_HCurl3DFiniteElement::CalcVShape(const IntegrationPoint &ip,
                                             DenseMatrix &shape) const
 {
-
    kv[0]->CalcShape(shape_x, ijk[0], ip.x);
    kv[1]->CalcShape(shape_y, ijk[1], ip.y);
    kv[2]->CalcShape(shape_z, ijk[2], ip.z);
@@ -1017,7 +1010,6 @@ void NURBS_HCurl3DFiniteElement::CalcCurlShape(const IntegrationPoint &ip,
          }
       }
    }
-
 }
 
 NURBS_HCurl3DFiniteElement::~NURBS_HCurl3DFiniteElement()
