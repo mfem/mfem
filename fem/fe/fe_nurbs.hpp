@@ -292,7 +292,7 @@ public:
       kv1[2] = nullptr;
    }
 
-   /// Construct the NURBS_HDiv3DFiniteElement with x-order @a px and y-order @a py
+   /// Construct the NURBS_HDiv3DFiniteElement with x-order @a px, y-order @a py and z-order @a pz
    NURBS_HDiv3DFiniteElement(int px, int py, int pz)
       : VectorFiniteElement(3, Geometry::CUBE,
                             (px + 2)*(py + 1)*(pz + 1) +
@@ -308,7 +308,7 @@ public:
         d2shape1_x(px + 2), d2shape1_y(py + 2), d2shape1_z(pz + 2),
         u(dof), du(dof,3)
    {
-      orders[0] = px; orders[1] = py; orders[1] = pz;
+      orders[0] = px; orders[1] = py; orders[2] = pz;
       kv1.SetSize(dim);
       kv1[0] = nullptr;
       kv1[1] = nullptr;
@@ -460,7 +460,7 @@ public:
       kv1[2] = nullptr;
    }
 
-   /// Construct the NURBS_HCurl3DFiniteElement with x-order @a px and y-order @a py
+   /// Construct the NURBS_HCurl3DFiniteElement with x-order @a px, y-order @a py and z-order @a pz
    NURBS_HCurl3DFiniteElement(int px, int py, int pz)
       : VectorFiniteElement(3, Geometry::CUBE,
                             (px + 1)*(py + 2)*(pz + 2) +
@@ -476,7 +476,7 @@ public:
         d2shape1_x(px + 2), d2shape1_y(py + 2), d2shape1_z(pz + 2),
         u(dof), du(dof,3)
    {
-      orders[0] = px; orders[1] = py; orders[1] = pz;
+      orders[0] = px; orders[1] = py; orders[2] = pz;
       kv1.SetSize(dim);
       kv1[0] = nullptr;
       kv1[1] = nullptr;

@@ -404,13 +404,13 @@ public:
                             DenseMatrix &Hessian) const;
 
    /** @brief Evaluate the Hessian of all shape functions of a scalar finite
-       element in reference space at the given point @a ip. */
+       element in physical space at the given point @a ip. */
    /** The size (#dof, #dim*(#dim+1)/2) of @a Hessian must be set in advance. */
    void CalcPhysHessian(ElementTransformation &Trans,
                         DenseMatrix& Hessian) const;
 
    /** @brief Evaluate the Laplacian of all shape functions of a scalar finite
-       element in reference space at the given point @a ip. */
+       element in physical space at the given point @a ip. */
    /** The size (#dof) of @a Laplacian must be set in advance. */
    void CalcPhysLaplacian(ElementTransformation &Trans,
                           Vector& Laplacian) const;
