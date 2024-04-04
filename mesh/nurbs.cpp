@@ -4034,9 +4034,6 @@ void NURBSExtension::Generate3DBdrElementDofTable()
       {
          int fn = patchTopo->GetBdrElementFaceIndex(b);
          if (ord0 == ord1) { add_dofs = false; }
-         if (fn == 999) { s = -1; }
-         if (fn == 999) { s = -1; }
-         if (fn == 999) { s = -1; }
       }
 
 
