@@ -80,6 +80,11 @@ const int mfem_to_exodusII_node_ordering_hex27[] =
    15, 16, 27, 21, 26, 25, 23, 22, 24
 };
 
+const int mfem_to_exodusII_node_ordering_wedge18[] =
+{
+   1, 2, 3, 4, 5, 6, 7, 8, 9, 13, 14, 15, 10, 11, 12, 16, 17, 18
+};
+
 /**
  * Helper class for writing a mesh to an ExodusII file.
  */
@@ -692,6 +697,9 @@ void ExodusIIWriter::WriteNodeConnectivityForBlock(const int block_id)
                break;
             case Element::Type::HEXAHEDRON:  // Hex27.
                node_ordering_map = (int *)mfem_to_exodusII_node_ordering_hex27;
+               break;
+            case Element::Type::WEDGE: // Wedge18.
+               node_ordering_map = (int *)mfem_to_exodusII_node_ordering_wedge18;
                break;
             default:
                MFEM_ABORT("Higher-order elements of this type are not currently supported.");
