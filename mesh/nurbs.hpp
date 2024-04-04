@@ -57,7 +57,8 @@ public:
    /// Create an empty KnotVector.
    KnotVector() { }
 
-   /// Create a KnotVector by reading data from stream @a input.
+   /** @brief Create a KnotVector by reading data from stream @a input. Two
+       integers are read, for order and number of control points. */
    KnotVector(std::istream &input);
 
    /** @brief Create a KnotVector with undefined knots (initialized to -1) of
@@ -893,7 +894,7 @@ public:
 
    /** @brief Constructor for an MPI communicator @a comm, a global
        NURBSExtension @a parent, a partitioning @a part of the global elements
-       by MPI rank, and a merker @a active_bel of active global boundary
+       by MPI rank, and a marker @a active_bel of active global boundary
        elements on this rank. The partitioning is deep-copied and will not be
        deleted by this object. */
    ParNURBSExtension(MPI_Comm comm, NURBSExtension *parent, int *part,
