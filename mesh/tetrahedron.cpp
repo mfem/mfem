@@ -283,7 +283,7 @@ void Tetrahedron::MarkEdge(const DSTable &v_to_v, const int *length)
 // static method
 void Tetrahedron::GetPointMatrix(unsigned transform, DenseMatrix &pm)
 {
-   double *a = &pm(0,0), *b = &pm(0,1), *c = &pm(0,2), *d = &pm(0,3);
+   real_t *a = &pm(0,0), *b = &pm(0,1), *c = &pm(0,2), *d = &pm(0,3);
 
    // initialize to identity
    a[0] = 0.0, a[1] = 0.0, a[2] = 0.0;
@@ -306,7 +306,7 @@ void Tetrahedron::GetPointMatrix(unsigned transform, DenseMatrix &pm)
 #define SWAP(a, b) for (int i = 0; i < 3; i++) { std::swap(a[i], b[i]); }
 #define AVG(a, b, c) for (int i = 0; i < 3; i++) { a[i] = (b[i]+c[i])*0.5; }
 
-      double e[3];
+      real_t e[3];
       AVG(e, a, b);
       switch (chain[--n])
       {

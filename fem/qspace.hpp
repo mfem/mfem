@@ -106,7 +106,7 @@ public:
    const Vector &GetWeights() const;
 
    /// Return the integral of the scalar Coefficient @a coeff.
-   double Integrate(Coefficient &coeff) const;
+   real_t Integrate(Coefficient &coeff) const;
 
    /// Return the integral of the VectorCoefficient @a coeff in @a integrals.
    void Integrate(VectorCoefficient &coeff, Vector &integrals) const;

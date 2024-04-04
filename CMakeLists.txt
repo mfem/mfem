@@ -183,6 +183,19 @@ endif()
 # Process configuration options
 #-------------------------------------------------------------------------------
 
+# MFEM_PRECISION -> MFEM_USE_SINGLE, MFEM_USE_DOUBLE
+if (MFEM_PRECISION MATCHES "^(double|Double|DOUBLE)$")
+  set(MFEM_USE_SINGLE OFF)
+  set(MFEM_USE_DOUBLE ON)
+elseif (MFEM_PRECISION MATCHES "^(single|Single|SINGLE)$")
+  set(MFEM_USE_SINGLE ON)
+  set(MFEM_USE_DOUBLE OFF)
+else()
+  message(FATAL_ERROR " *** Invalid floating-point precision: "
+    "MFEM_PRECISION = ${MFEM_PRECISION}")
+endif()
+message(STATUS "Floating-point precision: MFEM_PRECISION = ${MFEM_PRECISION}")
+
 # MFEM_DEBUG
 if (CMAKE_BUILD_TYPE MATCHES "Debug|debug|DEBUG")
   set(MFEM_DEBUG ON)

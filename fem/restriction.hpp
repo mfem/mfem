@@ -28,7 +28,7 @@ public:
    /// @brief Add the E-vector degrees of freedom @a x to the L-vector degrees
    /// of freedom @a y.
    void AddMultTranspose(const Vector &x, Vector &y,
-                         const double a = 1.0) const override = 0;
+                         const real_t a = 1.0) const override = 0;
 };
 
 /// Operator that converts FiniteElementSpace L-vectors to E-vectors.
@@ -58,7 +58,7 @@ public:
    void Mult(const Vector &x, Vector &y) const override;
    void MultTranspose(const Vector &x, Vector &y) const override;
    void AddMultTranspose(const Vector &x, Vector &y,
-                         const double a = 1.0) const override;
+                         const real_t a = 1.0) const override;
 
    /// Compute Mult without applying signs based on DOF orientations.
    void MultUnsigned(const Vector &x, Vector &y) const;
@@ -117,7 +117,7 @@ public:
    void Mult(const Vector &x, Vector &y) const override;
    void MultTranspose(const Vector &x, Vector &y) const override;
    void AddMultTranspose(const Vector &x, Vector &y,
-                         const double a = 1.0) const override;
+                         const real_t a = 1.0) const override;
    /** Fill the I array of SparseMatrix corresponding to the sparsity pattern
        given by this ElementRestriction. */
    void FillI(SparseMatrix &mat) const;
@@ -182,12 +182,12 @@ public:
        @param[in]     a Scalar coefficient for addition.
    */
    virtual void AddMultTranspose(const Vector &x, Vector &y,
-                                 const double a = 1.0) const override = 0;
+                                 const real_t a = 1.0) const override = 0;
 
    /** @brief Add the face degrees of freedom @a x to the element degrees of
        freedom @a y ignoring the signs from DOF orientation. */
    virtual void AddMultTransposeUnsigned(const Vector &x, Vector &y,
-                                         const double a = 1.0) const
+                                         const real_t a = 1.0) const
    {
       AddMultTranspose(x, y, a);
    }
@@ -292,14 +292,14 @@ public:
        @param[in,out] y The L-vector degrees of freedom.
        @param[in]  a Scalar coefficient for addition. */
    void AddMultTranspose(const Vector &x, Vector &y,
-                         const double a = 1.0) const override;
+                         const real_t a = 1.0) const override;
 
    /** @brief Gather the degrees of freedom, i.e. goes from face E-Vector to
        L-Vector @b not taking into account signs from DOF orientations.
 
        @sa AddMultTranspose(). */
    void AddMultTransposeUnsigned(const Vector &x, Vector &y,
-                                 const double a = 1.0) const override;
+                                 const real_t a = 1.0) const override;
 
 private:
    /** @brief Compute the scatter indices: L-vector to E-vector, and the offsets
@@ -438,7 +438,7 @@ public:
        @param[in,out] y The L-vector degrees of freedom.
        @param[in]  a Scalar coefficient for addition. */
    void AddMultTranspose(const Vector &x, Vector &y,
-                         const double a = 1.0) const override;
+                         const real_t a = 1.0) const override;
 
    /** @brief Fill the I array of SparseMatrix corresponding to the sparsity
        pattern given by this L2FaceRestriction.
@@ -862,7 +862,7 @@ public:
        @param[in,out] y The L-vector degrees of freedom.
        @param[in]  a Scalar coefficient for addition. */
    void AddMultTranspose(const Vector &x, Vector &y,
-                         const double a = 1.0) const override;
+                         const real_t a = 1.0) const override;
 
    /** @brief Gather the degrees of freedom, i.e. goes from face E-Vector to
        L-Vector.

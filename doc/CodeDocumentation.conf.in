@@ -1131,7 +1131,7 @@ IMAGE_PATH             =
 # characters, include newline. If present, Doxygen-style LaTeX commands
 # such as \f$, \f[, etc., are left unchanged.
 
-INPUT_FILTER           = perl -0777 -pe 's/\$\$((?:.|\n)+?)\$\$/\\f[\1\\f]/g; s/(?<!\\f)\$((?:.|\n)+?)\$/\\f\$\1\\f\$/g'
+INPUT_FILTER           = "perl -0777 -pe 's/\$\$((?:.|\n)+?)\$\$/\\f[\1\\f]/g; s/(?<!\\f)\$((?:.|\n)+?)\$/\\f\$\1\\f\$/g'"
 
 # The FILTER_PATTERNS tag can be used to specify filters on a per file pattern
 # basis. Doxygen will compare the file name with each pattern and apply the
