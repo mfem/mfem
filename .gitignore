@@ -91,10 +91,6 @@ examples/ex16.mesh
 examples/ex16-mesh.*
 examples/ex16-init.*
 examples/ex16-final.*
-examples/vortex-mesh.*
-examples/vortex.mesh
-examples/vortex-?-init.*
-examples/vortex-?-final.*
 examples/deformation.*
 examples/pressure.*
 examples/ex20.dat
@@ -120,6 +116,8 @@ examples/cond_mesh.*
 examples/port_mesh.*
 examples/port_mode.*
 
+examples/euler-*
+
 examples/amgx/ex1
 examples/amgx/ex1p
 examples/amgx/.logamgx
@@ -127,6 +125,13 @@ examples/amgx/refined.mesh
 examples/amgx/sol.gf
 examples/amgx/mesh.*
 examples/amgx/sol.*
+
+examples/caliper/ex1
+examples/caliper/ex1p
+examples/caliper/refined.mesh
+examples/caliper/sol.gf
+examples/caliper/mesh.*
+examples/caliper/sol.*
 
 examples/ginkgo/ex1
 examples/ginkgo/refined.mesh
@@ -276,6 +281,10 @@ miniapps/nurbs/mode_*
 miniapps/nurbs/Example1*
 miniapps/nurbs/sin-fit.mesh
 miniapps/nurbs/CurveInt
+miniapps/nurbs/nurbs_naca_cmesh
+miniapps/nurbs/naca-cmesh.mesh
+miniapps/nurbs/glvis_naca-cmesh.mesh
+miniapps/nurbs/Naca_cmesh
 
 miniapps/performance/ex1
 miniapps/performance/ex1p
@@ -300,7 +309,7 @@ miniapps/tools/convert-dc
 miniapps/tools/lor-transfer
 miniapps/tools/plor-transfer
 miniapps/tools/get-values
-miniapps/tools/check-tmop-metric
+miniapps/tools/tmop-check-metric
 miniapps/tools/tmop-metric-magnitude
 miniapps/tools/nodal-transfer
 miniapps/tools/ParaView
@@ -331,6 +340,7 @@ miniapps/toys/mondrian.mesh
 miniapps/solvers/block-solvers
 miniapps/solvers/lor_solvers
 miniapps/solvers/plor_solvers
+miniapps/solvers/lor_elast
 miniapps/solvers/ParaView
 miniapps/solvers/mesh.*
 miniapps/solvers/sol.*

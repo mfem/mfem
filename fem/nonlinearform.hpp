@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -35,8 +35,17 @@ protected:
    /// FE space on which the form lives.
    FiniteElementSpace *fes; // not owned
 
+   /** @brief Indicates the NonlinearFormIntegrator%s stored in #dnfi, #bnfi,
+       #fnfi, and #bfnfi are not owned by this NonlinearForm. */
+   bool extern_bfs;
+
    /// Set of Domain Integrators to be assembled (added).
    Array<NonlinearFormIntegrator*> dnfi; // owned
+   Array<Array<int>*>              dnfi_marker; // not owned
+
+   /// Set of Boundary Integrators to be assembled (added).
+   Array<NonlinearFormIntegrator*> bnfi; // owned
+   Array<Array<int>*> bnfi_marker; // not owned
 
    /// Set of interior face Integrators to be assembled (added).
    Array<NonlinearFormIntegrator*> fnfi; // owned
@@ -72,7 +81,7 @@ public:
        number of true degrees of freedom, i.e. f->GetTrueVSize(). */
    NonlinearForm(FiniteElementSpace *f)
       : Operator(f->GetTrueVSize()), assembly(AssemblyLevel::LEGACY),
-        ext(NULL), fes(f), Grad(NULL), cGrad(NULL),
+        ext(NULL), fes(f), extern_bfs(0), Grad(NULL), cGrad(NULL),
         sequence(f->GetSequence()), P(f->GetProlongationMatrix()),
         cP(dynamic_cast<const SparseMatrix*>(P))
    { }
@@ -108,11 +117,29 @@ public:
 
    /// Adds new Domain Integrator.
    void AddDomainIntegrator(NonlinearFormIntegrator *nlfi)
-   { dnfi.Append(nlfi); }
+   { dnfi.Append(nlfi); dnfi_marker.Append(NULL); }
+
+   /// Adds new Domain Integrator, restricted to specific attributes.
+   void AddDomainIntegrator(NonlinearFormIntegrator *nlfi,
+                            Array<int> &elem_marker)
+   { dnfi.Append(nlfi); dnfi_marker.Append(&elem_marker); }
 
    /// Access all integrators added with AddDomainIntegrator().
    Array<NonlinearFormIntegrator*> *GetDNFI() { return &dnfi; }
    const Array<NonlinearFormIntegrator*> *GetDNFI() const { return &dnfi; }
+
+   /// Adds new Boundary Integrator.
+   void AddBoundaryIntegrator(NonlinearFormIntegrator *nlfi)
+   { bnfi.Append(nlfi); bnfi_marker.Append(NULL); }
+
+   /// Adds new Boundary Integrator, restricted to specific attributes.
+   void AddBoundaryIntegrator(NonlinearFormIntegrator *nlfi,
+                              Array<int> &elem_marker)
+   { bnfi.Append(nlfi); bnfi_marker.Append(&elem_marker); }
+
+   /// Access all integrators added with AddBoundaryIntegrator().
+   Array<NonlinearFormIntegrator*> *GetBNFI() { return &bnfi; }
+   const Array<NonlinearFormIntegrator*> *GetBNFI() const { return &bnfi; }
 
    /// Adds new Interior Face Integrator.
    void AddInteriorFaceIntegrator(NonlinearFormIntegrator *nlfi)
@@ -162,13 +189,13 @@ public:
 
        The state @a x must be a "GridFunction size" vector, i.e. its size must
        be fes->GetVSize(). */
-   double GetGridFunctionEnergy(const Vector &x) const;
+   real_t GetGridFunctionEnergy(const Vector &x) const;
 
    /// Compute the energy corresponding to the state @a x.
    /** In general, @a x may have non-homogeneous essential boundary values.
 
        The state @a x must be a true-dof vector. */
-   virtual double GetEnergy(const Vector &x) const
+   virtual real_t GetEnergy(const Vector &x) const
    { return GetGridFunctionEnergy(Prolongate(x)); }
 
    /// Evaluate the action of the NonlinearForm.
@@ -211,6 +238,9 @@ public:
    virtual const Operator *GetRestriction() const
    { return fes->GetRestrictionMatrix(); }
 
+   /// Indicate that integrators are not owned by the NonlinearForm
+   void UseExternalIntegrators() { extern_bfs = 1; }
+
    /** @brief Destroy the NonlinearForm including the owned
        NonlinearFormIntegrator%s and gradient Operator. */
    virtual ~NonlinearForm();
@@ -227,13 +257,18 @@ protected:
 
    /// Set of Domain Integrators to be assembled (added).
    Array<BlockNonlinearFormIntegrator*> dnfi;
+   Array<Array<int>*>                   dnfi_marker;
+
+   /// Set of Boundary Integrators to be assembled (added).
+   Array<BlockNonlinearFormIntegrator*> bnfi;
+   Array<Array<int>*> bnfi_marker;
 
    /// Set of interior face Integrators to be assembled (added).
    Array<BlockNonlinearFormIntegrator*> fnfi;
 
    /// Set of Boundary Face Integrators to be assembled (added).
    Array<BlockNonlinearFormIntegrator*> bfnfi;
-   Array<Array<int>*>           bfnfi_marker;
+   Array<Array<int>*>                   bfnfi_marker;
 
    /** Auxiliary block-vectors for wrapping input and output vectors or holding
        GridFunction-like block-vector data (e.g. in parallel). */
@@ -266,7 +301,7 @@ protected:
    const BlockVector &Prolongate(const BlockVector &bx) const;
 
    /// Specialized version of GetEnergy() for BlockVectors
-   double GetEnergyBlocked(const BlockVector &bx) const;
+   real_t GetEnergyBlocked(const BlockVector &bx) const;
 
    /// Specialized version of Mult() for BlockVector%s
    /// Block L-Vector to Block L-Vector
@@ -298,7 +333,21 @@ public:
 
    /// Adds new Domain Integrator.
    void AddDomainIntegrator(BlockNonlinearFormIntegrator *nlfi)
-   { dnfi.Append(nlfi); }
+   { dnfi.Append(nlfi); dnfi_marker.Append(NULL); }
+
+   /// Adds new Domain Integrator, restricted to specific attributes.
+   void AddDomainIntegrator(BlockNonlinearFormIntegrator *nlfi,
+                            Array<int> &elem_marker)
+   { dnfi.Append(nlfi); dnfi_marker.Append(&elem_marker); }
+
+   /// Adds new Boundary Integrator.
+   void AddBoundaryIntegrator(BlockNonlinearFormIntegrator *nlfi)
+   { bnfi.Append(nlfi); bnfi_marker.Append(NULL); }
+
+   /// Adds new Boundary Integrator, restricted to specific attributes.
+   void AddBoundaryIntegrator(BlockNonlinearFormIntegrator *nlfi,
+                              Array<int> &elem_marker)
+   { bnfi.Append(nlfi); bnfi_marker.Append(&elem_marker); }
 
    /// Adds new Interior Face Integrator.
    void AddInteriorFaceIntegrator(BlockNonlinearFormIntegrator *nlfi)
@@ -311,12 +360,13 @@ public:
    /** @brief Adds new Boundary Face Integrator, restricted to specific boundary
        attributes. */
    void AddBdrFaceIntegrator(BlockNonlinearFormIntegrator *nlfi,
-                             Array<int> &bdr_marker);
+                             Array<int> &bdr_marker)
+   { bfnfi.Append(nlfi); bfnfi_marker.Append(&bdr_marker); }
 
    virtual void SetEssentialBC(const Array<Array<int> *>&bdr_attr_is_ess,
                                Array<Vector *> &rhs);
 
-   virtual double GetEnergy(const Vector &x) const;
+   virtual real_t GetEnergy(const Vector &x) const;
 
    /// Method is only called in serial, the parallel version calls MultBlocked
    /// directly.

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -63,7 +63,7 @@ public:
    /** @brief Returns a DoF transformation object compatible with this basis
        and geometry type.
    */
-   virtual StatelessDofTransformation *
+   virtual const StatelessDofTransformation *
    DofTransformationForGeometry(Geometry::Type GeomType) const
    { return NULL; }
 
@@ -483,7 +483,7 @@ public:
    int DofForGeometry(Geometry::Type GeomType) const override
    { return ND_dof[GeomType]; }
 
-   StatelessDofTransformation *
+   const StatelessDofTransformation *
    DofTransformationForGeometry(Geometry::Type GeomType) const override;
 
    const int *DofOrderForOrientation(Geometry::Type GeomType,

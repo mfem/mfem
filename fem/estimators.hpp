@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -44,7 +44,7 @@ public:
    /// Return the total error from the last error estimate.
    /** @note This method is optional for derived classes to override and the
        base class implementation simply returns 0. */
-   virtual double GetTotalError() const { return 0.0; }
+   virtual real_t GetTotalError() const { return 0.0; }
 
    /// Get a Vector with all element errors.
    virtual const Vector &GetLocalErrors() = 0;
@@ -74,11 +74,11 @@ public:
 /** @brief The ZienkiewiczZhuEstimator class implements the Zienkiewicz-Zhu
     error estimation procedure.
 
-    Zienkiewicz, O.C. and Zhu, J.Z., The superconvergent patch recovery
+    [1] Zienkiewicz, O.C. and Zhu, J.Z., The superconvergent patch recovery
     and a posteriori error estimates. Part 1: The recovery technique.
     Int. J. Num. Meth. Engng. 33, 1331-1364 (1992).
 
-    Zienkiewicz, O.C. and Zhu, J.Z., The superconvergent patch recovery
+    [2] Zienkiewicz, O.C. and Zhu, J.Z., The superconvergent patch recovery
     and a posteriori error estimates. Part 2: Error estimates and adaptivity.
     Int. J. Num. Meth. Engng. 33, 1365-1382 (1992).
 
@@ -90,7 +90,7 @@ class ZienkiewiczZhuEstimator : public AnisotropicErrorEstimator
 protected:
    long current_sequence;
    Vector error_estimates;
-   double total_error;
+   real_t total_error;
    bool anisotropic;
    Array<int> aniso_flags;
    int flux_averaging; // see SetFluxAveraging()
@@ -172,7 +172,7 @@ public:
    void SetFluxAveraging(int fa) { flux_averaging = fa; }
 
    /// Return the total error from the last error estimate.
-   virtual double GetTotalError() const override { return total_error; }
+   virtual real_t GetTotalError() const override { return total_error; }
 
    /// Get a Vector with all element errors.
    virtual const Vector &GetLocalErrors() override
@@ -220,8 +220,8 @@ public:
     The required BilinearFormIntegrator must implement the method
     ComputeElementFlux().
 
-   COMMENTS:
-   *  The present implementation ignores all single-element patches corresponding
+   @note
+   -  The present implementation ignores all single-element patches corresponding
       to boundary faces. This is appropriate for Dirichlet boundaries, but
       suboptimal for Neumann boundaries. Reference 3 shows that a constrained
       least-squares problem, where the reconstructed flux is constrained by the
@@ -229,13 +229,13 @@ public:
       NOTE THAT THIS CONSTRAINED LS PROBLEM IS NOT YET IMPLEMENTED, so it is
       possible that the local error estimates for elements on a Neumann boundary
       are suboptimal.
-   *  The global polynomial basis used for the flux reconstruction is, by default,
+   -  The global polynomial basis used for the flux reconstruction is, by default,
       aligned with the physical Cartesian axis. For patches with 2D elements, this
       has been improved on so that the basis is aligned with the physical patch
       orientation. Reorientation of the flux reconstruction basis is helpful to
       maintain symmetry in the refinement pattern and could be extended to 3D.
-   *  This estimator is ONLY implemented IN SERIAL.
-   *  Anisotropic refinement is NOT YET SUPPORTED.
+   -  This estimator is ONLY implemented IN SERIAL.
+   -  Anisotropic refinement is NOT YET SUPPORTED.
 
  */
 class LSZienkiewiczZhuEstimator : public ErrorEstimator
@@ -243,9 +243,9 @@ class LSZienkiewiczZhuEstimator : public ErrorEstimator
 protected:
    long current_sequence;
    Vector error_estimates;
-   double total_error;
+   real_t total_error;
    bool subdomain_reconstruction = true;
-   double tichonov_coeff;
+   real_t tichonov_coeff;
 
    BilinearFormIntegrator &integ;
    GridFunction &solution;
@@ -291,14 +291,14 @@ public:
     *         using tensor product elements, which typically require fewer
     *         integration points and, therefore, may lead to an
     *         ill-conditioned linear system. */
-   void SetTichonovRegularization(double tcoeff = 1.0e-8)
+   void SetTichonovRegularization(real_t tcoeff = 1.0e-8)
    {
       MFEM_VERIFY(tcoeff >= 0.0, "Tichonov coefficient cannot be negative");
       tichonov_coeff = tcoeff;
    }
 
    /// Return the total error from the last error estimate.
-   virtual double GetTotalError() const override { return total_error; }
+   virtual real_t GetTotalError() const override { return total_error; }
 
    /// Get a Vector with all element errors.
    virtual const Vector &GetLocalErrors() override
@@ -331,7 +331,7 @@ protected:
    long current_sequence;
    int local_norm_p; ///< Local L_p norm to use, default is 1.
    Vector error_estimates;
-   double total_error;
+   real_t total_error;
 
    BilinearFormIntegrator &integ;
    ParGridFunction &solution;
@@ -411,7 +411,7 @@ public:
    void SetLocalErrorNormP(int p) { local_norm_p = p; }
 
    /// Return the total error from the last error estimate.
-   virtual double GetTotalError() const override { return total_error; }
+   virtual real_t GetTotalError() const override { return total_error; }
 
    /// Get a Vector with all element errors.
    virtual const Vector &GetLocalErrors() override
@@ -452,7 +452,7 @@ protected:
    int local_norm_p;
    Vector error_estimates;
 
-   double total_error = 0.0;
+   real_t total_error = 0.0;
 
    Coefficient * coef;
    VectorCoefficient * vcoef;
@@ -557,18 +557,18 @@ class KellyErrorEstimator final : public ErrorEstimator
 public:
    /// Function type to compute the local coefficient hₑ of an element.
    using ElementCoefficientFunction =
-      std::function<double(Mesh*, const int)>;
+      std::function<real_t(Mesh*, const int)>;
    /** @brief Function type to compute the local coefficient hₖ of a face. The
        third argument is true for shared faces and false for local faces. */
    using FaceCoefficientFunction =
-      std::function<double(Mesh*, const int, const bool)>;
+      std::function<real_t(Mesh*, const int, const bool)>;
 
 private:
    int current_sequence = -1;
 
    Vector error_estimates;
 
-   double total_error = 0.0;
+   real_t total_error = 0.0;
 
    Array<int> attributes;
 
@@ -661,7 +661,7 @@ public:
    /// Reset the error estimator.
    void Reset() override { current_sequence = -1; };
 
-   virtual double GetTotalError() const override { return total_error; }
+   virtual real_t GetTotalError() const override { return total_error; }
 
    /** @brief Change the method to compute hₑ on a per-element basis.
        @param compute_element_coefficient_

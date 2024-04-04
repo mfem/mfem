@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -33,8 +33,13 @@ if (MFEM_USE_MPI)
     MAIN plor-transfer.cpp LIBRARIES mfem)
 endif()
 
-add_mfem_miniapp(check-tmop-metric
-  MAIN check-tmop-metric.cpp LIBRARIES mfem)
+add_mfem_miniapp(tmop-check-metric
+  MAIN tmop-check-metric.cpp LIBRARIES mfem)
+
+add_mfem_miniapp(tmop-metric-magnitude
+  MAIN tmop-metric-magnitude.cpp
+  ${MFEM_MINIAPPS_COMMON_HEADERS}
+  LIBRARIES mfem mfem-common)
 
 if (MFEM_USE_MPI)
    add_mfem_miniapp(nodal-transfer

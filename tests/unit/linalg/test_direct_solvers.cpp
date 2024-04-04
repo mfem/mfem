@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -24,6 +24,9 @@ using namespace mfem;
 #define DIRECT_SOLVE_PARALLEL
 #endif
 #ifdef MFEM_USE_SUPERLU
+#define DIRECT_SOLVE_PARALLEL
+#endif
+#ifdef MFEM_USE_STRUMPACK
 #define DIRECT_SOLVE_PARALLEL
 #endif
 
@@ -103,7 +106,7 @@ TEST_CASE("Serial Direct Solvers", "[CUDA]")
       Mesh mesh;
       if (dim == 1)
       {
-         mesh = Mesh::MakeCartesian1D(ne,  1.0);
+         mesh = Mesh::MakeCartesian1D(ne, 1.0);
       }
       else if (dim == 2)
       {
@@ -187,13 +190,13 @@ TEST_CASE("Parallel Direct Solvers", "[Parallel], [CUDA]")
 {
    int rank;
    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-   const int ne = 2;
+   const int ne = 4;
    for (int dim = 1; dim < 4; ++dim)
    {
       Mesh mesh;
       if (dim == 1)
       {
-         mesh = Mesh::MakeCartesian1D(ne,  1.0);
+         mesh = Mesh::MakeCartesian1D(ne, 1.0);
       }
       else if (dim == 2)
       {
@@ -298,6 +301,39 @@ TEST_CASE("Parallel Direct Solvers", "[Parallel], [CUDA]")
          superlu2.SetColumnPermutation(superlu::METIS_AT_PLUS_A);
          superlu2.SetOperator(SA2);
          superlu2.ArrayMult(BB, XX);
+
+         for (int i = 0; i < XX.Size(); i++)
+         {
+            A->Mult(*XX[i], Y);
+            Y -= *BB[i];
+            REQUIRE(Y.Norml2() < 1.e-12);
+         }
+
+         a.RecoverFEMSolution(X, b, x);
+         VectorFunctionCoefficient grad(dim, gradexact);
+         double error = x.ComputeH1Error(&uex, &grad);
+         REQUIRE(error < 1.e-12);
+      }
+#endif
+#ifdef MFEM_USE_STRUMPACK
+      // Transform to monolithic HypreParMatrix
+      {
+         STRUMPACKRowLocMatrix SA(*A.As<HypreParMatrix>());
+         STRUMPACKSolver strumpack(MPI_COMM_WORLD);
+         strumpack.SetPrintFactorStatistics(false);
+         strumpack.SetPrintSolveStatistics(false);
+         strumpack.SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
+         strumpack.SetReorderingStrategy(dim > 1 ? strumpack::ReorderingStrategy::METIS :
+                                         strumpack::ReorderingStrategy::NATURAL);
+         strumpack.SetOperator(SA);
+         strumpack.Mult(B, X);
+
+         Vector Y(X.Size());
+         A->Mult(X, Y);
+         Y -= B;
+         REQUIRE(Y.Norml2() < 1.e-12);
+
+         strumpack.ArrayMult(BB, XX);
 
          for (int i = 0; i < XX.Size(); i++)
          {
