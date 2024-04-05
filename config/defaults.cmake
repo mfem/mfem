@@ -259,7 +259,7 @@ set(PARELAG_LIBRARIES "${PARELAG_DIR}/build/src/libParELAG.a" CACHE STRING
     "The ParELAG library.")
 
 set(TRIBOL_DIR "${MFEM_DIR}/../tribol" CACHE PATH "Path to Tribol")
-set(Tribol_REQUIRED_PACKAGES "Axom/core/mint/sidre/slam/slic" CACHE STRING 
+set(Tribol_REQUIRED_PACKAGES "Axom/core/mint/slam/slic" CACHE STRING 
     "Additional packages required by Tribol")
 
 set(BLAS_INCLUDE_DIRS "" CACHE STRING "Path to BLAS headers.")
