@@ -1850,7 +1850,7 @@ NURBSPatch *Revolve3D(NURBSPatch &patch, real_t n[], real_t ang, int times)
 {
    if (patch.Dim != 4)
    {
-      mfem_error("Revolve3D(NURBSPatch &, double [], double)");
+      mfem_error("Revolve3D(NURBSPatch &, real_t [], real_t)");
    }
 
    int size = 1, ns;
@@ -2001,23 +2001,23 @@ NURBSExtension::NURBSExtension(std::istream &input, bool spacing)
          input >> numSpacing;
          for (int j = 0; j < numSpacing; j++)
          {
-            int ki, spacingType, numIntParam, numDoubleParam;
-            input >> ki >> spacingType >> numIntParam >> numDoubleParam;
+            int ki, spacingType, numIntParam, numreal_tParam;
+            input >> ki >> spacingType >> numIntParam >> numreal_tParam;
 
             MFEM_VERIFY(0 <= ki && ki < NumOfKnotVectors,
                         "Invalid knotvector index");
-            MFEM_VERIFY(numIntParam >= 0 && numDoubleParam >= 0,
+            MFEM_VERIFY(numIntParam >= 0 && numreal_tParam >= 0,
                         "Invalid number of parameters in KnotVector");
 
             Array<int> ipar(numIntParam);
-            Vector dpar(numDoubleParam);
+            Vector dpar(numreal_tParam);
 
             for (int i=0; i<numIntParam; ++i)
             {
                input >> ipar[i];
             }
 
-            for (int i=0; i<numDoubleParam; ++i)
+            for (int i=0; i<numreal_tParam; ++i)
             {
                input >> dpar[i];
             }
