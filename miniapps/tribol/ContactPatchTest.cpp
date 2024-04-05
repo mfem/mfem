@@ -238,15 +238,15 @@ int main(int argc, char *argv[])
    A_blk->SetBlock(0, 0, A.release());
 
    // Convert block operator to a single HypreParMatrix
-   mfem::Array2D<mfem::HypreParMatrix*> hypre_blocks(2, 2);
+   mfem::Array2D<const mfem::HypreParMatrix*> hypre_blocks(2, 2);
    for (int i{0}; i < 2; ++i)
    {
       for (int j{0}; j < 2; ++j)
       {
          if (A_blk->GetBlock(i, j).Height() != 0 && A_blk->GetBlock(i, j).Width() != 0)
          {
-            hypre_blocks(i, j) = const_cast<mfem::HypreParMatrix*>(
-                                    dynamic_cast<const mfem::HypreParMatrix*>(&A_blk->GetBlock(i, j)));
+            hypre_blocks(i, j) =
+               dynamic_cast<const mfem::HypreParMatrix*>(&A_blk->GetBlock(i, j));
          }
          else
          {
