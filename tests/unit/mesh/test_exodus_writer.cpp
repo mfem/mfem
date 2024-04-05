@@ -14,6 +14,7 @@
 
 using namespace mfem;
 
+#ifdef MFEM_USE_NETCDF
 static void CompareMeshes(Mesh & mesh1, Mesh & mesh2)
 {
    REQUIRE(mesh1.GetNE() == mesh2.GetNE());
@@ -90,6 +91,7 @@ static void CompareMeshes(Mesh & mesh1, Mesh & mesh2)
       REQUIRE(face_vertices1 == face_vertices2);
    }
 }
+#endif
 
 TEST_CASE("ExodusII Write Hex8", "[Mesh]")
 {
