@@ -593,7 +593,6 @@ TEST_CASE("Exponential", "[DenseMatrix]")
    REQUIRE(A(1,1) == MFEM_Approx(expA(1,1)));
 }
 
-
 #ifdef MFEM_USE_LAPACK
 
 enum class TestCase { GenEigSPD, GenEigGE, SVD};
