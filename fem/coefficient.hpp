@@ -1820,7 +1820,7 @@ public:
    /// Return the matrix coefficient
    MatrixCoefficient * GetACoef() const { return a; }
 
-   /// Evaluate the determinant coefficient at @a ip.
+   /// Evaluate the trace coefficient at @a ip.
    virtual real_t Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);
 };
