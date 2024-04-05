@@ -1334,6 +1334,45 @@ public:
    virtual ~MatrixArrayCoefficient();
 };
 
+/** @brief Matrix coefficient defined by a matrix of vector coefficients.
+    Coefficients that are not set will evaluate to zero in the vector. The
+    coefficient is stored as an Array indexing the rows of the matrix. */
+class MatrixArrayVectorCoefficient : public MatrixCoefficient
+{
+private:
+   Array<VectorCoefficient *> Coeff;
+   Array<bool> ownCoeff;
+
+public:
+   /** @brief Construct a coefficient matrix of dimensions @a dim * @a dim. The
+       actual coefficients still need to be added with Set(). */
+   explicit MatrixArrayVectorCoefficient (int dim);
+
+   /// Set the time for internally stored coefficients
+   void SetTime(real_t t);
+
+   /// Get the coefficient located at (i,j) in the matrix.
+   VectorCoefficient* GetCoeff (int i) { return Coeff[i]; }
+
+   /** @brief Set the coefficient located at the i-th row of the matrix.
+       By this will take ownership of the Coefficient passed in, but this
+       can be overridden with the @a own parameter. */
+   void Set(int i, VectorCoefficient * c, bool own=true);
+
+   using MatrixCoefficient::Eval;
+
+   /// Evaluate coefficient located at the i-th row of the matrix using integration
+   /// point @a ip.
+   void Eval(int i, Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip);
+
+   /// Evaluate the matrix coefficient @a ip.
+   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+
+   virtual ~MatrixArrayVectorCoefficient();
+};
+
 
 /** @brief Derived matrix coefficient that has the value of the parent matrix
     coefficient where it is active and is zero otherwise. */
