@@ -451,7 +451,7 @@ void NURBS_HDiv2DFiniteElement::CalcVShape(const IntegrationPoint &ip,
    int o = 0;
    for (int j = 0; j <= orders[1]; j++)
    {
-      const double sy = shape_y(j);
+      const real_t sy = shape_y(j);
       for (int i = 0; i <= orders[0]+1; i++, o++)
       {
          shape(o,0) = shape1_x(i)*sy;
@@ -461,7 +461,7 @@ void NURBS_HDiv2DFiniteElement::CalcVShape(const IntegrationPoint &ip,
 
    for (int j = 0; j <= orders[1]+1; j++)
    {
-      const double sy1 = shape1_y(j);
+      const real_t sy1 = shape1_y(j);
       for (int i = 0; i <= orders[0]; i++, o++)
       {
          shape(o,0) = 0.0;
@@ -480,8 +480,8 @@ void NURBS_HDiv2DFiniteElement::CalcVShape(ElementTransformation &Trans,
                "3 dimensional spaces");
    for (int i=0; i<dof; i++)
    {
-      double sx = shape(i, 0);
-      double sy = shape(i, 1);
+      real_t sx = shape(i, 0);
+      real_t sy = shape(i, 1);
       shape(i, 0) = sx * J(0, 0) + sy * J(0, 1);
       shape(i, 1) = sx * J(1, 0) + sy * J(1, 1);
    }
@@ -500,7 +500,7 @@ void NURBS_HDiv2DFiniteElement::CalcDivShape(const IntegrationPoint &ip,
    int o = 0;
    for (int j = 0; j <= orders[1]; j++)
    {
-      const double sy = shape_y(j);
+      const real_t sy = shape_y(j);
       for (int i = 0; i <= orders[0]+1; i++, o++)
       {
          divshape(o) = dshape1_x(i)*sy;
@@ -509,7 +509,7 @@ void NURBS_HDiv2DFiniteElement::CalcDivShape(const IntegrationPoint &ip,
 
    for (int j = 0; j <= orders[1]+1; j++)
    {
-      const double dsy1 = dshape1_y(j);
+      const real_t dsy1 = dshape1_y(j);
       for (int i = 0; i <= orders[0]; i++, o++)
       {
          divshape(o) = shape_x(i)*dsy1;
@@ -586,10 +586,10 @@ void NURBS_HDiv3DFiniteElement::CalcVShape(const IntegrationPoint &ip,
    int o = 0;
    for (int k = 0; k <= orders[2]; k++)
    {
-      const double sz = shape_z(k);
+      const real_t sz = shape_z(k);
       for (int j = 0; j <= orders[1]; j++)
       {
-         const double sy_sz = shape_y(j)*sz;
+         const real_t sy_sz = shape_y(j)*sz;
          for (int i = 0; i <= orders[0]+1; i++, o++)
          {
             shape(o,0) = shape1_x(i)*sy_sz;
@@ -599,10 +599,10 @@ void NURBS_HDiv3DFiniteElement::CalcVShape(const IntegrationPoint &ip,
 
    for (int  k = 0; k <= orders[2]; k++)
    {
-      const double sz = shape_z(k);
+      const real_t sz = shape_z(k);
       for (int j = 0; j <= orders[1]+1; j++)
       {
-         const double sy1_sz = shape1_y(j)*sz;
+         const real_t sy1_sz = shape1_y(j)*sz;
          for (int i = 0; i <= orders[0]; i++, o++)
          {
             shape(o,1) = shape_x(i)*sy1_sz;
@@ -612,10 +612,10 @@ void NURBS_HDiv3DFiniteElement::CalcVShape(const IntegrationPoint &ip,
 
    for (int  k = 0; k <= orders[2]+1; k++)
    {
-      const double sz1 = shape1_z(k);
+      const real_t sz1 = shape1_z(k);
       for (int j = 0; j <= orders[1]; j++)
       {
-         const double sy_sz1 = shape_y(j)*sz1;
+         const real_t sy_sz1 = shape_y(j)*sz1;
          for (int i = 0; i <= orders[0]; i++, o++)
          {
             shape(o,2) = shape_x(i)*sy_sz1;
@@ -634,9 +634,9 @@ void NURBS_HDiv3DFiniteElement::CalcVShape(ElementTransformation &Trans,
                "3 dimensional spaces");
    for (int i=0; i<dof; i++)
    {
-      double sx = shape(i, 0);
-      double sy = shape(i, 1);
-      double sz = shape(i, 2);
+      real_t sx = shape(i, 0);
+      real_t sy = shape(i, 1);
+      real_t sz = shape(i, 2);
       shape(i, 0) = sx * J(0, 0) + sy * J(0, 1) + sz * J(0, 2);
       shape(i, 1) = sx * J(1, 0) + sy * J(1, 1) + sz * J(1, 2);
       shape(i, 2) = sx * J(2, 0) + sy * J(2, 1) + sz * J(2, 2);
@@ -658,10 +658,10 @@ void NURBS_HDiv3DFiniteElement::CalcDivShape(const IntegrationPoint &ip,
    int o = 0;
    for (int  k = 0; k <= orders[2]; k++)
    {
-      const double sz = shape_z(k);
+      const real_t sz = shape_z(k);
       for (int j = 0; j <= orders[1]; j++)
       {
-         const double sy_sz = shape_y(j)*sz;
+         const real_t sy_sz = shape_y(j)*sz;
          for (int i = 0; i <= orders[0]+1; i++, o++)
          {
             divshape(o) = dshape1_x(i)*sy_sz;
@@ -671,10 +671,10 @@ void NURBS_HDiv3DFiniteElement::CalcDivShape(const IntegrationPoint &ip,
 
    for (int  k = 0; k <= orders[2]; k++)
    {
-      const double sz = shape_z(k);
+      const real_t sz = shape_z(k);
       for (int j = 0; j <= orders[1]+1; j++)
       {
-         const double dy1_sz = dshape1_y(j)*sz;
+         const real_t dy1_sz = dshape1_y(j)*sz;
          for (int i = 0; i <= orders[0]; i++, o++)
          {
             divshape(o) = shape_x(i)*dy1_sz;
@@ -684,10 +684,10 @@ void NURBS_HDiv3DFiniteElement::CalcDivShape(const IntegrationPoint &ip,
 
    for (int  k = 0; k <= orders[2]+1; k++)
    {
-      const double dz1 = dshape1_z(k);
+      const real_t dz1 = dshape1_z(k);
       for (int j = 0; j <= orders[1]; j++)
       {
-         const double sy_dz1 = shape_y(j)*dz1;
+         const real_t sy_dz1 = shape_y(j)*dz1;
          for (int i = 0; i <= orders[0]; i++, o++)
          {
             divshape(o) = shape_x(i)*sy_dz1;
@@ -752,7 +752,7 @@ void NURBS_HCurl2DFiniteElement::CalcVShape(const IntegrationPoint &ip,
    int o = 0;
    for (int j = 0; j <= orders[1]+1; j++)
    {
-      const double sy1 = shape1_y(j);
+      const real_t sy1 = shape1_y(j);
       for (int i = 0; i <= orders[0]; i++, o++)
       {
          shape(o,0) = shape_x(i)*sy1;
@@ -762,7 +762,7 @@ void NURBS_HCurl2DFiniteElement::CalcVShape(const IntegrationPoint &ip,
 
    for (int j = 0; j <= orders[1]; j++)
    {
-      const double sy = shape_y(j);
+      const real_t sy = shape_y(j);
       for (int i = 0; i <= orders[0]+1; i++, o++)
       {
          shape(o,0) = 0.0;
@@ -781,8 +781,8 @@ void NURBS_HCurl2DFiniteElement::CalcVShape(ElementTransformation &Trans,
                "3 dimensional spaces");
    for (int i=0; i<dof; i++)
    {
-      double sx = shape(i, 0);
-      double sy = shape(i, 1);
+      real_t sx = shape(i, 0);
+      real_t sy = shape(i, 1);
       shape(i, 0) = sx * JI(0, 0) + sy * JI(1, 0);
       shape(i, 1) = sx * JI(0, 1) + sy * JI(1, 1);
    }
@@ -800,7 +800,7 @@ void NURBS_HCurl2DFiniteElement::CalcCurlShape(const IntegrationPoint &ip,
    int o = 0;
    for (int j = 0; j <= orders[1]+1; j++)
    {
-      const double dsy1 = dshape1_y(j);
+      const real_t dsy1 = dshape1_y(j);
       for (int i = 0; i <= orders[0]; i++, o++)
       {
          curl_shape(o,0) = -shape_x(i)*dsy1;
@@ -809,7 +809,7 @@ void NURBS_HCurl2DFiniteElement::CalcCurlShape(const IntegrationPoint &ip,
 
    for (int j = 0; j <= orders[1]; j++)
    {
-      const double sy = shape_y(j);
+      const real_t sy = shape_y(j);
       for (int i = 0; i <= orders[0]+1; i++, o++)
       {
          curl_shape(o,0) = dshape1_x(i)*sy;
@@ -886,10 +886,10 @@ void NURBS_HCurl3DFiniteElement::CalcVShape(const IntegrationPoint &ip,
    int o = 0;
    for (int  k = 0; k <= orders[2]+1; k++)
    {
-      const double sz1 = shape1_z(k);
+      const real_t sz1 = shape1_z(k);
       for (int j = 0; j <= orders[1]+1; j++)
       {
-         const double sy1_sz1 = shape1_y(j)*sz1;
+         const real_t sy1_sz1 = shape1_y(j)*sz1;
          for (int i = 0; i <= orders[0]; i++, o++)
          {
             shape(o,0) = shape_x(i)*sy1_sz1;
@@ -899,10 +899,10 @@ void NURBS_HCurl3DFiniteElement::CalcVShape(const IntegrationPoint &ip,
 
    for (int  k = 0; k <= orders[2]+1; k++)
    {
-      const double sz1 = shape1_z(k);
+      const real_t sz1 = shape1_z(k);
       for (int j = 0; j <= orders[1]; j++)
       {
-         const double sy_sz1 = shape_y(j)*sz1;
+         const real_t sy_sz1 = shape_y(j)*sz1;
          for (int i = 0; i <= orders[0]+1; i++, o++)
          {
             shape(o,1) = shape1_x(i)*sy_sz1;
@@ -912,10 +912,10 @@ void NURBS_HCurl3DFiniteElement::CalcVShape(const IntegrationPoint &ip,
 
    for (int  k = 0; k <= orders[2]; k++)
    {
-      const double sz = shape_z(k);
+      const real_t sz = shape_z(k);
       for (int j = 0; j <= orders[1]+1; j++)
       {
-         const double sy1_sz = shape1_y(j)*sz;
+         const real_t sy1_sz = shape1_y(j)*sz;
          for (int i = 0; i <= orders[0]+1; i++, o++)
          {
             shape(o,2) = shape1_x(i)*sy1_sz;
@@ -934,9 +934,9 @@ void NURBS_HCurl3DFiniteElement::CalcVShape(ElementTransformation &Trans,
                "3 dimensional spaces");
    for (int i=0; i<dof; i++)
    {
-      double sx = shape(i, 0);
-      double sy = shape(i, 1);
-      double sz = shape(i, 2);
+      real_t sx = shape(i, 0);
+      real_t sy = shape(i, 1);
+      real_t sz = shape(i, 2);
       shape(i, 0) = sx * JI(0, 0) + sy * JI(1, 0) + sz * JI(2, 0);
       shape(i, 1) = sx * JI(0, 1) + sy * JI(1, 1) + sz * JI(2, 1);
       shape(i, 2) = sx * JI(0, 2) + sy * JI(1, 2) + sz * JI(2, 2);
@@ -961,10 +961,10 @@ void NURBS_HCurl3DFiniteElement::CalcCurlShape(const IntegrationPoint &ip,
    int o = 0;
    for (int  k = 0; k <= orders[2]+1; k++)
    {
-      const double sz1 = shape1_z(k), dsz1 = dshape1_z(k);
+      const real_t sz1 = shape1_z(k), dsz1 = dshape1_z(k);
       for (int j = 0; j <= orders[1]+1; j++)
       {
-         const double sy1_dsz1 = shape1_y(j)*dsz1,
+         const real_t sy1_dsz1 = shape1_y(j)*dsz1,
                       dsy1_sz1 = dshape1_y(j)*sz1;
          for (int i = 0; i <= orders[0]; i++, o++)
          {
@@ -977,10 +977,10 @@ void NURBS_HCurl3DFiniteElement::CalcCurlShape(const IntegrationPoint &ip,
 
    for (int  k = 0; k <= orders[2]+1; k++)
    {
-      const double sz1 = shape1_z(k), dsz1 = dshape1_z(k);
+      const real_t sz1 = shape1_z(k), dsz1 = dshape1_z(k);
       for (int j = 0; j <= orders[1]; j++)
       {
-         const double sy_dsz1 = shape_y(j)*dsz1,
+         const real_t sy_dsz1 = shape_y(j)*dsz1,
                       sy_sz1 = shape_y(j)*sz1;
          for (int i = 0; i <= orders[0]+1; i++, o++)
          {
@@ -993,10 +993,10 @@ void NURBS_HCurl3DFiniteElement::CalcCurlShape(const IntegrationPoint &ip,
 
    for (int  k = 0; k <= orders[2]; k++)
    {
-      const double sz = shape_z(k);
+      const real_t sz = shape_z(k);
       for (int j = 0; j <= orders[1]+1; j++)
       {
-         const double sy1_sz = shape1_y(j)*sz,
+         const real_t sy1_sz = shape1_y(j)*sz,
                       dsy1_sz = dshape1_y(j)*sz;
          for (int i = 0; i <= orders[0]+1; i++, o++)
          {
