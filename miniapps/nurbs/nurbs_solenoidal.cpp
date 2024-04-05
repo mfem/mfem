@@ -392,7 +392,7 @@ int main(int argc, char *argv[])
 
    if (err_div > 1e-12)
    {
-      mfem_error("Divergence error larger then expected");
+      mfem_error("Divergence error larger than expected");
    }
 
    return 0;
