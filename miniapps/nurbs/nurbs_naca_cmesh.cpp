@@ -97,7 +97,7 @@ unique_ptr<KnotVector> TanhKnotVector(int order, int ncp, real_t c);
 // Function that returns a knot vector with a hyperbolic tangent spacing from
 // both sides of the knot vector with a cut-off @c using the @a order and the
 // number of control points @a ncp.
-unique_ptr<KnotVector> DoubleTanhKnotVector(int order, int ncp, real_t c);
+unique_ptr<KnotVector> RealTanhKnotVector(int order, int ncp, real_t c);
 
 // Function that evaluates a linear function which describes the boundary
 // distance based on the flair angle @a flair, smallest boundary distance @a bd
@@ -205,7 +205,7 @@ int main(int argc, char *argv[])
    unique_ptr<KnotVector> kv1 = PowerStretchKnotVector(order, ncp_tail,
                                                        -str_tail);
    unique_ptr<KnotVector> kv3 = PowerStretchKnotVector(order, ncp_tail, str_tail);
-   unique_ptr<KnotVector> kv2 = DoubleTanhKnotVector(order, ncp_tip, str_tip);
+   unique_ptr<KnotVector> kv2 = RealTanhKnotVector(order, ncp_tip, str_tip);
    unique_ptr<KnotVector> kvr = TanhKnotVector(order, ncp_bnd, str_bnd);
 
    unique_ptr<KnotVector> kv_o1 = UniformKnotVector(1, 2);
@@ -774,7 +774,7 @@ unique_ptr<KnotVector> TanhKnotVector(int order, int ncp, real_t c)
    return kv;
 }
 
-unique_ptr<KnotVector> DoubleTanhKnotVector(int order, int ncp, real_t c)
+unique_ptr<KnotVector> RealTanhKnotVector(int order, int ncp, real_t c)
 {
    unique_ptr<KnotVector> kv(UniformKnotVector(order, ncp));
 
