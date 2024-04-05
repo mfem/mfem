@@ -18,7 +18,6 @@
 //
 // Sample runs:  nurbs_solenoidal -m ../../data/square-nurbs.mesh -o 2
 //               nurbs_solenoidal -m ../../data/cube-nurbs.mesh -o 2
-//               nurbs_solenoidal -m ../../data/pipe-nurbs-2d.mesh -o 2
 //
 // Description:  This code projects a velocity field, and forces this field
 //               to be solenoidal, viz. the divergence is zero. If the correct
@@ -108,7 +107,7 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly, -1 for auto.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
-   args.AddOption(&div_free, "-df", "--dif-free", "-p","--proj",
+   args.AddOption(&div_free, "-df", "--div-free", "-p","--proj",
                   "Div-free or standard projection.");
    args.AddOption(&NURBS, "-n", "--nurbs", "-nn","--no-nurbs",
                   "NURBS.");
