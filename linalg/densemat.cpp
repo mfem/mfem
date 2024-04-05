@@ -551,13 +551,13 @@ void DenseMatrix::Exponential()
       {
          /// Formulas from Corollary 2.4 of doi:10.1109/9.233156
          /// Note typo in the paper, in the prefactor in the equation under (i).
-         real_t a = data[0];
-         real_t b = data[1];
-         real_t c = data[2];
-         real_t d = data[3];
-         real_t e = (a - d)*(a - d) + 4*b*c;
-         real_t f = std::exp((a + d)/2.0);
-         real_t g = std::sqrt(std::abs(e)) / 2.0;
+         const real_t a = data[0];
+         const real_t b = data[1];
+         const real_t c = data[2];
+         const real_t d = data[3];
+         const real_t e = (a - d)*(a - d) + 4*b*c;
+         const real_t f = std::exp((a + d)/2.0);
+         const real_t g = std::sqrt(std::abs(e)) / 2.0;
 
          if (e == 0)
          {
