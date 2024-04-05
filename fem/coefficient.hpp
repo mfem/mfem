@@ -1800,6 +1800,31 @@ public:
                        const IntegrationPoint &ip);
 };
 
+/// Scalar coefficient defined as the trace of a matrix coefficient
+class TraceCoefficient : public Coefficient
+{
+private:
+   MatrixCoefficient * a;
+
+   mutable DenseMatrix ma;
+
+public:
+   /// Construct with the matrix.
+   TraceCoefficient(MatrixCoefficient &A);
+
+   /// Set the time for internally stored coefficients
+   void SetTime(real_t t);
+
+   /// Reset the matrix coefficient
+   void SetACoef(MatrixCoefficient &A) { a = &A; }
+   /// Return the matrix coefficient
+   MatrixCoefficient * GetACoef() const { return a; }
+
+   /// Evaluate the determinant coefficient at @a ip.
+   virtual real_t Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip);
+};
+
 /// Vector coefficient defined as the linear combination of two vectors
 class VectorSumCoefficient : public VectorCoefficient
 {

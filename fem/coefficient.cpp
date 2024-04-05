@@ -1107,6 +1107,27 @@ real_t DeterminantCoefficient::Eval(ElementTransformation &T,
    return ma.Det();
 }
 
+TraceCoefficient::TraceCoefficient(MatrixCoefficient &A)
+   : a(&A), ma(A.GetHeight(), A.GetWidth())
+{
+   MFEM_ASSERT(A.GetHeight() == A.GetWidth(),
+               "TraceCoefficient:  "
+               "Argument must be a square matrix.");
+}
+
+void TraceCoefficient::SetTime(real_t t)
+{
+   if (a) { a->SetTime(t); }
+   this->Coefficient::SetTime(t);
+}
+
+real_t TraceCoefficient::Eval(ElementTransformation &T,
+                              const IntegrationPoint &ip)
+{
+   a->Eval(ma, T, ip);
+   return ma.Trace();
+}
+
 VectorSumCoefficient::VectorSumCoefficient(int dim)
    : VectorCoefficient(dim),
      ACoef(NULL), BCoef(NULL),
