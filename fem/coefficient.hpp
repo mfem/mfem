@@ -1334,6 +1334,46 @@ public:
    virtual ~MatrixArrayCoefficient();
 };
 
+/** @brief Matrix coefficient defined row-wise by an array of vector
+    coefficients. Rows that are not set will evaluate to zero. The
+    matrix coefficient is stored as an array indexing the rows of
+    the matrix. */
+class MatrixArrayVectorCoefficient : public MatrixCoefficient
+{
+private:
+   Array<VectorCoefficient *> Coeff;
+   Array<bool> ownCoeff;
+
+public:
+   /** @brief Construct a coefficient matrix of dimensions @a dim * @a dim. The
+       actual coefficients still need to be added with Set(). */
+   explicit MatrixArrayVectorCoefficient (int dim);
+
+   /// Set the time for internally stored coefficients
+   void SetTime(real_t t);
+
+   /// Get the coefficient located at (i,j) in the matrix.
+   VectorCoefficient* GetCoeff (int i) { return Coeff[i]; }
+
+   /** @brief Set the coefficient located at the i-th row of the matrix.
+       By this will take ownership of the Coefficient passed in, but this
+       can be overridden with the @a own parameter. */
+   void Set(int i, VectorCoefficient * c, bool own=true);
+
+   using MatrixCoefficient::Eval;
+
+   /// Evaluate coefficient located at the i-th row of the matrix using integration
+   /// point @a ip.
+   void Eval(int i, Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip);
+
+   /// Evaluate the matrix coefficient @a ip.
+   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+
+   virtual ~MatrixArrayVectorCoefficient();
+};
+
 
 /** @brief Derived matrix coefficient that has the value of the parent matrix
     coefficient where it is active and is zero otherwise. */
@@ -1757,6 +1797,31 @@ public:
    MatrixCoefficient * GetACoef() const { return a; }
 
    /// Evaluate the determinant coefficient at @a ip.
+   virtual real_t Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip);
+};
+
+/// Scalar coefficient defined as the trace of a matrix coefficient
+class TraceCoefficient : public Coefficient
+{
+private:
+   MatrixCoefficient * a;
+
+   mutable DenseMatrix ma;
+
+public:
+   /// Construct with the matrix.
+   TraceCoefficient(MatrixCoefficient &A);
+
+   /// Set the time for internally stored coefficients
+   void SetTime(real_t t);
+
+   /// Reset the matrix coefficient
+   void SetACoef(MatrixCoefficient &A) { a = &A; }
+   /// Return the matrix coefficient
+   MatrixCoefficient * GetACoef() const { return a; }
+
+   /// Evaluate the trace coefficient at @a ip.
    virtual real_t Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);
 };

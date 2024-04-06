@@ -924,6 +924,78 @@ void MatrixArrayCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
    }
 }
 
+MatrixArrayVectorCoefficient::MatrixArrayVectorCoefficient (int dim)
+   : MatrixCoefficient (dim)
+{
+   Coeff.SetSize(height);
+   ownCoeff.SetSize(height);
+   for (int i = 0; i < height; i++)
+   {
+      Coeff[i] = NULL;
+      ownCoeff[i] = true;
+   }
+}
+
+void MatrixArrayVectorCoefficient::SetTime(real_t t)
+{
+   for (int i=0; i < height; i++)
+   {
+      if (Coeff[i]) { Coeff[i]->SetTime(t); }
+   }
+   this->MatrixCoefficient::SetTime(t);
+}
+
+void MatrixArrayVectorCoefficient::Set(int i, VectorCoefficient * c, bool own)
+{
+   MFEM_ASSERT(i < height && i >= 0, "Row "
+               << i << " does not exist. " <<
+               "Matrix height = " << height << ".");
+   if (ownCoeff[i]) { delete Coeff[i]; }
+   Coeff[i] = c;
+   ownCoeff[i] = own;
+}
+
+MatrixArrayVectorCoefficient::~MatrixArrayVectorCoefficient ()
+{
+   for (int i=0; i < height; i++)
+   {
+      if (ownCoeff[i]) { delete Coeff[i]; }
+   }
+}
+
+void MatrixArrayVectorCoefficient::Eval(int i, Vector &V,
+                                        ElementTransformation &T,
+                                        const IntegrationPoint &ip)
+{
+   MFEM_ASSERT(i < height && i >= 0, "Row "
+               << i << " does not exist. " <<
+               "Matrix height = " << height << ".");
+   if (Coeff[i])
+   {
+      Coeff[i] -> Eval(V, T, ip);
+   }
+   else
+   {
+      V = 0.0;
+   }
+}
+
+void MatrixArrayVectorCoefficient::Eval(DenseMatrix &K,
+                                        ElementTransformation &T,
+                                        const IntegrationPoint &ip)
+{
+   K.SetSize(height, width);
+   for (int i = 0; i < height; i++)
+   {
+      Vector V(width);
+      this->Eval(i, V, T, ip);
+      for (int j = 0; j < width; j++)
+      {
+         K(i,j) = V(j);
+      }
+   }
+}
+
 void MatrixRestrictedCoefficient::SetTime(real_t t)
 {
    if (c) { c->SetTime(t); }
@@ -1039,6 +1111,27 @@ real_t DeterminantCoefficient::Eval(ElementTransformation &T,
 {
    a->Eval(ma, T, ip);
    return ma.Det();
+}
+
+TraceCoefficient::TraceCoefficient(MatrixCoefficient &A)
+   : a(&A), ma(A.GetHeight(), A.GetWidth())
+{
+   MFEM_ASSERT(A.GetHeight() == A.GetWidth(),
+               "TraceCoefficient:  "
+               "Argument must be a square matrix.");
+}
+
+void TraceCoefficient::SetTime(real_t t)
+{
+   if (a) { a->SetTime(t); }
+   this->Coefficient::SetTime(t);
+}
+
+real_t TraceCoefficient::Eval(ElementTransformation &T,
+                              const IntegrationPoint &ip)
+{
+   a->Eval(ma, T, ip);
+   return ma.Trace();
 }
 
 VectorSumCoefficient::VectorSumCoefficient(int dim)
