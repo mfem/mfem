@@ -337,7 +337,6 @@ TEST_CASE("MatrixArrayVectorCoefficient", "[Coefficient]")
 
    // Test setting individual rows
    row = 0;
-   // mavc.Set(row, &Coef1, true); // doesn't work
    mavc.Set(row, &Coef1, false);
    mavc.Eval(row, V, T, ip);
    REQUIRE(V(0) == MFEM_Approx(0.0));
