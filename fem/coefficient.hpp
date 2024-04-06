@@ -1334,9 +1334,10 @@ public:
    virtual ~MatrixArrayCoefficient();
 };
 
-/** @brief Matrix coefficient defined by a matrix of vector coefficients.
-    Coefficients that are not set will evaluate to zero in the vector. The
-    coefficient is stored as an Array indexing the rows of the matrix. */
+/** @brief Matrix coefficient defined row-wise by an array of vector
+    coefficients. Rows that are not set will evaluate to zero. The
+    matrix coefficient is stored as an array indexing the rows of
+    the matrix. */
 class MatrixArrayVectorCoefficient : public MatrixCoefficient
 {
 private:

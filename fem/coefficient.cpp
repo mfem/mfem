@@ -929,7 +929,7 @@ MatrixArrayVectorCoefficient::MatrixArrayVectorCoefficient (int dim)
 {
    Coeff.SetSize(height);
    ownCoeff.SetSize(height);
-   for (int i = 0; i < (height); i++)
+   for (int i = 0; i < height; i++)
    {
       Coeff[i] = NULL;
       ownCoeff[i] = true;
@@ -947,6 +947,9 @@ void MatrixArrayVectorCoefficient::SetTime(real_t t)
 
 void MatrixArrayVectorCoefficient::Set(int i, VectorCoefficient * c, bool own)
 {
+   MFEM_ASSERT(i < height && i >= 0, "Row "
+               << i << " does not exist. " <<
+               "Matrix height = " << height << ".");
    if (ownCoeff[i]) { delete Coeff[i]; }
    Coeff[i] = c;
    ownCoeff[i] = own;
@@ -964,6 +967,9 @@ void MatrixArrayVectorCoefficient::Eval(int i, Vector &V,
                                         ElementTransformation &T,
                                         const IntegrationPoint &ip)
 {
+   MFEM_ASSERT(i < height && i >= 0, "Row "
+               << i << " does not exist. " <<
+               "Matrix height = " << height << ".");
    if (Coeff[i])
    {
       Coeff[i] -> Eval(V, T, ip);
