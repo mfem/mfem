@@ -131,7 +131,7 @@ void RationalApproximation_AAA(const Vector &val, const Vector &pt,
       }
 
 #ifdef MFEM_USE_LAPACK
-      DenseMatrixSVD svd(Am,false,true);
+      DenseMatrixSVD svd(Am,'N','A');
       svd.Eval(Am);
       DenseMatrix &v = svd.RightSingularvectors();
       v.GetRow(k,w);
