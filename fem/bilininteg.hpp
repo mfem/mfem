@@ -3638,7 +3638,7 @@ public:
 
 /** Integrator for the form:$ \langle v, [w \cdot n] \rangle $ over all faces (the interface) where
     the trial variable $v$ is defined on the interface and the test variable $w$ is
-    in an $H(div)$-conforming space. */
+    in an $H(div)$-conforming space or in a DG space. */
 class NormalTraceJumpIntegrator : public BilinearFormIntegrator
 {
 private:
