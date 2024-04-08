@@ -59,7 +59,7 @@ public:
    /// @param y L-vector layout.
    /// @param a Optional coefficient (y = y + a*R^t*x)
    void AddMultTranspose(const Vector &x, Vector &y,
-                         const double a = 1.0) const;
+                         const real_t a = 1.0) const;
 
    /// @name Internal compute kernels. Public because of nvcc restriction.
    ///@{
@@ -68,13 +68,13 @@ public:
    void Mult2D(const Vector &x, Vector &y) const;
 
    template <int T_D1D = 0>
-   void AddMultTranspose2D(const Vector &x, Vector &y, const double a) const;
+   void AddMultTranspose2D(const Vector &x, Vector &y, const real_t a) const;
 
    template <int T_D1D = 0>
    void Mult3D(const Vector &x, Vector &y) const;
 
    template <int T_D1D = 0>
-   void AddMultTranspose3D(const Vector &x, Vector &y, const double a) const;
+   void AddMultTranspose3D(const Vector &x, Vector &y, const real_t a) const;
 
    /// @}
 };
