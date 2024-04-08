@@ -1369,7 +1369,7 @@ public:
 
    /// Evaluate the matrix coefficient @a ip.
    void Eval(DenseMatrix &K, ElementTransformation &T,
-                     const IntegrationPoint &ip) override;
+             const IntegrationPoint &ip) override;
 
    virtual ~MatrixArrayVectorCoefficient();
 };
