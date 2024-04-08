@@ -70,6 +70,9 @@ Miscellaneous
   IntegrationRules IntRules, RefinedIntRules, GeometryRefiner
   GlobGeometryRefiner, and FiniteElement::dof2quad_array.
 
+- PETSc integration now generally requires PETSc version 3.21 or later, though
+  depending on the functionality older versions may still work.
+
 - RAJA backend will use seq_exec for serial loop execution when RAJA
   v2023.06.00 and beyond is detected as loop_exec is deprecated.
 
