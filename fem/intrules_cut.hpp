@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -364,9 +364,9 @@ inline void GetDivFree3DBasis(const Vector& X, DenseMatrix& shape, int Order)
    shape.SetSize(nBasis, 3);
    shape = 0.;
 
-   double xi = X(0);
-   double eta = X(1);
-   double nu = X(2);
+   real_t xi = X(0);
+   real_t eta = X(1);
+   real_t nu = X(2);
 
    switch (Order)
    {

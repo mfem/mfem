@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -22,13 +22,13 @@ private:
 
    /** 2D array of size (dim,2) representing the length of the PML
        region in each direction */
-   Array2D<double> length;
+   Array2D<real_t> length;
 
    /// 2D array of size (dim,2) representing the Computational Domain Boundary
-   Array2D<double> comp_dom_bdr;
+   Array2D<real_t> comp_dom_bdr;
 
    /// 2D array of size (dim,2) representing the Domain Boundary
-   Array2D<double> dom_bdr;
+   Array2D<real_t> dom_bdr;
 
    /** Integer Array identifying elements in the pml
        0: in the pml, 1: not in the pml */
@@ -41,18 +41,18 @@ public:
    /** Constructor of the PML region using the mesh @a mesh_ and
        the 2D array of size (dim,2) @a length_ which represents the
        length of the PML in each direction. */
-   CartesianPML(Mesh *mesh_, const Array2D<double> &length_);
+   CartesianPML(Mesh *mesh_, const Array2D<real_t> &length_);
 
    int dim;
-   double omega;
+   real_t omega;
    // Default values for Maxwell
-   double epsilon = 1.0;
-   double mu = 1.0;
+   real_t epsilon = 1.0;
+   real_t mu = 1.0;
    /// Return Computational Domain Boundary
-   const Array2D<double> & GetCompDomainBdr() {return comp_dom_bdr;}
+   const Array2D<real_t> & GetCompDomainBdr() {return comp_dom_bdr;}
 
    /// Return Domain Boundary
-   const Array2D<double> & GetDomainBdr() {return dom_bdr;}
+   const Array2D<real_t> & GetDomainBdr() {return dom_bdr;}
 
    /// Return Marker list for elements
    const Array<int> & GetMarkedPMLElements() {return elems;}
@@ -61,14 +61,14 @@ public:
    void SetAttributes(Mesh *mesh_, Array<int> * attrNonPML = nullptr,
                       Array<int> * attrPML = nullptr);
 
-   void SetOmega(double omega_) {omega = omega_;}
-   void SetEpsilonAndMu(double epsilon_, double mu_)
+   void SetOmega(real_t omega_) {omega = omega_;}
+   void SetEpsilonAndMu(real_t epsilon_, real_t mu_)
    {
       epsilon = epsilon_;
       mu = mu_;
    }
    /// PML complex stretching function
-   void StretchFunction(const Vector &x, std::vector<std::complex<double>> &dxs);
+   void StretchFunction(const Vector &x, std::vector<std::complex<real_t>> &dxs);
 };
 
 
@@ -76,14 +76,14 @@ class PmlCoefficient : public Coefficient
 {
 private:
    CartesianPML * pml = nullptr;
-   double (*Function)(const Vector &, CartesianPML * );
+   real_t (*Function)(const Vector &, CartesianPML * );
 public:
-   PmlCoefficient(double (*F)(const Vector &, CartesianPML *), CartesianPML * pml_)
+   PmlCoefficient(real_t (*F)(const Vector &, CartesianPML *), CartesianPML * pml_)
       : pml(pml_), Function(F)
    {}
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip)
    {
-      double x[3];
+      real_t x[3];
       Vector transip(x, 3);
       T.Transform(ip, transip);
       return ((*Function)(transip, pml));
@@ -104,7 +104,7 @@ public:
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip)
    {
-      double x[3];
+      real_t x[3];
       Vector transip(x, 3);
       T.Transform(ip, transip);
       K.SetSize(height, width);
@@ -114,9 +114,9 @@ public:
 
 /// PML stretching functions: See https://doi.org/10.1006/jcph.1994.1159
 // Helmholtz
-double detJ_r_function(const Vector & x, CartesianPML * pml);
-double detJ_i_function(const Vector & x, CartesianPML * pml);
-double abs_detJ_2_function(const Vector & x, CartesianPML * pml);
+real_t detJ_r_function(const Vector & x, CartesianPML * pml);
+real_t detJ_i_function(const Vector & x, CartesianPML * pml);
+real_t abs_detJ_2_function(const Vector & x, CartesianPML * pml);
 
 void Jt_J_detJinv_r_function(const Vector & x, CartesianPML * pml,
                              DenseMatrix & M);

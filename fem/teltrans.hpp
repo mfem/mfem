@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -29,7 +29,7 @@ namespace mfem
     points. The desired result is specified through the template subclass Result
     and stored in an object of the same type.
 */
-template <typename Mesh_t, typename IR, typename real_t = double>
+template <typename Mesh_t, typename IR, typename real_t = real_t>
 class TElementTransformation
 {
 public:
