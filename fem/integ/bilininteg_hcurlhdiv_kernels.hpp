@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -30,7 +30,7 @@ void PAHcurlHdivMassSetup2D(const int Q1D,
                             const int coeffDim,
                             const int NE,
                             const bool transpose,
-                            const Array<double> &w_,
+                            const Array<real_t> &w_,
                             const Vector &j,
                             Vector &coeff_,
                             Vector &op);
@@ -40,7 +40,7 @@ void PAHcurlHdivMassSetup3D(const int Q1D,
                             const int coeffDim,
                             const int NE,
                             const bool transpose,
-                            const Array<double> &w_,
+                            const Array<real_t> &w_,
                             const Vector &j,
                             Vector &coeff_,
                             Vector &op);
@@ -53,10 +53,10 @@ void PAHcurlHdivMassApply2D(const int D1D,
                             const bool scalarCoeff,
                             const bool trialHcurl,
                             const bool transpose,
-                            const Array<double> &Bo_,
-                            const Array<double> &Bc_,
-                            const Array<double> &Bot_,
-                            const Array<double> &Bct_,
+                            const Array<real_t> &Bo_,
+                            const Array<real_t> &Bc_,
+                            const Array<real_t> &Bot_,
+                            const Array<real_t> &Bct_,
                             const Vector &op_,
                             const Vector &x_,
                             Vector &y_);
@@ -69,10 +69,10 @@ void PAHcurlHdivMassApply3D(const int D1D,
                             const bool scalarCoeff,
                             const bool trialHcurl,
                             const bool transpose,
-                            const Array<double> &Bo_,
-                            const Array<double> &Bc_,
-                            const Array<double> &Bot_,
-                            const Array<double> &Bct_,
+                            const Array<real_t> &Bo_,
+                            const Array<real_t> &Bc_,
+                            const Array<real_t> &Bot_,
+                            const Array<real_t> &Bct_,
                             const Vector &op_,
                             const Vector &x_,
                             Vector &y_);
@@ -83,11 +83,11 @@ inline void PAHcurlHdivApply3D(const int d1d,
                                const int d1dtest,
                                const int q1d,
                                const int NE,
-                               const Array<double> &bo,
-                               const Array<double> &bc,
-                               const Array<double> &bot,
-                               const Array<double> &bct,
-                               const Array<double> &gc,
+                               const Array<real_t> &bo,
+                               const Array<real_t> &bc,
+                               const Array<real_t> &bot,
+                               const Array<real_t> &bct,
+                               const Array<real_t> &gc,
                                const Vector &pa_data,
                                const Vector &x,
                                Vector &y)
@@ -128,7 +128,7 @@ inline void PAHcurlHdivApply3D(const int d1d,
       const int D1Dtest = T_D1D_TEST ? T_D1D_TEST : d1dtest;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-      double curl[MQ1D][MQ1D][MQ1D][VDIM];
+      real_t curl[MQ1D][MQ1D][MQ1D][VDIM];
       // curl[qz][qy][qx] will be computed as the vector curl at each quadrature point.
 
       for (int qz = 0; qz < Q1D; ++qz)
@@ -157,7 +157,7 @@ inline void PAHcurlHdivApply3D(const int d1d,
 
          for (int dz = 0; dz < D1Dz; ++dz)
          {
-            double gradXY[MQ1D][MQ1D][2];
+            real_t gradXY[MQ1D][MQ1D][2];
             for (int qy = 0; qy < Q1D; ++qy)
             {
                for (int qx = 0; qx < Q1D; ++qx)
@@ -171,7 +171,7 @@ inline void PAHcurlHdivApply3D(const int d1d,
 
             for (int dy = 0; dy < D1Dy; ++dy)
             {
-               double massX[MQ1D];
+               real_t massX[MQ1D];
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   massX[qx] = 0.0;
@@ -179,7 +179,7 @@ inline void PAHcurlHdivApply3D(const int d1d,
 
                for (int dx = 0; dx < D1Dx; ++dx)
                {
-                  const double t = X(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                  const real_t t = X(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
                      massX[qx] += t * Bo(qx,dx);
@@ -188,11 +188,11 @@ inline void PAHcurlHdivApply3D(const int d1d,
 
                for (int qy = 0; qy < Q1D; ++qy)
                {
-                  const double wy = Bc(qy,dy);
-                  const double wDy = Gc(qy,dy);
+                  const real_t wy = Bc(qy,dy);
+                  const real_t wDy = Gc(qy,dy);
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
-                     const double wx = massX[qx];
+                     const real_t wx = massX[qx];
                      gradXY[qy][qx][0] += wx * wDy;
                      gradXY[qy][qx][1] += wx * wy;
                   }
@@ -201,8 +201,8 @@ inline void PAHcurlHdivApply3D(const int d1d,
 
             for (int qz = 0; qz < Q1D; ++qz)
             {
-               const double wz = Bc(qz,dz);
-               const double wDz = Gc(qz,dz);
+               const real_t wz = Bc(qz,dz);
+               const real_t wDz = Gc(qz,dz);
                for (int qy = 0; qy < Q1D; ++qy)
                {
                   for (int qx = 0; qx < Q1D; ++qx)
@@ -226,7 +226,7 @@ inline void PAHcurlHdivApply3D(const int d1d,
 
          for (int dz = 0; dz < D1Dz; ++dz)
          {
-            double gradXY[MQ1D][MQ1D][2];
+            real_t gradXY[MQ1D][MQ1D][2];
             for (int qy = 0; qy < Q1D; ++qy)
             {
                for (int qx = 0; qx < Q1D; ++qx)
@@ -240,7 +240,7 @@ inline void PAHcurlHdivApply3D(const int d1d,
 
             for (int dx = 0; dx < D1Dx; ++dx)
             {
-               double massY[MQ1D];
+               real_t massY[MQ1D];
                for (int qy = 0; qy < Q1D; ++qy)
                {
                   massY[qy] = 0.0;
@@ -248,7 +248,7 @@ inline void PAHcurlHdivApply3D(const int d1d,
 
                for (int dy = 0; dy < D1Dy; ++dy)
                {
-                  const double t = X(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                  const real_t t = X(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
                   for (int qy = 0; qy < Q1D; ++qy)
                   {
                      massY[qy] += t * Bo(qy,dy);
@@ -257,11 +257,11 @@ inline void PAHcurlHdivApply3D(const int d1d,
 
                for (int qx = 0; qx < Q1D; ++qx)
                {
-                  const double wx = Bc(qx,dx);
-                  const double wDx = Gc(qx,dx);
+                  const real_t wx = Bc(qx,dx);
+                  const real_t wDx = Gc(qx,dx);
                   for (int qy = 0; qy < Q1D; ++qy)
                   {
-                     const double wy = massY[qy];
+                     const real_t wy = massY[qy];
                      gradXY[qy][qx][0] += wDx * wy;
                      gradXY[qy][qx][1] += wx * wy;
                   }
@@ -270,8 +270,8 @@ inline void PAHcurlHdivApply3D(const int d1d,
 
             for (int qz = 0; qz < Q1D; ++qz)
             {
-               const double wz = Bc(qz,dz);
-               const double wDz = Gc(qz,dz);
+               const real_t wz = Bc(qz,dz);
+               const real_t wDz = Gc(qz,dz);
                for (int qy = 0; qy < Q1D; ++qy)
                {
                   for (int qx = 0; qx < Q1D; ++qx)
@@ -295,7 +295,7 @@ inline void PAHcurlHdivApply3D(const int d1d,
 
          for (int dx = 0; dx < D1Dx; ++dx)
          {
-            double gradYZ[MQ1D][MQ1D][2];
+            real_t gradYZ[MQ1D][MQ1D][2];
             for (int qz = 0; qz < Q1D; ++qz)
             {
                for (int qy = 0; qy < Q1D; ++qy)
@@ -309,7 +309,7 @@ inline void PAHcurlHdivApply3D(const int d1d,
 
             for (int dy = 0; dy < D1Dy; ++dy)
             {
-               double massZ[MQ1D];
+               real_t massZ[MQ1D];
                for (int qz = 0; qz < Q1D; ++qz)
                {
                   massZ[qz] = 0.0;
@@ -317,7 +317,7 @@ inline void PAHcurlHdivApply3D(const int d1d,
 
                for (int dz = 0; dz < D1Dz; ++dz)
                {
-                  const double t = X(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                  const real_t t = X(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
                   for (int qz = 0; qz < Q1D; ++qz)
                   {
                      massZ[qz] += t * Bo(qz,dz);
@@ -326,11 +326,11 @@ inline void PAHcurlHdivApply3D(const int d1d,
 
                for (int qy = 0; qy < Q1D; ++qy)
                {
-                  const double wy = Bc(qy,dy);
-                  const double wDy = Gc(qy,dy);
+                  const real_t wy = Bc(qy,dy);
+                  const real_t wDy = Gc(qy,dy);
                   for (int qz = 0; qz < Q1D; ++qz)
                   {
-                     const double wz = massZ[qz];
+                     const real_t wz = massZ[qz];
                      gradYZ[qz][qy][0] += wz * wy;
                      gradYZ[qz][qy][1] += wz * wDy;
                   }
@@ -339,8 +339,8 @@ inline void PAHcurlHdivApply3D(const int d1d,
 
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               const double wx = Bc(qx,dx);
-               const double wDx = Gc(qx,dx);
+               const real_t wx = Bc(qx,dx);
+               const real_t wDx = Gc(qx,dx);
 
                for (int qy = 0; qy < Q1D; ++qy)
                {
@@ -362,18 +362,18 @@ inline void PAHcurlHdivApply3D(const int d1d,
          {
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               const double O11 = op(qx,qy,qz,0,e);
-               const double O12 = op(qx,qy,qz,1,e);
-               const double O13 = op(qx,qy,qz,2,e);
-               const double O22 = op(qx,qy,qz,3,e);
-               const double O23 = op(qx,qy,qz,4,e);
-               const double O33 = op(qx,qy,qz,5,e);
+               const real_t O11 = op(qx,qy,qz,0,e);
+               const real_t O12 = op(qx,qy,qz,1,e);
+               const real_t O13 = op(qx,qy,qz,2,e);
+               const real_t O22 = op(qx,qy,qz,3,e);
+               const real_t O23 = op(qx,qy,qz,4,e);
+               const real_t O33 = op(qx,qy,qz,5,e);
 
-               const double c1 = (O11 * curl[qz][qy][qx][0]) + (O12 * curl[qz][qy][qx][1]) +
+               const real_t c1 = (O11 * curl[qz][qy][qx][0]) + (O12 * curl[qz][qy][qx][1]) +
                                  (O13 * curl[qz][qy][qx][2]);
-               const double c2 = (O12 * curl[qz][qy][qx][0]) + (O22 * curl[qz][qy][qx][1]) +
+               const real_t c2 = (O12 * curl[qz][qy][qx][0]) + (O22 * curl[qz][qy][qx][1]) +
                                  (O23 * curl[qz][qy][qx][2]);
-               const double c3 = (O13 * curl[qz][qy][qx][0]) + (O23 * curl[qz][qy][qx][1]) +
+               const real_t c3 = (O13 * curl[qz][qy][qx][0]) + (O23 * curl[qz][qy][qx][1]) +
                                  (O33 * curl[qz][qy][qx][2]);
 
                curl[qz][qy][qx][0] = c1;
@@ -385,7 +385,7 @@ inline void PAHcurlHdivApply3D(const int d1d,
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         double massXY[MD1D][MD1D];
+         real_t massXY[MD1D][MD1D];
 
          osc = 0;
 
@@ -404,7 +404,7 @@ inline void PAHcurlHdivApply3D(const int d1d,
             }
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               double massX[MD1D];
+               real_t massX[MD1D];
                for (int dx = 0; dx < D1Dx; ++dx)
                {
                   massX[dx] = 0;
@@ -419,7 +419,7 @@ inline void PAHcurlHdivApply3D(const int d1d,
                }
                for (int dy = 0; dy < D1Dy; ++dy)
                {
-                  const double wy = (c == 1) ? Bct(dy,qy) : Bot(dy,qy);
+                  const real_t wy = (c == 1) ? Bct(dy,qy) : Bot(dy,qy);
                   for (int dx = 0; dx < D1Dx; ++dx)
                   {
                      massXY[dy][dx] += massX[dx] * wy;
@@ -429,7 +429,7 @@ inline void PAHcurlHdivApply3D(const int d1d,
 
             for (int dz = 0; dz < D1Dz; ++dz)
             {
-               const double wz = (c == 2) ? Bct(dz,qz) : Bot(dz,qz);
+               const real_t wz = (c == 2) ? Bct(dz,qz) : Bot(dz,qz);
                for (int dy = 0; dy < D1Dy; ++dy)
                {
                   for (int dx = 0; dx < D1Dx; ++dx)
@@ -452,11 +452,11 @@ inline void PAHcurlHdivApplyTranspose3D(const int d1d,
                                         const int d1dtest,
                                         const int q1d,
                                         const int NE,
-                                        const Array<double> &bo,
-                                        const Array<double> &bc,
-                                        const Array<double> &bot,
-                                        const Array<double> &bct,
-                                        const Array<double> &gct,
+                                        const Array<real_t> &bo,
+                                        const Array<real_t> &bc,
+                                        const Array<real_t> &bot,
+                                        const Array<real_t> &bct,
+                                        const Array<real_t> &gct,
                                         const Vector &pa_data,
                                         const Vector &x,
                                         Vector &y)
@@ -497,7 +497,7 @@ inline void PAHcurlHdivApplyTranspose3D(const int d1d,
       const int D1Dtest = T_D1D_TEST ? T_D1D_TEST : d1dtest;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-      double mass[MQ1D][MQ1D][MQ1D][VDIM];
+      real_t mass[MQ1D][MQ1D][MQ1D][VDIM];
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
@@ -523,7 +523,7 @@ inline void PAHcurlHdivApplyTranspose3D(const int d1d,
 
          for (int dz = 0; dz < D1Dz; ++dz)
          {
-            double massXY[MQ1D][MQ1D];
+            real_t massXY[MQ1D][MQ1D];
             for (int qy = 0; qy < Q1D; ++qy)
             {
                for (int qx = 0; qx < Q1D; ++qx)
@@ -534,7 +534,7 @@ inline void PAHcurlHdivApplyTranspose3D(const int d1d,
 
             for (int dy = 0; dy < D1Dy; ++dy)
             {
-               double massX[MQ1D];
+               real_t massX[MQ1D];
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   massX[qx] = 0.0;
@@ -542,7 +542,7 @@ inline void PAHcurlHdivApplyTranspose3D(const int d1d,
 
                for (int dx = 0; dx < D1Dx; ++dx)
                {
-                  const double t = X(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                  const real_t t = X(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
                      massX[qx] += t * ((c == 0) ? Bc(qx,dx) : Bo(qx,dx));
@@ -551,10 +551,10 @@ inline void PAHcurlHdivApplyTranspose3D(const int d1d,
 
                for (int qy = 0; qy < Q1D; ++qy)
                {
-                  const double wy = (c == 1) ? Bc(qy,dy) : Bo(qy,dy);
+                  const real_t wy = (c == 1) ? Bc(qy,dy) : Bo(qy,dy);
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
-                     const double wx = massX[qx];
+                     const real_t wx = massX[qx];
                      massXY[qy][qx] += wx * wy;
                   }
                }
@@ -562,7 +562,7 @@ inline void PAHcurlHdivApplyTranspose3D(const int d1d,
 
             for (int qz = 0; qz < Q1D; ++qz)
             {
-               const double wz = (c == 2) ? Bc(qz,dz) : Bo(qz,dz);
+               const real_t wz = (c == 2) ? Bc(qz,dz) : Bo(qz,dz);
                for (int qy = 0; qy < Q1D; ++qy)
                {
                   for (int qx = 0; qx < Q1D; ++qx)
@@ -583,15 +583,15 @@ inline void PAHcurlHdivApplyTranspose3D(const int d1d,
          {
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               const double O11 = op(qx,qy,qz,0,e);
-               const double O12 = op(qx,qy,qz,1,e);
-               const double O13 = op(qx,qy,qz,2,e);
-               const double O22 = op(qx,qy,qz,3,e);
-               const double O23 = op(qx,qy,qz,4,e);
-               const double O33 = op(qx,qy,qz,5,e);
-               const double massX = mass[qz][qy][qx][0];
-               const double massY = mass[qz][qy][qx][1];
-               const double massZ = mass[qz][qy][qx][2];
+               const real_t O11 = op(qx,qy,qz,0,e);
+               const real_t O12 = op(qx,qy,qz,1,e);
+               const real_t O13 = op(qx,qy,qz,2,e);
+               const real_t O22 = op(qx,qy,qz,3,e);
+               const real_t O23 = op(qx,qy,qz,4,e);
+               const real_t O33 = op(qx,qy,qz,5,e);
+               const real_t massX = mass[qz][qy][qx][0];
+               const real_t massY = mass[qz][qy][qx][1];
+               const real_t massZ = mass[qz][qy][qx][2];
                mass[qz][qy][qx][0] = (O11*massX)+(O12*massY)+(O13*massZ);
                mass[qz][qy][qx][1] = (O12*massX)+(O22*massY)+(O23*massZ);
                mass[qz][qy][qx][2] = (O13*massX)+(O23*massY)+(O33*massZ);
@@ -608,8 +608,8 @@ inline void PAHcurlHdivApplyTranspose3D(const int d1d,
 
          for (int qz = 0; qz < Q1D; ++qz)
          {
-            double gradXY12[MD1D][MD1D];
-            double gradXY21[MD1D][MD1D];
+            real_t gradXY12[MD1D][MD1D];
+            real_t gradXY21[MD1D][MD1D];
 
             for (int dy = 0; dy < D1Dy; ++dy)
             {
@@ -621,7 +621,7 @@ inline void PAHcurlHdivApplyTranspose3D(const int d1d,
             }
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               double massX[MD1D][2];
+               real_t massX[MD1D][2];
                for (int dx = 0; dx < D1Dx; ++dx)
                {
                   for (int n = 0; n < 2; ++n)
@@ -633,7 +633,7 @@ inline void PAHcurlHdivApplyTranspose3D(const int d1d,
                {
                   for (int dx = 0; dx < D1Dx; ++dx)
                   {
-                     const double wx = Bot(dx,qx);
+                     const real_t wx = Bot(dx,qx);
 
                      massX[dx][0] += wx * mass[qz][qy][qx][1];
                      massX[dx][1] += wx * mass[qz][qy][qx][2];
@@ -641,8 +641,8 @@ inline void PAHcurlHdivApplyTranspose3D(const int d1d,
                }
                for (int dy = 0; dy < D1Dy; ++dy)
                {
-                  const double wy = Bct(dy,qy);
-                  const double wDy = Gct(dy,qy);
+                  const real_t wy = Bct(dy,qy);
+                  const real_t wDy = Gct(dy,qy);
 
                   for (int dx = 0; dx < D1Dx; ++dx)
                   {
@@ -654,8 +654,8 @@ inline void PAHcurlHdivApplyTranspose3D(const int d1d,
 
             for (int dz = 0; dz < D1Dz; ++dz)
             {
-               const double wz = Bct(dz,qz);
-               const double wDz = Gct(dz,qz);
+               const real_t wz = Bct(dz,qz);
+               const real_t wDz = Gct(dz,qz);
                for (int dy = 0; dy < D1Dy; ++dy)
                {
                   for (int dx = 0; dx < D1Dx; ++dx)
@@ -680,8 +680,8 @@ inline void PAHcurlHdivApplyTranspose3D(const int d1d,
 
          for (int qz = 0; qz < Q1D; ++qz)
          {
-            double gradXY02[MD1D][MD1D];
-            double gradXY20[MD1D][MD1D];
+            real_t gradXY02[MD1D][MD1D];
+            real_t gradXY20[MD1D][MD1D];
 
             for (int dy = 0; dy < D1Dy; ++dy)
             {
@@ -693,7 +693,7 @@ inline void PAHcurlHdivApplyTranspose3D(const int d1d,
             }
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               double massY[MD1D][2];
+               real_t massY[MD1D][2];
                for (int dy = 0; dy < D1Dy; ++dy)
                {
                   massY[dy][0] = 0.0;
@@ -703,7 +703,7 @@ inline void PAHcurlHdivApplyTranspose3D(const int d1d,
                {
                   for (int dy = 0; dy < D1Dy; ++dy)
                   {
-                     const double wy = Bot(dy,qy);
+                     const real_t wy = Bot(dy,qy);
 
                      massY[dy][0] += wy * mass[qz][qy][qx][2];
                      massY[dy][1] += wy * mass[qz][qy][qx][0];
@@ -711,8 +711,8 @@ inline void PAHcurlHdivApplyTranspose3D(const int d1d,
                }
                for (int dx = 0; dx < D1Dx; ++dx)
                {
-                  const double wx = Bct(dx,qx);
-                  const double wDx = Gct(dx,qx);
+                  const real_t wx = Bct(dx,qx);
+                  const real_t wDx = Gct(dx,qx);
 
                   for (int dy = 0; dy < D1Dy; ++dy)
                   {
@@ -724,8 +724,8 @@ inline void PAHcurlHdivApplyTranspose3D(const int d1d,
 
             for (int dz = 0; dz < D1Dz; ++dz)
             {
-               const double wz = Bct(dz,qz);
-               const double wDz = Gct(dz,qz);
+               const real_t wz = Bct(dz,qz);
+               const real_t wDz = Gct(dz,qz);
                for (int dy = 0; dy < D1Dy; ++dy)
                {
                   for (int dx = 0; dx < D1Dx; ++dx)
@@ -750,8 +750,8 @@ inline void PAHcurlHdivApplyTranspose3D(const int d1d,
 
          for (int qx = 0; qx < Q1D; ++qx)
          {
-            double gradYZ01[MD1D][MD1D];
-            double gradYZ10[MD1D][MD1D];
+            real_t gradYZ01[MD1D][MD1D];
+            real_t gradYZ10[MD1D][MD1D];
 
             for (int dy = 0; dy < D1Dy; ++dy)
             {
@@ -763,7 +763,7 @@ inline void PAHcurlHdivApplyTranspose3D(const int d1d,
             }
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               double massZ[MD1D][2];
+               real_t massZ[MD1D][2];
                for (int dz = 0; dz < D1Dz; ++dz)
                {
                   for (int n = 0; n < 2; ++n)
@@ -775,7 +775,7 @@ inline void PAHcurlHdivApplyTranspose3D(const int d1d,
                {
                   for (int dz = 0; dz < D1Dz; ++dz)
                   {
-                     const double wz = Bot(dz,qz);
+                     const real_t wz = Bot(dz,qz);
 
                      massZ[dz][0] += wz * mass[qz][qy][qx][0];
                      massZ[dz][1] += wz * mass[qz][qy][qx][1];
@@ -783,8 +783,8 @@ inline void PAHcurlHdivApplyTranspose3D(const int d1d,
                }
                for (int dy = 0; dy < D1Dy; ++dy)
                {
-                  const double wy = Bct(dy,qy);
-                  const double wDy = Gct(dy,qy);
+                  const real_t wy = Bct(dy,qy);
+                  const real_t wDy = Gct(dy,qy);
 
                   for (int dz = 0; dz < D1Dz; ++dz)
                   {
@@ -796,8 +796,8 @@ inline void PAHcurlHdivApplyTranspose3D(const int d1d,
 
             for (int dx = 0; dx < D1Dx; ++dx)
             {
-               const double wx = Bct(dx,qx);
-               const double wDx = Gct(dx,qx);
+               const real_t wx = Bct(dx,qx);
+               const real_t wDx = Gct(dx,qx);
 
                for (int dy = 0; dy < D1Dy; ++dy)
                {

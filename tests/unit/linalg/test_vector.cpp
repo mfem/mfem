@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -17,7 +17,7 @@ using namespace mfem;
 
 TEST_CASE("Vector init-list construction", "[Vector]")
 {
-   double ContigData[6] = {6.0, 5.0, 4.0, 3.0, 2.0, 1.0};
+   real_t ContigData[6] = {6.0, 5.0, 4.0, 3.0, 2.0, 1.0};
    Vector a(ContigData, 6);
    Vector b({6.0, 5.0, 4.0, 3.0, 2.0, 1.0});
 
@@ -30,7 +30,7 @@ TEST_CASE("Vector init-list construction", "[Vector]")
 TEST_CASE("Vector Move Constructor", "[Vector]")
 {
    constexpr int N = 6;
-   double ContigData[N] = {6.0, 5.0, 4.0, 3.0, 2.0, 1.0};
+   real_t ContigData[N] = {6.0, 5.0, 4.0, 3.0, 2.0, 1.0};
    Vector a(ContigData, N);
    Vector b(N);
    for (int i = 0; i < N; i++)
@@ -38,8 +38,8 @@ TEST_CASE("Vector Move Constructor", "[Vector]")
       b(i) = N - i;
    }
 
-   double* a_data = a.GetData();
-   double* b_data = b.GetData();
+   real_t* a_data = a.GetData();
+   real_t* b_data = b.GetData();
 
    Vector move_non_owning(std::move(a));
    Vector move_owning(std::move(b));
@@ -73,7 +73,7 @@ TEST_CASE("Vector Move Constructor", "[Vector]")
 TEST_CASE("Vector Move Assignment", "[Vector]")
 {
    constexpr int N = 6;
-   double ContigData[N] = {6.0, 5.0, 4.0, 3.0, 2.0, 1.0};
+   real_t ContigData[N] = {6.0, 5.0, 4.0, 3.0, 2.0, 1.0};
    Vector a(ContigData, N);
    Vector b(N);
    for (int i = 0; i < N; i++)
@@ -81,8 +81,8 @@ TEST_CASE("Vector Move Assignment", "[Vector]")
       b(i) = N - i;
    }
 
-   double* a_data = a.GetData();
-   double* b_data = b.GetData();
+   real_t* a_data = a.GetData();
+   real_t* b_data = b.GetData();
 
    Vector move_non_owning;
    move_non_owning = std::move(a);
@@ -119,7 +119,7 @@ TEST_CASE("Vector Move Assignment", "[Vector]")
 
 TEST_CASE("Vector Tests", "[Vector]")
 {
-   double tol = 1e-12;
+   real_t tol = 1e-12;
 
    Vector a(3),b(3);
    a(0) = 1.0;
@@ -130,7 +130,7 @@ TEST_CASE("Vector Tests", "[Vector]")
    b(1) = 1.0;
    b(2) = 4.0;
 
-   double bp[3];
+   real_t bp[3];
    bp[0] = b(0);
    bp[1] = b(1);
    bp[2] = b(2);
@@ -234,8 +234,8 @@ TEST_CASE("Vector Sum", "[Vector],[CUDA]")
    x.UseDevice(true);
 
    x.HostRead();
-   const double sum_1 = std::accumulate(x.begin(), x.end(), 0.0);
-   const double sum_2 = x.Sum();
+   const real_t sum_1 = std::accumulate(x.begin(), x.end(), 0.0);
+   const real_t sum_2 = x.Sum();
 
    REQUIRE(sum_1 == MFEM_Approx(sum_2));
 }

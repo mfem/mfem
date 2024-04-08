@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -98,7 +98,9 @@ MFEM_PERF_CXXFLAGS_gcc_ppc = -mcpu=native -mtune=native\
 MFEM_PERF_CXXFLAGS_xlc = -mcpu=native
 
 # - Clang extra options:
-ifneq ($(MFEM_MACHINE),arm64)
+ifeq ($(MFEM_MACHINE),riscv64)
+  MFEM_PERF_CXXFLAGS_clang += -march=rv64gc
+else ifneq ($(MFEM_MACHINE),arm64)
   # -march=native is unavailable on clang/ARM64 as of 05/2021: support could be added later.
   MFEM_PERF_CXXFLAGS_clang += -march=native
 endif

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1027,9 +1027,6 @@ void ParPumiMesh::UpdateMesh(const ParMesh* AdaptedpMesh)
    // Copy the boudary-to-edge Table, bel_to_edge (3D)
    bel_to_edge = (AdaptedpMesh->bel_to_edge) ?
                  new Table(*(AdaptedpMesh->bel_to_edge)) : NULL;
-
-   // Copy the boudary-to-edge Array, be_to_edge (2D)
-   AdaptedpMesh->be_to_edge.Copy(be_to_edge);
 
    // Duplicate the faces and faces_info.
    faces.SetSize(AdaptedpMesh->faces.Size());

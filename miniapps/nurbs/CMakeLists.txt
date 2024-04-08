@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -15,6 +15,14 @@ add_mfem_miniapp(nurbs_ex1
 
 add_mfem_miniapp(nurbs_curveint
   MAIN nurbs_curveint.cpp
+  LIBRARIES mfem)
+
+add_mfem_miniapp(nurbs_naca_cmesh
+  MAIN nurbs_naca_cmesh.cpp
+  LIBRARIES mfem)
+
+add_mfem_miniapp(nurbs_printfunc
+  MAIN nurbs_printfunc.cpp
   LIBRARIES mfem)
 
 add_mfem_miniapp(nurbs_patch_ex1
@@ -67,6 +75,9 @@ if (MFEM_ENABLE_TESTING)
   add_test(NAME nurbs_ex1_weak_patch_format_r1_ser
     COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
     -m ${PROJECT_SOURCE_DIR}/data/square-disc-nurbs-patch.mesh -o 2 --weak-bc -r 1)
+    
+  add_test(NAME nurbs_printfunc
+    COMMAND $<TARGET_FILE:nurbs_printfunc>)
 
   if (MFEM_USE_LAPACK)
     add_test(NAME nurbs_patch_ex1_o4_r2_iro8_patcha_ser
@@ -86,6 +97,9 @@ if (MFEM_ENABLE_TESTING)
   add_test(NAME nurbs_curveint_non_unit_weight_ser
     COMMAND $<TARGET_FILE:nurbs_curveint> -no-vis -no-visit
     -nw -n 9)
+
+  add_test(NAME nurbs_naca_cmesh_ser
+    COMMAND $<TARGET_FILE:nurbs_naca_cmesh> -no-vis -no-visit -ntail 80 -nbnd 80 -ntip 20 -nwake 40 -sw 2.0 -sbnd 2.5 -stip 1.1 -aoa 3)
 
   add_test(NAME nurbs_ex1_two_squares_knot_insert
     COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis

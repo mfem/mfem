@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -56,15 +56,18 @@ void mfem_backtrace(int mode = 0, int depth = -1);
 
 /** @brief Function called when an error is encountered. Used by the macros
     MFEM_ABORT, MFEM_ASSERT, MFEM_VERIFY. */
+#ifdef MFEM_USE_ENZYME
+__attribute__((enzyme_inactive, noreturn))
+#else
+[[noreturn]]
+#endif
 void mfem_error(const char *msg = NULL);
 
 /// Function called by the macro MFEM_WARNING.
-void mfem_warning(const char *msg = NULL);
-
 #ifdef MFEM_USE_ENZYME
-static void* __enzyme_inactive_global_err = (void*)mfem_error;
-static void* __enzyme_inactive_global_warn = (void*)mfem_warning;
+__attribute__((enzyme_inactive))
 #endif
+void mfem_warning(const char *msg = NULL);
 }
 
 #ifndef _MFEM_FUNC_NAME
@@ -84,16 +87,13 @@ static void* __enzyme_inactive_global_warn = (void*)mfem_warning;
    "\n ... in file: " << __FILE__ << ':' << __LINE__ << '\n'
 
 // Common error message and abort macro
-#define _MFEM_MESSAGE(msg, warn)                                        \
+#define _MFEM_MESSAGE(msg, fn)                                          \
    {                                                                    \
       std::ostringstream mfemMsgStream;                                 \
       mfemMsgStream << std::setprecision(16);                           \
       mfemMsgStream << std::setiosflags(std::ios_base::scientific);     \
       mfemMsgStream << msg << MFEM_LOCATION;                            \
-      if (!(warn))                                                      \
-         mfem::mfem_error(mfemMsgStream.str().c_str());                 \
-      else                                                              \
-         mfem::mfem_warning(mfemMsgStream.str().c_str());               \
+      mfem::fn(mfemMsgStream.str().c_str());                            \
    }
 
 // Outputs lots of useful information and aborts.
@@ -101,14 +101,14 @@ static void* __enzyme_inactive_global_warn = (void*)mfem_warning;
 // write useful (if complicated) error messages instead of writing
 // out to the screen first, then calling abort.  For example:
 // MFEM_ABORT( "Unknown geometry type: " << type );
-#define MFEM_ABORT(msg) _MFEM_MESSAGE("MFEM abort: " << msg, 0)
+#define MFEM_ABORT(msg) _MFEM_MESSAGE("MFEM abort: " << msg, mfem_error)
 
 // Does a check, and then outputs lots of useful information if the test fails
 #define MFEM_VERIFY(x, msg)                             \
    if (!(x))                                            \
    {                                                    \
       _MFEM_MESSAGE("Verification failed: ("            \
-                    << #x << ") is false:\n --> " << msg, 0); \
+                    << #x << ") is false:\n --> " << msg, mfem_error); \
    }
 
 // Use this if the only place your variable is used is in ASSERTs
@@ -126,7 +126,7 @@ static void* __enzyme_inactive_global_warn = (void*)mfem_warning;
    if (!(x))                                            \
    {                                                    \
       _MFEM_MESSAGE("Assertion failed: ("               \
-                    << #x << ") is false:\n --> " << msg, 0); \
+                    << #x << ") is false:\n --> " << msg, mfem_error); \
    }
 
 // A macro that exposes its argument in debug mode only.
@@ -143,7 +143,7 @@ static void* __enzyme_inactive_global_warn = (void*)mfem_warning;
 #endif
 
 // Generate a warning message - always generated, regardless of MFEM_DEBUG.
-#define MFEM_WARNING(msg) _MFEM_MESSAGE("MFEM Warning: " << msg, 1)
+#define MFEM_WARNING(msg) _MFEM_MESSAGE("MFEM Warning: " << msg, mfem_warning)
 
 // Macro that checks (in MFEM_DEBUG mode) that i is in the range [imin,imax).
 #define MFEM_ASSERT_INDEX_IN_RANGE(i,imin,imax) \
@@ -154,17 +154,19 @@ static void* __enzyme_inactive_global_warn = (void*)mfem_warning;
 
 // Additional abort functions for HIP
 #if defined(MFEM_USE_HIP)
+#ifndef __HIP_DEVICE_COMPILE__
 template<typename T>
 __host__ void abort_msg(T & msg)
 {
    MFEM_ABORT(msg);
 }
-
+#else
 template<typename T>
 __device__ void abort_msg(T & msg)
 {
    abort();
 }
+#endif
 #endif
 
 // Abort inside a device kernel

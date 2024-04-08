@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -26,15 +26,16 @@
 // polynomials (pressure p).
 //
 // The solvers being compared include:
-//    1. The divergence free solver (couple and decoupled modes)
-//    2. MINRES preconditioned by a block diagonal preconditioner
+//    1. MINRES preconditioned by a block diagonal preconditioner
+//    2. The divergence free solver (couple and decoupled modes)
+//    3. The Bramble-Pasciak solver (using BPCG or regular PCG)
 //
 // We recommend viewing example 5 before viewing this miniapp.
 //
 // Sample runs:
 //
 //    mpirun -np 8 block-solvers -r 2 -o 0
-//    mpirun -np 8 block-solvers -m anisotropic.mesh -c anisotropic.coeff -be anisotropic.bdr
+//    mpirun -np 8 block-solvers -m anisotropic.mesh -c anisotropic.coeff -eb anisotropic.bdr
 //
 //
 // NOTE:  The coefficient file (provided through -c) defines a piecewise constant
@@ -52,6 +53,7 @@
 //        will be imposed on boundary with the i-th attribute.
 
 #include "mfem.hpp"
+#include "bramble_pasciak.hpp"
 #include "div_free_solver.hpp"
 #include <fstream>
 #include <iostream>
@@ -63,10 +65,10 @@ using namespace blocksolvers;
 
 // Exact solution, u and p, and r.h.s., f and g.
 void u_exact(const Vector & x, Vector & u);
-double p_exact(const Vector & x);
+real_t p_exact(const Vector & x);
 void f_exact(const Vector & x, Vector & f);
-double g_exact(const Vector & x);
-double natural_bc(const Vector & x);
+real_t g_exact(const Vector & x);
+real_t natural_bc(const Vector & x);
 
 /** Wrapper for assembling the discrete Darcy problem (ex5p)
                      [ M  B^T ] [u] = [f]
@@ -88,9 +90,12 @@ class DarcyProblem
    ParGridFunction u_;
    ParGridFunction p_;
    ParMesh mesh_;
+   ParBilinearForm *mVarf_;
+   ParMixedBilinearForm *bVarf_;
    VectorFunctionCoefficient ucoeff_;
    FunctionCoefficient pcoeff_;
    DFSSpaces dfs_spaces_;
+   PWConstCoefficient mass_coeff;
    const IntegrationRule *irs_[Geometry::NumGeom];
 public:
    DarcyProblem(Mesh &mesh, int num_refines, int order, const char *coef_file,
@@ -102,14 +107,17 @@ public:
    const Vector& GetEssentialBC() { return ess_data_; }
    const DFSData& GetDFSData() const { return dfs_spaces_.GetDFSData(); }
    void ShowError(const Vector &sol, bool verbose);
-   void VisualizeSolution(const Vector &sol, string tag);
+   void VisualizeSolution(const Vector &sol, std::string tag);
+   ParBilinearForm* GetMform() const { return mVarf_; }
+   ParMixedBilinearForm* GetBform() const { return bVarf_; }
 };
 
 DarcyProblem::DarcyProblem(Mesh &mesh, int num_refs, int order,
                            const char *coef_file, Array<int> &ess_bdr,
                            DFSParameters dfs_param)
    : mesh_(MPI_COMM_WORLD, mesh), ucoeff_(mesh.Dimension(), u_exact),
-     pcoeff_(p_exact), dfs_spaces_(order, num_refs, &mesh_, ess_bdr, dfs_param)
+     pcoeff_(p_exact), dfs_spaces_(order, num_refs, &mesh_, ess_bdr, dfs_param),
+     mass_coeff()
 {
    for (int l = 0; l < num_refs; l++)
    {
@@ -124,7 +132,8 @@ DarcyProblem::DarcyProblem(Mesh &mesh, int num_refs, int order,
       ifstream coef_str(coef_file);
       coef_vector.Load(coef_str, mesh.GetNE());
    }
-   PWConstCoefficient mass_coeff(coef_vector);
+
+   mass_coeff.UpdateConstants(coef_vector);
    VectorFunctionCoefficient fcoeff(mesh_.Dimension(), f_exact);
    FunctionCoefficient natcoeff(natural_bc);
    FunctionCoefficient gcoeff(g_exact);
@@ -144,21 +153,24 @@ DarcyProblem::DarcyProblem(Mesh &mesh, int num_refs, int order,
    gform.AddDomainIntegrator(new DomainLFIntegrator(gcoeff));
    gform.Assemble();
 
-   ParBilinearForm mVarf(dfs_spaces_.GetHdivFES());
-   ParMixedBilinearForm bVarf(dfs_spaces_.GetHdivFES(), dfs_spaces_.GetL2FES());
+   mVarf_ = new ParBilinearForm(dfs_spaces_.GetHdivFES());
+   bVarf_ = new ParMixedBilinearForm(dfs_spaces_.GetHdivFES(),
+                                     dfs_spaces_.GetL2FES());
 
-   mVarf.AddDomainIntegrator(new VectorFEMassIntegrator(mass_coeff));
-   mVarf.Assemble();
-   mVarf.EliminateEssentialBC(ess_bdr, u_, fform);
-   mVarf.Finalize();
-   M_.Reset(mVarf.ParallelAssemble());
+   mVarf_->AddDomainIntegrator(new VectorFEMassIntegrator(mass_coeff));
+   mVarf_->ComputeElementMatrices();
+   mVarf_->Assemble();
+   mVarf_->EliminateEssentialBC(ess_bdr, u_, fform);
 
-   bVarf.AddDomainIntegrator(new VectorFEDivergenceIntegrator);
-   bVarf.Assemble();
-   bVarf.SpMat() *= -1.0;
-   bVarf.EliminateTrialDofs(ess_bdr, u_, gform);
-   bVarf.Finalize();
-   B_.Reset(bVarf.ParallelAssemble());
+   mVarf_->Finalize();
+   M_.Reset(mVarf_->ParallelAssemble());
+
+   bVarf_->AddDomainIntegrator(new VectorFEDivergenceIntegrator);
+   bVarf_->Assemble();
+   bVarf_->SpMat() *= -1.0;
+   bVarf_->EliminateTrialDofs(ess_bdr, u_, gform);
+   bVarf_->Finalize();
+   B_.Reset(bVarf_->ParallelAssemble());
 
    rhs_.SetSize(M_->NumRows() + B_->NumRows());
    Vector rhs_block0(rhs_.GetData(), M_->NumRows());
@@ -183,14 +195,14 @@ void DarcyProblem::ShowError(const Vector& sol, bool verbose)
    u_.Distribute(Vector(sol.GetData(), M_->NumRows()));
    p_.Distribute(Vector(sol.GetData()+M_->NumRows(), B_->NumRows()));
 
-   double err_u  = u_.ComputeL2Error(ucoeff_, irs_);
-   double norm_u = ComputeGlobalLpNorm(2, ucoeff_, mesh_, irs_);
-   double err_p  = p_.ComputeL2Error(pcoeff_, irs_);
-   double norm_p = ComputeGlobalLpNorm(2, pcoeff_, mesh_, irs_);
+   real_t err_u  = u_.ComputeL2Error(ucoeff_, irs_);
+   real_t norm_u = ComputeGlobalLpNorm(2, ucoeff_, mesh_, irs_);
+   real_t err_p  = p_.ComputeL2Error(pcoeff_, irs_);
+   real_t norm_p = ComputeGlobalLpNorm(2, pcoeff_, mesh_, irs_);
 
    if (!verbose) { return; }
-   cout << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
-   cout << "|| p_h - p_ex || / || p_ex || = " << err_p / norm_p << "\n";
+   mfem::out << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
+   mfem::out << "|| p_h - p_ex || / || p_ex || = " << err_p / norm_p << "\n";
 }
 
 void DarcyProblem::VisualizeSolution(const Vector& sol, string tag)
@@ -226,9 +238,9 @@ bool IsAllNeumannBoundary(const Array<int>& ess_bdr_attr)
 int main(int argc, char *argv[])
 {
 #ifdef HYPRE_USING_GPU
-   cout << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this miniapp\n"
-        << "is NOT supported with the GPU version of hypre.\n\n";
-   return 242;
+   mfem::out << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this miniapp\n"
+             << "is NOT supported with the GPU version of hypre.\n\n";
+   return MFEM_SKIP_RETURN_VALUE;
 #endif
 
    // Initialize MPI and HYPRE.
@@ -236,23 +248,28 @@ int main(int argc, char *argv[])
    Hypre::Init();
 
    StopWatch chrono;
-   auto ResetTimer = [&chrono]() { chrono.Clear(); chrono.Start(); };
 
    // Parse command-line options.
    const char *mesh_file = "../../data/beam-hex.mesh";
    const char *coef_file = "";
    const char *ess_bdr_attr_file = "";
    int order = 0;
-   int par_ref_levels = 2;
+   int ser_ref_levels = 1;
+   int par_ref_levels = 1;
    bool show_error = false;
    bool visualization = false;
+
    DFSParameters param;
+   BPSParameters bps_param;
+
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
-   args.AddOption(&par_ref_levels, "-r", "--ref",
+   args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
+                  "Number of serial refinement steps.");
+   args.AddOption(&par_ref_levels, "-rp", "--refine-parallel",
                   "Number of parallel refinement steps.");
    args.AddOption(&coef_file, "-c", "--coef",
                   "Coefficient file to use.");
@@ -265,27 +282,36 @@ int main(int argc, char *argv[])
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.Parse();
-   if (!args.Good())
-   {
-      if (Mpi::Root()) { args.PrintUsage(cout); }
-      return 1;
-   }
-   if (Mpi::Root()) { args.PrintOptions(cout); }
+   if (Mpi::Root()) { args.ParseCheck(); }
 
    if (Mpi::Root() && par_ref_levels == 0)
    {
-      std::cout << "WARNING: DivFree solver is equivalent to BDPMinresSolver "
+      mfem::out << "WARNING: DivFree solver is equivalent to BDPMinresSolver "
                 << "when par_ref_levels == 0.\n";
    }
 
    // Initialize the mesh, boundary attributes, and solver parameters
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
+
    int dim = mesh->Dimension();
-   int ser_ref_lvls =
-      (int)ceil(log(Mpi::WorldSize()/mesh->GetNE())/log(2.)/dim);
-   for (int i = 0; i < ser_ref_lvls; ++i)
+
+   if (Mpi::Root())
+   {
+      mfem::out << "Number of serial refinements:   " << ser_ref_levels << "\n"
+                << "Number of parallel refinements: " << par_ref_levels << "\n";
+   }
+
+   for (int i = 0; i < ser_ref_levels; ++i)
    {
       mesh->UniformRefinement();
+   }
+
+   if (Mpi::Root() && Mpi::WorldSize() > mesh->GetNE())
+   {
+      mfem::out << "\nWARNING: Number of processors is greater than the number of "
+                << "elements in the mesh.\n"
+                << "Number of processors: " << Mpi::WorldSize() << "\n"
+                << "Number of elements:   " << mesh->GetNE() << "\n\n";
    }
 
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
@@ -299,9 +325,9 @@ int main(int argc, char *argv[])
    {
       if (Mpi::Root())
       {
-         cout << "\nSolution is not unique when Neumann boundary condition is "
-              << "imposed on the entire boundary. \nPlease provide a different "
-              << "boundary condition.\n";
+         mfem::out << "\nSolution is not unique when Neumann boundary condition is "
+                   << "imposed on the entire boundary. \nPlease provide a different "
+                   << "boundary condition.\n";
       }
       delete mesh;
       return 0;
@@ -309,7 +335,7 @@ int main(int argc, char *argv[])
 
    string line = "**********************************************************\n";
 
-   ResetTimer();
+   chrono.Restart();
 
    // Generate components of the saddle point problem
    DarcyProblem darcy(*mesh, par_ref_levels, order, coef_file, ess_bdr, param);
@@ -320,35 +346,46 @@ int main(int argc, char *argv[])
 
    if (Mpi::Root())
    {
-      cout << line << "System assembled in " << chrono.RealTime() << "s.\n";
-      cout << "Dimension of the physical space: " << dim << "\n";
-      cout << "Size of the discrete Darcy system: " << M.M() + B.M() << "\n";
+      mfem::out << line << "System assembled in " << chrono.RealTime() << "s.\n";
+      mfem::out << "Dimension of the physical space: " << dim << "\n";
+      mfem::out << "Size of the discrete Darcy system: " << M.M() + B.M() << "\n";
       if (par_ref_levels > 0)
       {
-         cout << "Dimension of the divergence free subspace: "
-              << DFS_data.C.back().Ptr()->NumCols() << "\n\n";
+         mfem::out << "Dimension of the divergence free subspace: "
+                   << DFS_data.C.back().Ptr()->NumCols() << "\n\n";
       }
    }
 
    // Setup various solvers for the discrete problem
-   std::map<const DarcySolver*, double> setup_time;
-   ResetTimer();
+   std::map<const DarcySolver*, real_t> setup_time;
+   chrono.Restart();
    BDPMinresSolver bdp(M, B, param);
    setup_time[&bdp] = chrono.RealTime();
 
-   ResetTimer();
+   chrono.Restart();
    DivFreeSolver dfs_dm(M, B, DFS_data);
    setup_time[&dfs_dm] = chrono.RealTime();
 
-   ResetTimer();
+   chrono.Restart();
    const_cast<bool&>(DFS_data.param.coupled_solve) = true;
    DivFreeSolver dfs_cm(M, B, DFS_data);
    setup_time[&dfs_cm] = chrono.RealTime();
+
+   chrono.Restart();
+   BramblePasciakSolver bp_bpcg(darcy.GetMform(), darcy.GetBform(), bps_param);
+   setup_time[&bp_bpcg] = chrono.RealTime();
+
+   chrono.Restart();
+   bps_param.use_bpcg = false;
+   BramblePasciakSolver bp_pcg(darcy.GetMform(), darcy.GetBform(), bps_param);
+   setup_time[&bp_pcg] = chrono.RealTime();
 
    std::map<const DarcySolver*, std::string> solver_to_name;
    solver_to_name[&bdp] = "Block-diagonal-preconditioned MINRES";
    solver_to_name[&dfs_dm] = "Divergence free (decoupled mode)";
    solver_to_name[&dfs_cm] = "Divergence free (coupled mode)";
+   solver_to_name[&bp_bpcg] = "Bramble Pasciak CG (using BPCG)";
+   solver_to_name[&bp_pcg] = "Bramble Pasciak CG (using regular PCG)";
 
    // Solve the problem using all solvers
    for (const auto& solver_pair : solver_to_name)
@@ -358,17 +395,17 @@ int main(int argc, char *argv[])
 
       Vector sol = darcy.GetEssentialBC();
 
-      ResetTimer();
+      chrono.Restart();
       solver->Mult(darcy.GetRHS(), sol);
       chrono.Stop();
 
       if (Mpi::Root())
       {
-         cout << line << name << " solver:\n   Setup time: "
-              << setup_time[solver] << "s.\n   Solve time: "
-              << chrono.RealTime() << "s.\n   Total time: "
-              << setup_time[solver] + chrono.RealTime() << "s.\n"
-              << "   Iteration count: " << solver->GetNumIterations() <<"\n\n";
+         mfem::out << line << name << " solver:\n   Setup time: "
+                   << setup_time[solver] << "s.\n   Solve time: "
+                   << chrono.RealTime() << "s.\n   Total time: "
+                   << setup_time[solver] + chrono.RealTime() << "s.\n"
+                   << "   Iteration count: " << solver->GetNumIterations() <<"\n\n";
       }
       if (show_error && std::strcmp(coef_file, "") == 0)
       {
@@ -376,8 +413,8 @@ int main(int argc, char *argv[])
       }
       else if (show_error && Mpi::Root())
       {
-         cout << "Exact solution is unknown for coefficient '" << coef_file
-              << "'.\nApproximation error is computed in this case!\n\n";
+         mfem::out << "Exact solution is unknown for coefficient '" << coef_file
+                   << "'.\nApproximation error is computed in this case!\n\n";
       }
 
       if (visualization) { darcy.VisualizeSolution(sol, name); }
@@ -389,9 +426,9 @@ int main(int argc, char *argv[])
 
 void u_exact(const Vector & x, Vector & u)
 {
-   double xi(x(0));
-   double yi(x(1));
-   double zi(x.Size() == 3 ? x(2) : 0.0);
+   real_t xi(x(0));
+   real_t yi(x(1));
+   real_t zi(x.Size() == 3 ? x(2) : 0.0);
 
    u(0) = - exp(xi)*sin(yi)*cos(zi);
    u(1) = - exp(xi)*cos(yi)*cos(zi);
@@ -401,11 +438,11 @@ void u_exact(const Vector & x, Vector & u)
    }
 }
 
-double p_exact(const Vector & x)
+real_t p_exact(const Vector & x)
 {
-   double xi(x(0));
-   double yi(x(1));
-   double zi(x.Size() == 3 ? x(2) : 0.0);
+   real_t xi(x(0));
+   real_t yi(x(1));
+   real_t zi(x.Size() == 3 ? x(2) : 0.0);
    return exp(xi)*sin(yi)*cos(zi);
 }
 
@@ -414,13 +451,13 @@ void f_exact(const Vector & x, Vector & f)
    f = 0.0;
 }
 
-double g_exact(const Vector & x)
+real_t g_exact(const Vector & x)
 {
    if (x.Size() == 3) { return -p_exact(x); }
    return 0;
 }
 
-double natural_bc(const Vector & x)
+real_t natural_bc(const Vector & x)
 {
    return (-p_exact(x));
 }

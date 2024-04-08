@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -21,7 +21,8 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_MINIAPPS = nurbs_ex1 nurbs_patch_ex1 nurbs_curveint
+SEQ_MINIAPPS = nurbs_ex1 nurbs_patch_ex1 nurbs_curveint nurbs_printfunc nurbs_naca_cmesh
+
 PAR_MINIAPPS = nurbs_ex1p nurbs_ex11p
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -109,6 +110,14 @@ nurbs_curveint-test-seq: nurbs_curveint
 	@$(call mfem-test,$<,, NURBS miniapp,$(CI_ARGS_1))
 	@$(call mfem-test,$<,, NURBS miniapp,$(CI_ARGS_2))
 
+NCT_ARGS_1 := -no-visit -ntail 80 -nbnd 80 -ntip 20 -nwake 40 -sw 2.0 -sbnd 2.5 -stip 1.1 -aoa 3
+
+nurbs_naca_cmesh-test-seq: nurbs_naca_cmesh
+	@$(call mfem-test,$<,, NURBS miniapp,$(NCT_ARGS_1))
+
+nurbs_printfunc-test-seq: nurbs_printfunc
+	@$(call mfem-test,$<,, NURBS miniapp)
+
 EX1P_ARGS_1 :=
 EX1P_ARGS_2 := -m ../../data/pipe-nurbs-2d.mesh -o 2 -no-ibp
 EX1P_ARGS_3 := -m ../../data/ball-nurbs.mesh -o 2 --weak-bc -r 0
@@ -142,6 +151,6 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -f refined.mesh sin-fit.mesh mesh.* sol.* mode_*
+	@rm -f refined.mesh sin-fit.mesh mesh.* sol.* mode_* naca-cmesh.mesh
 	@rm -rf Example1*
-	@rm -rf CurveInt
+	@rm -rf CurveInt Naca_cmesh glvis_naca-cmesh.mesh
