@@ -2417,6 +2417,98 @@ public:
                                       DenseMatrix &);
 };
 
+
+/// $\alpha (Q \Delta u, v)$
+class LaplaceIntegrator : public BilinearFormIntegrator
+{
+protected:
+   Coefficient *Q;
+   real_t alpha;
+
+private:
+   Vector laplace, shape;
+
+public:
+   LaplaceIntegrator(Coefficient &q, real_t a = 1.0)
+      : Q(&q) { alpha = a; }
+
+   virtual void AssembleElementMatrix(const FiniteElement &,
+                                      ElementTransformation &,
+                                      DenseMatrix &);
+
+   static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
+                                         const FiniteElement &test_fe,
+                                         ElementTransformation &Trans);
+};
+
+/// $\alpha (u, Q \Delta v)$
+class TransposeLaplaceIntegrator : public TransposeIntegrator
+{
+public:
+   TransposeLaplaceIntegrator (Coefficient &q, real_t a = 1.0)
+      : TransposeIntegrator(new LaplaceIntegrator(q, a)) { }
+};
+
+/// $\alpha (\Delta u, Q \cdot \nabla v)$
+class LaplaceGradIntegrator : public BilinearFormIntegrator
+{
+protected:
+   VectorCoefficient *Q;
+   real_t alpha;
+   int dim;
+
+private:
+   Vector laplace, vec2, BdFidxT;
+   DenseMatrix dshape, adjJ, Q_ir;
+
+public:
+   LaplaceGradIntegrator(VectorCoefficient &q, real_t a = 1.0)
+      : Q(&q) { alpha = a; }
+
+   virtual void AssembleElementMatrix(const FiniteElement &,
+                                      ElementTransformation &,
+                                      DenseMatrix &);
+
+   static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
+                                         const FiniteElement &test_fe,
+                                         ElementTransformation &Trans);
+};
+
+/// $\alpha (Q \cdot \nabla u,  \Delta v)$
+class GradLaplaceIntegrator : public TransposeIntegrator
+{
+public:
+   GradLaplaceIntegrator(VectorCoefficient &q, real_t a = 1.0)
+      : TransposeIntegrator(new LaplaceGradIntegrator(q, a)) { }
+};
+
+/// $\alpha (Q \Delta u, \Delta v)$
+class  LaplaceLaplaceIntegrator : public BilinearFormIntegrator
+{
+protected:
+   Coefficient *Q;
+   real_t alpha;
+
+private:
+   Vector laplace;
+
+public:
+   LaplaceLaplaceIntegrator(Coefficient &q, real_t a = 1.0)
+      : Q(&q) { alpha = a; }
+
+   virtual void AssembleElementMatrix(const FiniteElement &,
+                                      ElementTransformation &,
+                                      DenseMatrix &);
+
+   static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
+                                         const FiniteElement &test_fe,
+                                         ElementTransformation &Trans);
+};
+
+// Alias for @LaplaceLaplaceIntegrator.
+using BiHarmonicIntegrator = LaplaceLaplaceIntegrator;
+
+
 /** Class for integrating the bilinear form $a(u,v) := (Q u, v)$,
     where $u=(u_1,\dots,u_n)$ and $v=(v_1,\dots,v_n)$, $u_i$ and $v_i$ are defined
     by scalar FE through standard transformation. */
