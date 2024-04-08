@@ -30,12 +30,12 @@ using namespace mfem;
 class LogarithmGridFunctionCoefficient : public Coefficient
 {
 protected:
-   GridFunction *M1; // grid function
+   GridFunction *f; // grid function
+   real_t min_val;
 
 public:
-   LogarithmGridFunctionCoefficient(GridFunction &u_, Coefficient &obst_,
-                                    real_t min_val_=-36)
-      : u(&u_), obstacle(&obst_), min_val(min_val_) { }
+   LogarithmGridFunctionCoefficient(GridFunction &f_, real_t min_val_=-36)
+      : f(&f_), min_val(min_val_) { }
 
    virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
@@ -79,7 +79,7 @@ int main(int argc, char *argv[])
 
    if (dim != 2)
    {
-    MFEM_ABORT("Example 40 only supports 2D meshes")
+    MFEM_ABORT("Example 40 currently only supports 2D problems")
    }
 
    // 3. Postprocess the mesh.
@@ -99,23 +99,23 @@ int main(int argc, char *argv[])
    FiniteElementSpace H1fes(&mesh, &H1fec);
 
    RT_FECollection RTfec(order, dim);
-   FiniteElementSpace RTfes(&mesh, &RTfec);
+   FiniteElementSpace RTfes(&mesh, &RTfec, dim);
 
-   cout << "Number of H¹ finite element unknowns: "
+   cout << "Number of H¹ degrees of freedom: "
         << H1fes.GetTrueVSize() << endl;
-   cout << "Number of H(div) finite element unknowns: "
-        << RTfes.GetTrueVSize() * dim << endl;
+   cout << "Number of H(div) degrees of freedom: "
+        << RTfes.GetTrueVSize() << endl;
 
    Array<int> offsets(3);
    offsets[0] = 0;
-   offsets[1] = H1fes.GetVSize();
-   offsets[2] = RTfes.GetVSize();
+   offsets[1] = RTfes.GetVSize();
+   offsets[2] = H1fes.GetVSize();
    offsets.PartialSum();
 
    BlockVector x(offsets), rhs(offsets);
    x = 0.0; rhs = 0.0;
 
-   // 5. Determine the list of true (i.e. conforming) essential boundary dofs.
+   // 5. Determine the list of true (i.e., conforming) essential boundary dofs.
    Array<int> ess_bdr;
    if (mesh.bdr_attributes.Size())
    {
@@ -123,48 +123,41 @@ int main(int argc, char *argv[])
       ess_bdr = 1;
    }
 
-   // 6. Define an initial guess for the solution.
-   auto IC_func = [](const Vector &x)
-   {
-      real_t r0 = 1.0;
-      real_t rr = 0.0;
-      for (int i=0; i<x.Size(); i++)
-      {
-         rr += x(i)*x(i);
-      }
-      return r0*r0 - rr;
-   };
+   // 6. Define constants to be used later.
    ConstantCoefficient one(1.0);
    ConstantCoefficient zero(0.0);
+   DenseMatrix Id(dim);
+   Id = 0.0;
+   for (int i = 0; i < dim; i++)
+   {
+      Id(i,i) = 1.0;
+   }
+   MatrixConstantCoefficient Id_coef(Id);
 
-   // 7. Define the solution vectors as a finite element grid functions
+   // 7. Define the solution vectors as finite element grid functions
    //    corresponding to the fespaces.
-   GridFunction u_gf, delta_psi_gf;
+   GridFunction delta_M_g, u_gf;
 
-   u_gf.MakeRef(&H1fes,x,offsets[0]);
-   delta_psi_gf.MakeRef(&L2fes,x,offsets[1]);
-   delta_psi_gf = 0.0;
+   delta_M_gf.MakeRef(&RTfes,x,offsets[0]);
+   u_gf.MakeRef(&H1fes,x,offsets[1]);
 
-   GridFunction u_old_gf(&H1fes);
-   GridFunction psi_old_gf(&L2fes);
-   GridFunction psi_gf(&L2fes);
-   u_old_gf = 0.0;
-   psi_old_gf = 0.0;
+   GridFunction M_prvs_gf(&RTfes);
+   GridFunction u_prvs_gf(&H1fes);
+   GridFunction M_gf(&RTfes);
+   M_prvs_gf = 0.0;
+   u_prvs_gf = 0.0;
 
    // 8. Define the function coefficients for the solution and use them to
    //    initialize the initial guess
    FunctionCoefficient exact_coef(exact_solution_obstacle);
    VectorFunctionCoefficient exact_grad_coef(dim,exact_solution_gradient_obstacle);
-   FunctionCoefficient IC_coef(IC_func);
-   ConstantCoefficient f(0.0);
-   FunctionCoefficient obstacle(spherical_obstacle);
+   ConstantCoefficient IC_coef(0.0);
+   ConstantCoefficient f(1.0);
    u_gf.ProjectCoefficient(IC_coef);
-   u_old_gf = u_gf;
 
-   // 9. Initialize the slack variable ψₕ = ln(uₕ)
-   LogarithmGridFunctionCoefficient ln_u(u_gf, obstacle);
-   psi_gf.ProjectCoefficient(ln_u);
-   psi_old_gf = psi_gf;
+   // 9. Initialize the Lie algebra variable M
+   // M_gf.ProjectCoefficient(Id_coef);
+   M_gf = 0.0;
 
    char vishost[] = "localhost";
    int  visport   = 19916;
@@ -181,112 +174,109 @@ int main(int argc, char *argv[])
    real_t increment_u = 0.1;
    for (k = 0; k < max_it; k++)
    {
-      GridFunction u_tmp(&H1fes);
-      u_tmp = u_old_gf;
+      mfem::out << "\nITERATION " << k+1 << endl;
 
-      mfem::out << "\nOUTER ITERATION " << k+1 << endl;
+      M_prvs_gf = M_gf;
+      u_prvs_gf = u_gf;
 
-      int j;
-      for ( j = 0; j < 10; j++)
+      LinearForm b0,b1;
+      b0.Update(&RTfes,rhs.GetBlock(0),0);
+      b1.Update(&H1fes,rhs.GetBlock(1),0);
+
+      MatrixArrayVectorCoefficient exp_M(dim);
+
+      exp_M.Set(0, new VectorGridFunctionCoefficient(M_gf)); // TODO
+      exp_M.Set(1, new VectorGridFunctionCoefficient(M_gf)); // TODO
+
+      ExponentialGridFunctionCoefficient exp_psi(psi_gf, zero);
+      ProductCoefficient neg_exp_psi(-1.0,exp_psi);
+      GradientGridFunctionCoefficient grad_u_old(&u_old_gf);
+      ProductCoefficient alpha_f(alpha, f);
+      GridFunctionCoefficient psi_cf(&psi_gf);
+      GridFunctionCoefficient psi_old_cf(&psi_old_gf);
+      SumCoefficient psi_old_minus_psi(psi_old_cf, psi_cf, 1.0, -1.0);
+
+      b0.AddDomainIntegrator(new DomainLFIntegrator(alpha_f));
+      b0.AddDomainIntegrator(new DomainLFIntegrator(psi_old_minus_psi));
+      b0.Assemble();
+
+      b1.AddDomainIntegrator(new DomainLFIntegrator(exp_psi));
+      b1.AddDomainIntegrator(new DomainLFIntegrator(obstacle));
+      b1.Assemble();
+
+      BilinearForm a00(&H1fes);
+      a00.SetDiagonalPolicy(mfem::Operator::DIAG_ONE);
+      a00.AddDomainIntegrator(new DiffusionIntegrator(alpha_cf));
+      a00.Assemble();
+      a00.EliminateEssentialBC(ess_bdr,x.GetBlock(0),rhs.GetBlock(0),
+                                 mfem::Operator::DIAG_ONE);
+      a00.Finalize();
+      SparseMatrix &A00 = a00.SpMat();
+
+      MixedBilinearForm a10(&H1fes,&L2fes);
+      a10.AddDomainIntegrator(new MixedScalarMassIntegrator());
+      a10.Assemble();
+      a10.EliminateTrialDofs(ess_bdr, x.GetBlock(0), rhs.GetBlock(1));
+      a10.Finalize();
+      SparseMatrix &A10 = a10.SpMat();
+
+      SparseMatrix *A01 = Transpose(A10);
+
+      BilinearForm a11(&L2fes);
+      a11.AddDomainIntegrator(new MassIntegrator(neg_exp_psi));
+      // NOTE: Shift the spectrum of the Hessian matrix for additional
+      //       stability (Quasi-Newton).
+      ConstantCoefficient eps_cf(-1e-6);
+      if (order == 1)
       {
-         total_iterations++;
+         // NOTE: ∇ₕuₕ = 0 for constant functions.
+         //       Therefore, we use the mass matrix to shift the spectrum
+         a11.AddDomainIntegrator(new MassIntegrator(eps_cf));
+      }
+      else
+      {
+         a11.AddDomainIntegrator(new DiffusionIntegrator(eps_cf));
+      }
+      a11.Assemble();
+      a11.Finalize();
+      SparseMatrix &A11 = a11.SpMat();
 
-         ConstantCoefficient alpha_cf(alpha);
+      BlockOperator A(offsets);
+      A.SetBlock(0,0,&A00);
+      A.SetBlock(1,0,&A10);
+      A.SetBlock(0,1,A01);
+      A.SetBlock(1,1,&A11);
 
-         LinearForm b0,b1;
-         b0.Update(&H1fes,rhs.GetBlock(0),0);
-         b1.Update(&L2fes,rhs.GetBlock(1),0);
+      BlockDiagonalPreconditioner prec(offsets);
+      prec.SetDiagonalBlock(0,new GSSmoother(A00));
+      prec.SetDiagonalBlock(1,new GSSmoother(A11));
+      prec.owns_blocks = 1;
 
-         ExponentialGridFunctionCoefficient exp_psi(psi_gf, zero);
-         ProductCoefficient neg_exp_psi(-1.0,exp_psi);
-         GradientGridFunctionCoefficient grad_u_old(&u_old_gf);
-         ProductCoefficient alpha_f(alpha, f);
-         GridFunctionCoefficient psi_cf(&psi_gf);
-         GridFunctionCoefficient psi_old_cf(&psi_old_gf);
-         SumCoefficient psi_old_minus_psi(psi_old_cf, psi_cf, 1.0, -1.0);
+      GMRES(A,prec,rhs,x,0,10000,500,1e-12,0.0);
 
-         b0.AddDomainIntegrator(new DomainLFIntegrator(alpha_f));
-         b0.AddDomainIntegrator(new DomainLFIntegrator(psi_old_minus_psi));
-         b0.Assemble();
+      u_gf.MakeRef(&H1fes, x.GetBlock(0), 0);
+      delta_psi_gf.MakeRef(&L2fes, x.GetBlock(1), 0);
 
-         b1.AddDomainIntegrator(new DomainLFIntegrator(exp_psi));
-         b1.AddDomainIntegrator(new DomainLFIntegrator(obstacle));
-         b1.Assemble();
+      u_tmp -= u_gf;
+      real_t Newton_update_size = u_tmp.ComputeL2Error(zero);
+      u_tmp = u_gf;
 
-         BilinearForm a00(&H1fes);
-         a00.SetDiagonalPolicy(mfem::Operator::DIAG_ONE);
-         a00.AddDomainIntegrator(new DiffusionIntegrator(alpha_cf));
-         a00.Assemble();
-         a00.EliminateEssentialBC(ess_bdr,x.GetBlock(0),rhs.GetBlock(0),
-                                  mfem::Operator::DIAG_ONE);
-         a00.Finalize();
-         SparseMatrix &A00 = a00.SpMat();
+      real_t gamma = 1.0;
+      delta_psi_gf *= gamma;
+      psi_gf += delta_psi_gf;
 
-         MixedBilinearForm a10(&H1fes,&L2fes);
-         a10.AddDomainIntegrator(new MixedScalarMassIntegrator());
-         a10.Assemble();
-         a10.EliminateTrialDofs(ess_bdr, x.GetBlock(0), rhs.GetBlock(1));
-         a10.Finalize();
-         SparseMatrix &A10 = a10.SpMat();
+      if (visualization)
+      {
+         sol_sock << "solution\n" << mesh << u_gf << "window_title 'Discrete solution'"
+                  << flush;
+         mfem::out << "Newton_update_size = " << Newton_update_size << endl;
+      }
 
-         SparseMatrix *A01 = Transpose(A10);
+      delete A01;
 
-         BilinearForm a11(&L2fes);
-         a11.AddDomainIntegrator(new MassIntegrator(neg_exp_psi));
-         // NOTE: Shift the spectrum of the Hessian matrix for additional
-         //       stability (Quasi-Newton).
-         ConstantCoefficient eps_cf(-1e-6);
-         if (order == 1)
-         {
-            // NOTE: ∇ₕuₕ = 0 for constant functions.
-            //       Therefore, we use the mass matrix to shift the spectrum
-            a11.AddDomainIntegrator(new MassIntegrator(eps_cf));
-         }
-         else
-         {
-            a11.AddDomainIntegrator(new DiffusionIntegrator(eps_cf));
-         }
-         a11.Assemble();
-         a11.Finalize();
-         SparseMatrix &A11 = a11.SpMat();
-
-         BlockOperator A(offsets);
-         A.SetBlock(0,0,&A00);
-         A.SetBlock(1,0,&A10);
-         A.SetBlock(0,1,A01);
-         A.SetBlock(1,1,&A11);
-
-         BlockDiagonalPreconditioner prec(offsets);
-         prec.SetDiagonalBlock(0,new GSSmoother(A00));
-         prec.SetDiagonalBlock(1,new GSSmoother(A11));
-         prec.owns_blocks = 1;
-
-         GMRES(A,prec,rhs,x,0,10000,500,1e-12,0.0);
-
-         u_gf.MakeRef(&H1fes, x.GetBlock(0), 0);
-         delta_psi_gf.MakeRef(&L2fes, x.GetBlock(1), 0);
-
-         u_tmp -= u_gf;
-         real_t Newton_update_size = u_tmp.ComputeL2Error(zero);
-         u_tmp = u_gf;
-
-         real_t gamma = 1.0;
-         delta_psi_gf *= gamma;
-         psi_gf += delta_psi_gf;
-
-         if (visualization)
-         {
-            sol_sock << "solution\n" << mesh << u_gf << "window_title 'Discrete solution'"
-                     << flush;
-            mfem::out << "Newton_update_size = " << Newton_update_size << endl;
-         }
-
-         delete A01;
-
-         if (Newton_update_size < increment_u)
-         {
-            break;
-         }
+      if (Newton_update_size < increment_u)
+      {
+         break;
       }
 
       u_tmp = u_gf;
@@ -350,41 +340,10 @@ int main(int argc, char *argv[])
 real_t LogarithmGridFunctionCoefficient::Eval(ElementTransformation &T,
                                               const IntegrationPoint &ip)
 {
-   MFEM_ASSERT(u != NULL, "grid function is not set");
+   MFEM_ASSERT(f != NULL, "grid function is not set");
 
-   real_t val = u->GetValue(T, ip) - obstacle->Eval(T, ip);
+   real_t val = f->GetValue(T, ip);
    return max(min_val, log(val));
-}
-
-real_t ExponentialGridFunctionCoefficient::Eval(ElementTransformation &T,
-                                                const IntegrationPoint &ip)
-{
-   MFEM_ASSERT(u != NULL, "grid function is not set");
-
-   real_t val = u->GetValue(T, ip);
-   return min(max_val, max(min_val, exp(val) + obstacle->Eval(T, ip)));
-}
-
-real_t spherical_obstacle(const Vector &pt)
-{
-   real_t x = pt(0), y = pt(1);
-   real_t r = sqrt(x*x + y*y);
-   real_t r0 = 0.5;
-   real_t beta = 0.9;
-
-   real_t b = r0*beta;
-   real_t tmp = sqrt(r0*r0 - b*b);
-   real_t B = tmp + b*b/tmp;
-   real_t C = -b/tmp;
-
-   if (r > b)
-   {
-      return B + r * C;
-   }
-   else
-   {
-      return sqrt(r0*r0 - r*r);
-   }
 }
 
 real_t exact_solution_obstacle(const Vector &pt)
