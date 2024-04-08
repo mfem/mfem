@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -85,6 +85,16 @@ int FiniteElementCollection::GetDerivMapType(int dim) const
       return fe->GetDerivMapType();
    }
    return FiniteElement::UNKNOWN_MAP_TYPE;
+}
+
+int FiniteElementCollection::GetRangeDim(int dim) const
+{
+   const FiniteElement *fe = FiniteElementForDim(dim);
+   if (fe)
+   {
+      return fe->GetRangeDim();
+   }
+   return 0;
 }
 
 int FiniteElementCollection::HasFaceDofs(Geometry::Type geom, int p) const
@@ -2921,7 +2931,7 @@ ND_FECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
    }
 }
 
-StatelessDofTransformation *
+const StatelessDofTransformation *
 ND_FECollection::DofTransformationForGeometry(Geometry::Type GeomType) const
 {
    if (!Geometry::IsTensorProduct(GeomType) && this->GetOrder() > 1)

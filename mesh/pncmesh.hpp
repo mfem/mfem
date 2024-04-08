@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -108,9 +108,7 @@ public:
        passed. */
    void Rebalance(const Array<int> *custom_partition = NULL);
 
-
    // interface for ParFiniteElementSpace
-
    int GetNElements() const { return NElements; }
 
    int GetNGhostVertices() const { return NGhostVertices; }
@@ -141,8 +139,8 @@ public:
       return (index < NFaces) ? face_orient[index] : 0;
    }
 
-   typedef short GroupId;
-   typedef std::vector<int> CommGroup;
+   using GroupId = short;
+   using CommGroup = std::vector<int>;
 
    /// Return vertex/edge/face ('entity' == 0/1/2, resp.) owner.
    GroupId GetEntityOwnerId(int entity, int index)
@@ -231,10 +229,11 @@ public:
                                     const Table &deref_table);
 
    /** Extension of NCMesh::GetBoundaryClosure. Filters out ghost vertices and
-       ghost edges from 'bdr_vertices' and 'bdr_edges'. */
+       ghost edges from 'bdr_vertices' and 'bdr_edges', and uncovers hidden internal
+       boundary faces. */
    void GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
                            Array<int> &bdr_vertices,
-                           Array<int> &bdr_edges) override;
+                           Array<int> &bdr_edges, Array<int> &bdr_faces) override;
 
    /// Save memory by releasing all non-essential and cached data.
    void Trim() override;
@@ -260,8 +259,6 @@ protected: // interface for ParMesh
    /** Populate face neighbor members of ParMesh from the ghost layer, without
        communication. */
    void GetFaceNeighbors(class ParMesh &pmesh);
-
-
 protected: // implementation
 
    MPI_Comm MyComm;
@@ -336,7 +333,8 @@ protected: // implementation
    void CreateGroups(int nentities, Array<Connection> &index_rank,
                      Array<GroupId> &entity_group);
 
-   static int get_face_orientation(Face &face, Element &e1, Element &e2,
+   static int get_face_orientation(const Face &face, const Element &e1,
+                                   const Element &e2,
                                    int local[2] = NULL /* optional output */);
    void CalcFaceOrientations();
 

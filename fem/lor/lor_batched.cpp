@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -77,6 +77,7 @@ void BatchedLORAssembly::FormLORVertexCoordinates(FiniteElementSpace &fes_ho,
 
    // Get nodal points at the LOR vertices
    const int dim = mesh_ho.Dimension();
+   const int sdim = mesh_ho.SpaceDimension();
    const int nel_ho = mesh_ho.GetNE();
    const int order = fes_ho.GetMaxElementOrder();
    const int nd1d = order + 1;
@@ -94,7 +95,7 @@ void BatchedLORAssembly::FormLORVertexCoordinates(FiniteElementSpace &fes_ho,
    IntegrationRule ir = GetCollocatedIntRule(fes_ho);
 
    // Map from nodal E-vector to Q-vector at the LOR vertex points
-   X_vert.SetSize(dim*ndof_per_el*nel_ho);
+   X_vert.SetSize(sdim*ndof_per_el*nel_ho);
    const QuadratureInterpolator *quad_interp =
       nodal_fes->GetQuadratureInterpolator(ir);
    quad_interp->SetOutputLayout(QVectorLayout::byVDIM);
@@ -318,7 +319,7 @@ void BatchedLORAssembly::FillJAndData(SparseMatrix &A) const
             const int min_e = GetMinElt(i_elts, i_ne, j_elts, j_ne);
             if (iel_ho == min_e) // add the nnz only once
             {
-               double val = 0.0;
+               real_t val = 0.0;
                for (int k = 0; k < i_ne; k++)
                {
                   const int iel_ho_2 = i_elts[k];
@@ -380,44 +381,49 @@ void BatchedLORAssembly::SparseIJToCSR(OperatorHandle &A) const
    FillJAndData(*A_mat);
 }
 
+template <int ORDER, int SDIM, typename LOR_KERNEL>
+static void Assemble_(LOR_KERNEL &kernel, int dim)
+{
+   if (dim == 2) { kernel.template Assemble2D<ORDER,SDIM>(); }
+   else if (dim == 3) { kernel.template Assemble3D<ORDER>(); }
+   else { MFEM_ABORT("Unsupported dimension"); }
+}
+
+template <int ORDER, typename LOR_KERNEL>
+static void Assemble_(LOR_KERNEL &kernel, int dim, int sdim)
+{
+   if (sdim == 2) { Assemble_<ORDER,2>(kernel, dim); }
+   else if (sdim == 3) { Assemble_<ORDER,3>(kernel, dim); }
+   else { MFEM_ABORT("Unsupported space dimension."); }
+}
+
+template <typename LOR_KERNEL>
+static void Assemble_(LOR_KERNEL &kernel, int dim, int sdim, int order)
+{
+   switch (order)
+   {
+      case 1: Assemble_<1>(kernel, dim, sdim); break;
+      case 2: Assemble_<2>(kernel, dim, sdim); break;
+      case 3: Assemble_<3>(kernel, dim, sdim); break;
+      case 4: Assemble_<4>(kernel, dim, sdim); break;
+      case 5: Assemble_<5>(kernel, dim, sdim); break;
+      case 6: Assemble_<6>(kernel, dim, sdim); break;
+      case 7: Assemble_<7>(kernel, dim, sdim); break;
+      case 8: Assemble_<8>(kernel, dim, sdim); break;
+      default: MFEM_ABORT("No kernel order " << order << "!");
+   }
+}
+
 template <typename LOR_KERNEL>
 void BatchedLORAssembly::AssemblyKernel(BilinearForm &a)
 {
    LOR_KERNEL kernel(a, fes_ho, X_vert, sparse_ij, sparse_mapping);
 
    const int dim = fes_ho.GetMesh()->Dimension();
+   const int sdim = fes_ho.GetMesh()->SpaceDimension();
    const int order = fes_ho.GetMaxElementOrder();
 
-   if (dim == 2)
-   {
-      switch (order)
-      {
-         case 1: kernel.template Assemble2D<1>(); break;
-         case 2: kernel.template Assemble2D<2>(); break;
-         case 3: kernel.template Assemble2D<3>(); break;
-         case 4: kernel.template Assemble2D<4>(); break;
-         case 5: kernel.template Assemble2D<5>(); break;
-         case 6: kernel.template Assemble2D<6>(); break;
-         case 7: kernel.template Assemble2D<7>(); break;
-         case 8: kernel.template Assemble2D<8>(); break;
-         default: MFEM_ABORT("No kernel order " << order << "!");
-      }
-   }
-   else if (dim == 3)
-   {
-      switch (order)
-      {
-         case 1: kernel.template Assemble3D<1>(); break;
-         case 2: kernel.template Assemble3D<2>(); break;
-         case 3: kernel.template Assemble3D<3>(); break;
-         case 4: kernel.template Assemble3D<4>(); break;
-         case 5: kernel.template Assemble3D<5>(); break;
-         case 6: kernel.template Assemble3D<6>(); break;
-         case 7: kernel.template Assemble3D<7>(); break;
-         case 8: kernel.template Assemble3D<8>(); break;
-         default: MFEM_ABORT("No kernel order " << order << "!");
-      }
-   }
+   Assemble_(kernel, dim, sdim, order);
 }
 
 void BatchedLORAssembly::AssembleWithoutBC(BilinearForm &a, OperatorHandle &A)

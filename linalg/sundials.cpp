@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1672,7 +1672,7 @@ void ARKStepSolver::UseMFEMMassLinearSolver(int tdep)
    MFEM_VERIFY(M, "error in SUNMatNewEmpty()");
 
    M->content      = this;
-   M->ops->getid   = SUNMatGetID;
+   M->ops->getid   = MatGetID;
    M->ops->matvec  = ARKStepSolver::MassMult1;
    M->ops->destroy = MatDestroy;
 
@@ -2185,7 +2185,7 @@ void KINSolver::Mult(const Vector&, Vector &x) const
       if (Parallel())
       {
          double lnorm = norm;
-         MPI_Allreduce(&lnorm, &norm, 1, MPI_DOUBLE, MPI_MAX,
+         MPI_Allreduce(&lnorm, &norm, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX,
                        Y->GetComm());
       }
 #endif
