@@ -745,8 +745,8 @@ TEST_CASE("PA DG Diffusion", "[PartialAssembly], [CUDA]")
 
    ConstantCoefficient pi(3.14159);
 
-   const double sigma = -1.0;
-   const double kappa = 10.0;
+   const real_t sigma = -1.0;
+   const real_t kappa = 10.0;
 
    BilinearForm blf_fa(&fes);
    blf_fa.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
@@ -804,8 +804,8 @@ TEST_CASE("Parallel PA DG Diffusion", "[PartialAssembly][Parallel][CUDA]")
 
    ConstantCoefficient pi(3.14159);
 
-   const double sigma = -1.0;
-   const double kappa = 20.0;
+   const real_t sigma = -1.0;
+   const real_t kappa = 20.0;
 
    ParBilinearForm blf_fa(&fes);
    blf_fa.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
