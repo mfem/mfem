@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -83,7 +83,8 @@ EX1_ARGS_HIPAMG       := -m ../../data/star.mesh --usepetsc --device hip --petsc
 EX2_ARGS              := -m ../../data/beam-quad.mesh --usepetsc --petscopts rc_ex2p
 EX2_ARGS_BDDC         := -m ../../data/beam-tri.mesh --usepetsc --nonoverlapping --petscopts rc_ex2p_bddc
 EX2_ARGS_ASM          := -m ../../data/beam-quad.mesh --usepetsc --petscopts rc_ex2p_asm
-EX3_ARGS              := -m ../../data/klein-bottle.mesh -o 2 -f 0.1 --usepetsc --petscopts rc_ex3p_bddc --nonoverlapping
+EX3_ARGS_BDDC_2D      := -m ../../data/klein-bottle.mesh -o 2 -f 0.1 --usepetsc --petscopts rc_ex3p_bddc --nonoverlapping
+EX3_ARGS_BDDC_3D      := -m ../../data/amr-hex.mesh -rs 1 -rp 0 -o 2 -f 0.1 --usepetsc --petscopts rc_ex3p_bddc --nonoverlapping
 EX4_ARGS              := -m ../../data/klein-bottle.mesh -o 2 --usepetsc --petscopts rc_ex4p_bddc --nonoverlapping
 EX4_HYB_ARGS          := -m ../../data/klein-bottle.mesh -o 2 --usepetsc --petscopts rc_ex4p_bddc --nonoverlapping --hybridization
 EX5_BDDC_LB_ARGS      := -m ../../data/star.mesh --usepetsc -o 0 --petscopts rc_ex5p_bddc --nonoverlapping --local-bdr
@@ -122,7 +123,8 @@ ex2p-test-par: ex2p
 	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX2_ARGS_BDDC))
 	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX2_ARGS_ASM))
 ex3p-test-par: ex3p
-	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX3_ARGS))
+	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX3_ARGS_BDDC_2D))
+	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX3_ARGS_BDDC_3D))
 ex4p-test-par: ex4p
 	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX4_ARGS))
 	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX4_HYB_ARGS))

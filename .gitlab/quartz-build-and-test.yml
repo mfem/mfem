@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -23,7 +23,7 @@ allocate_resource:
   stage: allocate_resource
   script:
     - echo ${ALLOC_NAME}
-    - salloc --exclusive --nodes=1 --partition=pdebug --time=45 --no-shell --job-name=${ALLOC_NAME}
+    - salloc --exclusive --nodes=1 --reservation=ci --time=60 --no-shell --job-name=${ALLOC_NAME}
   timeout: 6h
 
 # GitLab jobs for the Quartz machine at LLNL

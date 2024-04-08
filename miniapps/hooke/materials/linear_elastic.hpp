@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -30,8 +30,8 @@ template <int dim> struct LinearElasticMaterial
     * @param[in] dudx derivative of the displacement
     * @return tensor<double, dim, dim>
     */
-   tensor<double, dim, dim>
-   MFEM_HOST_DEVICE stress(const tensor<double, dim, dim> &dudx) const
+   tensor<mfem::real_t, dim, dim>
+   MFEM_HOST_DEVICE stress(const tensor<mfem::real_t, dim, dim> &dudx) const
    {
       constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
       auto epsilon = sym(dudx);
@@ -42,9 +42,9 @@ template <int dim> struct LinearElasticMaterial
     * @brief Apply the gradient of the stress.
     *
     */
-   tensor<double, dim, dim> MFEM_HOST_DEVICE
-   action_of_gradient(const tensor<double, dim, dim> & /* dudx */,
-                      const tensor<double, dim, dim> &ddudx) const
+   tensor<mfem::real_t, dim, dim> MFEM_HOST_DEVICE
+   action_of_gradient(const tensor<mfem::real_t, dim, dim> & /* dudx */,
+                      const tensor<mfem::real_t, dim, dim> &ddudx) const
    {
       return stress(ddudx);
    }
@@ -58,8 +58,8 @@ template <int dim> struct LinearElasticMaterial
     *
     * @return tensor<double, dim, dim, dim, dim>
     */
-   tensor<double, dim, dim, dim, dim>
-   MFEM_HOST_DEVICE gradient(tensor<double, dim, dim> /* dudx */) const
+   tensor<mfem::real_t, dim, dim, dim, dim>
+   MFEM_HOST_DEVICE gradient(tensor<mfem::real_t, dim, dim> /* dudx */) const
    {
       return mfem::internal::make_tensor<dim, dim, dim, dim>([&](int i, int j, int k,
                                                                  int l)
@@ -70,9 +70,9 @@ template <int dim> struct LinearElasticMaterial
    }
 
    /// First Lame parameter
-   double lambda = 100;
+   mfem::real_t lambda = 100;
    /// Second Lame parameter
-   double mu = 50;
+   mfem::real_t mu = 50;
 };
 
 #endif

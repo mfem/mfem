@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -109,7 +109,7 @@ public:
        be of size at least `f->GetVSize()`. Similar to the Vector constructor
        for externally allocated array, the pointer @a data can be NULL. The data
        array can be replaced later using the method SetData(). */
-   LinearForm(FiniteElementSpace *f, double *data) : Vector(data, f->GetVSize())
+   LinearForm(FiniteElementSpace *f, real_t *data) : Vector(data, f->GetVSize())
    { fes = f; }
 
    /// Copy assignment. Only the data of the base class Vector is copied.
@@ -239,10 +239,10 @@ public:
        the real numbers.  This method performs this mapping which in
        this case is equivalent as an inner product of the LinearForm
        and GridFunction. */
-   double operator()(const GridFunction &gf) const { return (*this)*gf; }
+   real_t operator()(const GridFunction &gf) const { return (*this)*gf; }
 
    /// Redefine '=' for LinearForm = constant.
-   LinearForm &operator=(double value);
+   LinearForm &operator=(real_t value);
 
    /// Copy the data from @a v.
    /** The size of @a v must be equal to the size of the associated
