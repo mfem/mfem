@@ -1233,14 +1233,16 @@ H1_FuentesPyramidElement::H1_FuentesPyramidElement(const int p, const int btype)
    for (int m = 0; m < dof; m++)
    {
       const IntegrationPoint &ip = Nodes.IntPoint(m);
-      calcBasis(order, ip, shape_0, shape_1, shape_2, T.GetColumn(m));
+      calcBasis(order, ip,
+                shape_0.GetData(), shape_1.GetData(), shape_2.GetData(),
+                T.GetColumn(m));
    }
 
    Ti.Factor(T);
 
    if (false)
    {
-      calcScaledLegendre(6, 0.3, 0.7, shape_0, dshape_0_0, dshape_0_1);
+      CalcScaledLegendre(6, 0.3, 0.7, shape_0, dshape_0_0, dshape_0_1);
       mfem::out << "Scaled Legendre: ";
       for (int i=0; i<6; i++) { mfem::out << '\t' << shape_0[i]; }
       mfem::out << '\n';
@@ -1250,7 +1252,7 @@ H1_FuentesPyramidElement::H1_FuentesPyramidElement(const int p, const int btype)
       mfem::out << '\n';
 
       double dx = 1e-8;
-      calcScaledLegendre(6, 0.3+dx, 0.7, shape_2);
+      CalcScaledLegendre(6, 0.3+dx, 0.7, shape_2);
       mfem::out << "Scaled Legendre (x+dx): ";
       for (int i=0; i<6; i++) { mfem::out << '\t' << shape_2[i]; }
       mfem::out << '\n';
@@ -1263,7 +1265,7 @@ H1_FuentesPyramidElement::H1_FuentesPyramidElement(const int p, const int btype)
       mfem::out << '\n';
 
       double dt = 1e-8;
-      calcScaledLegendre(6, 0.3, 0.7+dt, shape_2);
+      CalcScaledLegendre(6, 0.3, 0.7+dt, shape_2);
       mfem::out << "Scaled Legendre (t+dt): ";
       for (int i=0; i<6; i++) { mfem::out << '\t' << shape_2[i]; }
       mfem::out << '\n';
@@ -2367,14 +2369,16 @@ H1_BergotPyramidElement::H1_BergotPyramidElement(const int p, const int btype)
       o = 0;
       for (int i = 0; i <= p; i++)
       {
-         poly1d.CalcLegendre(i, x, shape_x);
+         poly1d.CalcLegendre(i, x, shape_x.GetData());
          for (int j = 0; j <= p; j++)
          {
-            poly1d.CalcLegendre(j, y, shape_y);
+            poly1d.CalcLegendre(j, y, shape_y.GetData());
             int maxij = std::max(i, j);
             for (int k = 0; k <= p - maxij; k++)
             {
-               poly1d.CalcJacobi(k, 2.0 * (maxij + 1.0), 0.0, z, shape_z);
+               // poly1d.CalcJacobi(k, 2.0 * (maxij + 1.0), 0.0, z, shape_z);
+               FuentesPyramid::CalcScaledJacobi(k, 2.0 * (maxij + 1.0), z, 1.0,
+                                                shape_z);
                T(o++, m) = shape_x(i) * shape_y(j) * shape_z(k) *
                            pow(1.0 - ip.z, maxij);
             }
@@ -2440,14 +2444,16 @@ void H1_BergotPyramidElement::CalcShape(const IntegrationPoint &ip,
 
    for (int i = 0; i <= p; i++)
    {
-      poly1d.CalcLegendre(i, x, shape_x);
+      poly1d.CalcLegendre(i, x, shape_x.GetData());
       for (int j = 0; j <= p; j++)
       {
-         poly1d.CalcLegendre(j, y, shape_y);
+         poly1d.CalcLegendre(j, y, shape_y.GetData());
          int maxij = std::max(i, j);
          for (int k = 0; k <= p - maxij; k++)
          {
-            poly1d.CalcJacobi(k, 2.0 * (maxij + 1.0), 0.0, z, shape_z);
+            // poly1d.CalcJacobi(k, 2.0 * (maxij + 1.0), 0.0, z, shape_z);
+            FuentesPyramid::CalcScaledJacobi(k, 2.0 * (maxij + 1.0), z, 1.0,
+                                             shape_z);
             u[o++] = shape_x(i) * shape_y(j) * shape_z(k) *
                      pow(1.0 - ip.z, maxij);
          }

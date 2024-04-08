@@ -169,6 +169,14 @@ private:
    static void calcBasis(const int p, const IntegrationPoint &ip,
                          double *tmp_x, double *tmp_y, double *tmp_z,
                          double *u);
+   static void calcBasis(const int p, const IntegrationPoint &ip,
+                         Vector &tmp_x, Vector &tmp_y, Vector &tmp_z,
+                         Vector &u)
+   {
+      calcBasis(p, ip, tmp_x.GetData(), tmp_y.GetData(), tmp_z.GetData(),
+                u.GetData());
+   }
+
    // static void calcDBasis(const int p, const IntegrationPoint &ip,
    //                      DenseMatrix &du);
    /*

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -77,23 +77,53 @@ public:
    static void E_E(const int p, const double s0, double s1, double *u,
                    double *duds0, double *duds1);
 
-   static void calcScaledLegendre(const int p, const double x, const double t,
+   static void CalcScaledLegendre(const int p, const double x, const double t,
                                   double *u);
-   static void calcScaledLegendre(const int p, const double x, const double t,
+   static void CalcScaledLegendre(const int p, const double x, const double t,
                                   double *u, double *dudx, double *dudt);
 
-   static void calcIntegratedLegendre(const int p, const double x,
+   static void CalcScaledLegendre(const int p, const double x, const double t,
+                                  Vector &u)
+   { CalcScaledLegendre(p, x, t, u.GetData()); }
+   static void CalcScaledLegendre(const int p, const double x, const double t,
+                                  Vector &u, Vector &dudx, Vector &dudt)
+   { CalcScaledLegendre(p, x, t, u.GetData(), dudx.GetData(), dudt.GetData()); }
+
+   static void CalcIntegratedLegendre(const int p, const double x,
                                       const double t, double *u);
-   static void calcIntegratedLegendre(const int p, const double x,
+   static void CalcIntegratedLegendre(const int p, const double x,
                                       const double t, double *u,
                                       double *dudx, double *dudt);
 
-   static void calcScaledJacobi(const int p, const double alpha,
+   static void CalcIntegratedLegendre(const int p, const double x,
+                                      const double t, Vector &u)
+   { CalcIntegratedLegendre(p, x, t, u.GetData()); }
+   static void CalcIntegratedLegendre(const int p, const double x,
+                                      const double t, Vector &u,
+                                      Vector &dudx, Vector &dudt)
+   {
+      CalcIntegratedLegendre(p, x, t, u.GetData(),
+                             dudx.GetData(), dudt.GetData());
+   }
+
+   static void CalcScaledJacobi(const int p, const double alpha,
                                 const double x, const double t,
                                 double *u);
-   static void calcScaledJacobi(const int p, const double alpha,
+   static void CalcScaledJacobi(const int p, const double alpha,
                                 const double x, const double t,
                                 double *u, double *dudx, double *dudt);
+
+   static void CalcScaledJacobi(const int p, const double alpha,
+                                const double x, const double t,
+                                Vector &u)
+   { CalcScaledJacobi(p, alpha, x, t, u.GetData()); }
+   static void CalcScaledJacobi(const int p, const double alpha,
+                                const double x, const double t,
+                                Vector &u, Vector &dudx, Vector &dudt)
+   {
+      CalcScaledJacobi(p, alpha, x, t, u.GetData(),
+                       dudx.GetData(), dudt.GetData());
+   }
 
    static void CalcIntegratedJacobi(const int p, const double alpha,
                                     const double x, const double t,
