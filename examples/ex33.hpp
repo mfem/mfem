@@ -346,7 +346,7 @@ void ComputePartialFractionApproximation(real_t & alpha,
    }
    else
    {
-      if (abs(alpha - 0.5) > eps && print_warning)
+      if (abs(alpha - 0.5) > eps)
       {
          alpha = 0.5;
       }
