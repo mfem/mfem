@@ -37,7 +37,7 @@ namespace mfem
 {
 
 // Optional MemoryType for the reduction buffer when using CUDA or HIP,
-// the default is MemoryType::DEFAULT
+// the default is MemoryType::HOST_PINNED.
 extern mfem::MemoryType device_reduce_buf_type;
 
 /** Count the number of entries in an array of doubles for which isfinite

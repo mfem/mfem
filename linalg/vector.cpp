@@ -963,7 +963,7 @@ static __global__ void cuKernelMin(const int N, real_t *gdsr, const real_t *x)
    if (tid==0) { gdsr[bid] = s_min[0]; }
 }
 
-mfem::MemoryType device_reduce_buf_type = mfem::MemoryType::DEFAULT;
+mfem::MemoryType device_reduce_buf_type = mfem::MemoryType::HOST_PINNED;
 static Array<real_t> cuda_reduce_buf;
 
 static real_t cuVectorMin(const int N, const real_t *X)
@@ -1053,7 +1053,7 @@ static __global__ void hipKernelMin(const int N, real_t *gdsr, const real_t *x)
    if (tid==0) { gdsr[bid] = s_min[0]; }
 }
 
-mfem::MemoryType device_reduce_buf_type = mfem::MemoryType::DEFAULT;
+mfem::MemoryType device_reduce_buf_type = mfem::MemoryType::HOST_PINNED;
 static Array<real_t> hip_reduce_buf;
 
 static real_t hipVectorMin(const int N, const real_t *X)
