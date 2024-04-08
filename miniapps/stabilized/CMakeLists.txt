@@ -13,6 +13,10 @@ add_mfem_miniapp(stab_condif
   MAIN stab_condif.cpp
   LIBRARIES mfem)
 
+  add_mfem_miniapp(stab_navsto
+    MAIN stab_navsto.cpp
+    LIBRARIES mfem)
+
 
 if (MFEM_ENABLE_TESTING)
   add_test(NAME stab_condif
@@ -21,9 +25,9 @@ if (MFEM_ENABLE_TESTING)
 endif()
 
 if (MFEM_USE_MPI)
-  add_mfem_miniapp(stab_navsto
-    MAIN stab_navsto.cpp
-    LIBRARIES mfem)
+  #add_mfem_miniapp(stab_navsto_par
+  #  MAIN stab_navsto_par.cpp
+  #  LIBRARIES mfem)
 
   if (MFEM_ENABLE_TESTING)
     add_test(NAME stab_navsto_np=4

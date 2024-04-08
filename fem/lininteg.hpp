@@ -174,6 +174,27 @@ public:
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
+/// Class for domain integrator $ L(v) := (f, \Delta v) $
+class DomainLFLaplaceIntegrator : public LinearFormIntegrator
+{
+private:
+   Vector laplace;
+   Coefficient &Q;
+   int oa, ob;
+public:
+   /// Constructs the domain integrator $ (Q, \nabla v) $
+   DomainLFLaplaceIntegrator(Coefficient &QF, int a = 2, int b = 0)
+      : Q(QF), oa(a), ob(b)  { }
+
+   /** Given a particular Finite Element and a transformation (Tr)
+       computes the element right hand side element vector, elvect. */
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect);
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
+};
+
 
 /// Class for boundary integration $ L(v) := (g, v) $
 class BoundaryLFIntegrator : public LinearFormIntegrator

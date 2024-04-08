@@ -123,6 +123,35 @@ void DomainLFGradIntegrator::AssembleDeltaElementVect(
    dshape.Mult(Qvec, elvect);
 }
 
+void DomainLFLaplaceIntegrator::AssembleRHSElementVect(const FiniteElement &el,
+                                                       ElementTransformation &Tr,
+                                                       Vector &elvect)
+{
+   int dof = el.GetDof();
+
+   laplace.SetSize(dof);       // vector of size dof
+   elvect.SetSize(dof);
+   elvect = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      ir = &IntRules.Get(el.GetGeomType(), oa * el.GetOrder() + ob);
+   }
+
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+
+      Tr.SetIntPoint (&ip);
+      real_t val = Tr.Weight() * Q.Eval(Tr, ip);
+
+      el.CalcPhysLaplacian(Tr, laplace);
+
+      add(elvect, ip.weight * val, laplace, elvect);
+   }
+}
+
 void BoundaryLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
