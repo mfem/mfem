@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -61,23 +61,23 @@ void FuentesPyramid::grad_lam5(const double x, const double y,
 void FuentesPyramid::phi_E(const int p, const double s0, double s1,
                            double *u)
 {
-   calcIntegratedLegendre(p, s1, s0 + s1, u);
+   CalcIntegratedLegendre(p, s1, s0 + s1, u);
 }
 
 void FuentesPyramid::phi_E(const int p, const double s0, double s1,
                            double *u, double *duds0, double *duds1)
 {
-   calcIntegratedLegendre(p, s1, s0 + s1, u, duds1, duds0);
+   CalcIntegratedLegendre(p, s1, s0 + s1, u, duds1, duds0);
    for (int i = 0; i <= p; i++) { duds1[i] += duds0[i]; }
 }
 
-void FuentesPyramid::calcIntegratedLegendre(const int p, const double x,
+void FuentesPyramid::CalcIntegratedLegendre(const int p, const double x,
                                             const double t,
                                             double *u)
 {
    if (t > 0.0)
    {
-      calcScaledLegendre(p, x, t, u);
+      CalcScaledLegendre(p, x, t, u);
       for (int i = p; i >= 2; i--)
       {
          u[i] = (u[i] - t * t * u[i-2]) / (4.0 * i - 2.0);
@@ -97,14 +97,14 @@ void FuentesPyramid::calcIntegratedLegendre(const int p, const double x,
    }
 }
 
-void FuentesPyramid::calcIntegratedLegendre(const int p, const double x,
+void FuentesPyramid::CalcIntegratedLegendre(const int p, const double x,
                                             const double t,
                                             double *u,
                                             double *dudx, double *dudt)
 {
    if (t > 0.0)
    {
-      calcScaledLegendre(p, x, t, u, dudx, dudt);
+      CalcScaledLegendre(p, x, t, u, dudx, dudt);
       for (int i = p; i >= 2; i--)
       {
          u[i] = (u[i] - t * t * u[i-2]) / (4.0 * i - 2.0);
@@ -136,7 +136,7 @@ void FuentesPyramid::calcIntegratedLegendre(const int p, const double x,
    where t >= 0.0, x \in [0,t], and P_i is the shifted Legendre
    polynomial defined on [0,1] rather than the usual [-1,1].
 */
-void FuentesPyramid::calcScaledLegendre(const int p, const double x,
+void FuentesPyramid::CalcScaledLegendre(const int p, const double x,
                                         const double t,
                                         double *u)
 {
@@ -156,7 +156,7 @@ void FuentesPyramid::calcScaledLegendre(const int p, const double x,
    }
 }
 
-void FuentesPyramid::calcScaledLegendre(const int p, const double x,
+void FuentesPyramid::CalcScaledLegendre(const int p, const double x,
                                         const double t,
                                         double *u,
                                         double *dudx, double *dudt)
@@ -202,7 +202,7 @@ void FuentesPyramid::CalcIntegratedJacobi(const int p,
 {
    if (t > 0.0)
    {
-      calcScaledJacobi(p, alpha, x, t, u);
+      CalcScaledJacobi(p, alpha, x, t, u);
       for (int i = p; i >= 2; i--)
       {
          double d0 = 2.0 * i + alpha;
@@ -237,7 +237,7 @@ void FuentesPyramid::CalcIntegratedJacobi(const int p,
                                           double *dudx,
                                           double *dudt)
 {
-   calcScaledJacobi(p, alpha, x, t, u, dudx, dudt);
+   CalcScaledJacobi(p, alpha, x, t, u, dudx, dudt);
    for (int i = p; i >= 2; i--)
    {
       double d0 = 2.0 * i + alpha;
@@ -270,7 +270,7 @@ void FuentesPyramid::CalcIntegratedJacobi(const int p,
    polynomial defined on [0,1] rather than the usual [-1,1]. Note that we only
    consider the special case when \beta = 0.
 */
-void FuentesPyramid::calcScaledJacobi(const int p, const double alpha,
+void FuentesPyramid::CalcScaledJacobi(const int p, const double alpha,
                                       const double x,
                                       const double t,
                                       double *u)
@@ -291,7 +291,7 @@ void FuentesPyramid::calcScaledJacobi(const int p, const double alpha,
    }
 }
 
-void FuentesPyramid::calcScaledJacobi(const int p, const double alpha,
+void FuentesPyramid::CalcScaledJacobi(const int p, const double alpha,
                                       const double x,
                                       const double t,
                                       double *u, double *dudx, double *dudt)

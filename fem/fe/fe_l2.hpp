@@ -198,7 +198,7 @@ private:
 public:
    /// Construct the L2_PyramidElement of order @a p and BasisType @a btype
    L2_FuentesPyramidElement(const int p,
-			    const int btype = BasisType::GaussLegendre);
+                            const int btype = BasisType::GaussLegendre);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -219,7 +219,7 @@ private:
 public:
    /// Construct the L2_PyramidElement of order @a p and BasisType @a btype
    L2_BergotPyramidElement(const int p,
-                     const int btype = BasisType::GaussLegendre);
+                           const int btype = BasisType::GaussLegendre);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;

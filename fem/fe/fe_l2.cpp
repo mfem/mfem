@@ -962,9 +962,9 @@ L2_FuentesPyramidElement::L2_FuentesPyramidElement(const int p, const int btype)
    for (int m = 0; m < dof; m++)
    {
       const IntegrationPoint &ip = Nodes.IntPoint(m);
-      Poly_1D::CalcLegendre(p, ip.x / (1.0 - ip.z), shape_x);
-      Poly_1D::CalcLegendre(p, ip.y / (1.0 - ip.z), shape_y);
-      Poly_1D::CalcLegendre(p, ip.z, shape_z);
+      Poly_1D::CalcLegendre(p, ip.x / (1.0 - ip.z), shape_x.GetData());
+      Poly_1D::CalcLegendre(p, ip.y / (1.0 - ip.z), shape_y.GetData());
+      Poly_1D::CalcLegendre(p, ip.z, shape_z.GetData());
       //calcBasis(order, ip, shape_x, shape_y, shape_z, T.GetColumn(m));
       o = 0;
       for (int k = 0; k <= p; k++)
@@ -983,7 +983,7 @@ L2_FuentesPyramidElement::L2_FuentesPyramidElement(const int p, const int btype)
 }
 
 void L2_FuentesPyramidElement::CalcShape(const IntegrationPoint &ip,
-					 Vector &shape) const
+                                         Vector &shape) const
 {
    const int p = order;
 
@@ -994,9 +994,9 @@ void L2_FuentesPyramidElement::CalcShape(const IntegrationPoint &ip,
    Vector u(dof);
 #endif
 
-   Poly_1D::CalcLegendre(p, ip.x / (1.0 - ip.z), shape_x);
-   Poly_1D::CalcLegendre(p, ip.y / (1.0 - ip.z), shape_y);
-   Poly_1D::CalcLegendre(p, ip.z, shape_z);
+   Poly_1D::CalcLegendre(p, ip.x / (1.0 - ip.z), shape_x.GetData());
+   Poly_1D::CalcLegendre(p, ip.y / (1.0 - ip.z), shape_y.GetData());
+   Poly_1D::CalcLegendre(p, ip.z, shape_z.GetData());
 
    int o = 0;
    for (int k = 0; k <= p; k++)
@@ -1009,7 +1009,7 @@ void L2_FuentesPyramidElement::CalcShape(const IntegrationPoint &ip,
 }
 
 void L2_FuentesPyramidElement::CalcDShape(const IntegrationPoint &ip,
-					  DenseMatrix &dshape) const
+                                          DenseMatrix &dshape) const
 {
    const int p = order;
 
@@ -1023,9 +1023,11 @@ void L2_FuentesPyramidElement::CalcDShape(const IntegrationPoint &ip,
    DenseMatrix du(dof, dim);
 #endif
 
-   Poly_1D::CalcLegendre(p, ip.x / (1.0 - ip.z), shape_x, dshape_x);
-   Poly_1D::CalcLegendre(p, ip.y / (1.0 - ip.z), shape_y, dshape_y);
-   Poly_1D::CalcLegendre(p, ip.z, shape_z, dshape_z);
+   Poly_1D::CalcLegendre(p, ip.x / (1.0 - ip.z), shape_x.GetData(),
+                         dshape_x.GetData());
+   Poly_1D::CalcLegendre(p, ip.y / (1.0 - ip.z), shape_y.GetData(),
+                         dshape_y.GetData());
+   Poly_1D::CalcLegendre(p, ip.z, shape_z.GetData(), dshape_z.GetData());
 
    int o = 0;
    for (int k = 0; k <= p; k++)
@@ -1067,17 +1069,17 @@ L2_BergotPyramidElement::L2_BergotPyramidElement(const int p, const int btype)
    for (int k = 0; k <= p; k++)
       for (int j = 0; j <= p - k; j++)
       {
- 	 double wjk = op[j] + op[k] + op[p-j-k];
+         double wjk = op[j] + op[k] + op[p-j-k];
          for (int i = 0; i <= p - k; i++)
          {
-	    double wik = op[i] + op[k] + op[p-i-k];
-	    double w = wik * wjk * op[p-k];
+            double wik = op[i] + op[k] + op[p-i-k];
+            double w = wik * wjk * op[p-k];
             Nodes.IntPoint(o++).Set3(op[i] * (op[j] + op[p-j-k]) / w,
                                      op[j] * (op[j] + op[p-j-k]) / w,
                                      op[k] * op[p-k] / w);
          }
       }
-   
+
    MFEM_ASSERT(o == dof,
                "Number of nodes does not match the "
                "number of degrees of freedom");
@@ -1086,26 +1088,28 @@ L2_BergotPyramidElement::L2_BergotPyramidElement(const int p, const int btype)
    for (int m = 0; m < dof; m++)
    {
       const IntegrationPoint &ip = Nodes.IntPoint(m);
-      
+
       double x = (ip.z < 1.0) ? (ip.x / (1.0 - ip.z)) : 0.0;
       double y = (ip.z < 1.0) ? (ip.y / (1.0 - ip.z)) : 0.0;
       double z = ip.z;
-      
+
       o = 0;
       for (int i = 0; i <= p; i++)
       {
-	 poly1d.CalcLegendre(i, x, shape_x);
-	 for (int j = 0; j <= p; j++)
+         poly1d.CalcLegendre(i, x, shape_x.GetData());
+         for (int j = 0; j <= p; j++)
          {
-	    poly1d.CalcLegendre(j, y, shape_y);
-	    int maxij = std::max(i, j);
-	    for (int k = 0; k <= p - maxij; k++)
+            poly1d.CalcLegendre(j, y, shape_y.GetData());
+            int maxij = std::max(i, j);
+            for (int k = 0; k <= p - maxij; k++)
             {
-	       poly1d.CalcJacobi(k, 2.0 * (maxij + 1.0), 0.0, z, shape_z);
+               // poly1d.CalcJacobi(k, 2.0 * (maxij + 1.0), 0.0, z, shape_z);
+               FuentesPyramid::CalcScaledJacobi(k, 2.0 * (maxij + 1.0), z, 1.0,
+                                                shape_z);
                T(o++, m) = shape_x(i) * shape_y(j) * shape_z(k) *
-		 pow(1.0 - ip.z, maxij);
+                           pow(1.0 - ip.z, maxij);
             }
-	 }
+         }
       }
    }
 
@@ -1113,7 +1117,7 @@ L2_BergotPyramidElement::L2_BergotPyramidElement(const int p, const int btype)
 }
 
 void L2_BergotPyramidElement::CalcShape(const IntegrationPoint &ip,
-					Vector &shape) const
+                                        Vector &shape) const
 {
    const int p = order;
 
@@ -1127,29 +1131,31 @@ void L2_BergotPyramidElement::CalcShape(const IntegrationPoint &ip,
    double x = (ip.z < 1.0) ? (ip.x / (1.0 - ip.z)) : 0.0;
    double y = (ip.z < 1.0) ? (ip.y / (1.0 - ip.z)) : 0.0;
    double z = ip.z;
-      
+
    int o = 0;
    for (int i = 0; i <= p; i++)
    {
-     poly1d.CalcLegendre(i, x, shape_x);
-     for (int j = 0; j <= p; j++)
-     {
-       poly1d.CalcLegendre(j, y, shape_y);
-       int maxij = std::max(i, j);
-       for (int k = 0; k <= p - maxij; k++)
-       {
-	 poly1d.CalcJacobi(k, 2.0 * (maxij + 1.0), 0.0, z, shape_z);
-	 u[o++] = shape_x(i) * shape_y(j) * shape_z(k) *
-	   pow(1.0 - ip.z, maxij);
-       }
-     }
+      poly1d.CalcLegendre(i, x, shape_x.GetData());
+      for (int j = 0; j <= p; j++)
+      {
+         poly1d.CalcLegendre(j, y, shape_y.GetData());
+         int maxij = std::max(i, j);
+         for (int k = 0; k <= p - maxij; k++)
+         {
+            // poly1d.CalcJacobi(k, 2.0 * (maxij + 1.0), 0.0, z, shape_z);
+            FuentesPyramid::CalcScaledJacobi(k, 2.0 * (maxij + 1.0), z, 1.0,
+                                             shape_z);
+            u[o++] = shape_x(i) * shape_y(j) * shape_z(k) *
+                     pow(1.0 - ip.z, maxij);
+         }
+      }
    }
-   
+
    Ti.Mult(u, shape);
 }
 
 void L2_BergotPyramidElement::CalcDShape(const IntegrationPoint &ip,
-					 DenseMatrix &dshape) const
+                                         DenseMatrix &dshape) const
 {
    const int p = order;
 
@@ -1163,9 +1169,11 @@ void L2_BergotPyramidElement::CalcDShape(const IntegrationPoint &ip,
    DenseMatrix du(dof, dim);
 #endif
 
-   Poly_1D::CalcLegendre(p, ip.x / (1.0 - ip.z), shape_x, dshape_x);
-   Poly_1D::CalcLegendre(p, ip.y / (1.0 - ip.z), shape_y, dshape_y);
-   Poly_1D::CalcLegendre(p, ip.z, shape_z, dshape_z);
+   Poly_1D::CalcLegendre(p, ip.x / (1.0 - ip.z), shape_x.GetData(),
+                         dshape_x.GetData());
+   Poly_1D::CalcLegendre(p, ip.y / (1.0 - ip.z), shape_y.GetData(),
+                         dshape_y.GetData());
+   Poly_1D::CalcLegendre(p, ip.z, shape_z.GetData(), dshape_z.GetData());
 
    int o = 0;
    for (int k = 0; k <= p; k++)
