@@ -368,6 +368,8 @@ void ComputePartialFractionApproximation(real_t & alpha,
 
 
    return;
+#else
+   MFEM_CONTRACT_VAR(print_warning);
 #endif
 
    Vector x(npoints);
