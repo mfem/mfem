@@ -106,9 +106,6 @@ protected:
    // Convert the local 'meshgen' to a global one.
    void ReduceMeshGen();
 
-   /// Used in Finalize() after the topology changes
-   void UpdatedTopology() override { FinalizeParTopo(); }
-
    // Determine sedge_ledge and sface_lface.
    void FinalizeParTopo();
 
