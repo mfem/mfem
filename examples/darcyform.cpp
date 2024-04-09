@@ -736,7 +736,7 @@ void DarcyHybridization::ComputeAndAssembleFaceMatrix(int face,
    const FiniteElement *fe1, *fe2;
 
    FaceElementTransformations *ftr = mesh->GetFaceElementTransformations(face);
-   fes_p->GetElementVDofs(ftr->Elem2No, vdofs);
+   fes_p->GetElementVDofs(ftr->Elem1No, vdofs);
    fe1 = fes_p->GetFE(ftr->Elem1No);
 
    if (ftr->Elem2No >= 0)
