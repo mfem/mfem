@@ -75,6 +75,12 @@ Miscellaneous
 - Improved thread safety for global variables in the library, e.g. for IntRules,
   RefinedIntRules, GlobGeometryRefiner, and FiniteElement::dof2quad_array.
 
+- PETSc integration now generally requires PETSc version 3.21 or later, though
+  depending on the functionality older versions may still work.
+
+- RAJA backend will use seq_exec for serial loop execution when RAJA
+  v2023.06.00 and beyond is detected as loop_exec is deprecated.
+
 - Adding named attribute sets and basic supporting methods to the Mesh class as
   a convenient means of referring to sets of domain or boundary attribute
   numbers. Also adding related serial and parallel examples which illustrate.
