@@ -1350,7 +1350,7 @@ public:
    explicit MatrixArrayVectorCoefficient (int dim);
 
    /// Set the time for internally stored coefficients
-   void SetTime(real_t t);
+   void SetTime(real_t t) override;
 
    /// Get the coefficient located at (i,j) in the matrix.
    VectorCoefficient* GetCoeff (int i) { return Coeff[i]; }
@@ -1368,8 +1368,8 @@ public:
              const IntegrationPoint &ip);
 
    /// Evaluate the matrix coefficient @a ip.
-   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+   void Eval(DenseMatrix &K, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
 
    virtual ~MatrixArrayVectorCoefficient();
 };

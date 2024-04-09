@@ -985,9 +985,9 @@ void MatrixArrayVectorCoefficient::Eval(DenseMatrix &K,
                                         const IntegrationPoint &ip)
 {
    K.SetSize(height, width);
+   Vector V(width);
    for (int i = 0; i < height; i++)
    {
-      Vector V(width);
       this->Eval(i, V, T, ip);
       for (int j = 0; j < width; j++)
       {
