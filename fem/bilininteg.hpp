@@ -3448,6 +3448,37 @@ private:
    void SetupPA(const FiniteElementSpace &fes, FaceType type);
 };
 
+/** Integrator for the (H)DG diffusion stabilization term
+    $$
+        + \alpha \langle \{h^{-1} Q\} [u], [v] \rangle
+    $$
+    where $Q$ is a scalar or matrix diffusion coefficient and $u$, $v$ are the trial
+    and test spaces, respectively.  */
+class HDGDiffusionCenteredIntegrator : public BilinearFormIntegrator
+{
+protected:
+   Coefficient *Q;
+   MatrixCoefficient *MQ;
+   real_t alpha;
+
+   // these are not thread-safe!
+   Vector shape1, shape2, nor, nh, ni;
+   DenseMatrix mq;
+
+public:
+   HDGDiffusionCenteredIntegrator(const real_t a = 0.5)
+      : Q(NULL), MQ(NULL), alpha(a) { }
+   HDGDiffusionCenteredIntegrator(Coefficient &q, const real_t a = 0.5)
+      : Q(&q), MQ(NULL), alpha(a) { }
+   HDGDiffusionCenteredIntegrator(MatrixCoefficient &q, const real_t a = 0.5)
+      : Q(NULL), MQ(&q), alpha(a) { }
+   using BilinearFormIntegrator::AssembleFaceMatrix;
+   virtual void AssembleFaceMatrix(const FiniteElement &el1,
+                                   const FiniteElement &el2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
+};
+
 /** Integrator for the "BR2" diffusion stabilization term
     $$
       \sum_e \eta (r_e([u]), r_e([v]))

@@ -228,7 +228,7 @@ int main(int argc, char *argv[])
    //     B   = -\int_\Omega \div u_h q_h d\Omega   q_h \in V_h, w_h \in W_h
    BilinearForm *Mq = darcy->GetFluxMassForm();
    MixedBilinearForm *B = darcy->GetFluxDivForm();
-   BilinearForm *Mt = (a > 0.)?(darcy->GetPotentialMassForm()):(NULL);
+   BilinearForm *Mt = (a > 0. || dg)?(darcy->GetPotentialMassForm()):(NULL);
 
    if (dg)
    {
@@ -236,6 +236,7 @@ int main(int argc, char *argv[])
       B->AddDomainIntegrator(new VectorDivergenceIntegrator());
       B->AddInteriorFaceIntegrator(new TransposeIntegrator(
                                       new DGNormalTraceIntegrator(-1.)));
+      Mt->AddInteriorFaceIntegrator(new HDGDiffusionCenteredIntegrator(kcoeff));
    }
    else
    {
