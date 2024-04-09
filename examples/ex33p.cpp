@@ -184,10 +184,11 @@ int main(int argc, char *argv[])
    // 5. Define a finite element space on the mesh.
    H1_FECollection fec(order, dim);
    ParFiniteElementSpace fespace(&pmesh, &fec);
+   HYPRE_BigInt size = fespace.GlobalTrueVSize();
    if (Mpi::Root())
    {
       cout << "Number of degrees of freedom: "
-           << fespace.GlobalTrueVSize() << endl;
+           << size << endl;
    }
 
    // 6. Determine the list of true (i.e. conforming) essential boundary dofs.
