@@ -17,9 +17,9 @@ Version 4.7, released on April 12, 2024
 
 Meshing improvements
 --------------------
-- Added named attribute sets and basic supporting methods to the Mesh class as
-  a convenient means of referring to sets of domain or boundary attribute
-  numbers. Also adding related serial and parallel examples which illustrate.
+- Added named attribute sets and basic supporting methods to the Mesh class as a
+  convenient means of referring to sets of domain or boundary attribute numbers.
+  See the new Example 39/39p.
 
 - Introduced formulas for refinement of patches in NURBS meshes. Refinement by
   arbitrary integer factors is also enabled, e.g. in the mesh-explorer miniapp.
@@ -40,7 +40,7 @@ Discretization improvements
 
 - Added a capability to construct cut-surface and cut-volume IntegrationRules
   through a moment-fitting approach. The cut is specified by the zero level set
-  of a Coefficient. See fem/intrules_cut.hpp and Example 38.
+  of a Coefficient. See fem/intrules_cut.hpp and the new Example 38.
 
 - Introduced support for higher order nonconformal Nedelec elements on simplices
   in ParMesh.
