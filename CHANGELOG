@@ -8,7 +8,7 @@
                                https://mfem.org
 
 
-Version 4.7, released on April 12, 2024
+Version 4.7, released on April 19, 2024
 =======================================
 
 - Added support for single and double precision, with corresponding hypre build.
@@ -25,7 +25,7 @@ Meshing improvements
   arbitrary integer factors is also enabled, e.g. in the mesh-explorer miniapp.
   NURBS coarsening and knot removal are also introduced.
 
-- Added support for internal boundary elements in nonconformal meshes.
+- Added support for internal boundary elements in nonconforming meshes.
 
 - The ReadCubit Genesis mesh importer has been rewritten to improve readability.
 
@@ -42,7 +42,7 @@ Discretization improvements
   through a moment-fitting approach. The cut is specified by the zero level set
   of a Coefficient. See fem/intrules_cut.hpp and the new Example 38.
 
-- Introduced support for higher order nonconformal Nedelec elements on simplices
+- Introduced support for high-order nonconforming Nedelec elements on simplices
   in ParMesh.
 
 GPU computing
@@ -52,22 +52,24 @@ GPU computing
 - Added functionality for BilinearFormIntegrators to use kernels that work for
   both tensor and unstructured elements.
 
-- Added partial assembly for linear elasticity. Does not use sum factorization
-  for now.
+- Added partial assembly for linear elasticity. (No sum factorization for now.)
 
 - RAJA backend will use seq_exec for serial loop execution when RAJA v2023.06.00
   and beyond is detected as loop_exec is deprecated.
 
 New and updated examples and miniapps
 -------------------------------------
-- Added a new block solver in miniapp/solvers for the Darcy problem. The new
-  solver is based on a Bramble-Pasciak preconditioning. User can use and
-  implement their own preconditioner for the mass matrix.
+- Added a new mortar contact patch test miniapp using the Tribol interface
+  physics library (https://github.com/LLNL/Tribol). See miniapps/tribol.
 
 - Added miniapp to demonstrate new elasticity integrator and unstructured
   element GPU support, and a block diagonal preconditioner using low order
   refinement. Allows comparison with currently existing legacy mode
   integrator. See miniapps/solvers/lor_elast.
+
+- Added a new block solver in miniapp/solvers for the Darcy problem. The new
+  solver is based on a Bramble-Pasciak preconditioning. User can use and
+  implement their own preconditioner for the mass matrix.
 
 Miscellaneous
 -------------
