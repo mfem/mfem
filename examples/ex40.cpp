@@ -43,6 +43,9 @@
 using namespace std;
 using namespace mfem;
 
+real_t exact_solution(const Vector &pt);
+void exact_solution_gradient(const Vector &pt, Vector &grad);
+
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
@@ -173,7 +176,6 @@ int main(int argc, char *argv[])
    // 10. Iterate
    int k;
    int total_iterations = 0;
-   real_t increment_u = 0.1;
    for (k = 0; k < max_it; k++)
    {
       mfem::out << "\nITERATION " << k+1 << endl;
@@ -183,21 +185,30 @@ int main(int argc, char *argv[])
       b1.Update(&RTfes,rhs.GetBlock(1),0);
       b2.Update(&H1fes,rhs.GetBlock(2),0);
 
-      VectorGridFunctionCoefficient M1_coeff(M1_gf);
-      VectorGridFunctionCoefficient M2_coeff(M2_gf);
+      VectorGridFunctionCoefficient M1_coeff(&M1_gf);
+      VectorGridFunctionCoefficient M2_coeff(&M2_gf);
 
       MatrixArrayVectorCoefficient exp_M(dim);
-      exp_M.Set(0, new VectorGridFunctionCoefficient(M1_gf));
-      exp_M.Set(1, new VectorGridFunctionCoefficient(M2_gf));
+      exp_M.Set(0, &M1_coeff);
+      exp_M.Set(1, &M2_coeff);
 
-      // TODO
+      MatrixVectorProductCoefficient exp_M1(exp_M, onezero);
+      MatrixVectorProductCoefficient exp_M2(exp_M, zeroone);
+      InnerProductCoefficient exp_M11(exp_M1, onezero);
+      InnerProductCoefficient exp_M12(exp_M1, zeroone);
+      InnerProductCoefficient exp_M21(exp_M2, onezero);
+      InnerProductCoefficient exp_M22(exp_M2, zeroone);
+
+      ScalarVectorProductCoefficient neg_exp_M1(-1.0, exp_M1);
+      b0.AddDomainIntegrator(new VectorFEDomainLFIntegrator(neg_exp_M1));
       b0.Assemble();
 
-      // TODO
+      ScalarVectorProductCoefficient neg_exp_M2(-1.0, exp_M2);
+      b1.AddDomainIntegrator(new VectorFEDomainLFIntegrator(neg_exp_M2));
       b1.Assemble();
 
-      InnerProductCoefficient M11(onezero,M1_coeff);
-      InnerProductCoefficient M22(zeroone,M2_coeff);
+      InnerProductCoefficient M11(M1_coeff, onezero);
+      InnerProductCoefficient M22(M2_coeff, zeroone);
       SumCoefficient trace_M(M11, M22);
       SumCoefficient rhs2(ln_rhs_coef, trace_M, 1.0, -1.0);
       b2.AddDomainIntegrator(new DomainLFIntegrator(rhs2));
@@ -205,8 +216,7 @@ int main(int argc, char *argv[])
 
       BilinearForm a00(&RTfes);
       a00.SetDiagonalPolicy(mfem::Operator::DIAG_ONE);
-      // TODO
-      // a00.AddDomainIntegrator(new DiffusionIntegrator(alpha_cf));
+      a00.AddDomainIntegrator(new VectorFEMassIntegrator(exp_M11));
       a00.Assemble();
       a00.EliminateEssentialBC(ess_bdr,x.GetBlock(0),rhs.GetBlock(0),
                                  mfem::Operator::DIAG_ONE);
@@ -214,39 +224,38 @@ int main(int argc, char *argv[])
       SparseMatrix &A00 = a00.SpMat();
 
       BilinearForm a01(&RTfes);
-      // TODO
+      a01.AddDomainIntegrator(new VectorFEMassIntegrator(exp_M12));
+      a01.Assemble();
       SparseMatrix &A01 = a01.SpMat();
 
       MixedBilinearForm a02(&RTfes,&H1fes);
       a02.AddDomainIntegrator(new MixedGradDivIntegrator(onezero));
       a02.Assemble();
-      // TODO
       SparseMatrix &A02 = a02.SpMat();
 
       BilinearForm a10(&RTfes);
-      // TODO
+      a10.AddDomainIntegrator(new VectorFEMassIntegrator(exp_M21));
+      a10.Assemble();
       SparseMatrix &A10 = a10.SpMat();
 
       BilinearForm a11(&RTfes);
-      // TODO
+      a11.AddDomainIntegrator(new VectorFEMassIntegrator(exp_M22));
+      a11.Assemble();
       SparseMatrix &A11 = a11.SpMat();
 
       MixedBilinearForm a12(&RTfes,&H1fes);
       a12.AddDomainIntegrator(new MixedGradDivIntegrator(zeroone));
       a12.Assemble();
-      // TODO
       SparseMatrix &A12 = a12.SpMat();
 
       MixedBilinearForm a20(&H1fes,&RTfes);
       a20.AddDomainIntegrator(new MixedDotProductIntegrator(onezero));
       a20.Assemble();
-      // TODO
       SparseMatrix &A20 = a20.SpMat();
 
       MixedBilinearForm a21(&H1fes,&RTfes);
       a21.AddDomainIntegrator(new MixedDotProductIntegrator(zeroone));
       a21.Assemble();
-      // TODO
       SparseMatrix &A21 = a21.SpMat();
 
       BilinearForm a22(&H1fes);
@@ -288,17 +297,10 @@ int main(int argc, char *argv[])
       {
          sol_sock << "solution\n" << mesh << u_gf << "window_title 'Discrete solution'"
                   << flush;
-         mfem::out << "Newton_update_size = " << Newton_update_size << endl;
+         mfem::out << "Increment (|| uₕ - uₕ_prvs||) = " << Newton_update_size << endl;
       }
 
-      if (Newton_update_size < increment_u)
-      {
-         break;
-      }
-
-      mfem::out << "Increment (|| uₕ - uₕ_prvs||) = " << increment_u << endl;
-
-      if (increment_u < tol || k == max_it-1)
+      if (Newton_update_size < tol || k == max_it-1)
       {
          break;
       }
@@ -332,37 +334,13 @@ int main(int argc, char *argv[])
 real_t exact_solution(const Vector &pt)
 {
    real_t x = pt(0), y = pt(1);
-   real_t r = sqrt(x*x + y*y);
-   real_t r0 = 0.5;
-   real_t a =  0.348982574111686;
-   real_t A = -0.340129705945858;
-
-   if (r > a)
-   {
-      return A * log(r);
-   }
-   else
-   {
-      return sqrt(r0*r0-r*r);
-   }
+   return (x*x + y*y) / 2.0;
 }
 
 void exact_solution_gradient(const Vector &pt, Vector &grad)
 {
    real_t x = pt(0), y = pt(1);
-   real_t r = sqrt(x*x + y*y);
-   real_t r0 = 0.5;
-   real_t a =  0.348982574111686;
-   real_t A = -0.340129705945858;
 
-   if (r > a)
-   {
-      grad(0) =  A * x / (r*r);
-      grad(1) =  A * y / (r*r);
-   }
-   else
-   {
-      grad(0) = - x / sqrt( r0*r0 - r*r );
-      grad(1) = - y / sqrt( r0*r0 - r*r );
-   }
+   grad(0) = x;
+   grad(1) = y;
 }
