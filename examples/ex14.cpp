@@ -173,7 +173,7 @@ int main(int argc, char *argv[])
       }
       else
       {
-         MFEM_ABORT("Not yet supported.");
+         MFEM_ABORT("The case of PA with sigma != -1 is not yet supported.");
       }
    }
    else
