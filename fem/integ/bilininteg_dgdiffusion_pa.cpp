@@ -1040,8 +1040,8 @@ static void PADGDiffusionApply(const int dim,
    }
 }
 
-void DGDiffusionIntegrator::AddMultPAFaceNormalDerivatives(const Vector &x,
-                                                           const Vector &dxdn, Vector &y, Vector &dydn) const
+void DGDiffusionIntegrator::AddMultPAFaceNormalDerivatives(
+   const Vector &x, const Vector &dxdn, Vector &y, Vector &dydn) const
 {
    PADGDiffusionApply(dim, dofs1D, quad1D, nf,
                       maps->B, maps->Bt, maps->G, maps->Gt,
