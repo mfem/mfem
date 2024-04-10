@@ -52,7 +52,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/star.mesh";
    int order = 3;
    int max_it = 10;
-   int ref_levels = 3;
+   int ref_levels = 1;
    real_t tol = 1e-5;
    bool visualization = true;
 
@@ -85,7 +85,7 @@ int main(int argc, char *argv[])
 
    if (dim != 2)
    {
-    MFEM_ABORT("Example 40 currently only supports 2D problems")
+      MFEM_ABORT("Example 40 currently only supports 2D problems")
    }
 
    // 3. Postprocess the mesh.
@@ -175,7 +175,6 @@ int main(int argc, char *argv[])
 
    // 10. Iterate
    int k;
-   int total_iterations = 0;
    for (k = 0; k < max_it; k++)
    {
       mfem::out << "\nITERATION " << k+1 << endl;
@@ -219,7 +218,7 @@ int main(int argc, char *argv[])
       a00.AddDomainIntegrator(new VectorFEMassIntegrator(exp_M11));
       a00.Assemble();
       a00.EliminateEssentialBC(ess_bdr,x.GetBlock(0),rhs.GetBlock(0),
-                                 mfem::Operator::DIAG_ONE);
+                               mfem::Operator::DIAG_ONE);
       a00.Finalize();
       SparseMatrix &A00 = a00.SpMat();
 
@@ -229,7 +228,8 @@ int main(int argc, char *argv[])
       SparseMatrix &A01 = a01.SpMat();
 
       MixedBilinearForm a02(&RTfes,&H1fes);
-      a02.AddDomainIntegrator(new MixedGradDivIntegrator(onezero));
+      a02.AddDomainIntegrator(new TransposeIntegrator(new MixedGradDivIntegrator(
+                                                         onezero)));
       a02.Assemble();
       SparseMatrix &A02 = a02.SpMat();
 
@@ -244,17 +244,20 @@ int main(int argc, char *argv[])
       SparseMatrix &A11 = a11.SpMat();
 
       MixedBilinearForm a12(&RTfes,&H1fes);
-      a12.AddDomainIntegrator(new MixedGradDivIntegrator(zeroone));
+      a12.AddDomainIntegrator(new TransposeIntegrator(new MixedGradDivIntegrator(
+                                                         zeroone)));
       a12.Assemble();
       SparseMatrix &A12 = a12.SpMat();
 
       MixedBilinearForm a20(&H1fes,&RTfes);
-      a20.AddDomainIntegrator(new MixedDotProductIntegrator(onezero));
+      a20.AddDomainIntegrator(new TransposeIntegrator(new MixedDotProductIntegrator(
+                                                         onezero)));
       a20.Assemble();
       SparseMatrix &A20 = a20.SpMat();
 
       MixedBilinearForm a21(&H1fes,&RTfes);
-      a21.AddDomainIntegrator(new MixedDotProductIntegrator(zeroone));
+      a21.AddDomainIntegrator(new TransposeIntegrator(new MixedDotProductIntegrator(
+                                                         zeroone)));
       a21.Assemble();
       SparseMatrix &A21 = a21.SpMat();
 
@@ -297,7 +300,8 @@ int main(int argc, char *argv[])
       {
          sol_sock << "solution\n" << mesh << u_gf << "window_title 'Discrete solution'"
                   << flush;
-         mfem::out << "Increment (|| uₕ - uₕ_prvs||) = " << Newton_update_size << endl;
+         mfem::out << "Increment (|| uₕ - uₕ_prvs||) = " << Newton_update_size <<
+                   endl;
       }
 
       if (Newton_update_size < tol || k == max_it-1)
