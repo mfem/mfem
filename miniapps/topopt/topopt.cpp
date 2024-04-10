@@ -1101,9 +1101,9 @@ void LineVolumeForceCoefficient::UpdateSize()
 }
 
 int Step_Bregman(TopOptProblem &problem, const GridFunction &x0,
-                const GridFunction &direction,
-                LinearForm &diff_densityForm, 
-                double &step_size, const int max_it, const double shrink_factor)
+                 const GridFunction &direction,
+                 LinearForm &diff_densityForm,
+                 double &step_size, const int max_it, const double shrink_factor)
 {
    // obtain current point and gradient
    GridFunction &x_gf = problem.GetGridFunction();
@@ -1136,7 +1136,8 @@ int Step_Bregman(TopOptProblem &problem, const GridFunction &x0,
          MPI_Allreduce(MPI_IN_PLACE, &d, 1, MPI_DOUBLE, MPI_SUM, comm);
       }
 #endif
-      if (new_val < val + d + 1.0 / step_size * density.ComputeBregmanDivergence(x_gf, x0) && d < 0) { break; }
+      if (new_val < val + d + 1.0 / step_size * density.ComputeBregmanDivergence(x_gf,
+                                                                                 x0) && d < 0) { break; }
    }
 
    return i;

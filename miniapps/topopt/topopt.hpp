@@ -74,13 +74,15 @@ public:
    FermiDirac(const double eps=1e-12):LegendreFunction()
    {
       // Fermi-Dirac
-      SetLegendre([eps](const double x) {
+      SetLegendre([eps](const double x)
+      {
          const double y = 1.0 - x;
          return (x < eps ? 0 : x*log(x))
                 + (y < eps ? 0 : y*log(y));
       });
       // Derivative, logit = log(x/(1-x))
-      SetForwardMap([eps](const double x) {
+      SetForwardMap([eps](const double x)
+      {
          const double y = x > 0.5 ? 1.0 - x : x;
          const double z = y / (1.0 - y);
          const double result = z < eps ? std::log(eps) : std::log(z);
@@ -99,15 +101,18 @@ public:
    Shannon(const double eps):LegendreFunction()
    {
       // Shannon entropy
-      SetLegendre([eps](const double x) {
+      SetLegendre([eps](const double x)
+      {
          return x < eps ? -x : x*std::log(x) - x;
       });
       // Derivative, safe log(x)
-      SetForwardMap([eps](const double x) {
+      SetForwardMap([eps](const double x)
+      {
          return x < eps ? std::log(eps) : std::log(x);
       });
       // Inverse of Derivative, exp
-      SetInverseMap([](const double x) {
+      SetInverseMap([](const double x)
+      {
          return std::exp(x);
       });
    }
@@ -860,9 +865,9 @@ int Step_Armijo(TopOptProblem &problem, const GridFunction &x0,
                 double &step_size, const int max_it=20, const double shrink_factor=0.5);
 
 int Step_Bregman(TopOptProblem &problem, const GridFunction &x0,
-                const GridFunction &direction,
-                LinearForm &diff_densityForm, 
-                double &step_size, const int max_it=20, const double shrink_factor=0.5);
+                 const GridFunction &direction,
+                 LinearForm &diff_densityForm,
+                 double &step_size, const int max_it=20, const double shrink_factor=0.5);
 /// @brief Volumetric force for linear elasticity
 class VolumeForceCoefficient : public VectorCoefficient
 {

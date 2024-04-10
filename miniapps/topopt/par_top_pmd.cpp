@@ -78,7 +78,8 @@ int main(int argc, char *argv[])
    double tol_stationarity = 1e-04;
    double tol_compliance = 5e-05;
    bool use_bregman = true;
-
+   bool armijo = true;
+   bool use_BGG = true;
    ostringstream filename_prefix;
    filename_prefix << "PMD-";
 
@@ -111,6 +112,12 @@ int main(int argc, char *argv[])
    args.AddOption(&use_bregman, "-bregman", "--use-bregman", "-L2",
                   "--use-L2",
                   "Use Bregman divergence as a stopping criteria");
+   args.AddOption(&armijo, "-armijo", "--use-armijo", "-pos-bregman",
+                  "--positive-bregman-condition",
+                  "Use Armijo condition for step size selection. Otherwise, use positivity of bregman divergence");
+   args.AddOption(&use_BGG, "-bgg", "--use-BGG", "-exp",
+                  "--exponential-stepsize",
+                  "Use Barzilai-Borwein step size selection. Otherwise, use exponential step size");
    args.Parse();
    if (!args.Good()) {if (Mpi::Root()) args.PrintUsage(mfem::out);}
 
@@ -308,10 +315,12 @@ int main(int argc, char *argv[])
    double compliance = optprob.Eval();
    optprob.UpdateGradient();
    double step_size(1.0), volume(density.GetVolume() / density.GetDomainVolume()),
-          stationarityError(density.StationarityErrorL2(grad)), stationarityError_bregman(density.StationarityError(grad));
+          stationarityError(density.StationarityErrorL2(grad)),
+          stationarityError_bregman(density.StationarityError(grad));
    int num_reeval(0);
    double old_compliance;
-   double stationarityError0(stationarityError), stationarityError_bregman0(stationarityError_bregman);
+   double stationarityError0(stationarityError),
+          stationarityError_bregman0(stationarityError_bregman);
    double relative_stationarity(1.0), relative_stationarity_bregman(1.0);
    TableLogger logger;
    logger.Append(std::string("Volume"), volume);
@@ -319,7 +328,8 @@ int main(int argc, char *argv[])
    logger.Append(std::string("Stationarity (Rel)"), relative_stationarity);
    logger.Append(std::string("Re-evel"), num_reeval);
    logger.Append(std::string("Step Size"), step_size);
-   logger.Append(std::string("Stationarity-Bregman (Rel)"), relative_stationarity_bregman);
+   logger.Append(std::string("Stationarity-Bregman (Rel)"),
+                 relative_stationarity_bregman);
    logger.SaveWhenPrint(filename_prefix.str());
    logger.Print();
 
@@ -331,12 +341,19 @@ int main(int argc, char *argv[])
    for (int k = 0; k < max_it; k++)
    {
       // Step 1. Compute Step size
-      if (k > 0)
+      if (use_BGG)
       {
-         diff_rho_form.Assemble();
-         old_psi -= psi;
-         old_grad -= grad;
-         step_size = std::fabs(diff_rho_form(old_psi)  / diff_rho_form(old_grad));
+         if (k > 0)
+         {
+            diff_rho_form.Assemble();
+            old_psi -= psi;
+            old_grad -= grad;
+            step_size = std::fabs(diff_rho_form(old_psi)  / diff_rho_form(old_grad));
+         }
+      }
+      else
+      {
+         step_size *= 2.0;
       }
 
       // Step 2. Store old data
@@ -345,8 +362,14 @@ int main(int argc, char *argv[])
       old_grad = grad;
 
       // Step 3. Step and upate gradient
-      num_reeval = Step_Armijo(optprob, old_psi, grad, diff_rho_form, c1, step_size);
-      // num_reeval = Step_Bregman(optprob, old_psi, grad, diff_rho_form, step_size);
+      if (armijo)
+      {
+         num_reeval = Step_Armijo(optprob, old_psi, grad, diff_rho_form, c1, step_size);
+      }
+      else
+      {
+         num_reeval = Step_Bregman(optprob, old_psi, grad, diff_rho_form, step_size);
+      }
       compliance = optprob.GetValue();
       volume = density.GetVolume() / density.GetDomainVolume();
       optprob.UpdateGradient();
@@ -414,7 +437,8 @@ int main(int argc, char *argv[])
 
       logger.Print();
       relative_stationarity = stationarityError/stationarityError0;
-      relative_stationarity_bregman = stationarityError_bregman/stationarityError_bregman0;
+      relative_stationarity_bregman =
+         stationarityError_bregman/stationarityError_bregman0;
 
       if ((use_bregman ? relative_stationarity_bregman : relative_stationarity) <
           tol_stationarity &&
