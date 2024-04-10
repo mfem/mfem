@@ -3280,7 +3280,7 @@ HypreParMatrix *HypreParMatrixFromBlocks(Array2D<const HypreParMatrix*> &blocks,
 }
 
 HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
-                                          Array2D<double> *blockCoeff)
+                                          Array2D<real_t> *blockCoeff)
 {
    Array2D<const HypreParMatrix*> constBlocks(blocks.NumRows(), blocks.NumCols());
    for (int i = 0; i < blocks.NumRows(); ++i)
