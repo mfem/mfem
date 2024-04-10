@@ -619,7 +619,8 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
          int_face_restrict_lex->AddMultTransposeInPlace(int_face_Y, y);
          if (int_face_dYdn.Size() > 0)
          {
-            int_face_restrict_lex->NormalDerivativeAddMultTranspose(int_face_dYdn, y);
+            int_face_restrict_lex->NormalDerivativeAddMultTranspose(
+               int_face_dYdn, y);
          }
       }
    }
