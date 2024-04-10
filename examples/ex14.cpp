@@ -81,12 +81,11 @@ int main(int argc, char *argv[])
       args.PrintUsage(cout);
       return 1;
    }
-   args.PrintOptions(cout);
    if (kappa < 0)
    {
       kappa = (order+1)*(order+1);
-      cout << "Using kappa = " << kappa << endl;
    }
+   args.PrintOptions(cout);
 
    // 2. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
