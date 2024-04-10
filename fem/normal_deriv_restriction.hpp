@@ -49,7 +49,7 @@ public:
    /// @param[in] x The L-vector degrees of freedom.
    /// @param[out] y The face E(like)-vector degrees of freedom of the format
    /// (face_dofs x vdim x 2 x nf) where nf is the number of faces of type @a
-   /// face_type. The face_dofs are ordered according to @a ordering specified
+   /// face_type. The face_dofs are ordered according to @a f_ordering specified
    /// in the constructor.
    void Mult(const Vector &x, Vector &y) const;
 
