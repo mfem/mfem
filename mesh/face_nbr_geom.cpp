@@ -112,11 +112,11 @@ void FaceNeighborGeometricFactors::ExchangeFaceNbrQVectors(
 
       MPI_Isend(send_data_ptr + send_offsets[i],
                 send_offsets[i+1] - send_offsets[i],
-                MPI_DOUBLE, nbr_rank, tag, comm, &send_reqs[i]);
+                MPITypeMap<real_t>::mpi_type, nbr_rank, tag, comm, &send_reqs[i]);
 
       MPI_Irecv(x_shared_ptr + recv_offsets[i],
                 recv_offsets[i+1] - recv_offsets[i],
-                MPI_DOUBLE, nbr_rank, tag, comm, &recv_reqs[i]);
+                MPITypeMap<real_t>::mpi_type, nbr_rank, tag, comm, &recv_reqs[i]);
    }
 
    MPI_Waitall(n_face_nbr, send_reqs.data(), statuses.data());
