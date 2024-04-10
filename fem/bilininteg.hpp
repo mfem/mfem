@@ -3277,23 +3277,21 @@ public:
    DGDiffusionIntegrator(MatrixCoefficient &q, const real_t s, const real_t k)
       : Q(NULL), MQ(&q), sigma(s), kappa(k) { }
    using BilinearFormIntegrator::AssembleFaceMatrix;
-   virtual void AssembleFaceMatrix(const FiniteElement &el1,
-                                   const FiniteElement &el2,
-                                   FaceElementTransformations &Trans,
-                                   DenseMatrix &elmat);
+   void AssembleFaceMatrix(const FiniteElement &el1,
+                           const FiniteElement &el2,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat) override;
 
-   virtual bool RequiresFaceNormalDerivatives() const { return true; }
+   bool RequiresFaceNormalDerivatives() const override { return true; }
 
    using BilinearFormIntegrator::AssemblePA;
 
-   virtual void AssemblePAInteriorFaces(const FiniteElementSpace &fes);
+   void AssemblePAInteriorFaces(const FiniteElementSpace &fes) override;
 
-   virtual void AssemblePABoundaryFaces(const FiniteElementSpace &fes);
+   void AssemblePABoundaryFaces(const FiniteElementSpace &fes) override;
 
-   virtual void AddMultPAFaceNormalDerivatives(const Vector &x, const Vector &dxdn,
-                                               Vector &y, Vector &dydn) const;
-
-   //    virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
+   void AddMultPAFaceNormalDerivatives(const Vector &x, const Vector &dxdn,
+                                       Vector &y, Vector &dydn) const override;
 
    const IntegrationRule &GetRule(int order, FaceElementTransformations &T);
 
