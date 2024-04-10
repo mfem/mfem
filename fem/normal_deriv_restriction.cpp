@@ -93,7 +93,7 @@ static void NormalDerivativeSetupFaceIndexMap3D(
 
 L2NormalDerivativeFaceRestriction::L2NormalDerivativeFaceRestriction(
    const FiniteElementSpace &fes_,
-   const ElementDofOrdering ordering,
+   const ElementDofOrdering f_ordering,
    const FaceType face_type_)
    : fes(fes_),
      face_type(face_type_),
@@ -101,6 +101,10 @@ L2NormalDerivativeFaceRestriction::L2NormalDerivativeFaceRestriction(
      nf(fes.GetNFbyType(face_type)),
      ne(fes.GetNE())
 {
+   MFEM_VERIFY(f_ordering == ElementDofOrdering::LEXICOGRAPHIC,
+               "Non-lexicographic ordering not currently supported in "
+               "L2NormalDerivativeFaceRestriction.");
+
    Mesh &mesh = *fes.GetMesh();
 
    const FiniteElement &fe = *fes.GetFE(0);

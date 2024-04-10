@@ -39,7 +39,8 @@ protected:
 public:
    /// @brief Constructor.
    /// @param[in] fes_ The associated FiniteElementSpace (should be L2/DG).
-   /// @param[in] f_ordering Request a specific face dof ordering
+   /// @param[in] f_ordering Request a specific face dof ordering. Currently
+   /// only ElementDofOrdering::LEXICOGRAPHIC is supported.
    /// @param[in] face_type_ Type of faces to compute restriction (interior or boundary).
    L2NormalDerivativeFaceRestriction(const FiniteElementSpace &fes_,
                                      const ElementDofOrdering f_ordering,
