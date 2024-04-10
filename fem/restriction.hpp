@@ -536,12 +536,10 @@ public:
 
       @param[in]  x The L-vector degrees of freedom.
       @param[out] y The face E-Vector degrees of freedom with the given format:
-                    if L2FacesValues::DoubleValued (face_dofs x vdim x 2 x nf)
-                    if L2FacesValues::SingleValued (face_dofs x vdim x nf)
-                    where nf is the number of interior or boundary faces
-                    requested by @a type in the constructor.
-                    The face_dofs are ordered according to the given
-                    ElementDofOrdering. */
+                    (face_dofs x vdim x 2 x nf) where nf is the number of
+                    interior or boundary faces requested by @a type in the
+                    constructor. The face_dofs are ordered according to the
+                    given ElementDofOrdering. */
    void NormalDerivativeMult(const Vector &x, Vector &y) const override;
 
    /** @brief Add the face reference-normal derivative degrees of freedom in @a
