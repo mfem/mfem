@@ -279,7 +279,7 @@ public:
    */
    virtual bool RequiresFaceNormalDerivatives() const { return false; }
 
-   /// Method for partially assembled transposed action.
+   /// Method for partially assembled action.
    /** @brief For bilinear forms on element faces that depend on the normal
               derivative on the faces, computes the action of integrator to the
               face values @a x and reference-normal derivatives @a dxdn and adds
