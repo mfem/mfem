@@ -39,10 +39,10 @@ protected:
 public:
    /// @brief Constructor.
    /// @param[in] fes_ The associated FiniteElementSpace (should be L2/DG).
-   /// @param[in] ordering The ordering of L-DOFs.
+   /// @param[in] f_ordering Request a specific face dof ordering
    /// @param[in] face_type_ Type of faces to compute restriction (interior or boundary).
    L2NormalDerivativeFaceRestriction(const FiniteElementSpace &fes_,
-                                     const ElementDofOrdering ordering,
+                                     const ElementDofOrdering f_ordering,
                                      const FaceType face_type_);
 
    /// @brief Computes the normal derivatives on the @a face_type faces of the mesh.
