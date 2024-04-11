@@ -415,6 +415,19 @@ real_t ParBilinearForm::TrueInnerProduct(HypreParVector &x,
    return res;
 }
 
+real_t ParBilinearForm::TrueInnerProduct(const Vector &x,
+                                         const Vector &y) const
+{
+   MFEM_VERIFY(p_mat.Ptr() != NULL, "parallel matrix must be assembled");
+
+   Vector Ax(pfes->GetTrueVSize());
+   p_mat->Mult(x, Ax);
+
+   real_t res = mfem::InnerProduct(pfes->GetComm(), y, Ax);
+
+   return res;
+}
+
 void ParBilinearForm::FormLinearSystem(
    const Array<int> &ess_tdof_list, Vector &x, Vector &b,
    OperatorHandle &A, Vector &X, Vector &B, int copy_interior)
