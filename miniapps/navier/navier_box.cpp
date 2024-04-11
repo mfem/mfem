@@ -9,10 +9,10 @@ struct s_NavierContext
 {
     int order = 4;
 
-    double t_final = 0.05;
+    double t_final =  5e-3; // 0.05;
     double dt = 1e-3;
 
-    double kin_vis = 0.01;
+    double kin_vis = 0.1;
     double reynolds = 1.0 / kin_vis;
     double lam = 0.5 * reynolds
                 - sqrt(0.25 * reynolds * reynolds + 4.0 * M_PI * M_PI);
@@ -34,17 +34,11 @@ void vel(const Vector &x, double t, Vector &u)
 
     if (xi <= 1e-8)
     {
-        // u(0) = 1.0 - cos(2.0 * M_PI * yi);
-        // u(1) = ctx.lam / (2.0 * M_PI) * exp(ctx.lam * xi) * sin(2.0 * M_PI * yi);
-        // 16.0 * U * yi * zi *
-        // u(0) = 0.01*sin(2.0 * M_PI * yi); // * (0.41 - yi) * (0.41 - zi) / pow(0.41, 4.0);
-        // u(0) = 0
         u(0) = ctx.ustar / 0.41 * log(zi / ctx.z0 + 1.); // logarithmic profile 
     }
     else
     {
         u(0) = 0.0;
-        u(1) = 0.0;
     }
     u(1) = 0.0;
     u(2) = 0.0;
@@ -85,6 +79,12 @@ int main(int argc, char *argv[])
 
     Mesh *mesh = new Mesh("transfinite_cubical.msh");
 
+    // NOTE: WIP code for loading in wind from vtk
+    // Mesh *wind = new Mesh("wind.vtk");
+
+    // Array<int> attr_wind(wind->attributes.Max()); 
+    // attr_wind.Print(std::cout, 10); 
+
     for (int i = 0; i < serial_refinements; ++i)
     {
         mesh->UniformRefinement();
@@ -113,6 +113,7 @@ int main(int argc, char *argv[])
    // Add Dirichlet boundary conditions to velocity space restricted to
    // selected attributes on the mesh.
    Array<int> attr(pmesh->bdr_attributes.Max());
+   attr = 0.; 
    attr.Print(std::cout, 6);
 
     // 2 1 "Wall_back"
@@ -127,12 +128,29 @@ int main(int argc, char *argv[])
     attr[5] = 1;
     // Walls are attributes 1,2,3,5.
     attr[0] = 1; // this is the bottom of the box 
-    
-    // attr[1] = 1; 
-    // attr[2] = 1;  
-    // attr[4] = 1; 
 
+    // dirichlet on the other 3 walls
+    // attr[1] = 1;
+    // attr[2] = 1;
+    // attr[4] = 1;
+
+    attr.Print(std::cout, 6);
+
+    // adds velocity 
     flowsolver.AddVelDirichletBC(vel, attr);
+
+    // Array<int> attr_vel_nsbc(pmesh->bdr_attributes.Max());
+    
+    // attr_vel_nsbc.Print(std::cout, 6); 
+    
+    // attr_vel_nsbc[1] = 1; 
+    // attr_vel_nsbc[2] = 1; 
+    // attr_vel_nsbc[3] = 1; 
+    // attr_vel_nsbc[4] = 1; 
+
+    // flowsolver.AddVelNoSlipBC(attr_vel_nsbc): 
+
+    // attr_vel_nsbc.Print(std::cout, 6); 
 
     double t = 0.0;
     double dt = ctx.dt;

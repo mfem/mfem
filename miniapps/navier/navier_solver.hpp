@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -46,6 +46,25 @@ public:
    Array<int> attr;
    VectorCoefficient *coeff;
 };
+
+/// Container for a no-slip boundary condition of the velocity field.
+// class VelNoSlipBC_T
+// {
+// public:
+   // VelNoSlipBC_T(Array<int> attr)
+      // : attr(attr)
+   // {}
+// 
+   // VelNoSlipBC_T(VelNoSlipBC_T &&obj)
+   // {
+      // Deep copy the attribute array
+      // this->attr = obj.attr;
+   // }
+// 
+   // ~VelNoSlipBC_T() { }
+// 
+   // Array<int> attr;
+// };
 
 /// Container for a Dirichlet boundary condition of the pressure field.
 class PresDirichletBC_T
@@ -104,23 +123,23 @@ public:
  *
  * 1. An extrapolation step for all nonlinear terms which are treated
  *    explicitly. This step avoids a fully coupled nonlinear solve and only
- *    requires a solve of the mass matrix in velocity space $M_v^{-1}$. On
+ *    requires a solve of the mass matrix in velocity space \f$M_v^{-1}\f$. On
  *    the other hand this introduces a CFL stability condition on the maximum
  *    timestep.
  *
- * 2. A Poisson solve $S_p^{-1}$.
+ * 2. A Poisson solve \f$S_p^{-1}\f$.
  *
- * 3. A Helmholtz like solve $(M_v - \partial t K_v)^{-1}$.
+ * 3. A Helmholtz like solve \f$(M_v - \partial t K_v)^{-1}\f$.
  *
  * The numerical solver setup for each step are as follows.
  *
- * $M_v^{-1}$ is solved using CG with Jacobi as preconditioner.
+ * \f$M_v^{-1}\f$ is solved using CG with Jacobi as preconditioner.
  *
- * $S_p^{-1}$ is solved using CG with AMG applied to the low order refined
+ * \f$S_p^{-1}\f$ is solved using CG with AMG applied to the low order refined
  * (LOR) assembled pressure Poisson matrix. To avoid assembling a matrix for
  * preconditioning, one can use p-MG as an alternative (NYI).
  *
- * $(M_v - \partial t K_v)^{-1}$ due to the CFL condition we expect the time
+ * \f$(M_v - \partial t K_v)^{-1}\f$ due to the CFL condition we expect the time
  * step to be small. Therefore this is solved using CG with Jacobi as
  * preconditioner. For large time steps a preconditioner like AMG or p-MG should
  * be used (NYI).
@@ -145,7 +164,7 @@ public:
    /**
     * The ParMesh @a mesh can be a linear or curved parallel mesh. The @a order
     * of the finite element spaces is this algorithm is of equal order
-    * $(P_N)^d P_N$ for velocity and pressure respectively. This means the
+    * \f$(P_N)^d P_N\f$ for velocity and pressure respectively. This means the
     * pressure is in discretized in the same space (just scalar instead of a
     * vector space) as the velocity.
     *
@@ -196,6 +215,9 @@ public:
 
    void AddVelDirichletBC(VecFuncT *f, Array<int> &attr);
 
+   // no slip BC attributes
+   void AddVelNoSlipBC(Array<int> &attr);
+
    /// Add a Dirichlet boundary condition to the pressure field.
    void AddPresDirichletBC(Coefficient *coeff, Array<int> &attr);
 
@@ -239,25 +261,25 @@ public:
 
    ~NavierSolver();
 
-   /// Compute $\nabla \times \nabla \times u$ for $u \in (H^1)^2$.
+   /// Compute \f$\nabla \times \nabla \times u\f$ for \f$u \in (H^1)^2\f$.
    void ComputeCurl2D(ParGridFunction &u,
                       ParGridFunction &cu,
                       bool assume_scalar = false);
 
-   /// Compute $\nabla \times \nabla \times u$ for $u \in (H^1)^3$.
+   /// Compute \f$\nabla \times \nabla \times u\f$ for \f$u \in (H^1)^3\f$.
    void ComputeCurl3D(ParGridFunction &u, ParGridFunction &cu);
 
    /// Remove mean from a Vector.
    /**
     * Modify the Vector @a v by subtracting its mean using
-    * $v = v - \frac{\sum_i^N v_i}{N} $
+    * \f$v = v - \frac{\sum_i^N v_i}{N} \f$
     */
    void Orthogonalize(Vector &v);
 
    /// Remove the mean from a ParGridFunction.
    /**
     * Modify the ParGridFunction @a v by subtracting its mean using
-    * $ v = v - \int_\Omega \frac{v}{vol(\Omega)} dx $.
+    * \f$ v = v - \int_\Omega \frac{v}{vol(\Omega)} dx \f$.
     */
    void MeanZero(ParGridFunction &v);
 
@@ -330,16 +352,16 @@ protected:
 
    IntegrationRules gll_rules;
 
-   /// Velocity $H^1$ finite element collection.
+   /// Velocity \f$H^1\f$ finite element collection.
    FiniteElementCollection *vfec = nullptr;
 
-   /// Pressure $H^1$ finite element collection.
+   /// Pressure \f$H^1\f$ finite element collection.
    FiniteElementCollection *pfec = nullptr;
 
-   /// Velocity $(H^1)^d$ finite element space.
+   /// Velocity \f$(H^1)^d\f$ finite element space.
    ParFiniteElementSpace *vfes = nullptr;
 
-   /// Pressure $H^1$ finite element space.
+   /// Pressure \f$H^1\f$ finite element space.
    ParFiniteElementSpace *pfes = nullptr;
 
    ParNonlinearForm *N = nullptr;
@@ -403,12 +425,24 @@ protected:
    Array<int> vel_ess_attr;
    Array<int> pres_ess_attr;
 
+   // attributes for noslip 
+   Array<int> vel_slipxz_attr; 
+   Array<int> vel_slipxy_attr; 
+
    // All essential true dofs.
    Array<int> vel_ess_tdof;
    Array<int> pres_ess_tdof;
 
+   // true dofs for noslip BC 
+   Array<int> vel_slipxz_tdof; 
+   Array<int> vel_slipxy_tdof; 
+
+
    // Bookkeeping for velocity dirichlet bcs.
    std::vector<VelDirichletBC_T> vel_dbcs;
+
+   // Velocity no-slip BCs. 
+   // std::vector<VelNoSlipBC_T> vel_nsbcs;
 
    // Bookkeeping for pressure dirichlet bcs.
    std::vector<PresDirichletBC_T> pres_dbcs;

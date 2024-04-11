@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -116,6 +116,29 @@ void NavierSolver::Setup(double dt)
 
    vfes->GetEssentialTrueDofs(vel_ess_attr, vel_ess_tdof);
    pfes->GetEssentialTrueDofs(pres_ess_attr, pres_ess_tdof);
+
+   // get dof for top of box 
+   // vel_slipxy_attr.Append(1); 
+   // vfes->GetEssentialTrueDofs(vel_slipxy_attr, vel_slipxy_tdof, 2);
+
+   // vel_slipxz_attr.Append(2); 
+   vel_slipxz_attr.Append(0); 
+
+   vfes->GetEssentialTrueDofs(vel_slipxz_attr, vel_slipxz_tdof, 2);
+   // 
+   // vel_ess_tdof.Append(vel_slipxy_tdof);
+   vel_ess_tdof.Append(vel_slipxz_tdof);
+   vel_ess_tdof.Unique();
+
+   // extract from alternative essential attribute velocity list 
+   // corresponding to slip conditions, store here... 
+   // how to call FormLinearSystem with these?  
+
+   // or use GetBoundaryTrueDofs on the specified boundary attributes (1, 2, 4)
+   // but then how to distinguish by vector component?
+   // what to do with these dofs? 
+
+   // vfes->GetBoundaryTrueDofs(vel_noslip_attr, vel_noslip_tdof); 
 
    Array<int> empty;
 
@@ -422,12 +445,10 @@ void NavierSolver::Step(double &time, double dt, int current_step,
       const auto ab1_ = ab1;
       const auto ab2_ = ab2;
       const auto ab3_ = ab3;
-      mfem::forall(Fext.Size(), [=] MFEM_HOST_DEVICE (int i)
-      {
-         d_Fext[i] = ab1_ * d_Nun[i] +
-                     ab2_ * d_Nunm1[i] +
-                     ab3_ * d_Nunm2[i];
-      });
+      MFEM_FORALL(i, Fext.Size(),
+                  d_Fext[i] = ab1_ * d_Nun[i] +
+                              ab2_ * d_Nunm1[i] +
+                              ab3_ * d_Nunm2[i];);
    }
 
    Fext.Add(1.0, fn);
@@ -447,12 +468,10 @@ void NavierSolver::Step(double &time, double dt, int current_step,
       const auto d_unm1 = unm1.Read();
       const auto d_unm2 = unm2.Read();
       auto d_Fext = Fext.ReadWrite();
-      mfem::forall(Fext.Size(), [=] MFEM_HOST_DEVICE (int i)
-      {
-         d_Fext[i] += bd1idt * d_un[i] +
-                      bd2idt * d_unm1[i] +
-                      bd3idt * d_unm2[i];
-      });
+      MFEM_FORALL(i, Fext.Size(),
+                  d_Fext[i] += bd1idt * d_un[i] +
+                               bd2idt * d_unm1[i] +
+                               bd3idt * d_unm2[i];);
    }
 
    sw_extrap.Stop();
@@ -467,12 +486,10 @@ void NavierSolver::Step(double &time, double dt, int current_step,
       const auto ab1_ = ab1;
       const auto ab2_ = ab2;
       const auto ab3_ = ab3;
-      mfem::forall(Lext.Size(), [=] MFEM_HOST_DEVICE (int i)
-      {
-         d_Lext[i] = ab1_ * d_un[i] +
-                     ab2_ * d_unm1[i] +
-                     ab3_ * d_unm2[i];
-      });
+      MFEM_FORALL(i, Lext.Size(),
+                  d_Lext[i] = ab1_ * d_un[i] +
+                              ab2_ * d_unm1[i] +
+                              ab3_ * d_unm2[i];);
    }
 
    Lext_gf.SetFromTrueDofs(Lext);
@@ -563,6 +580,28 @@ void NavierSolver::Step(double &time, double dt, int current_step,
       un_next_gf.ProjectBdrCoefficient(*vel_dbc.coeff, vel_dbc.attr);
    }
 
+//    Array<int> temp(6); 
+//    temp = 0.; 
+//    temp[1] = 1.;
+// // 
+//    Vector unorm_left({0., -1., 0.});
+//    VectorConstantCoefficient norm_left(unorm_left); 
+//    un_next_gf.ProjectBdrCoefficient(norm_left, temp);
+
+//    temp = 0.;
+//    temp[2] = 1.;
+
+//    Vector unorm_right({0., 1., 0.});  
+//    VectorConstantCoefficient norm_right(unorm_right); 
+//    un_next_gf.ProjectBdrCoefficient(norm_right, temp);
+
+//    temp = 0.; 
+//    temp[4] = 1.;
+
+//    Vector unorm_top({0., 0., 1.});  
+//    VectorConstantCoefficient norm_top(unorm_top); 
+//    un_next_gf.ProjectBdrCoefficient(norm_top, temp);
+
    vfes->GetRestrictionMatrix()->MultTranspose(resu, resu_gf);
 
    Vector X2, B2;
@@ -599,11 +638,10 @@ void NavierSolver::Step(double &time, double dt, int current_step,
       const auto d_un_filtered_gf = un_filtered_gf.Read();
       auto d_un_gf = un_gf.ReadWrite();
       const auto filter_alpha_ = filter_alpha;
-      mfem::forall(un_gf.Size(), [=] MFEM_HOST_DEVICE (int i)
-      {
-         d_un_gf[i] = (1.0 - filter_alpha_) * d_un_gf[i]
-                      + filter_alpha_ * d_un_filtered_gf[i];
-      });
+      MFEM_FORALL(i,
+                  un_gf.Size(),
+                  d_un_gf[i] = (1.0 - filter_alpha_) * d_un_gf[i]
+                               + filter_alpha_ * d_un_filtered_gf[i];);
    }
 
    sw_step.Stop();
@@ -1030,6 +1068,35 @@ void NavierSolver::AddPresDirichletBC(Coefficient *coeff, Array<int> &attr)
       }
    }
 }
+
+// void NavierSolver::AddVelNoSlipBC(Array<int> &attr) 
+// {
+   // vel_nsbcs.emplace_back(attr); 
+   // if (verbose && pmesh->GetMyRank() == 0)
+   // {
+      // mfem::out << "Adding Velocity Dirichlet BC to attributes ";
+      // for (int i = 0; i < attr.Size(); ++i)
+      // {
+         // if (attr[i] == 1)
+         // {
+            // mfem::out << i << " ";
+         // }
+      // }
+      // mfem::out << std::endl;
+   // }
+// 
+   // for (int i = 0; i < attr.Size(); ++i)
+   // {
+      // MFEM_ASSERT((vel_ess_attr[i] && attr[i]) == 0,
+                  // "Duplicate boundary definition detected.");
+      // if (attr[i] == 1)
+      // {
+         // vel_ess_attr[i] = 1;
+      // }
+   // }
+   //   
+// }
+
 
 void NavierSolver::AddPresDirichletBC(ScalarFuncT *f, Array<int> &attr)
 {
