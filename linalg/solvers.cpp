@@ -1330,7 +1330,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
    }
    if (print_options.summary || (print_options.warnings && !converged))
    {
-      mfem::out << "FGMRES: Number of iterations: " << j-1 << '\n';
+      mfem::out << "FGMRES: Number of iterations: " << final_iter << '\n';
    }
    if (print_options.warnings && !converged)
    {
