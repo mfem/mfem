@@ -583,6 +583,10 @@ void MultAtB(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &AtB);
 /// AtB += A^t * B
 void AddMultAtB(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &AtB);
 
+/// AtB += a * A^t * B
+void AddMult_a_AtB(real_t a, const DenseMatrix &A, const DenseMatrix &B,
+                   DenseMatrix &AtB);
+
 /// AAt += a * A * A^t
 void AddMult_a_AAt(real_t a, const DenseMatrix &A, DenseMatrix &AAt);
 
