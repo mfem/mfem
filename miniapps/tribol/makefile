@@ -12,7 +12,7 @@
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
-SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/multidomain/,)
+SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/tribol/,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 # Use the MFEM install directory
 # MFEM_INSTALL_DIR = ../../mfem
@@ -21,52 +21,42 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-MULTIDOMAIN_SRC = multidomain.cpp
-MULTIDOMAIN_OBJ = $(MULTIDOMAIN_SRC:.cpp=.o)
-
-SEQ_MINIAPPS =
-PAR_MINIAPPS = multidomain multidomain_nd multidomain_rt
-ifeq ($(MFEM_USE_MPI),NO)
-   MINIAPPS = $(SEQ_MINIAPPS)
+ifeq ($(MFEM_USE_TRIBOL)$(MFEM_USE_MPI),YESYES)
+   MINIAPPS = ContactPatchTest
 else
-   MINIAPPS = $(PAR_MINIAPPS) $(SEQ_MINIAPPS)
+   MINIAPPS =
 endif
 
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
 .PHONY: all clean clean-build clean-exec
 
-# Remove built-in rules
+# Remove built-in rule
 %: %.cpp
-%.o: %.cpp
 
-%: %.o
-	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(MFEM_LIBS)
-
-%.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
+# Replace the default implicit rule for *.cpp files
+# The way the libraries are included, by default, in the command line is based
+#  on the idea that MFEM depends on the other libraries. Here, the setting is
+#  such that Tribol, in fact, depends on MFEM, while MFEM does not depend on
+#  Tribol. Thus, linking MFEM is repeated in the end of the command.
+%: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS) \
+		-l$(patsubst lib%,%,$(basename $(notdir $(MFEM_LIB_FILE))))
 
 all: $(MINIAPPS)
-
-# Rules to copy the *.mesh files - needed for running the sample runs when
-# building out-of-source:
-ifneq ($(SRC),)
-MESH_FILES = $(notdir $(wildcard $(SRC)*.mesh))
-$(MESH_FILES): %: $(SRC)%
-	ln -sf $(<) .
-multidomain: | $(MESH_FILES)
-endif
 
 MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)
 
+# Testing: Parallel vs. serial runs
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
-multidomain-test-par: multidomain
-	@$(call mfem-test,$<, $(RUN_MPI), Multidomain miniapp,-tf 0.001)
-multidomain_nd-test-par: multidomain_nd
-	@$(call mfem-test,$<, $(RUN_MPI), Multidomain ND miniapp,-tf 0.001)
-multidomain_rt-test-par: multidomain_rt
-	@$(call mfem-test,$<, $(RUN_MPI), Multidomain RT iniapp,-tf 0.001)
+TEST_NAME := TRIBOL miniapp
+%-test-par: %
+	@$(call mfem-test,$<, $(RUN_MPI), $(TEST_NAME))
+%-test-seq: %
+	@$(call mfem-test,$<,, $(TEST_NAME))
+
+# Testing: "test" target and mfem-test* variables are defined in config/test.mk
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
@@ -79,4 +69,5 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -rf *_output
+	@rm -rf ContactPatchTestSurface_*
+	@rm -rf ContactPatchTestVolume_*
