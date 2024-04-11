@@ -25,7 +25,7 @@ void ParElasticityProblem::Init()
    // Solution GridFunction
    x.SetSpace(fes);  x = 0.0;
    // RHS
-   b.Update(fes);
+   b = new ParLinearForm(fes);
 
    // Elasticity operator
    lambda.SetSize(pmesh->attributes.Max()); lambda = 57.6923076923;
@@ -43,9 +43,9 @@ void ParElasticityProblem::FormLinearSystem()
    if (!formsystem) 
    {
       formsystem = true;
-      b.Assemble();
+      b->Assemble();
       a->Assemble();
-      a->FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+      a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
    }
 }
 

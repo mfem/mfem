@@ -17,8 +17,8 @@ private:
    Vector lambda, mu;
    PWConstCoefficient lambda_cf, mu_cf;
    Array<int> ess_bdr, ess_tdof_list;
-   ParBilinearForm *a=nullptr;
-   ParLinearForm b;
+   ParBilinearForm * a = nullptr;
+   ParLinearForm * b = nullptr;
    ParGridFunction x;
    HypreParMatrix A;
    Vector B,X;
@@ -86,7 +86,7 @@ public:
    void SetNeumanPressureData(ConstantCoefficient &f, Array<int> & bdr_marker)
    { 
       pressure_cf.constant = f.constant;
-      b.AddBoundaryIntegrator(new VectorBoundaryFluxLFIntegrator(pressure_cf),bdr_marker);
+      b->AddBoundaryIntegrator(new VectorBoundaryFluxLFIntegrator(pressure_cf),bdr_marker);
    }
 
    void UpdateEssentialBC(Array<int> & ess_bdr_attr_, Array<int> & ess_bdr_attr_comp_)
@@ -113,7 +113,8 @@ public:
    {
       if (formsystem)
       {
-         b.Update();
+         delete b;
+         b = new ParLinearForm(fes);
          a->Update();
          formsystem = false;
       }
@@ -168,6 +169,7 @@ public:
    ~ParElasticityProblem()
    {
       delete a;
+      delete b;
       delete fes;
       delete fec;
       if (own_mesh)

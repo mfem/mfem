@@ -290,6 +290,7 @@ int main(int argc, char *argv[])
       nonmortar_attr.insert(7);
       nonmortar_attr.insert(8);
    }
+   else
    {
       if (testNo == -1 || testNo == 41)
       {
@@ -335,6 +336,9 @@ int main(int argc, char *argv[])
       paraview_dc->SetDataFormat(VTKFormat::BINARY);
       paraview_dc->SetHighOrderOutput(true);
       paraview_dc->RegisterField("u", &x_gf);
+      paraview_dc->SetCycle(0);
+      paraview_dc->SetTime(double(0));
+      paraview_dc->Save();
    }
    socketstream sol_sock;
    if (visualization)
@@ -411,8 +415,8 @@ int main(int argc, char *argv[])
 
          if (paraview)
          {
-            paraview_dc->SetCycle(i);
-            paraview_dc->SetTime(double(i));
+            paraview_dc->SetCycle(i+1);
+            paraview_dc->SetTime(double(i+1));
             paraview_dc->Save();
          }
 
@@ -423,6 +427,12 @@ int main(int argc, char *argv[])
          }
       }
       prob->UpdateStep();
+      if (testNo == 6 )
+      {
+         ess_bdr = 0;
+         ess_bdr[2] = 1;
+         prob->SetNeumanPressureData(one,ess_bdr);
+      }
    }
 
    delete prob;
