@@ -3657,7 +3657,7 @@ const IntegrationRule &DGDiffusionIntegrator::GetRule(
 {
    // order is typically the maximum of the order of the left and right elements
    // neighboring the given face.
-   return irs.Get(T.GetGeometryType(), 2*order);
+   return IntRules.Get(T.GetGeometryType(), 2*order);
 }
 
 // static method
