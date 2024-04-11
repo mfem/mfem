@@ -40,7 +40,7 @@ using namespace mfem;
 // Exact solution, E, and r.h.s., f. See below for implementation.
 void E_exact(const Vector &, Vector &);
 void f_exact(const Vector &, Vector &);
-double freq = 1.0, kappa;
+real_t freq = 1.0, kappa;
 int dim;
 
 int main(int argc, char *argv[])
@@ -53,6 +53,8 @@ int main(int argc, char *argv[])
 
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/beam-tet.mesh";
+   int ser_ref_levels = -1;
+   int par_ref_levels = 2;
    int order = 1;
    bool static_cond = false;
    bool visualization = 1;
@@ -63,6 +65,10 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+   args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
+                  "Number of times to refine the mesh uniformly in serial.");
+   args.AddOption(&par_ref_levels, "-rp", "--refine-parallel",
+                  "Number of times to refine the mesh uniformly in parallel.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    args.AddOption(&freq, "-f", "--frequency", "Set the frequency for the exact"
@@ -103,6 +109,16 @@ int main(int argc, char *argv[])
    //    and volume meshes with the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    dim = mesh->Dimension();
+#if PETSC_VERSION_LT(3,21,0)
+   if (dim == 3 && use_petsc && use_nonoverlapping)
+   {
+      cout << "\nFor three-dimensional runs you need a version of PETSc greater or equal 3.21.\n\n";
+      delete mesh;
+      MFEMFinalizePetsc();
+      Mpi::Finalize();
+      return MFEM_SKIP_RETURN_VALUE;
+   }
+#endif
    int sdim = mesh->SpaceDimension();
 
    // 4. Refine the serial mesh on all processors to increase the resolution. In
@@ -110,9 +126,11 @@ int main(int argc, char *argv[])
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 1,000 elements.
    {
-      int ref_levels =
-         (int)floor(log(1000./mesh->GetNE())/log(2.)/dim);
-      for (int l = 0; l < ref_levels; l++)
+      if (ser_ref_levels < 0)
+      {
+         ser_ref_levels = (int)floor(log(1000./mesh->GetNE())/log(2.)/dim);
+      }
+      for (int l = 0; l < ser_ref_levels; l++)
       {
          mesh->UniformRefinement();
       }
@@ -124,7 +142,6 @@ int main(int argc, char *argv[])
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    {
-      int par_ref_levels = 2;
       for (int l = 0; l < par_ref_levels; l++)
       {
          pmesh->UniformRefinement();
@@ -261,7 +278,7 @@ int main(int argc, char *argv[])
 
    // 14. Compute and print the L^2 norm of the error.
    {
-      double err = x.ComputeL2Error(E);
+      real_t err = x.ComputeL2Error(E);
       if (myid == 0)
       {
          cout << "\n|| E_h - E ||_{L^2} = " << err << '\n' << endl;
