@@ -523,19 +523,12 @@ bool LinearSolve(DenseMatrix& A, real_t* X, real_t TOL = 1.e-9);
 /// Matrix matrix multiplication.  A = B * C.
 void Mult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a);
 
-/// Matrix matrix multiplication.  A = B^t * C.
-void MultTranspose(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a);
-
 /// Matrix matrix multiplication.  A += B * C.
 void AddMult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a);
 
 /// Matrix matrix multiplication.  A += alpha * B * C.
 void AddMult_a(real_t alpha, const DenseMatrix &b, const DenseMatrix &c,
                DenseMatrix &a);
-
-/// Matrix matrix multiplication.  A += B^t * C.
-void AddMultTranspose(const DenseMatrix &b, const DenseMatrix &c,
-                      DenseMatrix &a);
 
 /** Calculate the adjugate of a matrix (for NxN matrices, N=1,2,3) or the matrix
     adj(A^t.A).A^t for rectangular matrices (2x1, 3x1, or 3x2). This operation
@@ -586,6 +579,9 @@ void AddMult_a_ABt(real_t a, const DenseMatrix &A, const DenseMatrix &B,
 
 /// Multiply the transpose of a matrix A with a matrix B:   At*B
 void MultAtB(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &AtB);
+
+/// AtB += A^t * B
+void AddMultAtB(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &AtB);
 
 /// AAt += a * A * A^t
 void AddMult_a_AAt(real_t a, const DenseMatrix &A, DenseMatrix &AAt);
