@@ -748,9 +748,14 @@ TEST_CASE("PA DG Diffusion", "[PartialAssembly], [CUDA]")
    const real_t sigma = -1.0;
    const real_t kappa = 10.0;
 
+   IntegrationRules irs(0, Quadrature1D::GaussLobatto);
+   const IntegrationRule &ir = irs.Get(mesh.GetFaceGeometry(0), 2*order);
+
    BilinearForm blf_fa(&fes);
    blf_fa.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
    blf_fa.AddBdrFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
+   (*blf_fa.GetFBFI())[0]->SetIntegrationRule(ir);
+   (*blf_fa.GetBFBFI())[0]->SetIntegrationRule(ir);
    blf_fa.Assemble();
    blf_fa.Finalize();
    blf_fa.Mult(x, y_fa);
@@ -759,6 +764,8 @@ TEST_CASE("PA DG Diffusion", "[PartialAssembly], [CUDA]")
    blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
    blf_pa.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
    blf_pa.AddBdrFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
+   (*blf_pa.GetFBFI())[0]->SetIntegrationRule(ir);
+   (*blf_pa.GetBFBFI())[0]->SetIntegrationRule(ir);
    blf_pa.Assemble();
    blf_pa.Mult(x, y_pa);
 

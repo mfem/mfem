@@ -460,11 +460,14 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
       *fes.GetTraceElement(0, mesh.GetFaceGeometry(0));
    FaceElementTransformations &T0 =
       *fes.GetMesh()->GetFaceElementTransformations(0);
-   const IntegrationRule &ir = IntRule ? *IntRule : GetRule(el.GetOrder(), T0);
+   const int ir_order = IntRule ? IntRule->GetOrder()
+                        : GetRule(el.GetOrder(), T0).GetOrder();
+   const IntegrationRule &ir = irs.Get(T0.GetGeometryType(), ir_order);
    dim = mesh.Dimension();
-   const int q1d = pow(real_t(ir.Size()), 1.0/(dim - 1));
+   const int q1d = (ir.GetOrder() + 3)/2;
+   MFEM_ASSERT(q1d == pow(real_t(ir.Size()), 1.0/(dim - 1)), "");
 
-   const auto vol_ir = irs.Get(mesh.GetElementGeometry(0), 2*q1d - 3);
+   const auto vol_ir = irs.Get(mesh.GetElementGeometry(0), ir_order);
    const auto geom_flags = GeometricFactors::JACOBIANS |
                            GeometricFactors::DETERMINANTS;
    const auto el_geom = mesh.GetGeometricFactors(vol_ir, geom_flags, mt);

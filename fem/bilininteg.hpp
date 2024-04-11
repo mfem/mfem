@@ -3262,12 +3262,12 @@ protected:
    Vector shape1, shape2, dshape1dn, dshape2dn, nor, nh, ni;
    DenseMatrix jmat, dshape1, dshape2, mq, adjJ;
 
-   IntegrationRules irs{0, Quadrature1D::GaussLobatto};
 
    // PA extension
    Vector pa_data; // (Q, h, dot(n,J)|el0, dot(n,J)|el1)
-   const DofToQuad *maps;             ///< Not owned
+   const DofToQuad *maps; ///< Not owned
    int dim, nf, nq, dofs1D, quad1D;
+   IntegrationRules irs{0, Quadrature1D::GaussLobatto};
 
 public:
    DGDiffusionIntegrator(const real_t s, const real_t k)
