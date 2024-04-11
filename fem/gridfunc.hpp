@@ -531,6 +531,10 @@ public:
    virtual real_t ComputeDivError(Coefficient *exdiv,
                                   const IntegrationRule *irs[] = NULL) const;
 
+   /// Returns ||lap u_ex - lap u_h||_L2 for H1 elements
+   virtual real_t ComputeLaplaceError(Coefficient *exlap,
+                                      const IntegrationRule *irs[] = NULL) const;
+
    /// Returns the Face Jumps error for L2 elements. The error can be weighted
    /// by a constant nu, by nu/h, or nu*p^2/h, depending on the value of
    /// @a jump_scaling.

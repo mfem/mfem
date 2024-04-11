@@ -2966,6 +2966,57 @@ real_t GridFunction::ComputeDivError(
    return (error < 0.0) ? -sqrt(-error) : sqrt(error);
 }
 
+real_t GridFunction::ComputeLaplaceError(
+   Coefficient *exlap, const IntegrationRule *irs[]) const
+{
+   real_t error = 0.0, a;
+   const FiniteElement *fe;
+   ElementTransformation *Tr;
+   Array<int> dofs;
+   int intorder, fdof;
+   Vector laplace;
+
+   for (int i = 0; i < fes->GetNE(); i++)
+   {
+      laplace.SetSize(fdof);
+      fe = fes->GetFE(i);
+      Tr = fes->GetElementTransformation(i);
+      intorder = 2*fe->GetOrder() + 3;
+      const IntegrationRule *ir;
+      if (irs)
+      {
+         ir = irs[fe->GetGeomType()];
+      }
+      else
+      {
+         ir = &(IntRules.Get(fe->GetGeomType(), intorder));
+      }
+      fes->GetElementDofs(i, dofs);
+      fdof = fe->GetDof();
+      laplace.SetSize(fdof);
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         Tr->SetIntPoint(&ip);
+         fe->CalcPhysLaplacian(*Tr, laplace);
+         a = 0;
+         for (int k = 0; k < fdof; k++)
+               if (dofs[k] >= 0)
+               {
+                  a += (*this)(dofs[k]) * laplace(k);
+               }
+               else
+               {
+                  a -= (*this)(-1-dofs[k]) * laplace(k);
+               }
+         a -= exlap->Eval(*Tr, ip);
+         error += ip.weight * Tr->Weight() * a * a;
+      }
+   }
+
+   return (error < 0.0) ? -sqrt(-error) : sqrt(error);
+}
+
 real_t GridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
                                             Coefficient *ell_coeff,
                                             class JumpScaling jump_scaling,

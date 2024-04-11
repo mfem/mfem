@@ -133,10 +133,10 @@ void DomainLFLaplaceIntegrator::AssembleRHSElementVect(const FiniteElement &el,
    elvect.SetSize(dof);
    elvect = 0.0;
 
-   const IntegrationRule *ir = IntRule;
+   const IntegrationRule *ir = NULL;//IntRule;
    if (ir == NULL)
    {
-      ir = &IntRules.Get(el.GetGeomType(), oa * el.GetOrder() + ob);
+      ir = &IntRules.Get(el.GetGeomType(), oa * el.GetOrder() + ob + 4);
    }
 
    for (int i = 0; i < ir->GetNPoints(); i++)

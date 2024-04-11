@@ -980,6 +980,7 @@ INPUT                  = @MFEM_SOURCE_DIR@/doc/CodeDocumentation.dox \
                          @MFEM_SOURCE_DIR@/miniapps/mtop \
                          @MFEM_SOURCE_DIR@/miniapps/multidomain \
                          @MFEM_SOURCE_DIR@/miniapps/navier \
+                         @MFEM_SOURCE_DIR@/miniapps/stabilized \
                          @MFEM_SOURCE_DIR@/miniapps/nurbs \
                          @MFEM_SOURCE_DIR@/miniapps/parelag \
                          @MFEM_SOURCE_DIR@/miniapps/performance \

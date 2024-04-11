@@ -9,18 +9,38 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-add_mfem_miniapp(stab_condif
-  MAIN stab_condif.cpp
+
+list(APPEND STAB_COMMON_SOURCES
+     stab_condif.cpp)
+list(APPEND STAB_COMMON_HEADERS
+     stab_condif.hpp)
+
+set(STAB_COMMON_FILES
+    EXTRA_SOURCES ${STAB_COMMON_SOURCES}
+    EXTRA_HEADERS ${STAB_COMMON_HEADERS})
+
+add_mfem_miniapp(ex_condif
+  MAIN ex_condif.cpp
+  ${STAB_COMMON_FILES}
   LIBRARIES mfem)
 
-  add_mfem_miniapp(stab_navsto
+add_mfem_miniapp(biharm
+  MAIN biharm.cpp
+  LIBRARIES mfem)
+
+add_mfem_miniapp(laplace
+  MAIN laplace.cpp
+  LIBRARIES mfem)
+
+add_mfem_miniapp(stab_navsto
     MAIN stab_navsto.cpp
+    ${STAB_COMMON_FILES}
     LIBRARIES mfem)
 
 
 if (MFEM_ENABLE_TESTING)
-  add_test(NAME stab_condif
-    COMMAND $<TARGET_FILE:stab_condif> -no-vis
+  add_test(NAME ex_condif
+    COMMAND $<TARGET_FILE:ex_condif> -no-vis
     -m ${PROJECT_SOURCE_DIR}/data/segment-nurbs.mesh -r 1 -o 2)
 endif()
 

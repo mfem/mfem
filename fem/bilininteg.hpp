@@ -2508,6 +2508,28 @@ public:
 // Alias for @LaplaceLaplaceIntegrator.
 using BiHarmonicIntegrator = LaplaceLaplaceIntegrator;
 
+/// Get the inverse estimate
+class InverseEstimateIntegrator : public BilinearFormIntegrator
+{
+protected:
+   Coefficient *Q;
+
+private:
+   Vector laplace, shape, vec2, BdFidxT;
+   DenseMatrix dshape, adjJ, Q_ir;
+
+public:
+   InverseEstimateIntegrator(Coefficient &q)
+      : Q(&q) { }
+
+   virtual void AssembleElementMatrix(const FiniteElement &,
+                                      ElementTransformation &,
+                                      DenseMatrix &);
+
+   static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
+                                         const FiniteElement &test_fe,
+                                         ElementTransformation &Trans);
+};
 
 /** Class for integrating the bilinear form $a(u,v) := (Q u, v)$,
     where $u=(u_1,\dots,u_n)$ and $v=(v_1,\dots,v_n)$, $u_i$ and $v_i$ are defined
