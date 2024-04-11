@@ -368,12 +368,12 @@ const
    y.Add(a, Ytmp);
 }
 
-real_t ParBilinearForm::InnerProduct(const ParGridFunction &x,
-                                     const ParGridFunction &y) const
+real_t ParBilinearForm::ParInnerProduct(const ParGridFunction &x,
+                                        const ParGridFunction &y) const
 {
    MFEM_ASSERT(mat != NULL, "local matrix must be assembled");
 
-   real_t loc = BilinearForm::InnerProduct(x, y);
+   real_t loc = InnerProduct(x, y);
    real_t glob = 0.;
 
    MPI_Allreduce(&loc, &glob, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,

@@ -182,13 +182,13 @@ public:
        @note It is assumed that the local matrix is assembled and it has
        not been replaced by the parallel matrix through FormSystemMatrix().
        @see TrueInnerProduct(const ParGridFunction&, const ParGridFunction&) */
-   real_t InnerProduct(const ParGridFunction &x,
-                       const ParGridFunction &y) const;
+   real_t ParInnerProduct(const ParGridFunction &x,
+                          const ParGridFunction &y) const;
 
    /// Compute $ y^T M x $ on true dofs (grid function version)
    /** @note It is assumed that the parallel system matrix is assembled,
        see FormSystemMatrix().
-       @see InnerProduct(const ParGridFunction&, const ParGridFunction&) */
+       @see ParInnerProduct(const ParGridFunction&, const ParGridFunction&) */
    real_t TrueInnerProduct(const ParGridFunction &x,
                            const ParGridFunction &y) const;
 
