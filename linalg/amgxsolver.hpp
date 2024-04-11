@@ -20,7 +20,6 @@
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
 #include "hypre.hpp"
-#include "../general/communication.hpp"
 #else
 #include "operator.hpp"
 #include "sparsemat.hpp"
