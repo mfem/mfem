@@ -2568,11 +2568,6 @@ void AddMult_a(real_t alpha, const DenseMatrix &b, const DenseMatrix &c,
 #endif
 }
 
-void MultTranspose(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
-{
-   MultAtB(b, c, a);
-}
-
 void AddMult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
 {
    MFEM_ASSERT(a.Height() == b.Height() && a.Width() == c.Width() &&
@@ -2605,49 +2600,6 @@ void AddMult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
             ad[i+j*ah] += bd[i+k*ah] * cd[k+j*bw];
          }
       }
-   }
-#endif
-}
-
-void AddMultTranspose(const DenseMatrix &b, const DenseMatrix &c,
-                      DenseMatrix &a)
-{
-   MFEM_ASSERT(a.Height() == b.Width() && a.Width() == c.Width() &&
-               b.Height() == c.Height(), "incompatible dimensions");
-
-#ifdef MFEM_USE_LAPACK
-   static char transa = 'T', transb = 'N';
-   static real_t alpha = 1.0, beta = 1.0;
-   int m = b.Width(), n = c.Width(), k = b.Height();
-
-#ifdef MFEM_USE_SINGLE
-   sgemm_(&transa, &transb, &m, &n, &k, &alpha, b.Data(), &k,
-#elif defined MFEM_USE_DOUBLE
-   dgemm_(&transa, &transb, &m, &n, &k, &alpha, b.Data(), &k,
-#endif
-          c.Data(), &k, &beta, a.Data(), &m);
-#else
-   const int bh = b.Height();
-   const int bw = b.Width();
-   const int cw = c.Width();
-   const real_t *bd = b.Data();
-   const real_t *cd = c.Data();
-   real_t *ad = a.Data();
-
-   for (int j = 0; j < cw; j++)
-   {
-      const real_t *bp = bd;
-      for (int i = 0; i < bw; i++)
-      {
-         real_t d = 0.0;
-         for (int k = 0; k < bh; k++)
-         {
-            d += bp[k] * cd[k];
-         }
-         *(ad++) += d;
-         bp += bh;
-      }
-      cd += bh;
    }
 #endif
 }
@@ -3262,6 +3214,49 @@ void MultAtB(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &AtB)
          }
          AtB(i, j) = d;
       }
+#endif
+}
+
+void AddMultAtB(const DenseMatrix &A, const DenseMatrix &B,
+                DenseMatrix &AtB)
+{
+   MFEM_ASSERT(AtB.Height() == A.Width() && AtB.Width() == B.Width() &&
+               A.Height() == B.Height(), "incompatible dimensions");
+
+#ifdef MFEM_USE_LAPACK
+   static char transa = 'T', transb = 'N';
+   static real_t alpha = 1.0, beta = 1.0;
+   int m = A.Width(), n = B.Width(), k = A.Height();
+
+#ifdef MFEM_USE_SINGLE
+   sgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &k,
+#elif defined MFEM_USE_DOUBLE
+   dgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &k,
+#endif
+          B.Data(), &k, &beta, AtB.Data(), &m);
+#else
+   const int ah = A.Height();
+   const int aw = A.Width();
+   const int bw = B.Width();
+   const real_t *ad = A.Data();
+   const real_t *bd = B.Data();
+   real_t *cd = AtB.Data();
+
+   for (int j = 0; j < bw; j++)
+   {
+      const real_t *ap = ad;
+      for (int i = 0; i < aw; i++)
+      {
+         real_t d = 0.0;
+         for (int k = 0; k < ah; k++)
+         {
+            d += ap[k] * bd[k];
+         }
+         *(cd++) += d;
+         ap += ah;
+      }
+      bd += ah;
+   }
 #endif
 }
 
