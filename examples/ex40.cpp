@@ -217,54 +217,62 @@ int main(int argc, char *argv[])
       a00.SetDiagonalPolicy(mfem::Operator::DIAG_ONE);
       a00.AddDomainIntegrator(new VectorFEMassIntegrator(exp_M11));
       a00.Assemble();
-      a00.EliminateEssentialBC(ess_bdr,x.GetBlock(0),rhs.GetBlock(0),
-                               mfem::Operator::DIAG_ONE);
+      a00.EliminateEssentialBC(ess_bdr,x.GetBlock(0),rhs.GetBlock(0));
       a00.Finalize();
       SparseMatrix &A00 = a00.SpMat();
 
       BilinearForm a01(&RTfes);
       a01.AddDomainIntegrator(new VectorFEMassIntegrator(exp_M12));
       a01.Assemble();
+      a01.EliminateEssentialBC(ess_bdr,x.GetBlock(1),rhs.GetBlock(0));
+      a01.Finalize();
       SparseMatrix &A01 = a01.SpMat();
 
-      MixedBilinearForm a02(&RTfes,&H1fes);
-      a02.AddDomainIntegrator(new TransposeIntegrator(new MixedGradDivIntegrator(
-                                                         onezero)));
+      MixedBilinearForm a02(&H1fes,&RTfes);
+      a02.AddDomainIntegrator(new MixedGradDivIntegrator(onezero));
       a02.Assemble();
+      a02.EliminateTrialDofs(ess_bdr,x.GetBlock(2),rhs.GetBlock(0));
+      a02.EliminateTestDofs(ess_bdr);
+      a02.Finalize();
       SparseMatrix &A02 = a02.SpMat();
 
       BilinearForm a10(&RTfes);
       a10.AddDomainIntegrator(new VectorFEMassIntegrator(exp_M21));
       a10.Assemble();
+      a10.EliminateEssentialBC(ess_bdr,x.GetBlock(0),rhs.GetBlock(1));
+      a10.Finalize();
       SparseMatrix &A10 = a10.SpMat();
 
       BilinearForm a11(&RTfes);
       a11.AddDomainIntegrator(new VectorFEMassIntegrator(exp_M22));
       a11.Assemble();
+      a11.EliminateEssentialBC(ess_bdr,x.GetBlock(1),rhs.GetBlock(1));
+      a11.Finalize();
       SparseMatrix &A11 = a11.SpMat();
 
-      MixedBilinearForm a12(&RTfes,&H1fes);
-      a12.AddDomainIntegrator(new TransposeIntegrator(new MixedGradDivIntegrator(
-                                                         zeroone)));
+      MixedBilinearForm a12(&H1fes,&RTfes);
+      a12.AddDomainIntegrator(new MixedGradDivIntegrator(zeroone));
       a12.Assemble();
+      a12.EliminateTrialDofs(ess_bdr,x.GetBlock(2),rhs.GetBlock(1));
+      a12.EliminateTestDofs(ess_bdr);
+      a12.Finalize();
       SparseMatrix &A12 = a12.SpMat();
 
-      MixedBilinearForm a20(&H1fes,&RTfes);
-      a20.AddDomainIntegrator(new TransposeIntegrator(new MixedDotProductIntegrator(
-                                                         onezero)));
+      MixedBilinearForm a20(&RTfes,&H1fes);
+      a20.AddDomainIntegrator(new MixedDotProductIntegrator(onezero));
       a20.Assemble();
+      a20.EliminateTrialDofs(ess_bdr,x.GetBlock(0),rhs.GetBlock(2));
+      a20.EliminateTestDofs(ess_bdr);
+      a20.Finalize();
       SparseMatrix &A20 = a20.SpMat();
 
-      MixedBilinearForm a21(&H1fes,&RTfes);
-      a21.AddDomainIntegrator(new TransposeIntegrator(new MixedDotProductIntegrator(
-                                                         zeroone)));
+      MixedBilinearForm a21(&RTfes,&H1fes);
+      a21.AddDomainIntegrator(new MixedDotProductIntegrator(zeroone));
       a21.Assemble();
+      a21.EliminateTrialDofs(ess_bdr,x.GetBlock(1),rhs.GetBlock(2));
+      a21.EliminateTestDofs(ess_bdr);
+      a21.Finalize();
       SparseMatrix &A21 = a21.SpMat();
-
-      BilinearForm a22(&H1fes);
-      // TODO (zero)
-      a22.Finalize();
-      SparseMatrix &A22 = a22.SpMat();
 
       BlockOperator A(offsets);
       A.SetBlock(0,0,&A00);
@@ -275,12 +283,11 @@ int main(int argc, char *argv[])
       A.SetBlock(1,2,&A12);
       A.SetBlock(2,0,&A20);
       A.SetBlock(2,1,&A21);
-      A.SetBlock(2,2,&A22);
 
       BlockDiagonalPreconditioner prec(offsets);
       prec.SetDiagonalBlock(0,new GSSmoother(A00));
       prec.SetDiagonalBlock(1,new GSSmoother(A11));
-      prec.SetDiagonalBlock(1,new GSSmoother(A22));
+      // prec.SetDiagonalBlock(1,new GSSmoother(A22));
       prec.owns_blocks = 1;
 
       GMRES(A,prec,rhs,x,0,10000,500,1e-12,0.0);
@@ -304,10 +311,10 @@ int main(int argc, char *argv[])
                    endl;
       }
 
-      if (Newton_update_size < tol || k == max_it-1)
-      {
-         break;
-      }
+      // if (Newton_update_size < tol || k == max_it-1)
+      // {
+      //    break;
+      // }
 
       real_t H1_error = u_gf.ComputeH1Error(&exact_coef,&exact_grad_coef);
       mfem::out << "H1-error  (|| u - uₕᵏ||)       = " << H1_error << endl;
