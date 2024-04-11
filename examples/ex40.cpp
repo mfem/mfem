@@ -332,8 +332,6 @@ int main(int argc, char *argv[])
                    endl;
       }
 
-      cin.get();
-
       // if (Newton_update_size < tol || k == max_it-1)
       // {
       //    break;
