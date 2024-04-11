@@ -1319,7 +1319,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
    }
 
    final_norm = beta;
-   final_iter = j;
+   final_iter = converged ? j : max_iter;
 
    // Note: j is off by one when we arrive here
    if (!print_options.iterations && print_options.first_and_last)
