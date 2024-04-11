@@ -713,9 +713,30 @@ TEST_CASE("PA Boundary Mass", "[PartialAssembly], [CUDA]")
    REQUIRE(y_fa.Normlinf() == MFEM_Approx(0.0));
 }
 
-void test_dg_diffusion(FiniteElementSpace &fes)
+namespace
 {
-   GridFunction x(&fes), y_fa(&fes), y_pa(&fes);
+template <typename T> struct ParTypeHelper { };
+template <> struct ParTypeHelper<FiniteElementSpace>
+{
+   using GF_t = GridFunction;
+   using BLF_t = BilinearForm;
+};
+#ifdef MFEM_USE_MPI
+template <> struct ParTypeHelper<ParFiniteElementSpace>
+{
+   using GF_t = ParGridFunction;
+   using BLF_t = ParBilinearForm;
+};
+#endif
+}
+
+template <typename FES>
+void test_dg_diffusion(FES &fes)
+{
+   using GF_t = typename ParTypeHelper<FES>::GF_t;
+   using BLF_t = typename ParTypeHelper<FES>::BLF_t;
+
+   GF_t x(&fes), y_fa(&fes), y_pa(&fes);
    x.Randomize(1);
 
    ConstantCoefficient pi(3.14159);
@@ -727,7 +748,7 @@ void test_dg_diffusion(FiniteElementSpace &fes)
    const IntegrationRule &ir = irs.Get(fes.GetMesh()->GetFaceGeometry(0),
                                        2*fes.GetMaxElementOrder());
 
-   BilinearForm blf_fa(&fes);
+   BLF_t blf_fa(&fes);
    blf_fa.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
    blf_fa.AddBdrFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
    (*blf_fa.GetFBFI())[0]->SetIntegrationRule(ir);
@@ -739,7 +760,7 @@ void test_dg_diffusion(FiniteElementSpace &fes)
    blf_fa.FormSystemMatrix(empty, A_fa);
    A_fa->Mult(x, y_fa);
 
-   BilinearForm blf_pa(&fes);
+   BLF_t blf_pa(&fes);
    blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
    blf_pa.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
    blf_pa.AddBdrFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
