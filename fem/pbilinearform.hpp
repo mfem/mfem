@@ -194,10 +194,15 @@ public:
    real_t TrueInnerProduct(const ParGridFunction &x,
                            const ParGridFunction &y) const;
 
-   /// Compute $ y^T M x $ on true dofs (vector version)
+   /// Compute $ y^T M x $ on true dofs (Hypre vector version)
    /** @note It is assumed that the parallel system matrix is assembled,
        see FormSystemMatrix(). */
    real_t TrueInnerProduct(HypreParVector &x, HypreParVector &y) const;
+
+   /// Compute $ y^T M x $ on true dofs (true-vector version)
+   /** @note It is assumed that the parallel system matrix is assembled,
+       see FormSystemMatrix(). */
+   real_t TrueInnerProduct(const Vector &x, const Vector &y) const;
 
    /// Return the parallel FE space associated with the ParBilinearForm.
    ParFiniteElementSpace *ParFESpace() const { return pfes; }
