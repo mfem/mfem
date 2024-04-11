@@ -856,7 +856,7 @@ double HyperelasticOperator::ElasticEnergy(const ParGridFunction &x) const
 
 double HyperelasticOperator::KineticEnergy(const ParGridFunction &v) const
 {
-   double energy = 0.5*M.InnerProduct(v, v);
+   double energy = 0.5*M.ParInnerProduct(v, v);
    return energy;
 }
 

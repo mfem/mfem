@@ -797,7 +797,7 @@ void MagneticDiffusionEOperator::buildGrad()
 
 real_t MagneticDiffusionEOperator::ElectricLosses(ParGridFunction &E_gf) const
 {
-   return m1->InnerProduct(E_gf, E_gf);
+   return m1->ParInnerProduct(E_gf, E_gf);
 }
 
 // E is the input GF, w is the output GF which is assumed to be an L2 scalar

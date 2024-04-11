@@ -646,7 +646,7 @@ real_t HyperelasticOperator::ElasticEnergy(const ParGridFunction &x) const
 
 real_t HyperelasticOperator::KineticEnergy(const ParGridFunction &v) const
 {
-   real_t energy = 0.5*M.InnerProduct(v, v);
+   real_t energy = 0.5*M.ParInnerProduct(v, v);
    return energy;
 }
 
