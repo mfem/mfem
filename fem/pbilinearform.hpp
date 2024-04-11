@@ -186,7 +186,9 @@ public:
                           const ParGridFunction &y) const;
 
    /// Compute $ y^T M x $ on true dofs (grid function version)
-   /** @note It is assumed that the parallel system matrix is assembled,
+   /** @note The ParGridFunction%s are restricted to the true-vectors for
+       for calculation.
+       @note It is assumed that the parallel system matrix is assembled,
        see FormSystemMatrix().
        @see ParInnerProduct(const ParGridFunction&, const ParGridFunction&) */
    real_t TrueInnerProduct(const ParGridFunction &x,
