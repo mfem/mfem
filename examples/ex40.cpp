@@ -156,9 +156,9 @@ int main(int argc, char *argv[])
    FunctionCoefficient exact_coef(exact_solution);
    VectorFunctionCoefficient exact_grad_coef(dim,exact_solution_gradient);
    ConstantCoefficient ln_rhs_coef(0.0);
+   // u_gf.ProjectCoefficient(exact_coef);
    u_gf.ProjectCoefficient(zero);
    u_prvs_gf = u_gf;
-
 
    // 9. Initialize the Lie algebra variable M
    M1_gf = 0.0;
@@ -274,7 +274,32 @@ int main(int argc, char *argv[])
       a21.Finalize();
       SparseMatrix &A21 = a21.SpMat();
 
-      BlockOperator A(offsets);
+      // BlockOperator A(offsets);
+      // A.SetBlock(0,0,&A00);
+      // A.SetBlock(0,1,&A01);
+      // A.SetBlock(0,2,&A02);
+      // A.SetBlock(1,0,&A10);
+      // A.SetBlock(1,1,&A11);
+      // A.SetBlock(1,2,&A12);
+      // A.SetBlock(2,0,&A20);
+      // A.SetBlock(2,1,&A21);
+
+      // BilinearForm a22(&H1fes);
+      // a22.AddDomainIntegrator(new MassIntegrator());
+      // a22.Assemble();
+      // a22.EliminateEssentialBC(ess_bdr,x.GetBlock(2),rhs.GetBlock(2));
+      // a22.Finalize();
+      // SparseMatrix &A22 = a22.SpMat();
+
+      // BlockDiagonalPreconditioner prec(offsets);
+      // prec.SetDiagonalBlock(0,new GSSmoother(A00));
+      // prec.SetDiagonalBlock(1,new GSSmoother(A11));
+      // prec.SetDiagonalBlock(1,new GSSmoother(A22));
+      // prec.owns_blocks = 1;
+
+      // GMRES(A,prec,rhs,x,1,10000,500,1e-12,0.0);
+
+      BlockMatrix A(offsets);
       A.SetBlock(0,0,&A00);
       A.SetBlock(0,1,&A01);
       A.SetBlock(0,2,&A02);
@@ -284,13 +309,9 @@ int main(int argc, char *argv[])
       A.SetBlock(2,0,&A20);
       A.SetBlock(2,1,&A21);
 
-      BlockDiagonalPreconditioner prec(offsets);
-      prec.SetDiagonalBlock(0,new GSSmoother(A00));
-      prec.SetDiagonalBlock(1,new GSSmoother(A11));
-      // prec.SetDiagonalBlock(1,new GSSmoother(A22));
-      prec.owns_blocks = 1;
-
-      GMRES(A,prec,rhs,x,0,10000,500,1e-12,0.0);
+      SparseMatrix * A_mono = A.CreateMonolithic();
+      UMFPackSolver umf(*A_mono);
+      umf.Mult(rhs,x);
 
       delta_M1_gf.MakeRef(&RTfes, x.GetBlock(0), 0);
       delta_M2_gf.MakeRef(&RTfes, x.GetBlock(1), 0);
@@ -310,6 +331,8 @@ int main(int argc, char *argv[])
          mfem::out << "Increment (|| uₕ - uₕ_prvs||) = " << Newton_update_size <<
                    endl;
       }
+
+      cin.get();
 
       // if (Newton_update_size < tol || k == max_it-1)
       // {
