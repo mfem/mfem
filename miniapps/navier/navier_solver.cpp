@@ -117,16 +117,18 @@ void NavierSolver::Setup(double dt)
    vfes->GetEssentialTrueDofs(vel_ess_attr, vel_ess_tdof);
    pfes->GetEssentialTrueDofs(pres_ess_attr, pres_ess_tdof);
 
-   // get dof for top of box 
-   // vel_slipxy_attr.Append(1); 
-   // vfes->GetEssentialTrueDofs(vel_slipxy_attr, vel_slipxy_tdof, 2);
+   // get dof for top of box
+   Array<int> slip_attr(6);
+   slip_attr = 0;
+   slip_attr[1] = 1;
+   vfes->GetEssentialTrueDofs(slip_attr, vel_slipxy_tdof, 2);
 
-   // vel_slipxz_attr.Append(2); 
-   vel_slipxz_attr.Append(0); 
-
-   vfes->GetEssentialTrueDofs(vel_slipxz_attr, vel_slipxz_tdof, 2);
-   // 
-   // vel_ess_tdof.Append(vel_slipxy_tdof);
+   slip_attr = 0;
+   slip_attr[2] = 1;
+   slip_attr[4] = 1;
+   vfes->GetEssentialTrueDofs(slip_attr, vel_slipxz_tdof, 1);
+   
+   vel_ess_tdof.Append(vel_slipxy_tdof);
    vel_ess_tdof.Append(vel_slipxz_tdof);
    vel_ess_tdof.Unique();
 

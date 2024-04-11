@@ -426,8 +426,8 @@ protected:
    Array<int> pres_ess_attr;
 
    // attributes for noslip 
-   Array<int> vel_slipxz_attr; 
-   Array<int> vel_slipxy_attr; 
+   // Array<int> vel_slipxz_attr; 
+   // Array<int> vel_slipxy_attr; 
 
    // All essential true dofs.
    Array<int> vel_ess_tdof;

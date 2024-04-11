@@ -27,10 +27,10 @@ struct s_NavierContext
 void vel(const Vector &x, double t, Vector &u)
 {
     double xi = x(0);
-    double yi = x(1);
+    // double yi = x(1); // unused
     double zi = x(2);
 
-    double U = 2.25;
+    // double U = 2.25; // unused
 
     if (xi <= 1e-8)
     {
@@ -113,7 +113,7 @@ int main(int argc, char *argv[])
    // Add Dirichlet boundary conditions to velocity space restricted to
    // selected attributes on the mesh.
    Array<int> attr(pmesh->bdr_attributes.Max());
-   attr = 0.; 
+   attr = 0; 
    attr.Print(std::cout, 6);
 
     // 2 1 "Wall_back"
