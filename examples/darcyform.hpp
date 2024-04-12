@@ -218,12 +218,19 @@ class DarcyHybridization : public Hybridization
    Array<int> Ct_offsets;
    real_t *Ct_data;
 
+   Array<int> E_offsets;
+   real_t *E_data;
+
+   Array<int> &G_offsets{E_offsets};
+   real_t *G_data;
+
    void GetFDofs(int el, Array<int> &fdofs) const;
    void GetEDofs(int el, Array<int> &edofs) const;
    void AssembleCtFaceMatrix(int face, int el1, int el2, const DenseMatrix &elmat);
    void AssembleCtSubMatrix(int el, const DenseMatrix &elmat,
                             const Array<int> &signs, DenseMatrix &Ct, int ioff=0);
    void ConstructC();
+   void AllocEG();
    void ComputeH();
    FaceElementTransformations * GetCtFaceMatrix(int f, DenseMatrix & Ct_1,
                                                 DenseMatrix & Ct_2, Array<int>& c_dofs) const;

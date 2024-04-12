@@ -471,6 +471,8 @@ DarcyHybridization::DarcyHybridization(FiniteElementSpace *fes_u_,
    Df_data = NULL;
    Df_ipiv = NULL;
    Ct_data = NULL;
+   E_data = NULL;
+   G_data = NULL;
 }
 
 DarcyHybridization::~DarcyHybridization()
@@ -483,6 +485,8 @@ DarcyHybridization::~DarcyHybridization()
    delete Df_data;
    delete Df_ipiv;
    delete Ct_data;
+   delete E_data;
+   delete G_data;
 }
 
 void DarcyHybridization::SetConstraintIntegrators(BilinearFormIntegrator
@@ -653,6 +657,11 @@ void DarcyHybridization::Init(const Array<int> &ess_flux_tdof_list)
    Ae_data = new real_t[Ae_offsets[NE]];
    Be_data = new real_t[Be_offsets[NE]]();//init by zeros
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+   
+   if (c_bfi_p)
+   {
+      AllocEG();
+   }
 }
 
 void DarcyHybridization::AssembleFluxMassMatrix(int el, const DenseMatrix &A)
@@ -737,22 +746,27 @@ void DarcyHybridization::ComputeAndAssembleFaceMatrix(
    Mesh *mesh = fes_p->GetMesh();
    const FiniteElement *tr_fe, *fe1, *fe2;
    DenseMatrix e_elmat, g_elmat, h_elmat;
+   int ndof1, ndof2;
 
    tr_fe = c_fes->GetFaceElement(face);
+   const int c_dof = tr_fe->GetDof();
 
    FaceElementTransformations *ftr = mesh->GetFaceElementTransformations(face);
    fes_p->GetElementVDofs(ftr->Elem1No, vdofs1);
    fe1 = fes_p->GetFE(ftr->Elem1No);
+   ndof1 = fe1->GetDof();
 
    if (ftr->Elem2No >= 0)
    {
       fes_p->GetElementVDofs(ftr->Elem2No, vdofs2);
       fe2 = fes_p->GetFE(ftr->Elem2No);
+      ndof2 = fe2->GetDof();
    }
    else
    {
       vdofs2.SetSize(0);
       fe2 = fe1;
+      ndof2 = 0;
    }
 
    c_bfi_p->AssembleHDGFaceMatrix(*tr_fe, *fe1, *fe2, *ftr, elmat1, elmat2,
@@ -760,6 +774,18 @@ void DarcyHybridization::ComputeAndAssembleFaceMatrix(
 
    AssemblePotMassMatrix(ftr->Elem1No, elmat1);
    AssemblePotMassMatrix(ftr->Elem2No, elmat2);
+
+   // assemble E constraint
+   DenseMatrix E_f(E_data + E_offsets[face], ndof1+ndof2, c_dof);
+   MFEM_ASSERT(E_f.Width() == e_elmat.Width() &&
+               E_f.Height() == e_elmat.Height(), "Size mismatch");
+   E_f = e_elmat;
+
+   // assemble G constraint
+   DenseMatrix G_f(G_data + G_offsets[face], c_dof, ndof1+ndof2);
+   MFEM_ASSERT(G_f.Width() == g_elmat.Width() &&
+               G_f.Height() == g_elmat.Height(), "Size mismatch");
+   G_f = g_elmat;
 }
 
 void DarcyHybridization::GetFDofs(int el, Array<int> &fdofs) const
@@ -908,6 +934,34 @@ void DarcyHybridization::ConstructC()
       // Check if c_fes is really needed here.
       MFEM_ABORT("TODO: algebraic definition of C");
    }
+}
+
+void DarcyHybridization::AllocEG()
+{
+   FaceElementTransformations *FTr;
+   Mesh *mesh = fes->GetMesh();
+   int num_faces = mesh->GetNumFaces();
+   Array<int> c_vdofs;
+
+   // Define E_offsets and allocate E_data and G_data
+   E_offsets.SetSize(num_faces+1);
+   E_offsets[0] = 0;
+   for (int f = 0; f < num_faces; f++)
+   {
+      FTr = mesh->GetInteriorFaceTransformations(f, 3);
+      if (!FTr)
+      {
+         E_offsets[f+1] = E_offsets[f];
+         continue;
+      }
+      const int d_size_1 = Df_f_offsets[FTr->Elem1No+1] - Df_f_offsets[FTr->Elem1No];
+      const int d_size_2 = Df_f_offsets[FTr->Elem2No+1] - Df_f_offsets[FTr->Elem2No];
+      c_fes->GetFaceVDofs(f, c_vdofs);
+      E_offsets[f+1] = E_offsets[f] + c_vdofs.Size() * (d_size_1 + d_size_2);
+   }
+
+   E_data = new real_t[E_offsets[num_faces]]();//init by zeros
+   G_data = new real_t[G_offsets[num_faces]]();//init by zeros
 }
 
 void DarcyHybridization::ComputeH()
