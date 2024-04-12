@@ -139,9 +139,9 @@ QuadratureSpace::QuadratureSpace(Mesh *mesh_, std::istream &in)
 }
 
 QuadratureSpace::QuadratureSpace(Mesh &mesh_, const IntegrationRule &ir)
-   : QuadratureSpaceBase(mesh_, mesh_.GetElementGeometry(0), ir)
+   : QuadratureSpaceBase(mesh_, mesh_.GetTypicalElementGeometry(), ir)
 {
-   MFEM_VERIFY(mesh.GetNumGeometries(mesh.Dimension()) == 1,
+   MFEM_VERIFY(mesh.GetNumGeometries(mesh.Dimension()) <= 1,
                "Constructor not valid for mixed meshes");
    ConstructOffsets();
 }

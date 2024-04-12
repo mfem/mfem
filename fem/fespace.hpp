@@ -1168,6 +1168,13 @@ public:
         an empty partition. */
    virtual const FiniteElement *GetFE(int i) const;
 
+   /** @brief Return GetFE(0) if the local mesh is not empty; otherwise return a
+       typical FE based on the Geometry types in the global mesh.
+
+       This method can be used as a replacement for GetFE(0) that will be valid
+       even if the local mesh is empty. */
+   const FiniteElement *GetTypicalFE() const;
+
    /** @brief Returns pointer to the FiniteElement in the FiniteElementCollection
         associated with i'th boundary face in the mesh object. */
    const FiniteElement *GetBE(int i) const;
@@ -1341,18 +1348,19 @@ public:
    virtual ~FiniteElementSpace();
 };
 
-/// @brief Return true if the mesh contains only one topology and the elements are tensor elements.
+/// @brief Return true if the mesh contains only one topology and the elements
+/// are tensor elements.
 inline bool UsesTensorBasis(const FiniteElementSpace& fes)
 {
    Mesh & mesh = *fes.GetMesh();
    const bool mixed = mesh.GetNumGeometries(mesh.Dimension()) > 1;
-   // Potential issue: empty local mesh --> no element 0.
    return !mixed &&
-          dynamic_cast<const mfem::TensorBasisElement *>(fes.GetFE(0))!=nullptr;
+          dynamic_cast<const mfem::TensorBasisElement *>(
+             fes.GetTypicalFE()) != nullptr;
 }
 
-/// @brief Return LEXICOGRAPHIC if mesh contains only one topology and the elements are tensor
-/// elements, otherwise, return NATIVE.
+/// @brief Return LEXICOGRAPHIC if mesh contains only one topology and the
+/// elements are tensor elements, otherwise, return NATIVE.
 ElementDofOrdering GetEVectorOrdering(const FiniteElementSpace& fes);
 
 }

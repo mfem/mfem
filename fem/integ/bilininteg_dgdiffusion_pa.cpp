@@ -453,6 +453,7 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
 
    const int ne = fes.GetNE();
    nf = fes.GetNFbyType(type);
+   if (nf == 0) { return; }
 
    // Assumes tensor-product elements
    Mesh &mesh = *fes.GetMesh();

@@ -1484,6 +1484,34 @@ Array<int> Mesh::GetFaceToBdrElMap() const
    return face_to_be;
 }
 
+Geometry::Type Mesh::GetTypicalElementGeometry() const
+{
+   if (GetNE() > 0) { return GetElementGeometry(0); }
+
+   const int dim = Dimension();
+   if (dim == 1)
+   {
+      return Geometry::SEGMENT;
+   }
+   const int mesh_gen = MeshGenerator();
+   Geometry::Type geom = Geometry::INVALID;
+   if (dim == 2)
+   {
+      geom = ((mesh_gen & 1) ? Geometry::TRIANGLE :
+              ((mesh_gen & 2) ? Geometry::SQUARE : Geometry::INVALID));
+   }
+   else if (dim == 3)
+   {
+      geom = ((mesh_gen & 1) ? Geometry::TETRAHEDRON :
+              ((mesh_gen & 2) ? Geometry::CUBE :
+               ((mesh_gen & 4) ? Geometry::PRISM :
+                ((mesh_gen & 8) ? Geometry::PYRAMID : Geometry::INVALID))));
+   }
+   MFEM_VERIFY(geom != Geometry::INVALID,
+               "Could not determine a typical element Geometry!");
+   return geom;
+}
+
 void Mesh::Init()
 {
    // in order of declaration:
@@ -13329,7 +13357,7 @@ void GeometricFactors::Compute(const GridFunction &nodes,
 {
 
    const FiniteElementSpace *fespace = nodes.FESpace();
-   const FiniteElement *fe = fespace->GetFE(0);
+   const FiniteElement *fe = fespace->GetTypicalFE();
    const int dim  = fe->GetDim();
    const int vdim = fespace->GetVDim();
    const int NE   = fespace->GetNE();
