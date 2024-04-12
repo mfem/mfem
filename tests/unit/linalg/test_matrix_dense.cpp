@@ -674,7 +674,7 @@ TEST_CASE("Eigensystem Problems",
       break;
       case TestCase::SVD:
       {
-         DenseMatrixSVD svd(M,true,true);
+         DenseMatrixSVD svd(M,'A','A');
          svd.Eval(M);
          Vector &sigma = svd.Singularvalues();
          DenseMatrix &U = svd.LeftSingularvectors();
