@@ -1094,6 +1094,20 @@ int PermuteFaceL2(const int dim, const int face_id1,
                   const int face_id2, const int orientation,
                   const int size1d, const int index);
 
+/// @brief Return the face-neighbor data given the L-vector @a x.
+///
+/// If the input vector @a x is a ParGridFunction with non-empty face-neighbor
+/// data, return an alias to ParGridFunction::FaceNbrData() (avoiding an
+/// unneeded call to ParGridFunction::ExchangeFaceNbrData).
+///
+/// Otherwise, create a temporary ParGridFunction, exchange the face-neighbor
+/// data, and return the resulting vector.
+///
+/// If @a fes is not a parallel space, or if @a ftype is not FaceType::Interior,
+/// return an empty vector.
+Vector GetLVectorFaceNbrData(
+   const FiniteElementSpace &fes, const Vector &x, FaceType ftype);
+
 }
 
 #endif // MFEM_RESTRICTION
