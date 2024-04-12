@@ -373,12 +373,10 @@ DarcyForm::~DarcyForm()
 void DarcyForm::AssembleHDGFaces(int skip_zeros)
 {
    Mesh *mesh = fes_p->GetMesh();
-   DenseMatrix elemmat;
-   Array<int> vdofs;
+   DenseMatrix elmat1, elmat2;
+   Array<int> vdofs1, vdofs2;
 
-   auto &interior_face_integs = *M_p->GetFBFI();
-
-   if (interior_face_integs.Size())
+   if (hybridization->GetPotConstraintIntegrator())
    {
       FaceElementTransformations *tr;
 
@@ -388,13 +386,16 @@ void DarcyForm::AssembleHDGFaces(int skip_zeros)
          tr = mesh -> GetInteriorFaceTransformations (i);
          if (tr != NULL)
          {
-            hybridization->ComputeAndAssembleFaceMatrix(i, elemmat, vdofs);
-            M_p->SpMat().AddSubMatrix(vdofs, vdofs, elemmat, skip_zeros);
+            hybridization->ComputeAndAssembleFaceMatrix(i, elmat1, elmat2, vdofs1, vdofs2);
+#ifndef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+            M_p->SpMat().AddSubMatrix(vdofs1, vdofs1, elmat1, skip_zeros);
+            M_p->SpMat().AddSubMatrix(vdofs2, vdofs2, elmat2, skip_zeros);
+#endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
          }
       }
    }
 
-   auto &boundary_face_integs = *M_p->GetBFBFI();
+   /*auto &boundary_face_integs = *M_p->GetBFBFI();
    auto &boundary_face_integs_marker = *M_p->GetBFBFI_Marker();
 
    if (boundary_face_integs.Size())
@@ -439,7 +440,7 @@ void DarcyForm::AssembleHDGFaces(int skip_zeros)
             M_p->SpMat().AddSubMatrix(vdofs, vdofs, elemmat, skip_zeros);
          }
       }
-   }
+   }*/
 }
 
 const Operator *DarcyForm::ConstructBT(const MixedBilinearForm *B)
@@ -729,29 +730,36 @@ void DarcyHybridization::AssembleDivMatrix(int el, const DenseMatrix &B)
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
 }
 
-void DarcyHybridization::ComputeAndAssembleFaceMatrix(int face,
-                                                      DenseMatrix &elmat, Array<int> &vdofs)
+void DarcyHybridization::ComputeAndAssembleFaceMatrix(
+   int face, DenseMatrix &elmat1, DenseMatrix &elmat2, Array<int> &vdofs1,
+   Array<int> &vdofs2)
 {
    Mesh *mesh = fes_p->GetMesh();
-   const FiniteElement *fe1, *fe2;
+   const FiniteElement *tr_fe, *fe1, *fe2;
+   DenseMatrix tr_elmat;
+
+   tr_fe = c_fes->GetFaceElement(face);
 
    FaceElementTransformations *ftr = mesh->GetFaceElementTransformations(face);
-   fes_p->GetElementVDofs(ftr->Elem1No, vdofs);
+   fes_p->GetElementVDofs(ftr->Elem1No, vdofs1);
    fe1 = fes_p->GetFE(ftr->Elem1No);
 
    if (ftr->Elem2No >= 0)
    {
-      Array<int> vdofs2;
       fes_p->GetElementVDofs(ftr->Elem2No, vdofs2);
-      vdofs.Append(vdofs2);
       fe2 = fes_p->GetFE(ftr->Elem2No);
    }
    else
    {
+      vdofs2.SetSize(0);
       fe2 = fe1;
    }
 
-   c_bfi_p->AssembleFaceMatrix(*fe1, *fe2, *ftr, elmat);
+   c_bfi_p->AssembleHDGFaceMatrix(*tr_fe, *fe1, *fe2, *ftr, tr_elmat, elmat1,
+                                  elmat2);
+
+   AssemblePotMassMatrix(ftr->Elem1No, elmat1);
+   AssemblePotMassMatrix(ftr->Elem2No, elmat2);
 }
 
 void DarcyHybridization::GetFDofs(int el, Array<int> &fdofs) const

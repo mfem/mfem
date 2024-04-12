@@ -246,6 +246,11 @@ public:
    void SetConstraintIntegrators(BilinearFormIntegrator *c_flux_integ,
                                  BilinearFormIntegrator *c_pot_integ);
 
+
+   BilinearFormIntegrator* GetFluxConstraintIntegrator() const { return c_bfi; }
+
+   BilinearFormIntegrator* GetPotConstraintIntegrator() const { return c_bfi_p; }
+
    /// Prepare the Hybridization object for assembly.
    void Init(const Array<int> &ess_flux_tdof_list) override;
 
@@ -259,8 +264,9 @@ public:
 
    void AssembleDivMatrix(int el, const DenseMatrix &B);
 
-   void ComputeAndAssembleFaceMatrix(int face, DenseMatrix &elmat,
-                                     Array<int> &vdofs);
+   void ComputeAndAssembleFaceMatrix(int face,
+                                     DenseMatrix & elmat1, DenseMatrix & elmat2,
+                                     Array<int>& vdofs1, Array<int>& vdofs2);
 
    /// Assemble the boundary element matrix A into the hybridized system matrix.
    //void AssembleBdrMatrix(int bdr_el, const DenseMatrix &A);
