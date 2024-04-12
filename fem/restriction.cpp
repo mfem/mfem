@@ -13,7 +13,7 @@
 #include "normal_deriv_restriction.hpp"
 #include "gridfunc.hpp"
 #include "fespace.hpp"
-#include "pfespace.hpp"
+#include "pgridfunc.hpp"
 #include "qspace.hpp"
 #include "fe/face_map_utils.hpp"
 #include "../general/forall.hpp"
@@ -2280,6 +2280,34 @@ void NCL2FaceRestriction::ComputeGatherIndices()
       gather_offsets[i] = gather_offsets[i - 1];
    }
    gather_offsets[0] = 0;
+}
+
+Vector GetLVectorFaceNbrData(
+   const FiniteElementSpace &fes, const Vector &x, FaceType ftype)
+{
+#ifdef MFEM_USE_MPI
+   if (ftype == FaceType::Interior)
+   {
+      if (auto *pfes = const_cast<ParFiniteElementSpace*>
+                       (dynamic_cast<const ParFiniteElementSpace*>(&fes)))
+      {
+         if (auto *x_gf = const_cast<ParGridFunction*>
+                          (dynamic_cast<const ParGridFunction*>(&x)))
+         {
+            Vector &gf_face_nbr = x_gf->FaceNbrData();
+            if (gf_face_nbr.Size() == 0) { x_gf->ExchangeFaceNbrData(); }
+            return Vector(gf_face_nbr, 0, gf_face_nbr.Size());
+         }
+         else
+         {
+            ParGridFunction gf(pfes, const_cast<Vector&>(x));
+            gf.ExchangeFaceNbrData();
+            return std::move(gf.FaceNbrData());
+         }
+      }
+   }
+#endif
+   return Vector();
 }
 
 } // namespace mfem

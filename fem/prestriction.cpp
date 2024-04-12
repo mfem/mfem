@@ -309,12 +309,8 @@ void ParL2FaceRestriction::DoubleValuedConformingMult(
    MFEM_ASSERT(
       m == L2FaceValues::DoubleValued,
       "This method should be called when m == L2FaceValues::DoubleValued.");
-   ParGridFunction x_gf;
-   x_gf.MakeRef(const_cast<ParFiniteElementSpace*>(&pfes),
-                const_cast<Vector&>(x), 0);
-   // Face-neighbor information is only needed for interior faces. For boundary
-   // faces, no communication is required.
-   if (type == FaceType::Interior) { x_gf.ExchangeFaceNbrData(); }
+
+   Vector face_nbr_data = GetLVectorFaceNbrData(fes, x, type);
 
    // Early return only after calling ParGridFunction::ExchangeFaceNbrData,
    // otherwise MPI communication can hang.
@@ -329,7 +325,7 @@ void ParL2FaceRestriction::DoubleValuedConformingMult(
    auto d_indices1 = scatter_indices1.Read();
    auto d_indices2 = scatter_indices2.Read();
    auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
-   auto d_x_shared = Reshape(x_gf.FaceNbrData().Read(),
+   auto d_x_shared = Reshape(face_nbr_data.Read(),
                              t?vd:nsdofs, t?nsdofs:vd);
    auto d_y = Reshape(y.Write(), nface_dofs, vd, 2, nf);
    mfem::forall(nfdofs, [=] MFEM_HOST_DEVICE (int i)

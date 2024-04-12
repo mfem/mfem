@@ -319,24 +319,6 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose(
 template <int T_D1D>
 void L2NormalDerivativeFaceRestriction::Mult2D(const Vector &x, Vector &y) const
 {
-   int ne_shared = 0;
-   const real_t *face_nbr_data = nullptr;
-
-#ifdef MFEM_USE_MPI
-   std::unique_ptr<ParGridFunction> x_gf;
-   if (const auto *pfes = dynamic_cast<const ParFiniteElementSpace*>(&fes))
-   {
-      if (face_type == FaceType::Interior)
-      {
-         x_gf.reset(new ParGridFunction(const_cast<ParFiniteElementSpace*>(pfes),
-                                        const_cast<Vector&>(x), 0));
-         x_gf->ExchangeFaceNbrData();
-         face_nbr_data = x_gf->FaceNbrData().Read();
-         ne_shared = pfes->GetParMesh()->GetNFaceNeighborElements();
-      }
-   }
-#endif
-
    const int vd = fes.GetVDim();
    const bool t = fes.GetOrdering() == Ordering::byVDIM;
    const int num_elem = ne;
@@ -346,6 +328,9 @@ void L2NormalDerivativeFaceRestriction::Mult2D(const Vector &x, Vector &y) const
 
    const int q = maps.nqpt;
    const int d = maps.ndof;
+
+   Vector face_nbr_data = GetLVectorFaceNbrData(fes, x, face_type);
+   const int ne_shared = face_nbr_data.Size() / d / d / vd;
 
    MFEM_VERIFY(q == d, "");
    MFEM_VERIFY(T_D1D == d || T_D1D == 0, "");
@@ -360,7 +345,7 @@ void L2NormalDerivativeFaceRestriction::Mult2D(const Vector &x, Vector &y) const
    // if byvdim, d_x has shape (vdim, nddof, nddof, ne)
    // otherwise, d_x has shape (nddof, nddof, ne, vdim)
    const auto d_x = Reshape(x.Read(), t?vd:d, d, t?d:ne, t?ne:vd);
-   const auto d_x_shared = Reshape(face_nbr_data,
+   const auto d_x_shared = Reshape(face_nbr_data.Read(),
                                    t?vd:d, d, t?d:ne_shared, t?ne_shared:vd);
    auto d_y = Reshape(y.Write(), q, vd, 2, nf);
 
@@ -446,24 +431,6 @@ void L2NormalDerivativeFaceRestriction::Mult2D(const Vector &x, Vector &y) const
 template <int T_D1D>
 void L2NormalDerivativeFaceRestriction::Mult3D(const Vector &x, Vector &y) const
 {
-   int ne_shared = 0;
-   const real_t *face_nbr_data = nullptr;
-
-#ifdef MFEM_USE_MPI
-   std::unique_ptr<ParGridFunction> x_gf;
-   if (const auto *pfes = dynamic_cast<const ParFiniteElementSpace*>(&fes))
-   {
-      if (face_type == FaceType::Interior)
-      {
-         x_gf.reset(new ParGridFunction(const_cast<ParFiniteElementSpace*>(pfes),
-                                        const_cast<Vector&>(x), 0));
-         x_gf->ExchangeFaceNbrData();
-         face_nbr_data = x_gf->FaceNbrData().Read();
-         ne_shared = pfes->GetParMesh()->GetNFaceNeighborElements();
-      }
-   }
-#endif
-
    const int vd = fes.GetVDim();
    const bool t = fes.GetOrdering() == Ordering::byVDIM;
    const int num_elem = ne;
@@ -475,6 +442,9 @@ void L2NormalDerivativeFaceRestriction::Mult3D(const Vector &x, Vector &y) const
    const int d = maps.ndof;
    const int q2d = q * q;
 
+   Vector face_nbr_data = GetLVectorFaceNbrData(fes, x, face_type);
+   const int ne_shared = face_nbr_data.Size() / d / d / d / vd;
+
    MFEM_VERIFY(q == d, "");
    MFEM_VERIFY(T_D1D == d || T_D1D == 0, "");
 
@@ -485,7 +455,7 @@ void L2NormalDerivativeFaceRestriction::Mult3D(const Vector &x, Vector &y) const
 
    // t ? (vdim, d, d, d, ne) : (d, d, d, ne, vdim)
    const auto d_x = Reshape(x.Read(), t?vd:d, d, d, t?d:ne, t?ne:vd);
-   const auto d_x_shared = Reshape(face_nbr_data,
+   const auto d_x_shared = Reshape(face_nbr_data.Read(),
                                    t?vd:d, d, d, t?d:ne_shared, t?ne_shared:vd);
    auto d_y = Reshape(y.Write(), q2d, vd, 2, nf);
 
