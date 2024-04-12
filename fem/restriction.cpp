@@ -939,7 +939,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
      face_dofs(nf > 0 ?
                fes.GetTraceElement(0, fes.GetMesh()->GetFaceGeometry(0))->GetDof()
                : 0),
-     elem_dofs(fes.GetFE(0)->GetDof()),
+     elem_dofs(ne > 0 ? fes.GetFE(0)->GetDof() : 0),
      nfdofs(nf*face_dofs),
      ndofs(fes.GetNDofs()),
      type(type),
@@ -1235,7 +1235,7 @@ void L2FaceRestriction::CheckFESpace()
 
 #ifdef MFEM_DEBUG
    // If fespace == L2
-   const FiniteElement *fe0 = fes.GetFE(0);
+   const FiniteElement *fe0 = fes.GetTypicalFE();
    const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe0);
    MFEM_VERIFY(tfe != NULL &&
                (tfe->GetBasisType()==BasisType::GaussLobatto ||
