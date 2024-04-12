@@ -3201,6 +3201,16 @@ const FiniteElement *FiniteElementSpace::GetFE(int i) const
    return FE;
 }
 
+const FiniteElement *FiniteElementSpace::GetTypicalFE() const
+{
+   if (mesh->GetNE() > 0) { return GetFE(0); }
+
+   Geometry::Type geom = mesh->GetTypicalElementGeometry();
+   const FiniteElement *fe = fec->FiniteElementForGeometry(geom);
+   MFEM_VERIFY(fe != nullptr, "Could not determine a typical FE!");
+   return fe;
+}
+
 const FiniteElement *FiniteElementSpace::GetBE(int i) const
 {
    int order = fec->GetOrder();
