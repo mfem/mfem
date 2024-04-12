@@ -3553,10 +3553,6 @@ void HypreSmoother::SetOperator(const Operator &op)
       ones = 1.0;
       A->Mult(ones, diag);
    }
-   else if (type == 6)
-   {
-      Z = new HypreParVector(*A);
-   }
    else
    {
       l1_norms = NULL;
@@ -3577,6 +3573,33 @@ void HypreSmoother::SetOperator(const Operator &op)
 #endif
    }
 
+#if MFEM_HYPRE_VERSION < 22100
+   switch (type)
+   {
+      case 3:
+      case 6:
+      case 8:
+      case 10:
+      case 13:
+      case 14:
+         Z = new HypreParVector(*A);
+   }
+#elif defined(HYPRE_USING_GPU) || defined(HYPRE_USING_CUDA) || defined(HYPRE_USING_HIP)
+   switch (type)
+   {
+      case 3:
+      case 4:
+      case 6:
+      case 8:
+      case 11:
+      case 12:
+      case 13:
+      case 14:
+      case 88:
+      case 89:
+         Z = new HypreParVector(*A);
+   }
+#endif
    if (type == 16)
    {
       poly_scale = 1;
