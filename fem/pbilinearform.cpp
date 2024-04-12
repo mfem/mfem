@@ -404,23 +404,21 @@ real_t ParBilinearForm::TrueInnerProduct(HypreParVector &x,
 {
    MFEM_VERIFY(p_mat.Ptr() != NULL, "parallel matrix must be assembled");
 
-   if (p_mat->GetType() == Operator::Hypre_ParCSR)
-   {
-      HypreParVector *Ax = new HypreParVector(pfes);
-      HypreParMatrix *A = p_mat.As<HypreParMatrix>();
-
-      A->Mult(x, *Ax);
-
-      real_t res = mfem::InnerProduct(y, *Ax);
-
-      delete Ax;
-
-      return res;
-   }
-   else
+   if (p_mat->GetType() != Operator::Hypre_ParCSR)
    {
       return TrueInnerProduct((const Vector&)x, (const Vector&)y);
    }
+
+   HypreParVector *Ax = new HypreParVector(pfes);
+   HypreParMatrix *A = p_mat.As<HypreParMatrix>();
+
+   A->Mult(x, *Ax);
+
+   real_t res = mfem::InnerProduct(y, *Ax);
+
+   delete Ax;
+
+   return res;
 }
 
 real_t ParBilinearForm::TrueInnerProduct(const Vector &x,
