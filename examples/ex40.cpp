@@ -159,6 +159,9 @@ int main(int argc, char *argv[])
    ConstantCoefficient ln_rhs_coef(0.0);
    // u_gf.ProjectCoefficient(exact_coef);
    u_gf.ProjectCoefficient(zero);
+
+   delta_M1_gf = 0.0;
+   delta_M2_gf = 0.0;
    u_prvs_gf = 0.0;
 
    // 9. Initialize the Lie algebra variable M
@@ -200,11 +203,11 @@ int main(int argc, char *argv[])
       InnerProductCoefficient exp_M21(exp_M2, onezero);
       InnerProductCoefficient exp_M22(exp_M2, zeroone);
 
-      ScalarVectorProductCoefficient neg_exp_M1(1.0, exp_M1);
+      ScalarVectorProductCoefficient neg_exp_M1(-1.0, exp_M1);
       b0.AddDomainIntegrator(new VectorFEDomainLFIntegrator(neg_exp_M1));
       b0.Assemble();
 
-      ScalarVectorProductCoefficient neg_exp_M2(1.0, exp_M2);
+      ScalarVectorProductCoefficient neg_exp_M2(-1.0, exp_M2);
       b1.AddDomainIntegrator(new VectorFEDomainLFIntegrator(neg_exp_M2));
       b1.Assemble();
 
@@ -218,19 +221,20 @@ int main(int argc, char *argv[])
       BilinearForm a00(&RTfes);
       a00.AddDomainIntegrator(new VectorFEMassIntegrator(exp_M11));
       a00.Assemble();
-      a00.EliminateEssentialBC(ess_bdr,x.GetBlock(0),rhs.GetBlock(0));
+      a00.EliminateEssentialBC(ess_bdr,mfem::Operator::DIAG_ZERO);
       a00.Finalize();
       SparseMatrix &A00 = a00.SpMat();
 
       BilinearForm a01(&RTfes);
       a01.AddDomainIntegrator(new VectorFEMassIntegrator(exp_M12));
       a01.Assemble();
-      a01.EliminateEssentialBC(ess_bdr,x.GetBlock(1),rhs.GetBlock(0),mfem::Operator::DIAG_ZERO);
+      a01.EliminateEssentialBC(ess_bdr,mfem::Operator::DIAG_ZERO);
       a01.Finalize();
       SparseMatrix &A01 = a01.SpMat();
 
       MixedBilinearForm a02(&H1fes,&RTfes);
-      a02.AddDomainIntegrator(new MixedGradDivIntegrator(onezero));
+      ScalarVectorProductCoefficient neg_onezero(-1.0, onezero);
+      a02.AddDomainIntegrator(new MixedGradDivIntegrator(neg_onezero));
       a02.Assemble();
       a02.EliminateTrialDofs(ess_bdr,x.GetBlock(2),rhs.GetBlock(0));
       a02.EliminateTestDofs(ess_bdr);
@@ -240,19 +244,20 @@ int main(int argc, char *argv[])
       BilinearForm a10(&RTfes);
       a10.AddDomainIntegrator(new VectorFEMassIntegrator(exp_M21));
       a10.Assemble();
-      a10.EliminateEssentialBC(ess_bdr,x.GetBlock(0),rhs.GetBlock(1),mfem::Operator::DIAG_ZERO);
+      a10.EliminateEssentialBC(ess_bdr,mfem::Operator::DIAG_ZERO);
       a10.Finalize();
       SparseMatrix &A10 = a10.SpMat();
 
       BilinearForm a11(&RTfes);
       a11.AddDomainIntegrator(new VectorFEMassIntegrator(exp_M22));
       a11.Assemble();
-      a11.EliminateEssentialBC(ess_bdr,x.GetBlock(1),rhs.GetBlock(1));
+      a11.EliminateEssentialBC(ess_bdr,mfem::Operator::DIAG_ZERO);
       a11.Finalize();
       SparseMatrix &A11 = a11.SpMat();
 
       MixedBilinearForm a12(&H1fes,&RTfes);
-      a12.AddDomainIntegrator(new MixedGradDivIntegrator(zeroone));
+      ScalarVectorProductCoefficient neg_zeroone(-1.0, zeroone);
+      a12.AddDomainIntegrator(new MixedGradDivIntegrator(neg_zeroone));
       a12.Assemble();
       a12.EliminateTrialDofs(ess_bdr,x.GetBlock(2),rhs.GetBlock(1));
       a12.EliminateTestDofs(ess_bdr);
@@ -275,6 +280,13 @@ int main(int argc, char *argv[])
       a21.Finalize();
       SparseMatrix &A21 = a21.SpMat();
 
+      BilinearForm a22(&H1fes);
+      a22.AddDomainIntegrator(new MassIntegrator(zero));
+      a22.Assemble();
+      a22.EliminateEssentialBC(ess_bdr,x.GetBlock(2),rhs.GetBlock(2),mfem::Operator::DIAG_ONE);
+      a22.Finalize();
+      SparseMatrix &A22 = a22.SpMat();
+
       // BlockOperator A(offsets);
       // A.SetBlock(0,0,&A00);
       // A.SetBlock(0,1,&A01);
@@ -284,13 +296,7 @@ int main(int argc, char *argv[])
       // A.SetBlock(1,2,&A12);
       // A.SetBlock(2,0,&A20);
       // A.SetBlock(2,1,&A21);
-
-      // BilinearForm a22(&H1fes);
-      // a22.AddDomainIntegrator(new MassIntegrator());
-      // a22.Assemble();
-      // a22.EliminateEssentialBC(ess_bdr,x.GetBlock(2),rhs.GetBlock(2));
-      // a22.Finalize();
-      // SparseMatrix &A22 = a22.SpMat();
+      // A.SetBlock(2,2,&A22);
 
       // BlockDiagonalPreconditioner prec(offsets);
       // prec.SetDiagonalBlock(0,new GSSmoother(A00));
@@ -309,14 +315,15 @@ int main(int argc, char *argv[])
       A.SetBlock(1,2,&A12);
       A.SetBlock(2,0,&A20);
       A.SetBlock(2,1,&A21);
+      A.SetBlock(2,2,&A22);
 
       SparseMatrix * A_mono = A.CreateMonolithic();
       UMFPackSolver umf(*A_mono);
       umf.Mult(rhs,x);
 
-      // delta_M1_gf.MakeRef(&RTfes, x.GetBlock(0), 0);
-      // delta_M2_gf.MakeRef(&RTfes, x.GetBlock(1), 0);
-      // u_gf.MakeRef(&H1fes, x.GetBlock(2), 0);
+      delta_M1_gf.MakeRef(&RTfes, x.GetBlock(0), 0);
+      delta_M2_gf.MakeRef(&RTfes, x.GetBlock(1), 0);
+      u_gf.MakeRef(&H1fes, x.GetBlock(2), 0);
 
       u_prvs_gf -= u_gf;
       real_t Newton_update_size = u_prvs_gf.ComputeL2Error(zero);
