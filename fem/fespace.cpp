@@ -1014,7 +1014,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    // as a linear combination of the highest order set of DOFs.
    SparseMatrix inv_deps(ndofs);
 
-   // collect local face/edge dependencies
+   // collect local face/edge dependencies, starting with faces
    for (int entity = 2; entity >= 1; entity--)
    {
       const NCMesh::NCList &list = mesh->ncmesh->GetNCList(entity);
@@ -2409,7 +2409,8 @@ void FiniteElementSpace::Construct(const Array<int> * prefdata)
    {
       // for variable order spaces, calculate orders of edges and faces
       CalcEdgeFaceVarOrders(edge_orders, face_orders,
-                            all_var_edge_orders, all_var_face_orders, prefdata);
+                            all_var_edge_orders, all_var_face_orders,
+                            artificial_var_edge_orders, prefdata);
    }
    else if (mixed_faces)
    {
@@ -2512,6 +2513,7 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(Array<VarOrderBits> &edge_orders,
                                                Array<VarOrderBits> &face_orders,
                                                Array<VarOrderBits> &all_edge_orders,
                                                Array<VarOrderBits> &all_face_orders,
+                                               Array<VarOrderBits> &artificial_edge_orders,
                                                const Array<int> * prefdata) const
 {
    MFEM_ASSERT(IsVariableOrder() || prefdata, "");
@@ -2664,6 +2666,8 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(Array<VarOrderBits> &edge_orders,
    {
       all_face_orders[i] |= face_orders[i];
    }
+
+   GhostMasterFaceOrderToEdges(face_orders, edge_orders, artificial_edge_orders);
 }
 
 // TODO: change Array<int> to Array<VarOrderBits> for entity_orders?

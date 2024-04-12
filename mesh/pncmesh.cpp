@@ -246,6 +246,27 @@ void ParNCMesh::BuildEdgeList()
    // NOTE: entity_index_rank[1] is not deleted until CalculatePMatrixGroups
 }
 
+void ParNCMesh::FindEdgesOfGhostFace(int face, Array<int> & edges)
+{
+   const NCList &faceList = GetFaceList();
+
+   NCList::MeshIdAndType midt = faceList.GetMeshIdAndType(face);
+   if (!midt.id)
+   {
+      edges.SetSize(0);
+      return;
+   }
+
+   int V[4], E[4], Eo[4];
+   const int nfv = GetFaceVerticesEdges(*midt.id, V, E, Eo);
+
+   edges.SetSize(4);
+   for (int i=0; i<4; ++i)
+   {
+      edges[i] = E[i];
+   }
+}
+
 void ParNCMesh::FindEdgesOfGhostElement(int elem, Array<int> & edges)
 {
    NCMesh::Element &el = elements[elem]; // ghost element
@@ -272,6 +293,7 @@ void ParNCMesh::FindEdgesOfGhostElement(int elem, Array<int> & edges)
    }
 }
 
+// TODO: use NCMesh::GetFace?
 void ParNCMesh::FindFacesOfGhostElement(int elem, Array<int> & ge_faces)
 {
    NCMesh::Element &el = elements[elem]; // ghost element

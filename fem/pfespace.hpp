@@ -132,19 +132,16 @@ private:
    void GetGhostFaceDofs(const MeshId &face_id, Array<int> &dofs) const;
    void GetGhostDofs(int entity, const MeshId &id, Array<int> &dofs) const;
 
-   void GetGhostFaceDofsWithoutGhostEdges(const MeshId &face_id,
-                                          Array<int> &dofs,
-                                          Array<int> &fullDofIndices) const;
-
    /// Return the dofs associated with the interior of the given mesh entity.
    void GetBareDofs(int entity, int index, Array<int> &dofs) const;
    void GetBareDofsVar(int entity, int index, Array<int> &dofs) const;
 
    int  PackDof(int entity, int index, int edof, int var = 0) const;
-   void UnpackDof(int dof, int &entity, int &index, int &edof) const;
+   void UnpackDof(int dof, int &entity, int &index, int &edof, int &order) const;
 
    int  PackDofVar(int entity, int index, int edof, int var = 0) const;
-   void UnpackDofVar(int dof, int &entity, int &index, int &edof) const;
+   void UnpackDofVar(int dof, int &entity, int &index, int &edof,
+                     int &order) const;
 
 #ifdef MFEM_PMATRIX_STATS
    mutable int n_msgs_sent, n_msgs_recv;
@@ -457,6 +454,10 @@ protected:
    void ApplyGhostElementOrdersToEdgesAndFaces(Array<VarOrderBits> &edge_orders,
                                                Array<VarOrderBits> &face_orders,
                                                const Array<int> * prefdata=nullptr) const override;
+
+   void GhostMasterFaceOrderToEdges(const Array<VarOrderBits> &face_orders,
+                                    Array<VarOrderBits> &edge_orders,
+                                    Array<VarOrderBits> &artificial_edge_orders) const override;
 
    int NumGhostEdges() const override { return pncmesh->GetNGhostEdges(); }
    int NumGhostFaces() const override { return pncmesh->GetNGhostFaces(); }
