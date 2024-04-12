@@ -182,6 +182,13 @@ public:
                                         FaceElementTransformations &Trans,
                                         DenseMatrix &elmat);
 
+   virtual void AssembleHDGFaceMatrix(const FiniteElement &trace_el,
+                                      const FiniteElement &el1,
+                                      const FiniteElement &el2,
+                                      FaceElementTransformations &Trans,
+                                      DenseMatrix &tr_elmat,
+                                      DenseMatrix &elmat1,
+                                      DenseMatrix &elmat2);
 
    /// @brief Perform the local action of the BilinearFormIntegrator.
    /// Note that the default implementation in the base class is general but not
@@ -3462,7 +3469,7 @@ protected:
    real_t alpha;
 
    // these are not thread-safe!
-   Vector shape1, shape2, nor, nh, ni;
+   Vector tr_shape, shape1, shape2, nor, nh, ni;
    DenseMatrix mq;
 
 public:
@@ -3477,6 +3484,14 @@ public:
                                    const FiniteElement &el2,
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
+
+   virtual void AssembleHDGFaceMatrix(const FiniteElement &trace_el,
+                                      const FiniteElement &el1,
+                                      const FiniteElement &el2,
+                                      FaceElementTransformations &Trans,
+                                      DenseMatrix &tr_elmat,
+                                      DenseMatrix &elmat1,
+                                      DenseMatrix &elmat2);
 };
 
 /** Integrator for the "BR2" diffusion stabilization term

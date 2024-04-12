@@ -205,6 +205,15 @@ void BilinearFormIntegrator::AddMultPAFaceNormalDerivatives(
    MFEM_ABORT("Not implemented.");
 }
 
+void BilinearFormIntegrator::AssembleHDGFaceMatrix(
+   const FiniteElement &trace_el, const FiniteElement &el1,
+   const FiniteElement &el2, FaceElementTransformations &Trans,
+   DenseMatrix &tr_elmat, DenseMatrix &elmat1, DenseMatrix &elmat2)
+{
+   MFEM_ABORT("AssembleHDGFaceMatrix is not implemented for this"
+              " Integrator class.");
+}
+
 void BilinearFormIntegrator::AssembleElementVector(
    const FiniteElement &el, ElementTransformation &Tr, const Vector &elfun,
    Vector &elvect)
@@ -4223,6 +4232,191 @@ void HDGDiffusionCenteredIntegrator::AssembleFaceMatrix(
       }
 }
 
+void HDGDiffusionCenteredIntegrator::AssembleHDGFaceMatrix(
+   const FiniteElement &trace_el, const FiniteElement &el1,
+   const FiniteElement &el2, FaceElementTransformations &Trans,
+   DenseMatrix &tr_elmat, DenseMatrix &elmat1, DenseMatrix &elmat2)
+{
+   MFEM_VERIFY(trace_el.GetMapType() == FiniteElement::VALUE, "");
+
+   int dim, tr_ndof, ndof1, ndof2;
+   real_t w, wq = 0.0;
+
+   dim = el1.GetDim();
+   tr_ndof = trace_el.GetDof();
+   ndof1 = el1.GetDof();
+
+   nor.SetSize(dim);
+   nh.SetSize(dim);
+   ni.SetSize(dim);
+   if (MQ)
+   {
+      mq.SetSize(dim);
+   }
+
+   tr_shape.SetSize(tr_ndof);
+   shape1.SetSize(ndof1);
+   if (Trans.Elem2No >= 0)
+   {
+      ndof2 = el2.GetDof();
+      shape2.SetSize(ndof2);
+   }
+   else
+   {
+      ndof2 = 0;
+   }
+
+   tr_elmat.SetSize(ndof1 + ndof2, tr_ndof);
+   tr_elmat = 0.0;
+   elmat1.SetSize(ndof1);
+   elmat2.SetSize(ndof2);
+   elmat1 = 0.0;
+   elmat2 = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      // a simple choice for the integration order; is this OK?
+      int order;
+      if (ndof2)
+      {
+         order = 2*max(el1.GetOrder(), el2.GetOrder());
+      }
+      else
+      {
+         order = 2*el1.GetOrder();
+      }
+      ir = &IntRules.Get(Trans.GetGeometryType(), order);
+   }
+
+   // assemble: alpha < {h^{-1} Q} [u],[v] >
+   for (int p = 0; p < ir->GetNPoints(); p++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(p);
+
+      // Set the integration point in the face and the neighboring elements
+      Trans.SetAllIntPoints(&ip);
+
+      // Access the neighboring elements' integration points
+      // Note: eip2 will only contain valid data if Elem2 exists
+      const IntegrationPoint &eip1 = Trans.GetElement1IntPoint();
+      const IntegrationPoint &eip2 = Trans.GetElement2IntPoint();
+
+      if (dim == 1)
+      {
+         nor(0) = 2*eip1.x - 1.0;
+      }
+      else
+      {
+         CalcOrtho(Trans.Jacobian(), nor);
+      }
+
+      trace_el.CalcShape(ip, tr_shape);
+
+      el1.CalcShape(eip1, shape1);
+      w = ip.weight/Trans.Elem1->Weight();
+      if (ndof2)
+      {
+         w /= 2;
+      }
+      if (!MQ)
+      {
+         if (Q)
+         {
+            w *= Q->Eval(*Trans.Elem1, eip1);
+         }
+         ni.Set(w, nor);
+      }
+      else
+      {
+         nh.Set(w, nor);
+         MQ->Eval(mq, *Trans.Elem1, eip1);
+         mq.MultTranspose(nh, ni);
+      }
+      wq = ni * nor;
+      // Note: in the jump term, we use 1/h1 = |nor|/det(J1) which is
+      // independent of Loc1 and always gives the size of element 1 in
+      // direction perpendicular to the face. Indeed, for linear transformation
+      //     |nor|=measure(face)/measure(ref. face),
+      //   det(J1)=measure(element)/measure(ref. element),
+      // and the ratios measure(ref. element)/measure(ref. face) are
+      // compatible for all element/face pairs.
+      // For example: meas(ref. tetrahedron)/meas(ref. triangle) = 1/3, and
+      // for any tetrahedron vol(tet)=(1/3)*height*area(base).
+      // For interior faces: q_e/h_e=(q1/h1+q2/h2)/2.
+
+      if (ndof2)
+      {
+         el2.CalcShape(eip2, shape2);
+         w = ip.weight/2/Trans.Elem2->Weight();
+         if (!MQ)
+         {
+            if (Q)
+            {
+               w *= Q->Eval(*Trans.Elem2, eip2);
+            }
+            ni.Set(w, nor);
+         }
+         else
+         {
+            nh.Set(w, nor);
+            MQ->Eval(mq, *Trans.Elem2, eip2);
+            mq.MultTranspose(nh, ni);
+         }
+         wq += ni * nor;
+      }
+
+      // only assemble the lower triangular part
+      wq *= alpha;
+      for (int i = 0; i < ndof1; i++)
+      {
+         const real_t wsi = wq*shape1(i);
+         for (int j = 0; j <= i; j++)
+         {
+            elmat1(i, j) += wsi * shape1(j);
+         }
+      }
+      for (int i = 0; i < ndof2; i++)
+      {
+         const real_t wsi = wq*shape2(i);
+         for (int j = 0; j <= i; j++)
+         {
+            elmat2(i, j) += wsi * shape2(j);
+         }
+      }
+
+      // assemble the trace matrix
+      for (int i = 0; i < ndof1; i++)
+      {
+         const real_t wsi = wq*shape1(i);
+         for (int j = 0; j < tr_ndof; j++)
+         {
+            tr_elmat(i, j) -= wsi * tr_shape(j);
+         }
+      }
+      for (int i = 0; i < ndof2; i++)
+      {
+         const real_t wsi = wq*shape2(i);
+         for (int j = 0; j < tr_ndof; j++)
+         {
+            tr_elmat(i, j) -= wsi * tr_shape(j);
+         }
+      }
+   }
+
+   // complete the upper triangular part
+   for (int i = 0; i < ndof1; i++)
+      for (int j = 0; j < i; j++)
+      {
+         elmat1(j,i) = elmat1(i,j);
+      }
+
+   for (int i = 0; i < ndof2; i++)
+      for (int j = 0; j < i; j++)
+      {
+         elmat2(j,i) = elmat2(i,j);
+      }
+}
 
 // static method
 void DGElasticityIntegrator::AssembleBlock(
