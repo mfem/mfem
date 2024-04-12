@@ -49,7 +49,8 @@ void exact_solution_gradient(const Vector &pt, Vector &grad);
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char *mesh_file = "../data/star.mesh";
+   const char *mesh_file = "../data/disc-nurbs.mesh";
+   // const char *mesh_file = "../data/star.mesh";
    int order = 3;
    int max_it = 10;
    int ref_levels = 1;
@@ -158,7 +159,7 @@ int main(int argc, char *argv[])
    ConstantCoefficient ln_rhs_coef(0.0);
    // u_gf.ProjectCoefficient(exact_coef);
    u_gf.ProjectCoefficient(zero);
-   u_prvs_gf = u_gf;
+   u_prvs_gf = 0.0;
 
    // 9. Initialize the Lie algebra variable M
    M1_gf = 0.0;
@@ -184,12 +185,13 @@ int main(int argc, char *argv[])
       b1.Update(&RTfes,rhs.GetBlock(1),0);
       b2.Update(&H1fes,rhs.GetBlock(2),0);
 
-      VectorGridFunctionCoefficient M1_coeff(&M1_gf);
-      VectorGridFunctionCoefficient M2_coeff(&M2_gf);
+      VectorGridFunctionCoefficient M1(&M1_gf);
+      VectorGridFunctionCoefficient M2(&M2_gf);
 
-      MatrixArrayVectorCoefficient exp_M(dim);
-      exp_M.Set(0, &M1_coeff);
-      exp_M.Set(1, &M2_coeff);
+      MatrixArrayVectorCoefficient M(dim);
+      M.Set(0, &M1, false);
+      M.Set(1, &M2, false);
+      ExponentialMatrixCoefficient exp_M(M);
 
       MatrixVectorProductCoefficient exp_M1(exp_M, onezero);
       MatrixVectorProductCoefficient exp_M2(exp_M, zeroone);
@@ -198,23 +200,22 @@ int main(int argc, char *argv[])
       InnerProductCoefficient exp_M21(exp_M2, onezero);
       InnerProductCoefficient exp_M22(exp_M2, zeroone);
 
-      ScalarVectorProductCoefficient neg_exp_M1(-1.0, exp_M1);
+      ScalarVectorProductCoefficient neg_exp_M1(1.0, exp_M1);
       b0.AddDomainIntegrator(new VectorFEDomainLFIntegrator(neg_exp_M1));
       b0.Assemble();
 
-      ScalarVectorProductCoefficient neg_exp_M2(-1.0, exp_M2);
+      ScalarVectorProductCoefficient neg_exp_M2(1.0, exp_M2);
       b1.AddDomainIntegrator(new VectorFEDomainLFIntegrator(neg_exp_M2));
       b1.Assemble();
 
-      InnerProductCoefficient M11(M1_coeff, onezero);
-      InnerProductCoefficient M22(M2_coeff, zeroone);
+      InnerProductCoefficient M11(M1, onezero);
+      InnerProductCoefficient M22(M2, zeroone);
       SumCoefficient trace_M(M11, M22);
       SumCoefficient rhs2(ln_rhs_coef, trace_M, 1.0, -1.0);
       b2.AddDomainIntegrator(new DomainLFIntegrator(rhs2));
       b2.Assemble();
 
       BilinearForm a00(&RTfes);
-      a00.SetDiagonalPolicy(mfem::Operator::DIAG_ONE);
       a00.AddDomainIntegrator(new VectorFEMassIntegrator(exp_M11));
       a00.Assemble();
       a00.EliminateEssentialBC(ess_bdr,x.GetBlock(0),rhs.GetBlock(0));
@@ -224,7 +225,7 @@ int main(int argc, char *argv[])
       BilinearForm a01(&RTfes);
       a01.AddDomainIntegrator(new VectorFEMassIntegrator(exp_M12));
       a01.Assemble();
-      a01.EliminateEssentialBC(ess_bdr,x.GetBlock(1),rhs.GetBlock(0));
+      a01.EliminateEssentialBC(ess_bdr,x.GetBlock(1),rhs.GetBlock(0),mfem::Operator::DIAG_ZERO);
       a01.Finalize();
       SparseMatrix &A01 = a01.SpMat();
 
@@ -239,7 +240,7 @@ int main(int argc, char *argv[])
       BilinearForm a10(&RTfes);
       a10.AddDomainIntegrator(new VectorFEMassIntegrator(exp_M21));
       a10.Assemble();
-      a10.EliminateEssentialBC(ess_bdr,x.GetBlock(0),rhs.GetBlock(1));
+      a10.EliminateEssentialBC(ess_bdr,x.GetBlock(0),rhs.GetBlock(1),mfem::Operator::DIAG_ZERO);
       a10.Finalize();
       SparseMatrix &A10 = a10.SpMat();
 
@@ -313,9 +314,9 @@ int main(int argc, char *argv[])
       UMFPackSolver umf(*A_mono);
       umf.Mult(rhs,x);
 
-      delta_M1_gf.MakeRef(&RTfes, x.GetBlock(0), 0);
-      delta_M2_gf.MakeRef(&RTfes, x.GetBlock(1), 0);
-      u_gf.MakeRef(&H1fes, x.GetBlock(2), 0);
+      // delta_M1_gf.MakeRef(&RTfes, x.GetBlock(0), 0);
+      // delta_M2_gf.MakeRef(&RTfes, x.GetBlock(1), 0);
+      // u_gf.MakeRef(&H1fes, x.GetBlock(2), 0);
 
       u_prvs_gf -= u_gf;
       real_t Newton_update_size = u_prvs_gf.ComputeL2Error(zero);
@@ -340,6 +341,8 @@ int main(int argc, char *argv[])
       real_t H1_error = u_gf.ComputeH1Error(&exact_coef,&exact_grad_coef);
       mfem::out << "H1-error  (|| u - uₕᵏ||)       = " << H1_error << endl;
 
+      cin.get();
+
    }
 
    mfem::out << "\n Total iterations: " << k+1
@@ -347,18 +350,18 @@ int main(int argc, char *argv[])
              << endl;
 
    // 11. Exact solution.
-   if (visualization)
-   {
-      socketstream err_sock(vishost, visport);
-      err_sock.precision(8);
+   // if (visualization)
+   // {
+   //    socketstream err_sock(vishost, visport);
+   //    err_sock.precision(8);
 
-      GridFunction error_gf(&H1fes);
-      error_gf.ProjectCoefficient(exact_coef);
-      error_gf -= u_gf;
+   //    GridFunction error_gf(&H1fes);
+   //    error_gf.ProjectCoefficient(exact_coef);
+   //    error_gf -= u_gf;
 
-      err_sock << "solution\n" << mesh << error_gf << "window_title 'Error'"  <<
-               flush;
-   }
+   //    err_sock << "solution\n" << mesh << error_gf << "window_title 'Error'"  <<
+   //             flush;
+   // }
 
    return 0;
 }

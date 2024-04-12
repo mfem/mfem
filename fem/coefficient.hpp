@@ -1352,17 +1352,17 @@ public:
    /// Set the time for internally stored coefficients
    void SetTime(real_t t) override;
 
-   /// Get the coefficient located at (i,j) in the matrix.
+   /// Get the coefficient located at the iᵗʰ row of the matrix.
    VectorCoefficient* GetCoeff (int i) { return Coeff[i]; }
 
-   /** @brief Set the coefficient located at the i-th row of the matrix.
+   /** @brief Set the coefficient located at the iᵗʰ row of the matrix.
        By this will take ownership of the Coefficient passed in, but this
        can be overridden with the @a own parameter. */
    void Set(int i, VectorCoefficient * c, bool own=true);
 
    using MatrixCoefficient::Eval;
 
-   /// Evaluate coefficient located at the i-th row of the matrix using integration
+   /// Evaluate coefficient located at the iᵗʰ row of the matrix using integration
    /// point @a ip.
    void Eval(int i, Vector &V, ElementTransformation &T,
              const IntegrationPoint &ip);
