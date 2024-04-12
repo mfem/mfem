@@ -736,7 +736,7 @@ void DarcyHybridization::ComputeAndAssembleFaceMatrix(
 {
    Mesh *mesh = fes_p->GetMesh();
    const FiniteElement *tr_fe, *fe1, *fe2;
-   DenseMatrix tr_elmat;
+   DenseMatrix e_elmat, g_elmat, h_elmat;
 
    tr_fe = c_fes->GetFaceElement(face);
 
@@ -755,8 +755,8 @@ void DarcyHybridization::ComputeAndAssembleFaceMatrix(
       fe2 = fe1;
    }
 
-   c_bfi_p->AssembleHDGFaceMatrix(*tr_fe, *fe1, *fe2, *ftr, tr_elmat, elmat1,
-                                  elmat2);
+   c_bfi_p->AssembleHDGFaceMatrix(*tr_fe, *fe1, *fe2, *ftr, elmat1, elmat2,
+                                  e_elmat, g_elmat, h_elmat);
 
    AssemblePotMassMatrix(ftr->Elem1No, elmat1);
    AssemblePotMassMatrix(ftr->Elem2No, elmat2);

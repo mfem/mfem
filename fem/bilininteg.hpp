@@ -186,9 +186,11 @@ public:
                                       const FiniteElement &el1,
                                       const FiniteElement &el2,
                                       FaceElementTransformations &Trans,
-                                      DenseMatrix &tr_elmat,
                                       DenseMatrix &elmat1,
-                                      DenseMatrix &elmat2);
+                                      DenseMatrix &elmat2,
+                                      DenseMatrix &ct_elmat,
+                                      DenseMatrix &c_elmat,
+                                      DenseMatrix &tr_elmat);
 
    /// @brief Perform the local action of the BilinearFormIntegrator.
    /// Note that the default implementation in the base class is general but not
@@ -3489,9 +3491,11 @@ public:
                                       const FiniteElement &el1,
                                       const FiniteElement &el2,
                                       FaceElementTransformations &Trans,
-                                      DenseMatrix &tr_elmat,
                                       DenseMatrix &elmat1,
-                                      DenseMatrix &elmat2);
+                                      DenseMatrix &elmat2,
+                                      DenseMatrix &ct_elmat,
+                                      DenseMatrix &c_elmat,
+                                      DenseMatrix &tr_elmat);
 };
 
 /** Integrator for the "BR2" diffusion stabilization term
