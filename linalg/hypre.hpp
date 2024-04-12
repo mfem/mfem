@@ -74,12 +74,23 @@ public:
    /// Calling HYPRE_Finalize() manually is not compatible with this class.
    static void Init() { Instance(); }
 
+   /// @brief Configure HYPRE's compute and memory policy.
+   /// By default HYPRE will be configured with the same policy as MFEM unless
+   /// `Hypre::configure_hypre_runtime_policy_from_mfem` is false, in which case
+   /// HYPRE's default will be used; if HYPRE is built for the GPU and the
+   /// aforementioned variable is false then HYPRE will use the GPU even if MFEM
+   /// is not.
+   static void InitDevice();
+
    /// @brief Finalize hypre (called automatically at program exit if
    /// Hypre::Init() has been called).
    ///
    /// Multiple calls to Hypre::Finalize() have no effect. This function can be
    /// called manually to more precisely control when hypre is finalized.
    static void Finalize();
+
+   /// Use MFEM's device policy to configure HYPRE's device policy, true by default.
+   static bool configure_hypre_runtime_policy_from_mfem;
 
 private:
    /// Calls HYPRE_Init() when the singleton is constructed.
