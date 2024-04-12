@@ -693,7 +693,7 @@ void DarcyHybridization::AssemblePotMassMatrix(int el, const DenseMatrix &D)
    DenseMatrix D_i(Df_data + Df_offsets[el], s, s);
    MFEM_ASSERT(D.Size() == s, "Incompatible sizes");
 
-   D_i = D;
+   D_i += D;
 }
 
 void DarcyHybridization::AssembleDivMatrix(int el, const DenseMatrix &B)
@@ -713,14 +713,14 @@ void DarcyHybridization::AssembleDivMatrix(int el, const DenseMatrix &B)
 #ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
          for (int i = 0; i < h; i++)
          {
-            *(Be_el_data++) = B(i, j);
+            *(Be_el_data++) += B(i, j);
          }
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
          continue;
       }
       for (int i = 0; i < h; i++)
       {
-         *(Bf_el_data++) = B(i, j);
+         *(Bf_el_data++) += B(i, j);
       }
    }
    MFEM_ASSERT(Bf_el_data == Bf_data + Bf_offsets[el+1], "Internal error");
