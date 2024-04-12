@@ -206,17 +206,17 @@ class DarcyHybridization : public Hybridization
    bool bsym, bhdg;
 
    Array<int> Ae_offsets;
-   double *Ae_data;
+   real_t *Ae_data;
 
    Array<int> Bf_offsets, Be_offsets;
-   double *Bf_data, *Be_data;
+   real_t *Bf_data, *Be_data;
 
    Array<int> Df_offsets, Df_f_offsets;
-   double *Df_data;
+   real_t *Df_data;
    int *Df_ipiv;
 
    Array<int> Ct_offsets;
-   double *Ct_data;
+   real_t *Ct_data;
 
    void GetFDofs(int el, Array<int> &fdofs) const;
    void GetEDofs(int el, Array<int> &edofs) const;

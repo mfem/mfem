@@ -607,7 +607,7 @@ void DarcyHybridization::Init(const Array<int> &ess_flux_tdof_list)
       Af_f_offsets[i+1] = Af_f_offsets[i] + f_size;
    }
 
-   Af_data = new double[Af_offsets[NE]];
+   Af_data = new real_t[Af_offsets[NE]];
    Af_ipiv = new int[Af_f_offsets[NE]];
 
    // Assemble the constraint matrix C
@@ -646,12 +646,12 @@ void DarcyHybridization::Init(const Array<int> &ess_flux_tdof_list)
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
    }
 
-   Bf_data = new double[Bf_offsets[NE]]();//init by zeros
-   Df_data = new double[Df_offsets[NE]]();//init by zeros
+   Bf_data = new real_t[Bf_offsets[NE]]();//init by zeros
+   Df_data = new real_t[Df_offsets[NE]]();//init by zeros
    Df_ipiv = new int[Df_f_offsets[NE]];
 #ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
-   Ae_data = new double[Ae_offsets[NE]];
-   Be_data = new double[Be_offsets[NE]]();//init by zeros
+   Ae_data = new real_t[Ae_offsets[NE]];
+   Be_data = new real_t[Be_offsets[NE]]();//init by zeros
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
 }
 
@@ -659,9 +659,9 @@ void DarcyHybridization::AssembleFluxMassMatrix(int el, const DenseMatrix &A)
 {
    const int o = hat_offsets[el];
    const int s = hat_offsets[el+1] - o;
-   double *Af_el_data = Af_data + Af_offsets[el];
+   real_t *Af_el_data = Af_data + Af_offsets[el];
 #ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
-   double *Ae_el_data = Ae_data + Ae_offsets[el];
+   real_t *Ae_el_data = Ae_data + Ae_offsets[el];
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
 
    for (int j = 0; j < s; j++)
@@ -702,9 +702,9 @@ void DarcyHybridization::AssembleDivMatrix(int el, const DenseMatrix &B)
    const int o = hat_offsets[el];
    const int w = hat_offsets[el+1] - o;
    const int h = Df_f_offsets[el+1] - Df_f_offsets[el];
-   double *Bf_el_data = Bf_data + Bf_offsets[el];
+   real_t *Bf_el_data = Bf_data + Bf_offsets[el];
 #ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
-   double *Be_el_data = Be_data + Be_offsets[el];
+   real_t *Be_el_data = Be_data + Be_offsets[el];
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
 
    for (int j = 0; j < w; j++)
@@ -831,11 +831,11 @@ void DarcyHybridization::AssembleCtSubMatrix(int el, const DenseMatrix &elmat,
    for (int i = 0; i < hat_size; i++)
    {
       if (hat_dofs_marker[hat_offset + i] == 1) { continue; }
-      double sign = (vdofs[i]>=0)?(+1.):(-1.);
+      real_t sign = (vdofs[i]>=0)?(+1.):(-1.);
       bool bzero = true;
       for (int j = 0; j < signs.Size(); j++)
       {
-         const double val = elmat(i + ioff, j) * sign;
+         const real_t val = elmat(i + ioff, j) * sign;
          if (val == 0.) { continue; }
          Ct(row, j) += (signs[j]>=0)?(+val):(-val);
          bzero = false;
@@ -879,7 +879,7 @@ void DarcyHybridization::ConstructC()
       Ct_offsets[f+1] = Ct_offsets[f] + c_vdofs.Size() * (f_size_1 + f_size_2);
    }
 
-   Ct_data = new double[Ct_offsets[num_faces]]();//init by zeros
+   Ct_data = new real_t[Ct_offsets[num_faces]]();//init by zeros
 
    // Assemble the constraint element matrices
    if (c_bfi)
@@ -1074,16 +1074,16 @@ void DarcyHybridization::GetCtSubMatrix(int el, const Array<int> c_dofs,
    for (int row = hat_offset; row < hat_offset + hat_size; row++)
    {
       if (hat_dofs_marker[row] == 1) { continue; }
-      double s = (vdofs[row - hat_offset] >= 0)?(+1.):(-1.);
+      real_t s = (vdofs[row - hat_offset] >= 0)?(+1.):(-1.);
       int col = 0;
       const int ncols = Ct->RowSize(row);
       const int *cols = Ct->GetRowColumns(row);
-      const double *vals = Ct->GetRowEntries(row);
+      const real_t *vals = Ct->GetRowEntries(row);
       for (int j = 0; j < c_dofs.Size() && col < ncols; j++)
       {
          const int cdof = (c_dofs[j]>=0)?(c_dofs[j]):(-1-c_dofs[j]);
          if (cols[col] != cdof) { continue; }
-         double sj = (c_dofs[j] >= 0)?(+s):(-s);
+         real_t sj = (c_dofs[j] >= 0)?(+s):(-s);
          Ct_l(i,j) = vals[col++] * sj;
       }
       i++;
