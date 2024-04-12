@@ -27,6 +27,8 @@ using namespace std;
 namespace mfem
 {
 
+bool Hypre::configure_hypre_runtime_policy_from_mfem = true;
+
 Hypre::Hypre()
 {
 #if MFEM_HYPRE_VERSION >= 21900
@@ -36,6 +38,32 @@ Hypre::Hypre()
 
    // Global hypre options that we set by default
    SetDefaultOptions();
+}
+
+void Hypre::InitDevice()
+{
+   // Runtime Memory and Execution policy support was added in 2.26.0 but choosing to initialize
+   // the vendor libraries at runtime was not added until 2.31.0 so we use that instead
+#if MFEM_HYPRE_VERSION >= 23100
+   if (configure_hypre_runtime_policy_from_mfem)
+   {
+      if (mfem::Device::Allows(mfem::Backend::DEVICE_MASK))
+      {
+         HYPRE_SetMemoryLocation(HYPRE_MEMORY_DEVICE);
+         HYPRE_SetExecutionPolicy(HYPRE_EXEC_DEVICE);
+      }
+      else
+      {
+         HYPRE_SetMemoryLocation(HYPRE_MEMORY_HOST);
+         HYPRE_SetExecutionPolicy(HYPRE_EXEC_HOST);
+      }
+
+      if (mfem::Device::Allows(mfem::Backend::DEVICE_MASK))
+      {
+         HYPRE_DeviceInitialize();
+      }
+   }
+#endif
 }
 
 void Hypre::Finalize()
@@ -65,20 +93,6 @@ void Hypre::SetDefaultOptions()
 #endif
 #endif
 
-   // Runtime Memory and Execution policy support was added in 2.26.0 but choosing to initialize
-   // the vendor libraries at runtime was not added until 2.31.0 so we use that instead
-#if MFEM_HYPRE_VERSION >= 23100
-   if (mfem::Device::Allows(mfem::Backend::DEVICE_MASK))
-   {
-      HYPRE_SetMemoryLocation(HYPRE_MEMORY_DEVICE);
-      HYPRE_SetExecutionPolicy(HYPRE_EXEC_DEVICE);
-   }
-   else
-   {
-      HYPRE_SetMemoryLocation(HYPRE_MEMORY_HOST);
-      HYPRE_SetExecutionPolicy(HYPRE_EXEC_HOST);
-   }
-#else
    // The following options are hypre's defaults as of hypre-2.24
 
    // Allocate hypre objects in GPU memory (default)
@@ -86,14 +100,6 @@ void Hypre::SetDefaultOptions()
 
    // Where to execute when using UVM (default)
    // HYPRE_SetExecutionPolicy(HYPRE_EXEC_DEVICE);
-#endif
-
-#if MFEM_HYPRE_VERSION >= 23100
-   if (mfem::Device::Allows(mfem::Backend::DEVICE_MASK))
-   {
-      HYPRE_DeviceInitialize();
-   }
-#endif
 
    // Use GPU-based random number generator (default)
    // HYPRE_SetUseGpuRand(1);
