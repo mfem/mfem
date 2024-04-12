@@ -267,7 +267,10 @@ protected:
    /** Additional data for the var_*_dofs tables: individual variant orders
        (these are basically alternate J arrays for var_edge/face_dofs). */
    Array<char> var_edge_orders, var_face_orders;
-   Array<VarOrderBits> all_var_edge_orders, all_var_face_orders;
+   Array<VarOrderBits> all_var_edge_orders,
+         all_var_face_orders;  // TODO: are these still used?
+
+   Array<VarOrderBits> artificial_var_edge_orders;
 
    // precalculated DOFs for each element, boundary element, and face
    mutable Table *elem_dof; // owned (except in NURBS FE space)
@@ -364,12 +367,17 @@ protected:
                               Array<VarOrderBits> &face_orders,
                               Array<VarOrderBits> &all_edge_orders,
                               Array<VarOrderBits> &all_face_orders,
+                              Array<VarOrderBits> &artificial_edge_orders,
                               const Array<int> * prefdata=nullptr) const;
 
    virtual void ApplyGhostElementOrdersToEdgesAndFaces(Array<VarOrderBits>
                                                        &edge_orders,
                                                        Array<VarOrderBits> &face_orders,
                                                        const Array<int> * prefdata=nullptr) const { }
+
+   virtual void GhostMasterFaceOrderToEdges(const Array<VarOrderBits> &face_orders,
+                                            Array<VarOrderBits> &edge_orders,
+                                            Array<VarOrderBits> &artificial_edge_orders) const { }
 
    virtual int NumGhostEdges() const { return 0; }
    virtual int NumGhostFaces() const { return 0; }

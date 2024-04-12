@@ -259,7 +259,9 @@ public:
        this processor. The indices of this ghost element's edges are returned. */
    void FindEdgesOfGhostElement(int elem, Array<int> & edges);
 
-   void FindFacesOfGhostElement(int elem, Array<int> & faces);
+   void FindFacesOfGhostElement(int elem, Array<int> & ge_faces);
+
+   void FindEdgesOfGhostFace(int face, Array<int> & edges);
 
 protected: // interface for ParMesh
 
