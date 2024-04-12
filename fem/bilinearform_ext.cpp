@@ -527,24 +527,6 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
 
 void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
-   // When assembling interior face integrators for DG spaces, we need to
-   // exchange the face-neighbor information. This happens inside member
-   // functions of the 'int_face_restrict_lex'. To avoid repeated calls to
-   // ParGridFunction::ExchangeFaceNbrData, if we have a parallel space with
-   // interior face integrators, we create a ParGridFunction that will be used
-   // to cache the face-neighbor data. x_dg should be passed to any restriction
-   // operator that may need to use face-neighbor data.
-   const Vector *x_dg = &x;
-#ifdef MFEM_USE_MPI
-   ParGridFunction x_pgf;
-   auto *pfes = dynamic_cast<ParFiniteElementSpace*>(a->FESpace());
-   if (a->GetFBFI()->Size() > 0 && pfes)
-   {
-      x_pgf.MakeRef(pfes, const_cast<Vector&>(x), 0);
-      x_dg = &x_pgf;
-   }
-#endif
-
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
 
    const int iSz = integrators.Size();
@@ -607,6 +589,23 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    const int iFISz = intFaceIntegrators.Size();
    if (int_face_restrict_lex && iFISz>0)
    {
+      // When assembling interior face integrators for DG spaces, we need to
+      // exchange the face-neighbor information. This happens inside member
+      // functions of the 'int_face_restrict_lex'. To avoid repeated calls to
+      // ParGridFunction::ExchangeFaceNbrData, if we have a parallel space
+      // with interior face integrators, we create a ParGridFunction that
+      // will be used to cache the face-neighbor data. x_dg should be passed
+      // to any restriction operator that may need to use face-neighbor data.
+      const Vector *x_dg = &x;
+#ifdef MFEM_USE_MPI
+      ParGridFunction x_pgf;
+      if (auto *pfes = dynamic_cast<ParFiniteElementSpace*>(a->FESpace()))
+      {
+         x_pgf.MakeRef(pfes, const_cast<Vector&>(x), 0);
+         x_dg = &x_pgf;
+      }
+#endif
+
       int_face_restrict_lex->Mult(*x_dg, int_face_X);
       if (int_face_dXdn.Size() > 0)
       {
