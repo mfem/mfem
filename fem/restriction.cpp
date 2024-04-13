@@ -2296,6 +2296,7 @@ Vector GetLVectorFaceNbrData(
          {
             Vector &gf_face_nbr = x_gf->FaceNbrData();
             if (gf_face_nbr.Size() == 0) { x_gf->ExchangeFaceNbrData(); }
+            gf_face_nbr.Read();
             return Vector(gf_face_nbr, 0, gf_face_nbr.Size());
          }
          else
