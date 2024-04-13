@@ -47,19 +47,15 @@ void BlockForm::ConformingAssemble()
 
    BlockMatrix * Pt = Transpose(*P);
    BlockMatrix * PtA = mfem::Mult(*Pt, *mat);
-   mat->owns_blocks = 0;
+   // mat->owns_blocks = 0;
    for (int i = 0; i<nblocks; i++)
    {
       for (int j = 0; j<nblocks; j++)
       {
-         SparseMatrix * tmp = &mat->GetBlock(i,j);
+         if (mat->IsZeroBlock(i,j)) { continue; }
          if (Pt->IsZeroBlock(i,i))
          {
-            PtA->SetBlock(i,j,tmp);
-         }
-         else
-         {
-            delete tmp;
+            PtA->SetBlock(i,j,&mat->GetBlock(i,j));
          }
       }
    }
@@ -72,6 +68,7 @@ void BlockForm::ConformingAssemble()
       {
          for (int j = 0; j<nblocks; j++)
          {
+            if (mat_e->IsZeroBlock(i,j)) { continue; }
             SparseMatrix * tmp = &mat_e->GetBlock(i,j);
             if (Pt->IsZeroBlock(i,i))
             {
@@ -85,16 +82,17 @@ void BlockForm::ConformingAssemble()
       }
       delete mat_e;
       mat_e = PtAe;
+      mat_e->owns_blocks = 1;
    }
    delete Pt;
 
    mat = mfem::Mult(*PtA, *P);
-
    PtA->owns_blocks = 0;
    for (int i = 0; i<nblocks; i++)
    {
       for (int j = 0; j<nblocks; j++)
       {
+         if (PtA->IsZeroBlock(j,i)) { continue; }
          SparseMatrix * tmp = &PtA->GetBlock(j,i);
          if (P->IsZeroBlock(i,i))
          {
@@ -116,6 +114,7 @@ void BlockForm::ConformingAssemble()
       {
          for (int j = 0; j<nblocks; j++)
          {
+            if (mat_e->IsZeroBlock(j,i)) { continue; }
             SparseMatrix * tmp = &mat_e->GetBlock(j,i);
             if (P->IsZeroBlock(i,i))
             {
@@ -157,6 +156,7 @@ BlockForm::BlockForm(const Array<FiniteElementSpace*> fes_ ): fes(
    dof_offsets.PartialSum();
    tdof_offsets.PartialSum();
    diag_policy = mfem::Operator::DIAG_ONE;
+
 }
 
 void BlockForm::SetBlock(BilinearForm * bform, int row_idx, int col_idx)
