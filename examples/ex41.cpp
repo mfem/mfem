@@ -18,14 +18,10 @@
 //              saddle-point problems
 //
 //               Find ψₖ ∈ H(div,Ω) and uₖ ∈ L²(Ω) such that
-//               ( ϕₖ(ψₖ)ψₖ , τ ) + ( uₖ , ∇⋅τ ) = < g, τ⋅n >           ∀ τ ∈ H(div,Ω)
+//               ( Zₖ(ψₖ) , τ ) + ( uₖ , ∇⋅τ ) = < g, τ⋅n >           ∀ τ ∈ H(div,Ω)
 //               ( ∇⋅ψₖ , v )                   = ( -1 + ∇⋅ψₖ₋₁ , v )   ∀ v ∈ L²(Ω)
 //
-//              where ϕₖ(ψ) = (1/αₖ + |ψ|^2)^{-1/2} and αₖ > 0.
-
-
-//              where ϕₖ(ψ) = exp(|ψ|)/(1/αₖ + exp(|ψ|)) and αₖ > 0.
-//
+//              where Zₖ(ψ) = ψ / ( 1/αₖ + |ψ|² )^{1/2} and αₖ > 0.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -67,8 +63,8 @@ int main(int argc, char *argv[])
    int order = 1;
    int max_it = 5;
    int ref_levels = 3;
-   real_t alpha = 10.0;
-   real_t tol = 1e-5;
+   real_t alpha = 1.0;
+   real_t tol = 1e-4;
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -101,6 +97,18 @@ int main(int argc, char *argv[])
    int dim = mesh.Dimension();
    int sdim = mesh.SpaceDimension();
 
+  //  MFEM_ASSERT(mesh.bdr_attributes.Size(),
+  //   "This example does not currently support meshes"
+  //   " without boundary attributes."
+  //  )
+
+   bool zero_average = not mesh.bdr_attributes.Size();
+   if (zero_average)
+   {
+      cout << "\nThe domain has no boundary. "
+           << "Solving for zero-average solution.\n" << endl;
+   }
+
    // 3. Postprocess the mesh.
    // 3A. Refine the mesh to increase the resolution.
    for (int l = 0; l < ref_levels; l++)
@@ -125,22 +133,19 @@ int main(int argc, char *argv[])
    cout << "Number of L2 finite element unknowns: "
         << L2fes.GetTrueVSize() << endl;
 
+   // 5. Determine the list of true (i.e., conforming) essential boundary dofs.
    Array<int> offsets(3);
    offsets[0] = 0;
    offsets[1] = RTfes.GetVSize();
    offsets[2] = L2fes.GetVSize();
+   if (zero_average)
+   {
+      offsets.Append(1);
+   }
    offsets.PartialSum();
 
    BlockVector x(offsets), rhs(offsets);
    x = 0.0; rhs = 0.0;
-
-   // 5. Determine the list of true (i.e. conforming) essential boundary dofs.
-   Array<int> ess_bdr;
-   if (mesh.bdr_attributes.Size())
-   {
-      ess_bdr.SetSize(mesh.bdr_attributes.Max());
-      ess_bdr = 1;
-   }
 
    // 6. Define an initial guess for the solution.
    ConstantCoefficient neg_one(-1.0);
@@ -175,6 +180,21 @@ int main(int argc, char *argv[])
       sol_sock.precision(8);
    }
 
+   SparseMatrix A21(1, L2fes.GetVSize());
+   if (zero_average)
+   {
+      Array<int> rows(L2fes.GetVSize());
+      Vector values(L2fes.GetVSize());
+      for (int i = 0; i < L2fes.GetVSize(); i++)
+      {
+        rows[i] = i;
+      }
+      values = 1.0;
+      A21.AddRow(0,rows,values);
+   }
+   A21.Finalize();
+   SparseMatrix *A12 = Transpose(A21);
+
    // 10. Iterate
    int k;
    int total_iterations = 0;
@@ -184,12 +204,10 @@ int main(int argc, char *argv[])
       GridFunction u_tmp(&L2fes);
       u_tmp = u_old_gf;
 
-      alpha *= 2.0;
-
       mfem::out << "\nOUTER ITERATION " << k+1 << endl;
 
       int j;
-      for ( j = 0; j < 10; j++)
+      for ( j = 0; j < 5; j++)
       {
          total_iterations++;
 
@@ -215,8 +233,8 @@ int main(int argc, char *argv[])
 
          BilinearForm a00(&RTfes);
          a00.AddDomainIntegrator(new VectorFEMassIntegrator(DZ));
-        //  ConstantCoefficient eps(1e-2);
-        //  a00.AddDomainIntegrator(new VectorFEMassIntegrator(eps));
+         ConstantCoefficient eps(1e-2);
+         a00.AddDomainIntegrator(new VectorFEMassIntegrator(eps));
          a00.Assemble();
          a00.Finalize();
          SparseMatrix &A00 = a00.SpMat();
@@ -233,12 +251,12 @@ int main(int argc, char *argv[])
 
          SparseMatrix *A01 = Transpose(A10);
 
-        //  BilinearForm a11(&L2fes);
-        //  ConstantCoefficient neg_eps(-1e-2);
-        //  a11.AddDomainIntegrator(new MassIntegrator(neg_eps));
-        //  a11.Assemble(false);
-        //  a11.Finalize();
-        //  SparseMatrix &A11 = a11.SpMat();
+         BilinearForm a11(&L2fes);
+         ConstantCoefficient neg_eps(-1e-2);
+         a11.AddDomainIntegrator(new MassIntegrator(neg_eps));
+         a11.Assemble(false);
+         a11.Finalize();
+         SparseMatrix &A11 = a11.SpMat();
 
         //  BilinearForm a11(&L2fes);
         //  a11.AddDomainIntegrator(new MassIntegrator(zero));
@@ -264,7 +282,12 @@ int main(int argc, char *argv[])
          A.SetBlock(0,0,&A00);
          A.SetBlock(1,0,&A10);
          A.SetBlock(0,1,A01);
-        //  A.SetBlock(1,1,&A11);
+         A.SetBlock(1,1,&A11);
+         if (zero_average)
+         {
+            A.SetBlock(1,2,A12);
+            A.SetBlock(2,1,&A21);
+         }
 
          SparseMatrix * A_mono = A.CreateMonolithic();
          UMFPackSolver umf(*A_mono);
@@ -280,6 +303,8 @@ int main(int argc, char *argv[])
          real_t gamma = 1.0;
          delta_psi_gf *= gamma;
          psi_gf += delta_psi_gf;
+
+        //  alpha *= 2.0;
 
          if (visualization)
          {
@@ -306,8 +331,7 @@ int main(int argc, char *argv[])
       u_old_gf = u_gf;
       psi_old_gf = psi_gf;
 
-      if (k == max_it-1)
-      // if (increment_u < tol || k == max_it-1)
+      if (increment_u < tol || k == max_it-1)
       {
          break;
       }
