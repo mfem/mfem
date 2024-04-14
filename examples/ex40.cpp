@@ -51,7 +51,7 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    const char *mesh_file = "../data/disc-nurbs.mesh";
    // const char *mesh_file = "../data/star.mesh";
-   int order = 3;
+   int order = 2;
    int max_it = 10;
    int ref_levels = 1;
    real_t tol = 1e-5;
@@ -105,7 +105,7 @@ int main(int argc, char *argv[])
    H1_FECollection H1fec(order, dim);
    FiniteElementSpace H1fes(&mesh, &H1fec);
 
-   RT_FECollection RTfec(order, dim);
+   RT_FECollection RTfec(order-1, dim);
    FiniteElementSpace RTfes(&mesh, &RTfec);
 
    cout << "Number of H¹ degrees of freedom: "
@@ -133,40 +133,41 @@ int main(int argc, char *argv[])
 
    // 6. Define constants to be used later.
    ConstantCoefficient one(1.0);
+   ConstantCoefficient neg_one(-1.0);
    ConstantCoefficient zero(0.0);
    Vector V1(2), V2(2);
    V1(0) = 1.0; V1(1) = 0.0;
    V2(0) = 0.0; V2(1) = 1.0;
    VectorConstantCoefficient onezero(V1);
    VectorConstantCoefficient zeroone(V2);
+   ScalarVectorProductCoefficient neg_onezero(-1.0, onezero);
+   ScalarVectorProductCoefficient neg_zeroone(-1.0, zeroone);
 
    // 7. Define the solution vectors as finite element grid functions
    //    corresponding to the fespaces.
-   GridFunction delta_M1_gf, delta_M2_gf, u_gf;
+   GridFunction delta_M1_gf, delta_M2_gf, delta_u_gf;
 
    delta_M1_gf.MakeRef(&RTfes,x,offsets[0]);
    delta_M2_gf.MakeRef(&RTfes,x,offsets[1]);
-   u_gf.MakeRef(&H1fes,x,offsets[2]);
+   delta_u_gf.MakeRef(&H1fes,x,offsets[2]);
 
    GridFunction M1_gf(&RTfes);
    GridFunction M2_gf(&RTfes);
-   GridFunction u_prvs_gf(&H1fes);
+   GridFunction u_gf(&H1fes);
 
    // 8. Define the function coefficients for the solution and use them to
    //    initialize the initial guess
    FunctionCoefficient exact_coef(exact_solution);
    VectorFunctionCoefficient exact_grad_coef(dim,exact_solution_gradient);
    ConstantCoefficient ln_rhs_coef(0.0);
-   // u_gf.ProjectCoefficient(exact_coef);
-   u_gf.ProjectCoefficient(zero);
+   u_gf.ProjectCoefficient(exact_coef);
+   // u_gf.ProjectCoefficient(zero);
+   M1_gf = 0.0;
+   M2_gf = 0.0;
 
    delta_M1_gf = 0.0;
    delta_M2_gf = 0.0;
-   u_prvs_gf = 0.0;
-
-   // 9. Initialize the Lie algebra variable M
-   M1_gf = 0.0;
-   M2_gf = 0.0;
+   delta_u_gf = 0.0;
 
    char vishost[] = "localhost";
    int  visport   = 19916;
@@ -203,10 +204,15 @@ int main(int argc, char *argv[])
       InnerProductCoefficient exp_M21(exp_M2, onezero);
       InnerProductCoefficient exp_M22(exp_M2, zeroone);
 
+      GradientGridFunctionCoefficient grad_u(&u_gf);
+      InnerProductCoefficient neg_dudx(neg_onezero, grad_u);
       ScalarVectorProductCoefficient neg_exp_M1(-1.0, exp_M1);
+      b0.AddDomainIntegrator(new VectorFEDomainLFDivIntegrator(neg_dudx));
       b0.AddDomainIntegrator(new VectorFEDomainLFIntegrator(neg_exp_M1));
       b0.Assemble();
 
+      InnerProductCoefficient neg_dudy(neg_zeroone, grad_u);
+      b1.AddDomainIntegrator(new VectorFEDomainLFDivIntegrator(neg_dudy));
       ScalarVectorProductCoefficient neg_exp_M2(-1.0, exp_M2);
       b1.AddDomainIntegrator(new VectorFEDomainLFIntegrator(neg_exp_M2));
       b1.Assemble();
@@ -218,47 +224,53 @@ int main(int argc, char *argv[])
       b2.AddDomainIntegrator(new DomainLFIntegrator(rhs2));
       b2.Assemble();
 
+      cout << "b0.Norml2() = " << b0.Norml2() << endl;
+      cout << "b1.Norml2() = " << b1.Norml2() << endl;
+      cout << "b2.Norml2() = " << b2.Norml2() << endl;
+
       BilinearForm a00(&RTfes);
-      a00.AddDomainIntegrator(new VectorFEMassIntegrator(exp_M11));
+      a00.AddDomainIntegrator(new VectorFEMassIntegrator());
+      // a00.AddDomainIntegrator(new VectorFEMassIntegrator(exp_M11));
       a00.Assemble();
-      a00.EliminateEssentialBC(ess_bdr,mfem::Operator::DIAG_ZERO);
+      a00.EliminateEssentialBC(ess_bdr,x.GetBlock(0),rhs.GetBlock(0),mfem::Operator::DIAG_ONE);
       a00.Finalize();
       SparseMatrix &A00 = a00.SpMat();
 
       BilinearForm a01(&RTfes);
-      a01.AddDomainIntegrator(new VectorFEMassIntegrator(exp_M12));
+      a01.AddDomainIntegrator(new VectorFEMassIntegrator(zero));
+      // a01.AddDomainIntegrator(new VectorFEMassIntegrator(exp_M12));
       a01.Assemble();
       a01.EliminateEssentialBC(ess_bdr,mfem::Operator::DIAG_ZERO);
       a01.Finalize();
       SparseMatrix &A01 = a01.SpMat();
 
       MixedBilinearForm a02(&H1fes,&RTfes);
-      ScalarVectorProductCoefficient neg_onezero(-1.0, onezero);
       a02.AddDomainIntegrator(new MixedGradDivIntegrator(neg_onezero));
-      a02.Assemble();
+      a02.Assemble(false);
       a02.EliminateTrialDofs(ess_bdr,x.GetBlock(2),rhs.GetBlock(0));
       a02.EliminateTestDofs(ess_bdr);
       a02.Finalize();
       SparseMatrix &A02 = a02.SpMat();
 
       BilinearForm a10(&RTfes);
-      a10.AddDomainIntegrator(new VectorFEMassIntegrator(exp_M21));
+      a10.AddDomainIntegrator(new VectorFEMassIntegrator(zero));
+      // a10.AddDomainIntegrator(new VectorFEMassIntegrator(exp_M21));
       a10.Assemble();
       a10.EliminateEssentialBC(ess_bdr,mfem::Operator::DIAG_ZERO);
       a10.Finalize();
       SparseMatrix &A10 = a10.SpMat();
 
       BilinearForm a11(&RTfes);
-      a11.AddDomainIntegrator(new VectorFEMassIntegrator(exp_M22));
+      a11.AddDomainIntegrator(new VectorFEMassIntegrator());
+      // a11.AddDomainIntegrator(new VectorFEMassIntegrator(exp_M22));
       a11.Assemble();
-      a11.EliminateEssentialBC(ess_bdr,mfem::Operator::DIAG_ZERO);
+      a11.EliminateEssentialBC(ess_bdr,x.GetBlock(1),rhs.GetBlock(1),mfem::Operator::DIAG_ONE);
       a11.Finalize();
       SparseMatrix &A11 = a11.SpMat();
 
       MixedBilinearForm a12(&H1fes,&RTfes);
-      ScalarVectorProductCoefficient neg_zeroone(-1.0, zeroone);
       a12.AddDomainIntegrator(new MixedGradDivIntegrator(neg_zeroone));
-      a12.Assemble();
+      a12.Assemble(false);
       a12.EliminateTrialDofs(ess_bdr,x.GetBlock(2),rhs.GetBlock(1));
       a12.EliminateTestDofs(ess_bdr);
       a12.Finalize();
@@ -281,11 +293,16 @@ int main(int argc, char *argv[])
       SparseMatrix &A21 = a21.SpMat();
 
       BilinearForm a22(&H1fes);
+      // a22.AddDomainIntegrator(new MassIntegrator(neg_one));
       a22.AddDomainIntegrator(new MassIntegrator(zero));
-      a22.Assemble();
+      a22.Assemble(false);
       a22.EliminateEssentialBC(ess_bdr,x.GetBlock(2),rhs.GetBlock(2),mfem::Operator::DIAG_ONE);
       a22.Finalize();
       SparseMatrix &A22 = a22.SpMat();
+
+      cout << "b0.Norml2() = " << b0.Norml2() << endl;
+      cout << "b1.Norml2() = " << b1.Norml2() << endl;
+      cout << "b2.Norml2() = " << b2.Norml2() << endl;
 
       // BlockOperator A(offsets);
       // A.SetBlock(0,0,&A00);
@@ -323,17 +340,21 @@ int main(int argc, char *argv[])
 
       delta_M1_gf.MakeRef(&RTfes, x.GetBlock(0), 0);
       delta_M2_gf.MakeRef(&RTfes, x.GetBlock(1), 0);
-      u_gf.MakeRef(&H1fes, x.GetBlock(2), 0);
+      delta_u_gf.MakeRef(&H1fes, x.GetBlock(2), 0);
 
-      u_prvs_gf -= u_gf;
-      real_t Newton_update_size = u_prvs_gf.ComputeL2Error(zero);
-      u_prvs_gf = u_gf;
+      real_t Newton_update_size = delta_u_gf.ComputeL2Error(zero);
 
+      real_t gamma = 0.3;
+      delta_M1_gf *= gamma;
+      delta_M2_gf *= gamma;
+      delta_u_gf *= gamma;
       M1_gf += delta_M1_gf;
       M2_gf += delta_M2_gf;
+      u_gf += delta_u_gf;
 
       if (visualization)
       {
+         // sol_sock << "solution\n" << mesh << delta_M1_gf << "window_title 'Discrete solution'"
          sol_sock << "solution\n" << mesh << u_gf << "window_title 'Discrete solution'"
                   << flush;
          mfem::out << "Increment (|| uₕ - uₕ_prvs||) = " << Newton_update_size <<
@@ -346,7 +367,9 @@ int main(int argc, char *argv[])
       // }
 
       real_t H1_error = u_gf.ComputeH1Error(&exact_coef,&exact_grad_coef);
-      mfem::out << "H1-error  (|| u - uₕᵏ||)       = " << H1_error << endl;
+      real_t L2_error = u_gf.ComputeL2Error(exact_coef);
+      mfem::out << "L2-error  (|| u - uₕᵏ||)       = " << L2_error << endl;
+      // mfem::out << "H1-error  (|| u - uₕᵏ||)       = " << H1_error << endl;
 
       cin.get();
 
@@ -376,7 +399,7 @@ int main(int argc, char *argv[])
 real_t exact_solution(const Vector &pt)
 {
    real_t x = pt(0), y = pt(1);
-   return (x*x + y*y) / 2.0;
+   return (x*x + y*y) / 2.0 - 4.0;
 }
 
 void exact_solution_gradient(const Vector &pt, Vector &grad)
