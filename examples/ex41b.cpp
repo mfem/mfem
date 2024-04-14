@@ -3,7 +3,7 @@
 // Compile with: make ex41
 //
 // Sample runs: ex41 -o 2
-//              ex41 -o 1 -r 4
+//              ex41 -o 2 -r 4
 //
 // Description: This example code demonstrates how to use MFEM to solve the
 //              Eikonal equation,
@@ -17,11 +17,11 @@
 //              by using in Newton's method to solve the sequence of nonlinear
 //              saddle-point problems
 //
-//               Find ψₖ ∈ H(div,Ω) and uₖ ∈ L²(Ω) such that
-//               ( Zₖ(ψₖ) , τ ) + ( uₖ , ∇⋅τ ) = 0                    ∀ τ ∈ H(div,Ω)
-//               ( ∇⋅ψₖ , v )                 = ( -1 + ∇⋅ψₖ₋₁ , v )   ∀ v ∈ L²(Ω)
+//               Find qₖ ∈ H¹₀(Ω) and uₖ ∈ H¹₀(Ω) such that
+//               ( ϕₖ(|∇qₖ|) ∇qₖ , ∇w ) + ( ∇uₖ , ∇w ) = 0           ∀ w ∈ H¹₀(Ω)
+//               ( ∇qₖ , ∇v )        = ( -1 , v ) + ( ∇qₖ₋₁ , ∇v )   ∀ v ∈ H¹₀(Ω)
 //
-//              where Zₖ(ψ) = ψ / ( 1/αₖ + |ψ|² )^{1/2} and αₖ > 0.
+//              where ϕₖ(s) = 1 / ( 1/αₖ + s² )^{1/2} and αₖ > 0.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -33,12 +33,12 @@ using namespace mfem;
 class ZCoefficient : public VectorCoefficient
 {
 protected:
-   GridFunction *psi;
+   GridFunction *q;
    real_t alpha;
 
 public:
-   ZCoefficient(int vdim, GridFunction &psi_, real_t alpha_ = 1.0)
-      : VectorCoefficient(vdim), psi(&psi_), alpha(alpha_) { }
+   ZCoefficient(int vdim, GridFunction &q_, real_t alpha_ = 1.0)
+      : VectorCoefficient(vdim), q(&q_), alpha(alpha_) { }
 
    virtual void Eval(Vector &V, ElementTransformation &T, const IntegrationPoint &ip);
 };
@@ -46,12 +46,12 @@ public:
 class DZCoefficient : public MatrixCoefficient
 {
 protected:
-   GridFunction *psi;
+   GridFunction *q;
    real_t alpha;
 
 public:
-   DZCoefficient(int height, GridFunction &psi_, real_t alpha_ = 1.0)
-      : MatrixCoefficient(height, true),  psi(&psi_), alpha(alpha_) { }
+   DZCoefficient(int height, GridFunction &q_, real_t alpha_ = 1.0)
+      : MatrixCoefficient(height, true),  q(&q_), alpha(alpha_) { }
 
    virtual void Eval(DenseMatrix &K, ElementTransformation &T, const IntegrationPoint &ip);
 };
@@ -97,18 +97,6 @@ int main(int argc, char *argv[])
    int dim = mesh.Dimension();
    int sdim = mesh.SpaceDimension();
 
-  //  MFEM_ASSERT(mesh.bdr_attributes.Size(),
-  //   "This example does not currently support meshes"
-  //   " without boundary attributes."
-  //  )
-
-   bool zero_average = not mesh.bdr_attributes.Size();
-   if (zero_average)
-   {
-      cout << "\nThe domain has no boundary. "
-           << "Solving for zero-average solution.\n" << endl;
-   }
-
    // 3. Postprocess the mesh.
    // 3A. Refine the mesh to increase the resolution.
    for (int l = 0; l < ref_levels; l++)
@@ -122,26 +110,29 @@ int main(int argc, char *argv[])
    mesh.SetCurvature(curvature_order);
 
    // 4. Define the necessary finite element spaces on the mesh.
-   RT_FECollection RTfec(order, dim);
-   FiniteElementSpace RTfes(&mesh, &RTfec);
+   H1_FECollection H1fec(order, dim);
+   FiniteElementSpace H1fes(&mesh, &H1fec);
 
-   L2_FECollection L2fec(order, dim);
-   FiniteElementSpace L2fes(&mesh, &L2fec);
-
-   cout << "Number of Hdiv finite element unknowns: "
-        << RTfes.GetTrueVSize() << endl;
-   cout << "Number of L2 finite element unknowns: "
-        << L2fes.GetTrueVSize() << endl;
+   cout << "Number of dofs: "
+        << H1fes.GetTrueVSize() * 2 << endl;
 
    // 5. Determine the list of true (i.e., conforming) essential boundary dofs.
+   Array<int> ess_tdof_list;
+   if (mesh.bdr_attributes.Size())
+   {
+      Array<int> ess_bdr(mesh.bdr_attributes.Max());
+      ess_bdr = 1;
+      H1fes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   }
+   else
+   {
+    ess_tdof_list.Append(0);
+   }
+   
    Array<int> offsets(3);
    offsets[0] = 0;
-   offsets[1] = RTfes.GetVSize();
-   offsets[2] = L2fes.GetVSize();
-   if (zero_average)
-   {
-      offsets.Append(1);
-   }
+   offsets[1] = H1fes.GetVSize();
+   offsets[2] = H1fes.GetVSize();
    offsets.PartialSum();
 
    BlockVector x(offsets), rhs(offsets);
@@ -153,21 +144,22 @@ int main(int argc, char *argv[])
 
    // 7. Define the solution vectors as a finite element grid functions
    //    corresponding to the fespaces.
-   GridFunction u_gf, delta_psi_gf;
+   GridFunction u_gf, delta_q_gf;
 
-   delta_psi_gf.MakeRef(&RTfes,x,offsets[0]);
-   u_gf.MakeRef(&L2fes,x,offsets[1]);
-   delta_psi_gf = 0.0;
+   delta_q_gf.MakeRef(&H1fes,x,offsets[0]);
+   u_gf.MakeRef(&H1fes,x,offsets[1]);
+   delta_q_gf = 0.0;
 
-   GridFunction psi_old_gf(&RTfes);
-   GridFunction psi_gf(&RTfes);
-   GridFunction u_old_gf(&L2fes);
+   GridFunction q_old_gf(&H1fes);
+   GridFunction q_gf(&H1fes);
+   GridFunction u_old_gf(&H1fes);
+   q_old_gf = 0.0;
    u_old_gf = 0.0;
 
    // 8. Define the function coefficients for the solution and use them to
    //    initialize the initial guess
-   psi_gf = 0.0;
-   psi_old_gf = psi_gf;
+   q_gf = 0.0;
+   q_old_gf = q_gf;
    u_old_gf = u_gf;
 
    char vishost[] = "localhost";
@@ -179,91 +171,61 @@ int main(int argc, char *argv[])
       sol_sock.precision(8);
    }
 
-   SparseMatrix A21(1, L2fes.GetVSize());
-   if (zero_average)
-   {
-      Array<int> rows(L2fes.GetVSize());
-      Vector values(L2fes.GetVSize());
-      for (int i = 0; i < L2fes.GetVSize(); i++)
-      {
-        rows[i] = i;
-      }
-      values = 1.0;
-      A21.AddRow(0,rows,values);
-   }
-   A21.Finalize();
-   SparseMatrix *A12 = Transpose(A21);
-
    // 10. Iterate
    int k;
    int total_iterations = 0;
    real_t increment_u = 0.1;
    for (k = 0; k < max_it; k++)
    {
-      GridFunction u_tmp(&L2fes);
+      GridFunction u_tmp(&H1fes);
       u_tmp = u_old_gf;
 
       mfem::out << "\nOUTER ITERATION " << k+1 << endl;
+
+      ConstantCoefficient alpha_cf(alpha);
 
       int j;
       for ( j = 0; j < 5; j++)
       {
          total_iterations++;
 
-         ConstantCoefficient alpha_cf(alpha);
-
          LinearForm b0,b1;
-         b0.Update(&RTfes,rhs.GetBlock(0),0);
-         b1.Update(&L2fes,rhs.GetBlock(1),0);
+         b0.Update(&H1fes,rhs.GetBlock(0),0);
+         b1.Update(&H1fes,rhs.GetBlock(1),0);
 
-         ZCoefficient Z(sdim, psi_gf, alpha);
-         DZCoefficient DZ(sdim, psi_gf, alpha);
+         ZCoefficient Z(sdim, q_gf, alpha);
+         DZCoefficient DZ(sdim, q_gf, alpha);
 
          ScalarVectorProductCoefficient neg_Z(-1.0, Z);
-         b0.AddDomainIntegrator(new VectorFEDomainLFIntegrator(neg_Z));
+         b0.AddDomainIntegrator(new DomainLFGradIntegrator(neg_Z));
          b0.Assemble();
 
-         DivergenceGridFunctionCoefficient div_psi_cf(&psi_gf);
-         DivergenceGridFunctionCoefficient div_psi_old_cf(&psi_old_gf);
-         SumCoefficient psi_old_minus_psi(div_psi_old_cf, div_psi_cf, 1.0, -1.0);
+         GradientGridFunctionCoefficient grad_q_cf(&q_gf);
+         GradientGridFunctionCoefficient grad_q_old_cf(&q_old_gf);
+         VectorSumCoefficient grad_q_old_minus_q(grad_q_old_cf, grad_q_cf, 1.0, -1.0);
          b1.AddDomainIntegrator(new DomainLFIntegrator(neg_one));
-         b1.AddDomainIntegrator(new DomainLFIntegrator(psi_old_minus_psi));
+        //  b1.AddDomainIntegrator(new DomainLFGradIntegrator(grad_q_old_minus_q));
          b1.Assemble();
 
-         BilinearForm a00(&RTfes);
-         a00.AddDomainIntegrator(new VectorFEMassIntegrator(DZ));
-         ConstantCoefficient eps(1e-1);
-         a00.AddDomainIntegrator(new VectorFEMassIntegrator(eps));
+         BilinearForm a00(&H1fes);
+        //  a00.AddDomainIntegrator(new DiffusionIntegrator());
+         a00.AddDomainIntegrator(new DiffusionIntegrator(DZ));
          a00.Assemble();
+         a00.EliminateVDofs(ess_tdof_list, mfem::Operator::DIAG_ZERO);
+        //  a00.EliminateVDofs(ess_tdof_list,x.GetBlock(0),rhs.GetBlock(0),
+        //                           mfem::Operator::DIAG_ONE);
          a00.Finalize();
          SparseMatrix &A00 = a00.SpMat();
 
-         MixedBilinearForm a10(&RTfes,&L2fes);
-         a10.AddDomainIntegrator(new VectorFEDivergenceIntegrator());
+         BilinearForm a10(&H1fes);
+         a10.AddDomainIntegrator(new DiffusionIntegrator());
          a10.Assemble();
-        //  Array<int> dof_elim_array(1);
-        //  int dof_elim = 10;
-        //  dof_elim_array[0] = dof_elim;
+         a10.EliminateVDofs(ess_tdof_list,x.GetBlock(0),rhs.GetBlock(1),
+                                  mfem::Operator::DIAG_ONE);
          a10.Finalize();
          SparseMatrix &A10 = a10.SpMat();
-        //  A10.EliminateRow(dof_elim);
 
          SparseMatrix *A01 = Transpose(A10);
-
-         BilinearForm a11(&L2fes);
-         ConstantCoefficient neg_eps(-1e-2);
-         a11.AddDomainIntegrator(new MassIntegrator(neg_eps));
-         a11.Assemble(false);
-         a11.Finalize();
-         SparseMatrix &A11 = a11.SpMat();
-
-        //  BilinearForm a11(&L2fes);
-        //  a11.AddDomainIntegrator(new MassIntegrator(zero));
-        //  a11.Assemble(false);
-        //  SparseMatrix A11;
-        //  a11.FormSystemMatrix(dof_elim_array, A11);
-        //  A11.Set(dof_elim, dof_elim, 1.0);
-        //  rhs[offsets[1] + dof_elim] = 0.0;
 
         //  BlockOperator A(offsets);
         //  A.SetBlock(0,0,&A00);
@@ -279,34 +241,29 @@ int main(int argc, char *argv[])
 
          BlockMatrix A(offsets);
          A.SetBlock(0,0,&A00);
-         A.SetBlock(1,0,&A10);
          A.SetBlock(0,1,A01);
-         A.SetBlock(1,1,&A11);
-         if (zero_average)
-         {
-            A.SetBlock(1,2,A12);
-            A.SetBlock(2,1,&A21);
-         }
+         A.SetBlock(1,0,&A10);
 
          SparseMatrix * A_mono = A.CreateMonolithic();
          UMFPackSolver umf(*A_mono);
          umf.Mult(rhs,x);
 
-         delta_psi_gf.MakeRef(&RTfes, x.GetBlock(0), 0);
-         u_gf.MakeRef(&L2fes, x.GetBlock(1), 0);
+         delta_q_gf.MakeRef(&H1fes, x.GetBlock(0), 0);
+         u_gf.MakeRef(&H1fes, x.GetBlock(1), 0);
 
          u_tmp -= u_gf;
          real_t Newton_update_size = u_tmp.ComputeL2Error(zero);
          u_tmp = u_gf;
 
-         real_t gamma = 0.9;
-         delta_psi_gf *= gamma;
-         psi_gf += delta_psi_gf;
+         real_t gamma = 1.0;
+         delta_q_gf *= gamma;
+         q_gf += delta_q_gf;
 
          if (visualization)
          {
-            // sol_sock << "solution\n" << mesh << psi_gf << "window_title 'Discrete solution'"
-            sol_sock << "solution\n" << mesh << u_gf << "window_title 'Discrete solution'"
+            sol_sock << "solution\n" << mesh << u_tmp << "window_title 'Discrete solution'"
+            // sol_sock << "solution\n" << mesh << q_gf << "window_title 'Discrete solution'"
+            // sol_sock << "solution\n" << mesh << u_gf << "window_title 'Discrete solution'"
                      << flush;
             mfem::out << "Newton_update_size = " << Newton_update_size << endl;
          }
@@ -327,20 +284,20 @@ int main(int argc, char *argv[])
       mfem::out << "Increment (|| uₕ - uₕ_prvs||) = " << increment_u << endl;
 
       u_old_gf = u_gf;
-      psi_old_gf = psi_gf;
+      q_old_gf = q_gf;
 
       if (increment_u < tol || k == max_it-1)
       {
          break;
       }
 
-      // alpha *= 2.0;
+      alpha *= 2.0;
 
    }
 
    mfem::out << "\n Outer iterations: " << k+1
              << "\n Total iterations: " << total_iterations
-             << "\n Total dofs:       " << RTfes.GetTrueVSize() + L2fes.GetTrueVSize()
+             << "\n Total dofs:       " << H1fes.GetTrueVSize() * 2
              << endl;
 
    return 0;
@@ -349,27 +306,27 @@ int main(int argc, char *argv[])
 void ZCoefficient::Eval(Vector &V, ElementTransformation &T,
                                               const IntegrationPoint &ip)
 {
-   MFEM_ASSERT(psi != NULL, "grid function is not set");
+   MFEM_ASSERT(q != NULL, "grid function is not set");
    MFEM_ASSERT(alpha > 0, "alpha is not positive");
 
-   Vector psi_vals(vdim);
-   psi->GetVectorValue(T, ip, psi_vals);
-   real_t norm = psi_vals.Norml2();
+   Vector gradq(vdim);
+   q->GetGradient(T,gradq);
+   real_t norm = gradq.Norml2();
    real_t phi = 1.0 / sqrt(1.0/alpha + norm*norm);
 
-   V = psi_vals;
+   V = gradq;
    V *= phi;
 }
 
 void DZCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
                                                 const IntegrationPoint &ip)
 {
-   MFEM_ASSERT(psi != NULL, "grid function is not set");
+   MFEM_ASSERT(q != NULL, "grid function is not set");
    MFEM_ASSERT(alpha > 0, "alpha is not positive");
 
-   Vector psi_vals(height);
-   psi->GetVectorValue(T, ip, psi_vals);
-   real_t norm = psi_vals.Norml2();
+   Vector gradq(height);
+   q->GetGradient(T,gradq);
+   real_t norm = gradq.Norml2();
    real_t phi = 1.0 / sqrt(1.0/alpha + norm*norm);
 
    K = 0.0;
@@ -378,7 +335,7 @@ void DZCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
     K(i,i) = phi;
     for (int j = 0; j < height; j++)
       {
-        K(i,j) -= psi_vals(i) * psi_vals(j) * pow(phi, 3);
+        K(i,j) -= gradq(i) * gradq(j) * pow(phi, 3);
       }
    }
 }
