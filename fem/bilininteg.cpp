@@ -768,16 +768,17 @@ void GradientIntegrator::AssembleElementMatrix2(
    ElementTransformation &Trans,  DenseMatrix &elmat)
 {
    dim = test_fe.GetDim();
+   int spaceDim = Trans.GetSpaceDim();
    int trial_dof = trial_fe.GetDof();
    int test_dof = test_fe.GetDof();
    real_t c;
    Vector d_col;
 
    dshape.SetSize(trial_dof, dim);
-   gshape.SetSize(trial_dof, dim);
-   Jadj.SetSize(dim);
+   gshape.SetSize(trial_dof, spaceDim);
+   Jadj.SetSize(dim, spaceDim);
    shape.SetSize(test_dof);
-   elmat.SetSize(dim * test_dof, trial_dof);
+   elmat.SetSize(spaceDim * test_dof, trial_dof);
 
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(trial_fe, test_fe,
                                                             Trans);
@@ -804,7 +805,7 @@ void GradientIntegrator::AssembleElementMatrix2(
       }
       shape *= c;
 
-      for (int d = 0; d < dim; ++d)
+      for (int d = 0; d < spaceDim; ++d)
       {
          gshape.GetColumnReference(d, d_col);
          MultVWt(shape, d_col, elmat_comp);
