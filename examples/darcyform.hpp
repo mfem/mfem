@@ -221,8 +221,8 @@ class DarcyHybridization : public Hybridization
    Array<int> E_offsets;
    real_t *E_data;
 
-   Array<int> &G_offsets{E_offsets};
-   real_t *G_data;
+   Array<int> &Gt_offsets{E_offsets};
+   real_t *Gt_data;
 
    void GetFDofs(int el, Array<int> &fdofs) const;
    void GetEDofs(int el, Array<int> &edofs) const;

@@ -474,7 +474,7 @@ DarcyHybridization::DarcyHybridization(FiniteElementSpace *fes_u_,
    Df_ipiv = NULL;
    Ct_data = NULL;
    E_data = NULL;
-   G_data = NULL;
+   Gt_data = NULL;
 }
 
 DarcyHybridization::~DarcyHybridization()
@@ -488,7 +488,7 @@ DarcyHybridization::~DarcyHybridization()
    delete Df_ipiv;
    delete Ct_data;
    delete E_data;
-   delete G_data;
+   delete Gt_data;
 }
 
 void DarcyHybridization::SetConstraintIntegrators(BilinearFormIntegrator
@@ -785,11 +785,11 @@ void DarcyHybridization::ComputeAndAssembleFaceMatrix(
                E_f.Height() == e_elmat.Height(), "Size mismatch");
    E_f = e_elmat;
 
-   // assemble G constraint
-   DenseMatrix G_f(G_data + G_offsets[face], c_dof, ndof1+ndof2);
-   MFEM_ASSERT(G_f.Width() == g_elmat.Width() &&
-               G_f.Height() == g_elmat.Height(), "Size mismatch");
-   G_f = g_elmat;
+   // assemble Gt constraint
+   DenseMatrix Gt_f(Gt_data + Gt_offsets[face], ndof1+ndof2, c_dof);
+   MFEM_ASSERT(Gt_f.Width() == g_elmat.Height() &&
+               Gt_f.Height() == g_elmat.Width(), "Size mismatch");
+   Gt_f.Transpose(g_elmat);
 
    // assemble H matrix
    if (!H) { H = new SparseMatrix(c_fes->GetVSize()); }
@@ -951,7 +951,7 @@ void DarcyHybridization::AllocEG()
    int num_faces = mesh->GetNumFaces();
    Array<int> c_vdofs;
 
-   // Define E_offsets and allocate E_data and G_data
+   // Define E_offsets and allocate E_data and Gt_data
    E_offsets.SetSize(num_faces+1);
    E_offsets[0] = 0;
    for (int f = 0; f < num_faces; f++)
@@ -969,7 +969,7 @@ void DarcyHybridization::AllocEG()
    }
 
    E_data = new real_t[E_offsets[num_faces]]();//init by zeros
-   G_data = new real_t[G_offsets[num_faces]]();//init by zeros
+   Gt_data = new real_t[Gt_offsets[num_faces]]();//init by zeros
 }
 
 void DarcyHybridization::ComputeH()
