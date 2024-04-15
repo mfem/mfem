@@ -1278,7 +1278,7 @@ void DarcyHybridization::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
 void DarcyHybridization::MultInv(int el, const Vector &bu, const Vector &bp,
                                  Vector &u, Vector &p) const
 {
-   Vector SiBAibu, AiBtSiBAibu, AiBtSibp;
+   Vector AiBtSiBAibu, AiBtSibp;
 
    const int a_dofs_size = Af_f_offsets[el+1] - Af_f_offsets[el];
    const int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
@@ -1299,34 +1299,22 @@ void DarcyHybridization::MultInv(int el, const Vector &bu, const Vector &bp,
    u = bu;
    LU_A.Solve(u.Size(), 1, u.GetData());
 
-   //u += -A^-1 B^T S^-1 B A^-1 bu
-   SiBAibu.SetSize(B.Height());
-   B.Mult(u, SiBAibu);
+   //p = -S^-1 (B A^-1 bu - bp)
+   p.SetSize(bp.Size());
+   B.Mult(u, p);
 
-   LU_S.Solve(SiBAibu.Size(), 1, SiBAibu.GetData());
+   p -= bp;
 
+   LU_S.Solve(p.Size(), 1, p.GetData());
+   p.Neg();
+
+   //u += -A^-1 B^T S^-1 (B A^-1 bu - bp)
    AiBtSiBAibu.SetSize(B.Width());
-   B.MultTranspose(SiBAibu, AiBtSiBAibu);
+   B.MultTranspose(p, AiBtSiBAibu);
 
    LU_A.Solve(AiBtSiBAibu.Size(), 1, AiBtSiBAibu.GetData());
 
-   u -= AiBtSiBAibu;
-
-   //p = S^-1 bp
-   p.SetSize(bp.Size());
-   p = bp;
-   LU_S.Solve(p.Size(), 1, p.GetData());
-
-   //u += A^-1 B^T S^-1 bp
-   AiBtSibp.SetSize(B.Width());
-   B.MultTranspose(p, AiBtSibp);
-   LU_A.Solve(AiBtSibp.Size(), 1, AiBtSibp.GetData());
-
-   u += AiBtSibp;
-
-   //p += -S^-1 B A^-1 bu
-   p -= SiBAibu;
-
+   u += AiBtSiBAibu;
 }
 
 void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
