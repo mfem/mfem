@@ -173,7 +173,8 @@ int main(int argc, char *argv[])
 
    // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use discontinuous finite elements of the specified order >= 0.
-   DG_FECollection fec(order, dim, BasisType::GaussLobatto);
+   const auto bt = pa ? BasisType::GaussLobatto : BasisType::GaussLegendre;
+   DG_FECollection fec(order, dim, bt);
    ParFiniteElementSpace fespace(&pmesh, &fec);
    HYPRE_BigInt size = fespace.GlobalTrueVSize();
    if (Mpi::Root())
