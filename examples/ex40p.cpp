@@ -278,7 +278,7 @@ int main(int argc, char *argv[])
 
          HypreParMatrix *S_tmp = A10->Transpose();
          S_tmp->InvScaleRows(A00_diag);
-         HypreParMatrix *S = ParMult(A10, S_tmp);
+         HypreParMatrix *S = ParMult(A10, S_tmp, true);
          delete S_tmp;
 
          BlockDiagonalPreconditioner prec(toffsets);
