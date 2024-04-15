@@ -328,6 +328,7 @@ int main(int argc, char *argv[])
          }
 
          delete S;
+         delete A00;
 
          if (Newton_update_size < increment_u)
          {
@@ -367,7 +368,6 @@ int main(int argc, char *argv[])
    }
 
    // 12. Free the used memory.
-   delete A00;
    delete A01;
    delete A10;
    delete A11;
