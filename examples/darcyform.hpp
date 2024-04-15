@@ -234,6 +234,10 @@ class DarcyHybridization : public Hybridization
    void ComputeH();
    FaceElementTransformations * GetCtFaceMatrix(int f, DenseMatrix & Ct_1,
                                                 DenseMatrix & Ct_2, Array<int>& c_dofs) const;
+   FaceElementTransformations *GetEFaceMatrix(int f, DenseMatrix &E_1,
+                                              DenseMatrix &E_2, Array<int> &c_dofs) const;
+   FaceElementTransformations *GetGtFaceMatrix(int f, DenseMatrix &Gt_1,
+                                               DenseMatrix &Gt_2, Array<int> &c_dofs) const;
    void GetCtSubMatrix(int el, const Array<int> c_dofs, DenseMatrix &Ct) const;
    void MultInv(int el, const Vector &bu, const Vector &bp, Vector &u,
                 Vector &p) const;

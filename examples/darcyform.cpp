@@ -979,10 +979,13 @@ void DarcyHybridization::ComputeH()
 #ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
    DenseMatrix AiBt, AiCt, BAiCt, CAiBt, H_l;
    DenseMatrix Ct_1_el_1, Ct_1_el_2, Ct_2_el_1, Ct_2_el_2;
+   DenseMatrix E_el_1, E_el_2, Gt_el_1, Gt_el_2;
    Array<int> c_dofs_1, c_dofs_2;
    Array<int> edges, oris;
    if (!H) { H = new SparseMatrix(c_fes->GetVSize()); }
 #else //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
+   MFEM_ASSERT(!c_bfi_p,
+               "Potential constraint is not supported in non-block assembly!");
    DenseMatrix AiBt, BAi, Hb_l;
    Array<int> a_dofs;
    SparseMatrix *Hb = new SparseMatrix(Ct->Height());
@@ -1028,9 +1031,16 @@ void DarcyHybridization::ComputeH()
          AiCt = Ct_1;
          LU_A.Solve(Ct_1.Height(), Ct_1.Width(), AiCt.GetData());
 
-         //S^-1 B A^-1 C^T
+         //S^-1 (B A^-1 C^T - E)
          BAiCt.SetSize(B.Height(), Ct_1.Width());
          mfem::Mult(B, AiCt, BAiCt);
+
+         if (c_bfi_p)
+         {
+            GetEFaceMatrix(edges[e1], E_el_1, E_el_2, c_dofs_1);
+            DenseMatrix &E = (FTr->Elem1No == el)?(E_el_1):(E_el_2);
+            BAiCt -= E;
+         }
 
          LU_S.Solve(BAiCt.Height(), BAiCt.Width(), BAiCt.GetData());
 
@@ -1047,9 +1057,17 @@ void DarcyHybridization::ComputeH()
             mfem::MultAtB(Ct_2, AiCt, H_l);
             H_l.Neg();
 
-            //C A^-1 B^T S^-1 B A^-1 C^T
+            //(C A^-1 B^T + G) S^-1 B A^-1 C^T
             CAiBt.SetSize(Ct_2.Width(), B.Height());
             mfem::MultAtB(Ct_2, AiBt, CAiBt);
+
+            if (c_bfi_p)
+            {
+               GetGtFaceMatrix(edges[e2], Gt_el_1, Gt_el_2, c_dofs_2);
+               DenseMatrix &Gt = (FTr->Elem1No == el)?(Gt_el_1):(Gt_el_2);
+               Gt.Transpose();
+               CAiBt += Gt;
+            }
 
             mfem::AddMult(CAiBt, BAiCt, H_l);
 
@@ -1104,8 +1122,8 @@ void DarcyHybridization::ComputeH()
 #endif //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
 }
 
-FaceElementTransformations *DarcyHybridization::GetCtFaceMatrix(int f,
-                                                                DenseMatrix &Ct_1, DenseMatrix &Ct_2, Array<int> &c_dofs) const
+FaceElementTransformations *DarcyHybridization::GetCtFaceMatrix(
+   int f, DenseMatrix &Ct_1, DenseMatrix &Ct_2, Array<int> &c_dofs) const
 {
    FaceElementTransformations *FTr =
       fes->GetMesh()->GetInteriorFaceTransformations(f, 3);
@@ -1125,6 +1143,44 @@ FaceElementTransformations *DarcyHybridization::GetCtFaceMatrix(int f,
    GetCtSubMatrix(FTr->Elem1No, c_dofs, Ct_1);
    GetCtSubMatrix(FTr->Elem2No, c_dofs, Ct_2);
 #endif //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK_ASSEMBLY
+   return FTr;
+}
+
+FaceElementTransformations *DarcyHybridization::GetEFaceMatrix(
+   int f, DenseMatrix &E_1, DenseMatrix &E_2, Array<int> &c_dofs) const
+{
+   FaceElementTransformations *FTr =
+      fes->GetMesh()->GetInteriorFaceTransformations(f, 3);
+   if (!FTr)
+   {
+      return NULL;
+   }
+   c_fes->GetFaceVDofs(f, c_dofs);
+   const int d_size_1 = Df_f_offsets[FTr->Elem1No+1] - Df_f_offsets[FTr->Elem1No];
+   const int d_size_2 = Df_f_offsets[FTr->Elem2No+1] - Df_f_offsets[FTr->Elem2No];
+   FiniteElementSpace::AdjustVDofs(c_dofs);
+   E_1.Reset(E_data + E_offsets[f], d_size_1, c_dofs.Size());
+   E_2.Reset(E_data + E_offsets[f] + d_size_1*c_dofs.Size(),
+             d_size_2, c_dofs.Size());
+   return FTr;
+}
+
+FaceElementTransformations *DarcyHybridization::GetGtFaceMatrix(
+   int f, DenseMatrix &Gt_1, DenseMatrix &Gt_2, Array<int> &c_dofs) const
+{
+   FaceElementTransformations *FTr =
+      fes->GetMesh()->GetInteriorFaceTransformations(f, 3);
+   if (!FTr)
+   {
+      return NULL;
+   }
+   c_fes->GetFaceVDofs(f, c_dofs);
+   const int d_size_1 = Df_f_offsets[FTr->Elem1No+1] - Df_f_offsets[FTr->Elem1No];
+   const int d_size_2 = Df_f_offsets[FTr->Elem2No+1] - Df_f_offsets[FTr->Elem2No];
+   FiniteElementSpace::AdjustVDofs(c_dofs);
+   Gt_1.Reset(Gt_data + Gt_offsets[f], d_size_1, c_dofs.Size());
+   Gt_2.Reset(Gt_data + Gt_offsets[f] + d_size_1*c_dofs.Size(),
+              d_size_2, c_dofs.Size());
    return FTr;
 }
 
