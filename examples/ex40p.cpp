@@ -144,11 +144,6 @@ int main(int argc, char *argv[])
    L2_FECollection L2fec(order, dim);
    ParFiniteElementSpace L2fes(&pmesh, &L2fec);
 
-   cout << "Number of H(div) dofs: "
-        << RTfes.GetTrueVSize() << endl;
-   cout << "Number of L² dofs: "
-        << L2fes.GetTrueVSize() << endl;
-
    int num_dofs_RT = RTfes.GetTrueVSize();
    MPI_Allreduce(MPI_IN_PLACE, &num_dofs_RT, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
    int num_dofs_L2 = L2fes.GetTrueVSize();
@@ -216,6 +211,7 @@ int main(int argc, char *argv[])
    // 10. Assemble constant matrices to avoid reassembly in the loop.
    ParMixedBilinearForm a10(&RTfes,&L2fes);
    a10.AddDomainIntegrator(new VectorFEDivergenceIntegrator());
+   a10.Assemble();
    a10.Finalize();
    HypreParMatrix *A10 = a10.ParallelAssemble();
 
@@ -223,6 +219,7 @@ int main(int argc, char *argv[])
 
    ParBilinearForm a11(&L2fes);
    a11.AddDomainIntegrator(new MassIntegrator(tichonov_cf));
+   a11.Assemble();
    a11.Finalize();
    HypreParMatrix *A11 = a11.ParallelAssemble();
 
@@ -247,16 +244,17 @@ int main(int argc, char *argv[])
       {
          total_iterations++;
 
+         ZCoefficient Z(sdim, psi_gf, alpha);
+         DZCoefficient DZ(sdim, psi_gf, alpha);
+
          ParLinearForm b0,b1;
          b0.Update(&RTfes,rhs.GetBlock(0),0);
          b1.Update(&L2fes,rhs.GetBlock(1),0);
 
-         ZCoefficient Z(sdim, psi_gf, alpha);
-         DZCoefficient DZ(sdim, psi_gf, alpha);
-
          ScalarVectorProductCoefficient neg_Z(-1.0, Z);
          b0.AddDomainIntegrator(new VectorFEDomainLFIntegrator(neg_Z));
          b0.Assemble();
+         b0.ParallelAssemble(trhs.GetBlock(0));
 
          DivergenceGridFunctionCoefficient div_psi_cf(&psi_gf);
          DivergenceGridFunctionCoefficient div_psi_old_cf(&psi_old_gf);
@@ -264,41 +262,30 @@ int main(int argc, char *argv[])
          b1.AddDomainIntegrator(new DomainLFIntegrator(neg_one));
          b1.AddDomainIntegrator(new DomainLFIntegrator(psi_old_minus_psi));
          b1.Assemble();
+         b1.ParallelAssemble(trhs.GetBlock(1));
 
          ParBilinearForm a00(&RTfes);
          a00.AddDomainIntegrator(new VectorFEMassIntegrator(DZ));
          a00.AddDomainIntegrator(new VectorFEMassIntegrator(tichonov_cf));
+         a00.Assemble();
          a00.Finalize();
          HypreParMatrix *A00 = a00.ParallelAssemble();
 
-         //          // Construct Schur-complement preconditioner
-         //          Vector A00_diag(a00.Height());
-         //          A00.GetDiag(A00_diag);
-         //          A00_diag.HostReadWrite();
+         // Construct Schur-complement preconditioner
+         HypreParVector A00_diag(MPI_COMM_WORLD, A00->GetGlobalNumRows(),
+                                 A00->GetRowStarts());
+         A00->GetDiag(A00_diag);
 
-         //          SparseMatrix *S_tmp = Transpose(A10);
-
-         //          for (int i = 0; i < A00_diag.Size(); i++)
-         //          {
-         //             S_tmp->ScaleRow(i, 1./A00_diag(i));
-         //          }
-
-         //          SparseMatrix *S = Mult(A10, *S_tmp);
-         //          delete S_tmp;
-
-         //          BlockDiagonalPreconditioner prec(offsets);
-         //          prec.SetDiagonalBlock(0,new DSmoother(A00));
-         // #ifndef MFEM_USE_SUITESPARSE
-         //          prec.SetDiagonalBlock(1,new GSSmoother(*S));
-         // #else
-         //          prec.SetDiagonalBlock(1,new UMFPackSolver(*S));
-         // #endif
-         //          prec.owns_blocks = 1;
+         HypreParMatrix *S_tmp = A10->Transpose();
+         S_tmp->InvScaleRows(A00_diag);
+         HypreParMatrix *S = ParMult(A10, S_tmp);
+         delete S_tmp;
 
          BlockDiagonalPreconditioner prec(toffsets);
          HypreBoomerAMG P00(*A00);
          P00.SetPrintLevel(0);
-         HypreSmoother P11(*A11);
+         HypreBoomerAMG P11(*S);
+         P11.SetPrintLevel(0);
          prec.SetDiagonalBlock(0,&P00);
          prec.SetDiagonalBlock(1,&P11);
 
@@ -311,7 +298,7 @@ int main(int argc, char *argv[])
          GMRESSolver gmres(MPI_COMM_WORLD);
          gmres.SetPrintLevel(-1);
          gmres.SetRelTol(1e-8);
-         gmres.SetMaxIter(20000);
+         gmres.SetMaxIter(2000);
          gmres.SetKDim(500);
          gmres.SetOperator(A);
          gmres.SetPreconditioner(prec);
@@ -340,7 +327,7 @@ int main(int argc, char *argv[])
             mfem::out << "Newton_update_size = " << Newton_update_size << endl;
          }
 
-         // delete S;
+         delete S;
 
          if (Newton_update_size < increment_u)
          {
@@ -370,6 +357,7 @@ int main(int argc, char *argv[])
 
    }
 
+   // 13. Print stats.
    if (myid == 0)
    {
       mfem::out << "\n Outer iterations: " << k+1
@@ -378,7 +366,11 @@ int main(int argc, char *argv[])
                 << endl;
    }
 
+   // 12. Free the used memory.
+   delete A00;
    delete A01;
+   delete A10;
+   delete A11;
    return 0;
 }
 
