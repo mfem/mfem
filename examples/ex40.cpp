@@ -7,7 +7,7 @@
 //              ex40 -step 100 -gr 2.0 -r 4 -m ../data/l-shape.mesh
 //
 // Description: This example code demonstrates how to use MFEM to solve the
-//              Eikonal equation,
+//              eikonal equation,
 //
 //                      |∇u| = 1 in Ω,  u = g on ∂Ω.
 //
