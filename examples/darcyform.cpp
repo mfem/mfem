@@ -1470,4 +1470,9 @@ void DarcyHybridization::ComputeSolution(const BlockVector &b,
    }
 }
 
+void DarcyHybridization::Reset()
+{
+   Hybridization::Reset();
+   bfin = false;
+}
 }

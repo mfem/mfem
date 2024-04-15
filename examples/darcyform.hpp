@@ -306,6 +306,8 @@ public:
        It is assumed that the vector sol has the right essential b.c. */
    void ComputeSolution(const BlockVector &b, const Vector &sol_r,
                         BlockVector &sol) const;
+
+   void Reset() override;
 };
 
 }
