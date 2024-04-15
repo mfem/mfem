@@ -465,6 +465,8 @@ DarcyHybridization::DarcyHybridization(FiniteElementSpace *fes_u_,
 
    bhdg = (fes->FEColl()->GetContType() == FiniteElementCollection::DISCONTINUOUS);
 
+   bfin = false;
+
    Ae_data = NULL;
    Bf_data = NULL;
    Be_data = NULL;
@@ -657,7 +659,7 @@ void DarcyHybridization::Init(const Array<int> &ess_flux_tdof_list)
    Ae_data = new real_t[Ae_offsets[NE]];
    Be_data = new real_t[Be_offsets[NE]]();//init by zeros
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
-   
+
    if (c_bfi_p)
    {
       AllocEG();
@@ -747,9 +749,11 @@ void DarcyHybridization::ComputeAndAssembleFaceMatrix(
    const FiniteElement *tr_fe, *fe1, *fe2;
    DenseMatrix e_elmat, g_elmat, h_elmat;
    int ndof1, ndof2;
+   Array<int> c_dofs;
 
    tr_fe = c_fes->GetFaceElement(face);
-   const int c_dof = tr_fe->GetDof();
+   c_fes->GetFaceDofs(face, c_dofs);
+   const int c_dof = c_dofs.Size();
 
    FaceElementTransformations *ftr = mesh->GetFaceElementTransformations(face);
    fes_p->GetElementVDofs(ftr->Elem1No, vdofs1);
@@ -786,6 +790,10 @@ void DarcyHybridization::ComputeAndAssembleFaceMatrix(
    MFEM_ASSERT(G_f.Width() == g_elmat.Width() &&
                G_f.Height() == g_elmat.Height(), "Size mismatch");
    G_f = g_elmat;
+
+   // assemble H matrix
+   if (!H) { H = new SparseMatrix(c_fes->GetVSize()); }
+   H->AddSubMatrix(c_dofs, c_dofs, h_elmat);
 }
 
 void DarcyHybridization::GetFDofs(int el, Array<int> &fdofs) const
@@ -973,7 +981,7 @@ void DarcyHybridization::ComputeH()
    DenseMatrix Ct_1_el_1, Ct_1_el_2, Ct_2_el_1, Ct_2_el_2;
    Array<int> c_dofs_1, c_dofs_2;
    Array<int> edges, oris;
-   H = new SparseMatrix(c_fes->GetVSize());
+   if (!H) { H = new SparseMatrix(c_fes->GetVSize()); }
 #else //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
    DenseMatrix AiBt, BAi, Hb_l;
    Array<int> a_dofs;
@@ -1082,7 +1090,16 @@ void DarcyHybridization::ComputeH()
    H->Finalize();
 #else //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
    Hb->Finalize();
-   H = RAP(*Ct, *Hb, *Ct);
+   if (H)
+   {
+      SparseMatrix *rap = RAP(*Ct, *Hb, *Ct);
+      *H += *rap;
+      delete rap;
+   }
+   else
+   {
+      H = RAP(*Ct, *Hb, *Ct);
+   }
    delete Hb;
 #endif //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
 }
@@ -1146,7 +1163,11 @@ void DarcyHybridization::GetCtSubMatrix(int el, const Array<int> c_dofs,
 
 void DarcyHybridization::Finalize()
 {
-   if (!H) { ComputeH(); }
+   if (!bfin)
+   {
+      ComputeH();
+      bfin = true;
+   }
 }
 
 void DarcyHybridization::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
