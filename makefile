@@ -587,51 +587,52 @@ distclean: clean config/clean doc/clean
 
 INSTALL_SHARED_LIB = $(MFEM_CXX) $(MFEM_LINK_FLAGS) $(INSTALL_SOFLAGS)\
    $(OBJECT_FILES) $(EXT_LIBS) -o $(PREFIX_LIB)/libmfem.$(SO_VER) && \
-   cd $(PREFIX_LIB) && ln -sf libmfem.$(SO_VER) libmfem.$(SO_EXT)
+   cd $(PREFIX_LIB) && ln -sf libmfem.$(SO_VER) libmfem.$(SO_EXT) && \
+   chmod 755 libmfem.$(SO_VER)
 
 install: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
-	mkdir -p $(PREFIX_LIB)
+	$(INSTALL) -m 755 -d $(PREFIX_LIB)
 # install static and/or shared library
-	$(if $(static),$(INSTALL) -m 640 $(BLD)libmfem.a $(PREFIX_LIB))
+	$(if $(static),$(INSTALL) -m 644 $(BLD)libmfem.a $(PREFIX_LIB))
 	$(if $(shared),$(INSTALL_SHARED_LIB))
 # install top level includes
-	mkdir -p $(PREFIX_INC)/mfem
-	$(INSTALL) -m 640 $(SRC)mfem.hpp $(SRC)mfem-performance.hpp \
+	$(INSTALL) -m 755 -d $(PREFIX_INC)/mfem
+	$(INSTALL) -m 644 $(SRC)mfem.hpp $(SRC)mfem-performance.hpp \
 	   $(PREFIX_INC)/mfem
 	for hdr in mfem.hpp mfem-performance.hpp; do \
 	   printf '// Auto-generated file.\n#include "mfem/'$$hdr'"\n' \
-	      > $(PREFIX_INC)/$$hdr && chmod 640 $(PREFIX_INC)/$$hdr; done
+	      > $(PREFIX_INC)/$$hdr && chmod 644 $(PREFIX_INC)/$$hdr; done
 # install config include
-	mkdir -p $(PREFIX_INC)/mfem/config
-	$(INSTALL) -m 640 $(BLD)config/_config.hpp $(PREFIX_INC)/mfem/config/_config.hpp
-	$(INSTALL) -m 640 $(SRC)config/config.hpp $(PREFIX_INC)/mfem/config/config.hpp
-	$(INSTALL) -m 640 $(SRC)config/tconfig.hpp $(PREFIX_INC)/mfem/config
+	$(INSTALL) -m 755 -d $(PREFIX_INC)/mfem/config
+	$(INSTALL) -m 644 $(BLD)config/_config.hpp $(PREFIX_INC)/mfem/config
+	$(INSTALL) -m 644 $(SRC)config/config.hpp $(PREFIX_INC)/mfem/config
+	$(INSTALL) -m 644 $(SRC)config/tconfig.hpp $(PREFIX_INC)/mfem/config
 # install remaining includes in each subdirectory
 	for dir in $(DIRS); do \
-	   mkdir -p $(PREFIX_INC)/mfem/$$dir && \
-	   $(INSTALL) -m 640 $(SRC)$$dir/*.hpp $(PREFIX_INC)/mfem/$$dir; \
+	   $(INSTALL) -m 755 -d $(PREFIX_INC)/mfem/$$dir && \
+	   $(INSTALL) -m 644 $(SRC)$$dir/*.hpp $(PREFIX_INC)/mfem/$$dir; \
 	done
 # install *.okl files
 	for dir in $(OKL_DIRS); do \
-	   mkdir -p $(PREFIX_INC)/mfem/$$dir && \
-	   $(INSTALL) -m 640 $(SRC)$$dir/*.okl $(PREFIX_INC)/mfem/$$dir; \
+	   $(INSTALL) -m 755 -d $(PREFIX_INC)/mfem/$$dir && \
+	   $(INSTALL) -m 644 $(SRC)$$dir/*.okl $(PREFIX_INC)/mfem/$$dir; \
 	done
 # install libCEED q-function headers
-	mkdir -p $(PREFIX_INC)/mfem/fem/ceed/integrators/mass
-	$(INSTALL) -m 640 $(SRC)fem/ceed/integrators/mass/*.h $(PREFIX_INC)/mfem/fem/ceed/integrators/mass
-	mkdir -p $(PREFIX_INC)/mfem/fem/ceed/integrators/convection
-	$(INSTALL) -m 640 $(SRC)fem/ceed/integrators/convection/*.h $(PREFIX_INC)/mfem/fem/ceed/integrators/convection
-	mkdir -p $(PREFIX_INC)/mfem/fem/ceed/integrators/diffusion
-	$(INSTALL) -m 640 $(SRC)fem/ceed/integrators/diffusion/*.h $(PREFIX_INC)/mfem/fem/ceed/integrators/diffusion
-	mkdir -p $(PREFIX_INC)/mfem/fem/ceed/integrators/nlconvection
-	$(INSTALL) -m 640 $(SRC)fem/ceed/integrators/nlconvection/*.h $(PREFIX_INC)/mfem/fem/ceed/integrators/nlconvection
+	$(INSTALL) -m 755 -d $(PREFIX_INC)/mfem/fem/ceed/integrators/mass
+	$(INSTALL) -m 644 $(SRC)fem/ceed/integrators/mass/*.h $(PREFIX_INC)/mfem/fem/ceed/integrators/mass
+	$(INSTALL) -m 755 -d $(PREFIX_INC)/mfem/fem/ceed/integrators/convection
+	$(INSTALL) -m 644 $(SRC)fem/ceed/integrators/convection/*.h $(PREFIX_INC)/mfem/fem/ceed/integrators/convection
+	$(INSTALL) -m 755 -d $(PREFIX_INC)/mfem/fem/ceed/integrators/diffusion
+	$(INSTALL) -m 644 $(SRC)fem/ceed/integrators/diffusion/*.h $(PREFIX_INC)/mfem/fem/ceed/integrators/diffusion
+	$(INSTALL) -m 755 -d $(PREFIX_INC)/mfem/fem/ceed/integrators/nlconvection
+	$(INSTALL) -m 644 $(SRC)fem/ceed/integrators/nlconvection/*.h $(PREFIX_INC)/mfem/fem/ceed/integrators/nlconvection
 # install config.mk in $(PREFIX_SHARE)
-	mkdir -p $(PREFIX_SHARE)
+	$(INSTALL) -m 755 -d $(PREFIX_SHARE)
 	$(MAKE) -C $(BLD)config config-mk CONFIG_MK=config-install.mk
-	$(INSTALL) -m 640 $(BLD)config/config-install.mk $(PREFIX_SHARE)/config.mk
+	$(INSTALL) -m 755 $(BLD)config/config-install.mk $(PREFIX_SHARE)/config.mk
 	rm -f $(BLD)config/config-install.mk
 # install test.mk in $(PREFIX_SHARE)
-	$(INSTALL) -m 640 $(SRC)config/test.mk $(PREFIX_SHARE)/test.mk
+	$(INSTALL) -m 755 $(SRC)config/test.mk $(PREFIX_SHARE)/test.mk
 
 $(CONFIG_MK):
 # Skip the error message when '-B' make flag is used (unconditionally
