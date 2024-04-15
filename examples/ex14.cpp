@@ -119,7 +119,8 @@ int main(int argc, char *argv[])
 
    // 5. Define a finite element space on the mesh. Here we use discontinuous
    //    finite elements of the specified order >= 0.
-   DG_FECollection fec(order, dim, BasisType::GaussLobatto);
+   const auto bt = pa ? BasisType::GaussLobatto : BasisType::GaussLegendre;
+   DG_FECollection fec(order, dim, bt);
    FiniteElementSpace fespace(&mesh, &fec);
    cout << "Number of unknowns: " << fespace.GetVSize() << endl;
 
