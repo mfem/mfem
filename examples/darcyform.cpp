@@ -1321,11 +1321,13 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
 {
    const int NE = fes->GetNE();
 #ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
-   DenseMatrix Ct_1, Ct_2;
+   DenseMatrix Ct_1, Ct_2, Gt_1, Gt_2;
    Vector b_rl;
    Array<int> c_dofs;
    Array<int> edges, oris;
 #else //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
+   MFEM_ASSERT(!c_bfi_p,
+               "Potential constraint is not supported in non-block assembly!");
    Vector hat_u(hat_offsets.Last());
 #endif //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
    Vector bu_l, bp_l, u_l, p_l;
@@ -1358,9 +1360,10 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
       //-A^-1 bu - A^-1 B^T S^-1 B A^-1 bu
       MultInv(el, bu_l, bp_l, u_l, p_l);
       u_l.Neg();
+      p_l.Neg();
 
 #ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
-      // Mult C^T
+      // Mult C^T u + G^T p
       fes->GetMesh()->GetElementEdges(el, edges, oris);
       for (int e = 0; e < edges.Size(); e++)
       {
@@ -1370,8 +1373,15 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
          b_rl.SetSize(c_dofs.Size());
          DenseMatrix &Ct = (FTr->Elem1No == el)?(Ct_1):(Ct_2);
          Ct.MultTranspose(u_l, b_rl);
-         b_rl *= oris[e];
 
+         if (c_bfi_p)
+         {
+            GetGtFaceMatrix(edges[e], Gt_1, Gt_2, c_dofs);
+            DenseMatrix &Gt = (FTr->Elem1No == el)?(Gt_1):(Gt_2);
+            Gt.AddMultTranspose(p_l, b_rl);
+         }
+
+         b_rl *= oris[e];
          b_r.AddElementVector(c_dofs, b_rl);
       }
 #else //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
@@ -1394,11 +1404,13 @@ void DarcyHybridization::ComputeSolution(const BlockVector &b,
 {
    const int NE = fes->GetNE();
 #ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
-   DenseMatrix Ct_1, Ct_2;
+   DenseMatrix Ct_1, Ct_2, E_1, E_2;
    Vector sol_rl;
    Array<int> c_dofs;
    Array<int> edges, oris;
 #else //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
+   MFEM_ASSERT(!c_bfi_p,
+               "Potential constraint is not supported in non-block assembly!");
    Vector hat_bu(hat_offsets.Last());
 #endif //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
    Vector bu_l, bp_l, u_l, p_l;
@@ -1429,7 +1441,7 @@ void DarcyHybridization::ComputeSolution(const BlockVector &b,
       }
 
 #ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
-      // - C^T sol
+      // bu - C^T sol
       fes->GetMesh()->GetElementEdges(el, edges, oris);
       for (int e = 0; e < edges.Size(); e++)
       {
@@ -1438,7 +1450,15 @@ void DarcyHybridization::ComputeSolution(const BlockVector &b,
 
          sol_r.GetSubVector(c_dofs, sol_rl);
          DenseMatrix &Ct = (FTr->Elem1No == el)?(Ct_1):(Ct_2);
-         Ct.AddMult_a(-1.*oris[e], sol_rl, bu_l);
+         Ct.AddMult_a(-oris[e], sol_rl, bu_l);
+
+         //bp - E sol
+         if (c_bfi_p)
+         {
+            GetEFaceMatrix(edges[e], E_1, E_2, c_dofs);
+            DenseMatrix &E = (FTr->Elem1No == el)?(E_1):(E_2);
+            E.AddMult_a(-oris[e], sol_rl, bp_l);
+         }
       }
 #else //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
       // bu - C^T sol
