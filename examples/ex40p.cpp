@@ -144,10 +144,8 @@ int main(int argc, char *argv[])
    L2_FECollection L2fec(order, dim);
    ParFiniteElementSpace L2fes(&pmesh, &L2fec);
 
-   int num_dofs_RT = RTfes.GetTrueVSize();
-   MPI_Allreduce(MPI_IN_PLACE, &num_dofs_RT, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-   int num_dofs_L2 = L2fes.GetTrueVSize();
-   MPI_Allreduce(MPI_IN_PLACE, &num_dofs_L2, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+   int num_dofs_RT = RTfes.GlobalTrueVSize();
+   int num_dofs_L2 = L2fes.GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of H(div) dofs: "
