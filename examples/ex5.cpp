@@ -157,7 +157,8 @@ int main(int argc, char *argv[])
    std::cout << "***********************************************************\n";
 
    // 7. Define the coefficients, analytical solution, and rhs of the PDE.
-   ConstantCoefficient k(1.0);
+   const double k = 1.0;
+   ConstantCoefficient kcoeff(k);
 
    VectorFunctionCoefficient fcoeff(dim, fFun);
    FunctionCoefficient fnatcoeff(f_natural);
@@ -201,7 +202,7 @@ int main(int argc, char *argv[])
    MixedBilinearForm *bVarf = darcy->GetFluxDivForm();
 
    //if (pa) { mVarf->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   mVarf->AddDomainIntegrator(new VectorFEMassIntegrator(k));
+   mVarf->AddDomainIntegrator(new VectorFEMassIntegrator(kcoeff));
    //mVarf->Assemble();
    //if (!pa) { mVarf->Finalize(); }
 
