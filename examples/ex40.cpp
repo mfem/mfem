@@ -43,6 +43,7 @@ public:
 
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
+   void SetAlpha(real_t alpha_) { alpha = alpha_; }
 };
 
 class DZCoefficient : public MatrixCoefficient
