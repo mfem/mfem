@@ -132,11 +132,11 @@ int main(int argc, char *argv[])
 
    // 5. Define a finite element space on the mesh. Here we use the
    //    Raviart-Thomas finite elements of the specified order.
-   FiniteElementCollection *hdiv_coll(new RT_FECollection(order, dim));
-   FiniteElementCollection *l2_coll(new L2_FECollection(order, dim));
+   FiniteElementCollection *R_coll(new RT_FECollection(order, dim));
+   FiniteElementCollection *W_coll(new L2_FECollection(order, dim));
 
-   FiniteElementSpace *R_space = new FiniteElementSpace(mesh, hdiv_coll);
-   FiniteElementSpace *W_space = new FiniteElementSpace(mesh, l2_coll);
+   FiniteElementSpace *R_space = new FiniteElementSpace(mesh, R_coll);
+   FiniteElementSpace *W_space = new FiniteElementSpace(mesh, W_coll);
 
    DarcyForm *darcy = new DarcyForm(R_space, W_space);
 
@@ -497,8 +497,8 @@ int main(int argc, char *argv[])
    delete W_space;
    delete R_space;
    delete trace_space;
-   delete l2_coll;
-   delete hdiv_coll;
+   delete W_coll;
+   delete R_coll;
    delete trace_coll;
    delete mesh;
 
