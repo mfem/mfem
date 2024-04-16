@@ -206,7 +206,7 @@ int main(int argc, char *argv[])
    ConstantCoefficient neg_one(-1.0);
    ConstantCoefficient zero(0.0);
    ConstantCoefficient tichonov_cf(tichonov);
-   ConstantCoefficient neg_tichonov_cf(tichonov);
+   ConstantCoefficient neg_tichonov_cf(-1.0*tichonov);
 
    // 10. Assemble constant matrices to avoid reassembly in the loop.
    ParMixedBilinearForm a10(&RTfes,&L2fes);
@@ -218,7 +218,7 @@ int main(int argc, char *argv[])
    HypreParMatrix *A01 = A10->Transpose();
 
    ParBilinearForm a11(&L2fes);
-   a11.AddDomainIntegrator(new MassIntegrator(tichonov_cf));
+   a11.AddDomainIntegrator(new MassIntegrator(neg_tichonov_cf));
    a11.Assemble();
    a11.Finalize();
    HypreParMatrix *A11 = a11.ParallelAssemble();

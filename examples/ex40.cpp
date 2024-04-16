@@ -175,7 +175,7 @@ int main(int argc, char *argv[])
    ConstantCoefficient neg_one(-1.0);
    ConstantCoefficient zero(0.0);
    ConstantCoefficient tichonov_cf(tichonov);
-   ConstantCoefficient neg_tichonov_cf(tichonov);
+   ConstantCoefficient neg_tichonov_cf(-1.0*tichonov);
 
    // 10. Assemble constant matrices to avoid reassembly in the loop.
    MixedBilinearForm a10(&RTfes,&L2fes);
@@ -187,7 +187,7 @@ int main(int argc, char *argv[])
    SparseMatrix *A01 = Transpose(A10);
 
    BilinearForm a11(&L2fes);
-   a11.AddDomainIntegrator(new MassIntegrator(tichonov_cf));
+   a11.AddDomainIntegrator(new MassIntegrator(neg_tichonov_cf));
    a11.Assemble(false);
    a11.Finalize();
    SparseMatrix &A11 = a11.SpMat();
