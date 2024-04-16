@@ -34,6 +34,8 @@ GPU support
 - Added functionality for BilinearFormIntegrators to use kernels that work for both
   tensor and unstructured elements.
 - Added partial assembly for linear elasticity. Does not use sum factorization for now.
+- Added functionality to automatically configure HYPRE's compute policy to match
+  MFEM's compute policy when HYPRE is built with GPU support.
 
 New and updated examples and miniapps
 -------------------------------------
