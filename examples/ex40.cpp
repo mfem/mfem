@@ -58,6 +58,7 @@ public:
 
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip);
+   void SetAlpha(real_t alpha_) { alpha = alpha_; }
 };
 
 int main(int argc, char *argv[])
@@ -172,13 +173,29 @@ int main(int argc, char *argv[])
       sol_sock.precision(8);
    }
 
-   // 9. Some constants to be used later.
+   // 9. Some coefficients to be used later.
    ConstantCoefficient neg_one(-1.0);
    ConstantCoefficient zero(0.0);
    ConstantCoefficient tichonov_cf(tichonov);
    ConstantCoefficient neg_tichonov_cf(-1.0*tichonov);
+   ZCoefficient Z(sdim, psi_gf, alpha);
+   DZCoefficient DZ(sdim, psi_gf, alpha);
+   ScalarVectorProductCoefficient neg_Z(-1.0, Z);
+   DivergenceGridFunctionCoefficient div_psi_cf(&psi_gf);
+   DivergenceGridFunctionCoefficient div_psi_old_cf(&psi_old_gf);
+   SumCoefficient psi_old_minus_psi(div_psi_old_cf, div_psi_cf, 1.0, -1.0);
 
-   // 10. Assemble constant matrices to avoid reassembly in the loop.
+   // 10. Assemble constant matrices and vectors to avoid
+   //     reassembly in the loop.
+   LinearForm b0,b1;
+   b0.AddDomainIntegrator(new VectorFEDomainLFIntegrator(neg_Z));
+   b1.AddDomainIntegrator(new DomainLFIntegrator(neg_one));
+   b1.AddDomainIntegrator(new DomainLFIntegrator(psi_old_minus_psi));
+
+   // BilinearForm a00(&RTfes);
+   // a00.AddDomainIntegrator(new VectorFEMassIntegrator(DZ));
+   // a00.AddDomainIntegrator(new VectorFEMassIntegrator(tichonov_cf));
+
    MixedBilinearForm a10(&RTfes,&L2fes);
    a10.AddDomainIntegrator(new VectorFEDivergenceIntegrator());
    a10.Assemble();
@@ -197,41 +214,30 @@ int main(int argc, char *argv[])
    int k;
    int total_iterations = 0;
    real_t increment_u = 0.1;
+   GridFunction u_tmp(&L2fes);
    for (k = 0; k < max_it; k++)
    {
-      GridFunction u_tmp(&L2fes);
       u_tmp = u_old_gf;
+      Z.SetAlpha(alpha);
+      DZ.SetAlpha(alpha);
 
       mfem::out << "\nOUTER ITERATION " << k+1 << endl;
-
-      ConstantCoefficient alpha_cf(alpha);
 
       int j;
       for ( j = 0; j < 5; j++)
       {
          total_iterations++;
 
-         LinearForm b0,b1;
          b0.Update(&RTfes,rhs.GetBlock(0),0);
-         b1.Update(&L2fes,rhs.GetBlock(1),0);
-
-         ZCoefficient Z(sdim, psi_gf, alpha);
-         DZCoefficient DZ(sdim, psi_gf, alpha);
-
-         ScalarVectorProductCoefficient neg_Z(-1.0, Z);
-         b0.AddDomainIntegrator(new VectorFEDomainLFIntegrator(neg_Z));
          b0.Assemble();
 
-         DivergenceGridFunctionCoefficient div_psi_cf(&psi_gf);
-         DivergenceGridFunctionCoefficient div_psi_old_cf(&psi_old_gf);
-         SumCoefficient psi_old_minus_psi(div_psi_old_cf, div_psi_cf, 1.0, -1.0);
-         b1.AddDomainIntegrator(new DomainLFIntegrator(neg_one));
-         b1.AddDomainIntegrator(new DomainLFIntegrator(psi_old_minus_psi));
+         b1.Update(&L2fes,rhs.GetBlock(1),0);
          b1.Assemble();
 
          BilinearForm a00(&RTfes);
          a00.AddDomainIntegrator(new VectorFEMassIntegrator(DZ));
          a00.AddDomainIntegrator(new VectorFEMassIntegrator(tichonov_cf));
+         a00.Update(&RTfes);
          a00.Assemble();
          a00.Finalize();
          SparseMatrix &A00 = a00.SpMat();
@@ -239,17 +245,10 @@ int main(int argc, char *argv[])
          // Construct Schur-complement preconditioner
          Vector A00_diag(a00.Height());
          A00.GetDiag(A00_diag);
-         A00_diag.HostReadWrite();
-
-         SparseMatrix *S_tmp = Transpose(A10);
-
-         for (int i = 0; i < A00_diag.Size(); i++)
-         {
-            S_tmp->ScaleRow(i, 1./A00_diag(i));
-         }
-
-         SparseMatrix *S = Mult(A10, *S_tmp);
-         delete S_tmp;
+         A00_diag.Reciprocal();
+         SparseMatrix S_tmp(*A01);
+         S_tmp.ScaleRows(A00_diag);
+         SparseMatrix *S = Mult(A10, S_tmp);
 
          BlockDiagonalPreconditioner prec(offsets);
          prec.SetDiagonalBlock(0,new DSmoother(A00));
@@ -267,9 +266,7 @@ int main(int argc, char *argv[])
          A.SetBlock(1,1,&A11);
 
          GMRES(A,prec,rhs,x,0,10000,500,1e-12,0.0);
-
-         delta_psi_gf.MakeRef(&RTfes, x.GetBlock(0), 0);
-         u_gf.MakeRef(&L2fes, x.GetBlock(1), 0);
+         delete S;
 
          u_tmp -= u_gf;
          real_t Newton_update_size = u_tmp.ComputeL2Error(zero);
@@ -285,7 +282,6 @@ int main(int argc, char *argv[])
          }
 
          mfem::out << "Newton_update_size = " << Newton_update_size << endl;
-         delete S;
 
          if (Newton_update_size < increment_u)
          {
