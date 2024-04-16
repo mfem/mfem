@@ -173,7 +173,7 @@ int main(int argc, char *argv[])
       sol_sock.precision(8);
    }
 
-   // 9. Some coefficients to be used later.
+   // 9. Coefficients to be used later.
    ConstantCoefficient neg_one(-1.0);
    ConstantCoefficient zero(0.0);
    ConstantCoefficient tichonov_cf(tichonov);
@@ -201,7 +201,6 @@ int main(int argc, char *argv[])
    a10.Assemble();
    a10.Finalize();
    SparseMatrix &A10 = a10.SpMat();
-
    SparseMatrix *A01 = Transpose(A10);
 
    BilinearForm a11(&L2fes);
@@ -267,12 +266,13 @@ int main(int argc, char *argv[])
 
          GMRES(A,prec,rhs,x,0,10000,500,1e-12,0.0);
          delete S;
+         delete A01;
 
          u_tmp -= u_gf;
          real_t Newton_update_size = u_tmp.ComputeL2Error(zero);
          u_tmp = u_gf;
 
-         // Damped Newton
+         // Damped Newton update
          psi_gf.Add(newton_scaling, delta_psi_gf);
 
          if (visualization)
@@ -313,7 +313,6 @@ int main(int argc, char *argv[])
              << "\n Total dofs:       " << RTfes.GetTrueVSize() + L2fes.GetTrueVSize()
              << endl;
 
-   delete A01;
    return 0;
 }
 

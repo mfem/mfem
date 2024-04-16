@@ -43,6 +43,7 @@ public:
 
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
+   void SetAlpha(real_t alpha_) { alpha = alpha_; }
 };
 
 class DZCoefficient : public MatrixCoefficient
@@ -57,6 +58,7 @@ public:
 
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip);
+   void SetAlpha(real_t alpha_) { alpha = alpha_; }
 };
 
 int main(int argc, char *argv[])
@@ -205,8 +207,23 @@ int main(int argc, char *argv[])
    ConstantCoefficient zero(0.0);
    ConstantCoefficient tichonov_cf(tichonov);
    ConstantCoefficient neg_tichonov_cf(-1.0*tichonov);
+   ZCoefficient Z(sdim, psi_gf, alpha);
+   DZCoefficient DZ(sdim, psi_gf, alpha);
+   ScalarVectorProductCoefficient neg_Z(-1.0, Z);
+   DivergenceGridFunctionCoefficient div_psi_cf(&psi_gf);
+   DivergenceGridFunctionCoefficient div_psi_old_cf(&psi_old_gf);
+   SumCoefficient psi_old_minus_psi(div_psi_old_cf, div_psi_cf, 1.0, -1.0);
 
    // 10. Assemble constant matrices to avoid reassembly in the loop.
+   ParLinearForm b0,b1;
+   b0.AddDomainIntegrator(new VectorFEDomainLFIntegrator(neg_Z));
+   b1.AddDomainIntegrator(new DomainLFIntegrator(neg_one));
+   b1.AddDomainIntegrator(new DomainLFIntegrator(psi_old_minus_psi));
+
+   // ParBilinearForm a00(&RTfes);
+   // a00.AddDomainIntegrator(new VectorFEMassIntegrator(DZ));
+   // a00.AddDomainIntegrator(new VectorFEMassIntegrator(tichonov_cf));
+
    ParMixedBilinearForm a10(&RTfes,&L2fes);
    a10.AddDomainIntegrator(new VectorFEDivergenceIntegrator());
    a10.Assemble();
@@ -225,46 +242,35 @@ int main(int argc, char *argv[])
    int k;
    int total_iterations = 0;
    real_t increment_u = 0.1;
+   ParGridFunction u_tmp(&L2fes);
    for (k = 0; k < max_it; k++)
    {
-      ParGridFunction u_tmp(&L2fes);
       u_tmp = u_old_gf;
+      Z.SetAlpha(alpha);
+      DZ.SetAlpha(alpha);
 
       if (myid == 0)
       {
          mfem::out << "\nOUTER ITERATION " << k+1 << endl;
       }
 
-      ConstantCoefficient alpha_cf(alpha);
-
       int j;
       for ( j = 0; j < 5; j++)
       {
          total_iterations++;
 
-         ZCoefficient Z(sdim, psi_gf, alpha);
-         DZCoefficient DZ(sdim, psi_gf, alpha);
-
-         ParLinearForm b0,b1;
          b0.Update(&RTfes,rhs.GetBlock(0),0);
-         b1.Update(&L2fes,rhs.GetBlock(1),0);
-
-         ScalarVectorProductCoefficient neg_Z(-1.0, Z);
-         b0.AddDomainIntegrator(new VectorFEDomainLFIntegrator(neg_Z));
          b0.Assemble();
          b0.ParallelAssemble(trhs.GetBlock(0));
 
-         DivergenceGridFunctionCoefficient div_psi_cf(&psi_gf);
-         DivergenceGridFunctionCoefficient div_psi_old_cf(&psi_old_gf);
-         SumCoefficient psi_old_minus_psi(div_psi_old_cf, div_psi_cf, 1.0, -1.0);
-         b1.AddDomainIntegrator(new DomainLFIntegrator(neg_one));
-         b1.AddDomainIntegrator(new DomainLFIntegrator(psi_old_minus_psi));
+         b1.Update(&L2fes,rhs.GetBlock(1),0);
          b1.Assemble();
          b1.ParallelAssemble(trhs.GetBlock(1));
 
          ParBilinearForm a00(&RTfes);
          a00.AddDomainIntegrator(new VectorFEMassIntegrator(DZ));
          a00.AddDomainIntegrator(new VectorFEMassIntegrator(tichonov_cf));
+         a00.Update();
          a00.Assemble();
          a00.Finalize();
          HypreParMatrix *A00 = a00.ParallelAssemble();
@@ -273,11 +279,9 @@ int main(int argc, char *argv[])
          HypreParVector A00_diag(MPI_COMM_WORLD, A00->GetGlobalNumRows(),
                                  A00->GetRowStarts());
          A00->GetDiag(A00_diag);
-
-         HypreParMatrix *S_tmp = A10->Transpose();
-         S_tmp->InvScaleRows(A00_diag);
-         HypreParMatrix *S = ParMult(A10, S_tmp, true);
-         delete S_tmp;
+         HypreParMatrix S_tmp(*A01);
+         S_tmp.InvScaleRows(A00_diag);
+         HypreParMatrix *S = ParMult(A10, &S_tmp, true);
 
          BlockDiagonalPreconditioner prec(toffsets);
          HypreBoomerAMG P00(*A00);
@@ -301,6 +305,8 @@ int main(int argc, char *argv[])
          gmres.SetOperator(A);
          gmres.SetPreconditioner(prec);
          gmres.Mult(trhs,tx);
+         delete S;
+         delete A00;
 
          delta_psi_gf.SetFromTrueDofs(tx.GetBlock(0));
          u_gf.SetFromTrueDofs(tx.GetBlock(1));
@@ -309,9 +315,8 @@ int main(int argc, char *argv[])
          real_t Newton_update_size = u_tmp.ComputeL2Error(zero);
          u_tmp = u_gf;
 
-         // Damped Newton
-         delta_psi_gf *= newton_scaling;
-         psi_gf += delta_psi_gf;
+         // Damped Newton update
+         psi_gf.Add(newton_scaling, delta_psi_gf);
 
          if (visualization)
          {
@@ -324,9 +329,6 @@ int main(int argc, char *argv[])
          {
             mfem::out << "Newton_update_size = " << Newton_update_size << endl;
          }
-
-         delete S;
-         delete A00;
 
          if (Newton_update_size < increment_u)
          {
@@ -356,7 +358,7 @@ int main(int argc, char *argv[])
 
    }
 
-   // 13. Print stats.
+   // 12. Print stats.
    if (myid == 0)
    {
       mfem::out << "\n Outer iterations: " << k+1
@@ -365,7 +367,7 @@ int main(int argc, char *argv[])
                 << endl;
    }
 
-   // 12. Free the used memory.
+   // 13. Free the used memory.
    delete A01;
    delete A10;
    delete A11;
