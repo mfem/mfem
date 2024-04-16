@@ -1184,7 +1184,7 @@ FaceElementTransformations *DarcyHybridization::GetGtFaceMatrix(
    return FTr;
 }
 
-void DarcyHybridization::GetCtSubMatrix(int el, const Array<int> c_dofs,
+void DarcyHybridization::GetCtSubMatrix(int el, const Array<int> &c_dofs,
                                         DenseMatrix &Ct_l) const
 {
    const int hat_offset = hat_offsets[el  ];
@@ -1202,16 +1202,19 @@ void DarcyHybridization::GetCtSubMatrix(int el, const Array<int> c_dofs,
    {
       if (hat_dofs_marker[row] == 1) { continue; }
       real_t s = (vdofs[row - hat_offset] >= 0)?(+1.):(-1.);
-      int col = 0;
       const int ncols = Ct->RowSize(row);
       const int *cols = Ct->GetRowColumns(row);
       const real_t *vals = Ct->GetRowEntries(row);
-      for (int j = 0; j < c_dofs.Size() && col < ncols; j++)
+      for (int j = 0; j < c_dofs.Size(); j++)
       {
          const int cdof = (c_dofs[j]>=0)?(c_dofs[j]):(-1-c_dofs[j]);
-         if (cols[col] != cdof) { continue; }
-         real_t sj = (c_dofs[j] >= 0)?(+s):(-s);
-         Ct_l(i,j) = vals[col++] * sj;
+         for (int col = 0; col < ncols; col++)
+            if (cols[col] == cdof)
+            {
+               real_t sj = (c_dofs[j] >= 0)?(+s):(-s);
+               Ct_l(i,j) = vals[col] * sj;
+               break;
+            }
       }
       i++;
    }
