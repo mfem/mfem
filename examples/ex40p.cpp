@@ -215,7 +215,10 @@ int main(int argc, char *argv[])
    SumCoefficient psi_old_minus_psi(div_psi_old_cf, div_psi_cf, 1.0, -1.0);
 
    // 10. Assemble constant matrices to avoid reassembly in the loop.
-   ParLinearForm b0,b1;
+   ParLinearForm b0, b1;
+   b0.MakeRef(&RTfes,rhs.GetBlock(0),0); 
+   b1.MakeRef(&L2fes,rhs.GetBlock(1),0);
+
    b0.AddDomainIntegrator(new VectorFEDomainLFIntegrator(neg_Z));
    b1.AddDomainIntegrator(new DomainLFIntegrator(neg_one));
    b1.AddDomainIntegrator(new DomainLFIntegrator(psi_old_minus_psi));
@@ -259,11 +262,9 @@ int main(int argc, char *argv[])
       {
          total_iterations++;
 
-         b0.Update(&RTfes,rhs.GetBlock(0),0);
          b0.Assemble();
          b0.ParallelAssemble(trhs.GetBlock(0));
 
-         b1.Update(&L2fes,rhs.GetBlock(1),0);
          b1.Assemble();
          b1.ParallelAssemble(trhs.GetBlock(1));
 

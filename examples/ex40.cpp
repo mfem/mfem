@@ -187,7 +187,7 @@ int main(int argc, char *argv[])
 
    // 10. Assemble constant matrices and vectors to avoid
    //     reassembly in the loop.
-   LinearForm b0,b1;
+   LinearForm b0(&RTfes), b1(&L2fes);
    b0.AddDomainIntegrator(new VectorFEDomainLFIntegrator(neg_Z));
    b1.AddDomainIntegrator(new DomainLFIntegrator(neg_one));
    b1.AddDomainIntegrator(new DomainLFIntegrator(psi_old_minus_psi));
