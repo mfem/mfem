@@ -54,7 +54,7 @@ protected:
 
 public:
    DZCoefficient(int height, ParGridFunction &psi_, real_t alpha_ = 1.0)
-      : MatrixCoefficient(height, true),  psi(&psi_), alpha(alpha_) { }
+      : MatrixCoefficient(height),  psi(&psi_), alpha(alpha_) { }
 
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip);
@@ -223,9 +223,9 @@ int main(int argc, char *argv[])
    b1.AddDomainIntegrator(new DomainLFIntegrator(neg_one));
    b1.AddDomainIntegrator(new DomainLFIntegrator(psi_old_minus_psi));
 
-   // ParBilinearForm a00(&RTfes);
-   // a00.AddDomainIntegrator(new VectorFEMassIntegrator(DZ));
-   // a00.AddDomainIntegrator(new VectorFEMassIntegrator(tichonov_cf));
+   ParBilinearForm a00(&RTfes);
+   a00.AddDomainIntegrator(new VectorFEMassIntegrator(DZ));
+   a00.AddDomainIntegrator(new VectorFEMassIntegrator(tichonov_cf));
 
    ParMixedBilinearForm a10(&RTfes,&L2fes);
    a10.AddDomainIntegrator(new VectorFEDivergenceIntegrator());
@@ -268,12 +268,8 @@ int main(int argc, char *argv[])
          b1.Assemble();
          b1.ParallelAssemble(trhs.GetBlock(1));
 
-         ParBilinearForm a00(&RTfes);
-         a00.AddDomainIntegrator(new VectorFEMassIntegrator(DZ));
-         a00.AddDomainIntegrator(new VectorFEMassIntegrator(tichonov_cf));
-         a00.Update();
          a00.Assemble();
-         a00.Finalize();
+         a00.Finalize(false);
          HypreParMatrix *A00 = a00.ParallelAssemble();
 
          // Construct Schur-complement preconditioner
@@ -335,6 +331,10 @@ int main(int argc, char *argv[])
          {
             break;
          }
+
+         b0.Update();
+         b1.Update();
+         a00.Update();
       }
 
       u_tmp = u_gf;

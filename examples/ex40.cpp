@@ -187,14 +187,17 @@ int main(int argc, char *argv[])
 
    // 10. Assemble constant matrices and vectors to avoid
    //     reassembly in the loop.
-   LinearForm b0(&RTfes), b1(&L2fes);
+   LinearForm b0, b1;
+   b0.MakeRef(&RTfes,rhs.GetBlock(0),0);
+   b1.MakeRef(&L2fes,rhs.GetBlock(1),0);
+
    b0.AddDomainIntegrator(new VectorFEDomainLFIntegrator(neg_Z));
    b1.AddDomainIntegrator(new DomainLFIntegrator(neg_one));
    b1.AddDomainIntegrator(new DomainLFIntegrator(psi_old_minus_psi));
 
-   // BilinearForm a00(&RTfes);
-   // a00.AddDomainIntegrator(new VectorFEMassIntegrator(DZ));
-   // a00.AddDomainIntegrator(new VectorFEMassIntegrator(tichonov_cf));
+   BilinearForm a00(&RTfes);
+   a00.AddDomainIntegrator(new VectorFEMassIntegrator(DZ));
+   a00.AddDomainIntegrator(new VectorFEMassIntegrator(tichonov_cf));
 
    MixedBilinearForm a10(&RTfes,&L2fes);
    a10.AddDomainIntegrator(new VectorFEDivergenceIntegrator());
@@ -227,27 +230,18 @@ int main(int argc, char *argv[])
       {
          total_iterations++;
 
-         b0.Update(&RTfes,rhs.GetBlock(0),0);
          b0.Assemble();
-
-         b1.Update(&L2fes,rhs.GetBlock(1),0);
          b1.Assemble();
 
-         BilinearForm a00(&RTfes);
-         a00.AddDomainIntegrator(new VectorFEMassIntegrator(DZ));
-         a00.AddDomainIntegrator(new VectorFEMassIntegrator(tichonov_cf));
-         a00.Update(&RTfes);
          a00.Assemble();
-         a00.Finalize();
+         a00.Finalize(false);
          SparseMatrix &A00 = a00.SpMat();
 
          // Construct Schur-complement preconditioner
          Vector A00_diag(a00.Height());
          A00.GetDiag(A00_diag);
          A00_diag.Reciprocal();
-         SparseMatrix S_tmp(*A01);
-         S_tmp.ScaleRows(A00_diag);
-         SparseMatrix *S = Mult(A10, S_tmp);
+         SparseMatrix *S = Mult_AtDA(*A01, A00_diag);
 
          BlockDiagonalPreconditioner prec(offsets);
          prec.SetDiagonalBlock(0,new DSmoother(A00));
@@ -266,7 +260,6 @@ int main(int argc, char *argv[])
 
          GMRES(A,prec,rhs,x,0,10000,500,1e-12,0.0);
          delete S;
-         delete A01;
 
          u_tmp -= u_gf;
          real_t Newton_update_size = u_tmp.ComputeL2Error(zero);
@@ -287,6 +280,10 @@ int main(int argc, char *argv[])
          {
             break;
          }
+
+         b0.Update();
+         b1.Update();
+         a00.Update();
       }
 
       u_tmp = u_gf;
