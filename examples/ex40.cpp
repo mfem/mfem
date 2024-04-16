@@ -276,8 +276,7 @@ int main(int argc, char *argv[])
          u_tmp = u_gf;
 
          // Damped Newton
-         delta_psi_gf *= newton_scaling;
-         psi_gf += delta_psi_gf;
+         psi_gf.Add(newton_scaling, delta_psi_gf);
 
          if (visualization)
          {
