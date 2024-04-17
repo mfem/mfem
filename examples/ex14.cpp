@@ -18,10 +18,12 @@
 //               ex14 -m ../data/amr-quad.mesh -r 3
 //               ex14 -m ../data/amr-hex.mesh
 //               ex14 -m ../data/fichera-amr.mesh
+//               ex14 -pa -r 1 -o 3
+//               ex14 -pa -r 1 -o 3 -m ../data/fichera.mesh
 //
 // Device sample runs:
-//               ex14 -pa -d cuda -o 3
-//               ex14 -pa -d cuda -o 3 -m ../data/fichera.mesh
+//               ex14 -pa -r 2 -d cuda -o 3
+//               ex14 -pa -r 2 -d cuda -o 3 -m ../data/fichera.mesh
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               discontinuous Galerkin (DG) finite element discretization of

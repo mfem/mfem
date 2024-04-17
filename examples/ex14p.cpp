@@ -17,10 +17,12 @@
 //               mpirun -np 4 ex14p -m ../data/inline-segment.mesh -rs 5
 //               mpirun -np 4 ex14p -m ../data/amr-quad.mesh -rs 3
 //               mpirun -np 4 ex14p -m ../data/amr-hex.mesh
+//               mpirun -np 4 ex14p -pa -rs 1 -rp 0 -o 3
+//               mpirun -np 4 ex14p -pa -rs 1 -rp 0 -m ../data/fichera.mesh -o 3
 //
 // Device sample runs:
-//               mpirun -np 4 ex14p -pa -d cuda -o 3
-//               mpirun -np 4 ex14p -pa -d cuda -m ../data/fichera.mesh -o 3
+//               mpirun -np 4 ex14p -pa -rs 2 -rp 0 -d cuda -o 3
+//               mpirun -np 4 ex14p -pa -rs 2 -rp 0 -d cuda -m ../data/fichera.mesh -o 3
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               discontinuous Galerkin (DG) finite element discretization of
