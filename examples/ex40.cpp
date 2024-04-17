@@ -3,8 +3,8 @@
 // Compile with: make ex40
 //
 // Sample runs: ex40 -step 10 -gr 2.0
-//              ex40 -step 10 -gr 2.0
-//              ex40 -step 100 -gr 2.0 -r 4 -m ../data/l-shape.mesh
+//              ex40 -step 10 -gr 2.0 -o 3 -r 1
+//              ex40 -step 10 -gr 2.0 -r 4 -m ../data/l-shape.mesh
 //
 // Description: This example code demonstrates how to use MFEM to solve the
 //              eikonal equation,
@@ -22,7 +22,7 @@
 //               ( Zₖ(ψₖ) , τ ) + ( uₖ , ∇⋅τ ) = 0                    ∀ τ ∈ H(div,Ω)
 //               ( ∇⋅ψₖ , v )                 = ( -1 + ∇⋅ψₖ₋₁ , v )   ∀ v ∈ L²(Ω)
 //
-//              where Zₖ(ψ) = ψ / ( 1/αₖ + |ψ|² )^{1/2} and αₖ > 0.
+//              where Zₖ(ψ) = ψ / ( αₖ⁻² + |ψ|² )^{1/2} and αₖ > 0.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -321,7 +321,7 @@ void ZCoefficient::Eval(Vector &V, ElementTransformation &T,
    Vector psi_vals(vdim);
    psi->GetVectorValue(T, ip, psi_vals);
    real_t norm = psi_vals.Norml2();
-   real_t phi = 1.0 / sqrt(1.0/alpha + norm*norm);
+   real_t phi = 1.0 / sqrt(1.0/(alpha*alpha) + norm*norm);
 
    V = psi_vals;
    V *= phi;
@@ -336,7 +336,7 @@ void DZCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
    Vector psi_vals(height);
    psi->GetVectorValue(T, ip, psi_vals);
    real_t norm = psi_vals.Norml2();
-   real_t phi = 1.0 / sqrt(1.0/alpha + norm*norm);
+   real_t phi = 1.0 / sqrt(1.0/(alpha*alpha) + norm*norm);
 
    K = 0.0;
    for (int i = 0; i < height; i++)
