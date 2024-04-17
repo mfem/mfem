@@ -267,6 +267,7 @@ int main(int argc, char *argv[])
 
          // Damped Newton update
          psi_gf.Add(newton_scaling, delta_psi_gf);
+         a00.Update();
 
          if (visualization)
          {
@@ -281,9 +282,6 @@ int main(int argc, char *argv[])
             break;
          }
 
-         b0.Update();
-         b1.Update();
-         a00.Update();
       }
 
       u_tmp = u_gf;
