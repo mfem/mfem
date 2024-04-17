@@ -3,7 +3,7 @@
 // Compile with: make ex40
 //
 // Sample runs: ex40 -step 10 -gr 2.0
-//              ex40 -step 10 -gr 2.0 -o 3 -r 1
+//              ex40 -step 10 -gr 2.0
 //              ex40 -step 100 -gr 2.0 -r 4 -m ../data/l-shape.mesh
 //
 // Description: This example code demonstrates how to use MFEM to solve the
@@ -54,7 +54,7 @@ protected:
 
 public:
    DZCoefficient(int height, GridFunction &psi_, real_t alpha_ = 1.0)
-      : MatrixCoefficient(height, true),  psi(&psi_), alpha(alpha_) { }
+      : MatrixCoefficient(height),  psi(&psi_), alpha(alpha_) { }
 
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip);
@@ -71,7 +71,7 @@ int main(int argc, char *argv[])
    real_t alpha = 1.0;
    real_t growth_rate = 1.0;
    real_t newton_scaling = 0.9;
-   real_t tichonov = 1e-2;
+   real_t tichonov = 1e-1;
    real_t tol = 1e-4;
    bool visualization = true;
 
@@ -208,7 +208,7 @@ int main(int argc, char *argv[])
 
    BilinearForm a11(&L2fes);
    a11.AddDomainIntegrator(new MassIntegrator(neg_tichonov_cf));
-   a11.Assemble(false);
+   a11.Assemble();
    a11.Finalize();
    SparseMatrix &A11 = a11.SpMat();
 
@@ -233,7 +233,7 @@ int main(int argc, char *argv[])
          b0.Assemble();
          b1.Assemble();
 
-         a00.Assemble();
+         a00.Assemble(false);
          a00.Finalize(false);
          SparseMatrix &A00 = a00.SpMat();
 
