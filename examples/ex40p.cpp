@@ -9,7 +9,7 @@
 // Description: This example code demonstrates how to use MFEM to solve the
 //              eikonal equation,
 //
-//                      |∇u| = 1 in Ω,  u = g on ∂Ω.
+//                      |∇u| = 1 in Ω,  u = 0 on ∂Ω.
 //
 //              This example constructs a fast converging sequence,
 //
