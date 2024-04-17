@@ -258,7 +258,7 @@ int main(int argc, char *argv[])
          A.SetBlock(0,1,A01);
          A.SetBlock(1,1,&A11);
 
-         GMRES(A,prec,rhs,x,0,10000,500,1e-12,0.0);
+         GMRES(A,prec,rhs,x,0,2000,500,1e-12,0.0);
          delete S;
 
          u_tmp -= u_gf;
@@ -308,6 +308,7 @@ int main(int argc, char *argv[])
              << "\n Total dofs:       " << RTfes.GetTrueVSize() + L2fes.GetTrueVSize()
              << endl;
 
+   delete A01;
    return 0;
 }
 
