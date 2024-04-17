@@ -216,7 +216,7 @@ int main(int argc, char *argv[])
 
    // 10. Assemble constant matrices to avoid reassembly in the loop.
    ParLinearForm b0, b1;
-   b0.MakeRef(&RTfes,rhs.GetBlock(0),0); 
+   b0.MakeRef(&RTfes,rhs.GetBlock(0),0);
    b1.MakeRef(&L2fes,rhs.GetBlock(1),0);
 
    b0.AddDomainIntegrator(new VectorFEDomainLFIntegrator(neg_Z));
