@@ -150,7 +150,13 @@ void ParFiniteElementSpace::CommunicateGhostOrder(Array<int> & prefdata)
       FiniteElementSpace::UpdateElementOrders();
    }
 
-   if ((!orders_changed && !href) || NRanks == 1)
+   int local_orders_changed = orders_changed;
+   int global_orders_changed = 0;
+
+   MPI_Allreduce(&local_orders_changed, &global_orders_changed, 1, MPI_INT,
+                 MPI_MAX, MyComm);
+
+   if ((global_orders_changed == 0 && !href) || NRanks == 1)
    {
       return;
    }
@@ -158,6 +164,7 @@ void ParFiniteElementSpace::CommunicateGhostOrder(Array<int> & prefdata)
    Array<int> elems;
    Array<char> orders;
 
+   /*
    elems.Reserve(elems_pref.size());
    orders.Reserve(elems_pref.size());
 
@@ -166,6 +173,16 @@ void ParFiniteElementSpace::CommunicateGhostOrder(Array<int> & prefdata)
    {
       elems.Append(elem);
       orders.Append(elem_order[elem]);
+   }
+   */
+
+   // TODO: is it necessary to communicate elements with base order?
+   elems.SetSize(mesh->GetNE());
+   orders.SetSize(mesh->GetNE());
+   for (int i=0; i<mesh->GetNE(); ++i)
+   {
+      elems[i] = i;
+      orders[i] = elem_order[i];
    }
 
    pncmesh->CommunicateGhostData(elems, orders, prefdata);
@@ -1750,7 +1767,7 @@ static const char* msg_orders_changed =
    "Element orders changed, you need to Update() the space first.";
 
 void ParFiniteElementSpace::GetGhostEdgeDofs(const MeshId &edge_id,
-                                             Array<int> &dofs) const
+                                             Array<int> &dofs, int variant) const
 {
    MFEM_VERIFY(!orders_changed, msg_orders_changed);
 
@@ -1759,7 +1776,7 @@ void ParFiniteElementSpace::GetGhostEdgeDofs(const MeshId &edge_id,
    {
       const int edge = edge_id.index;
       const int* beg = var_edge_dofs.GetRow(edge);
-      const int variant = 0;  // TODO: allow for other variants?
+      //const int variant = 0;  // TODO: allow for other variants?
 
       base = beg[variant];
       ne = beg[variant+1] - base;
@@ -1927,13 +1944,13 @@ void ParFiniteElementSpace::GetGhostFaceDofs(const MeshId &face_id,
 }
 
 void ParFiniteElementSpace::GetGhostDofs(int entity, const MeshId &id,
-                                         Array<int> &dofs) const
+                                         Array<int> &dofs, int var) const
 {
    // helper to get ghost vertex, ghost edge or ghost face DOFs
    switch (entity)
    {
       case 0: GetGhostVertexDofs(id, dofs); break;
-      case 1: GetGhostEdgeDofs(id, dofs); break;
+      case 1: GetGhostEdgeDofs(id, dofs, var); break;
       case 2: GetGhostFaceDofs(id, dofs); break;
    }
 }
@@ -2509,6 +2526,133 @@ struct PMatrixRow
       }
    }
 };
+
+class NeighborOrderMessage : public VarMessage<123>  // TODO: tag choice?
+{
+public:
+   typedef NCMesh::MeshId MeshId;
+   typedef ParNCMesh::GroupId GroupId;
+
+   struct OrderInfo
+   {
+      int entity, index, order;
+      GroupId group;
+
+      OrderInfo(int ent, int idx, int p, GroupId grp)
+         : entity(ent), index(idx), order(p), group(grp) {}
+   };
+
+   NeighborOrderMessage() : pncmesh(NULL) {}
+
+   void AddOrder(int ent, int idx, int p, GroupId grp)
+   {
+      msgs.emplace_back(ent, idx, p, grp);
+   }
+
+   void SetNCMesh(ParNCMesh* pnc) { pncmesh = pnc; }
+
+   const std::vector<OrderInfo>& GetMsgs() const { return msgs; }
+
+   typedef std::map<int, NeighborOrderMessage> Map;
+
+protected:
+   std::vector<OrderInfo> msgs;
+
+   ParNCMesh *pncmesh;
+
+   /// Encode a NeighborOrderMessage for sending via MPI.
+   void Encode(int rank) override;
+   /// Decode a NeighborOrderMessage received via MPI.
+   void Decode(int rank) override;
+};
+
+void NeighborOrderMessage::Encode(int rank)
+{
+   std::ostringstream stream;
+
+   Array<MeshId> ent_ids[3];
+   Array<GroupId> group_ids[3];
+   Array<int> row_idx[3];
+
+   // Encode MeshIds and groups
+   for (unsigned i = 0; i < msgs.size(); i++)
+   {
+      const OrderInfo &ri = msgs[i];
+      const MeshId &id = *pncmesh->GetNCList(ri.entity).GetMeshIdAndType(ri.index).id;
+      ent_ids[ri.entity].Append(id);
+      row_idx[ri.entity].Append(i);
+      group_ids[ri.entity].Append(ri.group);
+   }
+
+   Array<GroupId> all_group_ids;
+   all_group_ids.Reserve(msgs.size());
+   for (int i = 0; i < 3; i++)
+   {
+      all_group_ids.Append(group_ids[i]);
+   }
+
+   pncmesh->AdjustMeshIds(ent_ids, rank);
+   pncmesh->EncodeMeshIds(stream, ent_ids);
+   pncmesh->EncodeGroups(stream, all_group_ids);
+
+   // Write all rows to the stream
+   for (int ent = 0; ent < 3; ent++)
+   {
+      const Array<MeshId> &ids = ent_ids[ent];
+      for (int i = 0; i < ids.Size(); i++)
+      {
+         const MeshId &id = ids[i];
+         const OrderInfo &ri = msgs[row_idx[ent][i]];
+         MFEM_ASSERT(ent == ri.entity, "");
+
+         MFEM_VERIFY(id.index < 1000000, "");
+
+         bin_io::write<int>(stream, ri.order);
+      }
+   }
+
+   msgs.clear();
+   stream.str().swap(data);
+}
+
+void NeighborOrderMessage::Decode(int rank)
+{
+   std::istringstream stream(data);
+
+   Array<MeshId> ent_ids[3];
+   Array<GroupId> group_ids;
+
+   // decode vertex/edge/face IDs and groups
+   pncmesh->DecodeMeshIds(stream, ent_ids);
+   pncmesh->DecodeGroups(stream, group_ids);
+
+   int nrows = ent_ids[0].Size() + ent_ids[1].Size() + ent_ids[2].Size();
+   MFEM_ASSERT(nrows == group_ids.Size(), "");
+
+   msgs.clear();
+   msgs.reserve(nrows);
+
+   // TODO: eliminate ent 0?
+   // Read messages. ent = {0,1,2} means vertex, edge and face entity
+   for (int ent = 0, gi = 0; ent < 3; ent++)
+   {
+      // extract the vertex list, edge list or face list.
+      const Array<MeshId> &ids = ent_ids[ent];
+      for (int i = 0; i < ids.Size(); i++)
+      {
+         const MeshId &id = ids[i];
+         // read the particular value off the stream.
+         int order_i = bin_io::read<int>(stream);
+
+         MFEM_VERIFY(order_i > 0, "");
+         MFEM_VERIFY(id.index < 1000000, "");
+
+         // Create an entry for this entity, recording the index of the mesh
+         // element
+         msgs.emplace_back(ent, id.index, order_i, group_ids[gi++]);
+      }
+   }
+}
 
 /** Represents a message to another processor containing P matrix rows.
  *  Used by ParFiniteElementSpace::BuildParallelConformingInterpolation.
@@ -3379,6 +3523,132 @@ void ParFiniteElementSpace
 }
 #endif
 
+int ParFiniteElementSpace::LowestRealEdgeVariant(int edge) const
+{
+   if (!IsVariableOrder()) { return 0; }
+
+   const VarOrderBits bits = artificial_var_edge_orders[edge];
+
+   if (bits != 0)
+   {
+      for (int variant = 0; ; variant++)
+      {
+         const int q = GetEdgeOrder(edge, variant);
+         MFEM_VERIFY(q > 0, "");
+
+         // Check whether order q is in `bits`
+         const VarOrderBits qbits = VarOrderBits(1) << q;
+         const VarOrderBits andbits = qbits & bits;
+         if (andbits != qbits)  // Not in bits
+         {
+            return variant;
+         }
+      }
+   }
+
+   return 0;
+}
+
+void ParFiniteElementSpace::ScheduleSendOrder(int ent, int idx, int order,
+                                              GroupId group_id,
+                                              NeighborOrderMessage::Map &send_msg) const
+{
+   for (const auto &rank : pncmesh->GetGroup(group_id))
+   {
+      if (rank != MyRank)
+      {
+         NeighborOrderMessage &msg = send_msg[rank];
+         msg.AddOrder(ent, idx, order, group_id);
+         msg.SetNCMesh(pncmesh);
+      }
+   }
+}
+
+bool ParFiniteElementSpace::ParallelOrderPropagation(bool sdone,
+                                                     const std::set<int> &edges, const std::set<int> &faces,
+                                                     Array<VarOrderBits> &edge_orders,
+                                                     Array<VarOrderBits> &face_orders) const
+{
+   bool changed = !sdone;  // Initialized to serial version
+
+   // If no rank has changes, exit.
+   int orders_changed = (int) changed;
+   MPI_Allreduce(MPI_IN_PLACE, &orders_changed, 1, MPI_INT, MPI_MAX, MyComm);
+   if (orders_changed == 0)
+   {
+      return true;
+   }
+
+   NeighborOrderMessage::Map send_msg;
+
+   // Schedule messages
+   for (int entity = 1; entity <= 2; ++entity)
+   {
+      const std::set<int> &indices = entity == 1 ? edges : faces;
+      const Array<VarOrderBits> &orders = entity == 1 ? edge_orders : face_orders;
+      for (auto idx : indices)
+      {
+         GroupId group = pncmesh->GetEntityGroupId(entity, idx);
+
+         if (group != 0)
+         {
+            ScheduleSendOrder(entity, idx, MinOrder(orders[idx]),
+                              group, send_msg);
+         }
+      }
+   }
+
+   // send messages
+   NeighborOrderMessage::IsendAll(send_msg, MyComm);
+
+   MPI_Barrier(MyComm); // This barrier is actually necessary
+
+   NeighborOrderMessage recv_msg;
+   recv_msg.SetNCMesh(pncmesh);
+
+   // check for and receive incoming messages
+   int rank, size;
+   while (NeighborOrderMessage::IProbe(rank, size, MyComm))
+   {
+      // Note that Recv calls Decode(rank), setting msgs in recv_msg.
+      recv_msg.Recv(rank, size, MyComm);
+
+      for (const auto &ri : recv_msg.GetMsgs())
+      {
+         const VarOrderBits mask = (VarOrderBits(1) << ri.order);
+         if (ri.entity == 1)
+         {
+            const VarOrderBits initOrders = edge_orders[ri.index];
+            edge_orders[ri.index] |= mask;
+            if (edge_orders[ri.index] != initOrders)
+            {
+               changed = true;
+            }
+         }
+         else if (ri.entity == 2)
+         {
+            const VarOrderBits initOrders = face_orders[ri.index];
+            face_orders[ri.index] |= mask;
+            if (face_orders[ri.index] != initOrders)
+            {
+               changed = true;
+            }
+         }
+         else
+         {
+            MFEM_ABORT("Invalid entity type");
+         }
+      }
+   }
+
+   // make sure we can discard all send buffers
+   NeighborOrderMessage::WaitAllSent(send_msg);
+
+   orders_changed = (int) changed;
+   MPI_Allreduce(MPI_IN_PLACE, &orders_changed, 1, MPI_INT, MPI_MAX, MyComm);
+   return (orders_changed == 0);
+}
+
 void ParFiniteElementSpace::MarkIntermediateEntityDofs(int entity,
                                                        Array<bool> & intermediate) const
 
@@ -3393,8 +3663,13 @@ void ParFiniteElementSpace::MarkIntermediateEntityDofs(int entity,
    for (int e=0; e<n; ++e)
    {
       const int nvar = GetNVariants(entity, e);
-      for (int var = 1; var < nvar - 1; ++var)  // Intermediate variants
+      const int var0 = entity == 1 ? LowestRealEdgeVariant(e) : 0;
+
+      //for (int var = 1; var < nvar - 1; ++var)  // Intermediate variants
+      for (int var = 0; var < nvar - 1; ++var)  // Intermediate variants
       {
+         if (var == var0) { continue; }
+
          Array<int> dofs;
          GetEntityDofs(entity, e, dofs, Geometry::INVALID, // dummy geom
                        var);
@@ -3445,15 +3720,32 @@ int ParFiniteElementSpace
          for (const auto &mf : list.masters)
          {
             // get master DOFs
+            const int var0 = entity == 1 ? LowestRealEdgeVariant(mf.index) : 0;
+
+            if (entity == 1 && skip_edge.Size() > 0)
+            {
+               if (skip_edge[mf.index])
+               {
+                  continue;
+               }
+            }
+            else if (entity == 2 && skip_face.Size() > 0)
+            {
+               if (skip_face[mf.index])
+               {
+                  continue;
+               }
+            }
+
             bool mghost = false;
             if (pncmesh->IsGhost(entity, mf.index))
             {
-               GetGhostDofs(entity, mf, master_dofs);
+               GetGhostDofs(entity, mf, master_dofs, var0);
                mghost = true;
             }
             else
             {
-               GetEntityDofs(entity, mf.index, master_dofs, mf.Geom());
+               GetEntityDofs(entity, mf.index, master_dofs, mf.Geom(), var0);
             }
 
             if (master_dofs.Size() == 0) { continue; }
@@ -3463,7 +3755,7 @@ int ParFiniteElementSpace
             if (IsVariableOrder())
             {
                int mfOrder = -1;
-               if (entity == 1) { mfOrder = GetEdgeOrder(mf.index); }
+               if (entity == 1) { mfOrder = GetEdgeOrder(mf.index, var0); }
                else if (entity == 2) { mfOrder = GetFaceOrder(mf.index); }
 
                if (entity != 0) { fe = fec->GetFE(mf.Geom(), mfOrder); }
@@ -3534,25 +3826,28 @@ int ParFiniteElementSpace
                // Find the lowest variant not in artificial_var_edge_orders
                if (entity == 1)
                {
-                  const VarOrderBits bits = artificial_var_edge_orders[i];
+                  var0 = LowestRealEdgeVariant(i);
+                  /*
+                             const VarOrderBits bits = artificial_var_edge_orders[i];
 
-                  if (bits != 0)
-                  {
-                     for (int variant = 0; ; variant++)
-                     {
-                        const int q = GetEdgeOrder(i, variant);
-                        MFEM_VERIFY(q > 0, "");
+                             if (bits != 0)
+                             {
+                                for (int variant = 0; ; variant++)
+                                {
+                                   const int q = GetEdgeOrder(i, variant);
+                                   MFEM_VERIFY(q > 0, "");
 
-                        // Check whether order q is in `bits`
-                        const VarOrderBits qbits = VarOrderBits(1) << q;
-                        const VarOrderBits andbits = qbits & bits;
-                        if (andbits != qbits)  // Not in bits
-                        {
-                           var0 = variant;
-                           break;
-                        }
-                     }
-                  }
+                                   // Check whether order q is in `bits`
+                                   const VarOrderBits qbits = VarOrderBits(1) << q;
+                                   const VarOrderBits andbits = qbits & bits;
+                                   if (andbits != qbits)  // Not in bits
+                                   {
+                                      var0 = variant;
+                                      break;
+                                   }
+                                }
+                             }
+                  */
                }
 
                // Get lowest order variant DOFs and FE
@@ -3773,6 +4068,10 @@ int ParFiniteElementSpace
    PMatrixRow buffer;
    buffer.elems.reserve(1024);
 
+   // TODO: do you still need `intermediate`?
+   // The lowest order be finalized by receiving messages, but the intermediate
+   // orders not owned will have ghost DOFs which may be dependencies for other
+   // DOFs. Thus we must allow finalizing intermediate DOFs, when they are ghosts.
    Array<bool> intermediate(ndofs);
    intermediate = false;
 
@@ -4726,7 +5025,8 @@ void ParFiniteElementSpace::ApplyGhostElementOrdersToEdgesAndFaces(
    if (reset_ghost_elems)
    {
       ghost_elem_order.SetSize(pncmesh->TotalNumElements());
-      ghost_elem_order = fec->GetOrder();
+      //ghost_elem_order = fec->GetOrder();
+      ghost_elem_order = 0;
       ngelem = gelem.Size();
    }
 
@@ -4744,6 +5044,11 @@ void ParFiniteElementSpace::ApplyGhostElementOrdersToEdgesAndFaces(
       // TODO: only store entries for ghost elements in ghost_elem_order, since
       // we only access ghost entries? That is, make it of size ngelem?
       const int order = ghost_elem_order[elem];
+      if (order == 0)
+      {
+         continue;
+      }
+
       const VarOrderBits mask = (VarOrderBits(1) << order);
 
       Array<int> edges;
@@ -4766,7 +5071,9 @@ void ParFiniteElementSpace::GhostMasterFaceOrderToEdges(
    Array<VarOrderBits> &edge_orders,
    Array<VarOrderBits> &artificial_edge_orders) const
 {
-   artificial_edge_orders.SetSize(mesh->GetNEdges());
+   //artificial_edge_orders.SetSize(mesh->GetNEdges());
+   artificial_edge_orders.SetSize(pncmesh->GetNEdges() +
+                                  pncmesh->GetNGhostEdges());
    artificial_edge_orders = 0;
 
    // Apply ghost face lowest order (first variant) to their edges
@@ -4803,9 +5110,70 @@ void ParFiniteElementSpace::GhostMasterFaceOrderToEdges(
 
          edge_orders[edge] |= mask;
 
-         if (!pncmesh->IsGhost(1, edge) && newOrder)
+         /*
+              //if (!pncmesh->IsGhost(1, edge) && newOrder)
+              if (newOrder)
+              {
+                 artificial_edge_orders[edge] |= mask;
+              }
+         */
+      }
+   }
+}
+
+void ParFiniteElementSpace::GhostMasterArtificialFaceOrders(
+   const Array<VarOrderBits> &face_orders,
+   const Array<VarOrderBits> &edge_orders,
+   Array<VarOrderBits> &artificial_edge_orders,
+   Array<VarOrderBits> &artificial_face_orders) const
+{
+   //artificial_edge_orders.SetSize(mesh->GetNEdges());
+   artificial_face_orders.SetSize(pncmesh->GetNFaces() +
+                                  pncmesh->GetNGhostFaces());
+   artificial_face_orders = 0;
+
+   artificial_edge_orders.SetSize(pncmesh->GetNEdges() +
+                                  pncmesh->GetNGhostEdges());
+   artificial_edge_orders = 0;
+
+   // Apply ghost face lowest order (first variant) to their edges
+   for (int i=0; i<pncmesh->GetNGhostFaces(); ++i)
+   {
+      const int face = pncmesh->GetNFaces() + i;
+      VarOrderBits orders = face_orders[face];
+
+      if (orders == 0) { continue; }
+
+      // Find the lowest order and just use that.
+      int orderV0 = -1;
+      for (int order = 0; orders != 0; order++, orders >>= 1)
+      {
+         if (orders & 1)
          {
-            artificial_edge_orders[edge] |= mask;
+            orderV0 = order;
+            break;
+         }
+      }
+
+      MFEM_VERIFY(orderV0 > 0, "");
+
+      const VarOrderBits mask = (VarOrderBits(1) << orderV0);
+
+      Array<int> edges;
+      pncmesh->FindEdgesOfGhostFace(face, edges);
+
+      for (auto edge : edges)
+      {
+         // Check whether this order is already in edge_orders
+         const VarOrderBits andmask = edge_orders[edge] & mask;
+         const bool newOrder = (andmask == 0);
+
+         //edge_orders[edge] |= mask;
+
+         //if (!pncmesh->IsGhost(1, edge) && newOrder)
+         if (newOrder)
+         {
+            artificial_face_orders[face] |= mask;
          }
       }
    }
