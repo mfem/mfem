@@ -18,10 +18,12 @@
 //               ex14 -m ../data/amr-quad.mesh -r 3
 //               ex14 -m ../data/amr-hex.mesh
 //               ex14 -m ../data/fichera-amr.mesh
+//               ex14 -pa -r 1 -o 3
+//               ex14 -pa -r 1 -o 3 -m ../data/fichera.mesh
 //
 // Device sample runs:
-//               ex14 -pa -d cuda -o 3
-//               ex14 -pa -d cuda -o 3 -m ../data/fichera.mesh
+//               ex14 -pa -r 2 -d cuda -o 3
+//               ex14 -pa -r 2 -d cuda -o 3 -m ../data/fichera.mesh
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               discontinuous Galerkin (DG) finite element discretization of
@@ -161,21 +163,15 @@ int main(int argc, char *argv[])
 
    // 9. Define a simple symmetric Gauss-Seidel preconditioner and use it to
    //    solve the system Ax=b with PCG in the symmetric case, and GMRES in the
-   //    non-symmetric one. (Note that tolerances are squared: 1e-24 corresponds
-   //    to a relative tolerance of 1e-12).
+   //    non-symmetric one. (Note that tolerances are squared: 1e-12 corresponds
+   //    to a relative tolerance of 1e-6).
    //
    //    If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
    if (pa)
    {
-      const Operator &A = a;
-      if (sigma == -1.0)
-      {
-         CG(A, b, x, 1, 500, 1e-24, 0.0);
-      }
-      else
-      {
-         MFEM_ABORT("The case of PA with sigma != -1 is not yet supported.");
-      }
+      MFEM_VERIFY(sigma == -1.0,
+                  "The case of PA with sigma != -1 is not yet supported.");
+      CG(a, b, x, 1, 500, 1e-12, 0.0);
    }
    else
    {
@@ -184,11 +180,11 @@ int main(int argc, char *argv[])
       GSSmoother M(A);
       if (sigma == -1.0)
       {
-         PCG(A, M, b, x, 1, 500, 1e-24, 0.0);
+         PCG(A, M, b, x, 1, 500, 1e-12, 0.0);
       }
       else
       {
-         GMRES(A, M, b, x, 1, 500, 10, 1e-24, 0.0);
+         GMRES(A, M, b, x, 1, 500, 10, 1e-12, 0.0);
       }
 #else
       UMFPackSolver umf_solver;
