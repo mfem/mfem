@@ -128,9 +128,11 @@ private:
    typedef ParNCMesh::GroupId GroupId;
 
    void GetGhostVertexDofs(const MeshId &id, Array<int> &dofs) const;
-   void GetGhostEdgeDofs(const MeshId &edge_id, Array<int> &dofs) const;
+   void GetGhostEdgeDofs(const MeshId &edge_id, Array<int> &dofs,
+                         int variant) const;
    void GetGhostFaceDofs(const MeshId &face_id, Array<int> &dofs) const;
-   void GetGhostDofs(int entity, const MeshId &id, Array<int> &dofs) const;
+   void GetGhostDofs(int entity, const MeshId &id, Array<int> &dofs,
+                     int variant) const;
 
    /// Return the dofs associated with the interior of the given mesh entity.
    void GetBareDofs(int entity, int index, Array<int> &dofs) const;
@@ -147,6 +149,10 @@ private:
    mutable int n_msgs_sent, n_msgs_recv;
    mutable int n_rows_sent, n_rows_recv, n_rows_fwd;
 #endif
+
+   void ScheduleSendOrder(int ent, int idx, int order,
+                          GroupId group_id,
+                          std::map<int, class NeighborOrderMessage> &send_msg) const;
 
    void ScheduleSendRow(const struct PMatrixRow &row, int dof, GroupId group_id,
                         std::map<int, class NeighborRowMessage> &send_msg) const;
@@ -450,6 +456,8 @@ public:
 
    void MarkIntermediateEntityDofs(int entity, Array<bool> & intermediate) const;
 
+   int LowestRealEdgeVariant(int edge) const;
+
 protected:
    void ApplyGhostElementOrdersToEdgesAndFaces(Array<VarOrderBits> &edge_orders,
                                                Array<VarOrderBits> &face_orders,
@@ -458,6 +466,15 @@ protected:
    void GhostMasterFaceOrderToEdges(const Array<VarOrderBits> &face_orders,
                                     Array<VarOrderBits> &edge_orders,
                                     Array<VarOrderBits> &artificial_edge_orders) const override;
+   void GhostMasterArtificialFaceOrders(const Array<VarOrderBits> &face_orders,
+                                        const Array<VarOrderBits> &edge_orders,
+                                        Array<VarOrderBits> &artificial_edge_orders,
+                                        Array<VarOrderBits> &artificial_face_orders) const override;
+
+   bool ParallelOrderPropagation(bool sdone, const std::set<int> &edges,
+                                 const std::set<int> &faces,
+                                 Array<VarOrderBits> &edge_orders,
+                                 Array<VarOrderBits> &face_orders) const override;
 
    int NumGhostEdges() const override { return pncmesh->GetNGhostEdges(); }
    int NumGhostFaces() const override { return pncmesh->GetNGhostFaces(); }

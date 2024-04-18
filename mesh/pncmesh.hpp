@@ -566,11 +566,9 @@ protected: // implementation
 
    std::size_t GroupsMemoryUsage() const;
 
-   int FindGhostElement(int elem);
-
    friend class NeighborRowMessage;
+   friend class NeighborOrderMessage;
 };
-
 
 
 // comparison operator so that MeshId can be used as key in std::map

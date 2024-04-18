@@ -166,7 +166,7 @@ void FiniteElementSpace::SetElementOrder(int i, int p)
    {
       elem_order[i] = p;
       orders_changed = true;
-      elems_pref.insert(i);
+      elems_pref.insert(i);  // TODO: is this still used?
    }
 
    variableOrder = true;
@@ -2410,7 +2410,7 @@ void FiniteElementSpace::Construct(const Array<int> * prefdata)
       // for variable order spaces, calculate orders of edges and faces
       CalcEdgeFaceVarOrders(edge_orders, face_orders,
                             all_var_edge_orders, all_var_face_orders,
-                            artificial_var_edge_orders, prefdata);
+                            artificial_var_edge_orders, artificial_var_face_orders, prefdata);
    }
    else if (mixed_faces)
    {
@@ -2509,11 +2509,24 @@ int FiniteElementSpace::MinOrder(VarOrderBits bits)
    return 0;
 }
 
+void RemoveArtificialFaceOrders(Array<std::uint64_t> &orders,
+                                const Array<std::uint64_t> &artificial_orders)
+{
+   MFEM_VERIFY(orders.Size() == artificial_orders.Size(), "");
+
+   for (int i=0; i<orders.Size(); ++i)
+   {
+      const std::uint64_t a = artificial_orders[i];
+      orders[i] -= a;
+   }
+}
+
 void FiniteElementSpace::CalcEdgeFaceVarOrders(Array<VarOrderBits> &edge_orders,
                                                Array<VarOrderBits> &face_orders,
                                                Array<VarOrderBits> &all_edge_orders,
                                                Array<VarOrderBits> &all_face_orders,
                                                Array<VarOrderBits> &artificial_edge_orders,
+                                               Array<VarOrderBits> &artificial_face_orders,
                                                const Array<int> * prefdata) const
 {
    MFEM_ASSERT(IsVariableOrder() || prefdata, "");
@@ -2577,6 +2590,9 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(Array<VarOrderBits> &edge_orders,
    {
       done = true;
 
+      std::set<int> changedEdges;
+      std::set<int> changedFaces;
+
       // propagate from slave edges to master edges
       const NCMesh::NCList &edge_list = mesh->ncmesh->GetEdgeList();
       for (const NCMesh::Master &master : edge_list.masters)
@@ -2587,11 +2603,19 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(Array<VarOrderBits> &edge_orders,
             slave_orders |= edge_orders[edge_list.slaves[i].index];
          }
 
+         if (slave_orders == 0)
+         {
+            continue;
+         }
+
          int min_order = MinOrder(slave_orders);
-         if (min_order < MinOrder(edge_orders[master.index]))
+         if (edge_orders[master.index] == 0 ||
+             min_order < MinOrder(edge_orders[master.index]))
          {
             edge_orders[master.index] |= (VarOrderBits(1) << min_order);
             done = false;
+
+            changedEdges.insert(master.index);
          }
 
          all_edge_orders[master.index] |= slave_orders;
@@ -2617,6 +2641,7 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(Array<VarOrderBits> &edge_orders,
                // TODO: since we skip ghost faces here, are there cases where
                // propagation of orders in parallel requires an outer iteration
                // in ParFiniteElementSpace with communication?
+               // TODO: should slave faces be included, in a ParFiniteElementSpace implementation?
                if (slave.index >= numFaces)
                {
                   continue;  // Skip ghost faces
@@ -2635,11 +2660,19 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(Array<VarOrderBits> &edge_orders,
             }
          }
 
+         if (slave_orders == 0)
+         {
+            continue;
+         }
+
          int min_order = MinOrder(slave_orders);
-         if (min_order < MinOrder(face_orders[master.index]))
+         if (face_orders[master.index] == 0 ||
+             min_order < MinOrder(face_orders[master.index]))
          {
             face_orders[master.index] |= (VarOrderBits(1) << min_order);
             done = false;
+
+            changedFaces.insert(master.index);
          }
 
          all_face_orders[master.index] |= slave_orders;
@@ -2651,9 +2684,13 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(Array<VarOrderBits> &edge_orders,
          mesh->GetFaceEdges(i, E, ori);
          for (int j = 0; j < E.Size(); j++)
          {
+            const VarOrderBits initOrders = edge_orders[E[j]];
             edge_orders[E[j]] |= face_orders[i];
          }
       }
+
+      done = ParallelOrderPropagation(done, changedEdges, changedFaces,
+                                      edge_orders, face_orders);
    }
    while (!done);
 
@@ -2668,6 +2705,35 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(Array<VarOrderBits> &edge_orders,
    }
 
    GhostMasterFaceOrderToEdges(face_orders, edge_orders, artificial_edge_orders);
+   //GhostMasterArtificialFaceOrders(face_orders, edge_orders, artificial_edge_orders,
+   //artificial_face_orders);
+   //RemoveArtificialFaceOrders(face_orders, artificial_face_orders);
+
+   skip_edge.SetSize(edge_orders.Size());
+   skip_edge = false;
+
+   skip_face.SetSize(face_orders.Size());
+   skip_face = false;
+
+   const VarOrderBits baseMask = (VarOrderBits(1) << baseOrder);
+
+   for (int i=0; i<edge_orders.Size(); ++i)
+   {
+      if (edge_orders[i] == 0)
+      {
+         edge_orders[i] = baseMask;
+         skip_edge[i] = true;
+      }
+   }
+
+   for (int i=0; i<face_orders.Size(); ++i)
+   {
+      if (face_orders[i] == 0)
+      {
+         face_orders[i] = baseMask;
+         skip_face[i] = true;
+      }
+   }
 }
 
 // TODO: change Array<int> to Array<VarOrderBits> for entity_orders?

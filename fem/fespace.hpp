@@ -249,7 +249,7 @@ protected:
        to be of the default order (fec->GetOrder()). */
    Array<char> elem_order;
 
-   std::set<int> elems_pref;
+   std::set<int> elems_pref;  // TODO: is this still used?
 
    int nvdofs, nedofs, nfdofs, nbdofs;
    int uni_fdof; ///< # of single face DOFs if all faces uniform; -1 otherwise
@@ -271,6 +271,9 @@ protected:
          all_var_face_orders;  // TODO: are these still used?
 
    Array<VarOrderBits> artificial_var_edge_orders;
+   Array<VarOrderBits> artificial_var_face_orders;
+
+   mutable Array<bool> skip_edge, skip_face;
 
    // precalculated DOFs for each element, boundary element, and face
    mutable Table *elem_dof; // owned (except in NURBS FE space)
@@ -368,6 +371,7 @@ protected:
                               Array<VarOrderBits> &all_edge_orders,
                               Array<VarOrderBits> &all_face_orders,
                               Array<VarOrderBits> &artificial_edge_orders,
+                              Array<VarOrderBits> &artificial_face_orders,
                               const Array<int> * prefdata=nullptr) const;
 
    virtual void ApplyGhostElementOrdersToEdgesAndFaces(Array<VarOrderBits>
@@ -378,6 +382,18 @@ protected:
    virtual void GhostMasterFaceOrderToEdges(const Array<VarOrderBits> &face_orders,
                                             Array<VarOrderBits> &edge_orders,
                                             Array<VarOrderBits> &artificial_edge_orders) const { }
+
+   virtual void GhostMasterArtificialFaceOrders(const Array<VarOrderBits>
+                                                &face_orders,
+                                                const Array<VarOrderBits> &edge_orders,
+                                                Array<VarOrderBits> &artificial_edge_orders,
+                                                Array<VarOrderBits> &artificial_face_orders) const { };
+
+   virtual bool ParallelOrderPropagation(bool sdone, const std::set<int> &edges,
+                                         const std::set<int> &faces,
+                                         Array<VarOrderBits> &edge_orders,
+                                         Array<VarOrderBits> &face_orders) const
+   { return sdone; };
 
    virtual int NumGhostEdges() const { return 0; }
    virtual int NumGhostFaces() const { return 0; }
