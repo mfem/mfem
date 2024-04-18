@@ -21,6 +21,7 @@ Discretization improvements
 ---------------------------
 - Introduced support for higher order non conformal Nedelec elements on
   simplices in ParMesh.
+
 - Introduced support for internal boundary elements in nonconformal adapted
   meshes.
 
@@ -28,7 +29,7 @@ Discretization improvements
   IntegrationRules through a moment-fitting approach. The cut is specified by
   the zero level set of a Coefficient. See fem/intrules_cut.hpp and Example 38.
 
-- Added a new nonlinear integrator, `HyperbolicFormIntegrator`. This implements 
+- Added a new nonlinear integrator, `HyperbolicFormIntegrator`. This implements
   both element-wise weak divergence and face-wise numerical flux for a general
   system of hyperbolic conservation laws. To use this integrator for a specific
   flux function, users can define a derived class of `FluxFunction`. Currently,
@@ -38,9 +39,13 @@ Discretization improvements
 GPU support
 ----------------------------
 - Added support for full assembly on simplices.
+
 - Added functionality for BilinearFormIntegrators to use kernels that work for both
   tensor and unstructured elements.
+
 - Added partial assembly for linear elasticity. Does not use sum factorization for now.
+
+- Added partial assembly and GPU support for the DG diffusion integrator.
 
 New and updated examples and miniapps
 -------------------------------------
