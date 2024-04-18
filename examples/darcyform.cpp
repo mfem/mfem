@@ -842,35 +842,34 @@ void DarcyHybridization::AssembleCtFaceMatrix(int face, int el1, int el2,
 
    Array<int> c_vdofs, vdofs;
    c_fes->GetFaceVDofs(face, c_vdofs);
+   const int c_size = c_vdofs.Size();
 
    //el1
-   DenseMatrix Ct_face_1(Ct_data + Ct_offsets[face], f_size_1, c_vdofs.Size());
-   AssembleCtSubMatrix(el1, elmat, c_vdofs, Ct_face_1);
+   DenseMatrix Ct_face_1(Ct_data + Ct_offsets[face], f_size_1, c_size);
+   AssembleCtSubMatrix(el1, elmat, Ct_face_1);
 
    //el2
-   DenseMatrix Ct_face_2(Ct_data + Ct_offsets[face] + f_size_1*c_vdofs.Size(),
-                         f_size_2, c_vdofs.Size());
-   AssembleCtSubMatrix(el2, elmat, c_vdofs, Ct_face_2, hat_size_1);
+   DenseMatrix Ct_face_2(Ct_data + Ct_offsets[face] + f_size_1*c_size,
+                         f_size_2, c_size);
+   AssembleCtSubMatrix(el2, elmat, Ct_face_2, hat_size_1);
 }
 
 void DarcyHybridization::AssembleCtSubMatrix(int el, const DenseMatrix &elmat,
-                                             const Array<int> &signs, DenseMatrix &Ct, int ioff)
+                                             DenseMatrix &Ct, int ioff)
 {
    const int hat_offset = hat_offsets[el];
    const int hat_size = hat_offsets[el+1] - hat_offset;
 
-   Array<int> vdofs;
-   fes->GetElementVDofs(el, vdofs);
    int row = 0;
    for (int i = 0; i < hat_size; i++)
    {
       if (hat_dofs_marker[hat_offset + i] == 1) { continue; }
       bool bzero = true;
-      for (int j = 0; j < signs.Size(); j++)
+      for (int j = 0; j < Ct.Width(); j++)
       {
          const real_t val = elmat(i + ioff, j);
          if (val == 0.) { continue; }
-         Ct(row, j) += (signs[j]>=0)?(+val):(-val);
+         Ct(row, j) = val;
          bzero = false;
       }
       if (!bzero)
@@ -1133,7 +1132,6 @@ FaceElementTransformations *DarcyHybridization::GetCtFaceMatrix(
 #ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK_ASSEMBLY
    const int f_size_1 = Af_f_offsets[FTr->Elem1No+1] - Af_f_offsets[FTr->Elem1No];
    const int f_size_2 = Af_f_offsets[FTr->Elem2No+1] - Af_f_offsets[FTr->Elem2No];
-   FiniteElementSpace::AdjustVDofs(c_dofs);
    Ct_1.Reset(Ct_data + Ct_offsets[f], f_size_1, c_dofs.Size());
    Ct_2.Reset(Ct_data + Ct_offsets[f] + f_size_1*c_dofs.Size(),
               f_size_2, c_dofs.Size());

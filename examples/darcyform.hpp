@@ -228,7 +228,7 @@ class DarcyHybridization : public Hybridization
    void GetEDofs(int el, Array<int> &edofs) const;
    void AssembleCtFaceMatrix(int face, int el1, int el2, const DenseMatrix &elmat);
    void AssembleCtSubMatrix(int el, const DenseMatrix &elmat,
-                            const Array<int> &signs, DenseMatrix &Ct, int ioff=0);
+                            DenseMatrix &Ct, int ioff=0);
    void ConstructC();
    void AllocEG();
    void ComputeH();
