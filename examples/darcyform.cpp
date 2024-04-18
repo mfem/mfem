@@ -865,11 +865,10 @@ void DarcyHybridization::AssembleCtSubMatrix(int el, const DenseMatrix &elmat,
    for (int i = 0; i < hat_size; i++)
    {
       if (hat_dofs_marker[hat_offset + i] == 1) { continue; }
-      real_t sign = (vdofs[i]>=0)?(+1.):(-1.);
       bool bzero = true;
       for (int j = 0; j < signs.Size(); j++)
       {
-         const real_t val = elmat(i + ioff, j) * sign;
+         const real_t val = elmat(i + ioff, j);
          if (val == 0.) { continue; }
          Ct(row, j) += (signs[j]>=0)?(+val):(-val);
          bzero = false;
@@ -1071,7 +1070,6 @@ void DarcyHybridization::ComputeH()
 
             mfem::AddMult(CAiBt, BAiCt, H_l);
 
-            if (oris[e1] * oris[e2] < 0) { H_l.Neg(); }
             H->AddSubMatrix(c_dofs_2, c_dofs_1, H_l, skip_zeros);
          }
 
@@ -1201,7 +1199,6 @@ void DarcyHybridization::GetCtSubMatrix(int el, const Array<int> &c_dofs,
    for (int row = hat_offset; row < hat_offset + hat_size; row++)
    {
       if (hat_dofs_marker[row] == 1) { continue; }
-      real_t s = (vdofs[row - hat_offset] >= 0)?(+1.):(-1.);
       const int ncols = Ct->RowSize(row);
       const int *cols = Ct->GetRowColumns(row);
       const real_t *vals = Ct->GetRowEntries(row);
@@ -1211,8 +1208,8 @@ void DarcyHybridization::GetCtSubMatrix(int el, const Array<int> &c_dofs,
          for (int col = 0; col < ncols; col++)
             if (cols[col] == cdof)
             {
-               real_t sj = (c_dofs[j] >= 0)?(+s):(-s);
-               Ct_l(i,j) = vals[col] * sj;
+               real_t val = vals[col];
+               Ct_l(i,j) = (c_dofs[j] >= 0)?(+val):(-val);
                break;
             }
       }
@@ -1384,7 +1381,6 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
             Gt.AddMultTranspose(p_l, b_rl);
          }
 
-         b_rl *= oris[e];
          b_r.AddElementVector(c_dofs, b_rl);
       }
 #else //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
@@ -1453,14 +1449,14 @@ void DarcyHybridization::ComputeSolution(const BlockVector &b,
 
          sol_r.GetSubVector(c_dofs, sol_rl);
          DenseMatrix &Ct = (FTr->Elem1No == el)?(Ct_1):(Ct_2);
-         Ct.AddMult_a(-oris[e], sol_rl, bu_l);
+         Ct.AddMult_a(-1., sol_rl, bu_l);
 
          //bp - E sol
          if (c_bfi_p)
          {
             GetEFaceMatrix(edges[e], E_1, E_2, c_dofs);
             DenseMatrix &E = (FTr->Elem1No == el)?(E_1):(E_2);
-            E.AddMult_a(-oris[e], sol_rl, bp_l);
+            E.AddMult_a(-1., sol_rl, bp_l);
          }
       }
 #else //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
