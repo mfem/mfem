@@ -127,7 +127,7 @@ constexpr real_t operator""_r(unsigned long long v)
 #elif defined MFEM_USE_DOUBLE
 #define MFEM_MPI_REAL_T MPI_DOUBLE
 #endif
-#endif                                          \
+#endif
 
 // Options that require MPI
 #ifndef MFEM_USE_MPI
