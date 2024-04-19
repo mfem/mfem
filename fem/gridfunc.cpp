@@ -3001,14 +3001,14 @@ real_t GridFunction::ComputeLaplaceError(
          fe->CalcPhysLaplacian(*Tr, laplace);
          a = 0;
          for (int k = 0; k < fdof; k++)
-               if (dofs[k] >= 0)
-               {
-                  a += (*this)(dofs[k]) * laplace(k);
-               }
-               else
-               {
-                  a -= (*this)(-1-dofs[k]) * laplace(k);
-               }
+            if (dofs[k] >= 0)
+            {
+               a += (*this)(dofs[k]) * laplace(k);
+            }
+            else
+            {
+               a -= (*this)(-1-dofs[k]) * laplace(k);
+            }
          a -= exlap->Eval(*Tr, ip);
          error += ip.weight * Tr->Weight() * a * a;
       }

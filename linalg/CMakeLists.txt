@@ -27,6 +27,7 @@ list(APPEND SRCS
   sparsemat.cpp
   sparsesmoothers.cpp
   vector.cpp
+  autodiff.cpp
   )
 
 list(APPEND HDRS
@@ -57,6 +58,9 @@ list(APPEND HDRS
   tensor.hpp
   dual.hpp
   vector.hpp
+  autodiff.hpp
+  tadvector.hpp
+  taddensemat.hpp
   )
 
 if (MFEM_USE_MPI)

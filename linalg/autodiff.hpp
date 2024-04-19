@@ -21,9 +21,10 @@
 #include <codi.hpp>
 #endif
 
-#include <vector>
+//#include <vector>
 #include "tadvector.hpp"
 #include "taddensemat.hpp"
+#include <functional>
 
 namespace mfem
 {
@@ -55,18 +56,18 @@ template<int param_size=0, int vector_size=1, int state_size=1>
 class ADVectorFunc
 {
 private:
-   std::function<void(mfem::Vector&, ADVector&, ADVector&)> F;
+   std::function<void(Vector&, ADVector&, ADVector&)> F;
    Vector param;
 public:
    /// F_ is user implemented function to be differentiated by
-   /// ADVectorFunc. The signature of the function is: F_(mfem::Vector&
+   /// ADVectorFunc. The signature of the function is: F_(Vector&
    /// parameters, ad::ADVectorType& state_vector, ad::ADVectorType& result).
    /// The parameters vector should have size param_size. The state_vector
    /// should have size state_size, and the result vector should have size
    /// vector_size. All size parameters are teplate parameters in
    /// ADVectorFunc.
    ADVectorFunc(
-      std::function<void(mfem::Vector&, ADVector&, ADVector&)> F_,
+      std::function<void(Vector&, ADVector&, ADVector&)> F_,
       Vector &par)
    {
       F=F_;
@@ -74,7 +75,7 @@ public:
    }
 
    ADVectorFunc(
-      std::function<void(mfem::Vector&, ADVector&, ADVector&)> F_)
+      std::function<void(Vector&, ADVector&, ADVector&)> F_)
    {
       F=F_;
    }
@@ -83,17 +84,17 @@ public:
    /// (vparam) and state vector vstate. The function and parameters are
    /// provided in the Constructor. The Jacobian (jac) has dimensions
    /// [vector_size x state_size].
-   void Jacobian(mfem::Vector &vstate,mfem::DenseMatrix &jac);
+   void Jacobian(Vector &vstate,DenseMatrix &jac);
 
    /// Evaluates the Curl of the vector function F_ for a set of parameters
    /// (vparam) and state vector vstate. The function and parameters are
    /// provided in the Constructor. The Curl only works in 3D.
-   void Curl(mfem::Vector &vstate, mfem::Vector &curl);
+   void Curl(Vector &vstate, Vector &curl);
 
    /// Evaluates the Divergence of the vector function F_ for a set of parameters
    /// (vparam) and state vector vstate. The function and parameters are
    /// provided in the Constructor.
-   real_t Divergence(mfem::Vector &vstate);
+   real_t Divergence(Vector &vstate);
 
    /// Evaluates the Gradient of the vector function F_ for a set of parameters
    /// (vparam) and state vector vstate. The Gradient (grad) has dimensions
@@ -103,48 +104,49 @@ public:
    /// Evaluates the Gradient of the vector function F_ for a set of parameters
    /// (vparam) and state vector vstate. The Solution (sol) has dimensions
    /// [ state_size]. The function and parameters are provided in the Constructor.
-   void Solution(mfem::Vector &vstate, mfem::Vector &sol);
+   void Solution(Vector &vstate, Vector &sol);
 
    /// Evaluates the Gradient of the vector function F_ for a set of parameters
    /// (vparam) and state vector vstate.  The function and parameters are
    /// provided in the Constructor.
-   real_t Solution(mfem::Vector &vstate);
+   real_t Solution(Vector &vstate);
 }; // ADVectorFunc
 
-template class ADVectorFunc<0,1,1>;
-template class ADVectorFunc<0,1,2>;
-template class ADVectorFunc<0,1,3>;
+template class ADVectorFunc<0, 1, 1>;
+template class ADVectorFunc<0, 1, 2>;
+template class ADVectorFunc<0, 1, 3>;
 
-template class ADVectorFunc<0,2,1>;
-template class ADVectorFunc<0,2,2>;
-template class ADVectorFunc<0,2,3>;
+template class ADVectorFunc<0, 2, 1>;
+template class ADVectorFunc<0, 2, 2>;
+template class ADVectorFunc<0, 2, 3>;
 
-template class ADVectorFunc<0,3,1>;
-template class ADVectorFunc<0,3,2>;
-template class ADVectorFunc<0,3,3>;
+template class ADVectorFunc<0, 3, 1>;
+template class ADVectorFunc<0, 3, 2>;
+template class ADVectorFunc<0, 3, 3>;
 
-template class ADVectorFunc<1,1,1>;
-template class ADVectorFunc<1,1,2>;
-template class ADVectorFunc<1,1,3>;
+template class ADVectorFunc<1, 1, 1>;
+template class ADVectorFunc<1, 1, 2>;
+template class ADVectorFunc<1, 1, 3>;
 
-template class ADVectorFunc<1,2,1>;
-template class ADVectorFunc<1,2,2>;
-template class ADVectorFunc<1,2,3>;
+template class ADVectorFunc<1, 2, 1>;
+template class ADVectorFunc<1, 2, 2>;
+template class ADVectorFunc<1, 2, 3>;
 
-template class ADVectorFunc<1,3,1>;
-template class ADVectorFunc<1,3,2>;
-template class ADVectorFunc<1,3,3>;
+template class ADVectorFunc<1, 3, 1>;
+template class ADVectorFunc<1, 3, 2>;
+template class ADVectorFunc<1, 3, 3>;
 
-template class ADVectorFunc<2,1,1>;
-template class ADVectorFunc<2,1,2>;
-template class ADVectorFunc<2,1,3>;
+template class ADVectorFunc<2, 1, 1>;
+template class ADVectorFunc<2, 1, 2>;
+template class ADVectorFunc<2, 1, 3>;
 
-template class ADVectorFunc<2,2,1>;
-template class ADVectorFunc<2,2,2>;
-template class ADVectorFunc<2,2,3>;
+template class ADVectorFunc<2, 2, 1>;
+template class ADVectorFunc<2, 2, 2>;
+template class ADVectorFunc<2, 2, 3>;
 
-template class ADVectorFunc<2,3,1>;
-template class ADVectorFunc<2,3,2>;
-template class ADVectorFunc<2,3,3>;
+template class ADVectorFunc<2, 3, 1>;
+template class ADVectorFunc<2, 3, 2>;
+template class ADVectorFunc<2, 3, 3>;
+
 }
 #endif

@@ -4186,6 +4186,145 @@ DenseMatrixInverse::~DenseMatrixInverse()
    delete factors;
 }
 
+
+
+real_t PowerMethod2(DenseMatrix &a, DenseMatrix &b, Vector& v0,
+                    int numSteps, real_t tolerance,
+                    int seed)
+{
+   MFEM_VERIFY(a.Height() == a.Width(), "a has to be a square matrix");
+   MFEM_VERIFY(b.Height() == b.Width(), "b has to be a square matrix");
+   MFEM_VERIFY(b.Height() == a.Width(), "a and b dimension mismatch");
+   MFEM_VERIFY(b.Height() == a.Width(), "a and b dimension mismatch");
+
+   int n = a.Width();
+   DenseMatrixInverse a_inv(a);
+   real_t eigenvalue, eigenvalueNew, diff;
+
+   Vector v1(v0.Size());
+   if (seed != 0)
+   {
+      v0.Randomize(seed);
+   }
+
+   // Power method
+   b.Mult(v0, v1);
+   a_inv.Mult(v1, v0);
+   eigenvalue = v0.Norml2();
+
+   for (int iter = 0; iter < numSteps; ++iter)
+   {
+      b.Mult(v0, v1);
+      a_inv.Mult(v1, v0);
+
+      eigenvalueNew = v0.Norml2();
+      diff = std::abs((eigenvalueNew - eigenvalue) / eigenvalueNew);
+      eigenvalue = eigenvalueNew;
+      v0 *= 1.0/eigenvalue;
+      if (diff < tolerance)
+      {
+         break;
+      }
+   }
+
+   return eigenvalue;
+}
+
+real_t PowerMethod2(DenseMatrix &a, DenseMatrix &b, Vector& v0, Vector& null,
+                    int numSteps, real_t tolerance,
+                    int seed)
+{
+   MFEM_VERIFY(a.Height() == a.Width(), "a has to be a square matrix");
+   MFEM_VERIFY(b.Height() == b.Width(), "b has to be a square matrix");
+   MFEM_VERIFY(b.Height() == a.Width(), "a and b dimension mismatch");
+   MFEM_VERIFY(b.Height() == a.Width(), "a and b dimension mismatch");
+
+   int n = a.Width();
+   DenseMatrixInverse a_inv(a);
+   real_t eigenvalue, eigenvalueNew, diff, alpha;
+
+   Vector v1(v0.Size());
+   if (seed != 0)
+   {
+      v0.Randomize(seed);
+   }
+
+   // Power method
+   b.Mult(v0, v1);
+   a_inv.Mult(v1, v0);
+   eigenvalue = v0.Norml2();
+   v0 *= 1.0/eigenvalue;
+   for (int iter = 0; iter < numSteps; ++iter)
+   {
+      alpha = v0*null;
+      v0.Add(-alpha, null);
+      b.Mult(v0, v1);
+      a_inv.Mult(v1, v0);
+
+      eigenvalueNew = v0.Norml2();
+      diff = std::abs((eigenvalueNew - eigenvalue) / eigenvalueNew);
+      eigenvalue = eigenvalueNew;
+      v0 *= 1.0/eigenvalue;
+      if (diff < tolerance)
+      {
+         break;
+      }
+   }
+
+   return eigenvalue;
+}
+
+
+real_t PowerMethod3(DenseMatrix &a, DenseMatrix &b, Vector& null)
+{
+   MFEM_VERIFY(a.Height() == a.Width(), "a has to be a square matrix");
+   MFEM_VERIFY(b.Height() == b.Width(), "b has to be a square matrix");
+   MFEM_VERIFY(b.Height() == a.Width(), "a and b dimension mismatch");
+
+   int n = a.Width();
+   DenseMatrixInverse a_inv(a);
+
+   real_t alpha, eval_i = 0.0, eval_prev = 0.0;
+
+   // Inverse power method
+   int iter = 0;
+
+#ifdef MFEM_USE_SINGLE
+   const real_t rel_tol = 1e-7;
+#elif defined MFEM_USE_DOUBLE
+   const real_t rel_tol = 1e-14;
+#else
+   MFEM_ABORT("Floating point type undefined");
+#endif
+
+   Vector x_tmp(n), x(n);
+   x.Randomize(696383532);
+   do
+   {
+      alpha = x*null;
+      x.Add(-alpha, null);
+
+      b.Mult(x, x_tmp);
+      a_inv.Mult(x_tmp, x);
+
+      eval_prev = eval_i;
+      eval_i = x.Norml2();
+      x *= 1.0/eval_i;
+      ++iter;
+   }
+   while ((iter < 10000) && (fabs(eval_i - eval_prev)/fabs(eval_i) > rel_tol));
+   MFEM_VERIFY(fabs(eval_i - eval_prev)/fabs(eval_i) <= rel_tol,
+                  "Inverse power method did not converge."
+                  << "\n\t iter      = " << iter
+                  << "\n\t eval_i    = " << eval_i
+                  << "\n\t eval_prev = " << eval_prev
+                  << "\n\t fabs(eval_i - eval_prev)/fabs(eval_i) = "
+                  << fabs(eval_i - eval_prev)/fabs(eval_i));
+   return eval_i;
+}
+
+
+
 #ifdef MFEM_USE_LAPACK
 
 DenseMatrixEigensystem::DenseMatrixEigensystem(DenseMatrix &m)

@@ -17,7 +17,7 @@ namespace mfem
 
 template<int param_size, int vector_size, int state_size>
 void ADVectorFunc<param_size,vector_size, state_size>
-::Jacobian(mfem::Vector &vstate,mfem::DenseMatrix &jac)
+::Jacobian(Vector &vstate,DenseMatrix &jac)
 {
    jac.SetSize(vector_size, state_size);
    jac = 0.0;
@@ -75,11 +75,11 @@ void ADVectorFunc<param_size,vector_size, state_size>
 
 template<int param_size, int vector_size, int state_size>
 void ADVectorFunc<param_size,vector_size, state_size>
-::Curl(mfem::Vector &vstate, mfem::Vector &curl)
+::Curl(Vector &vstate, Vector &curl)
 {
    MFEM_ASSERT(state_size == 3, "!");
    MFEM_ASSERT(vector_size == 3, "!");
-   mfem::DenseMatrix jac;
+   DenseMatrix jac;
    Jacobian(vstate, jac);
    curl.SetSize(state_size);
 
@@ -90,9 +90,9 @@ void ADVectorFunc<param_size,vector_size, state_size>
 
 template<int param_size, int vector_size, int state_size>
 real_t ADVectorFunc<param_size,vector_size, state_size>
-::Divergence(mfem::Vector &vstate)
+::Divergence(Vector &vstate)
 {
-   mfem::DenseMatrix jac;
+   DenseMatrix jac;
    Jacobian(vstate, jac);
    real_t div = 0.0;
    for (int ii=0; ii<state_size; ii++)
@@ -106,7 +106,7 @@ template<int param_size, int vector_size, int state_size>
 void ADVectorFunc<param_size,vector_size, state_size>
 ::Gradient(mfem::Vector &vstate, mfem::Vector &grad)
 {
-   mfem::DenseMatrix jac;
+   DenseMatrix jac;
    Jacobian(vstate, jac);
    grad.SetSize(state_size);
    jac.GetRow(0, grad);
@@ -114,32 +114,39 @@ void ADVectorFunc<param_size,vector_size, state_size>
 
 template<int param_size, int vector_size, int state_size>
 void ADVectorFunc<param_size,vector_size, state_size>
-::Solution(mfem::Vector &vstate, mfem::Vector &sol)
+::Solution(Vector &vstate, Vector &sol)
 {
    sol.SetSize(vector_size);
    sol = 0.0;
-   {
-      ADVector ad_state(state_size);
-      ADVector ad_result(vector_size);
-      for (int i=0; i<state_size; i++)
-      {
-         ad_state[i].setValue(vstate[i]);
-         ad_state[i].setGradient(0.0);
-      }
 
-      F(param,ad_state,ad_result);
-      for (int jj=0; jj<vector_size; jj++)
-      {
-         sol[jj] = ad_result[jj].getValue();
-      }
+   ADVector ad_state(state_size);
+   ADVector ad_result(vector_size);
+   for (int i=0; i<state_size; i++)
+   {
+#ifdef MFEM_USE_CODIPACK
+      ad_state[i].setValue(vstate[i]);
+      ad_state[i].setGradient(0.0);
+#else
+      ad_state[i] = vstate[i];
+#endif
+   }
+
+   F(param,ad_state,ad_result);
+   for (int jj=0; jj<vector_size; jj++)
+   {
+#ifdef MFEM_USE_CODIPACK
+      sol[jj] = ad_result[jj].getValue();
+#else
+      sol[jj] = ad_result[jj];
+#endif
    }
 }
 
 template<int param_size, int vector_size, int state_size>
 real_t ADVectorFunc<param_size,vector_size, state_size>
-::Solution(mfem::Vector &vstate)
+::Solution(Vector &vstate)
 {
-   mfem::Vector sol;
+   Vector sol;
    Solution(vstate, sol);
    return sol[0];
 }
