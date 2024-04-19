@@ -474,7 +474,7 @@ DarcyHybridization::DarcyHybridization(FiniteElementSpace *fes_u_,
    Df_ipiv = NULL;
    Ct_data = NULL;
    E_data = NULL;
-   Gt_data = NULL;
+   G_data = NULL;
 }
 
 DarcyHybridization::~DarcyHybridization()
@@ -488,7 +488,7 @@ DarcyHybridization::~DarcyHybridization()
    delete Df_ipiv;
    delete Ct_data;
    delete E_data;
-   delete Gt_data;
+   delete G_data;
 }
 
 void DarcyHybridization::SetConstraintIntegrators(BilinearFormIntegrator
@@ -780,16 +780,19 @@ void DarcyHybridization::ComputeAndAssembleFaceMatrix(
    AssemblePotMassMatrix(ftr->Elem2No, elmat2);
 
    // assemble E constraint
-   DenseMatrix E_f(E_data + E_offsets[face], ndof1+ndof2, c_dof);
-   MFEM_ASSERT(E_f.Width() == e_elmat.Width() &&
-               E_f.Height() == e_elmat.Height(), "Size mismatch");
-   E_f = e_elmat;
+   DenseMatrix E_f_1(E_data + E_offsets[face], ndof1, c_dof);
+   DenseMatrix E_f_2(E_data + E_offsets[face] + c_dof*ndof1, ndof2, c_dof);
+   MFEM_ASSERT(E_f_1.Width() == e_elmat.Width() && E_f_2.Width() == e_elmat.Width()
+               && E_f_1.Height() + E_f_2.Height() == e_elmat.Height(),
+               "Size mismatch");
+   E_f_1.CopyMN(e_elmat, ndof1, c_dof, 0, 0);
+   E_f_2.CopyMN(e_elmat, ndof2, c_dof, ndof1, 0);
 
-   // assemble Gt constraint
-   DenseMatrix Gt_f(Gt_data + Gt_offsets[face], ndof1+ndof2, c_dof);
-   MFEM_ASSERT(Gt_f.Width() == g_elmat.Height() &&
-               Gt_f.Height() == g_elmat.Width(), "Size mismatch");
-   Gt_f.Transpose(g_elmat);
+   // assemble G constraint
+   DenseMatrix G_f(G_data + G_offsets[face], c_dof, ndof1+ndof2);
+   MFEM_ASSERT(G_f.Width() == g_elmat.Width() &&
+               G_f.Height() == g_elmat.Height(), "Size mismatch");
+   G_f = g_elmat;
 
    // assemble H matrix
    if (!H) { H = new SparseMatrix(c_fes->GetVSize()); }
@@ -949,7 +952,7 @@ void DarcyHybridization::AllocEG()
    int num_faces = mesh->GetNumFaces();
    Array<int> c_vdofs;
 
-   // Define E_offsets and allocate E_data and Gt_data
+   // Define E_offsets and allocate E_data and G_data
    E_offsets.SetSize(num_faces+1);
    E_offsets[0] = 0;
    for (int f = 0; f < num_faces; f++)
@@ -967,7 +970,7 @@ void DarcyHybridization::AllocEG()
    }
 
    E_data = new real_t[E_offsets[num_faces]]();//init by zeros
-   Gt_data = new real_t[Gt_offsets[num_faces]]();//init by zeros
+   G_data = new real_t[G_offsets[num_faces]]();//init by zeros
 }
 
 void DarcyHybridization::ComputeH()
@@ -1055,16 +1058,15 @@ void DarcyHybridization::ComputeH()
             mfem::MultAtB(Ct_2, AiCt, H_l);
             H_l.Neg();
 
-            //(C A^-1 B^T + G) S^-1 B A^-1 C^T
+            //(C A^-1 B^T + G) S^-1 (B A^-1 C^T - E)
             CAiBt.SetSize(Ct_2.Width(), B.Height());
             mfem::MultAtB(Ct_2, AiBt, CAiBt);
 
             if (c_bfi_p)
             {
-               GetGtFaceMatrix(edges[e2], Gt_el_1, Gt_el_2, c_dofs_2);
-               DenseMatrix &Gt = (FTr->Elem1No == el)?(Gt_el_1):(Gt_el_2);
-               Gt.Transpose();
-               CAiBt += Gt;
+               GetGFaceMatrix(edges[e2], Gt_el_1, Gt_el_2, c_dofs_2);
+               DenseMatrix &G = (FTr->Elem1No == el)?(Gt_el_1):(Gt_el_2);
+               CAiBt += G;
             }
 
             mfem::AddMult(CAiBt, BAiCt, H_l);
@@ -1154,15 +1156,14 @@ FaceElementTransformations *DarcyHybridization::GetEFaceMatrix(
    c_fes->GetFaceVDofs(f, c_dofs);
    const int d_size_1 = Df_f_offsets[FTr->Elem1No+1] - Df_f_offsets[FTr->Elem1No];
    const int d_size_2 = Df_f_offsets[FTr->Elem2No+1] - Df_f_offsets[FTr->Elem2No];
-   FiniteElementSpace::AdjustVDofs(c_dofs);
-   E_1.Reset(E_data + E_offsets[f], d_size_1, c_dofs.Size());
-   E_2.Reset(E_data + E_offsets[f] + d_size_1*c_dofs.Size(),
-             d_size_2, c_dofs.Size());
+   const int c_size = c_dofs.Size();
+   E_1.Reset(E_data + E_offsets[f], d_size_1, c_size);
+   E_2.Reset(E_data + E_offsets[f] + d_size_1*c_size, d_size_2, c_size);
    return FTr;
 }
 
-FaceElementTransformations *DarcyHybridization::GetGtFaceMatrix(
-   int f, DenseMatrix &Gt_1, DenseMatrix &Gt_2, Array<int> &c_dofs) const
+FaceElementTransformations *DarcyHybridization::GetGFaceMatrix(
+   int f, DenseMatrix &G_1, DenseMatrix &G_2, Array<int> &c_dofs) const
 {
    FaceElementTransformations *FTr =
       fes->GetMesh()->GetInteriorFaceTransformations(f, 3);
@@ -1173,10 +1174,9 @@ FaceElementTransformations *DarcyHybridization::GetGtFaceMatrix(
    c_fes->GetFaceVDofs(f, c_dofs);
    const int d_size_1 = Df_f_offsets[FTr->Elem1No+1] - Df_f_offsets[FTr->Elem1No];
    const int d_size_2 = Df_f_offsets[FTr->Elem2No+1] - Df_f_offsets[FTr->Elem2No];
-   FiniteElementSpace::AdjustVDofs(c_dofs);
-   Gt_1.Reset(Gt_data + Gt_offsets[f], d_size_1, c_dofs.Size());
-   Gt_2.Reset(Gt_data + Gt_offsets[f] + d_size_1*c_dofs.Size(),
-              d_size_2, c_dofs.Size());
+   const int c_size = c_dofs.Size();
+   G_1.Reset(G_data + G_offsets[f], c_size, d_size_1);
+   G_2.Reset(G_data + G_offsets[f] + d_size_1*c_size, c_size, d_size_2);
    return FTr;
 }
 
@@ -1319,7 +1319,7 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
 {
    const int NE = fes->GetNE();
 #ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
-   DenseMatrix Ct_1, Ct_2, Gt_1, Gt_2;
+   DenseMatrix Ct_1, Ct_2, G_1, G_2;
    Vector b_rl;
    Array<int> c_dofs;
    Array<int> edges, oris;
@@ -1361,7 +1361,7 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
       p_l.Neg();
 
 #ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
-      // Mult C^T u + G^T p
+      // Mult C u + G p
       fes->GetMesh()->GetElementEdges(el, edges, oris);
       for (int e = 0; e < edges.Size(); e++)
       {
@@ -1374,9 +1374,9 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
 
          if (c_bfi_p)
          {
-            GetGtFaceMatrix(edges[e], Gt_1, Gt_2, c_dofs);
-            DenseMatrix &Gt = (FTr->Elem1No == el)?(Gt_1):(Gt_2);
-            Gt.AddMultTranspose(p_l, b_rl);
+            GetGFaceMatrix(edges[e], G_1, G_2, c_dofs);
+            DenseMatrix &G = (FTr->Elem1No == el)?(G_1):(G_2);
+            G.AddMult(p_l, b_rl);
          }
 
          b_r.AddElementVector(c_dofs, b_rl);

@@ -221,8 +221,8 @@ class DarcyHybridization : public Hybridization
    Array<int> E_offsets;
    real_t *E_data;
 
-   Array<int> &Gt_offsets{E_offsets};
-   real_t *Gt_data;
+   Array<int> &G_offsets{E_offsets};
+   real_t *G_data;
 
    void GetFDofs(int el, Array<int> &fdofs) const;
    void GetEDofs(int el, Array<int> &edofs) const;
@@ -236,8 +236,8 @@ class DarcyHybridization : public Hybridization
                                                 DenseMatrix & Ct_2, Array<int>& c_dofs) const;
    FaceElementTransformations *GetEFaceMatrix(int f, DenseMatrix &E_1,
                                               DenseMatrix &E_2, Array<int> &c_dofs) const;
-   FaceElementTransformations *GetGtFaceMatrix(int f, DenseMatrix &Gt_1,
-                                               DenseMatrix &Gt_2, Array<int> &c_dofs) const;
+   FaceElementTransformations *GetGFaceMatrix(int f, DenseMatrix &Gt_1,
+                                              DenseMatrix &Gt_2, Array<int> &c_dofs) const;
    void GetCtSubMatrix(int el, const Array<int> &c_dofs, DenseMatrix &Ct) const;
    void MultInv(int el, const Vector &bu, const Vector &bp, Vector &u,
                 Vector &p) const;
