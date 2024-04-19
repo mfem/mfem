@@ -205,7 +205,7 @@ HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size,
    hypre_VectorMemoryLocation(x_loc) =
       is_device_ptr ? HYPRE_MEMORY_DEVICE : HYPRE_MEMORY_HOST;
 #else
-   (void)is_device_ptr;
+   MFEM_CONTRACT_VAR(is_device_ptr);
 #endif
    // If hypre_ParVectorLocalVector(x) and &tmp are non-NULL,
    // hypre_ParVectorInitialize(x) does not allocate memory!
@@ -6308,7 +6308,7 @@ HypreLOBPCG::SetOperator(Operator & A)
    }
 
    // Create a distributed vector without a data array.
-   const bool is_device_ptr = true;
+   const bool is_device_ptr = HypreUsingGPU();
    x = new HypreParVector(comm,glbSize,NULL,part,is_device_ptr);
 
    matvec_fn.MatvecCreate  = this->OperatorMatvecCreate;
