@@ -384,7 +384,7 @@ int main (int argc, char *argv[])
            "p) Generate a partitioning\n"
            "o) Reorder elements\n"
            "S) Save in MFEM serial format\n"
-           "D) Save in MFEM parallel format using the current partitioning\n"
+           "T) Save in MFEM parallel format using the current partitioning\n"
            "V) Save in VTK format (only linear and quadratic meshes)\n"
            "D) Save as a DataCollection\n"
            "q) Quit\n"
@@ -1252,13 +1252,21 @@ int main (int argc, char *argv[])
          cout << "New mesh file: " << omesh_file << endl;
       }
 
-      if (mk == 'D')
+      if (mk == 'T')
       {
-         const char mesh_prefix[] = "mesh-explorer.mesh.";
+         string mesh_prefix("mesh-explorer.mesh."), line;
          MeshPartitioner partitioner(*mesh, np, partitioning);
          MeshPart mesh_part;
+         cout << "Enter mesh file prefix or press <enter> to use \""
+              << mesh_prefix << "\": " << flush;
+         // extract and ignore all characters after 'T' up to and including the
+         // new line:
+         cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+         getline(cin, line);
+         if (!line.empty()) { mesh_prefix = line; }
          int precision;
-         cout << "Enter desired precision: " << flush;
+         cout << "Enter floating point output precision (num. digits): "
+              << flush;
          cin >> precision;
          for (int i = 0; i < np; i++)
          {
