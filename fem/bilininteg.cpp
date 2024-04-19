@@ -1562,8 +1562,39 @@ void LaplaceIntegrator::AssembleElementMatrix(const FiniteElement &el,
          w *= Q -> Eval(Trans, ip);
       }
       shape *= w;
-      AddMultVWt(shape, laplace,
-                 elmat); // CHECK if ORDER IS CORRECT --> CHECKED with convection
+      AddMultVWt(shape, laplace, elmat);
+   }
+}
+
+void LaplaceIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                               const FiniteElement &test_fe,
+                                               ElementTransformation &Trans,
+                                               DenseMatrix &elmat)
+{
+   int tr_nd = trial_fe.GetDof();
+   int te_nd = test_fe.GetDof();
+
+   elmat.SetSize(te_nd, tr_nd);
+   laplace.SetSize(tr_nd);
+   shape.SetSize(te_nd);
+
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(trial_fe, test_fe, Trans);
+
+   elmat = 0.0;
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      Trans.SetIntPoint (&ip);
+
+      test_fe.CalcPhysShape(Trans, shape);
+      trial_fe.CalcPhysShape(Trans, laplace);
+
+      real_t w = Trans.Weight() * ip.weight * alpha;
+      if (Q)
+      {
+         w *= Q -> Eval(Trans, ip);
+      }
+      AddMult_a_VWt(w, shape, laplace, elmat);
    }
 }
 
@@ -1572,7 +1603,6 @@ const IntegrationRule &LaplaceIntegrator::GetRule(
    const FiniteElement &test_fe,
    ElementTransformation &Trans)
 {
- //  int order = trial_fe.GetOrder() - 2 + Trans.Order() + test_fe.GetOrder();
    int order = trial_fe.GetOrder() + test_fe.GetOrder();
    return IntRules.Get(trial_fe.GetGeomType(), order);
 }
@@ -1593,13 +1623,8 @@ void LaplaceGradIntegrator::AssembleElementMatrix(const FiniteElement &el,
 
    Vector vec1;
 
-   const IntegrationRule *ir = IntRule;
-   if (ir == NULL)
-   {
-      int order = Trans.OrderGrad(&el) + Trans.Order() + el.GetOrder();
-      ir = &IntRules.Get(el.GetGeomType(), order);
-   }
-
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, Trans);
+   
    Q->Eval(Q_ir, Trans, *ir);
 
    elmat = 0.0;
@@ -1617,7 +1642,48 @@ void LaplaceGradIntegrator::AssembleElementMatrix(const FiniteElement &el,
       adjJ.Mult(vec1, vec2);
       dshape.Mult(vec2, BdFidxT);
 
-      AddMultVWt(laplace, BdFidxT, elmat);
+      AddMultVWt(BdFidxT, laplace, elmat);
+   }
+}
+
+void LaplaceGradIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                                   const FiniteElement &test_fe,
+                                                   ElementTransformation &Trans,
+                                                   DenseMatrix &elmat)
+{
+   dim = trial_fe.GetDim();
+   int tr_nd = trial_fe.GetDof();
+   int te_nd = test_fe.GetDof();
+
+   elmat.SetSize(te_nd, tr_nd);
+   laplace.SetSize(tr_nd);
+   dshape.SetSize(te_nd,dim);
+   adjJ.SetSize(dim);
+   vec2.SetSize(dim);
+   BdFidxT.SetSize(te_nd);
+
+   Vector vec1;
+
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(trial_fe, test_fe, Trans);
+
+   Q->Eval(Q_ir, Trans, *ir);
+
+   elmat = 0.0;
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      test_fe.CalcDShape(ip, dshape);
+      trial_fe.CalcPhysLaplacian(Trans, laplace);
+
+      Trans.SetIntPoint(&ip);
+      CalcAdjugate(Trans.Jacobian(), adjJ);
+      Q_ir.GetColumnReference(i, vec1);
+      vec1 *= alpha * ip.weight;
+
+      adjJ.Mult(vec1, vec2);
+      dshape.Mult(vec2, BdFidxT);
+
+      AddMultVWt(BdFidxT, laplace,elmat);
    }
 }
 
@@ -1626,7 +1692,6 @@ const IntegrationRule &LaplaceGradIntegrator::GetRule(
    const FiniteElement &test_fe,
    ElementTransformation &Trans)
 {
-  // int order = Trans.OrderGrad(&trial_fe) + Trans.Order() + test_fe.GetOrder() - 2;
    int order = trial_fe.GetOrder() + test_fe.GetOrder();
    return IntRules.Get(trial_fe.GetGeomType(), order);
 }
@@ -1641,8 +1706,8 @@ void LaplaceLaplaceIntegrator::AssembleElementMatrix(const FiniteElement &el,
    elmat.SetSize(nd);
    laplace.SetSize(nd);
 
-  // const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, Trans);
-   const IntegrationRule *ir = &GetRule(el, el, Trans);
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, Trans);
+
    elmat = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
@@ -1659,34 +1724,69 @@ void LaplaceLaplaceIntegrator::AssembleElementMatrix(const FiniteElement &el,
       AddMult_a_VVt(w, laplace, elmat);
    }
 }
+
+void LaplaceLaplaceIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                                      const FiniteElement &test_fe,
+                                                      ElementTransformation &Trans,
+                                                      DenseMatrix &elmat)
+{
+   int 
+   dim = trial_fe.GetDim();
+   int tr_nd = trial_fe.GetDof();
+   int te_nd = test_fe.GetDof();
+   real_t w;
+
+   elmat.SetSize(te_nd, tr_nd);
+   laplace.SetSize(tr_nd);
+   te_laplace.SetSize(te_nd);
+
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(trial_fe, test_fe, Trans);
+
+   elmat = 0.0;
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      Trans.SetIntPoint (&ip);
+
+      trial_fe.CalcPhysLaplacian(Trans, laplace);
+      test_fe.CalcPhysLaplacian(Trans, te_laplace);
+
+      w = Trans.Weight() * ip.weight * alpha;
+      if (Q)
+      {
+         w *= Q -> Eval(Trans, ip);
+      }
+      AddMult_a_VWt(w, te_laplace, laplace, elmat);
+   }
+}
+
 const IntegrationRule &LaplaceLaplaceIntegrator::GetRule(
    const FiniteElement &trial_fe,
    const FiniteElement &test_fe,
    ElementTransformation &Trans)
 {
-   //int order = trial_fe.GetOrder() - 2 + Trans.Order() + test_fe.GetOrder() - 2;
-   int order = trial_fe.GetOrder() + test_fe.GetOrder() + 4;
+   int order = trial_fe.GetOrder() + test_fe.GetOrder();
    return IntRules.Get(trial_fe.GetGeomType(), order);
 }
 
 void InverseEstimateIntegrator::AssembleElementMatrix(const FiniteElement &el,
-                                                  ElementTransformation &Trans,
-                                                  DenseMatrix &elmat )
+                                                      ElementTransformation &Trans,
+                                                      DenseMatrix &elmat )
 {
    elmat = 0.0;
 
    int nd = el.GetDof();
    int dim = el.GetDim();
 
-   elmat.SetSize(nd);
+   shape.SetSize(nd);
    dshape.SetSize(nd,dim);
-   adjJ.SetSize(dim);
    laplace.SetSize(nd);
-   vec2.SetSize(dim);
-   BdFidxT.SetSize(nd);
 
-   Vector vec1;
-   real_t w,q = 1.0;
+   lapmat.SetSize(nd,nd);
+   bimat.SetSize(nd,nd);
+   ovec.SetSize(nd);
+
+   real_t w,q;
 
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
@@ -1695,9 +1795,9 @@ void InverseEstimateIntegrator::AssembleElementMatrix(const FiniteElement &el,
       ir = &IntRules.Get(el.GetGeomType(), order);
    }
 
-   DenseMatrix lapmat(nd,nd);
-   DenseMatrix bimat(nd,nd);
+   bimat = 0.0;
    lapmat = 0.0;
+   ovec = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
@@ -1713,15 +1813,53 @@ void InverseEstimateIntegrator::AssembleElementMatrix(const FiniteElement &el,
 
       el.CalcPhysLaplacian(Trans, laplace);
       AddMult_a_VVt(w*q*q, laplace, bimat);
+
+      el.CalcPhysShape(Trans, shape);
+      ovec.Add(w, shape);
    }
 
-   // bimat.Print();
-   // lapmat.Print();
+   // Power method
+   Vector x(nd);
+   x.Randomize(696383532);
 
-    Vector ev(nd);
-    bimat.Eigenvalues(lapmat, ev);
-    ev.Print(cout,888);
+   // Correct nullspace + inverse
+   AddMult_a_VVt(1.0, ovec, lapmat);
+   DenseMatrixInverse L_inv(lapmat);
 
+   // DenseMatrix M_i, Q_i;
+   real_t alpha= 0.0, eval_i = 0.0, eval_prev = 0.0;
+
+   // Inverse power method
+   Vector x_tmp(nd);
+   int iter = 0;
+   const real_t rel_tol = 1e-4;
+
+   alpha = ovec*ovec;
+   ovec *= 1.0/sqrt(alpha);
+   do
+   {
+         // Othogonalize
+         alpha = x*ovec;
+         x.Add(-alpha, ovec);
+
+         // MatVec (2x)
+         bimat.Mult(x, x_tmp);
+         L_inv.Mult(x_tmp, x);
+
+         eval_prev = eval_i;
+         eval_i = x.Norml2();
+         x *= 1.0/eval_i;
+         ++iter;
+   }
+   while ((iter < 10000) && (fabs(eval_i - eval_prev)/fabs(eval_i) > rel_tol));
+   MFEM_VERIFY(fabs(eval_i - eval_prev)/fabs(eval_i) <= rel_tol,
+                  "Inverse power method did not converge."
+                  << "\n\t iter      = " << iter
+                  << "\n\t eval_i    = " << eval_i
+                  << "\n\t eval_prev = " << eval_prev
+                  << "\n\t fabs(eval_i - eval_prev)/fabs(eval_i) = "
+                  << fabs(eval_i - eval_prev)/fabs(eval_i));
+   cout<<"evev = "<<eval_i<<" "<<iter<<endl;
 }
 
 const IntegrationRule &InverseEstimateIntegrator::GetRule(
@@ -1729,7 +1867,7 @@ const IntegrationRule &InverseEstimateIntegrator::GetRule(
    const FiniteElement &test_fe,
    ElementTransformation &Trans)
 {
-  // int order = Trans.OrderGrad(&trial_fe) + Trans.Order() + test_fe.GetOrder() - 2;
+   // int order = Trans.OrderGrad(&trial_fe) + Trans.Order() + test_fe.GetOrder() - 2;
    int order = trial_fe.GetOrder() + test_fe.GetOrder();
    return IntRules.Get(trial_fe.GetGeomType(), order);
 }

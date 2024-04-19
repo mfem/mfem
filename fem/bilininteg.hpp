@@ -2436,6 +2436,11 @@ public:
                                       ElementTransformation &,
                                       DenseMatrix &);
 
+   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                       const FiniteElement &test_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
+
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe,
                                          ElementTransformation &Trans);
@@ -2469,6 +2474,11 @@ public:
                                       ElementTransformation &,
                                       DenseMatrix &);
 
+   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                       const FiniteElement &test_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
+
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe,
                                          ElementTransformation &Trans);
@@ -2490,7 +2500,7 @@ protected:
    real_t alpha;
 
 private:
-   Vector laplace;
+   Vector laplace, te_laplace;
 
 public:
    LaplaceLaplaceIntegrator(Coefficient &q, real_t a = 1.0)
@@ -2499,6 +2509,11 @@ public:
    virtual void AssembleElementMatrix(const FiniteElement &,
                                       ElementTransformation &,
                                       DenseMatrix &);
+
+   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                       const FiniteElement &test_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
 
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe,
@@ -2515,8 +2530,8 @@ protected:
    Coefficient *Q;
 
 private:
-   Vector laplace, shape, vec2, BdFidxT;
-   DenseMatrix dshape, adjJ, Q_ir;
+   Vector laplace, shape, ovec;//, vec2, BdFidxT;
+   DenseMatrix dshape, lapmat, bimat;//, adjJ, Q_ir;
 
 public:
    InverseEstimateIntegrator(Coefficient &q)
