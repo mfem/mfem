@@ -3025,7 +3025,7 @@ void Mesh::FinalizeTetMesh(int generate_edges, int refine, bool fix_orientation)
    FinalizeCheck();
    CheckElementOrientation(fix_orientation);
 
-   if (NumOfBdrElements == 0)
+   if (!HasBoundaryElements())
    {
       GetElementToFaceTable();
       GenerateFaces();
@@ -3067,7 +3067,7 @@ void Mesh::FinalizeWedgeMesh(int generate_edges, int refine,
    FinalizeCheck();
    CheckElementOrientation(fix_orientation);
 
-   if (NumOfBdrElements == 0)
+   if (!HasBoundaryElements())
    {
       GetElementToFaceTable();
       GenerateFaces();
@@ -3104,7 +3104,7 @@ void Mesh::FinalizeHexMesh(int generate_edges, int refine, bool fix_orientation)
    GetElementToFaceTable();
    GenerateFaces();
 
-   if (NumOfBdrElements == 0)
+   if (!HasBoundaryElements())
    {
       GenerateBoundaryElements();
    }
@@ -3177,7 +3177,7 @@ void Mesh::FinalizeTopology(bool generate_bdr)
    {
       GetElementToFaceTable();
       GenerateFaces();
-      if (ReduceInt(NumOfBdrElements) == 0 && generate_bdr)
+      if (!HasBoundaryElements() && generate_bdr)
       {
          GenerateBoundaryElements();
          GetElementToFaceTable(); // update be_to_face
@@ -3197,7 +3197,7 @@ void Mesh::FinalizeTopology(bool generate_bdr)
       if (Dim == 2)
       {
          GenerateFaces(); // 'Faces' in 2D refers to the edges
-         if (ReduceInt(NumOfBdrElements) == 0 && generate_bdr)
+         if (!HasBoundaryElements() && generate_bdr)
          {
             GenerateBoundaryElements();
          }
@@ -3211,7 +3211,7 @@ void Mesh::FinalizeTopology(bool generate_bdr)
    if (Dim == 1)
    {
       GenerateFaces();
-      if (ReduceInt(NumOfBdrElements) == 0 && generate_bdr)
+      if (!HasBoundaryElements() && generate_bdr)
       {
          // be_to_face will be set inside GenerateBoundaryElements
          GenerateBoundaryElements();
@@ -4086,6 +4086,7 @@ void Mesh::Make1D(int n, real_t sx)
 }
 
 Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
+  : attribute_sets(attributes), bdr_attribute_sets(bdr_attributes)
 {
    Dim = mesh.Dim;
    spaceDim = mesh.spaceDim;
@@ -4158,6 +4159,10 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
    // Copy the attributes and bdr_attributes
    mesh.attributes.Copy(attributes);
    mesh.bdr_attributes.Copy(bdr_attributes);
+
+   // Copy attribute and bdr_attribute names
+   mesh.attribute_sets.Copy(attribute_sets);
+   mesh.bdr_attribute_sets.Copy(bdr_attribute_sets);
 
    // Deep copy the NURBSExtension.
 #ifdef MFEM_USE_MPI
@@ -4302,6 +4307,7 @@ Mesh Mesh::MakeRefined(Mesh &orig_mesh, const Array<int> &ref_factors,
 
 Mesh::Mesh(const std::string &filename, int generate_edges, int refine,
            bool fix_orientation)
+ : attribute_sets(attributes), bdr_attribute_sets(bdr_attributes)
 {
    // Initialization as in the default constructor
    SetEmpty();
@@ -4320,6 +4326,7 @@ Mesh::Mesh(const std::string &filename, int generate_edges, int refine,
 
 Mesh::Mesh(std::istream &input, int generate_edges, int refine,
            bool fix_orientation)
+ : attribute_sets(attributes), bdr_attribute_sets(bdr_attributes)
 {
    SetEmpty();
    Load(input, generate_edges, refine, fix_orientation);
@@ -4355,6 +4362,7 @@ Mesh::Mesh(real_t *vertices_, int num_vertices,
            int *boundary_indices, Geometry::Type boundary_type,
            int *boundary_attributes, int num_boundary_elements,
            int dimension, int space_dimension)
+ : attribute_sets(attributes), bdr_attribute_sets(bdr_attributes)
 {
    if (space_dimension == -1)
    {
@@ -4538,6 +4546,7 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    int mfem_version = 0;
    if (mesh_type == "MFEM mesh v1.0") { mfem_version = 10; } // serial
    else if (mesh_type == "MFEM mesh v1.2") { mfem_version = 12; } // parallel
+   else if (mesh_type == "MFEM mesh v1.3") { mfem_version = 13; } // attr sets
 
    // MFEM nonconforming mesh format
    // (NOTE: previous v1.1 is now under this branch for backward compatibility)
@@ -4551,7 +4560,7 @@ void Mesh::Loader(std::istream &input, int generate_edges,
       // section in the stream. A user provided parse tag can also be provided
       // via the arguments. For example, if this is called from parallel mesh
       // object, it can indicate to read until parallel mesh section begins.
-      if (mfem_version == 12 && parse_tag.empty())
+      if (mfem_version >= 12 && parse_tag.empty())
       {
          parse_tag = "mfem_mesh_end";
       }
@@ -4709,7 +4718,7 @@ void Mesh::Loader(std::istream &input, int generate_edges,
 
    // If a parse tag was supplied, keep reading the stream until the tag is
    // encountered.
-   if (mfem_version == 12)
+   if (mfem_version >= 12)
    {
       string line;
       do
@@ -4739,6 +4748,7 @@ void Mesh::Loader(std::istream &input, int generate_edges,
 }
 
 Mesh::Mesh(Mesh *mesh_array[], int num_pieces)
+ : attribute_sets(attributes), bdr_attribute_sets(bdr_attributes)
 {
    int      i, j, ie, ib, iv, *v, nv;
    Element *el;
@@ -4881,6 +4891,7 @@ Mesh::Mesh(Mesh *mesh_array[], int num_pieces)
 }
 
 Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
+   : attribute_sets(attributes), bdr_attribute_sets(bdr_attributes)
 {
    Array<int> ref_factors(orig_mesh->GetNE());
    ref_factors = ref_factor;
@@ -10357,6 +10368,7 @@ void Mesh::InitFromNCMesh(const NCMesh &ncmesh_)
 }
 
 Mesh::Mesh(const NCMesh &ncmesh_)
+  : attribute_sets(attributes), bdr_attribute_sets(bdr_attributes)
 {
    Init();
    InitTables();
@@ -11340,8 +11352,16 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter,
    }
 
    // serial/parallel conforming mesh format
-   os << (section_delimiter.empty()
-          ? "MFEM mesh v1.0\n" : "MFEM mesh v1.2\n");
+   const bool set_names = attribute_sets.SetsExist() ||
+     bdr_attribute_sets.SetsExist();
+   os << (!set_names && section_delimiter.empty()
+          ? "MFEM mesh v1.0\n" :
+	  (!set_names ? "MFEM mesh v1.2\n" : "MFEM mesh v1.3\n"));
+
+   if (set_names && section_delimiter.empty())
+   {
+      section_delimiter = "mfem_mesh_end";
+   }
 
    // optional
    if (!comments.empty()) { os << '\n' << comments << '\n'; }
@@ -11366,10 +11386,22 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter,
       PrintElement(elements[i], os);
    }
 
+   if (set_names)
+   {
+     os << "\nattribute_sets\n";
+     attribute_sets.Print(os);
+   }
+
    os << "\nboundary\n" << NumOfBdrElements << '\n';
    for (i = 0; i < NumOfBdrElements; i++)
    {
       PrintElement(boundary[i], os);
+   }
+
+   if (set_names)
+   {
+     os << "\nbdr_attribute_sets\n";
+     bdr_attribute_sets.Print(os);
    }
 
    os << "\nvertices\n" << NumOfVertices << '\n';
@@ -11395,7 +11427,7 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter,
 
    if (!section_delimiter.empty())
    {
-      os << section_delimiter << endl; // only with format v1.2
+      os << section_delimiter << endl; // only with formats v1.2 and above
    }
 }
 

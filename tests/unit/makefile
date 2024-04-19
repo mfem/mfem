@@ -31,6 +31,7 @@ SOURCE_FILES := $(filter-out \
    $(CEED_SOURCE_FILES) $(MINI_SOURCE_FILES), $(SOURCE_FILES))
 HEADER_FILES = $(SRC)catch.hpp $(SRC)unit_tests.hpp
 OBJECT_FILES = $(SOURCE_FILES:$(SRC)%.cpp=%.o)
+LIBTESTS_O = libtests.o
 DATA_DIR = data
 
 SEQ_MAIN_OBJ = unit_test_main.o
@@ -105,17 +106,17 @@ all: $(UNIT_TESTS)
 .SUFFIXES: .cpp .o
 .PHONY: all clean
 
-unit_tests: $(SEQ_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
-	$(CCC) $(SEQ_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
+unit_tests: $(SEQ_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
+	$(CCC) $(SEQ_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
 
-punit_tests: $(PAR_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
-	$(CCC) $(PAR_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
+punit_tests: $(PAR_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
+	$(CCC) $(PAR_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
 
-cunit_tests: $(CUDA_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
-	$(CCC) $(CUDA_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
+cunit_tests: $(CUDA_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
+	$(CCC) $(CUDA_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
 
-pcunit_tests: $(PCUDA_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
-	$(CCC) $(PCUDA_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
+pcunit_tests: $(PCUDA_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
+	$(CCC) $(PCUDA_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
 
 ceed_tests: $(CEED_OBJ) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
 	$(CCC) $(CEED_OBJ) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
@@ -124,6 +125,9 @@ $(DEBUG_DEVICE_TEST): $(DEBUG_DEVICE_OBJ) $(MFEM_LIB_FILE) \
  $(CONFIG_MK)
 	$(CCC) $(DEBUG_DEVICE_OBJ) $(MFEM_LINK_FLAGS) \
 	   $(MFEM_LIBS) -o $(@)
+
+$(LIBTESTS_O): $(OBJECT_FILES)
+	$(LD) -r $(OBJECT_FILES) -o $(@)
 
 # Note: in this rule, we always use the full path to the source file as a
 # workaround for an issue with coveralls.

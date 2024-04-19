@@ -964,8 +964,12 @@ HypreParMatrix * RAP(const HypreParMatrix * Rt, const HypreParMatrix *A,
     be NULL. Each block and the entire system can be rectangular. Scalability to
     extremely large processor counts is limited by global MPI communication, see
     GatherBlockOffsetData() in hypre.cpp. */
-HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
-                                          Array2D<real_t> *blockCoeff=NULL);
+HypreParMatrix *HypreParMatrixFromBlocks(Array2D<const HypreParMatrix*> &blocks,
+                                         Array2D<real_t> *blockCoeff=NULL);
+/// @overload
+MFEM_DEPRECATED HypreParMatrix *HypreParMatrixFromBlocks(
+   Array2D<HypreParMatrix*> &blocks,
+   Array2D<real_t> *blockCoeff=NULL);
 
 /** @brief Eliminate essential BC specified by @a ess_dof_list from the solution
     @a X to the r.h.s. @a B. */
