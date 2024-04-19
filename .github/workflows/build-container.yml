@@ -43,7 +43,7 @@ jobs:
           remove-docker-images: 'true'
 
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       # It's easier to reference named variables than indexes of the matrix
       - name: Set Environment
@@ -65,7 +65,7 @@ jobs:
 
       - name: GHCR Login
         if: (github.event_name != 'pull_request')
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -30,6 +30,8 @@ protected:
    Mesh &mesh; ///< The underlying mesh.
    int order; ///< The order of integration rule.
    int size; ///< Total number of quadrature points.
+   mutable Vector weights; ///< Integration weights.
+   mutable long nodes_sequence = 0; ///< Nodes counter for cache invalidation.
 
    /// @brief Entity quadrature point offset array, of size num_entities + 1.
    ///
@@ -49,6 +51,12 @@ protected:
 
    /// Fill the @ref int_rule array for each geometry type using @ref order.
    void ConstructIntRules(int dim);
+
+   /// Compute the det(J) (volume or faces, depending on the type).
+   virtual const Vector &GetGeometricFactorWeights() const = 0;
+
+   /// Compute the integration weights.
+   void ConstructWeights() const;
 
 public:
    /// Return the total number of quadrature points.
@@ -94,6 +102,15 @@ public:
    /// Write the QuadratureSpace to the stream @a out.
    virtual void Save(std::ostream &out) const = 0;
 
+   /// Return the integration weights (including geometric factors).
+   const Vector &GetWeights() const;
+
+   /// Return the integral of the scalar Coefficient @a coeff.
+   real_t Integrate(Coefficient &coeff) const;
+
+   /// Return the integral of the VectorCoefficient @a coeff in @a integrals.
+   void Integrate(VectorCoefficient &coeff, Vector &integrals) const;
+
    virtual ~QuadratureSpaceBase() { }
 };
 
@@ -102,6 +119,7 @@ public:
 class QuadratureSpace : public QuadratureSpaceBase
 {
 protected:
+   const Vector &GetGeometricFactorWeights() const override;
    void ConstructOffsets();
    void Construct();
 public:
@@ -159,6 +177,7 @@ class FaceQuadratureSpace : public QuadratureSpaceBase
    /// Inverse of the map @a face_indices.
    std::unordered_map<int,int> face_indices_inv;
 
+   const Vector &GetGeometricFactorWeights() const override;
    void ConstructOffsets();
    void Construct();
 
@@ -195,6 +214,10 @@ public:
    /// For tensor-product faces, returns the lexicographic index of the
    /// quadrature point, oriented relative to "element 1".
    int GetPermutedIndex(int idx, int iq) const override;
+
+   /// @brief Get the face index (in the standard Mesh numbering) associated
+   /// with face @a idx in the FaceQuadratureSpace.
+   int GetMeshFaceIndex(int idx) const { return face_indices[idx]; }
 
    /// @brief Returns the index associated with the face described by @a T.
    ///

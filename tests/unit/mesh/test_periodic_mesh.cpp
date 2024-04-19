@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -34,7 +34,7 @@ TEST_CASE("Periodic mesh", "[Mesh]")
    SECTION("1D periodic mesh")
    {
       Mesh orig_mesh = Mesh::MakeCartesian1D(n);
-      std::vector<Vector> translations = {Vector({1.0})};
+      std::vector<Vector> translations = {Vector({(real_t) 1.0})};
       Mesh mesh = Mesh::MakePeriodic(
                      orig_mesh,
                      orig_mesh.CreatePeriodicVertexMapping(translations));
