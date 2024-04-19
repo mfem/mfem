@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -49,7 +49,7 @@ int main(int argc, char *argv[])
    args.PrintOptions(cout);
 
    // Setup metric.
-   double tauval = -0.1;
+   real_t tauval = -0.1;
    TMOP_QualityMetric *metric = NULL;
    switch (metric_id)
    {
@@ -113,9 +113,9 @@ int main(int argc, char *argv[])
       T(0, 0) += T_vec.Max();
       if (T.Det() <= 0.0) { continue; }
 
-      const double i_form = metric->EvalW(T),
+      const real_t i_form = metric->EvalW(T),
                    m_form = metric->EvalWMatrixForm(T);
-      const double diff = fabs(i_form - m_form) / fabs(m_form);
+      const real_t diff = std::abs(i_form - m_form) / std::abs(m_form);
       if (diff > 1e-8)
       {
          bad_cnt++;
@@ -162,19 +162,19 @@ int main(int argc, char *argv[])
 
    // Test 1st derivative (assuming EvalW is correct). Should be 2nd order.
    Vector dF_0;
-   const double F_0 = integ->GetElementEnergy(fe, Tr, x_loc);
+   const real_t F_0 = integ->GetElementEnergy(fe, Tr, x_loc);
    integ->AssembleElementVector(fe, Tr, x_loc, dF_0);
    if (verbose) { cout << "***\ndF = \n"; dF_0.Print(); cout << "***\n"; }
-   double dx = 0.1;
-   double rate_dF_sum = 0.0, err_old;
+   real_t dx = 0.1;
+   real_t rate_dF_sum = 0.0, err_old = 1.0;
    for (int k = 0; k < convergence_iter; k++)
    {
-      double err_k = 0.0;
+      real_t err_k = 0.0;
       for (int i = 0; i < x_loc.Size(); i++)
       {
          x_loc(i) += dx;
-         err_k = fmax(err_k, fabs(F_0 + dF_0(i) * dx -
-                                  integ->GetElementEnergy(fe, Tr, x_loc)));
+         err_k = std::max(err_k, std::abs(F_0 + dF_0(i) * dx -
+                                          integ->GetElementEnergy(fe, Tr, x_loc)));
          x_loc(i) -= dx;
       }
       dx *= 0.5;
@@ -185,7 +185,7 @@ int main(int argc, char *argv[])
       }
       if (k > 0)
       {
-         double r = log2(err_old / err_k);
+         real_t r = log2(err_old / err_k);
          rate_dF_sum += r;
          if (verbose)
          {
@@ -198,24 +198,24 @@ int main(int argc, char *argv[])
              << rate_dF_sum / (convergence_iter - 1) << endl;
 
    // Test 2nd derivative (assuming EvalP is correct).
-   double min_avg_rate = 7.0;
+   real_t min_avg_rate = 7.0;
    DenseMatrix ddF_0;
    integ->AssembleElementGrad(fe, Tr, x_loc, ddF_0);
    if (verbose) { cout << "***\nddF = \n"; ddF_0.Print(); cout << "***\n"; }
    for (int i = 0; i < x_loc.Size(); i++)
    {
-      double rate_sum = 0.0;
+      real_t rate_sum = 0.0;
       dx = 0.1;
       for (int k = 0; k < convergence_iter; k++)
       {
-         double err_k = 0.0;
+         real_t err_k = 0.0;
 
          for (int j = 0; j < x_loc.Size(); j++)
          {
             x_loc(j) += dx;
             Vector dF_dx;
             integ->AssembleElementVector(fe, Tr, x_loc, dF_dx);
-            err_k = fmax(err_k, fabs(dF_0(i) + ddF_0(i, j) * dx - dF_dx(i)));
+            err_k = std::max(err_k, std::abs(dF_0(i) + ddF_0(i, j) * dx - dF_dx(i)));
             x_loc(j) -= dx;
          }
          dx *= 0.5;
@@ -227,7 +227,7 @@ int main(int argc, char *argv[])
          }
          if (k > 0)
          {
-            double r = log2(err_old / err_k);
+            real_t r = log2(err_old / err_k);
             // Error is zero (2nd derivative is exact) -> put rate 2 (optimal).
             if (err_k < 1e-14) { r = 2.0; }
             rate_sum += r;
@@ -240,7 +240,7 @@ int main(int argc, char *argv[])
          }
          err_old = err_k;
       }
-      min_avg_rate = fmin(min_avg_rate, rate_sum / (convergence_iter - 1));
+      min_avg_rate = std::min(min_avg_rate, rate_sum / (convergence_iter - 1));
    }
    std::cout << "--- AssembleH: avg rate of convergence (should be 2): "
              << min_avg_rate << endl;

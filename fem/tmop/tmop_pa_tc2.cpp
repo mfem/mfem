@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -52,8 +52,8 @@ MFEM_REGISTER_TMOP_KERNELS(bool, TC_IDEAL_SHAPE_UNIT_SIZE_2D_KERNEL,
 
 MFEM_REGISTER_TMOP_KERNELS(bool, TC_IDEAL_SHAPE_GIVEN_SIZE_2D_KERNEL,
                            const int NE,
-                           const Array<double> &b_,
-                           const Array<double> &g_,
+                           const Array<real_t> &b_,
+                           const Array<real_t> &g_,
                            const DenseMatrix &w_,
                            const Vector &x_,
                            DenseTensor &j_,
@@ -63,7 +63,7 @@ MFEM_REGISTER_TMOP_KERNELS(bool, TC_IDEAL_SHAPE_GIVEN_SIZE_2D_KERNEL,
    constexpr int DIM = 2;
    constexpr int NBZ = 1;
 
-   const double detW = w_.Det();
+   const real_t detW = w_.Det();
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
@@ -82,10 +82,10 @@ MFEM_REGISTER_TMOP_KERNELS(bool, TC_IDEAL_SHAPE_GIVEN_SIZE_2D_KERNEL,
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
-      MFEM_SHARED double BG[2][MQ1*MD1];
-      MFEM_SHARED double XY[2][NBZ][MD1*MD1];
-      MFEM_SHARED double DQ[4][NBZ][MD1*MQ1];
-      MFEM_SHARED double QQ[4][NBZ][MQ1*MQ1];
+      MFEM_SHARED real_t BG[2][MQ1*MD1];
+      MFEM_SHARED real_t XY[2][NBZ][MD1*MD1];
+      MFEM_SHARED real_t DQ[4][NBZ][MD1*MQ1];
+      MFEM_SHARED real_t QQ[4][NBZ][MQ1*MQ1];
 
       kernels::internal::LoadX<MD1,NBZ>(e,D1D,X,XY);
       kernels::internal::LoadBG<MD1,MQ1>(D1D,Q1D,b,g,BG);
@@ -97,11 +97,11 @@ MFEM_REGISTER_TMOP_KERNELS(bool, TC_IDEAL_SHAPE_GIVEN_SIZE_2D_KERNEL,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            double Jtr[4];
-            const double *Wid = &W(0,0);
+            real_t Jtr[4];
+            const real_t *Wid = &W(0,0);
             kernels::internal::PullGrad<MQ1,NBZ>(Q1D,qx,qy,QQ,Jtr);
-            const double detJ = kernels::Det<2>(Jtr);
-            const double alpha = std::pow(detJ/detW,1./2);
+            const real_t detJ = kernels::Det<2>(Jtr);
+            const real_t alpha = std::pow(detJ/detW,1./2);
             kernels::Set(DIM,DIM,alpha,Wid,&J(0,0,qx,qy,e));
          }
       }
@@ -133,8 +133,8 @@ TargetConstructor::ComputeAllElementTargets<2>(const FiniteElementSpace &fes,
    const int Q1D = maps.nqpt;
    const int id = (D1D << 4 ) | Q1D;
 
-   const Array<double> &B = maps.B;
-   const Array<double> &G = maps.G;
+   const Array<real_t> &B = maps.B;
+   const Array<real_t> &G = maps.G;
 
    switch (target_type)
    {

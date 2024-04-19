@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -48,7 +48,7 @@ public:
    virtual Operator &GetGradient(const Vector &x) const = 0;
 
    /// Compute the local (to the MPI rank) energy of the L-vector state @a x.
-   virtual double GetGridFunctionEnergy(const Vector &x) const = 0;
+   virtual real_t GetGridFunctionEnergy(const Vector &x) const = 0;
 
    /// Called by NonlinearForm::Update() to reflect changes in the FE space.
    virtual void Update() = 0;
@@ -119,7 +119,7 @@ public:
    Operator &GetGradient(const Vector &x) const override;
 
    /// Compute the local (to the MPI rank) energy of the L-vector state @a x.
-   double GetGridFunctionEnergy(const Vector &x) const override;
+   real_t GetGridFunctionEnergy(const Vector &x) const override;
 
    /// Called by NonlinearForm::Update() to reflect changes in the FE space.
    void Update() override;
@@ -150,7 +150,7 @@ public:
       return *const_cast<MFNonlinearFormExtension*>(this);
    }
 
-   double GetGridFunctionEnergy(const Vector &x) const override
+   real_t GetGridFunctionEnergy(const Vector &x) const override
    {
       MFEM_ABORT("TODO");
       return 0.0;
