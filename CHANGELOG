@@ -27,55 +27,6 @@ Meshing improvements
 
 - Added support for internal boundary elements in nonconforming meshes.
 
-Discretization improvements
----------------------------
-- Introduced support for higher order non conformal Nedelec elements on
-  simplices in ParMesh.
-
-- Introduced support for internal boundary elements in nonconformal adapted
-  meshes.
-
-- Added functionality for construction of cut-surface and cut-volume
-  IntegrationRules through a moment-fitting approach. The cut is specified by
-  the zero level set of a Coefficient. See fem/intrules_cut.hpp and Example 38.
-
-- Added a new nonlinear integrator, `HyperbolicFormIntegrator`. This implements
-  both element-wise weak divergence and face-wise numerical flux for a general
-  system of hyperbolic conservation laws. To use this integrator for a specific
-  flux function, users can define a derived class of `FluxFunction`. Currently,
-  advection, Burgers', shallow-water, Euler equations (see, Example 18) are
-  available.
-
-GPU support
-----------------------------
-- Added support for full assembly on simplices.
-
-- Added functionality for BilinearFormIntegrators to use kernels that work for both
-  tensor and unstructured elements.
-
-- Added partial assembly for linear elasticity. Does not use sum factorization for now.
-
-- Added partial assembly and GPU support for the DG diffusion integrator.
-
-New and updated examples and miniapps
--------------------------------------
-- Added a new block solver in miniapp/solvers for the Darcy problem.
-  The new solver is based on a Bramble-Pasciak preconditioning. User can
-  use and implement their own preconditioner for the mass matrix.
-
-- Added miniapp to demonstrate new elasticity integrator and unstructured element GPU support,
-  and a block diagonal preconditioner using low order refinement. Allows comparison with
-  currently existing legacy mode integrator. See miniapps/solvers/lor_elast.
-
-- Added a new mortar contact patch test miniapp using the Tribol interface
-  physics library (see https://github.com/LLNL/Tribol).  See miniapps/tribol.
-
-Miscellaneous
--------------
-- Added support for single and double precision, with corresponding hypre build.
-  Generalized the floating point type from `double` to `real_t`. For more
-  details see https://github.com/orgs/mfem/discussions/4207.
-
 - The ReadCubit Genesis mesh importer has been rewritten to improve readability.
 
 Discretization improvements
@@ -96,12 +47,14 @@ Discretization improvements
 
 GPU computing
 -------------
+- Added partial assembly and GPU support for the DG diffusion integrator.
+
 - Added support for full assembly on simplices.
 
 - Added functionality for BilinearFormIntegrators to use kernels that work for
   both tensor and unstructured elements.
 
-- Added partial assembly for linear elasticity. (No sum factorization for now.)
+- Added partial assembly for linear elasticity (no sum factorization for now).
 
 - RAJA backend will use seq_exec for serial loop execution when RAJA v2023.06.00
   and beyond is detected as loop_exec is deprecated.
