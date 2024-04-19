@@ -2602,7 +2602,7 @@ public:
    // Write the MeshPart to a stream using the parallel format "MFEM mesh v1.2".
    void Print(std::ostream &os) const;
 
-   // Construct a serrial Mesh object from the MeshPart. The nodes of 'mesh' are
+   // Construct a serial Mesh object from the MeshPart. The nodes of 'mesh' are
    // NOT initialized by this method, however, the nodal FE space and nodal
    // GridFunction can be created and then attached to the 'mesh'. The Mesh is
    // constructed only if 'mesh' is empty, otherwise the method simply returns
