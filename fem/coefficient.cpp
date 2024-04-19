@@ -1390,6 +1390,111 @@ void CrossCrossCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
    M *= ((a == NULL ) ? aConst : a->Eval(T, ip) );
 }
 
+
+InverseEstimateCoefficient::InverseEstimateCoefficient(FiniteElementSpace *f)
+ : fes(f), Q(NULL), ir(NULL)
+{
+   ComputeInverseEstimates();
+}
+
+InverseEstimateCoefficient::InverseEstimateCoefficient(FiniteElementSpace *f, Coefficient &q)
+ : fes(f), Q(&q), ir(NULL)
+{
+   ComputeInverseEstimates();
+}
+
+GridFunction *InverseEstimateCoefficient::GetGridFunction()
+{
+   FiniteElementCollection* fec_ec = new L2_FECollection(0, fes ->GetMesh()->Dimension());
+   FiniteElementSpace *fes_ec = new FiniteElementSpace(fes ->GetMesh(), fec_ec);
+   GridFunction *gf = new GridFunction(fes_ec, elemInvEst.GetData());
+   gf->MakeOwner(fec_ec);
+   return gf;
+}
+
+void InverseEstimateCoefficient::ComputeInverseEstimates()
+{
+   elemInvEst.SetSize(fes -> GetNE());
+   SetIntRule(*fes->GetFE(0));
+   for (int i = 0; i < fes -> GetNE(); i++)
+   {
+      elemInvEst[i] = ElementInverseEstimate(*fes->GetFE(i),
+                                             *fes->GetElementTransformation(i));
+   }
+}
+
+void InverseEstimateCoefficient::SetIntRule(const FiniteElement &el)
+{
+   if (ir) delete ir;
+   ir = &IntRules.Get(el.GetGeomType(), 2*el.GetOrder());
+}
+
+real_t InverseEstimateCoefficient::ElementInverseEstimate(const FiniteElement &el,
+                                                          ElementTransformation &Trans)
+{
+   int nd = el.GetDof();
+   int dim = el.GetDim();
+
+   shape.SetSize(nd);
+   dshape.SetSize(nd,dim);
+   laplace.SetSize(nd);
+
+   lapmat.SetSize(nd,nd);
+   bimat.SetSize(nd,nd);
+   ovec.SetSize(nd);
+
+   real_t w,q;
+
+   bimat = 0.0;
+   lapmat = 0.0;
+   ovec = 0.0;
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      Trans.SetIntPoint(&ip);
+      w = Trans.Weight()*ip.weight;
+      if (Q)
+      {
+         q = Q->Eval(Trans, ip);
+      }
+
+      el.CalcPhysDShape(Trans, dshape);
+      AddMult_a_AAt(w*q, dshape, lapmat);
+
+      el.CalcPhysLaplacian(Trans, laplace);
+      AddMult_a_VVt(w*q*q, laplace, bimat);
+
+      el.CalcPhysShape(Trans, shape);
+      ovec.Add(w, shape);
+   }
+   ovec *= 1.0/ovec.Norml2();
+
+   // Correct nullspace + inverse
+   AddMult_a_VVt(1.0, ovec, lapmat);
+
+   real_t ev3 = PowerMethod3(lapmat, bimat, ovec);
+
+   if (evec.Size() != nd)
+   {
+      evec.SetSize(nd);
+      evec.Randomize(122134);
+   }
+
+   real_t alpha = evec*ovec;
+   evec.Add(-alpha, ovec);
+
+
+
+   real_t ev2 = PowerMethod2(lapmat, bimat, evec, ovec, 100, 1e-10, 0);
+
+if (fabs(ev3-ev2)/(ev3+ev2) > 0.01)
+{
+   cout<<ev3<<" "<<ev2<<endl;
+}
+
+   return PowerMethod3(lapmat, bimat, ovec);
+}
+
 real_t LpNormLoop(real_t p, Coefficient &coeff, Mesh &mesh,
                   const IntegrationRule *irs[])
 {

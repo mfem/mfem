@@ -2234,6 +2234,52 @@ public:
 };
 ///@}
 
+/** @brief 
+*/
+class InverseEstimateCoefficient : public Coefficient
+{
+private:
+   ///
+   Vector elemInvEst;
+   /// FE space on which the grid function lives. Owned if #fec is not NULL.
+   FiniteElementSpace *fes;
+
+   ///
+   const IntegrationRule *ir;
+
+   ///
+   Coefficient *Q;
+   Vector laplace, shape, ovec, evec;
+   DenseMatrix dshape, lapmat, bimat;
+
+   ///
+   void SetIntRule(const FiniteElement &el);
+
+   real_t ElementInverseEstimate(const FiniteElement &el,
+                                 ElementTransformation &Trans);
+
+public:
+   ///
+   InverseEstimateCoefficient(FiniteElementSpace *f);
+   InverseEstimateCoefficient(FiniteElementSpace *f, Coefficient &q);
+
+   /// Caller gets owner ship of GridFunction and
+   GridFunction *GetGridFunction();
+
+   ///
+   void ComputeInverseEstimates();
+
+   /// Evaluate the coefficient at @a ip.
+   virtual real_t Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip)
+   { return elemInvEst[T.ElementNo]; }
+
+};
+///@}
+
+
+
+
 /** @brief Vector quadrature function coefficient which requires that the
     quadrature rules used for this vector coefficient be the same as those that
     live within the supplied QuadratureFunction. */
