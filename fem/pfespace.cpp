@@ -5104,9 +5104,11 @@ void ParFiniteElementSpace::GhostMasterFaceOrderToEdges(
 
       for (auto edge : edges)
       {
-         // Check whether this order is already in edge_orders
-         const VarOrderBits andmask = edge_orders[edge] & mask;
-         const bool newOrder = (andmask == 0);
+         /*
+               // Check whether this order is already in edge_orders
+               const VarOrderBits andmask = edge_orders[edge] & mask;
+               const bool newOrder = (andmask == 0);
+         */
 
          edge_orders[edge] |= mask;
 
