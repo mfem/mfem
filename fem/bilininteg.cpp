@@ -4372,7 +4372,8 @@ void HDGDiffusionCenteredIntegrator::AssembleHDGFaceMatrix(
          wq += ni * nor;
       }
 
-      // only assemble the lower triangular part
+      // assemble the element matrices
+      // (only the lower triangular part)
       wq *= alpha;
       for (int i = 0; i < ndof1; i++)
       {
@@ -4405,7 +4406,7 @@ void HDGDiffusionCenteredIntegrator::AssembleHDGFaceMatrix(
          const real_t wsi = wq*shape2(i);
          for (int j = 0; j < tr_ndof; j++)
          {
-            ct_elmat(i, j) -= wsi * tr_shape(j);
+            ct_elmat(i+ndof1, j) -= wsi * tr_shape(j);
          }
       }
 
@@ -4415,12 +4416,13 @@ void HDGDiffusionCenteredIntegrator::AssembleHDGFaceMatrix(
          const real_t wsi = wq*tr_shape(i);
          for (int j = 0; j < tr_ndof; j++)
          {
-            tr_elmat(i, j) += wsi * tr_shape(j);
+            tr_elmat(i, j) -= wsi * tr_shape(j);
          }
       }
    }
 
-   // complete the upper triangular part
+   // complete the element matrices
+   // (the upper triangular part)
    for (int i = 0; i < ndof1; i++)
       for (int j = 0; j < i; j++)
       {
