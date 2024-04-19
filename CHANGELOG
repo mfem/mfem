@@ -21,6 +21,7 @@ Discretization improvements
 ---------------------------
 - Introduced support for higher order non conformal Nedelec elements on
   simplices in ParMesh.
+
 - Introduced support for internal boundary elements in nonconformal adapted
   meshes.
 
@@ -28,12 +29,23 @@ Discretization improvements
   IntegrationRules through a moment-fitting approach. The cut is specified by
   the zero level set of a Coefficient. See fem/intrules_cut.hpp and Example 38.
 
+- Added a new nonlinear integrator, `HyperbolicFormIntegrator`. This implements
+  both element-wise weak divergence and face-wise numerical flux for a general
+  system of hyperbolic conservation laws. To use this integrator for a specific
+  flux function, users can define a derived class of `FluxFunction`. Currently,
+  advection, Burgers', shallow-water, Euler equations (see, Example 18) are
+  available.
+
 GPU support
 ----------------------------
 - Added support for full assembly on simplices.
+
 - Added functionality for BilinearFormIntegrators to use kernels that work for both
   tensor and unstructured elements.
+
 - Added partial assembly for linear elasticity. Does not use sum factorization for now.
+
+- Added partial assembly and GPU support for the DG diffusion integrator.
 
 New and updated examples and miniapps
 -------------------------------------
@@ -44,6 +56,9 @@ New and updated examples and miniapps
 - Added miniapp to demonstrate new elasticity integrator and unstructured element GPU support,
   and a block diagonal preconditioner using low order refinement. Allows comparison with
   currently existing legacy mode integrator. See miniapps/solvers/lor_elast.
+
+- Added a new mortar contact patch test miniapp using the Tribol interface
+  physics library (see https://github.com/LLNL/Tribol).  See miniapps/tribol.
 
 Miscellaneous
 -------------
@@ -60,9 +75,15 @@ Miscellaneous
   IntegrationRules IntRules, RefinedIntRules, GeometryRefiner
   GlobGeometryRefiner, and FiniteElement::dof2quad_array.
 
+- PETSc integration now generally requires PETSc version 3.21 or later, though
+  depending on the functionality older versions may still work.
+
 - RAJA backend will use seq_exec for serial loop execution when RAJA
   v2023.06.00 and beyond is detected as loop_exec is deprecated.
 
+- Adding named attribute sets and basic supporting methods to the Mesh class as
+  a convenient means of referring to sets of domain or boundary attribute
+  numbers. Also adding related serial and parallel examples which illustrate.
 
 Version 4.6, released on September 27, 2023
 ===========================================

@@ -15,6 +15,7 @@
 #include "../config/config.hpp"
 #include "../general/stable3d.hpp"
 #include "../general/globals.hpp"
+#include "attribute_sets.hpp"
 #include "triangle.hpp"
 #include "tetrahedron.hpp"
 #include "vertex.hpp"
@@ -279,6 +280,12 @@ public:
    Array<int> attributes;
    /// A list of all unique boundary attributes used by the Mesh.
    Array<int> bdr_attributes;
+
+   /// Named sets of element attributes
+   AttributeSets attribute_sets;
+
+   /// Named sets of boundary element attributes
+   AttributeSets bdr_attribute_sets;
 
    NURBSExtension *NURBSext; ///< Optional NURBS mesh extension.
    NCMesh *ncmesh;           ///< Optional nonconforming mesh extension.
@@ -635,7 +642,8 @@ public:
    /// a variety of common forms. For more specialized constructors see
    /// @ref mfem_Mesh_named_ctors "Named mesh constructors".
    /// @{
-   Mesh() { SetEmpty(); }
+   Mesh() : attribute_sets(attributes), bdr_attribute_sets(bdr_attributes)
+   { SetEmpty(); }
 
    /** Copy constructor. Performs a deep copy of (almost) all data, so that the
        source mesh can be modified (e.g. deleted, refined) without affecting the
@@ -677,6 +685,7 @@ public:
        themselves can later be added using methods from the
        @ref mfem_Mesh_construction "Mesh construction" group. */
    Mesh(int Dim_, int NVert, int NElem, int NBdrElem = 0, int spaceDim_ = -1)
+      : attribute_sets(attributes), bdr_attribute_sets(bdr_attributes)
    {
       if (spaceDim_ == -1) { spaceDim_ = Dim_; }
       InitMesh(Dim_, spaceDim_, NVert, NElem, NBdrElem);
@@ -1113,6 +1122,7 @@ public:
    Mesh(int nx, int ny, int nz, Element::Type type, bool generate_edges = false,
         real_t sx = 1.0, real_t sy = 1.0, real_t sz = 1.0,
         bool sfc_ordering = true)
+      : attribute_sets(attributes), bdr_attribute_sets(bdr_attributes)
    {
       Make3D(nx, ny, nz, type, sx, sy, sz, sfc_ordering);
       Finalize(true); // refine = true
@@ -1122,6 +1132,7 @@ public:
    MFEM_DEPRECATED
    Mesh(int nx, int ny, Element::Type type, bool generate_edges = false,
         real_t sx = 1.0, real_t sy = 1.0, bool sfc_ordering = true)
+      : attribute_sets(attributes), bdr_attribute_sets(bdr_attributes)
    {
       Make2D(nx, ny, type, sx, sy, generate_edges, sfc_ordering);
       Finalize(true); // refine = true
@@ -1130,6 +1141,7 @@ public:
    /// Deprecated: see @a MakeCartesian1D.
    MFEM_DEPRECATED
    explicit Mesh(int n, real_t sx = 1.0)
+      : attribute_sets(attributes), bdr_attribute_sets(bdr_attributes)
    {
       Make1D(n, sx);
       // Finalize(); // reminder: not needed
