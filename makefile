@@ -205,18 +205,6 @@ MFEM_SHARED_BUILD = $(MFEM_SHARED)
 override static = $(if $(MFEM_STATIC:YES=),,YES)
 override shared = $(if $(MFEM_SHARED:YES=),,YES)
 
-# Process MFEM_PRECISION -> MFEM_USE_SINGLE, MFEM_USE_DOUBLE
-ifneq ($(filter double Double DOUBLE,$(MFEM_PRECISION)),)
-   MFEM_USE_DOUBLE ?= YES
-   MFEM_USE_SINGLE ?= NO
-else ifneq ($(filter single Single SINGLE,$(MFEM_PRECISION)),)
-   MFEM_USE_DOUBLE ?= NO
-   MFEM_USE_SINGLE ?= YES
-else ifeq ($(MAKECMDGOALS),config)
-   $(error Invalid floating-point precision: \
-     MFEM_PRECISION = $(MFEM_PRECISION))
-endif
-
 # Error for package integrations that currently don't support single precision
 ifeq ($(MFEM_USE_SINGLE),YES)
    PKGS_NO_SINGLE = SUNDIALS SUITESPARSE SUPERLU STRUMPACK GINKGO AMGX SLEPC\
