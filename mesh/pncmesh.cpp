@@ -261,9 +261,10 @@ void ParNCMesh::FindEdgesOfGhostFace(int face, Array<int> & edges)
 
    int V[4], E[4], Eo[4];
    const int nfv = GetFaceVerticesEdges(*midt.id, V, E, Eo);
+   MFEM_ASSERT(nfv == 4, "");
 
-   edges.SetSize(4);
-   for (int i=0; i<4; ++i)
+   edges.SetSize(nfv);
+   for (int i=0; i<nfv; ++i)
    {
       edges[i] = E[i];
    }
