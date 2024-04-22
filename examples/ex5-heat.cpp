@@ -66,6 +66,7 @@ int main(int argc, char *argv[])
    real_t ks = 1.;
    real_t ka = 0.;
    real_t a = 0.;
+   real_t td = 0.5;
    bool hybridization = false;
    bool pa = false;
    const char *device_config = "cpu";
@@ -88,6 +89,8 @@ int main(int argc, char *argv[])
                   "Antisymmetric anisotropy of the heat conductivity tensor");
    args.AddOption(&a, "-a", "--heat_capacity",
                   "Heat capacity coefficient (0=indefinite problem)");
+   args.AddOption(&td, "-td", "--stab_diff",
+                  "Diffusion stabilization factor (1/2=default)");
    args.AddOption(&hybridization, "-hb", "--hybridization", "-no-hb",
                   "--no-hybridization", "Enable hybridization.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
@@ -236,7 +239,10 @@ int main(int argc, char *argv[])
       B->AddDomainIntegrator(new VectorDivergenceIntegrator());
       B->AddInteriorFaceIntegrator(new TransposeIntegrator(
                                       new DGNormalTraceIntegrator(-1.)));
-      Mt->AddInteriorFaceIntegrator(new HDGDiffusionCenteredIntegrator(kcoeff));
+      if (td > 0.)
+      {
+         Mt->AddInteriorFaceIntegrator(new HDGDiffusionCenteredIntegrator(kcoeff, td));
+      }
    }
    else
    {
