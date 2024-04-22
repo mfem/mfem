@@ -3,8 +3,8 @@
 #include <tuple>
 #include <mfem.hpp>
 #include <general/forall.hpp>
+#include <type_traits>
 #include "dfem_fieldoperator.hpp"
-#include "general/error.hpp"
 
 template <typename T>
 constexpr auto get_type_name() -> std::string_view
@@ -34,42 +34,37 @@ constexpr auto get_type_name() -> std::string_view
 
 void print_matrix(mfem::DenseMatrix m)
 {
-   std::cout << "{";
+   std::cout << "[";
    for (int i = 0; i < m.NumRows(); i++)
    {
-      std::cout << "{";
       for (int j = 0; j < m.NumCols(); j++)
       {
          std::cout << m(i, j);
          if (j < m.NumCols() - 1)
          {
-            std::cout << ", ";
+            std::cout << " ";
          }
       }
       if (i < m.NumRows() - 1)
       {
-         std::cout << "}, ";
-      }
-      else
-      {
-         std::cout << "}";
+         std::cout << "; ";
       }
    }
-   std::cout << "}\n";
+   std::cout << "]\n";
 }
 
 void print_vector(mfem::Vector v)
 {
-   std::cout << "{";
+   std::cout << "[";
    for (int i = 0; i < v.Size(); i++)
    {
       std::cout << v(i);
       if (i < v.Size() - 1)
       {
-         std::cout << ", ";
+         std::cout << " ";
       }
    }
-   std::cout << "}\n";
+   std::cout << "]\n";
 }
 
 template <typename ... Ts>
@@ -102,7 +97,7 @@ namespace mfem
 struct FieldDescriptor
 {
    std::variant<const FiniteElementSpace *, const ParFiniteElementSpace *> data;
-   std::string label;
+   std::string field_label;
 };
 
 using mult_func_t = std::function<void(Vector &)>;
@@ -113,6 +108,10 @@ struct DofToQuadMaps
    DeviceTensor<3, const double> G;
 };
 
+template <class... T> constexpr bool always_false = false;
+
+struct OperatesOnElement;
+
 template <typename func_t, typename input_t,
           typename output_t>
 struct ElementOperator;
@@ -122,13 +121,49 @@ template <typename func_t, typename... input_ts,
 struct ElementOperator<func_t, std::tuple<input_ts...>,
           std::tuple<output_ts...>>
 {
+   using OperatesOn = OperatesOnElement;
    func_t func;
    std::tuple<input_ts...> inputs;
    std::tuple<output_ts...> outputs;
+   using kf_param_ts = typename create_function_signature<
+                       decltype(&decltype(func)::operator())>::type::parameter_ts;
+
+   using kf_output_t = typename create_function_signature<
+                       decltype(&decltype(func)::operator())>::type::return_t;
+
+   using kernel_inputs_t = decltype(inputs);
+   using kernel_outputs_t = decltype(outputs);
+
+   static constexpr size_t num_kinputs = std::tuple_size_v<kernel_inputs_t>;
+   static constexpr size_t num_koutputs = std::tuple_size_v<kernel_outputs_t>;
+
    constexpr ElementOperator(func_t func,
                              std::tuple<input_ts...> inputs,
                              std::tuple<output_ts...> outputs)
-      : func(func), inputs(inputs), outputs(outputs) {}
+      : func(func), inputs(inputs), outputs(outputs)
+   {
+      // Properly check all parameter types of the kernel
+      // std::apply([](auto&&... args)
+      // {
+      //    ((out << std::is_reference_v<decltype(args)> << "\n"), ...);
+      // },
+      // kf_param_ts);
+
+      // Consistency checks
+      if constexpr (num_koutputs > 1)
+      {
+         static_assert(always_false<func_t>,
+                       "more than one output per kernel is not supported right now");
+      }
+
+      constexpr size_t num_kfinputs = std::tuple_size_v<kf_param_ts>;
+      static_assert(num_kfinputs == num_kinputs,
+                    "kernel function inputs and descriptor inputs have to match");
+
+      // constexpr size_t num_kfoutputs = std::tuple_size_v<kf_output_t>;
+      // static_assert(num_kfoutputs == num_koutputs,
+      //               "kernel function outputs and descriptor outputs have to match");
+   }
 };
 
 template <typename func_t, typename... input_ts,
@@ -137,8 +172,6 @@ ElementOperator(func_t, std::tuple<input_ts...>,
                 std::tuple<output_ts...>)
 -> ElementOperator<func_t, std::tuple<input_ts...>,
 std::tuple<output_ts...>>;
-
-template <class... T> constexpr bool always_false = false;
 
 int GetVSize(const FieldDescriptor &f)
 {
@@ -161,6 +194,31 @@ int GetVSize(const FieldDescriptor &f)
       else
       {
          static_assert(always_false<T>, "can't use GetVSize on type");
+      }
+   }, f.data);
+}
+
+void GetElementVDofs(const FieldDescriptor &f, int el, Array<int> &vdofs)
+{
+   return std::visit([&](auto arg)
+   {
+      if (arg == nullptr)
+      {
+         MFEM_ABORT("FieldDescriptor data is nullptr");
+      }
+
+      using T = std::decay_t<decltype(arg)>;
+      if constexpr (std::is_same_v<T, const FiniteElementSpace *>)
+      {
+         arg->GetElementVDofs(el, vdofs);
+      }
+      else if constexpr (std::is_same_v<T, const ParFiniteElementSpace *>)
+      {
+         arg->GetElementVDofs(el, vdofs);
+      }
+      else
+      {
+         static_assert(always_false<T>, "can't use GetElementVdofs on type");
       }
    }, f.data);
 }
@@ -310,7 +368,7 @@ const DofToQuad *GetDofToQuad(const FieldDescriptor &f,
 }
 
 template <typename field_operator_t>
-int GetSizeOnQP(const field_operator_t &fd, const FieldDescriptor &f)
+int GetSizeOnQP(const field_operator_t &, const FieldDescriptor &f)
 {
    if constexpr (std::is_same_v<field_operator_t, Value>)
    {

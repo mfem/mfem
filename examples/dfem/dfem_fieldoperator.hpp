@@ -5,9 +5,9 @@
 class FieldOperator
 {
 public:
-   FieldOperator(std::string name) : name(name) {};
+   FieldOperator(std::string field_label) : field_label(field_label) {};
 
-   std::string name;
+   std::string field_label;
 
    int size_on_qp = -1;
 
@@ -19,29 +19,29 @@ public:
 class None : public FieldOperator
 {
 public:
-   None(std::string name) : FieldOperator(name) {}
+   None(std::string field_label) : FieldOperator(field_label) {}
 };
 
 class Weight : public FieldOperator
 {
 public:
-   Weight(std::string name) : FieldOperator(name) {};
+   Weight(std::string field_label) : FieldOperator(field_label) {};
 };
 
 class Value : public FieldOperator
 {
 public:
-   Value(std::string name) : FieldOperator(name) {};
+   Value(std::string field_label) : FieldOperator(field_label) {};
 };
 
 class Gradient : public FieldOperator
 {
 public:
-   Gradient(std::string name) : FieldOperator(name) {};
+   Gradient(std::string field_label) : FieldOperator(field_label) {};
 };
 
 class One : public FieldOperator
 {
 public:
-   One(std::string name) : FieldOperator(name) {};
+   One(std::string field_label) : FieldOperator(field_label) {};
 };

@@ -1,4 +1,7 @@
+#pragma once
+
 #include <algorithm>
+#include <cstdlib>
 #include <functional>
 #include <iostream>
 #include <tuple>
@@ -7,12 +10,12 @@
 #include <vector>
 #include <type_traits>
 
-#include <general/forall.hpp>
-#include <linalg/tensor.hpp>
-#include <mfem.hpp>
-#include <enzyme/enzyme>
-
 #include "dfem_util.hpp"
+#include "linalg/densemat.hpp"
+#include "linalg/hypre.hpp"
+#include <linalg/tensor.hpp>
+
+#include <enzyme/enzyme>
 
 using std::size_t;
 
@@ -83,7 +86,7 @@ typename std::array<FieldDescriptor, num_fields>::const_iterator find_name(
    auto it = std::find_if(fields.begin(),
                           fields.end(), [&](const FieldDescriptor &field)
    {
-      return field.label == input_name;
+      return field.field_label == input_name;
    });
 
    return it;
@@ -102,13 +105,15 @@ int find_name_idx(const std::array<FieldDescriptor, num_fields> &fields,
    return (it - fields.begin());
 }
 
-template <size_t num_fields, size_t n, typename field_operator_ts, std::size_t... idx>
-void create_descriptors_to_fields_map(
-   std::array<FieldDescriptor, num_fields> &fields,
-   field_operator_ts &fops,
-   std::array<int, n> &map,
-   std::index_sequence<idx...>)
+template <size_t num_fields, typename field_operator_ts, std::size_t... idx>
+std::array<int, std::tuple_size_v<field_operator_ts>>
+                                                   create_descriptors_to_fields_map(
+                                                      std::array<FieldDescriptor, num_fields> &fields,
+                                                      field_operator_ts &fops,
+                                                      std::index_sequence<idx...>)
 {
+   std::array<int, std::tuple_size_v<field_operator_ts>> map;
+
    auto f = [&](auto &fop, auto &map)
    {
       int i;
@@ -120,7 +125,7 @@ void create_descriptors_to_fields_map(
          fop.size_on_qp = 1;
          map = -1;
       }
-      else if ((i = find_name_idx(fields, fop.name)) != -1)
+      else if ((i = find_name_idx(fields, fop.field_label)) != -1)
       {
          fop.dim = GetDimension(fields[i]);
          fop.vdim = GetVDim(fields[i]);
@@ -129,11 +134,13 @@ void create_descriptors_to_fields_map(
       }
       else
       {
-         MFEM_ABORT("can't find field for " << fop.name);
+         MFEM_ABORT("can't find field for " << fop.field_label);
       }
    };
 
    (f(std::get<idx>(fops), map[idx]), ...);
+
+   return map;
 }
 
 std::vector<DofToQuadMaps> map_dtqmaps(std::vector<const DofToQuad*>
@@ -172,10 +179,11 @@ std::array<DeviceTensor<2>, sizeof...(i)> map_inputs_to_memory(
 
 template <typename input_t, std::size_t... i>
 std::array<Vector, sizeof...(i)> create_input_qp_memory(
-   int num_qp, int num_el,
-   input_t &inputs, std::index_sequence<i...>)
+   int num_qp,
+   input_t &inputs,
+   std::index_sequence<i...>)
 {
-   return {Vector(std::get<i>(inputs).size_on_qp * num_qp * num_el)...};
+   return {Vector(std::get<i>(inputs).size_on_qp * num_qp)...};
 }
 
 template <typename field_operator_t>
@@ -313,6 +321,23 @@ void map_fields_to_quadrature_data_conditional(
     ...);
 }
 
+template <typename input_t, size_t num_fields, std::size_t... i>
+int accumulate_sizes_on_qp(
+   const input_t &inputs,
+   std::array<bool, sizeof...(i)> &kinput_is_dependent,
+   const std::array<int, sizeof...(i)> &kinput_to_field,
+   const std::array<FieldDescriptor, num_fields> &fields,
+   std::index_sequence<i...>)
+{
+   return (... + [](auto &input, auto is_dependent, auto field)
+   {
+      if (!is_dependent) { return 0; }
+      return GetSizeOnQP(input, field);
+   }(std::get<i>(inputs),
+     std::get<i>(kinput_is_dependent),
+     fields[kinput_to_field[i]]));
+}
+
 void prepare_kf_arg(const DeviceTensor<1> &u, double &arg) { arg = u(0); }
 
 template <typename T, int length>
@@ -368,30 +393,30 @@ void prepare_kf_args(std::array<DeviceTensor<2>, num_fields> &u,
    (prepare_kf_arg(u[i], std::get<i>(args), qp), ...);
 }
 
-Vector prepare_kf_result(std::tuple<double> x)
+Vector prepare_kf_result(double x)
 {
    Vector r(1);
-   r = std::get<0>(x);
+   r = x;
    return r;
 }
 
-Vector prepare_kf_result(std::tuple<Vector> x)
+Vector prepare_kf_result(Vector x)
 {
-   return std::get<0>(x);
+   return x;
 }
 
 template <int length>
-Vector prepare_kf_result(std::tuple<mfem::internal::tensor<double, length>> x)
+Vector prepare_kf_result(mfem::internal::tensor<double, length> x)
 {
    Vector r(length);
    for (size_t i = 0; i < length; i++)
    {
-      r(i) = std::get<0>(x)(i);
+      r(i) = x(i);
    }
    return r;
 }
 
-Vector prepare_kf_result(std::tuple<mfem::internal::tensor<double, 2, 2>> x)
+Vector prepare_kf_result(mfem::internal::tensor<double, 2, 2> x)
 {
    Vector r(4);
    for (size_t i = 0; i < 2; i++)
@@ -399,7 +424,7 @@ Vector prepare_kf_result(std::tuple<mfem::internal::tensor<double, 2, 2>> x)
       for (size_t j = 0; j < 2; j++)
       {
          // TODO: Careful with the indices here!
-         r(j + (i * 2)) = std::get<0>(x)(j, i);
+         r(j + (i * 2)) = x(j, i);
       }
    }
    return r;
@@ -437,6 +462,7 @@ auto create_enzyme_args(arg_ts &args,
                         arg_ts &shadow_args,
                         std::index_sequence<Is...>)
 {
+   // (out << ... << std::get<Is>(shadow_args));
    return std::tuple_cat(std::make_tuple(
                             enzyme::Duplicated<std::remove_cv_t<std::remove_reference_t<decltype(std::get<Is>(args))>>*> {&std::get<Is>(args), &std::get<Is>(shadow_args)})...);
 }
@@ -447,15 +473,15 @@ auto fwddiff_apply_enzyme(kernel_t kernel, arg_ts &&args, arg_ts &&shadow_args)
    auto arg_indices =
       std::make_index_sequence<std::tuple_size_v<std::remove_reference_t<arg_ts>>> {};
 
-   // out << "arg_ts is " << get_type_name<decltype(args)>() << "\n";
    auto enzyme_args = create_enzyme_args(args, shadow_args, arg_indices);
-   // out << "return type is " << get_type_name<decltype(enzyme_args)>() << "\n";
+   // out << "arg_ts is " << get_type_name<decltype(args)>() << "\n\n";
+   // out << "return type is " << get_type_name<decltype(enzyme_args)>() << "\n\n";
 
-   return std::apply(
-             [&](auto &&...args)
+   return std::apply([&](auto &&...args)
    {
       using kf_return_t = typename create_function_signature<
                           decltype(&kernel_t::operator())>::type::return_t;
+
 #ifdef MFEM_USE_ENZYME
       // return __enzyme_fwddiff<kernel_return_t>((void *)+kernel, args...);
       return enzyme::get<0>(
@@ -476,11 +502,9 @@ auto apply_kernel_fwddiff_enzyme(const kf_t &kf,
                                  std::array<DeviceTensor<2>, num_args> &v,
                                  int qp)
 {
-   // out << "regular args\n";
    prepare_kf_args(u, args, qp,
                    std::make_index_sequence<std::tuple_size_v<kernel_arg_ts>> {});
 
-   // out << "shadow args\n";
    prepare_kf_args(v, shadow_args, qp,
                    std::make_index_sequence<std::tuple_size_v<kernel_arg_ts>> {});
 
@@ -559,6 +583,56 @@ void map_quadrature_data_to_fields(Vector &y_e, int element_idx, int num_el,
    }
 }
 
+struct DofToQuadOperator
+{
+   static constexpr int rank = 3;
+   DeviceTensor<rank, const double> B;
+
+   const double& operator()(int qp, int d, int dof) const
+   {
+      return B(qp, d, dof);
+   }
+
+   MFEM_HOST_DEVICE inline std::array<int, rank> GetShape() const
+   {
+      return B.GetShape();
+   }
+};
+
+template <typename field_operator_ts, size_t N, std::size_t... i>
+std::vector<DofToQuadOperator> create_dtq_operators(
+   field_operator_ts &fops,
+   std::vector<const DofToQuad*> dtqmaps,
+   int dim,
+   const std::array<int, N> &to_field_map,
+   std::array<bool, N> is_dependent,
+   std::index_sequence<i...>)
+{
+   std::vector<DofToQuadOperator> ops;
+   auto f = [&](auto fop, size_t idx)
+   {
+      if (to_field_map[idx] == -1)
+      {
+         return;
+      }
+      auto dtqmap = dtqmaps[to_field_map[idx]];
+      if (is_dependent[idx])
+      {
+         using field_operator_t = decltype(fop);
+         if constexpr (std::is_same_v<field_operator_t, Value>)
+         {
+            ops.push_back({DeviceTensor<3, const double>(dtqmap->B.Read(), dtqmap->nqpt, 1, dtqmap->ndof)});
+         }
+         else if constexpr (std::is_same_v<field_operator_t, Gradient>)
+         {
+            ops.push_back({DeviceTensor<3, const double>(dtqmap->G.Read(), dtqmap->nqpt, dim, dtqmap->ndof)});
+         }
+      }
+   };
+   (f(std::get<i>(fops), i), ...);
+   return ops;
+}
+
 template <
    typename kernels_tuple,
    size_t num_solutions,
@@ -575,43 +649,11 @@ public:
       template <typename kernel_t>
       void create_callback(kernel_t kernel, mult_func_t &func)
       {
-         using kf_arg_ts = typename create_function_signature<
-                           decltype(&decltype(kernel.func)::operator())>::type::parameter_ts;
+         auto kinput_to_field = create_descriptors_to_fields_map(op.fields,
+                                                                 kernel.inputs, std::make_index_sequence<kernel.num_kinputs> {});
 
-         using kf_output_t = typename create_function_signature<
-                             decltype(&decltype(kernel.func)::operator())>::type::return_t;
-
-         using kernel_inputs_t = decltype(kernel.inputs);
-         using kernel_outputs_t = decltype(kernel.outputs);
-
-         constexpr size_t num_kinputs = std::tuple_size_v<kernel_inputs_t>;
-         constexpr size_t num_koutputs = std::tuple_size_v<kernel_outputs_t>;
-
-         // Consistency checks
-         {
-            if constexpr (num_koutputs > 1)
-            {
-               static_assert(always_false<kernel_t>,
-                             "more than one output per kernel is not supported right now");
-            }
-
-            constexpr size_t num_kfinputs = std::tuple_size_v<kf_arg_ts>;
-            static_assert(num_kfinputs == num_kinputs,
-                          "kernel function inputs and descriptor inputs have to match");
-
-            constexpr size_t num_kfoutputs = std::tuple_size_v<kf_output_t>;
-            static_assert(num_kfoutputs == num_koutputs,
-                          "kernel function outputs and descriptor outputs have to match");
-         }
-
-         std::array<int, num_kinputs> kinput_to_field;
-         create_descriptors_to_fields_map(op.fields, kernel.inputs, kinput_to_field,
-                                          std::make_index_sequence<num_kinputs> {});
-
-         std::array<int, num_koutputs> koutput_to_field;
-         create_descriptors_to_fields_map(op.fields, kernel.outputs,
-                                          koutput_to_field,
-                                          std::make_index_sequence<num_koutputs> {});
+         auto koutput_to_field = create_descriptors_to_fields_map(op.fields,
+                                                                  kernel.outputs, std::make_index_sequence<kernel.num_koutputs> {});
 
          constexpr int hardcoded_output_idx = 0;
          const int test_space_field_idx = koutput_to_field[hardcoded_output_idx];
@@ -620,6 +662,26 @@ public:
 
          const int num_el = op.mesh.GetNE();
          const int num_qp = op.integration_rule.GetNPoints();
+
+         // All solutions T-vector sizes make up the width of the operator, since
+         // they are explicitly provided in Mult() for example.
+         op.width = 0;
+         op.residual_lsize = 0;
+         for (auto &s : op.solutions)
+         {
+            op.width += GetTrueVSize(s);
+            op.residual_lsize += GetVSize(s);
+         }
+         if constexpr (std::is_same_v<decltype(output_fop), One>)
+         {
+            op.height = 1;
+         }
+         else
+         {
+            op.height = op.residual_lsize;
+         }
+
+         residual_l.SetSize(op.residual_lsize);
 
          // assume only a single element type for now
          std::vector<const DofToQuad*> dtqmaps;
@@ -652,8 +714,8 @@ public:
          }
 
          // Allocate memory for fields on quadrature points
-         auto input_qp_mem = create_input_qp_memory(num_qp, num_el, kernel.inputs,
-                                                    std::make_index_sequence<num_kinputs> {});
+         auto input_qp_mem = create_input_qp_memory(num_qp, kernel.inputs,
+                                                    std::make_index_sequence<kernel.num_kinputs> {});
 
          func = [this, kernel, num_el, num_qp, dtqmaps, residual_size_on_qp,
                        input_qp_mem, kinput_to_field, test_space_field_idx, output_fop]
@@ -664,7 +726,7 @@ public:
             const auto residual_qp = Reshape(residual_qp_mem.ReadWrite(),
                                              residual_size_on_qp, num_qp, num_el);
 
-            auto kernel_args = decay_tuple<kf_arg_ts> {};
+            auto kernel_args = decay_tuple<typename kernel_t::kf_param_ts> {};
 
             DeviceTensor<1, const double> integration_weights(
                this->op.integration_rule.GetWeights().Read(), num_qp);
@@ -673,14 +735,15 @@ public:
             // kernel function arguments
             auto input_qp = map_inputs_to_memory(input_qp_mem, num_qp,
                                                  kernel.inputs,
-                                                 std::make_index_sequence<num_kinputs> {});
+                                                 std::make_index_sequence<kernel.num_kinputs> {});
 
             for (int el = 0; el < num_el; el++)
             {
                map_fields_to_quadrature_data(
                   input_qp, el, this->fields_e,
                   kinput_to_field, dtqmaps_tensor,
-                  integration_weights, kernel.inputs, std::make_index_sequence<num_kinputs> {});
+                  integration_weights, kernel.inputs,
+                  std::make_index_sequence<kernel.num_kinputs> {});
 
                for (int qp = 0; qp < num_qp; qp++)
                {
@@ -700,36 +763,50 @@ public:
             }
          };
 
-         auto R = get_element_restriction(op.fields[test_space_field_idx],
-                                          element_dof_ordering);
-
-         element_restriction_transpose = [R](Vector &r_e, Vector &y)
+         if constexpr (std::is_same_v<decltype(output_fop), One>)
          {
-            R->MultTranspose(r_e, y);
-         };
+            element_restriction_transpose = [](Vector &r_e, Vector &y)
+            {
+               y = r_e;
+            };
 
-         auto P = get_prolongation(op.fields[test_space_field_idx]);
-         prolongation_transpose = [P](Vector &r_local, Vector &y)
+            prolongation_transpose = [&](Vector &r_local, Vector &y)
+            {
+               double local_sum = r_local.Sum();
+               MPI_Allreduce(&local_sum, y.GetData(), 1, MPI_DOUBLE, MPI_SUM,
+                             op.mesh.GetComm());
+               MFEM_ASSERT(y.Size() == 1, "output size doesn't match kernel description");
+            };
+         }
+         else
          {
-            P->MultTranspose(r_local, y);
-         };
+            auto R = get_element_restriction(op.fields[test_space_field_idx],
+                                             element_dof_ordering);
+            element_restriction_transpose = [R](Vector &r_e, Vector &y)
+            {
+               R->MultTranspose(r_e, y);
+            };
+
+            auto P = get_prolongation(op.fields[test_space_field_idx]);
+            prolongation_transpose = [P](Vector &r_local, Vector &y)
+            {
+               P->MultTranspose(r_local, y);
+            };
+         }
       }
 
-      template<typename... kernels, std::size_t... idx>
-      void materialize_callbacks(std::tuple<kernels...> &ks,
+      template<std::size_t... idx>
+      void materialize_callbacks(kernels_tuple &ks,
                                  std::array<mult_func_t, num_kernels>,
                                  std::index_sequence<idx...> const&)
       {
          (create_callback(std::get<idx>(ks), funcs[idx]), ...);
       }
 
-      template <typename... kernels>
-      Action(DifferentiableOperator &op, std::tuple<kernels...> &ks) : op(op)
+      Action(DifferentiableOperator &op, kernels_tuple &ks) : op(op)
       {
-         residual_l.SetSize(op.residual_lsize);
-
          materialize_callbacks(ks, funcs,
-                               std::make_index_sequence<sizeof...(kernels)>());
+                               std::make_index_sequence<std::tuple_size_v<kernels_tuple>>());
       }
 
       void Mult(const Vector &x, Vector &y) const override
@@ -757,6 +834,8 @@ public:
 
       void SetParameters(std::vector<Vector *> p)
       {
+         MFEM_ASSERT(num_parameters == p.size(),
+                     "number of parameters doesn't match descriptors");
          for (int i = 0; i < num_parameters; i++)
          {
             // parameters_local[i].MakeRef(*(p[i]), 0, p[i]->Size());
@@ -792,43 +871,11 @@ public:
       template <typename kernel_t>
       void create_callback(kernel_t kernel, mult_func_t &func)
       {
-         using kf_param_ts = typename create_function_signature<
-                             decltype(&decltype(kernel.func)::operator())>::type::parameter_ts;
+         auto kinput_to_field = create_descriptors_to_fields_map(op.fields,
+                                                                 kernel.inputs, std::make_index_sequence<kernel.num_kinputs> {});
 
-         using kf_output_t = typename create_function_signature<
-                             decltype(&decltype(kernel.func)::operator())>::type::return_t;
-
-         using kernel_inputs_t = decltype(kernel.inputs);
-         using kernel_outputs_t = decltype(kernel.outputs);
-
-         constexpr size_t num_kinputs = std::tuple_size_v<kernel_inputs_t>;
-         constexpr size_t num_koutputs = std::tuple_size_v<kernel_outputs_t>;
-
-         // Consistency checks
-         {
-            if constexpr (num_koutputs > 1)
-            {
-               static_assert(always_false<kernel_t>,
-                             "more than one output per kernel is not supported right now");
-            }
-
-            constexpr size_t num_kfinputs = std::tuple_size_v<kf_param_ts>;
-            static_assert(num_kfinputs == num_kinputs,
-                          "kernel function inputs and descriptor inputs have to match");
-
-            constexpr size_t num_kfoutputs = std::tuple_size_v<kf_output_t>;
-            static_assert(num_kfoutputs == num_koutputs,
-                          "kernel function outputs and descriptor outputs have to match");
-         }
-
-         std::array<int, num_kinputs> kinput_to_field;
-         create_descriptors_to_fields_map(op.fields, kernel.inputs, kinput_to_field,
-                                          std::make_index_sequence<num_kinputs> {});
-
-         std::array<int, num_koutputs> koutput_to_field;
-         create_descriptors_to_fields_map(op.fields, kernel.outputs,
-                                          koutput_to_field,
-                                          std::make_index_sequence<num_koutputs> {});
+         auto koutput_to_field = create_descriptors_to_fields_map(op.fields,
+                                                                  kernel.outputs, std::make_index_sequence<kernel.num_koutputs> {});
 
          constexpr int hardcoded_output_idx = 0;
          const int test_space_field_idx = koutput_to_field[hardcoded_output_idx];
@@ -845,37 +892,20 @@ public:
             dtqmaps.emplace_back(GetDofToQuad(field, op.integration_rule, doftoquad_mode));
          }
 
-         if (derivative_action_e.Size() > 0 &&
-             (derivative_action_e.Size() != GetVSize(op.fields[test_space_field_idx]) *
-              num_el))
-         {
-            MFEM_ABORT("inconsistent kernels");
-         }
-         else
-         {
-            derivative_action_e.SetSize(GetVSize(op.fields[test_space_field_idx]) * num_el);
-         }
+         derivative_action_e.SetSize(GetVDim(op.fields[test_space_field_idx]) * num_el *
+                                     num_qp);
 
-         const int da_size_on_qp = GetSizeOnQP(std::get<0> (kernel.outputs),
+         const int da_size_on_qp = GetSizeOnQP(std::get<0>(kernel.outputs),
                                                op.fields[test_space_field_idx]);
 
-         if (da_qp_mem.Size() > 0 &&
-             (da_qp_mem.Size() != da_size_on_qp * num_qp * num_el))
-         {
-            MFEM_ABORT("inconsistent kernels");
-         }
-         else
-         {
-            da_qp_mem.SetSize(da_size_on_qp * num_qp *
-                              num_el);
-         }
+         da_qp_mem.SetSize(da_size_on_qp * num_qp * num_el);
 
          // Allocate memory for fields on quadrature points
-         auto input_qp_mem = create_input_qp_memory(num_qp, num_el, kernel.inputs,
-                                                    std::make_index_sequence<num_kinputs> {});
+         auto input_qp_mem = create_input_qp_memory(num_qp, kernel.inputs,
+                                                    std::make_index_sequence<kernel.num_kinputs> {});
 
-         auto directions_qp_mem = create_input_qp_memory(num_qp, num_el, kernel.inputs,
-                                                         std::make_index_sequence<num_kinputs> {});
+         auto directions_qp_mem = create_input_qp_memory(num_qp, kernel.inputs,
+                                                         std::make_index_sequence<kernel.num_kinputs> {});
 
          for (auto &d_qp_mem : directions_qp_mem)
          {
@@ -888,7 +918,7 @@ public:
          (Vector &y_e) mutable
          {
             // Check which qf inputs are dependent on the dependent variable
-            std::array<bool, num_kinputs> kinput_is_dependent;
+            std::array<bool, kernel.num_kinputs> kinput_is_dependent;
             bool no_qfinput_is_dependent = true;
             for (int i = 0; i < kinput_is_dependent.size(); i++)
             {
@@ -897,7 +927,7 @@ public:
                   no_qfinput_is_dependent = false;
                   kinput_is_dependent[i] = true;
                   out << "function input " << i << " is dependent on "
-                      << op.fields[kinput_to_field[i]].label << "\n";
+                      << op.fields[kinput_to_field[i]].field_label << "\n";
                }
                else
                {
@@ -914,8 +944,8 @@ public:
 
             const auto da_qp = Reshape(da_qp_mem.ReadWrite(), da_size_on_qp, num_qp, num_el);
 
-            auto kernel_args = decay_tuple<kf_param_ts> {};
-            auto kernel_shadow_args = decay_tuple<kf_param_ts> {};
+            auto kernel_args = decay_tuple<typename kernel_t::kf_param_ts> {};
+            auto kernel_shadow_args = decay_tuple<typename kernel_t::kf_param_ts> {};
 
             DeviceTensor<1, const double> integration_weights(
                this->op.integration_rule.GetWeights().Read(), num_qp);
@@ -924,18 +954,19 @@ public:
             // kernel function arguments
             auto input_qp = map_inputs_to_memory(input_qp_mem, num_qp,
                                                  kernel.inputs,
-                                                 std::make_index_sequence<num_kinputs> {});
+                                                 std::make_index_sequence<kernel.num_kinputs> {});
 
             auto directions_qp = map_inputs_to_memory(directions_qp_mem, num_qp,
                                                       kernel.inputs,
-                                                      std::make_index_sequence<num_kinputs> {});
-
+                                                      std::make_index_sequence<kernel.num_kinputs> {});
+            Vector f_qp(da_size_on_qp);
             for (int el = 0; el < num_el; el++)
             {
                map_fields_to_quadrature_data(
                   input_qp, el, this->fields_e,
                   kinput_to_field, dtqmaps_tensor,
-                  integration_weights, kernel.inputs, std::make_index_sequence<num_kinputs> {});
+                  integration_weights, kernel.inputs,
+                  std::make_index_sequence<kernel.num_kinputs> {});
 
                map_fields_to_quadrature_data_conditional(
                   directions_qp, el,
@@ -944,11 +975,10 @@ public:
                   integration_weights,
                   kinput_is_dependent,
                   kernel.inputs,
-                  std::make_index_sequence<num_kinputs> {});
+                  std::make_index_sequence<kernel.num_kinputs> {});
 
                for (int qp = 0; qp < num_qp; qp++)
                {
-                  Vector f_qp(da_size_on_qp);
                   f_qp = apply_kernel_fwddiff_enzyme(
                             kernel.func,
                             kernel_args,
@@ -971,35 +1001,51 @@ public:
             }
          };
 
-         auto R = get_element_restriction(op.fields[test_space_field_idx],
-                                          element_dof_ordering);
-
-         element_restriction_transpose = [R](Vector &r_e, Vector &y)
+         if constexpr (std::is_same_v<decltype(output_fop), One>)
          {
-            R->MultTranspose(r_e, y);
-         };
+            element_restriction_transpose = [](Vector &r_e, Vector &y)
+            {
+               y = r_e;
+            };
 
-         auto P = get_prolongation(op.fields[test_space_field_idx]);
-         prolongation_transpose = [P](Vector &r_local, Vector &y)
+            prolongation_transpose = [&](Vector &r_local, Vector &y)
+            {
+               double local_sum = r_local.Sum();
+               MPI_Allreduce(&local_sum, y.GetData(), 1, MPI_DOUBLE, MPI_SUM,
+                             op.mesh.GetComm());
+               MFEM_ASSERT(y.Size() == 1, "output size doesn't match kernel description");
+            };
+         }
+         else
          {
-            P->MultTranspose(r_local, y);
-         };
+            auto R = get_element_restriction(op.fields[test_space_field_idx],
+                                             element_dof_ordering);
+            element_restriction_transpose = [R](Vector &r_e, Vector &y)
+            {
+               R->MultTranspose(r_e, y);
+            };
+
+            auto P = get_prolongation(op.fields[test_space_field_idx]);
+            prolongation_transpose = [P](Vector &r_l, Vector &y)
+            {
+               P->MultTranspose(r_l, y);
+            };
+         }
       }
 
-      template<typename... kernels, std::size_t... idx>
-      void materialize_callbacks(std::tuple<kernels...> &ks,
+      template<std::size_t... idx>
+      void materialize_callbacks(kernels_tuple &ks,
                                  std::array<mult_func_t, num_kernels>,
                                  std::index_sequence<idx...> const&)
       {
          (create_callback(std::get<idx>(ks), funcs[idx]), ...);
       }
 
-      template <typename... kernels>
       Derivative(
          DifferentiableOperator &op,
          std::array<Vector *, num_solutions> &solutions,
          std::array<Vector *, num_parameters> &parameters,
-         std::tuple<kernels...> &ks) : op(op)
+         kernels_tuple &ks) : op(op), ks(ks)
       {
          for (int i = 0; i < num_solutions; i++)
          {
@@ -1031,7 +1077,7 @@ public:
          derivative_action_l.SetSize(derivative_action_l_size);
 
          materialize_callbacks(ks, funcs,
-                               std::make_index_sequence<sizeof...(kernels)>());
+                               std::make_index_sequence<num_kernels>());
       }
 
       void Mult(const Vector &x, Vector &y) const override
@@ -1057,18 +1103,468 @@ public:
          y.SetSubVector(op.ess_tdof_list, 0.0);
       }
 
-      void Assemble(Vector &v)
+      template <typename kernel_t>
+      void assemble_vector_impl(kernel_t kernel, Vector &v)
       {
-         out << "derivative wrt -> vector \n";
-         op.AssembleDerivativeWrt<derivative_idx>();
+         auto output_fop = std::get<0>(kernel.outputs);
+
+         if constexpr (!std::is_same_v<decltype(output_fop), One>)
+         {
+            MFEM_ASSERT(false,
+                        "trying to get a derivative for a vector from a residual that is not scalar");
+         }
+
+         auto kinput_to_field = create_descriptors_to_fields_map(op.fields,
+                                                                 kernel.inputs,
+                                                                 std::make_index_sequence<kernel.num_kinputs> {});
+
+         auto koutput_to_field = create_descriptors_to_fields_map(op.fields,
+                                                                  kernel.outputs,
+                                                                  std::make_index_sequence<kernel.num_koutputs> {});
+
+         constexpr int hardcoded_output_idx = 0;
+         const int test_space_field_idx = koutput_to_field[hardcoded_output_idx];
+
+         // Create Value output FieldOperator
+         auto output_fop_value = Value{std::get<0>(kernel.outputs).field_label};
+         output_fop_value.vdim = GetVDim(op.fields[test_space_field_idx]);
+
+         const int num_el = op.mesh.GetNE();
+         const int num_qp = op.integration_rule.GetNPoints();
+
+         v.SetSize(op.width);
+         v = 0.0;
+
+         // assume only a single element type for now
+         std::vector<const DofToQuad*> dtqmaps;
+         for (const auto &field : op.fields)
+         {
+            dtqmaps.emplace_back(GetDofToQuad(field, op.integration_rule, doftoquad_mode));
+         }
+
+         // Allocate memory for fields on quadrature points
+         auto input_qp_mem = create_input_qp_memory(num_qp, kernel.inputs,
+                                                    std::make_index_sequence<kernel.num_kinputs> {});
+
+         auto directions_qp_mem = create_input_qp_memory(num_qp, kernel.inputs,
+                                                         std::make_index_sequence<kernel.num_kinputs> {});
+
+         for (auto &d_qp_mem : directions_qp_mem)
+         {
+            d_qp_mem = 0.0;
+         }
+
+         std::array<bool, kernel.num_kinputs> kinput_is_dependent;
+         bool no_qfinput_is_dependent = true;
+         for (int i = 0; i < kinput_is_dependent.size(); i++)
+         {
+            if (kinput_to_field[i] == derivative_idx)
+            {
+               no_qfinput_is_dependent = false;
+               kinput_is_dependent[i] = true;
+               out << "function input " << i << " is dependent on "
+                   << op.fields[kinput_to_field[i]].field_label << "\n";
+            }
+            else
+            {
+               kinput_is_dependent[i] = false;
+            }
+         }
+
+         if (no_qfinput_is_dependent)
+         {
+            return;
+         }
+
+         auto dtqmaps_tensor = map_dtqmaps(dtqmaps, this->op.dim, num_qp);
+
+         auto kernel_args = decay_tuple<typename kernel_t::kf_param_ts> {};
+         auto kernel_shadow_args = decay_tuple<typename kernel_t::kf_param_ts> {};
+
+         DeviceTensor<1, const double> integration_weights(
+            this->op.integration_rule.GetWeights().Read(), num_qp);
+
+         for (int i = 0; i < num_fields; i++)
+         {
+            directions_e[i].SetSize(fields_e[i].Size());
+            directions_e[i] = 1.0;
+         }
+
+         derivative_action_e = 0.0;
+
+         // Fields interpolated to the quadrature points in the order of
+         // kernel function arguments
+         auto input_qp = map_inputs_to_memory(input_qp_mem, num_qp,
+                                              kernel.inputs,
+                                              std::make_index_sequence<kernel.num_kinputs> {});
+
+         auto directions_qp = map_inputs_to_memory(directions_qp_mem, num_qp,
+                                                   kernel.inputs,
+                                                   std::make_index_sequence<kernel.num_kinputs> {});
+
+         da_qp_mem = 0.0;
+         const auto da_qp = Reshape(da_qp_mem.ReadWrite(), 1, num_qp, num_el);
+
+         for (int el = 0; el < num_el; el++)
+         {
+            map_fields_to_quadrature_data(
+               input_qp, el, this->fields_e,
+               kinput_to_field, dtqmaps_tensor,
+               integration_weights, kernel.inputs,
+               std::make_index_sequence<kernel.num_kinputs> {});
+
+            map_fields_to_quadrature_data_conditional(
+               directions_qp, el,
+               directions_e, derivative_idx,
+               dtqmaps_tensor,
+               integration_weights,
+               kinput_is_dependent,
+               kernel.inputs,
+               std::make_index_sequence<kernel.num_kinputs> {});
+
+            for (int qp = 0; qp < num_qp; qp++)
+            {
+               auto r_qp = Reshape(&da_qp(0, qp, el), 1);
+
+               r_qp(0) = apply_kernel_fwddiff_enzyme(
+                            kernel.func,
+                            kernel_args,
+                            input_qp,
+                            kernel_shadow_args,
+                            directions_qp,
+                            qp)(0);
+            }
+
+            map_quadrature_data_to_fields(derivative_action_e, el, num_el, da_qp,
+                                          output_fop_value,
+                                          dtqmaps_tensor,
+                                          test_space_field_idx);
+         }
+
+         auto R = get_element_restriction(op.fields[test_space_field_idx],
+                                          element_dof_ordering);
+         Vector v_l(R->Width());
+         R->MultTranspose(derivative_action_e, v_l);
+
+         auto P = get_prolongation(op.fields[test_space_field_idx]);
+         P->MultTranspose(v_l, v);
       }
 
-      void AssembleDiagonal(Vector &d) const override {}
+      template<std::size_t... idx>
+      void assemble_vector(
+         kernels_tuple &ks,
+         Vector &v,
+         std::index_sequence<idx...> const&)
+      {
+         (assemble_vector_impl(std::get<idx>(ks), v), ...);
+      }
+
+      void Assemble(Vector &v)
+      {
+         assemble_vector(ks, v, std::make_index_sequence<num_kernels>());
+      }
+
+      template <typename kernel_t>
+      void assemble_hypreparmatrix_impl(kernel_t kernel, HypreParMatrix &A)
+      {
+         auto kinput_to_field = create_descriptors_to_fields_map(op.fields,
+                                                                 kernel.inputs,
+                                                                 std::make_index_sequence<kernel.num_kinputs> {});
+
+         auto koutput_to_field = create_descriptors_to_fields_map(op.fields,
+                                                                  kernel.outputs,
+                                                                  std::make_index_sequence<kernel.num_koutputs> {});
+
+         auto output_fop = std::get<0>(kernel.outputs);
+
+         constexpr int hardcoded_output_idx = 0;
+         const int test_space_field_idx = koutput_to_field[hardcoded_output_idx];
+
+         int num_el = 0;
+         int num_qp = 0;
+         if constexpr (std::is_same_v<typename kernel_t::OperatesOn, OperatesOnElement>)
+         {
+            num_el = op.mesh.GetNE();
+            num_qp = op.integration_rule.GetNPoints();
+         }
+         else
+         {
+            static_assert(always_false<typename kernel_t::OperatesOn>, "not implemented");
+         }
+
+         std::vector<const DofToQuad*> dtqmaps;
+         for (const auto &field : op.fields)
+         {
+            dtqmaps.emplace_back(GetDofToQuad(field, op.integration_rule, doftoquad_mode));
+         }
+
+         // Allocate memory for fields on quadrature points
+         auto input_qp_mem = create_input_qp_memory(num_qp, kernel.inputs,
+                                                    std::make_index_sequence<kernel.num_kinputs> {});
+
+         auto directions_qp_mem = create_input_qp_memory(num_qp, kernel.inputs,
+                                                         std::make_index_sequence<kernel.num_kinputs> {});
+
+         for (auto &d_qp_mem : directions_qp_mem)
+         {
+            d_qp_mem = 0.0;
+         }
+
+         std::array<bool, kernel.num_kinputs> kinput_is_dependent;
+         bool no_kinput_is_dependent = true;
+         for (int i = 0; i < kinput_is_dependent.size(); i++)
+         {
+            if (kinput_to_field[i] == derivative_idx)
+            {
+               no_kinput_is_dependent = false;
+               kinput_is_dependent[i] = true;
+               out << "function input " << i << " is dependent on "
+                   << op.fields[kinput_to_field[i]].field_label << "\n";
+            }
+            else
+            {
+               kinput_is_dependent[i] = false;
+            }
+         }
+
+         if (no_kinput_is_dependent)
+         {
+            return;
+         }
+
+         auto dtqmaps_tensor = map_dtqmaps(dtqmaps, this->op.dim, num_qp);
+
+         auto kernel_args = decay_tuple<typename kernel_t::kf_param_ts> {};
+         auto kernel_shadow_args = decay_tuple<typename kernel_t::kf_param_ts> {};
+
+         DeviceTensor<1, const double> integration_weights(
+            this->op.integration_rule.GetWeights().Read(), num_qp);
+
+         // fields interpolated to the quadrature points in the order of
+         // kernel function arguments
+         auto input_qp = map_inputs_to_memory(input_qp_mem, num_qp,
+                                              kernel.inputs,
+                                              std::make_index_sequence<kernel.num_kinputs> {});
+
+         auto directions_qp = map_inputs_to_memory(directions_qp_mem, num_qp,
+                                                   kernel.inputs,
+                                                   std::make_index_sequence<kernel.num_kinputs> {});
+
+         constexpr int fixed_output_idx = 0;
+         std::array<bool, kernel.num_koutputs> out_is_dependent;
+         out_is_dependent[fixed_output_idx] = true;
+         auto output_dtq_ops = create_dtq_operators(kernel.outputs, dtqmaps, op.dim,
+                                                    koutput_to_field,
+                                                    out_is_dependent, std::make_index_sequence<kernel.num_koutputs> {});
+         auto [unused0, test_op_dim, num_test_dof] =
+            output_dtq_ops[fixed_output_idx].GetShape();
+
+         auto dependent_input_dtq_ops = create_dtq_operators(kernel.inputs, dtqmaps,
+                                                             op.dim,
+                                                             kinput_to_field,
+                                                             kinput_is_dependent, std::make_index_sequence<kernel.num_kinputs> {});
+         const int num_trial_dof = dependent_input_dtq_ops[0].GetShape()[2];
+
+         // number of rows for the derivative of the kernel \partial D
+         const int nrows_a = GetSizeOnQP(std::get<0>(kernel.outputs),
+                                         op.fields[test_space_field_idx]);
+
+         // number of columns for the derivative of the kernel \partial D
+         const int ncols_a = accumulate_sizes_on_qp(kernel.inputs,
+                                                    kinput_is_dependent,
+                                                    kinput_to_field,
+                                                    op.fields,
+                                                    std::make_index_sequence<kernel.num_kinputs> {});
+
+         Vector a_qp_mem(nrows_a * ncols_a * num_qp * num_el);
+         const auto a_qp = Reshape(a_qp_mem.ReadWrite(), nrows_a, ncols_a, num_qp,
+                                   num_el);
+
+         Vector A_l(num_test_dof * num_trial_dof * num_el);
+         A_l = 0.0;
+
+         auto A_e = Reshape(A_l.ReadWrite(), num_test_dof, num_trial_dof,
+                            num_el);
+
+         for (int el = 0; el < num_el; el++)
+         {
+            map_fields_to_quadrature_data(
+               input_qp, el, this->fields_e,
+               kinput_to_field, dtqmaps_tensor,
+               integration_weights, kernel.inputs,
+               std::make_index_sequence<kernel.num_kinputs> {});
+
+            for (int qp = 0; qp < num_qp; qp++)
+            {
+               size_t colidx_a = 0;
+               for (int d_idx = 0; d_idx < directions_qp.size(); d_idx++)
+               {
+                  if (!kinput_is_dependent[d_idx]) { continue; }
+                  auto [dir_soq, unused] = directions_qp[d_idx].GetShape();
+                  auto d_qp = Reshape(&(directions_qp[d_idx])[0], dir_soq, num_qp);
+                  for (int j = 0; j < dir_soq; j++)
+                  {
+                     d_qp(j, qp) = 1.0;
+                     Vector f_qp = apply_kernel_fwddiff_enzyme(
+                                      kernel.func,
+                                      kernel_args,
+                                      input_qp,
+                                      kernel_shadow_args,
+                                      directions_qp,
+                                      qp);
+                     d_qp(j, qp) = 0.0;
+                     for (int rowidx_a = 0; rowidx_a < nrows_a; rowidx_a++)
+                     {
+                        a_qp(rowidx_a, colidx_a, qp, el) = f_qp(rowidx_a);
+                     }
+                     colidx_a++;
+                  }
+               }
+               DenseMatrix adense(&a_qp(0, 0, qp, el), nrows_a, ncols_a);
+               print_matrix(adense);
+            }
+
+            // compute B_v^T A_e B_u with N = #dofs, Q = #qp, D = dimension
+            //
+            // B_u is (size of dependent fields on qp) x N
+            // A_e is (size of test function on qp) x (size of dependent fields on qp)
+            // B_v is (size of test function on qp) x N
+            //
+            // Example for (\partial u_i / \partial u_i phi_j, phi_i):
+            // [Q x Ni]^T [Q x Q] [Q x Nj] = [Ni x Nj]
+            //
+            // Example for (\partial (\nabla u_i phi_j) / \partial u_i, \nabla phi_i):
+            // [DQ x N]^T [DQ x DQ] [DQ x N] = [N x N]
+            //
+            // Example for (\partial |u_i * phi_j| (\nabla u_i phi_j) / \partial u_i, \nabla phi_i):
+            // [DQ x N]^T [DQ x DQ+Q] [DQ+Q x N] = [N x N]
+            //
+            // [DQ x N]^T [DQ x DQ] [DQ x N] = [N x N]
+            // [      ]   [Q x Q] [Q x N]
+
+            auto Bv = output_dtq_ops[fixed_output_idx];
+            auto [num_test_qp, test_op_dim, num_test_dof] = Bv.GetShape();
+
+            // for (int trial_dof = 0; trial_dof < num_trial_dof; trial_dof++)
+            // {
+            //    int a_coloffset = 0;
+            //    for (int d_idx = 0; d_idx < dependent_input_dtq_ops.size(); d_idx++)
+            //    {
+            //       auto Bu = dependent_input_dtq_ops[d_idx];
+            //       auto [unused1, trial_op_dim, unused2] = Bu.GetShape();
+            //       for (int test_dof = 0; test_dof < num_test_dof; test_dof++)
+            //       {
+            //          for (int qp = 0; qp < num_qp; qp++)
+            //          {
+            //             double acc = 0.0;
+            //             for (int k = 0; k < test_op_dim; k++)
+            //             {
+            //                for (int l = 0; l < trial_op_dim; l++)
+            //                {
+            //                   acc += Bv(qp, k, test_dof) * a_qp(k, l + a_coloffset, qp, el) * Bu(qp, l,
+            //                                                                                      trial_dof);
+            //                }
+            //             }
+            //             A_e(test_dof, trial_dof, el) += acc;
+            //          }
+            //       }
+            //       a_coloffset += trial_op_dim;
+            //    }
+            // }
+
+            Vector fhat_mem(test_op_dim * num_qp * num_el);
+            auto fhat = Reshape(fhat_mem.ReadWrite(), test_op_dim, num_qp, num_el);
+
+            Vector bvtfhat_mem(num_test_dof * num_el);
+            auto bvtfhat = Reshape(bvtfhat_mem.ReadWrite(), num_test_dof, num_el);
+
+            for (int d_idx = 0; d_idx < dependent_input_dtq_ops.size(); d_idx++)
+            {
+               auto Bu = dependent_input_dtq_ops[d_idx];
+               auto [num_trial_qp, trial_op_dim, num_trial_dof] = Bu.GetShape();
+               for (int trial_dof = 0; trial_dof < num_trial_dof; trial_dof++)
+               {
+                  fhat_mem = 0.0;
+                  for (int qp = 0; qp < num_qp; qp++)
+                  {
+                     for (int k = 0; k < test_op_dim; k++)
+                     {
+                        for (int m = 0; m < trial_op_dim; m++)
+                        {
+                           fhat(k, qp, el) += a_qp(k, m, qp, el) * Bu(qp, m, trial_dof);
+                        }
+                     }
+                  }
+
+                  bvtfhat_mem = 0.0;
+                  map_quadrature_data_to_fields(bvtfhat_mem, el, num_el, fhat, output_fop,
+                                                dtqmaps_tensor,
+                                                test_space_field_idx);
+
+                  for (int test_dof = 0; test_dof < num_test_dof; test_dof++)
+                  {
+                     A_e(test_dof, trial_dof, el) += bvtfhat(test_dof, el);
+                  }
+               }
+            }
+         }
+
+         SparseMatrix mat(GetVSize(op.fields[koutput_to_field[0]]),
+                          GetVSize(op.fields[kinput_to_field[0]]));
+
+         auto test_fes = *std::get_if<const ParFiniteElementSpace *>
+                         (&op.fields[koutput_to_field[0]].data);
+
+         if (test_fes == nullptr)
+         {
+            MFEM_ABORT("error");
+         }
+
+         for (int el = 0; el < num_el; el++)
+         {
+            auto tmp = Reshape(A_l.ReadWrite(), num_test_dof, num_trial_dof,
+                               num_el);
+            DenseMatrix A_e(&tmp(0, 0, el), num_test_dof, num_trial_dof);
+            Array<int> vdofs;
+            test_fes->GetElementVDofs(el, vdofs);
+            mat.AddSubMatrix(vdofs, vdofs, A_e, 1);
+         }
+         mat.Finalize();
+
+         HypreParMatrix tmp(test_fes->GetComm(),
+                            test_fes->GlobalVSize(),
+                            test_fes->GetDofOffsets(),
+                            &mat);
+
+         if (A.Height() == 0)
+         {
+            A = *RAP(&tmp, test_fes->Dof_TrueDof_Matrix());
+            A.EliminateBC(op.ess_tdof_list, DiagonalPolicy::DIAG_ONE);
+         }
+         else
+         {
+            auto A_part = RAP(&tmp, test_fes->Dof_TrueDof_Matrix());
+            A += *A_part;
+            A.EliminateBC(op.ess_tdof_list, DiagonalPolicy::DIAG_ONE);
+            delete A_part;
+         }
+      }
+
+      template<std::size_t... idx>
+      void assemble_hypreparmatrix(
+         kernels_tuple &ks,
+         HypreParMatrix &A,
+         std::index_sequence<idx...> const&)
+      {
+         (assemble_hypreparmatrix_impl(std::get<idx>(ks), A), ...);
+      }
 
       void Assemble(HypreParMatrix &A)
       {
-         op.AssembleDerivativeWrt<derivative_idx>(A, solutions_l, parameters_l);
+         assemble_hypreparmatrix(ks, A, std::make_index_sequence<num_kernels>());
       }
+
+      void AssembleDiagonal(Vector &d) const override {}
 
       const Vector& GetResidualQpMemory() const
       {
@@ -1077,6 +1573,7 @@ public:
 
    protected:
       DifferentiableOperator &op;
+      kernels_tuple &ks;
       std::array<mult_func_t, num_kernels> funcs;
 
       std::function<void(Vector &, Vector &)> element_restriction_transpose;
@@ -1126,17 +1623,6 @@ public:
          fields[i + num_solutions] = parameters[i];
       }
 
-      // All solutions T-vector sizes make up the width of the operator, since
-      // they are explicitly provided in Mult() for example.
-      this->width = 0;
-      residual_lsize = 0;
-      for (auto &s : solutions)
-      {
-         this->width += GetTrueVSize(s);
-         residual_lsize += GetVSize(s);
-      }
-      this->height = residual_lsize;
-
       residual.reset(new Action(*this, kernels));
    }
 
@@ -1159,14 +1645,6 @@ public:
                 new Derivative<derivative_idx>(*this, solutions, parameters, kernels));
    }
 
-   template<int derivative_idx>
-   void AssembleDerivativeWrt(HypreParMatrix &A,
-                              std::array<Vector, num_solutions> solutions,
-                              std::array<Vector, num_parameters> parameters)
-   {
-
-   }
-
    // This function returns a Vector holding the memory right after the kernel function
    // has been executed. This means the output transformation has not been applied yet,
    // which is useful for testing or intricate, advanced usage. It is not recommended to
@@ -1175,6 +1653,8 @@ public:
    {
       return residual->GetResidualQpMemory();
    }
+
+   void SetEssentialTrueDofs(const Array<int> &l) { l.Copy(ess_tdof_list); }
 
 private:
    kernels_tuple kernels;
