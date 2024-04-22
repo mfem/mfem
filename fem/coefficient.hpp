@@ -259,31 +259,6 @@ public:
                        const IntegrationPoint &ip);
 };
 
-/// A general function coefficient
-/*class ADFunctionCoefficient : public Coefficient
-{
-protected:
-   std::function<real_t(mfem::ADVectorFunc::*)(const Vector &)> Function;
-   std::function<real_t(mfem::ADVectorFunc::*)(const Vector &, real_t)> TDFunction;
-
-public:
-   /// Define a time-independent coefficient from a std function
-   /** \param F time-independent std::function
-   ADFunctionCoefficient(std::function<real_t(mfem::ADVectorFunc::*)(const Vector &)> F)
-      : Function(std::move(F))
-   { }
-
-   /// Define a time-dependent coefficient from a std function
-   /** \param TDF time-dependent function
-   ADFunctionCoefficient(std::function<real_t(mfem::ADVectorFunc::*)(const Vector &, real_t)> TDF)
-      : TDFunction(std::move(TDF))
-   { }
-
-   /// Evaluate the coefficient at @a ip.
-   virtual real_t Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip);
-};*/
-
 /// A common base class for returning individual components of the domain's
 /// Cartesian coordinates.
 class CartesianCoefficient : public Coefficient
