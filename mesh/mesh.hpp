@@ -2614,8 +2614,51 @@ public:
 };
 
 
-// TODO: documentation
-// - code snippets for usage: (1) just mesh and (2) mesh + solution
+/** @brief Class that allows serial meshes to be partinioned into MeshPart
+    objects, typically one MeshPart at a time, which can then be used to write
+    the local mesh in parallel MFEM mesh format.
+
+    Sample usage of this class: partition a serial mesh and save it in parallel
+    MFEM format:
+    \code
+       // The array 'partitioning' can be obtained e.g. from
+       // mesh->GeneratePartitioning():
+       void usage1(Mesh *mesh, int num_parts, int *partitioning)
+       {
+          MeshPartitioner partitioner(*mesh, num_parts, partitioning);
+          MeshPart mesh_part;
+          for (int i = 0; i < num_parts; i++)
+          {
+             partitioner.ExtractPart(i, mesh_part);
+             ofstream omesh(MakeParFilename("my-mesh.", i));
+             mesh_part.Print(omesh);
+          }
+       }
+    \endcode
+
+    This class can also be used to partition a mesh and GridFunction(s) and save
+    them in parallel:
+    \code
+       // The array 'partitioning' can be obtained e.g. from
+       // mesh->GeneratePartitioning():
+       void usage2(Mesh *mesh, int num_parts, int *partitioning,
+                   GridFunction *gf)
+       {
+          MeshPartitioner partitioner(*mesh, num_parts, partitioning);
+          MeshPart mesh_part;
+          for (int i = 0; i < num_parts; i++)
+          {
+             partitioner.ExtractPart(i, mesh_part);
+             ofstream omesh(MakeParFilename("my-mesh.", i));
+             mesh_part.Print(omesh);
+             auto lfes = partitioner.ExtractFESpace(mesh_part, *gf->FESpace());
+             auto lgf = partitioner.ExtractGridFunction(mesh_part, *gf, *lfes);
+             ofstream ofield(MakeParFilename("my-field.", i));
+             lgf->Save(ofield);
+          }
+       }
+    \endcode
+*/
 class MeshPartitioner
 {
 protected:
@@ -2628,25 +2671,73 @@ protected:
    Table vertex_to_element;
 
 public:
-   // TODO: documentation
+   /** @brief Construct a MeshPartitioner.
+
+       @param[in] mesh_         Mesh to be partitioned into MeshPart%s.
+       @param[in] num_parts_    Number of parts to partition the mesh into.
+       @param[in] partitioning_ Partitioning array: for every element in the
+                                mesh gives the partition it belongs to; if NULL,
+                                partitioning will be generated internally by
+                                calling Mesh::GeneratePartitioning().
+       @param[in] part_method   Partitioning method to be used in the call to
+                                Mesh::GeneratePartitioning() when the provided
+                                input partitioning is NULL.
+   */
    MeshPartitioner(Mesh &mesh_, int num_parts_, int *partitioning_ = NULL,
                    int part_method = 1);
 
-   // TODO: documentation
+   /** @brief Construct a MeshPart corresponding to the given @a part_id.
+
+       @param[in]  part_id    Partition index to extract; valid values are in
+                              the range [0, num_parts).
+       @param[out] mesh_part  Output MeshPart object; its contents is
+                              overwritten, while potentially reusing existing
+                              dynamic memory allocations.
+   */
    void ExtractPart(int part_id, MeshPart &mesh_part) const;
 
-   // TODO: documentation
+   /** @brief Construct a local version of the given FiniteElementSpace
+       @a global_fespace corresponding to the given @a mesh_part.
+
+       @param[in,out] mesh_part       MeshPart on which to construct the local
+                                      FiniteElementSpace; this object is
+                                      generally modified by this call since it
+                                      calls mesh_part.GetMesh() to ensure the
+                                      local mesh is constructed.
+       @param[in]     global_fespace  The global FiniteElementSpace that should
+                                      be restricted to the @a mesh_part.
+
+       @returns A FiniteElementSpace pointer stored in a unique_ptr. The
+                returned local FiniteElementSpace is built on the Mesh object
+                contained in @a mesh_part (MeshPart::mesh) and it reuses the
+                FiniteElementCollection of the @a global_fespace.
+   */
    std::unique_ptr<FiniteElementSpace>
    ExtractFESpace(MeshPart &mesh_part,
                   const FiniteElementSpace &global_fespace) const;
 
-   // TODO: documentation
+   /** @brief Construct a local version of the given GridFunction, @a global_gf,
+       corresponding to the given @a mesh_part. The respective data is copied
+       from @a global_gf to the returned local GridFunction.
+
+       @param[in]      mesh_part      MeshPart on which to construct the local
+                                      GridFunction.
+       @param[in]      global_gf      The global GridFunction that should be
+                                      restricted to the @a mesh_part.
+       @param[in,out]  local_fespace  The local FiniteElementSpace corresponding
+                                      to @a mesh_part, e.g. constructed by the
+                                      method ExtractFESpace().
+
+       @returns A GridFunction pointer stored in a unique_ptr. The returned
+                local GridFunction is initialized with data appropriately copied
+                from @a global_gf.
+   */
    std::unique_ptr<GridFunction>
-   ExtractGridFunction(MeshPart &mesh_part,
+   ExtractGridFunction(const MeshPart &mesh_part,
                        const GridFunction &global_gf,
                        FiniteElementSpace &local_fespace) const;
 
-   // Destructor
+   /// Destructor.
    ~MeshPartitioner();
 };
 
