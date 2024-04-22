@@ -352,7 +352,7 @@ TEST_CASE("Autodiff of TD scalar function for Coefficient",
    ADVectorTDFunc fun(scalarTDFun);
    ADVectorTDFunc fun2(scalarTDFun2,param);
 
-   SECTION("Time depenent - 1D")
+   SECTION("Time dependent - 1D")
    {
       real_t t, ref_sol;
       Vector x(1);
@@ -394,7 +394,7 @@ TEST_CASE("Autodiff of TD scalar function for Coefficient",
       }
    }
 
-   SECTION("Time depenent - 2D")
+   SECTION("Time dependent - 2D")
    {
       real_t t, ref_sol;
       Vector x(2);
@@ -440,10 +440,10 @@ TEST_CASE("Autodiff of TD scalar function for Coefficient",
       }
    }
 
-   SECTION("Time depenent - 3D")
+   SECTION("Time dependent - 3D")
    {
       real_t t, ref_sol;
-      Vector x(2);
+      Vector x(3);
 #ifdef MFEM_USE_CODIPACK
       real_t ref_rate;
       Vector ref_grad(3), grad(3);
@@ -691,7 +691,7 @@ TEST_CASE("Autodiff of vector function for Coefficient",
 #endif
 
    }
-}
+} // Test Case
 
 void vectorTDFun(const Vector& param, const ADVector& x, const ADFloat t,
                  ADVector& f)
@@ -868,7 +868,7 @@ TEST_CASE("Autodiff of TD vector function for Coefficient",
       }
 #endif
    }
-}
+} // Test Case
 
 } // namespace autodiff
 
