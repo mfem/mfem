@@ -23,7 +23,7 @@
 #include "../general/sets.hpp"
 #include "../fem/quadinterpolator.hpp"
 
-// #include <iostream> // included by mesh.hpp
+// headers already included by mesh.hpp: <iostream>, <array>, <map>, <memory>
 #include <sstream>
 #include <fstream>
 #include <limits>
@@ -31,7 +31,6 @@
 #include <cstring>
 #include <ctime>
 #include <functional>
-// #include <map> // included by mesh.hpp
 #include <unordered_map>
 #include <unordered_set>
 
@@ -13444,10 +13443,10 @@ void MeshPart::Print(std::ostream &os) const
    }
    // End: GroupTopology::Save
 
-   const Table &g2v  = group__shared_entity_to_vertex[Geometry::POINT];
-   const Table &g2ev = group__shared_entity_to_vertex[Geometry::SEGMENT];
-   const Table &g2tv = group__shared_entity_to_vertex[Geometry::TRIANGLE];
-   const Table &g2qv = group__shared_entity_to_vertex[Geometry::SQUARE];
+   const Table &g2v  = group_shared_entity_to_vertex[Geometry::POINT];
+   const Table &g2ev = group_shared_entity_to_vertex[Geometry::SEGMENT];
+   const Table &g2tv = group_shared_entity_to_vertex[Geometry::TRIANGLE];
+   const Table &g2qv = group_shared_entity_to_vertex[Geometry::SQUARE];
 
    MFEM_VERIFY(g2v.RowSize(0) == 0, "internal erroor");
    os << "\ntotal_shared_vertices " << g2v.Size_of_connections() << '\n';
@@ -13701,7 +13700,7 @@ void MeshPartitioner::ExtractPart(int part_id, MeshPart &mesh_part) const
    mesh_part.my_groups.Clear();
    for (int g = 0; g < Geometry::NumGeom; g++)
    {
-      mesh_part.group__shared_entity_to_vertex[g].Clear();
+      mesh_part.group_shared_entity_to_vertex[g].Clear();
    }
    mesh_part.nodes.reset(nullptr);
    mesh_part.nodal_fes.reset(nullptr);
@@ -14010,9 +14009,9 @@ void MeshPartitioner::ExtractPart(int part_id, MeshPart &mesh_part) const
    // Define 'mesh_part.my_groups'
    groups.AsTable(mesh_part.my_groups);
 
-   // Construct 'mesh_part.group__shared_entity_to_vertex[Geometry::POINT]'
+   // Construct 'mesh_part.group_shared_entity_to_vertex[Geometry::POINT]'
    Table &group__shared_vertex_to_vertex =
-      mesh_part.group__shared_entity_to_vertex[Geometry::POINT];
+      mesh_part.group_shared_entity_to_vertex[Geometry::POINT];
    group__shared_vertex_to_vertex.MakeI(num_groups);
    for (int sv = 0; sv < shared_verts.Size(); sv++)
    {
@@ -14030,11 +14029,11 @@ void MeshPartitioner::ExtractPart(int part_id, MeshPart &mesh_part) const
    }
    group__shared_vertex_to_vertex.ShiftUpI();
 
-   // Construct 'mesh_part.group__shared_entity_to_vertex[Geometry::SEGMENT]'
+   // Construct 'mesh_part.group_shared_entity_to_vertex[Geometry::SEGMENT]'
    if (dim >= 2)
    {
       Table &group__shared_edge_to_vertex =
-         mesh_part.group__shared_entity_to_vertex[Geometry::SEGMENT];
+         mesh_part.group_shared_entity_to_vertex[Geometry::SEGMENT];
       group__shared_edge_to_vertex.MakeI(num_groups);
       for (int se = 0; se < shared_edges.Size(); se++)
       {
@@ -14058,14 +14057,14 @@ void MeshPartitioner::ExtractPart(int part_id, MeshPart &mesh_part) const
       group__shared_edge_to_vertex.ShiftUpI();
    }
 
-   // Construct 'mesh_part.group__shared_entity_to_vertex[Geometry::TRIANGLE]'
-   // and 'mesh_part.group__shared_entity_to_vertex[Geometry::SQUARE]'.
+   // Construct 'mesh_part.group_shared_entity_to_vertex[Geometry::TRIANGLE]'
+   // and 'mesh_part.group_shared_entity_to_vertex[Geometry::SQUARE]'.
    if (dim >= 3)
    {
       Table &group__shared_tria_to_vertex =
-         mesh_part.group__shared_entity_to_vertex[Geometry::TRIANGLE];
+         mesh_part.group_shared_entity_to_vertex[Geometry::TRIANGLE];
       Table &group__shared_quad_to_vertex =
-         mesh_part.group__shared_entity_to_vertex[Geometry::SQUARE];
+         mesh_part.group_shared_entity_to_vertex[Geometry::SQUARE];
       Array<int> vertex_ids;
       group__shared_tria_to_vertex.MakeI(num_groups);
       group__shared_quad_to_vertex.MakeI(num_groups);
@@ -14074,7 +14073,7 @@ void MeshPartitioner::ExtractPart(int part_id, MeshPart &mesh_part) const
          const int glob_face_id = shared_faces[sf].one;
          const int group_id     = shared_faces[sf].two;
          const int geom         = mesh.GetFaceGeometry(glob_face_id);
-         mesh_part.group__shared_entity_to_vertex[geom].
+         mesh_part.group_shared_entity_to_vertex[geom].
          AddColumnsInRow(group_id, Geometry::NumVerts[geom]);
       }
       group__shared_tria_to_vertex.MakeJ();
@@ -14125,7 +14124,7 @@ void MeshPartitioner::ExtractPart(int part_id, MeshPart &mesh_part) const
             MFEM_ASSERT(loc_id >= 0, "internal error");
             vertex_ids[i] = loc_id;
          }
-         mesh_part.group__shared_entity_to_vertex[geom].
+         mesh_part.group_shared_entity_to_vertex[geom].
          AddConnections(group_id, vertex_ids, vertex_ids.Size());
       }
       group__shared_tria_to_vertex.ShiftUpI();

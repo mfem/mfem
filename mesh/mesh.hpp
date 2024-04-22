@@ -2458,14 +2458,23 @@ std::ostream &operator<<(std::ostream &os, const Mesh &mesh);
 std::ostream& operator<<(std::ostream &os, const Mesh::FaceInformation& info);
 
 
-// Class containing a minimal description of a part (a subset of the elements)
-// of a Mesh and its connectivity to other parts. The main purpose of this class
-// is to be communicated between MPI ranks for repartitioning purposes. It can
-// also be used to implement parallel mesh I/O functions with partitionings that
-// have number of parts different from the number of MPI tasks.
-//
-// Note: parts of NURBS or non-conforming meshes cannot be fully described by
-// this class alone.
+/** @brief Class containing a minimal description of a part (a subset of the
+    elements) of a Mesh and its connectivity to other parts.
+
+    The main purpose of this class is to facilitate the partitioning of serial
+    meshes (in serial, i.e. on one processor) and save the parts in parallel
+    MFEM mesh format.
+
+    Another potential futrure purpose of this class could be to facilitate
+    exchange of MeshParts between MPI ranks for repartitioning purposes. It can
+    also potentially be used to implement parallel mesh I/O functions with
+    partitionings that have number of parts different from the number of MPI
+    tasks.
+
+    @note Parts of NURBS or non-conforming meshes cannot be fully described by
+    this class alone with its current data members. Such extensions may be added
+    in the future.
+*/
 class MeshPart
 {
 protected:
@@ -2483,138 +2492,173 @@ protected:
    };
 
 public:
-   // Reference space dimension of the elements
+   /// Reference space dimension of the elements
    int dimension;
 
-   // Dimension of the physical space into which the MeshPart is embedded.
+   /// Dimension of the physical space into which the MeshPart is embedded.
    int space_dimension;
 
-   // Number of vertices
+   /// Number of vertices
    int num_vertices;
 
-   // Number of elements with reference space dimension equal to 'dimension'.
+   /// Number of elements with reference space dimension equal to 'dimension'.
    int num_elements;
 
-   // Number of boundary elements with reference space dimension equal to
-   // 'dimension'-1.
+   /** @brief Number of boundary elements with reference space dimension equal
+       to 'dimension'-1. */
    int num_bdr_elements;
 
-   // Each 'entity_to_vertex[geom]' describes the entities of Geometry::Type
-   // 'geom' in terms of their vertices. The number of entities of type 'geom'
-   // is:
-   //    num_entities[geom] = size('entity_to_vertex[geom]')/num_vertices[geom]
-   // The number of all elements, 'num_elements', is:
-   //    'num_elements' = sum_{dim[geom]=='dimension'} num_entities[geom]
-   // and the number of all boundary elements, 'num_bdr_elements' is:
-   //    'num_bdr_elements' = sum_{dim[geom]=='dimension'-1} num_entities[geom]
-   // Note that 'entity_to_vertex' does NOT describe all "faces" in the mesh
-   // part (i.e. all 'dimension'-1 entities) but only the boundary elements.
-   // Also, note that lower dimesional entities ('dimension'-2 and lower) are
-   // NOT described by the respective array, i.e. the array will be empty.
+   /**
+      Each 'entity_to_vertex[geom]' describes the entities of Geometry::Type
+      'geom' in terms of their vertices. The number of entities of type 'geom'
+      is:
+
+          num_entities[geom] = size('entity_to_vertex[geom]')/num_vertices[geom]
+
+      The number of all elements, 'num_elements', is:
+
+          'num_elements' = sum_{dim[geom]=='dimension'} num_entities[geom]
+
+      and the number of all boundary elements, 'num_bdr_elements' is:
+
+          'num_bdr_elements' = sum_{dim[geom]=='dimension'-1} num_entities[geom]
+
+      Note that 'entity_to_vertex' does NOT describe all "faces" in the mesh
+      part (i.e. all 'dimension'-1 entities) but only the boundary elements.
+      Also, note that lower dimesional entities ('dimension'-2 and lower) are
+      NOT described by the respective array, i.e. the array will be empty.
+   */
    Array<int> entity_to_vertex[Geometry::NumGeom];
 
-   // Store the refinement flags for tetraheral elements. If all tets have zero
-   // refinement flags then this array is empty, i.e. has size 0.
+   /** @brief Store the refinement flags for tetraheral elements. If all tets
+       have zero refinement flags then this array is empty, i.e. has size 0. */
    Array<int> tet_refine_flags;
 
-   // Terminology: "by-type" element/boundary ordering: ordered by
-   // Geometry::Type and within each Geometry::Type 'geom' ordered as in
-   // 'entity_to_vertex[geom]'.
+   /**
+      Terminology: "by-type" element/boundary ordering: ordered by
+      Geometry::Type and within each Geometry::Type 'geom' ordered as in
+      'entity_to_vertex[geom]'.
 
-   // Optional re-ordering of the elements that will be used by (Par)Mesh
-   // objects constructed from this MeshPart. This array maps "natural" element
-   // ids (used by the Mesh/ParMesh objects) to "by-type" element ids (see
-   // above):
-   //    "by-type" element id = element_map["natural" element id]
-   // The size of the array is either 'num_elements' or 0 when no re-ordering is
-   // needed (then "by-type" id == "natural" id).
+      Optional re-ordering of the elements that will be used by (Par)Mesh
+      objects constructed from this MeshPart. This array maps "natural" element
+      ids (used by the Mesh/ParMesh objects) to "by-type" element ids (see
+      above):
+
+          "by-type" element id = element_map["natural" element id]
+
+      The size of the array is either 'num_elements' or 0 when no re-ordering is
+      needed (then "by-type" id == "natural" id).
+   */
    Array<int> element_map;
 
-   // Optional re-ordering for the boundary elements, similar to 'element_map'.
+   /// Optional re-ordering for the boundary elements, similar to 'element_map'.
    Array<int> boundary_map;
 
-   // Element attributes. Ordered using the "natural" element ordering defined
-   // by the array 'element_map'. The size of this array is 'num_elements'.
+   /**
+      Element attributes. Ordered using the "natural" element ordering defined
+      by the array 'element_map'. The size of this array is 'num_elements'.
+   */
    Array<int> attributes;
 
-   // Boundary element attributes. Ordered using the "natural" boundary element
-   // ordering defined by the array 'boundary_map'. The size of this array is
-   // 'num_bdr_elements'.
+   /**
+      Boundary element attributes. Ordered using the "natural" boundary element
+      ordering defined by the array 'boundary_map'. The size of this array is
+      'num_bdr_elements'.
+   */
    Array<int> bdr_attributes;
 
-   // Optional vertex coordinates. The size of the array is either
-   //    size = 'space_dimension' * 'num_vertices'
-   // or 0 when the vertex coordinates are not used, i.e. when the MeshPart uses
-   // a nodal GridFunction to describe its location in physical space. This
-   // array uses Ordering::byVDIM: "X0,Y0,Z0, X1,Y1,Z1, ...".
+   /**
+      Optional vertex coordinates. The size of the array is either
+
+          size = 'space_dimension' * 'num_vertices'
+
+      or 0 when the vertex coordinates are not used, i.e. when the MeshPart uses
+      a nodal GridFunction to describe its location in physical space. This
+      array uses Ordering::byVDIM: "X0,Y0,Z0, X1,Y1,Z1, ...".
+   */
    Array<real_t> vertex_coordinates;
 
-   // Optional serial Mesh object constructed on demand using the method
-   // GetMesh(). One use case for it is when one wants to construct FE spaces
-   // and GridFunction%s on the MeshPart for saving or MPI communication.
+   /**
+      Optional serial Mesh object constructed on demand using the method
+      GetMesh(). One use case for it is when one wants to construct FE spaces
+      and GridFunction%s on the MeshPart for saving or MPI communication.
+   */
    std::unique_ptr<Mesh> mesh;
 
-   // Nodal FE space defined on 'mesh' used by the GridFunction 'nodes'. Uses
-   // the FE collection from the global nodal FE space.
+   /**
+      Nodal FE space defined on 'mesh' used by the GridFunction 'nodes'. Uses
+      the FE collection from the global nodal FE space.
+   */
    std::unique_ptr<FiniteElementSpace> nodal_fes;
 
-   // 'nodes': pointer to a GridFunction describing the physical location of the
-   // MeshPart. Used for describing high-order and periodic meshes. This
-   // GridFunction is defined on the FE space 'nodal_fes' which, in turn, is
-   // defined on the Mesh 'mesh'.
+   /**
+      'nodes': pointer to a GridFunction describing the physical location of the
+      MeshPart. Used for describing high-order and periodic meshes. This
+      GridFunction is defined on the FE space 'nodal_fes' which, in turn, is
+      defined on the Mesh 'mesh'.
+   */
    std::unique_ptr<GridFunction> nodes;
 
-   // Connectivity to other MeshPart objects
-   // --------------------------------------
+   /** @name Connectivity to other MeshPart objects */
+   ///@{
 
-   // Total number of MeshParts
+   /// Total number of MeshParts
    int num_parts;
 
-   // Index of the part described by this MeshPart:
-   //    0 <= 'my_part_id' < 'num_parts'
+   /** @brief Index of the part described by this MeshPart:
+       0 <= 'my_part_id' < 'num_parts' */
    int my_part_id;
 
-   // A group G is a subset of the set { 0, 1, ..., 'num_parts'-1 } for which
-   // there is a mesh entity E (of any dimension) in the global mesh such that
-   // G is the set of the parts assigned to the elements adjacent to E. The
-   // MeshPart describes only the "neighbor" groups, i.e. the groups that
-   // contain 'my_part_id'. The Table 'my_groups' defines the "neighbor" groups
-   // in terms of their part ids. In other words, it maps "neighbor" group ids
-   // to a (sorted) list of part ids. In particular, the number of "neighbor"
-   // groups is given by 'my_groups.Size()'. The "local" group { 'my_part_id' }
-   // has index 0 in 'my_groups'.
+   /**
+      A group G is a subset of the set { 0, 1, ..., 'num_parts'-1 } for which
+      there is a mesh entity E (of any dimension) in the global mesh such that
+      G is the set of the parts assigned (by the partitioning array) to the
+      elements adjacent to E. The MeshPart describes only the "neighbor" groups,
+      i.e. the groups that contain 'my_part_id'. The Table 'my_groups' defines
+      the "neighbor" groups in terms of their part ids. In other words, it maps
+      "neighbor" group ids to a (sorted) list of part ids. In particular, the
+      number of "neighbor" groups is given by 'my_groups.Size()'. The "local"
+      group { 'my_part_id' } has index 0 in 'my_groups'.
+   */
    Table my_groups;
 
-   // Shared entities for this MeshPart are mesh entities of all dimensions less
-   // than 'dimension' that are generated by the elements of this MeshPart and
-   // at least one other MeshPart.
-   //
-   // The Table 'group__shared_entity_to_vertex[geom]' defines, for each group,
-   // the shared entities of Geometry::Type 'geom'. Each row (corresponding to a
-   // "neighbor" group, as defined by 'my_groups') in the Table defines the
-   // shared entities in a way similar to the arrays 'entity_to_vertex[geom]'.
-   // The "local" group (with index 0) does not have any shared entities, so the
-   // 0-th row in the Table is always empty.
-   //
-   // IMPORTANT: the descriptions of the groups in this MeshPart must match
-   // their descriptions in all neighboring MeshParts. This includes the
-   // ordering of the shared entities within the group, as well as the vertex
-   // ordering of each shared entity.
-   Table group__shared_entity_to_vertex[Geometry::NumGeom];
+   /**
+      Shared entities for this MeshPart are mesh entities of all dimensions less
+      than 'dimension' that are generated by the elements of this MeshPart and
+      at least one other MeshPart.
 
-   // Write the MeshPart to a stream using the parallel format "MFEM mesh v1.2".
+      The Table 'group_shared_entity_to_vertex[geom]' defines, for each group,
+      the shared entities of Geometry::Type 'geom'. Each row (corresponding to a
+      "neighbor" group, as defined by 'my_groups') in the Table defines the
+      shared entities in a way similar to the arrays 'entity_to_vertex[geom]'.
+      The "local" group (with index 0) does not have any shared entities, so the
+      0-th row in the Table is always empty.
+
+      IMPORTANT: the descriptions of the groups in this MeshPart must match
+      their descriptions in all neighboring MeshParts. This includes the
+      ordering of the shared entities within the group, as well as the vertex
+      ordering of each shared entity.
+   */
+   Table group_shared_entity_to_vertex[Geometry::NumGeom];
+
+   ///@}
+
+   /** @brief Write the MeshPart to a stream using the parallel format
+       "MFEM mesh v1.2". */
    void Print(std::ostream &os) const;
 
-   // Construct a serial Mesh object from the MeshPart. The nodes of 'mesh' are
-   // NOT initialized by this method, however, the nodal FE space and nodal
-   // GridFunction can be created and then attached to the 'mesh'. The Mesh is
-   // constructed only if 'mesh' is empty, otherwise the method simply returns
-   // the object held by 'mesh'.
+   /** @brief Construct a serial Mesh object from the MeshPart.
+
+       The nodes of 'mesh' are NOT initialized by this method, however, the
+       nodal FE space and nodal GridFunction can be created and then attached to
+       the 'mesh'. The Mesh is constructed only if 'mesh' is empty, otherwise
+       the method simply returns the object held by 'mesh'.
+   */
    Mesh &GetMesh();
 };
 
 
-/** @brief Class that allows serial meshes to be partinioned into MeshPart
+/** @brief Class that allows serial meshes to be partitioned into MeshPart
     objects, typically one MeshPart at a time, which can then be used to write
     the local mesh in parallel MFEM mesh format.
 
