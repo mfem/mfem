@@ -54,7 +54,6 @@ class ADVectorFunc
 private:
    std::function<void(const Vector&, const ADVector&, ADVector&)> F;
    Vector param;
-   int vsize, ssize;
 
 public:
    /// F_ is user implemented function to be differentiated by
@@ -162,7 +161,6 @@ private:
    std::function<void(const Vector&, const ADVector&, const ADFloat&, ADVector&)>
    F;
    Vector param;
-   int vsize, ssize;
 
 public:
    /// F_ is user implemented function to be differentiated by
