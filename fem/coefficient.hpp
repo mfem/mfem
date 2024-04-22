@@ -18,6 +18,7 @@
 #include "../linalg/linalg.hpp"
 #include "intrules.hpp"
 #include "eltrans.hpp"
+#include "autodiff.hpp"
 
 namespace mfem
 {
@@ -257,6 +258,31 @@ public:
    virtual real_t Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);
 };
+
+/// A general function coefficient
+/*class ADFunctionCoefficient : public Coefficient
+{
+protected:
+   std::function<real_t(mfem::ADVectorFunc::*)(const Vector &)> Function;
+   std::function<real_t(mfem::ADVectorFunc::*)(const Vector &, real_t)> TDFunction;
+
+public:
+   /// Define a time-independent coefficient from a std function
+   /** \param F time-independent std::function
+   ADFunctionCoefficient(std::function<real_t(mfem::ADVectorFunc::*)(const Vector &)> F)
+      : Function(std::move(F))
+   { }
+
+   /// Define a time-dependent coefficient from a std function
+   /** \param TDF time-dependent function
+   ADFunctionCoefficient(std::function<real_t(mfem::ADVectorFunc::*)(const Vector &, real_t)> TDF)
+      : TDFunction(std::move(TDF))
+   { }
+
+   /// Evaluate the coefficient at @a ip.
+   virtual real_t Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip);
+};*/
 
 /// A common base class for returning individual components of the domain's
 /// Cartesian coordinates.
@@ -2304,6 +2330,9 @@ inline int operator&(CoefficientStorage a, CoefficientStorage b)
 }
 
 
+
+
+
 /// @brief Class to represent a coefficient evaluated at quadrature points.
 ///
 /// In the general case, a CoefficientVector is the same as a QuadratureFunction
@@ -2404,6 +2433,11 @@ real_t ComputeLpNorm(real_t p, Coefficient &coeff, Mesh &mesh,
 /** @brief Compute the Lp norm of a vector function f = {f_i}_i=1...N.
     $ \| f \|_{Lp} = ( \sum_i \| f_i \|_{Lp}^p )^{1/p} $ */
 real_t ComputeLpNorm(real_t p, VectorCoefficient &coeff, Mesh &mesh,
+                     const IntegrationRule *irs[]);
+
+/** @brief Compute the Lp norm of a matrix function f = {f_ij}_i,j=1...N.
+    $ \| f \|_{Lp} = ( \sum_{ij} \| f_{ij} \|_{Lp}^p )^{1/p} $ */
+real_t ComputeLpNorm(real_t p, MatrixCoefficient &coeff, Mesh &mesh,
                      const IntegrationRule *irs[]);
 
 #ifdef MFEM_USE_MPI
