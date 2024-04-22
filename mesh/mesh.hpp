@@ -2509,14 +2509,17 @@ public:
    //    'num_bdr_elements' = sum_{dim[geom]=='dimension'-1} num_entities[geom]
    // Note that 'entity_to_vertex' does NOT describe all "faces" in the mesh
    // part (i.e. all 'dimension'-1 entities) but only the boundary elements.
+   // Also, note that lower dimesional entities ('dimension'-2 and lower) are
+   // NOT described by the respective array, i.e. the array will be empty.
    Array<int> entity_to_vertex[Geometry::NumGeom];
 
    // Store the refinement flags for tetraheral elements. If all tets have zero
    // refinement flags then this array is empty, i.e. has size 0.
    Array<int> tet_refine_flags;
 
-   // "By-type" element/boundary ordering: ordered by Geometry::Type and within
-   // each Geometry::Type 'geom' ordered as in 'entity_to_vertex[geom]'.
+   // Terminology: "by-type" element/boundary ordering: ordered by
+   // Geometry::Type and within each Geometry::Type 'geom' ordered as in
+   // 'entity_to_vertex[geom]'.
 
    // Optional re-ordering of the elements that will be used by (Par)Mesh
    // objects constructed from this MeshPart. This array maps "natural" element
@@ -2571,7 +2574,7 @@ public:
    //    0 <= 'my_part_id' < 'num_parts'
    int my_part_id;
 
-   // A group G is a subsets of the set { 0, 1, ..., 'num_parts'-1 } for which
+   // A group G is a subset of the set { 0, 1, ..., 'num_parts'-1 } for which
    // there is a mesh entity E (of any dimension) in the global mesh such that
    // G is the set of the parts assigned to the elements adjacent to E. The
    // MeshPart describes only the "neighbor" groups, i.e. the groups that
@@ -2593,10 +2596,10 @@ public:
    // The "local" group (with index 0) does not have any shared entities, so the
    // 0-th row in the Table is always empty.
    //
-   // IMPORTANT: the desciptions of the groups in this MeshPart must match their
-   // descriptions in all neighboring MeshParts. This includes the ordering of
-   // the shared entities within the group, as well as the vertex ordering of
-   // each shared entity.
+   // IMPORTANT: the descriptions of the groups in this MeshPart must match
+   // their descriptions in all neighboring MeshParts. This includes the
+   // ordering of the shared entities within the group, as well as the vertex
+   // ordering of each shared entity.
    Table group__shared_entity_to_vertex[Geometry::NumGeom];
 
    // Write the MeshPart to a stream using the parallel format "MFEM mesh v1.2".
@@ -2612,12 +2615,13 @@ public:
 
 
 // TODO: documentation
+// - code snippets for usage: (1) just mesh and (2) mesh + solution
 class MeshPartitioner
 {
 protected:
    Mesh &mesh;
    int *partitioning;
-   bool own_partitioning;
+   bool own_partitioning; // true == constructed with NULL partitioning
    Table part_to_element;
    Table part_to_boundary;
    Table edge_to_element;

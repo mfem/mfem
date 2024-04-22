@@ -6332,7 +6332,7 @@ void ParMesh::ParPrint(ostream &os, const std::string &comments) const
       return;
    }
 
-   // Write out serial mesh.  Tell serial mesh to deliniate the end of it's
+   // Write out serial mesh.  Tell serial mesh to delineate the end of its
    // output with 'mfem_serial_mesh_end' instead of 'mfem_mesh_end', as we will
    // be adding additional parallel mesh information.
    Printer(os, "mfem_serial_mesh_end", comments);
