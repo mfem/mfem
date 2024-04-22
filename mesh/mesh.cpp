@@ -14138,7 +14138,8 @@ MeshPartitioner::ExtractFESpace(MeshPart &mesh_part,
                                 const FiniteElementSpace &global_fespace) const
 {
    mesh_part.GetMesh(); // initialize 'mesh_part.mesh'
-   // Note: the nodes of 'mesh_part.mesh' are not set.
+   // Note: the nodes of 'mesh_part.mesh' are not set by GetMesh() unless they
+   // were already constructed, e.g. by ExtractPart().
 
    return std::unique_ptr<FiniteElementSpace>(
              new FiniteElementSpace(mesh_part.mesh.get(),
@@ -14148,7 +14149,7 @@ MeshPartitioner::ExtractFESpace(MeshPart &mesh_part,
 }
 
 std::unique_ptr<GridFunction>
-MeshPartitioner::ExtractGridFunction(MeshPart &mesh_part,
+MeshPartitioner::ExtractGridFunction(const MeshPart &mesh_part,
                                      const GridFunction &global_gf,
                                      FiniteElementSpace &local_fespace) const
 {
