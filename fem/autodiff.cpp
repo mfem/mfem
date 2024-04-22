@@ -17,14 +17,13 @@ namespace mfem
 
 void ADVectorFunc::Jacobian(const Vector &vstate,DenseMatrix &jac)
 {
-   int vector_size = jac.Height();
-   int state_size = jac.Width();
-
-   MFEM_ASSERT(vstate.Size() == state_size,
+   MFEM_ASSERT(vstate.Size() == jac.Width(),
                "state and jacobian size do not match");
 
    jac = 0.0;
 #ifdef MFEM_USE_CODIPACK
+   int vector_size = jac.Height();
+   int state_size = jac.Width();
    ADVector ad_state(state_size);
    ADVector ad_result(vector_size);
 #ifdef MFEM_USE_ADFORWARD
@@ -145,14 +144,13 @@ real_t ADVectorFunc::ScalarSolution(const Vector &vstate)
 void ADVectorTDFunc::Jacobian(const Vector &vstate, const real_t time,
                               DenseMatrix &jac)
 {
-   int vector_size = jac.Height();
-   int state_size = jac.Width();
-
-   MFEM_ASSERT(vstate.Size() == state_size,
+   MFEM_ASSERT(vstate.Size() == jac.Width(),
                "state and jacobian size do not match");
 
    jac = 0.0;
 #ifdef MFEM_USE_CODIPACK
+   int vector_size = jac.Height();
+   int state_size = jac.Width();
    ADVector ad_state(state_size);
    ADVector ad_result(vector_size);
    ADFloat ad_t(time);
