@@ -11426,7 +11426,8 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter,
 
    if (!section_delimiter.empty())
    {
-      os << section_delimiter << endl; // only with formats v1.2 and above
+      os << '\n'
+         << section_delimiter << endl; // only with formats v1.2 and above
    }
 }
 

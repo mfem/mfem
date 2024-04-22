@@ -4810,7 +4810,7 @@ void ParMesh::Print(std::ostream &os, const std::string &comments) const
 
    if (NURBSext)
    {
-      Printer(os, comments); // does not print shared boundary
+      Printer(os, "", comments); // does not print shared boundary
       return;
    }
 
@@ -4938,7 +4938,7 @@ void ParMesh::Print(std::ostream &os, const std::string &comments) const
 
    if (set_names)
    {
-      os << "mfem_mesh_end\n";
+      os << "\nmfem_mesh_end" << endl;
    }
 }
 
@@ -5289,7 +5289,7 @@ void ParMesh::PrintAsSerial(std::ostream &os, const std::string &comments) const
    Mesh serialmesh = GetSerialMesh(save_rank);
    if (MyRank == save_rank)
    {
-      serialmesh.Printer(os, comments);
+      serialmesh.Printer(os, "", comments);
    }
    MPI_Barrier(MyComm);
 }
@@ -6328,7 +6328,7 @@ void ParMesh::ParPrint(ostream &os, const std::string &comments) const
    if (Nonconforming())
    {
       // the NC mesh format works both in serial and in parallel
-      Printer(os, comments);
+      Printer(os, "", comments);
       return;
    }
 
