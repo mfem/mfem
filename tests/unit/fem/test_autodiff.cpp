@@ -354,9 +354,12 @@ TEST_CASE("Autodiff of TD scalar function for Coefficient",
 
    SECTION("Time depenent - 1D")
    {
-      real_t t, ref_sol, ref_rate;
-      Vector x(1), ref_grad(1), grad(1);
-
+      real_t t, ref_sol;
+      Vector x(1);
+#ifdef MFEM_USE_CODIPACK
+      real_t ref_rate;
+      Vector ref_grad(1), grad(1);
+#endif
       for (int i = 0; i < 10; i++)
       {
          for (int j = 0; j < 10; j++)
@@ -393,9 +396,12 @@ TEST_CASE("Autodiff of TD scalar function for Coefficient",
 
    SECTION("Time depenent - 2D")
    {
-      real_t t, ref_sol, ref_rate;
-      Vector x(2), ref_grad(2), grad(2), diff(2);
-
+      real_t t, ref_sol;
+      Vector x(2);
+#ifdef MFEM_USE_CODIPACK
+      real_t ref_rate;
+      Vector ref_grad(2), grad(2);
+#endif
       for (int i = 0; i < 10; i++)
       {
          for (int j = 0; j < 10; j++)
@@ -436,8 +442,12 @@ TEST_CASE("Autodiff of TD scalar function for Coefficient",
 
    SECTION("Time depenent - 3D")
    {
-      real_t t, ref_sol, ref_rate;
-      Vector x(3), ref_grad(3), grad(3), diff(3);
+      real_t t, ref_sol;
+      Vector x(2);
+#ifdef MFEM_USE_CODIPACK
+      real_t ref_rate;
+      Vector ref_grad(3), grad(3);
+#endif
 
       for (int i = 0; i < 10; i++)
       {
@@ -592,9 +602,12 @@ TEST_CASE("Autodiff of vector function for Coefficient",
 
    SECTION("3D")
    {
+      Vector x(3), ref_sol(3), sol(3);
+#ifdef MFEM_USE_CODIPACK
       real_t ref_div, div;
-      Vector x(3), ref_sol(3), sol(3), ref_curl(3), curl(3);
+      Vector  ref_curl(3), curl(3);
       DenseMatrix ref_jac(3,3), jac(3,3);
+#endif
 
       for (int i = 0; i < 10; i++)
       {
@@ -729,7 +742,6 @@ void vectorTDCurl(const Vector & x, const real_t t, Vector& curl)
    curl[2] = jac(1,0) - jac(0,1);
 }
 
-
 TEST_CASE("Autodiff of TD vector function for Coefficient",
           "[AD TD Vector]")
 {
@@ -737,11 +749,13 @@ TEST_CASE("Autodiff of TD vector function for Coefficient",
 
    SECTION("3D")
    {
-      real_t t, ref_div, div;
-      Vector x(3), ref_sol(3), sol(3),
-             ref_rate(3), rate(3), ref_curl(3), curl(3);
+      real_t t;
+      Vector x(3), ref_sol(3), sol(3);
+#ifdef MFEM_USE_CODIPACK
+      real_t ref_div, div;
+      Vector ref_rate(3), rate(3), ref_curl(3), curl(3);
       DenseMatrix ref_jac(3,3), jac(3,3);
-
+#endif
       for (int i = 0; i < 10; i++)
       {
          for (int j = 0; j < 10; j++)
