@@ -1691,6 +1691,64 @@ TEST_CASE("Parallel RP=I", "[Parallel], [NCMesh]")
    }
 }
 
+TEST_CASE("InternalBoundaryProjectBdrCoefficient", "[Parallel], [NCMesh]")
+{
+   auto test_project_H1 = [](ParMesh &mesh,  int order, double coef)
+   {
+      H1_FECollection fe_collection(order, mesh.SpaceDimension());
+      ParFiniteElementSpace fe_space(&mesh, &fe_collection);
+      ParGridFunction x(&fe_space);
+      x = -coef;
+      ConstantCoefficient c(coef);
+
+      // Check projecting on the internal face sets essential dof.
+      Array<int> ess_bdr(mesh.bdr_attributes.Max());
+      ess_bdr = 0;
+      ess_bdr.Last() = 1; // internal boundary
+      x.ProjectBdrCoefficient(c, ess_bdr);
+
+      Array<int> ess_tdofs_list;
+      fe_space.GetEssentialTrueDofs(ess_bdr, ess_tdofs_list);
+
+      const auto &tvec = x.GetTrueVector();
+      for (auto ess_dof : ess_tdofs_list)
+      {
+         CHECK(tvec[ess_dof] == Approx(coef).epsilon(1e-8));
+      }
+
+      int iess = 0;
+      for (int i = 0; i < tvec.Size(); i++)
+      {
+         if (iess < ess_tdofs_list.Size() && i == ess_tdofs_list[iess])
+         {
+            iess++;
+            continue;
+         }
+         CHECK(tvec[i] == Approx(-coef).epsilon(1e-8));
+      }
+   };
+
+   SECTION("Hex")
+   {
+      auto smesh = DividingPlaneMesh(false, true);
+      smesh.EnsureNCMesh();
+      ParMesh pmesh(MPI_COMM_WORLD, smesh);
+      test_project_H1(pmesh, 1, 0.25);
+      test_project_H1(pmesh, 2, 0.25);
+      test_project_H1(pmesh, 3, 0.25);
+   }
+
+   SECTION("Tet")
+   {
+      auto smesh = DividingPlaneMesh(true, true);
+      smesh.EnsureNCMesh();
+      ParMesh pmesh(MPI_COMM_WORLD, smesh);
+      test_project_H1(pmesh, 1, 0.25);
+      test_project_H1(pmesh, 2, 0.25);
+      test_project_H1(pmesh, 3, 0.25);
+   }
+}
+
 #endif // MFEM_USE_MPI
 
 TEST_CASE("ReferenceCubeInternalBoundaries", "[NCMesh]")
