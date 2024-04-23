@@ -179,7 +179,7 @@ FaceQuadratureSpace::FaceQuadratureSpace(Mesh &mesh_, const IntegrationRule &ir,
      face_type(face_type_),
      num_faces(mesh.GetNFbyType(face_type))
 {
-   MFEM_VERIFY(mesh.GetNumGeometries(mesh.Dimension() - 1) == 1,
+   MFEM_VERIFY(mesh.GetNumGeometries(mesh.Dimension() - 1) <= 1,
                "Constructor not valid for mixed meshes");
    ConstructOffsets();
 }
