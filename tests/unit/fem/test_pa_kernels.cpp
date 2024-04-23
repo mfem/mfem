@@ -745,7 +745,7 @@ void test_dg_diffusion(FES &fes)
    const real_t kappa = 10.0;
 
    IntegrationRules irs(0, Quadrature1D::GaussLobatto);
-   const IntegrationRule &ir = irs.Get(fes.GetMesh()->GetFaceGeometry(0),
+   const IntegrationRule &ir = irs.Get(fes.GetMesh()->GetTypicalFaceGeometry(),
                                        2*fes.GetMaxElementOrder());
 
    BLF_t blf_fa(&fes);

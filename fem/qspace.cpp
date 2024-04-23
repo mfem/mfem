@@ -175,7 +175,7 @@ FaceQuadratureSpace::FaceQuadratureSpace(Mesh &mesh_, int order_,
 
 FaceQuadratureSpace::FaceQuadratureSpace(Mesh &mesh_, const IntegrationRule &ir,
                                          FaceType face_type_)
-   : QuadratureSpaceBase(mesh_, mesh_.GetFaceGeometry(0), ir),
+   : QuadratureSpaceBase(mesh_, mesh_.GetTypicalFaceGeometry(), ir),
      face_type(face_type_),
      num_faces(mesh.GetNFbyType(face_type))
 {
