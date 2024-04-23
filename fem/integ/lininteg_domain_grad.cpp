@@ -267,7 +267,7 @@ static void DLFGradAssemble(const FiniteElementSpace &fes,
 {
    Mesh *mesh = fes.GetMesh();
    const int dim = mesh->Dimension();
-   const FiniteElement &el = *fes.GetFE(0);
+   const FiniteElement &el = *fes.GetTypicalFE();
    const MemoryType mt = Device::GetDeviceMemoryType();
    const DofToQuad &maps = el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    const int d = maps.ndof, q = maps.nqpt;
@@ -320,7 +320,7 @@ void DomainLFGradIntegrator::AssembleDevice(const FiniteElementSpace &fes,
                                             Vector &b)
 {
 
-   const FiniteElement &fe = *fes.GetFE(0);
+   const FiniteElement &fe = *fes.GetTypicalFE();
    const int qorder = 2 * fe.GetOrder();
    const Geometry::Type gtype = fe.GetGeomType();
    const IntegrationRule *ir = IntRule ? IntRule : &IntRules.Get(gtype, qorder);
@@ -334,7 +334,7 @@ void VectorDomainLFGradIntegrator::AssembleDevice(const FiniteElementSpace &fes,
                                                   const Array<int> &markers,
                                                   Vector &b)
 {
-   const FiniteElement &fe = *fes.GetFE(0);
+   const FiniteElement &fe = *fes.GetTypicalFE();
    const int qorder = 2 * fe.GetOrder();
    const Geometry::Type gtype = fe.GetGeomType();
    const IntegrationRule *ir = IntRule ? IntRule : &IntRules.Get(gtype, qorder);

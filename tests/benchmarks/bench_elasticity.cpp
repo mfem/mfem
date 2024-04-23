@@ -67,7 +67,7 @@ struct ElasticityBench
       geometric_factors(fes.GetMesh()->
                         GetGeometricFactors(ir, GeometricFactors::JACOBIANS |
                                             GeometricFactors::DETERMINANTS)),
-      maps(&fes.GetFE(0)->GetDofToQuad(ir, DofToQuad::TENSOR)),
+      maps(&fes.GetTypicalFE()->GetDofToQuad(ir, DofToQuad::TENSOR)),
       d1d(maps->ndof),
       q1d(maps->nqpt),
       R(fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC)),

@@ -30,7 +30,7 @@ QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
 {
    d_buffer.UseDevice(true);
    if (fespace->GetNE() == 0) { return; }
-   const FiniteElement *fe = fespace->GetFE(0);
+   const FiniteElement *fe = fespace->GetTypicalFE();
    MFEM_VERIFY(dynamic_cast<const ScalarFiniteElement*>(fe) != NULL,
                "Only scalar finite elements are supported");
 }
@@ -46,7 +46,7 @@ QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
 {
    d_buffer.UseDevice(true);
    if (fespace->GetNE() == 0) { return; }
-   const FiniteElement *fe = fespace->GetFE(0);
+   const FiniteElement *fe = fespace->GetTypicalFE();
    MFEM_VERIFY(dynamic_cast<const ScalarFiniteElement*>(fe) != NULL,
                "Only scalar finite elements are supported");
 }
@@ -467,7 +467,7 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
    const int ne = fespace->GetNE();
    if (ne == 0) { return; }
    const int vdim = fespace->GetVDim();
-   const FiniteElement *fe = fespace->GetFE(0);
+   const FiniteElement *fe = fespace->GetTypicalFE();
    const bool use_tensor_eval =
       use_tensor_products &&
       dynamic_cast<const TensorBasisElement*>(fe) != nullptr;

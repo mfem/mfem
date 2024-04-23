@@ -90,8 +90,8 @@ static bool testQuadratureInterpolator(const int dim,
 
    const int NE(mesh.GetNE());
    const int NQ(ir.GetNPoints());
-   const int ND(sfes.GetFE(0)->GetDof());
-   REQUIRE(ND == vfes.GetFE(0)->GetDof());
+   const int ND(sfes.GetTypicalFE()->GetDof());
+   REQUIRE(ND == vfes.GetTypicalFE()->GetDof());
 
    const ElementDofOrdering nat_ordering = ElementDofOrdering::NATIVE;
    const ElementDofOrdering lex_ordering = ElementDofOrdering::LEXICOGRAPHIC;

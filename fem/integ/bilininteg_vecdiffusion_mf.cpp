@@ -20,8 +20,7 @@ void VectorDiffusionIntegrator::AssembleMF(const FiniteElementSpace &fes)
 {
    // Assumes tensor-product elements
    Mesh *mesh = fes.GetMesh();
-   if (mesh->GetNE() == 0) { return; }
-   const FiniteElement &el = *fes.GetFE(0);
+   const FiniteElement &el = *fes.GetTypicalFE();
    const IntegrationRule *ir
       = IntRule ? IntRule : &DiffusionIntegrator::GetRule(el, el);
    if (DeviceCanUseCeed())

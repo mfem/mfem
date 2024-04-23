@@ -862,7 +862,7 @@ void EABilinearFormExtension::Assemble()
    SetupRestrictionOperators(L2FaceValues::SingleValued);
 
    ne = trial_fes->GetMesh()->GetNE();
-   elemDofs = trial_fes->GetFE(0)->GetDof();
+   elemDofs = trial_fes->GetTypicalFE()->GetDof();
 
    ea_data.SetSize(ne*elemDofs*elemDofs, Device::GetMemoryType());
    ea_data.UseDevice(true);

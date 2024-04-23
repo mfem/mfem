@@ -468,7 +468,7 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
    const int q1d = (ir.GetOrder() + 3)/2;
    MFEM_ASSERT(q1d == pow(real_t(ir.Size()), 1.0/(dim - 1)), "");
 
-   const auto vol_ir = irs.Get(mesh.GetElementGeometry(0), ir_order);
+   const auto vol_ir = irs.Get(mesh.GetTypicalElementGeometry(), ir_order);
    const auto geom_flags = GeometricFactors::JACOBIANS |
                            GeometricFactors::DETERMINANTS;
    const auto el_geom = mesh.GetGeometricFactors(vol_ir, geom_flags, mt);

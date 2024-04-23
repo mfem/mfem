@@ -23,7 +23,7 @@ namespace ceed
 static void InitNativeRestr(const mfem::FiniteElementSpace &fes,
                             Ceed ceed, CeedElemRestriction *restr)
 {
-   const mfem::FiniteElement *fe = fes.GetFE(0);
+   const mfem::FiniteElement *fe = fes.GetTypicalFE();
    const int P = fe->GetDof();
    CeedInt compstride = fes.GetOrdering()==Ordering::byVDIM ? 1 : fes.GetNDofs();
    const mfem::Table &el_dof = fes.GetElementToDofTable();
@@ -51,7 +51,7 @@ static void InitNativeRestr(const mfem::FiniteElementSpace &fes,
 static void InitLexicoRestr(const mfem::FiniteElementSpace &fes,
                             Ceed ceed, CeedElemRestriction *restr)
 {
-   const mfem::FiniteElement *fe = fes.GetFE(0);
+   const mfem::FiniteElement *fe = fes.GetTypicalFE();
    const int P = fe->GetDof();
    CeedInt compstride = fes.GetOrdering()==Ordering::byVDIM ? 1 : fes.GetNDofs();
    const mfem::Table &el_dof = fes.GetElementToDofTable();
@@ -75,7 +75,7 @@ static void InitLexicoRestr(const mfem::FiniteElementSpace &fes,
 static void InitRestrictionImpl(const mfem::FiniteElementSpace &fes,
                                 Ceed ceed, CeedElemRestriction *restr)
 {
-   const mfem::FiniteElement *fe = fes.GetFE(0);
+   const mfem::FiniteElement *fe = fes.GetTypicalFE();
    const mfem::TensorBasisElement * tfe =
       dynamic_cast<const mfem::TensorBasisElement *>(fe);
    if ( tfe && tfe->GetDofMap().Size()>0 ) // Native ordering using dof_map
@@ -225,7 +225,7 @@ void InitRestriction(const FiniteElementSpace &fes,
                      CeedElemRestriction *restr)
 {
    // Check for FES -> basis, restriction in hash tables
-   const mfem::FiniteElement *fe = fes.GetFE(0);
+   const mfem::FiniteElement *fe = fes.GetTypicalFE();
    const int P = fe->GetDof();
    const int nelem = fes.GetNE();
    const int ncomp = fes.GetVDim();

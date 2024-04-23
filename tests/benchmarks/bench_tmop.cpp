@@ -44,7 +44,7 @@ struct TMOP
       fec(p, dim),
       fes(&mesh, &fec, dim),
       R(fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC)),
-      ir(&IntRules.Get(fes.GetFE(0)->GetGeomType(), q)),
+      ir(&IntRules.Get(mesh.GetTypicalElementGeometry(), q)),
       nlfi(&metric, &target_c),
       dofs(fes.GetVSize()),
       x(&fes),
