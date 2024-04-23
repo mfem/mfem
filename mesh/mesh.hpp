@@ -1610,8 +1610,21 @@ public:
    ///
    /// @note The returned object is owned by the class and is shared, i.e.,
    /// calling this function resets pointers obtained from previous calls.
-   /// Also, this pointer should NOT be deleted by the caller.
+   /// Also, this pointer should @b not be deleted by the caller.
    ElementTransformation *GetElementTransformation(int i);
+
+   /// @brief If the local mesh is not empty return GetElementTransformation(0);
+   /// otherwise, return the identity transformation for a typical geometry in
+   /// the mesh and a typical finite element in the nodal finite element space
+   /// (if present).
+   ///
+   /// This method can be used to replace calls like GetElementTransformation(0)
+   /// in order to handle empty local meshes better.
+   ///
+   /// @note The returned object is owned by the class and is shared, i.e.,
+   /// calling this function resets pointers obtained from previous calls. Also,
+   /// this pointer should @b not be deleted by the caller.
+   ElementTransformation *GetTypicalElementTransformation();
 
    /// @brief Builds the transformation defining the i-th element in @a ElTr
    /// assuming position of the vertices/nodes are given by @a nodes.
