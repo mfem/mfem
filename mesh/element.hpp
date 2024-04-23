@@ -49,6 +49,9 @@ public:
    /// Returns element's type
    virtual Type GetType() const = 0;
 
+   /// Return the Element::Type associated with the given Geometry::Type.
+   static Type TypeFromGeometry(const Geometry::Type geom);
+
    Geometry::Type GetGeometryType() const { return base_geom; }
 
    /// Return element's attribute.
