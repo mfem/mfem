@@ -5,6 +5,7 @@
 // Sample runs: mpirun -np 4 ex40p -step 10 -gr 2.0
 //              mpirun -np 4 ex40p -step 10 -gr 2.0 -o 3 -r 1
 //              mpirun -np 4 ex40p -step 10 -gr 2.0 -r 4 -m ../data/l-shape.mesh
+//              mpirun -np 4 ex40p -step 10 -gr 2.0 -r 2 -m ../data/fichera.mesh
 //
 // Description: This example code demonstrates how to use MFEM to solve the
 //              eikonal equation,
