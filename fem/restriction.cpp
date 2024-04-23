@@ -936,9 +936,8 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
      ne(fes.GetNE()),
      vdim(fes.GetVDim()),
      byvdim(fes.GetOrdering() == Ordering::byVDIM),
-     face_dofs(nf > 0 ?
-               fes.GetTraceElement(0, fes.GetMesh()->GetFaceGeometry(0))->GetDof()
-               : 0),
+     face_dofs(fes.GetTraceElement(
+                  0, fes.GetMesh()->GetTypicalFaceGeometry())->GetDof()),
      elem_dofs(fes.GetTypicalFE()->GetDof()),
      nfdofs(nf*face_dofs),
      ndofs(fes.GetNDofs()),
@@ -1575,7 +1574,7 @@ const DenseMatrix* InterpolationManager::GetCoarseToFineInterpolation(
    // (coarse) face to slave (fine) face.
    // Assumes all trace elements are the same.
    const FiniteElement *trace_fe =
-      fes.GetTraceElement(0, fes.GetMesh()->GetFaceGeometry(0));
+      fes.GetTraceElement(0, fes.GetMesh()->GetTypicalFaceGeometry());
    const int face_dofs = trace_fe->GetDof();
    const TensorBasisElement* el =
       dynamic_cast<const TensorBasisElement*>(trace_fe);
@@ -1627,7 +1626,7 @@ void InterpolationManager::LinearizeInterpolatorMapIntoVector()
 {
    // Assumes all trace elements are the same.
    const FiniteElement *trace_fe =
-      fes.GetTraceElement(0, fes.GetMesh()->GetFaceGeometry(0));
+      fes.GetTraceElement(0, fes.GetMesh()->GetTypicalFaceGeometry());
    const int face_dofs = trace_fe->GetDof();
    const int nc_size = interp_map.size();
    MFEM_VERIFY(nc_cpt==nc_size, "Unexpected number of interpolators.");

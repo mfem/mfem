@@ -878,8 +878,8 @@ void EABilinearFormExtension::Assemble()
       integrators[i]->AssembleEA(*a->FESpace(), ea_data, i);
    }
 
-   faceDofs = trial_fes ->
-              GetTraceElement(0, trial_fes->GetMesh()->GetFaceGeometry(0)) ->
+   faceDofs = trial_fes->
+              GetTraceElement(0, trial_fes->GetMesh()->GetTypicalFaceGeometry())->
               GetDof();
 
    MFEM_VERIFY(a->GetBBFI()->Size() == 0,
