@@ -1182,7 +1182,7 @@ enum {NORM, AREA};
 static real_t qf(const int order, const int ker, Mesh &m,
                  FiniteElementSpace &fes, GridFunction &u)
 {
-   const Geometry::Type type = m.GetElementBaseGeometry(0);
+   const Geometry::Type type = m.GetTypicalElementGeometry();
    const IntegrationRule &ir(IntRules.Get(type, order));
    const QuadratureInterpolator *qi(fes.GetQuadratureInterpolator(ir));
 

@@ -1646,7 +1646,7 @@ public:
       Mv(&h1_fes), Mv_spmat_copy(),
       Me(l2dofs_cnt, l2dofs_cnt, nzones),
       Me_inv(l2dofs_cnt, l2dofs_cnt, nzones),
-      integ_rule(IntRules.Get(h1_fes.GetMesh()->GetElementBaseGeometry(0),
+      integ_rule(IntRules.Get(h1_fes.GetMesh()->GetTypicalElementGeometry(),
                               (order_q > 0) ? order_q :
                               3*h1_fes.GetElementOrder(0)
                               + l2_fes.GetElementOrder(0) - 1)),
@@ -1706,7 +1706,7 @@ public:
       MPI_Allreduce(&loc_area, &glob_area, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
                     pm->GetComm());
       MPI_Allreduce(&loc_z_cnt, &glob_z_cnt, 1, MPI_INT, MPI_SUM, pm->GetComm());
-      switch (pm->GetElementBaseGeometry(0))
+      switch (pm->GetTypicalElementGeometry())
       {
          case Geometry::SQUARE:
             quad_data.h0 = sqrt(glob_area / glob_z_cnt); break;
