@@ -386,6 +386,29 @@ void Mesh::GetElementTransformation(int i,
    }
 }
 
+ElementTransformation *Mesh::GetTypicalElementTransformation()
+{
+   if (GetNE() > 0) { return GetElementTransformation(0); }
+
+   Transformation.Attribute = -1;
+   Transformation.ElementNo = -1;
+   Transformation.ElementType = ElementTransformation::ELEMENT;
+   Transformation.mesh = this;
+   Transformation.Reset();
+   const Geometry::Type geom = GetTypicalElementGeometry();
+   if (Nodes == NULL)
+   {
+      Element::Type el_type = Element::TypeFromGeometry(geom);
+      Transformation.SetFE(GetTransformationFEforElementType(el_type));
+   }
+   else
+   {
+      Transformation.SetFE(GetNodalFESpace()->GetTypicalFE());
+   }
+   Transformation.SetIdentityTransformation(geom);
+   return &Transformation;
+}
+
 ElementTransformation *Mesh::GetElementTransformation(int i)
 {
    GetElementTransformation(i, &Transformation);
