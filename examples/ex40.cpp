@@ -5,6 +5,7 @@
 // Sample runs: ex40 -step 10 -gr 2.0
 //              ex40 -step 10 -gr 2.0 -o 3 -r 1
 //              ex40 -step 10 -gr 2.0 -r 4 -m ../data/l-shape.mesh
+//              ex40 -step 10 -gr 2.0 -r 2 -m ../data/fichera.mesh
 //
 // Description: This example code demonstrates how to use MFEM to solve the
 //              eikonal equation,
