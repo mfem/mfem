@@ -256,11 +256,6 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       // build svert_lvert mapping
       BuildSharedVertMapping(nsvert, vert_element, vert_global_local);
       delete vert_element;
-
-      // FIXME: the next two lines are already done above! Any reason to do them
-      //        again?
-      SetMeshGen();
-      meshgen = mesh.meshgen; // copy the global 'meshgen'
    }
 
    if (mesh.NURBSext)
