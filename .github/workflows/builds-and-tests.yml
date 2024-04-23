@@ -52,6 +52,7 @@ jobs:
         mpi: [seq, par]
         build-system: [make, cmake]
         hypre-target: [int32]
+        precision: [dbl]
         exclude:
           - os: ubuntu-latest
             build-system: cmake
@@ -101,8 +102,9 @@ jobs:
             codecov: NO
             mpi: seq
             build-system: make
+            precision: sgl
             config-opts: 'MFEM_PRECISION=SINGLE'
-    name: ${{ matrix.os }}-${{ matrix.build-system }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.hypre-target }}
+    name: ${{ matrix.os }}-${{ matrix.build-system }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.hypre-target }}-${{ matrix.precision }}
 
     runs-on: ${{ matrix.os }}
 
