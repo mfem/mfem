@@ -83,7 +83,7 @@ static bool testQuadratureInterpolator(const int dim,
       nodes -= rdm;
    }
 
-   const Geometry::Type GeomType = mesh.GetElementBaseGeometry(0);
+   const Geometry::Type GeomType = mesh.GetTypicalElementGeometry();
    const IntegrationRule &ir = IntRules.Get(GeomType, 2*qpts-1);
    const QuadratureInterpolator *sqi(sfes.GetQuadratureInterpolator(ir));
    const QuadratureInterpolator *vqi(vfes.GetQuadratureInterpolator(ir));
