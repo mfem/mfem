@@ -162,7 +162,7 @@ int main(int argc, char *argv[])
    FiniteElementCollection *fec;
    if (order > 0)
    {
-      fec = new H1_FECollection(order, dim);
+      fec = FiniteElementCollection::NewH1(order, dim, pmesh->NURBSext);
    }
    else if (pmesh->GetNodes())
    {

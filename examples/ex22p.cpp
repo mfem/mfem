@@ -208,7 +208,7 @@ int main(int argc, char *argv[])
    FiniteElementCollection *fec = NULL;
    switch (prob)
    {
-      case 0:  fec = new H1_FECollection(order, dim);      break;
+      case 0:  fec = FEColl::NewH1(order, dim, pmesh->NURBSext); break;
       case 1:  fec = new ND_FECollection(order, dim);      break;
       case 2:  fec = new RT_FECollection(order - 1, dim);  break;
       default: break; // This should be unreachable

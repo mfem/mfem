@@ -121,18 +121,18 @@ int main(int argc, char *argv[])
 
    if (prob == 0)
    {
-      trial_fec = new H1_FECollection(order, dim);
-      test_fec = new ND_FECollection(order, dim);
+      trial_fec = FEColl::NewH1(order, dim, mesh->NURBSext);
+      test_fec = FEColl::NewHCurl(order, dim, mesh->NURBSext);
    }
    else if (prob == 1)
    {
-      trial_fec = new ND_FECollection(order, dim);
-      test_fec = new RT_FECollection(order-1, dim);
+      trial_fec = FEColl::NewHCurl(order, dim, mesh->NURBSext);
+      test_fec = FEColl::NewHDiv(order-1, dim, mesh->NURBSext);
    }
    else
    {
-      trial_fec = new RT_FECollection(order-1, dim);
-      test_fec = new L2_FECollection(order-1, dim);
+      trial_fec = FEColl::NewHDiv(order-1, dim, mesh->NURBSext);
+      test_fec = FEColl::NewL2(order-1, dim, mesh->NURBSext);
    }
 
    FiniteElementSpace trial_fes(mesh, trial_fec);

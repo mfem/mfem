@@ -160,7 +160,7 @@ int main(int argc, char *argv[])
    }
    else
    {
-      fec = new H1_FECollection(order, dim);
+      fec = FiniteElementCollection::NewH1(order, dim, pmesh->NURBSext);
       fespace = new ParFiniteElementSpace(pmesh, fec, dim, Ordering::byVDIM);
    }
    HYPRE_BigInt size = fespace->GlobalTrueVSize();

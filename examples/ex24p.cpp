@@ -148,18 +148,18 @@ int main(int argc, char *argv[])
 
    if (prob == 0)
    {
-      trial_fec = new H1_FECollection(order, dim);
-      test_fec = new ND_FECollection(order, dim);
+      trial_fec = FEColl::NewH1(order, dim, pmesh->NURBSext);
+      test_fec = FEColl::NewHCurl(order, dim, pmesh->NURBSext);
    }
    else if (prob == 1)
    {
-      trial_fec = new ND_FECollection(order, dim);
-      test_fec = new RT_FECollection(order-1, dim);
+      trial_fec = FEColl::NewHCurl(order, dim, pmesh->NURBSext);
+      test_fec = FEColl::NewHDiv(order-1, dim, pmesh->NURBSext);
    }
    else
    {
-      trial_fec = new RT_FECollection(order-1, dim);
-      test_fec = new L2_FECollection(order-1, dim);
+      trial_fec = FEColl::NewHDiv(order-1, dim, pmesh->NURBSext);
+      test_fec = FEColl::NewL2(order-1, dim, pmesh->NURBSext);
    }
 
    ParFiniteElementSpace trial_fes(pmesh, trial_fec);
