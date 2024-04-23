@@ -9,20 +9,45 @@
 // Description: This example code demonstrates how to use MFEM to solve the
 //              eikonal equation,
 //
-//                      |∇u| = 1 in Ω,  u = 0 on ∂Ω.
+//                      |∇𝑢| = 1 in Ω,  𝑢 = g on ∂Ω.
 //
-//              This example constructs a fast converging sequence,
+//              The solution of this problem coincides with the unique optimum of
+//              the nonlinear program
 //
-//                      uₖ → u  as k → \infty,
+//                   maximize ∫_Ω 𝑢 d𝑥 subject to |∇𝑢| ≤ 1,   𝑢 = g on Ω,      (⋆)
 //
-//              by using in Newton's method to solve the sequence of nonlinear
-//              saddle-point problems
+//              which is the foundation for method implemented below.
 //
-//               Find ψₖ ∈ H(div,Ω) and uₖ ∈ L²(Ω) such that
-//               ( Zₖ(ψₖ) , τ ) + ( uₖ , ∇⋅τ ) = 0                   ∀ τ ∈ H(div,Ω)
-//               ( ∇⋅ψₖ , v )                 = ( ∇⋅ψₖ₋₁ - 1 , v )   ∀ v ∈ L²(Ω)
+//              Following the proximal Galerkin methodology [1] (see also Example
+//              36), we construct a Legendre function for the unit ball
+//              𝐵₁ := {𝑥 ∈ Rⁿ | |𝑥| < 1}. Our choice is the Hellinger entropy,
 //
-//              where Zₖ(ψ) = ψ / ( αₖ⁻² + |ψ|² )^{1/2} and αₖ > 0.
+//                    h(𝑥) = −( 1 − |𝑥|² )^{1/2},
+//
+//              although other choices are possible, each leading to a slightly
+//              different algorithm. We then adaptively regularize the optimization
+//              problem (⋆) with the Bregman divergence of the Hellinger entropy,
+//
+//                 maximize  ∫_Ω 𝑢 d𝑥 - αₖ⁻¹ Dₕ(∇𝑢,∇𝑢ₖ₋₁)  subject to  𝑢 = g on Ω.
+//
+//              This results in a sequence of functions ( 𝜓ₖ , 𝑢ₖ ),
+//
+//                      𝑢ₖ → 𝑢,    𝜓ₖ/|𝜓ₖ| → ∇𝑢    as k → \infty,
+//
+//              defined by the nonlinear saddle-point problems
+//
+//               Find 𝜓ₖ ∈ H(div,Ω) and 𝑢ₖ ∈ L²(Ω) such that
+//               ( Zₖ(𝜓ₖ) , τ ) + ( 𝑢ₖ , ∇⋅τ ) = ⟨ g , τ⋅n ⟩         ∀ τ ∈ H(div,Ω)
+//               ( ∇⋅𝜓ₖ , v )                 = ( ∇⋅𝜓ₖ₋₁ - 1 , v )   ∀ v ∈ L²(Ω)
+//
+//              where Zₖ(𝜓) := ∇h⁻¹(αₖ 𝜓) = 𝜓 / ( αₖ⁻² + |𝜓|² )^{1/2} and step size
+//              αₖ > 0. These saddle-point problems are solved using a damped Newton's
+//              method. This example assumes that g = 0 and allows the step size to
+//              grow geometrically, αₖ = α₀rᵏ, where r ≥ 1 is the growth rate.
+//
+//              [1] Keith, B. and Surowiec, T. (2023) Proximal Galerkin: A structure-
+//                  preserving finite element method for pointwise bound constraints.
+//                  arXiv:2307.12444 [math.NA]
 
 #include "mfem.hpp"
 #include <fstream>
