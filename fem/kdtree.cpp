@@ -176,8 +176,8 @@ void KDTreeNodalProjection<2>::Project(const GridFunction& gf, real_t lerr)
       }
 
       // initialize bbmax and bbmin
-      const FiniteElement* el=gf.FESpace()->GetFE(0);
-      trans = gf.FESpace()->GetElementTransformation(0);
+      const FiniteElement* el=gf.FESpace()->GetTypicalFE();
+      trans = gf.FESpace()->GetMesh()->GetTypicalElementTransformation();
       ir=&(el->GetNodes());
       gf.FESpace()->GetElementVDofs(0,vdofs);
       elco.SetSize(2,ir->GetNPoints());
@@ -302,8 +302,8 @@ void KDTreeNodalProjection<3>::Project(const GridFunction& gf, real_t lerr)
       }
 
       // initialize bbmax and bbmin
-      const FiniteElement* el=gf.FESpace()->GetFE(0);
-      trans = gf.FESpace()->GetElementTransformation(0);
+      const FiniteElement* el=gf.FESpace()->GetTypicalFE();
+      trans = gf.FESpace()->GetMesh()->GetTypicalElementTransformation();
       ir=&(el->GetNodes());
       gf.FESpace()->GetElementVDofs(0,vdofs);
       elco.SetSize(dim,ir->GetNPoints());

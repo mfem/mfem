@@ -190,13 +190,13 @@ static void DLFEvalAssemble(const FiniteElementSpace &fes,
 {
    Mesh *mesh = fes.GetMesh();
    const int dim = mesh->Dimension();
-   const FiniteElement &el = *fes.GetFE(0);
+   const FiniteElement &el = *fes.GetTypicalFE();
    const MemoryType mt = Device::GetDeviceMemoryType();
    const DofToQuad &maps = el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    const int d = maps.ndof, q = maps.nqpt;
    constexpr int flags = GeometricFactors::DETERMINANTS;
    const GeometricFactors *geom = mesh->GetGeometricFactors(*ir, flags, mt);
-   const int map_type = fes.GetFE(0)->GetMapType();
+   const int map_type = fes.GetTypicalFE()->GetMapType();
    decltype(&DLFEvalAssemble2D<>) ker =
       dim == 2 ? DLFEvalAssemble2D<> : DLFEvalAssemble3D<>;
 
@@ -242,7 +242,7 @@ void DomainLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
                                         const Array<int> &markers,
                                         Vector &b)
 {
-   const FiniteElement &fe = *fes.GetFE(0);
+   const FiniteElement &fe = *fes.GetTypicalFE();
    const int qorder = oa * fe.GetOrder() + ob;
    const Geometry::Type gtype = fe.GetGeomType();
    const IntegrationRule *ir = IntRule ? IntRule : &IntRules.Get(gtype, qorder);
@@ -256,7 +256,7 @@ void VectorDomainLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
                                               const Array<int> &markers,
                                               Vector &b)
 {
-   const FiniteElement &fe = *fes.GetFE(0);
+   const FiniteElement &fe = *fes.GetTypicalFE();
    const int qorder = 2 * fe.GetOrder();
    const Geometry::Type gtype = fe.GetGeomType();
    const IntegrationRule *ir = IntRule ? IntRule : &IntRules.Get(gtype, qorder);

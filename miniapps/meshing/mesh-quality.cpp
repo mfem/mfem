@@ -92,8 +92,8 @@ int main(int argc, char *argv[])
    const int nTotalParams = nSize + nAspr + nSkew;
    if (order < 0)
    {
-      order = mesh->GetNodes() == NULL ? 1 :
-              mesh->GetNodes()->FESpace()->GetFE(0)->GetOrder();
+      order = mesh->GetNodalFESpace() == NULL ? 1 :
+              mesh->GetNodalFESpace()->GetMaxElementOrder();
    }
 
    // Define a GridFunction for all geometric parameters associated with the

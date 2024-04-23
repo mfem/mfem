@@ -77,7 +77,7 @@ FaceQuadratureInterpolator::FaceQuadratureInterpolator(
 
    if (fespace->GetNE() == 0) { return; }
    GetSigns(*fespace, type, signs);
-   const FiniteElement *fe = fespace->GetFE(0);
+   const FiniteElement *fe = fespace->GetTypicalFE();
    const ScalarFiniteElement *sfe =
       dynamic_cast<const ScalarFiniteElement*>(fe);
    const TensorBasisElement *tfe =

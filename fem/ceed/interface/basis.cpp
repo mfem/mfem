@@ -135,7 +135,7 @@ void InitBasis(const FiniteElementSpace &fes,
                const IntegrationRule &ir,
                Ceed ceed, CeedBasis *basis)
 {
-   const mfem::FiniteElement &fe = *fes.GetFE(0);
+   const mfem::FiniteElement &fe = *fes.GetTypicalFE();
    InitBasisImpl(fes, fe, ir, ceed, basis);
 }
 

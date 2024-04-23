@@ -118,13 +118,11 @@ TargetConstructor::ComputeAllElementTargets<2>(const FiniteElementSpace &fes,
    MFEM_ASSERT(target_type == IDEAL_SHAPE_UNIT_SIZE || nodes != nullptr, "");
    const Mesh *mesh = fes.GetMesh();
    const int NE = mesh->GetNE();
-   // Quick return for empty processors:
-   if (NE == 0) { return true; }
    const int dim = mesh->Dimension();
    MFEM_VERIFY(mesh->GetNumGeometries(dim) <= 1,
                "mixed meshes are not supported");
    MFEM_VERIFY(!fes.IsVariableOrder(), "variable orders are not supported");
-   const FiniteElement &fe = *fes.GetFE(0);
+   const FiniteElement &fe = *fes.GetTypicalFE();
    MFEM_VERIFY(fe.GetGeomType() == Geometry::SQUARE, "");
    const DenseMatrix &W = Geometries.GetGeomToPerfGeomJac(Geometry::SQUARE);
    const DofToQuad::Mode mode = DofToQuad::TENSOR;

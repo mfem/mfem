@@ -30,7 +30,7 @@ ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
      vdim(fes.GetVDim()),
      byvdim(fes.GetOrdering() == Ordering::byVDIM),
      ndofs(fes.GetNDofs()),
-     dof(ne > 0 ? fes.GetFE(0)->GetDof() : 0),
+     dof(fes.GetTypicalFE()->GetDof()),
      nedofs(ne*dof),
      offsets(ndofs+1),
      indices(ne*dof),
@@ -51,7 +51,7 @@ ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
          if (el) { continue; }
          MFEM_ABORT("Finite element not suitable for lexicographic ordering");
       }
-      const FiniteElement *fe = fes.GetFE(0);
+      const FiniteElement *fe = fes.GetTypicalFE();
       const TensorBasisElement* el =
          dynamic_cast<const TensorBasisElement*>(fe);
       const Array<int> &fe_dof_map = el->GetDofMap();
@@ -499,7 +499,7 @@ L2ElementRestriction::L2ElementRestriction(const FiniteElementSpace &fes)
    : ne(fes.GetNE()),
      vdim(fes.GetVDim()),
      byvdim(fes.GetOrdering() == Ordering::byVDIM),
-     ndof(ne > 0 ? fes.GetFE(0)->GetDof() : 0),
+     ndof(fes.GetTypicalFE()->GetDof()),
      ndofs(fes.GetNDofs())
 {
    height = vdim*ne*ndof;
@@ -611,7 +611,7 @@ ConformingFaceRestriction::ConformingFaceRestriction(
      vdim(fes.GetVDim()),
      byvdim(fes.GetOrdering() == Ordering::byVDIM),
      face_dofs(nf > 0 ? fes.GetFaceElement(0)->GetDof() : 0),
-     elem_dofs(fes.GetFE(0)->GetDof()),
+     elem_dofs(fes.GetTypicalFE()->GetDof()),
      nfdofs(nf*face_dofs),
      ndofs(fes.GetNDofs()),
      scatter_indices(nf*face_dofs),
@@ -627,7 +627,7 @@ ConformingFaceRestriction::ConformingFaceRestriction(
 
    // Get the mapping from lexicographic DOF ordering to native ordering.
    const TensorBasisElement* el =
-      dynamic_cast<const TensorBasisElement*>(fes.GetFE(0));
+      dynamic_cast<const TensorBasisElement*>(fes.GetTypicalFE());
    const Array<int> &dof_map_ = el->GetDofMap();
    if (dof_map_.Size() > 0)
    {
@@ -749,7 +749,7 @@ void ConformingFaceRestriction::CheckFESpace(const ElementDofOrdering
 #endif
 
 #ifdef MFEM_DEBUG
-   const FiniteElement *fe0 = fes.GetFE(0);
+   const FiniteElement *fe0 = fes.GetTypicalFE();
    const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe0);
    MFEM_VERIFY(tfe != NULL &&
                (tfe->GetBasisType()==BasisType::GaussLobatto ||
@@ -857,7 +857,7 @@ void ConformingFaceRestriction::SetFaceDofsScatterIndices(
                "FaceRestriction used on degenerated mesh.");
    MFEM_CONTRACT_VAR(f_ordering); // not supported yet
 
-   fes.GetFE(0)->GetFaceMap(face.element[0].local_face_id, face_map);
+   fes.GetTypicalFE()->GetFaceMap(face.element[0].local_face_id, face_map);
 
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elem_map = e2dTable.GetJ();
@@ -885,7 +885,7 @@ void ConformingFaceRestriction::SetFaceDofsGatherIndices(
                "This method should not be used on nonconforming coarse faces.");
    MFEM_CONTRACT_VAR(f_ordering); // not supported yet
 
-   fes.GetFE(0)->GetFaceMap(face.element[0].local_face_id, face_map);
+   fes.GetTypicalFE()->GetFaceMap(face.element[0].local_face_id, face_map);
 
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elem_map = e2dTable.GetJ();
@@ -939,7 +939,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
      face_dofs(nf > 0 ?
                fes.GetTraceElement(0, fes.GetMesh()->GetFaceGeometry(0))->GetDof()
                : 0),
-     elem_dofs(ne > 0 ? fes.GetFE(0)->GetDof() : 0),
+     elem_dofs(fes.GetTypicalFE()->GetDof()),
      nfdofs(nf*face_dofs),
      ndofs(fes.GetNDofs()),
      type(type),
@@ -1347,7 +1347,7 @@ void L2FaceRestriction::SetFaceDofsScatterIndices1(
    const int* elem_map = e2dTable.GetJ();
    const int face_id1 = face.element[0].local_face_id;
    const int elem_index = face.element[0].index;
-   fes.GetFE(0)->GetFaceMap(face_id1, face_map);
+   fes.GetTypicalFE()->GetFaceMap(face_id1, face_map);
 
    for (int face_dof_elem1 = 0; face_dof_elem1 < face_dofs; ++face_dof_elem1)
    {
@@ -1372,8 +1372,8 @@ void L2FaceRestriction::PermuteAndSetFaceDofsScatterIndices2(
    const int face_id2 = face.element[1].local_face_id;
    const int orientation = face.element[1].orientation;
    const int dim = fes.GetMesh()->Dimension();
-   const int dof1d = fes.GetFE(0)->GetOrder()+1;
-   fes.GetFE(0)->GetFaceMap(face_id2, face_map);
+   const int dof1d = fes.GetTypicalFE()->GetOrder()+1;
+   fes.GetTypicalFE()->GetFaceMap(face_id2, face_map);
 
    for (int face_dof_elem1 = 0; face_dof_elem1 < face_dofs; ++face_dof_elem1)
    {
@@ -1400,8 +1400,8 @@ void L2FaceRestriction::PermuteAndSetSharedFaceDofsScatterIndices2(
    const int face_id2 = face.element[1].local_face_id;
    const int orientation = face.element[1].orientation;
    const int dim = fes.GetMesh()->Dimension();
-   const int dof1d = fes.GetFE(0)->GetOrder()+1;
-   fes.GetFE(0)->GetFaceMap(face_id2, face_map);
+   const int dof1d = fes.GetTypicalFE()->GetOrder()+1;
+   fes.GetTypicalFE()->GetFaceMap(face_id2, face_map);
    Array<int> face_nbr_dofs;
    const ParFiniteElementSpace &pfes =
       static_cast<const ParFiniteElementSpace&>(this->fes);
@@ -1444,7 +1444,7 @@ void L2FaceRestriction::SetFaceDofsGatherIndices1(
    const int* elem_map = e2dTable.GetJ();
    const int face_id1 = face.element[0].local_face_id;
    const int elem_index = face.element[0].index;
-   fes.GetFE(0)->GetFaceMap(face_id1, face_map);
+   fes.GetTypicalFE()->GetFaceMap(face_id1, face_map);
 
    for (int face_dof_elem1 = 0; face_dof_elem1 < face_dofs; ++face_dof_elem1)
    {
@@ -1469,8 +1469,8 @@ void L2FaceRestriction::PermuteAndSetFaceDofsGatherIndices2(
    const int face_id2 = face.element[1].local_face_id;
    const int orientation = face.element[1].orientation;
    const int dim = fes.GetMesh()->Dimension();
-   const int dof1d = fes.GetFE(0)->GetOrder()+1;
-   fes.GetFE(0)->GetFaceMap(face_id2, face_map);
+   const int dof1d = fes.GetTypicalFE()->GetOrder()+1;
+   fes.GetTypicalFE()->GetFaceMap(face_id2, face_map);
 
    for (int face_dof_elem1 = 0; face_dof_elem1 < face_dofs; ++face_dof_elem1)
    {
