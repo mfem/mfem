@@ -3587,16 +3587,17 @@ void HypreSmoother::SetOperator(const Operator &op)
 #elif defined(HYPRE_USING_GPU)
    switch (type)
    {
-      case 3:
-      case 4:
-      case 6:
-      case 8:
-      case 11:
-      case 12:
-      case 13:
-      case 14:
-      case 88:
-      case 89:
+      case 0:
+      case 1:
+      case 5:
+      case 7:
+      case 16:
+      case 18:
+      case 30:
+      case 1001:
+      case 1002:
+         break;
+      default:
          Z = new HypreParVector(*A);
    }
 #endif
