@@ -3584,7 +3584,7 @@ void HypreSmoother::SetOperator(const Operator &op)
       case 14:
          Z = new HypreParVector(*A);
    }
-#elif defined(HYPRE_USING_GPU) || defined(HYPRE_USING_CUDA) || defined(HYPRE_USING_HIP)
+#elif defined(HYPRE_USING_GPU)
    switch (type)
    {
       case 3:
