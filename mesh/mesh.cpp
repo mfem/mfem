@@ -1491,6 +1491,22 @@ Geometry::Type Mesh::GetFaceGeometry(int Face) const
    return Geometry::INVALID;
 }
 
+Geometry::Type Mesh::GetTypicalFaceGeometry() const
+{
+   Geometry::Type elem_geom = GetTypicalElementGeometry();
+   switch (elem_geom)
+   {
+      case Geometry::SEGMENT: return Geometry::POINT;
+      case Geometry::TRIANGLE: return Geometry::SEGMENT;
+      case Geometry::SQUARE: return Geometry::SEGMENT;
+      case Geometry::TETRAHEDRON: return Geometry::TRIANGLE;
+      case Geometry::CUBE: return Geometry::SQUARE;
+      case Geometry::PRISM: return Geometry::TRIANGLE;
+      case Geometry::PYRAMID: return Geometry::TRIANGLE;
+      default: return Geometry::INVALID;
+   }
+}
+
 Element::Type Mesh::GetFaceElementType(int Face) const
 {
    return (Dim == 1) ? Element::POINT : faces[Face]->GetType();

@@ -1365,6 +1365,13 @@ public:
    /// Return the Geometry::Type associated with face @a i.
    Geometry::Type GetFaceGeometry(int i) const;
 
+   /// @brief If the local mesh is not empty, return GetFaceGeometry(0);
+   /// otherwise return a typical face geometry present in the global mesh.
+   ///
+   /// Note that in mixed meshes or meshes with prism or pyramid elements, there
+   /// will be more than one face geometry.
+   Geometry::Type GetTypicalFaceGeometry() const;
+
    Geometry::Type GetElementGeometry(int i) const
    {
       return elements[i]->GetGeometryType();
