@@ -453,17 +453,14 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
 
    const int ne = fes.GetNE();
    nf = fes.GetNFbyType(type);
-   if (nf == 0) { return; }
 
    // Assumes tensor-product elements
    Mesh &mesh = *fes.GetMesh();
-   const FiniteElement &el =
-      *fes.GetTraceElement(0, mesh.GetFaceGeometry(0));
-   FaceElementTransformations &T0 =
-      *fes.GetMesh()->GetFaceElementTransformations(0);
+   const Geometry::Type face_geom_type = mesh.GetTypicalFaceGeometry();
+   const FiniteElement &el = *fes.GetTraceElement(0, face_geom_type);
    const int ir_order = IntRule ? IntRule->GetOrder()
-                        : GetRule(el.GetOrder(), T0).GetOrder();
-   const IntegrationRule &ir = irs.Get(T0.GetGeometryType(), ir_order);
+                        : GetRule(el.GetOrder(), face_geom_type).GetOrder();
+   const IntegrationRule &ir = irs.Get(face_geom_type, ir_order);
    dim = mesh.Dimension();
    const int q1d = (ir.GetOrder() + 3)/2;
    MFEM_ASSERT(q1d == pow(real_t(ir.Size()), 1.0/(dim - 1)), "");

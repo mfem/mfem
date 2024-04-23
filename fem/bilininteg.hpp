@@ -3293,7 +3293,7 @@ public:
    void AddMultPAFaceNormalDerivatives(const Vector &x, const Vector &dxdn,
                                        Vector &y, Vector &dydn) const override;
 
-   const IntegrationRule &GetRule(int order, FaceElementTransformations &T);
+   const IntegrationRule &GetRule(int order, Geometry::Type geom);
 
 private:
    void SetupPA(const FiniteElementSpace &fes, FaceType type);
