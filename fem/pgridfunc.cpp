@@ -681,10 +681,9 @@ void ParGridFunction::ProjectBdrCoefficient(
    // Count the values globally.
    GroupCommunicator &gcomm = pfes->GroupComm();
    gcomm.Reduce<int>(values_counter.HostReadWrite(), GroupCommunicator::Sum);
-   gcomm.Bcast<int>(values_counter.HostReadWrite());
    // Accumulate the values globally.
    gcomm.Reduce<real_t>(values.HostReadWrite(), GroupCommunicator::Sum);
-   gcomm.Bcast<real_t>(values.HostReadWrite());
+
    for (int i = 0; i < values.Size(); i++)
    {
       if (values_counter[i])
@@ -692,6 +691,8 @@ void ParGridFunction::ProjectBdrCoefficient(
          (*this)(i) = values(i)/values_counter[i];
       }
    }
+   // Broadcast values to other processors to have a consistent GridFunction
+   gcomm.Bcast<real_t>((*this).HostReadWrite());
 
 #ifdef MFEM_DEBUG
    Array<int> ess_vdofs_marker;
@@ -712,6 +713,7 @@ void ParGridFunction::ProjectBdrCoefficient(
          }
       }
    }
+   gcomm.Bcast<int>(values_counter.HostReadWrite());
    for (int i = 0; i < values_counter.Size(); i++)
    {
       MFEM_ASSERT(bool(values_counter[i]) == bool(ess_vdofs_marker[i]),
@@ -735,10 +737,9 @@ void ParGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
    // Count the values globally.
    GroupCommunicator &gcomm = pfes->GroupComm();
    gcomm.Reduce<int>(values_counter.HostReadWrite(), GroupCommunicator::Sum);
-   gcomm.Bcast<int>(values_counter.HostReadWrite());
    // Accumulate the values globally.
    gcomm.Reduce<real_t>(values.HostReadWrite(), GroupCommunicator::Sum);
-   gcomm.Bcast<real_t>(values.HostReadWrite());
+
    for (int i = 0; i < values.Size(); i++)
    {
       if (values_counter[i])
@@ -746,10 +747,13 @@ void ParGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
          (*this)(i) = values(i)/values_counter[i];
       }
    }
+   // Broadcast values to other processors to have a consistent GridFunction
+   gcomm.Bcast<real_t>((*this).HostReadWrite());
 
 #ifdef MFEM_DEBUG
    Array<int> ess_vdofs_marker;
    pfes->GetEssentialVDofs(bdr_attr, ess_vdofs_marker);
+   gcomm.Bcast<int>(values_counter.HostReadWrite());
    for (int i = 0; i < values_counter.Size(); i++)
    {
       MFEM_ASSERT(bool(values_counter[i]) == bool(ess_vdofs_marker[i]),
