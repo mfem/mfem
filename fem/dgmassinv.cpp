@@ -101,7 +101,7 @@ void DGMassInverse::SetRelTol(const real_t rel_tol_) { rel_tol = rel_tol_; }
 
 void DGMassInverse::SetAbsTol(const real_t abs_tol_) { abs_tol = abs_tol_; }
 
-void DGMassInverse::SetMaxIter(const real_t max_iter_) { max_iter = max_iter_; }
+void DGMassInverse::SetMaxIter(const int max_iter_) { max_iter = max_iter_; }
 
 void DGMassInverse::Update()
 {
