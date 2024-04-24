@@ -175,7 +175,8 @@ int main(int argc, char *argv[])
    {
       V_coll = new RT_FECollection(order, dim);
    }
-   FiniteElementCollection *W_coll = new L2_FECollection(order, dim);
+   FiniteElementCollection *W_coll = new L2_FECollection(order, dim,
+                                                         BasisType::GaussLobatto);
 
    FiniteElementSpace *V_space = new FiniteElementSpace(mesh, V_coll,
                                                         (dg)?(dim):(1));
