@@ -2,7 +2,8 @@
 //
 // Compile with: make getsubmesh
 //
-// Sample runs:  getsubmesh -m ../miniapps/meshing/blade.mesh -o 4
+// Sample runs:  getsubmesh -m ../miniapps/meshing/blade.mesh -p 4 -o bladebdr.mesh
+//               getsubmesh -m ../data/inline-hex.mesh -p 1 -o hexbdr.mesh -rs 1
 //
 // Description: This example code demonstrates the most basic usage of MFEM to
 //              define a simple finite element discretization of the Laplace
