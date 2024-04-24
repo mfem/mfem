@@ -105,6 +105,20 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
+   // Set the problem options
+   bool bconv;
+   switch (problem)
+   {
+      case 1:
+         bconv = false;
+         break;
+      case 3:
+         bconv = true;
+         break;
+      default:
+         cerr << "Unknown problem" << endl;
+         return 1;
+   }
    // 2. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
    Device device(device_config);
@@ -190,6 +204,9 @@ int main(int argc, char *argv[])
 
    auto qFun = GetQFun(problem, t_0, k);
    VectorFunctionCoefficient qcoeff(dim, qFun);
+
+   auto cFun = GetCFun(problem);
+   VectorFunctionCoefficient ccoeff(dim, cFun);
 
    // 8. Allocate memory (x, rhs) for the analytical solution and the right hand
    //    side.  Define the GridFunction q,t for the finite element solution and
@@ -454,6 +471,14 @@ int main(int argc, char *argv[])
    std::cout << "|| q_h - q_ex || / || q_ex || = " << err_q / norm_q << "\n";
    std::cout << "|| t_h - t_ex || / || t_ex || = " << err_t / norm_t << "\n";
 
+   GridFunction c_gf;
+   
+   if (bconv)
+   {
+      c_gf.SetSpace(V_space);
+      c_gf.ProjectCoefficient(ccoeff);
+   }
+
    // 13. Save the mesh and the solution. This output can be viewed later using
    //     GLVis: "glvis -m ex5.mesh -g sol_q.gf" or "glvis -m ex5.mesh -g
    //     sol_t.gf".
@@ -502,6 +527,13 @@ int main(int argc, char *argv[])
       t_sock.precision(8);
       t_sock << "solution\n" << *mesh << t << "window_title 'Temperature'" << endl;
       t_sock << "keys Rljmmc" << endl;
+      if (bconv)
+      {
+         socketstream c_sock(vishost, visport);
+         c_sock.precision(8);
+         c_sock << "solution\n" << *mesh << c_gf << "window_title 'Velocity'" << endl;
+         c_sock << "keys Rljvvvvvmmc" << endl;
+      }
    }
 
    // 17. Free the used memory.
