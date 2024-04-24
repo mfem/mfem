@@ -45,13 +45,13 @@ using namespace std;
 using namespace mfem;
 
 // Define the analytical solution and forcing terms / boundary conditions
-typedef std::function<real_t(const Vector &, real_t t)> TDFunc;
+typedef std::function<real_t(const Vector &)> Func;
 typedef std::function<void(const Vector &, Vector &)> VecFunc;
-typedef std::function<void(const Vector &, DenseMatrix &)> MatFunc;
 
-TDFunc GetTFun(real_t t_0, real_t a, const MatFunc &kFun);
-VecFunc GetQFun(real_t t_0, real_t a, const MatFunc &kFun);
-MatFunc GetKFun(real_t k, real_t ks, real_t ka);
+Func GetTFun(int prob, real_t t_0);
+VecFunc GetQFun(int prob, real_t t_0, real_t k);
+VecFunc GetCFun(int prob);
+Func GetFFun(int prob, real_t t_0, real_t k);
 
 int main(int argc, char *argv[])
 {
@@ -63,9 +63,8 @@ int main(int argc, char *argv[])
    int ny = 0;
    int order = 1;
    bool dg = false;
-   real_t ks = 1.;
-   real_t ka = 0.;
-   real_t a = 0.;
+   int problem = 1;
+   real_t k = 1.;
    real_t td = 0.5;
    bool hybridization = false;
    bool pa = false;
@@ -83,12 +82,10 @@ int main(int argc, char *argv[])
                   "Finite element order (polynomial degree).");
    args.AddOption(&dg, "-dg", "--discontinuous", "-no-dg",
                   "--no-discontinuous", "Enable DG elements for fluxes.");
-   args.AddOption(&ks, "-ks", "--kappa_sym",
-                  "Symmetric anisotropy of the heat conductivity tensor");
-   args.AddOption(&ka, "-ka", "--kappa_anti",
-                  "Antisymmetric anisotropy of the heat conductivity tensor");
-   args.AddOption(&a, "-a", "--heat_capacity",
-                  "Heat capacity coefficient (0=indefinite problem)");
+   args.AddOption(&problem, "-p", "--problem",
+                  "Problem to solve from the Nguyen paper.");
+   args.AddOption(&k, "-k", "--kappa",
+                  "Heat conductivity");
    args.AddOption(&td, "-td", "--stab_diff",
                   "Diffusion stabilization factor (1/2=default)");
    args.AddOption(&hybridization, "-hb", "--hybridization", "-no-hb",
@@ -182,20 +179,16 @@ int main(int argc, char *argv[])
 
    // 7. Define the coefficients, analytical solution, and rhs of the PDE.
    const real_t t_0 = 1.; //base temperature
-   const real_t k = 1.; //base heat conductivity
 
-   ConstantCoefficient acoeff(a);
+   ConstantCoefficient kcoeff(k);
+   ConstantCoefficient ikcoeff(1./k);
 
-   auto kFun = GetKFun(k, ks, ka);
-   MatrixFunctionCoefficient kcoeff(dim, kFun);
-   InverseMatrixCoefficient ikcoeff(kcoeff);
-
-   auto tFun = GetTFun(t_0, a, kFun);
+   auto tFun = GetTFun(problem, t_0);
    FunctionCoefficient tcoeff(tFun);
    SumCoefficient gcoeff(0, tcoeff, 1.,
-                         -((a>0.)?(a):(1.)));//<-- due to symmetrization, the sign is opposite
+                         -1.);//<-- due to symmetrization, the sign is opposite
 
-   auto qFun = GetQFun(t_0, a, kFun);
+   auto qFun = GetQFun(problem, t_0, k);
    VectorFunctionCoefficient qcoeff(dim, qFun);
 
    // 8. Allocate memory (x, rhs) for the analytical solution and the right hand
@@ -231,7 +224,7 @@ int main(int argc, char *argv[])
    //     B   = -\int_\Omega \div u_h q_h d\Omega   q_h \in V_h, w_h \in W_h
    BilinearForm *Mq = darcy->GetFluxMassForm();
    MixedBilinearForm *B = darcy->GetFluxDivForm();
-   BilinearForm *Mt = (a > 0. || dg)?(darcy->GetPotentialMassForm()):(NULL);
+   BilinearForm *Mt = (dg && td > 0.)?(darcy->GetPotentialMassForm()):(NULL);
 
    if (dg)
    {
@@ -248,11 +241,6 @@ int main(int argc, char *argv[])
    {
       Mq->AddDomainIntegrator(new VectorFEMassIntegrator(ikcoeff));
       B->AddDomainIntegrator(new VectorFEDivergenceIntegrator());
-   }
-
-   if (Mt)
-   {
-      Mt->AddDomainIntegrator(new MassIntegrator(acoeff));
    }
 
    //set hybridization / assembly level
@@ -533,95 +521,120 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-TDFunc GetTFun(real_t t_0, real_t a, const MatFunc &kFun)
+Func GetTFun(int prob, real_t t_0)
 {
-   return [=](const Vector &x, real_t t) -> real_t
+   switch (prob)
    {
-      const int ndim = x.Size();
-      real_t t0 = t_0 * sin(M_PI*x(0)) * sin(M_PI*x(1));
-      if (ndim > 2)
-      {
-         t0 *= sin(M_PI*x(2));
-      }
+      case 1:
+         return [=](const Vector &x) -> real_t
+         {
+            const int ndim = x.Size();
+            real_t t0 = t_0 * exp(x.Sum()) * sin(M_PI*x(0)) * sin(M_PI*x(1));
+            if (ndim > 2)
+            {
+               t0 *= sin(M_PI*x(2));
+            }
 
-      if (a <= 0.) { return t0; }
+            return t0;
+         };
+      case 3:
+         return [=](const Vector &x) -> real_t
+         {
+            Vector xc(x);
+            xc -= .5;
+            real_t t0 = 1. - tanh(10. * (-1. + 4.*xc.Norml2()));
+            return t0;
+         };
 
-      Vector ddT((ndim<=2)?(2):(4));
-      ddT(0) = -t_0 * M_PI*M_PI * sin(M_PI*x(0)) * sin(M_PI*x(1));//xx,yy
-      ddT(1) = +t_0 * M_PI*M_PI * cos(M_PI*x(0)) * cos(M_PI*x(1));//xy
-      if (ndim > 2)
-      {
-         ddT(0) *= sin(M_PI*x(2));//xx,yy,zz
-         ddT(1) *= sin(M_PI*x(2));//xy
-         ddT(2) = +t_0 * M_PI*M_PI * cos(M_PI*x(0)) * sin(M_PI*x(1)) * cos(M_PI*x(
-                                                                              2));//xz
-         ddT(3) = +t_0 * M_PI*M_PI * sin(M_PI*x(0)) * cos(M_PI*x(1)) * cos(M_PI*x(
-                                                                              2));//yz
-
-      }
-
-      DenseMatrix kappa;
-      kFun(x, kappa);
-
-      real_t div = -(kappa(0,0) + kappa(1,1)) * ddT(0) - (kappa(0,1) + kappa(1,0)) * ddT(1);
-      if (ndim > 2)
-      {
-         div += -kappa(2,2) * ddT(0) - (kappa(0,2) + kappa(2,0)) * ddT(2) - (kappa(1,
-                                                                                   2) + kappa(2,1)) * ddT(3);
-      }
-      return t0 - div / a * t;
-   };
+   }
+   return Func();
 }
 
-VecFunc GetQFun(real_t t_0, real_t a, const MatFunc &kFun)
+VecFunc GetQFun(int prob, real_t t_0, real_t k)
 {
-   return [=](const Vector &x, Vector &v)
+   switch (prob)
    {
-      const int vdim = x.Size();
-      v.SetSize(vdim);
+      case 1:
+         return [=](const Vector &x, Vector &v)
+         {
+            const int vdim = x.Size();
+            v.SetSize(vdim);
 
-      Vector gT(vdim);
-      gT = 0.;
-      gT(0) = t_0 * M_PI * cos(M_PI*x(0)) * sin(M_PI*x(1));
-      gT(1) = t_0 * M_PI * sin(M_PI*x(0)) * cos(M_PI*x(1));
-      if (vdim > 2)
-      {
-         gT(0) *= sin(M_PI*x(2));
-         gT(1) *= sin(M_PI*x(2));
-         gT(2) = t_0 * M_PI * sin(M_PI*x(0)) * sin(M_PI*x(1)) * cos(M_PI*x(2));
-      }
+            v = 0.;
+            v(0) = t_0 * (x(0) * sin(M_PI*x(0)) + M_PI * cos(M_PI*x(0))) * exp(
+                      x.Sum()) * sin(M_PI*x(1));
+            v(1) = t_0 * (x(1) * sin(M_PI*x(1)) + M_PI * cos(M_PI*x(1))) * exp(
+                      x.Sum()) * sin(M_PI*x(0));
+            if (vdim > 2)
+            {
+               v(0) *= sin(M_PI*x(2));
+               v(1) *= sin(M_PI*x(2));
+               v(2) = t_0 * (x(2) * sin(M_PI*x(2)) + M_PI * cos(M_PI*x(2))) * exp(
+                         x.Sum()) * sin(M_PI*x(0)) * sin(M_PI*x(1));
+            }
 
-      DenseMatrix kappa;
-      kFun(x, kappa);
+            v *= -k;
+         };
+      case 3:
+         return [=](const Vector &x, Vector &v)
+         {
+            const int vdim = x.Size();
+            v.SetSize(vdim);
+            v = 0.;
+            Vector xc(x);
+            xc -= .5;
 
-      if (vdim <= 2)
-      {
-         v(0) = -kappa(0,0) * gT(0) -kappa(0,1) * gT(1);
-         v(1) = -kappa(1,0) * gT(0) -kappa(1,1) * gT(1);
-      }
-      else
-      {
-         kappa.Mult(gT, v);
-         v.Neg();
-      }
-   };
+            real_t t0 = 1. - tanh(10. * (-1. + 4.*xc.Norml2()));
+            v(0) = +xc(1) * t0;
+            v(1) = -xc(0) * t0;
+         };
+         break;
+   }
+   return VecFunc();
 }
 
-MatFunc GetKFun(real_t k, real_t ks, real_t ka)
+VecFunc GetCFun(int prob)
 {
-   return [=](const Vector &x, DenseMatrix &kappa)
+   switch (prob)
    {
-      const int ndim = x.Size();
-      kappa.Diag(k, ndim);
-      kappa(0,0) *= ks;
-      kappa(0,1) = +ka * k;
-      kappa(1,0) = -ka * k;
-      if (ndim > 2)
-      {
-         kappa(0,2) = +ka * k;
-         kappa(2,0) = -ka * k;
-      }
-   };
+      case 1:
+         //null
+         break;
+      case 3:
+         return [=](const Vector &x, Vector &v)
+         {
+            const int ndim = x.Size();
+            v.SetSize(ndim);
+            v = 0.;
+            Vector xc(x);
+            xc -= .5;
+
+            v(0) = +xc(1);
+            v(1) = -xc(0);
+         };
+   }
+   return VecFunc();
 }
 
+Func GetFFun(int prob, real_t t_0, real_t k)
+{
+   switch (prob)
+   {
+      case 1:
+         return [=](const Vector &x) -> real_t
+         {
+            const int ndim = x.Size();
+            real_t t0 = t_0 * exp(x.Sum()) * sin(M_PI*x(0)) * sin(M_PI*x(1));
+            if (ndim > 2)
+            {
+               t0 *= sin(M_PI*x(2));
+            }
 
+            return t0;
+         };
+      case 3:
+         //null
+         break;
+   }
+   return Func();
+}
