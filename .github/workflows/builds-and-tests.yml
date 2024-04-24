@@ -103,7 +103,6 @@ jobs:
             mpi: seq
             build-system: make
             precision: sgl
-            config-opts: 'MFEM_PRECISION=SINGLE'
     name: ${{ matrix.os }}-${{ matrix.build-system }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.hypre-target }}-${{ matrix.precision }}
 
     runs-on: ${{ matrix.os }}
@@ -236,7 +235,7 @@ jobs:
 
       # MFEM build and test
       - name: build
-        uses: mfem/github-actions/build-mfem@v2.4
+        uses: mfem/github-actions/build-mfem@najlkin/add-single-ci
         env:
           VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg_cache
         with:
@@ -248,6 +247,7 @@ jobs:
           hypre-dir: ${{ env.HYPRE_TOP_DIR }}
           metis-dir: ${{ env.METIS_TOP_DIR }}
           mfem-dir: ${{ env.MFEM_TOP_DIR }}
+          precision: ${{ matrix.precision }}
           config-options: ${{ matrix.config-opts }}
           library-only: ${{ matrix.target == 'dbg' && matrix.os != 'ubuntu-latest' }}
 
