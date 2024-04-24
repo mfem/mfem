@@ -23,6 +23,7 @@ private:
    HypreParMatrix A;
    Vector B,X;
    ConstantCoefficient pressure_cf;
+   VectorArrayCoefficient * bf = nullptr;
    void Init();
    bool own_mesh;
 public:
@@ -89,6 +90,27 @@ public:
       b->AddBoundaryIntegrator(new VectorBoundaryFluxLFIntegrator(pressure_cf),bdr_marker);
    }
 
+   void SetNeumanData(int comp, int bdrattr, double value)
+   { 
+      int dim = pmesh->Dimension();
+      bf = new VectorArrayCoefficient(dim);
+      for (int i = 0; i < dim; i++)
+      {
+         if (i == comp)
+         {
+            Vector pull_force(pmesh->bdr_attributes.Max());
+            pull_force = 0.0;
+            pull_force(bdrattr-1) = value;
+            bf->Set(i, new PWConstCoefficient(pull_force));
+         }
+         else
+         {
+            bf->Set(i, new ConstantCoefficient(0.0));
+         }
+      }
+      b->AddBoundaryIntegrator(new VectorBoundaryLFIntegrator(*bf));
+   }
+
    void UpdateEssentialBC(Array<int> & ess_bdr_attr_, Array<int> & ess_bdr_attr_comp_)
    {
       ess_bdr_attr = ess_bdr_attr_;
@@ -115,7 +137,12 @@ public:
       {
          delete b;
          b = new ParLinearForm(fes);
-         a->Update();
+         delete a;
+         a = new ParBilinearForm(fes);
+         a->AddDomainIntegrator(new ElasticityIntegrator(lambda_cf,mu_cf));
+
+
+         // a->Update();
          formsystem = false;
       }
    }
@@ -142,6 +169,11 @@ public:
          MFEM_ABORT("");
       }
    };
+
+   void ResetDisplacementDirichletData()
+   {
+      x = 0.0;
+   }
 
    void SetDisplacementDirichletData(const Vector & delta, Array<int> essbdr) 
    {
@@ -176,6 +208,7 @@ public:
       {
          delete pmesh;
       }
+      delete bf;
    }
 };
 
@@ -201,6 +234,7 @@ private:
    Array<int> constraints_starts;
    Array<int> globalvertices;
    Array<int> vertices;
+   ParGridFunction * coords = nullptr;
 
 protected:
    int npoints=0;
@@ -213,13 +247,17 @@ protected:
    Vector gapv;
    HypreParMatrix * M=nullptr;
    void SetupTribol();
+   void SetupTribolDoublePass();
    std::set<int> mortar_attrs;
    // plane of top block
    std::set<int> nonmortar_attrs;
+   bool doublepass = false;
 
 public:
    ParContactProblem(ParElasticityProblem * prob_, 
-                               const std::set<int> & mortar_attrs_, const std::set<int> & nonmortar_attrs_);
+                     const std::set<int> & mortar_attrs_, const std::set<int> & nonmortar_attrs_,
+                     ParGridFunction * coords_,
+                      bool doublepass = false);
 
    ParElasticityProblem * GetElasticityProblem() {return prob;}
    MPI_Comm GetComm() {return comm;}

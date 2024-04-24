@@ -15,6 +15,38 @@
 using namespace std;
 using namespace mfem;
 
+double GetBdrElementVolume(int i, Mesh & mesh)
+{
+   ElementTransformation *et = mesh.GetBdrElementTransformation(i);
+   const IntegrationRule &ir = IntRules.Get(mesh.GetBdrElementGeometry(i),
+                                            et->OrderJ());
+   double volume = 0.0;
+   for (int j = 0; j < ir.GetNPoints(); j++)
+   {
+      const IntegrationPoint &ip = ir.IntPoint(j);
+      et->SetIntPoint(&ip);
+      volume += ip.weight * et->Weight();
+   }
+
+   return volume;
+}
+
+
+double GetBdrArea(int bdrattr, Mesh&mesh)
+{
+   double area = 0.0;
+   for (int i = 0; i<mesh.GetNBE(); i++)
+   {
+      if (mesh.GetBdrAttribute(i) == bdrattr)
+      {
+         area += GetBdrElementVolume(i,mesh);
+      }
+   }
+
+   MPI_Allreduce(MPI_IN_PLACE,&area,1, MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+   return area;
+}
+
 void OutputData(ostringstream & file_name, double E0, double Ef, int dofs, int constr, int optit, const Array<int> & iters)
 {
    file_name << ".csv";
@@ -63,6 +95,7 @@ int main(int argc, char *argv[])
    int testNo = -1; // 0-6
    int nsteps = 1;
    bool outputfiles = false;
+   bool doublepass = false;
    // 1. Parse command-line options.
    OptionsParser args(argc, argv);
    args.AddOption(&testNo, "-testno", "--test-number",
@@ -95,6 +128,9 @@ int main(int argc, char *argv[])
    args.AddOption(&nocontact, "-nocontact", "--nocontact", "-no-nocontact",
                   "--no-nocontact",
                   "Enable or disable AMG solve with no contact for testing.");
+   args.AddOption(&doublepass, "-doublepass", "--double-pass", "-singlepass",
+                  "--single-pass",
+                  "Enable or disable double pass for contact constraints.");                  
    args.AddOption(&optimizer_tol, "-otol", "--optimizer-tol",
                   "Interior Point Solver Tolerance.");
    args.AddOption(&optimizer_maxit, "-omaxit", "--optimizer-maxit",
@@ -253,7 +289,12 @@ int main(int argc, char *argv[])
    Array<int> ess_bdr(pmesh->bdr_attributes.Max());
 
    ess_values = 0.0;
-   ConstantCoefficient one(-20.0/nsteps);
+
+
+   double area = GetBdrArea(3,*mesh);
+
+   // ConstantCoefficient one(-area);
+   ConstantCoefficient one(-1.0);
 
    std::set<int> mortar_attr;
    std::set<int> nonmortar_attr;
@@ -269,7 +310,7 @@ int main(int argc, char *argv[])
       prob->SetDisplacementDirichletData(ess_values, ess_bdr);
       ess_bdr = 0;
       ess_bdr[2] = 1;
-      prob->SetNeumanPressureData(one,ess_bdr);
+      // prob->SetNeumanPressureData(one,ess_bdr);
       mortar_attr.insert(6);
       mortar_attr.insert(9);
       nonmortar_attr.insert(7);
@@ -284,7 +325,8 @@ int main(int argc, char *argv[])
       prob->SetDisplacementDirichletData(ess_values, ess_bdr);
       ess_bdr = 0;
       ess_bdr[2] = 1;
-      prob->SetNeumanPressureData(one,ess_bdr);
+      // prob->SetNeumanPressureData(one,ess_bdr);
+      prob->SetNeumanData(0,3,-2.0);
       mortar_attr.insert(6);
       mortar_attr.insert(9);
       nonmortar_attr.insert(7);
@@ -323,6 +365,9 @@ int main(int argc, char *argv[])
    ParGridFunction x_gf(fes); x_gf = 0.0;
    ParGridFunction xnew(fes); xnew = 0.0;
    ParaViewDataCollection * paraview_dc = nullptr;
+   ParMesh pmesh_copy(*pmesh);
+   ParFiniteElementSpace fes_copy(*fes,pmesh_copy);
+   ParGridFunction xcopy_gf(&fes_copy); xcopy_gf = 0.0;
    
    if (paraview)
    {
@@ -330,12 +375,13 @@ int main(int argc, char *argv[])
       paraview_file_name << "QPContact-Test_" << testNo
                          << "_par_ref_" << pref
                          << "_ser_ref_" << sref;
-      paraview_dc = new ParaViewDataCollection(paraview_file_name.str(), pmesh);
+      paraview_dc = new ParaViewDataCollection(paraview_file_name.str(), &pmesh_copy);
       paraview_dc->SetPrefixPath("ParaView");
       paraview_dc->SetLevelsOfDetail(1);
       paraview_dc->SetDataFormat(VTKFormat::BINARY);
       paraview_dc->SetHighOrderOutput(true);
-      paraview_dc->RegisterField("u", &x_gf);
+      // paraview_dc->RegisterField("u", &x_gf);
+      paraview_dc->RegisterField("u", &xcopy_gf);
       paraview_dc->SetCycle(0);
       paraview_dc->SetTime(double(0));
       paraview_dc->Save();
@@ -348,10 +394,38 @@ int main(int argc, char *argv[])
       sol_sock.open(vishost, visport);
       sol_sock.precision(8);
    }
+   // ParGridFunction coords(prob->GetFESpace()); 
+   ParGridFunction ref_coords(prob->GetFESpace()); 
+   ParGridFunction new_coords(prob->GetFESpace()); 
+   pmesh->GetNodes(new_coords);
+   pmesh->GetNodes(ref_coords);
    
+
+   double p = 1;
+   ConstantCoefficient f(p);
    for (int i = 0; i<nsteps; i++)
    {
-      ParContactProblem contact(prob, mortar_attr, nonmortar_attr);
+      if (testNo == 6)
+      {
+         ess_bdr = 0;
+         ess_bdr[2] = 1;
+         f.constant = -p*(i+1)/nsteps;
+         prob->SetNeumanPressureData(f,ess_bdr);
+         // prob->SetNeumanData(0,3,-p*(i+1)/nsteps);
+      }
+      else if (testNo == 4 || testNo == 40 || testNo == 5 || testNo == 51)
+      {
+         ess_bdr = 0;
+         essbdr_attr = (testNo == 40) ? 1 : 2;
+         ess_bdr[essbdr_attr-1] = 1;
+         ess_values = 0.0;
+         ess_values[2] = 1.0/1.4*(i+1)/nsteps;
+         prob->SetDisplacementDirichletData(ess_values, ess_bdr);
+      }
+
+      // add(ref_coords,x_gf,coords);
+      // coords += xnew;
+      ParContactProblem contact(prob, mortar_attr, nonmortar_attr, &new_coords, doublepass);
       QPOptParContactProblem qpopt(&contact);
       int numconstr = contact.GetGlobalNumConstraints();
       ParInteriorPointSolver optimizer(&qpopt);
@@ -369,13 +443,21 @@ int main(int argc, char *argv[])
       {
          optimizer.SetElasticityOptions(prob->GetFESpace());
       }
-      ParGridFunction x = prob->GetDisplacementGridFunction();
-      Vector x0 = x.GetTrueVector();
+      // ParGridFunction x = prob->GetDisplacementGridFunction();
+      // x.SetTrueVector();
+      // Vector x0 = x.GetTrueVector();
+
+      x_gf.SetTrueVector();
+      Vector x0 = x_gf.GetTrueVector();
       int ndofs = x0.Size();
       Vector xf(ndofs); xf = 0.0;
       optimizer.Mult(x0, xf);
+
+      Vector xf_copy(xf);
+      xf_copy+=x0;
       double Einitial = contact.E(x0);
-      double Efinal = contact.E(xf);
+      // double Efinal = contact.E(xf);
+      double Efinal = contact.E(xf_copy);
       Array<int> & CGiterations = optimizer.GetCGIterNumbers();
       int gndofs = prob->GetGlobalNumDofs();
       if (Mpi::Root())
@@ -406,32 +488,57 @@ int main(int argc, char *argv[])
          }
       }
 
-      if (visualization || paraview)
+      // Vector X_new(xf.GetData(),fes->GetTrueVSize());
+      // xnew.SetFromTrueDofs(X_new);
+      // x_gf = xnew;
+      x_gf.SetFromTrueDofs(xf);
+      // mfem::out << "x_gf norm = " << x_gf.Norml2() << endl;
+      // cin.get();
+      // pmesh->MoveNodes(xnew);
+      // pmesh_copy.MoveNodes(xnew);
+      // pmesh_copy.MoveNodes(xnew);
+      add(ref_coords,x_gf,new_coords);
+      // mfem::out << " ref_coords norm " << ref_coords.Norml2() << endl;
+      // mfem::out << " x_gf norm " << x_gf.Norml2() << endl;
+      // mfem::out << " new_coords norm " << new_coords.Norml2() << endl;
+      // pmesh_copy.SetNodes(new_coords);
+      pmesh_copy.SetNodes(new_coords);
+      xcopy_gf = x_gf;
+      // pmesh_copy.MoveNodes(x_gf);
+      // pmesh_copy.SetNodes(x_gf);
+      if (paraview)
       {
-         Vector X_new(xf.GetData(),fes->GetTrueVSize());
-         xnew.SetFromTrueDofs(X_new);
-         x_gf+= xnew;
-         pmesh->MoveNodes(xnew);
+         paraview_dc->SetCycle(i+1);
+         paraview_dc->SetTime(double(i+1));
+         paraview_dc->Save();
+      }
 
-         if (paraview)
+      if (visualization)
+      {
+         sol_sock << "parallel " << num_procs << " " << myid << "\n"
+                  << "solution\n" << pmesh_copy << x_gf << flush;
+      
+         if (i == nsteps - 1)
          {
-            paraview_dc->SetCycle(i+1);
-            paraview_dc->SetTime(double(i+1));
-            paraview_dc->Save();
-         }
-
-         if (visualization)
-         {
-            sol_sock << "parallel " << num_procs << " " << myid << "\n"
-                     << "solution\n" << *pmesh << x_gf << flush;
+            pmesh->MoveNodes(x_gf);
+            char vishost[] = "localhost";
+            int  visport   = 19916;
+            socketstream sol_sock1(vishost, visport);
+            sol_sock1 << "parallel " << num_procs << " " << myid << "\n";
+            sol_sock1.precision(8);
+            sol_sock1 << "solution\n" << *pmesh << x_gf << flush;
          }
       }
+      if (i == nsteps-1) break;
+
       prob->UpdateStep();
       if (testNo == 6 )
       {
-         ess_bdr = 0;
-         ess_bdr[2] = 1;
-         prob->SetNeumanPressureData(one,ess_bdr);
+         double area_new = GetBdrArea(3,*pmesh);
+         if (myid == 0)
+         {
+            mfem::out << "New area = " << area_new << endl;
+         }
       }
    }
 

@@ -61,8 +61,10 @@ void ParElasticityProblem::UpdateLinearSystem()
 
 ParContactProblem::ParContactProblem(ParElasticityProblem * prob_, 
                                                          const std::set<int> & mortar_attrs_, 
-                                                         const std::set<int> & nonmortar_attrs_ )
-: prob(prob_), mortar_attrs(mortar_attrs_), nonmortar_attrs(nonmortar_attrs_)
+                                                         const std::set<int> & nonmortar_attrs_,
+                                                         ParGridFunction * coords_,
+                                                         bool doublepass_)
+: prob(prob_), mortar_attrs(mortar_attrs_), nonmortar_attrs(nonmortar_attrs_), doublepass(doublepass_), coords(coords_)
 {
    ParMesh* pmesh = prob->GetMesh();
    comm = pmesh->GetComm();
@@ -77,7 +79,14 @@ ParContactProblem::ParContactProblem(ParElasticityProblem * prob_,
    prob->FormLinearSystem();
    K= new HypreParMatrix(prob->GetOperator());
    B = new Vector(prob->GetRHS());
-   SetupTribol();
+   if (doublepass)
+   {
+      SetupTribolDoublePass();
+   }
+   else
+   {
+      SetupTribol();
+   }
 }
 
 void ParContactProblem::SetupTribol()
@@ -92,9 +101,7 @@ void ParContactProblem::SetupTribol()
    int mesh1_id = 0;
    int mesh2_id = 1;
    vfes = prob->GetFESpace();
-   ParGridFunction * coords = new ParGridFunction(vfes);
    ParMesh * pmesh = prob->GetMesh();
-   pmesh->SetNodalGridFunction(coords);
    tribol::registerMfemCouplingScheme(
       coupling_scheme_id, mesh1_id, mesh2_id,
       *pmesh, *coords, mortar_attrs, nonmortar_attrs,
@@ -284,6 +291,244 @@ void ParContactProblem::SetupTribol()
    Pi = P_it->Transpose();
    delete P_it;
 }
+
+void ParContactProblem::SetupTribolDoublePass()
+{
+   axom::slic::SimpleLogger logger1;
+   axom::slic::setIsRoot(mfem::Mpi::Root());
+
+   // Initialize Tribol contact library
+   tribol::initialize(3, MPI_COMM_WORLD);
+
+   int coupling_scheme_id1 = 0;
+   int mesh1_id1 = 0;
+   int mesh2_id1 = 1;
+   vfes = prob->GetFESpace();
+   ParGridFunction * coords1 = new ParGridFunction(vfes);
+   ParMesh * pmesh1 = prob->GetMesh();
+   pmesh1->SetNodalGridFunction(coords1);
+   tribol::registerMfemCouplingScheme(
+      coupling_scheme_id1, mesh1_id1, mesh2_id1,
+      *pmesh1, *coords1, mortar_attrs, nonmortar_attrs,
+      tribol::SURFACE_TO_SURFACE,
+      tribol::NO_SLIDING,
+      tribol::SINGLE_MORTAR,
+      tribol::FRICTIONLESS,
+      tribol::LAGRANGE_MULTIPLIER,
+      tribol::BINNING_GRID
+   );
+
+   // Access Tribol's pressure grid function (on the contact surface)
+   auto& pressure1 = tribol::getMfemPressure(coupling_scheme_id1);
+   if (mfem::Mpi::Root())
+   {
+      std::cout << "Number of pressure unknowns: " <<
+                pressure1.ParFESpace()->GlobalTrueVSize() << std::endl;
+   }
+
+   // Set Tribol options for Lagrange multiplier enforcement
+   tribol::setLagrangeMultiplierOptions(
+      coupling_scheme_id1,
+      tribol::ImplicitEvalMode::MORTAR_RESIDUAL_JACOBIAN
+   );
+
+   // Update contact mesh decomposition
+   tribol::updateMfemParallelDecomposition();
+
+   // Update contact gaps, forces, and tangent stiffness
+   int cycle1 = 1;   // pseudo cycle
+   double t1 = 1.0;  // pseudo time
+   double dt1 = 1.0; // pseudo dt
+   tribol::update(cycle1, t1, dt1);
+
+   // Return contact contribution to the tangent stiffness matrix
+   auto A_blk1 = tribol::getMfemBlockJacobian(coupling_scheme_id1);
+   
+   HypreParMatrix * Mfull1 = (HypreParMatrix *)(&A_blk1->GetBlock(1,0));
+   Mfull1->EliminateCols(prob->GetEssentialDofs());
+   int h1 = Mfull1->Height();
+   SparseMatrix merged1;
+   Mfull1->MergeDiagAndOffd(merged1);
+   Array<int> nonzero_rows1;
+   for (int i = 0; i<h1; i++)
+   {
+      if (!merged1.RowIsEmpty(i))
+      {
+         nonzero_rows1.Append(i);
+      }
+   }
+
+   int hnew1 = nonzero_rows1.Size();
+   SparseMatrix P1(hnew1,h1);
+
+   for (int i = 0; i<hnew1; i++)
+   {
+      int col = nonzero_rows1[i];
+      P1.Set(i,col,1.0);
+   }
+   P1.Finalize();
+
+   SparseMatrix * reduced_merged1 = Mult(P1,merged1);
+
+   int rows1[2];
+   int cols1[2];
+   cols1[0] = Mfull1->ColPart()[0];
+   cols1[1] = Mfull1->ColPart()[1];
+   int nrows1 = reduced_merged1->Height();
+
+   int row_offset1;
+   MPI_Scan(&nrows1,&row_offset1,1,MPI_INT,MPI_SUM,Mfull1->GetComm());
+
+   row_offset1-=nrows1;
+   rows1[0] = row_offset1;
+   rows1[1] = row_offset1+nrows1;
+   int glob_nrows1;
+   MPI_Allreduce(&nrows1, &glob_nrows1,1,MPI_INT,MPI_SUM,Mfull1->GetComm());
+
+
+   int glob_ncols1 = reduced_merged1->Width();
+   HypreParMatrix * M1 = new HypreParMatrix(Mfull1->GetComm(), nrows1, glob_nrows1,
+                          glob_ncols1, reduced_merged1->GetI(), reduced_merged1->GetJ(),
+                          reduced_merged1->GetData(), rows1,cols1); 
+
+   Vector gap1;
+   tribol::getMfemGap(coupling_scheme_id1, gap1);
+   auto& P_submesh1 = *pressure1.ParFESpace()->GetProlongationMatrix();
+   Vector gap_true1;
+   gap_true1.SetSize(P_submesh1.Width());
+   P_submesh1.MultTranspose(gap1,gap_true1);
+
+   tribol::finalize();
+
+   // ------------------------------ 
+   // second pass
+   // ------------------------------ 
+   // Initialize Tribol contact library
+   tribol::initialize(3, MPI_COMM_WORLD);
+
+   int coupling_scheme_id2 = 0;
+   int mesh1_id2 = 0;
+   int mesh2_id2 = 1;
+   ParGridFunction * coords2 = new ParGridFunction(vfes);
+   ParMesh * pmesh2 = prob->GetMesh();
+   pmesh2->SetNodalGridFunction(coords2);
+   tribol::registerMfemCouplingScheme(
+      coupling_scheme_id2, mesh1_id2, mesh2_id2,
+      *pmesh2, *coords2, nonmortar_attrs, mortar_attrs,
+      tribol::SURFACE_TO_SURFACE,
+      tribol::NO_SLIDING,
+      tribol::SINGLE_MORTAR,
+      tribol::FRICTIONLESS,
+      tribol::LAGRANGE_MULTIPLIER,
+      tribol::BINNING_GRID
+   );
+
+   // Access Tribol's pressure grid function (on the contact surface)
+   auto& pressure2 = tribol::getMfemPressure(coupling_scheme_id2);
+   if (mfem::Mpi::Root())
+   {
+      std::cout << "Number of pressure unknowns: " <<
+                pressure2.ParFESpace()->GlobalTrueVSize() << std::endl;
+   }
+
+   // Set Tribol options for Lagrange multiplier enforcement
+   tribol::setLagrangeMultiplierOptions(
+      coupling_scheme_id2,
+      tribol::ImplicitEvalMode::MORTAR_RESIDUAL_JACOBIAN
+   );
+
+   // Update contact mesh decomposition
+   tribol::updateMfemParallelDecomposition();
+
+   // Update contact gaps, forces, and tangent stiffness
+   int cycle2 = 1;   // pseudo cycle
+   double t2 = 1.0;  // pseudo time
+   double dt2 = 1.0; // pseudo dt
+   tribol::update(cycle2, t2, dt2);
+
+   // Return contact contribution to the tangent stiffness matrix
+   auto A_blk2 = tribol::getMfemBlockJacobian(coupling_scheme_id2);
+   
+   HypreParMatrix * Mfull2 = (HypreParMatrix *)(&A_blk2->GetBlock(1,0));
+   Mfull2->EliminateCols(prob->GetEssentialDofs());
+   int h2 = Mfull2->Height();
+   SparseMatrix merged2;
+   Mfull2->MergeDiagAndOffd(merged2);
+   Array<int> nonzero_rows2;
+   for (int i = 0; i<h2; i++)
+   {
+      if (!merged2.RowIsEmpty(i))
+      {
+         nonzero_rows2.Append(i);
+      }
+   }
+
+   int hnew2 = nonzero_rows2.Size();
+   SparseMatrix P2(hnew2,h2);
+
+   for (int i = 0; i<hnew2; i++)
+   {
+      int col = nonzero_rows2[i];
+      P2.Set(i,col,1.0);
+   }
+   P2.Finalize();
+
+   SparseMatrix * reduced_merged2 = Mult(P2,merged2);
+
+   int rows2[2];
+   int cols2[2];
+   cols2[0] = Mfull2->ColPart()[0];
+   cols2[1] = Mfull2->ColPart()[1];
+   int nrows2 = reduced_merged2->Height();
+
+   int row_offset2;
+   MPI_Scan(&nrows2,&row_offset2,1,MPI_INT,MPI_SUM,Mfull2->GetComm());
+
+   row_offset2-=nrows2;
+   rows2[0] = row_offset2;
+   rows2[1] = row_offset2+nrows2;
+   int glob_nrows2;
+   MPI_Allreduce(&nrows2, &glob_nrows2,1,MPI_INT,MPI_SUM,Mfull2->GetComm());
+
+
+   int glob_ncols2 = reduced_merged2->Width();
+   HypreParMatrix * M2 = new HypreParMatrix(Mfull2->GetComm(), nrows2, glob_nrows2,
+                          glob_ncols2, reduced_merged2->GetI(), reduced_merged2->GetJ(),
+                          reduced_merged2->GetData(), rows2,cols2); 
+
+   Vector gap2;
+   tribol::getMfemGap(coupling_scheme_id2, gap2);
+   auto& P_submesh2 = *pressure2.ParFESpace()->GetProlongationMatrix();
+   Vector gap_true2;
+   gap_true2.SetSize(P_submesh2.Width());
+   P_submesh2.MultTranspose(gap2,gap_true2);
+
+   tribol::finalize();
+
+
+   gapv.SetSize(nrows1+nrows2);
+   for (int i = 0; i<nrows1; i++)
+   {
+      gapv[i] = gap_true1[nonzero_rows1[i]];
+   }
+   for (int i = 0; i<nrows2; i++)
+   {
+      gapv[nrows1+i] = gap_true2[nonzero_rows2[i]];
+   }
+
+   Array2D<HypreParMatrix *> A_array(2,1);
+   A_array(0,0) = M1;
+   A_array(1,0) = M2;
+
+   M = HypreParMatrixFromBlocks(A_array);
+
+   constraints_starts.SetSize(2);
+   constraints_starts[0] = M->RowPart()[0];
+   constraints_starts[1] = M->RowPart()[1];
+
+}
+
+
 
 double ParContactProblem::E(const Vector & d)
 {
