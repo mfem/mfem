@@ -2009,6 +2009,9 @@ public:
 
    /// @}
 
+   /** Return all elements adjacent to the given Face */
+   void GetFaceAdjacentElements(int Face, Array<int> & elems) const;
+
    /// @name Methods related to mesh partitioning
    /// @{
 
