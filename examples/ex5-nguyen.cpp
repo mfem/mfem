@@ -244,7 +244,8 @@ int main(int argc, char *argv[])
    //     B   = -\int_\Omega \div u_h q_h d\Omega   q_h \in V_h, w_h \in W_h
    BilinearForm *Mq = darcy->GetFluxMassForm();
    MixedBilinearForm *B = darcy->GetFluxDivForm();
-   BilinearForm *Mt = (dg && td > 0.)?(darcy->GetPotentialMassForm()):(NULL);
+   BilinearForm *Mt = ((dg && td > 0.) ||
+                       bconv)?(darcy->GetPotentialMassForm()):(NULL);
 
    if (dg)
    {
@@ -261,6 +262,11 @@ int main(int argc, char *argv[])
    {
       Mq->AddDomainIntegrator(new VectorFEMassIntegrator(ikcoeff));
       B->AddDomainIntegrator(new VectorFEDivergenceIntegrator());
+   }
+   if (bconv)
+   {
+      Mt->AddDomainIntegrator(new ConservativeConvectionIntegrator(ccoeff));
+      Mt->AddInteriorFaceIntegrator(new DGTraceIntegrator(ccoeff, 1.));
    }
 
    //set hybridization / assembly level
