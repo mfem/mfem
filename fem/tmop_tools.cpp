@@ -56,7 +56,9 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
             new_field_temp(j) = new_field(i + j*ncomp);
          }
       }
+
       ComputeAtNewPositionScalar(new_nodes, new_field_temp);
+
       if (fes_ordering == Ordering::byVDIM)
       {
          for (int j = 0; j < pnt_cnt; j++)
