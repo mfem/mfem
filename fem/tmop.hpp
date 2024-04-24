@@ -1985,6 +1985,10 @@ protected:
    real_t ComputeUntanglerMaxMuBarrier(const Vector &x,
                                        const FiniteElementSpace &fes);
 
+   // Remaps the internal surface fitting gridfunction object at provided
+   // locations.
+   void RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
+                                           int new_x_ordering);
 public:
    /** @param[in] m    TMOP_QualityMetric for r-adaptivity (not owned).
        @param[in] tc   Target-matrix construction algorithm to use (not owned).
@@ -2105,7 +2109,9 @@ public:
    /// Parallel support for surface fitting to the zero level set of a function.
    void EnableSurfaceFitting(const ParGridFunction &s0,
                              const Array<bool> &smarker, Coefficient &coeff,
-                             AdaptivityEvaluator &ae);
+                             AdaptivityEvaluator &ae,
+                             AdaptivityEvaluator *aegrad = NULL,
+                             AdaptivityEvaluator *aehess = NULL);
 
    /** @brief Fitting of certain DOFs in the current mesh to the zero level set
        of a function defined on another (finer) source mesh.
@@ -2245,6 +2251,9 @@ public:
 
    /// Get the surface fitting weight.
    real_t GetSurfaceFittingWeight();
+
+   /// Copies current surface fitting level-set to provided gridfunction.
+   void GetSurfaceFittingLevelSet(GridFunction &s0);
 
    /// Computes quantiles needed for UntangleMetrics. Note that in parallel,
    /// the ParFiniteElementSpace must be passed as argument for consistency
