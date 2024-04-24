@@ -1474,12 +1474,53 @@ public:
 
    virtual void SetOperator(const Operator &op);
 
-   void SetParams(real_t threshold, int max_levels);
+   /// Set the threshold and levels parameters
+   /** The accuracy and cost of ParaSails are parametrized by the real
+    * @a thresh and integer @a nlevels parameters (0<=thresh<=1,  0<=nlevels).
+    * Lower values of @a thresh and higher values of @a nlevels lead to
+    * more accurate, but more expensive preconditioners. More accurate
+    * preconditioners are also more expensive per iteration. The default
+    * values are @a thresh = 0.1 and @a nlevels = 1.
+    */
+   void SetParams(real_t thresh, int nlevels);
+
+   /// Set the filter parameter
+   /** The filter parameter is used to drop small nonzeros in the preconditioner,
+    * to reduce the cost of applying the preconditioner. Values from 0.055
+    * to 0.1 are recommended. The default value is 0.1.
+    */
    void SetFilter(real_t filter);
-   void SetLoadBal(real_t loadbal);
-   void SetReuse(int reuse);
-   void SetLogging(int logging);
+
+   /// Set symmetry parameter
+   /** The recognized options are:
+    *  0 = nonsymmetric and/or indefinite problem, and nonsymmetric preconditioner
+    *  1 = SPD problem, and SPD (factored) preconditioner
+    *  2 = nonsymmetric, definite problem, and SPD (factored) preconditioner
+    */
    void SetSymmetry(int sym);
+
+   /// Set the load balance parameter
+   /** A zero value indicates that no load balance is attempted; a value
+    * of unity indicates that perfect load balance will be attempted. The
+    * recommended value is 0.9 to balance the overhead of data exchanges
+    * for load balancing. No load balancing is needed if the preconditioner
+    * is very sparse and fast to construct. The default value is 0.
+    */
+   void SetLoadBal(real_t loadbal);
+
+   /// Set the pattern reuse parameter
+   /** A nonzero value indicates that the pattern of the preconditioner
+    * should be reused for subsequent constructions of the proconditioner.
+    * A zero value inicates that the peconditioner should be constructed
+    * from scratch. The default value is 0.
+    */
+   void SetReuse(int reuse);
+
+   /// Set the logging parameter
+   /** A nonzero value prints statistics of the setup procedure to stdout.
+    * The default value of this parameter is 1.
+    */
+   void SetLogging(int logging);
 
    /// The typecast to HYPRE_Solver returns the internal sai_precond
    virtual operator HYPRE_Solver() const { return sai_precond; }

@@ -400,6 +400,9 @@ inline double StopWatch::SystTime()
 
 StopWatch::StopWatch() : M(new internal::StopWatch) { }
 
+StopWatch::StopWatch(const StopWatch &sw)
+   : M(new internal::StopWatch(*(sw.M))) { }
+
 void StopWatch::Clear()
 {
    M->Clear();
