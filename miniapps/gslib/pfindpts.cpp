@@ -448,14 +448,16 @@ int main (int argc, char *argv[])
    }
 
    MPI_Barrier(MPI_COMM_WORLD);
-   Vector info0    = finder.GetInfo();
-   info0.HostReadWrite();
-   //   info0.Print();
-   //   MFEM_ABORT(" ");
-   //    vxyz.Print();
-   //    ref_rst0.Print();
-   //    dist1.Print();
-
+   Array<int> newton_out = finder.GetNewtonIters();
+   int newton_min = newton_out.Min();
+   int newton_max = newton_out.Max();
+   int newton_mean = newton_out.Sum()/newton_out.Size();
+   if (myid == 0)
+   {
+      std::cout << "Newton iteration min/max/mean: " << newton_min << " "
+                << newton_max << " "
+                << newton_mean << endl;
+   }
    finder.Interpolate(field_vals, interp_vals);
    Vector info1    = finder.GetInfo();
    if (interp_vals.UseDevice())

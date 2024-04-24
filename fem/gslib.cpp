@@ -73,16 +73,6 @@ extern "C" {
       struct findpts_dummy_ms_data fdms;
       uint   fevsetup;
    };
-
-   uint hash_opt_size_3(struct findpts_local_hash_data_3 *p,
-                        const struct obbox_3 *const obb,
-                        const uint nel,
-                        const uint max_size);
-
-   uint hash_opt_size_2(struct findpts_local_hash_data_2 *p,
-                        const struct obbox_2 *const obb,
-                        const uint nel,
-                        const uint max_size);
 } //extern C
 
 } //namespace gslib
@@ -225,7 +215,6 @@ void FindPointsGSLIB::Setup(Mesh &m, const double bb_t, const double newt_tol,
 
    DEV.local_hash_size = mesh_points_cnt;
    DEV.dof1d = (int)dof1D;
-
    setupSW.Clear();
    setupSW.Start();
    if (dim == 2)
@@ -271,6 +260,7 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
    gsl_elem.SetSize(points_cnt);
    gsl_ref.SetSize(points_cnt * dim);
    gsl_dist.SetSize(points_cnt);
+   gsl_newton.SetSize(points_cnt);
 
    setupSW.Clear();
    setupSW.Start();
@@ -386,6 +376,7 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
 
    gsl_code_dev.SetSize(points_cnt);
    gsl_elem_dev.SetSize(points_cnt);
+   gsl_newton_dev.SetSize(points_cnt);
 
    gsl_ref.UseDevice(true);
    gsl_dist.UseDevice(true);
@@ -398,6 +389,7 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
                        gsl_elem_dev,
                        gsl_ref,
                        gsl_dist,
+                       gsl_newton_dev,
                        points_cnt);
    }
    else
@@ -410,6 +402,7 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
                            gsl_elem_dev,
                            gsl_ref,
                            gsl_dist,
+                           gsl_newton_dev,
                            points_cnt);
       }
       else
@@ -420,6 +413,7 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
                           gsl_elem_dev,
                           gsl_ref,
                           gsl_dist,
+                          gsl_newton_dev,
                           points_cnt);
       }
    }
@@ -428,6 +422,7 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
    // Transfer information from DEVICE
    gsl_code_dev.HostReadWrite();
    gsl_elem_dev.HostReadWrite();
+   gsl_newton_dev.HostReadWrite();
 
    gsl_code.HostWrite();
    gsl_proc.HostWrite();
@@ -439,14 +434,23 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
       gsl_code[i] = (unsigned int)(gsl_code_dev[i]);
       gsl_elem[i] = (unsigned int)(gsl_elem_dev[i]);
       gsl_proc[i] = myid;
+      gsl_newton[i] = gsl_newton_dev[i];
    }
 
    gsl_ref.HostReadWrite();
    gsl_dist.HostReadWrite();
    point_pos.HostRead();
    DEV.info.HostReadWrite();
-   MPI_Barrier(gsl_comm->c);
 
+   const int id = gsl_comm->id,
+             np = gsl_comm->np;
+
+   if (np == 1)
+   {
+      return;
+   }
+
+   MPI_Barrier(gsl_comm->c);
    /* send unfound and border points to global hash cells */
    struct gslib::array hash_pt, src_pt, out_pt;
 
@@ -460,15 +464,8 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
    {
       dfloat r[3], dist2;
       unsigned int index, code, el, proc;
+      int newton;
    };
-
-   const int id = gsl_comm->id,
-             np = gsl_comm->np;
-
-   if (np == 1)
-   {
-      return;
-   }
 
    int find_elsewhere = 0;
    int found_local = 0;
@@ -594,6 +591,7 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
       gsl_dist_l = 0.0;
       gsl_code_dev.SetSize(n);
       gsl_elem_dev.SetSize(n);
+      gsl_newton_dev.SetSize(n);
       Vector point_pos_l;
       point_pos_l.UseDevice(true);
       point_pos_l.SetSize(n*dim);
@@ -616,6 +614,7 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
                           gsl_elem_dev,
                           gsl_ref_l,
                           gsl_dist_l,
+                          gsl_newton_dev,
                           n);
       }
       else
@@ -628,6 +627,7 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
                               gsl_elem_dev,
                               gsl_ref_l,
                               gsl_dist_l,
+                              gsl_newton_dev,
                               n);
          }
          else
@@ -638,6 +638,7 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
                              gsl_elem_dev,
                              gsl_ref_l,
                              gsl_dist_l,
+                             gsl_newton_dev,
                              n);
          }
       }
@@ -646,6 +647,8 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
       gsl_dist_l.HostReadWrite();
       gsl_code_dev.HostReadWrite();
       gsl_elem_dev.HostReadWrite();
+      gsl_newton_dev.HostReadWrite();
+      DEV.info.HostReadWrite();
 
       // unpack arrays into opt
       for (int point = 0; point < n; point++)
@@ -657,6 +660,7 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
          {
             opt[point].r[d] = gsl_ref_l(dim * point + d);
          }
+         opt->newton = gsl_newton_dev[point];
       }
 
       array_free(&src_pt);
@@ -699,6 +703,7 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
             gsl_proc[index] = opt->proc;
             gsl_elem[index] = opt->el;
             gsl_code[index] = opt->code;
+            gsl_newton[index] = opt->newton;
          }
       }
       array_free(&out_pt);
@@ -847,9 +852,9 @@ void FindPointsGSLIB::SetupDevice(MemoryType mt)
                   findptsData3->local.fed.lag_data[0];
 
    DEV.info.UseDevice(true);
-   DEV.info.SetSize(50*points_cnt);
+   DEV.info.SetSize(0*points_cnt);
    DEV.info.HostWrite();
-   DEV.info = -1;
+   //   DEV.info = -1;
 
    MFEM_DEVICE_SYNC;
 }

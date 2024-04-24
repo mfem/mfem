@@ -315,32 +315,6 @@ get_edge(const double *elx[3], const double *wtend, int ei,
          }
          edge.dxdn2[dd][j] = sums_k[0];
          edge.d2xdn2[dd][j] = sums_k[1];
-
-         //         for (int d = 0; d < 3; ++d)
-         //         {
-         //            // copy first/last entries in normal directions
-         //            edge.x[d][j] = ELX(d, j, in1, in2);
-         //            // tensor product between elx (w/ first/last entries in second direction)
-         //            // and the derivatives in the first normal direction
-         //            double sums_k[2] = {0, 0};
-         //            for (int k = 0; k < pN; ++k)
-         //            {
-         //               sums_k[0] += wt1[pN + k] * ELX(d, j, k, in2);
-         //               sums_k[1] += wt1[2 * pN + k] * ELX(d, j, k, in2);
-         //            }
-         //            edge.dxdn1[d][j] = sums_k[0];
-         //            edge.d2xdn1[d][j] = sums_k[1];
-         //            // tensor product between elx (w/ first/last entries in first direction)
-         //            // and the derivatives in the second normal direction
-         //            sums_k[0] = 0, sums_k[1] = 0;
-         //            for (int k = 0; k < pN; ++k)
-         //            {
-         //               sums_k[0] += wt2[pN + k] * ELX(d, j, in1, k);
-         //               sums_k[1] += wt2[2 * pN + k] * ELX(d, j, in1, k);
-         //            }
-         //            edge.dxdn2[d][j] = sums_k[0];
-         //            edge.d2xdn2[d][j] = sums_k[1];
-         //         }
 #undef ELX
       }
       side_init = mask;
@@ -1016,6 +990,7 @@ static void FindPointsLocal32D_Kernel(const int npt,
                                       double *const dist2_base,
                                       const double *gll1D,
                                       const double *lagcoeff,
+                                      int *newton,
                                       double *infok,
                                       const int pN = 0)
 {
@@ -1060,6 +1035,7 @@ static void FindPointsLocal32D_Kernel(const int npt,
       int *el_i = el_base + i;
       double *r_i = r_base + dim * i;
       double *dist2_i = dist2_base + i;
+      int *newton_i = newton + i;
 
       //// map_points_to_els ////
       findptsLocalHashData_t hash;
@@ -1699,6 +1675,7 @@ static void FindPointsLocal32D_Kernel(const int npt,
                      } //switch
                      if (fpt->flags & CONVERGED_FLAG)
                      {
+                        *newton_i = step+1;
                         break;
                      }
                      MFEM_SYNC_THREAD;
@@ -1745,6 +1722,7 @@ void FindPointsGSLIB::FindPointsLocal32(const Vector &point_pos,
                                         Array<int> &elem,
                                         Vector &ref,
                                         Vector &dist,
+                                        Array<int> &newton,
                                         int npt)
 {
    if (npt == 0) { return; }
@@ -1764,6 +1742,7 @@ void FindPointsGSLIB::FindPointsLocal32(const Vector &point_pos,
                                                      ref.Write(), dist.Write(),
                                                      DEV.gll1d.ReadWrite(),
                                                      DEV.lagcoeff.Read(),
+                                                     newton.ReadWrite(),
                                                      DEV.info.ReadWrite());
       case 2: return FindPointsLocal32D_Kernel<2>(npt, DEV.tol,
                                                      point_pos.Read(), point_pos_ordering,
@@ -1778,6 +1757,7 @@ void FindPointsGSLIB::FindPointsLocal32(const Vector &point_pos,
                                                      ref.Write(), dist.Write(),
                                                      DEV.gll1d.ReadWrite(),
                                                      DEV.lagcoeff.Read(),
+                                                     newton.ReadWrite(),
                                                      DEV.info.ReadWrite());
       case 3: return FindPointsLocal32D_Kernel<3>(npt, DEV.tol,
                                                      point_pos.Read(), point_pos_ordering,
@@ -1792,6 +1772,7 @@ void FindPointsGSLIB::FindPointsLocal32(const Vector &point_pos,
                                                      ref.Write(), dist.Write(),
                                                      DEV.gll1d.ReadWrite(),
                                                      DEV.lagcoeff.Read(),
+                                                     newton.ReadWrite(),
                                                      DEV.info.ReadWrite());
       case 4: return FindPointsLocal32D_Kernel<4>(npt, DEV.tol,
                                                      point_pos.Read(), point_pos_ordering,
@@ -1806,6 +1787,7 @@ void FindPointsGSLIB::FindPointsLocal32(const Vector &point_pos,
                                                      ref.Write(), dist.Write(),
                                                      DEV.gll1d.ReadWrite(),
                                                      DEV.lagcoeff.Read(),
+                                                     newton.ReadWrite(),
                                                      DEV.info.ReadWrite());
       default: return FindPointsLocal32D_Kernel(npt, DEV.tol,
                                                    point_pos.Read(), point_pos_ordering,
@@ -1820,6 +1802,7 @@ void FindPointsGSLIB::FindPointsLocal32(const Vector &point_pos,
                                                    ref.Write(), dist.Write(),
                                                    DEV.gll1d.ReadWrite(),
                                                    DEV.lagcoeff.Read(),
+                                                   newton.ReadWrite(),
                                                    DEV.info.ReadWrite(),
                                                    DEV.dof1d);
    }

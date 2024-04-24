@@ -667,6 +667,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
                                      double *const dist2_base,
                                      const double *gll1D,
                                      const double *lagcoeff,
+                                     int *newton,
                                      double *infok,
                                      const int pN = 0)
 {
@@ -710,6 +711,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
       int *el_i = el_base + i;
       double *r_i = r_base + dim * i;
       double *dist2_i = dist2_base + i;
+      int *newton_i = newton + i;
 
       //// map_points_to_els ////
       findptsLocalHashData_t hash;
@@ -1070,6 +1072,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
                      } //switch
                      if (fpt->flags & CONVERGED_FLAG)
                      {
+                        *newton_i = step+1;
                         break;
                      }
                      MFEM_SYNC_THREAD;
@@ -1116,6 +1119,7 @@ void FindPointsGSLIB::FindPointsLocal2(const Vector &point_pos,
                                        Array<int> &elem,
                                        Vector &ref,
                                        Vector &dist,
+                                       Array<int> &newton,
                                        int npt)
 {
    if (npt == 0) { return; }
@@ -1137,6 +1141,7 @@ void FindPointsGSLIB::FindPointsLocal2(const Vector &point_pos,
                                                     dist.Write(),
                                                     DEV.gll1d.ReadWrite(),
                                                     DEV.lagcoeff.Read(),
+                                                    newton.ReadWrite(),
                                                     DEV.info.ReadWrite());
       default: return FindPointsLocal2D_Kernel(npt, DEV.tol,
                                                   point_pos.Read(), point_pos_ordering,
@@ -1156,6 +1161,7 @@ void FindPointsGSLIB::FindPointsLocal2(const Vector &point_pos,
                                                   dist.Write(),
                                                   DEV.gll1d.ReadWrite(),
                                                   DEV.lagcoeff.Read(),
+                                                  newton.ReadWrite(),
                                                   DEV.info.ReadWrite(),
                                                   DEV.dof1d);
    }
