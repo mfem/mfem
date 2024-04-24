@@ -83,7 +83,8 @@ protected:
    struct gslib::comm *gsl_comm;          // gslib's internal data
    int dim, points_cnt;
    Array<unsigned int> gsl_code, gsl_proc, gsl_elem, gsl_mfem_elem;
-   Array<int> gsl_code_dev, gsl_elem_dev;
+   Array<int> gsl_newton;
+   Array<int> gsl_code_dev, gsl_elem_dev, gsl_newton_dev;
    Vector gsl_mesh, gsl_ref, gsl_dist, gsl_mfem_ref;
    bool setupflag;              // flag to indicate whether gslib data has been setup
    double default_interp_value; // used for points that are not found in the mesh
@@ -95,6 +96,7 @@ protected:
    // Tolerance to ignore points just outside elements at the boundary.
    double     bdr_tol;
    int        gpu_code = 0;
+   int        newton_iter = 0;
 
    void * findptsData2;
    void * findptsData3;
@@ -165,6 +167,7 @@ protected:
                          Array<int> &gsl_elem_dev_l,
                          Vector &gsl_ref_l,
                          Vector &gsl_dist_l,
+                         Array<int> &gsl_newton_dev_l,
                          int npt);
    void FindPointsLocal32(const Vector &point_pos,
                           int point_pos_ordering,
@@ -172,6 +175,7 @@ protected:
                           Array<int> &gsl_elem_dev_l,
                           Vector &gsl_ref_l,
                           Vector &gsl_dist_l,
+                          Array<int> &gsl_newton_dev_l,
                           int npt);
    void FindPointsLocal2(const Vector &point_pos,
                          int point_pos_ordering,
@@ -179,6 +183,7 @@ protected:
                          Array<int> &gsl_elem_dev_l,
                          Vector &gsl_ref_l,
                          Vector &gsl_dist_l,
+                         Array<int> &gsl_newton_dev_l,
                          int npt);
 
    void InterpolateLocal3(const Vector &field_in,
@@ -306,7 +311,7 @@ public:
    /// for each point found by FindPoints.
    virtual const Vector &GetDist()              const { return gsl_dist; }
 
-   virtual const Vector &GetInfo()              const { DEV.info.HostReadWrite(); return DEV.info; }
+   virtual const Vector &GetInfo()              const { return DEV.info; }
 
    /// Return element number for each point found by FindPoints corresponding to
    /// GSLIB mesh. gsl_mfem_elem != gsl_elem for mesh with simplices.
@@ -333,6 +338,8 @@ public:
    virtual Mesh* GetBoundingBoxMesh(int type = 0);
 
    void SetGPUCode(int code_) { gpu_code = code_; }
+
+   virtual const Array<int> &GetNewtonIters() const { return gsl_newton; }
 };
 
 /** \brief OversetFindPointsGSLIB enables use of findpts for arbitrary number of
