@@ -818,7 +818,7 @@ void SymmetricMatrixCoefficient::ProjectSymmetric(QuadratureFunction &qf)
       {
          const IntegrationPoint &ip = ir[iq];
          T.SetIntPoint(&ip);
-         matrix.UseExternalData(&values(0, iq), vdim);
+         matrix.UseExternalData(&values(0, iq), height);
          Eval(matrix, T, ip);
       }
    }
