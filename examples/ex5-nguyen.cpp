@@ -49,8 +49,8 @@ typedef std::function<real_t(const Vector &)> Func;
 typedef std::function<void(const Vector &, Vector &)> VecFunc;
 
 Func GetTFun(int prob, real_t t_0);
-VecFunc GetQFun(int prob, real_t t_0, real_t k);
-VecFunc GetCFun(int prob);
+VecFunc GetQFun(int prob, real_t t_0, real_t k, real_t c);
+VecFunc GetCFun(int prob, real_t c);
 Func GetFFun(int prob, real_t t_0, real_t k);
 
 int main(int argc, char *argv[])
@@ -65,6 +65,7 @@ int main(int argc, char *argv[])
    bool dg = false;
    int problem = 1;
    real_t k = 1.;
+   real_t c = 1.;
    real_t td = 0.5;
    bool hybridization = false;
    bool pa = false;
@@ -86,6 +87,8 @@ int main(int argc, char *argv[])
                   "Problem to solve from the Nguyen paper.");
    args.AddOption(&k, "-k", "--kappa",
                   "Heat conductivity");
+   args.AddOption(&c, "-c", "--velocity",
+                  "Convection velocity");
    args.AddOption(&td, "-td", "--stab_diff",
                   "Diffusion stabilization factor (1/2=default)");
    args.AddOption(&hybridization, "-hb", "--hybridization", "-no-hb",
@@ -202,10 +205,10 @@ int main(int argc, char *argv[])
    SumCoefficient gcoeff(0, tcoeff, 1.,
                          -1.);//<-- due to symmetrization, the sign is opposite
 
-   auto qFun = GetQFun(problem, t_0, k);
+   auto qFun = GetQFun(problem, t_0, k, c);
    VectorFunctionCoefficient qcoeff(dim, qFun);
 
-   auto cFun = GetCFun(problem);
+   auto cFun = GetCFun(problem, c);
    VectorFunctionCoefficient ccoeff(dim, cFun);
 
    // 8. Allocate memory (x, rhs) for the analytical solution and the right hand
@@ -582,7 +585,7 @@ Func GetTFun(int prob, real_t t_0)
    return Func();
 }
 
-VecFunc GetQFun(int prob, real_t t_0, real_t k)
+VecFunc GetQFun(int prob, real_t t_0, real_t k, real_t c)
 {
    switch (prob)
    {
@@ -617,15 +620,15 @@ VecFunc GetQFun(int prob, real_t t_0, real_t k)
             xc -= .5;
 
             real_t t0 = 1. - tanh(10. * (-1. + 4.*xc.Norml2()));
-            v(0) = +xc(1) * t0;
-            v(1) = -xc(0) * t0;
+            v(0) = +xc(1) * t0 * c;
+            v(1) = -xc(0) * t0 * c;
          };
          break;
    }
    return VecFunc();
 }
 
-VecFunc GetCFun(int prob)
+VecFunc GetCFun(int prob, real_t c)
 {
    switch (prob)
    {
@@ -641,8 +644,8 @@ VecFunc GetCFun(int prob)
             Vector xc(x);
             xc -= .5;
 
-            v(0) = +xc(1);
-            v(1) = -xc(0);
+            v(0) = +xc(1) * c;
+            v(1) = -xc(0) * c;
          };
    }
    return VecFunc();
