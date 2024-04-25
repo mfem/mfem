@@ -1168,6 +1168,118 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
    } // parallel
 }
 
+void FindPointsGSLIB::SendCoordinatesToOwningProcessors()
+{
+   int nptsend   = points_cnt;
+   int nptElem   = gsl_mfem_elem.Size();
+   int nptRST    = gsl_mfem_ref.Size();
+
+   MFEM_VERIFY(nptElem == nptsend,
+               "Incompatible Elem size.");
+   MFEM_VERIFY(nptsend*dim == nptRST,
+               "Incompatible Double size.");
+
+   // Pack data to send via crystal router
+   struct gslib::array *outpt = new gslib::array;
+
+   struct out_pt { double rst[3]; uint index, elem, proc; };
+   struct out_pt *pt;
+   array_init(struct out_pt, outpt, nptsend);
+   outpt->n=nptsend;
+   pt = (struct out_pt *)outpt->ptr;
+   for (int index = 0; index < nptsend; index++)
+   {
+      pt->index = index;
+      pt->elem = gsl_mfem_elem[index];
+      pt->proc  = gsl_proc[index];
+      for (int d = 0; d < dim; ++d)
+      {
+         pt->rst[d]= gsl_mfem_ref(index*dim + d);
+      }
+      ++pt;
+   }
+
+   // Transfer data to target MPI ranks
+   sarray_transfer(struct out_pt, outpt, proc, 1, cr);
+
+   // Store received data
+   points_recv = outpt->n;
+   recv_proc.SetSize(points_recv);
+   recv_elem.SetSize(points_recv);
+   recv_index.SetSize(points_recv);
+   recv_ref.SetSize(points_recv*dim);
+
+   pt = (struct out_pt *)outpt->ptr;
+   for (int index = 0; index < points_recv; index++)
+   {
+      recv_index[index] = pt->index;
+      recv_elem[index] = pt->elem;
+      recv_proc[index] = pt->proc;
+      for (int d = 0; d < dim; ++d)
+      {
+         recv_ref(index*dim + d)= pt->rst[d];
+      }
+      ++pt;
+   }
+
+   array_free(outpt);
+   delete outpt;
+}
+
+Vector FindPointsGSLIB::ReturnInterpolatedValues(Vector &int_vals,
+                                                 int vdim,
+                                                 int int_val_ordering)
+{
+   MFEM_VERIFY(int_vals.Size() % points_recv == 0,
+               "Incompatible size. Please return interpolated values"
+               "corresponding to points received using"
+               "SendCoordinatesToOwningProcessors.");
+   int nptsend = points_recv;
+   Vector field_out(points_cnt*vdim);
+
+   for (int v = 0; v < vdim; v++)
+   {
+      // Pack data to send via crystal router
+      struct gslib::array *outpt = new gslib::array;
+      struct out_pt { double val; uint index, proc; };
+      struct out_pt *pt;
+      array_init(struct out_pt, outpt, nptsend);
+      outpt->n=nptsend;
+      pt = (struct out_pt *)outpt->ptr;
+      for (int index = 0; index < nptsend; index++)
+      {
+         pt->index = recv_index[index];
+         pt->proc  = recv_proc[index];
+         pt->val = int_val_ordering == Ordering::byNODES ?
+                   int_vals(index + v*points_recv) :
+                   int_vals(index*vdim + v);
+         ++pt;
+      }
+
+      // Transfer data to target MPI ranks
+      sarray_transfer(struct out_pt, outpt, proc, 1, cr);
+
+      // Store received data
+      int nrecv = outpt->n;
+      MFEM_VERIFY(nrecv == points_cnt, "Incompatible size.");
+
+      pt = (struct out_pt *)outpt->ptr;
+      for (int index = 0; index < nrecv; index++)
+      {
+         int idx = int_val_ordering == Ordering::byNODES ?
+                   pt->index + v*points_cnt :
+                   pt->index*vdim + v;
+         field_out(idx) = pt->val;
+         ++pt;
+      }
+
+      array_free(outpt);
+      delete outpt;
+   }
+
+   return field_out;
+}
+
 void OversetFindPointsGSLIB::Setup(Mesh &m, const int meshid,
                                    GridFunction *gfmax,
                                    const double bb_t, const double newt_tol,
@@ -1351,7 +1463,6 @@ void OversetFindPointsGSLIB::Interpolate(const Vector &point_pos,
    FindPoints(point_pos, point_id, point_pos_ordering);
    Interpolate(field_in, field_out);
 }
-
 
 } // namespace mfem
 

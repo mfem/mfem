@@ -23,6 +23,7 @@ struct comm;
 struct findpts_data_2;
 struct findpts_data_3;
 struct crystal;
+struct gs_data;
 }
 
 namespace mfem
@@ -71,6 +72,9 @@ protected:
    int dim, points_cnt;
    Array<unsigned int> gsl_code, gsl_proc, gsl_elem, gsl_mfem_elem;
    Vector gsl_mesh, gsl_ref, gsl_dist, gsl_mfem_ref;
+   int points_recv;
+   Array<unsigned int> recv_code, recv_proc, recv_elem;
+   Vector recv_ref, recv_index;
    bool setupflag;              // flag to indicate whether gslib data has been setup
    double default_interp_value; // used for points that are not found in the mesh
    AvgType avgtype;             // average type used for L2 functions
@@ -222,6 +226,22 @@ public:
    /// Return reference coordinates in [-1,1] (internal range in GSLIB) for each
    /// point found by FindPoints.
    virtual const Vector &GetGSLIBReferencePosition() const { return gsl_ref; }
+
+   /** @name Methods to support custom interpolation that does not simply use
+             GridFunction::GetValue.*/
+   ///@{
+   /// FindPoints returns {p,e,rst} tuple, i.e. mpi rank "p", corresponding
+   /// element index "e" and reference-space coordinates "rst" inside "e",
+   /// for a given point. To enable custom interpolation, the method
+   /// @a SendcoordinatesToOwningProcessors() can be used to send {e,rst} to
+   /// mpi rank "p". This information will be stored in @a recv_elem and
+   /// @a recv_rst (ordered by vdim). The user can then interpolate
+   /// locally, before returning the values back where the query originated
+   /// from using @a ReturnInterpolatedValues.
+   virtual void SendCoordinatesToOwningProcessors();
+   virtual Vector ReturnInterpolatedValues(Vector &int_vals, int vdim,
+                                           int ordering=Ordering::byNODES);
+   ///@}
 };
 
 /** \brief OversetFindPointsGSLIB enables use of findpts for arbitrary number of
