@@ -231,7 +231,7 @@ public:
        \brief To enable custom interpolation, we first send element index and
        reference-space coordinates to owning mpi rank where each point is found.
        This information is stored in @a recv_elem and
-       @a recv_rst (ordered by vdim), respectively. The user can then
+       @a recv_ref (ordered by vdim), respectively. The user can then
        interpolate locally, before returning the values back to where the query
        originated from.
    */
