@@ -40,6 +40,18 @@ public:
    Gradient(std::string field_label) : FieldOperator(field_label) {};
 };
 
+class Curl : public FieldOperator
+{
+public:
+   Curl(std::string field_label) : FieldOperator(field_label) {};
+};
+
+class Div : public FieldOperator
+{
+public:
+   Div(std::string field_label) : FieldOperator(field_label) {};
+};
+
 class One : public FieldOperator
 {
 public:

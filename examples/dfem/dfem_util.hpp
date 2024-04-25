@@ -32,7 +32,7 @@ constexpr auto get_type_name() -> std::string_view
    return function.substr(start, size);
 }
 
-void print_matrix(mfem::DenseMatrix m)
+void print_matrix(const mfem::DenseMatrix m)
 {
    std::cout << "[";
    for (int i = 0; i < m.NumRows(); i++)
@@ -53,7 +53,7 @@ void print_matrix(mfem::DenseMatrix m)
    std::cout << "]\n";
 }
 
-void print_vector(mfem::Vector v)
+void print_vector(const mfem::Vector v)
 {
    std::cout << "[";
    for (int i = 0; i < v.Size(); i++)
@@ -268,6 +268,55 @@ int GetVDim(const FieldDescriptor &f)
    }, f.data);
 }
 
+int GetVectorFEDim(const FieldDescriptor &f)
+{
+   return std::visit([](auto && arg)
+   {
+      using T = std::decay_t<decltype(arg)>;
+      if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
+                    std::is_same_v<T, const ParFiniteElementSpace *>)
+      {
+         if (arg->GetFE(0)->GetMapType() == FiniteElement::MapType::H_CURL ||
+             arg->GetFE(0)->GetMapType() == FiniteElement::MapType::H_DIV)
+         {
+            return arg->GetFE(0)->GetDim();
+         }
+         else
+         {
+            return 1;
+         }
+      }
+      else
+      {
+         static_assert(always_false<T>, "can't use GetVDim on type");
+      }
+   }, f.data);
+}
+
+int GetVectorFECurlDim(const FieldDescriptor &f)
+{
+   return std::visit([](auto && arg)
+   {
+      using T = std::decay_t<decltype(arg)>;
+      if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
+                    std::is_same_v<T, const ParFiniteElementSpace *>)
+      {
+         if (arg->GetFE(0)->GetMapType() == FiniteElement::MapType::H_CURL)
+         {
+            return arg->GetFE(0)->GetCurlDim();
+         }
+         else
+         {
+            return 1;
+         }
+      }
+      else
+      {
+         static_assert(always_false<T>, "can't use GetVDim on type");
+      }
+   }, f.data);
+}
+
 int GetDimension(const FieldDescriptor &f)
 {
    return std::visit([](auto && arg)
@@ -356,10 +405,6 @@ const DofToQuad *GetDofToQuad(const FieldDescriptor &f,
       {
          return &arg->GetFE(0)->GetDofToQuad(ir, mode);
       }
-      else if constexpr (std::is_same_v<T, const QuadratureSpace *>)
-      {
-         return nullptr;
-      }
       else
       {
          static_assert(always_false<T>, "can't use GetDofToQuad on type");
@@ -368,15 +413,65 @@ const DofToQuad *GetDofToQuad(const FieldDescriptor &f,
 }
 
 template <typename field_operator_t>
+void CheckCompatibility(const FieldDescriptor &f)
+{
+   std::visit([](auto && arg)
+   {
+      using T = std::decay_t<decltype(arg)>;
+      if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
+                    std::is_same_v<T, const ParFiniteElementSpace *>)
+      {
+         if constexpr (std::is_same_v<field_operator_t, Value>)
+         {
+            // Supported by all FE spaces
+         }
+         else if constexpr (std::is_same_v<field_operator_t, Gradient>)
+         {
+            MFEM_ASSERT(arg->GetFE(0)->GetMapType() == FiniteElement::MapType::VALUE,
+                        "Gradient not compatible with FE");
+         }
+         else if constexpr (std::is_same_v<field_operator_t, Curl>)
+         {
+            MFEM_ASSERT(arg->GetFE(0)->GetMapType() == FiniteElement::MapType::H_CURL,
+                        "Curl not compatible with FE");
+         }
+         else if constexpr (std::is_same_v<field_operator_t, Div>)
+         {
+            MFEM_ASSERT(arg->GetFE(0)->GetMapType() == FiniteElement::MapType::H_DIV,
+                        "Div not compatible with FE");
+         }
+         else
+         {
+            static_assert(always_false<T>, "internal error - unhandled case");
+         }
+      }
+      else
+      {
+         static_assert(always_false<T>, "Operator not compatible with FE");
+      }
+   }, f.data);
+}
+
+template <typename field_operator_t>
 int GetSizeOnQP(const field_operator_t &, const FieldDescriptor &f)
 {
+   CheckCompatibility<field_operator_t>(f);
+
    if constexpr (std::is_same_v<field_operator_t, Value>)
    {
-      return GetVDim(f);
+      return GetVDim(f) * GetVectorFEDim(f);
    }
    else if constexpr (std::is_same_v<field_operator_t, Gradient>)
    {
       return GetVDim(f) * GetDimension(f);
+   }
+   else if constexpr (std::is_same_v<field_operator_t, Curl>)
+   {
+      return GetVDim(f) * GetVectorFECurlDim(f);
+   }
+   else if constexpr (std::is_same_v<field_operator_t, Div>)
+   {
+      return GetVDim(f);
    }
    else if constexpr (std::is_same_v<field_operator_t, None>)
    {
