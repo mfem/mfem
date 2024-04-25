@@ -3309,6 +3309,53 @@ private:
 
 /** Integrator for the DG form:
     $$
+      \langle \rho_u (u \cdot n) \{v\},[w] \rangle + 1/2 \langle \rho_u |u \cdot n| [v],[w] \rangle,
+    $$
+    where $v$ and $w$ are the trial and test variables, respectively, and $\rho$/$u$ are
+    given scalar/vector coefficients. $\{v\}$ represents the average value of $v$ on
+    the face and $[v]$ is the jump such that $\{v\}=(v_1+v_2)/2$ and $[v]=(v_1-v_2)$ for the
+    face between elements $1$ and $2$. For boundary elements, $v2=0$. The vector
+    coefficient, $u$, is assumed to be continuous across the faces and when given
+    the scalar coefficient, $\rho$, is assumed to be discontinuous. The integrator
+    uses the upwind value of $\rho$, denoted by $\rho_u$, which is value from the side into which
+    the vector coefficient, $u$, points.
+
+    One use case for this integrator is to discretize the operator $-u \cdot \nabla v$
+    with a DG formulation. The resulting formulation uses the
+    ConvectionIntegrator (with coefficient $u$, and parameter $\alpha = -1$) and the
+    transpose of the DGTraceIntegrator (with coefficient $u$, and parameters $\alpha = 1$,
+    $\beta = -1/2$ to use the upwind face flux, see also
+    NonconservativeDGTraceIntegrator). This discretization and the handling of
+    the inflow and outflow boundaries is illustrated in Example 9/9p.
+
+    Another use case for this integrator is to discretize the operator $\mathrm{div}(u v)$
+    with a DG formulation. The resulting formulation is conservative and
+    consists of the ConservativeConvectionIntegrator (with coefficient $u$, and
+    parameter $\alpha = 1$) plus the DGTraceIntegrator (with coefficient $u$, and
+    parameters $\alpha = 1$, $\beta = 1/2$ to use the upwind face flux).
+    */
+class HDGConvectionCenteredIntegrator : public DGTraceIntegrator
+{
+   Vector tr_shape, shape1, shape2;
+
+public:
+   /// Construct integrator with $\rho = 1$, $\beta = \alpha/2$.
+   HDGConvectionCenteredIntegrator(VectorCoefficient &u_)
+      : DGTraceIntegrator(u_, 1.) { }
+
+   virtual void AssembleHDGFaceMatrix(const FiniteElement &trace_el,
+                                      const FiniteElement &el1,
+                                      const FiniteElement &el2,
+                                      FaceElementTransformations &Trans,
+                                      DenseMatrix &elmat1,
+                                      DenseMatrix &elmat2,
+                                      DenseMatrix &ct_elmat,
+                                      DenseMatrix &c_elmat,
+                                      DenseMatrix &tr_elmat);
+};
+
+/** Integrator for the DG form:
+    $$
       \alpha \langle \rho_u \{v\},[w \cdot n] \rangle + \beta \langle \rho_u |u \cdot n| / (u \cdot n) [v],[w \cdot n] \rangle,
     $$
     where $v$ and $w$ are the trial and test variables, respectively, and $\rho$/$u$ are

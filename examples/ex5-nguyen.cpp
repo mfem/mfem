@@ -270,7 +270,7 @@ int main(int argc, char *argv[])
    if (bconv)
    {
       Mt->AddDomainIntegrator(new ConservativeConvectionIntegrator(ccoeff));
-      Mt->AddInteriorFaceIntegrator(new DGTraceIntegrator(ccoeff, 1.));
+      Mt->AddInteriorFaceIntegrator(new HDGConvectionCenteredIntegrator(ccoeff));
    }
 
    //set hybridization / assembly level
