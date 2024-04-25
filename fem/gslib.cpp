@@ -1230,7 +1230,8 @@ Vector FindPointsGSLIB::ReturnInterpolatedValues(Vector &int_vals,
                                                  int vdim,
                                                  int int_val_ordering)
 {
-   MFEM_VERIFY(int_vals.Size() % points_recv == 0,
+   MFEM_VERIFY(points_recv == 0 ||
+               int_vals.Size() % points_recv == 0,
                "Incompatible size. Please return interpolated values"
                "corresponding to points received using"
                "SendCoordinatesToOwningProcessors.");
