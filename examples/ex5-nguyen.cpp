@@ -529,6 +529,8 @@ int main(int argc, char *argv[])
    paraview_dc.SetTime(0.0); // set the time
    paraview_dc.RegisterField("heat flux",&q);
    paraview_dc.RegisterField("temperature",&t);
+   paraview_dc.RegisterField("heat flux exact", &qExact);
+   paraview_dc.RegisterField("temperature exact", &tExact);
    paraview_dc.Save();
 
    // 16. Send the solution by socket to a GLVis server.
