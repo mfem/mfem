@@ -51,7 +51,7 @@ typedef std::function<void(const Vector &, Vector &)> VecFunc;
 Func GetTFun(int prob, real_t t_0);
 VecFunc GetQFun(int prob, real_t t_0, real_t k, real_t c);
 VecFunc GetCFun(int prob, real_t c);
-Func GetFFun(int prob, real_t t_0, real_t k);
+Func GetFFun(int prob, real_t t_0, real_t k, const VecFunc &cFun);
 
 int main(int argc, char *argv[])
 {
@@ -201,16 +201,19 @@ int main(int argc, char *argv[])
    ConstantCoefficient kcoeff(k);
    ConstantCoefficient ikcoeff(1./k);
 
+   auto cFun = GetCFun(problem, c);
+   VectorFunctionCoefficient ccoeff(dim, cFun);
+
    auto tFun = GetTFun(problem, t_0);
    FunctionCoefficient tcoeff(tFun);
-   SumCoefficient gcoeff(0, tcoeff, 1.,
+
+   auto fFun = GetFFun(problem, t_0, k, cFun);
+   FunctionCoefficient fcoeff(fFun);
+   SumCoefficient gcoeff(0, fcoeff, 1.,
                          -1.);//<-- due to symmetrization, the sign is opposite
 
    auto qFun = GetQFun(problem, t_0, k, c);
    VectorFunctionCoefficient qcoeff(dim, qFun);
-
-   auto cFun = GetCFun(problem, c);
-   VectorFunctionCoefficient ccoeff(dim, cFun);
 
    // 8. Allocate memory (x, rhs) for the analytical solution and the right hand
    //    side.  Define the GridFunction q,t for the finite element solution and
@@ -649,8 +652,19 @@ VecFunc GetCFun(int prob, real_t c)
    switch (prob)
    {
       case 1:
-         //null
-         break;
+         return [=](const Vector &x, Vector &v)
+         {
+            const int ndim = x.Size();
+            v.SetSize(ndim);
+            v = 0.;
+
+            v(0) = c;
+            v(1) = c;
+            if (ndim > 2)
+            {
+               v(2) = c;
+            } 
+         };
       case 3:
          return [=](const Vector &x, Vector &v)
          {
@@ -667,7 +681,7 @@ VecFunc GetCFun(int prob, real_t c)
    return VecFunc();
 }
 
-Func GetFFun(int prob, real_t t_0, real_t k)
+Func GetFFun(int prob, real_t t_0, real_t k, const VecFunc &cFun)
 {
    switch (prob)
    {
@@ -675,13 +689,28 @@ Func GetFFun(int prob, real_t t_0, real_t k)
          return [=](const Vector &x) -> real_t
          {
             const int ndim = x.Size();
-            real_t t0 = t_0 * exp(x.Sum()) * sin(M_PI*x(0)) * sin(M_PI*x(1));
+            Vector c;
+            c.SetSize(ndim);
+            cFun(x, c);
+
+            real_t t0   = t_0 * exp(x.Sum()) * sin(M_PI*x(0)) * sin(M_PI*x(1));
+            real_t conv = t_0 * c(0) * (t0 + M_PI*exp(x.Sum())*cos(M_PI*x(0))*sin(M_PI*x(1)))
+                          + t_0 * c(1) * (t0 + M_PI*exp(x.Sum())*cos(M_PI*x(1))*sin(M_PI*x(0)));
+            real_t diff = -k*exp(x.Sum()) * (sin(M_PI*x(1))*((1-M_PI*M_PI)*sin(M_PI*x(0))
+                          + 2*M_PI*cos(M_PI*x(0))) + sin(M_PI*x(0))*((1-M_PI*M_PI)*sin(M_PI*x(1))
+                          + 2*M_PI*cos(M_PI*x(1))));
+
             if (ndim > 2)
             {
                t0 *= sin(M_PI*x(2));
+               conv *= sin(M_PI*x(2));
+               conv += c(2)*(t0 + M_PI*exp(x.Sum())*cos(M_PI*x(2))*sin(M_PI*x(0)))*sin(M_PI*x(1));
+
+               diff *= sin(M_PI*x(2));
+               diff -= k*M_PI*M_PI*t0;
             }
 
-            return t0;
+            return conv+diff;
          };
       case 3:
          //null
