@@ -507,9 +507,16 @@ int main(int argc, char *argv[])
    }
 
    // 14. Save data in the VisIt format
+   GridFunction qExact(V_space);
+   GridFunction tExact(W_space);
+   qExact.ProjectCoefficient(qcoeff);
+   tExact.ProjectCoefficient(tcoeff);
+
    VisItDataCollection visit_dc("Example5", mesh);
    visit_dc.RegisterField("heat flux", &q);
    visit_dc.RegisterField("temperature", &t);
+   visit_dc.RegisterField("heat flux exact", &qExact);
+   visit_dc.RegisterField("temperature exact", &tExact);
    visit_dc.Save();
 
    // 15. Save data in the ParaView format
