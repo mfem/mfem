@@ -209,8 +209,8 @@ int main(int argc, char *argv[])
 
    auto fFun = GetFFun(problem, t_0, k, cFun);
    FunctionCoefficient fcoeff(fFun);
-   SumCoefficient gcoeff(0, fcoeff, 1.,
-                         -1.);//<-- due to symmetrization, the sign is opposite
+   //SumCoefficient gcoeff(0, fcoeff, 1.,
+   //                      -1.);//<-- due to symmetrization, the sign is opposite
 
    auto qFun = GetQFun(problem, t_0, k, c);
    VectorFunctionCoefficient qcoeff(dim, qFun);
@@ -223,20 +223,20 @@ int main(int argc, char *argv[])
    MemoryType mt = device.GetMemoryType();
    BlockVector x(block_offsets, mt), rhs(block_offsets, mt);
 
-   LinearForm *fform(new LinearForm);
-   fform->Update(V_space, rhs.GetBlock(0), 0);
-   fform->Assemble();
-   fform->SyncAliasMemory(rhs);
-
    LinearForm *gform(new LinearForm);
-   gform->Update(W_space, rhs.GetBlock(1), 0);
-   gform->AddDomainIntegrator(new DomainLFIntegrator(gcoeff));
+   gform->Update(V_space, rhs.GetBlock(0), 0);
+   gform->Assemble();
+   gform->SyncAliasMemory(rhs);
+
+   LinearForm *fform(new LinearForm);
+   fform->Update(W_space, rhs.GetBlock(1), 0);
+   fform->AddDomainIntegrator(new DomainLFIntegrator(fcoeff));
    /*Vector v ({-1., 0.});
    VectorConstantCoefficient vc(v);
    ConstantCoefficient one;
    gform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(one, vc, 1.));*/
-   gform->Assemble();
-   gform->SyncAliasMemory(rhs);
+   fform->Assemble();
+   fform->SyncAliasMemory(rhs);
 
    // 9. Assemble the finite element matrices for the Darcy operator
    //
