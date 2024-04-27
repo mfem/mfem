@@ -27,7 +27,7 @@ using namespace std;
 namespace mfem
 {
 
-bool Hypre::configure_hypre_runtime_policy_from_mfem = true;
+bool Hypre::configure_runtime_policy_from_mfem = true;
 
 Hypre::Hypre()
 {
@@ -42,25 +42,22 @@ Hypre::Hypre()
 
 void Hypre::InitDevice()
 {
-   // Runtime Memory and Execution policy support was added in 2.26.0 but choosing to initialize
-   // the vendor libraries at runtime was not added until 2.31.0 so we use that instead
-#if MFEM_HYPRE_VERSION >= 23100
-   if (configure_hypre_runtime_policy_from_mfem)
+   // Runtime Memory and Execution policy support was added in 2.26.0 but
+   // choosing to initialize the vendor libraries at runtime was not added until
+   // 2.31.0 so we use that instead
+#if defined(HYPRE_USING_GPU) && (MFEM_HYPRE_VERSION >= 23100)
+   if (configure_runtime_policy_from_mfem)
    {
-      if (mfem::Device::Allows(mfem::Backend::DEVICE_MASK))
+      if (Device::Allows(Backend::DEVICE_MASK & ~Backend::DEBUG_DEVICE))
       {
          HYPRE_SetMemoryLocation(HYPRE_MEMORY_DEVICE);
          HYPRE_SetExecutionPolicy(HYPRE_EXEC_DEVICE);
+         HYPRE_DeviceInitialize();
       }
       else
       {
          HYPRE_SetMemoryLocation(HYPRE_MEMORY_HOST);
          HYPRE_SetExecutionPolicy(HYPRE_EXEC_HOST);
-      }
-
-      if (mfem::Device::Allows(mfem::Backend::DEVICE_MASK))
-      {
-         HYPRE_DeviceInitialize();
       }
    }
 #endif

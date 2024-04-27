@@ -75,11 +75,19 @@ public:
    static void Init() { Instance(); }
 
    /// @brief Configure HYPRE's compute and memory policy.
+   ///
    /// By default HYPRE will be configured with the same policy as MFEM unless
-   /// `Hypre::configure_hypre_runtime_policy_from_mfem` is false, in which case
+   /// `Hypre::configure_runtime_policy_from_mfem` is false, in which case
    /// HYPRE's default will be used; if HYPRE is built for the GPU and the
    /// aforementioned variable is false then HYPRE will use the GPU even if MFEM
    /// is not.
+   ///
+   /// This function is no-op if HYPRE is built without GPU support or the HYPRE
+   /// version is less than 2.31.0.
+   ///
+   /// This function is NOT called by Init(). Instead it is called by
+   /// Device::Configure() (when MFEM_USE_MPI=YES) after the MFEM device
+   /// configuration is complete.
    static void InitDevice();
 
    /// @brief Finalize hypre (called automatically at program exit if
@@ -89,8 +97,12 @@ public:
    /// called manually to more precisely control when hypre is finalized.
    static void Finalize();
 
-   /// Use MFEM's device policy to configure HYPRE's device policy, true by default.
-   static bool configure_hypre_runtime_policy_from_mfem;
+   /// @brief Use MFEM's device policy to configure HYPRE's device policy, true
+   /// by default. This variable is used by InitDevice().
+   ///
+   /// This value is not used if HYPRE is build without GPU support or the HYPRE
+   /// version is less than 2.31.0.
+   static bool configure_runtime_policy_from_mfem;
 
 private:
    /// Calls HYPRE_Init() when the singleton is constructed.
@@ -144,15 +156,23 @@ inline MemoryClass GetHypreMemoryClass()
 {
 #if !defined(HYPRE_USING_GPU)
    return MemoryClass::HOST;
-#elif defined(HYPRE_USING_UNIFIED_MEMORY)
+#elif MFEM_HYPRE_VERSION < 23100
+#if defined(HYPRE_USING_UNIFIED_MEMORY)
    return MemoryClass::MANAGED;
 #else
-#if MFEM_HYPRE_VERSION >= 23100
-   return (GetHypreMemoryLocation() == HYPRE_MEMORY_DEVICE) ? MemoryClass::DEVICE :
-          MemoryClass::HOST;
-#else // MFEM_HYPRE_VERSION >= 23100
    return MemoryClass::DEVICE;
-#endif // MFEM_HYPRE_VERSION >= 23100
+#endif
+#else // HYPRE_USING_GPU is defined and MFEM_HYPRE_VERSION >= 23100
+   if (GetHypreMemoryLocation() == HYPRE_MEMORY_HOST)
+   {
+      return MemoryClass::HOST;
+   }
+   // Return the actual memory location, see hypre_GetActualMemLocation():
+#if defined(HYPRE_USING_UNIFIED_MEMORY)
+   return MemoryClass::MANAGED;
+#else
+   return MemoryClass::DEVICE;
+#endif
 #endif
 }
 
@@ -161,32 +181,38 @@ inline MemoryType GetHypreMemoryType()
 {
 #if !defined(HYPRE_USING_GPU)
    return Device::GetHostMemoryType();
-#elif defined(HYPRE_USING_UNIFIED_MEMORY)
+#elif MFEM_HYPRE_VERSION < 23100
+#if defined(HYPRE_USING_UNIFIED_MEMORY)
    return MemoryType::MANAGED;
 #else
-#if MFEM_HYPRE_VERSION >= 23100
-   return (GetHypreMemoryLocation() == HYPRE_MEMORY_DEVICE) ? MemoryType::DEVICE :
-          Device::GetHostMemoryType();
-#else // MFEM_HYPRE_VERSION >= 23100
    return MemoryType::DEVICE;
-#endif // MFEM_HYPRE_VERSION >= 23100
+#endif
+#else // HYPRE_USING_GPU is defined and MFEM_HYPRE_VERSION >= 23100
+   if (GetHypreMemoryLocation() == HYPRE_MEMORY_HOST)
+   {
+      return Device::GetHostMemoryType();
+   }
+   // Return the actual memory location, see hypre_GetActualMemLocation():
+#if defined(HYPRE_USING_UNIFIED_MEMORY)
+   return MemoryType::MANAGED;
+#else
+   return MemoryType::DEVICE;
+#endif
 #endif
 }
 
+/// Return true if HYPRE is configured to use GPU
 inline bool HypreUsingGPU()
 {
-#ifdef HYPRE_USING_GPU
-#if MFEM_HYPRE_VERSION >= 23100
-   HYPRE_MemoryLocation loc;
-   HYPRE_GetMemoryLocation(&loc);
-   return loc == HYPRE_MEMORY_DEVICE;
-#else // MFEM_HYPRE_VERSION >= 23100
-   return true;
-#endif // MFEM_HYPRE_VERSION >= 23100
-#else
+#if !defined(HYPRE_USING_GPU)
    return false;
+#elif MFEM_HYPRE_VERSION < 23100
+   return true;
+#else // HYPRE_USING_GPU is defined and MFEM_HYPRE_VERSION >= 23100
+   return GetHypreMemoryLocation() != HYPRE_MEMORY_HOST;
 #endif
 }
+
 
 /// Wrapper for hypre's parallel vector class
 class HypreParVector : public Vector
