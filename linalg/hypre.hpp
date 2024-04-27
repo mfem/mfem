@@ -201,18 +201,6 @@ inline MemoryType GetHypreMemoryType()
 #endif
 }
 
-/// Return true if HYPRE is configured to use GPU
-inline bool HypreUsingGPU()
-{
-#if !defined(HYPRE_USING_GPU)
-   return false;
-#elif MFEM_HYPRE_VERSION < 23100
-   return true;
-#else // HYPRE_USING_GPU is defined and MFEM_HYPRE_VERSION >= 23100
-   return GetHypreMemoryLocation() != HYPRE_MEMORY_HOST;
-#endif
-}
-
 
 /// Wrapper for hypre's parallel vector class
 class HypreParVector : public Vector
