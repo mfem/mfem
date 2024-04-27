@@ -345,10 +345,10 @@ int main(int argc, char *argv[])
       }
       essbdr_attr = (testNo == 40) ? 1 : 2;
       ess_bdr = 0; ess_bdr[essbdr_attr - 1] = 1;
-      prob->SetDisplacementDirichletData(ess_values, ess_bdr);
+      // prob->SetDisplacementDirichletData(ess_values, ess_bdr);
       essbdr_attr = (testNo == 40) ? 10 : 6;
       ess_values = 0.0; ess_bdr = 0; ess_bdr[essbdr_attr - 1] = 1;
-      prob->SetDisplacementDirichletData(ess_values, ess_bdr);
+      // prob->SetDisplacementDirichletData(ess_values, ess_bdr);
       if (testNo == 40)
       {
          mortar_attr.insert(4);
@@ -420,6 +420,24 @@ int main(int argc, char *argv[])
          ess_bdr[essbdr_attr-1] = 1;
          ess_values = 0.0;
          ess_values[2] = 1.0/1.4*(i+1)/nsteps;
+         prob->SetDisplacementDirichletData(ess_values, ess_bdr);
+      }
+      else if (testNo == 41)
+      {
+         ess_values = 0.0;
+         ess_values[0] = 0.5/nsteps*(i+1);
+         // ess_values[0] = 0.0;
+         essbdr_attr =  2;
+         ess_bdr[essbdr_attr-1] = 1;
+         prob->SetDisplacementDirichletData(ess_values, ess_bdr);
+         essbdr_attr = 6;
+         ess_values = 0.0; 
+         // ess_values[0] = -0.5/nsteps*(i+1);
+         if (myid == 0)
+         {
+            mfem::out << "ess_values[0] = " << ess_values[0] << endl;
+         }
+         ess_bdr = 0; ess_bdr[essbdr_attr - 1] = 1;
          prob->SetDisplacementDirichletData(ess_values, ess_bdr);
       }
 
