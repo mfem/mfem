@@ -131,8 +131,8 @@ jobs:
         if: matrix.os == 'macos-latest'
         run: |
           XCODE_PATH="/Applications/Xcode_15.3.app"
-          echo "> xcode-select -s ${XCODE_PATH}"
-          xcode-select -s ${XCODE_PATH}
+          echo "> sudo xcode-select -s ${XCODE_PATH}"
+          sudo xcode-select -s ${XCODE_PATH}
           echo "> g++ -v"
           g++ -v
           echo "> clang++ -v"
