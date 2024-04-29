@@ -384,14 +384,13 @@ void DarcyForm::AssembleHDGFaces(int skip_zeros)
       for (int i = 0; i < nfaces; i++)
       {
          tr = mesh -> GetInteriorFaceTransformations (i);
-         if (tr != NULL)
-         {
-            hybridization->ComputeAndAssembleFaceMatrix(i, elmat1, elmat2, vdofs1, vdofs2);
+         if (tr == NULL) { continue; }
+
+         hybridization->ComputeAndAssembleFaceMatrix(i, elmat1, elmat2, vdofs1, vdofs2);
 #ifndef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
-            M_p->SpMat().AddSubMatrix(vdofs1, vdofs1, elmat1, skip_zeros);
-            M_p->SpMat().AddSubMatrix(vdofs2, vdofs2, elmat2, skip_zeros);
+         M_p->SpMat().AddSubMatrix(vdofs1, vdofs1, elmat1, skip_zeros);
+         M_p->SpMat().AddSubMatrix(vdofs2, vdofs2, elmat2, skip_zeros);
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
-         }
       }
    }
 
