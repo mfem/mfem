@@ -146,27 +146,22 @@ bool CanShallowCopy(const Memory<T> &src, MemoryClass mc)
 inline void HypreParVector::_SetDataAndSize_()
 {
    hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
-#if defined(HYPRE_USING_GPU)
-   if (HypreUsingGPU())
+#if !defined(HYPRE_USING_GPU)
+   SetDataAndSize(hypre_VectorData(x_loc),
+                  internal::to_int(hypre_VectorSize(x_loc)));
+#else
+   size = internal::to_int(hypre_VectorSize(x_loc));
+   MemoryType mt = (hypre_VectorMemoryLocation(x_loc) == HYPRE_MEMORY_HOST
+                    ? MemoryType::HOST : GetHypreMemoryType());
+   if (hypre_VectorData(x_loc) != NULL)
    {
-      size = internal::to_int(hypre_VectorSize(x_loc));
-      MemoryType mt = (hypre_VectorMemoryLocation(x_loc) == HYPRE_MEMORY_HOST
-                       ? MemoryType::HOST : GetHypreMemoryType());
-      if (hypre_VectorData(x_loc) != NULL)
-      {
-         data.Wrap(hypre_VectorData(x_loc), size, mt, false);
-      }
-      else
-      {
-         data.Reset();
-      }
+      data.Wrap(hypre_VectorData(x_loc), size, mt, false);
    }
    else
-#endif
    {
-      SetDataAndSize(hypre_VectorData(x_loc),
-                     internal::to_int(hypre_VectorSize(x_loc)));
+      data.Reset();
    }
+#endif
 }
 
 HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size,
@@ -563,14 +558,36 @@ void HypreParMatrix::Init()
    mem_offd.data.Reset();
 }
 
+#if MFEM_HYPRE_VERSION >= 21800
+inline decltype(hypre_CSRMatrix::memory_location)
+GetHypreParMatrixMemoryLocation(MemoryClass mc)
+{
+   // This method is called by HypreParMatrix::{Read,ReadWrite,Write} (with
+   // MemoryClass argument) and those are private and called only with memory
+   // class mc == Device::GetHostMemoryClass() or mc == GetHypreMemoryClass().
+   // If they need to be called with a different MemoryClass, the logic below
+   // may need to be adjusted.
+   MFEM_ASSERT(mc == Device::GetHostMemoryClass() ||
+               mc == GetHypreMemoryClass(), "invalid MemoryClass!");
+   decltype(hypre_CSRMatrix::memory_location) ml;
+   // Note: Device::GetHostMemoryClass() is always MemoryClass::HOST.
+#if !defined(HYPRE_USING_GPU)
+   // GetHypreMemoryClass() is MemoryClass::HOST.
+   ml = HYPRE_MEMORY_HOST;
+#else
+   // When (MFEM_HYPRE_VERSION < 23100), GetHypreMemoryClass() is one of
+   // MemoryClass::{DEVICE,MANAGED}.
+   // When (MFEM_HYPRE_VERSION >= 23100), GetHypreMemoryClass() is one of
+   // MemoryClass::{HOST,DEVICE,MANAGED}.
+   // In both cases, the logic is the same:
+   ml = (mc == MemoryClass::HOST) ? HYPRE_MEMORY_HOST : HYPRE_MEMORY_DEVICE;
+#endif
+   return ml;
+}
+#endif // MFEM_HYPRE_VERSION >= 21800
+
 void HypreParMatrix::Read(MemoryClass mc) const
 {
-#if MFEM_HYPRE_VERSION >= 23100
-   if (GetHypreMemoryLocation() == HYPRE_MEMORY_HOST && mc != MemoryClass::HOST)
-   {
-      MFEM_ABORT("Hypre is configured to use the HOST but the MemoryClass is DEVICE");
-   }
-#endif
    hypre_CSRMatrix *diag = hypre_ParCSRMatrixDiag(A);
    hypre_CSRMatrix *offd = hypre_ParCSRMatrixOffd(A);
    const int num_rows = NumRows();
@@ -583,26 +600,14 @@ void HypreParMatrix::Read(MemoryClass mc) const
    offd->j = const_cast<HYPRE_Int*>(mem_offd.J.Read(mc, offd_nnz));
    offd->data = const_cast<real_t*>(mem_offd.data.Read(mc, offd_nnz));
 #if MFEM_HYPRE_VERSION >= 21800
-#if MFEM_HYPRE_VERSION >= 23100
-   decltype(diag->memory_location) ml =
-      (mc == MemoryClass::HOST) ? HYPRE_MEMORY_HOST : GetHypreMemoryLocation();
-#else // MFEM_HYPRE_VERSION >= 23100
-   decltype(diag->memory_location) ml =
-      (mc != GetHypreMemoryClass() ? HYPRE_MEMORY_HOST : HYPRE_MEMORY_DEVICE);
-#endif // MFEM_HYPRE_VERSION >= 23100
+   auto ml = GetHypreParMatrixMemoryLocation(mc);
    diag->memory_location = ml;
    offd->memory_location = ml;
-#endif // MFEM_HYPRE_VERSION >= 21800
+#endif
 }
 
 void HypreParMatrix::ReadWrite(MemoryClass mc)
 {
-#if MFEM_HYPRE_VERSION >= 23100
-   if (GetHypreMemoryLocation() == HYPRE_MEMORY_HOST && mc != MemoryClass::HOST)
-   {
-      MFEM_ABORT("Hypre is configured to use the HOST but the MemoryClass is DEVICE");
-   }
-#endif
    hypre_CSRMatrix *diag = hypre_ParCSRMatrixDiag(A);
    hypre_CSRMatrix *offd = hypre_ParCSRMatrixOffd(A);
    const int num_rows = NumRows();
@@ -615,26 +620,14 @@ void HypreParMatrix::ReadWrite(MemoryClass mc)
    offd->j = mem_offd.J.ReadWrite(mc, offd_nnz);
    offd->data = mem_offd.data.ReadWrite(mc, offd_nnz);
 #if MFEM_HYPRE_VERSION >= 21800
-#if MFEM_HYPRE_VERSION >= 23100
-   decltype(diag->memory_location) ml =
-      (mc == MemoryClass::HOST) ? HYPRE_MEMORY_HOST : GetHypreMemoryLocation();
-#else // MFEM_HYPRE_VERSION >= 23100
-   decltype(diag->memory_location) ml =
-      (mc != GetHypreMemoryClass() ? HYPRE_MEMORY_HOST : HYPRE_MEMORY_DEVICE);
-#endif // MFEM_HYPRE_VERSION >= 23100
+   auto ml = GetHypreParMatrixMemoryLocation(mc);
    diag->memory_location = ml;
    offd->memory_location = ml;
-#endif // MFEM_HYPRE_VERSION >= 21800
+#endif
 }
 
 void HypreParMatrix::Write(MemoryClass mc, bool set_diag, bool set_offd)
 {
-#if MFEM_HYPRE_VERSION >= 23100
-   if (GetHypreMemoryLocation() == HYPRE_MEMORY_HOST && mc != MemoryClass::HOST)
-   {
-      MFEM_ABORT("Hypre is configured to use the HOST but the MemoryClass is DEVICE");
-   }
-#endif
    hypre_CSRMatrix *diag = hypre_ParCSRMatrixDiag(A);
    hypre_CSRMatrix *offd = hypre_ParCSRMatrixOffd(A);
    if (set_diag)
@@ -650,16 +643,10 @@ void HypreParMatrix::Write(MemoryClass mc, bool set_diag, bool set_offd)
       offd->data = mem_offd.data.Write(mc, mem_offd.data.Capacity());
    }
 #if MFEM_HYPRE_VERSION >= 21800
-#if MFEM_HYPRE_VERSION >= 23100
-   decltype(diag->memory_location) ml =
-      (mc == MemoryClass::HOST) ? HYPRE_MEMORY_HOST : GetHypreMemoryLocation();
-#else // MFEM_HYPRE_VERSION >= 23100
-   decltype(diag->memory_location) ml =
-      (mc != GetHypreMemoryClass() ? HYPRE_MEMORY_HOST : HYPRE_MEMORY_DEVICE);
-#endif // MFEM_HYPRE_VERSION >= 23100
+   auto ml = GetHypreParMatrixMemoryLocation(mc);
    if (set_diag) { diag->memory_location = ml; }
    if (set_offd) { offd->memory_location = ml; }
-#endif // MFEM_HYPRE_VERSION >= 21800
+#endif
 }
 
 HypreParMatrix::HypreParMatrix()
