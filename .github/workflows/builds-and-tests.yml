@@ -33,6 +33,7 @@ env:
   HYPRE_ARCHIVE: v2.19.0.tar.gz
   HYPRE_TOP_DIR: hypre-2.19.0
   METIS_ARCHIVE: metis-4.0.3.tar.gz
+  METIS_ARCHIVE_MAC: metis-4.0.3-mac.tar.gz
   METIS_TOP_DIR: metis-4.0.3
   MFEM_TOP_DIR: mfem
 
@@ -203,7 +204,7 @@ jobs:
         if: matrix.mpi == 'par' && matrix.os != 'windows-latest' && steps.metis-cache.outputs.cache-hit != 'true'
         uses: mfem/github-actions/build-metis@v2.4
         with:
-          archive: ${{ env.METIS_ARCHIVE }}
+          archive: ${{ matrix.os != 'macos-latest' && env.METIS_ARCHIVE || env.METIS_ARCHIVE_MAC }}
           dir: ${{ env.METIS_TOP_DIR }}
 
       - name: cache vcpkg (Windows)
