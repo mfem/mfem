@@ -127,6 +127,17 @@ jobs:
           # Fetch the complete history for codecov to access commits ID
           fetch-depth: 0
 
+      - name: Xcode version setup (MacOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          XCODE_PATH="/Applications/Xcode_15.3.app"
+          echo "> xcode-select -s ${XCODE_PATH}"
+          xcode-select -s ${XCODE_PATH}
+          echo "> g++ -v"
+          g++ -v
+          echo "> clang++ -v"
+          clang++ -v
+
       # Only get MPI if defined for the job.
       # TODO: It would be nice to have only one step, e.g. with a dedicated
       # action, but I (@adrienbernede) don't see how at the moment.
