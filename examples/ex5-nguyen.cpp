@@ -71,6 +71,7 @@ int main(int argc, char *argv[])
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = 1;
+   bool analytic = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -100,6 +101,10 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&analytic, "-anal", "--analytic", "-no-anal",
+                  "--no-analytic",
+                  "Enable or disable analytic solution.");
+
    args.Parse();
    if (!args.Good())
    {
@@ -521,8 +526,11 @@ int main(int argc, char *argv[])
    VisItDataCollection visit_dc("Example5", mesh);
    visit_dc.RegisterField("heat flux", &q);
    visit_dc.RegisterField("temperature", &t);
-   visit_dc.RegisterField("heat flux analytic", &q_a);
-   visit_dc.RegisterField("temperature analytic", &t_a);
+   if (analytic)
+   {
+      visit_dc.RegisterField("heat flux analytic", &q_a);
+      visit_dc.RegisterField("temperature analytic", &t_a);
+   }
    visit_dc.Save();
 
    // 15. Save data in the ParaView format
@@ -535,8 +543,11 @@ int main(int argc, char *argv[])
    paraview_dc.SetTime(0.0); // set the time
    paraview_dc.RegisterField("heat flux",&q);
    paraview_dc.RegisterField("temperature",&t);
-   paraview_dc.RegisterField("heat flux analytic", &q_a);
-   paraview_dc.RegisterField("temperature analytic", &t_a);
+   if (analytic)
+   {
+      paraview_dc.RegisterField("heat flux analytic", &q_a);
+      paraview_dc.RegisterField("temperature analytic", &t_a);
+   }
    paraview_dc.Save();
 
    // 16. Send the solution by socket to a GLVis server.
@@ -552,16 +563,19 @@ int main(int argc, char *argv[])
       t_sock.precision(8);
       t_sock << "solution\n" << *mesh << t << "window_title 'Temperature'" << endl;
       t_sock << "keys Rljmmc" << endl;
-      socketstream qa_sock(vishost, visport);
-      qa_sock.precision(8);
-      qa_sock << "solution\n" << *mesh << q_a << "window_title 'Heat flux analytic'"
-               << endl;
-      qa_sock << "keys Rljvvvvvmmc" << endl;
-      socketstream ta_sock(vishost, visport);
-      ta_sock.precision(8);
-      ta_sock << "solution\n" << *mesh << t_a << "window_title 'Temperature analytic'"
-               << endl;
-      ta_sock << "keys Rljmmc" << endl;
+      if (analytic)
+      {
+         socketstream qa_sock(vishost, visport);
+         qa_sock.precision(8);
+         qa_sock << "solution\n" << *mesh << q_a << "window_title 'Heat flux analytic'"
+                 << endl;
+         qa_sock << "keys Rljvvvvvmmc" << endl;
+         socketstream ta_sock(vishost, visport);
+         ta_sock.precision(8);
+         ta_sock << "solution\n" << *mesh << t_a << "window_title 'Temperature analytic'"
+                 << endl;
+         ta_sock << "keys Rljmmc" << endl;
+      }
       if (bconv)
       {
          socketstream c_sock(vishost, visport);
