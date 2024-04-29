@@ -1336,17 +1336,28 @@ int test_assemble_mixed_scalar_curl_hypreparmatrix(std::string mesh_file,
    {
       const double x = coords(0);
       const double y = coords(1);
-      u(0) = x;
-      u(1) = y;
+      u(0) = x + y * y;
+      u(1) = y - x;
    };
    auto u_coef = VectorFunctionCoefficient(dim, u_f);
+
+   u.ProjectCoefficient(u_coef);
+
+   ParMixedBilinearForm blf(&ndfes, &h1fes);
+   auto integ = new MixedScalarCurlIntegrator();
+   integ->SetIntRule(&ir);
+   blf.AddDomainIntegrator(integ);
+   blf.Assemble();
+   blf.Finalize();
+   auto A_mat = blf.ParallelAssemble();
+
+   A_mat->PrintMatlab(out);
 
    auto mixed_scalar_curl = [](const double &curl_u,
                                const tensor<double, 2, 2> &J,
                                const double &w)
    {
-      auto invJ = inv(J);
-      return curl_u * det(J) * w * transpose(invJ);
+      return std::tuple{curl_u / det(J) * det(J) * w};
    };
 
    std::tuple argument_operators{Curl{"potential_vector"}, Gradient{"coordinates"}, Weight{"integration_weights"}};
@@ -1362,11 +1373,12 @@ int test_assemble_mixed_scalar_curl_hypreparmatrix(std::string mesh_file,
    Vector x(h1fes.GetTrueVSize()), y1(h1fes.GetTrueVSize()),
           y2(h1fes.GetTrueVSize());
 
-   u.ProjectCoefficient(u_coef);
    auto dFdU = dop.GetDerivativeWrt<0>({&u}, {&v, mesh_nodes});
 
-   HypreParMatrix M_mat_dop;
-   dFdU->Assemble(M_mat_dop);
+   HypreParMatrix A_mat_dop;
+   dFdU->Assemble(A_mat_dop);
+
+   A_mat_dop.PrintMatlab(out);
 
    return 0;
 }

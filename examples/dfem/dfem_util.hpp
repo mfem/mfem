@@ -111,6 +111,7 @@ struct DofToQuadMaps
 template <class... T> constexpr bool always_false = false;
 
 struct OperatesOnElement;
+struct OperatesOnBoundary;
 
 template <typename func_t, typename input_t,
           typename output_t>
@@ -137,11 +138,18 @@ struct ElementOperator<func_t, std::tuple<input_ts...>,
    static constexpr size_t num_kinputs = std::tuple_size_v<kernel_inputs_t>;
    static constexpr size_t num_koutputs = std::tuple_size_v<kernel_outputs_t>;
 
-   constexpr ElementOperator(func_t func,
-                             std::tuple<input_ts...> inputs,
-                             std::tuple<output_ts...> outputs)
+   Array<int> attributes;
+
+   ElementOperator(func_t func,
+                   std::tuple<input_ts...> inputs,
+                   std::tuple<output_ts...> outputs,
+                   Array<int> *attr = nullptr)
       : func(func), inputs(inputs), outputs(outputs)
    {
+      if (attr)
+      {
+         attributes = *attr;
+      }
       // Properly check all parameter types of the kernel
       // std::apply([](auto&&... args)
       // {
@@ -160,9 +168,9 @@ struct ElementOperator<func_t, std::tuple<input_ts...>,
       static_assert(num_kfinputs == num_kinputs,
                     "kernel function inputs and descriptor inputs have to match");
 
-      // constexpr size_t num_kfoutputs = std::tuple_size_v<kf_output_t>;
-      // static_assert(num_kfoutputs == num_koutputs,
-      //               "kernel function outputs and descriptor outputs have to match");
+      constexpr size_t num_kfoutputs = std::tuple_size_v<kf_output_t>;
+      static_assert(num_kfoutputs == num_koutputs,
+                    "kernel function outputs and descriptor outputs have to match");
    }
 };
 
@@ -172,6 +180,16 @@ ElementOperator(func_t, std::tuple<input_ts...>,
                 std::tuple<output_ts...>)
 -> ElementOperator<func_t, std::tuple<input_ts...>,
 std::tuple<output_ts...>>;
+
+template <typename func_t, typename input_t, typename output_t>
+struct BoundaryElementOperator : public
+   ElementOperator<func_t, input_t, output_t>
+{
+public:
+   using OperatesOn = OperatesOnBoundary;
+   BoundaryElementOperator(func_t func, input_t inputs, output_t outputs)
+      : ElementOperator<func_t, input_t, output_t>(func, inputs, outputs) {}
+};
 
 int GetVSize(const FieldDescriptor &f)
 {
@@ -288,7 +306,7 @@ int GetVectorFEDim(const FieldDescriptor &f)
       }
       else
       {
-         static_assert(always_false<T>, "can't use GetVDim on type");
+         static_assert(always_false<T>, "can't use GetVectorFEDim on type");
       }
    }, f.data);
 }
@@ -312,7 +330,7 @@ int GetVectorFECurlDim(const FieldDescriptor &f)
       }
       else
       {
-         static_assert(always_false<T>, "can't use GetVDim on type");
+         static_assert(always_false<T>, "can't use GetVectorFECurlDim on type");
       }
    }, f.data);
 }

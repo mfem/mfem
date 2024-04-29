@@ -409,30 +409,30 @@ void prepare_kf_args(std::array<DeviceTensor<2>, num_fields> &u,
    (prepare_kf_arg(u[i], std::get<i>(args), qp), ...);
 }
 
-Vector prepare_kf_result(double x)
+Vector prepare_kf_result(std::tuple<double> x)
 {
    Vector r(1);
-   r = x;
+   r = std::get<0>(x);
    return r;
 }
 
-Vector prepare_kf_result(Vector x)
+Vector prepare_kf_result(std::tuple<Vector> x)
 {
-   return x;
+   return std::get<0>(x);
 }
 
 template <int length>
-Vector prepare_kf_result(mfem::internal::tensor<double, length> x)
+Vector prepare_kf_result(std::tuple<mfem::internal::tensor<double, length>> x)
 {
    Vector r(length);
    for (size_t i = 0; i < length; i++)
    {
-      r(i) = x(i);
+      r(i) = std::get<0>(x)(i);
    }
    return r;
 }
 
-Vector prepare_kf_result(mfem::internal::tensor<double, 2, 2> x)
+Vector prepare_kf_result(std::tuple<mfem::internal::tensor<double, 2, 2>> x)
 {
    Vector r(4);
    for (size_t i = 0; i < 2; i++)
@@ -440,7 +440,7 @@ Vector prepare_kf_result(mfem::internal::tensor<double, 2, 2> x)
       for (size_t j = 0; j < 2; j++)
       {
          // TODO: Careful with the indices here!
-         r(j + (i * 2)) = x(j, i);
+         r(j + (i * 2)) = std::get<0>(x)(j, i);
       }
    }
    return r;
@@ -1169,12 +1169,18 @@ public:
 
          constexpr int hardcoded_output_idx = 0;
 
+         int num_qp = op.integration_rule.GetNPoints();;
          int num_el = 0;
-         int num_qp = 0;
+         int dimension = 0;
          if constexpr (std::is_same_v<typename kernel_t::OperatesOn, OperatesOnElement>)
          {
             num_el = op.mesh.GetNE();
-            num_qp = op.integration_rule.GetNPoints();
+            dimension = op.dim;
+         }
+         else if (std::is_same_v<typename kernel_t::OperatesOn, OperatesOnBoundary>)
+         {
+            num_el = op.mesh.GetNBE();
+            dimension = op.dim - 1;
          }
          else
          {
@@ -1355,7 +1361,7 @@ public:
                }
             }
 
-            Vector fhat_mem(test_op_dim * num_qp * op.dim);
+            Vector fhat_mem(test_op_dim * num_qp * dimension);
             auto fhat = Reshape(fhat_mem.ReadWrite(), test_vdim, test_op_dim, num_qp);
             for (int J = 0; J < num_trial_dof; J++)
             {
