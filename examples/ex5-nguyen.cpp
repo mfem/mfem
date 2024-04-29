@@ -484,8 +484,16 @@ int main(int argc, char *argv[])
    std::cout << "|| q_h - q_ex || / || q_ex || = " << err_q / norm_q << "\n";
    std::cout << "|| t_h - t_ex || / || t_ex || = " << err_t / norm_t << "\n";
 
-   GridFunction c_gf;
-   
+   // Project the analytic solution
+
+   GridFunction q_a, t_a, c_gf;
+
+   q_a.SetSpace(V_space);
+   q_a.ProjectCoefficient(qcoeff);
+
+   t_a.SetSpace(W_space);
+   t_a.ProjectCoefficient(tcoeff);
+
    if (bconv)
    {
       c_gf.SetSpace(V_space);
@@ -510,16 +518,11 @@ int main(int argc, char *argv[])
    }
 
    // 14. Save data in the VisIt format
-   GridFunction qExact(V_space);
-   GridFunction tExact(W_space);
-   qExact.ProjectCoefficient(qcoeff);
-   tExact.ProjectCoefficient(tcoeff);
-
    VisItDataCollection visit_dc("Example5", mesh);
    visit_dc.RegisterField("heat flux", &q);
    visit_dc.RegisterField("temperature", &t);
-   visit_dc.RegisterField("heat flux exact", &qExact);
-   visit_dc.RegisterField("temperature exact", &tExact);
+   visit_dc.RegisterField("heat flux analytic", &q_a);
+   visit_dc.RegisterField("temperature analytic", &t_a);
    visit_dc.Save();
 
    // 15. Save data in the ParaView format
@@ -532,8 +535,8 @@ int main(int argc, char *argv[])
    paraview_dc.SetTime(0.0); // set the time
    paraview_dc.RegisterField("heat flux",&q);
    paraview_dc.RegisterField("temperature",&t);
-   paraview_dc.RegisterField("heat flux exact", &qExact);
-   paraview_dc.RegisterField("temperature exact", &tExact);
+   paraview_dc.RegisterField("heat flux analytic", &q_a);
+   paraview_dc.RegisterField("temperature analytic", &t_a);
    paraview_dc.Save();
 
    // 16. Send the solution by socket to a GLVis server.
