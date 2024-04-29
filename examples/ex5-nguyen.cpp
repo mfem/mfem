@@ -740,8 +740,10 @@ Func GetFFun(int prob, real_t t_0, real_t k, const VecFunc &cFun)
             return conv+diff;
          };
       case 3:
-         //null
-         break;
+      {
+         auto Tfun = GetTFun(prob, t_0);
+         return [=](const Vector &x) -> real_t { return -Tfun(x); };
+      }
    }
    return Func();
 }
