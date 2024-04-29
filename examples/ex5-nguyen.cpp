@@ -552,6 +552,16 @@ int main(int argc, char *argv[])
       t_sock.precision(8);
       t_sock << "solution\n" << *mesh << t << "window_title 'Temperature'" << endl;
       t_sock << "keys Rljmmc" << endl;
+      socketstream qa_sock(vishost, visport);
+      qa_sock.precision(8);
+      qa_sock << "solution\n" << *mesh << q_a << "window_title 'Heat flux analytic'"
+               << endl;
+      qa_sock << "keys Rljvvvvvmmc" << endl;
+      socketstream ta_sock(vishost, visport);
+      ta_sock.precision(8);
+      ta_sock << "solution\n" << *mesh << t_a << "window_title 'Temperature analytic'"
+               << endl;
+      ta_sock << "keys Rljmmc" << endl;
       if (bconv)
       {
          socketstream c_sock(vishost, visport);
