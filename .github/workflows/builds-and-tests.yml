@@ -33,7 +33,7 @@ env:
   HYPRE_ARCHIVE: v2.19.0.tar.gz
   HYPRE_TOP_DIR: hypre-2.19.0
   METIS_ARCHIVE: metis-4.0.3.tar.gz
-  METIS_ARCHIVE_MAC: metis-4.0.3-mac.tar.gz
+  METIS_ARCHIVE_MAC: metis-4.0.3-mac.tgz
   METIS_TOP_DIR: metis-4.0.3
   MFEM_TOP_DIR: mfem
 
