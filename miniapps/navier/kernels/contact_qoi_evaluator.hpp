@@ -66,6 +66,7 @@ void ContactQoiEvaluator(
       }
    }
 
+
    // Now find the elements on the secondary mesh where we can interpolate
    // those coordinates.
    FindPointsGSLIB finder(MPI_COMM_WORLD);
@@ -77,12 +78,14 @@ void ContactQoiEvaluator(
       if (code != 1) {MFEM_ABORT("couldn't locate all points on boundaries")};
    }
 
-   auto secondary_element_idx = finder.GetElem();
+   finder.SendCoordinatesToOwningProcessors();
+
+   auto secondary_element_idx = finder.GetReceivedElem();
    const int num_requested_pts = secondary_element_idx.Size();
 
    qoi_mem.SetSize(num_requested_pts * qoi_size_on_pt);
 
-   auto ref_coords = Reshape(finder.GetReferencePosition().Read(),
+   auto ref_coords = Reshape(finder.GetReceivedReferencePosition().Read(),
                              dim,
                              num_requested_pts);
 
@@ -94,6 +97,8 @@ void ContactQoiEvaluator(
       tr->SetIntPoint(&ip);
       qoi_func(*tr, i, num_requested_pts);
    }
+
+   finder.ReturnInterpolatedValues(qoi_mem, qoi_size_on_pt);
 }
 
 }

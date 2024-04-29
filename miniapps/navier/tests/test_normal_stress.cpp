@@ -9,8 +9,14 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include "fem/fe/fe_base.hpp"
+#include "fem/fe_coll.hpp"
+#include "fem/pgridfunc.hpp"
+#include "general/communication.hpp"
 #include "lib/navier_solver.hpp"
 #include "kernels/contact_qoi_evaluator.hpp"
+#include "linalg/densemat.hpp"
+#include "linalg/hypre.hpp"
 #include <fstream>
 
 using namespace mfem;
@@ -124,21 +130,18 @@ int main(int argc, char *argv[])
 
    int polynomial_order = 2;
    int refinements = 0;
+   int par_refinements = 0;
    const char *mesh_file = "two_domain_test.mesh";
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&refinements, "-r", "--ref", "");
+   args.AddOption(&par_refinements, "-pr", "--pref", "");
    args.AddOption(&polynomial_order, "-o", "--order", "");
    args.ParseCheck(out);
 
    Mesh mesh = Mesh::LoadFromFile(mesh_file);
    mesh.EnsureNodes();
-
-   for (int i = 0; i < refinements; i++)
-   {
-      mesh.UniformRefinement();
-   }
 
    const int dim = mesh.Dimension();
    const double density = 1.0;
@@ -153,9 +156,34 @@ int main(int argc, char *argv[])
    right_domain = 0;
    right_domain[1] = 1;
 
-   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+   Array<int> partitioning(mesh.GetNE());
+   partitioning[0] = 1;
+   partitioning[1] = 0;
+   partitioning[2] = 0;
+   partitioning[3] = 1;
+
+   ParMesh pmesh(MPI_COMM_WORLD, mesh, partitioning);
+
+   for (int i = 0; i < par_refinements; i++)
+   {
+      pmesh.UniformRefinement();
+   }
+
+   L2_FECollection l2fec(0, dim);
+   ParFiniteElementSpace l2fes(&pmesh, &l2fec);
+   ParGridFunction l2gf(&l2fes);
+   l2gf = Mpi::WorldRank();
+
+   char vishost[] = "localhost";
+   int  visport   = 19916;
+   socketstream sol_sock(vishost, visport);
+   sol_sock << "parallel " << num_procs << " " << myid << "\n";
+   sol_sock.precision(8);
+   sol_sock << "solution\n" << pmesh << l2gf << std::flush;
 
    ParSubMesh fluid_mesh = ParSubMesh::CreateFromDomain(pmesh, left_domain);
+   out << "rank " << Mpi::WorldRank() << ": " << "fluid_mesh NE: " <<
+       fluid_mesh.GetNE() << "\n";
    NavierSolver navier(&fluid_mesh, polynomial_order, 1.0);
 
    auto ugf = navier.GetCurrentVelocity();
@@ -180,6 +208,7 @@ int main(int argc, char *argv[])
 
    // Compute the requested QoI on the secondary mesh
    Vector qoi_mem;
+   const int qoi_size_on_qp = dim * dim;
 
    auto qoi_func = [&](ElementTransformation &tr, int pt_idx, int num_pts)
    {
@@ -201,33 +230,63 @@ int main(int argc, char *argv[])
 
       Vector transformed_ip(2);
       tr.Transform(tr.GetIntPoint(), transformed_ip);
-
-      out << "         el_id: " << tr.ElementNo << "\n";
-      out << "transformed ip: ("
-          << transformed_ip(0) << ","
-          << transformed_ip(1) << ")\n";
-
       DenseMatrix B(Reshape(&qoi(0, 0, pt_idx), dim, dim), dim, dim);
-      out << "\n";
-      out << "computed\n";
+      // DenseMatrix *C = analytical_stress_mat(transformed_ip);
+
+      // out << "         el_id: " << tr.ElementNo << "\n";
+      // out << "transformed ip: ("
+      //     << transformed_ip(0) << ","
+      //     << transformed_ip(1) << ")\n";
+
+      // out << "\n";
+      // out << "computed\n";
+      out << "rank " << Mpi::WorldRank() << ": ";
       print_matrix(B);
 
-      DenseMatrix *C = analytical_stress_mat(transformed_ip);
-      out << "analytical\n";
-      print_matrix(*C);
-      out << "\n";
-      delete C;
+      // out << "analytical\n";
+      // print_matrix(*C);
+      // out << "\n";
+
+      // DenseMatrix D(dim, dim);
+      // Add(1.0, B, -1.0, *C, D);
+      // if (D.MaxMaxNorm() > 1e-12)
+      // {
+      //    MFEM_ABORT("ERROR");
+      // }
+
+      // delete C;
    };
 
    ContactQoiEvaluator(primary_mesh, secondary_mesh, interface_marker_solid,
-                       ir_face, qoi_func, qoi_mem, dim * dim);
+                       ir_face, qoi_func, qoi_mem, qoi_size_on_qp);
+   const int num_pts = qoi_mem.Size() / qoi_size_on_qp;
+   auto qoi = Reshape(qoi_mem.ReadWrite(), dim, dim, num_pts);
 
-   char vishost[] = "localhost";
-   int  visport   = 19916;
-   socketstream sol_sock(vishost, visport);
-   sol_sock << "parallel " << num_procs << " " << myid << "\n";
-   sol_sock.precision(8);
-   sol_sock << "mesh\n" << fluid_mesh << std::flush;
+   if (Mpi::WorldRank() == 0)
+   {
+      out << "\n\n\n";
+   }
+
+   // The quadrature point data is now on the primary_mesh ranks
+   int pt_idx = 0;
+   for (int be = 0; be < primary_mesh.GetNBE(); be++)
+   {
+      const int bdr_el_attr = primary_mesh.GetBdrAttribute(be);
+      if (interface_marker_solid[bdr_el_attr-1] == 0)
+      {
+         continue;
+      }
+      auto tr = primary_mesh.GetBdrElementTransformation(be);
+      for (int qp = 0; qp < ir_face.GetNPoints(); qp++)
+      {
+         // const IntegrationPoint &ip = ir_face.IntPoint(qp);
+         // tr->SetIntPoint(&ip);
+         DenseMatrix B(Reshape(&qoi(0, 0, pt_idx), dim, dim), dim, dim);
+         pt_idx++;
+         out << "rank " << Mpi::WorldRank() << ": ";
+         print_matrix(B);
+      }
+   }
 
    return 0;
 }

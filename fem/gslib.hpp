@@ -23,6 +23,7 @@ struct comm;
 struct findpts_data_2;
 struct findpts_data_3;
 struct crystal;
+struct gs_data;
 }
 
 namespace mfem
@@ -71,6 +72,9 @@ protected:
    int dim, points_cnt;
    Array<unsigned int> gsl_code, gsl_proc, gsl_elem, gsl_mfem_elem;
    Vector gsl_mesh, gsl_ref, gsl_dist, gsl_mfem_ref;
+   int points_recv;
+   Array<unsigned int> recv_code, recv_proc, recv_elem;
+   Vector recv_ref, recv_index;
    bool setupflag;              // flag to indicate whether gslib data has been setup
    double default_interp_value; // used for points that are not found in the mesh
    AvgType avgtype;             // average type used for L2 functions
@@ -222,6 +226,29 @@ public:
    /// Return reference coordinates in [-1,1] (internal range in GSLIB) for each
    /// point found by FindPoints.
    virtual const Vector &GetGSLIBReferencePosition() const { return gsl_ref; }
+
+   /** @name Methods to support a custom interpolation procedure.
+       \brief To enable custom interpolation, we first send element index and
+       reference-space coordinates to owning mpi rank where each point is found.
+       This information is stored in @a recv_elem and
+       @a recv_ref (ordered by vdim), respectively. The user can then
+       interpolate locally, before returning the values back to where the query
+       originated from.
+   */
+   ///@{
+   /// Send element index and reference-space coordinates to corresponding
+   /// mpi rank for each point.
+   virtual void SendCoordinatesToOwningProcessors();
+   /// Return interpolated values back to where the query originated from.
+   virtual Vector ReturnInterpolatedValues(Vector &int_vals, int vdim,
+                                           int ordering=Ordering::byNODES);
+   /// Return received element indices.
+   virtual const Array<unsigned int> &GetReceivedElem() const
+   { return recv_elem; }
+   /// Return received reference coordinates.
+   virtual const Vector &GetReceivedReferencePosition() const
+   { return recv_ref;  }
+   ///@}
 };
 
 /** \brief OversetFindPointsGSLIB enables use of findpts for arbitrary number of
