@@ -208,8 +208,7 @@ void BilinearFormIntegrator::AddMultPAFaceNormalDerivatives(
 void BilinearFormIntegrator::AssembleHDGFaceMatrix(
    const FiniteElement &trace_el, const FiniteElement &el1,
    const FiniteElement &el2, FaceElementTransformations &Trans,
-   DenseMatrix &elmat1, DenseMatrix &elmat2, DenseMatrix &ct_elmat,
-   DenseMatrix &c_elmat, DenseMatrix &tr_elmat)
+   DenseMatrix &elmat)
 {
    MFEM_ABORT("AssembleHDGFaceMatrix is not implemented for this"
               " Integrator class.");
@@ -3676,12 +3675,11 @@ void DGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &trial_fe1,
 void mfem::HDGConvectionCenteredIntegrator::AssembleHDGFaceMatrix(
    const FiniteElement &trace_el, const FiniteElement &el1,
    const FiniteElement &el2, FaceElementTransformations &Trans,
-   DenseMatrix &elmat1, DenseMatrix &elmat2, DenseMatrix &ct_elmat,
-   DenseMatrix &c_elmat, DenseMatrix &tr_elmat)
+   DenseMatrix &elmat)
 {
    MFEM_VERIFY(trace_el.GetMapType() == FiniteElement::VALUE, "");
 
-   int tr_ndof, ndof1, ndof2;
+   int tr_ndof, ndof1, ndof2, el_ndof;
 
    real_t un, a, b, w;
 
@@ -3698,21 +3696,14 @@ void mfem::HDGConvectionCenteredIntegrator::AssembleHDGFaceMatrix(
    {
       ndof2 = 0;
    }
+   el_ndof = ndof1 + ndof2;
 
    tr_shape.SetSize(tr_ndof);
    shape1.SetSize(ndof1);
    shape2.SetSize(ndof2);
 
-   ct_elmat.SetSize(ndof1 + ndof2, tr_ndof);
-   ct_elmat = 0.0;
-   c_elmat.SetSize(tr_ndof, ndof1 + ndof2);
-   c_elmat = 0.0;
-   tr_elmat.SetSize(tr_ndof);
-   tr_elmat = 0.0;
-   elmat1.SetSize(ndof1);
-   elmat2.SetSize(ndof2);
-   elmat1 = 0.0;
-   elmat2 = 0.0;
+   elmat.SetSize(el_ndof + tr_ndof);
+   elmat = 0.0;
 
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
@@ -3777,24 +3768,24 @@ void mfem::HDGConvectionCenteredIntegrator::AssembleHDGFaceMatrix(
          for (int i = 0; i < ndof1; i++)
             for (int j = 0; j < ndof1; j++)
             {
-               elmat1(i, j) += w * shape1(i) * shape1(j);
+               elmat(i, j) += w * shape1(i) * shape1(j);
             }
          for (int i = 0; i < ndof2; i++)
             for (int j = 0; j < ndof2; j++)
             {
-               elmat2(i, j) += w * shape2(i) * shape2(j);
+               elmat(ndof1+i, ndof1+j) += w * shape2(i) * shape2(j);
             }
 
          // assemble the constraint matrix
          for (int i = 0; i < tr_ndof; i++)
             for (int j = 0; j < ndof1; j++)
             {
-               c_elmat(i, j) += w * tr_shape(i) * shape1(j);
+               elmat(el_ndof+i, j) += w * tr_shape(i) * shape1(j);
             }
          for (int i = 0; i < tr_ndof; i++)
             for (int j = 0; j < ndof2; j++)
             {
-               c_elmat(i, ndof1+j) += w * tr_shape(i) * shape2(j);
+               elmat(el_ndof+i, ndof1+j) += w * tr_shape(i) * shape2(j);
             }
 
          // assemble the trace matrix
@@ -3802,7 +3793,7 @@ void mfem::HDGConvectionCenteredIntegrator::AssembleHDGFaceMatrix(
          for (int i = 0; i < tr_ndof; i++)
             for (int j = 0; j < tr_ndof; j++)
             {
-               tr_elmat(i, j) -= w * tr_shape(i) * tr_shape(j);
+               elmat(el_ndof+i, el_ndof+j) -= w * tr_shape(i) * tr_shape(j);
             }
       }
 
@@ -3813,7 +3804,7 @@ void mfem::HDGConvectionCenteredIntegrator::AssembleHDGFaceMatrix(
          for (int i = 0; i < ndof1; i++)
             for (int j = 0; j < tr_ndof; j++)
             {
-               ct_elmat(i, j) -= w * shape1(i) * tr_shape(j);
+               elmat(i, el_ndof+j) -= w * shape1(i) * tr_shape(j);
             }
       }
 
@@ -3824,7 +3815,7 @@ void mfem::HDGConvectionCenteredIntegrator::AssembleHDGFaceMatrix(
          for (int i = 0; i < ndof2; i++)
             for (int j = 0; j < tr_ndof; j++)
             {
-               ct_elmat(ndof1+i, j) -= w * shape2(i) * tr_shape(j);
+               elmat(ndof1+i, el_ndof+j) -= w * shape2(i) * tr_shape(j);
             }
       }
    }
@@ -4393,12 +4384,11 @@ void HDGDiffusionCenteredIntegrator::AssembleFaceMatrix(
 void HDGDiffusionCenteredIntegrator::AssembleHDGFaceMatrix(
    const FiniteElement &trace_el, const FiniteElement &el1,
    const FiniteElement &el2, FaceElementTransformations &Trans,
-   DenseMatrix &elmat1, DenseMatrix &elmat2, DenseMatrix &ct_elmat,
-   DenseMatrix &c_elmat, DenseMatrix &tr_elmat)
+   DenseMatrix &elmat)
 {
    MFEM_VERIFY(trace_el.GetMapType() == FiniteElement::VALUE, "");
 
-   int dim, tr_ndof, ndof1, ndof2;
+   int dim, tr_ndof, ndof1, ndof2, el_ndof;
    real_t w, wq = 0.0;
 
    dim = el1.GetDim();
@@ -4424,17 +4414,10 @@ void HDGDiffusionCenteredIntegrator::AssembleHDGFaceMatrix(
    {
       ndof2 = 0;
    }
+   el_ndof = ndof1 + ndof2;
 
-   ct_elmat.SetSize(ndof1 + ndof2, tr_ndof);
-   ct_elmat = 0.0;
-   c_elmat.SetSize(tr_ndof, ndof1 + ndof2);
-   c_elmat = 0.0;
-   tr_elmat.SetSize(tr_ndof);
-   tr_elmat = 0.0;
-   elmat1.SetSize(ndof1);
-   elmat2.SetSize(ndof2);
-   elmat1 = 0.0;
-   elmat2 = 0.0;
+   elmat.SetSize(el_ndof + tr_ndof);
+   elmat = 0.0;
 
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
@@ -4538,7 +4521,7 @@ void HDGDiffusionCenteredIntegrator::AssembleHDGFaceMatrix(
          const real_t wsi = wq*shape1(i);
          for (int j = 0; j <= i; j++)
          {
-            elmat1(i, j) += wsi * shape1(j);
+            elmat(i, j) += wsi * shape1(j);
          }
       }
       for (int i = 0; i < ndof2; i++)
@@ -4546,7 +4529,7 @@ void HDGDiffusionCenteredIntegrator::AssembleHDGFaceMatrix(
          const real_t wsi = wq*shape2(i);
          for (int j = 0; j <= i; j++)
          {
-            elmat2(i, j) += wsi * shape2(j);
+            elmat(ndof1+i, ndof1+j) += wsi * shape2(j);
          }
       }
 
@@ -4556,7 +4539,7 @@ void HDGDiffusionCenteredIntegrator::AssembleHDGFaceMatrix(
          const real_t wsi = wq*shape1(i);
          for (int j = 0; j < tr_ndof; j++)
          {
-            ct_elmat(i, j) -= wsi * tr_shape(j);
+            elmat(i, el_ndof+j) -= wsi * tr_shape(j);
          }
       }
       for (int i = 0; i < ndof2; i++)
@@ -4564,7 +4547,7 @@ void HDGDiffusionCenteredIntegrator::AssembleHDGFaceMatrix(
          const real_t wsi = wq*shape2(i);
          for (int j = 0; j < tr_ndof; j++)
          {
-            ct_elmat(i+ndof1, j) -= wsi * tr_shape(j);
+            elmat(i+ndof1, el_ndof+j) -= wsi * tr_shape(j);
          }
       }
 
@@ -4575,7 +4558,7 @@ void HDGDiffusionCenteredIntegrator::AssembleHDGFaceMatrix(
          const real_t wsi = wq*tr_shape(i);
          for (int j = 0; j < tr_ndof; j++)
          {
-            tr_elmat(i, j) -= wsi * tr_shape(j);
+            elmat(el_ndof+i, el_ndof+j) -= wsi * tr_shape(j);
          }
       }
    }
@@ -4585,20 +4568,20 @@ void HDGDiffusionCenteredIntegrator::AssembleHDGFaceMatrix(
    for (int i = 0; i < ndof1; i++)
       for (int j = 0; j < i; j++)
       {
-         elmat1(j,i) = elmat1(i,j);
+         elmat(j, i) = elmat(i, j);
       }
 
    for (int i = 0; i < ndof2; i++)
       for (int j = 0; j < i; j++)
       {
-         elmat2(j,i) = elmat2(i,j);
+         elmat(ndof1+j, ndof1+i) = elmat(ndof1+i, ndof1+j);
       }
 
    // complete the constraint matrix
-   for (int i = 0; i < ndof1+ndof2; i++)
+   for (int i = 0; i < el_ndof; i++)
       for (int j = 0; j < tr_ndof; j++)
       {
-         c_elmat(j, i) = -ct_elmat(i, j);
+         elmat(el_ndof+j, i) = -elmat(i, el_ndof+j);
       }
 }
 

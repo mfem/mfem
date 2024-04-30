@@ -746,7 +746,7 @@ void DarcyHybridization::ComputeAndAssembleFaceMatrix(
 {
    Mesh *mesh = fes_p->GetMesh();
    const FiniteElement *tr_fe, *fe1, *fe2;
-   DenseMatrix e_elmat, g_elmat, h_elmat;
+   DenseMatrix elmat, h_elmat;
    int ndof1, ndof2;
    Array<int> c_dofs;
 
@@ -772,29 +772,31 @@ void DarcyHybridization::ComputeAndAssembleFaceMatrix(
       ndof2 = 0;
    }
 
-   c_bfi_p->AssembleHDGFaceMatrix(*tr_fe, *fe1, *fe2, *ftr, elmat1, elmat2,
-                                  e_elmat, g_elmat, h_elmat);
+   c_bfi_p->AssembleHDGFaceMatrix(*tr_fe, *fe1, *fe2, *ftr, elmat);
 
+   MFEM_ASSERT(elmat.Width() == ndof1+ndof2+c_dof &&
+               elmat.Height() == ndof1+ndof2+c_dof,
+               "Size mismatch");
+
+   // assemble D element matrices
+   elmat1.CopyMN(elmat, ndof1, ndof1, 0, 0);
+   elmat2.CopyMN(elmat, ndof2, ndof2, ndof1, ndof1);
    AssemblePotMassMatrix(ftr->Elem1No, elmat1);
    AssemblePotMassMatrix(ftr->Elem2No, elmat2);
 
    // assemble E constraint
    DenseMatrix E_f_1(E_data + E_offsets[face], ndof1, c_dof);
    DenseMatrix E_f_2(E_data + E_offsets[face] + c_dof*ndof1, ndof2, c_dof);
-   MFEM_ASSERT(E_f_1.Width() == e_elmat.Width() && E_f_2.Width() == e_elmat.Width()
-               && E_f_1.Height() + E_f_2.Height() == e_elmat.Height(),
-               "Size mismatch");
-   E_f_1.CopyMN(e_elmat, ndof1, c_dof, 0, 0);
-   E_f_2.CopyMN(e_elmat, ndof2, c_dof, ndof1, 0);
+   E_f_1.CopyMN(elmat, ndof1, c_dof, 0, ndof1+ndof2);
+   E_f_2.CopyMN(elmat, ndof2, c_dof, ndof1, ndof1+ndof2);
 
    // assemble G constraint
    DenseMatrix G_f(G_data + G_offsets[face], c_dof, ndof1+ndof2);
-   MFEM_ASSERT(G_f.Width() == g_elmat.Width() &&
-               G_f.Height() == g_elmat.Height(), "Size mismatch");
-   G_f = g_elmat;
+   G_f.CopyMN(elmat, c_dof, ndof1+ndof2, ndof1+ndof2, 0);
 
    // assemble H matrix
    if (!H) { H = new SparseMatrix(c_fes->GetVSize()); }
+   h_elmat.CopyMN(elmat, c_dof, c_dof, ndof1+ndof2, ndof1+ndof2);
    H->AddSubMatrix(c_dofs, c_dofs, h_elmat);
 }
 
