@@ -4529,9 +4529,10 @@ void HDGDiffusionCenteredIntegrator::AssembleHDGFaceMatrix(
          wq += ni * nor;
       }
 
+      wq *= alpha;
+
       // assemble the element matrices
       // (only the lower triangular part)
-      wq *= alpha;
       for (int i = 0; i < ndof1; i++)
       {
          const real_t wsi = wq*shape1(i);
@@ -4568,6 +4569,7 @@ void HDGDiffusionCenteredIntegrator::AssembleHDGFaceMatrix(
       }
 
       // assemble the trace matrix
+      wq *= 2.;//<-- single face integration
       for (int i = 0; i < tr_ndof; i++)
       {
          const real_t wsi = wq*tr_shape(i);
