@@ -189,14 +189,14 @@ TEST_CASE("HypreParMatrixAbsMult",  "[Parallel], [HypreParMatrixAbsMult]")
 
       int nnzd = AparCSR->diag->num_nonzeros;
       real_t *d_diag_data = AparCSR->diag->data;
-      mfem::forall_switch(HypreUsingGPU(), nnzd, [=] MFEM_HOST_DEVICE (int i)
+      mfem::hypre_forall(nnzd, [=] MFEM_HOST_DEVICE (int i)
       {
          d_diag_data[i] = fabs(d_diag_data[i]);
       });
 
       int nnzoffd = AparCSR->offd->num_nonzeros;
       real_t *d_offd_data = AparCSR->offd->data;
-      mfem::forall_switch(HypreUsingGPU(), nnzoffd, [=] MFEM_HOST_DEVICE (int i)
+      mfem::hypre_forall(nnzoffd, [=] MFEM_HOST_DEVICE (int i)
       {
          d_offd_data[i] = fabs(d_offd_data[i]);
       });
