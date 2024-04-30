@@ -690,7 +690,7 @@ VecFunc GetCFun(int prob, real_t c)
             if (ndim > 2)
             {
                v(2) = c;
-            } 
+            }
          };
       case 3:
          return [=](const Vector &x, Vector &v)
@@ -721,17 +721,22 @@ Func GetFFun(int prob, real_t t_0, real_t k, const VecFunc &cFun)
             cFun(x, c);
 
             real_t t0   = t_0 * exp(x.Sum()) * sin(M_PI*x(0)) * sin(M_PI*x(1));
-            real_t conv = t_0 * c(0) * (t0 + M_PI*exp(x.Sum())*cos(M_PI*x(0))*sin(M_PI*x(1)))
-                          + t_0 * c(1) * (t0 + M_PI*exp(x.Sum())*cos(M_PI*x(1))*sin(M_PI*x(0)));
-            real_t diff = -k*exp(x.Sum()) * (sin(M_PI*x(1))*((1-M_PI*M_PI)*sin(M_PI*x(0))
-                          + 2*M_PI*cos(M_PI*x(0))) + sin(M_PI*x(0))*((1-M_PI*M_PI)*sin(M_PI*x(1))
-                          + 2*M_PI*cos(M_PI*x(1))));
+            real_t conv = t_0 * c(0) * (t0 + M_PI * exp(x.Sum()) * cos(M_PI*x(0))
+                                        * sin(M_PI*x(1))) + t_0 * c(1) * (t0 + M_PI
+                                                                          * exp(x.Sum() * cos(M_PI*x(1))
+                                                                                * sin(M_PI*x(0))));
+            real_t diff = -k * exp(x.Sum()) * (sin(M_PI*x(1)) * ((1-M_PI*M_PI) * sin(M_PI*x(0))
+                                                                 + 2 * M_PI * cos(M_PI*x(0)))
+                                               + sin(M_PI*x(0)) * ((1-M_PI*M_PI)
+                                                                   * sin(M_PI*x(1)) + 2 * M_PI
+                                                                   * cos(M_PI*x(1))));
 
             if (ndim > 2)
             {
                t0 *= sin(M_PI*x(2));
                conv *= sin(M_PI*x(2));
-               conv += c(2)*(t0 + M_PI*exp(x.Sum())*cos(M_PI*x(2))*sin(M_PI*x(0)))*sin(M_PI*x(1));
+               conv += c(2) * (t0 + M_PI * exp(x.Sum()) * cos(M_PI*x(2)) * sin(M_PI*x(
+                                                                                  0))) * sin(M_PI*x(1));
 
                diff *= sin(M_PI*x(2));
                diff -= k*M_PI*M_PI*t0;
