@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -20,12 +20,12 @@
 namespace mfem
 {
 
-MFEM_HOST_DEVICE inline double Det2D(DeviceMatrix &J)
+MFEM_HOST_DEVICE inline real_t Det2D(DeviceMatrix &J)
 {
    return J(0,0)*J(1,1) - J(1,0)*J(0,1);
 }
 
-MFEM_HOST_DEVICE inline double Det3D(DeviceMatrix &J)
+MFEM_HOST_DEVICE inline real_t Det3D(DeviceMatrix &J)
 {
    return J(0,0) * (J(1,1) * J(2,2) - J(2,1) * J(1,2)) -
           J(1,0) * (J(0,1) * J(2,2) - J(2,1) * J(0,2)) +
@@ -34,7 +34,7 @@ MFEM_HOST_DEVICE inline double Det3D(DeviceMatrix &J)
 
 template <int ORDER, int SDIM=2>
 MFEM_HOST_DEVICE inline void LORVertexCoordinates2D(
-   const double *X, int iel_ho, int kx, int ky, double **v)
+   const real_t *X, int iel_ho, int kx, int ky, real_t **v)
 {
    const int nd1d = ORDER + 1;
    const int nvert_per_el = nd1d*nd1d;
@@ -73,8 +73,8 @@ MFEM_HOST_DEVICE inline void LORVertexCoordinates2D(
 
 template <int ORDER>
 MFEM_HOST_DEVICE inline void LORVertexCoordinates3D(
-   const double *X, int iel_ho, int kx, int ky, int kz,
-   double vx[8], double vy[8], double vz[8])
+   const real_t *X, int iel_ho, int kx, int ky, int kz,
+   real_t vx[8], real_t vy[8], real_t vz[8])
 {
    const int dim = 3;
    const int nd1d = ORDER + 1;
@@ -133,10 +133,10 @@ MFEM_HOST_DEVICE inline void LORVertexCoordinates3D(
 
 template <int SDIM=2>
 MFEM_HOST_DEVICE inline void Jacobian2D(
-   const double x, const double y, double **v, DeviceMatrix &J);
+   const real_t x, const real_t y, real_t **v, DeviceMatrix &J);
 
 template <> MFEM_HOST_DEVICE inline void Jacobian2D<2>(
-   const double x, const double y, double **v, DeviceMatrix &J)
+   const real_t x, const real_t y, real_t **v, DeviceMatrix &J)
 {
    J(0,0) = -(1-y)*v[0][0] + (1-y)*v[0][1] + y*v[0][2] - y*v[0][3];
    J(0,1) = -(1-x)*v[0][0] - x*v[0][1] + x*v[0][2] + (1-x)*v[0][3];
@@ -146,7 +146,7 @@ template <> MFEM_HOST_DEVICE inline void Jacobian2D<2>(
 }
 
 template <> MFEM_HOST_DEVICE inline void Jacobian2D<3>(
-   const double x, const double y, double **v, DeviceMatrix &J)
+   const real_t x, const real_t y, real_t **v, DeviceMatrix &J)
 {
    J(0,0) = -(1-y)*v[0][0] + (1-y)*v[0][1] + y*v[0][2] - y*v[0][3];
    J(0,1) = -(1-x)*v[0][0] - x*v[0][1] + x*v[0][2] + (1-x)*v[0][3];
@@ -160,32 +160,32 @@ template <> MFEM_HOST_DEVICE inline void Jacobian2D<3>(
 
 template <int ORDER, int SDIM, bool RT, bool ND>
 MFEM_HOST_DEVICE inline void SetupLORQuadData2D(
-   const double *X, int iel_ho, int kx, int ky, DeviceTensor<3> &Q, bool piola)
+   const real_t *X, int iel_ho, int kx, int ky, DeviceTensor<3> &Q, bool piola)
 {
-   double vx[4], vy[4], vz[4];
-   double *v[] = {vx, vy, vz};
+   real_t vx[4], vy[4], vz[4];
+   real_t *v[] = {vx, vy, vz};
    LORVertexCoordinates2D<ORDER,SDIM>(X, iel_ho, kx, ky, v);
 
    for (int iqy=0; iqy<2; ++iqy)
    {
       for (int iqx=0; iqx<2; ++iqx)
       {
-         const double x = iqx;
-         const double y = iqy;
-         const double w = 1.0/4.0;
+         const real_t x = iqx;
+         const real_t y = iqy;
+         const real_t w = 1.0/4.0;
 
-         double J_[SDIM*2];
+         real_t J_[SDIM*2];
          DeviceTensor<2> J(J_, SDIM, 2);
 
          Jacobian2D<SDIM>(x, y, v, J);
 
          if (SDIM == 2)
          {
-            const double detJ = Det2D(J);
-            const double w_detJ = w/detJ;
-            const double E = J(0,0)*J(0,0) + J(1,0)*J(1,0);
-            const double F = J(0,0)*J(0,1) + J(1,0)*J(1,1);
-            const double G = J(0,1)*J(0,1) + J(1,1)*J(1,1);
+            const real_t detJ = Det2D(J);
+            const real_t w_detJ = w/detJ;
+            const real_t E = J(0,0)*J(0,0) + J(1,0)*J(1,0);
+            const real_t F = J(0,0)*J(0,1) + J(1,0)*J(1,1);
+            const real_t G = J(0,1)*J(0,1) + J(1,1)*J(1,1);
             Q(0,iqy,iqx) = w_detJ * (RT ? E : G); // 1,1
             Q(1,iqy,iqx) = w_detJ * (RT ? F : -F); // 1,2
             Q(2,iqy,iqx) = w_detJ * (RT ? G : E); // 2,2
@@ -193,11 +193,11 @@ MFEM_HOST_DEVICE inline void SetupLORQuadData2D(
          }
          else
          {
-            const double E = J(0,0)*J(0,0) + J(1,0)*J(1,0) + J(2,0)*J(2,0);
-            const double F = J(0,0)*J(0,1) + J(1,0)*J(1,1) + J(2,0)*J(2,1);
-            const double G = J(0,1)*J(0,1) + J(1,1)*J(1,1) + J(2,1)*J(2,1);
-            const double detJ = sqrt(E*G - F*F);
-            const double w_detJ = w/detJ;
+            const real_t E = J(0,0)*J(0,0) + J(1,0)*J(1,0) + J(2,0)*J(2,0);
+            const real_t F = J(0,0)*J(0,1) + J(1,0)*J(1,1) + J(2,0)*J(2,1);
+            const real_t G = J(0,1)*J(0,1) + J(1,1)*J(1,1) + J(2,1)*J(2,1);
+            const real_t detJ = sqrt(E*G - F*F);
+            const real_t w_detJ = w/detJ;
             Q(0,iqy,iqx) = w_detJ * (RT ? E : G); // 1,1
             Q(1,iqy,iqx) = w_detJ * (RT ? F : -F); // 1,2
             Q(2,iqy,iqx) = w_detJ * (RT ? G : E); // 2,2
@@ -208,8 +208,8 @@ MFEM_HOST_DEVICE inline void SetupLORQuadData2D(
 }
 
 MFEM_HOST_DEVICE inline void Jacobian3D(
-   const double x, const double y, const double z,
-   const double vx[8], const double vy[8], const double vz[8],
+   const real_t x, const real_t y, const real_t z,
+   const real_t vx[8], const real_t vy[8], const real_t vz[8],
    DeviceMatrix &J)
 {
    // c: (1-x)(1-y)(1-z)v0[c] + x (1-y)(1-z)v1[c] + x y (1-z)v2[c] + (1-x) y (1-z)v3[c]

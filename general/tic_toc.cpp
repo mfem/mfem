@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -399,6 +399,9 @@ inline double StopWatch::SystTime()
 
 
 StopWatch::StopWatch() : M(new internal::StopWatch) { }
+
+StopWatch::StopWatch(const StopWatch &sw)
+   : M(new internal::StopWatch(*(sw.M))) { }
 
 void StopWatch::Clear()
 {

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -26,8 +26,8 @@ VoltaSolver::VoltaSolver(ParMesh & pmesh, int order,
                          Array<int> & dbcs, Vector & dbcv,
                          Array<int> & nbcs, Vector & nbcv,
                          Coefficient & epsCoef,
-                         double (*phi_bc )(const Vector&),
-                         double (*rho_src)(const Vector&),
+                         real_t (*phi_bc )(const Vector&),
+                         real_t (*rho_src)(const Vector&),
                          void   (*p_src  )(const Vector&, Vector&),
                          Vector & point_charges)
    : myid_(0),
@@ -149,7 +149,7 @@ VoltaSolver::VoltaSolver(ParMesh & pmesh, int order,
          {
             cent[d] = point_charge_params_[(dim + 1) * i + d];
          }
-         double s = point_charge_params_[(dim + 1) * i + dim];
+         real_t s = point_charge_params_[(dim + 1) * i + dim];
 
          point_charges_[i] = new DeltaCoefficient();
          point_charges_[i]->SetScale(s);
@@ -485,10 +485,10 @@ VoltaSolver::Solve()
 
    {
       // Compute total charge as volume integral of rho
-      double charge_rho = (*l2_vol_int_)(*rho_);
+      real_t charge_rho = (*l2_vol_int_)(*rho_);
 
       // Compute total charge as surface integral of D
-      double charge_D = (*rt_surf_int_)(*d_);
+      real_t charge_D = (*rt_surf_int_)(*d_);
 
       if (myid_ == 0)
       {
