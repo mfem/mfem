@@ -3804,7 +3804,7 @@ void mfem::HDGConvectionCenteredIntegrator::AssembleHDGFaceMatrix(
             }
 
          // assemble the trace matrix
-         w *= 2.;//<-- single face integration
+         if (ndof2) { w *= 2.; }//<-- single face integration
          for (int i = 0; i < tr_ndof; i++)
             for (int j = 0; j < tr_ndof; j++)
             {
@@ -4567,7 +4567,7 @@ void HDGDiffusionCenteredIntegrator::AssembleHDGFaceMatrix(
       }
 
       // assemble the trace matrix
-      wq *= 2.;//<-- single face integration
+      if (ndof2) { wq *= 2.; }//<-- single face integration
       for (int i = 0; i < tr_ndof; i++)
       {
          const real_t wsi = wq*tr_shape(i);
