@@ -13615,7 +13615,7 @@ MeshPartitioner::MeshPartitioner(Mesh &mesh_,
       // partitioning, so we need to tell the memory manager to free it with
       // delete[] (even if a different host memory type has been selected).
       const MemoryType mt = MemoryType::HOST;
-      partitioning.MakeRef(partitioning_, mesh.GetNE(), true, mt);
+      partitioning.MakeRef(partitioning_, mesh.GetNE(), mt, true);
    }
 
    Transpose(partitioning, part_to_element, num_parts_);
