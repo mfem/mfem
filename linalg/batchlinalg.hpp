@@ -66,7 +66,7 @@ public:
 
    void AssignMatrices(const mfem::DenseTensor &MatrixBatch);
 
-   void AssignMatrices(const mfem::Vector &vMatrixBatch, const int ndofs,
+   void AssignMatrices(const mfem::Vector &vMatrixBatch, const int size,
                        const int num_matrices);
 
    void GetInverse(mfem::DenseTensor &InvMatBatch) const;
