@@ -407,4 +407,4 @@ examples/**/*.txt
 
 **/*.svg
 **/*.eps
-
+**/*.idx
