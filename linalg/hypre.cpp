@@ -2499,8 +2499,14 @@ void HypreParMatrix::EliminateBC(const Array<int> &ess_dofs,
       }
 
       // Which of the local rows are to be eliminated?
-      mfem::forall_switch(HypreUsingGPU(), diag_nrows, [=] MFEM_HOST_DEVICE (int i) { eliminate_row[i] = 0; });
-      mfem::forall_switch(HypreUsingGPU(), n_ess_dofs, [=] MFEM_HOST_DEVICE (int i) { eliminate_row[ess_dofs_d[i]] = 1; });
+      mfem::hypre_forall(diag_nrows, [=] MFEM_HOST_DEVICE (int i)
+      {
+         eliminate_row[i] = 0;
+      });
+      mfem::hypre_forall(n_ess_dofs, [=] MFEM_HOST_DEVICE (int i)
+      {
+         eliminate_row[ess_dofs_d[i]] = 1;
+      });
 
       // Use a matvec communication pattern to find (in eliminate_col) which of
       // the local offd columns are to be eliminated
@@ -2521,7 +2527,7 @@ void HypreParMatrix::EliminateBC(const Array<int> &ess_dofs,
       {
          send_map_elmts = hypre_ParCSRCommPkgSendMapElmts(comm_pkg);
       }
-      mfem::forall_switch(HypreUsingGPU(), int_buf_sz, [=] MFEM_HOST_DEVICE (int i)
+      mfem::hypre_forall(int_buf_sz, [=] MFEM_HOST_DEVICE (int i)
       {
          int k = send_map_elmts[i];
          int_buf_data[i] = eliminate_row[k];
@@ -2549,7 +2555,7 @@ void HypreParMatrix::EliminateBC(const Array<int> &ess_dofs,
       const auto J = diag->j;
       auto data = diag->data;
 
-      mfem::forall_switch(HypreUsingGPU(), n_ess_dofs, [=] MFEM_HOST_DEVICE (int i)
+      mfem::hypre_forall(n_ess_dofs, [=] MFEM_HOST_DEVICE (int i)
       {
          const int idof = ess_dofs_d[i];
          for (int j=I[idof]; j<I[idof+1]; ++j)
@@ -2587,7 +2593,7 @@ void HypreParMatrix::EliminateBC(const Array<int> &ess_dofs,
    {
       const auto I = offd->i;
       auto data = offd->data;
-      mfem::forall_switch(HypreUsingGPU(), n_ess_dofs, [=] MFEM_HOST_DEVICE (int i)
+      mfem::hypre_forall(n_ess_dofs, [=] MFEM_HOST_DEVICE (int i)
       {
          const int idof = ess_dofs_d[i];
          for (int j=I[idof]; j<I[idof+1]; ++j)
@@ -2608,7 +2614,7 @@ void HypreParMatrix::EliminateBC(const Array<int> &ess_dofs,
       const auto I = offd->i;
       const auto J = offd->j;
       auto data = offd->data;
-      mfem::forall_switch(HypreUsingGPU(), nrows_offd, [=] MFEM_HOST_DEVICE (int i)
+      mfem::hypre_forall(nrows_offd, [=] MFEM_HOST_DEVICE (int i)
       {
          for (int j=I[i]; j<I[i+1]; ++j)
          {
