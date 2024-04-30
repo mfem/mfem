@@ -290,9 +290,8 @@ TEST_CASE("pNCMesh PA diagonal",  "[Parallel], [NCMesh]")
          MPI_Allreduce(&nc_diag_lsum, &nc_diag_gsum, 1,
                        MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
 
-         real_t error = fabs(diag_gsum - nc_diag_gsum);
-         CAPTURE(order, error);
-         REQUIRE(error == MFEM_Approx(0.0, EPS));
+         CAPTURE(order, diag_gsum, nc_diag_gsum);
+         REQUIRE(nc_diag_gsum == MFEM_Approx(diag_gsum));
          MPI_Barrier(MPI_COMM_WORLD);
       }
    }
