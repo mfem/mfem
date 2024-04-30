@@ -93,11 +93,11 @@ void BatchSolver::AssignMatrices(const mfem::DenseTensor &MatrixBatch)
 }
 
 void BatchSolver::AssignMatrices(const mfem::Vector &vMatrixBatch,
-                                 const int ndofs,
+                                 const int size,
                                  const int num_matrices)
 {
-   const int totalSize = ndofs * ndofs * num_matrices;
-   LUMatrixBatch_.SetSize(ndofs, ndofs,
+   const int totalSize = size * size * num_matrices;
+   LUMatrixBatch_.SetSize(size, size,
                           num_matrices); //needs to be temporary memory
    double *d_LUMatrixBatch      = LUMatrixBatch_.Write();
    const double *d_vMatrixBatch = vMatrixBatch.Read();
