@@ -13608,6 +13608,7 @@ MeshPartitioner::MeshPartitioner(Mesh &mesh_,
    {
       partitioning.MakeRef(partitioning_, mesh.GetNE(), false);
    }
+   else
    {
       partitioning_ = mesh.GeneratePartitioning(num_parts_, part_method);
       // Mesh::GeneratePartitioning always uses new[] to allocate the,
