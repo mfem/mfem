@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -23,5 +23,48 @@ TEST_CASE("Array init-list construction", "[Array]")
    for (int i = 0; i < a.Size(); i++)
    {
       REQUIRE(a[i] == b[i]);
+   }
+}
+
+TEST_CASE("Array entry sorting", "[Array]")
+{
+   int ContigData[6] = {6, 5, 4, 3, 2, 1};
+   Array<int> a(ContigData, 6);
+   Array<int> b({1, 2, 3, 3, 2, 1});
+
+   a.Sort();
+   b.Sort();
+
+   for (int i = 1; i < a.Size(); i++)
+   {
+      REQUIRE(a[i] >= a[i-1]);
+   }
+
+   for (int i = 1; i < b.Size(); i++)
+   {
+      REQUIRE(b[i] >= b[i-1]);
+   }
+}
+
+TEST_CASE("Array entry strict sorting", "[Array]")
+{
+   int ContigData[6] = {6, 1, 4, 1, 2, 1};
+   Array<int> a(ContigData, 6);
+   Array<int> b({1, 2, 3, 3, 2, 1});
+
+   a.Sort();
+   b.Sort();
+
+   a.Unique();
+   b.Unique();
+
+   for (int i = 1; i < a.Size(); i++)
+   {
+      REQUIRE(a[i] > a[i-1]);
+   }
+
+   for (int i = 1; i < b.Size(); i++)
+   {
+      REQUIRE(b[i] > b[i-1]);
    }
 }

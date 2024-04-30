@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -145,7 +145,7 @@ void StaticCondensation::Init(bool symmetric, bool block_diagonal)
       A_offsets[i+1] = A_offsets[i] + npd*(npd + (symm ? 1 : 2)*ned);
       A_ipiv_offsets[i+1] = A_ipiv_offsets[i] + npd;
    }
-   A_data = Memory<double>(A_offsets[NE]);
+   A_data = Memory<real_t>(A_offsets[NE]);
    A_ipiv = Memory<int>(A_ipiv_offsets[NE]);
    const int nedofs = tr_fes->GetVSize();
    if (fes->GetVDim() == 1)
@@ -347,7 +347,7 @@ void StaticCondensation::ReduceRHS(const Vector &b, Vector &sc_b) const
          b_p(j) = b(pd[j]);
       }
 
-      LUFactors lu(const_cast<double*>((const double*)A_data) + A_offsets[i],
+      LUFactors lu(const_cast<real_t*>((const real_t*)A_data) + A_offsets[i],
                    const_cast<int*>((const int*)A_ipiv) + A_ipiv_offsets[i]);
       lu.LSolve(npd, 1, b_p.GetData());
 
@@ -525,7 +525,7 @@ void StaticCondensation::ComputeSolution(
       }
       sol_r.GetSubVector(rvdofs, s_e);
 
-      LUFactors lu(const_cast<double*>((const double*)A_data) + A_offsets[i],
+      LUFactors lu(const_cast<real_t*>((const real_t*)A_data) + A_offsets[i],
                    const_cast<int*>((const int*)A_ipiv) + A_ipiv_offsets[i]);
       lu.LSolve(npd, 1, b_p.GetData());
       lu.BlockBackSolve(npd, ned, 1, lu.data + npd*npd, s_e.GetData(),

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -74,6 +74,8 @@ protected:
    mutable Vector localX, localY;
    mutable Vector int_face_X, int_face_Y;
    mutable Vector bdr_face_X, bdr_face_Y;
+   mutable Vector int_face_dXdn, int_face_dYdn;
+   mutable Vector bdr_face_dXdn, bdr_face_dYdn;
    const Operator *elem_restrict; // Not owned
    const FaceRestriction *int_face_restrict_lex; // Not owned
    const FaceRestriction *bdr_face_restrict_lex; // Not owned
@@ -113,6 +115,23 @@ protected:
                            const Array<int> &attributes,
                            const bool transpose,
                            Vector &y) const;
+
+   /// @brief Performs the same function as AddMultWithMarkers, but takes as
+   /// input and output face normal derivatives.
+   ///
+   /// This is required when the integrator requires face normal derivatives,
+   /// for example, DGDiffusionIntegrator.
+   ///
+   /// This is called when the integrator's member function
+   /// BilinearFormIntegrator::RequiresFaceNormalDerivatives() returns true.
+   void AddMultNormalDerivativesWithMarkers(
+      const BilinearFormIntegrator &integ,
+      const Vector &x,
+      const Vector &dxdn,
+      const Array<int> *markers,
+      const Array<int> &attributes,
+      Vector &y,
+      Vector &dydn) const;
 };
 
 /// Data and methods for element-assembled bilinear forms
@@ -248,7 +267,7 @@ protected:
    void SetupMultInputs(const Operator *elem_restrict_x,
                         const Vector &x, Vector &localX,
                         const Operator *elem_restrict_y,
-                        Vector &y, Vector &localY, const double c) const;
+                        Vector &y, Vector &localY, const real_t c) const;
 
 public:
    PAMixedBilinearFormExtension(MixedBilinearForm *form);
@@ -277,11 +296,11 @@ public:
    /// y = A*x
    void Mult(const Vector &x, Vector &y) const;
    /// y += c*A*x
-   void AddMult(const Vector &x, Vector &y, const double c=1.0) const;
+   void AddMult(const Vector &x, Vector &y, const real_t c=1.0) const;
    /// y = A^T*x
    void MultTranspose(const Vector &x, Vector &y) const;
    /// y += c*A^T*x
-   void AddMultTranspose(const Vector &x, Vector &y, const double c=1.0) const;
+   void AddMultTranspose(const Vector &x, Vector &y, const real_t c=1.0) const;
    /// Assemble the diagonal of ADA^T for a diagonal vector D.
    void AssembleDiagonal_ADAt(const Vector &D, Vector &diag) const;
 
@@ -305,9 +324,9 @@ public:
    /// Partial assembly of all internal integrators
    void Assemble();
 
-   void AddMult(const Vector &x, Vector &y, const double c=1.0) const;
+   void AddMult(const Vector &x, Vector &y, const real_t c=1.0) const;
 
-   void AddMultTranspose(const Vector &x, Vector &y, const double c=1.0) const;
+   void AddMultTranspose(const Vector &x, Vector &y, const real_t c=1.0) const;
 
    void FormRectangularSystemOperator(const Array<int>&, const Array<int>&,
                                       OperatorHandle& A);

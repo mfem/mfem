@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -35,7 +35,7 @@ protected:
 
 public:
    /// Computes the energy of the system
-   virtual double GetEnergy(const Vector &x) const;
+   virtual real_t GetEnergy(const Vector &x) const;
 
    /// Construct an empty ParParametricBNLForm. Initialize with SetParSpaces().
    ParParametricBNLForm() : pBlockGrad(nullptr) { }
