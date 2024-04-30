@@ -13602,18 +13602,22 @@ MeshPartitioner::MeshPartitioner(Mesh &mesh_,
                                  int num_parts_,
                                  int *partitioning_,
                                  int part_method)
-   : mesh(mesh_),
-     partitioning(partitioning_),
-     own_partitioning(false)
+   : mesh(mesh_)
 {
-   if (partitioning == nullptr)
+   if (partitioning_)
    {
-      partitioning = mesh.GeneratePartitioning(num_parts_, part_method);
-      own_partitioning = true;
+      partitioning.MakeRef(partitioning_, mesh.GetNE(), false);
+   }
+   {
+      partitioning_ = mesh.GeneratePartitioning(num_parts_, part_method);
+      // Mesh::GeneratePartitioning always uses new[] to allocate the,
+      // partitioning, so we need to tell the memory manager to free it with
+      // delete[] (even if a different host memory type has been selected).
+      const MemoryType mt = MemoryType::HOST;
+      partitioning.MakeRef(partitioning_, mesh.GetNE(), true, mt);
    }
 
-   Transpose(Array<int>(partitioning, mesh.GetNE()),
-             part_to_element, num_parts_);
+   Transpose(partitioning, part_to_element, num_parts_);
    // Note: the element ids in each row of 'part_to_element' are sorted.
 
    const int dim = mesh.Dimension();
@@ -14172,11 +14176,6 @@ MeshPartitioner::ExtractGridFunction(const MeshPart &mesh_part,
       local_gf->SetSubVector(lvdofs, loc_vals);
    }
    return local_gf;
-}
-
-MeshPartitioner::~MeshPartitioner()
-{
-   if (own_partitioning) { delete [] partitioning; }
 }
 
 
