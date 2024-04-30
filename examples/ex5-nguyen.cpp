@@ -618,6 +618,9 @@ Func GetTFun(int prob, real_t t_0)
 
             return t0;
          };
+      case 2:
+         // null
+         break;
       case 3:
          return [=](const Vector &x) -> real_t
          {
@@ -642,20 +645,23 @@ VecFunc GetQFun(int prob, real_t t_0, real_t k, real_t c)
             v.SetSize(vdim);
 
             v = 0.;
-            v(0) = t_0 * (x(0) * sin(M_PI*x(0)) + M_PI * cos(M_PI*x(0))) * exp(
+            v(0) = t_0 * (sin(M_PI*x(0)) + M_PI * cos(M_PI*x(0))) * exp(
                       x.Sum()) * sin(M_PI*x(1));
-            v(1) = t_0 * (x(1) * sin(M_PI*x(1)) + M_PI * cos(M_PI*x(1))) * exp(
+            v(1) = t_0 * (sin(M_PI*x(1)) + M_PI * cos(M_PI*x(1))) * exp(
                       x.Sum()) * sin(M_PI*x(0));
             if (vdim > 2)
             {
                v(0) *= sin(M_PI*x(2));
                v(1) *= sin(M_PI*x(2));
-               v(2) = t_0 * (x(2) * sin(M_PI*x(2)) + M_PI * cos(M_PI*x(2))) * exp(
+               v(2) = t_0 * (sin(M_PI*x(2)) + M_PI * cos(M_PI*x(2))) * exp(
                          x.Sum()) * sin(M_PI*x(0)) * sin(M_PI*x(1));
             }
 
             v *= -k;
          };
+      case 2:
+         // null
+         break;
       case 3:
          return [=](const Vector &x, Vector &v)
          {
@@ -679,6 +685,9 @@ VecFunc GetCFun(int prob, real_t c)
    switch (prob)
    {
       case 1:
+         // null
+         break;
+      case 2:
          return [=](const Vector &x, Vector &v)
          {
             const int ndim = x.Size();
@@ -716,6 +725,28 @@ Func GetFFun(int prob, real_t t_0, real_t k, const VecFunc &cFun)
          return [=](const Vector &x) -> real_t
          {
             const int ndim = x.Size();
+
+            real_t t0   = t_0 * exp(x.Sum()) * sin(M_PI*x(0)) * sin(M_PI*x(1));
+            real_t diff = -k * exp(x.Sum()) * (sin(M_PI*x(1)) * ((1-M_PI*M_PI) * sin(M_PI*x(0))
+                                                                 + 2 * M_PI * cos(M_PI*x(0)))
+                                               + sin(M_PI*x(0)) * ((1-M_PI*M_PI)
+                                                                   * sin(M_PI*x(1)) + 2 * M_PI
+                                                                   * cos(M_PI*x(1))));
+            if (ndim > 2)
+            {
+               t0 *= sin(M_PI*x(2));
+
+               diff *= sin(M_PI*x(2));
+               diff -= k*M_PI*M_PI*t0;
+            }
+
+            return -diff;
+         };
+      case 2:
+         return [=](const Vector &x) -> real_t
+         {
+            // PLACEHOLDER
+            const int ndim = x.Size();
             Vector c;
             c.SetSize(ndim);
             cFun(x, c);
@@ -725,24 +756,13 @@ Func GetFFun(int prob, real_t t_0, real_t k, const VecFunc &cFun)
                                         * sin(M_PI*x(1))) + t_0 * c(1) * (t0 + M_PI
                                                                           * exp(x.Sum() * cos(M_PI*x(1))
                                                                                 * sin(M_PI*x(0))));
-            real_t diff = -k * exp(x.Sum()) * (sin(M_PI*x(1)) * ((1-M_PI*M_PI) * sin(M_PI*x(0))
-                                                                 + 2 * M_PI * cos(M_PI*x(0)))
-                                               + sin(M_PI*x(0)) * ((1-M_PI*M_PI)
-                                                                   * sin(M_PI*x(1)) + 2 * M_PI
-                                                                   * cos(M_PI*x(1))));
-
             if (ndim > 2)
             {
-               t0 *= sin(M_PI*x(2));
                conv *= sin(M_PI*x(2));
                conv += c(2) * (t0 + M_PI * exp(x.Sum()) * cos(M_PI*x(2)) * sin(M_PI*x(
                                                                                   0))) * sin(M_PI*x(1));
-
-               diff *= sin(M_PI*x(2));
-               diff -= k*M_PI*M_PI*t0;
             }
-
-            return conv+diff;
+            return -conv;
          };
       case 3:
       {
