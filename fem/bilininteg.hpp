@@ -475,6 +475,12 @@ public:
                            FaceElementTransformations &Trans,
                            DenseMatrix &elmat) override;
 
+   virtual void AssembleHDGFaceMatrix(const FiniteElement &trace_el,
+                                      const FiniteElement &el1,
+                                      const FiniteElement &el2,
+                                      FaceElementTransformations &Trans,
+                                      DenseMatrix &elmat);
+
    using BilinearFormIntegrator::AssemblePA;
    void AssemblePA(const FiniteElementSpace& fes) override;
 

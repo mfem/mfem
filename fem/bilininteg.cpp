@@ -369,7 +369,22 @@ void SumIntegrator::AssembleFaceMatrix(
    }
 }
 
-void SumIntegrator::AssemblePA(const FiniteElementSpace& fes)
+void SumIntegrator::AssembleHDGFaceMatrix(
+   const FiniteElement &trace_el,
+   const FiniteElement &el1, const FiniteElement &el2,
+   FaceElementTransformations &Trans, DenseMatrix &elmat)
+{
+   MFEM_ASSERT(integrators.Size() > 0, "empty SumIntegrator.");
+
+   integrators[0]->AssembleHDGFaceMatrix(trace_el, el1, el2, Trans, elmat);
+   for (int i = 1; i < integrators.Size(); i++)
+   {
+      integrators[i]->AssembleHDGFaceMatrix(trace_el, el1, el2, Trans, elem_mat);
+      elmat += elem_mat;
+   }
+}
+
+void SumIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
    for (int i = 0; i < integrators.Size(); i++)
    {
