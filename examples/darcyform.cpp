@@ -102,6 +102,8 @@ void DarcyForm::EnableHybridization(FiniteElementSpace *constr_space,
       return;
    }
    hybridization = new DarcyHybridization(fes_u, fes_p, constr_space, bsym);
+
+   // Automatically load the constraint operator from the face integrators
    BilinearFormIntegrator *constr_pot_integ = NULL;
    if (M_p)
    {
@@ -110,12 +112,22 @@ void DarcyForm::EnableHybridization(FiniteElementSpace *constr_space,
       {
          if (fbfi->Size() > 1)
          {
-            MFEM_WARNING("Only one face integrator is considered for hybridization");
+            SumIntegrator *sbfi = new SumIntegrator();
+            for (BilinearFormIntegrator *bfi : *fbfi)
+            {
+               sbfi->AddIntegrator(bfi);
+            }
+            constr_pot_integ = sbfi;
+            fbfi->DeleteAll();
          }
-         constr_pot_integ = (*fbfi)[0];
-         fbfi->DeleteFirst(constr_pot_integ);
+         else
+         {
+            constr_pot_integ = (*fbfi)[0];
+            fbfi->DeleteFirst(constr_pot_integ);
+         }
       }
    }
+
    hybridization->SetConstraintIntegrators(constr_flux_integ, constr_pot_integ);
    hybridization->Init(ess_flux_tdof_list);
 }
