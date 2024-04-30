@@ -65,7 +65,7 @@ const MFEM_cu_or_hip(blasHandle_t) & DeviceBlasHandle()
 
 
 BatchSolver::BatchSolver(const DenseTensor &MatrixBatch,
-                               const SolveMode mode)
+                         const SolveMode mode)
    : mode_(mode)
      // TODO: should this really be a copy?
    , LUMatrixBatch_(MatrixBatch)
@@ -93,8 +93,8 @@ void BatchSolver::AssignMatrices(const mfem::DenseTensor &MatrixBatch)
 }
 
 void BatchSolver::AssignMatrices(const mfem::Vector &vMatrixBatch,
-                                    const int ndofs,
-                                    const int num_matrices)
+                                 const int ndofs,
+                                 const int num_matrices)
 {
    const int totalSize = ndofs * ndofs * num_matrices;
    LUMatrixBatch_.SetSize(ndofs, ndofs,

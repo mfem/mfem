@@ -4311,16 +4311,40 @@ DenseTensor &DenseTensor::operator=(const DenseTensor &other)
 void BatchLUFactor(DenseTensor &Mlu, Array<int> &P, const double TOL)
 {
    const int m = Mlu.SizeI();
-   const int NE = Mlu.SizeK();
-   P.SetSize(m*NE);
+   const int len = Mlu.SizeK();
 
-   auto data_all = mfem::Reshape(Mlu.ReadWrite(), m, m, NE);
-   auto ipiv_all = mfem::Reshape(P.Write(), m, NE);
+   Vector vec(Mlu.ReadWrite(), m*m*len);
+   BatchLUFactor(m, len, vec, P, TOL);
+}
+
+void BatchLUSolve(const DenseTensor &Mlu, const Array<int> &P, Vector &X)
+{
+
+   const int m = Mlu.SizeI();
+   const int len = Mlu.SizeK();
+
+   auto data_all = mfem::Reshape(Mlu.Read(), m, m, len);
+   auto piv_all = mfem::Reshape(P.Read(), m, len);
+   auto x_all = mfem::Reshape(X.ReadWrite(), m, len);
+
+   mfem::forall(len, [=] MFEM_HOST_DEVICE (int e)
+   {
+      kernels::LUSolve(&data_all(0, 0,e), m, &piv_all(0, e), &x_all(0,e));
+   });
+
+}
+
+void BatchLUFactor(const int m, const int len,
+                   mfem::Vector &A, mfem::Array<int> &P, const double TOL)
+{
+   P.SetSize(m * len);
+   auto data_all = mfem::Reshape(A.ReadWrite(), m, m, len);
+   auto ipiv_all = mfem::Reshape(P.Write(), m, len);
    Array<bool> pivot_flag(1);
    pivot_flag[0] = true;
    bool *d_pivot_flag = pivot_flag.ReadWrite();
 
-   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall(len, [=] MFEM_HOST_DEVICE (int e)
    {
       for (int i = 0; i < m; i++)
       {
@@ -4373,92 +4397,19 @@ void BatchLUFactor(DenseTensor &Mlu, Array<int> &P, const double TOL)
    });
 
    MFEM_ASSERT(pivot_flag.HostRead()[0], "Batch LU factorization failed \n");
-}
-
-void BatchLUSolve(const DenseTensor &Mlu, const Array<int> &P, Vector &X)
-{
-
-   const int m = Mlu.SizeI();
-   const int NE = Mlu.SizeK();
-
-   auto data_all = mfem::Reshape(Mlu.Read(), m, m, NE);
-   auto piv_all = mfem::Reshape(P.Read(), m, NE);
-   auto x_all = mfem::Reshape(X.ReadWrite(), m, NE);
-
-   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
-   {
-      kernels::LUSolve(&data_all(0, 0,e), m, &piv_all(0, e), &x_all(0,e));
-   });
 
 }
 
-void BatchLUFactor(const int m, const int len,
-                   mfem::Vector &A, mfem::Array<int> &P)
-{
-   P.SetSize(m * len);
-   auto data_all       = mfem::Reshape(A.ReadWrite(), m, m, len);
-   auto piv_all        = mfem::Reshape(P.Write(), m, len);
 
-   mfem::forall(len, [=] MFEM_HOST_DEVICE (int e)
-   {
-
-      int *ipiv = &piv_all(0, e);
-      for (int i = 0; i < m; i++)
-      {
-         // pivoting
-         {
-            int piv  = i;
-            double a = fabs(data_all(piv, i, e));
-            for (int j = i + 1; j < m; j++)
-            {
-               const double b = fabs(data_all(j, i, e));
-               if (b > a)
-               {
-                  a   = b;
-                  piv = j;
-               }
-            }
-            ipiv[i] = piv;
-            if (piv != i)
-            {
-               // swap rows i and piv in both L and U parts
-               for (int j = 0; j < m; j++)
-               {
-                  mfem::kernels::internal::Swap<double>(data_all(i, j, e), data_all(piv, j, e));
-               }
-            }
-         }  //pivot end
-
-         const double a_ii_inv = 1.0 / data_all(i, i, e);
-
-         for (int j = i + 1; j < m; j++)
-         {
-            data_all(j, i, e) *= a_ii_inv;
-         }
-
-         for (int k = i + 1; k < m; k++)
-         {
-            const double a_ik = data_all(i, k, e);
-            for (int j = i + 1; j < m; j++)
-            {
-               data_all(j, k, e) -= a_ik * data_all(j, i, e);
-            }
-         }
-
-      }  //m loop
-   });
-}
-
-
-void BatchLUSolve(mfem::Vector &Minv, int m, int NE, mfem::Array<int> &P,
+void BatchLUSolve(mfem::Vector &Minv, int m, int len, mfem::Array<int> &P,
                   mfem::Vector &X)
 {
-   auto data_all = mfem::Reshape(Minv.Read(), m, m, NE);
-   auto piv_all  = mfem::Reshape(P.Read(), m, NE);
-   auto x_all    = mfem::Reshape(X.ReadWrite(), m, NE);
+   auto data_all = mfem::Reshape(Minv.Read(), m, m, len);
+   auto piv_all  = mfem::Reshape(P.Read(), m, len);
+   auto x_all    = mfem::Reshape(X.ReadWrite(), m, len);
 
 
-   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall(len, [=] MFEM_HOST_DEVICE (int e)
    {
 
       const int *ipiv = &piv_all(0, e);
@@ -4494,16 +4445,16 @@ void BatchLUSolve(mfem::Vector &Minv, int m, int NE, mfem::Array<int> &P,
 
 void BatchInverseMatrix(const mfem::Vector &LU,
                         const int m,
-                        const int NE,
+                        const int len,
                         const mfem::Array<int> &P,
                         mfem::Vector &INV)
 {
-   auto data_all = mfem::Reshape(LU.Read(), m, m, NE);
-   auto piv_all  = mfem::Reshape(P.Read(), m, NE);
-   auto inv_all  = mfem::Reshape(INV.ReadWrite(), m, m, NE);
+   auto data_all = mfem::Reshape(LU.Read(), m, m, len);
+   auto piv_all  = mfem::Reshape(P.Read(), m, len);
+   auto inv_all  = mfem::Reshape(INV.ReadWrite(), m, m, len);
 
 
-   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall(len, [=] MFEM_HOST_DEVICE (int e)
    {
       // A^{-1} = U^{-1} L^{-1} P
       // X <- U^{-1} (set only the upper triangular part of X)
@@ -4579,13 +4530,13 @@ void BatchInverseMatrix(const DenseTensor &LU,
                         DenseTensor &INV)
 {
    const int m = LU.SizeI();
-   const int NE = LU.SizeK();
-   auto data_all = mfem::Reshape(LU.Read(), m, m, NE);
-   auto piv_all  = mfem::Reshape(P.Read(), m, NE);
-   auto inv_all  = mfem::Reshape(INV.ReadWrite(), m, m, NE);
+   const int len = LU.SizeK();
+   auto data_all = mfem::Reshape(LU.Read(), m, m, len);
+   auto piv_all  = mfem::Reshape(P.Read(), m, len);
+   auto inv_all  = mfem::Reshape(INV.ReadWrite(), m, m, len);
 
 
-   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall(len, [=] MFEM_HOST_DEVICE (int e)
    {
       // A^{-1} = U^{-1} L^{-1} P
       // X <- U^{-1} (set only the upper triangular part of X)

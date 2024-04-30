@@ -1284,14 +1284,14 @@ void BatchLUSolve(const DenseTensor &Mlu, const Array<int> &P, Vector &X);
 
 
 void BatchLUFactor(const int m, const int len,
-                   mfem::Vector &A, mfem::Array<int> &P);
+                   mfem::Vector &A, mfem::Array<int> &P, const double TOL = 0.0);
 
-void BatchLUSolve(mfem::Vector &Minv, int m, int NE, mfem::Array<int> &P,
+void BatchLUSolve(mfem::Vector &Minv, int m, int len, mfem::Array<int> &P,
                   mfem::Vector &X);
 
 void BatchInverseMatrix(const Vector &LU,
                         const int m,
-                        const int NE,
+                        const int len,
                         const Array<int> &P,
                         Vector &INV);
 
