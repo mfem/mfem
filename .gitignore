@@ -405,6 +405,6 @@ examples/**/*.mesh
 examples/**/*.txt
 **/compile_commands.json
 
-*.svg
-*.eps
+**/*.svg
+**/*.eps
 
