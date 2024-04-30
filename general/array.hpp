@@ -211,7 +211,8 @@ public:
    /// Make this Array a reference to a pointer.
    /** When @a own_data is true, the pointer @a data_ must be allocated with
        MemoryType given by MemoryManager::GetHostMemoryType(). */
-   inline void MakeRef(T *data_, int size_, bool own_data = false);
+   inline void MakeRef(T *data_, int size_, bool own_data = false,
+                       MemoryType mt = MemoryManager::GetHostMemoryType());
 
    /// Make this Array a reference to 'master'.
    inline void MakeRef(const Array &master);
@@ -874,10 +875,10 @@ inline void Array<T>::Copy(Array &copy) const
 }
 
 template <class T>
-inline void Array<T>::MakeRef(T *data_, int size_, bool own_data)
+inline void Array<T>::MakeRef(T *data_, int size_, bool own_data, MemoryType mt)
 {
    data.Delete();
-   data.Wrap(data_, size_, own_data);
+   data.Wrap(data_, size_, mt, own_data);
    size = size_;
 }
 
