@@ -3764,13 +3764,13 @@ void mfem::HDGConvectionCenteredIntegrator::AssembleHDGFaceMatrix(
       }
 
       un = vu * nor;
-      a = 0.5 * alpha * un;
-      b = beta * fabs(un);
+      a = alpha * un;
+      b = 2. * beta * fabs(un);
       // note: if |alpha/2|==|beta| then |a|==|b|, i.e. (a==b) or (a==-b)
       //       and therefore two blocks in the element matrix contribution
       //       (from the current quadrature point) are 0
 
-      w = ip.weight * 2. * b;
+      w = ip.weight * b;
       if (w != 0.0)
       {
          // assemble the element matrix
@@ -3796,9 +3796,17 @@ void mfem::HDGConvectionCenteredIntegrator::AssembleHDGFaceMatrix(
             {
                c_elmat(i, ndof1+j) += w * tr_shape(i) * shape2(j);
             }
+
+         // assemble the trace matrix
+         w *= 2.;//<-- single face integration
+         for (int i = 0; i < tr_ndof; i++)
+            for (int j = 0; j < tr_ndof; j++)
+            {
+               tr_elmat(i, j) -= w * tr_shape(i) * tr_shape(j);
+            }
       }
 
-      w = ip.weight * 2. * (b-a);
+      w = ip.weight * (b-a);
       if (w != 0.0)
       {
          // assemble the constraint matrix (elem1)
@@ -3807,16 +3815,9 @@ void mfem::HDGConvectionCenteredIntegrator::AssembleHDGFaceMatrix(
             {
                ct_elmat(i, j) -= w * shape1(i) * tr_shape(j);
             }
-
-         // assemble the trace matrix
-         for (int i = 0; i < tr_ndof; i++)
-            for (int j = 0; j < tr_ndof; j++)
-            {
-               tr_elmat(i, j) -= w * tr_shape(i) * tr_shape(j);
-            }
       }
 
-      w = ip.weight * 2. * (b+a);
+      w = ip.weight * (b+a);
       if (w != 0.0)
       {
          // assemble the constraint matrix (elem2)
