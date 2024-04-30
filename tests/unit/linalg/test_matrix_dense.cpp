@@ -239,6 +239,97 @@ TEST_CASE("DenseMatrix A*B^T methods",
    }
 }
 
+TEST_CASE("DenseMatrix A^T*B methods",
+          "[DenseMatrix]")
+{
+   real_t tol = 1e-12;
+
+   real_t AtData[6] = {6.0, 4.0, 2.0,
+                       5.0, 3.0, 1.0
+                      };
+   real_t BtData[12] = {1.0, 2.0, 1.0,
+                        3.0, 4.0, 2.0,
+                        5.0, 6.0, 3.0,
+                        7.0, 8.0, 5.0
+                       };
+
+   DenseMatrix A(AtData, 3, 2);
+   DenseMatrix B(BtData, 3, 4);
+   DenseMatrix C(2,4);
+
+   SECTION("MultAtB")
+   {
+      real_t AData[6] = {6.0, 5.0,
+                         4.0, 3.0,
+                         2.0, 1.0
+                        };
+      DenseMatrix At(AData, 2, 3);
+
+      real_t CtData[8] = {16.0, 12.0,
+                          38.0, 29.0,
+                          60.0, 46.0,
+                          84.0, 64.0
+                         };
+      DenseMatrix Cexact(CtData, 2, 4);
+
+      MultAtB(A, B, C);
+      C.Add(-1.0, Cexact);
+
+      REQUIRE(C.MaxMaxNorm() < tol);
+
+      Mult(At, B, Cexact);
+      MultAtB(A, B, C);
+      C.Add(-1.0, Cexact);
+
+      REQUIRE(C.MaxMaxNorm() < tol);
+   }
+   SECTION("AddMultAtB")
+   {
+      real_t CtData[8] = {17.0, 17.0,
+                          40.0, 35.0,
+                          63.0, 53.0,
+                          88.0, 72.0
+                         };
+      DenseMatrix Cexact(CtData, 2, 4);
+
+      C(0, 0) = 1.0; C(0, 1) = 2.0; C(0, 2) = 3.0; C(0, 3) = 4.0;
+      C(1, 0) = 5.0; C(1, 1) = 6.0; C(1, 2) = 7.0; C(1, 3) = 8.0;
+
+      AddMultAtB(A, B, C);
+      C.Add(-1.0, Cexact);
+
+      REQUIRE(C.MaxMaxNorm() < tol);
+
+      MultAtB(A, B, C);
+      C *= -1.0;
+      AddMultAtB(A, B, C);
+      REQUIRE(C.MaxMaxNorm() < tol);
+   }
+   SECTION("AddMult_a_AtB")
+   {
+      real_t a = 3.0;
+
+      real_t CtData[8] = { 49.0,  41.0,
+                           116.0,  93.0,
+                           183.0, 145.0,
+                           256.0, 200.0
+                         };
+      DenseMatrix Cexact(CtData, 2, 4);
+
+      C(0, 0) = 1.0; C(0, 1) = 2.0; C(0, 2) = 3.0; C(0, 3) = 4.0;
+      C(1, 0) = 5.0; C(1, 1) = 6.0; C(1, 2) = 7.0; C(1, 3) = 8.0;
+
+      AddMult_a_AtB(a, A, B, C);
+      C.Add(-1.0, Cexact);
+
+      REQUIRE(C.MaxMaxNorm() < tol);
+
+      MultAtB(A, B, C);
+      AddMult_a_AtB(-1.0, A, B, C);
+
+      REQUIRE(C.MaxMaxNorm() < tol);
+   }
+}
 
 TEST_CASE("LUFactors RightSolve", "[DenseMatrix]")
 {
