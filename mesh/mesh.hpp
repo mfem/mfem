@@ -2707,8 +2707,7 @@ class MeshPartitioner
 {
 protected:
    Mesh &mesh;
-   int *partitioning;
-   bool own_partitioning; // true == constructed with NULL partitioning
+   Array<int> partitioning;
    Table part_to_element;
    Table part_to_boundary;
    Table edge_to_element;
@@ -2780,9 +2779,6 @@ public:
    ExtractGridFunction(const MeshPart &mesh_part,
                        const GridFunction &global_gf,
                        FiniteElementSpace &local_fespace) const;
-
-   /// Destructor.
-   ~MeshPartitioner();
 };
 
 
