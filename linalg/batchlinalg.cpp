@@ -14,29 +14,7 @@
 
 #include "batchlinalg.hpp"
 #include "../general/forall.hpp"
-
-
-#if defined(MFEM_USE_CUDA)
-#include <cublas_v2.h>
-#include <cusolverDn.h>
-#define MFEM_cu_or_hip(stub) cu##stub
-#define MFEM_Cu_or_Hip(stub) Cu##stub
-#define MFEM_CU_or_HIP(stub) CU##stub
-#define MFEM_CUDA_or_HIP(stub) CUDA##stub
-#elif defined(MFEM_USE_HIP)
-#include <hipblas/hipblas.h>
-#include <hip/hip_runtime.h>
-#include <hip/hip_runtime_api.h>
-#define MFEM_cu_or_hip(stub) hip##stub
-#define MFEM_Cu_or_Hip(stub) Hip##stub
-#define MFEM_CU_or_HIP(stub) HIP##stub
-#define MFEM_CUDA_or_HIP(stub) HIP##stub
-#else
-#define MFEM_cu_or_hip(stub)
-#define MFEM_Cu_or_Hip(stub)
-#define MFEM_CU_or_HIP(stub)
-#define MFEM_CUDA_or_HIP(stub)
-#endif
+#include "../general/backends.hpp"
 
 namespace mfem
 {
