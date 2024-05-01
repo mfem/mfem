@@ -66,6 +66,10 @@ Miscellaneous
 - RAJA backend will use seq_exec for serial loop execution when RAJA
   v2023.06.00 and beyond is detected as loop_exec is deprecated.
 
+- API change: The macro MFEM_HYPRE_FORALL (from hypre.hpp) which was intended
+  for internal use, has been removed and replaced by the function template
+  mfem::hypre_forall in general/forall.hpp.
+
 
 Version 4.6, released on September 27, 2023
 ===========================================
