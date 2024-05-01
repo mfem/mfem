@@ -936,8 +936,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
      ne(fes.GetNE()),
      vdim(fes.GetVDim()),
      byvdim(fes.GetOrdering() == Ordering::byVDIM),
-     face_dofs(fes.GetTraceElement(
-                  0, fes.GetMesh()->GetTypicalFaceGeometry())->GetDof()),
+     face_dofs(fes.GetTypicalTraceElement()->GetDof()),
      elem_dofs(fes.GetTypicalFE()->GetDof()),
      nfdofs(nf*face_dofs),
      ndofs(fes.GetNDofs()),
@@ -1251,10 +1250,8 @@ void L2FaceRestriction::CheckFESpace()
    {
       for (int f = 0; f < fes.GetNF(); ++f)
       {
-         const FiniteElement *fe =
-            fes.GetTraceElement(f, fes.GetMesh()->GetFaceGeometry(f));
-         const TensorBasisElement* el =
-            dynamic_cast<const TensorBasisElement*>(fe);
+         const FiniteElement *fe = fes.GetTypicalTraceElement();
+         const TensorBasisElement* el = dynamic_cast<const TensorBasisElement*>(fe);
          if (el) { continue; }
          MFEM_ABORT("Finite element not suitable for lexicographic ordering");
       }
@@ -1573,8 +1570,7 @@ const DenseMatrix* InterpolationManager::GetCoarseToFineInterpolation(
    // Computation of the interpolation matrix from master
    // (coarse) face to slave (fine) face.
    // Assumes all trace elements are the same.
-   const FiniteElement *trace_fe =
-      fes.GetTraceElement(0, fes.GetMesh()->GetTypicalFaceGeometry());
+   const FiniteElement *trace_fe = fes.GetTypicalTraceElement();
    const int face_dofs = trace_fe->GetDof();
    const TensorBasisElement* el =
       dynamic_cast<const TensorBasisElement*>(trace_fe);
@@ -1625,8 +1621,7 @@ const DenseMatrix* InterpolationManager::GetCoarseToFineInterpolation(
 void InterpolationManager::LinearizeInterpolatorMapIntoVector()
 {
    // Assumes all trace elements are the same.
-   const FiniteElement *trace_fe =
-      fes.GetTraceElement(0, fes.GetMesh()->GetTypicalFaceGeometry());
+   const FiniteElement *trace_fe = fes.GetTypicalTraceElement();
    const int face_dofs = trace_fe->GetDof();
    const int nc_size = interp_map.size();
    MFEM_VERIFY(nc_cpt==nc_size, "Unexpected number of interpolators.");

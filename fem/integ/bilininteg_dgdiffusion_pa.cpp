@@ -457,7 +457,7 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
    // Assumes tensor-product elements
    Mesh &mesh = *fes.GetMesh();
    const Geometry::Type face_geom_type = mesh.GetTypicalFaceGeometry();
-   const FiniteElement &el = *fes.GetTraceElement(0, face_geom_type);
+   const FiniteElement &el = *fes.GetTypicalTraceElement();
    const int ir_order = IntRule ? IntRule->GetOrder()
                         : GetRule(el.GetOrder(), face_geom_type).GetOrder();
    const IntegrationRule &ir = irs.Get(face_geom_type, ir_order);
