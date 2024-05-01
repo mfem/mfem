@@ -32,7 +32,7 @@ namespace mfem
 /** \brief FindPointsGSLIB can robustly evaluate a GridFunction on an arbitrary
  *  collection of points. There are three key functions in FindPointsGSLIB:
  *
- *  1. Setup - constructs the internal data structures of gslib.
+ *  1. Setup - constructs the internal data structures of gslib. See \ref Setup.
  *
  *  2. FindPoints - for any given arbitrary set of points in physical space,
  *     gslib finds the element number, MPI rank, and the reference space
@@ -43,12 +43,23 @@ namespace mfem
  *     on an element edge/face or near the domain boundary, and gslib also
  *     returns a distance to the border. Points near (but outside) the domain
  *     boundary must then be marked as not found using the distance returned
- *     by gslib.
+ *     by gslib. See \ref FindPoints.
  *
  *  3. Interpolate - Interpolates any grid function at the points found using 2.
+ *     For functions in L2 finite element space, use \ref SetL2AvgType to
+ *     specify how to interpolate values at points located at element boundaries
+ *     where the function might be multi-valued. See \ref Interpolate.
  *
- *  FindPointsGSLIB provides interface to use these functions individually or
- *  using a single call.
+ *  FindPointsGSLIB also provides interface to use these functions through a
+ *  single call.
+ *
+ *  For custom interpolation procedures (e.g., evaluating strain rate tensor),
+ *  we provide functions that use gslib to send element index and corresponding
+ *  reference-space coordinates for each point to the mpi rank that the element
+ *  is located on. Then, interpolation can be done locally by the user before
+ *  sending the values back to mpi ranks where the query originated from.
+ *  See \ref SendElementsAndCoordinatesToOwningMPIRanks and
+ *  \ref SendInterpolatedValuesBack.
  */
 class FindPointsGSLIB
 {
@@ -228,24 +239,29 @@ public:
    virtual const Vector &GetGSLIBReferencePosition() const { return gsl_ref; }
 
    /** @name Methods to support a custom interpolation procedure.
-       \brief To enable custom interpolation, we first send element index and
-       reference-space coordinates to owning mpi rank where each point is found.
-       This information is stored in @a recv_elem and
-       @a recv_ref (ordered by vdim), respectively. The user can then
-       interpolate locally, before returning the values back to where the query
-       originated from.
+       \brief The physical-space point that the user seeks to interpolate at
+       could be located inside an element on another mpi rank.
+       To enable a custom interpolation procedure (e.g., strain tensor computation)
+       we need a mechanism to first send element indices and reference-space
+       coordinates to the mpi-ranks where each point is found. Then the custom
+       interpolation can be done locally by the user before sending the
+       interpolated values back to the mpi-ranks that the query originated from.
    */
    ///@{
-   /// Send element index and reference-space coordinates to corresponding
-   /// mpi rank for each point.
-   virtual void SendCoordinatesToOwningProcessors();
-   /// Return interpolated values back to where the query originated from.
-   virtual Vector ReturnInterpolatedValues(Vector &int_vals, int vdim,
-                                           int ordering=Ordering::byNODES);
-   /// Return received element indices.
+   /// Send element indices in #gsl_mfem_elem and the reference coordinates
+   /// #gsl_ref to the corresponding mpi-rank #gsl_proc for each point.
+   /// Upon receiving, the information is stored locally in
+   /// #recv_elem and #recv_ref (ordered by vdim). Use corresponding getters
+   /// to fetch them for custom interpolation.
+   virtual void SendElementsAndCoordinatesToOwningMPIRanks();
+   /// Send interpolated values back to the mpi-ranks #recv_proc that had sent
+   /// the element indices and corresponding reference-space coordinates.
+   virtual Vector SendInterpolatedValuesBack(Vector &int_vals, int vdim,
+                                             int ordering);
+   /// Get element indices received due to SendCoordinatesToOwningMPIRanks().
    virtual const Array<unsigned int> &GetReceivedElem() const
    { return recv_elem; }
-   /// Return received reference coordinates.
+   /// Get reference coords received due to SendCoordinatesToOwningMPIRanks().
    virtual const Vector &GetReceivedReferencePosition() const
    { return recv_ref;  }
    ///@}
