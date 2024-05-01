@@ -3288,6 +3288,10 @@ const FiniteElement *FiniteElementSpace::GetTraceElement(
 {
    return fec->GetTraceFE(geom_type, GetElementOrder(i));
 }
+
+const FiniteElement *FiniteElementSpace::GetTypicalTraceElement() const
+{
+   return fec->TraceFiniteElementForGeometry(mesh->GetTypicalFaceGeometry());
 }
 
 FiniteElementSpace::~FiniteElementSpace()
