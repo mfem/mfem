@@ -2558,9 +2558,9 @@ void HypreParMatrix::EliminateBC(const Array<int> &ess_dofs,
       mfem::hypre_forall(n_ess_dofs, [=] MFEM_HOST_DEVICE (int i)
       {
          const int idof = ess_dofs_d[i];
-         for (int j=I[idof]; j<I[idof+1]; ++j)
+         for (auto j=I[idof]; j<I[idof+1]; ++j)
          {
-            const int jdof = J[j];
+            const auto jdof = J[j];
             if (jdof == idof)
             {
                if (diag_policy == DiagonalPolicy::DIAG_ONE)
@@ -2576,7 +2576,7 @@ void HypreParMatrix::EliminateBC(const Array<int> &ess_dofs,
             else
             {
                data[j] = 0.0;
-               for (int k=I[jdof]; k<I[jdof+1]; ++k)
+               for (auto k=I[jdof]; k<I[jdof+1]; ++k)
                {
                   if (J[k] == idof)
                   {
@@ -2596,7 +2596,7 @@ void HypreParMatrix::EliminateBC(const Array<int> &ess_dofs,
       mfem::hypre_forall(n_ess_dofs, [=] MFEM_HOST_DEVICE (int i)
       {
          const int idof = ess_dofs_d[i];
-         for (int j=I[idof]; j<I[idof+1]; ++j)
+         for (auto j=I[idof]; j<I[idof+1]; ++j)
          {
             data[j] = 0.0;
          }
@@ -2616,7 +2616,7 @@ void HypreParMatrix::EliminateBC(const Array<int> &ess_dofs,
       auto data = offd->data;
       mfem::hypre_forall(nrows_offd, [=] MFEM_HOST_DEVICE (int i)
       {
-         for (int j=I[i]; j<I[i+1]; ++j)
+         for (auto j=I[i]; j<I[i+1]; ++j)
          {
             data[j] *= 1 - eliminate_col[J[j]];
          }
@@ -3631,23 +3631,11 @@ void HypreSmoother::SetOperator(const Operator &op)
    }
    if (l1_norms && pos_l1_norms)
    {
-#if defined(HYPRE_USING_GPU)
-      if (HypreUsingGPU())
+      real_t *d_l1_norms = l1_norms;  // avoid *this capture
+      mfem::hypre_forall(height, [=] MFEM_HOST_DEVICE (int i)
       {
-         real_t *d_l1_norms = l1_norms;  // avoid *this capture
-         MFEM_GPU_FORALL(i, height,
-         {
-            d_l1_norms[i] = std::abs(d_l1_norms[i]);
-         });
-      }
-      else
-#endif
-      {
-         for (int i = 0; i < height; i++)
-         {
-            l1_norms[i] = std::abs(l1_norms[i]);
-         }
-      }
+         d_l1_norms[i] = std::abs(d_l1_norms[i]);
+      });
    }
 
    if (type == 16)
