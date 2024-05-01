@@ -40,7 +40,7 @@ protected:
    OperatorHandle fw_t_oper; ///< Forward true-dof operator
    OperatorHandle bw_t_oper; ///< Backward true-dof operator
 
-   bool uniform_refinement;
+   bool use_device;
    bool verify_solution;
 
 #ifdef MFEM_USE_MPI
@@ -68,11 +68,9 @@ public:
    /// Virtual destructor
    virtual ~GridTransfer() { }
 
-   void UniformRefinement(bool unif_refinement) { uniform_refinement = unif_refinement;}
+   void UseDevice(bool use_device_ = true) { use_device = use_device_;}
 
    void VerifySolution(bool verify) { verify_solution = verify;}
-
-
 
    /** @brief Set the desired Operator::Type for the construction of all
        operators defined by the underlying transfer algorithm. */
@@ -240,12 +238,12 @@ public:
       mutable Array<double> R_ea, P_ea;
       Array<int> offsets;
 
-      const bool uniform_refinement, verify_solution;
+      const bool use_device, verify_solution;
 
    public:
       L2ProjectionL2Space(const FiniteElementSpace& fes_ho_,
                           const FiniteElementSpace& fes_lor_,
-                          const bool uniform_refinement_, const bool verify_solution_);
+                          const bool use_device_, const bool verify_solution_);
 
       /*Same as above but assembles and stores R_ea, P_ea */
       void DeviceL2ProjectionL2Space(const FiniteElementSpace& fes_ho_,
