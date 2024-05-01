@@ -43,8 +43,8 @@ const MFEM_cu_or_hip(blasHandle_t) & DeviceBlasHandle()
 
 
 BatchSolver::BatchSolver(const DenseTensor &MatrixBatch,
-                         const SolveMode mode)
-   : mode_(mode)
+                         const SolveMode mode, MemoryType d_mt)
+  : mode_(mode), d_mt_(d_mt)
      // TODO: should this really be a copy?
    , LUMatrixBatch_(MatrixBatch)
 {
@@ -54,9 +54,9 @@ BatchSolver::BatchSolver(const DenseTensor &MatrixBatch,
    }
 }
 
-BatchSolver::BatchSolver(const SolveMode mode) : mode_(mode) {}
+BatchSolver::BatchSolver(const SolveMode mode, MemoryType d_mt) : mode_(mode), d_mt_(d_mt) {}
 
-void BatchSolver::AssignMatrices(const mfem::DenseTensor &MatrixBatch)
+void BatchSolver::AssignMatrices(const DenseTensor &MatrixBatch)
 {
    // TODO: should this really be a copy?
    LUMatrixBatch_ = MatrixBatch;
@@ -70,13 +70,13 @@ void BatchSolver::AssignMatrices(const mfem::DenseTensor &MatrixBatch)
    }
 }
 
-void BatchSolver::AssignMatrices(const mfem::Vector &vMatrixBatch,
+void BatchSolver::AssignMatrices(const Vector &vMatrixBatch,
                                  const int size,
                                  const int num_matrices)
 {
    const int totalSize = size * size * num_matrices;
    LUMatrixBatch_.SetSize(size, size,
-                          num_matrices); //needs to be temporary memory
+                          num_matrices, d_mt_);
    double *d_LUMatrixBatch      = LUMatrixBatch_.Write();
    const double *d_vMatrixBatch = vMatrixBatch.Read();
 
@@ -85,7 +85,7 @@ void BatchSolver::AssignMatrices(const mfem::Vector &vMatrixBatch,
    AssignMatrices(LUMatrixBatch_);
 }
 
-void BatchSolver::GetInverse(mfem::DenseTensor &InvMatBatch) const
+void BatchSolver::GetInverse(DenseTensor &InvMatBatch) const
 {
 
    /*
@@ -133,7 +133,7 @@ void BatchSolver::ComputeLU()
    if (Device::Allows(Backend::DEVICE_MASK))
    {
 
-      mfem::Array<int> info_array(num_matrices_); // need to move to temp mem
+      Array<int> info_array(num_matrices_); // need to move to temp mem
 
       MFEM_cu_or_hip(blasStatus_t)
       status = MFEM_cu_or_hip(blasDgetrfBatched)(DeviceBlasHandle(),
@@ -158,7 +158,7 @@ void BatchSolver::ComputeLU()
 }
 
 
-void BatchSolver::ComputeInverse(mfem::DenseTensor &InvMatBatch) const
+void BatchSolver::ComputeInverse(DenseTensor &InvMatBatch) const
 {
 
    MFEM_VERIFY(lu_valid_, "LU must be valid");
@@ -179,7 +179,7 @@ void BatchSolver::ComputeInverse(mfem::DenseTensor &InvMatBatch) const
       });
 
       //move to temporary memory
-      mfem::Array<int> info_array(num_matrices_);
+      Array<int> info_array(num_matrices_);
 
       //Invert matrices
       MFEM_cu_or_hip(blasStatus_t) status =
@@ -205,14 +205,14 @@ void BatchSolver::ComputeInverse(mfem::DenseTensor &InvMatBatch) const
    }
 }
 
-void BatchSolver::SolveLU(const mfem::Vector &b, mfem::Vector &x) const
+void BatchSolver::SolveLU(const Vector &b, Vector &x) const
 {
 
    x = b;
 #if defined(MFEM_USE_CUDA_OR_HIP)
    if (Device::Allows(Backend::DEVICE_MASK))
    {
-      mfem::Array<double *> vector_array(num_matrices_); //need to move to TEMP memory
+      Array<double *> vector_array(num_matrices_, d_mt_);
 
       // TODO: can this be Write? does `blasDtrsmBatched' just overwrite what's in x?
       double *x_ptr_base = x.ReadWrite();
@@ -269,14 +269,14 @@ void BatchSolver::SolveLU(const mfem::Vector &b, mfem::Vector &x) const
 }
 
 //hand rolled block mult
-void ApplyBlkMult(const mfem::DenseTensor &Mat, const mfem::Vector &x,
-                  mfem::Vector &y)
+void ApplyBlkMult(const DenseTensor &Mat, const Vector &x,
+                  Vector &y)
 {
    const int ndof = Mat.SizeI();
    const int NE   = Mat.SizeK();
-   auto X         = mfem::Reshape(x.Read(), ndof, NE);
-   auto Y         = mfem::Reshape(y.Write(), ndof, NE);
-   auto Me        = mfem::Reshape(Mat.Read(), ndof, ndof, NE);
+   auto X         = Reshape(x.Read(), ndof, NE);
+   auto Y         = Reshape(y.Write(), ndof, NE);
+   auto Me        = Reshape(Mat.Read(), ndof, ndof, NE);
 
    //Takes row major format
    mfem::forall(ndof* NE, [=] MFEM_HOST_DEVICE (int tid)
@@ -297,7 +297,7 @@ void ApplyBlkMult(const mfem::DenseTensor &Mat, const mfem::Vector &x,
 }
 
 
-void BatchSolver::ApplyInverse(const mfem::Vector &b, mfem::Vector &x) const
+void BatchSolver::ApplyInverse(const Vector &b, Vector &x) const
 {
    //Extend with vendor library capabilities
    ApplyBlkMult(InvMatrixBatch_, b, x);
@@ -309,8 +309,8 @@ void BatchSolver::Setup()
    matrix_size_  = LUMatrixBatch_.SizeI();
    num_matrices_ = LUMatrixBatch_.SizeK();
 
-   P_.SetSize(matrix_size_ * num_matrices_); //move to temp mem
-   lu_ptr_array_.SetSize(num_matrices_); //move to temp memory
+   P_.SetSize(matrix_size_ * num_matrices_, d_mt_);
+   lu_ptr_array_.SetSize(num_matrices_, d_mt_);
 
    // TODO: can this just be a Write?
    double *lu_ptr_base = LUMatrixBatch_.ReadWrite();
@@ -331,7 +331,7 @@ void BatchSolver::Setup()
          ComputeLU();
          InvMatrixBatch_.SetSize(matrix_size_,
                                  matrix_size_,
-                                 num_matrices_); //move to temporary memory
+                                 num_matrices_, d_mt_);
          ComputeInverse(InvMatrixBatch_);
          break;
 
@@ -340,7 +340,7 @@ void BatchSolver::Setup()
    setup_ = true;
 }
 
-void BatchSolver::Mult(const mfem::Vector &b, mfem::Vector &x) const
+void BatchSolver::Mult(const Vector &b, Vector &x) const
 {
    switch (mode_)
    {

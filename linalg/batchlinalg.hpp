@@ -30,7 +30,7 @@ public:
    };
 
    // Compute inverse of a batch of matrices in M; layout must be (height, width, num_mats)
-   static void GetInverse(const mfem::DenseTensor &M, mfem::DenseTensor &M_inv);
+   static void GetInverse(const DenseTensor &M, DenseTensor &M_inv);
 
 private:
    BatchSolver::SolveMode mode_;
@@ -38,13 +38,14 @@ private:
    bool setup_    = false;
    bool lu_valid_ = false;
 
-   mfem::DenseTensor LUMatrixBatch_, InvMatrixBatch_;
-   mfem::Array<int> P_;
-   mfem::Array<double *> lu_ptr_array_;
+   DenseTensor LUMatrixBatch_, InvMatrixBatch_;
+   Array<int> P_;
+   Array<double *> lu_ptr_array_;
+   MemoryType d_mt_;
 
    int num_matrices_, matrix_size_;
 
-   void ApplyInverse(const mfem::Vector &b, mfem::Vector &x) const;
+   void ApplyInverse(const Vector &b, Vector &x) const;
 
    // for nvcc
 public:
@@ -53,26 +54,26 @@ public:
 
    void ComputeLU();
 
-   void SolveLU(const mfem::Vector &b, mfem::Vector &x) const;
+   void SolveLU(const Vector &b, Vector &x) const;
 
-   void ComputeInverse(mfem::DenseTensor &InvMatBatch) const;
+   void ComputeInverse(DenseTensor &InvMatBatch) const;
 
 public:
    BatchSolver() = delete;
 
-   BatchSolver(const SolveMode mode);
+   BatchSolver(const SolveMode mode, MemoryType d_mt = MemoryType::DEFAULT);
 
-   BatchSolver(const mfem::DenseTensor &MatrixBatch, const SolveMode mode);
+   BatchSolver(const DenseTensor &MatrixBatch, const SolveMode mode, MemoryType d_mt = MemoryType::DEFAULT);
 
-   void AssignMatrices(const mfem::DenseTensor &MatrixBatch);
+   void AssignMatrices(const DenseTensor &MatrixBatch);
 
-   void AssignMatrices(const mfem::Vector &vMatrixBatch, const int size,
+   void AssignMatrices(const Vector &vMatrixBatch, const int size,
                        const int num_matrices);
 
-   void GetInverse(mfem::DenseTensor &InvMatBatch) const;
+   void GetInverse(DenseTensor &InvMatBatch) const;
 
    //Solve linear system Ax = b
-   void Mult(const mfem::Vector &b, mfem::Vector &x) const;
+   void Mult(const Vector &b, Vector &x) const;
 
    void ReleaseMemory();
 
