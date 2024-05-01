@@ -6350,7 +6350,7 @@ HypreLOBPCG::SetInitialVectors(int num_vecs, HypreParVector ** vecs)
    // Ensure all vectors are in the proper subspace
    if ( subSpaceProj != NULL )
    {
-      HypreParVector y(*x);
+      HypreParVector y = x->CreateCompatibleVector();
       y = multi_vec->GetVector(0);
 
       for (int i=1; i<nev; i++)
@@ -6376,7 +6376,7 @@ HypreLOBPCG::Solve()
 
       if ( subSpaceProj != NULL )
       {
-         HypreParVector y(*x);
+         HypreParVector y = x->CreateCompatibleVector();
          y = multi_vec->GetVector(0);
 
          for (int i=1; i<nev; i++)

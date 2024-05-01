@@ -1070,21 +1070,32 @@ protected:
    bool A_is_symmetric;
 
 public:
-   /** Hypre smoother types:
-       0    = Jacobi
-       1    = l1-scaled Jacobi
-       2    = l1-scaled block Gauss-Seidel/SSOR
-       4    = truncated l1-scaled block Gauss-Seidel/SSOR
-       5    = lumped Jacobi
-       6    = Gauss-Seidel
-       10   = On-processor forward solve for matrix w/ triangular structure
-       16   = Chebyshev
-       1001 = Taubin polynomial smoother
-       1002 = FIR polynomial smoother. */
-   enum Type { Jacobi = 0, l1Jacobi = 1, l1GS = 2, l1GStr = 4, lumpedJacobi = 5,
-               GS = 6, OPFS = 10, Chebyshev = 16, Taubin = 1001, FIR = 1002
-             };
+   /// HYPRE smoother types
+   enum Type
+   {
+      Jacobi = 0,       ///< Jacobi
+      l1Jacobi = 1,     ///< l1-scaled Jacobi
+      l1GS = 2,         ///< l1-scaled block Gauss-Seidel/SSOR
+      l1GStr = 4,       ///< truncated l1-scaled block Gauss-Seidel/SSOR
+      lumpedJacobi = 5, ///< lumped Jacobi
+      GS = 6,           ///< Gauss-Seidel
+      OPFS = 10,        /**< On-processor forward solve for matrix w/ triangular
+                             structure */
+      Chebyshev = 16,   ///< Chebyshev
+      Taubin = 1001,    ///< Taubin polynomial smoother
+      FIR = 1002        ///< FIR polynomial smoother
+   };
 
+   /// @deprecated Use DefaultType() instead
+#if !defined(HYPRE_USING_GPU)
+   MFEM_DEPRECATED static constexpr Type default_type = l1GS;
+#else
+   MFEM_DEPRECATED static constexpr Type default_type = l1Jacobi;
+#endif
+
+   /** @brief Default value for the smoother type used by the constructors:
+       Type::l1GS when HYPRE is running on CPU and Type::l1Jacobi when HYPRE is
+       running on GPU. */
    static Type DefaultType()
    {
       return HypreUsingGPU() ? l1Jacobi : l1GS;
