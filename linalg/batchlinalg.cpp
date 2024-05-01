@@ -20,24 +20,22 @@ namespace mfem
 {
 
 #if defined(MFEM_USE_CUDA_OR_HIP)
+static MFEM_cu_or_hip(blasHandle_t) device_blas_handle = nullptr;
+
 const MFEM_cu_or_hip(blasHandle_t) & DeviceBlasHandle()
 {
-   static MFEM_cu_or_hip(blasHandle_t) handle = nullptr;
-   static bool init                               = true;
-
-   if (init)
+   if (!device_blas_handle)
    {
-      init        = false;
-      auto status = MFEM_cu_or_hip(blasCreate)(&handle);
+      auto status = MFEM_cu_or_hip(blasCreate)(&device_blas_handle);
       MFEM_VERIFY(status == MFEM_CU_or_HIP(BLAS_STATUS_SUCCESS),
                   "Cannot initialize GPU BLAS");
       atexit([]()
       {
-         MFEM_cu_or_hip(blasDestroy)(handle);
-         handle = nullptr;
+         MFEM_cu_or_hip(blasDestroy)(device_blas_handle);
+         device_blas_handle = nullptr;
       });
    }
-   return handle;
+   return device_blas_handle;
 }
 #endif
 
