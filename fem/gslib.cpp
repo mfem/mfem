@@ -1168,7 +1168,7 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
    } // parallel
 }
 
-void FindPointsGSLIB::SendCoordinatesToOwningProcessors()
+void FindPointsGSLIB::SendElementsAndCoordinatesToOwningMPIRanks()
 {
    int nptsend   = points_cnt;
    int nptElem   = gsl_mfem_elem.Size();
@@ -1226,9 +1226,9 @@ void FindPointsGSLIB::SendCoordinatesToOwningProcessors()
    delete outpt;
 }
 
-Vector FindPointsGSLIB::ReturnInterpolatedValues(Vector &int_vals,
-                                                 int vdim,
-                                                 int int_val_ordering)
+Vector FindPointsGSLIB::SendInterpolatedValuesBack(Vector &int_vals,
+                                                   int vdim,
+                                                   int int_val_ordering)
 {
    MFEM_VERIFY(points_recv == 0 ||
                int_vals.Size() % points_recv == 0,
