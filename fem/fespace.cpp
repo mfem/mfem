@@ -3286,7 +3286,8 @@ const FiniteElement *FiniteElementSpace::GetEdgeElement(int i,
 const FiniteElement *FiniteElementSpace::GetTraceElement(
    int i, Geometry::Type geom_type) const
 {
-   return fec->TraceFiniteElementForGeometry(geom_type);
+   return fec->GetTraceFE(geom_type, GetElementOrder(i));
+}
 }
 
 FiniteElementSpace::~FiniteElementSpace()
