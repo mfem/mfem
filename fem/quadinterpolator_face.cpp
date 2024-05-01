@@ -587,8 +587,7 @@ void FaceQuadratureInterpolator::Mult(
    if (nf == 0) { return; }
    const int vdim = fespace->GetVDim();
    const int dim = fespace->GetMesh()->Dimension();
-   const FiniteElement *fe =
-      fespace->GetTraceElement(0, fespace->GetMesh()->GetTypicalFaceGeometry());
+   const FiniteElement *fe = fespace->GetTypicalTraceElement();
    const IntegrationRule *ir = IntRule;
    const DofToQuad &maps = fe->GetDofToQuad(*ir, DofToQuad::TENSOR);
    const int nd1d = maps.ndof;

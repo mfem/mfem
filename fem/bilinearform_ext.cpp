@@ -878,9 +878,7 @@ void EABilinearFormExtension::Assemble()
       integrators[i]->AssembleEA(*a->FESpace(), ea_data, i);
    }
 
-   faceDofs = trial_fes->
-              GetTraceElement(0, trial_fes->GetMesh()->GetTypicalFaceGeometry())->
-              GetDof();
+   faceDofs = trial_fes->GetTypicalTraceElement()->GetDof();
 
    MFEM_VERIFY(a->GetBBFI()->Size() == 0,
                "Element assembly does not support AddBoundaryIntegrator yet.");
