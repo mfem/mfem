@@ -1,3 +1,5 @@
+//                  MFEM Example 40 - Shared Code
+
 #include "mfem.hpp"
 
 using namespace std;
@@ -29,6 +31,7 @@ class ModalBasis {
 
       void SetSolution(Vector &u_elem);
       real_t Eval(Vector &x);
+      Vector EvalGrad(Vector &x);
 
       ~ModalBasis() = default;
 };
@@ -182,7 +185,7 @@ real_t ModalBasis::Eval(Vector &x) {
       }
    }
 
-   // Compute u(x) as \sum L_i(x)*L_i(y)*L_i(z)
+   // Compute u(x,y,z) as \sum L_i(x)*L_i(y)*L_i(z)
    real_t ux = 0;
    for (int i = 0; i < npts; i++) {
       real_t v = umc(i);
@@ -193,6 +196,47 @@ real_t ModalBasis::Eval(Vector &x) {
    }
    
    return ux;
+}
+
+// Evalutes solution gradient at arbitrary point x using modal basis
+Vector ModalBasis::EvalGrad(Vector &x) {
+   MFEM_ASSERT(x.Size() == dim, "Modal basis can only be evaluated at one location at a time.")
+
+   // Pre-compute L_i(x), L_i(y), L_i(z) (and dL_i(x)/dx, etc.) for all degrees up to max polynomial order.  
+   Array2D<real_t> L(order + 1, dim);
+   Array2D<real_t> D(order + 1, dim);
+   for (int i = 0; i < dim; i++) {
+      Vector Li(order+1);
+      Vector Di(order+1);
+      Poly_1D::CalcLegendre(order, x(i), Li, Di);
+      for (int j = 0; j < order + 1; j++) {
+         L(j, i) = Li(j);
+         D(j, i) = Di(j);
+      }
+   }
+
+   // Compute du(x,y,z)/dx as \sum dL_i(x)/dx*L_i(y)*L_i(z)
+   //         du(x,y,z)/dy as \sum L_i(x)*dL_i(y)/dy*L_i(z)
+   //         du(x,y,z)/dz as \sum L_i(x)*L_i(y)*dL_i(z)/dz
+   Vector gradu(dim);
+   for (int d = 0; d < dim; d++) {
+      real_t du = 0;
+      for (int i = 0; i < npts; i++) {
+         real_t v = umc(i);
+         for (int j = 0; j < dim; j++) {
+            if (j == d){ 
+               v *= D(ubdegs(i, j), j);
+            }
+            else {
+               v *= L(ubdegs(i, j), j);
+            }
+         }
+         du += v;
+      }
+      gradu(d) = du;
+   }
+   
+   return gradu;
 }
 
 
