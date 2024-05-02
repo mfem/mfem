@@ -3746,16 +3746,14 @@ void mfem::HDGConvectionCenteredIntegrator::AssembleHDGFaceMatrix(
       // Set the integration point in the face and the neighboring elements
       Trans.SetAllIntPoints(&ip);
 
-      // Access the neighboring elements' integration points
-      // Note: eip2 will only contain valid data if Elem2 exists
+      // Access the neighboring elements' integration point
       const IntegrationPoint &eip1 = Trans.GetElement1IntPoint();
-      const IntegrationPoint &eip2 = Trans.GetElement2IntPoint();
 
       trace_el.CalcShape(ip, tr_shape);
-      el1.CalcShape(eip1, shape1);
+      el1.CalcPhysShape(*Trans.Elem1, shape1);
       if (ndof2)
       {
-         el2.CalcShape(eip2, shape2);
+         el2.CalcPhysShape(*Trans.Elem2, shape2);
       }
 
       u->Eval(vu, *Trans.Elem1, eip1);
@@ -3895,16 +3893,14 @@ void mfem::HDGConvectionUpwindedIntegrator::AssembleHDGFaceMatrix(
       // Set the integration point in the face and the neighboring elements
       Trans.SetAllIntPoints(&ip);
 
-      // Access the neighboring elements' integration points
-      // Note: eip2 will only contain valid data if Elem2 exists
+      // Access the neighboring elements' integration point
       const IntegrationPoint &eip1 = Trans.GetElement1IntPoint();
-      const IntegrationPoint &eip2 = Trans.GetElement2IntPoint();
 
       trace_el.CalcShape(ip, tr_shape);
-      el1.CalcShape(eip1, shape1);
+      el1.CalcPhysShape(*Trans.Elem1, shape1);
       if (ndof2)
       {
-         el2.CalcShape(eip2, shape2);
+         el2.CalcPhysShape(*Trans.Elem2, shape2);
       }
 
       u->Eval(vu, *Trans.Elem1, eip1);
