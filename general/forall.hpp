@@ -782,7 +782,6 @@ inline void forall_3D_grid(int N, int X, int Y, int Z, int G, lambda &&body)
 
 #ifdef MFEM_USE_MPI
 
-
 // Function mfem::hypre_forall_cpu() similar to mfem::forall, but it always
 // executes on the CPU using sequential or OpenMP-parallel execution based on
 // the hypre build time configuration.
