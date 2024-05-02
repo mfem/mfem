@@ -418,7 +418,9 @@ int main(int argc, char *argv[])
          if (Mt)
          {
             SparseMatrix &Mtm(Mt->SpMat());
-            *S += Mtm;
+            SparseMatrix *Snew = Add(Mtm, *S);
+            delete S;
+            S = Snew;
          }
 
          invM = new DSmoother(Mqm);
