@@ -690,13 +690,10 @@ public:
 
          // All solutions T-vector sizes make up the width of the operator, since
          // they are explicitly provided in Mult() for example.
-         op.width = 0;
-         op.residual_lsize = 0;
-         for (auto &s : op.solutions)
-         {
-            op.width += GetTrueVSize(s);
-            op.residual_lsize += GetVSize(s);
-         }
+
+         op.width = GetTrueVSize(op.fields[test_space_field_idx]);
+         op.residual_lsize = GetVSize(op.fields[test_space_field_idx]);
+
          if constexpr (std::is_same_v<decltype(output_fop), One>)
          {
             op.height = 1;
@@ -819,15 +816,17 @@ public:
          {
             auto R = get_element_restriction(op.fields[test_space_field_idx],
                                              element_dof_ordering);
-            element_restriction_transpose = [R](Vector &r_e, Vector &y)
+            element_restriction_transpose = [R](const Vector &r_e, Vector &y)
             {
                R->MultTranspose(r_e, y);
             };
 
             auto P = get_prolongation(op.fields[test_space_field_idx]);
-            prolongation_transpose = [P](Vector &r_local, Vector &y)
+            prolongation_transpose = [P](const Vector &r_local, Vector &y)
             {
+               // out << "address before P^T: " << y.GetData() << "\n";
                P->MultTranspose(r_local, y);
+               // out << "address after P^T: " << y.GetData() << "\n";
             };
          }
       }
@@ -1396,11 +1395,20 @@ public:
             }
          }
 
-         SparseMatrix mat(GetVSize(op.fields[koutput_to_field[0]]),
-                          GetVSize(op.fields[kinput_to_field[0]]));
+         bool same_test_and_trial = false;
+         if (koutput_to_field[0] ==
+             kinput_to_field[dependent_input_dtq_ops[0].which_input])
+         {
+            same_test_and_trial = true;
+         }
+
+         auto trial_fes = *std::get_if<const ParFiniteElementSpace *>
+                          (&op.fields[kinput_to_field[dependent_input_dtq_ops[0].which_input]].data);
 
          auto test_fes = *std::get_if<const ParFiniteElementSpace *>
                          (&op.fields[koutput_to_field[0]].data);
+
+         SparseMatrix mat(test_fes->GlobalVSize(), trial_fes->GlobalVSize());
 
          if (test_fes == nullptr)
          {
@@ -1416,29 +1424,34 @@ public:
                             num_trial_dof * trial_vdim);
             Array<int> test_vdofs, trial_vdofs;
             test_fes->GetElementVDofs(e, test_vdofs);
-            // TODO: this is a hack which simply takes the fespace of the first variable
-            // without checking if it is dependent
-            GetElementVDofs(op.fields[0], e, trial_vdofs);
+            GetElementVDofs(
+               op.fields[kinput_to_field[dependent_input_dtq_ops[0].which_input]], e,
+               trial_vdofs);
             mat.AddSubMatrix(test_vdofs, trial_vdofs, A_e, 1);
          }
          mat.Finalize();
 
-         HypreParMatrix tmp(test_fes->GetComm(),
-                            test_fes->GlobalVSize(),
-                            test_fes->GetDofOffsets(),
-                            &mat);
-
-         if (A.Height() == 0)
+         if (same_test_and_trial)
          {
+            HypreParMatrix tmp(test_fes->GetComm(),
+                               test_fes->GlobalVSize(),
+                               test_fes->GetDofOffsets(),
+                               &mat);
+
             A = *RAP(&tmp, test_fes->Dof_TrueDof_Matrix());
             A.EliminateBC(op.ess_tdof_list, DiagonalPolicy::DIAG_ONE);
          }
          else
          {
-            auto A_part = RAP(&tmp, test_fes->Dof_TrueDof_Matrix());
-            A += *A_part;
-            A.EliminateBC(op.ess_tdof_list, DiagonalPolicy::DIAG_ONE);
-            delete A_part;
+            HypreParMatrix tmp(test_fes->GetComm(),
+                               test_fes->GlobalVSize(),
+                               trial_fes->GlobalVSize(),
+                               test_fes->GetDofOffsets(),
+                               trial_fes->GetDofOffsets(),
+                               &mat);
+
+            A = *RAP(test_fes->Dof_TrueDof_Matrix(), &tmp, trial_fes->Dof_TrueDof_Matrix());
+            // A.EliminateBC(op.ess_tdof_list, DiagonalPolicy::DIAG_ONE);
          }
       }
 
@@ -1500,11 +1513,6 @@ public:
       solutions(s),
       parameters(p)
    {
-      if (solutions.size() > 1)
-      {
-         MFEM_ABORT("only one trial space allowed at the moment");
-      }
-
       for (int i = 0; i < num_solutions; i++)
       {
          fields[i] = solutions[i];
@@ -1548,7 +1556,6 @@ public:
 
    void SetEssentialTrueDofs(const Array<int> &l) { l.Copy(ess_tdof_list); }
 
-private:
    kernels_tuple kernels;
    ParMesh &mesh;
    const int dim;
