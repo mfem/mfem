@@ -3341,9 +3341,9 @@ class HDGConvectionCenteredIntegrator : public DGTraceIntegrator
    Vector tr_shape, shape1, shape2;
 
 public:
-   /// Construct integrator with $\rho = 1$, $\beta = \alpha/2$.
-   HDGConvectionCenteredIntegrator(VectorCoefficient &u_)
-      : DGTraceIntegrator(u_, 1.) { }
+   /// Construct integrator with $\beta = \alpha/2$.
+   HDGConvectionCenteredIntegrator(VectorCoefficient &u_, real_t a = 1.)
+      : DGTraceIntegrator(u_, a) { }
 
    virtual void AssembleHDGFaceMatrix(const FiniteElement &trace_el,
                                       const FiniteElement &el1,
