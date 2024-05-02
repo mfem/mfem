@@ -2686,7 +2686,12 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(Array<VarOrderBits> &edge_orders,
          mesh->GetFaceEdges(i, E, ori);
          for (int j = 0; j < E.Size(); j++)
          {
+            const VarOrderBits eo0 = edge_orders[E[j]];
             edge_orders[E[j]] |= face_orders[i];
+            if (eo0 != edge_orders[E[j]])
+            {
+               changedEdges.insert(E[j]);
+            }
          }
       }
 

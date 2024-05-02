@@ -3737,11 +3737,9 @@ int ParFiniteElementSpace
                }
             }
 
-            bool mghost = false;
             if (pncmesh->IsGhost(entity, mf.index))
             {
                GetGhostDofs(entity, mf, master_dofs, var0);
-               mghost = true;
             }
             else
             {
