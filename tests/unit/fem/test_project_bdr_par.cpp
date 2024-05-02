@@ -101,7 +101,7 @@ TEST_CASE("ProjectBdrCoefficient", "[Parallel]")
                  MPI_COMM_WORLD);
 #endif
 
-   REQUIRE(global_sum == global_sum_expected);
+   REQUIRE(global_sum == MFEM_Approx(global_sum_expected));
 }
 
 #endif
