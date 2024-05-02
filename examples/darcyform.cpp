@@ -110,21 +110,12 @@ void DarcyForm::EnableHybridization(FiniteElementSpace *constr_space,
       auto fbfi = M_p->GetFBFI();
       if (fbfi->Size())
       {
-         if (fbfi->Size() > 1)
+         SumIntegrator *sbfi = new SumIntegrator(false);
+         for (BilinearFormIntegrator *bfi : *fbfi)
          {
-            SumIntegrator *sbfi = new SumIntegrator();
-            for (BilinearFormIntegrator *bfi : *fbfi)
-            {
-               sbfi->AddIntegrator(bfi);
-            }
-            constr_pot_integ = sbfi;
-            fbfi->DeleteAll();
+            sbfi->AddIntegrator(bfi);
          }
-         else
-         {
-            constr_pot_integ = (*fbfi)[0];
-            fbfi->DeleteFirst(constr_pot_integ);
-         }
+         constr_pot_integ = sbfi;
       }
    }
 
