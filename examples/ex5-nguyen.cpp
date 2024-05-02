@@ -63,6 +63,7 @@ int main(int argc, char *argv[])
    int ny = 0;
    int order = 1;
    bool dg = false;
+   bool upwind_adv = false;
    int problem = 1;
    real_t k = 1.;
    real_t c = 1.;
@@ -84,6 +85,8 @@ int main(int argc, char *argv[])
                   "Finite element order (polynomial degree).");
    args.AddOption(&dg, "-dg", "--discontinuous", "-no-dg",
                   "--no-discontinuous", "Enable DG elements for fluxes.");
+   args.AddOption(&upwind_adv, "-ua", "--upwind-adv", "-ca", "--center-adv",
+                  "Switches between upwinded (1) and centered (0=default) advection stabilization.");
    args.AddOption(&problem, "-p", "--problem",
                   "Problem to solve from the Nguyen paper.");
    args.AddOption(&k, "-k", "--kappa",
@@ -275,7 +278,14 @@ int main(int argc, char *argv[])
    if (bconv)
    {
       Mt->AddDomainIntegrator(new ConservativeConvectionIntegrator(ccoeff));
-      Mt->AddInteriorFaceIntegrator(new HDGConvectionCenteredIntegrator(ccoeff));
+      if (upwind_adv)
+      {
+         Mt->AddInteriorFaceIntegrator(new HDGConvectionUpwindedIntegrator(ccoeff));
+      }
+      else
+      {
+         Mt->AddInteriorFaceIntegrator(new HDGConvectionCenteredIntegrator(ccoeff));
+      }
    }
 
    //set hybridization / assembly level
