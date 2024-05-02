@@ -7,15 +7,15 @@ using namespace mfem;
 
 void testFunc(const Vector &p, Vector &V)
 {
-  const double x = p[0];
-  const double y = p[1];
-  const double z = p[2];
+   const double x = p[0];
+   const double y = p[1];
+   const double z = p[2];
 
-  V.SetSize(3);
-  V[0] = cos(M_PI * x) * cos(M_PI * y) * cos(M_PI * z);
-  V[1] = cos(M_PI * x) * cos(M_PI * y) * cos(M_PI * z);
-  V[2] = cos(M_PI * x) * cos(M_PI * y) * cos(M_PI * z);
-  V /= sqrt(3.0);
+   V.SetSize(3);
+   V[0] = cos(M_PI * x) * cos(M_PI * y) * cos(M_PI * z);
+   V[1] = cos(M_PI * x) * cos(M_PI * y) * cos(M_PI * z);
+   V[2] = cos(M_PI * x) * cos(M_PI * y) * cos(M_PI * z);
+   V /= sqrt(3.0);
 }
 
 int main(int argc, char *argv[])
@@ -26,7 +26,7 @@ int main(int argc, char *argv[])
    int o = 1;
    double d = 0.0;
    bool visualization = true;
-   
+
    OptionsParser args(argc, argv);
    args.AddOption(&e, "-e", "--elem-type", "Element Type: [4,7]");
    args.AddOption(&nx, "-n", "--n", "Num elems in 1D");
@@ -44,49 +44,49 @@ int main(int argc, char *argv[])
    ND_FECollection fec2(o, 3);
 
    FiniteElementCollection &fec = (o == 1) ?
-     (FiniteElementCollection&)fec1 : (FiniteElementCollection&)fec2;
+                                  (FiniteElementCollection&)fec1 : (FiniteElementCollection&)fec2;
 
    Vector errs(r+1); errs = -1.0;
    Vector conv(r);
    for (int i = 0; i <= r; i++)
    {
-     int n = nx * pow(2, i);
-     Mesh mesh = Mesh::MakeCartesian3D(n,n,n,(Element::Type)e);
+      int n = nx * pow(2, i);
+      Mesh mesh = Mesh::MakeCartesian3D(n,n,n,(Element::Type)e);
 
-     if (d > 0.0)
-     {
-       const double max = (double)(RAND_MAX) + 1.0;       
-       const double h = 1.0 / n;
+      if (d > 0.0)
+      {
+         const double max = (double)(RAND_MAX) + 1.0;
+         const double h = 1.0 / n;
 
-       Vector disp(3*mesh.GetNV());
-       for (int j=0; j<disp.Size(); j++)
-       {
-	 disp[j] = (2.0 * rand()/max - 1.0) * h * d;
-       }
-     
-       mesh.MoveVertices(disp);
-     }
+         Vector disp(3*mesh.GetNV());
+         for (int j=0; j<disp.Size(); j++)
+         {
+            disp[j] = (2.0 * rand()/max - 1.0) * h * d;
+         }
 
-     FiniteElementSpace fes(&mesh, &fec);
+         mesh.MoveVertices(disp);
+      }
 
-     GridFunction x(&fes);
-     x.ProjectCoefficient(testCoef);
-     errs[i] = x.ComputeL2Error(testCoef);
-     cout << "DoFs / L2 Error / Conv: " << fes.GetNDofs() << " / " << errs[i];
-     if (i > 0)
-     {
-       conv[i-1] = errs[i-1] / errs[i];
-       cout << " / " << conv[i-1];
-     }
-     cout << endl;
+      FiniteElementSpace fes(&mesh, &fec);
 
-     if (visualization)
-     {
-       char vishost[] = "localhost";
-       int  visport   = 19916;
-       socketstream sol_sock(vishost, visport);
-       sol_sock.precision(8);
-       sol_sock << "solution\n" << mesh << x << flush;
-     }
+      GridFunction x(&fes);
+      x.ProjectCoefficient(testCoef);
+      errs[i] = x.ComputeL2Error(testCoef);
+      cout << "DoFs / L2 Error / Conv: " << fes.GetNDofs() << " / " << errs[i];
+      if (i > 0)
+      {
+         conv[i-1] = errs[i-1] / errs[i];
+         cout << " / " << conv[i-1];
+      }
+      cout << endl;
+
+      if (visualization)
+      {
+         char vishost[] = "localhost";
+         int  visport   = 19916;
+         socketstream sol_sock(vishost, visport);
+         sol_sock.precision(8);
+         sol_sock << "solution\n" << mesh << x << flush;
+      }
    }
 }

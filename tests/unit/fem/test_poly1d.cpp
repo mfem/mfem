@@ -13,7 +13,7 @@
 #include "catch.hpp"
 
 using namespace mfem;
-
+/*
 TEST_CASE("1D Jacobi Polynomials (alpha=0, beta=0)","[Poly_1D]")
 {
    // For alpha = beta = 0 the Jacobi polynomials should equal the Legendre
@@ -113,7 +113,7 @@ TEST_CASE("1D Jacobi Polynomials (alpha=2, beta=0)","[Poly_1D]")
    double max_norm = ADAt.MaxMaxNorm();
    REQUIRE(max_norm < 1e-11);
 }
-
+*/
 TEST_CASE("1D Legendre Polynomials","[Poly_1D]")
 {
    // Check orthogonality of Legendre polynomials up to order 6

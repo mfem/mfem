@@ -5126,8 +5126,8 @@ Nedelec2PyrFiniteElement::Nedelec2PyrFiniteElement()
    const double  fop = 1. / 3.;
 
    std::cout << "Open points (on edges): "
-	     << eop[0] << " " << eop[1] << std::endl;
-   
+             << eop[0] << " " << eop[1] << std::endl;
+
    // not real nodes ...
    Nodes.IntPoint(0).Set3(eop[0], 0., 0.);
    Nodes.IntPoint(1).Set3(eop[1], 0., 0.);
@@ -5161,33 +5161,33 @@ Nedelec2PyrFiniteElement::Nedelec2PyrFiniteElement()
 
    Nodes.IntPoint(20).Set3(fop, 0., fop);
    Nodes.IntPoint(21).Set3(fop, 0., fop);
-   
+
    Nodes.IntPoint(22).Set3(2.*fop, fop, fop);
    Nodes.IntPoint(23).Set3(2.*fop, fop, fop);
-   
+
    Nodes.IntPoint(24).Set3(fop, 2.*fop, fop);
    Nodes.IntPoint(25).Set3(fop, 2.*fop, fop);
-   
+
    Nodes.IntPoint(26).Set3(0., fop, fop);
    Nodes.IntPoint(27).Set3(0., fop, fop);
-   
-   {
-     int n = 28;
-     DenseMatrix I(n,n);
-     DenseMatrix vecs(n,3);
-     I = 0.0;
 
-     for (int i=0; i<n; i++)
-     {
-       CalcVShape(Nodes.IntPoint(i), vecs);
-       for (int j=0; j<n; j++)
-       {
-	 I(j,i) = vecs(j,0)*tk[i][0]+vecs(j,1)*tk[i][1]+vecs(j,2)*tk[i][2];
-       }
-     }
-     I.Print(std::cout);
-     std::cout << "Trace: " << I.Trace() << std::endl;
-     std::cout << "Square of Frobenius Norm: " << I.FNorm2() << std::endl;
+   {
+      int n = 28;
+      DenseMatrix I(n,n);
+      DenseMatrix vecs(n,3);
+      I = 0.0;
+
+      for (int i=0; i<n; i++)
+      {
+         CalcVShape(Nodes.IntPoint(i), vecs);
+         for (int j=0; j<n; j++)
+         {
+            I(j,i) = vecs(j,0)*tk[i][0]+vecs(j,1)*tk[i][1]+vecs(j,2)*tk[i][2];
+         }
+      }
+      I.Print(std::cout);
+      std::cout << "Trace: " << I.Trace() << std::endl;
+      std::cout << "Square of Frobenius Norm: " << I.FNorm2() << std::endl;
    }
 }
 
@@ -5256,41 +5256,51 @@ void Nedelec2PyrFiniteElement::CalcVShape(const IntegrationPoint &ip,
    const double me1211[3] = {0., x * (y - oy), x * y * (y - oy) * ozi};
 
    const double te01[3] = {oy * z * ozi, ox * z * ozi,
-			   (ox * oy + (x * oy + ox * y) * z) * ozi * ozi};
+                           (ox * oy + (x * oy + ox * y) * z) * ozi * ozi
+                          };
    const double te11[3] = {oy * z * (z * oz - ox * oy) * ozi * ozi,
-			   ox * z * (z * oz - ox * oy) * ozi * ozi,
-			   (ox * oy + z * (x * oy + ox * y)) *
-			   (z * oz - ox * oy) * ozi * ozi * ozi};
+                           ox * z * (z * oz - ox * oy) * ozi * ozi,
+                           (ox * oy + z * (x * oy + ox * y)) *
+                           (z * oz - ox * oy) * ozi * ozi * ozi
+                          };
 
    const double te02[3] = {-oy * z * ozi, x * z * ozi,
-			   x * (y * z + oy * oz) * ozi * ozi};
+                           x * (y * z + oy * oz) * ozi * ozi
+                          };
    const double te12[3] = {oy * z * (x * oy - z * oz) * ozi * ozi,
-			   -x * z * (x * oy - z * oz) * ozi * ozi,
-			   -x * (y * z + oy * oz) * (x * oy - z * oz)
-			   * ozi * ozi * ozi};
-   
+                           -x * z * (x * oy - z * oz) * ozi * ozi,
+                           -x * (y * z + oy * oz) * (x * oy - z * oz)
+                           * ozi * ozi * ozi
+                          };
+
    const double te03[3] = {-y * z * ozi, -x * z * ozi,
-			   x * y * (1. - 2. * z) * ozi * ozi};
+                           x * y * (1. - 2. * z) * ozi * ozi
+                          };
    const double te13[3] = {y * z * (x * y - z * oz) * ozi * ozi,
-			   x * z * (x * y - z * oz) * ozi * ozi,
-			   -x * y * (1. - 2. * z) * (x * y - z * oz)
-			   * ozi * ozi * ozi};
+                           x * z * (x * y - z * oz) * ozi * ozi,
+                           -x * y * (1. - 2. * z) * (x * y - z * oz)
+                           * ozi * ozi * ozi
+                          };
 
    const double te04[3] = {y * z * ozi, -ox * z * ozi,
-			   y * (x * z + ox * oz) * ozi * ozi};
+                           y * (x * z + ox * oz) * ozi * ozi
+                          };
    const double te14[3] = {-y * z * (ox * y - z * oz) * ozi * ozi,
-			   ox * z * (ox * y - z * oz) * ozi * ozi,
-			   -y * (x * z + ox * oz) * (ox * y - z * oz)
-			   * ozi * ozi * ozi};
-   
+                           ox * z * (ox * y - z * oz) * ozi * ozi,
+                           -y * (x * z + ox * oz) * (ox * y - z * oz)
+                           * ozi * ozi * ozi
+                          };
+
    const double qI02[3] = {-y * oy * ozi, 0., -x * y * oy * ozi * ozi};
    const double qI12[3] = {-(x - ox) * y * oy * ozi * ozi, 0.,
-			   -(x - ox) * x * y * oy * ozi * ozi * ozi};
+                           -(x - ox) * x * y * oy * ozi * ozi * ozi
+                          };
 
    const double qII02[3] = {0., -x * ox * ozi, -x * y * ox * ozi * ozi};
    const double qII12[3] = {0., -x * ox * (y - oy) * ozi * ozi,
-			    -x * ox * y * (y - oy) * ozi * ozi * ozi};
-   
+                            -x * ox * y * (y - oy) * ozi * ozi * ozi
+                           };
+
    const double tI120[3] = {oy * z, 0., x * oy * z * ozi};
    const double tI121[3] = {y * z, 0., x * y * z * ozi};
    const double tI210[3] = {0., ox * z, ox * y * z * ozi};
@@ -5304,156 +5314,156 @@ void Nedelec2PyrFiniteElement::CalcVShape(const IntegrationPoint &ip,
    // Edge 0,1
    for (int d=0; d<3; d++)
    {
-     shape(0,d) = 0.5 * me0120[d] + qI02[d]
-       - sq3 * (0.5 * me1120[d] + qI12[d]) - 1.5 * tI120[d];
+      shape(0,d) = 0.5 * me0120[d] + qI02[d]
+                   - sq3 * (0.5 * me1120[d] + qI12[d]) - 1.5 * tI120[d];
    }
    for (int d=0; d<3; d++)
    {
-     shape(1,d) = 0.5 * me0120[d] + qI02[d]
-       + sq3 * (0.5 * me1120[d] + qI12[d]) - 1.5 * tI120[d];
+      shape(1,d) = 0.5 * me0120[d] + qI02[d]
+                   + sq3 * (0.5 * me1120[d] + qI12[d]) - 1.5 * tI120[d];
    }
 
    // Edge 1,2
    for (int d=0; d<3; d++)
    {
-     shape(2,d) = 0.5 * me0211[d] + qII02[d]
-       - sq3 * (0.5 * me1211[d] + qII12[d]) - 1.5 * tI211[d];
+      shape(2,d) = 0.5 * me0211[d] + qII02[d]
+                   - sq3 * (0.5 * me1211[d] + qII12[d]) - 1.5 * tI211[d];
    }
    for (int d=0; d<3; d++)
    {
-     shape(3,d) = 0.5 * me0211[d] + qII02[d]
-       + sq3 * (0.5 * me1211[d] + qII12[d]) - 1.5 * tI211[d];
+      shape(3,d) = 0.5 * me0211[d] + qII02[d]
+                   + sq3 * (0.5 * me1211[d] + qII12[d]) - 1.5 * tI211[d];
    }
 
    // Edge 3,2
    for (int d=0; d<3; d++)
    {
-     shape(4,d) = 0.5 * me0121[d] + qI02[d]
-       - sq3 * (0.5 * me1121[d] + qI12[d]) - 1.5 * tI121[d];
+      shape(4,d) = 0.5 * me0121[d] + qI02[d]
+                   - sq3 * (0.5 * me1121[d] + qI12[d]) - 1.5 * tI121[d];
    }
    for (int d=0; d<3; d++)
    {
-     shape(5,d) = 0.5 * me0121[d] + qI02[d]
-       + sq3 * (0.5 * me1121[d] + qI12[d]) - 1.5 * tI121[d];
+      shape(5,d) = 0.5 * me0121[d] + qI02[d]
+                   + sq3 * (0.5 * me1121[d] + qI12[d]) - 1.5 * tI121[d];
    }
 
    // Edge 0,3
    for (int d=0; d<3; d++)
    {
-     shape(6,d) = 0.5 * me0210[d] + qII02[d]
-       - sq3 * (0.5 * me1210[d] + qII12[d]) - 1.5 * tI210[d];
+      shape(6,d) = 0.5 * me0210[d] + qII02[d]
+                   - sq3 * (0.5 * me1210[d] + qII12[d]) - 1.5 * tI210[d];
    }
    for (int d=0; d<3; d++)
    {
-     shape(7,d) = 0.5 * me0210[d] + qII02[d]
-       + sq3 * (0.5 * me1210[d] + qII12[d]) - 1.5 * tI210[d];
+      shape(7,d) = 0.5 * me0210[d] + qII02[d]
+                   + sq3 * (0.5 * me1210[d] + qII12[d]) - 1.5 * tI210[d];
    }
 
    // Edge 0,4
    for (int d=0; d<3; d++)
    {
-     shape(8,d) = 0.5 * te01[d] - sq3 * 0.5 * te11[d]
-       - 1.5 * (tI120[d] + tII120[d] + tI210[d] + tII210[d]);
+      shape(8,d) = 0.5 * te01[d] - sq3 * 0.5 * te11[d]
+                   - 1.5 * (tI120[d] + tII120[d] + tI210[d] + tII210[d]);
    }
    for (int d=0; d<3; d++)
    {
-     shape(9,d) = 0.5 * te01[d] + sq3 * 0.5 * te11[d]
-       - 1.5 * (tI120[d] + tII120[d] + tI210[d] + tII210[d]);
+      shape(9,d) = 0.5 * te01[d] + sq3 * 0.5 * te11[d]
+                   - 1.5 * (tI120[d] + tII120[d] + tI210[d] + tII210[d]);
    }
 
    // Edge 1,4
    for (int d=0; d<3; d++)
    {
-     shape(10,d) = 0.5 * te02[d] - sq3 * 0.5 * te12[d]
-       - 1.5 * (tII120[d] + tI211[d] + tII211[d]);
+      shape(10,d) = 0.5 * te02[d] - sq3 * 0.5 * te12[d]
+                    - 1.5 * (tII120[d] + tI211[d] + tII211[d]);
    }
    for (int d=0; d<3; d++)
    {
-     shape(11,d) = 0.5 * te02[d] + sq3 * 0.5 * te12[d]
-       - 1.5 * (tII120[d] + tI211[d] + tII211[d]);
+      shape(11,d) = 0.5 * te02[d] + sq3 * 0.5 * te12[d]
+                    - 1.5 * (tII120[d] + tI211[d] + tII211[d]);
    }
 
    // Edge 2,4
    for (int d=0; d<3; d++)
    {
-     shape(12,d) = 0.5 * te03[d] - sq3 * 0.5 * te13[d]
-       - 1.5 * (tII211[d] + tII121[d]);
+      shape(12,d) = 0.5 * te03[d] - sq3 * 0.5 * te13[d]
+                    - 1.5 * (tII211[d] + tII121[d]);
    }
    for (int d=0; d<3; d++)
    {
-     shape(13,d) = 0.5 * te03[d] + sq3 * 0.5 * te13[d]
-       - 1.5 * (tII211[d] + tII121[d]);
+      shape(13,d) = 0.5 * te03[d] + sq3 * 0.5 * te13[d]
+                    - 1.5 * (tII211[d] + tII121[d]);
    }
 
    // Edge 3,4
    for (int d=0; d<3; d++)
    {
-     shape(14,d) = 0.5 * te04[d] - sq3 * 0.5 * te14[d]
-       - 1.5 * (tI121[d] + tII121[d] + tII210[d]);
+      shape(14,d) = 0.5 * te04[d] - sq3 * 0.5 * te14[d]
+                    - 1.5 * (tI121[d] + tII121[d] + tII210[d]);
    }
    for (int d=0; d<3; d++)
    {
-     shape(15,d) = 0.5 * te04[d] + sq3 * 0.5 * te14[d]
-       - 1.5 * (tI121[d] + tII121[d] + tII210[d]);
+      shape(15,d) = 0.5 * te04[d] + sq3 * 0.5 * te14[d]
+                    - 1.5 * (tI121[d] + tII121[d] + tII210[d]);
    }
 
    // Quadrilateral face
    for (int d=0; d<3; d++)
    {
-     shape(16,d) = -2. * qI02[d] + 2. * sq3 * qI12[d];
+      shape(16,d) = -2. * qI02[d] + 2. * sq3 * qI12[d];
    }
    for (int d=0; d<3; d++)
    {
-     shape(17,d) = -2. * qI02[d] - 2. * sq3 * qI12[d];
+      shape(17,d) = -2. * qI02[d] - 2. * sq3 * qI12[d];
    }
 
    for (int d=0; d<3; d++)
    {
-     shape(18,d) = 2. * qII02[d] - 2. * sq3 * qII12[d];
+      shape(18,d) = 2. * qII02[d] - 2. * sq3 * qII12[d];
    }
    for (int d=0; d<3; d++)
    {
-     shape(19,d) = 2. * qII02[d] + 2. * sq3 * qII12[d];
+      shape(19,d) = 2. * qII02[d] + 2. * sq3 * qII12[d];
    }
 
    // Triangular face 0,1,4
    for (int d=0; d<3; d++)
    {
-     shape(20,d) = 3. * tI120[d] - 3. * tII120[d];
+      shape(20,d) = 3. * tI120[d] - 3. * tII120[d];
    }
    for (int d=0; d<3; d++)
    {
-     shape(21,d) = 3. * tI120[d] + 6. * tII120[d];
+      shape(21,d) = 3. * tI120[d] + 6. * tII120[d];
    }
 
    // Triangular face 1,2,4
    for (int d=0; d<3; d++)
    {
-     shape(22,d) = 3. * tI211[d] - 3. * tII211[d];
+      shape(22,d) = 3. * tI211[d] - 3. * tII211[d];
    }
    for (int d=0; d<3; d++)
    {
-     shape(23,d) = 3. * tI211[d] + 6. * tII211[d];
+      shape(23,d) = 3. * tI211[d] + 6. * tII211[d];
    }
 
    // Triangular face 2,3,4
    for (int d=0; d<3; d++)
    {
-     shape(24,d) = -6. * tI121[d] - 3. * tII121[d];
+      shape(24,d) = -6. * tI121[d] - 3. * tII121[d];
    }
    for (int d=0; d<3; d++)
    {
-     shape(25,d) = 3. * tI121[d] + 6. * tII121[d];
+      shape(25,d) = 3. * tI121[d] + 6. * tII121[d];
    }
 
    // Triangular face 3,0,4
    for (int d=0; d<3; d++)
    {
-     shape(26,d) = -6. * tI210[d] - 3. * tII210[d];
+      shape(26,d) = -6. * tI210[d] - 3. * tII210[d];
    }
    for (int d=0; d<3; d++)
    {
-     shape(27,d) = 3. * tI210[d] + 6. * tII210[d];
+      shape(27,d) = 3. * tI210[d] + 6. * tII210[d];
    }
 }
 
@@ -5543,13 +5553,14 @@ const
 }
 
 const double Nedelec2PyrFiniteElement::tk[28][3] =
-{{1,0,0}, {1,0,0}, {0,1,0}, {0,1,0},
- {1,0,0}, {1,0,0}, {0,1,0}, {0,1,0},
- {0,0,1}, {0,0,1}, {-1,0,1}, {-1,0,1},
- {-1,-1,1}, {-1,-1,1}, {0,-1,1}, {0,-1,1},
- {1,0,0}, {1,0,0}, {0,-1,0}, {0,-1,0},
- {1,0,0}, {0,0,1}, {0,1,0}, {-1,0,1},
- {-1,0,0}, {-1,-1,1}, {0,-1,0}, {0,-1,1}
+{
+   {1,0,0}, {1,0,0}, {0,1,0}, {0,1,0},
+   {1,0,0}, {1,0,0}, {0,1,0}, {0,1,0},
+   {0,0,1}, {0,0,1}, {-1,0,1}, {-1,0,1},
+   {-1,-1,1}, {-1,-1,1}, {0,-1,1}, {0,-1,1},
+   {1,0,0}, {1,0,0}, {0,-1,0}, {0,-1,0},
+   {1,0,0}, {0,0,1}, {0,1,0}, {-1,0,1},
+   {-1,0,0}, {-1,-1,1}, {0,-1,0}, {0,-1,1}
 };
 
 void Nedelec2PyrFiniteElement::GetLocalInterpolation (

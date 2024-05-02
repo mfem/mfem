@@ -1646,7 +1646,7 @@ const int *RT1_3DFECollection::DofOrderForOrientation(Geometry::Type GeomType,
 
 
 H1_FECollection::H1_FECollection(const int p, const int dim, const int btype,
-				 const int pyrtype)
+                                 const int pyrtype)
    : FiniteElementCollection(p)
    , dim(dim)
 {
@@ -1847,19 +1847,19 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype,
          H1_dof[Geometry::TETRAHEDRON] = (TriDof*pm3)/3;
          H1_dof[Geometry::CUBE] = QuadDof*pm1;
          H1_dof[Geometry::PRISM] = TriDof*pm1;
-	 if (pyrtype == 0)
-	 {
-	    H1_dof[Geometry::PYRAMID] = pm2*pm1*(2*p-3)/6; // Bergot (JSC)
-	 }
-	 else if (pyrtype == 1)
-	 {
-	    H1_dof[Geometry::PYRAMID] = pm1*pm1*pm1; // Fuentes
-	 }
-	 else
-	 {
-	    H1_dof[Geometry::PYRAMID] = (p-1)*(p-2)/2;
-	    // H1_dof[Geometry::PYRAMID] = 0;
-	 }
+         if (pyrtype == 0)
+         {
+            H1_dof[Geometry::PYRAMID] = pm2*pm1*(2*p-3)/6; // Bergot (JSC)
+         }
+         else if (pyrtype == 1)
+         {
+            H1_dof[Geometry::PYRAMID] = pm1*pm1*pm1; // Fuentes
+         }
+         else
+         {
+            H1_dof[Geometry::PYRAMID] = (p-1)*(p-2)/2;
+            // H1_dof[Geometry::PYRAMID] = 0;
+         }
          if (b_type == BasisType::Positive)
          {
             H1_Elements[Geometry::TETRAHEDRON] = new H1Pos_TetrahedronElement(p);
@@ -1873,13 +1873,13 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype,
             H1_Elements[Geometry::CUBE] = new H1_HexahedronElement(p, btype);
             H1_Elements[Geometry::PRISM] = new H1_WedgeElement(p, btype);
             if (pyrtype == 0)
-	    {
-	      H1_Elements[Geometry::PYRAMID] = new H1_BergotPyramidElement(p, btype);
-	    }
-	    else
-	    {
-	      H1_Elements[Geometry::PYRAMID] = new H1_FuentesPyramidElement(p, btype);
-	    }
+            {
+               H1_Elements[Geometry::PYRAMID] = new H1_BergotPyramidElement(p, btype);
+            }
+            else
+            {
+               H1_Elements[Geometry::PYRAMID] = new H1_FuentesPyramidElement(p, btype);
+            }
          }
          // H1_Elements[Geometry::PYRAMID] = new LinearPyramidFiniteElement;
 
@@ -2233,14 +2233,14 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
             new L2_TetrahedronElement(p, btype);
          L2_Elements[Geometry::CUBE] = new L2_HexahedronElement(p, btype);
          L2_Elements[Geometry::PRISM] = new L2_WedgeElement(p, btype);
-	 if (pyr_type == 0)
-	 {
-	   L2_Elements[Geometry::PYRAMID] = new L2_BergotPyramidElement(p, btype);
-	 }
-	 else
-	 {
-	   L2_Elements[Geometry::PYRAMID] = new L2_FuentesPyramidElement(p, btype);
-	 }
+         if (pyr_type == 0)
+         {
+            L2_Elements[Geometry::PYRAMID] = new L2_BergotPyramidElement(p, btype);
+         }
+         else
+         {
+            L2_Elements[Geometry::PYRAMID] = new L2_FuentesPyramidElement(p, btype);
+         }
       }
       // L2_Elements[Geometry::PYRAMID] = new P0PyrFiniteElement;
 
@@ -2484,8 +2484,9 @@ RT_FECollection::RT_FECollection(const int order, const int dim,
       RT_Elements[Geometry::PRISM] = new RT_WedgeElement(p);
       RT_dof[Geometry::PRISM] = p*pp1*(3*p + 4)/2;
 
-      RT_Elements[Geometry::PYRAMID] = new RT0PyrFiniteElement(false);
-      RT_dof[Geometry::PYRAMID] = 0;
+      // RT_Elements[Geometry::PYRAMID] = new RT0PyrFiniteElement(false);
+      RT_Elements[Geometry::PYRAMID] = new RT_FuentesPyramidElement(p);
+      RT_dof[Geometry::PYRAMID] = 3*p*pp1*pp1;
    }
    else
    {
@@ -2632,17 +2633,20 @@ void RT_FECollection::InitFaces(const int p, const int dim_,
 const FiniteElement *
 RT_FECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
 {
-   if (GeomType != Geometry::PYRAMID || this->GetOrder() == 1)
-   {
-      return RT_Elements[GeomType];
-   }
-   else
-   {
-      if (error_mode == RETURN_NULL) { return nullptr; }
-      MFEM_ABORT("RT Pyramid basis functions are not yet supported "
-                 "for order > 0.");
-      return NULL;
-   }
+   /*
+    if (GeomType != Geometry::PYRAMID || this->GetOrder() == 1)
+    {
+       return RT_Elements[GeomType];
+    }
+    else
+    {
+       if (error_mode == RETURN_NULL) { return nullptr; }
+       MFEM_ABORT("RT Pyramid basis functions are not yet supported "
+                  "for order > 0.");
+       return NULL;
+    }
+   */
+   return RT_Elements[GeomType];
 }
 
 const int *RT_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
