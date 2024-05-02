@@ -16,17 +16,19 @@
 
 #ifdef MFEM_USE_MPI
 
+#include "../general/globals.hpp"
+#include "sparsemat.hpp"
+#include "hypre_parcsr.hpp"
 #include <mpi.h>
 
 // Enable internal hypre timing routines
 #define HYPRE_TIMING
 
 // hypre header files
-#include "seq_mv.h"
-#include "_hypre_parcsr_mv.h"
-#include "_hypre_parcsr_ls.h"
-#include "temp_multivector.h"
-#include "../general/globals.hpp"
+#include <seq_mv.h>
+#include <temp_multivector.h>
+#include <_hypre_parcsr_mv.h>
+#include <_hypre_parcsr_ls.h>
 
 #ifdef HYPRE_COMPLEX
 #error "MFEM does not work with HYPRE's complex numbers support"
@@ -50,9 +52,6 @@
 #if defined(HYPRE_USING_HIP) && !defined(MFEM_USE_HIP)
 #error "MFEM_USE_HIP=YES is required when HYPRE is built with HIP!"
 #endif
-
-#include "sparsemat.hpp"
-#include "hypre_parcsr.hpp"
 
 namespace mfem
 {
