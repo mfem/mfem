@@ -3137,8 +3137,8 @@ void GatherBlockOffsetData(MPI_Comm comm, const int rank, const int nprocs,
    }
 }
 
-HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
-                                          Array2D<real_t> *blockCoeff)
+HypreParMatrix *HypreParMatrixFromBlocks(Array2D<const HypreParMatrix*> &blocks,
+                                         Array2D<real_t> *blockCoeff)
 {
    const int numBlockRows = blocks.NumRows();
    const int numBlockCols = blocks.NumCols();
@@ -3373,6 +3373,20 @@ HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
                                 rowStarts2.data(),
                                 colStarts2.data());
    }
+}
+
+HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
+                                          Array2D<real_t> *blockCoeff)
+{
+   Array2D<const HypreParMatrix*> constBlocks(blocks.NumRows(), blocks.NumCols());
+   for (int i = 0; i < blocks.NumRows(); ++i)
+   {
+      for (int j = 0; j < blocks.NumCols(); ++j)
+      {
+         constBlocks(i, j) = blocks(i, j);
+      }
+   }
+   return HypreParMatrixFromBlocks(constBlocks, blockCoeff);
 }
 
 void EliminateBC(const HypreParMatrix &A, const HypreParMatrix &Ae,
@@ -3660,6 +3674,34 @@ void HypreSmoother::SetOperator(const Operator &op)
       }
    }
 
+#if MFEM_HYPRE_VERSION < 22100
+   switch (type)
+   {
+      case 3:
+      case 6:
+      case 8:
+      case 10:
+      case 13:
+      case 14:
+         Z = new HypreParVector(*A);
+   }
+#elif defined(HYPRE_USING_GPU)
+   switch (type)
+   {
+      case 0:
+      case 1:
+      case 5:
+      case 7:
+      case 16:
+      case 18:
+      case 30:
+      case 1001:
+      case 1002:
+         break;
+      default:
+         Z = new HypreParVector(*A);
+   }
+#endif
    if (type == 16)
    {
       poly_scale = 1;
@@ -4697,6 +4739,11 @@ void HypreParaSails::SetFilter(real_t filter)
    HYPRE_ParaSailsSetFilter(sai_precond, filter);
 }
 
+void HypreParaSails::SetSymmetry(int sym)
+{
+   HYPRE_ParaSailsSetSym(sai_precond, sym);
+}
+
 void HypreParaSails::SetLoadBal(real_t loadbal)
 {
    HYPRE_ParaSailsSetLoadbal(sai_precond, loadbal);
@@ -4710,11 +4757,6 @@ void HypreParaSails::SetReuse(int reuse)
 void HypreParaSails::SetLogging(int logging)
 {
    HYPRE_ParaSailsSetLogging(sai_precond, logging);
-}
-
-void HypreParaSails::SetSymmetry(int sym)
-{
-   HYPRE_ParaSailsSetSym(sai_precond, sym);
 }
 
 HypreParaSails::~HypreParaSails()

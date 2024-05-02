@@ -199,7 +199,6 @@ public:
       {
          mesh->GetElementTransformation(elem, &Tr);
          MFIRs.GetSurfaceIntegrationRule(Tr, ir);
-         Vector w;
          MFIRs.GetSurfaceWeights(Tr, ir, w);
          SurfaceWeights.SetCol(elem, w);
 
@@ -505,7 +504,7 @@ int main(int argc, char *argv[])
 {
 #ifndef MFEM_USE_LAPACK
    cout << "MFEM must be built with LAPACK for this example." << endl;
-   return EXIT_FAILURE;
+   return MFEM_SKIP_RETURN_VALUE;
 #else
    // 1. Parse he command-line options.
    int ref_levels = 3;
