@@ -16,17 +16,19 @@
 
 #ifdef MFEM_USE_MPI
 
+#include "../general/globals.hpp"
+#include "sparsemat.hpp"
+#include "hypre_parcsr.hpp"
 #include <mpi.h>
 
 // Enable internal hypre timing routines
 #define HYPRE_TIMING
 
 // hypre header files
-#include "seq_mv.h"
-#include "_hypre_parcsr_mv.h"
-#include "_hypre_parcsr_ls.h"
-#include "temp_multivector.h"
-#include "../general/globals.hpp"
+#include <seq_mv.h>
+#include <temp_multivector.h>
+#include <_hypre_parcsr_mv.h>
+#include <_hypre_parcsr_ls.h>
 
 #ifdef HYPRE_COMPLEX
 #error "MFEM does not work with HYPRE's complex numbers support"
@@ -51,9 +53,6 @@
 #error "MFEM_USE_HIP=YES is required when HYPRE is built with HIP!"
 #endif
 
-#include "sparsemat.hpp"
-#include "hypre_parcsr.hpp"
-
 namespace mfem
 {
 
@@ -75,11 +74,19 @@ public:
    static void Init() { Instance(); }
 
    /// @brief Configure HYPRE's compute and memory policy.
+   ///
    /// By default HYPRE will be configured with the same policy as MFEM unless
-   /// `Hypre::configure_hypre_runtime_policy_from_mfem` is false, in which case
+   /// `Hypre::configure_runtime_policy_from_mfem` is false, in which case
    /// HYPRE's default will be used; if HYPRE is built for the GPU and the
    /// aforementioned variable is false then HYPRE will use the GPU even if MFEM
    /// is not.
+   ///
+   /// This function is no-op if HYPRE is built without GPU support or the HYPRE
+   /// version is less than 2.31.0.
+   ///
+   /// This function is NOT called by Init(). Instead it is called by
+   /// Device::Configure() (when MFEM_USE_MPI=YES) after the MFEM device
+   /// configuration is complete.
    static void InitDevice();
 
    /// @brief Finalize hypre (called automatically at program exit if
@@ -89,8 +96,12 @@ public:
    /// called manually to more precisely control when hypre is finalized.
    static void Finalize();
 
-   /// Use MFEM's device policy to configure HYPRE's device policy, true by default.
-   static bool configure_hypre_runtime_policy_from_mfem;
+   /// @brief Use MFEM's device policy to configure HYPRE's device policy, true
+   /// by default. This variable is used by InitDevice().
+   ///
+   /// This value is not used if HYPRE is build without GPU support or the HYPRE
+   /// version is less than 2.31.0.
+   static bool configure_runtime_policy_from_mfem;
 
 private:
    /// Calls HYPRE_Init() when the singleton is constructed.
@@ -144,15 +155,23 @@ inline MemoryClass GetHypreMemoryClass()
 {
 #if !defined(HYPRE_USING_GPU)
    return MemoryClass::HOST;
-#elif defined(HYPRE_USING_UNIFIED_MEMORY)
+#elif MFEM_HYPRE_VERSION < 23100
+#if defined(HYPRE_USING_UNIFIED_MEMORY)
    return MemoryClass::MANAGED;
 #else
-#if MFEM_HYPRE_VERSION >= 23100
-   return (GetHypreMemoryLocation() == HYPRE_MEMORY_DEVICE) ? MemoryClass::DEVICE :
-          MemoryClass::HOST;
-#else // MFEM_HYPRE_VERSION >= 23100
    return MemoryClass::DEVICE;
-#endif // MFEM_HYPRE_VERSION >= 23100
+#endif
+#else // HYPRE_USING_GPU is defined and MFEM_HYPRE_VERSION >= 23100
+   if (GetHypreMemoryLocation() == HYPRE_MEMORY_HOST)
+   {
+      return MemoryClass::HOST;
+   }
+   // Return the actual memory location, see hypre_GetActualMemLocation():
+#if defined(HYPRE_USING_UNIFIED_MEMORY)
+   return MemoryClass::MANAGED;
+#else
+   return MemoryClass::DEVICE;
+#endif
 #endif
 }
 
@@ -161,32 +180,26 @@ inline MemoryType GetHypreMemoryType()
 {
 #if !defined(HYPRE_USING_GPU)
    return Device::GetHostMemoryType();
-#elif defined(HYPRE_USING_UNIFIED_MEMORY)
+#elif MFEM_HYPRE_VERSION < 23100
+#if defined(HYPRE_USING_UNIFIED_MEMORY)
    return MemoryType::MANAGED;
 #else
-#if MFEM_HYPRE_VERSION >= 23100
-   return (GetHypreMemoryLocation() == HYPRE_MEMORY_DEVICE) ? MemoryType::DEVICE :
-          Device::GetHostMemoryType();
-#else // MFEM_HYPRE_VERSION >= 23100
    return MemoryType::DEVICE;
-#endif // MFEM_HYPRE_VERSION >= 23100
+#endif
+#else // HYPRE_USING_GPU is defined and MFEM_HYPRE_VERSION >= 23100
+   if (GetHypreMemoryLocation() == HYPRE_MEMORY_HOST)
+   {
+      return Device::GetHostMemoryType();
+   }
+   // Return the actual memory location, see hypre_GetActualMemLocation():
+#if defined(HYPRE_USING_UNIFIED_MEMORY)
+   return MemoryType::MANAGED;
+#else
+   return MemoryType::DEVICE;
+#endif
 #endif
 }
 
-inline bool HypreUsingGPU()
-{
-#ifdef HYPRE_USING_GPU
-#if MFEM_HYPRE_VERSION >= 23100
-   HYPRE_MemoryLocation loc;
-   HYPRE_GetMemoryLocation(&loc);
-   return loc == HYPRE_MEMORY_DEVICE;
-#else // MFEM_HYPRE_VERSION >= 23100
-   return true;
-#endif // MFEM_HYPRE_VERSION >= 23100
-#else
-   return false;
-#endif
-}
 
 /// Wrapper for hypre's parallel vector class
 class HypreParVector : public Vector
@@ -1060,21 +1073,32 @@ protected:
    bool A_is_symmetric;
 
 public:
-   /** Hypre smoother types:
-       0    = Jacobi
-       1    = l1-scaled Jacobi
-       2    = l1-scaled block Gauss-Seidel/SSOR
-       4    = truncated l1-scaled block Gauss-Seidel/SSOR
-       5    = lumped Jacobi
-       6    = Gauss-Seidel
-       10   = On-processor forward solve for matrix w/ triangular structure
-       16   = Chebyshev
-       1001 = Taubin polynomial smoother
-       1002 = FIR polynomial smoother. */
-   enum Type { Jacobi = 0, l1Jacobi = 1, l1GS = 2, l1GStr = 4, lumpedJacobi = 5,
-               GS = 6, OPFS = 10, Chebyshev = 16, Taubin = 1001, FIR = 1002
-             };
+   /// HYPRE smoother types
+   enum Type
+   {
+      Jacobi = 0,       ///< Jacobi
+      l1Jacobi = 1,     ///< l1-scaled Jacobi
+      l1GS = 2,         ///< l1-scaled block Gauss-Seidel/SSOR
+      l1GStr = 4,       ///< truncated l1-scaled block Gauss-Seidel/SSOR
+      lumpedJacobi = 5, ///< lumped Jacobi
+      GS = 6,           ///< Gauss-Seidel
+      OPFS = 10,        /**< On-processor forward solve for matrix w/ triangular
+                             structure */
+      Chebyshev = 16,   ///< Chebyshev
+      Taubin = 1001,    ///< Taubin polynomial smoother
+      FIR = 1002        ///< FIR polynomial smoother
+   };
 
+   /// @deprecated Use DefaultType() instead
+#if !defined(HYPRE_USING_GPU)
+   MFEM_DEPRECATED static constexpr Type default_type = l1GS;
+#else
+   MFEM_DEPRECATED static constexpr Type default_type = l1Jacobi;
+#endif
+
+   /** @brief Default value for the smoother type used by the constructors:
+       Type::l1GS when HYPRE is running on CPU and Type::l1Jacobi when HYPRE is
+       running on GPU. */
    static Type DefaultType()
    {
       return HypreUsingGPU() ? l1Jacobi : l1GS;

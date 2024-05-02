@@ -19,7 +19,7 @@
 #include <type_traits> // std::is_const
 #include <cstddef> // std::max_align_t
 #ifdef MFEM_USE_MPI
-#include <HYPRE_config.h> // HYPRE_USING_GPU
+#include <HYPRE_utilities.h> // for HYPRE_GetMemoryLocation() and others
 #endif
 
 namespace mfem
@@ -869,6 +869,37 @@ public:
 };
 
 
+#ifdef MFEM_USE_MPI
+
+/// Return the configured HYPRE_MemoryLocation
+inline HYPRE_MemoryLocation GetHypreMemoryLocation()
+{
+#if !defined(HYPRE_USING_GPU)
+   return HYPRE_MEMORY_HOST;
+#elif MFEM_HYPRE_VERSION < 23100
+   return HYPRE_MEMORY_DEVICE;
+#else // HYPRE_USING_GPU is defined and MFEM_HYPRE_VERSION >= 23100
+   HYPRE_MemoryLocation loc;
+   HYPRE_GetMemoryLocation(&loc);
+   return loc;
+#endif
+}
+
+/// Return true if HYPRE is configured to use GPU
+inline bool HypreUsingGPU()
+{
+#if !defined(HYPRE_USING_GPU)
+   return false;
+#elif MFEM_HYPRE_VERSION < 23100
+   return true;
+#else // HYPRE_USING_GPU is defined and MFEM_HYPRE_VERSION >= 23100
+   return GetHypreMemoryLocation() != HYPRE_MEMORY_HOST;
+#endif
+}
+
+#endif // MFEM_USE_MPI
+
+
 // Inline methods
 
 template <typename T>
@@ -1000,14 +1031,16 @@ inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
    if (!(base.flags & Registered))
    {
       if (
-#if !defined(HYPRE_USING_GPU) || MFEM_HYPRE_VERSION >= 23100
+#if !defined(HYPRE_USING_GPU)
          // If the following condition is true then MemoryManager::Exists()
          // should also be true:
          IsDeviceMemory(MemoryManager::GetDeviceMemoryType())
-#else
-         // When HYPRE_USING_GPU is defined we always register the 'base' if
-         // the MemoryManager::Exists():
+#elif MFEM_HYPRE_VERSION < 23100
+         // When HYPRE_USING_GPU is defined and HYPRE < 2.31.0, we always
+         // register the 'base' if the MemoryManager::Exists():
          MemoryManager::Exists()
+#else // HYPRE_USING_GPU is defined and MFEM_HYPRE_VERSION >= 23100
+         MemoryManager::Exists() && HypreUsingGPU()
 #endif
       )
       {
