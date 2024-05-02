@@ -213,6 +213,11 @@ public:
        MemoryType given by MemoryManager::GetHostMemoryType(). */
    inline void MakeRef(T *data_, int size_, bool own_data = false);
 
+   /// Make this Array a reference to a pointer.
+   /** When @a own_data is true, the pointer @a data_ must be allocated with
+       MemoryType given by @a mt. */
+   inline void MakeRef(T *data_, int size, MemoryType mt, bool own_data);
+
    /// Make this Array a reference to 'master'.
    inline void MakeRef(const Array &master);
 
@@ -878,6 +883,14 @@ inline void Array<T>::MakeRef(T *data_, int size_, bool own_data)
 {
    data.Delete();
    data.Wrap(data_, size_, own_data);
+   size = size_;
+}
+
+template <class T>
+inline void Array<T>::MakeRef(T *data_, int size_, MemoryType mt, bool own_data)
+{
+   data.Delete();
+   data.Wrap(data_, size_, mt, own_data);
    size = size_;
 }
 
