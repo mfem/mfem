@@ -104,7 +104,7 @@ all: $(UNIT_TESTS)
 
 .SUFFIXES:
 .SUFFIXES: .cpp .o
-.PHONY: all clean
+.PHONY: all clean clean-exec
 
 unit_tests: $(SEQ_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
 	$(CCC) $(SEQ_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
@@ -256,6 +256,9 @@ RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP)
 $(MFEM_LIB_FILE):
 	$(error The MFEM library is not built)
 
-clean:
+clean-exec:
+	@rm -rf output_meshes parallel_in_serial.mesh parallel_in_serial.gf
+
+clean: clean-exec
 	rm -f $(SEQ_UNIT_TESTS) $(PAR_UNIT_TESTS) *.o */*.o */*~ *~
-	rm -rf *.dSYM output_meshes parallel_in_serial.mesh parallel_in_serial.gf
+	rm -rf *.dSYM

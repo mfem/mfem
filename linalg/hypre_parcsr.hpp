@@ -16,11 +16,13 @@
 
 #ifdef MFEM_USE_MPI
 
+#include "../general/mem_manager.hpp"
+
 // Enable internal hypre timing routines
 #define HYPRE_TIMING
 
-#include "../general/mem_manager.hpp"
-#include "_hypre_parcsr_mv.h"
+// hypre header files
+#include <_hypre_parcsr_mv.h>
 
 // Older hypre versions do not define HYPRE_BigInt and HYPRE_MPI_BIG_INT, so we
 // define them here for backward compatibility.
@@ -28,35 +30,6 @@
 typedef HYPRE_Int HYPRE_BigInt;
 #define HYPRE_MPI_BIG_INT HYPRE_MPI_INT
 #endif
-
-namespace mfem
-{
-
-#if MFEM_HYPRE_VERSION >= 23100
-inline HYPRE_MemoryLocation GetHypreMemoryLocation()
-{
-   HYPRE_MemoryLocation loc;
-   HYPRE_GetMemoryLocation(&loc);
-   return loc;
-}
-inline HYPRE_ExecutionPolicy GetHypreExecutionPolicy()
-{
-   HYPRE_ExecutionPolicy pol;
-   HYPRE_GetExecutionPolicy(&pol);
-   return pol;
-}
-#else
-inline HYPRE_MemoryLocation GetHypreMemoryLocation()
-{
-#ifdef HYPRE_USING_GPU
-   return HYPRE_MEMORY_DEVICE;
-#else
-   return HYPRE_MEMORY_HOST;
-#endif // HYPRE_USING_GPU
-}
-#endif
-
-} // namespace mfem
 
 // Define macro wrappers for hypre_TAlloc, hypre_CTAlloc and hypre_TFree:
 // mfem_hypre_TAlloc, mfem_hypre_CTAlloc, and mfem_hypre_TFree, respectively.
