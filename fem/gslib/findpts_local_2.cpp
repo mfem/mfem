@@ -70,7 +70,7 @@ static MFEM_HOST_DEVICE inline double obbox_axis_test(const obbox_t *const b,
    double test = 1;
    for (int d = 0; d < 2; ++d)
    {
-      double b_d = (x[d] - b->x[d].min) * (b->x[0].max - x[0]);
+      double b_d = (x[d] - b->x[d].min) * (b->x[d].max - x[d]);
       test = test < 0 ? test : b_d;
    }
    return test;
@@ -844,10 +844,14 @@ static void FindPointsLocal2D_Kernel(const int npt,
 
                            MFEM_FOREACH_THREAD(j,x,nThreads)
                            {
-                              if (j < D1D)
+                              if (j < D1D * 2)
                               {
-                                 lagrange_eval_first_derivative(wtr, tmp->r[0], j, gll1D, lagcoeff, D1D);
-                                 lagrange_eval_first_derivative(wts, tmp->r[1], j, gll1D, lagcoeff, D1D);
+                                 const int qp = j / 2;
+                                 const int d = j % 2;
+                                 lagrange_eval_first_derivative(wtr + 2*d*D1D,
+                                                                tmp->r[d], qp,
+                                                                gll1D, lagcoeff,
+                                                                D1D);
                               }
                            }
                            MFEM_SYNC_THREAD;
