@@ -782,6 +782,19 @@ inline void forall_3D_grid(int N, int X, int Y, int Z, int G, lambda &&body)
 
 #ifdef MFEM_USE_MPI
 
+
+// Function mfem::hypre_forall_cpu() similar to mfem::forall, but it always
+// executes on the CPU using sequential or OpenMP-parallel execution based on
+// the hypre build time configuration.
+template<typename lambda>
+inline void hypre_forall_cpu(int N, lambda &&body)
+{
+#ifdef HYPRE_USING_OPENMP
+   #pragma omp parallel for HYPRE_SMP_SCHEDULE
+#endif
+   for (int i = 0; i < N; i++) { body(i); }
+}
+
 // Function mfem::hypre_forall_gpu() similar to mfem::forall, but it always
 // executes on the GPU device that hypre was configured with at build time.
 #if defined(HYPRE_USING_GPU)
@@ -808,13 +821,13 @@ template<typename lambda>
 inline void hypre_forall(int N, lambda &&body)
 {
 #if !defined(HYPRE_USING_GPU)
-   for (int i = 0; i < N; i++) { body(i); }
+   hypre_forall_cpu(N, body);
 #elif MFEM_HYPRE_VERSION < 23100
    hypre_forall_gpu(N, body);
 #else // HYPRE_USING_GPU is defined and MFEM_HYPRE_VERSION >= 23100
    if (!HypreUsingGPU())
    {
-      for (int i = 0; i < N; i++) { body(i); }
+      hypre_forall_cpu(N, body);
    }
    else
    {
