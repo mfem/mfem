@@ -4451,7 +4451,7 @@ void HDGDiffusionCenteredIntegrator::AssembleFaceMatrix(
          CalcOrtho(Trans.Jacobian(), nor);
       }
 
-      el1.CalcShape(eip1, shape1);
+      el1.CalcPhysShape(*Trans.Elem1, shape1);
       w = ip.weight/Trans.Elem1->Weight();
       if (ndof2)
       {
@@ -4485,7 +4485,7 @@ void HDGDiffusionCenteredIntegrator::AssembleFaceMatrix(
 
       if (ndof2)
       {
-         el2.CalcShape(eip2, shape2);
+         el2.CalcPhysShape(*Trans.Elem2, shape2);
          w = ip.weight/2/Trans.Elem2->Weight();
          if (!MQ)
          {
@@ -4618,7 +4618,7 @@ void HDGDiffusionCenteredIntegrator::AssembleHDGFaceMatrix(
 
       trace_el.CalcShape(ip, tr_shape);
 
-      el1.CalcShape(eip1, shape1);
+      el1.CalcPhysShape(*Trans.Elem1, shape1);
       w = ip.weight/Trans.Elem1->Weight();
       if (ndof2)
       {
@@ -4652,7 +4652,7 @@ void HDGDiffusionCenteredIntegrator::AssembleHDGFaceMatrix(
 
       if (ndof2)
       {
-         el2.CalcShape(eip2, shape2);
+         el2.CalcPhysShape(*Trans.Elem2, shape2);
          w = ip.weight/2/Trans.Elem2->Weight();
          if (!MQ)
          {
