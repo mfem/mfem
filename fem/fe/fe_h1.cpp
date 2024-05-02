@@ -1048,44 +1048,15 @@ H1_FuentesPyramidElement::H1_FuentesPyramidElement(const int p, const int btype)
    const double *cp = poly1d.ClosedPoints(p, VerifyNodal(VerifyClosed(btype)));
 
 #ifndef MFEM_THREAD_SAFE
-   /*
-   shape_x.SetSize(p + 1);
-   shape_y.SetSize(p + 1);
-   shape_z.SetSize(p + 1);
-   dshape_x.SetSize(p + 1);
-   dshape_y.SetSize(p + 1);
-   dshape_z.SetSize(p + 1);
-   ddshape_x.SetSize(p + 1);
-   ddshape_y.SetSize(p + 1);
-   ddshape_z.SetSize(p + 1);
-   u.SetSize(dof);
-   du.SetSize(dof, dim);
-   ddu.SetSize(dof, (dim * (dim + 1)) / 2);
-   */
-   shape_0.SetSize(p + 1);
-   shape_1.SetSize(p + 1);
-   shape_2.SetSize(p + 1);
-   dshape_0_0.SetSize(p + 1);
-   dshape_1_0.SetSize(p + 1);
-   dshape_2_0.SetSize(p + 1);
-   dshape_0_1.SetSize(p + 1);
-   dshape_1_1.SetSize(p + 1);
-   dshape_2_1.SetSize(p + 1);
+   tmp_i.SetSize(p + 1);
+   tmp_ij.SetSize(p + 1, p + 1);
    u.SetSize(dof);
    du.SetSize(dof, dim);
 #else
-   Vector shape_x(p + 1), shape_y(p + 1), shape_z(p + 1);
-   /*
-   Vector shape_0(p + 1);
-   Vector shape_1(p + 1);
-   Vector shape_2(p + 1);
-   Vector dshape_0_0(p + 1);
-   Vector dshape_1_0(p + 1);
-   Vector dshape_2_0(p + 1);
-   Vector dshape_0_1(p + 1);
-   Vector dshape_1_1(p + 1);
-   Vector dshape_2_1(p + 1);
-   */
+   Vector tmp_i(p + 1);
+   Vector u(dof);
+   DenseMatrix tmp_ij(p + 1, p + 1);
+   DenseMatrix du(dof, dim);
 #endif
 
    // vertices
@@ -1145,21 +1116,18 @@ H1_FuentesPyramidElement::H1_FuentesPyramidElement(const int p, const int btype)
       {
          double w = cp[i] + cp[j] + cp[p-i-j];
          Nodes.IntPoint(o++).Set3(cp[i]/w, cp[0], cp[j]/w);
-         // mfem::out << i << " " << j << "\t" << cp[i]/w << " " << cp[0] << " " << cp[j]/w << std::endl;
       }
    for (int j = 1; j < p; j++)
       for (int i = 1; i + j < p; i++)  // (1,2,4)
       {
          double w = cp[i] + cp[j] + cp[p-i-j];
          Nodes.IntPoint(o++).Set3(1.0 - cp[j]/w, cp[i]/w, cp[j]/w);
-         // mfem::out << i << " " << j << "\t" << 1.0 - cp[j]/w << " " << cp[i]/w << " " << cp[j]/w << std::endl;
       }
    for (int j = 1; j < p; j++)
       for (int i = 1; i + j < p; i++)  // (3,4,2)
       {
          double w = cp[i] + cp[j] + cp[p-i-j];
          Nodes.IntPoint(o++).Set3(cp[j]/w, 1.0 - cp[i]/w, cp[i]/w);
-         // mfem::out << i << " " << j << "\t" << cp[j]/w << " " << 1.0 - cp[i]/w << " " << cp[i]/w << std::endl;
       }
    for (int j = 1; j < p; j++)
       for (int i = 1; i + j < p; i++)  // (0,4,3)
@@ -1167,63 +1135,20 @@ H1_FuentesPyramidElement::H1_FuentesPyramidElement(const int p, const int btype)
          double w = cp[i] + cp[j] + cp[p-i-j];
          Nodes.IntPoint(o++).Set3(cp[0], cp[j]/w, cp[i]/w);
       }
-   /*
-   mfem::out << "pts342 = {";
-   for (int j = 0; j <= p; j++)
-   {
-     for (int i = 0; i + j <= p; i++)  // (3,4,2)
-     {
-       double w = cp[i] + cp[j] + cp[p-i-j];
-       mfem::out << "{" << cp[j] / w
-       << "," << 1.0 - cp[i] / w
-       << "," << cp[i] / w << "}";
-       if (i + j != p) mfem::out << ",";
-     }
-     if (j != p) mfem::out << ",";
-     mfem::out << std::endl;
-   }
-   mfem::out << "};\npts043 = {";
-   for (int j = 0; j <= p; j++)
-   {
-     for (int i = 0; i + j <= p; i++)  // (0,4,3)
-     {
-       double w = cp[i] + cp[j] + cp[p-i-j];
-       mfem::out << "{" << cp[0]
-       << "," << cp[j] / w
-       << "," << cp[i] / w << "}";
-       if (i + j != p) mfem::out << ",";
-     }
-     if (j != p) mfem::out << ",";
-     mfem::out << std::endl;
-   }
-   mfem::out << "};\n";
-   */
 
    // Points based on Fuentes' interior bubbles
-   // mfem::out << "pts = {";
    for (int k = 1; k < p; k++)
    {
       for (int j = 1; j < p; j++)
       {
-         // double wjk = cp[j] + cp[k] + cp[p-j-k];
          for (int i = 1; i < p; i++)
          {
-            // double wik = cp[i] + cp[k] + cp[p-i-k];
-            // double w = wik * wjk;
-            // mfem::out << "{" << cp[i] * (1.0 - cp[k])
-            //         << "," << cp[j] * (1.0 - cp[k])
-            //         << "," << cp[k] << "}";
-            // if (i != p - 1) mfem::out << ",";
             Nodes.IntPoint(o++).Set3(cp[i] * (1.0 - cp[k]),
                                      cp[j] * (1.0 - cp[k]),
                                      cp[k]);
          }
-         // if (j != p - 1) mfem::out << ",";
-         // mfem::out << std::endl;
       }
-      // if (k != p - 1) mfem::out << ",";
    }
-   // mfem::out << "};\n";
 
    MFEM_ASSERT(o == dof,
                "Number of nodes does not match the "
@@ -1233,46 +1158,11 @@ H1_FuentesPyramidElement::H1_FuentesPyramidElement(const int p, const int btype)
    for (int m = 0; m < dof; m++)
    {
       const IntegrationPoint &ip = Nodes.IntPoint(m);
-      calcBasis(order, ip,
-                shape_0.GetData(), shape_1.GetData(), shape_2.GetData(),
-                T.GetColumn(m));
+      Vector col(T.GetColumn(m), dof);
+      calcBasis(order, ip, tmp_i, tmp_ij, col);
    }
 
    Ti.Factor(T);
-
-   if (false)
-   {
-      CalcScaledLegendre(6, 0.3, 0.7, shape_0, dshape_0_0, dshape_0_1);
-      mfem::out << "Scaled Legendre: ";
-      for (int i=0; i<6; i++) { mfem::out << '\t' << shape_0[i]; }
-      mfem::out << '\n';
-
-      mfem::out << "Scaled Legendre du/dx:\n";
-      for (int i=0; i<6; i++) { mfem::out << '\t' << dshape_0_0[i]; }
-      mfem::out << '\n';
-
-      double dx = 1e-8;
-      CalcScaledLegendre(6, 0.3+dx, 0.7, shape_2);
-      mfem::out << "Scaled Legendre (x+dx): ";
-      for (int i=0; i<6; i++) { mfem::out << '\t' << shape_2[i]; }
-      mfem::out << '\n';
-      mfem::out << "Scaled Legendre (u(x+dx) - u(x)) / dx:\n";
-      for (int i=0; i<6; i++) { mfem::out << '\t' << (shape_2[i] - shape_0[i]) / dx; }
-      mfem::out << '\n';
-
-      mfem::out << "Scaled Legendre du/dt:\n";
-      for (int i=0; i<6; i++) { mfem::out << '\t' << dshape_0_1[i]; }
-      mfem::out << '\n';
-
-      double dt = 1e-8;
-      CalcScaledLegendre(6, 0.3, 0.7+dt, shape_2);
-      mfem::out << "Scaled Legendre (t+dt): ";
-      for (int i=0; i<6; i++) { mfem::out << '\t' << shape_2[i]; }
-      mfem::out << '\n';
-      mfem::out << "Scaled Legendre (u(t+dt) - u(t)) / dt:\n";
-      for (int i=0; i<6; i++) { mfem::out << '\t' << (shape_2[i] - shape_0[i]) / dt; }
-      mfem::out << '\n';
-   }
 }
 
 void H1_FuentesPyramidElement::CalcShape(const IntegrationPoint &ip,
@@ -1281,18 +1171,12 @@ void H1_FuentesPyramidElement::CalcShape(const IntegrationPoint &ip,
    const int p = order;
 
 #ifdef MFEM_THREAD_SAFE
-   Vector shape_0(order+1);
-   Vector shape_1(order+1);
-   Vector shape_2(order+1);
-   /*
-   Vector shape_x(order+1);
-   Vector shape_y(order+1);
-   Vector shape_z(order+1);
-   */
+   Vector tmp_i(p + 1);
    Vector u(dof);
+   DenseMatrix tmp_ij(p + 1, p + 1);
 #endif
 
-   calcBasis(p, ip, shape_0, shape_1, shape_2, u);
+   calcBasis(p, ip, tmp_i, tmp_ij, u);
 
    Ti.Mult(u, shape);
 }
@@ -1323,19 +1207,15 @@ void H1_FuentesPyramidElement::CalcDShape(const IntegrationPoint &ip,
    int o = 0;
 
    // Vertices
-   grad_lam1(x, y, z, dlam);
-   for (int i = 0; i < 3; i++) { du(0, i) = dlam[i]; }
-   grad_lam2(x, y, z, dlam);
-   for (int i = 0; i < 3; i++) { du(1, i) = dlam[i]; }
-   grad_lam3(x, y, z, dlam);
-   for (int i = 0; i < 3; i++) { du(2, i) = dlam[i]; }
-   grad_lam4(x, y, z, dlam);
-   for (int i = 0; i < 3; i++) { du(3, i) = dlam[i]; }
-   grad_lam5(x, y, z, dlam);
-   for (int i = 0; i < 3; i++) { du(4, i) = dlam[i]; }
+   du.SetRow(0, grad_lam1(x,y,z));
+   du.SetRow(1, grad_lam2(x,y,z));
+   du.SetRow(2, grad_lam3(x,y,z));
+   du.SetRow(3, grad_lam4(x,y,z));
+   du.SetRow(4, grad_lam5(x,y,z));
    o += 5;
 
    // Mixed edges (base edges)
+   /*
    phi_E(p, nu0(x, z), nu1(x, z), shape_0, dshape_0_0, dshape_0_1);
    grad_nu0(x, z, dnu0);
    grad_nu1(x, z, dnu1);
@@ -1576,6 +1456,7 @@ void H1_FuentesPyramidElement::CalcDShape(const IntegrationPoint &ip,
          }
       }
    }
+   */
    /*
    double x = ip.x;
    double y = ip.y;
@@ -1640,12 +1521,15 @@ void H1_FuentesPyramidElement::CalcDShape(const IntegrationPoint &ip,
 
 void H1_FuentesPyramidElement::calcBasis(const int p,
                                          const IntegrationPoint &ip,
-                                         double * tmp_x, double * tmp_y,
-                                         double * tmp_z, double *u)
+                                         Vector &phi_i, DenseMatrix &phi_ij,
+                                         Vector &u) const
 {
-   double x = ip.x;
-   double y = ip.y;
-   double z = ip.z;
+   real_t x = ip.x;
+   real_t y = ip.y;
+   real_t z = ip.z;
+   Vector xy({x,y});
+
+   real_t mu;
 
    int o = 0;
 
@@ -1660,25 +1544,31 @@ void H1_FuentesPyramidElement::calcBasis(const int p,
    // Mixed edges (base edges)
    if (z < 1.0)
    {
-      phi_E(p, nu0(x, z), nu1(x, z), tmp_x);
+      // (a,b) = (1,2), c = 0
+      phi_E(p, nu01(z, xy, 1), phi_i);
+      mu = mu0(z, xy, 2);
       for (int i = 2; i <= p; i++, o++)
       {
-         u[o] = mu0(y / (1.0 - z)) * tmp_x[i];
+         u[o] = mu * phi_i[i];
       }
-      phi_E(p, nu0(y, z), nu1(y, z), tmp_x);
+      // (a,b) = (1,2), c = 1
+      mu = mu1(z, xy, 2);
       for (int i = 2; i <= p; i++, o++)
       {
-         u[o] = mu1(x / (1.0 - z)) * tmp_x[i];
+         u[o] = mu * phi_i[i];
       }
-      phi_E(p, nu0(x, z), nu1(x, z), tmp_x);
+      // (a,b) = (2,1), c = 0
+      phi_E(p, nu01(z, xy, 2), phi_i);
+      mu = mu0(z, xy, 1);
       for (int i = 2; i <= p; i++, o++)
       {
-         u[o] = mu1(y / (1.0 - z)) * tmp_x[i];
+         u[o] = mu * phi_i[i];
       }
-      phi_E(p, nu0(y, z), nu1(y, z), tmp_x);
+      // (a,b) = (2,1), c = 1
+      mu = mu1(z, xy, 1);
       for (int i = 2; i <= p; i++, o++)
       {
-         u[o] = mu0(x / (1.0 - z)) * tmp_x[i];
+         u[o] = mu * phi_i[i];
       }
    }
    else
@@ -1690,37 +1580,37 @@ void H1_FuentesPyramidElement::calcBasis(const int p,
    }
 
    // Triangle edges (upright edges)
-   phi_E(p, lam1(x, y, z), lam4(x, y, z), tmp_x);
+   phi_E(p, lam15(x, y, z), phi_i);
    for (int i = 2; i<= p; i++, o++)
    {
-      u[o] = tmp_x[i];
+      u[o] = phi_i[i];
    }
-   phi_E(p, lam2(x, y, z), lam4(x, y, z), tmp_x);
+   phi_E(p, lam25(x, y, z), phi_i);
    for (int i = 2; i<= p; i++, o++)
    {
-      u[o] = tmp_x[i];
+      u[o] = phi_i[i];
    }
-   phi_E(p, lam3(x, y, z), lam4(x, y, z), tmp_x);
+   phi_E(p, lam35(x, y, z), phi_i);
    for (int i = 2; i<= p; i++, o++)
    {
-      u[o] = tmp_x[i];
+      u[o] = phi_i[i];
    }
-   phi_E(p, lam4(x, y, z), lam4(x, y, z), tmp_x);
+   phi_E(p, lam45(x, y, z), phi_i);
    for (int i = 2; i<= p; i++, o++)
    {
-      u[o] = tmp_x[i];
+      u[o] = phi_i[i];
    }
 
    // Quadrilateral face
    if (z < 1.0)
    {
-      phi_E(p, mu0(x / (1.0 - z)), mu1(x / (1.0 - z)), tmp_x);
-      phi_E(p, mu0(y / (1.0 - z)), mu1(y / (1.0 - z)), tmp_y);
+      phi_Q(p, mu01(z, xy, 1), mu01(z, xy, 2), phi_ij);
+      mu = mu0(z);
       for (int j = 2; j <= p; j++)
       {
          for (int i = 2; i <= p; i++, o++)
          {
-            u[o] = mu0(z) * tmp_x[i] * tmp_y[j];
+            u[o] = mu * phi_ij(i,j);
          }
       }
    }
@@ -1738,42 +1628,36 @@ void H1_FuentesPyramidElement::calcBasis(const int p,
    // Triangular faces
    if (z < 1.0)
    {
-      phi_E(p, nu0(x, z), nu1(x, z), tmp_x);
-      for (int i = 2; i <= p; i++)
-      {
-         CalcIntegratedJacobi(p, 2.0 * i, nu2(x, z), 1.0, tmp_y);
-         for (int j = 1; j <= p - i; j++, o++)
+      // (a,b) = (1,2), c = 0
+      phi_T(p, nu012(z, xy, 1), phi_ij);
+      mu = mu0(z, xy, 2);
+      for (int i = 2; i < p; i++)
+         for (int j = 1; i + j <= p; j++, o++)
          {
-            u[o] = mu0(y / (1.0 - z)) * tmp_x[i] * tmp_y[j];
+            u[o] = mu * phi_ij(i,j);
          }
-      }
-      phi_E(p, nu0(y, z), nu1(y, z), tmp_x);
-      for (int i = 2; i <= p; i++)
-      {
-         CalcIntegratedJacobi(p, 2.0 * i, nu2(y, z), 1.0, tmp_y);
-         for (int j = 1; j <= p - i; j++, o++)
+      // (a,b) = (1,2), c = 1
+      mu = mu1(z, xy, 2);
+      for (int i = 2; i < p; i++)
+         for (int j = 1; i + j <= p; j++, o++)
          {
-            u[o] = mu1(x / (1.0 - z)) * tmp_x[i] * tmp_y[j];
+            u[o] = mu * phi_ij(i,j);
          }
-      }
-      phi_E(p, nu0(x, z), nu1(x, z), tmp_x);
-      for (int i = 2; i <= p; i++)
-      {
-         CalcIntegratedJacobi(p, 2.0 * i, nu2(x, z), 1.0, tmp_y);
-         for (int j = 1; j <= p - i; j++, o++)
+      // (a,b) = (2,1), c = 0
+      phi_T(p, nu012(z, xy, 2), phi_ij);
+      mu = mu0(z, xy, 1);
+      for (int i = 2; i < p; i++)
+         for (int j = 1; i + j <= p; j++, o++)
          {
-            u[o] = mu1(y / (1.0 - z)) * tmp_x[i] * tmp_y[j];
+            u[o] = mu * phi_ij(i,j);
          }
-      }
-      phi_E(p, nu0(y, z), nu1(y, z), tmp_x);
-      for (int i = 2; i <= p; i++)
-      {
-         CalcIntegratedJacobi(p, 2.0 * i, nu2(y, z), 1.0, tmp_y);
-         for (int j = 1; j <= p - i; j++, o++)
+      // (a,b) = (2,1), c = 1
+      mu = mu1(z, xy, 1);
+      for (int i = 2; i < p; i++)
+         for (int j = 1; i + j <= p; j++, o++)
          {
-            u[o] = mu0(x / (1.0 - z)) * tmp_x[i] * tmp_y[j];
+            u[o] = mu * phi_ij(i,j);
          }
-      }
    }
    else
    {
@@ -1786,16 +1670,15 @@ void H1_FuentesPyramidElement::calcBasis(const int p,
    // Interior
    if (z < 1.0)
    {
-      phi_E(p, mu0(x / (1.0 - z)), mu1(x / (1.0 - z)), tmp_x);
-      phi_E(p, mu0(y / (1.0 - z)), mu1(y / (1.0 - z)), tmp_y);
-      phi_E(p, mu0(z), mu1(z), tmp_z);
+      phi_Q(p, mu01(z, xy, 1), mu01(z, xy, 2), phi_ij);
+      phi_E(p, mu01(z), phi_i);
       for (int k = 2; k <= p; k++)
       {
          for (int j = 2; j <= p; j++)
          {
             for (int i = 2; i <= p; i++, o++)
             {
-               u[o] = tmp_x[i] * tmp_y[j] * tmp_z[k];
+               u[o] = phi_ij(i,j) * phi_i(k);
             }
          }
       }
@@ -1807,347 +1690,12 @@ void H1_FuentesPyramidElement::calcBasis(const int p,
          u[o]= 0.0;
       }
    }
-   /*
-   if (p == 3)
-   {
-   if (z < 1.0)
-   {
-      phi_E(p-1, mu0(x / (1.0 - z)), mu1(x / (1.0 - z)), tmp_x);
-      phi_E(p-1, mu0(y / (1.0 - z)), mu1(y / (1.0 - z)), tmp_y);
-      phi_E(p-1, mu0(z), mu1(z), tmp_z);
-      for (int k = 2; k <= p-1; k++)
-      {
-         for (int j = 2; j <= p-1; j++)
-         {
-            for (int i = 2; i <= p-1; i++, o++)
-            {
-               u[o] = tmp_x[i] * tmp_y[j] * tmp_z[k];
-            }
-         }
-      }
-   }
-   else
-   {
-      for (int i = 0; i < (p - 2) * (p - 2) * (p - 2); i++, o++)
-      {
-         u[o]= 0.0;
-      }
-   }
-   }
-   */
 }
 /*
 void H1_FuentesPyramidElement::calcDBasis(const int p, const IntegrationPoint &ip,
                                    DenseMatrix &du)
 {
    du = 0.0;
-}
-*/
-/*
-void H1_FuentesPyramidElement::grad_lam0(const double x, const double y,
-                                 const double z, double du[])
-{
-  du[0] = (z < 1.0) ? - (1.0 - y - z) / (1.0 - z) : 0.0;
-  du[1] = (z < 1.0) ? - (1.0 - x - z) / (1.0 - z) : 0.0;
-  du[2] = (z < 1.0) ? x * y / ((1.0 - z) * (1.0 - z)) - 1.0 : 0.0;
-}
-
-void H1_FuentesPyramidElement::grad_lam1(const double x, const double y,
-                                 const double z, double du[])
-{
-  du[0] = (z < 1.0) ? (1.0 - y - z) / (1.0 - z) : 0.0;
-  du[1] = (z < 1.0) ? - x / (1.0 - z) : 0.0;
-  du[2] = (z < 1.0) ? - x * y / ((1.0 - z) * (1.0 - z)) : 0.0;
-}
-
-void H1_FuentesPyramidElement::grad_lam2(const double x, const double y,
-                                 const double z, double du[])
-{
-  du[0] = (z < 1.0) ? y / (1.0 - z) : 0.0;
-  du[1] = (z < 1.0) ? x / (1.0 - z) : 0.0;
-  du[2] = (z < 1.0) ? x * y / ((1.0 - z) * (1.0 - z)) : 0.0;
-}
-
-void H1_FuentesPyramidElement::grad_lam3(const double x, const double y,
-                                 const double z, double du[])
-{
-  du[0] = (z < 1.0) ? - y / (1.0 - z) : 0.0;
-  du[1] = (z < 1.0) ? (1.0 - x - z) / (1.0 - z) : 0.0;
-  du[2] = (z < 1.0) ? - x * y / ((1.0 - z) * (1.0 - z)) : 0.0;
-}
-
-void H1_FuentesPyramidElement::grad_lam4(const double x, const double y,
-                                 const double z, double du[])
-{
-  du[0] = 0.0;
-  du[1] = 0.0;
-  du[2] = 1.0;
-}
-
-void H1_FuentesPyramidElement::phi_E(const int p, const double s0, double s1,
-                             double *u)
-{
-  calcIntegratedLegendre(p, s1, s0 + s1, u);
-}
-
-void H1_FuentesPyramidElement::phi_E(const int p, const double s0, double s1,
-                             double *u, double *duds0, double *duds1)
-{
-  calcIntegratedLegendre(p, s1, s0 + s1, u, duds1, duds0);
-  for (int i = 0; i <= p; i++) { duds1[i] += duds0[i]; }
-}
-
-void H1_FuentesPyramidElement::calcIntegratedLegendre(const int p, const double x,
-                                              const double t,
-                                              double *u)
-{
-  if (t > 0.0)
-  {
-     calcScaledLegendre(p, x, t, u);
-     for (int i = p; i >= 2; i--)
-     {
-        u[i] = (u[i] - t * t * u[i-2]) / (4.0 * i - 2.0);
-     }
-     if (p >= 1)
-     {
-        u[1] = x;
-     }
-     u[0] = 0.0;
-  }
-  else
-  {
-     for (int i = 0; i <= p; i++)
-     {
-        u[i] = 0.0;
-     }
-  }
-}
-
-void H1_FuentesPyramidElement::calcIntegratedLegendre(const int p, const double x,
-                                              const double t,
-                                              double *u,
-                                              double *dudx, double *dudt)
-{
-  if (t > 0.0)
-  {
-     calcScaledLegendre(p, x, t, u, dudx, dudt);
-     for (int i = p; i >= 2; i--)
-     {
-        u[i] = (u[i] - t * t * u[i-2]) / (4.0 * i - 2.0);
-        dudx[i] = (dudx[i] - t * t * dudx[i-2]) / (4.0 * i - 2.0);
-        dudt[i] = (dudt[i] - t * t * dudt[i-2] - 2.0 * t * u[i-2]) /
-                  (4.0 * i - 2.0);
-     }
-     if (p >= 1)
-     {
-        u[1] = x; dudx[1] = 1.0; dudt[1] = 0.0;
-     }
-     u[0] = 0.0; dudx[0] = 0.0; dudt[0] = 0.0;
-  }
-  else
-  {
-     for (int i = 0; i <= p; i++)
-     {
-        u[i] = 0.0;
-        dudx[i] = 0.0;
-        dudt[i] = 0.0;
-     }
-  }
-}
-*/
-/** Implements a scaled and shifted set of Legendre polynomials
-
-      P_i(x / t) * t^i
-
-   where t >= 0.0, x \in [0,t], and P_i is the shifted Legendre
-   polynomial defined on [0,1] rather than the usual [-1,1].
-*/
-/*
-void H1_FuentesPyramidElement::calcScaledLegendre(const int p, const double x,
-                                           const double t,
-                                           double *u)
-{
-   if (t > 0.0)
-   {
-      Poly_1D::CalcLegendre(p, x / t, u);
-      for (int i = 1; i <= p; i++)
-      {
-         u[i] *= pow(t, i);
-      }
-   }
-   else
-   {
-      // This assumes x = 0 as well as t = 0 since x \in [0,t]
-      u[0] = 1.0;
-      for (int i = 1; i <= p; i++) { u[i] = 0.0; }
-   }
-}
-
-void H1_FuentesPyramidElement::calcScaledLegendre(const int p, const double x,
-                                           const double t,
-                                           double *u,
-                                           double *dudx, double *dudt)
-{
-   if (t > 0.0)
-   {
-      Poly_1D::CalcLegendre(p, x / t, u, dudx);
-      dudx[0] = 0.0;
-      dudt[0] = - dudx[0] * x / t;
-      for (int i = 1; i <= p; i++)
-      {
-         u[i]    *= pow(t, i);
-         dudx[i] *= pow(t, i - 1);
-         dudt[i]  = (u[i] * i - dudx[i] * x) / t;
-      }
-   }
-   else
-   {
-      // This assumes x = 0 as well as t = 0 since x \in [0,t]
-      u[0]    = 1.0;
-      dudx[0] = 0.0;
-      dudt[0] = 0.0;
-      if (p >=1)
-      {
-         u[1]    =  0.0;
-         dudx[1] =  2.0;
-         dudt[1] = -1.0;
-      }
-      for (int i = 2; i <= p; i++)
-      {
-         u[i] = 0.0;
-         dudx[i] = 0.0;
-         dudt[i] = 0.0;
-      }
-   }
-}
-
-void H1_FuentesPyramidElement::calcIntegratedJacobi(const int p,
-                                             const double alpha,
-                                             const double x,
-                                             const double t,
-                                             double *u)
-{
-   if (t > 0.0)
-   {
-      calcScaledJacobi(p, alpha, x, t, u);
-      for (int i = p; i >= 2; i--)
-      {
-         double d0 = 2.0 * i + alpha;
-         double d1 = d0 - 1.0;
-         double d2 = d0 - 2.0;
-         double a = (alpha + i) / (d0 * d1);
-         double b = alpha / (d0 * d2);
-         double c = (double)(i - 1) / (d1 * d2);
-         u[i] = a * u[i] + b * t * u[i - 1] - c * t * t * u[i - 2];
-      }
-      if (p >= 1)
-      {
-         u[1] = x;
-      }
-      u[0] = 0.0;
-   }
-   else
-   {
-      u[0] = 1.0;
-      for (int i = 1; i <= p; i++)
-      {
-         u[i] = 0.0;
-      }
-   }
-}
-
-void H1_FuentesPyramidElement::calcIntegratedJacobi(const int p,
-                                             const double alpha,
-                                             const double x,
-                                             const double t,
-                                             double *u,
-                                             double *dudx,
-                                             double *dudt)
-{
-   calcScaledJacobi(p, alpha, x, t, u, dudx, dudt);
-   for (int i = p; i >= 2; i--)
-   {
-      double d0 = 2.0 * i + alpha;
-      double d1 = d0 - 1.0;
-      double d2 = d0 - 2.0;
-      double a = (alpha + i) / (d0 * d1);
-      double b = alpha / (d0 * d2);
-      double c = (double)(i - 1) / (d1 * d2);
-      u[i]    = a * u[i] + b * t * u[i - 1] - c * t * t * u[i - 2];
-      dudx[i] = a * dudx[i] + b * t * dudx[i - 1] - c * t * t * dudx[i - 2];
-      dudt[i] = a * dudt[i] + b * t * dudt[i - 1] + b * u[i - 1]
-                - c * t * t * dudt[i - 2] - 2.0 * c * t * u[i - 2];
-   }
-   if (p >= 1)
-   {
-      u[1]    = x;
-      dudx[1] = 1.0;
-      dudt[1] = 0.0;
-   }
-   u[0]    = 0.0;
-   dudx[0] = 0.0;
-   dudt[0] = 0.0;
-}
-*/
-/** Implements a set of scaled and shifted subset of Jacobi polynomials
-
-      P_i^{\alpha, 0}(x / t) * t^i
-
-   where t >= 0.0, x \in [0,t], and P_i^{\alpha, \beta} is the shifted Jacobi
-   polynomial defined on [0,1] rather than the usual [-1,1]. Note that we only
-   consider the special case when \beta = 0.
-*/
-/*
-void H1_FuentesPyramidElement::calcScaledJacobi(const int p, const double alpha,
-                                         const double x,
-                                         const double t,
-                                         double *u)
-{
-   u[0] = 1.0;
-   if (p >= 1)
-   {
-      u[1] = (2.0 + alpha) * x - t;
-   }
-   for (int i = 2; i <= p; i++)
-   {
-      double a = 2.0 * i * (alpha + i) * (2.0 * i + alpha - 2.0);
-      double b = 2.0 * i + alpha - 1.0;
-      double c = (2.0 * i + alpha) * (2.0 * i + alpha - 2.0);
-      double d = 2.0 * (alpha + i - 1.0) * (i - 1) * (2.0 * i - alpha);
-      u[i] = (b * (c * (2.0 * x - t) + alpha * alpha * t) * u[i - 1]
-              - d * t * t * u[i - 2]) / a;
-   }
-}
-
-void H1_FuentesPyramidElement::calcScaledJacobi(const int p, const double alpha,
-                                         const double x,
-                                         const double t,
-                                         double *u, double *dudx, double *dudt)
-{
-   u[0]    = 1.0;
-   dudx[0] = 0.0;
-   dudt[0] = 0.0;
-   if (p >= 1)
-   {
-      u[1]    = (2.0 + alpha) * x - t;
-      dudx[1] =  2.0 + alpha;
-      dudt[1] = -1.0;
-   }
-   for (int i = 2; i <= p; i++)
-   {
-      double a = 2.0 * i * (alpha + i) * (2.0 * i + alpha - 2.0);
-      double b = 2.0 * i + alpha - 1.0;
-      double c = (2.0 * i + alpha) * (2.0 * i + alpha - 2.0);
-      double d = 2.0 * (alpha + i - 1.0) * (i - 1) * (2.0 * i - alpha);
-      u[i] = (b * (c * (2.0 * x - t) + alpha * alpha * t) * u[i - 1]
-              - d * t * t * u[i - 2]) / a;
-      dudx[i] = (b * ((c * (2.0 * x - t) + alpha * alpha * t) * dudx[i - 1] +
-                      2.0 * c * u[i - 1])
-                 - d * t * t * dudx[i - 2]) / a;
-      dudt[i] = (b * ((c * (2.0 * x - t) + alpha * alpha * t) * dudt[i - 1] +
-                      (alpha * alpha - c) * u[i - 1])
-                 - d * t * t * dudt[i - 2] - 2.0 * d * t * u[i - 2]) / a;
-   }
 }
 */
 

@@ -13,6 +13,7 @@
 #define MFEM_FE_L2
 
 #include "fe_base.hpp"
+#include "fe_pyramid.hpp"
 
 namespace mfem
 {
@@ -184,7 +185,8 @@ public:
 };
 
 /// Arbitrary order L2 elements in 3D on a pyramid
-class L2_FuentesPyramidElement : public NodalFiniteElement
+class L2_FuentesPyramidElement
+   : public NodalFiniteElement, public FuentesPyramid
 {
 private:
 #ifndef MFEM_THREAD_SAFE
