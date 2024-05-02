@@ -3836,6 +3836,154 @@ void mfem::HDGConvectionCenteredIntegrator::AssembleHDGFaceMatrix(
    }
 }
 
+void mfem::HDGConvectionUpwindedIntegrator::AssembleHDGFaceMatrix(
+   const FiniteElement &trace_el, const FiniteElement &el1,
+   const FiniteElement &el2, FaceElementTransformations &Trans,
+   DenseMatrix &elmat)
+{
+   MFEM_VERIFY(trace_el.GetMapType() == FiniteElement::VALUE, "");
+
+   int tr_ndof, ndof1, ndof2, el_ndof;
+
+   real_t un, a, b, w;
+
+   dim = el1.GetDim();
+   tr_ndof = trace_el.GetDof();
+   ndof1 = el1.GetDof();
+   Vector vu(dim), nor(dim);
+
+   if (Trans.Elem2No >= 0)
+   {
+      ndof2 = el2.GetDof();
+   }
+   else
+   {
+      ndof2 = 0;
+   }
+   el_ndof = ndof1 + ndof2;
+
+   tr_shape.SetSize(tr_ndof);
+   shape1.SetSize(ndof1);
+   shape2.SetSize(ndof2);
+
+   elmat.SetSize(el_ndof + tr_ndof);
+   elmat = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int order;
+      // Assuming order(u)==order(mesh)
+      if (Trans.Elem2No >= 0)
+         order = (min(Trans.Elem1->OrderW(), Trans.Elem2->OrderW()) +
+                  2*max(el1.GetOrder(), el2.GetOrder()));
+      else
+      {
+         order = Trans.Elem1->OrderW() + 2*el1.GetOrder();
+      }
+      if (el1.Space() == FunctionSpace::Pk)
+      {
+         order++;
+      }
+      ir = &IntRules.Get(Trans.GetGeometryType(), order);
+   }
+
+   for (int p = 0; p < ir->GetNPoints(); p++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(p);
+
+      // Set the integration point in the face and the neighboring elements
+      Trans.SetAllIntPoints(&ip);
+
+      // Access the neighboring elements' integration points
+      // Note: eip2 will only contain valid data if Elem2 exists
+      const IntegrationPoint &eip1 = Trans.GetElement1IntPoint();
+      const IntegrationPoint &eip2 = Trans.GetElement2IntPoint();
+
+      trace_el.CalcShape(ip, tr_shape);
+      el1.CalcShape(eip1, shape1);
+      if (ndof2)
+      {
+         el2.CalcShape(eip2, shape2);
+      }
+
+      u->Eval(vu, *Trans.Elem1, eip1);
+
+      if (dim == 1)
+      {
+         nor(0) = 2*eip1.x - 1.0;
+      }
+      else
+      {
+         CalcOrtho(Trans.Jacobian(), nor);
+      }
+
+      un = vu * nor;
+      a = 0.5 * alpha * un;
+      b = beta * fabs(un);
+      // note: if |alpha/2|==|beta| then |a|==|b|, i.e. (a==b) or (a==-b)
+      //       and therefore two blocks in the element matrix contribution
+      //       (from the current quadrature point) are 0
+
+      w = ip.weight * (b+a);
+      if (w != 0.0)
+      {
+         // assemble the element matrix (elem1)
+         for (int i = 0; i < ndof1; i++)
+            for (int j = 0; j < ndof1; j++)
+            {
+               elmat(i, j) += w * shape1(i) * shape1(j);
+            }
+         // assemble the constraint matrix (elem1)
+         for (int i = 0; i < tr_ndof; i++)
+            for (int j = 0; j < ndof1; j++)
+            {
+               elmat(el_ndof+i, j) += w * tr_shape(i) * shape1(j);
+            }
+         // assemble the constraint matrix (elem2)
+         for (int i = 0; i < ndof2; i++)
+            for (int j = 0; j < tr_ndof; j++)
+            {
+               elmat(ndof1+i, el_ndof+j) -= w * shape2(i) * tr_shape(j);
+            }
+      }
+
+      w = ip.weight * (b-a);
+      if (w != 0.0)
+      {
+         // assemble the element matrix (elem2)
+         for (int i = 0; i < ndof2; i++)
+            for (int j = 0; j < ndof2; j++)
+            {
+               elmat(ndof1+i, ndof1+j) += w * shape2(i) * shape2(j);
+            }
+         // assemble the constraint matrix (elem2)
+         for (int i = 0; i < tr_ndof; i++)
+            for (int j = 0; j < ndof2; j++)
+            {
+               elmat(el_ndof+i, ndof1+j) += w * tr_shape(i) * shape2(j);
+            }
+         // assemble the constraint matrix (elem1)
+         for (int i = 0; i < ndof1; i++)
+            for (int j = 0; j < tr_ndof; j++)
+            {
+               elmat(i, el_ndof+j) -= w * shape1(i) * tr_shape(j);
+            }
+      }
+
+      w = ip.weight * ((ndof2)?(2.*b):(b-a));//<-- single face integration
+      if (w != 0.0)
+      {
+         // assemble the trace matrix
+         for (int i = 0; i < tr_ndof; i++)
+            for (int j = 0; j < tr_ndof; j++)
+            {
+               elmat(el_ndof+i, el_ndof+j) -= w * tr_shape(i) * tr_shape(j);
+            }
+      }
+   }
+}
+
 void DGNormalTraceIntegrator::AssembleFaceMatrix(const FiniteElement &trial_fe1,
                                                  const FiniteElement &test_fe1,
                                                  const FiniteElement &trial_fe2,
