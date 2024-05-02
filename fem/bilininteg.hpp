@@ -3345,6 +3345,9 @@ public:
    HDGConvectionCenteredIntegrator(VectorCoefficient &u_, real_t a = 1.)
       : DGTraceIntegrator(u_, a) { }
 
+   HDGConvectionCenteredIntegrator(VectorCoefficient &u_, real_t a, real_t b)
+      : DGTraceIntegrator(u_, a, b) { }
+
    virtual void AssembleHDGFaceMatrix(const FiniteElement &trace_el,
                                       const FiniteElement &el1,
                                       const FiniteElement &el2,
@@ -3387,6 +3390,9 @@ public:
    /// Construct integrator with $\beta = \alpha/2$.
    HDGConvectionUpwindedIntegrator(VectorCoefficient &u_, real_t a = 1.)
       : DGTraceIntegrator(u_, a) { }
+
+   HDGConvectionUpwindedIntegrator(VectorCoefficient &u_, real_t a, real_t b)
+      : DGTraceIntegrator(u_, a, b) { }
 
    virtual void AssembleHDGFaceMatrix(const FiniteElement &trace_el,
                                       const FiniteElement &el1,
