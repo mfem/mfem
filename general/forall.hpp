@@ -19,6 +19,9 @@
 #include "device.hpp"
 #include "mem_manager.hpp"
 #include "../linalg/dtensor.hpp"
+#ifdef MFEM_USE_MPI
+#include <_hypre_utilities.h>
+#endif
 
 namespace mfem
 {
