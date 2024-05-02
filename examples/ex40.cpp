@@ -1,3 +1,29 @@
+//                                MFEM Example 40
+//
+// Compile with: make ex40
+//
+// Sample runs:
+//
+// Device sample runs:
+//
+// Description:   This example code demonstrates bounds-preserving limiters for
+//                Discontinuous Galerkin (DG) approximations of hyperbolic
+//                conservation laws. The code solves the solves the time-dependent
+//                advection equation du(x,t)/dt + v.grad(u) = 0, where v is a given
+//                fluid velocity, and u_0(x) = u(x,0) is a given initial condition.
+//                The solution of this equation exhibits a minimum principle of the
+//                form min[u_0(x)] <= u(x,t) <= max[u_0(x)].
+//
+//                A global minimum principle is enforced on the solution using the
+//                bounds-preserving limiters of Zhang & Shu [1] or Dzanic [2]. The
+//                Zhang & Shu limiter enforces the minimum principle discretely
+//                (i.e, on the discrete solution/quadrature nodes) while the Dzanic
+//                limiter enforces the minimum principle continuously (i.e, across
+//                the entire solution polynomial within the element).
+//
+//                We recommend viewing examples 9 and 18 before viewing this
+//                example.
+
 #include "mfem.hpp"
 #include "ex40.hpp"
 #include <fstream>
@@ -7,21 +33,16 @@
 using namespace std;
 using namespace mfem;
 
-// Choice for the problem setup. The fluid velocity, initial condition and
-// inflow boundary condition are chosen based on this parameter.
 int problem;
 
 // Initial condition
 real_t u0_function(const Vector &x);
-
 
 // Mesh bounding box
 Vector bb_min, bb_max;
 
 void Limit(GridFunction &u, GridFunction &uavg, IntegrationRule &solpts,
            IntegrationRule &samppts, ElementOptimizer * opt, int dim);
-
-void Test(ElementOptimizer &opt, GridFunction &u, int nspts);
 
 int main(int argc, char *argv[])
 {
@@ -127,13 +148,10 @@ int main(int argc, char *argv[])
 
    // 10 .Setup spatial optimization algorithmic for constraint functionals.
    ElementOptimizer opt = ElementOptimizer(&MB, dim);
-   Test(opt, u, 10); 
 
    // 11. Perform limiting based on sampling points (quadrature points) and solution points.
    IntegrationRule samppts = IntRules.Get(gtype, 2*order);
    Limit(u, uavg, MB.solpts, samppts, &opt, dim);
-
-   Test(opt, u, 10);
 
    socketstream sout;
    if (visualization)
@@ -284,31 +302,3 @@ real_t u0_function(const Vector &x) {
 // Constraint functionals for enforcing maximum principle: u(x, t) \in [0,1]
 inline real_t g1(real_t u) {return u;}
 inline real_t g2(real_t u) {return 1.0 - u;}
-
-
-void Test(ElementOptimizer &opt, GridFunction &u, int nspts) {
-   real_t umin = infinity();
-   real_t umax = -infinity();
-   Vector xs(2);
-   Vector u_elem = Vector();
-   for (int i = 0; i < u.FESpace()->GetNE(); i++) {
-      // Get local element DOF values
-      u.GetElementDofValues(i, u_elem);
-
-      // Set element-wise solution and convert to modal form
-      opt.MB->SetSolution(u_elem);
-
-      for (int j = 0; j < nspts; j++) {
-         real_t xx = (j)/(nspts-1);
-         xs(0) = xx;
-         for (int k = 0; k < nspts; k++) {
-            real_t yy = (k)/(nspts-1);
-            xs(1) = yy;
-            real_t uu = opt.MB->Eval(xs);
-            umin = min(umin, uu);
-            umax = max(umax, uu);
-         }
-      }
-   }
-   cout << umin << " " << umax << endl;
-}
