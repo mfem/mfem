@@ -25,6 +25,7 @@
 //                example.
 
 #include "mfem.hpp"
+#include "ex18.hpp"
 #include "ex40.hpp"
 #include <fstream>
 #include <iostream>
@@ -38,6 +39,9 @@ int problem;
 // Initial condition
 real_t u0_function(const Vector &x);
 
+// Velocity coefficient
+void velocity_function(const Vector &x, Vector &v);
+
 // Mesh bounding box
 Vector bb_min, bb_max;
 
@@ -48,15 +52,21 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    problem = 0;
-   const char *mesh_file = "../data/periodic-hexagon.mesh";
-   int ref_levels = 4;
-   int order = 3;
+   const char *mesh_file = "../data/periodic-square.mesh";
+   int ref_levels = 3;
+   int order = 2;
+   bool pa = false;
+   bool ea = false;
+   bool fa = false;
    const char *device_config = "cpu";
-   int ode_solver_type = 4;
+   int ode_solver_type = 1;
+   real_t t_final = 1;
+   real_t dt = 4e-4;
    bool visualization = true;
    bool visit = false;
    bool paraview = false;
    bool binary = false;
+   int vis_steps = 5;
 
    int precision = 8;
    cout.precision(precision);
@@ -142,16 +152,60 @@ int main(int argc, char *argv[])
    FiniteElementSpace uavg_fes(&mesh, &uavg_fec);
    GridFunction uavg(&uavg_fes);
 
-   // 9. Generate modal basis transformation and pre-compute Vandermonde matrix.
+
+   // 9. 
+   VectorFunctionCoefficient velocity(dim, velocity_function);
+   AdvectionFlux flux(velocity);
+   RusanovFlux numericalFlux(flux);
+   DGHyperbolicConservationLaws advection(fes,
+      std::unique_ptr<HyperbolicFormIntegrator>(
+         new HyperbolicFormIntegrator(numericalFlux, 0)),
+      false);
+
+   // . Generate modal basis transformation and pre-compute Vandermonde matrix.
    Geometry::Type gtype = mesh.GetElementGeometry(0);
    ModalBasis MB = ModalBasis(fec, gtype, order, dim);
 
-   // 10 .Setup spatial optimization algorithmic for constraint functionals.
+   //  .Setup spatial optimization algorithmic for constraint functionals.
    ElementOptimizer opt = ElementOptimizer(&MB, dim);
 
-   // 11. Perform limiting based on sampling points (quadrature points) and solution points.
+   // . Perform limiting based on sampling points (quadrature points) and solution points.
    IntegrationRule samppts = IntRules.Get(gtype, 2*order);
    Limit(u, uavg, MB.solpts, samppts, &opt, dim);
+
+   // 
+   real_t t = 0.0;
+
+   ODESolver *ode_solver = NULL;
+   switch (ode_solver_type) {
+      case 1: ode_solver = new ForwardEulerSolver; break;
+      case 2: ode_solver = new RK2Solver(1.0); break;
+      case 3: ode_solver = new RK3SSPSolver; break;
+
+      default:
+         cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
+         return 3;
+   }
+   
+   advection.SetTime(t);
+   ode_solver->Init(advection);
+   
+   bool done = false;
+   for (int ti = 0; !done;)
+   {
+      real_t dt_real = min(dt, t_final - t);
+
+      ode_solver->Step(u, t, dt_real);
+      Limit(u, uavg, MB.solpts, samppts, &opt, dim);
+      ti++;
+
+      done = (t >= t_final - 1e-8 * dt);
+      if (done || ti % vis_steps == 0)
+      {
+         cout << "time step: " << ti << ", time: " << t << endl;
+      }
+   }
+   
 
    socketstream sout;
    if (visualization)
@@ -177,7 +231,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 12. Save the final solution. This output can be viewed later using GLVis:
+   // . Save the final solution. This output can be viewed later using GLVis:
    //    "glvis -m ex40.mesh -g ex40-final.gf".
    {
       ofstream osol("ex40-final.gf");
@@ -185,6 +239,7 @@ int main(int argc, char *argv[])
       u.Save(osol);
    }
 
+   delete ode_solver;
    return 0;
 }
 
@@ -298,6 +353,25 @@ real_t u0_function(const Vector &x) {
       return 0.0;
    }
 }
+
+// Velocity coefficient
+void velocity_function(const Vector &x, Vector &v)
+{
+   int dim = x.Size();
+
+   // map to the reference [-1,1] domain
+   Vector X(dim);
+   for (int i = 0; i < dim; i++)
+   {
+      real_t center = (bb_min[i] + bb_max[i]) * 0.5;
+      X(i) = 2 * (x(i) - center) / (bb_max[i] - bb_min[i]);
+   }
+
+   // Clockwise rotation in 2D around the origin
+   constexpr real_t w = 2*M_PI;
+   v(0) = w*X(1); v(1) = -w*X(0);
+}
+
 
 // Constraint functionals for enforcing maximum principle: u(x, t) \in [0,1]
 inline real_t g1(real_t u) {return u;}
