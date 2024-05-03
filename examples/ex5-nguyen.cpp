@@ -263,8 +263,16 @@ int main(int argc, char *argv[])
    {
       Mq->AddDomainIntegrator(new VectorMassIntegrator(ikcoeff));
       B->AddDomainIntegrator(new VectorDivergenceIntegrator());
-      B->AddInteriorFaceIntegrator(new TransposeIntegrator(
-                                      new DGNormalTraceIntegrator(-1.)));
+      if (upwind_adv)
+      {
+         B->AddInteriorFaceIntegrator(new TransposeIntegrator(
+                                         new DGNormalTraceIntegrator(ccoeff, -1.)));
+      }
+      else
+      {
+         B->AddInteriorFaceIntegrator(new TransposeIntegrator(
+                                         new DGNormalTraceIntegrator(-1.)));
+      }
       if (td > 0.)
       {
          Mt->AddInteriorFaceIntegrator(new HDGDiffusionCenteredIntegrator(kcoeff, td));
