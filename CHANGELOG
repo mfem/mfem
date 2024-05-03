@@ -17,6 +17,10 @@ Meshing improvements
   arbitrary integer factors is also enabled, e.g. in the mesh-explorer miniapp.
   NURBS coarsening and knot removal are also introduced.
 
+- Added the capability to partition (big) serial meshes in serial code, see the
+  new classes MeshPartitioner and MeshPart. This capability is also exposed as a
+  menu option in the mesh-explorer miniapp in miniapps/meshing.
+
 Discretization improvements
 ---------------------------
 - Introduced support for higher order non conformal Nedelec elements on
