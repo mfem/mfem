@@ -430,7 +430,7 @@ void VisItDataCollection::RegisterField(const std::string& name,
 
    DataCollection::RegisterField(name, gf);
    if (LOD == 0 && (gf->FESpace()->FEColl()->GetContType() ==
-                    FiniteElementCollection::CONTINUOUS)) // p.w. const L2
+                    FiniteElementCollection::DISCONTINUOUS)) // p.w. const L2
    {
       field_info_map[name] = VisItFieldInfo("elements", gf->VectorDim(), 0);
    }
