@@ -340,7 +340,21 @@ function(add_parallel_miniapp_test name HYPRE_MM)
 
     set(backends cpu)
     if (HYPRE_MM)
-        list(APPEND backends debug)
+        # psedov_tests_debug_* will return MFEM_SKIP_RETURN_VALUE when all of
+        # the following conditions are met:
+        # * MFEM_SEDOV_MPI is defined (true here)
+        # * MFEM_DEBUG is defined
+        # * MFEM_SEDOV_DEVICE is "debug" (the case added here)
+        # * HypreUsingGPU() is true; this is the same as: HYPRE_USING_GPU is
+        #   defined and MFEM_HYPRE_VERSION < 23100 (if the version is >= 23100,
+        #   the code will switch to HYPRE running on CPU).
+        # We check these conditions here to skip the "debug" backend and avoid
+        # the ctest failure.
+        if (NOT ((${name} STREQUAL "sedov") AND MFEM_DEBUG AND
+                 (HYPRE_USING_CUDA OR HYPRE_USING_HIP) AND
+                 (${MFEM_HYPRE_VERSION} LESS "23100")))
+            list(APPEND backends debug)
+        endif()
     endif()
     if (MFEM_USE_CUDA)
         list(APPEND backends cuda)
