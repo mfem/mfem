@@ -1558,31 +1558,26 @@ void HypreParMatrix::GetDiag(Vector &diag) const
 {
    const int size = Height();
    diag.SetSize(size);
-#ifdef HYPRE_USING_GPU
-   if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
-   {
-      MFEM_ASSERT(A->diag->memory_location == HYPRE_MEMORY_DEVICE, "");
-      real_t *d_diag = diag.Write();
-      const HYPRE_Int *A_diag_i = A->diag->i;
-      const real_t *A_diag_d = A->diag->data;
-      mfem::forall(size, [=] MFEM_HOST_DEVICE (int i)
-      {
-         d_diag[i] = A_diag_d[A_diag_i[i]];
-      });
-   }
-   else
+   auto hypre_ml = GetHypreMemoryLocation();
+   // Avoid using GetHypreMemoryClass() since it may be MemoryClass::MANAGED and
+   // that may not play well with the memory types used by 'diag'.
+   MemoryClass hypre_mc = (hypre_ml == HYPRE_MEMORY_HOST) ?
+                          MemoryClass::HOST : MemoryClass::DEVICE;
+   real_t *diag_hd = diag.GetMemory().Write(hypre_mc, size);
+   MFEM_VERIFY(A->diag->memory_location == hypre_ml,
+               "unexpected HypreParMatrix memory location!");
+   const HYPRE_Int *A_diag_i = A->diag->i;
+   const real_t *A_diag_d = A->diag->data;
+#ifdef MFEM_DEBUG
+   const HYPRE_Int *A_diag_j = A->diag->j;
 #endif
+   mfem::hypre_forall(size, [=] MFEM_HOST_DEVICE (int i)
    {
-      diag.HostWrite();
-      HostRead();
-      for (int j = 0; j < size; j++)
-      {
-         diag(j) = A->diag->data[A->diag->i[j]];
-         MFEM_ASSERT(A->diag->j[A->diag->i[j]] == j,
-                     "the first entry in each row must be the diagonal one");
-      }
-      HypreRead();
-   }
+      diag_hd[i] = A_diag_d[A_diag_i[i]];
+      MFEM_ASSERT_KERNEL(
+         A_diag_j[A_diag_i[i]] == i,
+         "The first entry in each row must be the diagonal one!");
+   });
 }
 
 static void MakeSparseMatrixWrapper(int nrows, int ncols,
@@ -3653,6 +3648,7 @@ void HypreSmoother::SetOperator(const Operator &op)
    }
 
 #if MFEM_HYPRE_VERSION < 22100
+   // HYPRE_USING_GPU is not defined for these versions of HYPRE
    switch (type)
    {
       case 3:
@@ -3664,20 +3660,23 @@ void HypreSmoother::SetOperator(const Operator &op)
          Z = new HypreParVector(*A);
    }
 #elif defined(HYPRE_USING_GPU)
-   switch (type)
+   if (HypreUsingGPU())
    {
-      case 0:
-      case 1:
-      case 5:
-      case 7:
-      case 16:
-      case 18:
-      case 30:
-      case 1001:
-      case 1002:
-         break;
-      default:
-         Z = new HypreParVector(*A);
+      switch (type)
+      {
+         case 0:
+         case 1:
+         case 5:
+         case 7:
+         case 16:
+         case 18:
+         case 30:
+         case 1001:
+         case 1002:
+            break;
+         default:
+            Z = new HypreParVector(*A);
+      }
    }
 #endif
    if (type == 16)
