@@ -9,16 +9,17 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#define CATCH_CONFIG_RUNNER
+#include "mfem.hpp"
+#include "run_unit_tests.hpp"
+
 #ifdef _WIN32
 #define _USE_MATH_DEFINES
 #include <cmath>
 #endif
 
-#include "unit_tests.hpp"
 #include <unordered_map>
 #include <cstring>
-
-#include "mfem.hpp"
 #include "general/forall.hpp"
 #include "linalg/kernels.hpp"
 
@@ -2180,43 +2181,50 @@ static void sedov_tests(int myid)
 
 }
 
-#if defined(MFEM_SEDOV_MPI)
-#ifndef MFEM_SEDOV_DEVICE
+#ifdef MFEM_SEDOV_MPI
 TEST_CASE("Sedov", "[Sedov], [Parallel]")
 {
    sedov_tests(Mpi::WorldRank());
 }
 #else
-TEST_CASE("Sedov", "[Sedov], [Parallel]")
+TEST_CASE("Sedov", "[Sedov]")
 {
-#if defined(MFEM_DEBUG)
-   if (HypreUsingGPU() && !strcmp(MFEM_SEDOV_DEVICE,"debug"))
+   sedov_tests(0);
+}
+#endif
+
+int main(int argc, char *argv[])
+{
+#ifdef MFEM_USE_SINGLE
+   std::cout << "\nThe Sedov unit tests are not supported in single"
+             " precision.\n\n";
+   return MFEM_SKIP_RETURN_VALUE;
+#endif
+
+#ifdef MFEM_SEDOV_MPI
+   mfem::Mpi::Init();
+   mfem::Hypre::Init();
+#endif
+#ifdef MFEM_SEDOV_DEVICE
+   Device device(MFEM_SEDOV_DEVICE);
+#else
+   Device device("cpu"); // make sure hypre runs on CPU, if possible
+#endif
+   device.Print();
+
+#if defined(MFEM_SEDOV_MPI) && defined(MFEM_DEBUG) && defined(MFEM_SEDOV_DEVICE)
+   if (HypreUsingGPU() && !strcmp(MFEM_SEDOV_DEVICE, "debug"))
    {
       cout << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this unit test\n"
            << "is NOT supported with the GPU version of hypre.\n\n";
-      return;
+      return MFEM_SKIP_RETURN_VALUE;
    }
 #endif
 
-   Device device;
-   device.Configure(MFEM_SEDOV_DEVICE);
-   device.Print();
-   sedov_tests(Mpi::WorldRank());
-}
-#endif
+#ifdef MFEM_SEDOV_MPI
+   return RunCatchSession(argc, argv, {"[Parallel]"}, Root());
 #else
-#ifndef MFEM_SEDOV_DEVICE
-TEST_CASE("Sedov", "[Sedov]")
-{
-   sedov_tests(0);
-}
-#else
-TEST_CASE("Sedov", "[Sedov]")
-{
-   Device device;
-   device.Configure(MFEM_SEDOV_DEVICE);
-   device.Print();
-   sedov_tests(0);
-}
+   // Exclude parallel tests.
+   return RunCatchSession(argc, argv, {"~[Parallel]"});
 #endif
-#endif
+}
