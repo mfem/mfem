@@ -3311,7 +3311,7 @@ private:
 
 /** Integrator for the DG form:
     $$
-      \langle \rho_u (u \cdot n) \{v\},[w] \rangle + 1/2 \langle \rho_u |u \cdot n| [v],[w] \rangle,
+      \langle \rho_u (u \cdot n) \{v\},[w] \rangle,
     $$
     where $v$ and $w$ are the trial and test variables, respectively, and $\rho$/$u$ are
     given scalar/vector coefficients. $\{v\}$ represents the average value of $v$ on
@@ -3341,12 +3341,8 @@ class HDGConvectionCenteredIntegrator : public DGTraceIntegrator
    Vector tr_shape, shape1, shape2;
 
 public:
-   /// Construct integrator with $\beta = \alpha/2$.
    HDGConvectionCenteredIntegrator(VectorCoefficient &u_, real_t a = 1.)
-      : DGTraceIntegrator(u_, a) { }
-
-   HDGConvectionCenteredIntegrator(VectorCoefficient &u_, real_t a, real_t b)
-      : DGTraceIntegrator(u_, a, b) { }
+      : DGTraceIntegrator(u_, a, 0.) { }
 
    virtual void AssembleHDGFaceMatrix(const FiniteElement &trace_el,
                                       const FiniteElement &el1,
