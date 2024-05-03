@@ -2690,6 +2690,7 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(Array<VarOrderBits> &edge_orders,
             edge_orders[E[j]] |= face_orders[i];
             if (eo0 != edge_orders[E[j]])
             {
+               done = false;
                changedEdges.insert(E[j]);
             }
          }
