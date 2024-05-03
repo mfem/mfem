@@ -185,6 +185,17 @@ int FiniteElementSpace::GetElementOrder(int i) const
    return GetElementOrderImpl(i);
 }
 
+Array<int> FiniteElementSpace::GetElementOrdersI() const
+{
+   Array<int> orders(mesh->GetNE());
+   for (int e = 0; e < mesh->GetNE(); e++)
+   {
+      orders[e] = GetElementOrder(e);
+   }
+
+   return orders;
+}
+
 int FiniteElementSpace::GetElementOrderImpl(int i) const
 {
    // (this is an internal version of GetElementOrder without asserts and checks)
@@ -2243,7 +2254,6 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
 
    MFEM_ASSERT(dtrans.embeddings.Size() == old_elem_dof->Size(), "");
 
-
    bool is_dg = FEColl()->GetContType() == FiniteElementCollection::DISCONTINUOUS;
    int num_marked = 0;
    const FiniteElement *fe = nullptr;
@@ -3587,6 +3597,7 @@ void FiniteElementSpace::UpdateElementOrders()
          for (int i = 0; i < coarse_to_fine.Size(); i++)
          {
             coarse_to_fine.GetRow(i, tabrow);
+            //For now we require that all children are of same polynomial order.
             new_order[i] = elem_order[tabrow[0]];
          }
          break;

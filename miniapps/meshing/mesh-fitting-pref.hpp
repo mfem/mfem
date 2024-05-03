@@ -65,7 +65,7 @@ void GetMaterialInterfaceEdgeDofs(Mesh *mesh, GridFunction &mat,
    const int NElem = mesh->GetNE();
    MFEM_VERIFY(mat.Size() == NElem, "Material GridFunction should be a piecewise"
                "constant function over the mesh.");
-   int dim = mesh->Dimension();
+   //   int dim = mesh->Dimension();
 
    GridFunction temp(surf_fit_gf0);
    temp = 0.0;
@@ -170,6 +170,34 @@ void GetMaterialInterfaceFaceDofs(Mesh *mesh, GridFunction &mat,
    }
    intdofs.Sort();
    intdofs.Unique();
+}
+
+// Computes list of faces at interface, corresponding dofs, adjacent elements.
+void GetMaterialInterfaceEntities(Mesh *mesh, GridFunction &mat,
+                                  GridFunction &surf_fit_gf0,
+                                  Array<int> &inter_faces,
+                                  Array<int> &intfdofs,
+                                  Array<int> &inter_face_el1,
+                                  Array<int> &inter_face_el2,
+                                  Array<int> &inter_face_el_all)
+{
+   GetMaterialInterfaceFaceDofs(mesh, mat, surf_fit_gf0,
+                                inter_faces, intfdofs);
+   inter_face_el1.SetSize(0);
+   inter_face_el2.SetSize(0);
+   inter_face_el_all.SetSize(0);
+   for (int i=0; i < inter_faces.Size(); i++)
+   {
+      int fnum = inter_faces[i];
+      Array<int> els;
+      mesh->GetFaceAdjacentElements(fnum, els);
+      inter_face_el1.Append(els[0]);
+      inter_face_el2.Append(els[1]);
+   }
+   inter_face_el_all.Append(inter_face_el1);
+   inter_face_el_all.Append(inter_face_el2);
+   inter_face_el_all.Sort();
+   inter_face_el_all.Unique();
 }
 
 
@@ -585,7 +613,8 @@ void PRefinementTransfer::Transfer(GridFunction &targf)
    preft.Mult(srcgf, targf);
 }
 
-GridFunction* ProlongToMaxOrder(const GridFunction *x, const int fieldtype)
+GridFunction* ProlongToMaxOrder(const GridFunction *x, const int fieldtype,
+                                int target_order = -1)
 {
    const FiniteElementSpace *fespace = x->FESpace();
    Mesh *mesh = fespace->GetMesh();
@@ -593,7 +622,7 @@ GridFunction* ProlongToMaxOrder(const GridFunction *x, const int fieldtype)
    const int vdim = fespace->GetVDim();
 
    // find the max order in the space
-   int max_order = fespace->GetMaxElementOrder();
+   int max_order = target_order < 0 ? fespace->GetMaxElementOrder() : target_order;
 
    // create a visualization space of max order for all elements
    FiniteElementCollection *fecInt = NULL;
@@ -766,14 +795,14 @@ bool CheckElementValidityAtOrder(Mesh *mesh,
 {
    const GridFunction *x = mesh->GetNodes();
    const FiniteElementSpace *fes = x->FESpace();
-   int node_ordering = fes->GetOrdering();
+   //   int node_ordering = fes->GetOrdering();
    const int vdim = fes->GetVDim();
 
    const FiniteElement *fe = fes->GetFE(el);
    ElementTransformation *transf = mesh->GetElementTransformation(el);
 
-   int fe_type = fe->GetGeomType();
-   int mesh_dim = mesh->Dimension();
+   //   int fe_type = fe->GetGeomType();
+   //   int mesh_dim = mesh->Dimension();
 
    IsoparametricTransformation T;
    DenseMatrix I;
@@ -868,7 +897,7 @@ double InterfaceElementOrderReduction(const Mesh *mesh,
    Mesh *smesh = surf_el_meshes[surf_mesh_idx];
 
    smesh->SetCurvature(el_order, false, -1, node_ordering);
-   GridFunction *snodes = smesh->GetNodes();
+   //   GridFunction *snodes = smesh->GetNodes();
    IsoparametricTransformation *seltrans = new IsoparametricTransformation();
    smesh->GetElementTransformation(0, seltrans);
    seltrans->GetPointMat().Transpose(IntVals);

@@ -576,6 +576,8 @@ public:
    /// Returns the order of the i'th finite element.
    int GetElementOrder(int i) const;
 
+   Array<int> GetElementOrdersI() const;
+
    /// Returns reference to element orders
    const Array<char> GetElementOrders() { return elem_order; }
 

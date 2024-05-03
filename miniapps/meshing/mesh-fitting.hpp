@@ -560,10 +560,10 @@ public:
       fespacearr.Append(fes_);
    }
 
-   void Update();
+   void Update(bool hp = false);
 };
 
-void HRefUpdater::Update()
+void HRefUpdater::Update(bool hp)
 {
    // Update FESpace
    for (int i = 0; i < fespacearr.Size(); i++)
@@ -574,8 +574,18 @@ void HRefUpdater::Update()
    for (int i = 0; i < gridfuncarr.Size(); i++)
    {
       gridfuncarr[i]->Update();
-      gridfuncarr[i]->SetTrueVector();
-      gridfuncarr[i]->SetFromTrueVector();
+      if (hp && gridfuncarr[i]->FESpace()->IsVariableOrder())
+      {
+         auto R = gridfuncarr[i]->FESpace()->GetHpRestrictionMatrix();
+         Vector xnew(R->Height());
+         R->Mult(*gridfuncarr[i], xnew);
+         gridfuncarr[i]->FESpace()->GetProlongationMatrix()->Mult(xnew, *gridfuncarr[i]);
+      }
+      else
+      {
+         gridfuncarr[i]->SetTrueVector();
+         gridfuncarr[i]->SetFromTrueVector();
+      }
    }
 }
 

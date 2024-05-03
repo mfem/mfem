@@ -481,7 +481,7 @@ int material_id2(int el_id, const GridFunction &g)
    else if (approach == 1)   // minimum value based
    {
       double minval = g_vals.Min();
-      double maxval = g_vals.Max();
+      //      double maxval = g_vals.Max();
       //      return maxval > 0.0 ? 1.0 : 0.0;
       return minval < 0.0 ? 0.0 : 1.0;
    }

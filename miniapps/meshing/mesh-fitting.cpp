@@ -42,6 +42,10 @@
 // Reactor:
 // Generate level-set: make pgetdistance -j && mpirun -np 6 pgetdistance -sls 11 -amriter 5 -o 3 -dx 0.01 -jid 11 -ds 0.05
 // make mesh-fitting -j && ./mesh-fitting -m square01-tri.mesh -rs 2 -mid 2 -tid 1 -o 1 -oi 3 -sbgmesh -vl 2 -preft 1e-14 -lsf 1 -vis -jid 51 -ctot 0 -bgm BGMesh11.mesh -bgls BGMesh11.gf -no-cus-mat -marking -pderef -1e-4 -diff -1 -et 0 -det 1
+
+// hp-refinement
+// make mesh-fitting -j && ./mesh-fitting -m square01.mesh -rs 1 -o 1 -oi 2 -sbgmesh -vl 2 -mo 3 -mi 4 -preft 5e-14 -lsf 1 -vis -bgamr 2 -det 2 -pderef -1e-4 -href
+
 #include "../../mfem.hpp"
 #include "../common/mfem-common.hpp"
 #include <fstream>
@@ -320,7 +324,6 @@ int main(int argc, char *argv[])
                                                               Element::HEXAHEDRON));
 
          }
-         //         mesh_surf_fit_bg = new Mesh(*mesh);
          if (bg_amr_iter == 0)
          {
             for (int ref = 0; ref < bg_rs_levels; ref++)
@@ -395,6 +398,8 @@ int main(int argc, char *argv[])
       fespace->Update(false);
    }
 
+   //   fespace->SetRelaxedHpConformity();
+
 
    // Curve the mesh based on the (optionally p-refined) finite element space.
    mesh->SetNodalFESpace(fespace);
@@ -445,7 +450,6 @@ int main(int argc, char *argv[])
    //    The latter is based on the DofToVDof() method which maps the scalar to
    //    the vector degrees of freedom in fespace.
    GridFunction rdm(fespace);
-   hrefup.AddGridFunctionForUpdate(&rdm);
    if (jitter != 0.0)
    {
       rdm.Randomize();
@@ -616,6 +620,7 @@ int main(int argc, char *argv[])
          std::cout << "Done finder Setup on the bg mesh\n";
          surf_fit_bg_gf0->ProjectCoefficient(ls_coeff);
       }
+
       if (visit)
       {
          DataCollection *dc = NULL;
@@ -729,7 +734,7 @@ int main(int argc, char *argv[])
       std::cout << "Done marking\n";
       if (custom_split_mesh > 0)
       {
-         MakeMaterialConsistentForElementGroups(mat, 12*custom_split_mesh);
+         MakeMaterialConsistentForElementGroups(mat, 24);
       }
       else if (custom_split_mesh < 0 && exceptions != 4)
       {
@@ -759,22 +764,11 @@ int main(int argc, char *argv[])
    Array<int> inter_face_el1, inter_face_el2; //holds indices of adjacent els
    Array<int> inter_edges, inter_edge_el;
    Array<int> intfdofs;
-   GetMaterialInterfaceFaceDofs(mesh, mat, surf_fit_gf0, inter_faces,
-                                intfdofs);
-   // Make list of all interface faces
-   for (int i=0; i < inter_faces.Size(); i++)
-   {
-      int fnum = inter_faces[i];
-      Array<int> els;
-      mesh->GetFaceAdjacentElements(fnum, els);
-      inter_face_el1.Append(els[0]);
-      inter_face_el2.Append(els[1]);
-   }
    Array<int> inter_face_el_all;
-   inter_face_el_all.Append(inter_face_el1);
-   inter_face_el_all.Append(inter_face_el2);
-   inter_face_el_all.Sort();
-   inter_face_el_all.Unique();
+   GetMaterialInterfaceEntities(mesh, mat, surf_fit_gf0, inter_faces,
+                                intfdofs, inter_face_el1, inter_face_el2,
+                                inter_face_el_all);
+
    Vector initial_face_error(inter_faces.Size());
    double max_initial_face_error;
    Vector current_face_error(inter_faces.Size());
@@ -860,8 +854,8 @@ int main(int argc, char *argv[])
    }
 
 
-   int iter_pref(0);
-   bool faces_to_update(true);
+   int iter_pref = 0;
+   bool faces_to_update = true;
 
    // make table of element and its neighbors
    const Table &eltoeln = mesh->ElementToElementTable();
@@ -888,10 +882,10 @@ int main(int argc, char *argv[])
    int predef_ndofs = 0;
    int predef_tdofs = 0;
    int predef_nsurfdofs = 0;
-   while (iter_pref<pref_max_iter && faces_to_update)
+   bool do_href = false;
+   while (iter_pref < pref_max_iter && faces_to_update)
    {
       std::cout << "p-adaptivity iteration: " << iter_pref << std::endl;
-
       if (iter_pref > 0)
       {
          //         surface_fit_const = 1e5;
@@ -1023,7 +1017,7 @@ int main(int argc, char *argv[])
                          ninterfaces << std::endl;
                std::cout << "==============================================\n";
                Array<int> hreflist;
-               bool do_href = iter_pref % 2 == 0 && href;
+               do_href = iter_pref >= 2 && href;
                for (int i = 0; i < faces_order_increase.Size(); i++)
                {
                   Array<int> els;
@@ -1041,7 +1035,7 @@ int main(int argc, char *argv[])
                   {
                      hreflist.Sort();
                      hreflist.Unique();
-                     mesh->GeneralRefinement(hreflist, 1, -1);
+                     mesh->GeneralRefinement(hreflist, 1, 0);
                   }
                   else
                   {
@@ -1074,52 +1068,38 @@ int main(int argc, char *argv[])
                            {
                               fespace->SetElementOrder(e, int(max_order_temp));
                            }
-                        } //dim == 3
-                     } // do_href
-                  } // if hrefining
-               } // if (faces_order_increase.Size())
+                        } //loop over e
+                     } //if dim == 3
+                  } // if do_href
+               } // if hrefining
 
                if (faces_order_increase.Size())
                {
                   // Updates if we increase the order of at least one element
-
                   if (do_href)
                   {
-                     hrefup.Update();
+                     hrefup.Update(true);
                      // Also update the face information
-                     inter_faces.SetSize(0);
-                     inter_face_el1.SetSize(0);
-                     inter_face_el2.SetSize(0);
-                     inter_edges.SetSize(0);
-                     intfdofs.SetSize(0);
-                     //  below lines copied verbatim from above
-                     GetMaterialInterfaceFaceDofs(mesh, mat, surf_fit_gf0, inter_faces,
-                                                  intfdofs);
-                     // Make list of all interface faces
-                     for (int i=0; i < inter_faces.Size(); i++)
-                     {
-                        int fnum = inter_faces[i];
-                        Array<int> els;
-                        mesh->GetFaceAdjacentElements(fnum, els);
-                        inter_face_el1.Append(els[0]);
-                        inter_face_el2.Append(els[1]);
-                     }
-                     Array<int> inter_face_el_all;
-                     inter_face_el_all.Append(inter_face_el1);
-                     inter_face_el_all.Append(inter_face_el2);
-                     inter_face_el_all.Sort();
-                     inter_face_el_all.Unique();
+                     GetMaterialInterfaceEntities(mesh, mat, surf_fit_gf0, inter_faces,
+                                                  intfdofs, inter_face_el1, inter_face_el2,
+                                                  inter_face_el_all);
+
+                     //                     auto R = x.FESpace()->GetHpRestrictionMatrix();
+                     //                     Vector xnew(R->Height());
+                     //                     R->Mult(x, xnew);
+                     //                     x.FESpace()->GetProlongationMatrix()->Mult(xnew, x);
 
                      delete x_max_order;
-                     x_max_order = ProlongToMaxOrder(&x, 0);
+                     x_max_order = ProlongToMaxOrder(&x, 1);
                      mesh->SetNodalGridFunction(x_max_order);
                      {
                         socketstream vis1, vis2;
                         common::VisualizeField(vis1, "localhost", 19916, order_gf,
-                                               "NEW MESH 2",
-                                               700, 0, 300, 300, vis_keys);
+                                               "Updated mesh",
+                                               350*(iter_pref+1), 0, 300, 300, vis_keys);
                      }
                      mesh->SetNodalGridFunction(&x);
+                     surf_fit_marker.SetSize(surf_fit_gf0.Size());
                   }
                   else
                   {
@@ -1127,7 +1107,6 @@ int main(int argc, char *argv[])
                      surf_fit_fes.CopySpaceElementOrders(*fespace);
                      preft_fespace.Transfer(x);
                      preft_fespace.Transfer(x0);
-                     preft_fespace.Transfer(rdm);
                      preft_surf_fit_fes.Transfer(surf_fit_mat_gf);
                      preft_surf_fit_fes.Transfer(surf_fit_gf0);
                      surf_fit_marker.SetSize(surf_fit_gf0.Size());
@@ -1149,7 +1128,6 @@ int main(int argc, char *argv[])
                }
             } //iter_pref > 0
          } //if (prefine)
-
          if (surf_bg_mesh)
          {
             delete surf_fit_grad_fes;
@@ -1166,7 +1144,6 @@ int main(int argc, char *argv[])
             surf_fit_hess_fes->CopySpaceElementOrders(*fespace);
             surf_fit_hess = new GridFunction(surf_fit_hess_fes);
          }
-
          for (int j = 0; j < surf_fit_marker.Size(); j++)
          {
             surf_fit_marker[j] = false;
@@ -1241,7 +1218,7 @@ int main(int argc, char *argv[])
             socketstream vis1, vis2;
             common::VisualizeField(vis1, "localhost", 19916, mat,
                                    "Materials for initial mesh",
-                                   700, 0, 300, 300, vis_keys);
+                                   350, 0, 300, 300, vis_keys);
          }
       } //if surf_fit_const > 0
       mesh->SetNodalGridFunction(&x);
@@ -1553,12 +1530,12 @@ int main(int argc, char *argv[])
 
 
          // Reduce the orders of the elements if needed
-         if (reduce_order && iter_pref > 0 && pref_order_increase > 1)
+         if (reduce_order && iter_pref > 0 && pref_order_increase > 1 && !do_href)
          {
             int compt_updates(0);
             for (int i=0; i < inter_faces.Size(); i++)
             {
-               int ifnum = inter_faces[i];
+               //               int ifnum = inter_faces[i];
                int el1 = inter_face_el1[i];
                int el2 = inter_face_el2[i];
 
@@ -1688,7 +1665,6 @@ int main(int argc, char *argv[])
                surf_fit_fes.CopySpaceElementOrders(*fespace);
                preft_fespace.Transfer(x);
                preft_fespace.Transfer(x0);
-               preft_fespace.Transfer(rdm);
                preft_surf_fit_fes.Transfer(surf_fit_mat_gf);
                preft_surf_fit_fes.Transfer(surf_fit_gf0);
                surf_fit_marker.SetSize(surf_fit_gf0.Size());
@@ -1718,6 +1694,10 @@ int main(int argc, char *argv[])
          } //reduction
       } //check error and reduction after fitting
 
+      for (int e = 0; e < mesh->GetNE(); e++)
+      {
+         order_gf(e) = x.FESpace()->GetElementOrder(e);
+      }
       if (visit)
       {
          mesh->SetNodalGridFunction(&x);
@@ -1730,11 +1710,6 @@ int main(int argc, char *argv[])
          delete surf_fit_gf0_max_order;
          surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
 
-         for (int e = 0; e < mesh->GetNE(); e++)
-         {
-            order_gf(e) = x.FESpace()->GetElementOrder(e);
-         }
-
          DataCollection *dc = NULL;
          dc = new VisItDataCollection("Optimized_"+std::to_string(jobid), mesh);
          dc->RegisterField("orders", &order_gf);
@@ -1745,6 +1720,14 @@ int main(int argc, char *argv[])
          dc->SetTime(2.0*iter_pref+2.0);
          dc->Save();
          delete dc;
+      }
+
+      if (visualization)
+      {
+         socketstream vis1, vis2;
+         common::VisualizeField(vis2, "localhost", 19916, order_gf,
+                                "Polynomial order after deref",
+                                350*(iter_pref+1), 0, 300, 300, vis_keys);
       }
 
       mesh->SetNodalGridFunction(&x); // Need this for the loop
