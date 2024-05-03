@@ -2196,7 +2196,7 @@ TEST_CASE("Sedov", "[Sedov]")
 int main(int argc, char *argv[])
 {
 #ifdef MFEM_USE_SINGLE
-   std::cout << "\nThe serial unit tests are not supported in single"
+   std::cout << "\nThe Sedov unit tests are not supported in single"
              " precision.\n\n";
    return MFEM_SKIP_RETURN_VALUE;
 #endif
@@ -2223,6 +2223,7 @@ int main(int argc, char *argv[])
 #ifdef MFEM_SEDOV_MPI
    return RunCatchSession(argc, argv, {"[Parallel]"}, Root());
 #else
+   // Exclude parallel tests.
    return RunCatchSession(argc, argv, {"~[Parallel]"});
 #endif
 }
