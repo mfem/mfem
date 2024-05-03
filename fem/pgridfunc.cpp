@@ -250,7 +250,7 @@ void ParGridFunction::ExchangeFaceNbrData()
    auto face_nbr_data_ptr = mpi_gpu_aware ? face_nbr_data.Write() :
                             face_nbr_data.HostWrite();
    // Wait for the kernel to be done since it updates what's sent and it may be async
-   if (mpi_gpu_aware) { MFEM_DEVICE_SYNC; }
+   if (mpi_gpu_aware) { MFEM_STREAM_SYNC; }
    for (int fn = 0; fn < num_face_nbrs; fn++)
    {
       int nbr_rank = pmesh->GetFaceNbrRank(fn);
