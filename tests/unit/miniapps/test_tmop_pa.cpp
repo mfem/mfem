@@ -963,10 +963,10 @@ int main(int argc, char *argv[])
 #endif
 #ifdef MFEM_TMOP_DEVICE
    Device device(MFEM_TMOP_DEVICE);
-   device.Print();
 #else
    Device device("cpu"); // make sure hypre runs on CPU, if possible
 #endif
+   device.Print();
 
 #ifdef MFEM_TMOP_MPI
    return RunCatchSession(argc, argv, {"[Parallel]"}, Root());

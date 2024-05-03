@@ -2204,20 +2204,21 @@ int main(int argc, char *argv[])
 #ifdef MFEM_SEDOV_MPI
    mfem::Mpi::Init();
    mfem::Hypre::Init();
-#if defined(MFEM_DEBUG) && defined(MFEM_SEDOV_DEVICE)
+#endif
+#ifdef MFEM_SEDOV_DEVICE
+   Device device(MFEM_SEDOV_DEVICE);
+#else
+   Device device("cpu"); // make sure hypre runs on CPU, if possible
+#endif
+   device.Print();
+
+#if defined(MFEM_SEDOV_MPI) && defined(MFEM_DEBUG) && defined(MFEM_SEDOV_DEVICE)
    if (HypreUsingGPU() && !strcmp(MFEM_SEDOV_DEVICE, "debug"))
    {
       cout << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this unit test\n"
            << "is NOT supported with the GPU version of hypre.\n\n";
       return MFEM_SKIP_RETURN_VALUE;
    }
-#endif
-#endif
-#ifdef MFEM_SEDOV_DEVICE
-   Device device(MFEM_SEDOV_DEVICE);
-   device.Print();
-#else
-   Device device("cpu"); // make sure hypre runs on CPU, if possible
 #endif
 
 #ifdef MFEM_SEDOV_MPI
