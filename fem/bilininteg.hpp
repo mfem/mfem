@@ -2825,8 +2825,9 @@ protected:
 
 private:
    DenseMatrix dshape, dshapedxt, pelmat;
+   DenseMatrix te_dshape, te_dshapedxt;
    int vdim = -1;
-   DenseMatrix mcoeff;
+   DenseMatrix mcoeff,dshapedxt_m;
    Vector vcoeff;
 
 public:
@@ -2884,6 +2885,10 @@ public:
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
                                       DenseMatrix &elmat);
+   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                       const FiniteElement &test_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
    virtual void AssembleElementVector(const FiniteElement &el,
                                       ElementTransformation &Tr,
                                       const Vector &elfun, Vector &elvect);
@@ -3326,6 +3331,26 @@ public:
                                 FaceElementTransformations &Trans,
                                 DenseMatrix &elmat);
 };
+
+/** Integrator for the DPG form: < v, w > over a face (the interface) where
+    the trial variable v is defined on the interface
+    ((H^-1/2)^vdim i.e., vᵢ :=uᵢ⋅n (for normal trace of H(div)^vdim)
+    and the test variable w is in an dim copies of H1-conforming space. */
+class VectorTraceIntegrator : public BilinearFormIntegrator
+{
+private:
+   Vector face_shape, shape;
+   int vdim = -1;
+public:
+   VectorTraceIntegrator() { }
+   void AssembleTraceFaceMatrix(int elem,
+                                const FiniteElement &trial_face_fe,
+                                const FiniteElement &test_fe,
+                                FaceElementTransformations &Trans,
+                                DenseMatrix &elmat);
+   void SetVDim(int vdim_) { vdim = vdim_; }
+};
+
 
 /** Integrator for the form: < v, w.n > over a face (the interface) where
     the trial variable v is defined on the interface (H^1/2, i.e., trace of H1)
