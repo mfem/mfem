@@ -758,7 +758,8 @@ Vector & DPGWeakForm::ComputeResidual(const BlockVector & x)
          {
             for (int ie = 0; ie<faces.Size(); ie++)
             {
-               trial_offs[j+1] += trial_fes[j]->GetFaceElement(faces[ie])->GetDof();
+               trial_offs[j+1] += trial_fes[j]->GetVDim()*trial_fes[j]->GetFaceElement(
+                                     faces[ie])->GetDof();
             }
          }
          else
