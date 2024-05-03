@@ -36,6 +36,12 @@ DIFFUSION_OBJ = $(DIFFUSION_SRC:.cpp=.o)
 PDIFFUSION_SRC = pdiffusion.cpp $(DPG_REAL_PAR_SRC)
 PDIFFUSION_OBJ = $(PDIFFUSION_SRC:.cpp=.o)
 
+PDIFFUSIONPRIMAL_SRC = pdiffusion-primal.cpp $(DPG_REAL_PAR_SRC)
+PDIFFUSIONPRIMAL_OBJ = $(PDIFFUSIONPRIMAL_SRC:.cpp=.o)
+
+PVDIFFUSIONPRIMAL_SRC = pvectordiffusion-primal.cpp $(DPG_REAL_PAR_SRC)
+PVDIFFUSIONPRIMAL_OBJ = $(PVDIFFUSIONPRIMAL_SRC:.cpp=.o)
+
 CONVECTIONDIFFUSION_SRC = convection-diffusion.cpp $(DPG_REAL_SEQ_SRC)
 CONVECTIONDIFFUSION_OBJ = $(CONVECTIONDIFFUSION_SRC:.cpp=.o)
 
@@ -74,7 +80,7 @@ PMAXWELL_UW_TOKAMAK_OBJ = $(PMAXWELL_UW_TOKAMAK_SRC:.cpp=.o)
 
 SEQ_MINIAPPS = diffusion convection-diffusion acoustics maxwell
 PAR_MINIAPPS = pdiffusion pconvection-diffusion pacoustics pmaxwell pmaxwell-tokamak pmaxwell-fem-tokamak \
- pmaxwell-primal-tokamak pmaxwell-uw-tokamak pacoustics-primal pmaxwell-primal
+ pmaxwell-primal-tokamak pmaxwell-uw-tokamak pacoustics-primal pmaxwell-primal pdiffusion-primal pvectordiffusion-primal
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -111,6 +117,12 @@ convection-diffusion: $(CONVECTIONDIFFUSION_OBJ)
 
 pdiffusion: $(PDIFFUSION_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(PDIFFUSION_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
+
+pdiffusion-primal: $(PDIFFUSIONPRIMAL_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(PDIFFUSIONPRIMAL_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
+
+pvectordiffusion-primal: $(PVDIFFUSIONPRIMAL_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(PVDIFFUSIONPRIMAL_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
 
 pconvection-diffusion: $(PCONVECTIONDIFFUSION_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(PCONVECTIONDIFFUSION_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
