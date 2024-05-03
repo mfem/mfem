@@ -213,39 +213,43 @@ void BlockStaticCondensation::GetReducedElementIndicesAndOffsets(int el,
    {
       int td = 0;
       int ndof;
+      int vdim = fes[i]->GetVDim();
       // if it's an L2 space (bubbles)
       if (!tr_fes[i])
       {
-         ndof = fes[i]->GetVDim()*fes[i]->GetFE(el)->GetDof();
+         ndof = fes[i]->GetFE(el)->GetDof();
          td = 0;
       }
       else if (IsTraceSpace[i])
       {
          for (int iface = 0; iface < numfaces; iface++)
          {
-            td += fes[i]->GetVDim()*fes[i]->GetFaceElement(faces[iface])->GetDof();
+            td += fes[i]->GetFaceElement(faces[iface])->GetDof();
          }
          ndof = td;
       }
       else
       {
          Array<int> trace_dofs;
-         ndof = fes[i]->GetVDim()*fes[i]->GetFE(el)->GetDof();
-         tr_fes[i]->GetElementVDofs(el, trace_dofs);
+         ndof = fes[i]->GetFE(el)->GetDof();
+         tr_fes[i]->GetElementDofs(el, trace_dofs);
          td = trace_dofs.Size(); // number of trace dofs
       }
-      offsets[i+1] = td;
-      tr_dofs.SetSize(td);
-      int_dofs.SetSize(ndof - td);
-      for (int j = 0; j<td; j++)
+      offsets[i+1] = td*vdim;
+      tr_dofs.SetSize(td*vdim);
+      int_dofs.SetSize(vdim*(ndof - td));
+      for (int k = 0; k<vdim; k++)
       {
-         tr_dofs[j] = skip + j;
+         for (int j = 0; j<td; j++)
+         {
+            tr_dofs[j+k*td] = skip + j;
+         }
+         for (int j = 0; j<ndof-td; j++)
+         {
+            int_dofs[j+k*(ndof-td)] = skip + td + j;
+         }
+         skip+=ndof;
       }
-      for (int j = 0; j<ndof-td; j++)
-      {
-         int_dofs[j] = skip + td + j;
-      }
-      skip+=ndof;
 
       trace_ldofs.Append(tr_dofs);
       interior_ldofs.Append(int_dofs);
