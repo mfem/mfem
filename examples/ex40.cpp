@@ -75,7 +75,7 @@ int main(int argc, char *argv[])
    bool visit = false;
    bool paraview = false;
    bool binary = false;
-   int vis_steps = 5;
+   int vis_steps = 50;
 
    int precision = 8;
    cout.precision(precision);
@@ -225,7 +225,7 @@ int main(int argc, char *argv[])
       done = (t >= t_final - 1e-8 * dt);
       if (done || ti % vis_steps == 0)
       {
-         cout << "time step: " << ti << ", time: " << t << endl;
+         cout << "Time step: " << ti << ", time: " << t << endl;
       }
    }
    
@@ -261,6 +261,11 @@ int main(int argc, char *argv[])
       osol.precision(precision);
       u.Save(osol);
    }
+
+   
+   // . Compute the L1 solution error after one flow interval.
+   const real_t error = u.ComputeLpError(1, u0);
+   cout << "Solution L1 error: " << error << endl;
 
    delete ode_solver;
    return 0;
