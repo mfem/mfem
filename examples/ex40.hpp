@@ -87,7 +87,9 @@ ModalBasis::ModalBasis(DG_FECollection &fec_, Geometry::Type &gtype_, int order_
    : fec(fec_), gtype(gtype_), solpts(fec.FiniteElementForGeometry(gtype)->GetNodes()),
      order(order_), dim(dim_)
 {
-   // ASSERT INTERPOLATORY HERE??
+   // Transformation requires nodal basis
+   BasisType::CheckNodal(fec.GetBasisType());
+   
    npts = solpts.GetNPoints();
    umc = Vector(npts);
 
