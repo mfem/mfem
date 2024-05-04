@@ -18,8 +18,14 @@
 #include <cstring> // std::memcpy
 #include <type_traits> // std::is_const
 #include <cstddef> // std::max_align_t
+
 #ifdef MFEM_USE_MPI
+// Enable internal hypre timing routines
+#define HYPRE_TIMING
 #include <HYPRE_utilities.h> // for HYPRE_GetMemoryLocation() and others
+#if (21400 <= MFEM_HYPRE_VERSION) && (MFEM_HYPRE_VERSION < 21900)
+#include <_hypre_utilities.h> // for HYPRE_MEMORY_HOST and others
+#endif
 #endif
 
 namespace mfem
@@ -870,6 +876,14 @@ public:
 
 
 #ifdef MFEM_USE_MPI
+
+#if MFEM_HYPRE_VERSION < 21400
+#define HYPRE_MEMORY_DEVICE (0)
+#define HYPRE_MEMORY_HOST   (1)
+#endif
+#if MFEM_HYPRE_VERSION < 21900
+typedef int HYPRE_MemoryLocation;
+#endif
 
 /// Return the configured HYPRE_MemoryLocation
 inline HYPRE_MemoryLocation GetHypreMemoryLocation()

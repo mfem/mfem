@@ -18,9 +18,6 @@
 
 #include "../general/mem_manager.hpp"
 
-// Enable internal hypre timing routines
-#define HYPRE_TIMING
-
 // hypre header files
 #include <_hypre_parcsr_mv.h>
 
