@@ -294,8 +294,13 @@ int main(int argc, char *argv[])
 
    
    // . Compute the L1 solution error after one flow interval.
-   const real_t error = u.ComputeLpError(1, u0);
-   cout << "Solution L1 error: " << error << endl;
+   cout << "Solution L1 error: " << u.ComputeLpError(1, u0) << endl;
+
+
+   // . Compute discrete solution extrema (at solution nodes) after one flow interval.
+   cout << "Solution (discrete) minimum: " << u.Min() << endl;
+   cout << "Solution (discrete) maximum: " << u.Max() << endl;
+
 
    delete ode_solver;
    return 0;
