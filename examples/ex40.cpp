@@ -59,7 +59,7 @@ void Limit(GridFunction &u, GridFunction &uavg, IntegrationRule &solpts,
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   problem = 0;
+   problem = 5;
    const char *mesh_file = "../data/periodic-square.mesh";
    int ref_levels = 3;
    int order = 2;
@@ -84,7 +84,12 @@ int main(int argc, char *argv[])
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&problem, "-p", "--problem",
-                  "Problem setup to use. See options in velocity_function().");
+                  "Problem setup: 1 - 1D smooth advection,\n\t"
+                  "               2 - 2D smooth advection (structured mesh),\n\t"
+                  "               3 - 2D smooth advection (unstructured mesh),\n\t"
+                  "               4 - 1D discontinuous advection,\n\t"
+                  "               5 - 2D solid body rotation (structured mesh),\n\t"
+                  "               6 - 2D solid body rotation (unstructured mesh)\n\t");
    args.AddOption(&ref_levels, "-r", "--refine",
                   "Number of times to refine the mesh uniformly.");
    args.AddOption(&order, "-o", "--order",
@@ -124,7 +129,29 @@ int main(int argc, char *argv[])
 
    // 2. Read the mesh from the given mesh file. We can handle geometrically
    //    periodic meshes in this code.
+   bool diagonalize;
+   switch (problem) {
+      case 1: case 4: {
+         mesh_file = "../data/periodic-segment.mesh"; 
+         diagonalize = false; break;
+      }
+      case 2: case 5: {
+         mesh_file = "../data/periodic-square.mesh";
+         diagonalize = false; break;
+      }
+      case 3: case 6: {
+         mesh_file = "../data/periodic-square.mesh";
+         diagonalize = true; break;
+      }
+      default: {
+         MFEM_ABORT("Unknown problem type: " << problem);
+      }
+   }
    Mesh mesh(mesh_file, 1, 1);
+   if (diagonalize) {
+      // This doesn't work for periodic meshes
+      mesh = Mesh::MakeSimplicial(mesh);
+   }
    int dim = mesh.Dimension();
 
 
@@ -228,7 +255,7 @@ int main(int argc, char *argv[])
          cout << "Time step: " << ti << ", time: " << t << endl;
       }
    }
-   
+
 
    socketstream sout;
    if (visualization)
@@ -351,6 +378,9 @@ void Limit(GridFunction &u, GridFunction &uavg, IntegrationRule &solpts,
                // Track maximum limiting factor
                alpha = max(alpha, -hss);
             }
+            else {
+               MFEM_ABORT("Unknown limiter type: " << limiter_type);
+            }
          }
       }
 
@@ -362,34 +392,60 @@ void Limit(GridFunction &u, GridFunction &uavg, IntegrationRule &solpts,
    } 
 }
 
-// Initial condition for solid body rotation problem, consisting of a notched cylinder,
-// sharp cone, and Cosinusoidal hump.
+// Initial condition 
 real_t u0_function(const Vector &x) {
    int dim = x.Size();
 
    // Map to the reference [-1,1] domain
    Vector X(dim);
-   for (int i = 0; i < dim; i++)
-   {
+   for (int i = 0; i < dim; i++) {
       real_t center = (bb_min[i] + bb_max[i]) * 0.5;
       X(i) = 2 * (x(i) - center) / (bb_max[i] - bb_min[i]);
    }
 
-   constexpr real_t r2 = pow(0.3, 2.0);
-   // Notched cylinder
-   if ((pow(X(0), 2.0) + pow(X(1) - 0.5, 2.0) <= r2) && !(abs(X(0)) < 0.05 && abs(X(1) - 0.45) < 0.25)) {
-      return 1.0;
-   }
-   // Cosinusoidal hump
-   else if (pow(X(0) + 0.5, 2.0) + pow(X(1), 2.0) <= r2) {
-      return 0.25*(1 + cos(M_PI*sqrt(pow(X(0) + 0.5, 2.0) + pow(X(1), 2.0))/0.3));
-   }
-   // Sharp cone
-   else if (pow(X(0), 2.0) + pow(X(1) + 0.5, 2.0) <= r2) {
-      return 1 - sqrt(pow(X(0), 2.0) + pow(X(1) + 0.5, 2.0))/0.3;
-   }
-   else {
-      return 0.0;
+   switch (problem) {
+      // Advecting Gaussian
+      case 1: case 2: case 3: {
+         constexpr real_t w = 5;
+         return exp(-w*X.Norml2()*X.Norml2());
+      }
+      // Advecting waveforms
+      case 4: {
+         // Gaussian
+         if (abs(X(0) + 0.7) <= 0.25) {
+            return exp(-300*pow(X(0) + 0.7, 2.0));
+         }
+         // Step 
+         else if (abs(X(0) + 0.1) <= 0.2) {
+            return 1.0;
+         }
+         // Hump
+         else if (abs(X(0) - 0.6) <= 0.2) {
+            return sqrt(1 - pow((X(0) - 0.6)/0.2, 2.0));
+         }
+         else {
+            return 0.0;
+         }
+      }
+      // Solid body rotation
+      case 5: case 6: {
+         constexpr real_t r2 = pow(0.3, 2.0);
+         // Notched cylinder
+         if ((pow(X(0), 2.0) + pow(X(1) - 0.5, 2.0) <= r2) && !(abs(X(0)) < 0.05 && abs(X(1) - 0.45) < 0.25)) {
+            return 1.0;
+         }
+         // Cosinusoidal hump
+         else if (pow(X(0) + 0.5, 2.0) + pow(X(1), 2.0) <= r2) {
+            return 0.25*(1 + cos(M_PI*sqrt(pow(X(0) + 0.5, 2.0) + pow(X(1), 2.0))/0.3));
+         }
+         // Sharp cone
+         else if (pow(X(0), 2.0) + pow(X(1) + 0.5, 2.0) <= r2) {
+            return 1 - sqrt(pow(X(0), 2.0) + pow(X(1) + 0.5, 2.0))/0.3;
+         }
+         else {
+            return 0.0;
+         }
+      }
    }
 }
 
@@ -400,15 +456,26 @@ void velocity_function(const Vector &x, Vector &v)
 
    // map to the reference [-1,1] domain
    Vector X(dim);
-   for (int i = 0; i < dim; i++)
-   {
+   for (int i = 0; i < dim; i++) {
       real_t center = (bb_min[i] + bb_max[i]) * 0.5;
       X(i) = 2 * (x(i) - center) / (bb_max[i] - bb_min[i]);
    }
 
-   // Clockwise rotation in 2D around the origin
-   constexpr real_t w = 2*M_PI;
-   v(0) = w*X(1); v(1) = -w*X(0);
+   switch (problem) {
+      case 1: case 2: case 3: case 4: {
+         switch (dim) {
+            case 1: v(0) = 1.0; break;
+            case 2: v(0) = 2.0; v(1) = 2.0; break;
+         }
+         break;
+      }
+      case 5: case 6: {
+         // Clockwise rotation in 2D around the origin
+         constexpr real_t w = 2*M_PI;
+         v(0) = w*X(1); v(1) = -w*X(0);
+         break;
+      }
+   }
 }
 
 
