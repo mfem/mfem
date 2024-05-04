@@ -127,30 +127,33 @@ int main(int argc, char *argv[])
    Device device(device_config);
    device.Print();
 
-   // 2. Read the mesh from the given mesh file. We can handle geometrically
-   //    periodic meshes in this code.
-   bool diagonalize;
+   // 2. Generate 1D/2D structured/unstructured periodic mesh for the given problem
+   Mesh mesh;
    switch (problem) {
+      // Periodic 1D segment mesh
       case 1: case 4: {
-         mesh_file = "../data/periodic-segment.mesh"; 
-         diagonalize = false; break;
+         mesh = mesh.MakeCartesian1D(4);
+         mesh = Mesh::MakePeriodic(mesh,mesh.CreatePeriodicVertexMapping(
+                                   {Vector({1.0, 0.0})}));
+         break;
       }
+      // Periodic 2D quadrilateral mesh
       case 2: case 5: {
-         mesh_file = "../data/periodic-square.mesh";
-         diagonalize = false; break;
+         mesh = mesh.MakeCartesian2D(4, 4, Element::QUADRILATERAL);
+         mesh = Mesh::MakePeriodic(mesh,mesh.CreatePeriodicVertexMapping(
+                                   {Vector({1.0, 0.0}), Vector({0.0, 1.0})}));
+         break;
       }
+      // Periodic 2D triangle mesh
       case 3: case 6: {
-         mesh_file = "../data/periodic-square.mesh";
-         diagonalize = true; break;
+         mesh = mesh.MakeCartesian2D(4, 4, Element::TRIANGLE);
+         mesh = Mesh::MakePeriodic(mesh,mesh.CreatePeriodicVertexMapping(
+                                   {Vector({1.0, 0.0}), Vector({0.0, 1.0})}));
+         break;
       }
       default: {
          MFEM_ABORT("Unknown problem type: " << problem);
       }
-   }
-   Mesh mesh(mesh_file, 1, 1);
-   if (diagonalize) {
-      // This doesn't work for periodic meshes
-      mesh = Mesh::MakeSimplicial(mesh);
    }
    int dim = mesh.Dimension();
 
