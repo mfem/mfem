@@ -1564,8 +1564,10 @@ void HypreParMatrix::GetDiag(Vector &diag) const
    MemoryClass hypre_mc = (hypre_ml == HYPRE_MEMORY_HOST) ?
                           MemoryClass::HOST : MemoryClass::DEVICE;
    real_t *diag_hd = diag.GetMemory().Write(hypre_mc, size);
+#if MFEM_HYPRE_VERSION >= 21800
    MFEM_VERIFY(A->diag->memory_location == hypre_ml,
                "unexpected HypreParMatrix memory location!");
+#endif
    const HYPRE_Int *A_diag_i = A->diag->i;
    const real_t *A_diag_d = A->diag->data;
 #ifdef MFEM_DEBUG
