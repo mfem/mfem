@@ -23,6 +23,13 @@
 //
 //                We recommend viewing examples 9 and 18 before viewing this
 //                example.
+//
+//                [1] Xiangxiong Zhang and Chi-Wang Shu. On maximum-principle-
+//                    satisfying high order schemes for scalar conservation laws. 
+//                    Journal of Computational Physics. 229(9):3091–3120, May 2010.
+//                [2] Tarik Dzanic. Continuously bounds-preserving discontinuous
+//                    Galerkin methods for hyperbolic conservation laws. Journal
+//                    of Computational Physics. 508:113010, July 2024.
 
 #include "mfem.hpp"
 #include "ex18.hpp"
@@ -46,7 +53,8 @@ void velocity_function(const Vector &x, Vector &v);
 Vector bb_min, bb_max;
 
 void Limit(GridFunction &u, GridFunction &uavg, IntegrationRule &solpts,
-           IntegrationRule &samppts, ElementOptimizer * opt, int dim);
+           IntegrationRule &samppts, ElementOptimizer * opt, int dim,
+           int limiter_type);
 
 int main(int argc, char *argv[])
 {
@@ -60,6 +68,7 @@ int main(int argc, char *argv[])
    bool fa = false;
    const char *device_config = "cpu";
    int ode_solver_type = 1;
+   int limiter_type = 2;
    real_t t_final = 1;
    real_t dt = 4e-4;
    bool visualization = true;
@@ -74,10 +83,24 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+   args.AddOption(&problem, "-p", "--problem",
+                  "Problem setup to use. See options in velocity_function().");
    args.AddOption(&ref_levels, "-r", "--refine",
                   "Number of times to refine the mesh uniformly.");
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
+   args.AddOption(&ode_solver_type, "-s", "--ode-solver",
+                  "ODE solver: 1 - Forward Euler,\n\t"
+                  "            2 - RK2 SSP,\n\t"
+                  "            3 - RK3 SSP");
+   args.AddOption(&limiter_type, "-l", "--limiter",
+                  "Limiter: 0 - None,\n\t"
+                  "         1 - Discrete,\n\t"
+                  "         2 - Continuous");
+   args.AddOption(&t_final, "-tf", "--t-final",
+                  "Final time; start time is 0.");
+   args.AddOption(&dt, "-dt", "--time-step",
+                  "Time step.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -171,7 +194,7 @@ int main(int argc, char *argv[])
 
    // . Perform limiting based on sampling points (quadrature points) and solution points.
    IntegrationRule samppts = IntRules.Get(gtype, 2*order);
-   Limit(u, uavg, MB.solpts, samppts, &opt, dim);
+   Limit(u, uavg, MB.solpts, samppts, &opt, dim, limiter_type);
 
    // 
    real_t t = 0.0;
@@ -196,7 +219,7 @@ int main(int argc, char *argv[])
       real_t dt_real = min(dt, t_final - t);
 
       ode_solver->Step(u, t, dt_real);
-      Limit(u, uavg, MB.solpts, samppts, &opt, dim);
+      Limit(u, uavg, MB.solpts, samppts, &opt, dim, limiter_type);
       ti++;
 
       done = (t >= t_final - 1e-8 * dt);
@@ -244,7 +267,11 @@ int main(int argc, char *argv[])
 }
 
 void Limit(GridFunction &u, GridFunction &uavg, IntegrationRule &solpts, 
-           IntegrationRule &samppts, ElementOptimizer * opt, int dim) {
+           IntegrationRule &samppts, ElementOptimizer * opt, int dim,
+           int limiter_type) {
+   // Return if no limiter is chosen
+   if (!limiter_type) return;
+
    Vector x0(dim), xi(dim);
    Vector u_elem = Vector();
 
@@ -306,12 +333,19 @@ void Limit(GridFunction &u, GridFunction &uavg, IntegrationRule &solpts,
                }
             }
 
-            // Use optimizer to find minima of h(u(x)) within element 
-            // using x0 as the starting point
-            real_t hss = opt->Optimize(x0);
+            // Discretely bounds-preserving limiter
+            if (limiter_type == 1) {
+               alpha = max(alpha, -hstar);
+            }
+            // Continuously bounds-preserving limiter
+            else if (limiter_type == 2) {
+               // Use optimizer to find minima of h(u(x)) within element 
+               // using x0 as the starting point
+               real_t hss = opt->Optimize(x0);
 
-            // Track maximum limiting factor
-            alpha = max(alpha, -hss);
+               // Track maximum limiting factor
+               alpha = max(alpha, -hss);
+            }
          }
       }
 
