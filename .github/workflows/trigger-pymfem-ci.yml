@@ -14,7 +14,6 @@ name: "Trigger PyMFEM CI"
 # For now, only trigger manually
 on:
   workflow_dispatch:
-  pull_request:
 
 jobs:
   trigger-pymfem:
@@ -27,5 +26,5 @@ jobs:
              -H "Accept: application/vnd.github+json" \
              -H "Authorization: Bearer ${{ secrets.PYMFEM_CI_TOKEN }}" \
              -H "X-GitHub-Api-Version: 2022-11-28" \
-             https://api.github.com/repos/testing-org-permissions/target/actions/workflows/workflow.yml/dispatches \
+             https://api.github.com/repos/mfem/pymfem/actions/workflows/build-and-test.yml/dispatches \
              -d '{"ref":"main", "inputs":{"test_matrix":false}}'
