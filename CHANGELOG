@@ -27,6 +27,10 @@ Meshing improvements
 
 - Added support for internal boundary elements in nonconforming meshes.
 
+- Added the capability to partition (big) serial meshes in serial code, see the
+  new classes MeshPartitioner and MeshPart. This capability is also exposed as a
+  menu option in the mesh-explorer miniapp in miniapps/meshing.
+
 - The ReadCubit Genesis mesh importer has been rewritten to improve readability.
 
 Discretization improvements
@@ -58,6 +62,10 @@ GPU computing
 
 - RAJA backend will use seq_exec for serial loop execution when RAJA v2023.06.00
   and beyond is detected as loop_exec is deprecated.
+
+- API change: The macro MFEM_HYPRE_FORALL (from hypre.hpp) which was intended
+  for internal use, has been removed and replaced by the function template
+  mfem::hypre_forall in general/forall.hpp.
 
 New and updated examples and miniapps
 -------------------------------------

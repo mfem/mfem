@@ -616,6 +616,7 @@ The specific libraries and their options are:
             HYPRE >= 2.20.0   (HYPRE built with '--enable-mixedint')
             HYPRE >= 2.22.1   (HYPRE built with CUDA)
             HYPRE >= 2.23.0   (HYPRE built with HIP)
+            HYPRE >= 2.31.0   (runtime selectable HYPRE execution on CPU/GPU)
 
 - METIS, used when MFEM_USE_METIS = YES. If using METIS 5, set
   MFEM_USE_METIS_5 = YES (default is to use METIS 4). For building instructions,
