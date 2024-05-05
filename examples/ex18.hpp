@@ -40,8 +40,7 @@ private:
    std::unique_ptr<NonlinearForm> nonlinearForm;
    // element-wise inverse mass matrix
    std::vector<DenseMatrix> invmass; // local scalar inverse mass
-   std::vector<DenseMatrix> weakdiv; // local weak divergence
-                                     // trial space is ByDim
+   std::vector<DenseMatrix> weakdiv; // local weak divergence (trial space ByDim)
    // global maximum characteristic speed. Updated by form integrators
    mutable real_t max_char_speed;
    // auxiliary variable used in Mult
