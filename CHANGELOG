@@ -54,9 +54,9 @@ GPU computing
 
 - Efficient GPU-accelerated LOR assembly is now supported on surface meshes.
 
-- Added functionality to automatically configure HYPRE's compute policy to match
-  MFEM's compute policy when HYPRE is built with GPU support. Requires HYPRE
-  version 2.31.0 or later.
+- Added functionality to automatically configure hypre's compute policy to match
+  MFEM's compute policy when hypre is built with GPU support. Requires version
+  hypre-2.31.0 or later.
 
 - Added support for full assembly on simplices.
 
