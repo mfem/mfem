@@ -13,8 +13,8 @@
 //                Tribol Miniapp: Mortar contact patch test
 //                -----------------------------------------
 //
-// This miniapp depends on Tribol, which is an open source contact mechanics
-// library available at https://github.com/LLNL/Tribol.
+// This miniapp depends on Tribol, an open source contact mechanics library
+// available at https://github.com/LLNL/Tribol.
 //
 // This miniapp uses Tribol's mortar method to solve a contact patch test.
 // Tribol has native support for MFEM data structures (ParMesh, ParGridFunction,
