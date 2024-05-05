@@ -205,6 +205,14 @@ MFEM_SHARED_BUILD = $(MFEM_SHARED)
 override static = $(if $(MFEM_STATIC:YES=),,YES)
 override shared = $(if $(MFEM_SHARED:YES=),,YES)
 
+# Error for package integrations that currently don't support single precision
+ifeq ($(MFEM_USE_SINGLE),YES)
+   PKGS_NO_SINGLE = SUNDIALS SUITESPARSE SUPERLU STRUMPACK GINKGO AMGX SLEPC\
+	 PUMI GSLIB ALGOIM CEED MOONOLITH TRIBOL
+   $(foreach pkg,$(PKGS_NO_SINGLE),$(if $(MFEM_USE_$(pkg):NO=),\
+     $(error Package $(pkg) is NOT supported with single precision)))
+endif
+
 # The default value of CXXFLAGS is based on the value of MFEM_DEBUG
 ifeq ($(MFEM_DEBUG),YES)
    CXXFLAGS ?= $(DEBUG_FLAGS)
