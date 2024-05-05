@@ -118,7 +118,7 @@ public:
 
     2. J. Bramble and J. Pasciak.  A Preconditioning Technique for Indefinite
        Systems Resulting From Mixed Approximations of Elliptic Problems,
-       Mathematics of Computation, 50:1–17, 1988. */
+       Mathematics of Computation, 50:1-17, 1988. */
 class BramblePasciakSolver : public DarcySolver
 {
    mutable bool use_bpcg;
