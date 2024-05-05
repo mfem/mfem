@@ -77,7 +77,7 @@
 //       ./lor_elast --device cuda -m ../../data/beam-hex.mesh -l 4 -o 2 -pa -ca
 //       ./lor_elast --device cuda -m ../../data/beam-hex.mesh -l 5 -ca
 //
-//    References:
+// References:
 //    [1] Mihajlović, M.D. and Mijalković, S., "A component decomposition
 //        preconditioning for 3D stress analysis problems", Numerical Linear
 //        Algebra with Applications, 2002.
@@ -204,13 +204,13 @@ int main(int argc, char *argv[])
    fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
    // 9. Set up the parallel linear form b(.) which corresponds to the
-   //     right-hand side of the FEM linear system. In this case, b_i equals the
-   //     boundary integral of f*phi_i where f represents a "pull down" force on
-   //     the Neumann part of the boundary and phi_i are the basis functions in
-   //     the finite element fespace. The force is defined by the object f, which
-   //     is a vector of Coefficient objects. The fact that f is non-zero on
-   //     boundary attribute 2 is indicated by the use of piece-wise constants
-   //     coefficient for its last component.
+   //    right-hand side of the FEM linear system. In this case, b_i equals the
+   //    boundary integral of f*phi_i where f represents a "pull down" force on
+   //    the Neumann part of the boundary and phi_i are the basis functions in
+   //    the finite element fespace. The force is defined by the object f, which
+   //    is a vector of Coefficient objects. The fact that f is non-zero on
+   //    boundary attribute 2 is indicated by the use of piece-wise constants
+   //    coefficient for its last component.
    VectorArrayCoefficient f(dim);
    for (int i = 0; i < dim-1; i++)
    {
@@ -476,7 +476,7 @@ int main(int argc, char *argv[])
    //     original grid). This output can be viewed later using GLVis: "glvis
    //     -np <np> -m mesh -g sol".
    //
-   //     Also, save the displacement, with dispaced mesh, to VTK.
+   //     Also, save the displacement, with displaced mesh, to VTK.
    if (visualization)
    {
       GridFunction *nodes = pmesh.GetNodes();
