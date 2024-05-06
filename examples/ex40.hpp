@@ -153,7 +153,7 @@ void ModalBasis::ComputeUBDegs() {
          break;
       }
       default:
-         MFEM_ABORT("Element type not supported for continuously bounds-preserving limiting.")
+         MFEM_ABORT("Element type not currently supported for modal basis.")
    }
 }
 
@@ -476,7 +476,7 @@ bool ElementOptimizer::IsPD(DenseMatrix &M) {
          return (M(0,0) > eps && M.Det() > eps);
       }
       default:
-         MFEM_ABORT("Continously bounds-preserving limiting not supported for dim > 2.")
+         MFEM_ABORT("Continously bounds-preserving limiting not currently supported for dim > 2.")
    }
 }
 
@@ -511,7 +511,7 @@ void ElementOptimizer::ComputeGeometryLevelset(Vector &x, Vector &s) {
          break;
       }
       default:
-         MFEM_ABORT("Element type not supported for continuously bounds-preserving limiting.")
+         MFEM_ABORT("Element type not currently supported for continuously bounds-preserving limiting.")
    }
 }
 
@@ -547,7 +547,7 @@ void ElementOptimizer::PrecomputeElementNormals() {
          break;
       }
       default:
-         MFEM_ABORT("Element type not supported for continuously bounds-preserving limiting.")
+         MFEM_ABORT("Element type not currently supported for continuously bounds-preserving limiting.")
    }
 }
 
