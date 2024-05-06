@@ -63,7 +63,7 @@ int main(int argc, char *argv[])
    int ny = 0;
    int order = 1;
    bool dg = false;
-   bool upwind_adv = false;
+   bool upwinded = false;
    int problem = 1;
    real_t k = 1.;
    real_t c = 1.;
@@ -85,8 +85,8 @@ int main(int argc, char *argv[])
                   "Finite element order (polynomial degree).");
    args.AddOption(&dg, "-dg", "--discontinuous", "-no-dg",
                   "--no-discontinuous", "Enable DG elements for fluxes.");
-   args.AddOption(&upwind_adv, "-ua", "--upwind-adv", "-ca", "--center-adv",
-                  "Switches between upwinded (1) and centered (0=default) advection stabilization.");
+   args.AddOption(&upwinded, "-up", "--upwinded", "-ce", "--centered",
+                  "Switches between upwinded (1) and centered (0=default) stabilization.");
    args.AddOption(&problem, "-p", "--problem",
                   "Problem to solve from the Nguyen paper.");
    args.AddOption(&k, "-k", "--kappa",
@@ -130,6 +130,13 @@ int main(int argc, char *argv[])
          cerr << "Unknown problem" << endl;
          return 1;
    }
+
+   if (!bconv && upwinded)
+   {
+      cerr << "Upwinded scheme cannot work without advection" << endl;
+      return 1;
+   }
+
    // 2. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
    Device device(device_config);
@@ -263,7 +270,7 @@ int main(int argc, char *argv[])
    {
       Mq->AddDomainIntegrator(new VectorMassIntegrator(ikcoeff));
       B->AddDomainIntegrator(new VectorDivergenceIntegrator());
-      if (upwind_adv)
+      if (upwinded)
       {
          B->AddInteriorFaceIntegrator(new TransposeIntegrator(
                                          new DGNormalTraceIntegrator(ccoeff, -1.)));
@@ -272,10 +279,10 @@ int main(int argc, char *argv[])
       {
          B->AddInteriorFaceIntegrator(new TransposeIntegrator(
                                          new DGNormalTraceIntegrator(-1.)));
-      }
-      if (td > 0.)
-      {
-         Mt->AddInteriorFaceIntegrator(new HDGDiffusionCenteredIntegrator(kcoeff, td));
+         if (td > 0.)
+         {
+            Mt->AddInteriorFaceIntegrator(new HDGDiffusionCenteredIntegrator(kcoeff, td));
+         }
       }
    }
    else
@@ -286,7 +293,7 @@ int main(int argc, char *argv[])
    if (bconv)
    {
       Mt->AddDomainIntegrator(new ConservativeConvectionIntegrator(ccoeff));
-      if (upwind_adv)
+      if (upwinded)
       {
          Mt->AddInteriorFaceIntegrator(new HDGConvectionUpwindedIntegrator(ccoeff));
       }
