@@ -364,7 +364,7 @@ public:
        freedom of element @a el. */
    virtual void GetElementDofValues(int el, Vector &dof_vals) const;
 
-   /** Sets the values of the degrees of freedom of element @a el to the 
+   /** Sets the values of the degrees of freedom of element @a el to the
     * input vector @a dof_vals. */
    virtual void SetElementDofValues(int el, Vector &dof_vals);
 

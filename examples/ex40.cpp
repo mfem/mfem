@@ -25,7 +25,7 @@
 //                example.
 //
 //                [1] Xiangxiong Zhang and Chi-Wang Shu. On maximum-principle-
-//                    satisfying high order schemes for scalar conservation laws. 
+//                    satisfying high order schemes for scalar conservation laws.
 //                    Journal of Computational Physics. 229(9):3091–3120, May 2010.
 //                [2] Tarik Dzanic. Continuously bounds-preserving discontinuous
 //                    Galerkin methods for hyperbolic conservation laws. Journal
@@ -126,29 +126,34 @@ int main(int argc, char *argv[])
 
    // 2. Generate 1D/2D structured/unstructured periodic mesh for the given problem
    Mesh mesh;
-   switch (problem) {
+   switch (problem)
+   {
       // Periodic 1D segment mesh
-      case 1: case 4: {
+      case 1: case 4:
+      {
          mesh = mesh.MakeCartesian1D(16);
          mesh = Mesh::MakePeriodic(mesh,mesh.CreatePeriodicVertexMapping(
-                                   {Vector({1.0, 0.0})}));
+         {Vector({1.0, 0.0})}));
          break;
       }
       // Periodic 2D quadrilateral mesh
-      case 2: case 5: {
+      case 2: case 5:
+      {
          mesh = mesh.MakeCartesian2D(16, 16, Element::QUADRILATERAL);
          mesh = Mesh::MakePeriodic(mesh,mesh.CreatePeriodicVertexMapping(
-                                   {Vector({1.0, 0.0}), Vector({0.0, 1.0})}));
+         {Vector({1.0, 0.0}), Vector({0.0, 1.0})}));
          break;
       }
       // Periodic 2D triangle mesh
-      case 3: case 6: {
+      case 3: case 6:
+      {
          mesh = mesh.MakeCartesian2D(16, 16, Element::TRIANGLE);
          mesh = Mesh::MakePeriodic(mesh,mesh.CreatePeriodicVertexMapping(
-                                   {Vector({1.0, 0.0}), Vector({0.0, 1.0})}));
+         {Vector({1.0, 0.0}), Vector({0.0, 1.0})}));
          break;
       }
-      default: {
+      default:
+      {
          MFEM_ABORT("Unknown problem type: " << problem);
       }
    }
@@ -195,7 +200,7 @@ int main(int argc, char *argv[])
       osol.precision(precision);
       u.Save(osol);
    }
-   
+
 
    // 8. Setup FE space and grid function for element-wise mean.
    L2_FECollection uavg_fec(0, dim);
@@ -203,46 +208,53 @@ int main(int argc, char *argv[])
    GridFunction uavg(&uavg_fes);
 
 
-   // 9. 
+   // 9.
    VectorFunctionCoefficient velocity(dim, velocity_function);
    AdvectionFlux flux(velocity);
    RusanovFlux numericalFlux(flux);
    DGHyperbolicConservationLaws advection(fes,
-      std::unique_ptr<HyperbolicFormIntegrator>(
-         new HyperbolicFormIntegrator(numericalFlux, 0)),
-      false);
+                                          std::unique_ptr<HyperbolicFormIntegrator>(
+                                             new HyperbolicFormIntegrator(numericalFlux, 0)),
+                                          false);
 
    // . If using modal basis for general coordinate evaluation, generate modal basis
    //   transformation and pre-compute Vandermonde matrix.
    Geometry::Type gtype = mesh.GetElementGeometry(0);
    ModalBasis * MB = NULL;
-   if (use_modal_basis) {
+   if (use_modal_basis)
+   {
       MB = new ModalBasis(fec, gtype, order, dim);
    }
 
    // . Setup spatial optimization algorithmic for constraint functionals.
    const FiniteElement * fe = fes.GetFE(0);
-   ElementOptimizer opt = ElementOptimizer(MB, fe, gtype, dim, order, use_modal_basis);
+   ElementOptimizer opt = ElementOptimizer(MB, fe, gtype, dim, order,
+                                           use_modal_basis);
 
-   // . Setup points for limiting: solution nodes and any other arbitrary sampling nodes 
+   // . Setup points for limiting: solution nodes and any other arbitrary sampling nodes
    //   (in this case, volume/surface quadrature nodes).
    IntegrationRule solpts = fec.FiniteElementForGeometry(gtype)->GetNodes();
    std::vector<Vector> samppts = {};
    // Add volume quadrature nodes to sampling nodes.
    IntegrationRule vqpts = IntRules.Get(gtype, 2*order);
-   for (int i = 0; i < vqpts.Size(); i++) {
+   for (int i = 0; i < vqpts.Size(); i++)
+   {
       Vector xi(dim);
       vqpts.IntPoint(i).Get(xi, dim);
       samppts.push_back(xi);
    }
    // For dim > 1, add surface quadrature nodes to sampling nodes.
-   // Is there a general MFEM method for doing this? 
-   if (dim > 1) {
-      switch (gtype) {
+   // Is there a general MFEM method for doing this?
+   if (dim > 1)
+   {
+      switch (gtype)
+      {
          // Triangle
-         case 2: {
+         case 2:
+         {
             IntegrationRule fqpts = IntRules.Get(1, 2*order);
-            for (int i = 0; i < fqpts.Size(); i++) {
+            for (int i = 0; i < fqpts.Size(); i++)
+            {
                Vector xf(dim-1), xi(dim);
                fqpts.IntPoint(i).Get(xf, dim);
 
@@ -253,9 +265,11 @@ int main(int argc, char *argv[])
             break;
          }
          // Quad
-         case 3:{
+         case 3:
+         {
             IntegrationRule fqpts = IntRules.Get(1, 2*order);
-            for (int i = 0; i < fqpts.Size(); i++) {
+            for (int i = 0; i < fqpts.Size(); i++)
+            {
                Vector xf(dim-1), xi(dim);
                fqpts.IntPoint(i).Get(xf, dim);
 
@@ -266,20 +280,22 @@ int main(int argc, char *argv[])
             }
             break;
          }
-         default: {
+         default:
+         {
             MFEM_ABORT("Unknown geometry type: " << gtype);
          }
       }
    }
 
-   // . Limit initial solution (if necessary). 
+   // . Limit initial solution (if necessary).
    Limit(u, uavg, solpts, samppts, &opt, dim, limiter_type);
 
    // . Set up SSP time integrator (note that RK3 integrator does not apply limiting at
    //   inner stages, which may cause bounds-violations).
    real_t t = 0.0;
    ODESolver *ode_solver = NULL;
-   switch (ode_solver_type) {
+   switch (ode_solver_type)
+   {
       case 0: ode_solver = new ForwardEulerSolver; break;
       case 1: ode_solver = new RK3SSPSolver; break;
 
@@ -287,10 +303,10 @@ int main(int argc, char *argv[])
          cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
          return 3;
    }
-   
+
    advection.SetTime(t);
    ode_solver->Init(advection);
-   
+
    bool done = false;
    for (int ti = 0; !done;)
    {
@@ -340,7 +356,7 @@ int main(int argc, char *argv[])
       u.Save(osol);
    }
 
-   
+
    // . Compute the L1 solution error and discrete solution extrema (at solution nodes)
    //   after one flow interval.
    cout << "Solution L1 error: " << u.ComputeLpError(1, u0) << endl;
@@ -352,11 +368,12 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-void Limit(GridFunction &u, GridFunction &uavg, IntegrationRule &solpts, 
+void Limit(GridFunction &u, GridFunction &uavg, IntegrationRule &solpts,
            std::vector<Vector> &samppts, ElementOptimizer * opt, int dim,
-           int limiter_type) {
+           int limiter_type)
+{
    // Return if no limiter is chosen
-   if (!limiter_type) return;
+   if (!limiter_type) { return; }
 
    Vector x0(dim), xi(dim);
    Vector u_elem = Vector();
@@ -365,7 +382,8 @@ void Limit(GridFunction &u, GridFunction &uavg, IntegrationRule &solpts,
    u.GetElementAverages(uavg);
 
    // Loop through elements and limit if necessary
-   for (int i = 0; i < u.FESpace()->GetNE(); i++) {
+   for (int i = 0; i < u.FESpace()->GetNE(); i++)
+   {
       // Get local element DOF values
       u.GetElementDofValues(i, u_elem);
 
@@ -373,11 +391,13 @@ void Limit(GridFunction &u, GridFunction &uavg, IntegrationRule &solpts,
       bool skip_opt = false;
 
       // Loop through constraint functionals
-      for (int j = 0; j < opt->ncon; j++) {
+      for (int j = 0; j < opt->ncon; j++)
+      {
          opt->SetCostFunction(j);
 
          // Check if element-wise mean is on constaint boundary
-         if (opt->g(uavg(i)) < opt->eps) {
+         if (opt->g(uavg(i)) < opt->eps)
+         {
             // Set maximum limiting factor and skip optimization
             skip_opt = true;
             alpha = 1.0;
@@ -385,12 +405,14 @@ void Limit(GridFunction &u, GridFunction &uavg, IntegrationRule &solpts,
          }
       }
 
-      if (!skip_opt) {
+      if (!skip_opt)
+      {
          // Set element-wise solution and convert to modal form
          opt->SetSolution(u_elem);
 
          // Loop through constraint functionals
-         for (int j = 0; j < opt->ncon; j++) {
+         for (int j = 0; j < opt->ncon; j++)
+         {
             // Set constraint functional and calculate element-wise mean terms
             opt->SetCostFunction(j);
             opt->SetGbar(uavg(i));
@@ -399,103 +421,126 @@ void Limit(GridFunction &u, GridFunction &uavg, IntegrationRule &solpts,
             real_t hstar = infinity();
 
             // Loop through solution nodes
-            for (int k = 0; k < solpts.GetNPoints(); k++) {
+            for (int k = 0; k < solpts.GetNPoints(); k++)
+            {
                real_t hi = opt->h(u_elem(k));
-               if (hi < hstar) {
+               if (hi < hstar)
+               {
                   hstar = hi;
                   solpts.IntPoint(k).Get(xi, dim);
                   x0 = xi;
                }
             }
             // Loop through other sampling nodes (typically quadrature nodes)
-            for (Vector xi : samppts) {
+            for (Vector xi : samppts)
+            {
                // Compute solution using modal basis
-               real_t ui = opt->Eval(xi); 
+               real_t ui = opt->Eval(xi);
                real_t hi = opt->h(ui);
-               if (hi < hstar) {
+               if (hi < hstar)
+               {
                   hstar = hi;
                   x0 = xi;
                }
             }
 
             // Discretely bounds-preserving limiter
-            if (limiter_type == 1) {
+            if (limiter_type == 1)
+            {
                alpha = max(alpha, -hstar);
             }
             // Continuously bounds-preserving limiter
-            else if (limiter_type == 2) {
-               // Use optimizer to find minima of h(u(x)) within element using x0 as 
+            else if (limiter_type == 2)
+            {
+               // Use optimizer to find minima of h(u(x)) within element using x0 as
                // the starting point
                real_t hss = opt->Optimize(x0);
 
                // Track maximum limiting factor
                alpha = max(alpha, -hss);
             }
-            else {
+            else
+            {
                MFEM_ABORT("Unknown limiter type: " << limiter_type);
             }
          }
       }
 
       // Perform convex limiting towards element-wise mean using maximum limiting factor
-      for (int j = 0; j < u_elem.Size(); j++) {
+      for (int j = 0; j < u_elem.Size(); j++)
+      {
          u_elem(j) = (1 - alpha)*u_elem(j) + alpha*uavg(i);
       }
-      u.SetElementDofValues(i, u_elem); 
-   } 
+      u.SetElementDofValues(i, u_elem);
+   }
 }
 
-// Initial condition 
-real_t u0_function(const Vector &x) {
+// Initial condition
+real_t u0_function(const Vector &x)
+{
    int dim = x.Size();
 
    // Map to the reference [-1,1] domain
    Vector X(dim);
-   for (int i = 0; i < dim; i++) {
+   for (int i = 0; i < dim; i++)
+   {
       real_t center = (bb_min[i] + bb_max[i]) * 0.5;
       X(i) = 2 * (x(i) - center) / (bb_max[i] - bb_min[i]);
    }
 
-   switch (problem) {
+   switch (problem)
+   {
       // Advecting Gaussian
-      case 1: case 2: case 3: {
+      case 1: case 2: case 3:
+      {
          constexpr real_t w = 5;
          return exp(-w*X.Norml2()*X.Norml2());
       }
       // Advecting waveforms
-      case 4: {
+      case 4:
+      {
          // Gaussian
-         if (abs(X(0) + 0.7) <= 0.25) {
+         if (abs(X(0) + 0.7) <= 0.25)
+         {
             return exp(-300*pow(X(0) + 0.7, 2.0));
          }
-         // Step 
-         else if (abs(X(0) + 0.1) <= 0.2) {
+         // Step
+         else if (abs(X(0) + 0.1) <= 0.2)
+         {
             return 1.0;
          }
          // Hump
-         else if (abs(X(0) - 0.6) <= 0.2) {
+         else if (abs(X(0) - 0.6) <= 0.2)
+         {
             return sqrt(1 - pow((X(0) - 0.6)/0.2, 2.0));
          }
-         else {
+         else
+         {
             return 0.0;
          }
       }
       // Solid body rotation
-      case 5: case 6: {
+      case 5: case 6:
+      {
          constexpr real_t r2 = pow(0.3, 2.0);
          // Notched cylinder
-         if ((pow(X(0), 2.0) + pow(X(1) - 0.5, 2.0) <= r2) && !(abs(X(0)) < 0.05 && abs(X(1) - 0.45) < 0.25)) {
+         if ((pow(X(0), 2.0) + pow(X(1) - 0.5, 2.0) <= r2) && !(abs(X(0)) < 0.05 &&
+                                                                abs(X(1) - 0.45) < 0.25))
+         {
             return 1.0;
          }
          // Cosinusoidal hump
-         else if (pow(X(0) + 0.5, 2.0) + pow(X(1), 2.0) <= r2) {
+         else if (pow(X(0) + 0.5, 2.0) + pow(X(1), 2.0) <= r2)
+         {
             return 0.25*(1 + cos(M_PI*sqrt(pow(X(0) + 0.5, 2.0) + pow(X(1), 2.0))/0.3));
          }
          // Sharp cone
-         else if (pow(X(0), 2.0) + pow(X(1) + 0.5, 2.0) <= r2) {
+         else if (pow(X(0), 2.0) + pow(X(1) + 0.5, 2.0) <= r2)
+         {
             return 1 - sqrt(pow(X(0), 2.0) + pow(X(1) + 0.5, 2.0))/0.3;
          }
-         else {
+         else
+         {
             return 0.0;
          }
       }
@@ -511,20 +556,25 @@ void velocity_function(const Vector &x, Vector &v)
 
    // map to the reference [-1,1] domain
    Vector X(dim);
-   for (int i = 0; i < dim; i++) {
+   for (int i = 0; i < dim; i++)
+   {
       real_t center = (bb_min[i] + bb_max[i]) * 0.5;
       X(i) = 2 * (x(i) - center) / (bb_max[i] - bb_min[i]);
    }
 
-   switch (problem) {
-      case 1: case 2: case 3: case 4: {
-         switch (dim) {
+   switch (problem)
+   {
+      case 1: case 2: case 3: case 4:
+      {
+         switch (dim)
+         {
             case 1: v(0) = 1.0; break;
             case 2: v(0) = 1.0; v(1) = 1.0; break;
          }
          break;
       }
-      case 5: case 6: {
+      case 5: case 6:
+      {
          // Clockwise rotation in 2D around the origin
          constexpr real_t w = 2*M_PI;
          v(0) = w*X(1); v(1) = -w*X(0);
