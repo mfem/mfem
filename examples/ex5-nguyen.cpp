@@ -276,8 +276,7 @@ int main(int argc, char *argv[])
                                          new DGNormalTraceIntegrator(ccoeff, -1.)));
          if (td > 0. && hybridization)
          {
-            Mt->AddInteriorFaceIntegrator(new HDGDiffusionUpwindedIntegrator(ccoeff, kcoeff,
-                                                                             td));
+            Mt->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(ccoeff, kcoeff, td));
          }
       }
       else
@@ -286,7 +285,7 @@ int main(int argc, char *argv[])
                                          new DGNormalTraceIntegrator(-1.)));
          if (td > 0.)
          {
-            Mt->AddInteriorFaceIntegrator(new HDGDiffusionCenteredIntegrator(kcoeff, td));
+            Mt->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td));
          }
       }
    }
