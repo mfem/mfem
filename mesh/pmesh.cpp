@@ -256,9 +256,6 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       // build svert_lvert mapping
       BuildSharedVertMapping(nsvert, vert_element, vert_global_local);
       delete vert_element;
-
-      SetMeshGen();
-      meshgen = mesh.meshgen; // copy the global 'meshgen'
    }
 
    if (mesh.NURBSext)
@@ -1527,6 +1524,7 @@ ParMesh ParMesh::MakeSimplicial(ParMesh &orig_mesh)
 void ParMesh::Finalize(bool refine, bool fix_orientation)
 {
    const int meshgen_save = meshgen; // Mesh::Finalize() may call SetMeshGen()
+   // 'mesh_geoms' is local, so there's no need to save and restore it.
 
    Mesh::Finalize(refine, fix_orientation);
 
@@ -4807,7 +4805,7 @@ void ParMesh::Print(std::ostream &os, const std::string &comments) const
 
    if (NURBSext)
    {
-      Printer(os, comments); // does not print shared boundary
+      Printer(os, "", comments); // does not print shared boundary
       return;
    }
 
@@ -4935,7 +4933,7 @@ void ParMesh::Print(std::ostream &os, const std::string &comments) const
 
    if (set_names)
    {
-      os << "mfem_mesh_end\n";
+      os << "\nmfem_mesh_end" << endl;
    }
 }
 
@@ -5286,7 +5284,7 @@ void ParMesh::PrintAsSerial(std::ostream &os, const std::string &comments) const
    Mesh serialmesh = GetSerialMesh(save_rank);
    if (MyRank == save_rank)
    {
-      serialmesh.Printer(os, comments);
+      serialmesh.Printer(os, "", comments);
    }
    MPI_Barrier(MyComm);
 }
@@ -6325,11 +6323,11 @@ void ParMesh::ParPrint(ostream &os, const std::string &comments) const
    if (Nonconforming())
    {
       // the NC mesh format works both in serial and in parallel
-      Printer(os, comments);
+      Printer(os, "", comments);
       return;
    }
 
-   // Write out serial mesh.  Tell serial mesh to deliniate the end of it's
+   // Write out serial mesh.  Tell serial mesh to delineate the end of its
    // output with 'mfem_serial_mesh_end' instead of 'mfem_mesh_end', as we will
    // be adding additional parallel mesh information.
    Printer(os, "mfem_serial_mesh_end", comments);
@@ -6346,6 +6344,7 @@ void ParMesh::ParPrint(ostream &os, const std::string &comments) const
    {
       os << "total_shared_faces " << sface_lface.Size() << '\n';
    }
+   os << "\n# group 0 has no shared entities\n";
    for (int gr = 1; gr < GetNGroups(); gr++)
    {
       {
