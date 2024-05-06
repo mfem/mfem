@@ -53,7 +53,7 @@ void velocity_function(const Vector &x, Vector &v);
 Vector bb_min, bb_max;
 
 void Limit(GridFunction &u, GridFunction &uavg, IntegrationRule &solpts,
-           IntegrationRule &samppts, ElementOptimizer * opt, int dim,
+           std::vector<Vector> &samppts, ElementOptimizer * opt, int dim,
            int limiter_type);
 
 int main(int argc, char *argv[])
@@ -225,9 +225,53 @@ int main(int argc, char *argv[])
    const FiniteElement * fe = fes.GetFE(0);
    ElementOptimizer opt = ElementOptimizer(MB, fe, gtype, dim, order, use_modal_basis);
 
-   // . Setup points for limiting: solution nodes and sampling nodes (quadrature points).
+   // . Setup points for limiting: solution nodes and any other arbitrary sampling nodes 
+   //   (in this case, volume/surface quadrature nodes).
    IntegrationRule solpts = fec.FiniteElementForGeometry(gtype)->GetNodes();
-   IntegrationRule samppts = IntRules.Get(gtype, 2*order);
+   std::vector<Vector> samppts = {};
+   // Add volume quadrature nodes to sampling nodes.
+   IntegrationRule vqpts = IntRules.Get(gtype, 2*order);
+   for (int i = 0; i < vqpts.Size(); i++) {
+      Vector xi(dim);
+      vqpts.IntPoint(i).Get(xi, dim);
+      samppts.push_back(xi);
+   }
+   // For dim > 1, add surface quadrature nodes to sampling nodes.
+   // Is there a general MFEM method for doing this? 
+   if (dim > 1) {
+      switch (gtype) {
+         // Triangle
+         case 2: {
+            IntegrationRule fqpts = IntRules.Get(1, 2*order);
+            for (int i = 0; i < fqpts.Size(); i++) {
+               Vector xf(dim-1), xi(dim);
+               fqpts.IntPoint(i).Get(xf, dim);
+
+               xi(0) = xf(0);     xi(1) = 0.0;   samppts.push_back(xi);
+               xi(0) = 0.0;       xi(1) = xf(0); samppts.push_back(xi);
+               xi(0) = 1 - xf(0); xi(1) = xf(0); samppts.push_back(xi);
+            }
+            break;
+         }
+         // Quad
+         case 3:{
+            IntegrationRule fqpts = IntRules.Get(1, 2*order);
+            for (int i = 0; i < fqpts.Size(); i++) {
+               Vector xf(dim-1), xi(dim);
+               fqpts.IntPoint(i).Get(xf, dim);
+
+               xi(0) = xf(0); xi(1) = 0.0;   samppts.push_back(xi);
+               xi(0) = 0.0;   xi(1) = xf(0); samppts.push_back(xi);
+               xi(0) = xf(0); xi(1) = 1.0;   samppts.push_back(xi);
+               xi(0) = 1.0;   xi(1) = xf(0); samppts.push_back(xi);
+            }
+            break;
+         }
+         default: {
+            MFEM_ABORT("Unknown geometry type: " << gtype);
+         }
+      }
+   }
 
    // . Limit initial solution (if necessary). 
    Limit(u, uavg, solpts, samppts, &opt, dim, limiter_type);
@@ -311,7 +355,7 @@ int main(int argc, char *argv[])
 }
 
 void Limit(GridFunction &u, GridFunction &uavg, IntegrationRule &solpts, 
-           IntegrationRule &samppts, ElementOptimizer * opt, int dim,
+           std::vector<Vector> &samppts, ElementOptimizer * opt, int dim,
            int limiter_type) {
    // Return if no limiter is chosen
    if (!limiter_type) return;
@@ -366,8 +410,7 @@ void Limit(GridFunction &u, GridFunction &uavg, IntegrationRule &solpts,
                }
             }
             // Loop through other sampling nodes (typically quadrature nodes)
-            for (int k = 0; k < samppts.GetNPoints(); k++) {
-               samppts.IntPoint(k).Get(xi, dim);
+            for (Vector xi : samppts) {
                // Compute solution using modal basis
                real_t ui = opt->Eval(xi); 
                real_t hi = opt->h(ui);
