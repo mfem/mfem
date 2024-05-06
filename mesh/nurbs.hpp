@@ -58,15 +58,15 @@ public:
 
    bool isElement(int i) const { return (knot(Order+i) != knot(Order+i+1)); }
 
-   double getKnotLocation(double xi, int ni) const
+   real_t getKnotLocation(real_t xi, int ni) const
    { return (xi*knot(ni+1) + (1. - xi)*knot(ni)); }
 
-   int findKnotSpan(double u) const;
+   int findKnotSpan(real_t u) const;
 
-   void CalcShape  (Vector &shape, int i, double xi) const;
-   void CalcDShape (Vector &grad,  int i, double xi) const;
-   void CalcDnShape(Vector &gradn, int n, int i, double xi) const;
-   void CalcD2Shape(Vector &grad2, int i, double xi) const
+   void CalcShape  (Vector &shape, int i, real_t xi) const;
+   void CalcDShape (Vector &grad,  int i, real_t xi) const;
+   void CalcDnShape(Vector &gradn, int n, int i, real_t xi) const;
+   void CalcD2Shape(Vector &grad2, int i, real_t xi) const
    { CalcDnShape(grad2, 2, i, xi); }
 
    /** Gives the locations of the maxima of the knotvector in reference space.
@@ -114,8 +114,8 @@ public:
    /// Destroys KnotVector
    ~KnotVector() { }
 
-   double &operator[](int i) { return knot(i); }
-   const double &operator[](int i) const { return knot(i); }
+   real_t &operator[](int i) { return knot(i); }
+   const real_t &operator[](int i) const { return knot(i); }
 
    /// Function to define the distribution of knots for any number of knot spans.
    std::shared_ptr<SpacingFunction> spacing;
@@ -130,7 +130,7 @@ class NURBSPatch
 {
 protected:
    int     ni, nj, nk, Dim;
-   double *data; // the layout of data is: (Dim x ni x nj x nk)
+   real_t *data; // the layout of data is: (Dim x ni x nj x nk)
    // Note that Dim is the spatial dimension plus 1 (homogeneous coordinates).
 
    Array<KnotVector *> kv;
@@ -150,8 +150,8 @@ protected:
    int ls; // Number of variables per control point in flattened structure
    int sd; // Stride for data access
    int SetLoopDirection(int dir);
-   inline       double &slice(int i, int j);
-   inline const double &slice(int i, int j) const;
+   inline       real_t &slice(int i, int j);
+   inline const real_t &slice(int i, int j) const;
 
    NURBSPatch(NURBSPatch *parent, int dir, int Order, int NCP);
    void swap(NURBSPatch *np);
@@ -191,12 +191,12 @@ public:
        @a tol.
 
        @returns The number of times the knot was successfully removed. */
-   int KnotRemove(int dir, double knot, int ntimes=1, double tol = 1.0e-12);
+   int KnotRemove(int dir, real_t knot, int ntimes=1, real_t tol = 1.0e-12);
 
    /// Remove all knots in @a knot once.
-   void KnotRemove(int dir, Vector const& knot, double tol = 1.0e-12);
+   void KnotRemove(int dir, Vector const& knot, real_t tol = 1.0e-12);
    /// Remove all knots in @a knot once, for each direction.
-   void KnotRemove(Array<Vector *> &knot, double tol = 1.0e-12);
+   void KnotRemove(Array<Vector *> &knot, real_t tol = 1.0e-12);
 
    void DegreeElevate(int t);
 
@@ -219,8 +219,8 @@ public:
                       for each dimension.
        @param[in] tol NURBS geometry deviation tolerance, cf. Algorithm A5.8 of
        "The NURBS Book", 2nd ed, Piegl and Tiller. */
-   void Coarsen(int cf = 2, double tol = 1.0e-12);
-   void Coarsen(Array<int> const& cf, double tol = 1.0e-12);
+   void Coarsen(int cf = 2, real_t tol = 1.0e-12);
+   void Coarsen(Array<int> const& cf, real_t tol = 1.0e-12);
 
    /// Calls KnotVector::GetCoarseningFactor for each direction.
    void GetCoarseningFactors(Array<int> & f) const;
@@ -235,18 +235,18 @@ public:
    KnotVector *GetKV(int i) { return kv[i]; }
 
    // Standard B-NET access functions
-   inline       double &operator()(int i, int j);
-   inline const double &operator()(int i, int j) const;
+   inline       real_t &operator()(int i, int j);
+   inline const real_t &operator()(int i, int j) const;
 
-   inline       double &operator()(int i, int j, int l);
-   inline const double &operator()(int i, int j, int l) const;
+   inline       real_t &operator()(int i, int j, int l);
+   inline const real_t &operator()(int i, int j, int l) const;
 
-   inline       double &operator()(int i, int j, int k, int l);
-   inline const double &operator()(int i, int j, int k, int l) const;
+   inline       real_t &operator()(int i, int j, int k, int l);
+   inline const real_t &operator()(int i, int j, int k, int l) const;
 
-   static void Get2DRotationMatrix(double angle,
+   static void Get2DRotationMatrix(real_t angle,
                                    DenseMatrix &T);
-   static void Get3DRotationMatrix(double n[], double angle, double r,
+   static void Get3DRotationMatrix(real_t n[], real_t angle, real_t r,
                                    DenseMatrix &T);
    void FlipDirection(int dir);
    void SwapDirections(int dir1, int dir2);
@@ -254,15 +254,15 @@ public:
    /// Rotate the NURBSPatch.
    /** A rotation of a 2D NURBS-patch requires an angle only. Rotating
        a 3D NURBS-patch requires a normal as well.*/
-   void Rotate(double angle, double normal[]= NULL);
-   void Rotate2D(double angle);
-   void Rotate3D(double normal[], double angle);
+   void Rotate(real_t angle, real_t normal[]= NULL);
+   void Rotate2D(real_t angle);
+   void Rotate3D(real_t normal[], real_t angle);
 
    int MakeUniformDegree(int degree = -1);
    /// @note The returned object should be deleted by the caller.
    friend NURBSPatch *Interpolate(NURBSPatch &p1, NURBSPatch &p2);
    /// @note The returned object should be deleted by the caller.
-   friend NURBSPatch *Revolve3D(NURBSPatch &patch, double n[], double ang,
+   friend NURBSPatch *Revolve3D(NURBSPatch &patch, real_t n[], real_t ang,
                                 int times);
 };
 
@@ -576,12 +576,12 @@ public:
    */
    void UniformRefinement(int rf = 2);
    void UniformRefinement(Array<int> const& rf);
-   void Coarsen(int cf = 2, double tol = 1.0e-12);
-   void Coarsen(Array<int> const& cf, double tol = 1.0e-12);
+   void Coarsen(int cf = 2, real_t tol = 1.0e-12);
+   void Coarsen(Array<int> const& cf, real_t tol = 1.0e-12);
    void KnotInsert(Array<KnotVector *> &kv);
    void KnotInsert(Array<Vector *> &kv);
 
-   void KnotRemove(Array<Vector *> &kv, double tol = 1.0e-12);
+   void KnotRemove(Array<Vector *> &kv, real_t tol = 1.0e-12);
 
    /** Calls GetCoarseningFactors for each patch and finds the minimum factor
        for each direction that ensures refinement will work in the case of
@@ -683,7 +683,7 @@ public:
 
 // Inline function implementations
 
-inline double &NURBSPatch::slice(int i, int j)
+inline real_t &NURBSPatch::slice(int i, int j)
 {
 #ifdef MFEM_DEBUG
    if (data == 0 || i < 0 || i >= nd || j < 0 || j > ls)
@@ -694,7 +694,7 @@ inline double &NURBSPatch::slice(int i, int j)
    return data[j%sd + sd*(i + (j/sd)*nd)];
 }
 
-inline const double &NURBSPatch::slice(int i, int j) const
+inline const real_t &NURBSPatch::slice(int i, int j) const
 {
 #ifdef MFEM_DEBUG
    if (data == 0 || i < 0 || i >= nd || j < 0 || j > ls)
@@ -706,7 +706,7 @@ inline const double &NURBSPatch::slice(int i, int j) const
 }
 
 
-inline double &NURBSPatch::operator()(int i, int l)
+inline real_t &NURBSPatch::operator()(int i, int l)
 {
 #ifdef MFEM_DEBUG
    if (data == 0 || i < 0 || i >= ni || nj > 0 || nk > 0 ||
@@ -719,7 +719,7 @@ inline double &NURBSPatch::operator()(int i, int l)
    return data[i*Dim+l];
 }
 
-inline const double &NURBSPatch::operator()(int i, int l) const
+inline const real_t &NURBSPatch::operator()(int i, int l) const
 {
 #ifdef MFEM_DEBUG
    if (data == 0 || i < 0 || i >= ni ||  nj > 0 || nk > 0 ||
@@ -732,7 +732,7 @@ inline const double &NURBSPatch::operator()(int i, int l) const
    return data[i*Dim+l];
 }
 
-inline double &NURBSPatch::operator()(int i, int j, int l)
+inline real_t &NURBSPatch::operator()(int i, int j, int l)
 {
 #ifdef MFEM_DEBUG
    if (data == 0 || i < 0 || i >= ni || j < 0 || j >= nj || nk > 0 ||
@@ -745,7 +745,7 @@ inline double &NURBSPatch::operator()(int i, int j, int l)
    return data[(i+j*ni)*Dim+l];
 }
 
-inline const double &NURBSPatch::operator()(int i, int j, int l) const
+inline const real_t &NURBSPatch::operator()(int i, int j, int l) const
 {
 #ifdef MFEM_DEBUG
    if (data == 0 || i < 0 || i >= ni || j < 0 || j >= nj || nk > 0 ||
@@ -758,7 +758,7 @@ inline const double &NURBSPatch::operator()(int i, int j, int l) const
    return data[(i+j*ni)*Dim+l];
 }
 
-inline double &NURBSPatch::operator()(int i, int j, int k, int l)
+inline real_t &NURBSPatch::operator()(int i, int j, int k, int l)
 {
 #ifdef MFEM_DEBUG
    if (data == 0 || i < 0 || i >= ni || j < 0 || j >= nj || k < 0 ||
@@ -771,7 +771,7 @@ inline double &NURBSPatch::operator()(int i, int j, int k, int l)
    return data[(i+(j+k*nj)*ni)*Dim+l];
 }
 
-inline const double &NURBSPatch::operator()(int i, int j, int k, int l) const
+inline const real_t &NURBSPatch::operator()(int i, int j, int k, int l) const
 {
 #ifdef MFEM_DEBUG
    if (data == 0 || i < 0 || i >= ni || j < 0 || j >= nj || k < 0 ||

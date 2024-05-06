@@ -34,7 +34,7 @@ public:
    static const bool uses_element_idxs = false;
 };
 
-template <typename complex_t = double>
+template <typename complex_t = real_t>
 class TConstantCoefficient : public TCoefficient
 {
 public:
@@ -63,7 +63,7 @@ public:
     complex_t Eval2D(real_t,real_t);
     complex_t Eval3D(real_t,real_t,real_t);
     Use MFEM_FLOPS_ADD() to count flops inside Eval*D. */
-template <typename Func, typename complex_t = double>
+template <typename Func, typename complex_t = real_t>
 class TFunctionCoefficient : public TCoefficient
 {
 public:
@@ -163,7 +163,7 @@ public:
 
 /// Piecewise constant coefficient class. The subdomains where the coefficient
 /// is constant are given by the mesh attributes.
-template <typename complex_t = double>
+template <typename complex_t = real_t>
 class TPiecewiseConstCoefficient : public TCoefficient
 {
 public:

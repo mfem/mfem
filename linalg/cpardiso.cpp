@@ -27,6 +27,10 @@ CPardisoSolver::CPardisoSolver(MPI_Comm comm)
    iparm[10] = 1;
    // Perform a check on the input data
    iparm[26] = 1;
+#ifdef MFEM_USE_SINGLE
+   // Single precision
+   iparm[27] = 1;
+#endif
    // 0-based indexing in CSR data structure
    iparm[34] = 1;
    // All inputs are distributed between MPI processes
@@ -70,7 +74,7 @@ void CPardisoSolver::SetOperator(const Operator &op)
    height = m_loc;
    width = m_loc;
 
-   double *csr_nzval = csr_op->data;
+   real_t *csr_nzval = csr_op->data;
    int *csr_colind = csr_op->j;
 
    delete[] csr_rowptr;
@@ -78,7 +82,7 @@ void CPardisoSolver::SetOperator(const Operator &op)
    delete[] reordered_csr_nzval;
    csr_rowptr = new int[m_loc + 1];
    reordered_csr_colind = new int[nnz_loc];
-   reordered_csr_nzval = new double[nnz_loc];
+   reordered_csr_nzval = new real_t[nnz_loc];
 
    for (int i = 0; i <= m_loc; i++)
    {

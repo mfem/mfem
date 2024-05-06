@@ -35,7 +35,7 @@ protected:
    /** @brief Desired Operator::Type for the construction of all operators
        defined by the underlying transfer algorithm. It can be ignored by
        derived classes. */
-   Operator::Type oper_type; 
+   Operator::Type oper_type;
 
    OperatorHandle fw_t_oper; ///< Forward true-dof operator
    OperatorHandle bw_t_oper; ///< Backward true-dof operator
@@ -43,7 +43,7 @@ protected:
    bool use_device;
    bool verify_solution;
 
-   MemoryType d_mt_;  
+   MemoryType d_mt_;
 
 #ifdef MFEM_USE_MPI
    bool parallel;
@@ -196,12 +196,12 @@ protected:
       /// solver.
       ///
       /// Only used for H1 spaces.
-      virtual void SetRelTol(double p_rtol_) = 0;
+      virtual void SetRelTol(real_t p_rtol_) = 0;
       /// @brief Sets absolute tolerance in preconditioned conjugate gradient
       /// solver.
       ///
       /// Only used for H1 spaces.
-      virtual void SetAbsTol(double p_atol_) = 0;
+      virtual void SetAbsTol(real_t p_atol_) = 0;
    protected:
       const FiniteElementSpace& fes_ho;
       const FiniteElementSpace& fes_lor;
@@ -238,8 +238,9 @@ public:
       // meshes or p-refinement). The matrix entries are stored in the R and P
       // arrays. The entries of the i'th high-order element are stored at the
       // index given by offsets[i].
-      mutable Array<double> R, P;
-      mutable Array<double> R_ea, P_ea;
+      mutable Array<real_t> R, P;
+      mutable Array<real_t> R_ea, P_ea;
+
       Array<int> offsets;
 
       const bool use_device, verify_solution;
@@ -301,8 +302,8 @@ public:
       void DeviceProlongateTranspose(const Vector& x, Vector& y) const;
 
 
-      virtual void SetRelTol(double p_rtol_) { } ///< No-op.
-      virtual void SetAbsTol(double p_atol_) { } ///< No-op.
+      virtual void SetRelTol(real_t p_rtol_) { } ///< No-op.
+      virtual void SetAbsTol(real_t p_atol_) { } ///< No-op.
 
       //friend class L2ProjectionGridTransfer;
    };
@@ -354,8 +355,8 @@ protected:
       /// conservative left-inverse prolongation operation. This functionality
       /// is also provided as an Operator by L2Prolongation.
       virtual void ProlongateTranspose(const Vector& x, Vector& y) const;
-      virtual void SetRelTol(double p_rtol_);
-      virtual void SetAbsTol(double p_atol_);
+      virtual void SetRelTol(real_t p_rtol_);
+      virtual void SetAbsTol(real_t p_atol_);
    protected:
       /// Sets up the PCG solver (sets parameters, operator, and preconditioner)
       void SetupPCG();
@@ -433,7 +434,7 @@ public:
                             bool force_l2_space_ = false,
                             MemoryType d_mt = MemoryType::DEFAULT)
       : GridTransfer(coarse_fes_, fine_fes_, d_mt),
-        F(NULL), B(NULL), force_l2_space(force_l2_space_)        
+        F(NULL), B(NULL), force_l2_space(force_l2_space_)
    { }
    virtual ~L2ProjectionGridTransfer();
 
@@ -519,8 +520,8 @@ private:
    int NE;
    int D1D;
    int Q1D;
-   Array<double> B;
-   Array<double> Bt;
+   Array<real_t> B;
+   Array<real_t> Bt;
    const Operator* elem_restrict_lex_l;
    const Operator* elem_restrict_lex_h;
    Vector mask;
