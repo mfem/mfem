@@ -66,11 +66,11 @@ int main(int argc, char *argv[])
    bool ea = false;
    bool fa = false;
    const char *device_config = "cpu";
-   int ode_solver_type = 3;
+   int ode_solver_type = 0;
    int limiter_type = 1;
    bool use_modal_basis = true;
    real_t t_final = 1;
-   real_t dt = 5e-4;
+   real_t dt = 2e-4;
    bool visualization = true;
    bool visit = false;
    bool paraview = false;
@@ -93,9 +93,8 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
-                  "ODE solver: 1 - Forward Euler,\n\t"
-                  "            2 - RK2 SSP,\n\t"
-                  "            3 - RK3 SSP");
+                  "ODE solver: 0 - Forward Euler,\n\t"
+                  "            1 - RK3 SSP");
    args.AddOption(&limiter_type, "-l", "--limiter",
                   "Limiter: 0 - None,\n\t"
                   "         1 - Discrete,\n\t"
@@ -276,14 +275,13 @@ int main(int argc, char *argv[])
    // . Limit initial solution (if necessary). 
    Limit(u, uavg, solpts, samppts, &opt, dim, limiter_type);
 
-   // . Set up SSP time integrator (note that RK2/RK3 integrators do not apply limiting at
-   //   inner stages).
+   // . Set up SSP time integrator (note that RK3 integrator does not apply limiting at
+   //   inner stages, which may cause bounds-violations).
    real_t t = 0.0;
    ODESolver *ode_solver = NULL;
    switch (ode_solver_type) {
-      case 1: ode_solver = new ForwardEulerSolver; break;
-      case 2: ode_solver = new RK2Solver(1.0); break;
-      case 3: ode_solver = new RK3SSPSolver; break;
+      case 0: ode_solver = new ForwardEulerSolver; break;
+      case 1: ode_solver = new RK3SSPSolver; break;
 
       default:
          cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
@@ -502,6 +500,8 @@ real_t u0_function(const Vector &x) {
          }
       }
    }
+
+   return 0;
 }
 
 // Velocity coefficient
