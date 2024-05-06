@@ -33,6 +33,7 @@ env:
   HYPRE_ARCHIVE: v2.19.0.tar.gz
   HYPRE_TOP_DIR: hypre-2.19.0
   METIS_ARCHIVE: metis-4.0.3.tar.gz
+  METIS_ARCHIVE_MAC: metis-4.0.3-mac.tgz
   METIS_TOP_DIR: metis-4.0.3
   MFEM_TOP_DIR: mfem
 
@@ -76,6 +77,8 @@ jobs:
           - os: ubuntu-latest
             target: dbg
             config-opts: 'CPPFLAGS+=-Og'
+          - os: macos-latest
+            codecov: NO
           - os: windows-latest
             codecov: NO
           - os: windows-latest
@@ -135,6 +138,17 @@ jobs:
           path: ${{ env.MFEM_TOP_DIR }}
           # Fetch the complete history for codecov to access commits ID
           fetch-depth: 0
+
+      - name: Xcode version setup (MacOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          XCODE_PATH="/Applications/Xcode_15.3.app"
+          echo "> sudo xcode-select -s ${XCODE_PATH}"
+          sudo xcode-select -s ${XCODE_PATH}
+          echo "> g++ -v"
+          g++ -v
+          echo "> clang++ -v"
+          clang++ -v
 
       # Only get MPI if defined for the job.
       # TODO: It would be nice to have only one step, e.g. with a dedicated
@@ -215,7 +229,7 @@ jobs:
         if: matrix.mpi == 'par' && matrix.os != 'windows-latest' && steps.metis-cache.outputs.cache-hit != 'true'
         uses: mfem/github-actions/build-metis@v2.4
         with:
-          archive: ${{ env.METIS_ARCHIVE }}
+          archive: ${{ matrix.os != 'macos-latest' && env.METIS_ARCHIVE || env.METIS_ARCHIVE_MAC }}
           dir: ${{ env.METIS_TOP_DIR }}
 
       - name: cache vcpkg (Windows)
