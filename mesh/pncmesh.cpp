@@ -28,7 +28,7 @@ namespace mfem
 
 using namespace bin_io;
 
-ParNCMesh::ParNCMesh(MPI_Comm comm, const NCMesh &ncmesh, int *part)
+ParNCMesh::ParNCMesh(MPI_Comm comm, const NCMesh &ncmesh, const int *part)
    : NCMesh(ncmesh)
 {
    MyComm = comm;

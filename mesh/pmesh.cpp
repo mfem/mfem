@@ -103,13 +103,13 @@ ParMesh& ParMesh::operator=(ParMesh &&mesh)
    return *this;
 }
 
-ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
+ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, const int *partitioning_,
                  int part_method)
    : glob_elem_offset(-1)
    , glob_offset_sequence(-1)
    , gtopo(comm)
 {
-   int *partitioning = NULL;
+   const int *partitioning = partitioning_ ? partitioning_ : nullptr;
    Array<bool> activeBdrElem;
 
    MyComm = comm;
@@ -118,18 +118,16 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
 
    if (mesh.Nonconforming())
    {
-      if (partitioning_)
-      {
-         partitioning = partitioning_;
-      }
       ncmesh = pncmesh = new ParNCMesh(comm, *mesh.ncmesh, partitioning);
+
       if (!partitioning)
       {
-         partitioning = new int[mesh.GetNE()];
+         int *part = new int[mesh.GetNE()];
          for (int i = 0; i < mesh.GetNE(); i++)
          {
-            partitioning[i] = pncmesh->InitialPartition(i);
+            part[i] = pncmesh->InitialPartition(i);
          }
+         partitioning = part;
       }
 
       pncmesh->Prune();
@@ -158,11 +156,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
 
       ncmesh = pncmesh = NULL;
 
-      if (partitioning_)
-      {
-         partitioning = partitioning_;
-      }
-      else
+      if (!partitioning)
       {
          partitioning = mesh.GeneratePartitioning(NRanks, part_method);
       }
@@ -730,7 +724,7 @@ void ParMesh::BuildVertexGroup(int ngroups, const Table &vert_element)
 }
 
 void ParMesh::BuildSharedFaceElems(int ntri_faces, int nquad_faces,
-                                   const Mesh& mesh, int *partitioning,
+                                   const Mesh& mesh, const int *partitioning,
                                    const STable3D *faces_tbl,
                                    const Array<int> &face_group,
                                    const Array<int> &vert_global_local)
