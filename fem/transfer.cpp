@@ -13,11 +13,11 @@
 #include "bilinearform.hpp"
 #include "../general/forall.hpp"
 
-//Tolerance for comparing between non-uniform and uniform transfers
-constexpr real_t ho_lor_tol = 1e-10;
-
 namespace mfem
 {
+
+//Tolerance for comparing between non-uniform and uniform transfers
+constexpr real_t ho_lor_tol = 1e-10;
 
 GridTransfer::GridTransfer(FiniteElementSpace &dom_fes_,
                            FiniteElementSpace &ran_fes_,
