@@ -17,6 +17,10 @@ Meshing improvements
   arbitrary integer factors is also enabled, e.g. in the mesh-explorer miniapp.
   NURBS coarsening and knot removal are also introduced.
 
+- Added the capability to partition (big) serial meshes in serial code, see the
+  new classes MeshPartitioner and MeshPart. This capability is also exposed as a
+  menu option in the mesh-explorer miniapp in miniapps/meshing.
+
 Discretization improvements
 ---------------------------
 - Introduced support for higher order non conformal Nedelec elements on
@@ -44,6 +48,9 @@ GPU support
   tensor and unstructured elements.
 
 - Added partial assembly for linear elasticity. Does not use sum factorization for now.
+- Added functionality to automatically configure HYPRE's compute policy to match
+  MFEM's compute policy when HYPRE is built with GPU support and HYPRE's version
+  is >= 2.31.0.
 
 - Added partial assembly and GPU support for the DG diffusion integrator.
 
@@ -81,9 +88,14 @@ Miscellaneous
 - RAJA backend will use seq_exec for serial loop execution when RAJA
   v2023.06.00 and beyond is detected as loop_exec is deprecated.
 
+- API change: The macro MFEM_HYPRE_FORALL (from hypre.hpp) which was intended
+  for internal use, has been removed and replaced by the function template
+  mfem::hypre_forall in general/forall.hpp.
+
 - Adding named attribute sets and basic supporting methods to the Mesh class as
   a convenient means of referring to sets of domain or boundary attribute
   numbers. Also adding related serial and parallel examples which illustrate.
+
 
 Version 4.6, released on September 27, 2023
 ===========================================
