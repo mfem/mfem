@@ -55,7 +55,7 @@ void Tetrahedron::Init(int ind1, int ind2, int ind3, int ind4, int attr,
 }
 
 void Tetrahedron::ParseRefinementFlag(int refinement_edges[2], int &type,
-                                      int &flag)
+                                      int &flag) const
 {
    int i, f = refinement_flag;
 
@@ -136,9 +136,10 @@ void Tetrahedron::CreateRefinementFlag(int refinement_edges[2], int type,
    refinement_flag |= refinement_edges[0];
 }
 
-void Tetrahedron::GetMarkedFace(const int face, int *fv)
+void Tetrahedron::GetMarkedFace(const int face, int *fv) const
 {
-   int re[2], type, flag, *tv = this->indices;
+   int re[2], type, flag;
+   const int *tv = this->indices;
    ParseRefinementFlag(re, type, flag);
    switch (face)
    {
@@ -300,7 +301,7 @@ void Tetrahedron::MarkEdge(const DSTable &v_to_v, const Array<T1> &length,
 // static method
 void Tetrahedron::GetPointMatrix(unsigned transform, DenseMatrix &pm)
 {
-   double *a = &pm(0,0), *b = &pm(0,1), *c = &pm(0,2), *d = &pm(0,3);
+   real_t *a = &pm(0,0), *b = &pm(0,1), *c = &pm(0,2), *d = &pm(0,3);
 
    // initialize to identity
    a[0] = 0.0, a[1] = 0.0, a[2] = 0.0;
@@ -323,7 +324,7 @@ void Tetrahedron::GetPointMatrix(unsigned transform, DenseMatrix &pm)
 #define SWAP(a, b) for (int i = 0; i < 3; i++) { std::swap(a[i], b[i]); }
 #define AVG(a, b, c) for (int i = 0; i < 3; i++) { a[i] = (b[i]+c[i])*0.5; }
 
-      double e[3];
+      real_t e[3];
       AVG(e, a, b);
       switch (chain[--n])
       {

@@ -164,8 +164,8 @@ bool CheckFaceInternal(ParMesh& pmesh, int f,
  * @return std::array<double, 2> Pair of error on the serial mesh and the
  * parallel mesh. Should be within numerical tolerance of each other.
  */
-std::array<double, 2> CheckL2Projection(ParMesh& pmesh, Mesh& smesh, int order,
-                                        std::function<double(Vector const&)> exact_soln);
+std::array<real_t, 2> CheckL2Projection(ParMesh& pmesh, Mesh& smesh, int order,
+                                        std::function<real_t(Vector const&)> exact_soln);
 
 
 /**

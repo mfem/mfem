@@ -128,7 +128,7 @@ void parseArray(char * str, Array<int> & var)
 void parseVector(char * str, Vector & var)
 {
    int nentries = 0;
-   double val;
+   real_t val;
    {
       std::stringstream input(str);
       while ( input >> val)
@@ -202,7 +202,7 @@ void OptionsParser::Parse()
                   break;
                case DOUBLE:
                   isValid = isValidAsDouble(argv[i]);
-                  *(double *)(options[j].var_ptr) = atof(argv[i++]);
+                  *(real_t *)(options[j].var_ptr) = atof(argv[i++]);
                   break;
                case STRING:
                   *(const char **)(options[j].var_ptr) = argv[i++];
@@ -280,7 +280,7 @@ void OptionsParser::WriteValue(const Option &opt, std::ostream &os)
          break;
 
       case DOUBLE:
-         os << *(double *)(opt.var_ptr);
+         os << *(real_t *)(opt.var_ptr);
          break;
 
       case STRING:
