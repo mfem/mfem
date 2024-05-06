@@ -3584,6 +3584,53 @@ public:
                                       DenseMatrix &elmat);
 };
 
+/** Integrator for the (H)DG diffusion stabilization term
+    $$
+        + \alpha \langle \{h^{-1} Q\} [u], [v] \rangle
+    $$
+    where $Q$ is a scalar or matrix diffusion coefficient and $u$, $v$ are the trial
+    and test spaces, respectively.  */
+class HDGDiffusionUpwindedIntegrator : public BilinearFormIntegrator
+{
+protected:
+   VectorCoefficient *u;
+   Coefficient *Q;
+   MatrixCoefficient *MQ;
+   real_t alpha, beta;
+
+   // these are not thread-safe!
+   Vector tr_shape, shape1, shape2, vu, nor, nh, ni;
+   DenseMatrix mq;
+
+public:
+   /// Construct integrator with $\beta = \alpha/2$.
+   HDGDiffusionUpwindedIntegrator(VectorCoefficient &u_, const real_t a = 0.5)
+      : u(&u_), Q(NULL), MQ(NULL), alpha(a), beta(0.5*a) { }
+
+   /// Construct integrator with $\beta = \alpha/2$.
+   HDGDiffusionUpwindedIntegrator(VectorCoefficient &u_, Coefficient &q,
+                                  const real_t a = 0.5)
+      : u(&u_), Q(&q), MQ(NULL), alpha(a), beta(0.5*a) { }
+
+   /// Construct integrator with $\beta = \alpha/2$.
+   HDGDiffusionUpwindedIntegrator(VectorCoefficient &u_, MatrixCoefficient &q,
+                                  const real_t a = 0.5)
+      : u(&u_), Q(NULL), MQ(&q), alpha(a), beta(0.5*a) { }
+
+   using BilinearFormIntegrator::AssembleFaceMatrix;
+   virtual void AssembleFaceMatrix(const FiniteElement &el1,
+                                   const FiniteElement &el2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat)
+   { MFEM_ABORT("There is no <[u],[v]> stabilization term in the LDG upwinded scheme!"); }
+
+   virtual void AssembleHDGFaceMatrix(const FiniteElement &trace_el,
+                                      const FiniteElement &el1,
+                                      const FiniteElement &el2,
+                                      FaceElementTransformations &Trans,
+                                      DenseMatrix &elmat);
+};
+
 /** Integrator for the "BR2" diffusion stabilization term
     $$
       \sum_e \eta (r_e([u]), r_e([v]))
