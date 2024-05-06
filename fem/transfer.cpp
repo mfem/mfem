@@ -14,7 +14,7 @@
 #include "../general/forall.hpp"
 
 //Tolerance for comparing between non-uniform and uniform transfers
-constexpr double ho_lor_tol = 1e-10;
+constexpr real_t ho_lor_tol = 1e-10;
 
 namespace mfem
 {
@@ -457,7 +457,7 @@ L2ProjectionGridTransfer::L2ProjectionL2Space::L2ProjectionL2Space
 
    if (verify_solution)
    {
-      double R_error = 0.0, P_error = 0.0;
+      real_t R_error = 0.0, P_error = 0.0;
       for (int i=0; i<R.Size(); ++i)
       {
          R_error += (R[i] - R_ea.HostRead()[i])*(R[i] - R_ea.HostRead()[i]);
@@ -588,7 +588,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
                   for (int qx=0; qx<Q1D; ++qx)
                   {
 
-                     const double detJ = J(qx, lo_el_id);
+                     const real_t detJ = J(qx, lo_el_id);
                      d_D(qx, iref, iho) = W(qx) * detJ;
                   }
                }
@@ -614,7 +614,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
                      for (int qx=0; qx<Q1D; ++qx)
                      {
                         const int q = qx + Q1D*qy;
-                        const double detJ = J(qx, qy, lo_el_id);
+                        const real_t detJ = J(qx, qy, lo_el_id);
                         d_D(q, iref, iho) = W(qx, qy) * detJ;
                      }
                   }
@@ -645,7 +645,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
                         {
 
                            const int q = qx + Q1D*qy + Q1D*Q1D*qz;
-                           const double detJ = J(qx, qy, qz, lo_el_id);
+                           const real_t detJ = J(qx, qy, qz, lo_el_id);
                            d_D(q, iref, iho) = W(qx, qy, qz) * detJ;
                         }
                      }
@@ -733,7 +733,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
                for (int bl=0; bl<fe_lor_ndof; ++bl)
                {
 
-                  double dot = 0.0;
+                  real_t dot = 0.0;
                   for (int qi=0; qi<qPts; ++qi)
                   {
                      dot += d_B_L(qi, bl, iref) *  d_D(qi, iref, iho) * d_B_H(qi, bh, iref);
@@ -796,7 +796,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
             {
 
                //matrices are stored in the transpose position
-               double dot = 0.0;
+               real_t dot = 0.0;
                for (int k=0; k<ndof_lor; ++k)
                {
                   dot += v_Minv_ear_lor(i, k, lor_idx) * v_M_mixed_all(k, j, iref, iho);
@@ -833,7 +833,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
 
                   const int lor_idx = iref + e * nref;
 
-                  double dot = 0.0;
+                  real_t dot = 0.0;
                   for (int t=0; t<ndof_lor; ++t)
                   {
                      dot += v_R_ea(t, iref, iho, e) * v_M_ea_lor(t, jlo, lor_idx);
@@ -857,7 +857,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
          {
             for (int jho=0; jho<ndof_ho; ++jho)
             {
-               double dot = 0.0;
+               real_t dot = 0.0;
                for (int iref=0; iref<nref; ++iref)
                {
                   for (int ilo=0; ilo<ndof_lor; ++ilo)
@@ -894,7 +894,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
                for (int ilo=0; ilo<ndof_lor; ++ilo)
                {
 
-                  double dot = 0.0;
+                  real_t dot = 0.0;
                   for (int t=0; t<ndof_ho; ++t)
                   {
                      dot += v_InvRtM_LR_LU(iho, t, e) * v_RtM_L(t, ilo, iref, e);
@@ -955,7 +955,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::Mult(
       Vector y_temp(y.Size());
       DeviceMult(x, y_temp);
       y_temp -= y;
-      double error = y_temp.Norml2();
+      real_t error = y_temp.Norml2();
       if (error > ho_lor_tol)
       {
          MFEM_VERIFY(false, "Mult difference too high = "<<error);
@@ -985,7 +985,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceMult(
          for (int j=0; j<ndof_lor; ++j)
          {
 
-            double dot = 0.0;
+            real_t dot = 0.0;
             for (int k=0; k<ndof_ho; ++k)
             {
                dot += v_R_ea(j, i, k, iho) * v_x(k, iho);
@@ -1044,7 +1044,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::MultTranspose(
       Vector y_temp(y.Size());
       DeviceMultTranspose(x, y_temp);
       y_temp -= y;
-      double error = y_temp.Norml2();
+      real_t error = y_temp.Norml2();
       if (error > ho_lor_tol)
       {
          MFEM_VERIFY(false, "MultTranspose difference too high = "<<error);
@@ -1073,7 +1073,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceMultTranspose(
       for (int k=0; k<ndof_ho; ++k)
       {
 
-         double dot = 0.0;
+         real_t dot = 0.0;
          for (int i=0; i<nref; ++i)
          {
             for (int j=0; j<ndof_lor; ++j)
@@ -1135,7 +1135,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::Prolongate(
       Vector y_temp(y.Size());
       DeviceProlongate(x, y_temp);
       y_temp -= y;
-      double error = y_temp.Norml2();
+      real_t error = y_temp.Norml2();
       if (error > ho_lor_tol)
       {
          MFEM_VERIFY(false, "Prolongate difference too high = "<<error);
@@ -1165,7 +1165,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceProlongate(
       for (int iho=0; iho<ndof_ho; ++iho)
       {
 
-         double dot = 0.0;
+         real_t dot = 0.0;
          for (int iref=0; iref<nref; ++iref)
          {
             for (int ilo=0; ilo<ndof_lor; ++ilo)
@@ -1227,7 +1227,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::ProlongateTranspose(
       Vector y_temp(y.Size());
       DeviceProlongateTranspose(x, y_temp);
       y_temp -= y;
-      double error = y_temp.Norml2();
+      real_t error = y_temp.Norml2();
       if (error > ho_lor_tol)
       {
          MFEM_VERIFY(false, "Prolongate transpose difference too high = "<<error);
@@ -1260,7 +1260,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceProlongateTranspose(
          for (int ilo=0; ilo<ndof_lor; ++ilo)
          {
 
-            double dot = 0.0;
+            real_t dot = 0.0;
             for (int iho=0; iho<ndof_ho; ++iho)
             {
                dot += v_P_ea(iho, ilo, iref, e) * v_x(iho, e);
