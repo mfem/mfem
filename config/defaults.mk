@@ -120,6 +120,7 @@ MFEM_MPI_NP = 4
 MFEM_USE_MPI           = NO
 MFEM_USE_METIS         = $(MFEM_USE_MPI)
 MFEM_USE_METIS_5       = NO
+MFEM_PRECISION         = double
 MFEM_DEBUG             = NO
 MFEM_USE_EXCEPTIONS    = NO
 MFEM_USE_ZLIB          = NO
@@ -166,7 +167,20 @@ MFEM_USE_ADFORWARD     = NO
 MFEM_USE_CODIPACK      = NO
 MFEM_USE_BENCHMARK     = NO
 MFEM_USE_PARELAG       = NO
+MFEM_USE_TRIBOL        = NO
 MFEM_USE_ENZYME        = NO
+
+# Process MFEM_PRECISION -> MFEM_USE_SINGLE, MFEM_USE_DOUBLE
+ifneq ($(filter double Double DOUBLE,$(MFEM_PRECISION)),)
+   MFEM_USE_DOUBLE = YES
+   MFEM_USE_SINGLE = NO
+else ifneq ($(filter single Single SINGLE,$(MFEM_PRECISION)),)
+   MFEM_USE_DOUBLE = NO
+   MFEM_USE_SINGLE = YES
+else ifeq ($(MAKECMDGOALS),config)
+   $(error Invalid floating-point precision: \
+     MFEM_PRECISION = $(MFEM_PRECISION))
+endif
 
 # MPI library compile and link flags
 # These settings are used only when building MFEM with MPI + HIP
@@ -317,8 +331,13 @@ MPI_FORTRAN_LIB = -lmpifort
 # MUMPS library configuration
 MUMPS_DIR = @MFEM_DIR@/../MUMPS_5.5.0
 MUMPS_OPT = -I$(MUMPS_DIR)/include
-MUMPS_LIB = $(XLINKER)-rpath,$(MUMPS_DIR)/lib -L$(MUMPS_DIR)/lib -ldmumps\
- -lmumps_common -lpord $(SCALAPACK_LIB) $(LAPACK_LIB) $(MPI_FORTRAN_LIB)
+MUMPS_LIB = $(XLINKER)-rpath,$(MUMPS_DIR)/lib -L$(MUMPS_DIR)/lib
+ifeq ($(MFEM_USE_SINGLE),YES)
+   MUMPS_LIB += -lsmumps
+else
+   MUMPS_LIB += -ldmumps
+endif
+MUMPS_LIB += -lmumps_common -lpord $(SCALAPACK_LIB) $(LAPACK_LIB) $(MPI_FORTRAN_LIB)
 
 # STRUMPACK library configuration
 STRUMPACK_DIR = @MFEM_DIR@/../STRUMPACK-build
@@ -369,7 +388,7 @@ GINKGO_LIB = $(XLINKER)-rpath,$(GINKGO_LINK_LIB_DIR) -L$(GINKGO_LINK_LIB_DIR)\
 # AmgX library configuration
 AMGX_DIR = @MFEM_DIR@/../amgx
 AMGX_OPT = -I$(AMGX_DIR)/include
-AMGX_LIB = -lcusparse -lcusolver -lcublas -lnvToolsExt -L$(AMGX_DIR)/lib -lamgx
+AMGX_LIB = -L$(AMGX_DIR)/lib -lamgx -lcusparse -lcusolver -lcublas -lnvToolsExt
 
 # GnuTLS library configuration
 GNUTLS_OPT =
@@ -569,6 +588,16 @@ MKL_PARDISO_LIB = $(XLINKER)-rpath,$(MKL_PARDISO_DIR)/$(MKL_LIBRARY_SUBDIR)\
 PARELAG_DIR = @MFEM_DIR@/../parelag
 PARELAG_OPT = -I$(PARELAG_DIR)/src -I$(PARELAG_DIR)/build/src
 PARELAG_LIB = -L$(PARELAG_DIR)/build/src -lParELAG
+
+# Tribol library configuration
+ifeq ($(MFEM_USE_TRIBOL),YES)
+   BASE_FLAGS = -std=c++14
+endif
+AXOM_DIR = @MFEM_DIR@/../axom
+TRIBOL_DIR = @MFEM_DIR@/../tribol
+TRIBOL_OPT = -I$(TRIBOL_DIR)/include -I$(AXOM_DIR)/include
+TRIBOL_LIB = -L$(TRIBOL_DIR)/lib -ltribol -lredecomp -L$(AXOM_DIR)/lib -laxom_mint\
+   -laxom_slam -laxom_slic -laxom_core
 
 # Enzyme configuration
 

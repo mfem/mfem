@@ -20,8 +20,8 @@ namespace mfem
 {
 namespace navier
 {
-using VecFuncT = void(const Vector &x, double t, Vector &u);
-using ScalarFuncT = double(const Vector &x, double t);
+using VecFuncT = void(const Vector &x, real_t t, Vector &u);
+using ScalarFuncT = real_t(const Vector &x, real_t t);
 
 /// Container for a Dirichlet boundary condition of the velocity field.
 class VelDirichletBC_T
@@ -153,10 +153,10 @@ public:
     * automatically converted to the Reynolds number. If you want to set the
     * Reynolds number directly, you can provide the inverse.
     */
-   NavierSolver(ParMesh *mesh, int order, double kin_vis);
+   NavierSolver(ParMesh *mesh, int order, real_t kin_vis);
 
    /// Initialize forms, solvers and preconditioners.
-   void Setup(double dt);
+   void Setup(real_t dt);
 
    /// Compute solution at the next time step t+dt.
    /**
@@ -180,7 +180,7 @@ public:
     * linear multistep methods for time-dependent partial differential
     * equations
     */
-   void Step(double &time, double dt, int cur_step, bool provisional = false);
+   void Step(real_t &time, real_t dt, int cur_step, bool provisional = false);
 
    /// Return a pointer to the provisional velocity ParGridFunction.
    ParGridFunction *GetProvisionalVelocity() { return &un_next_gf; }
@@ -262,13 +262,13 @@ public:
    void MeanZero(ParGridFunction &v);
 
    /// Rotate entries in the time step and solution history arrays.
-   void UpdateTimestepHistory(double dt);
+   void UpdateTimestepHistory(real_t dt);
 
    /// Set the maximum order to use for the BDF method.
    void SetMaxBDFOrder(int maxbdforder) { max_bdf_order = maxbdforder; };
 
    /// Compute CFL
-   double ComputeCFL(ParGridFunction &u, double dt);
+   real_t ComputeCFL(ParGridFunction &u, real_t dt);
 
    /// Set the number of modes to cut off in the interpolation filter
    void SetCutoffModes(int c) { filter_cutoff_modes = c; }
@@ -281,7 +281,7 @@ public:
     * [1] Paul Fischer, Julia Mullen (2001) Filter-based stabilization of
     * spectral element methods
     */
-   void SetFilterAlpha(double a) { filter_alpha = a; }
+   void SetFilterAlpha(real_t a) { filter_alpha = a; }
 
 protected:
    /// Print information about the Navier version.
@@ -326,7 +326,7 @@ protected:
    int order;
 
    /// Kinematic viscosity (dimensionless).
-   double kin_vis;
+   real_t kin_vis;
 
    IntegrationRules gll_rules;
 
@@ -365,7 +365,7 @@ protected:
    /// Linear form to compute the mass matrix in various subroutines.
    ParLinearForm *mass_lf = nullptr;
    ConstantCoefficient onecoeff;
-   double volume = 0.0;
+   real_t volume = 0.0;
 
    ConstantCoefficient nlcoeff;
    ConstantCoefficient Sp_coeff;
@@ -418,16 +418,16 @@ protected:
 
    int max_bdf_order = 3;
    int cur_step = 0;
-   std::vector<double> dthist = {0.0, 0.0, 0.0};
+   std::vector<real_t> dthist = {0.0, 0.0, 0.0};
 
    // BDFk/EXTk coefficients.
-   double bd0 = 0.0;
-   double bd1 = 0.0;
-   double bd2 = 0.0;
-   double bd3 = 0.0;
-   double ab1 = 0.0;
-   double ab2 = 0.0;
-   double ab3 = 0.0;
+   real_t bd0 = 0.0;
+   real_t bd1 = 0.0;
+   real_t bd2 = 0.0;
+   real_t bd3 = 0.0;
+   real_t ab1 = 0.0;
+   real_t ab2 = 0.0;
+   real_t ab3 = 0.0;
 
    // Timers.
    StopWatch sw_setup, sw_step, sw_extrap, sw_curlcurl, sw_spsolve, sw_hsolve;
@@ -439,21 +439,33 @@ protected:
    int pl_amg = 0;
 
    // Relative tolerances.
-   double rtol_spsolve = 1e-6;
-   double rtol_hsolve = 1e-8;
+#if defined(MFEM_USE_DOUBLE)
+   real_t rtol_mvsolve = 1e-12;
+   real_t rtol_spsolve = 1e-6;
+   real_t rtol_hsolve = 1e-8;
+#elif defined(MFEM_USE_SINGLE)
+   real_t rtol_mvsolve = 1e-9;
+   real_t rtol_spsolve = 1e-5;
+   real_t rtol_hsolve = 1e-7;
+#else
+#error "Only single and double precision are supported!"
+   real_t rtol_mvsolve = 1e-12;
+   real_t rtol_spsolve = 1e-6;
+   real_t rtol_hsolve = 1e-8;
+#endif
 
    // Iteration counts.
    int iter_mvsolve = 0, iter_spsolve = 0, iter_hsolve = 0;
 
    // Residuals.
-   double res_mvsolve = 0.0, res_spsolve = 0.0, res_hsolve = 0.0;
+   real_t res_mvsolve = 0.0, res_spsolve = 0.0, res_hsolve = 0.0;
 
    // LOR related.
    ParLORDiscretization *lor = nullptr;
 
    // Filter-based stabilization
    int filter_cutoff_modes = 1;
-   double filter_alpha = 0.0;
+   real_t filter_alpha = 0.0;
    FiniteElementCollection *vfec_filter = nullptr;
    ParFiniteElementSpace *vfes_filter = nullptr;
    ParGridFunction un_NM1_gf;
