@@ -15,6 +15,11 @@
 #ifdef MFEM_USE_CEED
 #include "../fem/ceed/interface/util.hpp"
 #endif
+#ifdef MFEM_USE_MPI
+#include "../linalg/hypre.hpp"
+#endif
+
+#include <unordered_map>
 #include <map>
 
 namespace mfem
@@ -239,6 +244,10 @@ void Device::Configure(const std::string &device, const int device_id)
 
    // Only '*this' will call the MemoryManager::Destroy() method.
    destroy_mm = true;
+
+#ifdef MFEM_USE_MPI
+   Hypre::InitDevice();
+#endif
 }
 
 // static method
