@@ -15,11 +15,11 @@ namespace mfem
 {
 
 WorkspaceVector::WorkspaceVector(
-   internal::WorkspaceChunk &chunk_, int offset_, int n)
+   internal::WorkspaceChunk &chunk_, int offset_, int n, int padding)
    : Vector(chunk_.GetData(), chunk_.GetOffset(), n),
      chunk(chunk_),
      offset(offset_),
-     original_size(n)
+     original_size(n + padding)
 {
    UseDevice(true);
 }
@@ -48,8 +48,11 @@ WorkspaceChunk::WorkspaceChunk(int capacity)
 WorkspaceVector WorkspaceChunk::NewVector(int n)
 {
    MFEM_ASSERT(HasCapacityFor(n), "Requested vector is too large.");
-   WorkspaceVector vector(*this, offset, n);
-   offset += n;
+   constexpr int alignment = 16;
+   const int s = (n * sizeof(real_t)) % alignment;
+   const int padding = (s > 0) ? (alignment - s) / sizeof(real_t) : 0;
+   WorkspaceVector vector(*this, offset, n, padding);
+   offset += n + padding;
    vector_count += 1;
    return vector;
 }

@@ -1443,7 +1443,7 @@ void *MemoryManager::GetDevicePtr(const void *h_ptr, size_t bytes,
 }
 
 void *MemoryManager::GetAliasDevicePtr(const void *alias_ptr, size_t bytes,
-                                       bool copy)
+                                       bool copy_data)
 {
    if (!alias_ptr)
    {
@@ -1471,13 +1471,13 @@ void *MemoryManager::GetAliasDevicePtr(const void *alias_ptr, size_t bytes,
    mem.d_rw = mem.h_rw = false;
    if (mem.d_ptr) { ctrl->Device(d_mt)->AliasUnprotect(alias_d_ptr, bytes); }
    ctrl->Host(h_mt)->AliasUnprotect(alias_ptr, bytes);
-   if (copy && mem.d_ptr)
+   if (copy_data && mem.d_ptr)
    { ctrl->Device(d_mt)->HtoD(alias_d_ptr, alias_h_ptr, bytes); }
    ctrl->Host(h_mt)->AliasProtect(alias_ptr, bytes);
    return alias_d_ptr;
 }
 
-void *MemoryManager::GetHostPtr(const void *ptr, size_t bytes, bool copy)
+void *MemoryManager::GetHostPtr(const void *ptr, size_t bytes, bool copy_data)
 {
    const internal::Memory &mem = maps->memories.at(ptr);
    MFEM_ASSERT(mem.h_ptr == ptr, "internal error");
@@ -1488,7 +1488,8 @@ void *MemoryManager::GetHostPtr(const void *ptr, size_t bytes, bool copy)
    // Aliases might have done some protections
    ctrl->Host(h_mt)->Unprotect(mem, bytes);
    if (mem.d_ptr) { ctrl->Device(d_mt)->Unprotect(mem); }
-   if (copy && mem.d_ptr) { ctrl->Device(d_mt)->DtoH(mem.h_ptr, mem.d_ptr, bytes); }
+   if (copy_data && mem.d_ptr)
+   { ctrl->Device(d_mt)->DtoH(mem.h_ptr, mem.d_ptr, bytes); }
    if (mem.d_ptr) { ctrl->Device(d_mt)->Protect(mem); }
    return mem.h_ptr;
 }

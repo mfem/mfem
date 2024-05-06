@@ -50,7 +50,8 @@ class WorkspaceVector : public Vector
    bool moved_from = false;
 
    /// Private constructor, create with Workspace::NewVector() instead.
-   WorkspaceVector(internal::WorkspaceChunk &chunk_, int offset_, int n);
+   WorkspaceVector(internal::WorkspaceChunk &chunk_, int offset_, int n,
+                   int padding = 0);
 
 public:
    /// @brief Move constructor. The moved-from WorkspaceVector has @a
@@ -104,6 +105,9 @@ public:
    /// Create a WorkspaceChunk with the given @a capacity.
    WorkspaceChunk(int capacity);
 
+   /// Return the data offset.
+   int GetOffset() const { return offset; }
+
    /// @brief Return the available capacity (i.e. the largest vector that will
    /// fit in this chunk).
    int GetAvailableCapacity() const { return data.Size() - offset; }
@@ -115,14 +119,11 @@ public:
    /// "original capacity" remains unchained.
    int GetOriginalCapacity() const { return original_capacity; }
 
-   /// Return the data offset.
-   int GetOffset() const { return offset; }
+   /// Returns true if this chunk can fit a new vector of size @a n.
+   bool HasCapacityFor(int n) const { return n <= GetAvailableCapacity(); }
 
    /// Sets whether the chunk is in the front of the list
    void SetFront(bool front_) { front = front_; }
-
-   /// Returns true if this chunk can fit a new vector of size @a n.
-   bool HasCapacityFor(int n) const { return n <= GetAvailableCapacity(); }
 
    /// Returns true if this chunk is empty.
    bool IsEmpty() const { return vector_count == 0; }
