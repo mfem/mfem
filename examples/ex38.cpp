@@ -199,7 +199,6 @@ public:
       {
          mesh->GetElementTransformation(elem, &Tr);
          MFIRs.GetSurfaceIntegrationRule(Tr, ir);
-         Vector w;
          MFIRs.GetSurfaceWeights(Tr, ir, w);
          SurfaceWeights.SetCol(elem, w);
 

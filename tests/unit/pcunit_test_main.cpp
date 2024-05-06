@@ -26,11 +26,11 @@ int main(int argc, char *argv[])
    return MFEM_SKIP_RETURN_VALUE;
 #endif
 
-   mfem::Device device("cuda");
 #ifdef MFEM_USE_MPI
    mfem::Mpi::Init();
    mfem::Hypre::Init();
 #endif
+   mfem::Device device("cuda");
 
    // Include only tests that are labeled with both CUDA and Parallel.
    return RunCatchSession(argc, argv, {"[CUDA]","[Parallel]"}, Root());
