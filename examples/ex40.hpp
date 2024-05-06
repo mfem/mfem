@@ -40,7 +40,13 @@ class ModalBasis {
 class ElementOptimizer {
    private:
       int dim, cfidx, nfaces;
-      real_t dxi = 1E-4;
+#if defined(MFEM_USE_DOUBLE)
+      const real_t dxi = 1E-4;
+#elif defined(MFEM_USE_SINGLE)
+      const real_t dxi = 1E-2;
+#else
+#error "Only single and double precision are supported!"
+#endif
       real_t beta_0;
       real_t gbar;
       Geometry::Type &gtype;
@@ -64,7 +70,13 @@ class ElementOptimizer {
 
    public:
       int ncon = 2;
-      real_t eps = 1E-12;
+#if defined(MFEM_USE_DOUBLE)
+      const real_t eps = 1E-12;
+#elif defined(MFEM_USE_SINGLE)
+      const real_t eps = 1E-6;
+#else
+      #error "Only single and double precision are supported!"
+#endif
       ModalBasis * MB;
 
       ElementOptimizer(ModalBasis * MB, int dim);
