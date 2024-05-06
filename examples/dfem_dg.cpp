@@ -38,34 +38,57 @@ int main(int argc, char *argv[])
 
    const IntegrationRule &ir = IntRules.Get(fes.GetFE(0)->GetGeomType(),
                                             ir_order * fec.GetOrder());
-
+   const IntegrationRule &ir_face = IntRules.Get(
+                                       fes.GetTraceElement(0, fes.GetMesh()->GetFaceGeometry(0))->GetGeomType(),
+                                       ir_order * fec.GetOrder());
    ParGridFunction u(&fes);
 
-   // -\nabla \cdot (\nabla u + p * I) -> (\nabla u + p * I, \nabla v)
-   auto advection_kernel = [](const tensor<double, 2> &dudxi,
-                              const tensor<double, 2, 2> &J,
-                              const double &w)
+   // // -\nabla \cdot (\nabla u + p * I) -> (\nabla u + p * I, \nabla v)
+   // auto advection_kernel = [](const tensor<double, 2> &dudxi,
+   //                            const tensor<double, 2, 2> &J,
+   //                            const double &w)
+   // {
+   //    constexpr tensor<double, 2> b{1.0, 1.0};
+   //    return std::tuple{dot(b, dudxi * inv(J)) * det(J) * w};
+   // };
+
+   // std::tuple argument_operators_0{Gradient{"quantity"}, Gradient{"coordinates"}, Weight{"integration_weights"}};
+   // std::tuple output_operator_0{Value{"quantity"}};
+   // ElementOperator op_0{advection_kernel, argument_operators_0, output_operator_0};
+
+   // std::array solutions{FieldDescriptor{&fes, "quantity"}};
+   // std::array parameters{FieldDescriptor{&mesh_fes, "coordinates"}};
+
+   // DifferentiableOperator advection_op{solutions, parameters, std::tuple{op_0}, mesh, ir};
+
+   // auto adv_du = advection_op.template GetDerivativeWrt<0>({&u}, {mesh_nodes});
+   // HypreParMatrix A;
+   // adv_du->Assemble(A);
+
+   // std::ofstream mmatofs("dfem_mat.dat");
+   // A.PrintMatlab(mmatofs);
+   // mmatofs.close();
+
+   auto trace_kernel = [](const double &uL, const double &uR, const double &J,
+                          const double &w)
    {
-      constexpr tensor<double, 2> b{1.0, 1.0};
-      return std::tuple{dot(b, dudxi * inv(J)) * det(J) * w};
+      return std::tuple{1.0 / J * w};
    };
 
-   std::tuple argument_operators_0{Gradient{"quantity"}, Gradient{"coordinates"}, Weight{"integration_weights"}};
+   std::tuple argument_operators_0
+   {
+      FaceValueLeft{"quantity"},
+      FaceValueRight{"quantity"},
+      Gradient{"coordinates"},
+      Weight{"integration_weights"}
+   };
    std::tuple output_operator_0{Value{"quantity"}};
-   ElementOperator op_0{advection_kernel, argument_operators_0, output_operator_0};
+   FaceElementOperator op_0{trace_kernel, argument_operators_0, output_operator_0};
 
    std::array solutions{FieldDescriptor{&fes, "quantity"}};
    std::array parameters{FieldDescriptor{&mesh_fes, "coordinates"}};
 
-   DifferentiableOperator advection_op{solutions, parameters, std::tuple{op_0}, mesh, ir};
-
-   auto adv_du = advection_op.template GetDerivativeWrt<0>({&u}, {mesh_nodes});
-   HypreParMatrix A;
-   adv_du->Assemble(A);
-
-   std::ofstream mmatofs("dfem_mat.dat");
-   A.PrintMatlab(mmatofs);
-   mmatofs.close();
+   DifferentiableOperator trace_op{solutions, parameters, std::tuple{op_0}, mesh, ir_face};
 
    auto vector_func = [](const Vector &, Vector &u)
    {

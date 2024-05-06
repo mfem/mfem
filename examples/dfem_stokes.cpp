@@ -7,19 +7,19 @@ template <typename momentum_t, typename mass_conservation_t>
 class NavierStokesOperator : public Operator
 {
    template <typename momentum_du_t, typename momentum_dp_t>
-   class StokesJacobianOperator : public Operator
+   class NavierStokesJacobianOperator : public Operator
    {
    public:
-      StokesJacobianOperator(const NavierStokesOperator *stokes,
-                             std::shared_ptr<momentum_du_t> mom_du,
-                             std::shared_ptr<momentum_dp_t> mom_dp) :
-         Operator(stokes->Height()), s(stokes), block_op(s->block_offsets)
+      NavierStokesJacobianOperator(const NavierStokesOperator *ns,
+                                   std::shared_ptr<momentum_du_t> mom_du,
+                                   std::shared_ptr<momentum_dp_t> mom_dp) :
+         Operator(ns->Height()), ns(ns), block_op(ns->block_offsets)
       {
          mom_du->Assemble(A);
-         A.EliminateBC(s->vel_ess_tdofs, Operator::DiagonalPolicy::DIAG_ONE);
+         A.EliminateBC(ns->vel_ess_tdofs, Operator::DiagonalPolicy::DIAG_ONE);
 
          mom_dp->Assemble(D);
-         D.EliminateRows(s->vel_ess_tdofs);
+         D.EliminateRows(ns->vel_ess_tdofs);
 
          Dt = new TransposeOperator(D);
 
@@ -36,14 +36,14 @@ class NavierStokesOperator : public Operator
          block_op.Mult(x, y);
       }
 
-      ~StokesJacobianOperator()
+      ~NavierStokesJacobianOperator()
       {
          delete Dt;
       }
 
-      const NavierStokesOperator *s;
+      const NavierStokesOperator *ns = nullptr;
       HypreParMatrix A, D;
-      TransposeOperator *Dt;
+      TransposeOperator *Dt = nullptr;
       BlockOperator block_op;
    };
 
@@ -93,7 +93,7 @@ public:
       auto mom_du = momentum.template GetDerivativeWrt<0>({&u, &p}, {&mesh_nodes});
       auto mom_dp = momentum.template GetDerivativeWrt<1>({&u, &p}, {&mesh_nodes});
       delete jacobian_operator;
-      jacobian_operator = new StokesJacobianOperator<
+      jacobian_operator = new NavierStokesJacobianOperator<
       typename std::remove_pointer<decltype(mom_du.get())>::type,
       typename std::remove_pointer<decltype(mom_dp.get())>::type>(this, mom_du,
                                                                   mom_dp);
@@ -122,7 +122,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/ref-square.mesh";
    int polynomial_order = 2;
    int ir_order = 2;
-   int refinements = 5;
+   int refinements = 2;
 
    Mesh mesh_serial = Mesh(mesh_file);
    for (int i = 0; i < refinements; i++)
@@ -270,7 +270,7 @@ int main(int argc, char *argv[])
    solver.SetPreconditioner(prec);
 
    NewtonSolver newton(MPI_COMM_WORLD);
-   newton.SetOperator(stokes);
+   newton.SetOperator(navierstokes);
    newton.SetSolver(solver);
    newton.SetRelTol(1e-8);
    newton.SetMaxIter(50);

@@ -32,23 +32,12 @@ void prolongation(const std::array<FieldDescriptor, N> fields,
    for (int i = 0; i < N; i++)
    {
       const auto P = get_prolongation(fields[i]);
-      if (P != nullptr)
-      {
-         const int width = P->Width();
-         const Vector x_i(x.GetData() + data_offset, width);
-         fields_l[i].SetSize(P->Height());
+      const int width = P->Width();
+      const Vector x_i(x.GetData() + data_offset, width);
+      fields_l[i].SetSize(P->Height());
 
-         P->Mult(x_i, fields_l[i]);
-         data_offset += width;
-      }
-      else
-      {
-         const int width = GetTrueVSize(fields[i]);
-         fields_l[i].SetSize(width);
-         const Vector x_i(x.GetData() + data_offset, width);
-         fields_l[i] = x_i;
-         data_offset += width;
-      }
+      P->Mult(x_i, fields_l[i]);
+      data_offset += width;
    }
 }
 
@@ -62,20 +51,11 @@ void element_restriction(const std::array<FieldDescriptor, N> u,
    for (int i = 0; i < N; i++)
    {
       const auto R = get_element_restriction(u[i], ordering);
-      if (R != nullptr)
-      {
-         MFEM_ASSERT(R->Width() == u_l[i].Size(),
-                     "element restriction not applicable to given data size");
-         const int height = R->Height();
-         fields_e[i + offset].SetSize(height);
-         R->Mult(u_l[i], fields_e[i + offset]);
-      }
-      else
-      {
-         const int height = GetTrueVSize(u[i]);
-         fields_e[i + offset].SetSize(height);
-         fields_e[i + offset] = u_l[i];
-      }
+      MFEM_ASSERT(R->Width() == u_l[i].Size(),
+                  "element restriction not applicable to given data size");
+      const int height = R->Height();
+      fields_e[i + offset].SetSize(height);
+      R->Mult(u_l[i], fields_e[i + offset]);
    }
 }
 
@@ -257,6 +237,46 @@ void map_field_to_quadrature_data(
             }
          }
       }
+   }
+   else if constexpr (std::is_same_v<field_operator_t, FaceValueLeft>)
+   {
+      auto [num_qp, unused, num_dof] = B.GetShape();
+      const int vdim = input.vdim;
+      const int element_offset = element_idx * num_dof * vdim;
+      const auto field = Reshape(field_e.Read() + element_offset, num_dof, vdim);
+
+      // for (int vd = 0; vd < vdim; vd++)
+      // {
+      //    for (int qp = 0; qp < num_qp; qp++)
+      //    {
+      //       double acc = 0.0;
+      //       for (int dof = 0; dof < num_dof; dof++)
+      //       {
+      //          acc += B(qp, 0, dof) * field(dof, vd);
+      //       }
+      //       field_qp(vd, qp) = acc;
+      //    }
+      // }
+   }
+   else if constexpr (std::is_same_v<field_operator_t, FaceValueRight>)
+   {
+      auto [num_qp, unused, num_dof] = B.GetShape();
+      const int vdim = input.vdim;
+      const int element_offset = element_idx * num_dof * vdim;
+      const auto field = Reshape(field_e.Read() + element_offset, num_dof, vdim);
+
+      // for (int vd = 0; vd < vdim; vd++)
+      // {
+      //    for (int qp = 0; qp < num_qp; qp++)
+      //    {
+      //       double acc = 0.0;
+      //       for (int dof = 0; dof < num_dof; dof++)
+      //       {
+      //          acc += B(qp, 0, dof) * field(dof, vd);
+      //       }
+      //       field_qp(vd, qp) = acc;
+      //    }
+      // }
    }
    // TODO: Create separate function for clarity
    else if constexpr (std::is_same_v<field_operator_t, Weight>)
@@ -674,6 +694,8 @@ public:
       template <typename kernel_t>
       void create_callback(kernel_t kernel, mult_func_t &func)
       {
+         using OperatesOn = typename kernel_t::OperatesOn;
+
          auto kinput_to_field = create_descriptors_to_fields_map(op.fields,
                                                                  kernel.inputs, std::make_index_sequence<kernel.num_kinputs> {});
 
@@ -739,11 +761,35 @@ public:
          auto input_qp_mem = create_input_qp_memory(num_qp, kernel.inputs,
                                                     std::make_index_sequence<kernel.num_kinputs> {});
 
+         const Operator *R = nullptr;
+         if constexpr (std::is_same_v<OperatesOn, OperatesOnElement>)
+         {
+            R = get_element_restriction(op.fields[test_space_field_idx],
+                                        element_dof_ordering);
+         }
+         else
+         {
+            MFEM_ABORT("restriction not implemented for OperatesOn");
+         }
+
          func = [this, kernel, num_el, num_qp, dtqmaps, residual_size_on_qp,
                        input_qp_mem, kinput_to_field, koutput_to_field,
-                       output_fop]
+                       output_fop, R]
          (Vector &ye_mem) mutable
          {
+            if constexpr (std::is_same_v<OperatesOn, OperatesOnElement>)
+            {
+               element_restriction(op.solutions, solutions_l, fields_e,
+                                   op.element_dof_ordering);
+               element_restriction(op.parameters, parameters_l, fields_e,
+                                   op.element_dof_ordering,
+                                   op.solutions.size());
+            }
+            else
+            {
+               MFEM_ABORT("restriction not implemented for OperatesOn");
+            }
+
             auto residual_qp = Reshape(residual_qp_mem.ReadWrite(),
                                        residual_size_on_qp, num_qp, num_el);
 
@@ -795,6 +841,7 @@ public:
                                              output_fop,
                                              output_dtq_ops[hardcoded_output_idx]);
             }
+            R->MultTranspose(ye_mem, residual_l);
          };
 
          if constexpr (std::is_same_v<decltype(output_fop), One>)
@@ -814,19 +861,10 @@ public:
          }
          else
          {
-            auto R = get_element_restriction(op.fields[test_space_field_idx],
-                                             element_dof_ordering);
-            element_restriction_transpose = [R](const Vector &r_e, Vector &y)
-            {
-               R->MultTranspose(r_e, y);
-            };
-
             auto P = get_prolongation(op.fields[test_space_field_idx]);
             prolongation_transpose = [P](const Vector &r_local, Vector &y)
             {
-               // out << "address before P^T: " << y.GetData() << "\n";
                P->MultTranspose(r_local, y);
-               // out << "address after P^T: " << y.GetData() << "\n";
             };
          }
       }
@@ -845,23 +883,15 @@ public:
                                std::make_index_sequence<std::tuple_size_v<kernels_tuple>>());
       }
 
-      void Mult(const Vector &x, Vector &y) const override
+      void Mult(const Vector &x, Vector &y) const
       {
          prolongation(op.solutions, x, solutions_l);
-
-         element_restriction(op.solutions, solutions_l, fields_e,
-                             op.element_dof_ordering);
-         element_restriction(op.parameters, parameters_l, fields_e,
-                             op.element_dof_ordering,
-                             op.solutions.size());
 
          residual_e = 0.0;
          for (const auto &f : funcs)
          {
             f(residual_e);
          }
-
-         element_restriction_transpose(residual_e, residual_l);
 
          prolongation_transpose(residual_l, y);
 
@@ -1135,8 +1165,8 @@ public:
 
          prolongation(directions, current_directions_t, directions_l);
 
-         element_restriction(directions, directions_l, directions_e,
-                             op.element_dof_ordering, derivative_idx);
+         // element_restriction(directions, directions_l, directions_e,
+         //                     op.element_dof_ordering, derivative_idx);
 
          derivative_action_e = 0.0;
          for (const auto &f : funcs)
@@ -1144,7 +1174,7 @@ public:
             f(derivative_action_e);
          }
 
-         element_restriction_transpose(derivative_action_e, derivative_action_l);
+         // element_restriction_transpose(derivative_action_e, derivative_action_l);
 
          prolongation_transpose(derivative_action_l, y);
 
@@ -1156,6 +1186,8 @@ public:
       template <typename kernel_t>
       void assemble_hypreparmatrix_impl(kernel_t kernel, HypreParMatrix &A)
       {
+         using OperatesOn = typename kernel_t::OperatesOn;
+
          auto kinput_to_field = create_descriptors_to_fields_map(op.fields,
                                                                  kernel.inputs,
                                                                  std::make_index_sequence<kernel.num_kinputs> {});
@@ -1171,25 +1203,33 @@ public:
          int num_qp = op.integration_rule.GetNPoints();;
          int num_el = 0;
          int dimension = 0;
-         if constexpr (std::is_same_v<typename kernel_t::OperatesOn, OperatesOnElement>)
+         if constexpr (std::is_same_v<OperatesOn, OperatesOnElement>)
          {
             num_el = op.mesh.GetNE();
             dimension = op.dim;
          }
-         else if (std::is_same_v<typename kernel_t::OperatesOn, OperatesOnBoundary>)
+         else if (std::is_same_v<OperatesOn, OperatesOnFace>)
          {
-            num_el = op.mesh.GetNBE();
+            num_el = op.mesh.GetNumFacesWithGhost();
             dimension = op.dim - 1;
          }
          else
          {
-            static_assert(always_false<typename kernel_t::OperatesOn>, "not implemented");
+            static_assert(always_false<OperatesOn>, "not implemented");
          }
 
          std::vector<const DofToQuad*> dtqmaps;
          for (const auto &field : op.fields)
          {
-            dtqmaps.emplace_back(GetDofToQuad(field, op.integration_rule, doftoquad_mode));
+            if constexpr (std::is_same_v<OperatesOn, OperatesOnFace>)
+            {
+               dtqmaps.emplace_back(GetDofToQuadFace(field, op.integration_rule,
+                                                     doftoquad_mode));
+            }
+            else
+            {
+               dtqmaps.emplace_back(GetDofToQuad(field, op.integration_rule, doftoquad_mode));
+            }
          }
 
          // Allocate memory for fields on quadrature points
@@ -1276,17 +1316,6 @@ public:
             total_trial_op_dim += dependent_input_dtq_ops[s].GetShape()[1];
          }
 
-         // // number of rows for the derivative of the kernel \partial D
-         // const int nrows_a = GetSizeOnQP(std::get<0>(kernel.outputs),
-         //                                 op.fields[test_space_field_idx]);
-
-         // // number of columns for the derivative of the kernel \partial D
-         // const int ncols_a = accumulate_sizes_on_qp(kernel.inputs,
-         //                                            kinput_is_dependent,
-         //                                            kinput_to_field,
-         //                                            op.fields,
-         //                                            std::make_index_sequence<kernel.num_kinputs> {});
-
          Vector a_qp_mem(test_vdim * test_op_dim * trial_vdim * total_trial_op_dim *
                          num_qp *
                          num_el);
@@ -1299,20 +1328,6 @@ public:
 
          auto A_e = Reshape(Ae_mem.ReadWrite(), num_test_dof, test_vdim, num_trial_dof,
                             trial_vdim, num_el);
-
-         // for (int s = 0; s < dependent_input_dtq_ops.size(); s++)
-         // {
-         //    auto [num_qp, trial_op_dim,
-         //          num_trial_dof] = dependent_input_dtq_ops[s].GetShape();
-         //    Vector budense(num_qp * num_trial_dof * trial_op_dim);
-         //    auto bb = Reshape(&dependent_input_dtq_ops[s].B(0, 0, 0),
-         //                      num_qp * trial_op_dim * num_trial_dof);
-         //    for (int i = 0; i < num_qp * trial_op_dim * num_trial_dof; i++)
-         //    {
-         //       budense(i) = bb(i);
-         //    }
-         //    print_vector(budense);
-         // }
 
          for (int e = 0; e < num_el; e++)
          {

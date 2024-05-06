@@ -111,6 +111,7 @@ struct DofToQuadMaps
 template <class... T> constexpr bool always_false = false;
 
 struct OperatesOnElement;
+struct OperatesOnFace;
 struct OperatesOnBoundary;
 
 template <typename func_t, typename input_t,
@@ -188,6 +189,16 @@ struct BoundaryElementOperator : public
 public:
    using OperatesOn = OperatesOnBoundary;
    BoundaryElementOperator(func_t func, input_t inputs, output_t outputs)
+      : ElementOperator<func_t, input_t, output_t>(func, inputs, outputs) {}
+};
+
+template <typename func_t, typename input_t, typename output_t>
+struct FaceElementOperator : public
+   ElementOperator<func_t, input_t, output_t>
+{
+public:
+   using OperatesOn = OperatesOnFace;
+   FaceElementOperator(func_t func, input_t inputs, output_t outputs)
       : ElementOperator<func_t, input_t, output_t>(func, inputs, outputs) {}
 };
 
@@ -372,10 +383,6 @@ const Operator *get_prolongation(const FieldDescriptor &f)
       {
          return arg->GetProlongationMatrix();
       }
-      else if constexpr (std::is_same_v<T, const QuadratureSpace *>)
-      {
-         return nullptr;
-      }
       else
       {
          static_assert(always_false<T>, "can't use GetProlongation on type");
@@ -396,10 +403,6 @@ const Operator *get_element_restriction(const FieldDescriptor &f,
       else if constexpr (std::is_same_v<T, const ParFiniteElementSpace *>)
       {
          return arg->GetElementRestriction(o);
-      }
-      else if constexpr (std::is_same_v<T, const QuadratureSpace *>)
-      {
-         return nullptr;
       }
       else
       {
@@ -426,6 +429,30 @@ const DofToQuad *GetDofToQuad(const FieldDescriptor &f,
       else
       {
          static_assert(always_false<T>, "can't use GetDofToQuad on type");
+      }
+   }, f.data);
+}
+
+const DofToQuad *GetDofToQuadFace(const FieldDescriptor &f,
+                                  const IntegrationRule &ir,
+                                  DofToQuad::Mode mode)
+{
+   return std::visit([&ir, &mode](auto&& arg) -> const DofToQuad*
+   {
+      using T = std::decay_t<decltype(arg)>;
+      if constexpr (std::is_same_v<T, const FiniteElementSpace *>)
+      {
+         return &arg->GetTraceElement(
+            0, arg->GetMesh()->GetFaceGeometry(0))->GetDofToQuad(ir, mode);
+      }
+      else if constexpr (std::is_same_v<T, const ParFiniteElementSpace *>)
+      {
+         return &arg->GetTraceElement(
+            0, arg->GetMesh()->GetFaceGeometry(0))->GetDofToQuad(ir, mode);
+      }
+      else
+      {
+         static_assert(always_false<T>, "can't use GetDofToQuadFace on type");
       }
    }, f.data);
 }
@@ -457,6 +484,12 @@ void CheckCompatibility(const FieldDescriptor &f)
          {
             MFEM_ASSERT(arg->GetFE(0)->GetMapType() == FiniteElement::MapType::H_DIV,
                         "Div not compatible with FE");
+         }
+         else if constexpr (std::is_same_v<field_operator_t, FaceValueLeft> ||
+                            std::is_same_v<field_operator_t, FaceValueRight>)
+         {
+            MFEM_ASSERT(arg->GetFE(0)->GetMapType() == FiniteElement::MapType::VALUE,
+                        "FaceValueLeft/FaceValueRight not compatible with FE");
          }
          else
          {

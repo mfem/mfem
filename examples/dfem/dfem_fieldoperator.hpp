@@ -52,6 +52,18 @@ public:
    Div(std::string field_label) : FieldOperator(field_label) {};
 };
 
+class FaceValueLeft : public FieldOperator
+{
+public:
+   FaceValueLeft(std::string field_label) : FieldOperator(field_label) {};
+};
+
+class FaceValueRight : public FieldOperator
+{
+public:
+   FaceValueRight(std::string field_label) : FieldOperator(field_label) {};
+};
+
 class One : public FieldOperator
 {
 public:
