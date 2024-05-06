@@ -3549,7 +3549,7 @@ private:
 
 /** Integrator for the (H)DG diffusion stabilization term
     $$
-        + \alpha \langle \{h^{-1} Q\} [u], [v] \rangle
+        1/2 \beta \langle \{h^{-1} Q\} [u], [v] \rangle
     $$
     where $Q$ is a scalar or matrix diffusion coefficient and $u$, $v$ are the trial
     and test spaces, respectively.  */

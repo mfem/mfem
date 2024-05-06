@@ -4504,7 +4504,7 @@ void HDGDiffusionIntegrator::AssembleFaceMatrix(
          wq += ni * nor;
       }
 
-      wq *= beta;
+      wq *= 0.5 * beta;
 
       // only assemble the lower triangular part
       for (int i = 0; i < ndof1; i++)
