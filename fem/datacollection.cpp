@@ -1155,7 +1155,7 @@ void ParaViewDataCollection::SaveCoeffFieldVTU(std::ostream &os, int ref_,
                                                const CoeffFieldMapIterator &it)
 {
    RefinedGeometry *RefG;
-   double val;
+   real_t val;
    std::vector<char> buf;
    int vec_dim = 1;
    os << "<DataArray type=\"" << GetDataTypeString()
