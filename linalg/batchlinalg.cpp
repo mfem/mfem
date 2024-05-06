@@ -165,8 +165,7 @@ void BatchSolver::ComputeInverse(DenseTensor &InvMatBatch) const
    if (Device::Allows(Backend::DEVICE_MASK))
    {
 
-      //Must be moved to temporary memory
-      Array<double *> inv_ptr_array(num_matrices_);
+      Array<double *> inv_ptr_array(num_matrices_, d_mt_);
 
       double *inv_ptr_base = InvMatBatch.Write();
       double **d_inv_ptr_array = inv_ptr_array.Write();
@@ -176,8 +175,7 @@ void BatchSolver::ComputeInverse(DenseTensor &InvMatBatch) const
          d_inv_ptr_array[i] = inv_ptr_base + i * matrix_size * matrix_size;
       });
 
-      //move to temporary memory
-      Array<int> info_array(num_matrices_);
+      Array<int> info_array(num_matrices_, d_mt_);
 
       //Invert matrices
       MFEM_cu_or_hip(blasStatus_t) status =
@@ -212,7 +210,6 @@ void BatchSolver::SolveLU(const Vector &b, Vector &x) const
    {
       Array<double *> vector_array(num_matrices_, d_mt_);
 
-      // TODO: can this be Write? does `blasDtrsmBatched' just overwrite what's in x?
       double *x_ptr_base = x.ReadWrite();
 
       double alpha = 1.0;
@@ -266,7 +263,7 @@ void BatchSolver::SolveLU(const Vector &b, Vector &x) const
 
 }
 
-//hand rolled block mult
+//Hand rolled -- TODO replace with vendor call
 void ApplyBlkMult(const DenseTensor &Mat, const Vector &x,
                   Vector &y)
 {
