@@ -468,7 +468,7 @@ void velocity_function(const Vector &x, Vector &v)
       case 1: case 2: case 3: case 4: {
          switch (dim) {
             case 1: v(0) = 1.0; break;
-            case 2: v(0) = 2.0; v(1) = 2.0; break;
+            case 2: v(0) = 1.0; v(1) = 1.0; break;
          }
          break;
       }
