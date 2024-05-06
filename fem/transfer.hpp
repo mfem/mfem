@@ -35,13 +35,15 @@ protected:
    /** @brief Desired Operator::Type for the construction of all operators
        defined by the underlying transfer algorithm. It can be ignored by
        derived classes. */
-   Operator::Type oper_type;
+   Operator::Type oper_type; 
 
    OperatorHandle fw_t_oper; ///< Forward true-dof operator
    OperatorHandle bw_t_oper; ///< Backward true-dof operator
 
    bool use_device;
    bool verify_solution;
+
+   MemoryType d_mt_;  
 
 #ifdef MFEM_USE_MPI
    bool parallel;
@@ -63,7 +65,9 @@ protected:
 public:
    /** Construct a transfer algorithm between the domain, @a dom_fes_, and
        range, @a ran_fes_, FE spaces. */
-   GridTransfer(FiniteElementSpace &dom_fes_, FiniteElementSpace &ran_fes_);
+   GridTransfer(FiniteElementSpace &dom_fes_,
+                FiniteElementSpace &ran_fes_,
+                MemoryType d_mt_ = MemoryType::DEFAULT);
 
    /// Virtual destructor
    virtual ~GridTransfer() { }
@@ -239,11 +243,14 @@ public:
       Array<int> offsets;
 
       const bool use_device, verify_solution;
+      MemoryType d_mt_;
 
    public:
       L2ProjectionL2Space(const FiniteElementSpace& fes_ho_,
                           const FiniteElementSpace& fes_lor_,
-                          const bool use_device_, const bool verify_solution_);
+                          const bool use_device_,
+                          const bool verify_solution_,
+                          MemoryType d_mt_ = MemoryType::DEFAULT);
 
       /*Same as above but assembles and stores R_ea, P_ea */
       void DeviceL2ProjectionL2Space(const FiniteElementSpace& fes_ho_,
@@ -423,9 +430,10 @@ protected:
 public:
    L2ProjectionGridTransfer(FiniteElementSpace &coarse_fes_,
                             FiniteElementSpace &fine_fes_,
-                            bool force_l2_space_ = false)
-      : GridTransfer(coarse_fes_, fine_fes_),
-        F(NULL), B(NULL), force_l2_space(force_l2_space_)
+                            bool force_l2_space_ = false,
+                            MemoryType d_mt = MemoryType::DEFAULT)
+      : GridTransfer(coarse_fes_, fine_fes_, d_mt),
+        F(NULL), B(NULL), force_l2_space(force_l2_space_)        
    { }
    virtual ~L2ProjectionGridTransfer();
 

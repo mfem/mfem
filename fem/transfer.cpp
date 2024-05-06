@@ -20,10 +20,12 @@ namespace mfem
 {
 
 GridTransfer::GridTransfer(FiniteElementSpace &dom_fes_,
-                           FiniteElementSpace &ran_fes_)
+                           FiniteElementSpace &ran_fes_,
+                           MemoryType d_mt)
    : dom_fes(dom_fes_), ran_fes(ran_fes_),
      oper_type(Operator::ANY_TYPE),
-     fw_t_oper(), bw_t_oper(), uniform_refinement(false), verify_solution(false)
+     fw_t_oper(), bw_t_oper(), use_device(false), verify_solution(false),
+     d_mt_(d_mt)
 {
 #ifdef MFEM_USE_MPI
    const bool par_dom = dynamic_cast<ParFiniteElementSpace*>(&dom_fes);
@@ -324,12 +326,13 @@ void L2ProjectionGridTransfer::L2Projection::ElemMixedMass(
 
 L2ProjectionGridTransfer::L2ProjectionL2Space::L2ProjectionL2Space
 (const FiniteElementSpace &fes_ho_, const FiniteElementSpace &fes_lor_,
- const bool uniform_refinement_, const bool verify_solution_)
+ const bool use_device_, const bool verify_solution_, MemoryType d_mt)
    : L2Projection(fes_ho_, fes_lor_),
-     uniform_refinement(uniform_refinement_), verify_solution(verify_solution_)
+     use_device(use_device_), verify_solution(verify_solution_),
+     d_mt_(d_mt)
 {
 
-   if (uniform_refinement)
+   if (use_device)
    {
       DeviceL2ProjectionL2Space(fes_ho_, fes_lor_);
       if (!verify_solution) {return;}
@@ -552,9 +555,9 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
 
          //Containers for the basis functions sampled
          //at quadrature points
-         B_L.SetSize(qPts, fe_lor.GetDof(), nref);
-         B_H.SetSize(qPts, fe_ho.GetDof(), nref);
-         D.SetSize(qPts, nref, nel_ho);
+         B_L.SetSize(qPts, fe_lor.GetDof(), nref, d_mt_);
+         B_H.SetSize(qPts, fe_ho.GetDof(), nref, d_mt_);
+         D.SetSize(qPts, nref, nel_ho, d_mt_);
 
          const DofToQuad *maps_lor = &fe_lor.GetDofToQuad(*ir, DofToQuad::TENSOR);
 
@@ -699,11 +702,11 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
       ndof_ho = fe_ho.GetDof();
       ndof_lor = fe_lor.GetDof();
 
-      M_ea_lor.SetSize(ndof_lor*ndof_lor*nel_lor);
+      M_ea_lor.SetSize(ndof_lor*ndof_lor*nel_lor, d_mt_);
 
       const int qPts = D.SizeI();
 
-      M_mixed_all.SetSize(ndof_lor*ndof_ho*nref*nel_ho);
+      M_mixed_all.SetSize(ndof_lor*ndof_ho*nref*nel_ho, d_mt_);
 
       //Rows x columns
       //Recall MFEM is column major
@@ -753,12 +756,14 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
    const bool add = false;
    mi.AssembleEA(fes_lor, M_ea_lor, add);
 
-   DenseTensor MLU_ea_lor(ndof_lor, ndof_lor, nel_lor);
+   DenseTensor MLU_ea_lor;
+   MLU_ea_lor.SetSize(ndof_lor, ndof_lor, nel_lor, d_mt_);
 
    BatchSolver batchSolver(BatchSolver::SolveMode::INVERSE);
    batchSolver.AssignMatrices(M_ea_lor, ndof_lor, nel_lor);
 
-   DenseTensor Minv_ear_lor(ndof_lor, ndof_lor, nel_lor);
+   DenseTensor Minv_ear_lor;
+   Minv_ear_lor.SetSize(ndof_lor, ndof_lor, nel_lor, d_mt_);
    batchSolver.GetInverse(Minv_ear_lor);
 
    //compute batch inverse of M_ea_lor;
@@ -813,7 +818,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
       //R^T M_LO is of size nref x ndof_lor
 
       //Compute R^T M_L
-      mfem::Vector RtM_L(ndof_ho*nref*ndof_lor*nel_ho);
+      Vector RtM_L(ndof_ho*nref*ndof_lor*nel_ho, d_mt_);
       auto v_RtM_L = mfem::Reshape(RtM_L.Write(), ndof_ho, ndof_lor, nref, nel_ho);
 
       mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int e)
@@ -843,7 +848,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
 
       //resulting matrix should be: ndof_ho x ndof_ho
       //R^T M_L x R
-      mfem::Vector RtM_LR(ndof_ho * ndof_ho * nel_ho);
+      mfem::Vector RtM_LR(ndof_ho * ndof_ho * nel_ho, d_mt_);
       auto v_RtM_LR = mfem::Reshape(RtM_LR.Write(), ndof_ho, ndof_ho, nel_ho);
 
       mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int e)
@@ -868,7 +873,8 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
       //recycle batch solver from above
       batchSolver.AssignMatrices(RtM_LR, ndof_ho, nel_ho);
 
-      DenseTensor InvRtM_LR_LU(ndof_ho, ndof_ho, nel_ho);
+      DenseTensor InvRtM_LR_LU;
+      InvRtM_LR_LU.SetSize(ndof_ho, ndof_ho, nel_ho, d_mt_);
       batchSolver.GetInverse(InvRtM_LR_LU);
 
 
@@ -909,7 +915,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::Mult(
    const Vector &x, Vector &y) const
 {
 
-   if (uniform_refinement)
+   if (use_device)
    {
       DeviceMult(x,y);
       if (!verify_solution) {return;}
@@ -996,7 +1002,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::MultTranspose(
    const Vector &x, Vector &y) const
 {
 
-   if (uniform_refinement)
+   if (use_device)
    {
       DeviceMult(x,y);
       if (!verify_solution) {return;}
@@ -1085,7 +1091,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::Prolongate(
    const Vector &x, Vector &y) const
 {
 
-   if (uniform_refinement)
+   if (use_device)
    {
       DeviceProlongate(x,y);
       if (!verify_solution) {return;}
@@ -1178,7 +1184,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::ProlongateTranspose(
    const Vector &x, Vector &y) const
 {
 
-   if (uniform_refinement)
+   if (use_device)
    {
       DeviceProlongateTranspose(x,y);
       if (!verify_solution) {return;}
@@ -1879,7 +1885,7 @@ void L2ProjectionGridTransfer::BuildF()
    }
    else
    {
-      F = new L2ProjectionL2Space(dom_fes, ran_fes, uniform_refinement,
+      F = new L2ProjectionL2Space(dom_fes, ran_fes, use_device,
                                   verify_solution);
    }
 }
