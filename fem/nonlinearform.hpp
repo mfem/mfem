@@ -35,6 +35,10 @@ protected:
    /// FE space on which the form lives.
    FiniteElementSpace *fes; // not owned
 
+   /** @brief Indicates the NonlinearFormIntegrator%s stored in #dnfi, #bnfi,
+       #fnfi, and #bfnfi are not owned by this NonlinearForm. */
+   bool extern_bfs;
+
    /// Set of Domain Integrators to be assembled (added).
    Array<NonlinearFormIntegrator*> dnfi; // owned
    Array<Array<int>*>              dnfi_marker; // not owned
@@ -77,7 +81,7 @@ public:
        number of true degrees of freedom, i.e. f->GetTrueVSize(). */
    NonlinearForm(FiniteElementSpace *f)
       : Operator(f->GetTrueVSize()), assembly(AssemblyLevel::LEGACY),
-        ext(NULL), fes(f), Grad(NULL), cGrad(NULL),
+        ext(NULL), fes(f), extern_bfs(0), Grad(NULL), cGrad(NULL),
         sequence(f->GetSequence()), P(f->GetProlongationMatrix()),
         cP(dynamic_cast<const SparseMatrix*>(P))
    { }
@@ -185,13 +189,13 @@ public:
 
        The state @a x must be a "GridFunction size" vector, i.e. its size must
        be fes->GetVSize(). */
-   double GetGridFunctionEnergy(const Vector &x) const;
+   real_t GetGridFunctionEnergy(const Vector &x) const;
 
    /// Compute the energy corresponding to the state @a x.
    /** In general, @a x may have non-homogeneous essential boundary values.
 
        The state @a x must be a true-dof vector. */
-   virtual double GetEnergy(const Vector &x) const
+   virtual real_t GetEnergy(const Vector &x) const
    { return GetGridFunctionEnergy(Prolongate(x)); }
 
    /// Evaluate the action of the NonlinearForm.
@@ -233,6 +237,9 @@ public:
    /// Get the finite element space restriction matrix
    virtual const Operator *GetRestriction() const
    { return fes->GetRestrictionMatrix(); }
+
+   /// Indicate that integrators are not owned by the NonlinearForm
+   void UseExternalIntegrators() { extern_bfs = 1; }
 
    /** @brief Destroy the NonlinearForm including the owned
        NonlinearFormIntegrator%s and gradient Operator. */
@@ -294,7 +301,7 @@ protected:
    const BlockVector &Prolongate(const BlockVector &bx) const;
 
    /// Specialized version of GetEnergy() for BlockVectors
-   double GetEnergyBlocked(const BlockVector &bx) const;
+   real_t GetEnergyBlocked(const BlockVector &bx) const;
 
    /// Specialized version of Mult() for BlockVector%s
    /// Block L-Vector to Block L-Vector
@@ -359,7 +366,7 @@ public:
    virtual void SetEssentialBC(const Array<Array<int> *>&bdr_attr_is_ess,
                                Array<Vector *> &rhs);
 
-   virtual double GetEnergy(const Vector &x) const;
+   virtual real_t GetEnergy(const Vector &x) const;
 
    /// Method is only called in serial, the parallel version calls MultBlocked
    /// directly.

@@ -83,7 +83,7 @@ void NonlinearForm::SetEssentialVDofs(const Array<int> &ess_vdofs_list)
    }
 }
 
-double NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
+real_t NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
 {
    if (ext)
    {
@@ -98,7 +98,7 @@ double NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
    ElementTransformation *T;
    DofTransformation *doftrans;
    Mesh *mesh = fes->GetMesh();
-   double energy = 0.0;
+   real_t energy = 0.0;
 
    if (dnfi.Size())
    {
@@ -687,10 +687,13 @@ NonlinearForm::~NonlinearForm()
 {
    delete cGrad;
    delete Grad;
-   for (int i = 0; i <  dnfi.Size(); i++) { delete  dnfi[i]; }
-   for (int i = 0; i <  bnfi.Size(); i++) { delete  bnfi[i]; }
-   for (int i = 0; i <  fnfi.Size(); i++) { delete  fnfi[i]; }
-   for (int i = 0; i < bfnfi.Size(); i++) { delete bfnfi[i]; }
+   if (!extern_bfs)
+   {
+      for (int i = 0; i <  dnfi.Size(); i++) { delete  dnfi[i]; }
+      for (int i = 0; i <  bnfi.Size(); i++) { delete  bnfi[i]; }
+      for (int i = 0; i <  fnfi.Size(); i++) { delete  fnfi[i]; }
+      for (int i = 0; i < bfnfi.Size(); i++) { delete bfnfi[i]; }
+   }
    delete ext;
 }
 
@@ -794,7 +797,7 @@ void BlockNonlinearForm::SetEssentialBC(
    }
 }
 
-double BlockNonlinearForm::GetEnergyBlocked(const BlockVector &bx) const
+real_t BlockNonlinearForm::GetEnergyBlocked(const BlockVector &bx) const
 {
    Array<Array<int> *> vdofs(fes.Size());
    Array<Vector *> el_x(fes.Size());
@@ -803,7 +806,7 @@ double BlockNonlinearForm::GetEnergyBlocked(const BlockVector &bx) const
    ElementTransformation *T;
    DofTransformation *doftrans;
    Mesh *mesh = fes[0]->GetMesh();
-   double energy = 0.0;
+   real_t energy = 0.0;
 
    for (int i=0; i<fes.Size(); ++i)
    {
@@ -925,7 +928,7 @@ double BlockNonlinearForm::GetEnergyBlocked(const BlockVector &bx) const
    return energy;
 }
 
-double BlockNonlinearForm::GetEnergy(const Vector &x) const
+real_t BlockNonlinearForm::GetEnergy(const Vector &x) const
 {
    xs.Update(const_cast<Vector&>(x), block_offsets);
    return GetEnergyBlocked(xs);

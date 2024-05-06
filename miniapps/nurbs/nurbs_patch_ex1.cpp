@@ -152,6 +152,10 @@ int main(int argc, char *argv[])
 
    if (patchAssembly && reducedIntegration && !pa)
    {
+#ifdef MFEM_USE_SINGLE
+      MFEM_ABORT("Reduced integration is not supported in single precision.");
+#endif
+
       di->SetIntegrationMode(NonlinearFormIntegrator::Mode::PATCHWISE_REDUCED);
    }
    else if (patchAssembly)
@@ -229,7 +233,7 @@ int main(int argc, char *argv[])
 
       x.GetTrueDofs(x_ew);
 
-      const double solNorm = x_ew.Norml2();
+      const real_t solNorm = x_ew.Norml2();
       x_ew -= x_pw;
 
       cout << "Element-wise solution norm " << solNorm << endl;
@@ -267,7 +271,7 @@ void AssembleAndSolve(LinearForm & b, BilinearFormIntegrator * bfi,
 
    sw.Stop();
 
-   const double timeAssemble = sw.RealTime();
+   const real_t timeAssemble = sw.RealTime();
 
    sw.Clear();
    sw.Start();
@@ -278,7 +282,7 @@ void AssembleAndSolve(LinearForm & b, BilinearFormIntegrator * bfi,
 
    sw.Stop();
 
-   const double timeFormLinearSystem = sw.RealTime();
+   const real_t timeFormLinearSystem = sw.RealTime();
 
    cout << "Timing for Assemble: " << timeAssemble << " seconds" << endl;
    cout << "Timing for FormLinearSystem: " << timeFormLinearSystem << " seconds"
