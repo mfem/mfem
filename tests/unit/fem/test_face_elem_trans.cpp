@@ -48,9 +48,9 @@ TEST_CASE("3D FaceElementTransformations",
                          << " " << T->Elem2No << std::endl;
             }
 
-            double tip_data[3];
-            double tip1_data[3];
-            double tip2_data[3];
+            real_t tip_data[3];
+            real_t tip1_data[3];
+            real_t tip2_data[3];
             Vector tip(tip_data, 3);
             Vector tip1(tip1_data, 3);
             Vector tip2(tip2_data, 3);
