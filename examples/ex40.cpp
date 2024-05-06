@@ -68,6 +68,7 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    int ode_solver_type = 3;
    int limiter_type = 1;
+   bool use_modal_basis = true;
    real_t t_final = 1;
    real_t dt = 5e-4;
    bool visualization = true;
@@ -212,16 +213,24 @@ int main(int argc, char *argv[])
          new HyperbolicFormIntegrator(numericalFlux, 0)),
       false);
 
-   // . Generate modal basis transformation and pre-compute Vandermonde matrix.
+   // . If using modal basis for general coordinate evaluation, generate modal basis
+   //   transformation and pre-compute Vandermonde matrix.
    Geometry::Type gtype = mesh.GetElementGeometry(0);
-   ModalBasis MB = ModalBasis(fec, gtype, order, dim);
+   ModalBasis * MB = NULL;
+   if (use_modal_basis) {
+      MB = new ModalBasis(fec, gtype, order, dim);
+   }
 
-   //  .Setup spatial optimization algorithmic for constraint functionals.
-   ElementOptimizer opt = ElementOptimizer(&MB, dim);
+   // . Setup spatial optimization algorithmic for constraint functionals.
+   const FiniteElement * fe = fes.GetFE(0);
+   ElementOptimizer opt = ElementOptimizer(MB, fe, gtype, dim, order, use_modal_basis);
 
-   // . Perform limiting based on sampling points (quadrature points) and solution points.
+   // . Setup points for limiting: solution nodes and sampling nodes (quadrature points).
+   IntegrationRule solpts = fec.FiniteElementForGeometry(gtype)->GetNodes();
    IntegrationRule samppts = IntRules.Get(gtype, 2*order);
-   Limit(u, uavg, MB.solpts, samppts, &opt, dim, limiter_type);
+
+   // . Limit initial solution (if necessary). 
+   Limit(u, uavg, solpts, samppts, &opt, dim, limiter_type);
 
    // . Set up SSP time integrator (note that RK2/RK3 integrators do not apply limiting at
    //   inner stages).
@@ -246,7 +255,7 @@ int main(int argc, char *argv[])
       real_t dt_real = min(dt, t_final - t);
 
       ode_solver->Step(u, t, dt_real);
-      Limit(u, uavg, MB.solpts, samppts, &opt, dim, limiter_type);
+      Limit(u, uavg, solpts, samppts, &opt, dim, limiter_type);
       ti++;
 
       done = (t >= t_final - 1e-8 * dt);
@@ -296,7 +305,7 @@ int main(int argc, char *argv[])
    cout << "Solution (discrete) minimum: " << u.Min() << endl;
    cout << "Solution (discrete) maximum: " << u.Max() << endl;
 
-
+   delete MB;
    delete ode_solver;
    return 0;
 }
@@ -336,7 +345,7 @@ void Limit(GridFunction &u, GridFunction &uavg, IntegrationRule &solpts,
 
       if (!skip_opt) {
          // Set element-wise solution and convert to modal form
-         opt->MB->SetSolution(u_elem);
+         opt->SetSolution(u_elem);
 
          // Loop through constraint functionals
          for (int j = 0; j < opt->ncon; j++) {
@@ -360,7 +369,7 @@ void Limit(GridFunction &u, GridFunction &uavg, IntegrationRule &solpts,
             for (int k = 0; k < samppts.GetNPoints(); k++) {
                samppts.IntPoint(k).Get(xi, dim);
                // Compute solution using modal basis
-               real_t ui = opt->MB->Eval(xi); 
+               real_t ui = opt->Eval(xi); 
                real_t hi = opt->h(ui);
                if (hi < hstar) {
                   hstar = hi;
@@ -374,8 +383,8 @@ void Limit(GridFunction &u, GridFunction &uavg, IntegrationRule &solpts,
             }
             // Continuously bounds-preserving limiter
             else if (limiter_type == 2) {
-               // Use optimizer to find minima of h(u(x)) within element 
-               // using x0 as the starting point
+               // Use optimizer to find minima of h(u(x)) within element using x0 as 
+               // the starting point
                real_t hss = opt->Optimize(x0);
 
                // Track maximum limiting factor

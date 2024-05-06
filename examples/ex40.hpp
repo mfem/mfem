@@ -40,6 +40,7 @@ class ModalBasis {
 class ElementOptimizer {
    private:
       int dim, cfidx, nfaces;
+      bool use_modal_basis;
 #if defined(MFEM_USE_DOUBLE)
       const real_t dxi = 1E-4;
 #elif defined(MFEM_USE_SINGLE)
@@ -51,6 +52,9 @@ class ElementOptimizer {
       real_t gbar;
       Geometry::Type &gtype;
       DenseMatrix n;
+      ModalBasis * MB;
+      const FiniteElement * fe;
+      Vector u_elem;
 
 
       void ComputeJacobian(Vector &x, Vector &J);
@@ -77,13 +81,17 @@ class ElementOptimizer {
 #else
       #error "Only single and double precision are supported!"
 #endif
-      ModalBasis * MB;
 
-      ElementOptimizer(ModalBasis * MB, int dim);
+      ElementOptimizer(ModalBasis * MB, const FiniteElement * fe, Geometry::Type &gtype,
+                       int dim, int order, bool use_modal_basis);
 
       void SetCostFunction(int cfidx);
 
       void SetGbar(real_t ubar);
+
+      void SetSolution(Vector &u_elem);
+
+      real_t Eval(Vector &x);
 
       real_t g(real_t u);
 
@@ -254,8 +262,9 @@ Vector ModalBasis::EvalGrad(Vector &x) {
 }
 
 
-ElementOptimizer::ElementOptimizer(ModalBasis * MB_, int dim_) 
-   : MB(MB_), dim(dim_), gtype(MB_->gtype)
+ElementOptimizer::ElementOptimizer(ModalBasis * MB_, const FiniteElement * fe_, Geometry::Type &gtype_,
+                                   int dim_, int order_, bool use_modal_basis_) 
+   : MB(MB_), fe(fe_), gtype(gtype_), dim(dim_), use_modal_basis(use_modal_basis_)
 {
    // Generate and store matrix of face normals for the element
    PrecomputeElementNormals();
@@ -263,9 +272,8 @@ ElementOptimizer::ElementOptimizer(ModalBasis * MB_, int dim_)
 
    // Set initial step size for GD + backtracking line search
    // as half the average distance between nodes
-   beta_0 = 0.5/(MB->order + 1);
+   beta_0 = 0.5/(order_ + 1);
 }
-
 
 // Sets index of cost functional for g(real_t u)
 void ElementOptimizer::SetCostFunction(int cfidx_) {
@@ -275,6 +283,31 @@ void ElementOptimizer::SetCostFunction(int cfidx_) {
 // Computes and stores constraint functional of element-wise mean
 void ElementOptimizer::SetGbar(real_t ubar) {
    gbar = g(ubar);
+}
+
+// Sets element-wise solution
+void ElementOptimizer::SetSolution(Vector &u_elem_) {
+   if (use_modal_basis) {
+      return MB->SetSolution(u_elem_);
+   }
+   else {
+      u_elem = u_elem_;
+   }
+}
+
+// Evaluates solution at arbitary coordinate using either modal basis or CalcShape()
+real_t ElementOptimizer::Eval(Vector &x) {
+   if (use_modal_basis) {
+      return MB->Eval(x);
+   }
+   else {
+      Vector shape(u_elem.Size());
+      IntegrationPoint ip;
+      ip.Init(1);
+      ip.Set(x, dim);
+      fe->CalcShape(ip, shape);
+      return u_elem*shape;
+   }
 }
 
 /*
@@ -303,8 +336,8 @@ void ElementOptimizer::ComputeJacobian(Vector &x, Vector &J) {
    for (int i = 0; i < dim; i++) {
       Vector x2 = Vector(x);
       
-      x2(i) = x(i) + dxi; real_t hp = h(MB->Eval(x2));
-      x2(i) = x(i) - dxi; real_t hm = h(MB->Eval(x2));
+      x2(i) = x(i) + dxi; real_t hp = h(Eval(x2));
+      x2(i) = x(i) - dxi; real_t hm = h(Eval(x2));
       J(i) = (hp - hm)/(2*dxi);
    }
 }
@@ -313,30 +346,30 @@ void ElementOptimizer::ComputeJacobian(Vector &x, Vector &J) {
 void ElementOptimizer::ComputeHessian(Vector &x, DenseMatrix &H) {
    if (dim == 1) {
       Vector x2 = Vector(x);
-      real_t h0 = h(MB->Eval(x2));
+      real_t h0 = h(Eval(x2));
 
-      x2(0) = x(0) + dxi; real_t hp = h(MB->Eval(x2));
-      x2(0) = x(0) - dxi; real_t hm = h(MB->Eval(x2));
+      x2(0) = x(0) + dxi; real_t hp = h(Eval(x2));
+      x2(0) = x(0) - dxi; real_t hm = h(Eval(x2));
       H(0, 0) = (hp - 2*h0 + hm)/(dxi*dxi);
    }
    else if (dim == 2) {
       Vector x2 = Vector(x);
-      real_t h0 = h(MB->Eval(x2));
+      real_t h0 = h(Eval(x2));
       
-      x2(0) = x(0) + dxi; real_t hp = h(MB->Eval(x2));
-      x2(0) = x(0) - dxi; real_t hm = h(MB->Eval(x2));
+      x2(0) = x(0) + dxi; real_t hp = h(Eval(x2));
+      x2(0) = x(0) - dxi; real_t hm = h(Eval(x2));
       H(0, 0) = (hp - 2*h0 + hm)/(dxi*dxi);
 
       x2(0) = x(0);
-      x2(1) = x(1) + dxi; hp = h(MB->Eval(x2));
-      x2(1) = x(1) - dxi; hm = h(MB->Eval(x2));
+      x2(1) = x(1) + dxi; hp = h(Eval(x2));
+      x2(1) = x(1) - dxi; hm = h(Eval(x2));
       H(1,1) = (hp - 2*h0 + hm)/(dxi*dxi);
 
       x2(0) = x(0) + dxi;
-      x2(1) = x(1) + dxi; real_t hpp = h(MB->Eval(x2));
-      x2(0) = x(0) - dxi; real_t hmp = h(MB->Eval(x2));
-      x2(1) = x(1) - dxi; real_t hmm = h(MB->Eval(x2));
-      x2(0) = x(0) + dxi; real_t hpm = h(MB->Eval(x2));
+      x2(1) = x(1) + dxi; real_t hpp = h(Eval(x2));
+      x2(0) = x(0) - dxi; real_t hmp = h(Eval(x2));
+      x2(1) = x(1) - dxi; real_t hmm = h(Eval(x2));
+      x2(0) = x(0) + dxi; real_t hpm = h(Eval(x2));
       H(0,1) = H(1,0) = (hpp - hmp - hpm + hmm)/(4*dxi*dxi);
    }
 }
@@ -354,7 +387,7 @@ real_t ElementOptimizer::Optimize(Vector &x0, bool extrapolate, int niters, int 
    DenseMatrix H(dim);
 
    // Compute h(u) at initial guess
-   real_t h0 = h(MB->Eval(x0));
+   real_t h0 = h(Eval(x0));
    real_t hstar = h0;
 
    // Perform optimization
@@ -397,7 +430,7 @@ real_t ElementOptimizer::Optimize(Vector &x0, bool extrapolate, int niters, int 
             }
 
             // Check cost function at next point
-            real_t h1 = h(MB->Eval(x1));
+            real_t h1 = h(Eval(x1));
 
             // Break if Armijo-Goldstein stopping condition is met
             if (h1 <= h0 - c*beta*Jnorm) {
@@ -417,7 +450,7 @@ real_t ElementOptimizer::Optimize(Vector &x0, bool extrapolate, int niters, int 
       }
    
       // Compute cost function at next point and track minimum
-      h0 = h(MB->Eval(x0));
+      h0 = h(Eval(x0));
       hstar = min(hstar, h0);
    }
 
