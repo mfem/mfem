@@ -274,6 +274,11 @@ int main(int argc, char *argv[])
       {
          B->AddInteriorFaceIntegrator(new TransposeIntegrator(
                                          new DGNormalTraceIntegrator(ccoeff, -1.)));
+         if (td > 0. && hybridization)
+         {
+            Mt->AddInteriorFaceIntegrator(new HDGDiffusionUpwindedIntegrator(ccoeff, kcoeff,
+                                                                             td));
+         }
       }
       else
       {
