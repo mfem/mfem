@@ -63,7 +63,7 @@ BlockVector::BlockVector(const BlockVector & v):
 }
 
 //! View constructor
-BlockVector::BlockVector(double *data, const Array<int> & bOffsets):
+BlockVector::BlockVector(real_t *data, const Array<int> & bOffsets):
    Vector(data, bOffsets.Last()),
    numBlocks(bOffsets.Size()-1),
    blockOffsets(bOffsets.GetData())
@@ -92,7 +92,7 @@ BlockVector::BlockVector(Vector &v, int offset, const Array<int> &bOffsets)
    SetBlocks();
 }
 
-void BlockVector::Update(double *data, const Array<int> & bOffsets)
+void BlockVector::Update(real_t *data, const Array<int> & bOffsets)
 {
    NewDataAndSize(data, bOffsets.Last());
    blockOffsets = bOffsets.GetData();
@@ -182,7 +182,7 @@ BlockVector & BlockVector::operator=(const BlockVector & original)
    return *this;
 }
 
-BlockVector & BlockVector::operator=(double val)
+BlockVector & BlockVector::operator=(real_t val)
 {
    Vector::operator=(val);
    return *this;

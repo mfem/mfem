@@ -261,10 +261,43 @@ public:
                              for anisotropic error estimation.
        @returns The computed energy.
     */
-   virtual double ComputeFluxEnergy(const FiniteElement &fluxelem,
+   virtual real_t ComputeFluxEnergy(const FiniteElement &fluxelem,
                                     ElementTransformation &Trans,
                                     Vector &flux, Vector *d_energy = NULL)
    { return 0.0; }
+
+   /** @brief For bilinear forms on element faces, specifies if the normal
+              derivatives are needed on the faces or just the face restriction.
+
+       @details if RequiresFaceNormalDerivatives() == true, then
+                AddMultPAFaceNormalDerivatives(...) should be invoked in place
+                of AddMultPA(...) and L2NormalDerivativeFaceRestriction should
+                be used to compute the normal derivatives. This is used for some
+                DG integrators, for example DGDiffusionIntegrator.
+
+       @returns whether normal derivatives appear in the bilinear form.
+   */
+   virtual bool RequiresFaceNormalDerivatives() const { return false; }
+
+   /// Method for partially assembled action.
+   /** @brief For bilinear forms on element faces that depend on the normal
+              derivative on the faces, computes the action of integrator to the
+              face values @a x and reference-normal derivatives @a dxdn and adds
+              the result to @a y and @a dydn.
+
+      @details This method can be called only after the method AssemblePA() has
+               been called.
+
+      @param[in]     x E-vector of face values (provided by
+                       FaceRestriction::Mult)
+      @param[in]     dxdn E-vector of face reference-normal derivatives
+                          (provided by FaceRestriction::NormalDerivativeMult)
+      @param[in,out] y E-vector of face values to add action to.
+      @param[in,out] dydn E-vector of face reference-normal derivative values to
+                          add action to.
+   */
+   virtual void AddMultPAFaceNormalDerivatives(const Vector &x, const Vector &dxdn,
+                                               Vector &y, Vector &dydn) const;
 
    virtual ~BilinearFormIntegrator() { }
 };
@@ -2147,7 +2180,7 @@ private:
    std::vector<std::vector<Vector>> reducedWeights;
    std::vector<IntArrayVar2D> reducedIDs;
    std::vector<Array<int>> pQ1D, pD1D;
-   std::vector<std::vector<Array2D<double>>> pB, pG;
+   std::vector<std::vector<Array2D<real_t>>> pB, pG;
    std::vector<IntArrayVar2D> pminD, pmaxD, pminQ, pmaxQ, pminDD, pmaxDD;
 
    std::vector<Array<const IntegrationRule*>> pir1d;
@@ -2222,7 +2255,7 @@ public:
                                    Vector &flux, bool with_coef = true,
                                    const IntegrationRule *ir = NULL);
 
-   virtual double ComputeFluxEnergy(const FiniteElement &fluxelem,
+   virtual real_t ComputeFluxEnergy(const FiniteElement &fluxelem,
                                     ElementTransformation &Trans,
                                     Vector &flux, Vector *d_energy = NULL);
 
@@ -2338,7 +2371,7 @@ class ConvectionIntegrator : public BilinearFormIntegrator
 {
 protected:
    VectorCoefficient *Q;
-   double alpha;
+   real_t alpha;
    // PA extension
    Vector pa_data;
    const DofToQuad *maps;         ///< Not owned
@@ -2352,7 +2385,7 @@ private:
 #endif
 
 public:
-   ConvectionIntegrator(VectorCoefficient &q, double a = 1.0)
+   ConvectionIntegrator(VectorCoefficient &q, real_t a = 1.0)
       : Q(&q) { alpha = a; }
 
    virtual void AssembleElementMatrix(const FiniteElement &,
@@ -2394,7 +2427,7 @@ using NonconservativeConvectionIntegrator = ConvectionIntegrator;
 class ConservativeConvectionIntegrator : public TransposeIntegrator
 {
 public:
-   ConservativeConvectionIntegrator(VectorCoefficient &q, double a = 1.0)
+   ConservativeConvectionIntegrator(VectorCoefficient &q, real_t a = 1.0)
       : TransposeIntegrator(new ConvectionIntegrator(q, -a)) { }
 };
 
@@ -2403,14 +2436,14 @@ class GroupConvectionIntegrator : public BilinearFormIntegrator
 {
 protected:
    VectorCoefficient *Q;
-   double alpha;
+   real_t alpha;
 
 private:
    DenseMatrix dshape, adjJ, Q_nodal, grad;
    Vector shape;
 
 public:
-   GroupConvectionIntegrator(VectorCoefficient &q, double a = 1.0)
+   GroupConvectionIntegrator(VectorCoefficient &q, real_t a = 1.0)
       : Q(&q) { alpha = a; }
    virtual void AssembleElementMatrix(const FiniteElement &,
                                       ElementTransformation &,
@@ -2655,7 +2688,7 @@ public:
                                    Vector &flux, bool with_coef,
                                    const IntegrationRule *ir = NULL);
 
-   virtual double ComputeFluxEnergy(const FiniteElement &fluxelem,
+   virtual real_t ComputeFluxEnergy(const FiniteElement &fluxelem,
                                     ElementTransformation &Trans,
                                     Vector &flux, Vector *d_energy = NULL);
 
@@ -2689,7 +2722,7 @@ public:
                                       ElementTransformation &Trans,
                                       DenseMatrix &elmat);
    /// Compute element energy: $ \frac{1}{2} (\mathrm{curl}(u), \mathrm{curl}(u))_E$
-   virtual double GetElementEnergy(const FiniteElement &el,
+   virtual real_t GetElementEnergy(const FiniteElement &el,
                                    ElementTransformation &Tr,
                                    const Vector &elfun);
 };
@@ -2985,7 +3018,7 @@ class ElasticityIntegrator : public BilinearFormIntegrator
    friend class ElasticityComponentIntegrator;
 
 protected:
-   double q_lambda, q_mu;
+   real_t q_lambda, q_mu;
    Coefficient *lambda, *mu;
 
 private:
@@ -3016,7 +3049,7 @@ public:
    { lambda = &l; mu = &m; }
    /** With this constructor $\lambda = q_l m$ and $\mu = q_m m$
        if $dim q_l + 2 q_m = 0$ then $tr(\sigma) = 0$. */
-   ElasticityIntegrator(Coefficient &m, double q_l, double q_m)
+   ElasticityIntegrator(Coefficient &m, real_t q_l, real_t q_m)
    { lambda = NULL; mu = &m; q_lambda = q_l; q_mu = q_m; }
 
    virtual void AssembleElementMatrix(const FiniteElement &el,
@@ -3057,7 +3090,7 @@ public:
        symmetric part of the (symmetric) stress tensor. The order of the
        components is: $s_xx, s_yy, s_xy$ in 2D, and $s_xx, s_yy, s_zz, s_xy, s_xz,
        s_yz$ in 3D. */
-   virtual double ComputeFluxEnergy(const FiniteElement &fluxelem,
+   virtual real_t ComputeFluxEnergy(const FiniteElement &fluxelem,
                                     ElementTransformation &Trans,
                                     Vector &flux, Vector *d_energy = NULL);
 };
@@ -3126,7 +3159,7 @@ class DGTraceIntegrator : public BilinearFormIntegrator
 protected:
    Coefficient *rho;
    VectorCoefficient *u;
-   double alpha, beta;
+   real_t alpha, beta;
    // PA extension
    Vector pa_data;
    const DofToQuad *maps;             ///< Not owned
@@ -3138,15 +3171,15 @@ private:
 
 public:
    /// Construct integrator with $\rho = 1$, $\beta = \alpha/2$.
-   DGTraceIntegrator(VectorCoefficient &u_, double a)
+   DGTraceIntegrator(VectorCoefficient &u_, real_t a)
    { rho = NULL; u = &u_; alpha = a; beta = 0.5*a; }
 
    /// Construct integrator with $\rho = 1$.
-   DGTraceIntegrator(VectorCoefficient &u_, double a, double b)
+   DGTraceIntegrator(VectorCoefficient &u_, real_t a, real_t b)
    { rho = NULL; u = &u_; alpha = a; beta = b; }
 
    DGTraceIntegrator(Coefficient &rho_, VectorCoefficient &u_,
-                     double a, double b)
+                     real_t a, real_t b)
    { rho = &rho_; u = &u_; alpha = a; beta = b; }
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
@@ -3193,14 +3226,14 @@ using ConservativeDGTraceIntegrator = DGTraceIntegrator;
 class NonconservativeDGTraceIntegrator : public TransposeIntegrator
 {
 public:
-   NonconservativeDGTraceIntegrator(VectorCoefficient &u, double a)
+   NonconservativeDGTraceIntegrator(VectorCoefficient &u, real_t a)
       : TransposeIntegrator(new DGTraceIntegrator(u, -a, 0.5*a)) { }
 
-   NonconservativeDGTraceIntegrator(VectorCoefficient &u, double a, double b)
+   NonconservativeDGTraceIntegrator(VectorCoefficient &u, real_t a, real_t b)
       : TransposeIntegrator(new DGTraceIntegrator(u, -a, b)) { }
 
    NonconservativeDGTraceIntegrator(Coefficient &rho, VectorCoefficient &u,
-                                    double a, double b)
+                                    real_t a, real_t b)
       : TransposeIntegrator(new DGTraceIntegrator(rho, u, -a, b)) { }
 };
 
@@ -3223,24 +3256,47 @@ class DGDiffusionIntegrator : public BilinearFormIntegrator
 protected:
    Coefficient *Q;
    MatrixCoefficient *MQ;
-   double sigma, kappa;
+   real_t sigma, kappa;
 
    // these are not thread-safe!
    Vector shape1, shape2, dshape1dn, dshape2dn, nor, nh, ni;
    DenseMatrix jmat, dshape1, dshape2, mq, adjJ;
 
+
+   // PA extension
+   Vector pa_data; // (Q, h, dot(n,J)|el0, dot(n,J)|el1)
+   const DofToQuad *maps; ///< Not owned
+   int dim, nf, nq, dofs1D, quad1D;
+   IntegrationRules irs{0, Quadrature1D::GaussLobatto};
+
 public:
-   DGDiffusionIntegrator(const double s, const double k)
+   DGDiffusionIntegrator(const real_t s, const real_t k)
       : Q(NULL), MQ(NULL), sigma(s), kappa(k) { }
-   DGDiffusionIntegrator(Coefficient &q, const double s, const double k)
+   DGDiffusionIntegrator(Coefficient &q, const real_t s, const real_t k)
       : Q(&q), MQ(NULL), sigma(s), kappa(k) { }
-   DGDiffusionIntegrator(MatrixCoefficient &q, const double s, const double k)
+   DGDiffusionIntegrator(MatrixCoefficient &q, const real_t s, const real_t k)
       : Q(NULL), MQ(&q), sigma(s), kappa(k) { }
    using BilinearFormIntegrator::AssembleFaceMatrix;
-   virtual void AssembleFaceMatrix(const FiniteElement &el1,
-                                   const FiniteElement &el2,
-                                   FaceElementTransformations &Trans,
-                                   DenseMatrix &elmat);
+   void AssembleFaceMatrix(const FiniteElement &el1,
+                           const FiniteElement &el2,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat) override;
+
+   bool RequiresFaceNormalDerivatives() const override { return true; }
+
+   using BilinearFormIntegrator::AssemblePA;
+
+   void AssemblePAInteriorFaces(const FiniteElementSpace &fes) override;
+
+   void AssemblePABoundaryFaces(const FiniteElementSpace &fes) override;
+
+   void AddMultPAFaceNormalDerivatives(const Vector &x, const Vector &dxdn,
+                                       Vector &y, Vector &dydn) const override;
+
+   const IntegrationRule &GetRule(int order, FaceElementTransformations &T);
+
+private:
+   void SetupPA(const FiniteElementSpace &fes, FaceType type);
 };
 
 /** Integrator for the "BR2" diffusion stabilization term
@@ -3266,11 +3322,11 @@ public:
 class DGDiffusionBR2Integrator : public BilinearFormIntegrator
 {
 protected:
-   double eta;
+   real_t eta;
 
    // Block factorizations of local mass matrices, with offsets for the case of
    // not equally sized blocks (mixed meshes, p-refinement)
-   Array<double> Minv;
+   Array<real_t> Minv;
    Array<int> ipiv;
    Array<int> ipiv_offsets, Minv_offsets;
 
@@ -3290,11 +3346,11 @@ protected:
    void PrecomputeMassInverse(class FiniteElementSpace &fes);
 
 public:
-   DGDiffusionBR2Integrator(class FiniteElementSpace &fes, double e = 1.0);
+   DGDiffusionBR2Integrator(class FiniteElementSpace &fes, real_t e = 1.0);
    DGDiffusionBR2Integrator(class FiniteElementSpace &fes, Coefficient &Q_,
-                            double e = 1.0);
+                            real_t e = 1.0);
    MFEM_DEPRECATED DGDiffusionBR2Integrator(class FiniteElementSpace *fes,
-                                            double e = 1.0);
+                                            real_t e = 1.0);
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
@@ -3366,11 +3422,11 @@ public:
 class DGElasticityIntegrator : public BilinearFormIntegrator
 {
 public:
-   DGElasticityIntegrator(double alpha_, double kappa_)
+   DGElasticityIntegrator(real_t alpha_, real_t kappa_)
       : lambda(NULL), mu(NULL), alpha(alpha_), kappa(kappa_) { }
 
    DGElasticityIntegrator(Coefficient &lambda_, Coefficient &mu_,
-                          double alpha_, double kappa_)
+                          real_t alpha_, real_t kappa_)
       : lambda(&lambda_), mu(&mu_), alpha(alpha_), kappa(kappa_) { }
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
@@ -3381,7 +3437,7 @@ public:
 
 protected:
    Coefficient *lambda, *mu;
-   double alpha, kappa;
+   real_t alpha, kappa;
 
 #ifndef MFEM_THREAD_SAFE
    // values of all scalar basis functions for one component of u (which is a
@@ -3407,7 +3463,7 @@ protected:
    static void AssembleBlock(
       const int dim, const int row_ndofs, const int col_ndofs,
       const int row_offset, const int col_offset,
-      const double jmatcoef, const Vector &col_nL, const Vector &col_nM,
+      const real_t jmatcoef, const Vector &col_nL, const Vector &col_nM,
       const Vector &row_shape, const Vector &col_shape,
       const Vector &col_dshape_dnM, const DenseMatrix &col_dshape,
       DenseMatrix &elmat, DenseMatrix &jmat);
