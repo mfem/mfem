@@ -11,6 +11,7 @@
 
 #include "linearform.hpp"
 #include "../general/forall.hpp"
+#include "../general/workspace.hpp"
 
 namespace mfem
 {
@@ -61,6 +62,7 @@ void LinearFormExtension::Assemble()
       }
 
       // Assemble the linear form
+      auto b = Workspace::NewVector(elem_restrict_lex->Height());
       b = 0.0;
       domain_integs[k]->AssembleDevice(fes, markers, b);
       if (k == 0) { elem_restrict_lex->MultTranspose(b, *lf); }
@@ -104,6 +106,7 @@ void LinearFormExtension::Assemble()
       }
 
       // Assemble the linear form
+      auto bdr_b = Workspace::NewVector(bdr_restrict_lex->Height());
       bdr_b = 0.0;
       boundary_integs[k]->AssembleDevice(fes, bdr_markers, bdr_b);
       bdr_restrict_lex->AddMultTranspose(bdr_b, *lf);
@@ -130,8 +133,6 @@ void LinearFormExtension::Update()
 
       elem_restrict_lex = fes.GetElementRestriction(ordering);
       MFEM_VERIFY(elem_restrict_lex, "Element restriction not available");
-      b.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
-      b.UseDevice(true);
    }
 
    if (lf->boundary_integs.Size() > 0)
@@ -168,9 +169,6 @@ void LinearFormExtension::Update()
          dynamic_cast<const FaceRestriction*>(
             fes.GetFaceRestriction(ordering, FaceType::Boundary,
                                    L2FaceValues::SingleValued));
-      MFEM_VERIFY(bdr_restrict_lex, "Face restriction not available");
-      bdr_b.SetSize(bdr_restrict_lex->Height(), Device::GetMemoryType());
-      bdr_b.UseDevice(true);
    }
 }
 

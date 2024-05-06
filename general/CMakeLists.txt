@@ -31,6 +31,7 @@ list(APPEND SRCS
   tinyxml2.cpp
   version.cpp
   hip.cpp
+  workspace.cpp
   )
 
 list(APPEND HDRS
@@ -65,6 +66,7 @@ list(APPEND HDRS
   text.hpp
   version.hpp
   hip.hpp
+  workspace.hpp
   )
 
 if (MFEM_USE_MPI)
