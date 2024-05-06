@@ -729,7 +729,7 @@ public:
                  VTKFormat format=VTKFormat::ASCII,
                  bool high_order_output=false,
                  int compression_level=0,
-                 bool bdr=false) override;
+                 bool bdr_elements=false) override;
 
    /// Parallel version of Mesh::Load().
    void Load(std::istream &input, int generate_edges = 0,

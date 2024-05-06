@@ -11694,7 +11694,7 @@ void Mesh::PrintVTU(std::string fname,
                     VTKFormat format,
                     bool high_order_output,
                     int compression_level,
-                    bool bdr)
+                    bool bdr_elements)
 {
    int ref = (high_order_output && Nodes)
              ? Nodes->FESpace()->GetMaxElementOrder() : 1;
@@ -11708,7 +11708,7 @@ void Mesh::PrintVTU(std::string fname,
    }
    os << " byte_order=\"" << VTKByteOrder() << "\">\n";
    os << "<UnstructuredGrid>\n";
-   PrintVTU(os, ref, format, high_order_output, compression_level, bdr);
+   PrintVTU(os, ref, format, high_order_output, compression_level, bdr_elements);
    os << "</Piece>\n"; // need to close the piece open in the PrintVTU method
    os << "</UnstructuredGrid>\n";
    os << "</VTKFile>" << std::endl;
