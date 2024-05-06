@@ -43,7 +43,7 @@ public:
    static const int MaxDim = 3;
    static const int NumBdrArray[NumGeom];
    static const char *Name[NumGeom];
-   static const double Volume[NumGeom];
+   static const real_t Volume[NumGeom];
    static const int Dimension[NumGeom];
    static const int DimStart[MaxDim+2]; // including MaxDim+1
    static const int NumVerts[NumGeom];
@@ -79,7 +79,7 @@ public:
    static bool CheckPoint(int GeomType, const IntegrationPoint &ip);
    /** @brief Check if the given point is inside the given reference element.
        Overload for fuzzy tolerance. */
-   static bool CheckPoint(int GeomType, const IntegrationPoint &ip, double eps);
+   static bool CheckPoint(int GeomType, const IntegrationPoint &ip, real_t eps);
 
    /// Project a point @a end, onto the given Geometry::Type, @a GeomType.
    /** Check if the @a end point is inside the reference element, if not

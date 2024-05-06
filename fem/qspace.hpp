@@ -106,7 +106,7 @@ public:
    const Vector &GetWeights() const;
 
    /// Return the integral of the scalar Coefficient @a coeff.
-   double Integrate(Coefficient &coeff) const;
+   real_t Integrate(Coefficient &coeff) const;
 
    /// Return the integral of the VectorCoefficient @a coeff in @a integrals.
    void Integrate(VectorCoefficient &coeff, Vector &integrals) const;
@@ -214,6 +214,10 @@ public:
    /// For tensor-product faces, returns the lexicographic index of the
    /// quadrature point, oriented relative to "element 1".
    int GetPermutedIndex(int idx, int iq) const override;
+
+   /// @brief Get the face index (in the standard Mesh numbering) associated
+   /// with face @a idx in the FaceQuadratureSpace.
+   int GetMeshFaceIndex(int idx) const { return face_indices[idx]; }
 
    /// @brief Returns the index associated with the face described by @a T.
    ///

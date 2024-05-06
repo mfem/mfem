@@ -44,7 +44,7 @@ using namespace std;
 void transformation(const Vector &p, Vector &v)
 {
    // simple shear transformation
-   double s = 0.1;
+   real_t s = 0.1;
 
    if (p.Size() == 3)
    {
@@ -65,32 +65,32 @@ void transformation(const Vector &p, Vector &v)
 
 // This function is used with the 'r' menu option, sub-option 'l' to refine a
 // mesh locally in a region, defined by return values <= region_eps.
-double region_eps = 1e-8;
-double region(const Vector &p)
+real_t region_eps = 1e-8;
+real_t region(const Vector &p)
 {
-   const double x = p(0), y = p(1);
+   const real_t x = p(0), y = p(1);
    // here we describe the region: (x <= 1/4) && (y >= 0) && (y <= 1)
-   return std::max(std::max(x - 0.25, -y), y - 1.0);
+   return std::max(std::max(x - (real_t) 0.25, -y), y - (real_t) 1.0);
 }
 
 // The projection of this function can be plotted with the 'l' menu option
-double f(const Vector &p)
+real_t f(const Vector &p)
 {
-   double x = p(0);
-   double y = p.Size() > 1 ? p(1) : 0.0;
-   double z = p.Size() > 2 ? p(2) : 0.0;
+   real_t x = p(0);
+   real_t y = p.Size() > 1 ? p(1) : 0.0;
+   real_t z = p.Size() > 2 ? p(2) : 0.0;
 
    if (1)
    {
       // torus in the xy-plane
-      const double r_big = 2.0;
-      const double r_small = 1.0;
+      const real_t r_big = 2.0;
+      const real_t r_small = 1.0;
       return hypot(r_big - hypot(x, y), z) - r_small;
    }
    if (0)
    {
       // sphere at the origin:
-      const double r = 1.0;
+      const real_t r = 1.0;
       return hypot(hypot(x, y), z) - r;
    }
 }
@@ -175,7 +175,7 @@ Mesh *skin_mesh(Mesh *mesh)
    {
       if (v2v[i] >= 0)
       {
-         double *c = mesh->GetVertex(i);
+         real_t *c = mesh->GetVertex(i);
          bmesh->AddVertex(c);
          nbvt++;
       }
@@ -308,6 +308,7 @@ int main (int argc, char *argv[])
       partitioning = 0;
       bdr_partitioning.SetSize(mesh->GetNBE());
       bdr_partitioning = 0;
+      np = 1;
    }
    else
    {
@@ -382,7 +383,8 @@ int main (int argc, char *argv[])
            "f) Find physical point in reference space\n"
            "p) Generate a partitioning\n"
            "o) Reorder elements\n"
-           "S) Save in MFEM format\n"
+           "S) Save in MFEM serial format\n"
+           "T) Save in MFEM parallel format using the current partitioning\n"
            "V) Save in VTK format (only linear and quadratic meshes)\n"
            "D) Save as a DataCollection\n"
            "q) Quit\n"
@@ -456,7 +458,7 @@ int main (int argc, char *argv[])
                cout << "enter NURBS tolerance? [y/n] ---> " << flush;
                cin >> input_tol;
 
-               double tol = 1.0e-12;  // Default value
+               real_t tol = 1.0e-12;  // Default value
                if (input_tol == 'y')
                {
                   cout << "enter NURBS tolerance ---> " << flush;
@@ -477,7 +479,7 @@ int main (int argc, char *argv[])
                cout << "enter NURBS tolerance? [y/n] ---> " << flush;
                cin >> input_tol;
 
-               double tol = 1.0e-12;  // Default value
+               real_t tol = 1.0e-12;  // Default value
                if (input_tol == 'y')
                {
                   cout << "enter NURBS tolerance ---> " << flush;
@@ -514,7 +516,7 @@ int main (int argc, char *argv[])
                bool nc_simplices = true;
                mesh->EnsureNCMesh(nc_simplices);
                cout << "enter probability --> " << flush;
-               double probability;
+               real_t probability;
                cin >> probability;
                if (probability < 0.0 || probability > 1.0) { break; }
                mesh->RandomRefinement(probability);
@@ -535,7 +537,7 @@ int main (int argc, char *argv[])
 
       if (mk == 's')
       {
-         double factor;
+         real_t factor;
          cout << "scaling factor ---> " << flush;
          cin >> factor;
 
@@ -544,7 +546,7 @@ int main (int argc, char *argv[])
          {
             for (int i = 0; i < mesh->GetNV(); i++)
             {
-               double *v = mesh->GetVertex(i);
+               real_t *v = mesh->GetVertex(i);
                v[0] *= factor;
                v[1] *= factor;
                if (dim == 3)
@@ -579,7 +581,7 @@ int main (int argc, char *argv[])
                  "both ny and nz multiples of 2."
                  "Kershaw transform works for 2D meshes also.\n" << flush;
 
-            double epsy, epsz = 0.0;
+            real_t epsy, epsz = 0.0;
             cout << "Kershaw transform factor, epsy in (0, 1]) ---> " << flush;
             cin >> epsy;
             if (mesh->Dimension() == 3)
@@ -599,7 +601,7 @@ int main (int argc, char *argv[])
 
       if (mk == 'j')
       {
-         double jitter;
+         real_t jitter;
          cout << "jitter factor ---> " << flush;
          cin >> jitter;
 
@@ -670,8 +672,8 @@ int main (int argc, char *argv[])
       {
          int sd, nz = 0;
          DenseMatrix J(dim);
-         double min_det_J, max_det_J, min_det_J_z, max_det_J_z;
-         double min_kappa, max_kappa, max_ratio_det_J_z;
+         real_t min_det_J, max_det_J, min_det_J_z, max_det_J_z;
+         real_t min_kappa, max_kappa, max_ratio_det_J_z;
          min_det_J = min_kappa = infinity();
          max_det_J = max_kappa = max_ratio_det_J_z = -infinity();
          cout << "subdivision factor ---> " << flush;
@@ -695,20 +697,20 @@ int main (int argc, char *argv[])
                T->SetIntPoint(&ir.IntPoint(j));
                Geometries.JacToPerfJac(geom, T->Jacobian(), J);
 
-               double det_J = J.Det();
-               double kappa =
+               real_t det_J = J.Det();
+               real_t kappa =
                   J.CalcSingularvalue(0) / J.CalcSingularvalue(dim-1);
 
-               min_det_J_z = fmin(min_det_J_z, det_J);
-               max_det_J_z = fmax(max_det_J_z, det_J);
+               min_det_J_z = std::min(min_det_J_z, det_J);
+               max_det_J_z = std::max(max_det_J_z, det_J);
 
-               min_kappa = fmin(min_kappa, kappa);
-               max_kappa = fmax(max_kappa, kappa);
+               min_kappa = std::min(min_kappa, kappa);
+               max_kappa = std::max(max_kappa, kappa);
             }
             max_ratio_det_J_z =
-               fmax(max_ratio_det_J_z, max_det_J_z/min_det_J_z);
-            min_det_J = fmin(min_det_J, min_det_J_z);
-            max_det_J = fmax(max_det_J, max_det_J_z);
+               std::max(max_ratio_det_J_z, max_det_J_z/min_det_J_z);
+            min_det_J = std::min(min_det_J, min_det_J_z);
+            max_det_J = std::max(max_det_J, max_det_J_z);
             if (min_det_J_z <= 0.0)
             {
                if (nz < max_to_print)
@@ -806,11 +808,11 @@ int main (int argc, char *argv[])
                  << flush;
             cin >> period;
 
-            double best_cost = infinity();
+            real_t best_cost = infinity();
             for (int i = 0; i < outer; i++)
             {
                int seed = i+1;
-               double cost = mesh->GetGeckoElementOrdering(
+               real_t cost = mesh->GetGeckoElementOrdering(
                                 tentative, inner, window, period, seed, true);
 
                if (cost < best_cost)
@@ -895,7 +897,7 @@ int main (int argc, char *argv[])
          {
             Array<int> coloring;
             srand(time(0));
-            double a = double(rand()) / (double(RAND_MAX) + 1.);
+            real_t a = rand_real();
             int el0 = (int)floor(a * mesh->GetNE());
             cout << "Generating coloring starting with element " << el0+1
                  << " / " << mesh->GetNE() << endl;
@@ -914,7 +916,7 @@ int main (int argc, char *argv[])
          if (mk == 'h')
          {
             DenseMatrix J(dim);
-            double h_min, h_max;
+            real_t h_min, h_max;
             h_min = infinity();
             h_max = -h_min;
             for (int i = 0; i < mesh->GetNE(); i++)
@@ -927,11 +929,11 @@ int main (int argc, char *argv[])
                attr(i) = J.Det();
                if (attr(i) < 0.0)
                {
-                  attr(i) = -pow(-attr(i), 1.0/double(dim));
+                  attr(i) = -pow(-attr(i), 1.0/real_t(dim));
                }
                else
                {
-                  attr(i) = pow(attr(i), 1.0/double(dim));
+                  attr(i) = pow(attr(i), 1.0/real_t(dim));
                }
                h_min = min(h_min, attr(i));
                h_max = max(h_max, attr(i));
@@ -979,7 +981,7 @@ int main (int argc, char *argv[])
                   Geometries.JacToPerfJac(geom, T->Jacobian(), J);
 
                   // Jacobian determinant
-                  double sJ = J.Det();
+                  real_t sJ = J.Det();
 
                   for (int k = 0; k < J.Width(); k++)
                   {
@@ -989,7 +991,7 @@ int main (int argc, char *argv[])
                      sJ /= col.Norml2();
                   }
 
-                  attr(i) = fmin(sJ, attr(i));
+                  attr(i) = std::min(sJ, attr(i));
                }
             }
          }
@@ -1037,7 +1039,7 @@ int main (int argc, char *argv[])
                partitioning.SetSize(mesh->GetNE());
                for (int i = 0; i < mesh->GetNE(); i++)
                {
-                  partitioning[i] = i * np / mesh->GetNE();
+                  partitioning[i] = (long long)i * np / mesh->GetNE();
                }
                recover_bdr_partitioning(mesh, partitioning, bdr_partitioning);
             }
@@ -1093,7 +1095,7 @@ int main (int argc, char *argv[])
                     << setw(12) << "total" << '\n';
                cout << " elements  "
                     << setw(12) << min_el
-                    << setw(12) << double(mesh->GetNE())/np
+                    << setw(12) << real_t(mesh->GetNE())/np
                     << setw(12) << max_el
                     << setw(12) << mesh->GetNE() << endl;
             }
@@ -1248,6 +1250,33 @@ int main (int argc, char *argv[])
          omesh.precision(14);
          mesh->Print(omesh);
          cout << "New mesh file: " << omesh_file << endl;
+      }
+
+      if (mk == 'T')
+      {
+         string mesh_prefix("mesh-explorer.mesh."), line;
+         MeshPartitioner partitioner(*mesh, np, partitioning);
+         MeshPart mesh_part;
+         cout << "Enter mesh file prefix or press <enter> to use \""
+              << mesh_prefix << "\": " << flush;
+         // extract and ignore all characters after 'T' up to and including the
+         // new line:
+         cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+         getline(cin, line);
+         if (!line.empty()) { mesh_prefix = line; }
+         int precision;
+         cout << "Enter floating point output precision (num. digits): "
+              << flush;
+         cin >> precision;
+         for (int i = 0; i < np; i++)
+         {
+            partitioner.ExtractPart(i, mesh_part);
+
+            ofstream omesh(MakeParFilename(mesh_prefix, i));
+            omesh.precision(precision);
+            mesh_part.Print(omesh);
+         }
+         cout << "New parallel mesh files: " << mesh_prefix << "<rank>" << endl;
       }
 
       if (mk == 'V')
