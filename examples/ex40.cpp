@@ -60,17 +60,16 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    problem = 5;
-   const char *mesh_file = "../data/periodic-square.mesh";
-   int ref_levels = 3;
+   int ref_levels = 1;
    int order = 2;
    bool pa = false;
    bool ea = false;
    bool fa = false;
    const char *device_config = "cpu";
-   int ode_solver_type = 1;
-   int limiter_type = 2;
+   int ode_solver_type = 3;
+   int limiter_type = 1;
    real_t t_final = 1;
-   real_t dt = 4e-4;
+   real_t dt = 5e-4;
    bool visualization = true;
    bool visit = false;
    bool paraview = false;
@@ -81,8 +80,6 @@ int main(int argc, char *argv[])
    cout.precision(precision);
 
    OptionsParser args(argc, argv);
-   args.AddOption(&mesh_file, "-m", "--mesh",
-                  "Mesh file to use.");
    args.AddOption(&problem, "-p", "--problem",
                   "Problem setup: 1 - 1D smooth advection,\n\t"
                   "               2 - 2D smooth advection (structured mesh),\n\t"
@@ -132,21 +129,21 @@ int main(int argc, char *argv[])
    switch (problem) {
       // Periodic 1D segment mesh
       case 1: case 4: {
-         mesh = mesh.MakeCartesian1D(4);
+         mesh = mesh.MakeCartesian1D(16);
          mesh = Mesh::MakePeriodic(mesh,mesh.CreatePeriodicVertexMapping(
                                    {Vector({1.0, 0.0})}));
          break;
       }
       // Periodic 2D quadrilateral mesh
       case 2: case 5: {
-         mesh = mesh.MakeCartesian2D(4, 4, Element::QUADRILATERAL);
+         mesh = mesh.MakeCartesian2D(16, 16, Element::QUADRILATERAL);
          mesh = Mesh::MakePeriodic(mesh,mesh.CreatePeriodicVertexMapping(
                                    {Vector({1.0, 0.0}), Vector({0.0, 1.0})}));
          break;
       }
       // Periodic 2D triangle mesh
       case 3: case 6: {
-         mesh = mesh.MakeCartesian2D(4, 4, Element::TRIANGLE);
+         mesh = mesh.MakeCartesian2D(16, 16, Element::TRIANGLE);
          mesh = Mesh::MakePeriodic(mesh,mesh.CreatePeriodicVertexMapping(
                                    {Vector({1.0, 0.0}), Vector({0.0, 1.0})}));
          break;
@@ -226,9 +223,9 @@ int main(int argc, char *argv[])
    IntegrationRule samppts = IntRules.Get(gtype, 2*order);
    Limit(u, uavg, MB.solpts, samppts, &opt, dim, limiter_type);
 
-   // 
+   // . Set up SSP time integrator (note that RK2/RK3 integrators do not apply limiting at
+   //   inner stages).
    real_t t = 0.0;
-
    ODESolver *ode_solver = NULL;
    switch (ode_solver_type) {
       case 1: ode_solver = new ForwardEulerSolver; break;
@@ -293,11 +290,9 @@ int main(int argc, char *argv[])
    }
 
    
-   // . Compute the L1 solution error after one flow interval.
+   // . Compute the L1 solution error and discrete solution extrema (at solution nodes)
+   //   after one flow interval.
    cout << "Solution L1 error: " << u.ComputeLpError(1, u0) << endl;
-
-
-   // . Compute discrete solution extrema (at solution nodes) after one flow interval.
    cout << "Solution (discrete) minimum: " << u.Min() << endl;
    cout << "Solution (discrete) maximum: " << u.Max() << endl;
 
