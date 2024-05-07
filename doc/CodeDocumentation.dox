@@ -216,6 +216,8 @@ namespace mfem {
  * - <a class="el" href="miniapps_2performance_2ex1_8cpp_source.html">HPC Example 1</a>: high-performance nodal H1 FEM for the Laplace problem
  * - <a class="el" href="miniapps_2performance_2ex1p_8cpp_source.html">HPC Example 1p</a>: high-performance parallel nodal H1 FEM for the Laplace problem
  * - <a class="el" href="generate__random__field_8cpp_source.html">SPDE Solvers</a>: SPDE solver random field generation
+ * - <a class="el" href="contact-patch-test_8cpp_source.html">Contact</a>: mortar contact patch test for elasticity
+ * - <a class="el" href="multidomain_8cpp_source.html">Multidomain miniapp</a>: Multidomain and Submesh demonstration miniapp
  * - <a class="el" href="pdiffusion_8cpp_source.html">DPG Diffusion example</a>: DPG formulation for the diffusion problem
  * - <a class="el" href="pmaxwell_8cpp_source.html">DPG Maxwell example</a>: DPG formulation for the indefinite Maxwell problem
  * - <a class="el" href="lor__elast_8cpp_source.html">LOR Elasticity</a>: solve linear elasticity with LOR preconditioning on GPUs
