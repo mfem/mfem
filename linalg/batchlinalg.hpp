@@ -63,7 +63,8 @@ public:
 
    BatchSolver(const SolveMode mode, MemoryType d_mt = MemoryType::DEFAULT);
 
-   BatchSolver(const DenseTensor &MatrixBatch, const SolveMode mode, MemoryType d_mt = MemoryType::DEFAULT);
+   BatchSolver(const DenseTensor &MatrixBatch, const SolveMode mode,
+               MemoryType d_mt = MemoryType::DEFAULT);
 
    void AssignMatrices(const DenseTensor &MatrixBatch);
 
