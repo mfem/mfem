@@ -3547,12 +3547,21 @@ private:
    void SetupPA(const FiniteElementSpace &fes, FaceType type);
 };
 
-/** Integrator for the (H)DG diffusion stabilization term
+/** Integrator for the H/LDG diffusion stabilization term
+    The LDG stabilization takes the form
     $$
         1/2 \beta \langle \{h^{-1} Q\} [u], [v] \rangle
     $$
     where $Q$ is a scalar or matrix diffusion coefficient and $u$, $v$ are the trial
-    and test spaces, respectively.  */
+    and test functions, respectively.
+    The corresponding HDG stabilization is then
+    $$\begin{align}
+        \langle \tau^\pm u^\pm, w^\pm \rangle, & -\langle \tau^\pm \lambda,          w^\pm \rangle,\\
+        \langle \tau^\pm u^\pm, \mu   \rangle, & -\langle (\tau^+ + \tau^-) \lambda, \mu   \rangle,
+    \end{align}$$
+    where $\tau^\pm = (\beta |v \cdot n| \pm 1/2 \alpha (v \cdot n)) / |v \cdot n| \{h^{-1} Q\}$
+    and $\lambda$, $\mu$ are the trial and test trace functions, respectively. If no $Q$ is provided,
+    the centered stabilization is used with $\tau^\pm = \beta \{h^{-1} Q\}$. */
 class HDGDiffusionIntegrator : public BilinearFormIntegrator
 {
 protected:
