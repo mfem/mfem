@@ -1399,7 +1399,6 @@ void RT_FuentesPyramidElement::CalcVShape(const IntegrationPoint &ip,
    DenseMatrix u(dof, dim);
 #endif
 
-   // calcBasis(p, ip, shape_0, shape_1, shape_2, u);
    calcBasis(order, ip, tmp1_i, tmp1_ij, tmp2_ij,
              tmp1_ijk, tmp2_ijk, tmp3_ijk, tmp4_ijk, tmp5_ijk, tmp6_ijk,
              tmp7_ijk, tmp3_ij, u);
@@ -1413,15 +1412,22 @@ void RT_FuentesPyramidElement::CalcRawVShape(const IntegrationPoint &ip,
    const int p = order - 1;
 
 #ifdef MFEM_THREAD_SAFE
-   // DenseMatrix u(dof, dim);
+   Vector      tmp1_i(p + 2);
+   DenseMatrix tmp1_ij(p + 2, p + 2);
+   DenseMatrix tmp2_ij(p + 2, dim);
+   DenseMatrix tmp3_ij(p + 2, dim);
+   DenseTensor tmp1_ijk(p + 1, p + 1, dim);
+   DenseTensor tmp2_ijk(p + 1, p + 1, dim);
+   DenseTensor tmp3_ijk(p + 1, p + 1, dim);
+   DenseTensor tmp4_ijk(p + 1, p + 2, dim);
+   DenseTensor tmp5_ijk(p + 1, p + 2, dim);
+   DenseTensor tmp6_ijk(p + 2, p + 2, dim);
+   DenseTensor tmp7_ijk(p + 2, p + 2, dim);
 #endif
 
-   // calcBasis(p, ip, shape_0, shape_1, shape_2, u);
    calcBasis(order, ip, tmp1_i, tmp1_ij, tmp2_ij,
              tmp1_ijk, tmp2_ijk, tmp3_ijk, tmp4_ijk, tmp5_ijk, tmp6_ijk,
              tmp7_ijk, tmp3_ij, shape);
-
-   // Ti.Mult(u, shape);
 }
 
 void RT_FuentesPyramidElement::CalcDivShape(const IntegrationPoint &ip,
@@ -1527,8 +1533,6 @@ void RT_FuentesPyramidElement::calcBasis(const int p,
       if (mu > 0.0)
       {
          muInv = 1.0 / mu;
-         //muNu.Set(mu, nu012(z, xy, 1));
-         //dmuNu.Set(pow(mu, 3), nu012_grad_nu012(z, xy, 1));
          V_T(p, lam125(x, y, z), lam125_grad_lam125(x, y, z), VTb_ijk);
       }
       else
@@ -1548,8 +1552,6 @@ void RT_FuentesPyramidElement::calcBasis(const int p,
       if (mu > 0.0)
       {
          muInv = 1.0 / mu;
-         //muNu.Set(mu, nu012(z, xy, 1));
-         //dmuNu.Set(pow(mu, 3), nu012_grad_nu012(z, xy, 1));
          V_T(p, lam435(x, y, z), lam435_grad_lam435(x, y, z), VTb_ijk);
       }
       else
@@ -1570,9 +1572,6 @@ void RT_FuentesPyramidElement::calcBasis(const int p,
       if (mu > 0.0)
       {
          muInv = 1.0 / mu;
-         //muNu.Set(mu, nu012(z, xy, 2));
-         //dmuNu.Set(pow(mu, 3), nu012_grad_nu012(z, xy, 2));
-         //V_T(p, muNu, dmuNu, VTb_ijk);
          V_T(p, lam145(x, y, z), lam145_grad_lam145(x, y, z), VTb_ijk);
       }
       else
@@ -1690,11 +1689,7 @@ void RT_FuentesPyramidElement::calcBasis(const int p,
    // Family IV
    if (z < 1.0 && p >= 2)
    {
-      /*
-       V_Q(p, mu01(z, xy, 1), mu01_grad_mu01(z, xy, 1),
-           mu01(z, xy, 2), mu01_grad_mu01(z, xy, 2),
-           V1_ijk);
-      */
+      // Re-using V_Q from Quadrilateral Face
       phi_E(p, mu01(z), phi_k);
 
       const real_t muz2 = pow(mu0(z), 2);
