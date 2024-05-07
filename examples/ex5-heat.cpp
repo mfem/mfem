@@ -241,7 +241,7 @@ int main(int argc, char *argv[])
                                       new DGNormalTraceIntegrator(-1.)));
       if (td > 0.)
       {
-         Mt->AddInteriorFaceIntegrator(new HDGDiffusionCenteredIntegrator(kcoeff, td));
+         Mt->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td));
       }
    }
    else
