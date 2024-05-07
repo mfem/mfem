@@ -44,8 +44,9 @@
 // make mesh-fitting -j && ./mesh-fitting -m square01-tri.mesh -rs 2 -mid 2 -tid 1 -o 1 -oi 3 -sbgmesh -vl 2 -preft 1e-14 -lsf 1 -vis -jid 51 -ctot 0 -bgm BGMesh11.mesh -bgls BGMesh11.gf -no-cus-mat -marking -pderef -1e-4 -diff -1 -et 0 -det 1
 
 // hp-refinement
-// make mesh-fitting -j && ./mesh-fitting -m square01.mesh -rs 1 -o 1 -oi 2 -sbgmesh -vl 2 -mo 3 -mi 4 -preft 5e-14 -lsf 1 -vis -bgamr 2 -det 2 -pderef -1e-4 -href
-
+// make mesh-fitting -j && ./mesh-fitting -m square01.mesh -rs 1 -o 1 -oi 2 -sbgmesh -vl 2 -mo 3 -mi 5 -preft 5e-14 -lsf 1 -vis -bgamr 2 -det 2 -pderef -1e-4 -href
+// diff error criterion
+// make mesh-fitting -j && ./mesh-fitting -m square01.mesh -rs 2 -o 1 -oi 3 -sbgmesh -vl 2 -mo 4 -mi 5 -preft 1e-14 -lsf 1 -vis -bgamr 2 -det 4 -pderef -1.0 -href
 #include "../../mfem.hpp"
 #include "../common/mfem-common.hpp"
 #include <fstream>
@@ -883,9 +884,12 @@ int main(int argc, char *argv[])
    int predef_tdofs = 0;
    int predef_nsurfdofs = 0;
    bool do_href = false;
+   bool h_or_p_ref = false;
    while (iter_pref < pref_max_iter && faces_to_update)
    {
       std::cout << "p-adaptivity iteration: " << iter_pref << std::endl;
+      h_or_p_ref = false;
+      do_href = iter_pref >= 2 && href;
       if (iter_pref > 0)
       {
          //         surface_fit_const = 1e5;
@@ -1006,18 +1010,7 @@ int main(int argc, char *argv[])
             mesh->SetNodalGridFunction(&x);
             if (iter_pref>0)
             {
-               std::cout << "==============================================\n";
-               if (error_type == 0)
-               {
-                  std::cout << "Refinement threshold info: " <<  error_type
-                            << " " << pref_tol << std::endl;
-               }
-               std::cout << "Number of faces p-refined: " <<
-                         faces_order_increase.Size() << " out of " <<
-                         ninterfaces << std::endl;
-               std::cout << "==============================================\n";
                Array<int> hreflist;
-               do_href = iter_pref >= 2 && href;
                for (int i = 0; i < faces_order_increase.Size(); i++)
                {
                   Array<int> els;
@@ -1025,16 +1018,57 @@ int main(int argc, char *argv[])
                   int set_order = std::max(pref_max_order, max_order+pref_order_increase);
                   order_gf(els[0]) = do_href ? fespace->GetElementOrder(els[0]) : set_order;
                   order_gf(els[1]) = do_href ? fespace->GetElementOrder(els[1]) : set_order;
-                  hreflist.Append(els);
+                  // for h-refinement, order_gf holds the current order. We should
+                  // only add elements for h-refinement if they are at max order.
+                  // TODO: consider if only 1 element is at max order.
+                  if (order_gf[els[0]] == pref_max_order && order_gf[els[1]] == pref_max_order)
+                  {
+                     hreflist.Append(els);
+                  }
+               }
+               if (do_href)
+               {
+                  hreflist.Sort();
+                  hreflist.Unique();
+                  h_or_p_ref = hreflist.Size();
+               }
+               else
+               {
+                  h_or_p_ref = faces_order_increase.Size();
                }
 
-               if (faces_order_increase.Size())
+
+               std::cout << "==============================================\n";
+               if (error_type == 0)
+               {
+                  std::cout << "Refinement threshold info: " <<  error_type
+                            << " " << pref_tol << std::endl;
+               }
+               if (!do_href)
+               {
+                  std::cout << "Number of faces p-refined: " <<
+                            faces_order_increase.Size() << " out of " <<
+                            ninterfaces << std::endl;
+               }
+               else
+               {
+                  std::cout << "Number of faces h-refined: " <<
+                            hreflist.Size() << " out of " <<
+                            ninterfaces << std::endl;
+               }
+               std::cout << "==============================================\n";
+
+               // if no refinement, we end.
+               if (!h_or_p_ref)
+               {
+                  break;
+               }
+
+               if (h_or_p_ref)
                {
                   Array<int> new_orders;
                   if (do_href)
                   {
-                     hreflist.Sort();
-                     hreflist.Unique();
                      mesh->GeneralRefinement(hreflist, 1, 0);
                   }
                   else
@@ -1071,9 +1105,9 @@ int main(int argc, char *argv[])
                         } //loop over e
                      } //if dim == 3
                   } // if do_href
-               } // if hrefining
+               } // if any refinement
 
-               if (faces_order_increase.Size())
+               if (h_or_p_ref)
                {
                   // Updates if we increase the order of at least one element
                   if (do_href)
@@ -1083,11 +1117,6 @@ int main(int argc, char *argv[])
                      GetMaterialInterfaceEntities(mesh, mat, surf_fit_gf0, inter_faces,
                                                   intfdofs, inter_face_el1, inter_face_el2,
                                                   inter_face_el_all);
-
-                     //                     auto R = x.FESpace()->GetHpRestrictionMatrix();
-                     //                     Vector xnew(R->Height());
-                     //                     R->Mult(x, xnew);
-                     //                     x.FESpace()->GetProlongationMatrix()->Mult(xnew, x);
 
                      delete x_max_order;
                      x_max_order = ProlongToMaxOrder(&x, 1);
@@ -1128,6 +1157,7 @@ int main(int argc, char *argv[])
                }
             } //iter_pref > 0
          } //if (prefine)
+
          if (surf_bg_mesh)
          {
             delete surf_fit_grad_fes;
@@ -1490,9 +1520,12 @@ int main(int argc, char *argv[])
             common::VisualizeField(vis1, "localhost", 19916, fitting_error_gf,
                                    "Fitting Error after fitting",
                                    350*(iter_pref+1), 350, 300, 300, vis_keys);
-            common::VisualizeField(vis2, "localhost", 19916, order_gf,
-                                   "Polynomial order",
-                                   350*(iter_pref+1), 700, 300, 300, vis_keys);
+            if (!do_href)
+            {
+               common::VisualizeField(vis2, "localhost", 19916, order_gf,
+                                      "Polynomial order",
+                                      350*(iter_pref+1), 700, 300, 300, vis_keys);
+            }
          }
 
          std::cout << "NDofs & Integrated Error Post Fitting: " <<
@@ -1570,10 +1603,12 @@ int main(int argc, char *argv[])
                   // when derefined, the length of the element will decrease and
                   // the level set function integral will increase
                   if ( (pderef > 0 && coarsened_face_error < deref_threshold) ||
-                       (pderef < 0 && deref_error_type !=1 &&
+                       (pderef < 0 && deref_error_type == 0 &&
                         coarsened_face_error < (1-pderef)*(interface_error)) ||
-                       //relative to change due to refinement
-                       (pderef < 0 && deref_error_type ==1 &&
+                       //relative to change in error due to refinement
+                       (pderef < 0 && deref_error_type == 4 &&
+                        coarsened_face_error < -pderef*pref_tol) ||
+                       (pderef < 0 && deref_error_type == 1 &&
                         coarsened_face_error > (1+pderef)*(interface_error)) //relative change in length
                      )
                   {
@@ -1722,7 +1757,7 @@ int main(int argc, char *argv[])
          delete dc;
       }
 
-      if (visualization)
+      if (visualization && !do_href && iter_pref > 0)
       {
          socketstream vis1, vis2;
          common::VisualizeField(vis2, "localhost", 19916, order_gf,
@@ -1825,11 +1860,14 @@ int main(int argc, char *argv[])
       {
          order_gf(e) = x.FESpace()->GetElementOrder(e);
       }
-      common::VisualizeField(vis1, "localhost", 19916, order_gf,
-                             "Polynomial order after p-refinement",
-                             1100, 700, 300, 300, vis_keys);
+      if (!do_href)
+      {
+         common::VisualizeField(vis1, "localhost", 19916, order_gf,
+                                "Polynomial order after p-refinement",
+                                1100, 700, 300, 300, vis_keys);
+      }
       common::VisualizeField(vis2, "localhost", 19916, mat, "Materials after fitting",
-                             1100, 0, 300, 300, vis_keys);
+                             1200, 700, 300, 300, vis_keys);
 
       mesh->SetNodalGridFunction(&x);
       if (surf_bg_mesh)
@@ -1843,33 +1881,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // Visualization of the mesh and the orders with Paraview
    mesh->SetNodalGridFunction(x_max_order);
-   {
-      ParaViewDataCollection paraview_dc("OptCur"+std::to_string(jobid), mesh);
-      paraview_dc.SetPrefixPath("ParaView");
-      paraview_dc.SetLevelsOfDetail(fespace->GetMaxElementOrder());
-      paraview_dc.SetCycle(0);
-      paraview_dc.SetDataFormat(VTKFormat::BINARY);
-      paraview_dc.SetHighOrderOutput(true);
-      paraview_dc.SetTime(0.0); // set the time
-      paraview_dc.RegisterField("mesh", x_max_order);
-      paraview_dc.RegisterField("order", &order_gf);
-      paraview_dc.Save();
-   }
-
-   {
-      ParaViewDataCollection paraview_dc("BG"+std::to_string(jobid),
-                                         mesh_surf_fit_bg);
-      paraview_dc.SetPrefixPath("ParaView");
-      paraview_dc.SetLevelsOfDetail(fespace->GetMaxElementOrder());
-      paraview_dc.SetCycle(1);
-      paraview_dc.SetDataFormat(VTKFormat::BINARY);
-      paraview_dc.SetHighOrderOutput(true);
-      paraview_dc.SetTime(0.0); // set the time
-      paraview_dc.RegisterField("level set", surf_fit_bg_gf0);
-      paraview_dc.Save();
-   }
    mesh->SetNodalGridFunction(&x);
 
    finder.FreeData();

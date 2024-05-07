@@ -747,7 +747,7 @@ double ComputeIntegrateErrorBG(const FiniteElementSpace* fes,
       length += ip.weight*transf->Face->Weight();
    }
    double return_val = error;
-   if (etype == 0)
+   if (etype == 0 || etype == 4)
    {
       return_val = error;
    }
@@ -939,7 +939,7 @@ double InterfaceElementOrderReduction(const Mesh *mesh,
    }
 
    double return_val = 0.0;
-   if (etype == 0)
+   if (etype == 0 || etype == 4)
    {
       return_val = error;
    }
