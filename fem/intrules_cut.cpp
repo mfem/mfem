@@ -101,7 +101,7 @@ void MomentFittingIntRules::InitVolume(int order, Coefficient& levelset,
          }
       }
 
-      // assamble the matrix
+      // assemble the matrix
       DenseMatrix Mat(nBasisVolume, ir.GetNPoints());
       for (int ip = 0; ip < ir.GetNPoints(); ip++)
       {
@@ -118,7 +118,7 @@ void MomentFittingIntRules::InitVolume(int order, Coefficient& levelset,
          Mat.SetCol(ip, shape);
       }
 
-      // compute the svd for the matrix
+      // compute the SVD for the matrix
       VolumeSVD = new DenseMatrixSVD(Mat, 'A', 'A');
       VolumeSVD->Eval(Mat);
    }
@@ -1239,7 +1239,7 @@ void MomentFittingIntRules::OrthoBasis2D(const IntegrationPoint& ip,
 
    shape.SetSize(nBasis, 2);
 
-   // evaluate basis inthe point
+   // evaluate basis in the point
    DenseMatrix preshape(nBasis, 2);
    DivFreeBasis2D(ip, shape);
 
@@ -1597,6 +1597,6 @@ void MomentFittingIntRules::GetSurfaceWeights(ElementTransformation& Tr,
    }
 }
 
-#endif //MFEM_USE_LAPACK
+#endif // MFEM_USE_LAPACK
 
 }
