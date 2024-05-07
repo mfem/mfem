@@ -929,6 +929,19 @@ L2_FuentesPyramidElement::L2_FuentesPyramidElement(const int p, const int btype)
 {
    const double *op = poly1d.OpenPoints(p, VerifyNodal(VerifyOpen(btype)));
 
+   // These basis functions are not independent on a closed set of
+   // interpolation points when p >= 1. For this reason we force the points
+   // to be open in the z direction whenever closed points are requested.
+   // This should be regarded as a limitation of this choice of basis function.
+   // If a truly closed set of points is needed consider using
+   // L2_BergotPyramidElement instead.
+   real_t a = 1.0;
+   if (IsClosedType(btype) && p > 0)
+   {
+      a = (poly1d.GetPoints(p, BasisType::GaussLegendre))[p];
+   }
+
+
 #ifndef MFEM_THREAD_SAFE
    shape_x.SetSize(p + 1);
    shape_y.SetSize(p + 1);
@@ -949,9 +962,9 @@ L2_FuentesPyramidElement::L2_FuentesPyramidElement(const int p, const int btype)
       for (int j = 0; j <= p; j++)
          for (int i = 0; i <= p; i++)
          {
-            Nodes.IntPoint(o++).Set3(op[i] * (1.0 - op[k]),
-                                     op[j] * (1.0 - op[k]),
-                                     op[k]);
+            Nodes.IntPoint(o++).Set3(op[i] * (1.0 - a * op[k]),
+                                     op[j] * (1.0 - a * op[k]),
+                                     a * op[k]);
          }
 
    MFEM_ASSERT(o == dof,
