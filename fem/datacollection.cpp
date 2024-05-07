@@ -429,14 +429,15 @@ void VisItDataCollection::RegisterField(const std::string& name,
    }
 
    DataCollection::RegisterField(name, gf);
-   if (gf->FESpace()->FEColl()->GetContType() == FiniteElementCollection::CONTINUOUS)
+   if (gf->FESpace()->FEColl()->GetContType() ==
+       FiniteElementCollection::CONTINUOUS)
    {
       // H1-continuous space
       field_info_map[name] = VisItFieldInfo("nodes", gf->VectorDim(), LOD);
    }
    else
    {
-      // any other space with partial continuity L2, H(curl), H(div), etc.
+      // any other space with partial continuity: L2, H(curl), H(div), etc.
       field_info_map[name] = VisItFieldInfo("elements", gf->VectorDim(), LOD);
    }
    visit_levels_of_detail = std::max(visit_levels_of_detail, LOD);
