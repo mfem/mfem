@@ -544,8 +544,6 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
          Geometry::Type geom = mesh_ho->GetElementBaseGeometry(iho);
          const FiniteElement &fe_ho = *fes_ho.GetFE(iho);
          const FiniteElement &fe_lor = *fes_lor.GetFE(lor_els[0]);
-         int ndof_ho = fe_ho.GetDof();
-         int ndof_lor = fe_lor.GetDof();
 
          //Allocate space for DenseTensors
          ElementTransformation *el_tr = fes_lor.GetElementTransformation(0);
@@ -696,7 +694,6 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
       ho2lor.GetRow(iho, lor_els);
       nref = ho2lor.RowSize(iho);
 
-      Geometry::Type geom = mesh_ho->GetElementBaseGeometry(iho);
       const FiniteElement &fe_ho = *fes_ho.GetFE(iho);
       const FiniteElement &fe_lor = *fes_lor.GetFE(lor_els[0]);
       ndof_ho = fe_ho.GetDof();
@@ -769,43 +766,45 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
    //compute batch inverse of M_ea_lor;
    //mfem::Array<int> P;
 
-
-   //Recall mfem is column major
-   // ndof_lor x ndof_ho
-   auto v_M_mixed_all = mfem::Reshape(M_mixed_all.Read(), ndof_lor, ndof_ho, nref,
-                                      nel_ho);
-
-   //matrix is symmetric
-   auto v_Minv_ear_lor = mfem::Reshape(Minv_ear_lor.Read(), ndof_lor, ndof_lor,
-                                       nel_lor);
-
-   //ndof_lor x ndof_ho
-   auto v_R_ea = mfem::Reshape(R_ea.Write(), ndof_lor, nref, ndof_ho, nel_ho);
-
-   MFEM_VERIFY(nel_lor==nel_ho*nref, "nel_lor != nel_ho*nref");
-
-   // (ndofs_lor x ndofs_lor) x (ndofs_lor x ndof_ho)
-   mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int iho)
    {
-      for (int j=0; j<ndof_ho; ++j)
-      {
-         for (int iref = 0; iref < nref; ++iref)
-         {
-            const int lor_idx = iref + iho * nref;
-            for (int i=0; i<ndof_lor; ++i)
-            {
+      //Recall mfem is column major
+      // ndof_lor x ndof_ho
+      auto v_M_mixed_all = mfem::Reshape(M_mixed_all.Read(), ndof_lor, ndof_ho, nref,
+                                         nel_ho);
 
-               //matrices are stored in the transpose position
-               real_t dot = 0.0;
-               for (int k=0; k<ndof_lor; ++k)
+      //matrix is symmetric
+      auto v_Minv_ear_lor = mfem::Reshape(Minv_ear_lor.Read(), ndof_lor, ndof_lor,
+                                          nel_lor);
+
+      //ndof_lor x ndof_ho
+      auto v_R_ea = mfem::Reshape(R_ea.Write(), ndof_lor, nref, ndof_ho, nel_ho);
+
+      MFEM_VERIFY(nel_lor==nel_ho*nref, "nel_lor != nel_ho*nref");
+
+      // (ndofs_lor x ndofs_lor) x (ndofs_lor x ndof_ho)
+      mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int iho)
+      {
+         for (int j=0; j<ndof_ho; ++j)
+         {
+            for (int iref = 0; iref < nref; ++iref)
+            {
+               const int lor_idx = iref + iho * nref;
+               for (int i=0; i<ndof_lor; ++i)
                {
-                  dot += v_Minv_ear_lor(i, k, lor_idx) * v_M_mixed_all(k, j, iref, iho);
+
+                  //matrices are stored in the transpose position
+                  real_t dot = 0.0;
+                  for (int k=0; k<ndof_lor; ++k)
+                  {
+                     dot += v_Minv_ear_lor(i, k, lor_idx) * v_M_mixed_all(k, j, iref, iho);
+                  }
+                  v_R_ea(i, iref, j, iho) = dot;
                }
-               v_R_ea(i, iref, j, iho) = dot;
             }
          }
-      }
-   });
+      });
+   }
+
 
    if (build_P)
    {
