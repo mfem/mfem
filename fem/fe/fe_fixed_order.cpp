@@ -5125,9 +5125,6 @@ Nedelec2PyrFiniteElement::Nedelec2PyrFiniteElement()
    const double *eop = poly1d.OpenPoints(2 - 1);
    const double  fop = 1. / 3.;
 
-   std::cout << "Open points (on edges): "
-             << eop[0] << " " << eop[1] << std::endl;
-
    // not real nodes ...
    Nodes.IntPoint(0).Set3(eop[0], 0., 0.);
    Nodes.IntPoint(1).Set3(eop[1], 0., 0.);
@@ -5185,9 +5182,6 @@ Nedelec2PyrFiniteElement::Nedelec2PyrFiniteElement()
             I(j,i) = vecs(j,0)*tk[i][0]+vecs(j,1)*tk[i][1]+vecs(j,2)*tk[i][2];
          }
       }
-      I.Print(std::cout);
-      std::cout << "Trace: " << I.Trace() << std::endl;
-      std::cout << "Square of Frobenius Norm: " << I.FNorm2() << std::endl;
    }
 }
 

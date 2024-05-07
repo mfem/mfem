@@ -1274,11 +1274,10 @@ RT_FuentesPyramidElement::RT_FuentesPyramidElement(const int p)
 {
    zmax = 0.0;
 
-   std::cout << "p " << p << ", order " << order << ", dof " << dof << std::endl;
    const real_t *iop = poly1d.OpenPoints(p);
    const real_t *icp = poly1d.ClosedPoints(p + 1);
    const real_t *bop = poly1d.OpenPoints(p);
-   std::cout << "have points " << std::endl;
+
 #ifndef MFEM_THREAD_SAFE
    tmp1_i.SetSize(p + 2);
    tmp1_ij.SetSize(p + 2, p + 2);
@@ -1294,7 +1293,6 @@ RT_FuentesPyramidElement::RT_FuentesPyramidElement(const int p)
    u.SetSize(dof, dim);
    divu.SetSize(dof);
 #else
-   // Vector shape_x(p + 1), shape_y(p + 1), shape_z(p + 1), shape_l(p + 1);
    Vector      tmp1_i(p + 2);
    DenseMatrix tmp1_ij(p + 2, p + 2);
    DenseMatrix tmp2_ij(p + 2, dim);
@@ -1375,20 +1373,17 @@ RT_FuentesPyramidElement::RT_FuentesPyramidElement(const int p)
             Nodes.IntPoint(o).Set3(iop[i]*w, iop[j]*w, icp[k]);
             dof2nk[o++] = 0;
          }
-   std::cout << "Nodes are set" << std::endl;
+
    DenseMatrix T(dof);
 
    for (int m = 0; m < dof; m++)
    {
       const IntegrationPoint &ip = Nodes.IntPoint(m);
       const Vector nm({nk[3*dof2nk[m]], nk[3*dof2nk[m]+1], nk[3*dof2nk[m]+2]});
-      std::cout << "calling calcBasis for point " << m << " with normal " << nm(
-                   0) << " " << nm(1) << " " << nm(2) << std::endl;
       calcBasis(order, ip, tmp1_i, tmp1_ij, tmp2_ij,
                 tmp1_ijk, tmp2_ijk, tmp3_ijk, tmp4_ijk, tmp5_ijk, tmp6_ijk,
                 tmp7_ijk,
                 tmp3_ij, u);
-      // std::cout << "u = "; u.Print(std::cout, 10);
       u.Mult(nm, T.GetColumn(m));
    }
 
@@ -1492,11 +1487,13 @@ void RT_FuentesPyramidElement::calcBasis(const int p,
    real_t z = ip.z;
    Vector xy({x,y});
    real_t mu, muInv;
-   // Vector muNu(3), dmuNu(3);
 
    if (std::fabs(1.0 - z) < 1e-4)
    {
-      std::cout << "z is close to 1: " << 1.0 - z << std::endl;
+      z = 1.0 - 1e-4;
+      y = 0.5 * (1.0 - z);
+      x = 0.5 * (1.0 - z);
+      xy(0) = x; xy(1) = y;
    }
    zmax = std::max(z, zmax);
 
@@ -1510,14 +1507,7 @@ void RT_FuentesPyramidElement::calcBasis(const int p,
       V_Q(p, mu01(z, xy, 1), mu01_grad_mu01(z, xy, 1),
           mu01(z, xy, 2), mu01_grad_mu01(z, xy, 2),
           VQ_ijk);
-      /*
-      std::cout << "k = " << 0 << std::endl;
-      V1_ijk(0).Print(std::cout);
-      std::cout << "k = " << 1 << std::endl;
-      V1_ijk(1).Print(std::cout);
-      std::cout << "k = " << 2 << std::endl;
-      V1_ijk(2).Print(std::cout);
-      */
+
       const real_t muz3 = pow(mu0(z), 3);
 
       for (int j=0; j<p; j++)
@@ -1543,7 +1533,6 @@ void RT_FuentesPyramidElement::calcBasis(const int p,
       }
       else
       {
-         //std::cout << "mu02(" << x << "," << y << "," << z << ") <= 0, " << mu << std::endl;
          muInv = 1.0;
          VTb_ijk = 0.0;
       }
@@ -1558,7 +1547,6 @@ void RT_FuentesPyramidElement::calcBasis(const int p,
       mu = mu1(z, xy, 2);
       if (mu > 0.0)
       {
-         //std::cout << "mu12(" << x << "," << y << "," << z << ") > 0, " << mu << std::endl;
          muInv = 1.0 / mu;
          //muNu.Set(mu, nu012(z, xy, 1));
          //dmuNu.Set(pow(mu, 3), nu012_grad_nu012(z, xy, 1));
@@ -1566,7 +1554,6 @@ void RT_FuentesPyramidElement::calcBasis(const int p,
       }
       else
       {
-         //std::cout << "mu12(" << x << "," << y << "," << z << ") <= 0, " << mu << std::endl;
          muInv = 1.0;
          VTb_ijk = 0.0;
       }
@@ -1590,7 +1577,6 @@ void RT_FuentesPyramidElement::calcBasis(const int p,
       }
       else
       {
-         //std::cout << "mu01(" << x << "," << y << "," << z << ") <= 0, " << mu << std::endl;
          muInv = 1.0;
          VTb_ijk = 0.0;
       }
@@ -1606,14 +1592,10 @@ void RT_FuentesPyramidElement::calcBasis(const int p,
       muInv = 1.0 / mu;
       if (mu > 0.0)
       {
-         //muNu.Set(mu, nu012(z, xy, 2));
-         //dmuNu.Set(pow(mu, 3), nu012_grad_nu012(z, xy, 2));
-         //V_T(p, muNu, dmuNu, VTb_ijk);
          V_T(p, lam235(x, y, z), lam235_grad_lam235(x, y, z), VTb_ijk);
       }
       else
       {
-         //std::cout << "mu11(" << x << "," << y << "," << z << ") <= 0, " << mu << std::endl;
          muInv = 1.0;
          VTb_ijk = 0.0;
       }
@@ -1630,15 +1612,9 @@ void RT_FuentesPyramidElement::calcBasis(const int p,
    // Family I
    if (z < 1.0 && p >= 2)
    {
-      // std::cout << "Calling E_Q at " << x << " " << y << " " << z << std::endl;
       E_Q(p, mu01(z, xy, 1), grad_mu01(z, xy, 1),
           mu01(z, xy, 2), grad_mu01(z, xy, 2), E_ijk, dE_ijk);
-      // std::cout << "Calling phi_E at " << x << " " << y << " " << z << std::endl;
       phi_E(p, mu01(z), grad_mu01(z), phi_k, dphi_k);
-      // std::cout << "phi_k(2) " << phi_k(2) << std::endl;
-      // std::cout << "dphi_k(2, 0) " << dphi_k(2, 0) << std::endl;
-      // std::cout << "dphi_k(2, 1) " << dphi_k(2, 1) << std::endl;
-      // std::cout << "dphi_k(2, 2) " << dphi_k(2, 2) << std::endl;
       const real_t muz = mu0(z);
       const Vector dmuz(grad_mu0(z));
 
