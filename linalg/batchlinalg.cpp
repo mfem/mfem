@@ -42,9 +42,10 @@ const MFEM_cu_or_hip(blasHandle_t) & DeviceBlasHandle()
 
 BatchSolver::BatchSolver(const DenseTensor &MatrixBatch,
                          const SolveMode mode, MemoryType d_mt)
-  : mode_(mode), d_mt_(d_mt)
+  : mode_(mode)
      // TODO: should this really be a copy?
    , LUMatrixBatch_(MatrixBatch)
+   , d_mt_(d_mt)
 {
    if (!setup_)
    {
