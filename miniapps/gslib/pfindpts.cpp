@@ -577,11 +577,12 @@ int main (int argc, char *argv[])
    }
 
    Mesh *mesh_abb, *mesh_obb, *mesh_lhbb, *mesh_ghbb;
-   if (visit) {
-    mesh_abb = finder.GetBoundingBoxMesh(0);
-    mesh_obb = finder.GetBoundingBoxMesh(1);
-    mesh_lhbb = finder.GetBoundingBoxMesh(2);
-    mesh_ghbb = finder.GetBoundingBoxMesh(3);
+   if (visit)
+   {
+      mesh_abb = finder.GetBoundingBoxMesh(0);
+      mesh_obb = finder.GetBoundingBoxMesh(1);
+      mesh_lhbb = finder.GetBoundingBoxMesh(2);
+      mesh_ghbb = finder.GetBoundingBoxMesh(3);
    }
 
    if (visit && myid == 0)

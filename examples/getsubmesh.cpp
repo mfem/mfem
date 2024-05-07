@@ -28,7 +28,8 @@ int main(int argc, char *argv[])
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
-   args.AddOption(&polynomial_order, "-p", "--polynomial_order", "Finite element polynomial degree");
+   args.AddOption(&polynomial_order, "-p", "--polynomial_order",
+                  "Finite element polynomial degree");
    args.AddOption(&rs_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&out_file, "-o", "--out", "output file to use.");
@@ -44,8 +45,9 @@ int main(int argc, char *argv[])
 
    int nattr = mesh.bdr_attributes.Max();
    Array<int> subdomain_attributes(nattr);
-   for (int i = 0; i < nattr; i++) {
-       subdomain_attributes[i] = i+1;
+   for (int i = 0; i < nattr; i++)
+   {
+      subdomain_attributes[i] = i+1;
    }
 
    auto submesh = SubMesh::CreateFromBoundary(mesh, subdomain_attributes);
