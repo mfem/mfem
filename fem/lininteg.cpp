@@ -806,6 +806,78 @@ void BoundaryFlowIntegrator::AssembleRHSElementVect(
    }
 }
 
+void BoundaryNormalFlowIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+{
+   mfem_error("BoundaryNormalFlowIntegrator::AssembleRHSElementVect\n"
+              "  is not implemented as boundary integrator!\n"
+              "  Use LinearForm::AddBdrFaceIntegrator instead of\n"
+              "  LinearForm::AddBoundaryIntegrator.");
+}
+
+void BoundaryNormalFlowIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, FaceElementTransformations &Tr, Vector &elvect)
+{
+   int dim, ndof, order;
+   real_t un, w, vu_data[3], nor_data[3];
+
+   dim  = el.GetDim();
+   ndof = el.GetDof();
+   Vector vu(vu_data, dim), nor(nor_data, dim);
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      // Assuming order(u)==order(mesh)
+      order = Tr.Elem1->OrderW() + 2*el.GetOrder();
+      if (el.Space() == FunctionSpace::Pk)
+      {
+         order++;
+      }
+      ir = &IntRules.Get(Tr.GetGeometryType(), order);
+   }
+
+   shape.SetSize(ndof);
+   elvect.SetSize(ndof*dim);
+   elvect = 0.0;
+
+   for (int p = 0; p < ir->GetNPoints(); p++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(p);
+
+      // Set the integration point in the face and the neighboring element
+      Tr.SetAllIntPoints(&ip);
+
+      // Access the neighboring element's integration point
+      const IntegrationPoint &eip = Tr.GetElement1IntPoint();
+      el.CalcShape(eip, shape);
+
+      // Use Tr.Elem1 transformation for u so that it matches the coefficient
+      // used with the ConvectionIntegrator and/or the DGTraceIntegrator.
+      u->Eval(vu, *Tr.Elem1, eip);
+
+      if (dim == 1)
+      {
+         nor(0) = 2*eip.x - 1.0;
+      }
+      else
+      {
+         CalcOrtho(Tr.Jacobian(), nor);
+      }
+
+      un = vu * nor;
+      w = 0.5*alpha*un - beta*fabs(un);
+      w *= ip.weight*f->Eval(Tr, ip);
+      nor *= w / nor.Norml2();
+
+      for (int d = 0; d < dim; d++)
+         for (int i = 0; i < ndof; i++)
+         {
+            elvect(i+d*ndof) += shape(i) * nor(d);
+         }
+   }
+}
+
 void DGDirichletLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
