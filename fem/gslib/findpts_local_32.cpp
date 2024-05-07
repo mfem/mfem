@@ -1010,7 +1010,8 @@ static void FindPointsLocal32D_Kernel(const int npt,
    {
       constexpr int size1 = MAX_CONST(4, MD1 + 1) *
                             (3 * 3 + 2 * 3) + 3 * 2 * MD1 + 5;
-      constexpr int size2 = MAX_CONST(MD1 *MD1 * 6, MD1 * 3 * 5); // size depends on max of info for faces and edges
+      constexpr int size2 = MAX_CONST(MD1 *MD1 * 6,
+                                      MD1 * 3 * 5); // size depends on max of info for faces and edges
       MFEM_SHARED double r_workspace[size1];
       MFEM_SHARED findptsElementPoint_t el_pts[2];
 

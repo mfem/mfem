@@ -215,8 +215,9 @@ int main (int argc, char *argv[])
 
    int nattr = mesh->bdr_attributes.Max();
    Array<int> subdomain_attributes(nattr);
-   for (int i = 0; i < nattr; i++) {
-       subdomain_attributes[i] = i+1;
+   for (int i = 0; i < nattr; i++)
+   {
+      subdomain_attributes[i] = i+1;
    }
 
    auto submesh = SubMesh::CreateFromBoundary(*mesh, subdomain_attributes);
@@ -320,342 +321,343 @@ int main (int argc, char *argv[])
    // Get element coordinates
    for (int i = 0; i < pmesh.GetNE(); i++)
    {
-       Vector center(dim);
-       pmesh.GetElementCenter(i, center);
-       const FiniteElement *fe   = pfespace->GetFE(i);
-       const Geometry::Type gt   = fe->GetGeomType();
-       const int vdim            = pfespace->GetVDim();
-       const int dof_cnt_split = fe->GetDof();
+      Vector center(dim);
+      pmesh.GetElementCenter(i, center);
+      const FiniteElement *fe   = pfespace->GetFE(i);
+      const Geometry::Type gt   = fe->GetGeomType();
+      const int vdim            = pfespace->GetVDim();
+      const int dof_cnt_split = fe->GetDof();
 
-       std::cout << i << " " << myid << " " << gt << " " << pmesh.GetElementSize(i) << " k10\n";
+      std::cout << i << " " << myid << " " << gt << " " << pmesh.GetElementSize(
+                   i) << " k10\n";
 
-       const TensorBasisElement *tbe =
-          dynamic_cast<const TensorBasisElement *>(fe);
-       MFEM_VERIFY(tbe != NULL, "TensorBasis FiniteElement expected.");
+      const TensorBasisElement *tbe =
+         dynamic_cast<const TensorBasisElement *>(fe);
+      MFEM_VERIFY(tbe != NULL, "TensorBasis FiniteElement expected.");
 
-       Array<int> dof_map(dof_cnt_split);
-       const Array<int> &dm = tbe->GetDofMap();
-       if (dm.Size() > 0) { dof_map = dm; }
-       else { for (int j = 0; j < dof_cnt_split; j++) { dof_map[j] = j; } }
+      Array<int> dof_map(dof_cnt_split);
+      const Array<int> &dm = tbe->GetDofMap();
+      if (dm.Size() > 0) { dof_map = dm; }
+      else { for (int j = 0; j < dof_cnt_split; j++) { dof_map[j] = j; } }
 
-       DenseMatrix pos(dof_cnt_split, vdim);
-       Vector posV(pos.Data(), dof_cnt_split * vdim);
-       Array<int> xdofs(dof_cnt_split * vdim);
+      DenseMatrix pos(dof_cnt_split, vdim);
+      Vector posV(pos.Data(), dof_cnt_split * vdim);
+      Array<int> xdofs(dof_cnt_split * vdim);
 
-       pfespace->GetElementVDofs(i, xdofs);
-       x->GetSubVector(xdofs, posV);
+      pfespace->GetElementVDofs(i, xdofs);
+      x->GetSubVector(xdofs, posV);
 
-       std::cout << "Print nodal positions\n";
-       posV.Print();
+      std::cout << "Print nodal positions\n";
+      posV.Print();
 
-       const IntegrationRule &ir = fe->GetNodes();
-       ElementTransformation *transf = pfespace->GetElementTransformation(i);
-       Vector normal(vdim);
-       std::cout << "Print normals\n";
-       for (int q = 0; q < ir.GetNPoints(); q++)
-       {
-           const IntegrationPoint &ip = ir.IntPoint(q);
-           transf->SetIntPoint(&ip);
-           CalcOrtho(transf->Jacobian(), normal);
-           normal.Print();
-       }
+      const IntegrationRule &ir = fe->GetNodes();
+      ElementTransformation *transf = pfespace->GetElementTransformation(i);
+      Vector normal(vdim);
+      std::cout << "Print normals\n";
+      for (int q = 0; q < ir.GetNPoints(); q++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         transf->SetIntPoint(&ip);
+         CalcOrtho(transf->Jacobian(), normal);
+         normal.Print();
+      }
    }
 
-//   // Generate equidistant points in physical coordinates over the whole mesh.
-//   // Note that some points might be outside, if the mesh is not a box. Note
-//   // also that all tasks search the same points (not mandatory).
-//   int pts_cnt = npt;
-//   Vector vxyz;
-//   vxyz.UseDevice(!cpu_mode);
-//   vxyz.SetSize(pts_cnt * dim);
-//   vxyz.Randomize(myid+1);
+   //   // Generate equidistant points in physical coordinates over the whole mesh.
+   //   // Note that some points might be outside, if the mesh is not a box. Note
+   //   // also that all tasks search the same points (not mandatory).
+   //   int pts_cnt = npt;
+   //   Vector vxyz;
+   //   vxyz.UseDevice(!cpu_mode);
+   //   vxyz.SetSize(pts_cnt * dim);
+   //   vxyz.Randomize(myid+1);
 
-//   if ( (myid != 0) && (search_on_rank_0) )
-//   {
-//      pts_cnt = 0;
-//      vxyz.Destroy();
-//   }
+   //   if ( (myid != 0) && (search_on_rank_0) )
+   //   {
+   //      pts_cnt = 0;
+   //      vxyz.Destroy();
+   //   }
 
-//   // Find and Interpolate FE function values on the desired points.
-//   Vector interp_vals(pts_cnt*vec_dim);
+   //   // Find and Interpolate FE function values on the desired points.
+   //   Vector interp_vals(pts_cnt*vec_dim);
 
-//   FindPointsGSLIB finder(MPI_COMM_WORLD);
-//   finder.Setup(pmesh);
-//   finder.SetGPUCode(gpucode);
-//   finder.SetDistanceToleranceForPointsFoundOnBoundary(10);
-//   finder.FindPoints(vxyz, point_ordering);
-//   MPI_Barrier(MPI_COMM_WORLD);
+   //   FindPointsGSLIB finder(MPI_COMM_WORLD);
+   //   finder.Setup(pmesh);
+   //   finder.SetGPUCode(gpucode);
+   //   finder.SetDistanceToleranceForPointsFoundOnBoundary(10);
+   //   finder.FindPoints(vxyz, point_ordering);
+   //   MPI_Barrier(MPI_COMM_WORLD);
 
-//   Array<unsigned int> code_out1    = finder.GetCode();
-//   Array<unsigned int> el_out1    = finder.GetGSLIBElem();
-//   Vector ref_rst1    = finder.GetGSLIBReferencePosition();
-//   Vector ref_rst0   = finder.GetReferencePosition();
-//   Vector dist1    = finder.GetDist();
-//   Array<unsigned int> proc_out1    = finder.GetProc();
-//   vxyz.HostReadWrite();
+   //   Array<unsigned int> code_out1    = finder.GetCode();
+   //   Array<unsigned int> el_out1    = finder.GetGSLIBElem();
+   //   Vector ref_rst1    = finder.GetGSLIBReferencePosition();
+   //   Vector ref_rst0   = finder.GetReferencePosition();
+   //   Vector dist1    = finder.GetDist();
+   //   Array<unsigned int> proc_out1    = finder.GetProc();
+   //   vxyz.HostReadWrite();
 
-//   int notfound = 0;
-//   for (int i = 0; i < code_out1.Size(); i++)
-//   {
-//      int c1 = code_out1[i];
-//      int e1 = el_out1[i];
-//      Vector ref1(ref_rst1.GetData()+i*dim, dim);
-//      Vector dref = ref1;
-//      if (c1 == 2 || (std::fabs(dist1(i)) > 1e-10 && myid == 0))
-//      {
-//         notfound++;
-//         if (point_ordering == 0)
-//         {
-//            std::cout << "Pt xyz: " << vxyz(i) << " " <<
-//                      vxyz(i + pts_cnt) <<  " " <<
-//                      (dim == 3 ? vxyz(i+2*pts_cnt) : 0) << " k10\n";
-//         }
-//         else
-//         {
-//            std::cout << "Pt xyz: " << vxyz(i*dim+0) << " " <<
-//                      vxyz(i*dim+1) <<  " " <<
-//                      (dim == 3 ?  vxyz(i*dim+2)  : 0) << " k10\n";
-//         }
-//         std::cout << "FPT DEV (c1,e1,dist1,r,s,t,proc): " << c1 << " " << e1 << " " <<
-//                   dist1(i) << " " <<
-//                   ref1(0) << " " << ref1(1) << " " <<
-//                   (dim == 3 ? ref1(2) : 0) << " " <<
-//                   proc_out1[i] << " k10\n";
-//      }
-//   }
+   //   int notfound = 0;
+   //   for (int i = 0; i < code_out1.Size(); i++)
+   //   {
+   //      int c1 = code_out1[i];
+   //      int e1 = el_out1[i];
+   //      Vector ref1(ref_rst1.GetData()+i*dim, dim);
+   //      Vector dref = ref1;
+   //      if (c1 == 2 || (std::fabs(dist1(i)) > 1e-10 && myid == 0))
+   //      {
+   //         notfound++;
+   //         if (point_ordering == 0)
+   //         {
+   //            std::cout << "Pt xyz: " << vxyz(i) << " " <<
+   //                      vxyz(i + pts_cnt) <<  " " <<
+   //                      (dim == 3 ? vxyz(i+2*pts_cnt) : 0) << " k10\n";
+   //         }
+   //         else
+   //         {
+   //            std::cout << "Pt xyz: " << vxyz(i*dim+0) << " " <<
+   //                      vxyz(i*dim+1) <<  " " <<
+   //                      (dim == 3 ?  vxyz(i*dim+2)  : 0) << " k10\n";
+   //         }
+   //         std::cout << "FPT DEV (c1,e1,dist1,r,s,t,proc): " << c1 << " " << e1 << " " <<
+   //                   dist1(i) << " " <<
+   //                   ref1(0) << " " << ref1(1) << " " <<
+   //                   (dim == 3 ? ref1(2) : 0) << " " <<
+   //                   proc_out1[i] << " k10\n";
+   //      }
+   //   }
 
-//   MPI_Barrier(MPI_COMM_WORLD);
-//   Array<int> newton_out = finder.GetNewtonIters();
-//   int newton_min = newton_out.Min();
-//   int newton_max = newton_out.Max();
-//   int newton_mean = newton_out.Sum()/newton_out.Size();
-//   if (myid == 0)
-//   {
-//      std::cout << "Newton iteration min/max/mean: " << newton_min << " "
-//                << newton_max << " "
-//                << newton_mean << endl;
-//   }
-//   finder.Interpolate(field_vals, interp_vals);
-//   Vector info1    = finder.GetInfo();
-//   if (interp_vals.UseDevice())
-//   {
-//      interp_vals.HostReadWrite();
-//   }
-//   vxyz.HostReadWrite();
+   //   MPI_Barrier(MPI_COMM_WORLD);
+   //   Array<int> newton_out = finder.GetNewtonIters();
+   //   int newton_min = newton_out.Min();
+   //   int newton_max = newton_out.Max();
+   //   int newton_mean = newton_out.Sum()/newton_out.Size();
+   //   if (myid == 0)
+   //   {
+   //      std::cout << "Newton iteration min/max/mean: " << newton_min << " "
+   //                << newton_max << " "
+   //                << newton_mean << endl;
+   //   }
+   //   finder.Interpolate(field_vals, interp_vals);
+   //   Vector info1    = finder.GetInfo();
+   //   if (interp_vals.UseDevice())
+   //   {
+   //      interp_vals.HostReadWrite();
+   //   }
+   //   vxyz.HostReadWrite();
 
-//   Array<unsigned int> code_out    = finder.GetCode();
-//   Array<unsigned int> task_id_out = finder.GetProc();
-//   Vector dist_p_out = finder.GetDist();
-//   Vector rst = finder.GetReferencePosition();
-//   //    vxyz.Print();
-//   //    rst.Print();
-//   //    interp_vals.Print();
+   //   Array<unsigned int> code_out    = finder.GetCode();
+   //   Array<unsigned int> task_id_out = finder.GetProc();
+   //   Vector dist_p_out = finder.GetDist();
+   //   Vector rst = finder.GetReferencePosition();
+   //   //    vxyz.Print();
+   //   //    rst.Print();
+   //   //    interp_vals.Print();
 
-//   int face_pts = 0, not_found = 0, found_loc = 0, found_away = 0;
-//   double err = 0.0, max_err = 0.0, max_dist = 0.0;
+   //   int face_pts = 0, not_found = 0, found_loc = 0, found_away = 0;
+   //   double err = 0.0, max_err = 0.0, max_dist = 0.0;
 
-//   Vector pos(dim);
-//   for (int j = 0; j < vec_dim; j++)
-//   {
-//      for (int i = 0; i < pts_cnt; i++)
-//      {
-//         if (j == 0)
-//         {
-//            (task_id_out[i] == (unsigned)myid) ? found_loc++ : found_away++;
-//         }
+   //   Vector pos(dim);
+   //   for (int j = 0; j < vec_dim; j++)
+   //   {
+   //      for (int i = 0; i < pts_cnt; i++)
+   //      {
+   //         if (j == 0)
+   //         {
+   //            (task_id_out[i] == (unsigned)myid) ? found_loc++ : found_away++;
+   //         }
 
-//         if (code_out[i] < 2)
-//         {
-//            for (int d = 0; d < dim; d++)
-//            {
-//               pos(d) = point_ordering == Ordering::byNODES ?
-//                        vxyz(d*pts_cnt + i) :
-//                        vxyz(i*dim + d);
-//            }
-//            Vector exact_val(vec_dim);
-//            F_exact(pos, exact_val);
-//            err = gf_ordering == Ordering::byNODES ?
-//                  fabs(exact_val(j) - interp_vals[i + j*pts_cnt]) :
-//                  fabs(exact_val(j) - interp_vals[i*vec_dim + j]);
-//            max_err  = std::max(max_err, err);
-//            max_dist = std::max(max_dist, dist_p_out(i));
-//            if (code_out[i] == 1 && j == 0) { face_pts++; }
-//         }
-//         else { if (j == 0) { not_found++; } }
-//      }
-//   }
+   //         if (code_out[i] < 2)
+   //         {
+   //            for (int d = 0; d < dim; d++)
+   //            {
+   //               pos(d) = point_ordering == Ordering::byNODES ?
+   //                        vxyz(d*pts_cnt + i) :
+   //                        vxyz(i*dim + d);
+   //            }
+   //            Vector exact_val(vec_dim);
+   //            F_exact(pos, exact_val);
+   //            err = gf_ordering == Ordering::byNODES ?
+   //                  fabs(exact_val(j) - interp_vals[i + j*pts_cnt]) :
+   //                  fabs(exact_val(j) - interp_vals[i*vec_dim + j]);
+   //            max_err  = std::max(max_err, err);
+   //            max_dist = std::max(max_dist, dist_p_out(i));
+   //            if (code_out[i] == 1 && j == 0) { face_pts++; }
+   //         }
+   //         else { if (j == 0) { not_found++; } }
+   //      }
+   //   }
 
-//   MPI_Allreduce(MPI_IN_PLACE, &found_loc, 1, MPI_INT, MPI_SUM,
-//                 pfespace.GetComm());
-//   MPI_Allreduce(MPI_IN_PLACE, &found_away, 1, MPI_INT, MPI_SUM,
-//                 pfespace.GetComm());
-//   MPI_Allreduce(MPI_IN_PLACE, &face_pts, 1, MPI_INT, MPI_SUM, pfespace.GetComm());
-//   MPI_Allreduce(MPI_IN_PLACE, &not_found, 1, MPI_INT, MPI_SUM,
-//                 pfespace.GetComm());
-//   MPI_Allreduce(MPI_IN_PLACE, &max_err, 1, MPI_DOUBLE, MPI_MAX,
-//                 pfespace.GetComm());
-//   MPI_Allreduce(MPI_IN_PLACE, &max_dist, 1, MPI_DOUBLE, MPI_MAX,
-//                 pfespace.GetComm());
-//   MPI_Allreduce(MPI_IN_PLACE, &err, 1, MPI_DOUBLE, MPI_SUM, pfespace.GetComm());
+   //   MPI_Allreduce(MPI_IN_PLACE, &found_loc, 1, MPI_INT, MPI_SUM,
+   //                 pfespace.GetComm());
+   //   MPI_Allreduce(MPI_IN_PLACE, &found_away, 1, MPI_INT, MPI_SUM,
+   //                 pfespace.GetComm());
+   //   MPI_Allreduce(MPI_IN_PLACE, &face_pts, 1, MPI_INT, MPI_SUM, pfespace.GetComm());
+   //   MPI_Allreduce(MPI_IN_PLACE, &not_found, 1, MPI_INT, MPI_SUM,
+   //                 pfespace.GetComm());
+   //   MPI_Allreduce(MPI_IN_PLACE, &max_err, 1, MPI_DOUBLE, MPI_MAX,
+   //                 pfespace.GetComm());
+   //   MPI_Allreduce(MPI_IN_PLACE, &max_dist, 1, MPI_DOUBLE, MPI_MAX,
+   //                 pfespace.GetComm());
+   //   MPI_Allreduce(MPI_IN_PLACE, &err, 1, MPI_DOUBLE, MPI_SUM, pfespace.GetComm());
 
 
-//   if (myid == 0)
-//   {
-//      cout << setprecision(16)
-//           << "Total number of elements: " << nelemglob
-//           << "\nTotal number of procs: " << num_procs
-//           << "\nSearched total points: " << pts_cnt*num_procs
-//           << "\nFound locally on ranks:  " << found_loc
-//           << "\nFound on other tasks: " << found_away
-//           << "\nPoints not found:     " << not_found
-//           << "\nPoints on faces:      " << face_pts
-//           << "\nMax interp error:     " << max_err
-//           << "\nMax dist (of found):  " << max_dist
-//           //                    << "\nTotal Time:  " << FindPointsSW.RealTime()
-//           << endl;
-//   }
+   //   if (myid == 0)
+   //   {
+   //      cout << setprecision(16)
+   //           << "Total number of elements: " << nelemglob
+   //           << "\nTotal number of procs: " << num_procs
+   //           << "\nSearched total points: " << pts_cnt*num_procs
+   //           << "\nFound locally on ranks:  " << found_loc
+   //           << "\nFound on other tasks: " << found_away
+   //           << "\nPoints not found:     " << not_found
+   //           << "\nPoints on faces:      " << face_pts
+   //           << "\nMax interp error:     " << max_err
+   //           << "\nMax dist (of found):  " << max_dist
+   //           //                    << "\nTotal Time:  " << FindPointsSW.RealTime()
+   //           << endl;
+   //   }
 
-//   if (myid == 0)
-//   {
-//      cout << "FindPointsGSLIB-Timing-info " <<
-//           "jobid,devid,gpucode,ne,np,dim,meshorder,solorder,funcorder,fieldtype,smooth,npts,nptt,"
-//           <<
-//           "foundloc,foundaway,notfound,foundface,maxerr,maxdist,"<<
-//           "setup_split,setup_nodalmapping,setup_setup,findpts_findpts,findpts_device_setup,findpts_mapelemrst,"
-//           <<
-//           "interpolate_h1,interpolate_general,interpolate_l2_pass2 " <<
-//           jobid << "," <<
-//           device.GetId() << "," <<
-//           gpucode << "," <<
-//           nelemglob << "," <<
-//           num_procs << "," <<
-//           dim << "," <<
-//           mesh_poly_deg << "," << order << "," <<
-//           func_order << "," << fieldtype << "," <<
-//           smooth << "," <<
-//           pts_cnt << "," <<
-//           pts_cnt*num_procs << "," <<
-//           found_loc << "," <<
-//           found_away << "," <<
-//           not_found << "," <<
-//           face_pts << "," <<
-//           max_err << "," <<
-//           max_dist << "," <<
-//           finder.setup_split_time << "," <<
-//           finder.setup_nodalmapping_time << "," <<
-//           finder.setup_findpts_setup_time << "," <<
-//           finder.findpts_findpts_time << "," <<
-//           finder.findpts_setup_device_arrays_time << "," <<
-//           finder.findpts_mapelemrst_time << "," <<
-//           finder.interpolate_h1_time << "," <<
-//           finder.interpolate_general_time << "," <<
-//           finder.interpolate_l2_pass2_time << "," <<
-//           std::endl;
-//   }
+   //   if (myid == 0)
+   //   {
+   //      cout << "FindPointsGSLIB-Timing-info " <<
+   //           "jobid,devid,gpucode,ne,np,dim,meshorder,solorder,funcorder,fieldtype,smooth,npts,nptt,"
+   //           <<
+   //           "foundloc,foundaway,notfound,foundface,maxerr,maxdist,"<<
+   //           "setup_split,setup_nodalmapping,setup_setup,findpts_findpts,findpts_device_setup,findpts_mapelemrst,"
+   //           <<
+   //           "interpolate_h1,interpolate_general,interpolate_l2_pass2 " <<
+   //           jobid << "," <<
+   //           device.GetId() << "," <<
+   //           gpucode << "," <<
+   //           nelemglob << "," <<
+   //           num_procs << "," <<
+   //           dim << "," <<
+   //           mesh_poly_deg << "," << order << "," <<
+   //           func_order << "," << fieldtype << "," <<
+   //           smooth << "," <<
+   //           pts_cnt << "," <<
+   //           pts_cnt*num_procs << "," <<
+   //           found_loc << "," <<
+   //           found_away << "," <<
+   //           not_found << "," <<
+   //           face_pts << "," <<
+   //           max_err << "," <<
+   //           max_dist << "," <<
+   //           finder.setup_split_time << "," <<
+   //           finder.setup_nodalmapping_time << "," <<
+   //           finder.setup_findpts_setup_time << "," <<
+   //           finder.findpts_findpts_time << "," <<
+   //           finder.findpts_setup_device_arrays_time << "," <<
+   //           finder.findpts_mapelemrst_time << "," <<
+   //           finder.interpolate_h1_time << "," <<
+   //           finder.interpolate_general_time << "," <<
+   //           finder.interpolate_l2_pass2_time << "," <<
+   //           std::endl;
+   //   }
 
-//   Mesh *mesh_abb, *mesh_obb, *mesh_lhbb, *mesh_ghbb;
-//   if (visit) {
-//    mesh_abb = finder.GetBoundingBoxMesh(0);
-//    mesh_obb = finder.GetBoundingBoxMesh(1);
-//    mesh_lhbb = finder.GetBoundingBoxMesh(2);
-//    mesh_ghbb = finder.GetBoundingBoxMesh(3);
-//   }
+   //   Mesh *mesh_abb, *mesh_obb, *mesh_lhbb, *mesh_ghbb;
+   //   if (visit) {
+   //    mesh_abb = finder.GetBoundingBoxMesh(0);
+   //    mesh_obb = finder.GetBoundingBoxMesh(1);
+   //    mesh_lhbb = finder.GetBoundingBoxMesh(2);
+   //    mesh_ghbb = finder.GetBoundingBoxMesh(3);
+   //   }
 
-//   if (visit && myid == 0)
-//   {
-//      VisItDataCollection dc("finderabb", mesh_abb);
-//      dc.SetFormat(DataCollection::SERIAL_FORMAT);
-//      dc.Save();
+   //   if (visit && myid == 0)
+   //   {
+   //      VisItDataCollection dc("finderabb", mesh_abb);
+   //      dc.SetFormat(DataCollection::SERIAL_FORMAT);
+   //      dc.Save();
 
-//      Array<int> attrlist(1);
-//      for (int i = 0; i < mesh_abb->GetNE(); i++)
-//      {
-//         attrlist[0] = i+1;
-//         auto mesh_abbt = SubMesh::CreateFromDomain(*mesh_abb, attrlist);
-//         VisItDataCollection dct("finderabbt", &mesh_abbt);
-//         dct.SetFormat(DataCollection::SERIAL_FORMAT);
-//         dct.SetCycle(i);
-//         dct.SetTime(i*1.0);
-//         dct.Save();
-//      }
-//   }
-//   MPI_Barrier(MPI_COMM_WORLD);
+   //      Array<int> attrlist(1);
+   //      for (int i = 0; i < mesh_abb->GetNE(); i++)
+   //      {
+   //         attrlist[0] = i+1;
+   //         auto mesh_abbt = SubMesh::CreateFromDomain(*mesh_abb, attrlist);
+   //         VisItDataCollection dct("finderabbt", &mesh_abbt);
+   //         dct.SetFormat(DataCollection::SERIAL_FORMAT);
+   //         dct.SetCycle(i);
+   //         dct.SetTime(i*1.0);
+   //         dct.Save();
+   //      }
+   //   }
+   //   MPI_Barrier(MPI_COMM_WORLD);
 
-//   if (visit && myid == 0)
-//   {
-//      VisItDataCollection dc("finderobb", mesh_obb);
-//      dc.SetFormat(DataCollection::SERIAL_FORMAT);
-//      dc.Save();
+   //   if (visit && myid == 0)
+   //   {
+   //      VisItDataCollection dc("finderobb", mesh_obb);
+   //      dc.SetFormat(DataCollection::SERIAL_FORMAT);
+   //      dc.Save();
 
-//      Array<int> attrlist(1);
-//      for (int i = 0; i < mesh_obb->GetNE(); i++)
-//      {
-//         attrlist[0] = i+1;
-//         auto mesh_abbt = SubMesh::CreateFromDomain(*mesh_obb, attrlist);
-//         VisItDataCollection dct("finderobbt", &mesh_abbt);
-//         dct.SetFormat(DataCollection::SERIAL_FORMAT);
-//         dct.SetCycle(i);
-//         dct.SetTime(i*1.0);
-//         dct.Save();
-//      }
-//   }
-//   MPI_Barrier(MPI_COMM_WORLD);
+   //      Array<int> attrlist(1);
+   //      for (int i = 0; i < mesh_obb->GetNE(); i++)
+   //      {
+   //         attrlist[0] = i+1;
+   //         auto mesh_abbt = SubMesh::CreateFromDomain(*mesh_obb, attrlist);
+   //         VisItDataCollection dct("finderobbt", &mesh_abbt);
+   //         dct.SetFormat(DataCollection::SERIAL_FORMAT);
+   //         dct.SetCycle(i);
+   //         dct.SetTime(i*1.0);
+   //         dct.Save();
+   //      }
+   //   }
+   //   MPI_Barrier(MPI_COMM_WORLD);
 
-//   if (visit && myid == 0)
-//   {
-//      std::cout << mesh_lhbb->GetNE() << " k10localmeshhashbounding\n";
-//      VisItDataCollection dc("finderlhbb", mesh_lhbb);
-//      dc.SetFormat(DataCollection::SERIAL_FORMAT);
-//      dc.Save();
+   //   if (visit && myid == 0)
+   //   {
+   //      std::cout << mesh_lhbb->GetNE() << " k10localmeshhashbounding\n";
+   //      VisItDataCollection dc("finderlhbb", mesh_lhbb);
+   //      dc.SetFormat(DataCollection::SERIAL_FORMAT);
+   //      dc.Save();
 
-//      Array<int> attrlist(1);
-//      for (int i = 0; i < num_procs; i++)
-//      {
-//         attrlist[0] = i+1;
-//         auto mesh_abbt = SubMesh::CreateFromDomain(*mesh_lhbb, attrlist);
-//         VisItDataCollection dct("finderlhbbt", &mesh_abbt);
-//         dct.SetFormat(DataCollection::SERIAL_FORMAT);
-//         dct.SetCycle(i);
-//         dct.SetTime(i*1.0);
-//         dct.Save();
-//      }
-//   }
-//   MPI_Barrier(MPI_COMM_WORLD);
+   //      Array<int> attrlist(1);
+   //      for (int i = 0; i < num_procs; i++)
+   //      {
+   //         attrlist[0] = i+1;
+   //         auto mesh_abbt = SubMesh::CreateFromDomain(*mesh_lhbb, attrlist);
+   //         VisItDataCollection dct("finderlhbbt", &mesh_abbt);
+   //         dct.SetFormat(DataCollection::SERIAL_FORMAT);
+   //         dct.SetCycle(i);
+   //         dct.SetTime(i*1.0);
+   //         dct.Save();
+   //      }
+   //   }
+   //   MPI_Barrier(MPI_COMM_WORLD);
 
-//   if (visit && myid == 0)
-//   {
-//      VisItDataCollection dc("finderghbb", mesh_ghbb);
-//      dc.SetFormat(DataCollection::SERIAL_FORMAT);
-//      dc.Save();
-//   }
-//   MPI_Barrier(MPI_COMM_WORLD);
+   //   if (visit && myid == 0)
+   //   {
+   //      VisItDataCollection dc("finderghbb", mesh_ghbb);
+   //      dc.SetFormat(DataCollection::SERIAL_FORMAT);
+   //      dc.Save();
+   //   }
+   //   MPI_Barrier(MPI_COMM_WORLD);
 
-//   if (visit)
-//   {
-//      L2_FECollection pl2c(0, dim);
-//      ParFiniteElementSpace pl2fes(&pmesh, &pl2c);
-//      ParGridFunction pl2g(&pl2fes);
-//      ParGridFunction prankg(&pl2fes);
-//      pmesh.ExchangeFaceNbrData();
-//      for (int e = 0; e < pmesh.GetNE(); e++)
-//      {
-//         pl2g(e) = pmesh.GetGlobalElementNum(e);
-//         prankg(e) = myid;
-//      }
+   //   if (visit)
+   //   {
+   //      L2_FECollection pl2c(0, dim);
+   //      ParFiniteElementSpace pl2fes(&pmesh, &pl2c);
+   //      ParGridFunction pl2g(&pl2fes);
+   //      ParGridFunction prankg(&pl2fes);
+   //      pmesh.ExchangeFaceNbrData();
+   //      for (int e = 0; e < pmesh.GetNE(); e++)
+   //      {
+   //         pl2g(e) = pmesh.GetGlobalElementNum(e);
+   //         prankg(e) = myid;
+   //      }
 
-//      VisItDataCollection dc("finder", &pmesh);
-//      dc.RegisterField("solution", &field_vals);
-//      dc.RegisterField("elemnum", &pl2g);
-//      dc.RegisterField("proc", &prankg);
-//      dc.SetFormat(DataCollection::PARALLEL_FORMAT);
-//      dc.Save();
-//   }
-//   MPI_Barrier(MPI_COMM_WORLD);
+   //      VisItDataCollection dc("finder", &pmesh);
+   //      dc.RegisterField("solution", &field_vals);
+   //      dc.RegisterField("elemnum", &pl2g);
+   //      dc.RegisterField("proc", &prankg);
+   //      dc.SetFormat(DataCollection::PARALLEL_FORMAT);
+   //      dc.Save();
+   //   }
+   //   MPI_Barrier(MPI_COMM_WORLD);
 
-//   // Free the internal gslib data.
-//   finder.FreeData();
+   //   // Free the internal gslib data.
+   //   finder.FreeData();
 
-//   delete fec;
+   //   delete fec;
 
    return 0;
 }
