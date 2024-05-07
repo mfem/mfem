@@ -975,12 +975,6 @@ L2_FuentesPyramidElement::L2_FuentesPyramidElement(const int p, const int btype)
    for (int m = 0; m < dof; m++)
    {
       const IntegrationPoint &ip = Nodes.IntPoint(m);
-      /*
-      Poly_1D::CalcLegendre(p, ip.x / (1.0 - ip.z), shape_x.GetData());
-      Poly_1D::CalcLegendre(p, ip.y / (1.0 - ip.z), shape_y.GetData());
-      Poly_1D::CalcLegendre(p, ip.z, shape_z.GetData());
-      */
-      //calcBasis(order, ip, shape_x, shape_y, shape_z, T.GetColumn(m));
       real_t x = ip.x;
       real_t y = ip.y;
       real_t z = ip.z;
@@ -988,6 +982,7 @@ L2_FuentesPyramidElement::L2_FuentesPyramidElement(const int p, const int btype)
       CalcHomogenizedScaLegendre(p, mu0(z, xy, 1), mu1(z, xy, 1), shape_x);
       CalcHomogenizedScaLegendre(p, mu0(z, xy, 2), mu1(z, xy, 2), shape_y);
       CalcHomogenizedScaLegendre(p, mu0(z), mu1(z), shape_z);
+
       o = 0;
       for (int k = 0; k <= p; k++)
       {
@@ -1015,17 +1010,21 @@ void L2_FuentesPyramidElement::CalcShape(const IntegrationPoint &ip,
    Vector shape_z(p + 1);
    Vector u(dof);
 #endif
-   /*
-   Poly_1D::CalcLegendre(p, ip.x / (1.0 - ip.z), shape_x.GetData());
-   Poly_1D::CalcLegendre(p, ip.y / (1.0 - ip.z), shape_y.GetData());
-   Poly_1D::CalcLegendre(p, ip.z, shape_z.GetData());
-   */
    real_t x = ip.x;
    real_t y = ip.y;
    real_t z = ip.z;
    Vector xy({x,y});
-   CalcHomogenizedScaLegendre(p, mu0(z, xy, 1), mu1(z, xy, 1), shape_x);
-   CalcHomogenizedScaLegendre(p, mu0(z, xy, 2), mu1(z, xy, 2), shape_y);
+
+   if (z < 1.0)
+   {
+      CalcHomogenizedScaLegendre(p, mu0(z, xy, 1), mu1(z, xy, 1), shape_x);
+      CalcHomogenizedScaLegendre(p, mu0(z, xy, 2), mu1(z, xy, 2), shape_y);
+   }
+   else
+   {
+      shape_x = 0.0; shape_x(0) = 1.0;
+      shape_y = 0.0; shape_y(0) = 1.0;
+   }
    CalcHomogenizedScaLegendre(p, mu0(z), mu1(z), shape_z);
 
    int o = 0;
@@ -1035,6 +1034,7 @@ void L2_FuentesPyramidElement::CalcShape(const IntegrationPoint &ip,
          {
             u[o] = shape_x[i] * shape_y[j] * shape_z[k];
          }
+
    Ti.Mult(u, shape);
 }
 
