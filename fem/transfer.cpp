@@ -763,9 +763,6 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
    Minv_ear_lor.SetSize(ndof_lor, ndof_lor, nel_lor, d_mt_);
    batchSolver.GetInverse(Minv_ear_lor);
 
-   //compute batch inverse of M_ea_lor;
-   //mfem::Array<int> P;
-
    {
       //Recall mfem is column major
       // ndof_lor x ndof_ho
@@ -974,22 +971,28 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceMult(
    const int nel_ho = mesh_ho->GetNE();
 
    auto v_R_ea = mfem::Reshape(R_ea.Read(), ndof_lor, nref, ndof_ho, nel_ho);
-   auto v_x    = mfem::Reshape(x.Read(), ndof_ho, nel_ho);
-   auto v_y    = mfem::Reshape(y.Write(), ndof_lor, nref, nel_ho);
+   auto v_x    = mfem::Reshape(x.Read(), ndof_ho, vdim, nel_ho);
+   auto v_y    = mfem::Reshape(y.Write(), ndof_lor, nref, vdim, nel_ho);
 
    mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int iho)
    {
-      for (int i=0; i<nref; ++i)
-      {
-         for (int j=0; j<ndof_lor; ++j)
-         {
 
-            real_t dot = 0.0;
-            for (int k=0; k<ndof_ho; ++k)
+      for (int v=0; v<vdim; ++v)
+      {
+
+         for (int i=0; i<nref; ++i)
+         {
+            for (int j=0; j<ndof_lor; ++j)
             {
-               dot += v_R_ea(j, i, k, iho) * v_x(k, iho);
+
+               real_t dot = 0.0;
+               for (int k=0; k<ndof_ho; ++k)
+               {
+                  dot += v_R_ea(j, i, k, iho) * v_x(k, v, iho);
+               }
+
+               v_y(j, i, v, iho) = dot;
             }
-            v_y(j, i, iho) = dot;
          }
       }
    });
@@ -1056,6 +1059,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceMultTranspose(
    const Vector &x, Vector &y) const
 {
    const int vdim = fes_ho.GetVDim();
+
    const int iho = 0;
    const int nref = ho2lor.RowSize(iho);
    const int ndof_ho = fes_ho.GetFE(iho)->GetDof();
@@ -1064,23 +1068,25 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceMultTranspose(
    const int nel_ho = mesh_ho->GetNE();
 
    auto v_R_ea = mfem::Reshape(R_ea.Read(), ndof_lor, nref, ndof_ho, nel_ho);
-   auto v_x    = mfem::Reshape(x.Read(), ndof_lor, nref, nel_ho);
-   auto v_y    = mfem::Reshape(y.Write(), ndof_ho, nel_ho);
+   auto v_x    = mfem::Reshape(x.Read(), ndof_lor, nref, vdim, nel_ho);
+   auto v_y    = mfem::Reshape(y.Write(), ndof_ho, vdim, nel_ho);
 
    mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int iho)
    {
-      for (int k=0; k<ndof_ho; ++k)
+      for (int v=0; v<vdim; ++v)
       {
-
-         real_t dot = 0.0;
-         for (int i=0; i<nref; ++i)
+         for (int k=0; k<ndof_ho; ++k)
          {
-            for (int j=0; j<ndof_lor; ++j)
+            real_t dot = 0.0;
+            for (int i=0; i<nref; ++i)
             {
-               dot += v_R_ea(j, i, k, iho) * v_x(j, i, iho);
-            }
+               for (int j=0; j<ndof_lor; ++j)
+               {
+                  dot += v_R_ea(j, i, k, iho) * v_x(j, i, v, iho);
+               }
 
-            v_y(k, iho) = dot;
+               v_y(k, v, iho) = dot;
+            }
          }
       }
    });
@@ -1148,6 +1154,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceProlongate(
 {
 
    const int vdim = fes_ho.GetVDim();
+
    const int iho = 0;
    const int nref = ho2lor.RowSize(iho);
    const int ndof_ho = fes_ho.GetFE(iho)->GetDof();
@@ -1156,24 +1163,25 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceProlongate(
    const int nel_ho = mesh_ho->GetNE();
 
    auto v_P_ea = mfem::Reshape(P_ea.Read(), ndof_ho, ndof_lor, nref, nel_ho);
-   auto v_x    = mfem::Reshape(x.Read(), ndof_lor, nref, nel_ho);
-   auto v_y    = mfem::Reshape(y.Write(), ndof_ho, nel_ho);
+   auto v_x    = mfem::Reshape(x.Read(), ndof_lor, nref, vdim, nel_ho);
+   auto v_y    = mfem::Reshape(y.Write(), ndof_ho, vdim, nel_ho);
 
    mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int e)
    {
-      for (int iho=0; iho<ndof_ho; ++iho)
+      for (int v=0; v<vdim; ++v)
       {
-
-         real_t dot = 0.0;
-         for (int iref=0; iref<nref; ++iref)
+         for (int iho=0; iho<ndof_ho; ++iho)
          {
-            for (int ilo=0; ilo<ndof_lor; ++ilo)
+            real_t dot = 0.0;
+            for (int iref=0; iref<nref; ++iref)
             {
-               dot += v_P_ea(iho, ilo, iref, e) * v_x(ilo, iref, e);
+               for (int ilo=0; ilo<ndof_lor; ++ilo)
+               {
+                  dot += v_P_ea(iho, ilo, iref, e) * v_x(ilo, iref, v, e);
+               }
             }
+            v_y(iho, v, e) = dot;
          }
-         v_y(iho, e) = dot;
-
       }
    });
 
@@ -1240,6 +1248,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceProlongateTranspose(
 {
 
    const int vdim = fes_ho.GetVDim();
+
    const int iho = 0;
    const int nref = ho2lor.RowSize(iho);
    const int ndof_ho = fes_ho.GetFE(iho)->GetDof();
@@ -1248,24 +1257,24 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceProlongateTranspose(
    const int nel_ho = mesh_ho->GetNE();
 
    auto v_P_ea = mfem::Reshape(P_ea.Read(), ndof_ho, ndof_lor, nref, nel_ho);
-   auto v_x    = mfem::Reshape(x.Read(), ndof_ho, nel_ho);
-   auto v_y    = mfem::Reshape(y.Write(), ndof_lor, nref, nel_ho);
+   auto v_x    = mfem::Reshape(x.Read(), ndof_ho, vdim, nel_ho);
+   auto v_y    = mfem::Reshape(y.Write(), ndof_lor, nref, vdim, nel_ho);
 
-   //for (int e = 0; e < nel_ho; ++e)
    mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int e)
    {
-      for (int iref=0; iref<nref; ++iref)
+      for (int v=0; v<vdim; ++v)
       {
-         for (int ilo=0; ilo<ndof_lor; ++ilo)
+         for (int iref=0; iref<nref; ++iref)
          {
-
-            real_t dot = 0.0;
-            for (int iho=0; iho<ndof_ho; ++iho)
+            for (int ilo=0; ilo<ndof_lor; ++ilo)
             {
-               dot += v_P_ea(iho, ilo, iref, e) * v_x(iho, e);
+               real_t dot = 0.0;
+               for (int iho=0; iho<ndof_ho; ++iho)
+               {
+                  dot += v_P_ea(iho, ilo, iref, e) * v_x(iho, v, e);
+               }
+               v_y(ilo, iref, v, e) = dot;
             }
-            v_y(ilo, iref, e) = dot;
-
          }
       }
    });
