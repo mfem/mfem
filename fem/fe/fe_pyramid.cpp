@@ -389,11 +389,9 @@ void FuentesPyramid::CalcHomogenizedScaLegendre(int p,
 void FuentesPyramid::CalcHomogenizedScaLegendre(int p, real_t s0, real_t s1,
                                                 Vector &u)
 {
-   // std::cout << "Entering CalcHomogenizedScaLegendre" << std::endl;
    MFEM_ASSERT(p >= 0, "Polynomial order must be zero or larger");
    MFEM_ASSERT(u.Size() >= p+1, "Size of u is too small");
    CalcHomogenizedScaLegendre(p, s0, s1, u.GetData());
-   // std::cout << "Leaving CalcHomogenizedScaLegendre" << std::endl;
 }
 
 void FuentesPyramid::CalcHomogenizedScaLegendre(int p,
@@ -659,9 +657,8 @@ void FuentesPyramid::phi_E(int p, Vector s, const DenseMatrix &grad_s,
 #endif
    DenseMatrix &duds = phi_E_mtmp;
    duds.SetSize(p + 1, grad_s.Height());
-   // std::cout << "calling phi_E at " << s[0] << " " << s[1] << std::endl;
+
    phi_E(p, s[0], s[1], u.GetData(), duds.GetColumn(0), duds.GetColumn(1));
-   // std::cout << "phi_E: duds "; duds.Print(std::cout);
    Mult(duds, grad_s, grad_u);
 }
 
@@ -805,7 +802,6 @@ void FuentesPyramid::E_E(int p, Vector s, Vector sds, DenseMatrix &u) const
 void FuentesPyramid::E_E(int p, Vector s, const DenseMatrix &grad_s,
                          DenseMatrix &u, DenseMatrix &curl_u) const
 {
-   // std::cout << "Entering E_E" << std::endl;
    MFEM_ASSERT(p >= 1, "Polynomial order must be one or larger");
    MFEM_ASSERT(s.Size() >= 2, "Size of s must be 2 or larger");
    MFEM_ASSERT(grad_s.Height() >= 2,
@@ -823,21 +819,18 @@ void FuentesPyramid::E_E(int p, Vector s, const DenseMatrix &grad_s,
    Vector E_E_vtmp;
 #endif
    Vector &P_i = E_E_vtmp;
-   // std::cout << "Entering E_E 0" << std::endl;
+
    P_i.SetSize(p);
    CalcHomogenizedScaLegendre(p - 1, s[0], s[1], P_i);
 
-   // std::cout << "Entering E_E 1" << std::endl;
    Vector grad_s0({grad_s(0,0), grad_s(0,1), grad_s(0,2)});
    Vector grad_s1({grad_s(1,0), grad_s(1,1), grad_s(1,2)});
    Vector sds(3);
    add(s(0), grad_s1, -s(1), grad_s0, sds);
 
-   // std::cout << "Entering E_E 2" << std::endl;
    Vector dsxds(3);
    grad_s0.cross3D(grad_s1, dsxds);
 
-   // std::cout << "Entering E_E 3" << std::endl;
    for (int i=0; i<p; i++)
    {
       u(i,0) = P_i(i) * sds(0);
@@ -848,7 +841,6 @@ void FuentesPyramid::E_E(int p, Vector s, const DenseMatrix &grad_s,
       curl_u(i, 1) = (i + 2) * P_i(i) * dsxds(1);
       curl_u(i, 2) = (i + 2) * P_i(i) * dsxds(2);
    }
-   // std::cout << "Leaving E_E" << std::endl;
 }
 
 void FuentesPyramid::E_Q(int p, Vector s, Vector sds, Vector t,
@@ -894,7 +886,6 @@ void FuentesPyramid::E_Q(int p, Vector s, const DenseMatrix &grad_s,
                          Vector t, const DenseMatrix &grad_t,
                          DenseTensor &u, DenseTensor &curl_u) const
 {
-   // std::cout << "Entering E_Q" << std::endl;
    MFEM_ASSERT(p >= 2, "Polynomial order must be two or larger");
    MFEM_ASSERT(s.Size() >= 2, "Size of s must be 2 or larger");
    MFEM_ASSERT(grad_s.Height() >= 2,
@@ -925,15 +916,15 @@ void FuentesPyramid::E_Q(int p, Vector s, const DenseMatrix &grad_s,
    DenseMatrix &dphi_E_j = E_Q_mtmp1;
    DenseMatrix &E_E_i    = E_Q_mtmp2;
    DenseMatrix &dE_E_i   = E_Q_mtmp3;
-   // std::cout << "Entering E_Q 0" << std::endl;
+
    phi_E_j.SetSize(p + 1);
    dphi_E_j.SetSize(p + 1, grad_t.Width());
    phi_E(p, t, grad_t, phi_E_j, dphi_E_j);
-   // std::cout << "Entering E_Q 1" << std::endl;
+
    E_E_i.SetSize(p, 3);
    dE_E_i.SetSize(p, 3);
    E_E(p, s, grad_s, E_E_i, dE_E_i);
-   // std::cout << "Entering E_Q 2" << std::endl;
+
    for (int k=0; k<3; k++)
    {
       u(k).SetCol(0, 0.0);
@@ -941,7 +932,7 @@ void FuentesPyramid::E_Q(int p, Vector s, const DenseMatrix &grad_s,
       curl_u(k).SetCol(0, 0.0);
       curl_u(k).SetCol(1, 0.0);
    }
-   // std::cout << "Entering E_Q 3" << std::endl;
+
    for (int j=2; j<=p; j++)
       for (int i=0; i<p; i++)
       {
@@ -960,7 +951,6 @@ void FuentesPyramid::E_Q(int p, Vector s, const DenseMatrix &grad_s,
                            + dphi_E_j(j, 0) * E_E_i(i, 1)
                            - dphi_E_j(j, 1) * E_E_i(i, 0);
       }
-   // std::cout << "Leaving E_Q" << std::endl;
 }
 
 void FuentesPyramid::V_Q(int p, Vector s, Vector sds,
