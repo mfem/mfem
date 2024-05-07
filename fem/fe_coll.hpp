@@ -345,7 +345,7 @@ public:
    L2_FECollection(const int p, const int dim,
                    const int btype = BasisType::GaussLegendre,
                    const int map_type = FiniteElement::VALUE,
-                   const int pyrtype = 0);
+                   const int pyrtype = 1);
 
    const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const override;
