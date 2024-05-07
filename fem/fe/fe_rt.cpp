@@ -1310,9 +1310,9 @@ RT_FuentesPyramidElement::RT_FuentesPyramidElement(const int p)
    int o = 0;
    // quadrilateral face
    for (int j = 0; j <= p; j++)
-      for (int i = 0; i <= p; i++)  // (0,1,2,3)
+      for (int i = 0; i <= p; i++)  // (3,2,1,0)
       {
-         Nodes.IntPoint(o).Set3(bop[i], bop[j], 0.);
+         Nodes.IntPoint(o).Set3(bop[i], bop[p-j], 0.);
          dof2nk[o++] = 0;
       }
    // triangular faces
@@ -1331,17 +1331,17 @@ RT_FuentesPyramidElement::RT_FuentesPyramidElement(const int p)
          dof2nk[o++] = 2;
       }
    for (int j = 0; j <= p; j++)
-      for (int i = 0; i + j <= p; i++)  // (3,4,2)
+      for (int i = p - j; i >= 0; i--)  // (2,3,4)
       {
          real_t w = bop[i] + bop[j] + bop[p-i-j];
-         Nodes.IntPoint(o).Set3(bop[j]/w, 1.0-bop[i]/w, bop[i]/w);
+         Nodes.IntPoint(o).Set3(bop[i]/w, 1.0-bop[j]/w, bop[j]/w);
          dof2nk[o++] = 3;
       }
    for (int j = 0; j <= p; j++)
-      for (int i = 0; i + j <= p; i++)  // (0,4,3)
+      for (int i = p - j; i >= 0; i--)  // (3,0,4)
       {
          real_t w = bop[i] + bop[j] + bop[p-i-j];
-         Nodes.IntPoint(o).Set3(0., bop[j]/w, bop[i]/w);
+         Nodes.IntPoint(o).Set3(0., bop[i]/w, bop[j]/w);
          dof2nk[o++] = 4;
       }
 
