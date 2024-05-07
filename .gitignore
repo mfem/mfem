@@ -369,7 +369,7 @@ miniapps/dpg/ParaView
 miniapps/spde/generate_random_field
 miniapps/spde/ParaView
 
-miniapps/tribol/ContactPatchTest
+miniapps/tribol/contact-patch-test
 
 # Unit test binary and outputs
 tests/unit/output_meshes

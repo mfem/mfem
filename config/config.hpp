@@ -120,6 +120,15 @@ constexpr real_t operator""_r(unsigned long long v)
 
 // Check dependencies:
 
+// Define MFEM_MPI_REAL_T to be the appropriate MPI real type
+#ifdef MFEM_USE_MPI
+#ifdef MFEM_USE_SINGLE
+#define MFEM_MPI_REAL_T MPI_FLOAT
+#elif defined MFEM_USE_DOUBLE
+#define MFEM_MPI_REAL_T MPI_DOUBLE
+#endif
+#endif
+
 // Options that require MPI
 #ifndef MFEM_USE_MPI
 #ifdef MFEM_USE_SUPERLU
