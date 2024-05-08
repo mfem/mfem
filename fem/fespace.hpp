@@ -267,11 +267,6 @@ protected:
    /** Additional data for the var_*_dofs tables: individual variant orders
        (these are basically alternate J arrays for var_edge/face_dofs). */
    Array<char> var_edge_orders, var_face_orders;
-   Array<VarOrderBits> all_var_edge_orders,
-         all_var_face_orders;  // TODO: are these still used?
-
-   Array<VarOrderBits> artificial_var_edge_orders;
-   Array<VarOrderBits> artificial_var_face_orders;
 
    mutable Array<bool> skip_edge, skip_face;
 
@@ -368,20 +363,14 @@ protected:
        need to be represented on each edge and face. */
    void CalcEdgeFaceVarOrders(Array<VarOrderBits> &edge_orders,
                               Array<VarOrderBits> &face_orders,
-                              Array<VarOrderBits> &all_edge_orders,
-                              Array<VarOrderBits> &all_face_orders,
-                              Array<VarOrderBits> &artificial_edge_orders,
-                              Array<VarOrderBits> &artificial_face_orders,
                               const Array<int> * prefdata=nullptr) const;
 
    virtual void ApplyGhostElementOrdersToEdgesAndFaces(Array<VarOrderBits>
                                                        &edge_orders,
                                                        Array<VarOrderBits> &face_orders,
                                                        const Array<int> * prefdata=nullptr) const { }
-
    virtual void GhostMasterFaceOrderToEdges(const Array<VarOrderBits> &face_orders,
-                                            Array<VarOrderBits> &edge_orders,
-                                            Array<VarOrderBits> &artificial_edge_orders) const { }
+                                            Array<VarOrderBits> &edge_orders) const { }
 
    virtual void GhostMasterArtificialFaceOrders(const Array<VarOrderBits>
                                                 &face_orders,
@@ -420,9 +409,6 @@ protected:
 
    /// Return number of possible DOF variants for edge/face (var. order spaces).
    int GetNVariants(int entity, int index) const;
-   int GetNumAllVariants(int entity, int index) const;
-
-   int EntityAllVarToVar(int entity, int index, int allvar) const;
 
    /// Helper to get vertex, edge or face DOFs (entity=0,1,2 resp.).
    int GetEntityDofs(int entity, int index, Array<int> &dofs,
@@ -746,8 +732,6 @@ public:
 
    /// Returns the polynomial degree of the i'th face finite element
    int GetFaceOrder(int face, int variant = 0) const;
-
-   int GetEntityOrderAllVar(int entity, int index, int variant) const;
 
    /// Returns vector dimension.
    inline int GetVDim() const { return vdim; }
