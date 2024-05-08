@@ -307,7 +307,7 @@ static void PADGDiffusionSetupFaceInfo2D(const int nf, const Mesh &mesh,
    }
 }
 
-// Assigns to perm the permuation:
+// Assigns to perm the permutation:
 //    perm[0] <- normal component
 //    perm[1] <- first tangential component
 //    perm[2] <- second tangential component
