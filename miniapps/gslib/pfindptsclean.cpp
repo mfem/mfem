@@ -228,7 +228,7 @@ int main (int argc, char *argv[])
    // Curve the mesh based on the chosen polynomial degree.
    H1_FECollection fecm(mesh_poly_deg, dim);
    ParFiniteElementSpace pfespace(&pmesh, &fecm, dim);
-   pmesh.SetNodalFESpace(&pfespace);
+   // pmesh.SetNodalFESpace(&pfespace);
    ParGridFunction x(&pfespace);
    pmesh.SetNodalGridFunction(&x);
    if (myid == 0)
@@ -289,7 +289,6 @@ int main (int argc, char *argv[])
    VectorFunctionCoefficient F(vec_dim, F_exact);
    field_vals.ProjectCoefficient(F);
 
-   // Display the mesh and the field through glvis.
    if (visualization)
    {
       socketstream sock;

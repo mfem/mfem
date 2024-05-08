@@ -186,6 +186,27 @@ int main (int argc, char *argv[])
          MFEM_ABORT("Only 2D and 3D supported at the moment.");
       }
    }
+   mesh->EnsureNodes();
+
+   // Display the volume/area mesh.
+   if (visualization && myid == 0)
+   {
+      socketstream sock;
+      if (myid == 0)
+      {
+         sock.open("localhost", 19916);
+         sock << "mesh\n";
+      }
+      mesh->Print(sock);
+      // mesh->GetNodes()->Save(sock);
+      if (myid == 0)
+      {
+         sock << "window_title 'Volume/area mesh'\n"
+              << "window_geometry "
+              << 0 << " " << 0 << " " << 400 << " " << 400 << "\n"
+              << "keys Rmjpee" << endl;
+      }
+   }
 
    if (myid == 0)
    {
@@ -234,48 +255,13 @@ int main (int argc, char *argv[])
    }
 
 
-   Vector h0(pfespace->GetNDofs());
-   h0 = infinity();
    double vol_loc = 0.0;
    Array<int> dofs;
    for (int i = 0; i < pmesh.GetNE(); i++)
    {
-      // Get the local scalar element degrees of freedom in dofs.
-      pfespace->GetElementDofs(i, dofs);
-      // Adjust the value of h0 in dofs based on the local mesh size.
-      const double hi = pmesh.GetElementSize(i);
-      for (int j = 0; j < dofs.Size(); j++)
-      {
-         h0(dofs[j]) = min(h0(dofs[j]), hi);
-      }
       vol_loc += pmesh.GetElementVolume(i);
    }
 
-   ParGridFunction rdm(pfespace);
-   rdm.Randomize(myid+1);
-   rdm -= 0.25; // Shift to random values in [-0.5,0.5].
-   rdm *= jitter;
-   rdm.HostReadWrite();
-   // Scale the random values to be of order of the local mesh size.
-   for (int i = 0; i < pfespace->GetNDofs(); i++)
-   {
-      for (int d = 0; d < dim; d++)
-      {
-         rdm(pfespace->DofToVDof(i,d)) *= h0(i);
-      }
-   }
-   Array<int> vdofs;
-   for (int i = 0; i < pfespace->GetNBE(); i++)
-   {
-      // Get the vector degrees of freedom in the boundary element.
-      pfespace->GetBdrElementVDofs(i, vdofs);
-      // Set the boundary values to zero.
-      for (int j = 0; j < vdofs.Size(); j++) { rdm(vdofs[j]) = 0.0; }
-   }
-   rdm.SetTrueVector();
-   rdm.SetFromTrueVector();
-   *x -= rdm;
-   // Set the perturbation of all nodes from the true nodes.
    x->SetTrueVector();
    x->SetFromTrueVector();
 
@@ -311,10 +297,10 @@ int main (int argc, char *argv[])
       field_vals.SaveAsOne(sock);
       if (myid == 0)
       {
-         sock << "window_title 'Solution'\n"
+         sock << "window_title 'Surface mesh'\n"
               << "window_geometry "
               << 400 << " " << 0 << " " << 400 << " " << 400 << "\n"
-              << "keys RmjApp" << endl;
+              << "keys RmjAppe" << endl;
       }
    }
 
@@ -330,15 +316,6 @@ int main (int argc, char *argv[])
 
       std::cout << i << " " << myid << " " << gt << " " << pmesh.GetElementSize(
                    i) << " k10\n";
-
-      const TensorBasisElement *tbe =
-         dynamic_cast<const TensorBasisElement *>(fe);
-      MFEM_VERIFY(tbe != NULL, "TensorBasis FiniteElement expected.");
-
-      Array<int> dof_map(dof_cnt_split);
-      const Array<int> &dm = tbe->GetDofMap();
-      if (dm.Size() > 0) { dof_map = dm; }
-      else { for (int j = 0; j < dof_cnt_split; j++) { dof_map[j] = j; } }
 
       DenseMatrix pos(dof_cnt_split, vdim);
       Vector posV(pos.Data(), dof_cnt_split * vdim);
