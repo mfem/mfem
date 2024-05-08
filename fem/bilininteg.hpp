@@ -3532,18 +3532,19 @@ private:
 /** Integrator for the H/LDG diffusion stabilization term
     The LDG stabilization takes the form
     $$
-        1/2 \beta \langle \{h^{-1} Q\} [u], [v] \rangle
+        1/2 \beta \langle \{h^{-1} Q\} [v], [w] \rangle
     $$
-    where $Q$ is a scalar or matrix diffusion coefficient and $u$, $v$ are the trial
+    where $Q$ is a scalar or matrix diffusion coefficient and $v$, $w$ are the trial
     and test functions, respectively.
+
     The corresponding HDG stabilization is then
     $$\begin{align}
-        \langle \tau^\pm u^\pm, w^\pm \rangle, & -\langle \tau^\pm \lambda,          w^\pm \rangle,\\
-        \langle \tau^\pm u^\pm, \mu   \rangle, & -\langle (\tau^+ + \tau^-) \lambda, \mu   \rangle,
+        \langle \tau_\pm v_\pm, w_\pm \rangle, & -\langle \tau_\pm \lambda,          w_\pm \rangle,\\
+        \langle \tau_\pm v_\pm, \mu   \rangle, & -\langle (\tau_+ + \tau_-) \lambda, \mu   \rangle,
     \end{align}$$
-    where $\tau^\pm = (\beta |v \cdot n| \pm 1/2 \alpha (v \cdot n)) / |v \cdot n| \{h^{-1} Q\}$
-    and $\lambda$, $\mu$ are the trial and test trace functions, respectively. If no $Q$ is provided,
-    the centered stabilization is used with $\tau^\pm = \beta \{h^{-1} Q\}$. */
+    where $\tau_\pm = (\beta \pm 1/2 \alpha (u \cdot n) / |u \cdot n|) \{h^{-1} Q\}$
+    and $\lambda$, $\mu$ are the trial and test trace functions, respectively. The vector
+    coefficient $u$ is assumed continuous across the faces. */
 class HDGDiffusionIntegrator : public BilinearFormIntegrator
 {
 protected:
