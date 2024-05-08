@@ -161,6 +161,7 @@ protected:
    /// during the setup phase.
    virtual void MapRefPosAndElemIndices();
 
+   // FindPoints locally on device for 3D.
    void FindPointsLocal3(const Vector &point_pos,
                          int point_pos_ordering,
                          Array<int> &gsl_code_dev_l,
@@ -169,6 +170,7 @@ protected:
                          Vector &gsl_dist_l,
                          Array<int> &gsl_newton_dev_l,
                          int npt);
+   // Faster version of FindPointsLocal3.
    void FindPointsLocal32(const Vector &point_pos,
                           int point_pos_ordering,
                           Array<int> &gsl_code_dev_l,
@@ -177,6 +179,7 @@ protected:
                           Vector &gsl_dist_l,
                           Array<int> &gsl_newton_dev_l,
                           int npt);
+   // FindPoints locally on device for 2D.
    void FindPointsLocal2(const Vector &point_pos,
                          int point_pos_ordering,
                          Array<int> &gsl_code_dev_l,
@@ -186,13 +189,14 @@ protected:
                          Array<int> &gsl_newton_dev_l,
                          int npt);
 
+   // Interpolate on device for 3D.
    void InterpolateLocal3(const Vector &field_in,
                           Array<int> &gsl_elem_dev_l,
                           Vector &gsl_ref_l,
                           Vector &field_out,
                           int npt, int ncomp,
                           int nel, int dof1dsol);
-
+   // Interpolate on device for 2D.
    void InterpolateLocal2(const Vector &field_in,
                           Array<int> &gsl_elem_dev_l,
                           Vector &gsl_ref_l,
