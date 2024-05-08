@@ -1563,6 +1563,7 @@ int main(int argc, char *argv[])
 
 
          // Reduce the orders of the elements if needed
+         std::cout << reduce_order << " " << do_href << " k101\n";
          if (reduce_order && iter_pref > 0 && pref_order_increase > 1 && !do_href)
          {
             int compt_updates(0);
@@ -1603,7 +1604,7 @@ int main(int argc, char *argv[])
                   // when derefined, the length of the element will decrease and
                   // the level set function integral will increase
                   if ( (pderef > 0 && coarsened_face_error < deref_threshold) ||
-                       (pderef < 0 && deref_error_type == 0 &&
+                       (pderef < 0 && deref_error_type == 2 &&
                         coarsened_face_error < (1-pderef)*(interface_error)) ||
                        //relative to change in error due to refinement
                        (pderef < 0 && deref_error_type == 4 &&
@@ -1634,6 +1635,7 @@ int main(int argc, char *argv[])
             } //i < inter_faces.Size()
 
             // Update the FES and GridFunctions only if some orders have been changed
+            std::cout << compt_updates << " k10compt_updates\n";
             if (compt_updates > 0)
             {
                std::cout << "=======================================\n";
