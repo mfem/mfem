@@ -2062,8 +2062,6 @@ void ParFiniteElementSpace::GetBareDofs(int entity, int index,
    }
 }
 
-#define LOCAL_EDOF_ORDER
-
 int ParFiniteElementSpace::PackDofVar(int entity, int index, int edof,
                                       int var) const
 {
@@ -2084,12 +2082,7 @@ int ParFiniteElementSpace::PackDofVar(int entity, int index, int edof,
          {
             const int* row = var_edge_dofs.GetRow(index);
             MFEM_ASSERT(0 <= var && var < var_edge_dofs.RowSize(index), "");
-#ifdef LOCAL_EDOF_ORDER
             const int d = row[var] + edof;
-#else
-            const int edof_var = edof - (row[var] - row[0]);
-            const int d = row[var] + edof_var;
-#endif
             if (index < ghost) // regular edge
             {
                return nvdofs + d;
@@ -2103,12 +2096,8 @@ int ParFiniteElementSpace::PackDofVar(int entity, int index, int edof,
          ghost = pncmesh->GetNFaces();
          if (index < ghost) // regular face
          {
-#ifdef LOCAL_EDOF_ORDER
             MFEM_ASSERT(0 <= var && var < var_face_dofs.RowSize(index), "");
             return nvdofs + nedofs + FirstFaceDof(index, var) + edof;
-#else
-            return nvdofs + nedofs + FirstFaceDof(index) + edof;
-#endif
          }
          else // ghost face
          {
@@ -2208,29 +2197,6 @@ void ParFiniteElementSpace::UnpackDofVar(int dof,
          MFEM_ASSERT(order >= 0, "");
 
          edof -= os;  // Local offset
-
-#ifndef LOCAL_EDOF_ORDER
-         os = 0;
-         const int nallvar = this->GetNumAllVariants(1, edge);
-         int allvar = -1;
-         for (int v=0; v<nallvar; ++v)
-         {
-            const int eo = this->GetEntityOrderAllVar(1, edge, v);
-            if (eo == order)
-            {
-               allvar = v;
-               break;
-            }
-
-            const int dofs = fec->GetNumDof(Geometry::SEGMENT, eo);
-            os += dofs;
-         }
-
-         MFEM_VERIFY(allvar >= 0, "");
-
-         edof += os;  // Global offset
-#endif
-
          return;
       }
       dof -= nedofs;
@@ -2262,28 +2228,6 @@ void ParFiniteElementSpace::UnpackDofVar(int dof,
          MFEM_ASSERT(order >= 0, "");
 
          edof -= os;  // Local offset
-
-#ifndef LOCAL_EDOF_ORDER
-         os = 0;
-         const int nallvar = this->GetNumAllVariants(2, face);
-         int allvar = -1;
-         for (int v=0; v<nallvar; ++v)
-         {
-            const int fo = this->GetEntityOrderAllVar(2, face, v);
-            if (fo == order)
-            {
-               allvar = v;
-               break;
-            }
-
-            const int dofs = fec->GetNumDof(geom, fo);
-            os += dofs;
-         }
-
-         MFEM_VERIFY(allvar >= 0, "");
-
-         edof += os;  // Global offset
-#endif
          return;
       }
       MFEM_ABORT("Cannot unpack internal DOF");
@@ -2684,7 +2628,6 @@ public:
       int var = 0;
       if (varOrder && entity == 1)
       {
-#ifdef LOCAL_EDOF_ORDER
          bool found = false;
          while (!found)
          {
@@ -2703,14 +2646,9 @@ public:
          {
             var = -1;
          }
-#else
-         int os = 0;
-         var = FindEdgeDofVar(index, edof, os);
-#endif
       }
       else if (varOrder && entity == 2)
       {
-#ifdef LOCAL_EDOF_ORDER
          bool found = false;
          while (!found)
          {
@@ -2730,10 +2668,6 @@ public:
          {
             var = -1;
          }
-#else
-         int os = 0;
-         var = FindFaceDofVar(index, edof, os);
-#endif
       }
 
       rows.emplace_back(entity, index, edof, group, row, var);
@@ -2761,19 +2695,13 @@ protected:
    bool varOrder = false;
 
    // TODO: const?
-   int FindEdgeOrder(int edge, int &edof, int &os, int &var);
    int FindEdgeDofVar(int edge, int edof, int &os);
-
-   int FindFaceOrder(int edge, int &edof, int &os, int &var);
    int FindFaceDofVar(int edge, int edof, int &os);
 
    int GetEdgeVarOffset(int edge, int var);
    int GetFaceVarOffset(int face, int var);
 
-   int GetGlobalEdgeOffset(int edge, int order);
    int FindLocalEdgeOrder(int edge, int edof, int &os, int &var);
-
-   int GetGlobalFaceOffset(int edge, int order);
    int FindLocalFaceOrder(int edge, int edof, int &os, int &var);
 
    /// Encode a NeighborRowMessage for sending via MPI.
@@ -2840,21 +2768,8 @@ void NeighborRowMessage::Encode(int rank)
             int osvar = 0;  // Offset for DOFs in the variable order case
             if (varOrder)
             {
-#ifdef LOCAL_EDOF_ORDER
-               const int order = fes->GetEdgeOrder(ri.index, ri.var);
-#else
-               // Using global edof
-               int osglob = 0;  // Global offset
-               int allvar = FindEdgeDofVar(ri.index, edof, osglob);
-               edof -= osglob;
-
-               const int order = fes->GetEntityOrderAllVar(1, ri.index, allvar);
-
-               osvar = osglob;
-#endif
-
-               order_i = order;
-               ind = fec->GetDofOrdering(Geometry::SEGMENT, order, eo);
+               order_i = fes->GetEdgeOrder(ri.index, ri.var);
+               ind = fec->GetDofOrdering(Geometry::SEGMENT, order_i, eo);
             }
             else
             {
@@ -2873,22 +2788,8 @@ void NeighborRowMessage::Encode(int rank)
          // TODO: similar change to faces has no effect, because osloc == osvar always?
          if (ent == 2 && varOrder)
          {
-#ifdef LOCAL_EDOF_ORDER
             int var = ri.var;
             order_i = fes->GetFaceOrder(ri.index, var);
-#else
-            int osvar = 0;  // Offset for DOFs in the variable order case
-            int var = 0;
-            const int order = FindLocalFaceOrder(ri.index, edof, osvar, var);
-
-            // Adjust edof to be for global DOFs
-            const int osloc = osvar;
-
-            osvar = GetGlobalFaceOffset(ri.index, order);
-
-            MFEM_VERIFY(edof >= 0 && edof + osvar - osloc >= 0, "bug");
-            edof += osvar - osloc;
-#endif
          }
 
          bin_io::write<int>(stream, edof);
@@ -2985,86 +2886,17 @@ int NeighborRowMessage::FindLocalFaceOrder(int face, int edof, int &os,
    return order;
 }
 
-int NeighborRowMessage::GetGlobalEdgeOffset(int edge, int order)
-{
-   int os = 0;
-
-   const int nvar = fes->GetNumAllVariants(1, edge);
-
-   for (int v=0; v<nvar; ++v)
-   {
-      const int eo = fes->GetEntityOrderAllVar(1, edge, v);
-      const int dofs = fec->GetNumDof(Geometry::SEGMENT, eo);
-      if (eo == order)
-      {
-         break;
-      }
-
-      os += dofs;
-   }
-
-   return os;
-}
-
-int NeighborRowMessage::GetGlobalFaceOffset(int face, int order)
-{
-   int os = 0;
-
-   Geometry::Type geom = pncmesh->GetFaceGeometry(face);
-
-   const int nvar = fes->GetNumAllVariants(2, face);
-
-   for (int v=0; v<nvar; ++v)
-   {
-      const int fo = fes->GetEntityOrderAllVar(2, face, v);
-      const int dofs = fec->GetNumDof(geom, fo);
-      if (fo == order)
-      {
-         break;
-      }
-
-      os += dofs;
-   }
-
-   return os;
-}
-
-// TODO: is var necessary?
-// TODO: edof should be const, not &, right?
-int NeighborRowMessage::FindEdgeOrder(int edge, int &edof, int &os, int &var)
-{
-   int allvar = FindEdgeDofVar(edge, edof, os); // Global offset
-   var = fes->EntityAllVarToVar(1, edge, allvar);
-   if (var < 0)
-   {
-      return -1;   // Variant not on this rank
-   }
-
-   edof -= os;
-   os = GetEdgeVarOffset(edge, var);  // Local offset
-
-   return fes->GetEntityOrderAllVar(1, edge, allvar);
-}
-
 // TODO: more efficient way?
 int NeighborRowMessage::FindEdgeDofVar(int edge, int edof, int &os)
 {
    int var = -1;
 
-#ifdef LOCAL_EDOF_ORDER
    const int nvar = fes->GetNVariants(1, edge);
-#else
-   const int nvar = fes->GetNumAllVariants(1, edge);
-#endif
 
    os = 0;
    for (int v=0; v<nvar; ++v)
    {
-#ifdef LOCAL_EDOF_ORDER
       const int eo = fes->GetEdgeOrder(edge, v);
-#else
-      const int eo = fes->GetEntityOrderAllVar(1, edge, v);
-#endif
       const int dofs = fec->GetNumDof(Geometry::SEGMENT, eo);
       if (edof < os + dofs)
       {
@@ -3080,41 +2912,19 @@ int NeighborRowMessage::FindEdgeDofVar(int edge, int edof, int &os)
    return var;
 }
 
-// TODO: is var necessary?
-int NeighborRowMessage::FindFaceOrder(int face, int &edof, int &os, int &var)
-{
-   int allvar = FindFaceDofVar(face, edof, os); // Global offset
-   var = fes->EntityAllVarToVar(2, face, allvar);
-   MFEM_VERIFY(var >= 0, "Variant not found in NeighborRowMessage::FindFaceOrder");
-
-   edof -= os;
-   os = GetFaceVarOffset(face, var); // Local offset
-
-   return fes->GetEntityOrderAllVar(2, face, allvar);
-}
-
 // TODO: more efficient way?
 int NeighborRowMessage::FindFaceDofVar(int face, int edof, int &os)
 {
    int var = -1;
 
-#ifdef LOCAL_EDOF_ORDER
    const int nvar = fes->GetNVariants(2, face);
-#else
-   const int nvar = fes->GetNumAllVariants(2, face);
-#endif
 
    Geometry::Type geom = pncmesh->GetFaceGeometry(face);
 
    os = 0;
    for (int v=0; v<nvar; ++v)
    {
-#ifdef LOCAL_EDOF_ORDER
       const int fo = fes->GetFaceOrder(face, v);
-#else
-      const int fo = fes->GetEntityOrderAllVar(2, face, v);
-#endif
-
       const int dofs = fec->GetNumDof(geom, fo);
       if (edof < os + dofs)
       {
@@ -3178,7 +2988,6 @@ void NeighborRowMessage::Decode(int rank)
 
             if (varOrder)
             {
-#ifdef LOCAL_EDOF_ORDER
                //const int order = FindLocalEdgeOrder(id.index, edof, osvar, var);
                //MFEM_VERIFY(order == order_i, "");
                ////const int order = order_i;
@@ -3203,9 +3012,7 @@ void NeighborRowMessage::Decode(int rank)
                      var++;
                   }
                }
-#else
-               const int order = FindEdgeOrder(id.index, edof, osvar, var);
-#endif
+
                // TODO: similar change for FindFaceOrder?
                if (order < 0)
                {
@@ -3234,7 +3041,6 @@ void NeighborRowMessage::Decode(int rank)
                            "Only quadrilateral faces are supported in "
                            "variable-order spaces");
 
-#ifdef LOCAL_EDOF_ORDER
                ////const int order = order_i;
                int order = -1;
                bool found = false;
@@ -3273,15 +3079,6 @@ void NeighborRowMessage::Decode(int rank)
                {
                   ind = fec->GetDofOrdering(geom, order, fo);
                }
-#else
-               const int order = FindFaceOrder(id.index, edof, osvar, var);
-
-               if (order < 0)
-               {
-                  MFEM_ABORT("TODO");
-               }
-               ind = fec->GetDofOrdering(geom, order, fo);
-#endif
             }
             else
             {
@@ -3523,32 +3320,6 @@ void ParFiniteElementSpace
 }
 #endif
 
-int ParFiniteElementSpace::LowestRealEdgeVariant(int edge) const
-{
-   if (!IsVariableOrder()) { return 0; }
-
-   const VarOrderBits bits = artificial_var_edge_orders[edge];
-
-   if (bits != 0)
-   {
-      for (int variant = 0; ; variant++)
-      {
-         const int q = GetEdgeOrder(edge, variant);
-         MFEM_VERIFY(q > 0, "");
-
-         // Check whether order q is in `bits`
-         const VarOrderBits qbits = VarOrderBits(1) << q;
-         const VarOrderBits andbits = qbits & bits;
-         if (andbits != qbits)  // Not in bits
-         {
-            return variant;
-         }
-      }
-   }
-
-   return 0;
-}
-
 void ParFiniteElementSpace::ScheduleSendOrder(int ent, int idx, int order,
                                               GroupId group_id,
                                               NeighborOrderMessage::Map &send_msg) const
@@ -3663,13 +3434,8 @@ void ParFiniteElementSpace::MarkIntermediateEntityDofs(int entity,
    for (int e=0; e<n; ++e)
    {
       const int nvar = GetNVariants(entity, e);
-      const int var0 = entity == 1 ? LowestRealEdgeVariant(e) : 0;
-
-      //for (int var = 1; var < nvar - 1; ++var)  // Intermediate variants
-      for (int var = 0; var < nvar - 1; ++var)  // Intermediate variants
+      for (int var = 1; var < nvar - 1; ++var)  // Intermediate variants
       {
-         if (var == var0) { continue; }
-
          Array<int> dofs;
          GetEntityDofs(entity, e, dofs, Geometry::INVALID, // dummy geom
                        var);
@@ -3720,8 +3486,6 @@ int ParFiniteElementSpace
          for (const auto &mf : list.masters)
          {
             // get master DOFs
-            const int var0 = entity == 1 ? LowestRealEdgeVariant(mf.index) : 0;
-
             if (entity == 1 && skip_edge.Size() > 0)
             {
                if (skip_edge[mf.index])
@@ -3739,11 +3503,11 @@ int ParFiniteElementSpace
 
             if (pncmesh->IsGhost(entity, mf.index))
             {
-               GetGhostDofs(entity, mf, master_dofs, var0);
+               GetGhostDofs(entity, mf, master_dofs, 0);
             }
             else
             {
-               GetEntityDofs(entity, mf.index, master_dofs, mf.Geom(), var0);
+               GetEntityDofs(entity, mf.index, master_dofs, mf.Geom(), 0);
             }
 
             if (master_dofs.Size() == 0) { continue; }
@@ -3753,7 +3517,7 @@ int ParFiniteElementSpace
             if (IsVariableOrder())
             {
                int mfOrder = -1;
-               if (entity == 1) { mfOrder = GetEdgeOrder(mf.index, var0); }
+               if (entity == 1) { mfOrder = GetEdgeOrder(mf.index, 0); }
                else if (entity == 2) { mfOrder = GetFaceOrder(mf.index); }
 
                if (entity != 0) { fe = fec->GetFE(mf.Geom(), mfOrder); }
@@ -3819,42 +3583,13 @@ int ParFiniteElementSpace
                   last_geom = geom;
                }
 
-               int var0 = 0;  // Lowest variant
-
-               // Find the lowest variant not in artificial_var_edge_orders
-               if (entity == 1)
-               {
-                  var0 = LowestRealEdgeVariant(i);
-                  /*
-                             const VarOrderBits bits = artificial_var_edge_orders[i];
-
-                             if (bits != 0)
-                             {
-                                for (int variant = 0; ; variant++)
-                                {
-                                   const int q = GetEdgeOrder(i, variant);
-                                   MFEM_VERIFY(q > 0, "");
-
-                                   // Check whether order q is in `bits`
-                                   const VarOrderBits qbits = VarOrderBits(1) << q;
-                                   const VarOrderBits andbits = qbits & bits;
-                                   if (andbits != qbits)  // Not in bits
-                                   {
-                                      var0 = variant;
-                                      break;
-                                   }
-                                }
-                             }
-                  */
-               }
-
                // Get lowest order variant DOFs and FE
-               int p = GetEntityDofs(entity, i, master_dofs, geom, var0);
+               int p = GetEntityDofs(entity, i, master_dofs, geom, 0);
                const auto *master_fe = fec->GetFE(geom, p);
                if (!master_fe) { break; }
 
                // Constrain all higher order DOFs: interpolate lowest order function
-               for (int variant = var0 + 1; ; variant++)
+               for (int variant = 1; ; variant++)
                {
                   const int q = GetEntityDofs(entity, i, slave_dofs, geom, variant);
                   if (q < 0) { break; }
@@ -3863,26 +3598,6 @@ int ParFiniteElementSpace
                   slave_fe->GetTransferMatrix(*master_fe, T, I);
 
                   AddDependencies(deps, master_dofs, slave_dofs, I);
-               }
-
-               for (int variant = 0; variant < var0; variant++)
-               {
-                  // Also constrain artificial edge orders, corresponding to all variants
-                  // before var0, to the lowest order (1) DOFs at vertices.
-                  // The edge may not have order 1, but the order 1 DOFs are vertex DOFs,
-                  // which are the first 2 dofs in master_dofs, for an H1 space.
-                  Array<int> master_dofs_1(2);
-                  for (int j=0; j<2; ++j) { master_dofs_1[j] = master_dofs[j]; }
-
-                  const auto *master_fe_1 = fec->GetFE(geom, 1);
-
-                  const int q = GetEntityDofs(entity, i, slave_dofs, geom, variant);
-                  if (q < 2) { continue; }
-
-                  const auto *slave_fe = fec->GetFE(geom, q);
-                  slave_fe->GetTransferMatrix(*master_fe_1, T, I);
-
-                  AddDependencies(deps, master_dofs_1, slave_dofs, I);
                }
             }
          }
@@ -4067,9 +3782,10 @@ int ParFiniteElementSpace
    buffer.elems.reserve(1024);
 
    // TODO: do you still need `intermediate`?
-   // The lowest order be finalized by receiving messages, but the intermediate
-   // orders not owned will have ghost DOFs which may be dependencies for other
-   // DOFs. Thus we must allow finalizing intermediate DOFs, when they are ghosts.
+   // The lowest order may be finalized by receiving messages, but the
+   // intermediate orders not owned may have ghost DOFs which may be dependencies
+   // for other DOFs. Thus we must allow finalizing intermediate DOFs, when they
+   // are ghosts.
    Array<bool> intermediate(ndofs);
    intermediate = false;
 
@@ -5066,14 +4782,8 @@ void ParFiniteElementSpace::ApplyGhostElementOrdersToEdgesAndFaces(
 
 void ParFiniteElementSpace::GhostMasterFaceOrderToEdges(
    const Array<VarOrderBits> &face_orders,
-   Array<VarOrderBits> &edge_orders,
-   Array<VarOrderBits> &artificial_edge_orders) const
+   Array<VarOrderBits> &edge_orders) const
 {
-   //artificial_edge_orders.SetSize(mesh->GetNEdges());
-   artificial_edge_orders.SetSize(pncmesh->GetNEdges() +
-                                  pncmesh->GetNGhostEdges());
-   artificial_edge_orders = 0;
-
    // Apply ghost face lowest order (first variant) to their edges
    for (int i=0; i<pncmesh->GetNGhostFaces(); ++i)
    {
@@ -5102,79 +4812,7 @@ void ParFiniteElementSpace::GhostMasterFaceOrderToEdges(
 
       for (auto edge : edges)
       {
-         /*
-               // Check whether this order is already in edge_orders
-               const VarOrderBits andmask = edge_orders[edge] & mask;
-               const bool newOrder = (andmask == 0);
-         */
-
          edge_orders[edge] |= mask;
-
-         /*
-              //if (!pncmesh->IsGhost(1, edge) && newOrder)
-              if (newOrder)
-              {
-                 artificial_edge_orders[edge] |= mask;
-              }
-         */
-      }
-   }
-}
-
-void ParFiniteElementSpace::GhostMasterArtificialFaceOrders(
-   const Array<VarOrderBits> &face_orders,
-   const Array<VarOrderBits> &edge_orders,
-   Array<VarOrderBits> &artificial_edge_orders,
-   Array<VarOrderBits> &artificial_face_orders) const
-{
-   //artificial_edge_orders.SetSize(mesh->GetNEdges());
-   artificial_face_orders.SetSize(pncmesh->GetNFaces() +
-                                  pncmesh->GetNGhostFaces());
-   artificial_face_orders = 0;
-
-   artificial_edge_orders.SetSize(pncmesh->GetNEdges() +
-                                  pncmesh->GetNGhostEdges());
-   artificial_edge_orders = 0;
-
-   // Apply ghost face lowest order (first variant) to their edges
-   for (int i=0; i<pncmesh->GetNGhostFaces(); ++i)
-   {
-      const int face = pncmesh->GetNFaces() + i;
-      VarOrderBits orders = face_orders[face];
-
-      if (orders == 0) { continue; }
-
-      // Find the lowest order and just use that.
-      int orderV0 = -1;
-      for (int order = 0; orders != 0; order++, orders >>= 1)
-      {
-         if (orders & 1)
-         {
-            orderV0 = order;
-            break;
-         }
-      }
-
-      MFEM_VERIFY(orderV0 > 0, "");
-
-      const VarOrderBits mask = (VarOrderBits(1) << orderV0);
-
-      Array<int> edges;
-      pncmesh->FindEdgesOfGhostFace(face, edges);
-
-      for (auto edge : edges)
-      {
-         // Check whether this order is already in edge_orders
-         const VarOrderBits andmask = edge_orders[edge] & mask;
-         const bool newOrder = (andmask == 0);
-
-         //edge_orders[edge] |= mask;
-
-         //if (!pncmesh->IsGhost(1, edge) && newOrder)
-         if (newOrder)
-         {
-            artificial_face_orders[face] |= mask;
-         }
       }
    }
 }

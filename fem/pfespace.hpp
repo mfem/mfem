@@ -456,20 +456,13 @@ public:
 
    void MarkIntermediateEntityDofs(int entity, Array<bool> & intermediate) const;
 
-   int LowestRealEdgeVariant(int edge) const;
-
 protected:
    void ApplyGhostElementOrdersToEdgesAndFaces(Array<VarOrderBits> &edge_orders,
                                                Array<VarOrderBits> &face_orders,
                                                const Array<int> * prefdata=nullptr) const override;
 
    void GhostMasterFaceOrderToEdges(const Array<VarOrderBits> &face_orders,
-                                    Array<VarOrderBits> &edge_orders,
-                                    Array<VarOrderBits> &artificial_edge_orders) const override;
-   void GhostMasterArtificialFaceOrders(const Array<VarOrderBits> &face_orders,
-                                        const Array<VarOrderBits> &edge_orders,
-                                        Array<VarOrderBits> &artificial_edge_orders,
-                                        Array<VarOrderBits> &artificial_face_orders) const override;
+                                    Array<VarOrderBits> &edge_orders) const override;
 
    bool ParallelOrderPropagation(bool sdone, const std::set<int> &edges,
                                  const std::set<int> &faces,
