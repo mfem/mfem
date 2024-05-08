@@ -19,6 +19,7 @@ on:
         description: 'Test all options in the matrix. If set to false, will only trigger the CI for the default options.'
         default: false
         type: boolean
+  pull_request:
 
 jobs:
   trigger-pymfem:
