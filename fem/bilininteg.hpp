@@ -3311,30 +3311,21 @@ private:
 
 /** Integrator for the DG form:
     $$
-      \langle \rho_u (u \cdot n) \{v\},[w] \rangle,
+      \alpha \langle (u \cdot n) \{v\},[w] \rangle,
     $$
     where $v$ and $w$ are the trial and test variables, respectively, and $\rho$/$u$ are
     given scalar/vector coefficients. $\{v\}$ represents the average value of $v$ on
-    the face and $[v]$ is the jump such that $\{v\}=(v_1+v_2)/2$ and $[v]=(v_1-v_2)$ for the
-    face between elements $1$ and $2$. For boundary elements, $v2=0$. The vector
-    coefficient, $u$, is assumed to be continuous across the faces and when given
-    the scalar coefficient, $\rho$, is assumed to be discontinuous. The integrator
-    uses the upwind value of $\rho$, denoted by $\rho_u$, which is value from the side into which
-    the vector coefficient, $u$, points.
+    the face and $[v]$ is the jump such that $\{v\}=(v_++v_-)/2$ and $[v]=(v_+-v_-)$ for the
+    face with $+$ and $-$ sides. For boundary elements, $v_-=0$. The vector coefficient,
+    $u$, is assumed to be continuous across the faces and when given the scalar coefficient.
 
-    One use case for this integrator is to discretize the operator $-u \cdot \nabla v$
-    with a DG formulation. The resulting formulation uses the
-    ConvectionIntegrator (with coefficient $u$, and parameter $\alpha = -1$) and the
-    transpose of the DGTraceIntegrator (with coefficient $u$, and parameters $\alpha = 1$,
-    $\beta = -1/2$ to use the upwind face flux, see also
-    NonconservativeDGTraceIntegrator). This discretization and the handling of
-    the inflow and outflow boundaries is illustrated in Example 9/9p.
-
-    Another use case for this integrator is to discretize the operator $\mathrm{div}(u v)$
-    with a DG formulation. The resulting formulation is conservative and
-    consists of the ConservativeConvectionIntegrator (with coefficient $u$, and
-    parameter $\alpha = 1$) plus the DGTraceIntegrator (with coefficient $u$, and
-    parameters $\alpha = 1$, $\beta = 1/2$ to use the upwind face flux).
+    The corresponding HDG stabilization is then
+    $$\begin{align}
+        \langle \{\tau\} v_\pm, w_\pm \rangle, & -\langle \tau_\mp \lambda,          w_\pm \rangle,\\
+        \langle \{\tau\} v_\pm, \mu   \rangle, & -\langle (\tau_+ + \tau_-) \lambda, \mu   \rangle,
+    \end{align}$$
+    where $\tau_\pm = |\alpha (u \cdot n)| \pm \alpha (u \cdot n)$
+    and $\lambda$, $\mu$ are the trial and test trace functions, respectively.
     */
 class HDGConvectionCenteredIntegrator : public DGTraceIntegrator
 {
@@ -3353,30 +3344,21 @@ public:
 
 /** Integrator for the DG form:
     $$
-      \langle \rho_u (u \cdot n) \{v\},[w] \rangle + 1/2 \langle \rho_u |u \cdot n| [v],[w] \rangle,
+      \alpha \langle (u \cdot n) \{v\},[w] \rangle + \beta \langle |u \cdot n| [v],[w] \rangle,
     $$
     where $v$ and $w$ are the trial and test variables, respectively, and $\rho$/$u$ are
     given scalar/vector coefficients. $\{v\}$ represents the average value of $v$ on
-    the face and $[v]$ is the jump such that $\{v\}=(v_1+v_2)/2$ and $[v]=(v_1-v_2)$ for the
-    face between elements $1$ and $2$. For boundary elements, $v2=0$. The vector
-    coefficient, $u$, is assumed to be continuous across the faces and when given
-    the scalar coefficient, $\rho$, is assumed to be discontinuous. The integrator
-    uses the upwind value of $\rho$, denoted by $\rho_u$, which is value from the side into which
-    the vector coefficient, $u$, points.
+    the face and $[v]$ is the jump such that $\{v\}=(v_++v_-)/2$ and $[v]=(v_+-v_-)$ for the
+    face with $+$ and $-$ sides. For boundary elements, $v_-=0$. The vector coefficient,
+    $u$, is assumed to be continuous across the faces and when given the scalar coefficient.
 
-    One use case for this integrator is to discretize the operator $-u \cdot \nabla v$
-    with a DG formulation. The resulting formulation uses the
-    ConvectionIntegrator (with coefficient $u$, and parameter $\alpha = -1$) and the
-    transpose of the DGTraceIntegrator (with coefficient $u$, and parameters $\alpha = 1$,
-    $\beta = -1/2$ to use the upwind face flux, see also
-    NonconservativeDGTraceIntegrator). This discretization and the handling of
-    the inflow and outflow boundaries is illustrated in Example 9/9p.
-
-    Another use case for this integrator is to discretize the operator $\mathrm{div}(u v)$
-    with a DG formulation. The resulting formulation is conservative and
-    consists of the ConservativeConvectionIntegrator (with coefficient $u$, and
-    parameter $\alpha = 1$) plus the DGTraceIntegrator (with coefficient $u$, and
-    parameters $\alpha = 1$, $\beta = 1/2$ to use the upwind face flux).
+    The corresponding HDG stabilization is then
+    $$\begin{align}
+        \langle \tau_\pm v_\pm, w_\pm \rangle, & -\langle \tau_\mp \lambda,          w_\pm \rangle,\\
+        \langle \tau_\pm v_\pm, \mu   \rangle, & -\langle (\tau_+ + \tau_-) \lambda, \mu   \rangle,
+    \end{align}$$
+    where $\tau_\pm = (\beta |u \cdot n| \pm 1/2 \alpha (u \cdot n))$
+    and $\lambda$, $\mu$ are the trial and test trace functions, respectively.
     */
 class HDGConvectionUpwindedIntegrator : public DGTraceIntegrator
 {
