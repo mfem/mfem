@@ -125,6 +125,24 @@ Vector FuentesPyramid::lam145_grad_lam145(real_t x, real_t y, real_t z)
    return lgl;
 }
 
+real_t FuentesPyramid::div_lam125_grad_lam125(real_t x, real_t y, real_t z)
+{ return (1.0 - z - y) / (1.0 - z); }
+
+real_t FuentesPyramid::div_lam235_grad_lam235(real_t x, real_t y, real_t z)
+{ return x / (1.0 - z); }
+
+real_t FuentesPyramid::div_lam345_grad_lam345(real_t x, real_t y, real_t z)
+{ return y / (1.0 - z); }
+
+real_t FuentesPyramid::div_lam435_grad_lam435(real_t x, real_t y, real_t z)
+{ return -y / (1.0 - z); }
+
+real_t FuentesPyramid::div_lam415_grad_lam415(real_t x, real_t y, real_t z)
+{ return (1.0 - z - x) / (1.0 - z); }
+
+real_t FuentesPyramid::div_lam145_grad_lam145(real_t x, real_t y, real_t z)
+{ return -(1.0 - z - x) / (1.0 - z); }
+
 DenseMatrix FuentesPyramid::grad_mu01(real_t z)
 {
    DenseMatrix dmu(2, 3);
@@ -1017,6 +1035,45 @@ void FuentesPyramid::V_T(int p, Vector s, Vector sdsxds, DenseTensor &u) const
          u(i,j,0) = vij * sdsxds(0);
          u(i,j,1) = vij * sdsxds(1);
          u(i,j,2) = vij * sdsxds(2);
+      }
+   }
+}
+
+void FuentesPyramid::V_T(int p, Vector s, Vector sdsxds, real_t dsdsxds,
+                         DenseTensor &u, DenseMatrix &du) const
+{
+   MFEM_ASSERT(p >= 1, "Polynomial order must be one or larger");
+   MFEM_ASSERT(s.Size() >= 2, "Size of s must be 2 or larger");
+   MFEM_ASSERT(sdsxds.Size() >= 3, "Size of sdsxds must be 3 or larger");
+   MFEM_ASSERT(u.SizeI() >= p, "First dimension of u is too small");
+   MFEM_ASSERT(u.SizeJ() >= p, "Second dimension of u is too small");
+   MFEM_ASSERT(u.SizeK() >= 3, "Third dimension of u must be 3 or larger");
+   MFEM_ASSERT(du.Height() >= p, "First dimension of du is too small");
+   MFEM_ASSERT(du.Width() >= p, "Second dimension of du is too small");
+
+#ifdef MFEM_THREAD_SAFE
+   Vector V_T_vtmp1;
+   Vector V_T_vtmp2;
+#endif
+   Vector &P_i = V_T_vtmp1;
+   Vector &P_j = V_T_vtmp2;
+
+   P_i.SetSize(p);
+   CalcHomogenizedScaLegendre(p-1, s[0], s[1], P_i);
+
+   P_j.SetSize(p);
+   for (int i=0; i<p; i++)
+   {
+      const real_t alpha = 2.0 * i + 1.0;
+      CalcHomogenizedScaJacobi(p-1, alpha, s[0] + s[1], s[2], P_j);
+      for (int j=0; i + j < p; j++)
+      {
+         const real_t vij = P_i(i) * P_j(j);
+         u(i,j,0) = vij * sdsxds(0);
+         u(i,j,1) = vij * sdsxds(1);
+         u(i,j,2) = vij * sdsxds(2);
+
+         du(i,j) = (i+j+3) * vij * dsdsxds;
       }
    }
 }

@@ -48,6 +48,7 @@ private:
 public:
    FuentesPyramid() = default;
 
+   /// Pyramid "Affine" Coordinates
    static real_t lam1(real_t x, real_t y, real_t z)
    { return (z < 1.0) ? (1.0 - x - z) * (1.0 - y - z) / (1.0 - z): 0.0; }
    static real_t lam2(real_t x, real_t y, real_t z)
@@ -59,12 +60,14 @@ public:
    static real_t lam5(real_t x, real_t y, real_t z)
    { return z; }
 
+   /// Gradients of the "Affine" Coordinates
    static Vector grad_lam1(real_t x, real_t y, real_t z);
    static Vector grad_lam2(real_t x, real_t y, real_t z);
    static Vector grad_lam3(real_t x, real_t y, real_t z);
    static Vector grad_lam4(real_t x, real_t y, real_t z);
    static Vector grad_lam5(real_t x, real_t y, real_t z);
 
+   /// Two component vectors associated with edges touching the apex
    static Vector lam15(real_t x, real_t y, real_t z)
    { return Vector({lam1(x, y, z), lam5(x, y, z)}); }
    static Vector lam25(real_t x, real_t y, real_t z)
@@ -74,11 +77,13 @@ public:
    static Vector lam45(real_t x, real_t y, real_t z)
    { return Vector({lam4(x, y, z), lam5(x, y, z)}); }
 
+   /// Gradients of the above two component vectors
    static DenseMatrix grad_lam15(real_t x, real_t y, real_t z);
    static DenseMatrix grad_lam25(real_t x, real_t y, real_t z);
    static DenseMatrix grad_lam35(real_t x, real_t y, real_t z);
    static DenseMatrix grad_lam45(real_t x, real_t y, real_t z);
 
+   /// Three component vectors associated with triangular faces
    static Vector lam125(real_t x, real_t y, real_t z)
    { return Vector({lam1(x, y, z), lam2(x, y, z), lam5(x, y, z)}); }
    static Vector lam235(real_t x, real_t y, real_t z)
@@ -92,12 +97,21 @@ public:
    static Vector lam145(real_t x, real_t y, real_t z)
    { return Vector({lam1(x, y, z), lam4(x, y, z), lam5(x, y, z)}); }
 
+   /// Vector functions related to the normals to the triangular faces
    static Vector lam125_grad_lam125(real_t x, real_t y, real_t z);
    static Vector lam235_grad_lam235(real_t x, real_t y, real_t z);
    static Vector lam345_grad_lam345(real_t x, real_t y, real_t z);
    static Vector lam435_grad_lam435(real_t x, real_t y, real_t z);
    static Vector lam415_grad_lam415(real_t x, real_t y, real_t z);
    static Vector lam145_grad_lam145(real_t x, real_t y, real_t z);
+
+   /// Divergences of the above "normal" vector functions divided by 3
+   static real_t div_lam125_grad_lam125(real_t x, real_t y, real_t z);
+   static real_t div_lam235_grad_lam235(real_t x, real_t y, real_t z);
+   static real_t div_lam345_grad_lam345(real_t x, real_t y, real_t z);
+   static real_t div_lam435_grad_lam435(real_t x, real_t y, real_t z);
+   static real_t div_lam415_grad_lam415(real_t x, real_t y, real_t z);
+   static real_t div_lam145_grad_lam145(real_t x, real_t y, real_t z);
 
    static real_t mu0(real_t z)
    { return 1.0 - z; }
@@ -366,11 +380,24 @@ public:
    /** This is a vector-valued function associated with the triangular faces of
        a pyramid
 
-   The vector @a s contains three coordinate values and @a ds is related to
+   The vector @a s contains three coordinate values and @a sdsxds is related to
    derivatives of these coordinates with respect to the reference coordinates:
-      ds = s0 curl s1 x curl s2 + s1 curl s2 x curl s0 + s2 curl s0 x curl s1
+      sdsxds = s0 grad s1 x grad s2 + s1 grad s2 x grad s0 +
+               s2 grad s0 x grad s1
    */
-   void V_T(int p, Vector s, Vector ds, DenseTensor &u) const;
+   void V_T(int p, Vector s, Vector sdsxds, DenseTensor &u) const;
+
+   /** This computes V_T as above and its divergence
+
+   The vector @a s contains three coordinate values and @a sdsxds is related to
+   derivatives of these coordinates with respect to the reference coordinates:
+      sdsxds = s0 grad s1 x grad s2 + s1 grad s2 x grad s0 +
+               s2 grad s0 x grad s1
+   The scalar @a dsdsxds is the divergence of sdsxds:
+      dsdsxds = grad s0 dot (grad s1 x grad s2)
+   */
+   void V_T(int p, Vector s, Vector sdsxds, real_t dsdsxds,
+            DenseTensor &u, DenseMatrix &du) const;
 
    /** This implements $V^\unlhd_{ij}$ from the Fuentes paper
 
