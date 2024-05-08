@@ -52,6 +52,11 @@ void velocity_function(const Vector &x, Vector &v);
 // Mesh bounding box
 Vector bb_min, bb_max;
 
+// Constraint functionals for enforcing maximum principle: u(x, t) \in [0,1]
+inline real_t g1(real_t u) {return u;}
+inline real_t g2(real_t u) {return 1.0 - u;}
+
+// Bounds-preserving a posteriori limiter
 void Limit(GridFunction &u, GridFunction &uavg, IntegrationRule &solpts,
            std::vector<Vector> &samppts, ElementOptimizer * opt, int dim,
            int limiter_type);
@@ -66,7 +71,7 @@ int main(int argc, char *argv[])
    bool ea = false;
    bool fa = false;
    const char *device_config = "cpu";
-   int ode_solver_type = 0;
+   int ode_solver_type = 1;
    int limiter_type = 1;
    bool use_modal_basis = true;
    real_t t_final = 1;
@@ -208,7 +213,7 @@ int main(int argc, char *argv[])
    GridFunction uavg(&uavg_fes);
 
 
-   // 9.
+   // 9. Setup DG hyperbolic conservation law solver.
    VectorFunctionCoefficient velocity(dim, velocity_function);
    AdvectionFlux flux(velocity);
    RusanovFlux numericalFlux(flux);
@@ -217,8 +222,8 @@ int main(int argc, char *argv[])
                                              new HyperbolicFormIntegrator(numericalFlux, 0)),
                                           false);
 
-   // . If using modal basis for general coordinate evaluation, generate modal basis
-   //   transformation and pre-compute Vandermonde matrix.
+   // 10. If using modal basis for general coordinate evaluation, generate modal basis
+   //     transformation and pre-compute Vandermonde matrix.
    Geometry::Type gtype = mesh.GetElementGeometry(0);
    ModalBasis * MB = NULL;
    if (use_modal_basis)
@@ -226,16 +231,16 @@ int main(int argc, char *argv[])
       MB = new ModalBasis(fec, gtype, order, dim);
    }
 
-   // . Setup spatial optimization algorithmic for constraint functionals.
+   // 11. Setup spatial optimization algorithmic for constraint functionals.
    const FiniteElement * fe = fes.GetFE(0);
    ElementOptimizer opt = ElementOptimizer(MB, fe, gtype, dim, order,
                                            use_modal_basis);
 
-   // . Setup points for limiting: solution nodes and any other arbitrary sampling nodes
-   //   (in this case, volume/surface quadrature nodes).
+   // 12. Setup points for limiting: solution nodes and any other arbitrary sampling nodes
+   //     (in this case, volume/surface quadrature nodes).
    IntegrationRule solpts = fec.FiniteElementForGeometry(gtype)->GetNodes();
    std::vector<Vector> samppts = {};
-   // Add volume quadrature nodes to sampling nodes.
+   //     Add volume quadrature nodes to sampling nodes.
    IntegrationRule vqpts = IntRules.Get(gtype, 2*order);
    for (int i = 0; i < vqpts.Size(); i++)
    {
@@ -243,8 +248,8 @@ int main(int argc, char *argv[])
       vqpts.IntPoint(i).Get(xi, dim);
       samppts.push_back(xi);
    }
-   // For dim > 1, add surface quadrature nodes to sampling nodes.
-   // Is there a general MFEM method for doing this?
+   //     For dim > 1, add surface quadrature nodes to sampling nodes.
+   //     Is there a general MFEM method for doing this?
    if (dim > 1)
    {
       switch (gtype)
@@ -287,11 +292,11 @@ int main(int argc, char *argv[])
       }
    }
 
-   // . Limit initial solution (if necessary).
+   // 13. Limit initial solution (if necessary).
    Limit(u, uavg, solpts, samppts, &opt, dim, limiter_type);
 
-   // . Set up SSP time integrator (note that RK3 integrator does not apply limiting at
-   //   inner stages, which may cause bounds-violations).
+   // 14. Set up SSP time integrator (note that RK3 integrator does not apply limiting at
+   //     inner stages, which may cause bounds-violations).
    real_t t = 0.0;
    ODESolver *ode_solver = NULL;
    switch (ode_solver_type)
@@ -303,10 +308,10 @@ int main(int argc, char *argv[])
          cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
          return 3;
    }
-
    advection.SetTime(t);
    ode_solver->Init(advection);
 
+   // 15. Perform time-stepping and limiting after each time step.
    bool done = false;
    for (int ti = 0; !done;)
    {
@@ -324,6 +329,7 @@ int main(int argc, char *argv[])
    }
 
 
+   // 16. Visualize solution using GLVis.
    socketstream sout;
    if (visualization)
    {
@@ -348,8 +354,8 @@ int main(int argc, char *argv[])
       }
    }
 
-   // . Save the final solution. This output can be viewed later using GLVis:
-   //    "glvis -m ex40.mesh -g ex40-final.gf".
+   // 17. Save the final solution. This output can be viewed later using GLVis:
+   //     "glvis -m ex40.mesh -g ex40-final.gf".
    {
       ofstream osol("ex40-final.gf");
       osol.precision(precision);
@@ -357,8 +363,8 @@ int main(int argc, char *argv[])
    }
 
 
-   // . Compute the L1 solution error and discrete solution extrema (at solution nodes)
-   //   after one flow interval.
+   // 18. Compute the L1 solution error and discrete solution extrema (at solution nodes)
+   //     after one flow interval.
    cout << "Solution L1 error: " << u.ComputeLpError(1, u0) << endl;
    cout << "Solution (discrete) minimum: " << u.Min() << endl;
    cout << "Solution (discrete) maximum: " << u.Max() << endl;
@@ -564,6 +570,7 @@ void velocity_function(const Vector &x, Vector &v)
 
    switch (problem)
    {
+      // Translation in 1D/2D with unit time period
       case 1: case 2: case 3: case 4:
       {
          switch (dim)
@@ -575,15 +582,10 @@ void velocity_function(const Vector &x, Vector &v)
       }
       case 5: case 6:
       {
-         // Clockwise rotation in 2D around the origin
+         // Clockwise rotation in 2D around the origin with unit time period
          constexpr real_t w = 2*M_PI;
          v(0) = w*X(1); v(1) = -w*X(0);
          break;
       }
    }
 }
-
-
-// Constraint functionals for enforcing maximum principle: u(x, t) \in [0,1]
-inline real_t g1(real_t u) {return u;}
-inline real_t g2(real_t u) {return 1.0 - u;}

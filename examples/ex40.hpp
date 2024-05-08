@@ -5,38 +5,30 @@
 using namespace std;
 using namespace mfem;
 
-
 inline real_t g1(real_t u);
 inline real_t g2(real_t u);
-
 
 class ModalBasis
 {
 private:
-   DG_FECollection &fec;
    int dim;
+   Array2D<int> ubdegs; // Array of modal basis degrees along each dimension
+   Vector umc; // Vector of solution modal basis coefficients
+   DenseMatrix V; // (Inverse) Vandermonde matrix
 
-   Array2D<int> ubdegs;
-   Vector umc;
-   DenseMatrix V;
-
-   void ComputeUBDegs();
-   void ComputeVDM();
+   void ComputeUBDegs(Geometry::Type &gtype);
+   void ComputeVDM(IntegrationRule &solpts);
 
 public:
    int order, npts;
-   Geometry::Type &gtype;
-   IntegrationRule solpts;
 
    ModalBasis(DG_FECollection &fec, Geometry::Type &gtype, int order, int dim);
+   ~ModalBasis() = default;
 
    void SetSolution(Vector &u_elem);
    real_t Eval(Vector &x);
    Vector EvalGrad(Vector &x);
-
-   ~ModalBasis() = default;
 };
-
 
 class ElementOptimizer
 {
@@ -50,34 +42,27 @@ private:
 #else
 #error "Only single and double precision are supported!"
 #endif
-   real_t beta_0;
+   real_t beta_0; // Initial step-size for backtracking linesearch
    real_t gbar;
    Geometry::Type &gtype;
-   DenseMatrix n;
+   DenseMatrix n; // Element face normal vectors
+   Vector u_elem; // Element nodal DOFs
+
    ModalBasis * MB;
    const FiniteElement * fe;
-   Vector u_elem;
-
 
    void ComputeJacobian(Vector &x, Vector &J);
-
    void ComputeHessian(Vector &x, DenseMatrix &H);
-
    bool IsPD(DenseMatrix &M);
-
    void ComputeGeometryLevelset(Vector &x, Vector &s);
-
    void PrecomputeElementNormals();
-
    void ProjectAlongBoundary(Vector &x0, Vector &dx);
-
    void ProjectToElement(Vector &x0, Vector &dx);
 
-
 public:
-   int ncon = 2;
+   int ncon = 2; // Number of constraints for the example
 #if defined(MFEM_USE_DOUBLE)
-   const real_t eps = 1E-12;
+   const real_t eps = 1E-12; // Tolerance for limiter
 #elif defined(MFEM_USE_SINGLE)
    const real_t eps = 1E-6;
 #else
@@ -87,43 +72,34 @@ public:
    ElementOptimizer(ModalBasis * MB, const FiniteElement * fe,
                     Geometry::Type &gtype,
                     int dim, int order, bool use_modal_basis);
-
-   void SetCostFunction(int cfidx);
-
-   void SetGbar(real_t ubar);
-
-   void SetSolution(Vector &u_elem);
-
-   real_t Eval(Vector &x);
-
-   real_t g(real_t u);
-
-   real_t h(real_t u);
-
-   real_t Optimize(Vector &x0, bool extrapolate=true, int niters=3, int nbts=5);
-
    ~ElementOptimizer() = default;
+   void SetCostFunction(int cfidx);
+   void SetGbar(real_t ubar);
+   void SetSolution(Vector &u_elem);
+   real_t Eval(Vector &x);
+   real_t g(real_t u);
+   real_t h(real_t u);
+   real_t Optimize(Vector &x0, bool extrapolate=true, int niters=3, int nbts=5);
 };
 
 
 ModalBasis::ModalBasis(DG_FECollection &fec_, Geometry::Type &gtype_,
                        int order_, int dim_)
-   : fec(fec_), gtype(gtype_),
-     solpts(fec.FiniteElementForGeometry(gtype)->GetNodes()),
-     order(order_), dim(dim_)
+   : order(order_), dim(dim_)
 {
    // Transformation requires nodal basis
-   BasisType::CheckNodal(fec.GetBasisType());
+   BasisType::CheckNodal(fec_.GetBasisType());
 
+   IntegrationRule solpts(fec_.FiniteElementForGeometry(gtype_)->GetNodes());
    npts = solpts.GetNPoints();
    umc = Vector(npts);
 
-   ComputeUBDegs();
-   ComputeVDM();
+   ComputeUBDegs(gtype_);
+   ComputeVDM(solpts);
 }
 
 // Computes matrix ubdegs of size (npts, dim) corresponding to the modal basis polynomial degrees.
-void ModalBasis::ComputeUBDegs()
+void ModalBasis::ComputeUBDegs(Geometry::Type &gtype)
 {
    ubdegs = Array2D<int>(npts, dim);
    switch (gtype)
@@ -176,7 +152,7 @@ void ModalBasis::ComputeUBDegs()
 Computes (and inverts) Vandermonde matrix for transformation from nodal basis to modal basis. Modal
 basis uses Legendre polynomials, although not necessarily orthogonal for non-tensor product elements.
 */
-void ModalBasis::ComputeVDM()
+void ModalBasis::ComputeVDM(IntegrationRule &solpts)
 {
    V = DenseMatrix(npts);
 
@@ -280,14 +256,7 @@ Vector ModalBasis::EvalGrad(Vector &x)
          real_t v = umc(i);
          for (int j = 0; j < dim; j++)
          {
-            if (j == d)
-            {
-               v *= D(ubdegs(i, j), j);
-            }
-            else
-            {
-               v *= L(ubdegs(i, j), j);
-            }
+            v *= j == d ? D(ubdegs(i, j), j) : L(ubdegs(i, j), j);
          }
          du += v;
       }
