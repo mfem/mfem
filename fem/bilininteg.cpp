@@ -4065,7 +4065,7 @@ void DGNormalTraceIntegrator::AssembleFaceMatrix(const FiniteElement &trial_fe1,
       {
          u->Eval(vu, *Trans.Elem1, eip1);
          un = vu * nor;
-         b = (un != 0.)?(beta * fabs(un) / un):(0.);
+         b = (un != 0.)?(beta * un / fabs(un)):(0.);
       }
       else
       {
