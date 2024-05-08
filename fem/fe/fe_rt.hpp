@@ -343,6 +343,7 @@ private:
    mutable DenseMatrix tmp1_ij;
    mutable DenseMatrix tmp2_ij;
    mutable DenseMatrix tmp3_ij;
+   mutable DenseMatrix tmp4_ij;
    mutable DenseTensor tmp1_ijk;
    mutable DenseTensor tmp2_ijk;
    mutable DenseTensor tmp3_ijk;
@@ -351,7 +352,7 @@ private:
    mutable DenseTensor tmp6_ijk;
    mutable DenseTensor tmp7_ijk;
    mutable DenseMatrix u;
-   mutable Vector divu;
+   mutable Vector      divu;
 #endif
    Array<int> dof2nk;
    DenseMatrixInverse Ti;
@@ -367,7 +368,20 @@ private:
                   DenseTensor &dphi_ijk,
                   DenseTensor &VL_ijk,
                   DenseMatrix &VR_ij,
-                  DenseMatrix &u) const;
+                  DenseMatrix &F) const;
+
+   void calcDivBasis(const int p, const IntegrationPoint &ip,
+                     Vector &phi_k,
+                     DenseMatrix &phi_ij,
+                     DenseMatrix &dphi_k,
+                     DenseTensor &VQ_ijk,
+                     DenseTensor &VTa_ijk,
+                     DenseTensor &VTb_ijk, DenseMatrix &dVTb_ij,
+                     DenseTensor &E_ijk, DenseTensor &dE_ijk,
+                     DenseTensor &dphi_ijk,
+                     DenseTensor &VL_ijk,
+                     DenseMatrix &VR_ij,
+                     Vector &dF) const;
 
 public:
    RT_FuentesPyramidElement(const int p);
@@ -405,6 +419,9 @@ public:
 
    void CalcRawVShape(const IntegrationPoint &ip,
                       DenseMatrix &shape) const;
+
+   void CalcRawDivShape(const IntegrationPoint &ip,
+                        Vector &dshape) const;
 
    real_t GetZetaMax() const { return zmax; }
 };
