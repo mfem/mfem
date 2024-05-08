@@ -1,4 +1,4 @@
-//                  MFEM Example 40 - Shared Code
+//                  MFEM Example 41 - Shared Code
 
 #include "mfem.hpp"
 

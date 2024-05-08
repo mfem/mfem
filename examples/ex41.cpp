@@ -1,6 +1,6 @@
-//                                MFEM Example 40
+//                                MFEM Example 41
 //
-// Compile with: make ex40
+// Compile with: make ex41
 //
 // Sample runs:
 //
@@ -33,7 +33,7 @@
 
 #include "mfem.hpp"
 #include "ex18.hpp"
-#include "ex40.hpp"
+#include "ex41.hpp"
 #include <fstream>
 #include <iostream>
 #include <algorithm>
@@ -198,10 +198,10 @@ int main(int argc, char *argv[])
    u.ProjectCoefficient(u0);
 
    {
-      ofstream omesh("ex40.mesh");
+      ofstream omesh("ex41.mesh");
       omesh.precision(precision);
       mesh.Print(omesh);
-      ofstream osol("ex40-init.gf");
+      ofstream osol("ex41-init.gf");
       osol.precision(precision);
       u.Save(osol);
    }
@@ -355,9 +355,9 @@ int main(int argc, char *argv[])
    }
 
    // 17. Save the final solution. This output can be viewed later using GLVis:
-   //     "glvis -m ex40.mesh -g ex40-final.gf".
+   //     "glvis -m ex41.mesh -g ex41-final.gf".
    {
-      ofstream osol("ex40-final.gf");
+      ofstream osol("ex41-final.gf");
       osol.precision(precision);
       u.Save(osol);
    }
