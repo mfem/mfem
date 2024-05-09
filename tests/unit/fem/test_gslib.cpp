@@ -368,5 +368,131 @@ TEST_CASE("GSLIBInterpolateL2ElementBoundary",
    delete c_fec;
 }
 
+#ifdef MFEM_USE_MPI
+// Custom interpolation procedure with gslib
+TEST_CASE("GSLIBCustomInterpolation",
+          "[GSLIBCustomInterpolation][Parallel][GSLIB]")
+{
+   int myid;
+   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+
+   int dim      = GENERATE(2, 3);
+   bool simplex = GENERATE(true, false);
+
+   CAPTURE(dim, simplex);
+
+   int nex = 4;
+   int mesh_order = 2;
+   Mesh mesh;
+   if (dim == 2)
+   {
+      Element::Type type = simplex ? Element::TRIANGLE : Element::QUADRILATERAL;
+      mesh = Mesh::MakeCartesian2D(nex, nex, type);
+   }
+   else
+   {
+      Element::Type type = simplex ? Element::TETRAHEDRON : Element::HEXAHEDRON;
+      mesh = Mesh::MakeCartesian3D(nex, nex, nex, type);
+   }
+
+   mesh.SetCurvature(mesh_order);
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+
+   // f(x,y,z) = x^2 + y^2 + z^2
+   auto func = [](const Vector &x)
+   {
+      const int dim = x.Size();
+      double res = 0.0;
+      for (int d = 0; d < dim; d++) { res += std::pow(x(d), 2); }
+      return res;
+   };
+
+   // \nabla f(x,y,z) = [2*x,2*y,2*z]
+   auto func_grad = [](const Vector &x, Vector &p)
+   {
+      const int dim = x.Size();
+      p.SetSize(dim);
+      for (int d = 0; d < dim; d++) { p(d) = 2.0*x(d); }
+   };
+
+   // Set GridFunction to be interpolated
+   int func_order = 3;
+   H1_FECollection c_fec(func_order, dim);
+   FiniteElementSpace c_fespace(&pmesh, &c_fec, 1);
+   GridFunction field_vals(&c_fespace);
+
+   FunctionCoefficient f(func);
+   field_vals.ProjectCoefficient(f);
+
+   // Generate randomized points in [0, 1]^D. Assume ordering by VDIM.
+   int npt = 101;
+   Vector xyz(npt*dim);
+   xyz.Randomize(myid + 1);
+
+   // Find points on the ParMesh
+   Vector interp_vals(npt);
+   FindPointsGSLIB finder;
+   finder.Setup(pmesh);
+   finder.FindPoints(xyz, Ordering::byVDIM);
+
+   /** Interpolate gradient using custom interpolation procedure. */
+   // We first send information to MPI ranks that own the element corresponding
+   // to each point.
+   finder.SendElementsAndCoordinatesToOwningMPIRanks();
+   const Array<unsigned int> &recv_elem = finder.GetReceivedElem();
+   const Vector &recv_rst = finder.GetReceivedReferencePosition();
+   int npt_recv = recv_elem.Size();
+   // Compute gradient locally
+   Vector grad(npt_recv*dim);
+   for (int i = 0; i < npt_recv; i++)
+   {
+      const int e = recv_elem[i];
+
+      IntegrationPoint ip;
+      if (dim == 2)
+      {
+         ip.Set2(recv_rst(dim*i + 0),recv_rst(dim*i + 1));
+      }
+      else
+      {
+         ip.Set3(recv_rst(dim*i + 0),recv_rst(dim*i + 1),
+                 recv_rst(dim*i + 2));
+      }
+      const FiniteElement *fe = c_fespace.GetFE(e);
+      ElementTransformation *Tr = c_fespace.GetElementTransformation(e);
+      Tr->SetIntPoint(&ip);
+
+      DenseMatrix dshape(fe->GetDof(), dim);
+      fe->CalcPhysDShape(*Tr, dshape);
+
+      Vector gradloc(grad.GetData()+i*dim,dim);
+      Vector gridfuncvals;
+      field_vals.GetElementDofValues(e, gridfuncvals);
+      dshape.MultTranspose(gridfuncvals, gradloc);
+   }
+
+   // Send the computed gradient back to the ranks that requested it.
+   Vector recv_grad = finder.SendInterpolatedValuesBack(grad, dim,
+                                                        Ordering::byVDIM);
+
+   // Check if the received gradient matched analytic gradient.
+   for (int i = 0; i < npt && myid == 0; i++)
+   {
+      Vector x(xyz.GetData()+i*dim,dim);
+      Vector grad_exact(dim);
+      func_grad(x, grad_exact);
+
+      Vector recv_grad_i(recv_grad.GetData()+i*dim,dim);
+
+      for (int d = 0; d < dim; d++)
+      {
+         REQUIRE(grad_exact(d) == Approx(recv_grad(i*dim + d)));
+      }
+   }
+
+   finder.FreeData();
+}
+#endif // MFEM_USE_MPI
+
 } //namespace_gslib
 #endif
