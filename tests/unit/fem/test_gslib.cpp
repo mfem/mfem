@@ -458,17 +458,11 @@ TEST_CASE("GSLIBCustomInterpolation",
          ip.Set3(recv_rst(dim*i + 0),recv_rst(dim*i + 1),
                  recv_rst(dim*i + 2));
       }
-      const FiniteElement *fe = c_fespace.GetFE(e);
       ElementTransformation *Tr = c_fespace.GetElementTransformation(e);
       Tr->SetIntPoint(&ip);
 
-      DenseMatrix dshape(fe->GetDof(), dim);
-      fe->CalcPhysDShape(*Tr, dshape);
-
       Vector gradloc(grad.GetData()+i*dim,dim);
-      Vector gridfuncvals;
-      field_vals.GetElementDofValues(e, gridfuncvals);
-      dshape.MultTranspose(gridfuncvals, gradloc);
+      field_vals.GetGradient(*Tr, gradloc);
    }
 
    // Send the computed gradient back to the ranks that requested it.
