@@ -63,7 +63,7 @@ protected:
    FiniteElementSpace *fes, *c_fes;
    BilinearFormIntegrator *c_bfi;
 
-   /// Set of contraint boundary face Integrators to be applied.
+   /// Set of constraint boundary face integrators to be applied.
    Array<BilinearFormIntegrator*> c_bfbfi;
    Array<Array<int>*>             c_bfbfi_marker;
 
