@@ -1882,7 +1882,8 @@ void MixedBilinearForm::ComputeBdrTraceFaceElementMatrix(int i,
       const FiniteElement *trial_face_fe, *test_fe1, *test_fe2;
 
       ftr = mesh->GetBdrFaceTransformations(i);
-      trial_face_fe = trial_fes->GetFaceElement(ftr->Face->ElementNo);
+      int iface = mesh->GetBdrElementFaceIndex(i);
+      trial_face_fe = trial_fes->GetFaceElement(iface);
       test_fe1 = test_fes->GetFE(ftr->Elem1No);
       // The test_fe2 object is really a dummy and not used on the
       // boundaries, but we can't dereference a NULL pointer, and we don't
