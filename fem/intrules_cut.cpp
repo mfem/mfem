@@ -351,9 +351,8 @@ void MomentFittingIntRules::ComputeSurfaceWeights2D(ElementTransformation& Tr)
       subtract(pointA, pointB, edgevec);
       edgelength(edge) = edgevec.Norml2();
 
-      IntegrationPoint ipA;
+      IntegrationPoint ipA, ipB;
       Trafo.TransformBack(pointA, ipA);
-      IntegrationPoint ipB;
       Trafo.TransformBack(pointB, ipB);
 
       if (LvlSet->Eval(Trafo, ipA) < -1e-12
@@ -380,43 +379,54 @@ void MomentFittingIntRules::ComputeSurfaceWeights2D(ElementTransformation& Tr)
          temp = pointA;
          pointA = pointB;
          pointB = temp;
+         //
+         IntegrationPoint tmp;
+         tmp = ipA;
+         ipA = ipB;
+         ipB = tmp;
       }
       else
       {
          layout = Layout::outside;
       }
 
+      Vector ip_A(2), ip_B(2);
+      ipA.Get(ip_A.GetData(), 2);
+      ipB.Get(ip_B.GetData(), 2);
+
       // Store the end points of the (1D) intersected edge.
       if (layout == Layout::intersected)
       {
          Vector pointC(pointA.Size());
          Vector mid(pointA.Size());
-         pointC = pointA;
+         pointC = ip_A;
          mid = pointC;
-         mid += pointB;
+         mid += ip_B;
          mid /= 2.;
 
          IntegrationPoint ip;
-         Trafo.TransformBack(mid, ip);
+         ip.x = mid(0); ip.y = mid(1);
 
          while (LvlSet->Eval(Trafo, ip) > 1e-12
                 || LvlSet->Eval(Trafo, ip) < -1e-12)
          {
+
             if (LvlSet->Eval(Trafo, ip) > 1e-12)
             {
                pointC = mid;
             }
             else
             {
-               pointB = mid;
+               ip_B = mid;
             }
 
             mid = pointC;
-            mid += pointB;
+            mid += ip_B;
             mid /= 2.;
-            Trafo.TransformBack(mid, ip);
+
+            ip.x = mid(0); ip.y = mid(1);
          }
-         pointB = mid;
+         Trafo.Transform(ip, pointB);
       }
       PointA.SetRow(edge, pointA);
       PointB.SetRow(edge, pointB);
@@ -630,44 +640,54 @@ void MomentFittingIntRules::ComputeVolumeWeights2D(ElementTransformation& Tr,
          temp = pointA;
          pointA = pointB;
          pointB = temp;
+         //
+         IntegrationPoint tmp;
+         tmp = ipA;
+         ipA = ipB;
+         ipB = tmp;
       }
       else
       {
          layout = Layout::outside;
       }
 
+      Vector ip_A(2), ip_B(2);
+      ipA.Get(ip_A.GetData(), 2);
+      ipB.Get(ip_B.GetData(), 2);
+
       if (layout == Layout::intersected)
       {
          Vector pointC(pointA.Size());
          Vector mid(pointA.Size());
-         pointC = pointA;
+         pointC = ip_A;
          mid = pointC;
-         mid += pointB;
+         mid += ip_B;
          mid /= 2.;
 
          IntegrationPoint ip;
-         Trafo.TransformBack(mid, ip);
+         ip.x = mid(0); ip.y = mid(1);
 
          while (LvlSet->Eval(Trafo, ip) > 1e-12
                 || LvlSet->Eval(Trafo, ip) < -1e-12)
          {
+
             if (LvlSet->Eval(Trafo, ip) > 1e-12)
             {
                pointC = mid;
             }
             else
             {
-               pointB = mid;
+               ip_B = mid;
             }
 
             mid = pointC;
-            mid += pointB;
+            mid += ip_B;
             mid /= 2.;
-            Trafo.TransformBack(mid, ip);
-         }
-         pointB = mid;
-      }
 
+            ip.x = mid(0); ip.y = mid(1);
+         }
+         Trafo.Transform(ip, pointB);
+      }
       PointA.SetRow(edge, pointA);
       PointB.SetRow(edge, pointB);
 
