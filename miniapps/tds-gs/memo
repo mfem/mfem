@@ -1,5 +1,55 @@
+Results:
+
+ - amr, newton, inner solve iterations
+ - amr refinement plots
+ - comparison with benchmark ITER solution
+ - Taylor equilibrium
+ - 
 
 
+
+
+implement inexact newton:
+
+oper->Mult(x, r)
+
+norm = Norm(r)
+
+for (it, ...):
+
+  if norm <= norm_goal:
+    return
+
+  if it >= max_iter:
+    return
+
+  presolve:
+    eta = gamma pow(norm / norm_last, alpha)
+    sg_eta = gamma * pow(eta_last, alpha)
+    if sg_eta > sg_threshold:
+      eta = max(eta, sg_eta)
+    eta = min(eta, lin_rtol_max)
+    setRelTol(eta)
+    eta_last = eta
+
+  prec->Mult(r, c)
+
+  postsolve
+
+  oper->Mult(x, r)
+
+  norm = Norm(r)
+
+  
+
+
+
+todo:
+add to input file:
+ - PC_option
+ - max_levels
+ - max_dofs
+ - tol
 
 
 

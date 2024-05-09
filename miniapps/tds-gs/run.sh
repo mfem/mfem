@@ -34,9 +34,20 @@ do_initial=0
 
 # linear solver parameters
 max_krylov_iter=10000
-max_newton_iter=8
-krylov_tol=1e-12
-newton_tol=1e-8
+max_newton_iter=20
+krylov_tol=1e-4
+newton_tol=1e-6
+
+# 0: block AMG
+# 1: block AMG schur comp
+# 2: AMG on full
+# 3: AMG on partial full block
+# 4: schur complement
+# 5: gauss seidel
+pc_option=5
+max_levels=6
+max_dofs=100000
+light_tol=1e-8
 
 # poloidal flux coils
 c6=-4.552585e+06
@@ -122,7 +133,12 @@ mpirun -np 1 main.o \
     --initial $do_initial \
     --weight_obj $weight_obj \
     --obj_option $obj_option \
-    --optimize_alpha $optimize_alpha
+    --optimize_alpha $optimize_alpha \
+    --pc_option $pc_option \
+    --max_levels $max_levels \
+    --max_dofs $max_dofs \
+    --light_tol $light_tol
+
 
 
 # ./../gslib/field-interp -m1 mesh.mesh -m2 meshes/geqdsk.msh -s1 final.gf -no-vis

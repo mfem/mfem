@@ -275,14 +275,13 @@ private:
   mutable int total_calls=0;
   
 public:
-  SchurComplement(Operator *A_, Operator *B_, Operator *C_, Operator *D_, Solver *A_prec_) :
+  SchurComplement(Operator *A_, Operator *B_, Operator *C_, Operator *D_, Solver *A_prec_, double krylov_tol=1e-5) :
     A(A_), B(B_), C(C_), D(D_), A_prec(A_prec_)
   {
 
     width = A->Height();
     height = A->Height();
 
-    double krylov_tol = 1e-4;
     int max_krylov_iter = 1000;
     int kdim = 1000;
 
@@ -307,6 +306,10 @@ public:
   double GetAvgIterations() const {
     return ((double) total_iterations) / ((double) total_calls);
   }
+
+  double GetTotalIterations() const {
+    return total_iterations;
+  }
   
   virtual void Mult(const Vector &k, Vector &y) const;
 
@@ -326,14 +329,13 @@ private:
   mutable int total_calls=0;
   
 public:
-  SchurComplementInverse(SchurComplement *SC_, Solver *SC_prec_) :
+  SchurComplementInverse(SchurComplement *SC_, Solver *SC_prec_, double krylov_tol=1e-5) :
     SC(SC_), SC_prec(SC_prec_)
   {
 
     width = SC->Height();
     height = SC->Height();
 
-    double krylov_tol = 1e-8;
     int max_krylov_iter = 1000;
     int kdim = 1000;
     
@@ -357,6 +359,10 @@ public:
   double GetAvgIterations() const {
     return ((double) total_iterations) / ((double) total_calls);
   }
+
+  double GetTotalIterations() const {
+    return total_iterations;
+  }
   
   virtual void Mult(const Vector &k, Vector &y) const;
 
@@ -366,6 +372,7 @@ public:
 
 class WoodburyInverse : public Operator {
 private:
+
   SparseMatrix *A;
   Solver *A_prec;
   const Vector *U, *V;
@@ -379,14 +386,12 @@ private:
   
 public:
   // set parameters
-  WoodburyInverse(SparseMatrix *A_, Solver *A_prec_, Vector *U_, Vector *V_, double scale_) :
+  WoodburyInverse(SparseMatrix *A_, Solver *A_prec_, Vector *U_, Vector *V_, double scale_, double krylov_tol=1e-5) :
     A(A_), A_prec(A_prec_), U(U_), V(V_), scale(scale_)
   {
     width = U_->Size();
     height = U_->Size();
 
-    double krylov_tol = 1e-8;
-    double krylov_tol_light = 1e-8;
     int max_krylov_iter = 1000;
     int kdim = 1000;
 
@@ -411,7 +416,7 @@ public:
     b = b_;
     a = a_;
 
-    solver.SetRelTol(krylov_tol_light);
+    solver.SetRelTol(krylov_tol);
 
     dot = (*V) * b;
   }
@@ -461,6 +466,142 @@ public:
   virtual void SetOperator(const Operator &op) {};
   virtual ~WoodburyInversePC() {}
 };
+
+
+class SchurPC : public Solver {
+private:
+  Solver *B_prec;
+  Solver *BT_prec;
+  Operator *A;
+  Operator *C;
+  Array<int> *dofs1, *dofs2;
+  Vector *vec1, *vec2;
+  Array<int> *offsets;
+  int N;
+
+public:
+  // set parameters
+  SchurPC(Operator *A_, Operator *C_, Solver *B_prec_, Solver *BT_prec_) :
+    B_prec(B_prec_), BT_prec(BT_prec_), A(A_), C(C_)
+  {
+    N = A_->Height();
+    // Array<int> dofs1_(N);
+    // Array<int> dofs2_(N);
+
+    // for (int i = 0; i < N; ++i) {
+    //   dofs1_[i] = i;
+    //   dofs2_[i] = i + N;
+    // }
+    // dofs1 = &dofs1_;
+    // dofs2 = &dofs2_;
+
+    // Vector vec1_(N);
+    // Vector vec2_(N);
+    // vec1 = &vec1_;
+    // vec2 = &vec2_;
+
+    Array<int> offsets_(3);
+    offsets_[0] = 0;
+    offsets_[1] = N;
+    offsets_[2] = 2 * N;
+
+    offsets = &offsets_;
+  }
+
+  // set action
+  virtual void Mult(const Vector &k, Vector &y) const
+  {
+
+    Vector vec1, vec2;
+    vec1.MakeRef(const_cast<Vector&>(k), 0, N);
+    vec2.MakeRef(const_cast<Vector&>(k), N, N);
+
+    Vector out1, out2;
+    out1.MakeRef(const_cast<Vector&>(y), 0, N);
+    out2.MakeRef(const_cast<Vector&>(y), N, N);
+
+    if (false) {
+      // no PC
+      out1 = vec1;
+      out2 = vec2;
+    } else if (false) {
+      // block diag
+      B_prec->Mult(vec1, out1);
+      BT_prec->Mult(vec2, out2);
+    } else if (false) {
+      Vector temp1(N), temp2(N);
+      Vector temp3(N), temp4(N);
+        
+      // Schur decomp
+
+      // [I  -A AMG(BT)] [vec1] = [temp1]
+      // [0           I] [vec2] = [vec2]
+      BT_prec->Mult(vec2, temp1);
+      A->Mult(temp1, temp1);
+      add(1.0, vec1, -1.0, temp1, temp1);
+
+      // [AMG(B)        ] [temp1] = [out1]
+      // [       AMG(BT)] [vec2]  = [temp2]
+      B_prec->Mult(temp1, out1);
+      BT_prec->Mult(vec2, temp2);
+
+      // [I            0] [out1]  = [out1]
+      // [- AMG(BT) C  I] [temp2] = [out2]
+      C->Mult(out1, temp3);
+      BT_prec->Mult(temp3, temp3);
+      add(1.0, temp2, -1.0, temp3, out2);
+    } else if (false) {
+      // block GS
+      Vector temp1(N), temp2(N);
+      BT_prec->Mult(vec2, out2);
+
+      // solve B out1 + A out2 = vec1
+      A->Mult(out2, temp2);
+      add(-1.0, temp2, 1.0, vec1, temp2);
+      B_prec->Mult(temp2, out1);
+
+    } else {
+      // block GS
+      Vector temp1(N), temp2(N);
+      int max_itr = 1;
+
+      out1 = 0.0;
+      for (int i = 0; i < max_itr; ++i) {
+        // solve BT out2  = - C out1_old + vec2
+        C->Mult(out1, temp1);
+        add(-1.0, temp1, 1.0, vec2, temp1);
+        BT_prec->Mult(temp1, out2);
+
+        // solve B out1 + A out2 = vec1
+        A->Mult(out2, temp2);
+        add(-1.0, temp2, 1.0, vec1, temp2);
+        B_prec->Mult(temp2, out1);
+      }
+
+
+
+    }
+    
+
+    // k.GetSubVector(*dofs1, *vec1);
+    // k.GetSubVector(*dofs2, *vec2);
+
+
+    // y.SetSubVector(*dofs1, *vec1);
+    // y.SetSubVector(*dofs2, *vec2);
+
+
+    
+    out1.SyncAliasMemory(y);
+    out2.SyncAliasMemory(y);
+    // y = k;
+  }
+  
+  virtual void SetOperator(const Operator &op) {};
+  virtual ~SchurPC() {}
+};
+
+
 
 
 

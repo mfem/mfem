@@ -40,6 +40,8 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
           double & weight_coils,
           double & weight_obj, int obj_option, bool optimize_alpha,
           bool do_manufactured_solution,
-          bool do_initial);
+          bool do_initial,
+          int & PC_option, int & max_levels, int & max_dofs, double & light_tol);
+
 
 #endif

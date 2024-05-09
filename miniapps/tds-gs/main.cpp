@@ -134,6 +134,11 @@ int main(int argc, char *argv[])
    int obj_option = 2;
    int optimize_alpha = 1;
 
+   int PC_option = 6;
+   int max_levels = 8;
+   int max_dofs = 100000;
+   double light_tol = 1e-5;
+
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&order, "-o", "--order", "Finite element polynomial degree");
@@ -141,7 +146,6 @@ int main(int argc, char *argv[])
    args.AddOption(&d_refine, "-g", "--refinement_factor", "Number of grid refinements");
    args.AddOption(&do_test, "-t", "--test", "Perform tests only");
    args.AddOption(&do_initial, "-i", "--initial", "solve for initial guess");
-
    args.AddOption(&model, "-mo", "--model", "model (1: ff', 2: Taylor equilibrium)");
    args.AddOption(&alpha, "-al", "--alpha", "alpha");
    args.AddOption(&beta, "-be", "--beta", "beta");
@@ -167,15 +171,18 @@ int main(int argc, char *argv[])
    args.AddOption(&c9, "-c9", "--c9", "coil 9 (CS)");
    args.AddOption(&c10, "-c10", "--c10", "coil 10 (CS)");
    args.AddOption(&c11, "-c11", "--c11", "coil 11 (CS)");
-
    args.AddOption(&ur_coeff, "-ur", "--ur_coeff", "under relaxation coefficient");
-
    args.AddOption(&do_control, "-dc", "--do_control", "solve the control problem");
    args.AddOption(&weight_solenoids, "-ws", "--weight_solenoids", "weight of regularization");
    args.AddOption(&weight_coils, "-wc", "--weight_coils", "weight of regularization");
    args.AddOption(&weight_obj, "-wo", "--weight_obj", "weight of optimization");
    args.AddOption(&obj_option, "-oo", "--obj_option", "objective option (0, 1, 2)");
    args.AddOption(&optimize_alpha, "-oa", "--optimize_alpha", "optimize alpha to specified plasma current");
+
+   args.AddOption(&PC_option, "-pc", "--pc_option", "preconditioner option");
+   args.AddOption(&max_levels, "-ml", "--max_levels", "max amr levels");
+   args.AddOption(&max_dofs, "-md", "--max_dofs", "max amr dofs");
+   args.AddOption(&light_tol, "-lt", "--light_tol", "light tolerance");
 
    args.ParseCheck();
 
@@ -198,16 +205,9 @@ int main(int argc, char *argv[])
         do_control, N_control, weight_solenoids, weight_coils,
         weight_obj, obj_option, optimize_alpha,
         do_manufactured_solution,
-        do_initial);
+        do_initial, PC_option, max_levels, max_dofs, light_tol);
    }
-   
+
    return 0;
 }
-
-
-
-
-
-
-
 

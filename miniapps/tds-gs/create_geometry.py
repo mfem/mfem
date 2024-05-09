@@ -166,6 +166,15 @@ def _VacuumVesselFirstWallCoordinates(return_coarse=5):
 
     return r[::return_coarse], z[::return_coarse]
 
+def _PlasmaBoundary():
+    arr = []
+    with open("separated_file.data", 'r') as fid:
+        for line in fid:
+            if "rbbbs(i),zbbbs(i)" in line:
+                out = fid.readline()[:-2].split(" ")
+                for num in out:
+                    arr.append(eval(num))
+    return arr[::2], arr[1::2]
 
 def main():
     r0 = [1.696, 1.696, 1.696, 1.696, 1.696,
@@ -314,6 +323,97 @@ def main():
         gid.write(stuff)
 
 
+def plot():
+
+    plt.rcParams.update({'font.size': 16,
+                         'text.usetex' : True})
     
+    r0 = [1.696, 1.696, 1.696, 1.696, 1.696,
+          3.9431, 8.2851, 11.9919, 11.9630, 8.3908, 4.3340]
+    z0 = [-5.415, -3.6067, -1.7983, 1.8183, 3.6267,
+          7.5741, 6.5398, 3.2752, -2.2336, -6.7269, -7.4665]
+
+    r_sn = 1.5
+    z_sn = 1
+    r_c = 2
+    z_c = 1.5
+
+    dr = [ r_sn, r_sn, r_sn, r_sn, r_sn,
+           r_c, r_c, r_c, r_c, r_c, r_c]
+    dz = [ z_sn, z_sn, z_sn, z_sn, z_sn,
+           z_c, z_c, z_c, z_c, z_c, z_c]
+    rr = [r+d/2 for r, d in zip(r0, dr)]
+    zr = [z+d/2 for z, d in zip(z0, dz)]
+    rl = [r-d/2 for r, d in zip(r0, dr)]
+    zl = [z-d/2 for z, d in zip(z0, dz)]
+
+    zl[:5] = [-5.415, -3.6067, -1.7983, 1.8183, 3.6267]
+    zr[:5] = [-3.6067, -1.7983, 1.8183, 3.6267, 5.435]
+
+    dz = [a-b for a, b in zip(zr, zl)]
+
+    
+    plt.figure()
+    
+    r, z = _VacuumVesselMetalWallCoordinates(1)
+    r = np.concatenate([r, [r[0]]])
+    z = np.concatenate([z, [z[0]]])
+    
+    plt.fill(r, z, edgecolor='k', linewidth=.6, alpha=.8)
+
+    plt.plot([0, r0[0]-r_sn/2.0], [0, 0], 'k', alpha=.4, linewidth=.7)
+    plt.plot([r0[0]+r_sn/2.0, 4.057], [0, 0], 'k', alpha=.4, linewidth=.7)
+    plt.plot([np.max(r), 15], [0, 0], 'k', alpha=.4, linewidth=.7)
+    plt.plot([0, 0], [-10, 10], 'k', alpha=.4, linewidth=.7)
+
+    plt.text(0, 10.5, "$z$", horizontalalignment='center')
+    plt.text(15.5, 0, "$r$", verticalalignment='center')
+    
+    r, z = _VacuumVesselSecondWallCoordinates(1)
+    r = np.concatenate([r, [r[0]]])
+    z = np.concatenate([z, [z[0]]])
+    plt.plot(r, z, 'k', alpha=.8, linewidth=.8)
+
+    r, z = _VacuumVesselFirstWallCoordinates(1)
+    r = np.concatenate([r, [r[0]]])
+    z = np.concatenate([z, [z[0]]])
+    plt.plot(r, z, 'k', alpha=.8, linewidth=.8)
+
+    r, z = _PlasmaBoundary()
+    r = np.concatenate([r, [r[0]]])
+    z = np.concatenate([z, [z[0]]])
+    plt.fill(r, z, edgecolor='k', linewidth=.6, alpha=.8)
+    
+    color = []
+    c1 = np.array([.2, .8, .2])
+    c2 = np.array([.9, .1, 0])
+    alpha = 1 / (len(rl) - 1)
+    for i in range(len(rl)):
+        color.append(i * alpha * c1 + (1 - i * alpha) * c2)
+    
+    for i in range(len(rl)):
+        plt.fill([rl[i], rr[i], rr[i], rl[i], rl[i]],
+                 [zl[i], zl[i], zr[i], zr[i], zl[i]], facecolor=color[i], edgecolor='k', linewidth=1, alpha=.6)
+        plt.text(.5*rl[i]+.5*rr[i],
+                 .5*zl[i]+.5*zr[i],
+                 "$\Omega_{c_{%d}}$" % (i+1), verticalalignment='center', horizontalalignment="center", size=12)
+        
+    plt.gca().axis('equal')
+
+    plt.text(5.5, 0, "$\Omega_{\\rm p}$", verticalalignment='center')
+    plt.text(4.5, 4, "$\Omega_{\\rm L}$", verticalalignment='center')
+    plt.text(10, -5, "inner structures", verticalalignment='center')
+    plt.text(-1.25, .0, "solenoids", rotation=90, verticalalignment='center')
+    # plt.plot([9.5, 8], [-4.75, -4], 'k', linewidth=.6)
+    # plt.plot([8], [-4], '<')
+    plt.arrow(9.5, -4.75, -1.5, .75, width=.2, length_includes_head=True, facecolor='k', linewidth=0)
+    plt.text(10, 7, "coils")
+    plt.axis('off')
+    plt.tight_layout()
+    plt.savefig("figs/domain.png", dpi=200)
+    plt.show()
+    
+        
 if __name__ == "__main__":
-    main()
+    plot()
+    # main()

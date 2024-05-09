@@ -136,6 +136,10 @@ void test_solve() {
   double weight_obj = 1.0;
   int obj_option = 2;
   bool optimize_alpha = true;
+  int PC_option = 6;
+  int max_levels = 8;
+  int max_dofs = 100000;
+  double light_tol = 1e-5;
 
   for (d_refine = 0; d_refine <= 2; ++d_refine) {
     error = gs(mesh_file, data_file, order, d_refine, model, alpha, beta, gamma, mu, Ip, r0, rho_gamma,
@@ -144,7 +148,8 @@ void test_solve() {
                ur_coeff,
                do_control, N_control, weight_solenoids, weight_coils,
                weight_obj, obj_option, optimize_alpha,
-               do_manufactured_solution, do_initial);
+               do_manufactured_solution, do_initial,
+               PC_option, max_levels, max_dofs, light_tol);
     errors.push_back(error);
   }
 
