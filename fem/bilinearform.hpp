@@ -62,12 +62,12 @@ class BilinearForm : public Matrix
    friend FABilinearFormExtension;
 
 protected:
-   /// Sparse matrix \f$ M \f$ to be associated with the form. Owned.
+   /// Sparse matrix $ M $ to be associated with the form. Owned.
    SparseMatrix *mat;
 
-   /** @brief Sparse Matrix \f$ M_e \f$ used to store the eliminations
+   /** @brief Sparse Matrix $ M_e $ used to store the eliminations
         from the b.c.  Owned.
-       \f$ M + M_e = M_{original} \f$ */
+       $ M + M_e = M_{original} $ */
    SparseMatrix *mat_e;
 
    /// FE space on which the form lives. Not owned.
@@ -138,8 +138,8 @@ protected:
    void AllocMat();
 
    /** @brief For partially conforming trial and/or test FE spaces, complete the
-       assembly process by performing \f$ P^t A P\f$ where \f$ A \f$ is the
-       internal sparse matrix and \f$ P \f$ is the conforming prolongation
+       assembly process by performing $ P^t A P $ where $ A $ is the
+       internal sparse matrix and $ P $ is the conforming prolongation
        matrix of the trial/test FE space. After this call the
        BilinearForm becomes an operator on the conforming FE space. */
    void ConformingAssemble();
@@ -290,54 +290,54 @@ public:
    Array<Array<int>*> *GetBFBFI_Marker()
    { return &boundary_face_integs_marker; }
 
-   /// Returns a reference to: \f$ M_{ij} \f$
-   const double &operator()(int i, int j) { return (*mat)(i,j); }
+   /// Returns a reference to: $ M_{ij} $
+   const real_t &operator()(int i, int j) { return (*mat)(i,j); }
 
-   /// Returns a reference to: \f$ M_{ij} \f$
-   virtual double &Elem(int i, int j);
+   /// Returns a reference to: $ M_{ij} $
+   virtual real_t &Elem(int i, int j);
 
-   /// Returns constant reference to: \f$ M_{ij} \f$
-   virtual const double &Elem(int i, int j) const;
+   /// Returns constant reference to: $ M_{ij} $
+   virtual const real_t &Elem(int i, int j) const;
 
-   /// Matrix vector multiplication:  \f$ y = M x \f$
+   /// Matrix vector multiplication:  $ y = M x $
    virtual void Mult(const Vector &x, Vector &y) const;
 
    /** @brief Matrix vector multiplication with the original uneliminated
-       matrix.  The original matrix is \f$ M + M_e \f$ so we have:
-       \f$ y = M x + M_e x \f$ */
+       matrix.  The original matrix is $ M + M_e $ so we have:
+       $ y = M x + M_e x $ */
    void FullMult(const Vector &x, Vector &y) const
    { mat->Mult(x, y); mat_e->AddMult(x, y); }
 
-   /// Add the matrix vector multiple to a vector:  \f$ y += a M x \f$
-   virtual void AddMult(const Vector &x, Vector &y, const double a = 1.0) const
+   /// Add the matrix vector multiple to a vector:  $ y += a M x $
+   virtual void AddMult(const Vector &x, Vector &y, const real_t a = 1.0) const
    { mat -> AddMult (x, y, a); }
 
    /** @brief Add the original uneliminated matrix vector multiple to a vector.
-       The original matrix is \f$ M + Me \f$ so we have:
-       \f$ y += M x + M_e x \f$ */
+       The original matrix is $ M + Me $ so we have:
+       $ y += M x + M_e x $ */
    void FullAddMult(const Vector &x, Vector &y) const
    { mat->AddMult(x, y); mat_e->AddMult(x, y); }
 
-   /// Add the matrix transpose vector multiplication:  \f$ y += a M^T x \f$
+   /// Add the matrix transpose vector multiplication:  $ y += a M^T x $
    virtual void AddMultTranspose(const Vector & x, Vector & y,
-                                 const double a = 1.0) const
+                                 const real_t a = 1.0) const
    { mat->AddMultTranspose(x, y, a); }
 
    /** @brief Add the original uneliminated matrix transpose vector
-       multiple to a vector. The original matrix is \f$ M + M_e \f$
-       so we have: \f$ y += M^T x + {M_e}^T x \f$ */
+       multiple to a vector. The original matrix is $ M + M_e $
+       so we have: $ y += M^T x + {M_e}^T x $ */
    void FullAddMultTranspose(const Vector & x, Vector & y) const
    { mat->AddMultTranspose(x, y); mat_e->AddMultTranspose(x, y); }
 
-   /// Matrix transpose vector multiplication:  \f$ y = M^T x \f$
+   /// Matrix transpose vector multiplication:  $ y = M^T x $
    virtual void MultTranspose(const Vector & x, Vector & y) const;
 
-   /// Compute \f$ y^T M x \f$
-   double InnerProduct(const Vector &x, const Vector &y) const
+   /// Compute $ y^T M x $
+   real_t InnerProduct(const Vector &x, const Vector &y) const
    { return mat->InnerProduct (x, y); }
 
    /** @brief Returns a pointer to (approximation) of the matrix inverse:
-       \f$ M^{-1} \f$ (currently returns NULL) */
+       $ M^{-1} $ (currently returns NULL) */
    virtual MatrixInverse *Inverse() const;
 
    /** @brief  Finalizes the matrix initialization if the ::AssemblyLevel is
@@ -346,7 +346,7 @@ public:
        condensation or hybridization.*/
    virtual void Finalize(int skip_zeros = 1);
 
-   /** @brief Returns a const reference to the sparse matrix:  \f$ M \f$
+   /** @brief Returns a const reference to the sparse matrix:  $ M $
     *
        This will fail if HasSpMat() is false. */
    const SparseMatrix &SpMat() const
@@ -355,7 +355,7 @@ public:
       return *mat;
    }
 
-   /** @brief Returns a reference to the sparse matrix:  \f$ M \f$
+   /** @brief Returns a reference to the sparse matrix:  $ M $
     *
        This will fail if HasSpMat() is false. */
    SparseMatrix &SpMat()
@@ -373,12 +373,12 @@ public:
    }
 
 
-   /**  @brief Nullifies the internal matrix \f$ M \f$ and returns a pointer
+   /**  @brief Nullifies the internal matrix $ M $ and returns a pointer
         to it.  Used for transferring ownership. */
    SparseMatrix *LoseMat() { SparseMatrix *tmp = mat; mat = NULL; return tmp; }
 
    /** @brief Returns a const reference to the sparse matrix of eliminated b.c.:
-       \f$ M_e \f$
+       $ M_e $
 
        This will fail if HasSpMatElim() is false. */
    const SparseMatrix &SpMatElim() const
@@ -388,7 +388,7 @@ public:
    }
 
    /** @brief Returns a reference to the sparse matrix of eliminated b.c.:
-       \f$ M_e \f$
+       $ M_e $
 
        This will fail if HasSpMatElim() is false. */
    SparseMatrix &SpMatElim()
@@ -439,8 +439,8 @@ public:
    void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
                              Array<int> &bdr_marker);
 
-   /// Sets all sparse values of \f$ M \f$ and \f$ M_e \f$ to 'a'.
-   void operator=(const double a)
+   /// Sets all sparse values of $ M $ and $ M_e $ to 'a'.
+   void operator=(const real_t a)
    {
       if (mat != NULL) { *mat = a; }
       if (mat_e != NULL) { *mat_e = a; }
@@ -641,16 +641,16 @@ public:
                              DiagonalPolicy dpolicy = DIAG_ONE);
    /// Perform elimination and set the diagonal entry to the given value
    void EliminateEssentialBCDiag(const Array<int> &bdr_attr_is_ess,
-                                 double value);
+                                 real_t value);
 
    /// Eliminate the given @a vdofs. NOTE: here, @a vdofs is a list of DOFs.
-   /** In this case the eliminations are applied to the internal \f$ M \f$
-       and @a rhs without storing the elimination matrix \f$ M_e \f$. */
+   /** In this case the eliminations are applied to the internal $ M $
+       and @a rhs without storing the elimination matrix $ M_e $. */
    void EliminateVDofs(const Array<int> &vdofs, const Vector &sol, Vector &rhs,
                        DiagonalPolicy dpolicy = DIAG_ONE);
 
    /** @brief  Eliminate the given @a vdofs, storing the eliminated part
-       internally in \f$ M_e \f$.
+       internally in $ M_e $.
 
        This method works in conjunction with EliminateVDofsInRHS() and allows
        elimination of boundary conditions in multiple right-hand sides. In this
@@ -675,7 +675,7 @@ public:
                                      DiagonalPolicy dpolicy = DIAG_ONE);
    /// Perform elimination and set the diagonal entry to the given value
    void EliminateEssentialBCFromDofsDiag(const Array<int> &ess_dofs,
-                                         double value);
+                                         real_t value);
 
    /** @brief Use the stored eliminated part of the matrix (see
        EliminateVDofs(const Array<int> &, DiagonalPolicy)) to modify the r.h.s.
@@ -684,8 +684,8 @@ public:
                             Vector &b);
 
    /** @brief Compute inner product for full uneliminated matrix:
-        \f$ y^T M x + y^T M_e x \f$ */
-   double FullInnerProduct(const Vector &x, const Vector &y) const
+        $ y^T M x + y^T M_e x $ */
+   real_t FullInnerProduct(const Vector &x, const Vector &y) const
    { return mat->InnerProduct(x, y) + mat_e->InnerProduct(x, y); }
 
    /** @brief Update the @a FiniteElementSpace and delete all data associated
@@ -808,28 +808,28 @@ public:
                      FiniteElementSpace *te_fes,
                      MixedBilinearForm *mbf);
 
-   /// Returns a reference to: \f$ M_{ij} \f$
-   virtual double &Elem(int i, int j);
+   /// Returns a reference to: $ M_{ij} $
+   virtual real_t &Elem(int i, int j);
 
-   /// Returns a reference to: \f$ M_{ij} \f$
-   virtual const double &Elem(int i, int j) const;
+   /// Returns a reference to: $ M_{ij} $
+   virtual const real_t &Elem(int i, int j) const;
 
-   /// Matrix multiplication: \f$ y = M x \f$
+   /// Matrix multiplication: $ y = M x $
    virtual void Mult(const Vector & x, Vector & y) const;
 
-   /// Add the matrix vector multiple to a vector:  \f$ y += a M x \f$
+   /// Add the matrix vector multiple to a vector:  $ y += a M x $
    virtual void AddMult(const Vector & x, Vector & y,
-                        const double a = 1.0) const;
+                        const real_t a = 1.0) const;
 
-   /// Matrix transpose vector multiplication:  \f$ y = M^T x \f$
+   /// Matrix transpose vector multiplication:  $ y = M^T x $
    virtual void MultTranspose(const Vector & x, Vector & y) const;
 
-   /// Add the matrix transpose vector multiplication:  \f$ y += a M^T x \f$
+   /// Add the matrix transpose vector multiplication:  $ y += a M^T x $
    virtual void AddMultTranspose(const Vector & x, Vector & y,
-                                 const double a = 1.0) const;
+                                 const real_t a = 1.0) const;
 
    /** @brief Returns a pointer to (approximation) of the matrix inverse:
-       \f$ M^{-1} \f$ (currently unimplemented and returns NULL)*/
+       $ M^{-1} $ (currently unimplemented and returns NULL)*/
    virtual MatrixInverse *Inverse() const;
 
    /** @brief  Finalizes the matrix initialization if the ::AssemblyLevel is
@@ -841,16 +841,16 @@ public:
        test and trial spaces, respectively. */
    void GetBlocks(Array2D<SparseMatrix *> &blocks) const;
 
-   /// Returns a const reference to the sparse matrix:  \f$ M \f$
+   /// Returns a const reference to the sparse matrix:  $ M $
    /** This will segfault if the usual sparse mat is not defined
        like when static condensation is being used or AllocMat() has
-       not yet been called.*/
+       not yet been called. */
    const SparseMatrix &SpMat() const { return *mat; }
 
-   /// Returns a reference to the sparse matrix:  \f$ M \f$
+   /// Returns a reference to the sparse matrix:  $ M $
    SparseMatrix &SpMat() { return *mat; }
 
-   /**  @brief Nullifies the internal matrix \f$ M \f$ and returns a pointer
+   /**  @brief Nullifies the internal matrix $ M $ and returns a pointer
         to it.  Used for transferring ownership. */
    SparseMatrix *LoseMat() { SparseMatrix *tmp = mat; mat = NULL; return tmp; }
 
@@ -912,8 +912,8 @@ public:
    Array<Array<int>*> *GetBTFBFI_Marker()
    { return &boundary_trace_face_integs_marker; }
 
-   /// Sets all sparse values of \f$ M \f$ to @a a.
-   void operator=(const double a) { *mat = a; }
+   /// Sets all sparse values of $ M $ to @a a.
+   void operator=(const real_t a) { *mat = a; }
 
    /// Set the desired assembly level. The default is AssemblyLevel::LEGACY.
    /** This method must be called before assembly. See ::AssemblyLevel*/
@@ -942,8 +942,8 @@ public:
    { return test_fes->GetRestrictionMatrix(); }
 
    /** @brief For partially conforming trial and/or test FE spaces, complete the
-       assembly process by performing \f$ P2^t A P1 \f$ where \f$ A \f$ is the
-       internal sparse matrix; \f$ P1 \f$ and \f$ P2 \f$ are the conforming
+       assembly process by performing $ P2^t A P1 $ where $ A $ is the
+       internal sparse matrix; $ P1 $ and $ P2 $ are the conforming
        prolongation matrices of the trial and test FE spaces, respectively.
        After this call the MixedBilinearForm becomes an operator on the
        conforming FE spaces. */
