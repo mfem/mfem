@@ -1101,9 +1101,11 @@ void DarcyHybridization::ComputeH()
 
          if (c_bfi_p)
          {
-            GetEFaceMatrix(edges[e1], E_el_1, E_el_2, c_dofs_1);
-            DenseMatrix &E = (FTr->Elem1No == el)?(E_el_1):(E_el_2);
-            BAiCt -= E;
+            if (GetEFaceMatrix(edges[e1], E_el_1, E_el_2, c_dofs_1))
+            {
+               DenseMatrix &E = (FTr->Elem1No == el)?(E_el_1):(E_el_2);
+               BAiCt -= E;
+            }
          }
 
          LU_S.Solve(BAiCt.Height(), BAiCt.Width(), BAiCt.GetData());
@@ -1127,9 +1129,11 @@ void DarcyHybridization::ComputeH()
 
             if (c_bfi_p)
             {
-               GetGFaceMatrix(edges[e2], Gt_el_1, Gt_el_2, c_dofs_2);
-               DenseMatrix &G = (FTr->Elem1No == el)?(Gt_el_1):(Gt_el_2);
-               CAiBt += G;
+               if (GetGFaceMatrix(edges[e2], Gt_el_1, Gt_el_2, c_dofs_2))
+               {
+                  DenseMatrix &G = (FTr->Elem1No == el)?(Gt_el_1):(Gt_el_2);
+                  CAiBt += G;
+               }
             }
 
             mfem::AddMult(CAiBt, BAiCt, H_l);
@@ -1439,9 +1443,11 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
 
          if (c_bfi_p)
          {
-            GetGFaceMatrix(edges[e], G_1, G_2, c_dofs);
-            DenseMatrix &G = (FTr->Elem1No == el)?(G_1):(G_2);
-            G.AddMult(p_l, b_rl);
+            if (GetGFaceMatrix(edges[e], G_1, G_2, c_dofs))
+            {
+               DenseMatrix &G = (FTr->Elem1No == el)?(G_1):(G_2);
+               G.AddMult(p_l, b_rl);
+            }
          }
 
          b_r.AddElementVector(c_dofs, b_rl);
@@ -1517,9 +1523,11 @@ void DarcyHybridization::ComputeSolution(const BlockVector &b,
          //bp - E sol
          if (c_bfi_p)
          {
-            GetEFaceMatrix(edges[e], E_1, E_2, c_dofs);
-            DenseMatrix &E = (FTr->Elem1No == el)?(E_1):(E_2);
-            E.AddMult_a(-1., sol_rl, bp_l);
+            if (GetEFaceMatrix(edges[e], E_1, E_2, c_dofs))
+            {
+               DenseMatrix &E = (FTr->Elem1No == el)?(E_1):(E_2);
+               E.AddMult_a(-1., sol_rl, bp_l);
+            }
          }
       }
 #else //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
