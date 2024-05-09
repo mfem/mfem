@@ -172,8 +172,9 @@ void Hybridization::ConstructC()
             {
                vdofs[j] = o1 + j;
             }
-            c_fes->GetFaceVDofs(i, c_vdofs);
-            face_el = c_fes->GetFaceElement(i);
+            int iface = mesh->GetBdrElementFaceIndex(i);
+            c_fes->GetFaceVDofs(iface, c_vdofs);
+            face_el = c_fes->GetFaceElement(iface);
             fe1 = fes -> GetFE (FTr -> Elem1No);
             // The fe2 object is really a dummy and not used on the boundaries,
             // but we can't dereference a NULL pointer, and we don't want to
