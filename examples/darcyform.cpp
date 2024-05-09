@@ -844,8 +844,6 @@ void DarcyHybridization::AssembleCtFaceMatrix(int face, int el1, int el2,
 {
    const int hat_size_1 = hat_offsets[el1+1] - hat_offsets[el1];
    const int f_size_1 = Af_f_offsets[el1+1] - Af_f_offsets[el1];
-   //const int hat_size_2 = hat_offsets[el2+1] - hat_offsets[el2];
-   const int f_size_2 = Af_f_offsets[el2+1] - Af_f_offsets[el2];
 
    Array<int> c_vdofs, vdofs;
    c_fes->GetFaceVDofs(face, c_vdofs);
@@ -856,9 +854,15 @@ void DarcyHybridization::AssembleCtFaceMatrix(int face, int el1, int el2,
    AssembleCtSubMatrix(el1, elmat, Ct_face_1);
 
    //el2
-   DenseMatrix Ct_face_2(Ct_data + Ct_offsets[face] + f_size_1*c_size,
-                         f_size_2, c_size);
-   AssembleCtSubMatrix(el2, elmat, Ct_face_2, hat_size_1);
+   if (el2 >= 0)
+   {
+      //const int hat_size_2 = hat_offsets[el2+1] - hat_offsets[el2];
+      const int f_size_2 = Af_f_offsets[el2+1] - Af_f_offsets[el2];
+
+      DenseMatrix Ct_face_2(Ct_data + Ct_offsets[face] + f_size_1*c_size,
+                            f_size_2, c_size);
+      AssembleCtSubMatrix(el2, elmat, Ct_face_2, hat_size_1);
+   }
 }
 
 void DarcyHybridization::AssembleCtSubMatrix(int el, const DenseMatrix &elmat,
@@ -906,16 +910,15 @@ void DarcyHybridization::ConstructC()
    Ct_offsets[0] = 0;
    for (int f = 0; f < num_faces; f++)
    {
-      FTr = mesh->GetInteriorFaceTransformations(f, 3);
-      if (!FTr)
+      FTr = mesh->GetFaceElementTransformations(f, 3);
+
+      int f_size = Af_f_offsets[FTr->Elem1No+1] - Af_f_offsets[FTr->Elem1No];
+      if (FTr->Elem2No >= 0)
       {
-         Ct_offsets[f+1] = Ct_offsets[f];
-         continue;
+         f_size += Af_f_offsets[FTr->Elem2No+1] - Af_f_offsets[FTr->Elem2No];
       }
-      const int f_size_1 = Af_f_offsets[FTr->Elem1No+1] - Af_f_offsets[FTr->Elem1No];
-      const int f_size_2 = Af_f_offsets[FTr->Elem2No+1] - Af_f_offsets[FTr->Elem2No];
       c_fes->GetFaceVDofs(f, c_vdofs);
-      Ct_offsets[f+1] = Ct_offsets[f] + c_vdofs.Size() * (f_size_1 + f_size_2);
+      Ct_offsets[f+1] = Ct_offsets[f] + c_vdofs.Size() * f_size;
    }
 
    Ct_data = new real_t[Ct_offsets[num_faces]]();//init by zeros
@@ -940,6 +943,62 @@ void DarcyHybridization::ConstructC()
 
          // assemble the matrix
          AssembleCtFaceMatrix(f, FTr->Elem1No, FTr->Elem2No, elmat);
+      }
+
+      if (c_bfbfi.Size())
+      {
+         const FiniteElement *fe1, *fe2;
+         const FiniteElement *face_el;
+
+         // Which boundary attributes need to be processed?
+         Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
+                                    mesh->bdr_attributes.Max() : 0);
+         bdr_attr_marker = 0;
+         for (int k = 0; k < c_bfbfi.Size(); k++)
+         {
+            if (c_bfbfi_marker[k] == NULL)
+            {
+               bdr_attr_marker = 1;
+               break;
+            }
+            Array<int> &bdr_marker = *c_bfbfi_marker[k];
+            MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
+                        "invalid boundary marker for boundary face integrator #"
+                        << k << ", counting from zero");
+            for (int i = 0; i < bdr_attr_marker.Size(); i++)
+            {
+               bdr_attr_marker[i] |= bdr_marker[i];
+            }
+         }
+
+         for (int i = 0; i < fes->GetNBE(); i++)
+         {
+            const int bdr_attr = mesh->GetBdrAttribute(i);
+            if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
+
+            FTr = mesh->GetBdrFaceTransformations(i);
+            if (!FTr) { continue; }
+
+            int iface = mesh->GetBdrElementFaceIndex(i);
+            face_el = c_fes->GetFaceElement(iface);
+            fe1 = fes -> GetFE (FTr -> Elem1No);
+            // The fe2 object is really a dummy and not used on the boundaries,
+            // but we can't dereference a NULL pointer, and we don't want to
+            // actually make a fake element.
+            fe2 = fe1;
+            for (int k = 0; k < c_bfbfi.Size(); k++)
+            {
+               if (c_bfbfi_marker[k] &&
+                   (*c_bfbfi_marker[k])[bdr_attr-1] == 0) { continue; }
+
+               c_bfbfi[k]->AssembleFaceMatrix(*face_el, *fe1, *fe2, *FTr, elmat);
+               // zero-out small elements in elmat
+               elmat.Threshold(1e-12 * elmat.MaxMaxNorm());
+
+               // assemble the matrix
+               AssembleCtFaceMatrix(iface, FTr->Elem1No, FTr->Elem2No, elmat);
+            }
+         }
       }
    }
    else
@@ -1129,21 +1188,23 @@ FaceElementTransformations *DarcyHybridization::GetCtFaceMatrix(
    int f, DenseMatrix &Ct_1, DenseMatrix &Ct_2, Array<int> &c_dofs) const
 {
    FaceElementTransformations *FTr =
-      fes->GetMesh()->GetInteriorFaceTransformations(f, 3);
-   if (!FTr)
-   {
-      return NULL;
-   }
+      fes->GetMesh()->GetFaceElementTransformations(f, 3);
    c_fes->GetFaceVDofs(f, c_dofs);
 #ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK_ASSEMBLY
    const int f_size_1 = Af_f_offsets[FTr->Elem1No+1] - Af_f_offsets[FTr->Elem1No];
-   const int f_size_2 = Af_f_offsets[FTr->Elem2No+1] - Af_f_offsets[FTr->Elem2No];
    Ct_1.Reset(Ct_data + Ct_offsets[f], f_size_1, c_dofs.Size());
-   Ct_2.Reset(Ct_data + Ct_offsets[f] + f_size_1*c_dofs.Size(),
-              f_size_2, c_dofs.Size());
+   if (FTr->Elem2No >= 0)
+   {
+      const int f_size_2 = Af_f_offsets[FTr->Elem2No+1] - Af_f_offsets[FTr->Elem2No];
+      Ct_2.Reset(Ct_data + Ct_offsets[f] + f_size_1*c_dofs.Size(),
+                 f_size_2, c_dofs.Size());
+   }
 #else //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK_ASSEMBLY
    GetCtSubMatrix(FTr->Elem1No, c_dofs, Ct_1);
-   GetCtSubMatrix(FTr->Elem2No, c_dofs, Ct_2);
+   if (FTr->Elem2No >= 0)
+   {
+      GetCtSubMatrix(FTr->Elem2No, c_dofs, Ct_2);
+   }
 #endif //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK_ASSEMBLY
    return FTr;
 }
