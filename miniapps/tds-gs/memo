@@ -1,3 +1,25 @@
+ * benchmark - ITER, ff'
+ * 0 beta, ff' using fpol
+ * Taylor equilibrium
+
+
+
+
+
+iters output file
+inexact newton settings
+ - alpha_in
+ - gamma_in
+AMG settings
+ - cycle type
+ - num sweeps (a, b)
+ - max iter
+ 
+
+
+
+
+
 Results:
 
  - amr, newton, inner solve iterations

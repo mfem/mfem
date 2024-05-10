@@ -421,7 +421,7 @@ void SysOperator::NonlinearEquationRes(GridFunction &psi, Vector *currents, doub
   NonlinearGridCoefficient nlgcoeff0(model, 0, &x, val_ma, val_x, plasma_inds, attr_lim);
   GridFunction f(fespace);
   f.ProjectCoefficient(nlgcoeff0);
-  f.Save("f.gf");
+  f.Save("gf/f.gf");
    
   // ------------------------------------------------
   // *** compute res ***
@@ -444,11 +444,11 @@ void SysOperator::NonlinearEquationRes(GridFunction &psi, Vector *currents, doub
 
   GridFunction outres(fespace);
   diff_operator->Mult(psi, outres);
-  outres.Save("diff_operator.gf");
-  ffp.Save("plasma_term.gf");
+  outres.Save("gf/diff_operator.gf");
+  ffp.Save("gf/plasma_term.gf");
   GridFunction plascoeff(fespace);
   plascoeff.ProjectCoefficient(nlgcoeff1);
-  plascoeff.Save("plascoeff.gf");
+  plascoeff.Save("gf/plascoeff.gf");
 
   // contribution from currents
   F->AddMult(*currents, res, -model->get_mu());

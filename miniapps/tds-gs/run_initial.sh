@@ -23,7 +23,7 @@ rho_gamma=16
 mu=12.5663706144e-7
 # mu=1.0
 mesh_file="meshes/iter_gen.msh"
-data_file="separated_file.data"
+data_file="data/separated_file.data"
 refinement_factor=3
 
 do_test=0
@@ -33,7 +33,7 @@ do_initial=1
 # linear solver parameters
 max_krylov_iter=10000
 max_newton_iter=5
-krylov_tol=1e-9 # check this...
+krylov_tol=1e-9
 newton_tol=1e-12
 
 # poloidal flux coils

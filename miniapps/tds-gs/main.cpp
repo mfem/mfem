@@ -139,6 +139,14 @@ int main(int argc, char *argv[])
    int max_dofs = 100000;
    double light_tol = 1e-5;
 
+   double alpha_in = 0.5 * (1.0 + sqrt(5.0));
+   double gamma_in = 1.0;
+
+   int amg_cycle_type = 1;
+   int amg_num_sweeps_a = 1;
+   int amg_num_sweeps_b = 1;
+   int amg_max_iter = 1;
+
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&order, "-o", "--order", "Finite element polynomial degree");
@@ -184,6 +192,14 @@ int main(int argc, char *argv[])
    args.AddOption(&max_dofs, "-md", "--max_dofs", "max amr dofs");
    args.AddOption(&light_tol, "-lt", "--light_tol", "light tolerance");
 
+   args.AddOption(&alpha_in, "-ai", "--alpha_in", "inexact newton param alpha");
+   args.AddOption(&gamma_in, "-gi", "--gamma_in", "inexact newton param gamma");
+
+   args.AddOption(&amg_cycle_type, "-ct", "--amg_cycle_type", "AMG cycle type (1: v, 2: w)");
+   args.AddOption(&amg_num_sweeps_a, "-nsa", "--amg_num_sweeps_a", "AMG num sweeps a");
+   args.AddOption(&amg_num_sweeps_b, "-nsb", "--amg_num_sweeps_b", "AMG num sweeps b");
+   args.AddOption(&amg_max_iter, "-mi", "--amg_max_iter", "AMG max iterations");
+
    args.ParseCheck();
 
    if (do_initial == 1) {
@@ -205,7 +221,8 @@ int main(int argc, char *argv[])
         do_control, N_control, weight_solenoids, weight_coils,
         weight_obj, obj_option, optimize_alpha,
         do_manufactured_solution,
-        do_initial, PC_option, max_levels, max_dofs, light_tol);
+        do_initial, PC_option, max_levels, max_dofs, light_tol,
+        alpha_in, gamma_in, amg_cycle_type, amg_num_sweeps_a, amg_num_sweeps_b, amg_max_iter);
    }
 
    return 0;

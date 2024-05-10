@@ -320,7 +320,7 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
         - switch_taylor * alpha * alpha / (ri);
     } else if (option == 3) {
       // coefficient for phi_ma in d_psi psi_N
-      coeff = - 1.0 * (1.0 - psi_N) / (psi_bdp - psi_max) * psi_N_multiplier
+      coeff = - (1.0 - psi_N) / (psi_bdp - psi_max) * psi_N_multiplier
         - other;
     } else if (option == 4) {
       // coefficient for phi_x in d_psi psi_N

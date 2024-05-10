@@ -3,9 +3,9 @@
 #
 
 # coefficient of ff' term
-alpha=0.7
+alpha=1
 # coefficient of p' term
-beta=0.0
+beta=1.0
 # unused?
 gamma=0.0
 
@@ -13,7 +13,7 @@ gamma=0.0
 # 1: ff' defined from fpol data
 # 2: Taylor equilibrium
 # 3: ff' defined from ff' data
-model=2
+model=1
 
 # plasma current
 Ip=1.5e+7
@@ -25,8 +25,8 @@ mu=12.5663706144e-7
 # mu=1.0
 mesh_file="meshes/iter_gen.msh"
 # mesh_file="meshes/RegGSTriMeshVeryCoarse0beta.msh"
-data_file="separated_file.data"
-refinement_factor=0
+data_file="data/separated_file.data"
+refinement_factor=2
 
 do_test=0
 do_manufactured_solution=0
@@ -34,9 +34,12 @@ do_initial=0
 
 # linear solver parameters
 max_krylov_iter=10000
-max_newton_iter=20
+max_newton_iter=200
 krylov_tol=1e-4
 newton_tol=1e-6
+
+alpha_in=1.61803398875
+gamma_in=1.0
 
 # 0: block AMG
 # 1: block AMG schur comp
@@ -48,6 +51,11 @@ pc_option=5
 max_levels=6
 max_dofs=100000
 light_tol=1e-8
+
+amg_cycle_type=1
+amg_num_sweeps_a=1
+amg_num_sweeps_b=1
+amg_max_iter=1
 
 # poloidal flux coils
 c6=-4.552585e+06
@@ -77,16 +85,19 @@ ur_coeff=1.0
 N_control=100
 
 do_control=1
-weight_coils=1e-12
-weight_solenoids=1e-12
+weight_coils=1e-14
+weight_solenoids=1e-14
 weight_obj=1.0
 optimize_alpha=1
+
+
+
 
 # objective function
 # 0: sum_k (psi_k - psi_0) ^ 2
 # 1: sum_k (psi_N_k - 1) ^ 2
 # 2: sum_k (psi_k - psi_x) ^ 2
-obj_option=2
+obj_option=1
 
 ./../gslib/field-interp -m1 initial_mesh_g3.mesh \
                         -m2 $mesh_file \
@@ -137,7 +148,16 @@ mpirun -np 1 main.o \
     --pc_option $pc_option \
     --max_levels $max_levels \
     --max_dofs $max_dofs \
-    --light_tol $light_tol
+    --light_tol $light_tol \
+    --alpha_in $alpha_in \
+    --gamma_in $gamma_in \
+    --amg_cycle_type $amg_cycle_type \
+    --amg_num_sweeps_a $amg_num_sweeps_a \
+    --amg_num_sweeps_b $amg_num_sweeps_b \
+    --amg_max_iter $amg_max_iter
+
+    
+
 
 
 

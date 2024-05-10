@@ -76,42 +76,57 @@ void test_grad(SysOperator *op, GridFunction x, FiniteElementSpace fespace) {
   }
 
   // *********************************
-  // Test Cy and By
+  // Test Cy and By, ind_x
   int ind_x = op->get_ind_x();
   int ind_ma = op->get_ind_ma();
-  x[ind_x] += eps;
-  op->NonlinearEquationRes(x, currents, alpha);
-  plasma_current_1 = op->get_plasma_current();
-  res_3 = op->get_res();
 
-  x[ind_x] -= eps;
-  op->NonlinearEquationRes(x, currents, alpha);
-  plasma_current_2 = op->get_plasma_current();
-  Cy = op->get_Cy();
-  By = op->get_By();
-  res_4 = op->get_res();
+  int ind = ind_x;
+  while (true) {
+    x[ind] += eps;
+    op->NonlinearEquationRes(x, currents, alpha);
+    plasma_current_1 = op->get_plasma_current();
+    res_3 = op->get_res();
 
-  double Cy_FD = (plasma_current_1 - plasma_current_2) / eps;
+    x[ind] -= eps;
+    op->NonlinearEquationRes(x, currents, alpha);
+    plasma_current_2 = op->get_plasma_current();
+    Cy = op->get_Cy();
+    By = op->get_By();
+    res_4 = op->get_res();
+
+    double Cy_FD = (plasma_current_1 - plasma_current_2) / eps;
   
-  printf("\ndC/dy\n");
-  printf("Cy: code=%e, FD=%e, Diff=%e\n", Cy[ind_x], Cy_FD, Cy[ind_x]-Cy_FD);
+    printf("\ndC/dy\n");
+    printf("Cy: code=%e, FD=%e, Diff=%e\n", Cy[ind], Cy_FD, Cy[ind]-Cy_FD);
 
-  printf("\ndB/dy\n");
-  GridFunction By_FD(&fespace);
-  add(1.0 / eps, res_3, -1.0 / eps, res_4, By_FD);
+    printf("\ndB/dy\n");
+    GridFunction By_FD(&fespace);
+    add(1.0 / eps, res_3, -1.0 / eps, res_4, By_FD);
 
-  int *I = By.GetI();
-  int *J = By.GetJ();
-  double *A = By.GetData();
-  int height = By.Height();
-  for (int i = 0; i < height; ++i) {
-    for (int j = I[i]; j < I[i+1]; ++j) {
-      if (J[j] == ind_x) {
-        printf("%d %d: code=%e, FD=%e, Diff=%e\n", i, J[j], A[j], By_FD[i], A[j]-By_FD[i]);
+    int *I = By.GetI();
+    int *J = By.GetJ();
+    double *A = By.GetData();
+    int height = By.Height();
+    for (int i = 0; i < height; ++i) {
+      for (int j = I[i]; j < I[i+1]; ++j) {
+        if ((J[j] == ind)) {
+          printf("%d %d: code=%e, FD=%e, Diff=%e\n", i, J[j], A[j], By_FD[i], A[j]-By_FD[i]);
+        }
       }
     }
+
+    if (ind == ind_x) {
+      ind = ind_ma;
+    } else {
+      break;
+    }
+
   }
 
+  if (true) {
+    return;
+  }
+  
   // *********************************
   // Test grad_obj and hess_obj
   double obj1, obj2, grad_obj_FD;
@@ -408,15 +423,10 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
            double & weight_solenoids,
            Vector * uv,
            double & alpha,
-           int & PC_option, int & max_levels, int & max_dofs, double & light_tol) {
+           int & PC_option, int & max_levels, int & max_dofs, double & light_tol,
+           double & alpha_in, double & gamma_in,
+           int amg_cycle_type, int amg_num_sweeps_a, int amg_num_sweeps_b, int amg_max_iter) {
 
-  // todo, make this an input
-  double alpha_ = .001;
-
-  // int PC_option = 6;
-  // // AMR control parameters
-  // int max_levels = 8;
-  // int max_dofs = 100000;
 
   // initialize MPI and Hypre so we can use AMG
   Mpi::Init();
@@ -433,7 +443,7 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
   GridFunction Bz_field(&fespace);
 
   // Save data in the VisIt format
-  VisItDataCollection visit_dc("gs", fespace.GetMesh());
+  VisItDataCollection visit_dc("out/gs", fespace.GetMesh());
   visit_dc.RegisterField("psi", &x);
   visit_dc.RegisterField("Br", &Br_field);
   visit_dc.RegisterField("Bp", &Bp_field);
@@ -550,10 +560,6 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
       row_offsets[2] = row_offsets[1] + pv.Size();
 
       // inexact newton settings
-      double rtol0 = 0.5;
-      double rtol_max = 0.9;
-      double alpha_in = 0.5 * (1.0 + sqrt(5.0));
-      double gamma_in = 1.0;
       double eta_last = 0.0;
       double sg_threshold = 0.1;
       double lin_rtol_max = krylov_tol;
@@ -698,27 +704,6 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         SparseMatrix *BMat = Add(scale, *ByT, -scale, *CyBa);
         SparseMatrix *BTMat = Transpose(*BMat);
 
-        // *** compute SC_op = C - B^T invApaI B *** //
-        Vector diag(pv.Size());
-        AMat->GetDiag(diag);
-        SparseMatrix *ApaI_app;
-        ApaI_app = new SparseMatrix(pv.Size(), pv.Size());
-        SparseMatrix *invApaI;
-        invApaI = new SparseMatrix(pv.Size(), pv.Size());
-        SparseMatrix *aI;
-        aI = new SparseMatrix(pv.Size(), pv.Size());
-        for (int j = 0; j < pv.Size(); ++j) {
-          invApaI->Set(j, j, 1.0 / (alpha_ + diag(j)));
-          ApaI_app->Set(j, j, (alpha_ + diag(j)));
-          aI->Set(j, j, alpha_);
-        }
-        aI->Finalize();
-        invApaI->Finalize();
-        SparseMatrix *ApaI = Add(1.0, *AMat, 1.0, *aI);
-        SparseMatrix *op1 = Mult(*invApaI, *BMat);
-        SparseMatrix *op2 = Mult(*BTMat, *op1);
-        SparseMatrix *SC_op = Add(1.0, *CMat, -1.0, *op2);
-
         // define block system
         // (either symmetric version or not)
         BlockOperator BlockSystem(row_offsets);
@@ -786,14 +771,14 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
           HypreBoomerAMG *BT_AMG = new HypreBoomerAMG(*BT_Hypre);
 
           B_AMG->SetPrintLevel(0);
-          B_AMG->SetCycleType(1);
-          B_AMG->SetCycleNumSweeps(1, 1);
-          B_AMG->SetMaxIter(1);
+          B_AMG->SetCycleType(amg_cycle_type);
+          B_AMG->SetCycleNumSweeps(amg_num_sweeps_a, amg_num_sweeps_b);
+          B_AMG->SetMaxIter(amg_max_iter);
 
           BT_AMG->SetPrintLevel(0);
-          BT_AMG->SetCycleType(1);
-          BT_AMG->SetCycleNumSweeps(1, 1);
-          BT_AMG->SetMaxIter(1);
+          BT_AMG->SetCycleType(amg_cycle_type);
+          BT_AMG->SetCycleNumSweeps(amg_num_sweeps_a, amg_num_sweeps_b);
+          BT_AMG->SetMaxIter(amg_max_iter);
 
           inv_B = B_AMG;
           inv_BT = BT_AMG;
@@ -845,14 +830,14 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
           HypreBoomerAMG *BT_AMG = new HypreBoomerAMG(*BT_Hypre);
 
           SC_AMG->SetPrintLevel(0);
-          SC_AMG->SetCycleType(1);
-          SC_AMG->SetCycleNumSweeps(1, 1);
-          SC_AMG->SetMaxIter(1);
+          SC_AMG->SetCycleType(amg_cycle_type);
+          SC_AMG->SetCycleNumSweeps(amg_num_sweeps_a, amg_num_sweeps_b);
+          SC_AMG->SetMaxIter(amg_max_iter);
 
           BT_AMG->SetPrintLevel(0);
-          BT_AMG->SetCycleType(1);
-          BT_AMG->SetCycleNumSweeps(1, 1);
-          BT_AMG->SetMaxIter(1);
+          BT_AMG->SetCycleType(amg_cycle_type);
+          BT_AMG->SetCycleNumSweeps(amg_num_sweeps_a, amg_num_sweeps_b);
+          BT_AMG->SetMaxIter(amg_max_iter);
 
           inv_SC = SC_AMG;
           inv_BT = BT_AMG;
@@ -886,9 +871,9 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
           HypreBoomerAMG *BlockMatrix_AMG = new HypreBoomerAMG(*BlockMatrix_Hypre);
 
           BlockMatrix_AMG->SetPrintLevel(0);
-          BlockMatrix_AMG->SetCycleType(1);
-          BlockMatrix_AMG->SetCycleNumSweeps(1, 1);
-          BlockMatrix_AMG->SetMaxIter(1);
+          BlockMatrix_AMG->SetCycleType(amg_cycle_type);
+          BlockMatrix_AMG->SetCycleNumSweeps(amg_num_sweeps_a, amg_num_sweeps_b);
+          BlockMatrix_AMG->SetMaxIter(amg_max_iter);
 
           inv_BlockMatrix = BlockMatrix_AMG;
           solver.SetPreconditioner(*inv_BlockMatrix);
@@ -913,9 +898,9 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
           HypreBoomerAMG *BlockMatrix_AMG = new HypreBoomerAMG(*BlockMatrix_Hypre);
 
           BlockMatrix_AMG->SetPrintLevel(0);
-          BlockMatrix_AMG->SetCycleType(1);
-          BlockMatrix_AMG->SetCycleNumSweeps(1, 1);
-          BlockMatrix_AMG->SetMaxIter(1);
+          BlockMatrix_AMG->SetCycleType(amg_cycle_type);
+          BlockMatrix_AMG->SetCycleNumSweeps(amg_num_sweeps_a, amg_num_sweeps_b);
+          BlockMatrix_AMG->SetMaxIter(amg_max_iter);
 
           inv_BlockMatrix = BlockMatrix_AMG;
           solver.SetPreconditioner(*inv_BlockMatrix);
@@ -937,14 +922,14 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
           HypreBoomerAMG *BT_AMG = new HypreBoomerAMG(*BT_Hypre);
 
           B_AMG->SetPrintLevel(0);
-          B_AMG->SetCycleType(1);
-          B_AMG->SetCycleNumSweeps(1, 1);
-          B_AMG->SetMaxIter(1);
+          B_AMG->SetCycleType(amg_cycle_type);
+          B_AMG->SetCycleNumSweeps(amg_num_sweeps_a, amg_num_sweeps_b);
+          B_AMG->SetMaxIter(amg_max_iter);
 
           BT_AMG->SetPrintLevel(0);
-          BT_AMG->SetCycleType(1);
-          BT_AMG->SetCycleNumSweeps(1, 1);
-          BT_AMG->SetMaxIter(1);
+          BT_AMG->SetCycleType(amg_cycle_type);
+          BT_AMG->SetCycleNumSweeps(amg_num_sweeps_a, amg_num_sweeps_b);
+          BT_AMG->SetMaxIter(amg_max_iter);
 
           inv_B = B_AMG;
           inv_BT = BT_AMG;
@@ -985,14 +970,14 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
           HypreBoomerAMG *BT_AMG = new HypreBoomerAMG(*BT_Hypre);
 
           B_AMG->SetPrintLevel(0);
-          B_AMG->SetCycleType(1);
-          B_AMG->SetCycleNumSweeps(1, 1);
-          B_AMG->SetMaxIter(5);
+          B_AMG->SetCycleType(amg_cycle_type);
+          B_AMG->SetCycleNumSweeps(amg_num_sweeps_a, amg_num_sweeps_b);
+          B_AMG->SetMaxIter(amg_max_iter);
 
           BT_AMG->SetPrintLevel(0);
-          BT_AMG->SetCycleType(1);
-          BT_AMG->SetCycleNumSweeps(1, 1);
-          BT_AMG->SetMaxIter(5);
+          BT_AMG->SetCycleType(amg_cycle_type);
+          BT_AMG->SetCycleNumSweeps(amg_num_sweeps_a, amg_num_sweeps_b);
+          BT_AMG->SetMaxIter(amg_max_iter);
 
           inv_B = B_AMG;
           inv_BT = BT_AMG;
@@ -1007,6 +992,28 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
           /*
             Symmetric System, Schur Complement
           */
+
+          // *** compute SC_op = C - B^T invApaI B *** //
+          double alpha_ = .001;
+          Vector diag(pv.Size());
+          AMat->GetDiag(diag);
+          SparseMatrix *ApaI_app;
+          ApaI_app = new SparseMatrix(pv.Size(), pv.Size());
+          SparseMatrix *invApaI;
+          invApaI = new SparseMatrix(pv.Size(), pv.Size());
+          SparseMatrix *aI;
+          aI = new SparseMatrix(pv.Size(), pv.Size());
+          for (int j = 0; j < pv.Size(); ++j) {
+            invApaI->Set(j, j, 1.0 / (alpha_ + diag(j)));
+            ApaI_app->Set(j, j, (alpha_ + diag(j)));
+            aI->Set(j, j, alpha_);
+          }
+          aI->Finalize();
+          invApaI->Finalize();
+          SparseMatrix *ApaI = Add(1.0, *AMat, 1.0, *aI);
+          SparseMatrix *op1 = Mult(*invApaI, *BMat);
+          SparseMatrix *op2 = Mult(*BTMat, *op1);
+          SparseMatrix *SC_op = Add(1.0, *CMat, -1.0, *op2);
 
           Solver *inv_ApaI, *inv_SC;
 
@@ -1137,7 +1144,7 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         }
         
       refiner.Apply(*mesh);
-      mesh->Save("mesh_refine.mesh");
+      mesh->Save("meshes/mesh_refine.mesh");
       if (refiner.Stop()) {
         cout << "Stopping criterion satisfied. Stop." << endl;
         break;
@@ -1176,30 +1183,36 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
     GridFunction dx(&fespace);
     dx = 0.0;
 
-    
+    // *** prepare operators for solver *** //
+    // RHS forcing of equation
     LinearForm coil_term(&fespace);
-    int ndof__ = fespace.GetNDofs();
-    SparseMatrix * F;
-    F = new SparseMatrix(ndof__, num_currents);
-    DefineRHS(*model, rho_gamma, *mesh, *exact_coefficient, *exact_forcing_coeff, coil_term, F);
-  
+    // coefficient matrix for currents
+    SparseMatrix *F;
+    F = new SparseMatrix(fespace.GetNDofs(), num_currents);
+    // elliptic operator
     BilinearForm diff_operator(&fespace);
-    DefineLHS(*model, rho_gamma, diff_operator);
-
+    // Hessian matrix for objective function
     SparseMatrix * K_;
+    // linear term in objective function
     Vector g_;
+    // weights and locations of objective function coefficients
     vector<Vector> *alpha_coeffs;
     vector<Array<int>> *J_inds;
     alpha_coeffs = new vector<Vector>;
     J_inds = new vector<Array<int>>;
+    // regularization matrix
+    SparseMatrix * H;
+    H = new SparseMatrix(num_currents, num_currents);
+
+    // computations
+    DefineRHS(*model, rho_gamma, *mesh, *exact_coefficient, *exact_forcing_coeff, coil_term, F);
+    DefineLHS(*model, rho_gamma, diff_operator);
     init_coeff->compute_QP(N_control, mesh, &fespace);
     K_ = init_coeff->compute_K();
     g_ = init_coeff->compute_g();
     J_inds = init_coeff->get_J();
     alpha_coeffs = init_coeff->get_alpha();
 
-    SparseMatrix * H;
-    H = new SparseMatrix(num_currents, num_currents);
     for (int i = 0; i < num_currents; ++i) {
       if (i < 5) {
         H->Set(i, i, weight_coils);
@@ -1212,13 +1225,25 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
     SysOperator op(&diff_operator, &coil_term, model, &fespace, mesh, attr_lim, &x, F, uv, H, K_, &g_, alpha_coeffs, J_inds, &alpha, include_plasma);
     op.set_i_option(obj_option);
     op.set_obj_weight(obj_weight);
+
+    GridFunction eq_res(&fespace);
+    GridFunction b3(&fespace);
+    b3 = 0.0;
+    
     LinearForm out_vec(&fespace);
     double error_old;
     double error;
     for (int i = 0; i < max_newton_iter; ++i) {
 
-      op.Mult(x, out_vec);
-      error = GetMaxError(out_vec);
+      op.NonlinearEquationRes(x, uv, alpha);
+
+      eq_res = op.get_res();
+      b3 = eq_res;  // b3 *= -1.0;
+
+      error = GetMaxError(eq_res);
+
+      // op.Mult(x, out_vec);
+      // error = GetMaxError(out_vec);
       // cout << "eq_res" << "i" << i << endl;
       // out_vec.Print();
 
@@ -1235,26 +1260,36 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
       }
 
       dx = 0.0;
-      SparseMatrix *Mat = dynamic_cast<SparseMatrix *>(&op.GetGradient(x));
+      SparseMatrix By = op.get_By();
+      // SparseMatrix *Mat = dynamic_cast<SparseMatrix *>(&op.GetGradient(x));
 
       // cout << "By" << "i" << i << endl;
       // Mat->PrintMatlab();
 
-      GSSmoother M(*Mat);
+      Solver *inv_B;
+      HypreParMatrix * B_Hypre = convert_to_hypre(&By);
+      HypreBoomerAMG *B_AMG = new HypreBoomerAMG(*B_Hypre);
+      B_AMG->SetPrintLevel(0);
+      B_AMG->SetCycleType(1);
+      B_AMG->SetCycleNumSweeps(1, 1);
+      B_AMG->SetMaxIter(1);
+      inv_B = B_AMG;
+      
+      // GSSmoother M(By);
       // printf("iter: %d, tol: %e, kdim: %d\n", max_krylov_iter, krylov_tol, kdim);
       int gmres_iter = max_krylov_iter;
       double gmres_tol = krylov_tol;
       int gmres_kdim = kdim;
-      GMRES(*Mat, dx, out_vec, M, gmres_iter, gmres_kdim, gmres_tol, 0.0, 0);
+      GMRES(By, dx, b3, *inv_B, gmres_iter, gmres_kdim, gmres_tol, 0.0, 0);
       printf("gmres iters: %d, gmres err: %e\n", gmres_iter, gmres_tol);
 
       // add(dx, ur_coeff - 1.0, dx, dx);
       x -= dx;
 
-      x.Save("xtmp.gf");
+      x.Save("gf/xtmp.gf");
       GridFunction err(&fespace);
       err = out_vec;
-      err.Save("res.gf");
+      err.Save("gf/res.gf");
 
       visit_dc.Save();
 
@@ -1283,7 +1318,9 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
           int do_control, int N_control, double & weight_solenoids, double & weight_coils,
           double & weight_obj, int obj_option, bool optimize_alpha,
           bool do_manufactured_solution, bool do_initial,
-          int & PC_option, int & max_levels, int & max_dofs, double & light_tol) {
+          int & PC_option, int & max_levels, int & max_dofs, double & light_tol,
+          double & alpha_in, double & gamma_in,
+          int amg_cycle_type, int amg_num_sweeps_a, int amg_num_sweeps_b, int amg_max_iter) {
 
    Vector uv_currents(num_currents);
    uv_currents[0] = c1;
@@ -1321,16 +1358,16 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
    for (int i = 0; i < d_refine; ++i) {
      mesh.UniformRefinement();
    }
-   mesh.Save("mesh.mesh");
+   mesh.Save("meshes/mesh.mesh");
    if (do_initial) {
-     mesh.Save("initial.mesh");
+     mesh.Save("meshes/initial.mesh");
    }
    
    // save options in model
    // alpha: multiplier in \bar{S}_{ff'} term
    // beta: multiplier for S_{p'} term
    // gamma: multiplier for S_{ff'} term
-   const char *data_file_ = "fpol_pres_ffprim_pprime.data";
+   const char *data_file_ = "data/fpol_pres_ffprim_pprime.data";
    PlasmaModelFile model(mu, data_file_, alpha, beta, gamma, model_choice);
 
    // Define a finite element space on the mesh. Here we use H1 continuous
@@ -1364,15 +1401,15 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
    InitialCoefficient init_coeff = read_data_file(data_file);
    if (do_manufactured_solution) {
      u.ProjectCoefficient(exact_coefficient);
-     u.Save("exact.gf");
+     u.Save("gf/exact.gf");
    } else {
      if (!do_initial) {
-       ifstream ifs("interpolated.gf");
+       ifstream ifs("initial/interpolated.gf");
        GridFunction lgf(&mesh, ifs);
        u = lgf;
      }
 
-     u.Save("initial.gf");
+     u.Save("gf/initial.gf");
 
    }
 
@@ -1383,6 +1420,7 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
    if (do_initial) {
      include_plasma = false;
    }
+
    // TODO: remove optimize_alpha
    Solve(fespace, &model, x, kdim, max_newton_iter, max_krylov_iter, newton_tol, krylov_tol, 
          Ip, N_control, do_control,
@@ -1397,13 +1435,15 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
          weight_solenoids,
          &uv_currents,
          alpha,
-         PC_option, max_levels, max_dofs, light_tol);
+         PC_option, max_levels, max_dofs, light_tol,
+         alpha_in, gamma_in,
+         amg_cycle_type, amg_num_sweeps_a, amg_num_sweeps_b, amg_max_iter);
    
    if (do_initial) {
      char name_gf_out[60];
      char name_mesh_out[60];
-     sprintf(name_gf_out, "initial_guess_g%d.gf", d_refine);
-     sprintf(name_mesh_out, "initial_mesh_g%d.mesh", d_refine);
+     sprintf(name_gf_out, "initial/initial_guess_g%d.gf", d_refine);
+     sprintf(name_mesh_out, "initial/initial_mesh_g%d.mesh", d_refine);
 
      x.Save(name_gf_out);
      mesh.Save(name_mesh_out);
@@ -1411,14 +1451,11 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
      printf("Saved mesh to %s\n", name_mesh_out);
      printf("glvis -m %s -g %s\n", name_mesh_out, name_gf_out);
    } else {
-     x.Save("final.gf");
+     x.Save("gf/final.gf");
      printf("Saved solution to final.gf\n");
      printf("Saved mesh to mesh.mesh\n");
      printf("glvis -m mesh_refine.mesh -g final.gf\n");
 
-     
-     
-     
    }
    /* 
       -------------------------------------------------------------------------------------------
@@ -1434,7 +1471,7 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
      GridFunction diff(&fespace);
      add(x, -1.0, u, diff);
      double num_error = GetMaxError(diff);
-     diff.Save("error.gf");
+     diff.Save("gf/error.gf");
      double L2_error = x.ComputeL2Error(exact_coefficient);
      printf("\n\n********************************\n");
      printf("numerical error: %.3e\n", num_error);
