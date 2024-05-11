@@ -75,6 +75,8 @@ and miniapps. See https://glvis.org and https://mfem.org/building.
 
 Quick start with GNU make
 =========================
+See also: https://mfem.org/building
+
 Serial build:
    make serial -j 4
 
@@ -83,6 +85,7 @@ Parallel build:
    (build METIS 4 in ../metis-4.0 relative to mfem/)
    (build hypre in ../hypre relative to mfem/)
    make parallel -j 4
+(For METIS 5, see https://mfem.org/building/#parallel-build-using-metis-5)
 
 CUDA build:
    make cuda -j 4
@@ -116,6 +119,7 @@ Parallel build:
    mkdir <mfem-build-dir> ; cd <mfem-build-dir>
    cmake <mfem-source-dir> -DMFEM_USE_MPI=YES
    make -j 4
+(For METIS 5, see https://mfem.org/building/#parallel-build-using-metis-5)
 
 CUDA build:
    (this build requires CMake 3.8 or newer)
@@ -571,6 +575,11 @@ MFEM_USE_PARELAG = YES/NO
    use ParELAG. In fact, ParELAG is dependent on MFEM. Therefore, this option
    currently only concerns the miniapps.
 
+MFEM_USE_TRIBOL = YES/NO
+   Enables the miniapps that use the Tribol library. MFEM does not currently
+   use Tribol. In fact, Tribol is dependent on MFEM. Therefore, this option
+   currently only concerns the miniapps.
+
 MFEM_USE_ENZYME = YES/NO
    Enables automatic differentiation support through the LLVM plugin Enzyme.
    This requires the compiler to be set to clang (>=14.0.0). We also advise to
@@ -607,9 +616,13 @@ The specific libraries and their options are:
             HYPRE >= 2.20.0   (HYPRE built with '--enable-mixedint')
             HYPRE >= 2.22.1   (HYPRE built with CUDA)
             HYPRE >= 2.23.0   (HYPRE built with HIP)
+            HYPRE >= 2.31.0   (runtime selectable HYPRE execution on CPU/GPU)
 
 - METIS, used when MFEM_USE_METIS = YES. If using METIS 5, set
-  MFEM_USE_METIS_5 = YES (default is to use METIS 4).
+  MFEM_USE_METIS_5 = YES (default is to use METIS 4). For building instructions,
+  see the following:
+    - METIS 4.0.3: https://mfem.org/building/#parallel-mpi-version-of-mfem
+    - METIS 5.1.0: https://mfem.org/building/#parallel-build-using-metis-5
   URL: https://github.com/mfem/tpls (MFEM mirror, see above)
   Options: METIS_OPT, METIS_LIB.
   Versions: METIS 4.0.3 or 5.1.0.
@@ -857,6 +870,10 @@ The specific libraries and their options are:
   URL: https://github.com/LLNL/parelag
   Options: PARELAG_DIR, PARELAG_OPT, PARELAG_LIB.
 
+- Tribol, used when MFEM_USE_TRIBOL = YES.
+  URL: https://github.com/LLNL/Tribol
+  Options: TRIBOL_DIR, TRIBOL_OPT, TRIBOL_LIB.
+
 - Enzyme, used when MFEM_USE_ENZYME = YES. Requires LLVM/Clang >= 14.0.0.
   URL: https://github.com/EnzymeAD/Enzyme
   Options: ENZYME_DIR, ENZYME_OPT, ENZYME_LIB.
@@ -1001,6 +1018,7 @@ MFEM_USE_CALIPER
 MFEM_USE_FMS
 MFEM_USE_BENCHMARK
 MFEM_USE_PARELAG
+MFEM_USE_TRIBOL
 MFEM_USE_ENZYME
 
 The following options are CMake specific:
