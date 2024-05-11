@@ -290,9 +290,8 @@ TEST_CASE("pNCMesh PA diagonal",  "[Parallel], [NCMesh]")
          MPI_Allreduce(&nc_diag_lsum, &nc_diag_gsum, 1,
                        MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
 
-         real_t error = fabs(diag_gsum - nc_diag_gsum);
-         CAPTURE(order, error);
-         REQUIRE(error == MFEM_Approx(0.0, EPS));
+         CAPTURE(order, diag_gsum, nc_diag_gsum);
+         REQUIRE(nc_diag_gsum == MFEM_Approx(diag_gsum));
          MPI_Barrier(MPI_COMM_WORLD);
       }
    }
@@ -1055,7 +1054,7 @@ TEST_CASE("InteriorBoundaryReferenceCubes", "[Parallel], [NCMesh]")
       }
       if (Mpi::WorldSize() > 0)
       {
-         // Make sure on rank 1 there is a parent face with only ghost child
+         // Make sure on rank 1 there is a parent face with only ghost child
          // faces. This can cause issues with higher order dofs being
          // uncontrolled.
          partition[refined_elem == 0 ? modified_smesh.GetNE() - 1 : 0] = 0;
