@@ -10,7 +10,7 @@
 # CONTRIBUTING.md for details.
 
 # The current MFEM version as an integer, see also `CMakeLists.txt`.
-MFEM_VERSION = 40601
+MFEM_VERSION = 40701
 MFEM_VERSION_STRING = $(shell printf "%06d" $(MFEM_VERSION) | \
   sed -e 's/^0*\(.*.\)\(..\)\(..\)$$/\1.\2.\3/' -e 's/\.0/./g' -e 's/\.0$$//')
 
@@ -205,16 +205,12 @@ MFEM_SHARED_BUILD = $(MFEM_SHARED)
 override static = $(if $(MFEM_STATIC:YES=),,YES)
 override shared = $(if $(MFEM_SHARED:YES=),,YES)
 
-# Process MFEM_PRECISION -> MFEM_USE_SINGLE, MFEM_USE_DOUBLE
-ifneq ($(filter double Double DOUBLE,$(MFEM_PRECISION)),)
-   MFEM_USE_DOUBLE ?= YES
-   MFEM_USE_SINGLE ?= NO
-else ifneq ($(filter single Single SINGLE,$(MFEM_PRECISION)),)
-   MFEM_USE_DOUBLE ?= NO
-   MFEM_USE_SINGLE ?= YES
-else ifeq ($(MAKECMDGOALS),config)
-   $(error Invalid floating-point precision: \
-     MFEM_PRECISION = $(MFEM_PRECISION))
+# Error for package integrations that currently don't support single precision
+ifeq ($(MFEM_USE_SINGLE),YES)
+   PKGS_NO_SINGLE = SUNDIALS SUITESPARSE SUPERLU STRUMPACK GINKGO AMGX SLEPC\
+	 PUMI GSLIB ALGOIM CEED MOONOLITH TRIBOL
+   $(foreach pkg,$(PKGS_NO_SINGLE),$(if $(MFEM_USE_$(pkg):NO=),\
+     $(error Package $(pkg) is NOT supported with single precision)))
 endif
 
 # The default value of CXXFLAGS is based on the value of MFEM_DEBUG
