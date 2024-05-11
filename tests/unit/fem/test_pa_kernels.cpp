@@ -713,4 +713,120 @@ TEST_CASE("PA Boundary Mass", "[PartialAssembly], [CUDA]")
    REQUIRE(y_fa.Normlinf() == MFEM_Approx(0.0));
 }
 
+namespace
+{
+template <typename T> struct ParTypeHelper { };
+template <> struct ParTypeHelper<FiniteElementSpace>
+{
+   using GF_t = GridFunction;
+   using BLF_t = BilinearForm;
+};
+#ifdef MFEM_USE_MPI
+template <> struct ParTypeHelper<ParFiniteElementSpace>
+{
+   using GF_t = ParGridFunction;
+   using BLF_t = ParBilinearForm;
+};
+#endif
+}
+
+template <typename FES>
+void test_dg_diffusion(FES &fes)
+{
+   using GF_t = typename ParTypeHelper<FES>::GF_t;
+   using BLF_t = typename ParTypeHelper<FES>::BLF_t;
+
+   GF_t x(&fes), y_fa(&fes), y_pa(&fes);
+   x.Randomize(1);
+
+   ConstantCoefficient pi(3.14159);
+
+   const real_t sigma = -1.0;
+   const real_t kappa = 10.0;
+
+   IntegrationRules irs(0, Quadrature1D::GaussLobatto);
+   const IntegrationRule &ir = irs.Get(fes.GetMesh()->GetFaceGeometry(0),
+                                       2*fes.GetMaxElementOrder());
+
+   BLF_t blf_fa(&fes);
+   blf_fa.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
+   blf_fa.AddBdrFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
+   (*blf_fa.GetFBFI())[0]->SetIntegrationRule(ir);
+   (*blf_fa.GetBFBFI())[0]->SetIntegrationRule(ir);
+   blf_fa.Assemble();
+   blf_fa.Finalize();
+   OperatorHandle A_fa;
+   Array<int> empty;
+   blf_fa.FormSystemMatrix(empty, A_fa);
+   A_fa->Mult(x, y_fa);
+
+   BLF_t blf_pa(&fes);
+   blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   blf_pa.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
+   blf_pa.AddBdrFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
+   (*blf_pa.GetFBFI())[0]->SetIntegrationRule(ir);
+   (*blf_pa.GetBFBFI())[0]->SetIntegrationRule(ir);
+   blf_pa.Assemble();
+   blf_pa.Mult(x, y_pa);
+
+   y_fa -= y_pa;
+
+   REQUIRE(y_fa.Normlinf() == MFEM_Approx(0.0));
+}
+
+std::vector<std::string> get_dg_test_meshes()
+{
+   std::vector<std::string> mesh_filenames =
+   {
+      "../../data/star.mesh",
+      "../../data/star-q3.mesh",
+      "../../data/fichera.mesh",
+      "../../data/fichera-q3.mesh",
+   };
+   const bool have_data_dir = mfem_data_dir != "";
+   if (have_data_dir)
+   {
+      mesh_filenames.push_back(mfem_data_dir + "/gmsh/v22/unstructured_quad.v22.msh");
+      mesh_filenames.push_back(mfem_data_dir + "/gmsh/v22/unstructured_hex.v22.msh");
+   }
+   return mesh_filenames;
+}
+
+TEST_CASE("PA DG Diffusion", "[PartialAssembly], [CUDA]")
+{
+   const auto mesh_fname = GENERATE_COPY(from_range(get_dg_test_meshes()));
+   const int order = GENERATE(1, 2);
+   CAPTURE(order, mesh_fname);
+
+   Mesh mesh = Mesh::LoadFromFile(mesh_fname.c_str());
+   const int dim = mesh.Dimension();
+
+   DG_FECollection fec(order, dim, BasisType::GaussLobatto);
+   FiniteElementSpace fes(&mesh, &fec);
+
+   test_dg_diffusion(fes);
+}
+
+#ifdef MFEM_USE_MPI
+
+TEST_CASE("Parallel PA DG Diffusion", "[PartialAssembly][Parallel][CUDA]")
+{
+   const auto mesh_fname = GENERATE_COPY(from_range(get_dg_test_meshes()));
+   const int order = GENERATE(1, 2);
+   CAPTURE(order, mesh_fname);
+
+   Mesh serial_mesh = Mesh::LoadFromFile(mesh_fname.c_str());
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
+   serial_mesh.Clear();
+
+   const int dim = mesh.Dimension();
+
+   DG_FECollection fec(order, dim, BasisType::GaussLobatto);
+   ParFiniteElementSpace fes(&mesh, &fec);
+
+   test_dg_diffusion(fes);
+}
+
+#endif
+
 } // namespace pa_kernels
