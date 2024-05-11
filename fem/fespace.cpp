@@ -3615,7 +3615,8 @@ void FiniteElementSpace::Save(std::ostream &os) const
    }
 }
 
-FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
+FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input,
+                                                  bool connect)
 {
    string buff;
    int fes_format = 0, ord;
@@ -3710,7 +3711,7 @@ FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
          }
       }
    }
-
+   if (connect && nurbs_ext) { nurbs_ext->ConnectBoundaries(); }
    Constructor(m, nurbs_ext, r_fec, vdim, ord);
 
    return r_fec;

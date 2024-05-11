@@ -130,6 +130,10 @@ if (MFEM_ENABLE_TESTING)
     -m ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/cube-nurbs.mesh -pm "1" -ps "2" -rf ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/cube.ref)
 endif()
 
+add_test(NAME nurbs_ex1_periodic_r1_ser
+  COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
+  -m ${PROJECT_SOURCE_DIR}/data/periodic-square-nurbs.mesh -o 2 -r 1)
+
 if (MFEM_USE_MPI)
   add_mfem_miniapp(nurbs_ex1p
     MAIN nurbs_ex1p.cpp
@@ -170,6 +174,11 @@ if (MFEM_USE_MPI)
         ${MPIEXEC_PREFLAGS}  $<TARGET_FILE:nurbs_ex1p> -no-vis
         -m ${PROJECT_SOURCE_DIR}/data/square-disc-nurbs-patch.mesh -o 2 --weak-bc -r 1)
   endif()
+
+  add_test(NAME nurbs_ex1_periodic_r1_np=4
+    COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+    ${MPIEXEC_PREFLAGS} $<TARGET_FILE:nurbs_ex1p> -no-vis
+    -m ${PROJECT_SOURCE_DIR}/data/periodic-square-nurbs.mesh -o 2 -r 1)
 
   add_mfem_miniapp(nurbs_ex11p
     MAIN nurbs_ex11p.cpp
