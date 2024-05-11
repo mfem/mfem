@@ -709,10 +709,7 @@ real_t HyperelasticOperator::ElasticEnergy(const ParGridFunction &x) const
 
 real_t HyperelasticOperator::KineticEnergy(const ParGridFunction &v) const
 {
-   real_t loc_energy = 0.5*M.InnerProduct(v, v);
-   real_t energy;
-   MPI_Allreduce(&loc_energy, &energy, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
-                 fespace.GetComm());
+   real_t energy = 0.5*M.ParInnerProduct(v, v);
    return energy;
 }
 
