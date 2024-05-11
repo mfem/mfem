@@ -368,6 +368,72 @@ const
    y.Add(a, Ytmp);
 }
 
+real_t ParBilinearForm::ParInnerProduct(const ParGridFunction &x,
+                                        const ParGridFunction &y) const
+{
+   MFEM_ASSERT(mat != NULL, "local matrix must be assembled");
+
+   real_t loc = InnerProduct(x, y);
+   real_t glob = 0.;
+
+   MPI_Allreduce(&loc, &glob, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                 pfes->GetComm());
+
+   return glob;
+}
+
+real_t ParBilinearForm::TrueInnerProduct(const ParGridFunction &x,
+                                         const ParGridFunction &y) const
+{
+   MFEM_ASSERT(x.ParFESpace() == pfes, "the parallel spaces must match");
+   MFEM_ASSERT(y.ParFESpace() == pfes, "the parallel spaces must match");
+
+   HypreParVector *x_p = x.ParallelProject();
+   HypreParVector *y_p = y.ParallelProject();
+
+   real_t res = TrueInnerProduct(*x_p, *y_p);
+
+   delete x_p;
+   delete y_p;
+
+   return res;
+}
+
+real_t ParBilinearForm::TrueInnerProduct(HypreParVector &x,
+                                         HypreParVector &y) const
+{
+   MFEM_VERIFY(p_mat.Ptr() != NULL, "parallel matrix must be assembled");
+
+   if (p_mat->GetType() != Operator::Hypre_ParCSR)
+   {
+      return TrueInnerProduct((const Vector&)x, (const Vector&)y);
+   }
+
+   HypreParVector *Ax = new HypreParVector(pfes);
+   HypreParMatrix *A = p_mat.As<HypreParMatrix>();
+
+   A->Mult(x, *Ax);
+
+   real_t res = mfem::InnerProduct(y, *Ax);
+
+   delete Ax;
+
+   return res;
+}
+
+real_t ParBilinearForm::TrueInnerProduct(const Vector &x,
+                                         const Vector &y) const
+{
+   MFEM_VERIFY(p_mat.Ptr() != NULL, "parallel matrix must be assembled");
+
+   Vector Ax(pfes->GetTrueVSize());
+   p_mat->Mult(x, Ax);
+
+   real_t res = mfem::InnerProduct(pfes->GetComm(), y, Ax);
+
+   return res;
+}
+
 void ParBilinearForm::FormLinearSystem(
    const Array<int> &ess_tdof_list, Vector &x, Vector &b,
    OperatorHandle &A, Vector &X, Vector &B, int copy_interior)
