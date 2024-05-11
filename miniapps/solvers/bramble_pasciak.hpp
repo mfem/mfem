@@ -101,7 +101,7 @@ public:
     us to implement modified versions of CG iterations, that rely on efficient
     applications of the required transformations.
 
-    We offer a mass preconditioner based on a rescalling of the diagonal of the
+    We offer a mass preconditioner based on a rescaling of the diagonal of the
     element mass matrices M_T.
 
     We consider Q_T := alpha * lambda_min * D_T, where D_T := diag(M_T), and
@@ -118,7 +118,7 @@ public:
 
     2. J. Bramble and J. Pasciak.  A Preconditioning Technique for Indefinite
        Systems Resulting From Mixed Approximations of Elliptic Problems,
-       Mathematics of Computation, 50:1–17, 1988. */
+       Mathematics of Computation, 50:1-17, 1988. */
 class BramblePasciakSolver : public DarcySolver
 {
    mutable bool use_bpcg;

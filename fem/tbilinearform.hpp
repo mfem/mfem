@@ -503,7 +503,7 @@ public:
 
       Array<int> vdofs;
       const Array<int> *dof_map = sol_fe.GetDofMap();
-      const int *dof_map_ = dof_map->GetData();
+      const int *dof_map_ = (dof_map) ? dof_map->GetData() : NULL;
       DenseMatrix M_loc_perm(dofs*vdim,dofs*vdim); // initialized with zeros
 
       const int NE = mesh.GetNE();
