@@ -53,7 +53,7 @@ jobs:
         mpi: [seq, par]
         build-system: [make, cmake]
         hypre-target: [int32]
-        precision: [dbl]
+        precision: [fp64]
         exclude:
           - os: ubuntu-latest
             build-system: cmake
@@ -91,7 +91,7 @@ jobs:
             mpi: par
             build-system: cmake
             hypre-target: int32
-            precision: dbl
+            precision: fp64
             # This option can be set to pass additional configuration options to
             # the MFEM configuration command.
             # config-opts: '-DCMAKE_VERBOSE_MAKEFILE=ON'
@@ -101,14 +101,14 @@ jobs:
             mpi: par
             build-system: make
             hypre-target: int64
-            precision: dbl
+            precision: fp64
           - os: ubuntu-latest
             target: opt
             codecov: NO
             mpi: par
             build-system: make
             hypre-target: int32
-            precision: sgl
+            precision: fp32
     name: ${{ matrix.os }}-${{ matrix.build-system }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.hypre-target }}-${{ matrix.precision }}
 
     runs-on: ${{ matrix.os }}
