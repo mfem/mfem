@@ -641,7 +641,6 @@ int main (int argc, char *argv[])
    //     no command-line options for the weights and the type of the second
    //     metric; one should update those in the code.
    ParNonlinearForm a(pfespace);
-   ConstantCoefficient *metric_coeff1 = NULL;
    a.AddDomainIntegrator(tmop_integ);
 
    // Compute the minimum det(J) of the starting mesh.
@@ -872,7 +871,6 @@ int main (int argc, char *argv[])
 
    delete S;
    delete S_prec;
-   delete metric_coeff1;
    delete adapt_surface;
    delete adapt_grad_surface;
    delete adapt_hess_surface;
