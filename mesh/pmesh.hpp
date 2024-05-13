@@ -343,7 +343,7 @@ public:
        meshes and quick space-filling curve equipartitioning for nonconforming
        meshes (elements of nonconforming meshes should ideally be ordered as a
        sequence of face-neighbors). */
-   ParMesh(MPI_Comm comm, Mesh &mesh, const int *partitioning_ = NULL,
+   ParMesh(MPI_Comm comm, Mesh &mesh, const int *partitioning_ = nullptr,
            int part_method = 1);
 
    /** Copy constructor. Performs a deep copy of (almost) all data, so that the

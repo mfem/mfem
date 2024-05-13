@@ -2726,8 +2726,8 @@ public:
                                 Mesh::GeneratePartitioning() when the provided
                                 input partitioning is NULL.
    */
-   MeshPartitioner(Mesh &mesh_, int num_parts_, int *partitioning_ = NULL,
-                   int part_method = 1);
+   MeshPartitioner(Mesh &mesh_, int num_parts_,
+                   const int *partitioning_ = nullptr, int part_method = 1);
 
    /** @brief Construct a MeshPart corresponding to the given @a part_id.
 

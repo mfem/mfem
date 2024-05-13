@@ -109,25 +109,30 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, const int *partitioning_,
    , glob_offset_sequence(-1)
    , gtopo(comm)
 {
-   const int *partitioning = partitioning_ ? partitioning_ : nullptr;
-   Array<bool> activeBdrElem;
-
    MyComm = comm;
    MPI_Comm_size(MyComm, &NRanks);
    MPI_Comm_rank(MyComm, &MyRank);
 
+   Array<int> partitioning;
+   Array<bool> activeBdrElem;
+
+   if (partitioning_)
+   {
+      partitioning.MakeRef(const_cast<int *>(partitioning_), mesh.GetNE(),
+                           false);
+   }
+
    if (mesh.Nonconforming())
    {
-      ncmesh = pncmesh = new ParNCMesh(comm, *mesh.ncmesh, partitioning);
+      ncmesh = pncmesh = new ParNCMesh(comm, *mesh.ncmesh, partitioning_);
 
-      if (!partitioning)
+      if (!partitioning_)
       {
-         int *part = new int[mesh.GetNE()];
+         partitioning.SetSize(mesh.GetNE());
          for (int i = 0; i < mesh.GetNE(); i++)
          {
-            part[i] = pncmesh->InitialPartition(i);
+            partitioning[i] = pncmesh->InitialPartition(i);
          }
-         partitioning = part;
       }
 
       pncmesh->Prune();
@@ -156,9 +161,14 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, const int *partitioning_,
 
       ncmesh = pncmesh = NULL;
 
-      if (!partitioning)
+      if (!partitioning_)
       {
-         partitioning = mesh.GeneratePartitioning(NRanks, part_method);
+         // Mesh::GeneratePartitioning always uses new[] to allocate the,
+         // partitioning, so we need to tell the memory manager to free it with
+         // delete[] (even if a different host memory type has been selected).
+         constexpr MemoryType mt = MemoryType::HOST;
+         partitioning.MakeRef(mesh.GeneratePartitioning(NRanks, part_method),
+                              mesh.GetNE(), mt, true);
       }
 
       // re-enumerate the partitions to better map to actual processor
@@ -298,11 +308,6 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, const int *partitioning_,
       // set meaningful values to 'vertices' even though we have Nodes,
       // for compatibility (e.g., Mesh::GetVertex())
       SetVerticesFromNodes(Nodes);
-   }
-
-   if (partitioning != partitioning_)
-   {
-      delete [] partitioning;
    }
 
    have_face_nbr_data = false;
