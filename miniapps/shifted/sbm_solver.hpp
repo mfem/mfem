@@ -93,7 +93,7 @@ protected:
    real_t alpha;
    VectorCoefficient *vD;     // Distance function coefficient
    Array<int> *elem_marker;   // marker indicating whether element is inside,
-   //cut, or outside the domain.
+   // cut, or outside the domain.
    bool include_cut_cell;     // include element cut by true boundary
    int nterms;                // Number of terms in addition to the gradient
    // term from Taylor expansion that should be included. (0 by default).
@@ -156,7 +156,7 @@ protected:
    real_t alpha;              // Nitsche parameter
    VectorCoefficient *vD;     // Distance function coefficient
    Array<int> *elem_marker;   // marker indicating whether element is inside,
-   //cut, or outside the domain.
+   // cut, or outside the domain.
    bool include_cut_cell;     // include element cut by true boundary
    int nterms;                // Number of terms in addition to the gradient
    // term from Taylor expansion that should be included. (0 by default).
@@ -217,7 +217,7 @@ protected:
    ShiftedVectorFunctionCoefficient *vN; // Normal function coefficient
    VectorCoefficient *vD;     // Distance function coefficient
    Array<int> *elem_marker;   // Marker indicating whether element is inside,
-   //cut, or outside the domain.
+   // cut, or outside the domain.
    bool include_cut_cell;
    int nterms;                // Number of terms in addition to the gradient
    // term from Taylor expansion that should be included. (0 by default).

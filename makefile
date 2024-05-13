@@ -10,7 +10,7 @@
 # CONTRIBUTING.md for details.
 
 # The current MFEM version as an integer, see also `CMakeLists.txt`.
-MFEM_VERSION = 40601
+MFEM_VERSION = 40701
 MFEM_VERSION_STRING = $(shell printf "%06d" $(MFEM_VERSION) | \
   sed -e 's/^0*\(.*.\)\(..\)\(..\)$$/\1.\2.\3/' -e 's/\.0/./g' -e 's/\.0$$//')
 
@@ -124,7 +124,7 @@ EXAMPLE_DIRS := examples $(addprefix examples/,$(EXAMPLE_SUBDIRS))
 EXAMPLE_TEST_DIRS := examples
 
 MINIAPP_SUBDIRS = common electromagnetics meshing navier performance tools \
- toys nurbs gslib adjoint solvers shifted mtop parelag autodiff hooke \
+ toys nurbs gslib adjoint solvers shifted mtop parelag tribol autodiff hooke \
  multidomain dpg hdiv-linear-solver spde
 MINIAPP_DIRS := $(addprefix miniapps/,$(MINIAPP_SUBDIRS))
 MINIAPP_TEST_DIRS := $(filter-out %/common,$(MINIAPP_DIRS))
@@ -205,16 +205,12 @@ MFEM_SHARED_BUILD = $(MFEM_SHARED)
 override static = $(if $(MFEM_STATIC:YES=),,YES)
 override shared = $(if $(MFEM_SHARED:YES=),,YES)
 
-# Process MFEM_PRECISION -> MFEM_USE_SINGLE, MFEM_USE_DOUBLE
-ifneq ($(filter double Double DOUBLE,$(MFEM_PRECISION)),)
-   MFEM_USE_DOUBLE ?= YES
-   MFEM_USE_SINGLE ?= NO
-else ifneq ($(filter single Single SINGLE,$(MFEM_PRECISION)),)
-   MFEM_USE_DOUBLE ?= NO
-   MFEM_USE_SINGLE ?= YES
-else ifeq ($(MAKECMDGOALS),config)
-   $(error Invalid floating-point precision: \
-     MFEM_PRECISION = $(MFEM_PRECISION))
+# Error for package integrations that currently don't support single precision
+ifeq ($(MFEM_USE_SINGLE),YES)
+   PKGS_NO_SINGLE = SUNDIALS SUITESPARSE SUPERLU STRUMPACK GINKGO AMGX SLEPC\
+	 PUMI GSLIB ALGOIM CEED MOONOLITH TRIBOL
+   $(foreach pkg,$(PKGS_NO_SINGLE),$(if $(MFEM_USE_$(pkg):NO=),\
+     $(error Package $(pkg) is NOT supported with single precision)))
 endif
 
 # The default value of CXXFLAGS is based on the value of MFEM_DEBUG
@@ -290,8 +286,8 @@ endif
 # List of MFEM dependencies, that require the *_LIB variable to be non-empty
 MFEM_REQ_LIB_DEPS = ENZYME SUPERLU MUMPS METIS FMS CONDUIT SIDRE LAPACK SUNDIALS\
  SUITESPARSE STRUMPACK GINKGO GNUTLS NETCDF PETSC SLEPC MPFR PUMI HIOP\
- GSLIB OCCA CEED RAJA UMPIRE MKL_CPARDISO MKL_PARDISO AMGX CALIPER PARELAG BENCHMARK\
- MOONOLITH ALGOIM
+ GSLIB OCCA CEED RAJA UMPIRE MKL_CPARDISO MKL_PARDISO AMGX CALIPER PARELAG TRIBOL\
+ BENCHMARK MOONOLITH ALGOIM
 
 
 PETSC_ERROR_MSG = $(if $(PETSC_FOUND),,. PETSC config not found: $(PETSC_VARS))
@@ -359,7 +355,7 @@ MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
  MFEM_USE_OCCA MFEM_USE_MOONOLITH MFEM_USE_CEED MFEM_USE_RAJA MFEM_USE_UMPIRE\
  MFEM_USE_SIMD MFEM_USE_ADIOS2 MFEM_USE_MKL_CPARDISO MFEM_USE_MKL_PARDISO MFEM_USE_AMGX\
  MFEM_USE_MUMPS MFEM_USE_ADFORWARD MFEM_USE_CODIPACK MFEM_USE_CALIPER\
- MFEM_USE_BENCHMARK MFEM_USE_PARELAG MFEM_USE_ALGOIM MFEM_USE_ENZYME\
+ MFEM_USE_BENCHMARK MFEM_USE_PARELAG MFEM_USE_TRIBOL MFEM_USE_ALGOIM MFEM_USE_ENZYME\
  MFEM_SOURCE_DIR MFEM_INSTALL_DIR MFEM_SHARED_BUILD MFEM_USE_DOUBLE MFEM_USE_SINGLE
 
 # List of makefile variables that will be written to config.mk:
@@ -727,6 +723,7 @@ status info:
 	$(info MFEM_USE_CODIPACK      = $(MFEM_USE_CODIPACK))
 	$(info MFEM_USE_BENCHMARK     = $(MFEM_USE_BENCHMARK))
 	$(info MFEM_USE_PARELAG       = $(MFEM_USE_PARELAG))
+	$(info MFEM_USE_TRIBOL        = $(MFEM_USE_TRIBOL))
 	$(info MFEM_USE_ENZYME        = $(MFEM_USE_ENZYME))
 	$(info MFEM_CXX               = $(value MFEM_CXX))
 	$(info MFEM_HOST_CXX          = $(value MFEM_HOST_CXX))
