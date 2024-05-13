@@ -50,6 +50,11 @@ using namespace std;
 
 int main (int argc, char *argv[])
 {
+#ifdef HYPRE_USING_GPU
+   cout << "\nThis miniapp is NOT supported with the GPU version of hypre.\n\n";
+   return MFEM_SKIP_RETURN_VALUE;
+#endif
+
    Mpi::Init(argc, argv);
    int myid = Mpi::WorldRank();
    Hypre::Init();
