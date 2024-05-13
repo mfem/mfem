@@ -607,15 +607,15 @@ public:
 class ParNURBSExtension : public NURBSExtension
 {
 private:
-   int *partitioning;
+   mfem::Array<int> partitioning;
 
    Table *GetGlobalElementDofTable();
    Table *Get1DGlobalElementDofTable();
    Table *Get2DGlobalElementDofTable();
    Table *Get3DGlobalElementDofTable();
 
-   void SetActive(const int *partitioning, const Array<bool> &active_bel);
-   void BuildGroups(const int *partitioning, const Table &elem_dof);
+   void SetActive(const int *partitioning_, const Array<bool> &active_bel);
+   void BuildGroups(const int *partitioning_, const Table &elem_dof);
 
 public:
    GroupTopology gtopo;
@@ -625,7 +625,7 @@ public:
    ParNURBSExtension(const ParNURBSExtension &orig);
 
    ParNURBSExtension(MPI_Comm comm, NURBSExtension *parent,
-                     const int *partitioning,
+                     const int *partitioning_,
                      const Array<bool> &active_bel);
 
    // Create a parallel version of 'parent' with partitioning as in
@@ -633,8 +633,6 @@ public:
    // The 'parent' can be either a local NURBSExtension or a global one.
    ParNURBSExtension(NURBSExtension *parent,
                      const ParNURBSExtension *par_parent);
-
-   virtual ~ParNURBSExtension() { delete [] partitioning; }
 };
 #endif
 
