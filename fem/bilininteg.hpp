@@ -266,6 +266,39 @@ public:
                                     Vector &flux, Vector *d_energy = NULL)
    { return 0.0; }
 
+   /** @brief For bilinear forms on element faces, specifies if the normal
+              derivatives are needed on the faces or just the face restriction.
+
+       @details if RequiresFaceNormalDerivatives() == true, then
+                AddMultPAFaceNormalDerivatives(...) should be invoked in place
+                of AddMultPA(...) and L2NormalDerivativeFaceRestriction should
+                be used to compute the normal derivatives. This is used for some
+                DG integrators, for example DGDiffusionIntegrator.
+
+       @returns whether normal derivatives appear in the bilinear form.
+   */
+   virtual bool RequiresFaceNormalDerivatives() const { return false; }
+
+   /// Method for partially assembled action.
+   /** @brief For bilinear forms on element faces that depend on the normal
+              derivative on the faces, computes the action of integrator to the
+              face values @a x and reference-normal derivatives @a dxdn and adds
+              the result to @a y and @a dydn.
+
+      @details This method can be called only after the method AssemblePA() has
+               been called.
+
+      @param[in]     x E-vector of face values (provided by
+                       FaceRestriction::Mult)
+      @param[in]     dxdn E-vector of face reference-normal derivatives
+                          (provided by FaceRestriction::NormalDerivativeMult)
+      @param[in,out] y E-vector of face values to add action to.
+      @param[in,out] dydn E-vector of face reference-normal derivative values to
+                          add action to.
+   */
+   virtual void AddMultPAFaceNormalDerivatives(const Vector &x, const Vector &dxdn,
+                                               Vector &y, Vector &dydn) const;
+
    virtual ~BilinearFormIntegrator() { }
 };
 
@@ -3229,6 +3262,13 @@ protected:
    Vector shape1, shape2, dshape1dn, dshape2dn, nor, nh, ni;
    DenseMatrix jmat, dshape1, dshape2, mq, adjJ;
 
+
+   // PA extension
+   Vector pa_data; // (Q, h, dot(n,J)|el0, dot(n,J)|el1)
+   const DofToQuad *maps; ///< Not owned
+   int dim, nf, nq, dofs1D, quad1D;
+   IntegrationRules irs{0, Quadrature1D::GaussLobatto};
+
 public:
    DGDiffusionIntegrator(const real_t s, const real_t k)
       : Q(NULL), MQ(NULL), sigma(s), kappa(k) { }
@@ -3237,10 +3277,26 @@ public:
    DGDiffusionIntegrator(MatrixCoefficient &q, const real_t s, const real_t k)
       : Q(NULL), MQ(&q), sigma(s), kappa(k) { }
    using BilinearFormIntegrator::AssembleFaceMatrix;
-   virtual void AssembleFaceMatrix(const FiniteElement &el1,
-                                   const FiniteElement &el2,
-                                   FaceElementTransformations &Trans,
-                                   DenseMatrix &elmat);
+   void AssembleFaceMatrix(const FiniteElement &el1,
+                           const FiniteElement &el2,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat) override;
+
+   bool RequiresFaceNormalDerivatives() const override { return true; }
+
+   using BilinearFormIntegrator::AssemblePA;
+
+   void AssemblePAInteriorFaces(const FiniteElementSpace &fes) override;
+
+   void AssemblePABoundaryFaces(const FiniteElementSpace &fes) override;
+
+   void AddMultPAFaceNormalDerivatives(const Vector &x, const Vector &dxdn,
+                                       Vector &y, Vector &dydn) const override;
+
+   const IntegrationRule &GetRule(int order, FaceElementTransformations &T);
+
+private:
+   void SetupPA(const FiniteElementSpace &fes, FaceType type);
 };
 
 /** Integrator for the "BR2" diffusion stabilization term
