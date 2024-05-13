@@ -634,12 +634,7 @@ int main (int argc, char *argv[])
       }
    }
 
-   // 13. Setup the final NonlinearForm (which defines the integral of interest,
-   //     its first and second derivatives). Here we can use a combination of
-   //     metrics, i.e., optimize the sum of two integrals, where both are
-   //     scaled by used-defined space-dependent weights.  Note that there are
-   //     no command-line options for the weights and the type of the second
-   //     metric; one should update those in the code.
+   // Setup the final NonlinearForm.
    ParNonlinearForm a(pfespace);
    a.AddDomainIntegrator(tmop_integ);
 
@@ -673,10 +668,10 @@ int main (int argc, char *argv[])
       surf_fit_coeff.constant  = surface_fit_const;
    }
 
-   // 14. Fix all boundary nodes, or fix only a given component depending on the
-   //     boundary attributes of the given mesh.  Attributes 1/2/3 correspond to
-   //     fixed x/y/z components of the node.  Attribute dim+1 corresponds to
-   //     an entirely fixed node.
+   // Fix all boundary nodes, or fix only a given component depending on the
+   // boundary attributes of the given mesh.  Attributes 1/2/3 correspond to
+   // fixed x/y/z components of the node.  Attribute dim+1 corresponds to
+   // an entirely fixed node.
    if (move_bnd == false)
    {
       Array<int> ess_bdr(pmesh->bdr_attributes.Max());
@@ -732,8 +727,7 @@ int main (int argc, char *argv[])
       a.SetEssentialVDofs(ess_vdofs);
    }
 
-   // 15. As we use the Newton method to solve the resulting nonlinear system,
-   //     here we setup the linear solver for the system's Jacobian.
+   // Setup the linear solver for the system's Jacobian.
    Solver *S = NULL, *S_prec = NULL;
 #ifdef MFEM_USE_SINGLE
    const real_t linsol_rtol = 1e-5;
@@ -808,8 +802,8 @@ int main (int argc, char *argv[])
    solver.Mult(b, x.GetTrueVector());
    x.SetFromTrueVector();
 
-   // 16. Save the optimized mesh to a file. This output can be viewed later
-   //     using GLVis: "glvis -m optimized -np num_mpi_tasks".
+   // Save the optimized mesh to a file. This output can be viewed later
+   // using GLVis: "glvis -m optimized -np num_mpi_tasks".
    {
       ostringstream mesh_name;
       mesh_name << "optimized.mesh";
@@ -860,7 +854,7 @@ int main (int argc, char *argv[])
       }
    }
 
-   // 18. Visualize the mesh displacement.
+   // Visualize the mesh displacement.
    if (visualization)
    {
       x0 -= x;
