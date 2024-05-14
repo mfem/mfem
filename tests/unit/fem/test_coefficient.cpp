@@ -306,33 +306,33 @@ TEST_CASE("Piecewise Matrix Coefficient", "[Coefficient]")
 
 TEST_CASE("Symmetric Matrix Coefficient", "[Coefficient]")
 {
-    int d = 3;
-    int qfdim = d*(d+1)/2;
+   int d = 3;
+   int qfdim = d*(d+1)/2;
 
-    Vector values(qfdim);
-    for (int i = 0; i < qfdim; i++)
-    {
-        values[i] = i+1;
+   Vector values(qfdim);
+   for (int i = 0; i < qfdim; i++)
+   {
+      values[i] = i+1;
 
-    }
+   }
 
-    // Create symmetric matrix initialized w/ values 1 through d*(d+1)/2
-    DenseSymmetricMatrix symMat(values.GetData(), d);
+   // Create symmetric matrix initialized w/ values 1 through d*(d+1)/2
+   DenseSymmetricMatrix symMat(values.GetData(), d);
 
-    SymmetricMatrixConstantCoefficient symCoeff(symMat);
-    
-    // Make mesh of size 1
-    Mesh m = Mesh::MakeCartesian1D(1);
+   SymmetricMatrixConstantCoefficient symCoeff(symMat);
 
-    // Define qspace on mesh w/ 1 integration point
-    QuadratureSpace qspace(&m, 1);
-    
-    // Define qf
-    QuadratureFunction qf(qspace, qfdim);
-    
-    symCoeff.ProjectSymmetric(qf);
+   // Make mesh of size 1
+   Mesh m = Mesh::MakeCartesian1D(1);
 
-    // Require equality
-    REQUIRE(qf.DistanceTo(values) == MFEM_Approx(0.0));
+   // Define qspace on mesh w/ 1 integration point
+   QuadratureSpace qspace(&m, 1);
+
+   // Define qf
+   QuadratureFunction qf(qspace, qfdim);
+
+   symCoeff.ProjectSymmetric(qf);
+
+   // Require equality
+   REQUIRE(qf.DistanceTo(values) == MFEM_Approx(0.0));
 
 }
