@@ -794,6 +794,66 @@ void FuentesPyramid::phi_T(int p, Vector s, DenseMatrix &u) const
    }
 }
 
+void FuentesPyramid::phi_T(int p, Vector s, const DenseMatrix &grad_s,
+                           DenseMatrix &u, DenseTensor &grad_u) const
+{
+   MFEM_ASSERT(p >= 3, "Polynomial order must be three or larger");
+   MFEM_ASSERT(s.Size() >= 3, "Size of s must be 3 or larger");
+   MFEM_ASSERT(grad_s.Height() >= 3,
+               "First dimension of grad_s must be 2 or larger");
+   MFEM_ASSERT(grad_s.Width() >= 3,
+               "Second dimension of grad_s must be 3 or larger");
+   MFEM_ASSERT(u.Height() >= p, "First dimension of u is too small");
+   MFEM_ASSERT(u.Width() >= p-1, "Second dimension of u is too small");
+   MFEM_ASSERT(grad_u.SizeI() >= p,
+               "First dimension of grad_u is too small");
+   MFEM_ASSERT(grad_u.SizeJ() >= p-1,
+               "Second dimension of grad_u is too small");
+   MFEM_ASSERT(grad_u.SizeK() >= 3,
+               "Third dimension of grad_u must be 3 or larger");
+
+#ifdef MFEM_THREAD_SAFE
+   Vector phi_T_vtmp1;
+   Vector phi_T_vtmp2;
+   Vector phi_T_vtmp3;
+   Vector phi_T_vtmp4;
+   DenseMatrix phi_T_mtmp1;
+#endif
+   Vector      &phi_E_i  = phi_T_vtmp1;
+   DenseMatrix &dphi_E_i = phi_T_mtmp1;
+   Vector      &L_j      = phi_T_vtmp2;
+   Vector      &dL_j_dx  = phi_T_vtmp3;
+   Vector      &dL_j_dt  = phi_T_vtmp4;
+
+   phi_E_i.SetSize(p);
+   dphi_E_i.SetSize(p, 3);
+   phi_E(p-1, s, grad_s, phi_E_i, dphi_E_i);
+
+   L_j.SetSize(p-1);
+   dL_j_dx.SetSize(p-1);
+   dL_j_dt.SetSize(p-1);
+
+   u = 0.0;
+   grad_u = 0.0;
+   for (int i = 2; i < p; i++)
+   {
+      const real_t alpha = 2.0 * i;
+      CalcHomogenizedIntJacobi(p-2, alpha, s[0] + s[1], s[2], L_j,
+                               dL_j_dx, dL_j_dt);
+
+      for (int j = 1; i + j <= p; j++)
+      {
+         u(i,j) = phi_E_i[i] * L_j[j];
+
+         for (int d=0; d<3; d++)
+            grad_u(i, j, d) = dphi_E_i(i, d) * L_j[j] +
+                              phi_E_i[i] * (dL_j_dx[j] * (grad_s(0, d) +
+                                                          grad_s(1, d)) +
+                                            dL_j_dt[j] * grad_s(2, d));
+      }
+   }
+}
+
 void FuentesPyramid::E_E(int p, Vector s, Vector sds, DenseMatrix &u) const
 {
    MFEM_ASSERT(p >= 1, "Polynomial order must be one or larger");

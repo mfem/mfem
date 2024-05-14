@@ -1087,6 +1087,7 @@ L2_BergotPyramidElement::L2_BergotPyramidElement(const int p, const int btype)
    dshape_x.SetSize(p + 1);
    dshape_y.SetSize(p + 1);
    dshape_z.SetSize(p + 1);
+   dshape_z_dt.SetSize(p + 1);
    u.SetSize(dof);
    du.SetSize(dof, dim);
 #else
@@ -1123,19 +1124,20 @@ L2_BergotPyramidElement::L2_BergotPyramidElement(const int p, const int btype)
       double y = (ip.z < 1.0) ? (ip.y / (1.0 - ip.z)) : 0.0;
       double z = ip.z;
 
+      poly1d.CalcLegendre(p, x, shape_x.GetData());
+      poly1d.CalcLegendre(p, y, shape_y.GetData());
+
       o = 0;
       for (int i = 0; i <= p; i++)
       {
-         poly1d.CalcLegendre(i, x, shape_x.GetData());
          for (int j = 0; j <= p; j++)
          {
-            poly1d.CalcLegendre(j, y, shape_y.GetData());
             int maxij = std::max(i, j);
+	    FuentesPyramid::CalcScaledJacobi(p-maxij, 2.0 * (maxij + 1.0),
+					     z, 1.0, shape_z);
+
             for (int k = 0; k <= p - maxij; k++)
             {
-               // poly1d.CalcJacobi(k, 2.0 * (maxij + 1.0), 0.0, z, shape_z);
-               FuentesPyramid::CalcScaledJacobi(k, 2.0 * (maxij + 1.0), z, 1.0,
-                                                shape_z);
                T(o++, m) = shape_x(i) * shape_y(j) * shape_z(k) *
                            pow(1.0 - ip.z, maxij);
             }
@@ -1162,19 +1164,20 @@ void L2_BergotPyramidElement::CalcShape(const IntegrationPoint &ip,
    double y = (ip.z < 1.0) ? (ip.y / (1.0 - ip.z)) : 0.0;
    double z = ip.z;
 
+   poly1d.CalcLegendre(p, x, shape_x.GetData());
+   poly1d.CalcLegendre(p, y, shape_y.GetData());
+
    int o = 0;
    for (int i = 0; i <= p; i++)
    {
-      poly1d.CalcLegendre(i, x, shape_x.GetData());
       for (int j = 0; j <= p; j++)
       {
-         poly1d.CalcLegendre(j, y, shape_y.GetData());
          int maxij = std::max(i, j);
-         for (int k = 0; k <= p - maxij; k++)
+	 FuentesPyramid::CalcScaledJacobi(p-maxij, 2.0 * (maxij + 1.0), z, 1.0,
+					  shape_z);
+
+	 for (int k = 0; k <= p - maxij; k++)
          {
-            // poly1d.CalcJacobi(k, 2.0 * (maxij + 1.0), 0.0, z, shape_z);
-            FuentesPyramid::CalcScaledJacobi(k, 2.0 * (maxij + 1.0), z, 1.0,
-                                             shape_z);
             u[o++] = shape_x(i) * shape_y(j) * shape_z(k) *
                      pow(1.0 - ip.z, maxij);
          }
@@ -1199,24 +1202,39 @@ void L2_BergotPyramidElement::CalcDShape(const IntegrationPoint &ip,
    DenseMatrix du(dof, dim);
 #endif
 
-   Poly_1D::CalcLegendre(p, ip.x / (1.0 - ip.z), shape_x.GetData(),
-                         dshape_x.GetData());
-   Poly_1D::CalcLegendre(p, ip.y / (1.0 - ip.z), shape_y.GetData(),
-                         dshape_y.GetData());
-   Poly_1D::CalcLegendre(p, ip.z, shape_z.GetData(), dshape_z.GetData());
+   double x = (ip.z < 1.0) ? (ip.x / (1.0 - ip.z)) : 0.0;
+   double y = (ip.z < 1.0) ? (ip.y / (1.0 - ip.z)) : 0.0;
+   double z = ip.z;
+
+   Poly_1D::CalcLegendre(p, x, shape_x.GetData(), dshape_x.GetData());
+   Poly_1D::CalcLegendre(p, y, shape_y.GetData(), dshape_y.GetData());
 
    int o = 0;
-   for (int k = 0; k <= p; k++)
+   for (int i = 0; i <= p; i++)
+   {
       for (int j = 0; j <= p; j++)
-         for (int i = 0; i <= p; i++, o++)
+      {
+         int maxij = std::max(i, j);
+	 FuentesPyramid::CalcScaledJacobi(p-maxij, 2.0 * (maxij + 1.0), z, 1.0,
+					  shape_z, dshape_z, dshape_z_dt);
+	 
+         for (int k = 0; k <= p - maxij; k++, o++)
          {
-            du(o, 0) = dshape_x[i] * shape_y[j] * shape_z[k] / (1.0 - ip.z);
-            du(o, 1) = shape_x[i] * dshape_y[j] * shape_z[k] / (1.0 - ip.z);
-            du(o, 2) = shape_x[i] * shape_y[j] * dshape_z[k] +
-                       (ip.x * dshape_x[i] * shape_y[j] +
-                        ip.y * shape_x[i] * dshape_y[j]) *
-                       shape_z[k] / pow(1.0 - ip.z, 2);
+            du(o,0) = dshape_x(i) * shape_y(j) * shape_z(k) *
+                      pow(1.0 - ip.z, maxij - 1);
+            du(o,1) = shape_x(i) * dshape_y(j) * shape_z(k) *
+                      pow(1.0 - ip.z, maxij - 1);
+            du(o,2) = shape_x(i) * shape_y(j) * dshape_z(k) *
+                      pow(1.0 - ip.z, maxij) +
+                      (ip.x * dshape_x(i) * shape_y(j) +
+		       ip.y * shape_x(i) * dshape_y(j)) *
+                      shape_z(k) * pow(1.0 - ip.z, maxij - 2) -
+                      ((maxij > 0) ? (maxij * shape_x(i) * shape_y(j) * shape_z(k) *
+                                      pow(1.0 - ip.z, maxij - 1)) : 0.0);
          }
+      }
+   }
+
    Ti.Mult(du, dshape);
 }
 

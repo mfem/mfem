@@ -212,7 +212,7 @@ class L2_BergotPyramidElement : public NodalFiniteElement
 private:
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, shape_y, shape_z;
-   mutable Vector dshape_x, dshape_y, dshape_z;
+   mutable Vector dshape_x, dshape_y, dshape_z, dshape_z_dt;
    mutable Vector u;
    mutable DenseMatrix du;
 #endif
