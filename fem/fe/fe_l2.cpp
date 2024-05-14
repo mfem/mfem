@@ -1133,8 +1133,8 @@ L2_BergotPyramidElement::L2_BergotPyramidElement(const int p, const int btype)
          for (int j = 0; j <= p; j++)
          {
             int maxij = std::max(i, j);
-	    FuentesPyramid::CalcScaledJacobi(p-maxij, 2.0 * (maxij + 1.0),
-					     z, 1.0, shape_z);
+            FuentesPyramid::CalcScaledJacobi(p-maxij, 2.0 * (maxij + 1.0),
+                                             z, 1.0, shape_z);
 
             for (int k = 0; k <= p - maxij; k++)
             {
@@ -1173,10 +1173,10 @@ void L2_BergotPyramidElement::CalcShape(const IntegrationPoint &ip,
       for (int j = 0; j <= p; j++)
       {
          int maxij = std::max(i, j);
-	 FuentesPyramid::CalcScaledJacobi(p-maxij, 2.0 * (maxij + 1.0), z, 1.0,
-					  shape_z);
+         FuentesPyramid::CalcScaledJacobi(p-maxij, 2.0 * (maxij + 1.0), z, 1.0,
+                                          shape_z);
 
-	 for (int k = 0; k <= p - maxij; k++)
+         for (int k = 0; k <= p - maxij; k++)
          {
             u[o++] = shape_x(i) * shape_y(j) * shape_z(k) *
                      pow(1.0 - ip.z, maxij);
@@ -1215,9 +1215,9 @@ void L2_BergotPyramidElement::CalcDShape(const IntegrationPoint &ip,
       for (int j = 0; j <= p; j++)
       {
          int maxij = std::max(i, j);
-	 FuentesPyramid::CalcScaledJacobi(p-maxij, 2.0 * (maxij + 1.0), z, 1.0,
-					  shape_z, dshape_z, dshape_z_dt);
-	 
+         FuentesPyramid::CalcScaledJacobi(p-maxij, 2.0 * (maxij + 1.0), z, 1.0,
+                                          shape_z, dshape_z, dshape_z_dt);
+
          for (int k = 0; k <= p - maxij; k++, o++)
          {
             du(o,0) = dshape_x(i) * shape_y(j) * shape_z(k) *
@@ -1227,7 +1227,7 @@ void L2_BergotPyramidElement::CalcDShape(const IntegrationPoint &ip,
             du(o,2) = shape_x(i) * shape_y(j) * dshape_z(k) *
                       pow(1.0 - ip.z, maxij) +
                       (ip.x * dshape_x(i) * shape_y(j) +
-		       ip.y * shape_x(i) * dshape_y(j)) *
+                       ip.y * shape_x(i) * dshape_y(j)) *
                       shape_z(k) * pow(1.0 - ip.z, maxij - 2) -
                       ((maxij > 0) ? (maxij * shape_x(i) * shape_y(j) * shape_z(k) *
                                       pow(1.0 - ip.z, maxij - 1)) : 0.0);

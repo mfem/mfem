@@ -194,6 +194,7 @@ void TestFDCalcDShape(FiniteElement* fe, ElementTransformation * T, int order)
    DenseMatrix dshape( dof, dim );
    DenseMatrix fdshape( dof, dim );
 
+   // Optimal step size for central difference
    real_t h = std::cbrt(std::numeric_limits<real_t>::epsilon());
    real_t inv2h = 0.5 / h;
 
@@ -220,7 +221,7 @@ void TestFDCalcDShape(FiniteElement* fe, ElementTransformation * T, int order)
       fe->CalcDShape(pt, dshape);
       for (int d=0; d<dim; d++)
       {
- 	 // Compute shifted integration points
+         // Compute shifted integration points
          switch (d)
          {
             case 0:
@@ -240,11 +241,11 @@ void TestFDCalcDShape(FiniteElement* fe, ElementTransformation * T, int order)
                ptp = pt;
          }
 
-	 // Compute shape functions at the shifted points
+         // Compute shape functions at the shifted points
          fe->CalcShape(ptm, mshape);
          fe->CalcShape(ptp, pshape);
 
-	 // Compute approximate derivatives using the secant method
+         // Compute approximate derivatives using the secant method
          fdshape.GetColumnReference(d, fd);
          add(inv2h, pshape, -inv2h, mshape, fd);
       }
