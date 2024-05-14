@@ -54,6 +54,7 @@ set(UNIT_TESTS_SRCS
   mesh/test_psubmesh.cpp
   mesh/test_submesh.cpp
   mesh/test_vtu.cpp
+  mesh/test_nurbs.cpp
   fem/test_1d_bilininteg.cpp
   fem/test_2d_bilininteg.cpp
   fem/test_3d_bilininteg.cpp
@@ -92,6 +93,7 @@ set(UNIT_TESTS_SRCS
   fem/test_linearform_ext.cpp
   fem/test_lor.cpp
   fem/test_lor_batched.cpp
+  fem/test_nonlinearform.cpp
   fem/test_operatorjacobismoother.cpp
   fem/test_oscillation.cpp
   fem/test_pa_coeff.cpp

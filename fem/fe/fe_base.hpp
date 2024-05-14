@@ -264,27 +264,27 @@ public:
    /** @brief Enumeration for MapType: defines how reference functions are
        mapped to physical space.
 
-       A reference function \f$ \hat u(\hat x) \f$ can be mapped to a function
-      \f$ u(x) \f$ on a general physical element in following ways:
-       - \f$ x = T(\hat x) \f$ is the image of the reference point \f$ \hat x \f$
-       - \f$ J = J(\hat x) \f$ is the Jacobian matrix of the transformation T
-       - \f$ w = w(\hat x) = det(J) \f$ is the transformation weight factor for square J
-       - \f$ w = w(\hat x) = det(J^t J)^{1/2} \f$ is the transformation weight factor in general
+       A reference function $ \hat u(\hat x) $ can be mapped to a function
+      $ u(x) $ on a general physical element in following ways:
+       - $ x = T(\hat x) $ is the image of the reference point $ \hat x $
+       - $ J = J(\hat x) $ is the Jacobian matrix of the transformation T
+       - $ w = w(\hat x) = det(J) $ is the transformation weight factor for square J
+       - $ w = w(\hat x) = det(J^t J)^{1/2} $ is the transformation weight factor in general
    */
    enum MapType
    {
       UNKNOWN_MAP_TYPE = -1, /**< Used to distinguish an unset MapType variable
                                   from the known values below. */
       VALUE,     /**< For scalar fields; preserves point values
-                          \f$ u(x) = \hat u(\hat x) \f$ */
+                          $ u(x) = \hat u(\hat x) $ */
       INTEGRAL,  /**< For scalar fields; preserves volume integrals
-                          \f$ u(x) = (1/w) \hat u(\hat x) \f$ */
+                          $ u(x) = (1/w) \hat u(\hat x) $ */
       H_DIV,     /**< For vector fields; preserves surface integrals of the
-                          normal component \f$ u(x) = (J/w) \hat u(\hat x) \f$ */
+                          normal component $ u(x) = (J/w) \hat u(\hat x) $ */
       H_CURL     /**< For vector fields; preserves line integrals of the
                           tangential component
-                          \f$ u(x) = J^{-t} \hat u(\hat x) \f$ (square J),
-                          \f$ u(x) = J(J^t J)^{-1} \hat u(\hat x) \f$ (general J) */
+                          $ u(x) = J^{-t} \hat u(\hat x) $ (square J),
+                          $ u(x) = J(J^t J)^{-1} \hat u(\hat x) $ (general J) */
    };
 
    /** @brief Enumeration for DerivType: defines which derivative method

@@ -122,6 +122,9 @@ public:
       }
    }
 
+   /// Return the inverse of the given orientation for the specified geometry type.
+   static int GetInverseOrientation(Type geom_type, int orientation);
+
    /// Return the number of boundary "faces" of a given Geometry::Type.
    int NumBdr(int GeomType) const { return NumBdrArray[GeomType]; }
 };

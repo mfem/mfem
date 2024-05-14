@@ -252,6 +252,34 @@ Geometry::Geometry()
    }
 }
 
+template <Geometry::Type GEOM>
+int GetInverseOrientation_(int orientation)
+{
+   using geom_t = Geometry::Constants<GEOM>;
+   MFEM_ASSERT(0 <= orientation && orientation < geom_t::NumOrient,
+               "Invalid orientation");
+   return geom_t::InvOrient[orientation];
+}
+
+int Geometry::GetInverseOrientation(Type geom_type, int orientation)
+{
+   switch (geom_type)
+   {
+      case Geometry::POINT:
+         return GetInverseOrientation_<Geometry::POINT>(orientation);
+      case Geometry::SEGMENT:
+         return GetInverseOrientation_<Geometry::SEGMENT>(orientation);
+      case Geometry::TRIANGLE:
+         return GetInverseOrientation_<Geometry::TRIANGLE>(orientation);
+      case Geometry::SQUARE:
+         return GetInverseOrientation_<Geometry::SQUARE>(orientation);
+      case Geometry::TETRAHEDRON:
+         return GetInverseOrientation_<Geometry::TETRAHEDRON>(orientation);
+      default:
+         MFEM_ABORT("Geometry type does not have inverse orientations");
+   }
+}
+
 Geometry::~Geometry()
 {
    for (int i = 0; i < NumGeom; i++)

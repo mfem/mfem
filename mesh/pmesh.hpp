@@ -182,7 +182,14 @@ protected:
    /// Refine a mixed 3D mesh uniformly.
    void UniformRefinement3D() override;
 
-   void NURBSUniformRefinement() override;
+   /** @brief Refine NURBS mesh, with an optional refinement factor.
+
+       @param[in] rf  Optional refinement factor. If scalar, the factor is used
+                      for all dimensions. If an array, factors can be specified
+                      for each dimension.
+       @param[in] tol NURBS geometry deviation tolerance. */
+   void NURBSUniformRefinement(int rf = 2, double tol=1.0e-12) override;
+   void NURBSUniformRefinement(const Array<int> &rf, double tol=1.e-12) override;
 
    /// This function is not public anymore. Use GeneralRefinement instead.
    void LocalRefinement(const Array<int> &marked_el, int type = 3) override;

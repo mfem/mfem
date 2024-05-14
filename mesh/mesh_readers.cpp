@@ -1280,9 +1280,10 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
                  curved, read_gf, finalize_topo);
 } // end ReadVTKMesh
 
-void Mesh::ReadNURBSMesh(std::istream &input, int &curved, int &read_gf)
+void Mesh::ReadNURBSMesh(std::istream &input, int &curved, int &read_gf,
+                         bool spacing)
 {
-   NURBSext = new NURBSExtension(input);
+   NURBSext = new NURBSExtension(input, spacing);
 
    Dim              = NURBSext->Dimension();
    NumOfVertices    = NURBSext->GetNV();

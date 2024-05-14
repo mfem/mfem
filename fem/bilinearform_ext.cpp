@@ -380,15 +380,44 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
 {
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
 
+   auto assemble_diagonal_with_markers = [&](BilinearFormIntegrator &integ,
+                                             const Array<int> *markers,
+                                             const Array<int> &attributes,
+                                             Vector &d)
+   {
+      integ.AssembleDiagonalPA(d);
+      if (markers)
+      {
+         const int ne = attributes.Size();
+         const int nd = d.Size() / ne;
+         const auto d_attr = Reshape(attributes.Read(), ne);
+         const auto d_m = Reshape(markers->Read(), markers->Size());
+         auto d_d = Reshape(d.ReadWrite(), nd, ne);
+         mfem::forall(ne, [=] MFEM_HOST_DEVICE (int e)
+         {
+            const int attr = d_attr[e];
+            if (d_m[attr - 1] == 0)
+            {
+               for (int i = 0; i < nd; ++i)
+               {
+                  d_d(i, e) = 0.0;
+               }
+            }
+         });
+      }
+   };
+
    const int iSz = integrators.Size();
    if (elem_restrict && !DeviceCanUseCeed())
    {
       if (iSz > 0)
       {
          localY = 0.0;
+         Array<Array<int>*> &elem_markers = *a->GetDBFI_Marker();
          for (int i = 0; i < iSz; ++i)
          {
-            integrators[i]->AssembleDiagonalPA(localY);
+            assemble_diagonal_with_markers(*integrators[i], elem_markers[i],
+                                           elem_attributes, localY);
          }
          const ElementRestriction* H1elem_restrict =
             dynamic_cast<const ElementRestriction*>(elem_restrict);
@@ -408,11 +437,13 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
    }
    else
    {
+      Array<Array<int>*> &elem_markers = *a->GetDBFI_Marker();
       y.UseDevice(true); // typically this is a large vector, so store on device
       y = 0.0;
       for (int i = 0; i < iSz; ++i)
       {
-         integrators[i]->AssembleDiagonalPA(y);
+         assemble_diagonal_with_markers(*integrators[i], elem_markers[i],
+                                        elem_attributes, y);
       }
    }
 
@@ -420,10 +451,12 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
    const int n_bdr_integs = bdr_integs.Size();
    if (bdr_face_restrict_lex && n_bdr_integs > 0)
    {
+      Array<Array<int>*> &bdr_markers = *a->GetBBFI_Marker();
       bdr_face_Y = 0.0;
       for (int i = 0; i < n_bdr_integs; ++i)
       {
-         bdr_integs[i]->AssembleDiagonalPA(bdr_face_Y);
+         assemble_diagonal_with_markers(*bdr_integs[i], bdr_markers[i],
+                                        bdr_attributes, bdr_face_Y);
       }
       bdr_face_restrict_lex->AddMultTransposeUnsigned(bdr_face_Y, y);
    }

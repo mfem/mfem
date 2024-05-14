@@ -155,6 +155,7 @@ inline void SmemPAHdivMassApply2D(const int NE,
       DeviceMatrix X(sm0, D1D*(D1D-1), VDIM);
       DeviceCube QD(sm1, Q1D, D1D, VDIM);
       DeviceCube QQ(sm0, Q1D, Q1D, VDIM);
+      DeviceCube DQ(sm1, D1D, Q1D, VDIM);
 
       // Load X, Bo and Bc into shared memory
       MFEM_FOREACH_THREAD(vd,z,VDIM)
@@ -163,7 +164,10 @@ inline void SmemPAHdivMassApply2D(const int NE,
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               if (qx < D1D && dy < (D1D-1)) { X(qx + dy*D1D,vd) = x(qx+dy*D1D,vd,e); }
+               if (qx < D1D && dy < (D1D-1))
+               {
+                  X(qx + dy*D1D,vd) = x(qx+dy*D1D,vd,e);
+               }
                if (tidz == 0)
                {
                   if (dy < (D1D-1)) { Bo(dy,qx) = bo(qx,dy); }
@@ -247,7 +251,7 @@ inline void SmemPAHdivMassApply2D(const int NE,
                {
                   qd += QQ(qx,qy,vd) * Btx(dx,qx);
                }
-               QD(dx,qy,vd) = qd;
+               DQ(dx,qy,vd) = qd;
             }
          }
       }
@@ -265,7 +269,7 @@ inline void SmemPAHdivMassApply2D(const int NE,
                double dd = 0.0;
                for (int qy = 0; qy < Q1D; ++qy)
                {
-                  dd += QD(dx,qy,vd) * Bty(dy,qy);
+                  dd += DQ(dx,qy,vd) * Bty(dy,qy);
                }
                Yxy(dx,dy,vd,e) += dd;
             }

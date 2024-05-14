@@ -435,11 +435,11 @@ public:
        details, see the PETSc Manual. */
    virtual Operator& GetExplicitGradient(const Vector &x) const;
 
-   /** @brief Setup the ODE linear system \f$ A(x,t) = (I - gamma J) \f$ or
-       \f$ A = (M - gamma J) \f$, where \f$ J(x,t) = \frac{df}{dt(x,t)} \f$.
+   /** @brief Setup the ODE linear system $ A(x,t) = (I - gamma J) $ or
+       $ A = (M - gamma J) $, where $ J(x,t) = \frac{df}{dt(x,t)} $.
 
-       @param[in]  x     The state at which \f$A(x,t)\f$ should be evaluated.
-       @param[in]  fx    The current value of the ODE rhs function, \f$f(x,t)\f$.
+       @param[in]  x     The state at which $A(x,t)$ should be evaluated.
+       @param[in]  fx    The current value of the ODE rhs function, $f(x,t)$.
        @param[in]  jok   Flag indicating if the Jacobian should be updated.
        @param[out] jcur  Flag to signal if the Jacobian was updated.
        @param[in]  gamma The scaled time step value.
@@ -451,7 +451,7 @@ public:
    virtual int SUNImplicitSetup(const Vector &x, const Vector &fx,
                                 int jok, int *jcur, double gamma);
 
-   /** @brief Solve the ODE linear system \f$ A x = b \f$ as setup by
+   /** @brief Solve the ODE linear system $ A x = b $ as setup by
        the method SUNImplicitSetup().
 
        @param[in]      b   The linear system right-hand side.
@@ -464,7 +464,7 @@ public:
        details, see the SUNDIALS User Guides. */
    virtual int SUNImplicitSolve(const Vector &b, Vector &x, double tol);
 
-   /** @brief Setup the mass matrix in the ODE system \f$ M y' = f(y,t) \f$ .
+   /** @brief Setup the mass matrix in the ODE system $ M y' = f(y,t) $ .
 
        If not re-implemented, this method simply generates an error.
 
@@ -472,7 +472,7 @@ public:
        details, see the ARKode User Guide. */
    virtual int SUNMassSetup();
 
-   /** @brief Solve the mass matrix linear system \f$ M x = b \f$
+   /** @brief Solve the mass matrix linear system $ M x = b $
        as setup by the method SUNMassSetup().
 
        @param[in]      b   The linear system right-hand side.
@@ -485,7 +485,7 @@ public:
        details, see the ARKode User Guide. */
    virtual int SUNMassSolve(const Vector &b, Vector &x, double tol);
 
-   /** @brief Compute the mass matrix-vector product \f$ v = M x \f$ .
+   /** @brief Compute the mass matrix-vector product $ v = M x $ .
 
        @param[in]   x The vector to multiply.
        @param[out]  v The result of the matrix-vector product.
@@ -574,13 +574,13 @@ public:
    virtual void QuadratureSensitivityMult(const Vector &y, const Vector &yB,
                                           Vector &qBdot) const {}
 
-   /** @brief Setup the ODE linear system \f$ A(x,t) = (I - gamma J) \f$ or
-       \f$ A = (M - gamma J) \f$, where \f$ J(x,t) = \frac{df}{dt(x,t)} \f$.
+   /** @brief Setup the ODE linear system $ A(x,t) = (I - gamma J) $ or
+       $ A = (M - gamma J) $, where $ J(x,t) = \frac{df}{dt(x,t)} $.
 
        @param[in]  t     The current time
-       @param[in]  x     The state at which \f$A(x,xB,t)\f$ should be evaluated.
-       @param[in]  xB    The state at which \f$A(x,xB,t)\f$ should be evaluated.
-       @param[in]  fxB   The current value of the ODE rhs function, \f$f(x,t)\f$.
+       @param[in]  x     The state at which $A(x,xB,t)$ should be evaluated.
+       @param[in]  xB    The state at which $A(x,xB,t)$ should be evaluated.
+       @param[in]  fxB   The current value of the ODE rhs function, $f(x,t)$.
        @param[in]  jokB   Flag indicating if the Jacobian should be updated.
        @param[out] jcurB  Flag to signal if the Jacobian was updated.
        @param[in]  gammaB The scaled time step value.
@@ -599,7 +599,7 @@ public:
       return (-1);
    }
 
-   /** @brief Solve the ODE linear system \f$ A(x,xB,t) xB = b \f$ as setup by
+   /** @brief Solve the ODE linear system $ A(x,xB,t) xB = b $ as setup by
        the method SUNImplicitSetup().
 
        @param[in]      b   The linear system right-hand side.

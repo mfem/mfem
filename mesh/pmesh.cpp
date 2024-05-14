@@ -4548,7 +4548,15 @@ void ParMesh::UniformRefinement3D()
    UpdateNodes();
 }
 
-void ParMesh::NURBSUniformRefinement()
+void ParMesh::NURBSUniformRefinement(int rf, double tol)
+{
+   if (MyRank == 0)
+   {
+      mfem::out << "\nParMesh::NURBSUniformRefinement : Not supported yet!\n";
+   }
+}
+
+void ParMesh::NURBSUniformRefinement(const Array<int> &rf, double tol)
 {
    if (MyRank == 0)
    {

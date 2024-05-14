@@ -164,13 +164,14 @@ void DFSSpaces::CollectDFSData()
 
    GetP(data_.P_hcurl[level_], coarse_hcurl_fes_, *hcurl_fes_, true);
 
-   Vector trash1(hcurl_fes_->GetVSize()), trash2(hdiv_fes_->GetVSize());
    ParDiscreteLinearOperator curl(hcurl_fes_.get(), hdiv_fes_.get());
    curl.AddDomainInterpolator(new CurlInterpolator);
    curl.Assemble();
-   curl.EliminateTrialDofs(ess_bdr_attr_, trash1, trash2);
    curl.Finalize();
    data_.C[level_+1].Reset(curl.ParallelAssemble());
+   mfem::Array<int> ess_hcurl_tdof;
+   hcurl_fes_->GetEssentialTrueDofs(ess_bdr_attr_, ess_hcurl_tdof);
+   data_.C[level_+1].As<HypreParMatrix>()->EliminateCols(ess_hcurl_tdof);
 
    ++level_;
 

@@ -127,7 +127,7 @@ public:
 
    /** @brief Return the weight of the Jacobian matrix of the transformation
        at the currently set IntegrationPoint.
-       The Weight evaluates to \f$ \sqrt{\lvert J^T J \rvert} \f$. */
+       The Weight evaluates to $ \sqrt{\lvert J^T J \rvert} $. */
    double Weight() { return (EvalState & WEIGHT_MASK) ? Wght : EvalWeight(); }
 
    /** @brief Return the adjugate of the Jacobian matrix of the transformation
@@ -155,7 +155,7 @@ public:
        of the transformation. */
    virtual int OrderW() const = 0;
 
-   /// Return the order of \f$ adj(J)^T \nabla fi \f$
+   /// Return the order of $ adj(J)^T \nabla fi $
    virtual int OrderGrad(const FiniteElement *fe) const = 0;
 
    /// Return the Geometry::Type of the reference element.
@@ -392,11 +392,11 @@ public:
    /// @brief Set the underlying point matrix describing the transformation.
    /** The dimensions of the matrix are space-dim x dof. The transformation is
        defined as
-           \f$ x = F( \hat x ) = P \phi( \hat x ) \f$
+           $ x = F( \hat x ) = P \phi( \hat x ) $
 
-       where \f$ \hat x \f$  is the reference point, @a x is the corresponding
-       physical point, @a P is the point matrix, and \f$ \phi( \hat x ) \f$ is
-       the column-vector of all basis functions evaluated at \f$ \hat x \f$ .
+       where $ \hat x $  is the reference point, @a x is the corresponding
+       physical point, @a P is the point matrix, and $ \phi( \hat x ) $ is
+       the column-vector of all basis functions evaluated at $ \hat x $ .
        The columns of @a P represent the control points in physical space
        defining the transformation. */
    void SetPointMat(const DenseMatrix &pm) { PointMat = pm; EvalState = 0; }
@@ -437,7 +437,7 @@ public:
        of the transformation. */
    virtual int OrderW() const;
 
-   /// Return the order of \f$ adj(J)^T \nabla fi \f$
+   /// Return the order of $ adj(J)^T \nabla fi $
    virtual int OrderGrad(const FiniteElement *fe) const;
 
    virtual int GetSpaceDim() const { return PointMat.Height(); }

@@ -355,8 +355,8 @@ public:
        variable. */
    void GetVectorGradientHat(ElementTransformation &T, DenseMatrix &gh) const;
 
-   /** Compute \f$ (\int_{\Omega} (*this) \psi_i)/(\int_{\Omega} \psi_i) \f$,
-       where \f$ \psi_i \f$ are the basis functions for the FE space of avgs.
+   /** Compute $ (\int_{\Omega} (*this) \psi_i)/(\int_{\Omega} \psi_i) $,
+       where $ \psi_i $ are the basis functions for the FE space of avgs.
        Both FE spaces should be scalar and on the same mesh. */
    void GetElementAverages(GridFunction &avgs) const;
 

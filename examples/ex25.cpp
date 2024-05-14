@@ -305,7 +305,7 @@ int main(int argc, char *argv[])
          for (int j = 0; j < mesh->GetNBE(); j++)
          {
             Vector center(dim);
-            int bdrgeom = mesh->GetBdrElementBaseGeometry(j);
+            int bdrgeom = mesh->GetBdrElementGeometry(j);
             ElementTransformation * tr = mesh->GetBdrElementTransformation(j);
             tr->Transform(Geometries.GetCenter(bdrgeom),center);
             int k = mesh->GetBdrAttribute(j);

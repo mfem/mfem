@@ -433,9 +433,9 @@ public:
    /// Compute y^t A x
    double InnerProduct(const Vector &x, const Vector &y) const;
 
-   /// For all i compute \f$ x_i = \sum_j A_{ij} \f$
+   /// For all i compute $ x_i = \sum_j A_{ij} $
    void GetRowSums(Vector &x) const;
-   /// For i = irow compute \f$ x_i = \sum_j | A_{i, j} | \f$
+   /// For i = irow compute $ x_i = \sum_j | A_{i, j} | $
    double GetRowNorml1(int irow) const;
 
    /// This virtual method is not supported: it always returns NULL.
@@ -530,11 +530,11 @@ public:
    void DiagScale(const Vector &b, Vector &x,
                   double sc = 1.0, bool use_abs_diag = false) const;
 
-   /** x1 = x0 + sc D^{-1} (b - A x0) where \f$ D_{ii} = \sum_j |A_{ij}| \f$. */
+   /** x1 = x0 + sc D^{-1} (b - A x0) where $ D_{ii} = \sum_j |A_{ij}| $. */
    void Jacobi2(const Vector &b, const Vector &x0, Vector &x1,
                 double sc = 1.0) const;
 
-   /** x1 = x0 + sc D^{-1} (b - A x0) where \f$ D_{ii} = \sum_j A_{ij} \f$. */
+   /** x1 = x0 + sc D^{-1} (b - A x0) where $ D_{ii} = \sum_j A_{ij} $. */
    void Jacobi3(const Vector &b, const Vector &x0, Vector &x1,
                 double sc = 1.0) const;
 

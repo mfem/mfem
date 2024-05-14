@@ -117,18 +117,21 @@ void BuildVdofToVdofMap(const FiniteElementSpace& subfes,
 
             auto pm = parentfes.GetMesh();
 
+            const Geometry::Type face_geom =
+               pm->GetBdrElementGeometry(parent_element_ids[i]);
             int face_info, parent_volel_id;
-            pm->GetBdrElementAdjacentElement2(parent_element_ids[i],
-                                              parent_volel_id,
-                                              face_info);
+            pm->GetBdrElementAdjacentElement(
+               parent_element_ids[i], parent_volel_id, face_info);
+            face_info = Mesh::EncodeFaceInfo(
+                           Mesh::DecodeFaceInfoLocalIndex(face_info),
+                           Geometry::GetInverseOrientation(
+                              face_geom, Mesh::DecodeFaceInfoOrientation(face_info)));
             pm->GetLocalFaceTransformation(
                pm->GetBdrElementType(parent_element_ids[i]),
                pm->GetElementType(parent_volel_id),
                Tr.Transf,
                face_info);
 
-            Geometry::Type face_geom =
-               pm->GetBdrElementBaseGeometry(parent_element_ids[i]);
             const FiniteElement *face_el =
                parentfes.GetTraceElement(parent_element_ids[i], face_geom);
             MFEM_VERIFY(dynamic_cast<const NodalFiniteElement*>(face_el),
