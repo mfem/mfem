@@ -2181,7 +2181,7 @@ void GridFunction::AccumulateAndCountBdrValues(
 
       for (auto face : bdr_faces)
       {
-         fes->GetFaceDofs(face, vdofs);
+         fes->GetFaceVDofs(face, vdofs);
          if (vdofs.Size() == 0) { continue; }
 
          ElementTransformation *transf = mesh->GetFaceTransformation(face);
