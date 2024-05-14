@@ -58,6 +58,19 @@ DenseSymmetricMatrix &DenseSymmetricMatrix::operator=(real_t c)
    return *this;
 }
 
+DenseSymmetricMatrix &DenseSymmetricMatrix::operator=(const DenseSymmetricMatrix &m)
+{
+   SetSize(m.height);
+
+   const int hw = m.GetStoredSize();
+   for (int i = 0; i < hw; i++)
+   {
+      data[i] = m.data[i];
+   }
+
+   return *this;
+}
+
 real_t &DenseSymmetricMatrix::Elem(int i, int j)
 {
    return (*this)(i,j);
