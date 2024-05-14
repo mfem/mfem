@@ -229,43 +229,57 @@ public:
    /// (ii) surface fitting weight.
    virtual void ProcessNewState(const Vector &x) const;
 
-   /** @name Methods for adaptive surface fitting. These control the behavior of
-          the weight and the termination of the solver. (Experimental) */
+   /** @name Methods for adaptive surface fitting.
+       \brief These methods control the behavior of the weight and the
+       termination of the solver. (Experimental)
+
+       Adaptive fitting weight: The weight is modified after each
+       TMOPNewtonSolver iteration as:
+       w_{k+1} = w_{k} * \ref surf_fit_scale_factor if the relative
+       change in max surface fitting error < \ref surf_fit_rel_change_threshold.
+       When converging based on the residual, we enforce the fitting weight
+       to be at-most \ref fit_weight_max_limit, and increase it only if the
+       fitting error is below user prescribed threshold
+       (\ref surf_fit_max_threshold).
+       See \ref SetAdaptiveSurfaceFittingScalingFactor and
+       \ref SetAdaptiveSurfaceFittingRelativeChangeThreshold.
+
+       Note that the solver stops if the maximum surface fitting error
+       does not sufficiently decrease for \ref max_adapt_inc_count (default 10)
+       consecutive increments of the fitting weight during weight adaptation.
+       This typically occurs when the mesh cannot align with the level-set
+       without degrading element quality.
+       See \ref SetMaxNumberofIncrementsForAdaptiveFitting.
+
+       Convergence criterion: There are two modes, residual- and error-based,
+       which can be toggled using \ref SetFittingConvergenceBasedOnError.
+
+       (i) Residual based (default): Stop when the norm of the gradient of the
+       TMOP objective reaches the prescribed tolerance. This method is best used
+       with a reasonable value for \ref fit_weight_max_limit when the
+       adaptive surface fitting scheme is used. See method
+       \ref SetMaxFittingWeight.
+
+       (ii) Error based: Stop when the maximum fitting error
+       reaches the user-prescribed threshold, \ref surf_fit_max_threshold.
+       In this case, \ref fit_weight_max_limit is ignored during weight
+       adaptation.
+   */
    ///@{
-   /// Enable/Disable adaptive surface fitting weight.
-   /// The weight is modified after each TMOPNewtonSolver iteration as:
-   /// w_{k+1} = w_{k} * @a surf_fit_scale_factor if the relative
-   /// change in max surface fitting error < @a surf_fit_rel_change_threshold.
-   /// When converging based on the residual, we enforce the fitting weight
-   /// to be at-most @a fit_weight_max_limit, and increase it only if the
-   /// fitting error is below user prescribed threshold (@a surf_fit_max_threshold).
-   ///
-   /// There are three termination modes with surface fitting.
-   /// (i) Residual based: Solver terminates when the norm of the gradient of
-   /// the TMOP objective reaches the prescribed tolerance. This method is best
-   /// used with a reasonable value for @a fit_weight_max_limit when the
-   /// adaptive surface fitting scheme is used.
-   /// Note: The residual mode is technically always active in the solver.
-   /// (ii) Error based: Solver terminates when the maximum fitting error
-   /// reaches the user-prescribed threshold, @a surf_fit_max_threshold.
-   /// In this case, @a fit_weight_max_limit is ignored during weight adaptation.
-   /// (iii) Iteration based: Solver terminates when the maximum surface fitting
-   /// error does not sufficiently decrease for @a max_adapt_inc_count consecutive
-   /// increments of the fitting weight. This typically occurs when the mesh
-   /// cannot align with the level-set without degrading element quality.
    void EnableAdaptiveSurfaceFitting()
    {
       surf_fit_scale_factor = 10.0;
    }
    void SetAdaptiveSurfaceFittingScalingFactor(real_t factor)
    {
+      MFEM_VERIFY(factor > 1.0, "Scaling factor must be greater than 1.");
       surf_fit_scale_factor = factor;
    }
    void SetAdaptiveSurfaceFittingRelativeChangeThreshold(real_t threshold)
    {
       surf_fit_rel_change_threshold = threshold;
    }
-   /// Used for itaration-based surface fitting termination.
+   /// Used for iteration-based surface fitting termination.
    void SetMaxNumberofIncrementsForAdaptiveFitting(int count)
    {
       max_adapt_inc_count = count;
@@ -276,6 +290,7 @@ public:
       surf_fit_max_threshold = max_error;
       surf_fit_converge_error = true;
    }
+   /// Could be used with both error-based or residual-based convergence.
    void SetMaxSurfaceFittingError(real_t max_error)
    {
       surf_fit_max_threshold = max_error;
@@ -285,6 +300,7 @@ public:
    {
       fit_weight_max_limit = weight;
    }
+   /// Toggle convergence based on residual or error.
    void SetFittingConvergenceBasedOnError(bool mode)
    {
       surf_fit_converge_error = mode;

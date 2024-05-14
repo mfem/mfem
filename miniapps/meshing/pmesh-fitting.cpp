@@ -34,14 +34,14 @@
 //
 // Sample runs:
 //  Interface fitting:
-//    mpirun -np 4 pmesh-fitting -o 3 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 5e4 -rtol 1e-5
-//    mpirun -np 4 pmesh-fitting -m square01-tri.mesh -o 3 -rs 0 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 1e4 -rtol 1e-5
+//    mpirun -np 4 pmesh-fitting -o 3 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 5e4 -rtol 1e-5 -resid
+//    mpirun -np 4 pmesh-fitting -m square01-tri.mesh -o 3 -rs 0 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 1e4 -rtol 1e-5 -resid
 //  Surface fitting with weight adaptation and termination based on fitting error:
-//    mpirun -np 4 pmesh-fitting -o 2 -mid 2 -tid 1 -ni 100 -vl 2 -sfc 10 -rtol 1e-20 -st 0 -sfa 10.0 -sft 1e-5
+//    mpirun -np 4 pmesh-fitting -o 2 -mid 2 -tid 1 -ni 100 -vl 2 -sfc 10 -rtol 1e-20 -st 0 -sfa 10.0 -sft 1e-5 -no-resid
 //  Surface fitting with weight adaptation, max weight, and convergence based on residual.
 //  * mpirun -np 4 pmesh-fitting -m ../../data/inline-tri.mesh -o 2 -mid 2 -tid 4 -ni 100 -vl 2 -sfc 10 -rtol 1e-10 -st 0 -sfa 10.0 -sft 1e-5 -bgamriter 3 -sbgmesh -ae 1 -marking -slstype 3 -resid -sfcmax 1000 -mod-bndr-attr
 //  Fitting to Fischer-Tropsch reactor like domain (requires GSLIB):
-//  * mpirun -np 6 pmesh-fitting -m ../../data/inline-tri.mesh -o 2 -rs 4 -mid 2 -tid 1 -vl 2 -sfc 100 -rtol 1e-12 -ni 100 -li 40 -ae 1 -bnd -sbgmesh -slstype 2 -smtype 0 -sfa 10.0 -sft 1e-4 -bgamriter 5 -dist -mod-bndr-attr
+//  * mpirun -np 6 pmesh-fitting -m ../../data/inline-tri.mesh -o 2 -rs 4 -mid 2 -tid 1 -vl 2 -sfc 100 -rtol 1e-12 -ni 100 -li 40 -ae 1 -bnd -sbgmesh -slstype 2 -smtype 0 -sfa 10.0 -sft 1e-4 -no-resid -bgamriter 5 -dist -mod-bndr-attr
 
 #include "mesh-fitting.hpp"
 
@@ -777,11 +777,11 @@ int main (int argc, char *argv[])
    }
    if (surface_fit_threshold > 0)
    {
-      solver.SetTerminationWithMaxSurfaceFittingError(surface_fit_threshold);
+      solver.SetMaxSurfaceFittingError(surface_fit_threshold);
    }
+   solver.SetFittingConvergenceBasedOnError(!conv_residual);
    if (conv_residual)
    {
-      solver.SetFittingConvergenceBasedOnError(!conv_residual);
       solver.SetMaxFittingWeight(surf_fit_const_max);
    }
 
