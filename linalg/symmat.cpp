@@ -58,7 +58,8 @@ DenseSymmetricMatrix &DenseSymmetricMatrix::operator=(real_t c)
    return *this;
 }
 
-DenseSymmetricMatrix &DenseSymmetricMatrix::operator=(const DenseSymmetricMatrix &m)
+DenseSymmetricMatrix &DenseSymmetricMatrix::operator=(const DenseSymmetricMatrix
+                                                      &m)
 {
    SetSize(m.height);
 

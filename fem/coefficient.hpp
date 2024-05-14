@@ -1426,7 +1426,7 @@ public:
 class SymmetricMatrixCoefficient : public MatrixCoefficient
 {
 protected:
-   
+
    /// Internal matrix used when evaluating this coefficient as a DenseMatrix.
    mutable DenseSymmetricMatrix mat_aux;
 public:
