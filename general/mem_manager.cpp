@@ -1154,6 +1154,10 @@ void MemoryManager::Copy_(void *dst_h_ptr, const void *src_h_ptr,
    //  dest   d  | h2d   d2d   d2d
    //        hd  | h2h   d2d   d2d
 
+   MFEM_ASSERT(bytes != 0, "this method should not be called with bytes = 0");
+   MFEM_ASSERT(dst_h_ptr != nullptr, "invalid dst_h_ptr = nullptr");
+   MFEM_ASSERT(src_h_ptr != nullptr, "invalid src_h_ptr = nullptr");
+
    const bool dst_on_host =
       (dst_flags & Mem::VALID_HOST) &&
       (!(dst_flags & Mem::VALID_DEVICE) ||
@@ -1229,6 +1233,10 @@ void MemoryManager::Copy_(void *dst_h_ptr, const void *src_h_ptr,
 void MemoryManager::CopyToHost_(void *dest_h_ptr, const void *src_h_ptr,
                                 size_t bytes, unsigned src_flags)
 {
+   MFEM_ASSERT(bytes != 0, "this method should not be called with bytes = 0");
+   MFEM_ASSERT(dest_h_ptr != nullptr, "invalid dest_h_ptr = nullptr");
+   MFEM_ASSERT(src_h_ptr != nullptr, "invalid src_h_ptr = nullptr");
+
    const bool src_on_host = src_flags & Mem::VALID_HOST;
    if (src_on_host)
    {
@@ -1255,6 +1263,10 @@ void MemoryManager::CopyToHost_(void *dest_h_ptr, const void *src_h_ptr,
 void MemoryManager::CopyFromHost_(void *dest_h_ptr, const void *src_h_ptr,
                                   size_t bytes, unsigned &dest_flags)
 {
+   MFEM_ASSERT(bytes != 0, "this method should not be called with bytes = 0");
+   MFEM_ASSERT(dest_h_ptr != nullptr, "invalid dest_h_ptr = nullptr");
+   MFEM_ASSERT(src_h_ptr != nullptr, "invalid src_h_ptr = nullptr");
+
    const bool dest_on_host = dest_flags & Mem::VALID_HOST;
    if (dest_on_host)
    {
