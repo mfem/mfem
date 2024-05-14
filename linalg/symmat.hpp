@@ -102,6 +102,9 @@ public:
 
    DenseSymmetricMatrix &operator*=(real_t c);
 
+   /// Sets the matrix size and elements equal to those of m
+   DenseSymmetricMatrix &operator=(const DenseSymmetricMatrix &m);
+
    std::size_t MemoryUsage() const { return data.Capacity() * sizeof(real_t); }
 
    /// Shortcut for mfem::Read( GetMemory(), TotalSize(), on_dev).
