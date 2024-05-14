@@ -78,7 +78,7 @@ public:
 
    void ReleaseMemory();
 
-};  // namespace lin_alg
+};
 
 } // namespace mfem
 
