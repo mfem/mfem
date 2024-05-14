@@ -828,13 +828,12 @@ void SymmetricMatrixCoefficient::ProjectSymmetric(QuadratureFunction &qf)
 void SymmetricMatrixCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
                                       const IntegrationPoint &ip)
 {
-   mat.SetSize(height);
-   Eval(mat, T, ip);
+   Eval(mat_aux, T, ip);
    for (int j = 0; j < width; ++j)
    {
       for (int i = 0; i < height; ++ i)
       {
-         K(i, j) = mat(i, j);
+         K(i, j) = mat_aux(i, j);
       }
    }
 }
