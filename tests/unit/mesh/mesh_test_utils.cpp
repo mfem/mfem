@@ -431,7 +431,7 @@ void TestVectorValueInVolume(Mesh &smesh, int nc_level, int skip, bool use_ND)
       if ((Mpi::WorldRank() + 1) % 2 == 0)
       {
          // Refine a subset of all shared faces. Using a subset helps to mix in
-         // conformal faces with nonconformal faces.
+         // conformal faces with nonconforming faces.
          for (int n = 0; n < pmesh.GetNSharedFaces(); ++n)
          {
             if (n % skip != 0) { continue; }
