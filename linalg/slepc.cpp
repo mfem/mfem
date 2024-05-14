@@ -103,7 +103,7 @@ void SlepcEigenSolver::SetOperators(const PetscParMatrix &op,
    VC = new PetscParVector(op, true, false);
 }
 
-void SlepcEigenSolver::SetTol(double tol)
+void SlepcEigenSolver::SetTol(real_t tol)
 {
    PetscInt max_its;
 
@@ -115,7 +115,7 @@ void SlepcEigenSolver::SetTol(double tol)
 
 void SlepcEigenSolver::SetMaxIter(int max_its)
 {
-   double tol;
+   real_t tol;
 
    ierr = EPSGetTolerances(eps,&tol,NULL); PCHKERRQ(eps,ierr);
    ierr = EPSSetTolerances(eps,tol,max_its); PCHKERRQ(eps,ierr);
@@ -144,13 +144,13 @@ void SlepcEigenSolver::Customize(bool customize) const
    clcustom = true;
 }
 
-void SlepcEigenSolver::GetEigenvalue(unsigned int i, double & lr) const
+void SlepcEigenSolver::GetEigenvalue(unsigned int i, real_t & lr) const
 {
    ierr = EPSGetEigenvalue(eps,i,&lr,NULL); PCHKERRQ(eps,ierr);
 }
 
-void SlepcEigenSolver::GetEigenvalue(unsigned int i, double & lr,
-                                     double & lc) const
+void SlepcEigenSolver::GetEigenvalue(unsigned int i, real_t & lr,
+                                     real_t & lc) const
 {
    ierr = EPSGetEigenvalue(eps,i,&lr,&lc); PCHKERRQ(eps,ierr);
 }
@@ -226,7 +226,7 @@ void SlepcEigenSolver::SetWhichEigenpairs(SlepcEigenSolver::Which which)
    }
 }
 
-void SlepcEigenSolver::SetTarget(double target)
+void SlepcEigenSolver::SetTarget(real_t target)
 {
    ierr = EPSSetTarget(eps,target); PCHKERRQ(eps,ierr);
 }
