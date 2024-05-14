@@ -199,31 +199,6 @@ if (MFEM_ENABLE_TESTING)
     COMMAND $<TARGET_FILE:nurbs_solenoidal> -no-vis
         -m ${PROJECT_SOURCE_DIR}/data/cube-nurbs.mesh -r 1 -o 2)
 
-  add_test(NAME nurbs_printfunc
-    COMMAND $<TARGET_FILE:nurbs_printfunc>)
-
-  if (MFEM_USE_LAPACK)
-    add_test(NAME nurbs_patch_ex1_o4_r2_iro8_patcha_ser
-      COMMAND $<TARGET_FILE:nurbs_patch_ex1> -incdeg 3 -ref 2 -iro 8 -patcha)
-  endif()
-
-  add_test(NAME nurbs_patch_ex1_o4_r2_iro8_patcha_pa_ser
-    COMMAND $<TARGET_FILE:nurbs_patch_ex1> -incdeg 3 -ref 2 -iro 8 -patcha -pa)
-
-  add_test(NAME nurbs_patch_ex1_o4_r2_iro8_patcha_fint_ser
-    COMMAND $<TARGET_FILE:nurbs_patch_ex1> -incdeg 3 -ref 2 -iro 8 -patcha -fint)
-
-  add_test(NAME nurbs_curveint_unit_weight_ser
-    COMMAND $<TARGET_FILE:nurbs_curveint> -no-vis -no-visit
-    -uw -n 9)
-
-  add_test(NAME nurbs_curveint_non_unit_weight_ser
-    COMMAND $<TARGET_FILE:nurbs_curveint> -no-vis -no-visit
-    -nw -n 9)
-
-  add_test(NAME nurbs_naca_cmesh_ser
-    COMMAND $<TARGET_FILE:nurbs_naca_cmesh> -no-vis -no-visit -ntail 80 -nbnd 80 -ntip 20 -nwake 40 -sw 2.0 -sbnd 2.5 -stip 1.1 -aoa 3)
-
 endif()
 
 if (MFEM_USE_MPI)

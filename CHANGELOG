@@ -87,6 +87,10 @@ New and updated examples and miniapps
 - Added a miniapp to demonstrate low order refined (LOR) block preconditioning
   for linear elasticity on GPUs. See miniapps/solvers/lor_elast.
 
+- Added a new block solver in miniapp/solvers for the Darcy problem. The new
+  solver is based on a Bramble-Pasciak preconditioning. User can use and
+  implement their own preconditioner for the mass matrix.
+
 - Added miniapps to demonstrate the H(div) and H(curl) NURBS elements.
 
 - Added a small miniapp for printing the shape functions of a KnotVector. See
