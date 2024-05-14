@@ -249,10 +249,10 @@ public:
    /// (ii) Error based: Solver terminates when the maximum fitting error
    /// reaches the user-prescribed threshold, @a surf_fit_max_threshold.
    /// In this case, @a fit_weight_max_limit is ignored during weight adaptation.
-   /// (iii) When the maximum surface fitting error does not sufficiently
-   /// decrease for @a max_adapt_inc_count consecutive solver iterations. This
-   /// typically occurs when the mesh cannot align with the level-set without
-   /// degrading element quality. [only active with adaptive surface fitting.]
+   /// (iii) Iteration based: Solver terminates when the maximum surface fitting
+   /// error does not sufficiently decrease for @a max_adapt_inc_count consecutive
+   /// increments of the fitting weight. This typically occurs when the mesh
+   /// cannot align with the level-set without degrading element quality.
    void EnableAdaptiveSurfaceFitting()
    {
       surf_fit_scale_factor = 10.0;
@@ -265,10 +265,12 @@ public:
    {
       surf_fit_rel_change_threshold = threshold;
    }
+   /// Used for itaration-based surface fitting termination.
    void SetMaxNumberofIncrementsForAdaptiveFitting(int count)
    {
       max_adapt_inc_count = count;
    }
+   /// Used for error-based surface fitting termination.
    void SetTerminationWithMaxSurfaceFittingError(real_t max_error)
    {
       surf_fit_max_threshold = max_error;
@@ -278,6 +280,7 @@ public:
    {
       surf_fit_max_threshold = max_error;
    }
+   /// Used for residual-based surface fitting termination.
    void SetMaxFittingWeight(real_t weight)
    {
       fit_weight_max_limit = weight;
