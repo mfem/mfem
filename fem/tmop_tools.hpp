@@ -279,7 +279,8 @@ public:
    {
       surf_fit_rel_change_threshold = threshold;
    }
-   /// Used for iteration-based surface fitting termination.
+   /// Used for stopping based on the number of consecutive failed weight
+   /// adaptation iterations.
    void SetMaxNumberofIncrementsForAdaptiveFitting(int count)
    {
       max_adapt_inc_count = count;
