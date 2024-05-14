@@ -137,7 +137,7 @@ void DGMassInverse::DGMassCGIteration(const Vector &b_, Vector &u_) const
 
    const real_t RELTOL = rel_tol;
    const real_t ABSTOL = abs_tol;
-   const real_t MAXIT = max_iter;
+   const int MAXIT = max_iter;
    const bool IT_MODE = iterative_mode;
    const bool CHANGE_BASIS = (d2q != nullptr);
 
