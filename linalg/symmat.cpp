@@ -89,11 +89,6 @@ MatrixInverse *DenseSymmetricMatrix::Inverse() const
    return nullptr;
 }
 
-void DenseSymmetricMatrix::Print (std::ostream & os, int width_) const
-{
-   mfem_error("DenseSymmetricMatrix::Print() not implemented!");
-}
-
 DenseSymmetricMatrix::~DenseSymmetricMatrix()
 {
    data.Delete();

@@ -134,9 +134,6 @@ public:
    /// Returns a pointer to (an approximation) of the matrix inverse.
    virtual MatrixInverse *Inverse() const;
 
-   /// Prints matrix to stream out.
-   virtual void Print (std::ostream & out = mfem::out, int width_ = 4) const;
-
    /// Destroys the symmetric matrix.
    virtual ~DenseSymmetricMatrix();
 };
