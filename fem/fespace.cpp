@@ -1301,14 +1301,62 @@ void FiniteElementSpace::MakeVDimMatrix(SparseMatrix &mat) const
 
 const SparseMatrix* FiniteElementSpace::GetConformingProlongation() const
 {
-   if (Conforming()) { return NULL; }
+   if (Conforming())
+   {
+      Array<int> element_boundary_dofs;
+      Array<int> boundary_dofs;
+      for (int k=0; k < GetNBE(); k++)
+      {
+         GetBdrElementVDofs(k, element_boundary_dofs);
+         boundary_dofs.Append(element_boundary_dofs);
+      }
+
+      SparseMatrix* tmp = new SparseMatrix(ndofs,ndofs-1);
+      int j = 0;
+      for (int i=0; i < ndofs; i++)
+      {
+         if (i == boundary_dofs[1])
+            tmp->Add(i,boundary_dofs[0],1.0);
+         else
+         {
+            tmp->Add(i,j,1.0);
+            j++;
+         }
+      }
+      tmp->Finalize();
+//      std::cout << "Prolongation" << std::endl;
+//      tmp->ToDenseMatrix()->Print(std::cout);
+      return tmp;
+   }
    if (!cP_is_set) { BuildConformingInterpolation(); }
    return cP.get();
 }
 
 const SparseMatrix* FiniteElementSpace::GetConformingRestriction() const
 {
-   if (Conforming()) { return NULL; }
+   if (Conforming())
+   {
+      Array<int> element_boundary_dofs;
+      Array<int> boundary_dofs;
+      for (int k=0; k < GetNBE(); k++)
+      {
+         GetBdrElementVDofs(k, element_boundary_dofs);
+         boundary_dofs.Append(element_boundary_dofs);
+      }
+      SparseMatrix* tmp = new SparseMatrix(ndofs-1,ndofs);
+      int i = 0;
+      for (int j=0; j < ndofs; j++)
+      {
+         if (j == boundary_dofs[1])
+            continue;
+         tmp->Add(i,j,1.0);
+         i++;
+      }
+      tmp->Finalize();
+//      std::cout << "Restriction:" << std::endl;
+//      tmp->ToDenseMatrix()->Print(std::cout);
+      return tmp;
+   }
    if (!cP_is_set) { BuildConformingInterpolation(); }
    if (cR && !R_transpose) { R_transpose.reset(new TransposeOperator(*cR)); }
    return cR.get();
