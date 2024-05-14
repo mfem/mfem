@@ -155,7 +155,8 @@ class H1_FuentesPyramidElement
 private:
 #ifndef MFEM_THREAD_SAFE
    mutable Vector tmp_i, u;
-   mutable DenseMatrix tmp_ij, du;
+   mutable DenseMatrix tmp1_ij, tmp2_ij, du;
+   mutable DenseTensor tmp_ijk;
 #endif
    DenseMatrixInverse Ti;
    /*
@@ -165,6 +166,10 @@ private:
    */
    void calcBasis(const int p, const IntegrationPoint &ip,
                   Vector &phi_i, DenseMatrix &phi_ij, Vector &u) const;
+   void calcGradBasis(const int p, const IntegrationPoint &ip,
+                      Vector &phi_i, DenseMatrix &dphi_i,
+                      DenseMatrix &phi_ij, DenseTensor &dphi_ij,
+                      DenseMatrix &du) const;
    /*
    {
        calcBasis(p, ip, tmp_x, tmp_y.GetData(), tmp_z.GetData(),
@@ -192,7 +197,7 @@ private:
    // mutable Vector u;
    // mutable DenseMatrix du;
    mutable Vector shape_x, shape_y, shape_z;
-   mutable Vector dshape_x, dshape_y, dshape_z, u;
+   mutable Vector dshape_x, dshape_y, dshape_z, dshape_z_dt, u;
    mutable Vector ddshape_x, ddshape_y, ddshape_z;
    mutable DenseMatrix du, ddu;
 #endif

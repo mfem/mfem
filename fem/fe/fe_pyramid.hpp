@@ -28,6 +28,9 @@ private:
    mutable DenseMatrix phi_Q_mtmp2;
    mutable Vector      phi_T_vtmp1;
    mutable Vector      phi_T_vtmp2;
+   mutable Vector      phi_T_vtmp3;
+   mutable Vector      phi_T_vtmp4;
+   mutable DenseMatrix phi_T_mtmp1;
    mutable Vector      E_E_vtmp;
    mutable Vector      E_Q_vtmp;
    mutable DenseMatrix E_Q_mtmp1;
@@ -37,6 +40,7 @@ private:
    mutable DenseMatrix V_Q_mtmp2;
    mutable Vector      V_T_vtmp1;
    mutable Vector      V_T_vtmp2;
+   mutable DenseMatrix V_T_mtmp1;
    mutable Vector      V_L_vtmp1;
    mutable Vector      V_L_vtmp2;
    mutable DenseMatrix V_L_mtmp1;
@@ -344,6 +348,8 @@ public:
               Vector t, const DenseMatrix &grad_t,
               DenseMatrix &u, DenseTensor &grad_u) const;
    void phi_T(int p, Vector nu, DenseMatrix &u) const;
+   void phi_T(int p, Vector nu, const DenseMatrix &grad_nu,
+              DenseMatrix &u, DenseTensor &grad_u) const;
    /*
    static void E_E(int p, real_t s0, real_t s1, real_t *u,
                    real_t *duds0, real_t *duds1);
