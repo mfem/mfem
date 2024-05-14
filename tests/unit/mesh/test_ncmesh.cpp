@@ -1054,7 +1054,7 @@ TEST_CASE("InteriorBoundaryReferenceCubes", "[Parallel], [NCMesh]")
       }
       if (Mpi::WorldSize() > 0)
       {
-         // Make sure on rank 1 there is a parent face with only ghost child
+         // Make sure on rank 1 there is a parent face with only ghost child
          // faces. This can cause issues with higher order dofs being
          // uncontrolled.
          partition[refined_elem == 0 ? modified_smesh.GetNE() - 1 : 0] = 0;

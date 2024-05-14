@@ -716,13 +716,7 @@ inline real_t InnerProduct(MPI_Comm comm, const Vector &x, const Vector &y)
 {
    real_t loc_prod = x * y;
    real_t glb_prod;
-#ifdef MFEM_USE_SINGLE
-   MPI_Allreduce(&loc_prod, &glb_prod, 1, MPI_FLOAT, MPI_SUM, comm);
-#elif defined MFEM_USE_DOUBLE
-   MPI_Allreduce(&loc_prod, &glb_prod, 1, MPI_DOUBLE, MPI_SUM, comm);
-#else
-   MFEM_ABORT("Floating point type undefined");
-#endif
+   MPI_Allreduce(&loc_prod, &glb_prod, 1, MFEM_MPI_REAL_T, MPI_SUM, comm);
    return glb_prod;
 }
 #endif
