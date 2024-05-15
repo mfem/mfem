@@ -1320,9 +1320,12 @@ void FiniteElementSpace::MakePeriodic(const std::vector<int> &v2v)
          }
          MFEM_ASSERT(index != -1, "could not find boundary element containing mapped vertex.")
          GetBdrElementDofs(index, dofs);
-         // TODO: find a more dynamic way to handle orientation
-         for (int m=0; m < dofs.Size(); m++)
-            tDofs.Append(dofs[dofs.Size()-1-m]);
+         // Append in the order consistent with the orientation of the target element vertices / dofs
+         if (target_vertices[0] == v2v[source_vertices[0]])
+            tDofs.Append(dofs);
+         else
+            for (int m=0; m < dofs.Size(); m++)
+               tDofs.Append(dofs[dofs.Size()-1-m]);
       }
    }
 //   std::cout << "tdofs" << std::endl;
