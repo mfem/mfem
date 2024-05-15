@@ -970,6 +970,126 @@ static MFEM_HOST_DEVICE double tensor_ig3_j(double *g_partials,
 }
 
 template<int T_D1D = 0>
+static void ReadWrite3DKernelWorstCase(const int npt,
+                                       const double tol,
+                                       const double *x,
+                                       const int point_pos_ordering,
+                                       const double *xElemCoord,
+                                       const int nel,
+                                       const double *wtend,
+                                       const double *c,
+                                       const double *A,
+                                       const double *minBound,
+                                       const double *maxBound,
+                                       const int hash_n,
+                                       const double *hashMin,
+                                       const double *hashFac,
+                                       int *hashOffset,
+                                       int *const code_base,
+                                       int *const el_base,
+                                       double *const r_base,
+                                       double *const dist2_base,
+                                       const double *gll1D,
+                                       const double *lagcoeff,
+                                       double *infok,
+                                       const int pN = 0)
+{
+#define MAX_CONST(a, b) (((a) > (b)) ? (a) : (b))
+   const int dim = 3;
+   const int dim2 = dim*dim;
+   const int pMax = 10;
+   const int MD1 = T_D1D ? T_D1D : 10;
+   const int D1D = T_D1D ? T_D1D : pN;
+   const int p_NE = D1D*D1D*D1D;
+   const int p_NEL = p_NE*nel;
+   MFEM_VERIFY(MD1 <= pMax, "Increase Max allowable polynomial order.");
+   MFEM_VERIFY(D1D != 0, "Polynomial order not specified.");
+   const int nThreads = 32;
+   int hd_d_size = hashOffset[(int)std::pow(hash_n, dim)];
+
+   mfem::forall_2D(npt, nThreads, 1, [=] MFEM_HOST_DEVICE (int i)
+   {
+      int id_x = point_pos_ordering == 0 ? i : i*dim;
+      int id_y = point_pos_ordering == 0 ? i+npt : i*dim+1;
+      int id_z = point_pos_ordering == 0 ? i+2*npt : i*dim+2;
+      double x_i[3] = {x[id_x], x[id_y], x[id_z]};
+
+      int *code_i = code_base + i;
+      int *el_i = el_base + i;
+      double *r_i = r_base + dim * i;
+      double *dist2_i = dist2_base + i;
+
+      double answer = tol+ hash_n;
+
+      // Read all coordinates of all elements, along with box centers and bounds
+      int e = i % nel;
+      // for (int e = 0; e < nel; e++)
+      {
+         for (int i = 0; i < p_NE; i++)
+         {
+            for (int d = 0; d < dim; d++)
+            {
+               answer += xElemCoord[i + e*p_NE + d*p_NEL];
+            }
+         }
+         for (int d = 0; d < dim; d++)
+         {
+            answer += c[e*dim + d];
+            answer += minBound[e*dim + d];
+            answer += maxBound[e*dim + d];
+         }
+         for (int d = 0; d < dim*dim; d++)
+         {
+            answer += A[e*dim*dim + d];
+         }
+      }
+
+      // Read point location
+      for (int d = 0; d < dim; d++)
+      {
+         answer += x_i[d];
+      }
+
+      // Read GLL data, lagcoeff data
+      for (int d = 0; d < D1D; d++)
+      {
+         answer += gll1D[d];
+         answer += lagcoeff[d];
+      }
+
+      // Read wtend data
+      for (int d = 0; d < 6*D1D; d++)
+      {
+         answer += wtend[d];
+      }
+
+      // Read hash data
+      for (int d = 0; d < D1D; d++)
+      {
+         answer += hashMin[d];
+         answer += hashFac[d];
+      }
+
+      // read hash data
+      e = i % (hash_n*hash_n*hash_n);
+      int elp = hashOffset[e];
+      int ele = hashOffset[e+1];
+      for (int d = elp; d < ele; d++)
+      {
+         answer += hashOffset[d];
+      }
+
+      *code_i = answer > 0.5 ? 0 : 1;
+      *el_i = answer > 0.5 ? 0 : 1;
+      *dist2_i = answer > 0.5 ? 0 : 1;
+      for (int d = 0; d < dim; d++)
+      {
+         r_i[d] = answer > 0.5 ? 0 : 1;
+      }
+   });
+}
+
+template<int T_D1D = 0>
 static void FindPointsLocal32D_Kernel(const int npt,
                                       const double tol,
                                       const double *x,
@@ -991,7 +1111,7 @@ static void FindPointsLocal32D_Kernel(const int npt,
                                       double *const dist2_base,
                                       const double *gll1D,
                                       const double *lagcoeff,
-                                      int *newton,
+                                    //   int *newton,
                                       double *infok,
                                       const int pN = 0)
 {
@@ -1037,7 +1157,7 @@ static void FindPointsLocal32D_Kernel(const int npt,
       int *el_i = el_base + i;
       double *r_i = r_base + dim * i;
       double *dist2_i = dist2_base + i;
-      int *newton_i = newton + i;
+      // int *newton_i = newton + i;
 
       //// map_points_to_els ////
       findptsLocalHashData_t hash;
@@ -1677,7 +1797,7 @@ static void FindPointsLocal32D_Kernel(const int npt,
                      } //switch
                      if (fpt->flags & CONVERGED_FLAG)
                      {
-                        *newton_i = step+1;
+                        // *newton_i = step+1;
                         break;
                      }
                      MFEM_SYNC_THREAD;
@@ -1718,7 +1838,7 @@ static void FindPointsLocal32D_Kernel(const int npt,
    });
 }
 
-void FindPointsGSLIB::FindPointsLocal32(const Vector &point_pos,
+void FindPointsGSLIB::FindPointsLocal32(Vector &point_pos,
                                         int point_pos_ordering,
                                         Array<int> &code,
                                         Array<int> &elem,
@@ -1727,11 +1847,68 @@ void FindPointsGSLIB::FindPointsLocal32(const Vector &point_pos,
                                         Array<int> &newton,
                                         int npt)
 {
+
+// Reading
+// [int/unsigned int] 3 + (nel*Q^D)
+// [doubles] 3 + npt*D + (nel*Q^D)*D + 6Q + nel*D +
+//           nel*D*D + nel*D + nel*D + dim + dim + Q + Q
+
+// Writing
+// [int] npt + npt
+// [double] npt + npt*dim
+   int Q = DEV.dof1d;
+   int E = NE_split_total;
+   int QpowD = std::pow(Q, dim);
+   int D = dim;
+   int int_read = 3+(E*QpowD);
+   int double_read = 3 + npt*D + (E*QpowD)*D + 6*Q + E*D +
+                     E*D*D + E*D + E*D + D + D + Q + Q;
+   int total_bytes = double_read*8 + int_read*4;
+   int max_speed = 900*std::pow(10, 9); //900 gb/s
+   min_fpt_kernel_time = total_bytes*1.0/max_speed;
+
+   SWkernel.Clear();
+   SWkernel.Start();
+   ReadWrite3DKernelWorstCase(npt, DEV.tol,
+                              point_pos.Read(), point_pos_ordering,
+                              gsl_mesh.Read(), NE_split_total,
+                              DEV.o_wtend.Read(),
+                              DEV.o_c.Read(), DEV.o_A.Read(),
+                              DEV.o_min.Read(), DEV.o_max.Read(),
+                              DEV.hash_n, DEV.o_hashMin.Read(),
+                              DEV.o_hashFac.Read(),
+                              DEV.o_offset.ReadWrite(),
+                              code.Write(), elem.Write(),
+                              ref.Write(), dist.Write(),
+                              DEV.gll1d.Read(),
+                              DEV.lagcoeff.Read(),
+                              // newton.ReadWrite(),
+                              DEV.info.ReadWrite(),
+                              DEV.dof1d);
+   SWkernel.Stop();
+   measured_min_fpt_kernel_time = SWkernel.RealTime();
+
+   point_pos.HostReadWrite();
+   gsl_mesh.HostReadWrite();
+   DEV.o_wtend.HostReadWrite();
+   DEV.o_c.HostReadWrite();
+   DEV.o_A.HostReadWrite();
+   DEV.o_min.HostReadWrite();
+   DEV.o_max.HostReadWrite();
+   DEV.o_hashMin.HostReadWrite();
+   DEV.o_hashFac.HostReadWrite();
+   DEV.o_offset.HostReadWrite();
+   DEV.gll1d.HostReadWrite();
+   DEV.lagcoeff.HostReadWrite();
+   DEV.info.HostReadWrite();
+
+   SWkernel.Clear();
+   SWkernel.Start();
    if (npt == 0) { return; }
    MFEM_VERIFY(dim == 3,"Function for 3D only");
    switch (DEV.dof1d)
    {
-      case 1: return FindPointsLocal32D_Kernel<1>(npt, DEV.tol,
+      case 1: FindPointsLocal32D_Kernel<1>(npt, DEV.tol,
                                                      point_pos.Read(), point_pos_ordering,
                                                      gsl_mesh.Read(), NE_split_total,
                                                      DEV.o_wtend.Read(),
@@ -1742,11 +1919,12 @@ void FindPointsGSLIB::FindPointsLocal32(const Vector &point_pos,
                                                      DEV.o_offset.ReadWrite(),
                                                      code.Write(), elem.Write(),
                                                      ref.Write(), dist.Write(),
-                                                     DEV.gll1d.ReadWrite(),
+                                                     DEV.gll1d.Read(),
                                                      DEV.lagcoeff.Read(),
-                                                     newton.ReadWrite(),
+                                                   //   newton.ReadWrite(),
                                                      DEV.info.ReadWrite());
-      case 2: return FindPointsLocal32D_Kernel<2>(npt, DEV.tol,
+               break;
+      case 2: FindPointsLocal32D_Kernel<2>(npt, DEV.tol,
                                                      point_pos.Read(), point_pos_ordering,
                                                      gsl_mesh.Read(), NE_split_total,
                                                      DEV.o_wtend.Read(),
@@ -1757,11 +1935,12 @@ void FindPointsGSLIB::FindPointsLocal32(const Vector &point_pos,
                                                      DEV.o_offset.ReadWrite(),
                                                      code.Write(), elem.Write(),
                                                      ref.Write(), dist.Write(),
-                                                     DEV.gll1d.ReadWrite(),
+                                                     DEV.gll1d.Read(),
                                                      DEV.lagcoeff.Read(),
-                                                     newton.ReadWrite(),
+                                                   //   newton.ReadWrite(),
                                                      DEV.info.ReadWrite());
-      case 3: return FindPointsLocal32D_Kernel<3>(npt, DEV.tol,
+               break;
+      case 3: FindPointsLocal32D_Kernel<3>(npt, DEV.tol,
                                                      point_pos.Read(), point_pos_ordering,
                                                      gsl_mesh.Read(), NE_split_total,
                                                      DEV.o_wtend.Read(),
@@ -1772,11 +1951,12 @@ void FindPointsGSLIB::FindPointsLocal32(const Vector &point_pos,
                                                      DEV.o_offset.ReadWrite(),
                                                      code.Write(), elem.Write(),
                                                      ref.Write(), dist.Write(),
-                                                     DEV.gll1d.ReadWrite(),
+                                                     DEV.gll1d.Read(),
                                                      DEV.lagcoeff.Read(),
-                                                     newton.ReadWrite(),
+                                                   //   newton.ReadWrite(),
                                                      DEV.info.ReadWrite());
-      case 4: return FindPointsLocal32D_Kernel<4>(npt, DEV.tol,
+               break;
+      case 4: FindPointsLocal32D_Kernel<4>(npt, DEV.tol,
                                                      point_pos.Read(), point_pos_ordering,
                                                      gsl_mesh.Read(), NE_split_total,
                                                      DEV.o_wtend.Read(),
@@ -1787,11 +1967,12 @@ void FindPointsGSLIB::FindPointsLocal32(const Vector &point_pos,
                                                      DEV.o_offset.ReadWrite(),
                                                      code.Write(), elem.Write(),
                                                      ref.Write(), dist.Write(),
-                                                     DEV.gll1d.ReadWrite(),
+                                                     DEV.gll1d.Read(),
                                                      DEV.lagcoeff.Read(),
-                                                     newton.ReadWrite(),
+                                                   //   newton.ReadWrite(),
                                                      DEV.info.ReadWrite());
-      default: return FindPointsLocal32D_Kernel(npt, DEV.tol,
+               break;
+      default: FindPointsLocal32D_Kernel(npt, DEV.tol,
                                                    point_pos.Read(), point_pos_ordering,
                                                    gsl_mesh.Read(), NE_split_total,
                                                    DEV.o_wtend.Read(),
@@ -1802,13 +1983,53 @@ void FindPointsGSLIB::FindPointsLocal32(const Vector &point_pos,
                                                    DEV.o_offset.ReadWrite(),
                                                    code.Write(), elem.Write(),
                                                    ref.Write(), dist.Write(),
-                                                   DEV.gll1d.ReadWrite(),
+                                                   DEV.gll1d.Read(),
                                                    DEV.lagcoeff.Read(),
-                                                   newton.ReadWrite(),
+                                                   // newton.ReadWrite(),
                                                    DEV.info.ReadWrite(),
                                                    DEV.dof1d);
    }
+   SWkernel.Stop();
+   fpt_kernel_time = SWkernel.RealTime();
 }
+
+// Polynomial order = p
+// Let's assume q = p+1
+// Dimension = dim = 3
+// Number of points = npt
+// Number of elements = nel
+
+// Data being read
+// Doubles (3): npt, DEV.tol, point_pos_ordering
+// Ints (3): NE_split_total, DEV.hash_n, DEV.dof1d
+// Arrays/Vectors:
+// point_pos [double] = (npt*dim)
+// gsl_mesh [double] = (nel*(p+1)^dim)*dim
+// DEV.o_wtend [double] =  6*(p+1)
+// DEV.o_c [double] = nel*dim
+// DEV.o_A [double] = nel*dim*dim
+// DEV.o_min [double] = nel*dim
+// DEV.o_max [double] = nel*dim
+// DEV.o_hashMin [double] = dim
+// DEV.o_hashFac [double] = dim
+// DEV.o_offset [int] = hash_data size is at-msot (nel*(p+1)^dim)
+// DEV.lagcoeff [double] = (p+1)
+// DEV.gll1d [double] = (p+1)
+
+// Writing
+// code (int) = npt
+// elem (int)= npt
+// dist (double)= npt
+// ref (double)= npt*dim
+
+// Reading
+// [int/unsigned int] 3 + (nel*Q^D)
+// [doubles] 3 + npt*D + (nel*Q^D)*D + 6Q + nel*D +
+//           nel*D*D + nel*D + nel*D + dim + dim + Q + Q
+
+// Writing
+// [int] npt + npt
+// [double] npt + npt*dim
 
 
 #undef CODE_INTERNAL

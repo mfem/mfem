@@ -65,6 +65,9 @@ public:
    double interpolate_h1_time = 0.0,
           interpolate_general_time = 0.0,
           interpolate_l2_pass2_time = 0.0;
+   double min_fpt_kernel_time = 0.0,
+          measured_min_fpt_kernel_time = 0.0,
+          fpt_kernel_time = 0.0;
 
 protected:
    Mesh *mesh;
@@ -134,7 +137,7 @@ protected:
 #undef dfloat
 
    // Stopwatches
-   StopWatch setupSW, SW2;
+   StopWatch setupSW, SW2, SWkernel;
 
    /// Use GSLIB for communication and interpolation
    virtual void InterpolateH1(const GridFunction &field_in, Vector &field_out);
@@ -171,7 +174,7 @@ protected:
                          Array<int> &gsl_newton_dev_l,
                          int npt);
    // Faster version of FindPointsLocal3.
-   void FindPointsLocal32(const Vector &point_pos,
+   void FindPointsLocal32(Vector &point_pos,
                           int point_pos_ordering,
                           Array<int> &gsl_code_dev_l,
                           Array<int> &gsl_elem_dev_l,
