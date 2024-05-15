@@ -112,6 +112,7 @@ protected:
       int dof1d;
       int dof1dsol;
       double tol;
+      int hd_d_size; //local hash data size
       struct gslib::crystal *cr;
       struct gslib::hash_data_3 *hash3;
       struct gslib::hash_data_2 *hash2;

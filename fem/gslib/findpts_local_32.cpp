@@ -1006,6 +1006,7 @@ static void ReadWrite3DKernelWorstCase(const int npt,
    MFEM_VERIFY(D1D != 0, "Polynomial order not specified.");
    const int nThreads = 32;
    int hd_d_size = hashOffset[(int)std::pow(hash_n, dim)];
+   int nel_per_pt = nel/npt;
 
    mfem::forall_2D(npt, nThreads, 1, [=] MFEM_HOST_DEVICE (int i)
    {
@@ -1022,25 +1023,28 @@ static void ReadWrite3DKernelWorstCase(const int npt,
       double answer = tol+ hash_n;
 
       // Read all coordinates of all elements, along with box centers and bounds
-      int e = i % nel;
-      // for (int e = 0; e < nel; e++)
+      int estart = npt > nel ? i % nel : i*nel_per_pt;
+      int eend = npt > nel ? estart+1 : estart+nel_per_pt;
+      estart = 0;
+      eend = nel;
+      for (int d = 0; d < dim; d++)
       {
-         for (int i = 0; i < p_NE; i++)
+         for (int e = estart; e < eend; e++)
          {
-            for (int d = 0; d < dim; d++)
+            for (int i = 0; i < p_NE; i++)
             {
                answer += xElemCoord[i + e*p_NE + d*p_NEL];
             }
-         }
-         for (int d = 0; d < dim; d++)
-         {
-            answer += c[e*dim + d];
-            answer += minBound[e*dim + d];
-            answer += maxBound[e*dim + d];
-         }
-         for (int d = 0; d < dim*dim; d++)
-         {
-            answer += A[e*dim*dim + d];
+            for (int i = 0; i < dim; i++)
+            {
+               answer += c[e*dim + i];
+               answer += minBound[e*dim + i];
+               answer += maxBound[e*dim + i];
+            }
+            for (int i = 0; i < dim*dim; i++)
+            {
+               answer += A[e*dim*dim + i];
+            }
          }
       }
 
@@ -1071,7 +1075,7 @@ static void ReadWrite3DKernelWorstCase(const int npt,
       }
 
       // read hash data
-      e = i % (hash_n*hash_n*hash_n);
+      int e = i % (hash_n*hash_n*hash_n);
       int elp = hashOffset[e];
       int ele = hashOffset[e+1];
       for (int d = elp; d < ele; d++)
@@ -1111,7 +1115,7 @@ static void FindPointsLocal32D_Kernel(const int npt,
                                       double *const dist2_base,
                                       const double *gll1D,
                                       const double *lagcoeff,
-                                    //   int *newton,
+                                      //   int *newton,
                                       double *infok,
                                       const int pN = 0)
 {
@@ -1848,21 +1852,31 @@ void FindPointsGSLIB::FindPointsLocal32(Vector &point_pos,
                                         int npt)
 {
 
-// Reading
-// [int/unsigned int] 3 + (nel*Q^D)
-// [doubles] 3 + npt*D + (nel*Q^D)*D + 6Q + nel*D +
-//           nel*D*D + nel*D + nel*D + dim + dim + Q + Q
+   // Reading
+   // [int/unsigned int] 3 + (nel*Q^D)
+   // [doubles] 3 + npt*D + (nel*Q^D)*D + 6Q + nel*D +
+   //           nel*D*D + nel*D + nel*D + dim + dim + Q + Q
 
-// Writing
-// [int] npt + npt
-// [double] npt + npt*dim
+   // Writing
+   // [int] npt + npt
+   // [double] npt + npt*dim
    int Q = DEV.dof1d;
    int E = NE_split_total;
    int QpowD = std::pow(Q, dim);
    int D = dim;
-   int int_read = 3+(E*QpowD);
+   int int_read = 3+(DEV.hd_d_size);
    int double_read = 3 + npt*D + (E*QpowD)*D + 6*Q + E*D +
                      E*D*D + E*D + E*D + D + D + Q + Q;
+   int int_read_check = 3 + DEV.o_offset.Size();
+   int double_read_check = 3 + point_pos.Size() + gsl_mesh.Size() +
+                           DEV.o_wtend.Size() +
+                           DEV.o_c.Size() + DEV.o_A.Size() +
+                           DEV.o_min.Size() + DEV.o_max.Size() +
+                           DEV.o_hashMin.Size() + DEV.o_hashFac.Size() +
+                           DEV.gll1d.Size() +
+                           DEV.lagcoeff.Size();
+   std::cout << int_read-int_read_check << " " <<
+             double_read-double_read_check << " k10sizediff" << std::endl;
    int total_bytes = double_read*8 + int_read*4;
    int max_speed = 900*std::pow(10, 9); //900 gb/s
    min_fpt_kernel_time = total_bytes*1.0/max_speed;
@@ -1909,85 +1923,85 @@ void FindPointsGSLIB::FindPointsLocal32(Vector &point_pos,
    switch (DEV.dof1d)
    {
       case 1: FindPointsLocal32D_Kernel<1>(npt, DEV.tol,
-                                                     point_pos.Read(), point_pos_ordering,
-                                                     gsl_mesh.Read(), NE_split_total,
-                                                     DEV.o_wtend.Read(),
-                                                     DEV.o_c.Read(), DEV.o_A.Read(),
-                                                     DEV.o_min.Read(), DEV.o_max.Read(),
-                                                     DEV.hash_n, DEV.o_hashMin.Read(),
-                                                     DEV.o_hashFac.Read(),
-                                                     DEV.o_offset.ReadWrite(),
-                                                     code.Write(), elem.Write(),
-                                                     ref.Write(), dist.Write(),
-                                                     DEV.gll1d.Read(),
-                                                     DEV.lagcoeff.Read(),
-                                                   //   newton.ReadWrite(),
-                                                     DEV.info.ReadWrite());
-               break;
+                                              point_pos.Read(), point_pos_ordering,
+                                              gsl_mesh.Read(), NE_split_total,
+                                              DEV.o_wtend.Read(),
+                                              DEV.o_c.Read(), DEV.o_A.Read(),
+                                              DEV.o_min.Read(), DEV.o_max.Read(),
+                                              DEV.hash_n, DEV.o_hashMin.Read(),
+                                              DEV.o_hashFac.Read(),
+                                              DEV.o_offset.ReadWrite(),
+                                              code.Write(), elem.Write(),
+                                              ref.Write(), dist.Write(),
+                                              DEV.gll1d.Read(),
+                                              DEV.lagcoeff.Read(),
+                                              //   newton.ReadWrite(),
+                                              DEV.info.ReadWrite());
+         break;
       case 2: FindPointsLocal32D_Kernel<2>(npt, DEV.tol,
-                                                     point_pos.Read(), point_pos_ordering,
-                                                     gsl_mesh.Read(), NE_split_total,
-                                                     DEV.o_wtend.Read(),
-                                                     DEV.o_c.Read(), DEV.o_A.Read(),
-                                                     DEV.o_min.Read(), DEV.o_max.Read(),
-                                                     DEV.hash_n, DEV.o_hashMin.Read(),
-                                                     DEV.o_hashFac.Read(),
-                                                     DEV.o_offset.ReadWrite(),
-                                                     code.Write(), elem.Write(),
-                                                     ref.Write(), dist.Write(),
-                                                     DEV.gll1d.Read(),
-                                                     DEV.lagcoeff.Read(),
-                                                   //   newton.ReadWrite(),
-                                                     DEV.info.ReadWrite());
-               break;
+                                              point_pos.Read(), point_pos_ordering,
+                                              gsl_mesh.Read(), NE_split_total,
+                                              DEV.o_wtend.Read(),
+                                              DEV.o_c.Read(), DEV.o_A.Read(),
+                                              DEV.o_min.Read(), DEV.o_max.Read(),
+                                              DEV.hash_n, DEV.o_hashMin.Read(),
+                                              DEV.o_hashFac.Read(),
+                                              DEV.o_offset.ReadWrite(),
+                                              code.Write(), elem.Write(),
+                                              ref.Write(), dist.Write(),
+                                              DEV.gll1d.Read(),
+                                              DEV.lagcoeff.Read(),
+                                              //   newton.ReadWrite(),
+                                              DEV.info.ReadWrite());
+         break;
       case 3: FindPointsLocal32D_Kernel<3>(npt, DEV.tol,
-                                                     point_pos.Read(), point_pos_ordering,
-                                                     gsl_mesh.Read(), NE_split_total,
-                                                     DEV.o_wtend.Read(),
-                                                     DEV.o_c.Read(), DEV.o_A.Read(),
-                                                     DEV.o_min.Read(), DEV.o_max.Read(),
-                                                     DEV.hash_n, DEV.o_hashMin.Read(),
-                                                     DEV.o_hashFac.Read(),
-                                                     DEV.o_offset.ReadWrite(),
-                                                     code.Write(), elem.Write(),
-                                                     ref.Write(), dist.Write(),
-                                                     DEV.gll1d.Read(),
-                                                     DEV.lagcoeff.Read(),
-                                                   //   newton.ReadWrite(),
-                                                     DEV.info.ReadWrite());
-               break;
+                                              point_pos.Read(), point_pos_ordering,
+                                              gsl_mesh.Read(), NE_split_total,
+                                              DEV.o_wtend.Read(),
+                                              DEV.o_c.Read(), DEV.o_A.Read(),
+                                              DEV.o_min.Read(), DEV.o_max.Read(),
+                                              DEV.hash_n, DEV.o_hashMin.Read(),
+                                              DEV.o_hashFac.Read(),
+                                              DEV.o_offset.ReadWrite(),
+                                              code.Write(), elem.Write(),
+                                              ref.Write(), dist.Write(),
+                                              DEV.gll1d.Read(),
+                                              DEV.lagcoeff.Read(),
+                                              //   newton.ReadWrite(),
+                                              DEV.info.ReadWrite());
+         break;
       case 4: FindPointsLocal32D_Kernel<4>(npt, DEV.tol,
-                                                     point_pos.Read(), point_pos_ordering,
-                                                     gsl_mesh.Read(), NE_split_total,
-                                                     DEV.o_wtend.Read(),
-                                                     DEV.o_c.Read(), DEV.o_A.Read(),
-                                                     DEV.o_min.Read(), DEV.o_max.Read(),
-                                                     DEV.hash_n, DEV.o_hashMin.Read(),
-                                                     DEV.o_hashFac.Read(),
-                                                     DEV.o_offset.ReadWrite(),
-                                                     code.Write(), elem.Write(),
-                                                     ref.Write(), dist.Write(),
-                                                     DEV.gll1d.Read(),
-                                                     DEV.lagcoeff.Read(),
-                                                   //   newton.ReadWrite(),
-                                                     DEV.info.ReadWrite());
-               break;
+                                              point_pos.Read(), point_pos_ordering,
+                                              gsl_mesh.Read(), NE_split_total,
+                                              DEV.o_wtend.Read(),
+                                              DEV.o_c.Read(), DEV.o_A.Read(),
+                                              DEV.o_min.Read(), DEV.o_max.Read(),
+                                              DEV.hash_n, DEV.o_hashMin.Read(),
+                                              DEV.o_hashFac.Read(),
+                                              DEV.o_offset.ReadWrite(),
+                                              code.Write(), elem.Write(),
+                                              ref.Write(), dist.Write(),
+                                              DEV.gll1d.Read(),
+                                              DEV.lagcoeff.Read(),
+                                              //   newton.ReadWrite(),
+                                              DEV.info.ReadWrite());
+         break;
       default: FindPointsLocal32D_Kernel(npt, DEV.tol,
-                                                   point_pos.Read(), point_pos_ordering,
-                                                   gsl_mesh.Read(), NE_split_total,
-                                                   DEV.o_wtend.Read(),
-                                                   DEV.o_c.Read(), DEV.o_A.Read(),
-                                                   DEV.o_min.Read(), DEV.o_max.Read(),
-                                                   DEV.hash_n, DEV.o_hashMin.Read(),
-                                                   DEV.o_hashFac.Read(),
-                                                   DEV.o_offset.ReadWrite(),
-                                                   code.Write(), elem.Write(),
-                                                   ref.Write(), dist.Write(),
-                                                   DEV.gll1d.Read(),
-                                                   DEV.lagcoeff.Read(),
-                                                   // newton.ReadWrite(),
-                                                   DEV.info.ReadWrite(),
-                                                   DEV.dof1d);
+                                            point_pos.Read(), point_pos_ordering,
+                                            gsl_mesh.Read(), NE_split_total,
+                                            DEV.o_wtend.Read(),
+                                            DEV.o_c.Read(), DEV.o_A.Read(),
+                                            DEV.o_min.Read(), DEV.o_max.Read(),
+                                            DEV.hash_n, DEV.o_hashMin.Read(),
+                                            DEV.o_hashFac.Read(),
+                                            DEV.o_offset.ReadWrite(),
+                                            code.Write(), elem.Write(),
+                                            ref.Write(), dist.Write(),
+                                            DEV.gll1d.Read(),
+                                            DEV.lagcoeff.Read(),
+                                            // newton.ReadWrite(),
+                                            DEV.info.ReadWrite(),
+                                            DEV.dof1d);
    }
    SWkernel.Stop();
    fpt_kernel_time = SWkernel.RealTime();
@@ -2012,7 +2026,7 @@ void FindPointsGSLIB::FindPointsLocal32(Vector &point_pos,
 // DEV.o_max [double] = nel*dim
 // DEV.o_hashMin [double] = dim
 // DEV.o_hashFac [double] = dim
-// DEV.o_offset [int] = hash_data size is at-msot (nel*(p+1)^dim)
+// DEV.o_offset [int] = hash_data size is at-msot (nel*(p+1)^dim).
 // DEV.lagcoeff [double] = (p+1)
 // DEV.gll1d [double] = (p+1)
 

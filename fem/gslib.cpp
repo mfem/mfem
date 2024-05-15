@@ -824,13 +824,13 @@ void FindPointsGSLIB::SetupDevice(MemoryType mt)
       DEV.hash_n = hash.hash_n;
    }
 
-   dlong hd_d_size = dim == 2 ?
-                     findptsData2->local.hd.offset[(int)std::pow(DEV.hash_n, dim)] :
-                     findptsData3->local.hd.offset[(int)std::pow(DEV.hash_n, dim)];
+   DEV.hd_d_size = dim == 2 ?
+                   findptsData2->local.hd.offset[(int)std::pow(DEV.hash_n, dim)] :
+                   findptsData3->local.hd.offset[(int)std::pow(DEV.hash_n, dim)];
 
-   DEV.o_offset.SetSize(hd_d_size);
+   DEV.o_offset.SetSize(DEV.hd_d_size);
    auto p_o_offset = DEV.o_offset.HostWrite();
-   for (int i = 0; i < hd_d_size; i++)
+   for (int i = 0; i < DEV.hd_d_size; i++)
    {
       p_o_offset[i] = dim == 2 ? findptsData2->local.hd.offset[i] :
                       findptsData3->local.hd.offset[i];
