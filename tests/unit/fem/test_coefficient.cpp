@@ -310,13 +310,9 @@ TEST_CASE("Symmetric Matrix Coefficient", "[Coefficient]")
    int qfdim = d*(d+1)/2;
 
    Vector values(qfdim);
-   for (int i = 0; i < qfdim; i++)
-   {
-      values[i] = i+1;
+   values.Randomize();
 
-   }
-
-   // Create symmetric matrix initialized w/ values 1 through d*(d+1)/2
+   // Create symmetric matrix initialized w/ values
    DenseSymmetricMatrix symMat(values.GetData(), d);
 
    SymmetricMatrixConstantCoefficient symCoeff(symMat);
