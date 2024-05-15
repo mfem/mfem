@@ -1690,64 +1690,6 @@ TEST_CASE("Parallel RP=I", "[Parallel], [NCMesh]")
    }
 }
 
-TEST_CASE("InternalBoundaryProjectBdrCoefficient", "[Parallel], [NCMesh]")
-{
-   auto test_project_H1 = [](ParMesh &mesh,  int order, double coef)
-   {
-      H1_FECollection fe_collection(order, mesh.SpaceDimension());
-      ParFiniteElementSpace fe_space(&mesh, &fe_collection);
-      ParGridFunction x(&fe_space);
-      x = -coef;
-      ConstantCoefficient c(coef);
-
-      // Check projecting on the internal face sets essential dof.
-      Array<int> ess_bdr(mesh.bdr_attributes.Max());
-      ess_bdr = 0;
-      ess_bdr.Last() = 1; // internal boundary
-      x.ProjectBdrCoefficient(c, ess_bdr);
-
-      Array<int> ess_tdofs_list;
-      fe_space.GetEssentialTrueDofs(ess_bdr, ess_tdofs_list);
-
-      const auto &tvec = x.GetTrueVector();
-      for (auto ess_dof : ess_tdofs_list)
-      {
-         CHECK(tvec[ess_dof] == Approx(coef).epsilon(1e-8));
-      }
-
-      int iess = 0;
-      for (int i = 0; i < tvec.Size(); i++)
-      {
-         if (iess < ess_tdofs_list.Size() && i == ess_tdofs_list[iess])
-         {
-            iess++;
-            continue;
-         }
-         CHECK(tvec[i] == Approx(-coef).epsilon(1e-8));
-      }
-   };
-
-   SECTION("Hex")
-   {
-      auto smesh = DividingPlaneMesh(false, true);
-      smesh.EnsureNCMesh();
-      ParMesh pmesh(MPI_COMM_WORLD, smesh);
-      test_project_H1(pmesh, 1, 0.25);
-      test_project_H1(pmesh, 2, 0.25);
-      test_project_H1(pmesh, 3, 0.25);
-   }
-
-   SECTION("Tet")
-   {
-      auto smesh = DividingPlaneMesh(true, true);
-      smesh.EnsureNCMesh();
-      ParMesh pmesh(MPI_COMM_WORLD, smesh);
-      test_project_H1(pmesh, 1, 0.25);
-      test_project_H1(pmesh, 2, 0.25);
-      test_project_H1(pmesh, 3, 0.25);
-   }
-}
-
 #endif // MFEM_USE_MPI
 
 TEST_CASE("ReferenceCubeInternalBoundaries", "[NCMesh]")
@@ -2868,5 +2810,81 @@ TEST_CASE("RP=I", "[NCMesh]")
       }
    }
 }
+
+
+TEST_CASE("InternalBoundaryProjectBdrCoefficient", "[NCMesh]")
+{
+   auto test_project_H1 = [](Mesh &mesh,  int order, double coef)
+   {
+      H1_FECollection fe_collection(order, mesh.SpaceDimension());
+      FiniteElementSpace fe_space(&mesh, &fe_collection);
+      GridFunction x(&fe_space);
+      x = -coef;
+      ConstantCoefficient c(coef);
+
+      // Check projecting on the internal face sets essential dof.
+      Array<int> ess_bdr(mesh.bdr_attributes.Max());
+      ess_bdr = 0;
+      ess_bdr.Last() = 1; // internal boundary
+      x.ProjectBdrCoefficient(c, ess_bdr);
+
+      Array<int> ess_vdofs_list, ess_vdofs_marker;
+      fe_space.GetEssentialVDofs(ess_bdr, ess_vdofs_marker);
+      fe_space.MarkerToList(ess_vdofs_marker, ess_vdofs_list);
+      for (auto ess_dof : ess_vdofs_list)
+      {
+         CHECK(x[ess_dof] == Approx(coef).epsilon(1e-8));
+      }
+
+      int iess = 0;
+      for (int i = 0; i < x.Size(); i++)
+      {
+         if (iess < ess_vdofs_list.Size() && i == ess_vdofs_list[iess])
+         {
+            iess++;
+            continue;
+         }
+         CHECK(x[i] == Approx(-coef).epsilon(1e-8));
+      }
+
+   };
+
+   auto OneSidedNCRefine = [](Mesh &mesh)
+   {
+      // Pick one element attached to the new boundary attribute and refine.
+      const auto interface_attr = mesh.bdr_attributes.Max();
+      Array<int> el_to_ref;
+      for (int nbe = 0; nbe < mesh.GetNBE(); nbe++)
+      {
+         if (mesh.GetBdrAttribute(nbe) == interface_attr)
+         {
+            int f, o, e1, e2;
+            mesh.GetBdrElementFace(nbe, &f, &o);
+            mesh.GetFaceElements(f, &e1, &e2);
+            el_to_ref.Append(e1);
+         }
+      }
+      mesh.GeneralRefinement(el_to_ref);
+      return;
+   };
+
+   SECTION("Hex")
+   {
+      auto smesh = DividingPlaneMesh(false, true);
+      smesh.EnsureNCMesh(true);
+      OneSidedNCRefine(smesh);
+      test_project_H1(smesh, 2, 0.25);
+   }
+
+   SECTION("Tet")
+   {
+      auto smesh = DividingPlaneMesh(true, true);
+      smesh.EnsureNCMesh(true);
+      OneSidedNCRefine(smesh);
+      test_project_H1(smesh, 3, 0.25);
+   }
+}
+
+
 
 } // namespace mfem

@@ -2174,7 +2174,6 @@ void GridFunction::AccumulateAndCountBdrValues(
          if (vdofs.Size() == 0) { continue; }
 
          ElementTransformation *transf = mesh->GetEdgeTransformation(edge);
-         transf->Attribute = -1; // TODO: set the boundary attribute
          const FiniteElement *fe = fes->GetEdgeElement(edge);
          mark_dofs(*transf, *fe);
       }
@@ -2185,7 +2184,6 @@ void GridFunction::AccumulateAndCountBdrValues(
          if (vdofs.Size() == 0) { continue; }
 
          ElementTransformation *transf = mesh->GetFaceTransformation(face);
-         transf->Attribute = -1; // TODO: set the boundary attribute
          const FiniteElement *fe = fes->GetFaceElement(face);
          mark_dofs(*transf, *fe);
       }
@@ -2254,7 +2252,6 @@ void GridFunction::AccumulateAndCountBdrTangentValues(
          if (dofs.Size() == 0) { continue; }
 
          T = mesh->GetEdgeTransformation(edge);
-         T->Attribute = -1; // TODO: set the boundary attribute
          fe = fes->GetEdgeElement(edge);
          lvec.SetSize(fe->GetDof());
          fe->Project(vcoeff, *T, lvec);
@@ -2267,7 +2264,6 @@ void GridFunction::AccumulateAndCountBdrTangentValues(
          if (dofs.Size() == 0) { continue; }
 
          T = mesh->GetFaceTransformation(face);
-         T->Attribute = -1; // TODO: set the boundary attribute
          fe = fes->GetFaceElement(face);
          lvec.SetSize(fe->GetDof());
          fe->Project(vcoeff, *T, lvec);
