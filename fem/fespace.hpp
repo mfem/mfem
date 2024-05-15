@@ -223,6 +223,9 @@ class FiniteElementSpace
    friend void Mesh::Swap(Mesh &, bool);
    friend class LORBase;
 
+   std::unique_ptr<SparseMatrix> periodicProlongationMatrix;
+   std::unique_ptr<SparseMatrix> periodicRestrictionMatrix;
+
 protected:
    /// The mesh that FE space lives on (not owned).
    Mesh *mesh;
@@ -592,6 +595,9 @@ public:
        variants (see also @a SetRelaxedHpConformity()). */
    /// The returned SparseMatrix is owned by the FiniteElementSpace.
    const SparseMatrix *GetHpConformingRestriction() const;
+
+void MakePeriodic(const std::vector<std::pair<int,int>> &bdrElementMap);
+
 
    /// The returned Operator is owned by the FiniteElementSpace.
    virtual const Operator *GetProlongationMatrix() const

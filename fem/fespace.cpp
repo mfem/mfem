@@ -1298,65 +1298,63 @@ void FiniteElementSpace::MakeVDimMatrix(SparseMatrix &mat) const
    delete vmat;
 }
 
+void FiniteElementSpace::MakePeriodic(const std::vector<std::pair<int,int>> &bdrElementMap)
+{
+   Array<int> tDofs, lDofs;
+   // TODO: iterate through all pairs
+   GetBdrElementDofs(bdrElementMap[0].first, lDofs);
+   GetBdrElementDofs(bdrElementMap[0].second, tDofs);
+   //std::cout << "tdofs" << std::endl;
+   //tDofs.Print();
+   //std::cout << "ldofs" << std::endl;
+   //lDofs.Print();
+
+   Array<int> local2true(ndofs);
+   int count = 0;
+   for (int k=0; k < ndofs; k++)
+   {
+      local2true[k] = count;
+      if (lDofs.Find(k) == -1)
+         count++;
+   }
+   for (int k=0; k < lDofs.Size(); k++)
+      local2true[lDofs[k]] = local2true[tDofs[k]];
+//   std::cout << "map" << std::endl;
+//   local2true.Print();
+
+   periodicProlongationMatrix =
+      std::make_unique<SparseMatrix>(ndofs, ndofs - lDofs.Size());
+   for (int i=0; i < ndofs; i++)
+      periodicProlongationMatrix->Add(i,local2true[i],1.0);
+   periodicProlongationMatrix->Finalize();
+//   std::cout << "Prolongation" << std::endl;
+//   periodicProlongationMatrix->ToDenseMatrix()->Print(std::cout);
+
+   periodicRestrictionMatrix =
+      std::make_unique<SparseMatrix>(ndofs - lDofs.Size(), ndofs);
+   int i = 0;
+   for (int j=0; j < ndofs; j++)
+   {
+      if (lDofs.Find(j) != -1)
+         continue;
+      periodicRestrictionMatrix->Add(i,j,1.0);
+      i++;
+   }
+   periodicRestrictionMatrix->Finalize();
+ //  std::cout << "Restriction:" << std::endl;
+ //  periodicRestrictionMatrix->ToDenseMatrix()->Print(std::cout);
+}
 
 const SparseMatrix* FiniteElementSpace::GetConformingProlongation() const
 {
-   if (Conforming())
-   {
-      Array<int> element_boundary_dofs;
-      Array<int> boundary_dofs;
-      for (int k=0; k < GetNBE(); k++)
-      {
-         GetBdrElementVDofs(k, element_boundary_dofs);
-         boundary_dofs.Append(element_boundary_dofs);
-      }
-
-      SparseMatrix* tmp = new SparseMatrix(ndofs,ndofs-1);
-      int j = 0;
-      for (int i=0; i < ndofs; i++)
-      {
-         if (i == boundary_dofs[1])
-            tmp->Add(i,boundary_dofs[0],1.0);
-         else
-         {
-            tmp->Add(i,j,1.0);
-            j++;
-         }
-      }
-      tmp->Finalize();
-//      std::cout << "Prolongation" << std::endl;
-//      tmp->ToDenseMatrix()->Print(std::cout);
-      return tmp;
-   }
+   if (Conforming()) { return periodicProlongationMatrix.get(); }
    if (!cP_is_set) { BuildConformingInterpolation(); }
    return cP.get();
 }
 
 const SparseMatrix* FiniteElementSpace::GetConformingRestriction() const
 {
-   if (Conforming())
-   {
-      Array<int> element_boundary_dofs;
-      Array<int> boundary_dofs;
-      for (int k=0; k < GetNBE(); k++)
-      {
-         GetBdrElementVDofs(k, element_boundary_dofs);
-         boundary_dofs.Append(element_boundary_dofs);
-      }
-      SparseMatrix* tmp = new SparseMatrix(ndofs-1,ndofs);
-      int i = 0;
-      for (int j=0; j < ndofs; j++)
-      {
-         if (j == boundary_dofs[1])
-            continue;
-         tmp->Add(i,j,1.0);
-         i++;
-      }
-      tmp->Finalize();
-//      std::cout << "Restriction:" << std::endl;
-//      tmp->ToDenseMatrix()->Print(std::cout);
-      return tmp;
-   }
+   if (Conforming()) { return periodicRestrictionMatrix.get(); }
    if (!cP_is_set) { BuildConformingInterpolation(); }
    if (cR && !R_transpose) { R_transpose.reset(new TransposeOperator(*cR)); }
    return cR.get();
