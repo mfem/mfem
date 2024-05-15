@@ -367,6 +367,10 @@ static ulong hash_index_2(const gslib::hash_data_2 *p, const dfloat x[2])
 void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
                                          int point_pos_ordering)
 {
+   point_pos.HostRead();
+   Vector point_pos_copy = point_pos;
+   point_pos_copy.UseDevice(true);
+   point_pos_copy.HostReadWrite();
    MemoryType mt = point_pos.GetMemory().GetMemoryType();
    SW2.Clear();
    SW2.Start();
@@ -396,7 +400,7 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
    {
       if (gpu_code == 1)
       {
-         FindPointsLocal32(point_pos,
+         FindPointsLocal32(point_pos_copy,
                            point_pos_ordering,
                            gsl_code_dev,
                            gsl_elem_dev,

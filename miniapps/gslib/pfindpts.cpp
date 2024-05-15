@@ -109,7 +109,7 @@ int main (int argc, char *argv[])
    int dim               = 3;
    int etype             = 0;
    bool visit            = false;
-   int gpucode           = 0;
+   int gpucode           = 1;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -575,6 +575,34 @@ int main (int argc, char *argv[])
            finder.interpolate_l2_pass2_time << "," <<
            std::endl;
    }
+
+   // Info for timings of kernel read-write
+   double min_kernel_fpt_time = finder.min_fpt_kernel_time;
+   double measure_min_kernel_fpt_time = finder.measured_min_fpt_kernel_time;
+   double kernel_fpt_time = finder.fpt_kernel_time;
+
+   if (myid == 0)
+   {
+      cout << "FindPointsGSLIB-KernelTiming-info " <<
+           "jobid,devid,gpucode,ne,np,dim,meshorder,solorder,funcorder,fieldtype,smooth,npts,nptt,"
+           "mintime,measuredmintime,actualkerneltime " <<
+           jobid << "," <<
+           device.GetId() << "," <<
+           gpucode << "," <<
+           nelemglob << "," <<
+           num_procs << "," <<
+           dim << "," <<
+           mesh_poly_deg << "," << order << "," <<
+           func_order << "," << fieldtype << "," <<
+           smooth << "," <<
+           pts_cnt << "," <<
+           pts_cnt*num_procs << "," <<
+           finder.min_fpt_kernel_time << "," <<
+           finder.measured_min_fpt_kernel_time << "," <<
+           finder.fpt_kernel_time << "," <<
+           std::endl;
+   }
+
 
    Mesh *mesh_abb, *mesh_obb, *mesh_lhbb, *mesh_ghbb;
    if (visit)

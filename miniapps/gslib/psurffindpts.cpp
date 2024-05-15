@@ -325,7 +325,7 @@ int main (int argc, char *argv[])
       x->GetSubVector(xdofs, posV);
 
       std::cout << "Print nodal positions\n";
-      posV.Print();
+      pos.Print();
 
       const IntegrationRule &ir = fe->GetNodes();
       ElementTransformation *transf = pfespace->GetElementTransformation(i);
