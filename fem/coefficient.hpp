@@ -1465,6 +1465,10 @@ public:
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip);
 
+
+   /// @deprecated Return a reference to the internal matrix used when evaluating this coefficient as a DenseMatrix.
+   MFEM_DEPRECATED const DenseSymmetricMatrix& GetMatrix() { return mat_aux; }
+
    virtual ~SymmetricMatrixCoefficient() { }
 };
 
