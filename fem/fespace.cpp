@@ -1298,16 +1298,37 @@ void FiniteElementSpace::MakeVDimMatrix(SparseMatrix &mat) const
    delete vmat;
 }
 
-void FiniteElementSpace::MakePeriodic(const std::vector<std::pair<int,int>> &bdrElementMap)
+void FiniteElementSpace::MakePeriodic(const std::vector<int> &v2v)
 {
-   Array<int> tDofs, lDofs;
-   // TODO: iterate through all pairs
-   GetBdrElementDofs(bdrElementMap[0].first, lDofs);
-   GetBdrElementDofs(bdrElementMap[0].second, tDofs);
-   //std::cout << "tdofs" << std::endl;
-   //tDofs.Print();
-   //std::cout << "ldofs" << std::endl;
-   //lDofs.Print();
+   Array<int> source_vertices, target_vertices, dofs, tDofs, lDofs;
+   for (int k=0; k < mesh->GetNBE(); k++)
+   {
+      mesh->GetBdrElementVertices(k, source_vertices);
+      if (std::all_of(source_vertices.begin(), source_vertices.end(), [&](int v){ return v2v[v] != v; }))
+      {
+         GetBdrElementDofs(k, dofs);
+         lDofs.Append(dofs);
+         int index = -1;
+         for (int l=0; l < mesh->GetNBE(); l++)
+         {
+            mesh->GetBdrElementVertices(l, target_vertices);
+            if (std::all_of(source_vertices.begin(), source_vertices.end(), [&](int v){ return target_vertices.Find(v2v[v]) != -1; }))
+            {
+               index = l;
+               break;
+            }
+         }
+         MFEM_ASSERT(index != -1, "could not find boundary element containing mapped vertex.")
+         GetBdrElementDofs(index, dofs);
+         // TODO: find a more dynamic way to handle orientation
+         for (int m=0; m < dofs.Size(); m++)
+            tDofs.Append(dofs[dofs.Size()-1-m]);
+      }
+   }
+//   std::cout << "tdofs" << std::endl;
+//   tDofs.Print();
+//   std::cout << "ldofs" << std::endl;
+//   lDofs.Print();
 
    Array<int> local2true(ndofs);
    int count = 0;
@@ -1319,11 +1340,13 @@ void FiniteElementSpace::MakePeriodic(const std::vector<std::pair<int,int>> &bdr
    }
    for (int k=0; k < lDofs.Size(); k++)
       local2true[lDofs[k]] = local2true[tDofs[k]];
+
 //   std::cout << "map" << std::endl;
 //   local2true.Print();
 
+
    periodicProlongationMatrix =
-      std::make_unique<SparseMatrix>(ndofs, ndofs - lDofs.Size());
+      std::make_unique<SparseMatrix>(ndofs, count);
    for (int i=0; i < ndofs; i++)
       periodicProlongationMatrix->Add(i,local2true[i],1.0);
    periodicProlongationMatrix->Finalize();
@@ -1331,7 +1354,7 @@ void FiniteElementSpace::MakePeriodic(const std::vector<std::pair<int,int>> &bdr
 //   periodicProlongationMatrix->ToDenseMatrix()->Print(std::cout);
 
    periodicRestrictionMatrix =
-      std::make_unique<SparseMatrix>(ndofs - lDofs.Size(), ndofs);
+      std::make_unique<SparseMatrix>(count, ndofs);
    int i = 0;
    for (int j=0; j < ndofs; j++)
    {

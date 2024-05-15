@@ -596,7 +596,7 @@ public:
    /// The returned SparseMatrix is owned by the FiniteElementSpace.
    const SparseMatrix *GetHpConformingRestriction() const;
 
-void MakePeriodic(const std::vector<std::pair<int,int>> &bdrElementMap);
+void MakePeriodic(const std::vector<int> &v2v);
 
 
    /// The returned Operator is owned by the FiniteElementSpace.
