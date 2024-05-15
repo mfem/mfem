@@ -17,8 +17,8 @@
 // positions while maintaining a valid mesh with good quality.
 //
 // Sample runs:
-//   mpirun -np 4 tmop-tangent -rs 1 -m square01.mesh -o 1 -gS 1 -k outputFileName -visit
-//   mpirun -np 4 tmop-tangent -rs 1 -m rectangle01.mesh -o 1 -gS 1 -k outputFileName -visit
+//   mpirun -np 4 tmop-tangent -rs 1 -m square01.mesh -o 1 -gS 1
+//   mpirun -np 4 tmop-tangent -rs 1 -m rectangle01.mesh -o 1 -gS 1
 // NOTE: Need to change the width, depth and coordinates of the center in the Square.cpp file depending on the geometry.
 
 #include "mfem.hpp"
@@ -70,12 +70,14 @@ int main (int argc, char *argv[])
       return 1;
    }
    if (myid == 0) { args.PrintOptions(cout); }
+
    // Read and refine the mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
    for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
    ParMesh pmesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    const int dim = pmesh.Dimension();
+
    // Setup mesh curvature and GridFunction that stores the coordinates.
    FiniteElementCollection *fec_mesh;
    if (mesh_poly_deg <= 0)
@@ -89,6 +91,7 @@ int main (int argc, char *argv[])
    ParGridFunction coord(&pfes_mesh);
    pmesh.SetNodalGridFunction(&coord);
    ParGridFunction x0(coord);
+
    // Move the mesh nodes to have non-trivial problem.
    const int N = coord.Size() / 2;
    for (int i = 0; i < N; i++)
@@ -98,12 +101,8 @@ int main (int argc, char *argv[])
          double t = coord(i+N);
          coord(i) = coord(i) - 2 * t * 0.2 * coord(i);
       }
-      //      if (coord(i+N) < 1.0 - 1e-12)
-      //      {
-      //         double t = coord(i);
-      //         coord(i+N) = coord(i+N) - 2 * t * 0.2 * coord(i+N);
-      //      }
-    }
+   }
+
    // Pick which nodes to move tangentially.
    Array<bool> fit_marker(pfes_mesh.GetNDofs());
    ParGridFunction fit_marker_vis_gf(&pfes_mesh);
@@ -113,7 +112,6 @@ int main (int argc, char *argv[])
    for (int e = 0; e < pmesh.GetNBE(); e++)
    {
       const int nd = pfes_mesh.GetBE(e)->GetDof();
-      const int attr = pmesh.GetBdrElement(e)->GetAttribute();
       pfes_mesh.GetBdrElementVDofs(e, vdofs);
       for (int j = 0; j < nd; j++)
       {
@@ -124,6 +122,7 @@ int main (int argc, char *argv[])
          fit_marker_vis_gf(j_x) = 1.0;
       }
    }
+
    // Visualize the selected nodes and their target positions.
    if (glvis)
    {
@@ -132,6 +131,7 @@ int main (int argc, char *argv[])
 			     "Target positions (DOFS with value 1)",
 			     0, 0, 400, 400, (dim == 2) ? "Rjm" : "");
    }
+
    // Save data for VisIt visualization.
    VisItDataCollection visit_dc(basename, &pmesh);
    if (visit)
@@ -140,6 +140,7 @@ int main (int argc, char *argv[])
       visit_dc.SetTime(0.0);
       visit_dc.Save();
    }
+
    // Allow slipping along the remaining boundaries.
    // (attributes 1 and 3 would slip, while 4 is completely fixed).
    int n = 0;
@@ -149,24 +150,27 @@ int main (int argc, char *argv[])
       n += nd;
    }
    Array<int> ess_vdofs(n);
-   n = 0;
-   AnalyticalSurface *analyticalSurface = new AnalyticalSurface(geometricShape, pfes_mesh, coord, pmesh, ess_vdofs);
-   analyticalSurface->ConvertPhysicalCoordinatesToParametric(coord);
+
+   AnalyticalSurface analyticalSurface(geometricShape, pfes_mesh, coord, pmesh, ess_vdofs);
+   analyticalSurface.ConvertPhysicalCoordinatesToParametric(coord);
+
    // TMOP setup.
    TMOP_QualityMetric *metric;
    if (dim == 2) { metric = new TMOP_Metric_002; }
    else          { metric = new TMOP_Metric_302; }
    TargetConstructor target(TargetConstructor::IDEAL_SHAPE_UNIT_SIZE,
                             pfes_mesh.GetComm());
-   auto integ = new ParametrizedTMOP_Integrator(metric, &target, nullptr, analyticalSurface);
+   auto integ = new ParametrizedTMOP_Integrator(metric, &target, nullptr,
+                                                &analyticalSurface);
+
    // Linear solver.
    MINRESSolver minres(pfes_mesh.GetComm());
    minres.SetMaxIter(100);
    minres.SetRelTol(1e-12);
    minres.SetAbsTol(0.0);
+
    // Nonlinear solver.
    ParNonlinearForm a(&pfes_mesh);
-   // ess_vdofs.Print();
    a.SetEssentialVDofs(ess_vdofs);
    a.AddDomainIntegrator(integ);
    const IntegrationRule &ir =
@@ -178,17 +182,18 @@ int main (int argc, char *argv[])
    solver.SetMaxIter(10000);
    solver.SetRelTol(1e-10);
    solver.SetAbsTol(0.0);
+
    // Solve.
    Vector b(0);
    coord.SetTrueVector();
    solver.Mult(b, coord.GetTrueVector());
    coord.SetFromTrueVector();
-   analyticalSurface->ConvertParametricCoordinatesToPhysical(coord);
+   analyticalSurface.ConvertParametricCoordinatesToPhysical(coord);
    if(glvis)
    {
       socketstream vis2;
       common::VisualizeMesh(vis2, "localhost", 19916, pmesh, "Final mesh",
-                            400, 0, 400, 400);
+                            400, 0, 400, 400, "me");
    }
    if (visit)
    {
@@ -196,6 +201,7 @@ int main (int argc, char *argv[])
       visit_dc.SetTime(1);
       visit_dc.Save();
    }
+
    delete metric;
    return 0;
 }

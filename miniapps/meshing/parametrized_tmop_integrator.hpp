@@ -32,9 +32,9 @@ protected:
    AnalyticalSurface *analyticalSurface;
 public:
    ParametrizedTMOP_Integrator(TMOP_QualityMetric *m, TargetConstructor *tc,
-                               TMOP_QualityMetric *hm, AnalyticalSurface *analyticalSurface) : TMOP_Integrator(m, tc, hm), analyticalSurface(analyticalSurface)
-{
-}
+                               TMOP_QualityMetric *hm, AnalyticalSurface *analyticalSurface)
+      : TMOP_Integrator(m, tc, hm), analyticalSurface(analyticalSurface) { }
+
 // For interior nodes
 // \f$ (dmu/dT)_{jp} Dsh_{Bs} Winv_{sp} x_{Bj} \f$
 // x_{Bj} is the solution vector

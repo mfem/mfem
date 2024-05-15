@@ -18,11 +18,11 @@
 
 namespace mfem
 {
-   AnalyticalGeometricShape::AnalyticalGeometricShape(ParFiniteElementSpace &pfes_mesh, ParGridFunction &distance_gf, const ParMesh & pmesh, const ParGridFunction & coord, Array<int> & ess_vdofs): pfes_mesh(pfes_mesh), distance_gf(distance_gf), pmesh(pmesh), coord(coord)
-{
-}
+
+AnalyticalGeometricShape::AnalyticalGeometricShape(ParFiniteElementSpace &pfes_mesh, ParGridFunction &distance_gf, const ParMesh & pmesh, const ParGridFunction & coord, Array<int> & ess_vdofs): pfes_mesh(pfes_mesh), distance_gf(distance_gf), pmesh(pmesh), coord(coord)
+{ }
+
 AnalyticalGeometricShape::~AnalyticalGeometricShape()
-{
-}
+{ }
 
 }

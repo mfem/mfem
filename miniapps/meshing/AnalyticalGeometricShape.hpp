@@ -19,21 +19,26 @@
 
 #include "mfem.hpp"
 
-namespace mfem{
+namespace mfem
+{
 
-class AnalyticalGeometricShape{
+class AnalyticalGeometricShape
+{
 protected:
    ParFiniteElementSpace &pfes_mesh;
    ParGridFunction &distance_gf;
    const ParMesh &pmesh;
    Array<int> ess_vdofs;
    const ParGridFunction &coord;
+
 public:
    /// Element type related to shifted boundaries (not interfaces).
    /// For more than 1 level-set, we set the marker to CUT+level_set_index
    /// to discern between different level-sets.
 
-   AnalyticalGeometricShape(ParFiniteElementSpace &pfes_mesh, ParGridFunction &distance_gf, const ParMesh & pmesh, const ParGridFunction & coord, Array<int> &ess_vdofs);
+   AnalyticalGeometricShape(ParFiniteElementSpace &pfes_mesh, ParGridFunction &distance_gf,
+                            const ParMesh & pmesh, const ParGridFunction & coord, Array<int> &ess_vdofs);
+
    virtual void GetTFromX(Vector &coordsT, const Vector &coordsX, const int& j_x, const Vector &dist) = 0;
    virtual void GetXFromT(Vector &coordsX, const Vector &coordsT, const int& j_x, const Vector &dist) = 0;
    virtual void ComputeDistances(const ParGridFunction &coord, const ParMesh & pmesh, const ParFiniteElementSpace &pfes_mesh) = 0;
@@ -44,4 +49,4 @@ public:
    virtual  ~AnalyticalGeometricShape();
 };
 }
-#endif // MFEM_LAGHOS
+#endif

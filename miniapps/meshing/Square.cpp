@@ -149,7 +149,8 @@ void Square::ComputeDistances(const ParGridFunction & coord, const ParMesh & pme
    }
 }
 
-void Square::SetScaleMatrix(const Vector &elfun, const Array<int> & vdofs, int i, int j, DenseMatrix &Pmat_scale)
+void Square::SetScaleMatrix(const Vector &elfun, const Array<int> & vdofs,
+                            int i, int a, DenseMatrix &Pmat_scale)
 {
    int attr = attr_marker[vdofs[i]];
    int j_x = vdofs[i];
@@ -157,39 +158,40 @@ void Square::SetScaleMatrix(const Vector &elfun, const Array<int> & vdofs, int i
    // Set the scale matrix, M = dx(t)_{i,j}/dt, for a given i and j,
    // M multiplies the RHS
    // M is stored as (i,j)
-   if ( (std::find(cornersX.begin(), cornersX.end(), coord(j_x)) == cornersX.end()) || (std::find(cornersY.begin(), cornersY.end(), coord(j_y)) == cornersY.end() ) )
+   if ( (std::find(cornersX.begin(), cornersX.end(), coord(j_x)) == cornersX.end()) ||
+        (std::find(cornersY.begin(), cornersY.end(), coord(j_y)) == cornersY.end() ) )
    {
       if (attr == 1)
       {
-         if (j == 0)
+         if (a == 0)
          {
-            Pmat_scale(i,j) = width;
+            Pmat_scale(i,a) = width;
         }
       }
       else if (attr == 2)
       {
-         if (j == 1)
+         if (a == 1)
          {
-            Pmat_scale(i,j) = depth;
+            Pmat_scale(i,a) = depth;
          }
       }
       else if (attr == 3)
       {
-         if (j == 0)
+         if (a == 0)
          {
-            Pmat_scale(i,j) = width;
+            Pmat_scale(i,a) = width;
          }
       }
       else if (attr == 4)
       {
-         if (j == 1)
+         if (a == 1)
          {
-            Pmat_scale(i,j) = depth;
+            Pmat_scale(i,a) = depth;
          }
       }
       else
       {
-         Pmat_scale(i,j) = 1.0;
+         Pmat_scale(i,a) = 1.0;
       }
    }
 }

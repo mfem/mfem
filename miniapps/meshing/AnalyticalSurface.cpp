@@ -19,7 +19,9 @@
 namespace mfem
 {
 
-AnalyticalSurface::AnalyticalSurface(int geometryType,  ParFiniteElementSpace &pfes_mesh, const ParGridFunction & coord, const ParMesh & pmesh, Array<int> & ess_vdofs) : 
+AnalyticalSurface::AnalyticalSurface(int geometryType,  ParFiniteElementSpace &pfes_mesh,
+                                     const ParGridFunction & coord, const ParMesh & pmesh,
+                                     Array<int> & ess_vdofs) :
    geometryType(geometryType),
    pfes_mesh(pfes_mesh),
    geometry(NULL),
@@ -106,20 +108,20 @@ void AnalyticalSurface::ConvertParametricCoordinatesToPhysical(ParGridFunction &
          {
             coordsT[0] = coord(j_x);
             coordsT[1] = coord(j_y);
-	    if (dim == 3) { coordsT[2] = coord(j_z); }
-	    geometry->GetXFromT(coordsX, coordsT, j_x, dist);
+       if (dim == 3) { coordsT[2] = coord(j_z); }
+       geometry->GetXFromT(coordsX, coordsT, j_x, dist);
             coord(j_x) = coordsX[0];
             coord(j_y) = coordsX[1];
             if (dim == 3) { coord(j_z) = coordsX[2]; }
-	    touchedNodes.push_back(j_x);
+       touchedNodes.push_back(j_x);
          }
       }
    }
 }
 
-void AnalyticalSurface::SetScaleMatrix(const Vector &elfun, const Array<int> & vdofs, int i, int j, DenseMatrix &Pmat_scale)
+void AnalyticalSurface::SetScaleMatrix(const Vector &elfun, const Array<int> & vdofs, int i, int a, DenseMatrix &Pmat_scale)
 {
-   geometry->SetScaleMatrix(elfun, vdofs, i, j, Pmat_scale);
+   geometry->SetScaleMatrix(elfun, vdofs, i, a, Pmat_scale);
 }
 
 void AnalyticalSurface::SetScaleMatrixFourthOrder(const Vector &elfun, const Array<int> & vdofs, DenseMatrix &Pmat_scale)

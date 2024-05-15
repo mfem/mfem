@@ -41,7 +41,8 @@ void ParametrizedTMOP_Integrator::AssembleElementVectorExact(const FiniteElement
    const IntegrationRule &ir = ActionIntegrationRule(el);
    const int nqp = ir.GetNPoints();
    
-   // Convert parametric coordinates to physical to compute Jpt
+   // Convert parametric coordinates to physical to compute Jpt.
+   // Needed as elfun has the surface parameters for some entries.
    Array<int> vdofs;
    analyticalSurface->pfes_mesh.GetElementVDofs(T.ElementNo, vdofs);
    Vector convertedX(elfun);
@@ -77,6 +78,7 @@ void ParametrizedTMOP_Integrator::AssembleElementVectorExact(const FiniteElement
          d_vals.SetSize(nqp); d_vals = 1.0;
       }
    }
+
    // Define ref->physical transformation, when a Coefficient is specified.
    IsoparametricTransformation *Tpr = NULL;
    if (metric_coeff || lim_coeff || adapt_lim_gf ||
@@ -119,6 +121,7 @@ void ParametrizedTMOP_Integrator::AssembleElementVectorExact(const FiniteElement
       // AddMultABt(DS, P, PMatO);
       Pmat_temp = 0.0;
       MultABt(DS, P, Pmat_temp);
+
       for (int i = 0; i < dof; i++)
       {
          for (int j = 0; j < dim; j++)
@@ -133,6 +136,7 @@ void ParametrizedTMOP_Integrator::AssembleElementVectorExact(const FiniteElement
             PMatO(i,j) += Pmat_check.Trace();
          }
       }
+
       if (exact_action)
       {
          el.CalcShape(ip, shape);
