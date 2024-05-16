@@ -1266,16 +1266,19 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows,
    }
 
    // Copy in the row and column partitionings
-   const bool rows_eq_cols = [rows,cols,part_size]()
+   const bool rows_eq_cols = [rows,cols,part_size,comm]()
    {
+      bool are_equal = true;
       for (int i = 0; i < part_size; ++i)
       {
          if (rows[i] != cols[i])
          {
-            return false;
+            are_equal = false;
+            break;
          }
       }
-      return true;
+      MPI_Allreduce(MPI_IN_PLACE, &are_equal, 1,  MPI_C_BOOL, MPI_LAND, comm);
+      return are_equal;
    }();
 
    HYPRE_BigInt *row_starts, *col_starts;
