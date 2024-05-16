@@ -372,7 +372,6 @@ private:
    Vector dinv;
    const real_t damping;
    const Array<int> *ess_tdof_list; // not owned; may be NULL
-   mutable Vector residual;
    /// Uses absolute values of the diagonal entries.
    bool use_abs_diag = false;
 
@@ -469,8 +468,6 @@ private:
    const Vector &diag;
    Array<real_t> coeffs;
    const Array<int>& ess_tdof_list;
-   mutable Vector residual;
-   mutable Vector helperVector;
    const Operator* oper;
 };
 
@@ -1050,9 +1047,6 @@ private:
 
    Reordering reordering;
 
-   /// Temporary vector used in the Mult() function.
-   mutable Vector y;
-
    /// Permutation and inverse permutation vectors for the block reordering.
    Array<int> P, Pinv;
 
@@ -1252,8 +1246,6 @@ public:
 
 private:
    Solver *solver = nullptr;
-
-   mutable Vector b_ortho;
 
    void Orthogonalize(const Vector &v, Vector &v_ortho) const;
 };
