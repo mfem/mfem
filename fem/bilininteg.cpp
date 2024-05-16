@@ -4070,10 +4070,10 @@ void DGNormalTraceIntegrator::AssembleFaceMatrix(const FiniteElement &trial_fe1,
       else
       {
          b = 0.;
-         if (!tr_ndof2)
-         {
-            a = alpha;//no averaging at the boundary
-         }
+      }
+      if (!te_ndof2 && b == 0.)
+      {
+         a = alpha;//no averaging at the boundary
       }
       // note: if |alpha/2|==|beta| then |a|==|b|, i.e. (a==b) or (a==-b)
       //       and therefore two blocks in the element matrix contribution
