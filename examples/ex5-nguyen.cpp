@@ -205,9 +205,9 @@ int main(int argc, char *argv[])
    const Array<int> &block_offsets = darcy->GetOffsets();
 
    std::cout << "***********************************************************\n";
-   std::cout << "dim(R) = " << block_offsets[1] - block_offsets[0] << "\n";
+   std::cout << "dim(V) = " << block_offsets[1] - block_offsets[0] << "\n";
    std::cout << "dim(W) = " << block_offsets[2] - block_offsets[1] << "\n";
-   std::cout << "dim(R+W) = " << block_offsets.Last() << "\n";
+   std::cout << "dim(V+W) = " << block_offsets.Last() << "\n";
    std::cout << "***********************************************************\n";
 
    // 7. Define the coefficients, analytical solution, and rhs of the PDE.
