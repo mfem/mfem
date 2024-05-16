@@ -103,7 +103,7 @@ void DarcyForm::EnableHybridization(FiniteElementSpace *constr_space,
    }
    hybridization = new DarcyHybridization(fes_u, fes_p, constr_space, bsym);
 
-   // Automatically load the constraint operator from the face integrators
+   // Automatically load the potential constraint operator from the face integrators
    BilinearFormIntegrator *constr_pot_integ = NULL;
    if (M_p)
    {
@@ -120,6 +120,26 @@ void DarcyForm::EnableHybridization(FiniteElementSpace *constr_space,
    }
 
    hybridization->SetConstraintIntegrators(constr_flux_integ, constr_pot_integ);
+
+   // Automatically add the boundary flux constraint integrators
+   if (B)
+   {
+      auto bfbfi_marker = B->GetBFBFI_Marker();
+      hybridization->UseExternalBdrConstraintIntegrators();
+
+      for (Array<int> *bfi_marker : *bfbfi_marker)
+      {
+         if (bfi_marker)
+         {
+            hybridization->AddBdrConstraintIntegrator(constr_flux_integ, *bfi_marker);
+         }
+         else
+         {
+            hybridization->AddBdrConstraintIntegrator(constr_flux_integ);
+         }
+      }
+   }
+
    hybridization->Init(ess_flux_tdof_list);
 }
 
