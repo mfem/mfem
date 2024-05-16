@@ -67,6 +67,7 @@ protected:
    /// Set of constraint boundary face integrators to be applied.
    Array<BilinearFormIntegrator*> c_bfbfi;
    Array<Array<int>*>             c_bfbfi_marker;
+   int extern_c_bfbfs; ///< Indicates if the c_bfbfi integrators are owned externally
 
    SparseMatrix *Ct, *H;
 
@@ -124,6 +125,9 @@ public:
       c_bfbfi.Append(c_integ);
       c_bfbfi_marker.Append(&bdr_marker);
    }
+
+   /// Indicate that boundary constraint integrators are not owned
+   void UseExternalBdrConstraintIntegrators() { extern_c_bfbfs = 1; }
 
    /// Prepare the Hybridization object for assembly.
    void Init(const Array<int> &ess_tdof_list);
