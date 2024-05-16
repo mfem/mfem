@@ -919,7 +919,8 @@ public:
    const Memory<HYPRE_Int> &GetDiagMemoryJ() const { return mem_diag.J; }
    const Memory<real_t> &GetDiagMemoryData() const { return mem_diag.data; }
 
-   /// Prints the locally owned rows in parallel
+   /// @brief Prints the locally owned rows in parallel. The resulting files can
+   /// be read with Read_IJMatrix().
    void Print(const std::string &fname, HYPRE_Int offi = 0,
               HYPRE_Int offj = 0) const;
    /// Reads the matrix from a file
