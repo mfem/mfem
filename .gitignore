@@ -53,6 +53,7 @@ doc/warnings.log
 # Example and miniapp binaries and outputs
 
 examples/ex[0-9]
+examples/ex5-hdg
 examples/ex5-heat
 examples/ex5-nguyen
 examples/ex[0-9]p
