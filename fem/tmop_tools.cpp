@@ -430,12 +430,12 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
    real_t scale = 1.0;
    bool fitting = IsSurfaceFittingEnabled();
-   real_t avg_init_fit_err, max_init_fit_err = 0.0;
+   real_t init_fit_avg_err, init_fit_max_err = 0.0;
    if (fitting && surf_fit_converge_error)
    {
-      GetSurfaceFittingError(x_out_loc, avg_init_fit_err, max_init_fit_err);
+      GetSurfaceFittingError(x_out_loc, init_fit_avg_err, init_fit_max_err);
       // Check for convergence
-      if (max_init_fit_err < surf_fit_max_threshold)
+      if (init_fit_max_err < surf_fit_max_err_limit)
       {
          if (print_options.iterations)
          {
@@ -448,7 +448,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    }
 
 
-   if (adapt_inc_count >= max_adapt_inc_count)
+   if (surf_fit_adapt_count >= surf_fit_adapt_count_limit)
    {
       if (print_options.iterations)
       {
@@ -471,7 +471,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       // reference to detect deteriorations.
       MFEM_VERIFY(min_det_ptr != NULL, " Initial mesh was valid, but"
                   " intermediate mesh is invalid. Contact TMOP Developers.");
-      MFEM_VERIFY(min_detJ_threshold == 0.0,
+      MFEM_VERIFY(min_detJ_limit == 0.0,
                   "This setup is not supported. Contact TMOP Developers.");
       *min_det_ptr = untangle_factor * min_detT_in;
    }
@@ -510,7 +510,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
       // Check the changes in detJ.
       min_detT_out = ComputeMinDet(x_out_loc, *fes);
-      if (untangling == false && min_detT_out <= min_detJ_threshold)
+      if (untangling == false && min_detT_out <= min_detJ_limit)
       {
          // No untangling, and detJ got negative (or small) -- no good.
          if (print_options.iterations)
@@ -542,7 +542,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       if (fitting && surf_fit_converge_error)
       {
          GetSurfaceFittingError(x_out_loc, avg_fit_err, max_fit_err);
-         if (max_fit_err >= 1.2*max_init_fit_err)
+         if (max_fit_err >= 1.2*init_fit_max_err)
          {
             if (print_options.iterations)
             {
@@ -623,7 +623,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
    if (x_out_ok == false) { scale = 0.0; }
 
-   if (surf_fit_scale_factor > 0.0) { update_surf_fit_coeff = true; }
+   if (surf_fit_scale_factor > 0.0) { surf_fit_coeff_update = true; }
    compute_metric_quantile_flag = true;
 
    return scale;
@@ -846,10 +846,10 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
    // adaptive surface fitting is enabled. The idea is to increase the
    // coefficient if the surface fitting error does not sufficiently
    // decrease between subsequent TMOPNewtonSolver iterations.
-   if (update_surf_fit_coeff)
+   if (surf_fit_coeff_update)
    {
       // Get surface fitting errors.
-      GetSurfaceFittingError(x_loc, surf_fit_err_avg, surf_fit_err_max);
+      GetSurfaceFittingError(x_loc, surf_fit_avg_err, surf_fit_max_err);
       // Get array with surface fitting weights.
       Array<real_t> fitweights;
       GetSurfaceFittingWeight(fitweights);
@@ -857,35 +857,35 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
       if (print_options.iterations)
       {
          mfem::out << "Avg/Max surface fitting error: " <<
-                   surf_fit_err_avg << " " <<
-                   surf_fit_err_max << "\n";
+                   surf_fit_avg_err << " " <<
+                   surf_fit_max_err << "\n";
          mfem::out << "Min/Max surface fitting weight: " <<
                    fitweights.Min() << " " << fitweights.Max() << "\n";
       }
 
-      real_t change_surf_fit_err = surf_fit_err_avg_prvs-surf_fit_err_avg;
-      real_t rel_change_surf_fit_err = change_surf_fit_err/surf_fit_err_avg_prvs;
+      real_t change_surf_fit_err = surf_fit_avg_err_prvs-surf_fit_avg_err;
+      real_t rel_change_surf_fit_err = change_surf_fit_err/surf_fit_avg_err_prvs;
 
       // Increase the surface fitting coefficient if the surface fitting error
       // does not decrease sufficiently. If we are converging based on residual,
       // also make sure we have not reached the maximum fitting weight and
       // error threshold.
-      if (rel_change_surf_fit_err < surf_fit_rel_change_threshold &&
+      if (rel_change_surf_fit_err < surf_fit_err_rel_change_limit &&
           (surf_fit_converge_error ||
-           (fitweights.Max() < fit_weight_max_limit &&
-            surf_fit_err_max > surf_fit_max_threshold)))
+           (fitweights.Max() < surf_fit_weight_limit &&
+            surf_fit_max_err > surf_fit_max_err_limit)))
       {
          real_t scale_factor = std::min(surf_fit_scale_factor,
-                                        fit_weight_max_limit/fitweights.Max());
+                                        surf_fit_weight_limit/fitweights.Max());
          UpdateSurfaceFittingWeight(scale_factor);
-         adapt_inc_count += 1;
+         surf_fit_adapt_count += 1;
       }
       else
       {
-         adapt_inc_count = 0;
+         surf_fit_adapt_count = 0;
       }
-      surf_fit_err_avg_prvs = surf_fit_err_avg;
-      update_surf_fit_coeff = false;
+      surf_fit_avg_err_prvs = surf_fit_avg_err;
+      surf_fit_coeff_update = false;
    }
 }
 
