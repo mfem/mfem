@@ -2633,38 +2633,28 @@ void HypreParMatrix::Print(const std::string &fname, HYPRE_Int offi,
 
 void HypreParMatrix::Read(MPI_Comm comm, const std::string &fname)
 {
-   Destroy();
-   Init();
-
+   HYPRE_ParCSRMatrix A_parcsr;
    HYPRE_Int base_i, base_j;
-   hypre_ParCSRMatrixSetNumNonzeros(A);
    hypre_ParCSRMatrixReadIJ(comm, fname.c_str(), &base_i, &base_j, &A_parcsr);
 
-   if (!hypre_ParCSRMatrixCommPkg(A)) { hypre_MatvecCommPkgCreate(A); }
+   WrapHypreParCSRMatrix(A_parcsr, true);
 
-   height = GetNumRows();
-   width = GetNumCols();
+   hypre_ParCSRMatrixSetNumNonzeros(A);
+   if (!hypre_ParCSRMatrixCommPkg(A)) { hypre_MatvecCommPkgCreate(A); }
 }
 
 void HypreParMatrix::Read_IJMatrix(MPI_Comm comm, const std::string &fname)
 {
-   Destroy();
-   Init();
-
    HYPRE_IJMatrix A_ij;
    HYPRE_IJMatrixRead(fname.c_str(), comm, 5555, &A_ij); // HYPRE_PARCSR = 5555
 
    HYPRE_ParCSRMatrix A_parcsr;
    HYPRE_IJMatrixGetObject(A_ij, (void**) &A_parcsr);
 
-   A = (hypre_ParCSRMatrix*)A_parcsr;
+   WrapHypreParCSRMatrix(A_parcsr, true);
 
    hypre_ParCSRMatrixSetNumNonzeros(A);
-
    if (!hypre_ParCSRMatrixCommPkg(A)) { hypre_MatvecCommPkgCreate(A); }
-
-   height = GetNumRows();
-   width = GetNumCols();
 }
 
 void HypreParMatrix::PrintCommPkg(std::ostream &os) const
