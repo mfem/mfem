@@ -20,11 +20,17 @@
 
 int main(int argc, char *argv[])
 {
-   mfem::Device device("cuda");
+#ifdef MFEM_USE_SINGLE
+   std::cout << "\nThe parallel CUDA unit tests are not supported in single"
+             " precision.\n\n";
+   return MFEM_SKIP_RETURN_VALUE;
+#endif
+
 #ifdef MFEM_USE_MPI
    mfem::Mpi::Init();
    mfem::Hypre::Init();
 #endif
+   mfem::Device device("cuda");
 
    // Include only tests that are labeled with both CUDA and Parallel.
    return RunCatchSession(argc, argv, {"[CUDA]","[Parallel]"}, Root());

@@ -77,7 +77,7 @@ public:
 
 
 /// A basic generic Tensor class, appropriate for use on the GPU
-template<int Dim, typename Scalar = double>
+template<int Dim, typename Scalar = real_t>
 class DeviceTensor
 {
 protected:
@@ -137,14 +137,14 @@ inline DeviceTensor<sizeof...(Dims),T> Reshape(T *ptr, Dims... dims)
 typedef DeviceTensor<1,int> DeviceArray;
 typedef DeviceTensor<1,const int> ConstDeviceArray;
 
-typedef DeviceTensor<1,double> DeviceVector;
-typedef DeviceTensor<1,const double> ConstDeviceVector;
+typedef DeviceTensor<1,real_t> DeviceVector;
+typedef DeviceTensor<1,const real_t> ConstDeviceVector;
 
-typedef DeviceTensor<2,double> DeviceMatrix;
-typedef DeviceTensor<2,const double> ConstDeviceMatrix;
+typedef DeviceTensor<2,real_t> DeviceMatrix;
+typedef DeviceTensor<2,const real_t> ConstDeviceMatrix;
 
-typedef DeviceTensor<3,double> DeviceCube;
-typedef DeviceTensor<3,const double> ConstDeviceCube;
+typedef DeviceTensor<3,real_t> DeviceCube;
+typedef DeviceTensor<3,const real_t> ConstDeviceCube;
 
 } // mfem namespace
 

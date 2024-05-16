@@ -95,10 +95,10 @@ public:
    /// Default destructor.
    virtual ~STRUMPACKSolverBase();
 
-   /// Factor and solve the linear system \f$y = Op^{-1} x \f$.
+   /// Factor and solve the linear system $y = Op^{-1} x $.
    void Mult(const Vector &x, Vector &y) const;
 
-   /** @brief Factor and solve the linear systems \f$ Y_i = Op^{-1} X_i \f$
+   /** @brief Factor and solve the linear systems $ Y_i = Op^{-1} X_i $
        across the array of vectors. */
    void ArrayMult(const Array<const Vector *> &X, Array<Vector *> &Y) const;
 

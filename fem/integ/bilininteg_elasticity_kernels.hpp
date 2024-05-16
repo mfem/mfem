@@ -157,7 +157,7 @@ void ElasticityAddMultPA_(const int nDofs, const FiniteElementSpace &fespace,
    static constexpr int aSize = aUpper-aLower;
    static constexpr bool isComponent = (i_block >= 0);
 
-   //Assuming all elements are the same
+   // Assuming all elements are the same
    const auto &ir = QVec.GetIntRule(0);
    const QuadratureInterpolator *E_To_Q_Map = fespace.GetQuadratureInterpolator(
                                                  ir);
@@ -171,7 +171,7 @@ void ElasticityAddMultPA_(const int nDofs, const FiniteElementSpace &fespace,
    const auto muDev = Reshape(mu.Read(), numPoints, numEls);
    const auto J = Reshape(geom.J.Read(), numPoints, d, d, numEls);
    auto Q = Reshape(QVec.ReadWrite(), numPoints, d, qSize, numEls);
-   const double *ipWeights = ir.GetWeights().Read();
+   const real_t *ipWeights = ir.GetWeights().Read();
    mfem::forall_2D(numEls, numPoints, 1, [=] MFEM_HOST_DEVICE (int e)
    {
       // for(int p = 0; p < numPoints, )
@@ -179,8 +179,8 @@ void ElasticityAddMultPA_(const int nDofs, const FiniteElementSpace &fespace,
       {
          auto invJ = inv(make_tensor<d, d>(
          [&](int i, int j) { return J(p, i, j, e); }));
-         tensor<double, aSize, d> gradx;
-         //load grad(x) into gradx
+         tensor<real_t, aSize, d> gradx;
+         // load grad(x) into gradx
          if (isComponent)
          {
             for (int i = 0; i < d; i++)
@@ -198,24 +198,24 @@ void ElasticityAddMultPA_(const int nDofs, const FiniteElementSpace &fespace,
                }
             }
          }
-         //compute divergence
-         double div = 0.;
+         // compute divergence
+         real_t div = 0.;
          for (int i = aLower; i < aUpper; i++)
          {
-            //take size of gradx into account
+            // take size of gradx into account
             const int iIndex = isComponent ? 0 : i;
             div += gradx(iIndex,i);
          }
-         const double w = ipWeights[p] /det(invJ);
+         const real_t w = ipWeights[p] /det(invJ);
          for (int m = 0; m < d; m++)
          {
             for (int q = qLower; q < qUpper; q++)
             {
-               //compute contraction of 4*sym(grad(u))sym(grad(v)) term.
-               //this contraction could be made slightly cheaper using Voigt
-               //notation, but repeated entries are summed for simplicity.
-               double contraction = 0.;
-               //not sure how to combine cases
+               // compute contraction of 4*sym(grad(u))sym(grad(v)) term.
+               // this contraction could be made slightly cheaper using Voigt
+               // notation, but repeated entries are summed for simplicity.
+               real_t contraction = 0.;
+               // not sure how to combine cases
                if (isComponent)
                {
                   for (int a = 0; a < d; a++)
@@ -255,7 +255,7 @@ void ElasticityAddMultPA_(const int nDofs, const FiniteElementSpace &fespace,
          MFEM_FOREACH_THREAD(q, x, qSize)
          {
             const int qIndex = isComponent ? 0 : q;
-            double sum = 0.;
+            real_t sum = 0.;
             for (int m = 0; m < d; m++ )
             {
                for (int p = 0; p < numPoints; p++ )
@@ -276,7 +276,7 @@ void ElasticityAssembleDiagonalPA_(const int nDofs,
                                    const CoefficientVector &mu, const GeometricFactors &geom,
                                    const DofToQuad &maps, QuadratureFunction &QVec, Vector &diag)
 {
-   //Assuming all elements are the same
+   // Assuming all elements are the same
    const auto &ir = QVec.GetIntRule(0);
    static constexpr int d = dim;
    const int numPoints = ir.GetNPoints();
@@ -285,24 +285,24 @@ void ElasticityAssembleDiagonalPA_(const int nDofs,
    const auto muDev = Reshape(mu.Read(), numPoints, numEls);
    const auto J = Reshape(geom.J.Read(), numPoints, d, d, numEls);
    auto Q = Reshape(QVec.ReadWrite(), numPoints, d,d, d, numEls);
-   const double *ipWeights = ir.GetWeights().Read();
+   const real_t *ipWeights = ir.GetWeights().Read();
    mfem::forall_2D(numEls, numPoints,1, [=] MFEM_HOST_DEVICE (int e)
    {
       MFEM_FOREACH_THREAD(p, x,numPoints)
       {
          auto invJ = inv(make_tensor<d, d>(
          [&](int i, int j) { return J(p, i, j, e); }));
-         const double w = ipWeights[p] /det(invJ);
+         const real_t w = ipWeights[p] /det(invJ);
          for (int n = 0; n < d; n++)
          {
             for (int m = 0; m < d; m++)
             {
                for (int q = 0; q < d; q++)
                {
-                  //compute contraction of 4*sym(grad(u))sym(grad(v)) term.
-                  //this contraction could be made slightly cheaper using Voigt
-                  //notation, but repeated entries are summed for simplicity.
-                  double contraction = 0.;
+                  // compute contraction of 4*sym(grad(u))sym(grad(v)) term.
+                  // this contraction could be made slightly cheaper using Voigt
+                  // notation, but repeated entries are summed for simplicity.
+                  real_t contraction = 0.;
                   for (int a = 0; a < d; a++)
                   {
                      for (int b = 0; b < d; b++)
@@ -321,7 +321,7 @@ void ElasticityAssembleDiagonalPA_(const int nDofs,
       }
    });
 
-   //Reduce quadrature function to an E-Vector
+   // Reduce quadrature function to an E-Vector
    const auto QRead = Reshape(QVec.Read(), numPoints, d, d, d, numEls);
    auto diagDev = Reshape(diag.Write(), nDofs, d, numEls);
    const auto G = Reshape(maps.G.Read(), numPoints, d, nDofs);
@@ -331,7 +331,7 @@ void ElasticityAssembleDiagonalPA_(const int nDofs,
       {
          MFEM_FOREACH_THREAD(q, x, d)
          {
-            double sum = 0.;
+            real_t sum = 0.;
             for (int n = 0; n < d; n++)
             {
                for (int m = 0; m < d; m++)
@@ -348,7 +348,7 @@ void ElasticityAssembleDiagonalPA_(const int nDofs,
    });
 }
 
-//Templated implementation of ElasticityAssembleEA.
+// Templated implementation of ElasticityAssembleEA.
 template<int dim>
 void ElasticityAssembleEA_(const int i_block,
                            const int j_block,
@@ -360,7 +360,7 @@ void ElasticityAssembleEA_(const int i_block,
                            const DofToQuad &maps,
                            Vector &emat)
 {
-   //Assuming all elements are the same
+   // Assuming all elements are the same
    static constexpr int d = dim;
    const int numPoints = ir.GetNPoints();
    const int numEls = lambda.Size()/numPoints;
@@ -369,25 +369,25 @@ void ElasticityAssembleEA_(const int i_block,
    const auto J = Reshape(geom.J.Read(), numPoints, d, d, numEls);
    const auto G = Reshape(maps.G.Read(), numPoints, d, nDofs);
    auto ematDev = Reshape(emat.Write(), nDofs, nDofs, numEls);
-   const double *ipWeights = ir.GetWeights().Read();
+   const real_t *ipWeights = ir.GetWeights().Read();
    mfem::forall_2D(numEls, nDofs, nDofs, [=] MFEM_HOST_DEVICE (int e)
    {
       MFEM_FOREACH_THREAD(JDof, y, nDofs)
       {
          MFEM_FOREACH_THREAD(IDof, x, nDofs)
          {
-            double sum = 0;
+            real_t sum = 0;
             for (int p = 0 ; p < numPoints; p++)
             {
                auto invJ = inv(make_tensor<d, d>(
                [&](int i, int j) { return J(p, i, j, e); }));
-               const double w = ipWeights[p] /det(invJ);
+               const real_t w = ipWeights[p] /det(invJ);
                for (int n = 0; n < d; n++)
                {
                   for (int m = 0; m < d; m++)
                   {
-                     //compute contraction of 4*sym(grad(u))sym(grad(v)) term.
-                     double contraction = 0.;
+                     // compute contraction of 4*sym(grad(u))sym(grad(v)) term.
+                     real_t contraction = 0.;
                      for (int a = 0; a < d; a++)
                      {
                         for (int b = 0; b < d; b++)

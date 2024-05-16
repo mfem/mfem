@@ -21,7 +21,7 @@ coefficient K, and the essential/natural boundary assignment.
 
 The discrete saddle point problem has a block structure of the form
 
-                   [ M  B^T ] [u] = [g]
+              Ax = [ M  B^T ] [u] = [g] = b
                    [ B   0  ] [p] = [f]
 
 The solvers for the above block system include:
@@ -61,6 +61,26 @@ The solvers for the above block system include:
 
              P^{-1} = [ diag(M)^{-1}     0    ]
                       [  0             AMG(S) ]
+
+3. CG with Bramble-Pasciak transformation
+
+   The solver explores two approaches. Firstly, we consider a preconditioner Q
+   such that M - Q is still s.p.d.. The transformed system XA x = X b, where
+                  X = [ M*Q^{-1} - I    0 ]
+                      [   B*Q^{-1}     -I ],
+   can be solver with a standard PGC solver, where we use the above block
+   diagonal preconditioner.
+   Secondly, we consider the particular preconditioner
+             H^{-1} = [ (M - Q)^{-1}     0     ]
+                      [     0         P_2^{-1} ].
+   This preconditioner enables a more efficient implementation of PCG what we
+   refer to as Bramble-Pasciak CG (BPCG).
+
+   For more details see
+
+   [1] Bramble, James H., and Joseph E. Pasciak. A preconditioning technique
+       for indefinite systems resulting from mixed approximations of elliptic
+       problems. Mathematics of Computation 50.181 (1988): 1-17.
 
 # Low-Order Refined Solvers
 
