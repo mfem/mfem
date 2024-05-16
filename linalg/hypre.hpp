@@ -364,10 +364,10 @@ public:
    HYPRE_Int Randomize(HYPRE_Int seed);
 
    /// Prints the locally owned rows in parallel
-   void Print(const char *fname) const;
+   void Print(const std::string &fname) const;
 
    /// Reads a HypreParVector from files saved with HypreParVector::Print
-   void Read(MPI_Comm comm, const char *fname);
+   void Read(MPI_Comm comm, const std::string &fname);
 
    /// Calls hypre's destroy function
    ~HypreParVector();
@@ -920,11 +920,12 @@ public:
    const Memory<real_t> &GetDiagMemoryData() const { return mem_diag.data; }
 
    /// Prints the locally owned rows in parallel
-   void Print(const char *fname, HYPRE_Int offi = 0, HYPRE_Int offj = 0) const;
+   void Print(const std::string &fname, HYPRE_Int offi = 0,
+              HYPRE_Int offj = 0) const;
    /// Reads the matrix from a file
-   void Read(MPI_Comm comm, const char *fname);
+   void Read(MPI_Comm comm, const std::string &fname);
    /// Read a matrix saved as a HYPRE_IJMatrix
-   void Read_IJMatrix(MPI_Comm comm, const char *fname);
+   void Read_IJMatrix(MPI_Comm comm, const std::string &fname);
 
    /// Print information about the hypre_ParCSRCommPkg of the HypreParMatrix.
    void PrintCommPkg(std::ostream &out = mfem::out) const;
