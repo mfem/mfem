@@ -1266,8 +1266,20 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows,
    }
 
    // Copy in the row and column partitionings
+   const bool rows_eq_cols = [rows,cols,part_size]()
+   {
+      for (int i = 0; i < part_size; ++i)
+      {
+         if (rows[i] != cols[i])
+         {
+            return false;
+         }
+      }
+      return true;
+   }();
+
    HYPRE_BigInt *row_starts, *col_starts;
-   if (rows == cols)
+   if (rows_eq_cols)
    {
       row_starts = col_starts = mfem_hypre_TAlloc_host(HYPRE_BigInt, part_size);
       for (int i = 0; i < part_size; i++)
@@ -1360,14 +1372,14 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows,
    }
 
    hypre_ParCSRMatrixSetNumNonzeros(A);
-   /* Make sure that the first entry in each row is the diagonal one. */
-   if (row_starts == col_starts)
+   // Make sure that the first entry in each row is the diagonal one.
+   if (rows_eq_cols)
    {
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
    }
 #if MFEM_HYPRE_VERSION > 22200
    mfem_hypre_TFree_host(row_starts);
-   if (rows != cols)
+   if (!rows_eq_cols)
    {
       mfem_hypre_TFree_host(col_starts);
    }
