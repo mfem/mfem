@@ -1172,12 +1172,10 @@ void FindPointsGSLIB::SendElementsAndCoordinatesToOwningMPIRanks()
 {
    int nptsend   = points_cnt;
    int nptElem   = gsl_mfem_elem.Size();
-   int nptRST    = gsl_mfem_ref.Size();
 
-   MFEM_VERIFY(nptElem == nptsend,
-               "Incompatible Elem size.");
-   MFEM_VERIFY(nptsend*dim == nptRST,
-               "Incompatible Double size.");
+   MFEM_VERIFY(nptElem == gsl_mfem_elem.Size(),
+               "Invalid size. Please make sure to call FindPoints method
+               before calling this function.");
 
    // Pack data to send via crystal router
    struct gslib::array *outpt = new gslib::array;
@@ -1187,6 +1185,7 @@ void FindPointsGSLIB::SendElementsAndCoordinatesToOwningMPIRanks()
    array_init(struct out_pt, outpt, nptsend);
    outpt->n=nptsend;
    pt = (struct out_pt *)outpt->ptr;
+
    for (int index = 0; index < nptsend; index++)
    {
       pt->index = index;

@@ -53,8 +53,8 @@ namespace mfem
  *  FindPointsGSLIB also provides interface to use these functions through a
  *  single call.
  *
- *  For custom interpolation procedures (e.g., evaluating strain rate tensor),
- *  we provide functions that use gslib to send element index and corresponding
+ *  For custom interpolation (e.g., evaluating strain rate tensor), we provide
+ *  functions that use gslib to send element index and corresponding
  *  reference-space coordinates for each point to the mpi rank that the element
  *  is located on. Then, interpolation can be done locally by the user before
  *  sending the values back to mpi ranks where the query originated from.
@@ -80,9 +80,12 @@ protected:
    struct gslib::findpts_data_3 *fdata3D; // gslib's internal data
    struct gslib::crystal *cr;             // gslib's internal data
    struct gslib::comm *gsl_comm;          // gslib's internal data
-   int dim, points_cnt;
+   int dim;                               // mesh dimension
+   // Info for points input for finding.
+   int points_cnt;
    Array<unsigned int> gsl_code, gsl_proc, gsl_elem, gsl_mfem_elem;
    Vector gsl_mesh, gsl_ref, gsl_dist, gsl_mfem_ref;
+   // Info for points that are sent for custom interpolation procedure.
    int points_recv;
    Array<unsigned int> recv_code, recv_proc, recv_elem;
    Vector recv_ref, recv_index;
@@ -252,7 +255,7 @@ public:
    /// #gsl_ref to the corresponding mpi-rank #gsl_proc for each point.
    /// Upon receiving, the information is stored locally in
    /// #recv_elem and #recv_ref (ordered by vdim). Use corresponding getters
-   /// to fetch them for custom interpolation.
+   /// \ref GetReceivedElem and \ref GetReceivedReferencePosition.
    virtual void SendElementsAndCoordinatesToOwningMPIRanks();
    /// Send interpolated values back to the mpi-ranks #recv_proc that had sent
    /// the element indices and corresponding reference-space coordinates.
