@@ -207,7 +207,12 @@ template <> inline void Swap<Table>(Table &a, Table &b)
 void Transpose (const Table &A, Table &At, int ncols_A_ = -1);
 Table * Transpose (const Table &A);
 
-///  Transpose an Array<int>
+///  @brief Transpose an Array<int>.
+///
+/// The array @a A represents a table where each row @a i has exactly one
+/// connection to the column (TYPE II) index specified by @a A[i].
+///
+/// @note The column (TYPE II) indices in each row of @a At will be sorted.
 void Transpose(const Array<int> &A, Table &At, int ncols_A_ = -1);
 
 ///  C = A * B  (as boolean matrices)

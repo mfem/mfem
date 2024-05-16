@@ -16,17 +16,19 @@
 
 #ifdef MFEM_USE_MPI
 
+#include "../general/globals.hpp"
+#include "sparsemat.hpp"
+#include "hypre_parcsr.hpp"
 #include <mpi.h>
 
 // Enable internal hypre timing routines
 #define HYPRE_TIMING
 
 // hypre header files
-#include "seq_mv.h"
-#include "_hypre_parcsr_mv.h"
-#include "_hypre_parcsr_ls.h"
-#include "temp_multivector.h"
-#include "../general/globals.hpp"
+#include <seq_mv.h>
+#include <temp_multivector.h>
+#include <_hypre_parcsr_mv.h>
+#include <_hypre_parcsr_ls.h>
 
 #ifdef HYPRE_COMPLEX
 #error "MFEM does not work with HYPRE's complex numbers support"
@@ -51,22 +53,6 @@
 #error "MFEM_USE_HIP=YES is required when HYPRE is built with HIP!"
 #endif
 
-// MFEM_HYPRE_FORALL is a macro similar to mfem::forall, but it executes on the
-// device that hypre was configured with (no matter what device was selected
-// in MFEM's runtime configuration).
-#if defined(HYPRE_USING_CUDA)
-#define MFEM_HYPRE_FORALL(i, N,...) CuWrap1D(N, [=] MFEM_DEVICE      \
-                                       (int i) {__VA_ARGS__})
-#elif defined(HYPRE_USING_HIP)
-#define MFEM_HYPRE_FORALL(i, N,...) HipWrap1D(N, [=] MFEM_DEVICE     \
-                                        (int i) {__VA_ARGS__})
-#else
-#define MFEM_HYPRE_FORALL(i, N,...) for (int i = 0; i < N; i++) { __VA_ARGS__ }
-#endif
-
-#include "sparsemat.hpp"
-#include "hypre_parcsr.hpp"
-
 namespace mfem
 {
 
@@ -87,12 +73,35 @@ public:
    /// Calling HYPRE_Finalize() manually is not compatible with this class.
    static void Init() { Instance(); }
 
+   /// @brief Configure HYPRE's compute and memory policy.
+   ///
+   /// By default HYPRE will be configured with the same policy as MFEM unless
+   /// `Hypre::configure_runtime_policy_from_mfem` is false, in which case
+   /// HYPRE's default will be used; if HYPRE is built for the GPU and the
+   /// aforementioned variable is false then HYPRE will use the GPU even if MFEM
+   /// is not.
+   ///
+   /// This function is no-op if HYPRE is built without GPU support or the HYPRE
+   /// version is less than 2.31.0.
+   ///
+   /// This function is NOT called by Init(). Instead it is called by
+   /// Device::Configure() (when MFEM_USE_MPI=YES) after the MFEM device
+   /// configuration is complete.
+   static void InitDevice();
+
    /// @brief Finalize hypre (called automatically at program exit if
    /// Hypre::Init() has been called).
    ///
    /// Multiple calls to Hypre::Finalize() have no effect. This function can be
    /// called manually to more precisely control when hypre is finalized.
    static void Finalize();
+
+   /// @brief Use MFEM's device policy to configure HYPRE's device policy, true
+   /// by default. This variable is used by InitDevice().
+   ///
+   /// This value is not used if HYPRE is build without GPU support or the HYPRE
+   /// version is less than 2.31.0.
+   static bool configure_runtime_policy_from_mfem;
 
 private:
    /// Calls HYPRE_Init() when the singleton is constructed.
@@ -142,14 +151,27 @@ inline int to_int(HYPRE_Int i)
 
 
 /// The MemoryClass used by Hypre objects.
-inline constexpr MemoryClass GetHypreMemoryClass()
+inline MemoryClass GetHypreMemoryClass()
 {
 #if !defined(HYPRE_USING_GPU)
    return MemoryClass::HOST;
-#elif defined(HYPRE_USING_UNIFIED_MEMORY)
+#elif MFEM_HYPRE_VERSION < 23100
+#if defined(HYPRE_USING_UNIFIED_MEMORY)
    return MemoryClass::MANAGED;
 #else
    return MemoryClass::DEVICE;
+#endif
+#else // HYPRE_USING_GPU is defined and MFEM_HYPRE_VERSION >= 23100
+   if (GetHypreMemoryLocation() == HYPRE_MEMORY_HOST)
+   {
+      return MemoryClass::HOST;
+   }
+   // Return the actual memory location, see hypre_GetActualMemLocation():
+#if defined(HYPRE_USING_UNIFIED_MEMORY)
+   return MemoryClass::MANAGED;
+#else
+   return MemoryClass::DEVICE;
+#endif
 #endif
 }
 
@@ -158,12 +180,26 @@ inline MemoryType GetHypreMemoryType()
 {
 #if !defined(HYPRE_USING_GPU)
    return Device::GetHostMemoryType();
-#elif defined(HYPRE_USING_UNIFIED_MEMORY)
+#elif MFEM_HYPRE_VERSION < 23100
+#if defined(HYPRE_USING_UNIFIED_MEMORY)
    return MemoryType::MANAGED;
 #else
    return MemoryType::DEVICE;
 #endif
+#else // HYPRE_USING_GPU is defined and MFEM_HYPRE_VERSION >= 23100
+   if (GetHypreMemoryLocation() == HYPRE_MEMORY_HOST)
+   {
+      return Device::GetHostMemoryType();
+   }
+   // Return the actual memory location, see hypre_GetActualMemLocation():
+#if defined(HYPRE_USING_UNIFIED_MEMORY)
+   return MemoryType::MANAGED;
+#else
+   return MemoryType::DEVICE;
+#endif
+#endif
 }
+
 
 /// Wrapper for hypre's parallel vector class
 class HypreParVector : public Vector
@@ -1037,29 +1073,40 @@ protected:
    bool A_is_symmetric;
 
 public:
-   /** Hypre smoother types:
-       0    = Jacobi
-       1    = l1-scaled Jacobi
-       2    = l1-scaled block Gauss-Seidel/SSOR
-       4    = truncated l1-scaled block Gauss-Seidel/SSOR
-       5    = lumped Jacobi
-       6    = Gauss-Seidel
-       10   = On-processor forward solve for matrix w/ triangular structure
-       16   = Chebyshev
-       1001 = Taubin polynomial smoother
-       1002 = FIR polynomial smoother. */
-   enum Type { Jacobi = 0, l1Jacobi = 1, l1GS = 2, l1GStr = 4, lumpedJacobi = 5,
-               GS = 6, OPFS = 10, Chebyshev = 16, Taubin = 1001, FIR = 1002
-             };
+   /// HYPRE smoother types
+   enum Type
+   {
+      Jacobi = 0,       ///< Jacobi
+      l1Jacobi = 1,     ///< l1-scaled Jacobi
+      l1GS = 2,         ///< l1-scaled block Gauss-Seidel/SSOR
+      l1GStr = 4,       ///< truncated l1-scaled block Gauss-Seidel/SSOR
+      lumpedJacobi = 5, ///< lumped Jacobi
+      GS = 6,           ///< Gauss-Seidel
+      OPFS = 10,        /**< On-processor forward solve for matrix w/ triangular
+                             structure */
+      Chebyshev = 16,   ///< Chebyshev
+      Taubin = 1001,    ///< Taubin polynomial smoother
+      FIR = 1002        ///< FIR polynomial smoother
+   };
+
+   /// @deprecated Use DefaultType() instead
 #if !defined(HYPRE_USING_GPU)
-   static constexpr Type default_type = l1GS;
+   MFEM_DEPRECATED static constexpr Type default_type = l1GS;
 #else
-   static constexpr Type default_type = l1Jacobi;
+   MFEM_DEPRECATED static constexpr Type default_type = l1Jacobi;
 #endif
+
+   /** @brief Default value for the smoother type used by the constructors:
+       Type::l1GS when HYPRE is running on CPU and Type::l1Jacobi when HYPRE is
+       running on GPU. */
+   static Type DefaultType()
+   {
+      return HypreUsingGPU() ? l1Jacobi : l1GS;
+   }
 
    HypreSmoother();
 
-   HypreSmoother(const HypreParMatrix &A_, int type = default_type,
+   HypreSmoother(const HypreParMatrix &A_, int type = DefaultType(),
                  int relax_times = 1, real_t relax_weight = 1.0,
                  real_t omega = 1.0, int poly_order = 2,
                  real_t poly_fraction = .3, int eig_est_cg_iter = 10);
@@ -1474,12 +1521,53 @@ public:
 
    virtual void SetOperator(const Operator &op);
 
-   void SetParams(real_t threshold, int max_levels);
+   /// Set the threshold and levels parameters
+   /** The accuracy and cost of ParaSails are parametrized by the real
+    * @a thresh and integer @a nlevels parameters (0<=thresh<=1,  0<=nlevels).
+    * Lower values of @a thresh and higher values of @a nlevels lead to
+    * more accurate, but more expensive preconditioners. More accurate
+    * preconditioners are also more expensive per iteration. The default
+    * values are @a thresh = 0.1 and @a nlevels = 1.
+    */
+   void SetParams(real_t thresh, int nlevels);
+
+   /// Set the filter parameter
+   /** The filter parameter is used to drop small nonzeros in the preconditioner,
+    * to reduce the cost of applying the preconditioner. Values from 0.055
+    * to 0.1 are recommended. The default value is 0.1.
+    */
    void SetFilter(real_t filter);
-   void SetLoadBal(real_t loadbal);
-   void SetReuse(int reuse);
-   void SetLogging(int logging);
+
+   /// Set symmetry parameter
+   /** The recognized options are:
+    *  0 = nonsymmetric and/or indefinite problem, and nonsymmetric preconditioner
+    *  1 = SPD problem, and SPD (factored) preconditioner
+    *  2 = nonsymmetric, definite problem, and SPD (factored) preconditioner
+    */
    void SetSymmetry(int sym);
+
+   /// Set the load balance parameter
+   /** A zero value indicates that no load balance is attempted; a value
+    * of unity indicates that perfect load balance will be attempted. The
+    * recommended value is 0.9 to balance the overhead of data exchanges
+    * for load balancing. No load balancing is needed if the preconditioner
+    * is very sparse and fast to construct. The default value is 0.
+    */
+   void SetLoadBal(real_t loadbal);
+
+   /// Set the pattern reuse parameter
+   /** A nonzero value indicates that the pattern of the preconditioner
+    * should be reused for subsequent constructions of the proconditioner.
+    * A zero value inicates that the peconditioner should be constructed
+    * from scratch. The default value is 0.
+    */
+   void SetReuse(int reuse);
+
+   /// Set the logging parameter
+   /** A nonzero value prints statistics of the setup procedure to stdout.
+    * The default value of this parameter is 1.
+    */
+   void SetLogging(int logging);
 
    /// The typecast to HYPRE_Solver returns the internal sai_precond
    virtual operator HYPRE_Solver() const { return sai_precond; }
