@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 // This miniapp is a variant of the multidomain miniapp which aims to extend
-// the demonstration given therein to PDEs involving H(curl) fininte elements.
+// the demonstration given therein to PDEs involving H(curl) finite elements.
 //
 // A 3D domain comprised of an outer box with a cylinder shaped inside is used.
 //

@@ -388,7 +388,7 @@ GINKGO_LIB = $(XLINKER)-rpath,$(GINKGO_LINK_LIB_DIR) -L$(GINKGO_LINK_LIB_DIR)\
 # AmgX library configuration
 AMGX_DIR = @MFEM_DIR@/../amgx
 AMGX_OPT = -I$(AMGX_DIR)/include
-AMGX_LIB = -lcusparse -lcusolver -lcublas -lnvToolsExt -L$(AMGX_DIR)/lib -lamgx
+AMGX_LIB = -L$(AMGX_DIR)/lib -lamgx -lcusparse -lcusolver -lcublas -lnvToolsExt
 
 # GnuTLS library configuration
 GNUTLS_OPT =

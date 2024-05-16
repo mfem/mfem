@@ -22,7 +22,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 ifeq ($(MFEM_USE_TRIBOL)$(MFEM_USE_MPI),YESYES)
-   MINIAPPS = ContactPatchTest
+   MINIAPPS = contact-patch-test
 else
    MINIAPPS =
 endif
@@ -69,5 +69,5 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -rf ContactPatchTestSurface_*
-	@rm -rf ContactPatchTestVolume_*
+	@rm -rf contact-patch-test-surface_*
+	@rm -rf contact-patch-test-volume_*
