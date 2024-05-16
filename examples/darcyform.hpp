@@ -83,6 +83,8 @@ public:
                             BilinearFormIntegrator *constr_flux_integ,
                             const Array<int> &ess_flux_tdof_list);
 
+   DarcyHybridization *GetHybridization() const { return hybridization; }
+
    /// Assembles the form i.e. sums over all domain/bdr integrators.
    void Assemble(int skip_zeros = 1);
 
