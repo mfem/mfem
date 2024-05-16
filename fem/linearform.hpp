@@ -180,7 +180,11 @@ public:
    Array<LinearFormIntegrator*> *GetBLFI() { return &boundary_integs; }
 
    /// Access all integrators added with AddBdrFaceIntegrator().
-   Array<LinearFormIntegrator*> *GetFLFI() { return &boundary_face_integs; }
+   Array<LinearFormIntegrator*> *GetBFLFI() { return &boundary_face_integs; }
+   
+   /// (DEPRECATED) Access all integrators added with AddBdrFaceIntegrator().
+   /** @deprecated Use GetBFLFI() instead. */
+   MFEM_DEPRECATED Array<LinearFormIntegrator*> *GetFLFI() { return &boundary_face_integs; }
 
    /// Access all integrators added with AddInteriorFaceIntegrator().
    Array<LinearFormIntegrator*> *GetIFLFI() { return &interior_face_integs; }
@@ -193,7 +197,11 @@ public:
    /** @brief Access all boundary markers added with AddBdrFaceIntegrator().
        If no marker was specified when the integrator was added, the
        corresponding pointer (to Array<int>) will be NULL. */
-   Array<Array<int>*> *GetFLFI_Marker() { return &boundary_face_integs_marker; }
+   Array<Array<int>*> *GetBFLFI_Marker() { return &boundary_face_integs_marker; }
+
+   //// (DEPRECATED) Access all boundary markers added with AddBdrFaceIntegrator().
+   /** @deprecated Use GetBFLFI_Marker() instead. */
+   MFEM_DEPRECATED Array<Array<int>*> *GetFLFI_Marker() { return &boundary_face_integs_marker; }
 
    /// @brief Which assembly algorithm to use: the new device-compatible fast
    /// assembly (true), or the legacy CPU-only algorithm (false).
