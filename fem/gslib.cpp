@@ -1174,8 +1174,8 @@ void FindPointsGSLIB::SendElementsAndCoordinatesToOwningMPIRanks()
    int nptElem   = gsl_mfem_elem.Size();
 
    MFEM_VERIFY(nptElem == gsl_mfem_elem.Size(),
-               "Invalid size. Please make sure to call FindPoints method
-               before calling this function.");
+               "Invalid size. Please make sure to call FindPoints method"
+               " before calling this function.");
 
    // Pack data to send via crystal router
    struct gslib::array *outpt = new gslib::array;
