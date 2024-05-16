@@ -11,6 +11,10 @@
 Version 4.7.1 (development)
 ===========================
 
+Miscellaneous
+-------------
+- Added support for custom interpolation procedure in FindPointsGSLIB.
+
 
 Version 4.7, released on May 7, 2024
 ====================================
