@@ -41,6 +41,10 @@ private:
    mutable Vector      V_T_vtmp1;
    mutable Vector      V_T_vtmp2;
    mutable DenseMatrix V_T_mtmp1;
+   mutable Vector      VT_T_vtmp1;
+   mutable Vector      VT_T_vtmp2;
+   mutable DenseMatrix VT_T_mtmp1;
+   mutable DenseTensor VT_T_ttmp1;
    mutable Vector      V_L_vtmp1;
    mutable Vector      V_L_vtmp2;
    mutable DenseMatrix V_L_mtmp1;
@@ -163,6 +167,7 @@ public:
    static DenseMatrix grad_nu01(real_t z, Vector xy, unsigned int ab);
    static DenseMatrix grad_nu012(real_t z, Vector xy, unsigned int ab);
 
+   static Vector nu01_grad_nu01(real_t z, Vector xy, unsigned int ab);
    static Vector nu012_grad_nu012(real_t z, Vector xy, unsigned int ab);
 
    /// Shifted and Scaled Legendre Polynomials
@@ -404,6 +409,12 @@ public:
    */
    void V_T(int p, Vector s, Vector sdsxds, real_t dsdsxds,
             DenseTensor &u, DenseMatrix &du) const;
+
+   void VT_T(int p, Vector s, Vector sds, Vector sdsxds,
+             real_t mu, Vector grad_mu, DenseTensor &u) const;
+   void VT_T(int p, Vector s, Vector sds, Vector sdsxds,
+             Vector grad_s2, real_t mu, Vector grad_mu,
+             DenseTensor &u, DenseMatrix &du) const;
 
    /** This implements $V^\unlhd_{ij}$ from the Fuentes paper
 

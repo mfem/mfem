@@ -215,6 +215,14 @@ DenseMatrix FuentesPyramid::grad_nu012(real_t z, Vector xy, unsigned int ab)
    return dnu;
 }
 
+Vector FuentesPyramid::nu01_grad_nu01(real_t z, Vector xy, unsigned int ab)
+{
+   Vector nu = nu01(z, xy, ab);
+   Vector nudnu(3);
+   add(nu(0), grad_nu1(z, xy, ab), -nu(1), grad_nu0(z, xy, ab), nudnu);
+   return nudnu;
+}
+
 Vector FuentesPyramid::nu012_grad_nu012(real_t z, Vector xy, unsigned int ab)
 {
    Vector nu(nu012(z, xy, ab));
@@ -1134,6 +1142,130 @@ void FuentesPyramid::V_T(int p, Vector s, Vector sdsxds, real_t dsdsxds,
          u(i,j,2) = vij * sdsxds(2);
 
          du(i,j) = (i+j+3) * vij * dsdsxds;
+      }
+   }
+}
+
+void FuentesPyramid::VT_T(int p, Vector s, Vector sds, Vector sdsxds,
+                          real_t mu, Vector grad_mu, DenseTensor &u) const
+{
+   MFEM_ASSERT(p >= 1, "Polynomial order must be one or larger");
+   MFEM_ASSERT(s.Size() >= 2, "Size of s must be 2 or larger");
+   MFEM_ASSERT(sds.Size() >= 3, "Size of sds must be 3 or larger");
+   MFEM_ASSERT(sdsxds.Size() >= 3, "Size of sdsxds must be 3 or larger");
+   MFEM_ASSERT(grad_mu.Size() >= 3, "Size of grad_mu must be 3 or larger");
+   MFEM_ASSERT(u.SizeI() >= p, "First dimension of u is too small");
+   MFEM_ASSERT(u.SizeJ() >= p, "Second dimension of u is too small");
+   MFEM_ASSERT(u.SizeK() >= 3, "Third dimension of u must be 3 or larger");
+
+#ifdef MFEM_THREAD_SAFE
+   Vector      VT_T_vtmp1;
+   Vector      VT_T_vtmp2;
+   DenseMatrix VT_T_mtmp1;
+   DenseTensor VT_T_ttmp1;
+#endif
+
+   Vector ms({mu * s(0), mu * s(1), s(2)});
+   Vector s2(s.GetData(), 2);
+
+   Vector &P_i = VT_T_vtmp1;
+   P_i.SetSize(p);
+   CalcHomogenizedScaLegendre(p-1, ms[0], ms[1], P_i);
+
+   DenseMatrix &EE0 = VT_T_mtmp1;
+   EE0.SetSize(1,3);
+   Vector EE(EE0.GetData(), 3);
+   E_E(1, s2, sds, EE0);
+
+   Vector dmuxEE(3);
+   grad_mu.cross3D(EE, dmuxEE);
+
+   DenseTensor &VT00 = VT_T_ttmp1;
+   VT00.SetSize(1,1,3);
+   V_T(1, s, sdsxds, VT00);
+
+   Vector &J_j = VT_T_vtmp2;
+   J_j.SetSize(p);
+
+   u = 0.0;
+
+   for (int i=0; i<p; i++)
+   {
+      CalcHomogenizedScaJacobi(p-i-1, 2*i+1, ms[0] + ms[1], ms[2], J_j);
+      for (int j=0; i+j<p; j++)
+         for (int k=0; k<3; k++)
+            u(i, j, k) = P_i(i) * J_j(j) *
+                         (mu * VT00(0,0,k) + s(2) * dmuxEE(k));
+   }
+}
+
+void FuentesPyramid::VT_T(int p, Vector s, Vector sds, Vector sdsxds,
+                          Vector grad_s2, real_t mu, Vector grad_mu,
+                          DenseTensor &u, DenseMatrix &du) const
+{
+   MFEM_ASSERT(p >= 1, "Polynomial order must be one or larger");
+   MFEM_ASSERT(s.Size() >= 2, "Size of s must be 2 or larger");
+   MFEM_ASSERT(sds.Size() >= 3, "Size of sds must be 3 or larger");
+   MFEM_ASSERT(sdsxds.Size() >= 3, "Size of sdsxds must be 3 or larger");
+   MFEM_ASSERT(grad_s2.Size() >= 3, "Size of grad_s2 must be 3 or larger");
+   MFEM_ASSERT(grad_mu.Size() >= 3, "Size of grad_mu must be 3 or larger");
+   MFEM_ASSERT(u.SizeI() >= p, "First dimension of u is too small");
+   MFEM_ASSERT(u.SizeJ() >= p, "Second dimension of u is too small");
+   MFEM_ASSERT(u.SizeK() >= 3, "Third dimension of u must be 3 or larger");
+   MFEM_ASSERT(du.Height() >= p, "First dimension of du is too small");
+   MFEM_ASSERT(du.Width() >= p, "Second dimension of du is too small");
+
+#ifdef MFEM_THREAD_SAFE
+   Vector      VT_T_vtmp1;
+   Vector      VT_T_vtmp2;
+   DenseMatrix VT_T_mtmp1;
+   DenseTensor VT_T_ttmp1;
+#endif
+
+   Vector ms({mu * s(0), mu * s(1), s(2)});
+   Vector s2(s.GetData(), 2);
+
+   Vector &P_i = VT_T_vtmp1;
+   P_i.SetSize(p);
+   CalcHomogenizedScaLegendre(p-1, ms[0], ms[1], P_i);
+
+   DenseMatrix &EE0 = VT_T_mtmp1;
+   EE0.SetSize(1,3);
+   Vector EE(EE0.GetData(), 3);
+   E_E(1, s2, sds, EE0);
+
+   Vector dmuxEE(3);
+   grad_mu.cross3D(EE, dmuxEE);
+
+   Vector EExds2(3);
+   EE.cross3D(grad_s2, EExds2);
+
+   DenseTensor &VT00 = VT_T_ttmp1;
+   VT00.SetSize(1,1,3);
+   V_T(1, s, sdsxds, VT00);
+
+   Vector &J_j = VT_T_vtmp2;
+   J_j.SetSize(p);
+
+   Vector EV(3);
+
+   u = 0.0;
+   du = 0.0;
+
+   for (int i=0; i<p; i++)
+   {
+      CalcHomogenizedScaJacobi(p-i-1, 2*i+1, ms[0] + ms[1], ms[2], J_j);
+      for (int j=0; i+j<p; j++)
+      {
+         for (int k=0; k<3; k++)
+         {
+            u(i, j, k) = P_i(i) * J_j(j) *
+                         (mu * VT00(0, 0, k) + s(2) * dmuxEE(k));
+
+            EV(k) = (i+j+3) * EExds2(k) - VT00(0, 0, k);
+         }
+
+         du(i, j) = P_i(i) * J_j(j) * (grad_mu * EV);
       }
    }
 }
