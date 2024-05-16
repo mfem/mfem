@@ -1501,8 +1501,8 @@ void RT_FuentesPyramidElement::calcBasis(const int p,
                                          DenseMatrix &phi_ij,
                                          DenseMatrix &dphi_k,
                                          DenseTensor &VQ_ijk,
-                                         DenseTensor &VTa_ijk,
-                                         DenseTensor &VTb_ijk,
+                                         DenseTensor &VT_ijk,
+                                         DenseTensor &VTT_ijk,
                                          DenseTensor &E_ijk,
                                          DenseTensor &dE_ijk,
                                          DenseTensor &dphi_ijk,
@@ -1513,7 +1513,7 @@ void RT_FuentesPyramidElement::calcBasis(const int p,
    real_t x = ip.x;
    real_t y = ip.y;
    real_t z = ip.z;
-   Vector xy({x,y});
+   Vector xy({x,y}), dmuz(3);
    real_t mu, muInv;
 
    if (std::fabs(1.0 - z) < 1e-4)
@@ -1550,82 +1550,53 @@ void RT_FuentesPyramidElement::calcBasis(const int p,
    if (z < 1.0)
    {
       // (a,b) = (1,2), c = 0
-      V_T(p, nu012(z, xy, 1), nu012_grad_nu012(z, xy, 1), VTa_ijk);
+      V_T(p, nu012(z, xy, 1), nu012_grad_nu012(z, xy, 1), VT_ijk);
       mu = mu0(z, xy, 2);
-      if (mu > 0.0)
-      {
-         muInv = 1.0 / mu;
-         V_T(p, lam125(x, y, z), lam125_grad_lam125(x, y, z), VTb_ijk);
-      }
-      else
-      {
-         muInv = 1.0;
-         VTb_ijk = 0.0;
-      }
+      dmuz = grad_mu0(z, xy, 2);
+      VT_T(p, nu012(z, xy, 1), nu01_grad_nu01(z, xy, 1),
+           nu012_grad_nu012(z, xy, 1), mu, dmuz, VTT_ijk);
       for (int j=0; j<p; j++)
          for (int i=0; i+j<p; i++, o++)
             for (int k=0; k<3; k++)
             {
-               F(o, k) = 0.5 * (mu * VTa_ijk(i, j, k) +
-                                muInv * VTb_ijk(i, j, k));
+               F(o, k) = 0.5 * (mu * VT_ijk(i, j, k) + VTT_ijk(i, j, k));
             }
+
       // (a,b) = (1,2), c = 1
       mu = mu1(z, xy, 2);
-      if (mu > 0.0)
-      {
-         muInv = 1.0 / mu;
-         V_T(p, lam435(x, y, z), lam435_grad_lam435(x, y, z), VTb_ijk);
-      }
-      else
-      {
-         muInv = 1.0;
-         VTb_ijk = 0.0;
-      }
+      dmuz = grad_mu1(z, xy, 2);
+      VT_T(p, nu012(z, xy, 1), nu01_grad_nu01(z, xy, 1),
+           nu012_grad_nu012(z, xy, 1), mu, dmuz, VTT_ijk);
       for (int j=0; j<p; j++)
          for (int i=0; i+j<p; i++, o++)
             for (int k=0; k<3; k++)
             {
-               F(o, k) = 0.5 * (mu * VTa_ijk(i, j, k) +
-                                muInv * VTb_ijk(i, j, k));
+               F(o, k) = 0.5 * (mu * VT_ijk(i, j, k) + VTT_ijk(i, j, k));
             }
+
       // (a,b) = (2,1), c = 0
-      V_T(p, nu012(z, xy, 2), nu012_grad_nu012(z, xy, 2), VTa_ijk);
+      V_T(p, nu012(z, xy, 2), nu012_grad_nu012(z, xy, 2), VT_ijk);
       mu = mu0(z, xy, 1);
-      if (mu > 0.0)
-      {
-         muInv = 1.0 / mu;
-         V_T(p, lam145(x, y, z), lam145_grad_lam145(x, y, z), VTb_ijk);
-      }
-      else
-      {
-         muInv = 1.0;
-         VTb_ijk = 0.0;
-      }
+      dmuz = grad_mu0(z, xy, 1);
+      VT_T(p, nu012(z, xy, 2), nu01_grad_nu01(z, xy, 2),
+           nu012_grad_nu012(z, xy, 2), mu, dmuz, VTT_ijk);
       for (int j=0; j<p; j++)
          for (int i=0; i+j<p; i++, o++)
             for (int k=0; k<3; k++)
             {
-               F(o, k) = 0.5 * (mu * VTa_ijk(i, j, k) +
-                                muInv * VTb_ijk(i, j, k));
+               F(o, k) = 0.5 * (mu * VT_ijk(i, j, k) + VTT_ijk(i, j, k));
             }
+
       // (a,b) = (2,1), c = 1
       mu = mu1(z, xy, 1);
-      muInv = 1.0 / mu;
-      if (mu > 0.0)
-      {
-         V_T(p, lam235(x, y, z), lam235_grad_lam235(x, y, z), VTb_ijk);
-      }
-      else
-      {
-         muInv = 1.0;
-         VTb_ijk = 0.0;
-      }
+      dmuz = grad_mu1(z, xy, 1);
+      VT_T(p, nu012(z, xy, 2), nu01_grad_nu01(z, xy, 2),
+           nu012_grad_nu012(z, xy, 2), mu, dmuz, VTT_ijk);
       for (int j=0; j<p; j++)
          for (int i=0; i+j<p; i++, o++)
             for (int k=0; k<3; k++)
             {
-               F(o, k) = 0.5 * (mu * VTa_ijk(i, j, k) +
-                                muInv * VTb_ijk(i, j, k));
+               F(o, k) = 0.5 * (mu * VT_ijk(i, j, k) + VTT_ijk(i, j, k));
             }
    }
 
@@ -1787,9 +1758,9 @@ void RT_FuentesPyramidElement::calcDivBasis(const int p,
                                             DenseMatrix &phi_ij,
                                             DenseMatrix &dphi_k,
                                             DenseTensor &VQ_ijk,
-                                            DenseTensor &VTa_ijk,
-                                            DenseTensor &VTb_ijk,
-                                            DenseMatrix &dVTb_ij,
+                                            DenseTensor &VT_ijk,
+                                            DenseTensor &VTT_ijk,
+                                            DenseMatrix &dVTT_ij,
                                             DenseTensor &E_ijk,
                                             DenseTensor &dE_ijk,
                                             DenseTensor &dphi_ijk,
@@ -1838,106 +1809,69 @@ void RT_FuentesPyramidElement::calcDivBasis(const int p,
    if (z < 1.0)
    {
       // (a,b) = (1,2), c = 0
-      V_T(p, nu012(z, xy, 1), nu012_grad_nu012(z, xy, 1), VTa_ijk);
+      V_T(p, nu012(z, xy, 1), nu012_grad_nu012(z, xy, 1), VT_ijk);
       mu = mu0(z, xy, 2);
       dmuz = grad_mu0(z, xy, 2);
-      if (mu > 0.0)
-      {
-         muInv = 1.0 / mu;
-         mu2Inv = pow(muInv, 2);
-         V_T(p, lam125(x, y, z), lam125_grad_lam125(x, y, z),
-             div_lam125_grad_lam125(x, y, z),
-             VTb_ijk, dVTb_ij);
-      }
-      else
-      {
-         muInv = 1.0;
-         mu2Inv = 1.0;
-         VTb_ijk = 0.0;
-         dVTb_ij = 0.0;
-      }
+      VT_T(p, nu012(z, xy, 1), nu01_grad_nu01(z, xy, 1),
+           nu012_grad_nu012(z, xy, 1), grad_nu2(z, xy, 1), mu, dmuz,
+           VTT_ijk, dVTT_ij);
       for (int j=0; j<p; j++)
          for (int i=0; i+j<p; i++, o++)
          {
-            dF(o) = 0.5 * muInv * dVTb_ij(i, j);
+            dF(o) = 0.5 * dVTT_ij(i, j);
             for (int k=0; k<3; k++)
-               dF(o) += 0.5 * dmuz(k) * (VTa_ijk(i, j, k) -
-                                         mu2Inv * VTb_ijk(i, j, k));
+            {
+               dF(o) += 0.5 * dmuz(k) * VT_ijk(i, j, k);
+            }
          }
+
       // (a,b) = (1,2), c = 1
       mu = mu1(z, xy, 2);
       dmuz = grad_mu1(z, xy, 2);
-      if (mu > 0.0)
-      {
-         muInv = 1.0 / mu;
-         mu2Inv = pow(muInv, 2);
-         V_T(p, lam435(x, y, z), lam435_grad_lam435(x, y, z),
-             div_lam435_grad_lam435(x, y, z), VTb_ijk, dVTb_ij);
-      }
-      else
-      {
-         muInv = 1.0;
-         mu2Inv = 1.0;
-         VTb_ijk = 0.0;
-         dVTb_ij = 0.0;
-      }
+      VT_T(p, nu012(z, xy, 1), nu01_grad_nu01(z, xy, 1),
+           nu012_grad_nu012(z, xy, 1), grad_nu2(z, xy, 1), mu, dmuz,
+           VTT_ijk, dVTT_ij);
       for (int j=0; j<p; j++)
          for (int i=0; i+j<p; i++, o++)
          {
-            dF(o) = 0.5 * muInv * dVTb_ij(i, j);
+            dF(o) = 0.5 * dVTT_ij(i, j);
             for (int k=0; k<3; k++)
-               dF(o) += 0.5 * dmuz(k) * (VTa_ijk(i, j, k) -
-                                         mu2Inv * VTb_ijk(i, j, k));
+            {
+               dF(o) += 0.5 * dmuz(k) * VT_ijk(i, j, k);
+            }
          }
+
       // (a,b) = (2,1), c = 0
-      V_T(p, nu012(z, xy, 2), nu012_grad_nu012(z, xy, 2), VTa_ijk);
+      V_T(p, nu012(z, xy, 2), nu012_grad_nu012(z, xy, 2), VT_ijk);
       mu = mu0(z, xy, 1);
       dmuz = grad_mu0(z, xy, 1);
-      if (mu > 0.0)
-      {
-         muInv = 1.0 / mu;
-         mu2Inv = pow(muInv, 2);
-         V_T(p, lam145(x, y, z), lam145_grad_lam145(x, y, z),
-             div_lam145_grad_lam145(x, y, z), VTb_ijk, dVTb_ij);
-      }
-      else
-      {
-         muInv = 1.0;
-         mu2Inv = 1.0;
-         VTb_ijk = 0.0;
-         dVTb_ij = 0.0;
-      }
+      VT_T(p, nu012(z, xy, 2), nu01_grad_nu01(z, xy, 2),
+           nu012_grad_nu012(z, xy, 2), grad_nu2(z, xy, 2), mu, dmuz,
+           VTT_ijk, dVTT_ij);
       for (int j=0; j<p; j++)
          for (int i=0; i+j<p; i++, o++)
          {
-            dF(o) = 0.5 * muInv * dVTb_ij(i, j);
+            dF(o) = 0.5 * dVTT_ij(i, j);
             for (int k=0; k<3; k++)
-               dF(o) += 0.5 * dmuz(k) * (VTa_ijk(i, j, k) -
-                                         mu2Inv * VTb_ijk(i, j, k));
+            {
+               dF(o) += 0.5 * dmuz(k) * VT_ijk(i, j, k);
+            }
          }
+
       // (a,b) = (2,1), c = 1
       mu = mu1(z, xy, 1);
       dmuz = grad_mu1(z, xy, 1);
-      if (mu > 0.0)
-      {
-         muInv = 1.0 / mu;
-         mu2Inv = pow(muInv, 2);
-         V_T(p, lam235(x, y, z), lam235_grad_lam235(x, y, z),
-             div_lam235_grad_lam235(x, y, z), VTb_ijk, dVTb_ij);
-      }
-      else
-      {
-         muInv = 1.0;
-         mu2Inv = 1.0;
-         VTb_ijk = 0.0;
-      }
+      VT_T(p, nu012(z, xy, 2), nu01_grad_nu01(z, xy, 2),
+           nu012_grad_nu012(z, xy, 2), grad_nu2(z, xy, 2), mu, dmuz,
+           VTT_ijk, dVTT_ij);
       for (int j=0; j<p; j++)
          for (int i=0; i+j<p; i++, o++)
          {
-            dF(o) = 0.5 * muInv * dVTb_ij(i, j);
+            dF(o) = 0.5 * dVTT_ij(i, j);
             for (int k=0; k<3; k++)
-               dF(o) += 0.5 * dmuz(k) * (VTa_ijk(i, j, k) -
-                                         mu2Inv * VTb_ijk(i, j, k));
+            {
+               dF(o) += 0.5 * dmuz(k) * VT_ijk(i, j, k);
+            }
          }
    }
 
