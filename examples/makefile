@@ -138,6 +138,14 @@ ex10-test-seq: ex10
 	@$(call mfem-test,$<,, Serial example,-tf 5)
 ex10p-test-par: ex10p
 	@$(call mfem-test,$<, $(RUN_MPI), Parallel example,-tf 5)
+ex14-test-seq-cuda: ex14
+	@$(call mfem-test,$<,, Serial CUDA example,-r 2 -pa -d cuda)
+ex14p-test-par-cuda: ex14p
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel CUDA example,-rs 2 -rp 0 -pa -d cuda)
+ex14-test-seq-hip: ex14
+	@$(call mfem-test,$<,, Serial HIP example,-r 2 -pa -d hip)
+ex14p-test-par-hip: ex14p
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel HIP example,-rs 2 -rp 0 -pa -d hip)
 ex15-test-seq: ex15
 	@$(call mfem-test,$<,, Serial example,-e 1)
 ex15p-test-par: ex15p
