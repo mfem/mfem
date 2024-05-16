@@ -410,19 +410,19 @@ HYPRE_Int HypreParVector::Randomize(HYPRE_Int seed)
    return hypre_ParVectorSetRandomValues(x,seed);
 }
 
-void HypreParVector::Print(const char *fname) const
+void HypreParVector::Print(const std::string &fname) const
 {
-   hypre_ParVectorPrint(x,fname);
+   hypre_ParVectorPrint(x, fname.c_str());
 }
 
-void HypreParVector::Read(MPI_Comm comm, const char *fname)
+void HypreParVector::Read(MPI_Comm comm, const std::string &fname)
 {
    if (own_ParVector)
    {
       hypre_ParVectorDestroy(x);
    }
    data.Delete();
-   x = hypre_ParVectorRead(comm, fname);
+   x = hypre_ParVectorRead(comm, fname.c_str());
    own_ParVector = true;
    _SetDataAndSize_();
 }
@@ -2623,22 +2623,22 @@ void HypreParMatrix::EliminateBC(const Array<int> &ess_dofs,
    mfem_hypre_TFree(eliminate_col);
 }
 
-void HypreParMatrix::Print(const char *fname, HYPRE_Int offi,
+void HypreParMatrix::Print(const std::string &fname, HYPRE_Int offi,
                            HYPRE_Int offj) const
 {
    HostRead();
-   hypre_ParCSRMatrixPrintIJ(A,offi,offj,fname);
+   hypre_ParCSRMatrixPrintIJ(A, offi, offj, fname.c_str());
    HypreRead();
 }
 
-void HypreParMatrix::Read(MPI_Comm comm, const char *fname)
+void HypreParMatrix::Read(MPI_Comm comm, const std::string &fname)
 {
    Destroy();
    Init();
 
    HYPRE_Int base_i, base_j;
-   hypre_ParCSRMatrixReadIJ(comm, fname, &base_i, &base_j, &A);
    hypre_ParCSRMatrixSetNumNonzeros(A);
+   hypre_ParCSRMatrixReadIJ(comm, fname.c_str(), &base_i, &base_j, &A_parcsr);
 
    if (!hypre_ParCSRMatrixCommPkg(A)) { hypre_MatvecCommPkgCreate(A); }
 
@@ -2646,13 +2646,13 @@ void HypreParMatrix::Read(MPI_Comm comm, const char *fname)
    width = GetNumCols();
 }
 
-void HypreParMatrix::Read_IJMatrix(MPI_Comm comm, const char *fname)
+void HypreParMatrix::Read_IJMatrix(MPI_Comm comm, const std::string &fname)
 {
    Destroy();
    Init();
 
    HYPRE_IJMatrix A_ij;
-   HYPRE_IJMatrixRead(fname, comm, 5555, &A_ij); // HYPRE_PARCSR = 5555
+   HYPRE_IJMatrixRead(fname.c_str(), comm, 5555, &A_ij); // HYPRE_PARCSR = 5555
 
    HYPRE_ParCSRMatrix A_parcsr;
    HYPRE_IJMatrixGetObject(A_ij, (void**) &A_parcsr);
