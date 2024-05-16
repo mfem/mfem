@@ -134,19 +134,19 @@ protected:
    int solver_type;
    bool parallel;
 
-   // Line search step is rejected if min(detJ) <= min_detJ_threshold.
-   real_t min_detJ_threshold = 0.0;
+   // Line search step is rejected if min(detJ) <= min_detJ_limit.
+   real_t min_detJ_limit = 0.0;
 
    // Surface fitting variables.
-   mutable real_t surf_fit_err_avg_prvs = 10000.0;
-   mutable real_t surf_fit_err_avg, surf_fit_err_max;
-   mutable bool update_surf_fit_coeff = false;
-   real_t surf_fit_max_threshold = -1.0;
-   real_t surf_fit_rel_change_threshold = 0.001;
+   mutable real_t surf_fit_avg_err_prvs = 10000.0;
+   mutable real_t surf_fit_avg_err, surf_fit_max_err;
+   mutable bool surf_fit_coeff_update = false;
+   real_t surf_fit_max_err_limit = -1.0;
+   real_t surf_fit_err_rel_change_limit = 0.001;
    real_t surf_fit_scale_factor = 0.0;
-   mutable int adapt_inc_count = 0;
-   mutable int max_adapt_inc_count = 10;
-   mutable real_t fit_weight_max_limit = 1e10;
+   mutable int surf_fit_adapt_count = 0;
+   mutable int surf_fit_adapt_count_limit = 10;
+   mutable real_t surf_fit_weight_limit = 1e10;
    bool surf_fit_converge_error = false;
 
    // Minimum determinant over the whole mesh. Used for mesh untangling.
@@ -236,40 +236,36 @@ public:
        Adaptive fitting weight: The weight is modified after each
        TMOPNewtonSolver iteration as:
        w_{k+1} = w_{k} * \ref surf_fit_scale_factor if the relative
-       change in max surface fitting error < \ref surf_fit_rel_change_threshold.
+       change in average fitting error < \ref surf_fit_err_rel_change_limit.
        When converging based on the residual, we enforce the fitting weight
-       to be at-most \ref fit_weight_max_limit, and increase it only if the
+       to be at-most \ref surf_fit_weight_limit, and increase it only if the
        fitting error is below user prescribed threshold
-       (\ref surf_fit_max_threshold).
+       (\ref surf_fit_max_err_limit).
        See \ref SetAdaptiveSurfaceFittingScalingFactor and
        \ref SetAdaptiveSurfaceFittingRelativeChangeThreshold.
 
        Note that the solver stops if the maximum surface fitting error
-       does not sufficiently decrease for \ref max_adapt_inc_count (default 10)
+       does not sufficiently decrease for \ref surf_fit_adapt_count_limit (default 10)
        consecutive increments of the fitting weight during weight adaptation.
        This typically occurs when the mesh cannot align with the level-set
        without degrading element quality.
        See \ref SetMaxNumberofIncrementsForAdaptiveFitting.
 
        Convergence criterion: There are two modes, residual- and error-based,
-       which can be toggled using \ref SetFittingConvergenceBasedOnError.
+       which can be toggled using \ref SetSurfaceFittingConvergenceBasedOnError.
 
        (i) Residual based (default): Stop when the norm of the gradient of the
        TMOP objective reaches the prescribed tolerance. This method is best used
-       with a reasonable value for \ref fit_weight_max_limit when the
+       with a reasonable value for \ref surf_fit_weight_limit when the
        adaptive surface fitting scheme is used. See method
-       \ref SetMaxFittingWeight.
+       \ref SetSurfaceFittingWeightLimit.
 
        (ii) Error based: Stop when the maximum fitting error
-       reaches the user-prescribed threshold, \ref surf_fit_max_threshold.
-       In this case, \ref fit_weight_max_limit is ignored during weight
+       reaches the user-prescribed threshold, \ref surf_fit_max_err_limit.
+       In this case, \ref surf_fit_weight_limit is ignored during weight
        adaptation.
    */
    ///@{
-   void EnableAdaptiveSurfaceFitting()
-   {
-      surf_fit_scale_factor = 10.0;
-   }
    void SetAdaptiveSurfaceFittingScalingFactor(real_t factor)
    {
       MFEM_VERIFY(factor > 1.0, "Scaling factor must be greater than 1.");
@@ -277,39 +273,41 @@ public:
    }
    void SetAdaptiveSurfaceFittingRelativeChangeThreshold(real_t threshold)
    {
-      surf_fit_rel_change_threshold = threshold;
+      surf_fit_err_rel_change_limit = threshold;
    }
    /// Used for stopping based on the number of consecutive failed weight
    /// adaptation iterations.
+   // TODO: Rename to SetMaxNumberofIncrementsForAdaptiveSurfaceFitting
+   // in future.
    void SetMaxNumberofIncrementsForAdaptiveFitting(int count)
    {
-      max_adapt_inc_count = count;
+      surf_fit_adapt_count_limit = count;
    }
    /// Used for error-based surface fitting termination.
    void SetTerminationWithMaxSurfaceFittingError(real_t max_error)
    {
-      surf_fit_max_threshold = max_error;
+      surf_fit_max_err_limit = max_error;
       surf_fit_converge_error = true;
    }
    /// Could be used with both error-based or residual-based convergence.
-   void SetMaxSurfaceFittingError(real_t max_error)
+   void SetSurfaceFittingMaxErrorLimit(real_t max_error)
    {
-      surf_fit_max_threshold = max_error;
+      surf_fit_max_err_limit = max_error;
    }
    /// Used for residual-based surface fitting termination.
-   void SetMaxFittingWeight(real_t weight)
+   void SetSurfaceFittingWeightLimit(real_t weight)
    {
-      fit_weight_max_limit = weight;
+      surf_fit_weight_limit = weight;
    }
    /// Toggle convergence based on residual or error.
-   void SetFittingConvergenceBasedOnError(bool mode)
+   void SetSurfaceFittingConvergenceBasedOnError(bool mode)
    {
       surf_fit_converge_error = mode;
       if (surf_fit_converge_error)
       {
-         MFEM_VERIFY(surf_fit_max_threshold >= 0,
-                     "Fitting error based convergence requires the user to first"
-                     "set the error threshold."
+         MFEM_VERIFY(surf_fit_max_err_limit >= 0,
+                     "Fitting error based convergence requires the user to "
+                     "first set the error threshold."
                      "See SetTerminationWithMaxSurfaceFittingError");
       }
    }
@@ -318,7 +316,7 @@ public:
    /// Set minimum determinant enforced during line-search.
    void SetMinimumDeterminantThreshold(real_t threshold)
    {
-      min_detJ_threshold = threshold;
+      min_detJ_limit = threshold;
    }
 
    virtual void Mult(const Vector &b, Vector &x) const
