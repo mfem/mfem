@@ -29,8 +29,8 @@ namespace mfem
 
 Hybridization::Hybridization(FiniteElementSpace *fespace,
                              FiniteElementSpace *c_fespace)
-   : fes(fespace), c_fes(c_fespace), c_bfi(NULL), Ct(NULL), H(NULL),
-     Af_data(NULL), Af_ipiv(NULL)
+   : fes(fespace), c_fes(c_fespace), c_bfi(NULL), extern_c_bfbfs(0), Ct(NULL),
+     H(NULL), Af_data(NULL), Af_ipiv(NULL)
 {
 #ifdef MFEM_USE_MPI
    pC = P_pc = NULL;
@@ -49,7 +49,8 @@ Hybridization::~Hybridization()
    delete H;
    delete Ct;
    delete c_bfi;
-   for (int k=0; k < c_bfbfi.Size(); k++) { delete c_bfbfi[k]; }
+   if (!extern_c_bfbfs)
+      for (int k=0; k < c_bfbfi.Size(); k++) { delete c_bfbfi[k]; }
 }
 
 void Hybridization::ConstructC()
