@@ -17,15 +17,15 @@ void uniformRefine(std::unique_ptr<Mesh>& mesh, int ser_ref_levels,
 
 enum ElasticityProblem
 {
-   Cantilever,
-   MBB,
-   Bridge,
-   LBracket,
-   Cantilever3,
-   Torsion3,
-   MBB_selfloading, // below this, everything should be self-loading case
-   Arch2,
-   SelfLoading3
+   Cantilever=0,
+   MBB=1,
+   LBracket=2,
+   Cantilever3=3,
+   Torsion3=4,
+   MBB_selfloading=5, // below this, everything should be self-loading case
+   Bridge=6,
+   Arch2=7,
+   SelfLoading3=8
 };
 
 void GetElasticityProblem(const ElasticityProblem problem,

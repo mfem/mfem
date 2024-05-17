@@ -28,7 +28,8 @@
 //                        with ρ(α) = sigmoid(ψ_cur - α∇F(ρ_cur) + c)
 //
 //
-// [1] Andreassen, E., Clausen, A., Schevenels, M., Lazarov, B. S., & Sigmund, O.
+// [1] Andreassen, E., Clausen, A., Schevenels, M., Lazarov, B. S., & Sigmund,
+// O.
 //    (2011). Efficient topology optimization in MATLAB using 88 lines of
 //    code. Structural and Multidisciplinary Optimization, 43(1), 1-16.
 // [2] Keith, B. and Surowiec, T. (2023) Proximal Galerkin: A structure-
@@ -38,12 +39,15 @@
 //     based on Helmholtz‐type differential equations. International Journal
 //     for Numerical Methods in Engineering, 86(6), 765-781.
 
-#include "mfem.hpp"
-#include <iostream>
-#include <fstream>
-#include "topopt.hpp"
 #include "helper.hpp"
+#include "linalg/vector.hpp"
+#include "mfem.hpp"
+#include "mpi.h"
+#include "mpi_proto.h"
 #include "prob_elasticity.hpp"
+#include "topopt.hpp"
+#include <fstream>
+#include <iostream>
 
 using namespace std;
 using namespace mfem;
@@ -54,7 +58,11 @@ int main(int argc, char *argv[])
    int num_procs = Mpi::WorldSize();
    int myid = Mpi::WorldRank();
    Hypre::Init();
-   if (Mpi::Root()) { mfem::out << "Parallel run using " << num_procs << " processes" << std::endl; }
+   if (Mpi::Root())
+   {
+      mfem::out << "Parallel run using " << num_procs << " processes"
+                << std::endl;
+   }
 
    // 1. Parse command-line options.
    int seq_ref_levels = 0;
@@ -79,7 +87,7 @@ int main(int argc, char *argv[])
    double tol_compliance = 5e-05;
    bool use_bregman = true;
    bool armijo = true;
-   bool use_BGG = true;
+   bool use_GBB = true;
    ostringstream filename_prefix;
    filename_prefix << "PMD-";
 
@@ -100,27 +108,31 @@ int main(int argc, char *argv[])
                   "Maximum number of gradient descent iterations.");
    args.AddOption(&vol_fraction, "-vf", "--volume-fraction",
                   "Volume fraction for the material density.");
-   args.AddOption(&E, "-E", "--E",
-                  "Lamé constant λ.");
-   args.AddOption(&nu, "-nu", "--nu",
-                  "Lamé constant μ.");
+   args.AddOption(&E, "-E", "--E", "Lamé constant λ.");
+   args.AddOption(&nu, "-nu", "--nu", "Lamé constant μ.");
    args.AddOption(&rho_min, "-rmin", "--rho-min",
                   "Minimum of density coefficient.");
    args.AddOption(&glvis_visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&use_bregman, "-bregman", "--use-bregman", "-L2",
-                  "--use-L2",
+   args.AddOption(&use_bregman, "-bregman", "--use-bregman", "-L2", "--use-L2",
                   "Use Bregman divergence as a stopping criteria");
    args.AddOption(&armijo, "-armijo", "--use-armijo", "-pos-bregman",
                   "--positive-bregman-condition",
-                  "Use Armijo condition for step size selection. Otherwise, use positivity of bregman divergence");
-   args.AddOption(&use_BGG, "-bgg", "--use-BGG", "-exp",
+                  "Use Armijo condition for step size selection. Otherwise, use "
+                  "positivity of bregman divergence");
+   args.AddOption(&use_GBB, "-gbb", "--use-gbb", "-exp",
                   "--exponential-stepsize",
-                  "Use Barzilai-Borwein step size selection. Otherwise, use exponential step size");
+                  "Use Generalized Barzilai-Borwein step size selection. Otherwise, use "
+                  "exponential step size");
    args.Parse();
-   if (!args.Good()) {if (Mpi::Root()) args.PrintUsage(mfem::out);}
-
+   if (!args.Good())
+   {
+      if (Mpi::Root())
+      {
+         args.PrintUsage(mfem::out);
+      }
+   }
 
    std::unique_ptr<Mesh> mesh;
    Array2D<int> ess_bdr;
@@ -128,13 +140,12 @@ int main(int argc, char *argv[])
    std::unique_ptr<VectorCoefficient> vforce_cf;
    std::string prob_name;
    GetElasticityProblem((ElasticityProblem)problem, filter_radius, vol_fraction,
-                        mesh, vforce_cf,
-                        ess_bdr, ess_bdr_filter,
-                        prob_name, seq_ref_levels, par_ref_levels);
+                        mesh, vforce_cf, ess_bdr, ess_bdr_filter, prob_name,
+                        seq_ref_levels, par_ref_levels);
    filename_prefix << prob_name << "-" << seq_ref_levels + par_ref_levels;
    int dim = mesh->Dimension();
    const int num_el = mesh->GetNE();
-   std::unique_ptr<ParMesh> pmesh(static_cast<ParMesh*>(mesh.release()));
+   std::unique_ptr<ParMesh> pmesh(static_cast<ParMesh *>(mesh.release()));
 
    if (Mpi::Root())
       mfem::out << "\n"
@@ -152,7 +163,10 @@ int main(int argc, char *argv[])
    {
       glvis_visualization = false;
       paraview = true;
-      if (Mpi::Root()) { mfem::out << "GLVis for 3D is disabled. Use ParaView" << std::endl; }
+      if (Mpi::Root())
+      {
+         mfem::out << "GLVis for 3D is disabled. Use ParaView" << std::endl;
+      }
    }
    pmesh->SetAttributes();
 
@@ -166,11 +180,12 @@ int main(int argc, char *argv[])
    }
 
    // 4. Define the necessary finite element spaces on the mesh.
-   H1_FECollection state_fec(order, dim); // space for u
+   H1_FECollection state_fec(order, dim);  // space for u
    H1_FECollection filter_fec(order, dim); // space for ρ̃
-   L2_FECollection control_fec(order-1, dim,
+   L2_FECollection control_fec(order - 1, dim,
                                BasisType::GaussLobatto); // space for ψ
-   ParFiniteElementSpace state_fes(pmesh.get(), &state_fec,dim, Ordering::byNODES);
+   ParFiniteElementSpace state_fes(pmesh.get(), &state_fec, dim,
+                                   Ordering::byNODES);
    ParFiniteElementSpace filter_fes(pmesh.get(), &filter_fec);
    ParFiniteElementSpace control_fes(pmesh.get(), &control_fec);
 
@@ -188,25 +203,27 @@ int main(int argc, char *argv[])
    // 5. Set the initial guess for ρ.
    // ThresholdProjector densityProjector(0.5, 32, exponent, rho_min);
    SIMPProjector densityProjector(exponent, rho_min);
-   HelmholtzFilter filter(filter_fes, filter_radius/(2.0*sqrt(3.0)),
+   HelmholtzFilter filter(filter_fes, filter_radius / (2.0 * sqrt(3.0)),
                           ess_bdr_filter, true);
    LatentDesignDensity density(control_fes, filter, vol_fraction,
-                               FermiDiracEntropy, inv_sigmoid, sigmoid, false, false);
+                               FermiDiracEntropy, inv_sigmoid, sigmoid, false,
+                               false);
    density.UsePrimalFilter(true);
 
    ConstantCoefficient E_cf(E), nu_cf(nu);
-   ParametrizedElasticityEquation elasticity(state_fes,
-                                             density.GetFilteredDensity(), densityProjector, E_cf, nu_cf, *vforce_cf,
-                                             ess_bdr, true);
+   ParametrizedElasticityEquation elasticity(
+      state_fes, density.GetFilteredDensity(), densityProjector, E_cf, nu_cf,
+      *vforce_cf, ess_bdr, true);
    TopOptProblem optprob(elasticity.GetLinearForm(), elasticity, density, false,
                          true);
 
-   ParGridFunction &u = dynamic_cast<ParGridFunction&>(optprob.GetState());
-   ParGridFunction &rho_filter = dynamic_cast<ParGridFunction&>
-                                 (density.GetFilteredDensity());
-   ParGridFunction &grad(dynamic_cast<ParGridFunction&>(optprob.GetGradient()));
-   ParGridFunction &psi(dynamic_cast<ParGridFunction&>(density.GetGridFunction()));
-   rho_filter = density.GetDomainVolume()*vol_fraction;
+   ParGridFunction &u = dynamic_cast<ParGridFunction &>(optprob.GetState());
+   ParGridFunction &rho_filter =
+      dynamic_cast<ParGridFunction &>(density.GetFilteredDensity());
+   ParGridFunction &grad(dynamic_cast<ParGridFunction &>(optprob.GetGradient()));
+   ParGridFunction &psi(
+      dynamic_cast<ParGridFunction &>(density.GetGridFunction()));
+   rho_filter = density.GetDomainVolume() * vol_fraction;
 
    std::unique_ptr<ParGridFunction> gradH1_selfload;
    std::unique_ptr<ParLinearForm> projected_grad_selfload;
@@ -217,15 +234,18 @@ int main(int argc, char *argv[])
    std::unique_ptr<InnerProductCoefficient> ug;
    if (problem >= ElasticityProblem::MBB_selfloading)
    {
-      Vector g(dim); g = 0.0; g(dim - 1) = -1.0;
+      Vector g(dim);
+      g = 0.0;
+      g(dim - 1) = -9.81;
       gravity.reset(new VectorConstantCoefficient(g));
       rho_filter_cf.reset(new GridFunctionCoefficient(&rho_filter));
       u_cf.reset(new VectorGridFunctionCoefficient(&u));
-      self_weight.reset(new ScalarVectorProductCoefficient(*rho_filter_cf, *gravity));
+      self_weight.reset(
+         new ScalarVectorProductCoefficient(*rho_filter_cf, *gravity));
       ug.reset(new InnerProductCoefficient(*gravity, *u_cf));
 
-      elasticity.GetLinearForm().AddDomainIntegrator(new VectorDomainLFIntegrator(
-                                                        *self_weight));
+      elasticity.GetLinearForm().AddDomainIntegrator(
+         new VectorDomainLFIntegrator(*self_weight));
       elasticity.SetLinearFormStationary(false);
       elasticity.GetLinearForm().Assemble();
 
@@ -233,14 +253,14 @@ int main(int argc, char *argv[])
       *gradH1_selfload = 0.0;
 
       projected_grad_selfload.reset(new ParLinearForm(&control_fes));
-      projected_grad_selfload->AddDomainIntegrator(new L2ProjectionLFIntegrator(
-                                                      *gradH1_selfload));
+      projected_grad_selfload->AddDomainIntegrator(
+         new L2ProjectionLFIntegrator(*gradH1_selfload));
       density.SetVolumeConstraintType(-1);
       density.GetGridFunction() = inv_sigmoid(0.8);
    }
    // 10. Connect to GLVis. Prepare for VisIt output.
    char vishost[] = "localhost";
-   int  visport   = 19916;
+   int visport = 19916;
    socketstream sout_SIMP, sout_r;
    std::unique_ptr<ParGridFunction> designDensity_gf, rho_gf;
    if (glvis_visualization)
@@ -248,17 +268,18 @@ int main(int argc, char *argv[])
       MPI_Barrier(MPI_COMM_WORLD);
       designDensity_gf.reset(new ParGridFunction(&filter_fes));
       rho_gf.reset(new ParGridFunction(&control_fes));
-      designDensity_gf->ProjectCoefficient(densityProjector.GetPhysicalDensity(
-                                              density.GetFilteredDensity()));
+      designDensity_gf->ProjectCoefficient(
+         densityProjector.GetPhysicalDensity(density.GetFilteredDensity()));
       rho_gf->ProjectCoefficient(density.GetDensityCoefficient());
       sout_SIMP.open(vishost, visport);
       if (sout_SIMP.is_open())
       {
          sout_SIMP << "parallel " << num_procs << " " << myid << "\n";
          sout_SIMP.precision(8);
-         sout_SIMP << "solution\n" << *pmesh << *designDensity_gf
-                   << "window_title 'Design density r(ρ̃) - PMD "
-                   << problem << "'\n"
+         sout_SIMP << "solution\n"
+                   << *pmesh << *designDensity_gf
+                   << "window_title 'Design density r(ρ̃) - PMD " << problem
+                   << "'\n"
                    << "keys Rjl***************\n"
                    << flush;
          MPI_Barrier(MPI_COMM_WORLD); // try to prevent streams from mixing
@@ -268,8 +289,8 @@ int main(int argc, char *argv[])
       {
          sout_r << "parallel " << num_procs << " " << myid << "\n";
          sout_r.precision(8);
-         sout_r << "solution\n" << *pmesh << *rho_gf
-                << "window_title 'Raw density ρ - PMD "
+         sout_r << "solution\n"
+                << *pmesh << *rho_gf << "window_title 'Raw density ρ - PMD "
                 << problem << "'\n"
                 << "keys Rjl***************\n"
                 << flush;
@@ -307,14 +328,27 @@ int main(int argc, char *argv[])
    std::unique_ptr<Coefficient> diff_rho(optprob.GetDensityDiffCoeff(old_psi));
    diff_rho_form.AddDomainIntegrator(new DomainLFIntegrator(*diff_rho));
 
+   ParLinearForm der_sig_form(&control_fes);
+   MappedGridFunctionCoefficient der_sig(&psi, [](double x)
+   {
+      const double rho = sigmoid(x);
+      return rho * (1 - rho);
+   });
+   der_sig_form.AddDomainIntegrator(new DomainLFIntegrator(der_sig));
+   ParGridFunction one_gf(&control_fes);
+   one_gf = 1.0;
+   ParGridFunction tmp_gf(&control_fes), tmp_rho_gf(&control_fes);
+
    if (Mpi::Root())
       mfem::out << "\n"
                 << "Initialization Done." << "\n"
-                << "Start Projected Mirror Descent Step." << "\n" << std::endl;
+                << "Start Projected Mirror Descent Step." << "\n"
+                << std::endl;
 
    double compliance = optprob.Eval();
    optprob.UpdateGradient();
-   double step_size(1.0), volume(density.GetVolume() / density.GetDomainVolume()),
+   double step_size(1.0),
+          volume(density.GetVolume() / density.GetDomainVolume()),
           stationarityError(density.StationarityErrorL2(grad)),
           stationarityError_bregman(density.StationarityError(grad));
    int num_reeval(0);
@@ -322,6 +356,7 @@ int main(int argc, char *argv[])
    double stationarityError0(stationarityError),
           stationarityError_bregman0(stationarityError_bregman);
    double relative_stationarity(1.0), relative_stationarity_bregman(1.0);
+   double KKT(0.0);
    TableLogger logger;
    logger.Append(std::string("Volume"), volume);
    logger.Append(std::string("Compliance"), compliance);
@@ -330,6 +365,7 @@ int main(int argc, char *argv[])
    logger.Append(std::string("Step Size"), step_size);
    logger.Append(std::string("Stationarity-Bregman (Rel)"),
                  relative_stationarity_bregman);
+   logger.Append(std::string("KKT"), KKT);
    logger.SaveWhenPrint(filename_prefix.str());
    logger.Print();
 
@@ -341,14 +377,14 @@ int main(int argc, char *argv[])
    for (int k = 0; k < max_it; k++)
    {
       // Step 1. Compute Step size
-      if (use_BGG)
+      if (use_GBB)
       {
          if (k > 0)
          {
             diff_rho_form.Assemble();
             old_psi -= psi;
             old_grad -= grad;
-            step_size = std::fabs(diff_rho_form(old_psi)  / diff_rho_form(old_grad));
+            step_size = std::fabs(diff_rho_form(old_psi) / diff_rho_form(old_grad));
          }
       }
       else
@@ -364,11 +400,13 @@ int main(int argc, char *argv[])
       // Step 3. Step and upate gradient
       if (armijo)
       {
-         num_reeval = Step_Armijo(optprob, old_psi, grad, diff_rho_form, c1, step_size);
+         num_reeval =
+            Step_Armijo(optprob, old_psi, grad, diff_rho_form, c1, step_size);
       }
       else
       {
-         num_reeval = Step_Bregman(optprob, old_psi, grad, diff_rho_form, step_size);
+         num_reeval =
+            Step_Bregman(optprob, old_psi, grad, diff_rho_form, step_size);
       }
       compliance = optprob.GetValue();
       volume = density.GetVolume() / density.GetDomainVolume();
@@ -403,7 +441,10 @@ int main(int argc, char *argv[])
          // }
          // rho_gf->ProjectBdrCoefficient(bdr_rho, bdr);
          // rho_gf->ProjectCoefficient(density.GetDensityCoefficient());
-         for (int i=0; i<rho_gf->Size(); i++) {(*rho_gf)(i) = sigmoid(psi[i]);}
+         for (int i = 0; i < rho_gf->Size(); i++)
+         {
+            (*rho_gf)(i) = sigmoid(psi[i]);
+         }
       }
       if (glvis_visualization)
       {
@@ -412,22 +453,20 @@ int main(int argc, char *argv[])
             // designDensity_gf->ProjectCoefficient(densityProjector.GetPhysicalDensity(
             //                                         density.GetFilteredDensity()));
             sout_SIMP << "parallel " << num_procs << " " << myid << "\n";
-            sout_SIMP << "solution\n" << *pmesh << rho_filter
-                      << flush;
+            sout_SIMP << "solution\n" << *pmesh << rho_filter << flush;
             MPI_Barrier(MPI_COMM_WORLD); // try to prevent streams from mixing
          }
          if (sout_r.is_open())
          {
             sout_r << "parallel " << num_procs << " " << myid << "\n";
-            sout_r << "solution\n" << *pmesh << psi
-                   << flush;
+            sout_r << "solution\n" << *pmesh << *rho_gf << flush;
             MPI_Barrier(MPI_COMM_WORLD); // try to prevent streams from mixing
          }
       }
       if (paraview)
       {
-         pd->SetCycle(k+1);
-         pd->SetTime(k+1);
+         pd->SetCycle(k + 1);
+         pd->SetTime(k + 1);
          pd->Save();
       }
 
@@ -435,32 +474,68 @@ int main(int argc, char *argv[])
       stationarityError = density.StationarityErrorL2(grad);
       stationarityError_bregman = density.StationarityError(grad);
 
-      logger.Print();
-      relative_stationarity = stationarityError/stationarityError0;
-      relative_stationarity_bregman =
-         stationarityError_bregman/stationarityError_bregman0;
+      {
+         der_sig_form.Assemble();
+         const double der_sig_val = der_sig_form(one_gf);
+         double der_mu = 0.0;
+         if (der_sig_val > 1e-09)
+         {
+            der_mu = der_sig_form(grad) / der_sig_val;
+         }
+         tmp_rho_gf = psi;
+         tmp_rho_gf.ApplyMap(sigmoid);
+         for (int i = 0; i < tmp_gf.Size(); i++)
+         {
+           double diffval = -grad[i] + der_mu;
+           double rho_diffval = tmp_rho_gf[i] * diffval;
+           tmp_gf[i] = std::min(std::min(rho_diffval, rho_diffval - diffval), 0.0);
+         }
+         MPI_Barrier(pmesh->GetComm());
+         KKT = tmp_gf.ComputeLpError(2, zero_cf);
+      }
 
-      if ((use_bregman ? relative_stationarity_bregman : relative_stationarity) <
-          tol_stationarity &&
-          std::fabs((old_compliance - compliance)/compliance) < tol_compliance)
+      relative_stationarity = stationarityError / stationarityError0;
+      relative_stationarity_bregman =
+         stationarityError_bregman / stationarityError_bregman0;
+      logger.Print();
+
+      // if ((use_bregman ? relative_stationarity_bregman : relative_stationarity)
+      // <
+      //     tol_stationarity &&
+      //     std::fabs((old_compliance - compliance)/compliance) < tol_compliance)
+      // {
+      //    converged = true;
+      //    if (Mpi::Root()) { mfem::out << "Total number of iteration = " << k +
+      //    1 << std::endl; } break;
+      // }
+      if (KKT < 1e-04)
       {
          converged = true;
-         if (Mpi::Root()) { mfem::out << "Total number of iteration = " << k + 1 << std::endl; }
+         if (Mpi::Root())
+         {
+            mfem::out << "Total number of iteration = " << k + 1 << std::endl;
+         }
          break;
       }
    }
    if (!converged)
    {
-      if (Mpi::Root()) { mfem::out << "Total number of iteration = " << max_it << std::endl; }
-      if (Mpi::Root()) { mfem::out << "Maximum iteration reached." << std::endl; }
+      if (Mpi::Root())
+      {
+         mfem::out << "Total number of iteration = " << max_it << std::endl;
+      }
+      if (Mpi::Root())
+      {
+         mfem::out << "Maximum iteration reached." << std::endl;
+      }
    }
    if (save)
    {
       ostringstream solfile, solfile2;
-      solfile << filename_prefix.str() << "-" << seq_ref_levels << "-" <<
-              par_ref_levels << "-0." << setfill('0') << setw(6) << myid;
-      solfile2 << filename_prefix.str() << "-" << seq_ref_levels << "-" <<
-               par_ref_levels << "-f." << setfill('0') << setw(6) << myid;
+      solfile << filename_prefix.str() << "-" << seq_ref_levels << "-"
+              << par_ref_levels << "-0." << setfill('0') << setw(6) << myid;
+      solfile2 << filename_prefix.str() << "-" << seq_ref_levels << "-"
+               << par_ref_levels << "-f." << setfill('0') << setw(6) << myid;
       ofstream sol_ofs(solfile.str().c_str());
       sol_ofs.precision(8);
       sol_ofs << psi;

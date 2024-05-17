@@ -1213,25 +1213,25 @@ HelmholtzFilter::HelmholtzFilter(FiniteElementSpace &fes,
 }
 
 void HelmholtzFilter::Apply(Coefficient &rho, GridFunction &frho,
-                            bool apply_bdr)
+                            bool apply_material_bdr)
 {
    MFEM_ASSERT(frho.FESpace() != filter->FESpace(),
                "Filter is initialized with finite element space different from the given filtered density.");
    rhoform->GetDLFI()->DeleteAll();
    rhoform->AddDomainIntegrator(new DomainLFIntegrator(rho));
+
    ConstantCoefficient zero_cf(0.0);
    frho.ProjectBdrCoefficient(zero_cf, void_bdr);
-   if (apply_bdr)
+   if (apply_material_bdr)
    {
       ConstantCoefficient one_cf(1.0);
       frho.ProjectBdrCoefficient(one_cf, material_bdr);
    }
    else
    {
-      ConstantCoefficient one_cf(1.0);
-      SumCoefficient mismatch(rho, one_cf, 1.0, -1.0);
-      frho.ProjectBdrCoefficient(mismatch, material_bdr);
+      frho.ProjectBdrCoefficient(zero_cf, material_bdr);
    }
+
    EllipticSolver solver(*filter, *rhoform, ess_bdr);
    solver.SetIterativeMode();
    bool converged = solver.Solve(frho, true, false);

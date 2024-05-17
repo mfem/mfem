@@ -215,6 +215,8 @@ void CantileverPreRefine(double &filter_radius, double &vol_fraction,
    ess_bdr_filter.SetSize(4);
    ess_bdr = 0; ess_bdr_filter = 0;
    ess_bdr(0, 3) = 1;
+   ess_bdr_filter[0] = -1;
+   ess_bdr_filter[2] = -1;
    const Vector center({2.9, 0.5});
    vforce_cf.reset(new VectorFunctionCoefficient(2, [center](const Vector &x,
                                                              Vector &f)
@@ -270,7 +272,6 @@ void BridgePreRefine(double &filter_radius, double &vol_fraction,
    ess_bdr = 0; ess_bdr_filter = 0;
    ess_bdr(1, 3) = 1; // left : y-roller -> x fixed
    ess_bdr(0, 4) = 1; // right-bottom : pin support
-   ess_bdr_filter[2] = 1;
    vforce_cf.reset(new VectorFunctionCoefficient(2, [](const Vector &x,
                                                        Vector &f)
    {
@@ -285,6 +286,8 @@ void BridgePostRefine(int ser_ref_levels, int par_ref_levels,
                        ser_ref_levels + (par_ref_levels < 0 ? 0 : par_ref_levels));
    mesh->MarkBoundary([h](const Vector &x) {return ((x(0) > (2.0 - h)) && (x(1) < 1e-10)); },
    5);
+   // mesh->MarkBoundary([h](const Vector &x) {return ((x(0) > (2.0 - 1e-10)) && (x(1) > 1 - h)); },
+   // 5);
    mesh->SetAttributes();
 }
 
@@ -315,7 +318,7 @@ void Cantilever3PreRefine(double &filter_radius, double &vol_fraction,
                           std::unique_ptr<Mesh> &mesh, Array2D<int> &ess_bdr, Array<int> &ess_bdr_filter,
                           std::unique_ptr<VectorCoefficient> &vforce_cf)
 {
-   if (filter_radius < 0) { filter_radius = 5e-02; }
+   if (filter_radius < 0) { filter_radius = 1e-02; }
    if (vol_fraction < 0) { vol_fraction = 0.12; }
    // 1: bottom,
    // 2: front,
@@ -424,7 +427,7 @@ void Arch2PreRefine(double &filter_radius, double &vol_fraction,
 {
 
    if (filter_radius < 0) { filter_radius = 5e-02; }
-   if (vol_fraction < 0) { vol_fraction = 0.1; }
+   if (vol_fraction < 0) { vol_fraction = 0.3; }
 
    *mesh = Mesh::MakeCartesian2D(1, 1, mfem::Element::Type::QUADRILATERAL, true,
                                  1.0,
@@ -440,7 +443,7 @@ void Arch2PreRefine(double &filter_radius, double &vol_fraction,
 void Arch2PostRefine(int ser_ref_levels, int par_ref_levels,
                      std::unique_ptr<Mesh> &mesh)
 {
-   mesh->MarkBoundary([](const Vector &x) {return ((x(0) > (1 - std::pow(2, -5))) && (x(1) < 1e-10)); },
+   mesh->MarkBoundary([](const Vector &x) {return ((x(0) > (1 - std::pow(2, -6))) && (x(1) < 1e-10)); },
    5);
    mesh->SetAttributes();
 }
