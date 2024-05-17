@@ -447,12 +447,11 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       }
    }
 
-
    if (surf_fit_adapt_count >= surf_fit_adapt_count_limit)
    {
       if (print_options.iterations)
       {
-         mfem::out << "TMOPNewtonSolver converged "
+         mfem::out << "TMOPNewtonSolver terminated "
                    "based on max number of times surface fitting weight can"
                    "be increased. \n";
       }
