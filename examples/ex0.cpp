@@ -77,7 +77,7 @@ int main(int argc, char *argv[])
    x.Save("sol.gf");
    mesh.Save("mesh.mesh");
 
-   std::cout << "Let's see if this works";
+   std::cout << "Let's see if this works \n";
 
    return 0;
 }
