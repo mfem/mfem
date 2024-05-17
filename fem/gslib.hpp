@@ -30,7 +30,9 @@ namespace mfem
 {
 
 /** \brief FindPointsGSLIB can robustly evaluate a GridFunction on an arbitrary
- *  collection of points. There are three key functions in FindPointsGSLIB:
+ *  collection of points.
+ *
+ *  There are three key functions in FindPointsGSLIB:
  *
  *  1. Setup - constructs the internal data structures of gslib. See \ref Setup.
  *
@@ -272,6 +274,7 @@ public:
 
 /** \brief OversetFindPointsGSLIB enables use of findpts for arbitrary number of
     overlapping grids.
+
     The parameters in this class are the same as FindPointsGSLIB with the
     difference of additional inputs required to account for more than 1 mesh. */
 class OversetFindPointsGSLIB : public FindPointsGSLIB
@@ -334,6 +337,63 @@ public:
                     const GridFunction &field_in, Vector &field_out,
                     int point_pos_ordering = Ordering::byNODES);
    using FindPointsGSLIB::Interpolate;
+};
+
+/** \brief  Class for gather-scatter (gs) operations on Vectors based on
+    corresponding global identifiers.
+
+    This functionality is useful for gs-ops on DOF values across processor
+    boundary, where the global identifier would be the corresponding true DOF
+    index. Operations currently supported are min, max, sum, and multiplication.
+    Note: identifier 0 does not participate in the gather-scatter operation and
+    a given identifier can be included multiple times on a given rank.
+    For example, consider a vector, v:
+    - v = [0.3, 0.4, 0.25, 0.7] on rank1,
+    - v = [0.6, 0.1] on rank 2,
+    - v = [-0.2, 0.3, 0.7, 0.] on rank 3.
+
+    Consider a corresponding Array<int>, a:
+    - a = [1, 2, 3, 1] on rank 1,
+    - a = [3, 2] on rank 2,
+    - a = [1, 2, 0, 3] on rank 3.
+
+    A gather-scatter "minimum" operation, done as follows:
+    GSOPGSLIB gs = GSOPGSLIB(MPI_COMM_WORLD, a);
+    gs.GS(v, GSOp::MIN);
+    would return into v:
+    - v = [-0.2, 0.1, 0., -0.2] on rank 1,
+    - v = [0., 0.1] on rank 2,
+    - v = [-0.2, 0.1, 0.7, 0.] on rank 3,
+    where the values have been compared across all processors based on the
+    integer identifier. */
+class GSOPGSLIB
+{
+protected:
+   struct gslib::crystal *cr;               // gslib's internal data
+   struct gslib::comm *gsl_comm;            // gslib's internal data
+   struct gslib::gs_data *gsl_data = NULL;
+   int num_ids;
+
+public:
+   GSOPGSLIB(Array<long long> &ids);
+
+#ifdef MFEM_USE_MPI
+   GSOPGSLIB(MPI_Comm comm_, Array<long long> &ids);
+#endif
+
+   virtual ~GSOPGSLIB();
+
+   /// Supported operation types. See class description.
+   enum GSOp {ADD, MUL, MIN, MAX};
+
+   /// Update the identifiers used for the gather-scatter operator.
+   /// Same @a ids get grouped together and id == 0 does not participate.
+   /// See class description.
+   void UpdateIdentifiers(const Array<long long> &ids);
+
+   /// Gather-Scatter operation on senddata. Must match length of unique
+   /// identifiers used in the constructor. See class description.
+   void GS(Vector &senddata, GSOp op);
 };
 
 } // namespace mfem
