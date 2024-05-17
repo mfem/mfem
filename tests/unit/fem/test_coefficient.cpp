@@ -330,5 +330,4 @@ TEST_CASE("Symmetric Matrix Coefficient", "[Coefficient]")
 
    // Require equality
    REQUIRE(qf.DistanceTo(values) == MFEM_Approx(0.0));
-
 }
