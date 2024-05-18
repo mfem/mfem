@@ -100,6 +100,7 @@ TEST_CASE("CalcDivShape RT",
           "[RT_QuadrilateralElement]"
           "[RT_TetrahedronElement]"
           "[RT_WedgeElement]"
+          "[RT_PyramidElement]"
           "[RT_HexahedronElement]")
 {
    const int maxOrder = 5;
@@ -142,6 +143,23 @@ TEST_CASE("CalcDivShape RT",
 
       RT_WedgeElement fe(order - 1);
       TestCalcDivShape(&fe, &T, resolution);
+   }
+
+   SECTION("RT_PyramidElement")
+   {
+      IsoparametricTransformation T;
+      GetReferenceTransformation(Element::PYRAMID, T);
+
+      if (order == 1)
+      {
+         RT0PyrFiniteElement fe;
+         TestCalcDivShape(&fe, &T, resolution);
+      }
+      else if (order == 2)
+      {
+         RT1PyrFiniteElement fe;
+         TestCalcDivShape(&fe, &T, resolution);
+      }
    }
 
    SECTION("RT_HexahedronElement")

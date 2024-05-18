@@ -1179,6 +1179,66 @@ public:
 };
 
 
+/// A 3D 1st order Raviert-Thomas element on a pyramid
+class RT1PyrFiniteElement : public VectorFiniteElement
+{
+private:
+   static const double nk[15];
+
+#ifndef MFEM_THREAD_SAFE
+   mutable DenseMatrix u;
+   mutable Vector      divu;
+#endif
+   Array<int> dof2nk;
+   DenseMatrixInverse Ti;
+
+   void calcBasis(const IntegrationPoint &ip,
+                  DenseMatrix &F) const;
+
+   void calcDivBasis(const IntegrationPoint &ip,
+                     Vector &dF) const;
+
+public:
+   /// Construct the RT0PyrFiniteElement
+   RT1PyrFiniteElement();
+
+   virtual void CalcVShape(const IntegrationPoint &ip,
+                           DenseMatrix &shape) const;
+
+   virtual void CalcVShape(ElementTransformation &Trans,
+                           DenseMatrix &shape) const
+   { CalcVShape_RT(Trans, shape); }
+
+   virtual void CalcDivShape(const IntegrationPoint &ip,
+                             Vector &divshape) const;
+
+   virtual void GetLocalInterpolation(ElementTransformation &Trans,
+                                      DenseMatrix &I) const
+   { LocalInterpolation_RT(*this, nk, dof2nk, Trans, I); }
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const
+   { LocalRestriction_RT(nk, dof2nk, Trans, R); }
+   virtual void GetTransferMatrix(const FiniteElement &fe,
+                                  ElementTransformation &Trans,
+                                  DenseMatrix &I) const
+   { LocalInterpolation_RT(CheckVectorFE(fe), nk, dof2nk, Trans, I); }
+   using FiniteElement::Project;
+   virtual void Project(VectorCoefficient &vc,
+                        ElementTransformation &Trans, Vector &dofs) const
+   { Project_RT(nk, dof2nk, vc, Trans, dofs); }
+   virtual void ProjectMatrixCoefficient(
+      MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
+   { ProjectMatrixCoefficient_RT(nk, dof2nk, mc, T, dofs); }
+   virtual void Project(const FiniteElement &fe, ElementTransformation &Trans,
+                        DenseMatrix &I) const
+   { Project_RT(nk, dof2nk, fe, Trans, I); }
+   virtual void ProjectCurl(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &curl) const
+   { ProjectCurl_RT(nk, dof2nk, fe, Trans, curl); }
+};
+
+
 class RotTriLinearHexFiniteElement : public NodalFiniteElement
 {
 public:

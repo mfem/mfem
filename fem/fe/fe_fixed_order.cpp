@@ -6171,6 +6171,308 @@ void RT0PyrFiniteElement::ProjectCurl(const FiniteElement &fe,
    }
 }
 
+const double RT1PyrFiniteElement::nk[15] =
+{0,0,-1, 0,-1,0, 1,0,1, 0,1,1, -1,0,0};
+
+RT1PyrFiniteElement::RT1PyrFiniteElement()
+   : VectorFiniteElement(3, Geometry::PYRAMID, 28, 2, H_DIV)
+{
+   const int p = order - 1;
+
+   const double *iop = poly1d.OpenPoints(p);
+   const double *icp = poly1d.ClosedPoints(p + 1);
+   const double *bop = poly1d.OpenPoints(p);
+
+#ifndef MFEM_THREAD_SAFE
+   u.SetSize(dof, dim);
+   divu.SetSize(dof);
+#else
+   DenseMatrix u(dof, dim);
+#endif
+
+   int o = 0;
+   // quadrilateral face
+   for (int j = 0; j <= p; j++)
+      for (int i = 0; i <= p; i++)  // (3,2,1,0)
+      {
+         Nodes.IntPoint(o).Set3(bop[i], bop[p-j], 0.);
+         dof2nk[o++] = 0;
+      }
+   // triangular faces
+   for (int j = 0; j <= p; j++)
+      for (int i = 0; i + j <= p; i++)  // (0,1,4)
+      {
+         double w = bop[i] + bop[j] + bop[p-i-j];
+         Nodes.IntPoint(o).Set3(bop[i]/w, 0., bop[j]/w);
+         dof2nk[o++] = 1;
+      }
+   for (int j = 0; j <= p; j++)
+      for (int i = 0; i + j <= p; i++)  // (1,2,4)
+      {
+         double w = bop[i] + bop[j] + bop[p-i-j];
+         Nodes.IntPoint(o).Set3(1.-bop[j]/w, bop[i]/w, bop[j]/w);
+         dof2nk[o++] = 2;
+      }
+   for (int j = 0; j <= p; j++)
+      for (int i = p - j; i >= 0; i--)  // (2,3,4)
+      {
+         double w = bop[i] + bop[j] + bop[p-i-j];
+         Nodes.IntPoint(o).Set3(bop[i]/w, 1.0-bop[j]/w, bop[j]/w);
+         dof2nk[o++] = 3;
+      }
+   for (int j = 0; j <= p; j++)
+      for (int i = p - j; i >= 0; i--)  // (3,0,4)
+      {
+         double w = bop[i] + bop[j] + bop[p-i-j];
+         Nodes.IntPoint(o).Set3(0., bop[i]/w, bop[j]/w);
+         dof2nk[o++] = 4;
+      }
+
+   // interior
+   // x-components
+   for (int k = 0; k <= p; k++)
+      for (int j = 0; j <= p; j++)
+         for (int i = 1; i <= p; i++)
+         {
+            double w = 1.0 - iop[k];
+            Nodes.IntPoint(o).Set3(icp[i]*w, iop[j]*w, iop[k]);
+            dof2nk[o++] = 4;
+         }
+   // y-components
+   for (int k = 0; k <= p; k++)
+      for (int j = 1; j <= p; j++)
+         for (int i = 0; i <= p; i++)
+         {
+            double w = 1.0 - iop[k];
+            Nodes.IntPoint(o).Set3(iop[i]*w, icp[j]*w, iop[k]);
+            dof2nk[o++] = 1;
+         }
+   // z-components
+   for (int k = 1; k <= p; k++)
+      for (int j = 0; j <= p; j++)
+         for (int i = 0; i <= p; i++)
+         {
+            double w = 1.0 - icp[k];
+            Nodes.IntPoint(o).Set3(iop[i]*w, iop[j]*w, icp[k]);
+            dof2nk[o++] = 0;
+         }
+
+   DenseMatrix T(dof);
+
+   for (int m = 0; m < dof; m++)
+   {
+      const IntegrationPoint &ip = Nodes.IntPoint(m);
+      const Vector nm({nk[3*dof2nk[m]], nk[3*dof2nk[m]+1], nk[3*dof2nk[m]+2]});
+      calcBasis(ip, u);
+      u.Mult(nm, T.GetColumn(m));
+   }
+
+   Ti.Factor(T);
+}
+
+void RT1PyrFiniteElement::CalcVShape(const IntegrationPoint &ip,
+                                     DenseMatrix &shape) const
+{
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix u(dof, dim);
+#endif
+
+   calcBasis(ip, u);
+
+   Ti.Mult(u, shape);
+}
+
+void RT1PyrFiniteElement::CalcDivShape(const IntegrationPoint &ip,
+                                       Vector &divshape) const
+{
+#ifdef MFEM_THREAD_SAFE
+   Vector divu(dof);
+#endif
+
+   calcDivBasis(ip, divu);
+
+   Ti.Mult(divu, divshape);
+}
+
+void RT1PyrFiniteElement::calcBasis(const IntegrationPoint &ip,
+                                    DenseMatrix &F) const
+{
+   const double x = ip.x;
+   const double y = ip.y;
+   const double z = ip.z, oz = 1.0 - z;
+   const double x2 = 2.0*ip.x, y2 = 2.0*ip.y, z2 = 2.0*ip.z;
+
+   const double tol = 1e-6;
+
+   F = 0.0;
+
+   if (oz <= tol)
+   {
+      // At the apex the basis functions are not single valued. The following
+      // values are computed in the limit x->(1-z)/2, y->(1-z)/2, z->1.
+      F( 4, 0) = -0.25; F( 4, 1) = -0.75; F( 4, 2) =  0.5;
+      F( 6, 0) = -0.5;  F( 6, 1) = -1.5;  F( 6, 2) =  1.0;
+      F( 7, 0) =  0.25; F( 7, 1) = -0.25; F( 7, 2) = -0.5;
+      F( 9, 0) =  0.5;  F( 9, 1) = -0.5;  F( 9, 2) = -1.0;
+      F(10, 0) =  0.75; F(10, 1) =  0.25; F(10, 2) = -0.5;
+      F(12, 0) =  1.5;  F(12, 1) =  0.5;  F(12, 2) = -1.0;
+      F(13, 0) =  0.25; F(13, 1) = -0.25; F(13, 2) =  0.5;
+      F(15, 0) =  0.5;  F(15, 1) = -0.5;  F(15, 2) =  1.0;
+      F(16, 0) =  0.0;  F(16, 1) = -0.5;  F(16, 2) =  0.0;
+      F(18, 0) =  0.5;  F(18, 1) =  0.0;  F(18, 2) =  0.0;
+      F(26, 0) = -0.5;  F(26, 1) =  0.0;  F(26, 2) =  0.0;
+      F(27, 0) =  0.0;  F(27, 1) =  0.5;  F(27, 2) =  0.0;
+   }
+   else
+   {
+      const double ozi = 1.0 / oz;
+
+      F( 0, 0) = -x;
+      F( 0, 1) = -y;
+      F( 0, 2) =  oz;
+
+      F( 1, 0) =  x * (oz - x2) * ozi;
+      F( 1, 1) =  y * (oz - x2) * ozi;
+      F( 1, 2) =  x2 - oz;
+
+
+      F( 2, 0) =  x * (oz - y2) * ozi;
+      F( 2, 1) =  y * (oz - y2) * ozi;
+      F( 2, 2) =  y2 - oz;
+
+      F( 3, 0) = -x * (x2 - oz) * ozi * (y2 - oz) * ozi;
+      F( 3, 1) = -y * (x2 - oz) * ozi * (y2 - oz) * ozi;
+      F( 3, 2) = (x2 - oz) * (y2 - oz) * ozi;
+
+      F( 4, 0) = -0.5 * x * z * ozi;
+      F( 4, 1) = -0.5 * (oz * (2.0 - y) - y) * ozi;
+      F( 4, 2) =  0.5 * z;
+
+      F( 5, 0) =  0.5 * x * z * (x2 - oz) * ozi * (y - oz) * ozi;
+      F( 5, 1) =  0.5 * (2.0 - y) * (x2 - oz) * (y - oz) * ozi;
+      F( 5, 2) = -0.5 * z * (x2 - oz) * (y - oz) * ozi;
+
+      F( 6, 0) = -0.5 * x * z * (2.0 - 3.0 * oz + y) * ozi;
+      F( 6, 1) = -(oz * ((3.0 * oz - y) * (0.5 * y - 1.0) + 2.0) - y) * ozi;
+      F( 6, 2) =  0.5 * z * (2.0 - 3.0 * oz + y);
+
+      F( 7, 0) =  0.5 * x * z * ozi;
+      F( 7, 1) = -0.5 * y * (2.0 - z) * ozi;
+      F( 7, 2) = -0.5 * z;
+
+      F( 8, 0) =  0.5 * x * y * z * (x2 - oz) * ozi * ozi;
+      F( 8, 1) = -0.5 * y * (1.0 + y) * (x2 - oz) * ozi;
+      F( 8, 2) = -0.5 * y * z * (x2 - oz) * ozi;
+
+      F( 9, 0) = -0.5 * x * z * (y - z2) * ozi;
+      F( 9, 1) =  0.5 * y * (oz * (2.0 * oz + y + 1.0) - 2.0) * ozi;
+      F( 9, 2) =  0.5 * z * (y - z2);
+
+      F(10, 0) = -0.5 * (oz * (x - 2.0) + x) * ozi;
+      F(10, 1) =  0.5 * y * z * ozi;
+      F(10, 2) = -0.5 * z;
+
+      F(11, 0) = -0.5 * (2.0 - x) * (x - oz) * (y2 - oz) * ozi;
+      F(11, 1) = -0.5 * y * z * (x - oz) * ozi * (y2 - oz) * ozi;
+      F(11, 2) =  0.5 * z * (x - oz) * (y2 - oz) * ozi;
+
+      F(12, 0) =  0.5 * (oz * ((3.0 * oz - x) * (x - 2.0) + 4.0) - x2) * ozi;
+      F(12, 1) = -0.5 * y * z * (3.0 * oz - x - 2.0) * ozi;
+      F(12, 2) =  0.5 * z * (3.0 * oz - x - 2.0);
+
+      F(13, 0) =  0.5 * x * (1.0 + oz) * ozi;
+      F(13, 1) = -0.5 * y * z * ozi;
+      F(13, 2) =  0.5 * z;
+
+      /*
+      F(14, 0) = {-((x (1 + x) (-1 + 2 y + z))/(2 (-1 + z))), -((x y z (-1 + 2 y + z))/(2 (-1 + z)^2)), -((x z (-1 + 2 y + z))/(2 (-1 + z)))};
+
+      F(15, 0) = {(x (1 + x - (5 + x) z + 2 z^2))/(2 (-1 + z)), (y z (-x + 2 z))/(2 (-1 + z)), -((x z)/2) + z^2};
+
+      F(16, 0) = {-((x z (-1 + 2 y + z))/(-1 + z)^2), (y (-1 + y + 2 z))/(-1 + z), -((z (-1 + 2 y + z))/(-1 + z))};
+
+      F(17, 0) = {(x z (-1 + 2 x + z) (-1 + 2 y + z))/(-1 + z)^3, -((y (-1 + 2 x + z) (-1 + y + 2 z))/(-1 + z)^2), (z (-1 + 2 x + z) (-1 + 2 y + z))/(-1 + z)^2};
+
+      F(18, 0) = {-((x (-1 + x + 2 z))/(-1 + z)), (y z (-1 + 2 x + z))/(-1 + z)^2, (z (-1 + 2 x + z))/(-1 + z)};
+
+      F(19, 0) = {(x (-1 + 2 y + z) (-1 + x + 2 z))/(-1 + z)^2, -((y z (-1 + 2 x + z) (-1 + 2 y + z))/(-1 + z)^3), -((z (-1 + 2 x + z) (-1 + 2 y + z))/(-1 + z)^2)};
+
+      F(20, 0) = {(2 x (-1 + x + z) (-1 + 2 y + z))/(-1 + z)^3, -((2 y (-1 + 2 x + z) (-1 + y + z))/(-1 + z)^3), 0};
+
+      F(21, 0) = {x z, y z, (-1 + z) z};
+
+      F(22, 0) = {-((x z (-1 + 2 x + z))/(-1 + z)), -((y z (-1 + 2 x + z))/(-1 + z)), -z (-1 + 2 x + z)};
+
+      F(23, 0) = {-((x z (-1 + 2 y + z))/(-1 + z)), -((y z (-1 + 2 y + z))/(-1 + z)), -z (-1 + 2 y + z)};
+
+      F(24, 0) = {(x z (-1 + 2 x + z) (-1 + 2 y + z))/(-1 + z)^2, (y z (-1 + 2 x + z) (-1 + 2 y + z))/(-1 + z)^2, (z (-1 + 2 x + z) (-1 + 2 y + z))/(-1 + z)};
+
+      F(25, 0) = {(x^2 z (-1 + 2 y + z))/(-1 + z)^3, (y^2 z (-1 + 2 x + z))/(-1 + z)^3, (z (-1 + 2 x + z) (-1 + 2 y + z))/(-1 + z)^2};
+
+      F(26, 0) = {(x z)/(-1 + z), -((y z (-1 + 2 x + z))/(-1 + z)^2), (-1 - (2 x)/(-1 + z)) z};
+
+      F(27, 0) = {(x z (-1 + 2 y + z))/(-1 + z)^2, (y z)/(1 - z), (z (-1 + 2 y + z))/(-1 + z)};
+      */
+   }
+}
+
+void RT1PyrFiniteElement::calcDivBasis(const IntegrationPoint &ip,
+                                       Vector &dF) const
+{
+   const double x = ip.x;
+   const double y = ip.y;
+   const double z = ip.z, oz = 1.0 - z;
+   const double x2 = 2.0*ip.x, y2 = 2.0*ip.y;
+
+   const double tol = 1e-6;
+
+   dF = 0.0;
+
+   if (oz <= tol)
+   {
+      // At the apex the divergence is not single valued. The following values
+      // are computed in the limit x->(1-z)/2, y->(1-z)/2, z->1.
+      dF( 0) = -3.0;
+      dF( 4) =  1.5;
+      dF( 6) =  3.75;
+      dF( 7) = -1.5;
+      dF( 9) = -3.75;
+      dF(10) = -1.5;
+      dF(12) = -3.75;
+      dF(13) =  1.5;
+      dF(15) =  3.75;
+      dF(21) =  3.0;
+   }
+   else
+   {
+      const double ozi = 1.0 / oz;
+
+      dF( 0) = -3.0;
+      dF( 1) =  3.0 * (oz - x2) * ozi;
+      dF( 2) =  3.0 * (oz - y2) * ozi;
+      dF( 3) = -3.0 * (oz - x2) * ozi * (oz - y2) * ozi;
+      dF( 4) =  1.5;
+      dF( 5) =  0.5 * (oz - x2) * ozi * (4.0 * oz * (y - oz) - y) * ozi;
+      dF( 6) =  0.5 * (4.0 * oz * (2.0 - 3.0 * oz + y) - y) * ozi;
+      dF( 7) = -1.5;
+      dF( 8) =  0.5 * (oz - x2) * ozi * (oz * (1.0 + 4.0 * y) - y) * ozi;
+      dF( 9) =  0.5 * (oz * (8.0 * oz + 4.0 * y - 7.0) - y) * ozi;
+      dF(10) = -1.5;
+      dF(11) =  0.5 * (4.0 * oz * (oz - x) + x) * ozi * (oz - y2) * ozi;
+      dF(12) =  0.5 * (4.0 * oz * (3.0 * oz - x - 2.0) + x) * ozi;
+      dF(13) =  1.5;
+      dF(14) = -0.5 * (oz * (1.0 + 4.0 * x) - x) * ozi * (oz - y2) * ozi;
+      dF(15) = -0.5 * (oz * (8.0 * oz + 4.0 * x - 7.0) - x) * ozi;
+      dF(21) = -(1.0 - 4.0 * z);
+      dF(22) =  (1.0 - 4.0 * z) * (oz - x2) * ozi;
+      dF(23) =  (1.0 - 4.0 * z) * (oz - y2) * ozi;
+      dF(24) = -(1.0 - 4.0 * z) * (oz - x2) * ozi * (oz - y2) * ozi;
+      dF(25) =  (oz - x2) * ozi * (oz - y2) * ozi;
+      dF(26) = -(oz - x2) * ozi;
+      dF(27) =  (oz - y2) * ozi;
+   }
+}
+
 RotTriLinearHexFiniteElement::RotTriLinearHexFiniteElement()
    : NodalFiniteElement(3, Geometry::CUBE, 6, 2, FunctionSpace::Qk)
 {
