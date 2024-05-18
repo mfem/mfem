@@ -1168,14 +1168,14 @@ protected:
 
 public:
    /** @brief Construct the coefficient with the vector grid function @a gf and set
-       the m x n matrix dimensions that the vector grid function will be used to 
-       interpret the long vector as a matrix in column major order.  The vector 
+       the m x n matrix dimensions that the vector grid function will be used to
+       interpret the long vector as a matrix in column major order.  The vector
        dimension of @a gf must equate to the product of m and n.*/
    MatrixGridFunctionCoefficient(const GridFunction *gf, int h, int w);
 
    /** @brief Set the vector grid function for this coefficient to @a gf and set
-       the m x n matrix dimensions that the vector grid function will be used to 
-       interpret the long vector as a matrix in column major order.  The vector 
+       the m x n matrix dimensions that the vector grid function will be used to
+       interpret the long vector as a matrix in column major order.  The vector
        dimension of @a gf must equate to the product of m and n.*/
    void SetGridFunction(const GridFunction *gf, int h, int w);
 

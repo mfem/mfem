@@ -6122,7 +6122,7 @@ Table *Mesh::GetFaceToVertexTable() const
    }
 
    face_to_vertex->ShiftUpI();
-   face_to_vertex->Finalize();   
+   face_to_vertex->Finalize();
 
    return face_to_vertex;
 }
@@ -6267,7 +6267,7 @@ void Mesh::FacesWithVert(Array<int> &faces_, int vi)
    vertex_to_face->GetRow(vi, faces_);
 }
 
-void Mesh::EdgesWithVert(Array<int> &edges, int vi) 
+void Mesh::EdgesWithVert(Array<int> &edges, int vi)
 {
    if (!vertex_to_edge) {GetVertexToEdgeTable();}
    vertex_to_edge->GetRow(vi, edges);
@@ -6315,7 +6315,7 @@ void Mesh::ElemsWithAllVerts(Array<int> &elems, const Array<int> &verts)
       {
          elems[num_elems] = *ei;
          num_elems ++;
-      }      
+      }
    }
    elems.SetSize(num_elems);
 }
@@ -6361,7 +6361,7 @@ void Mesh::FacesWithAllVerts(Array<int> &faces_, const Array<int> &verts)
       {
          faces_[num_faces] = *fi;
          num_faces ++;
-      }      
+      }
    }
    faces_.SetSize(num_faces);
 }
@@ -6407,7 +6407,7 @@ void Mesh::EdgesWithAllVerts(Array<int> &edges, const Array<int> &verts)
       {
          edges[num_edges] = *ei;
          num_edges ++;
-      }      
+      }
    }
    edges.SetSize(num_edges);
 }

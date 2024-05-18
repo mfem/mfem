@@ -676,23 +676,25 @@ MatrixGridFunctionCoefficient::MatrixGridFunctionCoefficient(
    if (gf)
    {
       MFEM_ASSERT(gf->VectorDim() == h*w, "GridFunction vector dimension"
-         "must equate to the number of matrix entries (h*w)");
+                  "must equate to the number of matrix entries (h*w)");
    }
 }
 
-void MatrixGridFunctionCoefficient::SetGridFunction(const GridFunction *gf, int h, int w)
+void MatrixGridFunctionCoefficient::SetGridFunction(const GridFunction *gf,
+                                                    int h, int w)
 {
-   GridFunc = gf; 
+   GridFunc = gf;
    height = h;
    width = w;
-   if(gf)
+   if (gf)
    {
       MFEM_ASSERT(gf->VectorDim() == h*w, "GridFunction vector dimension"
-         "must equate to the number of matrix entries (h*w)");
+                  "must equate to the number of matrix entries (h*w)");
    }
 }
 
-void MatrixGridFunctionCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
+void MatrixGridFunctionCoefficient::Eval(DenseMatrix &K,
+                                         ElementTransformation &T,
                                          const IntegrationPoint &ip)
 {
    Vector V;

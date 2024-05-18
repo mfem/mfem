@@ -21,7 +21,7 @@ using namespace std;
 namespace mfem
 {
 
-namespace electromagnetics 
+namespace electromagnetics
 {
 
 

@@ -1491,7 +1491,7 @@ public:
 
    const Table &ElementToEdgeTable() const;
 
-   /// Returns the vertex-to-element Table 
+   /// Returns the vertex-to-element Table
    Table *GetVertexToElementTable() const;
 
    /// Returns the vertex-to-edge Table (3D)
@@ -1501,7 +1501,7 @@ public:
    Table *GetVertexToFaceTable() const;
 
    /// Returns the face_to_vertex Table (3D)
-   Table *GetFaceToVertexTable() const;   
+   Table *GetFaceToVertexTable() const;
 
    /** Return the "face"-element Table. Here "face" refers to face (3D),
        edge (2D), or vertex (1D).

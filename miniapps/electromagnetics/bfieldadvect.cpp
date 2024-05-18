@@ -6,7 +6,8 @@ using namespace mfem;
 using namespace mfem::electromagnetics;
 
 void BFieldFunc(const Vector &, Vector&);
-void PeturbBoxMesh(Mesh *mesh, double xlen, double ylen, double zlen, double window);
+void PeturbBoxMesh(Mesh *mesh, double xlen, double ylen, double zlen,
+                   double window);
 
 int main(int argc, char *argv[])
 {
@@ -58,11 +59,15 @@ int main(int argc, char *argv[])
    test_mesh->GeneralRefinement(ref, 1);
    double sum = 0.0;
    for (int i = 0; i < 10; ++i)
+   {
       sum += test_mesh->GetElementVolume(i);
+   }
    std::cout << sum << std::endl;
    Array<double> elem_error(10);
    for (int i = 0; i < 10; ++i)
+   {
       elem_error[i] = 0.0;
+   }
    test_mesh->DerefineByError(elem_error, 1.0);
    std::cout << test_mesh->GetElementVolume(0) << std::endl;
 
@@ -103,8 +108,10 @@ int main(int argc, char *argv[])
    }
 
    //Set up the pre and post advection fields on the relevant meshes/spaces
-   RT_ParFESpace *HDivFESpaceOld  = new RT_ParFESpace(&pmesh_old,order,pmesh_old.Dimension());
-   RT_ParFESpace *HDivFESpaceNew  = new RT_ParFESpace(&pmesh_new,order,pmesh_new.Dimension());
+   RT_ParFESpace *HDivFESpaceOld  = new RT_ParFESpace(&pmesh_old,order,
+                                                      pmesh_old.Dimension());
+   RT_ParFESpace *HDivFESpaceNew  = new RT_ParFESpace(&pmesh_new,order,
+                                                      pmesh_new.Dimension());
    ParGridFunction *b = new ParGridFunction(HDivFESpaceOld);
    ParGridFunction *b_new = new ParGridFunction(HDivFESpaceNew);
    ParGridFunction *b_new_exact = new ParGridFunction(HDivFESpaceNew);
@@ -126,11 +133,13 @@ int main(int argc, char *argv[])
 
    Vector diff_b(*b_new_exact);
    diff_b -= *b_new;    //diff = b_new_exact - b_new
-   std::cout << "Vector diff in B field on the new mesh:  " << diff_b.Normlinf() << std::endl;
+   std::cout << "Vector diff in B field on the new mesh:  " << diff_b.Normlinf() <<
+             std::endl;
 
    Vector diff_a(*a);
    diff_a -= *a_new;    //diff = b_new_exact - b_new
-   std::cout << "Vector diff in A field on the new mesh:  " << diff_a.Normlinf() << ", " << a->Normlinf() << std::endl;
+   std::cout << "Vector diff in A field on the new mesh:  " << diff_a.Normlinf() <<
+             ", " << a->Normlinf() << std::endl;
 
    // Handle the visit visualization
    if (visit)
@@ -143,7 +152,7 @@ int main(int argc, char *argv[])
       visit_dc_old.SetCycle(0);
       visit_dc_old.SetTime(0);
       visit_dc_old.Save();
-      
+
       VisItDataCollection visit_dc_new("bfa-new", &pmesh_new);
       visit_dc_new.RegisterField("A_new", a_new);
       visit_dc_new.RegisterField("B_new", b_new);
@@ -164,13 +173,15 @@ void BFieldFunc(const Vector &x, Vector &B)
 }
 
 
-void PeturbBoxMesh(Mesh *mesh, double xlen, double ylen, double zlen, double window)
+void PeturbBoxMesh(Mesh *mesh, double xlen, double ylen, double zlen,
+                   double window)
 {
    Vector displacements(3*mesh->GetNV());
    displacements = 0.0;
-   std::random_device rd;  // Will be used to obtain a seed for the random number engine
+   std::random_device
+   rd;  // Will be used to obtain a seed for the random number engine
    std::mt19937 gen(rd()); // Standard mersenne_twister_engine seeded with rd()
-   std::uniform_real_distribution<> r(-0.5*window, 0.5*window);   
+   std::uniform_real_distribution<> r(-0.5*window, 0.5*window);
    for (int vi = 0; vi < mesh->GetNV(); ++vi)
    {
       double *v = mesh->GetVertex(vi);
@@ -187,7 +198,7 @@ void PeturbBoxMesh(Mesh *mesh, double xlen, double ylen, double zlen, double win
       if (fabs(v[2]) > 1e-6 && fabs(v[2] - zlen) > 1e-6)
       {
          displacements[3*vi+2] = r(gen);
-      }      
+      }
    }
    std::cout << "Displacement norm:  " << displacements.Norml2() << std::endl;
    mesh->MoveVertices(displacements);

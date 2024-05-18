@@ -24,14 +24,15 @@ namespace mfem
 namespace electromagnetics
 {
 
-BFieldAdvector::BFieldAdvector(ParMesh *pmesh_old, ParMesh *pmesh_new, int order_) :
+BFieldAdvector::BFieldAdvector(ParMesh *pmesh_old, ParMesh *pmesh_new,
+                               int order_) :
    order(order_),
    pmeshOld(nullptr),
    pmeshNew(nullptr),
    H1FESpaceOld(nullptr),
    HCurlFESpaceOld(nullptr),
    HDivFESpaceOld(nullptr),
-   L2FESpaceOld(nullptr),   
+   L2FESpaceOld(nullptr),
    H1FESpaceNew(nullptr),
    HCurlFESpaceNew(nullptr),
    HDivFESpaceNew(nullptr),
@@ -62,7 +63,7 @@ void BFieldAdvector::SetMesh(ParMesh *pmesh_old, ParMesh *pmesh_new)
    pmeshOld = pmesh_old;
    pmeshOld->EnsureNodes();
    pmeshNew = pmesh_new;
-   pmeshNew->EnsureNodes();   
+   pmeshNew->EnsureNodes();
 
    //Set up the various spaces on the meshes
    H1FESpaceOld    = new H1_ParFESpace(pmesh_old,order,pmesh_old->Dimension());
@@ -72,7 +73,7 @@ void BFieldAdvector::SetMesh(ParMesh *pmesh_old, ParMesh *pmesh_new)
    H1FESpaceNew    = new H1_ParFESpace(pmesh_new,order,pmesh_new->Dimension());
    HCurlFESpaceNew = new ND_ParFESpace(pmesh_new,order,pmesh_new->Dimension());
    HDivFESpaceNew  = new RT_ParFESpace(pmesh_new,order,pmesh_new->Dimension());
-   L2FESpaceNew    = new L2_ParFESpace(pmesh_new,order,pmesh_new->Dimension());   
+   L2FESpaceNew    = new L2_ParFESpace(pmesh_new,order,pmesh_new->Dimension());
 
    //Discrete Differential Operators
    grad = new ParDiscreteGradOperator(H1FESpaceOld, HCurlFESpaceOld);
@@ -80,7 +81,7 @@ void BFieldAdvector::SetMesh(ParMesh *pmesh_old, ParMesh *pmesh_new)
    grad->Finalize();
    curl_old = new ParDiscreteCurlOperator(HCurlFESpaceOld, HDivFESpaceOld);
    curl_old->Assemble();
-   curl_old->Finalize();   
+   curl_old->Finalize();
    curl_new = new ParDiscreteCurlOperator(HCurlFESpaceOld, HDivFESpaceOld);
    curl_new->Assemble();
    curl_new->Finalize();
@@ -90,7 +91,7 @@ void BFieldAdvector::SetMesh(ParMesh *pmesh_old, ParMesh *pmesh_new)
    weakCurl = new ParMixedBilinearForm(HDivFESpaceOld, HCurlFESpaceOld);
    weakCurl->AddDomainIntegrator(new VectorFECurlIntegrator(oneCoef));
    weakCurl->Assemble();
-   weakCurl->Finalize();   
+   weakCurl->Finalize();
    WC = weakCurl->ParallelAssemble();
 
    m1 = new ParBilinearForm(HCurlFESpaceOld);
@@ -105,14 +106,17 @@ void BFieldAdvector::SetMesh(ParMesh *pmesh_old, ParMesh *pmesh_new)
    curlCurl->Finalize();
 
    //Projector to clean the divergence out of vectors in Hcurl
-   int irOrder = H1FESpaceOld->GetElementTransformation(0)->OrderW()+ 2 * order;   
+   int irOrder = H1FESpaceOld->GetElementTransformation(0)->OrderW()+ 2 * order;
    divFreeProj = new DivergenceFreeProjector(*H1FESpaceOld, *HCurlFESpaceOld,
-                                              irOrder, NULL, NULL, grad);
+                                             irOrder, NULL, NULL, grad);
 
    // Build internal grid functions on the spaces
-   a  = new ParGridFunction(HCurlFESpaceOld);            //Vector potential A in HCurl
-   a_new = new ParGridFunction(HCurlFESpaceNew);         //Vector potential A in Hcurl on the new mesh
-   curl_b = new ParGridFunction(HCurlFESpaceOld);        //curl B in Hcurl from the weak curl
+   a  = new ParGridFunction(
+      HCurlFESpaceOld);            //Vector potential A in HCurl
+   a_new = new ParGridFunction(
+      HCurlFESpaceNew);         //Vector potential A in Hcurl on the new mesh
+   curl_b = new ParGridFunction(
+      HCurlFESpaceOld);        //curl B in Hcurl from the weak curl
    clean_curl_b = new ParGridFunction(HCurlFESpaceOld);  //B in Hcurl
    recon_b = new ParGridFunction(HDivFESpaceOld);        //Reconstructed B from A
 }
@@ -120,28 +124,28 @@ void BFieldAdvector::SetMesh(ParMesh *pmesh_old, ParMesh *pmesh_new)
 
 void BFieldAdvector::CleanInternals()
 {
-   if (H1FESpaceOld != nullptr) delete H1FESpaceOld;
-   if (HCurlFESpaceOld != nullptr) delete HCurlFESpaceOld;
-   if (HDivFESpaceOld != nullptr) delete HDivFESpaceOld;
-   if (L2FESpaceOld != nullptr) delete L2FESpaceOld;
-   if (H1FESpaceNew != nullptr) delete H1FESpaceNew;
-   if (HCurlFESpaceNew != nullptr) delete HCurlFESpaceNew;
-   if (HDivFESpaceNew != nullptr) delete HDivFESpaceNew;
-   if (L2FESpaceNew != nullptr) delete L2FESpaceNew;   
+   if (H1FESpaceOld != nullptr) { delete H1FESpaceOld; }
+   if (HCurlFESpaceOld != nullptr) { delete HCurlFESpaceOld; }
+   if (HDivFESpaceOld != nullptr) { delete HDivFESpaceOld; }
+   if (L2FESpaceOld != nullptr) { delete L2FESpaceOld; }
+   if (H1FESpaceNew != nullptr) { delete H1FESpaceNew; }
+   if (HCurlFESpaceNew != nullptr) { delete HCurlFESpaceNew; }
+   if (HDivFESpaceNew != nullptr) { delete HDivFESpaceNew; }
+   if (L2FESpaceNew != nullptr) { delete L2FESpaceNew; }
 
-   if (grad != nullptr) delete grad;
-   if (curl_old != nullptr) delete curl_old;
-   if (curl_new != nullptr) delete curl_new;
+   if (grad != nullptr) { delete grad; }
+   if (curl_old != nullptr) { delete curl_old; }
+   if (curl_new != nullptr) { delete curl_new; }
 
-   if (weakCurl != nullptr) delete weakCurl;
-   if (divFreeProj != nullptr) delete divFreeProj;
-   if (curlCurl != nullptr) delete curlCurl;
+   if (weakCurl != nullptr) { delete weakCurl; }
+   if (divFreeProj != nullptr) { delete divFreeProj; }
+   if (curlCurl != nullptr) { delete curlCurl; }
 
-   if (a != nullptr) delete a;
-   if (a_new != nullptr) delete a_new;
-   if (curl_b != nullptr) delete curl_b;
-   if (clean_curl_b != nullptr) delete clean_curl_b;
-   if (recon_b != nullptr) delete recon_b;
+   if (a != nullptr) { delete a; }
+   if (a_new != nullptr) { delete a_new; }
+   if (curl_b != nullptr) { delete curl_b; }
+   if (clean_curl_b != nullptr) { delete clean_curl_b; }
+   if (recon_b != nullptr) { delete recon_b; }
 }
 
 
@@ -200,7 +204,8 @@ void BFieldAdvector::ComputeA(ParGridFunction* b)
    //
    Vector diff(*b);
    diff -= *recon_b;    //diff = b - recon_b
-   std::cout << "L2 Error in reconstructed B field on old mesh:  " << diff.Norml2() << std::endl;
+   std::cout << "L2 Error in reconstructed B field on old mesh:  " << diff.Norml2()
+             << std::endl;
 
 }
 
@@ -229,7 +234,7 @@ void BFieldAdvector::ComputeCleanCurlB(ParGridFunction* b)
    rhs.SetFromTrueDofs(RHS);
    *curl_b = 0.0;
    m1->FormLinearSystem(ess_tdof_list, *curl_b, rhs, M1, X, RHS);
-   
+
    HypreDiagScale Jacobi(M1);
    HyprePCG pcg(M1);
    pcg.SetTol(1e-12);
@@ -245,9 +250,11 @@ void BFieldAdvector::ComputeCleanCurlB(ParGridFunction* b)
 }
 
 
-void BFieldAdvector::FindPtsInterpolateToTargetMesh(const ParGridFunction *old_gf, ParGridFunction *new_gf, int fieldtype)
+void BFieldAdvector::FindPtsInterpolateToTargetMesh(const ParGridFunction
+                                                    *old_gf, ParGridFunction *new_gf, int fieldtype)
 {
-   MFEM_ASSERT(fieldtype >= 0 && fieldtype <= 3, "Method expects a field type of 0, 1, 2, or 3");
+   MFEM_ASSERT(fieldtype >= 0 &&
+               fieldtype <= 3, "Method expects a field type of 0, 1, 2, or 3");
 
    int dim = pmeshOld->Dimension();
    int vdim = old_gf->VectorDim();
@@ -261,7 +268,7 @@ void BFieldAdvector::FindPtsInterpolateToTargetMesh(const ParGridFunction *old_g
       num_target_pts += target_fes->GetFE(e)->GetNodes().GetNPoints();
    }
 
-   //Extract the target points from the nodes of the elements of the 
+   //Extract the target points from the nodes of the elements of the
    //new mesh and then line them up in a vector V(x1,x2,...,y1,y2...,z1,z2...)
    Vector vxyz(num_target_pts*dim);
    int vxyz_pos = 0;
@@ -279,7 +286,8 @@ void BFieldAdvector::FindPtsInterpolateToTargetMesh(const ParGridFunction *old_g
              rowz;
       if (dim == 3)
       {
-         rowz.SetDataAndSize(vxyz.GetData() + 2*num_target_pts + vxyz_pos, elem_num_nodes);
+         rowz.SetDataAndSize(vxyz.GetData() + 2*num_target_pts + vxyz_pos,
+                             elem_num_nodes);
       }
       pos.GetRow(0, rowx);
       pos.GetRow(1, rowy);
@@ -322,7 +330,8 @@ void BFieldAdvector::FindPtsInterpolateToTargetMesh(const ParGridFunction *old_g
                for (int d = 0; d < vdim; d++)
                {
                   // Arrange values byNodes
-                  elem_dof_vals(j+d*elem_num_nodes) = interp_vals(d*num_target_pts + ivals_pos + j);
+                  elem_dof_vals(j+d*elem_num_nodes) = interp_vals(d*num_target_pts + ivals_pos +
+                                                                  j);
                }
             }
             new_gf->SetSubVector(vdofs, elem_dof_vals);
@@ -375,11 +384,12 @@ void BFieldAdvector::RemhosRemap(ParGridFunction* b_old, ParGridFunction* b_new)
    double t_final = 1.0;
 
 
-   FiniteElementCollection *mesh_fec = new H1_FECollection(mesh_order, dim, BasisType::GaussLobatto);
+   FiniteElementCollection *mesh_fec = new H1_FECollection(mesh_order, dim,
+                                                           BasisType::GaussLobatto);
 
    // Define the ODE solver used for time integration.
    ODESolver *ode_solver = new RK3SSPSolver;
-   
+
 
    // Current mesh positions.
    ParFiniteElementSpace mesh_pfes(pmeshOld, mesh_fec, dim);
@@ -388,7 +398,7 @@ void BFieldAdvector::RemhosRemap(ParGridFunction* b_old, ParGridFunction* b_new)
 
    ParFiniteElementSpace mesh_pfes_new(pmeshNew, mesh_fec, dim);
    ParGridFunction x_new(&mesh_pfes);
-   pmeshOld->SetNodalGridFunction(&x_new);   
+   pmeshOld->SetNodalGridFunction(&x_new);
 
    // Store initial mesh positions.
    Vector x0(x.Size());
@@ -396,7 +406,7 @@ void BFieldAdvector::RemhosRemap(ParGridFunction* b_old, ParGridFunction* b_new)
 
    // Initial time step estimate.
    // Since we are talking about a local change lets do a fixed number of steps
-   // TODO:  Ask Vladimir about this assumption 
+   // TODO:  Ask Vladimir about this assumption
    double dt = 0.25;
 
    // Mesh velocity.
@@ -416,7 +426,7 @@ void BFieldAdvector::RemhosRemap(ParGridFunction* b_old, ParGridFunction* b_new)
       x.Add(std::min(dt, t_final-t), v);
       //No need to update v here since the pseudo velocity doesn't change
       //During this remap step
-      //TODO:  For higher order we will need a velocity function that can 
+      //TODO:  For higher order we will need a velocity function that can
       //change over the course of the pseudo-timestep
    }
    add(x, -1.0, x0, v_gf); // Pseudotime velocity.
@@ -523,7 +533,7 @@ void BFieldAdvector::RemhosRemap(ParGridFunction* b_old, ParGridFunction* b_new)
       xsub = new ParGridFunction(pfes_sub);
       subcell_mesh->SetCurvature(1);
       subcell_mesh->SetNodalGridFunction(xsub);
- 
+
       lom.SubFes0 = new FiniteElementSpace(subcell_mesh, &fec0);
       lom.SubFes1 = new FiniteElementSpace(subcell_mesh, &fec1);
 
@@ -550,7 +560,8 @@ void BFieldAdvector::RemhosRemap(ParGridFunction* b_old, ParGridFunction* b_new)
 
       lom.subcellCoeff = &v_sub_coef;
       lom.VolumeTerms = new MixedConvectionIntegrator(v_sub_coef);
-   } else { subcell_mesh = pmeshOld; }
+   }
+   else { subcell_mesh = pmeshOld; }
 
    Assembly asmbl(dofs, lom, inflow_gf, pfes, subcell_mesh, 1);
 
@@ -602,7 +613,7 @@ void BFieldAdvector::RemhosRemap(ParGridFunction* b_old, ParGridFunction* b_new)
    GetMinMax(u, umin, umax);
 
    adv.SetRemapStartPos(x0, x0_sub);
-   
+
 
    ParGridFunction res = u;
    double residual;
@@ -676,13 +687,13 @@ void BFieldAdvector::RemhosRemap(ParGridFunction* b_old, ParGridFunction* b_new)
          if (pmeshOld->GetMyRank() == 0)
          {
             std::cout << "time step: " << ti << ", time: " << t
-                 << ", dt: " << dt << ", residual: " << residual << std::endl;
+                      << ", dt: " << dt << ", residual: " << residual << std::endl;
          }
       }
    }
 
    std::cout << "Total time steps: " << ti_total
-        << " (" << ti_total-ti << " repeated)." << std::endl;
+             << " (" << ti_total-ti << " repeated)." << std::endl;
 
    *b_new = u;
 #endif
@@ -709,8 +720,9 @@ AdvectionOperator::AdvectionOperator(int size, BilinearForm &Mbf_,
    x_gf(Kbf.ParFESpace()),
    asmbl(_asmbl), lom(_lom), dofs(_dofs),
    ho_solver(hos), lo_solver(los), fct_solver(fct)
-{ 
-   MFEM_VERIFY(fct_solver && ho_solver && lo_solver, "Bfield Remhos advector requires FCT, ho and lo solvers.");
+{
+   MFEM_VERIFY(fct_solver && ho_solver &&
+               lo_solver, "Bfield Remhos advector requires FCT, ho and lo solvers.");
 }
 
 void AdvectionOperator::Mult(const Vector &X, Vector &Y) const

@@ -29,7 +29,7 @@ namespace electromagnetics
 
 class BFieldAdvector
 {
-   public:
+public:
    BFieldAdvector(ParMesh *pmesh_old, ParMesh *pmesh_new, int order);
    void SetMesh(ParMesh *pmesh_old, ParMesh *pmesh_new);
    void SetMeshNodes(ParGridFunction *old_nodes, ParGridFunction *new_nodes);
@@ -42,7 +42,7 @@ class BFieldAdvector
    ParGridFunction* GetA() {return a;}
    ParGridFunction* GetANew() {return a_new;}
 
-   private:
+private:
    void CleanInternals();
    void ComputeCleanCurlB(ParGridFunction* b);
    void ComputeA(ParGridFunction* b);
@@ -50,7 +50,8 @@ class BFieldAdvector
    /// Given a grid function on the old and new meshes interpolate a field from the old to the new
    /** The fieldtype variable goes from 0 forms to 3 forms in order 0-H1, 1-H(curl), 2-H(div), 3-L2
    **/
-   void FindPtsInterpolateToTargetMesh(const ParGridFunction *old_gf, ParGridFunction *new_gf, int fieldtype);
+   void FindPtsInterpolateToTargetMesh(const ParGridFunction *old_gf,
+                                       ParGridFunction *new_gf, int fieldtype);
    void RemhosRemap(ParGridFunction* b_old, ParGridFunction* b_new);
 
    int order;
