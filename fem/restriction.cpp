@@ -10,16 +10,15 @@
 // CONTRIBUTING.md for details.
 
 #include "restriction.hpp"
+#include "normal_deriv_restriction.hpp"
 #include "gridfunc.hpp"
 #include "fespace.hpp"
+#include "pgridfunc.hpp"
+#include "qspace.hpp"
+#include "fe/face_map_utils.hpp"
 #include "../general/forall.hpp"
+
 #include <climits>
-
-#ifdef MFEM_USE_MPI
-
-#include "pfespace.hpp"
-
-#endif
 
 namespace mfem
 {
@@ -907,112 +906,6 @@ void ConformingFaceRestriction::SetFaceDofsGatherIndices(
    }
 }
 
-static int ToLexOrdering2D(const int face_id, const int size1d, const int i)
-{
-   if (face_id==2 || face_id==3)
-   {
-      return size1d-1-i;
-   }
-   else
-   {
-      return i;
-   }
-}
-
-static int PermuteFace2D(const int face_id1, const int face_id2,
-                         const int orientation,
-                         const int size1d, const int index)
-{
-   int new_index;
-   // Convert from lex ordering
-   if (face_id1==2 || face_id1==3)
-   {
-      new_index = size1d-1-index;
-   }
-   else
-   {
-      new_index = index;
-   }
-   // Permute based on face orientations
-   if (orientation==1)
-   {
-      new_index = size1d-1-new_index;
-   }
-   return ToLexOrdering2D(face_id2, size1d, new_index);
-}
-
-static int ToLexOrdering3D(const int face_id, const int size1d, const int i,
-                           const int j)
-{
-   if (face_id==2 || face_id==1 || face_id==5)
-   {
-      return i + j*size1d;
-   }
-   else if (face_id==3 || face_id==4)
-   {
-      return (size1d-1-i) + j*size1d;
-   }
-   else // face_id==0
-   {
-      return i + (size1d-1-j)*size1d;
-   }
-}
-
-static int PermuteFace3D(const int face_id1, const int face_id2,
-                         const int orientation,
-                         const int size1d, const int index)
-{
-   int i=0, j=0, new_i=0, new_j=0;
-   i = index%size1d;
-   j = index/size1d;
-   // Convert from lex ordering
-   if (face_id1==3 || face_id1==4)
-   {
-      i = size1d-1-i;
-   }
-   else if (face_id1==0)
-   {
-      j = size1d-1-j;
-   }
-   // Permute based on face orientations
-   switch (orientation)
-   {
-      case 0:
-         new_i = i;
-         new_j = j;
-         break;
-      case 1:
-         new_i = j;
-         new_j = i;
-         break;
-      case 2:
-         new_i = j;
-         new_j = (size1d-1-i);
-         break;
-      case 3:
-         new_i = (size1d-1-i);
-         new_j = j;
-         break;
-      case 4:
-         new_i = (size1d-1-i);
-         new_j = (size1d-1-j);
-         break;
-      case 5:
-         new_i = (size1d-1-j);
-         new_j = (size1d-1-i);
-         break;
-      case 6:
-         new_i = (size1d-1-j);
-         new_j = i;
-         break;
-      case 7:
-         new_i = i;
-         new_j = (size1d-1-j);
-         break;
-   }
-   return ToLexOrdering3D(face_id2, size1d, new_i, new_j);
-}
-
 // Permute dofs or quads on a face for e2 to match with the ordering of e1
 int PermuteFaceL2(const int dim, const int face_id1,
                   const int face_id2, const int orientation,
@@ -1023,9 +916,9 @@ int PermuteFaceL2(const int dim, const int face_id1,
       case 1:
          return 0;
       case 2:
-         return PermuteFace2D(face_id1, face_id2, orientation, size1d, index);
+         return internal::PermuteFace2D(face_id1, face_id2, orientation, size1d, index);
       case 3:
-         return PermuteFace3D(face_id1, face_id2, orientation, size1d, index);
+         return internal::PermuteFace3D(face_id1, face_id2, orientation, size1d, index);
       default:
          MFEM_ABORT("Unsupported dimension.");
          return 0;
@@ -1038,6 +931,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
                                      const L2FaceValues m,
                                      bool build)
    : fes(fes),
+     ordering(f_ordering),
      nf(fes.GetNFbyType(type)),
      ne(fes.GetNE()),
      vdim(fes.GetVDim()),
@@ -1060,11 +954,9 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
    width = fes.GetVSize();
    if (!build) { return; }
 
-   CheckFESpace(f_ordering);
-
-   ComputeScatterIndicesAndOffsets(f_ordering,type);
-
-   ComputeGatherIndices(f_ordering, type);
+   CheckFESpace();
+   ComputeScatterIndicesAndOffsets();
+   ComputeGatherIndices();
 }
 
 L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
@@ -1327,7 +1219,7 @@ void L2FaceRestriction::AddFaceMatricesToElementMatrices(const Vector &fea_data,
    }
 }
 
-void L2FaceRestriction::CheckFESpace(const ElementDofOrdering f_ordering)
+void L2FaceRestriction::CheckFESpace()
 {
 #ifdef MFEM_USE_MPI
 
@@ -1351,7 +1243,7 @@ void L2FaceRestriction::CheckFESpace(const ElementDofOrdering f_ordering)
                "Only Gauss-Lobatto and Bernstein basis are supported in "
                "L2FaceRestriction.");
    if (nf==0) { return; }
-   const bool dof_reorder = (f_ordering == ElementDofOrdering::LEXICOGRAPHIC);
+   const bool dof_reorder = (ordering == ElementDofOrdering::LEXICOGRAPHIC);
    if (!dof_reorder)
    {
       MFEM_ABORT("Non-Tensor L2FaceRestriction not yet implemented.");
@@ -1371,9 +1263,7 @@ void L2FaceRestriction::CheckFESpace(const ElementDofOrdering f_ordering)
 #endif
 }
 
-void L2FaceRestriction::ComputeScatterIndicesAndOffsets(
-   const ElementDofOrdering f_ordering,
-   const FaceType face_type)
+void L2FaceRestriction::ComputeScatterIndicesAndOffsets()
 {
    Mesh &mesh = *fes.GetMesh();
    // Initialization of the offsets
@@ -1389,16 +1279,16 @@ void L2FaceRestriction::ComputeScatterIndicesAndOffsets(
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
       MFEM_ASSERT(!face.IsShared(),
                   "Unexpected shared face in L2FaceRestriction.");
-      if ( face.IsOfFaceType(face_type) )
+      if ( face.IsOfFaceType(type) )
       {
          SetFaceDofsScatterIndices1(face,f_ind);
          if ( m==L2FaceValues::DoubleValued )
          {
-            if ( face_type==FaceType::Interior && face.IsInterior() )
+            if ( type==FaceType::Interior && face.IsInterior() )
             {
                PermuteAndSetFaceDofsScatterIndices2(face,f_ind);
             }
-            else if ( face_type==FaceType::Boundary && face.IsBoundary() )
+            else if ( type==FaceType::Boundary && face.IsBoundary() )
             {
                SetBoundaryDofsScatterIndices2(face,f_ind);
             }
@@ -1415,9 +1305,7 @@ void L2FaceRestriction::ComputeScatterIndicesAndOffsets(
    }
 }
 
-void L2FaceRestriction::ComputeGatherIndices(
-   const ElementDofOrdering f_ordering,
-   const FaceType face_type)
+void L2FaceRestriction::ComputeGatherIndices()
 {
    Mesh &mesh = *fes.GetMesh();
    // Computation of gather_indices
@@ -1427,11 +1315,11 @@ void L2FaceRestriction::ComputeGatherIndices(
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
       MFEM_ASSERT(!face.IsShared(),
                   "Unexpected shared face in L2FaceRestriction.");
-      if ( face.IsOfFaceType(face_type) )
+      if ( face.IsOfFaceType(type) )
       {
          SetFaceDofsGatherIndices1(face,f_ind);
          if ( m==L2FaceValues::DoubleValued &&
-              face_type==FaceType::Interior &&
+              type==FaceType::Interior &&
               face.IsLocal())
          {
             PermuteAndSetFaceDofsGatherIndices2(face,f_ind);
@@ -1595,6 +1483,28 @@ void L2FaceRestriction::PermuteAndSetFaceDofsGatherIndices2(
       // We shift restriction_dof_elem2 to express that it's elem2 of the face
       gather_indices[gather_offsets[global_dof_elem2]++] = nfdofs +
                                                            restriction_dof_elem2;
+   }
+}
+
+void L2FaceRestriction::NormalDerivativeMult(const Vector &x, Vector &y) const
+{
+   EnsureNormalDerivativeRestriction();
+   normal_deriv_restr->Mult(x, y);
+}
+
+void L2FaceRestriction::NormalDerivativeAddMultTranspose(const Vector &x,
+                                                         Vector &y) const
+{
+   EnsureNormalDerivativeRestriction();
+   normal_deriv_restr->AddMultTranspose(x, y);
+}
+
+void L2FaceRestriction::EnsureNormalDerivativeRestriction() const
+{
+   if (!normal_deriv_restr)
+   {
+      normal_deriv_restr.reset(
+         new L2NormalDerivativeFaceRestriction(fes, ordering, type));
    }
 }
 
@@ -1775,11 +1685,11 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
    if (!build) { return; }
    x_interp.UseDevice(true);
 
-   CheckFESpace(f_ordering);
+   CheckFESpace();
 
-   ComputeScatterIndicesAndOffsets(f_ordering, type);
+   ComputeScatterIndicesAndOffsets();
 
-   ComputeGatherIndices(f_ordering, type);
+   ComputeGatherIndices();
 }
 
 NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
@@ -2259,18 +2169,16 @@ int ToLexOrdering(const int dim, const int face_id, const int size1d,
       case 1:
          return 0;
       case 2:
-         return ToLexOrdering2D(face_id, size1d, index);
+         return internal::ToLexOrdering2D(face_id, size1d, index);
       case 3:
-         return ToLexOrdering3D(face_id, size1d, index%size1d, index/size1d);
+         return internal::ToLexOrdering3D(face_id, size1d, index%size1d, index/size1d);
       default:
          MFEM_ABORT("Unsupported dimension.");
          return 0;
    }
 }
 
-void NCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
-   const ElementDofOrdering f_ordering,
-   const FaceType type)
+void NCL2FaceRestriction::ComputeScatterIndicesAndOffsets()
 {
    Mesh &mesh = *fes.GetMesh();
 
@@ -2334,9 +2242,7 @@ void NCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
    interpolations.InitializeNCInterpConfig();
 }
 
-void NCL2FaceRestriction::ComputeGatherIndices(
-   const ElementDofOrdering f_ordering,
-   const FaceType type)
+void NCL2FaceRestriction::ComputeGatherIndices()
 {
    Mesh &mesh = *fes.GetMesh();
    // Computation of gather_indices
@@ -2374,6 +2280,35 @@ void NCL2FaceRestriction::ComputeGatherIndices(
       gather_offsets[i] = gather_offsets[i - 1];
    }
    gather_offsets[0] = 0;
+}
+
+Vector GetLVectorFaceNbrData(
+   const FiniteElementSpace &fes, const Vector &x, FaceType ftype)
+{
+#ifdef MFEM_USE_MPI
+   if (ftype == FaceType::Interior)
+   {
+      if (auto *pfes = const_cast<ParFiniteElementSpace*>
+                       (dynamic_cast<const ParFiniteElementSpace*>(&fes)))
+      {
+         if (auto *x_gf = const_cast<ParGridFunction*>
+                          (dynamic_cast<const ParGridFunction*>(&x)))
+         {
+            Vector &gf_face_nbr = x_gf->FaceNbrData();
+            if (gf_face_nbr.Size() == 0) { x_gf->ExchangeFaceNbrData(); }
+            gf_face_nbr.Read();
+            return Vector(gf_face_nbr, 0, gf_face_nbr.Size());
+         }
+         else
+         {
+            ParGridFunction gf(pfes, const_cast<Vector&>(x));
+            gf.ExchangeFaceNbrData();
+            return std::move(gf.FaceNbrData());
+         }
+      }
+   }
+#endif
+   return Vector();
 }
 
 } // namespace mfem

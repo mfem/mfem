@@ -98,7 +98,7 @@ protected:
       const int vsize = sizeof(vint_t)/sizeof(attrib[0][0]);
       for (int i = 0; i < NE; i++)
       {
-         for (int j = 0; j < vsize; i++)
+         for (int j = 0; j < vsize; j++)
          {
             attrib[i][j] = elements[el+j+i*vsize]->GetAttribute();
          }
