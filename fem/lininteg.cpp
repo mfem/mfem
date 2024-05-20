@@ -618,6 +618,37 @@ void VectorBoundaryFluxLFIntegrator::AssembleRHSElementVect(
    }
 }
 
+void VectorBoundaryFluxLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, FaceElementTransformations &Tr, Vector &elvect)
+{
+   int dim = el.GetDim();
+   int dof = el.GetDof();
+
+   shape.SetSize (dof);
+   nor.SetSize (dim);
+   elvect.SetSize (dim*dof);
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      ir = &IntRules.Get(el.GetGeomType(), el.GetOrder() + 1);
+   }
+
+   elvect = 0.0;
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      Tr.SetIntPoint (&ip);
+      CalcOrtho(Tr.Jacobian(), nor);
+      el.CalcPhysShape (*Tr.Elem1, shape);
+      nor *= Sign * ip.weight * F -> Eval (Tr, ip);
+      for (int j = 0; j < dof; j++)
+         for (int k = 0; k < dim; k++)
+         {
+            elvect(dof*k+j) += nor(k) * shape(j);
+         }
+   }
+}
 
 void VectorFEBoundaryFluxLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
