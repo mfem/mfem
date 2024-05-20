@@ -98,6 +98,9 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace *hatsigma_fes = new ParFiniteElementSpace(&pmesh,
                                                                    hatsigma_fec,dim);
 
+   ParFiniteElementSpace *hatsigma1_fes = new ParFiniteElementSpace(&pmesh,
+                                                                    hatsigma_fec);
+
    int test_order = order+delta_order;
    FiniteElementCollection * v_fec = new H1_FECollection(test_order, dim);
 
@@ -188,26 +191,67 @@ int main(int argc, char *argv[])
 
       BlockOperator * A = Ah.As<BlockOperator>();
 
+
+
+      // BlockDiagonalPreconditioner M(A->RowOffsets());
       BlockDiagonalPreconditioner M(A->RowOffsets());
       M.owns_blocks = 1;
 
-      HypreBoomerAMG * amg0 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(0,0));
-      amg0->SetSystemsOptions(dim);
-      // HypreSolver * prec;
+      // HypreBoomerAMG * amg0 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(0,0));
+      // amg0->SetSystemsOptions(dim);
+      MUMPSSolver * amg0 = new MUMPSSolver();
+      amg0->SetOperator((HypreParMatrix &)A->GetBlock(0,0));
+
+
       MUMPSSolver * prec = new MUMPSSolver();
-      prec->SetOperator((HypreParMatrix &)A->GetBlock(1,1));
+      prec->SetOperator((HypreParMatrix&)A->GetBlock(1,1));
+      M.SetDiagonalBlock(1,prec);
+
+      // Array<int> toffsets(4);
+      // toffsets[0] = 0;
+      // toffsets[1] = A->RowOffsets()[1];
+      // toffsets[2] = (A->RowOffsets()[2]-A->RowOffsets()[1])/dim;
+      // toffsets[3] = (A->RowOffsets()[2]-A->RowOffsets()[1])/dim;
+      // toffsets.PartialSum();
+
+      // BlockDiagonalPreconditioner M(toffsets);
+      // M.owns_blocks = 1;
+
+      // HypreBoomerAMG * amg0 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(0,0));
+      // amg0->SetSystemsOptions(dim);
+
+      // HypreParMatrix & A11 = (HypreParMatrix &)A->GetBlock(1,1);
+      // Array<int> tdofs1(A11.Height()/2);
+      // Array<int> tdofs2(A11.Height()/2);
+      // for (int i = 0; i<tdofs1.Size(); i++)
+      // {
+      //    tdofs1[i] = i;
+      //    tdofs2[i] = tdofs1.Size() + i;
+      // }
+
+      // HypreParMatrix * S1 = GetSubHypreParMatrix(tdofs1,A11);
+      // HypreParMatrix * S2 = GetSubHypreParMatrix(tdofs2,A11);
+      // MUMPSSolver * prec1 = new MUMPSSolver();
+      // prec1->SetOperator(*S1);
+      // MUMPSSolver * prec2 = new MUMPSSolver();
+      // prec2->SetOperator(*S2);
+      // HypreSolver * prec1;
+      // HypreSolver * prec2;
       // if (dim == 2)
       // {
       //    // AMS preconditioner for 2D H(div) (trace) space
-      //    prec = new HypreAMS((HypreParMatrix &)A->GetBlock(1,1), hatsigma_fes);
+      //    prec1 = new HypreAMS(*S1, hatsigma1_fes);
+      //    prec2 = new HypreAMS(*S2, hatsigma1_fes);
 
       // }
       // else
       // {
       //    // ADS preconditioner for 3D H(div) (trace) space
-      //    prec = new HypreADS((HypreParMatrix &)A->GetBlock(1,1), hatsigma_fes);
+      //    prec1 = new HypreADS(*S1, hatsigma1_fes);
+      //    prec2 = new HypreADS(*S2, hatsigma1_fes);
       // }
-      M.SetDiagonalBlock(1,prec);
+      // M.SetDiagonalBlock(1,prec1);
+      // M.SetDiagonalBlock(2,prec2);
 
       CGSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-12);
@@ -285,6 +329,7 @@ int main(int argc, char *argv[])
       {
          trial_fes[i]->Update(false);
       }
+      hatsigma1_fes->Update(false);
       a->Update();
       exact_gf.Update();
    }

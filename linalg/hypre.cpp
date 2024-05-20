@@ -3264,6 +3264,51 @@ HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
    }
 }
 
+HypreParMatrix * GetSubHypreParMatrix(const Array<int> &tdofs,
+                                      const HypreParMatrix & A)
+{
+   int nrows = tdofs.Size();
+   int gncols = A.GetGlobalNumCols();
+   SparseMatrix Sr(nrows, gncols);
+
+   for (int i = 0; i<nrows; i++)
+   {
+      int col = tdofs[i] + A.RowPart()[0];
+      Sr.Set(i,col,1.0);
+   }
+   Sr.Finalize();
+
+
+   int newrows[2];
+   int newcols[2];
+
+   int row_offset;
+   MPI_Scan(&nrows,&row_offset,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
+
+   row_offset-=nrows;
+   newrows[0] = row_offset;
+   newrows[1] = row_offset+nrows;
+   newcols[0] = A.ColPart()[0];
+   newcols[1] = A.ColPart()[1];
+   int gnrows;
+   MPI_Allreduce(&nrows, &gnrows,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
+
+   HypreParMatrix * Prt = new HypreParMatrix(MPI_COMM_WORLD, nrows, gnrows,
+                                             gncols, Sr.GetI(), Sr.GetJ(),
+                                             Sr.GetData(), newrows,newcols);
+
+
+   HypreParMatrix * Pr = Prt->Transpose();
+   delete Prt;
+
+   HypreParMatrix * tmp = RAP(&A,Pr);
+   delete Pr;
+
+   return tmp;
+
+}
+
+
 void EliminateBC(const HypreParMatrix &A, const HypreParMatrix &Ae,
                  const Array<int> &ess_dof_list,
                  const Vector &X, Vector &B)

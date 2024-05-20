@@ -959,6 +959,11 @@ HypreParMatrix * RAP(const HypreParMatrix * Rt, const HypreParMatrix *A,
 HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
                                           Array2D<double> *blockCoeff=NULL);
 
+/** Extract a SubMatrix of a HypreParMatrix constructed
+    from the given rows and cols (local numbering) */
+HypreParMatrix * GetSubHypreParMatrix(const Array<int> &dofs,
+                                      const HypreParMatrix & A);
+
 /** @brief Eliminate essential BC specified by @a ess_dof_list from the solution
     @a X to the r.h.s. @a B. */
 /** Here @a A is a matrix with eliminated BC, while @a Ae is such that (A+Ae) is
