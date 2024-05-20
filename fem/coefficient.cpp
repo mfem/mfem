@@ -807,6 +807,7 @@ void SymmetricMatrixCoefficient::ProjectSymmetric(QuadratureFunction &qf)
 
    QuadratureSpaceBase &qspace = *qf.GetSpace();
    const int ne = qspace.GetNE();
+   qf.HostWrite();
    DenseMatrix values;
    DenseSymmetricMatrix matrix;
    for (int iel = 0; iel < ne; ++iel)
