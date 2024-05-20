@@ -2348,8 +2348,15 @@ RT_FECollection::RT_FECollection(const int order, const int dim,
       RT_Elements[Geometry::PRISM] = new RT_WedgeElement(p);
       RT_dof[Geometry::PRISM] = p*pp1*(3*p + 4)/2;
 
-      RT_Elements[Geometry::PYRAMID] = new RT0PyrFiniteElement(false);
-      RT_dof[Geometry::PYRAMID] = 0;
+      if (p == 0)
+      {
+         RT_Elements[Geometry::PYRAMID] = new RT0PyrFiniteElement(false);
+      }
+      else if (p == 1)
+      {
+         RT_Elements[Geometry::PYRAMID] = new RT1PyrFiniteElement();
+      }
+      RT_dof[Geometry::PYRAMID] = 3*p*pp1*pp1;
    }
    else
    {
@@ -2496,14 +2503,15 @@ void RT_FECollection::InitFaces(const int p, const int dim_,
 const FiniteElement *
 RT_FECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
 {
-   if (GeomType != Geometry::PYRAMID || this->GetOrder() == 1)
+   if (GeomType != Geometry::PYRAMID ||
+       this->GetOrder() == 1 || this->GetOrder() == 2 )
    {
       return RT_Elements[GeomType];
    }
    else
    {
       MFEM_ABORT("RT Pyramid basis functions are not yet supported "
-                 "for order > 0.");
+                 "for order > 1.");
       return NULL;
    }
 }

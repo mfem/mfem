@@ -1236,6 +1236,12 @@ public:
                             ElementTransformation &Trans,
                             DenseMatrix &curl) const
    { ProjectCurl_RT(nk, dof2nk, fe, Trans, curl); }
+
+   void CalcRawVShape(const IntegrationPoint &ip,
+                      DenseMatrix &shape) const;
+
+   void CalcRawDivShape(const IntegrationPoint &ip,
+                        Vector &dshape) const;
 };
 
 

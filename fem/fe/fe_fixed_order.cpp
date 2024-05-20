@@ -6175,7 +6175,7 @@ const double RT1PyrFiniteElement::nk[15] =
 {0,0,-1, 0,-1,0, 1,0,1, 0,1,1, -1,0,0};
 
 RT1PyrFiniteElement::RT1PyrFiniteElement()
-   : VectorFiniteElement(3, Geometry::PYRAMID, 28, 2, H_DIV)
+   : VectorFiniteElement(3, Geometry::PYRAMID, 28, 2, H_DIV), dof2nk(dof)
 {
    const int p = order - 1;
 
@@ -6282,6 +6282,12 @@ void RT1PyrFiniteElement::CalcVShape(const IntegrationPoint &ip,
    Ti.Mult(u, shape);
 }
 
+void RT1PyrFiniteElement::CalcRawVShape(const IntegrationPoint &ip,
+                                        DenseMatrix &shape) const
+{
+   calcBasis(ip, shape);
+}
+
 void RT1PyrFiniteElement::CalcDivShape(const IntegrationPoint &ip,
                                        Vector &divshape) const
 {
@@ -6292,6 +6298,12 @@ void RT1PyrFiniteElement::CalcDivShape(const IntegrationPoint &ip,
    calcDivBasis(ip, divu);
 
    Ti.Mult(divu, divshape);
+}
+
+void RT1PyrFiniteElement::CalcRawDivShape(const IntegrationPoint &ip,
+                                          Vector &divshape) const
+{
+   calcDivBasis(ip, divshape);
 }
 
 void RT1PyrFiniteElement::calcBasis(const IntegrationPoint &ip,
@@ -6384,35 +6396,61 @@ void RT1PyrFiniteElement::calcBasis(const IntegrationPoint &ip,
       F(13, 1) = -0.5 * y * z * ozi;
       F(13, 2) =  0.5 * z;
 
-      /*
-      F(14, 0) = {-((x (1 + x) (-1 + 2 y + z))/(2 (-1 + z))), -((x y z (-1 + 2 y + z))/(2 (-1 + z)^2)), -((x z (-1 + 2 y + z))/(2 (-1 + z)))};
+      F(14, 0) =  0.5 * x * (1.0 + x) * (y2 - oz) * ozi;
+      F(14, 1) = -0.5 * x * y * z * (y2 - oz) * ozi * ozi;
+      F(14, 2) =  0.5 * x * z * (y2 - oz) * ozi;
 
-      F(15, 0) = {(x (1 + x - (5 + x) z + 2 z^2))/(2 (-1 + z)), (y z (-x + 2 z))/(2 (-1 + z)), -((x z)/2) + z^2};
+      F(15, 0) = -0.5 * x * (1.0 + x - (5.0 + x) * z + 2.0 * z * z) * ozi;
+      F(15, 1) = -0.5 * y * z * (2.0 * z - x) * ozi;
+      F(15, 2) = -0.5 * x * z + z * z;
 
-      F(16, 0) = {-((x z (-1 + 2 y + z))/(-1 + z)^2), (y (-1 + y + 2 z))/(-1 + z), -((z (-1 + 2 y + z))/(-1 + z))};
+      F(16, 0) = -x * z * (y2 - oz) * ozi * ozi;
+      F(16, 1) = -y * (y + z2 - 1.0) * ozi;
+      F(16, 2) =  z * (y2 - oz) * ozi;
 
-      F(17, 0) = {(x z (-1 + 2 x + z) (-1 + 2 y + z))/(-1 + z)^3, -((y (-1 + 2 x + z) (-1 + y + 2 z))/(-1 + z)^2), (z (-1 + 2 x + z) (-1 + 2 y + z))/(-1 + z)^2};
+      F(17, 0) = -x * z * ozi * (x2 - oz) * ozi * (y2 - oz) * ozi;
+      F(17, 1) = -y * (x2 - oz) * ozi * (y + z2 - 1.0) * ozi;
+      F(17, 2) =  z * (x2 - oz) * ozi * (y2 - oz) * ozi;
 
-      F(18, 0) = {-((x (-1 + x + 2 z))/(-1 + z)), (y z (-1 + 2 x + z))/(-1 + z)^2, (z (-1 + 2 x + z))/(-1 + z)};
+      F(18, 0) =  x * (x + z2 - 1.0) * ozi;
+      F(18, 1) =  y * z * ozi * (x2 - oz) * ozi;
+      F(18, 2) = -z * (x2 - oz) * ozi;
 
-      F(19, 0) = {(x (-1 + 2 y + z) (-1 + x + 2 z))/(-1 + z)^2, -((y z (-1 + 2 x + z) (-1 + 2 y + z))/(-1 + z)^3), -((z (-1 + 2 x + z) (-1 + 2 y + z))/(-1 + z)^2)};
+      F(19, 0) =  x * (y2 - oz) * ozi * (x + z2 - 1.0) * ozi;
+      F(19, 1) =  y * z * ozi * (x2 - oz) * ozi * (y2 - oz) * ozi;
+      F(19, 2) = -z * (x2 - oz) * ozi * (y2 - oz) * ozi;
 
-      F(20, 0) = {(2 x (-1 + x + z) (-1 + 2 y + z))/(-1 + z)^3, -((2 y (-1 + 2 x + z) (-1 + y + z))/(-1 + z)^3), 0};
+      F(20, 0) = -2.0 * x * ozi * (x - oz) * ozi * (y2 - oz) * ozi;
+      F(20, 1) =  2.0 * y * ozi * (x2 - oz) * ozi * (y - oz) * ozi;
+      F(20, 2) =  0.0;
 
-      F(21, 0) = {x z, y z, (-1 + z) z};
+      F(21, 0) =  x * z;
+      F(21, 1) =  y * z;
+      F(21, 2) = -z * oz;
 
-      F(22, 0) = {-((x z (-1 + 2 x + z))/(-1 + z)), -((y z (-1 + 2 x + z))/(-1 + z)), -z (-1 + 2 x + z)};
+      F(22, 0) =  x * z * (x2 - oz) * ozi;
+      F(22, 1) =  y * z * (x2 - oz) * ozi;
+      F(22, 2) = -z * (x2 - oz);
 
-      F(23, 0) = {-((x z (-1 + 2 y + z))/(-1 + z)), -((y z (-1 + 2 y + z))/(-1 + z)), -z (-1 + 2 y + z)};
+      F(23, 0) =  x * z * (y2 - oz) * ozi;
+      F(23, 1) =  y * z * (y2 - oz) * ozi;
+      F(23, 2) = -z * (y2 - oz);
 
-      F(24, 0) = {(x z (-1 + 2 x + z) (-1 + 2 y + z))/(-1 + z)^2, (y z (-1 + 2 x + z) (-1 + 2 y + z))/(-1 + z)^2, (z (-1 + 2 x + z) (-1 + 2 y + z))/(-1 + z)};
+      F(24, 0) =  x * z * (x2 - oz) * ozi * (y2 - oz) * ozi;
+      F(24, 1) =  y * z * (x2 - oz) * ozi * (y2 - oz) * ozi;
+      F(24, 2) = -z * (x2 - oz) * (y2 - oz) * ozi;
 
-      F(25, 0) = {(x^2 z (-1 + 2 y + z))/(-1 + z)^3, (y^2 z (-1 + 2 x + z))/(-1 + z)^3, (z (-1 + 2 x + z) (-1 + 2 y + z))/(-1 + z)^2};
+      F(25, 0) = -x * ozi * x * ozi * z * (y2 - oz) * ozi;
+      F(25, 1) = -y * ozi * y * ozi * z * (x2 - oz) * ozi;
+      F(25, 2) =  z * (x2 - oz) * ozi * (y2 - oz) * ozi;
 
-      F(26, 0) = {(x z)/(-1 + z), -((y z (-1 + 2 x + z))/(-1 + z)^2), (-1 - (2 x)/(-1 + z)) z};
+      F(26, 0) = -x * z * ozi;
+      F(26, 1) = -y * ozi * z * (x2 - oz) * ozi;
+      F(26, 2) =  z * (x2 - oz) * ozi;
 
-      F(27, 0) = {(x z (-1 + 2 y + z))/(-1 + z)^2, (y z)/(1 - z), (z (-1 + 2 y + z))/(-1 + z)};
-      */
+      F(27, 0) =  x * ozi * z * (y2 - oz) * ozi;
+      F(27, 1) =  y * ozi * z;
+      F(27, 2) = -z * (y2 - oz) * ozi;
    }
 }
 
