@@ -162,6 +162,22 @@ int main(int argc, char *argv[])
 
    int dim = mesh->Dimension();
 
+   // Mark boundary conditions
+   Array<int> bdr_is_dirichlet(mesh->bdr_attributes.Max());
+   Array<int> bdr_is_neumann(mesh->bdr_attributes.Max());
+   bdr_is_dirichlet = 0;
+   bdr_is_neumann = 0;
+
+   switch (problem)
+   {
+      case 1://free
+         break;
+      case 3:
+         bdr_is_dirichlet[3] = -1;//inflow
+         bdr_is_neumann[0] = -1;//outflow
+         break;
+   }
+
    // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 10,000
@@ -221,11 +237,10 @@ int main(int argc, char *argv[])
 
    auto tFun = GetTFun(problem, t_0);
    FunctionCoefficient tcoeff(tFun);
+   SumCoefficient gcoeff(0., tcoeff, 1., -1.);
 
    auto fFun = GetFFun(problem, t_0, k, cFun);
    FunctionCoefficient fcoeff(fFun);
-   //SumCoefficient gcoeff(0, fcoeff, 1.,
-   //                      -1.);//<-- due to symmetrization, the sign is opposite
 
    auto qFun = GetQFun(problem, t_0, k, c);
    VectorFunctionCoefficient qcoeff(dim, qFun);
@@ -240,16 +255,37 @@ int main(int argc, char *argv[])
 
    LinearForm *gform(new LinearForm);
    gform->Update(V_space, rhs.GetBlock(0), 0);
+   if (dg)
+   {
+      gform->AddBdrFaceIntegrator(new VectorBoundaryFluxLFIntegrator(gcoeff),
+                                  bdr_is_dirichlet);
+   }
+   else
+   {
+      gform->AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(gcoeff),
+                                   bdr_is_dirichlet);
+   }
+
    gform->Assemble();
    gform->SyncAliasMemory(rhs);
 
    LinearForm *fform(new LinearForm);
    fform->Update(W_space, rhs.GetBlock(1), 0);
    fform->AddDomainIntegrator(new DomainLFIntegrator(fcoeff));
-   /*Vector v ({-1., 0.});
-   VectorConstantCoefficient vc(v);
    ConstantCoefficient one;
-   gform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(one, vc, 1.));*/
+   if (!hybridization)
+   {
+      if (dg)
+      {
+         fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(one, qcoeff, +1.),
+                                     bdr_is_neumann);
+      }
+      if (bconv)
+      {
+         fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(tcoeff, ccoeff, +1.),
+                                     bdr_is_dirichlet);
+      }
+   }
    fform->Assemble();
    fform->SyncAliasMemory(rhs);
 
@@ -274,6 +310,8 @@ int main(int argc, char *argv[])
       {
          B->AddInteriorFaceIntegrator(new TransposeIntegrator(
                                          new DGNormalTraceIntegrator(ccoeff, -1.)));
+         B->AddBdrFaceIntegrator(new TransposeIntegrator(new DGNormalTraceIntegrator(
+                                                            ccoeff, -1.)), bdr_is_neumann);
          if (td > 0. && hybridization)
          {
             Mt->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(ccoeff, kcoeff, td));
@@ -283,6 +321,8 @@ int main(int argc, char *argv[])
       {
          B->AddInteriorFaceIntegrator(new TransposeIntegrator(
                                          new DGNormalTraceIntegrator(-1.)));
+         B->AddBdrFaceIntegrator(new TransposeIntegrator(new DGNormalTraceIntegrator(
+                                                            -1.)), bdr_is_neumann);
          if (td > 0.)
          {
             Mt->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td));
@@ -300,10 +340,14 @@ int main(int argc, char *argv[])
       if (upwinded)
       {
          Mt->AddInteriorFaceIntegrator(new HDGConvectionUpwindedIntegrator(ccoeff));
+         Mt->AddBdrFaceIntegrator(new HDGConvectionUpwindedIntegrator(ccoeff),
+                                  bdr_is_neumann);
       }
       else
       {
          Mt->AddInteriorFaceIntegrator(new HDGConvectionCenteredIntegrator(ccoeff));
+         Mt->AddBdrFaceIntegrator(new HDGConvectionCenteredIntegrator(ccoeff),
+                                  bdr_is_neumann);
       }
    }
 
@@ -797,8 +841,7 @@ Func GetFFun(int prob, real_t t_0, real_t k, const VecFunc &cFun)
          };
       case 3:
       {
-         auto Tfun = GetTFun(prob, t_0);
-         return [=](const Vector &x) -> real_t { return -Tfun(x); };
+         return [](const Vector &x) { return 0.; };
       }
    }
    return Func();
