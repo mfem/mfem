@@ -11,34 +11,34 @@
 // mpirun -np 8 ./pmaxwell -o 1 -sref 0  -m ../data/inline-hex.mesh -rnum 3.0  -pref 4 -sigma 1.0 -vis
 /*
   Ref |    Dofs    |    ω    | H(curl) Error |  Rate  | Solv it |
-----------------------------------------------------------------
-    0 |        300 |  2.0 π  |     5.312e+00 |   0.00 |      25 |
-    1 |       1944 |  2.0 π  |     2.804e+00 |  -1.03 |      38 |
-    2 |      13872 |  2.0 π  |     1.422e+00 |  -1.04 |      66 |
-    3 |     104544 |  2.0 π  |     7.137e-01 |  -1.02 |      85 |
-    4 |     811200 |  2.0 π  |     3.572e-01 |  -1.01 |      90 |
+-----------------------------------------------------------------
+    0 |        300 |  6.0 π  |     2.697e+01 |   0.00 |  28 (20)|
+    1 |       1944 |  6.0 π  |     2.183e+01 |  -0.34 |  28 (19)|
+    2 |      13872 |  6.0 π  |     1.227e+01 |  -0.88 |  30 (19)|
+    3 |     104544 |  6.0 π  |     6.341e+00 |  -0.98 |  36 (19)|
+    4 |     811200 |  6.0 π  |     3.197e+00 |  -1.00 |  46 (19)|
 */
-
 
 // mpirun -np 8 ./pmaxwell -o 2 -sref 0  -m ../data/inline-hex.mesh -rnum 3.0  -pref 3 -sigma 1.0 -vis
 /*
   Ref |    Dofs    |    ω    | H(curl) Error |  Rate  | Solv it |
-----------------------------------------------------------------
-    0 |       1944 |  6.0 π  |     2.121e+01 |   0.00 |      54 |
-    1 |      13872 |  6.0 π  |     7.291e+00 |  -1.63 |      74 |
-    2 |     104544 |  6.0 π  |     1.926e+00 |  -1.98 |     107 |
-    3 |     811200 |  6.0 π  |     4.862e-01 |  -2.02 |     128 |
+-----------------------------------------------------------------
+    0 |       1944 |  6.0 π  |     2.121e+01 |   0.00 |  28 (24)|
+    1 |      13872 |  6.0 π  |     7.291e+00 |  -1.63 |  34 (19)|
+    2 |     104544 |  6.0 π  |     1.926e+00 |  -1.98 |  48 (19)|
+    3 |     811200 |  6.0 π  |     4.862e-01 |  -2.02 |  60 (19)|
 */
 
 
 // mpirun -np 8 ./pmaxwell -o 3 -sref 0  -m ../data/inline-hex.mesh -rnum 3.0  -pref 2 -sigma 1.0 -vis
 /*
   Ref |    Dofs    |    ω    | H(curl) Error |  Rate  | Solv it |
-----------------------------------------------------------------
-    0 |       6084 |  6.0 π  |     9.797e+00 |   0.00 |      82 |
-    1 |      45000 |  6.0 π  |     1.475e+00 |  -2.84 |     122 |
-    2 |     345744 |  6.0 π  |     1.918e-01 |  -3.00 |     165 |
+-----------------------------------------------------------------
+    0 |       6084 |  6.0 π  |     9.797e+00 |   0.00 |  36 (22)|
+    1 |      45000 |  6.0 π  |     1.475e+00 |  -2.84 |  56 (19)|
+    2 |     345744 |  6.0 π  |     1.918e-01 |  -3.00 |  78 (19)|
 */
+// Note: (*) indicates a priconditioner with exact inverse of the diagonal blocks
 
 #include "mfem.hpp"
 #include <fstream>
@@ -90,6 +90,7 @@ int main(int argc, char *argv[])
    int pr = 0;
    bool paraview = false;
    bool mumps_solver = false;
+   bool herm_conv = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -108,6 +109,8 @@ int main(int argc, char *argv[])
                   "Number of serial refinements.");
    args.AddOption(&pr, "-pref", "--parallel_ref",
                   "Number of parallel refinements.");
+   args.AddOption(&herm_conv, "-herm", "--hermitian", "-no-herm",
+                  "--no-hermitian", "Use convention for Hermitian operators.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -131,6 +134,10 @@ int main(int argc, char *argv[])
    {
       args.PrintOptions(cout);
    }
+
+   ComplexOperator::Convention conv =
+      herm_conv ? ComplexOperator::HERMITIAN : ComplexOperator::BLOCK_SYMMETRIC;
+
 
    socketstream E_out_r;
    socketstream E_out_i;
@@ -170,13 +177,13 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient CurlEr(dim,curlE_exact_r);
    VectorFunctionCoefficient CurlEi(dim,curlE_exact_i);
 
-   ParComplexLinearForm *b = new ParComplexLinearForm(E_fes);
+   ParComplexLinearForm *b = new ParComplexLinearForm(E_fes, conv);
    b->Vector::operator=(0.0);
    b->AddDomainIntegrator(new VectorFEDomainLFIntegrator(Jr),
                           new VectorFEDomainLFIntegrator(Ji));
 
 
-   ParSesquilinearForm *a = new ParSesquilinearForm(E_fes);
+   ParSesquilinearForm *a = new ParSesquilinearForm(E_fes, conv);
    a->AddDomainIntegrator(new CurlCurlIntegrator(muinv),nullptr);
    a->AddDomainIntegrator(new VectorFEMassIntegrator(negomeg2eps),
                           new VectorFEMassIntegrator(omegsigma));
@@ -252,45 +259,45 @@ int main(int argc, char *argv[])
 
       HypreParMatrix *A = Ah.As<ComplexHypreParMatrix>()->GetSystemMatrix();
 
+      Array<int> offsets(3);
+      offsets[0] = 0;
+      offsets[1] = E_fes->TrueVSize();
+      offsets[2] = E_fes->TrueVSize();
+      offsets.PartialSum();
+      BlockDiagonalPreconditioner BlockPrec(offsets);
+
+      std::unique_ptr<Operator> pc_r;
+      std::unique_ptr<Operator> pc_i;
+      int s = (conv == ComplexOperator::HERMITIAN) ? -1 : 1;
+
       int num_iter = -1;
+      FGMRESSolver solver(MPI_COMM_WORLD);
+      solver.SetRelTol(1e-12);
+      solver.SetMaxIter(2000);
+      solver.SetPrintLevel(0);
+
 #ifdef MFEM_USE_MUMPS
       if (mumps_solver)
       {
-         auto solver = new MUMPSSolver;
-         solver->SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
-         solver->SetPrintLevel(1);
-         solver->SetOperator(*A);
-         solver->Mult(B,X);
-         delete solver;
+         pc_r.reset(new MUMPSSolver(M));
+         pc_i.reset(new ScaledOperator(pc_r.get(), s));
       }
 #else
       mumps_solver = false;
 #endif
-
       if (!mumps_solver)
       {
-         Array<int> offsets(3);
-         offsets[0] = 0;
-         offsets[1] = E_fes->TrueVSize();
-         offsets[2] = E_fes->TrueVSize();
-         offsets.PartialSum();
-         BlockDiagonalPreconditioner BlockPrec(offsets);
-
-         HypreAMS ams(M,E_fes);
-         ams.SetPrintLevel(0);
-         BlockPrec.SetDiagonalBlock(0,&ams);
-         BlockPrec.SetDiagonalBlock(1,&ams);
-         FGMRESSolver solver(MPI_COMM_WORLD);
-         solver.SetRelTol(1e-12);
-         solver.SetMaxIter(2000);
-         solver.SetPrintLevel(0);
-         solver.SetPreconditioner(BlockPrec);
-         solver.SetOperator(*A);
-         solver.Mult(B, X);
-         num_iter = solver.GetNumIterations();
+         pc_r.reset(new HypreAMS(M,E_fes));
+         pc_i.reset(new ScaledOperator(pc_r.get(), s));
       }
 
-      delete A;
+      BlockPrec.SetDiagonalBlock(0,pc_r.get());
+      BlockPrec.SetDiagonalBlock(1,pc_i.get());
+
+      solver.SetPreconditioner(BlockPrec);
+      solver.SetOperator(*A);
+      solver.Mult(B, X);
+      num_iter = solver.GetNumIterations();
 
       a->RecoverFEMSolution(X, *b, E_gf);
 
