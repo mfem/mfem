@@ -131,6 +131,19 @@ void DarcyForm::EnableHybridization(FiniteElementSpace *constr_space,
       {
          if (bfi_marker)
          {
+            hybridization->AddBdrFluxConstraintIntegrator(constr_flux_integ, *bfi_marker);
+         }
+         else
+         {
+            hybridization->AddBdrFluxConstraintIntegrator(constr_flux_integ);
+         }
+      }
+   }
+
+      for (Array<int> *bfi_marker : *bfbfi_marker)
+      {
+         if (bfi_marker)
+         {
             hybridization->AddBdrConstraintIntegrator(constr_flux_integ, *bfi_marker);
          }
          else

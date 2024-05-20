@@ -264,6 +264,17 @@ public:
 
    BilinearFormIntegrator* GetPotConstraintIntegrator() const { return c_bfi_p; }
 
+   void AddBdrConstraintIntegrator(BilinearFormIntegrator *c_integ) = delete;
+   void AddBdrConstraintIntegrator(BilinearFormIntegrator *c_integ,
+                                   Array<int> &bdr_marker) = delete;
+
+   void AddBdrFluxConstraintIntegrator(BilinearFormIntegrator *c_integ)
+   { Hybridization::AddBdrConstraintIntegrator(c_integ); }
+
+   void AddBdrFluxConstraintIntegrator(BilinearFormIntegrator *c_integ,
+                                       Array<int> &bdr_marker)
+   { Hybridization::AddBdrConstraintIntegrator(c_integ, bdr_marker); }
+
    /// Prepare the Hybridization object for assembly.
    void Init(const Array<int> &ess_flux_tdof_list) override;
 
