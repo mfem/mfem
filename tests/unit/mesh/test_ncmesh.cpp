@@ -2814,8 +2814,10 @@ TEST_CASE("RP=I", "[NCMesh]")
 
 TEST_CASE("InternalBoundaryProjectBdrCoefficient", "[NCMesh]")
 {
-   auto test_project_H1 = [](Mesh &mesh,  int order, double coef)
+   auto test_project_H1 = [](Mesh &mesh, int order, double coef)
    {
+      MFEM_ASSERT(std::abs(coef) > 0,
+                  "Non zero coef value required for meaningful test.");
       H1_FECollection fe_collection(order, mesh.SpaceDimension());
       FiniteElementSpace fe_space(&mesh, &fe_collection);
       GridFunction x(&fe_space);
