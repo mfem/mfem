@@ -700,7 +700,7 @@ Func GetTFun(int prob, real_t t_0)
          return [=](const Vector &x) -> real_t
          {
             Vector xc(x);
-            xc -= .5;
+            //xc -= .5;
             real_t t0 = 1. - tanh(10. * (-1. + 4.*xc.Norml2()));
             return t0;
          };
@@ -744,7 +744,7 @@ VecFunc GetQFun(int prob, real_t t_0, real_t k, real_t c)
             v.SetSize(vdim);
             v = 0.;
             Vector xc(x);
-            xc -= .5;
+            //xc -= .5;
 
             real_t t0 = 1. - tanh(10. * (-1. + 4.*xc.Norml2()));
             v(0) = +xc(1) * t0 * c;
@@ -783,7 +783,7 @@ VecFunc GetCFun(int prob, real_t c)
             v.SetSize(ndim);
             v = 0.;
             Vector xc(x);
-            xc -= .5;
+            //xc -= .5;
 
             v(0) = +xc(1) * c;
             v(1) = -xc(0) * c;
