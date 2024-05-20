@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1018,7 +1018,7 @@ public:
    { return (dof >= 0) ? dof : (-1 - dof); }
 
    /// Helper to determine the DOF and sign of a sign encoded DOF
-   static inline int DecodeDof(int dof, double& sign)
+   static inline int DecodeDof(int dof, real_t& sign)
    { return (dof >= 0) ? (sign = 1, dof) : (sign = -1, (-1 - dof)); }
 
    /// @anchor getvdof @name Local Vector DoF Access Members

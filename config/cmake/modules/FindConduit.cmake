@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -36,7 +36,11 @@ include(MfemCmakeUtilities)
 mfem_find_package(Conduit CONDUIT CONDUIT_DIR
   "include;include/conduit" conduit.hpp "lib" conduit
   "Paths to headers required by Conduit." "Libraries required by Conduit."
+  ADD_COMPONENT blueprint
+    "include;include/conduit" conduit_blueprint.hpp "lib" conduit_blueprint
+  ADD_COMPONENT blueprint_mpi
+    "include;include/conduit" conduit_blueprint_mpi.hpp "lib" conduit_blueprint_mpi
   ADD_COMPONENT relay
     "include;include/conduit" conduit_relay.hpp "lib" conduit_relay
-  ADD_COMPONENT blueprint
-    "include;include/conduit" conduit_blueprint.hpp "lib" conduit_blueprint)
+  ADD_COMPONENT relay_mpi
+    "include;include/conduit" conduit_relay_mpi.hpp "lib" conduit_relay_mpi)

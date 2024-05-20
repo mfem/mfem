@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -134,7 +134,7 @@ void FaceQuadratureInterpolator::Eval2D(
       const int VDIM = T_VDIM ? T_VDIM : vdim;
       constexpr int max_ND1D = T_ND1D ? T_ND1D : MAX_ND1D;
       constexpr int max_VDIM = T_VDIM ? T_VDIM : MAX_VDIM2D;
-      double r_F[max_ND1D][max_VDIM];
+      real_t r_F[max_ND1D][max_VDIM];
       for (int d = 0; d < ND1D; d++)
       {
          for (int c = 0; c < VDIM; c++)
@@ -146,11 +146,11 @@ void FaceQuadratureInterpolator::Eval2D(
       {
          if (eval_flags & VALUES)
          {
-            double ed[max_VDIM];
+            real_t ed[max_VDIM];
             for (int c = 0; c < VDIM; c++) { ed[c] = 0.0; }
             for (int d = 0; d < ND1D; ++d)
             {
-               const double b = B(q,d);
+               const real_t b = B(q,d);
                for (int c = 0; c < VDIM; c++) { ed[c] += b*r_F[d][c]; }
             }
             for (int c = 0; c < VDIM; c++)
@@ -163,14 +163,14 @@ void FaceQuadratureInterpolator::Eval2D(
              || (eval_flags & DETERMINANTS)
              || (eval_flags & NORMALS))
          {
-            double D[max_VDIM];
+            real_t D[max_VDIM];
             for (int i = 0; i < VDIM; i++) { D[i] = 0.0; }
             for (int d = 0; d < ND1D; ++d)
             {
-               const double w = G(q,d);
+               const real_t w = G(q,d);
                for (int c = 0; c < VDIM; c++)
                {
-                  double s_e = r_F[d][c];
+                  real_t s_e = r_F[d][c];
                   D[c] += s_e * w;
                }
             }
@@ -178,14 +178,14 @@ void FaceQuadratureInterpolator::Eval2D(
                 ((eval_flags & NORMALS)
                  || (eval_flags & DETERMINANTS)))
             {
-               const double norm = sqrt(D[0]*D[0]+D[1]*D[1]);
+               const real_t norm = sqrt(D[0]*D[0]+D[1]*D[1]);
                if (eval_flags & DETERMINANTS)
                {
                   det(q,f) = norm;
                }
                if (eval_flags & NORMALS)
                {
-                  const double s = sign[f] ? -1.0 : 1.0;
+                  const real_t s = sign[f] ? -1.0 : 1.0;
                   if (q_layout == QVectorLayout::byVDIM)
                   {
                      n(0,q,f) =  s*D[1]/norm;
@@ -244,7 +244,7 @@ void FaceQuadratureInterpolator::Eval3D(
       constexpr int max_ND1D = T_ND1D ? T_ND1D : MAX_ND1D;
       constexpr int max_NQ1D = T_NQ1D ? T_NQ1D : MAX_NQ1D;
       constexpr int max_VDIM = T_VDIM ? T_VDIM : MAX_VDIM3D;
-      double r_F[max_ND1D][max_ND1D][max_VDIM];
+      real_t r_F[max_ND1D][max_ND1D][max_VDIM];
       for (int d1 = 0; d1 < ND1D; d1++)
       {
          for (int d2 = 0; d2 < ND1D; d2++)
@@ -257,7 +257,7 @@ void FaceQuadratureInterpolator::Eval3D(
       }
       if (eval_flags & VALUES)
       {
-         double Bu[max_NQ1D][max_ND1D][max_VDIM];
+         real_t Bu[max_NQ1D][max_ND1D][max_VDIM];
          for (int d2 = 0; d2 < ND1D; ++d2)
          {
             for (int q = 0; q < NQ1D; ++q)
@@ -265,7 +265,7 @@ void FaceQuadratureInterpolator::Eval3D(
                for (int c = 0; c < VDIM; c++) { Bu[q][d2][c] = 0.0; }
                for (int d1 = 0; d1 < ND1D; ++d1)
                {
-                  const double b = B(q,d1);
+                  const real_t b = B(q,d1);
                   for (int c = 0; c < VDIM; c++)
                   {
                      Bu[q][d2][c] += b*r_F[d1][d2][c];
@@ -273,7 +273,7 @@ void FaceQuadratureInterpolator::Eval3D(
                }
             }
          }
-         double BBu[max_NQ1D][max_NQ1D][max_VDIM];
+         real_t BBu[max_NQ1D][max_NQ1D][max_VDIM];
          for (int q2 = 0; q2 < NQ1D; ++q2)
          {
             for (int q1 = 0; q1 < NQ1D; ++q1)
@@ -281,7 +281,7 @@ void FaceQuadratureInterpolator::Eval3D(
                for (int c = 0; c < VDIM; c++) { BBu[q2][q1][c] = 0.0; }
                for (int d2 = 0; d2 < ND1D; ++d2)
                {
-                  const double b = B(q2,d2);
+                  const real_t b = B(q2,d2);
                   for (int c = 0; c < VDIM; c++)
                   {
                      BBu[q2][q1][c] += b*Bu[q1][d2][c];
@@ -289,7 +289,7 @@ void FaceQuadratureInterpolator::Eval3D(
                }
                for (int c = 0; c < VDIM; c++)
                {
-                  const double v = BBu[q2][q1][c];
+                  const real_t v = BBu[q2][q1][c];
                   if (q_layout == QVectorLayout::byVDIM)  { val(c,q1,q2,f) = v; }
                   if (q_layout == QVectorLayout::byNODES) { val(q1,q2,c,f) = v; }
                }
@@ -301,8 +301,8 @@ void FaceQuadratureInterpolator::Eval3D(
           || (eval_flags & NORMALS))
       {
          // We only compute the tangential derivatives
-         double Gu[max_NQ1D][max_ND1D][max_VDIM];
-         double Bu[max_NQ1D][max_ND1D][max_VDIM];
+         real_t Gu[max_NQ1D][max_ND1D][max_VDIM];
+         real_t Bu[max_NQ1D][max_ND1D][max_VDIM];
          for (int d2 = 0; d2 < ND1D; ++d2)
          {
             for (int q = 0; q < NQ1D; ++q)
@@ -314,19 +314,19 @@ void FaceQuadratureInterpolator::Eval3D(
                }
                for (int d1 = 0; d1 < ND1D; ++d1)
                {
-                  const double b = B(q,d1);
-                  const double g = G(q,d1);
+                  const real_t b = B(q,d1);
+                  const real_t g = G(q,d1);
                   for (int c = 0; c < VDIM; c++)
                   {
-                     const double u = r_F[d1][d2][c];
+                     const real_t u = r_F[d1][d2][c];
                      Gu[q][d2][c] += g*u;
                      Bu[q][d2][c] += b*u;
                   }
                }
             }
          }
-         double BGu[max_NQ1D][max_NQ1D][max_VDIM];
-         double GBu[max_NQ1D][max_NQ1D][max_VDIM];
+         real_t BGu[max_NQ1D][max_NQ1D][max_VDIM];
+         real_t GBu[max_NQ1D][max_NQ1D][max_VDIM];
          for (int q2 = 0; q2 < NQ1D; ++q2)
          {
             for (int q1 = 0; q1 < NQ1D; ++q1)
@@ -338,8 +338,8 @@ void FaceQuadratureInterpolator::Eval3D(
                }
                for (int d2 = 0; d2 < ND1D; ++d2)
                {
-                  const double b = B(q2,d2);
-                  const double g = G(q2,d2);
+                  const real_t b = B(q2,d2);
+                  const real_t g = G(q2,d2);
                   for (int c = 0; c < VDIM; c++)
                   {
                      BGu[q2][q1][c] += b*Gu[q1][d2][c];
@@ -351,19 +351,19 @@ void FaceQuadratureInterpolator::Eval3D(
          if (VDIM == 3 && ((eval_flags & NORMALS) ||
                            (eval_flags & DETERMINANTS)))
          {
-            double n[3];
+            real_t n[3];
             for (int q2 = 0; q2 < NQ1D; ++q2)
             {
                for (int q1 = 0; q1 < NQ1D; ++q1)
                {
-                  const double s = sign[f] ? -1.0 : 1.0;
+                  const real_t s = sign[f] ? -1.0 : 1.0;
                   n[0] = s*( BGu[q2][q1][1]*GBu[q2][q1][2]-GBu[q2][q1][1]*
                              BGu[q2][q1][2] );
                   n[1] = s*(-BGu[q2][q1][0]*GBu[q2][q1][2]+GBu[q2][q1][0]*
                             BGu[q2][q1][2] );
                   n[2] = s*( BGu[q2][q1][0]*GBu[q2][q1][1]-GBu[q2][q1][0]*
                              BGu[q2][q1][1] );
-                  const double norm = sqrt(n[0]*n[0]+n[1]*n[1]+n[2]*n[2]);
+                  const real_t norm = sqrt(n[0]*n[0]+n[1]*n[1]+n[2]*n[2]);
                   if (eval_flags & DETERMINANTS) { det(q1,q2,f) = norm; }
                   if (eval_flags & NORMALS)
                   {
@@ -431,10 +431,10 @@ void FaceQuadratureInterpolator::SmemEval3D(
       constexpr int max_NQ1D = T_NQ1D ? T_NQ1D : MAX_NQ1D;
       constexpr int max_VDIM = T_VDIM ? T_VDIM : MAX_VDIM3D;
 
-      MFEM_SHARED double sm1[max_NQ1D*max_NQ1D*max_VDIM];
-      MFEM_SHARED double sm2[max_NQ1D*max_ND1D*max_VDIM];
+      MFEM_SHARED real_t sm1[max_NQ1D*max_NQ1D*max_VDIM];
+      MFEM_SHARED real_t sm2[max_NQ1D*max_ND1D*max_VDIM];
 
-      auto s_F = (double(*)[max_ND1D][max_VDIM])sm1;
+      auto s_F = (real_t(*)[max_ND1D][max_VDIM])sm1;
       MFEM_FOREACH_THREAD(d1,x,ND1D)
       {
          MFEM_FOREACH_THREAD(d2,y,ND1D)
@@ -449,14 +449,14 @@ void FaceQuadratureInterpolator::SmemEval3D(
 
       if (eval_flags & VALUES)
       {
-         auto Bu = (double (*)[max_ND1D][max_VDIM])sm2;
+         auto Bu = (real_t (*)[max_ND1D][max_VDIM])sm2;
          MFEM_FOREACH_THREAD(d2,x,ND1D)
          {
             MFEM_FOREACH_THREAD(q1,y,NQ1D)
             {
                MFEM_FOREACH_THREAD(c,z,VDIM)
                {
-                  double thrdBu = 0.0;
+                  real_t thrdBu = 0.0;
                   for (int d1 = 0; d1 < ND1D; ++d1)
                   {
                      thrdBu += B(q1,d1)*s_F[d1][d2][c];
@@ -473,7 +473,7 @@ void FaceQuadratureInterpolator::SmemEval3D(
             {
                MFEM_FOREACH_THREAD(c,z,VDIM)
                {
-                  double v = 0.0;
+                  real_t v = 0.0;
                   for (int d2 = 0; d2 < ND1D; ++d2)
                   {
                      v += B(q2,d2)*Bu[q1][d2][c];
@@ -490,19 +490,19 @@ void FaceQuadratureInterpolator::SmemEval3D(
           || (eval_flags & NORMALS))
       {
          // We only compute the tangential derivatives
-         auto Gu = (double (*)[max_ND1D][max_VDIM])sm2;
-         MFEM_SHARED double Bu[max_NQ1D][max_ND1D][max_VDIM];
+         auto Gu = (real_t (*)[max_ND1D][max_VDIM])sm2;
+         MFEM_SHARED real_t Bu[max_NQ1D][max_ND1D][max_VDIM];
          MFEM_FOREACH_THREAD(d2,x,ND1D)
          {
             MFEM_FOREACH_THREAD(q1,y,NQ1D)
             {
                MFEM_FOREACH_THREAD(c,z,VDIM)
                {
-                  double thrdGu = 0;
-                  double thrdBu = 0;
+                  real_t thrdGu = 0;
+                  real_t thrdBu = 0;
                   for (int d1 = 0; d1 < ND1D; ++d1)
                   {
-                     const double u = s_F[d1][d2][c];
+                     const real_t u = s_F[d1][d2][c];
                      thrdBu += B(q1,d1)*u;
                      thrdGu += G(q1,d1)*u;
                   }
@@ -513,16 +513,16 @@ void FaceQuadratureInterpolator::SmemEval3D(
          }
          MFEM_SYNC_THREAD;
 
-         auto BGu = (double (*)[max_NQ1D][max_VDIM])sm1;
-         MFEM_SHARED double GBu[max_NQ1D][max_NQ1D][max_VDIM];
+         auto BGu = (real_t (*)[max_NQ1D][max_VDIM])sm1;
+         MFEM_SHARED real_t GBu[max_NQ1D][max_NQ1D][max_VDIM];
          MFEM_FOREACH_THREAD(q2,x,NQ1D)
          {
             MFEM_FOREACH_THREAD(q1,y,NQ1D)
             {
                MFEM_FOREACH_THREAD(c,z,VDIM)
                {
-                  double thrdBGu = 0.0;
-                  double thrdGBu = 0.0;
+                  real_t thrdBGu = 0.0;
+                  real_t thrdGBu = 0.0;
                   for (int d2 = 0; d2 < ND1D; ++d2)
                   {
                      thrdBGu += B(q2,d2)*Gu[q1][d2][c];
@@ -538,14 +538,14 @@ void FaceQuadratureInterpolator::SmemEval3D(
          if (VDIM == 3 && ((eval_flags & NORMALS) ||
                            (eval_flags & DETERMINANTS)))
          {
-            double n[3];
+            real_t n[3];
             MFEM_FOREACH_THREAD(q2,x,NQ1D)
             {
                MFEM_FOREACH_THREAD(q1,y,NQ1D)
                {
                   if (MFEM_THREAD_ID(z) == 0)
                   {
-                     const double s = sign[f] ? -1.0 : 1.0;
+                     const real_t s = sign[f] ? -1.0 : 1.0;
                      n[0] = s*( BGu[q2][q1][1]*GBu[q2][q1][2]-GBu[q2][q1][1]*
                                 BGu[q2][q1][2] );
                      n[1] = s*(-BGu[q2][q1][0]*GBu[q2][q1][2]+GBu[q2][q1][0]*
@@ -553,7 +553,7 @@ void FaceQuadratureInterpolator::SmemEval3D(
                      n[2] = s*( BGu[q2][q1][0]*GBu[q2][q1][1]-GBu[q2][q1][0]*
                                 BGu[q2][q1][1] );
 
-                     const double norm = sqrt(n[0]*n[0]+n[1]*n[1]+n[2]*n[2]);
+                     const real_t norm = sqrt(n[0]*n[0]+n[1]*n[1]+n[2]*n[2]);
 
                      if (eval_flags & DETERMINANTS) { det(q1,q2,f) = norm; }
 

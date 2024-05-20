@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1810,11 +1810,13 @@ void ParNCMesh::SynchronizeDerefinementData(Array<Type> &elem_data,
    }
 }
 
-// instantiate SynchronizeDerefinementData for int and double
+// instantiate SynchronizeDerefinementData for int, double, and float
 template void
 ParNCMesh::SynchronizeDerefinementData<int>(Array<int> &, const Table &);
 template void
 ParNCMesh::SynchronizeDerefinementData<double>(Array<double> &, const Table &);
+template void
+ParNCMesh::SynchronizeDerefinementData<float>(Array<float> &, const Table &);
 
 
 void ParNCMesh::CheckDerefinementNCLevel(const Table &deref_table,

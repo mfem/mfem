@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -100,7 +100,7 @@ Mesh CylinderMesh(Geometry::Type el_type, bool quadratic, int variant = 0);
 
 
 /**
- * @brief Test GetVectorValue on face neighbor elements for nonconformal meshes
+ * @brief Test GetVectorValue on face neighbor elements for nonconforming meshes
  *
  * @param smesh The serial mesh to start from
  * @param nc_level Depth of refinement on processor boundaries
@@ -164,8 +164,8 @@ bool CheckFaceInternal(ParMesh& pmesh, int f,
  * @return std::array<double, 2> Pair of error on the serial mesh and the
  * parallel mesh. Should be within numerical tolerance of each other.
  */
-std::array<double, 2> CheckL2Projection(ParMesh& pmesh, Mesh& smesh, int order,
-                                        std::function<double(Vector const&)> exact_soln);
+std::array<real_t, 2> CheckL2Projection(ParMesh& pmesh, Mesh& smesh, int order,
+                                        std::function<real_t(Vector const&)> exact_soln);
 
 
 /**
