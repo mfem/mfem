@@ -419,9 +419,10 @@ void SysOperator::NonlinearEquationRes(GridFunction &psi, Vector *currents, doub
   x_x = x_x_;
  
   NonlinearGridCoefficient nlgcoeff0(model, 0, &x, val_ma, val_x, plasma_inds, attr_lim);
-  GridFunction f(fespace);
-  f.ProjectCoefficient(nlgcoeff0);
-  f.Save("gf/f.gf");
+  GridFunction f_(fespace);
+  f_.ProjectCoefficient(nlgcoeff0);
+  f_.Save("gf/f.gf");
+  f = f_;
    
   // ------------------------------------------------
   // *** compute res ***

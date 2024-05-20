@@ -13,7 +13,7 @@ gamma=0.0
 # 1: ff' defined from fpol data
 # 2: Taylor equilibrium
 # 3: ff' defined from ff' data
-model=1
+model=2
 
 # plasma current
 Ip=1.5e+7
@@ -52,11 +52,11 @@ c10=1.066498e+07
 c11=-2.094771e+07
 
 # center solenoids
-# c1=1.143284e+03
-# c2=-2.478694e+04
-# c3=-3.022037e+04
-# c4=-2.205664e+04
-# c5=-2.848113e+03
+c1=1.143284e+03
+c2=-2.478694e+04
+c3=-3.022037e+04
+c4=-2.205664e+04
+c5=-2.848113e+03
 
 # # poloidal flux coils
 # c6=0.0
@@ -67,11 +67,11 @@ c11=-2.094771e+07
 # c11=0.0
 
 # # center solenoids
-c1=-1.143284e+06
-c2=2.478694e+07
-c3=3.022037e+07
-c4=2.205664e+07
-c5=2.848113e+06
+# c1=-1.143284e+06
+# c2=2.478694e+07
+# c3=3.022037e+07
+# c4=2.205664e+07
+# c5=2.848113e+06
 
 ur_coeff=1.0
 

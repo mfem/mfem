@@ -147,6 +147,9 @@ int main(int argc, char *argv[])
    int amg_num_sweeps_b = 1;
    int amg_max_iter = 1;
 
+   double amr_frac_in = 0.01;
+   double amr_frac_out = 0.3;
+
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&order, "-o", "--order", "Finite element polynomial degree");
@@ -200,6 +203,9 @@ int main(int argc, char *argv[])
    args.AddOption(&amg_num_sweeps_b, "-nsb", "--amg_num_sweeps_b", "AMG num sweeps b");
    args.AddOption(&amg_max_iter, "-mi", "--amg_max_iter", "AMG max iterations");
 
+   args.AddOption(&amr_frac_in, "-afi", "--amr_frac_in", "AMR fraction for limiter");
+   args.AddOption(&amr_frac_out, "-afo", "--amr_frac_out", "AMR fraction for outside limiter");
+   
    args.ParseCheck();
 
    if (do_initial == 1) {
@@ -222,7 +228,8 @@ int main(int argc, char *argv[])
         weight_obj, obj_option, optimize_alpha,
         do_manufactured_solution,
         do_initial, PC_option, max_levels, max_dofs, light_tol,
-        alpha_in, gamma_in, amg_cycle_type, amg_num_sweeps_a, amg_num_sweeps_b, amg_max_iter);
+        alpha_in, gamma_in, amg_cycle_type, amg_num_sweeps_a, amg_num_sweeps_b, amg_max_iter,
+        amr_frac_in, amr_frac_out);
    }
 
    return 0;

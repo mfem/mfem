@@ -66,6 +66,7 @@ private:
   GridFunction res;
   GridFunction Ba;
   GridFunction Cy;
+  GridFunction f;
   SparseMatrix *By;
   SparseMatrix *By_symmetric;
   double plasma_current;
@@ -224,6 +225,7 @@ public:
   double get_plasma_current() {return plasma_current;}
   Vector get_Cy() {return Cy;}
   double get_Ca() {return Ca;}
+  GridFunction get_f() {return f;}
 
   void set_i_option(int option) {i_option = option;}
   void set_obj_weight(double obj_weight_) {obj_weight = obj_weight_;}
@@ -478,27 +480,18 @@ private:
   Vector *vec1, *vec2;
   Array<int> *offsets;
   int N;
+  int option = 1;
+  Vector *Ba;
+  Vector *Cy;
+  double Ca
 
 public:
   // set parameters
-  SchurPC(Operator *A_, Operator *C_, Solver *B_prec_, Solver *BT_prec_) :
-    B_prec(B_prec_), BT_prec(BT_prec_), A(A_), C(C_)
+  SchurPC(Operator *A_, Operator *C_, Solver *B_prec_, Solver *BT_prec_,
+          Vector * Ba_, Vector * Cy_, double & Ca_, int option_=1) :
+  B_prec(B_prec_), BT_prec(BT_prec_), A(A_), C(C_), option(option_), Ba(Ba_), Cy(Cy_), Ca(Ca_)
   {
     N = A_->Height();
-    // Array<int> dofs1_(N);
-    // Array<int> dofs2_(N);
-
-    // for (int i = 0; i < N; ++i) {
-    //   dofs1_[i] = i;
-    //   dofs2_[i] = i + N;
-    // }
-    // dofs1 = &dofs1_;
-    // dofs2 = &dofs2_;
-
-    // Vector vec1_(N);
-    // Vector vec2_(N);
-    // vec1 = &vec1_;
-    // vec2 = &vec2_;
 
     Array<int> offsets_(3);
     offsets_[0] = 0;
@@ -511,7 +504,6 @@ public:
   // set action
   virtual void Mult(const Vector &k, Vector &y) const
   {
-
     Vector vec1, vec2;
     vec1.MakeRef(const_cast<Vector&>(k), 0, N);
     vec2.MakeRef(const_cast<Vector&>(k), N, N);
@@ -550,7 +542,19 @@ public:
       C->Mult(out1, temp3);
       BT_prec->Mult(temp3, temp3);
       add(1.0, temp2, -1.0, temp3, out2);
-    } else if (false) {
+    } else if (option == 2) {
+      // lower triangular
+      // block GS
+      Vector temp1(N), temp2(N);
+      B_prec->Mult(vec1, out1);
+
+      // solve BT out2 + C out1 = vec2
+      C->Mult(out1, temp1);
+      add(-1.0, temp1, 1.0, vec2, temp1);
+      BT_prec->Mult(temp1, out2);
+
+    } else if (option == 3) {
+      // upper triangular
       // block GS
       Vector temp1(N), temp2(N);
       BT_prec->Mult(vec2, out2);
@@ -559,8 +563,9 @@ public:
       A->Mult(out2, temp2);
       add(-1.0, temp2, 1.0, vec1, temp2);
       B_prec->Mult(temp2, out1);
-
-    } else {
+    
+    } else if (option == 1) {
+      // upper triangular
       // block GS
       Vector temp1(N), temp2(N);
       int max_itr = 1;

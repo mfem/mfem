@@ -168,7 +168,7 @@ def _VacuumVesselFirstWallCoordinates(return_coarse=5):
 
 def _PlasmaBoundary():
     arr = []
-    with open("separated_file.data", 'r') as fid:
+    with open("../data/separated_file.data", 'r') as fid:
         for line in fid:
             if "rbbbs(i),zbbbs(i)" in line:
                 out = fid.readline()[:-2].split(" ")
@@ -410,7 +410,7 @@ def plot():
     plt.text(10, 7, "coils")
     plt.axis('off')
     plt.tight_layout()
-    plt.savefig("figs/domain.png", dpi=200)
+    plt.savefig("../figs/domain.png", dpi=200)
     plt.show()
     
         

@@ -1,6 +1,7 @@
 #include "mfem.hpp"
 #include "gs.hpp"
 #include "boundary.hpp"
+#include "amr.hpp"
 #include "field.hpp"
 #include "double_integrals.hpp"
 #include <stdio.h>
@@ -241,6 +242,22 @@ void PrintMatlab(SparseMatrix *Mat, SparseMatrix *M1, SparseMatrix *M2) {
 }
 
 
+void PrintMatlab(FILE *fp, SparseMatrix *Mat) {
+  int *I = Mat->GetI();
+  int *J = Mat->GetJ();
+  double *A = Mat->GetData();
+  int height = Mat->Height();
+
+  int i, j;
+  for (i = 0; i < height; ++i) {
+    for (j = I[i]; j < I[i+1]; ++j) {
+      fprintf(fp, "%d %d %.3e\n", i, J[j], A[j]);
+    }
+  }
+}
+
+
+
 
 void DefineRHS(PlasmaModelBase & model, double & rho_gamma,
                Mesh & mesh, 
@@ -425,7 +442,8 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
            double & alpha,
            int & PC_option, int & max_levels, int & max_dofs, double & light_tol,
            double & alpha_in, double & gamma_in,
-           int amg_cycle_type, int amg_num_sweeps_a, int amg_num_sweeps_b, int amg_max_iter) {
+           int amg_cycle_type, int amg_num_sweeps_a, int amg_num_sweeps_b, int amg_max_iter,
+           double amr_frac_in, double amr_frac_out) {
 
 
   // initialize MPI and Hypre so we can use AMG
@@ -441,9 +459,12 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
   GridFunction Br_field(&fespace);
   GridFunction Bp_field(&fespace);
   GridFunction Bz_field(&fespace);
+  GridFunction f(&fespace);
 
   // Save data in the VisIt format
-  VisItDataCollection visit_dc("out/gs", fespace.GetMesh());
+  char outname[60];
+  sprintf(outname, "out/gs_model%d_pc%d_cyc%d_it%d", model->get_model_choice(), PC_option, amg_cycle_type, amg_max_iter);  
+  VisItDataCollection visit_dc(outname, fespace.GetMesh());
   visit_dc.RegisterField("psi", &x);
   visit_dc.RegisterField("Br", &Br_field);
   visit_dc.RegisterField("Bp", &Bp_field);
@@ -459,7 +480,7 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
 
     FILE *fp;
     char filename[60];
-    sprintf(filename, "out_iter/iters%d.txt", PC_option);
+    sprintf(filename, "out_iter/iters_model%d_pc%d_cyc%d_it%d.txt", model->get_model_choice(), PC_option, amg_cycle_type, amg_max_iter);
     fp = fopen(filename, "w");
 
     // print initial currents
@@ -491,8 +512,8 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
     DiffusionIntegratorCoefficient diff_op_coeff(model);
     DiffusionIntegrator *integ = new DiffusionIntegrator(diff_op_coeff);
     estimator = new LSZienkiewiczZhuEstimator(*integ, x);
-    ThresholdRefiner refiner(*estimator);
-    refiner.SetTotalErrorFraction(0.3);
+    // estimator = new LSZienkiewiczZhuEstimator(*integ, f);
+    RegionalThresholdRefiner refiner(*estimator);
 
     // track time
     auto t_init = std::chrono::high_resolution_clock::now();
@@ -506,7 +527,7 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
 
       // save mesh
       char name_mesh[60];
-      sprintf(name_mesh, "gf/mesh_amr%d.mesh", it_amr);
+      sprintf(name_mesh, "gf/mesh_amr%d_model%d_pc%d_cyc%d_it%d.mesh", it_amr, model->get_model_choice(), PC_option, amg_cycle_type, amg_max_iter);
       mesh->Save(name_mesh);
 
       // *** prepare operators for solver *** //
@@ -585,6 +606,8 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         // plasma current
         printf("plasma_current = %e\n", C / op.get_mu());
         printf("alpha = %f\n", alpha);
+        fprintf(fp, "plasma_current = %e\n", C / op.get_mu());
+        fprintf(fp, "alpha = %f\n", alpha);
 
         // get psi x and magnetic axis points and locations
         double psi_x = op.get_psi_x();
@@ -596,6 +619,8 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         BzCoeff.set_psi_vals(psi_x, psi_ma);
         printf("psi_x = %e; r_x = %e; z_x = %e\n", psi_x, x_x[0], x_x[1]);
         printf("psi_ma = %e; r_ma = %e; z_ma = %e\n", psi_ma, x_ma[0], x_ma[1]);
+        fprintf(fp, "psi_x = %e; r_x = %e; z_x = %e\n", psi_x, x_x[0], x_x[1]);
+        fprintf(fp, "psi_ma = %e; r_ma = %e; z_ma = %e\n", psi_ma, x_ma[0], x_ma[1]);
 
         // *** compute rhs vectors *** //
         // -b3 = eq_res = B(y^n) - F u^n
@@ -641,8 +666,13 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         if (i == 0) {
           printf("i: %3d, nonl_res: %.3e, ratio %9s, res: [%.3e, %.3e, %.3e, %.3e], loss: %.3e, obj: %.3e, reg: %.3e\n",
                  i, error, "", max_opt_res, max_reg_res, abs(b4), abs(b5), test_obj+regularization, test_obj, regularization);
+          fprintf(fp, "i: %3d, nonl_res: %.3e, ratio %9s, res: [%.3e, %.3e, %.3e, %.3e], loss: %.3e, obj: %.3e, reg: %.3e\n",
+                 i, error, "", max_opt_res, max_reg_res, abs(b4), abs(b5), test_obj+regularization, test_obj, regularization);
         } else {
           printf("i: %3d, nonl_res: %.3e, ratio %.3e, res: [%.3e, %.3e, %.3e, %.3e], loss: %.3e, obj: %.3e, reg: %.3e\n",
+                 i, error, error_old / error, max_opt_res, max_reg_res, abs(b4), abs(b5), test_obj+regularization,
+                 test_obj, regularization);
+          fprintf(fp, "i: %3d, nonl_res: %.3e, ratio %.3e, res: [%.3e, %.3e, %.3e, %.3e], loss: %.3e, obj: %.3e, reg: %.3e\n",
                  i, error, error_old / error, max_opt_res, max_reg_res, abs(b4), abs(b5), test_obj+regularization,
                  test_obj, regularization);
         }
@@ -701,6 +731,7 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         CyBa->Finalize();
         SparseMatrix *ByT = Transpose(By);
         SparseMatrix *ScaleByT = Add(scale, *ByT, 0.0, *CyBa);
+        SparseMatrix *ScaleBy = Transpose(*ScaleByT);
         SparseMatrix *BMat = Add(scale, *ByT, -scale, *CyBa);
         SparseMatrix *BTMat = Transpose(*BMat);
 
@@ -731,7 +762,18 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         BlockSystem.SetBlock(0, ind_p, BMat);
         BlockSystem.SetBlock(1, ind_x, BTMat);
         BlockSystem.SetBlock(1, ind_p, CMat);
-        
+
+        FILE *fp_spy;
+        char filename_spy[60];
+        sprintf(filename_spy, "spys/spy_model%d_amr%d.txt", model->get_model_choice(), it_amr);
+        fp_spy = fopen(filename_spy, "w");
+        fprintf(fp_spy, "AMat\n");
+        PrintMatlab(fp_spy, AMat);
+        fprintf(fp_spy, "\nBMat\n");
+        PrintMatlab(fp_spy, BMat);
+        fprintf(fp_spy, "\nCMat\n");
+        PrintMatlab(fp_spy, CMat);
+
         // Define rhs
         // rhs = [b1 - Cy b4 / Ca; b3 + mu F H^{-1} b_2 - Ba b5 / Ca]
         rhs = 0;
@@ -961,6 +1003,39 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
           
         } else if (PC_option == 5) {
 
+          // upper triangular AMG
+          Solver *inv_SC, *inv_BT, *inv_B;
+
+          HypreParMatrix * B_Hypre = convert_to_hypre(BMat);
+          HypreParMatrix * BT_Hypre = convert_to_hypre(BTMat);
+          // HypreParMatrix * B_Hypre = convert_to_hypre(ScaleByT);
+          // HypreParMatrix * BT_Hypre = convert_to_hypre(ScaleBy);
+
+          HypreBoomerAMG *B_AMG = new HypreBoomerAMG(*B_Hypre);
+          HypreBoomerAMG *BT_AMG = new HypreBoomerAMG(*BT_Hypre);
+
+          B_AMG->SetPrintLevel(0);
+          B_AMG->SetCycleType(amg_cycle_type);
+          B_AMG->SetCycleNumSweeps(amg_num_sweeps_a, amg_num_sweeps_b);
+          B_AMG->SetMaxIter(amg_max_iter);
+
+          BT_AMG->SetPrintLevel(0);
+          BT_AMG->SetCycleType(amg_cycle_type);
+          BT_AMG->SetCycleNumSweeps(amg_num_sweeps_a, amg_num_sweeps_b);
+          BT_AMG->SetMaxIter(amg_max_iter);
+
+          inv_B = B_AMG;
+          inv_BT = BT_AMG;
+          
+          SchurPC SCPC(AMat, CMat, inv_B, inv_BT, 1);
+          solver.SetPreconditioner(SCPC);
+          solver.Mult(rhs, dx);
+          printf("BlockOperator.BlockSystem iterations:            %d\n", solver.GetNumIterations());
+          fprintf(fp, "amr=%d newton=%d iters=%d\n", it_amr, i, solver.GetNumIterations());
+
+        } else if (PC_option == 6) {
+          // lower triangular AMG
+
           Solver *inv_SC, *inv_BT, *inv_B;
 
           HypreParMatrix * B_Hypre = convert_to_hypre(BMat);
@@ -982,12 +1057,24 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
           inv_B = B_AMG;
           inv_BT = BT_AMG;
           
-          SchurPC SCPC(AMat, CMat, inv_B, inv_BT);
+          SchurPC SCPC(AMat, CMat, inv_B, inv_BT, 2);
           solver.SetPreconditioner(SCPC);
           solver.Mult(rhs, dx);
           printf("BlockOperator.BlockSystem iterations:            %d\n", solver.GetNumIterations());
           fprintf(fp, "amr=%d newton=%d iters=%d\n", it_amr, i, solver.GetNumIterations());
+
+        } else if (PC_option == 7) {
+          // block diagonal woodbury
+
+          Solver *inv_SC, *inv_BT, *inv_B;
+
+          HypreParMatrix * B_Hypre = convert_to_hypre(ScaleByT);
+          HypreParMatrix * BT_Hypre = convert_to_hypre(ScaleBy);
+
+          HypreBoomerAMG *B_AMG = new HypreBoomerAMG(*B_Hypre);
+          HypreBoomerAMG *BT_AMG = new HypreBoomerAMG(*BT_Hypre);
           
+        
         } else if (PC_option == -1) {
           /*
             Symmetric System, Schur Complement
@@ -1142,14 +1229,15 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
           cout << "Reached the maximum number of dofs. Stop." << endl;
           break;
         }
-        
-      refiner.Apply(*mesh);
+
+      f = op.get_f();
+      refiner.ApplyRef(*mesh, 1000, amr_frac_in, amr_frac_out);
       mesh->Save("meshes/mesh_refine.mesh");
       if (refiner.Stop()) {
         cout << "Stopping criterion satisfied. Stop." << endl;
         break;
       } else {
-        printf("Refining mesh, i=%d\n", it_amr);
+        printf("Refining mesh, i=%d\n", it_amr+1);
       }
 
       // update variables due to refinement
@@ -1239,6 +1327,7 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
 
       eq_res = op.get_res();
       b3 = eq_res;  // b3 *= -1.0;
+      // F->AddMult(*uv, eq_res, -op.get_mu());
 
       error = GetMaxError(eq_res);
 
@@ -1320,7 +1409,8 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
           bool do_manufactured_solution, bool do_initial,
           int & PC_option, int & max_levels, int & max_dofs, double & light_tol,
           double & alpha_in, double & gamma_in,
-          int amg_cycle_type, int amg_num_sweeps_a, int amg_num_sweeps_b, int amg_max_iter) {
+          int amg_cycle_type, int amg_num_sweeps_a, int amg_num_sweeps_b, int amg_max_iter,
+          double amr_frac_in, double amr_frac_out) {
 
    Vector uv_currents(num_currents);
    uv_currents[0] = c1;
@@ -1437,7 +1527,8 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
          alpha,
          PC_option, max_levels, max_dofs, light_tol,
          alpha_in, gamma_in,
-         amg_cycle_type, amg_num_sweeps_a, amg_num_sweeps_b, amg_max_iter);
+         amg_cycle_type, amg_num_sweeps_a, amg_num_sweeps_b, amg_max_iter,
+         amr_frac_in, amr_frac_out);
    
    if (do_initial) {
      char name_gf_out[60];
@@ -1451,10 +1542,13 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
      printf("Saved mesh to %s\n", name_mesh_out);
      printf("glvis -m %s -g %s\n", name_mesh_out, name_gf_out);
    } else {
-     x.Save("gf/final.gf");
-     printf("Saved solution to final.gf\n");
-     printf("Saved mesh to mesh.mesh\n");
-     printf("glvis -m mesh_refine.mesh -g final.gf\n");
+     char name_gf_out[60];
+     sprintf(name_gf_out, "gf/final_model%d_pc%d_cyc%d_it%d.gf", model.get_model_choice(), PC_option, amg_cycle_type, amg_max_iter);
+     // x.Save("gf/final.gf");
+     x.Save(name_gf_out);
+     // printf("Saved solution to final.gf\n");
+     // printf("Saved mesh to mesh.mesh\n");
+     printf("glvis -m meshes/mesh_refine.mesh -g %s\n", name_gf_out);
 
    }
    /* 

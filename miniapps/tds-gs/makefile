@@ -4,7 +4,7 @@ make:
 	main.cpp double_integrals.cpp gs.cpp elliptic_integral.cpp test.cpp \
 	initial_coefficient.cpp plasma_model.cpp field.cpp \
 	sys_operator.cpp boundary.cpp diffusion_term.cpp \
-	exact.cpp \
+	exact.cpp amr.cpp \
 	-o main.o -L$(MFEM_DIR) -lmfem -w -L/Users/dserino/Documents/mfem/../hypre/src/hypre/lib -lHYPRE -L/Users/dserino/Documents/mfem/../metis-4.0 -lmetis
 
 field:

@@ -43,7 +43,8 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
           bool do_initial,
           int & PC_option, int & max_levels, int & max_dofs, double & light_tol,
           double & alpha_in, double & gamma_in,
-          int cycle_type, int num_sweeps_a, int num_sweeps_b, int max_iter);
+          int cycle_type, int num_sweeps_a, int num_sweeps_b, int max_iter,
+          double amr_frac_in, double amr_frac_out);
 
 
 #endif
