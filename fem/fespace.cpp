@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -111,7 +111,7 @@ void FiniteElementSpace::CopyProlongationAndRestriction(
       perm_mat = new SparseMatrix(n, fes.GetVSize());
       for (int i=0; i<n; ++i)
       {
-         double s;
+         real_t s;
          int j = DecodeDof((*perm)[i], s);
          perm_mat->Set(i, j, s);
       }
@@ -606,13 +606,15 @@ void FiniteElementSpace::GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
 
       int counter = 0;
       std::string error_msg = "failed dof: ";
+      auto ess_tdofs_ = ess_tdofs.HostRead();
+      auto ess_tdofs2_ = ess_tdofs2.HostRead();
       for (int i = 0; i < ess_tdofs2.Size(); ++i)
       {
-         if (bool(ess_tdofs[i]) != bool(ess_tdofs2[i]))
+         if (bool(ess_tdofs_[i]) != bool(ess_tdofs2_[i]))
          {
             error_msg += std::to_string(i) += "(R ";
-            error_msg += std::to_string(bool(ess_tdofs[i])) += " P^T ";
-            error_msg += std::to_string(bool(ess_tdofs2[i])) += ") ";
+            error_msg += std::to_string(bool(ess_tdofs_[i])) += " P^T ";
+            error_msg += std::to_string(bool(ess_tdofs2_[i])) += ") ";
             counter++;
          }
       }
@@ -813,7 +815,7 @@ void FiniteElementSpace::AddDependencies(
       {
          for (int j = 0; j < master_dofs.Size(); j++)
          {
-            double coef = I(i, j);
+            real_t coef = I(i, j);
             if (std::abs(coef) > 1e-12)
             {
                int mdof = master_dofs[j];
@@ -858,7 +860,7 @@ void FiniteElementSpace::AddEdgeFaceDependencies(
       edge_pm.SetSize(2, 2);
 
       // copy two points from the face point matrix
-      double mid[2];
+      real_t mid[2];
       for (int j = 0; j < 2; j++)
       {
          edge_pm(j, 0) = (*pm)(j, a);
@@ -867,7 +869,7 @@ void FiniteElementSpace::AddEdgeFaceDependencies(
       }
 
       // check that the edge does not coincide with the master face's edge
-      const double eps = 1e-14;
+      const real_t eps = 1e-14;
       if (mid[0] > eps && mid[0] < 1-eps &&
           mid[1] > eps && mid[1] < 1-eps)
       {
@@ -1163,7 +1165,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    int *cR_J;
    {
       int *cR_I = Memory<int>(n_true_dofs+1);
-      double *cR_A = Memory<double>(n_true_dofs);
+      real_t *cR_A = Memory<real_t>(n_true_dofs);
       cR_J = Memory<int>(n_true_dofs);
       for (int i = 0; i < n_true_dofs; i++)
       {
@@ -1234,7 +1236,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
          if (!finalized[dof] && DofFinalizable(dof, finalized, deps))
          {
             const int* dep_col = deps.GetRowColumns(dof);
-            const double* dep_coef = deps.GetRowEntries(dof);
+            const real_t* dep_coef = deps.GetRowEntries(dof);
             int n_dep = deps.RowSize(dof);
 
             for (int j = 0; j < n_dep; j++)
@@ -2858,12 +2860,12 @@ void FiniteElementSpace::GetBdrElementDofs(int bel, Array<int> &dofs,
    {
       bdr_elem_dof->GetRow(bel, dofs);
 
-      if (DoFTransArray[mesh->GetBdrElementBaseGeometry(bel)])
+      if (DoFTransArray[mesh->GetBdrElementGeometry(bel)])
       {
          Array<int> Fo;
          bdr_elem_fos -> GetRow (bel, Fo);
          doftrans.SetDofTransformation(
-            *DoFTransArray[mesh->GetBdrElementBaseGeometry(bel)]);
+            *DoFTransArray[mesh->GetBdrElementGeometry(bel)]);
          doftrans.SetFaceOrientations(Fo);
          doftrans.SetVDim();
       }
@@ -2894,12 +2896,12 @@ void FiniteElementSpace::GetBdrElementDofs(int bel, Array<int> &dofs,
    {
       mesh->GetBdrElementFace(bel, &F, &oF);
 
-      if (DoFTransArray[mesh->GetBdrElementBaseGeometry(bel)])
+      if (DoFTransArray[mesh->GetBdrElementGeometry(bel)])
       {
          mfem::Array<int> Fo(1);
          Fo[0] = oF;
          doftrans.SetDofTransformation(
-            *DoFTransArray[mesh->GetBdrElementBaseGeometry(bel)]);
+            *DoFTransArray[mesh->GetBdrElementGeometry(bel)]);
          doftrans.SetFaceOrientations(Fo);
          doftrans.SetVDim();
       }
@@ -3221,7 +3223,7 @@ const FiniteElement *FiniteElementSpace::GetBE(int i) const
          break;
       case 3:
       default:
-         BE = fec->GetFE(mesh->GetBdrElementBaseGeometry(i), order);
+         BE = fec->GetFE(mesh->GetBdrElementGeometry(i), order);
    }
 
    if (NURBSext)
@@ -3560,7 +3562,7 @@ void FiniteElementSpace::Save(std::ostream &os) const
          dynamic_cast<const NURBSFECollection *>(fec);
       MFEM_VERIFY(nurbs_fec, "invalid FE collection");
       nurbs_fec->SetOrder(NURBSext->GetOrder());
-      const double eps = 5e-14;
+      const real_t eps = 5e-14;
       nurbs_unit_weights = (NURBSext->GetWeights().Min() >= 1.0-eps &&
                             NURBSext->GetWeights().Max() <= 1.0+eps);
       if ((NURBSext->GetOrder() == NURBSFECollection::VariableOrder) ||

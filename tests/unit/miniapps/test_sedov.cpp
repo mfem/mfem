@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -9,16 +9,17 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#define CATCH_CONFIG_RUNNER
+#include "mfem.hpp"
+#include "run_unit_tests.hpp"
+
 #ifdef _WIN32
 #define _USE_MATH_DEFINES
 #include <cmath>
 #endif
 
-#include "unit_tests.hpp"
 #include <unordered_map>
 #include <cstring>
-
-#include "mfem.hpp"
 #include "general/forall.hpp"
 #include "linalg/kernels.hpp"
 
@@ -50,8 +51,8 @@ namespace mfem
 {
 
 static void v0(const Vector&, Vector &v) { v = 0.0; }
-static double rho0(const Vector&) { return 1.0; }
-static double gamma(const Vector&) { return 1.4; }
+static real_t rho0(const Vector&) { return 1.0; }
+static real_t gamma(const Vector&) { return 1.4; }
 
 namespace hydrodynamics
 {
@@ -60,7 +61,7 @@ struct QuadratureData
 {
    DenseTensor Jac0inv, stressJinvT;
    Vector rho0DetJ0w;
-   double h0, dt_est;
+   real_t h0, dt_est;
    QuadratureData(int dim, int nzones, int quads_per_zone)
       : Jac0inv(dim, dim, nzones * quads_per_zone),
         stressJinvT(nzones * quads_per_zone, dim, dim),
@@ -74,7 +75,7 @@ struct Tensors1D
       : HQshape1D(H1order + 1, nqp1D), HQgrad1D(H1order + 1, nqp1D),
         LQshape1D(L2order + 1, nqp1D)
    {
-      const double *quad1D_pos =
+      const real_t *quad1D_pos =
          poly1d.GetPoints(nqp1D - 1, Quadrature1D::GaussLegendre);
       Poly_1D::Basis &basisH1 =
          poly1d.GetBasis(H1order, Quadrature1D::GaussLobatto);
@@ -100,9 +101,9 @@ struct Tensors1D
 
 template<int DIM, int D1D, int Q1D, int L1D, int H1D, int NBZ =1> static
 void kSmemForceMult2D(const int NE,
-                      const Array<double> &B_,
-                      const Array<double> &Bt_,
-                      const Array<double> &Gt_,
+                      const Array<real_t> &B_,
+                      const Array<real_t> &Bt_,
+                      const Array<real_t> &Gt_,
                       const DenseTensor &sJit_,
                       const Vector &e_,
                       Vector &v_)
@@ -113,24 +114,24 @@ void kSmemForceMult2D(const int NE,
    auto sJit = Reshape(Read(sJit_.GetMemory(), Q1D*Q1D*NE*2*2),
                        Q1D,Q1D,NE,2,2);
    auto energy = Reshape(e_.Read(), L1D, L1D, NE);
-   const double eps1 = std::numeric_limits<double>::epsilon();
-   const double eps2 = eps1*eps1;
+   const real_t eps1 = std::numeric_limits<real_t>::epsilon();
+   const real_t eps2 = eps1*eps1;
    auto velocity = Reshape(v_.Write(), D1D,D1D,2,NE);
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int z = MFEM_THREAD_ID(z);
-      MFEM_SHARED double B[Q1D][L1D];
-      MFEM_SHARED double Bt[H1D][Q1D];
-      MFEM_SHARED double Gt[H1D][Q1D];
-      MFEM_SHARED double Ez[NBZ][L1D][L1D];
-      double (*E)[L1D] = (double (*)[L1D])(Ez + z);
-      MFEM_SHARED double LQz[2][NBZ][H1D][Q1D];
-      double (*LQ0)[Q1D] = (double (*)[Q1D])(LQz[0] + z);
-      double (*LQ1)[Q1D] = (double (*)[Q1D])(LQz[1] + z);
-      MFEM_SHARED double QQz[3][NBZ][Q1D][Q1D];
-      double (*QQ)[Q1D] = (double (*)[Q1D])(QQz[0] + z);
-      double (*QQ0)[Q1D] = (double (*)[Q1D])(QQz[1] + z);
-      double (*QQ1)[Q1D] = (double (*)[Q1D])(QQz[2] + z);
+      MFEM_SHARED real_t B[Q1D][L1D];
+      MFEM_SHARED real_t Bt[H1D][Q1D];
+      MFEM_SHARED real_t Gt[H1D][Q1D];
+      MFEM_SHARED real_t Ez[NBZ][L1D][L1D];
+      real_t (*E)[L1D] = (real_t (*)[L1D])(Ez + z);
+      MFEM_SHARED real_t LQz[2][NBZ][H1D][Q1D];
+      real_t (*LQ0)[Q1D] = (real_t (*)[Q1D])(LQz[0] + z);
+      real_t (*LQ1)[Q1D] = (real_t (*)[Q1D])(LQz[1] + z);
+      MFEM_SHARED real_t QQz[3][NBZ][Q1D][Q1D];
+      real_t (*QQ)[Q1D] = (real_t (*)[Q1D])(QQz[0] + z);
+      real_t (*QQ0)[Q1D] = (real_t (*)[Q1D])(QQz[1] + z);
+      real_t (*QQ1)[Q1D] = (real_t (*)[Q1D])(QQz[2] + z);
       if (z == 0)
       {
          MFEM_FOREACH_THREAD(q,x,Q1D)
@@ -156,7 +157,7 @@ void kSmemForceMult2D(const int NE,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            double u = 0.0;
+            real_t u = 0.0;
             for (int lx = 0; lx < L1D; ++lx)
             {
                u += B[qx][lx] * E[lx][ly];
@@ -169,7 +170,7 @@ void kSmemForceMult2D(const int NE,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            double u = 0.0;
+            real_t u = 0.0;
             for (int ly = 0; ly < L1D; ++ly)
             {
                u += B[qy][ly] * LQ0[ly][qx];
@@ -184,8 +185,8 @@ void kSmemForceMult2D(const int NE,
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               const double esx = QQ[qy][qx] * sJit(qx,qy,e,0,c);
-               const double esy = QQ[qy][qx] * sJit(qx,qy,e,1,c);
+               const real_t esx = QQ[qy][qx] * sJit(qx,qy,e,0,c);
+               const real_t esy = QQ[qy][qx] * sJit(qx,qy,e,1,c);
                QQ0[qy][qx] = esx;
                QQ1[qy][qx] = esy;
             }
@@ -195,8 +196,8 @@ void kSmemForceMult2D(const int NE,
          {
             MFEM_FOREACH_THREAD(dx,x,H1D)
             {
-               double u = 0.0;
-               double v = 0.0;
+               real_t u = 0.0;
+               real_t v = 0.0;
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   u += Gt[dx][qx] * QQ0[qy][qx];
@@ -211,8 +212,8 @@ void kSmemForceMult2D(const int NE,
          {
             MFEM_FOREACH_THREAD(dx,x,H1D)
             {
-               double u = 0.0;
-               double v = 0.0;
+               real_t u = 0.0;
+               real_t v = 0.0;
                for (int qy = 0; qy < Q1D; ++qy)
                {
                   u += LQ0[dx][qy] * Bt[dy][qy];
@@ -229,7 +230,7 @@ void kSmemForceMult2D(const int NE,
          {
             MFEM_FOREACH_THREAD(dx,x,H1D)
             {
-               const double v = velocity(dx,dy,c,e);
+               const real_t v = velocity(dx,dy,c,e);
                if (fabs(v) < eps2)
                {
                   velocity(dx,dy,c,e) = 0.0;
@@ -243,9 +244,9 @@ void kSmemForceMult2D(const int NE,
 
 template<int DIM, int D1D, int Q1D, int L1D, int H1D> static
 void kSmemForceMult3D(const int NE,
-                      const Array<double> &B_,
-                      const Array<double> &Bt_,
-                      const Array<double> &Gt_,
+                      const Array<real_t> &B_,
+                      const Array<real_t> &Bt_,
+                      const Array<real_t> &Gt_,
                       const DenseTensor &sJit_,
                       const Vector &e_,
                       Vector &v_)
@@ -256,28 +257,28 @@ void kSmemForceMult3D(const int NE,
    auto sJit = Reshape(Read(sJit_.GetMemory(), Q1D*Q1D*Q1D*NE*3*3),
                        Q1D,Q1D,Q1D,NE,3,3);
    auto energy = Reshape(e_.Read(), L1D, L1D, L1D, NE);
-   const double eps1 = std::numeric_limits<double>::epsilon();
-   const double eps2 = eps1*eps1;
+   const real_t eps1 = std::numeric_limits<real_t>::epsilon();
+   const real_t eps2 = eps1*eps1;
    auto velocity = Reshape(v_.Write(), D1D, D1D, D1D, 3, NE);
    mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int z = MFEM_THREAD_ID(z);
-      MFEM_SHARED double B[Q1D][L1D];
-      MFEM_SHARED double Bt[H1D][Q1D];
-      MFEM_SHARED double Gt[H1D][Q1D];
-      MFEM_SHARED double E[L1D][L1D][L1D];
-      MFEM_SHARED double sm0[3][Q1D*Q1D*Q1D];
-      MFEM_SHARED double sm1[3][Q1D*Q1D*Q1D];
-      double (*MMQ0)[D1D][Q1D] = (double (*)[D1D][Q1D]) (sm0+0);
-      double (*MMQ1)[D1D][Q1D] = (double (*)[D1D][Q1D]) (sm0+1);
-      double (*MMQ2)[D1D][Q1D] = (double (*)[D1D][Q1D]) (sm0+2);
-      double (*MQQ0)[Q1D][Q1D] = (double (*)[Q1D][Q1D]) (sm1+0);
-      double (*MQQ1)[Q1D][Q1D] = (double (*)[Q1D][Q1D]) (sm1+1);
-      double (*MQQ2)[Q1D][Q1D] = (double (*)[Q1D][Q1D]) (sm1+2);
-      MFEM_SHARED double QQQ[Q1D][Q1D][Q1D];
-      double (*QQQ0)[Q1D][Q1D] = (double (*)[Q1D][Q1D]) (sm0+0);
-      double (*QQQ1)[Q1D][Q1D] = (double (*)[Q1D][Q1D]) (sm0+1);
-      double (*QQQ2)[Q1D][Q1D] = (double (*)[Q1D][Q1D]) (sm0+2);
+      MFEM_SHARED real_t B[Q1D][L1D];
+      MFEM_SHARED real_t Bt[H1D][Q1D];
+      MFEM_SHARED real_t Gt[H1D][Q1D];
+      MFEM_SHARED real_t E[L1D][L1D][L1D];
+      MFEM_SHARED real_t sm0[3][Q1D*Q1D*Q1D];
+      MFEM_SHARED real_t sm1[3][Q1D*Q1D*Q1D];
+      real_t (*MMQ0)[D1D][Q1D] = (real_t (*)[D1D][Q1D]) (sm0+0);
+      real_t (*MMQ1)[D1D][Q1D] = (real_t (*)[D1D][Q1D]) (sm0+1);
+      real_t (*MMQ2)[D1D][Q1D] = (real_t (*)[D1D][Q1D]) (sm0+2);
+      real_t (*MQQ0)[Q1D][Q1D] = (real_t (*)[Q1D][Q1D]) (sm1+0);
+      real_t (*MQQ1)[Q1D][Q1D] = (real_t (*)[Q1D][Q1D]) (sm1+1);
+      real_t (*MQQ2)[Q1D][Q1D] = (real_t (*)[Q1D][Q1D]) (sm1+2);
+      MFEM_SHARED real_t QQQ[Q1D][Q1D][Q1D];
+      real_t (*QQQ0)[Q1D][Q1D] = (real_t (*)[Q1D][Q1D]) (sm0+0);
+      real_t (*QQQ1)[Q1D][Q1D] = (real_t (*)[Q1D][Q1D]) (sm0+1);
+      real_t (*QQQ2)[Q1D][Q1D] = (real_t (*)[Q1D][Q1D]) (sm0+2);
       if (z == 0)
       {
          MFEM_FOREACH_THREAD(q,x,Q1D)
@@ -308,7 +309,7 @@ void kSmemForceMult3D(const int NE,
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               double u = 0.0;
+               real_t u = 0.0;
                for (int lx = 0; lx < L1D; ++lx)
                {
                   u += B[qx][lx] * E[lx][ly][lz];
@@ -324,7 +325,7 @@ void kSmemForceMult3D(const int NE,
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               double u = 0.0;
+               real_t u = 0.0;
                for (int ly = 0; ly < L1D; ++ly)
                {
                   u += B[qy][ly] * MMQ0[lz][ly][qx];
@@ -340,7 +341,7 @@ void kSmemForceMult3D(const int NE,
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               double u = 0.0;
+               real_t u = 0.0;
                for (int lz = 0; lz < L1D; ++lz)
                {
                   u += B[qz][lz] * MQQ0[lz][qy][qx];
@@ -358,9 +359,9 @@ void kSmemForceMult3D(const int NE,
             {
                MFEM_FOREACH_THREAD(qx,x,Q1D)
                {
-                  const double esx = QQQ[qz][qy][qx] * sJit(qx,qy,qz,e,0,c);
-                  const double esy = QQQ[qz][qy][qx] * sJit(qx,qy,qz,e,1,c);
-                  const double esz = QQQ[qz][qy][qx] * sJit(qx,qy,qz,e,2,c);
+                  const real_t esx = QQQ[qz][qy][qx] * sJit(qx,qy,qz,e,0,c);
+                  const real_t esy = QQQ[qz][qy][qx] * sJit(qx,qy,qz,e,1,c);
+                  const real_t esz = QQQ[qz][qy][qx] * sJit(qx,qy,qz,e,2,c);
                   QQQ0[qz][qy][qx] = esx;
                   QQQ1[qz][qy][qx] = esy;
                   QQQ2[qz][qy][qx] = esz;
@@ -374,9 +375,9 @@ void kSmemForceMult3D(const int NE,
             {
                MFEM_FOREACH_THREAD(hx,x,H1D)
                {
-                  double u = 0.0;
-                  double v = 0.0;
-                  double w = 0.0;
+                  real_t u = 0.0;
+                  real_t v = 0.0;
+                  real_t w = 0.0;
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
                      u += Gt[hx][qx] * QQQ0[qz][qy][qx];
@@ -396,9 +397,9 @@ void kSmemForceMult3D(const int NE,
             {
                MFEM_FOREACH_THREAD(hx,x,H1D)
                {
-                  double u = 0.0;
-                  double v = 0.0;
-                  double w = 0.0;
+                  real_t u = 0.0;
+                  real_t v = 0.0;
+                  real_t w = 0.0;
                   for (int qy = 0; qy < Q1D; ++qy)
                   {
                      u += MQQ0[hx][qy][qz] * Bt[hy][qy];
@@ -418,9 +419,9 @@ void kSmemForceMult3D(const int NE,
             {
                MFEM_FOREACH_THREAD(hx,x,H1D)
                {
-                  double u = 0.0;
-                  double v = 0.0;
-                  double w = 0.0;
+                  real_t u = 0.0;
+                  real_t v = 0.0;
+                  real_t w = 0.0;
                   for (int qz = 0; qz < Q1D; ++qz)
                   {
                      u += MMQ0[hx][hy][qz] * Bt[hz][qz];
@@ -441,7 +442,7 @@ void kSmemForceMult3D(const int NE,
             {
                MFEM_FOREACH_THREAD(hx,x,H1D)
                {
-                  const double v = velocity(hx,hy,hz,c,e);
+                  const real_t v = velocity(hx,hy,hz,c,e);
                   if (fabs(v) < eps2)
                   {
                      velocity(hx,hy,hz,c,e) = 0.0;
@@ -455,9 +456,9 @@ void kSmemForceMult3D(const int NE,
 }
 
 typedef void (*fForceMult)(const int E,
-                           const Array<double> &B,
-                           const Array<double> &Bt,
-                           const Array<double> &Gt,
+                           const Array<real_t> &B,
+                           const Array<real_t> &Bt,
+                           const Array<real_t> &Gt,
                            const DenseTensor &stressJinvT,
                            const Vector &e,
                            Vector &v);
@@ -466,9 +467,9 @@ static void kForceMult(const int DIM,
                        const int D1D,
                        const int Q1D,
                        const int NE,
-                       const Array<double> &B,
-                       const Array<double> &Bt,
-                       const Array<double> &Gt,
+                       const Array<real_t> &B,
+                       const Array<real_t> &Bt,
+                       const Array<real_t> &Gt,
                        const DenseTensor &stressJinvT,
                        const Vector &e,
                        Vector &v)
@@ -494,9 +495,9 @@ static void kForceMult(const int DIM,
 
 template<int DIM, int D1D, int Q1D, int L1D, int H1D, int NBZ =1> static
 void kSmemForceMultTranspose2D(const int NE,
-                               const Array<double> &Bt_,
-                               const Array<double> &B_,
-                               const Array<double> &G_,
+                               const Array<real_t> &Bt_,
+                               const Array<real_t> &B_,
+                               const Array<real_t> &G_,
                                const DenseTensor &sJit_,
                                const Vector &v_,
                                Vector &e_)
@@ -512,20 +513,20 @@ void kSmemForceMultTranspose2D(const int NE,
    mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
       const int z = MFEM_THREAD_ID(z);
-      MFEM_SHARED double Bt[L1D][Q1D];
-      MFEM_SHARED double B[Q1D][H1D];
-      MFEM_SHARED double G[Q1D][H1D];
-      MFEM_SHARED double Vz[NBZ][D1D*D1D];
-      double (*V)[D1D] = (double (*)[D1D])(Vz + z);
-      MFEM_SHARED double DQz[2][NBZ][D1D*Q1D];
-      double (*DQ0)[Q1D] = (double (*)[Q1D])(DQz[0] + z);
-      double (*DQ1)[Q1D] = (double (*)[Q1D])(DQz[1] + z);
-      MFEM_SHARED double QQz[3][NBZ][Q1D*Q1D];
-      double (*QQ)[Q1D] = (double (*)[Q1D])(QQz[0] + z);
-      double (*QQ0)[Q1D] = (double (*)[Q1D])(QQz[1] + z);
-      double (*QQ1)[Q1D] = (double (*)[Q1D])(QQz[2] + z);
-      MFEM_SHARED double QLz[NBZ][Q1D*L1D];
-      double (*QL)[L1D] = (double (*)[L1D]) (QLz + z);
+      MFEM_SHARED real_t Bt[L1D][Q1D];
+      MFEM_SHARED real_t B[Q1D][H1D];
+      MFEM_SHARED real_t G[Q1D][H1D];
+      MFEM_SHARED real_t Vz[NBZ][D1D*D1D];
+      real_t (*V)[D1D] = (real_t (*)[D1D])(Vz + z);
+      MFEM_SHARED real_t DQz[2][NBZ][D1D*Q1D];
+      real_t (*DQ0)[Q1D] = (real_t (*)[Q1D])(DQz[0] + z);
+      real_t (*DQ1)[Q1D] = (real_t (*)[Q1D])(DQz[1] + z);
+      MFEM_SHARED real_t QQz[3][NBZ][Q1D*Q1D];
+      real_t (*QQ)[Q1D] = (real_t (*)[Q1D])(QQz[0] + z);
+      real_t (*QQ0)[Q1D] = (real_t (*)[Q1D])(QQz[1] + z);
+      real_t (*QQ1)[Q1D] = (real_t (*)[Q1D])(QQz[2] + z);
+      MFEM_SHARED real_t QLz[NBZ][Q1D*L1D];
+      real_t (*QL)[L1D] = (real_t (*)[L1D]) (QLz + z);
       if (z == 0)
       {
          MFEM_FOREACH_THREAD(q,x,Q1D)
@@ -562,11 +563,11 @@ void kSmemForceMultTranspose2D(const int NE,
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               double u = 0.0;
-               double v = 0.0;
+               real_t u = 0.0;
+               real_t v = 0.0;
                for (int dx = 0; dx < H1D; ++dx)
                {
-                  const double input = V[dx][dy];
+                  const real_t input = V[dx][dy];
                   u += B[qx][dx] * input;
                   v += G[qx][dx] * input;
                }
@@ -579,8 +580,8 @@ void kSmemForceMultTranspose2D(const int NE,
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               double u = 0.0;
-               double v = 0.0;
+               real_t u = 0.0;
+               real_t v = 0.0;
                for (int dy = 0; dy < H1D; ++dy)
                {
                   u += DQ1[dy][qx] * B[qy][dy];
@@ -595,8 +596,8 @@ void kSmemForceMultTranspose2D(const int NE,
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               const double esx = QQ0[qy][qx] * sJit(qx,qy,e,0,c);
-               const double esy = QQ1[qy][qx] * sJit(qx,qy,e,1,c);
+               const real_t esx = QQ0[qy][qx] * sJit(qx,qy,e,0,c);
+               const real_t esy = QQ1[qy][qx] * sJit(qx,qy,e,1,c);
                QQ[qy][qx] += esx + esy;
             }
          }
@@ -607,7 +608,7 @@ void kSmemForceMultTranspose2D(const int NE,
       {
          MFEM_FOREACH_THREAD(lx,x,L1D)
          {
-            double u = 0.0;
+            real_t u = 0.0;
             for (int qx = 0; qx < Q1D; ++qx)
             {
                u += QQ[qy][qx] * Bt[lx][qx];
@@ -620,7 +621,7 @@ void kSmemForceMultTranspose2D(const int NE,
       {
          MFEM_FOREACH_THREAD(lx,x,L1D)
          {
-            double u = 0.0;
+            real_t u = 0.0;
             for (int qy = 0; qy < Q1D; ++qy)
             {
                u += QL[qy][lx] * Bt[ly][qy];
@@ -634,9 +635,9 @@ void kSmemForceMultTranspose2D(const int NE,
 
 template<int DIM, int D1D, int Q1D, int L1D, int H1D> static
 void kSmemForceMultTranspose3D(const int NE,
-                               const Array<double> &Bt_,
-                               const Array<double> &B_,
-                               const Array<double> &G_,
+                               const Array<real_t> &Bt_,
+                               const Array<real_t> &B_,
+                               const Array<real_t> &G_,
                                const DenseTensor &sJit_,
                                const Vector &v_,
                                Vector &e_)
@@ -652,21 +653,21 @@ void kSmemForceMultTranspose3D(const int NE,
    mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int z = MFEM_THREAD_ID(z);
-      MFEM_SHARED double Bt[L1D][Q1D];
-      MFEM_SHARED double B[Q1D][H1D];
-      MFEM_SHARED double G[Q1D][H1D];
-      MFEM_SHARED double sm0[3][Q1D*Q1D*Q1D];
-      MFEM_SHARED double sm1[3][Q1D*Q1D*Q1D];
-      double (*V)[D1D][D1D]    = (double (*)[D1D][D1D]) (sm0+0);
-      double (*MMQ0)[D1D][Q1D] = (double (*)[D1D][Q1D]) (sm0+1);
-      double (*MMQ1)[D1D][Q1D] = (double (*)[D1D][Q1D]) (sm0+2);
-      double (*MQQ0)[Q1D][Q1D] = (double (*)[Q1D][Q1D]) (sm1+0);
-      double (*MQQ1)[Q1D][Q1D] = (double (*)[Q1D][Q1D]) (sm1+1);
-      double (*MQQ2)[Q1D][Q1D] = (double (*)[Q1D][Q1D]) (sm1+2);
-      double (*QQQ0)[Q1D][Q1D] = (double (*)[Q1D][Q1D]) (sm0+0);
-      double (*QQQ1)[Q1D][Q1D] = (double (*)[Q1D][Q1D]) (sm0+1);
-      double (*QQQ2)[Q1D][Q1D] = (double (*)[Q1D][Q1D]) (sm0+2);
-      MFEM_SHARED double QQQ[Q1D][Q1D][Q1D];
+      MFEM_SHARED real_t Bt[L1D][Q1D];
+      MFEM_SHARED real_t B[Q1D][H1D];
+      MFEM_SHARED real_t G[Q1D][H1D];
+      MFEM_SHARED real_t sm0[3][Q1D*Q1D*Q1D];
+      MFEM_SHARED real_t sm1[3][Q1D*Q1D*Q1D];
+      real_t (*V)[D1D][D1D]    = (real_t (*)[D1D][D1D]) (sm0+0);
+      real_t (*MMQ0)[D1D][Q1D] = (real_t (*)[D1D][Q1D]) (sm0+1);
+      real_t (*MMQ1)[D1D][Q1D] = (real_t (*)[D1D][Q1D]) (sm0+2);
+      real_t (*MQQ0)[Q1D][Q1D] = (real_t (*)[Q1D][Q1D]) (sm1+0);
+      real_t (*MQQ1)[Q1D][Q1D] = (real_t (*)[Q1D][Q1D]) (sm1+1);
+      real_t (*MQQ2)[Q1D][Q1D] = (real_t (*)[Q1D][Q1D]) (sm1+2);
+      real_t (*QQQ0)[Q1D][Q1D] = (real_t (*)[Q1D][Q1D]) (sm0+0);
+      real_t (*QQQ1)[Q1D][Q1D] = (real_t (*)[Q1D][Q1D]) (sm0+1);
+      real_t (*QQQ2)[Q1D][Q1D] = (real_t (*)[Q1D][Q1D]) (sm0+2);
+      MFEM_SHARED real_t QQQ[Q1D][Q1D][Q1D];
       if (z == 0)
       {
          MFEM_FOREACH_THREAD(q,x,Q1D)
@@ -711,11 +712,11 @@ void kSmemForceMultTranspose3D(const int NE,
             {
                MFEM_FOREACH_THREAD(qx,x,Q1D)
                {
-                  double u = 0.0;
-                  double v = 0.0;
+                  real_t u = 0.0;
+                  real_t v = 0.0;
                   for (int dx = 0; dx < H1D; ++dx)
                   {
-                     const double input = V[dx][dy][dz];
+                     const real_t input = V[dx][dy][dz];
                      u += G[qx][dx] * input;
                      v += B[qx][dx] * input;
                   }
@@ -731,9 +732,9 @@ void kSmemForceMultTranspose3D(const int NE,
             {
                MFEM_FOREACH_THREAD(qx,x,Q1D)
                {
-                  double u = 0.0;
-                  double v = 0.0;
-                  double w = 0.0;
+                  real_t u = 0.0;
+                  real_t v = 0.0;
+                  real_t w = 0.0;
                   for (int dy = 0; dy < H1D; ++dy)
                   {
                      u += MMQ0[dz][dy][qx] * B[qy][dy];
@@ -753,9 +754,9 @@ void kSmemForceMultTranspose3D(const int NE,
             {
                MFEM_FOREACH_THREAD(qx,x,Q1D)
                {
-                  double u = 0.0;
-                  double v = 0.0;
-                  double w = 0.0;
+                  real_t u = 0.0;
+                  real_t v = 0.0;
+                  real_t w = 0.0;
                   for (int dz = 0; dz < H1D; ++dz)
                   {
                      u += MQQ0[dz][qy][qx] * B[qz][dz];
@@ -775,9 +776,9 @@ void kSmemForceMultTranspose3D(const int NE,
             {
                MFEM_FOREACH_THREAD(qx,x,Q1D)
                {
-                  const double esx = QQQ0[qz][qy][qx] * sJit(qx,qy,qz,e,0,c);
-                  const double esy = QQQ1[qz][qy][qx] * sJit(qx,qy,qz,e,1,c);
-                  const double esz = QQQ2[qz][qy][qx] * sJit(qx,qy,qz,e,2,c);
+                  const real_t esx = QQQ0[qz][qy][qx] * sJit(qx,qy,qz,e,0,c);
+                  const real_t esy = QQQ1[qz][qy][qx] * sJit(qx,qy,qz,e,1,c);
+                  const real_t esz = QQQ2[qz][qy][qx] * sJit(qx,qy,qz,e,2,c);
                   QQQ[qz][qy][qx] += esx + esy + esz;
                }
             }
@@ -791,7 +792,7 @@ void kSmemForceMultTranspose3D(const int NE,
          {
             MFEM_FOREACH_THREAD(lx,x,L1D)
             {
-               double u = 0.0;
+               real_t u = 0.0;
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   u += QQQ[qz][qy][qx] * Bt[lx][qx];
@@ -807,7 +808,7 @@ void kSmemForceMultTranspose3D(const int NE,
          {
             MFEM_FOREACH_THREAD(lx,x,L1D)
             {
-               double u = 0.0;
+               real_t u = 0.0;
                for (int qy = 0; qy < Q1D; ++qy)
                {
                   u += MQQ0[qz][qy][lx] * Bt[ly][qy];
@@ -823,7 +824,7 @@ void kSmemForceMultTranspose3D(const int NE,
          {
             MFEM_FOREACH_THREAD(lx,x,L1D)
             {
-               double u = 0.0;
+               real_t u = 0.0;
                for (int qz = 0; qz < Q1D; ++qz)
                {
                   u += MMQ0[qz][ly][lx] * Bt[lz][qz];
@@ -837,9 +838,9 @@ void kSmemForceMultTranspose3D(const int NE,
 }
 
 typedef void (*fForceMultTranspose)(const int nzones,
-                                    const Array<double> &Bt,
-                                    const Array<double> &B,
-                                    const Array<double> &G,
+                                    const Array<real_t> &Bt,
+                                    const Array<real_t> &B,
+                                    const Array<real_t> &G,
                                     const DenseTensor &sJit,
                                     const Vector &v,
                                     Vector &e);
@@ -850,9 +851,9 @@ static void kForceMultTranspose(const int DIM,
                                 const int L1D,
                                 const int H1D,
                                 const int nzones,
-                                const Array<double> &L2QuadToDof,
-                                const Array<double> &H1DofToQuad,
-                                const Array<double> &H1DofToQuadD,
+                                const Array<real_t> &L2QuadToDof,
+                                const Array<real_t> &H1DofToQuad,
+                                const Array<real_t> &H1DofToQuadD,
                                 const DenseTensor &stressJinvT,
                                 const Vector &v,
                                 Vector &e)
@@ -1166,7 +1167,7 @@ class QUpdate
 private:
    const int dim, NQ, NE;
    const bool use_viscosity;
-   const double cfl, gamma;
+   const real_t cfl, gamma;
    TimingData *timer;
    const IntegrationRule &ir;
    ParFiniteElementSpace &H1, &L2;
@@ -1178,7 +1179,7 @@ private:
    const QuadratureInterpolator *q1, *q2;
 public:
    QUpdate(const int d, const int ne, const bool uv,
-           const double c, const double g, TimingData *t,
+           const real_t c, const real_t g, TimingData *t,
            const IntegrationRule &i,
            ParFiniteElementSpace &h1, ParFiniteElementSpace &l2):
       dim(d), NQ(i.GetNPoints()), NE(ne), use_viscosity(uv), cfl(c), gamma(g),
@@ -1206,7 +1207,7 @@ void ComputeRho0DetJ0AndVolume(const int dim,
                                ParFiniteElementSpace &l2_fes,
                                ParGridFunction &rho0,
                                QuadratureData &quad_data,
-                               double &loc_area)
+                               real_t &loc_area)
 {
    const int NQ = ir.GetNPoints();
    const int Q1D = IntRules.Get(Geometry::SEGMENT,ir.GetOrder()).GetNPoints();
@@ -1221,7 +1222,7 @@ void ComputeRho0DetJ0AndVolume(const int dim,
    auto J = Reshape(geom->J.Read(), NQ, dim, dim, NE);
    auto detJ = Reshape(geom->detJ.Read(), NQ, NE);
    auto V = Reshape(quad_data.rho0DetJ0w.Write(), NQ, NE);
-   Memory<double> &Jinv_m = quad_data.Jac0inv.GetMemory();
+   Memory<real_t> &Jinv_m = quad_data.Jac0inv.GetMemory();
    auto invJ = Reshape(Jinv_m.Write(Device::GetDeviceMemoryClass(),
                                     quad_data.Jac0inv.TotalSize()),
                        dim, dim, NQ, NE);
@@ -1237,13 +1238,13 @@ void ComputeRho0DetJ0AndVolume(const int dim,
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
                const int q = qx + qy * Q1D;
-               const double J11 = J(q,0,0,e);
-               const double J12 = J(q,1,0,e);
-               const double J21 = J(q,0,1,e);
-               const double J22 = J(q,1,1,e);
-               const double det = detJ(q,e);
+               const real_t J11 = J(q,0,0,e);
+               const real_t J12 = J(q,1,0,e);
+               const real_t J21 = J(q,0,1,e);
+               const real_t J22 = J(q,1,1,e);
+               const real_t det = detJ(q,e);
                V(q,e) =  W[q] * R(q,e) * det;
-               const double r_idetJ = 1.0 / det;
+               const real_t r_idetJ = 1.0 / det;
                invJ(0,0,q,e) =  J22 * r_idetJ;
                invJ(1,0,q,e) = -J12 * r_idetJ;
                invJ(0,1,q,e) = -J21 * r_idetJ;
@@ -1265,12 +1266,12 @@ void ComputeRho0DetJ0AndVolume(const int dim,
                MFEM_FOREACH_THREAD(qx,x,Q1D)
                {
                   const int q = qx + (qy + qz * Q1D) * Q1D;
-                  const double J11 = J(q,0,0,e), J12 = J(q,0,1,e), J13 = J(q,0,2,e);
-                  const double J21 = J(q,1,0,e), J22 = J(q,1,1,e), J23 = J(q,1,2,e);
-                  const double J31 = J(q,2,0,e), J32 = J(q,2,1,e), J33 = J(q,2,2,e);
-                  const double det = detJ(q,e);
+                  const real_t J11 = J(q,0,0,e), J12 = J(q,0,1,e), J13 = J(q,0,2,e);
+                  const real_t J21 = J(q,1,0,e), J22 = J(q,1,1,e), J23 = J(q,1,2,e);
+                  const real_t J31 = J(q,2,0,e), J32 = J(q,2,1,e), J33 = J(q,2,2,e);
+                  const real_t det = detJ(q,e);
                   V(q,e) = W[q] * R(q,e) * det;
-                  const double r_idetJ = 1.0 / det;
+                  const real_t r_idetJ = 1.0 / det;
                   invJ(0,0,q,e) = r_idetJ * ((J22 * J33)-(J23 * J32));
                   invJ(1,0,q,e) = r_idetJ * ((J32 * J13)-(J33 * J12));
                   invJ(2,0,q,e) = r_idetJ * ((J12 * J23)-(J13 * J22));
@@ -1293,7 +1294,7 @@ void ComputeRho0DetJ0AndVolume(const int dim,
 
 class TaylorCoefficient : public Coefficient
 {
-   virtual double Eval(ElementTransformation &T,
+   virtual real_t Eval(ElementTransformation &T,
                        const IntegrationPoint &ip)
    {
       Vector x(2);
@@ -1303,9 +1304,9 @@ class TaylorCoefficient : public Coefficient
    }
 };
 
-MFEM_HOST_DEVICE inline double smooth_step_01(double x, double eps)
+MFEM_HOST_DEVICE inline real_t smooth_step_01(real_t x, real_t eps)
 {
-   const double y = (x + eps) / (2.0 * eps);
+   const real_t y = (x + eps) / (2.0 * eps);
    if (y < 0.0) { return 0.0; }
    if (y > 1.0) { return 1.0; }
    return (3.0 - 2.0 * y) * y * y;
@@ -1314,49 +1315,49 @@ MFEM_HOST_DEVICE inline double smooth_step_01(double x, double eps)
 template<int dim> MFEM_HOST_DEVICE static inline
 void QBody(const int nzones, const int z,
            const int nqp, const int q,
-           const double gamma,
+           const real_t gamma,
            const bool use_viscosity,
-           const double h0,
-           const double h1order,
-           const double cfl,
-           const double infinity,
-           double *Jinv,
-           double *stress,
-           double *sgrad_v,
-           double *eig_val_data,
-           double *eig_vec_data,
-           double *compr_dir,
-           double *Jpi,
-           double *ph_dir,
-           double *stressJiT,
-           const double *d_weights,
-           const double *d_Jacobians,
-           const double *d_rho0DetJ0w,
-           const double *d_e_quads,
-           const double *d_grad_v_ext,
-           const double *d_Jac0inv,
-           double *d_dt_est,
-           double *d_stressJinvT)
+           const real_t h0,
+           const real_t h1order,
+           const real_t cfl,
+           const real_t infinity,
+           real_t *Jinv,
+           real_t *stress,
+           real_t *sgrad_v,
+           real_t *eig_val_data,
+           real_t *eig_vec_data,
+           real_t *compr_dir,
+           real_t *Jpi,
+           real_t *ph_dir,
+           real_t *stressJiT,
+           const real_t *d_weights,
+           const real_t *d_Jacobians,
+           const real_t *d_rho0DetJ0w,
+           const real_t *d_e_quads,
+           const real_t *d_grad_v_ext,
+           const real_t *d_Jac0inv,
+           real_t *d_dt_est,
+           real_t *d_stressJinvT)
 {
    constexpr int dim2 = dim*dim;
-   double min_detJ = infinity;
+   real_t min_detJ = infinity;
    const int zq = z * nqp + q;
-   const double weight =  d_weights[q];
-   const double inv_weight = 1. / weight;
-   const double *J = d_Jacobians + dim2*(nqp*z + q);
-   const double detJ = kernels::Det<dim>(J);
+   const real_t weight =  d_weights[q];
+   const real_t inv_weight = 1. / weight;
+   const real_t *J = d_Jacobians + dim2*(nqp*z + q);
+   const real_t detJ = kernels::Det<dim>(J);
    min_detJ = std::fmin(min_detJ,detJ);
    kernels::CalcInverse<dim>(J,Jinv);
-   const double rho = inv_weight * d_rho0DetJ0w[zq] / detJ;
-   const double e   = std::fmax(0.0, d_e_quads[zq]);
-   const double p   = (gamma - 1.0) * rho * e;
-   const double sound_speed = std::sqrt(gamma * (gamma-1.0) * e);
+   const real_t rho = inv_weight * d_rho0DetJ0w[zq] / detJ;
+   const real_t e   = std::fmax((real_t) 0.0, d_e_quads[zq]);
+   const real_t p   = (gamma - 1.0) * rho * e;
+   const real_t sound_speed = std::sqrt(gamma * (gamma-1.0) * e);
    for (int k = 0; k < dim2; k+=1) { stress[k] = 0.0; }
    for (int d = 0; d < dim; d++) { stress[d*dim+d] = -p; }
-   double visc_coeff = 0.0;
+   real_t visc_coeff = 0.0;
    if (use_viscosity)
    {
-      const double *dV = d_grad_v_ext + dim2*(nqp*z + q);
+      const real_t *dV = d_grad_v_ext + dim2*(nqp*z + q);
       kernels::Mult(dim, dim, dim, dV, Jinv, sgrad_v);
       kernels::Symmetrize(dim,sgrad_v);
       if (dim==1)
@@ -1371,21 +1372,21 @@ void QBody(const int nzones, const int z,
       for (int k=0; k<dim; k+=1) { compr_dir[k]=eig_vec_data[k]; }
       kernels::Mult(dim, dim, dim, J, d_Jac0inv+zq*dim*dim, Jpi);
       kernels::Mult(dim, dim, Jpi, compr_dir, ph_dir);
-      const double ph_dir_nl2 = kernels::Norml2(dim,ph_dir);
-      const double compr_dir_nl2 = kernels::Norml2(dim, compr_dir);
-      const double h = h0 * ph_dir_nl2 / compr_dir_nl2;
-      const double mu = eig_val_data[0];
-      visc_coeff = 2.0 * rho * h * h * std::fabs(mu);
-      const double eps = 1e-12;
+      const real_t ph_dir_nl2 = kernels::Norml2(dim,ph_dir);
+      const real_t compr_dir_nl2 = kernels::Norml2(dim, compr_dir);
+      const real_t h = h0 * ph_dir_nl2 / compr_dir_nl2;
+      const real_t mu = eig_val_data[0];
+      visc_coeff = 2.0 * rho * h * h * fabs(mu);
+      const real_t eps = 1e-12;
       visc_coeff += 0.5 * rho * h * sound_speed *
                     (1.0 - smooth_step_01(mu - 2.0 * eps, eps));
       kernels::Add(dim, dim, visc_coeff, stress, sgrad_v, stress);
    }
-   const double sv = kernels::CalcSingularvalue<dim>(J, dim-1);
-   const double h_min = sv / h1order;
-   const double inv_h_min = 1. / h_min;
-   const double inv_rho_inv_h_min_sq = inv_h_min * inv_h_min / rho ;
-   const double inv_dt = sound_speed * inv_h_min
+   const real_t sv = kernels::CalcSingularvalue<dim>(J, dim-1);
+   const real_t h_min = sv / h1order;
+   const real_t inv_h_min = 1. / h_min;
+   const real_t inv_rho_inv_h_min_sq = inv_h_min * inv_h_min / rho ;
+   const real_t inv_dt = sound_speed * inv_h_min
                          + 2.5 * visc_coeff * inv_rho_inv_h_min_sq;
    if (min_detJ < 0.0)
    {
@@ -1395,7 +1396,7 @@ void QBody(const int nzones, const int z,
    {
       if (inv_dt>0.0)
       {
-         const double cfl_inv_dt = cfl / inv_dt;
+         const real_t cfl_inv_dt = cfl / inv_dt;
          d_dt_est[zq] = std::fmin(d_dt_est[zq], cfl_inv_dt);
       }
    }
@@ -1414,13 +1415,13 @@ void QBody(const int nzones, const int z,
 template<int dim, int Q1D> static inline
 void QKernel(const int nzones,
              const int nqp,
-             const double gamma,
+             const real_t gamma,
              const bool use_viscosity,
-             const double h0,
-             const double h1order,
-             const double cfl,
-             const double infinity,
-             const Array<double> &weights,
+             const real_t h0,
+             const real_t h1order,
+             const real_t cfl,
+             const real_t infinity,
+             const Array<real_t> &weights,
              const Vector &Jacobians,
              const Vector &rho0DetJ0w,
              const Vector &e_quads,
@@ -1444,15 +1445,15 @@ void QKernel(const int nzones,
       {
          constexpr int DIM = dim;
          constexpr int DIM2 = dim*dim;
-         double Jinv[DIM2];
-         double stress[DIM2];
-         double sgrad_v[DIM2];
-         double eig_val_data[3];
-         double eig_vec_data[9];
-         double compr_dir[DIM];
-         double Jpi[DIM2];
-         double ph_dir[DIM];
-         double stressJiT[DIM2];
+         real_t Jinv[DIM2];
+         real_t stress[DIM2];
+         real_t sgrad_v[DIM2];
+         real_t eig_val_data[3];
+         real_t eig_vec_data[9];
+         real_t compr_dir[DIM];
+         real_t Jpi[DIM2];
+         real_t ph_dir[DIM];
+         real_t stressJiT[DIM2];
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             MFEM_FOREACH_THREAD(qy,y,Q1D)
@@ -1475,15 +1476,15 @@ void QKernel(const int nzones,
       {
          constexpr int DIM = dim;
          constexpr int DIM2 = dim*dim;
-         double Jinv[DIM2];
-         double stress[DIM2];
-         double sgrad_v[DIM2];
-         double eig_val_data[3];
-         double eig_vec_data[9];
-         double compr_dir[DIM];
-         double Jpi[DIM2];
-         double ph_dir[DIM];
-         double stressJiT[DIM2];
+         real_t Jinv[DIM2];
+         real_t stress[DIM2];
+         real_t sgrad_v[DIM2];
+         real_t eig_val_data[3];
+         real_t eig_vec_data[9];
+         real_t compr_dir[DIM];
+         real_t Jpi[DIM2];
+         real_t ph_dir[DIM];
+         real_t stressJiT[DIM2];
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             MFEM_FOREACH_THREAD(qy,y,Q1D)
@@ -1515,8 +1516,8 @@ void QUpdate::UpdateQuadratureData(const Vector &S,
    Vector* S_p = const_cast<Vector*>(&S);
    const int H1_size = H1.GetVSize();
    const int nqp1D = tensors1D->LQshape1D.Width();
-   const double h1order = (double) H1.GetElementOrder(0);
-   const double infinity = std::numeric_limits<double>::infinity();
+   const real_t h1order = (real_t) H1.GetElementOrder(0);
+   const real_t infinity = std::numeric_limits<real_t>::infinity();
    GridFunction d_x, d_v, d_e;
    d_x.MakeRef(&H1,*S_p, 0);
    H1ER->Mult(d_x, d_h1_v_local_in);
@@ -1531,10 +1532,10 @@ void QUpdate::UpdateQuadratureData(const Vector &S,
    d_dt_est = quad_data.dt_est;
    const int id = (dim<<4) | nqp1D;
    typedef void (*fQKernel)(const int NE, const int NQ,
-                            const double gamma, const bool use_viscosity,
-                            const double h0, const double h1order,
-                            const double cfl, const double infinity,
-                            const Array<double> &weights,
+                            const real_t gamma, const bool use_viscosity,
+                            const real_t h0, const real_t h1order,
+                            const real_t cfl, const real_t infinity,
+                            const Array<real_t> &weights,
                             const Vector &Jacobians, const Vector &rho0DetJ0w,
                             const Vector &e_quads, const Vector &grad_v_ext,
                             const DenseTensor &Jac0inv,
@@ -1575,11 +1576,11 @@ protected:
    mutable ParGridFunction x_gf;
    const Array<int> &ess_tdofs;
    const int dim, nzones, l2dofs_cnt, h1dofs_cnt, source_type;
-   const double cfl;
+   const real_t cfl;
    const bool use_viscosity;
-   const double cg_rel_tol;
+   const real_t cg_rel_tol;
    const int cg_max_iter;
-   const double ftz_tol;
+   const real_t ftz_tol;
    Coefficient *material_pcf;
    mutable ParBilinearForm Mv;
    SparseMatrix Mv_spmat_copy;
@@ -1594,7 +1595,7 @@ protected:
    mutable DiagonalSolver VMassPA_prec;
    CGSolver CG_VMass, CG_EMass, locCG;
    mutable TimingData timer;
-   const double gamma;
+   const real_t gamma;
    mutable QUpdate Q;
    mutable Vector X, B, one, rhs, e_rhs;
    mutable ParGridFunction rhs_c_gf, dvc_gf;
@@ -1613,14 +1614,14 @@ public:
                            const Array<int> &essential_tdofs,
                            ParGridFunction &rho0,
                            const int source_type_,
-                           const double cfl_,
+                           const real_t cfl_,
                            Coefficient *material_,
                            const bool visc,
-                           const double cgt,
+                           const real_t cgt,
                            const int cgiter,
-                           double ftz,
+                           real_t ftz,
                            const int order_q,
-                           const double gm,
+                           const real_t gm,
                            int h1_basis_type):
       TimeDependentOperator(size),
       H1FESpace(h1_fes), L2FESpace(l2_fes),
@@ -1697,13 +1698,14 @@ public:
       rhs.UseDevice(true);
       e_rhs.UseDevice(true);
       GridFunctionCoefficient rho_coeff_gf(&rho0);
-      double loc_area = 0.0, glob_area;
+      real_t loc_area = 0.0, glob_area;
       int loc_z_cnt = nzones, glob_z_cnt;
       ParMesh *pm = H1FESpace.GetParMesh();
       ComputeRho0DetJ0AndVolume(dim, nzones, integ_rule,
                                 H1FESpace.GetParMesh(),
                                 l2_fes, rho0, quad_data, loc_area);
-      MPI_Allreduce(&loc_area, &glob_area, 1, MPI_DOUBLE, MPI_SUM, pm->GetComm());
+      MPI_Allreduce(&loc_area, &glob_area, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                    pm->GetComm());
       MPI_Allreduce(&loc_z_cnt, &glob_z_cnt, 1, MPI_INT, MPI_SUM, pm->GetComm());
       switch (pm->GetElementBaseGeometry(0))
       {
@@ -1713,7 +1715,7 @@ public:
             quad_data.h0 = pow(glob_area / glob_z_cnt, 1.0/3.0); break;
          default: MFEM_ABORT("Unknown zone type!");
       }
-      quad_data.h0 /= (double) H1FESpace.GetElementOrder(0);
+      quad_data.h0 /= (real_t) H1FESpace.GetElementOrder(0);
       {
          Vector d;
          (dim == 2) ? VMassPA->ComputeDiagonal2D(d) : VMassPA->ComputeDiagonal3D(d);
@@ -1729,7 +1731,7 @@ public:
       CG_EMass.SetOperator(*EMassPA);
       CG_EMass.iterative_mode = false;
       CG_EMass.SetRelTol(1e-8);
-      CG_EMass.SetAbsTol(1e-8 * std::numeric_limits<double>::epsilon());
+      CG_EMass.SetAbsTol(1e-8 * std::numeric_limits<real_t>::epsilon());
       CG_EMass.SetMaxIter(200);
       CG_EMass.SetPrintLevel(-1);
    }
@@ -1830,19 +1832,20 @@ public:
       H1FESpace.GetParMesh()->NewNodes(x_gf, false);
    }
 
-   double GetTimeStepEstimate(const Vector &S) const
+   real_t GetTimeStepEstimate(const Vector &S) const
    {
       UpdateMesh(S);
       UpdateQuadratureData(S);
-      double glob_dt_est;
-      MPI_Allreduce(&quad_data.dt_est, &glob_dt_est, 1, MPI_DOUBLE, MPI_MIN,
+      real_t glob_dt_est;
+      MPI_Allreduce(&quad_data.dt_est, &glob_dt_est, 1, MPITypeMap<real_t>::mpi_type,
+                    MPI_MIN,
                     H1FESpace.GetParMesh()->GetComm());
       return glob_dt_est;
    }
 
    void ResetTimeStepEstimate() const
    {
-      quad_data.dt_est = std::numeric_limits<double>::infinity();
+      quad_data.dt_est = std::numeric_limits<real_t>::infinity();
    }
 
    void ResetQuadratureData() const { quad_data_is_current = false; }
@@ -1861,10 +1864,10 @@ int sedov(int myid, int argc, char *argv[])
    int order_e = 1;
    int order_q = -1;
    int ode_solver_type = 4;
-   double t_final = 0.6;
-   double cfl = 0.5;
-   double cg_tol = 1e-14;
-   double ftz_tol = 0.0;
+   real_t t_final = 0.6;
+   real_t cfl = 0.5;
+   real_t cg_tol = 1e-14;
+   real_t ftz_tol = 0.0;
    int cg_max_iter = 300;
    int max_tsteps = -1;
    bool visualization = false;
@@ -1873,8 +1876,8 @@ int sedov(int myid, int argc, char *argv[])
    bool gfprint = false;
    bool fom = false;
    bool gpu_aware_mpi = false;
-   double blast_energy = 0.25;
-   double blast_position[] = {0.0, 0.0, 0.0};
+   real_t blast_energy = 0.25;
+   real_t blast_position[] = {0.0, 0.0, 0.0};
 
    OptionsParser args(argc, argv);
    args.AddOption(&dim, "-d", "--dim", "Dimension of the problem.");
@@ -2049,7 +2052,7 @@ int sedov(int myid, int argc, char *argv[])
 
    ode_solver->Init(oper);
    oper.ResetTimeStepEstimate();
-   double t = 0.0, dt = oper.GetTimeStepEstimate(S), t_old;
+   real_t t = 0.0, dt = oper.GetTimeStepEstimate(S), t_old;
    bool last_step = false;
    int steps = 0;
    BlockVector S_old(S);
@@ -2067,11 +2070,11 @@ int sedov(int myid, int argc, char *argv[])
       oper.ResetTimeStepEstimate();
       ode_solver->Step(S, t, dt);
       steps++;
-      const double dt_est = oper.GetTimeStepEstimate(S);
+      const real_t dt_est = oper.GetTimeStepEstimate(S);
       if (dt_est < dt)
       {
          dt *= 0.85;
-         if (dt < numeric_limits<double>::epsilon())
+         if (dt < numeric_limits<real_t>::epsilon())
          { MFEM_ABORT("The time step crashed!"); }
          t = t_old;
          S = S_old;
@@ -2087,12 +2090,12 @@ int sedov(int myid, int argc, char *argv[])
       pmesh->NewNodes(x_gf, false);
       if (last_step || (ti % vis_steps) == 0)
       {
-         double loc_norm = e_gf * e_gf, tot_norm;
-         MPI_Allreduce(&loc_norm, &tot_norm, 1, MPI_DOUBLE, MPI_SUM,
+         real_t loc_norm = e_gf * e_gf, tot_norm;
+         MPI_Allreduce(&loc_norm, &tot_norm, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
                        pmesh->GetComm());
          if (myid == 0)
          {
-            const double sqrt_tot_norm = sqrt(tot_norm);
+            const real_t sqrt_tot_norm = sqrt(tot_norm);
             cout << fixed;
             cout << "step " << setw(5) << ti
                  << ",\tt = " << setw(5) << setprecision(4) << t
@@ -2103,10 +2106,10 @@ int sedov(int myid, int argc, char *argv[])
          }
       }
       REQUIRE(problem==1);
-      double loc_norm = e_gf * e_gf, tot_norm;
-      MPI_Allreduce(&loc_norm, &tot_norm, 1, MPI_DOUBLE, MPI_SUM,
+      real_t loc_norm = e_gf * e_gf, tot_norm;
+      MPI_Allreduce(&loc_norm, &tot_norm, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
                     pmesh->GetComm());
-      const double stm = sqrt(tot_norm);
+      const real_t stm = sqrt(tot_norm);
       //printf("\n\033[33m%.15e\033[m", stm); fflush(0);
       REQUIRE((rs_levels==0 || rs_levels==1));
       REQUIRE(rp_levels==0);
@@ -2118,10 +2121,10 @@ int sedov(int myid, int argc, char *argv[])
       REQUIRE(cg_tol==MFEM_Approx(1.e-14));
       if (dim==2)
       {
-         const double p1_05[2] = {3.508254945225794e+00,
+         const real_t p1_05[2] = {3.508254945225794e+00,
                                   1.403249766367977e+01
                                  };
-         const double p1_15[2] = {2.756444596823211e+00,
+         const real_t p1_15[2] = {2.756444596823211e+00,
                                   1.104093401469385e+01
                                  };
          if (ti==05) {checks++; REQUIRE(stm==MFEM_Approx(p1_05[rs_levels]));}
@@ -2129,10 +2132,10 @@ int sedov(int myid, int argc, char *argv[])
       }
       if (dim==3)
       {
-         const double p1_05[2] = {1.339163718592567e+01,
+         const real_t p1_05[2] = {1.339163718592567e+01,
                                   1.071277540097426e+02
                                  };
-         const double p1_28[2] = {7.521073677398005e+00,
+         const real_t p1_28[2] = {7.521073677398005e+00,
                                   5.985720905709158e+01
                                  };
          if (ti==05) {checks++; REQUIRE(stm==MFEM_Approx(p1_05[rs_levels]));}
@@ -2178,43 +2181,50 @@ static void sedov_tests(int myid)
 
 }
 
-#if defined(MFEM_SEDOV_MPI)
-#ifndef MFEM_SEDOV_DEVICE
+#ifdef MFEM_SEDOV_MPI
 TEST_CASE("Sedov", "[Sedov], [Parallel]")
 {
    sedov_tests(Mpi::WorldRank());
 }
 #else
-TEST_CASE("Sedov", "[Sedov], [Parallel]")
+TEST_CASE("Sedov", "[Sedov]")
 {
-#if defined(HYPRE_USING_GPU) && defined(MFEM_DEBUG)
-   if (!strcmp(MFEM_SEDOV_DEVICE,"debug"))
+   sedov_tests(0);
+}
+#endif
+
+int main(int argc, char *argv[])
+{
+#ifdef MFEM_USE_SINGLE
+   std::cout << "\nThe Sedov unit tests are not supported in single"
+             " precision.\n\n";
+   return MFEM_SKIP_RETURN_VALUE;
+#endif
+
+#ifdef MFEM_SEDOV_MPI
+   mfem::Mpi::Init();
+   mfem::Hypre::Init();
+#endif
+#ifdef MFEM_SEDOV_DEVICE
+   Device device(MFEM_SEDOV_DEVICE);
+#else
+   Device device("cpu"); // make sure hypre runs on CPU, if possible
+#endif
+   device.Print();
+
+#if defined(MFEM_SEDOV_MPI) && defined(MFEM_DEBUG) && defined(MFEM_SEDOV_DEVICE)
+   if (HypreUsingGPU() && !strcmp(MFEM_SEDOV_DEVICE, "debug"))
    {
       cout << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this unit test\n"
            << "is NOT supported with the GPU version of hypre.\n\n";
-      return;
+      return MFEM_SKIP_RETURN_VALUE;
    }
 #endif
 
-   Device device;
-   device.Configure(MFEM_SEDOV_DEVICE);
-   device.Print();
-   sedov_tests(Mpi::WorldRank());
-}
-#endif
+#ifdef MFEM_SEDOV_MPI
+   return RunCatchSession(argc, argv, {"[Parallel]"}, Root());
 #else
-#ifndef MFEM_SEDOV_DEVICE
-TEST_CASE("Sedov", "[Sedov]")
-{
-   sedov_tests(0);
-}
-#else
-TEST_CASE("Sedov", "[Sedov]")
-{
-   Device device;
-   device.Configure(MFEM_SEDOV_DEVICE);
-   device.Print();
-   sedov_tests(0);
-}
+   // Exclude parallel tests.
+   return RunCatchSession(argc, argv, {"~[Parallel]"});
 #endif
-#endif
+}

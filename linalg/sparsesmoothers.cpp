@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -52,7 +52,7 @@ void GSSmoother::Mult(const Vector &x, Vector &y) const
 }
 
 /// Create the Jacobi smoother.
-DSmoother::DSmoother(const SparseMatrix &a, int t, double s, int it)
+DSmoother::DSmoother(const SparseMatrix &a, int t, real_t s, int it)
    : SparseSmoother(a)
 {
    type = t;

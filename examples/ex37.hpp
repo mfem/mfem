@@ -9,15 +9,15 @@ namespace mfem
 {
 
 /// @brief Inverse sigmoid function
-double inv_sigmoid(double x)
+real_t inv_sigmoid(real_t x)
 {
-   double tol = 1e-12;
-   x = std::min(std::max(tol,x),1.0-tol);
+   real_t tol = 1e-12;
+   x = std::min(std::max(tol,x), real_t(1.0)-tol);
    return std::log(x/(1.0-x));
 }
 
 /// @brief Sigmoid function
-double sigmoid(double x)
+real_t sigmoid(real_t x)
 {
    if (x >= 0)
    {
@@ -30,9 +30,9 @@ double sigmoid(double x)
 }
 
 /// @brief Derivative of sigmoid function
-double der_sigmoid(double x)
+real_t der_sigmoid(real_t x)
 {
-   double tmp = sigmoid(-x);
+   real_t tmp = sigmoid(-x);
    return tmp - std::pow(tmp,2);
 }
 
@@ -40,24 +40,24 @@ double der_sigmoid(double x)
 class MappedGridFunctionCoefficient : public GridFunctionCoefficient
 {
 protected:
-   std::function<double(const double)> fun; // f:R → R
+   std::function<real_t(const real_t)> fun; // f:R → R
 public:
    MappedGridFunctionCoefficient()
       :GridFunctionCoefficient(),
-       fun([](double x) {return x;}) {}
+       fun([](real_t x) {return x;}) {}
    MappedGridFunctionCoefficient(const GridFunction *gf,
-                                 std::function<double(const double)> fun_,
+                                 std::function<real_t(const real_t)> fun_,
                                  int comp=1)
       :GridFunctionCoefficient(gf, comp),
        fun(fun_) {}
 
 
-   virtual double Eval(ElementTransformation &T,
+   virtual real_t Eval(ElementTransformation &T,
                        const IntegrationPoint &ip)
    {
       return fun(GridFunctionCoefficient::Eval(T, ip));
    }
-   void SetFunction(std::function<double(const double)> fun_) { fun = fun_; }
+   void SetFunction(std::function<real_t(const real_t)> fun_) { fun = fun_; }
 };
 
 
@@ -67,30 +67,30 @@ class DiffMappedGridFunctionCoefficient : public GridFunctionCoefficient
 protected:
    const GridFunction *OtherGridF;
    GridFunctionCoefficient OtherGridF_cf;
-   std::function<double(const double)> fun; // f:R → R
+   std::function<real_t(const real_t)> fun; // f:R → R
 public:
    DiffMappedGridFunctionCoefficient()
       :GridFunctionCoefficient(),
        OtherGridF(nullptr),
        OtherGridF_cf(),
-       fun([](double x) {return x;}) {}
+       fun([](real_t x) {return x;}) {}
    DiffMappedGridFunctionCoefficient(const GridFunction *gf,
                                      const GridFunction *other_gf,
-                                     std::function<double(const double)> fun_,
+                                     std::function<real_t(const real_t)> fun_,
                                      int comp=1)
       :GridFunctionCoefficient(gf, comp),
        OtherGridF(other_gf),
        OtherGridF_cf(OtherGridF),
        fun(fun_) {}
 
-   virtual double Eval(ElementTransformation &T,
+   virtual real_t Eval(ElementTransformation &T,
                        const IntegrationPoint &ip)
    {
-      const double value1 = fun(GridFunctionCoefficient::Eval(T, ip));
-      const double value2 = fun(OtherGridF_cf.Eval(T, ip));
+      const real_t value1 = fun(GridFunctionCoefficient::Eval(T, ip));
+      const real_t value2 = fun(OtherGridF_cf.Eval(T, ip));
       return value1 - value2;
    }
-   void SetFunction(std::function<double(const double)> fun_) { fun = fun_; }
+   void SetFunction(std::function<real_t(const real_t)> fun_) { fun = fun_; }
 };
 
 /// @brief Solid isotropic material penalization (SIMP) coefficient
@@ -98,20 +98,20 @@ class SIMPInterpolationCoefficient : public Coefficient
 {
 protected:
    GridFunction *rho_filter;
-   double min_val;
-   double max_val;
-   double exponent;
+   real_t min_val;
+   real_t max_val;
+   real_t exponent;
 
 public:
-   SIMPInterpolationCoefficient(GridFunction *rho_filter_, double min_val_= 1e-6,
-                                double max_val_ = 1.0, double exponent_ = 3)
+   SIMPInterpolationCoefficient(GridFunction *rho_filter_, real_t min_val_= 1e-6,
+                                real_t max_val_ = 1.0, real_t exponent_ = 3)
       : rho_filter(rho_filter_), min_val(min_val_), max_val(max_val_),
         exponent(exponent_) { }
 
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip)
    {
-      double val = rho_filter->GetValue(T, ip);
-      double coeff = min_val + pow(val,exponent)*(max_val-min_val);
+      real_t val = rho_filter->GetValue(T, ip);
+      real_t coeff = min_val + pow(val,exponent)*(max_val-min_val);
       return coeff;
    }
 };
@@ -126,13 +126,13 @@ protected:
    GridFunction *u = nullptr; // displacement
    GridFunction *rho_filter = nullptr; // filter density
    DenseMatrix grad; // auxiliary matrix, used in Eval
-   double exponent;
-   double rho_min;
+   real_t exponent;
+   real_t rho_min;
 
 public:
    StrainEnergyDensityCoefficient(Coefficient *lambda_, Coefficient *mu_,
-                                  GridFunction * u_, GridFunction * rho_filter_, double rho_min_=1e-6,
-                                  double exponent_ = 3.0)
+                                  GridFunction * u_, GridFunction * rho_filter_, real_t rho_min_=1e-6,
+                                  real_t exponent_ = 3.0)
       : lambda(lambda_), mu(mu_),  u(u_), rho_filter(rho_filter_),
         exponent(exponent_), rho_min(rho_min_)
    {
@@ -142,13 +142,13 @@ public:
       MFEM_ASSERT(rho_filter, "density field is not set");
    }
 
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip)
    {
-      double L = lambda->Eval(T, ip);
-      double M = mu->Eval(T, ip);
+      real_t L = lambda->Eval(T, ip);
+      real_t M = mu->Eval(T, ip);
       u->GetVectorGradient(T, grad);
-      double div_u = grad.Trace();
-      double density = L*div_u*div_u;
+      real_t div_u = grad.Trace();
+      real_t density = L*div_u*div_u;
       int dim = T.GetSpaceDim();
       for (int i=0; i<dim; i++)
       {
@@ -157,7 +157,7 @@ public:
             density += M*grad(i,j)*(grad(i,j)+grad(j,i));
          }
       }
-      double val = rho_filter->GetValue(T,ip);
+      real_t val = rho_filter->GetValue(T,ip);
 
       return -exponent * pow(val, exponent-1.0) * (1-rho_min) * density;
    }
@@ -167,11 +167,11 @@ public:
 class VolumeForceCoefficient : public VectorCoefficient
 {
 private:
-   double r;
+   real_t r;
    Vector center;
    Vector force;
 public:
-   VolumeForceCoefficient(double r_,Vector &  center_, Vector & force_) :
+   VolumeForceCoefficient(real_t r_,Vector &  center_, Vector & force_) :
       VectorCoefficient(center_.Size()), r(r_), center(center_), force(force_) { }
 
    using VectorCoefficient::Eval;
@@ -186,7 +186,7 @@ public:
          xx[i]=xx[i]-center[i];
       }
 
-      double cr=xx.Norml2();
+      real_t cr=xx.Norml2();
       V.SetSize(T.GetDimension());
       if (cr <= r)
       {
@@ -198,7 +198,7 @@ public:
       }
    }
 
-   void Set(double r_,Vector & center_, Vector & force_)
+   void Set(real_t r_,Vector & center_, Vector & force_)
    {
       r=r_;
       center = center_;

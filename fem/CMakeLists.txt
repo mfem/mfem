@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -18,6 +18,7 @@ set(SRCS
   integ/bilininteg_convection_pa.cpp
   integ/bilininteg_convection_ea.cpp
   integ/bilininteg_curlcurl_pa.cpp
+  integ/bilininteg_dgdiffusion_pa.cpp
   integ/bilininteg_dgtrace_pa.cpp
   integ/bilininteg_dgtrace_ea.cpp
   integ/bilininteg_diffusion_mf.cpp
@@ -117,6 +118,7 @@ set(SRCS
   quadinterpolator.cpp
   quadinterpolator_face.cpp
   restriction.cpp
+  normal_deriv_restriction.cpp
   staticcond.cpp
   tmop.cpp
   tmop/tmop_pa.cpp
@@ -149,6 +151,7 @@ set(SRCS
   tmop_amr.cpp
   gslib.cpp
   transfer.cpp
+  hyperbolic.cpp
   )
 
 set(HDRS
@@ -227,6 +230,7 @@ set(HDRS
   quadinterpolator.hpp
   quadinterpolator_face.hpp
   restriction.hpp
+  normal_deriv_restriction.hpp
   fespacehierarchy.hpp
   staticcond.hpp
   tbilinearform.hpp
@@ -243,6 +247,7 @@ set(HDRS
   tmop_amr.hpp
   gslib.hpp
   transfer.hpp
+  hyperbolic.hpp
   )
 
 if (MFEM_USE_SIDRE)
