@@ -255,6 +255,15 @@ int main(int argc, char *argv[])
    MemoryType mt = device.GetMemoryType();
    BlockVector x(block_offsets, mt), rhs(block_offsets, mt);
 
+   x = 0.;
+   GridFunction q, t;
+   q.MakeRef(V_space, x.GetBlock(0), 0);
+   t.MakeRef(W_space, x.GetBlock(1), 0);
+   if (!dg)
+   {
+      q.ProjectBdrCoefficientNormal(qcoeff, bdr_is_neumann);   //essential Neumann BC
+   }
+
    LinearForm *gform(new LinearForm);
    gform->Update(V_space, rhs.GetBlock(0), 0);
    if (dg)
@@ -355,10 +364,10 @@ int main(int argc, char *argv[])
    //set hybridization / assembly level
 
    Array<int> ess_flux_tdofs_list;
-   /*Array<int> bdr_is_ess(mesh->bdr_attributes.Max());
-   bdr_is_ess = 0;
-   bdr_is_ess[3] = -1;
-   V_space->GetEssentialTrueDofs(bdr_is_ess, ess_flux_tdofs_list);*/
+   if (!dg)
+   {
+      V_space->GetEssentialTrueDofs(bdr_is_neumann, ess_flux_tdofs_list);
+   }
 
    FiniteElementCollection *trace_coll = NULL;
    FiniteElementSpace *trace_space = NULL;
@@ -542,10 +551,7 @@ int main(int argc, char *argv[])
       delete MinvBt;
    }
 
-   // 12. Create the grid functions q and t. Compute the L2 error norms.
-   GridFunction q, t;
-   q.MakeRef(V_space, x.GetBlock(0), 0);
-   t.MakeRef(W_space, x.GetBlock(1), 0);
+   // 12. Compute the L2 error norms.
 
    int order_quad = max(2, 2*order+1);
    const IntegrationRule *irs[Geometry::NumGeom];
