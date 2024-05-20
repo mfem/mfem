@@ -107,6 +107,8 @@ Miscellaneous
 
 - Various other simplifications, extensions, and bugfixes in the code.
 
+- Added GSLIB-based gather-scatter operator.
+
 
 Version 4.6, released on September 27, 2023
 ===========================================
