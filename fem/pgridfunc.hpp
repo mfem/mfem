@@ -262,7 +262,6 @@ public:
                               const Array<int> &attr) override
    { ProjectBdrCoefficient(coeff, NULL, attr); }
 
-   // Only the values in the master are guaranteed to be correct!
    void ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
                                      const Array<int> &bdr_attr) override;
 

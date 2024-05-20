@@ -18,7 +18,6 @@
 namespace mfem
 {
 
-
 void HyperbolicFormIntegrator::AssembleElementVector(const FiniteElement &el,
                                                      ElementTransformation &Tr,
                                                      const Vector &elfun,
@@ -29,7 +28,7 @@ void HyperbolicFormIntegrator::AssembleElementVector(const FiniteElement &el,
    const int dof = el.GetDof();
 
 #ifdef MFEM_THREAD_SAFE
-   // Local storages for element integration
+   // Local storage for element integration
 
    // shape function value at an integration point
    Vector shape(dof);
@@ -62,7 +61,7 @@ void HyperbolicFormIntegrator::AssembleElementVector(const FiniteElement &el,
       ir = &IntRules.Get(Tr.GetGeometryType(), order);
    }
 
-   // loop over interation points
+   // loop over integration points
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
@@ -92,7 +91,7 @@ void HyperbolicFormIntegrator::AssembleFaceVector(
    const int dof2 = el2.GetDof();
 
 #ifdef MFEM_THREAD_SAFE
-   // Local storages for element integration
+   // Local storage for element integration
 
    // shape function value at an integration point - first elem
    Vector shape1(dof1);
@@ -122,7 +121,7 @@ void HyperbolicFormIntegrator::AssembleFaceVector(
    DenseMatrix elvect2_mat(elvect.GetData() + dof1 * num_equations, dof2,
                            num_equations);
 
-   // obtain integration rule. If integration is rule is given, then use it.
+   // Obtain integration rule. If integration is rule is given, then use it.
    // Otherwise, get (2*p + IntOrderOffset) order integration rule
    const IntegrationRule *ir = IntRule;
    if (!ir)
@@ -149,7 +148,7 @@ void HyperbolicFormIntegrator::AssembleFaceVector(
       if (nor.Size() == 1)  // if 1D, use 1 or -1.
       {
          // This assume the 1D integration point is in (0,1). This may not work
-         // if this chages.
+         // if this changes.
          nor(0) = (Tr.GetElement1IntPoint().x - 0.5) * 2.0;
       }
       else
