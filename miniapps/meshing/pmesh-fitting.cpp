@@ -86,15 +86,15 @@ int main (int argc, char *argv[])
    real_t surface_fit_threshold = -10;
    real_t surf_fit_const_max    = 1e20;
    bool adapt_marking     = false;
-   bool surf_bg_mesh     = false;
-   bool comp_dist     = false;
-   int surf_ls_type      = 1;
-   int marking_type      = 0;
-   bool mod_bndr_attr    = false;
-   bool material         = false;
+   bool surf_bg_mesh      = false;
+   bool comp_dist         = false;
+   int surf_ls_type       = 1;
+   int marking_type       = 0;
+   bool mod_bndr_attr     = false;
+   bool material          = false;
    int mesh_node_ordering = 0;
-   int bg_amr_iters         = 0;
-   bool conv_residual    = true;
+   int bg_amr_iters       = 0;
+   bool conv_residual     = true;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
