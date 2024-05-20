@@ -3014,41 +3014,41 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
 
    if (!aegrad) { return; }
 
-   // Define spaces for grad and hessian
-   delete surf_fit_grad;
+   MFEM_VERIFY(aehess, "AdaptivityEvaluator for Hessians must be provided too.");
 
    ParFiniteElementSpace *fes = s0.ParFESpace();
 
    const H1_FECollection *fec = dynamic_cast<const H1_FECollection *>
                                 (surf_fit_gf->FESpace()->FEColl());
    if (!fec)  { return; }
+
+   // FE space for gradients.
+   delete surf_fit_grad;
    H1_FECollection *fec_grad = new H1_FECollection(fec->GetOrder(), dim,
                                                    fec->GetBasisType());
    ParFiniteElementSpace *fes_grad = new ParFiniteElementSpace(pmesh, fec_grad,
                                                                dim);
+   // Initial gradients.
    surf_fit_grad = new GridFunction(fes_grad);
    surf_fit_grad->MakeOwner(fec_grad);
-
    for (int d = 0; d < dim; d++)
    {
       ParGridFunction surf_fit_grad_comp(fes, surf_fit_grad->GetData()+d*s0.Size());
       s0.GetDerivative(1, d, surf_fit_grad_comp);
    }
-
    surf_fit_eval_bg_grad = aegrad;
    surf_fit_eval_bg_grad->SetParMetaInfo(*pmesh, *fes_grad);
    surf_fit_eval_bg_grad->SetInitialField(*pmesh->GetNodes(), *surf_fit_grad);
 
-   MFEM_VERIFY(aehess,"Specify an adaptivity evaluator for the Hessian terms"
-               "as well.");
+   // FE space for Hessians.
    delete surf_fit_hess;
    H1_FECollection *fec_hess = new H1_FECollection(fec->GetOrder(), dim,
                                                    fec->GetBasisType());
    ParFiniteElementSpace *fes_hess = new ParFiniteElementSpace(pmesh, fec_hess,
                                                                dim*dim);
+   // Initial Hessians.
    surf_fit_hess = new GridFunction(fes_hess);
    surf_fit_hess->MakeOwner(fec_hess);
-
    int id = 0;
    for (int d = 0; d < dim; d++)
    {
@@ -3062,7 +3062,6 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
          id++;
       }
    }
-
    surf_fit_eval_bg_hess = aehess;
    surf_fit_eval_bg_hess->SetParMetaInfo(*pmesh, *fes_hess);
    surf_fit_eval_bg_hess->SetInitialField(*pmesh->GetNodes(), *surf_fit_hess);
@@ -4464,12 +4463,13 @@ void TMOP_Integrator::RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
                                                          int new_x_ordering)
 {
    if (!surf_fit_gf) { return; }
+
    if (surf_fit_gf_bg &&
        dynamic_cast<InterpolatorFP *>(surf_fit_eval) &&
        dynamic_cast<InterpolatorFP *>(surf_fit_eval_bg_grad) &&
        dynamic_cast<InterpolatorFP *>(surf_fit_eval_bg_hess))
    {
-      // Interpolate information for only DOFs marked for fitting.
+      // Interpolate information only at DOFs marked for fitting.
       const int dim = surf_fit_gf->FESpace()->GetMesh()->Dimension();
       const int cnt = surf_fit_marker_dof_index.Size();
       const int total_cnt = new_x.Size()/dim;
@@ -4497,7 +4497,7 @@ void TMOP_Integrator::RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
          }
       }
 
-
+      // Interpolate values of the LS.
       Vector surf_fit_gf_int, surf_fit_grad_int, surf_fit_hess_int;
       surf_fit_eval->ComputeAtNewPosition(new_x_sorted, surf_fit_gf_int,
                                           new_x_ordering);
@@ -4507,10 +4507,9 @@ void TMOP_Integrator::RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
          (*surf_fit_gf)[dof_index] = surf_fit_gf_int(i);
       }
 
-
+      // Interpolate gradients of the LS.
       surf_fit_eval_bg_grad->ComputeAtNewPosition(new_x_sorted, surf_fit_grad_int,
                                                   new_x_ordering);
-
       // Assumes surf_fit_grad and surf_fit_gf share the same space
       const int grad_dim = surf_fit_grad->VectorDim();
       const int grad_cnt = surf_fit_grad->Size()/grad_dim;
@@ -4539,6 +4538,7 @@ void TMOP_Integrator::RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
          }
       }
 
+      // Interpolate Hessians of the LS.
       surf_fit_eval_bg_hess->ComputeAtNewPosition(new_x_sorted, surf_fit_hess_int,
                                                   new_x_ordering);
       // Assumes surf_fit_hess and surf_fit_gf share the same space
