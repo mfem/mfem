@@ -676,7 +676,7 @@ void VectorFEBoundaryNormalLFIntegrator::AssembleRHSElementVect(
       Tr.SetIntPoint(&ip);
       CalcOrtho(Tr.Jacobian(), nor);
       F.Eval(Fvec, Tr, ip);
-      double val = ip.weight * (Fvec*nor) / Tr.Weight();
+      real_t val = ip.weight * (Fvec*nor) / Tr.Weight();
 
       el.CalcShape(ip, shape);
 
