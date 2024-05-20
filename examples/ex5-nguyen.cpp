@@ -667,13 +667,13 @@ int main(int argc, char *argv[])
          ta_sock << "solution\n" << *mesh << t_a << "window_title 'Temperature analytic'"
                  << endl;
          ta_sock << "keys Rljmmc" << endl;
-      }
-      if (bconv)
-      {
-         socketstream c_sock(vishost, visport);
-         c_sock.precision(8);
-         c_sock << "solution\n" << *mesh << c_gf << "window_title 'Velocity'" << endl;
-         c_sock << "keys Rljvvvvvmmc" << endl;
+         if (bconv)
+         {
+            socketstream c_sock(vishost, visport);
+            c_sock.precision(8);
+            c_sock << "solution\n" << *mesh << c_gf << "window_title 'Velocity'" << endl;
+            c_sock << "keys Rljvvvvvmmc" << endl;
+         }
       }
    }
 
