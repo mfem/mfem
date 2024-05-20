@@ -401,6 +401,7 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
 
       // Copy boundary attribute numbers into local portion of a parallel
       // grid function
+      parent_bdr_attr_gf.HostReadWrite(); // not modifying all entries
       for (int i=0; i<parent.GetNBE(); i++)
       {
          faceIdx = parent.GetBdrElementFaceIndex(i);
