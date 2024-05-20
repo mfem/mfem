@@ -287,8 +287,12 @@ int main(int argc, char *argv[])
    {
       if (dg)
       {
-         fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(one, qtcoeff, +1.),
-                                     bdr_is_neumann);
+         if (upwinded)
+            fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(one, qtcoeff, +1.),
+                                        bdr_is_neumann);
+         else
+            fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(one, qtcoeff, +1., 0.),
+                                        bdr_is_neumann);
       }
       if (bconv)
       {
