@@ -15,9 +15,9 @@
 namespace mfem
 {
 
-double f1(const Vector &x)
+real_t f1(const Vector &x)
 {
-   double r = pow(x(0),2);
+   real_t r = pow(x(0),2);
    if (x.Size() >= 2) { r += pow(x(1), 3); }
    if (x.Size() >= 3) { r += pow(x(2), 4); }
    return r;
@@ -248,7 +248,7 @@ TEST_CASE("HypreParMatrixBlocksRectangular",
       blockOper.SetBlock(0, 2, BT, 3.14);
       blockOper.SetBlock(1, 2, MW);
 
-      Array2D<HypreParMatrix*> hBlocks(2,3);
+      Array2D<const HypreParMatrix*> hBlocks(2,3);
       hBlocks = NULL;
       hBlocks(0, 0) = MR;
       hBlocks(0, 1) = BT;
@@ -256,7 +256,7 @@ TEST_CASE("HypreParMatrixBlocksRectangular",
       hBlocks(0, 2) = BT;
       hBlocks(1, 2) = MW;
 
-      Array2D<double> blockCoeff(2,3);
+      Array2D<real_t> blockCoeff(2,3);
       blockCoeff = 1.0;
       blockCoeff(0, 2) = 3.14;
       HypreParMatrix *H = HypreParMatrixFromBlocks(hBlocks, &blockCoeff);
@@ -273,7 +273,7 @@ TEST_CASE("HypreParMatrixBlocksRectangular",
       H->Mult(x, yH);
 
       yH -= yB;
-      double error = yH.Norml2();
+      real_t error = yH.Norml2();
       mfem::out << "  order: " << order
                 << ", block matrix error norm on rank " << rank << ": " << error << std::endl;
       REQUIRE(error < 1.e-12);
