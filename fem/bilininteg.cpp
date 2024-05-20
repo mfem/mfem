@@ -3446,7 +3446,7 @@ void DGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &trial_fe1,
 {
    int tr_ndof1, te_ndof1, tr_ndof2, te_ndof2;
 
-   double un, a, b, w;
+   real_t un, a, b, w;
 
    dim = test_fe1.GetDim();
    tr_ndof1 = trial_fe1.GetDof();
@@ -3527,7 +3527,7 @@ void DGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &trial_fe1,
 
       if (rho)
       {
-         double rho_p;
+         real_t rho_p;
          if (un >= 0.0 && tr_ndof2 && te_ndof2)
          {
             Trans.Elem2->SetIntPoint(&eip2);
