@@ -244,6 +244,8 @@ int main(int argc, char *argv[])
 
    auto qFun = GetQFun(problem, t_0, k, c);
    VectorFunctionCoefficient qcoeff(dim, qFun);
+   ConstantCoefficient one;
+   VectorSumCoefficient qtcoeff(ccoeff, qcoeff, tcoeff, one);//total flux
 
    // 8. Allocate memory (x, rhs) for the analytical solution and the right hand
    //    side.  Define the GridFunction q,t for the finite element solution and
@@ -272,12 +274,11 @@ int main(int argc, char *argv[])
    LinearForm *fform(new LinearForm);
    fform->Update(W_space, rhs.GetBlock(1), 0);
    fform->AddDomainIntegrator(new DomainLFIntegrator(fcoeff));
-   ConstantCoefficient one;
    if (!hybridization)
    {
       if (dg)
       {
-         fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(one, qcoeff, +1.),
+         fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(one, qtcoeff, +1.),
                                      bdr_is_neumann);
       }
       if (bconv)
@@ -566,10 +567,13 @@ int main(int argc, char *argv[])
 
    // Project the analytic solution
 
-   GridFunction q_a, t_a, c_gf;
+   GridFunction q_a, qt_a, t_a, c_gf;
 
    q_a.SetSpace(V_space);
    q_a.ProjectCoefficient(qcoeff);
+
+   qt_a.SetSpace(V_space);
+   qt_a.ProjectCoefficient(qtcoeff);
 
    t_a.SetSpace(W_space);
    t_a.ProjectCoefficient(tcoeff);
@@ -645,6 +649,12 @@ int main(int argc, char *argv[])
          qa_sock << "solution\n" << *mesh << q_a << "window_title 'Heat flux analytic'"
                  << endl;
          qa_sock << "keys Rljvvvvvmmc" << endl;
+         socketstream qta_sock(vishost, visport);
+         qta_sock.precision(8);
+         qta_sock << "solution\n" << *mesh << qt_a <<
+                  "window_title 'Total flux analytic'"
+                  << endl;
+         qta_sock << "keys Rljvvvvvmmc" << endl;
          socketstream ta_sock(vishost, visport);
          ta_sock.precision(8);
          ta_sock << "solution\n" << *mesh << t_a << "window_title 'Temperature analytic'"
@@ -746,9 +756,9 @@ VecFunc GetQFun(int prob, real_t t_0, real_t k, real_t c)
             Vector xc(x);
             //xc -= .5;
 
-            real_t t0 = 1. - tanh(10. * (-1. + 4.*xc.Norml2()));
-            v(0) = +xc(1) * t0 * c;
-            v(1) = -xc(0) * t0 * c;
+            real_t csh = cosh(10. * (-1. + 4.*xc.Norml2()));
+            real_t q0 = k * 10. * 4. / (csh*csh * xc.Norml2());
+            v.Set(q0, xc);
          };
          break;
    }
