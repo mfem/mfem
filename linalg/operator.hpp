@@ -393,6 +393,8 @@ public:
    /// Set the current time.
    virtual void SetTime(const real_t t_) { t = t_; }
 
+   void SetImplicit() { type = IMPLICIT; }
+
    /// True if #type is #EXPLICIT.
    bool isExplicit() const { return (type == EXPLICIT); }
    /// True if #type is #IMPLICIT or #HOMOGENEOUS.
