@@ -2449,6 +2449,29 @@ public:
       : TransposeIntegrator(new LaplaceIntegrator(q, a)) { }
 };
 
+/** Class for integrating the bilinear form $a(u,v) := (Q \Delta u, v)$
+    where $Q$ is an scalar coefficient, $u$ is in an $C^1$ nurbs space and $v$
+    is in a space defined on the same nurbs mesh*/
+class MixedLaplaceIntegrator : public BilinearFormIntegrator
+{
+protected:
+   Coefficient *Q;
+private:
+   Vector laplace, shape;
+public:
+   MixedLaplaceIntegrator(Coefficient &q)
+      : Q(&q), BilinearFormIntegrator() {}
+
+   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                       const FiniteElement &test_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
+
+    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
+                                          const FiniteElement &test_fe,
+                                          ElementTransformation &Trans);
+};
+
 /// $\alpha (\Delta u, Q \cdot \nabla v)$
 class LaplaceGradIntegrator : public BilinearFormIntegrator
 {

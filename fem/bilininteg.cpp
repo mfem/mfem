@@ -12,6 +12,8 @@
 // Implementation of Bilinear Form Integrators
 
 #include "fem.hpp"
+#include "bilininteg.hpp"
+
 #include <cmath>
 #include <algorithm>
 #include <memory>
@@ -1575,6 +1577,46 @@ const IntegrationRule &LaplaceIntegrator::GetRule(
  //  int order = trial_fe.GetOrder() - 2 + Trans.Order() + test_fe.GetOrder();
    int order = trial_fe.GetOrder() + test_fe.GetOrder();
    return IntRules.Get(trial_fe.GetGeomType(), order);
+}
+
+void MixedLaplaceIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                                    const FiniteElement &test_fe,
+                                                    ElementTransformation &Trans,
+                                                    DenseMatrix &elmat )
+{
+   int const nd_tr = trial_fe.GetDof();
+   int const nd_te = test_fe.GetDof();
+   real_t w;
+
+   elmat.SetSize(nd_te, nd_tr);
+   shape.SetSize(nd_te);
+   laplace.SetSize(nd_tr);
+
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(trial_fe, test_fe, Trans);
+
+   elmat = 0.0;
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      Trans.SetIntPoint (&ip);
+
+      test_fe.CalcPhysShape(Trans, shape);
+      trial_fe.CalcPhysLaplacian(Trans, laplace);
+
+      w = Trans.Weight() * ip.weight;
+      if (Q)
+      {
+         w *= Q -> Eval(Trans, ip);
+      }
+      shape *= w;
+      AddMultVWt(shape, laplace,
+                 elmat);
+   }
+}
+
+const IntegrationRule &MixedLaplaceIntegrator::GetRule(const FiniteElement &trial_fe, const FiniteElement &test_fe,
+                                                           ElementTransformation &Trans) {
+        return LaplaceIntegrator::GetRule(trial_fe, test_fe, Trans);
 }
 
 void LaplaceGradIntegrator::AssembleElementMatrix(const FiniteElement &el,
