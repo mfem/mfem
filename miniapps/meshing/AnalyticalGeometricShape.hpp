@@ -37,7 +37,8 @@ public:
    /// to discern between different level-sets.
 
    AnalyticalGeometricShape(ParFiniteElementSpace &pfes_mesh, ParGridFunction &distance_gf,
-                            const ParMesh & pmesh, const ParGridFunction & coord, Array<int> &ess_vdofs);
+                            const ParMesh & pmesh, const ParGridFunction & coord, Array<int> &ess_vdofs)
+   : pfes_mesh(pfes_mesh), distance_gf(distance_gf), pmesh(pmesh), coord(coord) { }
 
    virtual void GetTFromX(Vector &coordsT, const Vector &coordsX, const int& j_x, const Vector &dist) = 0;
    virtual void GetXFromT(Vector &coordsX, const Vector &coordsT, const int& j_x, const Vector &dist) = 0;
@@ -46,7 +47,7 @@ public:
    virtual void SetScaleMatrixFourthOrder(const Vector &elfun, const Array<int> & vdofs, DenseMatrix &Pmat_scale) = 0;
    virtual void SetHessianScaleMatrix(const Vector &elfun, const Array<int> & vdofs, int i, int idim, int j, int jdim, DenseMatrix &Pmat_hessian) = 0; 
    virtual void convertToPhysical(const Array<int> & vdofs,const Vector &elfun, Vector &convertedX) = 0;
-   virtual  ~AnalyticalGeometricShape();
+   virtual  ~AnalyticalGeometricShape() { }
 };
 }
 #endif
