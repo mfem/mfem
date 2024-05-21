@@ -2949,6 +2949,15 @@ void TMOP_Integrator::EnableSurfaceFitting(const GridFunction &s0,
    MFEM_VERIFY(surf_fit_pos == NULL,
                "Using both fitting approaches is not supported.");
 
+   const int dim = s0.FESpace()->GetMesh()->Dimension();
+   Mesh *mesh = s0.FESpace()->GetMesh();
+   MFEM_VERIFY(mesh->GetNodes()->Size() == dim*s0.Size(),
+               "Mesh and level-set polynomial order must be the same.");
+   const H1_FECollection *fec = dynamic_cast<const H1_FECollection *>
+                                (s0.FESpace()->FEColl());
+   MFEM_VERIFY(fec, "Only H1_FECollection is supported for the surface fitting "
+               "grid function.");
+
    delete surf_fit_gf;
    surf_fit_gf = new GridFunction(s0);
    surf_fit_gf->CountElementsPerVDof(surf_fit_dof_count);
@@ -3015,7 +3024,6 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
    surf_fit_eval->SetParMetaInfo(*pmesh, *s0.ParFESpace());
    surf_fit_eval->SetInitialField
    (*surf_fit_gf->FESpace()->GetMesh()->GetNodes(), *surf_fit_gf);
-   surf_fit_gf_bg = false;
 
    if (!aegrad) { return; }
 
@@ -3037,9 +3045,9 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
       ParGridFunction surf_fit_grad_comp(fes, surf_fit_grad->GetData()+d*s0.Size());
       s0.GetDerivative(1, d, surf_fit_grad_comp);
    }
-   surf_fit_eval_bg_grad = aegrad;
-   surf_fit_eval_bg_grad->SetParMetaInfo(*pmesh, *fes_grad);
-   surf_fit_eval_bg_grad->SetInitialField(*pmesh->GetNodes(), *surf_fit_grad);
+   surf_fit_eval_grad = aegrad;
+   surf_fit_eval_grad->SetParMetaInfo(*pmesh, *fes_grad);
+   surf_fit_eval_grad->SetInitialField(*pmesh->GetNodes(), *surf_fit_grad);
 
    // FE space for Hessians.
    delete surf_fit_hess;
@@ -3063,21 +3071,27 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
          id++;
       }
    }
-   surf_fit_eval_bg_hess = aehess;
-   surf_fit_eval_bg_hess->SetParMetaInfo(*pmesh, *fes_hess);
-   surf_fit_eval_bg_hess->SetInitialField(*pmesh->GetNodes(), *surf_fit_hess);
+   surf_fit_eval_hess = aehess;
+   surf_fit_eval_hess->SetParMetaInfo(*pmesh, *fes_hess);
+   surf_fit_eval_hess->SetInitialField(*pmesh->GetNodes(), *surf_fit_hess);
 
-   surf_fit_gf_bg = true;
    // Store DOF indices that are marked for fitting. Used to reduce work for
    // transferring information between source/background and current mesh.
    surf_fit_marker_dof_index.SetSize(0);
-   for (int i = 0; i < surf_fit_marker->Size(); i++)
+#ifdef MFEM_USE_GSLIB
+   if (dynamic_cast<InterpolatorFP *>(surf_fit_eval) &&
+       dynamic_cast<InterpolatorFP *>(surf_fit_eval_grad) &&
+       dynamic_cast<InterpolatorFP *>(surf_fit_eval_hess))
    {
-      if ((*surf_fit_marker)[i] == true)
+      for (int i = 0; i < surf_fit_marker->Size(); i++)
       {
-         surf_fit_marker_dof_index.Append(i);
+         if ((*surf_fit_marker)[i] == true)
+         {
+            surf_fit_marker_dof_index.Append(i);
+         }
       }
    }
+#endif
 
    *surf_fit_grad = 0.0;
    *surf_fit_hess = 0.0;
@@ -3116,11 +3130,11 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
    delete surf_fit_grad;
    surf_fit_grad = new GridFunction(s0_grad);
    *surf_fit_grad = 0.0;
-   surf_fit_eval_bg_grad = &age;
-   surf_fit_eval_bg_hess = &ahe;
-   surf_fit_eval_bg_grad->SetParMetaInfo(*s_bg_grad.ParFESpace()->GetParMesh(),
-                                         *s_bg_grad.ParFESpace());
-   surf_fit_eval_bg_grad->SetInitialField
+   surf_fit_eval_grad = &age;
+   surf_fit_eval_hess = &ahe;
+   surf_fit_eval_grad->SetParMetaInfo(*s_bg_grad.ParFESpace()->GetParMesh(),
+                                      *s_bg_grad.ParFESpace());
+   surf_fit_eval_grad->SetInitialField
    (*s_bg_grad.FESpace()->GetMesh()->GetNodes(), s_bg_grad);
 
    // Setup for Hessian on background mesh
@@ -3131,9 +3145,9 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
    delete surf_fit_hess;
    surf_fit_hess = new GridFunction(s0_hess);
    *surf_fit_hess = 0.0;
-   surf_fit_eval_bg_hess->SetParMetaInfo(*s_bg_hess.ParFESpace()->GetParMesh(),
-                                         *s_bg_hess.ParFESpace());
-   surf_fit_eval_bg_hess->SetInitialField
+   surf_fit_eval_hess->SetParMetaInfo(*s_bg_hess.ParFESpace()->GetParMesh(),
+                                      *s_bg_hess.ParFESpace());
+   surf_fit_eval_hess->SetInitialField
    (*s_bg_hess.FESpace()->GetMesh()->GetNodes(), s_bg_hess);
 
    // Count number of zones that share each of the DOFs
@@ -3938,7 +3952,7 @@ void TMOP_Integrator::AssembleElemVecSurfFit(const FiniteElement &el_x,
 
    Vector sigma_e(dof_s);
    DenseMatrix surf_fit_grad_e(dof_s, dim);
-   if (surf_fit_gf || surf_fit_gf_bg)
+   if (surf_fit_gf)
    {
       surf_fit_gf->GetSubVector(vdofs, sigma_e);
 
@@ -3946,7 +3960,7 @@ void TMOP_Integrator::AssembleElemVecSurfFit(const FiniteElement &el_x,
       // The FE coefficients of the gradient go in surf_fit_grad_e.
       Vector grad_ptr(surf_fit_grad_e.GetData(), dof_s * dim);
       DenseMatrix grad_phys; // This will be (dof x dim, dof).
-      if (surf_fit_gf_bg)
+      if (surf_fit_grad)
       {
          surf_fit_grad->FESpace()->GetElementVDofs(el_id, dofs);
          surf_fit_grad->GetSubVector(dofs, grad_ptr);
@@ -4020,7 +4034,7 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
    Vector sigma_e(dof_s);
    DenseMatrix surf_fit_grad_e(dof_s, dim);
    DenseMatrix surf_fit_hess_e(dof_s, dim*dim);
-   if (surf_fit_gf || surf_fit_gf_bg)
+   if (surf_fit_gf)
    {
       surf_fit_gf->GetSubVector(vdofs, sigma_e);
 
@@ -4028,7 +4042,7 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
       // The FE coefficients of the gradient go in surf_fit_grad_e.
       Vector grad_ptr(surf_fit_grad_e.GetData(), dof_s * dim);
       DenseMatrix grad_phys; // This will be (dof x dim, dof).
-      if (surf_fit_gf_bg)
+      if (surf_fit_grad)
       {
          surf_fit_grad->FESpace()->GetElementVDofs(el_id, dofs);
          surf_fit_grad->GetSubVector(dofs, grad_ptr);
@@ -4042,7 +4056,7 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
       // Project the Hessian of sigma in the same space.
       // The FE coefficients of the Hessian go in surf_fit_hess_e.
       Vector hess_ptr(surf_fit_hess_e.GetData(), dof_s*dim*dim);
-      if (surf_fit_gf_bg)
+      if (surf_fit_hess)
       {
          surf_fit_hess->FESpace()->GetElementVDofs(el_id, dofs);
          surf_fit_hess->GetSubVector(dofs, hess_ptr);
@@ -4069,7 +4083,7 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
       Tpr.SetIntPoint(&ip);
       real_t w = surf_fit_normal * surf_fit_coeff->Eval(Tpr, ip);
 
-      if (surf_fit_gf || surf_fit_gf_bg)
+      if (surf_fit_gf)
       {
          Vector gg_ptr(surf_fit_hess_s.GetData(), dim * dim);
          surf_fit_hess_e.GetRow(s, gg_ptr);
@@ -4456,17 +4470,7 @@ void TMOP_Integrator::RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
 {
    if (!surf_fit_gf) { return; }
 
-   bool remap_only_fitted_nodes = false; // only remap at nodes for fitting.
-#ifdef MFEM_USE_GSLIB
-   if (dynamic_cast<InterpolatorFP *>(surf_fit_eval) &&
-       dynamic_cast<InterpolatorFP *>(surf_fit_eval_bg_grad) &&
-       dynamic_cast<InterpolatorFP *>(surf_fit_eval_bg_hess))
-   {
-      remap_only_fitted_nodes = true;
-   }
-#endif
-
-   if (surf_fit_gf_bg && remap_only_fitted_nodes)
+   if (surf_fit_marker_dof_index.Size())
    {
       // Interpolate information only at DOFs marked for fitting.
       const int dim = surf_fit_gf->FESpace()->GetMesh()->Dimension();
@@ -4507,8 +4511,8 @@ void TMOP_Integrator::RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
       }
 
       // Interpolate gradients of the LS.
-      surf_fit_eval_bg_grad->ComputeAtNewPosition(new_x_sorted, surf_fit_grad_int,
-                                                  new_x_ordering);
+      surf_fit_eval_grad->ComputeAtNewPosition(new_x_sorted, surf_fit_grad_int,
+                                               new_x_ordering);
       // Assumes surf_fit_grad and surf_fit_gf share the same space
       const int grad_dim = surf_fit_grad->VectorDim();
       const int grad_cnt = surf_fit_grad->Size()/grad_dim;
@@ -4538,8 +4542,8 @@ void TMOP_Integrator::RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
       }
 
       // Interpolate Hessians of the LS.
-      surf_fit_eval_bg_hess->ComputeAtNewPosition(new_x_sorted, surf_fit_hess_int,
-                                                  new_x_ordering);
+      surf_fit_eval_hess->ComputeAtNewPosition(new_x_sorted, surf_fit_hess_int,
+                                               new_x_ordering);
       // Assumes surf_fit_hess and surf_fit_gf share the same space
       const int hess_dim = surf_fit_hess->VectorDim();
       const int hess_cnt = surf_fit_hess->Size()/hess_dim;
@@ -4572,15 +4576,15 @@ void TMOP_Integrator::RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
    else
    {
       surf_fit_eval->ComputeAtNewPosition(new_x, *surf_fit_gf, new_x_ordering);
-      if (surf_fit_eval_bg_grad)
+      if (surf_fit_eval_grad)
       {
-         surf_fit_eval_bg_grad->ComputeAtNewPosition(new_x, *surf_fit_grad,
-                                                     new_x_ordering);
+         surf_fit_eval_grad->ComputeAtNewPosition(new_x, *surf_fit_grad,
+                                                  new_x_ordering);
       }
-      if (surf_fit_eval_bg_hess)
+      if (surf_fit_eval_hess)
       {
-         surf_fit_eval_bg_hess->ComputeAtNewPosition(new_x, *surf_fit_hess,
-                                                     new_x_ordering);
+         surf_fit_eval_hess->ComputeAtNewPosition(new_x, *surf_fit_hess,
+                                                  new_x_ordering);
       }
    }
 }
@@ -4615,7 +4619,8 @@ UpdateAfterMeshPositionChange(const Vector &x_new,
       adapt_lim_eval->ComputeAtNewPosition(x_new, *adapt_lim_gf, ordering);
    }
 
-   // Update surf_fit_gf if surface fitting is enabled.
+   // Update surf_fit_gf (and optionally its gradients) if surface
+   // fitting is enabled.
    if (surf_fit_gf)
    {
       RemapSurfaceFittingLevelSetAtNodes(x_new, ordering);
