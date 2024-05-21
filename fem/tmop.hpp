@@ -2252,9 +2252,6 @@ public:
    /// Get the surface fitting weight.
    real_t GetSurfaceFittingWeight();
 
-   /// Copies current surface fitting level-set to provided gridfunction.
-   void GetSurfaceFittingLevelSet(GridFunction &s0);
-
    /// Computes quantiles needed for UntangleMetrics. Note that in parallel,
    /// the ParFiniteElementSpace must be passed as argument for consistency
    /// across MPI ranks.
