@@ -14,12 +14,12 @@ stages:
   - build_and_test
   - report
 
-opt_mpi_cuda_xl_16_1_1_12:
+opt_mpi_cuda_gcc:
   variables:
     SPEC: "%gcc@8.3.1 +mpi +cuda cuda_arch=70"
   extends: .build_and_test_on_lassen
 
-opt_mpi_cuda_hypre_cuda_xl:
+opt_mpi_cuda_hypre_cuda_gcc:
   variables:
     SPEC: "%gcc@8.3.1 +mpi +cuda cuda_arch=70 ^hypre+cuda~shared cuda_arch=70"
   extends: .build_and_test_on_lassen
