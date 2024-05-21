@@ -1785,7 +1785,6 @@ protected:
    TMOP_QuadraticLimiter *surf_fit_limiter; // Owned. Created internally.
    const GridFunction *surf_fit_pos;        // Not owned. Positions to fit.
    real_t surf_fit_normal;                  // Normalization factor.
-   bool surf_fit_gf_bg;                     // Use background mesh for fitting.
    GridFunction *surf_fit_grad, *surf_fit_hess; // Owned. Created internally.
    AdaptivityEvaluator *surf_fit_eval_grad, *surf_fit_eval_hess; // Not owned.
    Array<int> surf_fit_dof_count;            // Number of dofs per node.
@@ -2004,8 +2003,7 @@ public:
         surf_fit_marker(NULL), surf_fit_coeff(NULL),
         surf_fit_gf(NULL), surf_fit_eval(NULL),
         surf_fit_limiter(NULL), surf_fit_pos(NULL),
-        surf_fit_normal(1.0),
-        surf_fit_gf_bg(false), surf_fit_grad(NULL), surf_fit_hess(NULL),
+        surf_fit_normal(1.0), surf_fit_grad(NULL), surf_fit_hess(NULL),
         surf_fit_eval_grad(NULL), surf_fit_eval_hess(NULL),
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
         fdflag(false), dxscale(1.0e3), fd_call_flag(false), exact_action(false)

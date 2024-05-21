@@ -3116,7 +3116,6 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
    surf_fit_coeff = &coeff;
    surf_fit_eval = &ae;
 
-   surf_fit_gf_bg = true;
    surf_fit_eval->SetParMetaInfo(*s_bg.ParFESpace()->GetParMesh(),
                                  *s_bg.ParFESpace());
    surf_fit_eval->SetInitialField
