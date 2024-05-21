@@ -582,7 +582,6 @@ int main (int argc, char *argv[])
       // Unify marker across processor boundary
       surf_fit_mat_gf.ExchangeFaceNbrData();
       {
-
          GroupCommunicator &gcomm = surf_fit_mat_gf.ParFESpace()->GroupComm();
          Array<double> gf_array(surf_fit_mat_gf.GetData(),
                                 surf_fit_mat_gf.Size());
