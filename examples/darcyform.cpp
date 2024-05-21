@@ -533,6 +533,8 @@ void DarcyHybridization::SetConstraintIntegrators(BilinearFormIntegrator
    c_bfi = c_flux_integ;
    delete c_bfi_p;
    c_bfi_p = c_pot_integ;
+   if (!extern_c_bfbfs)
+      for (int k=0; k < c_bfbfi_p.Size(); k++) { delete c_bfbfi_p[k]; }
 }
 
 void DarcyHybridization::Init(const Array<int> &ess_flux_tdof_list)

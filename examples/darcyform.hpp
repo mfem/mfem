@@ -205,6 +205,10 @@ class DarcyHybridization : public Hybridization
    FiniteElementSpace *fes_p;
    BilinearFormIntegrator *c_bfi_p;
 
+   /// Set of constraint boundary face integrators to be applied.
+   Array<BilinearFormIntegrator*> c_bfbfi_p;
+   Array<Array<int>*>             c_bfbfi_p_marker;
+
    bool bsym, bhdg, bfin;
 
    Array<int> Ae_offsets;
@@ -274,6 +278,18 @@ public:
    void AddBdrFluxConstraintIntegrator(BilinearFormIntegrator *c_integ,
                                        Array<int> &bdr_marker)
    { Hybridization::AddBdrConstraintIntegrator(c_integ, bdr_marker); }
+
+   void AddBdrPotConstraintIntegrator(BilinearFormIntegrator *c_integ)
+   {
+      c_bfbfi_p.Append(c_integ);
+      c_bfbfi_p_marker.Append(NULL); // NULL marker means apply everywhere
+   }
+   void AddBdrPotConstraintIntegrator(BilinearFormIntegrator *c_integ,
+                                      Array<int> &bdr_marker)
+   {
+      c_bfbfi_p.Append(c_integ);
+      c_bfbfi_p_marker.Append(&bdr_marker);
+   }
 
    /// Prepare the Hybridization object for assembly.
    void Init(const Array<int> &ess_flux_tdof_list) override;
