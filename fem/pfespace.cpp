@@ -131,8 +131,6 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
    CheckNDSTriaDofs();
 }
 
-// This function is modeled after ParNCMesh::Refine, in its method of communicating
-// ghost data in parallel.
 void ParFiniteElementSpace::CommunicateGhostOrder(Array<int> & prefdata)
 {
    // Check whether h-refinement was done.
@@ -276,6 +274,8 @@ void ParFiniteElementSpace::Construct()
       // after all regular DOFs. Ghost element internal ("bubble") DOFs are not
       // included.
       ngdofs = ngvdofs + ngedofs + ngfdofs;
+
+      if (IsVariableOrder()) { SetVarDofMaps(); }
 
       // get P and R matrices, initialize DOF offsets, etc. NOTE: in the NC
       // case this needs to be done here to get the number of true DOFs
@@ -1776,7 +1776,6 @@ void ParFiniteElementSpace::GetGhostEdgeDofs(const MeshId &edge_id,
    {
       const int edge = edge_id.index;
       const int* beg = var_edge_dofs.GetRow(edge);
-      //const int variant = 0;  // TODO: allow for other variants?
 
       base = beg[variant];
       ne = beg[variant+1] - base;
@@ -1873,7 +1872,6 @@ void ParFiniteElementSpace::GetGhostFaceDofs(const MeshId &face_id,
          allne += ne_i;
       }
 
-      //dofs.SetSize((nfv * (nv + ne)) + nf);
       dofs.SetSize((nfv * nv) + allne + nf);
    }
    else
@@ -2106,44 +2104,6 @@ int ParFiniteElementSpace::PackDofVar(int entity, int index, int edof,
    }
 }
 
-// TODO: this is inefficient and should be eliminated.
-void FindDofInTable(const Table & t, int dof,
-                    int &index, int &edof)
-{
-   MFEM_ASSERT(t.GetJ()[0] == 0 && dof >= 0, "");
-
-   int r = t.Size() - 1;
-   int prevNonEmpty = 0;
-   for (int i=1; i<t.Size(); ++i)
-   {
-      const int s = t.RowSize(i);
-      if (s > 0)
-      {
-         const int* row = t.GetRow(i);
-         if (row[0] > dof)
-         {
-            r = prevNonEmpty;
-            break;
-         }
-
-         prevNonEmpty = i;
-      }
-   }
-
-   const int* row = t.GetRow(r);
-#ifdef MFEM_DEBUG
-   const int s = t.RowSize(r);
-
-   // It is assumed that the table has an extra row at the end, containing just
-   // the total number of DOFs. Thus the dof should be found before the final row.
-   MFEM_ASSERT(s > 0 && row[0] <= dof && r < t.Size() - 1, "");
-#endif
-   MFEM_ASSERT(dof < t.GetRow(r+1)[0], "");
-
-   index = r;
-   edof = dof - row[0];
-}
-
 static int bisect(const int* array, int size, int value)
 {
    const int* end = array + size;
@@ -2156,8 +2116,8 @@ static int bisect(const int* array, int size, int value)
    return pos - array - 1;
 }
 
-void ParFiniteElementSpace::UnpackDofVar(int dof,
-                                         int &entity, int &index, int &edof, int &order) const
+void ParFiniteElementSpace::UnpackDofVar(int dof, int &entity, int &index,
+                                         int &edof, int &order) const
 {
    order = -1;
    MFEM_ASSERT(dof >= 0, "");
@@ -2173,8 +2133,8 @@ void ParFiniteElementSpace::UnpackDofVar(int dof,
       if (dof < nedofs) // regular edge
       {
          entity = 1;
-         // TODO: replace this search with an array of values stored for each edge DOF?
-         FindDofInTable(var_edge_dofs, dof, index, edof);
+         index = var_edge_dofmap[dof].index;
+         edof = var_edge_dofmap[dof].edof;
 
          // Convert from local to global offset.
          int os = 0;
@@ -2203,8 +2163,8 @@ void ParFiniteElementSpace::UnpackDofVar(int dof,
       if (dof < nfdofs) // regular face
       {
          entity = 2;
-         // TODO: replace this search with an array of values stored for each edge DOF?
-         FindDofInTable(var_face_dofs, dof, index, edof);
+         index = var_face_dofmap[dof].index;
+         edof = var_face_dofmap[dof].edof;
 
          // Convert from local to global offset.
          int os = 0;
@@ -2246,7 +2206,8 @@ void ParFiniteElementSpace::UnpackDofVar(int dof,
       if (dof < ngedofs) // ghost edge
       {
          entity = 1;
-         FindDofInTable(var_edge_dofs, dof + nedofs, index, edof);
+         index = var_edge_dofmap[dof + nedofs].index;
+         edof = var_edge_dofmap[dof + nedofs].edof;
          return;
       }
 
@@ -2254,7 +2215,8 @@ void ParFiniteElementSpace::UnpackDofVar(int dof,
       if (dof < ngfdofs) // ghost face
       {
          entity = 2;
-         FindDofInTable(var_face_dofs, dof + nfdofs, index, edof);
+         index = var_face_dofmap[dof + nfdofs].index;
+         edof = var_face_dofmap[dof + nfdofs].edof;
          return;
       }
       MFEM_ABORT("Out of range DOF.");
@@ -2549,8 +2511,6 @@ void NeighborOrderMessage::Encode(int rank)
          const OrderInfo &ri = msgs[row_idx[ent][i]];
          MFEM_ASSERT(ent == ri.entity, "");
 
-         MFEM_VERIFY(id.index < 1000000, "");
-
          bin_io::write<int>(stream, ri.order);
       }
    }
@@ -2587,9 +2547,6 @@ void NeighborOrderMessage::Decode(int rank)
          const MeshId &id = ids[i];
          // read the particular value off the stream.
          int order_i = bin_io::read<int>(stream);
-
-         MFEM_VERIFY(order_i > 0, "");
-         MFEM_VERIFY(id.index < 1000000, "");
 
          // Create an entry for this entity, recording the index of the mesh
          // element
@@ -2632,7 +2589,7 @@ public:
          while (!found)
          {
             const int order_v = fes->GetEdgeOrder(index, var);
-            MFEM_VERIFY(order_v >= 0, "");
+            MFEM_ASSERT(order_v >= 0, "");
             if (order == order_v)
             {
                found = true;
@@ -2653,7 +2610,7 @@ public:
          while (!found)
          {
             const int order_v = fes->GetFaceOrder(index, var);
-            MFEM_VERIFY(order_v >= 0, "");
+            MFEM_ASSERT(order_v >= 0, "");
             if (order == order_v)
             {
                found = true;
@@ -2694,15 +2651,8 @@ protected:
 
    bool varOrder = false;
 
-   // TODO: const?
-   int FindEdgeDofVar(int edge, int edof, int &os);
-   int FindFaceDofVar(int edge, int edof, int &os);
-
    int GetEdgeVarOffset(int edge, int var);
    int GetFaceVarOffset(int face, int var);
-
-   int FindLocalEdgeOrder(int edge, int edof, int &os, int &var);
-   int FindLocalFaceOrder(int edge, int edof, int &os, int &var);
 
    /// Encode a NeighborRowMessage for sending via MPI.
    void Encode(int rank) override;
@@ -2785,7 +2735,6 @@ void NeighborRowMessage::Encode(int rank)
             edof += osvar;
          }
 
-         // TODO: similar change to faces has no effect, because osloc == osvar always?
          if (ent == 2 && varOrder)
          {
             int var = ri.var;
@@ -2829,117 +2778,6 @@ int NeighborRowMessage::GetFaceVarOffset(int face, int var)
    return os;
 }
 
-// TODO: remove os as an argument?
-int NeighborRowMessage::FindLocalEdgeOrder(int edge, int edof, int &os,
-                                           int &var)
-{
-   os = 0;
-   var = -1;
-   int order = -1;
-   const int nvar = fes->GetNVariants(1, edge);
-   for (int v=0; v<nvar; ++v)
-   {
-      const int eo = fes->GetEdgeOrder(edge, v);
-      const int dofs = fec->GetNumDof(Geometry::SEGMENT, eo);
-      if (edof < os + dofs)
-      {
-         var = v;
-         order = eo;
-         break;
-      }
-
-      os += dofs;
-   }
-
-   MFEM_ASSERT(var >= 0, "");
-
-   return order;
-}
-
-// TODO: remove os as an argument?
-int NeighborRowMessage::FindLocalFaceOrder(int face, int edof, int &os,
-                                           int &var)
-{
-   os = 0;
-   var = -1;
-   int order = -1;
-   const int nvar = fes->GetNVariants(2, face);
-
-   Geometry::Type geom = pncmesh->GetFaceGeometry(face);
-
-   for (int v=0; v<nvar; ++v)
-   {
-      const int fo = fes->GetFaceOrder(face, v);
-      const int dofs = fec->GetNumDof(geom, fo);
-      if (edof < os + dofs)
-      {
-         var = v;
-         order = fo;
-         break;
-      }
-
-      os += dofs;
-   }
-
-   MFEM_ASSERT(var >= 0, "");
-
-   return order;
-}
-
-// TODO: more efficient way?
-int NeighborRowMessage::FindEdgeDofVar(int edge, int edof, int &os)
-{
-   int var = -1;
-
-   const int nvar = fes->GetNVariants(1, edge);
-
-   os = 0;
-   for (int v=0; v<nvar; ++v)
-   {
-      const int eo = fes->GetEdgeOrder(edge, v);
-      const int dofs = fec->GetNumDof(Geometry::SEGMENT, eo);
-      if (edof < os + dofs)
-      {
-         var = v;
-         break;
-      }
-
-      os += dofs;
-   }
-
-   MFEM_ASSERT(var >= 0, "");
-
-   return var;
-}
-
-// TODO: more efficient way?
-int NeighborRowMessage::FindFaceDofVar(int face, int edof, int &os)
-{
-   int var = -1;
-
-   const int nvar = fes->GetNVariants(2, face);
-
-   Geometry::Type geom = pncmesh->GetFaceGeometry(face);
-
-   os = 0;
-   for (int v=0; v<nvar; ++v)
-   {
-      const int fo = fes->GetFaceOrder(face, v);
-      const int dofs = fec->GetNumDof(geom, fo);
-      if (edof < os + dofs)
-      {
-         var = v;
-         break;
-      }
-
-      os += dofs;
-   }
-
-   MFEM_ASSERT(var >= 0, "");
-
-   return var;
-}
-
 void NeighborRowMessage::Decode(int rank)
 {
    std::istringstream stream(data);
@@ -2968,7 +2806,6 @@ void NeighborRowMessage::Decode(int rank)
          // read the particular element dof value off the stream.
          int edof = bin_io::read<int>(stream);
          int order_i = bin_io::read<int>(stream);
-         //bin_io::read<int>(stream);
 
          MFEM_VERIFY(order_i >= 0, "");
 
@@ -2988,9 +2825,6 @@ void NeighborRowMessage::Decode(int rank)
 
             if (varOrder)
             {
-               //const int order = FindLocalEdgeOrder(id.index, edof, osvar, var);
-               //MFEM_VERIFY(order == order_i, "");
-               ////const int order = order_i;
                int order = -1;
                bool found = false;
                while (!found)
@@ -3002,7 +2836,6 @@ void NeighborRowMessage::Decode(int rank)
                      var = -1;
                      break;
                   }
-                  //MFEM_VERIFY(order >= 0, "");
                   if (order == order_i)
                   {
                      found = true;
@@ -3013,7 +2846,6 @@ void NeighborRowMessage::Decode(int rank)
                   }
                }
 
-               // TODO: similar change for FindFaceOrder?
                if (order < 0)
                {
                   // Read the stream for this row and ignore it. This is an
@@ -3041,13 +2873,11 @@ void NeighborRowMessage::Decode(int rank)
                            "Only quadrilateral faces are supported in "
                            "variable-order spaces");
 
-               ////const int order = order_i;
                int order = -1;
                bool found = false;
                while (!found)
                {
                   order = fes->GetFaceOrder(id.index, var);
-                  //MFEM_VERIFY(order >= 0, "");
                   if (order == -1)
                   {
                      // Not found
@@ -3097,8 +2927,6 @@ void NeighborRowMessage::Decode(int rank)
                    << ", edof " << edof << " (id " << id.element << "/"
                    << int(id.local) << ")" << std::endl;
 #endif
-
-         MFEM_VERIFY(edof >= 0, "TODO: remove this after testing H1");
 
          // If edof arrived with a negative index, flip it, and the scaling.
          real_t s = (edof < 0) ? -1.0 : 1.0;
@@ -3320,9 +3148,9 @@ void ParFiniteElementSpace
 }
 #endif
 
-void ParFiniteElementSpace::ScheduleSendOrder(int ent, int idx, int order,
-                                              GroupId group_id,
-                                              NeighborOrderMessage::Map &send_msg) const
+void ParFiniteElementSpace::ScheduleSendOrder(
+   int ent, int idx, int order, GroupId group_id,
+   NeighborOrderMessage::Map &send_msg) const
 {
    for (const auto &rank : pncmesh->GetGroup(group_id))
    {
@@ -3335,10 +3163,9 @@ void ParFiniteElementSpace::ScheduleSendOrder(int ent, int idx, int order,
    }
 }
 
-bool ParFiniteElementSpace::ParallelOrderPropagation(bool sdone,
-                                                     const std::set<int> &edges, const std::set<int> &faces,
-                                                     Array<VarOrderBits> &edge_orders,
-                                                     Array<VarOrderBits> &face_orders) const
+bool ParFiniteElementSpace::ParallelOrderPropagation(
+   bool sdone, const std::set<int> &edges, const std::set<int> &faces,
+   Array<VarOrderBits> &edge_orders, Array<VarOrderBits> &face_orders) const
 {
    bool changed = !sdone;  // Initialized to serial version
 
@@ -3369,7 +3196,7 @@ bool ParFiniteElementSpace::ParallelOrderPropagation(bool sdone,
       }
    }
 
-   // send messages
+   // Send messages
    NeighborOrderMessage::IsendAll(send_msg, MyComm);
 
    MPI_Barrier(MyComm); // This barrier is actually necessary
@@ -3377,7 +3204,7 @@ bool ParFiniteElementSpace::ParallelOrderPropagation(bool sdone,
    NeighborOrderMessage recv_msg;
    recv_msg.SetNCMesh(pncmesh);
 
-   // check for and receive incoming messages
+   // Check for and receive incoming messages
    int rank, size;
    while (NeighborOrderMessage::IProbe(rank, size, MyComm))
    {
@@ -3412,7 +3239,7 @@ bool ParFiniteElementSpace::ParallelOrderPropagation(bool sdone,
       }
    }
 
-   // make sure we can discard all send buffers
+   // Make sure we can discard all send buffers
    NeighborOrderMessage::WaitAllSent(send_msg);
 
    orders_changed = (int) changed;
@@ -3420,9 +3247,8 @@ bool ParFiniteElementSpace::ParallelOrderPropagation(bool sdone,
    return (orders_changed == 0);
 }
 
-void ParFiniteElementSpace::MarkIntermediateEntityDofs(int entity,
-                                                       Array<bool> & intermediate) const
-
+void ParFiniteElementSpace::MarkIntermediateEntityDofs(
+   int entity, Array<bool> & intermediate) const
 {
    if (!IsVariableOrder()) { return; }
 
@@ -3448,6 +3274,41 @@ void ParFiniteElementSpace::MarkIntermediateEntityDofs(int entity,
          }
       }
    }
+}
+
+void ParFiniteElementSpace::SetVarDofMap(const Table & dofs,
+                                         Array<VarOrderDofInfo> & dmap)
+{
+   if (dofs.Size() < 1)
+   {
+      dmap.SetSize(0);
+      return;
+   }
+
+   MFEM_ASSERT(dofs.RowSize(dofs.Size() - 1) == 1, "");
+   const int* rowLast = dofs.GetRow(dofs.Size() - 1);
+   const int ndofs = rowLast[0];
+
+   dmap.SetSize(ndofs);
+
+   for (int r = 0; r < dofs.Size() - 1; ++r)
+   {
+      const int s = dofs.RowSize(r);
+      const int* row = dofs.GetRow(r);
+      const int* row1 = dofs.GetRow(r+1);
+
+      for (int d=row[0]; d<row1[0]; ++d)  // d = dof
+      {
+         dmap[d].index = r;  // row index
+         dmap[d].edof = d - row[0];  // entity index
+      }
+   }
+}
+
+void ParFiniteElementSpace::SetVarDofMaps()
+{
+   SetVarDofMap(var_edge_dofs, var_edge_dofmap);
+   SetVarDofMap(var_face_dofs, var_face_dofmap);
 }
 
 int ParFiniteElementSpace
@@ -3781,7 +3642,6 @@ int ParFiniteElementSpace
    PMatrixRow buffer;
    buffer.elems.reserve(1024);
 
-   // TODO: do you still need `intermediate`?
    // The lowest order may be finalized by receiving messages, but the
    // intermediate orders not owned may have ghost DOFs which may be dependencies
    // for other DOFs. Thus we must allow finalizing intermediate DOFs, when they
@@ -3835,7 +3695,6 @@ int ParFiniteElementSpace
       while (!done)
       {
          done = true;
-
          for (int dof = 0; dof < ndofs; dof++)
          {
             const bool owned = (dof_owner[dof] == 0);
@@ -3843,10 +3702,6 @@ int ParFiniteElementSpace
                 && (owned || intermediate[dof])
                 && DofFinalizable(dof, finalized, deps))
             {
-               // TODO: eliminate the UnpackDof call? Are any of the variables it sets needed?
-               //int ent, idx, edof, order;
-               //UnpackDof(dof, ent, idx, edof, order);
-
                const int* dep_col = deps.GetRowColumns(dof);
                const real_t* dep_coef = deps.GetRowEntries(dof);
                int num_dep = deps.RowSize(dof);
@@ -4614,8 +4469,8 @@ void ParFiniteElementSpace::Update(bool want_transform)
    FiniteElementSpace::Destroy(); // calls Th.Clear()
 
    Array<int> prefdata;
-   // We call CommunicateGhostOrder whether h- or p-refinement is done, in the
-   // variable order case.
+   // In the variable order case, we call CommunicateGhostOrder whether h-
+   // or p-refinement is done.
    if (variableOrder) { CommunicateGhostOrder(prefdata); }
 
    FiniteElementSpace::Construct(&prefdata);

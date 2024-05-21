@@ -51,6 +51,15 @@ private:
 
    mutable Array<char> ghost_elem_order;
 
+   struct VarOrderDofInfo
+   {
+      // Index is the index of the entity (edge or face), and
+      // edof is the dof index within that entity.
+      unsigned short int index, edof;
+   };
+
+   Array<VarOrderDofInfo> var_edge_dofmap, var_face_dofmap;
+
    /// The group of each local dof.
    Array<int> ldof_group;
 
@@ -106,6 +115,9 @@ private:
    void ParInit(ParMesh *pm);
 
    void CommunicateGhostOrder(Array<int> & prefdata);
+
+   void SetVarDofMaps();
+   void SetVarDofMap(const Table & dofs, Array<VarOrderDofInfo> & dmap);
 
    void Construct();
    void Destroy();

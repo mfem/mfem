@@ -3133,7 +3133,7 @@ void ParNCMesh::GetGhostElements(Array<int> & gelem)
    }
 }
 
-// Note that this function is modeled after Refine().
+// Note that this function is modeled after ParNCMesh::Refine().
 // TODO: not const function?
 void ParNCMesh::CommunicateGhostData(const Array<int> & elems,
                                      const Array<int> & orders,
