@@ -1784,12 +1784,12 @@ protected:
    // Fitting to given physical positions.
    TMOP_QuadraticLimiter *surf_fit_limiter; // Owned. Created internally.
    const GridFunction *surf_fit_pos;        // Not owned. Positions to fit.
-   real_t surf_fit_normal;
-   bool surf_fit_gf_bg;
-   GridFunction *surf_fit_grad, *surf_fit_hess;
-   AdaptivityEvaluator *surf_fit_eval_bg_grad, *surf_fit_eval_bg_hess;
-   Array<int> surf_fit_dof_count;
-   Array<int> surf_fit_marker_dof_index;
+   real_t surf_fit_normal;                  // Normalization factor.
+   bool surf_fit_gf_bg;                     // Use background mesh for fitting.
+   GridFunction *surf_fit_grad, *surf_fit_hess; // Owned. Created internally.
+   AdaptivityEvaluator *surf_fit_eval_grad, *surf_fit_eval_hess; // Not owned.
+   Array<int> surf_fit_dof_count;            // Number of dofs per node.
+   Array<int> surf_fit_marker_dof_index;     // Indices of nodes to fit.
 
    DiscreteAdaptTC *discr_tc;
 
@@ -2006,7 +2006,7 @@ public:
         surf_fit_limiter(NULL), surf_fit_pos(NULL),
         surf_fit_normal(1.0),
         surf_fit_gf_bg(false), surf_fit_grad(NULL), surf_fit_hess(NULL),
-        surf_fit_eval_bg_grad(NULL), surf_fit_eval_bg_hess(NULL),
+        surf_fit_eval_grad(NULL), surf_fit_eval_hess(NULL),
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
         fdflag(false), dxscale(1.0e3), fd_call_flag(false), exact_action(false)
    { PA.enabled = false; }
@@ -2107,6 +2107,10 @@ public:
 
 #ifdef MFEM_USE_MPI
    /// Parallel support for surface fitting to the zero level set of a function.
+   /// Here, we add two optional inputs: @a aegrad and @a aehess. When provided,
+   /// the first and second derivative of the input level set are computed on
+   /// the initial mesh, and @a aegrad and @a aehess are used to remap grad_s(x)
+   /// from grad_s0(x0) and hess_s(x) from hess_s0(x0), respectively.
    void EnableSurfaceFitting(const ParGridFunction &s0,
                              const Array<bool> &smarker, Coefficient &coeff,
                              AdaptivityEvaluator &ae,
