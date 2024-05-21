@@ -1171,9 +1171,8 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
 void FindPointsGSLIB::SendElementsAndCoordinatesToOwningMPIRanks()
 {
    int nptsend   = points_cnt;
-   int nptElem   = gsl_mfem_elem.Size();
 
-   MFEM_VERIFY(nptElem == gsl_mfem_elem.Size(),
+   MFEM_VERIFY(nptsend,
                "Invalid size. Please make sure to call FindPoints method"
                " before calling this function.");
 
