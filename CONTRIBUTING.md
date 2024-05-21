@@ -151,7 +151,8 @@ The MFEM source code has the following structure:
   │   ├── solvers
   │   ├── spde
   │   ├── tools
-  │   └── toys
+  │   ├── toys
+  │   └── tribol
   └── tests
       ├── benchmarks
       ├── convergence
