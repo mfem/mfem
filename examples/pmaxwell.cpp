@@ -8,7 +8,7 @@
 // Sample runs:
 
 
-// mpirun -np 8 ./pmaxwell -o 1 -sref 0  -m ../data/inline-hex.mesh -rnum 3.0  -pref 4 -sigma 1.0 -vis
+// mpirun -np 8 ./pmaxwell -o 1 -sref 0  -m ../data/inline-hex.mesh -rnum 3.0  -pref 4 -sigma 1.0 -no-herm -vis
 /*
   Ref |    Dofs    |    ω    | H(curl) Error |  Rate  | Solv it |
 -----------------------------------------------------------------
@@ -249,7 +249,6 @@ int main(int argc, char *argv[])
       E_gf.imag() = 0.0;
       E_gf.ProjectBdrCoefficientTangent(Er,Ei, ess_bdr);
 
-
       OperatorPtr Ah;
       Vector B, X;
       a->FormLinearSystem(ess_tdof_list, E_gf, *b, Ah, X, B);
@@ -270,12 +269,6 @@ int main(int argc, char *argv[])
       std::unique_ptr<Operator> pc_i;
       int s = (conv == ComplexOperator::HERMITIAN) ? -1 : 1;
 
-      int num_iter = -1;
-      FGMRESSolver solver(MPI_COMM_WORLD);
-      solver.SetRelTol(1e-12);
-      solver.SetMaxIter(2000);
-      solver.SetPrintLevel(0);
-
 #ifdef MFEM_USE_MUMPS
       if (mumps_solver)
       {
@@ -294,10 +287,22 @@ int main(int argc, char *argv[])
       BlockPrec.SetDiagonalBlock(0,pc_r.get());
       BlockPrec.SetDiagonalBlock(1,pc_i.get());
 
-      solver.SetPreconditioner(BlockPrec);
-      solver.SetOperator(*A);
-      solver.Mult(B, X);
-      num_iter = solver.GetNumIterations();
+      std::unique_ptr<IterativeSolver> solver;
+      if (conv == ComplexOperator::HERMITIAN)
+      {
+         solver.reset(new FGMRESSolver(MPI_COMM_WORLD));
+      }
+      else
+      {
+         solver.reset(new MINRESSolver(MPI_COMM_WORLD));
+      }
+      solver.get()->SetRelTol(1e-12);
+      solver.get()->SetMaxIter(2000);
+      solver.get()->SetPrintLevel(0);
+      solver.get()->SetPreconditioner(BlockPrec);
+      solver.get()->SetOperator(*A);
+      solver.get()->Mult(B, X);
+      int num_iter = solver.get()->GetNumIterations();
 
       a->RecoverFEMSolution(X, *b, E_gf);
 
