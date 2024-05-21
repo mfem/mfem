@@ -140,15 +140,21 @@ void DarcyForm::EnableHybridization(FiniteElementSpace *constr_space,
       }
    }
 
+   // Automatically add the boundary potential constraint integrators
+   if (M_p && constr_pot_integ)
+   {
+      auto bfbfi_marker = M_p->GetBFBFI_Marker();
+      hybridization->UseExternalBdrConstraintIntegrators();
+
       for (Array<int> *bfi_marker : *bfbfi_marker)
       {
          if (bfi_marker)
          {
-            hybridization->AddBdrConstraintIntegrator(constr_flux_integ, *bfi_marker);
+            hybridization->AddBdrPotConstraintIntegrator(constr_pot_integ, *bfi_marker);
          }
          else
          {
-            hybridization->AddBdrConstraintIntegrator(constr_flux_integ);
+            hybridization->AddBdrPotConstraintIntegrator(constr_pot_integ);
          }
       }
    }
@@ -430,10 +436,9 @@ void DarcyForm::AssembleHDGFaces(int skip_zeros)
       }
    }
 
-   /*auto &boundary_face_integs = *M_p->GetBFBFI();
    auto &boundary_face_integs_marker = *M_p->GetBFBFI_Marker();
 
-   if (boundary_face_integs.Size())
+   if (boundary_face_integs_marker.Size())
    {
       FaceElementTransformations *tr;
 
@@ -441,7 +446,7 @@ void DarcyForm::AssembleHDGFaces(int skip_zeros)
       Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
                                  mesh->bdr_attributes.Max() : 0);
       bdr_attr_marker = 0;
-      for (int k = 0; k < boundary_face_integs.Size(); k++)
+      for (int k = 0; k < boundary_face_integs_marker.Size(); k++)
       {
          if (boundary_face_integs_marker[k] == NULL)
          {
@@ -471,11 +476,14 @@ void DarcyForm::AssembleHDGFaces(int skip_zeros)
             { continue; }
 
             int faceno = mesh->GetBdrElementFaceIndex(i);
-            hybridization->ComputeAndAssembleFaceMatrix(faceno, elemmat, vdofs);
-            M_p->SpMat().AddSubMatrix(vdofs, vdofs, elemmat, skip_zeros);
+            hybridization->ComputeAndAssembleFaceMatrix(faceno, elmat1, elmat2, vdofs1,
+                                                        vdofs2);
+#ifndef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+            M_p->SpMat().AddSubMatrix(vdofs1, vdofs1, elmat1, skip_zeros);
+#endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
          }
       }
-   }*/
+   }
 }
 
 const Operator *DarcyForm::ConstructBT(const MixedBilinearForm *B)
@@ -818,15 +826,21 @@ void DarcyHybridization::ComputeAndAssembleFaceMatrix(
 
    // assemble D element matrices
    elmat1.CopyMN(elmat, ndof1, ndof1, 0, 0);
-   elmat2.CopyMN(elmat, ndof2, ndof2, ndof1, ndof1);
    AssemblePotMassMatrix(ftr->Elem1No, elmat1);
-   AssemblePotMassMatrix(ftr->Elem2No, elmat2);
+   if (ndof2)
+   {
+      elmat2.CopyMN(elmat, ndof2, ndof2, ndof1, ndof1);
+      AssemblePotMassMatrix(ftr->Elem2No, elmat2);
+   }
 
    // assemble E constraint
    DenseMatrix E_f_1(E_data + E_offsets[face], ndof1, c_dof);
-   DenseMatrix E_f_2(E_data + E_offsets[face] + c_dof*ndof1, ndof2, c_dof);
    E_f_1.CopyMN(elmat, ndof1, c_dof, 0, ndof1+ndof2);
-   E_f_2.CopyMN(elmat, ndof2, c_dof, ndof1, ndof1+ndof2);
+   if (ndof2)
+   {
+      DenseMatrix E_f_2(E_data + E_offsets[face] + c_dof*ndof1, ndof2, c_dof);
+      E_f_2.CopyMN(elmat, ndof2, c_dof, ndof1, ndof1+ndof2);
+   }
 
    // assemble G constraint
    DenseMatrix G_f(G_data + G_offsets[face], c_dof, ndof1+ndof2);
