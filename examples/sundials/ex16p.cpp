@@ -64,7 +64,7 @@ class ConductionOperator : public TimeDependentOperator
    ParBilinearForm M;
    HypreParMatrix Mmat;
 
-   const double alpha, kappa;
+   const real_t alpha, kappa;
    std::unique_ptr<BilinearForm> K;
    HypreParMatrix Kmat;
 
@@ -82,8 +82,8 @@ class ConductionOperator : public TimeDependentOperator
 
 public:
 
-   ConductionOperator(ParFiniteElementSpace &f, const double alpha,
-                      const double kappa, const Vector &u);
+   ConductionOperator(ParFiniteElementSpace &f, const real_t alpha,
+                      const real_t kappa, const Vector &u);
 
    void UseMassLinearSolver()
    {
@@ -105,30 +105,30 @@ public:
        M k = - K(u + gam*k) [u + gam*k]. Note that instead of
        K(u + gam*k) [u + gam*k], the approximation K(u_n) [u + gam*k] is used.
        */
-   void ImplicitSolve(const double gam, const Vector &u, Vector &k) override;
+   void ImplicitSolve(const real_t gam, const Vector &u, Vector &k) override;
 
    /** Setup to solve for dk in [dF/dk + gam*dF/du - gam*dG/du] dk = G - F,
        i.e., [M - gam Jf(u)] dk = G - F, where Jf(u) is an approximation of the
        Jacobian of f(u) = -K(u) u. Here, the approximation Jf(u) = -K(u_n) is
        used. */
    int SUNImplicitSetup(const Vector &u, const Vector &fu, int jok, int *jcur,
-                        double gam) override;
+                        real_t gam) override;
 
    /** Solve for dk in the system in SUNImplicitSetup to the given tolerance,
        with the residual r providing either
         1. G - F = f(u) - M k                (if using mass linear solver)
         2. inv(M) [G - F] = inv(M) f(u) - k  (otherwise)
        */
-   int SUNImplicitSolve(const Vector &r, Vector &k, double tol) override;
+   int SUNImplicitSolve(const Vector &r, Vector &k, real_t tol) override;
 
    int SUNMassSetup() override;
 
-   int SUNMassSolve(const Vector &b, Vector &x, double tol) override;
+   int SUNMassSolve(const Vector &b, Vector &x, real_t tol) override;
 
    int SUNMassMult(const Vector &x, Vector &v) override;
 };
 
-double InitialTemperature(const Vector &x)
+real_t InitialTemperature(const Vector &x)
 {
    if (x.Norml2() < 0.5)
    {
@@ -156,16 +156,16 @@ int main(int argc, char *argv[])
    int par_ref_levels = 1;
    int order = 2;
    int ode_solver_type = 9; // CVODE implicit BDF
-   double t_final = 0.5;
-   double dt = 1.0e-2;
-   double alpha = 1.0e-2;
-   double kappa = 0.5;
+   real_t t_final = 0.5;
+   real_t dt = 1.0e-2;
+   real_t alpha = 1.0e-2;
+   real_t kappa = 0.5;
    bool visualization = true;
    bool visit = false;
    int vis_steps = 5;
 
    // Relative and absolute tolerances for CVODE and ARKODE.
-   const double reltol = 1e-4, abstol = 1e-4;
+   const real_t reltol = 1e-4, abstol = 1e-4;
 
    int precision = 8;
    cout.precision(precision);
@@ -330,7 +330,7 @@ int main(int argc, char *argv[])
    }
 
    // 9. Define the ODE solver used for time integration.
-   double t = 0.0;
+   real_t t = 0.0;
    std::unique_ptr<ODESolver> ode_solver;
    switch (ode_solver_type)
    {
@@ -429,7 +429,7 @@ int main(int argc, char *argv[])
    bool last_step = false;
    for (int ti = 1; !last_step; ti++)
    {
-      double dt_real = min(dt, t_final - t);
+      real_t dt_real = min(dt, t_final - t);
 
       // Note that since we are using the "one-step" mode of the SUNDIALS
       // solvers, they will, generally, step over the final time and will not
@@ -485,14 +485,14 @@ int main(int argc, char *argv[])
 }
 
 ConductionOperator::ConductionOperator(ParFiniteElementSpace &fes,
-                                       const double alpha, const double kappa,
+                                       const real_t alpha, const real_t kappa,
                                        const Vector &u)
    : TimeDependentOperator(fes.GetTrueVSize(), 0.0), fespace(fes), alpha(alpha),
      kappa(kappa), M(&fespace), M_solver(fes.GetComm()),
      T_solver(fes.GetComm()), z(height)
 {
    // specify a relative tolerance for all solves with MFEM integrators
-   const double rel_tol = 1e-8;
+   const real_t rel_tol = 1e-8;
 
    M.AddDomainIntegrator(new MassIntegrator());
    M.Assemble(0); // keep zeros to keep sparsity pattern of M and K the same
@@ -548,7 +548,7 @@ void ConductionOperator::Mult(const Vector &u, Vector &k) const
    M_solver.Mult(z, k);
 }
 
-void ConductionOperator::ImplicitSolve(const double gam, const Vector &u,
+void ConductionOperator::ImplicitSolve(const real_t gam, const Vector &u,
                                        Vector &k)
 {
    // Solve for k in M k = - K(u_n) [u + gam*k].
@@ -559,7 +559,7 @@ void ConductionOperator::ImplicitSolve(const double gam, const Vector &u,
 }
 
 int ConductionOperator::SUNImplicitSetup(const Vector &u, const Vector &fu,
-                                         int jok, int *jcur, double gam)
+                                         int jok, int *jcur, real_t gam)
 {
    // Compute T = M + gamma K(u_n).
    T = std::unique_ptr<HypreParMatrix>(Add(1.0, Mmat, gam, Kmat));
@@ -569,7 +569,7 @@ int ConductionOperator::SUNImplicitSetup(const Vector &u, const Vector &fu,
 }
 
 int ConductionOperator::SUNImplicitSolve(const Vector &r, Vector &dk,
-                                         double tol)
+                                         real_t tol)
 {
    // Solve the system [M + gamma K(u_n)] dk = - K(u_n) u - M k.
    // If a mass linear solver is being used, r = - K(u_n) u - M k, otherwise
@@ -600,7 +600,7 @@ int ConductionOperator::SUNMassSetup()
    return SUNLS_SUCCESS;
 }
 
-int ConductionOperator::SUNMassSolve(const Vector &b, Vector &x, double tol)
+int ConductionOperator::SUNMassSolve(const Vector &b, Vector &x, real_t tol)
 {
    // Solve the system M x = b.
    M_solver.SetRelTol(tol);

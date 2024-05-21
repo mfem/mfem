@@ -1588,7 +1588,7 @@ void ARKStepSolver::Init(TimeDependentOperator &f_)
    reinit = true;
 }
 
-void ARKStepSolver::Step(Vector &x, double &t, double &dt)
+void ARKStepSolver::Step(Vector &x, real_t &t, real_t &dt)
 {
    Y->MakeRef(x, 0, x.Size());
    MFEM_VERIFY(Y->Size() == x.Size(), "size mismatch");
