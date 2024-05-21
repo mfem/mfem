@@ -993,7 +993,7 @@ protected:
 
 /// complex_t - dof/qpt data type, real_t - ShapeEvaluator (FE basis) data type
 template <typename FESpace_t, typename VecLayout_t, typename IR,
-          typename complex_t = double, typename real_t = double>
+          typename complex_t = real_t, typename real_t = real_t>
 class FieldEvaluator
    : public FieldEvaluator_base<FESpace_t,VecLayout_t,IR,complex_t,real_t>
 {

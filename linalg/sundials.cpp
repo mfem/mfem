@@ -2185,7 +2185,7 @@ void KINSolver::Mult(const Vector&, Vector &x) const
       if (Parallel())
       {
          double lnorm = norm;
-         MPI_Allreduce(&lnorm, &norm, 1, MPI_DOUBLE, MPI_MAX,
+         MPI_Allreduce(&lnorm, &norm, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX,
                        Y->GetComm());
       }
 #endif

@@ -27,6 +27,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Temporary workaround for sanitizer crashes
+        # See https://github.com/actions/runner-images/issues/9491
+        # The issue should be fixed in the next runner image for Ubuntu 22.04,
+        # see https://github.com/actions/runner-images/pull/9513
+        run: sudo sysctl vm.mmap_rnd_bits=28
+
       - name: Cancel Previous Runs
         uses: styfle/cancel-workflow-action@0.12.1
         with:
@@ -38,7 +44,7 @@ jobs:
           path: mfem
 
       - name: MFEM Build
-        uses: mfem/github-actions/build-mfem@v2.4
+        uses: mfem/github-actions/build-mfem@v2.5
         with:
           os: ${{ runner.os }}
           target: opt
