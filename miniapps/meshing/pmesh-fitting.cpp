@@ -858,7 +858,8 @@ int main (int argc, char *argv[])
 
    if (surface_fit_const > 0.0)
    {
-      tmop_integ->GetSurfaceFittingLevelSet(surf_fit_gf0);
+      adapt_surface->ComputeAtNewPosition(x, surf_fit_gf0,
+                                          x.FESpace()->GetOrdering());
       if (visualization)
       {
          socketstream vis1, vis2, vis3;

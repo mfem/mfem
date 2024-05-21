@@ -2999,6 +2999,11 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
    ParMesh *pmesh = s0.ParFESpace()->GetParMesh();
    MFEM_VERIFY(pmesh->GetNodes()->Size() == dim*s0.Size(),
                "Mesh and level-set polynomial order must be the same.");
+   const H1_FECollection *fec = dynamic_cast<const H1_FECollection *>
+                                (s0.FESpace()->FEColl());
+   MFEM_VERIFY(fec, "Only H1_FECollection is supported for the surface fitting "
+               "grid function.");
+
 
    delete surf_fit_gf;
    surf_fit_gf = new GridFunction(s0);
@@ -3017,10 +3022,6 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
    MFEM_VERIFY(aehess, "AdaptivityEvaluator for Hessians must be provided too.");
 
    ParFiniteElementSpace *fes = s0.ParFESpace();
-
-   const H1_FECollection *fec = dynamic_cast<const H1_FECollection *>
-                                (surf_fit_gf->FESpace()->FEColl());
-   if (!fec)  { return; }
 
    // FE space for gradients.
    delete surf_fit_grad;
@@ -4319,15 +4320,6 @@ real_t TMOP_Integrator::GetSurfaceFittingWeight()
    return 0.0;
 }
 
-void TMOP_Integrator::GetSurfaceFittingLevelSet(GridFunction &s0)
-{
-
-   MFEM_VERIFY(s0.Size() == surf_fit_gf->Size(),
-               "Provided function and internal level-set function should"
-               "be of same size.");
-   s0 = *surf_fit_gf;
-}
-
 void TMOP_Integrator::EnableNormalization(const GridFunction &x)
 {
    ComputeNormalizationEnergies(x, metric_normal, lim_normal, surf_fit_normal);
@@ -4463,11 +4455,17 @@ void TMOP_Integrator::RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
                                                          int new_x_ordering)
 {
    if (!surf_fit_gf) { return; }
-
-   if (surf_fit_gf_bg &&
-       dynamic_cast<InterpolatorFP *>(surf_fit_eval) &&
+   bool optimized_remap = false; // only remap at nodes for fitting.
+#ifdef MFEM_USE_GSLIB
+   if (dynamic_cast<InterpolatorFP *>(surf_fit_eval) &&
        dynamic_cast<InterpolatorFP *>(surf_fit_eval_bg_grad) &&
        dynamic_cast<InterpolatorFP *>(surf_fit_eval_bg_hess))
+   {
+      optimized_remap = true;
+   }
+#endif
+
+   if (surf_fit_gf_bg && optimized_remap)
    {
       // Interpolate information only at DOFs marked for fitting.
       const int dim = surf_fit_gf->FESpace()->GetMesh()->Dimension();
