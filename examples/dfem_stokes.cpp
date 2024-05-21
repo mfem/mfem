@@ -112,6 +112,8 @@ public:
    mutable Operator *jacobian_operator = nullptr;
 };
 
+double reynolds = 10.0;
+
 int main(int argc, char *argv[])
 {
    Mpi::Init();
@@ -123,6 +125,11 @@ int main(int argc, char *argv[])
    int polynomial_order = 2;
    int ir_order = 2;
    int refinements = 2;
+
+   OptionsParser args(argc, argv);
+   args.AddOption(&refinements, "-r", "--refinements", "");
+   args.AddOption(&reynolds, "-rey", "--reynolds", "");
+   args.ParseCheck();
 
    Mesh mesh_serial = Mesh(mesh_file);
    for (int i = 0; i < refinements; i++)
@@ -189,7 +196,7 @@ int main(int argc, char *argv[])
       static constexpr auto I = mfem::internal::IsotropicIdentity<2>();
       auto invJ = inv(J);
       auto dudx = dudxi * invJ;
-      constexpr double Re = 200.0;
+      double Re = reynolds;
       return std::tuple{(outer(u, u) - 1.0 / Re * dudx + p * I) * det(J) * w * transpose(invJ)};
    };
 
@@ -248,7 +255,6 @@ int main(int argc, char *argv[])
    momentum_op.template GetDerivativeWrt<0>({&u, &p}, {mesh_nodes})->Assemble(A);
    A.EliminateBC(vel_ess_tdofs, Operator::DiagonalPolicy::DIAG_ONE);
    HypreBoomerAMG amg(A);
-   amg.SetAdvectiveOptions(1, "", "FA");
    amg.SetMaxLevels(50);
    amg.SetPrintLevel(0);
 
@@ -259,7 +265,7 @@ int main(int argc, char *argv[])
 
    BlockDiagonalPreconditioner prec(block_offsets);
    prec.SetDiagonalBlock(0, &amg);
-   // prec.SetDiagonalBlock(1, &Mp_inv);
+   prec.SetDiagonalBlock(1, &Mp_inv);
 
    GMRESSolver solver(MPI_COMM_WORLD);
    solver.SetAbsTol(0.0);
