@@ -583,9 +583,9 @@ int main (int argc, char *argv[])
       surf_fit_mat_gf.ExchangeFaceNbrData();
       {
          GroupCommunicator &gcomm = surf_fit_mat_gf.ParFESpace()->GroupComm();
-         Array<double> gf_array(surf_fit_mat_gf.GetData(),
+         Array<real_t> gf_array(surf_fit_mat_gf.GetData(),
                                 surf_fit_mat_gf.Size());
-         gcomm.Reduce<double>(gf_array, GroupCommunicator::Max);
+         gcomm.Reduce<real_t>(gf_array, GroupCommunicator::Max);
          gcomm.Bcast(gf_array);
       }
       surf_fit_mat_gf.ExchangeFaceNbrData();
