@@ -3217,6 +3217,93 @@ void MultAtB(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &AtB)
 #endif
 }
 
+void AddMultAtB(const DenseMatrix &A, const DenseMatrix &B,
+                DenseMatrix &AtB)
+{
+   MFEM_ASSERT(AtB.Height() == A.Width() && AtB.Width() == B.Width() &&
+               A.Height() == B.Height(), "incompatible dimensions");
+
+#ifdef MFEM_USE_LAPACK
+   static char transa = 'T', transb = 'N';
+   static real_t alpha = 1.0, beta = 1.0;
+   int m = A.Width(), n = B.Width(), k = A.Height();
+
+#ifdef MFEM_USE_SINGLE
+   sgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &k,
+#elif defined MFEM_USE_DOUBLE
+   dgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &k,
+#endif
+          B.Data(), &k, &beta, AtB.Data(), &m);
+#else
+   const int ah = A.Height();
+   const int aw = A.Width();
+   const int bw = B.Width();
+   const real_t *ad = A.Data();
+   const real_t *bd = B.Data();
+   real_t *cd = AtB.Data();
+
+   for (int j = 0; j < bw; j++)
+   {
+      const real_t *ap = ad;
+      for (int i = 0; i < aw; i++)
+      {
+         real_t d = 0.0;
+         for (int k = 0; k < ah; k++)
+         {
+            d += ap[k] * bd[k];
+         }
+         *(cd++) += d;
+         ap += ah;
+      }
+      bd += ah;
+   }
+#endif
+}
+
+void AddMult_a_AtB(real_t a, const DenseMatrix &A, const DenseMatrix &B,
+                   DenseMatrix &AtB)
+{
+   MFEM_ASSERT(AtB.Height() == A.Width() && AtB.Width() == B.Width() &&
+               A.Height() == B.Height(), "incompatible dimensions");
+
+#ifdef MFEM_USE_LAPACK
+   static char transa = 'T', transb = 'N';
+   real_t alpha = a;
+   static real_t beta = 1.0;
+   int m = A.Width(), n = B.Width(), k = A.Height();
+
+#ifdef MFEM_USE_SINGLE
+   sgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &k,
+#elif defined MFEM_USE_DOUBLE
+   dgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &k,
+#endif
+          B.Data(), &k, &beta, AtB.Data(), &m);
+#else
+   const int ah = A.Height();
+   const int aw = A.Width();
+   const int bw = B.Width();
+   const real_t *ad = A.Data();
+   const real_t *bd = B.Data();
+   real_t *cd = AtB.Data();
+
+   for (int j = 0; j < bw; j++)
+   {
+      const real_t *ap = ad;
+      for (int i = 0; i < aw; i++)
+      {
+         real_t d = 0.0;
+         for (int k = 0; k < ah; k++)
+         {
+            d += ap[k] * bd[k];
+         }
+         *(cd++) += a * d;
+         ap += ah;
+      }
+      bd += ah;
+   }
+#endif
+}
+
 void AddMult_a_AAt(real_t a, const DenseMatrix &A, DenseMatrix &AAt)
 {
    real_t d;
