@@ -4455,17 +4455,18 @@ void TMOP_Integrator::RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
                                                          int new_x_ordering)
 {
    if (!surf_fit_gf) { return; }
-   bool optimized_remap = false; // only remap at nodes for fitting.
+
+   bool remap_only_fitted_nodes = false; // only remap at nodes for fitting.
 #ifdef MFEM_USE_GSLIB
    if (dynamic_cast<InterpolatorFP *>(surf_fit_eval) &&
        dynamic_cast<InterpolatorFP *>(surf_fit_eval_bg_grad) &&
        dynamic_cast<InterpolatorFP *>(surf_fit_eval_bg_hess))
    {
-      optimized_remap = true;
+      remap_only_fitted_nodes = true;
    }
 #endif
 
-   if (surf_fit_gf_bg && optimized_remap)
+   if (surf_fit_gf_bg && remap_only_fitted_nodes)
    {
       // Interpolate information only at DOFs marked for fitting.
       const int dim = surf_fit_gf->FESpace()->GetMesh()->Dimension();
