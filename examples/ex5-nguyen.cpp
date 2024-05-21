@@ -291,11 +291,11 @@ int main(int argc, char *argv[])
       else
          fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(one, qtcoeff, +1., 0.),
                                      bdr_is_neumann);
-      if (bconv)
-      {
-         fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(tcoeff, ccoeff, +1.),
-                                     bdr_is_dirichlet);
-      }
+   }
+   if (bconv)
+   {
+      fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(tcoeff, ccoeff, +1.),
+                                  bdr_is_dirichlet);
    }
    fform->Assemble();
    fform->SyncAliasMemory(rhs);
