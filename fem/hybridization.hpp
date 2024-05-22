@@ -126,6 +126,14 @@ public:
       c_bfbfi_marker.Append(&bdr_marker);
    }
 
+   /// Access all integrators added with AddBdrConstraintIntegrator().
+   Array<BilinearFormIntegrator*> *GetBCBFI() { return &c_bfbfi; }
+
+   /// Access all boundary markers added with AddBdrConstraintIntegrator().
+   /** If no marker was specified when the integrator was added, the
+       corresponding pointer (to Array<int>) will be NULL. */
+   Array<Array<int>*> *GetBCBFI_Marker() { return &c_bfbfi_marker; }
+
    /// Indicate that boundary constraint integrators are not owned
    void UseExternalBdrConstraintIntegrators() { extern_c_bfbfs = 1; }
 
