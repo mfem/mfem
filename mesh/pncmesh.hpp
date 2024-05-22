@@ -22,12 +22,10 @@
 #include "ncmesh.hpp"
 #include "../general/communication.hpp"
 #include "../general/sort_pairs.hpp"
+#include "../fem/fespace.hpp"  // For VarOrderElemInfo
 
 namespace mfem
 {
-
-class FiniteElementSpace;
-
 
 /** \brief A parallel extension of the NCMesh class.
  *
@@ -108,7 +106,7 @@ public:
        passed. */
    void Rebalance(const Array<int> *custom_partition = NULL);
 
-   // interface for ParFiniteElementSpace
+   // Interface for ParFiniteElementSpace
    int GetNElements() const { return NElements; }
 
    int GetNGhostVertices() const { return NGhostVertices; }
@@ -251,9 +249,9 @@ public:
        The debug mesh will have element attributes set to element rank + 1. */
    void GetDebugMesh(Mesh &debug_mesh) const;
 
-   void CommunicateGhostData(const Array<int> & elems,
-                             const Array<int> & orders,
-                             Array<int> & prefdata);
+   void CommunicateGhostData(
+      const Array<FiniteElementSpace::VarOrderElemInfo> & sendData,
+      Array<FiniteElementSpace::VarOrderElemInfo> & recvData);
 
    /** @a elem is a global element index, required to be for a ghost element of
        this processor. The indices of this ghost element's edges are returned. */

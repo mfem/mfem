@@ -47,15 +47,10 @@ private:
    /// Number of vertex/edge/face/total ghost DOFs (nonconforming case).
    int ngvdofs, ngedofs, ngfdofs, ngdofs;
 
-   mutable int ngelem = 0;
-
-   mutable Array<char> ghost_elem_order;
-
    struct VarOrderDofInfo
    {
-      // Index is the index of the entity (edge or face), and
-      // edof is the dof index within that entity.
-      unsigned short int index, edof;
+      unsigned int index;  // Index of the entity (edge or face)
+      unsigned short int edof;  // Dof index within the entity
    };
 
    Array<VarOrderDofInfo> var_edge_dofmap, var_face_dofmap;
@@ -114,7 +109,7 @@ private:
    // Auxiliary method used in constructors
    void ParInit(ParMesh *pm);
 
-   void CommunicateGhostOrder(Array<int> & prefdata);
+   void CommunicateGhostOrder(Array<VarOrderElemInfo> & prefdata);
 
    void SetVarDofMaps();
    void SetVarDofMap(const Table & dofs, Array<VarOrderDofInfo> & dmap);
@@ -469,9 +464,10 @@ public:
    void MarkIntermediateEntityDofs(int entity, Array<bool> & intermediate) const;
 
 protected:
-   void ApplyGhostElementOrdersToEdgesAndFaces(Array<VarOrderBits> &edge_orders,
-                                               Array<VarOrderBits> &face_orders,
-                                               const Array<int> * prefdata=nullptr) const override;
+   void ApplyGhostElementOrdersToEdgesAndFaces(
+      Array<VarOrderBits> &edge_orders,
+      Array<VarOrderBits> &face_orders,
+      const Array<VarOrderElemInfo> * prefdata=nullptr) const override;
 
    void GhostMasterFaceOrderToEdges(const Array<VarOrderBits> &face_orders,
                                     Array<VarOrderBits> &edge_orders) const override;

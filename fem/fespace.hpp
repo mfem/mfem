@@ -225,6 +225,13 @@ class FiniteElementSpace
    friend class LORBase;
    friend class NeighborRowMessage;  // TODO: better way?
 
+public:
+   struct VarOrderElemInfo
+   {
+      unsigned int element;  // Element index
+      char order;  // Element order
+   };
+
 protected:
    /// The mesh that FE space lives on (not owned).
    Mesh *mesh;
@@ -337,7 +344,7 @@ protected:
 
    void UpdateNURBS();
 
-   void Construct(const Array<int> * prefdata=nullptr);
+   void Construct(const Array<VarOrderElemInfo> * prefdata=nullptr);
    void Destroy();
 
    void ConstructDoFTransArray();
@@ -363,12 +370,13 @@ protected:
        need to be represented on each edge and face. */
    void CalcEdgeFaceVarOrders(Array<VarOrderBits> &edge_orders,
                               Array<VarOrderBits> &face_orders,
-                              const Array<int> * prefdata=nullptr) const;
+                              const Array<VarOrderElemInfo> * prefdata=nullptr) const;
 
-   virtual void ApplyGhostElementOrdersToEdgesAndFaces(Array<VarOrderBits>
-                                                       &edge_orders,
-                                                       Array<VarOrderBits> &face_orders,
-                                                       const Array<int> * prefdata=nullptr) const { }
+   virtual void ApplyGhostElementOrdersToEdgesAndFaces(
+      Array<VarOrderBits> &edge_orders,
+      Array<VarOrderBits> &face_orders,
+      const Array<VarOrderElemInfo> * prefdata=nullptr) const { }
+
    virtual void GhostMasterFaceOrderToEdges(const Array<VarOrderBits> &face_orders,
                                             Array<VarOrderBits> &edge_orders) const { }
 
