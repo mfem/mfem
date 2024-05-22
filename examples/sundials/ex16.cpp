@@ -52,8 +52,10 @@ using namespace mfem;
  *  Class ConductionOperatorOperator represents the above ODE operator in the
  *  general form F(u, k, t) = G(u, t) where
  *
- *   F(u, du/dt, t) = M du/dt
- *   G(u, t) = - K(u) u
+ *    1. F(u, du/dt, t) = du/dt            (ODE is expressed in EXPLICIT form)
+ *       G(u, t) = - inv(M) K(u) u
+ *    2. F(u, du/dt, t) = M du/dt          (ODE is expressed in IMPLICIT form)
+ *       G(u, t) = - K(u) u
  */
 class ConductionOperator : public TimeDependentOperator
 {
@@ -75,48 +77,44 @@ class ConductionOperator : public TimeDependentOperator
    CGSolver T_solver; // Implicit solver for T = M + gam K(u)
    DSmoother T_prec;  // Preconditioner for the implicit solver
 
-   bool usingMassLinearSolver = false; // used in SUNImplicitSolve
-
    mutable Vector z; // auxiliary vector
 
 public:
 
    ConductionOperator(FiniteElementSpace &f, const real_t alpha,
-                      const real_t kappa, const Vector &u);
-
-   void UseMassLinearSolver()
-   {
-      usingMassLinearSolver = true;
-   }
+                      const real_t kappa, const Vector &u,
+                      const Type &ode_expression_type);
 
    // Compute K(u_n) for use as an approximation in - K(u) u
    void SetConductionTensor(const Vector &u);
 
-   /** Compute G(u, t), i.e., - K(u) u. Note that instead of K(u) u, the
-       approximation K(u_n) u is used. */
-   void ExplicitMult(const Vector &u, Vector &y) const override;
+   /** Compute G(u, t) as defined in the IMPLICIT expression form of the ODE
+    operator, i.e., @a v = - K(u_n) @a u. Note that K(u_n) is an
+      approximation to K(u). */
+   void ExplicitMult(const Vector &u, Vector &v) const override;
 
-   /** Solve for k in F(u, k, t) = G(u, t), i.e., M k = - K(u) u. Note that
-       instead of K(u) u, the approximation K(u_n) u is used. */
+   /** Solve for k in F(u, k, t) = G(u, t) for either EXPLICIT or IMPLICIT
+       expression forms of the ODE operator, i.e., @a k = - inv(M) K(u_n) @a u.
+       Note that K(u_n) is an approximation to K(u). */
    void Mult(const Vector &u, Vector &k) const override;
 
-   /** Solve for k in F(u + gam*k, k, t) = G(u + gam*k, t), i.e.,
-       M k = - K(u + gam*k) [u + gam*k]. Note that instead of
-       K(u + gam*k) [u + gam*k], the approximation K(u_n) [u + gam*k] is used.
-       */
+   /** Solve for k in F(u + gam*k, k, t) = G(u + gam*k, t) for either EXPLICIT
+       or IMPLICIT expression forms of the ODE operator, i.e.,
+       [ M + @a gam K(u_n) ] @a k = - K(u_n) @a u . Note that K(u_n) is an
+       approximation to K(u). */
    void ImplicitSolve(const real_t gam, const Vector &u, Vector &k) override;
 
-   /** Setup to solve for dk in [dF/dk + gam*dF/du - gam*dG/du] dk = G - F,
-       i.e., [M - gam Jf(u)] dk = G - F, where Jf(u) is an approximation of the
-       Jacobian of f(u) = -K(u) u. Here, the approximation Jf(u) = -K(u_n) is
-       used. */
+   /** Setup to solve for dk in [dF/dk + gam*dF/du - gam*dG/du] dk = G - F for
+       either EXPLICIT or IMPLICIT expression forms of the ODE operator, i.e.,
+       [M - @a gam Jf(u)] dk = G - F, where Jf(u) is an approximation of the
+       Jacobian of -K(u) u. The approximation chosen here is Jf(u) = -K(u_n). */
    int SUNImplicitSetup(const Vector &u, const Vector &fu, int jok, int *jcur,
                         real_t gam) override;
 
-   /** Solve for dk in the system in SUNImplicitSetup to the given tolerance,
-       with the residual r providing either
-        1. G - F = f(u) - M k                (if using mass linear solver)
-        2. inv(M) [G - F] = inv(M) f(u) - k  (otherwise)
+   /** Solve for @a dk in the system in SUNImplicitSetup to the given tolerance,
+       with the residual @a r providing either
+        1. @a r = G - F = inv(M) f(u) - k       (EXPLICIT expression form)
+        1. @a r = G - F = f(u) - M k            (IMPLICIT expression form)
        */
    int SUNImplicitSolve(const Vector &r, Vector &dk, real_t tol) override;
 
@@ -212,6 +210,8 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
+   bool use_mass_solver = ode_solver_type >= 13;
+
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral and hexahedral meshes with the same code.
    std::unique_ptr<Mesh> mesh(new Mesh(mesh_file, 1, 1));
@@ -243,7 +243,12 @@ int main(int argc, char *argv[])
    u_gf.GetTrueDofs(u);
 
    // 6. Initialize the conduction ODE operator and the visualization.
-   ConductionOperator oper(fespace, alpha, kappa, u);
+   ConductionOperator::Type ode_expression_type;
+   if (use_mass_solver)
+      ode_expression_type = ConductionOperator::Type::IMPLICIT;
+   else
+      ode_expression_type = ConductionOperator::Type::EXPLICIT;
+   ConductionOperator oper(fespace, alpha, kappa, u, ode_expression_type);
 
    u_gf.SetFromTrueDofs(u);
    {
@@ -348,10 +353,9 @@ int main(int argc, char *argv[])
          {
             arkode->SetERKTableNum(ARKODE_FEHLBERG_13_7_8);
          }
-         if (ode_solver_type >= 13)
+         if (use_mass_solver)
          {
             arkode->UseMFEMMassLinearSolver(SUNFALSE);
-            oper.UseMassLinearSolver();
          }
          ode_solver = std::move(arkode);
          break;
@@ -434,9 +438,10 @@ int main(int argc, char *argv[])
 
 ConductionOperator::ConductionOperator(FiniteElementSpace &fes,
                                        const real_t alpha, const real_t kappa,
-                                       const Vector &u)
-   : TimeDependentOperator(fes.GetTrueVSize(), 0.0), fespace(fes), alpha(alpha),
-     kappa(kappa), M(&fespace), z(height)
+                                       const Vector &u,
+                                       const Type &ode_expression_type)
+   : TimeDependentOperator(fes.GetTrueVSize(), 0.0, ode_expression_type),
+     fespace(fes), alpha(alpha), kappa(kappa), M(&fespace), z(height)
 {
    // specify a relative tolerance for all solves with MFEM integrators
    const real_t rel_tol = 1e-8;
@@ -480,11 +485,11 @@ void ConductionOperator::SetConductionTensor(const Vector &u)
    K->FormSystemMatrix(ess_tdof_list, Kmat);
 }
 
-void ConductionOperator::ExplicitMult(const Vector &u, Vector &y) const
+void ConductionOperator::ExplicitMult(const Vector &u, Vector &v) const
 {
    // Compute - K(u_n) u.
-   Kmat.Mult(u, y);
-   y.Neg();
+   Kmat.Mult(u, v);
+   v.Neg();
 }
 
 void ConductionOperator::Mult(const Vector &u, Vector &k) const
@@ -518,17 +523,18 @@ int ConductionOperator::SUNImplicitSolve(const Vector &r, Vector &dk,
                                          real_t tol)
 {
    // Solve the system [M + gamma K(u_n)] dk = - K(u_n) u - M k.
-   // If a mass linear solver is being used, r = - K(u_n) u - M k, otherwise
-   // r = - inv(M) K(u_n) u - k.
+   // What value r is providing depends on the ODE expression form:
+   //   EXPLICIT form: r = -inv(M) K(u_n) u - k
+   //   IMPLICIT form: r = -K(u_n) u - M k
    T_solver.SetRelTol(tol);
-   if (usingMassLinearSolver)
-   {
-      T_solver.Mult(r, dk);
-   }
-   else
+   if (isExplicit())
    {
       Mmat.Mult(r, z);
       T_solver.Mult(z, dk);
+   }
+   else
+   {
+      T_solver.Mult(r, dk);
    }
    if (T_solver.GetConverged())
    {
