@@ -67,7 +67,8 @@ protected:
    /// Set of constraint boundary face integrators to be applied.
    Array<BilinearFormIntegrator*> boundary_constraint_integs;
    Array<Array<int>*>             boundary_constraint_integs_marker;
-   int extern_bdr_constr_integs; ///< Indicates if the boundary_constraint_integs integrators are owned externally
+   /// Indicates if the boundary_constraint_integs integrators are owned externally
+   int extern_bdr_constr_integs;
 
    SparseMatrix *Ct, *H;
 
