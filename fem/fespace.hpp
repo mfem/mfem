@@ -436,6 +436,8 @@ protected:
    /// Calculate the cP and cR matrices for a nonconforming mesh.
    void BuildConformingInterpolation() const;
 
+   void VariableOrderMinimumRule(SparseMatrix & deps) const;
+
    static void AddDependencies(SparseMatrix& deps, Array<int>& master_dofs,
                                Array<int>& slave_dofs, DenseMatrix& I,
                                int skipfirst = 0);

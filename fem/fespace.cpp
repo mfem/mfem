@@ -981,6 +981,57 @@ int FiniteElementSpace::GetEntityVDofs(int entity, int index, Array<int> &dofs,
    return n;
 }
 
+// Variable order spaces: enforce minimum rule on conforming edges/faces
+void FiniteElementSpace::VariableOrderMinimumRule(SparseMatrix & deps) const
+{
+   if (!IsVariableOrder()) { return; }
+
+   Array<int> master_dofs, slave_dofs;
+
+   IsoparametricTransformation T;
+   DenseMatrix I;
+
+   for (int entity = 1; entity < mesh->Dimension(); entity++)
+   {
+      const Table &ent_dofs = (entity == 1) ? var_edge_dofs : var_face_dofs;
+      int num_ent = (entity == 1) ? mesh->GetNEdges() : mesh->GetNFaces();
+      MFEM_ASSERT(ent_dofs.Size() == num_ent+1, "");
+
+      // add constraints within edges/faces holding multiple DOF sets
+      Geometry::Type last_geom = Geometry::INVALID;
+      for (int i = 0; i < num_ent; i++)
+      {
+         if (ent_dofs.RowSize(i) <= 1) { continue; }
+
+         Geometry::Type geom =
+            (entity == 1) ? Geometry::SEGMENT : mesh->GetFaceGeometry(i);
+
+         if (geom != last_geom)
+         {
+            T.SetIdentityTransformation(geom);
+            last_geom = geom;
+         }
+
+         // get lowest order variant DOFs and FE
+         int p = GetEntityDofs(entity, i, master_dofs, geom, 0);
+         const auto *master_fe = fec->GetFE(geom, p);
+         if (!master_fe) { break; }
+
+         // constrain all higher order DOFs: interpolate lowest order function
+         for (int variant = 1; ; variant++)
+         {
+            int q = GetEntityDofs(entity, i, slave_dofs, geom, variant);
+            if (q < 0) { break; }
+
+            const auto *slave_fe = fec->GetFE(geom, q);
+            slave_fe->GetTransferMatrix(*master_fe, T, I);
+
+            AddDependencies(deps, master_dofs, slave_dofs, I);
+         }
+      }
+   }
+}
+
 void FiniteElementSpace::BuildConformingInterpolation() const
 {
 #ifdef MFEM_USE_MPI
@@ -1093,50 +1144,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
       }
    }
 
-   // variable order spaces: enforce minimum rule on conforming edges/faces
-   if (IsVariableOrder())
-   {
-      for (int entity = 1; entity < mesh->Dimension(); entity++)
-      {
-         const Table &ent_dofs = (entity == 1) ? var_edge_dofs : var_face_dofs;
-         int num_ent = (entity == 1) ? mesh->GetNEdges() : mesh->GetNFaces();
-         MFEM_ASSERT(ent_dofs.Size() == num_ent+1, "");
-
-         // add constraints within edges/faces holding multiple DOF sets
-         Geometry::Type last_geom = Geometry::INVALID;
-         for (int i = 0; i < num_ent; i++)
-         {
-            if (ent_dofs.RowSize(i) <= 1) { continue; }
-
-            Geometry::Type geom =
-               (entity == 1) ? Geometry::SEGMENT : mesh->GetFaceGeometry(i);
-
-            if (geom != last_geom)
-            {
-               T.SetIdentityTransformation(geom);
-               last_geom = geom;
-            }
-
-            // get lowest order variant DOFs and FE
-            int p = GetEntityDofs(entity, i, master_dofs, geom, 0);
-            const auto *master_fe = fec->GetFE(geom, p);
-            if (!master_fe) { break; }
-
-            // constrain all higher order DOFs: interpolate lowest order function
-            for (int variant = 1; ; variant++)
-            {
-               int q = GetEntityDofs(entity, i, slave_dofs, geom, variant);
-               if (q < 0) { break; }
-
-               const auto *slave_fe = fec->GetFE(geom, q);
-               slave_fe->GetTransferMatrix(*master_fe, T, I);
-
-               AddDependencies(deps, master_dofs, slave_dofs, I);
-            }
-         }
-      }
-   }
-
+   VariableOrderMinimumRule(deps);
    deps.Finalize();
    inv_deps.Finalize();
 

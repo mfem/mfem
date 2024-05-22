@@ -1952,9 +1952,7 @@ void ParFiniteElementSpace::GetBareDofsVar(int entity, int index,
                  : ndofs + (index - ghost)*ned; // ghost vertex
          break;
       case 1:
-         // TODO: this is similar to PackDofVar. Refactor?
          ghost = pncmesh->GetNEdges();
-         // TODO: make a function like FirstFaceDof for edges?
          {
             const int* row = var_edge_dofs.GetRow(index);
             const int* rowNext = var_edge_dofs.GetRow(index + 1);
@@ -1966,7 +1964,6 @@ void ParFiniteElementSpace::GetBareDofsVar(int entity, int index,
          break;
       default:
          ghost = pncmesh->GetNFaces();
-
          {
             const int row0 = FirstFaceDof(index);
             ned = FirstFaceDof(index + 1) - row0;
@@ -2489,10 +2486,8 @@ void NeighborOrderMessage::Encode(int rank)
    // Write all rows to the stream
    for (int ent = 0; ent < 3; ent++)
    {
-      const Array<MeshId> &ids = ent_ids[ent];
-      for (int i = 0; i < ids.Size(); i++)
+      for (int i = 0; i < ent_ids[ent].Size(); i++)
       {
-         const MeshId &id = ids[i];
          const OrderInfo &ri = msgs[row_idx[ent][i]];
          MFEM_ASSERT(ent == ri.entity, "");
 
@@ -3278,7 +3273,6 @@ void ParFiniteElementSpace::SetVarDofMap(const Table & dofs,
 
    for (int r = 0; r < dofs.Size() - 1; ++r)
    {
-      const int s = dofs.RowSize(r);
       const int* row = dofs.GetRow(r);
       const int* row1 = dofs.GetRow(r+1);
 
@@ -3400,55 +3394,7 @@ int ParFiniteElementSpace
          }
       }
 
-      // Variable order spaces: enforce minimum rule on conforming edges/faces
-      if (IsVariableOrder())
-      {
-         // TODO: This code is identical to
-         // FiniteElementSpace::BuildConformingInterpolation().
-         // Can this be refactored to avoid duplication?
-         IsoparametricTransformation T;
-         DenseMatrix I;
-
-         for (int entity = 1; entity < mesh->Dimension(); entity++)
-         {
-            const Table &ent_dofs = (entity == 1) ? var_edge_dofs : var_face_dofs;
-            int num_ent = (entity == 1) ? mesh->GetNEdges() : mesh->GetNFaces();
-
-            // Add constraints within edges/faces holding multiple DOF sets
-            Geometry::Type last_geom = Geometry::INVALID;
-            for (int i = 0; i < num_ent; i++)
-            {
-               if (ent_dofs.RowSize(i) <= 1) { continue; }
-
-               Geometry::Type geom =
-                  (entity == 1) ? Geometry::SEGMENT : mesh->GetFaceGeometry(i);
-
-               if (geom != last_geom)
-               {
-                  T.SetIdentityTransformation(geom);
-                  last_geom = geom;
-               }
-
-               // Get lowest order variant DOFs and FE
-               int p = GetEntityDofs(entity, i, master_dofs, geom, 0);
-               const auto *master_fe = fec->GetFE(geom, p);
-               if (!master_fe) { break; }
-
-               // Constrain all higher order DOFs: interpolate lowest order function
-               for (int variant = 1; ; variant++)
-               {
-                  const int q = GetEntityDofs(entity, i, slave_dofs, geom, variant);
-                  if (q < 0) { break; }
-
-                  const auto *slave_fe = fec->GetFE(geom, q);
-                  slave_fe->GetTransferMatrix(*master_fe, T, I);
-
-                  AddDependencies(deps, master_dofs, slave_dofs, I);
-               }
-            }
-         }
-      }
-
+      VariableOrderMinimumRule(deps);
       deps.Finalize();
    }
 

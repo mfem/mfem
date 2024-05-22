@@ -3159,7 +3159,7 @@ void ParNCMesh::CommunicateGhostData(
    ranks.Reserve(64);
    for (int i = 0; i < sendData.Size(); i++)
    {
-      MFEM_ASSERT(sendData[i].element < NElements, "");
+      MFEM_ASSERT(sendData[i].element < (unsigned int) NElements, "");
       const int elem = leaf_elements[sendData[i].element];
       ElementNeighborProcessors(elem, ranks);
       for (int j = 0; j < ranks.Size(); j++)
