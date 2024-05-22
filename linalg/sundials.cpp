@@ -1382,15 +1382,15 @@ int ARKStepSolver::RHS2(realtype t, const N_Vector y, N_Vector result,
    ARKStepSolver *self = static_cast<ARKStepSolver*>(user_data);
 
    // Compute fi(t, y) in one of
-   //   1. y' = fe(t, y) + fi(t, y)
-   //   2. M y' = fe(t, y) + fi(y, t)
+   //   1. y' = fe(t, y) + fi(t, y)       (ODE is expressed in EXPLICIT form)
+   //   2. M y' = fe(t, y) + fi(y, t)     (ODE is expressed in IMPLICIT form)
    self->f->SetTime(t);
    self->f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
-   if (self->LSM == NULL) // ODE is in form 1
+   if (self->f->isExplicit())
    {
       self->f->Mult(mfem_y, mfem_result);
    }
-   else // ODE is in form 2
+   else
    {
       self->f->ExplicitMult(mfem_y, mfem_result);
    }
@@ -1704,6 +1704,9 @@ void ARKStepSolver::UseMFEMMassLinearSolver(int tdep)
    // Set the linear system function
    flag = ARKStepSetMassFn(sundials_mem, ARKStepSolver::MassSysSetup);
    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetMassFn()");
+
+   // Check that the ODE is expressed in IMPLICIT type
+   MFEM_VERIFY(f->isImplicit(), "ODE operator not expressed as IMPLICIT type")
 }
 
 void ARKStepSolver::UseSundialsMassLinearSolver(int tdep)
