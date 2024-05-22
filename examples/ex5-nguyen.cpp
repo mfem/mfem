@@ -763,8 +763,10 @@ VecFunc GetQFun(int prob, real_t t_0, real_t k, real_t c)
             Vector xc(x);
             //xc -= .5;
 
-            real_t csh = cosh(10. * (-1. + 4.*xc.Norml2()));
-            real_t q0 = k * 10. * 4. / (csh*csh * xc.Norml2());
+            real_t r = xc.Norml2();
+            if (r <= 0.) { return; }
+            real_t csh = cosh(10. * (-1. + 4. * r));
+            real_t q0 = k * 10. * 4. / (csh*csh * r);
             v.Set(q0, xc);
          };
          break;
