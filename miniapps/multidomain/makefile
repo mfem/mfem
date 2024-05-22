@@ -55,6 +55,9 @@ MESH_FILES = $(notdir $(wildcard $(SRC)*.mesh))
 $(MESH_FILES): %: $(SRC)%
 	ln -sf $(<) .
 multidomain: | $(MESH_FILES)
+# The target 'copy-data' is used by the makefile in ../../tests/unit
+.PHONY: copy-data
+copy-data: | $(MESH_FILES)
 endif
 
 MFEM_TESTS = MINIAPPS
