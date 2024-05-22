@@ -77,5 +77,13 @@ int main(int argc, char *argv[])
    x.Save("sol.gf");
    mesh.Save("mesh.mesh");
 
+   cout << "Let's see if this works \n"
+
+   Coefficient q = 111;
+   Coefficient *Q(&q);
+
+   cout << "Pointer Q is " << Q << " with value of " << *Q << "\n";
+
+
    return 0;
 }
