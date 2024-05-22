@@ -79,8 +79,8 @@ int main(int argc, char *argv[])
 
    cout << "Let's see if this works \n";
 
-   Coefficient q(111.0);
-   Coefficient *Q(&q);
+   mfem::Coefficient q(111.0);
+   mfem::Coefficient *Q(&q);
 
    cout << "Pointer Q is " << Q;
    // cout << " with value of " << *Q << "\n";
