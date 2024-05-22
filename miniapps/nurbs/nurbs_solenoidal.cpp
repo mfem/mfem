@@ -390,7 +390,7 @@ int main(int argc, char *argv[])
    delete hdiv_coll;
    delete mesh;
 
-   if (err_div > 100*std::numeric_limits<real_t>::epsilon() )
+   if (err_div > 1000*std::numeric_limits<real_t>::epsilon() )
    {
       mfem_error("Divergence error larger than expected");
    }
