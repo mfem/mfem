@@ -420,8 +420,9 @@ public:
    /** @brief Perform the action of the explicit part of the operator, G:
        @a v = G(@a u, t) where t is the current time.
 
-       Presently, this method is used by some PETSc ODE solvers, for more
-       details, see the PETSc Manual. */
+       Presently, this method is used by some PETSc ODE solvers and the
+       SUNDIALS ARKStep integrator, for more details, see either the PETSc
+       Manual or the ARKode User Guide, respectively. */
    virtual void ExplicitMult(const Vector &u, Vector &v) const;
 
    /** @brief Perform the action of the implicit part of the operator, F:
