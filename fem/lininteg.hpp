@@ -327,7 +327,8 @@ private:
    int oa, ob;
 public:
    /// Constructs a boundary integrator with a given VectorCoefficient QG
-   VectorBoundaryLFIntegrator(VectorCoefficient &QG, int a = 2, int b = 0) : Q(QG), oa(a), ob(b) { }
+   VectorBoundaryLFIntegrator(VectorCoefficient &QG, int a = 2, int b = 0) : Q(QG),
+      oa(a), ob(b) { }
 
    /** Given a particular boundary Finite Element and a transformation (Tr)
        computes the element boundary vector, elvect. */
@@ -509,13 +510,13 @@ public:
    BoundaryFlowIntegrator(Coefficient &f_, VectorCoefficient &u_,
                           real_t a, int aa = 2, int bb = 0)
    {
-       f = &f_; u = &u_; alpha = a; beta = 0.5 * a; oa = aa; ob = bb;
+      f = &f_; u = &u_; alpha = a; beta = 0.5 * a; oa = aa; ob = bb;
    }
 
    BoundaryFlowIntegrator(Coefficient &f_, VectorCoefficient &u_,
                           real_t a, real_t b, int aa = 2, int bb = 0)
    {
-       f = &f_; u = &u_; alpha = a; beta = b; oa = aa; ob = bb;
+      f = &f_; u = &u_; alpha = a; beta = b; oa = aa; ob = bb;
    }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
@@ -551,7 +552,8 @@ protected:
    DenseMatrix dshape, mq, adjJ;
    int oa, ob;
 public:
-   DGDirichletLFIntegrator(Coefficient &u, const real_t s, const real_t k, int a = 2, int b = 0)
+   DGDirichletLFIntegrator(Coefficient &u, const real_t s, const real_t k,
+                           int a = 2, int b = 0)
       : uD(&u), Q(NULL), MQ(NULL), sigma(s), kappa(k), oa(a), ob(b) { }
    DGDirichletLFIntegrator(Coefficient &u, Coefficient &q,
                            const real_t s, const real_t k, int a = 2, int b = 0)
@@ -604,7 +606,8 @@ public:
    DGElasticityDirichletLFIntegrator(VectorCoefficient &uD_,
                                      Coefficient &lambda_, Coefficient &mu_,
                                      real_t alpha_, real_t kappa_, int a = 2, int b = 0)
-      : uD(uD_), lambda(&lambda_), mu(&mu_), alpha(alpha_), kappa(kappa_), oa(a), ob(b) { }
+      : uD(uD_), lambda(&lambda_), mu(&mu_), alpha(alpha_), kappa(kappa_), oa(a),
+        ob(b) { }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
