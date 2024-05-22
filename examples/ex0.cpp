@@ -79,7 +79,7 @@ int main(int argc, char *argv[])
 
    cout << "Let's see if this works \n";
 
-   mfem::Coefficient q(111.0);
+   ConstantCoefficient q(111.0);
    mfem::Coefficient *Q(&q);
 
    cout << "Pointer Q is " << Q;
