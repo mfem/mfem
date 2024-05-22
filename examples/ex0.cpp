@@ -83,7 +83,7 @@ int main(int argc, char *argv[])
    mfem::Coefficient *Q(&q);
 
    cout << "Pointer Q is " << Q;
-   // cout << " with value of " << *Q << "\n";
+   cout << " with value of " << *Q << "\n";
 
 
    return 0;
