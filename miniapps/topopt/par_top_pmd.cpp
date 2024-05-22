@@ -40,10 +40,11 @@
 //     for Numerical Methods in Engineering, 86(6), 765-781.
 
 #include "mfem.hpp"
-#include "prob_elasticity.hpp"
-#include "topopt.hpp"
-#include <fstream>
 #include <iostream>
+#include <fstream>
+#include "topopt.hpp"
+#include "helper.hpp"
+#include "prob_elasticity.hpp"
 
 using namespace std;
 using namespace mfem;
