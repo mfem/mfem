@@ -245,9 +245,13 @@ int main(int argc, char *argv[])
    // 6. Initialize the conduction ODE operator and the visualization.
    ConductionOperator::Type ode_expression_type;
    if (use_mass_solver)
+   {
       ode_expression_type = ConductionOperator::Type::IMPLICIT;
+   }
    else
+   {
       ode_expression_type = ConductionOperator::Type::EXPLICIT;
+   }
    ConductionOperator oper(fespace, alpha, kappa, u, ode_expression_type);
 
    u_gf.SetFromTrueDofs(u);
