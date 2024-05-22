@@ -131,7 +131,8 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
    CheckNDSTriaDofs();
 }
 
-void ParFiniteElementSpace::CommunicateGhostOrder(Array<int> & prefdata)
+void ParFiniteElementSpace::CommunicateGhostOrder(
+   Array<VarOrderElemInfo> & prefdata)
 {
    // Check whether h-refinement was done.
    const bool href = mesh->GetLastOperation() == Mesh::REFINE &&
@@ -159,31 +160,15 @@ void ParFiniteElementSpace::CommunicateGhostOrder(Array<int> & prefdata)
       return;
    }
 
-   Array<int> elems;
-   Array<char> orders;
-
-   /*
-   elems.Reserve(elems_pref.size());
-   orders.Reserve(elems_pref.size());
-
-   // Find the local elements that had a p-refinement.
-   for (auto elem : elems_pref)
-   {
-      elems.Append(elem);
-      orders.Append(elem_order[elem]);
-   }
-   */
-
    // TODO: is it necessary to communicate elements with base order?
-   elems.SetSize(mesh->GetNE());
-   orders.SetSize(mesh->GetNE());
+   Array<VarOrderElemInfo> localOrders(mesh->GetNE());
    for (int i=0; i<mesh->GetNE(); ++i)
    {
-      elems[i] = i;
-      orders[i] = elem_order[i];
+      localOrders[i].element = i;
+      localOrders[i].order = elem_order[i];
    }
 
-   pncmesh->CommunicateGhostData(elems, orders, prefdata);
+   pncmesh->CommunicateGhostData(localOrders, prefdata);
 }
 
 void ParFiniteElementSpace::Construct()
@@ -3199,7 +3184,7 @@ bool ParFiniteElementSpace::ParallelOrderPropagation(
    // Send messages
    NeighborOrderMessage::IsendAll(send_msg, MyComm);
 
-   MPI_Barrier(MyComm); // This barrier is actually necessary
+   MPI_Barrier(MyComm); // This barrier is necessary for hp-refinement
 
    NeighborOrderMessage recv_msg;
    recv_msg.SetNCMesh(pncmesh);
@@ -4468,7 +4453,7 @@ void ParFiniteElementSpace::Update(bool want_transform)
    Destroy();  // Does not clear elems_pref or elem_order
    FiniteElementSpace::Destroy(); // calls Th.Clear()
 
-   Array<int> prefdata;
+   Array<VarOrderElemInfo> prefdata;
    // In the variable order case, we call CommunicateGhostOrder whether h-
    // or p-refinement is done.
    if (variableOrder) { CommunicateGhostOrder(prefdata); }
@@ -4561,7 +4546,7 @@ int ParFiniteElementSpace::GetMaxElementOrder() const
 void ParFiniteElementSpace::ApplyGhostElementOrdersToEdgesAndFaces(
    Array<VarOrderBits> &edge_orders,
    Array<VarOrderBits> &face_orders,
-   const Array<int> * prefdata) const
+   const Array<VarOrderElemInfo> * prefdata) const
 {
    // TODO: avoid this resizing by making a parallel version of
    // FiniteElementSpace::CalcEdgeFaceVarOrders that sets sizes and calls the
@@ -4582,41 +4567,12 @@ void ParFiniteElementSpace::ApplyGhostElementOrdersToEdgesAndFaces(
    Array<int> gelem;
    pncmesh->GetGhostElements(gelem);
 
-   // This flag is true if ghost_elem_order is unset (size 0) or if h-refinement
-   // has been done since the last space update.
-   const bool reset_ghost_elems = ghost_elem_order.Size() <
-                                  pncmesh->TotalNumElements();
+   const int npref = prefdata ? prefdata->Size() : 0;
 
-   MFEM_VERIFY(ghost_elem_order.Size() <= pncmesh->TotalNumElements() &&
-               ngelem <= gelem.Size(),
-               "h-refinement is supported, but not h-derefinement");
-
-   if (reset_ghost_elems)
-   {
-      ghost_elem_order.SetSize(pncmesh->TotalNumElements());
-      //ghost_elem_order = fec->GetOrder();
-      ghost_elem_order = 0;
-      ngelem = gelem.Size();
-   }
-
-   const int npref = prefdata ? prefdata->Size() / 2 : 0;
    for (int i=0; i<npref; ++i)
    {
-      const int elem = (*prefdata)[2*i]; // Mesh element index
-      const int order = (*prefdata)[(2*i) + 1];
-
-      ghost_elem_order[elem] = order;
-   }
-
-   for (auto elem : gelem)
-   {
-      // TODO: only store entries for ghost elements in ghost_elem_order, since
-      // we only access ghost entries? That is, make it of size ngelem?
-      const int order = ghost_elem_order[elem];
-      if (order == 0)
-      {
-         continue;
-      }
+      const int elem = (*prefdata)[i].element; // Mesh element index
+      const int order = (*prefdata)[i].order;
 
       const VarOrderBits mask = (VarOrderBits(1) << order);
 

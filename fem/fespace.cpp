@@ -2370,7 +2370,7 @@ void FiniteElementSpace::BuildNURBSFaceToDofTable() const
    face_dof = new Table(GetNF(), face_dof_list);
 }
 
-void FiniteElementSpace::Construct(const Array<int> * prefdata)
+void FiniteElementSpace::Construct(const Array<VarOrderElemInfo> * prefdata)
 {
    // This method should be used only for non-NURBS spaces.
    MFEM_VERIFY(!NURBSext, "internal error");
@@ -2511,7 +2511,7 @@ int FiniteElementSpace::MinOrder(VarOrderBits bits)
 
 void FiniteElementSpace::CalcEdgeFaceVarOrders(Array<VarOrderBits> &edge_orders,
                                                Array<VarOrderBits> &face_orders,
-                                               const Array<int> * prefdata) const
+                                               const Array<VarOrderElemInfo> * prefdata) const
 {
    MFEM_ASSERT(IsVariableOrder() || prefdata, "");
    MFEM_ASSERT(Nonconforming(), "");

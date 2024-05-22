@@ -3134,17 +3134,13 @@ void ParNCMesh::GetGhostElements(Array<int> & gelem)
 }
 
 // Note that this function is modeled after ParNCMesh::Refine().
-// TODO: not const function?
-void ParNCMesh::CommunicateGhostData(const Array<int> & elems,
-                                     const Array<int> & orders,
-                                     Array<int> & prefdata)
+void ParNCMesh::CommunicateGhostData(
+   const Array<FiniteElementSpace::VarOrderElemInfo> & sendData,
+   Array<FiniteElementSpace::VarOrderElemInfo> & recvData)
 {
-   prefdata.SetSize(0);
+   recvData.SetSize(0);
 
    if (NRanks == 1) { return; }
-
-   // TODO: one array for elems and orders? Use even and odd, or a struct?
-   MFEM_VERIFY(elems.Size() == orders.Size(), "");
 
    NeighborPRefinementMessage::Map send_ref;
 
@@ -3161,14 +3157,14 @@ void ParNCMesh::CommunicateGhostData(const Array<int> & elems,
    // their ghost layer up to date
    Array<int> ranks;
    ranks.Reserve(64);
-   for (int i = 0; i < elems.Size(); i++)
+   for (int i = 0; i < sendData.Size(); i++)
    {
-      MFEM_ASSERT(elems[i] < NElements, "");
-      int elem = leaf_elements[elems[i]];
+      MFEM_ASSERT(sendData[i].element < NElements, "");
+      const int elem = leaf_elements[sendData[i].element];
       ElementNeighborProcessors(elem, ranks);
       for (int j = 0; j < ranks.Size(); j++)
       {
-         send_ref[ranks[j]].AddRefinement(elem, orders[i]);
+         send_ref[ranks[j]].AddRefinement(elem, sendData[i].order);
       }
    }
 
@@ -3186,11 +3182,12 @@ void ParNCMesh::CommunicateGhostData(const Array<int> & elems,
       msg.Recv(rank, size, MyComm);
 
       // Get the ghost refinement data
+      const int os = recvData.Size();
+      recvData.SetSize(os + msg.Size());
       for (int i = 0; i < msg.Size(); i++)
       {
-         // TODO: more efficient way?
-         prefdata.Append(msg.elements[i]);
-         prefdata.Append(msg.values[i]);
+         recvData[os + i].element = msg.elements[i];
+         recvData[os + i].order = msg.values[i];
       }
    }
 
