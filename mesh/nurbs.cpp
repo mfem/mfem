@@ -2057,7 +2057,7 @@ NURBSExtension::NURBSExtension(std::istream &input, bool spacing)
                   new KnotVector(*patches[p]->GetKV(0));
             }
          }
-         if (Dimension() == 2)
+         else if (Dimension() == 2)
          {
             patchTopo->GetElementEdges(p, edges, oedge);
             if (knotVectors[KnotInd(edges[0])] == NULL)
@@ -2223,7 +2223,8 @@ NURBSExtension::NURBSExtension(NURBSExtension *parent, int newOrder)
 }
 
 NURBSExtension::NURBSExtension(NURBSExtension *parent,
-                               const Array<int> &newOrders)
+                               const Array<int> &newOrders, Mode mode)
+   : mode(mode)
 {
    newOrders.Copy(mOrders);
    SetOrderFromOrders();
@@ -3887,7 +3888,16 @@ void NURBSExtension::GenerateBdrElementDofTable()
    int ndof = bel_dof->Size_of_connections();
    for (int i = 0; i < ndof; i++)
    {
-      dof[i] = activeDof[dof[i]] - 1;
+      int idx = dof[i];
+      if (idx < 0)
+      {
+         dof[i] = -1 - (activeDof[-1-idx] - 1);
+         dof[i] = -activeDof[-1-idx];
+      }
+      else
+      {
+         dof[i] = activeDof[idx] - 1;
+      }
    }
 }
 
@@ -3939,6 +3949,25 @@ void NURBSExtension::Generate2DBdrElementDofTable()
       // Load dofs
       const int nks0 = kv[0]->GetNKS();
       const int ord0 = kv[0]->GetOrder();
+
+      bool add_dofs = true;
+      int  s = 1;
+
+      if (mode == Mode::H_DIV)
+      {
+         int fn = patchTopo->GetBdrElementFaceIndex(b);
+         if (ord0 == mOrders.Max()) { add_dofs = false; }
+         if (fn == 0) { s = -1; }
+         if (fn == 2) { s = -1; }
+      }
+      else if (mode == Mode::H_CURL)
+      {
+         int fn = patchTopo->GetBdrElementFaceIndex(b);
+         if (ord0 == mOrders.Max()) { add_dofs = false; }
+         if (fn == -9999) { s = -1; }
+         if (fn == -9999) { s = -1; }
+      }
+
       for (int i = 0; i < nks0; i++)
       {
          if (kv[0]->isElement(i))
@@ -3946,10 +3975,14 @@ void NURBSExtension::Generate2DBdrElementDofTable()
             if (activeBdrElem[gbe])
             {
                Connection conn(lbe,0);
-               for (int ii = 0; ii <= ord0; ii++)
+               if (add_dofs)
                {
-                  conn.to = DofMap(p2g[(okv[0] >= 0) ? (i+ii) : (nx-i-ii)]);
-                  bel_dof_list.Append(conn);
+                  for (int ii = 0; ii <= ord0; ii++)
+                  {
+                     conn.to = DofMap(p2g[(okv[0] >= 0) ? (i+ii) : (nx-i-ii)]);
+                     if (s == -1) { conn.to = -1 -conn.to; }
+                     bel_dof_list.Append(conn);
+                  }
                }
                bel_to_patch[lbe] = b;
                bel_to_IJK(lbe,0) = (okv[0] >= 0) ? i : (-1-i);
@@ -3986,6 +4019,29 @@ void NURBSExtension::Generate3DBdrElementDofTable()
       const int ord0 = kv[0]->GetOrder();
       const int nks1 = kv[1]->GetNKS();
       const int ord1 = kv[1]->GetOrder();
+
+      // Check if dofs are actually defined on boundary
+      bool add_dofs = true;
+      int  s = 1;
+
+      if (mode == Mode::H_DIV)
+      {
+         int fn = patchTopo->GetBdrElementFaceIndex(b);
+         if (ord0 != ord1) { add_dofs = false; }
+         if (fn == 4) { s = -1; }
+         if (fn == 1) { s = -1; }
+         if (fn == 0) { s = -1; }
+      }
+      else if (mode == Mode::H_CURL)
+      {
+         int fn = patchTopo->GetBdrElementFaceIndex(b);
+         if (ord0 == ord1) { add_dofs = false; }
+         if (fn == 999) { s = -1; }
+         if (fn == 999) { s = -1; }
+         if (fn == 999) { s = -1; }
+      }
+
+
       for (int j = 0; j < nks1; j++)
       {
          if (kv[1]->isElement(j))
@@ -3997,14 +4053,18 @@ void NURBSExtension::Generate3DBdrElementDofTable()
                   if (activeBdrElem[gbe])
                   {
                      Connection conn(lbe,0);
-                     for (int jj = 0; jj <= ord1; jj++)
+                     if (add_dofs)
                      {
-                        const int jj_ = (okv[1] >= 0) ? (j+jj) : (ny-j-jj);
-                        for (int ii = 0; ii <= ord0; ii++)
+                        for (int jj = 0; jj <= ord1; jj++)
                         {
-                           const int ii_ = (okv[0] >= 0) ? (i+ii) : (nx-i-ii);
-                           conn.to = DofMap(p2g(ii_, jj_));
-                           bel_dof_list.Append(conn);
+                           const int jj_ = (okv[1] >= 0) ? (j+jj) : (ny-j-jj);
+                           for (int ii = 0; ii <= ord0; ii++)
+                           {
+                              const int ii_ = (okv[0] >= 0) ? (i+ii) : (nx-i-ii);
+                              conn.to = DofMap(p2g(ii_, jj_));
+                              if (s == -1) { conn.to = -1 -conn.to; }
+                              bel_dof_list.Append(conn);
+                           }
                         }
                      }
                      bel_to_patch[lbe] = b;
@@ -4236,6 +4296,40 @@ void NURBSExtension::DegreeElevate(int rel_degree, int degree)
       }
    }
 }
+
+NURBSExtension* NURBSExtension::GetDivExtension(int component)
+{
+   // TODO IDO
+   // Smarter routine
+   if (GetNP() > 1)
+   {
+      mfem_error("NURBSExtension::GetDivExtension currently "
+                 "only works for single patch NURBS meshes ");
+   }
+
+   Array<int> newOrders  = GetOrders();
+   newOrders[component] += 1;
+
+   return new NURBSExtension(this, newOrders, Mode::H_DIV);
+}
+
+NURBSExtension* NURBSExtension::GetCurlExtension(int component)
+{
+   // TODO IDO
+   // Smarter routine
+   if (GetNP() > 1)
+   {
+      mfem_error("NURBSExtension::GetCurlExtension currently "
+                 "only works for single patch NURBS meshes ");
+   }
+
+   Array<int> newOrders  = GetOrders();
+   for (int c = 0; c < newOrders.Size(); c++) { newOrders[c]++; }
+   newOrders[component] -= 1;
+
+   return new NURBSExtension(this, newOrders, Mode::H_CURL);
+}
+
 
 void NURBSExtension::UniformRefinement(Array<int> const& rf)
 {

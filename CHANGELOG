@@ -52,6 +52,8 @@ New and updated examples and miniapps
   and a block diagonal preconditioner using low order refinement. Allows comparison with
   currently existing legacy mode integrator. See miniapps/solvers/lor_elast.
 
+- Added miniapps to demonstrate the H(div) and H(curl) NURBS elements.
+
 Miscellaneous
 -------------
 - Added support for single and double precision, with corresponding hypre build.
