@@ -39,11 +39,7 @@
 //     based on Helmholtz‐type differential equations. International Journal
 //     for Numerical Methods in Engineering, 86(6), 765-781.
 
-#include "helper.hpp"
-#include "linalg/vector.hpp"
 #include "mfem.hpp"
-#include "mpi.h"
-#include "mpi_proto.h"
 #include "prob_elasticity.hpp"
 #include "topopt.hpp"
 #include <fstream>
