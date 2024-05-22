@@ -148,11 +148,12 @@ private:
    Vector shape, Qvec;
    VectorCoefficient &Q;
    DenseMatrix dshape;
+   int oa, ob;
 
 public:
    /// Constructs the domain integrator $ (Q, \nabla v) $
-   DomainLFGradIntegrator(VectorCoefficient &QF)
-      : DeltaLFIntegrator(QF), Q(QF) { }
+   DomainLFGradIntegrator(VectorCoefficient &QF, int a = 2, int b = 0)
+      : DeltaLFIntegrator(QF), Q(QF), oa(a), ob(b) { }
 
    virtual bool SupportsDevice() const { return true; }
 
@@ -256,11 +257,11 @@ class VectorDomainLFIntegrator : public DeltaLFIntegrator
 private:
    Vector shape, Qvec;
    VectorCoefficient &Q;
-
+   int oa, ob;
 public:
    /// Constructs a domain integrator with a given VectorCoefficient
-   VectorDomainLFIntegrator(VectorCoefficient &QF)
-      : DeltaLFIntegrator(QF), Q(QF) { }
+   VectorDomainLFIntegrator(VectorCoefficient &QF, int a = 2, int b = 0)
+      : DeltaLFIntegrator(QF), Q(QF), oa(a), ob(b) { }
 
    virtual bool SupportsDevice() const { return true; }
 
@@ -290,11 +291,11 @@ private:
    Vector shape, Qvec;
    VectorCoefficient &Q;
    DenseMatrix dshape;
-
+   int oa, ob;
 public:
    /// Constructs the domain integrator (Q, grad v)
-   VectorDomainLFGradIntegrator(VectorCoefficient &QF)
-      : DeltaLFIntegrator(QF), Q(QF) { }
+   VectorDomainLFGradIntegrator(VectorCoefficient &QF, int a = 2, int b = 0)
+      : DeltaLFIntegrator(QF), Q(QF), oa(a), ob(b) { }
 
    virtual bool SupportsDevice() const override { return true; }
 
@@ -323,10 +324,10 @@ class VectorBoundaryLFIntegrator : public LinearFormIntegrator
 private:
    Vector shape, vec;
    VectorCoefficient &Q;
-
+   int oa, ob;
 public:
    /// Constructs a boundary integrator with a given VectorCoefficient QG
-   VectorBoundaryLFIntegrator(VectorCoefficient &QG) : Q(QG) { }
+   VectorBoundaryLFIntegrator(VectorCoefficient &QG, int a = 2, int b = 0) : Q(QG), oa(a), ob(b) { }
 
    /** Given a particular boundary Finite Element and a transformation (Tr)
        computes the element boundary vector, elvect. */
@@ -349,10 +350,10 @@ private:
    VectorCoefficient &QF;
    DenseMatrix vshape;
    Vector vec;
-
+   int oa, ob;
 public:
-   VectorFEDomainLFIntegrator(VectorCoefficient &F)
-      : DeltaLFIntegrator(F), QF(F) { }
+   VectorFEDomainLFIntegrator(VectorCoefficient &F, int a = 2, int b = 0)
+      : DeltaLFIntegrator(F), QF(F), oa(a), ob(b) { }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
@@ -378,11 +379,11 @@ private:
    VectorCoefficient *QF=nullptr;
    DenseMatrix curlshape;
    Vector vec;
-
+   int oa, ob;
 public:
    /// Constructs the domain integrator $(Q, \mathrm{curl}(v))  $
-   VectorFEDomainLFCurlIntegrator(VectorCoefficient &F)
-      : DeltaLFIntegrator(F), QF(&F) { }
+   VectorFEDomainLFCurlIntegrator(VectorCoefficient &F, int a = 2, int b = 0)
+      : DeltaLFIntegrator(F), QF(&F),oa(a), ob(b) { }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
@@ -401,10 +402,11 @@ class VectorFEDomainLFDivIntegrator : public DeltaLFIntegrator
 private:
    Vector divshape;
    Coefficient &Q;
+   int oa, ob;
 public:
    /// Constructs the domain integrator $ (Q, \mathrm{div}(v)) $
-   VectorFEDomainLFDivIntegrator(Coefficient &QF)
-      : DeltaLFIntegrator(QF), Q(QF) { }
+   VectorFEDomainLFDivIntegrator(Coefficient &QF, int a = 2, int b = 0)
+      : DeltaLFIntegrator(QF), Q(QF), oa(a), ob(b) { }
 
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element right hand side element vector, elvect. */
@@ -428,11 +430,11 @@ private:
    real_t Sign;
    Coefficient *F;
    Vector shape, nor;
-
+   int oa, ob;
 public:
    VectorBoundaryFluxLFIntegrator(Coefficient &f, real_t s = 1.0,
-                                  const IntegrationRule *ir = NULL)
-      : LinearFormIntegrator(ir), Sign(s), F(&f) { }
+                                  const IntegrationRule *ir = NULL, int a = 1, int b = 1)
+      : LinearFormIntegrator(ir), Sign(s), F(&f), oa(a), ob(b) { }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
@@ -502,15 +504,19 @@ private:
    real_t alpha, beta;
 
    Vector shape;
-
+   int oa, ob;
 public:
    BoundaryFlowIntegrator(Coefficient &f_, VectorCoefficient &u_,
-                          real_t a)
-   { f = &f_; u = &u_; alpha = a; beta = 0.5*a; }
+                          real_t a, int aa = 2, int bb = 0)
+   {
+       f = &f_; u = &u_; alpha = a; beta = 0.5 * a; oa = aa; ob = bb;
+   }
 
    BoundaryFlowIntegrator(Coefficient &f_, VectorCoefficient &u_,
-                          real_t a, real_t b)
-   { f = &f_; u = &u_; alpha = a; beta = b; }
+                          real_t a, real_t b, int aa = 2, int bb = 0)
+   {
+       f = &f_; u = &u_; alpha = a; beta = b; oa = aa; ob = bb;
+   }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
@@ -543,16 +549,16 @@ protected:
    // these are not thread-safe!
    Vector shape, dshape_dn, nor, nh, ni;
    DenseMatrix dshape, mq, adjJ;
-
+   int oa, ob;
 public:
-   DGDirichletLFIntegrator(Coefficient &u, const real_t s, const real_t k)
-      : uD(&u), Q(NULL), MQ(NULL), sigma(s), kappa(k) { }
+   DGDirichletLFIntegrator(Coefficient &u, const real_t s, const real_t k, int a = 2, int b = 0)
+      : uD(&u), Q(NULL), MQ(NULL), sigma(s), kappa(k), oa(a), ob(b) { }
    DGDirichletLFIntegrator(Coefficient &u, Coefficient &q,
-                           const real_t s, const real_t k)
-      : uD(&u), Q(&q), MQ(NULL), sigma(s), kappa(k) { }
+                           const real_t s, const real_t k, int a = 2, int b = 0)
+      : uD(&u), Q(&q), MQ(NULL), sigma(s), kappa(k), oa(a), ob(b) { }
    DGDirichletLFIntegrator(Coefficient &u, MatrixCoefficient &q,
-                           const real_t s, const real_t k)
-      : uD(&u), Q(NULL), MQ(&q), sigma(s), kappa(k) { }
+                           const real_t s, const real_t k, int a = 2, int b = 0)
+      : uD(&u), Q(NULL), MQ(&q), sigma(s), kappa(k), oa(a), ob(b) { }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
@@ -581,6 +587,7 @@ protected:
    VectorCoefficient &uD;
    Coefficient *lambda, *mu;
    real_t alpha, kappa;
+   int oa, ob;
 
 #ifndef MFEM_THREAD_SAFE
    Vector shape;
@@ -596,8 +603,8 @@ protected:
 public:
    DGElasticityDirichletLFIntegrator(VectorCoefficient &uD_,
                                      Coefficient &lambda_, Coefficient &mu_,
-                                     real_t alpha_, real_t kappa_)
-      : uD(uD_), lambda(&lambda_), mu(&mu_), alpha(alpha_), kappa(kappa_) { }
+                                     real_t alpha_, real_t kappa_, int a = 2, int b = 0)
+      : uD(uD_), lambda(&lambda_), mu(&mu_), alpha(alpha_), kappa(kappa_), oa(a), ob(b) { }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,

@@ -89,7 +89,7 @@ void DomainLFGradIntegrator::AssembleRHSElementVect(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      int intorder = 2 * el.GetOrder();
+      int intorder = oa * el.GetOrder() + ob;
       ir = &IntRules.Get(el.GetGeomType(), intorder);
    }
 
@@ -281,7 +281,7 @@ void VectorDomainLFIntegrator::AssembleRHSElementVect(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      int intorder = 2*el.GetOrder();
+      int intorder = oa * el.GetOrder() + ob;
       ir = &IntRules.Get(el.GetGeomType(), intorder);
    }
 
@@ -340,7 +340,7 @@ void VectorDomainLFGradIntegrator::AssembleRHSElementVect(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      int intorder = 2 * el.GetOrder();
+      int intorder = oa * el.GetOrder() + ob;
       ir = &IntRules.Get(el.GetGeomType(), intorder);
    }
 
@@ -387,7 +387,7 @@ void VectorBoundaryLFIntegrator::AssembleRHSElementVect(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      int intorder = 2*el.GetOrder();
+      int intorder = oa * el.GetOrder() + ob;
       ir = &IntRules.Get(el.GetGeomType(), intorder);
    }
 
@@ -467,7 +467,7 @@ void VectorFEDomainLFIntegrator::AssembleRHSElementVect(
    if (ir == NULL)
    {
       // int intorder = 2*el.GetOrder() - 1; // ok for O(h^{k+1}) conv. in L2
-      int intorder = 2*el.GetOrder();
+      int intorder = oa * el.GetOrder() + ob;
       ir = &IntRules.Get(el.GetGeomType(), intorder);
    }
 
@@ -515,7 +515,7 @@ void VectorFEDomainLFCurlIntegrator::AssembleRHSElementVect(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      int intorder = 2*el.GetOrder();
+      int intorder = oa * el.GetOrder() + ob;
       ir = &IntRules.Get(el.GetGeomType(), intorder);
    }
 
@@ -561,7 +561,7 @@ void VectorFEDomainLFDivIntegrator::AssembleRHSElementVect(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      int intorder = 2 * el.GetOrder();
+      int intorder = oa * el.GetOrder() + ob;
       ir = &IntRules.Get(el.GetGeomType(), intorder);
    }
 
@@ -599,7 +599,7 @@ void VectorBoundaryFluxLFIntegrator::AssembleRHSElementVect(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      ir = &IntRules.Get(el.GetGeomType(), el.GetOrder() + 1);
+      ir = &IntRules.Get(el.GetGeomType(), ob * el.GetOrder() + ob);
    }
 
    elvect = 0.0;
@@ -730,7 +730,7 @@ void BoundaryFlowIntegrator::AssembleRHSElementVect(
    if (ir == NULL)
    {
       // Assuming order(u)==order(mesh)
-      order = Tr.Elem1->OrderW() + 2*el.GetOrder();
+      order = Tr.Elem1->OrderW() + oa * el.GetOrder() + ob;
       if (el.Space() == FunctionSpace::Pk)
       {
          order++;
@@ -809,7 +809,7 @@ void DGDirichletLFIntegrator::AssembleRHSElementVect(
    if (ir == NULL)
    {
       // a simple choice for the integration order; is this OK?
-      int order = 2*el.GetOrder();
+      int order = oa * el.GetOrder() + ob;
       ir = &IntRules.Get(Tr.GetGeometryType(), order);
    }
 
@@ -905,7 +905,7 @@ void DGElasticityDirichletLFIntegrator::AssembleRHSElementVect(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      const int order = 2*el.GetOrder(); // <-----
+      const int order = oa * el.GetOrder() + ob; // <-----
       ir = &IntRules.Get(Tr.GetGeometryType(), order);
    }
 
