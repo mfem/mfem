@@ -215,8 +215,8 @@ void CantileverPreRefine(double &filter_radius, double &vol_fraction,
    ess_bdr_filter.SetSize(4);
    ess_bdr = 0; ess_bdr_filter = 0;
    ess_bdr(0, 3) = 1;
-   ess_bdr_filter[0] = -1;
-   ess_bdr_filter[2] = -1;
+   // ess_bdr_filter[0] = -1;
+   // ess_bdr_filter[2] = -1;
    const Vector center({2.9, 0.5});
    vforce_cf.reset(new VectorFunctionCoefficient(2, [center](const Vector &x,
                                                              Vector &f)
@@ -333,6 +333,8 @@ void Cantilever3PreRefine(double &filter_radius, double &vol_fraction,
    ess_bdr_filter.SetSize(6);
    ess_bdr = 0; ess_bdr_filter = 0;
    ess_bdr(0, 4) = 1;
+   ess_bdr_filter[0] = -1;
+   ess_bdr_filter[5] = -1;
 
    const Vector center({1.9, 0.1, 0.1});
    // force(0) = 0.0; force(1) = 0.0; force(2) = -1.0;

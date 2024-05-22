@@ -261,8 +261,9 @@ int main(int argc, char *argv[])
    // 10. Connect to GLVis. Prepare for VisIt output.
    char vishost[] = "localhost";
    int visport = 19916;
-   socketstream sout_SIMP, sout_r;
+   socketstream sout_SIMP, sout_r, sout_KKT;
    std::unique_ptr<ParGridFunction> designDensity_gf, rho_gf;
+   ParGridFunction KKT_gf(&control_fes);
    if (glvis_visualization)
    {
       MPI_Barrier(MPI_COMM_WORLD);
@@ -296,6 +297,18 @@ int main(int argc, char *argv[])
                 << flush;
          MPI_Barrier(MPI_COMM_WORLD); // try to prevent streams from mixing
       }
+      sout_KKT.open(vishost, visport);
+      if (sout_KKT.is_open())
+      {
+         sout_KKT << "parallel " << num_procs << " " << myid << "\n";
+         sout_KKT.precision(8);
+         sout_KKT << "solution\n"
+                << *pmesh << KKT_gf << "window_title 'KKT - PMD "
+                << problem << "'\n"
+                << "keys Rjl***************\n"
+                << flush;
+         MPI_Barrier(MPI_COMM_WORLD); // try to prevent streams from mixing
+      }
    }
    std::unique_ptr<ParaViewDataCollection> pd;
    if (paraview)
@@ -313,13 +326,14 @@ int main(int argc, char *argv[])
       pd->RegisterField("state", &u);
       pd->RegisterField("rho", rho_gf.get());
       pd->RegisterField("frho", &rho_filter);
-      pd->SetLevelsOfDetail(order);
+      pd->SetLevelsOfDetail(order + 3);
       pd->SetDataFormat(VTKFormat::BINARY);
       pd->SetHighOrderOutput(order > 1);
       pd->SetCycle(0);
       pd->SetTime(0);
       pd->Save();
    }
+   double KKT0 = -infinity();
 
    // 11. Iterate
    ParGridFunction old_grad(&control_fes), old_psi(&control_fes);
@@ -337,7 +351,7 @@ int main(int argc, char *argv[])
    der_sig_form.AddDomainIntegrator(new DomainLFIntegrator(der_sig));
    ParGridFunction one_gf(&control_fes);
    one_gf = 1.0;
-   ParGridFunction tmp_gf(&control_fes), tmp_rho_gf(&control_fes);
+   ParGridFunction tmp_rho_gf(&control_fes);
 
    if (Mpi::Root())
       mfem::out << "\n"
@@ -462,6 +476,12 @@ int main(int argc, char *argv[])
             sout_r << "solution\n" << *pmesh << *rho_gf << flush;
             MPI_Barrier(MPI_COMM_WORLD); // try to prevent streams from mixing
          }
+         if (sout_KKT.is_open())
+         {
+            sout_KKT << "parallel " << num_procs << " " << myid << "\n";
+            sout_KKT << "solution\n" << *pmesh << KKT_gf << flush;
+            MPI_Barrier(MPI_COMM_WORLD); // try to prevent streams from mixing
+         }
       }
       if (paraview)
       {
@@ -484,14 +504,16 @@ int main(int argc, char *argv[])
          }
          tmp_rho_gf = psi;
          tmp_rho_gf.ApplyMap(sigmoid);
-         for (int i = 0; i < tmp_gf.Size(); i++)
+         for (int i = 0; i < KKT_gf.Size(); i++)
          {
            double diffval = -grad[i] + der_mu;
            double rho_diffval = tmp_rho_gf[i] * diffval;
-           tmp_gf[i] = std::min(std::min(rho_diffval, rho_diffval - diffval), 0.0);
+           KKT_gf[i] = std::min(std::min(rho_diffval, rho_diffval - diffval), 0.0);
          }
          MPI_Barrier(pmesh->GetComm());
-         KKT = tmp_gf.ComputeLpError(2, zero_cf);
+         KKT = KKT_gf.ComputeLpError(1, zero_cf);
+          if (KKT0 == -infinity()) KKT0 = KKT;
+          KKT = KKT / KKT0;
       }
 
       relative_stationarity = stationarityError / stationarityError0;
