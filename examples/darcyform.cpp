@@ -224,7 +224,7 @@ void DarcyForm::Assemble(int skip_zeros)
             hybridization->AssemblePotMassMatrix(i, elmat);
          }
 
-         AssembleHDGFaces(skip_zeros);
+         AssemblePotHDGFaces(skip_zeros);
       }
       else
       {
@@ -412,7 +412,7 @@ DarcyForm::~DarcyForm()
    delete hybridization;
 }
 
-void DarcyForm::AssembleHDGFaces(int skip_zeros)
+void DarcyForm::AssemblePotHDGFaces(int skip_zeros)
 {
    Mesh *mesh = fes_p->GetMesh();
    DenseMatrix elmat1, elmat2;
@@ -428,7 +428,8 @@ void DarcyForm::AssembleHDGFaces(int skip_zeros)
          tr = mesh -> GetInteriorFaceTransformations (i);
          if (tr == NULL) { continue; }
 
-         hybridization->ComputeAndAssembleFaceMatrix(i, elmat1, elmat2, vdofs1, vdofs2);
+         hybridization->ComputeAndAssemblePotFaceMatrix(i, elmat1, elmat2, vdofs1,
+                                                        vdofs2);
 #ifndef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
          M_p->SpMat().AddSubMatrix(vdofs1, vdofs1, elmat1, skip_zeros);
          M_p->SpMat().AddSubMatrix(vdofs2, vdofs2, elmat2, skip_zeros);
@@ -475,7 +476,7 @@ void DarcyForm::AssembleHDGFaces(int skip_zeros)
                if ((*boundary_face_integs_marker[0])[bdr_attr-1] == 0)
                { continue; }
 
-            hybridization->ComputeAndAssembleBdrFaceMatrix(i, elmat1, vdofs1);
+            hybridization->ComputeAndAssemblePotBdrFaceMatrix(i, elmat1, vdofs1);
 #ifndef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
             M_p->SpMat().AddSubMatrix(vdofs1, vdofs1, elmat1, skip_zeros);
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
@@ -784,7 +785,7 @@ void DarcyHybridization::AssembleDivMatrix(int el, const DenseMatrix &B)
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
 }
 
-void DarcyHybridization::ComputeAndAssembleFaceMatrix(
+void DarcyHybridization::ComputeAndAssemblePotFaceMatrix(
    int face, DenseMatrix &elmat1, DenseMatrix &elmat2, Array<int> &vdofs1,
    Array<int> &vdofs2)
 {
@@ -850,7 +851,7 @@ void DarcyHybridization::ComputeAndAssembleFaceMatrix(
    H->AddSubMatrix(c_dofs, c_dofs, h_elmat);
 }
 
-void DarcyHybridization::ComputeAndAssembleBdrFaceMatrix(
+void DarcyHybridization::ComputeAndAssemblePotBdrFaceMatrix(
    int bface, DenseMatrix &elmat1, Array<int> &vdofs)
 {
    Mesh *mesh = fes_p->GetMesh();

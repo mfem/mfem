@@ -40,7 +40,7 @@ class DarcyForm : public Operator
 
    DarcyHybridization *hybridization; ///< Owned.
 
-   void AssembleHDGFaces(int skip_zeros);
+   void AssemblePotHDGFaces(int skip_zeros);
 
    const Operator* ConstructBT(const MixedBilinearForm *B);
    const Operator* ConstructBT(const Operator *opB);
@@ -323,12 +323,12 @@ public:
 
    void AssembleDivMatrix(int el, const DenseMatrix &B);
 
-   void ComputeAndAssembleFaceMatrix(int face,
-                                     DenseMatrix & elmat1, DenseMatrix & elmat2,
-                                     Array<int>& vdofs1, Array<int>& vdofs2);
+   void ComputeAndAssemblePotFaceMatrix(int face,
+                                        DenseMatrix & elmat1, DenseMatrix & elmat2,
+                                        Array<int>& vdofs1, Array<int>& vdofs2);
 
-   void ComputeAndAssembleBdrFaceMatrix(int bface, DenseMatrix & elmat,
-                                        Array<int>& vdofs);
+   void ComputeAndAssemblePotBdrFaceMatrix(int bface, DenseMatrix & elmat,
+                                           Array<int>& vdofs);
 
    /// Assemble the boundary element matrix A into the hybridized system matrix.
    //void AssembleBdrMatrix(int bdr_el, const DenseMatrix &A);
