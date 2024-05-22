@@ -1016,7 +1016,8 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    {
       HypreReadWrite();
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
-      SyncBackCSR(diag, mem_diag); // update diag, if needed
+      // update diag, if needed
+      if (!own_diag_offd) { SyncBackCSR(diag, mem_diag); }
    }
 
    hypre_MatvecCommPkgCreate(A);
