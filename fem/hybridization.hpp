@@ -65,9 +65,9 @@ protected:
    BilinearFormIntegrator *c_bfi;
 
    /// Set of constraint boundary face integrators to be applied.
-   Array<BilinearFormIntegrator*> c_bfbfi;
-   Array<Array<int>*>             c_bfbfi_marker;
-   int extern_c_bfbfs; ///< Indicates if the c_bfbfi integrators are owned externally
+   Array<BilinearFormIntegrator*> boundary_constraint_integs;
+   Array<Array<int>*>             boundary_constraint_integs_marker;
+   int extern_bdr_constr_integs; ///< Indicates if the boundary_constraint_integs integrators are owned externally
 
    SparseMatrix *Ct, *H;
 
@@ -116,26 +116,27 @@ public:
        integrator, i.e. it will delete the integrator when destroyed. */
    void AddBdrConstraintIntegrator(BilinearFormIntegrator *c_integ)
    {
-      c_bfbfi.Append(c_integ);
-      c_bfbfi_marker.Append(NULL); // NULL marker means apply everywhere
+      boundary_constraint_integs.Append(c_integ);
+      boundary_constraint_integs_marker.Append(
+         NULL); // NULL marker means apply everywhere
    }
    void AddBdrConstraintIntegrator(BilinearFormIntegrator *c_integ,
                                    Array<int> &bdr_marker)
    {
-      c_bfbfi.Append(c_integ);
-      c_bfbfi_marker.Append(&bdr_marker);
+      boundary_constraint_integs.Append(c_integ);
+      boundary_constraint_integs_marker.Append(&bdr_marker);
    }
 
    /// Access all integrators added with AddBdrConstraintIntegrator().
-   Array<BilinearFormIntegrator*> *GetBCBFI() { return &c_bfbfi; }
+   Array<BilinearFormIntegrator*> *GetBCBFI() { return &boundary_constraint_integs; }
 
    /// Access all boundary markers added with AddBdrConstraintIntegrator().
    /** If no marker was specified when the integrator was added, the
        corresponding pointer (to Array<int>) will be NULL. */
-   Array<Array<int>*> *GetBCBFI_Marker() { return &c_bfbfi_marker; }
+   Array<Array<int>*> *GetBCBFI_Marker() { return &boundary_constraint_integs_marker; }
 
    /// Indicate that boundary constraint integrators are not owned
-   void UseExternalBdrConstraintIntegrators() { extern_c_bfbfs = 1; }
+   void UseExternalBdrConstraintIntegrators() { extern_bdr_constr_integs = 1; }
 
    /// Prepare the Hybridization object for assembly.
    void Init(const Array<int> &ess_tdof_list);
