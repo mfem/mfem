@@ -3032,6 +3032,9 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
                                  *s_bg.ParFESpace());
    surf_fit_eval->SetInitialField
    (*s_bg.FESpace()->GetMesh()->GetNodes(), s_bg);
+   GridFunction *nodes = s0.FESpace()->GetMesh()->GetNodes();
+   surf_fit_eval->ComputeAtNewPosition(*nodes, *surf_fit_gf,
+                                       nodes->FESpace()->GetOrdering());
 
    // Setup for gradient on background mesh
    MFEM_VERIFY(s_bg_grad.ParFESpace()->GetOrdering() ==
