@@ -272,12 +272,23 @@ public:
    void AddBdrConstraintIntegrator(BilinearFormIntegrator *c_integ,
                                    Array<int> &bdr_marker) = delete;
 
+   Array<BilinearFormIntegrator*> *GetBCBFI() = delete;
+   Array<Array<int>*> *GetBCBFI_Marker() = delete;
+
    void AddBdrFluxConstraintIntegrator(BilinearFormIntegrator *c_integ)
    { Hybridization::AddBdrConstraintIntegrator(c_integ); }
 
    void AddBdrFluxConstraintIntegrator(BilinearFormIntegrator *c_integ,
                                        Array<int> &bdr_marker)
    { Hybridization::AddBdrConstraintIntegrator(c_integ, bdr_marker); }
+
+   /// Access all integrators added with AddBdrFluxConstraintIntegrator().
+   Array<BilinearFormIntegrator*> *GetFluxBCBFI() { return Hybridization::GetBCBFI(); }
+
+   /// Access all boundary markers added with AddBdrFluxConstraintIntegrator().
+   /** If no marker was specified when the integrator was added, the
+       corresponding pointer (to Array<int>) will be NULL. */
+   Array<Array<int>*> *GetFluxBCBFI_Marker() { return Hybridization::GetBCBFI_Marker(); }
 
    void AddBdrPotConstraintIntegrator(BilinearFormIntegrator *c_integ)
    {
@@ -290,6 +301,14 @@ public:
       c_bfbfi_p.Append(c_integ);
       c_bfbfi_p_marker.Append(&bdr_marker);
    }
+
+   /// Access all integrators added with AddBdrPotConstraintIntegrator().
+   Array<BilinearFormIntegrator*> *GetPotBCBFI() { return &c_bfbfi_p; }
+
+   /// Access all boundary markers added with AddBdrPotConstraintIntegrator().
+   /** If no marker was specified when the integrator was added, the
+       corresponding pointer (to Array<int>) will be NULL. */
+   Array<Array<int>*> *GetPotBCBFI_Marker() { return &c_bfbfi_p_marker; }
 
    /// Prepare the Hybridization object for assembly.
    void Init(const Array<int> &ess_flux_tdof_list) override;
