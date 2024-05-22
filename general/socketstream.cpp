@@ -148,7 +148,7 @@ int socketbuf::open(const char hostname[], int port)
    }
 
    freeaddrinfo(res);
-   return 0;
+   return (socket_descriptor < 0) ? -1 : 0;
 }
 
 int socketbuf::close()
