@@ -77,7 +77,7 @@ int main(int argc, char *argv[])
    x.Save("sol.gf");
    mesh.Save("mesh.mesh");
 
-   cout << "Let's see if this works \n"
+   cout << "Let's see if this works \n";
 
    const q = 1111;
    Coefficient *Q = new Coefficient(&q);
