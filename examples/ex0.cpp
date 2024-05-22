@@ -79,7 +79,7 @@ int main(int argc, char *argv[])
 
    cout << "Let's see if this works \n";
 
-   const q;
+   const int q = 111;
    Coefficient *Q(&q);
 
    cout << "Pointer Q is " << Q;
