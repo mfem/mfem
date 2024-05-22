@@ -393,8 +393,6 @@ public:
    /// Set the current time.
    virtual void SetTime(const real_t t_) { t = t_; }
 
-   void SetImplicit() { type = IMPLICIT; }
-
    /// True if #type is #EXPLICIT.
    bool isExplicit() const { return (type == EXPLICIT); }
    /// True if #type is #IMPLICIT or #HOMOGENEOUS.
@@ -447,7 +445,7 @@ public:
 
        Regardless of the choice of F and G, this function should always compute
        @a k = inv(M) g(@a u, t). */
-   virtual void Mult(const Vector &u, Vector &v) const override;
+   virtual void Mult(const Vector &u, Vector &k) const override;
 
    /** @brief Solve for the unknown @a k, at the current time t, the following
        equation:
