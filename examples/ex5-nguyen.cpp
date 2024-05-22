@@ -639,16 +639,18 @@ int main(int argc, char *argv[])
    // 16. Send the solution by socket to a GLVis server.
    if (visualization)
    {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
+      const char vishost[] = "localhost";
+      const int  visport   = 19916;
       socketstream q_sock(vishost, visport);
       q_sock.precision(8);
       q_sock << "solution\n" << *mesh << q << "window_title 'Heat flux'" << endl;
       q_sock << "keys Rljvvvvvmmc" << endl;
+      q_sock.close();
       socketstream t_sock(vishost, visport);
       t_sock.precision(8);
       t_sock << "solution\n" << *mesh << t << "window_title 'Temperature'" << endl;
       t_sock << "keys Rljmmc" << endl;
+      t_sock.close();
       if (analytic)
       {
          socketstream qa_sock(vishost, visport);
@@ -656,23 +658,27 @@ int main(int argc, char *argv[])
          qa_sock << "solution\n" << *mesh << q_a << "window_title 'Heat flux analytic'"
                  << endl;
          qa_sock << "keys Rljvvvvvmmc" << endl;
+         qa_sock.close();
          socketstream qta_sock(vishost, visport);
          qta_sock.precision(8);
          qta_sock << "solution\n" << *mesh << qt_a <<
                   "window_title 'Total flux analytic'"
                   << endl;
          qta_sock << "keys Rljvvvvvmmc" << endl;
+         qta_sock.close();
          socketstream ta_sock(vishost, visport);
          ta_sock.precision(8);
          ta_sock << "solution\n" << *mesh << t_a << "window_title 'Temperature analytic'"
                  << endl;
          ta_sock << "keys Rljmmc" << endl;
+         ta_sock.close();
          if (bconv)
          {
             socketstream c_sock(vishost, visport);
             c_sock.precision(8);
             c_sock << "solution\n" << *mesh << c_gf << "window_title 'Velocity'" << endl;
             c_sock << "keys Rljvvvvvmmc" << endl;
+            c_sock.close();
          }
       }
    }
