@@ -436,7 +436,7 @@ void DarcyForm::AssembleHDGFaces(int skip_zeros)
       }
    }
 
-   auto &boundary_face_integs_marker = *M_p->GetBFBFI_Marker();
+   auto &boundary_face_integs_marker = *hybridization->GetPotBCBFI_Marker();
 
    if (boundary_face_integs_marker.Size())
    {
@@ -475,9 +475,7 @@ void DarcyForm::AssembleHDGFaces(int skip_zeros)
                 (*boundary_face_integs_marker[0])[bdr_attr-1] == 0)
             { continue; }
 
-            int faceno = mesh->GetBdrElementFaceIndex(i);
-            hybridization->ComputeAndAssembleFaceMatrix(faceno, elmat1, elmat2, vdofs1,
-                                                        vdofs2);
+            hybridization->ComputeAndAssembleBdrFaceMatrix(i, elmat1, vdofs1);
 #ifndef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
             M_p->SpMat().AddSubMatrix(vdofs1, vdofs1, elmat1, skip_zeros);
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
@@ -849,6 +847,55 @@ void DarcyHybridization::ComputeAndAssembleFaceMatrix(
    // assemble H matrix
    if (!H) { H = new SparseMatrix(c_fes->GetVSize()); }
    h_elmat.CopyMN(elmat, c_dof, c_dof, ndof1+ndof2, ndof1+ndof2);
+   H->AddSubMatrix(c_dofs, c_dofs, h_elmat);
+}
+
+void DarcyHybridization::ComputeAndAssembleBdrFaceMatrix(
+   int bface, DenseMatrix &elmat1, Array<int> &vdofs)
+{
+   Mesh *mesh = fes_p->GetMesh();
+   const FiniteElement *tr_fe, *fe;
+   DenseMatrix elmat, elmat_aux, h_elmat;
+   Array<int> c_dofs;
+
+   const int face = fes_p->GetMesh()->GetBdrElementFaceIndex(bface);
+   tr_fe = c_fes->GetFaceElement(face);
+   c_fes->GetFaceDofs(face, c_dofs);
+   const int c_dof = c_dofs.Size();
+
+   FaceElementTransformations *ftr = mesh->GetFaceElementTransformations(face);
+   fes_p->GetElementVDofs(ftr->Elem1No, vdofs);
+   fe = fes_p->GetFE(ftr->Elem1No);
+   const int ndof = fe->GetDof();
+
+   MFEM_ASSERT(c_bfbfi_p.Size() > 0, "No boundary constraint integrators");
+
+   c_bfbfi_p[0]->AssembleHDGFaceMatrix(*tr_fe, *fe, *fe, *ftr, elmat);
+   for (int i = 1; i < c_bfbfi_p.Size(); i++)
+   {
+      c_bfbfi_p[i]->AssembleHDGFaceMatrix(*tr_fe, *fe, *fe, *ftr, elmat_aux);
+      elmat += elmat_aux;
+   }
+
+   MFEM_ASSERT(elmat.Width() == ndof+c_dof &&
+               elmat.Height() == ndof+c_dof,
+               "Size mismatch");
+
+   // assemble D element matrices
+   elmat1.CopyMN(elmat, ndof, ndof, 0, 0);
+   AssemblePotMassMatrix(ftr->Elem1No, elmat1);
+
+   // assemble E constraint
+   DenseMatrix E_f_1(E_data + E_offsets[face], ndof, c_dof);
+   E_f_1.CopyMN(elmat, ndof, c_dof, 0, ndof);
+
+   // assemble G constraint
+   DenseMatrix G_f(G_data + G_offsets[face], c_dof, ndof);
+   G_f.CopyMN(elmat, c_dof, ndof, ndof, 0);
+
+   // assemble H matrix
+   if (!H) { H = new SparseMatrix(c_fes->GetVSize()); }
+   h_elmat.CopyMN(elmat, c_dof, c_dof, ndof, ndof);
    H->AddSubMatrix(c_dofs, c_dofs, h_elmat);
 }
 

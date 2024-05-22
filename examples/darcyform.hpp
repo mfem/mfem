@@ -327,6 +327,9 @@ public:
                                      DenseMatrix & elmat1, DenseMatrix & elmat2,
                                      Array<int>& vdofs1, Array<int>& vdofs2);
 
+   void ComputeAndAssembleBdrFaceMatrix(int bface, DenseMatrix & elmat,
+                                        Array<int>& vdofs);
+
    /// Assemble the boundary element matrix A into the hybridized system matrix.
    //void AssembleBdrMatrix(int bdr_el, const DenseMatrix &A);
 
