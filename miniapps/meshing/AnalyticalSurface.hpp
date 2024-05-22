@@ -34,8 +34,7 @@ public:
    const ParMesh &pmesh;
 
    AnalyticalSurface(int geometryType, ParFiniteElementSpace &pfes_mesh,
-                     const ParGridFunction &coord, const ParMesh &pmesh,
-                     Array<int> &ess_vdofs);
+                     const ParGridFunction &coord, const ParMesh &pmesh);
 
    // Go from (x,y) -> t on the whole mesh.
    void ConvertPhysicalCoordinatesToParametric(ParGridFunction &coord);
@@ -43,11 +42,14 @@ public:
    // Go from t -> (x,y) on the whole mesh.
    void ConvertParametricCoordinatesToPhysical(ParGridFunction &coord);
 
-   // Derivative d(x_ji) / dt.
+   // Derivative d(x_ai) / dt.
    // Fills just one entry of the Pmat_scale.
-   void SetScaleMatrix(const Vector &elfun, const Array<int> & vdofs, int i, int a, DenseMatrix & Pmat_scale);
+   void SetScaleMatrix(const Array<int> & vdofs, int i, int a, DenseMatrix & Pmat_scale);
 
+   // First derivatives as a 4th order tensor.
    void SetScaleMatrixFourthOrder(const Vector &elfun, const Array<int> & vdofs, DenseMatrix & Pmat_scale);
+
+   // Second derivatives.
    void SetHessianScaleMatrix(const Vector &elfun, const Array<int> & vdofs, int i, int idim, int j, int jdim, DenseMatrix &Pmat_hessian);
 
    // Go from t -> (x,y) on an element.
@@ -55,5 +57,8 @@ public:
 
    ~AnalyticalSurface();
 };
+
+
+
 }
 #endif

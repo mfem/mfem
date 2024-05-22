@@ -29,11 +29,20 @@ namespace mfem
 class ParametrizedTMOP_Integrator : public TMOP_Integrator
 {
 protected:
-   AnalyticalSurface *analyticalSurface;
+   Array<bool> *tan_dof_marker = nullptr;
+   AnalyticalSurface *analyticalSurface = nullptr;
+
 public:
    ParametrizedTMOP_Integrator(TMOP_QualityMetric *m, TargetConstructor *tc,
-                               TMOP_QualityMetric *hm, AnalyticalSurface *analyticalSurface)
-      : TMOP_Integrator(m, tc, hm), analyticalSurface(analyticalSurface) { }
+                               TMOP_QualityMetric *hm)
+    : TMOP_Integrator(m, tc, hm) { }
+
+   void EnableTangentialMovement(Array<bool> &dof_marker,
+                                 AnalyticalSurface &surf)
+   {
+      tan_dof_marker    = &dof_marker;
+      analyticalSurface = &surf;
+   }
 
 // For interior nodes
 // \f$ (dmu/dT)_{jp} Dsh_{Bs} Winv_{sp} x_{Bj} \f$

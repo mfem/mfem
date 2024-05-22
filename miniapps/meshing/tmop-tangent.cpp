@@ -41,8 +41,6 @@ int main (int argc, char *argv[])
    int mesh_poly_deg = 2;
    int quad_order    = 5;
    bool glvis        = true;
-   bool visit = false;
-   const char *basename = "results/tmop";
    int geometricShape = 1;
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -57,10 +55,6 @@ int main (int argc, char *argv[])
    args.AddOption(&glvis, "-vis", "--visualization", "-no-vis",
 		 "--no-visualization",
 		 "Enable or disable GLVis visualization.");
-   args.AddOption(&visit, "-visit", "--visit", "-no-visit", "--no-visit",
-		 "Enable or disable VisIt visualization.");
-   args.AddOption(&basename, "-k", "--outputfilename",
-		 "Name of the visit dump files");
    args.AddOption(&geometricShape, "-gS", "--geometricShape",
 		 "Shape of parametrized geometry");
    args.Parse();
@@ -103,7 +97,7 @@ int main (int argc, char *argv[])
       }
    }
 
-   // Pick which nodes to move tangentially.
+   // Mark which nodes to move tangentially (attribute 1).
    Array<bool> fit_marker(pfes_mesh.GetNDofs());
    ParGridFunction fit_marker_vis_gf(&pfes_mesh);
    Array<int> vdofs;
@@ -111,13 +105,14 @@ int main (int argc, char *argv[])
    fit_marker_vis_gf = 0.0;
    for (int e = 0; e < pmesh.GetNBE(); e++)
    {
+      const int attr = pmesh.GetBdrElement(e)->GetAttribute();
+      if (attr != 1) { continue; }
+
       const int nd = pfes_mesh.GetBE(e)->GetDof();
       pfes_mesh.GetBdrElementVDofs(e, vdofs);
       for (int j = 0; j < nd; j++)
       {
-         int j_x = vdofs[j], j_y = vdofs[nd+j];
-         const double x = coord(j_x), y = coord(j_y),
-         z = (dim == 2) ? 0.0 : coord(vdofs[2*nd + j]);
+         int j_x = vdofs[j];
          fit_marker[pfes_mesh.VDofToDof(j_x)] = true;
          fit_marker_vis_gf(j_x) = 1.0;
       }
@@ -132,26 +127,37 @@ int main (int argc, char *argv[])
 			     0, 0, 400, 400, (dim == 2) ? "Rjm" : "");
    }
 
-   // Save data for VisIt visualization.
-   VisItDataCollection visit_dc(basename, &pmesh);
-   if (visit)
-   {
-      visit_dc.SetCycle(0);
-      visit_dc.SetTime(0.0);
-      visit_dc.Save();
-   }
-
-   // Allow slipping along the remaining boundaries.
-   // (attributes 1 and 3 would slip, while 4 is completely fixed).
+   // Fix the remaining boundaries.
    int n = 0;
    for (int i = 0; i < pmesh.GetNBE(); i++)
    {
-      const int nd = pfes_mesh.GetBE(i)->GetDof();
-      n += nd;
+      const int nd   = pfes_mesh.GetBE(i)->GetDof();
+      const int attr = pmesh.GetBdrElement(i)->GetAttribute();
+      if (attr == 1) { n += nd; }
+      else           { n += nd * dim; }
    }
    Array<int> ess_vdofs(n);
+   n = 0;
+   for (int i = 0; i < pmesh.GetNBE(); i++)
+   {
+      const int nd = pfes_mesh.GetBE(i)->GetDof();
+      const int attr = pmesh.GetBdrElement(i)->GetAttribute();
+      pfes_mesh.GetBdrElementVDofs(i, vdofs);
+      if (attr == 1)
+      {
+         // Fix y components.
+         for (int j = 0; j < nd; j++)
+         { ess_vdofs[n++] = vdofs[j+nd]; }
+      }
+      else
+      {
+         // Fix all components.
+         for (int j = 0; j < vdofs.Size(); j++)
+         { ess_vdofs[n++] = vdofs[j]; }
+      }
+   }
 
-   AnalyticalSurface analyticalSurface(geometricShape, pfes_mesh, coord, pmesh, ess_vdofs);
+   AnalyticalSurface analyticalSurface(geometricShape, pfes_mesh, coord, pmesh);
    analyticalSurface.ConvertPhysicalCoordinatesToParametric(coord);
 
    // TMOP setup.
@@ -160,13 +166,13 @@ int main (int argc, char *argv[])
    else          { metric = new TMOP_Metric_302; }
    TargetConstructor target(TargetConstructor::IDEAL_SHAPE_UNIT_SIZE,
                             pfes_mesh.GetComm());
-   auto integ = new ParametrizedTMOP_Integrator(metric, &target, nullptr,
-                                                &analyticalSurface);
+   auto integ = new ParametrizedTMOP_Integrator(metric, &target, nullptr);
+   integ->EnableTangentialMovement(fit_marker, analyticalSurface);
 
    // Linear solver.
    MINRESSolver minres(pfes_mesh.GetComm());
    minres.SetMaxIter(100);
-   minres.SetRelTol(1e-12);
+   minres.SetRelTol(1e-8);
    minres.SetAbsTol(0.0);
 
    // Nonlinear solver.
@@ -180,7 +186,7 @@ int main (int argc, char *argv[])
    solver.SetPreconditioner(minres);
    solver.SetPrintLevel(1);
    solver.SetMaxIter(10000);
-   solver.SetRelTol(1e-10);
+   solver.SetRelTol(1e-5);
    solver.SetAbsTol(0.0);
 
    // Solve.
@@ -194,12 +200,6 @@ int main (int argc, char *argv[])
       socketstream vis2;
       common::VisualizeMesh(vis2, "localhost", 19916, pmesh, "Final mesh",
                             400, 0, 400, 400, "me");
-   }
-   if (visit)
-   {
-      visit_dc.SetCycle(1);
-      visit_dc.SetTime(1);
-      visit_dc.Save();
    }
 
    delete metric;

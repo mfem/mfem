@@ -31,17 +31,18 @@ protected:
    double depth;
    Vector center;
    Array<int> attr_marker;
-   std::map<int, std::vector<int> > attributeToNodeMap;
    std::vector<double> cornersX;
    std::vector<double> cornersY;
 
 public:
-   Square(ParFiniteElementSpace &pfes_mesh, ParGridFunction &distance_gf, const ParMesh & pmesh, const ParGridFunction & coord, Array<int> & ess_vdofs);
+   Square(ParFiniteElementSpace &pfes_mesh, ParGridFunction &distance_gf,
+          const ParMesh & pmesh, const ParGridFunction & coord);
+
    ~Square();
    virtual void GetTFromX(Vector &coordsT, const Vector &coordsX, const int & j_x, const Vector &dist);
    virtual void GetXFromT(Vector &coordsX, const Vector &coordsT, const int &j_x, const Vector &dist);
    virtual void ComputeDistances(const ParGridFunction &coord, const ParMesh & pmesh, const ParFiniteElementSpace &pfes_mesh);
-   virtual void SetScaleMatrix(const Vector &elfun, const Array<int> & vdofs, int i, int a, DenseMatrix &Pmat_scale);
+   virtual void SetScaleMatrix(const Array<int> &vdofs, int i, int a, DenseMatrix &Pmat_scale);
    virtual void SetScaleMatrixFourthOrder(const Vector &elfun, const Array<int> & vdofs, DenseMatrix &Pmat_scale);
    virtual void SetHessianScaleMatrix(const Vector &elfun, const Array<int> & vdofs, int i, int idim, int j, int jdim, DenseMatrix &Pmat_hessian);
    virtual void convertToPhysical(const Array<int> & vdofs,const Vector &elfun, Vector &convertedX);

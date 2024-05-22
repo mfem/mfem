@@ -19,7 +19,8 @@
 #include <algorithm>
 namespace mfem
 {
-Square::Square(ParFiniteElementSpace &pfes_mesh, ParGridFunction &distance_gf, const ParMesh &pmesh, const ParGridFunction &coord, Array<int> & ess_vdofs): AnalyticalGeometricShape(pfes_mesh, distance_gf, pmesh, coord, ess_vdofs), width(2.0), depth(1.0), center(2), attr_marker(pfes_mesh.GetNDofs())
+Square::Square(ParFiniteElementSpace &pfes_mesh, ParGridFunction &distance_gf, const ParMesh &pmesh, const ParGridFunction &coord)
+    : AnalyticalGeometricShape(pfes_mesh, distance_gf, pmesh, coord), width(2.0), depth(1.0), center(2), attr_marker(pfes_mesh.GetNDofs())
 {
    // create a rectangle with:
    // width = 2, depth = 1 and centered at (1.0,0.5) 
@@ -35,9 +36,6 @@ Square::Square(ParFiniteElementSpace &pfes_mesh, ParGridFunction &distance_gf, c
    cornersY.push_back(center(1)-depth/2);
    cornersY.push_back(center(1)+depth/2);
 
-   // set the ess_vdofs to size 0 (empty)
-   ess_vdofs.SetSize(0);
-
    // populates the attr_marker with marker of each dof   
    for (int i = 0; i < pmesh.GetNBE(); i++)
    {
@@ -46,7 +44,7 @@ Square::Square(ParFiniteElementSpace &pfes_mesh, ParGridFunction &distance_gf, c
       pfes_mesh.GetBdrElementVDofs(i, vdofs);
       for (int j = 0; j < nd; j++)
       {
-         int j_x = vdofs[j], j_y = vdofs[nd+j];
+         int j_x = vdofs[j];
          attr_marker[pfes_mesh.VDofToDof(j_x)] = attr;
       }
    }
@@ -149,15 +147,16 @@ void Square::ComputeDistances(const ParGridFunction & coord, const ParMesh & pme
    }
 }
 
-void Square::SetScaleMatrix(const Vector &elfun, const Array<int> & vdofs,
+void Square::SetScaleMatrix(const Array<int> & vdofs,
                             int i, int a, DenseMatrix &Pmat_scale)
 {
    int attr = attr_marker[vdofs[i]];
    int j_x = vdofs[i];
    int j_y = vdofs[i+vdofs.Size()/2];
-   // Set the scale matrix, M = dx(t)_{i,j}/dt, for a given i and j,
+
+   // Set the scale matrix, M = (d x_ai) / (d t_i).
    // M multiplies the RHS
-   // M is stored as (i,j)
+   // M is stored as (i,a)
    if ( (std::find(cornersX.begin(), cornersX.end(), coord(j_x)) == cornersX.end()) ||
         (std::find(cornersY.begin(), cornersY.end(), coord(j_y)) == cornersY.end() ) )
    {
@@ -247,7 +246,8 @@ void Square::SetScaleMatrixFourthOrder(const Vector &elfun, const Array<int> & v
    }
 }
 
-void Square::SetHessianScaleMatrix(const Vector &elfun, const Array<int> & vdofs, int i, int idim, int j, int jdim, DenseMatrix &Pmat_hessian)
+void Square::SetHessianScaleMatrix(const Vector &elfun, const Array<int> & vdofs,
+                                   int i, int idim, int j, int jdim, DenseMatrix &Pmat_hessian)
 {
    // Set the scaled matrix, (\partial K / \partial t) = (\partial M / \partial t)
    // that multiplies second piece of the Hessian of the metric's strain energy density function 

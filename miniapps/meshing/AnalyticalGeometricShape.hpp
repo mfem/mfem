@@ -28,26 +28,34 @@ protected:
    ParFiniteElementSpace &pfes_mesh;
    ParGridFunction &distance_gf;
    const ParMesh &pmesh;
-   Array<int> ess_vdofs;
    const ParGridFunction &coord;
 
 public:
-   /// Element type related to shifted boundaries (not interfaces).
-   /// For more than 1 level-set, we set the marker to CUT+level_set_index
-   /// to discern between different level-sets.
-
    AnalyticalGeometricShape(ParFiniteElementSpace &pfes_mesh, ParGridFunction &distance_gf,
-                            const ParMesh & pmesh, const ParGridFunction & coord, Array<int> &ess_vdofs)
+                            const ParMesh & pmesh, const ParGridFunction & coord)
    : pfes_mesh(pfes_mesh), distance_gf(distance_gf), pmesh(pmesh), coord(coord) { }
 
    virtual void GetTFromX(Vector &coordsT, const Vector &coordsX, const int& j_x, const Vector &dist) = 0;
    virtual void GetXFromT(Vector &coordsX, const Vector &coordsT, const int& j_x, const Vector &dist) = 0;
    virtual void ComputeDistances(const ParGridFunction &coord, const ParMesh & pmesh, const ParFiniteElementSpace &pfes_mesh) = 0;
-   virtual void SetScaleMatrix(const Vector &elfun, const Array<int> & vdofs, int i, int j, DenseMatrix &Pmat_scale) = 0;
+   virtual void SetScaleMatrix(const Array<int> & vdofs, int i, int j, DenseMatrix &Pmat_scale) = 0;
    virtual void SetScaleMatrixFourthOrder(const Vector &elfun, const Array<int> & vdofs, DenseMatrix &Pmat_scale) = 0;
    virtual void SetHessianScaleMatrix(const Vector &elfun, const Array<int> & vdofs, int i, int idim, int j, int jdim, DenseMatrix &Pmat_hessian) = 0; 
    virtual void convertToPhysical(const Array<int> & vdofs,const Vector &elfun, Vector &convertedX) = 0;
+
    virtual  ~AnalyticalGeometricShape() { }
 };
+
+// t in [0, 1].
+// x(t) = t.
+// y(t) = 1 - t (t-1).
+class QuadCurve : public AnalyticalGeometricShape
+{
+public:
+   QuadCurve();
+   virtual void ComputeDistances(const ParGridFunction &coord, const ParMesh & pmesh,
+                                 const ParFiniteElementSpace &pfes_mesh) = 0;
+};
+
 }
 #endif

@@ -109,28 +109,38 @@ void ParametrizedTMOP_Integrator::AssembleElementVectorExact(const FiniteElement
       double weight_m = weights(q) * metric_normal;
 
       el.CalcDShape(ip, DSh);
-      // change comes here for DSh?
+
       Mult(DSh, Jrt, DS);
       MultAtB(PMatI, DS, Jpt);
-
       metric->EvalP(Jpt, P);
+
+      // // Change DSh based on the parametrization.
+      // for (int i = 0; i < dof; i++)
+      // {
+      //    if ((*tan_dof_marker)[vdofs[i]] == true)
+      //    {
+      //       DSh(i, 0) *= 1.0;
+      //       DSh(i, 1) *= 0.0;
+      //    }
+      // }
+      // Mult(DSh, Jrt, DS);
 
       if (metric_coeff) { weight_m *= metric_coeff->Eval(*Tpr, ip); }
 
       P *= weight_m;
-      // AddMultABt(DS, P, PMatO);
+      //AddMultABt(DS, P, PMatO);
+
       Pmat_temp = 0.0;
       MultABt(DS, P, Pmat_temp);
-
       for (int i = 0; i < dof; i++)
       {
          for (int j = 0; j < dim; j++)
          {
             Pmat_scale = 0.0;
             Pmat_check = 0.0;
-            // Pmat_scale = (dx_{Ao}/dt(Bj})
+            // Pmat_scale = (dx_{Ai}/dt(Bj})
             // Pmat_scale is the derivative of the parametized curve w.r.t t
-            analyticalSurface->SetScaleMatrix(elfun, vdofs, i, j, Pmat_scale);
+            analyticalSurface->SetScaleMatrix(vdofs, i, j, Pmat_scale);
             Pmat_check = 0.0;
             MultABt(Pmat_temp, Pmat_scale, Pmat_check);
             PMatO(i,j) += Pmat_check.Trace();
@@ -195,7 +205,9 @@ void ParametrizedTMOP_Integrator::AssembleElementGradExact(const FiniteElement &
                                                            DenseMatrix &elmat)
 {
    const int dof = el.GetDof(), dim = el.GetDim();
-   DenseMatrix Pmat_scale(dof*dim), elmat_temp(dof*dim), elmat_temp2(dof*dim), Pmat_temp(dof,dim), Pmat_hessian(dof,dim), Pmat_check(dof);
+   DenseMatrix Pmat_scale(dof*dim), elmat_temp(dof*dim),
+               elmat_temp2(dof*dim), Pmat_temp(dof,dim),
+               Pmat_hessian(dof,dim), Pmat_check(dof);
    elmat.SetSize(dof*dim);
    elmat = 0.0;
    elmat_temp = 0.0;
@@ -244,7 +256,7 @@ void ParametrizedTMOP_Integrator::AssembleElementGradExact(const FiniteElement &
       }
       else
       {
-	d_vals.SetSize(nqp); d_vals = 1.0;
+         d_vals.SetSize(nqp); d_vals = 1.0;
       }
    }
 
@@ -269,10 +281,11 @@ void ParametrizedTMOP_Integrator::AssembleElementGradExact(const FiniteElement &
       CalcInverse(Jtr_q, Jrt);
       weights(q) = (integ_over_target) ? ip.weight * Jtr_q.Det() : ip.weight;
       double weight_m = weights(q) * metric_normal;
+
       el.CalcDShape(ip, DSh);
-      // change comes here for DSh?
       Mult(DSh, Jrt, DS);
       MultAtB(PMatI, DS, Jpt);
+
       metric->EvalP(Jpt, P);
       if (metric_coeff) { weight_m *= metric_coeff->Eval(*Tpr, ip); }
       P *= weight_m;
@@ -296,9 +309,11 @@ void ParametrizedTMOP_Integrator::AssembleElementGradExact(const FiniteElement &
             }
          }
       }
+
       metric->AssembleH(Jpt, DS, weight_m, elmat_temp);
       MultABt(Pmat_scale, elmat_temp, elmat_temp2);
       AddMultABt(Pmat_scale, elmat_temp2, elmat);
+
       if (lim_coeff)
       {
          el.CalcShape(ip, shape);
@@ -323,9 +338,10 @@ void ParametrizedTMOP_Integrator::AssembleElementGradExact(const FiniteElement &
          }
       }
    }
+
    if (adapt_lim_gf) { AssembleElemGradAdaptLim(el, *Tpr, ir, weights, elmat);}
    if (surf_fit_gf || surf_fit_pos) { AssembleElemGradSurfFit(el, *Tpr, elmat);}
    delete Tpr;
-} // namespace fem
+}
 
 } // namespace mfem

@@ -20,8 +20,8 @@ namespace mfem
 {
 
 AnalyticalSurface::AnalyticalSurface(int geometryType,  ParFiniteElementSpace &pfes_mesh,
-                                     const ParGridFunction & coord, const ParMesh & pmesh,
-                                     Array<int> & ess_vdofs) :
+                                     const ParGridFunction & coord, const ParMesh & pmesh)
+   :
    geometryType(geometryType),
    pfes_mesh(pfes_mesh),
    geometry(NULL),
@@ -32,7 +32,7 @@ AnalyticalSurface::AnalyticalSurface(int geometryType,  ParFiniteElementSpace &p
    switch (geometryType)
    {
       // create geometry, currently only for square or rectangular shapes
-      case 1: geometry = new Square(pfes_mesh, distance_gf, pmesh, coord, ess_vdofs); break;
+      case 1: geometry = new Square(pfes_mesh, distance_gf, pmesh, coord); break;
       default:
          out << "Unknown geometry type: " << geometryType << '\n';
          break;
@@ -119,9 +119,9 @@ void AnalyticalSurface::ConvertParametricCoordinatesToPhysical(ParGridFunction &
    }
 }
 
-void AnalyticalSurface::SetScaleMatrix(const Vector &elfun, const Array<int> & vdofs, int i, int a, DenseMatrix &Pmat_scale)
+void AnalyticalSurface::SetScaleMatrix(const Array<int> &vdofs, int i, int a, DenseMatrix &Pmat_scale)
 {
-   geometry->SetScaleMatrix(elfun, vdofs, i, a, Pmat_scale);
+   geometry->SetScaleMatrix(vdofs, i, a, Pmat_scale);
 }
 
 void AnalyticalSurface::SetScaleMatrixFourthOrder(const Vector &elfun, const Array<int> & vdofs, DenseMatrix &Pmat_scale)

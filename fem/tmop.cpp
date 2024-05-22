@@ -18,8 +18,6 @@
 namespace mfem
 {
 
-// Target-matrix optimization paradigm (TMOP) mesh quality metrics.
-
 double TMOP_Combo_QualityMetric::EvalWMatrixForm(const DenseMatrix &Jpt) const
 {
    double metric = 0.;
