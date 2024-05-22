@@ -471,9 +471,9 @@ void DarcyForm::AssembleHDGFaces(int skip_zeros)
          tr = mesh -> GetBdrFaceTransformations (i);
          if (tr != NULL)
          {
-            if (boundary_face_integs_marker[0] &&
-                (*boundary_face_integs_marker[0])[bdr_attr-1] == 0)
-            { continue; }
+            if (boundary_face_integs_marker[0])
+               if ((*boundary_face_integs_marker[0])[bdr_attr-1] == 0)
+               { continue; }
 
             hybridization->ComputeAndAssembleBdrFaceMatrix(i, elmat1, vdofs1);
 #ifndef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
@@ -858,7 +858,7 @@ void DarcyHybridization::ComputeAndAssembleBdrFaceMatrix(
    DenseMatrix elmat, elmat_aux, h_elmat;
    Array<int> c_dofs;
 
-   const int face = fes_p->GetMesh()->GetBdrElementFaceIndex(bface);
+   const int face = mesh->GetBdrElementFaceIndex(bface);
    tr_fe = c_fes->GetFaceElement(face);
    c_fes->GetFaceDofs(face, c_dofs);
    const int c_dof = c_dofs.Size();
@@ -870,16 +870,18 @@ void DarcyHybridization::ComputeAndAssembleBdrFaceMatrix(
 
    MFEM_ASSERT(c_bfbfi_p.Size() > 0, "No boundary constraint integrators");
 
-   c_bfbfi_p[0]->AssembleHDGFaceMatrix(*tr_fe, *fe, *fe, *ftr, elmat);
-   for (int i = 1; i < c_bfbfi_p.Size(); i++)
+   elmat.SetSize(ndof+c_dof);
+   elmat = 0.;
+
+   const int bdr_attr = mesh->GetBdrAttribute(bface);
+   for (int i = 0; i < c_bfbfi_p.Size(); i++)
    {
+      if (c_bfbfi_p_marker[i])
+         if ((*c_bfbfi_p_marker)[bdr_attr-1] == 0) { continue; }
+
       c_bfbfi_p[i]->AssembleHDGFaceMatrix(*tr_fe, *fe, *fe, *ftr, elmat_aux);
       elmat += elmat_aux;
    }
-
-   MFEM_ASSERT(elmat.Width() == ndof+c_dof &&
-               elmat.Height() == ndof+c_dof,
-               "Size mismatch");
 
    // assemble D element matrices
    elmat1.CopyMN(elmat, ndof, ndof, 0, 0);
