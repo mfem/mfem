@@ -1360,7 +1360,7 @@ int ARKStepSolver::RHS1(realtype t, const N_Vector y, N_Vector result,
    {
       self->f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
    }
-   if (self->LSM == NULL) // ODE is in form 1
+   if (self->f->isExplicit()) // ODE is in form 1
    {
       self->f->Mult(mfem_y, mfem_result);
    }
@@ -1705,8 +1705,8 @@ void ARKStepSolver::UseMFEMMassLinearSolver(int tdep)
    flag = ARKStepSetMassFn(sundials_mem, ARKStepSolver::MassSysSetup);
    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetMassFn()");
 
-   // Check that the ODE is expressed in IMPLICIT type
-   MFEM_VERIFY(f->isImplicit(), "ODE operator not expressed as IMPLICIT type")
+   // Check that the ODE is not expressed in EXPLICIT form
+   MFEM_VERIFY(!f->isExplicit(), "ODE operator is expressed in EXPLICIT form")
 }
 
 void ARKStepSolver::UseSundialsMassLinearSolver(int tdep)
@@ -1727,6 +1727,9 @@ void ARKStepSolver::UseSundialsMassLinearSolver(int tdep)
    flag = ARKStepSetMassTimes(sundials_mem, NULL, ARKStepSolver::MassMult2,
                               this);
    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetMassTimes()");
+
+   // Check that the ODE is not expressed in EXPLICIT form
+   MFEM_VERIFY(!f->isExplicit(), "ODE operator is expressed in EXPLICIT form")
 }
 
 void ARKStepSolver::SetStepMode(int itask)
