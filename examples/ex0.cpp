@@ -80,7 +80,7 @@ int main(int argc, char *argv[])
    cout << "Let's see if this works \n"
 
    const q = 1111;
-   Coefficient *Q(&q);
+   Coefficient *Q = new Coefficient(&q);
 
    cout << "Pointer Q is " << Q;
    // cout << " with value of " << *Q << "\n";
