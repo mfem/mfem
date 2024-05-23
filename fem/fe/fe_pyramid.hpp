@@ -36,6 +36,8 @@ private:
    mutable DenseMatrix E_Q_mtmp1;
    mutable DenseMatrix E_Q_mtmp2;
    mutable DenseMatrix E_Q_mtmp3;
+   mutable Vector      E_T_vtmp;
+   mutable DenseMatrix E_T_mtmp;
    mutable DenseMatrix V_Q_mtmp1;
    mutable DenseMatrix V_Q_mtmp2;
    mutable Vector      V_T_vtmp1;
@@ -90,6 +92,11 @@ public:
    static DenseMatrix grad_lam25(real_t x, real_t y, real_t z);
    static DenseMatrix grad_lam35(real_t x, real_t y, real_t z);
    static DenseMatrix grad_lam45(real_t x, real_t y, real_t z);
+
+   static Vector lam15_grad_lam15(real_t x, real_t y, real_t z);
+   static Vector lam25_grad_lam25(real_t x, real_t y, real_t z);
+   static Vector lam35_grad_lam35(real_t x, real_t y, real_t z);
+   static Vector lam45_grad_lam45(real_t x, real_t y, real_t z);
 
    /// Three component vectors associated with triangular faces
    static Vector lam125(real_t x, real_t y, real_t z)
@@ -161,13 +168,18 @@ public:
 
    static Vector nu01(real_t z, Vector xy, unsigned int ab)
    { return Vector({nu0(z, xy, ab), nu1(z, xy, ab)}); }
+   static Vector nu12(real_t z, Vector xy, unsigned int ab)
+   { return Vector({nu1(z, xy, ab), nu2(z, xy, ab)}); }
    static Vector nu012(real_t z, Vector xy, unsigned int ab)
    { return Vector({nu0(z, xy, ab), nu1(z, xy, ab), nu2(z, xy, ab)}); }
+   static Vector nu120(real_t z, Vector xy, unsigned int ab)
+   { return Vector({nu1(z, xy, ab), nu2(z, xy, ab), nu0(z, xy, ab)}); }
 
    static DenseMatrix grad_nu01(real_t z, Vector xy, unsigned int ab);
    static DenseMatrix grad_nu012(real_t z, Vector xy, unsigned int ab);
 
    static Vector nu01_grad_nu01(real_t z, Vector xy, unsigned int ab);
+   static Vector nu12_grad_nu12(real_t z, Vector xy, unsigned int ab);
    static Vector nu012_grad_nu012(real_t z, Vector xy, unsigned int ab);
 
    /// Shifted and Scaled Legendre Polynomials
@@ -376,6 +388,8 @@ public:
    void E_Q(int p, Vector s, const DenseMatrix &grad_s,
             Vector t, const DenseMatrix &grad_t,
             DenseTensor &u, DenseTensor &curl_u) const;
+
+   void E_T(int p, Vector s, Vector sds, DenseTensor &u) const;
 
    /** This is a vector-valued function associated with the quadrilateral face
        of a pyramid
