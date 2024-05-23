@@ -363,3 +363,31 @@ TEST_CASE("MatrixArrayVectorCoefficient", "[Coefficient]")
    REQUIRE(K(1,1) == MFEM_Approx(3.0));
 
 }
+
+TEST_CASE("Symmetric Matrix Coefficient", "[Coefficient]")
+{
+   int d = 3;
+   int qfdim = d*(d+1)/2;
+
+   Vector values(qfdim);
+   values.Randomize();
+
+   // Create symmetric matrix initialized w/ values
+   DenseSymmetricMatrix symMat(values.GetData(), d);
+
+   SymmetricMatrixConstantCoefficient symCoeff(symMat);
+
+   // Make mesh of size 1
+   Mesh m = Mesh::MakeCartesian1D(1);
+
+   // Define qspace on mesh w/ 1 integration point
+   QuadratureSpace qspace(&m, 1);
+
+   // Define qf
+   QuadratureFunction qf(qspace, qfdim);
+
+   symCoeff.ProjectSymmetric(qf);
+
+   // Require equality
+   REQUIRE(qf.DistanceTo(values) == MFEM_Approx(0.0));
+}
