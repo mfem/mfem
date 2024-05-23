@@ -1581,6 +1581,345 @@ void ND_WedgeElement::CalcCurlShape(const IntegrationPoint &ip,
    }
 }
 
+
+const real_t ND_FuentesPyramidElement::tk[18] =
+{ 1.,0.,0.,  0.,1.,0.,  0.,0.,1.,  -1.,0.,1.,  -1.,-1.,1.,  0.,-1.,1. };
+
+ND_FuentesPyramidElement::ND_FuentesPyramidElement(const int p,
+                                                   const int cb_type,
+                                                   const int ob_type)
+   : VectorFiniteElement(3, Geometry::PYRAMID, p * (3 * p * p + 5), p,
+                         H_CURL, FunctionSpace::Pk), dof2tk(dof), doftrans(p)
+{
+   const real_t *eop = poly1d.OpenPoints(p - 1);
+   const real_t *top = (p > 1) ? poly1d.OpenPoints(p - 2) : NULL;
+   const real_t *qop = poly1d.OpenPoints(p - 1, ob_type);
+   const real_t *qcp = poly1d.ClosedPoints(p, cb_type);
+
+#ifndef MFEM_THREAD_SAFE
+   tmp_E_E_ij.SetSize(p, dim);
+   tmp_E_Q1_ijk.SetSize(p, p + 1, dim);
+   tmp_E_Q2_ijk.SetSize(p, p + 1, dim);
+   tmp_E_T_ijk.SetSize(p, p + 1, dim);
+   tmp_phi_Q_ij.SetSize(p + 1, p + 1);
+   tmp_dphi_Q_ij.SetSize(p + 1, p + 1, dim);
+   tmp_phi_E_i.SetSize(p + 1);
+   tmp_dphi_E_i.SetSize(p + 1, dim);
+   u.SetSize(dof, dim);
+   curlu.SetSize(dof, dim);
+#else
+   DenseMatrix tmp_E_E_ij(p, dim);
+   DenseTensor tmp_E_Q1_ijk(p, p + 1, dim);
+   DenseTensor tmp_E_Q2_ijk(p, p + 1, dim);
+   DenseTensor tmp_E_T_ijk(p, p + 1, dim);
+   DenseMatrix tmp_phi_Q_ij(p + 1, p + 1);
+   DenseTensor tmp_dphi_Q_ij(p + 1, p + 1, dim);
+   Vector      tmp_phi_E_i(p + 1);
+   DenseMatrix tmp_dphi_E_i(p + 1, dim);
+   DenseMatrix u(dof, dim);
+#endif
+
+}
+
+void ND_FuentesPyramidElement::CalcVShape(const IntegrationPoint &ip,
+                                          DenseMatrix &shape) const
+{
+   const int p = order;
+
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix tmp_E_E_ij(p, dim);
+   DenseTensor tmp_E_Q1_ijk(p, p + 1, dim);
+   DenseTensor tmp_E_Q2_ijk(p, p + 1, dim);
+   DenseTensor tmp_E_T_ijk(p, p + 1, dim);
+   DenseMatrix tmp_phi_Q_ij(p + 1, p + 1);
+   DenseTensor tmp_dphi_Q_ij(p + 1, p + 1, dim);
+   Vector      tmp_phi_E_i(p + 1);
+   DenseMatrix tmp_dphi_E_i(p + 1, dim);
+   DenseMatrix u(dof, dim);
+#endif
+
+   calcBasis(p, ip, tmp_E_E_ij, tmp_E_Q1_ijk, tmp_E_Q2_ijk, tmp_E_T_ijk,
+             tmp_phi_Q_ij, tmp_dphi_Q_ij, tmp_phi_E_i, tmp_dphi_E_i, u);
+
+   Ti.Mult(u, shape);
+}
+
+void ND_FuentesPyramidElement::CalcCurlShape(const IntegrationPoint &ip,
+                                             DenseMatrix &curl_shape) const
+{}
+
+void ND_FuentesPyramidElement::CalcRawVShape(const IntegrationPoint &ip,
+                                             DenseMatrix &shape) const
+{
+   const int p = order;
+
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix tmp_E_E_ij(p, dim);
+   DenseTensor tmp_E_Q1_ijk(p, p + 1, dim);
+   DenseTensor tmp_E_Q2_ijk(p, p + 1, dim);
+   DenseTensor tmp_E_T_ijk(p, p + 1, dim);
+   DenseMatrix tmp_phi_Q_ij(p + 1, p + 1);
+   DenseTensor tmp_dphi_Q_ij(p + 1, p + 1, dim);
+   Vector      tmp_phi_E_i(p + 1);
+   DenseMatrix tmp_dphi_E_i(p + 1, dim);
+#endif
+
+   calcBasis(p, ip, tmp_E_E_ij, tmp_E_Q1_ijk, tmp_E_Q2_ijk, tmp_E_T_ijk,
+             tmp_phi_Q_ij, tmp_dphi_Q_ij, tmp_phi_E_i, tmp_dphi_E_i, shape);
+}
+
+void ND_FuentesPyramidElement::calcBasis(const int p,
+                                         const IntegrationPoint &ip,
+                                         DenseMatrix & E_E_ik,
+                                         DenseTensor & E_Q1_ijk,
+                                         DenseTensor & E_Q2_ijk,
+                                         DenseTensor & E_T_ijk,
+                                         DenseMatrix & phi_Q_ij,
+                                         DenseTensor & dphi_Q_ij,
+                                         Vector      & phi_E_k,
+                                         DenseMatrix & dphi_E_k,
+                                         DenseMatrix &W) const
+{
+   real_t x = ip.x;
+   real_t y = ip.y;
+   real_t z = ip.z;
+   Vector xy({x,y}), dmu(3);
+   real_t mu, mu2;
+
+   int o = 0;
+
+   // Mixed Edges
+   if (z < 1.0)
+   {
+      // (a, b) = (1, 2), c = 0
+      mu = mu0(z, xy, 2);
+      E_E(p, nu01(z, xy, 1), nu01_grad_nu01(z, xy, 1), E_E_ik);
+      for (int i=0; i<p; i++, o++)
+         for (int k=0; k<3; k++)
+         {
+            W(o, k) = mu * E_E_ik(i, k);
+         }
+
+      // (a, b) = (1, 2), c = 1
+      mu = mu1(z, xy, 2);
+      for (int i=0; i<p; i++, o++)
+         for (int k=0; k<3; k++)
+         {
+            W(o, k) = mu * E_E_ik(i, k);
+         }
+
+      // (a, b) = (2, 1), c = 0
+      mu = mu0(z, xy, 1);
+      E_E(p, nu01(z, xy, 2), nu01_grad_nu01(z, xy, 2), E_E_ik);
+      for (int i=0; i<p; i++, o++)
+         for (int k=0; k<3; k++)
+         {
+            W(o, k) = mu * E_E_ik(i, k);
+         }
+
+      // (a, b) = (2, 1), c = 1
+      mu = mu1(z, xy, 1);
+      for (int i=0; i<p; i++, o++)
+         for (int k=0; k<3; k++)
+         {
+            W(o, k) = mu * E_E_ik(i, k);
+         }
+   }
+
+   // Triangle Edges
+   if (z < 1.0)
+   {
+      E_E(p, lam15(x, y, z), lam15_grad_lam15(x, y, z), E_E_ik);
+      for (int i=0; i<p; i++, o++)
+         for (int k=0; k<3; k++)
+         {
+            W(o, k) = E_E_ik(i, k);
+         }
+
+      E_E(p, lam25(x, y, z), lam25_grad_lam25(x, y, z), E_E_ik);
+      for (int i=0; i<p; i++, o++)
+         for (int k=0; k<3; k++)
+         {
+            W(o, k) = E_E_ik(i, k);
+         }
+
+      E_E(p, lam35(x, y, z), lam35_grad_lam35(x, y, z), E_E_ik);
+      for (int i=0; i<p; i++, o++)
+         for (int k=0; k<3; k++)
+         {
+            W(o, k) = E_E_ik(i, k);
+         }
+
+      E_E(p, lam45(x, y, z), lam45_grad_lam45(x, y, z), E_E_ik);
+      for (int i=0; i<p; i++, o++)
+         for (int k=0; k<3; k++)
+         {
+            W(o, k) = E_E_ik(i, k);
+         }
+   }
+
+   // Quadrilateral Face
+   if (z < 1.0)
+   {
+      mu = mu0(z);
+      mu2 = mu * mu;
+
+      // Family I
+      E_Q(p, mu01(z, xy, 1), mu01_grad_mu01(z, xy, 1), mu01(z, xy, 2), E_Q1_ijk);
+      for (int j=2; j<=p; j++)
+         for (int i=0; i<p; i++, o++)
+            for (int k=0; k<3; k++)
+            {
+               W(o, k) = mu2 * E_Q1_ijk(i, j, k);
+            }
+
+      // Family II
+      E_Q(p, mu01(z, xy, 2), mu01_grad_mu01(z, xy, 2), mu01(z, xy, 1), E_Q2_ijk);
+      for (int j=2; j<=p; j++)
+         for (int i=0; i<p; i++, o++)
+            for (int k=0; k<3; k++)
+            {
+               W(o, k) = mu2 * E_Q2_ijk(i, j, k);
+            }
+   }
+
+   // Triangular Faces
+   if (z < 1.0)
+   {
+      // Family I
+      // (a, b) = (1, 2), c = 0
+      mu = mu0(z, xy, 2);
+      E_T(p, nu012(z, xy, 1), nu01_grad_nu01(z, xy, 1), E_T_ijk);
+      for (int j=1; j<p; j++)
+         for (int i=0; i+j<p; i++, o++)
+            for (int k=0; k<3; k++)
+            {
+               W(o, k) = mu * E_T_ijk(i, j, k);
+            }
+
+      // (a, b) = (1, 2), c = 1
+      mu = mu1(z, xy, 2);
+      for (int j=1; j<p; j++)
+         for (int i=0; i+j<p; i++, o++)
+            for (int k=0; k<3; k++)
+            {
+               W(o, k) = mu * E_T_ijk(i, j, k);
+            }
+
+      // (a, b) = (2, 1), c = 0
+      mu = mu0(z, xy, 1);
+      E_T(p, nu012(z, xy, 2), nu01_grad_nu01(z, xy, 2), E_T_ijk);
+      for (int j=1; j<p; j++)
+         for (int i=0; i+j<p; i++, o++)
+            for (int k=0; k<3; k++)
+            {
+               W(o, k) = mu * E_T_ijk(i, j, k);
+            }
+
+      // (a, b) = (2, 1), c = 1
+      mu = mu1(z, xy, 1);
+      for (int j=1; j<p; j++)
+         for (int i=0; i+j<p; i++, o++)
+            for (int k=0; k<3; k++)
+            {
+               W(o, k) = mu * E_T_ijk(i, j, k);
+            }
+
+      // Family II
+      // (a, b) = (1, 2), c = 0
+      mu = mu0(z, xy, 2);
+      E_T(p, nu120(z, xy, 1), nu12_grad_nu12(z, xy, 1), E_T_ijk);
+      for (int j=1; j<p; j++)
+         for (int i=0; i+j<p; i++, o++)
+            for (int k=0; k<3; k++)
+            {
+               W(o, k) = mu * E_T_ijk(i, j, k);
+            }
+
+      // (a, b) = (1, 2), c = 1
+      mu = mu1(z, xy, 2);
+      for (int j=1; j<p; j++)
+         for (int i=0; i+j<p; i++, o++)
+            for (int k=0; k<3; k++)
+            {
+               W(o, k) = mu * E_T_ijk(i, j, k);
+            }
+
+      // (a, b) = (2, 1), c = 0
+      mu = mu0(z, xy, 1);
+      E_T(p, nu120(z, xy, 2), nu12_grad_nu12(z, xy, 2), E_T_ijk);
+      for (int j=1; j<p; j++)
+         for (int i=0; i+j<p; i++, o++)
+            for (int k=0; k<3; k++)
+            {
+               W(o, k) = mu * E_T_ijk(i, j, k);
+            }
+
+      // (a, b) = (2, 1), c = 1
+      mu = mu1(z, xy, 1);
+      for (int j=1; j<p; j++)
+         for (int i=0; i+j<p; i++, o++)
+            for (int k=0; k<3; k++)
+            {
+               W(o, k) = mu * E_T_ijk(i, j, k);
+            }
+   }
+
+   // Interior
+   if (z < 1.0)
+   {
+      // Family I
+      phi_Q(p, mu01(z, xy, 1), grad_mu01(z, xy, 1), mu01(z, xy, 2),
+            grad_mu01(z, xy, 2), phi_Q_ij, dphi_Q_ij);
+      phi_E(p, mu01(z), grad_mu01(z), phi_E_k, dphi_E_k);
+      for (int k=2; k<=p; k++)
+         for (int j=2; j<=p; j++)
+            for (int i=2; i<=p; i++, o++)
+               for (int l=0; l<3; l++)
+                  W(o, l) = dphi_Q_ij(i, j, l) * phi_E_k(k) +
+                            phi_Q_ij(i, j) * dphi_E_k(k, l);
+
+      // Family II
+      mu = mu0(z);
+      for (int k=2; k<=p; k++)
+         for (int j=2; j<=p; j++)
+            for (int i=0; i<p; i++, o++)
+               for (int l=0; l<3; l++)
+               {
+                  W(o, l) = mu * E_Q1_ijk(i, j, l) * phi_E_k(k);
+               }
+
+      // Family III
+      for (int k=2; k<=p; k++)
+         for (int j=2; j<=p; j++)
+            for (int i=0; i<p; i++, o++)
+               for (int l=0; l<3; l++)
+               {
+                  W(o, l) = mu * E_Q2_ijk(i, j, l) * phi_E_k(k);
+               }
+
+      // Family IV
+      // Re-using mu and phi_Q from Family I
+      dmu = grad_mu0(z);
+      for (int j=2; j<=p; j++)
+         for (int i=2; i<=p; i++, o++)
+         {
+            const int n = std::max(i,j);
+            const real_t nmu = n * pow(mu, n-1);
+            for (int l=0; l<3; l++)
+            {
+               W(o, l) = nmu * phi_Q_ij(i, j) * dmu(l);
+            }
+         }
+   }
+}
+
+void ND_FuentesPyramidElement::CalcRawCurlShape(const IntegrationPoint &ip,
+                                                DenseMatrix &dshape) const
+{
+   dshape = 1.0;
+}
+
 ND_R1D_PointElement::ND_R1D_PointElement(int p)
    : VectorFiniteElement(1, Geometry::POINT, 2, p,
                          H_CURL, FunctionSpace::Pk)
