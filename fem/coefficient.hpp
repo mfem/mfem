@@ -1352,7 +1352,7 @@ public:
    /// Set the time for internally stored coefficients
    void SetTime(real_t t) override;
 
-   /// Get the coefficient located at (i,j) in the matrix.
+   /// Get the vector coefficient located at the i-th row of the matrix
    VectorCoefficient* GetCoeff (int i) { return Coeff[i]; }
 
    /** @brief Set the coefficient located at the i-th row of the matrix.

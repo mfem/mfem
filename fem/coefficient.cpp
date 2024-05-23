@@ -989,10 +989,7 @@ void MatrixArrayVectorCoefficient::Eval(DenseMatrix &K,
    for (int i = 0; i < height; i++)
    {
       this->Eval(i, V, T, ip);
-      for (int j = 0; j < width; j++)
-      {
-         K(i,j) = V(j);
-      }
+      K.SetRow(i, V);
    }
 }
 
