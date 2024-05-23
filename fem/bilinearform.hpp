@@ -583,12 +583,14 @@ public:
    void ComputeElementMatrix(int i, DenseMatrix &elmat) const;
 
    /// Compute the boundary element matrix of the given boundary element
+   /** @note The boundary attribute markers of the integrators are ignored. */
    void ComputeBdrElementMatrix(int i, DenseMatrix &elmat) const;
 
    /// Compute the face matrix of the given face element
    void ComputeFaceMatrix(int i, DenseMatrix &elmat) const;
 
    /// Compute the boundary face matrix of the given boundary element
+   /** @note The boundary attribute markers of the integrators are ignored. */
    void ComputeBdrFaceMatrix(int i, DenseMatrix &elmat) const;
 
    /// Assemble the given element matrix
@@ -953,12 +955,14 @@ public:
    void ComputeElementMatrix(int i, DenseMatrix &elmat) const;
 
    /// Compute the boundary element matrix of the given boundary element
+   /** @note The boundary attribute markers of the integrators are ignored. */
    void ComputeBdrElementMatrix(int i, DenseMatrix &elmat) const;
 
    /// Compute the trace face matrix of the given face element
    void ComputeTraceFaceMatrix(int i, DenseMatrix &elmat) const;
 
    /// Compute the boundary trace face matrix of the given boundary element
+   /** @note The boundary attribute markers of the integrators are ignored. */
    void ComputeBdrTraceFaceMatrix(int i, DenseMatrix &elmat) const;
 
    /// Assemble the given element matrix
