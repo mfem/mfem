@@ -693,23 +693,27 @@ inline real_t Distance(const Vector &x, const Vector &y)
 
 inline real_t Vector::DistanceSquaredTo(const real_t *p) const
 {
+   MFEM_ASSERT(data.HostIsValid(), "Data not on host.");
    return DistanceSquared(data, p, size);
 }
 
 inline real_t Vector::DistanceSquaredTo(const Vector &p) const
 {
    MFEM_ASSERT(p.Size() == Size(), "Incompatible vector sizes.");
+   MFEM_ASSERT(data.HostIsValid() && p.data.HostIsValid(), "Data not on host.");
    return DistanceSquared(data, p.data, size);
 }
 
 inline real_t Vector::DistanceTo(const real_t *p) const
 {
+   MFEM_ASSERT(data.HostIsValid(), "Data not on host.");
    return Distance(data, p, size);
 }
 
 inline real_t Vector::DistanceTo(const Vector &p) const
 {
    MFEM_ASSERT(p.Size() == Size(), "Incompatible vector sizes.");
+   MFEM_ASSERT(data.HostIsValid() && p.data.HostIsValid(), "Data not on host.");
    return Distance(data, p.data, size);
 }
 
