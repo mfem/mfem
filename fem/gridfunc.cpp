@@ -365,6 +365,16 @@ int GridFunction::CurlDim() const
 
 void GridFunction::GetTrueDofs(Vector &tv) const
 {
+   if (fes->IsVariableOrder())
+   {
+      auto Rhp = fes->GetHpRestrictionMatrix();
+      if (Rhp)
+      {
+         tv.SetSize(Rhp->Height());
+         Rhp->Mult(*this, tv);
+         return;
+      }
+   }
    const SparseMatrix *R = fes->GetRestrictionMatrix();
    if (!R || IsIdentityProlongation(fes->GetProlongationMatrix()))
    {

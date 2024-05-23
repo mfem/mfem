@@ -415,17 +415,13 @@ void MakeGridFunctionWithNumberOfInterfaceFaces(
       }
       int inf1, inf2;
       int elem1, elem2;
-      int diff_attr_count = 0;
       int attr1;
       int attr2;
       attr1 = mat(e);
-      bool bdr_element = false;
 
       for (int f = 0; f < faces.Size(); f++)
       {
          mesh->GetFaceElements(faces[f], &elem1, &elem2);
-
-         diff_attr_count = 0;
 
          if (elem2 >= 0)
          {
@@ -458,7 +454,7 @@ void MakeGridFunctionWithNumberOfInterfaceFaces(
             }
             else
             {
-               bdr_element = true;
+               // bdr_element = true;
             }
          }
       }
@@ -574,9 +570,9 @@ void HRefUpdater::Update(bool hp)
    for (int i = 0; i < gridfuncarr.Size(); i++)
    {
       gridfuncarr[i]->Update();
-      if (hp && gridfuncarr[i]->FESpace()->IsVariableOrder())
+      auto R = gridfuncarr[i]->FESpace()->GetHpRestrictionMatrix();
+      if (hp && gridfuncarr[i]->FESpace()->IsVariableOrder() && R)
       {
-         auto R = gridfuncarr[i]->FESpace()->GetHpRestrictionMatrix();
          Vector xnew(R->Height());
          R->Mult(*gridfuncarr[i], xnew);
          gridfuncarr[i]->FESpace()->GetProlongationMatrix()->Mult(xnew, *gridfuncarr[i]);

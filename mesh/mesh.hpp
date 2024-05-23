@@ -1484,7 +1484,6 @@ public:
 
        For the given boundary element, bdr_el, return its adjacent element and
        its info, i.e. 64*local_bdr_index+inverse_bdr_orientation.
-
        The returned inverse_bdr_orientation is the inverse of the orientation of
        the boundary element relative to the respective face element. In other
        words this is the orientation of the face element relative to the

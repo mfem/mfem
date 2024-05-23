@@ -200,6 +200,122 @@ void GetMaterialInterfaceEntities(Mesh *mesh, GridFunction &mat,
    inter_face_el_all.Unique();
 }
 
+int GetElementNeighbors(Array<int> &els,
+                        map<int, vector<int>> &face_to_els,
+                        map<int, vector<int>> &els_to_fnum)
+{
+   int new_els = 0;
+   for (int e = 0; e < els.Size(); e++)
+   {
+      int el = els[e];
+      vector<int> fnum = els_to_fnum[el];
+      for (int f = 0; f < fnum.size(); f++)
+      {
+         int fid = fnum[f];
+         vector<int> neighbors = face_to_els[fid];
+         for (int n = 0; n < neighbors.size(); n++)
+         {
+            if (els.Find(neighbors[n]) == -1)
+            {
+               els.Append(neighbors[n]);
+               new_els++;
+            }
+         }
+      }
+   }
+   return new_els;
+}
+
+// Computes list of faces at interface, corresponding dofs, adjacent elements.
+int GetMaterialInterfaceEntities2(Mesh *mesh, GridFunction &mat,
+                                  GridFunction &surf_fit_gf0,
+                                  Array<int> &inter_faces,
+                                  Array<int> &intfdofs,
+                                  Array<int> &inter_face_el1,
+                                  Array<int> &inter_face_el2,
+                                  Array<int> &inter_face_el_all,
+                                  map<int, vector<int>> &face_to_els,
+                                  map<int, vector<int>> &els_to_face,
+                                  map<int, vector<int>> &group_to_els,
+                                  map<int, int> &els_to_group,
+                                  map<int, vector<int>> &group_to_face,
+                                  map<int, int> &face_to_group)
+{
+   face_to_els.clear();
+   els_to_face.clear();
+   group_to_els.clear();
+   els_to_group.clear();
+   group_to_face.clear();
+   face_to_group.clear();
+
+   GetMaterialInterfaceFaceDofs(mesh, mat, surf_fit_gf0,
+                                inter_faces, intfdofs);
+
+   inter_face_el1.SetSize(0);
+   inter_face_el2.SetSize(0);
+   inter_face_el_all.SetSize(0);
+   for (int i=0; i < inter_faces.Size(); i++)
+   {
+      int fnum = inter_faces[i];
+      Array<int> els;
+      mesh->GetFaceAdjacentElements(fnum, els);
+      inter_face_el1.Append(els[0]);
+      inter_face_el2.Append(els[1]);
+      face_to_els[fnum] = {els[0], els[1]};
+      els_to_face[els[0]].push_back(fnum);
+      els_to_face[els[1]].push_back(fnum);
+   }
+   inter_face_el_all.Append(inter_face_el1);
+   inter_face_el_all.Append(inter_face_el2);
+   inter_face_el_all.Sort();
+   inter_face_el_all.Unique();
+
+   int group = 0;
+   // Put all elements that share a face on interface with common elements
+   // in a group.
+   for (int f = 0; f < inter_face_el_all.Size(); f++)
+   {
+      int e = inter_face_el_all[f];
+
+      // if element is already in a group, skip
+      if (els_to_group.find(e) != els_to_group.end())
+      {
+         continue;
+      }
+
+      // Put the element in an array and find all the face neighbors recursively.
+      Array<int> temp;
+      temp.Append(e);
+      bool newcount = 1;
+      while (newcount)
+      {
+         newcount = GetElementNeighbors(temp, face_to_els, els_to_face);
+      }
+
+      if (temp.Size())
+      {
+         vector<int> ftemp;
+         for (int i = 0; i < temp.Size(); i++)
+         {
+            group_to_els[group].push_back(temp[i]);
+            els_to_group[temp[i]] = group;
+            vector<int> fnum = els_to_face[temp[i]];
+            for (int ii = 0; ii < fnum.size(); ii++)
+            {
+               ftemp.push_back(fnum[ii]);
+               face_to_group[fnum[ii]] = group;
+            }
+         }
+         std::sort(ftemp.begin(), ftemp.end());
+         auto it = std::unique (ftemp.begin(), ftemp.end());
+         ftemp.resize(std::distance(ftemp.begin(),it));
+         group_to_face[group] = ftemp;
+         group++;
+      }
+   }
+   return group;
+}
+
 
 double GetMinDet(Mesh *mesh, FiniteElementSpace *fespace,
                  IntegrationRules *irules, int quad_order)
@@ -224,6 +340,7 @@ double GetMinDet(Mesh *mesh, FiniteElementSpace *fespace,
          transf->SetIntPoint(&ir2.IntPoint(j));
          tauval = min(tauval, transf->Jacobian().Det());
       }
+      // std::cout << i << "  " << ir.GetNPoints() << " " << ir2.GetNPoints() << " k102\n";
    }
    return tauval;
 }
@@ -256,7 +373,7 @@ void PropogateOrdersAcrossInterFace(const GridFunction
    Array<int> propogate_list_new = propogate_list;
 
    bool done = false;
-   int iter = 0;
+   // int iter = 0;
    int nelupdate = 0;
    while (!done)
    {
@@ -334,7 +451,7 @@ void PropogateOrdersAcrossInterFace(const GridFunction
       {
          done = true;
       }
-      iter++;
+      // iter++;
    }
    std::cout << "Number of elements order propogated across face to: " << nelupdate
              <<
@@ -359,7 +476,7 @@ void PropogateOrdersByMax(const GridFunction &ordergf, //current orders
       new_orders[e] = ordergf(e);
    }
    int cur_max_order = new_orders.Max();
-   int n_int_els = int_el_list.Size();
+   // int n_int_els = int_el_list.Size();
 
    Array<bool> order_propogated(nelem);
    order_propogated = false;
@@ -372,12 +489,12 @@ void PropogateOrdersByMax(const GridFunction &ordergf, //current orders
       if (new_orders[el] == cur_max_order)
       {
          propogate_list.Append(el);
-         n_int_els -= 1;
+         // n_int_els -= 1;
       }
    }
 
    bool done = false;
-   int iter = 0;
+   // int iter = 0;
    int nelupdate = 0;
    while (!done)
    {
@@ -440,7 +557,7 @@ void PropogateOrdersByMax(const GridFunction &ordergf, //current orders
       {
          done = true;
       }
-      iter++;
+      // iter++;
    }
    std::cout << "Number of elements order propogated by max to: " << nelupdate
              <<
@@ -611,6 +728,8 @@ void PRefinementTransfer::Transfer(GridFunction &targf)
    PRefinementTransferOperator preft =
       PRefinementTransferOperator(*src, *(targf.FESpace()));
    preft.Mult(srcgf, targf);
+   targf.SetTrueVector();
+   targf.SetFromTrueVector();
 }
 
 GridFunction* ProlongToMaxOrder(const GridFunction *x, const int fieldtype,
@@ -786,6 +905,23 @@ void ComputeIntegratedErrorBGonFaces(const FiniteElementSpace* fes,
    {
       error_list(f) = ComputeIntegrateErrorBG(fes, ls_bg, inter_faces[f],
                                               lss, finder, etype);
+   }
+}
+
+void ComputeIntegratedErrorBGonFaces(const FiniteElementSpace* fes,
+                                     GridFunction* ls_bg,
+                                     Array<int> &inter_faces,
+                                     GridFunction *lss,
+                                     FindPointsGSLIB &finder,
+                                     map<int, double> &error_list,
+                                     int etype = 0)
+{
+   error_list.clear();
+   for (int f = 0; f < inter_faces.Size(); f++)
+   {
+      int fnum = inter_faces[f];
+      error_list[fnum] = ComputeIntegrateErrorBG(fes, ls_bg, fnum,
+                                                 lss, finder, etype);
    }
 }
 

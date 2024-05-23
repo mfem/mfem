@@ -94,6 +94,7 @@ FiniteElementSpace::FiniteElementSpace(const FiniteElementSpace &orig,
 
    Constructor(mesh_, nurbs_ext, fec_, orig.vdim, orig.ordering);
    CopySpaceElementOrders(orig);
+   SetRelaxedHpConformity(orig.relaxed_hp);
 }
 
 void FiniteElementSpace::CopyProlongationAndRestriction(

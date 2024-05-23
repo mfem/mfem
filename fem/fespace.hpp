@@ -1323,6 +1323,9 @@ public:
        GridFunction to check if it is up to date with the space. */
    long GetSequence() const { return sequence; }
 
+   /// Returns if the space orders have changed
+   bool DidOrderChange() const { return orders_changed; }
+
    /// Return whether or not the space is discontinuous (L2)
    bool IsDGSpace() const
    {
@@ -1344,6 +1347,8 @@ public:
       orders_changed = true; // force update
       Update(false);
    }
+
+   bool GetRelaxedHpConformity() { return relaxed_hp; }
 
    /// Save finite element space to output stream @a out.
    void Save(std::ostream &out) const;

@@ -485,6 +485,7 @@ void Mesh::GetBdrElementTransformation(int i,
          GetLocalFaceTransformation(GetBdrElementType(i),
                                     GetElementType(elem_id),
                                     Loc1.Transf, face_info);
+
          const FiniteElement *face_el =
             Nodes->FESpace()->GetTraceElement(elem_id, face_geom);
          MFEM_VERIFY(dynamic_cast<const NodalFiniteElement*>(face_el),
@@ -7306,6 +7307,7 @@ void Mesh::GetBdrElementFace(int i, int *f, int *o) const
    }
 }
 
+
 void Mesh::GetBdrElementAdjacentElement(int bdr_el, int &el, int &info) const
 {
    int fid = GetBdrElementFaceIndex(bdr_el);
@@ -11704,7 +11706,7 @@ void Mesh::PrintVTU(std::ostream &os, int ref, VTKFormat format,
 
    auto get_geom = [&](int i)
    {
-      if (bdr_elements) { return GetBdrElementGeometry(i); }
+      if (bdr_elements) { return GetBdrElementBaseGeometry(i); }
       else { return GetElementBaseGeometry(i); }
    };
 

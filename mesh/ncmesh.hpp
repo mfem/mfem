@@ -435,6 +435,12 @@ public:
        stretching and curvature). */
    int GetElementSizeReduction(int i) const;
 
+   // Get all element children that are leaf elements.
+   Array<int> GetElementChildren(int el_index) const;
+
+   // Get all siblings of leaf element at that and lower levels.
+   Array<int> GetElementSiblings(int i) const;
+
    /// Return the faces and face attributes of leaf element 'i'.
    void GetElementFacesAttributes(int i, Array<int> &faces,
                                   Array<int> &fattr) const;
