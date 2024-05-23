@@ -1093,6 +1093,8 @@ static void ReadWrite3DKernelWorstCase(const int npt,
    });
 }
 
+// global memory access of element coordinates.
+// Are the structs being stored in "local memory" or registers?
 template<int T_D1D = 0>
 static void FindPointsLocal32D_Kernel(const int npt,
                                       const double tol,
@@ -1123,7 +1125,7 @@ static void FindPointsLocal32D_Kernel(const int npt,
    const int dim = 3;
    const int dim2 = dim*dim;
    const int pMax = 10;
-   const int MD1 = T_D1D ? T_D1D : 10;
+   const int MD1 = T_D1D ? T_D1D : pMax;
    const int D1D = T_D1D ? T_D1D : pN;
    const int p_NE = D1D*D1D*D1D;
    MFEM_VERIFY(MD1 <= pMax, "Increase Max allowable polynomial order.");
@@ -1134,8 +1136,9 @@ static void FindPointsLocal32D_Kernel(const int npt,
    {
       constexpr int size1 = MAX_CONST(4, MD1 + 1) *
                             (3 * 3 + 2 * 3) + 3 * 2 * MD1 + 5;
-      constexpr int size2 = MAX_CONST(MD1 *MD1 * 6,
-                                      MD1 * 3 * 5); // size depends on max of info for faces and edges
+      constexpr int size2 = MAX_CONST(MD1*MD1 * 6,
+                                      MD1 * 3 * 5);
+      //size depends on max of info for faces and edges
       MFEM_SHARED double r_workspace[size1];
       MFEM_SHARED findptsElementPoint_t el_pts[2];
 
