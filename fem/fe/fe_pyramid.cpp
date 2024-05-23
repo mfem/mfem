@@ -83,6 +83,38 @@ DenseMatrix FuentesPyramid::grad_lam45(real_t x, real_t y, real_t z)
    return dlam;
 }
 
+Vector FuentesPyramid::lam15_grad_lam15(real_t x, real_t y, real_t z)
+{
+   Vector lam = lam15(x, y, z);
+   Vector lamdlam(3);
+   add(lam(0), grad_lam5(x, y, z), -lam(1), grad_lam1(x, y, z), lamdlam);
+   return lamdlam;
+}
+
+Vector FuentesPyramid::lam25_grad_lam25(real_t x, real_t y, real_t z)
+{
+   Vector lam = lam25(x, y, z);
+   Vector lamdlam(3);
+   add(lam(0), grad_lam5(x, y, z), -lam(1), grad_lam2(x, y, z), lamdlam);
+   return lamdlam;
+}
+
+Vector FuentesPyramid::lam35_grad_lam35(real_t x, real_t y, real_t z)
+{
+   Vector lam = lam35(x, y, z);
+   Vector lamdlam(3);
+   add(lam(0), grad_lam5(x, y, z), -lam(1), grad_lam3(x, y, z), lamdlam);
+   return lamdlam;
+}
+
+Vector FuentesPyramid::lam45_grad_lam45(real_t x, real_t y, real_t z)
+{
+   Vector lam = lam45(x, y, z);
+   Vector lamdlam(3);
+   add(lam(0), grad_lam5(x, y, z), -lam(1), grad_lam4(x, y, z), lamdlam);
+   return lamdlam;
+}
+
 Vector FuentesPyramid::lam125_grad_lam125(real_t x, real_t y, real_t z)
 {
    Vector lgl({-x * z / (1.0 - z), y - 1.0, z});
@@ -220,6 +252,14 @@ Vector FuentesPyramid::nu01_grad_nu01(real_t z, Vector xy, unsigned int ab)
    Vector nu = nu01(z, xy, ab);
    Vector nudnu(3);
    add(nu(0), grad_nu1(z, xy, ab), -nu(1), grad_nu0(z, xy, ab), nudnu);
+   return nudnu;
+}
+
+Vector FuentesPyramid::nu12_grad_nu12(real_t z, Vector xy, unsigned int ab)
+{
+   Vector nu = nu12(z, xy, ab);
+   Vector nudnu(3);
+   add(nu(0), grad_nu2(z, xy, ab), -nu(1), grad_nu1(z, xy, ab), nudnu);
    return nudnu;
 }
 
@@ -1037,6 +1077,40 @@ void FuentesPyramid::E_Q(int p, Vector s, const DenseMatrix &grad_s,
                            + dphi_E_j(j, 0) * E_E_i(i, 1)
                            - dphi_E_j(j, 1) * E_E_i(i, 0);
       }
+}
+
+void FuentesPyramid::E_T(int p, Vector s, Vector sds, DenseTensor &u) const
+{
+   MFEM_ASSERT(p >= 2, "Polynomial order must be two or larger");
+   MFEM_ASSERT(s.Size() >= 3, "Size of s must be 3 or larger");
+   MFEM_ASSERT(sds.Size() >= 3, "Size of sds must be 3 or larger");
+   MFEM_ASSERT(u.SizeI() >= p, "First dimension of u is too small");
+   MFEM_ASSERT(u.SizeJ() >= p, "Second dimension of u is too small");
+   MFEM_ASSERT(u.SizeK() >= 3, "Third dimension of u must be 3 or larger");
+
+#ifdef MFEM_THREAD_SAFE
+   Vector      E_T_vtmp;
+   DenseMatrix E_T_mtmp;
+#endif
+   Vector &L_j = E_T_vtmp;
+   DenseMatrix &E_E_i = E_T_mtmp;
+
+   E_E_i.SetSize(p, 3);
+   E_E(p, s, sds, E_E_i);
+
+   L_j.SetSize(p);
+   for (int i=0; i<p; i++)
+   {
+      const real_t alpha = 2.0 * i + 1.0;
+      CalcHomogenizedIntJacobi(p - 1, alpha, s[0] + s[1], s[2], L_j);
+
+      u(i, 0, 0) = 0.0; u(i, 0, 1) = 0.0; u(i, 0, 2) = 0.0;
+      for (int j=1; i+j<p; j++)
+         for (int k=0; k<3; k++)
+         {
+            u(i, j, k) = L_j(j) * E_E_i(i, k);
+         }
+   }
 }
 
 void FuentesPyramid::V_Q(int p, Vector s, Vector sds,
