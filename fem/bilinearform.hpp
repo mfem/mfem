@@ -981,6 +981,7 @@ public:
    void ComputeFaceElementMatrix(int i, DenseMatrix &elmat) const;
 
    /// Compute the boundary face element matrix of the given boundary element
+   /** @note The boundary attribute markers of the integrators are ignored. */
    void ComputeBdrFaceElementMatrix(int i, DenseMatrix &elmat) const;
 
    /// Assemble the given element matrix
