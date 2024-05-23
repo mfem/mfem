@@ -15,6 +15,7 @@
 #include "../config/config.hpp"
 #include "fespace.hpp"
 #include "bilininteg.hpp"
+#include <memory>
 
 namespace mfem
 {
@@ -61,18 +62,18 @@ namespace mfem
 class Hybridization
 {
 protected:
-   FiniteElementSpace *fes, *c_fes;
-   BilinearFormIntegrator *c_bfi;
+   FiniteElementSpace &fes, &c_fes;
+   std::unique_ptr<BilinearFormIntegrator> c_bfi;
 
-   SparseMatrix *Ct, *H;
+   std::unique_ptr<SparseMatrix> Ct, H;
 
    Array<int> hat_offsets, hat_dofs_marker;
    Array<int> Af_offsets, Af_f_offsets;
-   real_t *Af_data;
-   int *Af_ipiv;
+   Array<real_t> Af_data;
+   Array<int> Af_ipiv;
 
 #ifdef MFEM_USE_MPI
-   HypreParMatrix *pC, *P_pc; // for parallel non-conforming meshes
+   std::unique_ptr<HypreParMatrix> pC, P_pc; // for parallel non-conforming meshes
    OperatorHandle pH;
 #endif
 
@@ -97,14 +98,12 @@ protected:
 public:
    /// Constructor
    Hybridization(FiniteElementSpace *fespace, FiniteElementSpace *c_fespace);
-   /// Destructor
-   ~Hybridization();
 
    /** Set the integrator that will be used to construct the constraint matrix
        C. The Hybridization object assumes ownership of the integrator, i.e. it
        will delete the integrator when destroyed. */
    void SetConstraintIntegrator(BilinearFormIntegrator *c_integ)
-   { delete c_bfi; c_bfi = c_integ; }
+   { c_bfi.reset(c_integ); }
 
    /// Prepare the Hybridization object for assembly.
    void Init(const Array<int> &ess_tdof_list);
