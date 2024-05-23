@@ -206,8 +206,8 @@ class DarcyHybridization : public Hybridization
    BilinearFormIntegrator *c_bfi_p;
 
    /// Set of constraint boundary face integrators to be applied.
-   Array<BilinearFormIntegrator*> c_bfbfi_p;
-   Array<Array<int>*>             c_bfbfi_p_marker;
+   Array<BilinearFormIntegrator*> boundary_constraint_pot_integs;
+   Array<Array<int>*>             boundary_constraint_pot_integs_marker;
 
    bool bsym, bhdg, bfin;
 
@@ -292,23 +292,24 @@ public:
 
    void AddBdrPotConstraintIntegrator(BilinearFormIntegrator *c_integ)
    {
-      c_bfbfi_p.Append(c_integ);
-      c_bfbfi_p_marker.Append(NULL); // NULL marker means apply everywhere
+      boundary_constraint_pot_integs.Append(c_integ);
+      boundary_constraint_pot_integs_marker.Append(
+         NULL); // NULL marker means apply everywhere
    }
    void AddBdrPotConstraintIntegrator(BilinearFormIntegrator *c_integ,
                                       Array<int> &bdr_marker)
    {
-      c_bfbfi_p.Append(c_integ);
-      c_bfbfi_p_marker.Append(&bdr_marker);
+      boundary_constraint_pot_integs.Append(c_integ);
+      boundary_constraint_pot_integs_marker.Append(&bdr_marker);
    }
 
    /// Access all integrators added with AddBdrPotConstraintIntegrator().
-   Array<BilinearFormIntegrator*> *GetPotBCBFI() { return &c_bfbfi_p; }
+   Array<BilinearFormIntegrator*> *GetPotBCBFI() { return &boundary_constraint_pot_integs; }
 
    /// Access all boundary markers added with AddBdrPotConstraintIntegrator().
    /** If no marker was specified when the integrator was added, the
        corresponding pointer (to Array<int>) will be NULL. */
-   Array<Array<int>*> *GetPotBCBFI_Marker() { return &c_bfbfi_p_marker; }
+   Array<Array<int>*> *GetPotBCBFI_Marker() { return &boundary_constraint_pot_integs_marker; }
 
    /// Prepare the Hybridization object for assembly.
    void Init(const Array<int> &ess_flux_tdof_list) override;

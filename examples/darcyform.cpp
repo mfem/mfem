@@ -541,7 +541,10 @@ void DarcyHybridization::SetConstraintIntegrators(BilinearFormIntegrator
    delete c_bfi_p;
    c_bfi_p = c_pot_integ;
    if (!extern_c_bfbfs)
-      for (int k=0; k < c_bfbfi_p.Size(); k++) { delete c_bfbfi_p[k]; }
+   {
+      for (int k=0; k < boundary_constraint_pot_integs.Size(); k++)
+      { delete boundary_constraint_pot_integs[k]; }
+   }
 }
 
 void DarcyHybridization::Init(const Array<int> &ess_flux_tdof_list)
@@ -869,18 +872,20 @@ void DarcyHybridization::ComputeAndAssemblePotBdrFaceMatrix(
    fe = fes_p->GetFE(ftr->Elem1No);
    const int ndof = fe->GetDof();
 
-   MFEM_ASSERT(c_bfbfi_p.Size() > 0, "No boundary constraint integrators");
+   MFEM_ASSERT(boundary_constraint_pot_integs.Size() > 0,
+               "No boundary constraint integrators");
 
    elmat.SetSize(ndof+c_dof);
    elmat = 0.;
 
    const int bdr_attr = mesh->GetBdrAttribute(bface);
-   for (int i = 0; i < c_bfbfi_p.Size(); i++)
+   for (int i = 0; i < boundary_constraint_pot_integs.Size(); i++)
    {
-      if (c_bfbfi_p_marker[i])
-         if ((*c_bfbfi_p_marker)[bdr_attr-1] == 0) { continue; }
+      if (boundary_constraint_pot_integs_marker[i])
+         if ((*boundary_constraint_pot_integs_marker)[bdr_attr-1] == 0) { continue; }
 
-      c_bfbfi_p[i]->AssembleHDGFaceMatrix(*tr_fe, *fe, *fe, *ftr, elmat_aux);
+      boundary_constraint_pot_integs[i]->AssembleHDGFaceMatrix(*tr_fe, *fe, *fe, *ftr,
+                                                               elmat_aux);
       elmat += elmat_aux;
    }
 
