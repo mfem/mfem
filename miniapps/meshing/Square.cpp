@@ -23,10 +23,10 @@ Square::Square(ParFiniteElementSpace &pfes_mesh, ParGridFunction &distance_gf, c
     : AnalyticalGeometricShape(pfes_mesh, distance_gf, pmesh, coord), width(2.0), depth(1.0), center(2), attr_marker(pfes_mesh.GetNDofs())
 {
    // create a rectangle with:
-   // width = 2, depth = 1 and centered at (1.0,0.5) 
-   width = 2.0;
+   // width = 2, depth = 1 and centered at (1.0,0.5)
+   width = 1.0;
    depth = 1.0;
-   center(0) = 1.0;
+   center(0) = 0.5;
    center(1) = 0.5;
    Array<int> vdofs;
    attr_marker = 0;
@@ -50,9 +50,6 @@ Square::Square(ParFiniteElementSpace &pfes_mesh, ParGridFunction &distance_gf, c
    }
 }
 
-Square::~Square()
-{
-}
 void Square::GetTFromX(Vector &coordsT, const Vector &coordsX, const int& j_x, const Vector &dist)
 {
    int attr = attr_marker[pfes_mesh.VDofToDof(j_x)];

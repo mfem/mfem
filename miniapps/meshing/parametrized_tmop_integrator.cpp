@@ -114,38 +114,39 @@ void ParametrizedTMOP_Integrator::AssembleElementVectorExact(const FiniteElement
       MultAtB(PMatI, DS, Jpt);
       metric->EvalP(Jpt, P);
 
-      // // Change DSh based on the parametrization.
-      // for (int i = 0; i < dof; i++)
-      // {
-      //    if ((*tan_dof_marker)[vdofs[i]] == true)
-      //    {
-      //       DSh(i, 0) *= 1.0;
-      //       DSh(i, 1) *= 0.0;
-      //    }
-      // }
-      // Mult(DSh, Jrt, DS);
-
       if (metric_coeff) { weight_m *= metric_coeff->Eval(*Tpr, ip); }
-
       P *= weight_m;
-      //AddMultABt(DS, P, PMatO);
 
-      Pmat_temp = 0.0;
-      MultABt(DS, P, Pmat_temp);
+      // Change DSh based on the parametrization.
+      DenseMatrix grads(DSh);
       for (int i = 0; i < dof; i++)
       {
-         for (int j = 0; j < dim; j++)
+         if ((*tan_dof_marker)[vdofs[i]] == true)
          {
-            Pmat_scale = 0.0;
-            Pmat_check = 0.0;
-            // Pmat_scale = (dx_{Ai}/dt(Bj})
-            // Pmat_scale is the derivative of the parametized curve w.r.t t
-            analyticalSurface->SetScaleMatrix(vdofs, i, j, Pmat_scale);
-            Pmat_check = 0.0;
-            MultABt(Pmat_temp, Pmat_scale, Pmat_check);
-            PMatO(i,j) += Pmat_check.Trace();
+            grads(i, 0) = DSh(i, 0) * 1.0 + DSh(i, 0) * 0.0;
+            grads(i, 1) = DSh(i, 1) * 1.0 + DSh(i, 1) * 0.0;
          }
       }
+      Mult(grads, Jrt, DS);
+
+      AddMultABt(DS, P, PMatO);
+
+      // Pmat_temp = 0.0;
+      // MultABt(DS, P, Pmat_temp);
+      // for (int i = 0; i < dof; i++)
+      // {
+      //    for (int j = 0; j < dim; j++)
+      //    {
+      //       Pmat_scale = 0.0;
+      //       Pmat_check = 0.0;
+      //       // Pmat_scale = (dx_{Ai}/dt(Bj})
+      //       // Pmat_scale is the derivative of the parametized curve w.r.t t
+      //       analyticalSurface->SetScaleMatrix(vdofs, i, j, Pmat_scale);
+      //       Pmat_check = 0.0;
+      //       MultABt(Pmat_temp, Pmat_scale, Pmat_check);
+      //       PMatO(i,j) += Pmat_check.Trace();
+      //    }
+      // }
 
       if (exact_action)
       {

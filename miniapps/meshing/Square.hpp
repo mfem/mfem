@@ -38,7 +38,6 @@ public:
    Square(ParFiniteElementSpace &pfes_mesh, ParGridFunction &distance_gf,
           const ParMesh & pmesh, const ParGridFunction & coord);
 
-   ~Square();
    virtual void GetTFromX(Vector &coordsT, const Vector &coordsX, const int & j_x, const Vector &dist);
    virtual void GetXFromT(Vector &coordsX, const Vector &coordsT, const int &j_x, const Vector &dist);
    virtual void ComputeDistances(const ParGridFunction &coord, const ParMesh & pmesh, const ParFiniteElementSpace &pfes_mesh);
