@@ -178,6 +178,8 @@ int main(int argc, char* argv[]) {
     mfem::Mpi::Init();
     mfem::Hypre::Init();
 
+    // Any other combination of these functions works except for this particular order;
+    // both succeed when called alone, as well as together but compute_eigenmodes() first.
     compute_displacement();
     compute_eigenmodes();
 }
