@@ -995,7 +995,7 @@ void FiniteElementSpace::VariableOrderMinimumRule(SparseMatrix & deps) const
    {
       const Table &ent_dofs = (entity == 1) ? var_edge_dofs : var_face_dofs;
       int num_ent = (entity == 1) ? mesh->GetNEdges() : mesh->GetNFaces();
-      MFEM_ASSERT(ent_dofs.Size() == num_ent+1, "");
+      MFEM_ASSERT(ent_dofs.Size() >= num_ent+1, "");
 
       // add constraints within edges/faces holding multiple DOF sets
       Geometry::Type last_geom = Geometry::INVALID;

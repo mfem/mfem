@@ -416,6 +416,17 @@ public:
    ~GroupCommunicator();
 };
 
+enum VarMessageTag
+{
+   NEIGHBOR_ELEMENT_RANK,  ///< NeighborElementRankMessage
+   NEIGHBOR_ORDER,         ///< NeighborOrderMessage
+   NEIGHBOR_DEREFINEMENT,  ///< NeighborDerefinementMessage
+   NEIGHBOR_REFINEMENT,    ///< NeighborRefinementMessage
+   NEIGHBOR_PREFINEMENT,   ///< NeighborPRefinementMessage
+   NEIGHBOR_ROW,           ///< NeighborRowMessage
+   REBALANCE,              ///< RebalanceMessage
+   REBALANCE_DOF           ///< RebalanceDofMessage
+};
 
 /// \brief Variable-length MPI message containing unspecific binary data.
 template<int Tag>

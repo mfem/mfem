@@ -470,7 +470,8 @@ protected: // implementation
    /** Used by ParNCMesh::Refine() to inform neighbors about refinements at
     *  the processor boundary. This keeps their ghost layers synchronized.
     */
-   class NeighborRefinementMessage : public ElementValueMessage<char, false, 289>
+   class NeighborRefinementMessage : public ElementValueMessage<char, false,
+      VarMessageTag::NEIGHBOR_REFINEMENT>
    {
    public:
       void AddRefinement(int elem, char ref_type) { Add(elem, ref_type); }
@@ -479,7 +480,8 @@ protected: // implementation
 
    /** Used by ParNCMesh::Derefine() to keep the ghost layers synchronized.
     */
-   class NeighborDerefinementMessage : public ElementValueMessage<int, false, 290>
+   class NeighborDerefinementMessage : public ElementValueMessage<int, false,
+      VarMessageTag::NEIGHBOR_DEREFINEMENT>
    {
    public:
       void AddDerefinement(int elem, int rank) { Add(elem, rank); }
@@ -489,7 +491,8 @@ protected: // implementation
    /** Used in Step 2 of Rebalance() to synchronize new rank assignments in
     *  the ghost layer.
     */
-   class NeighborElementRankMessage : public ElementValueMessage<int, false, 156>
+   class NeighborElementRankMessage : public ElementValueMessage<int, false,
+      VarMessageTag::NEIGHBOR_ELEMENT_RANK>
    {
    public:
       void AddElementRank(int elem, int rank) { Add(elem, rank); }
@@ -500,7 +503,8 @@ protected: // implementation
     *  RefTypes == true which means the refinement hierarchy will be recreated
     *  on the receiving side.
     */
-   class RebalanceMessage : public ElementValueMessage<int, true, 157>
+   class RebalanceMessage : public ElementValueMessage<int, true,
+      VarMessageTag::REBALANCE>
    {
    public:
       void AddElementRank(int elem, int rank) { Add(elem, rank); }
@@ -510,7 +514,7 @@ protected: // implementation
    /** Allows migrating element data (DOFs) after Rebalance().
     *  Used by SendRebalanceDofs and RecvRebalanceDofs.
     */
-   class RebalanceDofMessage : public VarMessage<158>
+   class RebalanceDofMessage : public VarMessage<VarMessageTag::REBALANCE_DOF>
    {
    public:
       std::vector<int> elem_ids, dofs;
@@ -529,10 +533,10 @@ protected: // implementation
       void Decode(int) override;
    };
 
-   // TODO: tag 291 seems unique? Is there any logic behind the tag choices?
    /** Used by CommunicateGhostData to send p-refined element indices and
        their order. */
-   class NeighborPRefinementMessage : public ElementValueMessage<int, false, 291>
+   class NeighborPRefinementMessage : public ElementValueMessage<int, false,
+      VarMessageTag::NEIGHBOR_PREFINEMENT>
    {
    public:
       void AddRefinement(int elem, int order) { Add(elem, order); }
