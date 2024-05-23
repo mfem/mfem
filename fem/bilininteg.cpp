@@ -1554,7 +1554,7 @@ void LaplaceIntegrator::AssembleElementMatrix(const FiniteElement &el,
       Trans.SetIntPoint (&ip);
 
       el.CalcPhysShape(Trans, shape);
-      el.CalcPhysShape(Trans, laplace);
+      el.CalcPhysLaplacian(Trans, laplace);
 
       w = Trans.Weight() * ip.weight * alpha;
       if (Q)
@@ -1578,7 +1578,8 @@ void LaplaceIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
    laplace.SetSize(tr_nd);
    shape.SetSize(te_nd);
 
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(trial_fe, test_fe, Trans);
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(trial_fe, test_fe,
+                                                            Trans);
 
    elmat = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
@@ -1587,7 +1588,7 @@ void LaplaceIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
       Trans.SetIntPoint (&ip);
 
       test_fe.CalcPhysShape(Trans, shape);
-      trial_fe.CalcPhysShape(Trans, laplace);
+      trial_fe.CalcPhysLaplacian(Trans, laplace);
 
       real_t w = Trans.Weight() * ip.weight * alpha;
       if (Q)
@@ -1624,7 +1625,7 @@ void LaplaceGradIntegrator::AssembleElementMatrix(const FiniteElement &el,
    Vector vec1;
 
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, Trans);
-   
+
    Q->Eval(Q_ir, Trans, *ir);
 
    elmat = 0.0;
@@ -1646,7 +1647,8 @@ void LaplaceGradIntegrator::AssembleElementMatrix(const FiniteElement &el,
    }
 }
 
-void LaplaceGradIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
+void LaplaceGradIntegrator::AssembleElementMatrix2(const FiniteElement
+                                                   &trial_fe,
                                                    const FiniteElement &test_fe,
                                                    ElementTransformation &Trans,
                                                    DenseMatrix &elmat)
@@ -1664,7 +1666,8 @@ void LaplaceGradIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe
 
    Vector vec1;
 
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(trial_fe, test_fe, Trans);
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(trial_fe, test_fe,
+                                                            Trans);
 
    Q->Eval(Q_ir, Trans, *ir);
 
@@ -1725,12 +1728,13 @@ void LaplaceLaplaceIntegrator::AssembleElementMatrix(const FiniteElement &el,
    }
 }
 
-void LaplaceLaplaceIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
+void LaplaceLaplaceIntegrator::AssembleElementMatrix2(const FiniteElement
+                                                      &trial_fe,
                                                       const FiniteElement &test_fe,
                                                       ElementTransformation &Trans,
                                                       DenseMatrix &elmat)
 {
-   int 
+   int
    dim = trial_fe.GetDim();
    int tr_nd = trial_fe.GetDof();
    int te_nd = test_fe.GetDof();
@@ -1740,7 +1744,8 @@ void LaplaceLaplaceIntegrator::AssembleElementMatrix2(const FiniteElement &trial
    laplace.SetSize(tr_nd);
    te_laplace.SetSize(te_nd);
 
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(trial_fe, test_fe, Trans);
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(trial_fe, test_fe,
+                                                            Trans);
 
    elmat = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
@@ -1838,27 +1843,27 @@ void InverseEstimateIntegrator::AssembleElementMatrix(const FiniteElement &el,
    ovec *= 1.0/sqrt(alpha);
    do
    {
-         // Othogonalize
-         alpha = x*ovec;
-         x.Add(-alpha, ovec);
+      // Othogonalize
+      alpha = x*ovec;
+      x.Add(-alpha, ovec);
 
-         // MatVec (2x)
-         bimat.Mult(x, x_tmp);
-         L_inv.Mult(x_tmp, x);
+      // MatVec (2x)
+      bimat.Mult(x, x_tmp);
+      L_inv.Mult(x_tmp, x);
 
-         eval_prev = eval_i;
-         eval_i = x.Norml2();
-         x *= 1.0/eval_i;
-         ++iter;
+      eval_prev = eval_i;
+      eval_i = x.Norml2();
+      x *= 1.0/eval_i;
+      ++iter;
    }
    while ((iter < 10000) && (fabs(eval_i - eval_prev)/fabs(eval_i) > rel_tol));
    MFEM_VERIFY(fabs(eval_i - eval_prev)/fabs(eval_i) <= rel_tol,
-                  "Inverse power method did not converge."
-                  << "\n\t iter      = " << iter
-                  << "\n\t eval_i    = " << eval_i
-                  << "\n\t eval_prev = " << eval_prev
-                  << "\n\t fabs(eval_i - eval_prev)/fabs(eval_i) = "
-                  << fabs(eval_i - eval_prev)/fabs(eval_i));
+               "Inverse power method did not converge."
+               << "\n\t iter      = " << iter
+               << "\n\t eval_i    = " << eval_i
+               << "\n\t eval_prev = " << eval_prev
+               << "\n\t fabs(eval_i - eval_prev)/fabs(eval_i) = "
+               << fabs(eval_i - eval_prev)/fabs(eval_i));
    cout<<"evev = "<<eval_i<<" "<<iter<<endl;
 }
 
