@@ -249,6 +249,73 @@ void FindPointsGSLIB::Setup(Mesh &m, const double bb_t, const double newt_tol,
    setupflag = true;
 }
 
+void FindPointsGSLIB::SetupSurf(Mesh &m, const double bb_t, const double newt_tol,
+                                const int npt_max)
+{
+   const int num_procs = Mpi::WorldSize();
+   const int myid      = Mpi::WorldRank();
+   // EnsureNodes call could be useful if the mesh is 1st order and has no gridfunction defined
+   MFEM_VERIFY(m.GetNodes() != NULL, "Mesh nodes are required.");
+   // Max element order since we will ultimately have all elements of the same order
+   const int meshOrder = m.GetNodes()->FESpace()->GetMaxElementOrder();
+   const int vdim      = m.GetNodes()->FESpace()->GetVDim();
+   const int NE        = m.GetNE();
+
+   // call FreeData if FindPointsGSLIB::Setup has been called already
+   if (setupflag)
+   { FreeData(); }
+
+   crystal_init(cr, gsl_comm);     // Crystal Router
+   mesh = &m;
+   dim  = mesh->Dimension();       // This is reference dimension, which would dictate number of dofs
+   unsigned dof1D  = meshOrder + 1; // dof in one dimension based on max mesh order (since that's the order we we will have ultimately)
+   unsigned pts_el = std::pow(dof1D, dim); // Number of points in an element
+
+   setupSW.Clear();
+   setupSW.Start();
+   Vector ref_node_vals;           // debug vector to store reference element nodal values
+   GetNodalValuesSurf(mesh->GetNodes(), gsl_mesh, ref_node_vals);
+   setupSW.Stop();
+   setup_nodalmapping_time = setupSW.RealTime();
+
+   mesh_points_cnt = gsl_mesh.Size()/vdim;  // Note: this is not dim
+
+   for (int iid = 0; iid < num_procs; iid++)
+   {
+      if (iid == myid)
+      {
+         std::cout << "mesh_points_cnt: " << mesh_points_cnt << " myid"<<myid << std::endl;
+         // Print physical element nodal values
+         for (int ine = 0; ine < NE; ine++)
+         {
+            std::cout << "El " << ine << " phy. coords" << ": ";
+            for (int ipt = 0; ipt < pts_el; ipt++)
+            {
+               for (int d = 0; d < vdim; d++)
+               { std::cout << gsl_mesh(d*mesh_points_cnt + ine*pts_el + ipt) << " "; }
+               std::cout << "; ";
+            }
+            std::cout << std::endl;
+         }
+         // Print reference element nodal values
+         for (int ine = 0; ine < NE; ine++)
+         {
+            std::cout << "El " << ine << " ref. coords" << ": ";
+            for (int ipt = 0; ipt < pts_el; ipt++)
+            {
+               for (int d = 0; d < dim; d++)
+               { std::cout << ref_node_vals(d*mesh_points_cnt + ine*pts_el + ipt) << " "; }
+               std::cout << "; ";
+            }
+            std::cout << std::endl;
+         }
+      }
+      MPI_Barrier(gsl_comm->c);
+   }
+
+   setupflag = true;
+}
+
 void FindPointsGSLIB::FindPoints(const Vector &point_pos,
                                  int point_pos_ordering)
 {
@@ -1790,6 +1857,88 @@ void FindPointsGSLIB::GetNodalValues(const GridFunction *gf_in,
    }
 }
 
+void FindPointsGSLIB::GetNodalValuesSurf(const GridFunction *gf_in,
+                                         Vector &node_vals,
+                                         Vector &ref_node_vals) // ref_node_vals is for debugging
+{
+   const int myid = Mpi::WorldRank();
+   const GridFunction *nodes     = gf_in;
+   const FiniteElementSpace *fes = nodes->FESpace();
+
+   const int NE       = mesh->GetNE();
+   const int vdim     = fes->GetVDim();
+   const int maxOrder = fes->GetMaxElementOrder(); // for now, equal to GetDof() for any element
+   const int dof_1D   = maxOrder+1;
+   const int pts_el   = std::pow(dof_1D, dim);     // points nos. in one element
+   const int pts_cnt  = NE * pts_el;               // total points nos. in all elements
+
+   // std::cout << "vdim dim: " << vdim << " " << dim <<" myid"<<myid << std::endl;
+   // std::cout << "pts_el NE pts_cnt: " << pts_el << " " << NE << " " << pts_cnt <<" myid"<<myid << std::endl;
+
+   // nodes are vdim ordered, i.e., all dim 0 dofs, then all dim 1 dofs, etc.
+   node_vals.SetSize(vdim*pts_cnt);   // node_vals need to store all vdofs in mesh object
+   node_vals = 0.0;
+   if (node_vals.UseDevice()) node_vals.HostWrite();
+
+   ref_node_vals.SetSize(dim*pts_cnt);
+   ref_node_vals = 0.0;
+
+   int gsl_mesh_pt_index = 0; // gsl_mesh_pt_index indexes the point (dof) under consideration
+   for (int ie = 0; ie<NE; ie++)
+   {
+      const FiniteElement *fe   = fes->GetFE(ie);
+      const Geometry::Type gt   = fe->GetGeomType();
+      const int dof_cnt_split   = fe->GetDof();
+      const IntegrationRule &ir = fe->GetNodes();
+      Array<int> dof_map(dof_cnt_split);
+
+      // std::cout << "Element " << ie << std::endl;
+      // std::cout << "dof_cnt_split " << dof_cnt_split << std::endl;
+
+      const TensorBasisElement *tbe = dynamic_cast<const TensorBasisElement *>(fes->GetFE(ie));  // could we use *fe here?
+      MFEM_VERIFY(tbe != NULL, "TensorBasis FiniteElement expected.");
+      const Array<int> &dm          = tbe->GetDofMap();
+
+      // GetDofs() returns an empty array if nodes are already lexicographically ordered
+      if (dm.Size()>0) dof_map = dm;
+      else
+      {
+         for (int i = 0; i < dof_cnt_split; i++)
+         { dof_map[i] = i; }
+      }
+
+      DenseMatrix pos(dof_cnt_split, vdim);
+      Vector posV(pos.Data(), dof_cnt_split*vdim);
+      Array<int> vdofs(dof_cnt_split * vdim);
+      fes->GetElementVDofs(ie, vdofs);    // get non-lexi dof IDs
+      nodes->GetSubVector(vdofs, posV);   // posV is used to assign data to pos
+      /* At this stage, we have the node coordinates stored in pos DenseMatrix */
+
+      // We also get the reference element positions for debugging reasons
+      DenseMatrix pos_ref(ir.GetNPoints(), dim);
+      // std::cout << "ir.GetNPoints() " << ir.GetNPoints() << std::endl;
+      for (int i=0; i<ir.GetNPoints(); i++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(i);
+         pos_ref(i,0) = ip.x;
+         if (dim == 2) pos_ref(i,1) = ip.y;
+         if (dim == 3) pos_ref(i,2) = ip.z;
+      }
+
+      for (int j=0; j<dof_cnt_split; j++) // lexicographic dof ID j
+      {
+         for (int d=0; d<vdim; d++)     // dof j's dimension d 
+         {
+            node_vals(pts_cnt*d + gsl_mesh_pt_index) = pos(dof_map[j], d);
+            if (d<dim)
+            {
+               ref_node_vals(pts_cnt*d + gsl_mesh_pt_index) = pos_ref(dof_map[j], d);
+            }
+         }
+         gsl_mesh_pt_index++;
+      }
+   }
+}
 
 void FindPointsGSLIB::MapRefPosAndElemIndices()
 {
