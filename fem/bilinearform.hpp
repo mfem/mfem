@@ -340,9 +340,9 @@ public:
        $ M^{-1} $ (currently returns NULL) */
    virtual MatrixInverse *Inverse() const;
 
-   /** @brief  Finalizes the matrix initialization if the ::AssemblyLevel is
+   /** @brief Finalizes the matrix initialization if the ::AssemblyLevel is
        AssemblyLevel::LEGACY.
-       THe matrix that gets finalized is different if you are using static
+       The matrix that gets finalized is different if you are using static
        condensation or hybridization.*/
    virtual void Finalize(int skip_zeros = 1);
 
@@ -643,7 +643,7 @@ public:
    void EliminateVDofs(const Array<int> &vdofs, const Vector &sol, Vector &rhs,
                        DiagonalPolicy dpolicy = DIAG_ONE);
 
-   /** @brief  Eliminate the given @a vdofs, storing the eliminated part
+   /** @brief Eliminate the given @a vdofs, storing the eliminated part
        internally in $ M_e $.
 
        This method works in conjunction with EliminateVDofsInRHS() and allows
@@ -826,7 +826,7 @@ public:
        $ M^{-1} $ (currently unimplemented and returns NULL)*/
    virtual MatrixInverse *Inverse() const;
 
-   /** @brief  Finalizes the matrix initialization if the ::AssemblyLevel is
+   /** @brief Finalizes the matrix initialization if the ::AssemblyLevel is
        AssemblyLevel::LEGACY.*/
    virtual void Finalize(int skip_zeros = 1);
 

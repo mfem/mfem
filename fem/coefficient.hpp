@@ -1426,12 +1426,13 @@ public:
 class SymmetricMatrixCoefficient : public MatrixCoefficient
 {
 protected:
+
    /// Internal matrix used when evaluating this coefficient as a DenseMatrix.
-   DenseSymmetricMatrix mat;
+   mutable DenseSymmetricMatrix mat_aux;
 public:
    /// Construct a dim x dim matrix coefficient.
    explicit SymmetricMatrixCoefficient(int dimension)
-      : MatrixCoefficient(dimension, true) { }
+      : MatrixCoefficient(dimension, true), mat_aux(height) { }
 
    /// Get the size of the matrix.
    int GetSize() const { return height; }
@@ -1464,8 +1465,9 @@ public:
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip);
 
-   /// Return a reference to the constant matrix.
-   const DenseSymmetricMatrix& GetMatrix() { return mat; }
+
+   /// @deprecated Return a reference to the internal matrix used when evaluating this coefficient as a DenseMatrix.
+   MFEM_DEPRECATED const DenseSymmetricMatrix& GetMatrix() { return mat_aux; }
 
    virtual ~SymmetricMatrixCoefficient() { }
 };
@@ -1485,6 +1487,10 @@ public:
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseSymmetricMatrix &M, ElementTransformation &T,
                      const IntegrationPoint &ip) { M = mat; }
+
+   /// Return a reference to the constant matrix.
+   const DenseSymmetricMatrix& GetMatrix() { return mat; }
+
 };
 
 
