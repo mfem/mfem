@@ -540,7 +540,7 @@ void DarcyHybridization::SetConstraintIntegrators(BilinearFormIntegrator
    c_bfi = c_flux_integ;
    delete c_bfi_p;
    c_bfi_p = c_pot_integ;
-   if (!extern_c_bfbfs)
+   if (!extern_bdr_constr_integs)
    {
       for (int k=0; k < boundary_constraint_pot_integs.Size(); k++)
       { delete boundary_constraint_pot_integs[k]; }
@@ -1049,7 +1049,7 @@ void DarcyHybridization::ConstructC()
          AssembleCtFaceMatrix(f, FTr->Elem1No, FTr->Elem2No, elmat);
       }
 
-      if (c_bfbfi.Size())
+      if (boundary_constraint_integs.Size())
       {
          const FiniteElement *fe1, *fe2;
          const FiniteElement *face_el;
@@ -1058,14 +1058,14 @@ void DarcyHybridization::ConstructC()
          Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
                                     mesh->bdr_attributes.Max() : 0);
          bdr_attr_marker = 0;
-         for (int k = 0; k < c_bfbfi.Size(); k++)
+         for (int k = 0; k < boundary_constraint_integs.Size(); k++)
          {
-            if (c_bfbfi_marker[k] == NULL)
+            if (boundary_constraint_integs_marker[k] == NULL)
             {
                bdr_attr_marker = 1;
                break;
             }
-            Array<int> &bdr_marker = *c_bfbfi_marker[k];
+            Array<int> &bdr_marker = *boundary_constraint_integs_marker[k];
             MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
                         "invalid boundary marker for boundary face integrator #"
                         << k << ", counting from zero");
@@ -1090,12 +1090,13 @@ void DarcyHybridization::ConstructC()
             // but we can't dereference a NULL pointer, and we don't want to
             // actually make a fake element.
             fe2 = fe1;
-            for (int k = 0; k < c_bfbfi.Size(); k++)
+            for (int k = 0; k < boundary_constraint_integs.Size(); k++)
             {
-               if (c_bfbfi_marker[k] &&
-                   (*c_bfbfi_marker[k])[bdr_attr-1] == 0) { continue; }
+               if (boundary_constraint_integs_marker[k] &&
+                   (*boundary_constraint_integs_marker[k])[bdr_attr-1] == 0) { continue; }
 
-               c_bfbfi[k]->AssembleFaceMatrix(*face_el, *fe1, *fe2, *FTr, elmat);
+               boundary_constraint_integs[k]->AssembleFaceMatrix(*face_el, *fe1, *fe2, *FTr,
+                                                                 elmat);
                // zero-out small elements in elmat
                elmat.Threshold(1e-12 * elmat.MaxMaxNorm());
 
