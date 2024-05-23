@@ -62,10 +62,14 @@ namespace mfem
 class Hybridization
 {
 protected:
-   FiniteElementSpace &fes, &c_fes;
+   FiniteElementSpace &fes; ///< The finite element space.
+   FiniteElementSpace &c_fes; ///< The constraint finite element space.
+   /// The constraint integrator.
    std::unique_ptr<BilinearFormIntegrator> c_bfi;
-
-   std::unique_ptr<SparseMatrix> Ct, H;
+   /// The constraint matrix.
+   std::unique_ptr<SparseMatrix> Ct;
+   /// The Schur complement system for the Lagrange multiplier.
+   std::unique_ptr<SparseMatrix> H;
 
    Array<int> hat_offsets, hat_dofs_marker;
    Array<int> Af_offsets, Af_f_offsets;
@@ -77,12 +81,14 @@ protected:
    OperatorHandle pH;
 #endif
 
+   /// Construct the constraint matrix.
    void ConstructC();
 
    void GetIBDofs(int el, Array<int> &i_dofs, Array<int> &b_dofs) const;
 
    void GetBDofs(int el, int &num_idofs, Array<int> &b_dofs) const;
 
+   /// Construct the Schur complement system.
    void ComputeH();
 
    // Compute depending on mode:
@@ -96,12 +102,14 @@ protected:
                   int mode) const;
 
 public:
-   /// Constructor
+   /// Constructor.
    Hybridization(FiniteElementSpace *fespace, FiniteElementSpace *c_fespace);
 
-   /** Set the integrator that will be used to construct the constraint matrix
-       C. The Hybridization object assumes ownership of the integrator, i.e. it
-       will delete the integrator when destroyed. */
+   /// @brief Set the integrator that will be used to construct the constraint
+   /// matrix C.
+   ///
+   /// The Hybridization object assumes ownership of the integrator, i.e. it
+   /// will delete the integrator when destroyed.
    void SetConstraintIntegrator(BilinearFormIntegrator *c_integ)
    { c_bfi.reset(c_integ); }
 
@@ -124,30 +132,34 @@ public:
    /// Return the parallel hybridized matrix.
    HypreParMatrix &GetParallelMatrix() { return *pH.Is<HypreParMatrix>(); }
 
-   /** @brief Return the parallel hybridized matrix in the format specified by
-       SetOperatorType(). */
+   /// @brief Return the parallel hybridized matrix in the format specified by
+   /// SetOperatorType().
    void GetParallelMatrix(OperatorHandle &H_h) const { H_h = pH; }
 
    /// Set the operator type id for the parallel hybridized matrix/operator.
    void SetOperatorType(Operator::Type tid) { pH.SetType(tid); }
 #endif
 
-   /** Perform the reduction of the given r.h.s. vector, b, to a r.h.s vector,
-       b_r, for the hybridized system. */
+   /// @brief Perform the reduction of the given right-hand side @a b to a
+   /// right-hand side vector @a b_r for the hybridized system.
    void ReduceRHS(const Vector &b, Vector &b_r) const;
 
-   /** Reconstruct the solution of the original system, sol, from solution of
-       the hybridized system, sol_r, and the original r.h.s. vector, b.
-       It is assumed that the vector sol has the right essential b.c. */
+   /// @brief Reconstruct the solution of the original system @a sol from
+   /// solution of the hybridized system @a sol_r and the original right-hand
+   /// side @a b.
+   ///
+   /// It is assumed that the vector sol has the correct essential boundary
+   /// conditions.
    void ComputeSolution(const Vector &b, const Vector &sol_r,
                         Vector &sol) const;
 
-   /** @brief Destroy the current hybridization matrix while preserving the
-       computed constraint matrix and the set of essential true dofs. After
-       Reset(), a new hybridized matrix can be assembled via AssembleMatrix()
-       and Finalize(). The Mesh and FiniteElementSpace objects are assumed to be
-       un-modified. If that is not the case, a new Hybridization object must be
-       created. */
+   /// @brief Destroy the current hybridization matrix while preserving the
+   /// computed constraint matrix and the set of essential true dofs.
+   ///
+   /// After Reset(), a new hybridized matrix can be assembled via
+   /// AssembleMatrix() and Finalize(). The Mesh and FiniteElementSpace objects
+   /// are assumed to be unmodified. If that is not the case, a new
+   /// Hybridization object must be created.
    void Reset();
 };
 
