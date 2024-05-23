@@ -257,8 +257,8 @@ public:
    virtual real_t Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);
 
-   const std::function<double(const Vector &)>& GetFunction() const { return Function; }
-   const std::function<double(const Vector &,double)>& GetTDFunction() const { return TDFunction; }
+   const std::function<real_t(const Vector &)>& GetFunction() const { return Function; }
+   const std::function<real_t(const Vector &, real_t)>& GetTDFunction() const { return TDFunction; }
 };
 
 /// A common base class for returning individual components of the domain's
@@ -772,7 +772,7 @@ public:
                      const IntegrationPoint &ip);
 
    const std::function<void(const Vector &, Vector &)>& GetFunction() const { return Function; }
-   const std::function<void(const Vector &, double, Vector &)>& GetTDFunction()
+   const std::function<void(const Vector &, real_t, Vector &)>& GetTDFunction()
    const { return TDFunction; }
 
    virtual ~VectorFunctionCoefficient() { }

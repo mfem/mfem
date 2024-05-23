@@ -2510,7 +2510,7 @@ void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff)
    }
    else
    {
-      double integral;
+      real_t integral;
 
       ProjectVectorDeltaCoefficient(*vdelta_c, integral);
 
