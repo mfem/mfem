@@ -62,6 +62,15 @@ void Hybridization::ConstructC()
    int num_hat_dofs = hat_offsets[NE];
    Array<int> vdofs, c_vdofs;
 
+#if defined(MFEM_USE_DOUBLE)
+   constexpr real_t mtol = 1e-12;
+#elif defined(MFEM_USE_SINGLE)
+   constexpr real_t mtol = 4e-6;
+#else
+#error "Only single and double precision are supported!"
+   constexpr real_t mtol = 1.;
+#endif
+
    int c_num_face_nbr_dofs = 0;
 #ifdef MFEM_USE_MPI
    ParFiniteElementSpace *c_pfes = dynamic_cast<ParFiniteElementSpace*>(c_fes);
@@ -130,7 +139,7 @@ void Hybridization::ConstructC()
                                    *fes->GetFE(FTr->Elem2No),
                                    *FTr, elmat);
          // zero-out small elements in elmat
-         elmat.Threshold(1e-12 * elmat.MaxMaxNorm());
+         elmat.Threshold(mtol * elmat.MaxMaxNorm());
          Ct->AddSubMatrix(vdofs, c_vdofs, elmat, skip_zeros);
       }
 
@@ -192,7 +201,7 @@ void Hybridization::ConstructC()
                boundary_constraint_integs[k]->AssembleFaceMatrix(*face_el, *fe1, *fe2, *FTr,
                                                                  elmat);
                // zero-out small elements in elmat
-               elmat.Threshold(1e-12 * elmat.MaxMaxNorm());
+               elmat.Threshold(mtol * elmat.MaxMaxNorm());
                Ct->AddSubMatrix(vdofs, c_vdofs, elmat, skip_zeros);
             }
          }
@@ -236,7 +245,7 @@ void Hybridization::ConstructC()
             fe = fes->GetFE(FTr->Elem1No);
             c_bfi->AssembleFaceMatrix(*face_fe, *fe, *fe, *FTr, elmat);
             // zero-out small elements in elmat
-            elmat.Threshold(1e-12 * elmat.MaxMaxNorm());
+            elmat.Threshold(mtol * elmat.MaxMaxNorm());
             Ct->AddSubMatrix(vdofs, c_vdofs, elmat, skip_zeros);
          }
          if (glob_num_shared_slave_faces)
