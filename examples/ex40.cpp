@@ -325,7 +325,7 @@ int main(int argc, char *argv[])
          break;
       }
 
-      alpha *= max(growth_rate, 1.0);
+      alpha *= max(growth_rate, 1_r);
 
    }
 
