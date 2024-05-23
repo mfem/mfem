@@ -1537,6 +1537,9 @@ public:
    /// @note The returned Table should be deleted by the caller
    Table *GetVertexToElementTable();
 
+   /// @note The returned Table should be deleted by the caller
+   Table *GetVertexToBdrElementTable();
+
    /// Return the "face"-element Table. Here "face" refers to face (3D),
    /// edge (2D), or vertex (1D).
    ///
