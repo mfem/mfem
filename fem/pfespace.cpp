@@ -2415,7 +2415,7 @@ struct PMatrixRow
    }
 };
 
-class NeighborOrderMessage : public VarMessage<VarMessageTag::NEIGHBOR_ORDER>
+class NeighborOrderMessage : public VarMessage<VarMessageTag::NEIGHBOR_ORDER_VM>
 {
 public:
    typedef NCMesh::MeshId MeshId;
@@ -2538,7 +2538,7 @@ void NeighborOrderMessage::Decode(int rank)
 /** Represents a message to another processor containing P matrix rows.
  *  Used by ParFiniteElementSpace::BuildParallelConformingInterpolation.
  */
-class NeighborRowMessage : public VarMessage<VarMessageTag::NEIGHBOR_ROW>
+class NeighborRowMessage : public VarMessage<VarMessageTag::NEIGHBOR_ROW_VM>
 {
 public:
    typedef NCMesh::MeshId MeshId;

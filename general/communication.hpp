@@ -418,14 +418,14 @@ public:
 
 enum VarMessageTag
 {
-   NEIGHBOR_ELEMENT_RANK,  ///< NeighborElementRankMessage
-   NEIGHBOR_ORDER,         ///< NeighborOrderMessage
-   NEIGHBOR_DEREFINEMENT,  ///< NeighborDerefinementMessage
-   NEIGHBOR_REFINEMENT,    ///< NeighborRefinementMessage
-   NEIGHBOR_PREFINEMENT,   ///< NeighborPRefinementMessage
-   NEIGHBOR_ROW,           ///< NeighborRowMessage
-   REBALANCE,              ///< RebalanceMessage
-   REBALANCE_DOF           ///< RebalanceDofMessage
+   NEIGHBOR_ELEMENT_RANK_VM,  ///< NeighborElementRankMessage
+   NEIGHBOR_ORDER_VM,         ///< NeighborOrderMessage
+   NEIGHBOR_DEREFINEMENT_VM,  ///< NeighborDerefinementMessage
+   NEIGHBOR_REFINEMENT_VM,    ///< NeighborRefinementMessage
+   NEIGHBOR_PREFINEMENT_VM,   ///< NeighborPRefinementMessage
+   NEIGHBOR_ROW_VM,           ///< NeighborRowMessage
+   REBALANCE_VM,              ///< RebalanceMessage
+   REBALANCE_DOF_VM           ///< RebalanceDofMessage
 };
 
 /// \brief Variable-length MPI message containing unspecific binary data.

@@ -471,7 +471,7 @@ protected: // implementation
     *  the processor boundary. This keeps their ghost layers synchronized.
     */
    class NeighborRefinementMessage : public ElementValueMessage<char, false,
-      VarMessageTag::NEIGHBOR_REFINEMENT>
+      VarMessageTag::NEIGHBOR_REFINEMENT_VM>
    {
    public:
       void AddRefinement(int elem, char ref_type) { Add(elem, ref_type); }
@@ -481,7 +481,7 @@ protected: // implementation
    /** Used by ParNCMesh::Derefine() to keep the ghost layers synchronized.
     */
    class NeighborDerefinementMessage : public ElementValueMessage<int, false,
-      VarMessageTag::NEIGHBOR_DEREFINEMENT>
+      VarMessageTag::NEIGHBOR_DEREFINEMENT_VM>
    {
    public:
       void AddDerefinement(int elem, int rank) { Add(elem, rank); }
@@ -492,7 +492,7 @@ protected: // implementation
     *  the ghost layer.
     */
    class NeighborElementRankMessage : public ElementValueMessage<int, false,
-      VarMessageTag::NEIGHBOR_ELEMENT_RANK>
+      VarMessageTag::NEIGHBOR_ELEMENT_RANK_VM>
    {
    public:
       void AddElementRank(int elem, int rank) { Add(elem, rank); }
@@ -504,7 +504,7 @@ protected: // implementation
     *  on the receiving side.
     */
    class RebalanceMessage : public ElementValueMessage<int, true,
-      VarMessageTag::REBALANCE>
+      VarMessageTag::REBALANCE_VM>
    {
    public:
       void AddElementRank(int elem, int rank) { Add(elem, rank); }
@@ -514,7 +514,7 @@ protected: // implementation
    /** Allows migrating element data (DOFs) after Rebalance().
     *  Used by SendRebalanceDofs and RecvRebalanceDofs.
     */
-   class RebalanceDofMessage : public VarMessage<VarMessageTag::REBALANCE_DOF>
+   class RebalanceDofMessage : public VarMessage<VarMessageTag::REBALANCE_DOF_VM>
    {
    public:
       std::vector<int> elem_ids, dofs;
@@ -536,7 +536,7 @@ protected: // implementation
    /** Used by CommunicateGhostData to send p-refined element indices and
        their order. */
    class NeighborPRefinementMessage : public ElementValueMessage<int, false,
-      VarMessageTag::NEIGHBOR_PREFINEMENT>
+      VarMessageTag::NEIGHBOR_PREFINEMENT_VM>
    {
    public:
       void AddRefinement(int elem, int order) { Add(elem, order); }
