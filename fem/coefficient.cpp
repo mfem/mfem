@@ -1392,20 +1392,22 @@ void CrossCrossCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
 
 
 InverseEstimateCoefficient::InverseEstimateCoefficient(FiniteElementSpace *f)
- : fes(f), Q(NULL), ir(NULL)
+   : fes(f), Q(NULL), ir(NULL)
 {
    ComputeInverseEstimates();
 }
 
-InverseEstimateCoefficient::InverseEstimateCoefficient(FiniteElementSpace *f, Coefficient &q)
- : fes(f), Q(&q), ir(NULL)
+InverseEstimateCoefficient::InverseEstimateCoefficient(FiniteElementSpace *f,
+                                                       Coefficient &q)
+   : fes(f), Q(&q), ir(NULL)
 {
    ComputeInverseEstimates();
 }
 
 GridFunction *InverseEstimateCoefficient::GetGridFunction()
 {
-   FiniteElementCollection* fec_ec = new L2_FECollection(0, fes ->GetMesh()->Dimension());
+   FiniteElementCollection* fec_ec = new L2_FECollection(0,
+                                                         fes ->GetMesh()->Dimension());
    FiniteElementSpace *fes_ec = new FiniteElementSpace(fes ->GetMesh(), fec_ec);
    GridFunction *gf = new GridFunction(fes_ec, elemInvEst.GetData());
    gf->MakeOwner(fec_ec);
@@ -1425,12 +1427,13 @@ void InverseEstimateCoefficient::ComputeInverseEstimates()
 
 void InverseEstimateCoefficient::SetIntRule(const FiniteElement &el)
 {
-   if (ir) delete ir;
+   if (ir) { delete ir; }
    ir = &IntRules.Get(el.GetGeomType(), 2*el.GetOrder());
 }
 
-real_t InverseEstimateCoefficient::ElementInverseEstimate(const FiniteElement &el,
-                                                          ElementTransformation &Trans)
+real_t InverseEstimateCoefficient::ElementInverseEstimate(
+   const FiniteElement &el,
+   ElementTransformation &Trans)
 {
    int nd = el.GetDof();
    int dim = el.GetDim();
@@ -1487,10 +1490,10 @@ real_t InverseEstimateCoefficient::ElementInverseEstimate(const FiniteElement &e
 
    real_t ev2 = PowerMethod2(lapmat, bimat, evec, ovec, 100, 1e-10, 0);
 
-if (fabs(ev3-ev2)/(ev3+ev2) > 0.01)
-{
-   cout<<ev3<<" "<<ev2<<endl;
-}
+   if (fabs(ev3-ev2)/(ev3+ev2) > 0.01)
+   {
+      cout<<ev3<<" "<<ev2<<endl;
+   }
 
    return PowerMethod3(lapmat, bimat, ovec);
 }

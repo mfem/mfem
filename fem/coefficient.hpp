@@ -2234,7 +2234,7 @@ public:
 };
 ///@}
 
-/** @brief 
+/** @brief
 */
 class InverseEstimateCoefficient : public Coefficient
 {
