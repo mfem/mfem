@@ -249,6 +249,73 @@ void FindPointsGSLIB::Setup(Mesh &m, const double bb_t, const double newt_tol,
    setupflag = true;
 }
 
+void FindPointsGSLIB::SetupSurf(Mesh &m, const double bb_t, const double newt_tol,
+                                const int npt_max)
+{
+   const int num_procs = Mpi::WorldSize();
+   const int myid      = Mpi::WorldRank();
+   // EnsureNodes call could be useful if the mesh is 1st order and has no gridfunction defined
+   MFEM_VERIFY(m.GetNodes() != NULL, "Mesh nodes are required.");
+   // Max element order since we will ultimately have all elements of the same order
+   const int meshOrder = m.GetNodes()->FESpace()->GetMaxElementOrder();
+   const int vdim      = m.GetNodes()->FESpace()->GetVDim();
+   const int NE        = m.GetNE();
+
+   // call FreeData if FindPointsGSLIB::Setup has been called already
+   if (setupflag)
+   { FreeData(); }
+
+   crystal_init(cr, gsl_comm);     // Crystal Router
+   mesh = &m;
+   dim  = mesh->Dimension();       // This is reference dimension, which would dictate number of dofs
+   unsigned dof1D  = meshOrder + 1; // dof in one dimension based on max mesh order (since that's the order we we will have ultimately)
+   unsigned pts_el = std::pow(dof1D, dim); // Number of points in an element
+
+   setupSW.Clear();
+   setupSW.Start();
+   Vector ref_node_vals;           // debug vector to store reference element nodal values
+   GetNodalValuesSurf(mesh->GetNodes(), gsl_mesh, ref_node_vals);
+   setupSW.Stop();
+   setup_nodalmapping_time = setupSW.RealTime();
+
+   mesh_points_cnt = gsl_mesh.Size()/vdim;  // Note: this is not dim
+
+   for (int iid = 0; iid < num_procs; iid++)
+   {
+      if (iid == myid)
+      {
+         std::cout << "mesh_points_cnt: " << mesh_points_cnt << " myid"<<myid << std::endl;
+         // Print physical element nodal values
+         for (int ine = 0; ine < NE; ine++)
+         {
+            std::cout << "El " << ine << " phy. coords" << ": ";
+            for (int ipt = 0; ipt < pts_el; ipt++)
+            {
+               for (int d = 0; d < vdim; d++)
+               { std::cout << gsl_mesh(d*mesh_points_cnt + ine*pts_el + ipt) << " "; }
+               std::cout << "; ";
+            }
+            std::cout << std::endl;
+         }
+         // Print reference element nodal values
+         for (int ine = 0; ine < NE; ine++)
+         {
+            std::cout << "El " << ine << " ref. coords" << ": ";
+            for (int ipt = 0; ipt < pts_el; ipt++)
+            {
+               for (int d = 0; d < dim; d++)
+               { std::cout << ref_node_vals(d*mesh_points_cnt + ine*pts_el + ipt) << " "; }
+               std::cout << "; ";
+            }
+            std::cout << std::endl;
+         }
+      }
+      MPI_Barrier(gsl_comm->c);
+   }
+
+   setupflag = true;
+}
+
 void FindPointsGSLIB::FindPoints(const Vector &point_pos,
                                  int point_pos_ordering)
 {
