@@ -585,11 +585,11 @@ public:
    /// Compute the boundary element matrix of the given boundary element
    void ComputeBdrElementMatrix(int i, DenseMatrix &elmat) const;
 
-   /// Compute the face element matrix of the given face element
-   void ComputeFaceElementMatrix(int i, DenseMatrix &elmat) const;
+   /// Compute the face matrix of the given face element
+   void ComputeFaceMatrix(int i, DenseMatrix &elmat) const;
 
-   /// Compute the boundary face element matrix of the given boundary element
-   void ComputeBdrFaceElementMatrix(int i, DenseMatrix &elmat) const;
+   /// Compute the boundary face matrix of the given boundary element
+   void ComputeBdrFaceMatrix(int i, DenseMatrix &elmat) const;
 
    /// Assemble the given element matrix
    /** The element matrix @a elmat is assembled for the element @a i, i.e.
@@ -955,11 +955,11 @@ public:
    /// Compute the boundary element matrix of the given boundary element
    void ComputeBdrElementMatrix(int i, DenseMatrix &elmat) const;
 
-   /// Compute the trace face element matrix of the given face element
-   void ComputeTraceFaceElementMatrix(int i, DenseMatrix &elmat) const;
+   /// Compute the trace face matrix of the given face element
+   void ComputeTraceFaceMatrix(int i, DenseMatrix &elmat) const;
 
-   /// Compute the boundary trace face element matrix of the given boundary element
-   void ComputeBdrTraceFaceElementMatrix(int i, DenseMatrix &elmat) const;
+   /// Compute the boundary trace face matrix of the given boundary element
+   void ComputeBdrTraceFaceMatrix(int i, DenseMatrix &elmat) const;
 
    /// Assemble the given element matrix
    /** The element matrix @a elmat is assembled for the element @a i, i.e.
