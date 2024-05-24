@@ -29,21 +29,24 @@ if (MFEM_USE_MPI)
 
   # Add the corresponding tests to the "test" target
   if (MFEM_ENABLE_TESTING)
-    add_test(NAME block-solvers-constant_np${MFEM_MPI_NP}
-      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
-      ${MPIEXEC_PREFLAGS}
-      $<TARGET_FILE:block-solvers> -rs 1 -rp 1 -no-vis
-      ${MPIEXEC_POSTFLAGS})
+    if (NOT (HYPRE_USING_CUDA OR HYPRE_USING_HIP))
+      # otherwise block-solvers returns MFEM_SKIP_RETURN_VALUE
+      add_test(NAME block-solvers-constant_np${MFEM_MPI_NP}
+        COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+        ${MPIEXEC_PREFLAGS}
+        $<TARGET_FILE:block-solvers> -rs 1 -rp 1 -no-vis
+        ${MPIEXEC_POSTFLAGS})
 
-    add_test(NAME block-solvers-anisotropic_np${MFEM_MPI_NP}
-      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
-      ${MPIEXEC_PREFLAGS}
-      $<TARGET_FILE:block-solvers> -rs 1 -rp 1
-      -m ${CMAKE_CURRENT_SOURCE_DIR}/anisotropic.mesh
-      -c ${CMAKE_CURRENT_SOURCE_DIR}/anisotropic.coeff
-      -eb ${CMAKE_CURRENT_SOURCE_DIR}/anisotropic.brd
-      -no-vis
-      ${MPIEXEC_POSTFLAGS})
+      add_test(NAME block-solvers-anisotropic_np${MFEM_MPI_NP}
+        COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+        ${MPIEXEC_PREFLAGS}
+        $<TARGET_FILE:block-solvers> -rs 1 -rp 1
+        -m ${CMAKE_CURRENT_SOURCE_DIR}/anisotropic.mesh
+        -c ${CMAKE_CURRENT_SOURCE_DIR}/anisotropic.coeff
+        -eb ${CMAKE_CURRENT_SOURCE_DIR}/anisotropic.brd
+        -no-vis
+        ${MPIEXEC_POSTFLAGS})
+    endif()
 
     add_test(NAME plor_solvers_np${MFEM_MPI_NP}
       COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}

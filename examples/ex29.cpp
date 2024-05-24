@@ -34,7 +34,7 @@ void trans(const Vector &x, Vector &r);
 
 void sigmaFunc(const Vector &x, DenseMatrix &s);
 
-double uExact(const Vector &x)
+real_t uExact(const Vector &x)
 {
    return (0.25 * (2.0 + x[0]) - x[2]) * (x[2] + 0.25 * (2.0 + x[0]));
 }
@@ -167,7 +167,7 @@ int main(int argc, char *argv[])
 
    // 13. Compute error in the solution and its flux
    FunctionCoefficient uCoef(uExact);
-   double error = x.ComputeL2Error(uCoef);
+   real_t error = x.ComputeL2Error(uCoef);
 
    cout << "|u - u_h|_2 = " << error << endl;
 
@@ -176,7 +176,7 @@ int main(int argc, char *argv[])
    x.ComputeFlux(*integ, flux); flux *= -1.0;
 
    VectorFunctionCoefficient fluxCoef(3, fluxExact);
-   double flux_err = flux.ComputeL2Error(fluxCoef);
+   real_t flux_err = flux.ComputeL2Error(fluxCoef);
 
    cout << "|f - f_h|_2 = " << flux_err << endl;
 
@@ -304,8 +304,8 @@ void trans(const Vector &x, Vector &r)
 {
    r.SetSize(3);
 
-   double tol = 1e-6;
-   double theta = 0.0;
+   real_t tol = 1e-6;
+   real_t theta = 0.0;
    if (fabs(x[1] + 1.0) < tol)
    {
       theta = 0.25 * M_PI * (x[0] - 2.0);
@@ -337,7 +337,7 @@ void trans(const Vector &x, Vector &r)
 void sigmaFunc(const Vector &x, DenseMatrix &s)
 {
    s.SetSize(3);
-   double a = 17.0 - 2.0 * x[0] * (1.0 + x[0]);
+   real_t a = 17.0 - 2.0 * x[0] * (1.0 + x[0]);
    s(0,0) = 0.5 + x[0] * x[0] * (8.0 / a - 0.5);
    s(0,1) = x[0] * x[1] * (8.0 / a - 0.5);
    s(0,2) = 0.0;
