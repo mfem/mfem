@@ -4467,16 +4467,12 @@ void ParFiniteElementSpace::Update(bool want_transform)
 // TODO: serial version of this.
 void ParFiniteElementSpace::UpdatePRef(const Array<PRefinement> & pref)
 {
-   delete PTh;
-
-   // TODO: avoid this copy of the current space.
-   delete cfes;
-   cfes = new ParFiniteElementSpace(pmesh, fec);
+   fesPrev.reset(new ParFiniteElementSpace(pmesh, fec));
    for (int i = 0; i<pmesh->GetNE(); i++)
    {
-      cfes->SetElementOrder(i, GetElementOrder(i));
+      fesPrev->SetElementOrder(i, GetElementOrder(i));
    }
-   cfes->Update(false);
+   fesPrev->Update(false);
 
    for (auto ref : pref)
    {
@@ -4485,7 +4481,7 @@ void ParFiniteElementSpace::UpdatePRef(const Array<PRefinement> & pref)
 
    Update(false);
 
-   PTh = new PRefinementTransferOperator(*cfes, *this);
+   PTh.reset(new PRefinementTransferOperator(*fesPrev, *this));
 }
 
 void ParFiniteElementSpace::UpdateMeshPointer(Mesh *new_mesh)

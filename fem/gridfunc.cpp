@@ -195,7 +195,8 @@ void GridFunction::Update()
 
 void GridFunction::UpdatePRef()
 {
-   const PRefinementTransferOperator *Tp = fes->GetPrefUpdateOperator();
+   std::shared_ptr<const PRefinementTransferOperator> Tp =
+      fes->GetPrefUpdateOperator();
    if (Tp)
    {
       Vector old_data;
