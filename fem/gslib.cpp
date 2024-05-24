@@ -1897,9 +1897,9 @@ void FindPointsGSLIB::GetNodalValuesSurf(const GridFunction *gf_in,
 
       const TensorBasisElement *tbe = dynamic_cast<const TensorBasisElement *>(fes->GetFE(ie));  // could we use *fe here?
       MFEM_VERIFY(tbe != NULL, "TensorBasis FiniteElement expected.");
-      const Array<int> &dm          = tbe->GetDofMap();
+      const Array<int> &dm          = tbe->GetDofMap(); // maps current dof IDs to their lexicographic order
 
-      // GetDofs() returns an empty array if nodes are already lexicographically ordered
+      // GetDofMap() returns an empty array if nodes are already lexicographically ordered
       if (dm.Size()>0) dof_map = dm;
       else
       {
