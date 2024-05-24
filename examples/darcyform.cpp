@@ -1092,8 +1092,8 @@ void DarcyHybridization::ConstructC()
             fe2 = fe1;
             for (int k = 0; k < boundary_constraint_integs.Size(); k++)
             {
-               if (boundary_constraint_integs_marker[k])
-                  if ((*boundary_constraint_integs_marker[k])[bdr_attr-1] == 0) { continue; }
+               if (boundary_constraint_integs_marker[k] &&
+                   (*boundary_constraint_integs_marker[k])[bdr_attr-1] == 0) { continue; }
 
                boundary_constraint_integs[k]->AssembleFaceMatrix(*face_el, *fe1, *fe2, *FTr,
                                                                  elmat);
