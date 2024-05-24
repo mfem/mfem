@@ -1543,13 +1543,12 @@ SparseMatrix *FiniteElementSpace::VariableOrderRefinementMatrix_main(
    const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
    DenseMatrix lP;
    IsoparametricTransformation isotr;
-   const FiniteElement *fe = nullptr;
    for (int k = 0; k < mesh->GetNE(); k++)
    {
       const Embedding &emb = rtrans.embeddings[k];
       const Geometry::Type geom = mesh->GetElementBaseGeometry(k);
 
-      fe = GetFE(k);
+      const FiniteElement *fe = GetFE(k);
       isotr.SetIdentityTransformation(geom);
       const int ldof = fe->GetDof();
       lP.SetSize(ldof, ldof);
@@ -1582,9 +1581,8 @@ SparseMatrix *FiniteElementSpace::VariableOrderRefinementMatrix_main(
       }
    }
 
-   // Not sure if this check makes sense in the variable order case
-   // MFEM_ASSERT(mark.Sum() == P->Height(), "Not all rows of P set.");
-   if (elem_geoms.Size() != 1) { P->Finalize(); }
+   MFEM_ASSERT(mark.Sum() == P->Height(), "Not all rows of P set.");
+   P->Finalize();
    return P;
 }
 
@@ -1752,7 +1750,6 @@ void FiniteElementSpace::RefinementOperator::Mult(const Vector &x,
 
    DenseMatrix eP;
    IsoparametricTransformation isotr;
-   const FiniteElement *fe = nullptr;
 
    for (int k = 0; k < mesh_ref->GetNE(); k++)
    {
@@ -1760,7 +1757,7 @@ void FiniteElementSpace::RefinementOperator::Mult(const Vector &x,
       const Geometry::Type geom = mesh_ref->GetElementBaseGeometry(k);
       if (fespace->IsVariableOrder())
       {
-         fe = fespace->GetFE(k);
+         const FiniteElement *fe = fespace->GetFE(k);
          isotr.SetIdentityTransformation(geom);
          const int ldof = fe->GetDof();
          eP.SetSize(ldof, ldof);
@@ -2287,11 +2284,11 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
       }
    }
 
-   // if (!is_dg)
-   // {
-   //    MFEM_VERIFY(num_marked == R->Height(),
-   //                "internal error: not all rows of R were set.");
-   // }
+   if (!is_dg && !IsVariableOrder())
+   {
+      MFEM_VERIFY(num_marked == R->Height(),
+                  "internal error: not all rows of R were set.");
+   }
 
    R->Finalize(); // no-op if fixed width
    return R;
@@ -3674,11 +3671,23 @@ void FiniteElementSpace::Update(bool want_transform)
          {
             BuildConformingInterpolation();
             Th.Reset(DerefinementMatrix(old_ndofs, old_elem_dof, old_elem_fos));
-            if (cP && cR)
+            if (IsVariableOrder())
             {
-               Th.SetOperatorOwner(false);
-               Th.Reset(new TripleProductOperator(cP.get(), cR.get(), Th.Ptr(),
-                                                  false, false, true));
+               if (cP && cR_hp)
+               {
+                  Th.SetOperatorOwner(false);
+                  Th.Reset(new TripleProductOperator(cP.get(), cR_hp.get(), Th.Ptr(),
+                                                     false, false, true));
+               }
+            }
+            else
+            {
+               if (cP && cR)
+               {
+                  Th.SetOperatorOwner(false);
+                  Th.Reset(new TripleProductOperator(cP.get(), cR.get(), Th.Ptr(),
+                                                     false, false, true));
+               }
             }
             break;
          }
