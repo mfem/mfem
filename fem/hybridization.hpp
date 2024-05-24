@@ -15,6 +15,7 @@
 #include "../config/config.hpp"
 #include "fespace.hpp"
 #include "bilininteg.hpp"
+#include "hybridization_ext.hpp"
 #include <memory>
 
 namespace mfem
@@ -61,9 +62,12 @@ namespace mfem
     (weak) continuity constraints between neighboring elements. */
 class Hybridization
 {
+   friend class HybridizationExtension;
 protected:
    FiniteElementSpace &fes; ///< The finite element space.
    FiniteElementSpace &c_fes; ///< The constraint finite element space.
+   /// Extension for device execution.
+   std::unique_ptr<HybridizationExtension> ext;
    /// The constraint integrator.
    std::unique_ptr<BilinearFormIntegrator> c_bfi;
    /// The constraint matrix.
@@ -106,6 +110,9 @@ protected:
 public:
    /// Constructor.
    Hybridization(FiniteElementSpace *fespace, FiniteElementSpace *c_fespace);
+
+   /// Turns on device execution.
+   void EnableDeviceExecution();
 
    /// @brief Set the integrator that will be used to construct the constraint
    /// matrix C.
