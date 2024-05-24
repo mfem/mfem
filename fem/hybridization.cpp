@@ -841,6 +841,12 @@ void Hybridization::ReduceRHS(const Vector &b, Vector &b_r) const
 void Hybridization::ComputeSolution(const Vector &b, const Vector &sol_r,
                                     Vector &sol) const
 {
+   if (ext)
+   {
+      ext->ComputeSolution(b, sol_r, sol);
+      return;
+   }
+
    // bf = Af^{-1} ( Rf^t - Cf^t sol_r )
    Vector bf;
    MultAfInv(b, sol_r, bf, 1);
