@@ -84,8 +84,10 @@ protected:
    /// Construct the constraint matrix.
    void ConstructC();
 
+   /// Returns the local indices of the i-dofs and b-dofs of element @a el.
    void GetIBDofs(int el, Array<int> &i_dofs, Array<int> &b_dofs) const;
 
+   /// Returns global indices of the b-dofs of element @a el.
    void GetBDofs(int el, int &num_idofs, Array<int> &b_dofs) const;
 
    /// Construct the Schur complement system.
