@@ -18,6 +18,14 @@
 namespace mfem
 {
 
+/// @brief Extension class supporting Hybridization on device (GPU).
+///
+/// Similar to BilinearFormExtension and LinearFormExtension, this extension
+/// class provides device execution capabilities for the Hybridization class.
+///
+/// As with the other extension classes, a limitation of this class is that it
+/// requires meshes consisting only of tensor-product elements, and finite
+/// element spaces without variable polynomial degrees.
 class HybridizationExtension
 {
 protected:
