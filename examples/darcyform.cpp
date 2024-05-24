@@ -472,9 +472,8 @@ void DarcyForm::AssemblePotHDGFaces(int skip_zeros)
          tr = mesh -> GetBdrFaceTransformations (i);
          if (tr != NULL)
          {
-            if (boundary_face_integs_marker[0])
-               if ((*boundary_face_integs_marker[0])[bdr_attr-1] == 0)
-               { continue; }
+            if (boundary_face_integs_marker[0]
+                && (*boundary_face_integs_marker[0])[bdr_attr-1] == 0) { continue; }
 
             hybridization->ComputeAndAssemblePotBdrFaceMatrix(i, elmat1, vdofs1);
 #ifndef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
