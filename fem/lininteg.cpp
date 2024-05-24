@@ -144,7 +144,7 @@ void DomainLFLaplaceIntegrator::AssembleRHSElementVect(const FiniteElement &el,
       const IntegrationPoint &ip = ir->IntPoint(i);
 
       Tr.SetIntPoint (&ip);
-      real_t val = Tr.Weight() * Q.Eval(Tr, ip);
+      real_t val = Tr.Weight() * Q.Eval(Tr, ip) * alpha;
 
       el.CalcPhysLaplacian(Tr, laplace);
 

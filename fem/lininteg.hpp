@@ -180,11 +180,13 @@ class DomainLFLaplaceIntegrator : public LinearFormIntegrator
 private:
    Vector laplace;
    Coefficient &Q;
+   real_t alpha;
    int oa, ob;
 public:
    /// Constructs the domain integrator $ (Q, \nabla v) $
-   DomainLFLaplaceIntegrator(Coefficient &QF, int a = 2, int b = 0)
-      : Q(QF), oa(a), ob(b)  { }
+   DomainLFLaplaceIntegrator(Coefficient &QF, real_t alp = 1.0, int a = 2,
+                             int b = 0)
+      : Q(QF), oa(a), ob(b)   { alpha = alp; }
 
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element right hand side element vector, elvect. */
