@@ -2849,9 +2849,8 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(Array<VarOrderBits> &edge_orders,
    }
 }
 
-// TODO: change Array<int> to Array<VarOrderBits> for entity_orders?
 int FiniteElementSpace::MakeDofTable(int ent_dim,
-                                     const Array<int> &entity_orders,
+                                     const Array<VarOrderBits> &entity_orders,
                                      Table &entity_dofs,
                                      Array<char> *var_ent_order)
 {

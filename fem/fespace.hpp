@@ -405,7 +405,7 @@ protected:
 
    /** Build the table var_edge_dofs (or var_face_dofs) in a variable order
         space; return total edge/face DOFs. */
-   int MakeDofTable(int ent_dim, const Array<int> &entity_orders,
+   int MakeDofTable(int ent_dim, const Array<VarOrderBits> &entity_orders,
                     Table &entity_dofs, Array<char> *var_ent_order);
 
    /// Search row of a DOF table for a DOF set of size 'ndof', return first DOF.
