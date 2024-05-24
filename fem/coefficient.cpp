@@ -1446,7 +1446,7 @@ real_t InverseEstimateCoefficient::ElementInverseEstimate(
    bimat.SetSize(nd,nd);
    ovec.SetSize(nd);
 
-   real_t w,q;
+   real_t w,q = 1.0;
 
    bimat = 0.0;
    lapmat = 0.0;
@@ -1470,30 +1470,10 @@ real_t InverseEstimateCoefficient::ElementInverseEstimate(
       el.CalcPhysShape(Trans, shape);
       ovec.Add(w, shape);
    }
-   ovec *= 1.0/ovec.Norml2();
+  /// ovec *= 1.0/ovec.Norml2();
 
-   // Correct nullspace + inverse
-   AddMult_a_VVt(1.0, ovec, lapmat);
-
-   real_t ev3 = PowerMethod3(lapmat, bimat, ovec);
-
-   if (evec.Size() != nd)
-   {
-      evec.SetSize(nd);
-      evec.Randomize(122134);
-   }
-
-   real_t alpha = evec*ovec;
-   evec.Add(-alpha, ovec);
-
-
-
-   real_t ev2 = PowerMethod2(lapmat, bimat, evec, ovec, 100, 1e-10, 0);
-
-   if (fabs(ev3-ev2)/(ev3+ev2) > 0.01)
-   {
-      cout<<ev3<<" "<<ev2<<endl;
-   }
+   // Correct nullspace
+   AddMultVVt(ovec, lapmat);
 
    return PowerMethod3(lapmat, bimat, ovec);
 }
