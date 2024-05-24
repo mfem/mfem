@@ -4314,12 +4314,12 @@ real_t PowerMethod3(DenseMatrix &a, DenseMatrix &b, Vector& null)
    }
    while ((iter < 10000) && (fabs(eval_i - eval_prev)/fabs(eval_i) > rel_tol));
    MFEM_VERIFY(fabs(eval_i - eval_prev)/fabs(eval_i) <= rel_tol,
-                  "Inverse power method did not converge."
-                  << "\n\t iter      = " << iter
-                  << "\n\t eval_i    = " << eval_i
-                  << "\n\t eval_prev = " << eval_prev
-                  << "\n\t fabs(eval_i - eval_prev)/fabs(eval_i) = "
-                  << fabs(eval_i - eval_prev)/fabs(eval_i));
+               "Inverse power method did not converge."
+               << "\n\t iter      = " << iter
+               << "\n\t eval_i    = " << eval_i
+               << "\n\t eval_prev = " << eval_prev
+               << "\n\t fabs(eval_i - eval_prev)/fabs(eval_i) = "
+               << fabs(eval_i - eval_prev)/fabs(eval_i));
    return eval_i;
 }
 
