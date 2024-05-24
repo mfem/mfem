@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "hybridization.hpp"
+#include "hybridization_ext.hpp"
 #include "gridfunc.hpp"
 
 #ifdef MFEM_USE_MPI
@@ -890,5 +891,9 @@ void Hybridization::Reset()
    pH.Clear();
 #endif
 }
+
+// Set to default in cpp file because of use of incomplete type
+// (HybridizationExtension) in unique_ptr member data.
+Hybridization::~Hybridization() = default;
 
 }
