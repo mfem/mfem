@@ -80,6 +80,7 @@ set(SRCS
   geom.cpp
   gridfunc.cpp
   hybridization.cpp
+  hybridization_ext.cpp
   intrules.cpp
   intrules_cut.cpp
   ceed/interface/basis.cpp
@@ -190,6 +191,7 @@ set(HDRS
   geom.hpp
   gridfunc.hpp
   hybridization.hpp
+  hybridization_ext.hpp
   intrules.hpp
   intrules_cut.hpp
   ceed/interface/basis.hpp
