@@ -13,6 +13,7 @@
 
 #include "gridfunc.hpp"
 #include "quadinterpolator.hpp"
+#include "transfer.hpp"
 #include "../mesh/nurbs.hpp"
 #include "../general/text.hpp"
 
@@ -190,6 +191,19 @@ void GridFunction::Update()
    }
 
    if (t_vec.Size() > 0) { SetTrueVector(); }
+}
+
+void GridFunction::UpdatePRef()
+{
+   const PRefinementTransferOperator *Tp = fes->GetPrefUpdateOperator();
+   if (Tp)
+   {
+      Vector old_data;
+      old_data.Swap(*this);
+      SetSize(Tp->Height());
+      UseDevice(true);
+      Tp->Mult(old_data, *this);
+   }
 }
 
 void GridFunction::SetSpace(FiniteElementSpace *f)

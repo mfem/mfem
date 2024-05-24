@@ -255,6 +255,8 @@ public:
 
    /// Reset the associated estimator.
    virtual void Reset();
+
+   int MarkWithoutRefining(Mesh & mesh, Array<Refinement> & refinements);
 };
 
 // TODO: BulkRefiner to refine a portion of the global error

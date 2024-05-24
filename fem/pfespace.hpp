@@ -94,6 +94,9 @@ private:
    /// Flag indicating the existence of shared triangles with interior ND dofs
    bool nd_strias;
 
+   // TODO: eliminate this
+   ParFiniteElementSpace *cfes = nullptr;
+
    /// Resets nd_strias flag at construction or after rebalancing
    void CheckNDSTriaDofs();
 
@@ -444,6 +447,8 @@ public:
    /** Reflect changes in the mesh. Calculate one of the refinement/derefinement
        /rebalance matrices, unless want_transform is false. */
    void Update(bool want_transform = true) override;
+
+   void UpdatePRef(const Array<PRefinement> & pref);
 
    /// Free ParGridFunction transformation matrix (if any), to save memory.
    void UpdatesFinished() override
