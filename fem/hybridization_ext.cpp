@@ -11,6 +11,7 @@
 
 #include "hybridization_ext.hpp"
 #include "hybridization.hpp"
+#include "../general/forall.hpp"
 
 namespace mfem
 {
@@ -80,88 +81,117 @@ void HybridizationExtension::Init(const Array<int> &ess_tdof_list)
    const auto *R = dynamic_cast<const ElementRestriction*>(R_op);
    MFEM_VERIFY(R, "");
 
-   Array<int> vdofs;
-   const int NE = h.fes.GetNE();
+   const int ne = h.fes.GetNE();
 
    // count the number of dofs in the discontinuous version of fes:
-   int num_hat_dofs = 0;
-   h.hat_offsets.SetSize(NE+1);
-   h.hat_offsets[0] = 0;
-   for (int i = 0; i < NE; i++)
+   const int ndof_per_el = h.fes.GetFE(0)->GetDof();
+   const int num_hat_dofs = ne*ndof_per_el;
    {
-      h.fes.GetElementVDofs(i, vdofs);
-      num_hat_dofs += vdofs.Size();
-      h.hat_offsets[i+1] = num_hat_dofs;
+      h.hat_offsets.SetSize(ne + 1);
+      int *d_hat_offsets = h.hat_offsets.Write();
+      mfem::forall(ne + 1, [=] MFEM_HOST_DEVICE (int i)
+      {
+         d_hat_offsets[i] = i*ndof_per_el;
+      });
    }
 
    ConstructC();
 
-   // Define the "free" (0) and "essential" (1) hat_dofs.
-   // The "essential" hat_dofs are those that depend only on essential cdofs;
-   // all other hat_dofs are "free".
-   h.hat_dofs_marker.SetSize(num_hat_dofs);
-   Array<int> free_tdof_marker;
-   free_tdof_marker.SetSize(h.fes.GetConformingVSize());
-   free_tdof_marker = 1;
-   for (int i = 0; i < ess_tdof_list.Size(); i++)
+   // We now split the "hat DOFs" (broken DOFs) into three classes of DOFs, each
+   // marked with an integer:
+   //
+   //  1: essential DOFs (depending only on essential Lagrange multiplier DOFs)
+   //  0: free interior DOFs (the corresponding column in the C matrix is zero,
+   //     this happens when the DOF is in the interior on an element)
+   // -1: free boundary DOFs (free DOFs that lie on the interface between two
+   //     elements)
    {
-      free_tdof_marker[ess_tdof_list[i]] = 0;
-   }
-   Array<int> free_vdofs_marker;
-
-   const SparseMatrix *cP = h.fes.GetConformingProlongation();
-   if (!cP)
-   {
-      free_vdofs_marker.MakeRef(free_tdof_marker);
-   }
-   else
-   {
-      free_vdofs_marker.SetSize(h.fes.GetVSize());
-      cP->BooleanMult(free_tdof_marker, free_vdofs_marker);
-   }
-
-   for (int i = 0; i < NE; i++)
-   {
-      h.fes.GetElementVDofs(i, vdofs);
-      FiniteElementSpace::AdjustVDofs(vdofs);
-      for (int j = 0; j < vdofs.Size(); j++)
+      const int ntdofs = h.fes.GetTrueVSize();
+      Array<int> free_tdof_marker(ntdofs);
       {
-         h.hat_dofs_marker[h.hat_offsets[i]+j] = ! free_vdofs_marker[vdofs[j]];
+         int *d_free_tdof_marker = free_tdof_marker.Write();
+         mfem::forall(ntdofs, [=] MFEM_HOST_DEVICE (int i)
+         {
+            d_free_tdof_marker[i] = 1;
+         });
+         const int n_ess_dofs = ess_tdof_list.Size();
+         const int *d_ess_tdof_list = ess_tdof_list.Read();
+         mfem::forall(n_ess_dofs, [=] MFEM_HOST_DEVICE (int i)
+         {
+            d_free_tdof_marker[d_ess_tdof_list[i]] = 0;
+         });
+      }
+
+      Array<int> free_vdofs_marker;
+      const SparseMatrix *cP = h.fes.GetConformingProlongation();
+      if (!cP)
+      {
+         free_vdofs_marker.MakeRef(free_tdof_marker);
+      }
+      else
+      {
+         free_vdofs_marker.SetSize(h.fes.GetVSize());
+         cP->BooleanMult(free_tdof_marker, free_vdofs_marker);
+      }
+
+      h.hat_dofs_marker.SetSize(num_hat_dofs);
+      {
+         // The gather map from the ElementRestriction operator gives us the
+         // index of the L-dof corresponding to a given (element, local DOF)
+         // index pair.
+         const int *gather_map = R->GatherMap().Read();
+         const int *d_free_vdofs_marker = free_vdofs_marker.Read();
+         int *d_hat_dofs_marker = h.hat_dofs_marker.Write();
+
+         // Set the hat_dofs_marker to 1 or 0 according to whether the DOF is
+         // "free" or "essential". Then, as a later step, the "free" DOFs will
+         // be further classified as "interior free" or "boundary free".
+         mfem::forall(ne*ndof_per_el, [=] MFEM_HOST_DEVICE (int i)
+         {
+            const int j_s = gather_map[i];
+            const int j = (j_s >= 0) ? j_s : -1 - j_s;
+            d_hat_dofs_marker[i] = !d_free_vdofs_marker[j];
+         });
+
+         // A free DOF is "interior" or "internal" if the corresponding column
+         // of C (row of C^T) is zero. We mark the free DOFs with non-zero
+         // columns of C as boundary free DOFs.
+         const int *d_I = h.Ct->ReadI();
+         mfem::forall(ne*ndof_per_el, [=] MFEM_HOST_DEVICE (int i)
+         {
+            const int row_size = d_I[i+1] - d_I[i];
+            if (d_hat_dofs_marker[i] == 0 && row_size > 0)
+            {
+               d_hat_dofs_marker[i] = -1;
+            }
+         });
       }
    }
-   free_tdof_marker.DeleteAll();
-   free_vdofs_marker.DeleteAll();
-   // Split the "free" (0) hat_dofs into "internal" (0) or "boundary" (-1).
-   // The "internal" hat_dofs are those "free" hat_dofs for which the
-   // corresponding column in C is zero; otherwise the free hat_dof is
-   // "boundary".
-   for (int i = 0; i < num_hat_dofs; i++)
+
+   // Define Af_offsets and Af_f_offsets. Af_offsets are the offsets of the
+   // matrix blocks into the data array Af_data.
+   //
+   // Af_f_offsets are the offets of the pivots (coming from LU factorization)
+   // that are stored in the data array Af_ipiv.
+   //
+   // NOTE: as opposed to the non-device version of hybridization, the essential
+   // DOFs are included in these matrices to ensure that all matrices have
+   // identical sizes. This enabled efficient batched matrix computations.
+
+   h.Af_offsets.SetSize(ne+1);
+   h.Af_f_offsets.SetSize(ne+1);
    {
-      // skip "essential" hat_dofs and empty rows in Ct
-      if (h.hat_dofs_marker[i] != 1 && h.Ct->RowSize(i) > 0)
+      int *Af_offsets = h.Af_offsets.Write();
+      int *Af_f_offsets = h.Af_f_offsets.Write();
+      mfem::forall(ne + 1, [=] MFEM_HOST_DEVICE (int i)
       {
-         h.hat_dofs_marker[i] = -1; // mark this hat_dof as "boundary"
-      }
+         Af_f_offsets[i] = i*ndof_per_el;
+         Af_offsets[i] = i*ndof_per_el*ndof_per_el;
+      });
    }
 
-   // Define Af_offsets and Af_f_offsets
-   h.Af_offsets.SetSize(NE+1);
-   h.Af_offsets[0] = 0;
-   h.Af_f_offsets.SetSize(NE+1);
-   h.Af_f_offsets[0] = 0;
-   for (int i = 0; i < NE; i++)
-   {
-      int f_size = 0; // count the "free" hat_dofs in element i
-      for (int j = h.hat_offsets[i]; j < h.hat_offsets[i+1]; j++)
-      {
-         if (h.hat_dofs_marker[j] != 1) { f_size++; }
-      }
-      h.Af_offsets[i+1] = h.Af_offsets[i] + f_size*f_size;
-      h.Af_f_offsets[i+1] = h.Af_f_offsets[i] + f_size;
-   }
-
-   h.Af_data.SetSize(h.Af_offsets[NE]);
-   h.Af_ipiv.SetSize(h.Af_f_offsets[NE]);
+   h.Af_data.SetSize(ne*ndof_per_el*ndof_per_el);
+   h.Af_ipiv.SetSize(ne*ndof_per_el);
 }
 
 }
