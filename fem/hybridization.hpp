@@ -15,7 +15,6 @@
 #include "../config/config.hpp"
 #include "fespace.hpp"
 #include "bilininteg.hpp"
-#include "hybridization_ext.hpp"
 #include <memory>
 
 namespace mfem
@@ -67,7 +66,7 @@ protected:
    FiniteElementSpace &fes; ///< The finite element space.
    FiniteElementSpace &c_fes; ///< The constraint finite element space.
    /// Extension for device execution.
-   std::unique_ptr<HybridizationExtension> ext;
+   std::unique_ptr<class HybridizationExtension> ext;
    /// The constraint integrator.
    std::unique_ptr<BilinearFormIntegrator> c_bfi;
    /// The constraint matrix.
@@ -110,6 +109,9 @@ protected:
 public:
    /// Constructor.
    Hybridization(FiniteElementSpace *fespace, FiniteElementSpace *c_fespace);
+
+   /// Destructor.
+   ~Hybridization();
 
    /// Turns on device execution.
    void EnableDeviceExecution();
