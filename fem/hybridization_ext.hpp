@@ -14,6 +14,7 @@
 
 #include "../config/config.hpp"
 #include "../general/array.hpp"
+#include "../linalg/vector.hpp"
 
 namespace mfem
 {
@@ -30,6 +31,16 @@ class HybridizationExtension
 {
 protected:
    class Hybridization &h; ///< The associated Hybridization object.=
+   int num_hat_dofs; ///< Number of Lagrange multipliers.
+   mutable Vector tmp1, tmp2; ///< Temporary vectors.
+
+   enum HatDofType
+   {
+      FREE_BOUNDARY = -1,
+      FREE_INTERIOR = 0,
+      ESSENTIAL = 1
+   };
+
    /// Construct the constraint matrix.
    void ConstructC();
 public:
@@ -37,6 +48,7 @@ public:
    HybridizationExtension(class Hybridization &hybridization_);
    /// Prepare for assembly; form the constraint matrix.
    void Init(const Array<int> &ess_tdof_list);
+   void ComputeSolution(const Vector &b, const Vector &sol_r, Vector &sol) const;
 };
 
 }

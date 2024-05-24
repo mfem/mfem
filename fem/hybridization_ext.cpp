@@ -22,15 +22,6 @@ HybridizationExtension::HybridizationExtension(Hybridization &hybridization_)
 
 void HybridizationExtension::ConstructC()
 {
-   FiniteElementSpace &fes = h.fes;
-
-   const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
-   const Operator *R_op = fes.GetElementRestriction(ordering);
-   const auto *R = dynamic_cast<const ElementRestriction*>(R_op);
-
-   // const int NE = fes.GetNE();
-   int num_hat_dofs = R->Height();
-
    Array<int> vdofs, c_vdofs;
    int c_num_face_nbr_dofs = 0;
 
@@ -76,7 +67,8 @@ void HybridizationExtension::ConstructC()
 
 void HybridizationExtension::Init(const Array<int> &ess_tdof_list)
 {
-   const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
+   const ElementDofOrdering ordering = ElementDofOrdering::NATIVE;
+
    const Operator *R_op = h.fes.GetElementRestriction(ordering);
    const auto *R = dynamic_cast<const ElementRestriction*>(R_op);
    MFEM_VERIFY(R, "");
@@ -85,7 +77,7 @@ void HybridizationExtension::Init(const Array<int> &ess_tdof_list)
 
    // count the number of dofs in the discontinuous version of fes:
    const int ndof_per_el = h.fes.GetFE(0)->GetDof();
-   const int num_hat_dofs = ne*ndof_per_el;
+   num_hat_dofs = ne*ndof_per_el;
    {
       h.hat_offsets.SetSize(ne + 1);
       int *d_hat_offsets = h.hat_offsets.Write();
@@ -105,8 +97,11 @@ void HybridizationExtension::Init(const Array<int> &ess_tdof_list)
    //     this happens when the DOF is in the interior on an element)
    // -1: free boundary DOFs (free DOFs that lie on the interface between two
    //     elements)
+   //
+   // These integers are used to define the values in HatDofType enum.
    {
       const int ntdofs = h.fes.GetTrueVSize();
+      // free_tdof_marker is 1 if the DOF is free, 0 if the DOF is essential
       Array<int> free_tdof_marker(ntdofs);
       {
          int *d_free_tdof_marker = free_tdof_marker.Write();
@@ -144,25 +139,26 @@ void HybridizationExtension::Init(const Array<int> &ess_tdof_list)
          int *d_hat_dofs_marker = h.hat_dofs_marker.Write();
 
          // Set the hat_dofs_marker to 1 or 0 according to whether the DOF is
-         // "free" or "essential". Then, as a later step, the "free" DOFs will
-         // be further classified as "interior free" or "boundary free".
-         mfem::forall(ne*ndof_per_el, [=] MFEM_HOST_DEVICE (int i)
+         // "free" or "essential". (For now, we mark all free DOFs as free
+         // interior as a placeholder). Then, as a later step, the "free" DOFs
+         // will be further classified as "interior free" or "boundary free".
+         mfem::forall(num_hat_dofs, [=] MFEM_HOST_DEVICE (int i)
          {
             const int j_s = gather_map[i];
             const int j = (j_s >= 0) ? j_s : -1 - j_s;
-            d_hat_dofs_marker[i] = !d_free_vdofs_marker[j];
+            d_hat_dofs_marker[i] = d_free_vdofs_marker[j] ? FREE_INTERIOR : ESSENTIAL;
          });
 
          // A free DOF is "interior" or "internal" if the corresponding column
          // of C (row of C^T) is zero. We mark the free DOFs with non-zero
          // columns of C as boundary free DOFs.
          const int *d_I = h.Ct->ReadI();
-         mfem::forall(ne*ndof_per_el, [=] MFEM_HOST_DEVICE (int i)
+         mfem::forall(num_hat_dofs, [=] MFEM_HOST_DEVICE (int i)
          {
             const int row_size = d_I[i+1] - d_I[i];
             if (d_hat_dofs_marker[i] == 0 && row_size > 0)
             {
-               d_hat_dofs_marker[i] = -1;
+               d_hat_dofs_marker[i] = FREE_BOUNDARY;
             }
          });
       }
@@ -192,6 +188,59 @@ void HybridizationExtension::Init(const Array<int> &ess_tdof_list)
 
    h.Af_data.SetSize(ne*ndof_per_el*ndof_per_el);
    h.Af_ipiv.SetSize(ne*ndof_per_el);
+}
+
+void HybridizationExtension::ComputeSolution(
+   const Vector &b, const Vector &sol_r, Vector &sol) const
+{
+   // First, represent the solution on the "broken" space with vector 'tmp1'.
+
+   // tmp1 = Af^{-1} ( Rf^t - Cf^t sol_r )
+   tmp1.SetSize(num_hat_dofs);
+   h.MultAfInv(b, sol_r, tmp1, 1);
+
+   // The T-vector 'sol' has the correct essential boundary conditions. We
+   // covert sol to an L-vector ('tmp2') to preserve those boundary values in
+   // the output solution.
+   const Operator *R = h.fes.GetRestrictionOperator();
+   if (!R)
+   {
+      MFEM_ASSERT(sol.Size() == h.fes.GetVSize(), "");
+      tmp2.MakeRef(sol, 0);
+   }
+   else
+   {
+      tmp2.SetSize(R->Width());
+      R->MultTranspose(sol, tmp2);
+   }
+
+   // Move vector 'tmp1' from broken space to L-vector 'tmp2'.
+   {
+      const ElementDofOrdering ordering = ElementDofOrdering::NATIVE;
+      const auto *R = static_cast<const ElementRestriction*>(
+                         h.fes.GetElementRestriction(ordering));
+      const int *gather_map = R->GatherMap().Read();
+      const int *d_hat_dofs_marker = h.hat_dofs_marker.Read();
+      const double *d_evec = tmp1.ReadWrite();
+      double *d_lvec = tmp2.ReadWrite();
+      mfem::forall(num_hat_dofs, [=] MFEM_HOST_DEVICE (int i)
+      {
+         // Skip essential DOFs
+         if (d_hat_dofs_marker[i] == ESSENTIAL) { return; }
+
+         const int j_s = gather_map[i];
+         const int sgn = (j_s >= 0) ? 1 : -1;
+         const int j = (j_s >= 0) ? j_s : -1 - j_s;
+
+         d_lvec[j] = sgn*d_evec[i];
+      });
+   }
+
+   // Finally, convert from L-vector to T-vector.
+   if (R)
+   {
+      R->Mult(tmp2, sol);
+   }
 }
 
 }
