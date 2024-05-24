@@ -15,6 +15,8 @@
 
 #include "pfespace.hpp"
 #include "prestriction.hpp"
+#include "transfer.hpp"
+
 #include "../general/forall.hpp"
 #include "../general/sort_pairs.hpp"
 #include "../mesh/mesh_headers.hpp"
@@ -4369,7 +4371,8 @@ void ParFiniteElementSpace::Update(bool want_transform)
    {
       return; // no need to update, no-op
    }
-   if (want_transform && mesh->GetSequence() != mesh_sequence + 1)
+   if (want_transform && mesh->GetSequence() != mesh_sequence + 1 &&
+       !variableOrder)
    {
       MFEM_ABORT("Error in update sequence. Space needs to be updated after "
                  "each mesh modification.");
@@ -4399,12 +4402,12 @@ void ParFiniteElementSpace::Update(bool want_transform)
    Destroy();  // Does not clear elems_pref or elem_order
    FiniteElementSpace::Destroy(); // calls Th.Clear()
 
-   Array<VarOrderElemInfo> prefdata;
    // In the variable order case, we call CommunicateGhostOrder whether h-
    // or p-refinement is done.
-   if (variableOrder) { CommunicateGhostOrder(prefdata); }
+   Array<VarOrderElemInfo> pref_data;
+   if (variableOrder) { CommunicateGhostOrder(pref_data); }
 
-   FiniteElementSpace::Construct(&prefdata);
+   FiniteElementSpace::Construct(&pref_data);
    Construct();
 
    BuildElementToDofTable();
@@ -4459,6 +4462,30 @@ void ParFiniteElementSpace::Update(bool want_transform)
       delete old_elem_dof;
       delete old_elem_fos;
    }
+}
+
+// TODO: serial version of this.
+void ParFiniteElementSpace::UpdatePRef(const Array<PRefinement> & pref)
+{
+   delete PTh;
+
+   // TODO: avoid this copy of the current space.
+   delete cfes;
+   cfes = new ParFiniteElementSpace(pmesh, fec);
+   for (int i = 0; i<pmesh->GetNE(); i++)
+   {
+      cfes->SetElementOrder(i, GetElementOrder(i));
+   }
+   cfes->Update(false);
+
+   for (auto ref : pref)
+   {
+      SetElementOrder(ref.element, (int) ref.order);
+   }
+
+   Update(false);
+
+   PTh = new PRefinementTransferOperator(*cfes, *this);
 }
 
 void ParFiniteElementSpace::UpdateMeshPointer(Mesh *new_mesh)

@@ -70,6 +70,11 @@ Ordering::Map<Ordering::byVDIM>(int ndofs, int vdim, int dof, int vd)
    return (dof >= 0) ? vd+vdim*dof : -1-(vd+vdim*(-1-dof));
 }
 
+struct PRefinement
+{
+   int element;
+   char order;
+};
 
 /// Constants describing the possible orderings of the DOFs in one element.
 enum class ElementDofOrdering
@@ -90,6 +95,7 @@ class BilinearFormIntegrator;
 class QuadratureSpace;
 class QuadratureInterpolator;
 class FaceQuadratureInterpolator;
+class PRefinementTransferOperator;
 
 
 /** @brief Class FiniteElementSpace - responsible for providing FEM view of the
@@ -308,6 +314,9 @@ protected:
    /// Transformation to apply to GridFunctions after space Update().
    OperatorHandle Th;
 
+   // TODO: unique_ptr?
+   PRefinementTransferOperator *PTh = nullptr;
+
    /// The element restriction operators, see GetElementRestriction().
    mutable OperatorHandle L2E_nat, L2E_lex;
    /// The face restriction operators, see GetFaceRestriction().
@@ -509,6 +518,9 @@ protected:
                                        const Table &coarse_elem_dof,
                                        const Table *coarse_elem_fos,
                                        const DenseTensor localP[]) const;
+
+   SparseMatrix *VariableOrderRefinementMatrix_main(const int coarse_ndofs,
+                                                    const Table &coarse_elem_dof) const;
 
    void GetLocalRefinementMatrices(Geometry::Type geom,
                                    DenseTensor &localP) const;
@@ -1327,6 +1339,8 @@ public:
 
    /// Return the update operator in the given OperatorHandle, @a T.
    void GetUpdateOperator(OperatorHandle &T) { T = Th; }
+
+   const PRefinementTransferOperator* GetPrefUpdateOperator() { return PTh; }
 
    /** @brief Set the ownership of the update operator: if set to false, the
        Operator returned by GetUpdateOperator() must be deleted outside the
