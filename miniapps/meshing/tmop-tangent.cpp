@@ -17,12 +17,12 @@
 // positions while maintaining a valid mesh with good quality.
 //
 // Sample runs:
-//   mpirun -np 4 tmop-tangent -rs 1 -m square01.mesh -o 1 -gS 1
-//   mpirun -np 4 tmop-tangent -rs 1 -m rectangle01.mesh -o 1 -gS 1
+//   mpirun -np 4 tmop-tangent -rs 1 -m square01.mesh -o 1
+//   mpirun -np 4 tmop-tangent -rs 1 -m rectangle01.mesh -o 1
 // NOTE: Need to change the width, depth and coordinates of the center in the Square.cpp file depending on the geometry.
 
 #include "mfem.hpp"
-#include "parametrized_tmop_integrator.hpp"
+#include "../common/mfem-common.hpp"
 
 using namespace mfem;
 using namespace std;
@@ -30,6 +30,27 @@ using namespace std;
 char vishost[] = "localhost";
 int  visport   = 19916;
 int  wsize     = 350;
+
+// x = t, y = 1+t
+class Line : public Analytic2DCurve
+{
+public:
+   Line(const Array<bool> &marker, ParFiniteElementSpace &pfes_mesh,
+        const ParGridFunction &coord, const ParMesh &pmesh)
+       : Analytic2DCurve(marker, pfes_mesh, coord, pmesh) { }
+
+   void t_of_xy(double x, double y, const Vector &dist, double &t) const override
+   {
+      t = x;
+   }
+   void xy_of_t(double t, const Vector &dist, double &x, double &y) const override
+   {
+      x = t; y = 1.0 + t;
+   }
+
+   virtual double dx_dt(double t) const override { return 1.0; }
+   virtual double dy_dt(double t) const override { return 1.0; }
+};
 
 int main (int argc, char *argv[])
 {
@@ -41,7 +62,6 @@ int main (int argc, char *argv[])
    int mesh_poly_deg = 2;
    int quad_order    = 5;
    bool glvis        = true;
-   int geometricShape = 1;
    // Parse command-line options.
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -55,8 +75,6 @@ int main (int argc, char *argv[])
    args.AddOption(&glvis, "-vis", "--visualization", "-no-vis",
 		 "--no-visualization",
 		 "Enable or disable GLVis visualization.");
-   args.AddOption(&geometricShape, "-gS", "--geometricShape",
-		 "Shape of parametrized geometry");
    args.Parse();
    if (!args.Good())
    {
@@ -87,6 +105,7 @@ int main (int argc, char *argv[])
    ParGridFunction x0(coord);
 
    // Move the mesh nodes to have non-trivial problem.
+   // Top boundary is (x = t, y = 1+t).
    const int N = coord.Size() / 2;
    for (int i = 0; i < N; i++)
    {
@@ -95,6 +114,7 @@ int main (int argc, char *argv[])
          double t = coord(i+N);
          coord(i) = coord(i) - 2 * t * 0.2 * coord(i);
       }
+      coord(i + N) *= 1.0 + coord(i);
    }
 
    // Mark which nodes to move tangentially (attribute 1).
@@ -121,10 +141,12 @@ int main (int argc, char *argv[])
    // Visualize the selected nodes and their target positions.
    if (glvis)
    {
-      socketstream vis1;
+      socketstream vis1, vis2;
       common::VisualizeField(vis1, "localhost", 19916, fit_marker_vis_gf,
 			     "Target positions (DOFS with value 1)",
 			     0, 0, 400, 400, (dim == 2) ? "Rjm" : "");
+      common::VisualizeMesh(vis2, "localhost", 19916, pmesh, "Initial mesh",
+                            400, 0, 400, 400, "me");
    }
 
    // Fix the remaining boundaries.
@@ -157,17 +179,17 @@ int main (int argc, char *argv[])
       }
    }
 
-   AnalyticalSurface analyticalSurface(geometricShape, pfes_mesh, coord, pmesh);
-   analyticalSurface.ConvertPhysicalCoordinatesToParametric(coord);
+   Line line(fit_marker, pfes_mesh, coord, pmesh);
+   line.ConvertPhysCoordToParam(coord);
 
    // TMOP setup.
    TMOP_QualityMetric *metric;
-   if (dim == 2) { metric = new TMOP_Metric_002; }
+   if (dim == 2) { metric = new TMOP_Metric_001; }
    else          { metric = new TMOP_Metric_302; }
    TargetConstructor target(TargetConstructor::IDEAL_SHAPE_UNIT_SIZE,
                             pfes_mesh.GetComm());
    auto integ = new ParametrizedTMOP_Integrator(metric, &target, nullptr);
-   integ->EnableTangentialMovement(fit_marker, analyticalSurface);
+   integ->EnableTangentialMovement(fit_marker, line);
 
    // Linear solver.
    MINRESSolver minres(pfes_mesh.GetComm());
@@ -194,12 +216,12 @@ int main (int argc, char *argv[])
    coord.SetTrueVector();
    solver.Mult(b, coord.GetTrueVector());
    coord.SetFromTrueVector();
-   analyticalSurface.ConvertParametricCoordinatesToPhysical(coord);
+   line.ConvertParamCoordToPhys(coord);
    if(glvis)
    {
       socketstream vis2;
       common::VisualizeMesh(vis2, "localhost", 19916, pmesh, "Final mesh",
-                            400, 0, 400, 400, "me");
+                            800, 0, 400, 400, "me");
    }
 
    delete metric;

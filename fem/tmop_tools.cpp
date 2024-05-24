@@ -415,6 +415,13 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    }
 #endif
 
+   const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
+   auto ti = dynamic_cast<ParametrizedTMOP_Integrator *>(integs[0]);
+   MFEM_VERIFY(ti, "Didn't get the integrator.");
+   auto surf = ti->GetAnalyticSurface();
+   MFEM_VERIFY(surf, "Didn't get the surface.");
+   surf->ConvertParamCoordToPhys(x_out_loc);
+
    double scale = 1.0;
    double avg_surf_fit_err, max_surf_fit_err = 0.0;
    if (surf_fit_max_threshold > 0.0)
@@ -486,6 +493,8 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 #ifdef MFEM_USE_MPI
       else { fes->GetProlongationMatrix()->Mult(x_out, x_out_loc); }
 #endif
+
+      surf->ConvertParamCoordToPhys(x_out_loc);
 
       // Check the changes in detJ.
       min_detT_out = ComputeMinDet(x_out_loc, *fes);

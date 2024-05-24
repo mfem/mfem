@@ -14,6 +14,7 @@
 
 #include "../linalg/invariants.hpp"
 #include "nonlininteg.hpp"
+#include "tmop/AnalyticalSurface.hpp"
 
 namespace mfem
 {
@@ -2300,6 +2301,50 @@ public:
    virtual void AddMultPA(const Vector&, Vector&) const;
    virtual void AddMultGradPA(const Vector&, Vector&) const;
    virtual void AssembleGradDiagonalPA(Vector&) const;
+};
+
+class ParametrizedTMOP_Integrator : public TMOP_Integrator
+{
+   protected:
+   Array<bool> *tan_dof_marker = nullptr;
+   AnalyticSurface *analyticSurface = nullptr;
+
+   public:
+   ParametrizedTMOP_Integrator(TMOP_QualityMetric *m, TargetConstructor *tc,
+                               TMOP_QualityMetric *hm)
+       : TMOP_Integrator(m, tc, hm) { }
+
+   void EnableTangentialMovement(Array<bool> &dof_marker,
+                                 AnalyticSurface &surf)
+   {
+      tan_dof_marker    = &dof_marker;
+      analyticSurface = &surf;
+   }
+
+   AnalyticSurface *GetAnalyticSurface() { return analyticSurface; }
+
+   double GetElementEnergy(const FiniteElement &el,
+                           ElementTransformation &T,
+                           const Vector &elfun) override;
+
+   // For interior nodes
+   // \f$ (dmu/dT)_{jp} Dsh_{Bs} Winv_{sp} x_{Bj} \f$
+   // x_{Bj} is the solution vector
+   // Upper case letter for boundary nodes
+   // \f$ (dmu/dT)_{op} Dsh_{As} Winv_{sp} (dx_{Ao}/dt(Bj}) t_{Bj} \f$
+   // where t_{Bj} is the parametrized solution vector.
+   void AssembleElementVectorExact(const FiniteElement &el,
+                                   ElementTransformation &T,
+                                   const Vector &elfun, Vector &elvect) override;
+   // For interior nodes
+   // \f$ d((dmu/dT)_{jp} Dsh_{Bs} Winv_{sp})/dx_{Dr} \f$
+   // For boundary nodes
+   // \f$ d((dmu/dT)_{jp} Dsh_{Bs} Winv_{sp})/dt_{Eg} dx_{Eg}/dt{Dr} dx_{Ao}/dt{Bj} \f$
+   //                                        +
+   // \f$ (dmu/dT)_{op} Dsh_{As} Winv_{sp} d^{2}x_{Ao}/dt{Bj}dt_{Dr} \f$
+   void AssembleElementGradExact(const FiniteElement &el,
+                                 ElementTransformation &T,
+                                 const Vector &elfun, DenseMatrix &elmat) override;
 };
 
 /// Interpolates the @a metric's values at the nodes of @a metric_gf.

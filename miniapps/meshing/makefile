@@ -22,7 +22,7 @@ include $(DEFAULTS_MK)
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-EX_TMOP_TANGENT_SRC = tmop-tangent.cpp parametrized_tmop_integrator.cpp AnalyticalSurface.cpp Square.cpp
+EX_TMOP_TANGENT_SRC = tmop-tangent.cpp
 EX_TMOP_TANGENT_OBJ = $(EX_TMOP_TANGENT_SRC:.cpp=.o)
 
 PAR_MINIAPPS = tmop-tangent

@@ -4863,6 +4863,521 @@ double TMOPComboIntegrator::GetLocalStateEnergyPA(const Vector &xe) const
    return energy;
 }
 
+double ParametrizedTMOP_Integrator::GetElementEnergy(const FiniteElement &el,
+                                                     ElementTransformation &T,
+                                                     const Vector &elfun)
+{
+   const int dof = el.GetDof(), dim = el.GetDim();
+   const int el_id = T.ElementNo;
+   double energy;
+
+   // No adaptive limiting / surface fitting terms if the function is called
+   // as part of a FD derivative computation (because we include the exact
+   // derivatives of these terms in FD computations).
+   const bool adaptive_limiting = (adapt_lim_gf && fd_call_flag == false);
+   const bool surface_fit = (surf_fit_marker && fd_call_flag == false);
+
+   DSh.SetSize(dof, dim);
+   Jrt.SetSize(dim);
+   Jpr.SetSize(dim);
+   Jpt.SetSize(dim);
+   PMatI.UseExternalData(elfun.GetData(), dof, dim);
+
+   const IntegrationRule &ir = EnergyIntegrationRule(el);
+
+   // Convert parametric coordinates to physical to compute Jpt.
+   // Needed as elfun has the surface parameters for some entries.
+   Array<int> vdofs;
+   analyticSurface->pfes_mesh.GetElementVDofs(T.ElementNo, vdofs);
+   Vector convertedX(elfun);
+   analyticSurface->ConvertParamToPhys(vdofs, elfun, convertedX);
+   // Use converted coordinates for PMatI
+   PMatI.UseExternalData(convertedX.GetData(), dof, dim);
+
+   energy = 0.0;
+   DenseTensor Jtr(dim, dim, ir.GetNPoints());
+   targetC->ComputeElementTargets(el_id, el, ir, convertedX, Jtr);
+
+   // Limited case.
+   Vector shape, p, p0, d_vals;
+   DenseMatrix pos0;
+   if (lim_coeff)
+   {
+      shape.SetSize(dof);
+      p.SetSize(dim);
+      p0.SetSize(dim);
+      pos0.SetSize(dof, dim);
+      Vector pos0V(pos0.Data(), dof * dim);
+      Array<int> pos_dofs;
+      lim_nodes0->FESpace()->GetElementVDofs(el_id, pos_dofs);
+      lim_nodes0->GetSubVector(pos_dofs, pos0V);
+      if (lim_dist)
+      {
+         lim_dist->GetValues(el_id, ir, d_vals);
+      }
+      else
+      {
+         d_vals.SetSize(ir.GetNPoints()); d_vals = 1.0;
+      }
+   }
+
+   // Define ref->physical transformation, when a Coefficient is specified.
+   IsoparametricTransformation *Tpr = NULL;
+   if (metric_coeff || lim_coeff || adaptive_limiting || surface_fit)
+   {
+      Tpr = new IsoparametricTransformation;
+      Tpr->SetFE(&el);
+      Tpr->ElementNo = el_id;
+      Tpr->ElementType = ElementTransformation::ELEMENT;
+      Tpr->Attribute = T.Attribute;
+      Tpr->mesh = T.mesh;
+      Tpr->GetPointMat().Transpose(PMatI); // PointMat = PMatI^T
+   }
+   // TODO: computing the coefficients 'metric_coeff' and 'lim_coeff' in physical
+   //       coordinates means that, generally, the gradient and Hessian of the
+   //       TMOP_Integrator will depend on the derivatives of the coefficients.
+   //
+   //       In some cases the coefficients are independent of any movement of
+   //       the physical coordinates (i.e. changes in 'elfun'), e.g. when the
+   //       coefficient is a ConstantCoefficient or a GridFunctionCoefficient.
+
+   Vector adapt_lim_gf_q, adapt_lim_gf0_q;
+   if (adaptive_limiting)
+   {
+      adapt_lim_gf->GetValues(el_id, ir, adapt_lim_gf_q);
+      adapt_lim_gf0->GetValues(el_id, ir, adapt_lim_gf0_q);
+   }
+
+   for (int i = 0; i < ir.GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir.IntPoint(i);
+
+      metric->SetTargetJacobian(Jtr(i));
+      CalcInverse(Jtr(i), Jrt);
+      const double weight =
+          (integ_over_target) ? ip.weight * Jtr(i).Det() : ip.weight;
+
+      el.CalcDShape(ip, DSh);
+      MultAtB(PMatI, DSh, Jpr);
+      Mult(Jpr, Jrt, Jpt);
+
+      double val = metric_normal * metric->EvalW(Jpt);
+      if (metric_coeff) { val *= metric_coeff->Eval(*Tpr, ip); }
+
+      if (lim_coeff)
+      {
+         el.CalcShape(ip, shape);
+         PMatI.MultTranspose(shape, p);
+         pos0.MultTranspose(shape, p0);
+         val += lim_normal *
+                lim_func->Eval(p, p0, d_vals(i)) *
+                lim_coeff->Eval(*Tpr, ip);
+      }
+
+      // Contribution from the adaptive limiting term.
+      if (adaptive_limiting)
+      {
+         const double diff = adapt_lim_gf_q(i) - adapt_lim_gf0_q(i);
+         val += adapt_lim_coeff->Eval(*Tpr, ip) * lim_normal * diff * diff;
+      }
+
+      energy += weight * val;
+   }
+
+   // Contribution from the surface fitting term.
+   if (surface_fit)
+   {
+      // Scalar for surf_fit_gf, vector for surf_fit_pos, but that's ok.
+      const FiniteElementSpace *fes_fit =
+          (surf_fit_gf) ? surf_fit_gf->FESpace() : surf_fit_pos->FESpace();
+      const IntegrationRule *ir_s = &fes_fit->GetFE(el_id)->GetNodes();
+      Array<int> vdofs;
+      fes_fit->GetElementVDofs(el_id, vdofs);
+
+      Vector sigma_e(dof);
+      if (surf_fit_gf) { surf_fit_gf->GetSubVector(vdofs, sigma_e); }
+
+      for (int s = 0; s < dof; s++)
+      {
+         // Because surf_fit_pos.fes might be ordered byVDIM.
+         const int scalar_dof_id = fes_fit->VDofToDof(vdofs[s]);
+         if ((*surf_fit_marker)[scalar_dof_id] == false) { continue; }
+
+         const IntegrationPoint &ip_s = ir_s->IntPoint(s);
+         Tpr->SetIntPoint(&ip_s);
+
+         if (surf_fit_gf)
+         {
+            energy += surf_fit_coeff->Eval(*Tpr, ip_s) * surf_fit_normal *
+                      sigma_e(s) * sigma_e(s);
+         }
+         if (surf_fit_pos)
+         {
+            // Fitting to exact positions.
+            Vector pos(dim), pos_target(dim);
+            for (int d = 0; d < dim; d++)
+            {
+               pos(d) = PMatI(s, d);
+               pos_target(d) = (*surf_fit_pos)(vdofs[d*dof + s]);
+            }
+            energy += surf_fit_coeff->Eval(*Tpr, ip_s) * surf_fit_normal *
+                      surf_fit_limiter->Eval(pos, pos_target, 1.0);
+         }
+      }
+   }
+
+   delete Tpr;
+   return energy;
+}
+
+void ParametrizedTMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
+                                                             ElementTransformation &T,
+                                                             const Vector &elfun,
+                                                             Vector &elvect)
+{
+   const int dof = el.GetDof(), dim = el.GetDim();
+   DenseMatrix Amat(dim), work1(dim), work2(dim);
+   DenseMatrix Pmat_scale(dof,dim), Pmat_temp(dof,dim), Pmat_check(dof);
+   Pmat_scale = 0.0;
+   Pmat_temp = 0.0;
+   Pmat_check = 0.0;
+   DSh.SetSize(dof, dim);
+   DS.SetSize(dof, dim);
+   Jrt.SetSize(dim);
+   Jpt.SetSize(dim);
+   P.SetSize(dim);
+   //  PMatI.UseExternalData(elfun.GetData(), dof, dim);
+   elvect.SetSize(dof*dim);
+   PMatO.UseExternalData(elvect.GetData(), dof, dim);
+   const IntegrationRule &ir = ActionIntegrationRule(el);
+   const int nqp = ir.GetNPoints();
+
+   // Convert parametric coordinates to physical to compute Jpt.
+   // Needed as elfun has the surface parameters for some entries.
+   Array<int> vdofs;
+   analyticSurface->pfes_mesh.GetElementVDofs(T.ElementNo, vdofs);
+   Vector convertedX(elfun);
+   analyticSurface->ConvertParamToPhys(vdofs, elfun, convertedX);
+   // Use converted coordinates for PMatI
+   PMatI.UseExternalData(convertedX.GetData(), dof, dim);
+
+   elvect = 0.0;
+   Vector weights(nqp);
+   DenseTensor Jtr(dim, dim, nqp);
+   DenseTensor dJtr(dim, dim, dim*nqp);
+   targetC->ComputeElementTargets(T.ElementNo, el, ir, convertedX, Jtr);
+
+   // Limited case.
+   DenseMatrix pos0;
+   Vector shape, p, p0, d_vals, grad;
+   shape.SetSize(dof);
+   if (lim_coeff)
+   {
+      p.SetSize(dim);
+      p0.SetSize(dim);
+      pos0.SetSize(dof, dim);
+      Vector pos0V(pos0.Data(), dof * dim);
+      Array<int> pos_dofs;
+      lim_nodes0->FESpace()->GetElementVDofs(T.ElementNo, pos_dofs);
+      lim_nodes0->GetSubVector(pos_dofs, pos0V);
+      if (lim_dist)
+      {
+         lim_dist->GetValues(T.ElementNo, ir, d_vals);
+      }
+      else
+      {
+         d_vals.SetSize(nqp); d_vals = 1.0;
+      }
+   }
+
+   // Define ref->physical transformation, when a Coefficient is specified.
+   IsoparametricTransformation *Tpr = NULL;
+   if (metric_coeff || lim_coeff || adapt_lim_gf ||
+       surf_fit_gf || surf_fit_pos || exact_action)
+   {
+      Tpr = new IsoparametricTransformation;
+      Tpr->SetFE(&el);
+      Tpr->ElementNo = T.ElementNo;
+      Tpr->ElementType = ElementTransformation::ELEMENT;
+      Tpr->Attribute = T.Attribute;
+      Tpr->mesh = T.mesh;
+      Tpr->GetPointMat().Transpose(PMatI); // PointMat = PMatI^T
+      if (exact_action)
+      {
+         targetC->ComputeElementTargetsGradient(ir, elfun, *Tpr, dJtr);
+      }
+   }
+
+   Vector d_detW_dx(dim);
+   Vector d_Winv_dx(dim);
+
+   for (int q = 0; q < nqp; q++)
+   {
+      const IntegrationPoint &ip = ir.IntPoint(q);
+      metric->SetTargetJacobian(Jtr(q));
+      CalcInverse(Jtr(q), Jrt);
+      weights(q) = (integ_over_target) ? ip.weight * Jtr(q).Det() : ip.weight;
+      double weight_m = weights(q) * metric_normal;
+
+      el.CalcDShape(ip, DSh);
+
+      Mult(DSh, Jrt, DS);
+      MultAtB(PMatI, DS, Jpt);
+      metric->EvalP(Jpt, P);
+
+      if (metric_coeff) { weight_m *= metric_coeff->Eval(*Tpr, ip); }
+      P *= weight_m;
+
+      // Change the gradients based on the parametrization.
+      DenseMatrix grads(DSh);
+      for (int i = 0; i < dof; i++)
+      {
+         if ((*tan_dof_marker)[vdofs[i]] == true)
+         {
+            double dxy_dt[2];
+            analyticSurface->Deriv_1(&elfun(i), dxy_dt);
+            grads(i, 0) = DSh(i, 0) * dxy_dt[0] + DSh(i, 0) * dxy_dt[1];
+            grads(i, 1) = DSh(i, 1) * dxy_dt[0] + DSh(i, 1) * dxy_dt[1];
+         }
+      }
+      Mult(grads, Jrt, DS);
+
+      AddMultABt(DS, P, PMatO);
+
+      // Pmat_temp = 0.0;
+      // MultABt(DS, P, Pmat_temp);
+      // for (int i = 0; i < dof; i++)
+      // {
+      //    for (int j = 0; j < dim; j++)
+      //    {
+      //       Pmat_scale = 0.0;
+      //       Pmat_check = 0.0;
+      //       // Pmat_scale = (dx_{Ai}/dt(Bj})
+      //       // Pmat_scale is the derivative of the parametized curve w.r.t t
+      //       analyticalSurface->SetScaleMatrix(vdofs, i, j, Pmat_scale);
+      //       Pmat_check = 0.0;
+      //       MultABt(Pmat_temp, Pmat_scale, Pmat_check);
+      //       PMatO(i,j) += Pmat_check.Trace();
+      //    }
+      // }
+
+      if (exact_action)
+      {
+         el.CalcShape(ip, shape);
+         // Derivatives of adaptivity-based targets.
+         // First term: w_q d*(Det W)/dx * mu(T)
+         // d(Det W)/dx = det(W)*Tr[Winv*dW/dx]
+         DenseMatrix dwdx(dim);
+         for (int d = 0; d < dim; d++)
+         {
+            const DenseMatrix &dJtr_q = dJtr(q + d * nqp);
+            Mult(Jrt, dJtr_q, dwdx );
+            d_detW_dx(d) = dwdx.Trace();
+         }
+         d_detW_dx *= weight_m*metric->EvalW(Jpt); // *[w_q*det(W)]*mu(T)
+
+         // Second term: w_q det(W) dmu/dx : AdWinv/dx
+         // dWinv/dx = -Winv*dW/dx*Winv
+         MultAtB(PMatI, DSh, Amat);
+         for (int d = 0; d < dim; d++)
+         {
+            const DenseMatrix &dJtr_q = dJtr(q + d*nqp);
+            Mult(Jrt, dJtr_q, work1); // Winv*dw/dx
+            Mult(work1, Jrt, work2);  // Winv*dw/dx*Winv
+            Mult(Amat, work2, work1); // A*Winv*dw/dx*Winv
+            MultAtB(P, work1, work2); // dmu/dT^T*A*Winv*dw/dx*Winv
+            d_Winv_dx(d) = work2.Trace(); // Tr[dmu/dT : AWinv*dw/dx*Winv]
+         }
+         d_Winv_dx *= -weight_m; // Include (-) factor as well
+
+         d_detW_dx += d_Winv_dx;
+         AddMultVWt(shape, d_detW_dx, PMatO);
+      }
+
+      if (lim_coeff)
+      {
+         if (!exact_action) { el.CalcShape(ip, shape); }
+         PMatI.MultTranspose(shape, p);
+         pos0.MultTranspose(shape, p0);
+         lim_func->Eval_d1(p, p0, d_vals(q), grad);
+         grad *= weights(q) * lim_normal * lim_coeff->Eval(*Tpr, ip);
+         AddMultVWt(shape, grad, PMatO);
+      }
+   }
+
+   if (adapt_lim_gf) { AssembleElemVecAdaptLim(el, *Tpr, ir, weights, PMatO); }
+   if (surf_fit_gf || surf_fit_pos) { AssembleElemVecSurfFit(el, *Tpr, PMatO); }
+
+   delete Tpr;
+}
+
+
+
+void ParametrizedTMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
+                                                           ElementTransformation &T,
+                                                           const Vector &elfun,
+                                                           DenseMatrix &elmat)
+{
+   const int dof = el.GetDof(), dim = el.GetDim();
+   DenseMatrix Pmat_scale(dof*dim), elmat_temp(dof*dim),
+       elmat_temp2(dof*dim), Pmat_temp(dof,dim),
+       Pmat_hessian(dof,dim), Pmat_check(dof);
+   elmat.SetSize(dof*dim);
+   elmat = 0.0;
+   elmat_temp = 0.0;
+   elmat_temp2 = 0.0;
+   Pmat_scale = 0.0;
+   Pmat_temp = 0.0;
+   P.SetSize(dim);
+   DSh.SetSize(dof, dim);
+   DS.SetSize(dof, dim);
+   Jrt.SetSize(dim);
+   Jpt.SetSize(dim);
+
+   const IntegrationRule &ir = GradientIntegrationRule(el);
+   const int nqp = ir.GetNPoints();
+   // Convert parametric coordinates to physical to compute Jpt
+   Array<int> vdofs;
+   analyticSurface->pfes_mesh.GetElementVDofs(T.ElementNo, vdofs);
+   Vector convertedX(elfun);
+   analyticSurface->ConvertParamToPhys(vdofs, elfun, convertedX);
+   // Use converted coordinates for PMatI
+   PMatI.UseExternalData(convertedX.GetData(), dof, dim);
+   // Pmat_scale = (dx_{Ao}/dt(Bj}) is stored as a 2D array
+   // where A,o are the row indices and B,j are the column indices
+   // Pmat_scale is the derivative of the parametized curve w.r.t t
+   analyticSurface->SetScaleMatrixFourthOrder(elfun, vdofs, Pmat_scale);
+   Vector weights(nqp);
+   DenseTensor Jtr(dim, dim, nqp);
+   targetC->ComputeElementTargets(T.ElementNo, el, ir, convertedX, Jtr);
+
+   // Limited case.
+   DenseMatrix pos0, hess;
+   Vector shape, p, p0, d_vals;
+   if (lim_coeff)
+   {
+      shape.SetSize(dof);
+      p.SetSize(dim);
+      p0.SetSize(dim);
+      pos0.SetSize(dof, dim);
+      Vector pos0V(pos0.Data(), dof * dim);
+      Array<int> pos_dofs;
+      lim_nodes0->FESpace()->GetElementVDofs(T.ElementNo, pos_dofs);
+      lim_nodes0->GetSubVector(pos_dofs, pos0V);
+      if (lim_dist)
+      {
+         lim_dist->GetValues(T.ElementNo, ir, d_vals);
+      }
+      else
+      {
+         d_vals.SetSize(nqp); d_vals = 1.0;
+      }
+   }
+
+   // Define ref->physical transformation, when a Coefficient is specified.
+   IsoparametricTransformation *Tpr = NULL;
+   if (metric_coeff || lim_coeff || adapt_lim_gf || surf_fit_gf || surf_fit_pos)
+   {
+      Tpr = new IsoparametricTransformation;
+      Tpr->SetFE(&el);
+      Tpr->ElementNo = T.ElementNo;
+      Tpr->ElementType = ElementTransformation::ELEMENT;
+      Tpr->Attribute = T.Attribute;
+      Tpr->mesh = T.mesh;
+      Tpr->GetPointMat().Transpose(PMatI);
+   }
+
+   for (int q = 0; q < nqp; q++)
+   {
+      const IntegrationPoint &ip = ir.IntPoint(q);
+      const DenseMatrix &Jtr_q = Jtr(q);
+      metric->SetTargetJacobian(Jtr_q);
+      CalcInverse(Jtr_q, Jrt);
+
+      weights(q) = (integ_over_target) ? ip.weight * Jtr_q.Det() : ip.weight;
+      double weight_m = weights(q) * metric_normal;
+      if (metric_coeff) { weight_m *= metric_coeff->Eval(*Tpr, ip); }
+
+      el.CalcDShape(ip, DSh);
+      Mult(DSh, Jrt, DS);
+      MultAtB(PMatI, DS, Jpt);
+
+      // dt^2 terms.
+      // metric->EvalP(Jpt, P);
+
+      // P *= weight_m;
+      // Pmat_temp = 0.0;
+      // MultABt(DS, P, Pmat_temp);
+      // for (int i = 0 ; i < dof; i++)
+      // {
+      //    for (int idim = 0 ; idim < dim; idim++)
+      //    {
+      //       for (int j = 0 ; j < dof; j++)
+      //       {
+      //          for (int jdim = 0 ; jdim < dim; jdim++)
+      //          {
+      //             Pmat_check = 0.0;
+      //             Pmat_hessian = 0.0;
+      //             // Pmat_hessian = d^{2}x_{Ao}/dt{Bj}dt_{Dr}
+      //             analyticalSurface->SetHessianScaleMatrix(elfun, vdofs, i, jdim, j, jdim, Pmat_hessian);
+      //             MultABt(Pmat_temp, Pmat_hessian, Pmat_check);
+      //             elmat(i + idim * dof,j + jdim * dof) += Pmat_check.Trace();
+      //          }
+      //       }
+      //    }
+      // }
+
+      // metric->AssembleH(Jpt, DS, weight_m, elmat_temp);
+      // MultABt(Pmat_scale, elmat_temp, elmat_temp2);
+      // AddMultABt(Pmat_scale, elmat_temp2, elmat);
+
+      // Change the gradients based on the parametrization.
+      DenseMatrix grads(DSh);
+      for (int i = 0; i < dof; i++)
+      {
+         if ((*tan_dof_marker)[vdofs[i]] == true)
+         {
+            double dxy_dt[2];
+            analyticSurface->Deriv_1(&elfun(i), dxy_dt);
+            grads(i, 0) = DSh(i, 0) * dxy_dt[0] + DSh(i, 0) * dxy_dt[1];
+            grads(i, 1) = DSh(i, 1) * dxy_dt[0] + DSh(i, 1) * dxy_dt[1];
+         }
+      }
+      Mult(grads, Jrt, DS);
+
+      // original.
+      metric->AssembleH(Jpt, DS, weight_m, elmat);
+
+      if (lim_coeff)
+      {
+         el.CalcShape(ip, shape);
+         PMatI.MultTranspose(shape, p);
+         pos0.MultTranspose(shape, p0);
+         weight_m = weights(q) * lim_normal * lim_coeff->Eval(*Tpr, ip);
+         lim_func->Eval_d2(p, p0, d_vals(q), hess);
+         for (int i = 0; i < dof; i++)
+         {
+            const double w_shape_i = weight_m * shape(i);
+            for (int j = 0; j < dof; j++)
+            {
+               const double w = w_shape_i * shape(j);
+               for (int d1 = 0; d1 < dim; d1++)
+               {
+                  for (int d2 = 0; d2 < dim; d2++)
+                  {
+                     elmat(d1*dof + i, d2*dof + j) += w * hess(d1, d2);
+                  }
+               }
+            }
+         }
+      }
+   }
+
+   if (adapt_lim_gf) { AssembleElemGradAdaptLim(el, *Tpr, ir, weights, elmat);}
+   if (surf_fit_gf || surf_fit_pos) { AssembleElemGradSurfFit(el, *Tpr, elmat);}
+   delete Tpr;
+}
+
 void InterpolateTMOP_QualityMetric(TMOP_QualityMetric &metric,
                                    const TargetConstructor &tc,
                                    const Mesh &mesh, GridFunction &metric_gf)
