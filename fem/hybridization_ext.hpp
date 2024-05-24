@@ -13,13 +13,22 @@
 #define MFEM_HYBRIDIZATION_EXT
 
 #include "../config/config.hpp"
+#include "../general/array.hpp"
 
 namespace mfem
 {
 
 class HybridizationExtension
 {
-
+protected:
+   class Hybridization &h; ///< The associated Hybridization object.=
+   /// Construct the constraint matrix.
+   void ConstructC();
+public:
+   /// Constructor.
+   HybridizationExtension(class Hybridization &hybridization_);
+   /// Prepare for assembly; form the constraint matrix.
+   void Init(const Array<int> &ess_tdof_list);
 };
 
 }

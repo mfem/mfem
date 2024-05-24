@@ -36,6 +36,11 @@ Hybridization::Hybridization(FiniteElementSpace *fespace,
 #endif
 }
 
+void Hybridization::EnableDeviceExecution()
+{
+   ext.reset(new HybridizationExtension(*this));
+}
+
 void Hybridization::ConstructC()
 {
    const int NE = fes.GetNE();
@@ -200,6 +205,12 @@ void Hybridization::ConstructC()
 void Hybridization::Init(const Array<int> &ess_tdof_list)
 {
    if (Ct) { return; }
+
+   if (ext)
+   {
+      ext->Init(ess_tdof_list);
+      return;
+   }
 
    // count the number of dofs in the discontinuous version of fes:
    const int NE = fes.GetNE();
