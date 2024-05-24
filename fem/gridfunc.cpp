@@ -204,6 +204,10 @@ void GridFunction::UpdatePRef()
       UseDevice(true);
       Tp->Mult(old_data, *this);
    }
+   else
+   {
+      MFEM_ABORT("Transfer operator undefined in GridFunction::UpdatePRef");
+   }
 }
 
 void GridFunction::SetSpace(FiniteElementSpace *f)

@@ -2240,7 +2240,7 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
    MFEM_ASSERT(dtrans.embeddings.Size() == old_elem_dof->Size(), "");
 
    bool is_dg = FEColl()->GetContType() == FiniteElementCollection::DISCONTINUOUS;
-   int num_marked = 0;
+   //int num_marked = 0;
    const FiniteElement *fe = nullptr;
    DenseMatrix localRVO; //for variable order only
    for (int k = 0; k < dtrans.embeddings.Size(); k++)
@@ -2288,7 +2288,7 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
                R->SetRow(r, old_vdofs, row);
 
                mark[m] = 1;
-               num_marked++;
+               //num_marked++;
             }
          }
       }
