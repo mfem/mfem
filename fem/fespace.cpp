@@ -95,6 +95,16 @@ FiniteElementSpace::FiniteElementSpace(const FiniteElementSpace &orig,
    Constructor(mesh_, nurbs_ext, fec_, orig.vdim, orig.ordering);
 }
 
+FiniteElementSpace::FiniteElementSpace(Mesh *mesh,
+                                       const FiniteElementCollection *fec,
+                                       int vdim, int ordering)
+{ Constructor(mesh, NULL, fec, vdim, ordering); }
+
+FiniteElementSpace::FiniteElementSpace(Mesh *mesh, NURBSExtension *ext,
+                                       const FiniteElementCollection *fec,
+                                       int vdim, int ordering)
+{ Constructor(mesh, ext, fec, vdim, ordering); }
+
 void FiniteElementSpace::CopyProlongationAndRestriction(
    const FiniteElementSpace &fes, const Array<int> *perm)
 {
@@ -3874,6 +3884,9 @@ void FiniteElementSpace::Save(std::ostream &os) const
       os << "End: MFEM FiniteElementSpace v1.0\n";
    }
 }
+
+std::shared_ptr<const PRefinementTransferOperator>
+FiniteElementSpace::GetPrefUpdateOperator() { return std::move(PTh); }
 
 FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
 {

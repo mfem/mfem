@@ -314,8 +314,7 @@ protected:
    /// Transformation to apply to GridFunctions after space Update().
    OperatorHandle Th;
 
-   // TODO: unique_ptr?
-   PRefinementTransferOperator *PTh = nullptr;
+   std::unique_ptr<PRefinementTransferOperator> PTh;
 
    /// The element restriction operators, see GetElementRestriction().
    mutable OperatorHandle L2E_nat, L2E_lex;
@@ -593,8 +592,7 @@ public:
 
    FiniteElementSpace(Mesh *mesh,
                       const FiniteElementCollection *fec,
-                      int vdim = 1, int ordering = Ordering::byNODES)
-   { Constructor(mesh, NULL, fec, vdim, ordering); }
+                      int vdim = 1, int ordering = Ordering::byNODES);
 
    /// Construct a NURBS FE space based on the given NURBSExtension, @a ext.
    /** @note If the pointer @a ext is NULL, this constructor is equivalent to
@@ -602,8 +600,7 @@ public:
        NURBSExtension, @a ext. */
    FiniteElementSpace(Mesh *mesh, NURBSExtension *ext,
                       const FiniteElementCollection *fec,
-                      int vdim = 1, int ordering = Ordering::byNODES)
-   { Constructor(mesh, ext, fec, vdim, ordering); }
+                      int vdim = 1, int ordering = Ordering::byNODES);
 
    /// Copy assignment not supported
    FiniteElementSpace& operator=(const FiniteElementSpace&) = delete;
@@ -1340,7 +1337,7 @@ public:
    /// Return the update operator in the given OperatorHandle, @a T.
    void GetUpdateOperator(OperatorHandle &T) { T = Th; }
 
-   const PRefinementTransferOperator* GetPrefUpdateOperator() { return PTh; }
+   std::shared_ptr<const PRefinementTransferOperator> GetPrefUpdateOperator();
 
    /** @brief Set the ownership of the update operator: if set to false, the
        Operator returned by GetUpdateOperator() must be deleted outside the
