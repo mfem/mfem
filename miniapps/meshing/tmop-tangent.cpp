@@ -19,7 +19,6 @@
 // Sample runs:
 //   mpirun -np 4 tmop-tangent -rs 1 -m square01.mesh -o 1
 //   mpirun -np 4 tmop-tangent -rs 1 -m rectangle01.mesh -o 1
-// NOTE: Need to change the width, depth and coordinates of the center in the Square.cpp file depending on the geometry.
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
@@ -31,7 +30,7 @@ char vishost[] = "localhost";
 int  visport   = 19916;
 int  wsize     = 350;
 
-// x = t, y = 1+t
+// x = t, y = 1 + 0.7 t
 class Line : public Analytic2DCurve
 {
 public:
@@ -45,11 +44,11 @@ public:
    }
    void xy_of_t(double t, const Vector &dist, double &x, double &y) const override
    {
-      x = t; y = 1.0 + t;
+      x = t; y = 1.0 + 0.7 * t;
    }
 
    virtual double dx_dt(double t) const override { return 1.0; }
-   virtual double dy_dt(double t) const override { return 1.0; }
+   virtual double dy_dt(double t) const override { return 0.7; }
 };
 
 int main (int argc, char *argv[])
@@ -91,21 +90,15 @@ int main (int argc, char *argv[])
    const int dim = pmesh.Dimension();
 
    // Setup mesh curvature and GridFunction that stores the coordinates.
-   FiniteElementCollection *fec_mesh;
-   if (mesh_poly_deg <= 0)
-   {
-      fec_mesh = new QuadraticPosFECollection;
-      mesh_poly_deg = 2;
-   }
-   else { fec_mesh = new H1_FECollection(mesh_poly_deg, dim); }
-   ParFiniteElementSpace pfes_mesh(&pmesh, fec_mesh, dim);
+   H1_FECollection fec_mesh(mesh_poly_deg, dim);
+   ParFiniteElementSpace pfes_mesh(&pmesh, &fec_mesh, dim);
    pmesh.SetNodalFESpace(&pfes_mesh);
    ParGridFunction coord(&pfes_mesh);
    pmesh.SetNodalGridFunction(&coord);
    ParGridFunction x0(coord);
 
    // Move the mesh nodes to have non-trivial problem.
-   // Top boundary is (x = t, y = 1+t).
+   // Top boundary is (x = t, y = 1 + 0.7 t).
    const int N = coord.Size() / 2;
    for (int i = 0; i < N; i++)
    {
@@ -114,8 +107,28 @@ int main (int argc, char *argv[])
          double t = coord(i+N);
          coord(i) = coord(i) - 2 * t * 0.2 * coord(i);
       }
-      coord(i + N) *= 1.0 + coord(i);
+      coord(i + N) *= 1.0 + 0.7 * coord(i);
    }
+
+   // Compute the minimum det(J) of the starting mesh.
+   double min_detJ = infinity();
+   const int NE = pmesh.GetNE();
+   for (int e = 0; e < NE; e++)
+   {
+      const IntegrationRule &ir =
+          IntRules.Get(pfes_mesh.GetFE(0)->GetGeomType(), quad_order);
+      ElementTransformation *transf = pmesh.GetElementTransformation(e);
+      for (int j = 0; j < ir.GetNPoints(); j++)
+      {
+         transf->SetIntPoint(&ir.IntPoint(j));
+         min_detJ = min(min_detJ, transf->Jacobian().Det());
+      }
+   }
+   double minJ0;
+   MPI_Allreduce(MPI_IN_PLACE, &min_detJ, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+   if (myid == 0)
+   { cout << "Minimum det(J) of the original mesh is " << min_detJ << endl; }
+   MFEM_VERIFY(min_detJ > 0.0, "Inverted initial meshes are not supported.");
 
    // Mark which nodes to move tangentially (attribute 1).
    Array<bool> fit_marker(pfes_mesh.GetNDofs());
@@ -208,7 +221,7 @@ int main (int argc, char *argv[])
    solver.SetPreconditioner(minres);
    solver.SetPrintLevel(1);
    solver.SetMaxIter(10000);
-   solver.SetRelTol(1e-5);
+   solver.SetRelTol(1e-6);
    solver.SetAbsTol(0.0);
 
    // Solve.
