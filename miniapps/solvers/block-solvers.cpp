@@ -66,11 +66,12 @@ using namespace mfem;
 using namespace blocksolvers;
 
 // Exact solution, u and p, and r.h.s., f and g.
-void u_exact(const Vector & x, Vector & u);
-double p_exact(const Vector & x);
-void f_exact(const Vector & x, Vector & f);
-double g_exact(const Vector & x);
-double natural_bc(const Vector & x);
+void u_exact(const Vector &x, Vector &u);
+double p_exact(const Vector &x);
+void f_exact(const Vector &x, Vector &f);
+double g_exact(const Vector &x);
+double natural_bc(const Vector &x);
+double pi = M_PI;
 
 /** Wrapper for assembling the discrete Darcy problem (ex5p)
                      [ M  B^T ] [u] = [f]
@@ -322,8 +323,8 @@ int main(int argc, char *argv[])
    }
 
    // Initialize the mesh, boundary attributes, and solver parameters
-   Mesh *mesh = new Mesh(mesh_file, 1, 1);
-
+   // Mesh *mesh = new Mesh(mesh_file, 1, 1);
+   Mesh *mesh = new Mesh(Mesh::MakeCartesian2D(8, 8, Element::TRIANGLE, 1));
    int dim = mesh->Dimension();
 
    for (int i = 0; i < ser_ref_levels; ++i)
@@ -474,37 +475,29 @@ int main(int argc, char *argv[])
 void u_exact(const Vector &x, Vector &u)
 {
    double xi(x(0));
-   double yi(x(1));
-   double zi(x.Size() == 3 ? x(2) : 0.0);
-
-   u(0) = - exp(xi)*sin(yi)*cos(zi);
-   u(1) = - exp(xi)*cos(yi)*cos(zi);
-   if (x.Size() == 3)
-   {
-      u(2) = exp(xi)*sin(yi)*sin(zi);
-   }
+   double xj(x(1));
+   u(0) = -pi * pow(sin(pi*xi), 2) * sin(2*pi*xj);
+   u(1) = pi * sin(2*pi*xi) * pow(sin(pi*xj), 2);
 }
 
 double p_exact(const Vector &x)
 {
    double xi(x(0));
-   double yi(x(1));
-   double zi(x.Size() == 3 ? x(2) : 0.0);
-   return exp(xi)*sin(yi)*cos(zi);
+   return -sin(pi*xi) + 2/pi;
 }
 
 void f_exact(const Vector &x, Vector &f)
 {
-   f = 0.0;
+   u_exact(x, f);
+   f(0) -= pi * cos(pi*x(0));
 }
 
 double g_exact(const Vector &x)
 {
-   if (x.Size() == 3) { return -p_exact(x); }
-   return 0;
+   return 0.0;
 }
 
-double natural_bc(const Vector & x)
+double natural_bc(const Vector &x)
 {
    return -p_exact(x);
 }
