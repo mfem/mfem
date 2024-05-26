@@ -179,6 +179,15 @@ $(eval $(call psedov_tests,debug,DEBUG,debug))
 $(eval $(call psedov_tests,cuda,CUDA,cuda))
 $(eval $(call psedov_tests,cuda_uvm,CUDA_UVM,cuda:uvm))
 
+# For out-of-source builds, copy the meshes in ../../miniapps/multidomain from
+# the source location; these are used by 'punit_tests'.
+ifneq ($(SRC),)
+.PHONY: copy-miniapps-multidomain-data
+copy-miniapps-multidomain-data:
+	$(MAKE) -C ../../miniapps/multidomain copy-data
+punit_tests: | copy-miniapps-multidomain-data
+endif
+
 # For out-of-source builds, copy the meshes in ../../miniapps/meshing from the
 # source location; these are used by the TMOP tests.
 .PHONY: copy-miniapps-meshing-data
