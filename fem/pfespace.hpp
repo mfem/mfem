@@ -111,7 +111,7 @@ private:
    // Auxiliary method used in constructors
    void ParInit(ParMesh *pm);
 
-   void CommunicateGhostOrder(Array<VarOrderElemInfo> & prefdata);
+   void CommunicateGhostOrder(Array<VarOrderElemInfo> & pref_data);
 
    void SetVarDofMaps();
    void SetVarDofMap(const Table & dofs, Array<VarOrderDofInfo> & dmap);
@@ -471,7 +471,7 @@ protected:
    void ApplyGhostElementOrdersToEdgesAndFaces(
       Array<VarOrderBits> &edge_orders,
       Array<VarOrderBits> &face_orders,
-      const Array<VarOrderElemInfo> * prefdata=nullptr) const override;
+      const Array<VarOrderElemInfo> * pref_data=nullptr) const override;
 
    void GhostMasterFaceOrderToEdges(const Array<VarOrderBits> &face_orders,
                                     Array<VarOrderBits> &edge_orders) const override;
