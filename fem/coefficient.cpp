@@ -807,6 +807,7 @@ void SymmetricMatrixCoefficient::ProjectSymmetric(QuadratureFunction &qf)
 
    QuadratureSpaceBase &qspace = *qf.GetSpace();
    const int ne = qspace.GetNE();
+   qf.HostWrite();
    DenseMatrix values;
    DenseSymmetricMatrix matrix;
    for (int iel = 0; iel < ne; ++iel)
@@ -818,7 +819,7 @@ void SymmetricMatrixCoefficient::ProjectSymmetric(QuadratureFunction &qf)
       {
          const IntegrationPoint &ip = ir[iq];
          T.SetIntPoint(&ip);
-         matrix.UseExternalData(&values(0, iq), vdim);
+         matrix.UseExternalData(&values(0, iq), height);
          Eval(matrix, T, ip);
       }
    }
@@ -828,13 +829,12 @@ void SymmetricMatrixCoefficient::ProjectSymmetric(QuadratureFunction &qf)
 void SymmetricMatrixCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
                                       const IntegrationPoint &ip)
 {
-   mat.SetSize(height);
-   Eval(mat, T, ip);
+   Eval(mat_aux, T, ip);
    for (int j = 0; j < width; ++j)
    {
       for (int i = 0; i < height; ++ i)
       {
-         K(i, j) = mat(i, j);
+         K(i, j) = mat_aux(i, j);
       }
    }
 }
