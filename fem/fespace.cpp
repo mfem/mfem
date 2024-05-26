@@ -2519,7 +2519,7 @@ void FiniteElementSpace::BuildNURBSFaceToDofTable() const
    face_dof = new Table(GetNF(), face_dof_list);
 }
 
-void FiniteElementSpace::Construct(const Array<VarOrderElemInfo> * prefdata)
+void FiniteElementSpace::Construct(const Array<VarOrderElemInfo> * pref_data)
 {
    // This method should be used only for non-NURBS spaces.
    MFEM_VERIFY(!NURBSext, "internal error");
@@ -2559,7 +2559,7 @@ void FiniteElementSpace::Construct(const Array<VarOrderElemInfo> * prefdata)
    if (IsVariableOrder())
    {
       // for variable order spaces, calculate orders of edges and faces
-      CalcEdgeFaceVarOrders(edge_orders, face_orders, prefdata);
+      CalcEdgeFaceVarOrders(edge_orders, face_orders, pref_data);
    }
    else if (mixed_faces)
    {
@@ -2658,11 +2658,11 @@ int FiniteElementSpace::MinOrder(VarOrderBits bits)
    return 0;
 }
 
-void FiniteElementSpace::CalcEdgeFaceVarOrders(Array<VarOrderBits> &edge_orders,
-                                               Array<VarOrderBits> &face_orders,
-                                               const Array<VarOrderElemInfo> * prefdata) const
+void FiniteElementSpace::CalcEdgeFaceVarOrders(
+   Array<VarOrderBits> &edge_orders, Array<VarOrderBits> &face_orders,
+   const Array<VarOrderElemInfo> * pref_data) const
 {
-   MFEM_ASSERT(IsVariableOrder() || prefdata, "");
+   MFEM_ASSERT(IsVariableOrder() || pref_data, "");
    MFEM_ASSERT(Nonconforming(), "");
 
    const bool localVar = elem_order.Size() == mesh->GetNE();
@@ -2699,7 +2699,7 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(Array<VarOrderBits> &edge_orders,
       }
    }
 
-   ApplyGhostElementOrdersToEdgesAndFaces(edge_orders, face_orders, prefdata);
+   ApplyGhostElementOrdersToEdgesAndFaces(edge_orders, face_orders, pref_data);
 
    if (relaxed_hp)
    {
@@ -2822,19 +2822,21 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(Array<VarOrderBits> &edge_orders,
 
    GhostMasterFaceOrderToEdges(face_orders, edge_orders);
 
+   // Some ghost edges and faces (3D) may not have any orders applied, since we
+   // only communicate orders of neighboring ghost elements. Such ghost entities
+   // are marked here, to be skipped by BuildParallelConformingInterpolation as
+   // master entities constraining slave entity DOFs.
+
    skip_edge.SetSize(edge_orders.Size());
    skip_edge = false;
 
    skip_face.SetSize(face_orders.Size());
    skip_face = false;
 
-   const VarOrderBits baseMask = (VarOrderBits(1) << baseOrder);
-
    for (int i=0; i<edge_orders.Size(); ++i)
    {
       if (edge_orders[i] == 0)
       {
-         edge_orders[i] = baseMask;
          skip_edge[i] = true;
       }
    }
@@ -2843,7 +2845,6 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(Array<VarOrderBits> &edge_orders,
    {
       if (face_orders[i] == 0)
       {
-         face_orders[i] = baseMask;
          skip_face[i] = true;
       }
    }

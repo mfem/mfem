@@ -134,7 +134,7 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
 }
 
 void ParFiniteElementSpace::CommunicateGhostOrder(
-   Array<VarOrderElemInfo> & prefdata)
+   Array<VarOrderElemInfo> & pref_data)
 {
    // Check whether h-refinement was done.
    const bool href = mesh->GetLastOperation() == Mesh::REFINE &&
@@ -170,7 +170,7 @@ void ParFiniteElementSpace::CommunicateGhostOrder(
       localOrders[i].order = elem_order[i];
    }
 
-   pncmesh->CommunicateGhostData(localOrders, prefdata);
+   pncmesh->CommunicateGhostData(localOrders, pref_data);
 }
 
 void ParFiniteElementSpace::Construct()
@@ -3221,6 +3221,13 @@ bool ParFiniteElementSpace::ParallelOrderPropagation(
       }
    }
 
+   // Clean up possible remaining messages in the queue to avoid receiving them
+   // erroneously in the next run
+   while (NeighborRowMessage::IProbe(rank, size, MyComm))
+   {
+      recv_msg.RecvDrop(rank, size, MyComm);
+   }
+
    // Make sure we can discard all send buffers
    NeighborOrderMessage::WaitAllSent(send_msg);
 
@@ -4508,18 +4515,19 @@ int ParFiniteElementSpace::GetMaxElementOrder() const
 }
 
 // This function is an extension of FiniteElementSpace::CalcEdgeFaceVarOrders in the
-// parallel case, to use prefdata, on ranks where it is not nullptr.
-// prefdata contains ghost element indices and their orders. The order on each
+// parallel case, to use pref_data, on ranks where it is not nullptr.
+// pref_data contains ghost element indices and their orders. The order on each
 // ghost element is applied to the element's edges and faces, in @a edge_orders and
 // @a face_orders.
 void ParFiniteElementSpace::ApplyGhostElementOrdersToEdgesAndFaces(
    Array<VarOrderBits> &edge_orders,
    Array<VarOrderBits> &face_orders,
-   const Array<VarOrderElemInfo> * prefdata) const
+   const Array<VarOrderElemInfo> * pref_data) const
 {
    // TODO: avoid this resizing by making a parallel version of
    // FiniteElementSpace::CalcEdgeFaceVarOrders that sets sizes and calls the
    // serial version?
+   // TODO: what if edge_orders.Size() != pncmesh->GetNEdges()?
    edge_orders.SetSize(pncmesh->GetNEdges() + pncmesh->GetNGhostEdges());
    face_orders.SetSize(pncmesh->GetNFaces() + pncmesh->GetNGhostFaces());
 
@@ -4536,12 +4544,12 @@ void ParFiniteElementSpace::ApplyGhostElementOrdersToEdgesAndFaces(
    Array<int> gelem;
    pncmesh->GetGhostElements(gelem);
 
-   const int npref = prefdata ? prefdata->Size() : 0;
+   const int npref = pref_data ? pref_data->Size() : 0;
 
    for (int i=0; i<npref; ++i)
    {
-      const int elem = (*prefdata)[i].element; // Mesh element index
-      const int order = (*prefdata)[i].order;
+      const int elem = (*pref_data)[i].element; // Mesh element index
+      const int order = (*pref_data)[i].order;
 
       const VarOrderBits mask = (VarOrderBits(1) << order);
 

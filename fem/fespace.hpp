@@ -281,6 +281,10 @@ protected:
        (these are basically alternate J arrays for var_edge/face_dofs). */
    Array<char> var_edge_orders, var_face_orders;
 
+   // TODO: pass into CalcEdgeFaceVarOrders to avoid mutable?
+
+   /// Marker arrays for ghost master entities to be skipped in conforming
+   /// interpolation constraints.
    mutable Array<bool> skip_edge, skip_face;
 
    // precalculated DOFs for each element, boundary element, and face
@@ -352,7 +356,7 @@ protected:
 
    void UpdateNURBS();
 
-   void Construct(const Array<VarOrderElemInfo> * prefdata=nullptr);
+   void Construct(const Array<VarOrderElemInfo> * pref_data=nullptr);
    void Destroy();
 
    void ConstructDoFTransArray();
@@ -376,14 +380,14 @@ protected:
 
    /** In a variable order space, calculate a bitmask of polynomial orders that
        need to be represented on each edge and face. */
-   void CalcEdgeFaceVarOrders(Array<VarOrderBits> &edge_orders,
-                              Array<VarOrderBits> &face_orders,
-                              const Array<VarOrderElemInfo> * prefdata=nullptr) const;
+   void CalcEdgeFaceVarOrders(
+      Array<VarOrderBits> &edge_orders, Array<VarOrderBits> &face_orders,
+      const Array<VarOrderElemInfo> * pref_data=nullptr) const;
 
    virtual void ApplyGhostElementOrdersToEdgesAndFaces(
       Array<VarOrderBits> &edge_orders,
       Array<VarOrderBits> &face_orders,
-      const Array<VarOrderElemInfo> * prefdata=nullptr) const { }
+      const Array<VarOrderElemInfo> * pref_data=nullptr) const { }
 
    virtual void GhostMasterFaceOrderToEdges(const Array<VarOrderBits> &face_orders,
                                             Array<VarOrderBits> &edge_orders) const { }
