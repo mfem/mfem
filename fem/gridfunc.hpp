@@ -321,7 +321,7 @@ public:
        @param[out] der       The resulting derivative (scalar function). The
                              FiniteElementSpace of this function must be set
                              before the call. */
-   void GetDerivative(int comp, int der_comp, GridFunction &der);
+   void GetDerivative(int comp, int der_comp, GridFunction &der) const;
 
    real_t GetDivergence(ElementTransformation &tr) const;
 
@@ -443,7 +443,7 @@ protected:
        GetDerivative() method; see its documentation. */
    void AccumulateAndCountDerivativeValues(int comp, int der_comp,
                                            GridFunction &der,
-                                           Array<int> &zones_per_dof);
+                                           Array<int> &zones_per_dof) const;
 
    void AccumulateAndCountBdrValues(Coefficient *coeff[],
                                     VectorCoefficient *vcoeff,
