@@ -532,6 +532,69 @@ MatrixInverse *DenseMatrix::Inverse() const
    return new DenseMatrixInverse(*this);
 }
 
+void DenseMatrix::Exponential()
+{
+   MFEM_ASSERT(Height() == Width() && Height() <= 2,
+               "The matrix must be square and "
+               << "of size less than or equal to 2."
+               << "  Height() = " << Height()
+               << ", Width() = " << Width());
+
+   switch (Height())
+   {
+      case 1:
+      {
+         data[0] = std::exp(data[0]);
+         break;
+      }
+      case 2:
+      {
+         /// Formulas from Corollary 2.4 of doi:10.1109/9.233156
+         /// Note typo in the paper, in the prefactor in the equation under (i).
+         const real_t a = data[0];
+         const real_t b = data[1];
+         const real_t c = data[2];
+         const real_t d = data[3];
+         const real_t e = (a - d)*(a - d) + 4*b*c;
+         const real_t f = std::exp((a + d)/2.0);
+         const real_t g = std::sqrt(std::abs(e)) / 2.0;
+
+         if (e == 0)
+         {
+            data[0] = 1.0 + (a - d)/2.0;
+            data[3] = 1.0 - (a - d)/2.0;
+         }
+         else if (e > 0)
+         {
+            data[0] = std::cosh(g) + (a - d)/2 * std::sinh(g) / g;
+            data[1] = b * std::sinh(g) / g;
+            data[2] = c * std::sinh(g) / g;
+            data[3] = std::cosh(g) - (a - d)/2 * std::sinh(g) / g;
+         }
+         else
+         {
+            data[0] = std::cos(g) + (a - d)/2 * std::sin(g) / g;
+            data[1] = b * std::sin(g) / g;
+            data[2] = c * std::sin(g) / g;
+            data[3] = std::cos(g) - (a - d)/2 * std::sin(g) / g;
+         }
+         for (int i = 0; i < 4; i++)
+         {
+            data[i] *= f;
+         }
+         break;
+      }
+      case 3:
+      {
+         MFEM_ABORT("3x3 matrices are not currently supported");
+      }
+      default:
+      {
+         MFEM_ABORT("Only 1x1 and 2x2 matrices are currently supported");
+      }
+   }
+}
+
 real_t DenseMatrix::Det() const
 {
    MFEM_ASSERT(Height() == Width() && Height() > 0,

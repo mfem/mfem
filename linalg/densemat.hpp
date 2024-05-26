@@ -207,6 +207,10 @@ public:
    /// Replaces the current matrix with its square root inverse
    void SquareRootInverse();
 
+   /// Replaces the current matrix with its exponential
+   /// (currently only supports 2x2 matrices)
+   void Exponential();
+
    /// Calculates the determinant of the matrix
    /// (optimized for 2x2, 3x3, and 4x4 matrices)
    real_t Det() const;
