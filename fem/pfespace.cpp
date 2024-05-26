@@ -3223,7 +3223,7 @@ bool ParFiniteElementSpace::ParallelOrderPropagation(
 
    // Clean up possible remaining messages in the queue to avoid receiving them
    // erroneously in the next run
-   while (NeighborRowMessage::IProbe(rank, size, MyComm))
+   while (NeighborOrderMessage::IProbe(rank, size, MyComm))
    {
       recv_msg.RecvDrop(rank, size, MyComm);
    }
