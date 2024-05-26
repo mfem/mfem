@@ -20,8 +20,8 @@
 //   mpirun -np 4 tmop-tangent -rs 1 -m square01.mesh -o 1
 //   mpirun -np 4 tmop-tangent -rs 1 -m rectangle01.mesh -o 1
 
-#include "mfem.hpp"
 #include "../common/mfem-common.hpp"
+#include "tmop-tangent.hpp"
 
 using namespace mfem;
 using namespace std;
@@ -29,48 +29,6 @@ using namespace std;
 char vishost[] = "localhost";
 int  visport   = 19916;
 int  wsize     = 350;
-
-// x = t, y = 1 + 0.5 t
-class Line_Top : public Analytic2DCurve
-{
-public:
-   Line_Top(const Array<bool> &marker, ParFiniteElementSpace &pfes_mesh,
-            const ParGridFunction &coord, const ParMesh &pmesh)
-      : Analytic2DCurve(marker, pfes_mesh, coord, pmesh) { }
-
-   void t_of_xy(double x, double y, const Vector &dist, double &t) const override
-   {
-      t = x;
-   }
-   void xy_of_t(double t, const Vector &dist, double &x, double &y) const override
-   {
-      x = t; y = 1.0 + 0.5 * t;
-   }
-
-   virtual double dx_dt(double t) const override { return 1.0; }
-   virtual double dy_dt(double t) const override { return 0.5; }
-};
-
-// x = 1 + 0.5 t, y = 1.5 t
-class Line_Right : public Analytic2DCurve
-{
-   public:
-   Line_Right(const Array<bool> &marker, ParFiniteElementSpace &pfes_mesh,
-              const ParGridFunction &coord, const ParMesh &pmesh)
-      : Analytic2DCurve(marker, pfes_mesh, coord, pmesh) { }
-
-   void t_of_xy(double x, double y, const Vector &dist, double &t) const override
-   {
-      t = y / 1.5;
-   }
-   void xy_of_t(double t, const Vector &dist, double &x, double &y) const override
-   {
-      x = 1.0 + 0.5 * t; y = 1.5 * t;
-   }
-
-   virtual double dx_dt(double t) const override { return 0.5; }
-   virtual double dy_dt(double t) const override { return 1.5; }
-};
 
 int main (int argc, char *argv[])
 {
@@ -89,7 +47,7 @@ int main (int argc, char *argv[])
    args.AddOption(&rs_levels, "-rs", "--refine-serial",
 		 "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&mesh_poly_deg, "-o", "--order",
-		 "Polynomial degree of mesh finite element space.");
+       "Polynomial degree of mesh finite element space.");
    args.AddOption(&quad_order, "-qo", "--quad_order",
 		 "Order of the quadrature rule.");
    args.AddOption(&glvis, "-vis", "--visualization", "-no-vis",

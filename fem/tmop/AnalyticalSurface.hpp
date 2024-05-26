@@ -120,10 +120,10 @@ public:
 
    void Deriv_1(const double *param, double *deriv) const override;
 
-   virtual void t_of_xy(double x, double y, const Vector &dist,
-                        double &t) const = 0;
    virtual void xy_of_t(double t, const Vector &dist,
                         double &x, double &y) const = 0;
+   virtual void t_of_xy(double x, double y, const Vector &dist,
+                        double &t) const = 0;
 
    virtual double dx_dt(double t) const = 0;
    virtual double dy_dt(double t) const = 0;
