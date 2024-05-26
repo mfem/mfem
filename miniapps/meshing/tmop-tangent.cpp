@@ -30,13 +30,13 @@ char vishost[] = "localhost";
 int  visport   = 19916;
 int  wsize     = 350;
 
-// x = t, y = 1 + 0.7 t
-class Line : public Analytic2DCurve
+// x = t, y = 1 + 0.5 t
+class Line_Top : public Analytic2DCurve
 {
 public:
-   Line(const Array<bool> &marker, ParFiniteElementSpace &pfes_mesh,
-        const ParGridFunction &coord, const ParMesh &pmesh)
-       : Analytic2DCurve(marker, pfes_mesh, coord, pmesh) { }
+   Line_Top(const Array<bool> &marker, ParFiniteElementSpace &pfes_mesh,
+            const ParGridFunction &coord, const ParMesh &pmesh)
+      : Analytic2DCurve(marker, pfes_mesh, coord, pmesh) { }
 
    void t_of_xy(double x, double y, const Vector &dist, double &t) const override
    {
@@ -44,11 +44,32 @@ public:
    }
    void xy_of_t(double t, const Vector &dist, double &x, double &y) const override
    {
-      x = t; y = 1.0 + 0.7 * t;
+      x = t; y = 1.0 + 0.5 * t;
    }
 
    virtual double dx_dt(double t) const override { return 1.0; }
-   virtual double dy_dt(double t) const override { return 0.7; }
+   virtual double dy_dt(double t) const override { return 0.5; }
+};
+
+// x = 1 + 0.5 t, y = 1.5 t
+class Line_Right : public Analytic2DCurve
+{
+   public:
+   Line_Right(const Array<bool> &marker, ParFiniteElementSpace &pfes_mesh,
+              const ParGridFunction &coord, const ParMesh &pmesh)
+      : Analytic2DCurve(marker, pfes_mesh, coord, pmesh) { }
+
+   void t_of_xy(double x, double y, const Vector &dist, double &t) const override
+   {
+      t = y / 1.5;
+   }
+   void xy_of_t(double t, const Vector &dist, double &x, double &y) const override
+   {
+      x = 1.0 + 0.5 * t; y = 1.5 * t;
+   }
+
+   virtual double dx_dt(double t) const override { return 0.5; }
+   virtual double dy_dt(double t) const override { return 1.5; }
 };
 
 int main (int argc, char *argv[])
@@ -98,16 +119,24 @@ int main (int argc, char *argv[])
    ParGridFunction x0(coord);
 
    // Move the mesh nodes to have non-trivial problem.
-   // Top boundary is (x = t, y = 1 + 0.7 t).
+   // Top boundary is (x = t, y = 1 + 0.5 t).
    const int N = coord.Size() / 2;
    for (int i = 0; i < N; i++)
    {
-      if (coord(i) < 1.0 - 1e-12)
-      {
-         double t = coord(i+N);
-         coord(i) = coord(i) - 2 * t * 0.2 * coord(i);
-      }
-      coord(i + N) *= 1.0 + 0.7 * coord(i);
+      double x = coord(i);
+      double y = coord(i+N);
+
+      coord(i)     = x + x*(1-x)*0.8;
+      coord(i + N) = y + y*(1-y)*0.8;
+
+      x = coord(i);
+      y = coord(i+N);
+
+      // a adds deformation inside.
+      // d pulls the top-right corner out.
+      double a = 0.2, d = 0.5;
+      coord(i)     = x + a * sin(M_PI * x) * sin(M_PI * y);
+      coord(i + N) = y + a * sin(M_PI * x) * sin(M_PI * y) + d * x * y;
    }
 
    // Compute the minimum det(J) of the starting mesh.
@@ -192,7 +221,7 @@ int main (int argc, char *argv[])
       }
    }
 
-   Line line(fit_marker, pfes_mesh, coord, pmesh);
+   Line_Top line(fit_marker, pfes_mesh, coord, pmesh);
    line.ConvertPhysCoordToParam(coord);
 
    // TMOP setup.
