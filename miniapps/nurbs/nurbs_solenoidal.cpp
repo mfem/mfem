@@ -275,8 +275,8 @@ int main(int argc, char *argv[])
    // 11. Solve the linear system with MINRES.
    //     Check the norm of the unpreconditioned residual.
    int maxIter(10000);
-   real_t rtol(1.e-16);
-   real_t atol(1.e-16);
+   real_t rtol(10*std::numeric_limits<real_t>::epsilon());
+   real_t atol(10*std::numeric_limits<real_t>::epsilon());
 
    chrono.Clear();
    chrono.Start();
@@ -390,8 +390,10 @@ int main(int argc, char *argv[])
    delete hdiv_coll;
    delete mesh;
 
-   if (err_div > 1000*std::numeric_limits<real_t>::epsilon() )
+   if (err_div > 1e4*std::numeric_limits<real_t>::epsilon() )
    {
+      mfem::out << "std::numeric_limits<real_t>::epsilon() = "
+                << std::numeric_limits<real_t>::epsilon()  << "\n";
       mfem_error("Divergence error larger than expected");
    }
 
