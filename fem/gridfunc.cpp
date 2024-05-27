@@ -1323,9 +1323,9 @@ void GridFunction::ProjectVectorFieldOn(GridFunction &vec_field, int comp)
    }
 }
 
-void GridFunction::AccumulateAndCountDerivativeValues(int comp, int der_comp,
-                                                      GridFunction &der,
-                                                      Array<int> &zones_per_dof)
+void GridFunction::AccumulateAndCountDerivativeValues(
+   int comp, int der_comp, GridFunction &der,
+   Array<int> &zones_per_dof) const
 {
    FiniteElementSpace * der_fes = der.FESpace();
    ElementTransformation * transf;
@@ -1376,7 +1376,8 @@ void GridFunction::AccumulateAndCountDerivativeValues(int comp, int der_comp,
    }
 }
 
-void GridFunction::GetDerivative(int comp, int der_comp, GridFunction &der)
+void GridFunction::GetDerivative(int comp, int der_comp,
+                                 GridFunction &der) const
 {
    Array<int> overlap;
    AccumulateAndCountDerivativeValues(comp, der_comp, der, overlap);
