@@ -50,64 +50,6 @@
 using namespace std;
 using namespace mfem;
 
-GridFunction* ProlongToMaxOrder(const GridFunction *x, const int fieldtype)
-{
-   const FiniteElementSpace *fespace = x->FESpace();
-   Mesh *mesh = fespace->GetMesh();
-   const FiniteElementCollection *fec = fespace->FEColl();
-   const int vdim = fespace->GetVDim();
-
-   // find the max order in the space
-   int max_order = fespace->GetMaxElementOrder();
-
-   // create a visualization space of max order for all elements
-   FiniteElementCollection *fecInt = NULL;
-   if (fieldtype == 0)
-   {
-      fecInt = new H1_FECollection(max_order, mesh->Dimension());
-   }
-   else if (fieldtype == 1)
-   {
-      fecInt = new L2_FECollection(max_order, mesh->Dimension());
-   }
-   FiniteElementSpace *spaceInt = new FiniteElementSpace(mesh, fecInt,
-                                                         fespace->GetVDim(),
-                                                         fespace->GetOrdering());
-
-   IsoparametricTransformation T;
-   DenseMatrix I;
-
-   GridFunction *xInt = new GridFunction(spaceInt);
-
-   // interpolate solution vector in the larger space
-   for (int i = 0; i < mesh->GetNE(); i++)
-   {
-      Geometry::Type geom = mesh->GetElementGeometry(i);
-      T.SetIdentityTransformation(geom);
-
-      Array<int> dofs;
-      fespace->GetElementVDofs(i, dofs);
-      Vector elemvect(0), vectInt(0);
-      x->GetSubVector(dofs, elemvect);
-      DenseMatrix elemvecMat(elemvect.GetData(), dofs.Size()/vdim, vdim);
-
-      const auto *fe = fec->GetFE(geom, fespace->GetElementOrder(i));
-      const auto *feInt = fecInt->GetFE(geom, max_order);
-
-      feInt->GetTransferMatrix(*fe, T, I);
-
-      spaceInt->GetElementVDofs(i, dofs);
-      vectInt.SetSize(dofs.Size());
-      DenseMatrix vectIntMat(vectInt.GetData(), dofs.Size()/vdim, vdim);
-
-      Mult(I, elemvecMat, vectIntMat);
-      xInt->SetSubVector(dofs, vectInt);
-   }
-
-   xInt->MakeOwner(fecInt);
-   return xInt;
-}
-
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI and HYPRE.
@@ -507,7 +449,7 @@ int main(int argc, char *argv[])
       ofstream sol_ofs(sol_name.str().c_str());
       sol_ofs.precision(8);
 
-      GridFunction *vis_x = ProlongToMaxOrder(&x, 0);
+      std::unique_ptr<ParGridFunction> vis_x = x.ProlongToMaxOrder();
       vis_x->Save(sol_ofs);
 
       ofstream order_ofs(order_name.str().c_str());

@@ -1294,6 +1294,52 @@ void ParGridFunction::ComputeFlux(
    }
 }
 
+std::unique_ptr<ParGridFunction> ParGridFunction::ProlongToMaxOrder() const
+{
+   ParMesh *mesh = pfes->GetParMesh();
+   const FiniteElementCollection *fec = pfes->FEColl();
+   const int vdim = pfes->GetVDim();
+
+   // Find the max order in the space
+   int maxOrder = pfes->GetMaxElementOrder();
+
+   // Create a visualization space of max order for all elements
+   FiniteElementCollection *fecMax = fec->Clone(maxOrder);
+   ParFiniteElementSpace *pfesMax = new ParFiniteElementSpace(mesh, fecMax, vdim,
+                                                              pfes->GetOrdering());
+
+   ParGridFunction *xMax = new ParGridFunction(pfesMax);
+
+   // Interpolate solution vector in the larger space
+   IsoparametricTransformation T;
+   DenseMatrix I;
+   for (int i = 0; i < mesh->GetNE(); i++)
+   {
+      Geometry::Type geom = mesh->GetElementGeometry(i);
+      T.SetIdentityTransformation(geom);
+
+      Array<int> dofs;
+      pfes->GetElementVDofs(i, dofs);
+      Vector elemvect(0), vectInt(0);
+      GetSubVector(dofs, elemvect);
+      DenseMatrix elemvecMat(elemvect.GetData(), dofs.Size()/vdim, vdim);
+
+      const auto *fe = fec->GetFE(geom, pfes->GetElementOrder(i));
+      const auto *feInt = fecMax->GetFE(geom, maxOrder);
+
+      feInt->GetTransferMatrix(*fe, T, I);
+
+      pfesMax->GetElementVDofs(i, dofs);
+      vectInt.SetSize(dofs.Size());
+      DenseMatrix vectIntMat(vectInt.GetData(), dofs.Size()/vdim, vdim);
+
+      Mult(I, elemvecMat, vectIntMat);
+      xMax->SetSubVector(dofs, vectInt);
+   }
+
+   xMax->MakeOwner(fecMax);
+   return std::unique_ptr<ParGridFunction>(xMax);
+}
 
 real_t L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
                           const ParGridFunction &x,

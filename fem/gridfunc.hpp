@@ -428,6 +428,8 @@ public:
    */
    virtual void ProjectDiscCoefficient(VectorCoefficient &coeff, AvgType type);
 
+   std::unique_ptr<GridFunction> ProlongToMaxOrder() const;
+
 protected:
    /** @brief Accumulates (depending on @a type) the values of @a coeff at all
        shared vdofs and counts in how many zones each vdof appears. */

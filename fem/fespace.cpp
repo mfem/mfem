@@ -2559,7 +2559,8 @@ void FiniteElementSpace::Construct(const Array<VarOrderElemInfo> * pref_data)
    if (IsVariableOrder())
    {
       // for variable order spaces, calculate orders of edges and faces
-      CalcEdgeFaceVarOrders(edge_orders, face_orders, pref_data);
+      CalcEdgeFaceVarOrders(edge_orders, face_orders, skip_edge, skip_face,
+                            pref_data);
    }
    else if (mixed_faces)
    {
@@ -2660,6 +2661,7 @@ int FiniteElementSpace::MinOrder(VarOrderBits bits)
 
 void FiniteElementSpace::CalcEdgeFaceVarOrders(
    Array<VarOrderBits> &edge_orders, Array<VarOrderBits> &face_orders,
+   Array<bool> &skip_edges, Array<bool> &skip_faces,
    const Array<VarOrderElemInfo> * pref_data) const
 {
    MFEM_ASSERT(IsVariableOrder() || pref_data, "");
@@ -2827,17 +2829,17 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(
    // are marked here, to be skipped by BuildParallelConformingInterpolation as
    // master entities constraining slave entity DOFs.
 
-   skip_edge.SetSize(edge_orders.Size());
-   skip_edge = false;
+   skip_edges.SetSize(edge_orders.Size());
+   skip_edges = false;
 
-   skip_face.SetSize(face_orders.Size());
-   skip_face = false;
+   skip_faces.SetSize(face_orders.Size());
+   skip_faces = false;
 
    for (int i=0; i<edge_orders.Size(); ++i)
    {
       if (edge_orders[i] == 0)
       {
-         skip_edge[i] = true;
+         skip_edges[i] = true;
       }
    }
 
@@ -2845,7 +2847,7 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(
    {
       if (face_orders[i] == 0)
       {
-         skip_face[i] = true;
+         skip_faces[i] = true;
       }
    }
 }
