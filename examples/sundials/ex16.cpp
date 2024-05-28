@@ -435,7 +435,7 @@ int main(int argc, char *argv[])
 
    // 9. Save the final solution. This output can be viewed later using GLVis:
    //    "glvis -m ex16.mesh -g ex16-final.gf".
-   u_gf.Save("ex16-final.gf");
+   u_gf.Save("ex16-final.gf", precision);
 
    return 0;
 }
