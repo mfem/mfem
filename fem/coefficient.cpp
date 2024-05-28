@@ -1704,9 +1704,13 @@ void CoefficientVector::Project(Coefficient &coeff)
    {
       SetConstant(const_coeff->constant);
    }
-   else if (auto *qf_coeff = dynamic_cast<QuadratureFunctionCoefficient*>(&coeff))
+   else if (auto *qf_coeff = dynamic_cast<QuadratureFunctionCoefficient*>(&coeff)) // our original QFC coeff is fed in; 
    {
+      // std::cout<<"Inside Coeff: Do I pass through here? 1"<<std::endl;
+      QuadratureFunction qfunc = qf_coeff->GetQuadFunction(); 
+      // cout << "The size of internal qfunc is " << qfunc.Size() << endl;
       MakeRef(qf_coeff->GetQuadFunction());
+      // std::cout<<"Inside Coeff: Do I pass through here? 2"<<std::endl;
    }
    else
    {
@@ -1773,11 +1777,12 @@ void CoefficientVector::ProjectTranspose(MatrixCoefficient &coeff)
 void CoefficientVector::MakeRef(const QuadratureFunction &qf_)
 {
    vdim = qf_.GetVDim();
+   // cout << "Check this is 1: " << qf_.GetVDim() << endl;
    const QuadratureSpaceBase *qs2 = qf_.GetSpace();
    MFEM_CONTRACT_VAR(qs2); // qs2 used only for asserts
    MFEM_VERIFY(qs2 != NULL, "Invalid QuadratureSpace.")
    MFEM_VERIFY(qs2->GetMesh() == qs.GetMesh(), "Meshes differ.");
-   MFEM_VERIFY(qs2->GetOrder() == qs.GetOrder(), "Orders differ.");
+   MFEM_VERIFY(qs2->GetOrder() == qs.GetOrder(), "Orders differ. qs2 is "<<qs2->GetOrder()<<" but qs is "<<qs.GetOrder());
    Vector::MakeRef(const_cast<QuadratureFunction&>(qf_), 0, qf_.Size());
 }
 
