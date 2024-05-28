@@ -3949,14 +3949,14 @@ void GridFunction::LegacyNCReorder()
 std::unique_ptr<GridFunction> GridFunction::ProlongToMaxOrder() const
 {
    Mesh *mesh = fes->GetMesh();
-   const FiniteElementCollection *fec = fes->FEColl();
+   const FiniteElementCollection *fesc = fes->FEColl();
    const int vdim = fes->GetVDim();
 
    // Find the max order in the space
    int maxOrder = fes->GetMaxElementOrder();
 
    // Create a visualization space of max order for all elements
-   FiniteElementCollection *fecMax = fec->Clone(maxOrder);
+   FiniteElementCollection *fecMax = fesc->Clone(maxOrder);
    FiniteElementSpace *fesMax = new FiniteElementSpace(mesh, fecMax, vdim,
                                                        fes->GetOrdering());
 
@@ -3976,7 +3976,7 @@ std::unique_ptr<GridFunction> GridFunction::ProlongToMaxOrder() const
       GetSubVector(dofs, elemvect);
       DenseMatrix elemvecMat(elemvect.GetData(), dofs.Size()/vdim, vdim);
 
-      const auto *fe = fec->GetFE(geom, fes->GetElementOrder(i));
+      const auto *fe = fesc->GetFE(geom, fes->GetElementOrder(i));
       const auto *feInt = fecMax->GetFE(geom, maxOrder);
 
       feInt->GetTransferMatrix(*fe, T, I);

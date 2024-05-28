@@ -656,11 +656,10 @@ static void TestSolve(FiniteElementSpace &fespace)
 #ifdef MFEM_UNIT_DEBUG_VISUALIZE
    const char vishost[] = "localhost";
    const int  visport   = 19916;
-   GridFunction *vis_x = ProlongToMaxOrder(&x);
+   std::unique_ptr<GridFunction> vis_x = x.ProlongToMaxOrder();
    socketstream sol_sock(vishost, visport);
    sol_sock.precision(8);
    sol_sock << "solution\n" << *mesh << *vis_x;
-   delete vis_x;
 #endif
 }
 

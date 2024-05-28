@@ -4524,28 +4524,13 @@ void ParFiniteElementSpace::ApplyGhostElementOrdersToEdgesAndFaces(
    Array<VarOrderBits> &face_orders,
    const Array<VarOrderElemInfo> * pref_data) const
 {
-   // TODO: avoid this resizing by making a parallel version of
-   // FiniteElementSpace::CalcEdgeFaceVarOrders that sets sizes and calls the
-   // serial version?
-   // TODO: what if edge_orders.Size() != pncmesh->GetNEdges()?
    edge_orders.SetSize(pncmesh->GetNEdges() + pncmesh->GetNGhostEdges());
    face_orders.SetSize(pncmesh->GetNFaces() + pncmesh->GetNGhostFaces());
 
-   for (int i=0; i<pncmesh->GetNGhostEdges(); ++i)
-   {
-      edge_orders[pncmesh->GetNEdges() + i] = 0;
-   }
-
-   for (int i=0; i<pncmesh->GetNGhostFaces(); ++i)
-   {
-      face_orders[pncmesh->GetNFaces() + i] = 0;
-   }
-
-   Array<int> gelem;
-   pncmesh->GetGhostElements(gelem);
+   edge_orders = 0;
+   face_orders = 0;
 
    const int npref = pref_data ? pref_data->Size() : 0;
-
    for (int i=0; i<npref; ++i)
    {
       const int elem = (*pref_data)[i].element; // Mesh element index

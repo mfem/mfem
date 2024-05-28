@@ -387,7 +387,7 @@ protected:
    virtual void ApplyGhostElementOrdersToEdgesAndFaces(
       Array<VarOrderBits> &edge_orders,
       Array<VarOrderBits> &face_orders,
-      const Array<VarOrderElemInfo> * pref_data=nullptr) const { }
+      const Array<VarOrderElemInfo> * pref_data=nullptr) const;
 
    virtual void GhostMasterFaceOrderToEdges(const Array<VarOrderBits> &face_orders,
                                             Array<VarOrderBits> &edge_orders) const { }
