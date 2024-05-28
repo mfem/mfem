@@ -104,6 +104,7 @@ int main(int argc, char *argv[])
 
    // Read the mesh from the given mesh file.
    Mesh mesh(mesh_file, 1, 1);
+   // cout << "Element type is " << mesh.GetElementType(0) << endl;
    int dim = mesh.Dimension();
 
    // Create the low-order refined mesh
@@ -132,6 +133,34 @@ int main(int argc, char *argv[])
 
    FiniteElementSpace fespace(&mesh, fec);
    FiniteElementSpace fespace_lor(&mesh_lor, fec_lor);
+
+   // build the integration rule that matches with quadrature on LOR mesh 
+   // Array<int> lor_els;
+   // ho2lor.GetRow(0, lor_els);
+   Geometry::Type geom = mesh.GetElementBaseGeometry(0); // assuming HO elements are the same? 
+   const FiniteElement &fe = *fespace.GetFE(0);
+   const FiniteElement &fe_lor = *fespace_lor.GetFE(0); // first LOR element of first HO element; assuming all HO are LOR in same way 
+   ElementTransformation *el_tr = fespace_lor.GetElementTransformation(0);
+   int qorder = fe_lor.GetOrder() + fe.GetOrder() + el_tr->OrderW(); // 0 + 3 + 1
+   // int qorder = 4; //2 * fe_lor.GetOrder() + el_tr->OrderW(); 
+   const IntegrationRule* ir = &IntRules.Get(geom, qorder);
+
+   // std::cout<<"mesh NE = "<<mesh.GetNE()<<" lor mesh NE = "<<mesh_lor.GetNE()<<std::endl;
+   // std::cout<<"number of refs = "<<lref<<std::endl;
+   // std::cout<<"driver integration rule size = "<<ir->GetNPoints()<<std::endl;
+   // int tryorder = 2*lorder + 1;
+   QuadratureSpace qspace(mesh_lor, *ir); 
+   QuadratureFunction qfunc(&qspace);
+   qfunc = 333.0; 
+   qfunc(2) = 333.00000000000000001;
+   QuadratureFunctionCoefficient coeff(qfunc); 
+   // cout << "Printing yet? The size of qspace is " << qfunc.Size() << endl;
+
+   // exit(0);
+
+   // cout << qspace.GetWeights() << endl;  // size of 20 
+   // cout << qfunc.GetSpace() << endl;
+   // cout << coeff.GetQuadFunction() << endl;
 
    GridFunction rho(&fespace);
    GridFunction rho_lor(&fespace_lor);
@@ -170,17 +199,24 @@ int main(int argc, char *argv[])
    }
    else
    {
-      gt = new L2ProjectionGridTransfer(fespace, fespace_lor);
+      gt = new L2ProjectionGridTransfer(fespace, fespace_lor, &coeff); // now takes in QuadFuncCoeff coeff
    }
 
    gt->UseDevice(true);
    gt->VerifySolution(true);
+   // gt->UseDevice(false);
+   // gt->VerifySolution(false);
 
    const Operator &R = gt->ForwardOperator();
+   // cout << "Operator R is " << R.NumRows() << " by " << R.NumCols() << endl; 
+   // cout << "Operator R is " <<  << endl; 
+
+   // ConstantCoefficient one(1.); 
+   // cout << "Values of one is " << one.constant << endl;
 
    // HO->LOR restriction
    direction = "HO -> LOR @ LOR";
-   R.Mult(rho, rho_lor);
+   R.Mult(rho, rho_lor);  // Multiplies R to rho to get rho_lor (i.e. R * rho = rho_lor), since R maps from HO to LOR
    compute_mass(&fespace_lor, ho_mass, LOR_dc, "R(HO)    ");
    if (vis) { visualize(LOR_dc, "R(HO)", Wx, Wy); Wx += offx; }
 
