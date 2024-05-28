@@ -1704,13 +1704,9 @@ void CoefficientVector::Project(Coefficient &coeff)
    {
       SetConstant(const_coeff->constant);
    }
-   else if (auto *qf_coeff = dynamic_cast<QuadratureFunctionCoefficient*>(&coeff)) // our original QFC coeff is fed in; 
+   else if (auto *qf_coeff = dynamic_cast<QuadratureFunctionCoefficient*>(&coeff)) 
    {
-      // std::cout<<"Inside Coeff: Do I pass through here? 1"<<std::endl;
-      QuadratureFunction qfunc = qf_coeff->GetQuadFunction(); 
-      // cout << "The size of internal qfunc is " << qfunc.Size() << endl;
       MakeRef(qf_coeff->GetQuadFunction());
-      // std::cout<<"Inside Coeff: Do I pass through here? 2"<<std::endl;
    }
    else
    {
