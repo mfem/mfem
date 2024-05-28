@@ -350,7 +350,8 @@ int GridFunction::CurlDim() const
    {
       static const Geometry::Type geoms[3] =
       { Geometry::SEGMENT, Geometry::TRIANGLE, Geometry::TETRAHEDRON };
-      fe = fec->FiniteElementForGeometry(geoms[fes->GetMesh()->Dimension()-1]);
+      fe = fes->FEColl()->FiniteElementForGeometry(geoms[fes->GetMesh()->Dimension()
+                                                         -1]);
    }
    else
    {
