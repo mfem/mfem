@@ -1297,14 +1297,14 @@ void ParGridFunction::ComputeFlux(
 std::unique_ptr<ParGridFunction> ParGridFunction::ProlongToMaxOrder() const
 {
    ParMesh *mesh = pfes->GetParMesh();
-   const FiniteElementCollection *fec = pfes->FEColl();
+   const FiniteElementCollection *pfesc = pfes->FEColl();
    const int vdim = pfes->GetVDim();
 
    // Find the max order in the space
    int maxOrder = pfes->GetMaxElementOrder();
 
    // Create a visualization space of max order for all elements
-   FiniteElementCollection *fecMax = fec->Clone(maxOrder);
+   FiniteElementCollection *fecMax = pfesc->Clone(maxOrder);
    ParFiniteElementSpace *pfesMax = new ParFiniteElementSpace(mesh, fecMax, vdim,
                                                               pfes->GetOrdering());
 
@@ -1324,7 +1324,7 @@ std::unique_ptr<ParGridFunction> ParGridFunction::ProlongToMaxOrder() const
       GetSubVector(dofs, elemvect);
       DenseMatrix elemvecMat(elemvect.GetData(), dofs.Size()/vdim, vdim);
 
-      const auto *fe = fec->GetFE(geom, pfes->GetElementOrder(i));
+      const auto *fe = pfesc->GetFE(geom, pfes->GetElementOrder(i));
       const auto *feInt = fecMax->GetFE(geom, maxOrder);
 
       feInt->GetTransferMatrix(*fe, T, I);

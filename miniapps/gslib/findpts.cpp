@@ -319,7 +319,7 @@ int main (int argc, char *argv[])
    field_vals.ProjectCoefficient(F);
 
    std::unique_ptr<GridFunction> field_vals_max;
-   if (mesh_prefinement) { field_vals_max = field_vals.ProlongToMaxOrder(); }
+   if (prefinement) { field_vals_max = field_vals.ProlongToMaxOrder(); }
    GridFunction *field_vals_pref = prefinement ?
                                    field_vals_max.get() : &field_vals;
 

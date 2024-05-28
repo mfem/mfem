@@ -2659,6 +2659,21 @@ int FiniteElementSpace::MinOrder(VarOrderBits bits)
    return 0;
 }
 
+// For the serial FiniteElementSpace, there are no ghost elements, and this
+// function just sets the sizes of edge_orders and face_orders, initializing to
+// 0.
+void FiniteElementSpace::ApplyGhostElementOrdersToEdgesAndFaces(
+   Array<VarOrderBits> &edge_orders,
+   Array<VarOrderBits> &face_orders,
+   const Array<VarOrderElemInfo> * pref_data) const
+{
+   edge_orders.SetSize(mesh->GetNEdges());
+   face_orders.SetSize(mesh->GetNFaces());
+
+   edge_orders = 0;
+   face_orders = 0;
+}
+
 void FiniteElementSpace::CalcEdgeFaceVarOrders(
    Array<VarOrderBits> &edge_orders, Array<VarOrderBits> &face_orders,
    Array<bool> &skip_edges, Array<bool> &skip_faces,
@@ -2670,10 +2685,7 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(
    const bool localVar = elem_order.Size() == mesh->GetNE();
    const int baseOrder = fec->GetOrder();
 
-   edge_orders.SetSize(mesh->GetNEdges());
-   edge_orders = 0;
-   face_orders.SetSize(mesh->GetNFaces());
-   face_orders = 0;
+   ApplyGhostElementOrdersToEdgesAndFaces(edge_orders, face_orders, pref_data);
 
    // Calculate initial edge/face orders, as required by incident elements.
    // For each edge/face we accumulate in a bit-mask the orders of elements
@@ -2700,8 +2712,6 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(
          }
       }
    }
-
-   ApplyGhostElementOrdersToEdgesAndFaces(edge_orders, face_orders, pref_data);
 
    if (relaxed_hp)
    {
