@@ -1,24 +1,24 @@
 //                                MFEM Example 16
 //                             SUNDIALS Modification
 //
-// Compile with: make sundials_ex16
+// Compile with: make ex16
 //
-// Sample runs:  sundials_ex16
-//               sundials_ex16 -m ../../data/inline-tri.mesh
-//               sundials_ex16 -m ../../data/disc-nurbs.mesh -tf 2
-//               sundials_ex16 -s 12 -a 0.0 -k 1.0
-//               sundials_ex16 -s 15 -a 0.0 -k 1.0
-//               sundials_ex16 -s 8 -a 1.0 -k 0.0 -dt 1e-4 -tf 5e-2 -vs 25
-//               sundials_ex16 -s 11 -a 1.0 -k 0.0 -dt 1e-4 -tf 5e-2 -vs 25
-//               sundials_ex16 -s 9 -a 0.5 -k 0.5 -o 4 -dt 1e-4 -tf 2e-2 -vs 25
-//               sundials_ex16 -s 12 -a 0.5 -k 0.5 -o 4 -dt 1e-4 -tf 2e-2 -vs 25
-//               sundials_ex16 -s 10 -dt 1.0e-4 -tf 4.0e-2 -vs 40
-//               sundials_ex16 -s 13 -dt 1.0e-4 -tf 4.0e-2 -vs 40
-//               sundials_ex16 -m ../../data/fichera-q2.mesh
-//               sundials_ex16 -m ../../data/escher.mesh
-//               sundials_ex16 -m ../../data/beam-tet.mesh -tf 10 -dt 0.1
-//               sundials_ex16 -m ../../data/amr-quad.mesh -o 4 -r 0
-//               sundials_ex16 -m ../../data/amr-hex.mesh -o 2 -r 0
+// Sample runs:  ex16
+//               ex16 -m ../../data/inline-tri.mesh
+//               ex16 -m ../../data/disc-nurbs.mesh -tf 2
+//               ex16 -s 12 -a 0.0 -k 1.0
+//               ex16 -s 15 -a 0.0 -k 1.0
+//               ex16 -s 8 -a 1.0 -k 0.0 -dt 1e-4 -tf 5e-2 -vs 25
+//               ex16 -s 11 -a 1.0 -k 0.0 -dt 1e-4 -tf 5e-2 -vs 25
+//               ex16 -s 9 -a 0.5 -k 0.5 -o 4 -dt 1e-4 -tf 2e-2 -vs 25
+//               ex16 -s 12 -a 0.5 -k 0.5 -o 4 -dt 1e-4 -tf 2e-2 -vs 25
+//               ex16 -s 10 -dt 1.0e-4 -tf 4.0e-2 -vs 40
+//               ex16 -s 13 -dt 1.0e-4 -tf 4.0e-2 -vs 40
+//               ex16 -m ../../data/fichera-q2.mesh
+//               ex16 -m ../../data/escher.mesh
+//               ex16 -m ../../data/beam-tet.mesh -tf 10 -dt 0.1
+//               ex16 -m ../../data/amr-quad.mesh -o 4 -r 0
+//               ex16 -m ../../data/amr-hex.mesh -o 2 -r 0
 //
 // Description:  This example solves a time dependent nonlinear heat equation
 //               problem of the form du/dt = C(u), with a non-linear diffusion

@@ -1,25 +1,25 @@
 //                         MFEM Example 16 - Parallel Version
 //                              SUNDIALS Modification
 //
-// Compile with: make sundials_ex16p
+// Compile with: make ex16p
 //
 // Sample runs:
-//     mpirun -np 4 sundials_ex16p
-//     mpirun -np 4 sundials_ex16p -m ../../data/inline-tri.mesh
-//     mpirun -np 4 sundials_ex16p -m ../../data/disc-nurbs.mesh -tf 2
-//     mpirun -np 4 sundials_ex16p -s 12 -a 0.0 -k 1.0
-//     mpirun -np 4 sundials_ex16p -s 15 -a 0.0 -k 1.0
-//     mpirun -np 4 sundials_ex16p -s 8 -a 1.0 -k 0.0 -dt 4e-6 -tf 2e-2 -vs 50
-//     mpirun -np 4 sundials_ex16p -s 11 -a 1.0 -k 0.0 -dt 4e-6 -tf 2e-2 -vs 50
-//     mpirun -np 8 sundials_ex16p -s 9 -a 0.5 -k 0.5 -o 4 -dt 8e-6 -tf 2e-2 -vs 50
-//     mpirun -np 8 sundials_ex16p -s 12 -a 0.5 -k 0.5 -o 4 -dt 8e-6 -tf 2e-2 -vs 50
-//     mpirun -np 4 sundials_ex16p -s 10 -dt 2.0e-4 -tf 4.0e-2
-//     mpirun -np 4 sundials_ex16p -s 13 -dt 2.0e-4 -tf 4.0e-2
-//     mpirun -np 16 sundials_ex16p -m ../../data/fichera-q2.mesh
-//     mpirun -np 16 sundials_ex16p -m ../../data/escher-p2.mesh
-//     mpirun -np 8 sundials_ex16p -m ../../data/beam-tet.mesh -tf 10 -dt 0.1
-//     mpirun -np 4 sundials_ex16p -m ../../data/amr-quad.mesh -o 4 -rs 0 -rp 0
-//     mpirun -np 4 sundials_ex16p -m ../../data/amr-hex.mesh -o 2 -rs 0 -rp 0
+//     mpirun -np 4 ex16p
+//     mpirun -np 4 ex16p -m ../../data/inline-tri.mesh
+//     mpirun -np 4 ex16p -m ../../data/disc-nurbs.mesh -tf 2
+//     mpirun -np 4 ex16p -s 12 -a 0.0 -k 1.0
+//     mpirun -np 4 ex16p -s 15 -a 0.0 -k 1.0
+//     mpirun -np 4 ex16p -s 8 -a 1.0 -k 0.0 -dt 4e-6 -tf 2e-2 -vs 50
+//     mpirun -np 4 ex16p -s 11 -a 1.0 -k 0.0 -dt 4e-6 -tf 2e-2 -vs 50
+//     mpirun -np 8 ex16p -s 9 -a 0.5 -k 0.5 -o 4 -dt 8e-6 -tf 2e-2 -vs 50
+//     mpirun -np 8 ex16p -s 12 -a 0.5 -k 0.5 -o 4 -dt 8e-6 -tf 2e-2 -vs 50
+//     mpirun -np 4 ex16p -s 10 -dt 2.0e-4 -tf 4.0e-2
+//     mpirun -np 4 ex16p -s 13 -dt 2.0e-4 -tf 4.0e-2
+//     mpirun -np 16 ex16p -m ../../data/fichera-q2.mesh
+//     mpirun -np 16 ex16p -m ../../data/escher-p2.mesh
+//     mpirun -np 8 ex16p -m ../../data/beam-tet.mesh -tf 10 -dt 0.1
+//     mpirun -np 4 ex16p -m ../../data/amr-quad.mesh -o 4 -rs 0 -rp 0
+//     mpirun -np 4 ex16p -m ../../data/amr-hex.mesh -o 2 -rs 0 -rp 0
 //
 // Description:  This example solves a time dependent nonlinear heat equation
 //               problem of the form du/dt = C(u), with a non-linear diffusion
