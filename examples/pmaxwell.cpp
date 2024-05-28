@@ -156,8 +156,8 @@ int main(int argc, char *argv[])
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
 
-   FiniteElementCollection *fec = new ND_FECollection(order, dim);
-   ParFiniteElementSpace *E_fes = new ParFiniteElementSpace(&pmesh, fec);
+   ND_FECollection fec(order, dim);
+   ParFiniteElementSpace E_fes(&pmesh, &fec);
 
    // Bilinear form coefficients
    ConstantCoefficient one(1.0);
@@ -177,25 +177,24 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient CurlEr(dim,curlE_exact_r);
    VectorFunctionCoefficient CurlEi(dim,curlE_exact_i);
 
-   ParComplexLinearForm *b = new ParComplexLinearForm(E_fes, conv);
-   b->Vector::operator=(0.0);
-   b->AddDomainIntegrator(new VectorFEDomainLFIntegrator(Jr),
-                          new VectorFEDomainLFIntegrator(Ji));
+   ParComplexLinearForm b(&E_fes, conv);
+   b.Vector::operator=(0.0);
+   b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(Jr),
+                         new VectorFEDomainLFIntegrator(Ji));
 
 
-   ParSesquilinearForm *a = new ParSesquilinearForm(E_fes, conv);
-   a->AddDomainIntegrator(new CurlCurlIntegrator(muinv),nullptr);
-   a->AddDomainIntegrator(new VectorFEMassIntegrator(negomeg2eps),
+   ParSesquilinearForm a(&E_fes, conv);
+   a.AddDomainIntegrator(new CurlCurlIntegrator(muinv),nullptr);
+   a.AddDomainIntegrator(new VectorFEMassIntegrator(negomeg2eps),
                           new VectorFEMassIntegrator(omegsigma));
 
 
 
-   ParBilinearForm *prec = new ParBilinearForm(E_fes);
-   prec->AddDomainIntegrator(new CurlCurlIntegrator(muinv));
-   prec->AddDomainIntegrator(new VectorFEMassIntegrator(omegsigma));
+   ParBilinearForm prec(&E_fes);
+   prec.AddDomainIntegrator(new CurlCurlIntegrator(muinv));
+   prec.AddDomainIntegrator(new VectorFEMassIntegrator(omegsigma));
 
-
-   ParComplexGridFunction E_gf(E_fes);
+   ParComplexGridFunction E_gf(&E_fes);
    E_gf.real() = 0.0;
    E_gf.imag() = 0.0;
 
@@ -231,9 +230,9 @@ int main(int argc, char *argv[])
 
    for (int it = 0; it<=pr; it++)
    {
-      b->Assemble();
-      a->Assemble();
-      prec->Assemble();
+      b.Assemble();
+      a.Assemble();
+      prec.Assemble();
 
       Array<int> ess_tdof_list;
       Array<int> ess_bdr;
@@ -242,26 +241,24 @@ int main(int argc, char *argv[])
       {
          ess_bdr.SetSize(pmesh.bdr_attributes.Max());
          ess_bdr = 1;
-         E_fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+         E_fes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
       }
 
       E_gf.real() = 0.0;
       E_gf.imag() = 0.0;
       E_gf.ProjectBdrCoefficientTangent(Er,Ei, ess_bdr);
 
-      OperatorPtr Ah;
+      OperatorPtr A;
       Vector B, X;
-      a->FormLinearSystem(ess_tdof_list, E_gf, *b, Ah, X, B);
+      a.FormLinearSystem(ess_tdof_list, E_gf, b, A, X, B);
 
       HypreParMatrix M;
-      prec->FormSystemMatrix(ess_tdof_list, M);
-
-      HypreParMatrix *A = Ah.As<ComplexHypreParMatrix>()->GetSystemMatrix();
+      prec.FormSystemMatrix(ess_tdof_list, M);
 
       Array<int> offsets(3);
       offsets[0] = 0;
-      offsets[1] = E_fes->TrueVSize();
-      offsets[2] = E_fes->TrueVSize();
+      offsets[1] = E_fes.TrueVSize();
+      offsets[2] = E_fes.TrueVSize();
       offsets.PartialSum();
       BlockDiagonalPreconditioner BlockPrec(offsets);
 
@@ -280,7 +277,7 @@ int main(int argc, char *argv[])
 #endif
       if (!mumps_solver)
       {
-         pc_r.reset(new HypreAMS(M,E_fes));
+         pc_r.reset(new HypreAMS(M,&E_fes));
          pc_i.reset(new ScaledOperator(pc_r.get(), s));
       }
 
@@ -304,14 +301,14 @@ int main(int argc, char *argv[])
       solver.get()->Mult(B, X);
       int num_iter = solver.get()->GetNumIterations();
 
-      a->RecoverFEMSolution(X, *b, E_gf);
+      a.RecoverFEMSolution(X, b, E_gf);
 
       real_t err_r = E_gf.real().ComputeHCurlError(&Er,&CurlEr);
       real_t err_i = E_gf.imag().ComputeHCurlError(&Ei,&CurlEi);
 
       real_t totalerr = std::sqrt(err_r*err_r + err_i*err_i);
 
-      int dofs = E_fes->GlobalTrueVSize();
+      int dofs = E_fes.GlobalTrueVSize();
 
       real_t rate_err = (it) ? dim*log(err0/totalerr)/log((real_t)dof0/dofs) : 0.0;
 
@@ -370,21 +367,17 @@ int main(int argc, char *argv[])
 
       pmesh.UniformRefinement();
 
-      E_fes->Update();
+      E_fes.Update();
       E_gf.Update();
-      a->Update();
-      b->Update();
-      prec->Update();
+      a.Update();
+      b.Update();
+      prec.Update();
    }
    if (paraview)
    {
       delete paraview_dc;
    }
 
-   delete a;
-   delete b;
-   delete E_fes;
-   delete fec;
    return 0;
 }
 
