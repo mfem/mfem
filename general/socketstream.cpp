@@ -134,7 +134,7 @@ int socketbuf::open(const char hostname[], int port)
       {
          closesocket(socket_descriptor);
          socket_descriptor = -2;
-         return -1;
+         continue;
       }
 #endif
 
