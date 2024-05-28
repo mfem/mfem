@@ -63,6 +63,8 @@ class FiniteElementSpace;
  */
 class ParNCMesh : public NCMesh
 {
+protected:
+   ParNCMesh() = default;
 public:
    /// Construct by partitioning a serial NCMesh.
    /** SFC partitioning is used by default. A user-specified partition can be

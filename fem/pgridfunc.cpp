@@ -159,7 +159,7 @@ HypreParVector *ParGridFunction::GetTrueDofs() const
 
 void ParGridFunction::ParallelAverage(Vector &tv) const
 {
-   MFEM_VERIFY(pfes->Conforming(), "not implemented for NC meshes");
+   // MFEM_VERIFY(pfes->Conforming(), "not implemented for NC meshes");
    pfes->GetProlongationMatrix()->MultTranspose(*this, tv);
    pfes->DivideByGroupSize(tv.HostReadWrite());
 }

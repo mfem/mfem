@@ -613,6 +613,8 @@ public:
 
    iterator begin() { return size ? iterator(this) : iterator(true); }
    iterator end() { return iterator(); }
+   const_iterator begin() const { return cbegin(); }
+   const_iterator end() const { return cend(); }
 
    const_iterator cbegin() const
    { return size ? const_iterator(this) : const_iterator(true); }

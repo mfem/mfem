@@ -40,14 +40,14 @@ struct UniqueIndexGenerator
    int Get(int i, bool &new_index);
 };
 
-/**
- * @brief Given an element @a el and a list of @a attributes, determine if that
- * element is in at least one attribute of @a attributes.
- *
- * @param el The element
- * @param attributes The attributes
- */
-bool ElementHasAttribute(const Element &el, const Array<int> &attributes);
+// /**
+//  * @brief Given an element @a el and a list of @a attributes, determine if that
+//  * element is in at least one attribute of @a attributes.
+//  *
+//  * @param el The element
+//  * @param attributes The attributes
+//  */
+// bool ElementHasAttribute(const Element &el, const Array<int> &attributes);
 
 /**
  * @brief Given a Mesh @a parent and another Mesh @a mesh using the list of
@@ -111,10 +111,10 @@ void BuildVdofToVdofMap(const FiniteElementSpace& subfes,
  * @tparam T The type of the input object which has to fulfill the
  * SubMesh::GetParent() interface.
  */
-template <class T, class RT = decltype(std::declval<T>().GetParent())>
-RT GetRootParent(const T &m)
+template <class T>
+auto GetRootParent(const T &m) -> decltype(std::declval<T>().GetParent())
 {
-   RT parent = m.GetParent();
+   auto parent = m.GetParent();
    while (true)
    {
       const T* next = dynamic_cast<const T*>(parent);
@@ -122,6 +122,18 @@ RT GetRootParent(const T &m)
       else { parent = next->GetParent(); }
    }
 }
+
+/**
+ * @brief Add boundary elements to the Mesh.
+ * @details An attempt to call this function for anything other than SubMesh or ParSubMesh
+ * will result in a linker error as the template is only explicitly instantiated for those
+ * types.
+ * @param mesh The Mesh to add boundary elements to.
+ * @tparam MeshT The SubMesh type, options SubMesh and ParSubMesh.
+ */
+template <typename SubMeshT>
+void AddBoundaryElements(SubMeshT &mesh);
+
 
 } // namespace SubMeshUtils
 } // namespace mfem

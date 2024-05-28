@@ -496,10 +496,6 @@ public:
    void GenerateOffsets(int N, HYPRE_BigInt loc_sizes[],
                         Array<HYPRE_BigInt> *offsets[]) const;
 
-   /** Return true if the face is interior or shared. In parallel, this
-       method only works if the face neighbor data is exchanged. */
-   inline bool FaceIsTrueInterior(int FaceNo) const { return Mesh::FaceIsTrueInterior(FaceNo); }
-
    void ExchangeFaceNbrData();
    void ExchangeFaceNbrNodes();
 

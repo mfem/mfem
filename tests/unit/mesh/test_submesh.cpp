@@ -507,7 +507,9 @@ TEST_CASE("InterfaceTransferSolve", "[SubMesh]")
          ess_bdr.Last() = 0;
       }
 
+      std::cout << __FILE__ << ':' << __LINE__ << std::endl;
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      std::cout << __FILE__ << ':' << __LINE__ << std::endl;
 
       LinearForm b(&fespace);
       b.AddDomainIntegrator(new DomainLFIntegrator(f));
@@ -534,7 +536,9 @@ TEST_CASE("InterfaceTransferSolve", "[SubMesh]")
       Array<int> ess_tdof_list, ess_bdr;
       ess_bdr.SetSize(fespace.GetMesh()->bdr_attributes.Max());
       ess_bdr = 1;
+      std::cout << __FILE__ << ':' << __LINE__ << std::endl;
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      std::cout << __FILE__ << ':' << __LINE__ << std::endl;
       LinearForm b(&fespace);
       b.AddDomainIntegrator(new DomainLFIntegrator(f));
       b.Assemble();

@@ -17,6 +17,7 @@
 #include <unordered_set>
 #include <algorithm>
 #include "psubmesh.hpp"
+#include "pncsubmesh.hpp"
 #include "submesh_utils.hpp"
 #include "../segment.hpp"
 
@@ -24,25 +25,20 @@ namespace mfem
 {
 
 ParSubMesh ParSubMesh::CreateFromDomain(const ParMesh &parent,
-                                        Array<int> &domain_attributes)
+                                        const Array<int> &domain_attributes)
 {
    return ParSubMesh(parent, SubMesh::From::Domain, domain_attributes);
 }
 
 ParSubMesh ParSubMesh::CreateFromBoundary(const ParMesh &parent,
-                                          Array<int> &boundary_attributes)
+                                          const Array<int> &boundary_attributes)
 {
    return ParSubMesh(parent, SubMesh::From::Boundary, boundary_attributes);
 }
 
 ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
-                       Array<int> &attributes) : parent_(parent), from_(from), attributes_(attributes)
+                       const Array<int> &attributes) : parent_(parent), from_(from), attributes_(attributes)
 {
-   if (Nonconforming())
-   {
-      MFEM_ABORT("SubMesh does not support non-conforming meshes");
-   }
-
    MyComm = parent.GetComm();
    NRanks = parent.GetNRanks();
    MyRank = parent.GetMyRank();
@@ -70,17 +66,218 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
                                                                       attributes_, true);
    }
 
-   // Don't let boundary elements get generated automatically. This would
-   // generate boundary elements on each rank locally, which is topologically
-   // wrong for the distributed SubMesh.
-   FinalizeTopology(false);
-
    parent_to_submesh_vertex_ids_.SetSize(parent_.GetNV());
    parent_to_submesh_vertex_ids_ = -1;
    for (int i = 0; i < parent_vertex_ids_.Size(); i++)
    {
       parent_to_submesh_vertex_ids_[parent_vertex_ids_[i]] = i;
    }
+
+   parent_to_submesh_element_ids_.SetSize(from == From::Boundary ? parent.GetNBE() : parent.GetNE());
+   parent_to_submesh_element_ids_ = -1;
+   for (int i = 0; i < parent_element_ids_.Size(); i++)
+   {
+      parent_to_submesh_element_ids_[parent_element_ids_[i]] = i;
+   }
+
+   std::cout << __FILE__ << ':' << __LINE__ << std::endl;
+   std::cout << "parent_element_ids_: ";
+   for (auto x : parent_element_ids_)
+   {
+      std::cout << x << ' ';
+   }
+   std::cout << "\n";
+
+   std::cout << __FILE__ << ':' << __LINE__ << std::endl;
+   std::cout << "parent_to_submesh_element_ids_: ";
+   for (auto x : parent_to_submesh_element_ids_)
+   {
+      std::cout << x << ' ';
+   }
+   std::cout << "\n";
+
+
+   std::cout << __FILE__ << ':' << __LINE__ << std::endl;
+   std::cout << "parent_vertex_ids_: ";
+   for (auto x : parent_vertex_ids_)
+   {
+      std::cout << x << ' ';
+   }
+   std::cout << "\n";
+
+   std::cout << __FILE__ << ':' << __LINE__ << std::endl;
+   std::cout << "parent_to_submesh_vertex_ids_: ";
+   for (auto x : parent_to_submesh_vertex_ids_)
+   {
+      std::cout << x << ' ';
+   }
+   std::cout << "\n";
+
+   // std::cout << "parent.GetNE() " << parent.GetNE() << std::endl;
+   // for (int i = 0; i < parent.GetNE(); i++)
+   // {
+   //    const auto * elem = parent.GetElement(i);
+   //    const auto * vert = elem->GetVertices();
+   //    for (int v = 0; v < 8; v++)
+   //    {
+   //       const auto &vv = parent.GetVertex(vert[v]);
+
+   //       std::cout << "vert[" << v << "] " << vv[0] << ' ' << vv[1] << ' ' << vv[2] << std::endl;
+   //    }
+   // }
+
+   // std::cout << "GetNE() " << GetNE() << std::endl;
+   // for (int i = 0; i < GetNE(); i++)
+   // {
+   //    const auto * elem = GetElement(i);
+   //    const auto * vert = elem->GetVertices();
+   //    for (int v = 0; v < 8; v++)
+   //    {
+   //       const auto &vv = GetVertex(vert[v]);
+
+   //       std::cout << "vert[" << v << "] " << vv[0] << ' ' << vv[1] << ' ' << vv[2] << std::endl;
+   //    }
+   // }
+
+   // Don't let boundary elements get generated automatically. This would
+   // generate boundary elements on each rank locally, which is topologically
+   // wrong for the distributed SubMesh.
+   FinalizeTopology(false);
+
+   {
+      std::cout << __FILE__ << ':' << __LINE__ << std::endl;
+      Array<int> verts;
+      for (int e = 0; e < GetNE(); e++)
+      {
+         auto * elem = GetElement(e);
+         elem->GetVertices(verts);
+
+         std::cout << "Element " << e << " : ";
+         for (auto x : verts)
+         {
+            std::cout << x << ' ';
+         }
+         std::cout << std::endl;
+      }
+      for (int v = 0; v < GetNV(); v++)
+      {
+         auto *vv = GetVertex(v);
+         std::cout << "Vertex " << v << " : ";
+         for (int i = 0; i < 3; i++)
+         {
+            std::cout << vv[i] << ' ';
+         }
+         std::cout << std::endl;
+      }
+   }
+
+
+
+   if (parent.Nonconforming())
+   {
+
+      std::cout << __FILE__ << ':' << __LINE__ << " v ";
+      for (const auto & v: parent_vertex_ids_)
+      {
+         std::cout << v << ' ';
+      }
+      std::cout << std::endl;
+
+      pncmesh = new ParNCSubMesh(*this, *parent.pncmesh, from, attributes);
+      auto pncsubmesh = dynamic_cast<ParNCSubMesh*>(pncmesh);
+      ncmesh = pncmesh;
+      InitFromNCMesh(*pncmesh);
+
+   // Vertex Values are bad
+      {
+         std::cout << __FILE__ << ':' << __LINE__ << std::endl;
+         Array<int> verts;
+         for (int e = 0; e < GetNE(); e++)
+         {
+            auto * elem = GetElement(e);
+            elem->GetVertices(verts);
+
+            std::cout << "Element " << e << " : ";
+            for (auto x : verts)
+            {
+               std::cout << x << ' ';
+            }
+            std::cout << std::endl;
+         }
+         for (int v = 0; v < GetNV(); v++)
+         {
+            auto *vv = GetVertex(v);
+            std::cout << "Vertex " << v << " : ";
+            for (int i = 0; i < 3; i++)
+            {
+               std::cout << vv[i] << ' ';
+            }
+            std::cout << std::endl;
+         }
+      }
+
+      pncmesh->OnMeshUpdated(this);
+
+      // Update the submesh to parent vertex mapping, NCSubMesh reordered the vertices so
+      // the map to parent is no longer valid.
+      auto new_parent_vertex_ids = parent_vertex_ids_;
+      auto new_parent_to_submesh_vertex_ids = parent_to_submesh_vertex_ids_;
+      new_parent_to_submesh_vertex_ids = -1;
+      for (int i = 0; i < parent_vertex_ids_.Size(); i++)
+      {
+         // vertex -> node -> parent node -> parent vertex
+         auto node = ncmesh->vertex_nodeId[i];
+         auto parent_node = pncsubmesh->parent_node_ids_[node];
+         auto parent_vertex =  parent.ncmesh->nodes[parent_node].vert_index;
+         std::cout << i << " node " << node << " parent_node " << parent_node << " parent_vertex " << parent_vertex << std::endl;
+         new_parent_vertex_ids[i] = parent_vertex;
+         new_parent_to_submesh_vertex_ids[parent_vertex] = i;
+      }
+      parent_vertex_ids_ = new_parent_vertex_ids;
+      parent_to_submesh_vertex_ids_ = new_parent_to_submesh_vertex_ids;
+
+      GenerateNCFaceInfo();
+      SetAttributes();
+   }
+
+   // Vertex Values are bad
+   {
+      std::cout << __FILE__ << ':' << __LINE__ << std::endl;
+      Array<int> verts;
+      for (int e = 0; e < GetNE(); e++)
+      {
+         auto * elem = GetElement(e);
+         elem->GetVertices(verts);
+
+         std::cout << "Element " << e << " : ";
+         for (auto x : verts)
+         {
+            std::cout << x << ' ';
+         }
+         std::cout << std::endl;
+      }
+      for (int v = 0; v < GetNV(); v++)
+      {
+         auto *vv = GetVertex(v);
+         std::cout << "Vertex " << v << " : ";
+         for (int i = 0; i < 3; i++)
+         {
+            std::cout << vv[i] << ' ';
+         }
+         std::cout << std::endl;
+      }
+      if (ncmesh)
+      {
+         ncmesh->GetFaceList();
+
+         std::cout << __FILE__ << ':' << __LINE__ << std::endl;
+         for (int f : ncmesh->boundary_faces)
+         {
+            std::cout << "f " << f << " attribute " << ncmesh->faces[f].attribute << std::endl;
+         }
+      }
+   }
+
 
    DSTable v2v(parent_.GetNV());
    parent_.GetVertexToVertexTable(v2v);
@@ -113,7 +310,6 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
       {
          parent_to_submesh_face_ids_[parent_face_ids_[i]] = i;
       }
-
       parent_face_ori_.SetSize(NumOfFaces);
 
       for (int i = 0; i < NumOfFaces; i++)
@@ -239,113 +435,52 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
 
    ExchangeFaceNbrData();
 
-   // Add boundaries
+   // Vertex Values are bad
    {
-      const int num_codim_1 = [this]()
+      std::cout << __FILE__ << ':' << __LINE__ << std::endl;
+      Array<int> verts;
+      for (int e = 0; e < GetNE(); e++)
       {
-         if (Dim == 1) { return NumOfVertices; }
-         else if (Dim == 2) { return NumOfEdges; }
-         else if (Dim == 3) { return NumOfFaces; }
-         else { MFEM_ABORT("Invalid dimension."); return -1; }
-      }();
+         auto * elem = GetElement(e);
+         elem->GetVertices(verts);
 
-      if (Dim == 3)
-      {
-         // In 3D we check for `bel_to_edge`. It shouldn't have been set
-         // previously.
-         delete bel_to_edge;
-         bel_to_edge = nullptr;
-      }
-
-      NumOfBdrElements = 0;
-      for (int i = 0; i < num_codim_1; i++)
-      {
-         if (GetFaceInformation(i).IsBoundary())
+         std::cout << "Element " << e << " : ";
+         for (auto x : verts)
          {
-            NumOfBdrElements++;
+            std::cout << x << ' ';
          }
+         std::cout << std::endl;
       }
-
-      boundary.SetSize(NumOfBdrElements);
-      be_to_face.SetSize(NumOfBdrElements);
-      Array<int> parent_face_to_be = parent.GetFaceToBdrElMap();
-      int max_bdr_attr = parent.bdr_attributes.Max();
-
-      for (int i = 0, j = 0; i < num_codim_1; i++)
+      for (int v = 0; v < GetNV(); v++)
       {
-         if (GetFaceInformation(i).IsBoundary())
+         auto *vv = GetVertex(v);
+         std::cout << "Vertex " << v << " : ";
+         for (int i = 0; i < 3; i++)
          {
-            boundary[j] = faces[i]->Duplicate(this);
-            be_to_face[j] = i;
-
-            if (from == SubMesh::From::Domain && Dim >= 2)
-            {
-               int pbeid = Dim == 3 ? parent_face_to_be[parent_face_ids_[i]] :
-                           parent_face_to_be[parent_edge_ids_[i]];
-               if (pbeid != -1)
-               {
-                  boundary[j]->SetAttribute(parent.GetBdrAttribute(pbeid));
-               }
-               else
-               {
-                  boundary[j]->SetAttribute(max_bdr_attr + 1);
-               }
-            }
-            else
-            {
-               boundary[j]->SetAttribute(SubMesh::GENERATED_ATTRIBUTE);
-            }
-            ++j;
+            std::cout << vv[i] << ' ';
          }
+         std::cout << std::endl;
       }
-
-      if (from == SubMesh::From::Domain && Dim >= 2)
+      if (ncmesh)
       {
-         // Search for and count interior boundary elements
-         int InteriorBdrElems = 0;
-         for (int i=0; i<parent.GetNBE(); i++)
+         ncmesh->GetFaceList();
+
+         std::cout << __FILE__ << ':' << __LINE__ << std::endl;
+         for (int f : ncmesh->boundary_faces)
          {
-            const int parentFaceIdx = parent.GetBdrElementFaceIndex(i);
-            const int submeshFaceIdx =
-               Dim == 3 ?
-               parent_to_submesh_face_ids_[parentFaceIdx] :
-               parent_to_submesh_edge_ids_[parentFaceIdx];
-
-            if (submeshFaceIdx == -1) { continue; }
-            if (GetFaceInformation(submeshFaceIdx).IsBoundary()) { continue; }
-
-            InteriorBdrElems++;
-         }
-
-         if (InteriorBdrElems > 0)
-         {
-            const int OldNumOfBdrElements = NumOfBdrElements;
-            NumOfBdrElements += InteriorBdrElems;
-            boundary.SetSize(NumOfBdrElements);
-            be_to_face.SetSize(NumOfBdrElements);
-
-            // Search for and transfer interior boundary elements
-            for (int i=0, j = OldNumOfBdrElements; i<parent.GetNBE(); i++)
-            {
-               const int parentFaceIdx = parent.GetBdrElementFaceIndex(i);
-               const int submeshFaceIdx =
-                  parent_to_submesh_face_ids_[parentFaceIdx];
-
-               if (submeshFaceIdx == -1) { continue; }
-               if (GetFaceInformation(submeshFaceIdx).IsBoundary())
-               { continue; }
-
-               boundary[j] = faces[submeshFaceIdx]->Duplicate(this);
-               be_to_face[j] = submeshFaceIdx;
-               boundary[j]->SetAttribute(parent.GetBdrAttribute(i));
-
-               ++j;
-            }
+            std::cout << "f " << f << " attribute " << ncmesh->faces[f].attribute << std::endl;
          }
       }
    }
 
-   if (Dim == 3)
+   SubMeshUtils::AddBoundaryElements(*this);
+
+   if (Dim > 1)
+   {
+      if (!el_to_edge) { el_to_edge = new Table; }
+      NumOfEdges = GetElementToEdgeTable(*el_to_edge);
+   }
+   if (Dim > 2)
    {
       GetElementToFaceTable();
    }
@@ -377,85 +512,26 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
       Transfer(*pn, *n);
    }
 
-   if (Dim > 1)
-   {
-      if (!el_to_edge) { el_to_edge = new Table; }
-      NumOfEdges = GetElementToEdgeTable(*el_to_edge);
-   }
-
    if (Dim > 1 && from == SubMesh::From::Domain)
    {
-      // Order 0 Raviart-Thomas space will have precisely 1 DoF per face.
-      // We can use this DoF to communicate boundary attribute numbers.
-      RT_FECollection fec_rt(0, Dim);
-      ParFiniteElementSpace parent_fes_rt(const_cast<ParMesh*>(&parent),
-                                          &fec_rt);
-
-      ParGridFunction parent_bdr_attr_gf(&parent_fes_rt);
-      parent_bdr_attr_gf = 0.0;
-
-      Array<int> vdofs;
-      DofTransformation doftrans;
-      int dof, faceIdx;
-      real_t sign, w;
-
-      // Copy boundary attribute numbers into local portion of a parallel
-      // grid function
-      parent_bdr_attr_gf.HostReadWrite(); // not modifying all entries
-      for (int i=0; i<parent.GetNBE(); i++)
+      int max_bdr_attr = parent.bdr_attributes.Max();
+      const auto &parent_face_to_be = parent.GetFaceToBdrElMap();
+      for (int i = 0; i < NumOfBdrElements; i++)
       {
-         faceIdx = parent.GetBdrElementFaceIndex(i);
-         const FaceInformation &faceInfo = parent.GetFaceInformation(faceIdx);
-         parent_fes_rt.GetBdrElementDofs(i, vdofs, doftrans);
-         dof = ParFiniteElementSpace::DecodeDof(vdofs[0], sign);
-
-         // Shared interior boundary elements are not duplicated across
-         // processor boundaries but ParGridFunction::ParallelAverage will
-         // assume both processors contribute to the averaged DoF value. So,
-         // we multiply shared boundary values by 2 so that the average
-         // produces the desired value.
-         w = faceInfo.IsShared() ? 2.0 : 1.0;
-
-         // The DoF sign is needed to ensure that non-shared interior
-         // boundary values sum properly rather than canceling.
-         parent_bdr_attr_gf[dof] = sign * w * parent.GetBdrAttribute(i);
-      }
-
-      Vector parent_bdr_attr(parent_fes_rt.GetTrueVSize());
-
-      // Compute the average of the attribute numbers
-      parent_bdr_attr_gf.ParallelAverage(parent_bdr_attr);
-      // Distribute boundary attributes to neighboring processors
-      parent_bdr_attr_gf.Distribute(parent_bdr_attr);
-
-      ParFiniteElementSpace submesh_fes_rt(this,
-                                           &fec_rt);
-
-      ParGridFunction submesh_bdr_attr_gf(&submesh_fes_rt);
-
-      // Transfer the averaged boundary attribute values to the submesh
-      auto transfer_map = ParSubMesh::CreateTransferMap(parent_bdr_attr_gf,
-                                                        submesh_bdr_attr_gf);
-      transfer_map.Transfer(parent_bdr_attr_gf, submesh_bdr_attr_gf);
-
-      // Extract the boundary attribute numbers from the local portion
-      // of the ParGridFunction and set the corresponding boundary element
-      // attributes.
-      int attr;
-      for (int i=0; i<NumOfBdrElements; i++)
-      {
-         submesh_fes_rt.GetBdrElementDofs(i, vdofs, doftrans);
-         dof = ParFiniteElementSpace::DecodeDof(vdofs[0], sign);
-         attr = (int)std::round(std::abs(submesh_bdr_attr_gf[dof]));
-         if (attr != 0)
-         {
-            SetBdrAttribute(i, attr);
-         }
+         auto fi = GetBdrElementFaceIndex(i);
+         auto pfi = Dim == 3 ? parent_face_ids_[fi] : parent_edge_ids_[fi];
+         auto pbe = parent_face_to_be[pfi];
+         std::cout << "Dim " << Dim << " i " << i << " fi " << fi << " pfi " << pfi << " pbe " << pbe << std::endl;
+         // This case happens when a domain is extracted, but the root parent
+         // mesh didn't have a boundary element on the trace that defined
+         // it's boundary. It still creates a valid mesh, so we allow it.
+         SetBdrAttribute(i, pbe != -1 ? parent.GetBdrAttribute(pbe) : max_bdr_attr + 1);
       }
    }
 
    SetAttributes();
    Finalize();
+
 }
 
 void ParSubMesh::FindSharedVerticesRanks(Array<int> &rhvtx)
@@ -608,6 +684,7 @@ void ParSubMesh::AppendSharedVerticesGroups(ListOfIntegerSets &groups,
 {
    IntegerSet group;
 
+   // g = 0 corresponds to the singleton group of each rank alone.
    for (int g = 1, sv = 0; g < parent_.GetNGroups(); g++)
    {
       const int group_sz = parent_.gtopo.GetGroupSize(g);
@@ -802,96 +879,46 @@ void ParSubMesh::AppendSharedFacesGroups(ListOfIntegerSets &groups,
    }
 }
 
-void ParSubMesh::BuildVertexGroup(int ngroups, const Array<int>& rhvtx,
-                                  int& nsverts)
+void BuildGroup(Table &group, int ngroups, const Array<int>& rh, int ns)
 {
-   group_svert.MakeI(ngroups);
-   for (int i = 0; i < rhvtx.Size(); i++)
+   group.MakeI(ngroups);
+   for (int i = 0; i < rh.Size(); i++)
    {
-      if (rhvtx[i] >= 0)
+      if (rh[i] >= 0)
       {
-         group_svert.AddAColumnInRow(rhvtx[i]);
+         group.AddAColumnInRow(rh[i]);
       }
    }
 
-   group_svert.MakeJ();
-   nsverts = 0;
-   for (int i = 0; i < rhvtx.Size(); i++)
+   group.MakeJ();
+   ns = 0;
+   for (int i = 0; i < rh.Size(); i++)
    {
-      if (rhvtx[i] >= 0)
+      if (rh[i] >= 0)
       {
-         group_svert.AddConnection(rhvtx[i], nsverts++);
+         group.AddConnection(rh[i], ns++);
       }
    }
-   group_svert.ShiftUpI();
+   group.ShiftUpI();
+}
+
+void ParSubMesh::BuildVertexGroup(int ngroups, const Array<int>& rhvtx,
+                                  int& nsverts)
+{
+   BuildGroup(group_svert, ngroups, rhvtx, nsverts);
 }
 
 void ParSubMesh::BuildEdgeGroup(int ngroups, const Array<int>& rhe,
                                 int& nsedges)
 {
-   group_sedge.MakeI(ngroups);
-   for (int i = 0; i < rhe.Size(); i++)
-   {
-      if (rhe[i] >= 0)
-      {
-         group_sedge.AddAColumnInRow(rhe[i]);
-      }
-   }
-
-   group_sedge.MakeJ();
-   nsedges = 0;
-   for (int i = 0; i < rhe.Size(); i++)
-   {
-      if (rhe[i] >= 0)
-      {
-         group_sedge.AddConnection(rhe[i], nsedges++);
-      }
-   }
-   group_sedge.ShiftUpI();
+   BuildGroup(group_sedge, ngroups, rhe, nsedges);
 }
 
 void ParSubMesh::BuildFaceGroup(int ngroups, const Array<int>& rht,
                                 int& nstrias, const Array<int>& rhq, int& nsquads)
 {
-   group_squad.MakeI(ngroups);
-   for (int i = 0; i < rhq.Size(); i++)
-   {
-      if (rhq[i] >= 0)
-      {
-         group_squad.AddAColumnInRow(rhq[i]);
-      }
-   }
-
-   group_squad.MakeJ();
-   nsquads = 0;
-   for (int i = 0; i < rhq.Size(); i++)
-   {
-      if (rhq[i] >= 0)
-      {
-         group_squad.AddConnection(rhq[i], nsquads++);
-      }
-   }
-   group_squad.ShiftUpI();
-
-   group_stria.MakeI(ngroups);
-   for (int i = 0; i < rht.Size(); i++)
-   {
-      if (rht[i] >= 0)
-      {
-         group_stria.AddAColumnInRow(rht[i]);
-      }
-   }
-
-   group_stria.MakeJ();
-   nstrias = 0;
-   for (int i = 0; i < rht.Size(); i++)
-   {
-      if (rht[i] >= 0)
-      {
-         group_stria.AddConnection(rht[i], nstrias++);
-      }
-   }
-   group_stria.ShiftUpI();
+   BuildGroup(group_squad, ngroups, rhq, nsquads);
+   BuildGroup(group_stria, ngroups, rht, nstrias);
 }
 
 void ParSubMesh::BuildSharedVerticesMapping(const int nsverts,
@@ -1059,8 +1086,7 @@ void ParSubMesh::BuildSharedFacesMapping(const int nstrias,
 
 void ParSubMesh::Transfer(const ParGridFunction &src, ParGridFunction &dst)
 {
-   ParTransferMap map(src, dst);
-   map.Transfer(src, dst);
+   CreateTransferMap(src, dst).Transfer(src, dst);
 }
 
 ParTransferMap ParSubMesh::CreateTransferMap(const ParGridFunction &src,
