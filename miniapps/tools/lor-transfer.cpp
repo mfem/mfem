@@ -152,7 +152,9 @@ int main(int argc, char *argv[])
    QuadratureSpace qspace(mesh_lor, *ir); 
    QuadratureFunction qfunc(&qspace);
    qfunc = 333.0; 
-   qfunc(2) = 333.00000000000000001;
+   // qfunc(2) = 7; // does not pass verify_solution
+   qfunc(7) = 333.000001; // does not pass verify_solution
+   // qfunc(7) = 333.0000001; // passes verify_solution
    QuadratureFunctionCoefficient coeff(qfunc); 
    // cout << "Printing yet? The size of qspace is " << qfunc.Size() << endl;
 
