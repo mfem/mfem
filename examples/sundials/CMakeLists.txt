@@ -31,10 +31,20 @@ include_directories(BEFORE ${PROJECT_BINARY_DIR})
 add_custom_target(test_sundials
   ${CMAKE_CTEST_COMMAND} -R sundials USES_TERMINAL)
 
-# Add one executable per cpp file, adding "sundials_" as prefix. Sets
-# "test_sundials" as a target that depends on the given examples.
+# Add one executable per cpp file, adding "sundials_" as prefix so the CMake
+# target is unique from those in the non-SUNDIALS examples. Also sets
+# "test_sundials" as a target that depends on the given SUNDIALS examples.
 set(PFX sundials_)
 add_mfem_examples(SUNDIALS_EXAMPLES_SRCS ${PFX} "" test_sundials)
+
+# Remove "sundials_" prefix from exectuable name for consistency with GNU build
+# system.
+foreach(SRC_FILE ${SUNDIALS_EXAMPLES_SRCS})
+  get_filename_component(SRC_FILENAME ${SRC_FILE} NAME)
+  string(REPLACE ".cpp" "" TARGET_NAME "${PFX}${SRC_FILENAME}")
+  string(REPLACE ${PFX} "" EXE_NAME ${TARGET_NAME})
+  set_target_properties(${TARGET_NAME} PROPERTIES OUTPUT_NAME ${EXE_NAME})
+endforeach()
 
 # Testing.
 # The SUNDIALS tests can be run separately using the target "test_sundials"
