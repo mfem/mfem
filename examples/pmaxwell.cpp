@@ -186,7 +186,7 @@ int main(int argc, char *argv[])
    ParSesquilinearForm a(&E_fes, conv);
    a.AddDomainIntegrator(new CurlCurlIntegrator(muinv),nullptr);
    a.AddDomainIntegrator(new VectorFEMassIntegrator(negomeg2eps),
-                          new VectorFEMassIntegrator(omegsigma));
+                         new VectorFEMassIntegrator(omegsigma));
 
 
 
