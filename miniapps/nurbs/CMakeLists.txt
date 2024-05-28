@@ -45,6 +45,10 @@ add_mfem_miniapp(nurbs_solenoidal
   MAIN nurbs_solenoidal.cpp
   LIBRARIES mfem)
 
+add_mfem_miniapp(nurbs_biharm
+  MAIN nurbs_biharm.cpp
+  LIBRARIES mfem)
+
 if (MFEM_ENABLE_TESTING)
   add_test(NAME nurbs_ex1_1d_r1_o2_ser
     COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
@@ -173,6 +177,10 @@ if (MFEM_ENABLE_TESTING)
   add_test(NAME nurbs_solenoidal_3d_r1_o2_ser
     COMMAND $<TARGET_FILE:nurbs_solenoidal> -no-vis
         -m ${PROJECT_SOURCE_DIR}/data/cube-nurbs.mesh -r 1 -o 2)
+
+  add_test(NAME nurbs_biharm_ser
+    COMMAND $<TARGET_FILE:nurbs_biharm> -no-vis
+        -m ${PROJECT_SOURCE_DIR}/data/square-nurbs.mesh -r 1 -o 2)
 
   add_test(NAME nurbs_printfunc
     COMMAND $<TARGET_FILE:nurbs_printfunc>)
