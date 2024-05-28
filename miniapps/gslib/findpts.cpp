@@ -104,65 +104,6 @@ void PRefinementGFUpdate::GridFunctionUpdate(GridFunction &targf)
    preft.Mult(srcgf, targf);
 }
 
-// Experimental - required for visualizing functions on p-refined spaces.
-GridFunction* ProlongToMaxOrder(const GridFunction *x, const int fieldtype)
-{
-   const FiniteElementSpace *fespace = x->FESpace();
-   Mesh *mesh = fespace->GetMesh();
-   const FiniteElementCollection *fec = fespace->FEColl();
-   const int vdim = fespace->GetVDim();
-
-   // find the max order in the space
-   int max_order = fespace->GetMaxElementOrder();
-
-   // create a visualization space of max order for all elements
-   FiniteElementCollection *fecInt = NULL;
-   if (fieldtype == 0)
-   {
-      fecInt = new H1_FECollection(max_order, mesh->Dimension());
-   }
-   else if (fieldtype == 1)
-   {
-      fecInt = new L2_FECollection(max_order, mesh->Dimension());
-   }
-   FiniteElementSpace *spaceInt = new FiniteElementSpace(mesh, fecInt,
-                                                         fespace->GetVDim(),
-                                                         fespace->GetOrdering());
-
-   IsoparametricTransformation T;
-   DenseMatrix I;
-
-   GridFunction *xInt = new GridFunction(spaceInt);
-
-   // interpolate solution vector in the larger space
-   for (int i = 0; i < mesh->GetNE(); i++)
-   {
-      Geometry::Type geom = mesh->GetElementGeometry(i);
-      T.SetIdentityTransformation(geom);
-
-      Array<int> dofs;
-      fespace->GetElementVDofs(i, dofs);
-      Vector elemvect(0), vectInt(0);
-      x->GetSubVector(dofs, elemvect);
-      DenseMatrix elemvecMat(elemvect.GetData(), dofs.Size()/vdim, vdim);
-
-      const auto *fe = fec->GetFE(geom, fespace->GetElementOrder(i));
-      const auto *feInt = fecInt->GetFE(geom, max_order);
-
-      feInt->GetTransferMatrix(*fe, T, I);
-
-      spaceInt->GetElementVDofs(i, dofs);
-      vectInt.SetSize(dofs.Size());
-      DenseMatrix vectIntMat(vectInt.GetData(), dofs.Size()/vdim, vdim);
-
-      Mult(I, elemvecMat, vectIntMat);
-      xInt->SetSubVector(dofs, vectInt);
-   }
-
-   xInt->MakeOwner(fecInt);
-   return xInt;
-}
-
 void VisualizeFESpacePolynomialOrder(FiniteElementSpace &fespace,
                                      const char *title)
 {
@@ -354,9 +295,11 @@ int main (int argc, char *argv[])
       field_vals.Update();
    }
 
+   std::unique_ptr<GridFunction> mesh_nodes_max;
+   if (mesh_prefinement) { mesh_nodes_max = Nodes.ProlongToMaxOrder(); }
    GridFunction *mesh_nodes_pref = mesh_prefinement ?
-                                   ProlongToMaxOrder(&Nodes, 0) :
-                                   &Nodes;
+                                   mesh_nodes_max.get() : &Nodes;
+
    if (mesh_prefinement && visualization)
    {
       mesh.SetNodalGridFunction(mesh_nodes_pref);
@@ -375,9 +318,10 @@ int main (int argc, char *argv[])
    VectorFunctionCoefficient F(vec_dim, F_exact);
    field_vals.ProjectCoefficient(F);
 
+   std::unique_ptr<GridFunction> field_vals_max;
+   if (mesh_prefinement) { field_vals_max = field_vals.ProlongToMaxOrder(); }
    GridFunction *field_vals_pref = prefinement ?
-                                   ProlongToMaxOrder(&field_vals, fieldtype) :
-                                   &field_vals;
+                                   field_vals_max.get() : &field_vals;
 
    // Display the mesh and the field through glvis.
    if (visualization)
@@ -486,8 +430,6 @@ int main (int argc, char *argv[])
    // Free the internal gslib data.
    finder.FreeData();
 
-   if (mesh_prefinement) { delete mesh_nodes_pref; }
-   if (prefinement) { delete field_vals_pref; }
    delete fec;
 
    return 0;

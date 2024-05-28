@@ -229,7 +229,6 @@ class FiniteElementSpace
    friend class PRefinementTransferOperator;
    friend void Mesh::Swap(Mesh &, bool);
    friend class LORBase;
-   friend class NeighborRowMessage;  // TODO: better way?
 
 public:
    struct VarOrderElemInfo
@@ -285,7 +284,7 @@ protected:
 
    /// Marker arrays for ghost master entities to be skipped in conforming
    /// interpolation constraints.
-   mutable Array<bool> skip_edge, skip_face;
+   Array<bool> skip_edge, skip_face;
 
    // precalculated DOFs for each element, boundary element, and face
    mutable Table *elem_dof; // owned (except in NURBS FE space)
@@ -382,6 +381,7 @@ protected:
        need to be represented on each edge and face. */
    void CalcEdgeFaceVarOrders(
       Array<VarOrderBits> &edge_orders, Array<VarOrderBits> &face_orders,
+      Array<bool> &skip_edges, Array<bool> &skip_faces,
       const Array<VarOrderElemInfo> * pref_data=nullptr) const;
 
    virtual void ApplyGhostElementOrdersToEdgesAndFaces(

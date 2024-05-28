@@ -3946,6 +3946,53 @@ void GridFunction::LegacyNCReorder()
    Vector::Swap(tmp);
 }
 
+std::unique_ptr<GridFunction> GridFunction::ProlongToMaxOrder() const
+{
+   Mesh *mesh = fes->GetMesh();
+   const FiniteElementCollection *fec = fes->FEColl();
+   const int vdim = fes->GetVDim();
+
+   // Find the max order in the space
+   int maxOrder = fes->GetMaxElementOrder();
+
+   // Create a visualization space of max order for all elements
+   FiniteElementCollection *fecMax = fec->Clone(maxOrder);
+   FiniteElementSpace *fesMax = new FiniteElementSpace(mesh, fecMax, vdim,
+                                                       fes->GetOrdering());
+
+   GridFunction *xMax = new GridFunction(fesMax);
+
+   // Interpolate solution vector in the larger space
+   IsoparametricTransformation T;
+   DenseMatrix I;
+   for (int i = 0; i < mesh->GetNE(); i++)
+   {
+      Geometry::Type geom = mesh->GetElementGeometry(i);
+      T.SetIdentityTransformation(geom);
+
+      Array<int> dofs;
+      fes->GetElementVDofs(i, dofs);
+      Vector elemvect(0), vectInt(0);
+      GetSubVector(dofs, elemvect);
+      DenseMatrix elemvecMat(elemvect.GetData(), dofs.Size()/vdim, vdim);
+
+      const auto *fe = fec->GetFE(geom, fes->GetElementOrder(i));
+      const auto *feInt = fecMax->GetFE(geom, maxOrder);
+
+      feInt->GetTransferMatrix(*fe, T, I);
+
+      fesMax->GetElementVDofs(i, dofs);
+      vectInt.SetSize(dofs.Size());
+      DenseMatrix vectIntMat(vectInt.GetData(), dofs.Size()/vdim, vdim);
+
+      Mult(I, elemvecMat, vectIntMat);
+      xMax->SetSubVector(dofs, vectInt);
+   }
+
+   xMax->MakeOwner(fecMax);
+   return std::unique_ptr<GridFunction>(xMax);
+}
+
 real_t ZZErrorEstimator(BilinearFormIntegrator &blfi,
                         GridFunction &u,
                         GridFunction &flux, Vector &error_estimates,
