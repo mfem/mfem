@@ -32,16 +32,12 @@ FiniteElementCollection *create_fec(FECType fectype, int p, int dim)
    {
       case H1:
          return new H1_FECollection(p, dim);
-         break;
       case ND:
          return new ND_FECollection(p, dim);
-         break;
       case RT:
          return new RT_FECollection(p - 1, dim);
-         break;
       case L2:
          return new L2_FECollection(p, dim, BasisType::GaussLobatto);
-         break;
    }
 
    return nullptr;
@@ -53,17 +49,13 @@ FiniteElementCollection *create_surf_fec(FECType fectype, int p, int dim)
    {
       case H1:
          return new H1_FECollection(p, dim);
-         break;
       case ND:
          return new ND_FECollection(p, dim);
-         break;
       case RT:
          return new L2_FECollection(p - 1, dim, BasisType::GaussLegendre,
                                     FiniteElement::INTEGRAL);
-         break;
       case L2:
          return new L2_FECollection(p, dim, BasisType::GaussLobatto);
-         break;
    }
 
    return nullptr;
@@ -341,7 +333,7 @@ void multidomain_test_3d(FECType fec_type)
    MPI_Allreduce(&num_local_be, &num_global_be, 1, MPI_INT, MPI_SUM,
                  MPI_COMM_WORLD);
    REQUIRE(num_global_be == 16);
-   REQUIRE(cylinder_surface_submesh.bdr_attributes[0] == 900);
+   REQUIRE(cylinder_surface_submesh.bdr_attributes[0] == parent_mesh.bdr_attributes.Max() + 1);
 
    FiniteElementCollection *fec = create_fec(fec_type, p,
                                              parent_mesh.Dimension());

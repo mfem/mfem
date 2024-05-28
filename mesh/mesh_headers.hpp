@@ -25,6 +25,7 @@
 #include "ncmesh.hpp"
 #include "mesh.hpp"
 #include "mesh_operators.hpp"
+#include "submesh/ncsubmesh.hpp"
 #include "submesh/submesh.hpp"
 #include "submesh/submesh_utils.hpp"
 #include "submesh/transfermap.hpp"

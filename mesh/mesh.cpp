@@ -2033,6 +2033,18 @@ int Mesh::AddBdrElement(Element *elem)
    return NumOfBdrElements++;
 }
 
+void Mesh::AddBdrElements(Array<Element *> &bdr_elems, const Array<int> &new_be_to_face)
+{
+   boundary.Reserve(boundary.Size() + bdr_elems.Size());
+   be_to_face.Reserve(be_to_face.Size() + new_be_to_face.Size());
+   MFEM_ASSERT(bdr_elems.Size() == new_be_to_face.Size(), "wrong size");
+   for (int i = 0; i < bdr_elems.Size(); i++)
+   {
+      AddBdrElement(bdr_elems[i]);
+   }
+   be_to_face.Append(new_be_to_face);
+}
+
 int Mesh::AddBdrSegment(int v1, int v2, int attr)
 {
    CheckEnlarge(boundary, NumOfBdrElements);
@@ -6420,6 +6432,7 @@ int Mesh::CheckElementOrientation(bool fix_it)
                   {
                      // how?
                   }
+                  std::cout << "element " << i << " has wrong orientiation\n";
                }
                break;
 
@@ -7456,13 +7469,18 @@ int Mesh::GetElementToEdgeTable(Table &e_to_f)
 {
    int i, NumberOfEdges;
 
+   // std::cout << __FILE__<< ':' << __LINE__ << " GetNumFaces() " << GetNumFaces() << std::endl;
+
    DSTable v_to_v(NumOfVertices);
    GetVertexToVertexTable(v_to_v);
+   // std::cout << __FILE__<< ':' << __LINE__ << " GetNumFaces() " << GetNumFaces() << std::endl;
 
    NumberOfEdges = v_to_v.NumberOfEntries();
+   // std::cout << __FILE__<< ':' << __LINE__ << " GetNumFaces() " << GetNumFaces() << std::endl;
 
    // Fill the element to edge table
    GetElementArrayEdgeTable(elements, v_to_v, e_to_f);
+   // std::cout << __FILE__<< ':' << __LINE__ << " GetNumFaces() " << GetNumFaces() << std::endl;
 
    if (Dim == 2)
    {
@@ -7671,8 +7689,8 @@ void Mesh::AddQuadFaceElement(int lf, int gf, int el,
 
 void Mesh::GenerateFaces()
 {
+   // std::cout << __FILE__ << ':' << __LINE__ << " GetNumFaces() " << GetNumFaces() << std::endl;
    int nfaces = GetNumFaces();
-
    for (auto &f : faces)
    {
       FreeElement(f);
@@ -7688,6 +7706,8 @@ void Mesh::GenerateFaces()
       faces_info[i].NCFace = -1;
    }
 
+   // std::cout << __FILE__ << ':' << __LINE__ << " NumOfElements " << NumOfElements << std::endl;
+   // std::cout << __FILE__ << ':' << __LINE__ << " Dim " << Dim << std::endl;
    Array<int> v;
    for (int i = 0; i < NumOfElements; ++i)
    {
@@ -10373,11 +10393,14 @@ void Mesh::InitFromNCMesh(const NCMesh &ncmesh_)
 
    DeleteTables();
 
+   // std::cout << __FILE__<< ':' << __LINE__ << " GetNumFaces() " << GetNumFaces() << std::endl;
    ncmesh_.GetMeshComponents(*this);
 
    NumOfVertices = vertices.Size();
    NumOfElements = elements.Size();
    NumOfBdrElements = boundary.Size();
+   // std::cout << __FILE__<< ':' << __LINE__ << " NumOfBdrElements " << NumOfBdrElements << std::endl;
+   // std::cout << __FILE__<< ':' << __LINE__ << " GetNumFaces() " << GetNumFaces() << std::endl;
 
    SetMeshGen(); // set the mesh type: 'meshgen', ...
 
@@ -10387,13 +10410,17 @@ void Mesh::InitFromNCMesh(const NCMesh &ncmesh_)
    if (Dim > 1)
    {
       el_to_edge = new Table;
+   // std::cout << __FILE__<< ':' << __LINE__ << " GetNumFaces() " << GetNumFaces() << std::endl;
       NumOfEdges = GetElementToEdgeTable(*el_to_edge);
+   // std::cout << __FILE__<< ':' << __LINE__ << " GetNumFaces() " << GetNumFaces() << std::endl;
    }
    if (Dim > 2)
    {
       GetElementToFaceTable();
    }
+   // std::cout << __FILE__<< ':' << __LINE__ << " GetNumFaces() " << GetNumFaces() << std::endl;
    GenerateFaces();
+   // std::cout << __FILE__<< ':' << __LINE__ << " GetNumFaces() " << GetNumFaces() << std::endl;
 #ifdef MFEM_DEBUG
    CheckBdrElementOrientation(false);
 #endif

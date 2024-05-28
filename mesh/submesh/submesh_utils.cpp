@@ -10,6 +10,8 @@
 // CONTRIBUTING.md for details.
 
 #include "submesh_utils.hpp"
+#include "submesh.hpp"
+#include "psubmesh.hpp"
 
 namespace mfem
 {
@@ -31,7 +33,8 @@ int UniqueIndexGenerator::Get(int i, bool &new_index)
    }
 }
 
-bool ElementHasAttribute(const Element &el, const Array<int> &attributes)
+template <typename ElementT>
+bool ElementHasAttribute(const ElementT &el, const Array<int> &attributes)
 {
    for (int a = 0; a < attributes.Size(); a++)
    {
@@ -49,41 +52,65 @@ AddElementsToMesh(const Mesh& parent,
                   const Array<int> &attributes,
                   bool from_boundary)
 {
+   // Collect all vertices to be added.
    Array<int> parent_vertex_ids, parent_element_ids;
-   UniqueIndexGenerator vertex_ids;
    const int ne = from_boundary ? parent.GetNBE() : parent.GetNE();
+   Array<int> vert, submesh_vert;
    for (int i = 0; i < ne; i++)
    {
       const Element *pel = from_boundary ?
                            parent.GetBdrElement(i) : parent.GetElement(i);
       if (!ElementHasAttribute(*pel, attributes)) { continue; }
 
-      Array<int> v;
-      pel->GetVertices(v);
-      Array<int> submesh_v(v.Size());
+      pel->GetVertices(vert);
+      parent_vertex_ids.Append(vert);
+   }
+   // Add vertices -> sorting ensures their ordering matches that in the original mesh. This
+   // is key for being able to reconstruct vertex <-> node mappings with ncmeshes.
+   parent_vertex_ids.Sort();
+   parent_vertex_ids.Unique();
 
-      for (int iv = 0; iv < v.Size(); iv++)
+   UniqueIndexGenerator vertex_ids;
+   vertex_ids.idx.reserve(parent_vertex_ids.Size());
+   bool new_vert;
+   for (auto v : parent_vertex_ids)
+   {
+      auto mesh_vertex_id = vertex_ids.Get(v, new_vert);
+      MFEM_ASSERT(new_vert, "Vertex should be unique");
+      mesh.AddVertex(parent.GetVertex(v));
+   }
+
+   for (int i = 0; i < ne; i++)
+   {
+      const Element *pel = from_boundary ?
+                           parent.GetBdrElement(i) : parent.GetElement(i);
+      if (!ElementHasAttribute(*pel, attributes)) { continue; }
+
+      // std::cout << "Adding element " << i << std::endl;
+      pel->GetVertices(vert);
+      submesh_vert.SetSize(vert.Size());
+
+      for (int iv = 0; iv < vert.Size(); iv++)
       {
          bool new_vertex;
-         int mesh_vertex_id = v[iv];
+         int mesh_vertex_id = vert[iv];
          int submesh_vertex_id = vertex_ids.Get(mesh_vertex_id, new_vertex);
          if (new_vertex)
          {
             mesh.AddVertex(parent.GetVertex(mesh_vertex_id));
             parent_vertex_ids.Append(mesh_vertex_id);
          }
-         submesh_v[iv] = submesh_vertex_id;
+         submesh_vert[iv] = submesh_vertex_id;
       }
 
       Element *el = mesh.NewElement(from_boundary ?
                                     parent.GetBdrElementType(i) : parent.GetElementType(i));
-      el->SetVertices(submesh_v);
+      el->SetVertices(submesh_vert);
       el->SetAttribute(pel->GetAttribute());
       mesh.AddElement(el);
       parent_element_ids.Append(i);
    }
-   return std::tuple<Array<int>, Array<int>>(parent_vertex_ids,
-                                             parent_element_ids);
+   return {parent_vertex_ids, parent_element_ids};
 }
 
 void BuildVdofToVdofMap(const FiniteElementSpace& subfes,
@@ -175,7 +202,7 @@ void BuildVdofToVdofMap(const FiniteElementSpace& subfes,
       subfes.GetElementVDofs(i, sub_vdofs);
 
       MFEM_ASSERT(parent_vdofs.Size() == sub_vdofs.Size(),
-                  "elem " << i << ' ' << parent_vdofs.Size() << ' ' << sub_vdofs.Size());
+         "elem " << i << ' ' << parent_vdofs.Size() << ' ' << sub_vdofs.Size());
       for (int j = 0; j < parent_vdofs.Size(); j++)
       {
          real_t sub_sign = 1.0;
@@ -226,6 +253,129 @@ Array<int> BuildFaceMap(const Mesh& pm, const Mesh& sm,
    }
    return pfids;
 }
+
+template <typename SubMeshT>
+void AddBoundaryElements(SubMeshT &mesh)
+{
+   mesh.Dimension();
+   // TODO: Check if the mesh is a SubMesh or ParSubMesh.
+   const int num_codim_1 = [&mesh]()
+   {
+      auto Dim = mesh.Dimension();
+      if (Dim == 1) { return mesh.GetNV(); }
+      else if (Dim == 2) { return mesh.GetNEdges(); }
+      else if (Dim == 3) { return mesh.GetNFaces(); }
+      else { MFEM_ABORT("Invalid dimension."); return -1; }
+   }();
+
+   if (mesh.Dimension() == 3)
+   {
+      // In 3D we check for `bel_to_edge`. It shouldn't have been set
+      // previously.
+      mesh.RemoveBoundaryElementToEdge();
+   }
+
+   int NumOfBdrElements = 0;
+   for (int i = 0; i < num_codim_1; i++)
+   {
+      if (mesh.GetFaceInformation(i).IsBoundary())
+      {
+         NumOfBdrElements++;
+      }
+   }
+
+   Array<Element *> boundary;
+   Array<int> be_to_face;
+   boundary.Reserve(NumOfBdrElements);
+   be_to_face.Reserve(NumOfBdrElements);
+
+   const auto &parent = *mesh.GetParent();
+   const auto &parent_face_ids = mesh.GetParentFaceIDMap();
+   const auto &parent_edge_ids = mesh.GetParentEdgeIDMap();
+
+   const auto &parent_face_to_be = parent.GetFaceToBdrElMap();
+   int max_bdr_attr = parent.bdr_attributes.Max();
+
+   for (int i = 0; i < num_codim_1; i++)
+   {
+      if (mesh.GetFaceInformation(i).IsBoundary())
+      {
+         auto * be = mesh.GetFace(i)->Duplicate(&mesh);
+
+         if (mesh.GetFrom() == SubMesh::From::Domain && mesh.Dimension() >= 2)
+         {
+            int pbeid = mesh.Dimension() == 3 ? parent_face_to_be[parent_face_ids[i]] :
+                        parent_face_to_be[parent_edge_ids[i]];
+            if (pbeid != -1)
+            {
+               be->SetAttribute(parent.GetBdrAttribute(pbeid));
+            }
+            else
+            {
+               be->SetAttribute(max_bdr_attr + 1);
+            }
+         }
+         else
+         {
+            be->SetAttribute(max_bdr_attr + 1);
+         }
+         be_to_face.Append(i);
+         boundary.Append(be);
+      }
+   }
+
+   if (mesh.GetFrom() == SubMesh::From::Domain && mesh.Dimension() >= 2)
+   {
+      // Search for and count interior boundary elements
+      int InteriorBdrElems = 0;
+      for (int i=0; i<parent.GetNBE(); i++)
+      {
+         const int parentFaceIdx = parent.GetBdrElementFaceIndex(i);
+         const int submeshFaceIdx =
+            mesh.Dimension() == 3 ?
+            mesh.GetSubMeshFaceFromParent(parentFaceIdx) :
+            mesh.GetSubMeshEdgeFromParent(parentFaceIdx);
+
+         if (submeshFaceIdx == -1) { continue; }
+         if (mesh.GetFaceInformation(submeshFaceIdx).IsBoundary()) { continue; }
+
+         InteriorBdrElems++;
+      }
+
+      if (InteriorBdrElems > 0)
+      {
+         const int OldNumOfBdrElements = NumOfBdrElements;
+         NumOfBdrElements += InteriorBdrElems;
+         boundary.Reserve(NumOfBdrElements);
+         be_to_face.Reserve(NumOfBdrElements);
+
+         // Search for and transfer interior boundary elements
+         for (int i = 0; i < parent.GetNBE(); i++)
+         {
+            const int parentFaceIdx = parent.GetBdrElementFaceIndex(i);
+            const int submeshFaceIdx =
+               mesh.GetSubMeshFaceFromParent(parentFaceIdx);
+
+            if (submeshFaceIdx == -1) { continue; }
+            if (mesh.GetFaceInformation(submeshFaceIdx).IsBoundary())
+            { continue; }
+
+            auto * be = mesh.GetFace(submeshFaceIdx)->Duplicate(&mesh);
+            be->SetAttribute(parent.GetBdrAttribute(i));
+
+            boundary.Append(be);
+            be_to_face.Append(submeshFaceIdx);
+         }
+      }
+   }
+   mesh.AddBdrElements(boundary, be_to_face);
+
+
+}
+
+// Explicit instantiations
+template void AddBoundaryElements(SubMesh &mesh);
+template void AddBoundaryElements(ParSubMesh &mesh);
 
 } // namespace SubMeshUtils
 } // namespace mfem

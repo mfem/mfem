@@ -45,7 +45,6 @@ struct Refinement
       : index(index), ref_type(type) {}
 };
 
-
 /// Defines the position of a fine element within a coarse element.
 struct Embedding
 {
@@ -65,7 +64,6 @@ struct Embedding
    Embedding(int elem, Geometry::Type geom, int matrix = 0, bool ghost = false)
       : parent(elem), geom(geom), matrix(matrix), ghost(ghost) {}
 };
-
 
 /// Defines the coarse-fine transformations of all fine elements.
 struct CoarseFineTransformations
@@ -96,7 +94,6 @@ void Swap(CoarseFineTransformations &a, CoarseFineTransformations &b);
 
 struct MatrixMap; // for internal use
 
-
 /** \brief A class for non-conforming AMR. The class is not used directly
  *  by the user, rather it is an extension of the Mesh class.
  *
@@ -121,9 +118,14 @@ struct MatrixMap; // for internal use
  */
 class NCMesh
 {
+protected:
+   NCMesh() = default;
+   NCMesh(const Mesh *mesh, const Array<int> &attributes);
 public:
    //// Initialize with elements from an existing 'mesh'.
-   explicit NCMesh(const Mesh *mesh);
+   explicit NCMesh(const Mesh *mesh) : NCMesh(mesh, Array<int>()) {}
+
+   /// Initialize with elements from an existing 'mesh' and 'attributes'.
 
    /** Load from a stream. The id header is assumed to have been read already
        from \param[in] input . \param[in] version is 10 for the v1.0 NC format,
@@ -417,6 +419,15 @@ public:
                                    Array<int> &bdr_vertices,
                                    Array<int> &bdr_edges, Array<int> &bdr_faces);
 
+   // const auto &GetElement(int index) const -> decltype(this->elements[index])
+   // {
+   //    return elements[index];
+   // }
+   // const auto &GetLeafElement(int index) const -> decltype(this->elements[leaf_elements[index]])
+   // {
+   //    return GetElement(leaf_elements[index]);
+   // }
+
    /// Return element geometry type. @a index is the Mesh element number.
    Geometry::Type GetElementGeometry(int index) const
    { return elements[leaf_elements[index]].Geom(); }
@@ -461,6 +472,9 @@ public:
 
    typedef std::int64_t RefCoord;
 
+   /** Get edge and face numbering from 'mesh' (i.e., set all Edge::index and
+       Face::index) after a new mesh was created from us. */
+   void OnMeshUpdated(Mesh *mesh);
 
 protected: // non-public interface for the Mesh class
 
@@ -469,15 +483,12 @@ protected: // non-public interface for the Mesh class
    /// Fill Mesh::{vertices,elements,boundary} for the current finest level.
    void GetMeshComponents(Mesh &mesh) const;
 
-   /** Get edge and face numbering from 'mesh' (i.e., set all Edge::index and
-       Face::index) after a new mesh was created from us. */
-   void OnMeshUpdated(Mesh *mesh);
 
    /** Delete top-level vertex coordinates if the Mesh became curved, e.g.,
        by calling Mesh::SetCurvature or otherwise setting the Nodes. */
    void MakeTopologyOnly() { coordinates.DeleteAll(); }
 
-protected: // implementation
+public: // implementation
 
    int Dim, spaceDim; ///< dimensions of the elements and the vertex coordinates
    int MyRank; ///< used in parallel, or when loading a parallel file in serial
@@ -485,13 +496,13 @@ protected: // implementation
    int Geoms; ///< bit mask of element geometries present, see InitGeomFlags()
    bool Legacy; ///< true if the mesh was loaded from the legacy v1.1 format
 
-   static const int MaxElemNodes =
+   static constexpr int MaxElemNodes =
       8;       ///< Number of nodes of an element can have
-   static const int MaxElemEdges =
+   static constexpr int MaxElemEdges =
       12;      ///< Number of edges of an element can have
-   static const int MaxElemFaces =
+   static constexpr int MaxElemFaces =
       6;       ///< Number of faces of an element can have
-   static const int MaxElemChildren =
+   static constexpr int MaxElemChildren =
       10;      ///< Number of children of an element can have
 
    /** A Node can hold a vertex, an edge, or both. Elements directly point to
@@ -539,6 +550,7 @@ protected: // implementation
 
       /// Return one of elem[0] or elem[1] and make sure the other is -1.
       int GetSingleElement() const;
+      int GetAttribute() const { return attribute; }
    };
 
    /** This is an element in the refinement hierarchy. Each element has
@@ -564,6 +576,7 @@ protected: // implementation
 
       Geometry::Type Geom() const { return Geometry::Type(geom); }
       bool IsLeaf() const { return !ref_type && (parent != -2); }
+      int GetAttribute() const { return attribute; }
    };
 
 
@@ -1141,6 +1154,17 @@ protected: // implementation
    void CountSplits(int elem, int splits[3]) const;
    void GetLimitRefinements(Array<Refinement> &refinements, int max_level);
 
+   // Checker helpers
+
+   static void CheckSupportedGeom(Geometry::Type geom)
+   {
+      MFEM_VERIFY(geom == Geometry::SEGMENT ||
+                  geom == Geometry::TRIANGLE || geom == Geometry::SQUARE ||
+                  geom == Geometry::CUBE || geom == Geometry::PRISM ||
+                  geom == Geometry::PYRAMID || geom == Geometry::TETRAHEDRON,
+                  "Element type " << geom << " is not supported by NCMesh.");
+   }
+
 
    // I/O
 
@@ -1185,6 +1209,7 @@ protected: // implementation
 
       bool initialized;
       GeomInfo() : initialized(false) {}
+      GeomInfo(Geometry::Type geom) : GeomInfo() { InitGeom(geom); }
       void InitGeom(Geometry::Type geom);
    };
 

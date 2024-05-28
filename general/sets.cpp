@@ -15,80 +15,45 @@
 namespace mfem
 {
 
-IntegerSet::IntegerSet(IntegerSet &s)
-   : me(s.me.Size())
+int IntegerSet::PickRandomElement() const
 {
-   for (int i = 0; i < me.Size(); i++)
-   {
-      me[i] = s.me[i];
-   }
-}
-
-IntegerSet& IntegerSet::operator=(const IntegerSet &s)
-{
-   me.SetSize(s.me.Size());
-   for (int i = 0; i < me.Size(); i++)
-   {
-      me[i] = s.me[i];
-   }
-   return *this;
-}
-
-int IntegerSet::operator== (IntegerSet &s)
-{
-   if (me.Size() != s.me.Size())
-   {
-      return 0;
-   }
-
-   for (int i = 0; i < me.Size(); i++)
-      if (me[i] != s.me[i])
-      {
-         return 0;
-      }
-
-   return 1;
-}
-
-int IntegerSet::PickRandomElement()
-{
-   int i, size = me.Size();
+   int i, size = Size();
    unsigned int seed = 0;
 
    for (i = 0; i < size; i++)
    {
-      seed += me[i];
+      seed += data[i];
    }
 
    srand(seed);
 
-   return me[rand()/(RAND_MAX/size)];
+   return data[rand()/(RAND_MAX/size)];
 }
 
 void IntegerSet::Recreate(const int n, const int *p)
 {
    int i, j;
 
-   me.SetSize(n);
+   SetSize(n);
 
    for (i = 0; i < n; i++)
    {
-      me[i] = p[i];
+      data[i] = p[i];
    }
 
-   me.Sort();
+   Sort();
 
    for (j = 0, i = 1; i < n; i++)
-      if (me[i] != me[j])
+      if (data[i] != data[j])
       {
-         me[++j] = me[i];
+         data[++j] = data[i];
       }
 
-   me.SetSize(j+1);
+   SetSize(j+1);
 }
 
 
-int ListOfIntegerSets::Insert(IntegerSet &s)
+int ListOfIntegerSets::Insert(const IntegerSet &s)
 {
    for (int i = 0; i < TheList.Size(); i++)
       if (*TheList[i] == s)
@@ -101,7 +66,7 @@ int ListOfIntegerSets::Insert(IntegerSet &s)
    return TheList.Size()-1;
 }
 
-int ListOfIntegerSets::Lookup(IntegerSet &s)
+int ListOfIntegerSets::Lookup(const IntegerSet &s) const
 {
    for (int i = 0; i < TheList.Size(); i++)
       if (*TheList[i] == s)
@@ -113,7 +78,7 @@ int ListOfIntegerSets::Lookup(IntegerSet &s)
    return -1;
 }
 
-void ListOfIntegerSets::AsTable(Table & t)
+void ListOfIntegerSets::AsTable(Table & t) const
 {
    int i;
 

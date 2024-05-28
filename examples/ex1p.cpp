@@ -66,6 +66,52 @@
 using namespace std;
 using namespace mfem;
 
+Mesh DividingPlaneMesh(bool tet_mesh, bool split, bool three_dim, real_t scale = 1.0)
+{
+
+   auto mesh = three_dim ? Mesh("../../data/ref-cube.mesh") : Mesh("../../data/ref-square.mesh");
+   {
+      Array<Refinement> refs;
+      refs.Append(Refinement(0, Refinement::X));
+      mesh.GeneralRefinement(refs);
+   }
+   delete mesh.ncmesh;
+   mesh.ncmesh = nullptr;
+   mesh.FinalizeTopology();
+   mesh.Finalize(true, true);
+
+   mesh.SetAttribute(0, 1);
+   mesh.SetAttribute(1, split ? 2 : 1);
+
+   // Introduce internal boundary elements
+   const int new_attribute = mesh.bdr_attributes.Max() + 1;
+   for (int f = 0; f < mesh.GetNumFaces(); ++f)
+   {
+      int e1, e2;
+      mesh.GetFaceElements(f, &e1, &e2);
+      if (e1 >= 0 && e2 >= 0 && mesh.GetAttribute(e1) != mesh.GetAttribute(e2))
+      {
+         // This is the internal face between attributes.
+         auto *new_elem = mesh.GetFace(f)->Duplicate(&mesh);
+         new_elem->SetAttribute(new_attribute);
+         mesh.AddBdrElement(new_elem);
+      }
+   }
+   if (tet_mesh)
+   {
+      mesh = Mesh::MakeSimplicial(mesh);
+   }
+   mesh.FinalizeTopology();
+   mesh.Finalize(true, true);
+
+   for (int i = 0; i < mesh.GetNV(); i++)
+   {
+      mesh.GetVertex(i)[0] *= scale;
+   }
+
+   return mesh;
+}
+
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI and HYPRE.
@@ -128,34 +174,109 @@ int main(int argc, char *argv[])
    // 4. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    //    and volume meshes with the same code.
-   Mesh mesh(mesh_file, 1, 1);
+   // Mesh mesh(mesh_file, 1, 1);
+
+   auto mesh = DividingPlaneMesh(false, true, true, 1.0);
+
    int dim = mesh.Dimension();
+
+   mesh.EnsureNCMesh();
+   mesh.UniformRefinement();
+   // mesh.UniformRefinement();
+   // Array<Refinement> refs(1);
+   // refs[0].index = 0;
+   // refs[0].ref_type = Refinement::XYZ;
+   // mesh.GeneralRefinement(refs);
+   // mesh.RandomRefinement(0.5);
+   // delete mesh.ncmesh;
+   // mesh.ncmesh = nullptr;
+
+
+   // mesh.RandomRefinement(0.5);
 
    // 5. Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ref_levels' of uniform refinement. We choose
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 10,000 elements.
-   {
-      int ref_levels =
-         (int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
-      for (int l = 0; l < ref_levels; l++)
-      {
-         mesh.UniformRefinement();
-      }
-   }
+   // {
+   //    int ref_levels =
+   //       (int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
+   //    for (int l = 0; l < ref_levels; l++)
+   //    {
+   //       mesh.UniformRefinement();
+   //    }
+   // }
 
    // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
+   // std::vector<int> partitioning(mesh.GetNE(), 0);
+   // partitioning[1] = Mpi::WorldSize() > 1 ? 1 : 0;
+   // std::cout << __FILE__ << ':' << __LINE__ << std::endl;
+   // ParMesh pmesh(MPI_COMM_WORLD, mesh, partitioning.data());
+
+   std::cout << "\n\n\nIn Ex1p\n\n";
+
+
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
+
+   // pmesh.UniformRefinement();
+   // pmesh.UniformRefinement();
+
+   // Array<Refinement> refs(1);
+   // refs[0].index = 0;
+   // refs[0].ref_type = Refinement::XYZ;
+   // pmesh.GeneralRefinement(refs);
+   // pmesh.GeneralRefinement(refs);
+   // pmesh.RandomRefinement(0.5);
+   // pmesh.RandomRefinement(0.5);
+
+   // pmesh.Rebalance();
+
    mesh.Clear();
+
+
+   std::cout << __FILE__ << ':' << __LINE__ << std::endl;
+   std::cout << "MyRank " << pmesh.GetMyRank() << std::endl;
+
+   std::cout << __FILE__ << ':' << __LINE__ << std::endl;
+   if (pmesh.ncmesh)
    {
-      int par_ref_levels = 2;
-      for (int l = 0; l < par_ref_levels; l++)
+      std::cout << "nodes.Size() " << pmesh.ncmesh->nodes.Size() << std::endl;
+      for (auto it = pmesh.ncmesh->nodes.begin(); it != pmesh.ncmesh->nodes.end(); ++it)
       {
-         pmesh.UniformRefinement();
+         std::cout << "node " << it.index() << ' ' << it->p1 << ' ' << it->p2;
+         std::cout << " vert_index " << it->vert_index << " edge_index " << it->edge_index;
+         std::cout << std::endl;
       }
    }
+   std::cout << "pmesh.GetNV() " << pmesh.GetNV() << std::endl;
+
+
+   // std::cout << "R" << pmesh.GetMyRank() << " GetNE() " << pmesh.GetNE() << std::endl;
+   // for (int i = 0; i < pmesh.pncmesh->elements.Size(); i++)
+   // {
+   //    std::cout << "R" << pmesh.GetMyRank() << " element " << i << " " << pmesh.pncmesh->elements[i].index << std::endl;
+   // }
+
+   // if (order > 0
+
+   // {
+   //    int par_ref_levels = 2;
+   //    for (int l = 0; l < par_ref_levels; l++)
+   //    {
+   //       pmesh.UniformRefinement();
+   //    }
+   // }
+
+   Array<int> subdomain_attributes(1);
+   // subdomain_attributes[0] = 2;
+   // auto psubmesh = ParSubMesh::CreateFromDomain(pmesh, subdomain_attributes);
+
+   subdomain_attributes[0] = 2;
+   auto psubmesh = ParSubMesh::CreateFromBoundary(pmesh, subdomain_attributes);
+
+   // auto &psubmesh = pmesh;
 
    // 7. Define a parallel finite element space on the parallel mesh. Here we
    //    use continuous Lagrange finite elements of the specified order. If
@@ -167,9 +288,9 @@ int main(int argc, char *argv[])
       fec = new H1_FECollection(order, dim);
       delete_fec = true;
    }
-   else if (pmesh.GetNodes())
+   else if (psubmesh.GetNodes())
    {
-      fec = pmesh.GetNodes()->OwnFEC();
+      fec = psubmesh.GetNodes()->OwnFEC();
       delete_fec = false;
       if (myid == 0)
       {
@@ -181,7 +302,7 @@ int main(int argc, char *argv[])
       fec = new H1_FECollection(order = 1, dim);
       delete_fec = true;
    }
-   ParFiniteElementSpace fespace(&pmesh, fec);
+   ParFiniteElementSpace fespace(&psubmesh, fec);
    HYPRE_BigInt size = fespace.GlobalTrueVSize();
    if (myid == 0)
    {
@@ -193,10 +314,16 @@ int main(int argc, char *argv[])
    //    by marking all the boundary attributes from the mesh as essential
    //    (Dirichlet) and converting them to a list of true dofs.
    Array<int> ess_tdof_list;
-   if (pmesh.bdr_attributes.Size())
+   if (psubmesh.bdr_attributes.Size())
    {
-      Array<int> ess_bdr(pmesh.bdr_attributes.Max());
+      Array<int> ess_bdr(psubmesh.bdr_attributes.Max());
       ess_bdr = 1;
+      for (auto x : psubmesh.bdr_attributes)
+      {
+         std::cout << "bdr " << x << std::endl;
+      }
+      std::cout << "psubmesh.bdr_attributes.Max() " << psubmesh.bdr_attributes.Max() << std::endl;
+      std::cout << "ess_bdr.Size() " << ess_bdr.Size() << std::endl;
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
@@ -275,6 +402,14 @@ int main(int argc, char *argv[])
    //     local finite element solution on each processor.
    a.RecoverFEMSolution(X, b, x);
 
+   // Transfer the solution back to the original mesh.
+   auto bk_fec = std::unique_ptr<H1_FECollection>(new H1_FECollection(order, pmesh.Dimension()));
+   ParFiniteElementSpace bk_fespace(&pmesh, bk_fec.get());
+   ParGridFunction bk_x(&bk_fespace);
+   bk_x = 0.0;
+
+   psubmesh.Transfer(x, bk_x);
+
    // 15. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
    {
@@ -284,7 +419,7 @@ int main(int argc, char *argv[])
 
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-      pmesh.Print(mesh_ofs);
+      psubmesh.Print(mesh_ofs);
 
       ofstream sol_ofs(sol_name.str().c_str());
       sol_ofs.precision(8);
@@ -299,7 +434,13 @@ int main(int argc, char *argv[])
       socketstream sol_sock(vishost, visport);
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);
-      sol_sock << "solution\n" << pmesh << x << flush;
+      sol_sock << "solution\n" << psubmesh << x << flush;
+
+      socketstream sol_sock2(vishost, visport);
+      sol_sock2 << "parallel " << num_procs << " " << myid << "\n";
+      sol_sock2.precision(8);
+      sol_sock2 << "solution\n" << pmesh << bk_x << flush;
+
    }
 
    // 17. Free the used memory.

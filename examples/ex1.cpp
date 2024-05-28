@@ -67,9 +67,52 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include "mesh/submesh/ncsubmesh.hpp"
+
 
 using namespace std;
 using namespace mfem;
+
+Mesh DividingPlaneMesh(bool tet_mesh, bool split, bool three_dim)
+{
+
+   auto mesh = three_dim ? Mesh("../../data/ref-cube.mesh") : Mesh("../../data/ref-square.mesh");
+   {
+      Array<Refinement> refs;
+      refs.Append(Refinement(0, Refinement::X));
+      mesh.GeneralRefinement(refs);
+   }
+   delete mesh.ncmesh;
+   mesh.ncmesh = nullptr;
+   mesh.FinalizeTopology();
+   mesh.Finalize(true, true);
+
+   mesh.SetAttribute(0, 1);
+   mesh.SetAttribute(1, split ? 2 : 1);
+
+   // Introduce internal boundary elements
+   const int new_attribute = mesh.bdr_attributes.Max() + 1;
+   for (int f = 0; f < mesh.GetNumFaces(); ++f)
+   {
+      int e1, e2;
+      mesh.GetFaceElements(f, &e1, &e2);
+      if (e1 >= 0 && e2 >= 0 && mesh.GetAttribute(e1) != mesh.GetAttribute(e2))
+      {
+         // This is the internal face between attributes.
+         auto *new_elem = mesh.GetFace(f)->Duplicate(&mesh);
+         new_elem->SetAttribute(new_attribute);
+         mesh.AddBdrElement(new_elem);
+      }
+   }
+   if (tet_mesh)
+   {
+      mesh = Mesh::MakeSimplicial(mesh);
+   }
+   mesh.FinalizeTopology();
+   mesh.Finalize(true, true);
+   return mesh;
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -120,21 +163,112 @@ int main(int argc, char *argv[])
    // 3. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
    //    the same code.
-   Mesh mesh(mesh_file, 1, 1);
-   int dim = mesh.Dimension();
+   // Mesh mesh(mesh_file, 1, 1);
+   // Mesh mesh("../../data/ref-segment.mesh", 1, 1);
+
+   // Solve Poisson on a pair of cubes fully coupled, then compare to solving the interface
+   // then coupling the two domains using the 2D solution as the boundary condition.
+
+   auto mesh = DividingPlaneMesh(false, true, true);
+   // auto mesh = Mesh("../../data/ref-cube.mesh");
+
+   // mesh.Finalize(true);
+   // mesh.UniformRefinement();
+   // mesh.EnsureNCMesh(true);
+
+   Array<Refinement> refs(1);
+   refs[0].index = 0;
+   refs[0].ref_type = Refinement::XYZ;
+   mesh.GeneralRefinement(refs);
+
+   // mesh.UniformRefinement();
+
+   // for (int j = 0; j < 2; j++)
+   // {
+   //    Array<int> elem_to_refine;
+   //    for (int i = 0; i < mesh.GetNE(); ++i)
+   //    {
+   //       if (mesh.GetAttribute(i) == 1)
+   //       {
+   //          elem_to_refine.Append(i);
+   //       }
+   //    }
+   //    mesh.GeneralRefinement(elem_to_refine);
+   // }
+
+   // mesh.UniformRefinement();
+   // mesh.Finalize(true);
+   // mesh.RandomRefinement(0.5);
+   // mesh.RandomRefinement(0.5);
+   // mesh.RandomRefinement(0.5);
+
+   // mesh.UniformRefinement();
+   // mesh.UniformRefinement();
+   // mesh.RandomRefinement(0.5);
+
+   std::cout << "\n\n\nChecking Mesh\n\n\n";
+
+   std::vector<int> mismatched;
+   const auto &face_to_be = mesh.GetFaceToBdrElMap();
+
+   std::cout << "\n\n\nInEx1\n\n\n";
+
+   auto print_ncmesh = [](NCMesh &ncmesh)
+   {
+      for (const auto &n : ncmesh.nodes)
+      {
+         const int id = ncmesh.nodes.FindId(n.p1, n.p2);
+         std::cout << "id " << id << " n.p1 " << n.p1 << " n.p2 " << n.p2 << " Edge " << n.edge_index << " Vertex " << n.vert_index << std::endl;
+      }
+
+      const auto &face_list = ncmesh.GetFaceList();
+      std::cout << "face_list.conforming.Size() " << face_list.conforming.Size() << std::endl;
+      std::cout << "face_list.master.Size() " << face_list.masters.Size() << std::endl;
+      std::cout << "face_list.slaves.Size() " << face_list.slaves.Size() << std::endl;
+
+      const auto &edge_list = ncmesh.GetEdgeList();
+      std::cout << "edge_list.conforming.Size() " << edge_list.conforming.Size() << std::endl;
+      std::cout << "edge_list.master.Size() " << edge_list.masters.Size() << std::endl;
+      std::cout << "edge_list.slaves.Size() " << edge_list.slaves.Size() << std::endl;
+
+      const auto &vertex_list = ncmesh.GetVertexList();
+      std::cout << "vertex_list.conforming.Size() " << vertex_list.conforming.Size() << std::endl;
+      std::cout << "vertex_list.master.Size() " << vertex_list.masters.Size() << std::endl;
+      std::cout << "vertex_list.slaves.Size() " << vertex_list.slaves.Size() << std::endl;
+
+
+   };
+
+   if (mesh.ncmesh)
+   {
+      print_ncmesh(*mesh.ncmesh);
+   }
+
+   std::cout << "\n\nSubMesh\n\n";
+
+   Array<int> subdomain_attributes(1);
+   // subdomain_attributes[0] = 2;
+   // auto submesh = SubMesh::CreateFromDomain(mesh, subdomain_attributes);
+   subdomain_attributes[0] = 1; //mesh.bdr_attributes.Max();
+   std::cout << "subdomain_attributes[0] " << subdomain_attributes[0] << std::endl;
+   auto submesh = SubMesh::CreateFromBoundary(mesh, subdomain_attributes);
+   std::cout << "submesh.GetNumFaces() " << submesh.GetNumFaces() << std::endl;
+   std::cout << "submesh.GetNumEdges() " << submesh.GetNEdges() << std::endl;
+
+   int dim = submesh.Dimension();
 
    // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
-   {
-      int ref_levels =
-         (int)floor(log(50000./mesh.GetNE())/log(2.)/dim);
-      for (int l = 0; l < ref_levels; l++)
-      {
-         mesh.UniformRefinement();
-      }
-   }
+   // {
+   //    int ref_levels =
+   //       (int)floor(log(50000./mesh.GetNE())/log(2.)/dim);
+   //    for (int l = 0; l < ref_levels; l++)
+   //    {
+   //       mesh.RandomRefinement(0.5);
+   //    }
+   // }
 
    // 5. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
@@ -146,9 +280,9 @@ int main(int argc, char *argv[])
       fec = new H1_FECollection(order, dim);
       delete_fec = true;
    }
-   else if (mesh.GetNodes())
+   else if (submesh.GetNodes())
    {
-      fec = mesh.GetNodes()->OwnFEC();
+      fec = submesh.GetNodes()->OwnFEC();
       delete_fec = false;
       cout << "Using isoparametric FEs: " << fec->Name() << endl;
    }
@@ -157,7 +291,7 @@ int main(int argc, char *argv[])
       fec = new H1_FECollection(order = 1, dim);
       delete_fec = true;
    }
-   FiniteElementSpace fespace(&mesh, fec);
+   FiniteElementSpace fespace(&submesh, fec);
    cout << "Number of finite element unknowns: "
         << fespace.GetTrueVSize() << endl;
 
@@ -166,19 +300,35 @@ int main(int argc, char *argv[])
    //    the boundary attributes from the mesh as essential (Dirichlet) and
    //    converting them to a list of true dofs.
    Array<int> ess_tdof_list;
-   if (mesh.bdr_attributes.Size())
+   if (submesh.bdr_attributes.Size())
    {
-      Array<int> ess_bdr(mesh.bdr_attributes.Max());
+      Array<int> ess_bdr(submesh.bdr_attributes.Max());
       ess_bdr = 1;
+      for (auto x : submesh.bdr_attributes)
+      {
+         std::cout << "bdr " << x << std::endl;
+      }
+      std::cout << "submesh.bdr_attributes.Max() " << submesh.bdr_attributes.Max() << std::endl;
+      std::cout << "ess_bdr.Size() " << ess_bdr.Size() << std::endl;
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
+   std::cout << "ess_tdof_list.Size() " << ess_tdof_list.Size() << std::endl;
 
    // 7. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
    //    the basis functions in the finite element fespace.
    LinearForm b(&fespace);
    ConstantCoefficient one(1.0);
-   b.AddDomainIntegrator(new DomainLFIntegrator(one));
+   FunctionCoefficient f([dim](const Vector &x){
+      // double c = M_PI * M_PI * dim;
+      // for (int i = 0; i < x.Size(); ++i)
+      // {
+      //    c *= std::sin(M_PI * x(i));
+      // }
+      // return c;
+      return 1.0;
+   });
+   b.AddDomainIntegrator(new DomainLFIntegrator(f));
    b.Assemble();
 
    // 8. Define the solution vector x as a finite element grid function
@@ -254,6 +404,19 @@ int main(int argc, char *argv[])
    // 12. Recover the solution as a finite element grid function.
    a.RecoverFEMSolution(X, b, x);
 
+   // Transfer the solution back to mesh
+
+   auto bk_fec = std::unique_ptr<H1_FECollection>(new H1_FECollection(order, mesh.Dimension()));
+   FiniteElementSpace bk_fespace(&mesh, bk_fec.get());
+   GridFunction bk_x(&bk_fespace);
+   bk_x = 0.0;
+   std::cout << "bk_fespace.GetTrueVSize() " << bk_fespace.GetTrueVSize() << std::endl;
+
+   submesh.Transfer(x, bk_x);
+   Vector nval;
+   bk_x.GetNodalValues(nval);
+
+
    // 13. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".
    ofstream mesh_ofs("refined.mesh");
@@ -268,9 +431,14 @@ int main(int argc, char *argv[])
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
+
+      socketstream sol_sock2(vishost, visport);
+      sol_sock2.precision(8);
+      sol_sock2 << "solution\n" << submesh << x << flush;
+
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
-      sol_sock << "solution\n" << mesh << x << flush;
+      sol_sock << "solution\n" << mesh << bk_x << flush;
    }
 
    // 15. Free the used memory.
