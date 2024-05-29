@@ -30,7 +30,7 @@ namespace mfem
 class GridFunction : public Vector
 {
 protected:
-   /// FE space on which the grid function lives. Owned if #fec is not NULL.
+   /// FE space on which the grid function lives. Owned if #fec_owned is not NULL.
    FiniteElementSpace *fes;
 
    /** @brief Used when the grid function is read from a file. It can also be
@@ -116,8 +116,8 @@ public:
    GridFunction &operator=(const GridFunction &rhs)
    { return operator=((const Vector &)rhs); }
 
-   /// Make the GridFunction the owner of #fec and #fes.
-   /** If the new FiniteElementCollection, @a fec_, is NULL, ownership of #fec
+   /// Make the GridFunction the owner of #fec_owned and #fes.
+   /** If the new FiniteElementCollection, @a fec_, is NULL, ownership of #fec_owned
        and #fes is taken away. */
    void MakeOwner(FiniteElementCollection *fec_) { fec_owned = fec_; }
 
