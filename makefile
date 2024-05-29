@@ -629,10 +629,10 @@ install: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 # install config.mk in $(PREFIX_SHARE)
 	$(INSTALL) -m 755 -d $(PREFIX_SHARE)
 	$(MAKE) -C $(BLD)config config-mk CONFIG_MK=config-install.mk
-	$(INSTALL) -m 755 $(BLD)config/config-install.mk $(PREFIX_SHARE)/config.mk
+	$(INSTALL) -m 644 $(BLD)config/config-install.mk $(PREFIX_SHARE)/config.mk
 	rm -f $(BLD)config/config-install.mk
 # install test.mk in $(PREFIX_SHARE)
-	$(INSTALL) -m 755 $(SRC)config/test.mk $(PREFIX_SHARE)/test.mk
+	$(INSTALL) -m 644 $(SRC)config/test.mk $(PREFIX_SHARE)/test.mk
 
 $(CONFIG_MK):
 # Skip the error message when '-B' make flag is used (unconditionally
