@@ -32,11 +32,11 @@ mkdir _${BASELINE_TEST} && cd _${BASELINE_TEST}
 
 # run
 if [[ "${MACHINE_NAME}" == "quartz" || "${MACHINE_NAME}" == "ruby" ]]; then
-  salloc --nodes=1 -p pdebug ../runtest ../../mfem "${BASELINE_TEST} ${TPLS_DIR}"
+  salloc --nodes=1 --reservation=ci ../runtest ../../mfem "${BASELINE_TEST} ${TPLS_DIR}"
 elif [[ ${MACHINE_NAME} == "corona" ]]; then
   salloc --nodes=1 -t 60 -p pbatch ../runtest ../../mfem "${BASELINE_TEST} ${TPLS_DIR}"
 elif [[ ${MACHINE_NAME} == "lassen" ]]; then
-  lalloc 1 -q pdebug ../runtest ../../mfem "${BASELINE_TEST} ${TPLS_DIR}"
+  lalloc 1 -q pci ../runtest ../../mfem "${BASELINE_TEST} ${TPLS_DIR}"
 else
   echo "Unknown machine: MACHINE_NAME=$MACHINE_NAME"
   exit 1
