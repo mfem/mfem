@@ -325,10 +325,9 @@ int GridFunction::VectorDim() const
    const FiniteElement *fe;
    if (!fes->GetNE())
    {
-      const FiniteElementCollection *fe_coll = fes->FEColl();
       static const Geometry::Type geoms[3] =
       { Geometry::SEGMENT, Geometry::TRIANGLE, Geometry::TETRAHEDRON };
-      fe = fe_coll->
+      fe = fes->FEColl()->
            FiniteElementForGeometry(geoms[fes->GetMesh()->Dimension()-1]);
    }
    else
@@ -348,10 +347,9 @@ int GridFunction::CurlDim() const
    const FiniteElement *fe;
    if (!fes->GetNE())
    {
-      const FiniteElementCollection *fe_coll = fes->FEColl();
       static const Geometry::Type geoms[3] =
       { Geometry::SEGMENT, Geometry::TRIANGLE, Geometry::TETRAHEDRON };
-      fe = fe_coll->
+      fe = fes->FEColl()->
            FiniteElementForGeometry(geoms[fes->GetMesh()->Dimension()-1]);
    }
    else
