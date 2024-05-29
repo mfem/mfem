@@ -247,6 +247,15 @@ DenseMatrix FuentesPyramid::grad_nu012(real_t z, Vector xy, unsigned int ab)
    return dnu;
 }
 
+DenseMatrix FuentesPyramid::grad_nu120(real_t z, Vector xy, unsigned int ab)
+{
+   DenseMatrix dnu(3, 3);
+   dnu.SetRow(0, grad_nu1(z, xy, ab));
+   dnu.SetRow(1, grad_nu2(z, xy, ab));
+   dnu.SetRow(2, grad_nu0(z, xy, ab));
+   return dnu;
+}
+
 Vector FuentesPyramid::nu01_grad_nu01(real_t z, Vector xy, unsigned int ab)
 {
    Vector nu = nu01(z, xy, ab);
@@ -1089,11 +1098,11 @@ void FuentesPyramid::E_T(int p, Vector s, Vector sds, DenseTensor &u) const
    MFEM_ASSERT(u.SizeK() >= 3, "Third dimension of u must be 3 or larger");
 
 #ifdef MFEM_THREAD_SAFE
-   Vector      E_T_vtmp;
-   DenseMatrix E_T_mtmp;
+   Vector      E_T_vtmp1;
+   DenseMatrix E_T_mtmp1;
 #endif
-   Vector &L_j = E_T_vtmp;
-   DenseMatrix &E_E_i = E_T_mtmp;
+   Vector &L_j = E_T_vtmp1;
+   DenseMatrix &E_E_i = E_T_mtmp1;
 
    E_E_i.SetSize(p, 3);
    E_E(p, s, sds, E_E_i);
@@ -1110,6 +1119,71 @@ void FuentesPyramid::E_T(int p, Vector s, Vector sds, DenseTensor &u) const
          {
             u(i, j, k) = L_j(j) * E_E_i(i, k);
          }
+   }
+}
+
+void FuentesPyramid::E_T(int p, Vector s, const DenseMatrix & grad_s,
+                         DenseTensor &u, DenseTensor &curl_u) const
+{
+   MFEM_ASSERT(p >= 2, "Polynomial order must be two or larger");
+   MFEM_ASSERT(s.Size() >= 3, "Size of s must be 3 or larger");
+   MFEM_ASSERT(grad_s.Height() >= 3,
+               "First dimension of grad_s must be 3");
+   MFEM_ASSERT(grad_s.Width() >= 3,
+               "Second dimension of grad_s must be 3");
+   MFEM_ASSERT(u.SizeI() >= p, "First dimension of u is too small");
+   MFEM_ASSERT(u.SizeJ() >= p, "Second dimension of u is too small");
+   MFEM_ASSERT(u.SizeK() >= 3, "Third dimension of u must be 3 or larger");
+   MFEM_ASSERT(curl_u.SizeI() >= p, "First dimension of curl_u is too small");
+   MFEM_ASSERT(curl_u.SizeJ() >= p,
+               "Second dimension of curl_u is too small");
+   MFEM_ASSERT(curl_u.SizeK() >= 3,
+               "Third dimension of curl_u must be 3 or larger");
+
+#ifdef MFEM_THREAD_SAFE
+   Vector      E_T_vtmp1;
+   Vector      E_T_vtmp2;
+   Vector      E_T_vtmp3;
+   DenseMatrix E_T_mtmp1;
+   DenseMatrix E_T_mtmp2;
+#endif
+   Vector &L_j = E_T_vtmp1;
+   Vector &dL_j_dx = E_T_vtmp2;
+   Vector &dL_j_dt = E_T_vtmp3;
+   DenseMatrix & E_E_i = E_T_mtmp1;
+   DenseMatrix &dE_E_i = E_T_mtmp2;
+
+   Vector dL(3), grad_L(3);
+
+   E_E_i.SetSize(p, 3);
+   dE_E_i.SetSize(p, 3);
+   E_E(p, s, grad_s, E_E_i, dE_E_i);
+
+   L_j.SetSize(p);
+   dL_j_dx.SetSize(p);
+   dL_j_dt.SetSize(p);
+   for (int i=0; i<p; i++)
+   {
+      const real_t alpha = 2.0 * i + 1.0;
+      CalcHomogenizedIntJacobi(p - 1, alpha, s[0] + s[1], s[2], L_j,
+                               dL_j_dx, dL_j_dt);
+
+      u(i, 0, 0) = 0.0; u(i, 0, 1) = 0.0; u(i, 0, 2) = 0.0;
+      for (int j=1; i+j<p; j++)
+      {
+         dL(0) = dL_j_dx(j); dL(1) = dL_j_dx(j); dL(2) = dL_j_dt(j);
+
+         grad_s.MultTranspose(dL, grad_L);
+
+         for (int k=0; k<3; k++)
+         {
+            u(i, j, k) = L_j(j) * E_E_i(i, k);
+            curl_u(i, j, k) = L_j(j) * dE_E_i(i, k);
+         }
+         curl_u(i, j, 0) += grad_L(1) * E_E_i(i, 2) - grad_L(2) * E_E_i(i, 1);
+         curl_u(i, j, 1) += grad_L(2) * E_E_i(i, 0) - grad_L(0) * E_E_i(i, 2);
+         curl_u(i, j, 2) += grad_L(0) * E_E_i(i, 1) - grad_L(1) * E_E_i(i, 0);
+      }
    }
 }
 

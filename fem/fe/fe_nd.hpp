@@ -420,11 +420,17 @@ private:
 
 #ifndef MFEM_THREAD_SAFE
    mutable DenseMatrix tmp_E_E_ij;
+   mutable DenseMatrix tmp_dE_E_ij;
    mutable DenseTensor tmp_E_Q1_ijk;
+   mutable DenseTensor tmp_dE_Q1_ijk;
    mutable DenseTensor tmp_E_Q2_ijk;
+   mutable DenseTensor tmp_dE_Q2_ijk;
    mutable DenseTensor tmp_E_T_ijk;
-   mutable DenseMatrix tmp_phi_Q_ij;
-   mutable DenseTensor tmp_dphi_Q_ij;
+   mutable DenseTensor tmp_dE_T_ijk;
+   mutable DenseMatrix tmp_phi_Q1_ij;
+   mutable DenseTensor tmp_dphi_Q1_ij;
+   mutable DenseMatrix tmp_phi_Q2_ij;
+   mutable DenseTensor tmp_dphi_Q2_ij;
    mutable Vector      tmp_phi_E_i;
    mutable DenseMatrix tmp_dphi_E_i;
    mutable DenseMatrix u;
@@ -435,24 +441,32 @@ private:
 
    ND_PyramidDofTransformation doftrans;
 
-   void calcBasis(const int p, const IntegrationPoint &ip,
+   void calcBasis(const int p, const IntegrationPoint & ip,
                   DenseMatrix & E_E_ik,
                   DenseTensor & E_Q1_ijk,
                   DenseTensor & E_Q2_ijk,
                   DenseTensor & E_T_ijk,
-                  DenseMatrix & phi_Q_ij,
-                  DenseTensor & dphi_Q_ij,
+                  DenseMatrix & phi_Q1_ij,
+                  DenseTensor & dphi_Q1_ij,
+                  DenseMatrix & phi_Q2_ij,
                   Vector      & phi_E_k,
                   DenseMatrix & dphi_E_k,
-                  DenseMatrix &W) const;
+                  DenseMatrix & W) const;
 
-   void calcCurlBasis(const int p, const IntegrationPoint &ip,
-                      Vector &phi_k,
-                      DenseMatrix &phi_ij,
-                      DenseMatrix &dphi_k,
-                      DenseTensor &E_ijk, DenseTensor &dE_ijk,
-                      DenseTensor &dphi_ijk,
-                      DenseMatrix &dW) const;
+   void calcCurlBasis(const int p, const IntegrationPoint & ip,
+                      DenseMatrix & E_E_ik,
+                      DenseMatrix & dE_E_ik,
+                      DenseTensor & E_Q1_ijk,
+                      DenseTensor & dE_Q1_ijk,
+                      DenseTensor & E_Q2_ijk,
+                      DenseTensor & dE_Q2_ijk,
+                      DenseTensor & E_T_ijk,
+                      DenseTensor & dE_T_ijk,
+                      DenseMatrix & phi_Q2_ij,
+                      DenseTensor & dphi_Q2_ij,
+                      Vector      & phi_E_k,
+                      DenseMatrix & dphi_E_k,
+                      DenseMatrix & dW) const;
 
 public:
    ND_FuentesPyramidElement(const int p,
