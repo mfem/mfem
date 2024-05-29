@@ -300,10 +300,10 @@ int main(int argc, char *argv[])
          sout_KKT << "parallel " << num_procs << " " << myid << "\n";
          sout_KKT.precision(8);
          sout_KKT << "solution\n"
-                << *pmesh << KKT_gf << "window_title 'KKT - PMD "
-                << problem << "'\n"
-                << "keys Rjl***************\n"
-                << flush;
+                  << *pmesh << KKT_gf << "window_title 'KKT - PMD "
+                  << problem << "'\n"
+                  << "keys Rjl***************\n"
+                  << flush;
          MPI_Barrier(MPI_COMM_WORLD); // try to prevent streams from mixing
       }
    }
@@ -503,14 +503,14 @@ int main(int argc, char *argv[])
          tmp_rho_gf.ApplyMap(sigmoid);
          for (int i = 0; i < KKT_gf.Size(); i++)
          {
-           double diffval = -grad[i] + der_mu;
-           double rho_diffval = tmp_rho_gf[i] * diffval;
-           KKT_gf[i] = std::min(std::min(rho_diffval, rho_diffval - diffval), 0.0);
+            double diffval = -grad[i] + der_mu;
+            double rho_diffval = tmp_rho_gf[i] * diffval;
+            KKT_gf[i] = std::min(std::min(rho_diffval, rho_diffval - diffval), 0.0);
          }
          MPI_Barrier(pmesh->GetComm());
          KKT = KKT_gf.ComputeLpError(1, zero_cf);
-          if (KKT0 == -infinity()) KKT0 = KKT;
-          KKT = KKT / KKT0;
+         if (KKT0 == -infinity()) { KKT0 = KKT; }
+         KKT = KKT / KKT0;
       }
 
       relative_stationarity = stationarityError / stationarityError0;
