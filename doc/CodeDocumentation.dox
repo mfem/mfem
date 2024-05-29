@@ -189,7 +189,7 @@ namespace mfem {
  *  <a class="el" href="nurbs__ex11p_8cpp_source.html">11p</a>, and
  *  <a class="el" href="nurbs__ex24_8cpp_source.html">24</a>,
  *   demonstrating howto perform NURBS-based Isogeometric Analysis.
- * - Variants of Example <a class="el" href="nurbs__patch__ex1_8cpp_source.html">1</a>: demonstrates the use of patch integration
+ * - Variant of Example <a class="el" href="nurbs__patch__ex1_8cpp_source.html">1</a>: demonstrates the use of patch integration
  * - <a class="el" href="nurbs__solenoidal_8cpp_source.html">NURBS Divergence-free</a>: solve a solenoidal vector projection with NURBS-based H(div) elements
  * - <a class="el" href="nurbs__curveint_8cpp_source.html">NURBS Interpolation</a>: NURBS interpolation of given geometry
  * - <a class="el" href="nurbs__naca__cmesh_8cpp_source.html">NURBS NACA Mesher</a>: generate NURBS based mesh around a NACA foil
