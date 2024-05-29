@@ -1,7 +1,9 @@
 //                                MFEM Example 16
 //                             SUNDIALS Modification
 //
-// Compile with: make ex16
+// Compile with:
+//    make ex16             (GNU make)
+//    make sundials_ex16    (CMake)
 //
 // Sample runs:  ex16
 //               ex16 -m ../../data/inline-tri.mesh
