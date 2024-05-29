@@ -59,8 +59,6 @@ list(APPEND HDRS
   dual.hpp
   vector.hpp
   autodiff.hpp
-  tadvector.hpp
-  taddensemat.hpp
   )
 
 if (MFEM_USE_MPI)
