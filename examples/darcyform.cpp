@@ -1013,6 +1013,15 @@ void DarcyHybridization::ConstructC()
    int num_faces = mesh->GetNumFaces();
    Array<int> c_vdofs;
 
+#if defined(MFEM_USE_DOUBLE)
+   constexpr real_t mtol = 1e-12;
+#elif defined(MFEM_USE_SINGLE)
+   constexpr real_t mtol = 4e-6;
+#else
+#error "Only single and double precision are supported!"
+   constexpr real_t mtol = 1.;
+#endif
+
    // Define Ct_offsets and allocate Ct_data
    Ct_offsets.SetSize(num_faces+1);
    Ct_offsets[0] = 0;
@@ -1047,7 +1056,7 @@ void DarcyHybridization::ConstructC()
          c_bfi->AssembleFaceMatrix(*c_fes->GetFaceElement(f),
                                    *fe1, *fe2, *FTr, elmat);
          // zero-out small elements in elmat
-         elmat.Threshold(1e-12 * elmat.MaxMaxNorm());
+         elmat.Threshold(mtol * elmat.MaxMaxNorm());
 
          // assemble the matrix
          AssembleCtFaceMatrix(f, FTr->Elem1No, FTr->Elem2No, elmat);
@@ -1102,7 +1111,7 @@ void DarcyHybridization::ConstructC()
                boundary_constraint_integs[k]->AssembleFaceMatrix(*face_el, *fe1, *fe2, *FTr,
                                                                  elmat);
                // zero-out small elements in elmat
-               elmat.Threshold(1e-12 * elmat.MaxMaxNorm());
+               elmat.Threshold(mtol * elmat.MaxMaxNorm());
 
                // assemble the matrix
                AssembleCtFaceMatrix(iface, FTr->Elem1No, FTr->Elem2No, elmat);
