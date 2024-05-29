@@ -211,8 +211,7 @@ int main(int argc, char *argv[])
    DivergenceGridFunctionCoefficient div_psi_old_cf(&psi_old_gf);
    SumCoefficient psi_old_minus_psi(div_psi_old_cf, div_psi_cf, 1.0, -1.0);
 
-   // 10. Assemble constant matrices and vectors to avoid
-   //     reassembly in the loop.
+   // 10. Assemble constant matrices/vectors to avoid reassembly in the loop.
    LinearForm b0, b1;
    b0.MakeRef(&RTfes,rhs.GetBlock(0),0);
    b1.MakeRef(&L2fes,rhs.GetBlock(1),0);
@@ -307,7 +306,6 @@ int main(int argc, char *argv[])
          {
             break;
          }
-
       }
 
       u_tmp = u_gf;
