@@ -623,6 +623,67 @@ TEST_CASE("MatrixInverse", "[DenseMatrix]")
    }
 
 }
+
+TEST_CASE("Exponential", "[DenseMatrix]")
+{
+   // case 1
+   DenseMatrix A(2,2);
+   A(0,0) = 5.0;
+   A(0,1) = 3.0;
+   A(1,0) = 0.0;
+   A(1,1) = 5.0;
+   A.Exponential();
+
+   DenseMatrix expA(2,2);
+   expA(0,0) = std::exp(5.0);
+   expA(0,1) = 3.0 * std::exp(5.0);
+   expA(1,0) = 0.0;
+   expA(1,1) = std::exp(5.0);
+
+   A.Print();
+   expA.Print();
+   REQUIRE(A(0,0) == MFEM_Approx(expA(0,0)));
+   REQUIRE(A(0,1) == MFEM_Approx(expA(0,1)));
+   REQUIRE(A(1,0) == MFEM_Approx(expA(1,0)));
+   REQUIRE(A(1,1) == MFEM_Approx(expA(1,1)));
+
+   // case 2
+   A(0,0) = 3.0;
+   A(0,1) = 5.0;
+   A(1,0) = 4.0;
+   A(1,1) = 2.0;
+   A.Exponential();
+
+   expA(0,0) = 4.0 / (9.0 * std::exp(2.0)) + (5.0 * std::exp(7.0)) / 9.0;
+   expA(0,1) = (5.0 * std::exp(7.0)) / 9.0 - 5.0 / (9.0 * std::exp(2.0));
+   expA(1,0) = (4.0 * std::exp(7.0)) / 9.0 - 4.0 / (9.0 * std::exp(2.0));
+   expA(1,1) = 5.0 / (9.0 * std::exp(2.0)) + (4.0 * std::exp(7.0)) / 9.0;
+
+   REQUIRE(A(0,0) == MFEM_Approx(expA(0,0)));
+   REQUIRE(A(0,1) == MFEM_Approx(expA(0,1)));
+   REQUIRE(A(1,0) == MFEM_Approx(expA(1,0)));
+   REQUIRE(A(1,1) == MFEM_Approx(expA(1,1)));
+
+   // case 3
+   A(0,0) = 10.0;
+   A(0,1) = 2.0;
+   A(1,0) = -2.0;
+   A(1,1) = 8.0;
+   A.Exponential();
+
+   expA(0,0) = std::exp(9.0) * (std::sin(std::sqrt(3.0)) / std::sqrt(3.0)
+                                + std::cos(std::sqrt(3.0)));
+   expA(0,1) = 2.0 * std::exp(9.0) * std::sin(std::sqrt(3.0)) / std::sqrt(3.0);
+   expA(1,0) = - 2.0 * std::exp(9.0) * std::sin(std::sqrt(3.0)) / std::sqrt(3.0);
+   expA(1,1) = std::exp(9.0) * (std::cos(std::sqrt(3.0))
+                                - std::sin(std::sqrt(3.0)) / std::sqrt(3.0));
+
+   REQUIRE(A(0,0) == MFEM_Approx(expA(0,0)));
+   REQUIRE(A(0,1) == MFEM_Approx(expA(0,1)));
+   REQUIRE(A(1,0) == MFEM_Approx(expA(1,0)));
+   REQUIRE(A(1,1) == MFEM_Approx(expA(1,1)));
+}
+
 #ifdef MFEM_USE_LAPACK
 
 enum class TestCase { GenEigSPD, GenEigGE, SVD};
