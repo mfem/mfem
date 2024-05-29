@@ -877,8 +877,8 @@ void DarcyHybridization::ComputeAndAssemblePotBdrFaceMatrix(
    const int bdr_attr = mesh->GetBdrAttribute(bface);
    for (int i = 0; i < boundary_constraint_pot_integs.Size(); i++)
    {
-      if (boundary_constraint_pot_integs_marker[i])
-         if ((*boundary_constraint_pot_integs_marker)[bdr_attr-1] == 0) { continue; }
+      if (boundary_constraint_pot_integs_marker[i]
+          && (*boundary_constraint_pot_integs_marker)[bdr_attr-1] == 0) { continue; }
 
       boundary_constraint_pot_integs[i]->AssembleHDGFaceMatrix(*tr_fe, *fe, *fe, *ftr,
                                                                elmat_aux);
