@@ -118,6 +118,13 @@ double poly3d(const IntegrationPoint &ip, int l, int m, int n)
    // l!m!n!/(p+3)! = 1/binom(p,l+m)/binom(l+m,l)/(p+1)/(p+2)/(p+3)
 }
 
+double poly4d(const IntegrationPoint &ip, int l, int m, int n, int o)
+{
+   return pow(ip.x, l)*pow(ip.y, m)*pow(ip.z, n)*pow(ip.t, o);
+   // exact integral over the reference pentatope is (with p = l+m+n+o)
+   // l!m!n!o!/(p+4)! = 1/binom(p,l)/binom(p-l,m)/binom(n+o,o)/(p+1)/(p+2)/(p+3)/(p+4)
+}
+
 TEST_CASE("Simplex integration rules", "[SimplexRules]")
 {
    //This code is automatically re-executed for all of the sections.
@@ -193,6 +200,42 @@ TEST_CASE("Simplex integration rules", "[SimplexRules]")
                   //If a test fails any INFO statements preceding the REQUIRE are displayed
                   INFO("p=" << p << ", l=" << l << ", m=" << m << ", n=" << n);
                   REQUIRE(fabs(relerr) < 1e-11);
+               }
+            }
+         }
+      }
+   }
+
+   SECTION("low pent integration error on reference element for f=x^l y^m z^n t^o, where l+m+n+o <= p")
+   {
+      for (int order = 0; order <= 10; order++)
+      {
+         const IntegrationRule &ir = IntRules.Get(Geometry::PENTATOPE, order);
+
+         for (int p = 0; p <= order; p++)
+         {
+            for (int l = p; l >= 0; l--)
+            {
+               for (int m = p - l; m >= 0; m--)
+               {
+                  for (int n = p - l - m; n >= 0; n--)
+                  {
+                     int o = p - l - m - n;
+
+                     double integral = 0.0;
+                     for (int i = 0; i < ir.GetNPoints(); i++)
+                     {
+                        const IntegrationPoint &ip = ir.IntPoint(i);
+                        integral += ip.weight*poly4d(ip, l, m, n, o);
+                     }
+
+                     double exact = 1.0/binom[p][l]/binom[p-l][m]/binom[n+o][o]/(p+1)/(p+2)/(p+3)/(p+4);
+                     double relerr = 1. - integral/exact;
+
+                     //If a test fails any INFO statements preceding the REQUIRE are displayed
+                     INFO("p=" << p << ", l=" << l << ", m=" << m << ", n=" << n << ", o=" << o);
+                     REQUIRE(fabs(relerr) < 1e-11);
+                  }
                }
             }
          }

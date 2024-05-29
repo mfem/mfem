@@ -1723,13 +1723,25 @@ IntegrationRule *IntegrationRules::PentatopeIntegrationRule(int Order)
          ir->AddPentMidPoint(0, 1./24.);
          return ir;
 
-      //      case 2:  // 5 points - degree 3
-      ////      case 3:
-      //         PentatopeIntRules[2] = PentatopeIntRules[3] = ir = new IntegrationRule(5);
-      //         ir->AddPentPoints5(0,0.118350341907227374, 0.526598632371090503, 1/120.);
-      //         return ir;
-      case 2:
+      case 2:  // 5 points - degree 2 -- taken from https://doi.org/10.1016/j.camwa.2020.07.004
+         PentatopeIntRules[2] = ir = new IntegrationRule(5);
+         ir->AddPentPoints5(0, 0.11835034190722738822731940899757, 1/120.);
+         return ir;
+
+      case 3:  // 15 points - degree 3 -- taken from https://doi.org/10.1016/j.camwa.2020.07.004
+         PentatopeIntRules[3] = ir = new IntegrationRule(15);
+         ir->AddPentPoints5(0, 0.05666638104005152637432374262971, 0.01971744594977651449108080328187 / 24.);
+         ir->AddPentPoints10(5, 0.08282378463560803594223358459203, 0.5 - 1.5 * 0.08282378463560803594223358459203, 0.09014127702511173789723386562400 / 24.);
+         return ir;
+
+      case 4:  // 35 points - degree 5 -- taken from https://doi.org/10.1016/j.camwa.2020.07.004
       case 5:
+         PentatopeIntRules[4] = PentatopeIntRules[5] = ir = new IntegrationRule(35);
+         ir->AddPentPoints5(0, 0.08639272923225102540634168235556, 0.05144687284129603743743075483508 / 24.);
+         ir->AddPentPoints10(5, 0.02401496720062019571417799568280, 0.5 - 1.5 * 0.02401496720062019571417799568280, 0.01075810672318828174753857496171 / 24.);
+         ir->AddPentPoints20(15, 0.29381800402893687440553094347706, 0.06247517556258090631882140542075, 0.03175922842808185514451579933848 / 24.);
+         return ir;
+
       case 6:
       {
          //construct the higher integration rules with the duffy transformation --> 1d integral in time and a tet quad-rule w.r.t space
