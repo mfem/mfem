@@ -1,4 +1,4 @@
-//                                MFEM Example 40p
+//                       MFEM Example 40 - Parallel Version
 //
 // Compile with: make ex40p
 //
@@ -49,7 +49,6 @@
 //              [1] Keith, B. and Surowiec, T. (2023) Proximal Galerkin: A structure-
 //                  preserving finite element method for pointwise bound constraints.
 //                  arXiv:2307.12444 [math.NA]
-
 
 #include "mfem.hpp"
 #include <fstream>
@@ -229,7 +228,7 @@ int main(int argc, char *argv[])
       sol_sock.precision(8);
    }
 
-   // 9. Some constants to be used later.
+   // 9. Coefficients to be used later.
    ConstantCoefficient neg_one(-1.0);
    ConstantCoefficient zero(0.0);
    ConstantCoefficient tichonov_cf(tichonov);
@@ -241,7 +240,7 @@ int main(int argc, char *argv[])
    DivergenceGridFunctionCoefficient div_psi_old_cf(&psi_old_gf);
    SumCoefficient psi_old_minus_psi(div_psi_old_cf, div_psi_cf, 1.0, -1.0);
 
-   // 10. Assemble constant matrices to avoid reassembly in the loop.
+   // 10. Assemble constant matrices/vectors to avoid reassembly in the loop.
    ParLinearForm b0, b1;
    b0.MakeRef(&RTfes,rhs.GetBlock(0),0);
    b1.MakeRef(&L2fes,rhs.GetBlock(1),0);
