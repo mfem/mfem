@@ -11,6 +11,10 @@
 Version 4.7.1 (development)
 ===========================
 
+- Added NURBS-based H(div) and H(curl) elements in 2D and 3D. Only on single 
+  patch meshes. Only implemented for serial computations.
+
+- Added miniapps to demonstrate the H(div) and H(curl) NURBS elements.
 
 Version 4.7, released on May 7, 2024
 ====================================
@@ -52,9 +56,6 @@ Discretization improvements
 
 - Introduced support for high-order nonconforming Nedelec elements on simplices.
 
-- Added NURBS-based H(div) and H(curl) elements in 2D and 3D. Only on single 
-  patch meshes. Only implemented for serial computations.
-
 GPU computing
 -------------
 - Added partial assembly and GPU support for the DG diffusion integrator.
@@ -90,8 +91,6 @@ New and updated examples and miniapps
 - Added a new block solver in miniapp/solvers for the Darcy problem. The new
   solver is based on a Bramble-Pasciak preconditioning. User can use and
   implement their own preconditioner for the mass matrix.
-
-- Added miniapps to demonstrate the H(div) and H(curl) NURBS elements.
 
 - Added a small miniapp for printing the shape functions of a KnotVector. See
   miniapps/nurbs/nurbs_printfunc.cpp.
