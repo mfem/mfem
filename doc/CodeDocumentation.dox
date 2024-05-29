@@ -180,6 +180,21 @@ namespace mfem {
  *   <a class="el" href="examples_2superlu_2ex1p_8cpp_source.html">1p</a>,
  *   demonstrating the use of MFEM's \link superlu.hpp SuperLU integration\endlink.
  *
+ * <H4>NURBS Examples</H4>
+ * - Variants of Examples
+ *  <a class="el" href="nurbs__ex1_8cpp_source.html">1</a>,
+ *  <a class="el" href="nurbs__ex1p_8cpp_source.html">1p</a>,
+ *  <a class="el" href="nurbs__ex3_8cpp_source.html">3</a>,
+ *  <a class="el" href="nurbs__ex5_8cpp_source.html">5</a>,
+ *  <a class="el" href="nurbs__ex11p_8cpp_source.html">11p</a>, and
+ *  <a class="el" href="nurbs__ex24_8cpp_source.html">24</a>,
+ *   demonstrating howto perform NURBS-based Isogeometric Analysis.
+ * - Variants of Example <a class="el" href="nurbs__patch__ex1_8cpp_source.html">1</a>: demonstrates the use of patch integration
+ * - <a class="el" href="nurbs__solenoidal_8cpp_source.html">NURBS Divergence-free</a>: solve a solenoidal vector projection with NURBS-based H(div) elements
+ * - <a class="el" href="nurbs__curveint_8cpp_source.html">NURBS Interpolation</a>: NURBS interpolation of given geometry
+ * - <a class="el" href="nurbs__naca__cmesh_8cpp_source.html">NURBS NACA Mesher</a>: generate NURBS based mesh around a NACA foil
+ * - <a class="el" href="nurbs__printfunc_8cpp_source.html">NURBS Printer</a>: print the NURBS-basis
+ *
  * <H3>Miniapps</H3>
  * - <a class="el" href="volta_8cpp_source.html">Volta</a>: simple electrostatics simulation code
  * - <a class="el" href="tesla_8cpp_source.html">Tesla</a>: simple magnetostatics simulation code
@@ -221,17 +236,6 @@ namespace mfem {
  * - <a class="el" href="pdiffusion_8cpp_source.html">DPG Diffusion example</a>: DPG formulation for the diffusion problem
  * - <a class="el" href="pmaxwell_8cpp_source.html">DPG Maxwell example</a>: DPG formulation for the indefinite Maxwell problem
  * - <a class="el" href="lor__elast_8cpp_source.html">LOR Elasticity</a>: solve linear elasticity with LOR preconditioning on GPUs
- * - <a class="el" href="nurbs__ex1_8cpp_source.html">NURBS Example 1</a>: the Laplace problem using a NURBS-basis
- * - <a class="el" href="nurbs__ex1p_8cpp_source.html">NURBS Example 1p</a>: parallel implementation of the Laplace problem using a NURBS-basis
- * - <a class="el" href="nurbs__patch__ex1_8cpp_source.html">NURBS Example 1 Patch integration</a>: the Laplace problem using a NURBS-basis and patch integration
- * - <a class="el" href="nurbs__ex3_8cpp_source.html">NURBS Example 3</a>: definitive Maxwell problem using a NURBS-based H(curl) elements
- * - <a class="el" href="nurbs__ex5_8cpp_source.html">NURBS Example 5</a>: mixed Darcy problem using a NURBS-based H(div) elements
- * - <a class="el" href="nurbs__ex11p_8cpp_source.html">NURBS Example 11p</a>: parallel implementation of the Laplace eigenvalue problem using a NURBS-basis
- * - <a class="el" href="nurbs__ex24_8cpp_source.html">NURBS Example 24</a>: test problems for NURBS-based H_1, H(curl) and H(div) elements
- * - <a class="el" href="nurbs__solenoidal_8cpp_source.html">NURBS Divergence-free</a>: solve a solenoidal vector projection with NURBS-based H(div) elements
- * - <a class="el" href="nurbs__curveint_8cpp_source.html">NURBS Interpolation</a>: NURBS interpolation of given geometry
- * - <a class="el" href="nurbs__naca__cmesh_8cpp_source.html">NURBS NACA Mesher</a>: generate NURBS based mesh around a NACA foil
- * - <a class="el" href="nurbs__printfunc_8cpp_source.html">NURBS Printer</a>: print the NURBS-basis
  *
  * See also the <a class="el" href="https://mfem.org/examples/">examples documentation</a> online.
  */
