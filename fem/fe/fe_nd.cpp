@@ -1598,11 +1598,17 @@ ND_FuentesPyramidElement::ND_FuentesPyramidElement(const int p,
 
 #ifndef MFEM_THREAD_SAFE
    tmp_E_E_ij.SetSize(p, dim);
+   tmp_dE_E_ij.SetSize(p, dim);
    tmp_E_Q1_ijk.SetSize(p, p + 1, dim);
+   tmp_dE_Q1_ijk.SetSize(p, p + 1, dim);
    tmp_E_Q2_ijk.SetSize(p, p + 1, dim);
+   tmp_dE_Q2_ijk.SetSize(p, p + 1, dim);
    tmp_E_T_ijk.SetSize(p, p + 1, dim);
-   tmp_phi_Q_ij.SetSize(p + 1, p + 1);
-   tmp_dphi_Q_ij.SetSize(p + 1, p + 1, dim);
+   tmp_dE_T_ijk.SetSize(p, p + 1, dim);
+   tmp_phi_Q1_ij.SetSize(p + 1, p + 1);
+   tmp_dphi_Q1_ij.SetSize(p + 1, p + 1, dim);
+   tmp_phi_Q2_ij.SetSize(p + 1, p + 1);
+   tmp_dphi_Q2_ij.SetSize(p + 1, p + 1, dim);
    tmp_phi_E_i.SetSize(p + 1);
    tmp_dphi_E_i.SetSize(p + 1, dim);
    u.SetSize(dof, dim);
@@ -1610,10 +1616,14 @@ ND_FuentesPyramidElement::ND_FuentesPyramidElement(const int p,
 #else
    DenseMatrix tmp_E_E_ij(p, dim);
    DenseTensor tmp_E_Q1_ijk(p, p + 1, dim);
+   DenseTensor tmp_dE_Q1_ijk(p, p + 1, dim);
    DenseTensor tmp_E_Q2_ijk(p, p + 1, dim);
+   DenseTensor tmp_dE_Q2_ijk(p, p + 1, dim);
    DenseTensor tmp_E_T_ijk(p, p + 1, dim);
-   DenseMatrix tmp_phi_Q_ij(p + 1, p + 1);
-   DenseTensor tmp_dphi_Q_ij(p + 1, p + 1, dim);
+   DenseTensor tmp_dE_T_ijk(p, p + 1, dim);
+   DenseMatrix tmp_phi_Q1_ij(p + 1, p + 1);
+   DenseTensor tmp_dphi_Q1_ij(p + 1, p + 1, dim);
+   DenseMatrix tmp_phi_Q2_ij(p + 1, p + 1);
    Vector      tmp_phi_E_i(p + 1);
    DenseMatrix tmp_dphi_E_i(p + 1, dim);
    DenseMatrix u(dof, dim);
@@ -1631,15 +1641,17 @@ void ND_FuentesPyramidElement::CalcVShape(const IntegrationPoint &ip,
    DenseTensor tmp_E_Q1_ijk(p, p + 1, dim);
    DenseTensor tmp_E_Q2_ijk(p, p + 1, dim);
    DenseTensor tmp_E_T_ijk(p, p + 1, dim);
-   DenseMatrix tmp_phi_Q_ij(p + 1, p + 1);
-   DenseTensor tmp_dphi_Q_ij(p + 1, p + 1, dim);
+   DenseMatrix tmp_phi_Q1_ij(p + 1, p + 1);
+   DenseTensor tmp_dphi_Q1_ij(p + 1, p + 1, dim);
+   DenseMatrix tmp_phi_Q2_ij(p + 1, p + 1);
    Vector      tmp_phi_E_i(p + 1);
    DenseMatrix tmp_dphi_E_i(p + 1, dim);
    DenseMatrix u(dof, dim);
 #endif
 
    calcBasis(p, ip, tmp_E_E_ij, tmp_E_Q1_ijk, tmp_E_Q2_ijk, tmp_E_T_ijk,
-             tmp_phi_Q_ij, tmp_dphi_Q_ij, tmp_phi_E_i, tmp_dphi_E_i, u);
+             tmp_phi_Q1_ij, tmp_dphi_Q1_ij, tmp_phi_Q2_ij,
+             tmp_phi_E_i, tmp_dphi_E_i, u);
 
    Ti.Mult(u, shape);
 }
@@ -1658,14 +1670,42 @@ void ND_FuentesPyramidElement::CalcRawVShape(const IntegrationPoint &ip,
    DenseTensor tmp_E_Q1_ijk(p, p + 1, dim);
    DenseTensor tmp_E_Q2_ijk(p, p + 1, dim);
    DenseTensor tmp_E_T_ijk(p, p + 1, dim);
-   DenseMatrix tmp_phi_Q_ij(p + 1, p + 1);
-   DenseTensor tmp_dphi_Q_ij(p + 1, p + 1, dim);
+   DenseMatrix tmp_phi_Q1_ij(p + 1, p + 1);
+   DenseTensor tmp_dphi_Q1_ij(p + 1, p + 1, dim);
+   DenseMatrix tmp_phi_Q2_ij(p + 1, p + 1);
    Vector      tmp_phi_E_i(p + 1);
    DenseMatrix tmp_dphi_E_i(p + 1, dim);
 #endif
 
    calcBasis(p, ip, tmp_E_E_ij, tmp_E_Q1_ijk, tmp_E_Q2_ijk, tmp_E_T_ijk,
-             tmp_phi_Q_ij, tmp_dphi_Q_ij, tmp_phi_E_i, tmp_dphi_E_i, shape);
+             tmp_phi_Q1_ij, tmp_dphi_Q1_ij, tmp_phi_Q2_ij,
+             tmp_phi_E_i, tmp_dphi_E_i, shape);
+}
+
+void ND_FuentesPyramidElement::CalcRawCurlShape(const IntegrationPoint &ip,
+                                                DenseMatrix &dshape) const
+{
+   const int p = order;
+
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix tmp_E_E_ij(p, dim);
+   DenseMatrix tmp_dE_E_ij(p, dim);
+   DenseTensor tmp_E_Q1_ijk(p, p + 1, dim);
+   DenseTensor tmp_dE_Q1_ijk(p, p + 1, dim);
+   DenseTensor tmp_E_Q2_ijk(p, p + 1, dim);
+   DenseTensor tmp_dE_Q2_ijk(p, p + 1, dim);
+   DenseTensor tmp_E_T_ijk(p, p + 1, dim);
+   DenseTensor tmp_dE_T_ijk(p, p + 1, dim);
+   DenseMatrix tmp_phi_Q2_ij(p + 1, p + 1);
+   DenseTensor tmp_dphi_Q2_ij(p + 1, p + 1, dim);
+   Vector      tmp_phi_E_i(p + 1);
+   DenseMatrix tmp_dphi_E_i(p + 1, dim);
+#endif
+
+   calcCurlBasis(p, ip, tmp_E_E_ij, tmp_dE_E_ij, tmp_E_Q1_ijk, tmp_dE_Q1_ijk,
+                 tmp_E_Q2_ijk, tmp_dE_Q2_ijk, tmp_E_T_ijk, tmp_dE_T_ijk,
+                 tmp_phi_Q2_ij, tmp_dphi_Q2_ij, tmp_phi_E_i, tmp_dphi_E_i,
+                 dshape);
 }
 
 void ND_FuentesPyramidElement::calcBasis(const int p,
@@ -1674,8 +1714,9 @@ void ND_FuentesPyramidElement::calcBasis(const int p,
                                          DenseTensor & E_Q1_ijk,
                                          DenseTensor & E_Q2_ijk,
                                          DenseTensor & E_T_ijk,
-                                         DenseMatrix & phi_Q_ij,
-                                         DenseTensor & dphi_Q_ij,
+                                         DenseMatrix & phi_Q1_ij,
+                                         DenseTensor & dphi_Q1_ij,
+                                         DenseMatrix & phi_Q2_ij,
                                          Vector      & phi_E_k,
                                          DenseMatrix & dphi_E_k,
                                          DenseMatrix &W) const
@@ -1685,6 +1726,8 @@ void ND_FuentesPyramidElement::calcBasis(const int p,
    real_t z = ip.z;
    Vector xy({x,y}), dmu(3);
    real_t mu, mu2;
+
+   W = 0.0;
 
    int o = 0;
 
@@ -1765,7 +1808,8 @@ void ND_FuentesPyramidElement::calcBasis(const int p,
       mu2 = mu * mu;
 
       // Family I
-      E_Q(p, mu01(z, xy, 1), mu01_grad_mu01(z, xy, 1), mu01(z, xy, 2), E_Q1_ijk);
+      E_Q(p, mu01(z, xy, 1), mu01_grad_mu01(z, xy, 1), mu01(z, xy, 2),
+          E_Q1_ijk);
       for (int j=2; j<=p; j++)
          for (int i=0; i<p; i++, o++)
             for (int k=0; k<3; k++)
@@ -1774,7 +1818,8 @@ void ND_FuentesPyramidElement::calcBasis(const int p,
             }
 
       // Family II
-      E_Q(p, mu01(z, xy, 2), mu01_grad_mu01(z, xy, 2), mu01(z, xy, 1), E_Q2_ijk);
+      E_Q(p, mu01(z, xy, 2), mu01_grad_mu01(z, xy, 2), mu01(z, xy, 1),
+          E_Q2_ijk);
       for (int j=2; j<=p; j++)
          for (int i=0; i<p; i++, o++)
             for (int k=0; k<3; k++)
@@ -1870,14 +1915,14 @@ void ND_FuentesPyramidElement::calcBasis(const int p,
    {
       // Family I
       phi_Q(p, mu01(z, xy, 1), grad_mu01(z, xy, 1), mu01(z, xy, 2),
-            grad_mu01(z, xy, 2), phi_Q_ij, dphi_Q_ij);
+            grad_mu01(z, xy, 2), phi_Q1_ij, dphi_Q1_ij);
       phi_E(p, mu01(z), grad_mu01(z), phi_E_k, dphi_E_k);
       for (int k=2; k<=p; k++)
          for (int j=2; j<=p; j++)
             for (int i=2; i<=p; i++, o++)
                for (int l=0; l<3; l++)
-                  W(o, l) = dphi_Q_ij(i, j, l) * phi_E_k(k) +
-                            phi_Q_ij(i, j) * dphi_E_k(k, l);
+                  W(o, l) = dphi_Q1_ij(i, j, l) * phi_E_k(k) +
+                            phi_Q1_ij(i, j) * dphi_E_k(k, l);
 
       // Family II
       mu = mu0(z);
@@ -1899,8 +1944,9 @@ void ND_FuentesPyramidElement::calcBasis(const int p,
                }
 
       // Family IV
-      // Re-using mu and phi_Q from Family I
+      // Re-using mu from Family I
       dmu = grad_mu0(z);
+      phi_Q(p, mu01(z, xy, 2), mu01(z, xy, 1), phi_Q2_ij);
       for (int j=2; j<=p; j++)
          for (int i=2; i<=p; i++, o++)
          {
@@ -1908,16 +1954,384 @@ void ND_FuentesPyramidElement::calcBasis(const int p,
             const real_t nmu = n * pow(mu, n-1);
             for (int l=0; l<3; l++)
             {
-               W(o, l) = nmu * phi_Q_ij(i, j) * dmu(l);
+               W(o, l) = nmu * phi_Q2_ij(i, j) * dmu(l);
             }
          }
    }
 }
 
-void ND_FuentesPyramidElement::CalcRawCurlShape(const IntegrationPoint &ip,
-                                                DenseMatrix &dshape) const
+void ND_FuentesPyramidElement::calcCurlBasis(const int p,
+                                             const IntegrationPoint &ip,
+                                             DenseMatrix & E_E_ik,
+                                             DenseMatrix & dE_E_ik,
+                                             DenseTensor & E_Q1_ijk,
+                                             DenseTensor & dE_Q1_ijk,
+                                             DenseTensor & E_Q2_ijk,
+                                             DenseTensor & dE_Q2_ijk,
+                                             DenseTensor & E_T_ijk,
+                                             DenseTensor & dE_T_ijk,
+                                             DenseMatrix & phi_Q2_ij,
+                                             DenseTensor & dphi_Q2_ij,
+                                             Vector      & phi_E_k,
+                                             DenseMatrix & dphi_E_k,
+                                             DenseMatrix & dW) const
 {
-   dshape = 1.0;
+   real_t x = ip.x;
+   real_t y = ip.y;
+   real_t z = ip.z;
+   Vector xy({x,y}), dmu(3);
+   Vector dmuxE(3), E(3), dphi(3), muphi(3);
+
+   real_t mu, mu2;
+
+   dW = 0.0;
+
+   int o = 0;
+
+   // Mixed Edges
+   if (z < 1.0)
+   {
+      // (a, b) = (1, 2), c = 0
+      mu = mu0(z, xy, 2);
+      dmu = grad_mu0(z, xy, 2);
+      E_E(p, nu01(z, xy, 1), grad_nu01(z, xy, 1), E_E_ik, dE_E_ik);
+      for (int i=0; i<p; i++, o++)
+      {
+         E(0) = E_E_ik(i, 0); E(1) = E_E_ik(i, 1); E(2) = E_E_ik(i, 2);
+         dmu.cross3D(E, dmuxE);
+         for (int k=0; k<3; k++)
+         {
+            dW(o, k) = mu * dE_E_ik(i, k) + dmuxE(k);
+         }
+      }
+
+      // (a, b) = (1, 2), c = 1
+      mu = mu1(z, xy, 2);
+      dmu = grad_mu1(z, xy, 2);
+      for (int i=0; i<p; i++, o++)
+      {
+         E(0) = E_E_ik(i, 0); E(1) = E_E_ik(i, 1); E(2) = E_E_ik(i, 2);
+         dmu.cross3D(E, dmuxE);
+         for (int k=0; k<3; k++)
+         {
+            dW(o, k) = mu * dE_E_ik(i, k) + dmuxE(k);
+         }
+      }
+
+      // (a, b) = (2, 1), c = 0
+      mu = mu0(z, xy, 1);
+      dmu = grad_mu0(z, xy, 1);
+      E_E(p, nu01(z, xy, 2), grad_nu01(z, xy, 2), E_E_ik, dE_E_ik);
+      for (int i=0; i<p; i++, o++)
+      {
+         E(0) = E_E_ik(i, 0); E(1) = E_E_ik(i, 1); E(2) = E_E_ik(i, 2);
+         dmu.cross3D(E, dmuxE);
+         for (int k=0; k<3; k++)
+         {
+            dW(o, k) = mu * dE_E_ik(i, k) + dmuxE(k);
+         }
+      }
+
+      // (a, b) = (2, 1), c = 1
+      mu = mu1(z, xy, 1);
+      dmu = grad_mu1(z, xy, 1);
+      for (int i=0; i<p; i++, o++)
+      {
+         E(0) = E_E_ik(i, 0); E(1) = E_E_ik(i, 1); E(2) = E_E_ik(i, 2);
+         dmu.cross3D(E, dmuxE);
+         for (int k=0; k<3; k++)
+         {
+            dW(o, k) = mu * dE_E_ik(i, k) + dmuxE(k);
+         }
+      }
+   }
+
+   // Triangle Edges
+   if (z < 1.0)
+   {
+      E_E(p, lam15(x, y, z), grad_lam15(x, y, z), E_E_ik, dE_E_ik);
+      for (int i=0; i<p; i++, o++)
+         for (int k=0; k<3; k++)
+         {
+            dW(o, k) = dE_E_ik(i, k);
+         }
+
+      E_E(p, lam25(x, y, z), grad_lam25(x, y, z), E_E_ik, dE_E_ik);
+      for (int i=0; i<p; i++, o++)
+         for (int k=0; k<3; k++)
+         {
+            dW(o, k) = dE_E_ik(i, k);
+         }
+
+      E_E(p, lam35(x, y, z), grad_lam35(x, y, z), E_E_ik, dE_E_ik);
+      for (int i=0; i<p; i++, o++)
+         for (int k=0; k<3; k++)
+         {
+            dW(o, k) = dE_E_ik(i, k);
+         }
+
+      E_E(p, lam45(x, y, z), grad_lam45(x, y, z), E_E_ik, dE_E_ik);
+      for (int i=0; i<p; i++, o++)
+         for (int k=0; k<3; k++)
+         {
+            dW(o, k) = dE_E_ik(i, k);
+         }
+   }
+
+   // Quadrilateral Face
+   if (z < 1.0)
+   {
+      mu = mu0(z);
+      mu2 = mu * mu;
+      dmu = grad_mu0(z);
+
+      // Family I
+      E_Q(p, mu01(z, xy, 1), grad_mu01(z, xy, 1),
+          mu01(z, xy, 2), grad_mu01(z, xy, 2), E_Q1_ijk, dE_Q1_ijk);
+      for (int j=2; j<=p; j++)
+         for (int i=0; i<p; i++, o++)
+         {
+            E(0) = E_Q1_ijk(i, j, 0);
+            E(1) = E_Q1_ijk(i, j, 1);
+            E(2) = E_Q1_ijk(i, j, 2);
+            dmu.cross3D(E, dmuxE);
+            for (int k=0; k<3; k++)
+            {
+               dW(o, k) = mu2 * dE_Q1_ijk(i, j, k) + 2.0 * mu * dmuxE(k);
+            }
+         }
+
+      // Family II
+      E_Q(p, mu01(z, xy, 2), grad_mu01(z, xy, 2),
+          mu01(z, xy, 1), grad_mu01(z, xy, 1), E_Q2_ijk, dE_Q2_ijk);
+      for (int j=2; j<=p; j++)
+         for (int i=0; i<p; i++, o++)
+         {
+            E(0) = E_Q2_ijk(i, j, 0);
+            E(1) = E_Q2_ijk(i, j, 1);
+            E(2) = E_Q2_ijk(i, j, 2);
+            dmu.cross3D(E, dmuxE);
+            for (int k=0; k<3; k++)
+            {
+               dW(o, k) = mu2 * dE_Q2_ijk(i, j, k) + 2.0 * mu * dmuxE(k);
+            }
+         }
+   }
+
+   // Triangular Faces
+   if (z < 1.0)
+   {
+      // Family I
+      // (a, b) = (1, 2), c = 0
+      mu = mu0(z, xy, 2);
+      dmu = grad_mu0(z, xy, 2);
+      E_T(p, nu012(z, xy, 1), grad_nu012(z, xy, 1), E_T_ijk, dE_T_ijk);
+      for (int j=1; j<p; j++)
+         for (int i=0; i+j<p; i++, o++)
+         {
+            E(0) = E_T_ijk(i, j, 0);
+            E(1) = E_T_ijk(i, j, 1);
+            E(2) = E_T_ijk(i, j, 2);
+            dmu.cross3D(E, dmuxE);
+            for (int k=0; k<3; k++)
+            {
+               dW(o, k) = mu * dE_T_ijk(i, j, k) + dmuxE(k);
+            }
+         }
+
+      // (a, b) = (1, 2), c = 1
+      mu = mu1(z, xy, 2);
+      dmu = grad_mu1(z, xy, 2);
+      for (int j=1; j<p; j++)
+         for (int i=0; i+j<p; i++, o++)
+         {
+            E(0) = E_T_ijk(i, j, 0);
+            E(1) = E_T_ijk(i, j, 1);
+            E(2) = E_T_ijk(i, j, 2);
+            dmu.cross3D(E, dmuxE);
+            for (int k=0; k<3; k++)
+            {
+               dW(o, k) = mu * dE_T_ijk(i, j, k) + dmuxE(k);
+            }
+         }
+
+      // (a, b) = (2, 1), c = 0
+      mu = mu0(z, xy, 1);
+      dmu = grad_mu0(z, xy, 1);
+      E_T(p, nu012(z, xy, 2), grad_nu012(z, xy, 2), E_T_ijk, dE_T_ijk);
+      for (int j=1; j<p; j++)
+         for (int i=0; i+j<p; i++, o++)
+         {
+            E(0) = E_T_ijk(i, j, 0);
+            E(1) = E_T_ijk(i, j, 1);
+            E(2) = E_T_ijk(i, j, 2);
+            dmu.cross3D(E, dmuxE);
+            for (int k=0; k<3; k++)
+            {
+               dW(o, k) = mu * dE_T_ijk(i, j, k) + dmuxE(k);
+            }
+         }
+
+      // (a, b) = (2, 1), c = 1
+      mu = mu1(z, xy, 1);
+      dmu = grad_mu1(z, xy, 1);
+      for (int j=1; j<p; j++)
+         for (int i=0; i+j<p; i++, o++)
+         {
+            E(0) = E_T_ijk(i, j, 0);
+            E(1) = E_T_ijk(i, j, 1);
+            E(2) = E_T_ijk(i, j, 2);
+            dmu.cross3D(E, dmuxE);
+            for (int k=0; k<3; k++)
+            {
+               dW(o, k) = mu * dE_T_ijk(i, j, k) + dmuxE(k);
+            }
+         }
+
+      // Family II
+      // (a, b) = (1, 2), c = 0
+      mu = mu0(z, xy, 2);
+      dmu = grad_mu0(z, xy, 2);
+      E_T(p, nu120(z, xy, 1), grad_nu120(z, xy, 1), E_T_ijk, dE_T_ijk);
+      for (int j=1; j<p; j++)
+         for (int i=0; i+j<p; i++, o++)
+         {
+            E(0) = E_T_ijk(i, j, 0);
+            E(1) = E_T_ijk(i, j, 1);
+            E(2) = E_T_ijk(i, j, 2);
+            dmu.cross3D(E, dmuxE);
+            for (int k=0; k<3; k++)
+            {
+               dW(o, k) = mu * dE_T_ijk(i, j, k) + dmuxE(k);
+            }
+         }
+
+      // (a, b) = (1, 2), c = 1
+      mu = mu1(z, xy, 2);
+      dmu = grad_mu1(z, xy, 2);
+      for (int j=1; j<p; j++)
+         for (int i=0; i+j<p; i++, o++)
+         {
+            E(0) = E_T_ijk(i, j, 0);
+            E(1) = E_T_ijk(i, j, 1);
+            E(2) = E_T_ijk(i, j, 2);
+            dmu.cross3D(E, dmuxE);
+            for (int k=0; k<3; k++)
+            {
+               dW(o, k) = mu * dE_T_ijk(i, j, k) + dmuxE(k);
+            }
+         }
+
+      // (a, b) = (2, 1), c = 0
+      mu = mu0(z, xy, 1);
+      dmu = grad_mu0(z, xy, 1);
+      E_T(p, nu120(z, xy, 2), grad_nu120(z, xy, 2), E_T_ijk, dE_T_ijk);
+      for (int j=1; j<p; j++)
+         for (int i=0; i+j<p; i++, o++)
+         {
+            E(0) = E_T_ijk(i, j, 0);
+            E(1) = E_T_ijk(i, j, 1);
+            E(2) = E_T_ijk(i, j, 2);
+            dmu.cross3D(E, dmuxE);
+            for (int k=0; k<3; k++)
+            {
+               dW(o, k) = mu * dE_T_ijk(i, j, k) + dmuxE(k);
+            }
+         }
+
+      // (a, b) = (2, 1), c = 1
+      mu = mu1(z, xy, 1);
+      dmu = grad_mu1(z, xy, 1);
+      for (int j=1; j<p; j++)
+         for (int i=0; i+j<p; i++, o++)
+         {
+            E(0) = E_T_ijk(i, j, 0);
+            E(1) = E_T_ijk(i, j, 1);
+            E(2) = E_T_ijk(i, j, 2);
+            dmu.cross3D(E, dmuxE);
+            for (int k=0; k<3; k++)
+            {
+               dW(o, k) = mu * dE_T_ijk(i, j, k) + dmuxE(k);
+            }
+         }
+   }
+
+   // Interior
+   if (z < 1.0)
+   {
+      // Family I
+      // Curl is zero so skip these functions
+      o += (p - 1) * (p - 1) * (p - 1);
+
+      // Family II
+      mu = mu0(z);
+      dmu = grad_mu0(z);
+      phi_E(p, mu01(z), grad_mu01(z), phi_E_k, dphi_E_k);
+      for (int k=2; k<=p; k++)
+      {
+         dphi(0) = dphi_E_k(k, 0);
+         dphi(1) = dphi_E_k(k, 1);
+         dphi(2) = dphi_E_k(k, 2);
+         add(mu, dphi, phi_E_k(k), dmu, muphi);
+
+         for (int j=2; j<=p; j++)
+            for (int i=0; i<p; i++, o++)
+            {
+               E(0) = E_Q1_ijk(i, j, 0);
+               E(1) = E_Q1_ijk(i, j, 1);
+               E(2) = E_Q1_ijk(i, j, 2);
+               muphi.cross3D(E, dmuxE);
+               for (int l=0; l<3; l++)
+               {
+                  dW(o, l) = mu * dE_Q1_ijk(i, j, l) * phi_E_k(k) + dmuxE(l);
+               }
+            }
+      }
+
+      // Family III
+      for (int k=2; k<=p; k++)
+      {
+         dphi(0) = dphi_E_k(k, 0);
+         dphi(1) = dphi_E_k(k, 1);
+         dphi(2) = dphi_E_k(k, 2);
+         add(mu, dphi, phi_E_k(k), dmu, muphi);
+
+         for (int j=2; j<=p; j++)
+            for (int i=0; i<p; i++, o++)
+            {
+               E(0) = E_Q2_ijk(i, j, 0);
+               E(1) = E_Q2_ijk(i, j, 1);
+               E(2) = E_Q2_ijk(i, j, 2);
+               muphi.cross3D(E, dmuxE);
+               for (int l=0; l<3; l++)
+               {
+                  dW(o, l) = mu * dE_Q2_ijk(i, j, l) * phi_E_k(k) + dmuxE(l);
+               }
+            }
+      }
+
+      // Family IV
+      // Re-using mu from Family II
+      dmu = grad_mu0(z);
+      phi_Q(p, mu01(z, xy, 2), grad_mu01(z, xy, 2), mu01(z, xy, 1),
+            grad_mu01(z, xy, 1), phi_Q2_ij, dphi_Q2_ij);
+      for (int j=2; j<=p; j++)
+         for (int i=2; i<=p; i++, o++)
+         {
+            const int n = std::max(i,j);
+            const real_t nmu = n * pow(mu, n-1);
+
+            dphi(0) = dphi_Q2_ij(i, j, 0);
+            dphi(1) = dphi_Q2_ij(i, j, 1);
+            dphi(2) = dphi_Q2_ij(i, j, 2);
+            dphi.cross3D(dmu, muphi);
+
+            for (int l=0; l<3; l++)
+            {
+               dW(o, l) = nmu * muphi(l);
+            }
+         }
+   }
 }
 
 ND_R1D_PointElement::ND_R1D_PointElement(int p)

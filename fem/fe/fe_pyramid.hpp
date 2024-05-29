@@ -36,8 +36,11 @@ private:
    mutable DenseMatrix E_Q_mtmp1;
    mutable DenseMatrix E_Q_mtmp2;
    mutable DenseMatrix E_Q_mtmp3;
-   mutable Vector      E_T_vtmp;
-   mutable DenseMatrix E_T_mtmp;
+   mutable Vector      E_T_vtmp1;
+   mutable Vector      E_T_vtmp2;
+   mutable Vector      E_T_vtmp3;
+   mutable DenseMatrix E_T_mtmp1;
+   mutable DenseMatrix E_T_mtmp2;
    mutable DenseMatrix V_Q_mtmp1;
    mutable DenseMatrix V_Q_mtmp2;
    mutable Vector      V_T_vtmp1;
@@ -177,6 +180,7 @@ public:
 
    static DenseMatrix grad_nu01(real_t z, Vector xy, unsigned int ab);
    static DenseMatrix grad_nu012(real_t z, Vector xy, unsigned int ab);
+   static DenseMatrix grad_nu120(real_t z, Vector xy, unsigned int ab);
 
    static Vector nu01_grad_nu01(real_t z, Vector xy, unsigned int ab);
    static Vector nu12_grad_nu12(real_t z, Vector xy, unsigned int ab);
@@ -390,6 +394,8 @@ public:
             DenseTensor &u, DenseTensor &curl_u) const;
 
    void E_T(int p, Vector s, Vector sds, DenseTensor &u) const;
+   void E_T(int p, Vector s, const DenseMatrix &grad_s,
+            DenseTensor &u, DenseTensor &curl_u) const;
 
    /** This is a vector-valued function associated with the quadrilateral face
        of a pyramid
