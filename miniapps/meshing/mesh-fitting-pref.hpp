@@ -405,14 +405,12 @@ void PropogateOrdersAcrossInterFace(const GridFunction
             int temp_set_order = propogate_list_current.Find(elem_neighbor_index) != -1 ?
                                  current_order : -1;
             propogate_list_current.Append(elem_neighbor_index);
+            // std::cout << elem << " " << elem_order << " " <<
+            // elem_neighbor_index << " " << current_order << " k101\n";
             // approach = 0; If the interface element is 5, max diff = 2,
             // the neighbor has to be atleast 3 (i.e. 3 || 4 || 5 || 6)
             if (approach == 0)
             {
-               std::cout << i << " " << n << " " << maxdiff << " " <<
-                         current_order << " " << elem_order-maxdiff <<
-                         std::endl;
-
                if (current_order < elem_order-maxdiff)
                {
                   int set_order = std::max(1, elem_order-maxdiff);
@@ -857,11 +855,16 @@ double ComputeIntegrateErrorBG(const FiniteElementSpace* fes,
    double length = 0.0;
    int point_ordering(1);
    finder.Interpolate(vxyz, *ls_bg, interp_values, point_ordering);
+   double max_pointwise_error = 0.0;
+   double sum_pointwise_error = 0.0;
    for (int i=0; i<ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
       transf->SetAllIntPoints(&ip);
       double level_set_value = interp_values(i) ;
+      sum_pointwise_error += level_set_value*level_set_value;
+      max_pointwise_error = std::max(max_pointwise_error,
+                                     level_set_value*level_set_value);
       error += ip.weight*transf->Face->Weight() * std::pow(level_set_value, 2.0);
       length += ip.weight*transf->Face->Weight();
    }
@@ -883,6 +886,14 @@ double ComputeIntegrateErrorBG(const FiniteElementSpace* fes,
    {
       error = error > 0.0 ? std::pow(error, 0.5) : 0.0;
       return_val = error/length;
+   }
+   else if (etype == 5)
+   {
+      return_val = max_pointwise_error;
+   }
+   else if (etype == 6)
+   {
+      return_val = sum_pointwise_error;
    }
    else
    {
@@ -1075,10 +1086,12 @@ double InterfaceElementOrderReduction(const Mesh *mesh,
    }
 
    double return_val = 0.0;
+   // integral of error
    if (etype == 0 || etype == 4)
    {
       return_val = error;
    }
+   // size of the element
    else if (etype == 1)
    {
       return_val = size;

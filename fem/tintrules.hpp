@@ -234,7 +234,7 @@ public:
    }
 };
 
-template <Geometry::Type G, int Order, typename real_t = double>
+template <Geometry::Type G, int Order, typename real_t = real_t>
 class TIntegrationRule;
 
 template <int Order, typename real_t>

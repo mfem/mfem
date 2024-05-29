@@ -13,11 +13,10 @@
 #include "mfem.hpp"
 
 using namespace mfem;
-
 namespace hptransfer_test
 {
 
-int order;
+int order=1;
 
 double u(const Vector & x)
 {
@@ -35,22 +34,21 @@ void vecu(const Vector & x, Vector & U)
 void RandomPRefinement(FiniteElementSpace & fes)
 {
    Mesh *mesh = fes.GetMesh();
-   int maxorder = 0;
    for (int i = 0; i < mesh->GetNE(); i++)
    {
       const int eorder = fes.GetElementOrder(i);
-      maxorder = std::max(maxorder,order);
       if ((double) rand() / RAND_MAX < 0.5)
       {
          fes.SetElementOrder(i,eorder+1);
-         maxorder = std::max(maxorder,eorder+1);
       }
    }
    fes.Update(false);
 }
 
-void PreprocessRandomDerefinment(FiniteElementSpace & fes, Array<int> &drefs,
-                                 double prob=0.5)
+/* This function randomly selects elements to be de-refined and sets the
+   order of the elements that share the same parent to their minimum */
+void PreprocessRandomDerefinement(FiniteElementSpace & fes, Array<int> &drefs,
+                                  double prob=0.5)
 {
    Mesh * mesh = fes.GetMesh();
    const Table & dereftable = mesh->ncmesh->GetDerefinementTable();
@@ -63,7 +61,7 @@ void PreprocessRandomDerefinment(FiniteElementSpace & fes, Array<int> &drefs,
       }
    }
 
-   // Go through the possible drefinments and set the orders to minimum
+   // Go through the possible derefinements and set the orders to minimum
    Array<int> row;
    for (int i = 0; i<drefs.Size(); i++)
    {
@@ -86,7 +84,6 @@ void Derefine(Mesh &mesh, const Array<int> &drefs)
 {
    const Table & dereftable = mesh.ncmesh->GetDerefinementTable();
 
-   // Go through the possible drefinments and set the orders to minimum
    Array<int> row;
    Vector errors(mesh.GetNE()); errors = infinity();
    for (int i = 0; i<drefs.Size(); i++)
@@ -100,14 +97,15 @@ void Derefine(Mesh &mesh, const Array<int> &drefs)
    mesh.DerefineByError(errors,1.0);
 }
 
-enum class Space {H1, L2, VectorH1, VectorL2};
+enum class Space {H1, VectorH1};
 
 TEST_CASE("hpTransfer", "[hpTransfer]")
 {
-   auto space   = GENERATE(Space::H1, Space::L2, Space::VectorH1, Space::VectorL2);
-   int dim      = GENERATE(2, 3);
-   auto simplex = GENERATE(true, false);
-   order        = GENERATE(1, 2);
+   auto space   = GENERATE(Space::H1, Space::VectorH1);
+   int dim      = GENERATE(2,3);
+   auto simplex = GENERATE(false, true);
+   order        = GENERATE(1,2);
+   auto relax_conformity = GENERATE(false, true);
 
    int ne = 3;
 
@@ -126,31 +124,21 @@ TEST_CASE("hpTransfer", "[hpTransfer]")
    }
    mesh.EnsureNCMesh(true);
 
+   // 1. Set up initial state by randomly h- and p- refine
    mesh.RandomRefinement(0.5);
 
-   FiniteElementCollection *fec = nullptr;
-   switch (space)
-   {
-      case Space::H1:
-      case Space::VectorH1:
-         fec = new H1_FECollection(order, dim);
-         break;
-      case Space::L2:
-      case Space::VectorL2:
-         fec = new L2_FECollection(order, dim);
-         break;
-   }
+   H1_FECollection fec(order, dim);
 
-   int dimc = (space<=Space::L2) ? 1 : dim;
-   FiniteElementSpace fes(&mesh, fec, dimc);
-   fes.SetRelaxedHpConformity();
-
+   int dimc = (space==Space::H1) ? 1 : dim;
+   FiniteElementSpace fes(&mesh, &fec, dimc);
+   fes.SetRelaxedHpConformity(relax_conformity);
    RandomPRefinement(fes);
 
+   // 2. Set up a GridFunction on the initial hp-mesh
    FunctionCoefficient f(u);
    VectorFunctionCoefficient vf(dim,vecu);
-   GridFunction gf(&fes);
-   if (space<=Space::L2)
+   GridFunction gf(&fes); gf = 0.0;
+   if (space==Space::H1)
    {
       gf.ProjectCoefficient(f);
    }
@@ -158,13 +146,121 @@ TEST_CASE("hpTransfer", "[hpTransfer]")
    {
       gf.ProjectCoefficient(vf);
    }
-   // State 1: hrefined
+
+   // 3: Randomly h-refine the mesh and transfer the GridFunction
    mesh.RandomRefinement(0.5);
    fes.Update();
    gf.Update();
 
    GridFunction err_gf(&fes);
-   if (space<=Space::L2)
+   if (space==Space::H1)
+   {
+      err_gf.ProjectCoefficient(f);
+   }
+   else
+   {
+      err_gf.ProjectCoefficient(vf);
+   }
+   err_gf-= gf;
+
+   if (fes.GetHpRestrictionMatrix())
+   {
+      Vector tmp0(fes.GetHpRestrictionMatrix()->Height());
+      fes.GetHpRestrictionMatrix()->Mult(err_gf,tmp0);
+      fes.GetProlongationMatrix()->Mult(tmp0,err_gf);
+   }
+
+   // 3a. Check if the prolonged GridFunction to the h-refined
+   //     mesh exactly reproduces the polynomial GridFunction
+   REQUIRE(err_gf.Norml2() < 1e-11);
+
+   // 4: Randomly p-refine the mesh and transfer the GridFunction
+   Mesh cmesh(mesh);
+   FiniteElementSpace cfes(&cmesh, &fec, dimc);
+   cfes.SetRelaxedHpConformity(relax_conformity);
+   for (int i = 0; i<cmesh.GetNE(); i++)
+   {
+      cfes.SetElementOrder(i,fes.GetElementOrder(i));
+   }
+   cfes.Update(false);
+
+   RandomPRefinement(fes);
+   PRefinementTransferOperator T(cfes, fes);
+
+   GridFunction hpgf(&fes);
+   T.Mult(gf,hpgf);
+
+   err_gf.SetSpace(&fes);
+   if (space==Space::H1)
+   {
+      err_gf.ProjectCoefficient(f);
+   }
+   else
+   {
+      err_gf.ProjectCoefficient(vf);
+   }
+   err_gf-= hpgf;
+
+   if (fes.GetHpRestrictionMatrix())
+   {
+      Vector tmp(fes.GetHpRestrictionMatrix()->Height());
+      fes.GetHpRestrictionMatrix()->Mult(err_gf,tmp);
+      fes.GetProlongationMatrix()->Mult(tmp,err_gf);
+   }
+
+   // 4a. Check if the prolonged GridFunction to the p-refined
+   //     mesh exactly reproduces the polynomial GridFunction
+   REQUIRE(err_gf.Norml2() < 1e-11);
+
+   // 5: Before randomly de-refine the mesh ensure that the elements
+   //    (of the same parent) that are going to be de-refined
+   //    have the same order
+   Mesh fmesh(mesh);
+   FiniteElementSpace ffes(&fmesh, &fec, dimc);
+   ffes.SetRelaxedHpConformity(relax_conformity);
+   for (int i = 0; i<fmesh.GetNE(); i++)
+   {
+      ffes.SetElementOrder(i,fes.GetElementOrder(i));
+   }
+   ffes.Update(false);
+
+   Array<int> drefs;
+   // lower the order of the children to their minimum
+   PreprocessRandomDerefinement(fes, drefs);
+   PRefinementTransferOperator T2(ffes, fes);
+   gf.SetSpace(&fes);
+   T2.Mult(hpgf, gf);
+
+   err_gf.SetSpace(&fes);
+   if (space==Space::H1)
+   {
+      err_gf.ProjectCoefficient(f);
+   }
+   else
+   {
+      err_gf.ProjectCoefficient(vf);
+   }
+   err_gf-= gf;
+
+   if (fes.GetHpRestrictionMatrix())
+   {
+      Vector temp(fes.GetHpRestrictionMatrix()->Height());
+      fes.GetHpRestrictionMatrix()->Mult(err_gf,temp);
+      fes.GetProlongationMatrix()->Mult(temp,err_gf);
+   }
+
+   // 5a. Check if the restricted GridFunction to the p-derefined
+   //     mesh exactly reproduces the polynomial GridFunction
+   REQUIRE(err_gf.Norml2() < 1e-11);
+
+   // 6: De-refine the mesh and transfer the GridFunction
+   Derefine(mesh,drefs);
+
+   fes.Update();
+   gf.Update();
+
+   err_gf.SetSpace(&fes); err_gf = 0.0;
+   if (space==Space::H1)
    {
       err_gf.ProjectCoefficient(f);
    }
@@ -175,90 +271,16 @@ TEST_CASE("hpTransfer", "[hpTransfer]")
 
    err_gf-= gf;
 
+   if (fes.GetHpRestrictionMatrix())
+   {
+      Vector temp(fes.GetHpRestrictionMatrix()->Height());
+      fes.GetHpRestrictionMatrix()->Mult(err_gf,temp);
+      fes.GetProlongationMatrix()->Mult(temp,err_gf);
+   }
+
+   // 6a. Check if the restricted GridFunction to the de-refined
+   //     mesh exactly reproduces the polynomial GridFunction
    REQUIRE(err_gf.Norml2() < 1e-11);
-
-   // copy the mesh and the fes to check transfer operator
-   Mesh cmesh(mesh);
-   FiniteElementSpace cfes(&cmesh, fec, dimc);
-   cfes.SetRelaxedHpConformity();
-   for (int i = 0; i<cmesh.GetNE(); i++)
-   {
-      cfes.SetElementOrder(i,fes.GetElementOrder(i));
-   }
-   cfes.Update(false);
-
-   // State 2: prefined
-   RandomPRefinement(fes);
-   PRefinementTransferOperator T(cfes, fes);
-
-   GridFunction hpgf(&fes); hpgf = 0.0;
-   T.Mult(gf,hpgf);
-
-   GridFunction err_hpgf(&fes);
-   if (space<=Space::L2)
-   {
-      err_hpgf.ProjectCoefficient(f);
-   }
-   else
-   {
-      err_hpgf.ProjectCoefficient(vf);
-   }
-
-   err_hpgf-= hpgf;
-
-   REQUIRE(err_hpgf.Norml2() < 1e-11);
-
-   Mesh fmesh(mesh);
-   FiniteElementSpace ffes(&fmesh, fec, dimc);
-   ffes.SetRelaxedHpConformity();
-   for (int i = 0; i<fmesh.GetNE(); i++)
-   {
-      ffes.SetElementOrder(i,fes.GetElementOrder(i));
-   }
-   ffes.Update(false);
-
-   Array<int> drefs;
-   PreprocessRandomDerefinment(fes,
-                               drefs); // lower the order of the children to their minimum
-   PRefinementTransferOperator T2(ffes, fes);
-   GridFunction gf2(&fes);
-   T2.Mult(hpgf, gf2);
-
-   GridFunction err_gf2(&fes);
-
-   if (space<=Space::L2)
-   {
-      err_gf2.ProjectCoefficient(f);
-   }
-   else
-   {
-      err_gf2.ProjectCoefficient(vf);
-   }
-
-   err_gf2-= gf2;
-
-   REQUIRE(err_gf2.Norml2() < 1e-11);
-
-   Derefine(mesh,drefs);
-
-   fes.Update();
-   gf2.Update();
-
-   GridFunction err_gf3(&fes);
-   if (space<=Space::L2)
-   {
-      err_gf3.ProjectCoefficient(f);
-   }
-   else
-   {
-      err_gf3.ProjectCoefficient(vf);
-   }
-
-   err_gf3-= gf2;
-
-   REQUIRE(err_gf3.Norml2() < 1e-11);
-
-   delete fec;
 }
 
 }

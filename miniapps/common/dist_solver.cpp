@@ -65,11 +65,11 @@ void DiffuseField(GridFunction &field, int smooth_steps)
    delete Lap;
 }
 
-double AvgElementSize(Mesh &mesh)
+real_t AvgElementSize(Mesh &mesh)
 {
    // Compute average mesh size (assumes similar cells).
-   double dx, glob_area = 0.0;
-   double glob_zones = mesh.GetNE();
+   real_t dx, glob_area = 0.0;
+   real_t glob_zones = mesh.GetNE();
    for (int i = 0; i < glob_zones; i++)
    {
       glob_area += mesh.GetElementVolume(i);
@@ -79,7 +79,7 @@ double AvgElementSize(Mesh &mesh)
    ParMesh *pmesh = dynamic_cast<ParMesh *>(&mesh);
    if (pmesh)
    {
-      MPI_Allreduce(MPI_IN_PLACE, &glob_area, 1, MPI_DOUBLE,
+      MPI_Allreduce(MPI_IN_PLACE, &glob_area, 1, MPITypeMap<real_t>::mpi_type,
                     MPI_SUM, pmesh->GetComm());
       glob_zones = pmesh->GetGlobalNE();
    }
@@ -121,7 +121,7 @@ void DistanceSolver::ScalarDistToVector(GridFunction *dist_s,
       dist_s->GetDerivative(1, d, *der);
       for (int i = 0; i < size; i++)
       {
-         double dv = (*der)(i);
+         real_t dv = (*der)(i);
          magn(i) += std::pow(dv, 2.0);
          // The vector must point towards the level zero set.
          (*dist_v)(i + d*size) = ((*dist_s)(i) > 0.0) ? -dv : dv;
@@ -130,7 +130,7 @@ void DistanceSolver::ScalarDistToVector(GridFunction *dist_s,
 
    for (int i = 0; i < size; i++)
    {
-      const double vec_magn = std::sqrt(magn(i) + 1e-12);
+      const real_t vec_magn = std::sqrt(magn(i) + 1e-12);
       for (int d = 0; d < dim; d++)
       {
          (*dist_v)(i + d*size) *= fabs((*dist_s)(i)) / vec_magn;
@@ -167,7 +167,7 @@ void DistanceSolver::ScalarDistToVector(ParGridFunction &dist_s,
 
    for (int i = 0; i < size; i++)
    {
-      const double vec_magn = std::sqrt(magn(i) + 1e-12);
+      const real_t vec_magn = std::sqrt(magn(i) + 1e-12);
       for (int d = 0; d < dim; d++)
       {
          dist_v(i + d*size) *= fabs(dist_s(i)) / vec_magn;
@@ -237,7 +237,7 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
    {
       for (int i = 0; i < source.Size(); i++)
       {
-         const double x = source(i);
+         const real_t x = source(i);
          source(i) = ((x < -1.0) || (x > 1.0)) ? 0.0 : (1.0 - x) * (1.0 + x);
       }
    }
@@ -347,9 +347,9 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
    }
 
    // Shift the distance values to have minimum at zero.
-   double d_min_loc = distance->Min();
-   double d_min_glob;
-   MPI_Allreduce(&d_min_loc, &d_min_glob, 1, MPI_DOUBLE,
+   real_t d_min_loc = distance->Min();
+   real_t d_min_glob;
+   MPI_Allreduce(&d_min_loc, &d_min_glob, 1, MPITypeMap<real_t>::mpi_type,
                  MPI_MIN, pfes->GetComm());
    (*distance) -= d_min_glob;
 
@@ -400,7 +400,7 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
    {
       for (int i = 0; i < source.Size(); i++)
       {
-         const double x = source(i);
+         const real_t x = source(i);
          source(i) = ((x < -1.0) || (x > 1.0)) ? 0.0 : (1.0 - x) * (1.0 + x);
       }
    }
@@ -498,7 +498,7 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
 
 
    // Shift the distance values to have minimum at zero.
-   double d_min_loc = distance->Min();
+   real_t d_min_loc = distance->Min();
    *distance -= d_min_loc;
 
    if (vis_glvis)
@@ -522,13 +522,13 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
    }
 }
 
-double NormalizationDistanceSolver::NormalizationCoeff::
+real_t NormalizationDistanceSolver::NormalizationCoeff::
 Eval(ElementTransformation &T,const IntegrationPoint &ip)
 {
    T.SetIntPoint(&ip);
    Vector u_grad;
    u.GetGradient(T, u_grad);
-   const double u_value  = u.GetValue(T, ip);
+   const real_t u_value  = u.GetValue(T, ip);
 
    return u_value / sqrt(u_value * u_value + u_grad * u_grad + 1e-12);
 }
@@ -717,11 +717,11 @@ void PLapDistanceSolver::ComputeScalarDistance(Coefficient &func,
 }
 #endif
 
-double ScreenedPoisson::GetElementEnergy(const FiniteElement &el,
+real_t ScreenedPoisson::GetElementEnergy(const FiniteElement &el,
                                          ElementTransformation &trans,
                                          const Vector &elfun)
 {
-   double energy = 0.0;
+   real_t energy = 0.0;
    int ndof = el.GetDof();
    int ndim = el.GetDim();
    const IntegrationRule *ir = NULL;
@@ -729,15 +729,15 @@ double ScreenedPoisson::GetElementEnergy(const FiniteElement &el,
    ir = &IntRules.Get(el.GetGeomType(), order);
 
    Vector shapef(ndof);
-   double fval;
-   double pval;
+   real_t fval;
+   real_t pval;
    DenseMatrix B(ndof, ndim);
    Vector qval(ndim);
 
    B=0.0;
 
-   double w;
-   double ngrad2;
+   real_t w;
+   real_t ngrad2;
 
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
@@ -794,8 +794,8 @@ void ScreenedPoisson::AssembleElementVector(const FiniteElement &el,
    elvect=0.0;
 
    Vector shapef(ndof);
-   double fval;
-   double pval;
+   real_t fval;
+   real_t pval;
 
    DenseMatrix B(ndof, ndim); //[diff_x,diff_y,diff_z]
 
@@ -805,7 +805,7 @@ void ScreenedPoisson::AssembleElementVector(const FiniteElement &el,
    B=0.0;
    qval=0.0;
 
-   double w;
+   real_t w;
 
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
@@ -862,7 +862,7 @@ void ScreenedPoisson::AssembleElementGrad(const FiniteElement &el,
    DenseMatrix B(ndof, ndim); //[diff_x,diff_y,diff_z]
    B = 0.0;
 
-   double w;
+   real_t w;
 
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
@@ -906,11 +906,11 @@ void PDEFilter::Filter(Coefficient &func, ParGridFunction &ffield)
 }
 #endif
 
-double PUMPLaplacian::GetElementEnergy(const FiniteElement &el,
+real_t PUMPLaplacian::GetElementEnergy(const FiniteElement &el,
                                        ElementTransformation &trans,
                                        const Vector &elfun)
 {
-   double energy = 0.0;
+   real_t energy = 0.0;
    int ndof = el.GetDof();
    int ndim = el.GetDim();
    const IntegrationRule *ir = NULL;
@@ -918,9 +918,9 @@ double PUMPLaplacian::GetElementEnergy(const FiniteElement &el,
    ir = &IntRules.Get(el.GetGeomType(), order);
 
    Vector shapef(ndof);
-   double fval;
-   double pval;
-   double tval;
+   real_t fval;
+   real_t pval;
+   real_t tval;
    Vector vgrad(ndim);
    DenseMatrix dshape(ndof, ndim);
    DenseMatrix B(ndof, ndim);
@@ -929,8 +929,8 @@ double PUMPLaplacian::GetElementEnergy(const FiniteElement &el,
 
    B=0.0;
 
-   double w;
-   double ngrad2;
+   real_t w;
+   real_t ngrad2;
 
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
@@ -998,8 +998,8 @@ void PUMPLaplacian::AssembleElementVector(const FiniteElement &el,
    elvect=0.0;
 
    Vector shapef(ndof);
-   double fval;
-   double tval;
+   real_t fval;
+   real_t tval;
    Vector vgrad(3);
 
    DenseMatrix dshape(ndof, ndim);
@@ -1012,9 +1012,9 @@ void PUMPLaplacian::AssembleElementVector(const FiniteElement &el,
    B=0.0;
    qval=0.0;
 
-   double w;
-   double ngrad2;
-   double aa;
+   real_t w;
+   real_t ngrad2;
+   real_t aa;
 
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
@@ -1084,7 +1084,7 @@ void PUMPLaplacian::AssembleElementGrad(const FiniteElement &el,
    elmat=0.0;
 
    Vector shapef(ndof);
-   double fval;
+   real_t fval;
    Vector vgrad(ndim);
 
    Vector qval(ndim); // [diff_x,diff_y,diff_z,u]
@@ -1095,9 +1095,9 @@ void PUMPLaplacian::AssembleElementGrad(const FiniteElement &el,
 
    B=0.0;
 
-   double w;
-   double ngrad2;
-   double aa, aa0, aa1;
+   real_t w;
+   real_t ngrad2;
+   real_t aa, aa0, aa1;
 
    for (int i = 0; i < ir->GetNPoints(); i++)
    {

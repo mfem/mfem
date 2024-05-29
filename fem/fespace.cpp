@@ -113,7 +113,7 @@ void FiniteElementSpace::CopyProlongationAndRestriction(
       perm_mat = new SparseMatrix(n, fes.GetVSize());
       for (int i=0; i<n; ++i)
       {
-         double s;
+         real_t s;
          int j = DecodeDof((*perm)[i], s);
          perm_mat->Set(i, j, s);
       }
@@ -192,6 +192,17 @@ Array<int> FiniteElementSpace::GetElementOrdersI() const
    for (int e = 0; e < mesh->GetNE(); e++)
    {
       orders[e] = GetElementOrder(e);
+   }
+
+   return orders;
+}
+
+Vector FiniteElementSpace::GetElementOrdersV() const
+{
+   Vector orders(mesh->GetNE());
+   for (int e = 0; e < mesh->GetNE(); e++)
+   {
+      orders(e) = (real_t)GetElementOrder(e);
    }
 
    return orders;
@@ -631,13 +642,15 @@ void FiniteElementSpace::GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
 
       int counter = 0;
       std::string error_msg = "failed dof: ";
+      auto ess_tdofs_ = ess_tdofs.HostRead();
+      auto ess_tdofs2_ = ess_tdofs2.HostRead();
       for (int i = 0; i < ess_tdofs2.Size(); ++i)
       {
-         if (bool(ess_tdofs[i]) != bool(ess_tdofs2[i]))
+         if (bool(ess_tdofs_[i]) != bool(ess_tdofs2_[i]))
          {
             error_msg += std::to_string(i) += "(R ";
-            error_msg += std::to_string(bool(ess_tdofs[i])) += " P^T ";
-            error_msg += std::to_string(bool(ess_tdofs2[i])) += ") ";
+            error_msg += std::to_string(bool(ess_tdofs_[i])) += " P^T ";
+            error_msg += std::to_string(bool(ess_tdofs2_[i])) += ") ";
             counter++;
          }
       }
@@ -838,7 +851,7 @@ void FiniteElementSpace::AddDependencies(
       {
          for (int j = 0; j < master_dofs.Size(); j++)
          {
-            double coef = I(i, j);
+            real_t coef = I(i, j);
             if (std::abs(coef) > 1e-12)
             {
                int mdof = master_dofs[j];
@@ -883,7 +896,7 @@ void FiniteElementSpace::AddEdgeFaceDependencies(
       edge_pm.SetSize(2, 2);
 
       // copy two points from the face point matrix
-      double mid[2];
+      real_t mid[2];
       for (int j = 0; j < 2; j++)
       {
          edge_pm(j, 0) = (*pm)(j, a);
@@ -892,7 +905,7 @@ void FiniteElementSpace::AddEdgeFaceDependencies(
       }
 
       // check that the edge does not coincide with the master face's edge
-      const double eps = 1e-14;
+      const real_t eps = 1e-14;
       if (mid[0] > eps && mid[0] < 1-eps &&
           mid[1] > eps && mid[1] < 1-eps)
       {
@@ -1188,7 +1201,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    int *cR_J;
    {
       int *cR_I = Memory<int>(n_true_dofs+1);
-      double *cR_A = Memory<double>(n_true_dofs);
+      real_t *cR_A = Memory<real_t>(n_true_dofs);
       cR_J = Memory<int>(n_true_dofs);
       for (int i = 0; i < n_true_dofs; i++)
       {
@@ -1259,7 +1272,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
          if (!finalized[dof] && DofFinalizable(dof, finalized, deps))
          {
             const int* dep_col = deps.GetRowColumns(dof);
-            const double* dep_coef = deps.GetRowEntries(dof);
+            const real_t* dep_coef = deps.GetRowEntries(dof);
             int n_dep = deps.RowSize(dof);
 
             for (int j = 0; j < n_dep; j++)
@@ -1566,13 +1579,12 @@ SparseMatrix *FiniteElementSpace::VariableOrderRefinementMatrix_main(
    const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
    DenseMatrix lP;
    IsoparametricTransformation isotr;
-   const FiniteElement *fe = nullptr;
    for (int k = 0; k < mesh->GetNE(); k++)
    {
       const Embedding &emb = rtrans.embeddings[k];
       const Geometry::Type geom = mesh->GetElementBaseGeometry(k);
 
-      fe = GetFE(k);
+      const FiniteElement *fe = GetFE(k);
       isotr.SetIdentityTransformation(geom);
       const int ldof = fe->GetDof();
       lP.SetSize(ldof, ldof);
@@ -1605,9 +1617,8 @@ SparseMatrix *FiniteElementSpace::VariableOrderRefinementMatrix_main(
       }
    }
 
-   // Not sure if this check makes sense in the variable order case
-   // MFEM_ASSERT(mark.Sum() == P->Height(), "Not all rows of P set.");
-   if (elem_geoms.Size() != 1) { P->Finalize(); }
+   MFEM_ASSERT(mark.Sum() == P->Height(), "Not all rows of P set.");
+   P->Finalize();
    return P;
 }
 
@@ -1775,7 +1786,6 @@ void FiniteElementSpace::RefinementOperator::Mult(const Vector &x,
 
    DenseMatrix eP;
    IsoparametricTransformation isotr;
-   const FiniteElement *fe = nullptr;
 
    for (int k = 0; k < mesh_ref->GetNE(); k++)
    {
@@ -1783,7 +1793,7 @@ void FiniteElementSpace::RefinementOperator::Mult(const Vector &x,
       const Geometry::Type geom = mesh_ref->GetElementBaseGeometry(k);
       if (fespace->IsVariableOrder())
       {
-         fe = fespace->GetFE(k);
+         const FiniteElement *fe = fespace->GetFE(k);
          isotr.SetIdentityTransformation(geom);
          const int ldof = fe->GetDof();
          eP.SetSize(ldof, ldof);
@@ -2310,11 +2320,11 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
       }
    }
 
-   // if (!is_dg)
-   // {
-   //    MFEM_VERIFY(num_marked == R->Height(),
-   //                "internal error: not all rows of R were set.");
-   // }
+   if (!is_dg && !IsVariableOrder())
+   {
+      MFEM_VERIFY(num_marked == R->Height(),
+                  "internal error: not all rows of R were set.");
+   }
 
    R->Finalize(); // no-op if fixed width
    return R;
@@ -3697,11 +3707,23 @@ void FiniteElementSpace::Update(bool want_transform)
          {
             BuildConformingInterpolation();
             Th.Reset(DerefinementMatrix(old_ndofs, old_elem_dof, old_elem_fos));
-            if (cP && cR)
+            if (IsVariableOrder())
             {
-               Th.SetOperatorOwner(false);
-               Th.Reset(new TripleProductOperator(cP.get(), cR.get(), Th.Ptr(),
-                                                  false, false, true));
+               if (cP && cR_hp)
+               {
+                  Th.SetOperatorOwner(false);
+                  Th.Reset(new TripleProductOperator(cP.get(), cR_hp.get(), Th.Ptr(),
+                                                     false, false, true));
+               }
+            }
+            else
+            {
+               if (cP && cR)
+               {
+                  Th.SetOperatorOwner(false);
+                  Th.Reset(new TripleProductOperator(cP.get(), cR.get(), Th.Ptr(),
+                                                     false, false, true));
+               }
             }
             break;
          }
@@ -3736,7 +3758,7 @@ void FiniteElementSpace::Save(std::ostream &os) const
          dynamic_cast<const NURBSFECollection *>(fec);
       MFEM_VERIFY(nurbs_fec, "invalid FE collection");
       nurbs_fec->SetOrder(NURBSext->GetOrder());
-      const double eps = 5e-14;
+      const real_t eps = 5e-14;
       nurbs_unit_weights = (NURBSext->GetWeights().Min() >= 1.0-eps &&
                             NURBSext->GetWeights().Max() <= 1.0+eps);
       if ((NURBSext->GetOrder() == NURBSFECollection::VariableOrder) ||

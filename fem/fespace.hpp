@@ -577,6 +577,7 @@ public:
    int GetElementOrder(int i) const;
 
    Array<int> GetElementOrdersI() const;
+   Vector GetElementOrdersV() const;
 
    /// Returns reference to element orders
    const Array<char> GetElementOrders() { return elem_order; }
@@ -1032,7 +1033,7 @@ public:
    { return (dof >= 0) ? dof : (-1 - dof); }
 
    /// Helper to determine the DOF and sign of a sign encoded DOF
-   static inline int DecodeDof(int dof, double& sign)
+   static inline int DecodeDof(int dof, real_t& sign)
    { return (dof >= 0) ? (sign = 1, dof) : (sign = -1, (-1 - dof)); }
 
    /// @anchor getvdof @name Local Vector DoF Access Members
@@ -1343,6 +1344,7 @@ public:
        https://github.com/mfem/mfem/pull/1423#issuecomment-621340392 */
    void SetRelaxedHpConformity(bool relaxed = true)
    {
+      if (!IsVariableOrder()) { return; }
       relaxed_hp = relaxed;
       orders_changed = true; // force update
       Update(false);
