@@ -1,7 +1,9 @@
 //                         MFEM Example 16 - Parallel Version
 //                              SUNDIALS Modification
 //
-// Compile with: make ex16p
+// Compile with:
+//    make ex16p            (GNU make)
+//    make sundials_ex16p   (CMake)
 //
 // Sample runs:
 //     mpirun -np 4 ex16p
