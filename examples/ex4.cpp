@@ -175,6 +175,7 @@ int main(int argc, char *argv[])
    //    static condensation, hybridization, etc.
    FiniteElementCollection *hfec = NULL;
    FiniteElementSpace *hfes = NULL;
+   Hybridization *hyb = NULL;
    if (static_cond)
    {
       a->EnableStaticCondensation();
@@ -183,14 +184,43 @@ int main(int argc, char *argv[])
    {
       hfec = new DG_Interface_FECollection(order-1, dim);
       hfes = new FiniteElementSpace(mesh, hfec);
-      a->EnableHybridization(hfes, new NormalTraceJumpIntegrator(),
-                             ess_tdof_list);
+      hyb = new Hybridization(fespace, hfes);
+      hyb->SetConstraintIntegrator(new NormalTraceJumpIntegrator());
+      if (set_bc)
+      {
+         ess_tdof_list.DeleteAll();//impose Dirichlet weakly
+         hyb->AddBdrConstraintIntegrator(new NormalTraceJumpIntegrator());
+      }
+      hyb->Init(ess_tdof_list);
    }
-   a->Assemble();
 
    OperatorPtr A;
    Vector B, X;
-   a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+
+   if (hybridization)
+   {
+      const int NE = mesh->GetNE();
+      DenseMatrix elmat;
+      for (int z = 0; z < NE; z++)
+      {
+         a->ComputeElementMatrix(z, elmat);
+         hyb->AssembleMatrix(z, elmat);
+      }
+      hyb->Finalize();
+      A.Reset(&hyb->GetMatrix(), false);
+      hyb->ReduceRHS(*b, B);
+      LinearForm b_r(hfes);
+      b_r.AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(F));
+      b_r.Assemble();
+      B -= b_r;
+      X.SetSize(B.Size());
+      X = 0.0;
+   }
+   else
+   {
+      a->Assemble();
+      a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+   }
 
    cout << "Size of linear system: " << A->Height() << endl;
 
@@ -223,7 +253,14 @@ int main(int argc, char *argv[])
    }
 
    // 12. Recover the solution as a finite element grid function.
-   a->RecoverFEMSolution(X, *b, x);
+   if (hybridization)
+   {
+      hyb->ComputeSolution(*b, X, x);
+   }
+   else
+   {
+      a->RecoverFEMSolution(X, *b, x);
+   }
 
    // 13. Compute and print the L^2 norm of the error.
    cout << "\n|| F_h - F ||_{L^2} = " << x.ComputeL2Error(F) << '\n' << endl;
@@ -253,6 +290,7 @@ int main(int argc, char *argv[])
    delete hfes;
    delete hfec;
    delete a;
+   delete hyb;
    delete alpha;
    delete beta;
    delete b;
