@@ -466,7 +466,8 @@ void Mesh::GetBdrElementTransformation(int i,
          {
             for (int j = 0; j < n; j++)
             {
-               pm(k,j) = nodes(vdofs[n*k+j]);
+               int idx = vdofs[n*k+j];
+               pm(k,j) = nodes((idx<0)? -1-idx:idx);
             }
          }
          ElTr->SetFE(bdr_el);
