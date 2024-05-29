@@ -39,7 +39,7 @@ GridFunction::GridFunction(Mesh *m, std::istream &input)
    UseDevice(true);
 
    fes = new FiniteElementSpace;
-   fec = fes->Load(m, input);
+   fec_owned = fes->Load(m, input);
 
    skip_comment_lines(input, '#');
    istream::int_type next_char = input.peek();
@@ -81,10 +81,10 @@ GridFunction::GridFunction(Mesh *m, GridFunction *gf_array[], int num_pieces)
    int vdim, ordering;
 
    fes = gf_array[0]->FESpace();
-   fec = FiniteElementCollection::New(fes->FEColl()->Name());
+   fec_owned = FiniteElementCollection::New(fes->FEColl()->Name());
    vdim = fes->GetVDim();
    ordering = fes->GetOrdering();
-   fes = new FiniteElementSpace(m, fec, vdim, ordering);
+   fes = new FiniteElementSpace(m, fec_owned, vdim, ordering);
    SetSize(fes->GetVSize());
 
    if (m->NURBSext)
@@ -153,11 +153,11 @@ GridFunction::GridFunction(Mesh *m, GridFunction *gf_array[], int num_pieces)
 
 void GridFunction::Destroy()
 {
-   if (fec)
+   if (fec_owned)
    {
       delete fes;
-      delete fec;
-      fec = NULL;
+      delete fec_owned;
+      fec_owned = NULL;
    }
 }
 
@@ -348,10 +348,11 @@ int GridFunction::CurlDim() const
    const FiniteElement *fe;
    if (!fes->GetNE())
    {
+      const FiniteElementCollection *fe_coll = fes->FEColl();
       static const Geometry::Type geoms[3] =
       { Geometry::SEGMENT, Geometry::TRIANGLE, Geometry::TETRAHEDRON };
-      fe = fes->FEColl()->FiniteElementForGeometry(geoms[fes->GetMesh()->Dimension()
-                                                         -1]);
+      fe = fe_coll->
+           FiniteElementForGeometry(geoms[fes->GetMesh()->Dimension()-1]);
    }
    else
    {
@@ -3927,7 +3928,7 @@ void GridFunction::LegacyNCReorder()
       mesh->GetEdgeVertices(i, ev);
       if (old_vertex[ev[0]] > old_vertex[ev[1]])
       {
-         const int *ind = fec->DofOrderForOrientation(Geometry::SEGMENT, -1);
+         const int *ind = fes->FEColl()->DofOrderForOrientation(Geometry::SEGMENT, -1);
 
          fes->GetEdgeInteriorDofs(i, dofs);
          for (int k = 0; k < dofs.Size(); k++)
