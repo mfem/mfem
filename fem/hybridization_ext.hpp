@@ -34,6 +34,10 @@ protected:
    int num_hat_dofs; ///< Number of Lagrange multipliers.
    mutable Vector tmp1, tmp2; ///< Temporary vectors.
 
+   Array<int> el_to_face;
+   Vector Ct_mat; ///< Constraint matrix (transposed) stored element-wise.
+
+   /// Classification of the "hat DOFs" in the broken space.
    enum HatDofType
    {
       FREE_BOUNDARY = -1,
@@ -43,6 +47,10 @@ protected:
 
    /// Construct the constraint matrix.
    void ConstructC();
+
+   /// Compute the action of C^t x.
+   void MultCt(const Vector &x, Vector &y) const;
+
 public:
    /// Constructor.
    HybridizationExtension(class Hybridization &hybridization_);
