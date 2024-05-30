@@ -185,7 +185,7 @@ int main (int argc, char *argv[])
       {
          mesh->UniformRefinement();
       }
-      dim = mesh->Dimension();  // Ref. space dim (NOT NECESSARILY equal to phy. space dim)
+      dim = mesh->Dimension();  // Ref. space dim (might be different from SpaceDim)
    }
    else
    {
@@ -268,9 +268,18 @@ int main (int argc, char *argv[])
 
    ofile << "After ParMesh " << "myid"<<myid << endl;
 
-   ofile << "Number of boundary elements: " << psubmesh.GetGlobalNE()
+   ofile << "Number of boundary elements: " << psubmesh.GetNE()
         << " " << "myid"<<myid << endl;
 
+
+   MFEM_VERIFY(ncomp > 0, "Invalid number of components.");
+   int vec_dim = ncomp;
+   FiniteElementCollection *fec = new H1_FECollection(order, dim);
+   if (myid == 0) cout << "H1-GridFunction\n";
+   ParFiniteElementSpace sc_fes(&psubmesh, fec, ncomp, gf_ordering);
+   ParGridFunction field_vals(&sc_fes);
+   VectorFunctionCoefficient F(vec_dim, F_exact);
+   field_vals.ProjectCoefficient(F);
    if (visualization)
    {
       socketstream sock;
@@ -280,6 +289,7 @@ int main (int argc, char *argv[])
          sock << "solution\n";
       }
       psubmesh.PrintAsOne(sock);
+      field_vals.SaveAsOne(sock);
       if (myid == 0)
       {
          sock << "window_title 'Surface mesh'\n"
