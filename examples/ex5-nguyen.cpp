@@ -396,15 +396,18 @@ int main(int argc, char *argv[])
 
    //Neumann BC for the hybridized system
 
+   LinearForm *hform = NULL;
+
    if (hybridization)
    {
       RHS.SetSize(trace_space->GetVSize());
-      LinearForm b(trace_space, RHS.GetData());
+      hform = new LinearForm();
+      hform->Update(trace_space, RHS, 0);
       //note that Neumann BC must be applied only for the heat flux
       //and not the total flux for stability reasons
-      b.AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(qcoeff, 2),
-                              bdr_is_neumann);
-      b.Assemble();
+      hform->AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(qcoeff, 2),
+                                   bdr_is_neumann);
+      hform->Assemble();
    }
 
    //form the linear system
@@ -702,7 +705,7 @@ int main(int argc, char *argv[])
    // 17. Free the used memory.
    delete fform;
    delete gform;
-   //delete Mq;
+   delete hform;
    //delete B;
    delete darcy;
    delete W_space;
