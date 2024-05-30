@@ -75,20 +75,20 @@ if (MFEM_ENABLE_TESTING)
   add_test(NAME nurbs_ex1_weak_patch_format_r1_ser
     COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
     -m ${PROJECT_SOURCE_DIR}/data/square-disc-nurbs-patch.mesh -o 2 --weak-bc -r 1)
-    
+
   add_test(NAME nurbs_printfunc
     COMMAND $<TARGET_FILE:nurbs_printfunc>)
 
   if (MFEM_USE_LAPACK)
     add_test(NAME nurbs_patch_ex1_o4_r2_iro8_patcha_ser
-      COMMAND $<TARGET_FILE:nurbs_patch_ex1> -incdeg 3 -ref 2 -iro 8 -patcha)
+      COMMAND $<TARGET_FILE:nurbs_patch_ex1> -no-vis -incdeg 3 -ref 2 -iro 8 -patcha)
   endif()
 
   add_test(NAME nurbs_patch_ex1_o4_r2_iro8_patcha_pa_ser
-    COMMAND $<TARGET_FILE:nurbs_patch_ex1> -incdeg 3 -ref 2 -iro 8 -patcha -pa)
+    COMMAND $<TARGET_FILE:nurbs_patch_ex1> -no-vis -incdeg 3 -ref 2 -iro 8 -patcha -pa)
 
   add_test(NAME nurbs_patch_ex1_o4_r2_iro8_patcha_fint_ser
-    COMMAND $<TARGET_FILE:nurbs_patch_ex1> -incdeg 3 -ref 2 -iro 8 -patcha -fint)
+    COMMAND $<TARGET_FILE:nurbs_patch_ex1> -no-vis -incdeg 3 -ref 2 -iro 8 -patcha -fint)
 
   add_test(NAME nurbs_curveint_unit_weight_ser
     COMMAND $<TARGET_FILE:nurbs_curveint> -no-vis -no-visit

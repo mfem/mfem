@@ -189,6 +189,12 @@ void BilinearFormIntegrator::AssembleTraceFaceMatrix (int elem,
               " Integrator class.");
 }
 
+void BilinearFormIntegrator::AddMultPAFaceNormalDerivatives(
+   const Vector &x, const Vector &dxdn, Vector &y, Vector &dydn) const
+{
+   MFEM_ABORT("Not implemented.");
+}
+
 void BilinearFormIntegrator::AssembleElementVector(
    const FiniteElement &el, ElementTransformation &Tr, const Vector &elfun,
    Vector &elvect)
@@ -3423,7 +3429,7 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
    const FiniteElement &el1, const FiniteElement &el2,
    FaceElementTransformations &Trans, DenseMatrix &elmat)
 {
-   int dim, ndof1, ndof2, ndofs;
+   int ndof1, ndof2, ndofs;
    bool kappa_is_nonzero = (kappa != 0.);
    real_t w, wq = 0.0;
 
@@ -3466,17 +3472,9 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      // a simple choice for the integration order; is this OK?
-      int order;
-      if (ndof2)
-      {
-         order = 2*max(el1.GetOrder(), el2.GetOrder());
-      }
-      else
-      {
-         order = 2*el1.GetOrder();
-      }
-      ir = &IntRules.Get(Trans.GetGeometryType(), order);
+      const int order = (ndof2) ? max(el1.GetOrder(),
+                                      el2.GetOrder()) : el1.GetOrder();
+      ir = &GetRule(order, Trans);
    }
 
    // assemble: < {(Q \nabla u).n},[v] >      --> elmat
@@ -3654,6 +3652,13 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
    }
 }
 
+const IntegrationRule &DGDiffusionIntegrator::GetRule(
+   int order, FaceElementTransformations &T)
+{
+   // order is typically the maximum of the order of the left and right elements
+   // neighboring the given face.
+   return IntRules.Get(T.GetGeometryType(), 2*order);
+}
 
 // static method
 void DGElasticityIntegrator::AssembleBlock(
