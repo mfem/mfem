@@ -50,7 +50,6 @@ real_t pFun_ex(const Vector & x);
 void fFun(const Vector & x, Vector & f);
 real_t gFun(const Vector & x);
 real_t f_natural(const Vector & x);
-void vf_natural(const Vector & x, Vector & f);
 
 int main(int argc, char *argv[])
 {
@@ -179,7 +178,6 @@ int main(int argc, char *argv[])
 
    VectorFunctionCoefficient fcoeff(dim, fFun);
    FunctionCoefficient fnatcoeff(f_natural);
-   VectorFunctionCoefficient vfnatcoeff(dim, vf_natural);
    FunctionCoefficient gcoeff(gFun);
 
    VectorFunctionCoefficient ucoeff(dim, uFun_ex);
@@ -198,8 +196,7 @@ int main(int argc, char *argv[])
    if (dg)
    {
       fform->AddDomainIntegrator(new VectorDomainLFIntegrator(fcoeff));
-      fform->AddBdrFaceIntegrator(new BoundaryNormalFlowIntegrator(kcoeff, vfnatcoeff,
-                                                                   +1.));
+      fform->AddBdrFaceIntegrator(new VectorBoundaryFluxLFIntegrator(fnatcoeff));
    }
    else
    {
@@ -601,21 +598,4 @@ real_t gFun(const Vector & x)
 real_t f_natural(const Vector & x)
 {
    return (-pFun_ex(x));
-}
-
-void vf_natural(const Vector &x, Vector &f)
-{
-   f.SetSize(x.Size());
-   f = x;
-   f -= .5;
-   if (fabs(f(0)) > fabs(f(1)))
-   {
-      f(1) = 0.;
-   }
-   else
-   {
-      f(0) = 0.;
-   }
-
-   f *= f_natural(x) / f.Norml2();
 }
