@@ -41,6 +41,7 @@ void HybridizationExtension::ConstructC()
    const int n_faces_per_el = GetNFacesPerElement(mesh);
 
    el_to_face.SetSize(ne * n_faces_per_el);
+   face_to_el.SetSize(4 * mesh.GetNFbyType(FaceType::Interior));
    Ct_mat.SetSize(ne * n_hat_dof_per_el * n_c_dof_per_face * n_faces_per_el);
    Ct_mat.UseDevice(true);
    Ct_mat = 0.0;
@@ -64,6 +65,10 @@ void HybridizationExtension::ConstructC()
       const int fi2 = info.element[1].local_face_id;
       el_to_face[el2 * n_faces_per_el + fi2] = face_idx;
 
+      face_to_el[0 + 4*face_idx] = el1;
+      face_to_el[1 + 4*face_idx] = fi1;
+      face_to_el[2 + 4*face_idx] = el2;
+      face_to_el[3 + 4*face_idx] = fi2;
 
       DenseMatrix elmat;
       h.c_bfi->AssembleFaceMatrix(*h.c_fes.GetFaceElement(f),
@@ -105,7 +110,7 @@ void HybridizationExtension::MultCt(const Vector &x, Vector &y) const
    Vector x_evec(face_restr->Height());
    face_restr->Mult(x, x_evec);
 
-   // Size of the element matrix;
+   // Size of the element matrix
    const int sz = n_hat_dof_per_el * n_c_dof_per_face;
 
    y = 0.0;
@@ -127,6 +132,48 @@ void HybridizationExtension::MultCt(const Vector &x, Vector &y) const
          }
       }
    }
+}
+
+void HybridizationExtension::MultC(const Vector &x, Vector &y) const
+{
+   Mesh &mesh = *h.fes.GetMesh();
+   const int nf = mesh.GetNFbyType(FaceType::Interior);
+
+   const int n_hat_dof_per_el = h.fes.GetFE(0)->GetDof();
+   const int n_c_dof_per_face = h.c_fes.GetFaceElement(0)->GetDof();
+   const int n_faces_per_el = GetNFacesPerElement(mesh);
+
+   // Size of the element matrix
+   const int sz = n_hat_dof_per_el * n_c_dof_per_face;
+
+   const ElementDofOrdering ordering = ElementDofOrdering::NATIVE;
+   const FaceRestriction *face_restr = h.c_fes.GetFaceRestriction(
+                                          ordering, FaceType::Interior);
+
+   Vector y_evec(face_restr->Height());
+   y_evec.UseDevice(true);
+   y = 0.0;
+   for (int f = 0; f < nf; ++f)
+   {
+      for (int el_i = 0; el_i < 2; ++el_i)
+      {
+         const int e = face_to_el[2*el_i + 4*f];
+         const int fi = face_to_el[1 + 2*el_i + 4*f];
+
+         const int offset = (e*n_faces_per_el + fi) * sz;
+
+         for (int j = 0; j < n_c_dof_per_face; ++j)
+         {
+            for (int i = 0; i < n_hat_dof_per_el; ++i)
+            {
+               y_evec[j + f*n_c_dof_per_face] +=
+                  Ct_mat[offset + i + j*n_hat_dof_per_el]*x[i + e*n_hat_dof_per_el];
+            }
+         }
+      }
+   }
+   y.SetSize(face_restr->Width());
+   face_restr->MultTranspose(y_evec, y);
 }
 
 void HybridizationExtension::AssembleMatrix(int el, const DenseMatrix &elmat)
@@ -154,72 +201,6 @@ void HybridizationExtension::AssembleMatrix(int el, const DenseMatrix &elmat)
 
    LUFactors lu(Ainv, ipiv);
    lu.Factor(n);
-}
-
-void HybridizationExtension::MultAfInv(
-   const Vector &b, const Vector &lambda, Vector &bf, int mode) const
-{
-   // b1 = Rf^t b (assuming that Ref = 0)
-   Vector b1;
-   const Operator *R = h.fes.GetRestrictionOperator();
-   if (!R)
-   {
-      b1.SetDataAndSize(b.GetData(), b.Size());
-   }
-   else
-   {
-      b1.SetSize(h.fes.GetVSize()); // tmp alloc
-      R->MultTranspose(b, b1);
-   }
-
-   // Apply the R^T operator (moving to hat DOFs).
-   Vector b1_evec(num_hat_dofs);
-   for (int i = 0; i < num_hat_dofs; ++i)
-   {
-      const int j_s = hat_dof_gather_map[i];
-      if (j_s == -1) // invalid
-      {
-         b1_evec[i] = 0.0;
-      }
-      else
-      {
-         const int sgn = (j_s >= 0) ? 1 : -1;
-         const int j = (j_s >= 0) ? j_s : -2 - j_s;
-         b1_evec[i] = sgn*b1[j];
-      }
-   }
-
-   const int ne = h.fes.GetMesh()->GetNE();
-   const int n = h.fes.GetFE(0)->GetDof();
-
-   bf.SetSize(num_hat_dofs);
-   if (mode == 1)
-   {
-      MultCt(lambda, bf);
-   }
-
-   for (int i = 0; i < ne; ++i)
-   {
-      for (int j = 0; j < n; ++j)
-      {
-         const int idx = j + i*n;
-         if (h.hat_dofs_marker[idx] == ESSENTIAL)
-         {
-            bf[idx] = 0.0;
-         }
-         else
-         {
-            const real_t val = b1_evec[idx];
-            if (mode == 1) { bf[idx] = val - bf[idx]; }
-            else { bf[idx] = val; }
-         }
-      }
-
-      real_t *data = const_cast<real_t*>(Ahat_inv.GetData() + i*n*n);
-      int *ipiv = const_cast<int*>(Ahat_piv.GetData() + i*n);
-      LUFactors lu(data, ipiv);
-      lu.Solve(n, 1, bf.GetData() + i*n);
-   }
 }
 
 void HybridizationExtension::Init(const Array<int> &ess_tdof_list)
@@ -380,80 +361,79 @@ void HybridizationExtension::Init(const Array<int> &ess_tdof_list)
    h.Af_ipiv.SetSize(ne*ndof_per_el);
 }
 
-void HybridizationExtension::MultAfInv(
-   const Vector &b, const Vector &lambda, Vector &bf, int mode) const
+void HybridizationExtension::MultRt(const Vector &b, Vector &b_hat) const
 {
-   // b1 = Rf^t b (assuming that Ref = 0)
-   Vector b1;
+   Vector b_lvec;
    const Operator *R = h.fes.GetRestrictionOperator();
    if (!R)
    {
-      b1.SetDataAndSize(b.GetData(), b.Size());
+      b_lvec.MakeRef(const_cast<Vector&>(b), 0, b.Size());
    }
    else
    {
-      b1.SetSize(h.fes.GetVSize()); // tmp alloc
-      R->MultTranspose(b, b1);
+      tmp1.SetSize(h.fes.GetVSize());
+      b_lvec.MakeRef(tmp1, 0, tmp1.Size());
+      R->MultTranspose(b, b_lvec);
    }
 
-   // Apply the R^T operator (moving to hat DOFs).
-   Vector b1_evec(num_hat_dofs);
+   b_hat.SetSize(num_hat_dofs);
    for (int i = 0; i < num_hat_dofs; ++i)
    {
       const int j_s = hat_dof_gather_map[i];
       if (j_s == -1) // invalid
       {
-         b1_evec[i] = 0.0;
+         b_hat[i] = 0.0;
       }
       else
       {
          const int sgn = (j_s >= 0) ? 1 : -1;
          const int j = (j_s >= 0) ? j_s : -2 - j_s;
-         b1_evec[i] = sgn*b1[j];
+         b_hat[i] = sgn*b_lvec[j];
       }
    }
+}
 
+void HybridizationExtension::MultAhatInv(Vector &x) const
+{
    const int ne = h.fes.GetMesh()->GetNE();
    const int n = h.fes.GetFE(0)->GetDof();
 
-   bf.SetSize(num_hat_dofs);
-   if (mode == 1)
-   {
-      MultCt(lambda, bf);
-   }
-
    for (int i = 0; i < ne; ++i)
    {
-      for (int j = 0; j < n; ++j)
-      {
-         const int idx = j + i*n;
-         if (h.hat_dofs_marker[idx] == ESSENTIAL)
-         {
-            bf[idx] = 0.0;
-         }
-         else
-         {
-            const real_t val = b1_evec[idx];
-            if (mode == 1) { bf[idx] = val - bf[idx]; }
-            else { bf[idx] = val; }
-         }
-      }
-
       real_t *data = const_cast<real_t*>(Ahat_inv.GetData() + i*n*n);
       int *ipiv = const_cast<int*>(Ahat_piv.GetData() + i*n);
       LUFactors lu(data, ipiv);
-      lu.Solve(n, 1, bf.GetData() + i*n);
+      lu.Solve(n, 1, x.GetData() + i*n);
    }
+}
+
+void HybridizationExtension::ReduceRHS(const Vector &b, Vector &b_r) const
+{
+   Vector b_hat(num_hat_dofs);
+   MultRt(b, b_hat);
+   MultAhatInv(b_hat);
+   MultC(b_hat, b_r);
 }
 
 void HybridizationExtension::ComputeSolution(
    const Vector &b, const Vector &sol_r, Vector &sol) const
 {
-   // First, represent the solution on the "broken" space with vector 'tmp1'.
+   // tmp1 = A_hat^{-1} ( R^T b - C^T lambda )
+   Vector b_hat(num_hat_dofs);
+   MultRt(b, b_hat);
 
-   // tmp1 = Af^{-1} ( Rf^t b - Cf^t sol_r )
    tmp1.SetSize(num_hat_dofs);
-   MultAfInv(b, sol_r, tmp1, 1);
+   MultCt(sol_r, tmp1);
+   add(b_hat, -1.0, tmp1, tmp1);
+   // Eliminate essential DOFs
+   for (int i = 0; i < num_hat_dofs; ++i)
+   {
+      if (h.hat_dofs_marker[i] == ESSENTIAL)
+      {
+         tmp1[i] = 0.0;
+      }
+   }
+   MultAhatInv(tmp1);
 
    // The T-vector 'sol' has the correct essential boundary conditions. We
    // covert sol to an L-vector ('tmp2') to preserve those boundary values in

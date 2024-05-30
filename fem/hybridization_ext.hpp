@@ -39,6 +39,7 @@ protected:
    Array<int> hat_dof_gather_map;
 
    Array<int> el_to_face;
+   Array<int> face_to_el;
    Vector Ct_mat; ///< Constraint matrix (transposed) stored element-wise.
 
    Vector Ahat_inv;
@@ -58,24 +59,29 @@ protected:
    /// Compute the action of C^t x.
    void MultCt(const Vector &x, Vector &y) const;
 
+   /// Compute the action of C x.
+   void MultC(const Vector &x, Vector &y) const;
+
    /// Assemble the element matrix A into the hybridized system matrix.
    void AssembleMatrix(int el, const class DenseMatrix &A);
 
-   /// Compute depending on mode:
-   /// - mode 0: bf = Af^{-1} Rf^t b, where
-   ///           the non-"boundary" part of bf is set to 0;
-   /// - mode 1: bf = Af^{-1} ( Rf^t b - Cf^t lambda ), where
-   ///           the "essential" part of bf is set to 0.
-   /// Input: size(b)      =   fes->GetConformingVSize()
-   ///        size(lambda) = c_fes->GetConformingVSize()
-   void MultAfInv(const Vector &b, const Vector &lambda, Vector &bf,
-                  int mode) const;
+   /// Apply the action of R^t mapping into the "hat DOF" space.
+   void MultRt(const Vector &b, Vector &b_hat) const;
+
+   /// Apply the elementwise A_hat^{-1}.
+   void MultAhatInv(Vector &x) const;
 
 public:
    /// Constructor.
    HybridizationExtension(class Hybridization &hybridization_);
    /// Prepare for assembly; form the constraint matrix.
    void Init(const Array<int> &ess_tdof_list);
+   /// @brief Given a right-hand side on the original space, compute the
+   /// corresponding right-hand side for the Lagrange multipliers.
+   void ReduceRHS(const Vector &b, Vector &b_r) const;
+   /// @brief Given Lagrange multipliers @a sol_r and the original right-hand
+   /// side @a b, recover the solution @a sol on the original finite element
+   /// space.
    void ComputeSolution(const Vector &b, const Vector &sol_r, Vector &sol) const;
 };
 
