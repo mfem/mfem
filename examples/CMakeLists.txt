@@ -10,6 +10,8 @@
 # CONTRIBUTING.md for details.
 
 list(APPEND ALL_EXE_SRCS
+  blas.cpp
+  blas-ex.cpp
   ex0.cpp
   ex1.cpp
   ex2.cpp
@@ -49,6 +51,8 @@ list(APPEND ALL_EXE_SRCS
 
 if (MFEM_USE_MPI)
   list(APPEND ALL_EXE_SRCS
+    blas.cpp
+    blas-ex.cpp
     ex0p.cpp
     ex1p.cpp
     ex2p.cpp
