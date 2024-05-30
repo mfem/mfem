@@ -66,6 +66,7 @@ int main(int argc, char *argv[])
    bool dg = false;
    bool upwinded = false;
    int problem = 1;
+   int nt = 0;
    real_t k = 1.;
    real_t c = 1.;
    real_t td = 0.5;
@@ -93,6 +94,8 @@ int main(int argc, char *argv[])
                   "Switches between upwinded (1) and centered (0=default) stabilization.");
    args.AddOption(&problem, "-p", "--problem",
                   "Problem to solve from the Nguyen paper.");
+   args.AddOption(&nt, "-nt", "--ntimesteps",
+                  "Number of time steps.");
    args.AddOption(&k, "-k", "--kappa",
                   "Heat conductivity");
    args.AddOption(&c, "-c", "--velocity",
@@ -130,14 +133,16 @@ int main(int argc, char *argv[])
    args.PrintOptions(cout);
 
    // Set the problem options
-   bool bconv;
+   bool bconv, btime;
    switch (problem)
    {
       case 1:
          bconv = false;
+         btime = false;
          break;
       case 3:
          bconv = true;
+         btime = false;
          break;
       default:
          cerr << "Unknown problem" << endl;
@@ -147,6 +152,13 @@ int main(int argc, char *argv[])
    if (!bconv && upwinded)
    {
       cerr << "Upwinded scheme cannot work without advection" << endl;
+      return 1;
+   }
+
+   if (btime && nt <= 0)
+   {
+      cerr << "You must specify the number of time steps for time evolving problems"
+           << endl;
       return 1;
    }
 
@@ -241,6 +253,10 @@ int main(int argc, char *argv[])
 
    // 7. Define the coefficients, analytical solution, and rhs of the PDE.
    const real_t t_0 = 1.; //base temperature
+   const real_t tf = 1.; //final time
+   const real_t dt = tf / nt; //time step
+
+   ConstantCoefficient idtcoeff(1./dt);
 
    ConstantCoefficient kcoeff(k);
    ConstantCoefficient ikcoeff(1./k);
@@ -272,6 +288,12 @@ int main(int argc, char *argv[])
    GridFunction q_h, t_h;
    q_h.MakeRef(V_space, x.GetBlock(0), 0);
    t_h.MakeRef(W_space, x.GetBlock(1), 0);
+
+   if (btime)
+   {
+      t_h.ProjectCoefficient(tcoeff); //initial condition
+   }
+
    if (!dg)
    {
       q_h.ProjectBdrCoefficientNormal(qcoeff,
@@ -291,9 +313,6 @@ int main(int argc, char *argv[])
                                    bdr_is_dirichlet);
    }
 
-   gform->Assemble();
-   gform->SyncAliasMemory(rhs);
-
    LinearForm *fform(new LinearForm);
    fform->Update(W_space, rhs.GetBlock(1), 0);
    fform->AddDomainIntegrator(new DomainLFIntegrator(fcoeff));
@@ -311,8 +330,7 @@ int main(int argc, char *argv[])
       fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(tcoeff, ccoeff, +1.),
                                   bdr_is_dirichlet);
    }
-   fform->Assemble();
-   fform->SyncAliasMemory(rhs);
+
 
    // 9. Assemble the finite element matrices for the Darcy operator
    //
@@ -324,8 +342,9 @@ int main(int argc, char *argv[])
    //     B   = -\int_\Omega \div u_h q_h d\Omega   q_h \in V_h, w_h \in W_h
    BilinearForm *Mq = darcy->GetFluxMassForm();
    MixedBilinearForm *B = darcy->GetFluxDivForm();
-   BilinearForm *Mt = ((dg && td > 0.) ||
-                       bconv)?(darcy->GetPotentialMassForm()):(NULL);
+   BilinearForm *Mt = ((dg && td > 0.) || bconv || btime)?
+                      (darcy->GetPotentialMassForm()):(NULL);
+   BilinearForm *Mt0 = (btime)?(new BilinearForm(W_space)):(NULL);
 
    if (dg)
    {
@@ -375,6 +394,11 @@ int main(int argc, char *argv[])
                                   bdr_is_neumann);
       }
    }
+   if (btime)
+   {
+      Mt->AddDomainIntegrator(new MassIntegrator(idtcoeff));
+      Mt0->AddDomainIntegrator(new MassIntegrator(idtcoeff));
+   }
 
    //set hybridization / assembly level
 
@@ -402,7 +426,15 @@ int main(int argc, char *argv[])
 
    if (pa) { darcy->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
 
+   //assemble the system
+
    darcy->Assemble();
+
+   if (btime)
+   {
+      Mt0->Assemble();
+      Mt0->Finalize();
+   }
 
    OperatorHandle pDarcyOp;
    Vector X, RHS;
@@ -420,304 +452,351 @@ int main(int argc, char *argv[])
       //and not the total flux for stability reasons
       hform->AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(qcoeff, 2),
                                    bdr_is_neumann);
-      hform->Assemble();
    }
-
-   //form the linear system
-
-   darcy->FormLinearSystem(ess_flux_tdofs_list, x, rhs,
-                           pDarcyOp, X, RHS);
 
    chrono.Stop();
    std::cout << "Assembly took " << chrono.RealTime() << "s.\n";
 
+   //iterate in time
 
-   int maxIter(1000);
-   real_t rtol(1.e-6);
-   real_t atol(1.e-10);
+   if (!btime) { nt = 1; }
 
-   if (hybridization)
+   for (int ti = 0; ti < nt; ti++)
    {
-      // 10. Construct the preconditioner
-      GSSmoother prec(*pDarcyOp.As<SparseMatrix>());
+      const double t = tf * ti / nt; //current time
 
-      // 11. Solve the linear system with GMRES.
-      //     Check the norm of the unpreconditioned residual.
-      chrono.Clear();
-      chrono.Start();
-      GMRESSolver solver;
-      solver.SetAbsTol(atol);
-      solver.SetRelTol(rtol);
-      solver.SetMaxIter(maxIter);
-      solver.SetOperator(*pDarcyOp);
-      solver.SetPreconditioner(prec);
-      solver.SetPrintLevel(1);
+      gcoeff.SetTime(t);
+      qtcoeff.SetTime(t);
 
-      solver.Mult(RHS, X);
-      darcy->RecoverFEMSolution(X, rhs, x);
+      //assemble rhs
 
-      chrono.Stop();
+      gform->Assemble();
+      gform->SyncAliasMemory(rhs);
 
-      if (solver.GetConverged())
+      fform->Assemble();
+      if (btime)
       {
-         std::cout << "GMRES converged in " << solver.GetNumIterations()
-                   << " iterations with a residual norm of "
-                   << solver.GetFinalNorm() << ".\n";
+         Mt0->AddMult(t_h, *fform, -1.);
+      }
+      fform->SyncAliasMemory(rhs);
+
+      if (hybridization)
+      {
+         hform->Assemble();
+      }
+
+
+      //form the linear system
+
+      darcy->FormLinearSystem(ess_flux_tdofs_list, x, rhs,
+                              pDarcyOp, X, RHS);
+
+      constexpr int maxIter(1000);
+      constexpr real_t rtol(1.e-6);
+      constexpr real_t atol(1.e-10);
+
+      if (hybridization)
+      {
+         // 10. Construct the preconditioner
+         GSSmoother prec(*pDarcyOp.As<SparseMatrix>());
+
+         // 11. Solve the linear system with GMRES.
+         //     Check the norm of the unpreconditioned residual.
+         chrono.Clear();
+         chrono.Start();
+         GMRESSolver solver;
+         solver.SetAbsTol(atol);
+         solver.SetRelTol(rtol);
+         solver.SetMaxIter(maxIter);
+         solver.SetOperator(*pDarcyOp);
+         solver.SetPreconditioner(prec);
+         solver.SetPrintLevel(1);
+
+         solver.Mult(RHS, X);
+         darcy->RecoverFEMSolution(X, rhs, x);
+
+         chrono.Stop();
+
+         if (solver.GetConverged())
+         {
+            std::cout << "GMRES converged in " << solver.GetNumIterations()
+                      << " iterations with a residual norm of "
+                      << solver.GetFinalNorm() << ".\n";
+         }
+         else
+         {
+            std::cout << "GMRES did not converge in " << solver.GetNumIterations()
+                      << " iterations. Residual norm is " << solver.GetFinalNorm()
+                      << ".\n";
+         }
+         std::cout << "GMRES solver took " << chrono.RealTime() << "s.\n";
       }
       else
       {
-         std::cout << "GMRES did not converge in " << solver.GetNumIterations()
-                   << " iterations. Residual norm is " << solver.GetFinalNorm()
-                   << ".\n";
-      }
-      std::cout << "GMRES solver took " << chrono.RealTime() << "s.\n";
-   }
-   else
-   {
-      // 10. Construct the operators for preconditioner
-      //
-      //                 P = [ diag(M)         0         ]
-      //                     [  0       B diag(M)^-1 B^T ]
-      //
-      //     Here we use Symmetric Gauss-Seidel to approximate the inverse of the
-      //     temperature Schur Complement
-      SparseMatrix *MinvBt = NULL;
-      Vector Md(Mq->Height());
+         // 10. Construct the operators for preconditioner
+         //
+         //                 P = [ diag(M)         0         ]
+         //                     [  0       B diag(M)^-1 B^T ]
+         //
+         //     Here we use Symmetric Gauss-Seidel to approximate the inverse of the
+         //     temperature Schur Complement
+         SparseMatrix *MinvBt = NULL;
+         Vector Md(Mq->Height());
 
-      BlockDiagonalPreconditioner darcyPrec(block_offsets);
-      Solver *invM, *invS;
-      SparseMatrix *S = NULL;
+         BlockDiagonalPreconditioner darcyPrec(block_offsets);
+         Solver *invM, *invS;
+         SparseMatrix *S = NULL;
 
-      if (pa)
-      {
-         Mq->AssembleDiagonal(Md);
-         auto Md_host = Md.HostRead();
-         Vector invMd(Mq->Height());
-         for (int i=0; i<Mq->Height(); ++i)
+         if (pa)
          {
-            invMd(i) = 1.0 / Md_host[i];
+            Mq->AssembleDiagonal(Md);
+            auto Md_host = Md.HostRead();
+            Vector invMd(Mq->Height());
+            for (int i=0; i<Mq->Height(); ++i)
+            {
+               invMd(i) = 1.0 / Md_host[i];
+            }
+
+            Vector BMBt_diag(B->Height());
+            B->AssembleDiagonal_ADAt(invMd, BMBt_diag);
+
+            Array<int> ess_tdof_list;  // empty
+
+            invM = new OperatorJacobiSmoother(Md, ess_tdof_list);
+            invS = new OperatorJacobiSmoother(BMBt_diag, ess_tdof_list);
          }
-
-         Vector BMBt_diag(B->Height());
-         B->AssembleDiagonal_ADAt(invMd, BMBt_diag);
-
-         Array<int> ess_tdof_list;  // empty
-
-         invM = new OperatorJacobiSmoother(Md, ess_tdof_list);
-         invS = new OperatorJacobiSmoother(BMBt_diag, ess_tdof_list);
-      }
-      else
-      {
-         SparseMatrix &Mqm(Mq->SpMat());
-         Mqm.GetDiag(Md);
-         Md.HostReadWrite();
-
-         SparseMatrix &Bm(B->SpMat());
-         MinvBt = Transpose(Bm);
-
-         for (int i = 0; i < Md.Size(); i++)
+         else
          {
-            MinvBt->ScaleRow(i, 1./Md(i));
-         }
+            SparseMatrix &Mqm(Mq->SpMat());
+            Mqm.GetDiag(Md);
+            Md.HostReadWrite();
 
-         S = Mult(Bm, *MinvBt);
-         if (Mt)
-         {
-            SparseMatrix &Mtm(Mt->SpMat());
-            SparseMatrix *Snew = Add(Mtm, *S);
-            delete S;
-            S = Snew;
-         }
+            SparseMatrix &Bm(B->SpMat());
+            MinvBt = Transpose(Bm);
 
-         invM = new DSmoother(Mqm);
+            for (int i = 0; i < Md.Size(); i++)
+            {
+               MinvBt->ScaleRow(i, 1./Md(i));
+            }
+
+            S = Mult(Bm, *MinvBt);
+            if (Mt)
+            {
+               SparseMatrix &Mtm(Mt->SpMat());
+               SparseMatrix *Snew = Add(Mtm, *S);
+               delete S;
+               S = Snew;
+            }
+
+            invM = new DSmoother(Mqm);
 
 #ifndef MFEM_USE_SUITESPARSE
-         invS = new GSSmoother(*S);
+            invS = new GSSmoother(*S);
 #else
-         invS = new UMFPackSolver(*S);
+            invS = new UMFPackSolver(*S);
 #endif
-      }
+         }
 
-      invM->iterative_mode = false;
-      invS->iterative_mode = false;
+         invM->iterative_mode = false;
+         invS->iterative_mode = false;
 
-      darcyPrec.SetDiagonalBlock(0, invM);
-      darcyPrec.SetDiagonalBlock(1, invS);
+         darcyPrec.SetDiagonalBlock(0, invM);
+         darcyPrec.SetDiagonalBlock(1, invS);
 
-      // 11. Solve the linear system with MINRES.
-      //     Check the norm of the unpreconditioned residual.
+         // 11. Solve the linear system with MINRES.
+         //     Check the norm of the unpreconditioned residual.
 
-      chrono.Clear();
-      chrono.Start();
-      MINRESSolver solver;
-      solver.SetAbsTol(atol);
-      solver.SetRelTol(rtol);
-      solver.SetMaxIter(maxIter);
-      solver.SetOperator(*pDarcyOp);
-      solver.SetPreconditioner(darcyPrec);
-      solver.SetPrintLevel(1);
+         chrono.Clear();
+         chrono.Start();
+         MINRESSolver solver;
+         solver.SetAbsTol(atol);
+         solver.SetRelTol(rtol);
+         solver.SetMaxIter(maxIter);
+         solver.SetOperator(*pDarcyOp);
+         solver.SetPreconditioner(darcyPrec);
+         solver.SetPrintLevel(1);
 
-      solver.Mult(RHS, X);
-      darcy->RecoverFEMSolution(X, rhs, x);
+         solver.Mult(RHS, X);
+         darcy->RecoverFEMSolution(X, rhs, x);
 
-      if (device.IsEnabled()) { x.HostRead(); }
-      chrono.Stop();
+         if (device.IsEnabled()) { x.HostRead(); }
+         chrono.Stop();
 
-      if (solver.GetConverged())
-      {
-         std::cout << "MINRES converged in " << solver.GetNumIterations()
-                   << " iterations with a residual norm of "
-                   << solver.GetFinalNorm() << ".\n";
-      }
-      else
-      {
-         std::cout << "MINRES did not converge in " << solver.GetNumIterations()
-                   << " iterations. Residual norm is " << solver.GetFinalNorm()
-                   << ".\n";
-      }
-      std::cout << "MINRES solver took " << chrono.RealTime() << "s.\n";
-
-      delete invM;
-      delete invS;
-      delete S;
-      //delete Bt;
-      delete MinvBt;
-   }
-
-   // 12. Compute the L2 error norms.
-
-   int order_quad = max(2, 2*order+1);
-   const IntegrationRule *irs[Geometry::NumGeom];
-   for (int i=0; i < Geometry::NumGeom; ++i)
-   {
-      irs[i] = &(IntRules.Get(i, order_quad));
-   }
-
-   qcoeff.SetTime(1.);
-   tcoeff.SetTime(1.);
-
-   real_t err_q  = q_h.ComputeL2Error(qcoeff, irs);
-   real_t norm_q = ComputeLpNorm(2., qcoeff, *mesh, irs);
-   real_t err_t  = t_h.ComputeL2Error(tcoeff, irs);
-   real_t norm_t = ComputeLpNorm(2., tcoeff, *mesh, irs);
-
-   std::cout << "|| q_h - q_ex || / || q_ex || = " << err_q / norm_q << "\n";
-   std::cout << "|| t_h - t_ex || / || t_ex || = " << err_t / norm_t << "\n";
-
-   // Project the analytic solution
-
-   GridFunction q_a, qt_a, t_a, c_gf;
-
-   q_a.SetSpace(V_space);
-   q_a.ProjectCoefficient(qcoeff);
-
-   qt_a.SetSpace(V_space);
-   qt_a.ProjectCoefficient(qtcoeff);
-
-   t_a.SetSpace(W_space);
-   t_a.ProjectCoefficient(tcoeff);
-
-   if (bconv)
-   {
-      c_gf.SetSpace(V_space);
-      c_gf.ProjectCoefficient(ccoeff);
-   }
-
-   // 13. Save the mesh and the solution. This output can be viewed later using
-   //     GLVis: "glvis -m ex5.mesh -g sol_q.gf" or "glvis -m ex5.mesh -g
-   //     sol_t.gf".
-   if (mfem)
-   {
-      ofstream mesh_ofs("ex5.mesh");
-      mesh_ofs.precision(8);
-      mesh->Print(mesh_ofs);
-
-      ofstream q_ofs("sol_q.gf");
-      q_ofs.precision(8);
-      q_h.Save(q_ofs);
-
-      ofstream t_ofs("sol_t.gf");
-      t_ofs.precision(8);
-      t_h.Save(t_ofs);
-   }
-
-   // 14. Save data in the VisIt format
-   if (visit)
-   {
-      VisItDataCollection visit_dc("Example5", mesh);
-      visit_dc.RegisterField("heat flux", &q_h);
-      visit_dc.RegisterField("temperature", &t_h);
-      if (analytic)
-      {
-         visit_dc.RegisterField("heat flux analytic", &q_a);
-         visit_dc.RegisterField("temperature analytic", &t_a);
-      }
-      visit_dc.Save();
-   }
-
-   // 15. Save data in the ParaView format
-   if (paraview)
-   {
-      ParaViewDataCollection paraview_dc("Example5", mesh);
-      paraview_dc.SetPrefixPath("ParaView");
-      paraview_dc.SetLevelsOfDetail(order);
-      paraview_dc.SetCycle(0);
-      paraview_dc.SetDataFormat(VTKFormat::BINARY);
-      paraview_dc.SetHighOrderOutput(true);
-      paraview_dc.SetTime(0.0); // set the time
-      paraview_dc.RegisterField("heat flux",&q_h);
-      paraview_dc.RegisterField("temperature",&t_h);
-      if (analytic)
-      {
-         paraview_dc.RegisterField("heat flux analytic", &q_a);
-         paraview_dc.RegisterField("temperature analytic", &t_a);
-      }
-      paraview_dc.Save();
-   }
-
-   // 16. Send the solution by socket to a GLVis server.
-   if (visualization)
-   {
-      const char vishost[] = "localhost";
-      const int  visport   = 19916;
-      socketstream q_sock(vishost, visport);
-      q_sock.precision(8);
-      q_sock << "solution\n" << *mesh << q_h << "window_title 'Heat flux'" << endl;
-      q_sock << "keys Rljvvvvvmmc" << endl;
-      q_sock.close();
-      socketstream t_sock(vishost, visport);
-      t_sock.precision(8);
-      t_sock << "solution\n" << *mesh << t_h << "window_title 'Temperature'" << endl;
-      t_sock << "keys Rljmmc" << endl;
-      t_sock.close();
-      if (analytic)
-      {
-         socketstream qa_sock(vishost, visport);
-         qa_sock.precision(8);
-         qa_sock << "solution\n" << *mesh << q_a << "window_title 'Heat flux analytic'"
-                 << endl;
-         qa_sock << "keys Rljvvvvvmmc" << endl;
-         qa_sock.close();
-         socketstream qta_sock(vishost, visport);
-         qta_sock.precision(8);
-         qta_sock << "solution\n" << *mesh << qt_a <<
-                  "window_title 'Total flux analytic'"
-                  << endl;
-         qta_sock << "keys Rljvvvvvmmc" << endl;
-         qta_sock.close();
-         socketstream ta_sock(vishost, visport);
-         ta_sock.precision(8);
-         ta_sock << "solution\n" << *mesh << t_a << "window_title 'Temperature analytic'"
-                 << endl;
-         ta_sock << "keys Rljmmc" << endl;
-         ta_sock.close();
-         if (bconv)
+         if (solver.GetConverged())
          {
-            socketstream c_sock(vishost, visport);
-            c_sock.precision(8);
-            c_sock << "solution\n" << *mesh << c_gf << "window_title 'Velocity'" << endl;
-            c_sock << "keys Rljvvvvvmmc" << endl;
-            c_sock.close();
+            std::cout << "MINRES converged in " << solver.GetNumIterations()
+                      << " iterations with a residual norm of "
+                      << solver.GetFinalNorm() << ".\n";
+         }
+         else
+         {
+            std::cout << "MINRES did not converge in " << solver.GetNumIterations()
+                      << " iterations. Residual norm is " << solver.GetFinalNorm()
+                      << ".\n";
+         }
+         std::cout << "MINRES solver took " << chrono.RealTime() << "s.\n";
+
+         delete invM;
+         delete invS;
+         delete S;
+         //delete Bt;
+         delete MinvBt;
+      }
+
+      // 12. Compute the L2 error norms.
+
+      int order_quad = max(2, 2*order+1);
+      const IntegrationRule *irs[Geometry::NumGeom];
+      for (int i=0; i < Geometry::NumGeom; ++i)
+      {
+         irs[i] = &(IntRules.Get(i, order_quad));
+      }
+
+      real_t err_q  = q_h.ComputeL2Error(qcoeff, irs);
+      real_t norm_q = ComputeLpNorm(2., qcoeff, *mesh, irs);
+      real_t err_t  = t_h.ComputeL2Error(tcoeff, irs);
+      real_t norm_t = ComputeLpNorm(2., tcoeff, *mesh, irs);
+
+      std::cout << "|| q_h - q_ex || / || q_ex || = " << err_q / norm_q << "\n";
+      std::cout << "|| t_h - t_ex || / || t_ex || = " << err_t / norm_t << "\n";
+
+      // Project the analytic solution
+
+      static GridFunction q_a, qt_a, t_a, c_gf;
+
+      q_a.SetSpace(V_space);
+      q_a.ProjectCoefficient(qcoeff);
+
+      qt_a.SetSpace(V_space);
+      qt_a.ProjectCoefficient(qtcoeff);
+
+      t_a.SetSpace(W_space);
+      t_a.ProjectCoefficient(tcoeff);
+
+      if (bconv)
+      {
+         c_gf.SetSpace(V_space);
+         c_gf.ProjectCoefficient(ccoeff);
+      }
+
+      // 13. Save the mesh and the solution. This output can be viewed later using
+      //     GLVis: "glvis -m ex5.mesh -g sol_q.gf" or "glvis -m ex5.mesh -g
+      //     sol_t.gf".
+      if (mfem)
+      {
+         ofstream mesh_ofs("ex5.mesh");
+         mesh_ofs.precision(8);
+         mesh->Print(mesh_ofs);
+
+         ofstream q_ofs("sol_q.gf");
+         q_ofs.precision(8);
+         q_h.Save(q_ofs);
+
+         ofstream t_ofs("sol_t.gf");
+         t_ofs.precision(8);
+         t_h.Save(t_ofs);
+      }
+
+      // 14. Save data in the VisIt format
+      if (visit)
+      {
+         static VisItDataCollection visit_dc("Example5", mesh);
+         if (ti == 0)
+         {
+            visit_dc.RegisterField("heat flux", &q_h);
+            visit_dc.RegisterField("temperature", &t_h);
+            if (analytic)
+            {
+               visit_dc.RegisterField("heat flux analytic", &q_a);
+               visit_dc.RegisterField("temperature analytic", &t_a);
+            }
+         }
+         visit_dc.SetCycle(ti);
+         visit_dc.SetTime(t); // set the time
+         visit_dc.Save();
+      }
+
+      // 15. Save data in the ParaView format
+      if (paraview)
+      {
+         static ParaViewDataCollection paraview_dc("Example5", mesh);
+         if (ti == 0)
+         {
+            paraview_dc.SetPrefixPath("ParaView");
+            paraview_dc.SetLevelsOfDetail(order);
+            paraview_dc.SetDataFormat(VTKFormat::BINARY);
+            paraview_dc.SetHighOrderOutput(true);
+            paraview_dc.RegisterField("heat flux",&q_h);
+            paraview_dc.RegisterField("temperature",&t_h);
+            if (analytic)
+            {
+               paraview_dc.RegisterField("heat flux analytic", &q_a);
+               paraview_dc.RegisterField("temperature analytic", &t_a);
+            }
+         }
+         paraview_dc.SetCycle(ti);
+         paraview_dc.SetTime(t); // set the time
+         paraview_dc.Save();
+      }
+
+      // 16. Send the solution by socket to a GLVis server.
+      if (visualization)
+      {
+         const char vishost[] = "localhost";
+         const int  visport   = 19916;
+         static socketstream q_sock(vishost, visport);
+         q_sock.precision(8);
+         q_sock << "solution\n" << *mesh << q_h << endl;
+         if (ti == 0)
+         {
+            q_sock << "window_title 'Heat flux'" << endl;
+            q_sock << "keys Rljvvvvvmmc" << endl;
+         }
+         static socketstream t_sock(vishost, visport);
+         t_sock.precision(8);
+         t_sock << "solution\n" << *mesh << t_h << endl;
+         if (ti == 0)
+         {
+            t_sock << "window_title 'Temperature'" << endl;
+            t_sock << "keys Rljmmc" << endl;
+         }
+         if (analytic)
+         {
+            static socketstream qa_sock(vishost, visport);
+            qa_sock.precision(8);
+            qa_sock << "solution\n" << *mesh << q_a << endl;
+            if (ti == 0)
+            {
+               qa_sock << "window_title 'Heat flux analytic'" << endl;
+               qa_sock << "keys Rljvvvvvmmc" << endl;
+            }
+            static socketstream qta_sock(vishost, visport);
+            qta_sock.precision(8);
+            qta_sock << "solution\n" << *mesh << qt_a << endl;
+            if (ti == 0)
+            {
+               qta_sock << "window_title 'Total flux analytic'" << endl;
+               qta_sock << "keys Rljvvvvvmmc" << endl;
+            }
+            static socketstream ta_sock(vishost, visport);
+            ta_sock.precision(8);
+            ta_sock << "solution\n" << *mesh << t_a << endl;
+            if (ti == 0)
+            {
+               ta_sock << "window_title 'Temperature analytic'" << endl;
+               ta_sock << "keys Rljmmc" << endl;
+            }
+            if (bconv)
+            {
+               static socketstream c_sock(vishost, visport);
+               c_sock.precision(8);
+               c_sock << "solution\n" << *mesh << c_gf << endl;
+               if (ti == 0)
+               {
+                  c_sock << "window_title 'Velocity'" << endl;
+                  c_sock << "keys Rljvvvvvmmc" << endl;
+               }
+            }
          }
       }
    }
@@ -726,7 +805,7 @@ int main(int argc, char *argv[])
    delete fform;
    delete gform;
    delete hform;
-   //delete B;
+   delete Mt0;
    delete darcy;
    delete W_space;
    delete V_space;
