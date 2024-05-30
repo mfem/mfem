@@ -53,6 +53,12 @@ protected:
    /// Number of elements, defined by distinct knots.
    int NumOfElements;
 
+   // Stores the demko points
+   mutable Vector demko;
+
+   /// Compute all the Demko points
+   void ComputeDemko() const;
+
 public:
    /// Create an empty KnotVector.
    KnotVector() { }
@@ -64,6 +70,9 @@ public:
    /** @brief Create a KnotVector with undefined knots (initialized to -1) of
        order @a order and number of control points @a NCP. */
    KnotVector(int order, int NCP);
+
+   /** @brief Create a KnotVector order @a order and knots @a knot. */
+   KnotVector(int order, Vector knots);
 
    /// Copy constructor.
    KnotVector(const KnotVector &kv) { (*this) = kv; }
@@ -94,13 +103,39 @@ public:
        with @a isElement for non-empty knot spans (elements). */
    int GetNKS() const { return NumOfControlPoints - Order; }
 
-   /** @brief Return the parameter for element reference coordinate @a xi
+   /// Return the index of the knot span containing parameter @a u.
+   int GetSpan(real_t u) const;
+
+   /** @brief Return the reference coordinate in [0,1] for knot
+       for the element beginning at knot @a ni. */
+   real_t GetIp(real_t u, int ni) const
+   { return (u-knot(ni))/(knot(ni+1)-knot(ni)); };
+
+   /** @brief Return the knot for element reference coordinate @a xi
        in [0,1], for the element beginning at knot @a ni. */
-   real_t getKnotLocation(real_t xi, int ni) const
+   real_t GetKnot(real_t xi, int ni) const
    { return (xi*knot(ni+1) + (1. - xi)*knot(ni)); }
 
+   /** @brief Return the parameter for element reference coordinate @a xi
+       in [0,1], for the element beginning at knot @a ni. */
+   MFEM_DEPRECATED real_t getKnotLocation(real_t xi, int ni) const
+   { return (xi*knot(ni+1) + (1. - xi)*knot(ni)); } // Use GetKnot instead
+
    /// Return the index of the knot span containing parameter @a u.
-   int findKnotSpan(real_t u) const;
+   MFEM_DEPRECATED int findKnotSpan(real_t u) const;  // Use GetSpan instead
+
+
+   /** Gives the @ i average knot location.
+       Average is taken over @ Order number of nodes. */
+   real_t GetGreville(int i) const;
+
+   /** Gives the knot location where the @ i shape function is maximum.
+       Reverts to the Greville point if knot is repeated @ Order +1 times. */
+   real_t GetBotella(int i) const;
+
+   /** Gives the knot location of the @ i extremum of the Chebyshev spline.*/
+   real_t GetDemko(int i) const { ComputeDemko(); return demko[i]; };
+
 
    // The following functions evaluate shape functions, which are B-spline basis
    // functions.
@@ -128,13 +163,15 @@ public:
        space. The function gives the knot span @a ks, the coordinate in the
        knot span @a xi, and the coordinate of the maximum in parameter space
        @a u. */
-   void FindMaxima(Array<int> &ks, Vector &xi, Vector &u) const;
+   void FindMaxima(Array<int> &ks, Vector &xi, Vector &u) const; // to be  MFEM_DEPRECATED
 
    /** @brief Global curve interpolation through the points @a x (overwritten).
        @a x is an array with the length of the spatial dimension containing
        vectors with spatial coordinates. The control points of the interpolated
        curve are returned in @a x in the same form. */
-   void FindInterpolant(Array<Vector*> &x);
+   void FindInterpolant(Array<Vector*> &x); // to be  MFEM_DEPRECATED
+
+   void GetInterpolant(const Vector &x, const Vector &u, Vector &a) const;
 
    /** Set @a diff, comprised of knots in @a kv not contained in this KnotVector.
        @a kv must be of the same order as this KnotVector. The current
@@ -176,6 +213,18 @@ public:
        to count the elements before using this function. @a samples is the
        number of samples of the shape functions per element.*/
    void PrintFunctions(std::ostream &os, int samples=11) const;
+
+   /** Prints the function, parametrized by @a a, and its first and second
+       derivatives associated with the KnotVector per element. Use GetElements()
+       to count the elements before using this function. @a samples is the
+       number of samples of the shape functions per element.*/
+   void PrintFunction(std::ostream &os, const Vector &a, int samples=11) const;
+
+   /** Prints the @a i-th functionand its first and second
+       derivatives associated with the KnotVector per element. Use GetElements()
+       to count the elements before using this function. @a samples is the
+       number of samples of the shape functions per element.*/
+   void PrintFunction(std::ostream &os, int i, int samples=11) const;
 
    /// Destroys KnotVector
    ~KnotVector() { }
