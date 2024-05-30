@@ -43,13 +43,9 @@ list(APPEND ALL_EXE_SRCS
   ex34.cpp
   ex36.cpp
   ex37.cpp
-  )
-
-if(MFEM_USE_LAPACK)
-list(APPEND ALL_EXE_SRCS
   ex38.cpp
+  ex39.cpp
   )
-endif()
 
 if (MFEM_USE_MPI)
   list(APPEND ALL_EXE_SRCS
@@ -90,7 +86,8 @@ if (MFEM_USE_MPI)
     ex35p.cpp
     ex36p.cpp
     ex37p.cpp
-    )
+    ex39p.cpp
+  )
 endif()
 
 # Examples that return MFEM_SKIP_RETURN_VALUE in some cases:
@@ -100,6 +97,9 @@ if (HYPRE_USING_CUDA OR HYPRE_USING_HIP)
 endif()
 if (MFEM_USE_SINGLE)
   list(APPEND SKIP_TESTS ex33.cpp ex33p.cpp)
+endif()
+if (NOT MFEM_USE_LAPACK)
+  list(APPEND SKIP_TESTS ex38.cpp)
 endif()
 
 # Include the source directory where mfem.hpp and mfem-performance.hpp are.
@@ -146,10 +146,10 @@ if (MFEM_ENABLE_TESTING)
   # Add CUDA/HIP tests.
   set(DEVICE_EXAMPLES
       # serial examples with device support:
-      ex1 ex3 ex4 ex5 ex6 ex9 ex22 ex24 ex25 ex26 ex34
+      ex1 ex3 ex4 ex5 ex6 ex9 ex14 ex22 ex24 ex25 ex26 ex34
       # parallel examples with device support:
-      ex1p ex2p ex3p ex4p ex5p ex6p ex7p ex9p ex13p ex22p ex24p ex25p ex26p
-      ex34p ex35p kernel_specialization)
+      ex1p ex2p ex3p ex4p ex5p ex6p ex7p ex9p ex13p ex14p ex22p ex24p ex25p
+      ex26p ex34p ex35p)
   set(MFEM_TEST_DEVICE)
   if (MFEM_USE_CUDA)
     set(MFEM_TEST_DEVICE "cuda")
@@ -159,6 +159,11 @@ if (MFEM_ENABLE_TESTING)
   if (MFEM_TEST_DEVICE)
     foreach(TEST_NAME ${DEVICE_EXAMPLES})
       set(THIS_TEST_OPTIONS "-no-vis" "-d" "${MFEM_TEST_DEVICE}")
+      if (${TEST_NAME} MATCHES "ex14p")
+        list(APPEND THIS_TEST_OPTIONS "-rs" "2" "-rp" "0" "-pa")
+      elseif (${TEST_NAME} MATCHES "ex14")
+        list(APPEND THIS_TEST_OPTIONS "-r" "2" "-pa")
+      endif()
       if (NOT (${TEST_NAME} MATCHES ".*p$"))
         add_test(NAME ${TEST_NAME}_${MFEM_TEST_DEVICE}_ser
           COMMAND ${TEST_NAME} ${THIS_TEST_OPTIONS})

@@ -1,3 +1,14 @@
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+//
 // Compile with: make nurbs_naca_cmesh
 //
 // Sample run:   ./nurbs_naca_cmesh -ntail 80 -nbnd 80 -ntip 20 -nwake 40
@@ -232,7 +243,7 @@ int main(int argc, char *argv[])
    //    foil section in patches 1, 2 and 3. Note the case of non-unity weights
    //    in patch 2 to create a circular shape: its coordinates are converted to
    //    homogeneous coordinates. This is not needed for other patches as
-   //    homogeneous coordinates and cartesian coordinates are the same
+   //    homogeneous coordinates and Cartesian coordinates are the same
    //    for patches with unity weight.
 
    // Patch 0: lower wake part behind foil section.
