@@ -392,7 +392,22 @@ int main(int argc, char *argv[])
 
    OperatorHandle pDarcyOp;
    Vector X, RHS;
-   //x = 1./ny;
+
+   //Neumann BC for the hybridized system
+
+   if (hybridization)
+   {
+      RHS.SetSize(trace_space->GetVSize());
+      LinearForm b(trace_space, RHS.GetData());
+      //note that Neumann BC must be applied only for the heat flux
+      //and not the total flux for stability reasons
+      b.AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(qcoeff, 2),
+                              bdr_is_neumann);
+      b.Assemble();
+   }
+
+   //form the linear system
+
    darcy->FormLinearSystem(ess_flux_tdofs_list, x, rhs,
                            pDarcyOp, X, RHS);
 
