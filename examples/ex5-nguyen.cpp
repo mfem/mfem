@@ -72,7 +72,10 @@ int main(int argc, char *argv[])
    bool hybridization = false;
    bool pa = false;
    const char *device_config = "cpu";
-   bool visualization = 1;
+   bool mfem = false;
+   bool visit = false;
+   bool paraview = false;
+   bool visualization = true;
    bool analytic = false;
 
    OptionsParser args(argc, argv);
@@ -102,6 +105,15 @@ int main(int argc, char *argv[])
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
+   args.AddOption(&mfem, "-mfem", "--mfem", "-no-mfem",
+                  "--no-mfem",
+                  "Enable or disable MFEM output.");
+   args.AddOption(&visit, "-visit", "--visit", "-no-visit",
+                  "--no-visit",
+                  "Enable or disable Visit output.");
+   args.AddOption(&paraview, "-paraview", "--paraview", "-no-paraview",
+                  "--no-paraview",
+                  "Enable or disable ParaView output.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -614,6 +626,7 @@ int main(int argc, char *argv[])
    // 13. Save the mesh and the solution. This output can be viewed later using
    //     GLVis: "glvis -m ex5.mesh -g sol_q.gf" or "glvis -m ex5.mesh -g
    //     sol_t.gf".
+   if (mfem)
    {
       ofstream mesh_ofs("ex5.mesh");
       mesh_ofs.precision(8);
@@ -629,32 +642,38 @@ int main(int argc, char *argv[])
    }
 
    // 14. Save data in the VisIt format
-   VisItDataCollection visit_dc("Example5", mesh);
-   visit_dc.RegisterField("heat flux", &q_h);
-   visit_dc.RegisterField("temperature", &t_h);
-   if (analytic)
+   if (visit)
    {
-      visit_dc.RegisterField("heat flux analytic", &q_a);
-      visit_dc.RegisterField("temperature analytic", &t_a);
+      VisItDataCollection visit_dc("Example5", mesh);
+      visit_dc.RegisterField("heat flux", &q_h);
+      visit_dc.RegisterField("temperature", &t_h);
+      if (analytic)
+      {
+         visit_dc.RegisterField("heat flux analytic", &q_a);
+         visit_dc.RegisterField("temperature analytic", &t_a);
+      }
+      visit_dc.Save();
    }
-   visit_dc.Save();
 
    // 15. Save data in the ParaView format
-   ParaViewDataCollection paraview_dc("Example5", mesh);
-   paraview_dc.SetPrefixPath("ParaView");
-   paraview_dc.SetLevelsOfDetail(order);
-   paraview_dc.SetCycle(0);
-   paraview_dc.SetDataFormat(VTKFormat::BINARY);
-   paraview_dc.SetHighOrderOutput(true);
-   paraview_dc.SetTime(0.0); // set the time
-   paraview_dc.RegisterField("heat flux",&q_h);
-   paraview_dc.RegisterField("temperature",&t_h);
-   if (analytic)
+   if (paraview)
    {
-      paraview_dc.RegisterField("heat flux analytic", &q_a);
-      paraview_dc.RegisterField("temperature analytic", &t_a);
+      ParaViewDataCollection paraview_dc("Example5", mesh);
+      paraview_dc.SetPrefixPath("ParaView");
+      paraview_dc.SetLevelsOfDetail(order);
+      paraview_dc.SetCycle(0);
+      paraview_dc.SetDataFormat(VTKFormat::BINARY);
+      paraview_dc.SetHighOrderOutput(true);
+      paraview_dc.SetTime(0.0); // set the time
+      paraview_dc.RegisterField("heat flux",&q_h);
+      paraview_dc.RegisterField("temperature",&t_h);
+      if (analytic)
+      {
+         paraview_dc.RegisterField("heat flux analytic", &q_a);
+         paraview_dc.RegisterField("temperature analytic", &t_a);
+      }
+      paraview_dc.Save();
    }
-   paraview_dc.Save();
 
    // 16. Send the solution by socket to a GLVis server.
    if (visualization)
