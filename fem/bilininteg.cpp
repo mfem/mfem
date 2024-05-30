@@ -3801,8 +3801,15 @@ void HDGConvectionCenteredIntegrator::AssembleHDGFaceMatrix(
                elmat(el_ndof+i, ndof1+j) += w * tr_shape(i) * shape2(j);
             }
 
-         // assemble the trace matrix
-         if (ndof2) { w *= 2.; }//<-- single face integration
+      }
+
+      // assemble the trace matrix
+      // note: that this term must be non-zero at the boundary for stability
+      //       reasons, so the advective part is intentionally dropped here
+      //       and must be compensated elsewhere
+      w = ip.weight * ((ndof2)?(2.*b):(b));//<-- single face integration
+      if (w != 0.0)
+      {
          for (int i = 0; i < tr_ndof; i++)
             for (int j = 0; j < tr_ndof; j++)
             {
