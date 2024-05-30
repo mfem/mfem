@@ -22,51 +22,131 @@ HybridizationExtension::HybridizationExtension(Hybridization &hybridization_)
 
 void HybridizationExtension::ConstructC()
 {
-   Array<int> vdofs, c_vdofs;
-   int c_num_face_nbr_dofs = 0;
-
-   const int c_vsize = h.c_fes.GetVSize();
-   h.Ct.reset(new SparseMatrix(num_hat_dofs, c_vsize + c_num_face_nbr_dofs));
-
-   MFEM_VERIFY(h.c_bfi, "");
-
-   const int skip_zeros = 1;
-   DenseMatrix elmat;
-   FaceElementTransformations *FTr;
    Mesh &mesh = *h.fes.GetMesh();
-   int num_faces = mesh.GetNumFaces();
-   for (int i = 0; i < num_faces; i++)
-   {
-      FTr = mesh.GetInteriorFaceTransformations(i);
-      if (!FTr) { continue; }
+   const int dim = mesh.Dimension();
+   const int ne = mesh.GetNE();
 
-      int o1 = h.hat_offsets[FTr->Elem1No];
-      int s1 = h.hat_offsets[FTr->Elem1No+1] - o1;
-      int o2 = h.hat_offsets[FTr->Elem2No];
-      int s2 = h.hat_offsets[FTr->Elem2No+1] - o2;
-      vdofs.SetSize(s1 + s2);
-      for (int j = 0; j < s1; j++)
+   const int n_hat_dof_per_el = h.fes.GetFE(0)->GetDof();
+   const int n_c_dof_per_face = h.c_fes.GetFaceElement(0)->GetDof();
+   const int n_faces_per_el = [&mesh, dim]()
+   {
+      switch (dim)
       {
-         vdofs[j] = o1 + j;
+         case 2: return mesh.GetElement(0)->GetNEdges();
+         case 3: return mesh.GetElement(0)->GetNFaces();
+         default: return -1;
       }
-      for (int j = 0; j < s2; j++)
-      {
-         vdofs[s1+j] = o2 + j;
-      }
-      h.c_fes.GetFaceVDofs(i, c_vdofs);
-      h.c_bfi->AssembleFaceMatrix(*h.c_fes.GetFaceElement(i),
-                                  *h.fes.GetFE(FTr->Elem1No),
-                                  *h.fes.GetFE(FTr->Elem2No),
+   }();
+
+   el_to_face.SetSize(ne * n_faces_per_el);
+   Ct_mat.SetSize(ne * n_hat_dof_per_el * n_c_dof_per_face * n_faces_per_el);
+   Ct_mat.UseDevice(true);
+   Ct_mat = 0.0;
+
+   el_to_face = -1;
+   int face_idx = 0;
+
+   for (int f = 0; f < mesh.GetNumFaces(); ++f)
+   {
+      const Mesh::FaceInformation info = mesh.GetFaceInformation(f);
+      if (!info.IsInterior()) { continue; }
+
+      FaceElementTransformations *FTr = mesh.GetInteriorFaceTransformations(f);
+      MFEM_ASSERT(FTr, "Invalid interior face.");
+
+      const int el1 = info.element[0].index;
+      const int fi1 = info.element[0].local_face_id;
+      el_to_face[el1 * n_faces_per_el + fi1] = face_idx;
+
+      const int el2 = info.element[1].index;
+      const int fi2 = info.element[1].local_face_id;
+      el_to_face[el2 * n_faces_per_el + fi2] = face_idx;
+
+
+      DenseMatrix elmat;
+      h.c_bfi->AssembleFaceMatrix(*h.c_fes.GetFaceElement(f),
+                                  *h.fes.GetFE(el1),
+                                  *h.fes.GetFE(el2),
                                   *FTr, elmat);
-      // zero-out small elements in elmat
       elmat.Threshold(1e-12 * elmat.MaxMaxNorm());
-      h.Ct->AddSubMatrix(vdofs, c_vdofs, elmat, skip_zeros);
+
+      const int sz = n_hat_dof_per_el * n_c_dof_per_face;
+      MFEM_ASSERT(2*sz == elmat.Width()*elmat.Height(), "");
+
+      const int offset1 = (el1*n_faces_per_el + fi1)*sz;
+      const int offset2 = (el2*n_faces_per_el + fi2)*sz;
+      for (int j = 0; j < n_c_dof_per_face; ++j)
+      {
+         for (int i = 0; i < n_hat_dof_per_el; ++i)
+         {
+            // std::copy(elmat.GetData(), elmat.GetData() + sz, &Ct_mat[offset1]);
+            // std::copy(elmat.GetData() + sz, elmat.GetData() + 2*sz, &Ct_mat[offset2]);
+
+            Ct_mat[offset1 + i + j*n_hat_dof_per_el] += elmat(i, j);
+            Ct_mat[offset2 + i + j*n_hat_dof_per_el] += elmat(n_hat_dof_per_el + i, j);
+         }
+      }
+
+      ++face_idx;
    }
-   h.Ct->Finalize(skip_zeros);
+}
+
+void HybridizationExtension::MultCt(const Vector &x, Vector &y) const
+{
+   Mesh &mesh = *h.fes.GetMesh();
+   const int dim = mesh.Dimension();
+   const int ne = mesh.GetNE();
+
+   const int n_hat_dof_per_el = h.fes.GetFE(0)->GetDof();
+   const int n_c_dof_per_face = h.c_fes.GetFaceElement(0)->GetDof();
+   const int n_faces_per_el = [&mesh, dim]()
+   {
+      switch (dim)
+      {
+         case 2: return mesh.GetElement(0)->GetNEdges();
+         case 3: return mesh.GetElement(0)->GetNFaces();
+         default: return -1;
+      }
+   }();
+
+   const ElementDofOrdering ordering = ElementDofOrdering::NATIVE;
+   const FaceRestriction *face_restr = h.c_fes.GetFaceRestriction(
+                                          ordering, FaceType::Interior);
+
+   Vector x_evec(face_restr->Height());
+   face_restr->Mult(x, x_evec);
+
+   // Size of the element matrix;
+   const int sz = n_hat_dof_per_el * n_c_dof_per_face;
+
+   y = 0.0;
+   for (int e = 0; e < ne; ++e)
+   {
+      for (int fi = 0; fi < n_faces_per_el; ++fi)
+      {
+         const int f = el_to_face[e*n_faces_per_el + fi];
+         if (f < 0) { continue; }
+         const int offset = (e*n_faces_per_el + fi) * sz;
+
+         for (int j = 0; j < n_c_dof_per_face; ++j)
+         {
+            for (int i = 0; i < n_hat_dof_per_el; ++i)
+            {
+               y[e*n_hat_dof_per_el + i] +=
+                  Ct_mat[offset + i + j*n_hat_dof_per_el]*x_evec[j + f*n_c_dof_per_face];
+            }
+         }
+      }
+   }
 }
 
 void HybridizationExtension::Init(const Array<int> &ess_tdof_list)
 {
+   // Should verify that the preconditions are met:
+   // - No variable p
+   // - All elements to same (tensor-product?)
+   // - Dimension = 2 or 3
+
    const ElementDofOrdering ordering = ElementDofOrdering::NATIVE;
 
    const Operator *R_op = h.fes.GetElementRestriction(ordering);
@@ -88,6 +168,7 @@ void HybridizationExtension::Init(const Array<int> &ess_tdof_list)
    }
 
    ConstructC();
+   h.ConstructC();
 
    // We now split the "hat DOFs" (broken DOFs) into three classes of DOFs, each
    // marked with an integer:
