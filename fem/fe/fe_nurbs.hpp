@@ -67,7 +67,7 @@ public:
 
 
 /// An arbitrary order 1D NURBS element on a segment
-class NURBS1DFiniteElement : public NodalFiniteElement,
+class NURBS1DFiniteElement : public ScalarFiniteElement,
    public NURBSFiniteElement
 {
 protected:
@@ -76,7 +76,7 @@ protected:
 public:
    /// Construct the NURBS1DFiniteElement of order @a p
    NURBS1DFiniteElement(int p)
-      : NodalFiniteElement(1, Geometry::SEGMENT, p + 1, p, FunctionSpace::Qk),
+      : ScalarFiniteElement(1, Geometry::SEGMENT, p + 1, p, FunctionSpace::Qk),
         NURBSFiniteElement(1),
         shape_x(p + 1) { }
 
@@ -86,10 +86,12 @@ public:
                            DenseMatrix &dshape) const;
    virtual void CalcHessian (const IntegrationPoint &ip,
                              DenseMatrix &hessian) const;
+   virtual void Project(Coefficient &coeff,
+                        ElementTransformation &Trans, Vector &dofs) const;
 };
 
 /// An arbitrary order 2D NURBS element on a square
-class NURBS2DFiniteElement : public NodalFiniteElement,
+class NURBS2DFiniteElement : public ScalarFiniteElement,
    public NURBSFiniteElement
 {
 protected:
@@ -99,8 +101,8 @@ protected:
 public:
    /// Construct the NURBS2DFiniteElement of order @a p
    NURBS2DFiniteElement(int p)
-      : NodalFiniteElement(2, Geometry::SQUARE, (p + 1)*(p + 1), p,
-                           FunctionSpace::Qk),
+      : ScalarFiniteElement(2, Geometry::SQUARE, (p + 1)*(p + 1), p,
+                            FunctionSpace::Qk),
         NURBSFiniteElement(2),
         u(dof), shape_x(p + 1), shape_y(p + 1), dshape_x(p + 1),
         dshape_y(p + 1), d2shape_x(p + 1), d2shape_y(p + 1), du(dof,2)
@@ -108,8 +110,8 @@ public:
 
    /// Construct the NURBS2DFiniteElement with x-order @a px and y-order @a py
    NURBS2DFiniteElement(int px, int py)
-      : NodalFiniteElement(2, Geometry::SQUARE, (px + 1)*(py + 1),
-                           std::max(px, py), FunctionSpace::Qk),
+      : ScalarFiniteElement(2, Geometry::SQUARE, (px + 1)*(py + 1),
+                            std::max(px, py), FunctionSpace::Qk),
         NURBSFiniteElement(2),
         u(dof), shape_x(px + 1), shape_y(py + 1), dshape_x(px + 1),
         dshape_y(py + 1), d2shape_x(px + 1), d2shape_y(py + 1), du(dof,2)
@@ -121,10 +123,12 @@ public:
                            DenseMatrix &dshape) const;
    virtual void CalcHessian (const IntegrationPoint &ip,
                              DenseMatrix &hessian) const;
+   virtual void Project(Coefficient &coeff,
+                        ElementTransformation &Trans, Vector &dofs) const;
 };
 
 /// An arbitrary order 3D NURBS element on a cube
-class NURBS3DFiniteElement : public NodalFiniteElement,
+class NURBS3DFiniteElement : public ScalarFiniteElement,
    public NURBSFiniteElement
 {
 protected:
@@ -136,8 +140,8 @@ protected:
 public:
    /// Construct the NURBS3DFiniteElement of order @a p
    NURBS3DFiniteElement(int p)
-      : NodalFiniteElement(3, Geometry::CUBE, (p + 1)*(p + 1)*(p + 1), p,
-                           FunctionSpace::Qk),
+      : ScalarFiniteElement(3, Geometry::CUBE, (p + 1)*(p + 1)*(p + 1), p,
+                            FunctionSpace::Qk),
         NURBSFiniteElement(3),
         u(dof), shape_x(p + 1), shape_y(p + 1), shape_z(p + 1),
         dshape_x(p + 1), dshape_y(p + 1), dshape_z(p + 1),
@@ -147,8 +151,8 @@ public:
    /// Construct the NURBS3DFiniteElement with x-order @a px and y-order @a py
    /// and z-order @a pz
    NURBS3DFiniteElement(int px, int py, int pz)
-      : NodalFiniteElement(3, Geometry::CUBE, (px + 1)*(py + 1)*(pz + 1),
-                           std::max(std::max(px,py),pz), FunctionSpace::Qk),
+      : ScalarFiniteElement(3, Geometry::CUBE, (px + 1)*(py + 1)*(pz + 1),
+                            std::max(std::max(px,py),pz), FunctionSpace::Qk),
         NURBSFiniteElement(2),
         u(dof), shape_x(px + 1), shape_y(py + 1), shape_z(pz + 1),
         dshape_x(px + 1), dshape_y(py + 1), dshape_z(pz + 1),
@@ -161,6 +165,8 @@ public:
                            DenseMatrix &dshape) const;
    virtual void CalcHessian (const IntegrationPoint &ip,
                              DenseMatrix &hessian) const;
+   virtual void Project(Coefficient &coeff,
+                        ElementTransformation &Trans, Vector &dofs) const;
 };
 
 
