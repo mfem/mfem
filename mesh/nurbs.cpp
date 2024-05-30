@@ -554,7 +554,7 @@ void KnotVector::CalcShape(Vector &shape, int i, real_t xi) const
 
    int    p = Order;
    int    ip = (i >= 0) ? (i + p) : (-1 - i + p);
-   real_t u = getKnotLocation((i >= 0) ? xi : 1. - xi, ip), saved, tmp;
+   real_t u = GetKnot((i >= 0) ? xi : 1. - xi, ip), saved, tmp;
    real_t left[MaxOrder+1], right[MaxOrder+1];
 
    shape(0) = 1.;
@@ -579,7 +579,7 @@ void KnotVector::CalcDShape(Vector &grad, int i, real_t xi) const
 {
    int    p = Order, rk, pk;
    int    ip = (i >= 0) ? (i + p) : (-1 - i + p);
-   real_t u = getKnotLocation((i >= 0) ? xi : 1. - xi, ip), temp, saved, d;
+   real_t u = GetKnot((i >= 0) ? xi : 1. - xi, ip), temp, saved, d;
    real_t ndu[MaxOrder+1][MaxOrder+1], left[MaxOrder+1], right[MaxOrder+1];
 
 #ifdef MFEM_DEBUG
@@ -637,7 +637,7 @@ void KnotVector::CalcDnShape(Vector &gradn, int n, int i, real_t xi) const
 {
    int    p = Order, rk, pk, j1, j2,r,j,k;
    int    ip = (i >= 0) ? (i + p) : (-1 - i + p);
-   real_t u = getKnotLocation((i >= 0) ? xi : 1. - xi, ip);
+   real_t u = GetKnot((i >= 0) ? xi : 1. - xi, ip);
    real_t temp, saved, d;
    real_t a[2][MaxOrder+1],ndu[MaxOrder+1][MaxOrder+1], left[MaxOrder+1],
           right[MaxOrder+1];
@@ -786,7 +786,7 @@ void KnotVector::FindMaxima(Array<int> &ks, Vector &xi, Vector &u) const
                maxima[j] = max;
                ks[j] = i;
                xi[j] = arg;
-               u[j]  = getKnotLocation(arg, i+Order);
+               u[j]  = GetKnot(arg, i+Order);
             }
          }
       }
@@ -1363,8 +1363,8 @@ void NURBSPatch::KnotInsert(int dir, const Vector &knot)
    }
 
    int rr = knot.Size() - 1;
-   int a  = oldkv.findKnotSpan(knot(0))  - 1;
-   int b  = oldkv.findKnotSpan(knot(rr)) - 1;
+   int a  = oldkv.GetSpan(knot(0));
+   int b  = oldkv.GetSpan(knot(rr));
    int pl = oldkv.GetOrder();
    int ml = oldkv.GetNCP();
 

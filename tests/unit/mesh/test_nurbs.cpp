@@ -107,9 +107,12 @@ TEST_CASE("Location conversion check", "[NURBS]")
       un = kv.GetKnot(xi,ks);
       REQUIRE((un - u) == MFEM_Approx(0.0));
 
-      mfem::out<<i<<" : "<<ks<<" ";
-      mfem::out<<kv[ks] <<" "<<u<<" "<<kv[ks+1]<<" : ";
-      mfem::out<<u<<" "<<un<<" = "<<un -u<<std::endl;
+      //mfem::out<<i<<" : "<<ks<<" ";
+     // mfem::out<<kv[ks] <<" "<<u<<" "<<kv[ks+1]<<" : ";
+     // mfem::out<<u<<" "<<un<<" = "<<un -u<<std::endl;
+
+      int oldks = kv.findKnotSpan(u)-1;
+      mfem::out<<i<<" : "<<ks<<" "<<oldks<<std::endl;
    }
 }
 
