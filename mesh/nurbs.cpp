@@ -60,8 +60,8 @@ KnotVector::KnotVector(int order, Vector k)
    {
       for (int i = 0; i <= Order; i++)
       {
-         if (k[i] != k[0]) repeated = false;
-         if (k[last - i] != k[last]) repeated = false;
+         if (k[i] != k[0]) { repeated = false; }
+         if (k[last - i] != k[last]) { repeated = false; }
       }
    }
 
@@ -144,7 +144,7 @@ int KnotVector::GetSpan(real_t u) const
 real_t KnotVector::GetGreville(int i) const
 {
    real_t sum = 0.0;
-   for (int j = 1; j < Order+1; j++) sum += knot[i + j];
+   for (int j = 1; j < Order+1; j++) { sum += knot[i + j]; }
    return sum/real_t(Order);
 }
 
@@ -179,15 +179,15 @@ real_t KnotVector::GetBotella(int i) const
 
       u -= (grad[o]/hess[o])*(knot(ks+1) - knot(ks));
 
-      if (fabs(grad[o])< tol) break;
+      if (fabs(grad[o])< tol) { break; }
    }
-   if (iter >= itermax) mfem::out<<iter<< " "<< grad[o]<<endl;
+   if (iter >= itermax) { mfem::out<<iter<< " "<< grad[o]<<endl; }
    return u;
 }
 
 void KnotVector::ComputeDemko() const
 {
-   if (demko.Size() == GetNCP()) return;
+   if (demko.Size() == GetNCP()) { return; }
 
    const int itermax1 = 10;
    const int itermax2 = 10;
@@ -223,39 +223,39 @@ void KnotVector::ComputeDemko() const
    {
       for (int i = 0; i <GetNCP(); i++)
       {
-          // Check for a repeated knot -- include begin and end
-          if (knot[i + 1] == knot[i + Order])
-          {
-             continue;
-          }
+         // Check for a repeated knot -- include begin and end
+         if (knot[i + 1] == knot[i + Order])
+         {
+            continue;
+         }
 
-          u = demko[i];
-          for (iter2 = 0; iter2 <itermax2; iter2++)
-          {
-             ks = GetSpan (u);
-             xi = GetIp(u, ks);
+         u = demko[i];
+         for (iter2 = 0; iter2 <itermax2; iter2++)
+         {
+            ks = GetSpan (u);
+            xi = GetIp(u, ks);
 
-             CalcDShape(shgrad, ks-Order, xi);
-             CalcD2Shape(shhess, ks-Order, xi);
-             grad = hess = 0.0;
-             for (int p = 0; p <Order+1; p++)
-             {
-                grad += a[ks-Order + p]*shgrad[p];
-                hess += a[ks-Order + p]*shhess[p];
-             }
-             u -= (grad/hess)*(knot(ks+1) - knot(ks));
+            CalcDShape(shgrad, ks-Order, xi);
+            CalcD2Shape(shhess, ks-Order, xi);
+            grad = hess = 0.0;
+            for (int p = 0; p <Order+1; p++)
+            {
+               grad += a[ks-Order + p]*shgrad[p];
+               hess += a[ks-Order + p]*shhess[p];
+            }
+            u -= (grad/hess)*(knot(ks+1) - knot(ks));
 
-             if (fabs(grad)< tol1) break;
-          }
-          if (iter2 >= itermax2) mfem::out<<"Demko: Iteration to find extremum not converged"<<fabs(grad)<<endl;
-          demko[i] = u;
-       }
-       GetInterpolant(x, demko, anew);
-       a -= anew;
-       if (a.Norml2() < tol1) break;
-       a = anew;
+            if (fabs(grad)< tol1) { break; }
+         }
+         if (iter2 >= itermax2) { mfem::out<<"Demko: Iteration to find extremum not converged"<<fabs(grad)<<endl; }
+         demko[i] = u;
+      }
+      GetInterpolant(x, demko, anew);
+      a -= anew;
+      if (a.Norml2() < tol1) { break; }
+      a = anew;
    }
-   if (iter1 >= itermax1) mfem::out<<"Demko: Remez iteration  not converged"<<a.Norml2()<<endl;
+   if (iter1 >= itermax1) { mfem::out<<"Demko: Remez iteration  not converged"<<a.Norml2()<<endl; }
 }
 
 KnotVector *KnotVector::DegreeElevate(int t) const
@@ -461,7 +461,7 @@ void KnotVector::PrintFunctions(std::ostream &os, int samples) const
 
    Vector shape(Order+1);
 
-   real_t x, dx = 1.0/real_t (samples - 1);
+   real_t xi, dxi = 1.0/real_t (samples - 1);
 
    for (int ks = 0; ks < GetNKS(); ks++)
    {
@@ -473,20 +473,21 @@ void KnotVector::PrintFunctions(std::ostream &os, int samples) const
          xi =j*dxi;
          os <<GetKnot(xi, ks+Order)<<"\t";
 
-         CalcShape(shape, cnt, x);
+         CalcShape(shape, ks, xi);
          for (int d = 0; d < Order+1; d++) { os<<"\t"<<shape[d]; }
 
-         CalcDShape(shape, cnt, x);
+         CalcDShape(shape, ks, xi);
          for (int d = 0; d < Order+1; d++) { os<<"\t"<<shape[d]; }
 
-         CalcD2Shape(shape, cnt, x);
+         CalcD2Shape(shape, ks, xi);
          for (int d = 0; d < Order+1; d++) { os<<"\t"<<shape[d]; }
          os << endl;
       }
    }
 }
 
-void KnotVector::PrintFunction(std::ostream &os, const Vector &a, int samples) const
+void KnotVector::PrintFunction(std::ostream &os, const Vector &a,
+                               int samples) const
 {
    MFEM_VERIFY(GetNE(), "Elements not counted. Use GetElements().");
 
@@ -825,7 +826,8 @@ void KnotVector::FindInterpolant(Array<Vector*> &x)
 
 // Routine from "The NURBS book" - 2nd ed - Piegl and Tiller
 // Algorithm A9.1 p. 369
-void KnotVector::GetInterpolant(const Vector &x, const Vector &u, Vector &a) const
+void KnotVector::GetInterpolant(const Vector &x, const Vector &u,
+                                Vector &a) const
 {
    int ks;
    real_t xi;
@@ -835,7 +837,7 @@ void KnotVector::GetInterpolant(const Vector &x, const Vector &u, Vector &a) con
    DenseMatrix A(NumOfControlPoints,NumOfControlPoints);
    A = 0.0;
 
-    for (int i = 0; i < NumOfControlPoints; i++)
+   for (int i = 0; i < NumOfControlPoints; i++)
    {
       ks = GetSpan(u[i]);
       xi = GetIp(u[i], ks);
