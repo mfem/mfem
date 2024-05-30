@@ -857,7 +857,7 @@ void Hybridization::ComputeSolution(const Vector &b, const Vector &sol_r,
       return;
    }
 
-   // bf = Af^{-1} ( Rf^t - Cf^t sol_r )
+   // bf = Af^{-1} ( Rf^t b - Cf^t sol_r )
    Vector bf;
    MultAfInv(b, sol_r, bf, 1);
 
