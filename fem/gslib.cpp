@@ -1393,8 +1393,10 @@ GSOPGSLIB::~GSOPGSLIB()
 void GSOPGSLIB::UpdateIdentifiers(const Array<long long> &ids)
 {
    long long minval = ids.Min();
+#ifdef MFEM_USE_MPI
    MPI_Allreduce(MPI_IN_PLACE, &minval, 1, MPI_LONG_LONG_INT,
                  MPI_MIN, gsl_comm->c);
+#endif
    MFEM_VERIFY(minval >= 0, "Unique identifier cannot be negative.");
    if (gsl_data != NULL) { gslib_gs_free(gsl_data); }
    num_ids = ids.Size();
