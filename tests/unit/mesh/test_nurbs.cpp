@@ -121,7 +121,7 @@ TEST_CASE("Greville, Botella and Demko points", "[NURBS]")
 
    mfem::out<<"Knotvector : "; kv.Print(mfem::out);
 
-    // Greville
+   // Greville
    Vector greville(kv.GetNCP());
    for (int i = 0; i < kv.GetNCP(); i++)
    {
@@ -135,7 +135,7 @@ TEST_CASE("Greville, Botella and Demko points", "[NURBS]")
       REQUIRE((greville[i] - gref[i]) == MFEM_Approx(0.0));
    }
 
-    // Botella
+   // Botella
    Vector botella(kv.GetNCP());
    for (int i = 0; i < kv.GetNCP(); i++)
    {
@@ -152,7 +152,7 @@ TEST_CASE("Greville, Botella and Demko points", "[NURBS]")
       REQUIRE((botella[i] - bref[i]) == MFEM_Approx(0.0));
    }
 
-    // Demko
+   // Demko
    Vector demko(kv.GetNCP());
    for (int i = 0; i < kv.GetNCP(); i++)
    {
@@ -181,7 +181,7 @@ TEST_CASE("Greville, Botella and Demko points", "[NURBS]")
 
    Vector aref({1.0, -5.0, 5.0, -1.0,
                 3.24079982256718635,
-               -5.51623733136825933,
+                -5.51623733136825933,
                 3.75648721902370486, -1.0});
    for (int i = 0; i < kv.GetNCP(); i++)
    {
