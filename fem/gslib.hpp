@@ -160,6 +160,10 @@ protected:
    /// Get GridFunction value at the points expected by GSLIB.
    virtual void GetNodalValues(const GridFunction *gf_in, Vector &node_vals);
 
+   virtual void GetNodalValuesSurf(const GridFunction *gf_in,
+                                   Vector &node_vals,
+                                   Vector &ref_nodal_vals);
+
    /// Map {r,s,t} coordinates from [-1,1] to [0,1] for MFEM. For simplices,
    /// find the original element number (that was split into micro quads/hexes)
    /// during the setup phase.
@@ -233,6 +237,11 @@ public:
    void Setup(Mesh &m, const double bb_t = 0.1,
               const double newt_tol = 1.0e-12,
               const int npt_max = 256);
+
+   void SetupSurf(Mesh &m, const double bb_t = 0.1,
+                  const double newt_tol = 1.0e-12,
+                  const int npt_max = 256);
+
    /** Searches positions given in physical space by @a point_pos.
        These positions can be ordered byNodes: (XXX...,YYY...,ZZZ) or
        byVDim: (XYZ,XYZ,....XYZ) specified by @a point_pos_ordering.
