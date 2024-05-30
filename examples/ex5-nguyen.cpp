@@ -257,12 +257,13 @@ int main(int argc, char *argv[])
    BlockVector x(block_offsets, mt), rhs(block_offsets, mt);
 
    x = 0.;
-   GridFunction q, t;
-   q.MakeRef(V_space, x.GetBlock(0), 0);
-   t.MakeRef(W_space, x.GetBlock(1), 0);
+   GridFunction q_h, t_h;
+   q_h.MakeRef(V_space, x.GetBlock(0), 0);
+   t_h.MakeRef(W_space, x.GetBlock(1), 0);
    if (!dg)
    {
-      q.ProjectBdrCoefficientNormal(qcoeff, bdr_is_neumann);   //essential Neumann BC
+      q_h.ProjectBdrCoefficientNormal(qcoeff,
+                                      bdr_is_neumann);   //essential Neumann BC
    }
 
    LinearForm *gform(new LinearForm);
@@ -583,9 +584,9 @@ int main(int argc, char *argv[])
    qcoeff.SetTime(1.);
    tcoeff.SetTime(1.);
 
-   real_t err_q  = q.ComputeL2Error(qcoeff, irs);
+   real_t err_q  = q_h.ComputeL2Error(qcoeff, irs);
    real_t norm_q = ComputeLpNorm(2., qcoeff, *mesh, irs);
-   real_t err_t  = t.ComputeL2Error(tcoeff, irs);
+   real_t err_t  = t_h.ComputeL2Error(tcoeff, irs);
    real_t norm_t = ComputeLpNorm(2., tcoeff, *mesh, irs);
 
    std::cout << "|| q_h - q_ex || / || q_ex || = " << err_q / norm_q << "\n";
@@ -620,17 +621,17 @@ int main(int argc, char *argv[])
 
       ofstream q_ofs("sol_q.gf");
       q_ofs.precision(8);
-      q.Save(q_ofs);
+      q_h.Save(q_ofs);
 
       ofstream t_ofs("sol_t.gf");
       t_ofs.precision(8);
-      t.Save(t_ofs);
+      t_h.Save(t_ofs);
    }
 
    // 14. Save data in the VisIt format
    VisItDataCollection visit_dc("Example5", mesh);
-   visit_dc.RegisterField("heat flux", &q);
-   visit_dc.RegisterField("temperature", &t);
+   visit_dc.RegisterField("heat flux", &q_h);
+   visit_dc.RegisterField("temperature", &t_h);
    if (analytic)
    {
       visit_dc.RegisterField("heat flux analytic", &q_a);
@@ -646,8 +647,8 @@ int main(int argc, char *argv[])
    paraview_dc.SetDataFormat(VTKFormat::BINARY);
    paraview_dc.SetHighOrderOutput(true);
    paraview_dc.SetTime(0.0); // set the time
-   paraview_dc.RegisterField("heat flux",&q);
-   paraview_dc.RegisterField("temperature",&t);
+   paraview_dc.RegisterField("heat flux",&q_h);
+   paraview_dc.RegisterField("temperature",&t_h);
    if (analytic)
    {
       paraview_dc.RegisterField("heat flux analytic", &q_a);
@@ -662,12 +663,12 @@ int main(int argc, char *argv[])
       const int  visport   = 19916;
       socketstream q_sock(vishost, visport);
       q_sock.precision(8);
-      q_sock << "solution\n" << *mesh << q << "window_title 'Heat flux'" << endl;
+      q_sock << "solution\n" << *mesh << q_h << "window_title 'Heat flux'" << endl;
       q_sock << "keys Rljvvvvvmmc" << endl;
       q_sock.close();
       socketstream t_sock(vishost, visport);
       t_sock.precision(8);
-      t_sock << "solution\n" << *mesh << t << "window_title 'Temperature'" << endl;
+      t_sock << "solution\n" << *mesh << t_h << "window_title 'Temperature'" << endl;
       t_sock << "keys Rljmmc" << endl;
       t_sock.close();
       if (analytic)
