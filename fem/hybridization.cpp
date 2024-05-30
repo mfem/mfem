@@ -816,6 +816,12 @@ void Hybridization::MultAfInv(const Vector &b, const Vector &lambda, Vector &bf,
 
 void Hybridization::ReduceRHS(const Vector &b, Vector &b_r) const
 {
+   if (ext)
+   {
+      ext->ReduceRHS(b, b_r);
+      return;
+   }
+
    // bf = Af^{-1} Rf^t b
    Vector bf;
    MultAfInv(b, b, bf, 0);
