@@ -20,23 +20,25 @@ HybridizationExtension::HybridizationExtension(Hybridization &hybridization_)
    : h(hybridization_)
 { }
 
+static int GetNFacesPerElement(const Mesh &mesh)
+{
+   const int dim = mesh.Dimension();
+   switch (dim)
+   {
+      case 2: return mesh.GetElement(0)->GetNEdges();
+      case 3: return mesh.GetElement(0)->GetNFaces();
+      default: MFEM_ABORT("Invalid dimension.");
+   }
+}
+
 void HybridizationExtension::ConstructC()
 {
    Mesh &mesh = *h.fes.GetMesh();
-   const int dim = mesh.Dimension();
    const int ne = mesh.GetNE();
 
    const int n_hat_dof_per_el = h.fes.GetFE(0)->GetDof();
    const int n_c_dof_per_face = h.c_fes.GetFaceElement(0)->GetDof();
-   const int n_faces_per_el = [&mesh, dim]()
-   {
-      switch (dim)
-      {
-         case 2: return mesh.GetElement(0)->GetNEdges();
-         case 3: return mesh.GetElement(0)->GetNFaces();
-         default: return -1;
-      }
-   }();
+   const int n_faces_per_el = GetNFacesPerElement(mesh);
 
    el_to_face.SetSize(ne * n_faces_per_el);
    Ct_mat.SetSize(ne * n_hat_dof_per_el * n_c_dof_per_face * n_faces_per_el);
@@ -79,14 +81,10 @@ void HybridizationExtension::ConstructC()
       {
          for (int i = 0; i < n_hat_dof_per_el; ++i)
          {
-            // std::copy(elmat.GetData(), elmat.GetData() + sz, &Ct_mat[offset1]);
-            // std::copy(elmat.GetData() + sz, elmat.GetData() + 2*sz, &Ct_mat[offset2]);
-
             Ct_mat[offset1 + i + j*n_hat_dof_per_el] += elmat(i, j);
             Ct_mat[offset2 + i + j*n_hat_dof_per_el] += elmat(n_hat_dof_per_el + i, j);
          }
       }
-
       ++face_idx;
    }
 }
@@ -94,20 +92,11 @@ void HybridizationExtension::ConstructC()
 void HybridizationExtension::MultCt(const Vector &x, Vector &y) const
 {
    Mesh &mesh = *h.fes.GetMesh();
-   const int dim = mesh.Dimension();
    const int ne = mesh.GetNE();
 
    const int n_hat_dof_per_el = h.fes.GetFE(0)->GetDof();
    const int n_c_dof_per_face = h.c_fes.GetFaceElement(0)->GetDof();
-   const int n_faces_per_el = [&mesh, dim]()
-   {
-      switch (dim)
-      {
-         case 2: return mesh.GetElement(0)->GetNEdges();
-         case 3: return mesh.GetElement(0)->GetNFaces();
-         default: return -1;
-      }
-   }();
+   const int n_faces_per_el = GetNFacesPerElement(mesh);
 
    const ElementDofOrdering ordering = ElementDofOrdering::NATIVE;
    const FaceRestriction *face_restr = h.c_fes.GetFaceRestriction(
