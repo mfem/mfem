@@ -140,7 +140,7 @@ public:
 
 real_t sol(const Vector & x)
 {
-   if ((x[1] - x[0] - 0.2 < 0.0)
+   if ((x[1] - x[0] - 0.5 < 0.0)
        &(x[0] + x[1] -0.99 < 0.0))
    {
       return 1.0;
@@ -375,12 +375,6 @@ int main(int argc, char *argv[])
    GridFunction x(fespace);
    FunctionCoefficient  sol_cf(sol);
    x.ProjectCoefficient(sol_cf);
-
-   {
-      VisItDataCollection visit_dc("Example1_proj", mesh);
-      visit_dc.RegisterField("solution", &x);
-      visit_dc.Save();
-   }
 
    // 8. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
