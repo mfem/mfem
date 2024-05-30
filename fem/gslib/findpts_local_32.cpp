@@ -1878,11 +1878,12 @@ void FindPointsGSLIB::FindPointsLocal32(Vector &point_pos,
                            DEV.o_hashMin.Size() + DEV.o_hashFac.Size() +
                            DEV.gll1d.Size() +
                            DEV.lagcoeff.Size();
-   std::cout << int_read-int_read_check << " " <<
-             double_read-double_read_check << " k10sizediff" << std::endl;
+   // std::cout << int_read-int_read_check << " " <<
+   //           double_read-double_read_check << " k10sizediff" << std::endl;
    int total_bytes = double_read*8 + int_read*4;
-   int max_speed = 900*std::pow(10, 9); //900 gb/s
-   min_fpt_kernel_time = total_bytes*1.0/max_speed;
+   double max_speed = 900.0*std::pow(10.0, 9.0); //900 gb/s
+   min_fpt_kernel_time = total_bytes/max_speed;
+   std::cout << total_bytes << " " << max_speed << " " << min_fpt_kernel_time  << " k10-bytes-speed-time\n";
 
    SWkernel.Clear();
    SWkernel.Start();

@@ -330,6 +330,8 @@ public:
 
    virtual const Vector &GetInfo()              const { return DEV.info; }
 
+   virtual const Vector &GetGLLMesh()           const { return gsl_mesh; }
+
    /// Return element number for each point found by FindPoints corresponding to
    /// GSLIB mesh. gsl_mfem_elem != gsl_elem for mesh with simplices.
    virtual const Array<unsigned int> &GetGSLIBElem() const { return gsl_elem; }
