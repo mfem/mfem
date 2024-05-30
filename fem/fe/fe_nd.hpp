@@ -414,7 +414,7 @@ class ND_FuentesPyramidElement
    : public VectorFiniteElement, public FuentesPyramid
 {
 private:
-   static const real_t tk[18];
+   static const real_t tk[24];
 
    mutable real_t zmax;
 
