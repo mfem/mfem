@@ -13,9 +13,9 @@ Version 4.7.1 (development)
 
 Miscellaneous
 -------------
-- Refactored the `ARKStepSolver` class (ARKODE interface ) to be consistent with
+- Refactored the `ARKStepSolver` class (ARKODE interface) to be consistent with
   the improved documentation of the `TimeDependentOperator` class when a mass
-  matrix solver is enabled via a calls to either
+  matrix solver is enabled via a call to either
   `ARKStepSolver::UseMFEMMassLinearSolver` or `ARKStepSolver::UseSundialsMassLinearSolver`. Because enabling a mass matrix
   solver effectively means that the associated ODE operator is not expressed in
   `EXPLICIT` form, `ARKStepSolver` now calls
