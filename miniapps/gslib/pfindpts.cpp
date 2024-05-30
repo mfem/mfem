@@ -576,15 +576,12 @@ int main (int argc, char *argv[])
            std::endl;
    }
 
-   // Info for timings of kernel read-write
-   double min_kernel_fpt_time = finder.min_fpt_kernel_time;
-   double measure_min_kernel_fpt_time = finder.measured_min_fpt_kernel_time;
-   double kernel_fpt_time = finder.fpt_kernel_time;
+   int mesh_size = finder.GetGLLMesh().Size();
 
    if (myid == 0)
    {
       cout << "FindPointsGSLIB-KernelTiming-info " <<
-           "jobid,devid,gpucode,ne,np,dim,meshorder,solorder,funcorder,fieldtype,smooth,npts,nptt,"
+           "jobid,devid,gpucode,ne,np,dim,meshorder,solorder,funcorder,fieldtype,smooth,npts,nptt,gllsize,"
            "mintime,measuredmintime,actualkerneltime " <<
            jobid << "," <<
            device.GetId() << "," <<
@@ -597,6 +594,7 @@ int main (int argc, char *argv[])
            smooth << "," <<
            pts_cnt << "," <<
            pts_cnt*num_procs << "," <<
+           mesh_size << "," <<
            finder.min_fpt_kernel_time << "," <<
            finder.measured_min_fpt_kernel_time << "," <<
            finder.fpt_kernel_time << "," <<
