@@ -2914,25 +2914,30 @@ ND_FECollection::ND_FECollection(const int p, const int dim,
       ND_Elements[Geometry::PRISM] = new ND_WedgeElement(p);
       ND_dof[Geometry::PRISM] = p*pm1*(3*p-4)/2;
 
-      ND_Elements[Geometry::PYRAMID] = new Nedelec1PyrFiniteElement;
-      ND_dof[Geometry::PYRAMID] = 0;
+      // ND_Elements[Geometry::PYRAMID] = new Nedelec1PyrFiniteElement;
+      // ND_dof[Geometry::PYRAMID] = 0;
+      ND_Elements[Geometry::PYRAMID] = new ND_FuentesPyramidElement(p);
+      ND_dof[Geometry::PYRAMID] = 3*p*pm1*pm1;
    }
 }
 
 const FiniteElement *
 ND_FECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
 {
-   if (GeomType != Geometry::PYRAMID || this->GetOrder() == 1)
-   {
-      return ND_Elements[GeomType];
-   }
-   else
-   {
-      if (error_mode == RETURN_NULL) { return nullptr; }
-      MFEM_ABORT("ND Pyramid basis functions are not yet supported "
-                 "for order > 1.");
-      return NULL;
-   }
+   /*
+    if (GeomType != Geometry::PYRAMID || this->GetOrder() == 1)
+    {
+       return ND_Elements[GeomType];
+    }
+    else
+    {
+       if (error_mode == RETURN_NULL) { return nullptr; }
+       MFEM_ABORT("ND Pyramid basis functions are not yet supported "
+                  "for order > 1.");
+       return NULL;
+    }
+   */
+   return ND_Elements[GeomType];
 }
 
 const StatelessDofTransformation *

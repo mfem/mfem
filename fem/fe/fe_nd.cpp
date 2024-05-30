@@ -1582,8 +1582,12 @@ void ND_WedgeElement::CalcCurlShape(const IntegrationPoint &ip,
 }
 
 
-const real_t ND_FuentesPyramidElement::tk[18] =
-{ 1.,0.,0.,  0.,1.,0.,  0.,0.,1.,  -1.,0.,1.,  -1.,-1.,1.,  0.,-1.,1. };
+const real_t ND_FuentesPyramidElement::tk[24] =
+{
+   1., 0., 0.,   0., 1., 0.,  0., 0., 1.,
+   -1., 0., 1.,  -1.,-1., 1.,  0.,-1., 1.,
+   -1., 0., 0.,   0.,-1., 0.
+};
 
 ND_FuentesPyramidElement::ND_FuentesPyramidElement(const int p,
                                                    const int cb_type,
@@ -1595,6 +1599,8 @@ ND_FuentesPyramidElement::ND_FuentesPyramidElement(const int p,
    const real_t *top = (p > 1) ? poly1d.OpenPoints(p - 2) : NULL;
    const real_t *qop = poly1d.OpenPoints(p - 1, ob_type);
    const real_t *qcp = poly1d.ClosedPoints(p, cb_type);
+
+   const int pm2 = p - 2;
 
 #ifndef MFEM_THREAD_SAFE
    tmp_E_E_ij.SetSize(p, dim);
@@ -1629,6 +1635,150 @@ ND_FuentesPyramidElement::ND_FuentesPyramidElement(const int p,
    DenseMatrix u(dof, dim);
 #endif
 
+   int o = 0;
+
+   // edges
+   for (int i = 0; i < p; i++) // (0, 1)
+   {
+      Nodes.IntPoint(o).Set3(eop[i], 0., 0.);
+      dof2tk[o++] = 0;
+   }
+   for (int i = 0; i < p; i++) // (1, 2)
+   {
+      Nodes.IntPoint(o).Set3(1., eop[i], 0.);
+      dof2tk[o++] = 1;
+   }
+   for (int i = 0; i < p; i++) // (3, 2)
+   {
+      Nodes.IntPoint(o).Set3(eop[i], 1., 0.);
+      dof2tk[o++] = 0;
+   }
+   for (int i = 0; i < p; i++) // (0, 3)
+   {
+      Nodes.IntPoint(o).Set3(0., eop[i], 0.);
+      dof2tk[o++] = 1;
+   }
+   for (int i = 0; i < p; i++) // (0, 4)
+   {
+      Nodes.IntPoint(o).Set3(0., 0., eop[i]);
+      dof2tk[o++] = 2;
+   }
+   for (int i = 0; i < p; i++) // (1, 4)
+   {
+      Nodes.IntPoint(o).Set3(1. - eop[i], 0., eop[i]);
+      dof2tk[o++] = 3;
+   }
+   for (int i = 0; i < p; i++) // (2, 4)
+   {
+      Nodes.IntPoint(o).Set3(1. - eop[i], 1. - eop[i], eop[i]);
+      dof2tk[o++] = 4;
+   }
+   for (int i = 0; i < p; i++) // (3, 4)
+   {
+      Nodes.IntPoint(o).Set3(0., 1. - eop[i], eop[i]);
+      dof2tk[o++] = 5;
+   }
+
+   // quadrilateral face (3, 2, 1, 0)
+   // x-components
+   for (int j = 1; j < p; j++)
+      for (int i = 0; i < p; i++)
+      {
+         Nodes.IntPoint(o).Set3(qop[i], qcp[j], 0.);
+         dof2tk[o++] = 0; // (1 0 0)
+      }
+
+   // y-components
+   for (int j = 0; j < p; j++)
+      for (int i = 1; i < p; i++)
+      {
+         Nodes.IntPoint(o).Set3(qcp[i], qop[j], 0.);
+         dof2tk[o++] = 7; // (0 -1 0)
+      }
+
+   // triangular faces
+   for (int j = 0; j <= pm2; j++)  // (0, 1, 4)
+      for (int i = 0; i + j <= pm2; i++)
+      {
+         real_t w = top[i] + top[j] + top[pm2-i-j];
+         Nodes.IntPoint(o).Set3(top[i]/w, 0., top[j]/w);
+         dof2tk[o++] = 0;
+         Nodes.IntPoint(o).Set3(top[i]/w, 0., top[j]/w);
+         dof2tk[o++] = 2;
+      }
+   for (int j = 0; j <= pm2; j++)  // (1, 2, 4)
+      for (int i = 0; i + j <= pm2; i++)
+      {
+         real_t w = top[i] + top[j] + top[pm2-i-j];
+         Nodes.IntPoint(o).Set3(1. - top[j]/w, top[i]/w, top[j]/w);
+         dof2tk[o++] = 1;
+         Nodes.IntPoint(o).Set3(1. - top[j]/w, top[i]/w, top[j]/w);
+         dof2tk[o++] = 3;
+      }
+   for (int j = 0; j <= pm2; j++)  // (2, 3, 4)
+      for (int i = 0; i + j <= pm2; i++)
+      {
+         real_t w = top[i] + top[j] + top[pm2-i-j];
+         Nodes.IntPoint(o).Set3(1. - top[i]/w - top[j]/w, 1. - top[j]/w,
+                                top[j]/w);
+         dof2tk[o++] = 1;
+         Nodes.IntPoint(o).Set3(1. - top[i]/w - top[j]/w, 1. - top[j]/w,
+                                top[j]/w);
+         dof2tk[o++] = 3;
+      }
+   for (int j = 0; j <= pm2; j++)  // (3, 0, 4)
+      for (int i = 0; i + j <= pm2; i++)
+      {
+         real_t w = top[i] + top[j] + top[pm2-i-j];
+         Nodes.IntPoint(o).Set3(0., 1. - top[i]/w - top[j]/w, top[j]/w);
+         dof2tk[o++] = 7;
+         Nodes.IntPoint(o).Set3(0., 1. - top[i]/w - top[j]/w, top[j]/w);
+         dof2tk[o++] = 5;
+      }
+
+   // interior
+   // x-components
+   for (int k = 1; k < p; k++)
+      for (int j = 1; j < p; j++)
+         for (int i = 0; i < p; i++)
+         {
+            real_t w = 1.0 - qcp[k];
+            Nodes.IntPoint(o).Set3(qop[i]*w, qcp[j]*w, qcp[k]);
+            dof2tk[o++] = 0;
+         }
+   // y-components
+   for (int k = 1; k < p; k++)
+      for (int j = 0; j < p; j++)
+         for (int i = 1; i < p; i++)
+         {
+            real_t w = 1.0 - qcp[k];
+            Nodes.IntPoint(o).Set3(qcp[i]*w, qop[j]*w, qcp[k]);
+            dof2tk[o++] = 1;
+         }
+   // z-components
+   for (int k = 0; k < p; k++)
+      for (int j = 1; j < p; j++)
+         for (int i = 1; i < p; i++)
+         {
+            real_t w = 1.0 - qop[k];
+            Nodes.IntPoint(o).Set3(qcp[i]*w, qcp[j]*w, qop[k]);
+            dof2tk[o++] = 2;
+         }
+
+   DenseMatrix T(dof);
+
+   for (int m = 0; m < dof; m++)
+   {
+      const IntegrationPoint &ip = Nodes.IntPoint(m);
+      const Vector tm({tk[3*dof2tk[m]], tk[3*dof2tk[m]+1], tk[3*dof2tk[m]+2]});
+      calcBasis(p, ip, tmp_E_E_ij, tmp_E_Q1_ijk, tmp_E_Q2_ijk, tmp_E_T_ijk,
+                tmp_phi_Q1_ij, tmp_dphi_Q1_ij, tmp_phi_Q2_ij,
+                tmp_phi_E_i, tmp_dphi_E_i, u);
+      u.Mult(tm, T.GetColumn(m));
+      std::cout << m << " " << ip.x << " " << ip.y << " " << ip.z << std::endl;
+   }
+
+   Ti.Factor(T);
 }
 
 void ND_FuentesPyramidElement::CalcVShape(const IntegrationPoint &ip,
@@ -1658,7 +1808,32 @@ void ND_FuentesPyramidElement::CalcVShape(const IntegrationPoint &ip,
 
 void ND_FuentesPyramidElement::CalcCurlShape(const IntegrationPoint &ip,
                                              DenseMatrix &curl_shape) const
-{}
+{
+   const int p = order;
+
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix tmp_E_E_ij(p, dim);
+   DenseMatrix tmp_dE_E_ij(p, dim);
+   DenseTensor tmp_E_Q1_ijk(p, p + 1, dim);
+   DenseTensor tmp_dE_Q1_ijk(p, p + 1, dim);
+   DenseTensor tmp_E_Q2_ijk(p, p + 1, dim);
+   DenseTensor tmp_dE_Q2_ijk(p, p + 1, dim);
+   DenseTensor tmp_E_T_ijk(p, p + 1, dim);
+   DenseTensor tmp_dE_T_ijk(p, p + 1, dim);
+   DenseMatrix tmp_phi_Q2_ij(p + 1, p + 1);
+   DenseTensor tmp_dphi_Q2_ij(p + 1, p + 1, dim);
+   Vector      tmp_phi_E_i(p + 1);
+   DenseMatrix tmp_dphi_E_i(p + 1, dim);
+   DenseMatrix curlu(dof, dim);
+#endif
+
+   calcCurlBasis(p, ip, tmp_E_E_ij, tmp_dE_E_ij, tmp_E_Q1_ijk, tmp_dE_Q1_ijk,
+                 tmp_E_Q2_ijk, tmp_dE_Q2_ijk, tmp_E_T_ijk, tmp_dE_T_ijk,
+                 tmp_phi_Q2_ij, tmp_dphi_Q2_ij, tmp_phi_E_i, tmp_dphi_E_i,
+                 curlu);
+
+   Ti.Mult(curlu, curl_shape);
+}
 
 void ND_FuentesPyramidElement::CalcRawVShape(const IntegrationPoint &ip,
                                              DenseMatrix &shape) const
