@@ -117,22 +117,18 @@ void HybridizationExtension::MultCt(const Vector &x, Vector &y) const
    const auto d_x_evec = Reshape(x_evec.Read(), n_c_dof_per_face, nf);
    auto d_y = Reshape(y.Write(), n_hat_dof_per_el, ne);
 
-   mfem::forall(ne, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall(ne * n_hat_dof_per_el, [=] MFEM_HOST_DEVICE (int idx)
    {
-      for (int i = 0; i < n_hat_dof_per_el; ++i)
-      {
-         d_y(i, e) = 0.0;
-      }
+      const int e = idx / n_hat_dof_per_el;
+      const int i = idx % n_hat_dof_per_el;
+      d_y(i, e) = 0.0;
       for (int fi = 0; fi < n_faces_per_el; ++fi)
       {
          const int f = d_el_to_face[e*n_faces_per_el + fi];
          if (f < 0) { continue; }
          for (int j = 0; j < n_c_dof_per_face; ++j)
          {
-            for (int i = 0; i < n_hat_dof_per_el; ++i)
-            {
-               d_y(i, e) += d_Ct(i, j, fi, e)*d_x_evec(j, f);
-            }
+            d_y(i, e) += d_Ct(i, j, fi, e)*d_x_evec(j, f);
          }
       }
    });
@@ -159,23 +155,19 @@ void HybridizationExtension::MultC(const Vector &x, Vector &y) const
    auto d_x = Reshape(x.Read(), n_hat_dof_per_el, ne);
    auto d_y_evec = Reshape(y_evec.Write(), n_c_dof_per_face, nf);
 
-   mfem::forall(nf, [=] MFEM_HOST_DEVICE (int f)
+   mfem::forall(nf * n_c_dof_per_face, [=] MFEM_HOST_DEVICE (int idx)
    {
-      for (int j = 0; j < n_c_dof_per_face; ++j)
-      {
-         d_y_evec(j, f) = 0.0;
-      }
+      const int f = idx / n_c_dof_per_face;
+      const int j = idx % n_c_dof_per_face;
+      d_y_evec(j, f) = 0.0;
       for (int el_i = 0; el_i < 2; ++el_i)
       {
          const int e = d_face_to_el(0, el_i, f);
          const int fi = d_face_to_el(1, el_i, f);
 
-         for (int j = 0; j < n_c_dof_per_face; ++j)
+         for (int i = 0; i < n_hat_dof_per_el; ++i)
          {
-            for (int i = 0; i < n_hat_dof_per_el; ++i)
-            {
-               d_y_evec(j, f) += d_Ct(i, j, fi, e)*d_x(i, e);
-            }
+            d_y_evec(j, f) += d_Ct(i, j, fi, e)*d_x(i, e);
          }
       }
    });
