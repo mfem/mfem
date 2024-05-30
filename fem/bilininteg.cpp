@@ -3974,10 +3974,13 @@ void HDGConvectionUpwindedIntegrator::AssembleHDGFaceMatrix(
             }
       }
 
-      w = ip.weight * ((ndof2)?(2.*b):(b-a));//<-- single face integration
+      // assemble the trace matrix
+      // note: that this term must be non-zero at the boundary for stability
+      //       reasons, so the advective part is intentionally dropped here
+      //       and must be compensated elsewhere
+      w = ip.weight * 2.*b;//<-- single face integration
       if (w != 0.0)
       {
-         // assemble the trace matrix
          for (int i = 0; i < tr_ndof; i++)
             for (int j = 0; j < tr_ndof; j++)
             {
