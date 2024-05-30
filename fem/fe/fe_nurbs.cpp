@@ -100,7 +100,6 @@ void NURBS1DFiniteElement::Project(Coefficient &coeff,
       Trans.SetIntPoint(&ip);
       dofs(i) = coeff.Eval(Trans, ip);
    }
-
 }
 
 
@@ -456,8 +455,6 @@ void NURBS3DFiniteElement::Project(Coefficient &coeff,
       real_t kz = kv[2]->GetDemko(ijk[2] + k);
       if (!kv[2]->inSpan(kz, ijk[2]+orders[2])) { continue; }
       ip.z = kv[2]->GetIp(kz, ijk[2]+orders[2]);
-
-
       for (int j = 0; j <= orders[1]; j++)
       {
          real_t ky = kv[1]->GetDemko(ijk[1] + j);
@@ -475,6 +472,5 @@ void NURBS3DFiniteElement::Project(Coefficient &coeff,
       }
    }
 }
-
 
 }

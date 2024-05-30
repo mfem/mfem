@@ -2399,83 +2399,10 @@ void GridFunction::ProjectCoefficient(Coefficient &coeff)
                   s++;
                }
             }
-            //cout<<"reduced = ";valsr.Print(cout,8888);
+
             SetSubVector(vdofsr, valsr);
-         }  // --> other closer unit
+         }
       }
-
-      /* IntegrationPoint ip;
-       NURBSExtension *ext = fes->GetNURBSext();
-       NURBSPatchMap map(ext);
-
-       int dim = fes->GetMesh()->SpaceDimension();
-
-       if (dim ==3)
-       {
-          const KnotVector *kv[3];
-          for (int p = 0; p < ext->GetNP(); p++)
-          {
-             map.SetPatchDofMap(p, kv);
-             for (int k = 0; k < kv[2]->GetNCP(); k++)
-             {
-                real_t kz = kv[2]->GetDemko(k);
-                ip.z = kv[2]->GetIp(kz, k);
-                for (int j = 0; j < kv[1]->GetNCP(); j++)
-                {
-                   real_t ky = kv[1]->GetDemko(j);
-                   ip.y = kv[1]->GetIp(ky, j);
-                   for (int i = 0; i < kv[0]->GetNCP(); i++)
-                   {
-                      real_t kx = kv[0]->GetDemko(i);
-                      ip.x = kv[0]->GetIp(kx, i);
-
-                      Trans.SetIntPoint(&ip);
-                      Elem(map(i,j,k)) = coeff.Eval(Trans, ip);
-                   }
-                }
-             }
-          }
-       }
-       else if (dim ==2)
-       {
-          const KnotVector *kv[2];
-          for (int p = 0; p < ext->GetNP(); p++)
-          {
-             map.SetPatchDofMap(p, kv);
-             for (int j = 0; j < kv[1]->GetNCP(); j++)
-             {
-                real_t ky = kv[1]->GetDemko(j);
-                ip.y = kv[1]->GetIp(ky, j);
-                for (int i = 0; i < kv[0]->GetNCP(); i++)
-                {
-                   real_t kx = kv[0]->GetDemko(i);
-                   ip.x = kv[0]->GetIp(kx, i);
-
-                   Trans.SetIntPoint(&ip);
-                   Elem(map(i,j)) = coeff.Eval(Trans, ip);
-                }
-             }
-          }
-       }*/
-
-
-
-      /* NURBSExtension *ext = fes->GetNURBSext();
-       Array<int> dofs;
-       Vector vals;
-      // NURBSPatchMap map(ext);
-
-       KnotVector *kv[3];
-       for (int i = 0; i < ext->GetNP(); i++)
-       {
-          ext->GetElementDofs(i, vdofs);// --> map
-        //  map.SetPatchDofMap(p, kv);
-       //   map.GetPatchDofs(p, dofs);
-          //vals.SetSize(dofs.Size());
-          ext->GetPatch(i)->Project(coeff, NULL, vals);
-          SetSubVector(dofs, vals);
-       }*/
-      //}
    }
    else
    {
