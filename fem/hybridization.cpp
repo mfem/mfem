@@ -438,6 +438,13 @@ void Hybridization::GetBDofs(int el, int &num_idofs, Array<int> &b_dofs) const
 
 void Hybridization::AssembleMatrix(int el, const DenseMatrix &A)
 {
+   if (ext)
+   {
+      ext->AssembleMatrix(el, A);
+      // TODO: uncomment me below!!!
+      // return;
+   }
+
    Array<int> i_dofs, b_dofs;
 
    GetIBDofs(el, i_dofs, b_dofs);
@@ -478,6 +485,8 @@ void Hybridization::AssembleMatrix(int el, const DenseMatrix &A)
 
 void Hybridization::AssembleBdrMatrix(int bdr_el, const DenseMatrix &A)
 {
+   MFEM_VERIFY(!ext, "Not implemented yet");
+
    // Not tested.
 #ifdef MFEM_DEBUG
    Array<int> vdofs, bvdofs;

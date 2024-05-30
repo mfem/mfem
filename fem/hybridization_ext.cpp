@@ -129,22 +129,111 @@ void HybridizationExtension::MultCt(const Vector &x, Vector &y) const
    }
 }
 
+void HybridizationExtension::AssembleMatrix(int el, const DenseMatrix &elmat)
+{
+   const int n = elmat.Width();
+   double *Ainv = Ahat_inv.GetData() + el*n*n;
+   int *ipiv = Ahat_piv.GetData() + el*n;
+
+   std::copy(elmat.GetData(), elmat.GetData() + n*n, Ainv);
+
+   // Eliminate essential DOFs from the local matrix
+   for (int i = 0; i < n; ++i)
+   {
+      const int idx = i + el*n;
+      if (h.hat_dofs_marker[idx] == ESSENTIAL)
+      {
+         for (int j = 0; j < n; ++j)
+         {
+            Ainv[i + j*n] = 0.0;
+            Ainv[j + i*n] = 0.0;
+         }
+         Ainv[i + i*n] = 1.0;
+      }
+   }
+
+   LUFactors lu(Ainv, ipiv);
+   lu.Factor(n);
+}
+
+void HybridizationExtension::MultAfInv(
+   const Vector &b, const Vector &lambda, Vector &bf, int mode) const
+{
+   // b1 = Rf^t b (assuming that Ref = 0)
+   Vector b1;
+   const Operator *R = h.fes.GetRestrictionOperator();
+   if (!R)
+   {
+      b1.SetDataAndSize(b.GetData(), b.Size());
+   }
+   else
+   {
+      b1.SetSize(h.fes.GetVSize()); // tmp alloc
+      R->MultTranspose(b, b1);
+   }
+
+   // Apply the R^T operator (moving to hat DOFs).
+   Vector b1_evec(num_hat_dofs);
+   for (int i = 0; i < num_hat_dofs; ++i)
+   {
+      const int j_s = hat_dof_gather_map[i];
+      if (j_s == -1) // invalid
+      {
+         b1_evec[i] = 0.0;
+      }
+      else
+      {
+         const int sgn = (j_s >= 0) ? 1 : -1;
+         const int j = (j_s >= 0) ? j_s : -2 - j_s;
+         b1_evec[i] = sgn*b1[j];
+      }
+   }
+
+   const int ne = h.fes.GetMesh()->GetNE();
+   const int n = h.fes.GetFE(0)->GetDof();
+
+   bf.SetSize(num_hat_dofs);
+   if (mode == 1)
+   {
+      MultCt(lambda, bf);
+   }
+
+   for (int i = 0; i < ne; ++i)
+   {
+      for (int j = 0; j < n; ++j)
+      {
+         const int idx = j + i*n;
+         if (h.hat_dofs_marker[idx] == ESSENTIAL)
+         {
+            bf[idx] = 0.0;
+         }
+         else
+         {
+            const real_t val = b1_evec[idx];
+            if (mode == 1) { bf[idx] = val - bf[idx]; }
+            else { bf[idx] = val; }
+         }
+      }
+
+      real_t *data = const_cast<real_t*>(Ahat_inv.GetData() + i*n*n);
+      int *ipiv = const_cast<int*>(Ahat_piv.GetData() + i*n);
+      LUFactors lu(data, ipiv);
+      lu.Solve(n, 1, bf.GetData() + i*n);
+   }
+}
+
 void HybridizationExtension::Init(const Array<int> &ess_tdof_list)
 {
-   // Should verify that the preconditions are met:
-   // - No variable p
-   // - All elements to same (tensor-product?)
-   // - Dimension = 2 or 3
+   // Verify that preconditions for the extension are met
+   const Mesh &mesh = *h.fes.GetMesh();
+   const int dim = mesh.Dimension();
+   MFEM_VERIFY(!h.fes.IsVariableOrder(), "");
+   MFEM_VERIFY(dim == 2 || dim == 3, "");
+   MFEM_VERIFY(mesh.Conforming(), "");
+   MFEM_VERIFY(UsesTensorBasis(h.fes), "");
 
-   const ElementDofOrdering ordering = ElementDofOrdering::NATIVE;
-
-   const Operator *R_op = h.fes.GetElementRestriction(ordering);
-   const auto *R = dynamic_cast<const ElementRestriction*>(R_op);
-   MFEM_VERIFY(R, "");
-
+   // Count the number of dofs in the discontinuous version of fes:
    const int ne = h.fes.GetNE();
-
-   // count the number of dofs in the discontinuous version of fes:
    const int ndof_per_el = h.fes.GetFE(0)->GetDof();
    num_hat_dofs = ne*ndof_per_el;
    {
@@ -156,8 +245,16 @@ void HybridizationExtension::Init(const Array<int> &ess_tdof_list)
       });
    }
 
+   Ahat_inv.SetSize(ne*ndof_per_el*ndof_per_el);
+   Ahat_piv.SetSize(ne*ndof_per_el);
+
    ConstructC();
    h.ConstructC();
+
+   const ElementDofOrdering ordering = ElementDofOrdering::NATIVE;
+   const Operator *R_op = h.fes.GetElementRestriction(ordering);
+   const auto *R = dynamic_cast<const ElementRestriction*>(R_op);
+   MFEM_VERIFY(R, "");
 
    // We now split the "hat DOFs" (broken DOFs) into three classes of DOFs, each
    // marked with an integer:
@@ -234,6 +331,29 @@ void HybridizationExtension::Init(const Array<int> &ess_tdof_list)
       }
    }
 
+   // Create the hat DOF gather map. This is used to apply the action of R and
+   // R^T
+   {
+      const int vsize = h.fes.GetVSize();
+      hat_dof_gather_map.SetSize(num_hat_dofs);
+      const int *d_offsets = R->Offsets().Read();
+      const int *d_indices = R->Indices().Read();
+      int *d_hat_dof_gather_map = hat_dof_gather_map.Write();
+      mfem::forall(num_hat_dofs, [=] MFEM_HOST_DEVICE (int i)
+      {
+         d_hat_dof_gather_map[i] = -1;
+      });
+      mfem::forall(vsize, [=] MFEM_HOST_DEVICE (int i)
+      {
+         const int offset = d_offsets[i];
+         const int j_s = d_indices[offset];
+         const int hat_dof_index = (j_s >= 0) ? j_s : -1 - j_s;
+         // Note: -1 is used as a special value (invalid), so the negative
+         // DOF indices start at -2.
+         d_hat_dof_gather_map[hat_dof_index] = (j_s >= 0) ? i : (-2 - i);
+      });
+   }
+
    // Define Af_offsets and Af_f_offsets. Af_offsets are the offsets of the
    // matrix blocks into the data array Af_data.
    //
@@ -260,14 +380,80 @@ void HybridizationExtension::Init(const Array<int> &ess_tdof_list)
    h.Af_ipiv.SetSize(ne*ndof_per_el);
 }
 
+void HybridizationExtension::MultAfInv(
+   const Vector &b, const Vector &lambda, Vector &bf, int mode) const
+{
+   // b1 = Rf^t b (assuming that Ref = 0)
+   Vector b1;
+   const Operator *R = h.fes.GetRestrictionOperator();
+   if (!R)
+   {
+      b1.SetDataAndSize(b.GetData(), b.Size());
+   }
+   else
+   {
+      b1.SetSize(h.fes.GetVSize()); // tmp alloc
+      R->MultTranspose(b, b1);
+   }
+
+   // Apply the R^T operator (moving to hat DOFs).
+   Vector b1_evec(num_hat_dofs);
+   for (int i = 0; i < num_hat_dofs; ++i)
+   {
+      const int j_s = hat_dof_gather_map[i];
+      if (j_s == -1) // invalid
+      {
+         b1_evec[i] = 0.0;
+      }
+      else
+      {
+         const int sgn = (j_s >= 0) ? 1 : -1;
+         const int j = (j_s >= 0) ? j_s : -2 - j_s;
+         b1_evec[i] = sgn*b1[j];
+      }
+   }
+
+   const int ne = h.fes.GetMesh()->GetNE();
+   const int n = h.fes.GetFE(0)->GetDof();
+
+   bf.SetSize(num_hat_dofs);
+   if (mode == 1)
+   {
+      MultCt(lambda, bf);
+   }
+
+   for (int i = 0; i < ne; ++i)
+   {
+      for (int j = 0; j < n; ++j)
+      {
+         const int idx = j + i*n;
+         if (h.hat_dofs_marker[idx] == ESSENTIAL)
+         {
+            bf[idx] = 0.0;
+         }
+         else
+         {
+            const real_t val = b1_evec[idx];
+            if (mode == 1) { bf[idx] = val - bf[idx]; }
+            else { bf[idx] = val; }
+         }
+      }
+
+      real_t *data = const_cast<real_t*>(Ahat_inv.GetData() + i*n*n);
+      int *ipiv = const_cast<int*>(Ahat_piv.GetData() + i*n);
+      LUFactors lu(data, ipiv);
+      lu.Solve(n, 1, bf.GetData() + i*n);
+   }
+}
+
 void HybridizationExtension::ComputeSolution(
    const Vector &b, const Vector &sol_r, Vector &sol) const
 {
    // First, represent the solution on the "broken" space with vector 'tmp1'.
 
-   // tmp1 = Af^{-1} ( Rf^t - Cf^t sol_r )
+   // tmp1 = Af^{-1} ( Rf^t b - Cf^t sol_r )
    tmp1.SetSize(num_hat_dofs);
-   h.MultAfInv(b, sol_r, tmp1, 1);
+   MultAfInv(b, sol_r, tmp1, 1);
 
    // The T-vector 'sol' has the correct essential boundary conditions. We
    // covert sol to an L-vector ('tmp2') to preserve those boundary values in
@@ -284,7 +470,8 @@ void HybridizationExtension::ComputeSolution(
       R->MultTranspose(sol, tmp2);
    }
 
-   // Move vector 'tmp1' from broken space to L-vector 'tmp2'.
+   // Move vector 'tmp1' from broken space to L-vector 'tmp2', preserving the
+   // essential BCs set in the previous step.
    {
       const ElementDofOrdering ordering = ElementDofOrdering::NATIVE;
       const auto *R = static_cast<const ElementRestriction*>(

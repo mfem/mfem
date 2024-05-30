@@ -29,13 +29,20 @@ namespace mfem
 /// element spaces without variable polynomial degrees.
 class HybridizationExtension
 {
+   friend class Hybridization;
+
 protected:
    class Hybridization &h; ///< The associated Hybridization object.=
    int num_hat_dofs; ///< Number of Lagrange multipliers.
    mutable Vector tmp1, tmp2; ///< Temporary vectors.
 
+   Array<int> hat_dof_gather_map;
+
    Array<int> el_to_face;
    Vector Ct_mat; ///< Constraint matrix (transposed) stored element-wise.
+
+   Vector Ahat_inv;
+   Array<int> Ahat_piv;
 
    /// Classification of the "hat DOFs" in the broken space.
    enum HatDofType
@@ -50,6 +57,19 @@ protected:
 
    /// Compute the action of C^t x.
    void MultCt(const Vector &x, Vector &y) const;
+
+   /// Assemble the element matrix A into the hybridized system matrix.
+   void AssembleMatrix(int el, const class DenseMatrix &A);
+
+   /// Compute depending on mode:
+   /// - mode 0: bf = Af^{-1} Rf^t b, where
+   ///           the non-"boundary" part of bf is set to 0;
+   /// - mode 1: bf = Af^{-1} ( Rf^t b - Cf^t lambda ), where
+   ///           the "essential" part of bf is set to 0.
+   /// Input: size(b)      =   fes->GetConformingVSize()
+   ///        size(lambda) = c_fes->GetConformingVSize()
+   void MultAfInv(const Vector &b, const Vector &lambda, Vector &bf,
+                  int mode) const;
 
 public:
    /// Constructor.
