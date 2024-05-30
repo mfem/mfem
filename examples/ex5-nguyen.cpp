@@ -45,13 +45,14 @@ using namespace std;
 using namespace mfem;
 
 // Define the analytical solution and forcing terms / boundary conditions
-typedef std::function<real_t(const Vector &)> Func;
+typedef std::function<real_t(const Vector &, real_t)> TFunc;
 typedef std::function<void(const Vector &, Vector &)> VecFunc;
+typedef std::function<void(const Vector &, real_t, Vector &)> VecTFunc;
 
-Func GetTFun(int prob, real_t t_0);
-VecFunc GetQFun(int prob, real_t t_0, real_t k, real_t c);
+TFunc GetTFun(int prob, real_t t_0);
+VecTFunc GetQFun(int prob, real_t t_0, real_t k, real_t c);
 VecFunc GetCFun(int prob, real_t c);
-Func GetFFun(int prob, real_t t_0, real_t k, const VecFunc &cFun);
+TFunc GetFFun(int prob, real_t t_0, real_t k, const VecFunc &cFun);
 
 int main(int argc, char *argv[])
 {
@@ -715,12 +716,12 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-Func GetTFun(int prob, real_t t_0)
+TFunc GetTFun(int prob, real_t t_0)
 {
    switch (prob)
    {
       case 1:
-         return [=](const Vector &x) -> real_t
+         return [=](const Vector &x, real_t) -> real_t
          {
             const int ndim = x.Size();
             real_t t0 = t_0 * exp(x.Sum()) * sin(M_PI*x(0)) * sin(M_PI*x(1));
@@ -735,7 +736,7 @@ Func GetTFun(int prob, real_t t_0)
          // null
          break;
       case 3:
-         return [=](const Vector &x) -> real_t
+         return [=](const Vector &x, real_t) -> real_t
          {
             Vector xc(x);
             //xc -= .5;
@@ -744,15 +745,15 @@ Func GetTFun(int prob, real_t t_0)
          };
 
    }
-   return Func();
+   return TFunc();
 }
 
-VecFunc GetQFun(int prob, real_t t_0, real_t k, real_t c)
+VecTFunc GetQFun(int prob, real_t t_0, real_t k, real_t c)
 {
    switch (prob)
    {
       case 1:
-         return [=](const Vector &x, Vector &v)
+         return [=](const Vector &x, real_t, Vector &v)
          {
             const int vdim = x.Size();
             v.SetSize(vdim);
@@ -776,7 +777,7 @@ VecFunc GetQFun(int prob, real_t t_0, real_t k, real_t c)
          // null
          break;
       case 3:
-         return [=](const Vector &x, Vector &v)
+         return [=](const Vector &x, real_t, Vector &v)
          {
             const int vdim = x.Size();
             v.SetSize(vdim);
@@ -792,7 +793,7 @@ VecFunc GetQFun(int prob, real_t t_0, real_t k, real_t c)
          };
          break;
    }
-   return VecFunc();
+   return VecTFunc();
 }
 
 VecFunc GetCFun(int prob, real_t c)
@@ -832,12 +833,12 @@ VecFunc GetCFun(int prob, real_t c)
    return VecFunc();
 }
 
-Func GetFFun(int prob, real_t t_0, real_t k, const VecFunc &cFun)
+TFunc GetFFun(int prob, real_t t_0, real_t k, const VecFunc &cFun)
 {
    switch (prob)
    {
       case 1:
-         return [=](const Vector &x) -> real_t
+         return [=](const Vector &x, real_t) -> real_t
          {
             const int ndim = x.Size();
 
@@ -858,7 +859,7 @@ Func GetFFun(int prob, real_t t_0, real_t k, const VecFunc &cFun)
             return -diff;
          };
       case 2:
-         return [=](const Vector &x) -> real_t
+         return [=](const Vector &x, real_t) -> real_t
          {
             // PLACEHOLDER
             const int ndim = x.Size();
@@ -881,8 +882,8 @@ Func GetFFun(int prob, real_t t_0, real_t k, const VecFunc &cFun)
          };
       case 3:
       {
-         return [](const Vector &x) { return 0.; };
+         return [](const Vector &x, real_t) -> real_t { return 0.; };
       }
    }
-   return Func();
+   return TFunc();
 }
