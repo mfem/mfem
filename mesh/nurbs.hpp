@@ -103,6 +103,13 @@ public:
        with @a isElement for non-empty knot spans (elements). */
    int GetNKS() const { return NumOfControlPoints - Order; }
 
+   /// Return whether knot @a u is in a given span @a ni.
+   bool inSpan(real_t u, int ni) const
+   {
+      if ((u < knot(ni)) || (u > knot(ni+1))) { return false; }
+      return true;
+   }
+
    /// Return the index of the knot span containing parameter @a u.
    int GetSpan(real_t u) const;
 
