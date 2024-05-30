@@ -2296,7 +2296,8 @@ L2InterfaceFaceRestriction::L2InterfaceFaceRestriction(
      nfdofs(face_dofs*nfaces),
      ndofs(fes.GetNDofs())
 {
-   height = width = nfdofs;
+   height = nfdofs;
+   width = ndofs;
 
    const Table &face2dof = fes.GetFaceToDofTable();
 
@@ -2339,7 +2340,24 @@ void L2InterfaceFaceRestriction::Mult(const Vector &x, Vector &y) const
 void L2InterfaceFaceRestriction::AddMultTranspose(
    const Vector &x, Vector &y, const real_t a) const
 {
-   MFEM_ABORT("Not yet implemented");
+   const int nd = face_dofs;
+   const int nf = nfaces;
+   const int vd = vdim;
+   const bool t = byvdim;
+   const int *map = gather_map.Read();
+
+   const auto d_x = Reshape(x.Read(), nd, vd, nf);
+   auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
+
+   mfem::forall(ndofs, [=] MFEM_HOST_DEVICE (int i) { d_y[i] = 0.0; });
+   mfem::forall(nd*nf, [=] MFEM_HOST_DEVICE (int i)
+   {
+      const int j = map[i];
+      for (int c = 0; c < vd; ++c)
+      {
+         d_y(t?c:j, t?j:c) = d_x(i % nd, c, i / nd);
+      }
+   });
 }
 
 Vector GetLVectorFaceNbrData(
