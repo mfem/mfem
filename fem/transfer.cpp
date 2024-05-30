@@ -483,23 +483,23 @@ L2ProjectionGridTransfer::L2ProjectionL2Space::L2ProjectionL2Space
 // START OF DEVICE IMPLEMENTATION
 
 void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
-(const FiniteElementSpace &fes_ho_, const FiniteElementSpace &fes_lor_, Coefficient *coeff_) // intcoef : coefficient for weighted integration, constant in space and time
+(const FiniteElementSpace &fes_ho_, const FiniteElementSpace &fes_lor_, Coefficient *coeff_) // coeff : coefficient for weighted integration
 {
-   // std::cout << "Some output!" << std::endl;
-
    // dynamic_cast to check if QuadFuncCoeff; if yes, continue; if no, return error
-   //auto qfunc_coeff = dynamic_cast<QuadratureFunctionCoefficient*>(&coeff_);
-   //if (qfunc_coeff == NULL)
-   if(auto qfunc_coeff = dynamic_cast<QuadratureFunctionCoefficient*>(coeff_))
-   {
-     std::cout<<"qfunc_coeff is a quadrature function coeff"<<std::endl; 
-   }else{
-     mfem_error("Not a quadraturefunctioncoeff");
-   }
-
    auto qfunc_coeff = dynamic_cast<QuadratureFunctionCoefficient*>(coeff_);
+   if (qfunc_coeff == NULL)
+   {
+      mfem_error("Not a QuadratureFunctionCoefficient");
+   }
+   // if(auto qfunc_coeff = dynamic_cast<QuadratureFunctionCoefficient*>(coeff_))
+   // {
+   //   std::cout<<"qfunc_coeff is a quadrature function coeff"<<std::endl; 
+   // }else{
+   //   mfem_error("Not a quadraturefunctioncoeff");
+   // }
    QuadratureFunction qfunc = qfunc_coeff->GetQuadFunction();
-   const IntegrationRule ir = qfunc.GetIntRule(0); // integration rule is same on all elements
+   // Store the mixed mass matrix integration rule, which is assumed same on all elements
+   const IntegrationRule ir = qfunc.GetIntRule(0); 
    
    Mesh *mesh_ho = fes_ho.GetMesh();
    Mesh *mesh_lor = fes_lor.GetMesh();
@@ -558,7 +558,6 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
       {
          Array<int> lor_els;
          ho2lor.GetRow(iho, lor_els);
-         // lor_els.Print();
          int nref = ho2lor.RowSize(iho);
 
          Geometry::Type geom = mesh_ho->GetElementBaseGeometry(iho);
@@ -570,7 +569,6 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
          int order = fe_lor.GetOrder() + fe_ho.GetOrder() + el_tr->OrderW();
          const IntegrationRule* ir = &IntRules.Get(geom, order);
          int qPts = ir->GetNPoints();
-         // std::cout<<"internal qpts = "<<ir->GetNPoints()<<std::endl;
 
          //Containers for the basis functions sampled
          //at quadrature points
@@ -588,7 +586,6 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
          const int dim = mesh_ho->Dimension();
 
          MFEM_ASSERT(nel_ho*nref == nel_lor, "we expect nel_ho*nref == nel_lor");
-         // std::cout<<"nel_ho = "<<nel_ho<<" "<<nref<<" "<<nel_lor<<std::endl;
          MFEM_VERIFY(D.TotalSize() == qfunc.Size(), "Dimensions don't match  "<<D.TotalSize()<<" "<<qfunc.Size()); 
 
          //*********************************
@@ -609,7 +606,6 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
                   const int lo_el_id = iref + nref*iho;
                   for (int qx=0; qx<Q1D; ++qx)
                   {
-
                      const real_t detJ = J(qx, lo_el_id);
                      d_D(qx, iref, iho) = W(qx) * detJ * d_qfunc(qx, iref, iho); 
                   }
@@ -625,7 +621,6 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
             const auto J = Reshape(geo_facts->detJ.Read(), Q1D,Q1D, nel_lor);
             const auto d_D = Reshape(D.Write(), qPts, nref, nel_ho);
             const auto d_qfunc = Reshape(qfunc.Read(), qPts, nref, nel_ho);
-            // qfunc.Print();
 
             mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int iho)
             {
@@ -645,8 +640,6 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
 
                }
             });
-
-            // std::cout << "This is D = " << D.Read() << std::endl;
          }
 
          if (dim == 3)
@@ -670,7 +663,6 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
                      {
                         for (int qx=0; qx<Q1D; ++qx)
                         {
-
                            const int q = qx + Q1D*qy + Q1D*Q1D*qz;
                            const real_t detJ = J(qx, qy, qz, lo_el_id);
                            d_D(q, iref, iho) = W(qx, qy, qz) * detJ * d_qfunc(q, iref, iho); 
@@ -776,7 +768,8 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
 
 
    //R = inv(M_L) * M_mixed
-   //Need to compute M_L. Note: Using M_LH integration rule ir (higher order than needed) in order to re-use coeff 
+   //Need to compute M_L. 
+   //Note: Using user-inputted M_LH IntegrationRule ir (higher order than needed) in order to re-use coeff 
    MassIntegrator mi(*coeff, &ir); 
 
    const bool add = false;
@@ -830,7 +823,6 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
          }
       });
    }
-   // R_ea.Print(); 
 
 
    if (build_P)
@@ -1923,8 +1915,8 @@ void L2ProjectionGridTransfer::BuildF()
    }
    else
    {  
-      F = new L2ProjectionL2Space(dom_fes, ran_fes, coeff, use_device,
-                                  verify_solution);
+      F = new L2ProjectionL2Space(dom_fes, ran_fes, coeff, 
+                                  use_device, verify_solution);
    }
 }
 

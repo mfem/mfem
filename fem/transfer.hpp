@@ -432,6 +432,7 @@ protected:
    bool force_l2_space;
 
 public:
+   // Coefficient for weighted integration in mass matrices; allows for spatial variation
    Coefficient *coeff; 
       
    L2ProjectionGridTransfer(FiniteElementSpace &coarse_fes_,
