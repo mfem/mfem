@@ -256,7 +256,6 @@ void KnotVector::ComputeDemko() const
        a = anew;
    }
    if (iter1 >= itermax1) mfem::out<<"Demko: Remez iteration  not converged"<<a.Norml2()<<endl;
-   cout<<iter1<<endl;
 }
 
 KnotVector *KnotVector::DegreeElevate(int t) const
@@ -464,19 +463,15 @@ void KnotVector::PrintFunctions(std::ostream &os, int samples) const
 
    real_t x, dx = 1.0/real_t (samples - 1);
 
-   /* @a cnt is a counter including elements between repeated knots if
-      present. This is required for usage of CalcShape. */
-   int cnt = 0;
-
-   for (int e = 0; e < GetNE(); e++, cnt++)
+   for (int ks = 0; ks < GetNKS(); ks++)
    {
       // Avoid printing shapes between repeated knots
-      if (!isElement(cnt)) { e--; continue; }
+      if (!isElement(ks)) { continue; }
 
       for (int j = 0; j <samples; j++)
       {
-         x = j*dx;
-         os << x + e;
+         xi =j*dxi;
+         os <<GetKnot(xi, ks+Order)<<"\t";
 
          CalcShape(shape, cnt, x);
          for (int d = 0; d < Order+1; d++) { os<<"\t"<<shape[d]; }

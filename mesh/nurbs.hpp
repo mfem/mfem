@@ -124,7 +124,6 @@ public:
    /// Return the index of the knot span containing parameter @a u.
    MFEM_DEPRECATED int findKnotSpan(real_t u) const;  // Use GetSpan instead
 
-
    /** Gives the @ i average knot location.
        Average is taken over @ Order number of nodes. */
    real_t GetGreville(int i) const;
@@ -163,14 +162,16 @@ public:
        space. The function gives the knot span @a ks, the coordinate in the
        knot span @a xi, and the coordinate of the maximum in parameter space
        @a u. */
-   void FindMaxima(Array<int> &ks, Vector &xi, Vector &u) const; // to be  MFEM_DEPRECATED
+   MFEM_DEPRECATED void FindMaxima(Array<int> &ks, Vector &xi, Vector &u) const;
 
    /** @brief Global curve interpolation through the points @a x (overwritten).
        @a x is an array with the length of the spatial dimension containing
        vectors with spatial coordinates. The control points of the interpolated
        curve are returned in @a x in the same form. */
-   void FindInterpolant(Array<Vector*> &x); // to be  MFEM_DEPRECATED
+   MFEM_DEPRECATED void FindInterpolant(Array<Vector*> &x);
 
+   /** @brief Get the control points @a for an interpolating spline that has the
+      values @a x at the knots @a u. */
    void GetInterpolant(const Vector &x, const Vector &u, Vector &a) const;
 
    /** Set @a diff, comprised of knots in @a kv not contained in this KnotVector.
