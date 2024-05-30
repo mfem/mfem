@@ -67,7 +67,8 @@ public:
           interpolate_l2_pass2_time = 0.0;
    double min_fpt_kernel_time = 0.0,
           measured_min_fpt_kernel_time = 0.0,
-          fpt_kernel_time = 0.0;
+          fpt_kernel_time = 0.0,
+          fast_fpt_kernel_time = 0.0;
 
 protected:
    Mesh *mesh;

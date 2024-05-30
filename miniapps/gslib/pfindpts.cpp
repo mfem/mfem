@@ -582,7 +582,7 @@ int main (int argc, char *argv[])
    {
       cout << "FindPointsGSLIB-KernelTiming-info " <<
            "jobid,devid,gpucode,ne,np,dim,meshorder,solorder,funcorder,fieldtype,smooth,npts,nptt,gllsize,"
-           "mintime,measuredmintime,actualkerneltime " <<
+           "mintime,measuredmintime,actualkerneltime,fastkerneltime " <<
            jobid << "," <<
            device.GetId() << "," <<
            gpucode << "," <<
@@ -598,6 +598,7 @@ int main (int argc, char *argv[])
            finder.min_fpt_kernel_time << "," <<
            finder.measured_min_fpt_kernel_time << "," <<
            finder.fpt_kernel_time << "," <<
+           finder.fast_fpt_kernel_time << "," <<
            std::endl;
    }
 
