@@ -2282,6 +2282,66 @@ void NCL2FaceRestriction::ComputeGatherIndices()
    gather_offsets[0] = 0;
 }
 
+L2InterfaceFaceRestriction::L2InterfaceFaceRestriction(
+   const FiniteElementSpace& fes_,
+   const ElementDofOrdering ordering_,
+   const FaceType type_)
+   : fes(fes_),
+     ordering(ordering_),
+     type(type_),
+     nfaces(fes.GetNFbyType(type)),
+     vdim(fes.GetVDim()),
+     byvdim(fes.GetOrdering() == Ordering::byVDIM),
+     face_dofs(nfaces > 0 ? fes.GetFaceElement(0)->GetDof() : 0),
+     nfdofs(face_dofs*nfaces),
+     ndofs(fes.GetNDofs())
+{
+   height = width = nfdofs;
+
+   const Table &face2dof = fes.GetFaceToDofTable();
+
+   const Mesh &mesh = *fes.GetMesh();
+   int face_idx = 0;
+   gather_map.SetSize(nfdofs);
+   for (int f = 0; f < mesh.GetNumFaces(); ++f)
+   {
+      Mesh::FaceInformation face = mesh.GetFaceInformation(f);
+      if (!face.IsOfFaceType(type)) { continue; }
+      for (int i = 0; i < face_dofs; ++i)
+      {
+         gather_map[i + face_idx*face_dofs] = face2dof.GetJ()[i + f*face_dofs];
+      }
+      ++face_idx;
+   }
+}
+
+void L2InterfaceFaceRestriction::Mult(const Vector &x, Vector &y) const
+{
+   const int nd = face_dofs;
+   const int nf = nfaces;
+   const int vd = vdim;
+   const bool t = byvdim;
+   const int *map = gather_map.Read();
+
+   const auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
+   auto d_y = Reshape(y.Write(), nd, vd, nf);
+
+   mfem::forall(nd*nf, [=] MFEM_HOST_DEVICE (int i)
+   {
+      const int j = map[i];
+      for (int c = 0; c < vd; ++c)
+      {
+         d_y(i % nd, c, i / nd) = d_x(t?c:j, t?j:c);
+      }
+   });
+}
+
+void L2InterfaceFaceRestriction::AddMultTranspose(
+   const Vector &x, Vector &y, const real_t a) const
+{
+   MFEM_ABORT("Not yet implemented");
+}
+
 Vector GetLVectorFaceNbrData(
    const FiniteElementSpace &fes, const Vector &x, FaceType ftype)
 {
