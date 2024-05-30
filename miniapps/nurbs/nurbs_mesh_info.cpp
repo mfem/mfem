@@ -6,7 +6,7 @@
 // Compile with: make nurbs_mesh_info
 //
 // Sample runs:
-//    nurbs_mesh_info -m ../data/cude_nurbs.mesh -p 0 -r 2 
+//    nurbs_mesh_info -m ../data/cude_nurbs.mesh -p 0 -r 2
 
 // Description:  This example code solves the time-dependent advection equation
 //               du/dt + v.grad(u) = 0, where v is a given fluid velocity, and
@@ -57,7 +57,7 @@ int main(int argc, char *argv[])
 
    if (!ext)
    {
-       mfem_error("Mesh is not a NURBS mesh.");
+      mfem_error("Mesh is not a NURBS mesh.");
    }
 
    // Refine the mesh as specified
@@ -82,20 +82,20 @@ int main(int argc, char *argv[])
    mfem::out<<"=======================================;"<<endl;
    for (int p = 0; p < ext->GetNP(); p++)
    {
-       Array<const KnotVector *> kv;
-       ext->GetPatchKnotVectors(p, kv);
+      Array<const KnotVector *> kv;
+      ext->GetPatchKnotVectors(p, kv);
 
-       mfem::out<<p<<": Order = "<<kv[0]->GetOrder();
-       for (int k = 1; k < kv.Size(); k++)
-       {
-          mfem::out<<"x"<<kv[k]->GetOrder();
-       }
-       mfem::out<<" : DOFs = "<<kv[0]->GetNCP();
-       for (int k = 1; k < kv.Size(); k++)
-       {
-          mfem::out<<"x"<<kv[k]->GetNCP();
-       }
-       mfem::out<<endl;
+      mfem::out<<p<<": Order = "<<kv[0]->GetOrder();
+      for (int k = 1; k < kv.Size(); k++)
+      {
+         mfem::out<<"x"<<kv[k]->GetOrder();
+      }
+      mfem::out<<" : DOFs = "<<kv[0]->GetNCP();
+      for (int k = 1; k < kv.Size(); k++)
+      {
+         mfem::out<<"x"<<kv[k]->GetNCP();
+      }
+      mfem::out<<endl;
    }
 
    // Print knotvector info
@@ -113,7 +113,8 @@ int main(int argc, char *argv[])
       {
          a = 0.0;
          a[i] = 1.0;
-         std::string filename = "k" + std::to_string(k) +"_n"  + std::to_string(i) + ".dat";
+         std::string filename = "k" + std::to_string(k) +"_n"  + std::to_string(
+                                   i) + ".dat";
          mfem::out<<"Write shape function to: "<<filename<<"\n";
          std::ofstream ofs(filename);
          kv.PrintFunction(ofs, a, 201);
