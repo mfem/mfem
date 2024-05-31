@@ -301,11 +301,6 @@ int main(int argc, char *argv[])
       sol_sock.precision(8);
       sol_sock << "solution\n" << pmesh << x << flush;
    }
-   
-      // 16. Save data in the VisIt format
-   VisItDataCollection visit_dc("Example1-Parallel", &pmesh);
-   visit_dc.RegisterField("solution", &x);
-   visit_dc.Save();
 
    // 17. Free the used memory.
    if (delete_fec)
