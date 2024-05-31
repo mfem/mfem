@@ -1299,7 +1299,7 @@ int main (int argc, char *argv[])
          cout << "New Exodus II mesh file: " << omesh_file << endl;
       }
 #endif
-      
+
       if (mk == 'D')
       {
          cout << "What type of DataCollection?\n"
