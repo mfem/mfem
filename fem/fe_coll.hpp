@@ -276,8 +276,7 @@ protected:
    mutable ErrorMode error_mode = RAISE_MFEM_ERROR;
 };
 
-using FEColl = FiniteElementCollection;
-
+using FECollection = FiniteElementCollection;
 
 /// Arbitrary order H1-conforming (continuous) finite elements.
 class H1_FECollection : public FiniteElementCollection
