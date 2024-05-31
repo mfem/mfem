@@ -447,7 +447,7 @@ protected:
    real_t alpha_f, alpha_m, gamma;
 
    void SetRhoInf(real_t rho_inf);
-   void PrintProperties(std::ostream &out = mfem::out);
+   void PrintProperties(std::ostream &os = mfem::out);
 public:
 
    GeneralizedAlphaSolver(real_t rho = 1.0) { SetRhoInf(rho); };
@@ -800,7 +800,7 @@ public:
       no_mult = no_mult_;
    };
 
-   void PrintProperties(std::ostream &out = mfem::out);
+   void PrintProperties(std::ostream &os = mfem::out);
 
    void Init(SecondOrderTimeDependentOperator &f_) override;
 
@@ -851,7 +851,7 @@ public:
       gamma   = 0.5 + alpha_m - alpha_f;
    };
 
-   void PrintProperties(std::ostream &out = mfem::out);
+   void PrintProperties(std::ostream &os = mfem::out);
 
    void Init(SecondOrderTimeDependentOperator &f_) override;
 
