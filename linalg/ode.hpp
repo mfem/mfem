@@ -32,9 +32,6 @@ public:
    virtual int Size() const = 0;
 
    /// Get the ith state vector
-   virtual void Get(int i, Vector &state) const { state = Get(i);};
-
-   /// Get the ith state vector
    virtual const Vector &Get(int i) const = 0;
 
    /// Get the ith state vector - non-const version
