@@ -298,11 +298,6 @@ public:
    // (true) is set in mesh_readers.cpp.
    static bool remove_unused_vertices;
 
-#ifdef MFEM_USE_NETCDF
-   /// @brief Export a mesh to an Exodus II file.
-   void WriteExodusII(const std::string fpath);
-#endif
-
 protected:
    Operation last_operation;
 
@@ -2335,6 +2330,11 @@ public:
                     VTKFormat format=VTKFormat::ASCII,
                     bool high_order_output=false,
                     int compression_level=0);
+
+#ifdef MFEM_USE_NETCDF
+   /// @brief Export a mesh to an Exodus II file.
+   void WriteExodusII(const std::string fpath);
+#endif
 
    /** @brief Prints the mesh with boundary elements given by the boundary of
        the subdomains, so that the boundary of subdomain i has boundary
