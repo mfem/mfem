@@ -2447,17 +2447,55 @@ void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff)
    Vector vals;
 
    DofTransformation * doftrans = NULL;
-
-   for (i = 0; i < fes->GetNE(); i++)
+   if (fes->GetNURBSext() == NULL)
    {
-      doftrans = fes->GetElementVDofs(i, vdofs);
-      vals.SetSize(vdofs.Size());
-      fes->GetFE(i)->Project(vcoeff, *fes->GetElementTransformation(i), vals);
-      if (doftrans)
+      for (i = 0; i < fes->GetNE(); i++)
       {
-         doftrans->TransformPrimal(vals);
+         doftrans = fes->GetElementVDofs(i, vdofs);
+         vals.SetSize(vdofs.Size());
+         fes->GetFE(i)->Project(vcoeff, *fes->GetElementTransformation(i), vals);
+         if (doftrans)
+         {
+            doftrans->TransformPrimal(vals);
+         }
+         SetSubVector(vdofs, vals);
       }
-      SetSubVector(vdofs, vals);
+   }
+   else
+   {
+      Array<int> vdofs;
+      Vector vals;
+
+      for (int i = 0; i < fes->GetNE(); i++)
+      {
+         doftrans = fes->GetElementVDofs(i, vdofs);
+         vals.SetSize(vdofs.Size());
+         fes->GetFE(i)->Project(vcoeff, *fes->GetElementTransformation(i), vals);
+         if (doftrans)
+         {
+            doftrans->TransformPrimal(vals);
+         }
+         // Remove values
+         int s = 0;
+         for (int ii = 0; ii < vals.Size(); ii++)
+         {
+            if (vals[ii] != 12e34) { s++; }
+         }
+         Array<int> vdofsr(s);
+         Vector valsr(s);
+         s = 0;
+         for (int ii = 0; ii < vals.Size(); ii++)
+         {
+            if (vals[ii] != 12e34)
+            {
+               vdofsr[s] = vdofs[ii];
+               valsr(s) = vals(ii);
+               s++;
+            }
+         }
+
+         SetSubVector(vdofsr, valsr);
+      }
    }
 }
 

@@ -102,6 +102,30 @@ void NURBS1DFiniteElement::Project(Coefficient &coeff,
    }
 }
 
+void NURBS1DFiniteElement::Project(VectorCoefficient &vc,
+                                   ElementTransformation &Trans,
+                                   Vector &dofs) const
+{
+   MFEM_ASSERT(dofs.Size() == vc.GetVDim()*dof, "");
+   Vector x(vc.GetVDim());
+   dofs = 12e34;
+   IntegrationPoint ip;
+
+   for (int i = 0; i <= order; i++)
+   {
+      real_t kx = kv[0]->GetDemko(ijk[0] + i);
+      if (!kv[0]->inSpan(kx, ijk[0]+order)) { continue; }
+      ip.x = kv[0]->GetIp(kx, ijk[0]+order);
+
+      Trans.SetIntPoint(&ip);
+      vc.Eval(x, Trans, ip);
+      for (int j = 0; j < x.Size(); j++)
+      {
+         dofs(dof*j+i) = x(j);
+      }
+   }
+}
+
 
 void NURBS2DFiniteElement::SetOrder() const
 {
@@ -256,6 +280,39 @@ void NURBS2DFiniteElement::Project(Coefficient &coeff,
 
          Trans.SetIntPoint(&ip);
          dofs(o) = coeff.Eval(Trans, ip);
+      }
+   }
+}
+
+void NURBS2DFiniteElement::Project(VectorCoefficient &vc,
+                                   ElementTransformation &Trans,
+                                   Vector &dofs) const
+{
+   MFEM_ASSERT(dofs.Size() == vc.GetVDim()*dof, "");
+   Vector x(vc.GetVDim());
+   dofs = 12e34;
+   IntegrationPoint ip;
+   for (int o = 0, j = 0; j <= orders[1]; j++)
+   {
+      real_t ky = kv[1]->GetDemko(ijk[1] + j);
+      if (!kv[1]->inSpan(ky, ijk[1]+orders[1]))
+      {
+         o += orders[0] + 1;
+         continue;
+      }
+      ip.y = kv[1]->GetIp(ky, ijk[1]+orders[1]);
+      for (int i = 0; i <= orders[0]; i++, o++)
+      {
+         real_t kx = kv[0]->GetDemko(ijk[0] + i);
+         if (!kv[0]->inSpan(kx, ijk[0]+orders[0])) { continue; }
+         ip.x = kv[0]->GetIp(kx, ijk[0]+orders[0]);
+
+         Trans.SetIntPoint(&ip);
+         vc.Eval(x, Trans, ip);
+         for (int v = 0; v < x.Size(); v++)
+         {
+            dofs(dof*v+o) = x(v);
+         }
       }
    }
 }
@@ -479,6 +536,50 @@ void NURBS3DFiniteElement::Project(Coefficient &coeff,
 
             Trans.SetIntPoint(&ip);
             dofs(o) = coeff.Eval(Trans, ip);
+         }
+      }
+   }
+}
+
+void NURBS3DFiniteElement::Project(VectorCoefficient &vc,
+                                   ElementTransformation &Trans,
+                                   Vector &dofs) const
+{
+   MFEM_ASSERT(dofs.Size() == vc.GetVDim()*dof, "");
+   Vector x(vc.GetVDim());
+   dofs = 12e34;
+   IntegrationPoint ip;
+
+   for (int o = 0, k = 0; k <= orders[2]; k++)
+   {
+      real_t kz = kv[2]->GetDemko(ijk[2] + k);
+      if (!kv[2]->inSpan(kz, ijk[2]+orders[2]))
+      {
+         o += (orders[0] + 1)*(orders[1] + 1);
+         continue;
+      }
+      ip.z = kv[2]->GetIp(kz, ijk[2]+orders[2]);
+      for (int j = 0; j <= orders[1]; j++)
+      {
+         real_t ky = kv[1]->GetDemko(ijk[1] + j);
+         if (!kv[1]->inSpan(ky, ijk[1]+orders[1]))
+         {
+            o += orders[0] + 1;
+            continue;
+         }
+         ip.y = kv[1]->GetIp(ky, ijk[1]+orders[1]);
+         for (int i = 0; i <= orders[0]; i++, o++)
+         {
+            real_t kx = kv[0]->GetDemko(ijk[0] + i);
+            if (!kv[0]->inSpan(kx, ijk[0]+orders[0])) { continue; }
+            ip.x = kv[0]->GetIp(kx, ijk[0]+orders[0]);
+
+            Trans.SetIntPoint(&ip);
+            vc.Eval(x, Trans, ip);
+            for (int v = 0; v < x.Size(); v++)
+            {
+               dofs(dof*v+o) = x(v);
+            }
          }
       }
    }

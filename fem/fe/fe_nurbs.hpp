@@ -88,6 +88,8 @@ public:
                              DenseMatrix &hessian) const;
    virtual void Project(Coefficient &coeff,
                         ElementTransformation &Trans, Vector &dofs) const;
+   virtual void Project(VectorCoefficient &vcoeff,
+                        ElementTransformation &Trans, Vector &dofs) const;
 };
 
 /// An arbitrary order 2D NURBS element on a square
@@ -124,6 +126,8 @@ public:
    virtual void CalcHessian (const IntegrationPoint &ip,
                              DenseMatrix &hessian) const;
    virtual void Project(Coefficient &coeff,
+                        ElementTransformation &Trans, Vector &dofs) const;
+   virtual void Project(VectorCoefficient &vcoeff,
                         ElementTransformation &Trans, Vector &dofs) const;
 };
 
@@ -166,6 +170,8 @@ public:
    virtual void CalcHessian (const IntegrationPoint &ip,
                              DenseMatrix &hessian) const;
    virtual void Project(Coefficient &coeff,
+                        ElementTransformation &Trans, Vector &dofs) const;
+   virtual void Project(VectorCoefficient &vcoeff,
                         ElementTransformation &Trans, Vector &dofs) const;
 };
 
