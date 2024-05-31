@@ -2371,11 +2371,12 @@ void GridFunction::ProjectCoefficient(Coefficient &coeff)
       {
          Array<int> vdofs;
          Vector vals;
-
+         real_t signal = std::numeric_limits<real_t>::min();
          for (int i = 0; i < fes->GetNE(); i++)
          {
             doftrans = fes->GetElementVDofs(i, vdofs);
             vals.SetSize(vdofs.Size());
+            vals = signal;
             fes->GetFE(i)->Project(coeff, *fes->GetElementTransformation(i), vals);
             if (doftrans)
             {
@@ -2385,14 +2386,14 @@ void GridFunction::ProjectCoefficient(Coefficient &coeff)
             int s = 0;
             for (int ii = 0; ii < vals.Size(); ii++)
             {
-               if (vals[ii] != 12e34) { s++; }
+               if (vals[ii] != signal) { s++; }
             }
             Array<int> vdofsr(s);
             Vector valsr(s);
             s = 0;
             for (int ii = 0; ii < vals.Size(); ii++)
             {
-               if (vals[ii] != 12e34)
+               if (vals[ii] != signal)
                {
                   vdofsr[s] = vdofs[ii];
                   valsr(s) = vals(ii);
@@ -2465,11 +2466,12 @@ void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff)
    {
       Array<int> vdofs;
       Vector vals;
-
+      real_t signal = std::numeric_limits<real_t>::min();
       for (int i = 0; i < fes->GetNE(); i++)
       {
          doftrans = fes->GetElementVDofs(i, vdofs);
          vals.SetSize(vdofs.Size());
+         vals = signal;
          fes->GetFE(i)->Project(vcoeff, *fes->GetElementTransformation(i), vals);
          if (doftrans)
          {
@@ -2479,14 +2481,14 @@ void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff)
          int s = 0;
          for (int ii = 0; ii < vals.Size(); ii++)
          {
-            if (vals[ii] != 12e34) { s++; }
+            if (vals[ii] != signal) { s++; }
          }
          Array<int> vdofsr(s);
          Vector valsr(s);
          s = 0;
          for (int ii = 0; ii < vals.Size(); ii++)
          {
-            if (vals[ii] != 12e34)
+            if (vals[ii] != signal)
             {
                vdofsr[s] = vdofs[ii];
                valsr(s) = vals(ii);

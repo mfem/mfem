@@ -88,7 +88,6 @@ void NURBS1DFiniteElement::Project(Coefficient &coeff,
                                    ElementTransformation &Trans,
                                    Vector &dofs) const
 {
-   dofs = 12e34;
    IntegrationPoint ip;
 
    for (int i = 0; i <= order; i++)
@@ -108,7 +107,6 @@ void NURBS1DFiniteElement::Project(VectorCoefficient &vc,
 {
    MFEM_ASSERT(dofs.Size() == vc.GetVDim()*dof, "");
    Vector x(vc.GetVDim());
-   dofs = 12e34;
    IntegrationPoint ip;
 
    for (int i = 0; i <= order; i++)
@@ -261,7 +259,6 @@ void NURBS2DFiniteElement::Project(Coefficient &coeff,
                                    ElementTransformation &Trans,
                                    Vector &dofs) const
 {
-   dofs = 12e34;
    IntegrationPoint ip;
    for (int o = 0, j = 0; j <= orders[1]; j++)
    {
@@ -290,7 +287,6 @@ void NURBS2DFiniteElement::Project(VectorCoefficient &vc,
 {
    MFEM_ASSERT(dofs.Size() == vc.GetVDim()*dof, "");
    Vector x(vc.GetVDim());
-   dofs = 12e34;
    IntegrationPoint ip;
    for (int o = 0, j = 0; j <= orders[1]; j++)
    {
@@ -507,7 +503,6 @@ void NURBS3DFiniteElement::Project(Coefficient &coeff,
                                    ElementTransformation &Trans,
                                    Vector &dofs) const
 {
-   dofs = 12e34;
    IntegrationPoint ip;
 
    for (int o = 0, k = 0; k <= orders[2]; k++)
@@ -547,7 +542,6 @@ void NURBS3DFiniteElement::Project(VectorCoefficient &vc,
 {
    MFEM_ASSERT(dofs.Size() == vc.GetVDim()*dof, "");
    Vector x(vc.GetVDim());
-   dofs = 12e34;
    IntegrationPoint ip;
 
    for (int o = 0, k = 0; k <= orders[2]; k++)
