@@ -242,7 +242,11 @@ void NURBS2DFiniteElement::Project(Coefficient &coeff,
    for (int o = 0, j = 0; j <= orders[1]; j++)
    {
       real_t ky = kv[1]->GetDemko(ijk[1] + j);
-      if (!kv[1]->inSpan(ky, ijk[1]+orders[1])) { continue; }
+      if (!kv[1]->inSpan(ky, ijk[1]+orders[1]))
+      {
+         o += orders[0] + 1;
+         continue;
+      }
       ip.y = kv[1]->GetIp(ky, ijk[1]+orders[1]);
       for (int i = 0; i <= orders[0]; i++, o++)
       {
@@ -449,16 +453,23 @@ void NURBS3DFiniteElement::Project(Coefficient &coeff,
    dofs = 12e34;
    IntegrationPoint ip;
 
-
    for (int o = 0, k = 0; k <= orders[2]; k++)
    {
       real_t kz = kv[2]->GetDemko(ijk[2] + k);
-      if (!kv[2]->inSpan(kz, ijk[2]+orders[2])) { continue; }
+      if (!kv[2]->inSpan(kz, ijk[2]+orders[2]))
+      {
+         o += (orders[0] + 1)*(orders[1] + 1);
+         continue;
+      }
       ip.z = kv[2]->GetIp(kz, ijk[2]+orders[2]);
       for (int j = 0; j <= orders[1]; j++)
       {
          real_t ky = kv[1]->GetDemko(ijk[1] + j);
-         if (!kv[1]->inSpan(ky, ijk[1]+orders[1])) { continue; }
+         if (!kv[1]->inSpan(ky, ijk[1]+orders[1]))
+         {
+            o += orders[0] + 1;
+            continue;
+         }
          ip.y = kv[1]->GetIp(ky, ijk[1]+orders[1]);
          for (int i = 0; i <= orders[0]; i++, o++)
          {
