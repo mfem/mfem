@@ -31,37 +31,6 @@ namespace mfem
 
 #ifdef MFEM_USE_NETCDF
 
-// Variable labels
-const char * EXODUS_TITLE_LABEL = "title";
-const char * EXODUS_NUM_ELEM_LABEL = "num_elem";
-const char * EXODUS_FLOATING_POINT_WORD_SIZE_LABEL = "floating_point_word_size";
-const char * EXODUS_API_VERSION_LABEL = "api_version";
-const char * EXODUS_DATABASE_VERSION_LABEL = "version";
-const char * EXODUS_MAX_NAME_LENGTH_LABEL = "maximum_name_length";
-const char * EXODUS_MAX_LINE_LENGTH_LABEL = "maximum_line_length";
-const char * EXODUS_NUM_BLOCKS_LABEL = "block_dim";
-const char * EXODUS_COORDX_LABEL = "coordx";
-const char * EXODUS_COORDY_LABEL = "coordy";
-const char * EXODUS_COORDZ_LABEL = "coordz";
-const char * EXODUS_NUM_BOUNDARIES_LABEL = "boundary_ids_dim";
-const char * EXODUS_FILE_SIZE_LABEL = "file_size";
-const char * EXODUS_NUM_DIM_LABEL = "num_dim";
-const char * EXODUS_NUM_NODE_SETS_LABEL = "num_node_sets";
-const char * EXODUS_TIME_STEP_LABEL = "time_step";
-const char * EXODUS_ELEMENT_TYPE_LABEL = "elem_type";
-const char * EXODUS_NUM_SIDE_SETS_LABEL = "num_side_sets";
-const char * EXODUS_SIDE_SET_IDS_LABEL = "ss_prop1";
-const char * EXODUS_ELEMENT_BLOCK_IDS_LABEL = "eb_prop1";
-const char * EXODUS_NUM_ELEMENT_BLOCKS_LABEL = "num_el_blk";
-
-const char * EXODUS_MESH_TITLE = "MFEM mesh";
-
-const float EXODUS_API_VERSION = 4.72;    // Current version as of 2024-03-21.
-const float EXODUS_DATABASE_VERSION = 4.72;
-
-const int EXODUS_MAX_NAME_LENGTH = 80;
-const int EXODUS_MAX_LINE_LENGTH = 80;
-
 /// Convert from the MFEM face numbering to the ExodusII face numbering.
 const int mfem_to_exodusII_side_map_tet4[] =
 {
@@ -105,6 +74,40 @@ const int mfem_to_exodusII_node_ordering_wedge18[] =
 const int mfem_to_exodusII_node_ordering_pyramid14[] =
 {
    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14
+};
+
+namespace ExodusIILabels
+{
+// Variable labels
+const char * EXODUS_TITLE_LABEL = "title";
+const char * EXODUS_NUM_ELEM_LABEL = "num_elem";
+const char * EXODUS_FLOATING_POINT_WORD_SIZE_LABEL = "floating_point_word_size";
+const char * EXODUS_API_VERSION_LABEL = "api_version";
+const char * EXODUS_DATABASE_VERSION_LABEL = "version";
+const char * EXODUS_MAX_NAME_LENGTH_LABEL = "maximum_name_length";
+const char * EXODUS_MAX_LINE_LENGTH_LABEL = "maximum_line_length";
+const char * EXODUS_NUM_BLOCKS_LABEL = "block_dim";
+const char * EXODUS_COORDX_LABEL = "coordx";
+const char * EXODUS_COORDY_LABEL = "coordy";
+const char * EXODUS_COORDZ_LABEL = "coordz";
+const char * EXODUS_NUM_BOUNDARIES_LABEL = "boundary_ids_dim";
+const char * EXODUS_FILE_SIZE_LABEL = "file_size";
+const char * EXODUS_NUM_DIM_LABEL = "num_dim";
+const char * EXODUS_NUM_NODE_SETS_LABEL = "num_node_sets";
+const char * EXODUS_TIME_STEP_LABEL = "time_step";
+const char * EXODUS_ELEMENT_TYPE_LABEL = "elem_type";
+const char * EXODUS_NUM_SIDE_SETS_LABEL = "num_side_sets";
+const char * EXODUS_SIDE_SET_IDS_LABEL = "ss_prop1";
+const char * EXODUS_ELEMENT_BLOCK_IDS_LABEL = "eb_prop1";
+const char * EXODUS_NUM_ELEMENT_BLOCKS_LABEL = "num_el_blk";
+const char * EXODUS_MESH_TITLE = "MFEM mesh";
+
+// Current version as of 2024-03-21.
+const float EXODUS_API_VERSION = 4.72;
+const float EXODUS_DATABASE_VERSION = 4.72;
+
+const int EXODUS_MAX_NAME_LENGTH = 80;
+const int EXODUS_MAX_LINE_LENGTH = 80;
 };
 
 /**
@@ -395,54 +398,58 @@ ExodusIIWriter::~ExodusIIWriter()
 
 void ExodusIIWriter::WriteTitle()
 {
-   PutAtt(NC_GLOBAL, EXODUS_TITLE_LABEL, NC_CHAR, strlen(EXODUS_MESH_TITLE),
-          EXODUS_MESH_TITLE);
+   PutAtt(NC_GLOBAL, ExodusIILabels::EXODUS_TITLE_LABEL, NC_CHAR,
+          strlen(ExodusIILabels::EXODUS_MESH_TITLE),
+          ExodusIILabels::EXODUS_MESH_TITLE);
 }
 
 void ExodusIIWriter::WriteNumOfElements()
 {
    int num_elem_id;
-   DefineDimension(EXODUS_NUM_ELEM_LABEL, _mesh.GetNE(), &num_elem_id);
+   DefineDimension(ExodusIILabels::EXODUS_NUM_ELEM_LABEL, _mesh.GetNE(),
+                   &num_elem_id);
 }
 
 void ExodusIIWriter::WriteFloatingPointWordSize()
 {
    const int word_size = 8;
-   PutAtt(NC_GLOBAL, EXODUS_FLOATING_POINT_WORD_SIZE_LABEL,
+   PutAtt(NC_GLOBAL, ExodusIILabels::EXODUS_FLOATING_POINT_WORD_SIZE_LABEL,
           NC_INT, 1,
           &word_size);
 }
 
 void ExodusIIWriter::WriteAPIVersion()
 {
-   PutAtt(NC_GLOBAL, EXODUS_API_VERSION_LABEL, NC_FLOAT, 1,
-          &EXODUS_API_VERSION);
+   PutAtt(NC_GLOBAL, ExodusIILabels::EXODUS_API_VERSION_LABEL, NC_FLOAT, 1,
+          &ExodusIILabels::EXODUS_API_VERSION);
 }
 
 void ExodusIIWriter::WriteDatabaseVersion()
 {
-   PutAtt(NC_GLOBAL, EXODUS_DATABASE_VERSION_LABEL, NC_FLOAT, 1,
-          &EXODUS_DATABASE_VERSION);
+   PutAtt(NC_GLOBAL, ExodusIILabels::EXODUS_DATABASE_VERSION_LABEL, NC_FLOAT, 1,
+          &ExodusIILabels::EXODUS_DATABASE_VERSION);
 }
 
 void ExodusIIWriter::WriteMaxNameLength()
 {
-   PutAtt(NC_GLOBAL, EXODUS_MAX_NAME_LENGTH_LABEL, NC_INT, 1,
-          &EXODUS_MAX_NAME_LENGTH);
+   PutAtt(NC_GLOBAL, ExodusIILabels::EXODUS_MAX_NAME_LENGTH_LABEL, NC_INT, 1,
+          &ExodusIILabels::EXODUS_MAX_NAME_LENGTH);
 }
 
 void ExodusIIWriter::WriteMaxLineLength()
 {
-   PutAtt(NC_GLOBAL, EXODUS_MAX_LINE_LENGTH_LABEL, NC_INT, 1,
-          &EXODUS_MAX_LINE_LENGTH);
+   PutAtt(NC_GLOBAL, ExodusIILabels::EXODUS_MAX_LINE_LENGTH_LABEL, NC_INT, 1,
+          &ExodusIILabels::EXODUS_MAX_LINE_LENGTH);
 }
 
 void ExodusIIWriter::WriteBlockIDs()
 {
    int block_dim;
-   DefineDimension(EXODUS_NUM_BLOCKS_LABEL, _block_ids.size(), &block_dim);
+   DefineDimension(ExodusIILabels::EXODUS_NUM_BLOCKS_LABEL, _block_ids.size(),
+                   &block_dim);
 
-   DefineAndPutVar(EXODUS_ELEMENT_BLOCK_IDS_LABEL, NC_INT, 1, &block_dim,
+   DefineAndPutVar(ExodusIILabels::EXODUS_ELEMENT_BLOCK_IDS_LABEL, NC_INT, 1,
+                   &block_dim,
                    _block_ids.data());
 }
 
@@ -564,7 +571,8 @@ void ExodusIIWriter::WriteElementBlockParameters(int block_id)
    int connect_id;
    CHECK_NETCDF_CODE(nc_inq_varid(_exid, label, &connect_id));
 
-   PutAtt(connect_id, EXODUS_ELEMENT_TYPE_LABEL, NC_CHAR, element_type.length(),
+   PutAtt(connect_id, ExodusIILabels::EXODUS_ELEMENT_TYPE_LABEL, NC_CHAR,
+          element_type.length(),
           element_type.c_str());
 }
 
@@ -588,14 +596,17 @@ void ExodusIIWriter::WriteNodalCoordinates()
    ExtractVertexCoordinates(coordx, coordy, coordz);
 
    // 4. Define and put the nodal coordinates.
-   DefineAndPutVar(EXODUS_COORDX_LABEL, NC_DOUBLE, 1, &num_nodes_id,
+   DefineAndPutVar(ExodusIILabels::EXODUS_COORDX_LABEL, NC_DOUBLE, 1,
+                   &num_nodes_id,
                    coordx.data());
-   DefineAndPutVar(EXODUS_COORDY_LABEL, NC_DOUBLE, 1, &num_nodes_id,
+   DefineAndPutVar(ExodusIILabels::EXODUS_COORDY_LABEL, NC_DOUBLE, 1,
+                   &num_nodes_id,
                    coordy.data());
 
    if (_mesh.Dimension() == 3)
    {
-      DefineAndPutVar(EXODUS_COORDZ_LABEL, NC_DOUBLE, 1, &num_nodes_id,
+      DefineAndPutVar(ExodusIILabels::EXODUS_COORDZ_LABEL, NC_DOUBLE, 1,
+                      &num_nodes_id,
                       coordz.data());
    }
 }
@@ -607,15 +618,18 @@ void ExodusIIWriter::WriteBoundaries()
 
    // 2. Define the number of boundaries.
    int num_side_sets_ids;
-   DefineDimension(EXODUS_NUM_SIDE_SETS_LABEL, _boundary_ids.size(),
+   DefineDimension(ExodusIILabels::EXODUS_NUM_SIDE_SETS_LABEL,
+                   _boundary_ids.size(),
                    &num_side_sets_ids);
 
    // 3. Boundary IDs.
    int boundary_ids_dim;
-   DefineDimension(EXODUS_NUM_BOUNDARIES_LABEL, _boundary_ids.size(),
+   DefineDimension(ExodusIILabels::EXODUS_NUM_BOUNDARIES_LABEL,
+                   _boundary_ids.size(),
                    &boundary_ids_dim);
 
-   DefineAndPutVar(EXODUS_SIDE_SET_IDS_LABEL, NC_INT, 1, &boundary_ids_dim,
+   DefineAndPutVar(ExodusIILabels::EXODUS_SIDE_SET_IDS_LABEL, NC_INT, 1,
+                   &boundary_ids_dim,
                    _boundary_ids.data());
 
    // 4. Number of boundary elements.
@@ -783,27 +797,30 @@ void ExodusIIWriter::WriteFileSize()
    // separately as components for large file.
    const int file_size = 1;
 
-   PutAtt(NC_GLOBAL, EXODUS_FILE_SIZE_LABEL, NC_INT, 1, &file_size);
+   PutAtt(NC_GLOBAL, ExodusIILabels::EXODUS_FILE_SIZE_LABEL, NC_INT, 1,
+          &file_size);
 }
 
 void ExodusIIWriter::WriteMeshDimension()
 {
    int num_dim_id;
-   DefineDimension(EXODUS_NUM_DIM_LABEL, _mesh.Dimension(), &num_dim_id);
+   DefineDimension(ExodusIILabels::EXODUS_NUM_DIM_LABEL, _mesh.Dimension(),
+                   &num_dim_id);
 }
 
 void ExodusIIWriter::WriteNodeSets()
 {
    // Nodesets are not currently implemented; set to zero.
    int num_node_sets_ids;
-   DefineDimension(EXODUS_NUM_NODE_SETS_LABEL, 0, &num_node_sets_ids);
+   DefineDimension(ExodusIILabels::EXODUS_NUM_NODE_SETS_LABEL, 0,
+                   &num_node_sets_ids);
 }
 
 void ExodusIIWriter::WriteTimesteps()
 {
    // Set number of timesteps (ASSUME single timestep for initial verision).
    int timesteps_dim;
-   DefineDimension(EXODUS_TIME_STEP_LABEL, 1, &timesteps_dim);
+   DefineDimension(ExodusIILabels::EXODUS_TIME_STEP_LABEL, 1, &timesteps_dim);
 }
 
 void ExodusIIWriter::WriteDummyVariable()
@@ -858,7 +875,8 @@ void ExodusIIWriter::GenerateExodusIIElementBlocks()
 void ExodusIIWriter::WriteNumElementBlocks()
 {
    int num_elem_blk_id;
-   DefineDimension(EXODUS_NUM_ELEMENT_BLOCKS_LABEL, _block_ids.size(),
+   DefineDimension(ExodusIILabels::EXODUS_NUM_ELEMENT_BLOCKS_LABEL,
+                   _block_ids.size(),
                    &num_elem_blk_id);
 }
 
