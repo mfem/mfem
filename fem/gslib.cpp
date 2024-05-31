@@ -259,7 +259,7 @@ void FindPointsGSLIB::SetupSurf(Mesh &m, const double bb_t, const double newt_to
    // Max element order since we will ultimately have all elements of the same order
    const int meshOrder = m.GetNodes()->FESpace()->GetMaxElementOrder();
    const int vdim      = m.GetNodes()->FESpace()->GetVDim();
-   const int NE        = m.GetNE();
+   const unsigned NE   = m.GetNE();
 
    // call FreeData if FindPointsGSLIB::Setup has been called already
    if (setupflag)
@@ -311,6 +311,37 @@ void FindPointsGSLIB::SetupSurf(Mesh &m, const double bb_t, const double newt_to
          }
       }
       MPI_Barrier(gsl_comm->c);
+   }
+
+   DEV.local_hash_size = mesh_points_cnt;
+   DEV.dof1d = (int)dof1D;
+
+   if (vdim == 2)
+   {
+      unsigned nr[1] = { dof1D };
+      unsigned mr[1] = { 2*dof1D };
+      double * const elx[2] =
+      {
+         mesh_points_cnt == 0 ? nullptr : &gsl_mesh(0),
+         mesh_points_cnt == 0 ? nullptr : &gsl_mesh(mesh_points_cnt)
+      };
+      fdataD = findptssurf_setup_2(gsl_comm, elx, nr, NE, mr, bb_t,
+                                   DEV.local_hash_size,
+                                   mesh_points_cnt, npt_max, newt_tol);
+   }
+   else
+   {
+      unsigned nr[2] = { dof1D, dof1D };
+      unsigned mr[2] = { 2*dof1D, 2*dof1D };
+      double * const elx[3] =
+      {
+         mesh_points_cnt == 0 ? nullptr : &gsl_mesh(0),
+         mesh_points_cnt == 0 ? nullptr : &gsl_mesh(mesh_points_cnt),
+         mesh_points_cnt == 0 ? nullptr : &gsl_mesh(2*mesh_points_cnt)
+      };
+      fdataD = findptssurf_setup_3(gsl_comm, elx, nr, NE, mr, bb_t,
+                                   DEV.local_hash_size,
+                                   mesh_points_cnt, npt_max, newt_tol);
    }
 
    setupflag = true;
