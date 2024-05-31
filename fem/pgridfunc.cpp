@@ -572,7 +572,6 @@ void ParGridFunction::ProjectCoefficient(Coefficient &coeff)
       GroupCommunicator &gcomm = pfes->GroupComm();
       gcomm.Reduce<real_t>(data, GroupCommunicator::Max);
       gcomm.Bcast<real_t>(data);
-      Vector::Print(cout,888);
    }
    else
    {
