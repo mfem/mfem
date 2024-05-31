@@ -146,10 +146,10 @@ if (MFEM_ENABLE_TESTING)
   # Add CUDA/HIP tests.
   set(DEVICE_EXAMPLES
       # serial examples with device support:
-      ex1 ex3 ex4 ex5 ex6 ex9 ex22 ex24 ex25 ex26 ex34
+      ex1 ex3 ex4 ex5 ex6 ex9 ex14 ex22 ex24 ex25 ex26 ex34
       # parallel examples with device support:
-      ex1p ex2p ex3p ex4p ex5p ex6p ex7p ex9p ex13p ex22p ex24p ex25p ex26p
-      ex34p ex35p)
+      ex1p ex2p ex3p ex4p ex5p ex6p ex7p ex9p ex13p ex14p ex22p ex24p ex25p
+      ex26p ex34p ex35p)
   set(MFEM_TEST_DEVICE)
   if (MFEM_USE_CUDA)
     set(MFEM_TEST_DEVICE "cuda")
@@ -159,6 +159,11 @@ if (MFEM_ENABLE_TESTING)
   if (MFEM_TEST_DEVICE)
     foreach(TEST_NAME ${DEVICE_EXAMPLES})
       set(THIS_TEST_OPTIONS "-no-vis" "-d" "${MFEM_TEST_DEVICE}")
+      if (${TEST_NAME} MATCHES "ex14p")
+        list(APPEND THIS_TEST_OPTIONS "-rs" "2" "-rp" "0" "-pa")
+      elseif (${TEST_NAME} MATCHES "ex14")
+        list(APPEND THIS_TEST_OPTIONS "-r" "2" "-pa")
+      endif()
       if (NOT (${TEST_NAME} MATCHES ".*p$"))
         add_test(NAME ${TEST_NAME}_${MFEM_TEST_DEVICE}_ser
           COMMAND ${TEST_NAME} ${THIS_TEST_OPTIONS})
