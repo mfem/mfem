@@ -97,7 +97,7 @@ void Derefine(Mesh &mesh, const Array<int> &drefs)
    mesh.DerefineByError(errors,1.0);
 }
 
-enum class Space {H1, L2, VectorH1, VectorL2, RT};
+enum class Space {H1, L2, VectorH1, VectorL2};
 
 TEST_CASE("hpTransfer", "[hpTransfer]")
 {
