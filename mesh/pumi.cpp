@@ -890,9 +890,9 @@ GridFunctionPumi::GridFunctionPumi(Mesh* m, apf::Mesh2* PumiM,
 {
    int spDim = m->SpaceDimension();
    // Note: default BasisType for 'fec' is GaussLobatto.
-   fec = new H1_FECollection(mesh_order, m->Dimension());
+   fec_owned = new H1_FECollection(mesh_order, m->Dimension());
    int ordering = Ordering::byVDIM; // x1y1z1/x2y2z2/...
-   fes = new FiniteElementSpace(m, fec, spDim, ordering);
+   fes = new FiniteElementSpace(m, fec_owned, spDim, ordering);
    int data_size = fes->GetVSize();
 
    // Read PUMI mesh data
