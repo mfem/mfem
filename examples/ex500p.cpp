@@ -27,14 +27,14 @@ vector<size_t> sort_indexes(const vector<T> &v)
 }
 
 std::tuple<double, double> DragLift(
-   ParGridFunction &u_gf,
-   ParGridFunction &p_gf,
+   GridFunction &u_gf,
+   GridFunction &p_gf,
    double kinematic_viscosity,
    Array<int> &marker,
    IntegrationRule &ir_face)
 {
-   const auto &u_fes = *u_gf.ParFESpace();
-   const auto &mesh = *u_fes.GetParMesh();
+   const auto &u_fes = *u_gf.FESpace();
+   const auto &mesh = *u_fes.GetMesh();
    const auto dim = mesh.Dimension();
 
    Vector draglift(2);
@@ -92,9 +92,7 @@ std::tuple<double, double> DragLift(
 class DLiftDuIntegrator : public LinearFormIntegrator
 {
 public:
-   DLiftDuIntegrator(ParGridFunction &uhgf, ParGridFunction &phgf, real_t nu) :
-      nu(nu), uhgf(uhgf), phgf(phgf)
-   {}
+   DLiftDuIntegrator(real_t nu) : nu(nu) {}
 
    void AssembleRHSElementVect(const FiniteElement &el,
                                ElementTransformation &Tr,
@@ -158,13 +156,12 @@ public:
 
    DenseMatrix dpsi;
    const real_t nu;
-   ParGridFunction uhgf, phgf;
 };
 
 class DLiftDpIntegrator : public LinearFormIntegrator
 {
 public:
-   DLiftDpIntegrator(ParGridFunction &phgf) : phgf(phgf) {}
+   DLiftDpIntegrator() {}
 
    void AssembleRHSElementVect(const FiniteElement &el,
                                ElementTransformation &Tr,
@@ -219,7 +216,6 @@ public:
 
    DenseMatrix identity;
    Vector psi;
-   ParGridFunction phgf;
 };
 
 class DWRIntegrator : public LinearFormIntegrator
@@ -350,7 +346,7 @@ public:
       N.AddDomainIntegrator(new VectorConvectionNLFIntegrator);
       N.AddDomainIntegrator(
          new VectorDiffusionIntegrator(kinematic_viscosity_coef));
-      // N.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      N.SetAssemblyLevel(AssemblyLevel::PARTIAL);
       N.Setup();
 
       Ne.AddDomainIntegrator(new VectorConvectionNLFIntegrator);
@@ -360,25 +356,25 @@ public:
       Ne.Setup();
 
       g.AddDomainIntegrator(new GradientIntegrator);
-      // g.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      g.SetAssemblyLevel(AssemblyLevel::PARTIAL);
       g.Assemble();
       g.Finalize();
       g.FormRectangularSystemMatrix(empty, empty, G);
 
       ge.AddDomainIntegrator(new GradientIntegrator);
-      // ge.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      ge.SetAssemblyLevel(AssemblyLevel::PARTIAL);
       ge.Assemble();
       ge.Finalize();
       ge.FormRectangularSystemMatrix(p_ess_tdof, u_ess_tdof, Ge);
 
       d.AddDomainIntegrator(new VectorDivergenceIntegrator);
-      // d.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      d.SetAssemblyLevel(AssemblyLevel::PARTIAL);
       d.Assemble();
       d.Finalize();
       d.FormRectangularSystemMatrix(empty, empty, D);
 
       de.AddDomainIntegrator(new VectorDivergenceIntegrator);
-      // de.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      de.SetAssemblyLevel(AssemblyLevel::PARTIAL);
       de.Assemble();
       de.Finalize();
       de.FormRectangularSystemMatrix(u_ess_tdof, p_ess_tdof, De);
@@ -650,7 +646,7 @@ SolveDualProblem(
    qoi_attr[6] = 1;
 
    ParLinearForm dldu(&h1vfes);
-   auto lfi1 = new DLiftDuIntegrator(u, p, kinematic_viscosity);
+   auto lfi1 = new DLiftDuIntegrator(kinematic_viscosity);
    dldu.AddBdrFaceIntegrator(lfi1, qoi_attr);
    // auto lfi1 = new VectorDomainLFIntegrator(vone);
    // dldu.AddBoundaryIntegrator(lfi1);
@@ -660,7 +656,7 @@ SolveDualProblem(
    // dldu.Print(out, dldu.Size());
 
    ParLinearForm dldp(&h1fes);
-   auto lfi2 = new DLiftDpIntegrator(p);
+   auto lfi2 = new DLiftDpIntegrator;
    dldp.AddBdrFaceIntegrator(lfi2, qoi_attr);
    // auto lfi2 = new DomainLFIntegrator(one);
    // dldp.AddBoundaryIntegrator(lfi2);
@@ -693,7 +689,7 @@ SolveDualProblem(
    return {u, p};
 }
 
-std::tuple<double, double, double>
+std::tuple<double, double>
 ComputeQoI(ParGridFunction &u, ParGridFunction &p,
            double kinematic_viscosity)
 {
@@ -714,24 +710,16 @@ ComputeQoI(ParGridFunction &u, ParGridFunction &p,
 
    auto ir_face = IntRules.Get(h1vfes.GetMesh()->GetFaceGeometry(0),
                                2 * polynomial_order + 1);
-   auto [drag, lift] = DragLift(u, p, kinematic_viscosity, qoi_attr,
-                                ir_face);
+   auto [drag_local, lift_local] = DragLift(u, p, kinematic_viscosity, qoi_attr,
+                                            ir_face);
 
-   Vector point(2);
-   DenseMatrix points(dim, 2);
-   point(0) = 0.15;
-   point(1) = 0.2;
-   points.SetCol(0, point);
-   point(0) = 0.25;
-   point(1) = 0.2;
-   points.SetCol(1, point);
-   Array<int> elem_ids;
-   Array<IntegrationPoint> ips;
-   mesh.FindPoints(points, elem_ids, ips);
-   double p_probe_diff = p.GetValue(elem_ids[0], ips[0]) - p.GetValue(elem_ids[1],
-                                                                      ips[1]);
+   double drag_global = 0.0, lift_global = 0.0;
+   MPI_Allreduce(&drag_local, &drag_global, 1, MPI_DOUBLE, MPI_SUM,
+                 MPI_COMM_WORLD);
+   MPI_Allreduce(&lift_local, &lift_global, 1, MPI_DOUBLE, MPI_SUM,
+                 MPI_COMM_WORLD);
 
-   return {drag, lift, p_probe_diff};
+   return {drag_global, lift_global};
 }
 
 int main(int argc, char *argv[])
@@ -800,14 +788,14 @@ int main(int argc, char *argv[])
 
       auto [u, p] = SolveForwardProblem(h1vfes, h1fes, kinematic_viscosity);
 
-      auto [drag, lift, pdiff] = ComputeQoI(u, p, kinematic_viscosity);
+      auto [drag, lift] = ComputeQoI(u, p, kinematic_viscosity);
 
       const double U_mean = 0.2;
       const double c0 = 2.0 / (U_mean*U_mean * 0.1);
 
       if (Mpi::Root())
       {
-         printf("CD = %1.8E CL = %1.8E dp = %1.8E\n", -c0*drag, -c0*lift, pdiff);
+         printf("CD = %1.8E CL = %1.8E\n", -c0*drag, -c0*lift);
       }
 
       // Solve the dual equation in an enriched space
