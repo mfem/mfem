@@ -140,10 +140,13 @@ public:
 
 real_t sol(const Vector & x)
 {
-   if ((x[1] - x[0] - 0.5 < 0.0)
-       &(x[0] + x[1] -0.99 < 0.0))
+   if (x.Size() >= 2)
    {
-      return 1.0;
+      if ((x[1] - x[0] - 0.5 < 0.0)
+          &(x[0] + x[1] -0.99 < 0.0))
+      {
+         return 1.0;
+      }
    }
 
    return 0.0;

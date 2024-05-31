@@ -310,7 +310,7 @@ int main(int argc, char *argv[])
    ParGridFunction x_ref(&fespace);
    pmesh->GetNodes(x_ref);
 
-   FECollection *w_fec = FECollection::NewL2(order+1, dim, mesh->NURBSext);
+   FECollection *w_fec = FECollection::NewL2(order+1, dim, pmesh->NURBSext);
    ParFiniteElementSpace w_fespace(pmesh, w_fec);
    ParGridFunction w_gf(&w_fespace);
 
