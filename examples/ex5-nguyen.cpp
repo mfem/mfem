@@ -463,7 +463,9 @@ int main(int argc, char *argv[])
 
    for (int ti = 0; ti < nt; ti++)
    {
-      const double t = tf * ti / nt; //current time
+      //set current time
+
+      const double t = tf * (ti+1) / nt;//<--- Backward Euler
 
       gcoeff.SetTime(t);
       qtcoeff.SetTime(t);
