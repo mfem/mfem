@@ -102,7 +102,7 @@ TEST_CASE("ExodusII Write Hex8", "[Mesh]")
 
    // Write generated Exodus II mesh to file.
    std::string fpath_generated = "data/simple-cube-hex8-out.e";
-   original_mesh.WriteExodusII(fpath_generated);
+   original_mesh.PrintExodusII(fpath_generated);
 
    // Load generated Exodus II mesh.
    Mesh generated_mesh = Mesh::LoadFromFile(fpath_generated, 0, 0, true);
@@ -120,7 +120,7 @@ TEST_CASE("ExodusII Write Hex27", "[Mesh]")
 
    // Write generated Exodus II mesh to file.
    std::string fpath_generated = "data/simple-cube-hex27-out.e";
-   original_mesh.WriteExodusII(fpath_generated);
+   original_mesh.PrintExodusII(fpath_generated);
 
    // Load generated Exodus II mesh.
    Mesh generated_mesh = Mesh::LoadFromFile(fpath_generated, 0, 0, true);
@@ -138,7 +138,7 @@ TEST_CASE("ExodusII Write Tet4", "[Mesh]")
 
    // Write generated Exodus II mesh to file.
    std::string fpath_generated = "data/simple-cube-tet4-out.e";
-   original_mesh.WriteExodusII(fpath_generated);
+   original_mesh.PrintExodusII(fpath_generated);
 
    // Load generated Exodus II mesh.
    Mesh generated_mesh = Mesh::LoadFromFile(fpath_generated, 0, 0, true);
@@ -156,7 +156,7 @@ TEST_CASE("ExodusII Write Tet10", "[Mesh]")
 
    // Write generated Exodus II mesh to file.
    std::string fpath_generated = "data/simple-cube-tet10-out.e";
-   original_mesh.WriteExodusII(fpath_generated);
+   original_mesh.PrintExodusII(fpath_generated);
 
    // Load generated Exodus II mesh.
    Mesh generated_mesh = Mesh::LoadFromFile(fpath_generated, 0, 0, true);
@@ -172,7 +172,7 @@ TEST_CASE("ExodusII Write Tet10", "[Mesh]")
 //    Mesh original_mesh = Mesh::LoadFromFile(fpath_original, 0, 0, true);
 
 //    std::string fpath_generated = "data/simple-cube-wedge6-out.e";
-//    original_mesh.WriteExodusII(fpath_generated);
+//    original_mesh.PrintExodusII(fpath_generated);
 
 //    Mesh generated_mesh = Mesh::LoadFromFile(fpath_generated, 0, 0, true);
 //    CompareMeshes(original_mesh, generated_mesh);
@@ -186,7 +186,7 @@ TEST_CASE("ExodusII Write Tet10", "[Mesh]")
 //    Mesh original_mesh = Mesh::LoadFromFile(fpath_original, 0, 0, true);
 
 //    std::string fpath_generated = "data/simple-cube-wedge18-out.e";
-//    original_mesh.WriteExodusII(fpath_generated);
+//    original_mesh.PrintExodusII(fpath_generated);
 
 //    Mesh generated_mesh = Mesh::LoadFromFile(fpath_generated, 0, 0, true);
 //    CompareMeshes(original_mesh, generated_mesh);
@@ -200,7 +200,7 @@ TEST_CASE("ExodusII Write Tet10", "[Mesh]")
 //    Mesh original_mesh = Mesh::LoadFromFile(fpath_original, 0, 0, true);
 
 //    std::string fpath_generated = "data/simple-cube-pyramid5-out.e";
-//    original_mesh.WriteExodusII(fpath_generated);
+//    original_mesh.PrintExodusII(fpath_generated);
 
 //    Mesh generated_mesh = Mesh::LoadFromFile(fpath_generated, 0, 0, true);
 //    CompareMeshes(original_mesh, generated_mesh);
@@ -214,7 +214,7 @@ TEST_CASE("ExodusII Write Tet10", "[Mesh]")
 //    Mesh original_mesh = Mesh::LoadFromFile(fpath_original, 0, 0, true);
 
 //    std::string fpath_generated = "data/simple-cube-pyramid14-out.e";
-//    original_mesh.WriteExodusII(fpath_generated);
+//    original_mesh.PrintExodusII(fpath_generated);
 
 //    Mesh generated_mesh = Mesh::LoadFromFile(fpath_generated, 0, 0, true);
 //    CompareMeshes(original_mesh, generated_mesh);
@@ -229,7 +229,7 @@ TEST_CASE("ExodusII Write Tet10", "[Mesh]")
 //    Mesh original_mesh = Mesh::LoadFromFile(fpath_original, 0, 0, true);
 
 //    std::string fpath_generated = "data/simple-cube-multi-element-order1-out.e";
-//    original_mesh.WriteExodusII(fpath_generated);
+//    original_mesh.PrintExodusII(fpath_generated);
 
 //    Mesh generated_mesh = Mesh::LoadFromFile(fpath_generated, 0, 0, true);
 //    CompareMeshes(original_mesh, generated_mesh);
@@ -244,7 +244,7 @@ TEST_CASE("ExodusII Write Tet10", "[Mesh]")
 //    Mesh original_mesh = Mesh::LoadFromFile(fpath_original, 0, 0, true);
 
 //    std::string fpath_generated = "data/simple-cube-multi-element-order2-out.e";
-//    original_mesh.WriteExodusII(fpath_generated);
+//    original_mesh.PrintExodusII(fpath_generated);
 
 //    Mesh generated_mesh = Mesh::LoadFromFile(fpath_generated, 0, 0, true);
 //    CompareMeshes(original_mesh, generated_mesh);

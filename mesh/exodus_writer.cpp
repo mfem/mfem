@@ -125,13 +125,13 @@ public:
    /// @brief Writes the mesh to an ExodusII file.
    /// @param fpath The path to the file.
    /// @param flags NC_CLOBBER will overwrite existing file.
-   void WriteExodusII(std::string fpath, int flags = NC_CLOBBER);
+   void PrintExodusII(std::string fpath, int flags = NC_CLOBBER);
 
    /// @brief Static method for writing a mesh to an ExodusII file.
    /// @param mesh The mesh to write to the file.
    /// @param fpath The path to the file.
    /// @param flags NetCDF file flags.
-   static void WriteExodusII(Mesh & mesh, std::string fpath,
+   static void PrintExodusII(Mesh & mesh, std::string fpath,
                              int flags = NC_CLOBBER);
 
 protected:
@@ -278,9 +278,9 @@ private:
    std::map<int, std::vector<int>> _exodusII_side_ids_for_boundary_id;
 };
 
-void Mesh::WriteExodusII(const std::string fpath)
+void Mesh::PrintExodusII(const std::string fpath)
 {
-   ExodusIIWriter::WriteExodusII(*this, fpath);
+   ExodusIIWriter::PrintExodusII(*this, fpath);
 }
 
 void ExodusIIWriter::DefineDimension(const char *name, size_t len, int *dim_id)
@@ -349,7 +349,7 @@ void ExodusIIWriter::WriteExodusIIMeshInformation()
    WriteNodeSets();
 }
 
-void ExodusIIWriter::WriteExodusII(std::string fpath, int flags)
+void ExodusIIWriter::PrintExodusII(std::string fpath, int flags)
 {
    OpenExodusII(fpath, flags);
 
@@ -361,12 +361,12 @@ void ExodusIIWriter::WriteExodusII(std::string fpath, int flags)
    mfem::out << "Mesh successfully written to Exodus II file" << std::endl;
 }
 
-void ExodusIIWriter::WriteExodusII(Mesh & mesh, std::string fpath,
+void ExodusIIWriter::PrintExodusII(Mesh & mesh, std::string fpath,
                                    int flags)
 {
    ExodusIIWriter writer(mesh);
 
-   writer.WriteExodusII(fpath, flags);
+   writer.PrintExodusII(fpath, flags);
 }
 
 void ExodusIIWriter::OpenExodusII(std::string fpath, int flags)

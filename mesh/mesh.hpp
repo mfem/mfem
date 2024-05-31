@@ -2333,7 +2333,7 @@ public:
 
 #ifdef MFEM_USE_NETCDF
    /// @brief Export a mesh to an Exodus II file.
-   void WriteExodusII(const std::string fpath);
+   void PrintExodusII(const std::string fpath);
 #endif
 
    /** @brief Prints the mesh with boundary elements given by the boundary of
