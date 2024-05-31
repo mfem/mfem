@@ -160,7 +160,7 @@ TEST_CASE("First order ODE methods", "[ODE]")
 
             for (int s = 0; s < nstate; s++)
             {
-               ode_solver->GetState().Get(s,uh[s]);
+               uh[s] = ode_solver->GetState().Get(s);
             }
 
             for (int ll = 1; ll < lvl; ll++)

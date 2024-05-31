@@ -146,7 +146,7 @@ TEST_CASE("Second order ODE methods", "[ODE]")
             int nstate = ode_solver->GetState().Size();
             for (int s = 0; s < nstate; s++)
             {
-               ode_solver->GetState().Get(s,uh[s]);
+               uh[s] = ode_solver->GetState().Get(s);
             }
 
             for (int ll = 1; ll < lvl; ll++)
