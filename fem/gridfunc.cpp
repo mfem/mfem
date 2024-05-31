@@ -2464,8 +2464,6 @@ void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff)
    }
    else
    {
-      Array<int> vdofs;
-      Vector vals;
       real_t signal = std::numeric_limits<real_t>::min();
       for (int i = 0; i < fes->GetNE(); i++)
       {
