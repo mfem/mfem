@@ -97,19 +97,21 @@ void Derefine(Mesh &mesh, const Array<int> &drefs)
    mesh.DerefineByError(errors,1.0);
 }
 
-enum class Space {H1, VectorH1};
+enum class Space {H1, L2, VectorH1, VectorL2};
 
 TEST_CASE("hpTransfer", "[hpTransfer]")
 {
-   auto space   = GENERATE(Space::H1, Space::VectorH1);
+   auto space   = GENERATE(Space::H1, Space::L2, Space::VectorH1, Space::VectorL2);
    int dim      = GENERATE(2,3);
    auto simplex = GENERATE(false, true);
    order        = GENERATE(1,2);
    auto relax_conformity = GENERATE(false, true);
 
+   if ((space == Space::L2 || space == Space::VectorL2) && relax_conformity) { return; }
+
    int ne = 3;
 
-   CAPTURE(space, dim, simplex, order);
+   CAPTURE(space, dim, simplex, order, relax_conformity);
 
    Mesh mesh;
    if (dim == 2)
@@ -129,7 +131,7 @@ TEST_CASE("hpTransfer", "[hpTransfer]")
 
    H1_FECollection fec(order, dim);
 
-   int dimc = (space==Space::H1) ? 1 : dim;
+   int dimc = (space<=Space::L2) ? 1 : dim;
    FiniteElementSpace fes(&mesh, &fec, dimc);
    fes.SetRelaxedHpConformity(relax_conformity);
    RandomPRefinement(fes);
@@ -138,7 +140,7 @@ TEST_CASE("hpTransfer", "[hpTransfer]")
    FunctionCoefficient f(u);
    VectorFunctionCoefficient vf(dim,vecu);
    GridFunction gf(&fes); gf = 0.0;
-   if (space==Space::H1)
+   if (space<=Space::L2)
    {
       gf.ProjectCoefficient(f);
    }
@@ -153,7 +155,7 @@ TEST_CASE("hpTransfer", "[hpTransfer]")
    gf.Update();
 
    GridFunction err_gf(&fes);
-   if (space==Space::H1)
+   if (space<=Space::L2)
    {
       err_gf.ProjectCoefficient(f);
    }
@@ -191,7 +193,7 @@ TEST_CASE("hpTransfer", "[hpTransfer]")
    T.Mult(gf,hpgf);
 
    err_gf.SetSpace(&fes);
-   if (space==Space::H1)
+   if (space<=Space::L2)
    {
       err_gf.ProjectCoefficient(f);
    }
@@ -232,7 +234,7 @@ TEST_CASE("hpTransfer", "[hpTransfer]")
    T2.Mult(hpgf, gf);
 
    err_gf.SetSpace(&fes);
-   if (space==Space::H1)
+   if (space<=Space::L2)
    {
       err_gf.ProjectCoefficient(f);
    }
@@ -260,7 +262,7 @@ TEST_CASE("hpTransfer", "[hpTransfer]")
    gf.Update();
 
    err_gf.SetSpace(&fes); err_gf = 0.0;
-   if (space==Space::H1)
+   if (space<=Space::L2)
    {
       err_gf.ProjectCoefficient(f);
    }
