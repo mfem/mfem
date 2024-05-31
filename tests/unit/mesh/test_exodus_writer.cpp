@@ -108,6 +108,9 @@ TEST_CASE("ExodusII Write Hex8", "[Mesh]")
    Mesh generated_mesh = Mesh::LoadFromFile(fpath_generated, 0, 0, true);
 
    CompareMeshes(original_mesh, generated_mesh);
+
+   // Remove temporary file.
+   REQUIRE(remove(fpath_generated.c_str()) == 0);
 #endif
 }
 
@@ -126,6 +129,8 @@ TEST_CASE("ExodusII Write Hex27", "[Mesh]")
    Mesh generated_mesh = Mesh::LoadFromFile(fpath_generated, 0, 0, true);
 
    CompareMeshes(original_mesh, generated_mesh);
+
+   REQUIRE(remove(fpath_generated.c_str()) == 0);
 #endif
 }
 
@@ -144,6 +149,8 @@ TEST_CASE("ExodusII Write Tet4", "[Mesh]")
    Mesh generated_mesh = Mesh::LoadFromFile(fpath_generated, 0, 0, true);
 
    CompareMeshes(original_mesh, generated_mesh);
+
+   REQUIRE(remove(fpath_generated.c_str()) == 0);
 #endif
 }
 
@@ -162,6 +169,8 @@ TEST_CASE("ExodusII Write Tet10", "[Mesh]")
    Mesh generated_mesh = Mesh::LoadFromFile(fpath_generated, 0, 0, true);
 
    CompareMeshes(original_mesh, generated_mesh);
+
+   REQUIRE(remove(fpath_generated.c_str()) == 0);
 #endif
 }
 
@@ -176,6 +185,8 @@ TEST_CASE("ExodusII Write Tet10", "[Mesh]")
 
 //    Mesh generated_mesh = Mesh::LoadFromFile(fpath_generated, 0, 0, true);
 //    CompareMeshes(original_mesh, generated_mesh);
+//
+//    REQUIRE(remove(fpath_generated.c_str()) == 0);
 // #endif
 // }
 
@@ -190,6 +201,8 @@ TEST_CASE("ExodusII Write Tet10", "[Mesh]")
 
 //    Mesh generated_mesh = Mesh::LoadFromFile(fpath_generated, 0, 0, true);
 //    CompareMeshes(original_mesh, generated_mesh);
+
+//    REQUIRE(remove(fpath_generated.c_str()) == 0);
 // #endif
 // }
 
@@ -204,6 +217,8 @@ TEST_CASE("ExodusII Write Tet10", "[Mesh]")
 
 //    Mesh generated_mesh = Mesh::LoadFromFile(fpath_generated, 0, 0, true);
 //    CompareMeshes(original_mesh, generated_mesh);
+
+//    REQUIRE(remove(fpath_generated.c_str()) == 0);
 // #endif
 // }
 
@@ -218,6 +233,8 @@ TEST_CASE("ExodusII Write Tet10", "[Mesh]")
 
 //    Mesh generated_mesh = Mesh::LoadFromFile(fpath_generated, 0, 0, true);
 //    CompareMeshes(original_mesh, generated_mesh);
+
+//    REQUIRE(remove(fpath_generated.c_str()) == 0);
 // #endif
 // }
 
@@ -233,6 +250,8 @@ TEST_CASE("ExodusII Write Tet10", "[Mesh]")
 
 //    Mesh generated_mesh = Mesh::LoadFromFile(fpath_generated, 0, 0, true);
 //    CompareMeshes(original_mesh, generated_mesh);
+
+//    REQUIRE(remove(fpath_generated.c_str()) == 0);
 // #endif
 // }
 
@@ -248,5 +267,7 @@ TEST_CASE("ExodusII Write Tet10", "[Mesh]")
 
 //    Mesh generated_mesh = Mesh::LoadFromFile(fpath_generated, 0, 0, true);
 //    CompareMeshes(original_mesh, generated_mesh);
+
+//    REQUIRE(remove(fpath_generated.c_str()) == 0);
 // #endif
 // }
