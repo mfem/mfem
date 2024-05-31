@@ -97,7 +97,7 @@ void Derefine(Mesh &mesh, const Array<int> &drefs)
    mesh.DerefineByError(errors,1.0);
 }
 
-enum class Space {H1, L2, VectorH1, VectorL2};
+enum class Space {H1, L2, VectorH1, VectorL2, RT};
 
 TEST_CASE("hpTransfer", "[hpTransfer]")
 {
@@ -129,10 +129,18 @@ TEST_CASE("hpTransfer", "[hpTransfer]")
    // 1. Set up initial state by randomly h- and p- refine
    mesh.RandomRefinement(0.5);
 
-   H1_FECollection fec(order, dim);
+   FiniteElementCollection * fec = nullptr;
+   if (space == Space::H1 || space == Space::VectorH1)
+   {
+      fec = new H1_FECollection(order, dim);
+   }
+   else
+   {
+      fec = new L2_FECollection(order, dim);
+   }
 
    int dimc = (space<=Space::L2) ? 1 : dim;
-   FiniteElementSpace fes(&mesh, &fec, dimc);
+   FiniteElementSpace fes(&mesh, fec, dimc);
    fes.SetRelaxedHpConformity(relax_conformity);
    RandomPRefinement(fes);
 
@@ -178,7 +186,7 @@ TEST_CASE("hpTransfer", "[hpTransfer]")
 
    // 4: Randomly p-refine the mesh and transfer the GridFunction
    Mesh cmesh(mesh);
-   FiniteElementSpace cfes(&cmesh, &fec, dimc);
+   FiniteElementSpace cfes(&cmesh, fec, dimc);
    cfes.SetRelaxedHpConformity(relax_conformity);
    for (int i = 0; i<cmesh.GetNE(); i++)
    {
@@ -218,7 +226,7 @@ TEST_CASE("hpTransfer", "[hpTransfer]")
    //    (of the same parent) that are going to be de-refined
    //    have the same order
    Mesh fmesh(mesh);
-   FiniteElementSpace ffes(&fmesh, &fec, dimc);
+   FiniteElementSpace ffes(&fmesh, fec, dimc);
    ffes.SetRelaxedHpConformity(relax_conformity);
    for (int i = 0; i<fmesh.GetNE(); i++)
    {
@@ -283,6 +291,7 @@ TEST_CASE("hpTransfer", "[hpTransfer]")
    // 6a. Check if the restricted GridFunction to the de-refined
    //     mesh exactly reproduces the polynomial GridFunction
    REQUIRE(err_gf.Norml2() < 1e-11);
+   delete fec;
 }
 
 }
