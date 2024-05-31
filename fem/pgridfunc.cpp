@@ -565,7 +565,14 @@ void ParGridFunction::ProjectCoefficient(Coefficient &coeff)
 
    if (delta_c == NULL)
    {
+      (*this) = std::numeric_limits<real_t>::min();
       GridFunction::ProjectCoefficient(coeff);
+
+      // Accumulate for all vdofs.
+      GroupCommunicator &gcomm = pfes->GroupComm();
+      gcomm.Reduce<real_t>(data, GroupCommunicator::Max);
+      gcomm.Bcast<real_t>(data);
+      Vector::Print(cout,888);
    }
    else
    {
