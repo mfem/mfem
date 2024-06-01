@@ -819,7 +819,7 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh,
          apf::Downward verts;
          apf_mesh->getDownward(ent,0,verts);
 
-         int *v, nv = 0;
+         int *v = nullptr, nv = 0;
          apf::Mesh::Type ftype = apf_mesh->getType(ent);
          if (ftype == apf::Mesh::TRIANGLE)
          {

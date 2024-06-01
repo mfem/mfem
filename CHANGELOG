@@ -11,6 +11,8 @@
 Version 4.7.1 (development)
 ===========================
 
+- API change: in class GridFunction, 'fec' was renamed to 'fec_owned'.
+
 
 Version 4.7, released on May 7, 2024
 ====================================
