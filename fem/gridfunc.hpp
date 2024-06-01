@@ -39,9 +39,6 @@ protected:
        If not NULL, this pointer is owned by the GridFunction. */
    FiniteElementCollection *fec_owned;
 
-   /// @deprecated Use #fec_owned instead
-   MFEM_DEPRECATED FiniteElementCollection *&fec = fec_owned;
-
    long fes_sequence; // see FiniteElementSpace::sequence, Mesh::sequence
 
    /** Optional, internal true-dof vector: if the FiniteElementSpace #fes has a
