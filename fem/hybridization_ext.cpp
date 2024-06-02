@@ -171,110 +171,142 @@ void HybridizationExtension::ConstructH()
       }
    }
 
+   const int ncdofs = h.c_fes.GetTrueVSize();
    const ElementDofOrdering ordering = ElementDofOrdering::NATIVE;
    const FaceRestriction *face_restr =
       h.c_fes.GetFaceRestriction( ordering, FaceType::Interior);
-   const Array<int> &c_gather_map = face_restr->GatherMap();
+   const auto c_gather_map = Reshape(face_restr->GatherMap().Read(), n, nf);
 
-   const int ncdofs = h.c_fes.GetTrueVSize();
+   const auto d_f2f = Reshape(face_to_face.Read(), n_face_connections, nf);
+   const auto d_CAhatInvCt_mat = Reshape(CAhatInvCt_mat.Read(),
+                                         n, n, n_face_connections, nf);
+
    SparseMatrix H;
    H.OverrideSize(ncdofs, ncdofs);
 
    H.GetMemoryI().New(ncdofs + 1, H.GetMemoryI().GetMemoryType());
-   int *I = H.HostWriteI();
-   for (int i = 0; i < ncdofs; ++i) { I[i] = 0; }
-   for (int fi = 0; fi < nf; ++fi)
+
    {
-      for (int idx = 0; idx < n_face_connections; ++idx)
+      int *I = H.WriteI();
+
+      mfem::forall(ncdofs, [=] MFEM_HOST_DEVICE (int i) { I[i] = 0; });
+
+      // TODO: to expose more parallelism, should be able to make this forall
+      // loop over nf*n (for indices fi and i)
+      mfem::forall(nf, [=] MFEM_HOST_DEVICE (int fi)
       {
-         const int fj = face_to_face[idx + fi*n_face_connections];
-         if (fj < 0) { break; }
-         const int offset = (idx + fi*n_face_connections)*n*n;
-         for (int i = 0; i < n; ++ i)
+         for (int idx = 0; idx < n_face_connections; ++idx)
          {
-            const int ii = c_gather_map[i + fi*n];
-            for (int j = 0; j < n; ++j)
+            const int fj = d_f2f(idx, fi);
+            if (fj < 0) { break; }
+            for (int i = 0; i < n; ++ i)
             {
-               if (CAhatInvCt_mat[i + j*n + offset] != 0)
+               const int ii = c_gather_map(i, fi);
+               for (int j = 0; j < n; ++j)
                {
-                  I[ii]++;
+                  if (d_CAhatInvCt_mat(i, j, idx, fi) != 0)
+                  {
+                     I[ii]++;
+                  }
                }
             }
          }
-      }
+      });
    }
 
-   int empty_row_count = 0;
-   for (int i = 0; i < ncdofs; i++)
+   // At this point, I[i] contains the number of nonzeros in row I. Perform a
+   // partial sum to get I in CSR format. This is serial, so perform on host.
+   //
+   // At the same time, we find any empty rows and add a single nonzero (we will
+   // put 1 on the diagonal) and record the row index.
+   Array<int> empty_rows;
    {
-      if (I[i] == 0) { empty_row_count++; }
-   }
-
-   Array<int> empty_rows(empty_row_count);
-   int ess_idx = 0;
-
-   int sum = 0;
-   for (int i = 0; i < ncdofs; i++)
-   {
-      int nnz = I[i];
-      if (nnz == 0)
+      int *I = H.HostReadWriteI();
+      int empty_row_count = 0;
+      for (int i = 0; i < ncdofs; i++)
       {
-         empty_rows[ess_idx] = i;
-         ess_idx++;
-         nnz = 1;
+         if (I[i] == 0) { empty_row_count++; }
       }
-      I[i] = sum;
-      sum += nnz;
-   }
-   const int nnz = sum;
-   I[ncdofs] = nnz;
+      empty_rows.SetSize(empty_row_count);
 
+      int empty_row_idx = 0;
+      int sum = 0;
+      for (int i = 0; i < ncdofs; i++)
+      {
+         int nnz = I[i];
+         if (nnz == 0)
+         {
+            empty_rows[empty_row_idx] = i;
+            empty_row_idx++;
+            nnz = 1;
+         }
+         I[i] = sum;
+         sum += nnz;
+      }
+      I[ncdofs] = sum;
+   }
+
+   const int nnz = H.HostReadI()[ncdofs];
    H.GetMemoryJ().New(nnz, H.GetMemoryJ().GetMemoryType());
    H.GetMemoryData().New(nnz, H.GetMemoryData().GetMemoryType());
-   int *J = H.HostWriteJ();
-   real_t *V = H.HostWriteData();
 
-   for (int fi = 0; fi < nf; ++fi)
    {
-      for (int idx = 0; idx < n_face_connections; ++idx)
+      int *I = H.ReadWriteI();
+      int *J = H.WriteJ();
+      real_t *V = H.WriteData();
+
+      // TODO: to expose more parallelism, should be able to make this forall
+      // loop over nf*n (for indices fi and i)
+      mfem::forall(nf, [=] MFEM_HOST_DEVICE (int fi)
       {
-         const int fj = face_to_face[idx + fi*n_face_connections];
-         if (fj < 0) { break; }
-         const int offset = (idx + fi*n_face_connections)*n*n;
-         for (int i = 0; i < n; ++ i)
+         for (int idx = 0; idx < n_face_connections; ++idx)
          {
-            const int ii = c_gather_map[i + fi*n];
-            for (int j = 0; j < n; ++j)
+            const int fj = d_f2f(idx, fi);
+            if (fj < 0) { break; }
+            for (int i = 0; i < n; ++ i)
             {
-               const real_t val = CAhatInvCt_mat[i + j*n + offset];
-               if (val != 0)
+               const int ii = c_gather_map[i + fi*n];
+               for (int j = 0; j < n; ++j)
                {
-                  const int k = I[ii];
-                  const int jj = c_gather_map[j + fj*n];
-                  I[ii]++;
-                  J[k] = jj;
-                  V[k] = val;
+                  const real_t val = d_CAhatInvCt_mat(i, j, idx, fi);
+                  if (val != 0)
+                  {
+                     const int k = I[ii];
+                     const int jj = c_gather_map(j, fj);
+                     I[ii]++;
+                     J[k] = jj;
+                     V[k] = val;
+                  }
                }
             }
          }
-      }
-   }
+      });
 
-   for (int idx = 0; idx < empty_row_count; ++idx)
-   {
-      const int i = empty_rows[idx];
-      const int k = I[i];
-      I[i]++;
-      J[k] = i;
-      V[k] = 1.0;
+      const int *d_empty_rows = empty_rows.Read();
+      mfem::forall(empty_rows.Size(), [=] MFEM_HOST_DEVICE (int idx)
+      {
+         const int i = d_empty_rows[idx];
+         const int k = I[i];
+         I[i]++;
+         J[k] = i;
+         V[k] = 1.0;
+      });
    }
 
    // Shift back down
-   for (int i = ncdofs - 1; i > 0; --i)
    {
-      I[i] = I[i-1];
+      int *I = H.HostReadWriteI();
+      for (int i = ncdofs - 1; i > 0; --i)
+      {
+         I[i] = I[i-1];
+      }
+      I[0] = 0;
    }
-   I[0] = 0;
+
+   {
+      std::ofstream f("H1.txt");
+      H.PrintMatlab(f);
+   }
 }
 
 void HybridizationExtension::MultCt(const Vector &x, Vector &y) const
