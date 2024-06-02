@@ -4666,7 +4666,7 @@ DenseTensor &DenseTensor::operator=(real_t c)
    return *this;
 }
 
-void BatchLUFactor(DenseTensor &Mlu, Array<int> &P, const double TOL)
+void BatchLUFactor(DenseTensor &Mlu, Array<int> &P, const real_t TOL)
 {
    const int m = Mlu.SizeI();
    const int NE = Mlu.SizeK();
