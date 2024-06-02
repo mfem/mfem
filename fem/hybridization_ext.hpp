@@ -56,6 +56,9 @@ protected:
    /// Construct the constraint matrix.
    void ConstructC();
 
+   /// Form the Schur complement matix $H$.
+   void ConstructH();
+
    /// Compute the action of C^t x.
    void MultCt(const Vector &x, Vector &y) const;
 
