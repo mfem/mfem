@@ -441,8 +441,7 @@ void Hybridization::AssembleMatrix(int el, const DenseMatrix &A)
    if (ext)
    {
       ext->AssembleMatrix(el, A);
-      // TODO: uncomment me below!!!
-      // return;
+      return;
    }
 
    Array<int> i_dofs, b_dofs;
@@ -578,6 +577,7 @@ void Hybridization::ComputeH()
    if (ext)
    {
       ext->ConstructH();
+      return;
    }
 
    const int skip_zeros = 1;
