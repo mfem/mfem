@@ -575,6 +575,11 @@ void Hybridization::AssembleBdrMatrix(int bdr_el, const DenseMatrix &A)
 
 void Hybridization::ComputeH()
 {
+   if (ext)
+   {
+      ext->ConstructH();
+   }
+
    const int skip_zeros = 1;
    Array<int> c_dof_marker(Ct->Width());
    Array<int> b_dofs, c_dofs;

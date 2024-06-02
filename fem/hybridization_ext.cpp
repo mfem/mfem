@@ -94,6 +94,189 @@ void HybridizationExtension::ConstructC()
    }
 }
 
+void HybridizationExtension::ConstructH()
+{
+   const Mesh &mesh = *h.fes.GetMesh();
+   const int ne = mesh.GetNE();
+   const int n_faces_per_el = GetNFacesPerElement(mesh);
+   const int m = h.fes.GetFE(0)->GetDof();
+   const int n = h.c_fes.GetFaceElement(0)->GetDof();
+
+   Vector AhatInvCt_mat(Ct_mat);
+   for (int e = 0; e < ne; ++e)
+   {
+      for (int fi = 0; fi < n_faces_per_el; ++fi)
+      {
+         const int offset = (fi + e*n_faces_per_el)*n*m;
+         real_t *data = const_cast<real_t*>(Ahat_inv.GetData() + e*m*m);
+         int *ipiv = const_cast<int*>(Ahat_piv.GetData() + e*m);
+         LUFactors lu(data, ipiv);
+         lu.Solve(m, n, AhatInvCt_mat.GetData() + offset);
+      }
+   }
+
+   const int nf = h.fes.GetNFbyType(FaceType::Interior);
+   const int n_face_connections = 2*n_faces_per_el - 1;
+   Array<int> face_to_face(nf * n_face_connections);
+
+   Array<double> CAhatInvCt_mat(nf*n_face_connections*n*n);
+   CAhatInvCt_mat = 0.0;
+
+   for (int fi = 0; fi < nf; ++fi)
+   {
+      int idx = 0;
+      for (int ei = 0; ei < 2; ++ei)
+      {
+         const int e = face_to_el[2*ei + 4*fi];
+         if (e < 0) { continue; }
+         const int fi_i = face_to_el[1 + 2*ei + 4*fi];
+         for (int fj_i = 0; fj_i < n_faces_per_el; ++fj_i)
+         {
+            const int fj = el_to_face[fj_i + e*n_faces_per_el];
+            // if (fj < 0 || fi == fj) { continue; }
+            // Explicitly allow fi == fj (self-connections)
+            if (fj < 0) { continue; }
+
+            // Have we seen this face before? It is possible in some
+            // configurations to encounter the same neighboring face twice
+            int idx_j = idx;
+            for (int i = 0; i < idx; ++i)
+            {
+               if (face_to_face[i + fi*n_face_connections] == fj)
+               {
+                  idx_j = i;
+                  break;
+               }
+            }
+            // This is a new face, record it and increment the counter
+            if (idx_j == idx)
+            {
+               face_to_face[idx + fi*n_face_connections] = fj;
+               idx++;
+            }
+
+            const int offset_1 = (idx_j + fi*n_face_connections)*n*n;
+            DenseMatrix CAhatInvCt(CAhatInvCt_mat.GetData() + offset_1, n, n);
+            const int offset_2 = (fi_i + e*n_faces_per_el)*n*m;
+            DenseMatrix Ct(Ct_mat.GetData() + offset_2, m, n);
+            const int offset_3 = (fj_i + e*n_faces_per_el)*n*m;
+            DenseMatrix AhatInvCt(AhatInvCt_mat.GetData() + offset_3, m, n);
+            AddMultAtB(Ct, AhatInvCt, CAhatInvCt);
+         }
+      }
+      // Fill unused entries with -1 to indicate invalid
+      for (; idx < n_face_connections; ++idx)
+      {
+         face_to_face[idx + fi*n_face_connections] = -1;
+      }
+   }
+
+   const ElementDofOrdering ordering = ElementDofOrdering::NATIVE;
+   const FaceRestriction *face_restr =
+      h.c_fes.GetFaceRestriction( ordering, FaceType::Interior);
+   const Array<int> &c_gather_map = face_restr->GatherMap();
+
+   const int ncdofs = h.c_fes.GetTrueVSize();
+   SparseMatrix H;
+   H.OverrideSize(ncdofs, ncdofs);
+
+   H.GetMemoryI().New(ncdofs + 1, H.GetMemoryI().GetMemoryType());
+   int *I = H.HostWriteI();
+   for (int i = 0; i < ncdofs; ++i) { I[i] = 0; }
+   for (int fi = 0; fi < nf; ++fi)
+   {
+      for (int idx = 0; idx < n_face_connections; ++idx)
+      {
+         const int fj = face_to_face[idx + fi*n_face_connections];
+         if (fj < 0) { break; }
+         const int offset = (idx + fi*n_face_connections)*n*n;
+         for (int i = 0; i < n; ++ i)
+         {
+            const int ii = c_gather_map[i + fi*n];
+            for (int j = 0; j < n; ++j)
+            {
+               if (CAhatInvCt_mat[i + j*n + offset] != 0)
+               {
+                  I[ii]++;
+               }
+            }
+         }
+      }
+   }
+
+   int empty_row_count = 0;
+   for (int i = 0; i < ncdofs; i++)
+   {
+      if (I[i] == 0) { empty_row_count++; }
+   }
+
+   Array<int> empty_rows(empty_row_count);
+   int ess_idx = 0;
+
+   int sum = 0;
+   for (int i = 0; i < ncdofs; i++)
+   {
+      int nnz = I[i];
+      if (nnz == 0)
+      {
+         empty_rows[ess_idx] = i;
+         ess_idx++;
+         nnz = 1;
+      }
+      I[i] = sum;
+      sum += nnz;
+   }
+   const int nnz = sum;
+   I[ncdofs] = nnz;
+
+   H.GetMemoryJ().New(nnz, H.GetMemoryJ().GetMemoryType());
+   H.GetMemoryData().New(nnz, H.GetMemoryData().GetMemoryType());
+   int *J = H.HostWriteJ();
+   real_t *V = H.HostWriteData();
+
+   for (int fi = 0; fi < nf; ++fi)
+   {
+      for (int idx = 0; idx < n_face_connections; ++idx)
+      {
+         const int fj = face_to_face[idx + fi*n_face_connections];
+         if (fj < 0) { break; }
+         const int offset = (idx + fi*n_face_connections)*n*n;
+         for (int i = 0; i < n; ++ i)
+         {
+            const int ii = c_gather_map[i + fi*n];
+            for (int j = 0; j < n; ++j)
+            {
+               const real_t val = CAhatInvCt_mat[i + j*n + offset];
+               if (val != 0)
+               {
+                  const int k = I[ii];
+                  const int jj = c_gather_map[j + fj*n];
+                  I[ii]++;
+                  J[k] = jj;
+                  V[k] = val;
+               }
+            }
+         }
+      }
+   }
+
+   for (int idx = 0; idx < empty_row_count; ++idx)
+   {
+      const int i = empty_rows[idx];
+      const int k = I[i];
+      I[i]++;
+      J[k] = i;
+      V[k] = 1.0;
+   }
+
+   // Shift back down
+   for (int i = ncdofs - 1; i > 0; --i)
+   {
+      I[i] = I[i-1];
+   }
+   I[0] = 0;
+}
+
 void HybridizationExtension::MultCt(const Vector &x, Vector &y) const
 {
    Mesh &mesh = *h.fes.GetMesh();
