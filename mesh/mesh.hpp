@@ -562,7 +562,7 @@ protected:
        If @a comments is non-empty, it will be printed after the first line of
        the file, and each line should begin with '#'. */
    void Printer(std::ostream &os = mfem::out,
-                const std::string &section_delimiter = "",
+                std::string section_delimiter = "",
                 const std::string &comments = "") const;
 
    /// @brief Creates a mesh for the parallelepiped [0,sx]x[0,sy]x[0,sz],

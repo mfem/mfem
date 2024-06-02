@@ -11306,7 +11306,7 @@ void Mesh::PrintXG(std::ostream &os) const
    os << flush;
 }
 
-void Mesh::Printer(std::ostream &os, const std::string &section_delimiter,
+void Mesh::Printer(std::ostream &os, std::string section_delimiter,
                    const std::string &comments) const
 {
    int i, j;
