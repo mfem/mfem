@@ -21,7 +21,7 @@ coefficient K, and the essential/natural boundary assignment.
 
 The discrete saddle point problem has a block structure of the form
 
-                   [ M  B^T ] [u] = [g]
+              Ax = [ M  B^T ] [u] = [g] = b
                    [ B   0  ] [p] = [f]
 
 The solvers for the above block system include:
@@ -62,6 +62,26 @@ The solvers for the above block system include:
              P^{-1} = [ diag(M)^{-1}     0    ]
                       [  0             AMG(S) ]
 
+3. CG with Bramble-Pasciak transformation
+
+   The solver explores two approaches. Firstly, we consider a preconditioner Q
+   such that M - Q is still s.p.d.. The transformed system XA x = X b, where
+                  X = [ M*Q^{-1} - I    0 ]
+                      [   B*Q^{-1}     -I ],
+   can be solver with a standard PGC solver, where we use the above block
+   diagonal preconditioner.
+   Secondly, we consider the particular preconditioner
+             H^{-1} = [ (M - Q)^{-1}     0     ]
+                      [     0         P_2^{-1} ].
+   This preconditioner enables a more efficient implementation of PCG what we
+   refer to as Bramble-Pasciak CG (BPCG).
+
+   For more details see
+
+   [1] Bramble, James H., and Joseph E. Pasciak. A preconditioning technique
+       for indefinite systems resulting from mixed approximations of elliptic
+       problems. Mathematics of Computation 50.181 (1988): 1-17.
+
 # Low-Order Refined Solvers
 
 The miniapp `lor` (and its parallel counterpart `plor`) demonstrate the use of
@@ -76,3 +96,36 @@ using the low-order system).
 In parallel, hypre's scalable AMG solvers are used for the low-order systems:
 `HypreBoomerAMG` is used for H1 and L2 spaces, `HypreAMS` is used for H(curl)
 (and H(div) in 2D), and `HypreADS` is used for H(div) in 3D.
+
+# Elasticity LOR Block Preconditioning
+
+The miniapp `lor_elast` demonstrates how to precondition a vector-valued PDE
+on GPUs. The miniapp supports partial assembly, and the low-order refined
+preconditioner can be assembled entirely on the GPU.
+
+In 3D, the elasticity operator can be broken into vector components of the form
+
+            A = [A_00  A_01  A_02]
+                [A_10  A_11  A_12]
+                [A_20  A_21  A_22]
+
+Traditional AMG requires having the entire matrix in memory which can be
+prohibitive on GPUs. An effective preconditioning strategy for materials
+which are not nearly incompressible is to use
+P^{-1} = diag(AMG(A_00), AMG(A_11), AMG(A_22)) where AMG(A) is the AMG
+approximation inv(A) [3]. This requires storing 3 blocks instead of 9,
+but this is still prohibitive for high order discretizations on GPUs. This
+is alleviated here by performing AMG on the low-order refined
+operators instead.
+
+There is also an option which replaces P^{-1} with
+diag(inv(A_00), inv(A_11), inv(A_22)) where the action of inv(A_ii) is performed
+with a CG inner solve that is preconditioned with AMG(A_ii). This seems to give
+order independent conditioning of the outer CG solve, but is much slower than
+performing a single AMG iteration per block.
+
+This miniapp allows timing comparisons with the LEGACY assembly approach.
+
+[3] Mihajlović, M.D. and Mijalković, S., "A component decomposition
+    preconditioning for 3D stress analysis problems", Numerical Linear
+    Algebra with Applications, 2002.

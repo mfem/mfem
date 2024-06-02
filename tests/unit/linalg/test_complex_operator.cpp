@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -16,19 +16,19 @@ using namespace mfem;
 
 TEST_CASE("ComplexOperator Quaternion Tests", "[ComplexOperator]")
 {
-   double tol = 1e-12;
+   real_t tol = 1e-12;
 
    // 2x2 Quaternion matrix data in column major order
-   double d1[4] = { 1.0,  0.0,
+   real_t d1[4] = { 1.0,  0.0,
                     0.0,  1.0
                   };
-   double di[4] = { 1.0,  0.0,
+   real_t di[4] = { 1.0,  0.0,
                     0.0, -1.0
                   };
-   double dj[4] = { 0.0, -1.0,
+   real_t dj[4] = { 0.0, -1.0,
                     1.0,  0.0
                   };
-   double dk[4] = { 0.0,  1.0,
+   real_t dk[4] = { 0.0,  1.0,
                     1.0,  0.0
                   };
 

@@ -35,8 +35,8 @@
 using namespace std;
 using namespace mfem;
 
-double GetVectorMax(int vdim, const ParGridFunction &x);
-double GetScalarMax(const ParGridFunction &x);
+real_t GetVectorMax(int vdim, const ParGridFunction &x);
+real_t GetScalarMax(const ParGridFunction &x);
 
 int main(int argc, char *argv[])
 {
@@ -140,7 +140,7 @@ int main(int argc, char *argv[])
    //    extract the corresponding parallel matrices A and M.
    HypreParMatrix *A = NULL;
    HypreParMatrix *M = NULL;
-   double shift = 0.0;
+   real_t shift = 0.0;
    {
       DenseMatrix epsilonMat(3);
       epsilonMat(0,0) = 2.0; epsilonMat(1,1) = 2.0; epsilonMat(2,2) = 2.0;
@@ -178,7 +178,7 @@ int main(int argc, char *argv[])
       m.AddDomainIntegrator(new VectorFEMassIntegrator(epsilon));
       m.Assemble();
       // shift the eigenvalue corresponding to eliminated dofs to a large value
-      m.EliminateEssentialBCDiag(ess_bdr, numeric_limits<double>::min());
+      m.EliminateEssentialBCDiag(ess_bdr, numeric_limits<real_t>::min());
       m.Finalize();
 
       A = a.ParallelAssemble();
@@ -204,7 +204,7 @@ int main(int argc, char *argv[])
    // 9. Compute the eigenmodes and extract the array of eigenvalues. Define
    //    parallel grid functions to represent each of the eigenmodes returned by
    //    the solver and their derivatives.
-   Array<double> eigenvalues;
+   Array<real_t> eigenvalues;
    ame->Solve();
    ame->GetEigenvalues(eigenvalues);
    ParGridFunction x(&fespace_nd);
@@ -308,10 +308,10 @@ int main(int argc, char *argv[])
                yComp.ProjectCoefficient(yCoef);
                zComp.ProjectCoefficient(zCoef);
 
-               double max_x = GetScalarMax(xComp);
-               double max_y = GetScalarMax(yComp);
-               double max_z = GetScalarMax(zComp);
-               double max_r = std::max(max_x, std::max(max_y, max_z));
+               real_t max_x = GetScalarMax(xComp);
+               real_t max_y = GetScalarMax(yComp);
+               real_t max_z = GetScalarMax(zComp);
+               real_t max_r = std::max(max_x, std::max(max_y, max_z));
 
                ostringstream x_cmd;
                x_cmd << " window_title 'Eigenmode " << i+1 << '/' << nev
@@ -368,7 +368,7 @@ int main(int argc, char *argv[])
                dyComp.ProjectCoefficient(dyCoef);
                dzComp.ProjectCoefficient(dzCoef);
 
-               double min_d = max_r / (bbMax[0] - bbMin[0]);
+               real_t min_d = max_r / (bbMax[0] - bbMin[0]);
 
                max_y = GetScalarMax(dyComp);
                max_z = GetScalarMax(dzComp);
@@ -480,9 +480,9 @@ int main(int argc, char *argv[])
                xyComp.ProjectCoefficient(xyCoef);
                zComp.ProjectCoefficient(zCoef);
 
-               double max_v = GetVectorMax(2, xyComp);
-               double max_s = GetScalarMax(zComp);
-               double max_r = std::max(max_v, max_s);
+               real_t max_v = GetVectorMax(2, xyComp);
+               real_t max_s = GetScalarMax(zComp);
+               real_t max_r = std::max(max_v, max_s);
 
                ostringstream xy_cmd;
                xy_cmd << " window_title 'Eigenmode " << i+1 << '/' << nev
@@ -523,7 +523,7 @@ int main(int argc, char *argv[])
                dxyComp.ProjectCoefficient(dxyCoef);
                dzComp.ProjectCoefficient(dzCoef);
 
-               double min_d = max_r / std::min(bbMax[0] - bbMin[0],
+               real_t min_d = max_r / std::min(bbMax[0] - bbMin[0],
                                                bbMax[1] - bbMin[1]);
 
                max_v = GetVectorMax(2, dxyComp);
@@ -649,17 +649,17 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-double GetVectorMax(int vdim, const ParGridFunction &x)
+real_t GetVectorMax(int vdim, const ParGridFunction &x)
 {
    Vector zeroVec(vdim); zeroVec = 0.0;
    VectorConstantCoefficient zero(zeroVec);
-   double nrm = x.ComputeMaxError(zero);
+   real_t nrm = x.ComputeMaxError(zero);
    return nrm;
 }
 
-double GetScalarMax(const ParGridFunction &x)
+real_t GetScalarMax(const ParGridFunction &x)
 {
    ConstantCoefficient zero(0.0);
-   double nrm = x.ComputeMaxError(zero);
+   real_t nrm = x.ComputeMaxError(zero);
    return nrm;
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -66,15 +66,16 @@
 #include "../../general/forall.hpp"
 
 using namespace mfem;
+using namespace std;
 
 // Constant variables
 constexpr int DIM = 2;
 constexpr int SDIM = 3;
-constexpr double PI = M_PI;
-constexpr double NRM = 1.e-4;
-constexpr double EPS = 1.e-14;
+constexpr real_t PI = M_PI;
+constexpr real_t NRM = 1.e-4;
+constexpr real_t EPS = 1.e-14;
 constexpr Element::Type QUAD = Element::QUADRILATERAL;
-constexpr double NL_DMAX = std::numeric_limits<double>::max();
+constexpr real_t NL_DMAX = std::numeric_limits<real_t>::max();
 
 // Static variables for GLVis
 constexpr int GLVIZ_W = 1024;
@@ -102,9 +103,9 @@ struct Opt
    bool by_vdim = false;
    bool snapshot = false;
    // bool vis_mesh = false; // Not supported by GLVis
-   double tau = 1.0;
-   double lambda = 0.1;
-   double amr_threshold = 0.6;
+   real_t tau = 1.0;
+   real_t lambda = 0.1;
+   real_t amr_threshold = 0.6;
    const char *keys = "gAm";
    const char *device_config = "cpu";
    const char *mesh_file = "../../data/mobius-strip.mesh";
@@ -310,7 +311,7 @@ public:
       ConstantCoefficient one;
       mfem::Solver *M = nullptr;
       const int print_iter = -1, max_num_iter = 2000;
-      const double RTOLERANCE = EPS, ATOLERANCE = EPS*EPS;
+      const real_t RTOLERANCE = EPS, ATOLERANCE = EPS*EPS;
    public:
       Solver(Surface &S, Opt &opt): opt(opt), S(S), cg(MPI_COMM_WORLD),
          a(S.fes), x(S.fes), x0(S.fes), b(S.fes), one(1.0)
@@ -343,7 +344,7 @@ public:
       virtual bool Step() = 0;
 
    protected:
-      bool Converged(const double rnorm) { return rnorm < NRM; }
+      bool Converged(const real_t rnorm) { return rnorm < NRM; }
 
       bool ParAXeqB()
       {
@@ -359,12 +360,13 @@ public:
          GridFunction *nodes = by_vdim ? &x0 : S.fes->GetMesh()->GetNodes();
          x.HostReadWrite();
          nodes->HostRead();
-         double rnorm = nodes->DistanceTo(x) / nodes->Norml2();
-         double glob_norm;
-         MPI_Allreduce(&rnorm, &glob_norm, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+         real_t rnorm = nodes->DistanceTo(x) / nodes->Norml2();
+         real_t glob_norm;
+         MPI_Allreduce(&rnorm, &glob_norm, 1, MPITypeMap<real_t>::mpi_type,
+                       MPI_MAX, MPI_COMM_WORLD);
          rnorm = glob_norm;
          if (!opt.id) { mfem::out << "rnorm = " << rnorm << std::endl; }
-         const double lambda = opt.lambda;
+         const real_t lambda = opt.lambda;
          if (by_vdim)
          {
             MFEM_VERIFY(!opt.radial,"'VDim solver can't use radial option!");
@@ -386,7 +388,7 @@ public:
                   di(d) = delta(d*ndof + i);
                }
                // project the delta vector in radial direction
-               const double ndotd = (ni*di) / (ni*ni);
+               const real_t ndotd = (ni*di) / (ni*ni);
                di.Set(ndotd,ni);
                // set global vectors
                for (int d = 0; d < SDIM; d++) { delta(d*ndof + i) = di(d); }
@@ -407,8 +409,8 @@ public:
          DenseMatrix Jadjt, Jadj(DIM, SDIM);
          for (int e = 0; e < NE; e++)
          {
-            double minW = +NL_DMAX;
-            double maxW = -NL_DMAX;
+            real_t minW = +NL_DMAX;
+            real_t maxW = -NL_DMAX;
             ElementTransformation *eTr = smesh->GetElementTransformation(e);
             const Geometry::Type &type =
                smesh->GetElement(e)->GetGeometryType();
@@ -422,13 +424,13 @@ public:
                CalcAdjugate(J, Jadj);
                Jadjt = Jadj;
                Jadjt.Transpose();
-               const double w = Jadjt.Weight();
-               minW = std::fmin(minW, w);
-               maxW = std::fmax(maxW, w);
+               const real_t w = Jadjt.Weight();
+               minW = std::min(minW, w);
+               maxW = std::max(maxW, w);
             }
-            if (std::fabs(maxW) != 0.0)
+            if (std::abs(maxW) != 0.0)
             {
-               const double rho = minW / maxW;
+               const real_t rho = minW / maxW;
                MFEM_VERIFY(rho <= 1.0, "");
                if (rho < opt.amr_threshold) { amr.Append(Refinement(e)); }
             }
@@ -562,8 +564,8 @@ struct Catenoid: public Surface
    {
       p.SetSize(SDIM);
       // u in [0,2π] and v in [-π/6,π/6]
-      const double u = 2.0*PI*x[0];
-      const double v = PI*(x[1]-0.5)/3.;
+      const real_t u = 2.0*PI*x[0];
+      const real_t v = PI*(x[1]-0.5)/3.;
       p[0] = cos(u);
       p[1] = sin(u);
       p[2] = v;
@@ -579,8 +581,8 @@ struct Helicoid: public Surface
    {
       p.SetSize(SDIM);
       // u in [0,2π] and v in [-2π/3,2π/3]
-      const double u = 2.0*PI*x[0];
-      const double v = 2.0*PI*(2.0*x[1]-1.0)/3.0;
+      const real_t u = 2.0*PI*x[0];
+      const real_t v = 2.0*PI*(2.0*x[1]-1.0)/3.0;
       p(0) = sin(u)*v;
       p(1) = cos(u)*v;
       p(2) = u;
@@ -596,8 +598,8 @@ struct Enneper: public Surface
    {
       p.SetSize(SDIM);
       // (u,v) in [-2, +2]
-      const double u = 4.0*(x[0]-0.5);
-      const double v = 4.0*(x[1]-0.5);
+      const real_t u = 4.0*(x[0]-0.5);
+      const real_t v = 4.0*(x[1]-0.5);
       p[0] = +u - u*u*u/3.0 + u*v*v;
       p[1] = -v - u*u*v + v*v*v/3.0;
       p[2] = u*u - v*v;
@@ -651,8 +653,8 @@ struct Hold: public Surface
    {
       p.SetSize(SDIM);
       // u in [0,2π] and v in [0,1]
-      const double u = 2.0*PI*x[0];
-      const double v = x[1];
+      const real_t u = 2.0*PI*x[0];
+      const real_t v = x[1];
       p[0] = cos(u)*(1.0 + 0.3*sin(3.*u + PI*v));
       p[1] = sin(u)*(1.0 + 0.3*sin(3.*u + PI*v));
       p[2] = v;
@@ -661,49 +663,51 @@ struct Hold: public Surface
 
 // #5: Costa minimal surface
 #include <complex>
-using cdouble = std::complex<double>;
+using cdouble = std::complex<real_t>;
 #define I cdouble(0.0, 1.0)
 
 // https://dlmf.nist.gov/20.2
 cdouble EllipticTheta(const int a, const cdouble u, const cdouble q)
 {
    cdouble J = 0.0;
-   double delta = std::numeric_limits<double>::max();
+   real_t delta = std::numeric_limits<real_t>::max();
    switch (a)
    {
       case 1:
          for (int n=0; delta > EPS; n+=1)
          {
-            const cdouble j = pow(-1,n)*pow(q,n*(n+1.0))*sin((2.0*n+1.0)*u);
+            const cdouble j(pow(-real_t(1),real_t(n))*pow(q,
+                                                          real_t(n*(n+1)))*sin(real_t(2*n+1)*u));
             delta = abs(j);
             J += j;
          }
-         return 2.0*pow(q,0.25)*J;
+         return cdouble(real_t(2)*pow(q,real_t(0.25))*J);
 
       case 2:
          for (int n=0; delta > EPS; n+=1)
          {
-            const cdouble j = pow(q,n*(n+1))*cos((2.0*n+1.0)*u);
+            const cdouble j(pow(q,real_t(n*(n+1)))*cos(real_t(2*n+1)*u));
             delta = abs(j);
             J += j;
          }
-         return 2.0*pow(q,0.25)*J;
+         return cdouble(real_t(2)*pow(q,real_t(0.25))*J);
       case 3:
          for (int n=1; delta > EPS; n+=1)
          {
-            const cdouble j = pow(q,n*n)*cos(2.0*n*u);
+            const cdouble j = pow(q,real_t(n*n))*cos(real_t(2*n)*u);
             delta = abs(j);
             J += j;
          }
-         return 1.0 + 2.0*J;
+         return real_t(1) + real_t(2)*J;
       case 4:
          for (int n=1; delta > EPS; n+=1)
          {
-            const cdouble j =pow(-1,n)*pow(q,n*n)*cos(2.0*n*u);
+            const cdouble j = pow(-real_t(1),real_t(n))*pow(q,
+                                                            real_t(n*n))*cos(real_t(2*n)*u);
             delta = abs(j);
             J += j;
          }
-         return 1.0 + 2.0*J;
+         return real_t(1) + real_t(2)*J;
    }
    return J;
 }
@@ -711,66 +715,66 @@ cdouble EllipticTheta(const int a, const cdouble u, const cdouble q)
 // https://dlmf.nist.gov/23.6#E5
 cdouble WeierstrassP(const cdouble z,
                      const cdouble w1 = 0.5,
-                     const cdouble w3 = 0.5*I)
+                     const cdouble w3 = real_t(0.5)*I)
 {
    const cdouble tau = w3/w1;
-   const cdouble q = exp(I*M_PI*tau);
-   const cdouble e1 = M_PI*M_PI/(12.0*w1*w1)*
-                      (1.0*pow(EllipticTheta(2,0,q),4) +
-                       2.0*pow(EllipticTheta(4,0,q),4));
-   const cdouble u = M_PI*z / (2.0*w1);
-   const cdouble P = M_PI * EllipticTheta(3,0,q)*EllipticTheta(4,0,q) *
-                     EllipticTheta(2,u,q)/(2.0*w1*EllipticTheta(1,u,q));
+   const cdouble q = exp(I*PI*tau);
+   const cdouble e1 = PI*PI/(real_t(12)*w1*w1)*
+                      (pow(EllipticTheta(2,0,q),real_t(4)) +
+                       real_t(2)*pow(EllipticTheta(4,0,q),real_t(4)));
+   const cdouble u = PI*z / (real_t(2)*w1);
+   const cdouble P = PI * EllipticTheta(3,0,q)*EllipticTheta(4,0,q) *
+                     EllipticTheta(2,u,q)/(real_t(2)*w1*EllipticTheta(1,u,q));
    return P*P + e1;
 }
 
 cdouble EllipticTheta1Prime(const int k, const cdouble u, const cdouble q)
 {
    cdouble J = 0.0;
-   double delta = std::numeric_limits<double>::max();
+   real_t delta = std::numeric_limits<real_t>::max();
    for (int n=0; delta > EPS; n+=1)
    {
-      const double alpha = 2.0*n+1.0;
-      const cdouble Dcosine = pow(alpha,k)*sin(k*M_PI/2.0 + alpha*u);
-      const cdouble j = pow(-1,n)*pow(q,n*(n+1.0))*Dcosine;
+      const real_t alpha = 2.0*n+1.0;
+      const cdouble Dcosine = pow(alpha,real_t(k))*sin(k*PI/real_t(2) + alpha*u);
+      const cdouble j(pow(-real_t(1),real_t(n))*pow(q,real_t(n*(n+1)))*Dcosine);
       delta = abs(j);
       J += j;
    }
-   return 2.0*pow(q,0.25)*J;
+   return cdouble(real_t(2)*pow(q,real_t(0.25))*J);
 }
 
 // Logarithmic Derivative of Theta Function 1
 cdouble LogEllipticTheta1Prime(const cdouble u, const cdouble q)
 {
    cdouble J = 0.0;
-   double delta = std::numeric_limits<double>::max();
+   real_t delta = std::numeric_limits<real_t>::max();
    for (int n=1; delta > EPS; n+=1)
    {
-      cdouble q2n = pow(q, 2*n);
+      cdouble q2n = pow(q, real_t(2*n));
       if (abs(q2n) < EPS) { q2n = 0.0; }
-      const cdouble j = q2n/(1.0-q2n)*sin(2.0*n*u);
+      const cdouble j = q2n/(real_t(1)-q2n)*sin(real_t(2*n)*u);
       delta = abs(j);
       J += j;
    }
-   return 1.0/tan(u) + 4.0*J;
+   return real_t(1)/tan(u) + real_t(4)*J;
 }
 
 // https://dlmf.nist.gov/23.6#E13
 cdouble WeierstrassZeta(const cdouble z,
                         const cdouble w1 = 0.5,
-                        const cdouble w3 = 0.5*I)
+                        const cdouble w3 = real_t(0.5)*I)
 {
    const cdouble tau = w3/w1;
-   const cdouble q = exp(I*M_PI*tau);
-   const cdouble n1 = -M_PI*M_PI/(12.0*w1) *
+   const cdouble q = exp(I*PI*tau);
+   const cdouble n1 = -PI*PI/(real_t(12)*w1) *
                       (EllipticTheta1Prime(3,0,q)/
                        EllipticTheta1Prime(1,0,q));
-   const cdouble u = M_PI*z / (2.0*w1);
-   return z*n1/w1 + M_PI/(2.0*w1)*LogEllipticTheta1Prime(u,q);
+   const cdouble u = PI*z / (real_t(2)*w1);
+   return z*n1/w1 + PI/(real_t(2)*w1)*LogEllipticTheta1Prime(u,q);
 }
 
 // https://www.mathcurve.com/surfaces.gb/costa/costa.shtml
-static double ALPHA[4] {0.0};
+static real_t ALPHA[4] {0.0};
 struct Costa: public Surface
 {
    Costa(Opt &opt): Surface((opt.Tptr = Parametrization, opt), false) { }
@@ -790,11 +794,11 @@ struct Costa: public Surface
       // Sets vertices and the corresponding coordinates
       for (int j = 0; j <= ny; j++)
       {
-         const double cy = ((double) j / ny) ;
+         const real_t cy = ((real_t) j / ny) ;
          for (int i = 0; i <= nx; i++)
          {
-            const double cx = ((double) i / nx);
-            const double coords[SDIM] = {cx, cy, 0.0};
+            const real_t cx = ((real_t) i / nx);
+            const real_t coords[SDIM] = {cx, cy, 0.0};
             AddVertex(coords);
          }
       }
@@ -825,7 +829,7 @@ struct Costa: public Surface
 
    static void Parametrization(const Vector &X, Vector &p)
    {
-      const double tau = ALPHA[3];
+      const real_t tau = ALPHA[3];
       Vector x = X;
       x -= +0.5;
       x *= tau;
@@ -834,19 +838,19 @@ struct Costa: public Surface
       p.SetSize(3);
       const bool y_top = x[1] > 0.5;
       const bool x_top = x[0] > 0.5;
-      double u = x[0];
-      double v = x[1];
+      real_t u = x[0];
+      real_t v = x[1];
       if (y_top) { v = 1.0 - x[1]; }
       if (x_top) { u = 1.0 - x[0]; }
       const cdouble w = u + I*v;
-      const cdouble w3 = I/2.;
+      const cdouble w3 = I/real_t(2);
       const cdouble w1 = 1./2.;
       const cdouble pw = WeierstrassP(w);
       const cdouble e1 = WeierstrassP(0.5);
       const cdouble zw = WeierstrassZeta(w);
       const cdouble dw = WeierstrassZeta(w-w1) - WeierstrassZeta(w-w3);
-      p[0] = real(PI*(u+PI/(4.*e1))- zw +PI/(2.*e1)*(dw));
-      p[1] = real(PI*(v+PI/(4.*e1))-I*zw-PI*I/(2.*e1)*(dw));
+      p[0] = real(PI*(u+PI/(real_t(4)*e1))- zw +PI/(real_t(2)*e1)*(dw));
+      p[1] = real(PI*(v+PI/(real_t(4)*e1))-I*zw-PI*I/(real_t(2)*e1)*(dw));
       p[2] = sqrt(PI/2.)*log(abs((pw-e1)/(pw+e1)));
       if (y_top) { p[1] *= -1.0; }
       if (x_top) { p[0] *= -1.0; }
@@ -864,12 +868,12 @@ struct Costa: public Surface
       MFEM_VERIFY(ALPHA[1] > 0.0,"");
       MFEM_VERIFY(ALPHA[2] > 0.0,"");
       GridFunction &nodes = *GetNodes();
-      const double phi = (1.0 + sqrt(5.0)) / 2.0;
+      const real_t phi = (1.0 + sqrt(5.0)) / 2.0;
       for (int i = 0; i < nodes.FESpace()->GetNDofs(); i++)
       {
          for (int d = 0; d < SDIM; d++)
          {
-            const double alpha = d==2 ? phi : 1.0;
+            const real_t alpha = d==2 ? phi : 1.0;
             const int vdof = nodes.FESpace()->DofToVDof(i, d);
             nodes(vdof) /= alpha * ALPHA[d];
          }
@@ -886,8 +890,8 @@ struct Shell: public Surface
    {
       p.SetSize(3);
       // u in [0,2π] and v in [-15, 6]
-      const double u = 2.0*PI*x[0];
-      const double v = 21.0*x[1]-15.0;
+      const real_t u = 2.0*PI*x[0];
+      const real_t v = 21.0*x[1]-15.0;
       p[0] = +1.0*pow(1.16,v)*cos(v)*(1.0+cos(u));
       p[1] = -1.0*pow(1.16,v)*sin(v)*(1.0+cos(u));
       p[2] = -2.0*pow(1.16,v)*(1.0+sin(u));
@@ -900,10 +904,10 @@ struct Scherk: public Surface
    static void Parametrization(const Vector &x, Vector &p)
    {
       p.SetSize(SDIM);
-      const double alpha = 0.49;
+      const real_t alpha = 0.49;
       // (u,v) in [-απ, +απ]
-      const double u = alpha*PI*(2.0*x[0]-1.0);
-      const double v = alpha*PI*(2.0*x[1]-1.0);
+      const real_t u = alpha*PI*(2.0*x[0]-1.0);
+      const real_t v = alpha*PI*(2.0*x[1]-1.0);
       p[0] = u;
       p[1] = v;
       p[2] = log(cos(v)/cos(u));
@@ -923,7 +927,7 @@ struct FullPeach: public Surface
 
    void Prefix()
    {
-      const double quad_v[NV][SDIM] =
+      const real_t quad_v[NV][SDIM] =
       {
          {-1, -1, -1}, {+1, -1, -1}, {+1, +1, -1}, {-1, +1, -1},
          {-1, -1, +1}, {+1, -1, +1}, {+1, +1, +1}, {-1, +1, +1}
@@ -969,8 +973,8 @@ struct FullPeach: public Surface
             const int k = dofs[dof];
             MFEM_ASSERT(k >= 0, "");
             PointMat.Mult(one, X);
-            const bool halfX = std::fabs(X[0]) < EPS && X[1] <= 0.0;
-            const bool halfY = std::fabs(X[2]) < EPS && X[1] >= 0.0;
+            const bool halfX = std::abs(X[0]) < EPS && X[1] <= 0.0;
+            const bool halfY = std::abs(X[2]) < EPS && X[1] >= 0.0;
             const bool is_on_bc = halfX || halfY;
             for (int c = 0; c < SDIM; c++)
             { ess_vdofs[fes->DofToVDof(k, c)] = is_on_bc; }
@@ -998,17 +1002,17 @@ struct QuarterPeach: public Surface
    static void Parametrization(const Vector &X, Vector &p)
    {
       p = X;
-      const double x = 2.0*X[0]-1.0;
-      const double y = X[1];
-      const double r = sqrt(x*x + y*y);
-      const double t = (x==0.0) ? PI/2.0 :
+      const real_t x = 2.0*X[0]-1.0;
+      const real_t y = X[1];
+      const real_t r = sqrt(x*x + y*y);
+      const real_t t = (x==0.0) ? PI/2.0 :
                        (y==0.0 && x>0.0) ? 0. :
                        (y==0.0 && x<0.0) ? PI : acos(x/r);
-      const double sqrtx = sqrt(1.0 + x*x);
-      const double sqrty = sqrt(1.0 + y*y);
+      const real_t sqrtx = sqrt(1.0 + x*x);
+      const real_t sqrty = sqrt(1.0 + y*y);
       const bool yaxis = PI/4.0<t && t < 3.0*PI/4.0;
-      const double R = yaxis?sqrtx:sqrty;
-      const double gamma = r/R;
+      const real_t R = yaxis?sqrtx:sqrty;
+      const real_t gamma = r/R;
       p[0] = gamma * cos(t);
       p[1] = gamma * sin(t);
       p[2] = 1.0 - gamma;
@@ -1025,7 +1029,7 @@ struct QuarterPeach: public Surface
          GetFaceVertices(fn, vertices);
          const GridFunction *nodes = GetNodes();
          Vector nval;
-         double R[2], X[2][SDIM];
+         real_t R[2], X[2][SDIM];
          for (int v = 0; v < 2; v++)
          {
             R[v] = 0.0;
@@ -1033,11 +1037,11 @@ struct QuarterPeach: public Surface
             for (int d = 0; d < SDIM; d++)
             {
                nodes->GetNodalValues(nval, d+1);
-               const double x = X[v][d] = nval[iv];
+               const real_t x = X[v][d] = nval[iv];
                if (d < 2) { R[v] += x*x; }
             }
          }
-         if (std::fabs(X[0][1])<=EPS && std::fabs(X[1][1])<=EPS &&
+         if (std::abs(X[0][1])<=EPS && std::abs(X[1][1])<=EPS &&
              (R[0]>0.1 || R[1]>0.1))
          { el->SetAttribute(1); }
          else { el->SetAttribute(2); }
@@ -1052,13 +1056,13 @@ struct SlottedSphere: public Surface
 
    void Prefix()
    {
-      constexpr double delta = 0.15;
+      constexpr real_t delta = 0.15;
       constexpr int NV1D = 4;
       constexpr int NV = NV1D*NV1D*NV1D;
       constexpr int NEPF = (NV1D-1)*(NV1D-1);
       constexpr int NE = NEPF*6;
-      const double V1D[NV1D] = {-1.0, -delta, delta, 1.0};
-      double QV[NV][3];
+      const real_t V1D[NV1D] = {-1.0, -delta, delta, 1.0};
+      real_t QV[NV][3];
       for (int iv=0; iv<NV; ++iv)
       {
          int ix = iv % NV1D;
@@ -1172,11 +1176,11 @@ static int Problem0(Opt &opt)
 
 // Problem 1: solve the Dirichlet problem for the minimal surface equation
 //            of the form z=f(x,y), using Picard iterations.
-static double u0(const Vector &x) { return sin(3.0 * PI * (x[1] + x[0])); }
+static real_t u0(const Vector &x) { return sin(3.0 * PI * (x[1] + x[0])); }
 
 enum {NORM, AREA};
 
-static double qf(const int order, const int ker, Mesh &m,
+static real_t qf(const int order, const int ker, Mesh &m,
                  FiniteElementSpace &fes, GridFunction &u)
 {
    const Geometry::Type type = m.GetElementBaseGeometry(0);
@@ -1213,19 +1217,19 @@ static double qf(const int order, const int ker, Mesh &m,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            const double w = W(qx, qy);
-            const double J11 = J(qx, qy, 0, 0, e);
-            const double J12 = J(qx, qy, 1, 0, e);
-            const double J21 = J(qx, qy, 0, 1, e);
-            const double J22 = J(qx, qy, 1, 1, e);
-            const double det = detJ(qx, qy, e);
-            const double area = w * det;
-            const double gu0 = grdU(0, qx, qy, e);
-            const double gu1 = grdU(1, qx, qy, e);
-            const double tgu0 = (J22*gu0 - J12*gu1)/det;
-            const double tgu1 = (J11*gu1 - J21*gu0)/det;
-            const double ngu = tgu0*tgu0 + tgu1*tgu1;
-            const double s = (ker == AREA) ? sqrt(1.0 + ngu) :
+            const real_t w = W(qx, qy);
+            const real_t J11 = J(qx, qy, 0, 0, e);
+            const real_t J12 = J(qx, qy, 1, 0, e);
+            const real_t J21 = J(qx, qy, 0, 1, e);
+            const real_t J22 = J(qx, qy, 1, 1, e);
+            const real_t det = detJ(qx, qy, e);
+            const real_t area = w * det;
+            const real_t gu0 = grdU(0, qx, qy, e);
+            const real_t gu1 = grdU(1, qx, qy, e);
+            const real_t tgu0 = (J22*gu0 - J12*gu1)/det;
+            const real_t tgu1 = (J11*gu1 - J21*gu0)/det;
+            const real_t ngu = tgu0*tgu0 + tgu1*tgu1;
+            const real_t s = (ker == AREA) ? sqrt(1.0 + ngu) :
                              (ker == NORM) ? ngu : 0.0;
             S(qx, qy, e) = area * s;
          }
@@ -1271,8 +1275,8 @@ static int Problem1(Opt &opt)
       uold = u;
       ParBilinearForm a(&fes);
       if (opt.pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-      const double q_uold = qf(order, AREA, mesh, fes, uold);
-      MFEM_VERIFY(std::fabs(q_uold) > EPS,"");
+      const real_t q_uold = qf(order, AREA, mesh, fes, uold);
+      MFEM_VERIFY(std::abs(q_uold) > EPS,"");
       ConstantCoefficient q_uold_cc(1.0/sqrt(q_uold));
       a.AddDomainIntegrator(new DiffusionIntegrator(q_uold_cc));
       a.Assemble();
@@ -1281,8 +1285,8 @@ static int Problem1(Opt &opt)
       cg.Mult(B, X);
       a.RecoverFEMSolution(X, b, u);
       subtract(u, uold, eps);
-      const double norm = sqrt(std::fabs(qf(order, NORM, mesh, fes, eps)));
-      const double area = qf(order, AREA, mesh, fes, u);
+      const real_t norm = sqrt(std::abs(qf(order, NORM, mesh, fes, eps)));
+      const real_t area = qf(order, AREA, mesh, fes, u);
       if (!opt.id)
       {
          mfem::out << "Iteration " << i << ", norm: " << norm

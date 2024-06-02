@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -105,7 +105,7 @@ int main (int argc, char *argv[])
       for (int j = 0; j < nd; j++)
       {
          int j_x = vdofs[j], j_y = vdofs[nd+j];
-         const double x = coord(j_x),
+         const real_t x = coord(j_x),
                       z = (dim == 2) ? 0.0 : coord(vdofs[2*nd + j]);
          fit_marker[pfes_mesh.VDofToDof(j_x)] = true;
          fit_marker_vis_gf(j_x) = 1.0;
@@ -206,7 +206,7 @@ int main (int argc, char *argv[])
    solver.SetMaxIter(200);
    solver.SetRelTol(1e-10);
    solver.SetAbsTol(0.0);
-   solver.EnableAdaptiveSurfaceFitting();
+   solver.SetAdaptiveSurfaceFittingScalingFactor(10);
    solver.SetTerminationWithMaxSurfaceFittingError(1e-3);
 
    // Solve.

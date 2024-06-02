@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -13,6 +13,9 @@
 # at Lawrence Livermore National Laboratory (LLNL). This entire pipeline is
 # LLNL-specific!
 
+include:
+  - project: 'lc-templates/id_tokens'
+    file: 'id_tokens.yml'
 
 # The pipeline is divided into stages. Usually, jobs in a given stage wait for
 # the preceding stages to complete before to start. However, we sometimes use

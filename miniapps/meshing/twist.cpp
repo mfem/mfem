@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -41,11 +41,11 @@ static Element::Type el_type_ = Element::WEDGE;
 static int    order_ = 3;
 static int    nz_    = 3;
 static int    nt_    = 2;
-static double a_     = 1.0;
-static double b_     = 1.0;
-static double c_     = 3.0;
+static real_t a_     = 1.0;
+static real_t b_     = 1.0;
+static real_t c_     = 3.0;
 
-void pts(int iphi, int t, double x[]);
+void pts(int iphi, int t, real_t x[]);
 void trans(const Vector &x, Vector &p);
 
 int main(int argc, char *argv[])
@@ -124,7 +124,7 @@ int main(int argc, char *argv[])
    while (per_mesh)
    {
       // Verify geometric compatibility
-      if (nt_ % 2 == 1 && fabs(a_ - b_) > 1e-6 * a_)
+      if (nt_ % 2 == 1 && std::abs(a_ - b_) > 1e-6 * a_)
       {
          cout << "Base is rectangular so number of shifts must be even "
               << "for a periodic mesh!" << endl;
@@ -266,10 +266,10 @@ int main(int argc, char *argv[])
 
 void trans(const Vector &x, Vector &p)
 {
-   double z = x[2];
-   double phi = 0.5 * M_PI * nt_ * z / c_;
-   double cp = cos(phi);
-   double sp = sin(phi);
+   real_t z = x[2];
+   real_t phi = 0.5 * M_PI * nt_ * z / c_;
+   real_t cp = cos(phi);
+   real_t sp = sin(phi);
 
    p[0] = 0.5 * a_ + (x[0] - 0.5 * a_) * cp - (x[1] - 0.5 * b_) * sp;
    p[1] = 0.5 * b_ + (x[0] - 0.5 * a_) * sp + (x[1] - 0.5 * b_) * cp;

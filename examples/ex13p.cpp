@@ -170,7 +170,7 @@ int main(int argc, char *argv[])
    m->AddDomainIntegrator(new VectorFEMassIntegrator(one));
    m->Assemble();
    // shift the eigenvalue corresponding to eliminated dofs to a large value
-   m->EliminateEssentialBCDiag(ess_bdr, numeric_limits<double>::min());
+   m->EliminateEssentialBCDiag(ess_bdr, numeric_limits<real_t>::min());
    m->Finalize();
 
    HypreParMatrix *A = a->ParallelAssemble();
@@ -198,7 +198,7 @@ int main(int argc, char *argv[])
    // 10. Compute the eigenmodes and extract the array of eigenvalues. Define a
    //     parallel grid function to represent each of the eigenmodes returned by
    //     the solver.
-   Array<double> eigenvalues;
+   Array<real_t> eigenvalues;
    ame->Solve();
    ame->GetEigenvalues(eigenvalues);
    ParGridFunction x(fespace);
