@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -20,6 +20,32 @@ using namespace mfem;
 namespace pa_kernels
 {
 
+enum class FECType
+{
+   H1,
+   L2_VALUE,
+   L2_INTEGRAL
+};
+
+std::unique_ptr<FiniteElementCollection> create_fec(
+   FECType fec_type, int order, int dim)
+{
+   using Ptr = std::unique_ptr<FiniteElementCollection>;
+   switch (fec_type)
+   {
+      case FECType::H1:
+         return Ptr(new H1_FECollection(order, dim));
+      case FECType::L2_VALUE:
+         return Ptr(new L2_FECollection(order, dim, BasisType::GaussLegendre,
+                                        FiniteElement::VALUE));
+      case FECType::L2_INTEGRAL:
+         return Ptr(new L2_FECollection(order, dim, BasisType::GaussLegendre,
+                                        FiniteElement::INTEGRAL));
+      default:
+         MFEM_ABORT("Invalid FECType");
+   }
+}
+
 Mesh MakeCartesianNonaligned(const int dim, const int ne)
 {
    Mesh mesh;
@@ -35,7 +61,7 @@ Mesh MakeCartesianNonaligned(const int dim, const int ne)
    // Remap vertices so that the mesh is not aligned with axes.
    for (int i=0; i<mesh.GetNV(); ++i)
    {
-      double *vcrd = mesh.GetVertex(i);
+      real_t *vcrd = mesh.GetVertex(i);
       vcrd[1] += 0.2 * vcrd[0];
       if (dim == 3) { vcrd[2] += 0.3 * vcrd[0]; }
    }
@@ -43,7 +69,7 @@ Mesh MakeCartesianNonaligned(const int dim, const int ne)
    return mesh;
 }
 
-double zero_field(const Vector &x)
+real_t zero_field(const Vector &x)
 {
    MFEM_CONTRACT_VAR(x);
    return 0.0;
@@ -61,7 +87,7 @@ void non_solenoidal_field2d(const Vector &x, Vector &u)
    u(1) = -x(0) + x(1);
 }
 
-double div_non_solenoidal_field2d(const Vector &x)
+real_t div_non_solenoidal_field2d(const Vector &x)
 {
    return 1.0 + x(1);
 }
@@ -80,14 +106,14 @@ void non_solenoidal_field3d(const Vector &x, Vector &u)
    u(2) = x(2)*x(2);
 }
 
-double div_non_solenoidal_field3d(const Vector &x)
+real_t div_non_solenoidal_field3d(const Vector &x)
 {
    return 2*(x(0) + x(1) + x(2));
 }
 
 void pa_divergence_testnd(int dim,
                           void (*f1)(const Vector &, Vector &),
-                          double (*divf1)(const Vector &))
+                          real_t (*divf1)(const Vector &))
 {
    Mesh mesh = MakeCartesianNonaligned(dim, 2);
    int order = 4;
@@ -122,6 +148,30 @@ void pa_divergence_testnd(int dim,
    REQUIRE(field2.Normlinf() == MFEM_Approx(0.0));
 }
 
+template <typename INTEGRATOR>
+void pa_mixed_transpose_test(FiniteElementSpace &fes1,
+                             FiniteElementSpace &fes2)
+{
+   MixedBilinearForm bform_pa(&fes1, &fes2);
+   bform_pa.AddDomainIntegrator(new TransposeIntegrator(new INTEGRATOR));
+   bform_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   bform_pa.Assemble();
+
+   MixedBilinearForm bform_fa(&fes1, &fes2);
+   bform_fa.AddDomainIntegrator(new TransposeIntegrator(new INTEGRATOR));
+   bform_fa.Assemble();
+   bform_fa.Finalize();
+
+   GridFunction x(&fes1), y_pa(&fes2), y_fa(&fes2);
+   x.Randomize(1);
+
+   bform_pa.Mult(x, y_pa);
+   bform_fa.Mult(x, y_fa);
+
+   y_pa -= y_fa;
+   REQUIRE(y_pa.Normlinf() == MFEM_Approx(0.0));
+}
+
 void pa_divergence_transpose_testnd(int dim)
 {
    Mesh mesh = MakeCartesianNonaligned(dim, 2);
@@ -135,28 +185,7 @@ void pa_divergence_transpose_testnd(int dim)
    H1_FECollection fec2(order, dim);
    FiniteElementSpace fes2(&mesh, &fec2, dim);
 
-   GridFunction x(&fes1), y_pa(&fes2), y_fa(&fes2);
-
-   MixedBilinearForm d_pa(&fes1, &fes2);
-   d_pa.AddDomainIntegrator(
-      new TransposeIntegrator(new VectorDivergenceIntegrator));
-   d_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   d_pa.Assemble();
-
-   MixedBilinearForm d_fa(&fes1, &fes2);
-   d_fa.AddDomainIntegrator(
-      new TransposeIntegrator(new VectorDivergenceIntegrator));
-   d_fa.Assemble();
-   d_fa.Finalize();
-
-   x.Randomize(1);
-
-   d_pa.Mult(x, y_pa);
-   d_fa.Mult(x, y_fa);
-
-   y_pa -= y_fa;
-
-   REQUIRE(y_pa.Normlinf() == MFEM_Approx(0.0));
+   pa_mixed_transpose_test<VectorDivergenceIntegrator>(fes1, fes2);
 }
 
 TEST_CASE("PA VectorDivergence", "[PartialAssembly], [CUDA]")
@@ -182,9 +211,9 @@ TEST_CASE("PA VectorDivergence", "[PartialAssembly], [CUDA]")
    }
 }
 
-double f1(const Vector &x)
+real_t f1(const Vector &x)
 {
-   double r = pow(x(0),2);
+   real_t r = pow(x(0),2);
    if (x.Size() >= 2) { r += pow(x(1), 3); }
    if (x.Size() >= 3) { r += pow(x(2), 4); }
    return r;
@@ -197,9 +226,9 @@ void gradf1(const Vector &x, Vector &u)
    if (x.Size() >= 3) { u(2) = 4*pow(x(2), 3); }
 }
 
-double pa_gradient_testnd(int dim,
-                          double (*f1)(const Vector &),
-                          void (*gradf1)(const Vector &, Vector &))
+void pa_gradient_testnd(int dim, FECType fec_type,
+                        real_t (*f1)(const Vector &),
+                        void (*gradf1)(const Vector &, Vector &))
 {
    Mesh mesh = MakeCartesianNonaligned(dim, 2);
    int order = 4;
@@ -207,12 +236,12 @@ double pa_gradient_testnd(int dim,
    // Scalar
    H1_FECollection fec1(order, dim);
    FiniteElementSpace fes1(&mesh, &fec1);
+   GridFunction field(&fes1);
 
    // Vector valued
-   H1_FECollection fec2(order, dim);
-   FiniteElementSpace fes2(&mesh, &fec2, dim);
-
-   GridFunction field(&fes1), field2(&fes2);
+   auto fec2 = create_fec(fec_type, order, dim);
+   FiniteElementSpace fes2(&mesh, fec2.get(), dim);
+   GridFunction field2(&fes2);
 
    MixedBilinearForm gform(&fes1, &fes2);
    gform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -231,25 +260,49 @@ double pa_gradient_testnd(int dim,
    lf.Assemble();
    field2 -= lf;
 
-   return field2.Norml2();
+   REQUIRE(field2.Norml2() == MFEM_Approx(0.0));
+}
+
+void pa_gradient_transpose_testnd(int dim, FECType fec_type)
+{
+   Mesh mesh = MakeCartesianNonaligned(dim, 2);
+   int order = 4;
+
+   // Scalar
+   H1_FECollection fec2(order, dim);
+   FiniteElementSpace fes2(&mesh, &fec2);
+   GridFunction y_pa(&fes2), y_fa(&fes2);
+
+   // Vector valued
+   auto fec1 = create_fec(fec_type, order, dim);
+   FiniteElementSpace fes1(&mesh, fec1.get(), dim);
+
+   pa_mixed_transpose_test<GradientIntegrator>(fes1, fes2);
 }
 
 TEST_CASE("PA Gradient", "[PartialAssembly], [CUDA]")
 {
+   auto fec_type = GENERATE(FECType::H1, FECType::L2_VALUE,
+                            FECType::L2_INTEGRAL);
+
    SECTION("2D")
    {
       // Check if grad(x^2 + y^3) == [2x, 3y^2]
-      REQUIRE(pa_gradient_testnd(2, f1, gradf1) == MFEM_Approx(0.0));
+      pa_gradient_testnd(2, fec_type, f1, gradf1);
+      // Check transpose
+      pa_gradient_transpose_testnd(2, fec_type);
    }
 
    SECTION("3D")
    {
       // Check if grad(x^2 + y^3 + z^4) == [2x, 3y^2, 4z^3]
-      REQUIRE(pa_gradient_testnd(3, f1, gradf1) == MFEM_Approx(0.0));
+      pa_gradient_testnd(3, fec_type, f1, gradf1);
+      // Check transpose
+      pa_gradient_transpose_testnd(3, fec_type);
    }
 }
 
-double test_nl_convection_nd(int dim)
+real_t test_nl_convection_nd(int dim)
 {
    Mesh mesh = MakeCartesianNonaligned(dim, 2);
    int order = 2;
@@ -270,7 +323,7 @@ double test_nl_convection_nd(int dim)
    nlf_pa.Mult(x, y_pa);
 
    y_fa -= y_pa;
-   double difference = y_fa.Norml2();
+   real_t difference = y_fa.Norml2();
 
 
    return difference;
@@ -290,7 +343,7 @@ TEST_CASE("Nonlinear Convection", "[PartialAssembly], [NonlinearPA], [CUDA]")
 }
 
 template <typename INTEGRATOR>
-double test_vector_pa_integrator(int dim)
+real_t test_vector_pa_integrator(int dim)
 {
    Mesh mesh = MakeCartesianNonaligned(dim, 2);
    int order = 2;
@@ -313,7 +366,7 @@ double test_vector_pa_integrator(int dim)
    blf_pa.Mult(x, y_pa);
 
    y_fa -= y_pa;
-   double difference = y_fa.Norml2();
+   real_t difference = y_fa.Norml2();
 
    return difference;
 }
@@ -659,5 +712,121 @@ TEST_CASE("PA Boundary Mass", "[PartialAssembly], [CUDA]")
 
    REQUIRE(y_fa.Normlinf() == MFEM_Approx(0.0));
 }
+
+namespace
+{
+template <typename T> struct ParTypeHelper { };
+template <> struct ParTypeHelper<FiniteElementSpace>
+{
+   using GF_t = GridFunction;
+   using BLF_t = BilinearForm;
+};
+#ifdef MFEM_USE_MPI
+template <> struct ParTypeHelper<ParFiniteElementSpace>
+{
+   using GF_t = ParGridFunction;
+   using BLF_t = ParBilinearForm;
+};
+#endif
+}
+
+template <typename FES>
+void test_dg_diffusion(FES &fes)
+{
+   using GF_t = typename ParTypeHelper<FES>::GF_t;
+   using BLF_t = typename ParTypeHelper<FES>::BLF_t;
+
+   GF_t x(&fes), y_fa(&fes), y_pa(&fes);
+   x.Randomize(1);
+
+   ConstantCoefficient pi(3.14159);
+
+   const real_t sigma = -1.0;
+   const real_t kappa = 10.0;
+
+   IntegrationRules irs(0, Quadrature1D::GaussLobatto);
+   const IntegrationRule &ir = irs.Get(fes.GetMesh()->GetFaceGeometry(0),
+                                       2*fes.GetMaxElementOrder());
+
+   BLF_t blf_fa(&fes);
+   blf_fa.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
+   blf_fa.AddBdrFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
+   (*blf_fa.GetFBFI())[0]->SetIntegrationRule(ir);
+   (*blf_fa.GetBFBFI())[0]->SetIntegrationRule(ir);
+   blf_fa.Assemble();
+   blf_fa.Finalize();
+   OperatorHandle A_fa;
+   Array<int> empty;
+   blf_fa.FormSystemMatrix(empty, A_fa);
+   A_fa->Mult(x, y_fa);
+
+   BLF_t blf_pa(&fes);
+   blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   blf_pa.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
+   blf_pa.AddBdrFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
+   (*blf_pa.GetFBFI())[0]->SetIntegrationRule(ir);
+   (*blf_pa.GetBFBFI())[0]->SetIntegrationRule(ir);
+   blf_pa.Assemble();
+   blf_pa.Mult(x, y_pa);
+
+   y_fa -= y_pa;
+
+   REQUIRE(y_fa.Normlinf() == MFEM_Approx(0.0));
+}
+
+std::vector<std::string> get_dg_test_meshes()
+{
+   std::vector<std::string> mesh_filenames =
+   {
+      "../../data/star.mesh",
+      "../../data/star-q3.mesh",
+      "../../data/fichera.mesh",
+      "../../data/fichera-q3.mesh",
+   };
+   const bool have_data_dir = mfem_data_dir != "";
+   if (have_data_dir)
+   {
+      mesh_filenames.push_back(mfem_data_dir + "/gmsh/v22/unstructured_quad.v22.msh");
+      mesh_filenames.push_back(mfem_data_dir + "/gmsh/v22/unstructured_hex.v22.msh");
+   }
+   return mesh_filenames;
+}
+
+TEST_CASE("PA DG Diffusion", "[PartialAssembly], [CUDA]")
+{
+   const auto mesh_fname = GENERATE_COPY(from_range(get_dg_test_meshes()));
+   const int order = GENERATE(1, 2);
+   CAPTURE(order, mesh_fname);
+
+   Mesh mesh = Mesh::LoadFromFile(mesh_fname.c_str());
+   const int dim = mesh.Dimension();
+
+   DG_FECollection fec(order, dim, BasisType::GaussLobatto);
+   FiniteElementSpace fes(&mesh, &fec);
+
+   test_dg_diffusion(fes);
+}
+
+#ifdef MFEM_USE_MPI
+
+TEST_CASE("Parallel PA DG Diffusion", "[PartialAssembly][Parallel][CUDA]")
+{
+   const auto mesh_fname = GENERATE_COPY(from_range(get_dg_test_meshes()));
+   const int order = GENERATE(1, 2);
+   CAPTURE(order, mesh_fname);
+
+   Mesh serial_mesh = Mesh::LoadFromFile(mesh_fname.c_str());
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
+   serial_mesh.Clear();
+
+   const int dim = mesh.Dimension();
+
+   DG_FECollection fec(order, dim, BasisType::GaussLobatto);
+   ParFiniteElementSpace fes(&mesh, &fec);
+
+   test_dg_diffusion(fes);
+}
+
+#endif
 
 } // namespace pa_kernels

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -145,13 +145,13 @@ MemoryClass operator*(MemoryClass mc1, MemoryClass mc2)
 }
 
 
-// Instantiate Memory<T>::PrintFlags for T = int and T = double.
+// Instantiate Memory<T>::PrintFlags for T = int and T = real_t.
 template void Memory<int>::PrintFlags() const;
-template void Memory<double>::PrintFlags() const;
+template void Memory<real_t>::PrintFlags() const;
 
-// Instantiate Memory<T>::CompareHostAndDevice for T = int and T = double.
+// Instantiate Memory<T>::CompareHostAndDevice for T = int and T = real_t.
 template int Memory<int>::CompareHostAndDevice(int size) const;
-template int Memory<double>::CompareHostAndDevice(int size) const;
+template int Memory<real_t>::CompareHostAndDevice(int size) const;
 
 
 namespace internal
@@ -1154,6 +1154,10 @@ void MemoryManager::Copy_(void *dst_h_ptr, const void *src_h_ptr,
    //  dest   d  | h2d   d2d   d2d
    //        hd  | h2h   d2d   d2d
 
+   MFEM_ASSERT(bytes != 0, "this method should not be called with bytes = 0");
+   MFEM_ASSERT(dst_h_ptr != nullptr, "invalid dst_h_ptr = nullptr");
+   MFEM_ASSERT(src_h_ptr != nullptr, "invalid src_h_ptr = nullptr");
+
    const bool dst_on_host =
       (dst_flags & Mem::VALID_HOST) &&
       (!(dst_flags & Mem::VALID_DEVICE) ||
@@ -1229,6 +1233,10 @@ void MemoryManager::Copy_(void *dst_h_ptr, const void *src_h_ptr,
 void MemoryManager::CopyToHost_(void *dest_h_ptr, const void *src_h_ptr,
                                 size_t bytes, unsigned src_flags)
 {
+   MFEM_ASSERT(bytes != 0, "this method should not be called with bytes = 0");
+   MFEM_ASSERT(dest_h_ptr != nullptr, "invalid dest_h_ptr = nullptr");
+   MFEM_ASSERT(src_h_ptr != nullptr, "invalid src_h_ptr = nullptr");
+
    const bool src_on_host = src_flags & Mem::VALID_HOST;
    if (src_on_host)
    {
@@ -1255,6 +1263,10 @@ void MemoryManager::CopyToHost_(void *dest_h_ptr, const void *src_h_ptr,
 void MemoryManager::CopyFromHost_(void *dest_h_ptr, const void *src_h_ptr,
                                   size_t bytes, unsigned &dest_flags)
 {
+   MFEM_ASSERT(bytes != 0, "this method should not be called with bytes = 0");
+   MFEM_ASSERT(dest_h_ptr != nullptr, "invalid dest_h_ptr = nullptr");
+   MFEM_ASSERT(src_h_ptr != nullptr, "invalid src_h_ptr = nullptr");
+
    const bool dest_on_host = dest_flags & Mem::VALID_HOST;
    if (dest_on_host)
    {

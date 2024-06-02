@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -367,6 +367,74 @@ TEST_CASE("GSLIBInterpolateL2ElementBoundary",
    finder.FreeData();
    delete c_fec;
 }
+
+#ifdef MFEM_USE_MPI
+TEST_CASE("GSLIBGSOP", "[GSLIBGSOP][Parallel][GSLIB]")
+{
+   int myid;
+   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+
+   int nlen = 5 + rand() % 1000;
+   MPI_Allreduce(MPI_IN_PLACE, &nlen, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+
+   Array<long long> ids(nlen);
+   Vector vals(nlen);
+   vals.Randomize(myid+1);
+
+   // Force minimum values based on the identifier for deterministic behavior
+   // on rank 0 and randomize the identifier on other ranks.
+   if (myid == 0)
+   {
+      for (int i = 0; i < nlen; i++)
+      {
+         ids[i] = i+1;
+         vals(i) = -ids[i];
+      }
+   }
+   else
+   {
+      for (int i = 0; i < nlen; i++)
+      {
+         int num = rand() % nlen + 1;
+         ids[i] = num;
+      }
+   }
+
+   // Test GSOp::MIN
+   GSOPGSLIB gs = GSOPGSLIB(MPI_COMM_WORLD, ids);
+   gs.GS(vals, GSOPGSLIB::GSOp::MIN);
+
+   // Check for minimum value
+   for (int i = 0; i < nlen; i++)
+   {
+      int id = ids[i];
+      REQUIRE(vals(i) == -1.0*id);
+   }
+
+   // Test GSOp::ADD
+   // Set all values to 0 except on rank 0, and then add them.
+   if (myid != 0) { vals = 0.0; }
+   gs.GS(vals, GSOPGSLIB::GSOp::ADD);
+
+   // Check for added value to match what was originally set on rank 0.
+   for (int i = 0; i < nlen; i++)
+   {
+      int id = ids[i];
+      REQUIRE(vals(i) == -1.0*id);
+   }
+
+   // Test GSOp::MUL
+   // Randomize values on all ranks except rank 0 such that they are positive.
+   if (myid != 0) { vals.Randomize(); }
+   gs.GS(vals, GSOPGSLIB::GSOp::MUL);
+
+   // Check for multipled values to be negative
+   for (int i = 0; i < nlen; i++)
+   {
+      REQUIRE(vals(i) < 0);
+   }
+}
+#endif
 
 } //namespace_gslib
 #endif

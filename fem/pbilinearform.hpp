@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -171,7 +171,38 @@ public:
 
    /** @brief Compute @a y += @a a (P^t A P) @a x, where @a x and @a y are
        vectors on the true dofs. */
-   void TrueAddMult(const Vector &x, Vector &y, const double a = 1.0) const;
+   void TrueAddMult(const Vector &x, Vector &y, const real_t a = 1.0) const;
+
+   /// Compute $ y^T M x $
+   /** @warning The calculation is performed on local dofs, assuming that
+       the local vectors are consistent with the prolongations of the true
+       vectors (see ParGridFunction::Distribute()). If this is not the case,
+       use TrueInnerProduct(const ParGridFunction &, const ParGridFunction &)
+       instead.
+       @note It is assumed that the local matrix is assembled and it has
+       not been replaced by the parallel matrix through FormSystemMatrix().
+       @see TrueInnerProduct(const ParGridFunction&, const ParGridFunction&) */
+   real_t ParInnerProduct(const ParGridFunction &x,
+                          const ParGridFunction &y) const;
+
+   /// Compute $ y^T M x $ on true dofs (grid function version)
+   /** @note The ParGridFunction%s are restricted to the true-vectors for
+       for calculation.
+       @note It is assumed that the parallel system matrix is assembled,
+       see FormSystemMatrix().
+       @see ParInnerProduct(const ParGridFunction&, const ParGridFunction&) */
+   real_t TrueInnerProduct(const ParGridFunction &x,
+                           const ParGridFunction &y) const;
+
+   /// Compute $ y^T M x $ on true dofs (Hypre vector version)
+   /** @note It is assumed that the parallel system matrix is assembled,
+       see FormSystemMatrix(). */
+   real_t TrueInnerProduct(HypreParVector &x, HypreParVector &y) const;
+
+   /// Compute $ y^T M x $ on true dofs (true-vector version)
+   /** @note It is assumed that the parallel system matrix is assembled,
+       see FormSystemMatrix(). */
+   real_t TrueInnerProduct(const Vector &x, const Vector &y) const;
 
    /// Return the parallel FE space associated with the ParBilinearForm.
    ParFiniteElementSpace *ParFESpace() const { return pfes; }
@@ -297,7 +328,7 @@ public:
                                             Vector &B);
 
    /// Compute y += a (P^t A P) x, where x and y are vectors on the true dofs
-   void TrueAddMult(const Vector &x, Vector &y, const double a = 1.0) const;
+   void TrueAddMult(const Vector &x, Vector &y, const real_t a = 1.0) const;
 
    virtual ~ParMixedBilinearForm() { }
 };

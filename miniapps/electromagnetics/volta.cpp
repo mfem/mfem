@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -76,12 +76,12 @@ Coefficient * SetupPermittivityCoefficient();
 static Vector pw_eps_(0);     // Piecewise permittivity values
 static Vector ds_params_(0);  // Center, Radius, and Permittivity
 //                               of dielectric sphere
-double dielectric_sphere(const Vector &);
+real_t dielectric_sphere(const Vector &);
 
 // Charge Density Function
 static Vector cs_params_(0);  // Center, Radius, and Total Charge
 //                               of charged sphere
-double charged_sphere(const Vector &);
+real_t charged_sphere(const Vector &);
 
 // Point Charges
 static Vector pc_params_(0); // Point charge locations and charges
@@ -93,7 +93,7 @@ void voltaic_pile(const Vector &, Vector &);
 
 // Phi Boundary Condition
 static Vector e_uniform_(0);
-double phi_bc_uniform(const Vector &);
+real_t phi_bc_uniform(const Vector &);
 
 // Prints the program's logo to the given output stream
 void display_banner(ostream & os);
@@ -345,15 +345,15 @@ int main(int argc, char *argv[])
       Vector errors(pmesh.GetNE());
       Volta.GetErrorEstimates(errors);
 
-      double local_max_err = errors.Max();
-      double global_max_err;
+      real_t local_max_err = errors.Max();
+      real_t global_max_err;
       MPI_Allreduce(&local_max_err, &global_max_err, 1,
-                    MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
+                    MPITypeMap<real_t>::mpi_type, MPI_MAX, pmesh.GetComm());
 
       // Refine the elements whose error is larger than a fraction of the
       // maximum element error.
-      const double frac = 0.7;
-      double threshold = frac * global_max_err;
+      const real_t frac = 0.7;
+      real_t threshold = frac * global_max_err;
       if (Mpi::Root()) { cout << "Refining ..." << endl; }
       pmesh.RefineByError(errors, threshold);
 
@@ -412,9 +412,9 @@ SetupPermittivityCoefficient()
 // A sphere with constant permittivity.  The sphere has a radius,
 // center, and permittivity specified on the command line and stored
 // in ds_params_.
-double dielectric_sphere(const Vector &x)
+real_t dielectric_sphere(const Vector &x)
 {
-   double r2 = 0.0;
+   real_t r2 = 0.0;
 
    for (int i=0; i<x.Size(); i++)
    {
@@ -431,10 +431,10 @@ double dielectric_sphere(const Vector &x)
 // A sphere with constant charge density.  The sphere has a radius,
 // center, and total charge specified on the command line and stored
 // in cs_params_.
-double charged_sphere(const Vector &x)
+real_t charged_sphere(const Vector &x)
 {
-   double r2 = 0.0;
-   double rho = 0.0;
+   real_t r2 = 0.0;
+   real_t rho = 0.0;
 
    if ( cs_params_(x.Size()) > 0.0 )
    {
@@ -484,22 +484,22 @@ void voltaic_pile(const Vector &x, Vector &p)
       a[i]   = vp_params_[x.Size()+i] - vp_params_[i];
    }
 
-   double h = a.Norml2();
+   real_t h = a.Norml2();
 
    if ( h == 0.0 )
    {
       return;
    }
 
-   double  r = vp_params_[2 * x.Size()];
-   double xa = xu * a;
+   real_t  r = vp_params_[2 * x.Size()];
+   real_t xa = xu * a;
 
    if ( h > 0.0 )
    {
       xu.Add(-xa / (h * h), a);
    }
 
-   double xp = xu.Norml2();
+   real_t xp = xu.Norml2();
 
    if ( xa >= 0.0 && xa <= h*h && xp <= r )
    {
@@ -509,9 +509,9 @@ void voltaic_pile(const Vector &x, Vector &p)
 
 // To produce a uniform electric field the potential can be set
 // to (- Ex x - Ey y - Ez z).
-double phi_bc_uniform(const Vector &x)
+real_t phi_bc_uniform(const Vector &x)
 {
-   double phi = 0.0;
+   real_t phi = 0.0;
 
    for (int i=0; i<x.Size(); i++)
    {

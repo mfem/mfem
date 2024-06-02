@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,6 +13,9 @@
 #include "occa.hpp"
 #ifdef MFEM_USE_CEED
 #include "../fem/ceed/interface/util.hpp"
+#endif
+#ifdef MFEM_USE_MPI
+#include "../linalg/hypre.hpp"
 #endif
 
 #include <unordered_map>
@@ -250,6 +253,10 @@ void Device::Configure(const std::string &device, const int device_id)
 
    // Only '*this' will call the MemoryManager::Destroy() method.
    destroy_mm = true;
+
+#ifdef MFEM_USE_MPI
+   Hypre::InitDevice();
+#endif
 }
 
 // static method

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -20,7 +20,7 @@ namespace internal
 void PAHdivMassSetup2D(const int Q1D,
                        const int coeffDim,
                        const int NE,
-                       const Array<double> &w,
+                       const Array<real_t> &w,
                        const Vector &j,
                        Vector &coeff_,
                        Vector &op)
@@ -37,23 +37,23 @@ void PAHdivMassSetup2D(const int Q1D,
    {
       for (int q = 0; q < NQ; ++q)
       {
-         const double J11 = J(q,0,0,e);
-         const double J21 = J(q,1,0,e);
-         const double J12 = J(q,0,1,e);
-         const double J22 = J(q,1,1,e);
-         const double c_detJ = W[q] / ((J11*J22)-(J21*J12));
+         const real_t J11 = J(q,0,0,e);
+         const real_t J21 = J(q,1,0,e);
+         const real_t J12 = J(q,0,1,e);
+         const real_t J22 = J(q,1,1,e);
+         const real_t c_detJ = W[q] / ((J11*J22)-(J21*J12));
 
          // (1/detJ) J^T C J
          if (coeffDim == 3 || coeffDim == 4) // Matrix coefficient
          {
-            const double C11 = C(0,q,e);
-            const double C12 = C(1,q,e);
-            const double C21 = symmetric ? C12 : C(2,q,e);
-            const double C22 = symmetric ? C(2,q,e) : C(3,q,e);
-            const double R11 = C11*J11 + C12*J21;
-            const double R21 = C21*J11 + C22*J21;
-            const double R12 = C11*J12 + C12*J22;
-            const double R22 = C21*J12 + C22*J22;
+            const real_t C11 = C(0,q,e);
+            const real_t C12 = C(1,q,e);
+            const real_t C21 = symmetric ? C12 : C(2,q,e);
+            const real_t C22 = symmetric ? C(2,q,e) : C(3,q,e);
+            const real_t R11 = C11*J11 + C12*J21;
+            const real_t R21 = C21*J11 + C22*J21;
+            const real_t R12 = C11*J12 + C12*J22;
+            const real_t R22 = C21*J12 + C22*J22;
 
             y(q,0,e) = c_detJ * (J11*R11 + J21*R21); // 1,1
             y(q,1,e) = c_detJ * (J11*R12 + J21*R22); // 1,2
@@ -70,8 +70,8 @@ void PAHdivMassSetup2D(const int Q1D,
          }
          else // Vector or scalar coefficient
          {
-            const double C1 = C(0,q,e);
-            const double C2 = (coeffDim == 2 ? C(1,q,e) : C1);
+            const real_t C1 = C(0,q,e);
+            const real_t C2 = (coeffDim == 2 ? C(1,q,e) : C1);
             y(q,0,e) = c_detJ * (J11*C1*J11 + J21*C2*J21); // 1,1
             y(q,1,e) = c_detJ * (J11*C1*J12 + J21*C2*J22); // 1,2
             y(q,2,e) = c_detJ * (J12*C1*J12 + J22*C2*J22); // 2,2
@@ -83,7 +83,7 @@ void PAHdivMassSetup2D(const int Q1D,
 void PAHdivMassSetup3D(const int Q1D,
                        const int coeffDim,
                        const int NE,
-                       const Array<double> &w,
+                       const Array<real_t> &w,
                        const Vector &j,
                        Vector &coeff_,
                        Vector &op)
@@ -99,24 +99,24 @@ void PAHdivMassSetup3D(const int Q1D,
    {
       for (int q = 0; q < NQ; ++q)
       {
-         const double J11 = J(q,0,0,e);
-         const double J21 = J(q,1,0,e);
-         const double J31 = J(q,2,0,e);
-         const double J12 = J(q,0,1,e);
-         const double J22 = J(q,1,1,e);
-         const double J32 = J(q,2,1,e);
-         const double J13 = J(q,0,2,e);
-         const double J23 = J(q,1,2,e);
-         const double J33 = J(q,2,2,e);
-         const double detJ = J11 * (J22 * J33 - J32 * J23) -
+         const real_t J11 = J(q,0,0,e);
+         const real_t J21 = J(q,1,0,e);
+         const real_t J31 = J(q,2,0,e);
+         const real_t J12 = J(q,0,1,e);
+         const real_t J22 = J(q,1,1,e);
+         const real_t J32 = J(q,2,1,e);
+         const real_t J13 = J(q,0,2,e);
+         const real_t J23 = J(q,1,2,e);
+         const real_t J33 = J(q,2,2,e);
+         const real_t detJ = J11 * (J22 * J33 - J32 * J23) -
                              J21 * (J12 * J33 - J32 * J13) +
                              J31 * (J12 * J23 - J22 * J13);
-         const double c_detJ = W[q] / detJ;
+         const real_t c_detJ = W[q] / detJ;
 
          // (1/detJ) J^T C J
          if (coeffDim == 6 || coeffDim == 9) // Matrix coefficient version
          {
-            double M[3][3];
+            real_t M[3][3];
             M[0][0] = C(0, q, e);
             M[0][1] = C(1, q, e);
             M[0][2] = C(2, q, e);
@@ -134,7 +134,7 @@ void PAHdivMassSetup3D(const int Q1D,
                   y(q,idx,e) = 0.0;
                   for (int k=0; k<3; ++k)
                   {
-                     double MJ_kj = 0.0;
+                     real_t MJ_kj = 0.0;
                      for (int l=0; l<3; ++l)
                      {
                         MJ_kj += M[k][l] * J(q,l,j,e);
@@ -171,8 +171,8 @@ void PAHdivMassAssembleDiagonal2D(const int D1D,
                                   const int Q1D,
                                   const int NE,
                                   const bool symmetric,
-                                  const Array<double> &Bo_,
-                                  const Array<double> &Bc_,
+                                  const Array<real_t> &Bo_,
+                                  const Array<real_t> &Bc_,
                                   const Vector &op_,
                                   Vector &diag_)
 {
@@ -195,23 +195,23 @@ void PAHdivMassAssembleDiagonal2D(const int D1D,
 
          for (int dy = 0; dy < D1Dy; ++dy)
          {
-            double mass[MAX_Q1D];
+            real_t mass[MAX_Q1D];
             for (int qx = 0; qx < Q1D; ++qx)
             {
                mass[qx] = 0.0;
                for (int qy = 0; qy < Q1D; ++qy)
                {
-                  const double wy = (c == 1) ? Bc(qy,dy) : Bo(qy,dy);
+                  const real_t wy = (c == 1) ? Bc(qy,dy) : Bo(qy,dy);
                   mass[qx] += wy*wy*((c == 0) ? op(qx,qy,0,e) : op(qx,qy,symmetric ? 2 : 3,e));
                }
             }
 
             for (int dx = 0; dx < D1Dx; ++dx)
             {
-               double val = 0.0;
+               real_t val = 0.0;
                for (int qx = 0; qx < Q1D; ++qx)
                {
-                  const double wx = (c == 0) ? Bc(qx,dx) : Bo(qx,dx);
+                  const real_t wx = (c == 0) ? Bc(qx,dx) : Bo(qx,dx);
                   val += mass[qx] * wx * wx;
                }
                diag(dx + (dy * D1Dx) + osc, e) += val;
@@ -227,8 +227,8 @@ void PAHdivMassAssembleDiagonal3D(const int D1D,
                                   const int Q1D,
                                   const int NE,
                                   const bool symmetric,
-                                  const Array<double> &Bo_,
-                                  const Array<double> &Bc_,
+                                  const Array<real_t> &Bo_,
+                                  const Array<real_t> &Bc_,
                                   const Vector &op_,
                                   Vector &diag_)
 {
@@ -256,7 +256,7 @@ void PAHdivMassAssembleDiagonal3D(const int D1D,
          const int opc = (c == 0) ? 0 : ((c == 1) ? (symmetric ? 3 : 4) :
                                          (symmetric ? 5 : 8));
 
-         double mass[DofQuadLimits::HDIV_MAX_Q1D];
+         real_t mass[DofQuadLimits::HDIV_MAX_Q1D];
 
          for (int dz = 0; dz < D1Dz; ++dz)
          {
@@ -267,10 +267,10 @@ void PAHdivMassAssembleDiagonal3D(const int D1D,
                   mass[qx] = 0.0;
                   for (int qy = 0; qy < Q1D; ++qy)
                   {
-                     const double wy = (c == 1) ? Bc(qy,dy) : Bo(qy,dy);
+                     const real_t wy = (c == 1) ? Bc(qy,dy) : Bo(qy,dy);
                      for (int qz = 0; qz < Q1D; ++qz)
                      {
-                        const double wz = (c == 2) ? Bc(qz,dz) : Bo(qz,dz);
+                        const real_t wz = (c == 2) ? Bc(qz,dz) : Bo(qz,dz);
                         mass[qx] += wy * wy * wz * wz * op(qx,qy,qz,opc,e);
                      }
                   }
@@ -278,10 +278,10 @@ void PAHdivMassAssembleDiagonal3D(const int D1D,
 
                for (int dx = 0; dx < D1Dx; ++dx)
                {
-                  double val = 0.0;
+                  real_t val = 0.0;
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
-                     const double wx = (c == 0) ? Bc(qx,dx) : Bo(qx,dx);
+                     const real_t wx = (c == 0) ? Bc(qx,dx) : Bo(qx,dx);
                      val += mass[qx] * wx * wx;
                   }
                   diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += val;
@@ -299,10 +299,10 @@ void PAHdivMassApply(const int dim,
                      const int Q1D,
                      const int NE,
                      const bool symmetric,
-                     const Array<double> &Bo,
-                     const Array<double> &Bc,
-                     const Array<double> &Bot,
-                     const Array<double> &Bct,
+                     const Array<real_t> &Bo,
+                     const Array<real_t> &Bc,
+                     const Array<real_t> &Bot,
+                     const Array<real_t> &Bct,
                      const Vector &op,
                      const Vector &x,
                      Vector &y)
@@ -341,10 +341,10 @@ void PAHdivMassApply2D(const int D1D,
                        const int Q1D,
                        const int NE,
                        const bool symmetric,
-                       const Array<double> &Bo_,
-                       const Array<double> &Bc_,
-                       const Array<double> &Bot_,
-                       const Array<double> &Bct_,
+                       const Array<real_t> &Bo_,
+                       const Array<real_t> &Bc_,
+                       const Array<real_t> &Bot_,
+                       const Array<real_t> &Bct_,
                        const Vector &op_,
                        const Vector &x_,
                        Vector &y_)
@@ -363,7 +363,7 @@ void PAHdivMassApply2D(const int D1D,
       constexpr static int MAX_D1D = DofQuadLimits::HDIV_MAX_D1D;
       constexpr static int MAX_Q1D = DofQuadLimits::HDIV_MAX_Q1D;
 
-      double mass[MAX_Q1D][MAX_Q1D][VDIM];
+      real_t mass[MAX_Q1D][MAX_Q1D][VDIM];
 
       for (int qy = 0; qy < Q1D; ++qy)
       {
@@ -385,7 +385,7 @@ void PAHdivMassApply2D(const int D1D,
 
          for (int dy = 0; dy < D1Dy; ++dy)
          {
-            double massX[MAX_Q1D];
+            real_t massX[MAX_Q1D];
             for (int qx = 0; qx < Q1D; ++qx)
             {
                massX[qx] = 0.0;
@@ -393,7 +393,7 @@ void PAHdivMassApply2D(const int D1D,
 
             for (int dx = 0; dx < D1Dx; ++dx)
             {
-               const double t = x(dx + (dy * D1Dx) + osc, e);
+               const real_t t = x(dx + (dy * D1Dx) + osc, e);
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   massX[qx] += t * ((c == 0) ? Bc(qx,dx) : Bo(qx,dx));
@@ -402,7 +402,7 @@ void PAHdivMassApply2D(const int D1D,
 
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               const double wy = (c == 1) ? Bc(qy,dy) : Bo(qy,dy);
+               const real_t wy = (c == 1) ? Bc(qy,dy) : Bo(qy,dy);
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   mass[qy][qx][c] += massX[qx] * wy;
@@ -418,12 +418,12 @@ void PAHdivMassApply2D(const int D1D,
       {
          for (int qx = 0; qx < Q1D; ++qx)
          {
-            const double O11 = op(qx,qy,0,e);
-            const double O12 = op(qx,qy,1,e);
-            const double O21 = symmetric ? O12 : op(qx,qy,2,e);
-            const double O22 = symmetric ? op(qx,qy,2,e) : op(qx,qy,3,e);
-            const double massX = mass[qy][qx][0];
-            const double massY = mass[qy][qx][1];
+            const real_t O11 = op(qx,qy,0,e);
+            const real_t O12 = op(qx,qy,1,e);
+            const real_t O21 = symmetric ? O12 : op(qx,qy,2,e);
+            const real_t O22 = symmetric ? op(qx,qy,2,e) : op(qx,qy,3,e);
+            const real_t massX = mass[qy][qx][0];
+            const real_t massY = mass[qy][qx][1];
             mass[qy][qx][0] = (O11*massX)+(O12*massY);
             mass[qy][qx][1] = (O21*massX)+(O22*massY);
          }
@@ -438,7 +438,7 @@ void PAHdivMassApply2D(const int D1D,
             const int D1Dx = (c == 1) ? D1D - 1 : D1D;
             const int D1Dy = (c == 0) ? D1D - 1 : D1D;
 
-            double massX[MAX_D1D];
+            real_t massX[MAX_D1D];
             for (int dx = 0; dx < D1Dx; ++dx)
             {
                massX[dx] = 0;
@@ -454,7 +454,7 @@ void PAHdivMassApply2D(const int D1D,
 
             for (int dy = 0; dy < D1Dy; ++dy)
             {
-               const double wy = (c == 1) ? Bct(dy,qy) : Bot(dy,qy);
+               const real_t wy = (c == 1) ? Bct(dy,qy) : Bot(dy,qy);
 
                for (int dx = 0; dx < D1Dx; ++dx)
                {
@@ -472,10 +472,10 @@ void PAHdivMassApply3D(const int D1D,
                        const int Q1D,
                        const int NE,
                        const bool symmetric,
-                       const Array<double> &Bo_,
-                       const Array<double> &Bc_,
-                       const Array<double> &Bot_,
-                       const Array<double> &Bct_,
+                       const Array<real_t> &Bo_,
+                       const Array<real_t> &Bc_,
+                       const Array<real_t> &Bot_,
+                       const Array<real_t> &Bct_,
                        const Vector &op_,
                        const Vector &x_,
                        Vector &y_)
@@ -496,7 +496,7 @@ void PAHdivMassApply3D(const int D1D,
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
-      double mass[DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D][VDIM];
+      real_t mass[DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D][VDIM];
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
@@ -522,7 +522,7 @@ void PAHdivMassApply3D(const int D1D,
 
          for (int dz = 0; dz < D1Dz; ++dz)
          {
-            double massXY[DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D];
+            real_t massXY[DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D];
             for (int qy = 0; qy < Q1D; ++qy)
             {
                for (int qx = 0; qx < Q1D; ++qx)
@@ -533,7 +533,7 @@ void PAHdivMassApply3D(const int D1D,
 
             for (int dy = 0; dy < D1Dy; ++dy)
             {
-               double massX[DofQuadLimits::HDIV_MAX_Q1D];
+               real_t massX[DofQuadLimits::HDIV_MAX_Q1D];
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   massX[qx] = 0.0;
@@ -541,7 +541,7 @@ void PAHdivMassApply3D(const int D1D,
 
                for (int dx = 0; dx < D1Dx; ++dx)
                {
-                  const double t = x(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                  const real_t t = x(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
                      massX[qx] += t * ((c == 0) ? Bc(qx,dx) : Bo(qx,dx));
@@ -550,10 +550,10 @@ void PAHdivMassApply3D(const int D1D,
 
                for (int qy = 0; qy < Q1D; ++qy)
                {
-                  const double wy = (c == 1) ? Bc(qy,dy) : Bo(qy,dy);
+                  const real_t wy = (c == 1) ? Bc(qy,dy) : Bo(qy,dy);
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
-                     const double wx = massX[qx];
+                     const real_t wx = massX[qx];
                      massXY[qy][qx] += wx * wy;
                   }
                }
@@ -561,7 +561,7 @@ void PAHdivMassApply3D(const int D1D,
 
             for (int qz = 0; qz < Q1D; ++qz)
             {
-               const double wz = (c == 2) ? Bc(qz,dz) : Bo(qz,dz);
+               const real_t wz = (c == 2) ? Bc(qz,dz) : Bo(qz,dz);
                for (int qy = 0; qy < Q1D; ++qy)
                {
                   for (int qx = 0; qx < Q1D; ++qx)
@@ -582,19 +582,19 @@ void PAHdivMassApply3D(const int D1D,
          {
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               const double O11 = op(qx,qy,qz,0,e);
-               const double O12 = op(qx,qy,qz,1,e);
-               const double O13 = op(qx,qy,qz,2,e);
-               const double O21 = symmetric ? O12 : op(qx,qy,qz,3,e);
-               const double O22 = symmetric ? op(qx,qy,qz,3,e) : op(qx,qy,qz,4,e);
-               const double O23 = symmetric ? op(qx,qy,qz,4,e) : op(qx,qy,qz,5,e);
-               const double O31 = symmetric ? O13 : op(qx,qy,qz,6,e);
-               const double O32 = symmetric ? O23 : op(qx,qy,qz,7,e);
-               const double O33 = symmetric ? op(qx,qy,qz,5,e) : op(qx,qy,qz,8,e);
+               const real_t O11 = op(qx,qy,qz,0,e);
+               const real_t O12 = op(qx,qy,qz,1,e);
+               const real_t O13 = op(qx,qy,qz,2,e);
+               const real_t O21 = symmetric ? O12 : op(qx,qy,qz,3,e);
+               const real_t O22 = symmetric ? op(qx,qy,qz,3,e) : op(qx,qy,qz,4,e);
+               const real_t O23 = symmetric ? op(qx,qy,qz,4,e) : op(qx,qy,qz,5,e);
+               const real_t O31 = symmetric ? O13 : op(qx,qy,qz,6,e);
+               const real_t O32 = symmetric ? O23 : op(qx,qy,qz,7,e);
+               const real_t O33 = symmetric ? op(qx,qy,qz,5,e) : op(qx,qy,qz,8,e);
 
-               const double massX = mass[qz][qy][qx][0];
-               const double massY = mass[qz][qy][qx][1];
-               const double massZ = mass[qz][qy][qx][2];
+               const real_t massX = mass[qz][qy][qx][0];
+               const real_t massY = mass[qz][qy][qx][1];
+               const real_t massZ = mass[qz][qy][qx][2];
                mass[qz][qy][qx][0] = (O11*massX)+(O12*massY)+(O13*massZ);
                mass[qz][qy][qx][1] = (O21*massX)+(O22*massY)+(O23*massZ);
                mass[qz][qy][qx][2] = (O31*massX)+(O32*massY)+(O33*massZ);
@@ -604,7 +604,7 @@ void PAHdivMassApply3D(const int D1D,
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         double massXY[DofQuadLimits::HDIV_MAX_D1D][DofQuadLimits::HDIV_MAX_D1D];
+         real_t massXY[DofQuadLimits::HDIV_MAX_D1D][DofQuadLimits::HDIV_MAX_D1D];
 
          osc = 0;
 
@@ -623,7 +623,7 @@ void PAHdivMassApply3D(const int D1D,
             }
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               double massX[DofQuadLimits::HDIV_MAX_D1D];
+               real_t massX[DofQuadLimits::HDIV_MAX_D1D];
                for (int dx = 0; dx < D1Dx; ++dx)
                {
                   massX[dx] = 0;
@@ -638,7 +638,7 @@ void PAHdivMassApply3D(const int D1D,
                }
                for (int dy = 0; dy < D1Dy; ++dy)
                {
-                  const double wy = (c == 1) ? Bct(dy,qy) : Bot(dy,qy);
+                  const real_t wy = (c == 1) ? Bct(dy,qy) : Bot(dy,qy);
                   for (int dx = 0; dx < D1Dx; ++dx)
                   {
                      massXY[dy][dx] += massX[dx] * wy;
@@ -648,7 +648,7 @@ void PAHdivMassApply3D(const int D1D,
 
             for (int dz = 0; dz < D1Dz; ++dz)
             {
-               const double wz = (c == 2) ? Bct(dz,qz) : Bot(dz,qz);
+               const real_t wz = (c == 2) ? Bct(dz,qz) : Bot(dz,qz);
                for (int dy = 0; dy < D1Dy; ++dy)
                {
                   for (int dx = 0; dx < D1Dx; ++dx)
@@ -668,7 +668,7 @@ void PAHdivMassApply3D(const int D1D,
 // NOTE: this is identical to PACurlCurlSetup2D
 void PADivDivSetup2D(const int Q1D,
                      const int NE,
-                     const Array<double> &w,
+                     const Array<real_t> &w,
                      const Vector &j,
                      Vector &coeff_,
                      Vector &op)
@@ -682,11 +682,11 @@ void PADivDivSetup2D(const int Q1D,
    {
       for (int q = 0; q < NQ; ++q)
       {
-         const double J11 = J(q,0,0,e);
-         const double J21 = J(q,1,0,e);
-         const double J12 = J(q,0,1,e);
-         const double J22 = J(q,1,1,e);
-         const double detJ = (J11*J22)-(J21*J12);
+         const real_t J11 = J(q,0,0,e);
+         const real_t J21 = J(q,1,0,e);
+         const real_t J12 = J(q,0,1,e);
+         const real_t J22 = J(q,1,1,e);
+         const real_t detJ = (J11*J22)-(J21*J12);
          y(q,e) = W[q] * coeff(q,e) / detJ;
       }
    });
@@ -694,7 +694,7 @@ void PADivDivSetup2D(const int Q1D,
 
 void PADivDivSetup3D(const int Q1D,
                      const int NE,
-                     const Array<double> &w,
+                     const Array<real_t> &w,
                      const Vector &j,
                      Vector &coeff_,
                      Vector &op)
@@ -709,16 +709,16 @@ void PADivDivSetup3D(const int Q1D,
    {
       for (int q = 0; q < NQ; ++q)
       {
-         const double J11 = J(q,0,0,e);
-         const double J21 = J(q,1,0,e);
-         const double J31 = J(q,2,0,e);
-         const double J12 = J(q,0,1,e);
-         const double J22 = J(q,1,1,e);
-         const double J32 = J(q,2,1,e);
-         const double J13 = J(q,0,2,e);
-         const double J23 = J(q,1,2,e);
-         const double J33 = J(q,2,2,e);
-         const double detJ = J11 * (J22 * J33 - J32 * J23) -
+         const real_t J11 = J(q,0,0,e);
+         const real_t J21 = J(q,1,0,e);
+         const real_t J31 = J(q,2,0,e);
+         const real_t J12 = J(q,0,1,e);
+         const real_t J22 = J(q,1,1,e);
+         const real_t J32 = J(q,2,1,e);
+         const real_t J13 = J(q,0,2,e);
+         const real_t J23 = J(q,1,2,e);
+         const real_t J33 = J(q,2,2,e);
+         const real_t detJ = J11 * (J22 * J33 - J32 * J23) -
                              J21 * (J12 * J33 - J32 * J13) +
                              J31 * (J12 * J23 - J22 * J13);
          y(q,e) = W[q] * coeff(q, e) / detJ;
@@ -729,8 +729,8 @@ void PADivDivSetup3D(const int Q1D,
 void PADivDivAssembleDiagonal2D(const int D1D,
                                 const int Q1D,
                                 const int NE,
-                                const Array<double> &Bo_,
-                                const Array<double> &Gc_,
+                                const Array<real_t> &Bo_,
+                                const Array<real_t> &Gc_,
                                 const Vector &op_,
                                 Vector &diag_)
 {
@@ -751,7 +751,7 @@ void PADivDivAssembleDiagonal2D(const int D1D,
          const int D1Dx = (c == 1) ? D1D - 1 : D1D;
          const int D1Dy = (c == 0) ? D1D - 1 : D1D;
 
-         double div[MAX_Q1D];
+         real_t div[MAX_Q1D];
 
          for (int dy = 0; dy < D1Dy; ++dy)
          {
@@ -760,17 +760,17 @@ void PADivDivAssembleDiagonal2D(const int D1D,
                div[qx] = 0.0;
                for (int qy = 0; qy < Q1D; ++qy)
                {
-                  const double wy = (c == 0) ? Bo(qy,dy) : Gc(qy,dy);
+                  const real_t wy = (c == 0) ? Bo(qy,dy) : Gc(qy,dy);
                   div[qx] += wy * wy * op(qx,qy,e);
                }
             }
 
             for (int dx = 0; dx < D1Dx; ++dx)
             {
-               double val = 0.0;
+               real_t val = 0.0;
                for (int qx = 0; qx < Q1D; ++qx)
                {
-                  const double wx = (c == 0) ? Gc(qx,dx) : Bo(qx,dx);
+                  const real_t wx = (c == 0) ? Gc(qx,dx) : Bo(qx,dx);
                   val += div[qx] * wx * wx;
                }
                diag(dx + (dy * D1Dx) + osc, e) += val;
@@ -785,8 +785,8 @@ void PADivDivAssembleDiagonal2D(const int D1D,
 void PADivDivAssembleDiagonal3D(const int D1D,
                                 const int Q1D,
                                 const int NE,
-                                const Array<double> &Bo_,
-                                const Array<double> &Gc_,
+                                const Array<real_t> &Bo_,
+                                const Array<real_t> &Gc_,
                                 const Vector &op_,
                                 Vector &diag_)
 {
@@ -815,18 +815,18 @@ void PADivDivAssembleDiagonal3D(const int D1D,
          {
             for (int dy = 0; dy < D1Dy; ++dy)
             {
-               double a[DofQuadLimits::HDIV_MAX_Q1D];
+               real_t a[DofQuadLimits::HDIV_MAX_Q1D];
 
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   a[qx] = 0.0;
                   for (int qy = 0; qy < Q1D; ++qy)
                   {
-                     const double wy = (c == 1) ? Gc(qy,dy) : Bo(qy,dy);
+                     const real_t wy = (c == 1) ? Gc(qy,dy) : Bo(qy,dy);
 
                      for (int qz = 0; qz < Q1D; ++qz)
                      {
-                        const double wz = (c == 2) ? Gc(qz,dz) : Bo(qz,dz);
+                        const real_t wz = (c == 2) ? Gc(qz,dz) : Bo(qz,dz);
                         a[qx] += wy * wy * wz * wz * op(qx,qy,qz,e);
                      }
                   }
@@ -834,10 +834,10 @@ void PADivDivAssembleDiagonal3D(const int D1D,
 
                for (int dx = 0; dx < D1Dx; ++dx)
                {
-                  double val = 0.0;
+                  real_t val = 0.0;
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
-                     const double wx = (c == 0) ? Gc(qx,dx) : Bo(qx,dx);
+                     const real_t wx = (c == 0) ? Gc(qx,dx) : Bo(qx,dx);
                      val += a[qx] * wx * wx;
                   }
                   diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += val;
@@ -853,10 +853,10 @@ void PADivDivAssembleDiagonal3D(const int D1D,
 void PADivDivApply2D(const int D1D,
                      const int Q1D,
                      const int NE,
-                     const Array<double> &Bo_,
-                     const Array<double> &Gc_,
-                     const Array<double> &Bot_,
-                     const Array<double> &Gct_,
+                     const Array<real_t> &Bo_,
+                     const Array<real_t> &Gc_,
+                     const Array<real_t> &Bot_,
+                     const Array<real_t> &Gct_,
                      const Vector &op_,
                      const Vector &x_,
                      Vector &y_)
@@ -875,7 +875,7 @@ void PADivDivApply2D(const int D1D,
       constexpr static int MAX_D1D = DofQuadLimits::HDIV_MAX_D1D;
       constexpr static int MAX_Q1D = DofQuadLimits::HDIV_MAX_Q1D;
 
-      double div[MAX_Q1D][MAX_Q1D];
+      real_t div[MAX_Q1D][MAX_Q1D];
 
       // div[qy][qx] will be computed as du_x/dx + du_y/dy
 
@@ -896,7 +896,7 @@ void PADivDivApply2D(const int D1D,
 
          for (int dy = 0; dy < D1Dy; ++dy)
          {
-            double gradX[MAX_Q1D];
+            real_t gradX[MAX_Q1D];
             for (int qx = 0; qx < Q1D; ++qx)
             {
                gradX[qx] = 0;
@@ -904,7 +904,7 @@ void PADivDivApply2D(const int D1D,
 
             for (int dx = 0; dx < D1Dx; ++dx)
             {
-               const double t = x(dx + (dy * D1Dx) + osc, e);
+               const real_t t = x(dx + (dy * D1Dx) + osc, e);
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   gradX[qx] += t * ((c == 0) ? Gc(qx,dx) : Bo(qx,dx));
@@ -913,7 +913,7 @@ void PADivDivApply2D(const int D1D,
 
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               const double wy = (c == 0) ? Bo(qy,dy) : Gc(qy,dy);
+               const real_t wy = (c == 0) ? Bo(qy,dy) : Gc(qy,dy);
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   div[qy][qx] += gradX[qx] * wy;
@@ -942,7 +942,7 @@ void PADivDivApply2D(const int D1D,
             const int D1Dx = (c == 1) ? D1D - 1 : D1D;
             const int D1Dy = (c == 0) ? D1D - 1 : D1D;
 
-            double gradX[MAX_D1D];
+            real_t gradX[MAX_D1D];
             for (int dx = 0; dx < D1Dx; ++dx)
             {
                gradX[dx] = 0;
@@ -956,7 +956,7 @@ void PADivDivApply2D(const int D1D,
             }
             for (int dy = 0; dy < D1Dy; ++dy)
             {
-               const double wy = (c == 0) ? Bot(dy,qy) : Gct(dy,qy);
+               const real_t wy = (c == 0) ? Bot(dy,qy) : Gct(dy,qy);
                for (int dx = 0; dx < D1Dx; ++dx)
                {
                   y(dx + (dy * D1Dx) + osc, e) += gradX[dx] * wy;
@@ -972,10 +972,10 @@ void PADivDivApply2D(const int D1D,
 void PADivDivApply3D(const int D1D,
                      const int Q1D,
                      const int NE,
-                     const Array<double> &Bo_,
-                     const Array<double> &Gc_,
-                     const Array<double> &Bot_,
-                     const Array<double> &Gct_,
+                     const Array<real_t> &Bo_,
+                     const Array<real_t> &Gc_,
+                     const Array<real_t> &Bot_,
+                     const Array<real_t> &Gct_,
                      const Vector &op_,
                      const Vector &x_,
                      Vector &y_)
@@ -996,7 +996,7 @@ void PADivDivApply3D(const int D1D,
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
-      double div[DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D];
+      real_t div[DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D];
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
@@ -1019,7 +1019,7 @@ void PADivDivApply3D(const int D1D,
 
          for (int dz = 0; dz < D1Dz; ++dz)
          {
-            double aXY[DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D];
+            real_t aXY[DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D];
             for (int qy = 0; qy < Q1D; ++qy)
             {
                for (int qx = 0; qx < Q1D; ++qx)
@@ -1030,7 +1030,7 @@ void PADivDivApply3D(const int D1D,
 
             for (int dy = 0; dy < D1Dy; ++dy)
             {
-               double aX[DofQuadLimits::HDIV_MAX_Q1D];
+               real_t aX[DofQuadLimits::HDIV_MAX_Q1D];
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   aX[qx] = 0.0;
@@ -1038,7 +1038,7 @@ void PADivDivApply3D(const int D1D,
 
                for (int dx = 0; dx < D1Dx; ++dx)
                {
-                  const double t = x(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                  const real_t t = x(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
                      aX[qx] += t * ((c == 0) ? Gc(qx,dx) : Bo(qx,dx));
@@ -1047,10 +1047,10 @@ void PADivDivApply3D(const int D1D,
 
                for (int qy = 0; qy < Q1D; ++qy)
                {
-                  const double wy = (c == 1) ? Gc(qy,dy) : Bo(qy,dy);
+                  const real_t wy = (c == 1) ? Gc(qy,dy) : Bo(qy,dy);
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
-                     const double wx = aX[qx];
+                     const real_t wx = aX[qx];
                      aXY[qy][qx] += wx * wy;
                   }
                }
@@ -1058,7 +1058,7 @@ void PADivDivApply3D(const int D1D,
 
             for (int qz = 0; qz < Q1D; ++qz)
             {
-               const double wz = (c == 2) ? Gc(qz,dz) : Bo(qz,dz);
+               const real_t wz = (c == 2) ? Gc(qz,dz) : Bo(qz,dz);
                for (int qy = 0; qy < Q1D; ++qy)
                {
                   for (int qx = 0; qx < Q1D; ++qx)
@@ -1086,7 +1086,7 @@ void PADivDivApply3D(const int D1D,
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         double aXY[DofQuadLimits::HDIV_MAX_D1D][DofQuadLimits::HDIV_MAX_D1D];
+         real_t aXY[DofQuadLimits::HDIV_MAX_D1D][DofQuadLimits::HDIV_MAX_D1D];
 
          osc = 0;
 
@@ -1105,7 +1105,7 @@ void PADivDivApply3D(const int D1D,
             }
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               double aX[DofQuadLimits::HDIV_MAX_D1D];
+               real_t aX[DofQuadLimits::HDIV_MAX_D1D];
                for (int dx = 0; dx < D1Dx; ++dx)
                {
                   aX[dx] = 0;
@@ -1120,7 +1120,7 @@ void PADivDivApply3D(const int D1D,
                }
                for (int dy = 0; dy < D1Dy; ++dy)
                {
-                  const double wy = (c == 1) ? Gct(dy,qy) : Bot(dy,qy);
+                  const real_t wy = (c == 1) ? Gct(dy,qy) : Bot(dy,qy);
                   for (int dx = 0; dx < D1Dx; ++dx)
                   {
                      aXY[dy][dx] += aX[dx] * wy;
@@ -1130,7 +1130,7 @@ void PADivDivApply3D(const int D1D,
 
             for (int dz = 0; dz < D1Dz; ++dz)
             {
-               const double wz = (c == 2) ? Gct(dz,qz) : Bot(dz,qz);
+               const real_t wz = (c == 2) ? Gct(dz,qz) : Bot(dz,qz);
                for (int dy = 0; dy < D1Dy; ++dy)
                {
                   for (int dx = 0; dx < D1Dx; ++dx)
@@ -1149,7 +1149,7 @@ void PADivDivApply3D(const int D1D,
 
 void PAHdivL2Setup2D(const int Q1D,
                      const int NE,
-                     const Array<double> &w,
+                     const Array<real_t> &w,
                      Vector &coeff_,
                      Vector &op)
 {
@@ -1168,7 +1168,7 @@ void PAHdivL2Setup2D(const int Q1D,
 
 void PAHdivL2Setup3D(const int Q1D,
                      const int NE,
-                     const Array<double> &w,
+                     const Array<real_t> &w,
                      Vector &coeff_,
                      Vector &op)
 {
@@ -1190,9 +1190,9 @@ void PAHdivL2AssembleDiagonal_ADAt_2D(const int D1D,
                                       const int Q1D,
                                       const int L2D1D,
                                       const int NE,
-                                      const Array<double> &L2Bo_,
-                                      const Array<double> &Gct_,
-                                      const Array<double> &Bot_,
+                                      const Array<real_t> &L2Bo_,
+                                      const Array<real_t> &Gct_,
+                                      const Array<real_t> &Bot_,
                                       const Vector &op_,
                                       const Vector &D_,
                                       Vector &diag_)
@@ -1215,8 +1215,8 @@ void PAHdivL2AssembleDiagonal_ADAt_2D(const int D1D,
             // Compute row (rx,ry), assuming all contributions are from
             // a single element.
 
-            double row[2*DofQuadLimits::HDIV_MAX_D1D*(DofQuadLimits::HDIV_MAX_D1D-1)];
-            double div[DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D];
+            real_t row[2*DofQuadLimits::HDIV_MAX_D1D*(DofQuadLimits::HDIV_MAX_D1D-1)];
+            real_t div[DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D];
 
             for (int i=0; i<2*D1D*(D1D - 1); ++i)
             {
@@ -1239,7 +1239,7 @@ void PAHdivL2AssembleDiagonal_ADAt_2D(const int D1D,
                   const int D1Dy = (c == 1) ? D1D : D1D - 1;
                   const int D1Dx = (c == 0) ? D1D : D1D - 1;
 
-                  double aX[DofQuadLimits::HDIV_MAX_D1D];
+                  real_t aX[DofQuadLimits::HDIV_MAX_D1D];
                   for (int dx = 0; dx < D1Dx; ++dx)
                   {
                      aX[dx] = 0;
@@ -1255,7 +1255,7 @@ void PAHdivL2AssembleDiagonal_ADAt_2D(const int D1D,
 
                   for (int dy = 0; dy < D1Dy; ++dy)
                   {
-                     const double wy = (c == 1) ? Gct(dy,qy) : Bot(dy,qy);
+                     const real_t wy = (c == 1) ? Gct(dy,qy) : Bot(dy,qy);
 
                      for (int dx = 0; dx < D1Dx; ++dx)
                      {
@@ -1267,7 +1267,7 @@ void PAHdivL2AssembleDiagonal_ADAt_2D(const int D1D,
                }  // loop c
             }  // loop qy
 
-            double val = 0.0;
+            real_t val = 0.0;
             for (int i=0; i<2*D1D*(D1D - 1); ++i)
             {
                val += row[i] * row[i] * D(i,e);
@@ -1282,9 +1282,9 @@ void PAHdivL2AssembleDiagonal_ADAt_3D(const int D1D,
                                       const int Q1D,
                                       const int L2D1D,
                                       const int NE,
-                                      const Array<double> &L2Bo_,
-                                      const Array<double> &Gct_,
-                                      const Array<double> &Bot_,
+                                      const Array<real_t> &L2Bo_,
+                                      const Array<real_t> &Gct_,
+                                      const Array<real_t> &Bot_,
                                       const Vector &op_,
                                       const Vector &D_,
                                       Vector &diag_)
@@ -1313,9 +1313,9 @@ void PAHdivL2AssembleDiagonal_ADAt_3D(const int D1D,
                // Compute row (rx,ry,rz), assuming all contributions are from
                // a single element.
 
-               double row[3*DofQuadLimits::HDIV_MAX_D1D*(DofQuadLimits::HDIV_MAX_D1D-1)*
+               real_t row[3*DofQuadLimits::HDIV_MAX_D1D*(DofQuadLimits::HDIV_MAX_D1D-1)*
                           (DofQuadLimits::HDIV_MAX_D1D-1)];
-               double div[DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D];
+               real_t div[DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D];
 
                for (int i=0; i<3*D1D*(D1D - 1)*(D1D - 1); ++i)
                {
@@ -1336,7 +1336,7 @@ void PAHdivL2AssembleDiagonal_ADAt_3D(const int D1D,
 
                for (int qz = 0; qz < Q1D; ++qz)
                {
-                  double aXY[DofQuadLimits::HDIV_MAX_D1D][DofQuadLimits::HDIV_MAX_D1D];
+                  real_t aXY[DofQuadLimits::HDIV_MAX_D1D][DofQuadLimits::HDIV_MAX_D1D];
 
                   int osc = 0;
                   for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
@@ -1354,7 +1354,7 @@ void PAHdivL2AssembleDiagonal_ADAt_3D(const int D1D,
                      }
                      for (int qy = 0; qy < Q1D; ++qy)
                      {
-                        double aX[DofQuadLimits::HDIV_MAX_D1D];
+                        real_t aX[DofQuadLimits::HDIV_MAX_D1D];
                         for (int dx = 0; dx < D1Dx; ++dx)
                         {
                            aX[dx] = 0;
@@ -1369,7 +1369,7 @@ void PAHdivL2AssembleDiagonal_ADAt_3D(const int D1D,
                         }
                         for (int dy = 0; dy < D1Dy; ++dy)
                         {
-                           const double wy = (c == 1) ? Gct(dy,qy) : Bot(dy,qy);
+                           const real_t wy = (c == 1) ? Gct(dy,qy) : Bot(dy,qy);
                            for (int dx = 0; dx < D1Dx; ++dx)
                            {
                               aXY[dy][dx] += aX[dx] * wy;
@@ -1379,7 +1379,7 @@ void PAHdivL2AssembleDiagonal_ADAt_3D(const int D1D,
 
                      for (int dz = 0; dz < D1Dz; ++dz)
                      {
-                        const double wz = (c == 2) ? Gct(dz,qz) : Bot(dz,qz);
+                        const real_t wz = (c == 2) ? Gct(dz,qz) : Bot(dz,qz);
                         for (int dy = 0; dy < D1Dy; ++dy)
                         {
                            for (int dx = 0; dx < D1Dx; ++dx)
@@ -1394,7 +1394,7 @@ void PAHdivL2AssembleDiagonal_ADAt_3D(const int D1D,
                   }  // loop c
                }  // loop qz
 
-               double val = 0.0;
+               real_t val = 0.0;
                for (int i=0; i<3*D1D*(D1D - 1)*(D1D - 1); ++i)
                {
                   val += row[i] * row[i] * D(i,e);
@@ -1412,9 +1412,9 @@ void PAHdivL2Apply2D(const int D1D,
                      const int Q1D,
                      const int L2D1D,
                      const int NE,
-                     const Array<double> &Bo_,
-                     const Array<double> &Gc_,
-                     const Array<double> &L2Bot_,
+                     const Array<real_t> &Bo_,
+                     const Array<real_t> &Gc_,
+                     const Array<real_t> &L2Bot_,
                      const Vector &op_,
                      const Vector &x_,
                      Vector &y_)
@@ -1432,7 +1432,7 @@ void PAHdivL2Apply2D(const int D1D,
       constexpr static int MAX_D1D = DofQuadLimits::HDIV_MAX_D1D;
       constexpr static int MAX_Q1D = DofQuadLimits::HDIV_MAX_Q1D;
 
-      double div[MAX_Q1D][MAX_Q1D];
+      real_t div[MAX_Q1D][MAX_Q1D];
 
       for (int qy = 0; qy < Q1D; ++qy)
       {
@@ -1451,7 +1451,7 @@ void PAHdivL2Apply2D(const int D1D,
 
          for (int dy = 0; dy < D1Dy; ++dy)
          {
-            double aX[MAX_Q1D];
+            real_t aX[MAX_Q1D];
             for (int qx = 0; qx < Q1D; ++qx)
             {
                aX[qx] = 0.0;
@@ -1459,7 +1459,7 @@ void PAHdivL2Apply2D(const int D1D,
 
             for (int dx = 0; dx < D1Dx; ++dx)
             {
-               const double t = x(dx + (dy * D1Dx) + osc, e);
+               const real_t t = x(dx + (dy * D1Dx) + osc, e);
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   aX[qx] += t * ((c == 0) ? Gc(qx,dx) : Bo(qx,dx));
@@ -1468,7 +1468,7 @@ void PAHdivL2Apply2D(const int D1D,
 
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               const double wy = (c == 1) ? Gc(qy,dy) : Bo(qy,dy);
+               const real_t wy = (c == 1) ? Gc(qy,dy) : Bo(qy,dy);
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   div[qy][qx] += aX[qx] * wy;
@@ -1490,7 +1490,7 @@ void PAHdivL2Apply2D(const int D1D,
 
       for (int qy = 0; qy < Q1D; ++qy)
       {
-         double aX[MAX_D1D];
+         real_t aX[MAX_D1D];
          for (int dx = 0; dx < L2D1D; ++dx)
          {
             aX[dx] = 0;
@@ -1504,7 +1504,7 @@ void PAHdivL2Apply2D(const int D1D,
          }
          for (int dy = 0; dy < L2D1D; ++dy)
          {
-            const double wy = L2Bot(dy,qy);
+            const real_t wy = L2Bot(dy,qy);
             for (int dx = 0; dx < L2D1D; ++dx)
             {
                y(dx,dy,e) += aX[dx] * wy;
@@ -1518,9 +1518,9 @@ void PAHdivL2ApplyTranspose2D(const int D1D,
                               const int Q1D,
                               const int L2D1D,
                               const int NE,
-                              const Array<double> &L2Bo_,
-                              const Array<double> &Gct_,
-                              const Array<double> &Bot_,
+                              const Array<real_t> &L2Bo_,
+                              const Array<real_t> &Gct_,
+                              const Array<real_t> &Bot_,
                               const Vector &op_,
                               const Vector &x_,
                               Vector &y_)
@@ -1538,7 +1538,7 @@ void PAHdivL2ApplyTranspose2D(const int D1D,
       constexpr static int MAX_D1D = DofQuadLimits::HDIV_MAX_D1D;
       constexpr static int MAX_Q1D = DofQuadLimits::HDIV_MAX_Q1D;
 
-      double div[MAX_Q1D][MAX_Q1D];
+      real_t div[MAX_Q1D][MAX_Q1D];
 
       for (int qy = 0; qy < Q1D; ++qy)
       {
@@ -1550,7 +1550,7 @@ void PAHdivL2ApplyTranspose2D(const int D1D,
 
       for (int dy = 0; dy < L2D1D; ++dy)
       {
-         double aX[MAX_Q1D];
+         real_t aX[MAX_Q1D];
          for (int qx = 0; qx < Q1D; ++qx)
          {
             aX[qx] = 0.0;
@@ -1558,7 +1558,7 @@ void PAHdivL2ApplyTranspose2D(const int D1D,
 
          for (int dx = 0; dx < L2D1D; ++dx)
          {
-            const double t = x(dx,dy,e);
+            const real_t t = x(dx,dy,e);
             for (int qx = 0; qx < Q1D; ++qx)
             {
                aX[qx] += t * L2Bo(qx,dx);
@@ -1567,7 +1567,7 @@ void PAHdivL2ApplyTranspose2D(const int D1D,
 
          for (int qy = 0; qy < Q1D; ++qy)
          {
-            const double wy = L2Bo(qy,dy);
+            const real_t wy = L2Bo(qy,dy);
             for (int qx = 0; qx < Q1D; ++qx)
             {
                div[qy][qx] += aX[qx] * wy;
@@ -1586,7 +1586,7 @@ void PAHdivL2ApplyTranspose2D(const int D1D,
 
       for (int qy = 0; qy < Q1D; ++qy)
       {
-         double aX[MAX_D1D];
+         real_t aX[MAX_D1D];
 
          int osc = 0;
          for (int c = 0; c < VDIM; ++c)  // loop over x, y components
@@ -1607,7 +1607,7 @@ void PAHdivL2ApplyTranspose2D(const int D1D,
             }
             for (int dy = 0; dy < D1Dy; ++dy)
             {
-               const double wy = (c == 0) ? Bot(dy,qy) : Gct(dy,qy);
+               const real_t wy = (c == 0) ? Bot(dy,qy) : Gct(dy,qy);
                for (int dx = 0; dx < D1Dx; ++dx)
                {
                   y(dx + (dy * D1Dx) + osc, e) += aX[dx] * wy;
@@ -1626,9 +1626,9 @@ void PAHdivL2Apply3D(const int D1D,
                      const int Q1D,
                      const int L2D1D,
                      const int NE,
-                     const Array<double> &Bo_,
-                     const Array<double> &Gc_,
-                     const Array<double> &L2Bot_,
+                     const Array<real_t> &Bo_,
+                     const Array<real_t> &Gc_,
+                     const Array<real_t> &L2Bot_,
                      const Vector &op_,
                      const Vector &x_,
                      Vector &y_)
@@ -1648,7 +1648,7 @@ void PAHdivL2Apply3D(const int D1D,
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
-      double div[DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D];
+      real_t div[DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D];
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
@@ -1671,7 +1671,7 @@ void PAHdivL2Apply3D(const int D1D,
 
          for (int dz = 0; dz < D1Dz; ++dz)
          {
-            double aXY[DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D];
+            real_t aXY[DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D];
             for (int qy = 0; qy < Q1D; ++qy)
             {
                for (int qx = 0; qx < Q1D; ++qx)
@@ -1682,7 +1682,7 @@ void PAHdivL2Apply3D(const int D1D,
 
             for (int dy = 0; dy < D1Dy; ++dy)
             {
-               double aX[DofQuadLimits::HDIV_MAX_Q1D];
+               real_t aX[DofQuadLimits::HDIV_MAX_Q1D];
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   aX[qx] = 0.0;
@@ -1690,7 +1690,7 @@ void PAHdivL2Apply3D(const int D1D,
 
                for (int dx = 0; dx < D1Dx; ++dx)
                {
-                  const double t = x(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                  const real_t t = x(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
                      aX[qx] += t * ((c == 0) ? Gc(qx,dx) : Bo(qx,dx));
@@ -1699,7 +1699,7 @@ void PAHdivL2Apply3D(const int D1D,
 
                for (int qy = 0; qy < Q1D; ++qy)
                {
-                  const double wy = (c == 1) ? Gc(qy,dy) : Bo(qy,dy);
+                  const real_t wy = (c == 1) ? Gc(qy,dy) : Bo(qy,dy);
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
                      aXY[qy][qx] += aX[qx] * wy;
@@ -1709,7 +1709,7 @@ void PAHdivL2Apply3D(const int D1D,
 
             for (int qz = 0; qz < Q1D; ++qz)
             {
-               const double wz = (c == 2) ? Gc(qz,dz) : Bo(qz,dz);
+               const real_t wz = (c == 2) ? Gc(qz,dz) : Bo(qz,dz);
                for (int qy = 0; qy < Q1D; ++qy)
                {
                   for (int qx = 0; qx < Q1D; ++qx)
@@ -1737,7 +1737,7 @@ void PAHdivL2Apply3D(const int D1D,
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         double aXY[DofQuadLimits::HDIV_MAX_D1D][DofQuadLimits::HDIV_MAX_D1D];
+         real_t aXY[DofQuadLimits::HDIV_MAX_D1D][DofQuadLimits::HDIV_MAX_D1D];
 
          for (int dy = 0; dy < L2D1D; ++dy)
          {
@@ -1748,7 +1748,7 @@ void PAHdivL2Apply3D(const int D1D,
          }
          for (int qy = 0; qy < Q1D; ++qy)
          {
-            double aX[DofQuadLimits::HDIV_MAX_D1D];
+            real_t aX[DofQuadLimits::HDIV_MAX_D1D];
             for (int dx = 0; dx < L2D1D; ++dx)
             {
                aX[dx] = 0;
@@ -1762,7 +1762,7 @@ void PAHdivL2Apply3D(const int D1D,
             }
             for (int dy = 0; dy < L2D1D; ++dy)
             {
-               const double wy = L2Bot(dy,qy);
+               const real_t wy = L2Bot(dy,qy);
                for (int dx = 0; dx < L2D1D; ++dx)
                {
                   aXY[dy][dx] += aX[dx] * wy;
@@ -1772,7 +1772,7 @@ void PAHdivL2Apply3D(const int D1D,
 
          for (int dz = 0; dz < L2D1D; ++dz)
          {
-            const double wz = L2Bot(dz,qz);
+            const real_t wz = L2Bot(dz,qz);
             for (int dy = 0; dy < L2D1D; ++dy)
             {
                for (int dx = 0; dx < L2D1D; ++dx)
@@ -1789,9 +1789,9 @@ void PAHdivL2ApplyTranspose3D(const int D1D,
                               const int Q1D,
                               const int L2D1D,
                               const int NE,
-                              const Array<double> &L2Bo_,
-                              const Array<double> &Gct_,
-                              const Array<double> &Bot_,
+                              const Array<real_t> &L2Bo_,
+                              const Array<real_t> &Gct_,
+                              const Array<real_t> &Bot_,
                               const Vector &op_,
                               const Vector &x_,
                               Vector &y_)
@@ -1811,7 +1811,7 @@ void PAHdivL2ApplyTranspose3D(const int D1D,
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
-      double div[DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D];
+      real_t div[DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D];
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
@@ -1826,7 +1826,7 @@ void PAHdivL2ApplyTranspose3D(const int D1D,
 
       for (int dz = 0; dz < L2D1D; ++dz)
       {
-         double aXY[DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D];
+         real_t aXY[DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D];
          for (int qy = 0; qy < Q1D; ++qy)
          {
             for (int qx = 0; qx < Q1D; ++qx)
@@ -1837,7 +1837,7 @@ void PAHdivL2ApplyTranspose3D(const int D1D,
 
          for (int dy = 0; dy < L2D1D; ++dy)
          {
-            double aX[DofQuadLimits::HDIV_MAX_Q1D];
+            real_t aX[DofQuadLimits::HDIV_MAX_Q1D];
             for (int qx = 0; qx < Q1D; ++qx)
             {
                aX[qx] = 0.0;
@@ -1845,7 +1845,7 @@ void PAHdivL2ApplyTranspose3D(const int D1D,
 
             for (int dx = 0; dx < L2D1D; ++dx)
             {
-               const double t = x(dx,dy,dz,e);
+               const real_t t = x(dx,dy,dz,e);
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   aX[qx] += t * L2Bo(qx,dx);
@@ -1854,7 +1854,7 @@ void PAHdivL2ApplyTranspose3D(const int D1D,
 
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               const double wy = L2Bo(qy,dy);
+               const real_t wy = L2Bo(qy,dy);
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   aXY[qy][qx] += aX[qx] * wy;
@@ -1864,7 +1864,7 @@ void PAHdivL2ApplyTranspose3D(const int D1D,
 
          for (int qz = 0; qz < Q1D; ++qz)
          {
-            const double wz = L2Bo(qz,dz);
+            const real_t wz = L2Bo(qz,dz);
             for (int qy = 0; qy < Q1D; ++qy)
             {
                for (int qx = 0; qx < Q1D; ++qx)
@@ -1889,7 +1889,7 @@ void PAHdivL2ApplyTranspose3D(const int D1D,
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         double aXY[DofQuadLimits::HDIV_MAX_D1D][DofQuadLimits::HDIV_MAX_D1D];
+         real_t aXY[DofQuadLimits::HDIV_MAX_D1D][DofQuadLimits::HDIV_MAX_D1D];
 
          int osc = 0;
          for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
@@ -1907,7 +1907,7 @@ void PAHdivL2ApplyTranspose3D(const int D1D,
             }
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               double aX[DofQuadLimits::HDIV_MAX_D1D];
+               real_t aX[DofQuadLimits::HDIV_MAX_D1D];
                for (int dx = 0; dx < D1Dx; ++dx)
                {
                   aX[dx] = 0;
@@ -1922,7 +1922,7 @@ void PAHdivL2ApplyTranspose3D(const int D1D,
                }
                for (int dy = 0; dy < D1Dy; ++dy)
                {
-                  const double wy = (c == 1) ? Gct(dy,qy) : Bot(dy,qy);
+                  const real_t wy = (c == 1) ? Gct(dy,qy) : Bot(dy,qy);
                   for (int dx = 0; dx < D1Dx; ++dx)
                   {
                      aXY[dy][dx] += aX[dx] * wy;
@@ -1932,7 +1932,7 @@ void PAHdivL2ApplyTranspose3D(const int D1D,
 
             for (int dz = 0; dz < D1Dz; ++dz)
             {
-               const double wz = (c == 2) ? Gct(dz,qz) : Bot(dz,qz);
+               const real_t wz = (c == 2) ? Gct(dz,qz) : Bot(dz,qz);
                for (int dy = 0; dy < D1Dy; ++dy)
                {
                   for (int dx = 0; dx < D1Dx; ++dx)
