@@ -2360,6 +2360,11 @@ void L2InterfaceFaceRestriction::AddMultTranspose(
    });
 }
 
+const Array<int> &L2InterfaceFaceRestriction::GatherMap() const
+{
+   return gather_map;
+}
+
 Vector GetLVectorFaceNbrData(
    const FiniteElementSpace &fes, const Vector &x, FaceType ftype)
 {
