@@ -181,13 +181,13 @@ void HybridizationExtension::ConstructH()
    const auto d_CAhatInvCt_mat = Reshape(CAhatInvCt_mat.Read(),
                                          n, n, n_face_connections, nf);
 
-   SparseMatrix H;
-   H.OverrideSize(ncdofs, ncdofs);
+   h.H.reset(new SparseMatrix);
+   h.H->OverrideSize(ncdofs, ncdofs);
 
-   H.GetMemoryI().New(ncdofs + 1, H.GetMemoryI().GetMemoryType());
+   h.H->GetMemoryI().New(ncdofs + 1, h.H->GetMemoryI().GetMemoryType());
 
    {
-      int *I = H.WriteI();
+      int *I = h.H->WriteI();
 
       mfem::forall(ncdofs, [=] MFEM_HOST_DEVICE (int i) { I[i] = 0; });
 
@@ -221,7 +221,7 @@ void HybridizationExtension::ConstructH()
    // put 1 on the diagonal) and record the row index.
    Array<int> empty_rows;
    {
-      int *I = H.HostReadWriteI();
+      int *I = h.H->HostReadWriteI();
       int empty_row_count = 0;
       for (int i = 0; i < ncdofs; i++)
       {
@@ -246,14 +246,14 @@ void HybridizationExtension::ConstructH()
       I[ncdofs] = sum;
    }
 
-   const int nnz = H.HostReadI()[ncdofs];
-   H.GetMemoryJ().New(nnz, H.GetMemoryJ().GetMemoryType());
-   H.GetMemoryData().New(nnz, H.GetMemoryData().GetMemoryType());
+   const int nnz = h.H->HostReadI()[ncdofs];
+   h.H->GetMemoryJ().New(nnz, h.H->GetMemoryJ().GetMemoryType());
+   h.H->GetMemoryData().New(nnz, h.H->GetMemoryData().GetMemoryType());
 
    {
-      int *I = H.ReadWriteI();
-      int *J = H.WriteJ();
-      real_t *V = H.WriteData();
+      int *I = h.H->ReadWriteI();
+      int *J = h.H->WriteJ();
+      real_t *V = h.H->WriteData();
 
       // TODO: to expose more parallelism, should be able to make this forall
       // loop over nf*n (for indices fi and i)
@@ -295,17 +295,12 @@ void HybridizationExtension::ConstructH()
 
    // Shift back down
    {
-      int *I = H.HostReadWriteI();
+      int *I = h.H->HostReadWriteI();
       for (int i = ncdofs - 1; i > 0; --i)
       {
          I[i] = I[i-1];
       }
       I[0] = 0;
-   }
-
-   {
-      std::ofstream f("H1.txt");
-      H.PrintMatlab(f);
    }
 }
 
@@ -549,31 +544,6 @@ void HybridizationExtension::Init(const Array<int> &ess_tdof_list)
          d_hat_dof_gather_map[hat_dof_index] = (j_s >= 0) ? i : (-2 - i);
       });
    }
-
-   // Define Af_offsets and Af_f_offsets. Af_offsets are the offsets of the
-   // matrix blocks into the data array Af_data.
-   //
-   // Af_f_offsets are the offets of the pivots (coming from LU factorization)
-   // that are stored in the data array Af_ipiv.
-   //
-   // NOTE: as opposed to the non-device version of hybridization, the essential
-   // DOFs are included in these matrices to ensure that all matrices have
-   // identical sizes. This enabled efficient batched matrix computations.
-
-   h.Af_offsets.SetSize(ne+1);
-   h.Af_f_offsets.SetSize(ne+1);
-   {
-      int *Af_offsets = h.Af_offsets.Write();
-      int *Af_f_offsets = h.Af_f_offsets.Write();
-      mfem::forall(ne + 1, [=] MFEM_HOST_DEVICE (int i)
-      {
-         Af_f_offsets[i] = i*ndof_per_el;
-         Af_offsets[i] = i*ndof_per_el*ndof_per_el;
-      });
-   }
-
-   h.Af_data.SetSize(ne*ndof_per_el*ndof_per_el);
-   h.Af_ipiv.SetSize(ne*ndof_per_el);
 }
 
 void HybridizationExtension::MultRt(const Vector &b, Vector &b_hat) const
