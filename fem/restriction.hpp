@@ -262,6 +262,12 @@ public:
    {
       MFEM_ABORT("Not implemented for this restriction operator.");
    }
+
+   /// @brief Low-level access to the underlying gather map.
+   virtual const Array<int> &GatherMap() const
+   {
+      MFEM_ABORT("Not implemented for this restriction operator.");
+   }
 };
 
 /// @brief Operator that extracts face degrees of freedom for H1, ND, or RT
@@ -1119,6 +1125,8 @@ public:
        @param[in]  a Scalar coefficient for addition. */
    void AddMultTranspose(const Vector &x, Vector &y,
                          const real_t a = 1.0) const override;
+
+   const Array<int> &GatherMap() const override;
 };
 
 /** @brief Convert a dof face index from Native ordering to lexicographic
