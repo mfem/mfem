@@ -355,35 +355,6 @@ void ExodusIIWriter::WriteExodusIIMeshInformation()
    WriteNodeSets();
 }
 
-void ExodusIIWriter::CheckNodalFESpaceIsSecondOrderH1() const
-{
-   const FiniteElementSpace * fespace = _mesh.GetNodalFESpace();
-   if (!fespace)  // Mesh does not have nodes.
-   {
-      MFEM_ABORT("The mesh has no nodal fespace.");
-   }
-
-   // Expect order 2.
-   const int fespace_order = fespace->GetMaxElementOrder();
-   if (fespace_order != 2)
-   {
-      MFEM_ABORT("Nodal fespace is of order " << fespace_order << ". Expected 2nd order.");
-   }
-
-   // Get a pointer to the FE collection associated with the fespace.
-   const FiniteElementCollection * fec = fespace->FEColl();
-   if (!fec)
-   {
-      MFEM_ABORT("No FECollection associated with nodal fespace.");
-   }
-
-   // Expect H1 FEC.
-   if (strncmp(fec->Name(), "H1", 2) != 0)
-   {
-      MFEM_ABORT("Nodal fespace's FECollection is '" << fec->Name() << "'. Expected H1.");
-   }
-}
-
 void ExodusIIWriter::PrintExodusII(std::string fpath, int flags)
 {
    OpenExodusII(fpath, flags);
@@ -1045,6 +1016,35 @@ void ExodusIIWriter::GenerateExodusIIBoundaryInfo()
       _exodusII_element_ids_for_boundary_id[boundary_id].push_back(
          exodusII_element_id);
       _exodusII_side_ids_for_boundary_id[boundary_id].push_back(exodusII_face_id);
+   }
+}
+
+void ExodusIIWriter::CheckNodalFESpaceIsSecondOrderH1() const
+{
+   const FiniteElementSpace * fespace = _mesh.GetNodalFESpace();
+   if (!fespace)  // Mesh does not have nodes.
+   {
+      MFEM_ABORT("The mesh has no nodal fespace.");
+   }
+
+   // Expect order 2.
+   const int fespace_order = fespace->GetMaxElementOrder();
+   if (fespace_order != 2)
+   {
+      MFEM_ABORT("Nodal fespace is of order " << fespace_order << ". Expected 2nd order.");
+   }
+
+   // Get a pointer to the FE collection associated with the fespace.
+   const FiniteElementCollection * fec = fespace->FEColl();
+   if (!fec)
+   {
+      MFEM_ABORT("No FECollection associated with nodal fespace.");
+   }
+
+   // Expect H1 FEC.
+   if (strncmp(fec->Name(), "H1", 2) != 0)
+   {
+      MFEM_ABORT("Nodal fespace's FECollection is '" << fec->Name() << "'. Expected H1.");
    }
 }
 
