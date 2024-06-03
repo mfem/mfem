@@ -145,7 +145,7 @@ protected:
    void CloseExodusII();
 
    /// @brief Generates blocks based on the elements in the mesh. We iterate
-   /// over the mehs elements and use the attributes as the element blocks. We
+   /// over the mesh elements and use the attributes as the element blocks. We
    /// assume that all elements belonging to the same block will share the same
    /// attribute. We perform a safety check to verify that all elements in the
    /// block have the same element type.
