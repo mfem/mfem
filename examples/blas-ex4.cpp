@@ -29,6 +29,7 @@ int main (void){
 
     DenseMatrix A(M);
     Vector X(N);
+    Vector Y(N);
     for (j = 0; j < N; j++) {
         X.GetData()[j] = j;
         for (i = 0; i < M; i++) {
@@ -37,25 +38,13 @@ int main (void){
     }
 
     double* devPtrA;  // device pointer for a
-    double* a = 0;  // host device pointer
 
     double* devPtrX;  // device pointer for host pointer x
-    double* x = 0;  // host device pointer
 
     double* devPtrY;  // device pointer for host pointer y
     double* y = 0;  // host device pointer
 
-    a = (double *)malloc (M * N * W * sizeof (*a));  // malloc - give matrix allocation of MxNx1 to a on host
-    if (!a) {
-        printf ("host memory allocation failed for a");
-        return EXIT_FAILURE;
-    }
-    x = (double *)malloc (N * W * sizeof(*x));
-    if (!x) {
-        printf ("host memory allocation failed for x");
-        return EXIT_FAILURE;
-    }
-    y = (double *)malloc (N * W * sizeof(*y));
+    y = (double *)malloc (N * W * sizeof(*Y.GetDatA()));
     if (!y) {
         printf ("host memory allocation failed for y");
         return EXIT_FAILURE;
@@ -63,8 +52,7 @@ int main (void){
     for (k = 0; k < W; k++) {
         for (j = 0; j < N; j++) {
             for (i = 0; i < M; i++) {
-                a[IDX2C(i,j,k,M)] = (double)(A.Data()[IDXV(i,j,6)]);  // fill up a with values i*N+j+1; e.g. a[0][0] = 0*N+0+1 = 1
-                printf ("%7.0f", a[IDX2C(i,j,k,M)]);
+                printf ("%7.0f", A.Data()[IDXV(i,j,6)]);
             }
             printf ("\n");  // col-major, so prints vectors of columns out together in each row
         }
@@ -72,28 +60,24 @@ int main (void){
     }
     for (k = 0; k < W; k++) {
         for (j = 0; j < N; j++) {
-            x[IDXV(j,k,N)] = (double)(X[IDXV(j,k,N)]);
-            printf ("%7.0f", x[IDXV(j,k,N)]);
+            printf ("%7.0f", X[IDXV(j,k,N)]);
         }
         printf ("\n");
     }
 
-    cudaStat = cudaMalloc ((void**)&devPtrA, M*N*W*sizeof(*a));  // cudaMalloc - give matrix allocation of MxNxW to device pointer on GPU
+    cudaStat = cudaMalloc ((void**)&devPtrA, M*N*W*sizeof(*A.Data()));  // cudaMalloc - give matrix allocation of MxNxW to device pointer on GPU
     if (cudaStat != cudaSuccess) {
-        printf ("device memory allocation failed for a");
-        free (a);
+        printf ("device memory allocation failed for A");
         return EXIT_FAILURE;
     }
-    cudaStat = cudaMalloc ((void**)&devPtrX, N*W*sizeof(*x));  // cudaMalloc - give matrix allocation of NxW to device pointer on GPU
+    cudaStat = cudaMalloc ((void**)&devPtrX, N*W*sizeof(*X.GetData()));  // cudaMalloc - give matrix allocation of NxW to device pointer on GPU
     if (cudaStat != cudaSuccess) {
-        printf ("device memory allocation failed for x");
-        free (x);
+        printf ("device memory allocation failed for X");
         return EXIT_FAILURE;
     }
-    cudaStat = cudaMalloc ((void**)&devPtrY, N*W*sizeof(*y));  // cudaMalloc - give matrix allocation of NxW to device pointer on GPU
+    cudaStat = cudaMalloc ((void**)&devPtrY, N*W*sizeof(*Y.GetData()));  // cudaMalloc - give matrix allocation of NxW to device pointer on GPU
     if (cudaStat != cudaSuccess) {
-        printf ("device memory allocation failed for y");
-        free (y);
+        printf ("device memory allocation failed for Y");
         return EXIT_FAILURE;
     }
 
@@ -102,33 +86,29 @@ int main (void){
     stat = cublasCreate(&handle);
     if (stat != CUBLAS_STATUS_SUCCESS) {
         printf ("CUBLAS initialization failed\n");
-        free (a);
-        free (x);
         cudaFree (devPtrA);
         return EXIT_FAILURE;
     }
-    stat = cublasSetMatrix (M, N, sizeof(*a), a, M, devPtrA, M);  // fill in the device pointer matrix;
+    stat = cublasSetMatrix (M, N, sizeof(*A.Data()), A.Data(), M, devPtrA, M);  // fill in the device pointer matrix;
     // arguments are (rows, cols, NE, elemSize, source_matrix, ld of source, destination matrix, ld dest)
     if (stat != CUBLAS_STATUS_SUCCESS) {
         printf ("data download failed");
-        free (a);
         cudaFree (devPtrA);
         cublasDestroy(handle);
         return EXIT_FAILURE;
     }
-    stat = cublasSetMatrix (N, W, sizeof(*x), x, N, devPtrX, N);  // fill in the device pointer matrix;
+    stat = cublasSetMatrix (N, W, sizeof(*X.GetData()), X.GetData(), N, devPtrX, N);  // fill in the device pointer matrix;
     // arguments are (rows, cols, NE, elemSize, source_matrix, ld of source, destination matrix, ld dest)
     if (stat != CUBLAS_STATUS_SUCCESS) {
         printf ("data download failed");
-        free (x);
         cudaFree (devPtrX);
         cublasDestroy(handle);
         return EXIT_FAILURE;
     }
 
     // handles the computations on the device
-    double alpha = 1;
-    double beta = 0;
+    double alpha = 1.;
+    double beta = 0.;
     stat = cublasDgemv (handle, CUBLAS_OP_N, M, N,
                         &alpha, devPtrA, M, devPtrX, 1,
                         &beta, devPtrY, 1);
@@ -150,16 +130,13 @@ int main (void){
     // ***END OF DEVICE COMPUTATION***
 
     // with memory on host device, we can now output it
-    Vector Y(y,N);
-
+    Y.SetData(y);
     for (k = 0; k < W; k++) {
         for (j = 0; j < N; j++) {
-            printf ("%7.0f", y[IDXV(j,k,N)]);  // col-major, so prints vectors of columns out together in each row
+            printf ("%7.0f", Y.GetData()[IDXV(j,k,N)]);  // col-major, so prints vectors of columns out together in each row
         }
         printf ("\n");
     }
-    free(a);
-    free(x);
     free(y);
     return EXIT_SUCCESS;
 }
