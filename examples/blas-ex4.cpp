@@ -29,7 +29,6 @@ int main (void){
 
     DenseMatrix A(M);
     Vector X(N);
-    Vector Y(N);
     for (j = 0; j < N; j++) {
         X.GetData()[j] = j;
         for (i = 0; i < M; i++) {
@@ -130,7 +129,7 @@ int main (void){
     // handles the computations on the device
     double alpha = 1;
     double beta = 0;
-    stat = cublasSgemv (handle, CUBLAS_OP_N, M, N,
+    stat = cublasDgemv (handle, CUBLAS_OP_N, M, N,
                         &alpha, devPtrA, M, devPtrX, 1,
                         &beta, devPtrY, 1);
 
@@ -151,8 +150,8 @@ int main (void){
     // ***END OF DEVICE COMPUTATION***
 
     // with memory on host device, we can now output it
-    Vector Y(y);
-    
+    Vector Y(y,N);
+
     for (k = 0; k < W; k++) {
         for (j = 0; j < N; j++) {
             printf ("%7.0f", y[IDXV(j,k,N)]);  // col-major, so prints vectors of columns out together in each row
