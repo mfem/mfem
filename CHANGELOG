@@ -11,6 +11,9 @@
 Version 4.7.1 (development)
 ===========================
 
+- Added an MFEM example for the eikonal equation. This new solver is based on
+  the proximal Galerkin method introduced by Keith and Surowiec.
+
 Miscellaneous
 -------------
 - The ReadCubit mesh importer has been rewritten to improve readability and can 
@@ -113,6 +116,8 @@ Miscellaneous
   depending on the functionality older versions may still work.
 
 - Various other simplifications, extensions, and bugfixes in the code.
+
+- Added GSLIB-based gather-scatter operator.
 
 
 Version 4.6, released on September 27, 2023
