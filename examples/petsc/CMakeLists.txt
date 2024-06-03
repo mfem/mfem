@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -81,7 +81,8 @@ set(EX1_ARGS_HIPAMG  -m ../../data/star.mesh --usepetsc --device hip --petscopts
 set(EX2_ARGS         -m ../../data/beam-quad.mesh --usepetsc --petscopts rc_ex2p)
 set(EX2_ARGS_BDDC    -m ../../data/beam-tri.mesh --usepetsc --nonoverlapping --petscopts rc_ex2p_bddc)
 set(EX2_ARGS_ASM     -m ../../data/beam-quad.mesh --usepetsc --petscopts rc_ex2p_asm)
-set(EX3_ARGS         -m ../../data/klein-bottle.mesh -o 2 -f 0.1 --usepetsc --petscopts rc_ex3p_bddc --nonoverlapping)
+set(EX3_ARGS_BDDC_2D -m ../../data/klein-bottle.mesh -o 2 -f 0.1 --usepetsc --petscopts rc_ex3p_bddc --nonoverlapping)
+set(EX3_ARGS_BDDC_3D -m ../../data/amr-hex.mesh -rs 1 -rp 0 -o 2 -f 0.1 --usepetsc --petscopts rc_ex3p_bddc --nonoverlapping)
 set(EX4_ARGS         -m ../../data/klein-bottle.mesh -o 2 --usepetsc --petscopts rc_ex4p_bddc --nonoverlapping)
 set(EX4_HYB_ARGS     -m ../../data/klein-bottle.mesh -o 2 --usepetsc --petscopts rc_ex4p_bddc --nonoverlapping --hybridization)
 set(EX5_BDDC_LB_ARGS -m ../../data/star.mesh --usepetsc -o 0 --petscopts rc_ex5p_bddc --nonoverlapping --local-bdr)
@@ -109,10 +110,10 @@ endif()
 # Add the tests: one test per command-line-variable.
 if (MFEM_ENABLE_TESTING)
   set(TEST_OPTIONS_VARS
-      EX1_ARGS_W EX1_ARGS_P EX2_ARGS EX2_ARGS_BDDC EX2_ARGS_ASM EX3_ARGS
-      EX4_ARGS EX4_HYB_ARGS EX5_BDDC_LB_ARGS EX5_BDDC_GB_ARGS EX5_FSPL_ARGS
-      EX6_ARGS EX6_NONOVL_ARGS EX9_E_ARGS EX9_ES_ARGS EX9_IS_ARGS EX10_ARGS
-      EX10_MF_ARGS EX10_MFOP_ARGS EX10_JFNK_ARGS)
+    EX1_ARGS_W EX1_ARGS_P EX2_ARGS EX2_ARGS_BDDC EX2_ARGS_ASM EX3_ARGS_BDDC_2D
+    EX3_ARGS_BDDC_3D EX4_ARGS EX4_HYB_ARGS EX5_BDDC_LB_ARGS EX5_BDDC_GB_ARGS
+    EX5_FSPL_ARGS EX6_ARGS EX6_NONOVL_ARGS EX9_E_ARGS EX9_ES_ARGS EX9_IS_ARGS
+    EX10_ARGS EX10_MF_ARGS EX10_MFOP_ARGS EX10_JFNK_ARGS)
   if (MFEM_USE_SLEPC)
     list(APPEND TEST_OPTIONS_VARS
       EX11_ARGS_SINV EX11_ARGS_LOBPCG EX11_ARGS_GD)

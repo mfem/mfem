@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -19,6 +19,9 @@
 #include "device.hpp"
 #include "mem_manager.hpp"
 #include "../linalg/dtensor.hpp"
+#ifdef MFEM_USE_MPI
+#include <_hypre_utilities.h>
+#endif
 
 namespace mfem
 {
@@ -459,7 +462,16 @@ template <typename HBODY>
 void RajaSeqWrap(const int N, HBODY &&h_body)
 {
 #ifdef MFEM_USE_RAJA
-   RAJA::forall<RAJA::loop_exec>(RAJA::RangeSegment(0,N), h_body);
+
+#if (RAJA_VERSION_MAJOR >= 2023)
+   //loop_exec was marked deprecated in RAJA version 2023.06.0
+   //and will be removed. We now use seq_exec.
+   using raja_forall_pol = RAJA::seq_exec;
+#else
+   using raja_forall_pol = RAJA::loop_exec;
+#endif
+
+   RAJA::forall<raja_forall_pol>(RAJA::RangeSegment(0,N), h_body);
 #else
    MFEM_CONTRACT_VAR(N);
    MFEM_CONTRACT_VAR(h_body);
@@ -770,6 +782,63 @@ inline void forall_3D_grid(int N, int X, int Y, int Z, int G, lambda &&body)
 {
    ForallWrap<3>(true, N, body, X, Y, Z, G);
 }
+
+#ifdef MFEM_USE_MPI
+
+// Function mfem::hypre_forall_cpu() similar to mfem::forall, but it always
+// executes on the CPU using sequential or OpenMP-parallel execution based on
+// the hypre build time configuration.
+template<typename lambda>
+inline void hypre_forall_cpu(int N, lambda &&body)
+{
+#ifdef HYPRE_USING_OPENMP
+   #pragma omp parallel for HYPRE_SMP_SCHEDULE
+#endif
+   for (int i = 0; i < N; i++) { body(i); }
+}
+
+// Function mfem::hypre_forall_gpu() similar to mfem::forall, but it always
+// executes on the GPU device that hypre was configured with at build time.
+#if defined(HYPRE_USING_GPU)
+template<typename lambda>
+inline void hypre_forall_gpu(int N, lambda &&body)
+{
+#if defined(HYPRE_USING_CUDA)
+   CuWrap1D(N, body);
+#elif defined(HYPRE_USING_HIP)
+   HipWrap1D(N, body);
+#else
+#error Unknown HYPRE GPU backend!
+#endif
+}
+#endif
+
+// Function mfem::hypre_forall() similar to mfem::forall, but it executes on the
+// device, CPU or GPU, that hypre was configured with at build time (when the
+// HYPRE version is < 2.31.0) or at runtime (when HYPRE was configured with GPU
+// support at build time and HYPRE's version is >= 2.31.0). This selection is
+// generally independent of what device was selected in MFEM's runtime
+// configuration.
+template<typename lambda>
+inline void hypre_forall(int N, lambda &&body)
+{
+#if !defined(HYPRE_USING_GPU)
+   hypre_forall_cpu(N, body);
+#elif MFEM_HYPRE_VERSION < 23100
+   hypre_forall_gpu(N, body);
+#else // HYPRE_USING_GPU is defined and MFEM_HYPRE_VERSION >= 23100
+   if (!HypreUsingGPU())
+   {
+      hypre_forall_cpu(N, body);
+   }
+   else
+   {
+      hypre_forall_gpu(N, body);
+   }
+#endif
+}
+
+#endif // MFEM_USE_MPI
 
 } // namespace mfem
 

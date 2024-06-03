@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -235,7 +235,7 @@ void TMOPRefinerEstimator::SetTriIntRules()
    // Reftype = 0 // original element
    const int Nvert = 3, NEsplit = 1;
    Mesh meshsplit(2, Nvert, NEsplit, 0, 2);
-   const double tri_v[3][2] =
+   const real_t tri_v[3][2] =
    {
       {0, 0}, {1, 0}, {0, 1}
    };
@@ -278,7 +278,7 @@ void TMOPRefinerEstimator::SetTetIntRules()
    // Reftype = 0 // original element
    const int Nvert = 4, NEsplit = 1;
    Mesh meshsplit(3, Nvert, NEsplit, 0, 3);
-   const double tet_v[4][3] =
+   const real_t tet_v[4][3] =
    {
       {0, 0, 0}, {1, 0, 0}, {0, 1, 0}, {0, 0, 1}
    };
@@ -372,7 +372,7 @@ bool TMOPDeRefinerEstimator::GetDerefineEnergyForIntegrator(
 
       Vector local_err(meshcopy.GetNE());
       local_err = 0.;
-      double threshold = std::numeric_limits<float>::max();
+      real_t threshold = std::numeric_limits<float>::max();
       meshcopy.DerefineByError(local_err, threshold, 0, 1);
 
       if (meshcopy.GetGlobalNE() == mesh->GetGlobalNE())
@@ -403,7 +403,7 @@ bool TMOPDeRefinerEstimator::GetDerefineEnergyForIntegrator(
       {
          coarse_to_fine.GetRow(pe, tabrow);
          int nchild = tabrow.Size();
-         double parent_energy = coarse_energy(pe);
+         real_t parent_energy = coarse_energy(pe);
          for (int fe = 0; fe < nchild; fe++)
          {
             int child = tabrow[fe];
@@ -425,7 +425,7 @@ bool TMOPDeRefinerEstimator::GetDerefineEnergyForIntegrator(
 
       Vector local_err(meshcopy.GetNE());
       local_err = 0.;
-      double threshold = std::numeric_limits<float>::max();
+      real_t threshold = std::numeric_limits<float>::max();
       meshcopy.DerefineByError(local_err, threshold, 0, 1);
 
       if (meshcopy.GetGlobalNE() == pmesh->GetGlobalNE())
@@ -456,7 +456,7 @@ bool TMOPDeRefinerEstimator::GetDerefineEnergyForIntegrator(
       {
          coarse_to_fine.GetRow(pe, tabrow);
          int nchild = tabrow.Size();
-         double parent_energy = coarse_energy(pe);
+         real_t parent_energy = coarse_energy(pe);
          for (int fe = 0; fe < nchild; fe++)
          {
             int child = tabrow[fe];
@@ -658,7 +658,7 @@ void TMOPHRSolver::Mult()
    {
 #ifdef MFEM_USE_MPI
       int NEGlob;
-      double tmopenergy;
+      real_t tmopenergy;
       for (int i_hr = 0; i_hr < hr_iter; i_hr++)
       {
          if (!radaptivity)

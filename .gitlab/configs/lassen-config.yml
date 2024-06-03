@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -35,9 +35,8 @@ variables:
     - when: on_success
 
 # Lassen uses a different job scheduler (spectrum lsf) that does not allow
-# pre-allocation the same way slurm does.  We use pdebug queue on lassen
-# to speed-up the allocation.  However this would not be scalable to
-# multiple builds.
+# pre-allocation the same way slurm does.  We use the pci queue on lassen
+# to speed-up the allocation.
 .build_and_test_on_lassen:
   extends: [.on_lassen]
   stage: build_and_test
@@ -45,5 +44,5 @@ variables:
     - echo ${MFEM_DATA_DIR}
     - echo ${SPEC}
     # Next script uses 'THREADS': leaving it empty --> it uses 'make all -j'
-    - lalloc 1 -W 45 -q pdebug --atsdisable tests/gitlab/build_and_test --spec "${SPEC}" --data-dir "${MFEM_DATA_DIR}" --data
+    - lalloc 1 -W 45 -q pci --atsdisable tests/gitlab/build_and_test --spec "${SPEC}" --data-dir "${MFEM_DATA_DIR}" --data
   needs: [setup]
