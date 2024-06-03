@@ -49,7 +49,7 @@ typedef std::function<real_t(const Vector &, real_t)> TFunc;
 typedef std::function<void(const Vector &, Vector &)> VecFunc;
 typedef std::function<void(const Vector &, real_t, Vector &)> VecTFunc;
 
-TFunc GetTFun(int prob, real_t t_0);
+TFunc GetTFun(int prob, real_t t_0, real_t k, real_t c);
 VecTFunc GetQFun(int prob, real_t t_0, real_t k, real_t c);
 VecFunc GetCFun(int prob, real_t c);
 TFunc GetFFun(int prob, real_t t_0, real_t k, const VecFunc &cFun);
@@ -144,6 +144,10 @@ int main(int argc, char *argv[])
          bconv = true;
          btime = false;
          break;
+      case 4:
+         bconv = true;
+         btime = true;
+         break;
       default:
          cerr << "Unknown problem" << endl;
          return 1;
@@ -200,6 +204,9 @@ int main(int argc, char *argv[])
       case 3:
          bdr_is_dirichlet[3] = -1;//inflow
          bdr_is_neumann[0] = -1;//outflow
+         break;
+      case 4:
+         bdr_is_dirichlet = -1;
          break;
    }
 
@@ -264,7 +271,7 @@ int main(int argc, char *argv[])
    auto cFun = GetCFun(problem, c);
    VectorFunctionCoefficient ccoeff(dim, cFun);
 
-   auto tFun = GetTFun(problem, t_0);
+   auto tFun = GetTFun(problem, t_0, k, c);
    FunctionCoefficient tcoeff(tFun);
    SumCoefficient gcoeff(0., tcoeff, 1., -1.);
 
@@ -809,7 +816,7 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-TFunc GetTFun(int prob, real_t t_0)
+TFunc GetTFun(int prob, real_t t_0, real_t k, real_t c)
 {
    switch (prob)
    {
@@ -835,6 +842,24 @@ TFunc GetTFun(int prob, real_t t_0)
             //xc -= .5;
             real_t t0 = 1. - tanh(10. * (-1. + 4.*xc.Norml2()));
             return t0;
+         };
+      case 4:
+         return [=](const Vector &x, real_t t) -> real_t
+         {
+            const int vdim = x.Size();
+            Vector xc(x);
+            xc -= .5;
+            Vector dx(vdim);
+            const real_t ct = 4.*c*t * M_PI/4.;
+            constexpr real_t dx_x = 0.2;
+            constexpr real_t dx_y = 0.0;
+            dx(0) = +xc(0) * cos(ct) + xc(1) * sin(ct) + dx_x;
+            dx(1) = -xc(0) * sin(ct) + xc(1) * cos(ct) + dx_y;
+
+            constexpr real_t sigma = 0.1;
+            constexpr real_t sigma2 = 2*sigma*sigma;
+            const real_t denom = sigma2 + 4.*k*t * M_PI/4.;
+            return sigma2 / denom * exp(- (dx*dx) / denom);
          };
 
    }
@@ -884,7 +909,29 @@ VecTFunc GetQFun(int prob, real_t t_0, real_t k, real_t c)
             real_t q0 = k * 10. * 4. / (csh*csh * r);
             v.Set(q0, xc);
          };
-         break;
+      case 4:
+         return [=](const Vector &x, real_t t, Vector &v)
+         {
+            const int vdim = x.Size();
+            Vector xc(x);
+            xc -= .5;
+            Vector dx(vdim);
+            const real_t ct = 4.*c*t * M_PI/4.;
+            constexpr real_t dx_x = 0.2;
+            constexpr real_t dx_y = 0.0;
+            dx(0) = +xc(0) * cos(ct) + xc(1) * sin(ct) + dx_x;
+            dx(1) = -xc(0) * sin(ct) + xc(1) * cos(ct) + dx_y;
+
+            v.SetSize(vdim);
+            constexpr real_t sigma = 0.1;
+            constexpr real_t sigma2 = 2*sigma*sigma;
+            const real_t denom = sigma2 + 4.*k*t * M_PI/4.;
+            const real_t u = sigma2 / denom * exp(- (dx*dx) / denom);
+            const real_t v0 = 2. * k * u / denom;
+            v(0) = xc(0) + cos(ct) * dx_x - sin(ct) * dx_y;
+            v(1) = xc(1) + sin(ct) * dx_x + cos(ct) * dx_y;
+            v *= v0;
+         };
    }
    return VecTFunc();
 }
@@ -921,6 +968,18 @@ VecFunc GetCFun(int prob, real_t c)
 
             v(0) = +xc(1) * c;
             v(1) = -xc(0) * c;
+         };
+      case 4:
+         return [=](const Vector &x, Vector &v)
+         {
+            const int ndim = x.Size();
+            v.SetSize(ndim);
+            v = 0.;
+            Vector xc(x);
+            xc -= .5;
+
+            v(0) = -4. * xc(1) * c * M_PI/4.;
+            v(1) = +4. * xc(0) * c * M_PI/4.;
          };
    }
    return VecFunc();
@@ -974,9 +1033,8 @@ TFunc GetFFun(int prob, real_t t_0, real_t k, const VecFunc &cFun)
             return -conv;
          };
       case 3:
-      {
+      case 4:
          return [](const Vector &x, real_t) -> real_t { return 0.; };
-      }
    }
    return TFunc();
 }
