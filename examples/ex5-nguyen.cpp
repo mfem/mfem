@@ -482,7 +482,7 @@ int main(int argc, char *argv[])
       solver->SetMaxIter(maxIter);
       solver->SetOperator(*pDarcyOp);
       solver->SetPreconditioner(*prec);
-      solver->SetPrintLevel(1);
+      solver->SetPrintLevel(btime?0:1);
       solver->iterative_mode = true;
    }
    else
@@ -564,7 +564,7 @@ int main(int argc, char *argv[])
       solver->SetMaxIter(maxIter);
       solver->SetOperator(*pDarcyOp);
       solver->SetPreconditioner(*prec);
-      solver->SetPrintLevel(1);
+      solver->SetPrintLevel(btime?0:1);
       solver->iterative_mode = true;
 
       delete MinvBt;
