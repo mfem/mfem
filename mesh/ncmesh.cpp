@@ -5515,25 +5515,62 @@ void NCMesh::LoadVertexParents(std::istream &input)
 
 void NCMesh::LoadVertexToKnot(std::istream &input)
 {
+   if (Dim == 2) { LoadVertexToKnot2D(input); }
+   else { LoadVertexToKnot3D(input); }
+}
+
+void NCMesh::LoadVertexToKnot2D(std::istream &input)
+{
    int nv;
    input >> nv;
    MFEM_VERIFY(0 <= nv, "Invalid vertex-to-knot data");
-   vertex_to_knot.SetSize(4 * nv);
+   vertex_to_knot.SetSize(nv, 4);
    for (int i=0; i<nv; ++i)
    {
       int id, p1, p2, k;
       input >> id >> k >> p1 >> p2;
-      MFEM_VERIFY(input, "problem reading vertex parents.");
 
-      MFEM_VERIFY(nodes.IdExists(id), "vertex " << id << " not found.");
-      MFEM_VERIFY(nodes.IdExists(p1), "parent " << p1 << " not found.");
-      MFEM_VERIFY(nodes.IdExists(p2), "parent " << p2 << " not found.");
-      MFEM_VERIFY(0 < k, "Invalid knot index");
+      const bool idsExist = nodes.IdExists(id) && nodes.IdExists(p1)
+                            && nodes.IdExists(p2);
 
-      vertex_to_knot[(4*i) + 0] = id;
-      vertex_to_knot[(4*i) + 1] = k;
-      vertex_to_knot[(4*i) + 2] = p1;
-      vertex_to_knot[(4*i) + 3] = p2;
+      MFEM_VERIFY(idsExist && 0 < k, "Invalid index");
+
+      vertex_to_knot(i,0) = id;
+      vertex_to_knot(i,1) = k;
+      vertex_to_knot(i,2) = p1;
+      vertex_to_knot(i,3) = p2;
+   }
+}
+
+void NCMesh::LoadVertexToKnot3D(std::istream &input)
+{
+   int nv;
+   input >> nv;
+   MFEM_VERIFY(0 <= nv, "Invalid vertex-to-knot data");
+   vertex_to_knot.SetSize(nv, 7);
+   for (int i=0; i<nv; ++i)
+   {
+      int id, k1, k2;
+      int p[4];  // Parent vertex indices
+      input >> id >> k1 >> k2 >> p[0] >> p[1] >> p[2] >> p[3];
+
+      bool idsExist = nodes.IdExists(id);
+      for (int j=0; j<4; ++j)
+      {
+         idsExist = idsExist && nodes.IdExists(p[j]);
+      }
+
+      const bool validKnotIds = (0 <= k1 || 0 <= k2) && (0 < k1 || 0 < k2);
+
+      MFEM_VERIFY(idsExist && validKnotIds, "Invalid index");
+
+      vertex_to_knot(i,0) = id;
+      vertex_to_knot(i,1) = k1;
+      vertex_to_knot(i,2) = k2;
+      for (int j=0; j<4; ++j)
+      {
+         vertex_to_knot(i,3 + j) = p[j];
+      }
    }
 }
 
@@ -5636,15 +5673,16 @@ void NCMesh::PrintCoordinates(std::ostream &os) const
 
 void NCMesh::PrintVertexToKnot(std::ostream &os) const
 {
-   const int nv = vertex_to_knot.Size() / 4;
+   const int nv = vertex_to_knot.NumRows();
+   const int m = vertex_to_knot.NumCols();
    os << nv << "\n";
 
    for (int i = 0; i < nv; i++)
    {
-      os << vertex_to_knot[4*i];
-      for (int j = 1; j < 4; j++)
+      os << vertex_to_knot(i,0);
+      for (int j = 1; j < m; j++)
       {
-         os << " " << vertex_to_knot[4*i + j];
+         os << " " << vertex_to_knot(i,j);
       }
       os << "\n";
    }
@@ -5755,7 +5793,7 @@ void NCMesh::Print(std::ostream &os, bool nurbs) const
       }
    }
 
-   if (nurbs && vertex_to_knot.Size())
+   if (nurbs && vertex_to_knot.NumRows())
    {
       os << "\nvertex_to_knot\n";
       PrintVertexToKnot(os);

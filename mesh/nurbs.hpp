@@ -242,14 +242,14 @@ protected:
    Array<int> f_meshOffsets;
    Array<int> p_meshOffsets;
 
-   Array<int> aux_e_meshOffsets;
+   Array<int> aux_e_meshOffsets, aux_f_meshOffsets;
 
    Array<int> v_spaceOffsets;
    Array<int> e_spaceOffsets;
    Array<int> f_spaceOffsets;
    Array<int> p_spaceOffsets;
 
-   Array<int> aux_e_spaceOffsets;
+   Array<int> aux_e_spaceOffsets, aux_f_spaceOffsets;
 
    Table *el_dof, *bel_dof;
 
@@ -263,16 +263,19 @@ protected:
 
    Array<NURBSPatch *> patches;
 
-   std::set<int> masterEdges;
-   std::vector<int> slaveEdges;
-   std::map<int,int> masterEdgeToId;
-   std::vector<std::vector<int>> masterEdgeSlaves;
-   std::vector<std::vector<int>> masterEdgeVerts;
+   std::set<int> masterEdges, masterFaces;
+   std::vector<int> slaveEdges, slaveFaces;
+   std::map<int,int> masterEdgeToId, masterFaceToId;
+   std::vector<std::vector<int>> masterEdgeSlaves, masterFaceSlaves,
+       masterFaceSlaveCorners;
+   std::vector<std::vector<int>> masterEdgeVerts, masterFaceVerts;
+   std::vector<std::vector<int>> masterFaceSizes, masterFaceS0;
+   std::vector<bool> masterFaceRev;
 
    bool nonconforming = false;
    std::map<int,int> e2nce;
 
-   std::vector<int> auxEdges;
+   std::vector<int> auxEdges, auxFaces;
 
    inline int         KnotInd(int edge) const;
    /// @note The returned object should NOT be deleted by the caller.
@@ -576,8 +579,8 @@ private:
 
    int I, J, K, pOffset, opatch;
    Array<int> verts, edges, faces, oedge, oface;
-   Array<bool> edgeMaster;
-   Array<int> edgeMasterOffset;
+   Array<bool> edgeMaster, faceMaster;
+   Array<int> edgeMasterOffset, faceMasterOffset;
    Array<int> masterDofs;
 
    inline static int F(const int n, const int N)
@@ -589,12 +592,37 @@ private:
    inline static int Or2D(const int n1, const int n2,
                           const int N1, const int N2, const int Or);
 
+   inline int EC(const int e, const int n, const int N) const
+   {
+      return !edgeMaster[e] ? edges[e] + Or1D(n, N, oedge[e]) :
+             GetMasterEdgeDof(e, Or1D(n, N, oedge[e]));
+   }
+
+   inline int FC(const int f, const int m, const int n,
+                 const int M, const int N) const
+   {
+      return !faceMaster[f] ? faces[f] + Or2D(m, n, M, N, oface[f]) :
+             GetMasterFaceDof(f, Or2D(m, n, M, N, oface[f]));
+   }
+
+   inline int FCP(const int f, const int m, const int n,
+                  const int M, const int N) const
+   {
+      return (faceMaster.Size() == 0 || !faceMaster[f]) ?
+             pOffset + Or2D(m, n, M, N, opatch) :
+             GetMasterFaceDof(f, Or2D(m, n, M, N, opatch));
+   }
+
    // also set verts, edges, faces, orientations etc
    void GetPatchKnotVectors   (int p, const KnotVector *kv[]);
    void GetBdrPatchKnotVectors(int p, const KnotVector *kv[], int *okv);
 
-   void SetMasterEdges2D(bool dof);
+   void SetMasterEdges(bool dof);
+   void SetMasterFaces(bool dof);
    int GetMasterEdgeDof(const int e, const int i) const;
+   int GetMasterFaceDof(const int f, const int i) const;
+   void GetFaceOrdering(int face, int n1, int n2, int v0,
+                        int e1, int e2, Array<int> & perm);
 
 public:
    NURBSPatchMap(const NURBSExtension *ext) { Ext = ext; }
@@ -759,7 +787,6 @@ const
 inline int NURBSPatchMap::Or2D(const int n1, const int n2,
                                const int N1, const int N2, const int Or)
 {
-   // Needs testing
    switch (Or)
    {
       case 0: return n1 + n2*N1;
@@ -798,17 +825,18 @@ inline int NURBSPatchMap::operator()(const int i, const int j) const
    switch (3*F(j1, J) + F(i1, I))
    {
       case 0: return verts[0];
+      // TODO: refactor with EC?
       case 1: return !edgeMaster[0] ? edges[0] + Or1D(i1, I, oedge[0]) :
                         GetMasterEdgeDof(0, Or1D(i1, I, oedge[0]));
       case 2: return verts[1];
       case 3: return !edgeMaster[3] ? edges[3] + Or1D(j1, J, -oedge[3]):
                         GetMasterEdgeDof(3, Or1D(j1, J, -oedge[3]));
-      case 4: return pOffset + Or2D(i1, j1, I, J, opatch);
+      case 4: return FCP(0, i1, j1, I, J);
       case 5: return !edgeMaster[1] ? edges[1] + Or1D(j1, J, oedge[1]) :
                         GetMasterEdgeDof(1, Or1D(j1, J, oedge[1]));
       case 6: return verts[3];
       case 7: return !edgeMaster[2] ? edges[2] + Or1D(i1, I, -oedge[2]) :
-                        GetMasterEdgeDof(2, Or1D(i1, I, -oedge[2]));
+                        GetMasterEdgeDof(2, Or1D(i1, I, -oedge[2]));  // TODO: refactor with EC(2,i1,I)
       case 8: return verts[2];
    }
 #ifdef MFEM_DEBUG
@@ -820,36 +848,35 @@ inline int NURBSPatchMap::operator()(const int i, const int j) const
 inline int NURBSPatchMap::operator()(const int i, const int j, const int k)
 const
 {
-   // Needs testing
    const int i1 = i - 1, j1 = j - 1, k1 = k - 1;
    switch (3*(3*F(k1, K) + F(j1, J)) + F(i1, I))
    {
       case  0: return verts[0];
-      case  1: return edges[0] + Or1D(i1, I, oedge[0]);
+      case  1: return EC(0, i1, I);
       case  2: return verts[1];
-      case  3: return edges[3] + Or1D(j1, J, oedge[3]);
-      case  4: return faces[0] + Or2D(i1, J - 1 - j1, I, J, oface[0]);
-      case  5: return edges[1] + Or1D(j1, J, oedge[1]);
+      case  3: return EC(3, j1, J);
+      case  4: return FC(0, i1, J - 1 - j1, I, J);
+      case  5: return EC(1, j1, J);
       case  6: return verts[3];
-      case  7: return edges[2] + Or1D(i1, I, oedge[2]);
+      case  7: return EC(2, i1, I);
       case  8: return verts[2];
-      case  9: return edges[8] + Or1D(k1, K, oedge[8]);
-      case 10: return faces[1] + Or2D(i1, k1, I, K, oface[1]);
-      case 11: return edges[9] + Or1D(k1, K, oedge[9]);
-      case 12: return faces[4] + Or2D(J - 1 - j1, k1, J, K, oface[4]);
+      case  9: return EC(8, k1, K);
+      case 10: return FC(1, i1, k1, I, K);
+      case 11: return EC(9, k1, K);
+      case 12: return FC(4, J - 1 - j1, k1, J, K);
       case 13: return pOffset + I*(J*k1 + j1) + i1;
-      case 14: return faces[2] + Or2D(j1, k1, J, K, oface[2]);
-      case 15: return edges[11] + Or1D(k1, K, oedge[11]);
-      case 16: return faces[3] + Or2D(I - 1 - i1, k1, I, K, oface[3]);
-      case 17: return edges[10] + Or1D(k1, K, oedge[10]);
+      case 14: return FC(2, j1, k1, J, K);
+      case 15: return EC(11, k1, K);
+      case 16: return FC(3, I - 1 - i1, k1, I, K);
+      case 17: return EC(10, k1, K);
       case 18: return verts[4];
-      case 19: return edges[4] + Or1D(i1, I, oedge[4]);
+      case 19: return EC(4, i1, I);
       case 20: return verts[5];
-      case 21: return edges[7] + Or1D(j1, J, oedge[7]);
-      case 22: return faces[5] + Or2D(i1, j1, I, J, oface[5]);
-      case 23: return edges[5] + Or1D(j1, J, oedge[5]);
+      case 21: return EC(7, j1, J);
+      case 22: return FC(5, i1, j1, I, J);
+      case 23: return EC(5, j1, J);
       case 24: return verts[7];
-      case 25: return edges[6] + Or1D(i1, I, oedge[6]);
+      case 25: return EC(6, i1, I);
       case 26: return verts[6];
    }
 #ifdef MFEM_DEBUG

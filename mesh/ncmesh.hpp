@@ -326,7 +326,7 @@ public:
       }
    }
 
-   const Array<int>& GetVertexToKnot() const
+   const Array2D<int>& GetVertexToKnot() const
    {
       return vertex_to_knot;
    }
@@ -1023,6 +1023,8 @@ protected: // implementation
    void LoadVertexParents(std::istream &input);
 
    void LoadVertexToKnot(std::istream &input);
+   void LoadVertexToKnot2D(std::istream &input);
+   void LoadVertexToKnot3D(std::istream &input);
 
    /** Print the "boundary" section of the mesh file.
        If out == NULL, only return the number of boundary elements. */
@@ -1068,7 +1070,7 @@ protected: // implementation
 
    static GeomInfo GI[Geometry::NumGeom];
 
-   Array<int> vertex_to_knot;
+   Array2D<int> vertex_to_knot;
 
 #ifdef MFEM_DEBUG
 public:
