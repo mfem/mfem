@@ -889,6 +889,8 @@ void DarcyHybridization::ComputeAndAssemblePotBdrFaceMatrix(
       { elmat = elmat_aux; }
    }
 
+   if (elmat.Size() == 0) { return; }
+
    MFEM_ASSERT(elmat.Width() == ndof+c_dof &&
                elmat.Height() == ndof+c_dof,
                "Size mismatch");
