@@ -16,8 +16,7 @@
 #include "netcdf.h"
 #endif
 
-/// @brief Call NetCDF functions inside the macro. This will provide basic
-/// error-handling.
+// Call NetCDF functions inside the macro. This will provide basic error-handling.
 #define CHECK_NETCDF_CODE(return_code)\
 {\
    if ((return_code) != NC_NOERR)\
