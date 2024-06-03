@@ -31,6 +31,8 @@ namespace mfem
 
 #ifdef MFEM_USE_NETCDF
 
+namespace ExodusIISideMaps
+{
 /// Convert from the MFEM face numbering to the ExodusII face numbering.
 const int mfem_to_exodusII_side_map_tet4[] =
 {
@@ -51,6 +53,7 @@ const int mfem_to_exodusII_side_map_pyramid5[] =
 {
    5, 1, 2, 3, 4
 };
+}
 
 /// Convert from the MFEM (0-based) node ordering to the ExodusII 1-based node
 /// ordering.
@@ -998,16 +1001,16 @@ void ExodusIIWriter::GenerateExodusIIBoundaryInfo()
       switch (element_type)
       {
          case Element::Type::TETRAHEDRON:
-            exodusII_face_id = mfem_to_exodusII_side_map_tet4[iface];
+            exodusII_face_id = ExodusIISideMaps::mfem_to_exodusII_side_map_tet4[iface];
             break;
          case Element::Type::HEXAHEDRON:
-            exodusII_face_id = mfem_to_exodusII_side_map_hex8[iface];
+            exodusII_face_id = ExodusIISideMaps::mfem_to_exodusII_side_map_hex8[iface];
             break;
          case Element::Type::WEDGE:
-            exodusII_face_id = mfem_to_exodusII_side_map_wedge6[iface];
+            exodusII_face_id = ExodusIISideMaps::mfem_to_exodusII_side_map_wedge6[iface];
             break;
          case Element::Type::PYRAMID:
-            exodusII_face_id = mfem_to_exodusII_side_map_pyramid5[iface];
+            exodusII_face_id = ExodusIISideMaps::mfem_to_exodusII_side_map_pyramid5[iface];
             break;
          default:
             MFEM_ABORT("Cannot handle element of type " << element_type);
