@@ -410,19 +410,19 @@ HYPRE_Int HypreParVector::Randomize(HYPRE_Int seed)
    return hypre_ParVectorSetRandomValues(x,seed);
 }
 
-void HypreParVector::Print(const char *fname) const
+void HypreParVector::Print(const std::string &fname) const
 {
-   hypre_ParVectorPrint(x,fname);
+   hypre_ParVectorPrint(x, fname.c_str());
 }
 
-void HypreParVector::Read(MPI_Comm comm, const char *fname)
+void HypreParVector::Read(MPI_Comm comm, const std::string &fname)
 {
    if (own_ParVector)
    {
       hypre_ParVectorDestroy(x);
    }
    data.Delete();
-   x = hypre_ParVectorRead(comm, fname);
+   x = hypre_ParVectorRead(comm, fname.c_str());
    own_ParVector = true;
    _SetDataAndSize_();
 }
@@ -792,6 +792,44 @@ static void SyncBackBoolCSR(Table *bool_csr, MemoryIJData &mem_csr)
    }
 }
 
+/// @brief Return the size of the partitioning arrays, see @ref
+/// hypre_partitioning_descr.
+static int GetPartitioningArraySize(MPI_Comm comm)
+{
+   if (HYPRE_AssumedPartitionCheck())
+   {
+      return 2;
+   }
+   else
+   {
+      int comm_size;
+      MPI_Comm_size(comm, &comm_size);
+      return comm_size + 1;
+   }
+}
+
+/// @brief Returns true if the row and col arrays are equal (across all MPI
+/// ranks).
+///
+/// Both @a row and @a col are partitioning arrays, whose length is returned by
+/// GetPartitioningArraySize(), see @ref hypre_partitioning_descr.
+static bool RowAndColStartsAreEqual(MPI_Comm comm, HYPRE_BigInt *rows,
+                                    HYPRE_BigInt *cols)
+{
+   const int part_size = GetPartitioningArraySize(comm);
+   bool are_equal = true;
+   for (int i = 0; i < part_size; ++i)
+   {
+      if (rows[i] != cols[i])
+      {
+         are_equal = false;
+         break;
+      }
+   }
+   MPI_Allreduce(MPI_IN_PLACE, &are_equal, 1,  MPI_C_BOOL, MPI_LAND, comm);
+   return are_equal;
+}
+
 // static method
 signed char HypreParMatrix::HypreCsrToMem(hypre_CSRMatrix *h_mat,
                                           MemoryType h_mat_mt,
@@ -924,7 +962,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    hypre_ParCSRMatrixSetNumNonzeros(A);
 
    /* Make sure that the first entry in each row is the diagonal one. */
-   if (row_starts == col_starts)
+   if (RowAndColStartsAreEqual(comm, row_starts, col_starts))
    {
       HypreReadWrite();
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
@@ -974,11 +1012,12 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    hypre_ParCSRMatrixSetNumNonzeros(A);
 
    /* Make sure that the first entry in each row is the diagonal one. */
-   if (row_starts == col_starts)
+   if (RowAndColStartsAreEqual(comm, row_starts, col_starts))
    {
       HypreReadWrite();
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
-      SyncBackCSR(diag, mem_diag); // update diag, if needed
+      // update diag, if needed
+      if (!own_diag_offd) { SyncBackCSR(diag, mem_diag); }
    }
 
    hypre_MatvecCommPkgCreate(A);
@@ -1031,7 +1070,7 @@ HypreParMatrix::HypreParMatrix(
    hypre_ParCSRMatrixSetNumNonzeros(A);
 
    /* Make sure that the first entry in each row is the diagonal one. */
-   if (row_starts == col_starts)
+   if (RowAndColStartsAreEqual(comm, row_starts, col_starts))
    {
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
    }
@@ -1093,7 +1132,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    hypre_CSRMatrixDestroy(csr_a);
 
    /* Make sure that the first entry in each row is the diagonal one. */
-   if (row_starts == col_starts)
+   if (RowAndColStartsAreEqual(comm, row_starts, col_starts))
    {
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(new_A));
    }
@@ -1132,7 +1171,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    hypre_ParCSRMatrixSetNumNonzeros(A);
 
    /* Make sure that the first entry in each row is the diagonal one. */
-   if (row_starts == col_starts)
+   if (RowAndColStartsAreEqual(comm, row_starts, col_starts))
    {
       HypreReadWrite();
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
@@ -1247,11 +1286,10 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows,
    Init();
 
    // Determine partitioning size, and my column start and end
-   int part_size;
+   const int part_size = GetPartitioningArraySize(comm);
    HYPRE_BigInt my_col_start, my_col_end; // my range: [my_col_start, my_col_end)
    if (HYPRE_AssumedPartitionCheck())
    {
-      part_size = 2;
       my_col_start = cols[0];
       my_col_end = cols[1];
    }
@@ -1259,15 +1297,14 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows,
    {
       int myid;
       MPI_Comm_rank(comm, &myid);
-      MPI_Comm_size(comm, &part_size);
-      part_size++;
       my_col_start = cols[myid];
       my_col_end = cols[myid+1];
    }
 
    // Copy in the row and column partitionings
+   const bool rows_eq_cols = RowAndColStartsAreEqual(comm, rows, cols);
    HYPRE_BigInt *row_starts, *col_starts;
-   if (rows == cols)
+   if (rows_eq_cols)
    {
       row_starts = col_starts = mfem_hypre_TAlloc_host(HYPRE_BigInt, part_size);
       for (int i = 0; i < part_size; i++)
@@ -1360,14 +1397,14 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows,
    }
 
    hypre_ParCSRMatrixSetNumNonzeros(A);
-   /* Make sure that the first entry in each row is the diagonal one. */
-   if (row_starts == col_starts)
+   // Make sure that the first entry in each row is the diagonal one.
+   if (rows_eq_cols)
    {
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
    }
 #if MFEM_HYPRE_VERSION > 22200
    mfem_hypre_TFree_host(row_starts);
-   if (rows != cols)
+   if (!rows_eq_cols)
    {
       mfem_hypre_TFree_host(col_starts);
    }
@@ -1480,16 +1517,7 @@ void HypreParMatrix::CopyRowStarts()
       return;
    }
 
-   int row_starts_size;
-   if (HYPRE_AssumedPartitionCheck())
-   {
-      row_starts_size = 2;
-   }
-   else
-   {
-      MPI_Comm_size(hypre_ParCSRMatrixComm(A), &row_starts_size);
-      row_starts_size++; // num_proc + 1
-   }
+   const int row_starts_size = GetPartitioningArraySize(hypre_ParCSRMatrixComm(A));
 
    HYPRE_BigInt *old_row_starts = hypre_ParCSRMatrixRowStarts(A);
    HYPRE_BigInt *new_row_starts = mfem_hypre_CTAlloc_host(HYPRE_BigInt,
@@ -1520,16 +1548,7 @@ void HypreParMatrix::CopyColStarts()
       return;
    }
 
-   int col_starts_size;
-   if (HYPRE_AssumedPartitionCheck())
-   {
-      col_starts_size = 2;
-   }
-   else
-   {
-      MPI_Comm_size(hypre_ParCSRMatrixComm(A), &col_starts_size);
-      col_starts_size++; // num_proc + 1
-   }
+   const int col_starts_size = GetPartitioningArraySize(hypre_ParCSRMatrixComm(A));
 
    HYPRE_BigInt *old_col_starts = hypre_ParCSRMatrixColStarts(A);
    HYPRE_BigInt *new_col_starts = mfem_hypre_CTAlloc_host(HYPRE_BigInt,
@@ -2291,13 +2310,8 @@ void HypreParMatrix::Threshold(real_t threshold)
    A = parcsr_A_ptr;
 
    hypre_ParCSRMatrixSetNumNonzeros(A);
-   /* Make sure that the first entry in each row is the diagonal one. */
-#if MFEM_HYPRE_VERSION <= 22200
-   if (row_starts == col_starts)
-#else
-   if ((row_starts[0] == col_starts[0]) &&
-       (row_starts[1] == col_starts[1]))
-#endif
+   // Make sure that the first entry in each row is the diagonal one.
+   if (RowAndColStartsAreEqual(comm, row_starts, col_starts))
    {
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
    }
@@ -2623,48 +2637,38 @@ void HypreParMatrix::EliminateBC(const Array<int> &ess_dofs,
    mfem_hypre_TFree(eliminate_col);
 }
 
-void HypreParMatrix::Print(const char *fname, HYPRE_Int offi,
+void HypreParMatrix::Print(const std::string &fname, HYPRE_Int offi,
                            HYPRE_Int offj) const
 {
    HostRead();
-   hypre_ParCSRMatrixPrintIJ(A,offi,offj,fname);
+   hypre_ParCSRMatrixPrintIJ(A, offi, offj, fname.c_str());
    HypreRead();
 }
 
-void HypreParMatrix::Read(MPI_Comm comm, const char *fname)
+void HypreParMatrix::Read(MPI_Comm comm, const std::string &fname)
 {
-   Destroy();
-   Init();
-
+   HYPRE_ParCSRMatrix A_parcsr;
    HYPRE_Int base_i, base_j;
-   hypre_ParCSRMatrixReadIJ(comm, fname, &base_i, &base_j, &A);
+   hypre_ParCSRMatrixReadIJ(comm, fname.c_str(), &base_i, &base_j, &A_parcsr);
+
+   WrapHypreParCSRMatrix(A_parcsr, true);
+
    hypre_ParCSRMatrixSetNumNonzeros(A);
-
    if (!hypre_ParCSRMatrixCommPkg(A)) { hypre_MatvecCommPkgCreate(A); }
-
-   height = GetNumRows();
-   width = GetNumCols();
 }
 
-void HypreParMatrix::Read_IJMatrix(MPI_Comm comm, const char *fname)
+void HypreParMatrix::Read_IJMatrix(MPI_Comm comm, const std::string &fname)
 {
-   Destroy();
-   Init();
-
    HYPRE_IJMatrix A_ij;
-   HYPRE_IJMatrixRead(fname, comm, 5555, &A_ij); // HYPRE_PARCSR = 5555
+   HYPRE_IJMatrixRead(fname.c_str(), comm, 5555, &A_ij); // HYPRE_PARCSR = 5555
 
    HYPRE_ParCSRMatrix A_parcsr;
    HYPRE_IJMatrixGetObject(A_ij, (void**) &A_parcsr);
 
-   A = (hypre_ParCSRMatrix*)A_parcsr;
+   WrapHypreParCSRMatrix(A_parcsr, true);
 
    hypre_ParCSRMatrixSetNumNonzeros(A);
-
    if (!hypre_ParCSRMatrixCommPkg(A)) { hypre_MatvecCommPkgCreate(A); }
-
-   height = GetNumRows();
-   width = GetNumCols();
 }
 
 void HypreParMatrix::PrintCommPkg(std::ostream &os) const

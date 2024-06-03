@@ -1152,15 +1152,24 @@ void Mesh::ReadXML_VTKMesh(std::istream &input, int &curved, int &read_gf,
    }
    if (cells_xml == NULL) { MFEM_ABORT(erstr); }
 
-   // Read the element attributes, which are stored as CellData named "material"
+   // Read the element attributes, which are stored as CellData named either
+   // "material" or "attribute". We prioritize "material" over "attribute" for
+   // backwards compatibility.
    Array<int> cell_attributes;
+   bool found_attributes = false;
    for (const XMLElement *cell_data_xml = piece->FirstChildElement();
         cell_data_xml != NULL;
         cell_data_xml = cell_data_xml->NextSiblingElement())
    {
-      if (StringCompare(cell_data_xml->Name(), "CellData")
-          && StringCompare(cell_data_xml->Attribute("Scalars"), "material"))
+      const bool is_cell_data =
+         StringCompare(cell_data_xml->Name(), "CellData");
+      const bool is_material =
+         StringCompare(cell_data_xml->Attribute("Scalars"), "material");
+      const bool is_attribute =
+         StringCompare(cell_data_xml->Attribute("Scalars"), "attribute");
+      if (is_cell_data && (is_material || (is_attribute && !found_attributes)))
       {
+         found_attributes = true;
          const XMLElement *data_xml = cell_data_xml->FirstChildElement();
          if (data_xml != NULL && StringCompare(data_xml->Name(), "DataArray"))
          {
@@ -1275,6 +1284,7 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
    // Read the cell materials
    // bool found_material = false;
    Array<int> cell_attributes;
+   bool found_attributes = false;
    while ((input.good()))
    {
       getline(input, buff);
@@ -1282,8 +1292,10 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
       {
          break; // We have entered the POINT_DATA block. Quit.
       }
-      else if (buff.rfind("SCALARS material") == 0)
+      else if (buff.rfind("SCALARS material") == 0 ||
+               (buff.rfind("SCALARS attribute") == 0 && !found_attributes))
       {
+         found_attributes = true;
          getline(input, buff); // LOOKUP_TABLE default
          if (buff.rfind("LOOKUP_TABLE default") != 0)
          {

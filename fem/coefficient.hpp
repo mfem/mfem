@@ -1334,6 +1334,46 @@ public:
    virtual ~MatrixArrayCoefficient();
 };
 
+/** @brief Matrix coefficient defined row-wise by an array of vector
+    coefficients. Rows that are not set will evaluate to zero. The
+    matrix coefficient is stored as an array indexing the rows of
+    the matrix. */
+class MatrixArrayVectorCoefficient : public MatrixCoefficient
+{
+private:
+   Array<VectorCoefficient *> Coeff;
+   Array<bool> ownCoeff;
+
+public:
+   /** @brief Construct a coefficient matrix of dimensions @a dim * @a dim. The
+       actual coefficients still need to be added with Set(). */
+   explicit MatrixArrayVectorCoefficient (int dim);
+
+   /// Set the time for internally stored coefficients
+   void SetTime(real_t t) override;
+
+   /// Get the vector coefficient located at the i-th row of the matrix
+   VectorCoefficient* GetCoeff (int i) { return Coeff[i]; }
+
+   /** @brief Set the coefficient located at the i-th row of the matrix.
+       By this will take ownership of the Coefficient passed in, but this
+       can be overridden with the @a own parameter. */
+   void Set(int i, VectorCoefficient * c, bool own=true);
+
+   using MatrixCoefficient::Eval;
+
+   /// Evaluate coefficient located at the i-th row of the matrix using integration
+   /// point @a ip.
+   void Eval(int i, Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip);
+
+   /// Evaluate the matrix coefficient @a ip.
+   void Eval(DenseMatrix &K, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
+
+   virtual ~MatrixArrayVectorCoefficient();
+};
+
 
 /** @brief Derived matrix coefficient that has the value of the parent matrix
     coefficient where it is active and is zero otherwise. */
@@ -1426,12 +1466,13 @@ public:
 class SymmetricMatrixCoefficient : public MatrixCoefficient
 {
 protected:
+
    /// Internal matrix used when evaluating this coefficient as a DenseMatrix.
-   DenseSymmetricMatrix mat;
+   mutable DenseSymmetricMatrix mat_aux;
 public:
    /// Construct a dim x dim matrix coefficient.
    explicit SymmetricMatrixCoefficient(int dimension)
-      : MatrixCoefficient(dimension, true) { }
+      : MatrixCoefficient(dimension, true), mat_aux(height) { }
 
    /// Get the size of the matrix.
    int GetSize() const { return height; }
@@ -1464,8 +1505,9 @@ public:
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip);
 
-   /// Return a reference to the constant matrix.
-   const DenseSymmetricMatrix& GetMatrix() { return mat; }
+
+   /// @deprecated Return a reference to the internal matrix used when evaluating this coefficient as a DenseMatrix.
+   MFEM_DEPRECATED const DenseSymmetricMatrix& GetMatrix() { return mat_aux; }
 
    virtual ~SymmetricMatrixCoefficient() { }
 };
@@ -1485,6 +1527,10 @@ public:
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseSymmetricMatrix &M, ElementTransformation &T,
                      const IntegrationPoint &ip) { M = mat; }
+
+   /// Return a reference to the constant matrix.
+   const DenseSymmetricMatrix& GetMatrix() { return mat; }
+
 };
 
 
@@ -1757,6 +1803,31 @@ public:
    MatrixCoefficient * GetACoef() const { return a; }
 
    /// Evaluate the determinant coefficient at @a ip.
+   virtual real_t Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip);
+};
+
+/// Scalar coefficient defined as the trace of a matrix coefficient
+class TraceCoefficient : public Coefficient
+{
+private:
+   MatrixCoefficient * a;
+
+   mutable DenseMatrix ma;
+
+public:
+   /// Construct with the matrix.
+   TraceCoefficient(MatrixCoefficient &A);
+
+   /// Set the time for internally stored coefficients
+   void SetTime(real_t t);
+
+   /// Reset the matrix coefficient
+   void SetACoef(MatrixCoefficient &A) { a = &A; }
+   /// Return the matrix coefficient
+   MatrixCoefficient * GetACoef() const { return a; }
+
+   /// Evaluate the trace coefficient at @a ip.
    virtual real_t Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);
 };
@@ -2112,7 +2183,7 @@ public:
                      const IntegrationPoint &ip);
 };
 
-/// Matrix coefficient defined as the transpose a matrix coefficient
+/// Matrix coefficient defined as the transpose of a matrix coefficient
 class TransposeMatrixCoefficient : public MatrixCoefficient
 {
 private:
@@ -2135,7 +2206,7 @@ public:
                      const IntegrationPoint &ip);
 };
 
-/// Matrix coefficient defined as the inverse a matrix coefficient.
+/// Matrix coefficient defined as the inverse of a matrix coefficient.
 class InverseMatrixCoefficient : public MatrixCoefficient
 {
 private:
@@ -2144,6 +2215,29 @@ private:
 public:
    /// Construct with the matrix coefficient.  Result is $ A^{-1} $.
    InverseMatrixCoefficient(MatrixCoefficient &A);
+
+   /// Set the time for internally stored coefficients
+   void SetTime(real_t t);
+
+   /// Reset the matrix coefficient
+   void SetACoef(MatrixCoefficient &A) { a = &A; }
+   /// Return the matrix coefficient
+   MatrixCoefficient * GetACoef() const { return a; }
+
+   /// Evaluate the matrix coefficient at @a ip.
+   virtual void Eval(DenseMatrix &M, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+};
+
+/// Matrix coefficient defined as the exponential of a matrix coefficient.
+class ExponentialMatrixCoefficient : public MatrixCoefficient
+{
+private:
+   MatrixCoefficient * a;
+
+public:
+   /// Construct the matrix coefficient.  Result is $ \exp(A) $.
+   ExponentialMatrixCoefficient(MatrixCoefficient &A);
 
    /// Set the time for internally stored coefficients
    void SetTime(real_t t);
