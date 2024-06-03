@@ -16,8 +16,7 @@
 #include "netcdf.h"
 #endif
 
-/// @brief Call NetCDF functions inside the macro. This will provide basic
-/// error-handling.
+// Call NetCDF functions inside the macro. This will provide basic error-handling.
 #define CHECK_NETCDF_CODE(return_code)\
 {\
    if ((return_code) != NC_NOERR)\
@@ -987,8 +986,16 @@ void ExodusIIWriter::GenerateExodusIIBoundaryInfo()
       }
    }
 
+   _mesh.RemoveInternalBoundaries();
+
+   _mesh.FaceIsInterior();
+
    for (int ibdr_element = 0; ibdr_element < _mesh.GetNBE(); ibdr_element++)
    {
+      mfem::Element * bdr_element = _mesh.GetBdrElement(0);
+
+      bdr_element
+
       int boundary_id = _mesh.GetBdrAttribute(ibdr_element);
       int bdr_element_face_index = _mesh.GetBdrElementFaceIndex(ibdr_element);
 
