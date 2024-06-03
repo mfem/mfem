@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -31,6 +31,7 @@ SOURCE_FILES := $(filter-out \
    $(CEED_SOURCE_FILES) $(MINI_SOURCE_FILES), $(SOURCE_FILES))
 HEADER_FILES = $(SRC)catch.hpp $(SRC)unit_tests.hpp
 OBJECT_FILES = $(SOURCE_FILES:$(SRC)%.cpp=%.o)
+LIBTESTS_O = libtests.o
 DATA_DIR = data
 
 SEQ_MAIN_OBJ = unit_test_main.o
@@ -103,19 +104,19 @@ all: $(UNIT_TESTS)
 
 .SUFFIXES:
 .SUFFIXES: .cpp .o
-.PHONY: all clean
+.PHONY: all clean clean-exec
 
-unit_tests: $(SEQ_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
-	$(CCC) $(SEQ_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
+unit_tests: $(SEQ_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
+	$(CCC) $(SEQ_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
 
-punit_tests: $(PAR_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
-	$(CCC) $(PAR_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
+punit_tests: $(PAR_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
+	$(CCC) $(PAR_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
 
-cunit_tests: $(CUDA_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
-	$(CCC) $(CUDA_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
+cunit_tests: $(CUDA_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
+	$(CCC) $(CUDA_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
 
-pcunit_tests: $(PCUDA_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
-	$(CCC) $(PCUDA_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
+pcunit_tests: $(PCUDA_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
+	$(CCC) $(PCUDA_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
 
 ceed_tests: $(CEED_OBJ) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
 	$(CCC) $(CEED_OBJ) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
@@ -124,6 +125,9 @@ $(DEBUG_DEVICE_TEST): $(DEBUG_DEVICE_OBJ) $(MFEM_LIB_FILE) \
  $(CONFIG_MK)
 	$(CCC) $(DEBUG_DEVICE_OBJ) $(MFEM_LINK_FLAGS) \
 	   $(MFEM_LIBS) -o $(@)
+
+$(LIBTESTS_O): $(OBJECT_FILES)
+	$(LD) -r $(OBJECT_FILES) -o $(@)
 
 # Note: in this rule, we always use the full path to the source file as a
 # workaround for an issue with coveralls.
@@ -144,9 +148,9 @@ $(CEED_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
 comma=,
 define sedov_tests
 sedov_tests_$(1): SEDOV_TESTS_FLAGS=-DMFEM_SEDOV_DEVICE='"$(3)"'
-sedov_tests_$(1): unit_test_main.o $$(SEQ_SEDOV_$(2)_OBJ_FILES) \
+sedov_tests_$(1): $$(SEQ_SEDOV_$(2)_OBJ_FILES) \
  $$(MFEM_LIB_FILE) $$(CONFIG_MK) $$(DATA_DIR)
-	$$(CCC) $$(<) $$(SEQ_SEDOV_$(2)_OBJ_FILES) \
+	$$(CCC) $$(SEQ_SEDOV_$(2)_OBJ_FILES) \
 	   $$(MFEM_LINK_FLAGS) $$(MFEM_LIBS) -o $$(@)
 $$(SEQ_SEDOV_$(2)_OBJ_FILES): %.$(1).o: $$(SRC)%.cpp $$(HEADER_FILES) $$(CONFIG_MK)
 	@mkdir -p $$(@D)
@@ -161,9 +165,9 @@ $(eval $(call sedov_tests,cuda_uvm,CUDA_UVM,cuda:uvm))
 define psedov_tests
 psedov_tests_$(1): SEDOV_TESTS_FLAGS =-DMFEM_SEDOV_MPI
 psedov_tests_$(1): SEDOV_TESTS_FLAGS+=-DMFEM_SEDOV_DEVICE='"$(3)"'
-psedov_tests_$(1): punit_test_main.o $$(PAR_SEDOV_$(2)_OBJ_FILES) \
+psedov_tests_$(1): $$(PAR_SEDOV_$(2)_OBJ_FILES) \
  $$(MFEM_LIB_FILE) $$(CONFIG_MK) $$(DATA_DIR)
-	$$(CCC) $$(<) $$(PAR_SEDOV_$(2)_OBJ_FILES) \
+	$$(CCC) $$(PAR_SEDOV_$(2)_OBJ_FILES) \
 	   $$(MFEM_LINK_FLAGS) $$(MFEM_LIBS) -o $$(@)
 $$(PAR_SEDOV_$(2)_OBJ_FILES): %.p$(1).o: $$(SRC)%.cpp $$(HEADER_FILES) $$(CONFIG_MK)
 	@mkdir -p $$(@D)
@@ -174,6 +178,15 @@ $(eval $(call psedov_tests,cpu,CPU,cpu))
 $(eval $(call psedov_tests,debug,DEBUG,debug))
 $(eval $(call psedov_tests,cuda,CUDA,cuda))
 $(eval $(call psedov_tests,cuda_uvm,CUDA_UVM,cuda:uvm))
+
+# For out-of-source builds, copy the meshes in ../../miniapps/multidomain from
+# the source location; these are used by 'punit_tests'.
+ifneq ($(SRC),)
+.PHONY: copy-miniapps-multidomain-data
+copy-miniapps-multidomain-data:
+	$(MAKE) -C ../../miniapps/multidomain copy-data
+punit_tests: | copy-miniapps-multidomain-data
+endif
 
 # For out-of-source builds, copy the meshes in ../../miniapps/meshing from the
 # source location; these are used by the TMOP tests.
@@ -187,9 +200,9 @@ copy-miniapps-meshing-data:
 define tmop_pa_tests
 tmop_pa_tests_$(1): | $(if $(SRC),copy-miniapps-meshing-data)
 tmop_pa_tests_$(1): TMOP_TESTS_FLAGS=-DMFEM_TMOP_DEVICE='"$(3)"'
-tmop_pa_tests_$(1): unit_test_main.o $$(SEQ_TMOP_$(2)_OBJ_FILES) \
+tmop_pa_tests_$(1): $$(SEQ_TMOP_$(2)_OBJ_FILES) \
  $$(MFEM_LIB_FILE) $$(CONFIG_MK) $$(DATA_DIR)
-	$$(CCC) $$(<) $$(SEQ_TMOP_$(2)_OBJ_FILES) \
+	$$(CCC) $$(SEQ_TMOP_$(2)_OBJ_FILES) \
 	   $$(MFEM_LINK_FLAGS) $$(MFEM_LIBS) -o $$(@)
 $$(SEQ_TMOP_$(2)_OBJ_FILES): %.$(1).o: $$(SRC)%.cpp $$(HEADER_FILES) $$(CONFIG_MK)
 	@mkdir -p $$(@D)
@@ -205,9 +218,9 @@ define ptmop_pa_tests
 ptmop_pa_tests_$(1): | $(if $(SRC),copy-miniapps-meshing-data)
 ptmop_pa_tests_$(1): TMOP_TESTS_FLAGS =-DMFEM_TMOP_MPI
 ptmop_pa_tests_$(1): TMOP_TESTS_FLAGS+=-DMFEM_TMOP_DEVICE='"$(3)"'
-ptmop_pa_tests_$(1): punit_test_main.o $$(PAR_TMOP_$(2)_OBJ_FILES) \
+ptmop_pa_tests_$(1): $$(PAR_TMOP_$(2)_OBJ_FILES) \
  $$(MFEM_LIB_FILE) $$(CONFIG_MK) $$(DATA_DIR)
-	$$(CCC) $$(<) $$(PAR_TMOP_$(2)_OBJ_FILES) \
+	$$(CCC) $$(PAR_TMOP_$(2)_OBJ_FILES) \
 	   $$(MFEM_LINK_FLAGS) $$(MFEM_LIBS) -o $$(@)
 $$(PAR_TMOP_$(2)_OBJ_FILES): %.p$(1).o: $$(SRC)%.cpp $$(HEADER_FILES) $$(CONFIG_MK)
 	@mkdir -p $$(@D)
@@ -252,6 +265,9 @@ RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP)
 $(MFEM_LIB_FILE):
 	$(error The MFEM library is not built)
 
-clean:
+clean-exec:
+	@rm -rf output_meshes parallel_in_serial.mesh parallel_in_serial.gf
+
+clean: clean-exec
 	rm -f $(SEQ_UNIT_TESTS) $(PAR_UNIT_TESTS) *.o */*.o */*~ *~
-	rm -rf *.dSYM output_meshes parallel_in_serial.mesh parallel_in_serial.gf
+	rm -rf *.dSYM

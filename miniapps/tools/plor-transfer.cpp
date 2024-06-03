@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -58,11 +58,11 @@ string space;
 string direction;
 
 // Exact functions to project
-double RHO_exact(const Vector &x);
+real_t RHO_exact(const Vector &x);
 
 // Helper functions
 void visualize(VisItDataCollection &, string, int, int);
-double compute_mass(ParFiniteElementSpace *, double, VisItDataCollection &,
+real_t compute_mass(ParFiniteElementSpace *, real_t, VisItDataCollection &,
                     string);
 
 int main(int argc, char *argv[])
@@ -166,7 +166,7 @@ int main(int argc, char *argv[])
    rho.SetTrueVector();
    rho.SetFromTrueVector();
 
-   double ho_mass = compute_mass(&fespace, -1.0, HO_dc, "HO       ");
+   real_t ho_mass = compute_mass(&fespace, -1.0, HO_dc, "HO       ");
    if (vis) { visualize(HO_dc, "HO", Wx, Wy); Wx += offx; }
 
    GridTransfer *gt;
@@ -187,8 +187,9 @@ int main(int argc, char *argv[])
    if (vis) { visualize(LOR_dc, "R(HO)", Wx, Wy); Wx += offx; }
    auto global_max = [](const Vector& v)
    {
-      double max = v.Normlinf();
-      MPI_Allreduce(MPI_IN_PLACE, &max, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+      real_t max = v.Normlinf();
+      MPI_Allreduce(MPI_IN_PLACE, &max, 1, MPITypeMap<real_t>::mpi_type,
+                    MPI_MAX, MPI_COMM_WORLD);
       return max;
    };
 
@@ -205,7 +206,7 @@ int main(int argc, char *argv[])
       rho_prev -= rho;
       Vector rho_prev_true(fespace.GetTrueVSize());
       rho_prev.GetTrueDofs(rho_prev_true);
-      double l_inf = global_max(rho_prev_true);
+      real_t l_inf = global_max(rho_prev_true);
       if (Mpi::Root())
       {
          cout.precision(12);
@@ -217,8 +218,9 @@ int main(int argc, char *argv[])
    ParLinearForm M_rho(&fespace), M_rho_lor(&fespace_lor);
    auto global_sum = [](const Vector& v)
    {
-      double sum = v.Sum();
-      MPI_Allreduce(MPI_IN_PLACE, &sum, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      real_t sum = v.Sum();
+      MPI_Allreduce(MPI_IN_PLACE, &sum, 1, MPITypeMap<real_t>::mpi_type,
+                    MPI_SUM, MPI_COMM_WORLD);
       return sum;
    };
    if (!use_pointwise_transfer && gt->SupportsBackwardsOperator())
@@ -228,8 +230,8 @@ int main(int argc, char *argv[])
       fespace.GetRestrictionOperator()->MultTranspose(M_rho_true, M_rho);
       const Operator &P = gt->BackwardOperator();
       P.MultTranspose(M_rho, M_rho_lor);
-      double ho_dual_mass = global_sum(M_rho);
-      double lor_dual_mass = global_sum(M_rho_lor);
+      real_t ho_dual_mass = global_sum(M_rho);
+      real_t lor_dual_mass = global_sum(M_rho_lor);
       if (Mpi::Root())
       {
          cout << "HO -> LOR dual field: " << abs(ho_dual_mass - lor_dual_mass) << "\n\n";
@@ -240,7 +242,7 @@ int main(int argc, char *argv[])
    direction = "LOR -> HO @ LOR";
    rho_lor.ProjectCoefficient(RHO);
    ParGridFunction rho_lor_prev = rho_lor;
-   double lor_mass = compute_mass(&fespace_lor, -1.0, LOR_dc, "LOR      ");
+   real_t lor_mass = compute_mass(&fespace_lor, -1.0, LOR_dc, "LOR      ");
    if (vis) { visualize(LOR_dc, "LOR", Wx, Wy); Wx += offx; }
 
    if (gt->SupportsBackwardsOperator())
@@ -262,7 +264,7 @@ int main(int argc, char *argv[])
       rho_lor_prev -= rho_lor;
       Vector rho_lor_prev_true(fespace_lor.GetTrueVSize());
       rho_lor_prev.GetTrueDofs(rho_lor_prev_true);
-      double l_inf = global_max(rho_lor_prev_true);
+      real_t l_inf = global_max(rho_lor_prev_true);
       if (Mpi::Root())
       {
          cout.precision(12);
@@ -278,8 +280,8 @@ int main(int argc, char *argv[])
       fespace_lor.GetRestrictionOperator()->MultTranspose(M_rho_lor_true,
                                                           M_rho_lor);
       R.MultTranspose(M_rho_lor, M_rho);
-      double ho_dual_mass = global_sum(M_rho);
-      double lor_dual_mass = global_sum(M_rho_lor);
+      real_t ho_dual_mass = global_sum(M_rho);
+      real_t lor_dual_mass = global_sum(M_rho_lor);
 
       cout << lor_dual_mass << '\n';
       cout << ho_dual_mass << '\n';
@@ -300,7 +302,7 @@ int main(int argc, char *argv[])
 }
 
 
-double RHO_exact(const Vector &x)
+real_t RHO_exact(const Vector &x)
 {
    switch (problem)
    {
@@ -336,7 +338,7 @@ void visualize(VisItDataCollection &dc, string prefix, int x, int y)
 }
 
 
-double compute_mass(ParFiniteElementSpace *L2, double massL2,
+real_t compute_mass(ParFiniteElementSpace *L2, real_t massL2,
                     VisItDataCollection &dc, string prefix)
 {
    ConstantCoefficient one(1.0);
@@ -344,7 +346,7 @@ double compute_mass(ParFiniteElementSpace *L2, double massL2,
    lf.AddDomainIntegrator(new DomainLFIntegrator(one));
    lf.Assemble();
 
-   double newmass = lf(*dc.GetParField("density"));
+   real_t newmass = lf(*dc.GetParField("density"));
    if (Mpi::Root())
    {
       cout.precision(18);

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -14,6 +14,9 @@
 # locals
 glob_err=${BASELINE_TEST}.err
 base=${BASELINE_TEST}-${SYS_TYPE}
+if [[ "${MACHINE_NAME}" == "quartz" ]]; then
+  base="${BASELINE_TEST}-${MACHINE_NAME}"
+fi
 base_diff=${base}.diff
 base_patch=${base}.patch
 base_out=${base}.out
@@ -29,11 +32,11 @@ mkdir _${BASELINE_TEST} && cd _${BASELINE_TEST}
 
 # run
 if [[ "${MACHINE_NAME}" == "quartz" || "${MACHINE_NAME}" == "ruby" ]]; then
-  salloc --nodes=1 -p pdebug ../runtest ../../mfem "${BASELINE_TEST} ${TPLS_DIR}"
+  salloc --nodes=1 --reservation=ci ../runtest ../../mfem "${BASELINE_TEST} ${TPLS_DIR}"
 elif [[ ${MACHINE_NAME} == "corona" ]]; then
   salloc --nodes=1 -t 60 -p pbatch ../runtest ../../mfem "${BASELINE_TEST} ${TPLS_DIR}"
 elif [[ ${MACHINE_NAME} == "lassen" ]]; then
-  lalloc 1 -q pdebug ../runtest ../../mfem "${BASELINE_TEST} ${TPLS_DIR}"
+  lalloc 1 -q pci ../runtest ../../mfem "${BASELINE_TEST} ${TPLS_DIR}"
 else
   echo "Unknown machine: MACHINE_NAME=$MACHINE_NAME"
   exit 1

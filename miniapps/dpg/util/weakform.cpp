@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -458,7 +458,7 @@ void DPGWeakForm::Assemble(int skip_zeros)
             }
 
             // assemble rhs
-            double * data = b.GetData();
+            real_t * data = b.GetData();
             Vector vec1;
             // ref subvector
             vec1.SetDataAndSize(&data[trial_offs[i]],
@@ -497,7 +497,7 @@ void DPGWeakForm::FormLinearSystem(const Array<int>
       B.SetSize(P->Width());
 
       P->MultTranspose(*y, B);
-      double *data = y->GetData();
+      real_t *data = y->GetData();
       Vector tmp;
       for (int i = 0; i<nblocks; i++)
       {
@@ -612,7 +612,7 @@ void DPGWeakForm::RecoverFEMSolution(const Vector &X,
    {
       x.SetSize(P->Height());
       P->Mult(X, x);
-      double *data = X.GetData();
+      real_t *data = X.GetData();
       Vector tmp;
       for (int i = 0; i<nblocks; i++)
       {
@@ -770,7 +770,7 @@ Vector & DPGWeakForm::ComputeResidual(const BlockVector & x)
       trial_offs.PartialSum();
 
       u.SetSize(trial_offs.Last());
-      double * data = u.GetData();
+      real_t * data = u.GetData();
       DofTransformation * doftrans = nullptr;
       for (int i = 0; i<trial_fes.Size(); i++)
       {

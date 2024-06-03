@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -51,7 +51,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../../data/inline-quad.mesh";
    int order = -1;
    int ny = -1, nz = -1; // < 0: autoselect based on the initial mesh dimension
-   double wy = 1.0, hz = 1.0;
+   real_t wy = 1.0, hz = 1.0;
    bool trans = false;
    bool visualization = 1;
 
@@ -186,8 +186,8 @@ void trans2D(const Vector&x, Vector&p)
 
 void trans3D(const Vector&x, Vector&p)
 {
-   double r = sqrt(x[0] * x[0] + x[1] * x[1]);
-   double theta = atan2(x[1], x[0]);
+   real_t r = sqrt(x[0] * x[0] + x[1] * x[1]);
+   real_t theta = atan2(x[1], x[0]);
    p[0] = r * cos(theta + 0.25 * M_PI * x[2]);
    p[1] = r * sin(theta + 0.25 * M_PI * x[2]);
    p[2] = x[2];

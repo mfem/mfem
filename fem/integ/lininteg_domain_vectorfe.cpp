@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -18,9 +18,9 @@ namespace mfem
 
 template<int T_D1D = 0, int T_Q1D = 0>
 static void HdivDLFAssemble2D(
-   const int ne, const int d, const int q, const int *markers, const double *bo,
-   const double *bc, const double *j, const double *weights,
-   const Vector &coeff, double *y)
+   const int ne, const int d, const int q, const int *markers, const real_t *bo,
+   const real_t *bc, const real_t *j, const real_t *weights,
+   const Vector &coeff, real_t *y)
 {
    MFEM_VERIFY(T_D1D || d <= DeviceDofQuadLimits::Get().HDIV_MAX_D1D,
                "Problem size too large.");
@@ -45,10 +45,10 @@ static void HdivDLFAssemble2D(
       constexpr int Q = T_Q1D ? T_Q1D : DofQuadLimits::HDIV_MAX_Q1D;
       constexpr int D = T_D1D ? T_D1D : DofQuadLimits::HDIV_MAX_D1D;
 
-      MFEM_SHARED double sBot[Q*D];
-      MFEM_SHARED double sBct[Q*D];
-      MFEM_SHARED double sQQ[vdim*Q*Q];
-      MFEM_SHARED double sQD[vdim*Q*D];
+      MFEM_SHARED real_t sBot[Q*D];
+      MFEM_SHARED real_t sBct[Q*D];
+      MFEM_SHARED real_t sQQ[vdim*Q*Q];
+      MFEM_SHARED real_t sQD[vdim*Q*D];
 
       // Bo and Bc into shared memory
       const DeviceMatrix Bot(sBot, d-1, q);
@@ -61,16 +61,16 @@ static void HdivDLFAssemble2D(
 
       MFEM_FOREACH_THREAD(vd,z,vdim)
       {
-         const double cst_val_0 = C(0,0,0,0);
-         const double cst_val_1 = C(1,0,0,0);
+         const real_t cst_val_0 = C(0,0,0,0);
+         const real_t cst_val_1 = C(1,0,0,0);
          MFEM_FOREACH_THREAD(y,y,q)
          {
             MFEM_FOREACH_THREAD(x,x,q)
             {
-               const double J0 = J(x,y,0,vd,e);
-               const double J1 = J(x,y,1,vd,e);
-               const double C0 = cst ? cst_val_0 : C(0,x,y,e);
-               const double C1 = cst ? cst_val_1 : C(1,x,y,e);
+               const real_t J0 = J(x,y,0,vd,e);
+               const real_t J1 = J(x,y,1,vd,e);
+               const real_t C0 = cst ? cst_val_0 : C(0,x,y,e);
+               const real_t C1 = cst ? cst_val_1 : C(1,x,y,e);
                QQ(x,y,vd) = W(x,y)*(J0*C0 + J1*C1);
             }
          }
@@ -84,7 +84,7 @@ static void HdivDLFAssemble2D(
          {
             MFEM_FOREACH_THREAD(dx,x,nx)
             {
-               double qd = 0.0;
+               real_t qd = 0.0;
                for (int qx = 0; qx < q; ++qx)
                {
                   qd += QQ(qx,qy,vd) * Btx(dx,qx);
@@ -104,7 +104,7 @@ static void HdivDLFAssemble2D(
          {
             MFEM_FOREACH_THREAD(dx,x,nx)
             {
-               double dd = 0.0;
+               real_t dd = 0.0;
                for (int qy = 0; qy < q; ++qy)
                {
                   dd += QD(dx,qy,vd) * Bty(dy,qy);
@@ -119,9 +119,9 @@ static void HdivDLFAssemble2D(
 
 template<int T_D1D = 0, int T_Q1D = 0>
 static void HdivDLFAssemble3D(
-   const int ne, const int d, const int q, const int *markers, const double *bo,
-   const double *bc, const double *j, const double *weights,
-   const Vector &coeff, double *y)
+   const int ne, const int d, const int q, const int *markers, const real_t *bo,
+   const real_t *bc, const real_t *j, const real_t *weights,
+   const Vector &coeff, real_t *y)
 {
    MFEM_VERIFY(T_D1D || d <= DeviceDofQuadLimits::Get().HDIV_MAX_D1D,
                "Problem size too large.");
@@ -146,8 +146,8 @@ static void HdivDLFAssemble3D(
       constexpr int Q = T_Q1D ? T_Q1D : DofQuadLimits::HDIV_MAX_Q1D;
       constexpr int D = T_D1D ? T_D1D : DofQuadLimits::HDIV_MAX_D1D;
 
-      MFEM_SHARED double sBot[Q*D];
-      MFEM_SHARED double sBct[Q*D];
+      MFEM_SHARED real_t sBot[Q*D];
+      MFEM_SHARED real_t sBct[Q*D];
 
       // Bo and Bc into shared memory
       const DeviceMatrix Bot(sBot, d-1, q);
@@ -155,29 +155,29 @@ static void HdivDLFAssemble3D(
       const DeviceMatrix Bct(sBct, d, q);
       kernels::internal::LoadB<D,Q>(d, q, BC, sBct);
 
-      MFEM_SHARED double sm0[vdim*Q*Q*Q];
-      MFEM_SHARED double sm1[vdim*Q*Q*Q];
+      MFEM_SHARED real_t sm0[vdim*Q*Q*Q];
+      MFEM_SHARED real_t sm1[vdim*Q*Q*Q];
       DeviceTensor<4> QQQ(sm1, q, q, q, vdim);
       DeviceTensor<4> DQQ(sm0, d, q, q, vdim);
       DeviceTensor<4> DDQ(sm1, d, d, q, vdim);
 
       MFEM_FOREACH_THREAD(vd,z,vdim)
       {
-         const double cst_val_0 = C(0,0,0,0,0);
-         const double cst_val_1 = C(1,0,0,0,0);
-         const double cst_val_2 = C(2,0,0,0,0);
+         const real_t cst_val_0 = C(0,0,0,0,0);
+         const real_t cst_val_1 = C(1,0,0,0,0);
+         const real_t cst_val_2 = C(2,0,0,0,0);
          MFEM_FOREACH_THREAD(y,y,q)
          {
             MFEM_FOREACH_THREAD(x,x,q)
             {
                for (int z = 0; z < q; ++z)
                {
-                  const double J0 = J(x,y,z,0,vd,e);
-                  const double J1 = J(x,y,z,1,vd,e);
-                  const double J2 = J(x,y,z,2,vd,e);
-                  const double C0 = cst ? cst_val_0 : C(0,x,y,z,e);
-                  const double C1 = cst ? cst_val_1 : C(1,x,y,z,e);
-                  const double C2 = cst ? cst_val_2 : C(2,x,y,z,e);
+                  const real_t J0 = J(x,y,z,0,vd,e);
+                  const real_t J1 = J(x,y,z,1,vd,e);
+                  const real_t J2 = J(x,y,z,2,vd,e);
+                  const real_t C0 = cst ? cst_val_0 : C(0,x,y,z,e);
+                  const real_t C1 = cst ? cst_val_1 : C(1,x,y,z,e);
+                  const real_t C2 = cst ? cst_val_2 : C(2,x,y,z,e);
                   QQQ(x,y,z,vd) = W(x,y,z)*(J0*C0 + J1*C1 + J2*C2);
                }
             }
@@ -193,7 +193,7 @@ static void HdivDLFAssemble3D(
          {
             MFEM_FOREACH_THREAD(dx,x,nx)
             {
-               double u[Q];
+               real_t u[Q];
                MFEM_UNROLL(Q)
                for (int qz = 0; qz < q; ++qz) { u[qz] = 0.0; }
                MFEM_UNROLL(Q)
@@ -220,7 +220,7 @@ static void HdivDLFAssemble3D(
          {
             MFEM_FOREACH_THREAD(dx,x,nx)
             {
-               double u[Q];
+               real_t u[Q];
                MFEM_UNROLL(Q)
                for (int qz = 0; qz < q; ++qz) { u[qz] = 0.0; }
                MFEM_UNROLL(Q)
@@ -249,7 +249,7 @@ static void HdivDLFAssemble3D(
          {
             MFEM_FOREACH_THREAD(dx,x,nx)
             {
-               double u[D];
+               real_t u[D];
                MFEM_UNROLL(D)
                for (int dz = 0; dz < nz; ++dz) { u[dz] = 0.0; }
                MFEM_UNROLL(Q)
@@ -317,11 +317,11 @@ static void HdivDLFAssemble(const FiniteElementSpace &fes,
 
    const int ne = mesh.GetNE();
    const int *M = markers.Read();
-   const double *Bo = maps_o.B.Read();
-   const double *Bc = maps_c.B.Read();
-   const double *J = geom->J.Read();
-   const double *W = ir->GetWeights().Read();
-   double *Y = y.ReadWrite();
+   const real_t *Bo = maps_o.B.Read();
+   const real_t *Bc = maps_c.B.Read();
+   const real_t *J = geom->J.Read();
+   const real_t *W = ir->GetWeights().Read();
+   real_t *Y = y.ReadWrite();
    ker(ne, d, q, M, Bo, Bc, J, W, coeff, Y);
 }
 

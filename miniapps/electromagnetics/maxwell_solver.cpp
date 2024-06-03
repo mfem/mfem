@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -24,16 +24,16 @@ namespace electromagnetics
 {
 
 // Used for combining scalar coefficients
-double prodFunc(double a, double b) { return a * b; }
+real_t prodFunc(real_t a, real_t b) { return a * b; }
 
 MaxwellSolver::MaxwellSolver(ParMesh & pmesh, int order,
-                             double (*eps     )(const Vector&),
-                             double (*muInv   )(const Vector&),
-                             double (*sigma   )(const Vector&),
-                             void   (*j_src   )(const Vector&, double, Vector&),
+                             real_t (*eps     )(const Vector&),
+                             real_t (*muInv   )(const Vector&),
+                             real_t (*sigma   )(const Vector&),
+                             void   (*j_src   )(const Vector&, real_t, Vector&),
                              Array<int> & abcs,
                              Array<int> & dbcs,
-                             void   (*dEdt_bc )(const Vector&, double, Vector&))
+                             void   (*dEdt_bc )(const Vector&, real_t, Vector&))
    : myid_(0),
      num_procs_(1),
      order_(order),
@@ -375,13 +375,13 @@ MaxwellSolver::Mult(const Vector &B, Vector &dEdt) const
 }
 
 void
-MaxwellSolver::ImplicitSolve(double dt, const Vector &B, Vector &dEdt)
+MaxwellSolver::ImplicitSolve(real_t dt, const Vector &B, Vector &dEdt)
 {
    implicitSolve(dt, B, dEdt);
 }
 
 void
-MaxwellSolver::setupSolver(const int idt, const double dt) const
+MaxwellSolver::setupSolver(const int idt, const real_t dt) const
 {
    if ( pcg_.find(idt) == pcg_.end() )
    {
@@ -430,7 +430,7 @@ MaxwellSolver::setupSolver(const int idt, const double dt) const
 }
 
 void
-MaxwellSolver::implicitSolve(double dt, const Vector &B, Vector &dEdt) const
+MaxwellSolver::implicitSolve(real_t dt, const Vector &B, Vector &dEdt) const
 {
    int idt = hCurlLosses_ ? ((int)(dtScale_ * dt / dtMax_)) : 0;
 
@@ -477,7 +477,7 @@ MaxwellSolver::SyncGridFuncs()
    b_->Distribute(*B_);
 }
 
-double
+real_t
 MaxwellSolver::GetMaximumTimeStep() const
 {
    if ( dtMax_ > 0.0 )
@@ -492,7 +492,7 @@ MaxwellSolver::GetMaximumTimeStep() const
    v0->Randomize(1234);
 
    int iter = 0, nstep = 20;
-   double dt0 = 1.0, dt1 = 1.0, change = 1.0, ptol = 0.001;
+   real_t dt0 = 1.0, dt1 = 1.0, change = 1.0, ptol = 0.001;
 
    // Create Solver assuming no loss operators
    setupSolver(0, 0.0);
@@ -501,7 +501,7 @@ MaxwellSolver::GetMaximumTimeStep() const
    // operator.
    while ( iter < nstep && change > ptol )
    {
-      double normV0 = InnerProduct(*v0,*v0);
+      real_t normV0 = InnerProduct(*v0,*v0);
       *v0 /= sqrt(normV0);
 
       NegCurl_->Mult(*v0,*u0);
@@ -510,7 +510,7 @@ MaxwellSolver::GetMaximumTimeStep() const
 
       pcg_[0]->Mult(*RHS_,*v1);
 
-      double lambda = InnerProduct(*v0,*v1);
+      real_t lambda = InnerProduct(*v0,*v1);
       dt1 = 2.0/sqrt(lambda);
       change = fabs((dt1-dt0)/dt0);
       dt0 = dt1;
@@ -532,10 +532,10 @@ MaxwellSolver::GetMaximumTimeStep() const
    return dt0;
 }
 
-double
+real_t
 MaxwellSolver::GetEnergy() const
 {
-   double energy = 0.0;
+   real_t energy = 0.0;
 
    A1_[0]->Mult(*E_,*RHS_);
    M2MuInv_->Mult(*B_,*HD_);
