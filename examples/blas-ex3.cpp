@@ -7,8 +7,9 @@
 #define N 6   // need to have M = N in order to use definition of IDX2C below
 #define W 1
 #define IDX2C(i,j,k,ld) (((ld)*(ld)*(k))+((j)*(ld))+(i))
+#define IDXV(i,j,ld) ((ld*j)+i)
 
-// Build a function that helps to modify <type> tensor m ON THE DEVICE with dimensions ldm x n by scaling certain values with alpha or beta 
+// Build a function that helps to modify <type> tensor m ON THE DEVICE with dimensions ldm x n by scaling certain values with alpha or beta
 // NOTE: cublas<t>scal scales the vector x by a scalar alpha and overwrites with the result (S float, D double, etc)
 static __inline__ void modify (cublasHandle_t handle, float *m, int ldm, int n, int p, int q, float alpha, float beta){
     cublasSscal (handle, n-q, &alpha, &m[IDX2C(p,q,0,ldm)], ldm);  // numElems = n-q, scalar = alpha, start at devVec = m[p+ldm*q], inc = ldm
@@ -17,14 +18,14 @@ static __inline__ void modify (cublasHandle_t handle, float *m, int ldm, int n, 
 
 int main (void){
     cudaError_t cudaStat;  // collects generation of cudaError_t
-    cublasStatus_t stat;  // collects generation of cudaStatus_t 
-    cublasHandle_t handle;  // tracks handle into API; can be specified futher but NULL works too 
+    cublasStatus_t stat;  // collects generation of cudaStatus_t
+    cublasHandle_t handle;  // tracks handle into API; can be specified futher but NULL works too
     int i, j, k;
-    float* devPtrA;  // device pointer for a 
-    float* a = 0;  // host device pointer 
+    float* devPtrA;  // device pointer for a
+    float* a = 0;  // host device pointer
 
     float* devPtrX;  // device pointer for host pointer x
-    float* x = 0;  // host device pointer 
+    float* x = 0;  // host device pointer
 
     float* devPtrY;  // device pointer for host pointer y
     float* y = 0;  // host device pointer
@@ -34,19 +35,18 @@ int main (void){
         printf ("host memory allocation failed for a");
         return EXIT_FAILURE;
     }
-    x = (float *)malloc (N * W * sizeof(*x)); 
+    x = (float *)malloc (N * W * sizeof(*x));
     if (!x) {
         printf ("host memory allocation failed for x");
         return EXIT_FAILURE;
     }
-    y = (float *)malloc (N * W * sizeof(*y)); 
+    y = (float *)malloc (N * W * sizeof(*y));
     if (!y) {
         printf ("host memory allocation failed for y");
         return EXIT_FAILURE;
     }
     for (k = 0; k < W; k++) {
         for (j = 0; j < N; j++) {
-            x[IDX2C(0,j,k,M)] = (float)(IDX2C(0,j,k,M));
             for (i = 0; i < M; i++) {
                 a[IDX2C(i,j,k,M)] = (float)(IDX2C(i,j,k,M));  // fill up a with values i*N+j+1; e.g. a[0][0] = 0*N+0+1 = 1
                 printf ("%7.0f", a[IDX2C(i,j,k,M)]);
@@ -57,7 +57,8 @@ int main (void){
     }
     for (k = 0; k < W; k++) {
         for (j = 0; j < N; j++) {
-            printf ("%7.0f", x[IDX2C(0,j,k,M)]);
+            x[IDXV(j,k,N)] = (float)(IDXV(j,k,N));
+            printf ("%7.0f", x[IDXV(j,k,N)]);
         }
         printf ("\n");
     }
@@ -83,7 +84,7 @@ int main (void){
 
     // ***START OF DEVICE COMPUTATIONS***
     // create handle to start CUBLAS work on the device; i.e. initialize CUBLAS
-    stat = cublasCreate(&handle);  
+    stat = cublasCreate(&handle);
     if (stat != CUBLAS_STATUS_SUCCESS) {
         printf ("CUBLAS initialization failed\n");
         free (a);
@@ -91,7 +92,7 @@ int main (void){
         cudaFree (devPtrA);
         return EXIT_FAILURE;
     }
-    stat = cublasSetMatrix (M, N, sizeof(*a), a, M, devPtrA, M);  // fill in the device pointer matrix; 
+    stat = cublasSetMatrix (M, N, sizeof(*a), a, M, devPtrA, M);  // fill in the device pointer matrix;
     // arguments are (rows, cols, NE, elemSize, source_matrix, ld of source, destination matrix, ld dest)
     if (stat != CUBLAS_STATUS_SUCCESS) {
         printf ("data download failed");
@@ -100,7 +101,7 @@ int main (void){
         cublasDestroy(handle);
         return EXIT_FAILURE;
     }
-    stat = cublasSetMatrix (N, W, sizeof(*x), x, N, devPtrX, N);  // fill in the device pointer matrix; 
+    stat = cublasSetMatrix (N, W, sizeof(*x), x, N, devPtrX, N);  // fill in the device pointer matrix;
     // arguments are (rows, cols, NE, elemSize, source_matrix, ld of source, destination matrix, ld dest)
     if (stat != CUBLAS_STATUS_SUCCESS) {
         printf ("data download failed");
@@ -109,15 +110,15 @@ int main (void){
         cublasDestroy(handle);
         return EXIT_FAILURE;
     }
-    
-    // handles the computations on the device 
-    float *alpha = 1.0;
-    float *beta = 0.0;
-    stat = cublasSgemv (handle, CUBLAS_OP_N, M, N, 
-                        alpha, devPtrA, M, devPtrX, 1, 
-                        beta, devPtrY, 1);
 
-    // copies device memory to host memory, for output from host 
+    // handles the computations on the device
+    float alpha = 1;
+    float beta = 0;
+    stat = cublasSgemv (handle, CUBLAS_OP_N, M, N,
+                        &alpha, devPtrA, M, devPtrX, 1,
+                        &beta, devPtrY, 1);
+
+    // copies device memory to host memory, for output from host
     stat = cublasGetMatrix (N, W, sizeof(*y), devPtrY, N, y, N);
     if (stat != CUBLAS_STATUS_SUCCESS) {
         printf ("data upload failed");
@@ -126,7 +127,7 @@ int main (void){
         cublasDestroy(handle);
         return EXIT_FAILURE;
     }
-    // free up memory & end API connection 
+    // free up memory & end API connection
     cudaFree (devPtrA);
     cudaFree (devPtrX);
     cudaFree (devPtrY);
@@ -136,7 +137,7 @@ int main (void){
     // with memory on host device, we can now output it
     for (k = 0; k < W; k++) {
         for (j = 0; j < N; j++) {
-            printf ("%7.0", y[IDX2C(0,j,k,M)]);  // col-major, so prints vectors of columns out together in each row
+            printf ("%7.0f", y[IDXV(j,k,N)]);  // col-major, so prints vectors of columns out together in each row
         }
         printf ("\n");
     }
