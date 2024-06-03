@@ -93,11 +93,11 @@ static void CompareMeshes(Mesh & mesh1, Mesh & mesh2)
 }
 #endif
 
-TEST_CASE("ExodusII Write Hex8", "[Mesh]")
+TEST_CASE("ExodusII Write Hex8", "[Mesh][MFEMData]")
 {
 #ifdef MFEM_USE_NETCDF
    // Load Exodus II mesh from file.
-   std::string fpath_original = "data/simple-cube-hex8.e";
+   std::string fpath_original = "../../../data/simple-cube-hex8.e";
    Mesh original_mesh = Mesh::LoadFromFile(fpath_original, 0, 0, true);
 
    // Write generated Exodus II mesh to file.
@@ -114,11 +114,11 @@ TEST_CASE("ExodusII Write Hex8", "[Mesh]")
 #endif
 }
 
-TEST_CASE("ExodusII Write Hex27", "[Mesh]")
+TEST_CASE("ExodusII Write Hex27", "[Mesh][MFEMData]")
 {
 #ifdef MFEM_USE_NETCDF
    // Load Exodus II mesh from file.
-   std::string fpath_original = "data/simple-cube-hex27.e";
+   std::string fpath_original = "../../../data/simple-cube-hex27.e";
    Mesh original_mesh = Mesh::LoadFromFile(fpath_original, 0, 0, true);
 
    // Write generated Exodus II mesh to file.
@@ -134,11 +134,11 @@ TEST_CASE("ExodusII Write Hex27", "[Mesh]")
 #endif
 }
 
-TEST_CASE("ExodusII Write Tet4", "[Mesh]")
+TEST_CASE("ExodusII Write Tet4", "[Mesh][MFEMData]")
 {
 #ifdef MFEM_USE_NETCDF
    // Load Exodus II mesh from file. NB: - Do NOT refine as this changes vertex ordering!
-   std::string fpath_original = "data/simple-cube-tet4.e";
+   std::string fpath_original = "../../../data/simple-cube-tet4.e";
    Mesh original_mesh = Mesh::LoadFromFile(fpath_original, 0, 0, true);
 
    // Write generated Exodus II mesh to file.
@@ -154,11 +154,11 @@ TEST_CASE("ExodusII Write Tet4", "[Mesh]")
 #endif
 }
 
-TEST_CASE("ExodusII Write Tet10", "[Mesh]")
+TEST_CASE("ExodusII Write Tet10", "[Mesh][MFEMData]")
 {
 #ifdef MFEM_USE_NETCDF
    // Load Exodus II mesh from file.
-   std::string fpath_original = "data/simple-cube-tet10.e";
+   std::string fpath_original = "../../../data/simple-cube-tet10.e";
    Mesh original_mesh = Mesh::LoadFromFile(fpath_original, 0, 0, true);
 
    // Write generated Exodus II mesh to file.
@@ -174,10 +174,10 @@ TEST_CASE("ExodusII Write Tet10", "[Mesh]")
 #endif
 }
 
-// TEST_CASE("ExodusII Write Wedge6", "[Mesh]")
+// TEST_CASE("ExodusII Write Wedge6", "[Mesh][MFEMData]")
 // {
 // #ifdef MFEM_USE_NETCDF
-//    std::string fpath_original = "data/simple-cube-wedge6.e";
+//    std::string fpath_original = "../../../data/simple-cube-wedge6.e";
 //    Mesh original_mesh = Mesh::LoadFromFile(fpath_original, 0, 0, true);
 
 //    std::string fpath_generated = "simple-cube-wedge6-out.e";
@@ -190,10 +190,10 @@ TEST_CASE("ExodusII Write Tet10", "[Mesh]")
 // #endif
 // }
 
-// TEST_CASE("ExodusII Write Wedge18", "[Mesh]")
+// TEST_CASE("ExodusII Write Wedge18", "[Mesh][MFEMData]")
 // {
 // #ifdef MFEM_USE_NETCDF
-//    std::string fpath_original = "data/simple-cube-wedge18.e";
+//    std::string fpath_original = "../../../data/simple-cube-wedge18.e";
 //    Mesh original_mesh = Mesh::LoadFromFile(fpath_original, 0, 0, true);
 
 //    std::string fpath_generated = "simple-cube-wedge18-out.e";
@@ -206,10 +206,10 @@ TEST_CASE("ExodusII Write Tet10", "[Mesh]")
 // #endif
 // }
 
-// TEST_CASE("ExodusII Write Pyramid5", "[Mesh]")
+// TEST_CASE("ExodusII Write Pyramid5", "[Mesh][MFEMData]")
 // {
 // #ifdef MFEM_USE_NETCDF
-//    std::string fpath_original = "data/simple-cube-pyramid5.e";
+//    std::string fpath_original = "../../../data/simple-cube-pyramid5.e";
 //    Mesh original_mesh = Mesh::LoadFromFile(fpath_original, 0, 0, true);
 
 //    std::string fpath_generated = "simple-cube-pyramid5-out.e";
@@ -222,10 +222,10 @@ TEST_CASE("ExodusII Write Tet10", "[Mesh]")
 // #endif
 // }
 
-// TEST_CASE("ExodusII Write Pyramid14", "[Mesh]")
+// TEST_CASE("ExodusII Write Pyramid14", "[Mesh][MFEMData]")
 // {
 // #ifdef MFEM_USE_NETCDF
-//    std::string fpath_original = "data/simple-cube-pyramid14.e";
+//    std::string fpath_original = "../../../data/simple-cube-pyramid14.e";
 //    Mesh original_mesh = Mesh::LoadFromFile(fpath_original, 0, 0, true);
 
 //    std::string fpath_generated = "simple-cube-pyramid14-out.e";
@@ -238,11 +238,11 @@ TEST_CASE("ExodusII Write Tet10", "[Mesh]")
 // #endif
 // }
 
-// TEST_CASE("ExodusII Write Mixed First-Order", "[Mesh]")
+// TEST_CASE("ExodusII Write Mixed First-Order", "[Mesh][MFEMData]")
 // {
 // #ifdef MFEM_USE_NETCDF
 //    // Contains Hex8, Tet4, Wedge6, Pyramid5 elements.
-//    std::string fpath_original = "data/simple-cube-multi-element-order1.e";
+//    std::string fpath_original = "../../../data/simple-cube-multi-element-order1.e";
 //    Mesh original_mesh = Mesh::LoadFromFile(fpath_original, 0, 0, true);
 
 //    std::string fpath_generated = "simple-cube-multi-element-order1-out.e";
@@ -255,11 +255,11 @@ TEST_CASE("ExodusII Write Tet10", "[Mesh]")
 // #endif
 // }
 
-// TEST_CASE("ExodusII Write Mixed Second-Order", "[Mesh]")
+// TEST_CASE("ExodusII Write Mixed Second-Order", "[Mesh][MFEMData]")
 // {
 // #ifdef MFEM_USE_NETCDF
 //    // Contains Hex27 and Tet10 elements.
-//    std::string fpath_original = "data/simple-cube-multi-element-order2.e";
+//    std::string fpath_original = "../../../data/simple-cube-multi-element-order2.e";
 //    Mesh original_mesh = Mesh::LoadFromFile(fpath_original, 0, 0, true);
 
 //    std::string fpath_generated = "simple-cube-multi-element-order2-out.e";
