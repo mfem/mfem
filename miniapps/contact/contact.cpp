@@ -1,12 +1,12 @@
 //                               Parallel contact example
-// mpirun -np 8 ./contact -ls 2 -sr 2 -testno 4
-// CG iteration numbers = 110 122 126 126 125 123 120 151 116 112 110 107 175 287 282 318 340
+// mpirun -np 4 ./contact -ls 2 -sr 1 -testno 4
+// CG iteration numbers            = 105 114 116 115 113 109 113 108 107 114 206 236 268 435 987
 
-// mpirun -np 8 ./contact -ls 2 -sr 1 -testno 5
-// CG iteration numbers = 119 130 130 130 129 127 124 121 120 117 115 142 287 801
+// mpirun -np 4 ./contact -ls 2 -sr 0 -testno 5
+// CG iteration numbers            = 106 116 116 116 115 113 107 107 128 131 531 1437 1318
 
-// mpirun -np 8 ./contact -ls 2 -sr 0 -testno 6
-// CG iteration numbers = 18 18 18 17 18 18 17 17 30 27 108 116 143 150 348 1099
+// mpirun -np 4 ./contact -ls 2 -sr 0 -testno 6
+// CG iteration numbers            = 18 18 18 18 18 17 17 21 22 46 52 53
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
