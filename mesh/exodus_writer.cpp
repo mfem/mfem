@@ -1031,7 +1031,8 @@ void ExodusIIWriter::CheckNodalFESpaceIsSecondOrderH1() const
    const int fespace_order = fespace->GetMaxElementOrder();
    if (fespace_order != 2)
    {
-      MFEM_ABORT("Nodal fespace is of order " << fespace_order << ". Expected 2nd order.");
+      MFEM_ABORT("Nodal fespace is of order " << fespace_order <<
+                 ". Expected 2nd order.");
    }
 
    // Get a pointer to the FE collection associated with the fespace.
@@ -1044,7 +1045,8 @@ void ExodusIIWriter::CheckNodalFESpaceIsSecondOrderH1() const
    // Expect H1 FEC.
    if (strncmp(fec->Name(), "H1", 2) != 0)
    {
-      MFEM_ABORT("Nodal fespace's FECollection is '" << fec->Name() << "'. Expected H1.");
+      MFEM_ABORT("Nodal fespace's FECollection is '" << fec->Name() <<
+                 "'. Expected H1.");
    }
 }
 
