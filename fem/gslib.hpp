@@ -58,7 +58,7 @@ namespace mfem
  *  For custom interpolation (e.g., evaluating strain rate tensor), we provide
  *  functions that use gslib to send element index and corresponding
  *  reference-space coordinates for each point to the mpi rank that the element
- *  is located on. Then, interpolation can be done locally by the user before
+ *  is located on. Then, custom interpolation can be defined locally by the user before
  *  sending the values back to mpi ranks where the query originated from.
  *  See \ref SendElementsAndCoordinatesToOwningMPIRanks and
  *  \ref SendInterpolatedValuesBack.
