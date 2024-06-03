@@ -108,7 +108,7 @@ const float EXODUS_DATABASE_VERSION = 4.72;
 
 const int EXODUS_MAX_NAME_LENGTH = 80;
 const int EXODUS_MAX_LINE_LENGTH = 80;
-};
+}
 
 /**
  * Helper class for writing a mesh to an ExodusII file.
