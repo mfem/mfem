@@ -55,6 +55,8 @@ const int mfem_to_exodusII_side_map_pyramid5[] =
 };
 }
 
+namespace ExodusIINodeOrderings
+{
 /// Convert from the MFEM (0-based) node ordering to the ExodusII 1-based node
 /// ordering.
 const int mfem_to_exodusII_node_ordering_tet10[] =
@@ -78,6 +80,8 @@ const int mfem_to_exodusII_node_ordering_pyramid14[] =
 {
    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14
 };
+}
+
 
 namespace ExodusIILabels
 {
@@ -698,16 +702,20 @@ void ExodusIIWriter::WriteNodeConnectivityForBlock(const int block_id)
    switch (block_type)
    {
       case Element::Type::TETRAHEDRON:
-         node_ordering_map = (int *)mfem_to_exodusII_node_ordering_tet10;
+         node_ordering_map = (int *)
+                             ExodusIINodeOrderings::mfem_to_exodusII_node_ordering_tet10;
          break;
       case Element::Type::HEXAHEDRON:
-         node_ordering_map = (int *)mfem_to_exodusII_node_ordering_hex27;
+         node_ordering_map = (int *)
+                             ExodusIINodeOrderings::mfem_to_exodusII_node_ordering_hex27;
          break;
       case Element::Type::WEDGE:
-         node_ordering_map = (int *)mfem_to_exodusII_node_ordering_wedge18;
+         node_ordering_map = (int *)
+                             ExodusIINodeOrderings::mfem_to_exodusII_node_ordering_wedge18;
          break;
       case Element::Type::PYRAMID:
-         node_ordering_map = (int *)mfem_to_exodusII_node_ordering_pyramid14;
+         node_ordering_map = (int *)
+                             ExodusIINodeOrderings::mfem_to_exodusII_node_ordering_pyramid14;
          break;
       default:
          MFEM_ABORT("Higher-order elements of type '" << block_type <<
