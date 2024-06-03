@@ -931,15 +931,10 @@ void ExodusIIWriter::GenerateExodusIIBoundaryInfo()
    _exodusII_element_ids_for_boundary_id.clear();
    _exodusII_side_ids_for_boundary_id.clear();
 
-   for (int bdr_attribute : _mesh.bdr_attributes)
-   {
-      _boundary_ids.push_back(bdr_attribute);
-   }
-
    // Generate a mapping from the MFEM face index to the MFEM element ID.
    // Note that if we have multiple element IDs for a face index then the
-   // face is shared between them and it cannot possibly be a boundary face
-   // since that can only have a single element associated with it. Therefore
+   // face is shared between them and it cannot possibly be an external boundary
+   // face since that can only have a single element associated with it. Therefore
    // we remove it from the array.
    struct GlobalFaceIndexInfo
    {
@@ -986,10 +981,19 @@ void ExodusIIWriter::GenerateExodusIIBoundaryInfo()
       }
    }
 
+   std::unordered_set<int> unique_boundary_attributes;
+
    for (int ibdr_element = 0; ibdr_element < _mesh.GetNBE(); ibdr_element++)
    {
       int boundary_id = _mesh.GetBdrAttribute(ibdr_element);
       int bdr_element_face_index = _mesh.GetBdrElementFaceIndex(ibdr_element);
+
+      // Skip any interior boundary faces.
+      if (_mesh.FaceIsInterior(bdr_element_face_index))
+      {
+         MFEM_WARNING("Skipping internal boundary " << ibdr_element);
+         continue;
+      }
 
       // Locate match.
       auto & element_face_info = mfem_face_index_info_for_global_face_index.at(
@@ -1023,10 +1027,16 @@ void ExodusIIWriter::GenerateExodusIIBoundaryInfo()
             MFEM_ABORT("Cannot handle element of type " << element_type);
       }
 
+      unique_boundary_attributes.insert(boundary_id);
+
       _exodusII_element_ids_for_boundary_id[boundary_id].push_back(
          exodusII_element_id);
       _exodusII_side_ids_for_boundary_id[boundary_id].push_back(exodusII_face_id);
    }
+
+   _boundary_ids.assign(unique_boundary_attributes.begin(),
+                        unique_boundary_attributes.end());
+   std::sort(_boundary_ids.begin(), _boundary_ids.end());
 }
 
 void ExodusIIWriter::CheckNodalFESpaceIsSecondOrderH1() const
