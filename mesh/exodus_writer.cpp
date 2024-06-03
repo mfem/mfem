@@ -262,6 +262,9 @@ protected:
    void WriteExodusIIMeshInformation();
 
 private:
+   /// @brief Verifies that the nodal FESpace exists and is H1, order 2.
+   void CheckNodalFESpaceIsSecondOrderH1() const;
+
    // ExodusII file ID.
    int _exid{-1};
 
@@ -350,6 +353,35 @@ void ExodusIIWriter::WriteExodusIIMeshInformation()
    WriteElementBlocks();
    WriteBoundaries();
    WriteNodeSets();
+}
+
+void ExodusIIWriter::CheckNodalFESpaceIsSecondOrderH1() const
+{
+   const FiniteElementSpace * fespace = _mesh.GetNodalFESpace();
+   if (!fespace)  // Mesh does not have nodes.
+   {
+      MFEM_ABORT("The mesh has no nodal fespace.");
+   }
+
+   // Expect order 2.
+   const int fespace_order = fespace->GetMaxElementOrder();
+   if (fespace_order != 2)
+   {
+      MFEM_ABORT("Nodal fespace is of order " << fespace_order << ". Expected 2nd order.");
+   }
+
+   // Get a pointer to the FE collection associated with the fespace.
+   const FiniteElementCollection * fec = fespace->FEColl();
+   if (!fec)
+   {
+      MFEM_ABORT("No FECollection associated with nodal fespace.");
+   }
+
+   // Expect H1 FEC.
+   if (strncmp(fec->Name(), "H1", 2) != 0)
+   {
+      MFEM_ABORT("Nodal fespace's FECollection is '" << fec->Name() << "'. Expected H1.");
+   }
 }
 
 void ExodusIIWriter::PrintExodusII(std::string fpath, int flags)
@@ -507,6 +539,9 @@ void ExodusIIWriter::WriteElementBlockParameters(int block_id)
    int num_node_per_el_id;
    if (_mesh.GetNodes())
    {
+      // Safety check: H1, order 2 fespace.
+      CheckNodalFESpaceIsSecondOrderH1();
+
       // Higher order. Get the first element from the block.
       const FiniteElementSpace * fespace = _mesh.GetNodalFESpace();
 
