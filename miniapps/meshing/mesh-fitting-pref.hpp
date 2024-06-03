@@ -580,7 +580,6 @@ void PropogateOrders(const GridFunction &ordergf, //current orders
                         approach);
 }
 
-
 Array<Mesh *> SetupSurfaceMeshes()
 {
    Array<Mesh *> surf_meshes(3);
@@ -1076,11 +1075,16 @@ double InterfaceElementOrderReduction(const Mesh *mesh,
    double error = 0.0;
    int point_ordering(1);
    finder.Interpolate(vxyz, *ls_bg, interp_values, point_ordering);
+   double max_pointwise_error = 0.0;
+   double sum_pointwise_error = 0.0;
    for (int i=0; i<ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
       seltrans->SetIntPoint(&ip);
       double level_set_value = interp_values(i) ;
+      sum_pointwise_error += level_set_value*level_set_value;
+      max_pointwise_error = std::max(max_pointwise_error,
+                                     level_set_value*level_set_value);
       error += ip.weight*seltrans->Weight() * std::pow(level_set_value, 2.0);
       size += ip.weight*seltrans->Weight();
    }
@@ -1105,6 +1109,14 @@ double InterfaceElementOrderReduction(const Mesh *mesh,
    {
       error = error > 0.0 ? std::pow(error, 0.5) : 0.0;
       return_val = error/size;
+   }
+   else if (etype == 5)
+   {
+      return_val = max_pointwise_error;
+   }
+   else if (etype == 6)
+   {
+      return_val = sum_pointwise_error;
    }
    else
    {
