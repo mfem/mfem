@@ -162,7 +162,7 @@ void BilinearForm::EnableHybridization(FiniteElementSpace *constr_space,
                                        BilinearFormIntegrator *constr_integ,
                                        const Array<int> &ess_tdof_list)
 {
-   if (assembly != AssemblyLevel::LEGACY)
+   if (assembly != AssemblyLevel::LEGACY && assembly != AssemblyLevel::ELEMENT)
    {
       delete constr_integ;
       hybridization.reset();
@@ -222,8 +222,8 @@ void BilinearForm::Finalize (int skip_zeros)
       if (!static_cond) { mat->Finalize(skip_zeros); }
       if (mat_e) { mat_e->Finalize(skip_zeros); }
       if (static_cond) { static_cond->Finalize(); }
-      if (hybridization) { hybridization->Finalize(); }
    }
+   if (hybridization) { hybridization->Finalize(); }
 }
 
 void BilinearForm::AddDomainIntegrator(BilinearFormIntegrator *bfi)
@@ -381,6 +381,10 @@ void BilinearForm::Assemble(int skip_zeros)
    if (ext)
    {
       ext->Assemble();
+      if (hybridization)
+      {
+         hybridization->AssembleElementMatrices(GetElementMatrices());
+      }
       return;
    }
 
@@ -750,7 +754,19 @@ void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
 {
    if (ext)
    {
-      ext->FormLinearSystem(ess_tdof_list, x, b, A, X, B, copy_interior);
+      if (hybridization)
+      {
+         FormSystemMatrix(ess_tdof_list, A);
+         ConstrainedOperator A_constrained(this, ess_tdof_list);
+         A_constrained.EliminateRHS(x, b);
+         hybridization->ReduceRHS(b, B);
+         X.SetSize(B.Size());
+         X = 0.0;
+      }
+      else
+      {
+         ext->FormLinearSystem(ess_tdof_list, x, b, A, X, B, copy_interior);
+      }
       return;
    }
    const SparseMatrix *P = fes->GetConformingProlongation();
@@ -818,7 +834,16 @@ void BilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
 {
    if (ext)
    {
-      ext->FormSystemMatrix(ess_tdof_list, A);
+      if (hybridization)
+      {
+         const int remove_zeros = 0;
+         Finalize(remove_zeros);
+         A.Reset(&hybridization->GetMatrix(), false);
+      }
+      else
+      {
+         ext->FormSystemMatrix(ess_tdof_list, A);
+      }
       return;
    }
 
