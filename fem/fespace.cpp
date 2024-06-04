@@ -1568,7 +1568,7 @@ SparseMatrix *FiniteElementSpace::VariableOrderRefinementMatrix_main(
 
          for (int i = 0; i < fine_ldof; i++)
          {
-            int r = DofToVDof(dofs[i], vd);
+            const int r = DofToVDof(dofs[i], vd);
             int m = (r >= 0) ? r : (-1 - r);
 
             if (!mark[m])
@@ -1581,7 +1581,7 @@ SparseMatrix *FiniteElementSpace::VariableOrderRefinementMatrix_main(
       }
    }
 
-   MFEM_ASSERT(mark.Sum() == P->Height(), "Not all rows of P set.");
+   MFEM_VERIFY(mark.Sum() == P->Height(), "Not all rows of P set.");
    P->Finalize();
    return P;
 }
@@ -1845,7 +1845,7 @@ void FiniteElementSpace::RefinementOperator::MultTranspose(const Vector &x,
          fe = fespace->GetFE(k);
          isotr.SetIdentityTransformation(geom);
          const int ldof = fe->GetDof();
-         eP.SetSize(ldof, ldof);
+         eP.SetSize(ldof);
          const DenseTensor &pmats = trans_ref.point_matrices[geom];
          isotr.SetPointMat(pmats(emb.matrix));
          fe->GetLocalInterpolation(isotr, eP);

@@ -36,9 +36,9 @@ void RandomPRefinement(FiniteElementSpace & fes)
    Mesh *mesh = fes.GetMesh();
    for (int i = 0; i < mesh->GetNE(); i++)
    {
-      const int eorder = fes.GetElementOrder(i);
       if ((double) rand() / RAND_MAX < 0.5)
       {
+         const int eorder = fes.GetElementOrder(i);
          fes.SetElementOrder(i,eorder+1);
       }
    }
@@ -107,9 +107,10 @@ TEST_CASE("hpTransfer", "[hpTransfer]")
    order        = GENERATE(1,2);
    auto relax_conformity = GENERATE(false, true);
 
+   /* No need to distinguish between relaxed and full conformity in the DG case*/
    if ((space == Space::L2 || space == Space::VectorL2) && relax_conformity) { return; }
 
-   int ne = 3;
+   constexpr int ne = 3;
 
    CAPTURE(space, dim, simplex, order, relax_conformity);
 
@@ -126,7 +127,7 @@ TEST_CASE("hpTransfer", "[hpTransfer]")
    }
    mesh.EnsureNCMesh(true);
 
-   // 1. Set up initial state by randomly h- and p- refine
+   // 1. Set up initial state by randomly h- and p- refinement
    mesh.RandomRefinement(0.5);
 
    FiniteElementCollection * fec = nullptr;
@@ -157,7 +158,7 @@ TEST_CASE("hpTransfer", "[hpTransfer]")
       gf.ProjectCoefficient(vf);
    }
 
-   // 3: Randomly h-refine the mesh and transfer the GridFunction
+   // 3. Randomly h-refine the mesh and transfer the GridFunction
    mesh.RandomRefinement(0.5);
    fes.Update();
    gf.Update();
@@ -184,7 +185,7 @@ TEST_CASE("hpTransfer", "[hpTransfer]")
    //     mesh exactly reproduces the polynomial GridFunction
    REQUIRE(err_gf.Norml2() < 1e-11);
 
-   // 4: Randomly p-refine the mesh and transfer the GridFunction
+   // 4. Randomly p-refine the mesh and transfer the GridFunction
    Mesh cmesh(mesh);
    FiniteElementSpace cfes(&cmesh, fec, dimc);
    cfes.SetRelaxedHpConformity(relax_conformity);
@@ -222,7 +223,7 @@ TEST_CASE("hpTransfer", "[hpTransfer]")
    //     mesh exactly reproduces the polynomial GridFunction
    REQUIRE(err_gf.Norml2() < 1e-11);
 
-   // 5: Before randomly de-refine the mesh ensure that the elements
+   // 5. Before randomly de-refining the mesh ensure that the elements
    //    (of the same parent) that are going to be de-refined
    //    have the same order
    Mesh fmesh(mesh);
@@ -263,7 +264,7 @@ TEST_CASE("hpTransfer", "[hpTransfer]")
    //     mesh exactly reproduces the polynomial GridFunction
    REQUIRE(err_gf.Norml2() < 1e-11);
 
-   // 6: De-refine the mesh and transfer the GridFunction
+   // 6. De-refine the mesh and transfer the GridFunction
    Derefine(mesh,drefs);
 
    fes.Update();
