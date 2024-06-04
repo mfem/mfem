@@ -73,13 +73,37 @@ void evaluate1D(Vector &x, Vector &f, GridFunction *gf, int lod)
    }
 }
 
+StabType GetStabilisationType(int stype)
+{
+   switch (stype)
+   {
+      case GALERKIN:
+         mfem::out<<"Galerkin formulation"<<std::endl;
+         break;
+      case SUPG:
+         mfem::out<<"SUPG formulation"<<std::endl;
+         break;
+      case GLS:
+         mfem::out<<"GLS formulation"<<std::endl;
+         break;
+      case VMS:
+         mfem::out<<"VMS formulation"<<std::endl;
+         break;
+      default:
+         mfem::out<<"GAL"<<"\t"<<"SUPG"<<"\t"<<"GLS"<<"\t"<<"VMS"<<std::endl;
+         mfem::out<<GALERKIN<<"\t"<<SUPG<<"\t"<<GLS<<"\t"<<VMS<<std::endl;
+         mfem_error("Wrong formulation");
+   }
+   return (StabType) stype;
+}
+
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    const char *mesh_file = "../../data/inline-quad.mesh";
    const char *ref_file  = "";
    int problem = 0;
-   int sstype = 0;
+   int sstype = -2;
    bool static_cond = false;
    bool visualization = false;
    int lod = 0;
@@ -106,14 +130,14 @@ int main(int argc, char *argv[])
    args.AddOption(&att_param , "-a", "--att",
                   "Sets the velocity direction");
    args.AddOption(&problem, "-p", "--problem",
-                  "Select the problem to solve:\n"
-                  " 0 = convection skew-to-the mesh\n"
-                   "1 = manufactured solution\n");
+                  "Select the problem to solve:\n\t"
+                  "  0 = convection skew-to-the mesh\n\t"
+                  "  1 = manufactured solution\n");
    args.AddOption(&sstype, "-s", "--stab", " Stabilization type:\n\t"
-                  "  Galerkin 0 \n\t"
-                  "  SUPG 1\n\t"
-                  "  GLS 2\n\t"
-                  "  VMS 3\n\t");
+                  " -2 = Galerkin\n\t"
+                  " -1 = GLS\n\t"
+                  "  0 = SUPG\n\t"
+                  "  1 = VMS\n");
    args.AddOption(&mono, "-mo", "--mono", "-co",
                   "--comp",
                   "Use a monolithic integrator or a composed one.");
@@ -132,26 +156,6 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(mfem::out);
 
-   StabType  stype = (StabType)sstype;
-   switch (stype)
-   {
-      case GALERKIN:
-         mfem::out<<"Galerkin formulation"<<endl;
-         break;
-      case SUPG:
-         mfem::out<<"SUPG formulation"<<endl;
-         break;
-      case GLS:
-         mfem::out<<"GLS formulation"<<endl;
-         break;
-      case VMS:
-         mfem::out<<"VMS formulation"<<endl;
-         break;
-      default:
-         mfem::out<<"GAL"<<"\t"<<"SUPG"<<"\t"<<"GLS"<<"\t"<<"VMS"<<endl;
-         mfem::out<<GALERKIN<<"\t"<<SUPG<<"\t"<<GLS<<"\t"<<VMS<<endl;
-         mfem_error("Wrong formulation");
-   }
 
 
    // 2. Read the mesh from the given mesh file. We can handle triangular,
@@ -277,19 +281,21 @@ int main(int argc, char *argv[])
 
    if (problem == 1)
    {
-      real_t err  = x.ComputeL2Error(*sol);
-      real_t gerr = x.ComputeGradError(grad);
-      real_t lerr = x.ComputeLaplaceError(lap);
+      Vector norm(3);
+      norm[0] = x.ComputeL2Error(*sol);
+      norm[1] = x.ComputeGradError(grad);
+      norm[2] = x.ComputeLaplaceError(lap);
 
-      mfem::out << "|| x_h - x_ex || = " << err  << "\n";
-      mfem::out << "|| grad x_h - grad x_ex ||    = " << gerr << "\n";
-      mfem::out << "|| lap x_h - lap x_ex ||      = " << lerr << "\n";
+      mfem::out << "|| x_h - x_ex || = " << norm[0]  << "\n";
+      mfem::out << "|| grad x_h - grad x_ex ||    = " << norm[1] << "\n";
+      mfem::out << "|| lap x_h - lap x_ex ||      = " << norm[2] << "\n";
    }
 
    // 9. Assemble the bilinear form and the corresponding linear system,
    //    applying any necessary transformations such as: eliminating boundary
    //    conditions, applying conforming constraints for non-conforming AMR,
    //    static condensation, etc.
+   StabType stype = GetStabilisationType(sstype);
    FFH92Tau tau (adv, kappa, fespace);
    StabConDifComposition stab_condif_comp(adv, kappa, force, &tau);
 
@@ -370,9 +376,9 @@ int main(int argc, char *argv[])
    }
 
    // 14. Error computation
-   Vector norm(3);
-   if (problem == 0)
+   if (problem == 1)
    {
+      Vector norm(3);
       norm[0] = x.ComputeL2Error(*sol);
       norm[1] = x.ComputeGradError(grad);
       norm[2] = x.ComputeLaplaceError(lap);
@@ -380,10 +386,6 @@ int main(int argc, char *argv[])
       mfem::out << "|| x_h - x_ex || = " << norm[0]  << "\n";
       mfem::out << "|| grad x_h - grad x_ex ||    = " << norm[1] << "\n";
       mfem::out << "|| lap x_h - lap x_ex ||      = " << norm[2] << "\n";
-   }
-   else
-   {
-      norm = -1.0;
    }
 
    // 15. Save data in the VisIt format
