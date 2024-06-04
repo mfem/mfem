@@ -1687,5 +1687,12 @@ void DarcyHybridization::Reset()
 {
    Hybridization::Reset();
    bfin = false;
+
+   const int NE = fes->GetMesh()->GetNE();
+   memset(Bf_data, 0, Bf_offsets[NE] * sizeof(real_t));
+   memset(Df_data, 0, Df_offsets[NE] * sizeof(real_t));
+#ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+   memset(Be_data, 0, Be_offsets[NE] * sizeof(real_t));
+#endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
 }
 }
