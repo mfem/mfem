@@ -1092,10 +1092,9 @@ protected:
 public:
    /** @brief Constructs an L2InterfaceFaceRestriction.
 
-       @param[in] fes        The FiniteElementSpace on which this operates
-       @param[in] f_ordering Request a specific face dof ordering
-       @param[in] type       Request internal or boundary faces dofs
-   */
+       @param[in] fes_       The FiniteElementSpace on which this operates
+       @param[in] ordering_  Request a specific face dof ordering
+       @param[in] type_      Request internal or boundary faces dofs */
    L2InterfaceFaceRestriction(const FiniteElementSpace& fes_,
                               const ElementDofOrdering ordering_,
                               const FaceType type_);
@@ -1116,13 +1115,13 @@ public:
    /** @brief Gather the degrees of freedom, i.e. goes from face E-Vector to
        L-Vector.
 
-       @param[in]  x The face E-Vector degrees of freedom with size (face_dofs,
-                     vdim, nf), where nf is the number of interior or boundary
-                     faces requested by @a type in the constructor. The
-                     face_dofs should be ordered according to the given
-                     ElementDofOrdering
+       @param[in]     x The face E-Vector degrees of freedom with size
+                        (face_dofs, vdim, nf), where nf is the number of
+                        interior or boundary faces requested by @a type in the
+                        constructor. The face_dofs should be ordered according
+                        to the given ElementDofOrdering
        @param[in,out] y The L-vector degrees of freedom.
-       @param[in]  a Scalar coefficient for addition. */
+       @param[in]     a Scalar coefficient for addition. */
    void AddMultTranspose(const Vector &x, Vector &y,
                          const real_t a = 1.0) const override;
 
