@@ -46,6 +46,7 @@ set(SRCS
   integ/bilininteg_diffusion_kernels.cpp
   integ/bilininteg_elasticity_kernels.cpp
   integ/bilininteg_hcurl_kernels.cpp
+  integ/bilininteg_hdiv_ea.cpp
   integ/bilininteg_hdiv_kernels.cpp
   integ/bilininteg_hcurlhdiv_kernels.cpp
   integ/bilininteg_mass_kernels.cpp

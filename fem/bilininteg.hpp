@@ -2814,6 +2814,8 @@ public:
    virtual void AddMultPA(const Vector &x, Vector &y) const;
    virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
    virtual void AssembleDiagonalPA(Vector& diag);
+   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
+                           const bool add);
 
    const Coefficient *GetCoefficient() const { return Q; }
 };
