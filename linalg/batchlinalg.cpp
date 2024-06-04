@@ -290,14 +290,14 @@ void ApplyBlkMult(const DenseTensor &Mat, const Vector &x,
    stat = cublasCreate(&handle); 
 
    // Allocate and set matrices on GPU
-   for (k = 0, k < NE; k++) {
+   for (k = 0; k < NE; k++) {
       cudaStat = cudaMalloc ((void**)&d_Mat[k], ndof*ndof*sizeof(*Mat.Data())); 
       cudaStat = cudaMalloc ((void**)&d_x[k], ndof*sizeof(*x.GetData())); 
       cudaStat = cudaMalloc ((void**)&d_y[k], ndof*sizeof(*y.GetData())); 
 
       stat = cublasSetMatrix (ndof, ndof, sizeof(*Mat.Data()), &Mat.Data()[IDXT(0,0,k,ndof)], ndof, d_Mat[k], ndof); 
       stat = cublasSetMatrix (ndof, 1, sizeof(*x.GetData()), &x.GetData()[IDXM(0,k,ndof)], ndof, d_x[k], ndof);
-   };
+   }
 
    // Vendor function handles computations on GPU via batched call
    double alpha = 1.0;
