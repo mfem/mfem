@@ -567,11 +567,20 @@ public:
    */
    virtual void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x);
 
-   /// Compute and store internally all element matrices.
+   /// @brief Compute and store internally all element matrices.
+   ///
+   /// If AssemblyLevel::ELEMENT is selected with SetAssemblyLeve(), this will
+   /// use effecient (device-accelerated) assembly of the element matrices.
    void ComputeElementMatrices();
 
    /// Free the memory used by the element matrices.
    void FreeElementMatrices() { element_matrices.reset(); }
+
+   /// @brief Return a DenseTensor containing the assembled element matrices.
+   ///
+   /// If AssemblyLevel::ELEMENT is selected with SetAssemblyLeve(), this will
+   /// use effecient (device-accelerated) assembly of the element matrices.
+   const DenseTensor &GetElementMatrices();
 
    /// Compute the element matrix of the given element
    /** The element matrix is computed by calling the domain integrators
