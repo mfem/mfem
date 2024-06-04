@@ -482,6 +482,20 @@ void Hybridization::AssembleMatrix(int el, const DenseMatrix &A)
    }
 }
 
+void Hybridization::AssembleElementMatrices(const class DenseTensor &el_mats)
+{
+   if (ext)
+   {
+      ext->AssembleElementMatrices(el_mats);
+      return;
+   }
+
+   for (int e = 0; e < el_mats.SizeK(); ++e)
+   {
+      AssembleMatrix(e, el_mats(e));
+   }
+}
+
 void Hybridization::AssembleBdrMatrix(int bdr_el, const DenseMatrix &A)
 {
    MFEM_VERIFY(!ext, "Not implemented yet");

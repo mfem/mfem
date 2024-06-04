@@ -130,6 +130,9 @@ public:
    /// Assemble the element matrix A into the hybridized system matrix.
    void AssembleMatrix(int el, const DenseMatrix &A);
 
+   /// Assemble all of the element matrices given in the form of a DenseTensor.
+   void AssembleElementMatrices(const class DenseTensor &el_mats);
+
    /// Assemble the boundary element matrix A into the hybridized system matrix.
    void AssembleBdrMatrix(int bdr_el, const DenseMatrix &A);
 
