@@ -191,10 +191,6 @@ TEST_CASE("Greville, Botella and Demko points", "[NURBS]")
    mfem::out<<"Chebyshev spline \n";
    kv.PrintFunction(mfem::out, a, 21);
 
-   std::ofstream ofs(mfem::out);
-   kv.PrintFunction(ofs, a, 201);
-   ofs.close();
-
 }
 
 
