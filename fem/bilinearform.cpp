@@ -71,9 +71,6 @@ BilinearForm::BilinearForm(FiniteElementSpace * f)
    sequence = f->GetSequence();
    mat = mat_e = NULL;
    extern_bfs = 0;
-   element_matrices = NULL;
-   static_cond = NULL;
-   hybridization = NULL;
    precompute_sparsity = 0;
    diag_policy = DIAG_KEEP;
 
@@ -89,9 +86,6 @@ BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
    sequence = f->GetSequence();
    mat_e = NULL;
    extern_bfs = 1;
-   element_matrices = NULL;
-   static_cond = NULL;
-   hybridization = NULL;
    precompute_sparsity = ps;
    diag_policy = DIAG_KEEP;
 
@@ -145,14 +139,13 @@ void BilinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
 
 void BilinearForm::EnableStaticCondensation()
 {
-   delete static_cond;
    if (assembly != AssemblyLevel::LEGACY)
    {
-      static_cond = NULL;
+      static_cond.reset();
       MFEM_WARNING("Static condensation not supported for this assembly level");
       return;
    }
-   static_cond = new StaticCondensation(fes);
+   static_cond.reset(new StaticCondensation(fes));
    if (static_cond->ReducesTrueVSize())
    {
       bool symmetric = false;      // TODO
@@ -161,8 +154,7 @@ void BilinearForm::EnableStaticCondensation()
    }
    else
    {
-      delete static_cond;
-      static_cond = NULL;
+      static_cond.reset();
    }
 }
 
@@ -170,15 +162,14 @@ void BilinearForm::EnableHybridization(FiniteElementSpace *constr_space,
                                        BilinearFormIntegrator *constr_integ,
                                        const Array<int> &ess_tdof_list)
 {
-   delete hybridization;
    if (assembly != AssemblyLevel::LEGACY)
    {
       delete constr_integ;
-      hybridization = NULL;
+      hybridization.reset();
       MFEM_WARNING("Hybridization not supported for this assembly level");
       return;
    }
-   hybridization = new Hybridization(fes, constr_space);
+   hybridization.reset(new Hybridization(fes, constr_space));
    hybridization->SetConstraintIntegrator(constr_integ);
    hybridization->Init(ess_tdof_list);
 }
@@ -933,8 +924,8 @@ void BilinearForm::ComputeElementMatrices()
    int num_elements = fes->GetNE();
    int num_dofs_per_el = fes->GetFE(0)->GetDof() * fes->GetVDim();
 
-   element_matrices = new DenseTensor(num_dofs_per_el, num_dofs_per_el,
-                                      num_elements);
+   element_matrices.reset(new DenseTensor(num_dofs_per_el, num_dofs_per_el,
+                                          num_elements));
 
    DenseMatrix tmp;
    IsoparametricTransformation eltrans;
@@ -1152,15 +1143,13 @@ void BilinearForm::Update(FiniteElementSpace *nfes)
    delete mat_e;
    mat_e = NULL;
    FreeElementMatrices();
-   delete static_cond;
-   static_cond = NULL;
+   static_cond.reset();
 
    if (full_update)
    {
       delete mat;
       mat = NULL;
-      delete hybridization;
-      hybridization = NULL;
+      hybridization.reset();
       sequence = fes->GetSequence();
    }
    else
@@ -1183,9 +1172,6 @@ BilinearForm::~BilinearForm()
 {
    delete mat_e;
    delete mat;
-   delete element_matrices;
-   delete static_cond;
-   delete hybridization;
 
    if (!extern_bfs)
    {

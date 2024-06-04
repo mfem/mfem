@@ -122,10 +122,10 @@ protected:
    DenseMatrix elemmat;
    Array<int>  vdofs;
 
-   DenseTensor *element_matrices; ///< Owned.
+   std::unique_ptr<DenseTensor> element_matrices;
 
-   StaticCondensation *static_cond; ///< Owned.
-   Hybridization *hybridization; ///< Owned.
+   std::unique_ptr<StaticCondensation> static_cond;
+   std::unique_ptr<Hybridization> hybridization;
 
    /** @brief This data member allows one to specify what should be done to the
        diagonal matrix entries and corresponding RHS values upon elimination of
@@ -148,8 +148,7 @@ protected:
    BilinearForm() : Matrix (0)
    {
       fes = NULL; sequence = -1;
-      mat = mat_e = NULL; extern_bfs = 0; element_matrices = NULL;
-      static_cond = NULL; hybridization = NULL;
+      mat = mat_e = NULL; extern_bfs = 0;
       precompute_sparsity = 0;
       diag_policy = DIAG_KEEP;
       assembly = AssemblyLevel::LEGACY;
@@ -214,7 +213,7 @@ public:
    /// Returns the assembly level
    AssemblyLevel GetAssemblyLevel() const { return assembly; }
 
-   Hybridization *GetHybridization() const { return hybridization; }
+   Hybridization *GetHybridization() const { return hybridization.get(); }
 
    /** @brief Enable the use of static condensation. For details see the
        description for class StaticCondensation in fem/staticcond.hpp This
@@ -224,7 +223,7 @@ public:
 
    /** @brief Check if static condensation was actually enabled by a previous
        call to EnableStaticCondensation(). */
-   bool StaticCondensationIsEnabled() const { return static_cond; }
+   bool StaticCondensationIsEnabled() const { return static_cond.get() != nullptr; }
 
    /// Return the trace FE space associated with static condensation.
    FiniteElementSpace *SCFESpace() const
@@ -572,8 +571,7 @@ public:
    void ComputeElementMatrices();
 
    /// Free the memory used by the element matrices.
-   void FreeElementMatrices()
-   { delete element_matrices; element_matrices = NULL; }
+   void FreeElementMatrices() { element_matrices.reset(); }
 
    /// Compute the element matrix of the given element
    /** The element matrix is computed by calling the domain integrators
