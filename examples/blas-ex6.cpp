@@ -88,8 +88,10 @@ int main (void){
 
         stat = cublasSetMatrix (M, N, sizeof(*A.Data()), &A.Data()[IDXT(0,0,k,M)], M, devPtrA[k], M);  // fill in the device pointer matrix;
         // arguments are (rows, cols, NE, elemSize, source_matrix, ld of source, destination matrix, ld dest)
+        // seems to be correct based off https://stackoverflow.com/questions/16090351/in-cublas-how-do-i-get-or-set-matrix-element-from-host
         if (stat != CUBLAS_STATUS_SUCCESS) {
             printf ("data download failed");
+            printf(stat);
             cudaFree (devPtrA);
             cublasDestroy(handle);
             return EXIT_FAILURE;
@@ -109,16 +111,18 @@ int main (void){
     double beta = 0.;
     stat = cublasDgemvBatched (handle, CUBLAS_OP_N, M, N,
                                &alpha, devPtrA, M, devPtrX, 1,
-                               &beta, devPtrY, 1);
+                               &beta, devPtrY, 1, W);  // version 11.7.0 needs batchCount = W as the last parameter
 
     // copies device memory to host memory, for output from host
-    stat = cublasGetMatrix (N, W, sizeof(*y), devPtrY, N, y, N);
-    if (stat != CUBLAS_STATUS_SUCCESS) {
-        printf ("data upload failed");
-        free (y);
-        cudaFree (devPtrY);
-        cublasDestroy(handle);
-        return EXIT_FAILURE;
+    for (k = 0; k < W; k++) {
+        stat = cublasGetMatrix (N, 1, sizeof(*y), devPtrY[k], N, &y[IDXM(0,k,N)], N);
+        if (stat != CUBLAS_STATUS_SUCCESS) {
+            printf ("data upload failed");
+            free (y);
+            cudaFree (devPtrY);
+            cublasDestroy(handle);
+            return EXIT_FAILURE;
+        }
     }
     // free up memory & end API connection
     cudaFree (devPtrA);
