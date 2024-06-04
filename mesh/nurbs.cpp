@@ -3760,7 +3760,7 @@ void ProcessVertexToKnot3D(Array2D<int> const& v2k,
    }  // loop over parents
 
    MFEM_VERIFY(consistent, "");
-   MFEM_VERIFY(masterFaces.size() == numParents, "");
+   MFEM_VERIFY((int) masterFaces.size() == numParents, "");
 }
 
 int GetFaceOrientation(const Mesh *mesh, const int face,
@@ -4006,7 +4006,7 @@ void NURBSExtension::GenerateOffsets()
       masterFaceS0.resize(masterFaceIndex.Size());
       masterFaceRev.resize(masterFaceIndex.Size());
 
-      for (int i=0; i<masterFaceSizes.size(); ++i)
+      for (unsigned int i=0; i<masterFaceSizes.size(); ++i)
       {
          masterFaceSizes[i].resize(2);
          masterFaceS0[i].resize(2);
@@ -4016,7 +4016,7 @@ void NURBSExtension::GenerateOffsets()
       {
          // Note that this is used in 2D and 3D.
          const int npairs = edgePairs.size() / 3;
-         MFEM_VERIFY(npairs > 0 && 3 * npairs == edgePairs.size(), "");
+         MFEM_VERIFY(npairs > 0 && 3 * npairs == (int) edgePairs.size(), "");
          for (int i=0; i<npairs; ++i)
          {
             const int v = edgePairs[3*i];
@@ -4035,7 +4035,8 @@ void NURBSExtension::GenerateOffsets()
          }
 
          const int nfpairs = facePairs.size() / 5;
-         MFEM_VERIFY((nfpairs > 0 || !is3D) && 5 * nfpairs == facePairs.size(), "");
+         MFEM_VERIFY((nfpairs > 0 || !is3D) &&
+                     5 * nfpairs == (int) facePairs.size(), "");
          int midPrev = -1;
          int pfcnt = 0;
          int orientation = 0;
@@ -6303,7 +6304,7 @@ void NURBSPatchMap::SetMasterEdges(bool dof)
          const int mid = Ext->masterEdgeToId.at(edges[i]);
          MFEM_ASSERT(mid >= 0, "Master edge index not found");
 
-         for (int s=0; s<Ext->masterEdgeSlaves[mid].size(); ++s)
+         for (unsigned int s=0; s<Ext->masterEdgeSlaves[mid].size(); ++s)
          {
             const int slaveId = Ext->slaveEdges[Ext->masterEdgeSlaves[mid][s]];
 
@@ -6318,7 +6319,7 @@ void NURBSPatchMap::SetMasterEdges(bool dof)
                Ext->GetAuxEdgeVertices(-1 - slaveId, svert);
             }
 
-            const int mev = Ext->masterEdgeVerts[mid][std::max(s-1,0)];
+            const int mev = Ext->masterEdgeVerts[mid][std::max((int) s - 1,0)];
             MFEM_VERIFY(mev == svert[0] || mev == svert[1], "");
             bool reverse = false;
             if (s == 0)
@@ -6528,10 +6529,10 @@ void NURBSPatchMap::SetMasterFaces(bool dof)
          const int n2 = rev ? n1orig : n2orig;
 
          MFEM_VERIFY(n1 > 1 || n2 > 1, "");
-         MFEM_VERIFY(n1 * n2 == Ext->masterFaceSlaves[mid].size(),
+         MFEM_VERIFY(n1 * n2 == (int) Ext->masterFaceSlaves[mid].size(),
                      "Inconsistent number of faces");
 
-         MFEM_VERIFY((n1 - 1) * (n2 - 1) == Ext->masterFaceVerts[mid].size(),
+         MFEM_VERIFY((n1 - 1) * (n2 - 1) == (int) Ext->masterFaceVerts[mid].size(),
                      "Inconsistent number of vertices");
 
          // Set an Array2D of all fine vertices on this master face.
