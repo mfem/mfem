@@ -219,7 +219,7 @@ void KnotVector::ComputeDemko() const
    int iter1, iter2, ks;
 
    GetInterpolant(x, demko, a);
-   for (iter1 = 0; iter1 < itermax2; iter1++)
+   for (iter1 = 0; iter1 < itermax1; iter1++)
    {
       for (int i = 0; i <GetNCP(); i++)
       {
@@ -245,7 +245,7 @@ void KnotVector::ComputeDemko() const
             }
             u -= (grad/hess)*(knot(ks+1) - knot(ks));
 
-            if (fabs(grad)< tol1) { break; }
+            if (fabs(grad)< tol2) { break; }
          }
          if (iter2 >= itermax2) { mfem::out<<"Demko: Iteration to find extremum not converged"<<fabs(grad)<<endl; }
          demko[i] = u;

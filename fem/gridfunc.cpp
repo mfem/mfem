@@ -2443,14 +2443,13 @@ void GridFunction::ProjectCoefficient(
 
 void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff)
 {
-   int i;
    Array<int> vdofs;
    Vector vals;
 
    DofTransformation * doftrans = NULL;
    if (fes->GetNURBSext() == NULL)
    {
-      for (i = 0; i < fes->GetNE(); i++)
+      for (int i = 0; i < fes->GetNE(); i++)
       {
          doftrans = fes->GetElementVDofs(i, vdofs);
          vals.SetSize(vdofs.Size());
@@ -2464,8 +2463,6 @@ void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff)
    }
    else
    {
-      Array<int> vdofs;
-      Vector vals;
       real_t signal = std::numeric_limits<real_t>::min();
       for (int i = 0; i < fes->GetNE(); i++)
       {
