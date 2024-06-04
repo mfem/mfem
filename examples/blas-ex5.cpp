@@ -89,7 +89,7 @@ int main (void){
     // (assuming this works...)
     for (k = 0; k < W; k++) {
         stat = cublasSetMatrix (M, N, sizeof(*A.Data()), &A.Data()[M*N*k], M, devPtrA[k], M);  // fill in the device pointer matrix;
-        // arguments are (rows, cols, elemSize (bytesize), source_matrix, ld of source, dest_matrix, ld of dest)
+        // arguments are (rows, cols, bytesize, source_matrix, ld of source, dest_matrix, ld of dest)
         if (stat != CUBLAS_STATUS_SUCCESS) {
             printf ("data download failed");
             cudaFree (devPtrA);
@@ -108,12 +108,12 @@ int main (void){
 
     double alpha = 1.;
     double beta = 0.;
-    stat = cublasDgemvBatched (handle, CUBLAS_OP_N, M, N,
-                               &alpha, devPtrA, M, devPtrX, 1,
-                               &beta, devPtrY, 1);
+    // stat = cublasDgemvBatched (handle, CUBLAS_OP_N, M, N,
+    //                            &alpha, devPtrA, M, devPtrX, 1,
+    //                            &beta, devPtrY, 1);
 
     // copies device memory to host memory, for output from host
-    stat = cublasGetMatrix (N, W, sizeof(*y), devPtrY, N, y, N);
+    stat = cublasGetMatrix (N, W, sizeof(*y), devPtrX, N, y, N);
     if (stat != CUBLAS_STATUS_SUCCESS) {
         printf ("data upload failed");
         free (y);
