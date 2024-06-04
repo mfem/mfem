@@ -471,8 +471,8 @@ protected:
 
    /* This method returns the Refinement matrix (i.e., the embedding)
       from a coarse variable-order fes to a fine fes (after a geometric refinement) */
-   SparseMatrix *VariableOrderRefinementMatrix_main(const int coarse_ndofs,
-                                                    const Table &coarse_elem_dof) const;
+   SparseMatrix *VariableOrderRefinementMatrix(const int coarse_ndofs,
+                                               const Table &coarse_elem_dof) const;
 
    void GetLocalRefinementMatrices(Geometry::Type geom,
                                    DenseTensor &localP) const;

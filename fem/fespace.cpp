@@ -1525,7 +1525,7 @@ SparseMatrix *FiniteElementSpace::RefinementMatrix_main(
    return P;
 }
 
-SparseMatrix *FiniteElementSpace::VariableOrderRefinementMatrix_main(
+SparseMatrix *FiniteElementSpace::VariableOrderRefinementMatrix(
    const int coarse_ndofs, const Table &coarse_elem_dof) const
 {
    MFEM_VERIFY(mesh->GetLastOperation() == Mesh::REFINE, "");
@@ -1629,7 +1629,7 @@ SparseMatrix* FiniteElementSpace::RefinementMatrix(int old_ndofs,
    }
    else
    {
-      return VariableOrderRefinementMatrix_main(old_ndofs, *old_elem_dof);
+      return VariableOrderRefinementMatrix(old_ndofs, *old_elem_dof);
    }
 }
 
@@ -3497,8 +3497,8 @@ void FiniteElementSpace::GetTransferOperator(
       }
       else
       {
-         T.Reset(VariableOrderRefinementMatrix_main(coarse_fes.GetNDofs(),
-                                                    coarse_fes.GetElementToDofTable()));
+         T.Reset(VariableOrderRefinementMatrix(coarse_fes.GetNDofs(),
+                                               coarse_fes.GetElementToDofTable()));
       }
    }
    else
