@@ -86,7 +86,7 @@ int main (void){
             return EXIT_FAILURE;
         }
 
-        stat = cublasSetMatrix (M, N, sizeof(*A.Data()), A.Data()[IDXT(M,N,k,M)], M, devPtrA[k], M);  // fill in the device pointer matrix;
+        stat = cublasSetMatrix (M, N, sizeof(*A.Data()), &A.Data()[IDXT(0,0,k,M)], M, devPtrA[k], M);  // fill in the device pointer matrix;
         // arguments are (rows, cols, NE, elemSize, source_matrix, ld of source, destination matrix, ld dest)
         if (stat != CUBLAS_STATUS_SUCCESS) {
             printf ("data download failed");
@@ -94,7 +94,7 @@ int main (void){
             cublasDestroy(handle);
             return EXIT_FAILURE;
         }
-        stat = cublasSetMatrix (N, W, sizeof(*X.GetData()), X.GetData()[IDXM(N,k,N)], N, devPtrX[k], N);  // fill in the device pointer matrix;
+        stat = cublasSetMatrix (N, 1, sizeof(*X.GetData()), &X.GetData()[IDXM(0,k,N)], N, devPtrX[k], N);  // fill in the device pointer matrix;
         // arguments are (rows, cols, NE, elemSize, source_matrix, ld of source, destination matrix, ld dest)
         if (stat != CUBLAS_STATUS_SUCCESS) {
             printf ("data download failed");
@@ -108,8 +108,8 @@ int main (void){
     double alpha = 1.;
     double beta = 0.;
     stat = cublasDgemvBatched (handle, CUBLAS_OP_N, M, N,
-                        &alpha, devPtrA, M, devPtrX, 1,
-                        &beta, devPtrY, 1);
+                               &alpha, devPtrA, M, devPtrX, 1,
+                               &beta, devPtrY, 1);
 
     // copies device memory to host memory, for output from host
     stat = cublasGetMatrix (N, W, sizeof(*y), devPtrY, N, y, N);
