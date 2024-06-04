@@ -488,6 +488,8 @@ protected:
 
    Array<int> aux_e_spaceOffsets, aux_f_spaceOffsets;
 
+   std::vector<int> auxEdges, auxFaces;
+
    /// Table of DOFs for each element (el_dof) or boundary element (bel_dof).
    Table *el_dof, *bel_dof;
 
@@ -522,8 +524,6 @@ protected:
 
    bool nonconforming = false;
    std::map<int,int> e2nce;
-
-   std::vector<int> auxEdges, auxFaces;
 
    /// Access function for the KnotVector associated with edge @a edge.
    /// @note The returned object should NOT be deleted by the caller.
