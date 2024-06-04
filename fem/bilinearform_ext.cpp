@@ -1182,6 +1182,29 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    }
 }
 
+void EABilinearFormExtension::GetElementMatrices(
+   DenseTensor &element_matrices) const
+{
+   MFEM_VERIFY(ea_data.Size() > 0, "Assemble() must be called first.");
+
+   const int ndofs = elemDofs;
+   element_matrices.SetSize(ndofs, ndofs, ne);
+   const int N = element_matrices.TotalSize();
+
+   const auto d_ea_data = Reshape(ea_data.Read(), ndofs, ndofs, ne);
+   auto d_element_matrices = Reshape(element_matrices.Write(),
+                                     ndofs, ndofs,
+                                     ne);
+
+   mfem::forall(N, [=] MFEM_HOST_DEVICE (int idx)
+   {
+      const int e = idx / ndofs / ndofs;
+      const int i = idx % ndofs;
+      const int j = (idx / ndofs) % ndofs;
+      d_element_matrices(i, j, e) = d_ea_data(j, i, e);
+   });
+}
+
 // Data and methods for fully-assembled bilinear forms
 FABilinearFormExtension::FABilinearFormExtension(BilinearForm *form)
    : EABilinearFormExtension(form),
