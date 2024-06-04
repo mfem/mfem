@@ -23,31 +23,12 @@ int main (void){
     DenseTensor A(M,N,W);
     Vector X(N*W);
     Vector Y(N*W);
+    printf ("A is \n");
     for (k = 0; k < W; k++) {
         for (j = 0; j < N; j++) {
             X.GetData()[IDXM(j,k,N)] = IDXM(j,k,N);
             for (i = 0; i < M; i++) {
                 A.Data()[IDXT(i,j,k,M)] = IDXT(i,j,k,M);
-            }
-        }
-    }
-
-    double* devPtrA[W];  // device pointer for a
-
-    double* devPtrX[W];  // device pointer for host pointer x
-
-    double* devPtrY[W];  // device pointer for host pointer y
-    double* y = 0;  // host device pointer
-
-    y = (double *)malloc (N * W * sizeof(*Y.GetData()));
-    if (!y) {
-        printf ("host memory allocation failed for y");
-        return EXIT_FAILURE;
-    }
-    printf ("A is \n");
-    for (k = 0; k < W; k++) {
-        for (j = 0; j < N; j++) {
-            for (i = 0; i < M; i++) {
                 printf ("%7.0f", A.Data()[IDXT(i,j,k,M)]);
             }
             printf ("\n");  // col-major, so prints vectors of columns out together in each row
@@ -62,6 +43,19 @@ int main (void){
         printf ("\n");
     }
     printf ("\n");
+    
+
+    double* devPtrA[W];  // device pointer for a
+    double* devPtrX[W];  // device pointer for host pointer x
+    double* devPtrY[W];  // device pointer for host pointer y
+
+    // double* y = 0;  // host device pointer
+    // y = (double *)malloc (N * W * sizeof(*Y.GetData()));
+    // if (!y) {
+    //     printf ("host memory allocation failed for y");
+    //     return EXIT_FAILURE;
+    // }
+
 
     // ***START OF DEVICE COMPUTATIONS***
     // create handle to start CUBLAS work on the device; i.e. initialize CUBLAS
@@ -109,7 +103,7 @@ int main (void){
         }
     }
 
-    // handles the computations on the device
+    // handles the computations on the device via batched function
     double alpha = 1.;
     double beta = 0.;
     stat = cublasDgemvBatched (handle, CUBLAS_OP_N, M, N,
@@ -118,10 +112,9 @@ int main (void){
 
     // copies device memory to host memory, for output from host
     for (k = 0; k < W; k++) {
-        stat = cublasGetMatrix (N, 1, sizeof(*y), devPtrY[k], N, &y[IDXM(0,k,N)], N);
+        stat = cublasGetMatrix (N, 1, sizeof(*Y.GetData()), devPtrY[k], N, &Y.GetData()[IDXM(0,k,N)], N);
         if (stat != CUBLAS_STATUS_SUCCESS) {
             printf ("data upload failed");
-            free (y);
             cudaFree (devPtrY);
             cublasDestroy(handle);
             return EXIT_FAILURE;
@@ -135,7 +128,7 @@ int main (void){
     // ***END OF DEVICE COMPUTATION***
 
     // with memory on host device, we can now output it
-    Y.SetData(y);
+    // Y.SetData(y);
     printf ("Y is \n");
     for (k = 0; k < W; k++) {
         for (j = 0; j < N; j++) {
@@ -143,6 +136,5 @@ int main (void){
         }
         printf ("\n");
     }
-    free(y);
     return EXIT_SUCCESS;
 }
