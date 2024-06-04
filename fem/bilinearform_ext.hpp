@@ -153,6 +153,13 @@ public:
    void Assemble();
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
+
+   /// @brief Populates @a element_matrices with the element matrices.
+   ///
+   /// Assemble() must have been called already. The element matrices are
+   /// converted from row-major (how they are stored in @a ea_data) to
+   /// column-major format.
+   void GetElementMatrices(DenseTensor &element_matrices) const;
 };
 
 /// Data and methods for fully-assembled bilinear forms
