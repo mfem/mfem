@@ -85,7 +85,7 @@ protected:
    void *fdataD;
    struct gslib::crystal *cr;             // gslib's internal data
    struct gslib::comm *gsl_comm;          // gslib's internal data
-   int dim, points_cnt;
+   int dim, spacedim, points_cnt;
    Array<unsigned int> gsl_code, gsl_proc, gsl_elem, gsl_mfem_elem;
    Array<int> gsl_newton;
    Array<int> gsl_code_dev, gsl_elem_dev, gsl_newton_dev;
@@ -356,6 +356,8 @@ public:
    // 2 - proc-wise    axis-aligned bounding box. size depends on setup parameters
    // 3 - global hash mesh.                       depends on setup parameters.
    virtual Mesh* GetBoundingBoxMesh(int type = 0);
+
+   virtual Mesh* GetBoundingBoxMeshSurf(int type = 0);
 
    void SetGPUCode(int code_) { gpu_code = code_; }
 

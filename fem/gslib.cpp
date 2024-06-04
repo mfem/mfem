@@ -254,31 +254,28 @@ void FindPointsGSLIB::SetupSurf(Mesh &m, const double bb_t, const double newt_to
 {
    const int num_procs = Mpi::WorldSize();
    const int myid      = Mpi::WorldRank();
+
    // EnsureNodes call could be useful if the mesh is 1st order and has no gridfunction defined
    MFEM_VERIFY(m.GetNodes() != NULL, "Mesh nodes are required.");
-   // Max element order since we will ultimately have all elements of the same order
-   const int meshOrder = m.GetNodes()->FESpace()->GetMaxElementOrder();
-   const int vdim      = m.GetNodes()->FESpace()->GetVDim();
-   const unsigned NE   = m.GetNE();
-
-   // call FreeData if FindPointsGSLIB::Setup has been called already
-   if (setupflag)
-   { FreeData(); }
 
    crystal_init(cr, gsl_comm);     // Crystal Router
    mesh = &m;
-   dim  = mesh->Dimension();       // This is reference dimension, which would dictate number of dofs
-   unsigned dof1D  = meshOrder + 1; // dof in one dimension based on max mesh order (since that's the order we we will have ultimately)
-   unsigned pts_el = std::pow(dof1D, dim); // Number of points in an element
+   dim            = mesh->Dimension();       // This is reference dimension, which would dictate number of dofs
+   spacedim       = mesh->SpaceDimension();  // This is reference dimension, which would dictate number of dofs
+   NE_split_total = mesh->GetNE();
 
-   setupSW.Clear();
-   setupSW.Start();
+   // Max element order since we will ultimately have all elements of the same order
+   const int meshOrder = mesh->GetNodes()->FESpace()->GetMaxElementOrder();
+   unsigned dof1D      = meshOrder + 1;         // dof in one dimension based on max mesh order (since that's the order we we will have ultimately)
+   unsigned pts_el     = std::pow(dof1D, dim);  // Number of points in an element
+
+   // call FreeData if FindPointsGSLIB::Setup has been called already
+   if (setupflag)  FreeData();
+
    Vector ref_node_vals;           // debug vector to store reference element nodal values
    GetNodalValuesSurf(mesh->GetNodes(), gsl_mesh, ref_node_vals);
-   setupSW.Stop();
-   setup_nodalmapping_time = setupSW.RealTime();
 
-   mesh_points_cnt = gsl_mesh.Size()/vdim;  // Note: this is not dim
+   mesh_points_cnt = gsl_mesh.Size()/spacedim;
 
    for (int iid = 0; iid < num_procs; iid++)
    {
@@ -286,19 +283,19 @@ void FindPointsGSLIB::SetupSurf(Mesh &m, const double bb_t, const double newt_to
       {
          std::cout << "mesh_points_cnt: " << mesh_points_cnt << " myid"<<myid << std::endl;
          // Print physical element nodal values
-         for (int ine = 0; ine < NE; ine++)
+         for (int ine = 0; ine < NE_split_total; ine++)
          {
             std::cout << "El " << ine << " phy. coords" << ": ";
             for (int ipt = 0; ipt < pts_el; ipt++)
             {
-               for (int d = 0; d < vdim; d++)
+               for (int d = 0; d < spacedim; d++)
                { std::cout << gsl_mesh(d*mesh_points_cnt + ine*pts_el + ipt) << " "; }
                std::cout << "; ";
             }
             std::cout << std::endl;
          }
          // Print reference element nodal values
-         for (int ine = 0; ine < NE; ine++)
+         for (int ine = 0; ine < NE_split_total; ine++)
          {
             std::cout << "El " << ine << " ref. coords" << ": ";
             for (int ipt = 0; ipt < pts_el; ipt++)
@@ -316,7 +313,7 @@ void FindPointsGSLIB::SetupSurf(Mesh &m, const double bb_t, const double newt_to
    DEV.local_hash_size = mesh_points_cnt;
    DEV.dof1d = (int)dof1D;
 
-   if (vdim == 2)
+   if (spacedim == 2)
    {
       unsigned nr[1] = { dof1D };
       unsigned mr[1] = { 2*dof1D };
@@ -325,11 +322,12 @@ void FindPointsGSLIB::SetupSurf(Mesh &m, const double bb_t, const double newt_to
          mesh_points_cnt == 0 ? nullptr : &gsl_mesh(0),
          mesh_points_cnt == 0 ? nullptr : &gsl_mesh(mesh_points_cnt)
       };
-      fdataD = findptssurf_setup_2(gsl_comm, elx, nr, NE, mr, bb_t,
+      fdataD = findptssurf_setup_2(gsl_comm, elx, nr, NE_split_total, mr, bb_t,
                                    DEV.local_hash_size,
                                    mesh_points_cnt, npt_max, newt_tol);
+      setupflag = true;
    }
-   else
+   if (spacedim == 3)
    {
       unsigned nr[2] = { dof1D, dof1D };
       unsigned mr[2] = { 2*dof1D, 2*dof1D };
@@ -339,12 +337,11 @@ void FindPointsGSLIB::SetupSurf(Mesh &m, const double bb_t, const double newt_to
          mesh_points_cnt == 0 ? nullptr : &gsl_mesh(mesh_points_cnt),
          mesh_points_cnt == 0 ? nullptr : &gsl_mesh(2*mesh_points_cnt)
       };
-      fdataD = findptssurf_setup_3(gsl_comm, elx, nr, NE, mr, bb_t,
+      fdataD = findptssurf_setup_3(gsl_comm, elx, nr, NE_split_total, mr, bb_t,
                                    DEV.local_hash_size,
                                    mesh_points_cnt, npt_max, newt_tol);
+      setupflag = true;
    }
-
-   setupflag = true;
 }
 
 void FindPointsGSLIB::FindPoints(const Vector &point_pos,
@@ -1450,6 +1447,377 @@ Mesh* FindPointsGSLIB::GetBoundingBoxMesh(int type)
 
    return meshbb;
 }
+
+Mesh* FindPointsGSLIB::GetBoundingBoxMeshSurf(int type)
+{
+   MFEM_VERIFY(setupflag, "Call FindPointsGSLIB::SetupSurf method first");
+
+   int myid          = gsl_comm->id;
+   auto *findptsData3 = (gslib::findpts_data_3 *)this->fdataD;
+   auto *findptsData2 = (gslib::findpts_data_2 *)this->fdataD;
+   int hash_l_n      = spacedim==2 ? findptsData2->local.hd.hash_n : findptsData3->local.hd.hash_n;
+   int hash_g_n      = spacedim==2 ? findptsData2->hash.hash_n     : findptsData3->hash.hash_n;
+
+   int nel = 0;
+   if (type==0 || type==1) nel = NE_split_total;
+   if (type==2)            nel = std::pow(hash_l_n, spacedim);
+   if (type==3)            nel = std::pow(hash_g_n, spacedim);
+
+   long long nel_l      = nel;
+   long long nel_glob_l = nel_l;
+   int ne_glob;
+   int save_rank = 0;
+   if (type==0 || type==1 || type==2)
+   {
+#ifdef MFEM_USE_MPI
+      MPI_Reduce(&nel_l, &nel_glob_l, 1, MPI_LONG_LONG, MPI_SUM, save_rank,  // adi: what is save_rank?
+                 gsl_comm->c);
+#endif
+      ne_glob = int(nel_glob_l);
+   }
+   else
+      ne_glob = nel;
+
+   Vector hashlmin(spacedim), hashlmax(spacedim), dxyzl(spacedim);
+   for (int d = 0; d < spacedim; d++)
+   {
+      hashlmin[d] = spacedim==2 ? findptsData2->local.hd.bnd[d].min : findptsData3->local.hd.bnd[d].min;
+      hashlmax[d] = spacedim==2 ? findptsData2->local.hd.bnd[d].max : findptsData3->local.hd.bnd[d].max;
+      dxyzl[d]    = (hashlmax[d]-hashlmin[d])/hash_l_n;
+   }
+
+   Vector hashgmin(spacedim), hashgmax(spacedim), dxyzg(spacedim);
+   for (int d = 0; d < spacedim; d++)
+   {
+      hashgmin[d] = spacedim==2 ? findptsData2->hash.bnd[d].min : findptsData3->hash.bnd[d].min;
+      hashgmax[d] = spacedim==2 ? findptsData2->hash.bnd[d].max : findptsData3->hash.bnd[d].max;
+      dxyzg[d]    = (hashgmax[d]-hashgmin[d])/hash_g_n;
+   }
+
+   int nve    = spacedim == 2 ? 4 : 8;  // adi: number of vertices per bb element?
+   int nverts = nve*ne_glob;
+   Vector o_xyz(spacedim*nel*nve);
+
+   Mesh *meshbb = NULL;
+   if (gsl_comm->id == save_rank)
+   {
+      meshbb = new Mesh(spacedim, nverts, ne_glob, 0, spacedim);
+   }
+
+   Array<int> hash_el_count(gsl_comm->np);
+   hash_el_count[0] = nel;
+
+   if (spacedim == 3)
+   {
+      for (int e = 0; e < nel; e++)
+      {
+         auto box = findptsData3->local.obb[e];
+         if (type == 0)
+         {
+            Vector minn(spacedim), maxx(spacedim);
+            for (int d = 0; d < spacedim; d++)
+            {
+               minn[d] = box.x[d].min;
+               maxx[d] = box.x[d].max;
+            }
+            int c = 0;
+            // All 8 vertices of the bounding box are assigned positions here
+            // in anti-clockwise order starting from the z=0 plane.
+            o_xyz(e*nve*spacedim + c++) = minn[0];
+            o_xyz(e*nve*spacedim + c++) = minn[1];
+            o_xyz(e*nve*spacedim + c++) = minn[2];
+
+            o_xyz(e*nve*spacedim + c++) = maxx[0];
+            o_xyz(e*nve*spacedim + c++) = minn[1];
+            o_xyz(e*nve*spacedim + c++) = minn[2];
+
+            o_xyz(e*nve*spacedim + c++) = maxx[0];
+            o_xyz(e*nve*spacedim + c++) = maxx[1];
+            o_xyz(e*nve*spacedim + c++) = minn[2];
+
+            o_xyz(e*nve*spacedim + c++) = minn[0];
+            o_xyz(e*nve*spacedim + c++) = maxx[1];
+            o_xyz(e*nve*spacedim + c++) = minn[2];
+
+            o_xyz(e*nve*spacedim + c++) = minn[0];
+            o_xyz(e*nve*spacedim + c++) = minn[1];
+            o_xyz(e*nve*spacedim + c++) = maxx[2];
+
+            o_xyz(e*nve*spacedim + c++) = maxx[0];
+            o_xyz(e*nve*spacedim + c++) = minn[1];
+            o_xyz(e*nve*spacedim + c++) = maxx[2];
+
+            o_xyz(e*nve*spacedim + c++) = maxx[0];
+            o_xyz(e*nve*spacedim + c++) = maxx[1];
+            o_xyz(e*nve*spacedim + c++) = maxx[2];
+
+            o_xyz(e*nve*spacedim + c++) = minn[0];
+            o_xyz(e*nve*spacedim + c++) = maxx[1];
+            o_xyz(e*nve*spacedim + c++) = maxx[2];
+         } // type == 0
+      }
+      if (type == 2)  // local hash mesh
+      {
+         int ec = 0;
+         for (int l=0; l<hash_l_n; l++)
+         {
+            for (int k=0; k<hash_l_n; k++)
+            {
+               for (int j=0; j<hash_l_n; j++)
+               {
+                  double x0 = hashlmin[0] + j*dxyzl[0];
+                  double y0 = hashlmin[1] + k*dxyzl[1];
+                  double z0 = hashlmin[2] + l*dxyzl[2];
+
+                  o_xyz(ec*nve*spacedim + 0) = x0;
+                  o_xyz(ec*nve*spacedim + 1) = y0;
+                  o_xyz(ec*nve*spacedim + 2) = z0;
+
+                  o_xyz(ec*nve*spacedim + 3) = x0+dxyzl[0];
+                  o_xyz(ec*nve*spacedim + 4) = y0;
+                  o_xyz(ec*nve*spacedim + 5) = z0;
+
+                  o_xyz(ec*nve*spacedim + 6) = x0+dxyzl[0];
+                  o_xyz(ec*nve*spacedim + 7) = y0+dxyzl[1];
+                  o_xyz(ec*nve*spacedim + 8) = z0;
+
+                  o_xyz(ec*nve*spacedim + 9) = x0;
+                  o_xyz(ec*nve*spacedim + 10) = y0+dxyzl[1];
+                  o_xyz(ec*nve*spacedim + 11) = z0;
+
+                  o_xyz(ec*nve*spacedim + 12) = x0;
+                  o_xyz(ec*nve*spacedim + 13) = y0;
+                  o_xyz(ec*nve*spacedim + 14) = z0+dxyzl[2];
+
+                  o_xyz(ec*nve*spacedim + 15) = x0+dxyzl[0];
+                  o_xyz(ec*nve*spacedim + 16) = y0;
+                  o_xyz(ec*nve*spacedim + 17) = z0+dxyzl[2];
+
+                  o_xyz(ec*nve*spacedim + 18) = x0+dxyzl[0];
+                  o_xyz(ec*nve*spacedim + 19) = y0+dxyzl[1];
+                  o_xyz(ec*nve*spacedim + 20) = z0+dxyzl[2];
+
+                  o_xyz(ec*nve*spacedim + 21) = x0;
+                  o_xyz(ec*nve*spacedim + 22) = y0+dxyzl[1];
+                  o_xyz(ec*nve*spacedim + 23) = z0+dxyzl[2];
+
+                  ec++;
+               }
+            }
+         }
+      } //type == 2
+      else if (type == 3)
+      {
+         int ec = 0;
+         for (int l=0; l<hash_g_n; l++)
+         {
+            for (int k=0; k<hash_g_n; k++)
+            {
+               for (int j=0; j<hash_g_n; j++)
+               {
+                  double x0 = hashgmin[0] + j*dxyzg[0];
+                  double y0 = hashgmin[1] + k*dxyzg[1];
+                  double z0 = hashgmin[2] + l*dxyzg[2];
+
+                  o_xyz(ec*nve*spacedim + 0) = x0;
+                  o_xyz(ec*nve*spacedim + 1) = y0;
+                  o_xyz(ec*nve*spacedim + 2) = z0;
+
+                  o_xyz(ec*nve*spacedim + 3) = x0+dxyzg[0];
+                  o_xyz(ec*nve*spacedim + 4) = y0;
+                  o_xyz(ec*nve*spacedim + 5) = z0;
+
+                  o_xyz(ec*nve*spacedim + 6) = x0+dxyzg[0];
+                  o_xyz(ec*nve*spacedim + 7) = y0+dxyzg[1];
+                  o_xyz(ec*nve*spacedim + 8) = z0;
+
+                  o_xyz(ec*nve*spacedim + 9) = x0;
+                  o_xyz(ec*nve*spacedim + 10) = y0+dxyzg[1];
+                  o_xyz(ec*nve*spacedim + 11) = z0;
+
+                  o_xyz(ec*nve*spacedim + 12) = x0;
+                  o_xyz(ec*nve*spacedim + 13) = y0;
+                  o_xyz(ec*nve*spacedim + 14) = z0+dxyzg[2];
+
+                  o_xyz(ec*nve*spacedim + 15) = x0+dxyzg[0];
+                  o_xyz(ec*nve*spacedim + 16) = y0;
+                  o_xyz(ec*nve*spacedim + 17) = z0+dxyzg[2];
+
+                  o_xyz(ec*nve*spacedim + 18) = x0+dxyzg[0];
+                  o_xyz(ec*nve*spacedim + 19) = y0+dxyzg[1];
+                  o_xyz(ec*nve*spacedim + 20) = z0+dxyzg[2];
+
+                  o_xyz(ec*nve*spacedim + 21) = x0;
+                  o_xyz(ec*nve*spacedim + 22) = y0+dxyzg[1];
+                  o_xyz(ec*nve*spacedim + 23) = z0+dxyzg[2];
+
+                  ec++;
+               }
+            }
+         }
+      }
+   }    // spacedim == 3 if-block end
+   else // spacedim == 2
+   {
+      for (int e = 0; e < nel; e++)
+      {
+         auto box = findptsData2->local.obb[e];
+         if (type == 0)
+         {
+            Vector minn(spacedim), maxx(spacedim);
+            for (int d = 0; d < spacedim; d++)
+            {
+               minn[d] = box.x[d].min;
+               maxx[d] = box.x[d].max;
+            }
+            o_xyz(e*nve*spacedim + 0) = minn[0];
+            o_xyz(e*nve*spacedim + 1) = minn[1];
+
+            o_xyz(e*nve*spacedim + 2) = maxx[0];
+            o_xyz(e*nve*spacedim + 3) = minn[1];
+
+            o_xyz(e*nve*spacedim + 4) = maxx[0];
+            o_xyz(e*nve*spacedim + 5) = maxx[1];
+
+            o_xyz(e*nve*spacedim + 6) = minn[0];
+            o_xyz(e*nve*spacedim + 7) = maxx[1];
+         } // type == 0
+      }
+      if (type == 2)
+      {
+         int ec = 0;
+         for (int k = 0; k < hash_l_n; k++)
+         {
+            for (int j = 0; j < hash_l_n; j++)
+            {
+               double x0 = hashlmin[0] + j*dxyzl[0];
+               double y0 = hashlmin[1] + k*dxyzl[1];
+
+               o_xyz(ec*nve*spacedim + 0) = x0;
+               o_xyz(ec*nve*spacedim + 1) = y0;
+
+               o_xyz(ec*nve*spacedim + 2) = x0+dxyzl[0];
+               o_xyz(ec*nve*spacedim + 3) = y0;
+
+               o_xyz(ec*nve*spacedim + 4) = x0+dxyzl[0];
+               o_xyz(ec*nve*spacedim + 5) = y0+dxyzl[1];
+
+               o_xyz(ec*nve*spacedim + 6) = x0;
+               o_xyz(ec*nve*spacedim + 7) = y0+dxyzl[1];
+
+               ec++;
+            }
+         }
+      }
+      else if (type == 3)
+      {
+         int ec = 0;
+         for (int k = 0; k < hash_g_n; k++)
+         {
+            for (int j = 0; j < hash_g_n; j++)
+            {
+               double x0 = hashgmin[0] + j*dxyzg[0];
+               double y0 = hashgmin[1] + k*dxyzg[1];
+
+               o_xyz(ec*nve*spacedim + 0) = x0;
+               o_xyz(ec*nve*spacedim + 1) = y0;
+
+               o_xyz(ec*nve*spacedim + 2) = x0+dxyzg[0];
+               o_xyz(ec*nve*spacedim + 3) = y0;
+
+               o_xyz(ec*nve*spacedim + 4) = x0+dxyzg[0];
+               o_xyz(ec*nve*spacedim + 5) = y0+dxyzg[1];
+
+               o_xyz(ec*nve*spacedim + 6) = x0;
+               o_xyz(ec*nve*spacedim + 7) = y0+dxyzg[1];
+
+               ec++;
+            }
+         }
+      }
+   } // spacedim == 2 if-block end
+
+   int nsend = type == 3 ? 0 : nel*nve*spacedim;
+   int nrecv = 0;
+   MPI_Status status;
+   int vidx = 0;
+   int eidx = 0;
+   int proc_hash_loc_idx = 0;
+   if (myid == save_rank)
+   {
+      for (int p = 0; p < gsl_comm->np; p++)
+      {
+         if (p != save_rank)
+         {
+            MPI_Recv(&nrecv, 1, MPI_INT, p, 444, gsl_comm->c, &status);
+            o_xyz.SetSize(nrecv);
+            if (nrecv) {
+               MPI_Recv(o_xyz.GetData(), nrecv, MPI_DOUBLE, p, 445, gsl_comm->c, &status);
+            }
+         }
+         else
+         {
+            nrecv = type == 3 ? nel*nve*spacedim : nsend;
+         }
+         int nel_recv = nrecv/(spacedim*nve);
+
+         // we keep track of how many hash cells are coming from each rank
+         if (p != save_rank)
+         {
+            hash_el_count[p] = hash_el_count[p-1] + nel_recv;
+         }
+         for (int e = 0; e < nel_recv; e++)
+         {
+            for (int j = 0; j < nve; j++)
+            {
+               Vector ver(o_xyz.GetData() + e*nve*spacedim + j*spacedim, spacedim);
+               meshbb->AddVertex(ver);
+            }
+
+            if (spacedim == 2)
+            {
+               const int inds[4] = {vidx++, vidx++, vidx++, vidx++};
+               int attr = eidx+1;
+               // for type == 2, we set element attribute based on the
+               // proc from which the element must have come.
+               if (type == 2)
+               {
+                  if (eidx >= hash_el_count[proc_hash_loc_idx])
+                     proc_hash_loc_idx++;
+                  attr = proc_hash_loc_idx+1;
+               }
+               else if (type == 3)
+               {
+                  attr = eidx % gsl_comm->np;
+                  attr += 1;
+               }
+               meshbb->AddQuad(inds, attr);
+               eidx++;
+            }
+            else
+            {
+               const int inds[8] = { vidx++, vidx++, vidx++, vidx++, vidx++, vidx++, vidx++, vidx++ };
+               meshbb->AddHex(inds, (eidx++)+1);
+            }
+         }
+      }
+      if (spacedim == 2) meshbb->FinalizeQuadMesh(1, 1, true);
+      else               meshbb->FinalizeHexMesh (1, 1, true);
+   }
+   else
+   {
+      MPI_Send(&nsend, 1, MPI_INT, save_rank, 444, gsl_comm->c);
+      if (nsend)
+      {
+         MPI_Send(o_xyz.GetData(), nsend, MPI_DOUBLE, save_rank, 445, gsl_comm->c);
+      }
+   }
+
+   return meshbb;
+}
+
+
+
 
 void FindPointsGSLIB::FindPoints(Mesh &m, const Vector &point_pos,
                                  int point_pos_ordering, const double bb_t,

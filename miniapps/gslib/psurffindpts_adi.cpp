@@ -230,6 +230,14 @@ int main (int argc, char *argv[])
       }
    }
 
+   if (visit && myid == 0)
+   {
+      VisItDataCollection dc("volmesh", mesh);
+      dc.SetFormat(DataCollection::SERIAL_FORMAT);
+      dc.Save();
+   }
+   MPI_Barrier(MPI_COMM_WORLD);
+
    if (myid == 0)
    {
       cout << "Mesh curvature of the original mesh: ";
@@ -264,6 +272,14 @@ int main (int argc, char *argv[])
       subdomain_attributes[i] = i+1;
    }
    auto submesh = SubMesh::CreateFromBoundary(*mesh, subdomain_attributes);
+   if (visit && myid == 0)
+   {
+      VisItDataCollection dc("submesh", &submesh);
+      dc.SetFormat(DataCollection::SERIAL_FORMAT);
+      dc.Save();
+   }
+   MPI_Barrier(MPI_COMM_WORLD);
+
    ParMesh psubmesh(MPI_COMM_WORLD, submesh);
 
    ofile << "After ParMesh " << "myid"<<myid << endl;
@@ -301,6 +317,50 @@ int main (int argc, char *argv[])
 
    FindPointsGSLIB finder(MPI_COMM_WORLD);
    finder.SetupSurf(psubmesh);
+   cout << "SetupSurf done" << endl;
+
+   Mesh *mesh_abb, *mesh_lhbb, *mesh_ghbb;
+   if (visit)
+   {
+      mesh_abb  = finder.GetBoundingBoxMeshSurf(0);  // Axis aligned bounding box
+      mesh_lhbb = finder.GetBoundingBoxMeshSurf(2);  // Local Hash bounding box
+      mesh_ghbb = finder.GetBoundingBoxMeshSurf(3);  // Global Hash bounding box
+      if (myid == 0)
+      {
+         VisItDataCollection dc0("finderabb", mesh_abb);
+         dc0.SetFormat(DataCollection::SERIAL_FORMAT);
+         dc0.Save();
+
+         VisItDataCollection dc2("finderlhbb", mesh_lhbb);
+         dc2.SetFormat(DataCollection::SERIAL_FORMAT);
+         dc2.Save();
+
+         VisItDataCollection dc3("finderghbb", mesh_ghbb);
+         dc3.SetFormat(DataCollection::SERIAL_FORMAT);
+         dc3.Save();
+      }
+   }
+
+   if (visit && myid == 0)
+   {
+      // Array<int> attrlist(1);
+      // for (int i = 0; i < mesh_abb->GetNE(); i++)
+      // {
+      //    attrlist[0] = i+1;
+      //    auto mesh_abbt = SubMesh::CreateFromDomain(*mesh_abb, attrlist);
+      //    VisItDataCollection dct("finderabbt", &mesh_abbt);
+      //    dct.SetFormat(DataCollection::SERIAL_FORMAT);
+      //    dct.SetCycle(i);
+      //    dct.SetTime(i*1.0);
+      //    dct.Save();
+      // }
+   }
+   MPI_Barrier(MPI_COMM_WORLD);
+
+   delete fec;
+
+   cout << "Just before FreeData" << endl;
+   // finder.FreeData();
 
    return 0;
 }
