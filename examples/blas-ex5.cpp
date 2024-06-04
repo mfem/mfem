@@ -35,7 +35,7 @@ int main (void){
     for (k = 0; k < W; k++) {
         for (j = 0; j < N; j++) {
             for (i = 0; i < M; i++) {
-                X.Data()[IDXM(i,j,N)] = IDXM(i,j,N);
+                X.GetData()[IDXM(i,j,N)] = IDXM(i,j,N);
                 A.Data()[IDXT(i,j,k,M)] = IDXT(i,j,k,M);
             }
         }
@@ -47,7 +47,7 @@ int main (void){
 
     double* y = 0;  // host device pointer
 
-    y = (double *)malloc (N * W * sizeof(*Y.Data()));
+    y = (double *)malloc (N * W * sizeof(*Y.GetData()));
     if (!y) {
         printf ("host memory allocation failed for y");
         return EXIT_FAILURE;
@@ -55,7 +55,7 @@ int main (void){
     for (k = 0; k < W; k++) {
         for (j = 0; j < N; j++) {
             for (i = 0; i < M; i++) {
-                printf ("%7.0f", A.Data()[IDXV(i,j,6)]);
+                printf ("%7.0f", A.Data()[IDXT(i,j,k,M)]);
             }
             printf ("\n");  // col-major, so prints vectors of columns out together in each row
         }
@@ -63,7 +63,7 @@ int main (void){
     }
     for (k = 0; k < W; k++) {
         for (j = 0; j < N; j++) {
-            printf ("%7.0f", X[IDXV(j,k,N)]);
+            printf ("%7.0f", X[IDXM(j,k,N)]);
         }
         printf ("\n");
     }
@@ -138,7 +138,7 @@ int main (void){
     Y.SetData(y);
     for (k = 0; k < W; k++) {
         for (j = 0; j < N; j++) {
-            printf ("%7.0f", Y.GetData()[IDXV(j,k,N)]);  // col-major, so prints vectors of columns out together in each row
+            printf ("%7.0f", Y.GetData()[IDXM(j,k,N)]);  // col-major, so prints vectors of columns out together in each row
         }
         printf ("\n");
     }
