@@ -4753,6 +4753,70 @@ void NURBSExtension::DegreeElevate(int rel_degree, int degree)
    }
 }
 
+void NURBSExtension::UniformRefinement(Array<int> const& rf)
+{
+   for (int p = 0; p < patches.Size(); p++)
+   {
+      patches[p]->UniformRefinement(rf);
+   }
+}
+
+void NURBSExtension::UniformRefinement(int rf)
+{
+   Array<int> rf_array(Dimension());
+   rf_array = rf;
+   UniformRefinement(rf_array);
+}
+
+void NURBSExtension::Coarsen(Array<int> const& cf, real_t tol)
+{
+   // First, mark all knot vectors on all patches as not coarse. This prevents
+   // coarsening the same knot vector twice.
+   for (int p = 0; p < patches.Size(); p++)
+   {
+      patches[p]->SetKnotVectorsCoarse(false);
+   }
+
+   for (int p = 0; p < patches.Size(); p++)
+   {
+      patches[p]->Coarsen(cf, tol);
+   }
+}
+
+void NURBSExtension::Coarsen(int cf, real_t tol)
+{
+   Array<int> cf_array(Dimension());
+   cf_array = cf;
+   Coarsen(cf_array, tol);
+}
+
+void NURBSExtension::GetCoarseningFactors(Array<int> & f) const
+{
+   f.SetSize(0);
+   for (auto patch : patches)
+   {
+      Array<int> pf;
+      patch->GetCoarseningFactors(pf);
+      if (f.Size() == 0)
+      {
+         f = pf; // Initialize
+      }
+      else
+      {
+         MFEM_VERIFY(f.Size() == pf.Size(), "");
+         for (int i=0; i<f.Size(); ++i)
+         {
+            MFEM_VERIFY(f[i] == pf[i] || f[i] == 1 || pf[i] == 1,
+                        "Inconsistent patch coarsening factors");
+            if (f[i] == 1 && pf[i] != 1)
+            {
+               f[i] = pf[i];
+            }
+         }
+      }
+   }
+}
+
 void NURBSExtension::KnotInsert(Array<KnotVector *> &kv)
 {
    Array<int> edges;
@@ -4832,7 +4896,6 @@ void NURBSExtension::KnotInsert(Array<Vector *> &kv)
          pkv[2] = kv[KnotInd(edges[8])];
       }
 
-
       // Check whether inserted knots should be flipped before inserting.
       // Knotvectors are stored in a different array pkvc such that the original
       // knots which are inserted are not changed.
@@ -4862,6 +4925,66 @@ void NURBSExtension::KnotInsert(Array<Vector *> &kv)
       }
 
       patches[p]->KnotInsert(pkvc);
+
+      for (int i = 0; i < Dimension(); i++) { delete pkvc[i]; }
+   }
+}
+
+void NURBSExtension::KnotRemove(Array<Vector *> &kv, real_t tol)
+{
+   Array<int> edges;
+   Array<int> orient;
+   Array<int> kvdir;
+
+   Array<Vector *> pkv(Dimension());
+
+   for (int p = 0; p < patches.Size(); p++)
+   {
+      if (Dimension()==1)
+      {
+         pkv[0] = kv[KnotInd(p)];
+      }
+      else if (Dimension()==2)
+      {
+         patchTopo->GetElementEdges(p, edges, orient);
+         pkv[0] = kv[KnotInd(edges[0])];
+         pkv[1] = kv[KnotInd(edges[1])];
+      }
+      else if (Dimension()==3)
+      {
+         patchTopo->GetElementEdges(p, edges, orient);
+         pkv[0] = kv[KnotInd(edges[0])];
+         pkv[1] = kv[KnotInd(edges[3])];
+         pkv[2] = kv[KnotInd(edges[8])];
+      }
+
+      // Check whether knots should be flipped before removing.
+      CheckKVDirection(p, kvdir);
+
+      Array<Vector *> pkvc(Dimension());
+      for (int d = 0; d < Dimension(); d++)
+      {
+         pkvc[d] = new Vector(*(pkv[d]));
+
+         if (kvdir[d] == -1)
+         {
+            // Find flip point, for knotvectors that do not have the domain [0:1]
+            KnotVector *kva = knotVectorsCompr[Dimension()*p+d];
+            real_t apb = (*kva)[0] + (*kva)[kva->Size()-1];
+
+            // Flip vector
+            int size = pkvc[d]->Size();
+            int ns = ceil(size/2.0);
+            for (int j = 0; j < ns; j++)
+            {
+               real_t tmp = apb - pkvc[d]->Elem(j);
+               pkvc[d]->Elem(j) = apb - pkvc[d]->Elem(size-1-j);
+               pkvc[d]->Elem(size-1-j) = tmp;
+            }
+         }
+      }
+
+      patches[p]->KnotRemove(pkvc, tol);
 
       for (int i = 0; i < Dimension(); i++) { delete pkvc[i]; }
    }
@@ -5095,70 +5218,6 @@ void NURBSExtension::SetPatchToBdrElements()
    }
 }
 
-void NURBSExtension::UniformRefinement(Array<int> const& rf)
-{
-   for (int p = 0; p < patches.Size(); p++)
-   {
-      patches[p]->UniformRefinement(rf);
-   }
-}
-
-void NURBSExtension::UniformRefinement(int rf)
-{
-   Array<int> rf_array(Dimension());
-   rf_array = rf;
-   UniformRefinement(rf_array);
-}
-
-void NURBSExtension::Coarsen(Array<int> const& cf, real_t tol)
-{
-   // First, mark all knot vectors on all patches as not coarse. This prevents
-   // coarsening the same knot vector twice.
-   for (int p = 0; p < patches.Size(); p++)
-   {
-      patches[p]->SetKnotVectorsCoarse(false);
-   }
-
-   for (int p = 0; p < patches.Size(); p++)
-   {
-      patches[p]->Coarsen(cf, tol);
-   }
-}
-
-void NURBSExtension::Coarsen(int cf, real_t tol)
-{
-   Array<int> cf_array(Dimension());
-   cf_array = cf;
-   Coarsen(cf_array, tol);
-}
-
-void NURBSExtension::GetCoarseningFactors(Array<int> & f) const
-{
-   f.SetSize(0);
-   for (auto patch : patches)
-   {
-      Array<int> pf;
-      patch->GetCoarseningFactors(pf);
-      if (f.Size() == 0)
-      {
-         f = pf; // Initialize
-      }
-      else
-      {
-         MFEM_VERIFY(f.Size() == pf.Size(), "");
-         for (int i=0; i<f.Size(); ++i)
-         {
-            MFEM_VERIFY(f[i] == pf[i] || f[i] == 1 || pf[i] == 1,
-                        "Inconsistent patch coarsening factors");
-            if (f[i] == 1 && pf[i] != 1)
-            {
-               f[i] = pf[i];
-            }
-         }
-      }
-   }
-}
-
 const Array<int>& NURBSExtension::GetPatchElements(int patch)
 {
    MFEM_ASSERT(patch_to_el.size() > 0, "patch_to_el not set");
@@ -5225,66 +5284,6 @@ int NURBSExtension::GetEdgeDofs(int index, Array<int> &dofs) const
    }
 
    return GetOrder();
-}
-
-void NURBSExtension::KnotRemove(Array<Vector *> &kv, real_t tol)
-{
-   Array<int> edges;
-   Array<int> orient;
-   Array<int> kvdir;
-
-   Array<Vector *> pkv(Dimension());
-
-   for (int p = 0; p < patches.Size(); p++)
-   {
-      if (Dimension()==1)
-      {
-         pkv[0] = kv[KnotInd(p)];
-      }
-      else if (Dimension()==2)
-      {
-         patchTopo->GetElementEdges(p, edges, orient);
-         pkv[0] = kv[KnotInd(edges[0])];
-         pkv[1] = kv[KnotInd(edges[1])];
-      }
-      else if (Dimension()==3)
-      {
-         patchTopo->GetElementEdges(p, edges, orient);
-         pkv[0] = kv[KnotInd(edges[0])];
-         pkv[1] = kv[KnotInd(edges[3])];
-         pkv[2] = kv[KnotInd(edges[8])];
-      }
-
-      // Check whether knots should be flipped before removing.
-      CheckKVDirection(p, kvdir);
-
-      Array<Vector *> pkvc(Dimension());
-      for (int d = 0; d < Dimension(); d++)
-      {
-         pkvc[d] = new Vector(*(pkv[d]));
-
-         if (kvdir[d] == -1)
-         {
-            // Find flip point, for knotvectors that do not have the domain [0:1]
-            KnotVector *kva = knotVectorsCompr[Dimension()*p+d];
-            real_t apb = (*kva)[0] + (*kva)[kva->Size()-1];
-
-            // Flip vector
-            int size = pkvc[d]->Size();
-            int ns = ceil(size/2.0);
-            for (int j = 0; j < ns; j++)
-            {
-               real_t tmp = apb - pkvc[d]->Elem(j);
-               pkvc[d]->Elem(j) = apb - pkvc[d]->Elem(size-1-j);
-               pkvc[d]->Elem(size-1-j) = tmp;
-            }
-         }
-      }
-
-      patches[p]->KnotRemove(pkvc, tol);
-
-      for (int i = 0; i < Dimension(); i++) { delete pkvc[i]; }
-   }
 }
 
 int NURBSExtension::GetEntityDofs(int entity, int index, Array<int> &dofs) const
