@@ -51,7 +51,7 @@ BilinearForm* DarcyForm::GetFluxMassForm()
 
 const BilinearForm* DarcyForm::GetFluxMassForm() const
 {
-   MFEM_ASSERT(M_u, "Flux mass form not allocated!");
+   //MFEM_ASSERT(M_u, "Flux mass form not allocated!");
    return M_u;
 }
 
@@ -63,7 +63,7 @@ BilinearForm* DarcyForm::GetPotentialMassForm()
 
 const BilinearForm* DarcyForm::GetPotentialMassForm() const
 {
-   MFEM_ASSERT(M_p, "Potential mass form not allocated!");
+   //MFEM_ASSERT(M_p, "Potential mass form not allocated!");
    return M_p;
 }
 
@@ -75,7 +75,7 @@ MixedBilinearForm* DarcyForm::GetFluxDivForm()
 
 const MixedBilinearForm* DarcyForm::GetFluxDivForm() const
 {
-   MFEM_ASSERT(B, "Flux div form not allocated!");
+   //MFEM_ASSERT(B, "Flux div form not allocated!");
    return B;
 }
 
