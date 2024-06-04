@@ -159,7 +159,7 @@ public:
    /// The element matrices are converted from row-major (how they are stored in
    /// @a ea_data) to column-major format.
    ///
-   /// If @ordering is ElementDofOrdering::NATIVE, then the matrices are
+   /// If @a ordering is ElementDofOrdering::NATIVE, then the matrices are
    /// reordered from the lexicographic ordering used internally.
    void GetElementMatrices(DenseTensor &element_matrices,
                            ElementDofOrdering ordering);
