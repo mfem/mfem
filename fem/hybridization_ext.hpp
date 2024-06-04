@@ -68,6 +68,9 @@ protected:
    /// Assemble the element matrix A into the hybridized system matrix.
    void AssembleMatrix(int el, const class DenseMatrix &A);
 
+   /// Invert and store the element matrices Ahat.
+   void AssembleElementMatrices(const class DenseTensor &el_mats);
+
    /// Apply the action of R^t mapping into the "hat DOF" space.
    void MultRt(const Vector &b, Vector &b_hat) const;
 

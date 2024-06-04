@@ -413,6 +413,22 @@ void HybridizationExtension::AssembleMatrix(int el, const DenseMatrix &elmat)
    lu.Factor(n);
 }
 
+void HybridizationExtension::AssembleElementMatrices(
+   const class DenseTensor &el_mats)
+{
+   Ahat_inv.GetMemory().CopyFrom(el_mats.GetMemory(), el_mats.TotalSize());
+
+   const int ne = h.fes.GetNE();
+   const int n = el_mats.SizeI();
+   for (int e = 0; e < ne; ++e)
+   {
+      double *Ainv = Ahat_inv.GetData() + e*n*n;
+      int *ipiv = Ahat_piv.GetData() + e*n;
+      LUFactors lu(Ainv, ipiv);
+      lu.Factor(n);
+   }
+}
+
 void HybridizationExtension::Init(const Array<int> &ess_tdof_list)
 {
    // Verify that preconditions for the extension are met
