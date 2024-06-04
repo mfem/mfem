@@ -44,6 +44,7 @@ int main (void){
         printf ("host memory allocation failed for y");
         return EXIT_FAILURE;
     }
+    printf ("A is \n");
     for (k = 0; k < W; k++) {
         for (j = 0; j < N; j++) {
             for (i = 0; i < M; i++) {
@@ -53,12 +54,14 @@ int main (void){
         }
         printf ("\n");
     }
+    printf ("X is \n");
     for (k = 0; k < W; k++) {
         for (j = 0; j < N; j++) {
             printf ("%7.0f", X.GetData()[IDXM(j,k,N)]);
         }
         printf ("\n");
     }
+    printf ("\n");
 
     // ***START OF DEVICE COMPUTATIONS***
     // create handle to start CUBLAS work on the device; i.e. initialize CUBLAS
@@ -91,7 +94,7 @@ int main (void){
         // seems to be correct based off https://stackoverflow.com/questions/16090351/in-cublas-how-do-i-get-or-set-matrix-element-from-host
         if (stat != CUBLAS_STATUS_SUCCESS) {
             printf ("data download failed");
-            printf(stat);
+            printf (cublasGetStatusString(stat));  // note: only available after version 11.4.2
             cudaFree (devPtrA);
             cublasDestroy(handle);
             return EXIT_FAILURE;
@@ -133,6 +136,7 @@ int main (void){
 
     // with memory on host device, we can now output it
     Y.SetData(y);
+    printf ("Y is \n");
     for (k = 0; k < W; k++) {
         for (j = 0; j < N; j++) {
             printf ("%7.0f", Y.GetData()[IDXM(j,k,N)]);  // col-major, so prints vectors of columns out together in each row
