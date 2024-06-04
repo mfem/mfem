@@ -3955,15 +3955,15 @@ void NURBSExtension::GenerateOffsets()
 
       if (is3D)
       {
-         for (auto master : ncf.masters)
+         for (auto masterFace : ncf.masters)
          {
-            masterFaces.insert(master.index);
+            masterFaces.insert(masterFace.index);
          }
       }
 
-      for (auto master : nce.masters)
+      for (auto masterEdge : nce.masters)
       {
-         masterEdges.insert(master.index);
+         masterEdges.insert(masterEdge.index);
       }
 
       Array<int> masterEdgeIndex(masterEdges.size());
@@ -4159,12 +4159,12 @@ void NURBSExtension::GenerateOffsets()
 
       for (int i=0; i<nce.slaves.Size(); ++i)
       {
-         const NCMesh::Slave& slave = nce.slaves[i];
+         const NCMesh::Slave& slaveEdge = nce.slaves[i];
          int vert_index[2];
-         patchTopo->ncmesh->GetEdgeVertices(slave, vert_index);
-         slaveEdges.push_back(slave.index);
+         patchTopo->ncmesh->GetEdgeVertices(slaveEdge, vert_index);
+         slaveEdges.push_back(slaveEdge.index);
 
-         const int mid = masterEdgeToId[slave.master];
+         const int mid = masterEdgeToId[slaveEdge.master];
          masterEdgeSlaves[mid].push_back(i);
       }
 
@@ -6311,17 +6311,17 @@ void NURBSPatchMap::SetMasterEdges(bool dof)
 
          for (int s=0; s<Ext->masterEdgeSlaves[mid].size(); ++s)
          {
-            const int slave = Ext->slaveEdges[Ext->masterEdgeSlaves[mid][s]];
+            const int slaveId = Ext->slaveEdges[Ext->masterEdgeSlaves[mid][s]];
 
             Array<int> svert;
-            if (slave >= 0)
+            if (slaveId >= 0)
             {
-               Ext->patchTopo->GetEdgeVertices(slave, svert);
+               Ext->patchTopo->GetEdgeVertices(slaveId, svert);
             }
             else
             {
                // Auxiliary edge
-               Ext->GetAuxEdgeVertices(-1 - slave, svert);
+               Ext->GetAuxEdgeVertices(-1 - slaveId, svert);
             }
 
             const int mev = Ext->masterEdgeVerts[mid][std::max(s-1,0)];
@@ -6338,16 +6338,16 @@ void NURBSPatchMap::SetMasterEdges(bool dof)
                if (svert[1] == mev) { reverse = true; }
             }
 
-            const int eos = slave >= 0 ? e_offsets[slave] : aux_e_offsets[-1 - slave];
+            const int eos = slaveId >= 0 ? e_offsets[slaveId] : aux_e_offsets[-1 - slaveId];
 
             // TODO: in 3D, the next offset would be f_offsets[0], not
             // p_offsets[0]. This needs to be generalized in an elegant way.
             // How about appending the next offset to the end of e_offsets?
             // Would increasing the size of e_offsets by 1 break something?
 
-            const int eos1 = slave >= 0 ? (slave + 1 < e_offsets.Size() ?
-                                           e_offsets[slave + 1] : aux_e_offsets[0]) :
-                             aux_e_offsets[-slave];
+            const int eos1 = slaveId >= 0 ? (slaveId + 1 < e_offsets.Size() ?
+                                             e_offsets[slaveId + 1] : aux_e_offsets[0]) :
+                             aux_e_offsets[-slaveId];
 
             const int nvs = eos1 - eos;
 
@@ -6512,19 +6512,15 @@ void NURBSPatchMap::SetMasterFaces(bool dof)
    int mos = masterDofs.Size();
    for (int i=0; i<faces.Size(); ++i)
    {
-      auto search = Ext->masterFaces.find(faces[i]);
-      faceMaster[i] = (search != Ext->masterFaces.end());
+      {
+         auto search = Ext->masterFaces.find(faces[i]);
+         faceMaster[i] = (search != Ext->masterFaces.end());
+      }
       faceMasterOffset[i] = mos;
 
       if (faceMaster[i])
       {
-         int mid = -1;
-         auto s = Ext->masterFaceToId.find(faces[i]);
-         if (s != Ext->masterFaceToId.end())
-         {
-            mid = s->second;
-         }
-
+         const int mid = Ext->masterFaceToId.at(faces[i]);
          MFEM_ASSERT(mid >= 0, "Master face index not found");
 
          const bool rev = Ext->masterFaceRev[mid];
@@ -6564,60 +6560,62 @@ void NURBSPatchMap::SetMasterFaces(bool dof)
 
             // Next, set the top edge of fv, which has only 2 vertices.
             const int s1 = 0;
-            const int s2 = n2 - 1;
-            const int s = rev ? s1 + (s2 * n1) : s2 + (s1 * n2);
-            const int s_nghb = rev ? s1 + ((s2 - 1) * n1) : s2 - 1 + (s1 * n2);
-            const int slave = Ext->slaveFaces[Ext->masterFaceSlaves[mid][s]];
-            const int nghb = Ext->slaveFaces[Ext->masterFaceSlaves[mid][s_nghb]];
-
-            // fv(s1, s2) is known. It is the bottom-left corner of face `slave`.
-
-            // Find the 2 vertices shared between faces `slave` and `nghb`.
-            Array<int> vshared(2);
-            vshared[0] = fv(s1, s2);
-            vshared[1] = -1;
-
-            Array<int> svert, nvert;
-            Ext->patchTopo->GetFaceVertices(slave, svert);
-            Ext->patchTopo->GetFaceVertices(nghb, nvert);
-            MFEM_VERIFY(svert.Size() == 4 && nvert.Size() == 4,
-                        "Face is not a quad");
-
-            for (int j=0; j<4; ++j)
-               for (int k=0; k<4; ++k)
-               {
-                  if (svert[j] == nvert[k] && svert[j] != vshared[0])
-                  {
-                     MFEM_VERIFY(vshared[1] == -1, "");
-                     vshared[1] = svert[j];
-                  }
-               }
-
-            MFEM_VERIFY(vshared[1] >= 0, "");
-
-            for (int j=0; j<2; ++j)
             {
-               // Find the vertex of svert connected to vshared[j]
-               int idx = -1;
-               for (int k=0; k<4; ++k)
-               {
-                  if (svert[k] == vshared[j])
-                  {
-                     idx = k;
-                  }
-               }
+               const int s2 = n2 - 1;
+               const int s = rev ? s1 + (s2 * n1) : s2 + (s1 * n2);
+               const int s_nghb = rev ? s1 + ((s2 - 1) * n1) : s2 - 1 + (s1 * n2);
+               const int slaveId = Ext->slaveFaces[Ext->masterFaceSlaves[mid][s]];
+               const int nghb = Ext->slaveFaces[Ext->masterFaceSlaves[mid][s_nghb]];
 
-               MFEM_VERIFY(idx >= 0, "");
-               fv(j, n2) = -1;
-               for (int k=0; k<2; ++k)
-               {
-                  if (svert[(idx + 1 + (k * 2)) % 4] != vshared[(j+1) % 2])
-                  {
-                     fv(j, n2) = svert[(idx + 1 + (k * 2)) % 4];
-                  }
-               }
+               // fv(s1, s2) is known. It is the bottom-left corner of face `slave`.
 
-               MFEM_VERIFY(fv(j, n2) >= 0, "");
+               // Find the 2 vertices shared between faces `slave` and `nghb`.
+               Array<int> vshared(2);
+               vshared[0] = fv(s1, s2);
+               vshared[1] = -1;
+
+               Array<int> svert, nvert;
+               Ext->patchTopo->GetFaceVertices(slaveId, svert);
+               Ext->patchTopo->GetFaceVertices(nghb, nvert);
+               MFEM_VERIFY(svert.Size() == 4 && nvert.Size() == 4,
+                           "Face is not a quad");
+
+               for (int j=0; j<4; ++j)
+                  for (int k=0; k<4; ++k)
+                  {
+                     if (svert[j] == nvert[k] && svert[j] != vshared[0])
+                     {
+                        MFEM_VERIFY(vshared[1] == -1, "");
+                        vshared[1] = svert[j];
+                     }
+                  }
+
+               MFEM_VERIFY(vshared[1] >= 0, "");
+
+               for (int j=0; j<2; ++j)
+               {
+                  // Find the vertex of svert connected to vshared[j]
+                  int idx = -1;
+                  for (int k=0; k<4; ++k)
+                  {
+                     if (svert[k] == vshared[j])
+                     {
+                        idx = k;
+                     }
+                  }
+
+                  MFEM_VERIFY(idx >= 0, "");
+                  fv(j, n2) = -1;
+                  for (int k=0; k<2; ++k)
+                  {
+                     if (svert[(idx + 1 + (k * 2)) % 4] != vshared[(j+1) % 2])
+                     {
+                        fv(j, n2) = svert[(idx + 1 + (k * 2)) % 4];
+                     }
+                  }
+
+                  MFEM_VERIFY(fv(j, n2) >= 0, "");
+               }
             }
 
             // Next, set the right edge of fv, except the top right corner of
@@ -6625,7 +6623,7 @@ void NURBSPatchMap::SetMasterFaces(bool dof)
             for (int s2=n2-1; s2>=0; --s2)
             {
                const int s = rev ? s1 + (s2 * n1) : s2 + (s1 * n2);
-               const int slave = Ext->slaveFaces[Ext->masterFaceSlaves[mid][s]];
+               const int slaveId = Ext->slaveFaces[Ext->masterFaceSlaves[mid][s]];
 
                std::set<int> vertsSet;
                vertsSet.insert(fv(1, s2 + 1));  // already set
@@ -6633,12 +6631,12 @@ void NURBSPatchMap::SetMasterFaces(bool dof)
                vertsSet.insert(fv(0, s2));  // already set
 
                // Find the unique vertex of face `slave` not already set.
-               Array<int> svert;
-               Ext->patchTopo->GetFaceVertices(slave, svert);
-               MFEM_VERIFY(svert.Size() == 4, "TODO: remove this obvious check");
+               Array<int> sfvert;
+               Ext->patchTopo->GetFaceVertices(slaveId, sfvert);
+               MFEM_VERIFY(sfvert.Size() == 4, "TODO: remove this obvious check");
 
                int v = -1;
-               for (auto sv : svert)
+               for (auto sv : sfvert)
                {
                   auto search = vertsSet.find(sv);
                   if (search == vertsSet.end())
@@ -6662,7 +6660,7 @@ void NURBSPatchMap::SetMasterFaces(bool dof)
                const int s1 = n1 - 1;
                const int s = rev ? s1 + (s2 * n1) : s2 + (s1 * n2);
                const int s_nghb = rev ? s1 - 1 + (s2 * n1) : s2 + ((s1 - 1) * n2);
-               const int slave = Ext->slaveFaces[Ext->masterFaceSlaves[mid][s]];
+               const int slaveId = Ext->slaveFaces[Ext->masterFaceSlaves[mid][s]];
                const int nghb = Ext->slaveFaces[Ext->masterFaceSlaves[mid][s_nghb]];
 
                // fv(s1, s2) is known. It is the bottom-left corner of face `slave`.
@@ -6674,7 +6672,7 @@ void NURBSPatchMap::SetMasterFaces(bool dof)
                vshared[1] = -1;
 
                Array<int> svert, nvert;
-               Ext->patchTopo->GetFaceVertices(slave, svert);
+               Ext->patchTopo->GetFaceVertices(slaveId, svert);
                Ext->patchTopo->GetFaceVertices(nghb, nvert);
                MFEM_VERIFY(svert.Size() == 4 && nvert.Size() == 4,
                            "Face is not a quad");
@@ -6728,7 +6726,7 @@ void NURBSPatchMap::SetMasterFaces(bool dof)
                // TODO: refactor. This is similar to code in a case above.
                const int s2 = n2 - 1;
                const int s = rev ? s1 + (s2 * n1) : s2 + (s1 * n2);
-               const int slave = Ext->slaveFaces[Ext->masterFaceSlaves[mid][s]];
+               const int slaveId = Ext->slaveFaces[Ext->masterFaceSlaves[mid][s]];
 
                std::set<int> vertsSet;
                vertsSet.insert(fv(s1 + 1, s2));  // already set
@@ -6737,7 +6735,7 @@ void NURBSPatchMap::SetMasterFaces(bool dof)
 
                // Find the unique vertex of face `slave` not already set.
                Array<int> svert;
-               Ext->patchTopo->GetFaceVertices(slave, svert);
+               Ext->patchTopo->GetFaceVertices(slaveId, svert);
                MFEM_VERIFY(svert.Size() == 4, "TODO: remove this obvious check");
 
                int v = -1;
@@ -6783,7 +6781,7 @@ void NURBSPatchMap::SetMasterFaces(bool dof)
                const int sgn1 = (sri == 1) ? -1 : 1;
 
                const int s = rev ? s1r + (s2r * n1) : s2r + (s1r * n2);
-               const int slave = Ext->slaveFaces[Ext->masterFaceSlaves[mid][s]];
+               const int slaveId = Ext->slaveFaces[Ext->masterFaceSlaves[mid][s]];
 
                // Determine which slave face edges are in the first and second
                // dimensions of the master face.
@@ -6793,10 +6791,10 @@ void NURBSPatchMap::SetMasterFaces(bool dof)
                Array<int> sedges;
                {
                   Array<int> sori, evert, fvert;
-                  Ext->patchTopo->GetFaceEdges(slave, sedges, sori);
+                  Ext->patchTopo->GetFaceEdges(slaveId, sedges, sori);
                   MFEM_VERIFY(sedges.Size() == 4, "TODO: remove this obvious check");
 
-                  Ext->patchTopo->GetFaceVertices(slave, fvert);
+                  Ext->patchTopo->GetFaceVertices(slaveId, fvert);
 
                   // In the n1 > 1 case, set v1 to the bottom-left corner of the
                   // next slave face in s1, which is the bottom-right corner of
@@ -6876,17 +6874,17 @@ void NURBSPatchMap::SetMasterFaces(bool dof)
                   }
                }  // s1 == 0
 
-               if (slave < 0)
+               if (slaveId < 0)
                {
                   // Auxiliary face
                   //Ext->GetAuxFaceVertices(-1 - slave, svert);
                   MFEM_ABORT("TODO: aux face implementation is not done");
                }
 
-               const int fos = slave >= 0 ? f_offsets[slave] : aux_f_offsets[-1 - slave];
-               const int fos1 = slave >= 0 ? (slave + 1 < f_offsets.Size() ?
-                                              f_offsets[slave + 1] : aux_f_offsets[0]) :
-                                aux_f_offsets[-slave];
+               const int fos = slaveId >= 0 ? f_offsets[slaveId] : aux_f_offsets[-1 - slaveId];
+               const int fos1 = slaveId >= 0 ? (slaveId + 1 < f_offsets.Size() ?
+                                                f_offsets[slaveId + 1] : aux_f_offsets[0]) :
+                                aux_f_offsets[-slaveId];
 
                const int nvs = fos1 - fos;
 
@@ -6910,13 +6908,13 @@ void NURBSPatchMap::SetMasterFaces(bool dof)
                Array<int> perm;
                if (nf1 * nf2 > 0)
                {
-                  if (slave >= 0)
+                  if (slaveId >= 0)
                   {
                      // Find the DOFs of the slave face ordered for the master
                      // face. We know that e1 and e2 are the local indices of
                      // the slave face edges on the bottom and right side, with
                      // respect to the master face directions.
-                     GetFaceOrdering(slave, nf1, nf2, v0, e1, e2, perm);
+                     GetFaceOrdering(slaveId, nf1, nf2, v0, e1, e2, perm);
                   }
                   else
                   {
