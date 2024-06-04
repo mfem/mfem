@@ -11,6 +11,7 @@
 
 #include "unit_tests.hpp"
 #include "mfem.hpp"
+#include "linalg/dtensor.hpp"
 #include <fstream>
 #include <iostream>
 
@@ -227,6 +228,59 @@ TEST_CASE("H1 Assembly Levels", "[AssemblyLevel], [PartialAssembly], [CUDA]")
       }
    }
 } // H1 Assembly Levels test case
+
+TEST_CASE("H(div) Element Assembly", "[AssemblyLevel][PartialAssembly][CUDA]")
+{
+   const auto fname = GENERATE(
+                         "../../data/inline-quad.mesh",
+                         "../../data/star-q3.mesh"
+                      );
+   const auto order = GENERATE(1, 2, 3);
+
+   CAPTURE(fname, order);
+
+   Mesh mesh(fname);
+   const int dim = mesh.Dimension();
+   const int ne = mesh.GetNE();
+
+   RT_FECollection fec(order - 1, dim);
+   FiniteElementSpace fes(&mesh, &fec);
+   VectorFEMassIntegrator integ;
+
+   const TensorBasisElement* tbe =
+      dynamic_cast<const TensorBasisElement*>(fes.GetFE(0));
+   MFEM_VERIFY(tbe, "");
+   const int ndof = fes.GetFE(0)->GetDof();
+   const Array<int> &dof_map = tbe->GetDofMap();
+
+   Vector ea_data(ne*ndof*ndof);
+   integ.AssembleEA(fes, ea_data, false);
+   const auto ea_mats = Reshape(ea_data.HostRead(), ndof, ndof, ne);
+
+   DenseMatrix elmat;
+   for (int e = 0; e < ne; ++e)
+   {
+      const FiniteElement &el = *fes.GetFE(e);
+      ElementTransformation &T = *mesh.GetElementTransformation(e);
+      integ.AssembleElementMatrix(el, T, elmat);
+
+      for (int i = 0; i < ndof; ++i)
+      {
+         const int ii_s = dof_map[i];
+         const int ii = ii_s >= 0 ? ii_s : -1 - ii_s;
+         const int s_i = ii_s >= 0 ? 1 : -1;
+         for (int j = 0; j < ndof; ++j)
+         {
+            const int jj_s = dof_map[j];
+            const int jj = jj_s >= 0 ? jj_s : -1 - jj_s;
+            const int s_j = jj_s >= 0 ? 1 : -1;
+            elmat(ii, jj) -= s_i*s_j*ea_mats(i, j, e);
+         }
+      }
+
+      REQUIRE(elmat.MaxMaxNorm() == MFEM_Approx(0.0));
+   }
+}
 
 TEST_CASE("L2 Assembly Levels", "[AssemblyLevel], [PartialAssembly], [CUDA]")
 {
