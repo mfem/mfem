@@ -127,51 +127,7 @@ real_t lap_fun(const Vector & x)
 }
 
 
-//----------------------------------------------------------
-void evaluate1D(Vector &x, Vector &f, GridFunction *gf, int lod);
-
-Vector compute(int argc, char *argv[], int er = 0);
-
-//----------------------------------------------------------
 int main(int argc, char *argv[])
-{
-   int stages = 6;
-   Vector normL2(stages);
-   Vector normH1(stages);
-   Vector normH2(stages); // -- Laplacian
-
-   for (int s = 0; s < stages; s++)
-   {
-      Vector norm = compute(argc, argv, s);
-      normL2[s] = norm[0];
-      normH1[s] = norm[1];
-      normH2[s] = norm[2];
-      if (s == 0)
-      {
-         cout<<"\n\n";
-         cout<<"---------------------------------------------------------------------------------------------\n";
-         cout<<" norm L2        | order         || norm H1      | order         || norm H2      | order      \n";
-         cout<<"---------------------------------------------------------------------------------------------\n";
-         cout<<normL2[0]<<"\t| "<<"   --   "<<"\t|| ";
-         cout<<normH1[0]<<"\t| "<<"   --   "<<"\t|| ";
-         cout<<normH2[0]<<"\t| "<<"   --   "<<endl;
-         mfem::out.Disable();
-      }
-      else
-      {
-         real_t orderL2 = log(normL2[s-1]/normL2[s])/log(2.0);
-         real_t orderH1 = log(normH1[s-1]/normH1[s])/log(2.0);
-         real_t orderH2 = log(normH2[s-1]/normH2[s])/log(2.0);
-         cout<<normL2[s]<<"\t| "<<orderL2<<"\t|| ";
-         cout<<normH1[s]<<"\t| "<<orderH1<<"\t|| ";
-         cout<<normH2[s]<<"\t| "<<orderH2<<endl;
-      }
-   }
-   return 0;
-}
-
-//----------------------------------------------------------
-Vector compute(int argc, char *argv[], int er)
 {
    // 1. Parse command-line options.
    const char *mesh_file = "../../data/square-nurbs.mesh";
@@ -202,7 +158,7 @@ Vector compute(int argc, char *argv[], int er)
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
-   args.AddOption(&kappa_param , "-k", "--kappa",
+   args.AddOption(&kappa_param, "-k", "--kappa",
                   "Sets the diffusion parameters, should be positive."
                   " Negative values are replaced with function defined in source.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
@@ -214,14 +170,14 @@ Vector compute(int argc, char *argv[], int er)
    if (!args.Good())
    {
       args.PrintUsage(mfem::out);
-     // return 1;
+      return 1;
    }
 
    args.PrintOptions(mfem::out);
 
    if (order.Min()< 2)
    {
-      mfem_error("Wrong order."); 
+      mfem_error("Wrong order.");
    }
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
@@ -240,7 +196,7 @@ Vector compute(int argc, char *argv[], int er)
          mesh->RefineNURBSFromFile(ref_file);
       }
 
-      for (int l = 0; l < ref_levels + er; l++)
+      for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
       }
@@ -425,20 +381,20 @@ Vector compute(int argc, char *argv[], int er)
    {
       irs[i] = &(IntRules.Get(i, order_quad));
    }
-   FunctionCoefficient xExact(sol_fun);
-   VectorFunctionCoefficient gExact(mesh->Dimension(), grad_fun);
-   FunctionCoefficient lExact(lap_fun);
+   FunctionCoefficient sol_cf(sol_fun);
+   VectorFunctionCoefficient grad_cf(mesh->Dimension(), grad_fun);
+   FunctionCoefficient lap_cf(lap_fun);
 
-   norm[0]= x.ComputeL2Error(xExact, irs);
-   norm[1]= x.ComputeGradError(&gExact, irs);
-   norm[2] = x.ComputeLaplaceError(&lExact, irs);
+   norm[0]= x.ComputeL2Error(sol_cf,irs);
+   norm[1]= x.ComputeGradError(&grad_cf, irs);
+   norm[2] = x.ComputeLaplaceError(&lap_cf, irs);
 
    mfem::out << "|| x_h - x_ex ||            = " << norm[0]  << "\n";
    mfem::out << "|| grad x_h - grad x_ex ||  = " << norm[1] << "\n";
    mfem::out << "|| lap x_h - lap x_ex ||    = " << norm[2] << "\n";
 
    // 15. Save data in the VisIt format
-   VisItDataCollection visit_dc("biharm", mesh);
+   VisItDataCollection visit_dc("Biharm", mesh);
    visit_dc.RegisterField("solution", &x);
    visit_dc.Save();
 
@@ -447,6 +403,6 @@ Vector compute(int argc, char *argv[], int er)
    if (own_fec) { delete fec; }
    delete mesh;
 
-   return norm;
+   return 0;
 }
 
