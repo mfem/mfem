@@ -916,8 +916,18 @@ void BilinearForm::RecoverFEMSolution(const Vector &X,
 
 void BilinearForm::ComputeElementMatrices()
 {
-   if (element_matrices || domain_integs.Size() == 0 || fes->GetNE() == 0)
+   if (element_matrices) { return; }
+   if (domain_integs.Size() == 0 || fes->GetNE() == 0)
    {
+      // Empty tensor for element matrices in this case
+      element_matrices.reset(new DenseTensor);
+      return;
+   }
+
+   if (auto *ea_ext = dynamic_cast<EABilinearFormExtension*>(ext))
+   {
+      element_matrices.reset(new DenseTensor);
+      ea_ext->GetElementMatrices(*element_matrices, ElementDofOrdering::NATIVE);
       return;
    }
 
@@ -954,6 +964,12 @@ void BilinearForm::ComputeElementMatrices()
       }
       elmat.ClearExternalData();
    }
+}
+
+const DenseTensor &BilinearForm::GetElementMatrices()
+{
+   ComputeElementMatrices(); // Won't recompute if element_matrices exists
+   return *element_matrices;
 }
 
 void BilinearForm::EliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
