@@ -13,34 +13,25 @@
 list(APPEND STAB_COMMON_SOURCES
      stab_condif.cpp)
 list(APPEND STAB_COMMON_HEADERS
-     stab_condif.hpp)
+     stab_condif.hpp manu.hpp skew.hpp)
 
 set(STAB_COMMON_FILES
     EXTRA_SOURCES ${STAB_COMMON_SOURCES}
     EXTRA_HEADERS ${STAB_COMMON_HEADERS})
 
-add_mfem_miniapp(ex_condif
-  MAIN ex_condif.cpp
-  ${STAB_COMMON_FILES}
-  LIBRARIES mfem)
-
-add_mfem_miniapp(biharm
-  MAIN biharm.cpp
-  LIBRARIES mfem)
-
-add_mfem_miniapp(laplace
-  MAIN laplace.cpp
-  LIBRARIES mfem)
-
-add_mfem_miniapp(stab_navsto
-    MAIN stab_navsto.cpp
+add_mfem_miniapp(condif
+    MAIN condif.cpp
     ${STAB_COMMON_FILES}
     LIBRARIES mfem)
 
+add_mfem_miniapp(navsto
+    MAIN navsto.cpp
+    ${STAB_COMMON_FILES}
+    LIBRARIES mfem)
 
 if (MFEM_ENABLE_TESTING)
   add_test(NAME ex_condif
-    COMMAND $<TARGET_FILE:ex_condif> -no-vis
+    COMMAND $<TARGET_FILE:condif> -no-vis
     -m ${PROJECT_SOURCE_DIR}/data/segment-nurbs.mesh -r 1 -o 2)
 endif()
 
@@ -50,9 +41,9 @@ if (MFEM_USE_MPI)
   #  LIBRARIES mfem)
 
   if (MFEM_ENABLE_TESTING)
-    add_test(NAME stab_navsto_np=4
+    add_test(NAME navsto_np=4
       COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
-      ${MPIEXEC_PREFLAGS} $<TARGET_FILE:stab_navsto> -no-vis
+      ${MPIEXEC_PREFLAGS} $<TARGET_FILE:navsto> -no-vis
       ${MPIEXEC_POSTFLAGS}
       -m ${PROJECT_SOURCE_DIR}/data/square-nurbs.mesh -r 1 -o 2)
   endif()

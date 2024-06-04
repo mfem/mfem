@@ -17,87 +17,199 @@
 namespace mfem
 {
 
-/** This Class defines the stabilisation parameter for the multi-dimensional
-    convection-diffusion problem. The parameter is defined as:
-    $tau = ({\bf a} \cdot G {\bf a} + C_{inv} \kappa^2 G:G)^{-1/2}$
-    where:
-     - ${\bf a}$ is the convection velocity
-     - $\kappa$ is the diffusion parameter
-     - $G$ is the metric tensor
-     - $C_{inv}$ is a discretisation parameter dependent parameter
-*/
-class StabilizedParameter: public Coefficient
+/// Enumerate to indicate the stabilisation type.
+enum StabType
 {
-private:
+   GALERKIN = -2,
+   SUPG = 0,
+   GLS = -1,
+   VMS = 1
+};
+
+/// This Class defines a generic stabilisation parameter.
+class Tau: public Coefficient
+{
+protected:
    /// The advection field
    VectorCoefficient *adv;
    // The diffusion parameter field
-   Coefficient *dif;
-   /// The inverse estimate of the elements used
-   real_t Ci;
-
+   Coefficient *kappa;
    /// Dimension of the problem
    int dim;
-   /// Current Metric tensor
-   DenseMatrix Gij;
-   /// Current Velocity vector
-   Vector u;
-
+   /// Velocity vector
+   Vector a;
 
 public:
    /** Construct a stabilized confection-diffusion integrator with:
     -  vector coefficient @a a the convection velocity
     -  scalar coefficient @a d the diffusion coefficient
     */
-   StabilizedParameter (VectorCoefficient &a, Coefficient &d, real_t c = 12.0)
-   : adv(&a), dif(&d), Ci(c)
+   Tau (VectorCoefficient *a_, Coefficient *k) : adv(a_), kappa(k)
    {
       dim = adv->GetVDim();
-      Gij.SetSize(dim,dim);
-      u.SetSize(dim);
-   }
+      a.SetSize(dim);
+   };
+   Tau () : adv(nullptr), kappa(nullptr) {};
+
+   void SetConvection(VectorCoefficient *a_)
+   {
+      adv = a_;
+      dim = adv->GetVDim();
+      a.SetSize(dim);
+   };
+   void SetDiffusion(Coefficient *k_) { kappa = k_; };
+
+};
+
+/** This Class defines the stabilisation parameter for the multi-dimensional
+    convection-diffusion problem. The parameter is defined as given in:
+
+    Franca, L.P., Frey, S.L., & Hughes, T.J.R.
+    Stabilized finite element methods:
+    I. Application to the advective-diffusive model.
+    Computer Methods in Applied Mechanics and Engineering, 95(2), 253-276.
+*/
+class FFH92Tau: public Tau
+{
+private:
+   /// User provided inverse estimate of the element
+   real_t Ci;
+   /// If the user provided inverse estimate is negative 
+   /// the actual precomputed inverse estimate is used.
+   InverseEstimateCoefficient *iecf = nullptr;
+
+   /// The norm used for the velocity vector
+   real_t p;
+   /// Temp variable
+   Vector row;
+   /// Element size in different directions
+   Vector h;
+
+   /// Flag for printing
+   bool print = true;
+
+    /** Returns element size according to:
+
+        Harari, I, & Hughes, T.J.R.
+        What are C and h?: Inequalities for the analysis and design of
+        finite element methods.
+        Computer methods in applied mechanics and engineering 97(2), 157-192.
+   */
+   real_t GetElementSize(ElementTransformation &T);
+
+   real_t GetInverseEstimate(ElementTransformation &T,
+                             const IntegrationPoint &ip, real_t scale = 1.0);
+
+public:
+   /** Construct a stabilized confection-diffusion integrator with:
+    -  vector coefficient @a a the convection velocity
+    -  scalar coefficient @a d the diffusion coefficient
+    */
+    FFH92Tau (VectorCoefficient *a, Coefficient *k,
+              FiniteElementSpace *fes = nullptr,
+              real_t c_ = -1.0, real_t p_ = 2.0)
+      :  Tau(a,k), Ci(c_), p(p_)
+   {
+      if (Ci < 0.0)
+      {
+         iecf = new InverseEstimateCoefficient(fes, *kappa);
+      }
+   };
+
+   FFH92Tau (FiniteElementSpace *fes = nullptr,
+             real_t c_ = -1.0, real_t p_ = 2.0)
+      : Ci(c_), p(p_)
+   {
+      if (Ci < 0.0)
+      {
+         iecf = new InverseEstimateCoefficient(fes, *kappa);
+      }
+   };
 
    /// Evaluate the coefficient at @a ip.
    virtual real_t Eval(ElementTransformation &T,
                        const IntegrationPoint &ip) override;
 
     // Destructor
-   ~StabilizedParameter()
-   {}
+   ~FFH92Tau()
+   { if (iecf) { delete iecf; } }
 };
 
-/// Enumerate to indicate the stabilisation type.
-enum StabType
+/** This Class defines a monolithic integrator for stabilized multi-dimensional
+    convection-diffusion.
+
+     $(a \cdot \nabla u, v) + (\kappa \nabla u, \nabla v) 
+    + \sum (a \cdot \nabla u - \kappa \Delta u, \tau (a \cdot \nabla v + s \kappa \Delta v))_e$
+
+     $(f, \nabla v) 
+    + \sum (f, \tau (a \cdot \nabla v + s \kappa \Delta v))_e$
+*/
+class StabConDifIntegrator : public BilinearFormIntegrator,
+                             public LinearFormIntegrator
 {
-      GALERKIN,
-      SUPG,
-      GLS,
-      VMS
+protected:
+   /// The advection field
+   VectorCoefficient *adv;
+   /// The diffusion parameter and force fields
+   Coefficient *kappa, *force;
+
+   /// The stabilization parameter
+   Tau *tau;
+   bool own_tau;
+
+   StabType stab;
+
+private:
+   Vector laplace, shape, adshape, trail, test;
+   DenseMatrix dshape;
+
+public:
+   StabConDifIntegrator(VectorCoefficient *a,
+                        Coefficient *k,
+                        Coefficient *f,
+                        Tau *t = nullptr, StabType s = GALERKIN);
+
+   ~StabConDifIntegrator();
+
+   virtual void AssembleElementMatrix(const FiniteElement &el,
+                                      ElementTransformation &Tr,
+                                      DenseMatrix &elmat);
+
+   static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
+                                         const FiniteElement &test_fe,
+                                         ElementTransformation &Trans);
+
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect);
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
-/** $({\bf a}\cdot \nabla u,  v) + (\kappa \nabla u,  \nabla v)  \\
- + ({\bf a}\cdot \nabla u, \tau {\bf a}\cdot\nabla v)
- - (\kappa \Delta u, \tau {\bf a}\cdot\nabla v)\\
- + \gamma ({\bf a}\cdot \nabla u, \tau \kappa \Delta v)
- - \gamma (\kappa \Delta u, \tau \kappa \Delta v)
-  = (f,v)
-   + (f, \tau {\bf a}\cdot\nabla v) 
-   + \gamma (f, \tau \kappa \Delta v)\\$
-   Where:
-   -$\gamma = 0$: SUPG
-   -$\gamma = 1$: VMS
-   -$\gamma =-1$: GLS
-   */
-class StabilizedConvectionDiffusion
+
+
+/** This Class composes standard integrators to obtain a stabilized formulation for 
+    multi-dimensional convection-diffusion.
+
+     $(a \cdot \nabla u, v) + (\kappa \nabla u, \nabla v) 
+    + \sum (a \cdot \nabla u - \kappa \Delta u, \tau (a \cdot \nabla v + s \kappa \Delta v))_e$
+
+     $(f, \nabla v) 
+    + \sum (f, \tau (a \cdot \nabla v + s \kappa \Delta v))_e$
+*/
+class StabConDifComposition
 {
 
 private:
    /// The advection field
    VectorCoefficient *adv;
-   // The diffusion parameter and force fields
+   /// The diffusion parameter and force fields
    Coefficient *kappa, *force;
 
-   StabilizedParameter *tau;
+   /// The stabilization parameter
+   Tau *tau;
+   bool own_tau;
+
    //// Helper coefficients for defining the weak forms
    VectorCoefficient *adv_tau;
    Coefficient *kappa_tau;
@@ -111,49 +223,25 @@ private:
    Coefficient *kappa_tau_kappa;
    Coefficient *kappa_tau_force;
 
-   /// The bilinear form
-   BilinearForm *a = nullptr;
-   /// The linear form
-   LinearForm *b = nullptr;
-
 public:
 
    /** Constructor
        @a a: is the advection velocity field.
        @a k: is the diffusion param field.
        @a f: is the force field. */
-   StabilizedConvectionDiffusion(VectorCoefficient &a, Coefficient &k, Coefficient &f);
+   StabConDifComposition(VectorCoefficient *a,
+                         Coefficient *k,
+                         Coefficient *f,
+                         Tau *t = nullptr);
 
    /// Destructor
-   ~StabilizedConvectionDiffusion()
-   {
-      if (a) delete a;
-      if (b) delete b;
-      delete tau, adv_tau, adv_tau_kappa, adv_tau_adv, adv_tau_force,
-                  kappa_tau, kappa_tau_kappa,kappa_tau_force;
-   }
+   ~StabConDifComposition();
 
-   /// This method destroys the current forms and creates new ones.
-   /// The @a stype flag determines the stabilized formulation.
-   void SetForms(FiniteElementSpace *fes, StabType stype = GALERKIN);
-   /// Add weak boundary terms to the from --> DOES NOT WORK YET
-   void AddWBC(Coefficient &u_dir, real_t &penalty);
+   /// This method sets the integrators for the bilinearform
+   void SetBilinearIntegrators(BilinearForm *a, StabType s);
 
-   /// This method assembles the bilinearform and returns it.
-   /// Caller does not get ownership.
-   BilinearForm* GetBilinearForm()
-   {
-      a->Assemble();
-      return a;
-   }
-
-   /// This method assembles the linearform and returns it.
-   /// Caller does not get ownership.
-   LinearForm* GetLinearForm()
-   {
-      b->Assemble();
-      return b;
-   }
+   /// This method sets the integrators for the linearform
+   void SetLinearIntegrators(LinearForm *b, StabType s);
 };
 
 } // namespace mfem

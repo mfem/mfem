@@ -21,13 +21,8 @@
 using namespace std;
 using namespace mfem;
 
+bool biharm = true;
 real_t kappa_param = 1.0;
-
-//----------------------------------------------------------
-void adv_fun(const Vector & x, Vector & a)
-{
-   a = 1.0;
-}
 
 real_t dif_fun(const Vector & x)
 {
@@ -39,44 +34,59 @@ real_t force_fun(const Vector & x)
 {
    int d = x.Size();
 
-   Vector a(d);
-   adv_fun(x, a);
-   real_t ax = a[0];
-   real_t ay = 0.0;
-   real_t az = 0.0;
    real_t kappa = dif_fun(x);
 
    real_t pi  = (real_t)(M_PI);
 
    real_t sx = sin(pi*x[0]);
-   real_t cx = cos(pi*x[0]);
    real_t sy = 1.0;
-   real_t cy = 1.0;
    real_t sz = 1.0;
-   real_t cz = 1.0;
 
    if (d >= 2)
    {
       sy = sin(pi*x[1]);
-      cy = cos(pi*x[1]);
-      ay = a[1];
    }
    if (d >= 3)
    {
       sz = sin(pi*x[2]);
-      cz = cos(pi*x[2]);
-      az = a[2];
    }
-
-   return ax*pi*cx*sy*sz
-        + ay*pi*sx*cy*sz
-        + az*pi*sx*sy*cz + d*kappa*pi*pi*sx*sy*sz;
+  if (biharm) return  d*d*kappa*pi*pi*pi*pi*sx*sy*sz;
+  return  d*kappa*pi*pi*sx*sy*sz;
 }
+
+
+template<typename T>
+void ExFun(const std::vector<T> &x, T t, T &f)
+{
+      int d = x.size();
+      for (int i = 0; i < d ; i++) std::cout<<x[i]<<" ";
+      std::cout<<"\n--71--==--=--=---\n";
+
+      real_t pi  = (real_t)(M_PI);
+      f = sin(pi*x[0]);
+
+
+      if (d >= 2)
+      {
+         f *= sin(pi*x[1]);
+      }
+      if (d >= 3)
+      {
+         f *= sin(pi*x[2]);
+      }
+      std::cout<<"F = "<<f<<"\n";
+}
+
+
+//auto ExFun0 = template void ExFun(const std::vector<real_t> &, real_t, real_t &);
+
+auto ExFun0 = ExFun<real_t>;
+
+//template void ExFun(const std::vector<real_1> &, real_1, real_1 &);
 
 //----------------------------------------------------------
 real_t exact_fun(const Vector & x)
 {
-
    real_t pi  = (real_t)(M_PI);
 
    real_t sx = sin(pi*x[0]);
@@ -96,60 +106,133 @@ real_t exact_fun(const Vector & x)
    return sx*sy*sz;
 }
 
+//----------------------------------------------------------
+void gexact_fun(const Vector & x, Vector & a)
+{
+   real_t pi  = (real_t)(M_PI);
+
+   real_t sx = sin(pi*x[0]);
+   real_t cx = cos(pi*x[0]);
+   real_t sy = 1.0;
+   real_t cy = 1.0;
+   real_t sz = 1.0;
+   real_t cz = 1.0;
+
+   int d = x.Size();
+   if (d >= 2)
+   {
+      sy = sin(pi*x[1]);
+      cy = cos(pi*x[1]);
+   }
+   if (d >= 3)
+   {
+      sz = sin(pi*x[2]);
+      cz = cos(pi*x[2]);
+   }
+
+   a[0] = pi*cx*sy;
+   a[1] = pi*sx*cy;
+}
+
+//----------------------------------------------------------
+real_t lexact_fun(const Vector & x)
+{
+   real_t pi  = (real_t)(M_PI);
+
+   real_t sx = sin(pi*x[0]);
+   real_t cx = cos(pi*x[0]);
+   real_t sy = 1.0;
+   real_t cy = 1.0;
+   real_t sz = 1.0;
+   real_t cz = 1.0;
+
+   int d = x.Size();
+   if (d >= 2)
+   {
+      sy = sin(pi*x[1]);
+      cy = cos(pi*x[1]);
+   }
+   if (d >= 3)
+   {
+      sz = sin(pi*x[2]);
+      cz = cos(pi*x[2]);
+   }
+
+   return -d*pi*pi*sx*sy*sz;
+}
+
 
 //----------------------------------------------------------
 void evaluate1D(Vector &x, Vector &f, GridFunction *gf, int lod);
 
-real_t compute(int argc, char *argv[], int er = 0);
+Vector compute(int argc, char *argv[], int er = 0);
+
 
 //----------------------------------------------------------
 int main(int argc, char *argv[])
 {
-   int stages = 8;
-   Vector norm(stages);
+
+
+
+   int stages = 6;
+   Vector normL2(stages);
+   Vector normH1(stages);
+   Vector normH2(stages); // -- Laplacian
+
 
    for (int s = 0; s < stages; s++)
    {
-      norm[s] = compute(argc, argv, s);
+      Vector norm = compute(argc, argv, s);
+      normL2[s] = norm[0];
+      normH1[s] = norm[1];
+      normH2[s] = norm[2];
       if (s == 0)
       {
-         cout<<"---------------------------\n";
-         cout<<"     norm   \t| order      \n";
-         cout<<"---------------------------\n";
-         cout<<norm[0]<<"\t| "<<"-"<<endl;
+         cout<<"\n\n";
+         cout<<"---------------------------------------------------------------------------------------------\n";
+         cout<<" norm L2        | order         || norm H1      | order         || norm H2      | order      \n";
+         cout<<"---------------------------------------------------------------------------------------------\n";
+         cout<<normL2[0]<<"\t| "<<"   --   "<<"\t|| ";
+         cout<<normH1[0]<<"\t| "<<"   --   "<<"\t|| ";
+         cout<<normH2[0]<<"\t| "<<"   --   "<<endl;
          mfem::out.Disable();
       }
       else
       {
-         real_t order = log(norm[s-1]/norm[s])/log(2.0);
-         cout<<norm[s]<<"\t| "<<order<<endl;
+         real_t orderL2 = log(normL2[s-1]/normL2[s])/log(2.0);
+         real_t orderH1 = log(normH1[s-1]/normH1[s])/log(2.0);
+         real_t orderH2 = log(normH2[s-1]/normH2[s])/log(2.0);
+         cout<<normL2[s]<<"\t| "<<orderL2<<"\t|| ";
+         cout<<normH1[s]<<"\t| "<<orderH1<<"\t|| ";
+         cout<<normH2[s]<<"\t| "<<orderH2<<endl;
       }
    }
    return 0;
 }
 
 //----------------------------------------------------------
-real_t compute(int argc, char *argv[], int er)
+Vector compute(int argc, char *argv[], int er)
 {
    // 1. Parse command-line options.
    const char *mesh_file = "../../data/square-nurbs.mesh";
    const char *per_file  = "none";
    const char *ref_file  = "";
-   int ref_levels = -1;
+   int ref_levels = 0;
    Array<int> master(0);
    Array<int> slave(0);
    bool static_cond = false;
    bool visualization = false;
    int lod = 0;
-   bool ibp = 1;
-   bool strongBC = 1;
    real_t penalty = -1;
    Array<int> order(1);
-   order[0] = 1;
+   order[0] = 2;
    //real_t kappa_param = -1;
    int sstype = 0;
 
    OptionsParser args(argc, argv);
+   args.AddOption(&biharm, "-b", "--biharm", "-l",
+                  "--laplace",
+                  "Biharm or Laplace.");
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&ref_levels, "-r", "--refine",
@@ -165,18 +248,6 @@ real_t compute(int argc, char *argv[], int er)
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
-   args.AddOption(&sstype, "-s", "--stab", " Stabilization type:\n\t"
-                  "  Galerkin 0 \n\t"
-                  "  SUPG 1\n\t"
-                  "  GLS 2\n\t"
-                  "  VMS 3\n\t"
-                  );
-   args.AddOption(&strongBC, "-sbc", "--strong-bc", "-wbc",
-                  "--weak-bc",
-                  "Selects strong or weak enforcement of Dirichlet BCs.");
-   args.AddOption(&penalty , "-pen", "--penalty",
-                  "Sets the SIPG penalty parameters, should be positive."
-                  " Negative values are replaced with (order+1)^2.");
    args.AddOption(&kappa_param , "-k", "--kappa",
                   "Sets the diffusion parameters, should be positive."
                   " Negative values are replaced with function defined in source.");
@@ -191,19 +262,18 @@ real_t compute(int argc, char *argv[], int er)
    if (!args.Good())
    {
       args.PrintUsage(cout);
-      return 1;
+     // return 1;
    }
-   if (!strongBC & (penalty < 0))
-   {
-      penalty = 4*(order.Max()+1)*(order.Max()+1);
-   }
-   args.PrintOptions(mfem::out);
-   strongBC = true;
-ref_levels += er;
-mfem::out<<"GAL"<<"\t"<<"SUPG"<<"\t"<<"GLS"<<"\t"<<"VMS"<<endl;
-mfem::out<<GALERKIN<<"\t"<<SUPG<<"\t"<<GLS<<"\t"<<VMS<<endl;
-StabType  stype = (StabType)sstype;
 
+   args.PrintOptions(mfem::out);
+
+ref_levels += er;
+
+
+  // if (order.Min()< 2)
+  // {
+  //    mfem_error("Wrong order."); 
+  // }//
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
    //    the same code.
@@ -291,37 +361,14 @@ StabType  stype = (StabType)sstype;
    }
    else
    {
-      if (order.Size() > 1) { mfem::out <<"Wrong number of orders set, needs one.\n"; }
+      if (order.Size() > 1) { cout <<"Wrong number of orders set, needs one.\n"; }
       fec = new H1_FECollection(abs(order[0]), dim);
       own_fec = 1;
    }
 
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, NURBSext, fec);
    mfem::out << "Number of finite element unknowns: "
-        << fespace->GetTrueVSize() << endl;
-
-   if (!ibp)
-   {
-      if (!mesh->NURBSext)
-      {
-         mfem::out << "No integration by parts requires a NURBS mesh."<< endl;
-         return 2;
-      }
-      if (mesh->NURBSext->GetNP()>1)
-      {
-         mfem::out << "No integration by parts requires a NURBS mesh, with only 1 patch."<<
-              endl;
-         mfem::out << "A C_1 discretisation is required."<< endl;
-         mfem::out << "Currently only C_0 multipatch coupling implemented."<< endl;
-         return 3;
-      }
-      if (order[0]<2)
-      {
-         mfem::out << "No integration by parts requires at least quadratic NURBS."<< endl;
-         mfem::out << "A C_1 discretisation is required."<< endl;
-         return 4;
-      }
-   }
+             << fespace->GetTrueVSize() << endl;
 
    // 5. Determine the list of true (i.e. conforming) essential boundary dofs.
    //    In this example, the boundary conditions are defined by marking all
@@ -331,14 +378,7 @@ StabType  stype = (StabType)sstype;
    if (mesh->bdr_attributes.Size())
    {
       Array<int> ess_bdr(mesh->bdr_attributes.Max());
-      if (strongBC)
-      {
-         ess_bdr = 1;
-      }
-      else
-      {
-         ess_bdr = 0;
-      }
+      ess_bdr = 1;
 
       // Remove periodic BCs
       for (int i = 0; i < master.Size(); i++)
@@ -352,9 +392,9 @@ StabType  stype = (StabType)sstype;
    // 6. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
    //    the basis functions in the finite element fespace.
-   VectorFunctionCoefficient adv(mesh->Dimension(), adv_fun);
+   ConstantCoefficient u_dir(0.0);
 
-  /* Coefficient *kappa_tmp;
+   Coefficient *kappa_tmp;
    if (kappa_param < 0.0)
    {
       kappa_tmp = new FunctionCoefficient(dif_fun);
@@ -364,10 +404,12 @@ StabType  stype = (StabType)sstype;
       kappa_tmp = new ConstantCoefficient(kappa_param);
    }
 
-   Coefficient& kappa = *kappa_tmp;*/
-   FunctionCoefficient kappa(dif_fun);
+   Coefficient& kappa = *kappa_tmp;
    FunctionCoefficient force(force_fun);
 
+   LinearForm *b = new LinearForm(fespace);
+   b->AddDomainIntegrator(new DomainLFIntegrator(force));
+   b->Assemble();
 
    // 7. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
@@ -375,35 +417,44 @@ StabType  stype = (StabType)sstype;
    GridFunction x(fespace);
    x = 0.0;
 
+   // 8. Set up the bilinear form a(.,.) on the finite element space
+   //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
+   //    domain integrator.
+   BilinearForm *a = new BilinearForm(fespace);
+   if (biharm)
+   {
+      a->AddDomainIntegrator(new LaplaceLaplaceIntegrator(kappa));
+   }
+   else
+   {
+      a->AddDomainIntegrator(new DiffusionIntegrator(kappa));
+   }
+
    // 9. Assemble the bilinear form and the corresponding linear system,
    //    applying any necessary transformations such as: eliminating boundary
    //    conditions, applying conforming constraints for non-conforming AMR,
    //    static condensation, etc.
-   StabilizedConvectionDiffusion form(adv, kappa, force);
-   form.SetForms(fespace, stype);
-
-   BilinearForm *a = form.GetBilinearForm();
-   LinearForm *b = form.GetLinearForm();
    if (static_cond) { a->EnableStaticCondensation(); }
+   a->Assemble();
+
    SparseMatrix A;
    Vector B, X;
-
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
    mfem::out << "Size of linear system: " << A.Height() << endl;
 
-#ifndef MFEM_USE_SUITESPARSE
+//#ifndef MFEM_USE_SUITESPARSE
    // 10. Define a simple Jacobi preconditioner and use it to
    //     solve the system A X = B with PCG.
    GSSmoother M(A);
    GMRES(A, M, B, X, 1, 2000, 2000, 1e-16, 0.0);
-#else
+/*#else
    // 10. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
    UMFPackSolver umf_solver;
    umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
    umf_solver.SetOperator(A);
    umf_solver.Mult(B, X);
-#endif
+#endif*/
 
    // 11. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
@@ -456,6 +507,15 @@ StabType  stype = (StabType)sstype;
 
    mfem::out << "|| x_h - x_ex || / || x_ex || = " << err / norm << "\n";
 
+   VectorFunctionCoefficient gExact(mesh->Dimension(), gexact_fun);
+   real_t gerr = x.ComputeGradError(&gExact, irs);
+   mfem::out << "|| grad x_h - grad x_ex ||    = " << gerr << "\n";
+
+   FunctionCoefficient lExact(lexact_fun);
+   real_t lerr = x.ComputeLaplaceError(&lExact, irs);
+   mfem::out << "|| lap x_h - lap x_ex ||      = " << lerr << "\n";
+
+
    // 15. Save data in the VisIt format
    VisItDataCollection visit_dc("condif", mesh);
    visit_dc.RegisterField("solution", &x);
@@ -466,7 +526,12 @@ StabType  stype = (StabType)sstype;
    if (own_fec) { delete fec; }
    delete mesh;
 
-   return err;
+   Vector rtn(3);
+   rtn[0] = err;
+   rtn[1] = gerr;
+   rtn[2] = lerr;
+
+   return rtn;
 }
 
 void evaluate1D(Vector &x, Vector &f, GridFunction *gf, int lod)
