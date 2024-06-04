@@ -156,10 +156,13 @@ public:
 
    /// @brief Populates @a element_matrices with the element matrices.
    ///
-   /// Assemble() must have been called already. The element matrices are
-   /// converted from row-major (how they are stored in @a ea_data) to
-   /// column-major format.
-   void GetElementMatrices(DenseTensor &element_matrices) const;
+   /// The element matrices are converted from row-major (how they are stored in
+   /// @a ea_data) to column-major format.
+   ///
+   /// If @ordering is ElementDofOrdering::NATIVE, then the matrices are
+   /// reordered from the lexicographic ordering used internally.
+   void GetElementMatrices(DenseTensor &element_matrices,
+                           ElementDofOrdering ordering);
 };
 
 /// Data and methods for fully-assembled bilinear forms
