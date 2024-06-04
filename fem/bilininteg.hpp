@@ -2874,11 +2874,6 @@ class DivDivIntegrator: public BilinearFormIntegrator
 protected:
    Coefficient *Q;
 
-   using BilinearFormIntegrator::AssemblePA;
-   virtual void AssemblePA(const FiniteElementSpace &fes);
-   virtual void AddMultPA(const Vector &x, Vector &y) const;
-   virtual void AssembleDiagonalPA(Vector& diag);
-
 private:
 #ifndef MFEM_THREAD_SAFE
    Vector divshape, te_divshape;
@@ -2904,6 +2899,13 @@ public:
                                        const FiniteElement &test_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
+
+   using BilinearFormIntegrator::AssemblePA;
+   virtual void AssemblePA(const FiniteElementSpace &fes);
+   virtual void AddMultPA(const Vector &x, Vector &y) const;
+   virtual void AssembleDiagonalPA(Vector& diag);
+   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
+                           const bool add);
 
    const Coefficient *GetCoefficient() const { return Q; }
 };
