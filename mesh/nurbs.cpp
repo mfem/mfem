@@ -1949,13 +1949,13 @@ NURBSExtension::NURBSExtension(const NURBSExtension &orig)
      e_meshOffsets(orig.e_meshOffsets),
      f_meshOffsets(orig.f_meshOffsets),
      p_meshOffsets(orig.p_meshOffsets),
+     aux_e_meshOffsets(orig.aux_e_meshOffsets),
+     aux_f_meshOffsets(orig.aux_f_meshOffsets),
      v_spaceOffsets(orig.v_spaceOffsets),
      e_spaceOffsets(orig.e_spaceOffsets),
      f_spaceOffsets(orig.f_spaceOffsets),
      p_spaceOffsets(orig.p_spaceOffsets),
-     aux_e_meshOffsets(orig.aux_e_meshOffsets),
      aux_e_spaceOffsets(orig.aux_e_spaceOffsets),
-     aux_f_meshOffsets(orig.aux_f_meshOffsets),
      aux_f_spaceOffsets(orig.aux_f_spaceOffsets),
      auxEdges(orig.auxEdges),
      auxFaces(orig.auxFaces),
@@ -4050,7 +4050,7 @@ void NURBSExtension::GenerateOffsets()
             const int childFace = facePairs[(5*q) + 3];
             const int parentFace = facePairs[(5*q) + 4];
 
-            const int mid = masterFaceToId[parentFace];
+            const int mid = masterFaceToId.at(parentFace);
 
             MFEM_VERIFY(0 <= i && i < parentN1[mid], "");
             MFEM_VERIFY(0 <= j && j < parentN2[mid], "");
@@ -6300,14 +6300,8 @@ void NURBSPatchMap::SetMasterEdges(bool dof)
 
       if (edgeMaster[i])
       {
-         int mid = -1;
-         auto s = Ext->masterEdgeToId.find(edges[i]);
-         if (s != Ext->masterEdgeToId.end())
-         {
-            mid = s->second;
-         }
-
-         MFEM_ASSERT(mid >= 0, "ID not found");
+         const int mid = Ext->masterEdgeToId.at(edges[i]);
+         MFEM_ASSERT(mid >= 0, "Master edge index not found");
 
          for (int s=0; s<Ext->masterEdgeSlaves[mid].size(); ++s)
          {
@@ -6388,8 +6382,8 @@ void NURBSPatchMap::GetFaceOrdering(int face, int n1, int n2, int v0,
 
    // The ordering of entities in the face is based on the vertices.
 
-   Array<int> edges, ori, evert, e2vert, vert;
-   Ext->patchTopo->GetFaceEdges(face, edges, ori);
+   Array<int> faceEdges, ori, evert, e2vert, vert;
+   Ext->patchTopo->GetFaceEdges(face, faceEdges, ori);
    Ext->patchTopo->GetFaceVertices(face, vert);
 
    MFEM_VERIFY(vert.Size() == 4, "");
@@ -6404,7 +6398,7 @@ void NURBSPatchMap::GetFaceOrdering(int face, int n1, int n2, int v0,
 
    MFEM_VERIFY(v0id >= 0, "");
 
-   Ext->patchTopo->GetEdgeVertices(edges[e1], evert);
+   Ext->patchTopo->GetEdgeVertices(faceEdges[e1], evert);
    MFEM_VERIFY(evert[0] == v0 || evert[1] == v0, "");
 
    bool d[2];
@@ -6417,7 +6411,7 @@ void NURBSPatchMap::GetFaceOrdering(int face, int n1, int n2, int v0,
    int e0 = -1;
    for (int i=0; i<4; ++i)
    {
-      Ext->patchTopo->GetEdgeVertices(edges[i], evert);
+      Ext->patchTopo->GetEdgeVertices(faceEdges[i], evert);
       if ((evert[0] == v0 && evert[1] == v10) ||
           (evert[1] == v0 && evert[0] == v10))
       {
@@ -6429,7 +6423,7 @@ void NURBSPatchMap::GetFaceOrdering(int face, int n1, int n2, int v0,
 
    const bool tr = e0 % 2 == 1;  // True means (fn1,fn2) == (n2,n1)
 
-   Ext->patchTopo->GetEdgeVertices(edges[e2], evert);
+   Ext->patchTopo->GetEdgeVertices(faceEdges[e2], evert);
    MFEM_VERIFY(evert[0] == v10 || evert[1] == v10, "");
    d[1] = (evert[0] == v10);
 
