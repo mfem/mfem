@@ -3321,132 +3321,7 @@ void ProcessVertexToKnot2D(Array2D<int> const& v2k,
                            std::vector<int> & auxEdges,
                            std::set<int> & reversedParents,
                            std::set<int> & masterEdges,
-                           std::vector<int> & edgePairs)
-{
-   auxEdges.clear();
-
-   std::map<std::pair<int, int>, int> auxv2e;
-
-   const int nv2k = v2k.NumRows();
-   MFEM_VERIFY(4 == v2k.NumCols(), "");
-
-   int prevParent = -1;
-   int prevV = -1;
-   for (int i=0; i<nv2k; ++i)
-   {
-      const int tv = v2k(i,0);
-      const int knotIndex = v2k(i,1);
-      const int pv0 = v2k(i,2);
-      const int pv1 = v2k(i,3);
-
-      // Given that the parent Mesh is not yet constructed, and all we have at
-      // this point is patchTopo->ncmesh, we should only define master/slave
-      // edges by indices in patchTopo->ncmesh, as done in the case of nonempty
-      // nce.masters. Now find the edge in patchTopo->ncmesh with vertices
-      // (pv0, pv1), and define it as a master edge.
-
-      const std::pair<int, int> parentPair(pv0 < pv1 ? pv0 : pv1,
-                                           pv0 < pv1 ? pv1 : pv0);
-
-      auto search = v2e.find(parentPair);
-      if (search == v2e.end())
-      {
-         MFEM_ABORT("Vertex pair not found");
-      }
-
-      const int parentEdge = v2e[parentPair];
-      masterEdges.insert(parentEdge);
-
-      if (pv1 < pv0)
-      {
-         reversedParents.insert(parentEdge);
-      }
-
-      // Note that the logic here assumes that the "vertex_to_knot" data in the
-      // mesh file has vertices in order of ascending knotIndex.
-
-      const bool newParentEdge = (prevParent != parentEdge);
-      const int v0 = newParentEdge ? pv0 : prevV;
-
-      if (knotIndex == 1)
-      {
-         MFEM_VERIFY(newParentEdge, "");
-      }
-
-      // Find the edge in patchTopo->ncmesh with vertices (v0, tv), and define
-      // it as a slave edge.
-
-      const std::pair<int, int> childPair(v0 < tv ? v0 : tv, v0 < tv ? tv : v0);
-      search = v2e.find(childPair);
-
-      const bool childPairTopo = (search != v2e.end());
-      if (!childPairTopo)
-      {
-         // Check whether childPair is in auxEdges.
-         search = auxv2e.find(childPair);
-         if (search == auxv2e.end())
-         {
-            // Create new auxiliary edge
-            // TODO: make a struct for auxEdges
-            auxv2e[childPair] = auxEdges.size() / 4;
-            auxEdges.push_back(childPair.first);
-            auxEdges.push_back(childPair.second);
-            auxEdges.push_back(pv0 < pv1 ? parentEdge : -1 - parentEdge);
-            auxEdges.push_back(knotIndex);
-         }
-      }
-
-      const int childEdge = childPairTopo ? v2e[childPair] : -1 - auxv2e[childPair];
-
-      // Check whether this is the final vertex in this parent edge.
-      // TODO: this logic for comparing (pv0,pv1) to the next parents assumes
-      // the ordering won't change. If the next v2k entry has (pv1,pv0), this
-      // would cause a bug. An improvement in the implementation should avoid
-      // this issue. Or is it not possible to change the order, since the knot
-      // index is assumed to increase from pv0 to pv1?
-      const bool finalVertex = (i == nv2k-1) || (v2k(i+1,2) != pv0) ||
-                               (v2k(i+1,3) != pv1);
-
-      edgePairs.push_back(tv);
-      edgePairs.push_back(childEdge);
-      edgePairs.push_back(parentEdge);
-
-      if (finalVertex)
-      {
-         // Also find the edge with vertices (tv, pv1), and define it as a slave
-         // edge.
-         const std::pair<int, int> finalChildPair(tv < pv1 ? tv : pv1,
-                                                  tv < pv1 ? pv1 : tv);
-         search = v2e.find(finalChildPair);
-
-         const bool finalChildPairTopo = (search != v2e.end());
-         if (!finalChildPairTopo)
-         {
-            // Check whether finalChildPair is in auxEdges.
-            search = auxv2e.find(finalChildPair);
-            if (search == auxv2e.end())
-            {
-               // Create new auxiliary edge
-               auxv2e[finalChildPair] = auxEdges.size() / 4;
-               auxEdges.push_back(finalChildPair.first);
-               auxEdges.push_back(finalChildPair.second);
-               auxEdges.push_back(pv0 < pv1 ? -1 - parentEdge : parentEdge);
-               auxEdges.push_back(knotIndex);
-            }
-         }
-
-         const int finalChildEdge = finalChildPairTopo ? v2e[finalChildPair]: -1 -
-                                    auxv2e[finalChildPair];
-
-         edgePairs.push_back(-1);
-         edgePairs.push_back(finalChildEdge);
-         edgePairs.push_back(parentEdge);
-      }
-
-      prevV = tv;
-      prevParent = parentEdge;
-   }  // loop over vertices in vertex_to_knot
-}
+                           std::vector<int> & edgePairs);
 
 // TODO: better code design.
 void ProcessVertexToKnot3D(Array2D<int> const& v2k,
@@ -3461,411 +3336,15 @@ void ProcessVertexToKnot3D(Array2D<int> const& v2k,
                            std::vector<int> & edgePairs,
                            std::vector<int> & facePairs,
                            std::vector<int> & parentFaces,
-                           std::vector<int> & parentVerts)
-{
-   auxFaces.clear();
-
-   std::map<std::pair<int, int>, int> auxv2f;
-
-   // Each entry of v2k has the following 7 entries: tv, ki1, ki2, p0, p1, p2, p3
-   constexpr int np = 7;  // Number of integers for each entry in v2k.
-
-   const int nv2k = v2k.NumRows();
-   MFEM_VERIFY(np == v2k.NumCols(), "");
-
-   // Note that the logic here assumes that the "vertex_to_knot" data
-   // in the mesh file has vertices in order of ascending (k1,k2), with k2
-   // being the fast variable, and with corners skipped.
-
-   // Find parentOffset, which stores the indices in v2k at which parent faces start.
-   int prevParent = -1;
-   std::vector<int> parentOffset;
-   int n1 = 0;
-   int n2 = 0;
-   for (int i = 0; i < nv2k; ++i)
-   {
-      const int ki1 = v2k(i,1);
-      const int ki2 = v2k(i,2);
-
-      std::vector<int> pv(4);
-      for (int j=0; j<4; ++j)
-      {
-         pv[j] = v2k(i,3 + j);
-      }
-
-      // The face with vertices (pv0, pv1, pv2, pv3) is defined as a parent face.
-      const auto pvmin = std::min_element(pv.begin(), pv.end());
-      const int idmin = std::distance(pv.begin(), pvmin);
-      const int c0 = pv[idmin];  // First corner
-      const int c1 = pv[(idmin + 2) % 4];  // Opposite corner
-
-      const std::pair<int, int> parentPair(c0 < c1 ? c0 : c1, c0 < c1 ? c1 : c0);
-
-      const int parentFace = v2f.at(parentPair);
-      const bool newParentFace = (prevParent != parentFace);
-      if (newParentFace)
-      {
-         parentOffset.push_back(i);
-         parentFaces.push_back(parentFace);
-         if (i > 0)
-         {
-            // In the case of only 1 element in the 1-direction, it is assumed that
-            // the 2-direction has more than 1 element, so there are knots (0, ki2)
-            // and (1, ki2) for 0 < ki2 < n2. This will result in n1 = 0, which
-            // should be 1. Also, n2 will be 1 less than it should be.
-            // Similarly for the situation with directions reversed.
-            // TODO: fix/test this in the 1-element case.
-
-            if (n1 == 0 || n2 == 0)
-            {
-               MFEM_ABORT("TODO: this should never happen, right?");
-               n1++;
-               n2++;
-            }
-
-            parentN1.push_back(n1);
-            parentN2.push_back(n2);
-         }
-
-         n1 = ki1;  // Finding max of ki1
-         n2 = ki2;  // Finding max of ki2
-      }
-      else
-      {
-         n1 = std::max(n1, ki1);  // Finding max of ki1
-         n2 = std::max(n2, ki2);  // Finding max of ki2
-      }
-
-      prevParent = parentFace;
-   }
-
-   if (n1 == 0 || n2 == 0)
-   {
-      MFEM_ABORT("TODO: this should never happen, right?");
-      n1++;
-      n2++;
-   }
-
-   parentN1.push_back(n1);
-   parentN2.push_back(n2);
-
-   const int numParents = parentOffset.size();
-   parentOffset.push_back(nv2k);
-
-   std::set<int> visitedParentEdges;
-   std::map<int, int> edgePairOS;
-   bool consistent = true;
-
-   for (int parent = 0; parent < numParents; ++parent)
-   {
-      const int parentFace = parentFaces[parent];
-
-      masterFaces.insert(parentFace);
-
-      int parentEdges[4];
-      bool parentEdgeRev[4];
-
-      // Set all 4 edges of the parent face as master edges.
-      {
-         Array<int> ev(2);
-         for (int i=0; i<4; ++i)
-         {
-            for (int j=0; j<2; ++j)
-            {
-               ev[j] = v2k(parentOffset[parent], 3 + ((i + j) % 4));
-            }
-
-            const bool reverse = (ev[1] < ev[0]);
-            parentEdgeRev[i] = reverse;
-
-            ev.Sort();
-
-            const std::pair<int, int> edge_i(ev[0], ev[1]);
-
-            const int parentEdge = v2e.at(edge_i);
-            masterEdges.insert(parentEdge);
-            parentEdges[i] = parentEdge;
-         }
-      }
-
-      n1 = parentN1[parent];
-      n2 = parentN2[parent];
-      Array2D<int> gridVertex(n1 + 1, n2 + 1);
-
-      for (int i=0; i<=n1; ++i)
-         for (int j=0; j<=n2; ++j)
-         {
-            gridVertex(i,j) = -1;
-         }
-
-      gridVertex(0,0) = v2k(parentOffset[parent],3);
-      gridVertex(n1,0) = v2k(parentOffset[parent],4);
-      gridVertex(n1,n2) = v2k(parentOffset[parent],5);
-      gridVertex(0,n2) = v2k(parentOffset[parent],6);
-
-      for (int i=0; i<4; ++i)
-      {
-         parentVerts.push_back(v2k(parentOffset[parent],3 + i));
-      }
-
-      for (int i = parentOffset[parent]; i < parentOffset[parent + 1]; ++i)
-      {
-         const int tv = v2k(i,0);
-         const int ki1 = v2k(i,1);
-         const int ki2 = v2k(i,2);
-
-         gridVertex(ki1, ki2) = tv;
-
-         if (i == parentOffset[parent])
-         {
-            if (n1 > 1)
-            {
-               MFEM_VERIFY(ki1 == 0 && ki2 == 1, "");
-            }
-            else
-            {
-               MFEM_VERIFY(ki1 == 1 && ki2 == 0, "");
-            }
-         }
-      } // loop over vertices in v2k
-
-      bool allset = true;
-      for (int i=0; i<=n1; ++i)
-         for (int j=0; j<=n2; ++j)
-         {
-            if (gridVertex(i,j) < 0)
-            {
-               allset = false;
-            }
-         }
-
-      MFEM_VERIFY(allset, "");
-
-      // Loop over child faces and set facePairs, as well as auxiliary faces as needed.
-      for (int i=0; i<n1; ++i)
-         for (int j=0; j<n2; ++j)
-         {
-            std::vector<int> cv(4);
-            cv[0] = gridVertex(i,j);
-            cv[1] = gridVertex(i+1,j);
-            cv[2] = gridVertex(i+1,j+1);
-            cv[3] = gridVertex(i,j+1);
-
-            const auto cvmin = std::min_element(cv.begin(), cv.end());
-            const int idmin = std::distance(cv.begin(), cvmin);
-            const int c0 = cv[idmin];  // First corner
-            const int c1 = cv[(idmin + 2) % 4];  // Opposite corner
-
-            const std::pair<int, int> childPair(c0 < c1 ? c0 : c1, c0 < c1 ? c1 : c0);
-
-            auto search = v2f.find(childPair);
-            const bool childPairTopo = (search != v2f.end());
-            if (childPairTopo)
-            {
-               const int childFace = v2f.at(childPair);
-               facePairs.push_back(i);
-               facePairs.push_back(j);
-               facePairs.push_back(cv[0]);
-               facePairs.push_back(childFace);
-               facePairs.push_back(parentFace);
-            }
-            else
-            {
-               // Check whether childPair is in auxFaces.
-               auto search2 = auxv2f.find(childPair);
-               if (search2 == auxv2f.end())
-               {
-                  // Create new auxiliary face
-                  // TODO: make a struct for auxFaces?
-                  auxv2f[childPair] = auxFaces.size() / 5;
-                  auxFaces.push_back(childPair.first);
-                  auxFaces.push_back(childPair.second);
-                  auxFaces.push_back(parentFace);  // TODO: orientation?
-                  auxFaces.push_back(i);  // ki1
-                  auxFaces.push_back(j);  // ki2
-               }
-            }
-         }
-
-      // Loop over child boundary edges and set edgePairs.
-      for (int dir=1; dir<=2; ++dir)
-      {
-         const int ne = dir == 1 ? n1 : n2;
-         for (int s=0; s<2; ++s)  // Loop over 2 sides for this direction.
-         {
-            const int parentEdge = parentEdges[dir == 1 ? 2*s : (2*s) + 1];
-            const bool reverse = parentEdgeRev[dir == 1 ? 2*s : (2*s) + 1];
-
-            auto search = visitedParentEdges.find(parentEdge);
-            const bool parentVisited = (search != visitedParentEdges.end());
-
-            if (!parentVisited)
-            {
-               edgePairOS[parentEdge] = edgePairs.size();
-               edgePairs.resize(edgePairs.size() + (3 * ne));
-            }
-
-            for (int e_i=0; e_i<ne; ++e_i)  // edges in direction `dir`
-            {
-               // For both directions, side s=0 has increasing indices and
-               // s=1 has decreasing indices.
-               const int i0 = (s == 0) ? e_i : ne - e_i;
-               const int i1 = (s == 0) ? e_i + 1 : ne - e_i - 1;
-
-               const int e_idx = reverse ? ne - e_i - 1 : e_i;
-
-               Array<int> cv(2);
-               if (dir == 1)
-               {
-                  cv[0] = gridVertex(i0,s*n2);
-                  cv[1] = gridVertex(i1,s*n2);
-               }
-               else
-               {
-                  cv[0] = gridVertex((1-s)*n1, i0);
-                  cv[1] = gridVertex((1-s)*n1, i1);
-               }
-
-               const int tv = (e_i == ne - 1) ? -1 : cv[1];
-
-               cv.Sort();
-
-               const std::pair<int, int> edge_i(cv[0], cv[1]);
-
-               const int childEdge = v2e.at(edge_i);
-
-               if (!parentVisited)
-               {
-                  //if (e_i == 0) edgePairOS[parentEdge] = edgePairs.size();
-                  // edgePairs is ordered starting from the vertex of lower index.
-                  edgePairs[edgePairOS[parentEdge] + (3 * e_idx)] = tv;
-                  edgePairs[edgePairOS[parentEdge] + (3 * e_idx) + 1] = childEdge;
-                  edgePairs[edgePairOS[parentEdge] + (3 * e_idx) + 2] = parentEdge;
-               }
-               else
-               {
-                  // Consistency check
-                  const int os = edgePairOS[parentEdge];
-                  if (edgePairs[os + (3*e_idx) + 1] != childEdge ||
-                      edgePairs[os + (3*e_idx) + 2] != parentEdge)
-                  {
-                     consistent = false;
-                  }
-               }
-            }
-
-            visitedParentEdges.insert(parentEdge);
-         }
-      }
-   }  // loop over parents
-
-   MFEM_VERIFY(consistent, "");
-   MFEM_VERIFY((int) masterFaces.size() == numParents, "");
-}
+                           std::vector<int> & parentVerts);
 
 int GetFaceOrientation(const Mesh *mesh, const int face,
-                       const Array<int> & verts)
-{
-   Array<int> fverts;
-   mesh->GetFaceVertices(face, fverts);
+                       const Array<int> & verts);
 
-   MFEM_VERIFY(verts.Size() == 4 && fverts.Size() == 4, "");
+int GetInverselyShiftedQuadIndex(int i, int ori);
 
-   // Verify that verts and fvert have the same entries as sets, by deep-copying and sorting.
-   {
-      Array<int> s1(verts);
-      Array<int> s2(fverts);
-
-      s1.Sort(); s2.Sort();
-      MFEM_VERIFY(s1 == s2, "");
-   }
-
-   // Find the shift of the first vertex.
-   int s = -1;
-   for (int i=0; i<4; ++i)
-   {
-      if (verts[i] == fverts[0]) { s = i; }
-   }
-
-   // Check whether ordering is reversed.
-   const bool rev = verts[(s + 1) % 4] != fverts[1];
-
-   if (rev) { s = -1 - s; }  // Reversed order is encoded by the sign.
-
-   // Sanity check (TODO: remove this)
-   for (int i=0; i<4; ++i)
-   {
-      const int j = s < 0 ? (-1 - s) - i : i + s;
-      MFEM_VERIFY(verts[(j + 4) % 4] == fverts[i], "");
-   }
-
-   return s;
-}
-
-int GetShiftedQuadIndex(int i, int ori)
-{
-   // Map index i with ori determined by GetFaceOrientation.
-
-   const int s = ori < 0 ? -1 - ori : ori;
-   const bool rev = (ori < 0);
-
-   return rev ? (s - i + 4) % 4 : (i + s) % 4;
-}
-
-int GetInverselyShiftedQuadIndex(int i, int ori)
-{
-   // Return the index j that maps to i with ori determined by GetFaceOrientation.
-   // TODO: compute this directly rather than searching.
-   for (int j=0; j<4; ++j)
-   {
-      if (GetShiftedQuadIndex(j, ori) == i) { return j; }
-   }
-
-   MFEM_ABORT("BUG");
-   return -1;
-}
-
-// The 2D array `a` is of size n1*n2, with index
-// j + n2*i corresponding to (i,j) with the fast index j,
-// for 0 <= i < n1 and 0 <= j < n2.
-// We assume that j is the fast index in (i,j).
-// The orientation is encoded by ori, defining a shift and relative
-// direction, such that a quad face F1, on which the ordering of `a` is based,
-// has vertex with index `shift` matching vertex 0 of the new quad face F2,
-// on which the new ordering of `a` should be based.
-// For more details, see GetFaceOrientation.
 bool Reorder2D(int n1, int n2, int ori, const std::vector<int> & a,
-               std::vector<int> & s0)
-{
-   const bool noReorder = false;
-   if (noReorder)
-   {
-      s0[0] = 0;
-      s0[1] = 0;
-      return false;
-   }
-
-   const int shift = ori < 0 ? -1 - ori : ori;
-
-   // Shift is an F1 index in the counter-clockwise ordering of 4 quad vertices.
-   // Now find the (i,j) indices of this index, with i,j in {0,1}.
-   const int s0i = (shift == 0 || shift == 3) ? 0 : 1;
-   const int s0j = (shift < 2) ? 0 : 1;
-
-   s0[0] = s0i;
-   s0[1] = s0j;
-
-   // Determine whether the dimensions of F1 and F2 are reversed.
-   // Do this by finding the (i,j) indices of s1, which is the next vertex on F1.
-   const int shift1 = ori < 0 ? shift - 1: shift + 1;
-
-   const int s1 = (shift1 + 4) % 4;
-
-   const int s1i = (s1 == 0 || s1 == 3) ? 0 : 1;
-   const bool dimReverse = s0i == s1i;
-
-   return dimReverse;
-}
+               std::vector<int> & s0);
 
 void NURBSExtension::GenerateOffsets()
 {
@@ -7183,6 +6662,557 @@ void NURBSPatchMap::SetBdrPatchDofMap(int p, const KnotVector *kv[],  int *okv)
 
       pOffset = Ext->f_spaceOffsets[faces[0]];
    }
+}
+
+void ProcessVertexToKnot2D(Array2D<int> const& v2k,
+                           std::map<std::pair<int, int>, int> & v2e,
+                           std::vector<int> & auxEdges,
+                           std::set<int> & reversedParents,
+                           std::set<int> & masterEdges,
+                           std::vector<int> & edgePairs)
+{
+   auxEdges.clear();
+
+   std::map<std::pair<int, int>, int> auxv2e;
+
+   const int nv2k = v2k.NumRows();
+   MFEM_VERIFY(4 == v2k.NumCols(), "");
+
+   int prevParent = -1;
+   int prevV = -1;
+   for (int i=0; i<nv2k; ++i)
+   {
+      const int tv = v2k(i,0);
+      const int knotIndex = v2k(i,1);
+      const int pv0 = v2k(i,2);
+      const int pv1 = v2k(i,3);
+
+      // Given that the parent Mesh is not yet constructed, and all we have at
+      // this point is patchTopo->ncmesh, we should only define master/slave
+      // edges by indices in patchTopo->ncmesh, as done in the case of nonempty
+      // nce.masters. Now find the edge in patchTopo->ncmesh with vertices
+      // (pv0, pv1), and define it as a master edge.
+
+      const std::pair<int, int> parentPair(pv0 < pv1 ? pv0 : pv1,
+                                           pv0 < pv1 ? pv1 : pv0);
+
+      auto search = v2e.find(parentPair);
+      if (search == v2e.end())
+      {
+         MFEM_ABORT("Vertex pair not found");
+      }
+
+      const int parentEdge = v2e[parentPair];
+      masterEdges.insert(parentEdge);
+
+      if (pv1 < pv0)
+      {
+         reversedParents.insert(parentEdge);
+      }
+
+      // Note that the logic here assumes that the "vertex_to_knot" data in the
+      // mesh file has vertices in order of ascending knotIndex.
+
+      const bool newParentEdge = (prevParent != parentEdge);
+      const int v0 = newParentEdge ? pv0 : prevV;
+
+      if (knotIndex == 1)
+      {
+         MFEM_VERIFY(newParentEdge, "");
+      }
+
+      // Find the edge in patchTopo->ncmesh with vertices (v0, tv), and define
+      // it as a slave edge.
+
+      const std::pair<int, int> childPair(v0 < tv ? v0 : tv, v0 < tv ? tv : v0);
+      search = v2e.find(childPair);
+
+      const bool childPairTopo = (search != v2e.end());
+      if (!childPairTopo)
+      {
+         // Check whether childPair is in auxEdges.
+         search = auxv2e.find(childPair);
+         if (search == auxv2e.end())
+         {
+            // Create new auxiliary edge
+            // TODO: make a struct for auxEdges
+            auxv2e[childPair] = auxEdges.size() / 4;
+            auxEdges.push_back(childPair.first);
+            auxEdges.push_back(childPair.second);
+            auxEdges.push_back(pv0 < pv1 ? parentEdge : -1 - parentEdge);
+            auxEdges.push_back(knotIndex);
+         }
+      }
+
+      const int childEdge = childPairTopo ? v2e[childPair] : -1 - auxv2e[childPair];
+
+      // Check whether this is the final vertex in this parent edge.
+      // TODO: this logic for comparing (pv0,pv1) to the next parents assumes
+      // the ordering won't change. If the next v2k entry has (pv1,pv0), this
+      // would cause a bug. An improvement in the implementation should avoid
+      // this issue. Or is it not possible to change the order, since the knot
+      // index is assumed to increase from pv0 to pv1?
+      const bool finalVertex = (i == nv2k-1) || (v2k(i+1,2) != pv0) ||
+                               (v2k(i+1,3) != pv1);
+
+      edgePairs.push_back(tv);
+      edgePairs.push_back(childEdge);
+      edgePairs.push_back(parentEdge);
+
+      if (finalVertex)
+      {
+         // Also find the edge with vertices (tv, pv1), and define it as a slave
+         // edge.
+         const std::pair<int, int> finalChildPair(tv < pv1 ? tv : pv1,
+                                                  tv < pv1 ? pv1 : tv);
+         search = v2e.find(finalChildPair);
+
+         const bool finalChildPairTopo = (search != v2e.end());
+         if (!finalChildPairTopo)
+         {
+            // Check whether finalChildPair is in auxEdges.
+            search = auxv2e.find(finalChildPair);
+            if (search == auxv2e.end())
+            {
+               // Create new auxiliary edge
+               auxv2e[finalChildPair] = auxEdges.size() / 4;
+               auxEdges.push_back(finalChildPair.first);
+               auxEdges.push_back(finalChildPair.second);
+               auxEdges.push_back(pv0 < pv1 ? -1 - parentEdge : parentEdge);
+               auxEdges.push_back(knotIndex);
+            }
+         }
+
+         const int finalChildEdge = finalChildPairTopo ? v2e[finalChildPair]: -1 -
+                                    auxv2e[finalChildPair];
+
+         edgePairs.push_back(-1);
+         edgePairs.push_back(finalChildEdge);
+         edgePairs.push_back(parentEdge);
+      }
+
+      prevV = tv;
+      prevParent = parentEdge;
+   }  // loop over vertices in vertex_to_knot
+}
+
+// TODO: better code design.
+void ProcessVertexToKnot3D(Array2D<int> const& v2k,
+                           const std::map<std::pair<int, int>, int> & v2e,
+                           const std::map<std::pair<int, int>, int> & v2f,
+                           std::vector<int> & auxFaces,
+                           std::set<int> & masterEdges,
+                           std::set<int> & masterFaces,
+                           std::set<int> & reversedParentEdges,
+                           std::vector<int> & parentN1,
+                           std::vector<int> & parentN2,
+                           std::vector<int> & edgePairs,
+                           std::vector<int> & facePairs,
+                           std::vector<int> & parentFaces,
+                           std::vector<int> & parentVerts)
+{
+   auxFaces.clear();
+
+   std::map<std::pair<int, int>, int> auxv2f;
+
+   // Each entry of v2k has the following 7 entries: tv, ki1, ki2, p0, p1, p2, p3
+   constexpr int np = 7;  // Number of integers for each entry in v2k.
+
+   const int nv2k = v2k.NumRows();
+   MFEM_VERIFY(np == v2k.NumCols(), "");
+
+   // Note that the logic here assumes that the "vertex_to_knot" data
+   // in the mesh file has vertices in order of ascending (k1,k2), with k2
+   // being the fast variable, and with corners skipped.
+
+   // Find parentOffset, which stores the indices in v2k at which parent faces start.
+   int prevParent = -1;
+   std::vector<int> parentOffset;
+   int n1 = 0;
+   int n2 = 0;
+   for (int i = 0; i < nv2k; ++i)
+   {
+      const int ki1 = v2k(i,1);
+      const int ki2 = v2k(i,2);
+
+      std::vector<int> pv(4);
+      for (int j=0; j<4; ++j)
+      {
+         pv[j] = v2k(i,3 + j);
+      }
+
+      // The face with vertices (pv0, pv1, pv2, pv3) is defined as a parent face.
+      const auto pvmin = std::min_element(pv.begin(), pv.end());
+      const int idmin = std::distance(pv.begin(), pvmin);
+      const int c0 = pv[idmin];  // First corner
+      const int c1 = pv[(idmin + 2) % 4];  // Opposite corner
+
+      const std::pair<int, int> parentPair(c0 < c1 ? c0 : c1, c0 < c1 ? c1 : c0);
+
+      const int parentFace = v2f.at(parentPair);
+      const bool newParentFace = (prevParent != parentFace);
+      if (newParentFace)
+      {
+         parentOffset.push_back(i);
+         parentFaces.push_back(parentFace);
+         if (i > 0)
+         {
+            // In the case of only 1 element in the 1-direction, it is assumed that
+            // the 2-direction has more than 1 element, so there are knots (0, ki2)
+            // and (1, ki2) for 0 < ki2 < n2. This will result in n1 = 0, which
+            // should be 1. Also, n2 will be 1 less than it should be.
+            // Similarly for the situation with directions reversed.
+            // TODO: fix/test this in the 1-element case.
+
+            if (n1 == 0 || n2 == 0)
+            {
+               MFEM_ABORT("TODO: this should never happen, right?");
+               n1++;
+               n2++;
+            }
+
+            parentN1.push_back(n1);
+            parentN2.push_back(n2);
+         }
+
+         n1 = ki1;  // Finding max of ki1
+         n2 = ki2;  // Finding max of ki2
+      }
+      else
+      {
+         n1 = std::max(n1, ki1);  // Finding max of ki1
+         n2 = std::max(n2, ki2);  // Finding max of ki2
+      }
+
+      prevParent = parentFace;
+   }
+
+   if (n1 == 0 || n2 == 0)
+   {
+      MFEM_ABORT("TODO: this should never happen, right?");
+      n1++;
+      n2++;
+   }
+
+   parentN1.push_back(n1);
+   parentN2.push_back(n2);
+
+   const int numParents = parentOffset.size();
+   parentOffset.push_back(nv2k);
+
+   std::set<int> visitedParentEdges;
+   std::map<int, int> edgePairOS;
+   bool consistent = true;
+
+   for (int parent = 0; parent < numParents; ++parent)
+   {
+      const int parentFace = parentFaces[parent];
+
+      masterFaces.insert(parentFace);
+
+      int parentEdges[4];
+      bool parentEdgeRev[4];
+
+      // Set all 4 edges of the parent face as master edges.
+      {
+         Array<int> ev(2);
+         for (int i=0; i<4; ++i)
+         {
+            for (int j=0; j<2; ++j)
+            {
+               ev[j] = v2k(parentOffset[parent], 3 + ((i + j) % 4));
+            }
+
+            const bool reverse = (ev[1] < ev[0]);
+            parentEdgeRev[i] = reverse;
+
+            ev.Sort();
+
+            const std::pair<int, int> edge_i(ev[0], ev[1]);
+
+            const int parentEdge = v2e.at(edge_i);
+            masterEdges.insert(parentEdge);
+            parentEdges[i] = parentEdge;
+         }
+      }
+
+      n1 = parentN1[parent];
+      n2 = parentN2[parent];
+      Array2D<int> gridVertex(n1 + 1, n2 + 1);
+
+      for (int i=0; i<=n1; ++i)
+         for (int j=0; j<=n2; ++j)
+         {
+            gridVertex(i,j) = -1;
+         }
+
+      gridVertex(0,0) = v2k(parentOffset[parent],3);
+      gridVertex(n1,0) = v2k(parentOffset[parent],4);
+      gridVertex(n1,n2) = v2k(parentOffset[parent],5);
+      gridVertex(0,n2) = v2k(parentOffset[parent],6);
+
+      for (int i=0; i<4; ++i)
+      {
+         parentVerts.push_back(v2k(parentOffset[parent],3 + i));
+      }
+
+      for (int i = parentOffset[parent]; i < parentOffset[parent + 1]; ++i)
+      {
+         const int tv = v2k(i,0);
+         const int ki1 = v2k(i,1);
+         const int ki2 = v2k(i,2);
+
+         gridVertex(ki1, ki2) = tv;
+
+         if (i == parentOffset[parent])
+         {
+            if (n1 > 1)
+            {
+               MFEM_VERIFY(ki1 == 0 && ki2 == 1, "");
+            }
+            else
+            {
+               MFEM_VERIFY(ki1 == 1 && ki2 == 0, "");
+            }
+         }
+      } // loop over vertices in v2k
+
+      bool allset = true;
+      for (int i=0; i<=n1; ++i)
+         for (int j=0; j<=n2; ++j)
+         {
+            if (gridVertex(i,j) < 0)
+            {
+               allset = false;
+            }
+         }
+
+      MFEM_VERIFY(allset, "");
+
+      // Loop over child faces and set facePairs, as well as auxiliary faces as needed.
+      for (int i=0; i<n1; ++i)
+         for (int j=0; j<n2; ++j)
+         {
+            std::vector<int> cv(4);
+            cv[0] = gridVertex(i,j);
+            cv[1] = gridVertex(i+1,j);
+            cv[2] = gridVertex(i+1,j+1);
+            cv[3] = gridVertex(i,j+1);
+
+            const auto cvmin = std::min_element(cv.begin(), cv.end());
+            const int idmin = std::distance(cv.begin(), cvmin);
+            const int c0 = cv[idmin];  // First corner
+            const int c1 = cv[(idmin + 2) % 4];  // Opposite corner
+
+            const std::pair<int, int> childPair(c0 < c1 ? c0 : c1, c0 < c1 ? c1 : c0);
+
+            auto search = v2f.find(childPair);
+            const bool childPairTopo = (search != v2f.end());
+            if (childPairTopo)
+            {
+               const int childFace = v2f.at(childPair);
+               facePairs.push_back(i);
+               facePairs.push_back(j);
+               facePairs.push_back(cv[0]);
+               facePairs.push_back(childFace);
+               facePairs.push_back(parentFace);
+            }
+            else
+            {
+               // Check whether childPair is in auxFaces.
+               auto search2 = auxv2f.find(childPair);
+               if (search2 == auxv2f.end())
+               {
+                  // Create new auxiliary face
+                  // TODO: make a struct for auxFaces?
+                  auxv2f[childPair] = auxFaces.size() / 5;
+                  auxFaces.push_back(childPair.first);
+                  auxFaces.push_back(childPair.second);
+                  auxFaces.push_back(parentFace);  // TODO: orientation?
+                  auxFaces.push_back(i);  // ki1
+                  auxFaces.push_back(j);  // ki2
+               }
+            }
+         }
+
+      // Loop over child boundary edges and set edgePairs.
+      for (int dir=1; dir<=2; ++dir)
+      {
+         const int ne = dir == 1 ? n1 : n2;
+         for (int s=0; s<2; ++s)  // Loop over 2 sides for this direction.
+         {
+            const int parentEdge = parentEdges[dir == 1 ? 2*s : (2*s) + 1];
+            const bool reverse = parentEdgeRev[dir == 1 ? 2*s : (2*s) + 1];
+
+            auto search = visitedParentEdges.find(parentEdge);
+            const bool parentVisited = (search != visitedParentEdges.end());
+
+            if (!parentVisited)
+            {
+               edgePairOS[parentEdge] = edgePairs.size();
+               edgePairs.resize(edgePairs.size() + (3 * ne));
+            }
+
+            for (int e_i=0; e_i<ne; ++e_i)  // edges in direction `dir`
+            {
+               // For both directions, side s=0 has increasing indices and
+               // s=1 has decreasing indices.
+               const int i0 = (s == 0) ? e_i : ne - e_i;
+               const int i1 = (s == 0) ? e_i + 1 : ne - e_i - 1;
+
+               const int e_idx = reverse ? ne - e_i - 1 : e_i;
+
+               Array<int> cv(2);
+               if (dir == 1)
+               {
+                  cv[0] = gridVertex(i0,s*n2);
+                  cv[1] = gridVertex(i1,s*n2);
+               }
+               else
+               {
+                  cv[0] = gridVertex((1-s)*n1, i0);
+                  cv[1] = gridVertex((1-s)*n1, i1);
+               }
+
+               const int tv = (e_i == ne - 1) ? -1 : cv[1];
+
+               cv.Sort();
+
+               const std::pair<int, int> edge_i(cv[0], cv[1]);
+
+               const int childEdge = v2e.at(edge_i);
+
+               if (!parentVisited)
+               {
+                  //if (e_i == 0) edgePairOS[parentEdge] = edgePairs.size();
+                  // edgePairs is ordered starting from the vertex of lower index.
+                  edgePairs[edgePairOS[parentEdge] + (3 * e_idx)] = tv;
+                  edgePairs[edgePairOS[parentEdge] + (3 * e_idx) + 1] = childEdge;
+                  edgePairs[edgePairOS[parentEdge] + (3 * e_idx) + 2] = parentEdge;
+               }
+               else
+               {
+                  // Consistency check
+                  const int os = edgePairOS[parentEdge];
+                  if (edgePairs[os + (3*e_idx) + 1] != childEdge ||
+                      edgePairs[os + (3*e_idx) + 2] != parentEdge)
+                  {
+                     consistent = false;
+                  }
+               }
+            }
+
+            visitedParentEdges.insert(parentEdge);
+         }
+      }
+   }  // loop over parents
+
+   MFEM_VERIFY(consistent, "");
+   MFEM_VERIFY((int) masterFaces.size() == numParents, "");
+}
+
+int GetFaceOrientation(const Mesh *mesh, const int face,
+                       const Array<int> & verts)
+{
+   Array<int> fverts;
+   mesh->GetFaceVertices(face, fverts);
+
+   MFEM_VERIFY(verts.Size() == 4 && fverts.Size() == 4, "");
+
+   // Verify that verts and fvert have the same entries as sets, by deep-copying and sorting.
+   {
+      Array<int> s1(verts);
+      Array<int> s2(fverts);
+
+      s1.Sort(); s2.Sort();
+      MFEM_VERIFY(s1 == s2, "");
+   }
+
+   // Find the shift of the first vertex.
+   int s = -1;
+   for (int i=0; i<4; ++i)
+   {
+      if (verts[i] == fverts[0]) { s = i; }
+   }
+
+   // Check whether ordering is reversed.
+   const bool rev = verts[(s + 1) % 4] != fverts[1];
+
+   if (rev) { s = -1 - s; }  // Reversed order is encoded by the sign.
+
+   // Sanity check (TODO: remove this)
+   for (int i=0; i<4; ++i)
+   {
+      const int j = s < 0 ? (-1 - s) - i : i + s;
+      MFEM_VERIFY(verts[(j + 4) % 4] == fverts[i], "");
+   }
+
+   return s;
+}
+
+int GetShiftedQuadIndex(int i, int ori)
+{
+   // Map index i with ori determined by GetFaceOrientation.
+
+   const int s = ori < 0 ? -1 - ori : ori;
+   const bool rev = (ori < 0);
+
+   return rev ? (s - i + 4) % 4 : (i + s) % 4;
+}
+
+int GetInverselyShiftedQuadIndex(int i, int ori)
+{
+   // Return the index j that maps to i with ori determined by GetFaceOrientation.
+   // TODO: compute this directly rather than searching.
+   for (int j=0; j<4; ++j)
+   {
+      if (GetShiftedQuadIndex(j, ori) == i) { return j; }
+   }
+
+   MFEM_ABORT("BUG");
+   return -1;
+}
+
+// The 2D array `a` is of size n1*n2, with index
+// j + n2*i corresponding to (i,j) with the fast index j,
+// for 0 <= i < n1 and 0 <= j < n2.
+// We assume that j is the fast index in (i,j).
+// The orientation is encoded by ori, defining a shift and relative
+// direction, such that a quad face F1, on which the ordering of `a` is based,
+// has vertex with index `shift` matching vertex 0 of the new quad face F2,
+// on which the new ordering of `a` should be based.
+// For more details, see GetFaceOrientation.
+bool Reorder2D(int n1, int n2, int ori, const std::vector<int> & a,
+               std::vector<int> & s0)
+{
+   const bool noReorder = false;
+   if (noReorder)
+   {
+      s0[0] = 0;
+      s0[1] = 0;
+      return false;
+   }
+
+   const int shift = ori < 0 ? -1 - ori : ori;
+
+   // Shift is an F1 index in the counter-clockwise ordering of 4 quad vertices.
+   // Now find the (i,j) indices of this index, with i,j in {0,1}.
+   const int s0i = (shift == 0 || shift == 3) ? 0 : 1;
+   const int s0j = (shift < 2) ? 0 : 1;
+
+   s0[0] = s0i;
+   s0[1] = s0j;
+
+   // Determine whether the dimensions of F1 and F2 are reversed.
+   // Do this by finding the (i,j) indices of s1, which is the next vertex on F1.
+   const int shift1 = ori < 0 ? shift - 1: shift + 1;
+
+   const int s1 = (shift1 + 4) % 4;
+
+   const int s1i = (s1 == 0 || s1 == 3) ? 0 : 1;
+   const bool dimReverse = s0i == s1i;
+
+   return dimReverse;
 }
 
 }
