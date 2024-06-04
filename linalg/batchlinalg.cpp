@@ -280,7 +280,7 @@ void ApplyBlkMult(const DenseTensor &Mat, const Vector &x,
    cudaError_t cudaStat; 
    cublasStatus_t stat;
    cublasHandle_t handle;
-   int i, j, k;
+   int k;
 
    double* d_Mat[NE]; 
    double* d_x[NE];
@@ -297,7 +297,7 @@ void ApplyBlkMult(const DenseTensor &Mat, const Vector &x,
 
       stat = cublasSetMatrix (ndof, ndof, sizeof(*Mat.Data()), &Mat.Data()[IDXT(0,0,k,ndof)], ndof, d_Mat[k], ndof); 
       stat = cublasSetMatrix (ndof, 1, sizeof(*x.GetData()), &x.GetData()[IDXM(0,k,ndof)], ndof, d_x[k], ndof);
-   }
+   };
 
    // Vendor function handles computations on GPU via batched call
    double alpha = 1.0;
@@ -309,7 +309,7 @@ void ApplyBlkMult(const DenseTensor &Mat, const Vector &x,
 
    // Copies GPU memory to host memory
    for (k = 0; k < NE; k++) {
-      stat = cublasGetMatrix (ndof, 1, sizeof(*y.GetData()), d_y[k], ndof, &y.GetData()[IDXM(0,k,N)], ndof);
+      stat = cublasGetMatrix (ndof, 1, sizeof(*y.GetData()), d_y[k], ndof, &y.GetData()[IDXM(0,k,ndof)], ndof);
    }
 
    // Free up memory and end CUBLAS stream
