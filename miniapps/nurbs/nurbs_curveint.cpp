@@ -152,7 +152,7 @@ int main(int argc, char *argv[])
 
    for (int i = 0; i < ncp; i++)
    {
-      x[i]  = a * sin(u[i]*2*M_PI)-0.5*l;
+      x[i]  = (u[i] - 0.5)*l;
    }
    kv->GetInterpolant(x,u,interp);
    for (int i = 0; i < ncp; i++)
@@ -162,7 +162,7 @@ int main(int argc, char *argv[])
 
    for (int i = 0; i < ncp; i++)
    {
-      x[i] = (u[i] - 0.5)*l;
+      x[i] = a * sin(u[i]*2*M_PI)-0.5*l;
    }
    kv->GetInterpolant(x,u,interp);
    for (int i = 0; i < ncp; i++)
