@@ -59,7 +59,7 @@ class FEOperator : public TimeDependentOperator
    const Array<int> &ess_flux_tdofs_list;
    DarcyForm *darcy;
    LinearForm *g, *f, *h;
-   Coefficient *gcoeff, *fcoeff;
+   const Array<Coefficient*> &coeffs;
    FiniteElementSpace *trace_space;
    bool btime;
 
@@ -73,8 +73,8 @@ class FEOperator : public TimeDependentOperator
 
 public:
    FEOperator(const Array<int> &ess_flux_tdofs_list, DarcyForm *darcy,
-              LinearForm *g, LinearForm *f, LinearForm *h, Coefficient *gcoeff,
-              Coefficient *fcoeff, FiniteElementSpace *trace_space, bool btime = true);
+              LinearForm *g, LinearForm *f, LinearForm *h, const Array<Coefficient*> &coeffs,
+              FiniteElementSpace *trace_space, bool btime = true);
    ~FEOperator();
 
    void ImplicitSolve(const real_t dt, const Vector &x, Vector &k) override;
@@ -474,7 +474,11 @@ int main(int argc, char *argv[])
 
    //construct the operator
 
-   FEOperator op(ess_flux_tdofs_list, darcy, gform, fform, hform, &gcoeff, &fcoeff,
+   Array<Coefficient*> coeffs({(Coefficient*)&gcoeff,
+                               (Coefficient*)&fcoeff,
+                               (Coefficient*)&qtcoeff});
+
+   FEOperator op(ess_flux_tdofs_list, darcy, gform, fform, hform, coeffs,
                  trace_space, btime);
 
    //construct the time solver
@@ -909,11 +913,11 @@ TFunc GetFFun(int prob, real_t t_0, real_t k, const VecFunc &cFun)
 
 FEOperator::FEOperator(const Array<int> &ess_flux_tdofs_list_,
                        DarcyForm *darcy_, LinearForm *g_, LinearForm *f_, LinearForm *h_,
-                       Coefficient *gcoeff_, Coefficient *fcoeff_, FiniteElementSpace *trace_space_,
+                       const Array<Coefficient*> &coeffs_, FiniteElementSpace *trace_space_,
                        bool btime_)
    : TimeDependentOperator(darcy_->GetOffsets()[2], 0., IMPLICIT),
      ess_flux_tdofs_list(ess_flux_tdofs_list_), darcy(darcy_), g(g_), f(f_), h(h_),
-     gcoeff(gcoeff_), fcoeff(fcoeff_), trace_space(trace_space_), btime(btime_)
+     coeffs(coeffs_), trace_space(trace_space_), btime(btime_)
 {
    if (btime)
    {
@@ -948,8 +952,10 @@ void FEOperator::ImplicitSolve(const real_t dt, const Vector &x_v, Vector &dx_v)
 
    //set time
 
-   gcoeff->SetTime(t);
-   fcoeff->SetTime(t);
+   for (Coefficient *coeff : coeffs)
+   {
+      coeff->SetTime(t);
+   }
 
    //assemble rhs
 
