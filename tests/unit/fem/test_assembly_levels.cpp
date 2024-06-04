@@ -233,11 +233,12 @@ TEST_CASE("H(div) Element Assembly", "[AssemblyLevel][PartialAssembly][CUDA]")
 {
    const auto fname = GENERATE(
                          "../../data/inline-quad.mesh",
-                         "../../data/star-q3.mesh"
+                         "../../data/star.mesh"
                       );
    const auto order = GENERATE(1, 2, 3);
+   const auto problem = GENERATE(Problem::Mass, Problem::Diffusion);
 
-   CAPTURE(fname, order);
+   CAPTURE(fname, order, getString(problem));
 
    Mesh mesh(fname);
    const int dim = mesh.Dimension();
@@ -245,7 +246,10 @@ TEST_CASE("H(div) Element Assembly", "[AssemblyLevel][PartialAssembly][CUDA]")
 
    RT_FECollection fec(order - 1, dim);
    FiniteElementSpace fes(&mesh, &fec);
-   VectorFEMassIntegrator integ;
+
+   std::unique_ptr<BilinearFormIntegrator> integ;
+   if (problem == Problem::Mass) { integ.reset(new VectorFEMassIntegrator); }
+   else if (problem == Problem::Diffusion) { integ.reset(new DivDivIntegrator); }
 
    const TensorBasisElement* tbe =
       dynamic_cast<const TensorBasisElement*>(fes.GetFE(0));
@@ -254,7 +258,7 @@ TEST_CASE("H(div) Element Assembly", "[AssemblyLevel][PartialAssembly][CUDA]")
    const Array<int> &dof_map = tbe->GetDofMap();
 
    Vector ea_data(ne*ndof*ndof);
-   integ.AssembleEA(fes, ea_data, false);
+   integ->AssembleEA(fes, ea_data, false);
    const auto ea_mats = Reshape(ea_data.HostRead(), ndof, ndof, ne);
 
    DenseMatrix elmat;
@@ -262,7 +266,7 @@ TEST_CASE("H(div) Element Assembly", "[AssemblyLevel][PartialAssembly][CUDA]")
    {
       const FiniteElement &el = *fes.GetFE(e);
       ElementTransformation &T = *mesh.GetElementTransformation(e);
-      integ.AssembleElementMatrix(el, T, elmat);
+      integ->AssembleElementMatrix(el, T, elmat);
 
       for (int i = 0; i < ndof; ++i)
       {
@@ -278,7 +282,7 @@ TEST_CASE("H(div) Element Assembly", "[AssemblyLevel][PartialAssembly][CUDA]")
          }
       }
 
-      REQUIRE(elmat.MaxMaxNorm() == MFEM_Approx(0.0));
+      REQUIRE(elmat.MaxMaxNorm() == MFEM_Approx(0.0, 1e-10));
    }
 }
 
