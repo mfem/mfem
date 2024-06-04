@@ -14,18 +14,18 @@
 // Compile with: make pdiffusion
 //
 // Sample runs
-// mpirun -np 4 pdiffusion -m ../../data/inline-quad.mesh -o 3 -sref 1 -pref 2 -theta 0.0 -prob 0
-// mpirun -np 4 pdiffusion -m ../../data/inline-hex.mesh -o 2 -sref 0 -pref 1 -theta 0.0 -prob 0 -sc
-// mpirun -np 4 pdiffusion -m ../../data/beam-tet.mesh -o 3 -sref 0 -pref 2 -theta 0.0 -prob 0 -sc
+//  mpirun -np 4 pdiffusion -m ../../data/inline-quad.mesh -o 3 -sref 1 -pref 2 -theta 0.0 -prob 0
+//  mpirun -np 4 pdiffusion -m ../../data/inline-hex.mesh -o 2 -sref 0 -pref 1 -theta 0.0 -prob 0 -sc
+//  mpirun -np 4 pdiffusion -m ../../data/beam-tet.mesh -o 3 -sref 0 -pref 2 -theta 0.0 -prob 0 -sc
 
 // L-shape runs
 // Note: uniform ref are expected to give sub-optimal rate for the L-shape problem (rate = 2/3)
-// mpirun -np 4 pdiffusion -o 2 -sref 1 -pref 5 -theta 0.0 -prob 1
+//  mpirun -np 4 pdiffusion -o 2 -sref 1 -pref 5 -theta 0.0 -prob 1
 
 // L-shape AMR runs
-// mpirun -np 4 pdiffusion -o 1 -sref 1 -pref 10 -theta 0.8 -prob 1
-// mpirun -np 4 pdiffusion -o 2 -sref 1 -pref 8 -theta 0.75 -prob 1 -sc
-// mpirun -np 4 pdiffusion -o 3 -sref 1 -pref 6 -theta 0.75 -prob 1 -sc -do 2
+//  mpirun -np 4 pdiffusion -o 1 -sref 1 -pref 10 -theta 0.8 -prob 1
+//  mpirun -np 4 pdiffusion -o 2 -sref 1 -pref 8 -theta 0.75 -prob 1 -sc
+//  mpirun -np 4 pdiffusion -o 3 -sref 1 -pref 6 -theta 0.75 -prob 1 -sc -do 2
 
 // Description:
 // This example code demonstrates the use of MFEM to define and solve
