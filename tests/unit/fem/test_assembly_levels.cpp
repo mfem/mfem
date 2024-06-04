@@ -332,44 +332,6 @@ void CompareMatricesNonZeros(SparseMatrix &A1, const SparseMatrix &A2,
    REQUIRE(error == MFEM_Approx(0.0, 1e-10));
 }
 
-#ifdef MFEM_USE_MPI
-
-void CompareMatricesNonZeros(HypreParMatrix &A1, const HypreParMatrix &A2)
-{
-   HYPRE_BigInt *cmap1, *cmap2;
-   SparseMatrix diag1, offd1, diag2, offd2;
-
-   A1.GetDiag(diag1);
-   A2.GetDiag(diag2);
-   A1.GetOffd(offd1, cmap1);
-   A2.GetOffd(offd2, cmap2);
-
-   CompareMatricesNonZeros(diag1, diag2);
-
-   if (cmap1)
-   {
-      std::unordered_map<HYPRE_BigInt,int> cmap2inv;
-      for (int i=0; i<offd2.Width(); ++i) { cmap2inv[cmap2[i]] = i; }
-      CompareMatricesNonZeros(offd1, offd2, cmap1, &cmap2inv);
-   }
-   else
-   {
-      CompareMatricesNonZeros(offd1, offd2);
-   }
-}
-
-void TestSameHypreMatrices(OperatorHandle &A1, OperatorHandle &A2)
-{
-   HypreParMatrix *M1 = A1.Is<HypreParMatrix>();
-   HypreParMatrix *M2 = A2.Is<HypreParMatrix>();
-
-   REQUIRE(M1 != NULL);
-   REQUIRE(M2 != NULL);
-
-   CompareMatricesNonZeros(*M1, *M2);
-   CompareMatricesNonZeros(*M2, *M1);
-}
-
 void TestSameSparseMatrices(OperatorHandle &A1, OperatorHandle &A2)
 {
    SparseMatrix *M1 = A1.Is<SparseMatrix>();
@@ -443,6 +405,44 @@ TEST_CASE("Serial H1 Full Assembly", "[AssemblyLevel], [CUDA]")
 
    B1 -= B2;
    REQUIRE(B1.Normlinf() == MFEM_Approx(0.0));
+}
+
+#ifdef MFEM_USE_MPI
+
+void CompareMatricesNonZeros(HypreParMatrix &A1, const HypreParMatrix &A2)
+{
+   HYPRE_BigInt *cmap1, *cmap2;
+   SparseMatrix diag1, offd1, diag2, offd2;
+
+   A1.GetDiag(diag1);
+   A2.GetDiag(diag2);
+   A1.GetOffd(offd1, cmap1);
+   A2.GetOffd(offd2, cmap2);
+
+   CompareMatricesNonZeros(diag1, diag2);
+
+   if (cmap1)
+   {
+      std::unordered_map<HYPRE_BigInt,int> cmap2inv;
+      for (int i=0; i<offd2.Width(); ++i) { cmap2inv[cmap2[i]] = i; }
+      CompareMatricesNonZeros(offd1, offd2, cmap1, &cmap2inv);
+   }
+   else
+   {
+      CompareMatricesNonZeros(offd1, offd2);
+   }
+}
+
+void TestSameHypreMatrices(OperatorHandle &A1, OperatorHandle &A2)
+{
+   HypreParMatrix *M1 = A1.Is<HypreParMatrix>();
+   HypreParMatrix *M2 = A2.Is<HypreParMatrix>();
+
+   REQUIRE(M1 != NULL);
+   REQUIRE(M2 != NULL);
+
+   CompareMatricesNonZeros(*M1, *M2);
+   CompareMatricesNonZeros(*M2, *M1);
 }
 
 TEST_CASE("Parallel H1 Full Assembly", "[AssemblyLevel], [Parallel], [CUDA]")
