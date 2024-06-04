@@ -1,486 +1,413 @@
-//                          MFEM Example 1 - NURBS Version
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
-// Compile with: make nurbs_ex1
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
 //
-// Sample runs:  nurbs_ex1 -m ../../data/square-nurbs.mesh -o 2 -no-ibp
-//               nurbs_ex1 -m ../../data/square-nurbs.mesh -o 2 --weak-bc
-//               nurbs_ex1 -m ../../data/cube-nurbs.mesh -o 2 -no-ibp
-//               nurbs_ex1 -m ../../data/pipe-nurbs-2d.mesh -o 2 -no-ibp
-//               nurbs_ex1 -m ../../data/square-disc-nurbs.mesh -o -1
-//               nurbs_ex1 -m ../../data/disc-nurbs.mesh -o -1
-//               nurbs_ex1 -m ../../data/pipe-nurbs.mesh -o -1
-//               nurbs_ex1 -m ../../data/beam-hex-nurbs.mesh -pm 1 -ps 2
-//               nurbs_ex1 -m meshes/two-squares-nurbs.mesh -o 1 -rf meshes/two-squares.ref
-//               nurbs_ex1 -m meshes/two-squares-nurbs-rot.mesh -o 1 -rf meshes/two-squares.ref
-//               nurbs_ex1 -m meshes/two-squares-nurbs-autoedge.mesh -o 1 -rf meshes/two-squares.ref
-//               nurbs_ex1 -m meshes/two-cubes-nurbs.mesh -o 1 -r 3 -rf meshes/two-cubes.ref
-//               nurbs_ex1 -m meshes/two-cubes-nurbs-rot.mesh -o 1 -r 3 -rf meshes/two-cubes.ref
-//               nurbs_ex1 -m meshes/two-cubes-nurbs-autoedge.mesh -o 1 -r 3 -rf meshes/two-cubes.ref
-//               nurbs_ex1 -m ../../data/segment-nurbs.mesh -r 2 -o 2 -lod 3
-//
-// Description:  This example code demonstrates the use of MFEM to define a
-//               simple finite element discretization of the Laplace problem
-//               -Delta u = 1 with homogeneous Dirichlet boundary conditions.
-//               The boundary conditions can be enforced either strongly or weakly.
-//               Specifically, we discretize using a FE space of the specified
-//               order, or if order < 1 using an isoparametric/isogeometric
-//               space (i.e. quadratic for quadratic curvilinear mesh, NURBS for
-//               NURBS mesh, etc.)
-//
-//               The example highlights the use of mesh refinement, finite
-//               element grid functions, as well as linear and bilinear forms
-//               corresponding to the left-hand side and right-hand side of the
-//               discrete linear system. We also cover the explicit elimination
-//               of essential boundary conditions, static condensation, and the
-//               optional connection to the GLVis tool for visualization.
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
-#include "mfem.hpp"
-#include <fstream>
-#include <iostream>
-#include <list>
+#include "stab_navsto.hpp"
 
-using namespace std;
 using namespace mfem;
 
-class Data
+
+real_t StabInNavStoIntegrator::GetElementEnergy(
+   const Array<const FiniteElement *>&el,
+   ElementTransformation &Tr,
+   const Array<const Vector *>&elfun)
 {
-public:
-   real_t x,val;
-   Data(real_t x_, real_t val_) {x=x_; val=val_;};
-};
-
-inline bool operator==(const Data& d1,const Data& d2) { return (d1.x == d2.x); }
-inline bool operator <(const Data& d1,const Data& d2) { return (d1.x  < d2.x); }
-
-/** Class for integrating the bilinear form a(u,v) := (Q Laplace u, v) where Q
-    can be a scalar coefficient. */
-class Diffusion2Integrator: public BilinearFormIntegrator
-{
-private:
-#ifndef MFEM_THREAD_SAFE
-   Vector shape,laplace;
-#endif
-   Coefficient *Q;
-
-public:
-   /// Construct a diffusion integrator with coefficient Q = 1
-   Diffusion2Integrator() { Q = NULL; }
-
-   /// Construct a diffusion integrator with a scalar coefficient q
-   Diffusion2Integrator (Coefficient &q) : Q(&q) { }
-
-   /** Given a particular Finite Element
-       computes the element stiffness matrix elmat. */
-   virtual void AssembleElementMatrix(const FiniteElement &el,
-                                      ElementTransformation &Trans,
-                                      DenseMatrix &elmat)
+   if (el.Size() != 2)
    {
-      int nd = el.GetDof();
-      int dim = el.GetDim();
-      real_t w;
+      mfem_error("StabInNavStoIntegrator::GetElementEnergy"
+                 " has incorrect block finite element space size!");
+   }
 
-#ifdef MFEM_THREAD_SAFE
-      Vector shape(nd);
-      Vector laplace(nd);
-#else
-      shape.SetSize(nd);
-      laplace.SetSize(nd);
-#endif
-      elmat.SetSize(nd);
+   int dof_u = el[0]->GetDof();
+   int dim = el[0]->GetDim();
 
-      const IntegrationRule *ir = IntRule;
-      if (ir == NULL)
+   sh_u.SetSize(dof_u);
+   elf_u.UseExternalData(elfun[0]->GetData(), dof_u, dim);
+
+   int intorder = 2*el[0]->GetOrder() + 3; // <---
+   const IntegrationRule &ir = IntRules.Get(el[0]->GetGeomType(), intorder);
+
+   real_t energy = 0.0;
+
+   for (int i = 0; i < ir.GetNPoints(); ++i)
+   {
+      const IntegrationPoint &ip = ir.IntPoint(i);
+      Tr.SetIntPoint(&ip);
+
+      real_t w = ip.weight * Tr.Weight();
+
+      el[0]->CalcPhysShape(Tr, sh_u);
+      elf_u.MultTranspose(sh_u, u);
+
+      energy += w*(u*u)/2;
+   }
+
+   return energy;
+}
+
+void StabInNavStoIntegrator::AssembleElementVector(
+   const Array<const FiniteElement *> &el,
+   ElementTransformation &Tr,
+   const Array<const Vector *> &elfun,
+   const Array<Vector *> &elvec)
+{
+   if (el.Size() != 2)
+   {
+      mfem_error("StabInNavStoIntegrator::AssembleElementVector"
+                 " has finite element space of incorrect block number");
+   }
+
+   int dof_u = el[0]->GetDof();
+   int dof_p = el[1]->GetDof();
+
+   int dim = el[0]->GetDim();
+   int spaceDim = Tr.GetSpaceDim();
+
+   if (dim != spaceDim)
+   {
+      mfem_error("StabInNavStoIntegrator::AssembleElementVector"
+                 " is not defined on manifold meshes");
+   }
+   elvec[0]->SetSize(dof_u*dim);
+   elvec[1]->SetSize(dof_p);
+
+   *elvec[0] = 0.0;
+   *elvec[1] = 0.0;
+
+   elf_u.UseExternalData(elfun[0]->GetData(), dof_u, dim);
+   elv_u.UseExternalData(elvec[0]->GetData(), dof_u, dim);
+
+  // elf_p.UseExternalData(elfun[1]->GetData(), dof_p); // tbd??
+ //  elv_p.UseExternalData(elvec[1]->GetData(), dof_p); // tbd??
+
+   sh_u.SetSize(dof_u);
+   shg_u.SetSize(dof_u, dim);
+   sh_p.SetSize(dof_p);
+   u.SetSize(dim);
+   grad_u.SetSize(dim);
+   int intorder = 2*el[0]->GetOrder() + 3; // <---
+   const IntegrationRule &ir = IntRules.Get(el[0]->GetGeomType(), intorder);
+
+   for (int i = 0; i < ir.GetNPoints(); ++i)
+   {
+      const IntegrationPoint &ip = ir.IntPoint(i);
+      Tr.SetIntPoint(&ip);
+      real_t w = ip.weight * Tr.Weight();
+      real_t mu = c_mu->Eval(Tr, ip);
+
+      el[0]->CalcPhysShape(Tr, sh_u);
+      elf_u.MultTranspose(sh_u, u);
+
+      el[0]->CalcPhysDShape(Tr, shg_u);
+      MultAtB(elf_u, shg_u, grad_u);
+
+      el[1]->CalcPhysShape(Tr, sh_p);
+      real_t p = sh_p*(*elfun[1]);
+
+      sigma.Diag(-p,dim);
+      sigma.Add(mu,grad_u);
+
+      AddMult_a_ABt(w, shg_u, sigma, elv_u);
+      elvec[1]->Add(w*grad_u.Trace(), sh_p);
+   }
+
+}
+
+void StabInNavStoIntegrator::AssembleElementGrad(
+   const Array<const FiniteElement*> &el,
+   ElementTransformation &Tr,
+   const Array<const Vector *> &elfun,
+   const Array2D<DenseMatrix *> &elmats)
+{
+   int dof_u = el[0]->GetDof();
+   int dof_p = el[1]->GetDof();
+
+   int dim = el[0]->GetDim();
+
+   elf_u.UseExternalData(elfun[0]->GetData(), dof_u, dim);
+ //  elv_u.UseExternalData(elvec[0]->GetData(), dof_u, dim);
+
+   elmats(0,0)->SetSize(dof_u*dim, dof_u*dim);
+   elmats(0,1)->SetSize(dof_u*dim, dof_p);
+   elmats(1,0)->SetSize(dof_p, dof_u*dim);
+   elmats(1,1)->SetSize(dof_p, dof_p);
+
+   *elmats(0,0) = 0.0;
+   *elmats(0,1) = 0.0;
+   *elmats(1,0) = 0.0;
+   *elmats(1,1) = 0.0;
+
+   sh_u.SetSize(dof_u);
+   shg_u.SetSize(dof_u, dim);
+   sh_p.SetSize(dof_p);
+   u.SetSize(dim);
+   grad_u.SetSize(dim);
+
+   int intorder = 2*el[0]->GetOrder() + 3; // <---
+   const IntegrationRule &ir = IntRules.Get(el[0]->GetGeomType(), intorder);
+
+   for (int i = 0; i < ir.GetNPoints(); ++i)
+   {
+      const IntegrationPoint &ip = ir.IntPoint(i);
+      Tr.SetIntPoint(&ip);
+      real_t w = ip.weight * Tr.Weight();
+      real_t mu = c_mu->Eval(Tr, ip);
+
+      el[0]->CalcPhysShape(Tr, sh_u);
+      elf_u.MultTranspose(sh_u, u);
+
+      el[0]->CalcPhysDShape(Tr, shg_u);
+      MultAtB(elf_u, shg_u, grad_u);
+
+      el[1]->CalcPhysShape(Tr, sh_p);
+      real_t p = sh_p*(*elfun[1]);
+
+      // u,u block
+      for (int i_u = 0; i_u < dof_u; ++i_u)
       {
-         int order;
-         if (el.Space() == FunctionSpace::Pk)
+         for (int j_u = 0; j_u < dof_u; ++j_u)
          {
-            order = 2*el.GetOrder() - 2;
-         }
-         else
-         {
-            order = 2*el.GetOrder() + dim - 1;
-         }
+            real_t mat = 0.0;
+            for (int dim_u = 0; dim_u < dim; ++dim_u)
+            {
+              mat += shg_u(i_u,dim_u)*shg_u(j_u,dim_u);
+            }
+            mat *= mu*w;
 
-         if (el.Space() == FunctionSpace::rQk)
-         {
-            ir = &RefinedIntRules.Get(el.GetGeomType(),order);
-         }
-         else
-         {
-            ir = &IntRules.Get(el.GetGeomType(),order);
+            for (int dim_u = 0; dim_u < dim; ++dim_u)
+            {
+               (*elmats(0,0))(i_u + dim_u*dof_u, j_u + dim_u*dof_u) += mat;
+            }
          }
       }
 
-      elmat = 0.0;
-      for (int i = 0; i < ir->GetNPoints(); i++)
+      // u,p and p,u blocks
+      for (int i_p = 0; i_p < dof_p; ++i_p)
       {
-         const IntegrationPoint &ip = ir->IntPoint(i);
-         Trans.SetIntPoint(&ip);
-         w = -ip.weight * Trans.Weight();
-
-         el.CalcShape(ip, shape);
-         el.CalcPhysLaplacian(Trans, laplace);
-
-         if (Q)
+         for (int j_u = 0; j_u < dof_u; ++j_u)
          {
-            w *= Q->Eval(Trans, ip);
-         }
-
-         for (int jj = 0; jj < nd; jj++)
-         {
-            for (int ii = 0; ii < nd; ii++)
+            for (int dim_u = 0; dim_u < dim; ++dim_u)
             {
-               elmat(ii, jj) += w*shape(ii)*laplace(jj);
+               (*elmats(0,1))(j_u + dof_u * dim_u, i_p) -= shg_u(j_u,dim_u)*sh_p(i_p)*w;
+               (*elmats(1,0))(i_p, j_u + dof_u * dim_u) += shg_u(j_u,dim_u)*sh_p(i_p)*w;
             }
          }
       }
    }
 
-};
-
-int main(int argc, char *argv[])
-{
-   // 1. Parse command-line options.
-   const char *mesh_file = "../../data/star.mesh";
-   const char *per_file  = "none";
-   const char *ref_file  = "";
-   int ref_levels = -1;
-   Array<int> master(0);
-   Array<int> slave(0);
-   bool static_cond = false;
-   bool visualization = 1;
-   int lod = 0;
-   bool ibp = 1;
-   bool strongBC = 1;
-   real_t kappa = -1;
-   Array<int> order(1);
-   order[0] = 1;
-
-   OptionsParser args(argc, argv);
-   args.AddOption(&mesh_file, "-m", "--mesh",
-                  "Mesh file to use.");
-   args.AddOption(&ref_levels, "-r", "--refine",
-                  "Number of times to refine the mesh uniformly, -1 for auto.");
-   args.AddOption(&per_file, "-p", "--per",
-                  "Periodic BCS file.");
-   args.AddOption(&ref_file, "-rf", "--ref-file",
-                  "File with refinement data");
-   args.AddOption(&master, "-pm", "--master",
-                  "Master boundaries for periodic BCs");
-   args.AddOption(&slave, "-ps", "--slave",
-                  "Slave boundaries for periodic BCs");
-   args.AddOption(&order, "-o", "--order",
-                  "Finite element order (polynomial degree) or -1 for"
-                  " isoparametric space.");
-   args.AddOption(&ibp, "-ibp", "--ibp", "-no-ibp",
-                  "--no-ibp",
-                  "Selects the standard weak form (IBP) or the nonstandard (NO-IBP).");
-   args.AddOption(&strongBC, "-sbc", "--strong-bc", "-wbc",
-                  "--weak-bc",
-                  "Selects strong or weak enforcement of Dirichlet BCs.");
-   args.AddOption(&kappa, "-k", "--kappa",
-                  "Sets the SIPG penalty parameters, should be positive."
-                  " Negative values are replaced with (order+1)^2.");
-   args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
-                  "--no-static-condensation", "Enable static condensation.");
-   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
-                  "--no-visualization",
-                  "Enable or disable GLVis visualization.");
-   args.AddOption(&lod, "-lod", "--level-of-detail",
-                  "Refinement level for 1D solution output (0 means no output).");
-   args.Parse();
-   if (!args.Good())
-   {
-      args.PrintUsage(cout);
-      return 1;
-   }
-   if (!strongBC & (kappa < 0))
-   {
-      kappa = 4*(order.Max()+1)*(order.Max()+1);
-   }
-   args.PrintOptions(cout);
-
-   // 2. Read the mesh from the given mesh file. We can handle triangular,
-   //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
-   //    the same code.
-   Mesh *mesh = new Mesh(mesh_file, 1, 1);
-   int dim = mesh->Dimension();
-
-   // 3. Refine the mesh to increase the resolution. In this example we do
-   //    'ref_levels' of uniform refinement and knot insertion of knots defined
-   //    in a refinement file. We choose 'ref_levels' to be the largest number
-   //    that gives a final mesh with no more than 50,000 elements.
-   {
-      // Mesh refinement as defined in refinement file
-      if (mesh->NURBSext && (strlen(ref_file) != 0))
-      {
-         mesh->RefineNURBSFromFile(ref_file);
-      }
-
-      if (ref_levels < 0)
-      {
-         ref_levels =
-            (int)floor(log(5000./mesh->GetNE())/log(2.)/dim);
-      }
-
-      for (int l = 0; l < ref_levels; l++)
-      {
-         mesh->UniformRefinement();
-      }
-      mesh->PrintInfo();
-   }
-
-   // 4. Define a finite element space on the mesh. Here we use continuous
-   //    Lagrange finite elements of the specified order. If order < 1, we
-   //    instead use an isoparametric/isogeometric space.
-   FiniteElementCollection *fec;
-   NURBSExtension *NURBSext = NULL;
-   int own_fec = 0;
-
-   if (mesh->NURBSext)
-   {
-      fec = new NURBSFECollection(order[0]);
-      own_fec = 1;
-
-      int nkv = mesh->NURBSext->GetNKV();
-      if (order.Size() == 1)
-      {
-         int tmp = order[0];
-         order.SetSize(nkv);
-         order = tmp;
-      }
-
-      if (order.Size() != nkv ) { mfem_error("Wrong number of orders set."); }
-      NURBSext = new NURBSExtension(mesh->NURBSext, order);
-
-      // Read periodic BCs from file
-      std::ifstream in;
-      in.open(per_file, std::ifstream::in);
-      if (in.is_open())
-      {
-         int psize;
-         in >> psize;
-         master.SetSize(psize);
-         slave.SetSize(psize);
-         master.Load(in, psize);
-         slave.Load(in, psize);
-         in.close();
-      }
-      master.Print();
-      slave.Print();
-      NURBSext->ConnectBoundaries(master,slave);
-   }
-   else if (order[0] == -1) // Isoparametric
-   {
-      if (mesh->GetNodes())
-      {
-         fec = mesh->GetNodes()->OwnFEC();
-         own_fec = 0;
-         cout << "Using isoparametric FEs: " << fec->Name() << endl;
-      }
-      else
-      {
-         cout <<"Mesh does not have FEs --> Assume order 1.\n";
-         fec = new H1_FECollection(1, dim);
-         own_fec = 1;
-      }
-   }
-   else
-   {
-      if (order.Size() > 1) { cout <<"Wrong number of orders set, needs one.\n"; }
-      fec = new H1_FECollection(abs(order[0]), dim);
-      own_fec = 1;
-   }
-
-   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, NURBSext, fec);
-   cout << "Number of finite element unknowns: "
-        << fespace->GetTrueVSize() << endl;
-
-   if (!ibp)
-   {
-      if (!mesh->NURBSext)
-      {
-         cout << "No integration by parts requires a NURBS mesh."<< endl;
-         return 2;
-      }
-      if (mesh->NURBSext->GetNP()>1)
-      {
-         cout << "No integration by parts requires a NURBS mesh, with only 1 patch."<<
-              endl;
-         cout << "A C_1 discretisation is required."<< endl;
-         cout << "Currently only C_0 multipatch coupling implemented."<< endl;
-         return 3;
-      }
-      if (order[0]<2)
-      {
-         cout << "No integration by parts requires at least quadratic NURBS."<< endl;
-         cout << "A C_1 discretisation is required."<< endl;
-         return 4;
-      }
-   }
-
-   // 5. Determine the list of true (i.e. conforming) essential boundary dofs.
-   //    In this example, the boundary conditions are defined by marking all
-   //    the boundary attributes from the mesh as essential (Dirichlet) and
-   //    converting them to a list of true dofs.
-   Array<int> ess_tdof_list;
-   if (mesh->bdr_attributes.Size())
-   {
-      Array<int> ess_bdr(mesh->bdr_attributes.Max());
-      if (strongBC)
-      {
-         ess_bdr = 1;
-      }
-      else
-      {
-         ess_bdr = 0;
-      }
-
-      // Remove periodic BCs
-      for (int i = 0; i < master.Size(); i++)
-      {
-         ess_bdr[master[i]-1] = 0;
-         ess_bdr[slave[i]-1] = 0;
-      }
-      fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-   }
-
-   // 6. Set up the linear form b(.) which corresponds to the right-hand side of
-   //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
-   //    the basis functions in the finite element fespace.
-   ConstantCoefficient one(1.0);
-   ConstantCoefficient zero(0.0);
-
-   LinearForm *b = new LinearForm(fespace);
-   b->AddDomainIntegrator(new DomainLFIntegrator(one));
-   if (!strongBC)
-      b->AddBdrFaceIntegrator(
-         new DGDirichletLFIntegrator(zero, one, -1.0, kappa));
-   b->Assemble();
-
-   // 7. Define the solution vector x as a finite element grid function
-   //    corresponding to fespace. Initialize x with initial guess of zero,
-   //    which satisfies the boundary conditions.
-   GridFunction x(fespace);
-   x = 0.0;
-
-   // 8. Set up the bilinear form a(.,.) on the finite element space
-   //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
-   //    domain integrator.
-   BilinearForm *a = new BilinearForm(fespace);
-   if (ibp)
-   {
-      a->AddDomainIntegrator(new DiffusionIntegrator(one));
-   }
-   else
-   {
-      a->AddDomainIntegrator(new Diffusion2Integrator(one));
-   }
-
-   if (!strongBC)
-   {
-      a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, -1.0, kappa));
-   }
-
-   // 9. Assemble the bilinear form and the corresponding linear system,
-   //    applying any necessary transformations such as: eliminating boundary
-   //    conditions, applying conforming constraints for non-conforming AMR,
-   //    static condensation, etc.
-   if (static_cond) { a->EnableStaticCondensation(); }
-   a->Assemble();
-
-   SparseMatrix A;
-   Vector B, X;
-   a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
-
-   cout << "Size of linear system: " << A.Height() << endl;
-
-#ifndef MFEM_USE_SUITESPARSE
-   // 10. Define a simple Jacobi preconditioner and use it to
-   //     solve the system A X = B with PCG.
-   GSSmoother M(A);
-   PCG(A, M, B, X, 1, 200, 1e-12, 0.0);
-#else
-   // 10. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
-   UMFPackSolver umf_solver;
-   umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-   umf_solver.SetOperator(A);
-   umf_solver.Mult(B, X);
-#endif
-
-   // 11. Recover the solution as a finite element grid function.
-   a->RecoverFEMSolution(X, *b, x);
-
-   // 12. Save the refined mesh and the solution. This output can be viewed later
-   //     using GLVis: "glvis -m refined.mesh -g sol.gf".
-   {
-      ofstream mesh_ofs("refined.mesh");
-      mesh_ofs.precision(8);
-      mesh->Print(mesh_ofs);
-      ofstream sol_ofs("sol.gf");
-      sol_ofs.precision(8);
-      x.Save(sol_ofs);
-      sol_ofs.close();
-   }
-
-   // 13. Send the solution by socket to a GLVis server.
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      socketstream sol_sock(vishost, visport);
-      sol_sock.precision(8);
-      sol_sock << "solution\n" << *mesh << x << flush;
-   }
-
-   if (mesh->Dimension() == 1 && lod > 0)
-   {
-      std::list<Data> sol;
-
-      Vector      vals,coords;
-      GridFunction *nodes = mesh->GetNodes();
-      if (!nodes)
-      {
-         nodes = new GridFunction(fespace);
-         mesh->GetNodes(*nodes);
-      }
-
-      for (int i = 0; i <  mesh->GetNE(); i++)
-      {
-         int geom       = mesh->GetElementBaseGeometry(i);
-         RefinedGeometry *refined_geo = GlobGeometryRefiner.Refine(( Geometry::Type)geom,
-                                                                   lod, 1);
-
-         x.GetValues(i, refined_geo->RefPts, vals);
-         nodes->GetValues(i, refined_geo->RefPts, coords);
-
-         for (int j = 0; j < vals.Size(); j++)
-         {
-            sol.push_back(Data(coords[j],vals[j]));
-         }
-      }
-      sol.sort();
-      sol.unique();
-      ofstream sol_ofs("solution.dat");
-      for (std::list<Data>::iterator d = sol.begin(); d != sol.end(); ++d)
-      {
-         sol_ofs<<d->x <<"\t"<<d->val<<endl;
-      }
-
-      sol_ofs.close();
-   }
-
-   // 14. Save data in the VisIt format
-   VisItDataCollection visit_dc("Example1", mesh);
-   visit_dc.RegisterField("solution", &x);
-   visit_dc.Save();
-
-   // 15. Free the used memory.
-   delete a;
-   delete b;
-   delete fespace;
-   if (own_fec) { delete fec; }
-   delete mesh;
-
-   return 0;
 }
+
+void GeneralResidualMonitor::MonitorResidual(int it, real_t norm,
+                                             const Vector &r, bool final)
+{
+   if (print_level == 1 || (print_level == 3 && (final || it == 0)))
+   {
+      mfem::out << prefix << " iteration " << std::setw(2) << it
+                << " : ||r|| = " << norm;
+      if (it > 0)
+      {
+         mfem::out << ",  ||r||/||r_0|| = " << norm/norm0;
+      }
+      else
+      {
+         norm0 = norm;
+      }
+      mfem::out << '\n';
+   }
+}
+
+JacobianPreconditioner::JacobianPreconditioner(Array<FiniteElementSpace *> &fes,
+                                               SparseMatrix &mass,
+                                               Array<int> &offsets)
+   : Solver(offsets[2]), block_trueOffsets(offsets), pressure_mass(&mass)
+{
+   fes.Copy(spaces);
+
+   gamma = 0.00001;
+
+   // The mass matrix and preconditioner do not change every Newton cycle, so we
+   // only need to define them once
+   GSSmoother *mass_prec_gs = new GSSmoother(*pressure_mass);
+
+   mass_prec = mass_prec_gs;
+
+   CGSolver *mass_pcg_iter = new CGSolver();
+   mass_pcg_iter->SetRelTol(1e-12);
+   mass_pcg_iter->SetAbsTol(1e-12);
+   mass_pcg_iter->SetMaxIter(200);
+   mass_pcg_iter->SetPrintLevel(0);
+   mass_pcg_iter->SetPreconditioner(*mass_prec);
+   mass_pcg_iter->SetOperator(*pressure_mass);
+   mass_pcg_iter->iterative_mode = false;
+
+   mass_pcg = mass_pcg_iter;
+
+   // The stiffness matrix does change every Newton cycle, so we will define it
+   // during SetOperator
+   stiff_pcg = NULL;
+   stiff_prec = NULL;
+}
+
+void JacobianPreconditioner::Mult(const Vector &k, Vector &y) const
+{
+   // Extract the blocks from the input and output vectors
+   Vector disp_in(k.GetData() + block_trueOffsets[0],
+                  block_trueOffsets[1]-block_trueOffsets[0]);
+   Vector pres_in(k.GetData() + block_trueOffsets[1],
+                  block_trueOffsets[2]-block_trueOffsets[1]);
+
+   Vector disp_out(y.GetData() + block_trueOffsets[0],
+                   block_trueOffsets[1]-block_trueOffsets[0]);
+   Vector pres_out(y.GetData() + block_trueOffsets[1],
+                   block_trueOffsets[2]-block_trueOffsets[1]);
+
+   Vector temp(block_trueOffsets[1]-block_trueOffsets[0]);
+   Vector temp2(block_trueOffsets[1]-block_trueOffsets[0]);
+
+   // Perform the block elimination for the preconditioner
+   mass_pcg->Mult(pres_in, pres_out);
+   pres_out *= -gamma;
+
+   jacobian->GetBlock(0,1).Mult(pres_out, temp);
+   subtract(disp_in, temp, temp2);
+
+   stiff_pcg->Mult(temp2, disp_out);
+}
+
+void JacobianPreconditioner::SetOperator(const Operator &op)
+{
+   jacobian = (BlockOperator *) &op;
+
+   // Initialize the stiffness preconditioner and solver
+   if (stiff_prec == NULL)
+   {
+      GSSmoother *stiff_prec_gs = new GSSmoother();
+
+      stiff_prec = stiff_prec_gs;
+
+      GMRESSolver *stiff_pcg_iter = new GMRESSolver();
+      stiff_pcg_iter->SetRelTol(1e-8);
+      stiff_pcg_iter->SetAbsTol(1e-8);
+      stiff_pcg_iter->SetMaxIter(200);
+      stiff_pcg_iter->SetPrintLevel(0);
+      stiff_pcg_iter->SetPreconditioner(*stiff_prec);
+      stiff_pcg_iter->iterative_mode = false;
+
+      stiff_pcg = stiff_pcg_iter;
+   }
+
+   // At each Newton cycle, compute the new stiffness preconditioner by updating
+   // the iterative solver which, in turn, updates its preconditioner
+   stiff_pcg->SetOperator(jacobian->GetBlock(0,0));
+}
+
+JacobianPreconditioner::~JacobianPreconditioner()
+{
+   delete mass_pcg;
+   delete mass_prec;
+   delete stiff_prec;
+   delete stiff_pcg;
+}
+
+
+StabInNavStoOperator::StabInNavStoOperator(Array<FiniteElementSpace *> &fes,
+                               Array<Array<int> *> &ess_bdr,
+                               Array<int> &offsets,
+                               real_t rel_tol,
+                               real_t abs_tol,
+                               int iter,
+                               Coefficient &c_mu)
+   : Operator(fes[0]->GetTrueVSize() + fes[1]->GetTrueVSize()),
+     newton_solver(), newton_monitor("Newton", 1),
+     j_monitor("  GMRES", 3), mu(c_mu), block_trueOffsets(offsets)
+{
+   Array<Vector *> rhs(2);
+   rhs = NULL; // Set all entries in the array
+
+   fes.Copy(spaces);
+
+   // Define the block nonlinear form
+   Hform = new BlockNonlinearForm(spaces);
+
+   // Add the incompressible neo-Hookean integrator
+   Hform->AddDomainIntegrator(new StabInNavStoIntegrator(mu));
+
+   // Set the essential boundary conditions
+   Hform->SetEssentialBC(ess_bdr, rhs);
+
+   // Compute the pressure mass stiffness matrix
+   BilinearForm *a = new BilinearForm(spaces[1]);
+   ConstantCoefficient one(1.0);
+   a->AddDomainIntegrator(new MassIntegrator(one));
+   a->Assemble();
+   a->Finalize();
+
+   OperatorPtr op;
+   Array<int> p_ess_tdofs;
+   a->FormSystemMatrix(p_ess_tdofs, op);
+   pressure_mass = a->LoseMat();
+   delete a;
+
+   // Initialize the Jacobian preconditioner
+   JacobianPreconditioner *jac_prec =
+      new JacobianPreconditioner(fes, *pressure_mass, block_trueOffsets);
+   j_prec = jac_prec;
+
+   // Set up the Jacobian solver
+   GMRESSolver *j_gmres = new GMRESSolver();
+   j_gmres->iterative_mode = false;
+   j_gmres->SetRelTol(1e-12);
+   j_gmres->SetAbsTol(1e-12);
+   j_gmres->SetMaxIter(700);
+   j_gmres->SetPrintLevel(-1);
+   j_gmres->SetMonitor(j_monitor);
+   //j_gmres->SetPreconditioner(*j_prec);
+   j_solver = j_gmres;
+
+   // Set the newton solve parameters
+   newton_solver.iterative_mode = true;
+   newton_solver.SetSolver(*j_solver);
+   newton_solver.SetOperator(*this);
+   newton_solver.SetPrintLevel(-1);
+   newton_solver.SetMonitor(newton_monitor);
+   newton_solver.SetRelTol(rel_tol);
+   newton_solver.SetAbsTol(abs_tol);
+   newton_solver.SetMaxIter(iter);
+}
+
+// Solve the Newton system
+void StabInNavStoOperator::Solve(Vector &xp) const
+{
+   Vector zero;
+   newton_solver.Mult(zero, xp);
+  // MFEM_VERIFY(newton_solver.GetConverged(),
+  //             "Newton Solver did not converge.");
+}
+
+// compute: y = H(x,p)
+void StabInNavStoOperator::Mult(const Vector &k, Vector &y) const
+{
+   Hform->Mult(k, y);
+}
+
+// Compute the Jacobian from the nonlinear form
+Operator &StabInNavStoOperator::GetGradient(const Vector &xp) const
+{
+   return Hform->GetGradient(xp);
+}
+
+StabInNavStoOperator::~StabInNavStoOperator()
+{
+   delete Hform;
+   delete pressure_mass;
+   delete j_solver;
+   delete j_prec;
+}
+
