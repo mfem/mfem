@@ -15,6 +15,10 @@
 #include "batchlinalg.hpp"
 #include "../general/forall.hpp"
 #include "../general/backends.hpp"
+#include <cuda_runtime.h>
+#include "cublas_v2.h"
+#define IDXT(i,j,k,ld) (i + j*ld + k*ld*ld)
+#define IDXM(i,j,ld) (i + j*ld)
 
 namespace mfem
 {
@@ -270,27 +274,49 @@ void ApplyBlkMult(const DenseTensor &Mat, const Vector &x,
                   Vector &y)
 {
    const int ndof = Mat.SizeI();
+   MFEM_VERIFY(Mat.SizeI() == Mat.SizeJ(), "matrices are not ndof x ndof");
    const int NE   = Mat.SizeK();
-   auto X         = Reshape(x.Read(), ndof, NE);
-   auto Y         = Reshape(y.Write(), ndof, NE);
-   auto Me        = Reshape(Mat.Read(), ndof, ndof, NE);
 
-   //Takes row major format
-   mfem::forall(ndof* NE, [=] MFEM_HOST_DEVICE (int tid)
-   {
+   cudaError_t cudaStat; 
+   cublasStatus_t stat;
+   cublasHandle_t handle;
+   int i, j, k;
 
-      const int c = tid % ndof;
-      const int e = tid / ndof;
+   double* d_Mat[NE]; 
+   double* d_x[NE];
+   double* d_y[NE];
 
-      {
-         double dot = 0;
-         for (int r = 0; r < ndof; ++r)
-         {
-            dot += Me(r, c, e) * X(r, e);
-         }
-         Y(c, e) = dot;
-      }
-   });
+   // Initialize CUBLAS 
+   stat = cublasCreate(&handle); 
+
+   // Allocate and set matrices on GPU
+   for (k = 0, k < NE; k++) {
+      cudaStat = cudaMalloc ((void**)&d_Mat[k], ndof*ndof*sizeof(*Mat.Data())); 
+      cudaStat = cudaMalloc ((void**)&d_x[k], ndof*sizeof(*x.GetData())); 
+      cudaStat = cudaMalloc ((void**)&d_y[k], ndof*sizeof(*y.GetData())); 
+
+      stat = cublasSetMatrix (ndof, ndof, sizeof(*Mat.Data()), &Mat.Data()[IDXT(0,0,k,ndof)], ndof, d_Mat[k], ndof); 
+      stat = cublasSetMatrix (ndof, 1, sizeof(*x.GetData()), &x.GetData()[IDXM(0,k,ndof)], ndof, d_x[k], ndof);
+   }
+
+   // Vendor function handles computations on GPU via batched call
+   double alpha = 1.0;
+   double beta = 0.0; 
+   stat = cublasDgemvBatched (handle, CUBLAS_OP_N, ndof, ndof,
+                              &alpha, d_Mat, ndof, d_x, 1,
+                              &beta, d_y, 1, NE);
+   // note that cuda 11.7.0 needs batchCount = NE as last parameter
+
+   // Copies GPU memory to host memory
+   for (k = 0; k < NE; k++) {
+      stat = cublasGetMatrix (ndof, 1, sizeof(*y.GetData()), d_y[k], ndof, &y.GetData()[IDXM(0,k,N)], ndof);
+   }
+
+   // Free up memory and end CUBLAS stream
+   cudaFree(d_Mat);
+   cudaFree(d_x);
+   cudaFree(d_y);
+   cublasDestroy(handle);
 }
 
 
