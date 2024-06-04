@@ -1183,9 +1183,10 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
 }
 
 void EABilinearFormExtension::GetElementMatrices(
-   DenseTensor &element_matrices) const
+   DenseTensor &element_matrices, ElementDofOrdering ordering)
 {
-   MFEM_VERIFY(ea_data.Size() > 0, "Assemble() must be called first.");
+   // Ensure the EA data is assembled
+   if (ea_data.Size() == 0) { Assemble(); }
 
    const int ndofs = elemDofs;
    element_matrices.SetSize(ndofs, ndofs, ne);
@@ -1196,13 +1197,46 @@ void EABilinearFormExtension::GetElementMatrices(
                                      ndofs, ndofs,
                                      ne);
 
-   mfem::forall(N, [=] MFEM_HOST_DEVICE (int idx)
+   const int *d_dof_map = nullptr;
+   if (ordering == ElementDofOrdering::NATIVE)
    {
-      const int e = idx / ndofs / ndofs;
-      const int i = idx % ndofs;
-      const int j = (idx / ndofs) % ndofs;
-      d_element_matrices(i, j, e) = d_ea_data(j, i, e);
-   });
+      const TensorBasisElement* tbe =
+         dynamic_cast<const TensorBasisElement*>(trial_fes->GetFE(0));
+      if (tbe)
+      {
+         const Array<int> &dof_map = tbe->GetDofMap();
+         d_dof_map = dof_map.Read();
+      }
+   }
+
+   if (d_dof_map)
+   {
+      // Reordering required
+      mfem::forall(N, [=] MFEM_HOST_DEVICE (int idx)
+      {
+         const int e = idx / ndofs / ndofs;
+         const int i = idx % ndofs;
+         const int j = (idx / ndofs) % ndofs;
+         const int ii_s = d_dof_map[i];
+         const int ii = (ii_s >= 0) ? ii_s : -1 - ii_s;
+         const int s_i = (ii_s >= 0) ? 1 : -1;
+         const int jj_s = d_dof_map[j];
+         const int jj = (jj_s >= 0) ? jj_s : -1 - jj_s;
+         const int s_j = (jj_s >= 0) ? 1 : -1;
+         d_element_matrices(ii, jj, e) = s_i*s_j*d_ea_data(j, i, e);
+      });
+   }
+   else
+   {
+      // No reordering required
+      mfem::forall(N, [=] MFEM_HOST_DEVICE (int idx)
+      {
+         const int e = idx / ndofs / ndofs;
+         const int i = idx % ndofs;
+         const int j = (idx / ndofs) % ndofs;
+         d_element_matrices(i, j, e) = d_ea_data(j, i, e);
+      });
+   }
 }
 
 // Data and methods for fully-assembled bilinear forms
