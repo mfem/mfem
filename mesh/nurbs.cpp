@@ -797,9 +797,14 @@ void KnotVector::FindInterpolant(Array<Vector*> &x)
    int ncp = GetNCP();
 
    // Find interpolation points
-   Vector xi_args, u_args;
-   Array<int> i_args;
-   FindMaxima(i_args,xi_args, u_args);
+   Vector xi_args(ncp), u_args(ncp);
+   Array<int> i_args(ncp);
+   for (int i = 0; i < ncp; i++)
+   {
+      u_args[i] = GetBotella(i);
+      i_args[i] = GetSpan(u_args[i]) - Order;
+      xi_args[i] = GetIp(u_args[i],i_args[i]+Order);
+   }
 
    // Assemble collocation matrix
    Vector shape(order+1);
