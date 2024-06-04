@@ -93,6 +93,7 @@ int main(int argc, char *argv[])
    bool upwinded = false;
    int problem = 1;
    int nt = 0;
+   int ode = 1;
    real_t k = 1.;
    real_t c = 1.;
    real_t td = 0.5;
@@ -122,6 +123,8 @@ int main(int argc, char *argv[])
                   "Problem to solve from the Nguyen paper.");
    args.AddOption(&nt, "-nt", "--ntimesteps",
                   "Number of time steps.");
+   args.AddOption(&ode, "-ode", "--ode-solver",
+                  "ODE time solver (1=Bacward Euler, 2=RK23L, 3=RK23A, 4=RK34).");
    args.AddOption(&k, "-k", "--kappa",
                   "Heat conductivity");
    args.AddOption(&c, "-c", "--velocity",
@@ -474,8 +477,22 @@ int main(int argc, char *argv[])
    FEOperator op(ess_flux_tdofs_list, darcy, gform, fform, hform, &gcoeff, &fcoeff,
                  trace_space, btime);
 
-   ODESolver *ode = new BackwardEulerSolver();
-   ode->Init(op);
+   //construct the time solver
+
+   ODESolver *ode_solver;
+
+   switch (ode)
+   {
+      case 1: ode_solver = new BackwardEulerSolver(); break;
+      case 2: ode_solver = new SDIRK23Solver(2); break;
+      case 3: ode_solver = new SDIRK23Solver(); break;
+      case 4: ode_solver = new SDIRK34Solver(); break;
+      default:
+         MFEM_ABORT("Unknown solver");
+         return 1;
+   }
+
+   ode_solver->Init(op);
 
    //iterate in time
 
@@ -490,7 +507,7 @@ int main(int argc, char *argv[])
 
       //perform time step
 
-      ode->Step(x, t, dt_);
+      ode_solver->Step(x, t, dt_);
 
       // 12. Compute the L2 error norms.
 
