@@ -401,6 +401,17 @@ void DarcyForm::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
    }
 }
 
+void DarcyForm::Update()
+{
+   if (M_u) { M_u->Update(); }
+   if (M_p) { M_p->Update(); }
+   if (B) { B->Update(); }
+
+   pBt.Clear();
+
+   if (hybridization) { hybridization->Reset(); }
+}
+
 DarcyForm::~DarcyForm()
 {
    if (M_u) { delete M_u; }

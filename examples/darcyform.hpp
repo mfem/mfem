@@ -193,6 +193,8 @@ public:
    /// Read-only access to the associated flux FiniteElementSpace.
    const FiniteElementSpace *PotentialFESpace() const { return fes_p; }
 
+   virtual void Update();
+
    /// Destroys Darcy form.
    virtual ~DarcyForm();
 
