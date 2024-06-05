@@ -277,17 +277,16 @@ void ApplyBlkMult(const DenseTensor &Mat, const Vector &x,
    MFEM_VERIFY(Mat.SizeI() == Mat.SizeJ(), "matrices are not ndof x ndof");
    const int NE   = Mat.SizeK();
 
-   cudaError_t cudaStat; 
+   // cudaError_t cudaStat; 
    cublasStatus_t stat;
    cublasHandle_t handle;
 
-   Array<double*> Mat_ptr[NE]; 
-   Array<double*> x_ptr[NE];
-   Array<double*> y_ptr[NE];
-
+   double* Mat_ptr[NE]; 
+   double* x_ptr[NE];
+   double* y_ptr[NE];
 
    for (int k = 0; k < NE; k++) {
-      Mat_ptr[k] = &const_cast<DenseTensor&>Mat.ReadWrite()[ndof*ndof*k];
+      Mat_ptr[k] = &const_cast<DenseTensor&>(Mat).ReadWrite()[ndof*ndof*k];
       x_ptr[k] = &const_cast<Vector&>(x).ReadWrite()[ndof*k];
       y_ptr[k] = &y.ReadWrite()[ndof*k];
    }
@@ -341,6 +340,14 @@ void ApplyBlkMult(const DenseTensor &Mat, const Vector &x,
                               &alpha, Mat_ptr, ndof, x_ptr, 1,
                               &beta, y_ptr, 1, NE);
    // note that cuda 11.7.0 needs batchCount = NE as last parameter
+
+   if (stat != CUBLAS_STATUS_SUCCESS) {
+      printf ("CUDA gemvBatched() failed \n");
+      printf (cublasGetStatusString(stat));  // note: only available after version 11.4.2
+      cudaFree (d_y);
+      cublasDestroy(handle);
+      return EXIT_FAILURE;
+   }
 
    // // Copies GPU memory to host memory
    // for (k = 0; k < NE; k++) {

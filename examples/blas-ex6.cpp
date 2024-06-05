@@ -4,6 +4,9 @@
 #include <cuda_runtime.h>
 #include "cublas_v2.h"
 #include "mfem.hpp"
+#include "../linalg/batchlinalg.hpp"
+#include "../general/backends.hpp"
+#include "../general/forall.hpp"
 #include <fstream>
 #include <iostream>
 #define M 6
@@ -136,12 +139,13 @@ int main (void){
         }
         printf ("\n");
     }
+    printf ("\n");
 
     DenseTensor const& const_A = A;
     Vector const& const_X = X;
     Vector Z(N*W);
-    BatchSolver batchSolver(A, BatchSolver::SolveMode::INVERSE);
-    batchSolver.ApplyInverse(X, Z);
+    BatchSolver batchSolver(const_A, BatchSolver::SolveMode::INVERSE);
+    batchSolver.ApplyInverse(const_X, Z);
 
     printf ("Z is \n");
     for (k = 0; k < W; k++) {
@@ -150,6 +154,7 @@ int main (void){
         }
         printf ("\n");
     }
+    printf ("\n");
 
 
     return EXIT_SUCCESS;
