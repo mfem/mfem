@@ -31,11 +31,8 @@
 //
 // Compile with: make mesh-fitting
 //
-// make mesh-fitting-hrp -j && ./mesh-fitting-hrp -m square01.mesh -rs 1 -o 1 -oi 2 -sbgmesh -vl 2 -mo 4 -mi 3 -preft 5e-14 -lsf 1 -vis -bgamr 2 -det 2 -pderef -1e-4 -href -no-ro -ni 10
-// make mesh-fitting-hrp -j && ./mesh-fitting-hrp -m square01-tri.mesh -rs 2 -o 1 -oi 2 -sbgmesh -vl 2 -mo 6 -mi 3 -preft 5e-14 -lsf 0 -bgamr 4 -bgo 6 -det 2 -pderef -1e-4 -href -no-ro -ni 100 -mid 2 -sft 1e-20 -et 0
-
 // make mesh-fitting-hrp -j && ./mesh-fitting-hrp -m square01-tri.mesh -rs 1 -o 1 -sbgmesh -vl 2 -mo 4 -mi 4 -preft 5e-14 -lsf 1 -bgamr 4 -bgo 6 -det 0 -pderef 1e-4 -href -no-ro -ni 100 -mid 2 -sft 1e-20 -et 0
-
+// make mesh-fitting-hrp -j && ./mesh-fitting-hrp -m quadsplit.mesh -rs 0 -o 1 -sbgmesh -vl 2 -mo 6 -mi 4 -preft 1e-14 -lsf 1 -bgamr 5 -bgo 6 -det 0 -pderef 1e-4 -href -no-ro -ni 100 -mid 80 -tid 4 -sft 1e-20 -et 0 -cus-mat
 #include "../../mfem.hpp"
 #include "../common/mfem-common.hpp"
 #include <fstream>
@@ -2298,8 +2295,8 @@ int main(int argc, char *argv[])
                      group_error_h(orig_groupnum) = 0.0;
                   }
                }
-               std::cout << i << " " << orig_groupnum << " " << group_error_h(
-                            orig_groupnum) << " " << group_dofs_h(orig_groupnum) << " k10-h-error\n";
+               // std::cout << i << " " << orig_groupnum << " " << group_error_h(
+               //              orig_groupnum) << " " << group_dofs_h(orig_groupnum) << " k10-h-error\n";
             }
          }
 
@@ -2509,9 +2506,6 @@ int main(int argc, char *argv[])
                   done_elsh(elnum) = 1.0;
                }
                done_els(elnum) = min(done_elsp(elnum), done_elsh(elnum));
-               // std::cout << i << " " << elnum << " " << done_els(elnum) << " " <<
-               //           done_elsp(elnum) << " " << done_elsh(elnum) << " " <<
-               //           current_order << " k10-done\n";
             }
          }
          mesh->NewNodes(x, false);
@@ -2617,12 +2611,6 @@ int main(int argc, char *argv[])
                //  This element was not p-refined if the below is true... so we skip
                if (el_order == prior_order) { continue; }
 
-               // double interface_error = ComputeIntegrateErrorBG(x_max_order->FESpace(),
-               //                                                  surf_fit_bg_gf0,
-               //                                                  fnum,
-               //                                                  surf_fit_gf0_max_order,
-               //                                                  finder,
-               //                                                  error_type);
                double interface_error = ifec0.face_error_map[fnum];
 
                // std::cout << el_order << " " << prior_order << " k10order\n";
@@ -2655,6 +2643,7 @@ int main(int argc, char *argv[])
                      }
                   }
                }
+
                trycoarsening = true;
                double interface_deref_error = ComputeIntegrateErrorBG(x_max_order->FESpace(),
                                                                       surf_fit_bg_gf0,
