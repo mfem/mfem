@@ -1093,7 +1093,7 @@ void FuentesPyramid::E_T(int p, Vector s, Vector sds, DenseTensor &u) const
    MFEM_ASSERT(p >= 2, "Polynomial order must be two or larger");
    MFEM_ASSERT(s.Size() >= 3, "Size of s must be 3 or larger");
    MFEM_ASSERT(sds.Size() >= 3, "Size of sds must be 3 or larger");
-   MFEM_ASSERT(u.SizeI() >= p, "First dimension of u is too small");
+   MFEM_ASSERT(u.SizeI() >= p - 1, "First dimension of u is too small");
    MFEM_ASSERT(u.SizeJ() >= p, "Second dimension of u is too small");
    MFEM_ASSERT(u.SizeK() >= 3, "Third dimension of u must be 3 or larger");
 
@@ -1104,11 +1104,11 @@ void FuentesPyramid::E_T(int p, Vector s, Vector sds, DenseTensor &u) const
    Vector &L_j = E_T_vtmp1;
    DenseMatrix &E_E_i = E_T_mtmp1;
 
-   E_E_i.SetSize(p, 3);
-   E_E(p, s, sds, E_E_i);
+   E_E_i.SetSize(p - 1, 3);
+   E_E(p - 1, s, sds, E_E_i);
 
    L_j.SetSize(p);
-   for (int i=0; i<p; i++)
+   for (int i=0; i<p-1; i++)
    {
       const real_t alpha = 2.0 * i + 1.0;
       CalcHomogenizedIntJacobi(p - 1, alpha, s[0] + s[1], s[2], L_j);
@@ -1131,10 +1131,11 @@ void FuentesPyramid::E_T(int p, Vector s, const DenseMatrix & grad_s,
                "First dimension of grad_s must be 3");
    MFEM_ASSERT(grad_s.Width() >= 3,
                "Second dimension of grad_s must be 3");
-   MFEM_ASSERT(u.SizeI() >= p, "First dimension of u is too small");
+   MFEM_ASSERT(u.SizeI() >= p - 1, "First dimension of u is too small");
    MFEM_ASSERT(u.SizeJ() >= p, "Second dimension of u is too small");
    MFEM_ASSERT(u.SizeK() >= 3, "Third dimension of u must be 3 or larger");
-   MFEM_ASSERT(curl_u.SizeI() >= p, "First dimension of curl_u is too small");
+   MFEM_ASSERT(curl_u.SizeI() >= p - 1,
+               "First dimension of curl_u is too small");
    MFEM_ASSERT(curl_u.SizeJ() >= p,
                "Second dimension of curl_u is too small");
    MFEM_ASSERT(curl_u.SizeK() >= 3,
@@ -1155,20 +1156,21 @@ void FuentesPyramid::E_T(int p, Vector s, const DenseMatrix & grad_s,
 
    Vector dL(3), grad_L(3);
 
-   E_E_i.SetSize(p, 3);
-   dE_E_i.SetSize(p, 3);
-   E_E(p, s, grad_s, E_E_i, dE_E_i);
+   E_E_i.SetSize(p - 1, 3);
+   dE_E_i.SetSize(p - 1, 3);
+   E_E(p - 1, s, grad_s, E_E_i, dE_E_i);
 
    L_j.SetSize(p);
    dL_j_dx.SetSize(p);
    dL_j_dt.SetSize(p);
-   for (int i=0; i<p; i++)
+   for (int i=0; i<p-1; i++)
    {
       const real_t alpha = 2.0 * i + 1.0;
       CalcHomogenizedIntJacobi(p - 1, alpha, s[0] + s[1], s[2], L_j,
                                dL_j_dx, dL_j_dt);
 
       u(i, 0, 0) = 0.0; u(i, 0, 1) = 0.0; u(i, 0, 2) = 0.0;
+      curl_u(i, 0, 0) = 0.0; curl_u(i, 0, 1) = 0.0; curl_u(i, 0, 2) = 0.0;
       for (int j=1; i+j<p; j++)
       {
          dL(0) = dL_j_dx(j); dL(1) = dL_j_dx(j); dL(2) = dL_j_dt(j);
