@@ -492,7 +492,7 @@ endif()
 
 # Enzyme
 if (MFEM_USE_ENZYME)
-   find_package(ENZYME REQUIRED)
+    find_package(Enzyme REQUIRED CONFIG)
 endif()
 
 # MFEM_TIMER_TYPE
@@ -535,7 +535,7 @@ set(MFEM_TPLS OPENMP HYPRE LAPACK BLAS SuperLUDist STRUMPACK METIS SuiteSparse
     SUNDIALS PETSC SLEPC MUMPS AXOM FMS CONDUIT Ginkgo GNUTLS GSLIB
     NETCDF MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE
     ADIOS2 CUSPARSE MKL_CPARDISO MKL_PARDISO AMGX CALIPER CODIPACK
-    BENCHMARK PARELAG MPI_CXX HIP HIPSPARSE MOONOLITH BLITZ ALGOIM ENZYME)
+    BENCHMARK PARELAG MPI_CXX HIP HIPSPARSE MOONOLITH BLITZ ALGOIM)
 
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
@@ -620,6 +620,11 @@ if (MFEM_USE_MPI)
   if (MPI_CXX_LINK_FLAGS)
     target_link_libraries(mfem PUBLIC ${MPI_CXX_LINK_FLAGS})
   endif()
+endif()
+
+if (MFEM_USE_ENZYME)
+    target_link_libraries(mfem PUBLIC ClangEnzymeFlags)
+    target_compile_options(mfem PUBLIC -mllvm -enzyme-loose-types)
 endif()
 
 set_target_properties(mfem PROPERTIES VERSION "${mfem_VERSION}")
