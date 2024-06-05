@@ -53,6 +53,10 @@ endif()
 
 if (MFEM_USE_MPI)
   list(APPEND ALL_EXE_SRCS
+    dfem_poisson.cpp
+    dfem_stokes.cpp
+    enzyme_interface_smoketest.cpp
+    test_dfem_dual.cpp
     ex0p.cpp
     ex1p.cpp
     ex2p.cpp
@@ -98,6 +102,10 @@ include_directories(BEFORE ${PROJECT_BINARY_DIR})
 
 # Add one executable per cpp file
 add_mfem_examples(ALL_EXE_SRCS)
+
+target_link_libraries(dfem_poisson ClangEnzymeFlags)
+target_link_libraries(dfem_stokes ClangEnzymeFlags)
+target_link_libraries(enzyme_interface_smoketest ClangEnzymeFlags)
 
 # Add a test for each example
 if (MFEM_ENABLE_TESTING)
