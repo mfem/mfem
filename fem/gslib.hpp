@@ -85,6 +85,7 @@ protected:
    int dim, points_cnt;
    Array<unsigned int> gsl_code, gsl_proc, gsl_elem, gsl_mfem_elem;
    Vector gsl_mesh, gsl_ref, gsl_dist, gsl_mfem_ref;
+   Array<unsigned int> recv_proc, recv_index; // data for custom interpolation
    bool setupflag;              // flag to indicate whether gslib data has been setup
    double default_interp_value; // used for points that are not found in the mesh
    AvgType avgtype;             // average type used for L2 functions
@@ -248,36 +249,27 @@ public:
        Example usage looks something like this:
 
        FindPoints() -> DistributePointInfoToOwningMPIRanks() -> Computation by
-       user -> ReturnInterpolatedValues()
+       user -> ReturnInterpolatedValues().
    */
    ///@{
    /// Distribute element indices in #gsl_mfem_elem, the reference coordinates
-   /// #gsl_ref, and the code #gsl_code to the corresponding mpi-rank #gsl_proc
-   /// for each point. The information is stored locally in \p recv_elem,
-   /// \p recv_ref (ordered by vdim), \p recv_code, and \p recv_proc. We also
-   /// communicate the indices corresponding to each point and store them in
-   /// \p recv_index.
-   /// Note: The user can send empty Array/Vectors to the method and they are
-   /// appropriately sized and filled internally. These should not be
-   /// consequently modified by the user as \p recv_proc and \p recv_index are
-   /// used to return interpolated values by \ref ReturnInterpolatedValues.
+   /// #gsl_mfem_ref, and the code #gsl_code to the corresponding mpi-rank
+   /// #gsl_proc for each point. The received information is provided locally
+   /// in \p recv_elem, \p recv_ref (ordered by vdim), and \p recv_code.
+   /// Note: The user can send empty Array/Vectors to the method as they are
+   /// appropriately sized and filled internally.
    virtual void DistributePointInfoToOwningMPIRanks(
       Array<unsigned int> &recv_elem, Vector &recv_ref,
-      Array<unsigned int> &recv_code, Array<unsigned int> &recv_index,
-      Array<unsigned int> &recv_proc) const;
-   /// Return interpolated values back to the mpi-ranks \p recv_proc that had
+      Array<unsigned int> &recv_code);
+   /// Return interpolated values back to the mpi-ranks #recv_proc that had
    /// sent the element indices and corresponding reference-space coordinates.
    /// Specify \p vdim and \p ordering (by nodes or by vdim) based on how the
    /// \p int_vals are structured. The received values are filled in
    /// \p field_out consistent with the original ordering of the points that
-   /// were found using \ref FindPoints. Note that \p recv_proc and
-   /// \p recv_index are filled by \ref DistributePointInfoToOwningMPIRanks and
-   /// should not be modified.
+   /// were used in \ref FindPoints.
    virtual void ReturnInterpolatedValues(const Vector &int_vals,
                                          const int vdim,
                                          const int ordering,
-                                         Array<unsigned int> &recv_index,
-                                         Array<unsigned int> &recv_proc,
                                          Vector &field_out) const;
    ///@}
 };

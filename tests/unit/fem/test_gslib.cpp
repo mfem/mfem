@@ -438,10 +438,9 @@ TEST_CASE("GSLIBCustomInterpolation",
    /** Interpolate gradient using custom interpolation procedure. */
    // We first send information to MPI ranks that own the element corresponding
    // to each point.
-   Array<unsigned int> recv_elem, recv_code, recv_index, recv_proc;
+   Array<unsigned int> recv_elem, recv_code;
    Vector recv_rst;
-   finder.DistributePointInfoToOwningMPIRanks(recv_elem, recv_rst, recv_code,
-                                              recv_index, recv_proc);
+   finder.DistributePointInfoToOwningMPIRanks(recv_elem, recv_rst, recv_code);
    int npt_recv = recv_elem.Size();
    // Compute gradient locally
    Vector grad(npt_recv*dim);
@@ -468,8 +467,7 @@ TEST_CASE("GSLIBCustomInterpolation",
 
    // Send the computed gradient back to the ranks that requested it.
    Vector recv_grad;
-   finder.ReturnInterpolatedValues(grad, dim, Ordering::byVDIM,
-                                   recv_index, recv_proc, recv_grad);
+   finder.ReturnInterpolatedValues(grad, dim, Ordering::byVDIM, recv_grad);
 
    // Check if the received gradient matched analytic gradient.
    for (int i = 0; i < npt && myid == 0; i++)

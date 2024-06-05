@@ -1170,8 +1170,7 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
 
 void FindPointsGSLIB::DistributePointInfoToOwningMPIRanks(
    Array<unsigned int> &recv_elem, Vector &recv_ref,
-   Array<unsigned int> &recv_code, Array<unsigned> &recv_index,
-   Array<unsigned int> &recv_proc) const
+   Array<unsigned int> &recv_code)
 {
    int nptsend   = points_cnt;
 
@@ -1233,8 +1232,6 @@ void FindPointsGSLIB::DistributePointInfoToOwningMPIRanks(
 void FindPointsGSLIB::ReturnInterpolatedValues(const Vector &int_vals,
                                                const int vdim,
                                                const int ordering,
-                                               Array<unsigned int> &recv_index,
-                                               Array<unsigned int> &recv_proc,
                                                Vector &field_out) const
 {
    const int points_recv = recv_index.Size();;
