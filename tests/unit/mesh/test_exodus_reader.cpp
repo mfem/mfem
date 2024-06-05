@@ -14,7 +14,7 @@
 
 using namespace mfem;
 
-TEST_CASE("Exodus Hex8", "[Mesh]")
+TEST_CASE("Exodus Hex8", "[Mesh][ExodusII]")
 {
 #ifdef MFEM_USE_NETCDF
    const std::string fname = "simple-cube-hex8.e";
@@ -31,7 +31,7 @@ TEST_CASE("Exodus Hex8", "[Mesh]")
 #endif
 }
 
-TEST_CASE("Exodus Hex27", "[Mesh]")
+TEST_CASE("Exodus Hex27", "[Mesh][ExodusII]")
 {
 #ifdef MFEM_USE_NETCDF
    const std::string fname = "simple-cube-hex27.e";
@@ -48,7 +48,7 @@ TEST_CASE("Exodus Hex27", "[Mesh]")
 #endif
 }
 
-TEST_CASE("Exodus Tet4", "[Mesh]")
+TEST_CASE("Exodus Tet4", "[Mesh][ExodusII]")
 {
 #ifdef MFEM_USE_NETCDF
    const std::string fname = "simple-cube-tet4.e";
@@ -65,7 +65,7 @@ TEST_CASE("Exodus Tet4", "[Mesh]")
 #endif
 }
 
-TEST_CASE("Exodus Tet10", "[Mesh]")
+TEST_CASE("Exodus Tet10", "[Mesh][ExodusII]")
 {
 #ifdef MFEM_USE_NETCDF
    const std::string fname = "simple-cube-tet10.e";
@@ -82,7 +82,7 @@ TEST_CASE("Exodus Tet10", "[Mesh]")
 #endif
 }
 
-TEST_CASE("Exodus Pyramid5", "[Mesh]")
+TEST_CASE("Exodus Pyramid5", "[Mesh][ExodusII]")
 {
 #ifdef MFEM_USE_NETCDF
    const std::string fname = "simple-cube-pyramid5.e";
@@ -99,7 +99,7 @@ TEST_CASE("Exodus Pyramid5", "[Mesh]")
 #endif
 }
 
-TEST_CASE("Exodus Wedge6", "[Mesh]")
+TEST_CASE("Exodus Wedge6", "[Mesh][ExodusII]")
 {
 #ifdef MFEM_USE_NETCDF
    const std::string fname = "simple-cube-wedge6.e";
@@ -116,7 +116,7 @@ TEST_CASE("Exodus Wedge6", "[Mesh]")
 #endif
 }
 
-TEST_CASE("Exodus Wedge18", "[Mesh]")
+TEST_CASE("Exodus Wedge18", "[Mesh][ExodusII]")
 {
 #ifdef MFEM_USE_NETCDF
    const std::string fname = "simple-cube-wedge18.e";
@@ -133,7 +133,7 @@ TEST_CASE("Exodus Wedge18", "[Mesh]")
 #endif
 }
 
-TEST_CASE("Exodus Mixed Mesh Order 1", "[Mesh]")
+TEST_CASE("Exodus Mixed Mesh Order 1", "[Mesh][ExodusII]")
 {
 #ifdef MFEM_USE_NETCDF
    const std::string fname = "simple-cube-multi-element-order1.e";
@@ -153,7 +153,7 @@ TEST_CASE("Exodus Mixed Mesh Order 1", "[Mesh]")
 #endif
 }
 
-TEST_CASE("Exodus Mixed Mesh Order 2", "[Mesh]")
+TEST_CASE("Exodus Mixed Mesh Order 2", "[Mesh][ExodusII]")
 {
 #ifdef MFEM_USE_NETCDF
    const std::string fname = "simple-cube-multi-element-order2.e";
