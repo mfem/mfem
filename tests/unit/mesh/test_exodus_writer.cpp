@@ -93,7 +93,7 @@ static void CompareMeshes(Mesh &mesh1, Mesh &mesh2)
 }
 #endif
 
-TEST_CASE("ExodusII Write Hex8", "[Mesh][MFEMData]")
+TEST_CASE("ExodusII Write Hex8", "[Mesh][ExodusII][MFEMData]")
 {
 #ifdef MFEM_USE_NETCDF
    // Load Exodus II mesh from file.
@@ -115,7 +115,7 @@ TEST_CASE("ExodusII Write Hex8", "[Mesh][MFEMData]")
 #endif
 }
 
-TEST_CASE("ExodusII Write Hex27", "[Mesh][MFEMData]")
+TEST_CASE("ExodusII Write Hex27", "[Mesh][ExodusII][MFEMData]")
 {
 #ifdef MFEM_USE_NETCDF
    // Load Exodus II mesh from file.
@@ -136,7 +136,7 @@ TEST_CASE("ExodusII Write Hex27", "[Mesh][MFEMData]")
 #endif
 }
 
-TEST_CASE("ExodusII Write Tet4", "[Mesh][MFEMData]")
+TEST_CASE("ExodusII Write Tet4", "[Mesh][ExodusII][MFEMData]")
 {
 #ifdef MFEM_USE_NETCDF
    // Load Exodus II mesh from file. NB: - Do NOT refine as this changes vertex ordering!
@@ -157,7 +157,7 @@ TEST_CASE("ExodusII Write Tet4", "[Mesh][MFEMData]")
 #endif
 }
 
-TEST_CASE("ExodusII Write Tet10", "[Mesh][MFEMData]")
+TEST_CASE("ExodusII Write Tet10", "[Mesh][ExodusII][MFEMData]")
 {
 #ifdef MFEM_USE_NETCDF
    // Load Exodus II mesh from file.
@@ -178,7 +178,7 @@ TEST_CASE("ExodusII Write Tet10", "[Mesh][MFEMData]")
 #endif
 }
 
-// TEST_CASE("ExodusII Write Wedge6", "[Mesh][MFEMData]")
+// TEST_CASE("ExodusII Write Wedge6", "[Mesh][ExodusII][MFEMData]")
 // {
 // #ifdef MFEM_USE_NETCDF
 //    std::string filename = "simple-cube-wedge6.e";
@@ -194,7 +194,7 @@ TEST_CASE("ExodusII Write Tet10", "[Mesh][MFEMData]")
 // #endif
 // }
 
-// TEST_CASE("ExodusII Write Wedge18", "[Mesh][MFEMData]")
+// TEST_CASE("ExodusII Write Wedge18", "[Mesh][ExodusII][MFEMData]")
 // {
 // #ifdef MFEM_USE_NETCDF
 //    std::string filename = "simple-cube-wedge18.e";
@@ -210,7 +210,7 @@ TEST_CASE("ExodusII Write Tet10", "[Mesh][MFEMData]")
 // #endif
 // }
 
-// TEST_CASE("ExodusII Write Pyramid5", "[Mesh][MFEMData]")
+// TEST_CASE("ExodusII Write Pyramid5", "[Mesh][ExodusII][MFEMData]")
 // {
 // #ifdef MFEM_USE_NETCDF
 //    std::string filename = "simple-cube-pyramid5.e";
@@ -226,7 +226,7 @@ TEST_CASE("ExodusII Write Tet10", "[Mesh][MFEMData]")
 // #endif
 // }
 
-// TEST_CASE("ExodusII Write Pyramid14", "[Mesh][MFEMData]")
+// TEST_CASE("ExodusII Write Pyramid14", "[Mesh][ExodusII][MFEMData]")
 // {
 // #ifdef MFEM_USE_NETCDF
 //    std::string filename = "simple-cube-pyramid14.e";
@@ -242,7 +242,7 @@ TEST_CASE("ExodusII Write Tet10", "[Mesh][MFEMData]")
 // #endif
 // }
 
-// TEST_CASE("ExodusII Write Mixed First-Order", "[Mesh][MFEMData]")
+// TEST_CASE("ExodusII Write Mixed First-Order", "[Mesh][ExodusII][MFEMData]")
 // {
 // #ifdef MFEM_USE_NETCDF
 //    // Contains Hex8, Tet4, Wedge6, Pyramid5 elements.
@@ -259,7 +259,7 @@ TEST_CASE("ExodusII Write Tet10", "[Mesh][MFEMData]")
 // #endif
 // }
 
-// TEST_CASE("ExodusII Write Mixed Second-Order", "[Mesh][MFEMData]")
+// TEST_CASE("ExodusII Write Mixed Second-Order", "[Mesh][ExodusII][MFEMData]")
 // {
 // #ifdef MFEM_USE_NETCDF
 //    // Contains Hex27 and Tet10 elements.
