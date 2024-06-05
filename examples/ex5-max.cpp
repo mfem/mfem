@@ -234,14 +234,14 @@ int main(int argc, char *argv[])
    chrono.Clear();
    chrono.Start();
 
-   /*if (hybridization)
+   if (hybridization)
    {
-      trace_coll = new RT_Trace_FECollection(order, dim, 0);
+      trace_coll = new ND_Trace_FECollection(order+1, dim);
       trace_space = new FiniteElementSpace(mesh, trace_coll);
       darcy->EnableHybridization(trace_space,
-                                 new NormalTraceJumpIntegrator(),
+                                 new TangentTraceJumpIntegrator(),
                                  ess_flux_tdofs_list);
-   }*/
+   }
 
    if (pa) { darcy->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
 
