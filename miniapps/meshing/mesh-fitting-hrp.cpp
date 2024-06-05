@@ -344,6 +344,16 @@ void PropogateOrdersToGroup(GridFunction &ordergf, //current orders
    }
 }
 
+// Prolongs mesh nodes to max orders and sets the mesh nodes. Also gives mesh
+// the ownership so that they are automatically deleted later.
+GridFunction* ProlongToMaxOrderAndSetMeshNodes(Mesh *mesh)
+{
+   GridFunction *x = mesh->GetNodes();
+   auto tempx = ProlongToMaxOrder(x, 0);
+   mesh->NewNodes(*tempx, true);
+   return mesh->GetNodes();
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -725,10 +735,7 @@ int main(int argc, char *argv[])
    // elements in the mesh are p-refined. We need this for now because some of
    // mfem's output functions do not work for p-refined spaces.
    GridFunction *x_max_order = NULL;
-   delete x_max_order;
    x_max_order = ProlongToMaxOrder(&x, 0);
-   mesh->SetNodalGridFunction(x_max_order);
-   mesh->SetNodalGridFunction(&x);
    delete x_max_order;
 
    // Define a vector representing the minimal local mesh size in the mesh
@@ -1071,16 +1078,13 @@ int main(int argc, char *argv[])
 
    if (visualization)
    {
-      x_max_order = ProlongToMaxOrder(&x, 0);
-      mesh->SetNodalGridFunction(x_max_order);
+      x_max_order = ProlongToMaxOrderAndSetMeshNodes(mesh);
       socketstream vis1;
       common::VisualizeField(vis1, "localhost", 19916, groupnum_gf,
                              "Initial group numbers",
                              0, 325, 300, 300, vis_keys);
-      mesh->SetNodalGridFunction(&x);
-      delete x_max_order;
+      mesh->NewNodes(x, false);
    }
-   // MFEM_ABORT(" ");
 
    // Output the connectivity info
    for (int i = 0; i < ifec0.inter_faces.Size(); i++)
@@ -1153,14 +1157,12 @@ int main(int argc, char *argv[])
 
    if (visualization)
    {
-      x_max_order = ProlongToMaxOrder(&x, 0);
-      mesh->SetNodalGridFunction(x_max_order);
+      x_max_order = ProlongToMaxOrderAndSetMeshNodes(mesh);
       socketstream vis1;
       common::VisualizeField(vis1, "localhost", 19916, order_gf,
                              "Initial polynomial order",
                              0, 325, 300, 300, vis_keys);
-      mesh->SetNodalGridFunction(&x);
-      delete x_max_order;
+      mesh->NewNodes(x, false);
    }
 
    std::cout << "Max Order        : " << pref_max_order << std::endl;
@@ -1258,8 +1260,7 @@ int main(int argc, char *argv[])
       PRefinementTransfer preft_surf_fit_fes = PRefinementTransfer(surf_fit_fes);
       int max_order = fespace->GetMaxElementOrder();
 
-      x_max_order = ProlongToMaxOrder(&x, 0);
-      mesh->SetNodalGridFunction(x_max_order);
+      x_max_order = ProlongToMaxOrderAndSetMeshNodes(mesh);
       surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
 
       // Get current error information
@@ -1317,8 +1318,7 @@ int main(int argc, char *argv[])
                    << fespace->GetVSize() << " " << error_sum
                    << std::endl;
       }
-      mesh->SetNodalGridFunction(&x);
-      delete x_max_order;
+      mesh->NewNodes(x, false);
       delete surf_fit_gf0_max_order;
 
       // For each group, compute number of TDOFs, total fitting error,
@@ -1429,8 +1429,7 @@ int main(int argc, char *argv[])
       {
          {
             socketstream vis1;
-            x_max_order = ProlongToMaxOrder(&x, 0);
-            mesh->SetNodalGridFunction(x_max_order);
+            x_max_order = ProlongToMaxOrderAndSetMeshNodes(mesh);
             order_gf = x.FESpace()->GetElementOrdersV();
             // common::VisualizeField(vis1, "localhost", 19916, order_gf,
             //                        "Orders just before test p-refined mesh",
@@ -1438,8 +1437,7 @@ int main(int argc, char *argv[])
             // common::VisualizeField(vis1, "localhost", 19916, previous_order_gf,
             //                        "Previous orders",
             //                        1000, 0, 300, 300, vis_keys);
-            mesh->SetNodalGridFunction(&x);
-            delete x_max_order;
+            mesh->NewNodes(x, false);
          }
          // first we do p-refinement
          if (n_pref_count)
@@ -1498,14 +1496,12 @@ int main(int argc, char *argv[])
          if (min_detJ <= 0.0)
          {
             socketstream vis1;
-            x_max_order = ProlongToMaxOrder(&x, 0);
-            mesh->SetNodalGridFunction(x_max_order);
+            x_max_order = ProlongToMaxOrderAndSetMeshNodes(mesh);
             order_gf = x.FESpace()->GetElementOrdersV();
             common::VisualizeField(vis1, "localhost", 19916, order_gf,
                                    "Orders on (test) p-refined mesh",
                                    1000, 0, 300, 300, vis_keys);
-            mesh->SetNodalGridFunction(&x);
-            delete x_max_order;
+            mesh->NewNodes(x, false);
             // if (iter_pref == 2) { MFEM_ABORT(" "); }
          }
          MFEM_VERIFY(min_detJ > 0.0, "Non-positive Jacobian after test p-refinement");
@@ -1523,8 +1519,7 @@ int main(int argc, char *argv[])
          cout << "Minimum det(J) of the original mesh after test hp-ref is " << min_detJ
               << endl;
 
-         x_max_order = ProlongToMaxOrder(&x, 1);
-         mesh->SetNodalGridFunction(x_max_order);
+         x_max_order = ProlongToMaxOrderAndSetMeshNodes(mesh);
          if (visualization)
          {
             socketstream vis1, vis2;
@@ -1535,8 +1530,7 @@ int main(int argc, char *argv[])
             //                        "Group numbers on (test) hp-refined mesh",
             //                        325*(iter_pref+1), 0, 300, 300, vis_keys);
          }
-         mesh->SetNodalGridFunction(&x);
-         delete x_max_order;
+         mesh->NewNodes(x, false);
 
          // Set orders properly if we are doing only h-refinement so that elements
          // with highest order stay at interface. This should only affect h-refinement
@@ -1659,8 +1653,7 @@ int main(int argc, char *argv[])
 
       // if (prefine)
       {
-         x_max_order = ProlongToMaxOrder(&x, 0);
-         mesh->SetNodalGridFunction(x_max_order);
+         x_max_order = ProlongToMaxOrderAndSetMeshNodes(mesh);
          surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
          surf_fit_mat_gf_max_order = ProlongToMaxOrder(&surf_fit_mat_gf, 0);
       }
@@ -1672,8 +1665,7 @@ int main(int argc, char *argv[])
                                 "Materials for initial mesh",
                                 325, 0, 300, 300, vis_keys);
       }
-      mesh->SetNodalGridFunction(&x);
-      delete x_max_order;
+      mesh->NewNodes(x, false);
       delete surf_fit_gf0_max_order;
 
       // Setup the final NonlinearForm
@@ -1697,16 +1689,14 @@ int main(int argc, char *argv[])
          init_metric_energy = a.GetGridFunctionEnergy(x);
          surf_fit_coeff.constant   = surface_fit_const;
       }
-      x_max_order = ProlongToMaxOrder(&x, 0);
-      mesh->SetNodalGridFunction(x_max_order);
+      x_max_order = ProlongToMaxOrderAndSetMeshNodes(mesh);
       if (visualization && iter_pref==0)
       {
          char title[] = "Initial metric values";
          vis_tmop_metric_s(mesh_poly_deg, *metric, *target_c, *mesh, title, 0, 0, 300,
                            300);
       }
-      mesh->SetNodalGridFunction(&x);
-      delete x_max_order;
+      mesh->NewNodes(x, false);
 
       // 13. Fix nodes
       if (move_bnd == false)
@@ -1811,8 +1801,7 @@ int main(int argc, char *argv[])
       solver.Mult(b, x.GetTrueVector());
       x.SetFromTrueVector();
 
-      x_max_order = ProlongToMaxOrder(&x, 0);
-      mesh->SetNodalGridFunction(x_max_order);
+      x_max_order = ProlongToMaxOrderAndSetMeshNodes(mesh);
 
       // Save the optimized mesh to a file. This output can be viewed later
       // using GLVis: "glvis -m optimized.mesh".
@@ -1828,7 +1817,7 @@ int main(int argc, char *argv[])
          gf_ofs.precision(14);
          mat.Save(gf_ofs);
       }
-      mesh->SetNodalGridFunction(&x);
+      mesh->NewNodes(x, false);
       // Don't delete x_max_order yet
 
       // Report the final energy of the functional.
@@ -1852,7 +1841,7 @@ int main(int argc, char *argv[])
            << (init_energy - fin_energy) * 100.0 / init_energy << " %." << endl;
 
       // Set nodal gridfunction for visualization and fitting error computation.
-      mesh->SetNodalGridFunction(x_max_order);
+      x_max_order = ProlongToMaxOrderAndSetMeshNodes(mesh);
 
       // Visualize the final mesh and metric values.
       if (visualization && iter_pref==pref_max_iter-1)
@@ -1971,8 +1960,7 @@ int main(int argc, char *argv[])
             std::cout << "Total elements: " << el_by_order.Sum() << std::endl;
          }
       }
-      mesh->SetNodalGridFunction(&x);
-      delete x_max_order;
+      mesh->NewNodes(x, false);
       delete surf_fit_gf0_max_order;
 
       // Now we compare h- and p-refinements to keep the better of the two.
@@ -2386,8 +2374,7 @@ int main(int argc, char *argv[])
             // visualize
             if (visualization)
             {
-               x_max_order = ProlongToMaxOrder(&x, 0);
-               mesh->SetNodalGridFunction(x_max_order);
+               x_max_order = ProlongToMaxOrderAndSetMeshNodes(mesh);
                socketstream vis1;
                // common::VisualizeField(vis1, "localhost", 19916, surf_fit_gf0,
                //                      "Gridfunction on optimal mesh",
@@ -2397,8 +2384,7 @@ int main(int argc, char *argv[])
                //                        "Orders on p-derefined mesh",
                //                        325*(iter_pref+1), 650, 300, 300, vis_keys);
 
-               mesh->SetNodalGridFunction(&x);
-               delete x_max_order;
+               mesh->NewNodes(x, false);
             }
 
             // Now derefine in h
@@ -2441,8 +2427,7 @@ int main(int argc, char *argv[])
             }
             if (visualization)
             {
-               x_max_order = ProlongToMaxOrder(&x, 0);
-               mesh->SetNodalGridFunction(x_max_order);
+               x_max_order = ProlongToMaxOrderAndSetMeshNodes(mesh);
                socketstream vis1;
                // common::VisualizeField(vis1, "localhost", 19916, surf_fit_gf0,
                //                      "Gridfunction on optimal mesh",
@@ -2452,8 +2437,7 @@ int main(int argc, char *argv[])
                //                        "Orders on h-derefined mesh",
                //                        325*(iter_pref+1), 650, 300, 300, vis_keys);
 
-               mesh->SetNodalGridFunction(&x);
-               delete x_max_order;
+               mesh->NewNodes(x, false);
             }
 
             order_gf = x.FESpace()->GetElementOrdersV();
@@ -2469,8 +2453,7 @@ int main(int argc, char *argv[])
       {
          GetGroupInfo(mesh, mat, surf_fit_gf0, ifec0);
          SetGroupNumGf(ifec0, groupnum_gf);
-         x_max_order = ProlongToMaxOrder(&x, 0);
-         mesh->SetNodalGridFunction(x_max_order);
+         x_max_order = ProlongToMaxOrderAndSetMeshNodes(mesh);
          surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
          ComputeIntegratedErrorBGonFaces(x_max_order->FESpace(),
                                          surf_fit_bg_gf0,
@@ -2531,15 +2514,13 @@ int main(int argc, char *argv[])
                //           current_order << " k10-done\n";
             }
          }
-         mesh->SetNodalGridFunction(&x);
-         delete x_max_order;
+         mesh->NewNodes(x, false);
          delete surf_fit_gf0_max_order;
 
          // visualize
          if (visualization)
          {
-            x_max_order = ProlongToMaxOrder(&x, 0);
-            mesh->SetNodalGridFunction(x_max_order);
+            x_max_order = ProlongToMaxOrderAndSetMeshNodes(mesh);
             socketstream vis1, vis2;
             common::VisualizeField(vis1, "localhost", 19916, done_els,
                                    "Done elements",
@@ -2547,8 +2528,7 @@ int main(int argc, char *argv[])
             // common::VisualizeField(vis2, "localhost", 19916, done_elsp,
             //                        "p-Done elements",
             //                        325*(iter_pref+1), 650, 300, 300, vis_keys);
-            mesh->SetNodalGridFunction(&x);
-            delete x_max_order;
+            mesh->NewNodes(x, false);
          }
       }
 
@@ -2591,8 +2571,7 @@ int main(int argc, char *argv[])
       // visualize
       if (visualization)
       {
-         x_max_order = ProlongToMaxOrder(&x, 0);
-         mesh->SetNodalGridFunction(x_max_order);
+         x_max_order = ProlongToMaxOrderAndSetMeshNodes(mesh);
          socketstream vis1, vis2;
          // common::VisualizeField(vis1, "localhost", 19916, surf_fit_gf0,
          //                      "Gridfunction on optimal mesh",
@@ -2606,8 +2585,7 @@ int main(int argc, char *argv[])
                                 325*(iter_pref+1), 325, 300, 300, vis_keys);
 
 
-         mesh->SetNodalGridFunction(&x);
-         delete x_max_order;
+         mesh->NewNodes(x, false);
       }
 
       if (done_elsh.Sum() == mesh->GetNE() && done_elsp.Sum() == mesh->GetNE())
@@ -2624,8 +2602,7 @@ int main(int argc, char *argv[])
          if (iter_pref > 0 && true)
          {
             int compt_updates = 0;
-            x_max_order = ProlongToMaxOrder(&x, 0);
-            mesh->SetNodalGridFunction(x_max_order);
+            x_max_order = ProlongToMaxOrderAndSetMeshNodes(mesh);
             surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
 
             for (int i=0; i < ifec0.inter_faces.Size(); i++)
@@ -2732,6 +2709,8 @@ int main(int argc, char *argv[])
             std::cout << "# Derefinements: " << compt_updates << std::endl;
             std::cout << "=======================================\n";
 
+
+
             // Update the FES and GridFunctions only if some orders have been changed
             if (compt_updates > 0)
             {
@@ -2761,6 +2740,16 @@ int main(int argc, char *argv[])
                   }
                }
 
+               // Updates if we increase the order of at least one element
+               fespace->Update(false);
+               surf_fit_fes.CopySpaceElementOrders(*fespace);
+               surf_fit_fes.SetRelaxedHpConformity(fespace->GetRelaxedHpConformity());
+               preft_fespacetemp.Transfer(x);
+               preft_fespacetemp.Transfer(x0);
+               preft_surf_fit_festemp.Transfer(surf_fit_mat_gf);
+               preft_surf_fit_festemp.Transfer(surf_fit_gf0);
+               surf_fit_marker.SetSize(surf_fit_gf0.Size());
+
                min_detJ = GetMinDet(mesh, fespace, irules, quad_order);
                cout << "Minimum det(J) of the mesh after coarsening is " << min_detJ << endl;
                MFEM_VERIFY(min_detJ > 0, "Mesh has somehow become inverted "
@@ -2772,27 +2761,14 @@ int main(int argc, char *argv[])
                   mesh->Print(mesh_ofs);
                }
 
-               // Updates if we increase the order of at least one element
-               fespace->Update(false);
-               surf_fit_fes.CopySpaceElementOrders(*fespace);
-               surf_fit_fes.SetRelaxedHpConformity(fespace->GetRelaxedHpConformity());
-               preft_fespacetemp.Transfer(x);
-               preft_fespacetemp.Transfer(x0);
-               preft_surf_fit_festemp.Transfer(surf_fit_mat_gf);
-               preft_surf_fit_festemp.Transfer(surf_fit_gf0);
-               surf_fit_marker.SetSize(surf_fit_gf0.Size());
+               if (iter_pref == 4) { MFEM_ABORT("done\n");}
+               mesh->NewNodes(x, false);
 
-               x.SetTrueVector();
-               x.SetFromTrueVector();
-
-               mesh->SetNodalGridFunction(&x);
-
-               delete x_max_order;
                x_max_order = ProlongToMaxOrder(&x, 0);
                delete surf_fit_gf0_max_order;
                surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
 
-               mesh->SetNodalGridFunction(x_max_order);
+               x_max_order = ProlongToMaxOrderAndSetMeshNodes(mesh);
                ComputeIntegratedErrorBGonFaces(x_max_order->FESpace(),
                                                surf_fit_bg_gf0,
                                                ifec0.inter_faces,
@@ -2809,22 +2785,25 @@ int main(int argc, char *argv[])
                std::cout << "NDofs & Integrated Error Post Derefinement: " <<
                          fespace->GetVSize() << " " <<
                          error_sum << " " << std::endl;
-               mesh->SetNodalGridFunction(&x);
-               delete x_max_order;
+               mesh->NewNodes(x, false);
                delete surf_fit_gf0_max_order;
 
                if (visualization)
                {
-                  x_max_order = ProlongToMaxOrder(&x, 0);
-                  mesh->SetNodalGridFunction(x_max_order);
+                  x_max_order = ProlongToMaxOrderAndSetMeshNodes(mesh);
                   socketstream vis1, vis2;
                   common::VisualizeField(vis1, "localhost", 19916, order_gf,
                                          "Orders on optimal mesh after p-deref",
                                          325*(iter_pref+1), 700, 300, 300, vis_keys);
 
 
-                  mesh->SetNodalGridFunction(&x);
-                  delete x_max_order;
+                  {
+                     ofstream mesh_ofs("optimized.mesh");
+                     mesh_ofs.precision(14);
+                     mesh->Print(mesh_ofs);
+                  }
+
+                  mesh->NewNodes(x, false);
                }
             } //compt_updates
          }
@@ -3009,9 +2988,8 @@ int main(int argc, char *argv[])
       order_gf = x.FESpace()->GetElementOrdersV();
       if (visit)
       {
-         mesh->SetNodalGridFunction(&x);
-         x_max_order = ProlongToMaxOrder(&x, 0);
-         mesh->SetNodalGridFunction(x_max_order);
+         mesh->NewNodes(x, false);
+         x_max_order = ProlongToMaxOrderAndSetMeshNodes(mesh);
          surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
 
          DataCollection *dc = NULL;
@@ -3034,8 +3012,7 @@ int main(int argc, char *argv[])
          //                        325*(iter_pref+1), 0, 300, 300, vis_keys);
       }
 
-      mesh->SetNodalGridFunction(&x); // Need this for the loop
-      delete x_max_order;
+      mesh->NewNodes(x, false);
       delete surf_fit_gf0_max_order;
 
       iter_pref++; // Update the loop iterator
@@ -3126,8 +3103,7 @@ int main(int argc, char *argv[])
 
    if (visualization)
    {
-      x_max_order = ProlongToMaxOrder(&x, 0);
-      mesh->SetNodalGridFunction(x_max_order);
+      x_max_order = ProlongToMaxOrderAndSetMeshNodes(mesh);
       socketstream vis1, vis2, vis3;
       order_gf = x.FESpace()->GetElementOrdersV();
       // common::VisualizeField(vis1, "localhost", 19916, order_gf,
@@ -3137,7 +3113,6 @@ int main(int argc, char *argv[])
       //                        1200, 650, 300, 300, vis_keys);
 
       mesh->SetNodalGridFunction(&x);
-      delete x_max_order;
       if (surf_bg_mesh)
       {
          common::VisualizeField(vis2, "localhost", 19916, *surf_fit_bg_grad,
