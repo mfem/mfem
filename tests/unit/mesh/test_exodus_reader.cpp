@@ -14,12 +14,12 @@
 
 using namespace mfem;
 
-TEST_CASE("Exodus Hex8", "[Mesh][ExodusII]")
+TEST_CASE("Exodus Hex8", "[MFEMData][Mesh][ExodusII]")
 {
 #ifdef MFEM_USE_NETCDF
    const std::string fname = "simple-cube-hex8.e";
 
-   const std::string & fpath = ("data/" + fname);
+   const std::string & fpath = (mfem_data_dir + "/exodusii/" + fname);
 
    Mesh mesh(fpath);
 
@@ -31,12 +31,12 @@ TEST_CASE("Exodus Hex8", "[Mesh][ExodusII]")
 #endif
 }
 
-TEST_CASE("Exodus Hex27", "[Mesh][ExodusII]")
+TEST_CASE("Exodus Hex27", "[MFEMData][Mesh][ExodusII]")
 {
 #ifdef MFEM_USE_NETCDF
    const std::string fname = "simple-cube-hex27.e";
 
-   const std::string & fpath = ("data/" + fname);
+   const std::string & fpath = (mfem_data_dir + "/exodusii/" + fname);
 
    Mesh mesh(fpath);
 
@@ -48,12 +48,12 @@ TEST_CASE("Exodus Hex27", "[Mesh][ExodusII]")
 #endif
 }
 
-TEST_CASE("Exodus Tet4", "[Mesh][ExodusII]")
+TEST_CASE("Exodus Tet4", "[MFEMData][Mesh][ExodusII]")
 {
 #ifdef MFEM_USE_NETCDF
    const std::string fname = "simple-cube-tet4.e";
 
-   const std::string & fpath = ("data/" + fname);
+   const std::string & fpath = (mfem_data_dir + "/exodusii/" + fname);
 
    Mesh mesh(fpath);
 
@@ -65,12 +65,12 @@ TEST_CASE("Exodus Tet4", "[Mesh][ExodusII]")
 #endif
 }
 
-TEST_CASE("Exodus Tet10", "[Mesh][ExodusII]")
+TEST_CASE("Exodus Tet10", "[MFEMData][Mesh][ExodusII]")
 {
 #ifdef MFEM_USE_NETCDF
    const std::string fname = "simple-cube-tet10.e";
 
-   const std::string & fpath = ("data/" + fname);
+   const std::string & fpath = (mfem_data_dir + "/exodusii/" + fname);
 
    Mesh mesh(fpath);
 
@@ -82,12 +82,12 @@ TEST_CASE("Exodus Tet10", "[Mesh][ExodusII]")
 #endif
 }
 
-TEST_CASE("Exodus Pyramid5", "[Mesh][ExodusII]")
+TEST_CASE("Exodus Pyramid5", "[MFEMData][Mesh][ExodusII]")
 {
 #ifdef MFEM_USE_NETCDF
    const std::string fname = "simple-cube-pyramid5.e";
 
-   const std::string & fpath = ("data/" + fname);
+   const std::string & fpath = (mfem_data_dir + "/exodusii/" + fname);
 
    Mesh mesh(fpath);
 
@@ -99,12 +99,12 @@ TEST_CASE("Exodus Pyramid5", "[Mesh][ExodusII]")
 #endif
 }
 
-TEST_CASE("Exodus Wedge6", "[Mesh][ExodusII]")
+TEST_CASE("Exodus Wedge6", "[MFEMData][Mesh][ExodusII]")
 {
 #ifdef MFEM_USE_NETCDF
    const std::string fname = "simple-cube-wedge6.e";
 
-   const std::string & fpath = ("data/" + fname);
+   const std::string & fpath = (mfem_data_dir + "/exodusii/" + fname);
 
    Mesh mesh(fpath);
 
@@ -116,12 +116,12 @@ TEST_CASE("Exodus Wedge6", "[Mesh][ExodusII]")
 #endif
 }
 
-TEST_CASE("Exodus Wedge18", "[Mesh][ExodusII]")
+TEST_CASE("Exodus Wedge18", "[MFEMData][Mesh][ExodusII]")
 {
 #ifdef MFEM_USE_NETCDF
    const std::string fname = "simple-cube-wedge18.e";
 
-   const std::string & fpath = ("data/" + fname);
+   const std::string & fpath = (mfem_data_dir + "/exodusii/" + fname);
 
    Mesh mesh(fpath);
 
@@ -133,12 +133,12 @@ TEST_CASE("Exodus Wedge18", "[Mesh][ExodusII]")
 #endif
 }
 
-TEST_CASE("Exodus Mixed Mesh Order 1", "[Mesh][ExodusII]")
+TEST_CASE("Exodus Mixed Mesh Order 1", "[MFEMData][Mesh][ExodusII]")
 {
 #ifdef MFEM_USE_NETCDF
    const std::string fname = "simple-cube-multi-element-order1.e";
 
-   const std::string & fpath = ("data/" + fname);
+   const std::string & fpath = (mfem_data_dir + "/exodusii/" + fname);
 
    Mesh mesh(fpath);
 
@@ -153,12 +153,12 @@ TEST_CASE("Exodus Mixed Mesh Order 1", "[Mesh][ExodusII]")
 #endif
 }
 
-TEST_CASE("Exodus Mixed Mesh Order 2", "[Mesh][ExodusII]")
+TEST_CASE("Exodus Mixed Mesh Order 2", "[MFEMData][Mesh][ExodusII]")
 {
 #ifdef MFEM_USE_NETCDF
    const std::string fname = "simple-cube-multi-element-order2.e";
 
-   const std::string & fpath = ("data/" + fname);
+   const std::string & fpath = (mfem_data_dir + "/exodusii/" + fname);
 
    Mesh mesh(fpath);
 
