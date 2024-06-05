@@ -7137,7 +7137,7 @@ Table *Mesh::GetVertexToElementTable()
 
    for (int i = 0; i < NumOfElements; i++)
    {
-      int nv = elements[i]->GetNVertices();
+      const int nv = elements[i]->GetNVertices();
       const int *v = elements[i]->GetVertices();
       for (int j = 0; j < nv; j++)
       {
@@ -7149,7 +7149,7 @@ Table *Mesh::GetVertexToElementTable()
 
    for (int i = 0; i < NumOfElements; i++)
    {
-      int nv = elements[i]->GetNVertices();
+      const int nv = elements[i]->GetNVertices();
       const int *v = elements[i]->GetVertices();
       for (int j = 0; j < nv; j++)
       {
@@ -7170,7 +7170,7 @@ Table *Mesh::GetVertexToBdrElementTable()
 
    for (int i = 0; i < NumOfBdrElements; i++)
    {
-      int nv = boundary[i]->GetNVertices();
+      const int nv = boundary[i]->GetNVertices();
       const int *v = boundary[i]->GetVertices();
       for (int j = 0; j < nv; j++)
       {
@@ -7182,7 +7182,7 @@ Table *Mesh::GetVertexToBdrElementTable()
 
    for (int i = 0; i < NumOfBdrElements; i++)
    {
-      int nv = boundary[i]->GetNVertices();
+      const int nv = boundary[i]->GetNVertices();
       const int *v = boundary[i]->GetVertices();
       for (int j = 0; j < nv; j++)
       {
