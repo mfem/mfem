@@ -14,6 +14,8 @@ Version 4.7.1 (development)
 - Added an MFEM example for the eikonal equation. This new solver is based on
   the proximal Galerkin method introduced by Keith and Surowiec.
 
+- API change: in class GridFunction, 'fec' was renamed to 'fec_owned'.
+
 
 Version 4.7, released on May 7, 2024
 ====================================
