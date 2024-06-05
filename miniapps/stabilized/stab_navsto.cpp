@@ -114,6 +114,8 @@ void StabInNavStoIntegrator::AssembleElementVector(
       sigma.Diag(-p,dim);
       sigma.Add(mu,grad_u);
 
+      AddMult_a_VVt(-1.0, u, sigma);
+
       AddMult_a_ABt(w, shg_u, sigma, elv_u);
       elvec[1]->Add(w*grad_u.Trace(), sh_p);
    }
@@ -146,6 +148,7 @@ void StabInNavStoIntegrator::AssembleElementGrad(
 
    sh_u.SetSize(dof_u);
    shg_u.SetSize(dof_u, dim);
+   ushg_u.SetSize(dof_u);
    sh_p.SetSize(dof_p);
    u.SetSize(dim);
    grad_u.SetSize(dim);
@@ -166,21 +169,29 @@ void StabInNavStoIntegrator::AssembleElementGrad(
       el[0]->CalcPhysDShape(Tr, shg_u);
       MultAtB(elf_u, shg_u, grad_u);
 
+      shg_u.Mult(u, ushg_u);
+
       el[1]->CalcPhysShape(Tr, sh_p);
       real_t p = sh_p*(*elfun[1]);
 
       // u,u block
       for (int i_u = 0; i_u < dof_u; ++i_u)
       {
+
          for (int j_u = 0; j_u < dof_u; ++j_u)
          {
+            // Diffusion
             real_t mat = 0.0;
             for (int dim_u = 0; dim_u < dim; ++dim_u)
             {
               mat += shg_u(i_u,dim_u)*shg_u(j_u,dim_u);
             }
-            mat *= mu*w;
+            mat *= mu;
 
+            // Convection
+            mat -= ushg_u(i_u)*sh_u(j_u);
+
+            mat *= w;
             for (int dim_u = 0; dim_u < dim; ++dim_u)
             {
                (*elmats(0,0))(i_u + dim_u*dof_u, j_u + dim_u*dof_u) += mat;
@@ -207,19 +218,44 @@ void StabInNavStoIntegrator::AssembleElementGrad(
 void GeneralResidualMonitor::MonitorResidual(int it, real_t norm,
                                              const Vector &r, bool final)
 {
-   if (print_level == 1 || (print_level == 3 && (final || it == 0)))
+   if (it == 0)
+   {
+      norm0 = norm;
+   }
+
+   if ((print_level > 0 &&  it%print_level == 0) || final)
    {
       mfem::out << prefix << " iteration " << std::setw(2) << it
-                << " : ||r|| = " << norm;
-      if (it > 0)
+                << " : ||r|| = " << norm
+                << ",  ||r||/||r_0|| = " << 100*norm/norm0<<" % \n";
+   }
+
+}
+
+void SystemResidualMonitor::MonitorResidual(int it, real_t norm,
+                                            const Vector &r, bool final)
+{
+   bool print = (print_level > 0 &&  it%print_level == 0) || final;
+   if (print || (it == 0))
+   {
+      Vector norm(nvar);
+
+      for (int i = 0; i < nvar; ++i)
       {
-         mfem::out << ",  ||r||/||r_0|| = " << norm/norm0;
+         Vector r_i(r.GetData() + bOffsets[i], bOffsets[i+1] - bOffsets[i]);
+         norm[i] = r_i.Norml2();
+         if (it == 0) norm0[i] = norm[i];
       }
-      else
+
+      if (print)
       {
-         norm0 = norm;
+         mfem::out << prefix << " iteration " << std::setw(3) << it <<"\n"
+                   << " ||r||  \t"<< "||r||/||r_0||  \n";
+         for (int i = 0; i < nvar; ++i)
+         {
+            mfem::out <<norm[i]<<"\t"<< 100*norm[i]/norm0[i]<<" % \n";
+         }
       }
-      mfem::out << '\n';
    }
 }
 
@@ -230,7 +266,7 @@ JacobianPreconditioner::JacobianPreconditioner(Array<FiniteElementSpace *> &fes,
 {
    fes.Copy(spaces);
 
-   gamma = 0.00001;
+   gamma = 00.0001;
 
    // The mass matrix and preconditioner do not change every Newton cycle, so we
    // only need to define them once
@@ -239,10 +275,10 @@ JacobianPreconditioner::JacobianPreconditioner(Array<FiniteElementSpace *> &fes,
    mass_prec = mass_prec_gs;
 
    CGSolver *mass_pcg_iter = new CGSolver();
-   mass_pcg_iter->SetRelTol(1e-12);
+   mass_pcg_iter->SetRelTol(1e-6);
    mass_pcg_iter->SetAbsTol(1e-12);
-   mass_pcg_iter->SetMaxIter(200);
-   mass_pcg_iter->SetPrintLevel(0);
+   mass_pcg_iter->SetMaxIter(100);
+   mass_pcg_iter->SetPrintLevel(-1);
    mass_pcg_iter->SetPreconditioner(*mass_prec);
    mass_pcg_iter->SetOperator(*pressure_mass);
    mass_pcg_iter->iterative_mode = false;
@@ -257,28 +293,27 @@ JacobianPreconditioner::JacobianPreconditioner(Array<FiniteElementSpace *> &fes,
 
 void JacobianPreconditioner::Mult(const Vector &k, Vector &y) const
 {
+   int dof_u = block_trueOffsets[1]-block_trueOffsets[0];
+   int dof_p = block_trueOffsets[2]-block_trueOffsets[1];
+
    // Extract the blocks from the input and output vectors
-   Vector disp_in(k.GetData() + block_trueOffsets[0],
-                  block_trueOffsets[1]-block_trueOffsets[0]);
-   Vector pres_in(k.GetData() + block_trueOffsets[1],
-                  block_trueOffsets[2]-block_trueOffsets[1]);
+   Vector u_in(k.GetData() + block_trueOffsets[0],dof_u);
+   Vector p_in(k.GetData() + block_trueOffsets[1],dof_p);
 
-   Vector disp_out(y.GetData() + block_trueOffsets[0],
-                   block_trueOffsets[1]-block_trueOffsets[0]);
-   Vector pres_out(y.GetData() + block_trueOffsets[1],
-                   block_trueOffsets[2]-block_trueOffsets[1]);
+   Vector u_out(y.GetData() + block_trueOffsets[0],dof_u);
+   Vector p_out(y.GetData() + block_trueOffsets[1],dof_p);
 
-   Vector temp(block_trueOffsets[1]-block_trueOffsets[0]);
-   Vector temp2(block_trueOffsets[1]-block_trueOffsets[0]);
+   Vector temp(dof_u);
+   Vector temp2(dof_u);
 
    // Perform the block elimination for the preconditioner
-   mass_pcg->Mult(pres_in, pres_out);
-   pres_out *= -gamma;
+   mass_pcg->Mult(p_in, p_out);
+   p_out *= -gamma;
 
-   jacobian->GetBlock(0,1).Mult(pres_out, temp);
-   subtract(disp_in, temp, temp2);
+   jacobian->GetBlock(0,1).Mult(p_out, temp);
+   subtract(u_in, temp, temp2);
 
-   stiff_pcg->Mult(temp2, disp_out);
+   stiff_pcg->Mult(temp2, u_out);
 }
 
 void JacobianPreconditioner::SetOperator(const Operator &op)
@@ -292,11 +327,11 @@ void JacobianPreconditioner::SetOperator(const Operator &op)
 
       stiff_prec = stiff_prec_gs;
 
-      GMRESSolver *stiff_pcg_iter = new GMRESSolver();
-      stiff_pcg_iter->SetRelTol(1e-8);
-      stiff_pcg_iter->SetAbsTol(1e-8);
-      stiff_pcg_iter->SetMaxIter(200);
-      stiff_pcg_iter->SetPrintLevel(0);
+      FGMRESSolver *stiff_pcg_iter = new FGMRESSolver();
+      stiff_pcg_iter->SetRelTol(1e-6);
+      stiff_pcg_iter->SetAbsTol(1e-12);
+      stiff_pcg_iter->SetMaxIter(100);
+      stiff_pcg_iter->SetPrintLevel(-1);
       stiff_pcg_iter->SetPreconditioner(*stiff_prec);
       stiff_pcg_iter->iterative_mode = false;
 
@@ -325,8 +360,10 @@ StabInNavStoOperator::StabInNavStoOperator(Array<FiniteElementSpace *> &fes,
                                int iter,
                                Coefficient &c_mu)
    : Operator(fes[0]->GetTrueVSize() + fes[1]->GetTrueVSize()),
-     newton_solver(), newton_monitor("Newton", 1),
-     j_monitor("  GMRES", 3), mu(c_mu), block_trueOffsets(offsets)
+     mu(c_mu), block_trueOffsets(offsets),
+     newton_solver(),
+     newton_monitor("Newton", 1, offsets),
+     j_monitor("\t\t\t\tFGMRES", 25)
 {
    Array<Vector *> rhs(2);
    rhs = NULL; // Set all entries in the array
@@ -361,14 +398,14 @@ StabInNavStoOperator::StabInNavStoOperator(Array<FiniteElementSpace *> &fes,
    j_prec = jac_prec;
 
    // Set up the Jacobian solver
-   GMRESSolver *j_gmres = new GMRESSolver();
+   FGMRESSolver *j_gmres = new FGMRESSolver();
    j_gmres->iterative_mode = false;
-   j_gmres->SetRelTol(1e-12);
+   j_gmres->SetRelTol(1e-7);
    j_gmres->SetAbsTol(1e-12);
-   j_gmres->SetMaxIter(700);
+   j_gmres->SetMaxIter(200);
    j_gmres->SetPrintLevel(-1);
    j_gmres->SetMonitor(j_monitor);
-   //j_gmres->SetPreconditioner(*j_prec);
+   j_gmres->SetPreconditioner(*j_prec);
    j_solver = j_gmres;
 
    // Set the newton solve parameters

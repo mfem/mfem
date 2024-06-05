@@ -33,12 +33,13 @@ class StabInNavStoIntegrator : public BlockNonlinearFormIntegrator
 {
 private:
    Coefficient *c_mu;
-   DenseMatrix elf_u,elv_u;
-   DenseMatrix elf_p,elv_p;
-   Vector sh_u,sh_p;
-   DenseMatrix shg_u, grad_u;
    Vector u;
    DenseMatrix sigma;
+
+   DenseMatrix elf_u, elv_u;
+   DenseMatrix elf_p, elv_p;
+   Vector sh_u, ushg_u, sh_p;
+   DenseMatrix shg_u, grad_u;
 
 public:
    StabInNavStoIntegrator(Coefficient &mu_) : c_mu(&mu_) { }
@@ -59,6 +60,142 @@ public:
                                     const Array<const Vector *> &elfun,
                                     const Array2D<DenseMatrix *> &elmats);
 };
+
+class GeneralResidualMonitor : public IterativeSolverMonitor
+{
+public:
+   GeneralResidualMonitor(const std::string& prefix_, int print_lvl)
+      : prefix(prefix_)
+   {
+      print_level = print_lvl;
+   }
+
+   virtual void MonitorResidual(int it, real_t norm, const Vector &r, bool final);
+
+private:
+   const std::string prefix;
+   int print_level;
+   mutable real_t norm0;
+};
+
+class SystemResidualMonitor : public IterativeSolverMonitor
+{
+public:
+   SystemResidualMonitor(const std::string& prefix_,
+                          int print_lvl,
+                          Array<int> &offsets)
+      : prefix(prefix_), bOffsets(offsets)
+   {
+      print_level = print_lvl;
+      nvar = bOffsets.Size()-1;
+      norm0.SetSize(nvar);
+   }
+
+   virtual void MonitorResidual(int it, real_t norm, const Vector &r, bool final);
+
+private:
+   const std::string prefix;
+   int print_level, nvar;
+   mutable Vector norm0;
+  // Offsets for extracting block vector segments
+   Array<int> &bOffsets;
+};
+
+// Custom block preconditioner for the Jacobian of the incompressible nonlinear
+// elasticity operator. It has the form
+//
+// P^-1 = [ K^-1 0 ][ I -B^T ][ I  0           ]
+//        [ 0    I ][ 0  I   ][ 0 -\gamma S^-1 ]
+//
+// where the original Jacobian has the form
+//
+// J = [ K B^T ]
+//     [ B 0   ]
+//
+// and K^-1 is an approximation of the inverse of the displacement part of the
+// Jacobian and S^-1 is an approximation of the inverse of the Schur
+// complement S = B K^-1 B^T. The Schur complement is approximated using
+// a mass matrix of the pressure variables.
+class JacobianPreconditioner : public Solver
+{
+protected:
+   // Finite element spaces for setting up preconditioner blocks
+   Array<FiniteElementSpace *> spaces;
+
+   // Offsets for extracting block vector segments
+   Array<int> &block_trueOffsets;
+
+   // Jacobian for block access
+   BlockOperator *jacobian;
+
+   // Scaling factor for the pressure mass matrix in the block preconditioner
+   real_t gamma;
+
+   // Objects for the block preconditioner application
+   SparseMatrix *pressure_mass;
+   Solver *mass_pcg;
+   Solver *mass_prec;
+   Solver *stiff_pcg;
+   Solver *stiff_prec;
+
+public:
+   JacobianPreconditioner(Array<FiniteElementSpace *> &fes,
+                          SparseMatrix &mass, Array<int> &offsets);
+
+   virtual void Mult(const Vector &k, Vector &y) const;
+   virtual void SetOperator(const Operator &op);
+
+   virtual ~JacobianPreconditioner();
+};
+
+// After spatial discretization, the rubber model can be written as:
+//     0 = H(x)
+// where x is the block vector representing the deformation and pressure and
+// H(x) is the nonlinear incompressible neo-Hookean operator.
+class StabInNavStoOperator : public Operator
+{
+protected:
+   // Finite element spaces
+   Array<FiniteElementSpace *> spaces;
+
+   // Block nonlinear form
+   BlockNonlinearForm *Hform;
+
+   // Pressure mass matrix for the preconditioner
+   SparseMatrix *pressure_mass;
+
+   // Newton solver for the hyperelastic operator
+   NewtonSolver newton_solver;
+   SystemResidualMonitor newton_monitor;
+
+   // Solver for the Jacobian solve in the Newton method
+   Solver *j_solver;
+   GeneralResidualMonitor j_monitor;
+
+   // Preconditioner for the Jacobian
+   Solver *j_prec;
+
+   // Shear modulus coefficient
+   Coefficient &mu;
+
+   // Block offsets for variable access
+   Array<int> &block_trueOffsets;
+
+public:
+   StabInNavStoOperator(Array<FiniteElementSpace *> &fes, Array<Array<int> *>&ess_bdr,
+                  Array<int> &block_trueOffsets, real_t rel_tol, real_t abs_tol,
+                  int iter, Coefficient &mu);
+
+   // Required to use the native newton solver
+   virtual Operator &GetGradient(const Vector &xp) const;
+   virtual void Mult(const Vector &k, Vector &y) const;
+
+   // Driver for the newton solver
+   void Solve(Vector &xp) const;
+
+   virtual ~StabInNavStoOperator();
+};
+
 
 } // namespace mfem
 

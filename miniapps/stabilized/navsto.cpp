@@ -228,8 +228,8 @@ int main(int argc, char *argv[])
    }
 
    // 10. Initialize the incompressible neo-Hookean operator
-   real_t newton_rel_tol = 1e-13;
-   real_t newton_abs_tol = 1e-13;
+   real_t newton_rel_tol = 1e-8;
+   real_t newton_abs_tol = 1e-8;
    int newton_iter = 10;
 
    StabInNavStoOperator oper(spaces, ess_bdr, block_trueOffsets,
