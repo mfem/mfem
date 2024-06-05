@@ -45,7 +45,7 @@ private:
 
    int num_matrices_, matrix_size_;
 
-
+   void ApplyInverse(const Vector &b, Vector &x) const;
 
    // for nvcc
 public:
@@ -57,8 +57,7 @@ public:
    void SolveLU(const Vector &b, Vector &x) const;
 
    void ComputeInverse(DenseTensor &InvMatBatch) const;
-   void ApplyInverse(const Vector &b, Vector &x) const;
-   
+
 public:
    BatchSolver() = delete;
 

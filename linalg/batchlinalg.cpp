@@ -294,45 +294,6 @@ void ApplyBlkMult(const DenseTensor &Mat, const Vector &x,
    // Initialize CUBLAS 
    stat = cublasCreate(&handle); 
 
-   // // Allocate and set matrices on GPU
-   // for (k = 0; k < NE; k++) {
-   //    cudaStat = cudaMalloc ((void**)&d_Mat[k], ndof*ndof*sizeof(*Mat.Data())); 
-   //    if (cudaStat != cudaSuccess) {
-   //       printf ("device memory allocation failed for d_Mat \n");
-   //       return EXIT_FAILURE;
-   //    }
-   //    cudaStat = cudaMalloc ((void**)&d_x[k], ndof*sizeof(*x.GetData())); 
-   //    if (cudaStat != cudaSuccess) {
-   //       printf ("device memory allocation failed for d_x \n");
-   //       return EXIT_FAILURE;
-   //    }
-   //    cudaStat = cudaMalloc ((void**)&d_y[k], ndof*sizeof(*y.GetData())); 
-   //    if (cudaStat != cudaSuccess) {
-   //       printf ("device memory allocation failed for d_y \n");
-   //       return EXIT_FAILURE;
-   //    }
-
-   //    stat = cublasSetMatrix (ndof, ndof, sizeof(*Mat.Data()), &Mat.Data()[IDXT(0,0,k,ndof)], ndof, d_Mat[k], ndof); 
-   //    if (stat != CUBLAS_STATUS_SUCCESS) {
-   //       printf ("host to device memory download failed for d_Mat \n");
-   //       printf (cublasGetStatusString(stat));  // note: only available after version 11.4.2
-   //       cudaFree (d_Mat);
-   //       cublasDestroy(handle);
-   //       return EXIT_FAILURE;
-   //    }
-   //    stat = cublasSetMatrix (ndof, 1, sizeof(*x.GetData()), &x.GetData()[IDXM(0,k,ndof)], ndof, d_x[k], ndof);
-   //    if (stat != CUBLAS_STATUS_SUCCESS) {
-   //       printf ("host to device data download failed for d_x \n");
-   //       printf (cublasGetStatusString(stat));  // note: only available after version 11.4.2
-   //       cudaFree (d_x);
-   //       cublasDestroy(handle);
-   //       return EXIT_FAILURE;
-   //    }
-   // }
-
-
-
-
    // Vendor function handles computations on GPU via batched call
    double alpha = 1.0;
    double beta = 0.0; 
@@ -344,27 +305,8 @@ void ApplyBlkMult(const DenseTensor &Mat, const Vector &x,
    if (stat != CUBLAS_STATUS_SUCCESS) {
       printf ("CUDA gemvBatched() failed \n");
       printf (cublasGetStatusString(stat));  // note: only available after version 11.4.2
-      cudaFree (d_y);
       cublasDestroy(handle);
-      return EXIT_FAILURE;
    }
-
-   // // Copies GPU memory to host memory
-   // for (k = 0; k < NE; k++) {
-   //    stat = cublasGetMatrix (ndof, 1, sizeof(*y.GetData()), d_y[k], ndof, &y.GetData()[IDXM(0,k,ndof)], ndof);
-   //    if (stat != CUBLAS_STATUS_SUCCESS) {
-   //       printf ("device to host data upload failed for y \n");
-   //       printf (cublasGetStatusString(stat));  // note: only available after version 11.4.2
-   //       cudaFree (d_y);
-   //       cublasDestroy(handle);
-   //       return EXIT_FAILURE;
-   //    }
-   // }
-
-   // // Free up memory and end CUBLAS stream
-   // cudaFree(Ma);
-   // cudaFree(d_x);
-   // cudaFree(d_y);
 
    // end CUBLAS stream
    cublasDestroy(handle);

@@ -4,13 +4,14 @@
 #include <cuda_runtime.h>
 #include "cublas_v2.h"
 #include "mfem.hpp"
+#include "../fem/bilinearform.hpp"
 #include "../linalg/batchlinalg.hpp"
 #include "../general/backends.hpp"
 #include "../general/forall.hpp"
 #include <fstream>
 #include <iostream>
-#define M 6
-#define N 6   // need to have M = N in order to use definition of IDXT below
+#define M 2
+#define N 2   // need to have M = N in order to use definition of IDXT below
 #define W 2
 #define IDXT(i,j,k,ld) (((ld)*(ld)*(k))+((j)*(ld))+(i))
 #define IDXM(i,j,ld) ((ld*j)+i)
@@ -29,10 +30,11 @@ int main (void){
     printf ("A is \n");
     for (k = 0; k < W; k++) {
         for (j = 0; j < N; j++) {
-            X.GetData()[IDXM(j,k,N)] = IDXM(j,k,N);
+            X.GetData()[IDXM(j,k,N)] = (double) (IDXM(j,k,N));
             for (i = 0; i < M; i++) {
-                A.Data()[IDXT(i,j,k,M)] = IDXT(i,j,k,M);
-                printf ("%7.0f", A.Data()[IDXT(i,j,k,M)]);
+                if (i == j) {A.Data()[IDXT(i,j,k,M)] = 1.0;}
+                else {A.Data()[IDXT(i,j,k,M)] = (double) (IDXT(j,i,k,M)+1);}
+                printf ("%7.3f", A.Data()[IDXT(i,j,k,M)]);
             }
             printf ("\n");  // col-major, so prints vectors of columns out together in each row
         }
@@ -41,7 +43,7 @@ int main (void){
     printf ("X is \n");
     for (k = 0; k < W; k++) {
         for (j = 0; j < N; j++) {
-            printf ("%7.0f", X.GetData()[IDXM(j,k,N)]);
+            printf ("%7.3f", X.GetData()[IDXM(j,k,N)]);
         }
         printf ("\n");
     }
@@ -135,26 +137,39 @@ int main (void){
     printf ("Y is \n");
     for (k = 0; k < W; k++) {
         for (j = 0; j < N; j++) {
-            printf ("%7.0f", Y.GetData()[IDXM(j,k,N)]);  // col-major, so prints vectors of columns out together in each row
+            printf ("%7.3f", Y.GetData()[IDXM(j,k,N)]);  // col-major, so prints vectors of columns out together in each row
         }
         printf ("\n");
     }
     printf ("\n");
 
-    DenseTensor const& const_A = A;
-    Vector const& const_X = X;
     Vector Z(N*W);
-    BatchSolver batchSolver(const_A, BatchSolver::SolveMode::INVERSE);
-    batchSolver.ApplyInverse(const_X, Z);
+    BatchSolver batchSolver(BatchSolver::SolveMode::INVERSE);
+    batchSolver.AssignMatrices(A);
+    DenseTensor Ainv;
+    Ainv.SetSize(M, N, W, mfem::MemoryType::DEFAULT);    
+    batchSolver.GetInverse(Ainv);
+    batchSolver.Mult(X, Z);
+
+    printf ("A inverse is \n");
+    for (k = 0; k < W; k++) {
+        for (j = 0; j < N; j++) {
+            for (i = 0; i < M; i++) {
+                printf ("%7.3f", A.Data()[IDXT(i,j,k,M)]);
+            }
+            printf ("\n");  // col-major, so prints vectors of columns out together in each row
+        }
+        printf ("\n");
+    }
 
     printf ("Z is \n");
     for (k = 0; k < W; k++) {
         for (j = 0; j < N; j++) {
-            printf ("%7.0f", Z.GetData()[IDXM(j,k,N)]);  // col-major, so prints vectors of columns out together in each row
+            printf ("%7.3f", Z.GetData()[IDXM(j,k,N)]);  // col-major, so prints vectors of columns out together in each row
         }
         printf ("\n");
     }
-    printf ("\n");
+    
 
 
     return EXIT_SUCCESS;
