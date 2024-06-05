@@ -60,8 +60,8 @@ namespace mfem
  *  reference-space coordinates for each point to the mpi rank that the element
  *  is located on. Then, custom interpolation can be defined locally by the user before
  *  sending the values back to mpi ranks where the query originated from.
- *  See \ref SendElementsAndCoordinatesToOwningMPIRanks and
- *  \ref SendInterpolatedValuesBack.
+ *  See \ref DistributePointInfoToOwningMPIRanks and
+ *  \ref ReturnInterpolatedValues.
  */
 class FindPointsGSLIB
 {
@@ -87,10 +87,6 @@ protected:
    int points_cnt;
    Array<unsigned int> gsl_code, gsl_proc, gsl_elem, gsl_mfem_elem;
    Vector gsl_mesh, gsl_ref, gsl_dist, gsl_mfem_ref;
-   // Info for points that are sent for custom interpolation procedure.
-   int points_recv;
-   Array<unsigned int> recv_code, recv_proc, recv_elem;
-   Vector recv_ref, recv_index;
    bool setupflag;              // flag to indicate whether gslib data has been setup
    double default_interp_value; // used for points that are not found in the mesh
    AvgType avgtype;             // average type used for L2 functions
@@ -135,9 +131,9 @@ public:
    virtual ~FindPointsGSLIB();
 
    /** Initializes the internal mesh in gslib, by sending the positions of the
-       Gauss-Lobatto nodes of the input Mesh object @a m.
+       Gauss-Lobatto nodes of the input Mesh object \p m.
        Note: not tested with periodic (L2).
-       Note: the input mesh @a m must have Nodes set.
+       Note: the input mesh \p m must have Nodes set.
 
        @param[in] m         Input mesh.
        @param[in] bb_t      (Optional) Relative size of bounding box around
@@ -150,9 +146,9 @@ public:
    void Setup(Mesh &m, const double bb_t = 0.1,
               const double newt_tol = 1.0e-12,
               const int npt_max = 256);
-   /** Searches positions given in physical space by @a point_pos.
+   /** Searches positions given in physical space by \p point_pos.
        These positions can be ordered byNodes: (XXX...,YYY...,ZZZ) or
-       byVDim: (XYZ,XYZ,....XYZ) specified by @a point_pos_ordering.
+       byVDim: (XYZ,XYZ,....XYZ) specified by \p point_pos_ordering.
        This function populates the following member variables:
        #gsl_code        Return codes for each point: inside element (0),
                         element boundary (1), not found (2).
@@ -181,20 +177,20 @@ public:
    /** Interpolation of field values at prescribed reference space positions.
        @param[in] field_in    Function values that will be interpolated on the
                               reference positions. Note: it is assumed that
-                              @a field_in is in H1 and in the same space as the
+                              \p field_in is in H1 and in the same space as the
                               mesh that was given to Setup().
        @param[out] field_out  Interpolated values. For points that are not found
                               the value is set to #default_interp_value. */
    virtual void Interpolate(const GridFunction &field_in, Vector &field_out);
    /** Search positions and interpolate. The ordering (byNODES or byVDIM) of
-       the output values in @a field_out corresponds to the ordering used
-       in the input GridFunction @a field_in. */
+       the output values in \p field_out corresponds to the ordering used
+       in the input GridFunction \p field_in. */
    void Interpolate(const Vector &point_pos, const GridFunction &field_in,
                     Vector &field_out,
                     int point_pos_ordering = Ordering::byNODES);
    /** Setup FindPoints, search positions and interpolate. The ordering (byNODES
-       or byVDIM) of the output values in @a field_out corresponds to the
-       ordering used in the input GridFunction @a field_in. */
+       or byVDIM) of the output values in \p field_out corresponds to the
+       ordering used in the input GridFunction \p field_in. */
    void Interpolate(Mesh &m, const Vector &point_pos,
                     const GridFunction &field_in, Vector &field_out,
                     int point_pos_ordering = Ordering::byNODES);
@@ -251,24 +247,40 @@ public:
        coordinates to the mpi-ranks where each point is found. Then the custom
        interpolation can be done locally by the user before sending the
        interpolated values back to the mpi-ranks that the query originated from.
+       Example usage looks something like this:
+
+       FindPoints() -> DistributePointInfoToOwningMPIRanks() -> Computation by
+       user -> ReturnInterpolatedValues()
    */
    ///@{
-   /// Send element indices in #gsl_mfem_elem and the reference coordinates
-   /// #gsl_ref to the corresponding mpi-rank #gsl_proc for each point.
-   /// Upon receiving, the information is stored locally in
-   /// #recv_elem and #recv_ref (ordered by vdim). Use corresponding getters
-   /// \ref GetReceivedElem and \ref GetReceivedReferencePosition.
-   virtual void SendElementsAndCoordinatesToOwningMPIRanks();
-   /// Send interpolated values back to the mpi-ranks #recv_proc that had sent
-   /// the element indices and corresponding reference-space coordinates.
-   virtual Vector SendInterpolatedValuesBack(Vector &int_vals, int vdim,
-                                             int ordering);
-   /// Get element indices received due to SendCoordinatesToOwningMPIRanks().
-   virtual const Array<unsigned int> &GetReceivedElem() const
-   { return recv_elem; }
-   /// Get reference coords received due to SendCoordinatesToOwningMPIRanks().
-   virtual const Vector &GetReceivedReferencePosition() const
-   { return recv_ref;  }
+   /// Distribute element indices in #gsl_mfem_elem, the reference coordinates
+   /// #gsl_ref, and the code #gsl_code to the corresponding mpi-rank #gsl_proc
+   /// for each point. The information is stored locally in \p recv_elem,
+   /// \p recv_ref (ordered by vdim), \p recv_code, and \p recv_proc. We also
+   /// communicate the indices corresponding to each point and store them in
+   /// \p recv_index.
+   /// Note: The user can send empty Array/Vectors to the method and they are
+   /// appropriately sized and filled internally. These should not be
+   /// consequently modified by the user as \p recv_proc and \p recv_index are
+   /// used to return interpolated values by \ref ReturnInterpolatedValues.
+   virtual void DistributePointInfoToOwningMPIRanks(
+      Array<unsigned int> &recv_elem, Vector &recv_ref,
+      Array<unsigned int> &recv_code, Array<unsigned int> &recv_index,
+      Array<unsigned int> &recv_proc) const;
+   /// Return interpolated values back to the mpi-ranks \p recv_proc that had
+   /// sent the element indices and corresponding reference-space coordinates.
+   /// Specify \p vdim and \p ordering by nodes or by vdim)
+   /// based on how the \p int_vals are structured. The received values are
+   /// filled in \p field_out consistent with the original ordering of the
+   /// points that were found using \ref FindPoints.
+   /// Note that \p recv_proc and \p recv_index are filled by
+   /// \ref DistributePointInfoToOwningMPIRanks and should not be modified.
+   virtual void ReturnInterpolatedValues(const Vector &int_vals,
+                                         const int vdim,
+                                         const int ordering,
+                                         Array<unsigned int> &recv_index,
+                                         Array<unsigned int> &recv_proc,
+                                         Vector &field_out) const;
    ///@}
 };
 
@@ -294,9 +306,9 @@ public:
 #endif
 
    /** Initializes the internal mesh in gslib, by sending the positions of the
-       Gauss-Lobatto nodes of the input Mesh object @a m.
+       Gauss-Lobatto nodes of the input Mesh object \p m.
        Note: not tested with periodic meshes (L2).
-       Note: the input mesh @a m must have Nodes set.
+       Note: the input mesh \p m must have Nodes set.
 
        @param[in] m         Input mesh.
        @param[in] meshid    A unique # for each overlapping mesh. This id is
@@ -319,12 +331,12 @@ public:
               const double bb_t = 0.1, const double newt_tol = 1.0e-12,
               const int npt_max = 256);
 
-   /** Searches positions given in physical space by @a point_pos. All output
+   /** Searches positions given in physical space by \p point_pos. All output
        Arrays and Vectors are expected to have the correct size.
 
        @param[in]  point_pos           Positions to be found.
        @param[in]  point_id            Index of the mesh that the point belongs
-                                       to (corresponding to @a meshid in Setup).
+                                       to (corresponding to \p meshid in Setup).
        @param[in]  point_pos_ordering  Ordering of the points:
                                        byNodes: (XXX...,YYY...,ZZZ) or
                                        byVDim: (XYZ,XYZ,....XYZ) */
@@ -387,7 +399,7 @@ public:
    enum GSOp {ADD, MUL, MIN, MAX};
 
    /// Update the identifiers used for the gather-scatter operator.
-   /// Same @a ids get grouped together and id == 0 does not participate.
+   /// Same \p ids get grouped together and id == 0 does not participate.
    /// See class description.
    void UpdateIdentifiers(const Array<long long> &ids);
 
