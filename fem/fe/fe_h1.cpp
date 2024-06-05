@@ -1199,6 +1199,34 @@ void H1_FuentesPyramidElement::CalcDShape(const IntegrationPoint &ip,
    Ti.Mult(du, dshape);
 }
 
+void H1_FuentesPyramidElement::CalcRawShape(const IntegrationPoint &ip,
+                                            Vector &shape) const
+{
+   const int p = order;
+
+#ifdef MFEM_THREAD_SAFE
+   Vector tmp_i(p + 1);
+   DenseMatrix tmp1_ij(p + 1, p + 1);
+#endif
+
+   calcBasis(p, ip, tmp_i, tmp1_ij, shape);
+}
+
+void H1_FuentesPyramidElement::CalcRawDShape(const IntegrationPoint &ip,
+                                             DenseMatrix &dshape) const
+{
+   const int p = order;
+
+#ifdef MFEM_THREAD_SAFE
+   Vector tmp_i(p + 1);
+   DenseMatrix tmp1_ij(p + 1, p + 1);
+   DenseMatrix tmp2_ij(p + 1, dim);
+   DenseTensor tmp_ijk(p + 1, p + 1, dim);
+#endif
+
+   calcGradBasis(p, ip, tmp_i, tmp2_ij, tmp1_ij, tmp_ijk, dshape);
+}
+
 void H1_FuentesPyramidElement::calcBasis(const int p,
                                          const IntegrationPoint &ip,
                                          Vector &phi_i, DenseMatrix &phi_ij,

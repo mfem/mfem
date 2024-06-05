@@ -185,6 +185,9 @@ public:
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
+   void CalcRawShape(const IntegrationPoint &ip, Vector &shape) const;
+   void CalcRawDShape(const IntegrationPoint &ip,
+                      DenseMatrix &dshape) const;
 };
 
 class H1_BergotPyramidElement : public NodalFiniteElement
