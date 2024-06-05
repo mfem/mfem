@@ -136,5 +136,21 @@ int main (void){
         }
         printf ("\n");
     }
+
+    DenseTensor const& const_A = A;
+    Vector const& const_X = X;
+    Vector Z(N*W);
+    BatchSolver batchSolver(A, BatchSolver::SolveMode::INVERSE);
+    batchSolver.ApplyInverse(X, Z);
+
+    printf ("Z is \n");
+    for (k = 0; k < W; k++) {
+        for (j = 0; j < N; j++) {
+            printf ("%7.0f", Z.GetData()[IDXM(j,k,N)]);  // col-major, so prints vectors of columns out together in each row
+        }
+        printf ("\n");
+    }
+
+
     return EXIT_SUCCESS;
 }

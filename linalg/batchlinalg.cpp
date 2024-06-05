@@ -280,76 +280,86 @@ void ApplyBlkMult(const DenseTensor &Mat, const Vector &x,
    cudaError_t cudaStat; 
    cublasStatus_t stat;
    cublasHandle_t handle;
-   int k;
 
-   double* d_Mat[NE]; 
-   double* d_x[NE];
-   double* d_y[NE];
+   Array<double*> Mat_ptr[NE]; 
+   Array<double*> x_ptr[NE];
+   Array<double*> y_ptr[NE];
+
+
+   for (int k = 0; k < NE; k++) {
+      Mat_ptr[k] = &const_cast<DenseTensor&>Mat.ReadWrite()[ndof*ndof*k];
+      x_ptr[k] = &const_cast<Vector&>(x).ReadWrite()[ndof*k];
+      y_ptr[k] = &y.ReadWrite()[ndof*k];
+   }
 
    // Initialize CUBLAS 
    stat = cublasCreate(&handle); 
 
-   // Allocate and set matrices on GPU
-   for (k = 0; k < NE; k++) {
-      cudaStat = cudaMalloc ((void**)&d_Mat[k], ndof*ndof*sizeof(*Mat.Data())); 
-      if (cudaStat != cudaSuccess) {
-         printf ("device memory allocation failed for ApplyBlkMult d_Mat \n");
-         return EXIT_FAILURE;
-      }
-      cudaStat = cudaMalloc ((void**)&d_x[k], ndof*sizeof(*x.GetData())); 
-      if (cudaStat != cudaSuccess) {
-         printf ("device memory allocation failed for ApplyBlkMult d_x \n");
-         return EXIT_FAILURE;
-      }
-      cudaStat = cudaMalloc ((void**)&d_y[k], ndof*sizeof(*y.GetData())); 
-      if (cudaStat != cudaSuccess) {
-         printf ("device memory allocation failed for ApplyBlkMult d_y \n");
-         return EXIT_FAILURE;
-      }
+   // // Allocate and set matrices on GPU
+   // for (k = 0; k < NE; k++) {
+   //    cudaStat = cudaMalloc ((void**)&d_Mat[k], ndof*ndof*sizeof(*Mat.Data())); 
+   //    if (cudaStat != cudaSuccess) {
+   //       printf ("device memory allocation failed for d_Mat \n");
+   //       return EXIT_FAILURE;
+   //    }
+   //    cudaStat = cudaMalloc ((void**)&d_x[k], ndof*sizeof(*x.GetData())); 
+   //    if (cudaStat != cudaSuccess) {
+   //       printf ("device memory allocation failed for d_x \n");
+   //       return EXIT_FAILURE;
+   //    }
+   //    cudaStat = cudaMalloc ((void**)&d_y[k], ndof*sizeof(*y.GetData())); 
+   //    if (cudaStat != cudaSuccess) {
+   //       printf ("device memory allocation failed for d_y \n");
+   //       return EXIT_FAILURE;
+   //    }
 
-      stat = cublasSetMatrix (ndof, ndof, sizeof(*Mat.Data()), &Mat.Data()[IDXT(0,0,k,ndof)], ndof, d_Mat[k], ndof); 
-      if (stat != CUBLAS_STATUS_SUCCESS) {
-         printf ("host to device memory download failed for ApplyBlkMult d_Mat \n");
-         printf (cublasGetStatusString(stat));  // note: only available after version 11.4.2
-         cudaFree (d_Mat);
-         cublasDestroy(handle);
-         return EXIT_FAILURE;
-      }
-      stat = cublasSetMatrix (ndof, 1, sizeof(*x.GetData()), &x.GetData()[IDXM(0,k,ndof)], ndof, d_x[k], ndof);
-      if (stat != CUBLAS_STATUS_SUCCESS) {
-         printf ("host to device data download failed for ApplyBlkMult d_x \n");
-         printf (cublasGetStatusString(stat));  // note: only available after version 11.4.2
-         cudaFree (d_x);
-         cublasDestroy(handle);
-         return EXIT_FAILURE;
-      }
-   }
+   //    stat = cublasSetMatrix (ndof, ndof, sizeof(*Mat.Data()), &Mat.Data()[IDXT(0,0,k,ndof)], ndof, d_Mat[k], ndof); 
+   //    if (stat != CUBLAS_STATUS_SUCCESS) {
+   //       printf ("host to device memory download failed for d_Mat \n");
+   //       printf (cublasGetStatusString(stat));  // note: only available after version 11.4.2
+   //       cudaFree (d_Mat);
+   //       cublasDestroy(handle);
+   //       return EXIT_FAILURE;
+   //    }
+   //    stat = cublasSetMatrix (ndof, 1, sizeof(*x.GetData()), &x.GetData()[IDXM(0,k,ndof)], ndof, d_x[k], ndof);
+   //    if (stat != CUBLAS_STATUS_SUCCESS) {
+   //       printf ("host to device data download failed for d_x \n");
+   //       printf (cublasGetStatusString(stat));  // note: only available after version 11.4.2
+   //       cudaFree (d_x);
+   //       cublasDestroy(handle);
+   //       return EXIT_FAILURE;
+   //    }
+   // }
+
+
 
 
    // Vendor function handles computations on GPU via batched call
    double alpha = 1.0;
    double beta = 0.0; 
    stat = cublasDgemvBatched (handle, CUBLAS_OP_N, ndof, ndof,
-                              &alpha, d_Mat, ndof, d_x, 1,
-                              &beta, d_y, 1, NE);
+                              &alpha, Mat_ptr, ndof, x_ptr, 1,
+                              &beta, y_ptr, 1, NE);
    // note that cuda 11.7.0 needs batchCount = NE as last parameter
 
-   // Copies GPU memory to host memory
-   for (k = 0; k < NE; k++) {
-      stat = cublasGetMatrix (ndof, 1, sizeof(*y.GetData()), d_y[k], ndof, &y.GetData()[IDXM(0,k,ndof)], ndof);
-      if (stat != CUBLAS_STATUS_SUCCESS) {
-         printf ("device to host data upload failed for ApplyBlkMult y \n");
-         printf (cublasGetStatusString(stat));  // note: only available after version 11.4.2
-         cudaFree (d_y);
-         cublasDestroy(handle);
-         return EXIT_FAILURE;
-      }
-   }
+   // // Copies GPU memory to host memory
+   // for (k = 0; k < NE; k++) {
+   //    stat = cublasGetMatrix (ndof, 1, sizeof(*y.GetData()), d_y[k], ndof, &y.GetData()[IDXM(0,k,ndof)], ndof);
+   //    if (stat != CUBLAS_STATUS_SUCCESS) {
+   //       printf ("device to host data upload failed for y \n");
+   //       printf (cublasGetStatusString(stat));  // note: only available after version 11.4.2
+   //       cudaFree (d_y);
+   //       cublasDestroy(handle);
+   //       return EXIT_FAILURE;
+   //    }
+   // }
 
-   // Free up memory and end CUBLAS stream
-   cudaFree(d_Mat);
-   cudaFree(d_x);
-   cudaFree(d_y);
+   // // Free up memory and end CUBLAS stream
+   // cudaFree(Ma);
+   // cudaFree(d_x);
+   // cudaFree(d_y);
+
+   // end CUBLAS stream
    cublasDestroy(handle);
 }
 
