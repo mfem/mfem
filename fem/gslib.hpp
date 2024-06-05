@@ -58,8 +58,8 @@ namespace mfem
  *  For custom interpolation (e.g., evaluating strain rate tensor), we provide
  *  functions that use gslib to send element index and corresponding
  *  reference-space coordinates for each point to the mpi rank that the element
- *  is located on. Then, custom interpolation can be defined locally by the user before
- *  sending the values back to mpi ranks where the query originated from.
+ *  is located on. Then, custom interpolation can be defined locally by the user
+ *  before sending the values back to mpi ranks where the query originated from.
  *  See \ref DistributePointInfoToOwningMPIRanks and
  *  \ref ReturnInterpolatedValues.
  */
@@ -82,9 +82,7 @@ protected:
    struct gslib::findpts_data_3 *fdata3D; // gslib's internal data
    struct gslib::crystal *cr;             // gslib's internal data
    struct gslib::comm *gsl_comm;          // gslib's internal data
-   int dim;                               // mesh dimension
-   // Info for points input for finding.
-   int points_cnt;
+   int dim, points_cnt;
    Array<unsigned int> gsl_code, gsl_proc, gsl_elem, gsl_mfem_elem;
    Vector gsl_mesh, gsl_ref, gsl_dist, gsl_mfem_ref;
    bool setupflag;              // flag to indicate whether gslib data has been setup
@@ -269,12 +267,12 @@ public:
       Array<unsigned int> &recv_proc) const;
    /// Return interpolated values back to the mpi-ranks \p recv_proc that had
    /// sent the element indices and corresponding reference-space coordinates.
-   /// Specify \p vdim and \p ordering by nodes or by vdim)
-   /// based on how the \p int_vals are structured. The received values are
-   /// filled in \p field_out consistent with the original ordering of the
-   /// points that were found using \ref FindPoints.
-   /// Note that \p recv_proc and \p recv_index are filled by
-   /// \ref DistributePointInfoToOwningMPIRanks and should not be modified.
+   /// Specify \p vdim and \p ordering (by nodes or by vdim) based on how the
+   /// \p int_vals are structured. The received values are filled in
+   /// \p field_out consistent with the original ordering of the points that
+   /// were found using \ref FindPoints. Note that \p recv_proc and
+   /// \p recv_index are filled by \ref DistributePointInfoToOwningMPIRanks and
+   /// should not be modified.
    virtual void ReturnInterpolatedValues(const Vector &int_vals,
                                          const int vdim,
                                          const int ordering,
