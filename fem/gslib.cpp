@@ -1168,7 +1168,10 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
    } // parallel
 }
 
-void FindPointsGSLIB::SendElementsAndCoordinatesToOwningMPIRanks()
+void FindPointsGSLIB::DistributePointInfoToOwningMPIRanks(
+   Array<unsigned int> &recv_elem, Vector &recv_ref,
+   Array<unsigned int> &recv_code, Array<unsigned> &recv_index,
+   Array<unsigned int> &recv_proc) const
 {
    int nptsend   = points_cnt;
 
@@ -1179,7 +1182,7 @@ void FindPointsGSLIB::SendElementsAndCoordinatesToOwningMPIRanks()
    // Pack data to send via crystal router
    struct gslib::array *outpt = new gslib::array;
 
-   struct out_pt { double rst[3]; uint index, elem, proc; };
+   struct out_pt { double rst[3]; uint index, elem, proc, code; };
    struct out_pt *pt;
    array_init(struct out_pt, outpt, nptsend);
    outpt->n=nptsend;
@@ -1190,6 +1193,7 @@ void FindPointsGSLIB::SendElementsAndCoordinatesToOwningMPIRanks()
       pt->index = index;
       pt->elem = gsl_mfem_elem[index];
       pt->proc  = gsl_proc[index];
+      pt->code = gsl_code[index];
       for (int d = 0; d < dim; ++d)
       {
          pt->rst[d]= gsl_mfem_ref(index*dim + d);
@@ -1201,10 +1205,11 @@ void FindPointsGSLIB::SendElementsAndCoordinatesToOwningMPIRanks()
    sarray_transfer(struct out_pt, outpt, proc, 1, cr);
 
    // Store received data
-   points_recv = outpt->n;
+   const int points_recv = outpt->n;
    recv_proc.SetSize(points_recv);
    recv_elem.SetSize(points_recv);
    recv_index.SetSize(points_recv);
+   recv_code.SetSize(points_recv);
    recv_ref.SetSize(points_recv*dim);
 
    pt = (struct out_pt *)outpt->ptr;
@@ -1213,6 +1218,7 @@ void FindPointsGSLIB::SendElementsAndCoordinatesToOwningMPIRanks()
       recv_index[index] = pt->index;
       recv_elem[index] = pt->elem;
       recv_proc[index] = pt->proc;
+      recv_code[index] = pt->code;
       for (int d = 0; d < dim; ++d)
       {
          recv_ref(index*dim + d)= pt->rst[d];
@@ -1224,17 +1230,21 @@ void FindPointsGSLIB::SendElementsAndCoordinatesToOwningMPIRanks()
    delete outpt;
 }
 
-Vector FindPointsGSLIB::SendInterpolatedValuesBack(Vector &int_vals,
-                                                   int vdim,
-                                                   int int_val_ordering)
+void FindPointsGSLIB::ReturnInterpolatedValues(const Vector &int_vals,
+                                               const int vdim,
+                                               const int ordering,
+                                               Array<unsigned int> &recv_index,
+                                               Array<unsigned int> &recv_proc,
+                                               Vector &field_out) const
 {
+   const int points_recv = recv_index.Size();;
    MFEM_VERIFY(points_recv == 0 ||
                int_vals.Size() % points_recv == 0,
                "Incompatible size. Please return interpolated values"
                "corresponding to points received using"
                "SendCoordinatesToOwningProcessors.");
    int nptsend = points_recv;
-   Vector field_out(points_cnt*vdim);
+   field_out.SetSize(points_cnt*vdim);
 
    for (int v = 0; v < vdim; v++)
    {
@@ -1249,7 +1259,7 @@ Vector FindPointsGSLIB::SendInterpolatedValuesBack(Vector &int_vals,
       {
          pt->index = recv_index[index];
          pt->proc  = recv_proc[index];
-         pt->val = int_val_ordering == Ordering::byNODES ?
+         pt->val = ordering == Ordering::byNODES ?
                    int_vals(index + v*points_recv) :
                    int_vals(index*vdim + v);
          ++pt;
@@ -1265,7 +1275,7 @@ Vector FindPointsGSLIB::SendInterpolatedValuesBack(Vector &int_vals,
       pt = (struct out_pt *)outpt->ptr;
       for (int index = 0; index < nrecv; index++)
       {
-         int idx = int_val_ordering == Ordering::byNODES ?
+         int idx = ordering == Ordering::byNODES ?
                    pt->index + v*points_cnt :
                    pt->index*vdim + v;
          field_out(idx) = pt->val;
@@ -1275,8 +1285,6 @@ Vector FindPointsGSLIB::SendInterpolatedValuesBack(Vector &int_vals,
       array_free(outpt);
       delete outpt;
    }
-
-   return field_out;
 }
 
 void OversetFindPointsGSLIB::Setup(Mesh &m, const int meshid,
@@ -1504,8 +1512,10 @@ GSOPGSLIB::~GSOPGSLIB()
 void GSOPGSLIB::UpdateIdentifiers(const Array<long long> &ids)
 {
    long long minval = ids.Min();
+#ifdef MFEM_USE_MPI
    MPI_Allreduce(MPI_IN_PLACE, &minval, 1, MPI_LONG_LONG_INT,
                  MPI_MIN, gsl_comm->c);
+#endif
    MFEM_VERIFY(minval >= 0, "Unique identifier cannot be negative.");
    if (gsl_data != NULL) { gslib_gs_free(gsl_data); }
    num_ids = ids.Size();
