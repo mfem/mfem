@@ -93,185 +93,37 @@ static void CompareMeshes(Mesh &mesh1, Mesh &mesh2)
 }
 #endif
 
-TEST_CASE("ExodusII Write Hex8", "[Mesh][ExodusII][MFEMData]")
+TEST_CASE("ExodusII Writer", "[Mesh][ExodusII][MFEMData]")
 {
 #ifdef MFEM_USE_NETCDF
-   // Load Exodus II mesh from file.
-   std::string filename = "simple-cube-hex8.e";
+   // NB: wedge, pyramid and mixed mesh tests require the ExodusII reader PR
+   // to be merged. Pyramid14 tests require the pyramid-dev branch to be merged.
+   auto filename = GENERATE("simple-cube-hex8.e",
+                            "simple-cube-hex27.e",
+                            "simple-cube-tet4.e",
+                            "simple-cube-tet10.e"//,
+                            //  "simple-cube-wedge6.e",
+                            //  "simple-cube-wedge18.e",
+                            //  "simple-cube-pyramid5.e",
+                            //  "simple-cube-pyramid14.e",
+                            //  "simple-cube-multi-element-order1.e",
+                            //  "simple-cube-multi-element-order2.e"
+                           );
+
+   // Load Exodus II mesh from file. NB: do NOT refine as this changes vertex ordering!
    Mesh original_mesh = Mesh::LoadFromFile(mfem_data_dir + "/exodusii/" + filename,
                                            0, 0, true);
 
    // Write generated Exodus II mesh to file.
-   std::string fpath_generated = "simple-cube-hex8-out.e";
-   original_mesh.PrintExodusII(fpath_generated);
+   std::string filename_generated = "generated-mesh.e";
+   original_mesh.PrintExodusII(filename_generated);
 
    // Load generated Exodus II mesh.
-   Mesh generated_mesh = Mesh::LoadFromFile(fpath_generated, 0, 0, true);
+   Mesh generated_mesh = Mesh::LoadFromFile(filename_generated, 0, 0, true);
 
    CompareMeshes(original_mesh, generated_mesh);
 
    // Remove temporary file.
-   REQUIRE(remove(fpath_generated.c_str()) == 0);
+   REQUIRE(remove(filename_generated.c_str()) == 0);
 #endif
 }
-
-TEST_CASE("ExodusII Write Hex27", "[Mesh][ExodusII][MFEMData]")
-{
-#ifdef MFEM_USE_NETCDF
-   // Load Exodus II mesh from file.
-   std::string filename = "simple-cube-hex27.e";
-   Mesh original_mesh = Mesh::LoadFromFile(mfem_data_dir + "/exodusii/" + filename,
-                                           0, 0, true);
-
-   // Write generated Exodus II mesh to file.
-   std::string fpath_generated = "simple-cube-hex27-out.e";
-   original_mesh.PrintExodusII(fpath_generated);
-
-   // Load generated Exodus II mesh.
-   Mesh generated_mesh = Mesh::LoadFromFile(fpath_generated, 0, 0, true);
-
-   CompareMeshes(original_mesh, generated_mesh);
-
-   REQUIRE(remove(fpath_generated.c_str()) == 0);
-#endif
-}
-
-TEST_CASE("ExodusII Write Tet4", "[Mesh][ExodusII][MFEMData]")
-{
-#ifdef MFEM_USE_NETCDF
-   // Load Exodus II mesh from file. NB: - Do NOT refine as this changes vertex ordering!
-   std::string filename = "simple-cube-tet4.e";
-   Mesh original_mesh = Mesh::LoadFromFile(mfem_data_dir + "/exodusii/" + filename,
-                                           0, 0, true);
-
-   // Write generated Exodus II mesh to file.
-   std::string fpath_generated = "simple-cube-tet4-out.e";
-   original_mesh.PrintExodusII(fpath_generated);
-
-   // Load generated Exodus II mesh.
-   Mesh generated_mesh = Mesh::LoadFromFile(fpath_generated, 0, 0, true);
-
-   CompareMeshes(original_mesh, generated_mesh);
-
-   REQUIRE(remove(fpath_generated.c_str()) == 0);
-#endif
-}
-
-TEST_CASE("ExodusII Write Tet10", "[Mesh][ExodusII][MFEMData]")
-{
-#ifdef MFEM_USE_NETCDF
-   // Load Exodus II mesh from file.
-   std::string filename = "simple-cube-tet10.e";
-   Mesh original_mesh = Mesh::LoadFromFile(mfem_data_dir + "/exodusii/" + filename,
-                                           0, 0, true);
-
-   // Write generated Exodus II mesh to file.
-   std::string fpath_generated = "simple-cube-tet10-out.e";
-   original_mesh.PrintExodusII(fpath_generated);
-
-   // Load generated Exodus II mesh.
-   Mesh generated_mesh = Mesh::LoadFromFile(fpath_generated, 0, 0, true);
-
-   CompareMeshes(original_mesh, generated_mesh);
-
-   REQUIRE(remove(fpath_generated.c_str()) == 0);
-#endif
-}
-
-// TEST_CASE("ExodusII Write Wedge6", "[Mesh][ExodusII][MFEMData]")
-// {
-// #ifdef MFEM_USE_NETCDF
-//    std::string filename = "simple-cube-wedge6.e";
-//    Mesh original_mesh = Mesh::LoadFromFile(mfem_data_dir + "/exodusii/" + filename, 0, 0, true);
-
-//    std::string fpath_generated = "simple-cube-wedge6-out.e";
-//    original_mesh.PrintExodusII(fpath_generated);
-
-//    Mesh generated_mesh = Mesh::LoadFromFile(fpath_generated, 0, 0, true);
-//    CompareMeshes(original_mesh, generated_mesh);
-//
-//    REQUIRE(remove(fpath_generated.c_str()) == 0);
-// #endif
-// }
-
-// TEST_CASE("ExodusII Write Wedge18", "[Mesh][ExodusII][MFEMData]")
-// {
-// #ifdef MFEM_USE_NETCDF
-//    std::string filename = "simple-cube-wedge18.e";
-//    Mesh original_mesh = Mesh::LoadFromFile(mfem_data_dir + "/exodusii/" + filename, 0, 0, true);
-
-//    std::string fpath_generated = "simple-cube-wedge18-out.e";
-//    original_mesh.PrintExodusII(fpath_generated);
-
-//    Mesh generated_mesh = Mesh::LoadFromFile(fpath_generated, 0, 0, true);
-//    CompareMeshes(original_mesh, generated_mesh);
-
-//    REQUIRE(remove(fpath_generated.c_str()) == 0);
-// #endif
-// }
-
-// TEST_CASE("ExodusII Write Pyramid5", "[Mesh][ExodusII][MFEMData]")
-// {
-// #ifdef MFEM_USE_NETCDF
-//    std::string filename = "simple-cube-pyramid5.e";
-//    Mesh original_mesh = Mesh::LoadFromFile(mfem_data_dir + "/exodusii/" + filename, 0, 0, true);
-
-//    std::string fpath_generated = "simple-cube-pyramid5-out.e";
-//    original_mesh.PrintExodusII(fpath_generated);
-
-//    Mesh generated_mesh = Mesh::LoadFromFile(fpath_generated, 0, 0, true);
-//    CompareMeshes(original_mesh, generated_mesh);
-
-//    REQUIRE(remove(fpath_generated.c_str()) == 0);
-// #endif
-// }
-
-// TEST_CASE("ExodusII Write Pyramid14", "[Mesh][ExodusII][MFEMData]")
-// {
-// #ifdef MFEM_USE_NETCDF
-//    std::string filename = "simple-cube-pyramid14.e";
-//    Mesh original_mesh = Mesh::LoadFromFile(mfem_data_dir + "/exodusii/" + filename, 0, 0, true);
-
-//    std::string fpath_generated = "simple-cube-pyramid14-out.e";
-//    original_mesh.PrintExodusII(fpath_generated);
-
-//    Mesh generated_mesh = Mesh::LoadFromFile(fpath_generated, 0, 0, true);
-//    CompareMeshes(original_mesh, generated_mesh);
-
-//    REQUIRE(remove(fpath_generated.c_str()) == 0);
-// #endif
-// }
-
-// TEST_CASE("ExodusII Write Mixed First-Order", "[Mesh][ExodusII][MFEMData]")
-// {
-// #ifdef MFEM_USE_NETCDF
-//    // Contains Hex8, Tet4, Wedge6, Pyramid5 elements.
-//    std::string filename = "simple-cube-multi-element-order1.e";
-//    Mesh original_mesh = Mesh::LoadFromFile(mfem_data_dir + "/exodusii/" + filename, 0, 0, true);
-
-//    std::string fpath_generated = "simple-cube-multi-element-order1-out.e";
-//    original_mesh.PrintExodusII(fpath_generated);
-
-//    Mesh generated_mesh = Mesh::LoadFromFile(fpath_generated, 0, 0, true);
-//    CompareMeshes(original_mesh, generated_mesh);
-
-//    REQUIRE(remove(fpath_generated.c_str()) == 0);
-// #endif
-// }
-
-// TEST_CASE("ExodusII Write Mixed Second-Order", "[Mesh][ExodusII][MFEMData]")
-// {
-// #ifdef MFEM_USE_NETCDF
-//    // Contains Hex27 and Tet10 elements.
-//    std::string filename = "simple-cube-multi-element-order2.e";
-//    Mesh original_mesh = Mesh::LoadFromFile(mfem_data_dir + "/exodusii/" + filename, 0, 0, true);
-
-//    std::string fpath_generated = "simple-cube-multi-element-order2-out.e";
-//    original_mesh.PrintExodusII(fpath_generated);
-
-//    Mesh generated_mesh = Mesh::LoadFromFile(fpath_generated, 0, 0, true);
-//    CompareMeshes(original_mesh, generated_mesh);
-
-//    REQUIRE(remove(fpath_generated.c_str()) == 0);
-// #endif
-// }
