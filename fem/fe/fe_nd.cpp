@@ -1609,8 +1609,8 @@ ND_FuentesPyramidElement::ND_FuentesPyramidElement(const int p,
    tmp_dE_Q1_ijk.SetSize(p, p + 1, dim);
    tmp_E_Q2_ijk.SetSize(p, p + 1, dim);
    tmp_dE_Q2_ijk.SetSize(p, p + 1, dim);
-   tmp_E_T_ijk.SetSize(p, p + 1, dim);
-   tmp_dE_T_ijk.SetSize(p, p + 1, dim);
+   tmp_E_T_ijk.SetSize(p - 1, p, dim);
+   tmp_dE_T_ijk.SetSize(p - 1, p, dim);
    tmp_phi_Q1_ij.SetSize(p + 1, p + 1);
    tmp_dphi_Q1_ij.SetSize(p + 1, p + 1, dim);
    tmp_phi_Q2_ij.SetSize(p + 1, p + 1);
@@ -1625,8 +1625,8 @@ ND_FuentesPyramidElement::ND_FuentesPyramidElement(const int p,
    DenseTensor tmp_dE_Q1_ijk(p, p + 1, dim);
    DenseTensor tmp_E_Q2_ijk(p, p + 1, dim);
    DenseTensor tmp_dE_Q2_ijk(p, p + 1, dim);
-   DenseTensor tmp_E_T_ijk(p, p + 1, dim);
-   DenseTensor tmp_dE_T_ijk(p, p + 1, dim);
+   DenseTensor tmp_E_T_ijk(p - 1, p, dim);
+   DenseTensor tmp_dE_T_ijk(p - 1, p, dim);
    DenseMatrix tmp_phi_Q1_ij(p + 1, p + 1);
    DenseTensor tmp_dphi_Q1_ij(p + 1, p + 1, dim);
    DenseMatrix tmp_phi_Q2_ij(p + 1, p + 1);
@@ -1721,10 +1721,10 @@ ND_FuentesPyramidElement::ND_FuentesPyramidElement(const int p,
          real_t w = top[i] + top[j] + top[pm2-i-j];
          Nodes.IntPoint(o).Set3(1. - top[i]/w - top[j]/w, 1. - top[j]/w,
                                 top[j]/w);
-         dof2tk[o++] = 1;
+         dof2tk[o++] = 6;
          Nodes.IntPoint(o).Set3(1. - top[i]/w - top[j]/w, 1. - top[j]/w,
                                 top[j]/w);
-         dof2tk[o++] = 3;
+         dof2tk[o++] = 4;
       }
    for (int j = 0; j <= pm2; j++)  // (3, 0, 4)
       for (int i = 0; i + j <= pm2; i++)
@@ -1790,7 +1790,7 @@ void ND_FuentesPyramidElement::CalcVShape(const IntegrationPoint &ip,
    DenseMatrix tmp_E_E_ij(p, dim);
    DenseTensor tmp_E_Q1_ijk(p, p + 1, dim);
    DenseTensor tmp_E_Q2_ijk(p, p + 1, dim);
-   DenseTensor tmp_E_T_ijk(p, p + 1, dim);
+   DenseTensor tmp_E_T_ijk(p - 1, p, dim);
    DenseMatrix tmp_phi_Q1_ij(p + 1, p + 1);
    DenseTensor tmp_dphi_Q1_ij(p + 1, p + 1, dim);
    DenseMatrix tmp_phi_Q2_ij(p + 1, p + 1);
@@ -1818,8 +1818,8 @@ void ND_FuentesPyramidElement::CalcCurlShape(const IntegrationPoint &ip,
    DenseTensor tmp_dE_Q1_ijk(p, p + 1, dim);
    DenseTensor tmp_E_Q2_ijk(p, p + 1, dim);
    DenseTensor tmp_dE_Q2_ijk(p, p + 1, dim);
-   DenseTensor tmp_E_T_ijk(p, p + 1, dim);
-   DenseTensor tmp_dE_T_ijk(p, p + 1, dim);
+   DenseTensor tmp_E_T_ijk(p - 1, p, dim);
+   DenseTensor tmp_dE_T_ijk(p - 1, p, dim);
    DenseMatrix tmp_phi_Q2_ij(p + 1, p + 1);
    DenseTensor tmp_dphi_Q2_ij(p + 1, p + 1, dim);
    Vector      tmp_phi_E_i(p + 1);
@@ -1844,7 +1844,7 @@ void ND_FuentesPyramidElement::CalcRawVShape(const IntegrationPoint &ip,
    DenseMatrix tmp_E_E_ij(p, dim);
    DenseTensor tmp_E_Q1_ijk(p, p + 1, dim);
    DenseTensor tmp_E_Q2_ijk(p, p + 1, dim);
-   DenseTensor tmp_E_T_ijk(p, p + 1, dim);
+   DenseTensor tmp_E_T_ijk(p - 1, p, dim);
    DenseMatrix tmp_phi_Q1_ij(p + 1, p + 1);
    DenseTensor tmp_dphi_Q1_ij(p + 1, p + 1, dim);
    DenseMatrix tmp_phi_Q2_ij(p + 1, p + 1);
@@ -1869,8 +1869,8 @@ void ND_FuentesPyramidElement::CalcRawCurlShape(const IntegrationPoint &ip,
    DenseTensor tmp_dE_Q1_ijk(p, p + 1, dim);
    DenseTensor tmp_E_Q2_ijk(p, p + 1, dim);
    DenseTensor tmp_dE_Q2_ijk(p, p + 1, dim);
-   DenseTensor tmp_E_T_ijk(p, p + 1, dim);
-   DenseTensor tmp_dE_T_ijk(p, p + 1, dim);
+   DenseTensor tmp_E_T_ijk(p - 1, p, dim);
+   DenseTensor tmp_dE_T_ijk(p - 1, p, dim);
    DenseMatrix tmp_phi_Q2_ij(p + 1, p + 1);
    DenseTensor tmp_dphi_Q2_ij(p + 1, p + 1, dim);
    Vector      tmp_phi_E_i(p + 1);
@@ -1977,7 +1977,7 @@ void ND_FuentesPyramidElement::calcBasis(const int p,
    }
 
    // Quadrilateral Face
-   if (z < 1.0)
+   if (z < 1.0 && p >= 2)
    {
       mu = mu0(z);
       mu2 = mu * mu;
@@ -2004,7 +2004,7 @@ void ND_FuentesPyramidElement::calcBasis(const int p,
    }
 
    // Triangular Faces
-   if (z < 1.0)
+   if (z < 1.0 && p >= 2)
    {
       // Family I
       // (a, b) = (1, 2), c = 0
@@ -2086,7 +2086,7 @@ void ND_FuentesPyramidElement::calcBasis(const int p,
    }
 
    // Interior
-   if (z < 1.0)
+   if (z < 1.0 && p >= 2)
    {
       // Family I
       phi_Q(p, mu01(z, xy, 1), grad_mu01(z, xy, 1), mu01(z, xy, 2),
@@ -2254,7 +2254,7 @@ void ND_FuentesPyramidElement::calcCurlBasis(const int p,
    }
 
    // Quadrilateral Face
-   if (z < 1.0)
+   if (z < 1.0 && p >= 2)
    {
       mu = mu0(z);
       mu2 = mu * mu;
@@ -2294,7 +2294,7 @@ void ND_FuentesPyramidElement::calcCurlBasis(const int p,
    }
 
    // Triangular Faces
-   if (z < 1.0)
+   if (z < 1.0 && p >= 2)
    {
       // Family I
       // (a, b) = (1, 2), c = 0
@@ -2432,7 +2432,7 @@ void ND_FuentesPyramidElement::calcCurlBasis(const int p,
    }
 
    // Interior
-   if (z < 1.0)
+   if (z < 1.0 && p >= 2)
    {
       // Family I
       // Curl is zero so skip these functions
