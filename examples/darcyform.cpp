@@ -271,6 +271,57 @@ void DarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
                                  BlockVector &x, BlockVector &b, OperatorHandle &A, Vector &X_, Vector &B_,
                                  int copy_interior)
 {
+   if (assembly != AssemblyLevel::LEGACY)
+   {
+      Array<int> ess_pot_tdof_list;//empty for discontinuous potentials
+
+      //conforming
+
+      if (M_u)
+      {
+         M_u->FormLinearSystem(ess_flux_tdof_list, x.GetBlock(0), b.GetBlock(0), pM_u,
+                               X_, B_, copy_interior);
+         block_op->SetDiagonalBlock(0, pM_u.Ptr());
+      }
+
+      if (M_p)
+      {
+         M_p->FormLinearSystem(ess_pot_tdof_list, x.GetBlock(1), b.GetBlock(1), pM_p, X_,
+                               B_, copy_interior);
+         block_op->SetDiagonalBlock(1, pM_p.Ptr(), (bsym)?(-1.):(+1.));
+      }
+
+      if (B)
+      {
+         if (bsym)
+         {
+            //In the case of the symmetrized system, the sign is oppposite!
+            Vector b_(fes_p->GetVSize());
+            b_ = 0.;
+            B->FormRectangularLinearSystem(ess_flux_tdof_list, ess_pot_tdof_list,
+                                           x.GetBlock(0), b_, pB, X_, B_);
+            b.GetBlock(1) -= b_;
+         }
+         else
+         {
+            B->FormRectangularLinearSystem(ess_flux_tdof_list, ess_pot_tdof_list,
+                                           x.GetBlock(0), b.GetBlock(1), pB, X_, B_);
+         }
+
+         ConstructBT(pB.Ptr());
+
+         block_op->SetBlock(0, 1, pBt.Ptr(), -1.);
+         block_op->SetBlock(1, 0, pB.Ptr(), (bsym)?(-1.):(+1.));
+      }
+
+      A.Reset(block_op, false);
+
+      X_.MakeRef(x, 0, x.Size());
+      B_.MakeRef(b, 0, b.Size());
+
+      return;
+   }
+
    FormSystemMatrix(ess_flux_tdof_list, A);
 
    //conforming
@@ -374,25 +425,17 @@ void DarcyForm::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
    if (B)
    {
-      if (assembly != AssemblyLevel::LEGACY && assembly != AssemblyLevel::FULL)
+      if (bsym)
       {
-         //TODO
-         MFEM_ABORT("");
+         //In the case of the symmetrized system, the sign is oppposite!
+         Vector b_(fes_p->GetVSize());
+         b_ = 0.;
+         B->EliminateTrialVDofsInRHS(vdofs_flux, x.GetBlock(0), b_);
+         b.GetBlock(1) -= b_;
       }
       else
       {
-         if (bsym)
-         {
-            //In the case of the symmetrized system, the sign is oppposite!
-            Vector b_(fes_p->GetVSize());
-            b_ = 0.;
-            B->EliminateTrialVDofsInRHS(vdofs_flux, x.GetBlock(0), b_);
-            b.GetBlock(1) -= b_;
-         }
-         else
-         {
-            B->EliminateTrialVDofsInRHS(vdofs_flux, x.GetBlock(0), b.GetBlock(1));
-         }
+         B->EliminateTrialVDofsInRHS(vdofs_flux, x.GetBlock(0), b.GetBlock(1));
       }
    }
    if (M_u)
