@@ -1035,7 +1035,7 @@ void ExodusIIWriter::GenerateExodusIIBoundaryInfo()
    }
 
    boundary_ids.assign(unique_boundary_attributes.begin(),
-                        unique_boundary_attributes.end());
+                       unique_boundary_attributes.end());
    std::sort(boundary_ids.begin(), boundary_ids.end());
 }
 
