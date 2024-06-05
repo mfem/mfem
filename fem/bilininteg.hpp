@@ -127,6 +127,16 @@ public:
                                         Vector &ea_data_ext,
                                         const bool add = true);
 
+   /// @brief Method defining element assembly for mixed trace integrators.
+   ///
+   /// This is the element assembly analogue of AssembleFaceMatrix(const
+   /// FiniteElement&, const FiniteElement&, const FiniteElement&,
+   /// FaceElementTransformations&, DenseMatrix&).
+   virtual void AssembleEAInteriorFaces(const FiniteElementSpace &trial_fes,
+                                        const FiniteElementSpace &test_fes,
+                                        Vector &emat,
+                                        const bool add = true);
+
    virtual void AssembleEABoundaryFaces(const FiniteElementSpace &fes,
                                         Vector &ea_data_bdr,
                                         const bool add = true);

@@ -82,6 +82,16 @@ void BilinearFormIntegrator::AssembleEAInteriorFaces(const FiniteElementSpace
               "   is not implemented for this class.");
 }
 
+void BilinearFormIntegrator::AssembleEAInteriorFaces(
+   const FiniteElementSpace &trial_fes,
+   const FiniteElementSpace &test_fes,
+   Vector &emat,
+   const bool add)
+{
+   MFEM_ABORT("BilinearFormIntegrator::AssembleEAInteriorFaces(...)\n"
+              "   is not implemented for this class.");
+}
+
 void BilinearFormIntegrator::AssembleEABoundaryFaces(const FiniteElementSpace
                                                      &fes,
                                                      Vector &ea_data_bdr,
