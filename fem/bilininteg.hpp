@@ -3791,6 +3791,25 @@ public:
                            DenseMatrix &elmat) override;
 };
 
+/** Integrator for the form:$ \langle v, [w \times n] \rangle $ over all faces (the interface) where
+    the trial variable $v$ is defined on the interface and the test variable $w$ is
+    in an $H(curl)$-conforming space. */
+class TangentTraceJumpIntegrator : public BilinearFormIntegrator
+{
+private:
+   Vector face_shape, hat_tau, shape1_n, shape2_n;
+   DenseMatrix shape1, shape2;
+
+public:
+   TangentTraceJumpIntegrator() { }
+   using BilinearFormIntegrator::AssembleFaceMatrix;
+   virtual void AssembleFaceMatrix(const FiniteElement &trial_face_fe,
+                                   const FiniteElement &test_fe1,
+                                   const FiniteElement &test_fe2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
+};
+
 /** Integrator for the DPG form:$ \langle v, w \rangle $ over a face (the interface) where
     the trial variable $v$ is defined on the interface
     ($H^{-1/2}$ i.e., $v := u \cdot n$ normal trace of $H(div)$)
