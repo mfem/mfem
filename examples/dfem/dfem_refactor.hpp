@@ -18,6 +18,8 @@
 
 #include <enzyme/enzyme>
 
+// int enzyme_dup;
+
 using std::size_t;
 
 namespace mfem
@@ -378,7 +380,7 @@ void prepare_kf_arg(const DeviceTensor<1> &u, double &arg) { arg = u(0); }
 
 template <typename T, int length>
 void prepare_kf_arg(const DeviceTensor<1> &u,
-                    mfem::internal::tensor<T, length> &arg)
+                    internal::tensor<T, length> &arg)
 {
    for (int i = 0; i < u.GetShape()[0]; i++)
    {
@@ -386,9 +388,9 @@ void prepare_kf_arg(const DeviceTensor<1> &u,
    }
 }
 
-template <typename T, int dim, int vdim>
+template <int dim, int vdim>
 void prepare_kf_arg(const DeviceTensor<1> &u,
-                    mfem::internal::tensor<T, dim, vdim> &arg)
+                    internal::tensor<double, dim, vdim> &arg)
 {
    for (int i = 0; i < vdim; i++)
    {
@@ -410,22 +412,6 @@ template <size_t num_fields, typename kf_args, std::size_t... i>
 void prepare_kf_args(std::array<DeviceTensor<2>, num_fields> &u,
                      kf_args &args, int qp, std::index_sequence<i...>)
 {
-   // we have several options here
-   // - reinterpret_cast
-   // - memcpy (copy data of u -> arg with overloading operator= for example)
-   // for (int j = 0; j < num_fields; j++)
-   // {
-   //    auto [M, N] = u[j].GetShape();
-   //    for (int m = 0; m < M; m++)
-   //    {
-   //       for (int n = 0; n < N; n++)
-   //       {
-   //          out << u[j](m, n) << " ";
-   //       }
-   //    }
-   //    out << "\n";
-   // }
-   // out << "\n";
    (prepare_kf_arg(u[i], std::get<i>(args), qp), ...);
 }
 
@@ -441,8 +427,8 @@ Vector prepare_kf_result(std::tuple<Vector> x)
    return std::get<0>(x);
 }
 
-template <int length>
-Vector prepare_kf_result(std::tuple<mfem::internal::tensor<double, length>> x)
+template <typename T, int length>
+Vector prepare_kf_result(std::tuple<internal::tensor<double, length>> x)
 {
    Vector r(length);
    for (size_t i = 0; i < length; i++)
@@ -452,7 +438,20 @@ Vector prepare_kf_result(std::tuple<mfem::internal::tensor<double, length>> x)
    return r;
 }
 
-Vector prepare_kf_result(std::tuple<mfem::internal::tensor<double, 2, 2>> x)
+template <typename T, int length>
+Vector prepare_kf_result(
+   std::tuple<internal::tensor<internal::dual<T, T>, length>> x)
+{
+   Vector r(length);
+   for (size_t i = 0; i < length; i++)
+   {
+      r(i) = std::get<0>(x)(i).value;
+   }
+   return r;
+}
+
+template <typename T>
+Vector prepare_kf_result(std::tuple<internal::tensor<T, 2, 2>> x)
 {
    Vector r(4);
    for (size_t i = 0; i < 2; i++)
@@ -462,6 +461,50 @@ Vector prepare_kf_result(std::tuple<mfem::internal::tensor<double, 2, 2>> x)
          // TODO: Careful with the indices here!
          r(j + (i * 2)) = std::get<0>(x)(j, i);
       }
+   }
+   return r;
+}
+
+template <typename T>
+Vector prepare_kf_result(std::tuple<internal::dual<T, T>> x)
+{
+   Vector r(1);
+   r(0) = std::get<0>(x).value;
+   return r;
+}
+
+template <typename T>
+Vector get_derivative_from_dual(std::tuple<internal::dual<T, T>> x)
+{
+   Vector r(1);
+   r(0) = std::get<0>(x).gradient;
+   return r;
+}
+
+template <typename T>
+Vector get_derivative_from_dual(
+   std::tuple<internal::tensor<internal::dual<T, T>, 2, 2>> x)
+{
+   Vector r(4);
+   for (size_t i = 0; i < 2; i++)
+   {
+      for (size_t j = 0; j < 2; j++)
+      {
+         // TODO: Careful with the indices here!
+         r(j + (i * 2)) = std::get<0>(x)(j, i).gradient;
+      }
+   }
+   return r;
+}
+
+template <typename T, int length>
+Vector get_derivative_from_dual(
+   std::tuple<internal::tensor<internal::dual<T, T>, length>> x)
+{
+   Vector r(length);
+   for (size_t i = 0; i < length; i++)
+   {
+      r(i) = std::get<0>(x)(i).gradient;
    }
    return r;
 }
@@ -489,8 +532,9 @@ auto apply_kernel(const kernel_func_t &kf, kernel_args &args,
 //                         arg_ts &shadow_args,
 //                         std::index_sequence<Is...>)
 // {
-//    return std::tuple_cat(std::make_tuple(enzyme_dup, std::get<Is>(args),
-//                                          std::get<Is>(shadow_args))...);
+//    (out << ... << std::get<Is>(shadow_args));
+//    return std::tuple_cat(std::tie(enzyme_dup, std::get<Is>(args),
+//                                   std::get<Is>(shadow_args))...);
 // }
 
 template <typename arg_ts, std::size_t... Is>
@@ -498,9 +542,12 @@ auto create_enzyme_args(arg_ts &args,
                         arg_ts &shadow_args,
                         std::index_sequence<Is...>)
 {
-   // (out << ... << std::get<Is>(shadow_args));
-   return std::tuple_cat(std::make_tuple(
-                            enzyme::Duplicated<std::remove_cv_t<std::remove_reference_t<decltype(std::get<Is>(args))>>*> {&std::get<Is>(args), &std::get<Is>(shadow_args)})...);
+   // return std::tuple_cat(std::make_tuple(
+   //                          enzyme::Duplicated<std::remove_cv_t<std::remove_reference_t<decltype(std::get<Is>(args))>>*> {&std::get<Is>(args), &std::get<Is>(shadow_args)})...);
+   return std::tuple<enzyme::Duplicated<decltype(std::get<Is>(args))>...>
+   {
+      { std::get<Is>(args), std::get<Is>(shadow_args) }...
+   };
 }
 
 template <typename kernel_t, typename arg_ts>
@@ -510,22 +557,21 @@ auto fwddiff_apply_enzyme(kernel_t kernel, arg_ts &&args, arg_ts &&shadow_args)
       std::make_index_sequence<std::tuple_size_v<std::remove_reference_t<arg_ts>>> {};
 
    auto enzyme_args = create_enzyme_args(args, shadow_args, arg_indices);
-   // out << "arg_ts is " << get_type_name<decltype(args)>() << "\n\n";
-   // out << "return type is " << get_type_name<decltype(enzyme_args)>() << "\n\n";
+
+   using kf_return_t = typename create_function_signature<
+                       decltype(&kernel_t::operator())>::type::return_t;
+
+   // out << "args is " << get_type_name<decltype(args)>() << "\n\n";
+   // out << "enzyme_args type is " << get_type_name<decltype(enzyme_args)>() <<
+   //     "\n\n";
+   // out << "return type is " << get_type_name<decltype(kf_return_t{})>() <<
+   //     "\n\n";
 
    return std::apply([&](auto &&...args)
    {
-      using kf_return_t = typename create_function_signature<
-                          decltype(&kernel_t::operator())>::type::return_t;
-
-#ifdef MFEM_USE_ENZYME
-      // return __enzyme_fwddiff<kernel_return_t>((void *)+kernel, args...);
-      return enzyme::get<0>(
-                enzyme::autodiff<enzyme::Forward, enzyme::DuplicatedNoNeed<kf_return_t>>
-                (+kernel, args...));
-#else
-      return 0;
-#endif
+      // return __enzyme_fwddiff<kf_return_t>(+kernel, args...);
+      return enzyme::get<0>( enzyme::autodiff<enzyme::Forward> (+kernel, args...));
+      // return std::tuple{Vector(0.0)};
    },
    enzyme_args);
 }
@@ -546,6 +592,127 @@ auto apply_kernel_fwddiff_enzyme(const kf_t &kf,
 
    return prepare_kf_result(fwddiff_apply_enzyme(kf, args, shadow_args));
 }
+
+template <typename T>
+void prepare_kf_arg(const DeviceTensor<1> &u, const DeviceTensor<1> &v,
+                    double &arg)
+{
+   arg = u(0);
+}
+
+template <typename T, int dim, int vdim>
+void prepare_kf_arg(const DeviceTensor<1> &u,
+                    internal::tensor<internal::dual<T, T>, dim, vdim> &arg)
+{
+   for (int i = 0; i < vdim; i++)
+   {
+      for (int j = 0; j < dim; j++)
+      {
+         arg(j, i).value = u((i * vdim) + j);
+      }
+   }
+}
+
+template <typename T>
+void prepare_kf_arg(const DeviceTensor<1> &u,
+                    internal::dual<T, T> &arg)
+{
+   arg.value = u(0);
+}
+
+template <typename T>
+void prepare_kf_arg(const DeviceTensor<1> &u, const DeviceTensor<1> &v, T &arg)
+{
+   arg = u(0);
+}
+
+template <typename T>
+void prepare_kf_arg(const DeviceTensor<1> &u, const DeviceTensor<1> &v,
+                    internal::dual<T, T> &arg)
+{
+   arg.value = u(0);
+   arg.gradient = v(0);
+}
+
+template <typename T, int length>
+void prepare_kf_arg(const DeviceTensor<1> &u, const DeviceTensor<1> &v,
+                    internal::tensor<internal::dual<T, T>, length> &arg)
+{
+   for (int i = 0; i < u.GetShape()[0]; i++)
+   {
+      arg(i).value = u(i);
+      arg(i).gradient = v(i);
+   }
+}
+
+
+template <int dim, int vdim>
+void prepare_kf_arg(const DeviceTensor<1> &u, const DeviceTensor<1> &v,
+                    internal::tensor<double, dim, vdim> &arg)
+{
+   for (int i = 0; i < vdim; i++)
+   {
+      for (int j = 0; j < dim; j++)
+      {
+         arg(j, i) = u((i * vdim) + j);
+      }
+   }
+}
+
+template <typename T, int dim, int vdim>
+void prepare_kf_arg(const DeviceTensor<1> &u, const DeviceTensor<1> &v,
+                    internal::tensor<internal::dual<T, T>, dim, vdim> &arg)
+{
+   for (int i = 0; i < vdim; i++)
+   {
+      for (int j = 0; j < dim; j++)
+      {
+         arg(j, i).value = u((i * vdim) + j);
+         arg(j, i).gradient = v((i * vdim) + j);
+      }
+   }
+}
+
+template <typename arg_type>
+void prepare_kf_arg(const DeviceTensor<2> &u, const DeviceTensor<2> &v,
+                    arg_type &arg, int qp)
+{
+   const auto u_qp = Reshape(&u(0, qp), u.GetShape()[0]);
+   const auto v_qp = Reshape(&v(0, qp), v.GetShape()[0]);
+   prepare_kf_arg(u_qp, v_qp, arg);
+}
+
+template <size_t num_fields, typename kf_args, std::size_t... i>
+void prepare_kf_args(std::array<DeviceTensor<2>, num_fields> &u,
+                     std::array<DeviceTensor<2>, num_fields> &v,
+                     kf_args &args, int qp, std::index_sequence<i...>)
+{
+   (prepare_kf_arg(u[i], v[i], std::get<i>(args), qp), ...);
+}
+
+template <typename kernel_t, typename arg_ts>
+auto fwddiff_apply_dual(kernel_t kernel, arg_ts &&args)
+{
+   return std::apply([&](auto &&...args)
+   {
+      return kernel(args...);
+   },
+   args);
+}
+
+template <typename kf_t, typename kernel_arg_ts, size_t num_args>
+auto apply_kernel_fwddiff_dual(const kf_t &kf,
+                               kernel_arg_ts &args,
+                               std::array<DeviceTensor<2>, num_args> &u,
+                               std::array<DeviceTensor<2>, num_args> &v,
+                               int qp)
+{
+   prepare_kf_args(u, v, args, qp,
+                   std::make_index_sequence<std::tuple_size_v<kernel_arg_ts>> {});
+
+   return get_derivative_from_dual(fwddiff_apply_dual(kf, args));
+}
+
 
 template <typename output_type>
 void map_quadrature_data_to_fields(DeviceTensor<2, double> y,
@@ -596,9 +763,9 @@ void map_quadrature_data_to_fields(DeviceTensor<2, double> y,
    {
       // This is the "integral over all quadrature points type" applying
       // B = 1 s.t. B^T * C \in R^1.
-      auto [vdim, dim, num_qp] = c.GetShape();
-      auto cc = Reshape(&c(0, 0, 0), vdim * dim * num_qp);
-      for (int i = 0; i < vdim * dim * num_qp; i++)
+      auto [__, _, num_qp] = c.GetShape();
+      auto cc = Reshape(&c(0, 0, 0), num_qp);
+      for (int i = 0; i < num_qp; i++)
       {
          y(0, 0) += cc(i);
       }
@@ -787,11 +954,18 @@ public:
          }
 
          // G
+         // if constexpr (std::is_same_v<OperatesOn, OperatesOnElement>)
+         // {
          element_restriction(op.solutions, solutions_l, fields_e,
                              op.element_dof_ordering);
          element_restriction(op.parameters, parameters_l, fields_e,
                              op.element_dof_ordering,
                              op.solutions.size());
+         // }
+         // else
+         // {
+         //    MFEM_ABORT("restriction not implemented for OperatesOn");
+         // }
 
          // TODO-multvar: doesn't work for multiple solution variables
          directions[0] = op.fields[derivative_idx];
@@ -816,23 +990,33 @@ public:
 
          prolongation(directions, current_directions_t, directions_l);
 
-         // element_restriction(directions, directions_l, directions_e,
-         //                     op.element_dof_ordering, derivative_idx);
-
          derivative_action_e = 0.0;
          for (const auto &f : funcs)
          {
             f(derivative_action_e);
          }
 
-         // element_restriction_transpose(derivative_action_e, derivative_action_l);
-
          prolongation_transpose(derivative_action_l, y);
 
          y.SetSubVector(op.ess_tdof_list, 0.0);
       }
 
-      void Assemble(Vector &v) {}
+      template <typename kernel_t>
+      void assemble_vector_impl(kernel_t kernel, Vector &v);
+
+      template<std::size_t... idx>
+      void assemble_vector(
+         kernels_tuple &ks,
+         Vector &v,
+         std::index_sequence<idx...> const&)
+      {
+         (assemble_vector_impl(std::get<idx>(ks), v), ...);
+      }
+
+      void Assemble(Vector &v)
+      {
+         assemble_vector(ks, v, std::make_index_sequence<num_kernels>());
+      }
 
       template <typename kernel_t>
       void assemble_hypreparmatrix_impl(kernel_t kernel, HypreParMatrix &A);
@@ -967,6 +1151,7 @@ public:
 
 #include "dfem_action_callback.icc"
 #include "dfem_derivative_callback.icc"
+#include "dfem_assemble_vector.icc"
 #include "dfem_assemble_hypreparmatrix.icc"
 
 }

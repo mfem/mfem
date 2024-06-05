@@ -466,7 +466,11 @@ void CheckCompatibility(const FieldDescriptor &f)
       if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
                     std::is_same_v<T, const ParFiniteElementSpace *>)
       {
-         if constexpr (std::is_same_v<field_operator_t, Value>)
+         if constexpr (std::is_same_v<field_operator_t, One>)
+         {
+            // Supported by all FE spaces
+         }
+         else if constexpr (std::is_same_v<field_operator_t, Value>)
          {
             // Supported by all FE spaces
          }

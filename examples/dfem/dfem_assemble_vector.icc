@@ -15,8 +15,8 @@ void DifferentiableOperator<kernels_tuple,
      num_solutions,
      num_parameters,
      num_fields,
-     num_kernels>::Derivative<derivative_idx>::assemble_hypreparmatrix_impl(
-        kernel_t kernel, HypreParMatrix &A)
+     num_kernels>::Derivative<derivative_idx>::assemble_vector_impl(
+        kernel_t kernel, Vector &v)
 {
    using OperatesOn = typename kernel_t::OperatesOn;
 
@@ -132,14 +132,17 @@ void DifferentiableOperator<kernels_tuple,
 
    const int num_trial_dof = dependent_input_dtq_ops[0].GetShape()[2];
    int trial_vdim = 0;
+   int dependent_field_idx = -1;
    for (int i = 0; i < kinput_is_dependent.size(); i++)
    {
       if (kinput_is_dependent[i])
       {
-         trial_vdim = GetVDim(op.fields[kinput_to_field[i]]);
+         dependent_field_idx = kinput_to_field[i];
          break;
       }
    }
+
+   trial_vdim = GetVDim(op.fields[dependent_field_idx]);
 
    // All trial operators dimensions accumulated
    int total_trial_op_dim = 0;
@@ -148,18 +151,11 @@ void DifferentiableOperator<kernels_tuple,
       total_trial_op_dim += dependent_input_dtq_ops[s].GetShape()[1];
    }
 
-   Vector a_qp_mem(test_vdim * test_op_dim * trial_vdim * total_trial_op_dim *
-                   num_qp *
-                   num_el);
-   const auto a_qp = Reshape(a_qp_mem.ReadWrite(), test_vdim, test_op_dim,
-                             trial_vdim, total_trial_op_dim, num_qp,
-                             num_el);
-
-   Vector Ae_mem(num_test_dof * test_vdim * num_trial_dof * trial_vdim * num_el);
-   Ae_mem = 0.0;
-
-   auto A_e = Reshape(Ae_mem.ReadWrite(), num_test_dof, test_vdim, num_trial_dof,
-                      trial_vdim, num_el);
+   Vector a_qp_mem(trial_vdim * total_trial_op_dim * num_qp * num_el);
+   const auto a_qp = Reshape(a_qp_mem.ReadWrite(), trial_vdim,
+                             total_trial_op_dim, num_qp, num_el);
+   Vector ve_mem(num_trial_dof * trial_vdim * num_el);
+   ve_mem = 0.0;
 
    for (int e = 0; e < num_el; e++)
    {
@@ -183,13 +179,6 @@ void DifferentiableOperator<kernels_tuple,
                for (int m = 0; m < trial_op_dim; m++)
                {
                   d_qp(j, m, q) = 1.0;
-                  // Vector f_qp = apply_kernel_fwddiff_enzyme(
-                  //                  kernel.func,
-                  //                  kernel_args,
-                  //                  input_qp,
-                  //                  kernel_shadow_args,
-                  //                  directions_qp,
-                  //                  q);
                   Vector f_qp = apply_kernel_fwddiff_dual(
                                    kernel.func,
                                    kernel_args,
@@ -198,28 +187,19 @@ void DifferentiableOperator<kernels_tuple,
                                    q);
                   d_qp(j, m, q) = 0.0;
 
-                  auto f = Reshape(f_qp.Read(), test_vdim, test_op_dim);
-
-                  for (int i = 0; i < test_vdim; i++)
-                  {
-                     for (int k = 0; k < test_op_dim; k++)
-                     {
-                        a_qp(i, k, j, m + m_offset, q, e) = f(i, k);
-                     }
-                  }
+                  auto f = Reshape(f_qp.Read(), test_vdim);
+                  a_qp(j, m + m_offset, q, e) = f(0);
                }
                m_offset += trial_op_dim;
             }
          }
       }
 
-      Vector fhat_mem(test_op_dim * num_qp * dimension);
-      auto fhat = Reshape(fhat_mem.ReadWrite(), test_vdim, test_op_dim, num_qp);
+      auto shat = Reshape(ve_mem.ReadWrite(), num_trial_dof, trial_vdim, num_el);
       for (int J = 0; J < num_trial_dof; J++)
       {
          for (int j = 0; j < trial_vdim; j++)
          {
-            fhat_mem = 0.0;
             size_t m_offset = 0;
             for (int s = 0; s < dependent_input_dtq_ops.size(); s++)
             {
@@ -227,83 +207,21 @@ void DifferentiableOperator<kernels_tuple,
                int trial_op_dim = dependent_input_dtq_ops[s].GetShape()[1];
                for (int q = 0; q < num_qp; q++)
                {
-                  for (int i = 0; i < test_vdim; i++)
+                  for (int m = 0; m < trial_op_dim; m++)
                   {
-                     for (int k = 0; k < test_op_dim; k++)
-                     {
-                        for (int m = 0; m < trial_op_dim; m++)
-                        {
-                           fhat(i, k, q) += a_qp(i, k, j, m + m_offset, q, e) * Bu(q, m, J);
-                        }
-                     }
+                     shat(J, j, e) += a_qp(j, m + m_offset, q, e) * Bu(q, m, J);
                   }
                }
                m_offset += trial_op_dim;
             }
-
-            auto bvtfhat = Reshape(&A_e(0, 0, J, j, e), num_test_dof, test_vdim);
-            map_quadrature_data_to_fields(bvtfhat, fhat, output_fop,
-                                          output_dtq_ops[hardcoded_output_idx]);
          }
       }
    }
 
-   bool same_test_and_trial = false;
-   if (koutput_to_field[0] ==
-       kinput_to_field[dependent_input_dtq_ops[0].which_input])
-   {
-      same_test_and_trial = true;
-   }
+   auto R = get_element_restriction(op.fields[dependent_field_idx],
+                                    element_dof_ordering);
+   Vector ve(R->Width());
+   R->MultTranspose(ve_mem, ve);
 
-   auto trial_fes = *std::get_if<const ParFiniteElementSpace *>
-                    (&op.fields[kinput_to_field[dependent_input_dtq_ops[0].which_input]].data);
-
-   auto test_fes = *std::get_if<const ParFiniteElementSpace *>
-                   (&op.fields[koutput_to_field[0]].data);
-
-   SparseMatrix mat(test_fes->GlobalVSize(), trial_fes->GlobalVSize());
-
-   if (test_fes == nullptr)
-   {
-      MFEM_ABORT("error");
-   }
-
-   for (int e = 0; e < num_el; e++)
-   {
-      auto tmp = Reshape(Ae_mem.ReadWrite(), num_test_dof * test_vdim,
-                         num_trial_dof * trial_vdim,
-                         num_el);
-      DenseMatrix A_e(&tmp(0, 0, e), num_test_dof * test_vdim,
-                      num_trial_dof * trial_vdim);
-      Array<int> test_vdofs, trial_vdofs;
-      test_fes->GetElementVDofs(e, test_vdofs);
-      GetElementVDofs(
-         op.fields[kinput_to_field[dependent_input_dtq_ops[0].which_input]], e,
-         trial_vdofs);
-      mat.AddSubMatrix(test_vdofs, trial_vdofs, A_e, 1);
-   }
-   mat.Finalize();
-
-   if (same_test_and_trial)
-   {
-      HypreParMatrix tmp(test_fes->GetComm(),
-                         test_fes->GlobalVSize(),
-                         test_fes->GetDofOffsets(),
-                         &mat);
-
-      A = *RAP(&tmp, test_fes->Dof_TrueDof_Matrix());
-      A.EliminateBC(op.ess_tdof_list, DiagonalPolicy::DIAG_ONE);
-   }
-   else
-   {
-      HypreParMatrix tmp(test_fes->GetComm(),
-                         test_fes->GlobalVSize(),
-                         trial_fes->GlobalVSize(),
-                         test_fes->GetDofOffsets(),
-                         trial_fes->GetDofOffsets(),
-                         &mat);
-
-      A = *RAP(test_fes->Dof_TrueDof_Matrix(), &tmp, trial_fes->Dof_TrueDof_Matrix());
-      // A.EliminateBC(op.ess_tdof_list, DiagonalPolicy::DIAG_ONE);
-   }
+   get_prolongation(op.fields[dependent_field_idx])->MultTranspose(ve, v);
 }

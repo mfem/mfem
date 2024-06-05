@@ -124,8 +124,8 @@ int main(int argc, char *argv[])
    ParGridFunction u(&potential_fes);
    u = 0.0;
 
-   auto diffusion_kernel = [](const double &u,
-                              const tensor<double, 2> &dudxi,
+   auto diffusion_kernel = [](const internal::dual<double, double> &u,
+                              const tensor<internal::dual<double, double>, 2> &dudxi,
                               const tensor<double, 2, 2> &J,
                               const double &w)
    {

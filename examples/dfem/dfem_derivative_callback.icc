@@ -18,6 +18,8 @@ void DifferentiableOperator<kernels_tuple,
      num_kernels>::Derivative<derivative_idx>::create_callback(kernel_t kernel,
                                                                mult_func_t &func)
 {
+   using OperatesOn = typename kernel_t::OperatesOn;
+
    auto kinput_to_field = create_descriptors_to_fields_map(op.fields,
                                                            kernel.inputs, std::make_index_sequence<kernel.num_kinputs> {});
 
@@ -59,11 +61,32 @@ void DifferentiableOperator<kernels_tuple,
       d_qp_mem = 0.0;
    }
 
+   const Operator *R = nullptr;
+   if constexpr (std::is_same_v<OperatesOn, OperatesOnElement>)
+   {
+      R = get_element_restriction(op.fields[test_space_field_idx],
+                                  element_dof_ordering);
+   }
+   else
+   {
+      MFEM_ABORT("restriction not implemented for OperatesOn");
+   }
+
    func = [this, kernel, num_el, num_qp, dtqmaps, da_size_on_qp, input_qp_mem,
                  directions_qp_mem,
-                 kinput_to_field, koutput_to_field, output_fop]
+                 kinput_to_field, koutput_to_field, output_fop, R]
    (Vector &ye_mem) mutable
    {
+      if constexpr (std::is_same_v<OperatesOn, OperatesOnElement>)
+      {
+         element_restriction(directions, directions_l, directions_e,
+                             op.element_dof_ordering, derivative_idx);
+      }
+      else
+      {
+         MFEM_ABORT("restriction not implemented for OperatesOn");
+      }
+
       // Check which qf inputs are dependent on the dependent variable
       std::array<bool, kernel.num_kinputs> kinput_is_dependent;
       bool no_qfinput_is_dependent = true;
@@ -73,8 +96,8 @@ void DifferentiableOperator<kernels_tuple,
          {
             no_qfinput_is_dependent = false;
             kinput_is_dependent[i] = true;
-            // out << "function input " << i << " is dependent on "
-            //     << op.fields[kinput_to_field[i]].field_label << "\n";
+            out << "function input " << i << " is dependent on "
+                << op.fields[kinput_to_field[i]].field_label << "\n";
          }
          else
          {
@@ -137,11 +160,17 @@ void DifferentiableOperator<kernels_tuple,
 
          for (int qp = 0; qp < num_qp; qp++)
          {
-            f_qp = apply_kernel_fwddiff_enzyme(
+            // f_qp = apply_kernel_fwddiff_enzyme(
+            //           kernel.func,
+            //           kernel_args,
+            //           input_qp,
+            //           kernel_shadow_args,
+            //           directions_qp,
+            //           qp);
+            f_qp = apply_kernel_fwddiff_dual(
                       kernel.func,
                       kernel_args,
                       input_qp,
-                      kernel_shadow_args,
                       directions_qp,
                       qp);
 
@@ -157,6 +186,7 @@ void DifferentiableOperator<kernels_tuple,
          map_quadrature_data_to_fields(y, fhat,
                                        output_fop,
                                        output_dtq_ops[hardcoded_output_idx]);
+         R->MultTranspose(ye_mem, derivative_action_l);
       }
    };
 
