@@ -400,6 +400,23 @@ void HybridizationExtension::AssembleElementMatrices(
    const int ne = h.fes.GetNE();
    const int n = el_mats.SizeI();
 
+   const bool *d_ess_hat_dof_marker = ess_hat_dof_marker.Read();
+   auto d_Ahat_inv = Reshape(Ahat_inv.ReadWrite(), n, n, ne);
+   mfem::forall(ne*n, [=] MFEM_HOST_DEVICE (int idx)
+   {
+      if (d_ess_hat_dof_marker[idx])
+      {
+         const int i = idx % n;
+         const int e = idx / n;
+         for (int j = 0; j < n; ++j)
+         {
+            d_Ahat_inv(i, j, e) = 0.0;
+            d_Ahat_inv(j, i, e) = 0.0;
+         }
+         d_Ahat_inv(i, i, e) = 1.0;
+      }
+   });
+
    // TODO: better batched linalg interface
    DenseTensor Ahat_inv_dt;
    Ahat_inv_dt.NewMemoryAndSize(Ahat_inv.GetMemory(), n, n, ne, false);
