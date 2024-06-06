@@ -79,14 +79,15 @@ void HybridizationExtension::ConstructH()
       const auto d_Ahat_piv = Reshape(Ahat_piv.Read(), m, ne);
       auto d_AhatInvCt = Reshape(AhatInvCt_mat.ReadWrite(), m, n, n_faces_per_el, ne);
 
-      mfem::forall(ne*n_faces_per_el, [=] MFEM_HOST_DEVICE (int idx)
+      mfem::forall(n*n_faces_per_el*ne, [=] MFEM_HOST_DEVICE (int idx)
       {
-         const int fi = idx % n_faces_per_el;
-         const int e = idx / n_faces_per_el;
+         const int j = idx % n;
+         const int fi = (idx / n) % n_faces_per_el;
+         const int e = idx / n / n_faces_per_el;
 
          const real_t *lu = &d_Ahat_inv(0, 0, e);
          const int *ipiv = &d_Ahat_piv(0, e);
-         real_t *x = &d_AhatInvCt(0, 0, fi, e);
+         real_t *x = &d_AhatInvCt(0, j, fi, e);
 
          kernels::LUSolve(lu, m, ipiv, x);
       });
