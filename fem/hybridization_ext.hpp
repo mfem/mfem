@@ -37,6 +37,7 @@ protected:
    mutable Vector tmp1, tmp2; ///< Temporary vectors.
 
    Array<int> hat_dof_gather_map;
+   Array<bool> ess_hat_dof_marker;
 
    Array<int> el_to_face;
    Array<int> face_to_el;
@@ -44,14 +45,6 @@ protected:
 
    Vector Ahat_inv;
    Array<int> Ahat_piv;
-
-   /// Classification of the "hat DOFs" in the broken space.
-   enum HatDofType
-   {
-      FREE_BOUNDARY = -1,
-      FREE_INTERIOR = 0,
-      ESSENTIAL = 1
-   };
 
    /// Construct the constraint matrix.
    void ConstructC();

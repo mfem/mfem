@@ -379,7 +379,7 @@ void HybridizationExtension::AssembleMatrix(int el, const DenseMatrix &elmat)
    for (int i = 0; i < n; ++i)
    {
       const int idx = i + el*n;
-      if (h.hat_dofs_marker[idx] == ESSENTIAL)
+      if (ess_hat_dof_marker[idx])
       {
          for (int j = 0; j < n; ++j)
          {
@@ -437,23 +437,14 @@ void HybridizationExtension::Init(const Array<int> &ess_tdof_list)
    Ahat_piv.SetSize(ne*ndof_per_el);
 
    ConstructC();
-   h.ConstructC(); // TODO: delete me
 
    const ElementDofOrdering ordering = ElementDofOrdering::NATIVE;
    const Operator *R_op = h.fes.GetElementRestriction(ordering);
    const auto *R = dynamic_cast<const ElementRestriction*>(R_op);
    MFEM_VERIFY(R, "");
 
-   // We now split the "hat DOFs" (broken DOFs) into three classes of DOFs, each
-   // marked with an integer:
-   //
-   //  1: essential DOFs (depending only on essential Lagrange multiplier DOFs)
-   //  0: free interior DOFs (the corresponding column in the C matrix is zero,
-   //     this happens when the DOF is in the interior on an element)
-   // -1: free boundary DOFs (free DOFs that lie on the interface between two
-   //     elements)
-   //
-   // These integers are used to define the values in HatDofType enum.
+   // Find out which "hat DOFs" are essential (depend only on essential Lagrange
+   // multiplier DOFs).
    {
       const int ntdofs = h.fes.GetTrueVSize();
       // free_tdof_marker is 1 if the DOF is free, 0 if the DOF is essential
@@ -484,14 +475,14 @@ void HybridizationExtension::Init(const Array<int> &ess_tdof_list)
          cP->BooleanMult(free_tdof_marker, free_vdofs_marker);
       }
 
-      h.hat_dofs_marker.SetSize(num_hat_dofs);
+      ess_hat_dof_marker.SetSize(num_hat_dofs);
       {
          // The gather map from the ElementRestriction operator gives us the
          // index of the L-dof corresponding to a given (element, local DOF)
          // index pair.
          const int *gather_map = R->GatherMap().Read();
          const int *d_free_vdofs_marker = free_vdofs_marker.Read();
-         int *d_hat_dofs_marker = h.hat_dofs_marker.Write();
+         bool *d_ess_hat_dof_marker = ess_hat_dof_marker.Write();
 
          // Set the hat_dofs_marker to 1 or 0 according to whether the DOF is
          // "free" or "essential". (For now, we mark all free DOFs as free
@@ -501,20 +492,7 @@ void HybridizationExtension::Init(const Array<int> &ess_tdof_list)
          {
             const int j_s = gather_map[i];
             const int j = (j_s >= 0) ? j_s : -1 - j_s;
-            d_hat_dofs_marker[i] = d_free_vdofs_marker[j] ? FREE_INTERIOR : ESSENTIAL;
-         });
-
-         // A free DOF is "interior" or "internal" if the corresponding column
-         // of C (row of C^T) is zero. We mark the free DOFs with non-zero
-         // columns of C as boundary free DOFs.
-         const int *d_I = h.Ct->ReadI();
-         mfem::forall(num_hat_dofs, [=] MFEM_HOST_DEVICE (int i)
-         {
-            const int row_size = d_I[i+1] - d_I[i];
-            if (d_hat_dofs_marker[i] == 0 && row_size > 0)
-            {
-               d_hat_dofs_marker[i] = FREE_BOUNDARY;
-            }
+            d_ess_hat_dof_marker[i] = !d_free_vdofs_marker[j];
          });
       }
    }
@@ -567,13 +545,13 @@ void HybridizationExtension::MultR(const Vector &x_hat, Vector &x) const
    const auto *restr = static_cast<const ElementRestriction*>(
                           h.fes.GetElementRestriction(ordering));
    const int *gather_map = restr->GatherMap().Read();
-   const int *d_hat_dofs_marker = h.hat_dofs_marker.Read();
+   const bool *d_ess_hat_dof_marker = ess_hat_dof_marker.Read();
    const double *d_evec = x_hat.Read();
    double *d_lvec = tmp2.ReadWrite();
    mfem::forall(num_hat_dofs, [=] MFEM_HOST_DEVICE (int i)
    {
       // Skip essential DOFs
-      if (d_hat_dofs_marker[i] == ESSENTIAL) { return; }
+      if (d_ess_hat_dof_marker[i]) { return; }
 
       const int j_s = gather_map[i];
       const int sgn = (j_s >= 0) ? 1 : -1;
@@ -655,11 +633,11 @@ void HybridizationExtension::ComputeSolution(
    MultCt(sol_r, tmp1);
    add(b_hat, -1.0, tmp1, tmp1);
    // Eliminate essential DOFs
-   const int *d_hat_dofs_marker = h.hat_dofs_marker.Read();
+   const bool *d_ess_hat_dof_marker = ess_hat_dof_marker.Read();
    real_t *d_tmp1 = tmp1.ReadWrite();
    mfem::forall(num_hat_dofs, [=] MFEM_HOST_DEVICE (int i)
    {
-      if (d_hat_dofs_marker[i] == ESSENTIAL)
+      if (d_ess_hat_dof_marker[i])
       {
          d_tmp1[i] = 0.0;
       }
