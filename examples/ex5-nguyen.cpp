@@ -299,9 +299,6 @@ int main(int argc, char *argv[])
 
    // 7. Define the coefficients, analytical solution, and rhs of the PDE.
    const real_t t_0 = 1.; //base temperature
-   const real_t dt = tf / nt; //time step
-
-   ConstantCoefficient idtcoeff(1./dt);
 
    ConstantCoefficient kcoeff(k);
    ConstantCoefficient ikcoeff(1./k);
@@ -510,6 +507,8 @@ int main(int argc, char *argv[])
    //iterate in time
 
    if (!btime) { nt = 1; }
+
+   const real_t dt = tf / nt; //time step
 
    for (int ti = 0; ti < nt; ti++)
    {
