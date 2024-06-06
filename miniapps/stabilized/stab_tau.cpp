@@ -42,43 +42,83 @@ real_t FFH92Tau::GetInverseEstimate(ElementTransformation &T,
 {
    if (Ci>0.0)
    {
-      return Ci;
+      return 1.0/Ci;
    }
    else
    {
-      return iecf->Eval(T,ip)*scale;
+      return 1.0/(iecf->Eval(T,ip)*scale);
    }
 }
 
 real_t FFH92Tau::Eval(ElementTransformation &T,
                       const IntegrationPoint &ip)
 {
-
    real_t k = kappa->Eval(T, ip);
    adv->Eval(a, T, ip);
    real_t hk = GetElementSize(T);
-   real_t ci = GetInverseEstimate(T, ip, hk*hk/k);
-   real_t mk = std::min(1.0/3.0, 2/ci);
+   real_t ci = GetInverseEstimate(T, ip, hk*hk);
+   real_t mk = std::min(1.0/3.0, 2*ci);
    real_t ap = a.Normlp(p);
-   real_t pe = mk*ap*hk/(2*k);
+   // Prevent division by zero
+   ap = std::max(ap,std::numeric_limits<real_t>::min());
+   real_t pe = mk*ap*hk/(k_fac*k); // k_fac = 2 for CD and k_fac = 4 for NS
    real_t xi = std::min(pe,1.0);
    real_t tau = hk*xi/(2*ap);
 
    if (print)
    {
+      std::cout<<"\n==========================\n";
       std::cout<<"  kappa = "<<k  <<std::endl;
       std::cout<<"  adv   = "; a.Print(std::cout);
       std::cout<<"  h     = "<<hk <<std::endl;
       std::cout<<"  Ci    = "<<ci<<" "
                <<( (Ci<0) ? "(Computed)" :"(Specified)")<<std::endl;
+      std::cout<<"  1/Ci   = "<<1.0/ci<<std::endl;
       std::cout<<"  mk    = "<<mk <<std::endl;
       std::cout<<"  |a|_p = "<<ap <<std::endl;
       std::cout<<"  Pe    = "<<pe <<std::endl;
       std::cout<<"  xi    = "<<xi <<std::endl;
       std::cout<<"  tau   = "<<tau<<std::endl;
+      std::cout<<"  tau   = "<<mk*hk*hk/(8*k)<<std::endl;
+      std::cout<<"==========================\n\n";
       print = false;
    }
 
    return tau;
+}
+
+real_t FF91Delta::Eval(ElementTransformation &T,
+                      const IntegrationPoint &ip)
+{
+   real_t k = kappa->Eval(T, ip);
+   adv->Eval(a, T, ip);
+   real_t hk = GetElementSize(T);
+   real_t ci = GetInverseEstimate(T, ip, hk*hk);
+   real_t mk = std::min(1.0/3.0, 2*ci);
+   real_t ap = a.Normlp(p); // Preventing division by zero not necessary
+   real_t pe = mk*ap*hk/(k_fac*k);
+   real_t xi = std::min(pe,1.0);
+   real_t delta = lambda*ap*hk*xi;
+
+   if (print)
+   {
+      std::cout<<"\n==========================\n";
+      std::cout<<"  kappa  = "<<k  <<std::endl;
+      std::cout<<"  adv    = "; a.Print(std::cout);
+      std::cout<<"  h      = "<<hk <<std::endl;
+      std::cout<<"  Ci     = "<<ci<<" "
+               <<( (Ci<0) ? "(Computed)" :"(Specified)")<<std::endl;
+      std::cout<<"  1/Ci   = "<<1.0/ci<<std::endl;
+      std::cout<<"  mk     = "<<mk <<std::endl;
+      std::cout<<"  |a|_p  = "<<ap <<std::endl;
+      std::cout<<"  Pe     = "<<pe <<std::endl;
+      std::cout<<"  xi     = "<<xi <<std::endl;
+      std::cout<<"  lambda = "<<lambda <<std::endl;
+      std::cout<<"  delta  = "<<delta<<std::endl;
+      std::cout<<"==========================\n\n";
+      print = false;
+   }
+
+   return delta;
 }
 

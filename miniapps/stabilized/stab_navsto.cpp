@@ -14,8 +14,8 @@
 using namespace mfem;
 
 StabInNavStoIntegrator::StabInNavStoIntegrator(Coefficient &mu_,
-                                               Tau &t, StabType s)
- : c_mu(&mu_), tau(&t)
+                                               Tau &t, Tau &d, StabType s)
+ : c_mu(&mu_), tau(&t), delta(&d), stab(s)
 {
 
 }
@@ -108,6 +108,7 @@ void StabInNavStoIntegrator::AssembleElementVector(
       real_t w = ip.weight * Tr.Weight();
       real_t mu = c_mu->Eval(Tr, ip);
       real_t t = tau->Eval(Tr, ip);
+      real_t d = delta->Eval(Tr, ip);
 
       el[0]->CalcPhysShape(Tr, sh_u);
       elf_u.MultTranspose(sh_u, u);
@@ -388,15 +389,15 @@ StabInNavStoOperator::StabInNavStoOperator(Array<FiniteElementSpace *> &fes,
    // Define the block nonlinear form
    Hform = new BlockNonlinearForm(spaces);
 
-   // Add the incompressible neo-Hookean integrator
-   tau = new FFH92Tau(fes[0]);
+   // Add the incompressible nav-sto integrator
    adv_gf = new GridFunction(fes[0], NULL); // Data will be loaded in Mult and GetGradient
-
    adv = new VectorGridFunctionCoefficient(adv_gf);
-   tau->SetConvection(adv);
-   tau->SetDiffusion(&mu);
 
-   Hform->AddDomainIntegrator(new StabInNavStoIntegrator(mu, *tau));
+   tau = new FFH92Tau(adv, &mu, fes[0], 4.0);
+   delta = new FF91Delta(adv, &mu, fes[0]);
+
+   // Add the incompressible nav-sto integrator
+   Hform->AddDomainIntegrator(new StabInNavStoIntegrator(mu, *tau, *delta));
 
    // Set the essential boundary conditions
    Hform->SetEssentialBC(ess_bdr, rhs);
@@ -469,6 +470,7 @@ StabInNavStoOperator::~StabInNavStoOperator()
    delete adv_gf;
    delete adv;
    delete tau;
+   delete delta;
    delete Hform;
    delete pressure_mass;
    delete j_solver;

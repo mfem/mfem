@@ -54,13 +54,13 @@ private:
    /// The stabilization parameter
    StabType stab;
    Tau *tau = nullptr;
-   bool own_tau;
+   Tau *delta = nullptr;
 
    /// The advection field
    VectorCoefficient *adv = nullptr;
 public:
    StabInNavStoIntegrator(Coefficient &mu_,
-                          Tau &t,
+                          Tau &t, Tau &d,
                           StabType s = GALERKIN);
 
    virtual real_t GetElementEnergy(const Array<const FiniteElement *>&el,
@@ -198,7 +198,7 @@ protected:
    Coefficient &mu;
 
    //
-   Tau *tau;
+   Tau *tau, *delta;
    GridFunction *adv_gf;
    VectorCoefficient *adv;
    
