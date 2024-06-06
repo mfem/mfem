@@ -1470,7 +1470,7 @@ real_t InverseEstimateCoefficient::ElementInverseEstimate(
       el.CalcPhysShape(Trans, shape);
       ovec.Add(w, shape);
    }
-  /// ovec *= 1.0/ovec.Norml2();
+   ovec *= 1.0/ovec.Norml2();
 
    // Correct nullspace
    AddMultVVt(ovec, lapmat);
