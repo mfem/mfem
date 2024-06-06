@@ -655,13 +655,15 @@ void HybridizationExtension::ComputeSolution(
    MultCt(sol_r, tmp1);
    add(b_hat, -1.0, tmp1, tmp1);
    // Eliminate essential DOFs
-   for (int i = 0; i < num_hat_dofs; ++i)
+   const int *d_hat_dofs_marker = h.hat_dofs_marker.Read();
+   real_t *d_tmp1 = tmp1.ReadWrite();
+   mfem::forall(num_hat_dofs, [=] MFEM_HOST_DEVICE (int i)
    {
-      if (h.hat_dofs_marker[i] == ESSENTIAL)
+      if (d_hat_dofs_marker[i] == ESSENTIAL)
       {
-         tmp1[i] = 0.0;
+         d_tmp1[i] = 0.0;
       }
-   }
+   });
    MultAhatInv(tmp1);
    MultR(tmp1, sol);
 }
