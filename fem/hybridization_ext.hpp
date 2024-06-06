@@ -71,6 +71,9 @@ protected:
    /// Invert and store the element matrices Ahat.
    void AssembleElementMatrices(const class DenseTensor &el_mats);
 
+   /// Apply the action of R mapping from "hat DOFs" to T-vector
+   void MultR(const Vector &b, Vector &b_hat) const;
+
    /// Apply the action of R^t mapping into the "hat DOF" space.
    void MultRt(const Vector &b, Vector &b_hat) const;
 

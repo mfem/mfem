@@ -543,6 +543,50 @@ void HybridizationExtension::Init(const Array<int> &ess_tdof_list)
    }
 }
 
+void HybridizationExtension::MultR(const Vector &x_hat, Vector &x) const
+{
+   const Operator *R = h.fes.GetRestrictionOperator();
+
+   // If R is null, then L-vector and T-vector are the same, and we don't need
+   // an intermediate temporary variable.
+   //
+   // If R is not null, we first convert to intermediate L-vector (with the
+   // correct BCs), and then from L-vector to T-vector.
+   if (!R)
+   {
+      MFEM_ASSERT(x.Size() == h.fes.GetVSize(), "");
+      tmp2.MakeRef(x, 0);
+   }
+   else
+   {
+      tmp2.SetSize(R->Width());
+      R->MultTranspose(x, tmp2);
+   }
+
+   const ElementDofOrdering ordering = ElementDofOrdering::NATIVE;
+   const auto *restr = static_cast<const ElementRestriction*>(
+                          h.fes.GetElementRestriction(ordering));
+   const int *gather_map = restr->GatherMap().Read();
+   const int *d_hat_dofs_marker = h.hat_dofs_marker.Read();
+   const double *d_evec = x_hat.Read();
+   double *d_lvec = tmp2.ReadWrite();
+   mfem::forall(num_hat_dofs, [=] MFEM_HOST_DEVICE (int i)
+   {
+      // Skip essential DOFs
+      if (d_hat_dofs_marker[i] == ESSENTIAL) { return; }
+
+      const int j_s = gather_map[i];
+      const int sgn = (j_s >= 0) ? 1 : -1;
+      const int j = (j_s >= 0) ? j_s : -1 - j_s;
+
+      d_lvec[j] = sgn*d_evec[i];
+   });
+
+
+   // Convert from L-vector to T-vector.
+   if (R) { R->Mult(tmp2, x); }
+}
+
 void HybridizationExtension::MultRt(const Vector &b, Vector &b_hat) const
 {
    Vector b_lvec;
@@ -619,50 +663,7 @@ void HybridizationExtension::ComputeSolution(
       }
    }
    MultAhatInv(tmp1);
-
-   // The T-vector 'sol' has the correct essential boundary conditions. We
-   // covert sol to an L-vector ('tmp2') to preserve those boundary values in
-   // the output solution.
-   const Operator *R = h.fes.GetRestrictionOperator();
-   if (!R)
-   {
-      MFEM_ASSERT(sol.Size() == h.fes.GetVSize(), "");
-      tmp2.MakeRef(sol, 0);
-   }
-   else
-   {
-      tmp2.SetSize(R->Width());
-      R->MultTranspose(sol, tmp2);
-   }
-
-   // Move vector 'tmp1' from broken space to L-vector 'tmp2', preserving the
-   // essential BCs set in the previous step.
-   {
-      const ElementDofOrdering ordering = ElementDofOrdering::NATIVE;
-      const auto *R = static_cast<const ElementRestriction*>(
-                         h.fes.GetElementRestriction(ordering));
-      const int *gather_map = R->GatherMap().Read();
-      const int *d_hat_dofs_marker = h.hat_dofs_marker.Read();
-      const double *d_evec = tmp1.ReadWrite();
-      double *d_lvec = tmp2.ReadWrite();
-      mfem::forall(num_hat_dofs, [=] MFEM_HOST_DEVICE (int i)
-      {
-         // Skip essential DOFs
-         if (d_hat_dofs_marker[i] == ESSENTIAL) { return; }
-
-         const int j_s = gather_map[i];
-         const int sgn = (j_s >= 0) ? 1 : -1;
-         const int j = (j_s >= 0) ? j_s : -1 - j_s;
-
-         d_lvec[j] = sgn*d_evec[i];
-      });
-   }
-
-   // Finally, convert from L-vector to T-vector.
-   if (R)
-   {
-      R->Mult(tmp2, sol);
-   }
+   MultR(tmp1, sol);
 }
 
 }
