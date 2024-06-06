@@ -170,6 +170,10 @@ void BilinearForm::EnableHybridization(FiniteElementSpace *constr_space,
       return;
    }
    hybridization.reset(new Hybridization(fes, constr_space));
+   if (assembly == AssemblyLevel::ELEMENT)
+   {
+      hybridization->EnableDeviceExecution();
+   }
    hybridization->SetConstraintIntegrator(constr_integ);
    hybridization->Init(ess_tdof_list);
 }
