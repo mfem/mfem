@@ -520,6 +520,7 @@ int main(int argc, char *argv[])
    if (!btime) { nt = 1; }
 
    const real_t dt = tf / nt; //time step
+
    int i_Kovasznay = 0;//injection iteration - Kovasznay flow
    constexpr real_t dt_Kovasznay = 2.;//injection period - Kovasznay flow
 
@@ -530,7 +531,7 @@ int main(int argc, char *argv[])
       real_t t = tf * ti / nt;
 
       //perform injection - Kovasznay flow
-      if (problem == 5 && t >= ((i_Kovasznay+1) * dt_Kovasznay) * (1. - epsilon))
+      if (problem == 5 && t >= ((i_Kovasznay+1) * dt_Kovasznay) * (1. - 100*epsilon))
       {
          i_Kovasznay++;
          GridFunction t_Kovasznay(W_space);
