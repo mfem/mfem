@@ -56,6 +56,15 @@ TFunc GetFFun(int prob, real_t t_0, real_t k, const VecFunc &cFun);
 
 constexpr real_t epsilon = numeric_limits<real_t>::epsilon();
 
+enum Problem
+{
+   SteadyDiffusion = 1,
+   SteadyAdvectionDiffusion,
+   SteadyAdvection,
+   NonsteadyAdvectionDiffusion,
+   KovasznayFlow,
+};
+
 class FEOperator : public TimeDependentOperator
 {
    const Array<int> &ess_flux_tdofs_list;
@@ -95,7 +104,7 @@ int main(int argc, char *argv[])
    int order = 1;
    bool dg = false;
    bool upwinded = false;
-   int problem = 1;
+   int problem = Problem::SteadyDiffusion;
    real_t tf = 1.;
    int nt = 0;
    int ode = 1;
@@ -129,7 +138,7 @@ int main(int argc, char *argv[])
    args.AddOption(&upwinded, "-up", "--upwinded", "-ce", "--centered",
                   "Switches between upwinded (1) and centered (0=default) stabilization.");
    args.AddOption(&problem, "-p", "--problem",
-                  "Problem to solve from the Nguyen paper.");
+                  "Problem to solve (1=steady diff, 2=steady adv-diff, 3=steady adv, 4=nonsteady adv-diff, 5=Kovasznay flow).");
    args.AddOption(&tf, "-tf", "--time-final",
                   "Final time.");
    args.AddOption(&nt, "-nt", "--ntimesteps",
@@ -176,16 +185,16 @@ int main(int argc, char *argv[])
    bool bconv, btime;
    switch (problem)
    {
-      case 1:
+      case Problem::SteadyDiffusion:
          bconv = false;
          btime = false;
          break;
-      case 3:
+      case Problem::SteadyAdvection:
          bconv = true;
          btime = false;
          break;
-      case 4:
-      case 5:
+      case Problem::NonsteadyAdvectionDiffusion:
+      case Problem::KovasznayFlow:
          bconv = true;
          btime = true;
          break;
@@ -241,17 +250,18 @@ int main(int argc, char *argv[])
 
    switch (problem)
    {
-      case 1://free
+      case Problem::SteadyDiffusion:
+         //free
          break;
-      case 3:
+      case Problem::SteadyAdvection:
          bdr_is_dirichlet[3] = -1;//inflow
          bdr_is_neumann[0] = -1;//outflow
          break;
-      case 4:
+      case Problem::NonsteadyAdvectionDiffusion:
          bdr_is_dirichlet = -1;
          //bdr_is_neumann = -1;
          break;
-      case 5:
+      case Problem::KovasznayFlow:
          //bdr_is_dirichlet[3] = -1;//inflow (zero)
          bdr_is_neumann = -1;//outflow
          bdr_is_neumann[3] = 0;
@@ -531,7 +541,8 @@ int main(int argc, char *argv[])
       real_t t = tf * ti / nt;
 
       //perform injection - Kovasznay flow
-      if (problem == 5 && t >= ((i_Kovasznay+1) * dt_Kovasznay) * (1. - 100*epsilon))
+      if (problem == Problem::KovasznayFlow &&
+          t >= ((i_Kovasznay+1) * dt_Kovasznay) * (1. - 100*epsilon))
       {
          i_Kovasznay++;
          GridFunction t_Kovasznay(W_space);
@@ -734,7 +745,7 @@ TFunc GetTFun(int prob, real_t t_0, real_t k, real_t c)
 {
    switch (prob)
    {
-      case 1:
+      case Problem::SteadyDiffusion:
          return [=](const Vector &x, real_t) -> real_t
          {
             const int ndim = x.Size();
@@ -746,10 +757,10 @@ TFunc GetTFun(int prob, real_t t_0, real_t k, real_t c)
 
             return t0;
          };
-      case 2:
+      case Problem::SteadyAdvectionDiffusion:
          // null
          break;
-      case 3:
+      case Problem::SteadyAdvection:
          return [=](const Vector &x, real_t) -> real_t
          {
             Vector xc(x);
@@ -757,7 +768,7 @@ TFunc GetTFun(int prob, real_t t_0, real_t k, real_t c)
             real_t t0 = 1. - tanh(10. * (-1. + 4.*xc.Norml2()));
             return t0;
          };
-      case 4:
+      case Problem::NonsteadyAdvectionDiffusion:
          return [=](const Vector &x, real_t t) -> real_t
          {
             const int vdim = x.Size();
@@ -775,7 +786,7 @@ TFunc GetTFun(int prob, real_t t_0, real_t k, real_t c)
             const real_t denom = sigma2 + 4.*k*t * M_PI/4.;
             return sigma2 / denom * exp(- (dx*dx) / denom);
          };
-      case 5:
+      case Problem::KovasznayFlow:
          return [=](const Vector &x, real_t t) -> real_t
          {
             Vector xc(x);
@@ -800,7 +811,7 @@ VecTFunc GetQFun(int prob, real_t t_0, real_t k, real_t c)
 {
    switch (prob)
    {
-      case 1:
+      case Problem::SteadyDiffusion:
          return [=](const Vector &x, real_t, Vector &v)
          {
             const int vdim = x.Size();
@@ -821,10 +832,10 @@ VecTFunc GetQFun(int prob, real_t t_0, real_t k, real_t c)
 
             v *= -k;
          };
-      case 2:
+      case Problem::SteadyAdvectionDiffusion:
          // null
          break;
-      case 3:
+      case Problem::SteadyAdvection:
          return [=](const Vector &x, real_t, Vector &v)
          {
             const int vdim = x.Size();
@@ -839,7 +850,7 @@ VecTFunc GetQFun(int prob, real_t t_0, real_t k, real_t c)
             real_t q0 = k * 10. * 4. / (csh*csh * r);
             v.Set(q0, xc);
          };
-      case 4:
+      case Problem::NonsteadyAdvectionDiffusion:
          return [=](const Vector &x, real_t t, Vector &v)
          {
             const int vdim = x.Size();
@@ -862,7 +873,7 @@ VecTFunc GetQFun(int prob, real_t t_0, real_t k, real_t c)
             v(1) = xc(1) + sin(ct) * dx_x + cos(ct) * dx_y;
             v *= v0;
          };
-      case 5:
+      case Problem::KovasznayFlow:
          return [](const Vector &x, real_t t, Vector &v)
          {
             v.SetSize(x.Size());
@@ -876,10 +887,10 @@ VecFunc GetCFun(int prob, real_t c)
 {
    switch (prob)
    {
-      case 1:
+      case Problem::SteadyDiffusion:
          // null
          break;
-      case 2:
+      case Problem::SteadyAdvectionDiffusion:
          return [=](const Vector &x, Vector &v)
          {
             const int ndim = x.Size();
@@ -893,7 +904,7 @@ VecFunc GetCFun(int prob, real_t c)
                v(2) = c;
             }
          };
-      case 3:
+      case Problem::SteadyAdvection:
          return [=](const Vector &x, Vector &v)
          {
             const int ndim = x.Size();
@@ -905,7 +916,7 @@ VecFunc GetCFun(int prob, real_t c)
             v(0) = +xc(1) * c;
             v(1) = -xc(0) * c;
          };
-      case 4:
+      case Problem::NonsteadyAdvectionDiffusion:
          return [=](const Vector &x, Vector &v)
          {
             const int ndim = x.Size();
@@ -917,7 +928,7 @@ VecFunc GetCFun(int prob, real_t c)
             v(0) = -4. * xc(1) * c * M_PI/4.;
             v(1) = +4. * xc(0) * c * M_PI/4.;
          };
-      case 5:
+      case Problem::KovasznayFlow:
          return [=](const Vector &x, Vector &v)
          {
             const int ndim = x.Size();
@@ -940,7 +951,7 @@ TFunc GetFFun(int prob, real_t t_0, real_t k, const VecFunc &cFun)
 {
    switch (prob)
    {
-      case 1:
+      case Problem::SteadyDiffusion:
          return [=](const Vector &x, real_t) -> real_t
          {
             const int ndim = x.Size();
@@ -961,7 +972,7 @@ TFunc GetFFun(int prob, real_t t_0, real_t k, const VecFunc &cFun)
 
             return -diff;
          };
-      case 2:
+      case Problem::SteadyAdvectionDiffusion:
          return [=](const Vector &x, real_t) -> real_t
          {
             // PLACEHOLDER
@@ -983,9 +994,9 @@ TFunc GetFFun(int prob, real_t t_0, real_t k, const VecFunc &cFun)
             }
             return -conv;
          };
-      case 3:
-      case 4:
-      case 5:
+      case Problem::SteadyAdvection:
+      case Problem::NonsteadyAdvectionDiffusion:
+      case Problem::KovasznayFlow:
          return [](const Vector &x, real_t) -> real_t { return 0.; };
    }
    return TFunc();
