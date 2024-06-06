@@ -94,6 +94,7 @@ int main(int argc, char *argv[])
    bool dg = false;
    bool upwinded = false;
    int problem = 1;
+   real_t tf = 1.;
    int nt = 0;
    int ode = 1;
    real_t k = 1.;
@@ -127,6 +128,8 @@ int main(int argc, char *argv[])
                   "Switches between upwinded (1) and centered (0=default) stabilization.");
    args.AddOption(&problem, "-p", "--problem",
                   "Problem to solve from the Nguyen paper.");
+   args.AddOption(&tf, "-tf", "--time-final",
+                  "Final time.");
    args.AddOption(&nt, "-nt", "--ntimesteps",
                   "Number of time steps.");
    args.AddOption(&ode, "-ode", "--ode-solver",
@@ -296,7 +299,6 @@ int main(int argc, char *argv[])
 
    // 7. Define the coefficients, analytical solution, and rhs of the PDE.
    const real_t t_0 = 1.; //base temperature
-   const real_t tf = 1.; //final time
    const real_t dt = tf / nt; //time step
 
    ConstantCoefficient idtcoeff(1./dt);
