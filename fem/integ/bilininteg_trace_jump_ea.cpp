@@ -35,15 +35,16 @@ void NormalTraceJumpIntegrator::AssembleEAInteriorFaces(
    const IntegrationRule &ir = IntRule ? *IntRule : IntRules.Get(geom, qorder);
    const int nquad = ir.Size();
 
-   // const auto face_geom =
-   //    mesh.GetFaceGeometricFactors(ir, FaceGeometricFactors::DETERMINANTS, ftype);
    Vector pa_data(nquad * nf);
-   for (int f = 0; f < nf; ++f)
    {
-      for (int q = 0; q < nquad; ++q)
+      const auto d_w = ir.GetWeights().Read();
+      auto d_pa_data = Reshape(pa_data.Write(), nquad, nf);
+      mfem::forall(nquad * nf, [=] MFEM_HOST_DEVICE (int idx)
       {
-         pa_data[q + f*nquad] = ir[q].weight;
-      }
+         const int q = idx % nquad;
+         const int f = idx / nquad;
+         d_pa_data(q, f) = d_w[q];
+      });
    }
 
    const FiniteElement &trial_face_el = *trial_fes.GetFaceElement(0);
@@ -80,41 +81,75 @@ void NormalTraceJumpIntegrator::AssembleEAInteriorFaces(
    const auto face_mats = Reshape(mass_emat.Read(), ndof_face, ndof_face, nf);
    auto el_mats = Reshape(emat.ReadWrite(), ndof_vol, ndof_face, 2, nf);
 
-   if (!add)
+   const int n_faces_per_el = 2*dim; // assuming tensor product
+   // Get all the local face maps (mapping from lexicographic face index to
+   // lexicographic volume index, depending on the local face index).
+   Array<int> face_maps(ndof_face * n_faces_per_el);
+   for (int lf_i = 0; lf_i < n_faces_per_el; ++lf_i)
    {
-      emat = 0.0;
+      Array<int> face_map(ndof_face);
+      test_el.GetFaceMap(lf_i, face_map);
+      for (int i = 0; i < ndof_face; ++i)
+      {
+         face_maps[i + lf_i*ndof_face] = face_map[i];
+      }
    }
 
-   int fidx = 0;
-   for (int f = 0; f < mesh.GetNumFaces(); ++f)
+   Array<int> face_info(nf * 4);
    {
-      Mesh::FaceInformation finfo = mesh.GetFaceInformation(f);
-      if (!finfo.IsInterior()) { continue; }
-      for (int el_i = 0; el_i < 2; ++el_i)
+      int fidx = 0;
+      for (int f = 0; f < mesh.GetNumFaces(); ++f)
       {
-         const int orient = finfo.element[el_i].orientation;
-         const int lf_i = finfo.element[el_i].local_face_id;
+         Mesh::FaceInformation finfo = mesh.GetFaceInformation(f);
+         if (!finfo.IsInterior()) { continue; }
+         face_info[0 + fidx*4] = finfo.element[0].local_face_id;
+         face_info[1 + fidx*4] = finfo.element[0].orientation;
+         face_info[2 + fidx*4] = finfo.element[1].local_face_id;
+         face_info[3 + fidx*4] = finfo.element[1].orientation;
+         fidx++;
+      }
+   }
 
-         Array<int> face_map(ndof_face);
-         test_el.GetFaceMap(lf_i, face_map);
+   const auto d_face_maps = Reshape(face_maps.Read(), ndof_face, n_faces_per_el);
+   const auto d_face_info = Reshape(face_info.Read(), 2, 2, nf);
+   const int *d_dof_map = dof_map.Read();
+   double *d_emat;
 
-         for (int i_nat = 0; i_nat < ndof_face; ++i_nat)
+   if (add)
+   {
+      d_emat = emat.ReadWrite();
+   }
+   if (!add)
+   {
+      d_emat = emat.Write();
+      mfem::forall(emat.Size(), [=] MFEM_HOST_DEVICE (int i) { d_emat[i] = 0.0; });
+   }
+
+   mfem::forall_3D(nf, ndof_face, ndof_face, 2, [=] MFEM_HOST_DEVICE (int f)
+   {
+      MFEM_FOREACH_THREAD(el_i, z, 2)
+      {
+         const int lf_i = d_face_info(0, el_i, f);
+         const int orient = d_face_info(1, el_i, f);
+         // Loop over face indices in "native ordering"
+         MFEM_FOREACH_THREAD(i_nat, x, ndof_face)
          {
+            // Convert to lexicographic relative to the element
             const int i_lex = internal::ToLexOrdering2D(lf_i, ndof_face, i_nat);
+            // Convert to lexicographic relative to the face itself
             const int i_face = internal::PermuteFace2D(lf_i, 0, orient, ndof_face, i_lex);
-            // Lexicographic volume DOF
-            const int vol_lex = face_map[i_lex];
-            // Convert to MFEM ordering
-            const int i_s = dof_map[vol_lex];
+            // Convert from lexicographic face DOF to volume DOF
+            const int vol_lex = d_face_maps(i_lex, lf_i);
+            // Convert to back to native MFEM ordering in the volume
+            const int i_s = d_dof_map[vol_lex];
             const int i = (i_s >= 0) ? i_s : -1 - i_s;
-            for (int j = 0; j < ndof_face; ++j)
+            MFEM_FOREACH_THREAD(j, y, ndof_face)
             {
-               el_mats(i, j, el_i, fidx) += face_mats(i_face, j, fidx);
+               el_mats(i, j, el_i, f) += face_mats(i_face, j, f);
             }
          }
       }
-      fidx++;
-   }
+   });
 }
 
 }
