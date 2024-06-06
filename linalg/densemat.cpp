@@ -3788,14 +3788,8 @@ void CholeskyFactors::LSolve(int m, int n, real_t * X) const
    char diag = 'N';
    int info = 0;
 
-#ifdef MFEM_USE_SINGLE
    MFEM_LAPACK_PREFIX(trtrs_)(&uplo, &trans, &diag, &m, &n, data, &m, X, &m,
                               &info);
-#elif defined MFEM_USE_DOUBLE
-   dtrtrs_(&uplo, &trans, &diag, &m, &n, data, &m, X, &m, &info);
-#else
-   MFEM_ABORT("Floating point type undefined");
-#endif
    MFEM_VERIFY(!info, "CholeskyFactors:LSolve:: info");
 
 #else
