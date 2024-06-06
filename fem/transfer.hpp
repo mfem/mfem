@@ -403,11 +403,11 @@ public:
    /// Constructs a transfer operator from \p lFESpace to \p hFESpace.
    /** No matrices are assembled, only the action to a vector is being computed.
        If both spaces' FE collection pointers are pointing to the same
-       collection we assume that the grid was refined while keeping the order
+       collection, we assume that the grid was refined while keeping the order
        constant. If the FE collections are different, it is assumed that both
-       spaces have are using the same mesh. If the first element of the
-       high-order space is a `TensorBasisElement`, the optimized tensor-product
-       transfers are used. If not, the general transfers used. */
+       spaces are using the same mesh. If the first element of the high-order
+       space is a `TensorBasisElement`, the optimized tensor-product transfers
+       are used. If not, the general transfers used. */
    TransferOperator(const FiniteElementSpace& lFESpace,
                     const FiniteElementSpace& hFESpace);
 
@@ -442,16 +442,16 @@ public:
                                const FiniteElementSpace& hFESpace_);
 
    /// Destructor
-   virtual ~PRefinementTransferOperator();
+   virtual ~PRefinementTransferOperator() { }
 
    /// @brief Interpolation or prolongation of a vector \p x corresponding to
    /// the coarse space to the vector \p y corresponding to the fine space.
-   virtual void Mult(const Vector& x, Vector& y) const override;
+   void Mult(const Vector& x, Vector& y) const override;
 
    /// Restriction by applying the transpose of the Mult method.
    /** The vector \p x corresponding to the fine space is restricted to the
    vector \p y corresponding to the coarse space. */
-   virtual void MultTranspose(const Vector& x, Vector& y) const override;
+   void MultTranspose(const Vector& x, Vector& y) const override;
 };
 
 /// @brief Matrix-free transfer operator between finite element spaces on the
@@ -484,7 +484,7 @@ public:
       const FiniteElementSpace& hFESpace_);
 
    /// Destructor
-   virtual ~TensorProductPRefinementTransferOperator();
+   virtual ~TensorProductPRefinementTransferOperator() { }
 
    /// @brief Interpolation or prolongation of a vector \p x corresponding to
    /// the coarse space to the vector \p y corresponding to the fine space.

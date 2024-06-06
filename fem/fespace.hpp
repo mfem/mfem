@@ -19,6 +19,7 @@
 #include "doftrans.hpp"
 #include "restriction.hpp"
 #include <iostream>
+#include <set>
 #include <unordered_map>
 
 namespace mfem
@@ -69,6 +70,11 @@ Ordering::Map<Ordering::byVDIM>(int ndofs, int vdim, int dof, int vd)
    return (dof >= 0) ? vd+vdim*dof : -1-(vd+vdim*(-1-dof));
 }
 
+struct PRefinement
+{
+   int element;
+   char order;
+};
 
 /// Constants describing the possible orderings of the DOFs in one element.
 enum class ElementDofOrdering
@@ -89,6 +95,7 @@ class BilinearFormIntegrator;
 class QuadratureSpace;
 class QuadratureInterpolator;
 class FaceQuadratureInterpolator;
+class PRefinementTransferOperator;
 
 
 /** @brief Class FiniteElementSpace - responsible for providing FEM view of the
@@ -223,6 +230,13 @@ class FiniteElementSpace
    friend void Mesh::Swap(Mesh &, bool);
    friend class LORBase;
 
+public:
+   struct VarOrderElemInfo
+   {
+      unsigned int element;  // Element index
+      char order;  // Element order
+   };
+
 protected:
    /// The mesh that FE space lives on (not owned).
    Mesh *mesh;
@@ -241,9 +255,13 @@ protected:
    /// Number of degrees of freedom. Number of unknowns is #ndofs * #vdim.
    int ndofs;
 
+   bool variableOrder = false;
+
    /** Polynomial order for each element. If empty, all elements are assumed
        to be of the default order (fec->GetOrder()). */
    Array<char> elem_order;
+
+   std::set<int> elems_pref;  // TODO: is this still used?
 
    int nvdofs, nedofs, nfdofs, nbdofs;
    int uni_fdof; ///< # of single face DOFs if all faces uniform; -1 otherwise
@@ -254,9 +272,19 @@ protected:
    Table var_edge_dofs;
    Table var_face_dofs; ///< NOTE: also used for spaces with mixed faces
 
+   /// Bit-mask representing a set of orders needed by an edge/face.
+   typedef std::uint64_t VarOrderBits;
+   static constexpr int MaxVarOrder = 8*sizeof(VarOrderBits) - 1;
+
    /** Additional data for the var_*_dofs tables: individual variant orders
        (these are basically alternate J arrays for var_edge/face_dofs). */
    Array<char> var_edge_orders, var_face_orders;
+
+   // TODO: pass into CalcEdgeFaceVarOrders to avoid mutable?
+
+   /// Marker arrays for ghost master entities to be skipped in conforming
+   /// interpolation constraints.
+   Array<bool> skip_edge, skip_face;
 
    // precalculated DOFs for each element, boundary element, and face
    mutable Table *elem_dof; // owned (except in NURBS FE space)
@@ -288,6 +316,8 @@ protected:
 
    /// Transformation to apply to GridFunctions after space Update().
    OperatorHandle Th;
+
+   std::unique_ptr<PRefinementTransferOperator> PTh;
 
    /// The element restriction operators, see GetElementRestriction().
    mutable OperatorHandle L2E_nat, L2E_lex;
@@ -325,7 +355,7 @@ protected:
 
    void UpdateNURBS();
 
-   void Construct();
+   void Construct(const Array<VarOrderElemInfo> * pref_data=nullptr);
    void Destroy();
 
    void ConstructDoFTransArray();
@@ -341,10 +371,6 @@ protected:
        boundary. */
    void BuildNURBSFaceToDofTable() const;
 
-   /// Bit-mask representing a set of orders needed by an edge/face.
-   typedef std::uint64_t VarOrderBits;
-   static constexpr int MaxVarOrder = 8*sizeof(VarOrderBits) - 1;
-
    /// Return the minimum order (least significant bit set) in the bit mask.
    static int MinOrder(VarOrderBits bits);
 
@@ -353,12 +379,37 @@ protected:
 
    /** In a variable order space, calculate a bitmask of polynomial orders that
        need to be represented on each edge and face. */
-   void CalcEdgeFaceVarOrders(Array<VarOrderBits> &edge_orders,
-                              Array<VarOrderBits> &face_orders) const;
+   void CalcEdgeFaceVarOrders(
+      Array<VarOrderBits> &edge_orders, Array<VarOrderBits> &face_orders,
+      Array<bool> &skip_edges, Array<bool> &skip_faces,
+      const Array<VarOrderElemInfo> * pref_data=nullptr) const;
+
+   virtual void ApplyGhostElementOrdersToEdgesAndFaces(
+      Array<VarOrderBits> &edge_orders,
+      Array<VarOrderBits> &face_orders,
+      const Array<VarOrderElemInfo> * pref_data=nullptr) const;
+
+   virtual void GhostMasterFaceOrderToEdges(const Array<VarOrderBits> &face_orders,
+                                            Array<VarOrderBits> &edge_orders) const { }
+
+   virtual void GhostMasterArtificialFaceOrders(const Array<VarOrderBits>
+                                                &face_orders,
+                                                const Array<VarOrderBits> &edge_orders,
+                                                Array<VarOrderBits> &artificial_edge_orders,
+                                                Array<VarOrderBits> &artificial_face_orders) const { };
+
+   virtual bool ParallelOrderPropagation(bool sdone, const std::set<int> &edges,
+                                         const std::set<int> &faces,
+                                         Array<VarOrderBits> &edge_orders,
+                                         Array<VarOrderBits> &face_orders) const
+   { return sdone; };
+
+   virtual int NumGhostEdges() const { return 0; }
+   virtual int NumGhostFaces() const { return 0; }
 
    /** Build the table var_edge_dofs (or var_face_dofs) in a variable order
-       space; return total edge/face DOFs. */
-   int MakeDofTable(int ent_dim, const Array<int> &entity_orders,
+        space; return total edge/face DOFs. */
+   int MakeDofTable(int ent_dim, const Array<VarOrderBits> &entity_orders,
                     Table &entity_dofs, Array<char> *var_ent_order);
 
    /// Search row of a DOF table for a DOF set of size 'ndof', return first DOF.
@@ -396,6 +447,8 @@ protected:
 
    /// Calculate the cP and cR matrices for a nonconforming mesh.
    void BuildConformingInterpolation() const;
+
+   void VariableOrderMinimumRule(SparseMatrix & deps) const;
 
    static void AddDependencies(SparseMatrix& deps, Array<int>& master_dofs,
                                Array<int>& slave_dofs, DenseMatrix& I,
@@ -469,6 +522,9 @@ protected:
                                        const Table *coarse_elem_fos,
                                        const DenseTensor localP[]) const;
 
+   SparseMatrix *VariableOrderRefinementMatrix_main(const int coarse_ndofs,
+                                                    const Table &coarse_elem_dof) const;
+
    void GetLocalRefinementMatrices(Geometry::Type geom,
                                    DenseTensor &localP) const;
    void GetLocalDerefinementMatrices(Geometry::Type geom,
@@ -540,8 +596,7 @@ public:
 
    FiniteElementSpace(Mesh *mesh,
                       const FiniteElementCollection *fec,
-                      int vdim = 1, int ordering = Ordering::byNODES)
-   { Constructor(mesh, NULL, fec, vdim, ordering); }
+                      int vdim = 1, int ordering = Ordering::byNODES);
 
    /// Construct a NURBS FE space based on the given NURBSExtension, @a ext.
    /** @note If the pointer @a ext is NULL, this constructor is equivalent to
@@ -549,8 +604,7 @@ public:
        NURBSExtension, @a ext. */
    FiniteElementSpace(Mesh *mesh, NURBSExtension *ext,
                       const FiniteElementCollection *fec,
-                      int vdim = 1, int ordering = Ordering::byNODES)
-   { Constructor(mesh, ext, fec, vdim, ordering); }
+                      int vdim = 1, int ordering = Ordering::byNODES);
 
    /// Copy assignment not supported
    FiniteElementSpace& operator=(const FiniteElementSpace&) = delete;
@@ -574,11 +628,11 @@ public:
    int GetElementOrder(int i) const;
 
    /// Return the maximum polynomial order.
-   int GetMaxElementOrder() const
+   virtual int GetMaxElementOrder() const
    { return IsVariableOrder() ? elem_order.Max() : fec->GetOrder(); }
 
    /// Returns true if the space contains elements of varying polynomial orders.
-   bool IsVariableOrder() const { return elem_order.Size(); }
+   bool IsVariableOrder() const { return variableOrder; }
 
    /// The returned SparseMatrix is owned by the FiniteElementSpace.
    const SparseMatrix *GetConformingProlongation() const;
@@ -1286,6 +1340,8 @@ public:
 
    /// Return the update operator in the given OperatorHandle, @a T.
    void GetUpdateOperator(OperatorHandle &T) { T = Th; }
+
+   std::shared_ptr<const PRefinementTransferOperator> GetPrefUpdateOperator();
 
    /** @brief Set the ownership of the update operator: if set to false, the
        Operator returned by GetUpdateOperator() must be deleted outside the

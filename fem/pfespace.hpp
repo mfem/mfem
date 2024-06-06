@@ -32,7 +32,7 @@ private:
    MPI_Comm MyComm;
    int NRanks, MyRank;
 
-   /// Parallel mesh; #mesh points to this object as well. Not owned.
+   /// Parallel mesh; @a mesh points to this object as well. Not owned.
    ParMesh *pmesh;
    /** Parallel non-conforming mesh extension object; same as pmesh->pncmesh.
        Not owned. */
@@ -46,6 +46,14 @@ private:
 
    /// Number of vertex/edge/face/total ghost DOFs (nonconforming case).
    int ngvdofs, ngedofs, ngfdofs, ngdofs;
+
+   struct VarOrderDofInfo
+   {
+      unsigned int index;  // Index of the entity (edge or face)
+      unsigned short int edof;  // Dof index within the entity
+   };
+
+   Array<VarOrderDofInfo> var_edge_dofmap, var_face_dofmap;
 
    /// The group of each local dof.
    Array<int> ldof_group;
@@ -86,6 +94,8 @@ private:
    /// Flag indicating the existence of shared triangles with interior ND dofs
    bool nd_strias;
 
+   std::unique_ptr<ParFiniteElementSpace> fesPrev;
+
    /// Resets nd_strias flag at construction or after rebalancing
    void CheckNDSTriaDofs();
 
@@ -100,6 +110,11 @@ private:
 
    // Auxiliary method used in constructors
    void ParInit(ParMesh *pm);
+
+   void CommunicateGhostOrder(Array<VarOrderElemInfo> & pref_data);
+
+   void SetVarDofMaps();
+   void SetVarDofMap(const Table & dofs, Array<VarOrderDofInfo> & dmap);
 
    void Construct();
    void Destroy();
@@ -122,20 +137,31 @@ private:
    typedef ParNCMesh::GroupId GroupId;
 
    void GetGhostVertexDofs(const MeshId &id, Array<int> &dofs) const;
-   void GetGhostEdgeDofs(const MeshId &edge_id, Array<int> &dofs) const;
+   void GetGhostEdgeDofs(const MeshId &edge_id, Array<int> &dofs,
+                         int variant) const;
    void GetGhostFaceDofs(const MeshId &face_id, Array<int> &dofs) const;
-   void GetGhostDofs(int entity, const MeshId &id, Array<int> &dofs) const;
+   void GetGhostDofs(int entity, const MeshId &id, Array<int> &dofs,
+                     int variant) const;
 
    /// Return the dofs associated with the interior of the given mesh entity.
    void GetBareDofs(int entity, int index, Array<int> &dofs) const;
+   void GetBareDofsVar(int entity, int index, Array<int> &dofs) const;
 
-   int  PackDof(int entity, int index, int edof) const;
-   void UnpackDof(int dof, int &entity, int &index, int &edof) const;
+   int  PackDof(int entity, int index, int edof, int var = 0) const;
+   void UnpackDof(int dof, int &entity, int &index, int &edof, int &order) const;
+
+   int  PackDofVar(int entity, int index, int edof, int var = 0) const;
+   void UnpackDofVar(int dof, int &entity, int &index, int &edof,
+                     int &order) const;
 
 #ifdef MFEM_PMATRIX_STATS
    mutable int n_msgs_sent, n_msgs_recv;
    mutable int n_rows_sent, n_rows_recv, n_rows_fwd;
 #endif
+
+   void ScheduleSendOrder(int ent, int idx, int order,
+                          GroupId group_id,
+                          std::map<int, class NeighborOrderMessage> &send_msg) const;
 
    void ScheduleSendRow(const struct PMatrixRow &row, int dof, GroupId group_id,
                         std::map<int, class NeighborRowMessage> &send_msg) const;
@@ -421,6 +447,8 @@ public:
        /rebalance matrices, unless want_transform is false. */
    void Update(bool want_transform = true) override;
 
+   void UpdatePRef(const Array<PRefinement> & pref);
+
    /// Free ParGridFunction transformation matrix (if any), to save memory.
    void UpdatesFinished() override
    {
@@ -428,12 +456,33 @@ public:
       old_dof_offsets.DeleteAll();
    }
 
+   int GetMaxElementOrder() const override;
+
    virtual ~ParFiniteElementSpace() { Destroy(); }
 
    void PrintPartitionStats();
 
    /// Obsolete, kept for backward compatibility
    int TrueVSize() const { return ltdof_size; }
+
+   void MarkIntermediateEntityDofs(int entity, Array<bool> & intermediate) const;
+
+protected:
+   void ApplyGhostElementOrdersToEdgesAndFaces(
+      Array<VarOrderBits> &edge_orders,
+      Array<VarOrderBits> &face_orders,
+      const Array<VarOrderElemInfo> * pref_data=nullptr) const override;
+
+   void GhostMasterFaceOrderToEdges(const Array<VarOrderBits> &face_orders,
+                                    Array<VarOrderBits> &edge_orders) const override;
+
+   bool ParallelOrderPropagation(bool sdone, const std::set<int> &edges,
+                                 const std::set<int> &faces,
+                                 Array<VarOrderBits> &edge_orders,
+                                 Array<VarOrderBits> &face_orders) const override;
+
+   int NumGhostEdges() const override { return pncmesh->GetNGhostEdges(); }
+   int NumGhostFaces() const override { return pncmesh->GetNGhostFaces(); }
 };
 
 

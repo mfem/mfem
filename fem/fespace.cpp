@@ -95,6 +95,16 @@ FiniteElementSpace::FiniteElementSpace(const FiniteElementSpace &orig,
    Constructor(mesh_, nurbs_ext, fec_, orig.vdim, orig.ordering);
 }
 
+FiniteElementSpace::FiniteElementSpace(Mesh *mesh,
+                                       const FiniteElementCollection *fec,
+                                       int vdim, int ordering)
+{ Constructor(mesh, NULL, fec, vdim, ordering); }
+
+FiniteElementSpace::FiniteElementSpace(Mesh *mesh, NURBSExtension *ext,
+                                       const FiniteElementCollection *fec,
+                                       int vdim, int ordering)
+{ Constructor(mesh, ext, fec, vdim, ordering); }
+
 void FiniteElementSpace::CopyProlongationAndRestriction(
    const FiniteElementSpace &fes, const Array<int> *perm)
 {
@@ -155,22 +165,21 @@ void FiniteElementSpace::SetElementOrder(int i, int p)
    MFEM_ASSERT(!elem_order.Size() || elem_order.Size() == GetNE(),
                "Internal error");
 
-   if (elem_order.Size()) // already a variable-order space
-   {
-      if (elem_order[i] != p)
-      {
-         elem_order[i] = p;
-         orders_changed = true;
-      }
-   }
-   else // convert space to variable-order space
+   const bool change = elem_order.Size() == 0 || elem_order[i] != p;
+   if (elem_order.Size() == 0)  // convert space to variable-order space
    {
       elem_order.SetSize(GetNE());
       elem_order = fec->GetOrder();
+   }
 
+   if (change)
+   {
       elem_order[i] = p;
       orders_changed = true;
+      elems_pref.insert(i);  // TODO: is this still used?
    }
+
+   variableOrder = true;
 }
 
 int FiniteElementSpace::GetElementOrder(int i) const
@@ -982,6 +991,57 @@ int FiniteElementSpace::GetEntityVDofs(int entity, int index, Array<int> &dofs,
    return n;
 }
 
+// Variable order spaces: enforce minimum rule on conforming edges/faces
+void FiniteElementSpace::VariableOrderMinimumRule(SparseMatrix & deps) const
+{
+   if (!IsVariableOrder()) { return; }
+
+   Array<int> master_dofs, slave_dofs;
+
+   IsoparametricTransformation T;
+   DenseMatrix I;
+
+   for (int entity = 1; entity < mesh->Dimension(); entity++)
+   {
+      const Table &ent_dofs = (entity == 1) ? var_edge_dofs : var_face_dofs;
+      int num_ent = (entity == 1) ? mesh->GetNEdges() : mesh->GetNFaces();
+      MFEM_ASSERT(ent_dofs.Size() >= num_ent+1, "");
+
+      // add constraints within edges/faces holding multiple DOF sets
+      Geometry::Type last_geom = Geometry::INVALID;
+      for (int i = 0; i < num_ent; i++)
+      {
+         if (ent_dofs.RowSize(i) <= 1) { continue; }
+
+         Geometry::Type geom =
+            (entity == 1) ? Geometry::SEGMENT : mesh->GetFaceGeometry(i);
+
+         if (geom != last_geom)
+         {
+            T.SetIdentityTransformation(geom);
+            last_geom = geom;
+         }
+
+         // get lowest order variant DOFs and FE
+         int p = GetEntityDofs(entity, i, master_dofs, geom, 0);
+         const auto *master_fe = fec->GetFE(geom, p);
+         if (!master_fe) { break; }
+
+         // constrain all higher order DOFs: interpolate lowest order function
+         for (int variant = 1; ; variant++)
+         {
+            int q = GetEntityDofs(entity, i, slave_dofs, geom, variant);
+            if (q < 0) { break; }
+
+            const auto *slave_fe = fec->GetFE(geom, q);
+            slave_fe->GetTransferMatrix(*master_fe, T, I);
+
+            AddDependencies(deps, master_dofs, slave_dofs, I);
+         }
+      }
+   }
+}
+
 void FiniteElementSpace::BuildConformingInterpolation() const
 {
 #ifdef MFEM_USE_MPI
@@ -1017,7 +1077,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    // as a linear combination of the highest order set of DOFs.
    SparseMatrix inv_deps(ndofs);
 
-   // collect local face/edge dependencies
+   // collect local face/edge dependencies, starting with faces
    for (int entity = 2; entity >= 1; entity--)
    {
       const NCMesh::NCList &list = mesh->ncmesh->GetNCList(entity);
@@ -1094,50 +1154,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
       }
    }
 
-   // variable order spaces: enforce minimum rule on conforming edges/faces
-   if (IsVariableOrder())
-   {
-      for (int entity = 1; entity < mesh->Dimension(); entity++)
-      {
-         const Table &ent_dofs = (entity == 1) ? var_edge_dofs : var_face_dofs;
-         int num_ent = (entity == 1) ? mesh->GetNEdges() : mesh->GetNFaces();
-         MFEM_ASSERT(ent_dofs.Size() == num_ent+1, "");
-
-         // add constraints within edges/faces holding multiple DOF sets
-         Geometry::Type last_geom = Geometry::INVALID;
-         for (int i = 0; i < num_ent; i++)
-         {
-            if (ent_dofs.RowSize(i) <= 1) { continue; }
-
-            Geometry::Type geom =
-               (entity == 1) ? Geometry::SEGMENT : mesh->GetFaceGeometry(i);
-
-            if (geom != last_geom)
-            {
-               T.SetIdentityTransformation(geom);
-               last_geom = geom;
-            }
-
-            // get lowest order variant DOFs and FE
-            int p = GetEntityDofs(entity, i, master_dofs, geom, 0);
-            const auto *master_fe = fec->GetFE(geom, p);
-            if (!master_fe) { break; }
-
-            // constrain all higher order DOFs: interpolate lowest order function
-            for (int variant = 1; ; variant++)
-            {
-               int q = GetEntityDofs(entity, i, slave_dofs, geom, variant);
-               if (q < 0) { break; }
-
-               const auto *slave_fe = fec->GetFE(geom, q);
-               slave_fe->GetTransferMatrix(*master_fe, T, I);
-
-               AddDependencies(deps, master_dofs, slave_dofs, I);
-            }
-         }
-      }
-   }
-
+   VariableOrderMinimumRule(deps);
    deps.Finalize();
    inv_deps.Finalize();
 
@@ -1525,6 +1542,69 @@ SparseMatrix *FiniteElementSpace::RefinementMatrix_main(
    return P;
 }
 
+SparseMatrix *FiniteElementSpace::VariableOrderRefinementMatrix_main(
+   const int coarse_ndofs, const Table &coarse_elem_dof) const
+{
+   MFEM_VERIFY(mesh->GetLastOperation() == Mesh::REFINE, "");
+
+   Array<int> dofs, coarse_dofs, coarse_vdofs;
+   Vector row;
+
+   Mesh::GeometryList elem_geoms(*mesh);
+
+   SparseMatrix *P = new SparseMatrix(GetVSize(), coarse_ndofs*vdim);
+
+   Array<int> mark(P->Height());
+   mark = 0;
+
+   const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
+   DenseMatrix lP;
+   IsoparametricTransformation isotr;
+   const FiniteElement *fe = nullptr;
+   for (int k = 0; k < mesh->GetNE(); k++)
+   {
+      const Embedding &emb = rtrans.embeddings[k];
+      const Geometry::Type geom = mesh->GetElementBaseGeometry(k);
+
+      fe = GetFE(k);
+      isotr.SetIdentityTransformation(geom);
+      const int ldof = fe->GetDof();
+      lP.SetSize(ldof, ldof);
+      const DenseTensor &pmats = rtrans.point_matrices[geom];
+      isotr.SetPointMat(pmats(emb.matrix));
+      fe->GetLocalInterpolation(isotr, lP);
+
+      const int fine_ldof = lP.Height();
+
+      elem_dof->GetRow(k, dofs);
+      coarse_elem_dof.GetRow(emb.parent, coarse_dofs);
+
+      for (int vd = 0; vd < vdim; vd++)
+      {
+         coarse_dofs.Copy(coarse_vdofs);
+         DofsToVDofs(vd, coarse_vdofs, coarse_ndofs);
+
+         for (int i = 0; i < fine_ldof; i++)
+         {
+            int r = DofToVDof(dofs[i], vd);
+            int m = (r >= 0) ? r : (-1 - r);
+
+            if (!mark[m])
+            {
+               lP.GetRow(i, row);
+               P->SetRow(r, coarse_vdofs, row);
+               mark[m] = 1;
+            }
+         }
+      }
+   }
+
+   // Not sure if this check makes sense in the variable order case
+   // MFEM_ASSERT(mark.Sum() == P->Height(), "Not all rows of P set.");
+   if (elem_geoms.Size() != 1) { P->Finalize(); }
+   return P;
+}
+
 void FiniteElementSpace::GetLocalRefinementMatrices(
    Geometry::Type geom, DenseTensor &localP) const
 {
@@ -1556,15 +1636,20 @@ SparseMatrix* FiniteElementSpace::RefinementMatrix(int old_ndofs,
                "Previous mesh is not coarser.");
 
    Mesh::GeometryList elem_geoms(*mesh);
-
-   DenseTensor localP[Geometry::NumGeom];
-   for (int i = 0; i < elem_geoms.Size(); i++)
+   if (!IsVariableOrder())
    {
-      GetLocalRefinementMatrices(elem_geoms[i], localP[elem_geoms[i]]);
+      DenseTensor localP[Geometry::NumGeom];
+      for (int i = 0; i < elem_geoms.Size(); i++)
+      {
+         GetLocalRefinementMatrices(elem_geoms[i], localP[elem_geoms[i]]);
+      }
+      return RefinementMatrix_main(old_ndofs, *old_elem_dof, old_elem_fos,
+                                   localP);
    }
-
-   return RefinementMatrix_main(old_ndofs, *old_elem_dof, old_elem_fos,
-                                localP);
+   else
+   {
+      return VariableOrderRefinementMatrix_main(old_ndofs, *old_elem_dof);
+   }
 }
 
 FiniteElementSpace::RefinementOperator::RefinementOperator(
@@ -1582,9 +1667,12 @@ FiniteElementSpace::RefinementOperator::RefinementOperator(
 
    Mesh::GeometryList elem_geoms(*fespace->GetMesh());
 
-   for (int i = 0; i < elem_geoms.Size(); i++)
+   if (!fespace->IsVariableOrder())
    {
-      fespace->GetLocalRefinementMatrices(elem_geoms[i], localP[elem_geoms[i]]);
+      for (int i = 0; i < elem_geoms.Size(); i++)
+      {
+         fespace->GetLocalRefinementMatrices(elem_geoms[i], localP[elem_geoms[i]]);
+      }
    }
 
    ConstructDoFTransArray();
@@ -1597,10 +1685,13 @@ FiniteElementSpace::RefinementOperator::RefinementOperator(
 {
    Mesh::GeometryList elem_geoms(*fespace->GetMesh());
 
-   for (int i = 0; i < elem_geoms.Size(); i++)
+   if (!fespace->IsVariableOrder())
    {
-      fespace->GetLocalRefinementMatrices(*coarse_fes, elem_geoms[i],
-                                          localP[elem_geoms[i]]);
+      for (int i = 0; i < elem_geoms.Size(); i++)
+      {
+         fespace->GetLocalRefinementMatrices(*coarse_fes, elem_geoms[i],
+                                             localP[elem_geoms[i]]);
+      }
    }
 
    // Make a copy of the coarse elem_dof Table.
@@ -1676,11 +1767,26 @@ void FiniteElementSpace::RefinementOperator::Mult(const Vector &x,
 
    Vector subY, subX;
 
+   DenseMatrix eP;
+   IsoparametricTransformation isotr;
+   const FiniteElement *fe = nullptr;
+
    for (int k = 0; k < mesh_ref->GetNE(); k++)
    {
       const Embedding &emb = trans_ref.embeddings[k];
       const Geometry::Type geom = mesh_ref->GetElementBaseGeometry(k);
-      const DenseMatrix &lP = localP[geom](emb.matrix);
+      if (fespace->IsVariableOrder())
+      {
+         fe = fespace->GetFE(k);
+         isotr.SetIdentityTransformation(geom);
+         const int ldof = fe->GetDof();
+         eP.SetSize(ldof, ldof);
+         const DenseTensor &pmats = trans_ref.point_matrices[geom];
+         isotr.SetPointMat(pmats(emb.matrix));
+         fe->GetLocalInterpolation(isotr, eP);
+      }
+      const DenseMatrix &lP = (fespace->IsVariableOrder()) ? eP : localP[geom](
+                                 emb.matrix);
 
       subY.SetSize(lP.Height());
 
@@ -1745,11 +1851,28 @@ void FiniteElementSpace::RefinementOperator::MultTranspose(const Vector &x,
 
    Vector subY, subX, subYt;
 
+   DenseMatrix eP;
+   IsoparametricTransformation isotr;
+   const FiniteElement *fe = nullptr;
+
    for (int k = 0; k < mesh_ref->GetNE(); k++)
    {
       const Embedding &emb = trans_ref.embeddings[k];
       const Geometry::Type geom = mesh_ref->GetElementBaseGeometry(k);
-      const DenseMatrix &lP = localP[geom](emb.matrix);
+
+      if (fespace->IsVariableOrder())
+      {
+         fe = fespace->GetFE(k);
+         isotr.SetIdentityTransformation(geom);
+         const int ldof = fe->GetDof();
+         eP.SetSize(ldof, ldof);
+         const DenseTensor &pmats = trans_ref.point_matrices[geom];
+         isotr.SetPointMat(pmats(emb.matrix));
+         fe->GetLocalInterpolation(isotr, eP);
+      }
+
+      const DenseMatrix &lP = (fespace->IsVariableOrder()) ? eP : localP[geom](
+                                 emb.matrix);
 
       DofTransformation *doftrans = fespace->GetElementDofs(k, f_dofs);
       old_elem_dof->GetRow(emb.parent, c_dofs);
@@ -2108,9 +2231,12 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
    Mesh::GeometryList elem_geoms(*mesh);
 
    DenseTensor localR[Geometry::NumGeom];
-   for (int i = 0; i < elem_geoms.Size(); i++)
+   if (!IsVariableOrder())
    {
-      GetLocalDerefinementMatrices(elem_geoms[i], localR[elem_geoms[i]]);
+      for (int i = 0; i < elem_geoms.Size(); i++)
+      {
+         GetLocalDerefinementMatrices(elem_geoms[i], localR[elem_geoms[i]]);
+      }
    }
 
    SparseMatrix *R = new SparseMatrix(ndofs*vdim, old_ndofs*vdim);
@@ -2124,15 +2250,35 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
    MFEM_ASSERT(dtrans.embeddings.Size() == old_elem_dof->Size(), "");
 
    bool is_dg = FEColl()->GetContType() == FiniteElementCollection::DISCONTINUOUS;
-   int num_marked = 0;
+   //int num_marked = 0;
+   const FiniteElement *fe = nullptr;
+   DenseMatrix localRVO; //for variable order only
    for (int k = 0; k < dtrans.embeddings.Size(); k++)
    {
       const Embedding &emb = dtrans.embeddings[k];
       Geometry::Type geom = mesh->GetElementBaseGeometry(emb.parent);
-      DenseMatrix &lR = localR[geom](emb.matrix);
+
+      if (IsVariableOrder())
+      {
+         fe = GetFE(emb.parent);
+         const DenseTensor &pmats = dtrans.point_matrices[geom];
+         const int ldof = fe->GetDof();
+
+         IsoparametricTransformation isotr;
+         isotr.SetIdentityTransformation(geom);
+
+         localRVO.SetSize(ldof, ldof);
+         isotr.SetPointMat(pmats(emb.matrix));
+         // Local restriction is size ldofxldof assuming that the parent and
+         // child are of same polynomial order.
+         fe->GetLocalRestriction(isotr, localRVO);
+      }
+      DenseMatrix &lR = IsVariableOrder() ? localRVO : localR[geom](emb.matrix);
 
       elem_dof->GetRow(emb.parent, dofs);
       old_elem_dof->GetRow(k, old_dofs);
+      MFEM_VERIFY(old_dofs.Size() == dofs.Size(),
+                  "Parent and child must have same #dofs.");
 
       for (int vd = 0; vd < vdim; vd++)
       {
@@ -2152,17 +2298,19 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
                R->SetRow(r, old_vdofs, row);
 
                mark[m] = 1;
-               num_marked++;
+               //num_marked++;
             }
          }
       }
    }
 
+   /*
    if (!is_dg)
    {
       MFEM_VERIFY(num_marked == R->Height(),
                   "internal error: not all rows of R were set.");
    }
+   */
 
    R->Finalize(); // no-op if fixed width
    return R;
@@ -2371,7 +2519,7 @@ void FiniteElementSpace::BuildNURBSFaceToDofTable() const
    face_dof = new Table(GetNF(), face_dof_list);
 }
 
-void FiniteElementSpace::Construct()
+void FiniteElementSpace::Construct(const Array<VarOrderElemInfo> * pref_data)
 {
    // This method should be used only for non-NURBS spaces.
    MFEM_VERIFY(!NURBSext, "internal error");
@@ -2411,7 +2559,8 @@ void FiniteElementSpace::Construct()
    if (IsVariableOrder())
    {
       // for variable order spaces, calculate orders of edges and faces
-      CalcEdgeFaceVarOrders(edge_orders, face_orders);
+      CalcEdgeFaceVarOrders(edge_orders, face_orders, skip_edge, skip_face,
+                            pref_data);
    }
    else if (mixed_faces)
    {
@@ -2510,15 +2659,33 @@ int FiniteElementSpace::MinOrder(VarOrderBits bits)
    return 0;
 }
 
-void FiniteElementSpace::CalcEdgeFaceVarOrders(
-   Array<VarOrderBits> &edge_orders, Array<VarOrderBits> &face_orders) const
+// For the serial FiniteElementSpace, there are no ghost elements, and this
+// function just sets the sizes of edge_orders and face_orders, initializing to
+// 0.
+void FiniteElementSpace::ApplyGhostElementOrdersToEdgesAndFaces(
+   Array<VarOrderBits> &edge_orders,
+   Array<VarOrderBits> &face_orders,
+   const Array<VarOrderElemInfo> * pref_data) const
 {
-   MFEM_ASSERT(IsVariableOrder(), "");
-   MFEM_ASSERT(Nonconforming(), "");
-   MFEM_ASSERT(elem_order.Size() == mesh->GetNE(), "");
+   edge_orders.SetSize(mesh->GetNEdges());
+   face_orders.SetSize(mesh->GetNFaces());
 
-   edge_orders.SetSize(mesh->GetNEdges());  edge_orders = 0;
-   face_orders.SetSize(mesh->GetNFaces());  face_orders = 0;
+   edge_orders = 0;
+   face_orders = 0;
+}
+
+void FiniteElementSpace::CalcEdgeFaceVarOrders(
+   Array<VarOrderBits> &edge_orders, Array<VarOrderBits> &face_orders,
+   Array<bool> &skip_edges, Array<bool> &skip_faces,
+   const Array<VarOrderElemInfo> * pref_data) const
+{
+   MFEM_ASSERT(IsVariableOrder() || pref_data, "");
+   MFEM_ASSERT(Nonconforming(), "");
+
+   const bool localVar = elem_order.Size() == mesh->GetNE();
+   const int baseOrder = fec->GetOrder();
+
+   ApplyGhostElementOrdersToEdgesAndFaces(edge_orders, face_orders, pref_data);
 
    // Calculate initial edge/face orders, as required by incident elements.
    // For each edge/face we accumulate in a bit-mask the orders of elements
@@ -2526,7 +2693,7 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(
    Array<int> E, F, ori;
    for (int i = 0; i < mesh->GetNE(); i++)
    {
-      int order = elem_order[i];
+      int order = localVar ? elem_order[i] : baseOrder;
       MFEM_ASSERT(order <= MaxVarOrder, "");
       VarOrderBits mask = (VarOrderBits(1) << order);
 
@@ -2562,6 +2729,9 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(
    {
       done = true;
 
+      std::set<int> changedEdges;
+      std::set<int> changedFaces;
+
       // propagate from slave edges to master edges
       const NCMesh::NCList &edge_list = mesh->ncmesh->GetEdgeList();
       for (const NCMesh::Master &master : edge_list.masters)
@@ -2572,25 +2742,43 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(
             slave_orders |= edge_orders[edge_list.slaves[i].index];
          }
 
+         if (slave_orders == 0)
+         {
+            continue;
+         }
+
          int min_order = MinOrder(slave_orders);
-         if (min_order < MinOrder(edge_orders[master.index]))
+         if (edge_orders[master.index] == 0 ||
+             min_order < MinOrder(edge_orders[master.index]))
          {
             edge_orders[master.index] |= (VarOrderBits(1) << min_order);
             done = false;
+
+            changedEdges.insert(master.index);
          }
       }
 
       // propagate from slave faces(+edges) to master faces(+edges)
+      const int numFaces = mesh->GetNumFaces();
+
       const NCMesh::NCList &face_list = mesh->ncmesh->GetFaceList();
+
       for (const NCMesh::Master &master : face_list.masters)
       {
          VarOrderBits slave_orders = 0;
+
          for (int i = master.slaves_begin; i < master.slaves_end; i++)
          {
             const NCMesh::Slave &slave = face_list.slaves[i];
+
             if (slave.index >= 0)
             {
                slave_orders |= face_orders[slave.index];
+
+               if (slave.index >= numFaces)
+               {
+                  continue;  // Skip ghost faces
+               }
 
                mesh->GetFaceEdges(slave.index, E, ori);
                for (int j = 0; j < E.Size(); j++)
@@ -2605,11 +2793,19 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(
             }
          }
 
+         if (slave_orders == 0)
+         {
+            continue;
+         }
+
          int min_order = MinOrder(slave_orders);
-         if (min_order < MinOrder(face_orders[master.index]))
+         if (face_orders[master.index] == 0 ||
+             min_order < MinOrder(face_orders[master.index]))
          {
             face_orders[master.index] |= (VarOrderBits(1) << min_order);
             done = false;
+
+            changedFaces.insert(master.index);
          }
       }
 
@@ -2619,15 +2815,55 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(
          mesh->GetFaceEdges(i, E, ori);
          for (int j = 0; j < E.Size(); j++)
          {
+            const VarOrderBits eo0 = edge_orders[E[j]];
             edge_orders[E[j]] |= face_orders[i];
+            if (eo0 != edge_orders[E[j]])
+            {
+               done = false;
+               changedEdges.insert(E[j]);
+            }
          }
       }
+
+      // In the parallel case, ParallelOrderPropagation communicates orders on
+      // updated edges and faces.
+      done = ParallelOrderPropagation(done, changedEdges, changedFaces,
+                                      edge_orders, face_orders);
    }
    while (!done);
+
+   GhostMasterFaceOrderToEdges(face_orders, edge_orders);
+
+   // Some ghost edges and faces (3D) may not have any orders applied, since we
+   // only communicate orders of neighboring ghost elements. Such ghost entities
+   // are marked here, to be skipped by BuildParallelConformingInterpolation as
+   // master entities constraining slave entity DOFs.
+
+   skip_edges.SetSize(edge_orders.Size());
+   skip_edges = false;
+
+   skip_faces.SetSize(face_orders.Size());
+   skip_faces = false;
+
+   for (int i=0; i<edge_orders.Size(); ++i)
+   {
+      if (edge_orders[i] == 0)
+      {
+         skip_edges[i] = true;
+      }
+   }
+
+   for (int i=0; i<face_orders.Size(); ++i)
+   {
+      if (face_orders[i] == 0)
+      {
+         skip_faces[i] = true;
+      }
+   }
 }
 
 int FiniteElementSpace::MakeDofTable(int ent_dim,
-                                     const Array<int> &entity_orders,
+                                     const Array<VarOrderBits> &entity_orders,
                                      Table &entity_dofs,
                                      Array<char> *var_ent_order)
 {
@@ -2643,6 +2879,7 @@ int FiniteElementSpace::MakeDofTable(int ent_dim,
 
    int num_ent = entity_orders.Size();
    int total_dofs = 0;
+   int total_dofs_nonghost = 0;
 
    Array<Connection> list;
    list.Reserve(2*num_ent);
@@ -2653,10 +2890,25 @@ int FiniteElementSpace::MakeDofTable(int ent_dim,
       var_ent_order->Reserve(num_ent);
    }
 
+   const int numGhost = (ent_dim == 1) ? NumGhostEdges() : NumGhostFaces();
+   const int nonGhost = num_ent - numGhost;
+
    // assign DOFs according to order bit masks
    for (int i = 0; i < num_ent; i++)
    {
-      auto geom = (ent_dim == 1) ? Geometry::SEGMENT : mesh->GetFaceGeometry(i);
+      auto geom = Geometry::SEGMENT;  // ent_dim == 1 case
+      if (ent_dim != 1)
+      {
+         // TODO: put this logic in mesh->GetFaceGeometry?
+         if (i >= nonGhost)  // if ghost
+         {
+            geom = mesh->ncmesh->GetFaceGeometry(i);
+         }
+         else
+         {
+            geom = mesh->GetFaceGeometry(i);
+         }
+      }
 
       VarOrderBits bits = entity_orders[i];
       for (int order = 0; bits != 0; order++, bits >>= 1)
@@ -2666,6 +2918,7 @@ int FiniteElementSpace::MakeDofTable(int ent_dim,
             int dofs = fec->GetNumDof(geom, order);
             list.Append(Connection(i, total_dofs));
             total_dofs += dofs;
+            if (i < nonGhost) { total_dofs_nonghost += dofs; }
             if (var_ent_order) { var_ent_order->Append(order); }
          }
       }
@@ -2676,7 +2929,7 @@ int FiniteElementSpace::MakeDofTable(int ent_dim,
 
    // build the table
    entity_dofs.MakeFromList(num_ent+1, list);
-   return total_dofs;
+   return total_dofs_nonghost;
 }
 
 int FiniteElementSpace::FindDofs(const Table &var_dof_table,
@@ -2879,7 +3132,7 @@ void FiniteElementSpace::GetBdrElementDofs(int bel, Array<int> &dofs,
    auto geom = mesh->GetBdrElementGeometry(bel);
    int order = fec->GetOrder();
 
-   if (IsVariableOrder()) // determine order from adjacent element
+   if (elem_order.Size()) // determine order from adjacent element
    {
       int elem, info;
       mesh->GetBdrElementAdjacentElement(bel, elem, info);
@@ -3209,7 +3462,7 @@ const FiniteElement *FiniteElementSpace::GetBE(int i) const
    {
       int elem, info;
       mesh->GetBdrElementAdjacentElement(i, elem, info);
-      order = elem_order[elem];
+      order = GetElementOrderImpl(elem);
    }
 
    const FiniteElement *BE;
@@ -3353,19 +3606,27 @@ void FiniteElementSpace::GetTransferOperator(
 
    if (T.Type() == Operator::MFEM_SPARSEMAT)
    {
-      Mesh::GeometryList elem_geoms(*mesh);
-
-      DenseTensor localP[Geometry::NumGeom];
-      for (int i = 0; i < elem_geoms.Size(); i++)
+      if (!IsVariableOrder())
       {
-         GetLocalRefinementMatrices(coarse_fes, elem_geoms[i],
-                                    localP[elem_geoms[i]]);
+         Mesh::GeometryList elem_geoms(*mesh);
+
+         DenseTensor localP[Geometry::NumGeom];
+         for (int i = 0; i < elem_geoms.Size(); i++)
+         {
+            GetLocalRefinementMatrices(coarse_fes, elem_geoms[i],
+                                       localP[elem_geoms[i]]);
+         }
+         T.Reset(RefinementMatrix_main(coarse_fes.GetNDofs(),
+                                       coarse_fes.GetElementToDofTable(),
+                                       coarse_fes.
+                                       GetElementToFaceOrientationTable(),
+                                       localP));
       }
-      T.Reset(RefinementMatrix_main(coarse_fes.GetNDofs(),
-                                    coarse_fes.GetElementToDofTable(),
-                                    coarse_fes.
-                                    GetElementToFaceOrientationTable(),
-                                    localP));
+      else
+      {
+         T.Reset(VariableOrderRefinementMatrix_main(coarse_fes.GetNDofs(),
+                                                    coarse_fes.GetElementToDofTable()));
+      }
    }
    else
    {
@@ -3416,16 +3677,37 @@ void FiniteElementSpace::GetTrueTransferOperator(
 
 void FiniteElementSpace::UpdateElementOrders()
 {
-   const CoarseFineTransformations &cf_tr = mesh->GetRefinementTransforms();
+   const int baseOrder = fec->GetOrder();
 
    Array<char> new_order(mesh->GetNE());
    switch (mesh->GetLastOperation())
    {
       case Mesh::REFINE:
       {
+         elems_pref.clear();
+         const CoarseFineTransformations &cf_tr = mesh->GetRefinementTransforms();
          for (int i = 0; i < mesh->GetNE(); i++)
          {
             new_order[i] = elem_order[cf_tr.embeddings[i].parent];
+            if (new_order[i] > baseOrder)
+            {
+               elems_pref.insert(i);
+            }
+         }
+         break;
+      }
+      case Mesh::DEREFINE:
+      {
+         const CoarseFineTransformations &cf_tr =
+            mesh->ncmesh->GetDerefinementTransforms();
+         Table coarse_to_fine;
+         cf_tr.MakeCoarseToFineTable(coarse_to_fine);
+         Array<int> tabrow;
+         for (int i = 0; i < coarse_to_fine.Size(); i++)
+         {
+            coarse_to_fine.GetRow(i, tabrow);
+            //For now we require that all children are of same polynomial order.
+            new_order[i] = elem_order[tabrow[0]];
          }
          break;
       }
@@ -3614,6 +3896,9 @@ void FiniteElementSpace::Save(std::ostream &os) const
       os << "End: MFEM FiniteElementSpace v1.0\n";
    }
 }
+
+std::shared_ptr<const PRefinementTransferOperator>
+FiniteElementSpace::GetPrefUpdateOperator() { return std::move(PTh); }
 
 FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
 {

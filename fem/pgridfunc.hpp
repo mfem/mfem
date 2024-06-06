@@ -458,6 +458,8 @@ public:
    /// Merge the local grid functions
    void SaveAsOne(std::ostream &out = mfem::out) const;
 
+   std::unique_ptr<ParGridFunction> ProlongToMaxOrder() const;
+
    virtual ~ParGridFunction() = default;
 };
 

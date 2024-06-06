@@ -69,6 +69,8 @@ int main(int argc, char *argv[])
    bool smooth_rt = true;
    bool restart = false;
    bool visualization = true;
+   bool rebalance = false;
+   bool usePRefinement = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -337,8 +339,30 @@ int main(int argc, char *argv[])
       //     estimator to obtain element errors, then it selects elements to be
       //     refined and finally it modifies the mesh. The Stop() method can be
       //     used to determine if a stopping criterion was met.
-      refiner.Apply(*pmesh);
-      if (refiner.Stop())
+      const bool pRefinement = usePRefinement && ((it % 2) == 1);
+      bool stop = false;
+      Array<PRefinement> prefinements;
+      if (pRefinement)
+      {
+         Array<Refinement> refinements;
+         refiner.MarkWithoutRefining(*pmesh, refinements);
+         stop = pmesh->ReduceInt(refinements.Size()) == 0LL;
+
+         prefinements.SetSize(refinements.Size());
+         for (int i=0; i<refinements.Size(); ++i)
+         {
+            const int elem = refinements[i].index;
+            prefinements[i].element = elem;
+            prefinements[i].order = fespace.GetElementOrder(elem) + 1;
+         }
+      }
+      else
+      {
+         refiner.Apply(*pmesh);
+         stop = refiner.Stop();
+      }
+
+      if (stop)
       {
          if (myid == 0)
          {
@@ -352,12 +376,20 @@ int main(int argc, char *argv[])
       //     to any GridFunctions over the space. In this case, the update
       //     matrix is an interpolation matrix so the updated GridFunction will
       //     still represent the same function as before refinement.
-      fespace.Update();
-      x.Update();
+      if (pRefinement)
+      {
+         fespace.UpdatePRef(prefinements);
+         x.UpdatePRef();
+      }
+      else
+      {
+         fespace.Update();
+         x.Update();
+      }
 
       // 25. Load balance the mesh, and update the space and solution. Currently
       //     available only for nonconforming meshes.
-      if (pmesh->Nonconforming())
+      if (pmesh->Nonconforming() && rebalance)
       {
          pmesh->Rebalance();
 
@@ -387,6 +419,42 @@ int main(int argc, char *argv[])
             cout << "\nCheckpoint saved." << endl;
          }
       }
+   }
+
+   // Save result
+   {
+      L2_FECollection fecL2(0, dim);
+      ParFiniteElementSpace l2fespace(pmesh, &fecL2);
+      ParGridFunction xo(&l2fespace); // Element order field
+      xo = 0.0;
+
+      for (int e=0; e<pmesh->GetNE(); ++e)
+      {
+         const int p_elem = fespace.GetElementOrder(e);
+         Array<int> dofs;
+         l2fespace.GetElementDofs(e, dofs);
+         MFEM_VERIFY(dofs.Size() == 1, "");
+         xo[dofs[0]] = p_elem;
+      }
+
+      ostringstream mesh_name, sol_name, order_name;
+      mesh_name << "mesh." << setfill('0') << setw(6) << myid;
+      sol_name << "sol." << setfill('0') << setw(6) << myid;
+      order_name << "order." << setfill('0') << setw(6) << myid;
+
+      ofstream mesh_ofs(mesh_name.str().c_str());
+      mesh_ofs.precision(8);
+      pmesh->Print(mesh_ofs);
+
+      ofstream sol_ofs(sol_name.str().c_str());
+      sol_ofs.precision(8);
+
+      std::unique_ptr<ParGridFunction> vis_x = x.ProlongToMaxOrder();
+      vis_x->Save(sol_ofs);
+
+      ofstream order_ofs(order_name.str().c_str());
+      order_ofs.precision(8);
+      xo.Save(order_ofs);
    }
 
    delete smooth_flux_fes;
