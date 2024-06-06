@@ -101,9 +101,9 @@ TEST_CASE("Location conversion check", "[NURBS]")
    {
       u = i/real_t(samples-1);
       ks = kv.GetSpan (u);
-      REQUIRE( (kv[ks] <= u) & (u <= kv[ks+1]) );
+      REQUIRE( ((kv[ks] <= u) && (u <= kv[ks+1])) );
       xi = kv.GetIp(u, ks);
-      REQUIRE( (0.0 <= xi) & (xi <= 1.0) );
+      REQUIRE( ((0.0 <= xi) && (xi <= 1.0)) );
       un = kv.GetKnot(xi,ks);
       REQUIRE((un - u) == MFEM_Approx(0.0));
 
