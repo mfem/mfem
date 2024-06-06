@@ -20,6 +20,38 @@ StabInNavStoIntegrator::StabInNavStoIntegrator(Coefficient &mu_,
 
 }
 
+void StabInNavStoIntegrator::SetDim(int dim_)
+{
+  if (dim_ != dim)
+  {
+     dim = dim_;
+     u.SetSize(dim);
+     res.SetSize(dim);
+     up.SetSize(dim);
+     grad_u.SetSize(dim);
+     hess_u.SetSize(dim, (dim*(dim+1))/2);
+     grad_p.SetSize(dim);
+     hmap.SetSize(dim,dim);
+
+     if (dim == 2)
+     {
+        hmap(0,0) = 0;
+        hmap(0,1) =  hmap(1,0) =  1;
+        hmap(1,1) = 2; 
+     }
+     else if (dim == 2)
+     {
+        hmap(0,0) = 0;
+        hmap(0,1) = hmap(1,0) = 1;
+        hmap(0,2) = hmap(2,0) = 2;
+        hmap(1,1) = 3;
+        hmap(1,2) = hmap(2,1) = 4;
+        hmap(2,2) = 5;
+     }
+  }
+
+}
+
 real_t StabInNavStoIntegrator::GetElementEnergy(
    const Array<const FiniteElement *>&el,
    ElementTransformation &Tr,
@@ -30,9 +62,9 @@ real_t StabInNavStoIntegrator::GetElementEnergy(
       mfem_error("StabInNavStoIntegrator::GetElementEnergy"
                  " has incorrect block finite element space size!");
    }
-
+   SetDim(el[0]->GetDim());
    int dof_u = el[0]->GetDof();
-   int dim = el[0]->GetDim();
+
 
    sh_u.SetSize(dof_u);
    elf_u.UseExternalData(elfun[0]->GetData(), dof_u, dim);
@@ -73,7 +105,7 @@ void StabInNavStoIntegrator::AssembleElementVector(
    int dof_u = el[0]->GetDof();
    int dof_p = el[1]->GetDof();
 
-   int dim = el[0]->GetDim();
+   SetDim(el[0]->GetDim());
    int spaceDim = Tr.GetSpaceDim();
 
    if (dim != spaceDim)
@@ -90,14 +122,13 @@ void StabInNavStoIntegrator::AssembleElementVector(
    elf_u.UseExternalData(elfun[0]->GetData(), dof_u, dim);
    elv_u.UseExternalData(elvec[0]->GetData(), dof_u, dim);
 
-  // elf_p.UseExternalData(elfun[1]->GetData(), dof_p); // tbd??
- //  elv_p.UseExternalData(elvec[1]->GetData(), dof_p); // tbd??
-
    sh_u.SetSize(dof_u);
    shg_u.SetSize(dof_u, dim);
+   ushg_u.SetSize(dof_u);
+   shh_u.SetSize(dof_u, (dim*(dim+1))/2);
    sh_p.SetSize(dof_p);
-   u.SetSize(dim);
-   grad_u.SetSize(dim);
+   shg_p.SetSize(dof_p, dim);
+
    int intorder = 2*el[0]->GetOrder() + 3; // <---
    const IntegrationRule &ir = IntRules.Get(el[0]->GetGeomType(), intorder);
 
@@ -107,28 +138,54 @@ void StabInNavStoIntegrator::AssembleElementVector(
       Tr.SetIntPoint(&ip);
       real_t w = ip.weight * Tr.Weight();
       real_t mu = c_mu->Eval(Tr, ip);
-      real_t t = tau->Eval(Tr, ip);
-      real_t d = delta->Eval(Tr, ip);
 
+      // Compute shape and interpolate
       el[0]->CalcPhysShape(Tr, sh_u);
       elf_u.MultTranspose(sh_u, u);
 
       el[0]->CalcPhysDShape(Tr, shg_u);
+      shg_u.Mult(u, ushg_u);
       MultAtB(elf_u, shg_u, grad_u);
+
+      el[0]->CalcPhysHessian(Tr,shh_u);
+      MultAtB(elf_u, shh_u, hess_u);
 
       el[1]->CalcPhysShape(Tr, sh_p);
       real_t p = sh_p*(*elfun[1]);
 
-      sigma.Diag(-p,dim);
-      grad_u.Symmetrize();
-      sigma.Add(2*mu,grad_u);
+      el[1]->CalcPhysDShape(Tr, shg_p);
+      shg_p.MultTranspose(*elfun[1], grad_p);
 
-      AddMult_a_VVt(-1.0, u, sigma);
+      // Compute strong residual
+      grad_u.Mult(u,res);   // Add convection
+      res += grad_p;        // Add pressure
+      for (int i = 0; i < dim; ++i)
+      {
+         for (int j = 0; j < dim; ++j)
+         {
+            res[j] -= mu*(hess_u(j,hmap(i,i)) + 
+                          hess_u(i,hmap(j,i))); // Add diffusion
+         }
+      }
 
-      AddMult_a_ABt(w, shg_u, sigma, elv_u);
-      elvec[1]->Add(w*grad_u.Trace(), sh_p);
+      // Compute stability params
+      real_t d = delta->Eval(Tr, ip);
+      real_t t = tau->Eval(Tr, ip);
+
+      // Compute momentum weak residual
+      flux.Diag(-p,dim);                     // Add pressure to flux
+      grad_u.Symmetrize();                   // Grad to strain
+      flux.Add(2*mu,grad_u);                 // Add stress to flux
+      AddMult_a_VVt(-1.0, u, flux);          // Add convection to flux
+      flux.Diag(d*grad_u.Trace(),dim);       // Add LSIC to flux
+      AddMult_a_VWt(t, u, res, flux);        // Add SUPG to flux
+      AddMult_a_ABt(w, shg_u, flux, elv_u);  // Add flux term to rhs
+
+      // Compute momentum weak residual
+      elvec[1]->Add(w*grad_u.Trace(), sh_p); // Add Galerkin term
+      shg_p.Mult(res, sh_p);                 // PSPG help term
+      elvec[1]->Add(w*t, sh_p);              // Add PSPS term
    }
-
 }
 
 void StabInNavStoIntegrator::AssembleElementGrad(
@@ -140,7 +197,7 @@ void StabInNavStoIntegrator::AssembleElementGrad(
    int dof_u = el[0]->GetDof();
    int dof_p = el[1]->GetDof();
 
-   int dim = el[0]->GetDim();
+   SetDim(el[0]->GetDim());
 
    elf_u.UseExternalData(elfun[0]->GetData(), dof_u, dim);
  //  elv_u.UseExternalData(elvec[0]->GetData(), dof_u, dim);

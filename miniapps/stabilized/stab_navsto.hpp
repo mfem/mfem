@@ -21,13 +21,14 @@ namespace mfem
 /** Stabilized incompressible Navier-Stokes integrator
     Start with Galerkin for stokes - done
     Add convection - done
+    Modify diffusion - done
+    Add difussion to residual - done
 
-    Modify diffusion
+    Add supg   -  rhs done
+    Add pspg   -  rhs done
+    Add lsq    -  rhs done
 
-    Add supg
-    Add pspg
-    Add lsq
-
+    Add force
     Add correct inverse estimate
 
     Leopoldo P. Franca, Sérgio L. Frey
@@ -43,21 +44,28 @@ class StabInNavStoIntegrator : public BlockNonlinearFormIntegrator
 {
 private:
    Coefficient *c_mu;
-   Vector u;
-   DenseMatrix sigma;
+   Vector u, grad_p;
+   DenseMatrix flux;
 
    DenseMatrix elf_u, elv_u;
+//   Vector elf_u, elv_u;//
    DenseMatrix elf_p, elv_p;
    Vector sh_u, ushg_u, sh_p;
-   DenseMatrix shg_u, grad_u;
+   DenseMatrix shg_u, shh_u, shg_p, grad_u, hess_u;
+   Array2D<int> hmap;
 
-   /// The stabilization parameter
+   /// The stabilization parameters
    StabType stab;
    Tau *tau = nullptr;
    Tau *delta = nullptr;
+   Vector res, up;
 
    /// The advection field
    VectorCoefficient *adv = nullptr;
+
+   int dim = -1;
+   void SetDim(int dim);
+
 public:
    StabInNavStoIntegrator(Coefficient &mu_,
                           Tau &t, Tau &d,
