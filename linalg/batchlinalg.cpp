@@ -15,10 +15,6 @@
 #include "batchlinalg.hpp"
 #include "../general/forall.hpp"
 #include "../general/backends.hpp"
-#include <cuda_runtime.h>
-#include "cublas_v2.h"
-#define IDXT(i,j,k,ld) (i + j*ld + k*ld*ld)
-#define IDXM(i,j,ld) (i + j*ld)
 
 namespace mfem
 {
@@ -273,17 +269,56 @@ void BatchSolver::SolveLU(const Vector &b, Vector &x) const
 void ApplyBlkMult(const DenseTensor &Mat, const Vector &x,
                   Vector &y)
 {
+   // // ***CUBLAS IMPLEMENTATION - START HERE***
+   // const int ndof = Mat.SizeI();
+   // MFEM_VERIFY(Mat.SizeI() == Mat.SizeJ(), "matrices are not ndof x ndof");
+   // const int NE = Mat.SizeK();
+
+   // cublasStatus_t stat;
+   // cublasHandle_t handle;
+
+   // Array<double *> Mat_ptr(NE); 
+   // Array<double *> x_ptr(NE);
+   // Array<double *> y_ptr(NE);
+
+   // for (int k = 0; k < NE; k++) {
+   //    Mat_ptr[k] = &const_cast<DenseTensor&>(Mat).ReadWrite()[ndof*ndof*k];
+   //    x_ptr[k] = &const_cast<Vector&>(x).ReadWrite()[ndof*k];
+   //    y_ptr[k] = &y.ReadWrite()[ndof*k];
+   // }
+
+   // // Initialize CUBLAS 
+   // stat = cublasCreate(&handle); 
+
+   // // Vendor function handles computations on GPU via batched call
+   // double alpha = 1.0;
+   // double beta = 0.0; 
+   // stat = cublasDgemvBatched (handle, CUBLAS_OP_N, ndof, ndof,
+   //                            &alpha, Mat_ptr.Read(), ndof, x_ptr.Read(), 1,
+   //                            &beta, y_ptr.ReadWrite(), 1, NE);
+   // // note that cuda 11.7.0 needs batchCount = NE as last parameter
+
+   // if (stat != CUBLAS_STATUS_SUCCESS) {
+   //    printf ("CUDABLAS gemvBatched() failed \n");
+   //    printf (cublasGetStatusString(stat));  // note: only available after version 11.4.2
+   //    cublasDestroy(handle);
+   // }
+
+   // // end CUBLAS stream
+   // cublasDestroy(handle);
+   // // ***CUBLAS IMPLEMENTATION - END HERE***
+
+   // ***HIPBLAS IMPLEMENTATION - START HERE***
    const int ndof = Mat.SizeI();
    MFEM_VERIFY(Mat.SizeI() == Mat.SizeJ(), "matrices are not ndof x ndof");
-   const int NE   = Mat.SizeK();
+   const int NE = Mat.SizeK();
 
-   // cudaError_t cudaStat; 
-   cublasStatus_t stat;
-   cublasHandle_t handle;
+   hipblasStatus_t stat;
+   hipblasHandle_t handle;
 
-   double* Mat_ptr[NE]; 
-   double* x_ptr[NE];
-   double* y_ptr[NE];
+   Array<double *> Mat_ptr(NE); 
+   Array<double *> x_ptr(NE);
+   Array<double *> y_ptr(NE);
 
    for (int k = 0; k < NE; k++) {
       Mat_ptr[k] = &const_cast<DenseTensor&>(Mat).ReadWrite()[ndof*ndof*k];
@@ -291,25 +326,25 @@ void ApplyBlkMult(const DenseTensor &Mat, const Vector &x,
       y_ptr[k] = &y.ReadWrite()[ndof*k];
    }
 
-   // Initialize CUBLAS 
-   stat = cublasCreate(&handle); 
+   // Initialize HIPBLAS
+   stat = hipblasCreate(&handle);
 
-   // Vendor function handles computations on GPU via batched call
    double alpha = 1.0;
    double beta = 0.0; 
-   stat = cublasDgemvBatched (handle, CUBLAS_OP_N, ndof, ndof,
-                              &alpha, Mat_ptr, ndof, x_ptr, 1,
-                              &beta, y_ptr, 1, NE);
-   // note that cuda 11.7.0 needs batchCount = NE as last parameter
 
-   if (stat != CUBLAS_STATUS_SUCCESS) {
-      printf ("CUDA gemvBatched() failed \n");
-      printf (cublasGetStatusString(stat));  // note: only available after version 11.4.2
-      cublasDestroy(handle);
+   stat = hipblasDgemvBatched (&handle, HIPBLAS_OP_N, ndof, ndof,
+                               &alpha, Mat_ptr.Read(), ndof, x_ptr.Read(), 1,
+                               &beta, y_ptr.ReadWrite(), 1, NE);
+
+   if (stat != HIPBLAS_STATUS_SUCCESS) {
+      printf ("HIPBLAS gemvBatched() failed \n");
+      printf ("%s", hipblasStatusToString(stat));  // note: only available after version 11.4.2
+      hipblasDestroy(handle);
    }
 
-   // end CUBLAS stream
-   cublasDestroy(handle);
+   // end HIPBLAS stream
+   hipblasDestroy(handle);
+   // ***HIPBLAS IMPLEMENTATION - END HERE***
 }
 
 
