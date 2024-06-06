@@ -3518,6 +3518,11 @@ public:
                                    const FiniteElement &test_fe2,
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
+
+   virtual void AssembleEAInteriorFaces(const FiniteElementSpace &trial_fes,
+                                        const FiniteElementSpace &test_fes,
+                                        Vector &emat,
+                                        const bool add = true);
 };
 
 /** Integrator for the DPG form:$ \langle v, w \rangle $ over a face (the interface) where

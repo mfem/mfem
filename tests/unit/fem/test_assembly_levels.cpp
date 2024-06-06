@@ -229,7 +229,7 @@ TEST_CASE("H1 Assembly Levels", "[AssemblyLevel], [PartialAssembly], [CUDA]")
    }
 } // H1 Assembly Levels test case
 
-TEST_CASE("H(div) Element Assembly", "[AssemblyLevel][PartialAssembly][CUDA]")
+TEST_CASE("H(div) Element Assembly", "[AssemblyLevel][CUDA]")
 {
    const auto fname = GENERATE(
                          "../../data/inline-quad.mesh",
@@ -283,6 +283,68 @@ TEST_CASE("H(div) Element Assembly", "[AssemblyLevel][PartialAssembly][CUDA]")
       }
 
       REQUIRE(elmat.MaxMaxNorm() == MFEM_Approx(0.0, 1e-10));
+   }
+}
+
+TEST_CASE("NormalTraceJumpIntegrator Element Assembly", "[AssemblyLevel][CUDA]")
+{
+   const auto fname = GENERATE(
+                         "../../data/inline-quad.mesh",
+                         "../../data/star-q3.mesh"
+                      );
+   const int order = GENERATE(1, 2, 3);
+
+   CAPTURE(fname, order);
+
+   Mesh mesh(fname);
+   const int dim = mesh.Dimension();
+
+   RT_FECollection fec(order - 1, dim);
+   FiniteElementSpace fes(&mesh, &fec);
+
+   DG_Interface_FECollection hfec(order - 1, dim);
+   FiniteElementSpace hfes(&mesh, &hfec);
+
+   NormalTraceJumpIntegrator integ;
+
+   const int nf = mesh.GetNFbyType(FaceType::Interior);
+   const int ndof_trial = hfes.GetFaceElement(0)->GetDof();
+   const int ndof_test = fes.GetFE(0)->GetDof();
+   Vector emat(ndof_trial*ndof_test*2*nf);
+   integ.AssembleEAInteriorFaces(hfes, fes, emat, false);
+
+   const auto e_mat = Reshape(emat.Read(), ndof_test, ndof_trial, 2, nf);
+
+   int fidx = 0;
+   for (int f = 0; f < mesh.GetNumFaces(); ++f)
+   {
+      const Mesh::FaceInformation info = mesh.GetFaceInformation(f);
+      if (!info.IsInterior()) { continue; }
+
+      const int el1 = info.element[0].index;
+      const int el2 = info.element[1].index;
+
+      FaceElementTransformations *FTr = mesh.GetInteriorFaceTransformations(f);
+
+      DenseMatrix elmat;
+      integ.AssembleFaceMatrix(*hfes.GetFaceElement(f),
+                               *fes.GetFE(el1),
+                               *fes.GetFE(el2),
+                               *FTr, elmat);
+      elmat.Threshold(1e-12 * elmat.MaxMaxNorm());
+      for (int ie = 0; ie < 2; ++ie)
+      {
+         for (int i = 0; i < ndof_test; ++i)
+         {
+            for (int j = 0; j < ndof_trial; ++j)
+            {
+               elmat(i + ie*ndof_test, j) -= e_mat(i, j, ie, fidx);
+            }
+         }
+      }
+      REQUIRE(elmat.MaxMaxNorm() == MFEM_Approx(0.0));
+
+      fidx++;
    }
 }
 
