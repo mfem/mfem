@@ -612,7 +612,7 @@ void FuentesPyramid::CalcScaledJacobi(int p, real_t alpha,
       real_t a = 2.0 * i * (alpha + i) * (2.0 * i + alpha - 2.0);
       real_t b = 2.0 * i + alpha - 1.0;
       real_t c = (2.0 * i + alpha) * (2.0 * i + alpha - 2.0);
-      real_t d = 2.0 * (alpha + i - 1.0) * (i - 1) * (2.0 * i - alpha);
+      real_t d = 2.0 * (alpha + i - 1.0) * (i - 1) * (2.0 * i + alpha);
       u[i] = (b * (c * (2.0 * x - t) + alpha * alpha * t) * u[i - 1]
               - d * t * t * u[i - 2]) / a;
    }
@@ -638,7 +638,7 @@ void FuentesPyramid::CalcScaledJacobi(int p, real_t alpha,
       real_t a = 2.0 * i * (alpha + i) * (2.0 * i + alpha - 2.0);
       real_t b = 2.0 * i + alpha - 1.0;
       real_t c = (2.0 * i + alpha) * (2.0 * i + alpha - 2.0);
-      real_t d = 2.0 * (alpha + i - 1.0) * (i - 1) * (2.0 * i - alpha);
+      real_t d = 2.0 * (alpha + i - 1.0) * (i - 1) * (2.0 * i + alpha);
       u[i] = (b * (c * (2.0 * x - t) + alpha * alpha * t) * u[i - 1]
               - d * t * t * u[i - 2]) / a;
       dudx[i] = (b * ((c * (2.0 * x - t) + alpha * alpha * t) * dudx[i - 1] +
