@@ -40,39 +40,12 @@ void HybridizationExtension::ConstructC()
    const int n_c_dof_per_face = h.c_fes.GetFaceElement(0)->GetDof();
    const int n_faces_per_el = GetNFacesPerElement(mesh);
 
-   el_to_face.SetSize(ne * n_faces_per_el);
-   face_to_el.SetSize(4 * mesh.GetNFbyType(FaceType::Interior));
    Ct_mat.SetSize(ne * n_hat_dof_per_el * n_c_dof_per_face * n_faces_per_el);
 
    // Assemble Ct_mat using EA
    Vector emat;
    emat.NewMemoryAndSize(Ct_mat.GetMemory(), Ct_mat.Size(), false);
    h.c_bfi->AssembleEAInteriorFaces(h.c_fes, h.fes, emat, false);
-
-   el_to_face = -1;
-   int face_idx = 0;
-
-   // Set up el_to_face and face_to_el arrays
-   for (int f = 0; f < mesh.GetNumFaces(); ++f)
-   {
-      const Mesh::FaceInformation info = mesh.GetFaceInformation(f);
-      if (!info.IsInterior()) { continue; }
-
-      const int el1 = info.element[0].index;
-      const int fi1 = info.element[0].local_face_id;
-      el_to_face[el1 * n_faces_per_el + fi1] = face_idx;
-
-      const int el2 = info.element[1].index;
-      const int fi2 = info.element[1].local_face_id;
-      el_to_face[el2 * n_faces_per_el + fi2] = face_idx;
-
-      face_to_el[0 + 4*face_idx] = el1;
-      face_to_el[1 + 4*face_idx] = fi1;
-      face_to_el[2 + 4*face_idx] = el2;
-      face_to_el[3 + 4*face_idx] = fi2;
-
-      ++face_idx;
-   }
 }
 
 void HybridizationExtension::ConstructH()
@@ -274,7 +247,7 @@ void HybridizationExtension::ConstructH()
       });
    }
 
-   // Shift back down
+   // Shift back down (serial, done on host)
    {
       int *I = h.H->HostReadWriteI();
       for (int i = ncdofs - 1; i > 0; --i)
@@ -415,13 +388,44 @@ void HybridizationExtension::Init(const Array<int> &ess_tdof_list)
    // Verify that preconditions for the extension are met
    const Mesh &mesh = *h.fes.GetMesh();
    const int dim = mesh.Dimension();
+   const int ne = h.fes.GetNE();
+
    MFEM_VERIFY(!h.fes.IsVariableOrder(), "");
    MFEM_VERIFY(dim == 2 || dim == 3, "");
    MFEM_VERIFY(mesh.Conforming(), "");
    MFEM_VERIFY(UsesTensorBasis(h.fes), "");
 
+   // Set up face info arrays
+   const int n_faces_per_el = GetNFacesPerElement(mesh);
+   el_to_face.SetSize(ne * n_faces_per_el);
+   face_to_el.SetSize(4 * mesh.GetNFbyType(FaceType::Interior));
+   el_to_face = -1;
+
+   {
+      int face_idx = 0;
+      for (int f = 0; f < mesh.GetNumFaces(); ++f)
+      {
+         const Mesh::FaceInformation info = mesh.GetFaceInformation(f);
+         if (!info.IsInterior()) { continue; }
+
+         const int el1 = info.element[0].index;
+         const int fi1 = info.element[0].local_face_id;
+         el_to_face[el1 * n_faces_per_el + fi1] = face_idx;
+
+         const int el2 = info.element[1].index;
+         const int fi2 = info.element[1].local_face_id;
+         el_to_face[el2 * n_faces_per_el + fi2] = face_idx;
+
+         face_to_el[0 + 4*face_idx] = el1;
+         face_to_el[1 + 4*face_idx] = fi1;
+         face_to_el[2 + 4*face_idx] = el2;
+         face_to_el[3 + 4*face_idx] = fi2;
+
+         ++face_idx;
+      }
+   }
+
    // Count the number of dofs in the discontinuous version of fes:
-   const int ne = h.fes.GetNE();
    const int ndof_per_el = h.fes.GetFE(0)->GetDof();
    num_hat_dofs = ne*ndof_per_el;
    {
