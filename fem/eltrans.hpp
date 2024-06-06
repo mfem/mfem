@@ -257,15 +257,6 @@ protected:
                          const char *suffix);
    int NewtonSolve(const Vector &pt, IntegrationPoint &ip);
 
-   /// @name Tolerance used for point comparisons
-   ///@{
-#ifdef MFEM_USE_DOUBLE
-   static constexpr real_t rtol_0 = 1e-15;
-#elif defined(MFEM_USE_SINGLE)
-   static constexpr real_t rtol_0 = 1e-7;
-#endif
-   ///@}
-
 public:
    /// Construct the InverseElementTransformation with default parameters.
    /** Some practical considerations regarding the choice of initial guess type
@@ -345,7 +336,7 @@ public:
    void SetReferenceTol(real_t ref_sp_tol) { ref_tol = ref_sp_tol; }
 
    /// Set the relative physical-space convergence tolerance.
-   void SetPhysicalRelTol(real_t phys_rel_tol) { phys_rtol = rtol_0; }
+   void SetPhysicalRelTol(real_t phys_rel_tol) { phys_rtol = phys_rel_tol; }
 
    /** @brief Set the tolerance used to determine if a point lies inside or
        outside of the reference element. */
