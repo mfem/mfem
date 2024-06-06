@@ -2272,7 +2272,6 @@ public:
       if (Q != &q)
       {
          Q = &q;
-         std::cout<<Q<<std::endl;
          ComputeInverseEstimates();
       }
    }
