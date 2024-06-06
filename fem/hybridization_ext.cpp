@@ -45,14 +45,18 @@ void HybridizationExtension::ConstructC()
    Vector emat(m * n * 2 * nf);
    h.c_bfi->AssembleEAInteriorFaces(h.c_fes, h.fes, emat, false);
 
-   Ct_mat.SetSize(m * n * n_faces_per_el * ne);
+   const auto *tbe = dynamic_cast<const TensorBasisElement*>(h.fes.GetFE(0));
+   MFEM_VERIFY(tbe, "");
+   const Array<int> &dof_map = tbe->GetDofMap();
 
+   Ct_mat.SetSize(m * n * n_faces_per_el * ne);
    const auto d_emat = Reshape(emat.Read(), m, n, 2, nf);
+   const int *d_dof_map = dof_map.Read();
    auto d_Ct_mat = Reshape(Ct_mat.Write(), m, n, n_faces_per_el, ne);
 
    mfem::forall(m*n*2*nf, [=] MFEM_HOST_DEVICE (int idx)
    {
-      const int i = idx % m;
+      const int i_lex = idx % m;
       const int j = (idx / m) % n;
       const int ie = (idx / m / n) % 2;
       const int f = idx / m / n / 2;
@@ -60,7 +64,11 @@ void HybridizationExtension::ConstructC()
       const int e  = face_to_el[0 + 2*ie + 4*f];
       const int fi = face_to_el[1 + 2*ie + 4*f];
 
-      d_Ct_mat(i, j, fi, e) = d_emat(i, j, ie, f);
+      // Convert to back to native MFEM ordering in the volume
+      const int i_s = d_dof_map[i_lex];
+      const int i = (i_s >= 0) ? i_s : -1 - i_s;
+
+      d_Ct_mat(i, j, fi, e) = d_emat(i_lex, j, ie, f);
    });
 }
 

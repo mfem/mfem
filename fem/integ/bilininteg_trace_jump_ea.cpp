@@ -73,11 +73,6 @@ void NormalTraceJumpIntegrator::AssembleEAInteriorFaces(
    }
 
    const FiniteElement &test_el = *test_fes.GetFE(0);
-   const int ndof_vol = test_el.GetDof();
-   const auto *tbe = dynamic_cast<const TensorBasisElement*>(&test_el);
-   MFEM_VERIFY(tbe, "");
-   const Array<int> &dof_map = tbe->GetDofMap();
-
    const int n_faces_per_el = 2*dim; // assuming tensor product
    // Get all the local face maps (mapping from lexicographic face index to
    // lexicographic volume index, depending on the local face index).
@@ -107,9 +102,9 @@ void NormalTraceJumpIntegrator::AssembleEAInteriorFaces(
       }
    }
 
+   const int ndof_vol = test_el.GetDof();
    const auto d_face_maps = Reshape(face_maps.Read(), ndof_face, n_faces_per_el);
    const auto d_face_info = Reshape(face_info.Read(), 2, 2, nf);
-   const int *d_dof_map = dof_map.Read();
    double *d_emat;
 
    if (add)
@@ -139,10 +134,7 @@ void NormalTraceJumpIntegrator::AssembleEAInteriorFaces(
             // Convert to lexicographic relative to the face itself
             const int i_face = internal::PermuteFace2D(lf_i, 0, orient, ndof_face, i_lex);
             // Convert from lexicographic face DOF to volume DOF
-            const int vol_lex = d_face_maps(i_lex, lf_i);
-            // Convert to back to native MFEM ordering in the volume
-            const int i_s = d_dof_map[vol_lex];
-            const int i = (i_s >= 0) ? i_s : -1 - i_s;
+            const int i = d_face_maps(i_lex, lf_i);
             MFEM_FOREACH_THREAD(j, y, ndof_face)
             {
                el_mats(i, j, el_i, f) += face_mats(i_face, j, f);
