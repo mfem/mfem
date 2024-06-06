@@ -78,9 +78,6 @@ void NormalTraceJumpIntegrator::AssembleEAInteriorFaces(
    MFEM_VERIFY(tbe, "");
    const Array<int> &dof_map = tbe->GetDofMap();
 
-   const auto face_mats = Reshape(mass_emat.Read(), ndof_face, ndof_face, nf);
-   auto el_mats = Reshape(emat.ReadWrite(), ndof_vol, ndof_face, 2, nf);
-
    const int n_faces_per_el = 2*dim; // assuming tensor product
    // Get all the local face maps (mapping from lexicographic face index to
    // lexicographic volume index, depending on the local face index).
@@ -124,6 +121,9 @@ void NormalTraceJumpIntegrator::AssembleEAInteriorFaces(
       d_emat = emat.Write();
       mfem::forall(emat.Size(), [=] MFEM_HOST_DEVICE (int i) { d_emat[i] = 0.0; });
    }
+
+   const auto face_mats = Reshape(mass_emat.Read(), ndof_face, ndof_face, nf);
+   auto el_mats = Reshape(d_emat, ndof_vol, ndof_face, 2, nf);
 
    mfem::forall_3D(nf, ndof_face, ndof_face, 2, [=] MFEM_HOST_DEVICE (int f)
    {
