@@ -233,7 +233,7 @@ protected:
    /// it will skip the x-coordinate when reading in an ExodusII file if the id of
    /// the x-coordinates is 0. To prevent this, we define a dummy variable before
    /// defining the coordinates. This ensures that the coordinate variable IDs have
-   /// values greater than zero.
+   /// values greater than zero. See: https://github.com/libMesh/libmesh/issues/3823
    void WriteDummyVariable();
 
    /// @brief Wrapper around @a nc_def_dim with error handling.
