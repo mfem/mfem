@@ -13,6 +13,12 @@
 
 using namespace mfem;
 
+StabInNavStoIntegrator::StabInNavStoIntegrator(Coefficient &mu_,
+                                               Tau &t, StabType s)
+ : c_mu(&mu_), tau(&t)
+{
+
+}
 
 real_t StabInNavStoIntegrator::GetElementEnergy(
    const Array<const FiniteElement *>&el,
@@ -101,6 +107,7 @@ void StabInNavStoIntegrator::AssembleElementVector(
       Tr.SetIntPoint(&ip);
       real_t w = ip.weight * Tr.Weight();
       real_t mu = c_mu->Eval(Tr, ip);
+      real_t t = tau->Eval(Tr, ip);
 
       el[0]->CalcPhysShape(Tr, sh_u);
       elf_u.MultTranspose(sh_u, u);
@@ -112,7 +119,8 @@ void StabInNavStoIntegrator::AssembleElementVector(
       real_t p = sh_p*(*elfun[1]);
 
       sigma.Diag(-p,dim);
-      sigma.Add(mu,grad_u);
+      grad_u.Symmetrize();
+      sigma.Add(2*mu,grad_u);
 
       AddMult_a_VVt(-1.0, u, sigma);
 
@@ -196,6 +204,15 @@ void StabInNavStoIntegrator::AssembleElementGrad(
             {
                (*elmats(0,0))(i_u + dim_u*dof_u, j_u + dim_u*dof_u) += mat;
             }
+
+            for (int i_dim = 0; i_dim < dim; ++i_dim)
+            {
+               for (int j_dim = 0; j_dim < dim; ++j_dim)
+               {
+                  (*elmats(0,0))(i_u + i_dim*dof_u, j_u + j_dim*dof_u) +=
+                     mu*shg_u(i_u,j_dim)*shg_u(j_u,i_dim)*w;
+               }
+            }
          }
       }
 
@@ -212,7 +229,6 @@ void StabInNavStoIntegrator::AssembleElementGrad(
          }
       }
    }
-
 }
 
 void GeneralResidualMonitor::MonitorResidual(int it, real_t norm,
@@ -229,7 +245,6 @@ void GeneralResidualMonitor::MonitorResidual(int it, real_t norm,
                 << " : ||r|| = " << norm
                 << ",  ||r||/||r_0|| = " << 100*norm/norm0<<" % \n";
    }
-
 }
 
 void SystemResidualMonitor::MonitorResidual(int it, real_t norm,
@@ -374,7 +389,14 @@ StabInNavStoOperator::StabInNavStoOperator(Array<FiniteElementSpace *> &fes,
    Hform = new BlockNonlinearForm(spaces);
 
    // Add the incompressible neo-Hookean integrator
-   Hform->AddDomainIntegrator(new StabInNavStoIntegrator(mu));
+   tau = new FFH92Tau(fes[0]);
+   adv_gf = new GridFunction(fes[0], NULL); // Data will be loaded in Mult and GetGradient
+
+   adv = new VectorGridFunctionCoefficient(adv_gf);
+   tau->SetConvection(adv);
+   tau->SetDiffusion(&mu);
+
+   Hform->AddDomainIntegrator(new StabInNavStoIntegrator(mu, *tau));
 
    // Set the essential boundary conditions
    Hform->SetEssentialBC(ess_bdr, rhs);
@@ -400,7 +422,7 @@ StabInNavStoOperator::StabInNavStoOperator(Array<FiniteElementSpace *> &fes,
    // Set up the Jacobian solver
    FGMRESSolver *j_gmres = new FGMRESSolver();
    j_gmres->iterative_mode = false;
-   j_gmres->SetRelTol(1e-7);
+   j_gmres->SetRelTol(1e-6);
    j_gmres->SetAbsTol(1e-12);
    j_gmres->SetMaxIter(200);
    j_gmres->SetPrintLevel(-1);
@@ -431,17 +453,22 @@ void StabInNavStoOperator::Solve(Vector &xp) const
 // compute: y = H(x,p)
 void StabInNavStoOperator::Mult(const Vector &k, Vector &y) const
 {
+   adv_gf->SetData(k.GetData());
    Hform->Mult(k, y);
 }
 
 // Compute the Jacobian from the nonlinear form
 Operator &StabInNavStoOperator::GetGradient(const Vector &xp) const
 {
+   adv_gf->SetData(xp.GetData());
    return Hform->GetGradient(xp);
 }
 
 StabInNavStoOperator::~StabInNavStoOperator()
 {
+   delete adv_gf;
+   delete adv;
+   delete tau;
    delete Hform;
    delete pressure_mass;
    delete j_solver;

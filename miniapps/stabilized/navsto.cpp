@@ -11,7 +11,6 @@
 //
 // Stabilized  Navier-Stokes
 
-#include "stab_condif.hpp"
 #include "stab_navsto.hpp"
 #include "mfem.hpp"
 #include <fstream>
@@ -26,7 +25,6 @@ real_t pi  = (real_t)(M_PI);
 
 using VectorFun = std::function<void(const Vector & x, Vector & a)>;
 using ScalarFun = std::function<real_t(const Vector & x)>;
-
 
 void sol_fun(const Vector & x, Vector &sol)
 {
@@ -158,7 +156,7 @@ int main(int argc, char *argv[])
 
    FiniteElementSpace *fespace_u = new FiniteElementSpace(mesh, fec_u, dim);
    FiniteElementSpace *fespace_p = new FiniteElementSpace(mesh, fec_p);
-   
+
    Array<FiniteElementSpace *> spaces(2);
    spaces[0] = fespace_u;
    spaces[1] = fespace_p;
@@ -228,9 +226,9 @@ int main(int argc, char *argv[])
    }
 
    // 10. Initialize the incompressible neo-Hookean operator
-   real_t newton_rel_tol = 1e-8;
+   real_t newton_rel_tol = 1e-4;
    real_t newton_abs_tol = 1e-8;
-   int newton_iter = 10;
+   int newton_iter = 2;
 
    StabInNavStoOperator oper(spaces, ess_bdr, block_trueOffsets,
                              newton_rel_tol, newton_abs_tol, newton_iter, *kappa);
@@ -247,10 +245,14 @@ int main(int argc, char *argv[])
    }
 
    // 16. Free the used memory.
-   delete fespace_u, fespace_p;
-   //delete fec_u, fec_p;
+   delete fespace_u;
+   delete fespace_p;
+   delete fec_u;
+   delete fec_p;
    delete mesh;
-   delete kappa, force, sol;
+   delete kappa;
+   delete force;
+   delete sol;
 
    return 0;
 }

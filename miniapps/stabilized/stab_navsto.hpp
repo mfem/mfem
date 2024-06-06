@@ -13,12 +13,22 @@
 #define MFEM_STAB_NAVSTO_HPP
 
 #include "mfem.hpp"
+#include "stab_tau.hpp"
 
 namespace mfem
 {
 
 /** Stabilized incompressible Navier-Stokes integrator
-   Start with Galerkin for stokes
+    Start with Galerkin for stokes - done
+    Add convection - done
+
+    Modify diffusion
+
+    Add supg
+    Add pspg
+    Add lsq
+
+    Add correct inverse estimate
 
     Leopoldo P. Franca, Sérgio L. Frey
     Stabilized finite element methods:
@@ -41,11 +51,20 @@ private:
    Vector sh_u, ushg_u, sh_p;
    DenseMatrix shg_u, grad_u;
 
+   /// The stabilization parameter
+   StabType stab;
+   Tau *tau = nullptr;
+   bool own_tau;
+
+   /// The advection field
+   VectorCoefficient *adv = nullptr;
 public:
-   StabInNavStoIntegrator(Coefficient &mu_) : c_mu(&mu_) { }
+   StabInNavStoIntegrator(Coefficient &mu_,
+                          Tau &t,
+                          StabType s = GALERKIN);
 
    virtual real_t GetElementEnergy(const Array<const FiniteElement *>&el,
-                                  ElementTransformation &Tr,
+                                   ElementTransformation &Tr,
                                    const Array<const Vector *> &elfun);
 
    /// Perform the local action of the NonlinearFormIntegrator
@@ -177,6 +196,12 @@ protected:
 
    // Shear modulus coefficient
    Coefficient &mu;
+
+   //
+   Tau *tau;
+   GridFunction *adv_gf;
+   VectorCoefficient *adv;
+   
 
    // Block offsets for variable access
    Array<int> &block_trueOffsets;

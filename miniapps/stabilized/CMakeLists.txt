@@ -11,9 +11,9 @@
 
 
 list(APPEND STAB_COMMON_SOURCES
-     stab_condif.cpp stab_navsto.cpp)
+     stab_tau.cpp stab_condif.cpp stab_navsto.cpp)
 list(APPEND STAB_COMMON_HEADERS
-     stab_condif.hpp stab_navsto.hpp manu.hpp skew.hpp)
+     stab_tau.hpp stab_condif.hpp stab_navsto.hpp manu.hpp skew.hpp)
 
 set(STAB_COMMON_FILES
     EXTRA_SOURCES ${STAB_COMMON_SOURCES}
