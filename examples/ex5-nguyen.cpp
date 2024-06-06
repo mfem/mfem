@@ -88,6 +88,8 @@ int main(int argc, char *argv[])
    const char *mesh_file = "";
    int nx = 0;
    int ny = 0;
+   real_t sx = 1.;
+   real_t sy = 1.;
    int order = 1;
    bool dg = false;
    bool upwinded = false;
@@ -113,6 +115,10 @@ int main(int argc, char *argv[])
                   "Number of cells in x.");
    args.AddOption(&ny, "-ny", "--ncells-y",
                   "Number of cells in y.");
+   args.AddOption(&sx, "-sx", "--size-x",
+                  "Size along x axis.");
+   args.AddOption(&sy, "-sy", "--size-y",
+                  "Size along y axis.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    args.AddOption(&dg, "-dg", "--discontinuous", "-no-dg",
@@ -215,7 +221,8 @@ int main(int argc, char *argv[])
    }
    else
    {
-      mesh = new Mesh(Mesh::MakeCartesian2D(nx, ny, Element::QUADRILATERAL));
+      mesh = new Mesh(Mesh::MakeCartesian2D(nx, ny, Element::QUADRILATERAL, false,
+                                            sx, sy));
    }
 
    int dim = mesh->Dimension();
