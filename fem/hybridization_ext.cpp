@@ -43,19 +43,20 @@ void HybridizationExtension::ConstructC()
    el_to_face.SetSize(ne * n_faces_per_el);
    face_to_el.SetSize(4 * mesh.GetNFbyType(FaceType::Interior));
    Ct_mat.SetSize(ne * n_hat_dof_per_el * n_c_dof_per_face * n_faces_per_el);
-   Ct_mat.UseDevice(true);
-   Ct_mat = 0.0;
+
+   // Assemble Ct_mat using EA
+   Vector emat;
+   emat.NewMemoryAndSize(Ct_mat.GetMemory(), Ct_mat.Size(), false);
+   h.c_bfi->AssembleEAInteriorFaces(h.c_fes, h.fes, emat, false);
 
    el_to_face = -1;
    int face_idx = 0;
 
+   // Set up el_to_face and face_to_el arrays
    for (int f = 0; f < mesh.GetNumFaces(); ++f)
    {
       const Mesh::FaceInformation info = mesh.GetFaceInformation(f);
       if (!info.IsInterior()) { continue; }
-
-      FaceElementTransformations *FTr = mesh.GetInteriorFaceTransformations(f);
-      MFEM_ASSERT(FTr, "Invalid interior face.");
 
       const int el1 = info.element[0].index;
       const int fi1 = info.element[0].local_face_id;
@@ -70,26 +71,6 @@ void HybridizationExtension::ConstructC()
       face_to_el[2 + 4*face_idx] = el2;
       face_to_el[3 + 4*face_idx] = fi2;
 
-      DenseMatrix elmat;
-      h.c_bfi->AssembleFaceMatrix(*h.c_fes.GetFaceElement(f),
-                                  *h.fes.GetFE(el1),
-                                  *h.fes.GetFE(el2),
-                                  *FTr, elmat);
-      elmat.Threshold(1e-12 * elmat.MaxMaxNorm());
-
-      const int sz = n_hat_dof_per_el * n_c_dof_per_face;
-      MFEM_ASSERT(2*sz == elmat.Width()*elmat.Height(), "");
-
-      const int offset1 = (el1*n_faces_per_el + fi1)*sz;
-      const int offset2 = (el2*n_faces_per_el + fi2)*sz;
-      for (int j = 0; j < n_c_dof_per_face; ++j)
-      {
-         for (int i = 0; i < n_hat_dof_per_el; ++i)
-         {
-            Ct_mat[offset1 + i + j*n_hat_dof_per_el] += elmat(i, j);
-            Ct_mat[offset2 + i + j*n_hat_dof_per_el] += elmat(n_hat_dof_per_el + i, j);
-         }
-      }
       ++face_idx;
    }
 }
