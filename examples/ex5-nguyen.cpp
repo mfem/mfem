@@ -54,6 +54,8 @@ VecTFunc GetQFun(int prob, real_t t_0, real_t k, real_t c);
 VecFunc GetCFun(int prob, real_t c);
 TFunc GetFFun(int prob, real_t t_0, real_t k, const VecFunc &cFun);
 
+constexpr real_t epsilon = numeric_limits<real_t>::epsilon();
+
 class FEOperator : public TimeDependentOperator
 {
    const Array<int> &ess_flux_tdofs_list;
@@ -183,6 +185,7 @@ int main(int argc, char *argv[])
          btime = false;
          break;
       case 4:
+      case 5:
          bconv = true;
          btime = true;
          break;
@@ -246,6 +249,12 @@ int main(int argc, char *argv[])
          break;
       case 4:
          bdr_is_dirichlet = -1;
+         //bdr_is_neumann = -1;
+         break;
+      case 5:
+         //bdr_is_dirichlet[3] = -1;//inflow (zero)
+         bdr_is_neumann = -1;//outflow
+         bdr_is_neumann[3] = 0;
          break;
    }
 
@@ -511,16 +520,27 @@ int main(int argc, char *argv[])
    if (!btime) { nt = 1; }
 
    const real_t dt = tf / nt; //time step
+   int i_Kovasznay = 0;//injection iteration - Kovasznay flow
+   constexpr real_t dt_Kovasznay = 2.;//injection period - Kovasznay flow
 
    for (int ti = 0; ti < nt; ti++)
    {
       //set current time
 
       real_t t = tf * ti / nt;
-      real_t dt_ = dt;
+
+      //perform injection - Kovasznay flow
+      if (problem == 5 && t >= ((i_Kovasznay+1) * dt_Kovasznay) * (1. - epsilon))
+      {
+         i_Kovasznay++;
+         GridFunction t_Kovasznay(W_space);
+         t_Kovasznay.ProjectCoefficient(tcoeff);
+         t_h += t_Kovasznay;
+      }
 
       //perform time step
 
+      real_t dt_ = dt;//<---ignore time step changes
       ode_solver->Step(x, t, dt_);
 
       // 12. Compute the L2 error norms.
@@ -743,7 +763,23 @@ TFunc GetTFun(int prob, real_t t_0, real_t k, real_t c)
             const real_t denom = sigma2 + 4.*k*t * M_PI/4.;
             return sigma2 / denom * exp(- (dx*dx) / denom);
          };
-
+      case 5:
+         return [=](const Vector &x, real_t t) -> real_t
+         {
+            Vector xc(x);
+            xc(1) -= 1.25;
+            constexpr real_t cx[] = {1., 1., 1.};
+            constexpr real_t cy[] = {0., +.5, -.5};
+            constexpr real_t sigma = .5;
+            real_t w0 = 0.;
+            for (int i = 0; i < 3; i++)
+            {
+               real_t dx = xc(0) - cx[i];
+               real_t dy = xc(1) - cy[i];
+               w0 += exp(-(dx*dx + dy*dy)/(sigma*sigma));
+            }
+            return w0;
+         };
    }
    return TFunc();
 }
@@ -814,6 +850,12 @@ VecTFunc GetQFun(int prob, real_t t_0, real_t k, real_t c)
             v(1) = xc(1) + sin(ct) * dx_x + cos(ct) * dx_y;
             v *= v0;
          };
+      case 5:
+         return [](const Vector &x, real_t t, Vector &v)
+         {
+            v.SetSize(x.Size());
+            v = 0.;
+         };
    }
    return VecTFunc();
 }
@@ -862,6 +904,21 @@ VecFunc GetCFun(int prob, real_t c)
 
             v(0) = -4. * xc(1) * c * M_PI/4.;
             v(1) = +4. * xc(0) * c * M_PI/4.;
+         };
+      case 5:
+         return [=](const Vector &x, Vector &v)
+         {
+            const int ndim = x.Size();
+            v.SetSize(ndim);
+            v = 0.;
+            Vector xc(x);
+            xc(1) -= 1.25;
+
+            //Kovasznay flow
+            constexpr real_t Re = 100.;
+            const real_t gamma = Re/2. - sqrt(Re*Re/4. + 4.*M_PI*M_PI);
+            v(0) = 1. - exp(gamma * xc(0)) * cos(2.*M_PI * xc(1));
+            v(1) = gamma / (2.*M_PI) * exp(gamma * xc(0)) * sin(2.*M_PI * xc(1));
          };
    }
    return VecFunc();
@@ -916,6 +973,7 @@ TFunc GetFFun(int prob, real_t t_0, real_t k, const VecFunc &cFun)
          };
       case 3:
       case 4:
+      case 5:
          return [](const Vector &x, real_t) -> real_t { return 0.; };
    }
    return TFunc();
