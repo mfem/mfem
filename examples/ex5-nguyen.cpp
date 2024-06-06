@@ -557,8 +557,19 @@ int main(int argc, char *argv[])
       real_t err_t  = t_h.ComputeL2Error(tcoeff, irs);
       real_t norm_t = ComputeLpNorm(2., tcoeff, *mesh, irs);
 
-      std::cout << "|| q_h - q_ex || / || q_ex || = " << err_q / norm_q << "\n";
-      std::cout << "|| t_h - t_ex || / || t_ex || = " << err_t / norm_t << "\n";
+      if (btime)
+      {
+         cout << "iter:\t" << ti
+              << "\ttime:\t" << t
+              << "\tq_err:\t" << err_q / norm_q
+              << "\tt_err:\t" << err_t / norm_t
+              << endl;
+      }
+      else
+      {
+         cout << "|| q_h - q_ex || / || q_ex || = " << err_q / norm_q << "\n";
+         cout << "|| t_h - t_ex || / || t_ex || = " << err_t / norm_t << "\n";
+      }
 
       // Project the analytic solution
 
