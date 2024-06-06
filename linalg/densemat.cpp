@@ -955,7 +955,7 @@ void dsyevr_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
 
    MFEM_LAPACK_PREFIX(syevr_)(&JOBZ, &RANGE, &UPLO, &N, A, &LDA, &VL, &VU, &IL,
                               &IU, &ABSTOL, &M, W, Z, &LDZ, ISUPPZ, &QWORK,
-                              &LWORK, &QIWORK, &LIWORK, &INFO );
+                              &LWORK, &QIWORK, &LIWORK, &INFO);
 
    LWORK  = (int) QWORK;
    LIWORK = QIWORK;
@@ -965,7 +965,7 @@ void dsyevr_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
 
    MFEM_LAPACK_PREFIX(syevr_)(&JOBZ, &RANGE, &UPLO, &N, A, &LDA, &VL, &VU, &IL,
                               &IU, &ABSTOL, &M, W, Z, &LDZ, ISUPPZ, WORK,
-                              &LWORK, IWORK, &LIWORK, &INFO );
+                              &LWORK, IWORK, &LIWORK, &INFO);
 
    if (INFO != 0)
    {

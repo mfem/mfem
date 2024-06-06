@@ -3907,17 +3907,19 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
             lwork = -1;
             work.resize(10);
 
-            MFEM_LAPACK_PREFIX(ormqr_)(&lside, &trans, &m, &n_update, &i_qr_start,
-                                       mat_qr_data.GetData(), &m, tau.GetData(),
-                                       mat_qr_data.GetData() + (i_qr_start * m), &m,
-                                       work.data(), &lwork, &info);
+            MFEM_LAPACK_PREFIX(ormqr_)(&lside, &trans, &m, &n_update,
+                                       &i_qr_start, mat_qr_data.GetData(), &m,
+                                       tau.GetData(),
+                                       mat_qr_data.GetData() + (i_qr_start * m),
+                                       &m, work.data(), &lwork, &info);
             MFEM_VERIFY(info == 0, ""); // Q^T A update work calculation failed
             lwork = static_cast<int>(work[0]);
             work.resize(lwork);
-            MFEM_LAPACK_PREFIX(ormqr_)(&lside, &trans, &m, &n_update, &i_qr_start,
-                                       mat_qr_data.GetData(), &m, tau.GetData(),
-                                       mat_qr_data.GetData() + (i_qr_start * m), &m,
-                                       work.data(), &lwork, &info);
+            MFEM_LAPACK_PREFIX(ormqr_)(&lside, &trans, &m, &n_update,
+                                       &i_qr_start, mat_qr_data.GetData(), &m,
+                                       tau.GetData(),
+                                       mat_qr_data.GetData() + (i_qr_start * m),
+                                       &m, work.data(), &lwork, &info);
             MFEM_VERIFY(info == 0, ""); // Q^T A update failed
             // Compute QR factorization of the submatrix
             lwork = -1;
