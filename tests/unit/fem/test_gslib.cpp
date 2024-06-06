@@ -467,7 +467,7 @@ TEST_CASE("GSLIBCustomInterpolation",
 
    // Send the computed gradient back to the ranks that requested it.
    Vector recv_grad;
-   finder.ReturnInterpolatedValues(grad, dim, Ordering::byVDIM, recv_grad);
+   finder.DistributeInterpolatedValues(grad, dim, Ordering::byVDIM, recv_grad);
 
    // Check if the received gradient matched analytic gradient.
    for (int i = 0; i < npt && myid == 0; i++)

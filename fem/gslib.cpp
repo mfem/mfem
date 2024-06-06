@@ -1227,10 +1227,10 @@ void FindPointsGSLIB::DistributePointInfoToOwningMPIRanks(
    delete outpt;
 }
 
-void FindPointsGSLIB::ReturnInterpolatedValues(const Vector &int_vals,
-                                               const int vdim,
-                                               const int ordering,
-                                               Vector &field_out) const
+void FindPointsGSLIB::DistributeInterpolatedValues(const Vector &int_vals,
+                                                   const int vdim,
+                                                   const int ordering,
+                                                   Vector &field_out) const
 {
    const int points_recv = recv_index.Size();;
    MFEM_VERIFY(points_recv == 0 ||

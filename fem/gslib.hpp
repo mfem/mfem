@@ -61,7 +61,7 @@ namespace mfem
  *  is located on. Then, custom interpolation can be defined locally by the user
  *  before sending the values back to mpi ranks where the query originated from.
  *  See \ref DistributePointInfoToOwningMPIRanks and
- *  \ref ReturnInterpolatedValues.
+ *  \ref DistributeInterpolatedValues.
  */
 class FindPointsGSLIB
 {
@@ -249,7 +249,7 @@ public:
        Example usage looks something like this:
 
        FindPoints() -> DistributePointInfoToOwningMPIRanks() -> Computation by
-       user -> ReturnInterpolatedValues().
+       user -> DistributeInterpolatedValues().
    */
    ///@{
    /// Distribute element indices in #gsl_mfem_elem, the reference coordinates
@@ -267,10 +267,10 @@ public:
    /// \p int_vals are structured. The received values are filled in
    /// \p field_out consistent with the original ordering of the points that
    /// were used in \ref FindPoints.
-   virtual void ReturnInterpolatedValues(const Vector &int_vals,
-                                         const int vdim,
-                                         const int ordering,
-                                         Vector &field_out) const;
+   virtual void DistributeInterpolatedValues(const Vector &int_vals,
+                                             const int vdim,
+                                             const int ordering,
+                                             Vector &field_out) const;
    ///@}
 };
 
