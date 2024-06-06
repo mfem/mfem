@@ -319,6 +319,7 @@ void Analytic2DCurve::ConvertPhysCoordToParam(GridFunction &coord) const
 {
    const int ndof = coord.Size() / 2;
    double t;
+
    for (int i = 0; i < ndof; i++)
    {
       if (surface_dof_marker[i])

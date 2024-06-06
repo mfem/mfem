@@ -84,6 +84,7 @@ int main (int argc, char *argv[])
       double x = coord(i);
       double y = coord(i+N);
 
+      // Displace all x and y, so that the spacing is non-uniform.
       coord(i)     = x + x*(1-x)*0.8;
       coord(i + N) = y + y*(1-y)*0.8;
 
@@ -111,7 +112,6 @@ int main (int argc, char *argv[])
          min_detJ = min(min_detJ, transf->Jacobian().Det());
       }
    }
-   double minJ0;
    MPI_Allreduce(MPI_IN_PLACE, &min_detJ, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
    if (myid == 0)
    { cout << "Minimum det(J) of the original mesh is " << min_detJ << endl; }
@@ -132,9 +132,8 @@ int main (int argc, char *argv[])
       pfes_mesh.GetBdrElementVDofs(e, vdofs);
       for (int j = 0; j < nd; j++)
       {
-         int j_x = vdofs[j];
-         fit_marker[pfes_mesh.VDofToDof(j_x)] = true;
-         fit_marker_vis_gf(j_x) = 1.0;
+         fit_marker[vdofs[j]] = true;
+         fit_marker_vis_gf(vdofs[j]) = 1.0;
       }
    }
 
@@ -149,17 +148,7 @@ int main (int argc, char *argv[])
                             400, 0, 400, 400, "me");
    }
 
-   // Fix the remaining boundaries.
-   int n = 0;
-   for (int i = 0; i < pmesh.GetNBE(); i++)
-   {
-      const int nd   = pfes_mesh.GetBE(i)->GetDof();
-      const int attr = pmesh.GetBdrElement(i)->GetAttribute();
-      if (attr == 1) { n += nd; }
-      else           { n += nd * dim; }
-   }
-   Array<int> ess_vdofs(n);
-   n = 0;
+   Array<int> ess_vdofs;
    for (int i = 0; i < pmesh.GetNBE(); i++)
    {
       const int nd = pfes_mesh.GetBE(i)->GetDof();
@@ -167,15 +156,23 @@ int main (int argc, char *argv[])
       pfes_mesh.GetBdrElementVDofs(i, vdofs);
       if (attr == 1)
       {
+         // Eliminate y components.
+         for (int j = 0; j < nd; j++)
+         {
+            ess_vdofs.Append(vdofs[j+nd]);
+         }
+      }
+      else if (attr == 3)
+      {
          // Fix y components.
          for (int j = 0; j < nd; j++)
-         { ess_vdofs[n++] = vdofs[j+nd]; }
+         { ess_vdofs.Append(vdofs[j+nd]); }
       }
-      else
+      else if (attr == 2 || attr == 4)
       {
-         // Fix all components.
-         for (int j = 0; j < vdofs.Size(); j++)
-         { ess_vdofs[n++] = vdofs[j]; }
+         // Fix x components.
+         for (int j = 0; j < nd; j++)
+         { ess_vdofs.Append(vdofs[j]); }
       }
    }
 
@@ -184,7 +181,7 @@ int main (int argc, char *argv[])
 
    // TMOP setup.
    TMOP_QualityMetric *metric;
-   if (dim == 2) { metric = new TMOP_Metric_001; }
+   if (dim == 2) { metric = new TMOP_Metric_002; }
    else          { metric = new TMOP_Metric_302; }
    TargetConstructor target(TargetConstructor::IDEAL_SHAPE_UNIT_SIZE,
                             pfes_mesh.GetComm());

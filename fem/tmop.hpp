@@ -2317,7 +2317,7 @@ class ParametrizedTMOP_Integrator : public TMOP_Integrator
    void EnableTangentialMovement(Array<bool> &dof_marker,
                                  AnalyticSurface &surf)
    {
-      tan_dof_marker    = &dof_marker;
+      tan_dof_marker  = &dof_marker;
       analyticSurface = &surf;
    }
 
