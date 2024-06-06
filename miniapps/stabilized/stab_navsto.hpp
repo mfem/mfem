@@ -24,12 +24,14 @@ namespace mfem
     Modify diffusion - done
     Add difussion to residual - done
 
-    Add supg   -  rhs done
+    Add supg   -  rhs done , jac conv + press --> ignore diffusion for now
     Add pspg   -  rhs done
     Add lsq    -  rhs done
 
     Add force
     Add correct inverse estimate
+    Inverse estimate check order
+    CHECK NUMBERING HESSIAN -> NURBS = WRONG?? 2D = ok --> 3D???
 
     Leopoldo P. Franca, Sérgio L. Frey
     Stabilized finite element methods:

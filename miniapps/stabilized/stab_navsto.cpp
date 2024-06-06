@@ -48,8 +48,11 @@ void StabInNavStoIntegrator::SetDim(int dim_)
         hmap(1,2) = hmap(2,1) = 4;
         hmap(2,2) = 5;
      }
+     else
+     {
+        mfem_error("Only implemented for 2D and 3D");
+     }
   }
-
 }
 
 real_t StabInNavStoIntegrator::GetElementEnergy(
@@ -169,22 +172,21 @@ void StabInNavStoIntegrator::AssembleElementVector(
       }
 
       // Compute stability params
-      real_t d = delta->Eval(Tr, ip);
       real_t t = tau->Eval(Tr, ip);
+      real_t d = delta->Eval(Tr, ip);
 
       // Compute momentum weak residual
-      flux.Diag(-p,dim);                     // Add pressure to flux
+      flux.Diag(-p + d*grad_u.Trace(),dim);  // Add pressure & LSIC to flux
       grad_u.Symmetrize();                   // Grad to strain
       flux.Add(2*mu,grad_u);                 // Add stress to flux
       AddMult_a_VVt(-1.0, u, flux);          // Add convection to flux
-      flux.Diag(d*grad_u.Trace(),dim);       // Add LSIC to flux
-      AddMult_a_VWt(t, u, res, flux);        // Add SUPG to flux
+      AddMult_a_VWt(t, res, u, flux);        // Add SUPG to flux --> check order u and res
       AddMult_a_ABt(w, shg_u, flux, elv_u);  // Add flux term to rhs
 
       // Compute momentum weak residual
       elvec[1]->Add(w*grad_u.Trace(), sh_p); // Add Galerkin term
       shg_p.Mult(res, sh_p);                 // PSPG help term
-      elvec[1]->Add(w*t, sh_p);              // Add PSPS term
+      elvec[1]->Add(w*t, sh_p);             // Add PSPG term  - sign looks worng?
    }
 }
 
@@ -200,7 +202,6 @@ void StabInNavStoIntegrator::AssembleElementGrad(
    SetDim(el[0]->GetDim());
 
    elf_u.UseExternalData(elfun[0]->GetData(), dof_u, dim);
- //  elv_u.UseExternalData(elvec[0]->GetData(), dof_u, dim);
 
    elmats(0,0)->SetSize(dof_u*dim, dof_u*dim);
    elmats(0,1)->SetSize(dof_u*dim, dof_p);
@@ -216,8 +217,7 @@ void StabInNavStoIntegrator::AssembleElementGrad(
    shg_u.SetSize(dof_u, dim);
    ushg_u.SetSize(dof_u);
    sh_p.SetSize(dof_p);
-   u.SetSize(dim);
-   grad_u.SetSize(dim);
+   shg_p.SetSize(dof_p, dim);
 
    int intorder = 2*el[0]->GetOrder() + 3; // <---
    const IntegrationRule &ir = IntRules.Get(el[0]->GetGeomType(), intorder);
@@ -228,6 +228,8 @@ void StabInNavStoIntegrator::AssembleElementGrad(
       Tr.SetIntPoint(&ip);
       real_t w = ip.weight * Tr.Weight();
       real_t mu = c_mu->Eval(Tr, ip);
+      real_t t = tau->Eval(Tr, ip);
+      real_t d = delta->Eval(Tr, ip);
 
       el[0]->CalcPhysShape(Tr, sh_u);
       elf_u.MultTranspose(sh_u, u);
@@ -240,10 +242,12 @@ void StabInNavStoIntegrator::AssembleElementGrad(
       el[1]->CalcPhysShape(Tr, sh_p);
       real_t p = sh_p*(*elfun[1]);
 
+      el[1]->CalcPhysDShape(Tr, shg_p);
+      shg_p.MultTranspose(*elfun[1], grad_p);
+
       // u,u block
       for (int i_u = 0; i_u < dof_u; ++i_u)
       {
-
          for (int j_u = 0; j_u < dof_u; ++j_u)
          {
             // Diffusion
@@ -255,7 +259,8 @@ void StabInNavStoIntegrator::AssembleElementGrad(
             mat *= mu;
 
             // Convection
-            mat -= ushg_u(i_u)*sh_u(j_u);
+            mat -= ushg_u(i_u)*sh_u(j_u);      // Galerkin
+            mat += t*ushg_u(i_u)*ushg_u(j_u);  // SUPG
 
             mat *= w;
             for (int dim_u = 0; dim_u < dim; ++dim_u)
@@ -268,7 +273,7 @@ void StabInNavStoIntegrator::AssembleElementGrad(
                for (int j_dim = 0; j_dim < dim; ++j_dim)
                {
                   (*elmats(0,0))(i_u + i_dim*dof_u, j_u + j_dim*dof_u) +=
-                     mu*shg_u(i_u,j_dim)*shg_u(j_u,i_dim)*w;
+                     (mu + d)*shg_u(i_u,j_dim)*shg_u(j_u,i_dim)*w;
                }
             }
          }
@@ -281,11 +286,15 @@ void StabInNavStoIntegrator::AssembleElementGrad(
          {
             for (int dim_u = 0; dim_u < dim; ++dim_u)
             {
-               (*elmats(0,1))(j_u + dof_u * dim_u, i_p) -= shg_u(j_u,dim_u)*sh_p(i_p)*w;
-               (*elmats(1,0))(i_p, j_u + dof_u * dim_u) += shg_u(j_u,dim_u)*sh_p(i_p)*w;
+               (*elmats(0,1))(j_u + dof_u * dim_u, i_p) += (shg_p(i_p, dim_u)*t*ushg_u(j_u)
+                                                           -shg_u(j_u,dim_u)*sh_p(i_p))*w;
+               (*elmats(1,0))(i_p, j_u + dof_u * dim_u) +=  shg_u(j_u,dim_u)*sh_p(i_p)*w;
             }
          }
       }
+
+      // p,p block
+      AddMult_a_AAt(w*t, shg_p, *elmats(1,1));
    }
 }
 
@@ -339,7 +348,7 @@ JacobianPreconditioner::JacobianPreconditioner(Array<FiniteElementSpace *> &fes,
 {
    fes.Copy(spaces);
 
-   gamma = 00.0001;
+   gamma = 1.0001;
 
    // The mass matrix and preconditioner do not change every Newton cycle, so we
    // only need to define them once
@@ -350,10 +359,11 @@ JacobianPreconditioner::JacobianPreconditioner(Array<FiniteElementSpace *> &fes,
    CGSolver *mass_pcg_iter = new CGSolver();
    mass_pcg_iter->SetRelTol(1e-6);
    mass_pcg_iter->SetAbsTol(1e-12);
-   mass_pcg_iter->SetMaxIter(100);
+   mass_pcg_iter->SetMaxIter(10);
    mass_pcg_iter->SetPrintLevel(-1);
    mass_pcg_iter->SetPreconditioner(*mass_prec);
-   mass_pcg_iter->SetOperator(*pressure_mass);
+   //mass_pcg_iter->SetOperator(*pressure_mass);
+  // mass_pcg_iter->SetOperator(jacobian->GetBlock(1,1));
    mass_pcg_iter->iterative_mode = false;
 
    mass_pcg = mass_pcg_iter;
@@ -381,7 +391,7 @@ void JacobianPreconditioner::Mult(const Vector &k, Vector &y) const
 
    // Perform the block elimination for the preconditioner
    mass_pcg->Mult(p_in, p_out);
-   p_out *= -gamma;
+  // p_out *= -gamma;
 
    jacobian->GetBlock(0,1).Mult(p_out, temp);
    subtract(u_in, temp, temp2);
@@ -403,7 +413,7 @@ void JacobianPreconditioner::SetOperator(const Operator &op)
       FGMRESSolver *stiff_pcg_iter = new FGMRESSolver();
       stiff_pcg_iter->SetRelTol(1e-6);
       stiff_pcg_iter->SetAbsTol(1e-12);
-      stiff_pcg_iter->SetMaxIter(100);
+      stiff_pcg_iter->SetMaxIter(10);
       stiff_pcg_iter->SetPrintLevel(-1);
       stiff_pcg_iter->SetPreconditioner(*stiff_prec);
       stiff_pcg_iter->iterative_mode = false;
@@ -414,6 +424,7 @@ void JacobianPreconditioner::SetOperator(const Operator &op)
    // At each Newton cycle, compute the new stiffness preconditioner by updating
    // the iterative solver which, in turn, updates its preconditioner
    stiff_pcg->SetOperator(jacobian->GetBlock(0,0));
+   mass_pcg->SetOperator(jacobian->GetBlock(1,1));
 }
 
 JacobianPreconditioner::~JacobianPreconditioner()
@@ -455,6 +466,7 @@ StabInNavStoOperator::StabInNavStoOperator(Array<FiniteElementSpace *> &fes,
 
    // Add the incompressible nav-sto integrator
    Hform->AddDomainIntegrator(new StabInNavStoIntegrator(mu, *tau, *delta));
+   //Hform->SetAssemblyLevel(AssemblyLevel::PARTIAL);
 
    // Set the essential boundary conditions
    Hform->SetEssentialBC(ess_bdr, rhs);

@@ -151,7 +151,7 @@ int main(int argc, char *argv[])
    // 4. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
-   FiniteElementCollection *fec_u = new H1_FECollection(order+1, dim);
+   FiniteElementCollection *fec_u = new H1_FECollection(order, dim);
    FiniteElementCollection *fec_p = new H1_FECollection(order, dim);
 
    FiniteElementSpace *fespace_u = new FiniteElementSpace(mesh, fec_u, dim);
@@ -228,7 +228,7 @@ int main(int argc, char *argv[])
    // 10. Initialize the incompressible neo-Hookean operator
    real_t newton_rel_tol = 1e-4;
    real_t newton_abs_tol = 1e-8;
-   int newton_iter = 2;
+   int newton_iter = 5;
 
    StabInNavStoOperator oper(spaces, ess_bdr, block_trueOffsets,
                              newton_rel_tol, newton_abs_tol, newton_iter, *kappa);
