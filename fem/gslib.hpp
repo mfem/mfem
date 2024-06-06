@@ -86,7 +86,7 @@ protected:
    Array<unsigned int> gsl_code, gsl_proc, gsl_elem, gsl_mfem_elem;
    Vector gsl_mesh, gsl_ref, gsl_dist, gsl_mfem_ref;
    Array<unsigned int> recv_proc, recv_index; // data for custom interpolation
-   bool setupflag;              // flag to indicate whether gslib data has been setup
+   bool setupflag;              // flag to indicate if gslib data has been setup
    double default_interp_value; // used for points that are not found in the mesh
    AvgType avgtype;             // average type used for L2 functions
    Array<int> split_element_map;

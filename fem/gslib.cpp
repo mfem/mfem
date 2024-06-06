@@ -1172,22 +1172,20 @@ void FindPointsGSLIB::DistributePointInfoToOwningMPIRanks(
    Array<unsigned int> &recv_elem, Vector &recv_ref,
    Array<unsigned int> &recv_code)
 {
-   int nptsend   = points_cnt;
-
-   MFEM_VERIFY(nptsend,
-               "Invalid size. Please make sure to call FindPoints method"
-               " before calling this function.");
+   MFEM_VERIFY(points_cnt,
+               "Invalid size. Please make sure to call FindPoints method "
+               "before calling this function.");
 
    // Pack data to send via crystal router
    struct gslib::array *outpt = new gslib::array;
 
    struct out_pt { double rst[3]; uint index, elem, proc, code; };
    struct out_pt *pt;
-   array_init(struct out_pt, outpt, nptsend);
-   outpt->n=nptsend;
+   array_init(struct out_pt, outpt, points_cnt);
+   outpt->n=points_cnt;
    pt = (struct out_pt *)outpt->ptr;
 
-   for (int index = 0; index < nptsend; index++)
+   for (int index = 0; index < points_cnt; index++)
    {
       pt->index = index;
       pt->elem = gsl_mfem_elem[index];
@@ -1240,7 +1238,6 @@ void FindPointsGSLIB::ReturnInterpolatedValues(const Vector &int_vals,
                "Incompatible size. Please return interpolated values"
                "corresponding to points received using"
                "SendCoordinatesToOwningProcessors.");
-   int nptsend = points_recv;
    field_out.SetSize(points_cnt*vdim);
 
    for (int v = 0; v < vdim; v++)
@@ -1249,10 +1246,10 @@ void FindPointsGSLIB::ReturnInterpolatedValues(const Vector &int_vals,
       struct gslib::array *outpt = new gslib::array;
       struct out_pt { double val; uint index, proc; };
       struct out_pt *pt;
-      array_init(struct out_pt, outpt, nptsend);
-      outpt->n=nptsend;
+      array_init(struct out_pt, outpt, points_recv);
+      outpt->n=points_recv;
       pt = (struct out_pt *)outpt->ptr;
-      for (int index = 0; index < nptsend; index++)
+      for (int index = 0; index < points_recv; index++)
       {
          pt->index = recv_index[index];
          pt->proc  = recv_proc[index];
@@ -1266,11 +1263,12 @@ void FindPointsGSLIB::ReturnInterpolatedValues(const Vector &int_vals,
       sarray_transfer(struct out_pt, outpt, proc, 1, cr);
 
       // Store received data
-      int nrecv = outpt->n;
-      MFEM_VERIFY(nrecv == points_cnt, "Incompatible size.");
+      MFEM_VERIFY(outpt->n == points_cnt, "Incompatible size. Number of points "
+                  "received does not match the number of points originally "
+                  "found using FindPoints.");
 
       pt = (struct out_pt *)outpt->ptr;
-      for (int index = 0; index < nrecv; index++)
+      for (int index = 0; index < points_cnt; index++)
       {
          int idx = ordering == Ordering::byNODES ?
                    pt->index + v*points_cnt :
