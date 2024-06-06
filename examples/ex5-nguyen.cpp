@@ -316,7 +316,9 @@ int main(int argc, char *argv[])
    auto qFun = GetQFun(problem, t_0, k, c);
    VectorFunctionCoefficient qcoeff(dim, qFun);
    ConstantCoefficient one;
-   VectorSumCoefficient qtcoeff(ccoeff, qcoeff, tcoeff, one);//total flux
+   VectorSumCoefficient qtcoeff_(ccoeff, qcoeff, tcoeff, one);//total flux
+   VectorCoefficient &qtcoeff = (bconv)?((VectorCoefficient&)qtcoeff_)
+                                :((VectorCoefficient&)qcoeff);//<--velocity is undefined
 
    // 8. Allocate memory (x, rhs) for the analytical solution and the right hand
    //    side.  Define the GridFunction q,t for the finite element solution and
