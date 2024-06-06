@@ -50,21 +50,18 @@ void HybridizationExtension::ConstructC()
    const auto d_emat = Reshape(emat.Read(), m, n, 2, nf);
    auto d_Ct_mat = Reshape(Ct_mat.Write(), m, n, n_faces_per_el, ne);
 
-   for (int f = 0; f < nf; ++f)
+   mfem::forall(m*n*2*nf, [=] MFEM_HOST_DEVICE (int idx)
    {
-      const int e1  = face_to_el[0 + 4*f];
-      const int fi1 = face_to_el[1 + 4*f];
-      const int e2  = face_to_el[2 + 4*f];
-      const int fi2 = face_to_el[3 + 4*f];
-      for (int j = 0; j < n; ++j)
-      {
-         for (int i = 0; i < m; ++i)
-         {
-            d_Ct_mat(i, j, fi1, e1) = d_emat(i, j, 0, f);
-            d_Ct_mat(i, j, fi2, e2) = d_emat(i, j, 1, f);
-         }
-      }
-   }
+      const int i = idx % m;
+      const int j = (idx / m) % n;
+      const int ie = (idx / m / n) % 2;
+      const int f = idx / m / n / 2;
+
+      const int e  = face_to_el[0 + 2*ie + 4*f];
+      const int fi = face_to_el[1 + 2*ie + 4*f];
+
+      d_Ct_mat(i, j, fi, e) = d_emat(i, j, ie, f);
+   });
 }
 
 void HybridizationExtension::ConstructH()
