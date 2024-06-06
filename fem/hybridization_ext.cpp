@@ -12,6 +12,7 @@
 #include "hybridization_ext.hpp"
 #include "hybridization.hpp"
 #include "../general/forall.hpp"
+#include "../linalg/kernels.hpp"
 
 namespace mfem
 {
@@ -35,17 +36,35 @@ void HybridizationExtension::ConstructC()
 {
    Mesh &mesh = *h.fes.GetMesh();
    const int ne = mesh.GetNE();
-
-   const int n_hat_dof_per_el = h.fes.GetFE(0)->GetDof();
-   const int n_c_dof_per_face = h.c_fes.GetFaceElement(0)->GetDof();
+   const int nf = mesh.GetNFbyType(FaceType::Interior);
+   const int m = h.fes.GetFE(0)->GetDof(); // num hat dofs per el
+   const int n = h.c_fes.GetFaceElement(0)->GetDof(); // num c dofs per face
    const int n_faces_per_el = GetNFacesPerElement(mesh);
 
-   Ct_mat.SetSize(ne * n_hat_dof_per_el * n_c_dof_per_face * n_faces_per_el);
-
    // Assemble Ct_mat using EA
-   Vector emat;
-   emat.NewMemoryAndSize(Ct_mat.GetMemory(), Ct_mat.Size(), false);
+   Vector emat(m * n * 2 * nf);
    h.c_bfi->AssembleEAInteriorFaces(h.c_fes, h.fes, emat, false);
+
+   Ct_mat.SetSize(m * n * n_faces_per_el * ne);
+
+   const auto d_emat = Reshape(emat.Read(), m, n, 2, nf);
+   auto d_Ct_mat = Reshape(Ct_mat.Write(), m, n, n_faces_per_el, ne);
+
+   for (int f = 0; f < nf; ++f)
+   {
+      const int e1  = face_to_el[0 + 4*f];
+      const int fi1 = face_to_el[1 + 4*f];
+      const int e2  = face_to_el[2 + 4*f];
+      const int fi2 = face_to_el[3 + 4*f];
+      for (int j = 0; j < n; ++j)
+      {
+         for (int i = 0; i < m; ++i)
+         {
+            d_Ct_mat(i, j, fi1, e1) = d_emat(i, j, 0, f);
+            d_Ct_mat(i, j, fi2, e2) = d_emat(i, j, 1, f);
+         }
+      }
+   }
 }
 
 void HybridizationExtension::ConstructH()
@@ -56,26 +75,34 @@ void HybridizationExtension::ConstructH()
    const int m = h.fes.GetFE(0)->GetDof();
    const int n = h.c_fes.GetFaceElement(0)->GetDof();
 
+   // TODO: better batched linear algebra
    Vector AhatInvCt_mat(Ct_mat);
-   for (int e = 0; e < ne; ++e)
    {
-      for (int fi = 0; fi < n_faces_per_el; ++fi)
+      const auto d_Ahat_inv = Reshape(Ahat_inv.Read(), m, m, ne);
+      const auto d_Ahat_piv = Reshape(Ahat_piv.Read(), m, ne);
+      auto d_AhatInvCt = Reshape(AhatInvCt_mat.ReadWrite(), m, n, n_faces_per_el, ne);
+
+      mfem::forall(ne*n_faces_per_el, [=] MFEM_HOST_DEVICE (int idx)
       {
-         const int offset = (fi + e*n_faces_per_el)*n*m;
-         real_t *data = const_cast<real_t*>(Ahat_inv.GetData() + e*m*m);
-         int *ipiv = const_cast<int*>(Ahat_piv.GetData() + e*m);
-         LUFactors lu(data, ipiv);
-         lu.Solve(m, n, AhatInvCt_mat.GetData() + offset);
-      }
+         const int fi = idx % n_faces_per_el;
+         const int e = idx / n_faces_per_el;
+
+         const real_t *lu = &d_Ahat_inv(0, 0, e);
+         const int *ipiv = &d_Ahat_piv(0, e);
+         real_t *x = &d_AhatInvCt(0, 0, fi, e);
+
+         kernels::LUSolve(lu, m, ipiv, x);
+      });
    }
 
    const int nf = h.fes.GetNFbyType(FaceType::Interior);
    const int n_face_connections = 2*n_faces_per_el - 1;
    Array<int> face_to_face(nf * n_face_connections);
 
-   Array<double> CAhatInvCt_mat(nf*n_face_connections*n*n);
+   Array<real_t> CAhatInvCt_mat(nf*n_face_connections*n*n);
    CAhatInvCt_mat = 0.0;
 
+   // TODO: device
    for (int fi = 0; fi < nf; ++fi)
    {
       int idx = 0;
@@ -343,7 +370,7 @@ void HybridizationExtension::MultC(const Vector &x, Vector &y) const
 void HybridizationExtension::AssembleMatrix(int el, const DenseMatrix &elmat)
 {
    const int n = elmat.Width();
-   double *Ainv = Ahat_inv.GetData() + el*n*n;
+   real_t *Ainv = Ahat_inv.GetData() + el*n*n;
    int *ipiv = Ahat_piv.GetData() + el*n;
 
    std::copy(elmat.GetData(), elmat.GetData() + n*n, Ainv);
@@ -374,13 +401,11 @@ void HybridizationExtension::AssembleElementMatrices(
 
    const int ne = h.fes.GetNE();
    const int n = el_mats.SizeI();
-   for (int e = 0; e < ne; ++e)
-   {
-      double *Ainv = Ahat_inv.GetData() + e*n*n;
-      int *ipiv = Ahat_piv.GetData() + e*n;
-      LUFactors lu(Ainv, ipiv);
-      lu.Factor(n);
-   }
+
+   // TODO: better batched linalg interface
+   DenseTensor Ahat_inv_dt;
+   Ahat_inv_dt.NewMemoryAndSize(Ahat_inv.GetMemory(), n, n, ne, false);
+   BatchLUFactor(Ahat_inv_dt, Ahat_piv);
 }
 
 void HybridizationExtension::Init(const Array<int> &ess_tdof_list)
@@ -550,8 +575,8 @@ void HybridizationExtension::MultR(const Vector &x_hat, Vector &x) const
                           h.fes.GetElementRestriction(ordering));
    const int *gather_map = restr->GatherMap().Read();
    const bool *d_ess_hat_dof_marker = ess_hat_dof_marker.Read();
-   const double *d_evec = x_hat.Read();
-   double *d_lvec = tmp2.ReadWrite();
+   const real_t *d_evec = x_hat.Read();
+   real_t *d_lvec = tmp2.ReadWrite();
    mfem::forall(num_hat_dofs, [=] MFEM_HOST_DEVICE (int i)
    {
       // Skip essential DOFs
@@ -586,8 +611,8 @@ void HybridizationExtension::MultRt(const Vector &b, Vector &b_hat) const
 
    b_hat.SetSize(num_hat_dofs);
    const int *d_hat_dof_gather_map = hat_dof_gather_map.Read();
-   const double *d_b_lvec = b_lvec.Read();
-   double *d_b_hat = b_hat.Write();
+   const real_t *d_b_lvec = b_lvec.Read();
+   real_t *d_b_hat = b_hat.Write();
    mfem::forall(num_hat_dofs, [=] MFEM_HOST_DEVICE (int i)
    {
       const int j_s = d_hat_dof_gather_map[i];
@@ -609,6 +634,7 @@ void HybridizationExtension::MultAhatInv(Vector &x) const
    const int ne = h.fes.GetMesh()->GetNE();
    const int n = h.fes.GetFE(0)->GetDof();
 
+   // TODO: device
    for (int i = 0; i < ne; ++i)
    {
       real_t *data = const_cast<real_t*>(Ahat_inv.GetData() + i*n*n);
