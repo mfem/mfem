@@ -80,7 +80,6 @@ void HybridizationExtension::ConstructH()
    const int m = h.fes.GetFE(0)->GetDof();
    const int n = h.c_fes.GetFaceElement(0)->GetDof();
 
-   // TODO: better batched linear algebra
    Vector AhatInvCt_mat(Ct_mat);
    {
       const auto d_Ahat_inv = Reshape(Ahat_inv.Read(), m, m, ne);
@@ -93,6 +92,8 @@ void HybridizationExtension::ConstructH()
          const int fi = (idx / n) % n_faces_per_el;
          const int e = idx / n / n_faces_per_el;
 
+         // Potential optimization: can load lu and ipiv into shared memory, use
+         // one block of n threads per matrix.
          const real_t *lu = &d_Ahat_inv(0, 0, e);
          const int *ipiv = &d_Ahat_piv(0, e);
          real_t *x = &d_AhatInvCt(0, j, fi, e);
@@ -120,7 +121,6 @@ void HybridizationExtension::ConstructH()
          for (int fj_i = 0; fj_i < n_faces_per_el; ++fj_i)
          {
             const int fj = el_to_face[fj_i + e*n_faces_per_el];
-            // if (fj < 0 || fi == fj) { continue; }
             // Explicitly allow fi == fj (self-connections)
             if (fj < 0) { continue; }
 
@@ -425,7 +425,7 @@ void HybridizationExtension::AssembleElementMatrices(
       }
    });
 
-   // TODO: better batched linalg interface
+   // TODO: better batched linear algebra (e.g. cuBLAS)
    DenseTensor Ahat_inv_dt;
    Ahat_inv_dt.NewMemoryAndSize(Ahat_inv.GetMemory(), n, n, ne, false);
    BatchLUFactor(Ahat_inv_dt, Ahat_piv);
@@ -657,14 +657,10 @@ void HybridizationExtension::MultAhatInv(Vector &x) const
    const int ne = h.fes.GetMesh()->GetNE();
    const int n = h.fes.GetFE(0)->GetDof();
 
-   // TODO: device
-   for (int i = 0; i < ne; ++i)
-   {
-      real_t *data = const_cast<real_t*>(Ahat_inv.GetData() + i*n*n);
-      int *ipiv = const_cast<int*>(Ahat_piv.GetData() + i*n);
-      LUFactors lu(data, ipiv);
-      lu.Solve(n, 1, x.GetData() + i*n);
-   }
+   // TODO: better batched linear algebra (e.g. cuBLAS)
+   DenseTensor Ahat_inv_dt;
+   Ahat_inv_dt.NewMemoryAndSize(Ahat_inv.GetMemory(), n, n, ne, false);
+   BatchLUSolve(Ahat_inv_dt, Ahat_piv, x);
 }
 
 void HybridizationExtension::ReduceRHS(const Vector &b, Vector &b_r) const
