@@ -13,12 +13,19 @@
 //              can be specified by command line options.
 
 #include "mfem.hpp"
+#include "../linalg/dtensor.hpp"
 #include <fstream>
 #include <iostream>
+#define IDX2C(i,j,k,inc) ((i)+(j*inc)+(k*inc*inc))
+#define IDXV(i,j,inc) ((i)+(j*inc))
 
 using namespace std;
 using namespace mfem;
 
+/// @brief 
+/// @param argc 
+/// @param argv 
+/// @return 
 int main(int argc, char *argv[])
 {
    // 1. Parse command line options.
@@ -80,10 +87,107 @@ int main(int argc, char *argv[])
    cout << "Let's see if this works \n";
 
    ConstantCoefficient q(111.0);
-   mfem::Coefficient *Q(&q);
+   Coefficient *Q(&q); 
+   Q->SetTime(222.);
+   real_t time = Q->GetTime();
 
-   cout << "Pointer Q is " << Q;
-   cout << " with value of " << *Q << "\n";
+
+   cout << "Pointer Q is " << Q << "\n";
+   cout << "This matches with the address of q, which is " << &q << "\n";
+   // cout << "Note that the value that Q points to is " << *Q.constant << "\n";
+   cout << "This matches with the value of q, which is " << q.constant << endl; 
+   cout << "Pointer Q has the time of " << time << "\n";
+
+
+
+   // Check operators are not issues
+
+   // QuadratureFunctionCoefficient q();
+   const real_t detJ = 3.141;
+   const real_t d_D = detJ * q.constant;  // auto d_D is a DeviceTensor made up of real_t elements; ERRORS
+
+   // cout << "d_D = " << d_D << endl;
+
+
+   // Check pointer behavior: 
+   double *f = new double[4];
+   double *F = f;
+   cout << "Size of F is " << sizeof (*F) << endl;
+
+   int i, j, k;
+   for (k=0;k<2;k++) {
+      for (j=0;j<6;j++) {
+         for (i=0;i<5;i++) {
+            cout << IDX2C(i,j,k,6) << " ";
+         }
+      }
+   }
+   cout << endl;
+
+   DenseTensor G(6,6,2);
+   Vector g(6);
+   Vector gy(6);
+
+   cout << "At first, G is " << endl;
+   for (k = 0; k < 2; k++) {
+      for (j = 0; j < 6; j++) {
+         for (i = 0; i < 6; i++) {
+            printf ("%7.0f", G.Data()[IDX2C(i,j,k,6)]);
+         }
+         printf("\n");
+      }
+      printf("\n");
+   }
+
+   for (k = 0; k < 2; k++) {
+      for (j = 0; j < 6; j++) {
+         for (i = 0; i < 6; i++) {
+            g.GetData()[i] = i;
+            G.Data()[IDX2C(i,j,k,6)] = (double)(IDX2C(i,j,k,6));
+         }
+         printf("\n");
+      }
+      printf("\n");
+   }
+   g.Print();
+   cout << g.GetData() << endl;
+
+   cout << "G is " << endl;
+   for (k = 0; k < 2; k++) {
+      for (j = 0; j < 6; j++) {
+         for (i = 0; i < 6; i++) {
+            printf ("%7.0f", G.Data()[IDX2C(i,j,k,6)]);
+         }
+         printf("\n");
+      }
+      printf("\n");
+   }
+   cout << "G at (6,6,2) is " << G.Data()[IDX2C(5,5,1,6)] << endl;
+   cout << &G.Data()[IDX2C(5,5,1,6)] << endl;
+
+   auto d_G = Reshape(G.Read(), 6, 6, 1);
+
+   gy.Print();
+   cout << endl;
+
+
+   double* y = 0;  // host device pointer
+   cout << "Size of y: " << sizeof(y) << endl;
+   y = (double *)malloc (6 * 1 * sizeof(*y));
+
+   for (j = 0; j < 6; j++) {
+      cout << y[j] << " ";
+   }
+   cout << endl;
+
+   Vector Y(y,6);
+   Y.SetData(y);
+   cout << "Vector Y is "; Y.Print();
+
+   cout << "Size of G: " << sizeof(*G.Data()) << endl;
+   cout << "Size of g: " << sizeof(g.GetData()) << endl;
+   cout << "Size of gy: " << sizeof(gy.GetData()) << endl;
+   cout << "Size of y: " << sizeof(y) << endl;
 
 
    return 0;
