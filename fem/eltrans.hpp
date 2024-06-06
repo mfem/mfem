@@ -52,6 +52,15 @@ protected:
    const DenseMatrix &EvalTransAdjugateJ();
    const DenseMatrix &EvalInverseJ();
 
+   /// @name Tolerance used for point comparisons
+   ///@{
+#ifdef MFEM_USE_DOUBLE
+   static constexpr real_t tol_0 = 1e-15;
+#elif defined(MFEM_USE_SINGLE)
+   static constexpr real_t tol_0 = 1e-7;
+#endif
+   ///@}
+
 public:
 
    /** This enumeration declares the values stored in
@@ -176,7 +185,7 @@ public:
        returned. This method is not 100 percent reliable for non-linear
        transformations. */
    virtual int TransformBack(const Vector &pt, IntegrationPoint &ip,
-                             const real_t phys_tol = 1e-15) = 0;
+                             const real_t phys_tol = tol_0) = 0;
 
    virtual ~ElementTransformation() { }
 };
@@ -247,6 +256,15 @@ protected:
    void NewtonPrintPoint(const char *prefix, const Vector &pt,
                          const char *suffix);
    int NewtonSolve(const Vector &pt, IntegrationPoint &ip);
+
+   /// @name Tolerance used for point comparisons
+   ///@{
+#ifdef MFEM_USE_DOUBLE
+   static constexpr real_t rtol_0 = 1e-15;
+#elif defined(MFEM_USE_SINGLE)
+   static constexpr real_t rtol_0 = 1e-7;
+#endif
+   ///@}
 
 public:
    /// Construct the InverseElementTransformation with default parameters.
@@ -327,7 +345,7 @@ public:
    void SetReferenceTol(real_t ref_sp_tol) { ref_tol = ref_sp_tol; }
 
    /// Set the relative physical-space convergence tolerance.
-   void SetPhysicalRelTol(real_t phys_rel_tol) { phys_rtol = phys_rel_tol; }
+   void SetPhysicalRelTol(real_t phys_rel_tol) { phys_rtol = rtol_0; }
 
    /** @brief Set the tolerance used to determine if a point lies inside or
        outside of the reference element. */
@@ -455,7 +473,7 @@ public:
        returned. This method is not 100 percent reliable for non-linear
        transformations. */
    virtual int TransformBack(const Vector & v, IntegrationPoint & ip,
-                             const real_t phys_rel_tol = 1e-15)
+                             const real_t phys_rel_tol = tol_0)
    {
       InverseElementTransformation inv_tr(this);
       inv_tr.SetPhysicalRelTol(phys_rel_tol);
