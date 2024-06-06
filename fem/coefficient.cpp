@@ -1427,7 +1427,6 @@ void InverseEstimateCoefficient::ComputeInverseEstimates()
 
 void InverseEstimateCoefficient::SetIntRule(const FiniteElement &el)
 {
-   if (ir) { delete ir; }
    ir = &IntRules.Get(el.GetGeomType(), 2*el.GetOrder());
 }
 

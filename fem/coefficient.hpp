@@ -2266,6 +2266,19 @@ public:
    /// Caller gets owner ship of GridFunction and
    GridFunction *GetGridFunction();
 
+   /// Reset the scalar factor
+   void SetDiffusion(Coefficient &q)
+   {
+      if (Q != &q)
+      {
+         Q = &q;
+         std::cout<<Q<<std::endl;
+         ComputeInverseEstimates();
+      }
+   }
+   /// Return the scalar factor
+   Coefficient * GetDiffusion() const { return Q; }
+
    ///
    void ComputeInverseEstimates();
 
