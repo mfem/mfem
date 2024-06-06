@@ -233,7 +233,7 @@ TEST_CASE("H(div) Element Assembly", "[AssemblyLevel][CUDA]")
 {
    const auto fname = GENERATE(
                          "../../data/inline-quad.mesh",
-                         "../../data/star.mesh"
+                         "../../data/star-q3.mesh"
                       );
    const auto order = GENERATE(1, 2, 3);
    const auto problem = GENERATE(Problem::Mass, Problem::Diffusion);
@@ -251,8 +251,12 @@ TEST_CASE("H(div) Element Assembly", "[AssemblyLevel][CUDA]")
    if (problem == Problem::Mass) { integ.reset(new VectorFEMassIntegrator); }
    else if (problem == Problem::Diffusion) { integ.reset(new DivDivIntegrator); }
 
-   const TensorBasisElement* tbe =
-      dynamic_cast<const TensorBasisElement*>(fes.GetFE(0));
+   const FiniteElement &fe = *fes.GetFE(0);
+   ElementTransformation &T = *mesh.GetElementTransformation(0);
+   integ->SetIntegrationRule(MassIntegrator::GetRule(fe, fe, T));
+
+   const TensorBasisElement *tbe =
+      dynamic_cast<const TensorBasisElement*>(&fe);
    MFEM_VERIFY(tbe, "");
    const int ndof = fes.GetFE(0)->GetDof();
    const Array<int> &dof_map = tbe->GetDofMap();
