@@ -5,7 +5,7 @@
 #include "cublas_v2.h"
 #include "mfem.hpp"
 #include "../fem/bilinearform.hpp"
-#include "../linalg/batchlinalg.hpp"
+// #include "../linalg/batchlinalg.hpp"
 #include "../general/backends.hpp"
 #include "../general/forall.hpp"
 #include <fstream>
