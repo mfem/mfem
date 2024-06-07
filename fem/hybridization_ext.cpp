@@ -47,7 +47,12 @@ void HybridizationExtension::ConstructC()
 
    const auto *tbe = dynamic_cast<const TensorBasisElement*>(h.fes.GetFE(0));
    MFEM_VERIFY(tbe, "");
-   const Array<int> &dof_map = tbe->GetDofMap();
+   // Note: copying the DOF map here (instead of using a reference) because
+   // reading it on GPU can cause issues in other parts of the code when using
+   // the debug device. The DOF map is accessed in other places without
+   // explicitly calling HostRead, which fails on non-const access if the device
+   // pointer is valid.
+   Array<int> dof_map = tbe->GetDofMap();
 
    Ct_mat.SetSize(m * n * n_faces_per_el * ne);
    const auto d_emat = Reshape(emat.Read(), m, n, 2, nf);
