@@ -33,6 +33,8 @@
 //
 // Sample runs:  lor-transfer
 //               lor-transfer -h1
+//               lor-transfer -d 'cuda'
+//               lor-transfer -d 'hip'
 //               lor-transfer -t
 //               lor-transfer -m ../../data/star-q2.mesh -lref 5 -p 4
 //               lor-transfer -m ../../data/star-mixed.mesh -lref 3 -p 2
@@ -75,6 +77,7 @@ int main(int argc, char *argv[])
    bool vis = true;
    bool useH1 = false;
    bool use_pointwise_transfer = false;
+   const char *device_config = "cpu";
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -95,6 +98,8 @@ int main(int argc, char *argv[])
    args.AddOption(&use_pointwise_transfer, "-t", "--use-pointwise-transfer",
                   "-no-t", "--dont-use-pointwise-transfer",
                   "Use pointwise transfer operators instead of L2 projection.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.ParseCheck();
 
    // Read the mesh from the given mesh file.
@@ -167,6 +172,10 @@ int main(int argc, char *argv[])
    {
       gt = new L2ProjectionGridTransfer(fespace, fespace_lor);
    }
+
+   gt->UseDevice(true);
+   gt->VerifySolution(true);
+
    const Operator &R = gt->ForwardOperator();
 
    // HO->LOR restriction
