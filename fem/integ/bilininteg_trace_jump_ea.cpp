@@ -105,8 +105,8 @@ void NormalTraceJumpIntegrator::AssembleEAInteriorFaces(
    const int ndof_vol = test_el.GetDof();
    const auto d_face_maps = Reshape(face_maps.Read(), ndof_face, n_faces_per_el);
    const auto d_face_info = Reshape(face_info.Read(), 2, 2, nf);
-   double *d_emat;
 
+   real_t *d_emat;
    if (add)
    {
       d_emat = emat.ReadWrite();
