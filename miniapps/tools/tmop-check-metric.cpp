@@ -31,12 +31,15 @@ int main(int argc, char *argv[])
    int metric_id = 2;
    int convergence_iter = 10;
    bool verbose = false;
+   bool old_inv = false;
 
    // Choose metric.
    OptionsParser args(argc, argv);
    args.AddOption(&metric_id, "-mid", "--metric-id", "Metric id");
-   args.AddOption(&verbose, "-v", "-verbose", "-no-v", "--no-verbose",
+   args.AddOption(&verbose, "-v", "--verbose", "-no-v", "--no-verbose",
                   "Enable extra screen output.");
+   args.AddOption(&old_inv, "-oi", "--old-invar", "-ni", "--new-invar",
+                  "Use old or new code or invariants.");
    args.AddOption(&convergence_iter, "-i", "--iterations",
                   "Number of iterations to check convergence of derivatives.");
 
@@ -99,6 +102,8 @@ int main(int argc, char *argv[])
       case 126: metric = new TMOP_AMetric_126(0.9); break;
       default: cout << "Unknown metric_id: " << metric_id << endl; return 3;
    }
+
+   if (old_inv) { metric->use_old_invariants_code = true; }
 
    const int dim = (metric_id < 300) ? 2 : 3;
    DenseMatrix T(dim);
