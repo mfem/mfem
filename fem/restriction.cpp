@@ -56,7 +56,7 @@ ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
          dynamic_cast<const TensorBasisElement*>(fe);
       const Array<int> &fe_dof_map = el->GetDofMap();
       MFEM_VERIFY(fe_dof_map.Size() > 0, "invalid dof map");
-      dof_map = fe_dof_map.GetData();
+      dof_map = fe_dof_map.HostRead();
    }
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* element_map = e2dTable.GetJ();
