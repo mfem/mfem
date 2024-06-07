@@ -406,6 +406,30 @@ void MultAtB(const int Aheight, const int Awidth, const int Bwidth,
    }
 }
 
+/** @brief Multiply the transpose of a matrix of size @a Aheight x @a Awidth
+    and data @a Adata with a matrix of size @a Aheight x @a Bwidth and data @a
+    Bdata: At * B. Add the result to the matrix with data @a AtBdata. */
+template<typename TA, typename TB, typename TC>
+MFEM_HOST_DEVICE inline
+void AddMultAtB(const int Aheight, const int Awidth, const int Bwidth,
+                const TA *Adata, const TB *Bdata, TC *AtBdata)
+{
+   TC *c = AtBdata;
+   for (int i = 0; i < Bwidth; ++i)
+   {
+      for (int j = 0; j < Awidth; ++j)
+      {
+         TC val = 0.0;
+         for (int k = 0; k < Aheight; ++k)
+         {
+            val += Adata[j * Aheight + k] * Bdata[i * Aheight + k];
+         }
+         *c += val;
+         c++;
+      }
+   }
+}
+
 /// Given a matrix of size 2x1, 3x1, or 3x2, compute the left inverse.
 template<int HEIGHT, int WIDTH> MFEM_HOST_DEVICE
 void CalcLeftInverse(const real_t *data, real_t *left_inv);
