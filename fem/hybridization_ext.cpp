@@ -57,6 +57,7 @@ void HybridizationExtension::ConstructC()
    Ct_mat.SetSize(m * n * n_faces_per_el * ne);
    const auto d_emat = Reshape(emat.Read(), m, n, 2, nf);
    const int *d_dof_map = dof_map.Read();
+   const auto d_face_to_el = Reshape(face_to_el.Read(), 2, 2, nf);
    auto d_Ct_mat = Reshape(Ct_mat.Write(), m, n, n_faces_per_el, ne);
 
    mfem::forall(m*n*2*nf, [=] MFEM_HOST_DEVICE (int idx)
@@ -66,8 +67,8 @@ void HybridizationExtension::ConstructC()
       const int ie = (idx / m / n) % 2;
       const int f = idx / m / n / 2;
 
-      const int e  = face_to_el[0 + 2*ie + 4*f];
-      const int fi = face_to_el[1 + 2*ie + 4*f];
+      const int e  = d_face_to_el(0, ie, f);
+      const int fi = d_face_to_el(1, ie, f);
 
       // Convert to back to native MFEM ordering in the volume
       const int i_s = d_dof_map[i_lex];
@@ -114,6 +115,8 @@ void HybridizationExtension::ConstructH()
    Array<real_t> CAhatInvCt(nf*n_face_connections*n*n);
 
    const auto d_Ct = Reshape(Ct_mat.Read(), m, n, n_faces_per_el, ne);
+   const auto d_face_to_el = Reshape(face_to_el.Read(), 2, 2, nf);
+   const auto d_el_to_face = Reshape(el_to_face.Read(), n_faces_per_el, ne);
    auto d_CAhatInvCt = Reshape(CAhatInvCt.Write(), n, n, n_face_connections, nf);
    auto d_face_to_face = Reshape(face_to_face.Write(), n_face_connections, nf);
 
@@ -127,12 +130,12 @@ void HybridizationExtension::ConstructH()
       int idx = 0;
       for (int ei = 0; ei < 2; ++ei)
       {
-         const int e = face_to_el[2*ei + 4*fi];
+         const int e = d_face_to_el(0, ei, fi);
          if (e < 0) { continue; }
-         const int fi_i = face_to_el[1 + 2*ei + 4*fi];
+         const int fi_i = d_face_to_el(1, ei, fi);
          for (int fj_i = 0; fj_i < n_faces_per_el; ++fj_i)
          {
-            const int fj = el_to_face[fj_i + e*n_faces_per_el];
+            const int fj = d_el_to_face(fj_i, e);
             // Explicitly allow fi == fj (self-connections)
             if (fj < 0) { continue; }
 
