@@ -317,7 +317,13 @@ TEST_CASE("NormalTraceJumpIntegrator Element Assembly", "[AssemblyLevel][CUDA]")
    Vector emat(ndof_trial*ndof_test*2*nf);
    integ.AssembleEAInteriorFaces(hfes, fes, emat, false);
 
-   const auto e_mat = Reshape(emat.Read(), ndof_test, ndof_trial, 2, nf);
+   const TensorBasisElement *tbe =
+      dynamic_cast<const TensorBasisElement*>(fes.GetFE(0));
+   MFEM_VERIFY(tbe, "");
+   const int ndof = fes.GetFE(0)->GetDof();
+   const Array<int> &dof_map = tbe->GetDofMap();
+
+   const auto e_mat = Reshape(emat.HostRead(), ndof_test, ndof_trial, 2, nf);
 
    int fidx = 0;
    for (int f = 0; f < mesh.GetNumFaces(); ++f)
@@ -338,11 +344,13 @@ TEST_CASE("NormalTraceJumpIntegrator Element Assembly", "[AssemblyLevel][CUDA]")
       elmat.Threshold(1e-12 * elmat.MaxMaxNorm());
       for (int ie = 0; ie < 2; ++ie)
       {
-         for (int i = 0; i < ndof_test; ++i)
+         for (int i_lex = 0; i_lex < ndof_test; ++i_lex)
          {
+            const int i_s = dof_map[i_lex];
+            const int i = (i_s >= 0) ? i_s : -1 - i_s;
             for (int j = 0; j < ndof_trial; ++j)
             {
-               elmat(i + ie*ndof_test, j) -= e_mat(i, j, ie, fidx);
+               elmat(i + ie*ndof_test, j) -= e_mat(i_lex, j, ie, fidx);
             }
          }
       }
