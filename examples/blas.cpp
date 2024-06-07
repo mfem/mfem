@@ -1,20 +1,22 @@
 //                      MFEM cuBLAS and hipBLAS gemvBatched() Example
 //
-// Compile with: make blas-ex
+// Compile with: make blas
 //
 // Device sample runs:
-//               blas-ex -d cuda
-//               blas-ex -pa -d cuda
-//               blas-ex -fa -d cuda
-//               blas-ex -d hip
-//               blas-ex -pa -d hip
-//               blas-ex -fa -d hip
+//               blas -d cuda
+//               blas -d cuda -n 2 -ne 2 
+//               blas -pa -d cuda
+//               blas -fa -d cuda
+//               blas -d hip 
+//               blas -d hip -pa 
+//               blas -d hip -fa
+//               blas -d hip
 
 // Description:  This example code demonstrates the use of cu or hipBLAS on MFEM 
 //               objects to multiply batched square matrices with batched vectors. 
 //               It utilizes the BLAS functions 
 //                  cublasDgemvBatched()  or  hipblasDgemvBatched().
-//               Note that version cuda/11.7.0 is needed. 
+//               Note that version cuda/11.7.0 or newer is needed. 
 // 
 //               User can specify the number of rows (cols) n for the (nxn) square 
 //               square matrices stored in DenseTensor A and (nx1) vectors stored in 
@@ -26,7 +28,7 @@
 //               Algebra functions ported with cu/hipBLAS (see batchlinalg.cpp).
 
 #include "mfem.hpp"
-#include "../fem/bilinearform.cpp"
+#include "../fem/bilinearform.cpp" // TODO: causes Seg Fault when removed (Note: not included in batchlinalg.cpp so Seg Fault occurs when running inverse portion)
 #include <fstream>
 #include <iostream>
 #define IDXT(i,j,k,ld) (((ld)*(ld)*(k))+((j)*(ld))+(i))

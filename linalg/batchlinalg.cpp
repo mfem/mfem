@@ -296,7 +296,6 @@ void ApplyBlkMult(const DenseTensor &Mat, const Vector &x,
                                                 &beta, 
                                                 y_ptr.ReadWrite(), 1, 
                                                 NE);
-      //free variables? 
       MFEM_VERIFY(status == MFEM_CU_or_HIP(BLAS_STATUS_SUCCESS), 
                   "Failed at blasDgemvBatched");
    }
