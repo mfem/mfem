@@ -1198,13 +1198,16 @@ void EABilinearFormExtension::GetElementMatrices(
                                      ne);
 
    const int *d_dof_map = nullptr;
+   Array<int> dof_map;
    if (ordering == ElementDofOrdering::NATIVE)
    {
       const TensorBasisElement* tbe =
          dynamic_cast<const TensorBasisElement*>(trial_fes->GetFE(0));
       if (tbe)
       {
-         const Array<int> &dof_map = tbe->GetDofMap();
+         // Deep copy to avoid issues with host device (see similar comment in
+         // HybridizationExtension::ConstructC).
+         dof_map = tbe->GetDofMap();
          d_dof_map = dof_map.Read();
       }
    }
