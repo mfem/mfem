@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -46,6 +46,12 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
    MyComm = parent.GetComm();
    NRanks = parent.GetNRanks();
    MyRank = parent.GetMyRank();
+
+   // This violation of const-ness may be justified in this instance because
+   // the exchange of face neighbor information only establishes or updates
+   // derived information without altering the primary mesh information,
+   // i.e., the topology, geometry, or region attributes.
+   const_cast<ParMesh&>(parent).ExchangeFaceNbrData();
 
    if (from == SubMesh::From::Domain)
    {
@@ -235,10 +241,13 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
 
    // Add boundaries
    {
-      int num_of_faces_or_edges =
-         (Dim == 3) ? NumOfFaces :
-         ((Dim == 2) ? NumOfEdges : NumOfVertices);
-      Array<int> &be2face = (Dim == 2) ? be_to_edge : be_to_face;
+      const int num_codim_1 = [this]()
+      {
+         if (Dim == 1) { return NumOfVertices; }
+         else if (Dim == 2) { return NumOfEdges; }
+         else if (Dim == 3) { return NumOfFaces; }
+         else { MFEM_ABORT("Invalid dimension."); return -1; }
+      }();
 
       if (Dim == 3)
       {
@@ -249,7 +258,7 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
       }
 
       NumOfBdrElements = 0;
-      for (int i = 0; i < num_of_faces_or_edges; i++)
+      for (int i = 0; i < num_codim_1; i++)
       {
          if (GetFaceInformation(i).IsBoundary())
          {
@@ -258,14 +267,17 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
       }
 
       boundary.SetSize(NumOfBdrElements);
-      be2face.SetSize(NumOfBdrElements);
+      be_to_face.SetSize(NumOfBdrElements);
       Array<int> parent_face_to_be = parent.GetFaceToBdrElMap();
       int max_bdr_attr = parent.bdr_attributes.Max();
-      for (int i = 0, j = 0; i < num_of_faces_or_edges; i++)
+
+      for (int i = 0, j = 0; i < num_codim_1; i++)
       {
          if (GetFaceInformation(i).IsBoundary())
          {
             boundary[j] = faces[i]->Duplicate(this);
+            be_to_face[j] = i;
+
             if (from == SubMesh::From::Domain && Dim >= 2)
             {
                int pbeid = Dim == 3 ? parent_face_to_be[parent_face_ids_[i]] :
@@ -283,7 +295,52 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
             {
                boundary[j]->SetAttribute(SubMesh::GENERATED_ATTRIBUTE);
             }
-            be2face[j++] = i;
+            ++j;
+         }
+      }
+
+      if (from == SubMesh::From::Domain && Dim >= 2)
+      {
+         // Search for and count interior boundary elements
+         int InteriorBdrElems = 0;
+         for (int i=0; i<parent.GetNBE(); i++)
+         {
+            const int parentFaceIdx = parent.GetBdrElementFaceIndex(i);
+            const int submeshFaceIdx =
+               Dim == 3 ?
+               parent_to_submesh_face_ids_[parentFaceIdx] :
+               parent_to_submesh_edge_ids_[parentFaceIdx];
+
+            if (submeshFaceIdx == -1) { continue; }
+            if (GetFaceInformation(submeshFaceIdx).IsBoundary()) { continue; }
+
+            InteriorBdrElems++;
+         }
+
+         if (InteriorBdrElems > 0)
+         {
+            const int OldNumOfBdrElements = NumOfBdrElements;
+            NumOfBdrElements += InteriorBdrElems;
+            boundary.SetSize(NumOfBdrElements);
+            be_to_face.SetSize(NumOfBdrElements);
+
+            // Search for and transfer interior boundary elements
+            for (int i=0, j = OldNumOfBdrElements; i<parent.GetNBE(); i++)
+            {
+               const int parentFaceIdx = parent.GetBdrElementFaceIndex(i);
+               const int submeshFaceIdx =
+                  parent_to_submesh_face_ids_[parentFaceIdx];
+
+               if (submeshFaceIdx == -1) { continue; }
+               if (GetFaceInformation(submeshFaceIdx).IsBoundary())
+               { continue; }
+
+               boundary[j] = faces[submeshFaceIdx]->Duplicate(this);
+               be_to_face[j] = submeshFaceIdx;
+               boundary[j]->SetAttribute(parent.GetBdrAttribute(i));
+
+               ++j;
+            }
          }
       }
    }
@@ -323,7 +380,78 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
    if (Dim > 1)
    {
       if (!el_to_edge) { el_to_edge = new Table; }
-      NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
+      NumOfEdges = GetElementToEdgeTable(*el_to_edge);
+   }
+
+   if (Dim > 1 && from == SubMesh::From::Domain)
+   {
+      // Order 0 Raviart-Thomas space will have precisely 1 DoF per face.
+      // We can use this DoF to communicate boundary attribute numbers.
+      RT_FECollection fec_rt(0, Dim);
+      ParFiniteElementSpace parent_fes_rt(const_cast<ParMesh*>(&parent),
+                                          &fec_rt);
+
+      ParGridFunction parent_bdr_attr_gf(&parent_fes_rt);
+      parent_bdr_attr_gf = 0.0;
+
+      Array<int> vdofs;
+      DofTransformation doftrans;
+      int dof, faceIdx;
+      real_t sign, w;
+
+      // Copy boundary attribute numbers into local portion of a parallel
+      // grid function
+      parent_bdr_attr_gf.HostReadWrite(); // not modifying all entries
+      for (int i=0; i<parent.GetNBE(); i++)
+      {
+         faceIdx = parent.GetBdrElementFaceIndex(i);
+         const FaceInformation &faceInfo = parent.GetFaceInformation(faceIdx);
+         parent_fes_rt.GetBdrElementDofs(i, vdofs, doftrans);
+         dof = ParFiniteElementSpace::DecodeDof(vdofs[0], sign);
+
+         // Shared interior boundary elements are not duplicated across
+         // processor boundaries but ParGridFunction::ParallelAverage will
+         // assume both processors contribute to the averaged DoF value. So,
+         // we multiply shared boundary values by 2 so that the average
+         // produces the desired value.
+         w = faceInfo.IsShared() ? 2.0 : 1.0;
+
+         // The DoF sign is needed to ensure that non-shared interior
+         // boundary values sum properly rather than canceling.
+         parent_bdr_attr_gf[dof] = sign * w * parent.GetBdrAttribute(i);
+      }
+
+      Vector parent_bdr_attr(parent_fes_rt.GetTrueVSize());
+
+      // Compute the average of the attribute numbers
+      parent_bdr_attr_gf.ParallelAverage(parent_bdr_attr);
+      // Distribute boundary attributes to neighboring processors
+      parent_bdr_attr_gf.Distribute(parent_bdr_attr);
+
+      ParFiniteElementSpace submesh_fes_rt(this,
+                                           &fec_rt);
+
+      ParGridFunction submesh_bdr_attr_gf(&submesh_fes_rt);
+
+      // Transfer the averaged boundary attribute values to the submesh
+      auto transfer_map = ParSubMesh::CreateTransferMap(parent_bdr_attr_gf,
+                                                        submesh_bdr_attr_gf);
+      transfer_map.Transfer(parent_bdr_attr_gf, submesh_bdr_attr_gf);
+
+      // Extract the boundary attribute numbers from the local portion
+      // of the ParGridFunction and set the corresponding boundary element
+      // attributes.
+      int attr;
+      for (int i=0; i<NumOfBdrElements; i++)
+      {
+         submesh_fes_rt.GetBdrElementDofs(i, vdofs, doftrans);
+         dof = ParFiniteElementSpace::DecodeDof(vdofs[0], sign);
+         attr = (int)std::round(std::abs(submesh_bdr_attr_gf[dof]));
+         if (attr != 0)
+         {
+            SetBdrAttribute(i, attr);
+         }
+      }
    }
 
    SetAttributes();

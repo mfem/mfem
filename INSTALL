@@ -75,6 +75,8 @@ and miniapps. See https://glvis.org and https://mfem.org/building.
 
 Quick start with GNU make
 =========================
+See also: https://mfem.org/building
+
 Serial build:
    make serial -j 4
 
@@ -83,6 +85,7 @@ Parallel build:
    (build METIS 4 in ../metis-4.0 relative to mfem/)
    (build hypre in ../hypre relative to mfem/)
    make parallel -j 4
+(For METIS 5, see https://mfem.org/building/#parallel-build-using-metis-5)
 
 CUDA build:
    make cuda -j 4
@@ -116,6 +119,7 @@ Parallel build:
    mkdir <mfem-build-dir> ; cd <mfem-build-dir>
    cmake <mfem-source-dir> -DMFEM_USE_MPI=YES
    make -j 4
+(For METIS 5, see https://mfem.org/building/#parallel-build-using-metis-5)
 
 CUDA build:
    (this build requires CMake 3.8 or newer)
@@ -283,6 +287,15 @@ MFEM_USE_METIS = YES/NO
    parallel build, then the only parallel partitioning (domain decomposition)
    option in the library will be Cartesian partitioning with box meshes, and
    thus most of the parallel examples and miniapps will fail.
+
+MFEM_PRECISION = double/Double/DOUBLE/single/Single/SINGLE
+   Use single (float type) or double floating-point precision. In the
+   configuration header 'config/_config.hpp' this option is represented by
+   defining exactly one of the macros: MFEM_USE_DOUBLE, or MFEM_USE_SINGLE.
+   In the exported config files 'config.mk' and 'MFEMConfig.cmake', the option
+   is represented by the variables MFEM_USE_DOUBLE and MFEM_USE_SINGLE defined
+   as YES/NO (make) or ON/OFF (cmake). For more details see
+   https://github.com/orgs/mfem/discussions/4207
 
 MFEM_DEBUG = YES/NO
    Choose debug/optimized build. The debug build enables a number of messages
@@ -562,6 +575,11 @@ MFEM_USE_PARELAG = YES/NO
    use ParELAG. In fact, ParELAG is dependent on MFEM. Therefore, this option
    currently only concerns the miniapps.
 
+MFEM_USE_TRIBOL = YES/NO
+   Enables the miniapps that use the Tribol library. MFEM does not currently
+   use Tribol. In fact, Tribol is dependent on MFEM. Therefore, this option
+   currently only concerns the miniapps.
+
 MFEM_USE_ENZYME = YES/NO
    Enables automatic differentiation support through the LLVM plugin Enzyme.
    This requires the compiler to be set to clang (>=14.0.0). We also advise to
@@ -598,9 +616,13 @@ The specific libraries and their options are:
             HYPRE >= 2.20.0   (HYPRE built with '--enable-mixedint')
             HYPRE >= 2.22.1   (HYPRE built with CUDA)
             HYPRE >= 2.23.0   (HYPRE built with HIP)
+            HYPRE >= 2.31.0   (runtime selectable HYPRE execution on CPU/GPU)
 
 - METIS, used when MFEM_USE_METIS = YES. If using METIS 5, set
-  MFEM_USE_METIS_5 = YES (default is to use METIS 4).
+  MFEM_USE_METIS_5 = YES (default is to use METIS 4). For building instructions,
+  see the following:
+    - METIS 4.0.3: https://mfem.org/building/#parallel-mpi-version-of-mfem
+    - METIS 5.1.0: https://mfem.org/building/#parallel-build-using-metis-5
   URL: https://github.com/mfem/tpls (MFEM mirror, see above)
   Options: METIS_OPT, METIS_LIB.
   Versions: METIS 4.0.3 or 5.1.0.
@@ -659,8 +681,7 @@ The specific libraries and their options are:
   requires the PT-Scotch and Scalapack libraries as well as ParMETIS, which
   includes METIS 5 in its distribution. Starting with STRUMPACK v2.2.0, ParMETIS
   and PT-Scotch are optional dependencies.
-  The support for STRUMPACK was added in MFEM v3.3.2 and it requires STRUMPACK
-  2.0.0 or later.
+  The support for STRUMPACK was added in MFEM v3.3.2.
   URL: http://portal.nersc.gov/project/sparse/strumpack
   Options: STRUMPACK_OPT, STRUMPACK_LIB.
   Versions: STRUMPACK >= 3.0.0.
@@ -693,9 +714,10 @@ The specific libraries and their options are:
   Options: NETCDF_OPT, NETCDF_LIB.
   Versions: NetCDF >= 4.4.0.
 
-- PETSc (optional), used when MFEM_USE_PETSC = YES. Version 3.8 or higher of
-  the PETSC dev branch is required. The MFEM and PETSc builds can share common
-  libraries, e.g., hypre and SUNDIALS. Here's an example configuration, assuming
+- PETSc (optional), used when MFEM_USE_PETSC = YES. Version 3.21 or higher of
+  the PETSC dev branch is required, though depending on the functionality older
+  versions may work too. The MFEM and PETSc builds can share common libraries,
+  e.g., hypre and SUNDIALS. Here's an example configuration, assuming
   PETSc has been cloned on the same level as mfem and hypre:
     ./configure --download-fblaslapack=yes --download-scalapack=yes \
                 --download-mumps=yes --download-suitesparse=yes \
@@ -705,9 +727,7 @@ The specific libraries and their options are:
   CFLAGS to allow proper parsing of the hipsparse header under C.
   URL: https://www.mcs.anl.gov/petsc
   Options: PETSC_OPT, PETSC_LIB.
-  Versions: PETSc >= 3.8.0   (PETSc build without CUDA/HIP)
-            PETSc >= 3.15.0  (PETSc built with CUDA)
-            PETSc >= 3.19.0  (PETSc built with HIP, older versions may work too)
+  Versions: PETSc >= 3.21.0, older versions may work too.
 
 - SLEPc (optional), used when MFEM_USE_SLEPC = YES. SLEPc depends on PETSc and
   uses some of the PETSc options when compiled.
@@ -797,7 +817,7 @@ The specific libraries and their options are:
   URL: https://github.com/CEED/libCEED
        https://ceed.exascaleproject.org/libceed
   Options: CEED_DIR, CEED_OPT, CEED_LIB.
-  Versions: libCEED >= 0.10.
+  Versions: libCEED >= 0.12.
 
 - RAJA (optional), used when MFEM_USE_RAJA = YES.
   Beginning with MFEM v4.5.1, only RAJA v2022.10.3+ is supported.
@@ -849,6 +869,10 @@ The specific libraries and their options are:
 - ParELAG, used when MFEM_USE_PARELAG = YES.
   URL: https://github.com/LLNL/parelag
   Options: PARELAG_DIR, PARELAG_OPT, PARELAG_LIB.
+
+- Tribol, used when MFEM_USE_TRIBOL = YES.
+  URL: https://github.com/LLNL/Tribol
+  Options: TRIBOL_DIR, TRIBOL_OPT, TRIBOL_LIB.
 
 - Enzyme, used when MFEM_USE_ENZYME = YES. Requires LLVM/Clang >= 14.0.0.
   URL: https://github.com/EnzymeAD/Enzyme
@@ -960,6 +984,7 @@ The following options are equivalent to the GNU make options with the same name:
 
 MFEM_USE_MPI
 MFEM_USE_METIS - Set to ${MFEM_USE_MPI}, can be overwritten.
+MFEM_PRECISION
 MFEM_USE_LIBUNWIND
 MFEM_USE_LAPACK
 MFEM_THREAD_SAFE
@@ -993,6 +1018,7 @@ MFEM_USE_CALIPER
 MFEM_USE_FMS
 MFEM_USE_BENCHMARK
 MFEM_USE_PARELAG
+MFEM_USE_TRIBOL
 MFEM_USE_ENZYME
 
 The following options are CMake specific:

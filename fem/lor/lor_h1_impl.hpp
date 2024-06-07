@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -9,7 +9,6 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "lor_h1.hpp"
 #include "lor_util.hpp"
 #include "../../linalg/dtensor.hpp"
 #include "../../general/forall.hpp"
@@ -17,7 +16,7 @@
 namespace mfem
 {
 
-template <int ORDER>
+template <int ORDER, int SDIM>
 void BatchedLOR_H1::Assemble2D()
 {
    const int nel_ho = fes_ho.GetNE();
@@ -67,69 +66,46 @@ void BatchedLOR_H1::Assemble2D()
       {
          MFEM_FOREACH_THREAD(kx,x,ORDER)
          {
-            double Q_[(ddm2 + 1)*nv];
-            double local_mat_[sz_local_mat];
+            real_t Q_[(ddm2 + 1)*nv];
+            real_t local_mat_[sz_local_mat];
             DeviceTensor<3> Q(Q_, ddm2 + 1, 2, 2);
             DeviceTensor<2> local_mat(local_mat_, nv, nv);
 
             for (int i=0; i<sz_local_mat; ++i) { local_mat[i] = 0.0; }
 
-            double vx[4], vy[4];
-            LORVertexCoordinates2D<ORDER>(X, iel_ho, kx, ky, vx, vy);
+            SetupLORQuadData2D<ORDER,SDIM,false,false>(X, iel_ho, kx, ky, Q, false);
 
-            for (int iqy=0; iqy<2; ++iqy)
-            {
-               for (int iqx=0; iqx<2; ++iqx)
-               {
-                  const double x = iqx;
-                  const double y = iqy;
-                  const double w = 1.0/4.0;
-
-                  double J_[2*2];
-                  DeviceTensor<2> J(J_, 2, 2);
-
-                  Jacobian2D(x, y, vx, vy, J);
-
-                  const double detJ = Det2D(J);
-                  const double w_detJ = w/detJ;
-
-                  Q(0,iqy,iqx) = w_detJ * (J(0,1)*J(0,1) + J(1,1)*J(1,1)); // 1,1
-                  Q(1,iqy,iqx) = -w_detJ * (J(0,1)*J(0,0) + J(1,1)*J(1,0)); // 1,2
-                  Q(2,iqy,iqx) = w_detJ * (J(0,0)*J(0,0) + J(1,0)*J(1,0)); // 2,2
-                  Q(3,iqy,iqx) = w*detJ;
-               }
-            }
             for (int iqx=0; iqx<2; ++iqx)
             {
                for (int iqy=0; iqy<2; ++iqy)
                {
-                  const double mq = const_mq ? MQ(0,0,0) : MQ(kx+iqx, ky+iqy, iel_ho);
-                  const double dq = const_dq ? DQ(0,0,0) : DQ(kx+iqx, ky+iqy, iel_ho);
+                  const real_t mq = const_mq ? MQ(0,0,0) : MQ(kx+iqx, ky+iqy, iel_ho);
+                  const real_t dq = const_dq ? DQ(0,0,0) : DQ(kx+iqx, ky+iqy, iel_ho);
                   for (int jy=0; jy<2; ++jy)
                   {
-                     const double bjy = (jy == iqy) ? 1.0 : 0.0;
-                     const double gjy = (jy == 0) ? -1.0 : 1.0;
+                     const real_t bjy = (jy == iqy) ? 1.0 : 0.0;
+                     const real_t gjy = (jy == 0) ? -1.0 : 1.0;
                      for (int jx=0; jx<2; ++jx)
                      {
-                        const double bjx = (jx == iqx) ? 1.0 : 0.0;
-                        const double gjx = (jx == 0) ? -1.0 : 1.0;
+                        const real_t bjx = (jx == iqx) ? 1.0 : 0.0;
+                        const real_t gjx = (jx == 0) ? -1.0 : 1.0;
 
-                        const double djx = gjx*bjy;
-                        const double djy = bjx*gjy;
+                        const real_t djx = gjx*bjy;
+                        const real_t djy = bjx*gjy;
 
                         int jj_loc = jx + 2*jy;
 
                         for (int iy=0; iy<2; ++iy)
                         {
-                           const double biy = (iy == iqy) ? 1.0 : 0.0;
-                           const double giy = (iy == 0) ? -1.0 : 1.0;
+                           const real_t biy = (iy == iqy) ? 1.0 : 0.0;
+                           const real_t giy = (iy == 0) ? -1.0 : 1.0;
                            for (int ix=0; ix<2; ++ix)
                            {
-                              const double bix = (ix == iqx) ? 1.0 : 0.0;
-                              const double gix = (ix == 0) ? -1.0 : 1.0;
+                              const real_t bix = (ix == iqx) ? 1.0 : 0.0;
+                              const real_t gix = (ix == 0) ? -1.0 : 1.0;
 
-                              const double dix = gix*biy;
-                              const double diy = bix*giy;
+                              const real_t dix = gix*biy;
+                              const real_t diy = bix*giy;
 
                               int ii_loc = ix + 2*iy;
 
@@ -137,7 +113,7 @@ void BatchedLOR_H1::Assemble2D()
                               // the matrix (by symmetry).
                               if (jj_loc > ii_loc) { continue; }
 
-                              double val = 0.0;
+                              real_t val = 0.0;
                               val += dix*djx*Q(0,iqy,iqx);
                               val += (dix*djy + diy*djx)*Q(1,iqy,iqx);
                               val += diy*djy*Q(2,iqy,iqx);
@@ -265,12 +241,12 @@ void BatchedLOR_H1::Assemble3D()
          {
             MFEM_FOREACH_THREAD(kx,x,ORDER)
             {
-               double Q_[(ddm2 + 1)*nv];
-               double grad_A_[sz_grad_A];
-               double grad_B_[sz_grad_B];
-               double mass_A_[sz_mass_A];
-               double mass_B_[sz_mass_B];
-               double local_mat_[sz_local_mat];
+               real_t Q_[(ddm2 + 1)*nv];
+               real_t grad_A_[sz_grad_A];
+               real_t grad_B_[sz_grad_B];
+               real_t mass_A_[sz_mass_A];
+               real_t mass_B_[sz_mass_B];
+               real_t local_mat_[sz_local_mat];
 
                DeviceTensor<4> Q(Q_, ddm2 + 1, 2, 2, 2);
                DeviceTensor<2> local_mat(local_mat_, nv, nv);
@@ -290,33 +266,33 @@ void BatchedLOR_H1::Assemble3D()
                for (int i=0; i<sz_mass_A; ++i) { mass_A[i] = 0.0; }
                for (int i=0; i<sz_mass_B; ++i) { mass_B[i] = 0.0; }
 
-               double vx[8], vy[8], vz[8];
+               real_t vx[8], vy[8], vz[8];
                LORVertexCoordinates3D<ORDER>(X, iel_ho, kx, ky, kz, vx, vy, vz);
 
-               //MFEM_UNROLL(2)
+               // MFEM_UNROLL(2)
                for (int iqz=0; iqz<2; ++iqz)
                {
-                  //MFEM_UNROLL(2)
+                  // MFEM_UNROLL(2)
                   for (int iqy=0; iqy<2; ++iqy)
                   {
-                     //MFEM_UNROLL(2)
+                     // MFEM_UNROLL(2)
                      for (int iqx=0; iqx<2; ++iqx)
                      {
-                        const double x = iqx;
-                        const double y = iqy;
-                        const double z = iqz;
-                        const double w = 1.0/8.0;
+                        const real_t x = iqx;
+                        const real_t y = iqy;
+                        const real_t z = iqz;
+                        const real_t w = 1.0/8.0;
 
-                        double J_[3*3];
+                        real_t J_[3*3];
                         DeviceTensor<2> J(J_, 3, 3);
 
                         Jacobian3D(x, y, z, vx, vy, vz, J);
 
-                        const double detJ = Det3D(J);
-                        const double w_detJ = w/detJ;
+                        const real_t detJ = Det3D(J);
+                        const real_t w_detJ = w/detJ;
 
                         // adj(J)
-                        double A_[3*3];
+                        real_t A_[3*3];
                         DeviceTensor<2> A(A_, 3, 3);
                         Adjugate3D(J, A);
 
@@ -331,41 +307,41 @@ void BatchedLOR_H1::Assemble3D()
                   }
                }
 
-               //MFEM_UNROLL(2)
+               // MFEM_UNROLL(2)
                for (int iqx=0; iqx<2; ++iqx)
                {
-                  //MFEM_UNROLL(2)
+                  // MFEM_UNROLL(2)
                   for (int jz=0; jz<2; ++jz)
                   {
                      // Note loop starts at iz=jz here, taking advantage of
                      // symmetries.
-                     //MFEM_UNROLL(2)
+                     // MFEM_UNROLL(2)
                      for (int iz=jz; iz<2; ++iz)
                      {
-                        //MFEM_UNROLL(2)
+                        // MFEM_UNROLL(2)
                         for (int iqy=0; iqy<2; ++iqy)
                         {
-                           //MFEM_UNROLL(2)
+                           // MFEM_UNROLL(2)
                            for (int iqz=0; iqz<2; ++iqz)
                            {
-                              const double mq = const_mq ? MQ(0,0,0,0) : MQ(kx+iqx, ky+iqy, kz+iqz, iel_ho);
-                              const double dq = const_dq ? DQ(0,0,0,0) : DQ(kx+iqx, ky+iqy, kz+iqz, iel_ho);
+                              const real_t mq = const_mq ? MQ(0,0,0,0) : MQ(kx+iqx, ky+iqy, kz+iqz, iel_ho);
+                              const real_t dq = const_dq ? DQ(0,0,0,0) : DQ(kx+iqx, ky+iqy, kz+iqz, iel_ho);
 
-                              const double biz = (iz == iqz) ? 1.0 : 0.0;
-                              const double giz = (iz == 0) ? -1.0 : 1.0;
+                              const real_t biz = (iz == iqz) ? 1.0 : 0.0;
+                              const real_t giz = (iz == 0) ? -1.0 : 1.0;
 
-                              const double bjz = (jz == iqz) ? 1.0 : 0.0;
-                              const double gjz = (jz == 0) ? -1.0 : 1.0;
+                              const real_t bjz = (jz == iqz) ? 1.0 : 0.0;
+                              const real_t gjz = (jz == 0) ? -1.0 : 1.0;
 
-                              const double J11 = Q(0,iqz,iqy,iqx);
-                              const double J21 = Q(1,iqz,iqy,iqx);
-                              const double J31 = Q(2,iqz,iqy,iqx);
-                              const double J12 = J21;
-                              const double J22 = Q(3,iqz,iqy,iqx);
-                              const double J32 = Q(4,iqz,iqy,iqx);
-                              const double J13 = J31;
-                              const double J23 = J32;
-                              const double J33 = Q(5,iqz,iqy,iqx);
+                              const real_t J11 = Q(0,iqz,iqy,iqx);
+                              const real_t J21 = Q(1,iqz,iqy,iqx);
+                              const real_t J31 = Q(2,iqz,iqy,iqx);
+                              const real_t J12 = J21;
+                              const real_t J22 = Q(3,iqz,iqy,iqx);
+                              const real_t J32 = Q(4,iqz,iqy,iqx);
+                              const real_t J13 = J31;
+                              const real_t J23 = J32;
+                              const real_t J33 = Q(5,iqz,iqy,iqx);
 
                               grad_A(0,0,iqy,iz,jz,iqx) += dq*J11*biz*bjz;
                               grad_A(1,0,iqy,iz,jz,iqx) += dq*J21*biz*bjz;
@@ -377,20 +353,20 @@ void BatchedLOR_H1::Assemble3D()
                               grad_A(1,2,iqy,iz,jz,iqx) += dq*J23*biz*gjz;
                               grad_A(2,2,iqy,iz,jz,iqx) += dq*J33*giz*gjz;
 
-                              double wdetJ = Q(6,iqz,iqy,iqx);
+                              real_t wdetJ = Q(6,iqz,iqy,iqx);
                               mass_A(iqy,iz,jz,iqx) += mq*wdetJ*biz*bjz;
                            }
-                           //MFEM_UNROLL(2)
+                           // MFEM_UNROLL(2)
                            for (int jy=0; jy<2; ++jy)
                            {
-                              //MFEM_UNROLL(2)
+                              // MFEM_UNROLL(2)
                               for (int iy=0; iy<2; ++iy)
                               {
-                                 const double biy = (iy == iqy) ? 1.0 : 0.0;
-                                 const double giy = (iy == 0) ? -1.0 : 1.0;
+                                 const real_t biy = (iy == iqy) ? 1.0 : 0.0;
+                                 const real_t giy = (iy == 0) ? -1.0 : 1.0;
 
-                                 const double bjy = (jy == iqy) ? 1.0 : 0.0;
-                                 const double gjy = (jy == 0) ? -1.0 : 1.0;
+                                 const real_t bjy = (jy == iqy) ? 1.0 : 0.0;
+                                 const real_t gjy = (jy == 0) ? -1.0 : 1.0;
 
                                  grad_B(0,0,iy,jy,iz,jz,iqx) += biy*bjy*grad_A(0,0,iqy,iz,jz,iqx);
                                  grad_B(1,0,iy,jy,iz,jz,iqx) += giy*bjy*grad_A(1,0,iqy,iz,jz,iqx);
@@ -406,23 +382,23 @@ void BatchedLOR_H1::Assemble3D()
                               }
                            }
                         }
-                        //MFEM_UNROLL(2)
+                        // MFEM_UNROLL(2)
                         for (int jy=0; jy<2; ++jy)
                         {
-                           //MFEM_UNROLL(2)
+                           // MFEM_UNROLL(2)
                            for (int jx=0; jx<2; ++jx)
                            {
-                              //MFEM_UNROLL(2)
+                              // MFEM_UNROLL(2)
                               for (int iy=0; iy<2; ++iy)
                               {
-                                 //MFEM_UNROLL(2)
+                                 // MFEM_UNROLL(2)
                                  for (int ix=0; ix<2; ++ix)
                                  {
-                                    const double bix = (ix == iqx) ? 1.0 : 0.0;
-                                    const double gix = (ix == 0) ? -1.0 : 1.0;
+                                    const real_t bix = (ix == iqx) ? 1.0 : 0.0;
+                                    const real_t gix = (ix == 0) ? -1.0 : 1.0;
 
-                                    const double bjx = (jx == iqx) ? 1.0 : 0.0;
-                                    const double gjx = (jx == 0) ? -1.0 : 1.0;
+                                    const real_t bjx = (jx == iqx) ? 1.0 : 0.0;
+                                    const real_t gjx = (jx == 0) ? -1.0 : 1.0;
 
                                     int ii_loc = ix + 2*iy + 4*iz;
                                     int jj_loc = jx + 2*jy + 4*jz;
@@ -431,7 +407,7 @@ void BatchedLOR_H1::Assemble3D()
                                     // the matrix (by symmetry).
                                     if (jj_loc > ii_loc) { continue; }
 
-                                    double val = 0.0;
+                                    real_t val = 0.0;
                                     val += gix*gjx*grad_B(0,0,iy,jy,iz,jz,iqx);
                                     val += bix*gjx*grad_B(1,0,iy,jy,iz,jz,iqx);
                                     val += bix*gjx*grad_B(2,0,iy,jy,iz,jz,iqx);
@@ -455,7 +431,7 @@ void BatchedLOR_H1::Assemble3D()
                // Assemble the local matrix into the macro-element sparse matrix
                // in a format similar to coordinate format. The (I,J) arrays
                // are implicit (not stored explicitly).
-               //MFEM_UNROLL(8)
+               // MFEM_UNROLL(8)
                for (int ii_loc=0; ii_loc<nv; ++ii_loc)
                {
                   const int ix = ii_loc%2;
@@ -517,36 +493,6 @@ void BatchedLOR_H1::Assemble3D()
          }
       }
    }
-}
-
-// Explicit template instantiations
-template void BatchedLOR_H1::Assemble2D<1>();
-template void BatchedLOR_H1::Assemble2D<2>();
-template void BatchedLOR_H1::Assemble2D<3>();
-template void BatchedLOR_H1::Assemble2D<4>();
-template void BatchedLOR_H1::Assemble2D<5>();
-template void BatchedLOR_H1::Assemble2D<6>();
-template void BatchedLOR_H1::Assemble2D<7>();
-template void BatchedLOR_H1::Assemble2D<8>();
-
-template void BatchedLOR_H1::Assemble3D<1>();
-template void BatchedLOR_H1::Assemble3D<2>();
-template void BatchedLOR_H1::Assemble3D<3>();
-template void BatchedLOR_H1::Assemble3D<4>();
-template void BatchedLOR_H1::Assemble3D<5>();
-template void BatchedLOR_H1::Assemble3D<6>();
-template void BatchedLOR_H1::Assemble3D<7>();
-template void BatchedLOR_H1::Assemble3D<8>();
-
-BatchedLOR_H1::BatchedLOR_H1(BilinearForm &a,
-                             FiniteElementSpace &fes_ho_,
-                             Vector &X_vert_,
-                             Vector &sparse_ij_,
-                             Array<int> &sparse_mapping_)
-   : BatchedLORKernel(fes_ho_, X_vert_, sparse_ij_, sparse_mapping_)
-{
-   ProjectLORCoefficient<MassIntegrator>(a, c1);
-   ProjectLORCoefficient<DiffusionIntegrator>(a, c2);
 }
 
 } // namespace mfem

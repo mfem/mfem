@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -86,3 +86,8 @@ clean-build:
 
 clean-exec:
 	@rm -f tmop-tangent.mesh tmop-tangent.gf
+	@rm -f mobius-strip.mesh klein-bottle.mesh mesh-explorer.mesh*
+	@rm -f toroid-*.mesh twist-*.mesh trimmer.mesh reflected.mesh
+	@rm -f partitioning.txt shaper.mesh extruder.mesh
+	@rm -f optimized* perturbed* polar-nc.mesh
+	@rm -rf mesh-explorer-{visit,paraview}*

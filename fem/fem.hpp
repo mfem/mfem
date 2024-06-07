@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,6 +13,7 @@
 #define MFEM_FEM_HPP
 
 #include "intrules.hpp"
+#include "intrules_cut.hpp"
 #include "geom.hpp"
 #include "fe.hpp"
 #include "fe_coll.hpp"
@@ -47,6 +48,7 @@
 #include "ceed/solvers/algebraic.hpp"
 #include "lor/lor.hpp"
 #include "dgmassinv.hpp"
+#include "hyperbolic.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "pfespace.hpp"

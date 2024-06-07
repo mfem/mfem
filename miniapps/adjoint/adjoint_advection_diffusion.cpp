@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -149,9 +149,9 @@ public:
 
    virtual int SUNImplicitSetup(const Vector &y,
                                 const Vector &fy, int jok, int *jcur,
-                                double gamma);
+                                real_t gamma);
 
-   virtual int SUNImplicitSolve(const Vector &b, Vector &x, double tol);
+   virtual int SUNImplicitSolve(const Vector &b, Vector &x, real_t tol);
 
    virtual void QuadratureSensitivityMult(const Vector &y, const Vector &yB,
                                           Vector &qbdot) const;
@@ -194,7 +194,7 @@ protected:
 };
 
 // Initial conditions for the problem
-double u_init(const Vector &x)
+real_t u_init(const Vector &x)
 {
    return x[0]*(2. - x[0])*exp(2.*x[0]);
 }
@@ -209,8 +209,8 @@ int main(int argc, char *argv[])
    // Parse command-line options.
    int ser_ref_levels = 0;
    int par_ref_levels = 0;
-   double t_final = 2.5;
-   double dt = 0.01;
+   real_t t_final = 2.5;
+   real_t dt = 0.01;
    int mx = 20;
    bool step_mode = true;
 
@@ -302,7 +302,7 @@ int main(int argc, char *argv[])
    AdvDiffSUNDIALS adv(U->Size(), U->Size(), p, fes, ess_tdof_list);
 
    // Set the initial time to the TimeDependentAdjointOperator
-   double t = 0.0;
+   real_t t = 0.0;
    adv.SetTime(t);
 
    // Create the CVODES solver corresponding to the selected step method
@@ -313,7 +313,7 @@ int main(int argc, char *argv[])
    cvodes->SetMaxNSteps(5000);
 
    // Relative and absolute tolerances for CVODES
-   double reltol = 1e-8, abstol = 1e-6;
+   real_t reltol = 1e-8, abstol = 1e-6;
    cvodes->SetSStolerances(reltol, abstol);
 
    // Initialize adjoint problem settings
@@ -325,7 +325,7 @@ int main(int argc, char *argv[])
    bool done = false;
    for (int ti = 0; !done; )
    {
-      double dt_real = max(dt, t_final - t);
+      real_t dt_real = max(dt, t_final - t);
       cvodes->Step(*U, t, dt_real);
       ti++;
 
@@ -355,7 +355,7 @@ int main(int argc, char *argv[])
    obj.AddDomainIntegrator(new DomainLFIntegrator(one));
    obj.Assemble();
 
-   double g = obj(u);
+   real_t g = obj(u);
    if (myid == 0)
    {
       cout << "g: " << g << endl;
@@ -378,7 +378,7 @@ int main(int argc, char *argv[])
    cvodes->SetSStolerancesB(reltol, abstol);
 
    // Results at time TBout1
-   double dt_real = max(dt, t);
+   real_t dt_real = max(dt, t);
    cvodes->StepB(*V, t, dt_real);
    if (myid == 0)
    {
@@ -428,7 +428,7 @@ void AdvDiffSUNDIALS::Mult(const Vector &x, Vector &y) const
 // AdvDiff Rate equation setup
 int AdvDiffSUNDIALS::SUNImplicitSetup(const Vector &y,
                                       const Vector &fy,
-                                      int jok, int *jcur, double gamma)
+                                      int jok, int *jcur, real_t gamma)
 {
    // Mf = M(I - gamma J) = M - gamma * M * J
    // J = df/dy => K
@@ -442,7 +442,7 @@ int AdvDiffSUNDIALS::SUNImplicitSetup(const Vector &y,
 }
 
 // AdvDiff Rate equation solve
-int AdvDiffSUNDIALS::SUNImplicitSolve(const Vector &b, Vector &x, double tol)
+int AdvDiffSUNDIALS::SUNImplicitSolve(const Vector &b, Vector &x, real_t tol)
 {
    Vector z(b.Size());
    M->Mult(b,z);
@@ -514,8 +514,8 @@ void AdvDiffSUNDIALS::QuadratureSensitivityMult(const Vector &y,
    dP2->Mult(y, b2);
    delete dP2;
 
-   double dp1_result = InnerProduct(pfes->GetComm(), yB, b1);
-   double dp2_result = InnerProduct(pfes->GetComm(), yB, b2);
+   real_t dp1_result = InnerProduct(pfes->GetComm(), yB, b1);
+   real_t dp2_result = InnerProduct(pfes->GetComm(), yB, b2);
 
    qBdot[0] = -dp1_result;
    qBdot[1] = -dp2_result;

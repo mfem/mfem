@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -120,6 +120,7 @@ MFEM_MPI_NP = 4
 MFEM_USE_MPI           = NO
 MFEM_USE_METIS         = $(MFEM_USE_MPI)
 MFEM_USE_METIS_5       = NO
+MFEM_PRECISION         = double
 MFEM_DEBUG             = NO
 MFEM_USE_EXCEPTIONS    = NO
 MFEM_USE_ZLIB          = NO
@@ -166,7 +167,20 @@ MFEM_USE_ADFORWARD     = NO
 MFEM_USE_CODIPACK      = NO
 MFEM_USE_BENCHMARK     = NO
 MFEM_USE_PARELAG       = NO
+MFEM_USE_TRIBOL        = NO
 MFEM_USE_ENZYME        = NO
+
+# Process MFEM_PRECISION -> MFEM_USE_SINGLE, MFEM_USE_DOUBLE
+ifneq ($(filter double Double DOUBLE,$(MFEM_PRECISION)),)
+   MFEM_USE_DOUBLE = YES
+   MFEM_USE_SINGLE = NO
+else ifneq ($(filter single Single SINGLE,$(MFEM_PRECISION)),)
+   MFEM_USE_DOUBLE = NO
+   MFEM_USE_SINGLE = YES
+else ifeq ($(MAKECMDGOALS),config)
+   $(error Invalid floating-point precision: \
+     MFEM_PRECISION = $(MFEM_PRECISION))
+endif
 
 # MPI library compile and link flags
 # These settings are used only when building MFEM with MPI + HIP
@@ -317,8 +331,13 @@ MPI_FORTRAN_LIB = -lmpifort
 # MUMPS library configuration
 MUMPS_DIR = @MFEM_DIR@/../MUMPS_5.5.0
 MUMPS_OPT = -I$(MUMPS_DIR)/include
-MUMPS_LIB = $(XLINKER)-rpath,$(MUMPS_DIR)/lib -L$(MUMPS_DIR)/lib -ldmumps\
- -lmumps_common -lpord $(SCALAPACK_LIB) $(LAPACK_LIB) $(MPI_FORTRAN_LIB)
+MUMPS_LIB = $(XLINKER)-rpath,$(MUMPS_DIR)/lib -L$(MUMPS_DIR)/lib
+ifeq ($(MFEM_USE_SINGLE),YES)
+   MUMPS_LIB += -lsmumps
+else
+   MUMPS_LIB += -ldmumps
+endif
+MUMPS_LIB += -lmumps_common -lpord $(SCALAPACK_LIB) $(LAPACK_LIB) $(MPI_FORTRAN_LIB)
 
 # STRUMPACK library configuration
 STRUMPACK_DIR = @MFEM_DIR@/../STRUMPACK-build
@@ -331,16 +350,30 @@ STRUMPACK_OPT = -I$(STRUMPACK_DIR)/include $(SCOTCH_OPT)
 STRUMPACK_LIB = -L$(STRUMPACK_DIR)/lib -lstrumpack $(MPI_FORTRAN_LIB)\
  $(SCOTCH_LIB) $(SCALAPACK_LIB)
 
-# Ginkgo library configuration (currently not needed)
+# Ginkgo library configuration
 GINKGO_DIR = @MFEM_DIR@/../ginkgo/install
+GINKGO_SEARCH_DIR = $(subst @MFEM_DIR@,$(MFEM_DIR),$(GINKGO_DIR))
 GINKGO_BUILD_TYPE=Release
 ifeq ($(MFEM_USE_GINKGO),YES)
    BASE_FLAGS = -std=c++14
 endif
 GINKGO_OPT = -isystem $(GINKGO_DIR)/include
-GINKGO_LIB_DIR = $(sort $(dir $(wildcard $(GINKGO_DIR)/lib*/libginkgo*.a  $(GINKGO_DIR)/lib*/libginkgo*.so $(GINKGO_DIR)/lib*/libginkgo*.dylib $(GINKGO_DIR)/lib*/libginkgo*.dll)))
-ALL_GINKGO_LIBS_DEBUG = $(notdir $(basename $(wildcard $(GINKGO_DIR)/lib*/libginkgo*d.a  $(GINKGO_DIR)/lib*/libginkgo*d.so $(GINKGO_DIR)/lib*/libginkgo*d.dylib $(GINKGO_DIR)/lib*/libginkgo*d.dll)))
-ALL_GINKGO_LIBS = $(notdir $(basename $(wildcard $(GINKGO_DIR)/lib*/libginkgo*.a  $(GINKGO_DIR)/lib*/libginkgo*.so $(GINKGO_DIR)/lib*/libginkgo*.dylib $(GINKGO_DIR)/lib*/libginkgo*.dll)))
+GINKGO_LIB_DIR = $(sort $(dir $(wildcard\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*.a\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*.so\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*.dylib\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*.dll)))
+GINKGO_LINK_LIB_DIR = $(GINKGO_DIR)$(subst $(GINKGO_SEARCH_DIR),,$(GINKGO_LIB_DIR))
+ALL_GINKGO_LIBS_DEBUG = $(notdir $(basename $(wildcard\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*d.a\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*d.so\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*d.dylib\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*d.dll)))
+ALL_GINKGO_LIBS = $(notdir $(basename $(wildcard\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*.a\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*.so\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*.dylib\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*.dll)))
 ALL_GINKGO_LIBS_RELEASE = $(filter-out $(ALL_GINKGO_LIBS_DEBUG),$(ALL_GINKGO_LIBS))
 GINKGO_LINK = $(subst libginkgo,-lginkgo,$(ALL_GINKGO_LIBS_RELEASE))
 ifeq ($(GINKGO_BUILD_TYPE),Debug)
@@ -349,12 +382,13 @@ ifeq ($(GINKGO_BUILD_TYPE),Debug)
   endif
 else
 endif
-GINKGO_LIB = $(XLINKER)-rpath,$(GINKGO_LIB_DIR) -L$(GINKGO_LIB_DIR) $(GINKGO_LINK)
+GINKGO_LIB = $(XLINKER)-rpath,$(GINKGO_LINK_LIB_DIR) -L$(GINKGO_LINK_LIB_DIR)\
+ $(GINKGO_LINK)
 
 # AmgX library configuration
 AMGX_DIR = @MFEM_DIR@/../amgx
 AMGX_OPT = -I$(AMGX_DIR)/include
-AMGX_LIB = -lcusparse -lcusolver -lcublas -lnvToolsExt -L$(AMGX_DIR)/lib -lamgx
+AMGX_LIB = -L$(AMGX_DIR)/lib -lamgx -lcusparse -lcusolver -lcublas -lnvToolsExt
 
 # GnuTLS library configuration
 GNUTLS_OPT =
@@ -554,6 +588,16 @@ MKL_PARDISO_LIB = $(XLINKER)-rpath,$(MKL_PARDISO_DIR)/$(MKL_LIBRARY_SUBDIR)\
 PARELAG_DIR = @MFEM_DIR@/../parelag
 PARELAG_OPT = -I$(PARELAG_DIR)/src -I$(PARELAG_DIR)/build/src
 PARELAG_LIB = -L$(PARELAG_DIR)/build/src -lParELAG
+
+# Tribol library configuration
+ifeq ($(MFEM_USE_TRIBOL),YES)
+   BASE_FLAGS = -std=c++14
+endif
+AXOM_DIR = @MFEM_DIR@/../axom
+TRIBOL_DIR = @MFEM_DIR@/../tribol
+TRIBOL_OPT = -I$(TRIBOL_DIR)/include -I$(AXOM_DIR)/include
+TRIBOL_LIB = -L$(TRIBOL_DIR)/lib -ltribol -lredecomp -L$(AXOM_DIR)/lib -laxom_mint\
+   -laxom_slam -laxom_slic -laxom_core
 
 # Enzyme configuration
 

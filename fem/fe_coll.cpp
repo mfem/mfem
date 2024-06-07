@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -2896,7 +2896,7 @@ ND_FECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
    }
 }
 
-StatelessDofTransformation *
+const StatelessDofTransformation *
 ND_FECollection::DofTransformationForGeometry(Geometry::Type GeomType) const
 {
    if (!Geometry::IsTensorProduct(GeomType) && this->GetOrder() > 1)

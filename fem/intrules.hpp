@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,6 +14,9 @@
 
 #include "../config/config.hpp"
 #include "../general/array.hpp"
+#if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
+#include <omp.h>
+#endif
 
 #include <vector>
 #include <map>
@@ -31,7 +34,7 @@ class Mesh;
 class IntegrationPoint
 {
 public:
-   double x, y, z, weight;
+   real_t x, y, z, weight;
    int index;
 
    void Init(int const i)
@@ -40,7 +43,7 @@ public:
       index = i;
    }
 
-   void Set(const double *p, const int dim)
+   void Set(const real_t *p, const int dim)
    {
       MFEM_ASSERT(1 <= dim && dim <= 3, "invalid dim: " << dim);
       x = p[0];
@@ -54,7 +57,7 @@ public:
       }
    }
 
-   void Get(double *p, const int dim) const
+   void Get(real_t *p, const int dim) const
    {
       MFEM_ASSERT(1 <= dim && dim <= 3, "invalid dim: " << dim);
       p[0] = x;
@@ -68,28 +71,28 @@ public:
       }
    }
 
-   void Set(const double x1, const double x2, const double x3, const double w)
+   void Set(const real_t x1, const real_t x2, const real_t x3, const real_t w)
    { x = x1; y = x2; z = x3; weight = w; }
 
-   void Set3w(const double *p) { x = p[0]; y = p[1]; z = p[2]; weight = p[3]; }
+   void Set3w(const real_t *p) { x = p[0]; y = p[1]; z = p[2]; weight = p[3]; }
 
-   void Set3(const double x1, const double x2, const double x3)
+   void Set3(const real_t x1, const real_t x2, const real_t x3)
    { x = x1; y = x2; z = x3; }
 
-   void Set3(const double *p) { x = p[0]; y = p[1]; z = p[2]; }
+   void Set3(const real_t *p) { x = p[0]; y = p[1]; z = p[2]; }
 
-   void Set2w(const double x1, const double x2, const double w)
+   void Set2w(const real_t x1, const real_t x2, const real_t w)
    { x = x1; y = x2; weight = w; }
 
-   void Set2w(const double *p) { x = p[0]; y = p[1]; weight = p[2]; }
+   void Set2w(const real_t *p) { x = p[0]; y = p[1]; weight = p[2]; }
 
-   void Set2(const double x1, const double x2) { x = x1; y = x2; }
+   void Set2(const real_t x1, const real_t x2) { x = x1; y = x2; }
 
-   void Set2(const double *p) { x = p[0]; y = p[1]; }
+   void Set2(const real_t *p) { x = p[0]; y = p[1]; }
 
-   void Set1w(const double x1, const double w) { x = x1; weight = w; }
+   void Set1w(const real_t x1, const real_t w) { x = x1; weight = w; }
 
-   void Set1w(const double *p) { x = p[0]; weight = p[1]; }
+   void Set1w(const real_t *p) { x = p[0]; weight = p[1]; }
 };
 
 /// Class for an integration rule - an Array of IntegrationPoint.
@@ -100,42 +103,42 @@ private:
    int Order = 0;
    /** @brief The quadrature weights gathered as a contiguous array. Created
        by request with the method GetWeights(). */
-   mutable Array<double> weights;
+   mutable Array<real_t> weights;
 
    /// Define n-simplex rule (triangle/tetrahedron for n=2/3) of order (2s+1)
    void GrundmannMollerSimplexRule(int s, int n = 3);
 
-   void AddTriMidPoint(const int off, const double weight)
+   void AddTriMidPoint(const int off, const real_t weight)
    { IntPoint(off).Set2w(1./3., 1./3., weight); }
 
-   void AddTriPoints3(const int off, const double a, const double b,
-                      const double weight)
+   void AddTriPoints3(const int off, const real_t a, const real_t b,
+                      const real_t weight)
    {
       IntPoint(off + 0).Set2w(a, a, weight);
       IntPoint(off + 1).Set2w(a, b, weight);
       IntPoint(off + 2).Set2w(b, a, weight);
    }
 
-   void AddTriPoints3(const int off, const double a, const double weight)
+   void AddTriPoints3(const int off, const real_t a, const real_t weight)
    { AddTriPoints3(off, a, 1. - 2.*a, weight); }
 
-   void AddTriPoints3b(const int off, const double b, const double weight)
+   void AddTriPoints3b(const int off, const real_t b, const real_t weight)
    { AddTriPoints3(off, (1. - b)/2., b, weight); }
 
-   void AddTriPoints3R(const int off, const double a, const double b,
-                       const double c, const double weight)
+   void AddTriPoints3R(const int off, const real_t a, const real_t b,
+                       const real_t c, const real_t weight)
    {
       IntPoint(off + 0).Set2w(a, b, weight);
       IntPoint(off + 1).Set2w(c, a, weight);
       IntPoint(off + 2).Set2w(b, c, weight);
    }
 
-   void AddTriPoints3R(const int off, const double a, const double b,
-                       const double weight)
+   void AddTriPoints3R(const int off, const real_t a, const real_t b,
+                       const real_t weight)
    { AddTriPoints3R(off, a, b, 1. - a - b, weight); }
 
-   void AddTriPoints6(const int off, const double a, const double b,
-                      const double c, const double weight)
+   void AddTriPoints6(const int off, const real_t a, const real_t b,
+                      const real_t c, const real_t weight)
    {
       IntPoint(off + 0).Set2w(a, b, weight);
       IntPoint(off + 1).Set2w(b, a, weight);
@@ -145,13 +148,13 @@ private:
       IntPoint(off + 5).Set2w(c, b, weight);
    }
 
-   void AddTriPoints6(const int off, const double a, const double b,
-                      const double weight)
+   void AddTriPoints6(const int off, const real_t a, const real_t b,
+                      const real_t weight)
    { AddTriPoints6(off, a, b, 1. - a - b, weight); }
 
    // add the permutations of (a,a,b)
-   void AddTetPoints3(const int off, const double a, const double b,
-                      const double weight)
+   void AddTetPoints3(const int off, const real_t a, const real_t b,
+                      const real_t weight)
    {
       IntPoint(off + 0).Set(a, a, b, weight);
       IntPoint(off + 1).Set(a, b, a, weight);
@@ -159,8 +162,8 @@ private:
    }
 
    // add the permutations of (a,b,c)
-   void AddTetPoints6(const int off, const double a, const double b,
-                      const double c, const double weight)
+   void AddTetPoints6(const int off, const real_t a, const real_t b,
+                      const real_t c, const real_t weight)
    {
       IntPoint(off + 0).Set(a, b, c, weight);
       IntPoint(off + 1).Set(a, c, b, weight);
@@ -170,47 +173,47 @@ private:
       IntPoint(off + 5).Set(c, b, a, weight);
    }
 
-   void AddTetMidPoint(const int off, const double weight)
+   void AddTetMidPoint(const int off, const real_t weight)
    { IntPoint(off).Set(0.25, 0.25, 0.25, weight); }
 
    // given a, add the permutations of (a,a,a,b), where 3*a + b = 1
-   void AddTetPoints4(const int off, const double a, const double weight)
+   void AddTetPoints4(const int off, const real_t a, const real_t weight)
    {
       IntPoint(off).Set(a, a, a, weight);
       AddTetPoints3(off + 1, a, 1. - 3.*a, weight);
    }
 
    // given b, add the permutations of (a,a,a,b), where 3*a + b = 1
-   void AddTetPoints4b(const int off, const double b, const double weight)
+   void AddTetPoints4b(const int off, const real_t b, const real_t weight)
    {
-      const double a = (1. - b)/3.;
+      const real_t a = (1. - b)/3.;
       IntPoint(off).Set(a, a, a, weight);
       AddTetPoints3(off + 1, a, b, weight);
    }
 
    // add the permutations of (a,a,b,b), 2*(a + b) = 1
-   void AddTetPoints6(const int off, const double a, const double weight)
+   void AddTetPoints6(const int off, const real_t a, const real_t weight)
    {
-      const double b = 0.5 - a;
+      const real_t b = 0.5 - a;
       AddTetPoints3(off,     a, b, weight);
       AddTetPoints3(off + 3, b, a, weight);
    }
 
    // given (a,b) or (a,c), add the permutations of (a,a,b,c), 2*a + b + c = 1
-   void AddTetPoints12(const int off, const double a, const double bc,
-                       const double weight)
+   void AddTetPoints12(const int off, const real_t a, const real_t bc,
+                       const real_t weight)
    {
-      const double cb = 1. - 2*a - bc;
+      const real_t cb = 1. - 2*a - bc;
       AddTetPoints3(off,     a, bc, weight);
       AddTetPoints3(off + 3, a, cb, weight);
       AddTetPoints6(off + 6, a, bc, cb, weight);
    }
 
    // given (b,c), add the permutations of (a,a,b,c), 2*a + b + c = 1
-   void AddTetPoints12bc(const int off, const double b, const double c,
-                         const double weight)
+   void AddTetPoints12bc(const int off, const real_t b, const real_t c,
+                         const real_t weight)
    {
-      const double a = (1. - b - c)/2.;
+      const real_t a = (1. - b - c)/2.;
       AddTetPoints3(off,     a, b, weight);
       AddTetPoints3(off + 3, a, c, weight);
       AddTetPoints6(off + 6, a, b, c, weight);
@@ -261,7 +264,7 @@ public:
    /// Return the quadrature weights in a contiguous array.
    /** If a contiguous array is not required, the weights can be accessed with
        a call like this: `IntPoint(i).weight`. */
-   const Array<double> &GetWeights() const;
+   const Array<real_t> &GetWeights() const;
 
    /// @brief Return an integration rule for KnotVector @a kv, defined by
    /// applying this rule on each knot interval.
@@ -380,7 +383,7 @@ public:
 
    /// A helper function that will play nice with Poly_1D::OpenPoints and
    /// Poly_1D::ClosedPoints
-   static void GivePolyPoints(const int np, double *pts, const int type);
+   static void GivePolyPoints(const int np, real_t *pts, const int type);
 
 private:
    static void CalculateUniformWeights(IntegrationRule *ir, const int type);
@@ -428,14 +431,18 @@ private:
    Array<IntegrationRule *> PrismIntRules;
    Array<IntegrationRule *> CubeIntRules;
 
-   void AllocIntRule(Array<IntegrationRule *> &ir_array, int Order)
+#if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
+   Array<omp_lock_t> IntRuleLocks;
+#endif
+
+   void AllocIntRule(Array<IntegrationRule *> &ir_array, int Order) const
    {
       if (ir_array.Size() <= Order)
       {
          ir_array.SetSize(Order + 1, NULL);
       }
    }
-   bool HaveIntRule(Array<IntegrationRule *> &ir_array, int Order)
+   bool HaveIntRule(Array<IntegrationRule *> &ir_array, int Order) const
    {
       return (ir_array.Size() > Order && ir_array[Order] != NULL);
    }
@@ -443,6 +450,7 @@ private:
    {
       return Order | 1; // valid for all quad_type's
    }
+   void DeleteIntRuleArray(Array<IntegrationRule *> &ir_array) const;
 
    /// The following methods allocate new IntegrationRule objects without
    /// checking if they already exist.  To avoid memory leaks use
@@ -457,12 +465,10 @@ private:
    IntegrationRule *PrismIntegrationRule(int Order);
    IntegrationRule *CubeIntegrationRule(int Order);
 
-   void DeleteIntRuleArray(Array<IntegrationRule *> &ir_array);
-
 public:
    /// Sets initial sizes for the integration rule arrays, but rules
    /// are defined the first time they are requested with the Get method.
-   explicit IntegrationRules(int Ref = 0,
+   explicit IntegrationRules(int ref = 0,
                              int type = Quadrature1D::GaussLegendre);
 
    /// Returns an integration rule for given GeomType and Order.

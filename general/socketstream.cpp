@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -19,15 +19,15 @@
 #include <cstring>      // memset, memcpy, strerror
 #include <cerrno>       // errno
 #ifndef _WIN32
-#include <netdb.h>      // gethostbyname
+#include <netdb.h>      // getaddrinfo
 #include <arpa/inet.h>  // htons
 #include <sys/types.h>  // socket, setsockopt, connect, recv, send
 #include <sys/socket.h> // socket, setsockopt, connect, recv, send
 #include <unistd.h>     // close
-#include <netinet/in.h> // sockaddr_in
 #define closesocket (::close)
 #else
-#include <winsock.h>
+#include <winsock2.h>
+#include <ws2tcpip.h>
 #ifdef _MSC_VER
 typedef int ssize_t;
 // Link with ws2_32.lib
@@ -93,8 +93,7 @@ int socketbuf::attach(int sd)
 
 int socketbuf::open(const char hostname[], int port)
 {
-   struct sockaddr_in  sa;
-   struct hostent     *hp;
+   struct addrinfo     hints, *res, *rp;
 
    if (!wsInit_.Initialized())
    {
@@ -105,43 +104,51 @@ int socketbuf::open(const char hostname[], int port)
    setg(NULL, NULL, NULL);
    setp(obuf, obuf + buflen);
 
-   hp = gethostbyname(hostname);
-   if (hp == NULL)
+   hints.ai_family = AF_UNSPEC;
+   hints.ai_socktype = SOCK_STREAM;
+   hints.ai_flags = 0;
+   hints.ai_protocol = 0;
+
+   std::string portStr = std::to_string(port);
+   int s = getaddrinfo(hostname, portStr.c_str(), &hints, &res);
+   if (s != 0)
    {
       socket_descriptor = -3;
       return -1;
    }
-   memset(&sa, 0, sizeof(sa));
-   memcpy((char *)&sa.sin_addr, hp->h_addr, hp->h_length);
-   sa.sin_family = hp->h_addrtype;
-   sa.sin_port = htons(port);
-   socket_descriptor = socket(hp->h_addrtype, SOCK_STREAM, 0);
-   if (socket_descriptor < 0)
+
+   for (rp = res; rp != NULL; rp = rp->ai_next)
    {
-      return -1;
-   }
+      socket_descriptor = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+      if (socket_descriptor < 0)
+      {
+         continue;
+      }
 
 #if defined __APPLE__
-   // OS X does not support the MSG_NOSIGNAL option of send().
-   // Instead we can use the SO_NOSIGPIPE socket option.
-   int on = 1;
-   if (setsockopt(socket_descriptor, SOL_SOCKET, SO_NOSIGPIPE,
-                  (char *)(&on), sizeof(on)) < 0)
-   {
-      closesocket(socket_descriptor);
-      socket_descriptor = -2;
-      return -1;
-   }
+      // OS X does not support the MSG_NOSIGNAL option of send().
+      // Instead we can use the SO_NOSIGPIPE socket option.
+      int on = 1;
+      if (setsockopt(socket_descriptor, SOL_SOCKET, SO_NOSIGPIPE,
+                     &on, sizeof(on)) < 0)
+      {
+         closesocket(socket_descriptor);
+         socket_descriptor = -2;
+         continue;
+      }
 #endif
 
-   if (connect(socket_descriptor,
-               (const struct sockaddr *)&sa, sizeof(sa)) < 0)
-   {
-      closesocket(socket_descriptor);
-      socket_descriptor = -2;
-      return -1;
+      if (connect(socket_descriptor, rp->ai_addr, rp->ai_addrlen) < 0)
+      {
+         closesocket(socket_descriptor);
+         socket_descriptor = -2;
+         continue;
+      }
+      break;
    }
-   return 0;
+
+   freeaddrinfo(res);
+   return (socket_descriptor < 0) ? -1 : 0;
 }
 
 int socketbuf::close()
