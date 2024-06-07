@@ -146,7 +146,6 @@ void BatchSolver::ComputeLU()
 
       MFEM_VERIFY(status == MFEM_CU_or_HIP(BLAS_STATUS_SUCCESS),
                   "Failed at blasDgetrfBatched");
-
    }
    else
 #endif
@@ -269,82 +268,63 @@ void BatchSolver::SolveLU(const Vector &b, Vector &x) const
 void ApplyBlkMult(const DenseTensor &Mat, const Vector &x,
                   Vector &y)
 {
-   // // ***CUBLAS IMPLEMENTATION - START HERE***
-   // const int ndof = Mat.SizeI();
-   // MFEM_VERIFY(Mat.SizeI() == Mat.SizeJ(), "matrices are not ndof x ndof");
-   // const int NE = Mat.SizeK();
-
-   // cublasStatus_t stat;
-   // cublasHandle_t handle;
-
-   // Array<double *> Mat_ptr(NE); 
-   // Array<double *> x_ptr(NE);
-   // Array<double *> y_ptr(NE);
-
-   // for (int k = 0; k < NE; k++) {
-   //    Mat_ptr[k] = &const_cast<DenseTensor&>(Mat).ReadWrite()[ndof*ndof*k];
-   //    x_ptr[k] = &const_cast<Vector&>(x).ReadWrite()[ndof*k];
-   //    y_ptr[k] = &y.ReadWrite()[ndof*k];
-   // }
-
-   // // Initialize CUBLAS 
-   // stat = cublasCreate(&handle); 
-
-   // // Vendor function handles computations on GPU via batched call
-   // double alpha = 1.0;
-   // double beta = 0.0; 
-   // stat = cublasDgemvBatched (handle, CUBLAS_OP_N, ndof, ndof,
-   //                            &alpha, Mat_ptr.Read(), ndof, x_ptr.Read(), 1,
-   //                            &beta, y_ptr.ReadWrite(), 1, NE);
-   // // note that cuda 11.7.0 needs batchCount = NE as last parameter
-
-   // if (stat != CUBLAS_STATUS_SUCCESS) {
-   //    printf ("CUDABLAS gemvBatched() failed \n");
-   //    printf (cublasGetStatusString(stat));  // note: only available after version 11.4.2
-   //    cublasDestroy(handle);
-   // }
-
-   // // end CUBLAS stream
-   // cublasDestroy(handle);
-   // // ***CUBLAS IMPLEMENTATION - END HERE***
-
-   // ***HIPBLAS IMPLEMENTATION - START HERE***
    const int ndof = Mat.SizeI();
-   MFEM_VERIFY(Mat.SizeI() == Mat.SizeJ(), "matrices are not ndof x ndof");
+   MFEM_VERIFY(Mat.SizeI() == Mat.SizeJ(), "Batcched matrices are not square: not invertible");
    const int NE = Mat.SizeK();
+   
+#if defined(MFEM_USE_CUDA_OR_HIP)
+   if (Device::Allows(Backend::DEVICE_MASK))
+   {
+      Array<double *> Mat_ptr(NE); 
+      Array<double *> x_ptr(NE);
+      Array<double *> y_ptr(NE);
+      for (int k = 0; k < NE; k++) {
+         Mat_ptr[k] = &const_cast<DenseTensor&>(Mat).ReadWrite()[ndof*ndof*k];
+         x_ptr[k] = &const_cast<Vector&>(x).ReadWrite()[ndof*k];
+         y_ptr[k] = &y.ReadWrite()[ndof*k];
+      }
 
-   hipblasStatus_t stat;
-   hipblasHandle_t handle;
-
-   Array<double *> Mat_ptr(NE); 
-   Array<double *> x_ptr(NE);
-   Array<double *> y_ptr(NE);
-
-   for (int k = 0; k < NE; k++) {
-      Mat_ptr[k] = &const_cast<DenseTensor&>(Mat).ReadWrite()[ndof*ndof*k];
-      x_ptr[k] = &const_cast<Vector&>(x).ReadWrite()[ndof*k];
-      y_ptr[k] = &y.ReadWrite()[ndof*k];
+      double alpha = 1.0;
+      double beta = 0.0; 
+      MFEM_cu_or_hip(blasStatus_t)
+      status = MFEM_cu_or_hip(blasDgemvBatched)(DeviceBlasHandle(), 
+                                                MFEM_CU_or_HIP(BLAS_OP_N), 
+                                                ndof, ndof,
+                                                &alpha, 
+                                                Mat_ptr.Read(), ndof, 
+                                                x_ptr.Read(), 1,
+                                                &beta, 
+                                                y_ptr.ReadWrite(), 1, 
+                                                NE);
+      //free variables? 
+      MFEM_VERIFY(status == MFEM_CU_or_HIP(BLAS_STATUS_SUCCESS), 
+                  "Failed at blasDgemvBatched");
    }
+   else
+#endif
+   {
+      // Hand written version
+      auto X         = Reshape(x.Read(), ndof, NE);
+      auto Y         = Reshape(y.Write(), ndof, NE);
+      auto Me        = Reshape(Mat.Read(), ndof, ndof, NE);
 
-   // Initialize HIPBLAS
-   stat = hipblasCreate(&handle);
+      //Takes row major format
+      mfem::forall(ndof* NE, [=] MFEM_HOST_DEVICE (int tid)
+      {
 
-   double alpha = 1.0;
-   double beta = 0.0; 
+         const int c = tid % ndof;
+         const int e = tid / ndof;
 
-   stat = hipblasDgemvBatched (&handle, HIPBLAS_OP_N, ndof, ndof,
-                               &alpha, Mat_ptr.Read(), ndof, x_ptr.Read(), 1,
-                               &beta, y_ptr.ReadWrite(), 1, NE);
-
-   if (stat != HIPBLAS_STATUS_SUCCESS) {
-      printf ("HIPBLAS gemvBatched() failed \n");
-      printf ("%s", hipblasStatusToString(stat));  // note: only available after version 11.4.2
-      hipblasDestroy(handle);
+         {
+            double dot = 0;
+            for (int r = 0; r < ndof; ++r)
+            {
+               dot += Me(r, c, e) * X(r, e);
+            }
+            Y(c, e) = dot;
+         }
+      });
    }
-
-   // end HIPBLAS stream
-   hipblasDestroy(handle);
-   // ***HIPBLAS IMPLEMENTATION - END HERE***
 }
 
 
