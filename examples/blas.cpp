@@ -55,8 +55,8 @@ int main (int argc, char *argv[]){
                     "Scalar for batched matrices.");
     args.AddOption(&beta, "-b", "--beta",
                     "Scalar to add to multiplication.");
-    args.AddOption(&inverse, "-no-inv", "--no-inverse", "-inv", 
-                    "--inverse", "Disable inverse of batched matrices.");
+    args.AddOption(&inverse, "-inv", "--inverse", "-no-inv", 
+                    "--no-inverse", "Disable inverse of batched matrices.");
     args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                     "--no-partial-assembly", "Enable Partial Assembly.");
     args.AddOption(&fa, "-fa", "--full-assembly", "-no-fa",
