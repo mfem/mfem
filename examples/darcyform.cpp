@@ -526,9 +526,6 @@ void DarcyForm::AssemblePotHDGFaces(int skip_zeros)
          tr = mesh -> GetBdrFaceTransformations (i);
          if (tr != NULL)
          {
-            if (boundary_face_integs_marker[0]
-                && (*boundary_face_integs_marker[0])[bdr_attr-1] == 0) { continue; }
-
             hybridization->ComputeAndAssemblePotBdrFaceMatrix(i, elmat1, vdofs1);
 #ifndef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
             M_p->SpMat().AddSubMatrix(vdofs1, vdofs1, elmat1, skip_zeros);
@@ -932,7 +929,7 @@ void DarcyHybridization::ComputeAndAssemblePotBdrFaceMatrix(
    for (int i = 0; i < boundary_constraint_pot_integs.Size(); i++)
    {
       if (boundary_constraint_pot_integs_marker[i]
-          && (*boundary_constraint_pot_integs_marker)[bdr_attr-1] == 0) { continue; }
+          && (*boundary_constraint_pot_integs_marker[i])[bdr_attr-1] == 0) { continue; }
 
       boundary_constraint_pot_integs[i]->AssembleHDGFaceMatrix(*tr_fe, *fe, *fe, *ftr,
                                                                elmat_aux);
