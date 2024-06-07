@@ -46,6 +46,7 @@ protected:
    Vector Ahat_inv;
    Array<int> Ahat_piv;
 
+public:
    /// Construct the constraint matrix.
    void ConstructC();
 
@@ -73,7 +74,6 @@ protected:
    /// Apply the elementwise A_hat^{-1}.
    void MultAhatInv(Vector &x) const;
 
-public:
    /// Constructor.
    HybridizationExtension(class Hybridization &hybridization_);
    /// Prepare for assembly; form the constraint matrix.
