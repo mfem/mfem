@@ -86,10 +86,10 @@ void HybridizationExtension::ConstructH()
    const int n = h.c_fes.GetFaceElement(0)->GetDof();
 
    Vector AhatInvCt_mat(Ct_mat);
+   auto d_AhatInvCt = Reshape(AhatInvCt_mat.ReadWrite(), m, n, n_faces_per_el, ne);
    {
       const auto d_Ahat_inv = Reshape(Ahat_inv.Read(), m, m, ne);
       const auto d_Ahat_piv = Reshape(Ahat_piv.Read(), m, ne);
-      auto d_AhatInvCt = Reshape(AhatInvCt_mat.ReadWrite(), m, n, n_faces_per_el, ne);
 
       mfem::forall(n*n_faces_per_el*ne, [=] MFEM_HOST_DEVICE (int idx)
       {
@@ -111,11 +111,18 @@ void HybridizationExtension::ConstructH()
    const int n_face_connections = 2*n_faces_per_el - 1;
    Array<int> face_to_face(nf * n_face_connections);
 
-   Array<real_t> CAhatInvCt_mat(nf*n_face_connections*n*n);
-   CAhatInvCt_mat = 0.0;
+   Array<real_t> CAhatInvCt(nf*n_face_connections*n*n);
 
-   // TODO: device
-   for (int fi = 0; fi < nf; ++fi)
+   const auto d_Ct = Reshape(Ct_mat.Read(), m, n, n_faces_per_el, ne);
+   auto d_CAhatInvCt = Reshape(CAhatInvCt.Write(), n, n, n_face_connections, nf);
+   auto d_face_to_face = Reshape(face_to_face.Write(), n_face_connections, nf);
+
+   mfem::forall(n*n*n_face_connections*nf, [=] MFEM_HOST_DEVICE (int i)
+   {
+      d_CAhatInvCt[i] = 0.0;
+   });
+
+   mfem::forall(nf, [=] MFEM_HOST_DEVICE (int fi)
    {
       int idx = 0;
       for (int ei = 0; ei < 2; ++ei)
@@ -134,7 +141,7 @@ void HybridizationExtension::ConstructH()
             int idx_j = idx;
             for (int i = 0; i < idx; ++i)
             {
-               if (face_to_face[i + fi*n_face_connections] == fj)
+               if (d_face_to_face(i, fi) == fj)
                {
                   idx_j = i;
                   break;
@@ -143,35 +150,28 @@ void HybridizationExtension::ConstructH()
             // This is a new face, record it and increment the counter
             if (idx_j == idx)
             {
-               face_to_face[idx + fi*n_face_connections] = fj;
+               d_face_to_face(idx, fi) = fj;
                idx++;
             }
 
-            const int offset_1 = (idx_j + fi*n_face_connections)*n*n;
-            DenseMatrix CAhatInvCt(CAhatInvCt_mat.GetData() + offset_1, n, n);
-            const int offset_2 = (fi_i + e*n_faces_per_el)*n*m;
-            DenseMatrix Ct(Ct_mat.GetData() + offset_2, m, n);
-            const int offset_3 = (fj_i + e*n_faces_per_el)*n*m;
-            DenseMatrix AhatInvCt(AhatInvCt_mat.GetData() + offset_3, m, n);
-            AddMultAtB(Ct, AhatInvCt, CAhatInvCt);
+            const real_t *Ct_i = &d_Ct(0, 0, fi_i, e);
+            const real_t *AhatInvCt_i = &d_AhatInvCt(0, 0, fj_i, e);
+            real_t *CAhatInvCt_i = &d_CAhatInvCt(0, 0, idx_j, fi);
+            kernels::AddMultAtB(m, n, n, Ct_i, AhatInvCt_i, CAhatInvCt_i);
          }
       }
       // Fill unused entries with -1 to indicate invalid
       for (; idx < n_face_connections; ++idx)
       {
-         face_to_face[idx + fi*n_face_connections] = -1;
+         d_face_to_face(idx, fi) = -1;
       }
-   }
+   });
 
    const int ncdofs = h.c_fes.GetTrueVSize();
    const ElementDofOrdering ordering = ElementDofOrdering::NATIVE;
    const FaceRestriction *face_restr =
       h.c_fes.GetFaceRestriction( ordering, FaceType::Interior);
    const auto c_gather_map = Reshape(face_restr->GatherMap().Read(), n, nf);
-
-   const auto d_f2f = Reshape(face_to_face.Read(), n_face_connections, nf);
-   const auto d_CAhatInvCt_mat = Reshape(CAhatInvCt_mat.Read(),
-                                         n, n, n_face_connections, nf);
 
    h.H.reset(new SparseMatrix);
    h.H->OverrideSize(ncdofs, ncdofs);
@@ -189,14 +189,14 @@ void HybridizationExtension::ConstructH()
       {
          for (int idx = 0; idx < n_face_connections; ++idx)
          {
-            const int fj = d_f2f(idx, fi);
+            const int fj = d_face_to_face(idx, fi);
             if (fj < 0) { break; }
             for (int i = 0; i < n; ++ i)
             {
                const int ii = c_gather_map(i, fi);
                for (int j = 0; j < n; ++j)
                {
-                  if (d_CAhatInvCt_mat(i, j, idx, fi) != 0)
+                  if (d_CAhatInvCt(i, j, idx, fi) != 0)
                   {
                      I[ii]++;
                   }
@@ -253,14 +253,14 @@ void HybridizationExtension::ConstructH()
       {
          for (int idx = 0; idx < n_face_connections; ++idx)
          {
-            const int fj = d_f2f(idx, fi);
+            const int fj = d_face_to_face(idx, fi);
             if (fj < 0) { break; }
             for (int i = 0; i < n; ++ i)
             {
                const int ii = c_gather_map[i + fi*n];
                for (int j = 0; j < n; ++j)
                {
-                  const real_t val = d_CAhatInvCt_mat(i, j, idx, fi);
+                  const real_t val = d_CAhatInvCt(i, j, idx, fi);
                   if (val != 0)
                   {
                      const int k = I[ii];
