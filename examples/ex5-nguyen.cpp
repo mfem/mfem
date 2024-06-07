@@ -52,7 +52,7 @@ typedef std::function<void(const Vector &, real_t, Vector &)> VecTFunc;
 TFunc GetTFun(int prob, real_t t_0, real_t k, real_t c);
 VecTFunc GetQFun(int prob, real_t t_0, real_t k, real_t c);
 VecFunc GetCFun(int prob, real_t c);
-TFunc GetFFun(int prob, real_t t_0, real_t k, const VecFunc &cFun);
+TFunc GetFFun(int prob, real_t t_0, real_t k, real_t c);
 
 constexpr real_t epsilon = numeric_limits<real_t>::epsilon();
 
@@ -189,6 +189,9 @@ int main(int argc, char *argv[])
          bconv = false;
          btime = false;
          break;
+      case Problem::SteadyAdvectionDiffusion:
+         bconv = true;
+         btime = false;
       case Problem::SteadyAdvection:
          bconv = true;
          btime = false;
@@ -256,6 +259,9 @@ int main(int argc, char *argv[])
       case Problem::SteadyAdvection:
          bdr_is_dirichlet[3] = -1;//inflow
          bdr_is_neumann[0] = -1;//outflow
+         break;
+      case SteadyAdvectionDiffusion:
+         //free
          break;
       case Problem::NonsteadyAdvectionDiffusion:
          bdr_is_dirichlet = -1;
@@ -329,7 +335,7 @@ int main(int argc, char *argv[])
    FunctionCoefficient tcoeff(tFun);
    SumCoefficient gcoeff(0., tcoeff, 1., -1.);
 
-   auto fFun = GetFFun(problem, t_0, k, cFun);
+   auto fFun = GetFFun(problem, t_0, k, c);
    FunctionCoefficient fcoeff(fFun);
 
    auto qFun = GetQFun(problem, t_0, k, c);
@@ -758,8 +764,12 @@ TFunc GetTFun(int prob, real_t t_0, real_t k, real_t c)
             return t0;
          };
       case Problem::SteadyAdvectionDiffusion:
-         // null
-         break;
+         return [=](const Vector &x, real_t) -> real_t
+         {
+            real_t t0 = (t_0 * x(0) * x(1) * (1.0 - exp(c*(x(0)-1.0)) ) * (1.0 - exp(c*(x(1)-1.0))
+                                                                          )) / ((1.0 - exp(-c)) * (1.0 - exp(-c)));
+            return t0;
+         };
       case Problem::SteadyAdvection:
          return [=](const Vector &x, real_t) -> real_t
          {
@@ -833,8 +843,17 @@ VecTFunc GetQFun(int prob, real_t t_0, real_t k, real_t c)
             v *= -k;
          };
       case Problem::SteadyAdvectionDiffusion:
-         // null
-         break;
+         return [=](const Vector &x, real_t, Vector &v)
+         {
+            double coef = (1.0 - exp((x(0)-1.0)*c)) * (1.0 - exp((x(1)-1.0)*c));
+            double denom = ((1.0 - exp(-c)) * (1.0 - exp(-c)));
+
+            v(0) = (x(1)*coef - x(0)*x(1)*c*exp((x(0)-1.0)*c)*(1.0-exp((x(
+                                                                           1)-1.0)*c)))/denom;
+            v(1) = (x(0)*coef - x(0)*x(1)*c*exp((x(1)-1.0)*c)*(1.0-exp((x(
+                                                                           0)-1.0)*c)))/denom;
+            v *= -k*t_0;
+         };
       case Problem::SteadyAdvection:
          return [=](const Vector &x, real_t, Vector &v)
          {
@@ -947,7 +966,7 @@ VecFunc GetCFun(int prob, real_t c)
    return VecFunc();
 }
 
-TFunc GetFFun(int prob, real_t t_0, real_t k, const VecFunc &cFun)
+TFunc GetFFun(int prob, real_t t_0, real_t k, real_t c)
 {
    switch (prob)
    {
@@ -975,24 +994,21 @@ TFunc GetFFun(int prob, real_t t_0, real_t k, const VecFunc &cFun)
       case Problem::SteadyAdvectionDiffusion:
          return [=](const Vector &x, real_t) -> real_t
          {
-            // PLACEHOLDER
-            const int ndim = x.Size();
-            Vector c;
-            c.SetSize(ndim);
-            cFun(x, c);
+            // div c*u: (assuming cx and cy are constant)
+            double coef = (1.0 - exp((x(0)-1.0)*c)) * (1.0 - exp((x(1)-1.0)*c));
+            double denom = ((1.0 - exp(-c)) * (1.0 - exp(-c)));
 
-            real_t t0   = t_0 * exp(x.Sum()) * sin(M_PI*x(0)) * sin(M_PI*x(1));
-            real_t conv = t_0 * c(0) * (t0 + M_PI * exp(x.Sum()) * cos(M_PI*x(0))
-                                        * sin(M_PI*x(1))) + t_0 * c(1) * (t0 + M_PI
-                                                                          * exp(x.Sum() * cos(M_PI*x(1))
-                                                                                * sin(M_PI*x(0))));
-            if (ndim > 2)
-            {
-               conv *= sin(M_PI*x(2));
-               conv += c(2) * (t0 + M_PI * exp(x.Sum()) * cos(M_PI*x(2)) * sin(M_PI*x(
-                                                                                  0))) * sin(M_PI*x(1));
-            }
-            return -conv;
+            real_t conv = (c*(x(1)*coef - x(0)*x(1)*c*exp((x(0)-1.0)*c)*(1.0-exp((x(1)-1.0)*c))))/denom +
+            (c*(x(0)*coef - x(0)*x(1)*c*exp((x(1)-1.0)*c)*(1.0-exp((x(0)-1.0)*c))))/denom;
+
+            // div q:
+            real_t diff = -k*((-2.0*c*exp(c*(x(1)-1.0))*x(0)*(1-exp(c*(x(0)-1.0)))
+                               -2.0*c*exp(c*(x(0)-1.0))*x(1)*(1-exp(c*(x(1)-1.0)))
+                               -pow(c,2.0)*exp(c*(x(1)-1.0))*(1-exp(c*(x(0)-1.0)))*x(0)*x(1)
+                               -pow(c,2.0)*exp(c*(x(0)-1.0))*(1-exp(c*(x(1)-1.0)))*x(0)*x(1)
+                              ))/denom;
+
+            return -(conv+diff)*t_0;
          };
       case Problem::SteadyAdvection:
       case Problem::NonsteadyAdvectionDiffusion:
