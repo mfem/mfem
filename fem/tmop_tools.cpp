@@ -430,7 +430,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 #endif
 
    const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
-   auto ti = dynamic_cast<ParametrizedTMOP_Integrator *>(integs[0]);
+   auto ti = dynamic_cast<TMOP_Integrator *>(integs[0]);
    MFEM_VERIFY(ti, "Didn't get the integrator.");
    auto surf = ti->GetAnalyticSurface();
    MFEM_VERIFY(surf, "Didn't get the surface.");

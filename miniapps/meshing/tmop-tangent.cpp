@@ -195,7 +195,7 @@ int main (int argc, char *argv[])
    metric->use_old_invariants_code = true;
    TargetConstructor target(TargetConstructor::IDEAL_SHAPE_UNIT_SIZE,
                             pfes_mesh.GetComm());
-   auto integ = new ParametrizedTMOP_Integrator(metric, &target, nullptr);
+   auto integ = new TMOP_Integrator(metric, &target, nullptr);
    integ->EnableTangentialMovement(fit_marker, line);
 
    // Linear solver.
