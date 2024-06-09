@@ -294,7 +294,9 @@ TEST_CASE("NormalTraceJumpIntegrator Element Assembly", "[AssemblyLevel][CUDA]")
 {
    const auto fname = GENERATE(
                          "../../data/inline-quad.mesh",
-                         "../../data/star-q3.mesh"
+                         "../../data/star-q3.mesh",
+                         "../../data/inline-hex.mesh",
+                         "../../data/fichera-q3.mesh"
                       );
    const int order = GENERATE(1, 2, 3);
 
@@ -320,7 +322,6 @@ TEST_CASE("NormalTraceJumpIntegrator Element Assembly", "[AssemblyLevel][CUDA]")
    const TensorBasisElement *tbe =
       dynamic_cast<const TensorBasisElement*>(fes.GetFE(0));
    MFEM_VERIFY(tbe, "");
-   const int ndof = fes.GetFE(0)->GetDof();
    const Array<int> &dof_map = tbe->GetDofMap();
 
    const auto e_mat = Reshape(emat.HostRead(), ndof_test, ndof_trial, 2, nf);

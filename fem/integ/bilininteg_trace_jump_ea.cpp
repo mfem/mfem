@@ -120,6 +120,19 @@ void NormalTraceJumpIntegrator::AssembleEAInteriorFaces(
    const auto face_mats = Reshape(mass_emat.Read(), ndof_face, ndof_face, nf);
    auto el_mats = Reshape(d_emat, ndof_vol, ndof_face, 2, nf);
 
+   auto permute_face = [=] MFEM_HOST_DEVICE(int local_face_id, int orient,
+                                            int size1d, int index)
+   {
+      if (dim == 2)
+      {
+         return internal::PermuteFace2D(local_face_id, orient, size1d, index);
+      }
+      else // dim == 3
+      {
+         return internal::PermuteFace3D(local_face_id, orient, size1d, index);
+      }
+   };
+
    mfem::forall_3D(nf, ndof_face, ndof_face, 2, [=] MFEM_HOST_DEVICE (int f)
    {
       MFEM_FOREACH_THREAD(el_i, z, 2)
@@ -127,12 +140,10 @@ void NormalTraceJumpIntegrator::AssembleEAInteriorFaces(
          const int lf_i = d_face_info(0, el_i, f);
          const int orient = d_face_info(1, el_i, f);
          // Loop over face indices in "native ordering"
-         MFEM_FOREACH_THREAD(i_nat, x, ndof_face)
+         MFEM_FOREACH_THREAD(i_lex, x, ndof_face)
          {
-            // Convert to lexicographic relative to the element
-            const int i_lex = internal::ToLexOrdering2D(lf_i, ndof_face, i_nat);
             // Convert to lexicographic relative to the face itself
-            const int i_face = internal::PermuteFace2D(lf_i, 0, orient, ndof_face, i_lex);
+            const int i_face = permute_face(lf_i, orient, d1d, i_lex);
             // Convert from lexicographic face DOF to volume DOF
             const int i = d_face_maps(i_lex, lf_i);
             MFEM_FOREACH_THREAD(j, y, ndof_face)
