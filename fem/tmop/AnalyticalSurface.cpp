@@ -281,18 +281,17 @@ void Square::convertToPhysical(const Array<int> & vdofs,const Vector &elfun, Vec
 
 AnalyticSurface::AnalyticSurface(const Array<bool> &marker,
                                  ParFiniteElementSpace &pfes_mesh,
-                                 const ParGridFunction &coord, const ParMesh &pmesh)
+                                 const ParMesh &pmesh)
    : surface_dof_marker(marker),
      pfes_mesh(pfes_mesh),
      geometry(NULL),
-     coord(coord),
      pmesh(pmesh),
      distance_gf(&pfes_mesh)
 {
-   geometry = new Square(pfes_mesh, distance_gf, pmesh, coord);
+   geometry = nullptr; //new Square(pfes_mesh, distance_gf, pmesh, coord);
 
    distance_gf = 0.0;
-   geometry->ComputeDistances(coord, pmesh, pfes_mesh);
+   //geometry->ComputeDistances(coord, pmesh, pfes_mesh);
 }
 
 void AnalyticSurface::SetScaleMatrix(const Array<int> &vdofs, int i, int a, DenseMatrix &Pmat_scale)
@@ -315,33 +314,38 @@ AnalyticSurface::~AnalyticSurface()
    delete geometry;
 }
 
-void Analytic2DCurve::ConvertPhysCoordToParam(GridFunction &coord) const
+void Analytic2DCurve::ConvertPhysCoordToParam(const GridFunction &coord_x,
+                                              GridFunction &coord_t) const
 {
-   const int ndof = coord.Size() / 2;
+   const int ndof = coord_x.Size() / 2;
    double t;
 
+   coord_t = coord_x;
    for (int i = 0; i < ndof; i++)
    {
       if (surface_dof_marker[i])
       {
-         t_of_xy(coord(i), coord(ndof + i), distance_gf, t);
-         coord(i)        = t;
-         coord(ndof + i) = 0.0;
+         t_of_xy(coord_x(i), coord_x(ndof + i), distance_gf, t);
+         coord_t(i)        = t;
+         coord_t(ndof + i) = 0.0;
       }
    }
 }
 
-void Analytic2DCurve::ConvertParamCoordToPhys(Vector &coord) const
+void Analytic2DCurve::ConvertParamCoordToPhys(const Vector &coord_t,
+                                              Vector &coord_x) const
 {
-   const int ndof = coord.Size() / 2;
+   const int ndof = coord_x.Size() / 2;
    double x, y;
+
+   coord_x = coord_t;
    for (int i = 0; i < ndof; i++)
    {
       if (surface_dof_marker[i])
       {
-         xy_of_t(coord(i), distance_gf, x, y);
-         coord(i)        = x;
-         coord(ndof + i) = y;
+         xy_of_t(coord_t(i), distance_gf, x, y);
+         coord_x(i)        = x;
+         coord_x(ndof + i) = y;
       }
    }
 }

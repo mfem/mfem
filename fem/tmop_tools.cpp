@@ -414,7 +414,8 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
    // Get the local prolongation of the solution vector.
    Vector x_out_loc(fes->GetVSize(),
-                    (temp_mt == MemoryType::DEFAULT) ? Device::GetDeviceMemoryType() : temp_mt);
+                    (temp_mt == MemoryType::DEFAULT) ?
+                    Device::GetDeviceMemoryType() : temp_mt);
    if (serial)
    {
       const SparseMatrix *cP = fes->GetConformingProlongation();
@@ -433,14 +434,15 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    MFEM_VERIFY(ti, "Didn't get the integrator.");
    auto surf = ti->GetAnalyticSurface();
    MFEM_VERIFY(surf, "Didn't get the surface.");
-   surf->ConvertParamCoordToPhys(x_out_loc);
+   Vector x_out_loc_x(x_out_loc);
+   surf->ConvertParamCoordToPhys(x_out_loc, x_out_loc_x);
 
    real_t scale = 1.0;
    bool fitting = IsSurfaceFittingEnabled();
    real_t init_fit_avg_err, init_fit_max_err = 0.0;
    if (fitting && surf_fit_converge_error)
    {
-      GetSurfaceFittingError(x_out_loc, init_fit_avg_err, init_fit_max_err);
+      GetSurfaceFittingError(x_out_loc_x, init_fit_avg_err, init_fit_max_err);
       // Check for convergence
       if (init_fit_max_err < surf_fit_max_err_limit)
       {
@@ -468,7 +470,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
    // Check if the starting mesh (given by x) is inverted. Note that x hasn't
    // been modified by the Newton update yet.
-   const real_t min_detT_in = ComputeMinDet(x_out_loc, *fes);
+   const real_t min_detT_in = ComputeMinDet(x_out_loc_x, *fes);
    const bool untangling = (min_detT_in <= 0.0) ? true : false;
    const real_t untangle_factor = 1.5;
    if (untangling)
@@ -514,10 +516,10 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       else { fes->GetProlongationMatrix()->Mult(x_out, x_out_loc); }
 #endif
 
-      surf->ConvertParamCoordToPhys(x_out_loc);
+      surf->ConvertParamCoordToPhys(x_out_loc, x_out_loc_x);
 
       // Check the changes in detJ.
-      min_detT_out = ComputeMinDet(x_out_loc, *fes);
+      min_detT_out = ComputeMinDet(x_out_loc_x, *fes);
       if (untangling == false && min_detT_out <= min_detJ_limit)
       {
          // No untangling, and detJ got negative (or small) -- no good.
@@ -549,7 +551,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       // converge based on error.
       if (fitting && surf_fit_converge_error)
       {
-         GetSurfaceFittingError(x_out_loc, avg_fit_err, max_fit_err);
+         GetSurfaceFittingError(x_out_loc_x, avg_fit_err, max_fit_err);
          if (max_fit_err >= 1.2*init_fit_max_err)
          {
             if (print_options.iterations)
@@ -578,7 +580,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
             mfem::out << "Scale = " << scale << " Increasing energy: "
                       << energy_in << " --> " << energy_out << '\n';
          }
-         scale *= 0.5; continue;
+         //scale *= 0.5; continue;
       }
 
       // Check the changes in the Newton residual.
@@ -905,7 +907,7 @@ real_t TMOPNewtonSolver::ComputeMinDet(const Vector &x_loc,
    Array<int> xdofs;
    DenseMatrix Jpr(dim);
    const bool mixed_mesh = fes.GetMesh()->GetNumGeometries(dim) > 1;
-   if (dim == 1 || mixed_mesh || UsesTensorBasis(fes) == false)
+   if (1 || dim == 1 || mixed_mesh || UsesTensorBasis(fes) == false)
    {
       for (int i = 0; i < NE; i++)
       {

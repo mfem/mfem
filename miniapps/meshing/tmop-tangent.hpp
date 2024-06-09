@@ -23,8 +23,8 @@ class Line_Bottom : public Analytic2DCurve
 {
    public:
    Line_Bottom(const Array<bool> &marker, ParFiniteElementSpace &pfes_mesh,
-               const ParGridFunction &coord, const ParMesh &pmesh)
-       : Analytic2DCurve(marker, pfes_mesh, coord, pmesh) { }
+               const ParMesh &pmesh)
+       : Analytic2DCurve(marker, pfes_mesh, pmesh) { }
 
    void xy_of_t(double t, const Vector &dist, double &x, double &y) const override
    {
@@ -45,8 +45,8 @@ class Line_Left : public Analytic2DCurve
 {
    public:
    Line_Left(const Array<bool> &marker, ParFiniteElementSpace &pfes_mesh,
-             const ParGridFunction &coord, const ParMesh &pmesh)
-       : Analytic2DCurve(marker, pfes_mesh, coord, pmesh) { }
+             const ParMesh &pmesh)
+       : Analytic2DCurve(marker, pfes_mesh, pmesh) { }
 
    void xy_of_t(double t, const Vector &dist, double &x, double &y) const override
    {
@@ -62,24 +62,24 @@ class Line_Left : public Analytic2DCurve
    virtual double dy_dt(double t) const override { return 1.0; }
 };
 
-// x = t, y = 1 + 0.5 t
+// x = 1.5 * t, y = 1 + 0.5 t
 class Line_Top : public Analytic2DCurve
 {
    public:
    Line_Top(const Array<bool> &marker, ParFiniteElementSpace &pfes_mesh,
-            const ParGridFunction &coord, const ParMesh &pmesh)
-       : Analytic2DCurve(marker, pfes_mesh, coord, pmesh) { }
+            const ParMesh &pmesh)
+       : Analytic2DCurve(marker, pfes_mesh, pmesh) { }
 
    void t_of_xy(double x, double y, const Vector &dist, double &t) const override
    {
-      t = x;
+      t = x / 1.5;
    }
    void xy_of_t(double t, const Vector &dist, double &x, double &y) const override
    {
-      x = t; y = 1.0 + 0.5 * t;
+      x = 1.5 * t; y = 1.0 + 0.5 * t;
    }
 
-   virtual double dx_dt(double t) const override { return 1.0; }
+   virtual double dx_dt(double t) const override { return 1.5; }
    virtual double dy_dt(double t) const override { return 0.5; }
 };
 
@@ -88,8 +88,8 @@ class Line_Right : public Analytic2DCurve
 {
    public:
    Line_Right(const Array<bool> &marker, ParFiniteElementSpace &pfes_mesh,
-              const ParGridFunction &coord, const ParMesh &pmesh)
-       : Analytic2DCurve(marker, pfes_mesh, coord, pmesh) { }
+              const ParMesh &pmesh)
+       : Analytic2DCurve(marker, pfes_mesh, pmesh) { }
 
    void t_of_xy(double x, double y, const Vector &dist, double &t) const override
    {

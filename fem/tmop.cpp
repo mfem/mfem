@@ -620,6 +620,44 @@ void TMOP_Metric_002::AssembleH(const DenseMatrix &Jpt,
    ie.Assemble_ddI1b(0.5*weight, A.GetData());
 }
 
+void TMOP_Metric_002::AssembleH(const DenseMatrix &Jpt,
+                                const DenseMatrix &DS,
+                                const DenseMatrix &dx_dt,
+                                const real_t weight,
+                                DenseMatrix &A) const
+{
+   const int dof = DS.Height(), dim = DS.Width();
+   DenseMatrix dI1_dMdM(dim);
+
+   // The first two go over the rows and cols of dP_dJ where P = dW_dJ.
+   for (int r = 0; r < dim; r++)
+   {
+      for (int c = 0; c < dim; c++)
+      {
+         Dim2Invariant1_dMdM(Jpt, r, c, dI1_dMdM);
+
+         // Compute each entry of d(Prc)_dJ.
+         for (int rr = 0; rr < dim; rr++)
+         {
+            for (int cc = 0; cc < dim; cc++)
+            {
+               const double entry_rr_cc = 0.5 * dI1_dMdM(rr,cc);
+
+               for (int i = 0; i < dof; i++)
+               {
+                  for (int j = 0; j < dof; j++)
+                  {
+                     A(i+r*dof, j+rr*dof) +=
+                         weight * DS(i, c)  * dx_dt(i, r)
+                                * DS(j, cc) * dx_dt(j, rr) * entry_rr_cc;
+                  }
+               }
+            }
+         }
+      }
+   }
+}
+
 real_t TMOP_Metric_004::EvalW(const DenseMatrix &Jpt) const
 {
    ie.SetJacobian(Jpt.GetData());
@@ -5538,21 +5576,27 @@ void ParametrizedTMOP_Integrator::AssembleElementVectorExact(const FiniteElement
       if (metric_coeff) { weight_m *= metric_coeff->Eval(*Tpr, ip); }
       P *= weight_m;
 
-      // Change the gradients based on the parametrization.
-      DenseMatrix grads(DSh);
+      // This expands the old call AddMultABt(DS, P, PMatO);
+      // TODO assumes identity W.
+      double dxy_dt[2];
       for (int i = 0; i < dof; i++)
       {
          if ((*tan_dof_marker)[vdofs[i]] == true)
          {
-            double dxy_dt[2];
             analyticSurface->Deriv_1(&elfun(i), dxy_dt);
-            grads(i, 0) = DSh(i, 0) * dxy_dt[0] + DSh(i, 0) * dxy_dt[1];
-            grads(i, 1) = DSh(i, 1) * dxy_dt[0] + DSh(i, 1) * dxy_dt[1];
+         }
+         else { dxy_dt[0] = 1.0, dxy_dt[1] = 1.0; }
+
+         for (int c = 0; c < dim; c++)
+         {
+            real_t d = 0.0;
+            for (int k = 0; k < dim; k++)
+            {
+               d += DS(i, k) * dxy_dt[c] * P(c, k);
+            }
+            PMatO(i, c) += d;
          }
       }
-      Mult(grads, Jrt, DS);
-
-      AddMultABt(DS, P, PMatO);
 
       // Pmat_temp = 0.0;
       // MultABt(DS, P, Pmat_temp);
@@ -5615,6 +5659,15 @@ void ParametrizedTMOP_Integrator::AssembleElementVectorExact(const FiniteElement
       }
    }
 
+   // TODO assumes 2D.
+   for (int i = 0; i < dof; i++)
+   {
+      if ((*tan_dof_marker)[vdofs[i]] == true)
+      {
+         PMatO(i, 0) += PMatO(i, 1);
+      }
+   }
+
    if (adapt_lim_gf) { AssembleElemVecAdaptLim(el, *Tpr, ir, weights, PMatO); }
    if (surf_fit_gf || surf_fit_pos) { AssembleElemVecSurfFit(el, *Tpr, PMatO); }
 
@@ -5630,8 +5683,9 @@ void ParametrizedTMOP_Integrator::AssembleElementGradExact(const FiniteElement &
 {
    const int dof = el.GetDof(), dim = el.GetDim();
    DenseMatrix Pmat_scale(dof*dim), elmat_temp(dof*dim),
-       elmat_temp2(dof*dim), Pmat_temp(dof,dim),
-       Pmat_hessian(dof,dim), Pmat_check(dof);
+               elmat_temp2(dof*dim), Pmat_temp(dof,dim),
+               Pmat_hessian(dof,dim), Pmat_check(dof),
+               dx_dt(dof, dim);
    elmat.SetSize(dof*dim);
    elmat = 0.0;
    elmat_temp = 0.0;
@@ -5656,7 +5710,6 @@ void ParametrizedTMOP_Integrator::AssembleElementGradExact(const FiniteElement &
    // Pmat_scale = (dx_{Ao}/dt(Bj}) is stored as a 2D array
    // where A,o are the row indices and B,j are the column indices
    // Pmat_scale is the derivative of the parametized curve w.r.t t
-   analyticSurface->SetScaleMatrixFourthOrder(elfun, vdofs, Pmat_scale);
    Vector weights(nqp);
    DenseTensor Jtr(dim, dim, nqp);
    targetC->ComputeElementTargets(T.ElementNo, el, ir, convertedX, Jtr);
@@ -5695,6 +5748,23 @@ void ParametrizedTMOP_Integrator::AssembleElementGradExact(const FiniteElement &
       Tpr->Attribute = T.Attribute;
       Tpr->mesh = T.mesh;
       Tpr->GetPointMat().Transpose(PMatI);
+   }
+
+   // TODO assumes 2D.
+   for (int i = 0; i < dof; i++)
+   {
+      if ((*tan_dof_marker)[vdofs[i]] == true)
+      {
+         double dxy_dt[2];
+         analyticSurface->Deriv_1(&elfun(i), dxy_dt);
+         dx_dt(i, 0) = dxy_dt[0];
+         dx_dt(i, 1) = dxy_dt[1];
+      }
+      else
+      {
+         dx_dt(i, 0) = 1.0;
+         dx_dt(i, 1) = 1.0;
+      }
    }
 
    for (int q = 0; q < nqp; q++)
@@ -5742,21 +5812,20 @@ void ParametrizedTMOP_Integrator::AssembleElementGradExact(const FiniteElement &
       // AddMultABt(Pmat_scale, elmat_temp2, elmat);
 
       // Change the gradients based on the parametrization.
-      DenseMatrix grads(DSh);
-      for (int i = 0; i < dof; i++)
-      {
-         if ((*tan_dof_marker)[vdofs[i]] == true)
-         {
-            double dxy_dt[2];
-            analyticSurface->Deriv_1(&elfun(i), dxy_dt);
-            grads(i, 0) = DSh(i, 0) * dxy_dt[0] + DSh(i, 0) * dxy_dt[1];
-            grads(i, 1) = DSh(i, 1) * dxy_dt[0] + DSh(i, 1) * dxy_dt[1];
-         }
-      }
-      Mult(grads, Jrt, DS);
+      // DenseMatrix grads(DSh);
+      // for (int i = 0; i < dof; i++)
+      // {
+      //    if ((*tan_dof_marker)[vdofs[i]] == true)
+      //    {
+      //       double dxy_dt[2];
+      //       analyticSurface->Deriv_1(&elfun(i), dxy_dt);
+      //       grads(i, 0) = DSh(i, 0) * dxy_dt[0] + DSh(i, 0) * dxy_dt[1];
+      //       grads(i, 1) = DSh(i, 1) * dxy_dt[0] + DSh(i, 1) * dxy_dt[1];
+      //    }
+      // }
+      // Mult(grads, Jrt, DS);
 
-      // original.
-      metric->AssembleH(Jpt, DS, weight_m, elmat);
+      metric->AssembleH(Jpt, DS, dx_dt, weight_m, elmat);
 
       if (lim_coeff)
       {
@@ -5779,6 +5848,20 @@ void ParametrizedTMOP_Integrator::AssembleElementGradExact(const FiniteElement &
                   }
                }
             }
+         }
+      }
+   }
+
+   // TODO assumes 2D.
+   for (int i = 0; i < dof; i++)
+   {
+      if ((*tan_dof_marker)[vdofs[i]] == true)
+      {
+         elmat(i, i) += elmat(i + dof, i + dof);
+         for (int j = 0; j < dof*dim; j++)
+         {
+            elmat(i, j) += elmat(i + dof, j);
+            elmat(j, i) += elmat(j, i + dof);
          }
       }
    }

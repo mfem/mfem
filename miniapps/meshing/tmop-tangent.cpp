@@ -72,30 +72,30 @@ int main (int argc, char *argv[])
    H1_FECollection fec_mesh(mesh_poly_deg, dim);
    ParFiniteElementSpace pfes_mesh(&pmesh, &fec_mesh, dim);
    pmesh.SetNodalFESpace(&pfes_mesh);
-   ParGridFunction coord(&pfes_mesh);
-   pmesh.SetNodalGridFunction(&coord);
-   ParGridFunction x0(coord);
+   ParGridFunction coord_x(&pfes_mesh), coord_t(&pfes_mesh);
+   pmesh.SetNodalGridFunction(&coord_x);
+   ParGridFunction x0(coord_x);
 
    // Move the mesh nodes to have non-trivial problem.
    // Top boundary is (x = t, y = 1 + 0.5 t).
-   const int N = coord.Size() / 2;
+   const int N = coord_x.Size() / 2;
    for (int i = 0; i < N; i++)
    {
-      double x = coord(i);
-      double y = coord(i+N);
+      double x = coord_x(i);
+      double y = coord_x(i+N);
 
       // Displace all x and y, so that the spacing is non-uniform.
-      coord(i)     = x + x*(1-x)*0.8;
-      coord(i + N) = y + y*(1-y)*0.8;
+      coord_x(i)     = x + x*(1-x)*0.8;
+      coord_x(i + N) = y + y*(1-y)*0.8;
 
-      x = coord(i);
-      y = coord(i+N);
+      x = coord_x(i);
+      y = coord_x(i+N);
 
       // a adds deformation inside.
       // d pulls the top-right corner out.
       double a = 0.2, d = 0.5;
-      coord(i)     = x + a * sin(M_PI * x) * sin(M_PI * y);
-      coord(i + N) = y + a * sin(M_PI * x) * sin(M_PI * y) + d * x * y;
+      coord_x(i)     = x + a * sin(M_PI * x) * sin(M_PI * y) + d * x * y;
+      coord_x(i + N) = y + a * sin(M_PI * x) * sin(M_PI * y) + d * x * y;
    }
 
    // Compute the minimum det(J) of the starting mesh.
@@ -168,21 +168,31 @@ int main (int argc, char *argv[])
          for (int j = 0; j < nd; j++)
          { ess_vdofs.Append(vdofs[j+nd]); }
       }
-      else if (attr == 2 || attr == 4)
+      else if (attr == 4)
       {
          // Fix x components.
          for (int j = 0; j < nd; j++)
          { ess_vdofs.Append(vdofs[j]); }
       }
+      else if (attr == 2)
+      {
+         // Fix all components.
+         for (int j = 0; j < nd; j++)
+         {
+            ess_vdofs.Append(vdofs[j]);
+            ess_vdofs.Append(vdofs[j+nd]);
+         }
+      }
    }
 
-   Line_Top line(fit_marker, pfes_mesh, coord, pmesh);
-   line.ConvertPhysCoordToParam(coord);
+   Line_Top line(fit_marker, pfes_mesh, pmesh);
+   line.ConvertPhysCoordToParam(coord_x, coord_t);
 
    // TMOP setup.
    TMOP_QualityMetric *metric;
    if (dim == 2) { metric = new TMOP_Metric_002; }
    else          { metric = new TMOP_Metric_302; }
+   metric->use_old_invariants_code = true;
    TargetConstructor target(TargetConstructor::IDEAL_SHAPE_UNIT_SIZE,
                             pfes_mesh.GetComm());
    auto integ = new ParametrizedTMOP_Integrator(metric, &target, nullptr);
@@ -210,10 +220,10 @@ int main (int argc, char *argv[])
 
    // Solve.
    Vector b(0);
-   coord.SetTrueVector();
-   solver.Mult(b, coord.GetTrueVector());
-   coord.SetFromTrueVector();
-   line.ConvertParamCoordToPhys(coord);
+   coord_t.SetTrueVector();
+   solver.Mult(b, coord_t.GetTrueVector());
+   coord_t.SetFromTrueVector();
+   line.ConvertParamCoordToPhys(coord_t, coord_x);
    if(glvis)
    {
       socketstream vis2;

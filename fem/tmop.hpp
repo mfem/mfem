@@ -118,6 +118,11 @@ public:
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const real_t weight, DenseMatrix &A) const = 0;
 
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const DenseMatrix &dx_dt,
+                          const real_t weight, DenseMatrix &A) const
+   { MFEM_ABORT("not implemented"); }
+
    /** @brief Return the metric ID. */
    virtual int Id() const { return 0; }
 };
@@ -356,6 +361,10 @@ public:
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const real_t weight, DenseMatrix &A) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const DenseMatrix &dx_dt,
                           const real_t weight, DenseMatrix &A) const;
 
    virtual int Id() const { return 2; }

@@ -64,21 +64,22 @@ public:
    Square *geometry;
    ParFiniteElementSpace &pfes_mesh;
    ParGridFunction distance_gf;
-   const ParGridFunction &coord;
    const ParMesh &pmesh;
 
    AnalyticSurface(const Array<bool> &marker, ParFiniteElementSpace &pfes_mesh,
-                   const ParGridFunction &coord, const ParMesh &pmesh);
+                   const ParMesh &pmesh);
 
    // Go from physical to parametric coordinates on the whole mesh.
    // 2D: (x, y)    -> t.
    // 3D: (x, y, z) -> (u, v).
-   virtual void ConvertPhysCoordToParam(GridFunction &coord) const = 0;
+   virtual void ConvertPhysCoordToParam(const GridFunction &coord_x,
+                                        GridFunction &coord_t) const = 0;
 
    // Go from parametric to physical coordinates on the whole mesh:
    // 2D: t      -> (x, y).
    // 3D: (u, v) -> (x, y, z).
-   virtual void ConvertParamCoordToPhys(Vector &coord) const = 0;
+   virtual void ConvertParamCoordToPhys(const Vector &coord_t,
+                                        Vector &coord_x) const = 0;
 
    // Go from parametric to physical coordinates on a single element.
    virtual void ConvertParamToPhys(const Array<int> &vdofs,
@@ -107,12 +108,14 @@ class Analytic2DCurve : public AnalyticSurface
 {
 public:
    Analytic2DCurve(const Array<bool> &marker, ParFiniteElementSpace &pfes_mesh,
-                   const ParGridFunction &coord, const ParMesh &pmesh)
-    : AnalyticSurface(marker, pfes_mesh, coord, pmesh) { }
+                   const ParMesh &pmesh)
+    : AnalyticSurface(marker, pfes_mesh, pmesh) { }
 
-   void ConvertPhysCoordToParam(GridFunction &coord) const override;
+   void ConvertPhysCoordToParam(const GridFunction &coord_x,
+                                GridFunction &coord_t) const override;
 
-   void ConvertParamCoordToPhys(Vector &coord) const override;
+   void ConvertParamCoordToPhys(const Vector &coord_t,
+                                Vector &coord_x) const override;
 
    void ConvertParamToPhys(const Array<int> &vdofs,
                            const Vector &coord_t,
