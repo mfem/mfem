@@ -870,7 +870,7 @@ public:
    void AddBoundaryIntegrator(BilinearFormIntegrator * bfi,
                               Array<int> &bdr_marker);
 
-   /// Adds a interior face integrator. Assumes ownership of @a bfi.
+   /// Adds an interior face integrator. Assumes ownership of @a bfi.
    void AddInteriorFaceIntegrator(BilinearFormIntegrator *bfi);
 
    /// Adds a boundary face integrator. Assumes ownership of @a bfi.
