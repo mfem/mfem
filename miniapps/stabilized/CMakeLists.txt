@@ -36,9 +36,10 @@ if (MFEM_ENABLE_TESTING)
 endif()
 
 if (MFEM_USE_MPI)
-  #add_mfem_miniapp(stab_navsto_par
-  #  MAIN stab_navsto_par.cpp
-  #  LIBRARIES mfem)
+  add_mfem_miniapp(navsto_p
+    MAIN navsto_p.cpp
+    ${STAB_COMMON_FILES}
+    LIBRARIES mfem)
 
   if (MFEM_ENABLE_TESTING)
     add_test(NAME navsto_np=4
