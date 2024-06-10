@@ -1,5 +1,7 @@
 #include "dfem/dfem_refactor.hpp"
+#include "examples/dfem/dfem_util.hpp"
 #include "fem/coefficient.hpp"
+#include "fem/lininteg.hpp"
 
 using namespace mfem;
 using mfem::internal::tensor;
@@ -451,60 +453,124 @@ int test_boundary_lf_integrator(std::string mesh_file,
 
    H1_FECollection h1fec(polynomial_order, dim);
    ParFiniteElementSpace h1fes(&mesh, &h1fec);
+   ParFiniteElementSpace h1vfes(&mesh, &h1fec, dim);
 
    const IntegrationRule &ir_face =
       IntRules.Get(h1fes.GetBE(0)->GetGeomType(), 2 * h1fec.GetOrder());
 
    ParGridFunction f1_g(&h1fes);
+   ParGridFunction f1_vg(&h1vfes);
 
-   auto kernel = [](const double &u,
-                    const tensor<double, 2> &x,
-                    const tensor<double, 2, 1> &J,
-                    const double &w)
    {
-      tensor<double, 2, 1> normal = ortho(J);
-      out << "(" << x(0) << "," << x(1) << ") = " << normal << "\n";
-      return std::tuple{u * norm(J) * w};
-   };
+      auto kernel = [](const double &u,
+                       const tensor<double, 2> &x,
+                       const tensor<double, 2, 1> &J,
+                       const double &w)
+      {
+         // tensor<double, 2, 1> normal = ortho(J);
+         return std::tuple{u * norm(J) * w};
+      };
 
-   std::tuple argument_operators = {Value{"potential"}, Value{"coordinates"}, Gradient{"coordinates"}, Weight{"integration_weights"}};
-   std::tuple output_operator = {Value{"potential"}};
+      std::tuple argument_operators = {Value{"potential"}, Value{"coordinates"}, Gradient{"coordinates"}, Weight{"integration_weights"}};
+      std::tuple output_operator = {Value{"potential"}};
 
-   BoundaryElementOperator eop{kernel, argument_operators, output_operator};
-   auto ops = std::tuple{eop};
+      BoundaryElementOperator eop{kernel, argument_operators, output_operator};
+      auto ops = std::tuple{eop};
 
-   auto solutions = std::array{FieldDescriptor{&h1fes, "potential"}};
-   auto parameters = std::array{FieldDescriptor{&mesh_fes, "coordinates"}};
+      auto solutions = std::array{FieldDescriptor{&h1fes, "potential"}};
+      auto parameters = std::array{FieldDescriptor{&mesh_fes, "coordinates"}};
 
-   DifferentiableOperator dop(solutions, parameters, ops, mesh, ir_face);
+      DifferentiableOperator dop(solutions, parameters, ops, mesh, ir_face);
 
-   auto f1 = [](const Vector &coords)
+      auto f1 = [](const Vector &coords)
+      {
+         const double x = coords(0);
+         const double y = coords(1);
+         return 2.345 + x*x + x*y*y;
+      };
+
+      FunctionCoefficient f1_c(f1);
+      f1_g.ProjectCoefficient(f1_c);
+
+      GridFunctionCoefficient f1_gfc(&f1_g);
+
+      Vector x(f1_g), y(h1fes.TrueVSize());
+      dop.SetParameters({mesh_nodes});
+      dop.Mult(x, y);
+
+      ParLinearForm b(&h1fes);
+      auto integ = new BoundaryLFIntegrator(f1_gfc);
+      integ->SetIntRule(&ir_face);
+      b.AddBoundaryIntegrator(integ);
+      b.Assemble();
+
+      b -= y;
+      if (b.Norml2() > 1e-10)
+      {
+         out << "||u - u_ex||_l2 = " << b.Norml2() << "\n";
+         return 1;
+      }
+   }
+
    {
-      const double x = coords(0);
-      const double y = coords(1);
-      return 2.345 + x*x + x*y*y;
-   };
+      auto kernel = [](const double &u,
+                       const tensor<double, 2> &g,
+                       const tensor<double, 2> &coords,
+                       const tensor<double, 2, 1> &J,
+                       const double &w)
+      {
+         const double x = coords(0);
+         const double y = coords(1);
+         tensor<double, 2> gc = {1.0, 1.0};
+         auto n = ortho(J);
+         out << J << "\n";
+         out << "(" << x << ", " << y << ") = " << n << "\n";
+         return std::tuple{dot(gc, n) * norm(J) * w};
+      };
 
-   FunctionCoefficient f1_c(f1);
-   f1_g.ProjectCoefficient(f1_c);
+      std::tuple argument_operators = {Value{"potential"}, Value{"field"}, Value{"coordinates"}, Gradient{"coordinates"}, Weight{"integration_weights"}};
+      std::tuple output_operator = {Value{"potential"}};
 
-   GridFunctionCoefficient f1_gfc(&f1_g);
+      BoundaryElementOperator eop{kernel, argument_operators, output_operator};
+      auto ops = std::tuple{eop};
 
-   Vector x(f1_g), y(h1fes.TrueVSize());
-   dop.SetParameters({mesh_nodes});
-   dop.Mult(x, y);
+      auto solutions = std::array{FieldDescriptor{&h1fes, "potential"}};
+      auto parameters = std::array{FieldDescriptor{&mesh_fes, "coordinates"}, FieldDescriptor{&h1vfes, "field"}};
 
-   ParLinearForm b(&h1fes);
-   auto integ = new BoundaryLFIntegrator(f1_gfc);
-   integ->SetIntRule(&ir_face);
-   b.AddBoundaryIntegrator(integ);
-   b.Assemble();
+      DifferentiableOperator dop(solutions, parameters, ops, mesh, ir_face);
 
-   b -= y;
-   if (b.Norml2() > 1e-10)
-   {
-      out << "||u - u_ex||_l2 = " << b.Norml2() << "\n";
-      return 1;
+      auto f1 = [](const Vector &coords, Vector &u)
+      {
+         const double x = coords(0);
+         const double y = coords(1);
+         // u(0) = 2.345 + x*x + x*y*y;
+         // u(1) = 2.345 + x*x + x*y*y;
+         u(0) = 1.0;
+         u(1) = 1.0;
+      };
+
+      VectorFunctionCoefficient f1_c(dim, f1);
+      f1_vg.ProjectCoefficient(f1_c);
+
+      VectorGridFunctionCoefficient f1_gfc(&f1_vg);
+
+      Vector x(f1_g), y(h1fes.TrueVSize());
+      dop.SetParameters({mesh_nodes, &f1_vg});
+      dop.Mult(x, y);
+
+      ParLinearForm b(&h1fes);
+      auto integ = new BoundaryNormalLFIntegrator(f1_gfc);
+      integ->SetIntRule(&ir_face);
+      b.AddBoundaryIntegrator(integ);
+      b.Assemble();
+
+      b -= y;
+      if (b.Norml2() > 1e-10)
+      {
+         out << "BoundaryNormalLFIntegrator\n";
+         out << "||u - u_ex||_l2 = " << b.Norml2() << "\n";
+         return 1;
+      }
    }
 
    return 0;
