@@ -162,9 +162,6 @@ int main(int argc, char *argv[])
    args.AddOption(&mfem, "-mfem", "--mfem", "-no-mfem",
                   "--no-mfem",
                   "Enable or disable MFEM output.");
-   args.AddOption(&regression, "-reg", "--regression", "-no-reg",
-                  "--no-regression",
-                  "Enable or disable regression testing output");
    args.AddOption(&visit, "-visit", "--visit", "-no-visit",
                   "--no-visit",
                   "Enable or disable Visit output.");
@@ -592,20 +589,6 @@ int main(int argc, char *argv[])
       {
          cout << "|| q_h - q_ex || / || q_ex || = " << err_q / norm_q << "\n";
          cout << "|| t_h - t_ex || / || t_ex || = " << err_t / norm_t << "\n";
-      }
-
-      if ( regression )
-      {
-         ofstream ofs;
-         string filename = "L2_t.txt";
-         ofs.open(filename);
-         ofs << err_t / norm_t;
-         ofs.close();
-
-         string filename2 = "L2_q.txt";
-         ofs.open(filename2);
-         ofs << err_q / norm_q;
-         ofs.close();
       }
 
       // Project the analytic solution
