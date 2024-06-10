@@ -23,7 +23,7 @@ L2_q = float(file.read())
 file.close()
 subprocess.call("rm L2_q.txt", shell=True)
 
-if L2_t and L2_q < 0.001:
+if L2_t == 1.12283e-05 and L2_q == 1.03793e-05:
 	print(bcolors.OKGREEN + "SUCCESS" + bcolors.RESET)
 else:
 	print(bcolors.FAIL + "FAIL" + bcolors.RESET)
@@ -41,7 +41,7 @@ L2_q = float(file.read())
 file.close()
 subprocess.call("rm L2_q.txt", shell=True)
 
-if L2_t and L2_q < 0.001:
+if L2_t == 1.03461e-06 and L2_q == 1.02359e-06:
 	print(bcolors.OKGREEN + "SUCCESS" + bcolors.RESET)
 else:
 	print(bcolors.FAIL + "FAIL" + bcolors.RESET)
@@ -62,14 +62,14 @@ L2_q = float(file.read())
 file.close()
 subprocess.call("rm L2_q.txt", shell=True)
 
-if L2_t and L2_q < 0.001:
+if L2_t == 0.000532478 and L2_q == 0.000803807:
 	print(bcolors.OKGREEN + "SUCCESS" + bcolors.RESET)
 else:
 	print(bcolors.FAIL + "FAIL" + bcolors.RESET)
 
 print("  RT..........", end="", flush=True)
 
-subprocess.call("./ex5-nguyen -nx 20 -ny 20 -p 2 -c 25 -o 3 -reg", shell=True,stdout=subprocess.DEVNULL)
+subprocess.call("./ex5-nguyen -nx 10 -ny 10 -p 2 -c 25 -o 3 -reg", shell=True,stdout=subprocess.DEVNULL)
 file = open("L2_t.txt", "r")
 L2_t = float(file.read())
 file.close()
@@ -80,7 +80,7 @@ L2_q = float(file.read())
 file.close()
 subprocess.call("rm L2_q.txt", shell=True)
 
-if L2_t and L2_q < 0.001:
+if L2_t == 0.000394304 and L2_q == 0.00369857:
 	print(bcolors.OKGREEN + "SUCCESS" + bcolors.RESET)
 else:
 	print(bcolors.FAIL + "FAIL" + bcolors.RESET)
