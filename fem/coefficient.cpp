@@ -1434,10 +1434,10 @@ real_t InverseEstimateCoefficient::ElementInverseEstimate(
    const FiniteElement &el,
    ElementTransformation &Trans)
 {
-   if (el.GetDerivType() != (int) FiniteElement::HESS)
-   {
-      return std::numeric_limits<real_t>::min();
-   }
+ //  if (el.GetDerivType() != (int) FiniteElement::HESS)
+ //  {
+ //     return std::numeric_limits<real_t>::min();
+  // }
 
    int nd = el.GetDof();
    int dim = el.GetDim();
@@ -1479,7 +1479,216 @@ real_t InverseEstimateCoefficient::ElementInverseEstimate(
    // Correct nullspace
    AddMultVVt(ovec, lapmat);
 
-   return PowerMethod3(lapmat, bimat, ovec);
+   // Init eigen vector
+   if (evec.Size() != nd)
+   {
+      evec.SetSize(nd);
+      evec.Randomize(696383532);
+   }
+
+   return PowerMethod2(lapmat, bimat, evec);
+}
+
+
+ElasticInverseEstimateCoefficient
+   ::ElasticInverseEstimateCoefficient(FiniteElementSpace *f)
+   : fes(f), Q(NULL), ir(NULL)
+{
+   ComputeInverseEstimates();
+}
+
+ElasticInverseEstimateCoefficient
+   ::ElasticInverseEstimateCoefficient(FiniteElementSpace *f,
+                                       Coefficient &q)
+   : fes(f), Q(&q), ir(NULL)
+{
+   ComputeInverseEstimates();
+}
+
+GridFunction *ElasticInverseEstimateCoefficient::GetGridFunction()
+{
+   FiniteElementCollection* fec_ec = new L2_FECollection(0,
+                                                         fes ->GetMesh()->Dimension());
+   FiniteElementSpace *fes_ec = new FiniteElementSpace(fes ->GetMesh(), fec_ec);
+   GridFunction *gf = new GridFunction(fes_ec, elemInvEst.GetData());
+   gf->MakeOwner(fec_ec);
+   return gf;
+}
+
+void ElasticInverseEstimateCoefficient::ComputeInverseEstimates()
+{
+   elemInvEst.SetSize(fes -> GetNE());
+   SetIntRule(*fes->GetFE(0));
+   int dim = fes->GetFE(0)->GetDim();
+
+   emat.SetSize(dim,dim);
+   divmat.SetSize(dim,dim);
+   for (int i = 0; i < dim; i++)
+   {
+      for (int j = 0; j < dim; j++)
+      {
+         emat(i,j)= new DenseMatrix();
+         divmat(i,j)= new DenseMatrix();
+      }
+   }
+   
+     hmap.SetSize(dim,dim);
+
+     if (dim == 2)
+     {
+        hmap(0,0) = 0;
+        hmap(0,1) =  hmap(1,0) =  1;
+        hmap(1,1) = 2; 
+     }
+     else if (dim == 2)
+     {
+        hmap(0,0) = 0;
+        hmap(0,1) = hmap(1,0) = 1;
+        hmap(0,2) = hmap(2,0) = 2;
+        hmap(1,1) = 3;
+        hmap(1,2) = hmap(2,1) = 4;
+        hmap(2,2) = 5;
+     }
+     else
+     {
+        mfem_error("Only implemented for 2D and 3D");
+     }
+     
+   for (int i = 0; i < fes -> GetNE(); i++)
+   {
+      elemInvEst[i] = ElementInverseEstimate(*fes->GetFE(i),
+                                             *fes->GetElementTransformation(i));
+   }
+}
+
+void ElasticInverseEstimateCoefficient::SetIntRule(const FiniteElement &el)
+{
+   ir = &IntRules.Get(el.GetGeomType(), 2*el.GetOrder());
+}
+
+real_t ElasticInverseEstimateCoefficient::ElementInverseEstimate(
+   const FiniteElement &el,
+   ElementTransformation &Trans)
+{
+  // if (el.GetDerivType() != (int) FiniteElement::HESS)
+  // {
+   //   return std::numeric_limits<real_t>::min();
+  // }
+
+   int nd = el.GetDof();
+   int dim = el.GetDim();
+
+   shape.SetSize(nd);
+   dshape.SetSize(nd,dim);
+   hshape.SetSize(nd,dim*(dim+1)/2);
+
+   for (int i = 0; i < dim; i++)
+   {
+      for (int j = 0; j < dim; j++)
+      {
+         emat(i,j)->SetSize(nd,nd);
+         *emat(i,j) = 0.0;
+         divmat(i,j)->SetSize(nd,nd);
+         *divmat(i,j) = 0.0;
+      }
+   }
+
+   ovec.SetSize(nd);
+
+   real_t w,q = 1.0;
+
+   //emat = 0.0;
+   //divmat = 0.0;
+   ovec = 0.0;
+   for (int ii = 0; ii < ir->GetNPoints(); ii++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(ii);
+      Trans.SetIntPoint(&ip);
+      w = Trans.Weight()*ip.weight;
+      if (Q)
+      {
+         q = Q->Eval(Trans, ip);
+      }
+
+      el.CalcPhysDShape(Trans, dshape);
+      for (int i = 0; i < dim; i++)
+      {
+         for (int j = 0; j < dim; j++)
+         {
+            AddMult_a_VWt(w*q, Vector(dshape.GetColumn(i),nd),
+                               Vector(dshape.GetColumn(j),nd), *emat(i,j));
+
+            AddMult_a_VWt(w*q, Vector(dshape.GetColumn(j),nd),
+                               Vector(dshape.GetColumn(i),nd), *emat(i,j));
+         }
+      }
+
+      el.CalcPhysHessian(Trans, hshape);
+      for (int i = 0; i < dim; i++)
+      {
+         for (int j = 0; j < dim; j++)
+         {
+            AddMult_a_VVt(w*q*q, Vector(hshape.GetColumn(hmap(i,j)),nd), *divmat(i,i));
+
+            AddMult_a_VWt(w*q*q, Vector(hshape.GetColumn(hmap(i,j)),nd),
+                                 Vector(hshape.GetColumn(hmap(i,i)),nd), *divmat(i,j));
+
+            AddMult_a_VWt(w*q*q, Vector(hshape.GetColumn(hmap(i,i)),nd),
+                                 Vector(hshape.GetColumn(hmap(i,j)),nd), *divmat(j,i));
+
+            AddMult_a_VVt(w*q*q, Vector(hshape.GetColumn(hmap(i,i)),nd), *divmat(j,j));
+         }
+      }
+
+      el.CalcPhysShape(Trans, shape);
+      ovec.Add(w, shape);
+   }
+   ovec *= 1.0/ovec.Norml2();
+
+   // Correct nullspace
+   for (int i = 0; i < dim; i++)
+   {
+       AddMultVVt(ovec, *emat(i,i));
+   }
+
+   // Collect matrices
+   emat_tot.SetSize(nd*dim,nd*dim);
+   divmat_tot.SetSize(nd*dim,nd*dim);
+   for (int i = 0; i < dim; i++)
+   {
+      for (int j = 0; j < dim; j++)
+      {
+         emat_tot  .SetSubMatrix(i*nd, j*nd, *emat(i,j));
+         divmat_tot.SetSubMatrix(i*nd, j*nd, *divmat(i,j));
+      }
+   }
+
+   // Init eigen vector
+   if (evec.Size() != (nd*dim))
+   {
+      evec.SetSize(nd*dim);
+      evec.Randomize(696383532);
+   }
+
+   return PowerMethod2(emat_tot, divmat_tot, evec);
+}
+
+ElasticInverseEstimateCoefficient::~ElasticInverseEstimateCoefficient()
+{
+   for (int i = 0; i < emat.NumRows(); i++)
+   {
+      for (int j = 0; j < emat.NumCols(); j++)
+      {
+         delete emat(i,j);
+      }
+   }
+   for (int i = 0; i < divmat.NumRows(); i++)
+   {
+      for (int j = 0; j < divmat.NumCols(); j++)
+      {
+         delete divmat(i,j);
+      }
+   }
 }
 
 real_t LpNormLoop(real_t p, Coefficient &coeff, Mesh &mesh,

@@ -14,11 +14,10 @@
 using namespace mfem;
 
 StabInNavStoIntegrator::StabInNavStoIntegrator(Coefficient &mu_,
+                                               VectorCoefficient &force_,
                                                Tau &t, Tau &d, StabType s)
- : c_mu(&mu_), tau(&t), delta(&d), stab(s)
-{
-
-}
+ : c_mu(&mu_), c_force(&force_), tau(&t), delta(&d), stab(s)
+{ }
 
 void StabInNavStoIntegrator::SetDim(int dim_)
 {
@@ -26,6 +25,7 @@ void StabInNavStoIntegrator::SetDim(int dim_)
   {
      dim = dim_;
      u.SetSize(dim);
+     f.SetSize(dim);
      res.SetSize(dim);
      up.SetSize(dim);
      grad_u.SetSize(dim);
@@ -68,7 +68,6 @@ real_t StabInNavStoIntegrator::GetElementEnergy(
    SetDim(el[0]->GetDim());
    int dof_u = el[0]->GetDof();
 
-
    sh_u.SetSize(dof_u);
    elf_u.UseExternalData(elfun[0]->GetData(), dof_u, dim);
 
@@ -110,7 +109,7 @@ void StabInNavStoIntegrator::AssembleElementVector(
 
    SetDim(el[0]->GetDim());
    int spaceDim = Tr.GetSpaceDim();
-
+   bool hess = (el[0]->GetDerivType() == (int) FiniteElement::HESS);
    if (dim != spaceDim)
    {
       mfem_error("StabInNavStoIntegrator::AssembleElementVector"
@@ -141,6 +140,7 @@ void StabInNavStoIntegrator::AssembleElementVector(
       Tr.SetIntPoint(&ip);
       real_t w = ip.weight * Tr.Weight();
       real_t mu = c_mu->Eval(Tr, ip);
+      c_force->Eval(f, Tr, ip);
 
       // Compute shape and interpolate
       el[0]->CalcPhysShape(Tr, sh_u);
@@ -150,8 +150,16 @@ void StabInNavStoIntegrator::AssembleElementVector(
       shg_u.Mult(u, ushg_u);
       MultAtB(elf_u, shg_u, grad_u);
 
-      el[0]->CalcPhysHessian(Tr,shh_u);
-      MultAtB(elf_u, shh_u, hess_u);
+      if (hess)
+      {
+         el[0]->CalcPhysHessian(Tr,shh_u);
+         MultAtB(elf_u, shh_u, hess_u);
+      }
+      else
+      {
+         shh_u = 0.0;
+         hess_u = 0.0;
+      }
 
       el[1]->CalcPhysShape(Tr, sh_p);
       real_t p = sh_p*(*elfun[1]);
@@ -162,6 +170,7 @@ void StabInNavStoIntegrator::AssembleElementVector(
       // Compute strong residual
       grad_u.Mult(u,res);   // Add convection
       res += grad_p;        // Add pressure
+      res -= f;             // Subtract force
       for (int i = 0; i < dim; ++i)
       {
          for (int j = 0; j < dim; ++j)
@@ -182,11 +191,12 @@ void StabInNavStoIntegrator::AssembleElementVector(
       AddMult_a_VVt(-1.0, u, flux);          // Add convection to flux
       AddMult_a_VWt(t, res, u, flux);        // Add SUPG to flux --> check order u and res
       AddMult_a_ABt(w, shg_u, flux, elv_u);  // Add flux term to rhs
+      AddMult_a_VWt(-w, sh_u, f,    elv_u);  // Add force term to rhs
 
       // Compute momentum weak residual
       elvec[1]->Add(w*grad_u.Trace(), sh_p); // Add Galerkin term
       shg_p.Mult(res, sh_p);                 // PSPG help term
-      elvec[1]->Add(w*t, sh_p);             // Add PSPG term  - sign looks worng?
+      elvec[1]->Add(w*t, sh_p);              // Add PSPG term  - sign looks worng?
    }
 }
 
@@ -200,6 +210,7 @@ void StabInNavStoIntegrator::AssembleElementGrad(
    int dof_p = el[1]->GetDof();
 
    SetDim(el[0]->GetDim());
+   bool hess = (el[0]->GetDerivType() == (int) FiniteElement::HESS);
 
    elf_u.UseExternalData(elfun[0]->GetData(), dof_u, dim);
 
@@ -317,232 +328,53 @@ void GeneralResidualMonitor::MonitorResidual(int it, real_t norm,
 void SystemResidualMonitor::MonitorResidual(int it, real_t norm,
                                             const Vector &r, bool final)
 {
-   bool print = (print_level > 0 &&  it%print_level == 0) || final;
-   if (print || (it == 0))
+   if (dc)
    {
-      Vector norm(nvar);
+      dc->SetCycle(it);
+      dc->Save();
+   }
 
+   Vector vnorm(nvar);
+
+   for (int i = 0; i < nvar; ++i)
+   {
+       Vector r_i(r.GetData() + bOffsets[i], bOffsets[i+1] - bOffsets[i]);
+       vnorm[i] = sqrt(InnerProduct(MPI_COMM_WORLD, r_i, r_i));
+       if (it == 0) norm0[i] = vnorm[i];
+    }
+
+
+   bool print = (print_level > 0 &&  it%print_level == 0) || final;
+   if (print)
+   {
+      mfem::out << prefix << " iteration " << std::setw(3) << it <<"\n"
+                << " ||r||  \t"<< "||r||/||r_0||  \n";
       for (int i = 0; i < nvar; ++i)
       {
-         Vector r_i(r.GetData() + bOffsets[i], bOffsets[i+1] - bOffsets[i]);
-         norm[i] = r_i.Norml2();
-         if (it == 0) norm0[i] = norm[i];
-      }
-
-      if (print)
-      {
-         mfem::out << prefix << " iteration " << std::setw(3) << it <<"\n"
-                   << " ||r||  \t"<< "||r||/||r_0||  \n";
-         for (int i = 0; i < nvar; ++i)
-         {
-            mfem::out <<norm[i]<<"\t"<< 100*norm[i]/norm0[i]<<" % \n";
-         }
+         mfem::out <<vnorm[i]<<"\t"<< 100*vnorm[i]/norm0[i]<<" % \n";
       }
    }
 }
 
-JacobianPreconditioner::JacobianPreconditioner(Array<FiniteElementSpace *> &fes,
-                                               SparseMatrix &mass,
-                                               Array<int> &offsets)
-   : Solver(offsets[2]), block_trueOffsets(offsets), pressure_mass(&mass)
-{
-   fes.Copy(spaces);
-
-   gamma = 1.0001;
-
-   // The mass matrix and preconditioner do not change every Newton cycle, so we
-   // only need to define them once
-   GSSmoother *mass_prec_gs = new GSSmoother(*pressure_mass);
-
-   mass_prec = mass_prec_gs;
-
-   CGSolver *mass_pcg_iter = new CGSolver();
-   mass_pcg_iter->SetRelTol(1e-6);
-   mass_pcg_iter->SetAbsTol(1e-12);
-   mass_pcg_iter->SetMaxIter(10);
-   mass_pcg_iter->SetPrintLevel(-1);
-   mass_pcg_iter->SetPreconditioner(*mass_prec);
-   //mass_pcg_iter->SetOperator(*pressure_mass);
-  // mass_pcg_iter->SetOperator(jacobian->GetBlock(1,1));
-   mass_pcg_iter->iterative_mode = false;
-
-   mass_pcg = mass_pcg_iter;
-
-   // The stiffness matrix does change every Newton cycle, so we will define it
-   // during SetOperator
-   stiff_pcg = NULL;
-   stiff_prec = NULL;
-}
-
-void JacobianPreconditioner::Mult(const Vector &k, Vector &y) const
-{
-   int dof_u = block_trueOffsets[1]-block_trueOffsets[0];
-   int dof_p = block_trueOffsets[2]-block_trueOffsets[1];
-
-   // Extract the blocks from the input and output vectors
-   Vector u_in(k.GetData() + block_trueOffsets[0],dof_u);
-   Vector p_in(k.GetData() + block_trueOffsets[1],dof_p);
-
-   Vector u_out(y.GetData() + block_trueOffsets[0],dof_u);
-   Vector p_out(y.GetData() + block_trueOffsets[1],dof_p);
-
-   Vector temp(dof_u);
-   Vector temp2(dof_u);
-
-   // Perform the block elimination for the preconditioner
-   mass_pcg->Mult(p_in, p_out);
-  // p_out *= -gamma;
-
-   jacobian->GetBlock(0,1).Mult(p_out, temp);
-   subtract(u_in, temp, temp2);
-
-   stiff_pcg->Mult(temp2, u_out);
-}
 
 void JacobianPreconditioner::SetOperator(const Operator &op)
 {
-   jacobian = (BlockOperator *) &op;
+   BlockOperator *jacobian = (BlockOperator *) &op;
 
-   // Initialize the stiffness preconditioner and solver
-   if (stiff_prec == NULL)
+   for (int i = 0; i < prec.Size(); ++i)
    {
-      GSSmoother *stiff_prec_gs = new GSSmoother();
-
-      stiff_prec = stiff_prec_gs;
-
-      FGMRESSolver *stiff_pcg_iter = new FGMRESSolver();
-      stiff_pcg_iter->SetRelTol(1e-6);
-      stiff_pcg_iter->SetAbsTol(1e-12);
-      stiff_pcg_iter->SetMaxIter(10);
-      stiff_pcg_iter->SetPrintLevel(-1);
-      stiff_pcg_iter->SetPreconditioner(*stiff_prec);
-      stiff_pcg_iter->iterative_mode = false;
-
-      stiff_pcg = stiff_pcg_iter;
+      prec[i]->SetOperator(jacobian->GetBlock(i,i));
+      SetDiagonalBlock(i, prec[i]);
    }
 
-   // At each Newton cycle, compute the new stiffness preconditioner by updating
-   // the iterative solver which, in turn, updates its preconditioner
-   stiff_pcg->SetOperator(jacobian->GetBlock(0,0));
-   mass_pcg->SetOperator(jacobian->GetBlock(1,1));
+   SetBlock(1,0, const_cast<Operator*>(&jacobian->GetBlock(1,0)));
 }
 
 JacobianPreconditioner::~JacobianPreconditioner()
 {
-   delete mass_pcg;
-   delete mass_prec;
-   delete stiff_prec;
-   delete stiff_pcg;
-}
-
-
-StabInNavStoOperator::StabInNavStoOperator(Array<FiniteElementSpace *> &fes,
-                               Array<Array<int> *> &ess_bdr,
-                               Array<int> &offsets,
-                               real_t rel_tol,
-                               real_t abs_tol,
-                               int iter,
-                               Coefficient &c_mu)
-   : Operator(fes[0]->GetTrueVSize() + fes[1]->GetTrueVSize()),
-     mu(c_mu), block_trueOffsets(offsets),
-     newton_solver(),
-     newton_monitor("Newton", 1, offsets),
-     j_monitor("\t\t\t\tFGMRES", 25)
-{
-   Array<Vector *> rhs(2);
-   rhs = NULL; // Set all entries in the array
-
-   fes.Copy(spaces);
-
-   // Define the block nonlinear form
-   Hform = new BlockNonlinearForm(spaces);
-
-   // Add the incompressible nav-sto integrator
-   adv_gf = new GridFunction(fes[0], NULL); // Data will be loaded in Mult and GetGradient
-   adv = new VectorGridFunctionCoefficient(adv_gf);
-
-   tau = new FFH92Tau(adv, &mu, fes[0], 4.0);
-   delta = new FF91Delta(adv, &mu, fes[0]);
-
-   // Add the incompressible nav-sto integrator
-   Hform->AddDomainIntegrator(new StabInNavStoIntegrator(mu, *tau, *delta));
-   //Hform->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-
-   // Set the essential boundary conditions
-   Hform->SetEssentialBC(ess_bdr, rhs);
-
-   // Compute the pressure mass stiffness matrix
-   BilinearForm *a = new BilinearForm(spaces[1]);
-   ConstantCoefficient one(1.0);
-   a->AddDomainIntegrator(new MassIntegrator(one));
-   a->Assemble();
-   a->Finalize();
-
-   OperatorPtr op;
-   Array<int> p_ess_tdofs;
-   a->FormSystemMatrix(p_ess_tdofs, op);
-   pressure_mass = a->LoseMat();
-   delete a;
-
-   // Initialize the Jacobian preconditioner
-   JacobianPreconditioner *jac_prec =
-      new JacobianPreconditioner(fes, *pressure_mass, block_trueOffsets);
-   j_prec = jac_prec;
-
-   // Set up the Jacobian solver
-   FGMRESSolver *j_gmres = new FGMRESSolver();
-   j_gmres->iterative_mode = false;
-   j_gmres->SetRelTol(1e-6);
-   j_gmres->SetAbsTol(1e-12);
-   j_gmres->SetMaxIter(200);
-   j_gmres->SetPrintLevel(-1);
-   j_gmres->SetMonitor(j_monitor);
-   j_gmres->SetPreconditioner(*j_prec);
-   j_solver = j_gmres;
-
-   // Set the newton solve parameters
-   newton_solver.iterative_mode = true;
-   newton_solver.SetSolver(*j_solver);
-   newton_solver.SetOperator(*this);
-   newton_solver.SetPrintLevel(-1);
-   newton_solver.SetMonitor(newton_monitor);
-   newton_solver.SetRelTol(rel_tol);
-   newton_solver.SetAbsTol(abs_tol);
-   newton_solver.SetMaxIter(iter);
-}
-
-// Solve the Newton system
-void StabInNavStoOperator::Solve(Vector &xp) const
-{
-   Vector zero;
-   newton_solver.Mult(zero, xp);
-  // MFEM_VERIFY(newton_solver.GetConverged(),
-  //             "Newton Solver did not converge.");
-}
-
-// compute: y = H(x,p)
-void StabInNavStoOperator::Mult(const Vector &k, Vector &y) const
-{
-   adv_gf->SetData(k.GetData());
-   Hform->Mult(k, y);
-}
-
-// Compute the Jacobian from the nonlinear form
-Operator &StabInNavStoOperator::GetGradient(const Vector &xp) const
-{
-   adv_gf->SetData(xp.GetData());
-   return Hform->GetGradient(xp);
-}
-
-StabInNavStoOperator::~StabInNavStoOperator()
-{
-   delete adv_gf;
-   delete adv;
-   delete tau;
-   delete delta;
-   delete Hform;
-   delete pressure_mass;
-   delete j_solver;
-   delete j_prec;
+   for (int i = 0; i < prec.Size(); ++i)
+   {
+      delete prec[i];
+   }
 }
 

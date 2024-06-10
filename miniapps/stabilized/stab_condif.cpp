@@ -21,7 +21,7 @@ StabConDifIntegrator::StabConDifIntegrator(VectorCoefficient *a,
 {
    if (tau == nullptr)
    {
-      tau = new FFH92Tau(adv, kappa, nullptr, 12.0);
+      tau = new FFH92Tau(adv, kappa, 12.0);
       own_tau = true;
    }
    else
@@ -172,7 +172,7 @@ StabConDifComposition::StabConDifComposition(VectorCoefficient *a,
 {
    if (tau == nullptr)
    {
-      tau = new FFH92Tau(adv, kappa, nullptr, 12.0);
+      tau = new FFH92Tau(adv, kappa, 12.0);
       own_tau = true;
    }
    else

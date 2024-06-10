@@ -61,6 +61,9 @@ public:
 
    /// Set the convection coefficient
    virtual void SetDiffusion(Coefficient *k_) { kappa = k_; };
+
+   /// Flag for printing
+   bool print = true;
 };
 
 /** This Class defines the stabilisation parameter for the multi-dimensional
@@ -87,7 +90,8 @@ protected:
    real_t Ci = -1.0;
 
    /// If @a Ci is negative the is inverse estimate computed
-   InverseEstimateCoefficient *iecf = nullptr;
+   Coefficient *invEst_cf = nullptr;
+   bool own_ie = false;
 
    // Routine to get the inverse estimate at each point
    real_t GetInverseEstimate(ElementTransformation &T,
@@ -105,9 +109,6 @@ protected:
    /// Element size in different directions
    Vector h;
 
-   /// Flag for printing
-   bool print = true;
-
     /** Returns element size according to:
 
         Harari, I, & Hughes, T.J.R.
@@ -121,7 +122,17 @@ public:
    /** Construct a stabilized confection-diffusion integrator with:
        - @a a the convection velocity
        - @a d the diffusion coefficient
-       - @a fes for computing the inverse estimates
+       - @a ie_cf for computing the inverse estimates
+       - @a f factor for computing the element Pe/Re number (default = 2)
+       - @a p which norm to use for the velocity magnitude (default = 2) */
+    FFH92Tau (VectorCoefficient *a, Coefficient *k, Coefficient *ie_cf,
+              real_t f = 2.0, real_t norm_p = 2.0)
+      :  Tau(a,k), invEst_cf(ie_cf), Ci(-1.0), k_fac(f), p(norm_p) {};
+
+   /** Construct a stabilized confection-diffusion integrator with:
+       - @a a the convection velocity
+       - @a d the diffusion coefficient
+       - @a fes to provide to coefficient for computing the inverse estimates
        - @a f factor for computing the element Pe/Re number (default = 2)
        - @a p which norm to use for the velocity magnitude (default = 2) */
     FFH92Tau (VectorCoefficient *a, Coefficient *k,
@@ -129,7 +140,8 @@ public:
               real_t f = 2.0, real_t norm_p = 2.0)
       :  Tau(a,k), Ci(-1.0), k_fac(f), p(norm_p)
    {
-      iecf = new InverseEstimateCoefficient(fes);
+      invEst_cf = new InverseEstimateCoefficient(fes);
+      own_ie = true;
    };
 
    /** Construct a stabilized confection-diffusion integrator with:
@@ -142,11 +154,21 @@ public:
               real_t c_ = 1.0/12.0, real_t f = 2.0, real_t norm_p = 2.0)
       :  Tau(a,k), Ci(c_), k_fac(f), p(norm_p)
    {
-      iecf = NULL;
+      invEst_cf = NULL;
    };
 
    /** Construct a stabilized confection-diffusion integrator with:
-       - @a fes for computing the inverse estimates
+       - @a ie_cf for computing the inverse estimatestes
+       - @a f factor for Pe/Re definition (default = 2)
+       - @a p which norm to use for the velocity magnitude (default = 2)
+       Convection and diffusion need to be specified later using
+       SetConvection and SetDiffusion, respectivly*/
+   FFH92Tau (Coefficient *ie_cf,
+             real_t f = 2.0, real_t norm_p = 2.0)
+      : invEst_cf(ie_cf), Ci(-1.0), k_fac(f) , p(norm_p) {};
+
+   /** Construct a stabilized confection-diffusion integrator with:
+       - @a fes to provide to coefficient for computing the inverse estimates
        - @a f factor for Pe/Re definition (default = 2)
        - @a p which norm to use for the velocity magnitude (default = 2)
        Convection and diffusion need to be specified later using
@@ -155,7 +177,8 @@ public:
              real_t f = 2.0, real_t norm_p = 2.0)
       : Ci(-1.0), k_fac(f) , p(norm_p)
    {
-      iecf = new InverseEstimateCoefficient(fes);
+      invEst_cf = new InverseEstimateCoefficient(fes);
+      own_ie = true;
    };
 
    /** Construct a stabilized confection-diffusion integrator with:
@@ -167,7 +190,7 @@ public:
    FFH92Tau (real_t c_ = 1.0/12.0, real_t f = 2.0, real_t norm_p = 2.0)
       : Ci(c_), k_fac(f), p(norm_p)
    {
-      iecf = NULL;
+      invEst_cf = NULL;
    };
 
    /// Evaluate the coefficient at @a ip.
@@ -176,7 +199,7 @@ public:
 
     // Destructor
    ~FFH92Tau()
-   { if (iecf) { delete iecf; } }
+   { if (own_ie) { delete invEst_cf; } }
 };
 
 /** This Class defines the stabilisation parameter for the multi-dimensional
@@ -196,6 +219,16 @@ protected:
    real_t lambda = 1.0;
 
 public:
+   /** Construct a stabilized confection-diffusion integrator with:
+       - @a a the convection velocity
+       - @a d the diffusion coefficient
+       - @a ie_cf for computing the inverse estimates
+       - @a f factor for computing the element Pe/Re number (default = 2)
+       - @a p which norm to use for the velocity magnitude (default = 2) */
+    FF91Delta (VectorCoefficient *a, Coefficient *k, Coefficient *ie_cf,
+               real_t l = 1.0, real_t f = 2.0, real_t norm_p = 2.0)
+      :  FFH92Tau(a,k,ie_cf,f,norm_p), lambda(l){};
+
    /** Construct a stabilized confection-diffusion integrator with:
        - @a a the convection velocity
        - @a d the diffusion coefficient
@@ -220,7 +253,17 @@ public:
                real_t c_ = 1.0/12.0, real_t l = 1.0,
                real_t f = 4.0, real_t norm_p = 2.0)
       : FFH92Tau(a,k,c_,f,norm_p), lambda(l){};
-   
+      
+   /** Construct a stabilized confection-diffusion integrator with:
+       - @a ie_cf for computing the inverse estimatestes
+       - @a f factor for Pe/Re definition (default = 2)
+       - @a p which norm to use for the velocity magnitude (default = 2)
+       Convection and diffusion need to be specified later using
+       SetConvection and SetDiffusion, respectivly*/
+   FF91Delta (Coefficient *ie_cf,
+              real_t l = 1.0, real_t f = 2.0, real_t norm_p = 2.0)
+      : FFH92Tau(ie_cf,f,norm_p), lambda(l){};
+
    /** Construct a stabilized confection-diffusion integrator with:
        - @a fes for computing the inverse estimates
        - @a f factor for Pe/Re definition (default = 2)

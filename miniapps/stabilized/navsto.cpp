@@ -44,6 +44,7 @@ real_t kappa_fun(const Vector & x)
 void force_fun(const Vector & x, Vector &f)
 {
    f = 0.0;
+  // f[0] = x[1]*(1.0-x[1])*x[0]*(1.0-x[0]);
 }
 
 StabType GetStabilisationType(int stype)
@@ -72,7 +73,7 @@ StabType GetStabilisationType(int stype)
 
 int main(int argc, char *argv[])
 {
-   // 1. Parse command-line options.
+   // Parse command-line options.
    const char *mesh_file = "../../data/inline-quad.mesh";
    const char *ref_file  = "";
    int problem = 0;
@@ -98,7 +99,6 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh.");
    args.AddOption(&kappa_param , "-k", "--kappa",
                   "Sets the diffusion parameters, should be positive.");
-
    args.AddOption(&problem, "-p", "--problem",
                   "Select the problem to solve:\n\t"
                   "  0 = convection skew-to-the mesh\n\t"
@@ -124,50 +124,48 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(mfem::out);
 
-   // 2. Read the mesh from the given mesh file. We can handle triangular,
-   //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
-   //    the same code.
-   Mesh *mesh = new Mesh(mesh_file, 1, 1);
-   int dim = mesh->Dimension();
+   // Read the mesh from the given mesh file. We can handle triangular,
+   // quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
+   // the same code.
+   Mesh mesh(mesh_file, 1, 1);
+   int dim = mesh.Dimension();
 
-   // 3. Refine the mesh to increase the resolution. In this example we do
-   //    'ref_levels' of uniform refinement and knot insertion of knots defined
-   //    in a refinement file. We choose 'ref_levels' to be the largest number
-   //    that gives a final mesh with no more than 50,000 elements.
+   // Refine the mesh to increase the resolution. In this example we do
+   // 'ref_levels' of uniform refinement and knot insertion of knots defined
+   // in a refinement file. We choose 'ref_levels' to be the largest number
+   // that gives a final mesh with no more than 50,000 elements.
    {
       // Mesh refinement as defined in refinement file
-      if (mesh->NURBSext && (strlen(ref_file) != 0))
+      if (mesh.NURBSext && (strlen(ref_file) != 0))
       {
-         mesh->RefineNURBSFromFile(ref_file);
+         mesh.RefineNURBSFromFile(ref_file);
       }
 
       for (int l = 0; l < ref_levels; l++)
       {
-         mesh->UniformRefinement();
+         mesh.UniformRefinement();
       }
-      mesh->PrintInfo();
+      mesh.PrintInfo();
    }
 
-   // 4. Define a finite element space on the mesh. Here we use continuous
-   //    Lagrange finite elements of the specified order. If order < 1, we
-   //    instead use an isoparametric/isogeometric space.
-   FiniteElementCollection *fec_u = new H1_FECollection(order, dim);
-   FiniteElementCollection *fec_p = new H1_FECollection(order, dim);
-
-   FiniteElementSpace *fespace_u = new FiniteElementSpace(mesh, fec_u, dim);
-   FiniteElementSpace *fespace_p = new FiniteElementSpace(mesh, fec_p);
+   // Define a finite element space on the mesh. Here we use continuous
+   // Lagrange finite elements of the specified order. If order < 1, we
+   // instead use an isoparametric/isogeometric space.
+   Array<FiniteElementCollection *> fecs(2);
+   fecs[0] = new H1_FECollection(order, dim);
+   fecs[1] = new H1_FECollection(order, dim);
 
    Array<FiniteElementSpace *> spaces(2);
-   spaces[0] = fespace_u;
-   spaces[1] = fespace_p;
+   spaces[0] = new FiniteElementSpace(&mesh, fecs[0], dim);
+   spaces[1] = new FiniteElementSpace(&mesh, fecs[1]);
 
    mfem::out << "Number of finite element unknowns:\n"
-             << "\tVelocity = "<<fespace_u->GetTrueVSize() << endl
-             << "\tPressure = "<<fespace_p->GetTrueVSize() << endl;
-   // 5. Determine the list of true (i.e. conforming) essential boundary dofs.
-   //    In this example, the boundary conditions are defined by marking all
-   //    the boundary attributes from the mesh as essential (Dirichlet) and
-   //    converting them to a list of true dofs.
+             << "\tVelocity = "<<spaces[0]->GetTrueVSize() << endl
+             << "\tPressure = "<<spaces[1]->GetTrueVSize() << endl;
+   // Determine the list of true (i.e. conforming) essential boundary dofs.
+   // In this example, the boundary conditions are defined by marking all
+   // the boundary attributes from the mesh as essential (Dirichlet) and
+   // converting them to a list of true dofs.
    Array<Array<int> *> ess_bdr(2);
    Array<int> ess_tdof_list;
 
@@ -176,83 +174,104 @@ int main(int argc, char *argv[])
 
    ess_bdr_p = 0;
    ess_bdr_u = 1;
-  // ess_bdr_u[0] = 1;
-  // ess_bdr_u[1] = 1;
 
    ess_bdr[0] = &ess_bdr_u;
    ess_bdr[1] = &ess_bdr_p;
 
-   // 6. Set up the linear form b(.) which corresponds to the right-hand side of
-   //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
-   //    the basis functions in the finite element fespace.
-   VectorFunctionCoefficient *force, *sol;
-   FunctionCoefficient *kappa;
+   // Set up the linear form b(.) which corresponds to the right-hand side of
+   // the FEM linear system, which in this case is (1,phi_i) where phi_i are
+   // the basis functions in the finite element fespace.
 
-   if (mesh->Dimension() != 2) mfem_error("Advection skew to the mesh needs a 2D mesh!");
+   // Define the solution vector xp as a finite element grid function
+   Array<int> bOffsets(3);
+   bOffsets[0] = 0;
+   bOffsets[1] = spaces[0]->GetTrueVSize();
+   bOffsets[2] = spaces[1]->GetTrueVSize();
+   bOffsets.PartialSum();
 
-   kappa= new FunctionCoefficient(kappa_fun);
+   BlockVector xp(bOffsets);
 
-   force = new VectorFunctionCoefficient(dim, force_fun);
-   sol = new VectorFunctionCoefficient(dim, sol_fun);
+   GridFunction x_u(spaces[0]);
+   GridFunction x_p(spaces[1]);
 
-   // 7. Define the solution vector x as a finite element grid function
-   //    corresponding to fespace. Initialize x with initial guess of zero,
-   //    which satisfies the boundary conditions.
-   Array<int> block_trueOffsets(3);
-   block_trueOffsets[0] = 0;
-   block_trueOffsets[1] = fespace_u->GetTrueVSize();
-   block_trueOffsets[2] = fespace_p->GetTrueVSize();
-   block_trueOffsets.PartialSum();
+   x_u.MakeTRef(spaces[0], xp.GetBlock(0), 0);
+   x_p.MakeTRef(spaces[1], xp.GetBlock(1), 0);
 
-   BlockVector xp(block_trueOffsets);
+   VectorFunctionCoefficient sol(dim, sol_fun);
 
-   GridFunction x_u(fespace_u);
-   GridFunction x_p(fespace_p);
-
-   x_u.MakeTRef(fespace_u, xp.GetBlock(0), 0);
-   x_p.MakeTRef(fespace_p, xp.GetBlock(1), 0);
-
-   x_u.ProjectCoefficient(*sol);
+   x_u.ProjectCoefficient(sol);
    x_p = 0.0;
 
    x_u.SetTrueVector();
    x_p.SetTrueVector();
-   
+
+   // Define the output
+   VisItDataCollection visit_dc("navsto", &mesh);
+   visit_dc.RegisterField("u", &x_u);
+   visit_dc.RegisterField("p", &x_p);
+
+   // Define the problem parameters
+   FunctionCoefficient kappa(kappa_fun);
+   VectorFunctionCoefficient force(dim, force_fun);
+
+   // Define the stabilisation parameters
+   VectorGridFunctionCoefficient adv(&x_u);
+   ElasticInverseEstimateCoefficient invEst(spaces[0]);
+   FFH92Tau tau(&adv, &kappa, &invEst, 4.0);
+   FF91Delta delta(&adv, &kappa, &invEst);
+
+   // Define the block nonlinear form
+   BlockNonlinearForm Hform(spaces);
+   Hform.AddDomainIntegrator(new StabInNavStoIntegrator(kappa, force, tau, delta));
+   Array<Vector *> rhs(2);
+   rhs = nullptr; // Set all entries in the array
+   Hform.SetEssentialBC(ess_bdr, rhs);
+
+   // Set up the preconditioner
+   JacobianPreconditioner jac_prec(bOffsets,
+                                   Array<Solver *>({new GSSmoother(0,5),
+                                                    new GSSmoother(0,5)}));
+
+   // Set up the Jacobian solver
+   GeneralResidualMonitor j_monitor("\t\t\t\tFGMRES", 25);
+   FGMRESSolver j_gmres;
+   j_gmres.iterative_mode = false;
+   j_gmres.SetRelTol(1e-2);
+   j_gmres.SetAbsTol(1e-12);
+   j_gmres.SetMaxIter(300);
+   j_gmres.SetPrintLevel(-1);
+   j_gmres.SetMonitor(j_monitor);
+   j_gmres.SetPreconditioner(jac_prec);
+
+   // Set up the newton solver
+   SystemResidualMonitor newton_monitor("Newton", 1, bOffsets, nullptr);
+   NewtonSolver newton_solver;
+   newton_solver.iterative_mode = true;
+   newton_solver.SetPrintLevel(-1);
+   newton_solver.SetMonitor(newton_monitor);
+   newton_solver.SetRelTol(1e-4);
+   newton_solver.SetAbsTol(1e-8);
+   newton_solver.SetMaxIter(25);
+   newton_solver.SetSolver(j_gmres);
+   newton_solver.SetOperator(Hform);
+
+   // Solve the Newton system
+   Vector zero;
+   newton_solver.Mult(zero, xp);
+
+   // Save data in the VisIt format
+   visit_dc.SetCycle(99999);
+   visit_dc.Save();
+
+   // Free the used memory.
+   for (int i = 0; i < fecs.Size(); ++i)
    {
-      VisItDataCollection visit_dc("navsto", mesh);
-      visit_dc.RegisterField("u", &x_u);
-      visit_dc.RegisterField("p", &x_p);
-      visit_dc.Save();
+      delete fecs[i];
    }
-
-   // 10. Initialize the incompressible neo-Hookean operator
-   real_t newton_rel_tol = 1e-4;
-   real_t newton_abs_tol = 1e-8;
-   int newton_iter = 5;
-
-   StabInNavStoOperator oper(spaces, ess_bdr, block_trueOffsets,
-                             newton_rel_tol, newton_abs_tol, newton_iter, *kappa);
-
-   // 11. Solve the Newton system
-   oper.Solve(xp);
-
-   // 14. Save data in the VisIt format
+   for (int i = 0; i < spaces.Size(); ++i)
    {
-      VisItDataCollection visit_dc("navsto", mesh);
-      visit_dc.RegisterField("u", &x_u);
-      visit_dc.RegisterField("p", &x_p);
-      visit_dc.Save();
+      delete spaces[i];
    }
-
-   // 16. Free the used memory.
-   delete fespace_u;
-   delete fespace_p;
-   delete fec_u;
-   delete fec_p;
-   delete mesh;
-   delete kappa;
-   delete force;
-   delete sol;
 
    return 0;
 }

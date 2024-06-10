@@ -2255,6 +2255,9 @@ private:
    ///
    void SetIntRule(const FiniteElement &el);
 
+   ///
+   void ComputeInverseEstimates();
+
    real_t ElementInverseEstimate(const FiniteElement &el,
                                  ElementTransformation &Trans);
 
@@ -2278,15 +2281,75 @@ public:
    /// Return the scalar factor
    Coefficient * GetDiffusion() const { return Q; }
 
-   ///
-   void ComputeInverseEstimates();
-
    /// Evaluate the coefficient at @a ip.
    virtual real_t Eval(ElementTransformation &T,
                        const IntegrationPoint &ip)
    { return elemInvEst[T.ElementNo]; }
 
 };
+
+class ElasticInverseEstimateCoefficient : public Coefficient
+{
+private:
+   ///
+   Vector elemInvEst;
+   /// FE space on which the grid function lives. Owned if #fec is not NULL.
+   FiniteElementSpace *fes;
+
+   ///
+   const IntegrationRule *ir;
+
+   ///
+   Coefficient *Q;
+   Vector shape, ovec, evec;
+   DenseMatrix dshape, hshape, emat_tot, divmat_tot;
+   Array2D<DenseMatrix*> emat,divmat;
+   Array2D<int> hmap;
+
+   ///
+   void SetIntRule(const FiniteElement &el);
+
+   ///
+   void ComputeInverseEstimates();
+
+   ///
+   real_t ElementInverseEstimate(const FiniteElement &el,
+                                 ElementTransformation &Trans);
+
+public:
+   ///
+   ElasticInverseEstimateCoefficient(FiniteElementSpace *f);
+   ElasticInverseEstimateCoefficient(FiniteElementSpace *f, Coefficient &q);
+
+   /// Caller gets owner ship of GridFunction and
+   GridFunction *GetGridFunction();
+
+   /// Reset the scalar factor
+   void SetDiffusion(Coefficient &q)
+   {
+      if (Q != &q)
+      {
+         Q = &q;
+         ComputeInverseEstimates();
+      }
+   }
+   void SetShearModulus(Coefficient &q){ SetDiffusion(q);}
+
+   /// Return the scalar factor
+   Coefficient * GetDiffusion() const { return Q; }
+   Coefficient * GetModulus() const { return GetDiffusion(); }
+
+   /// Evaluate the coefficient at @a ip.
+   virtual real_t Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip)
+   { return elemInvEst[T.ElementNo]; }
+
+   // Destructor
+   ~ElasticInverseEstimateCoefficient();
+
+};
+
+
 ///@}
 
 

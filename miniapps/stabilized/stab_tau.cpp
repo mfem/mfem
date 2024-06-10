@@ -46,7 +46,7 @@ real_t FFH92Tau::GetInverseEstimate(ElementTransformation &T,
    }
    else
    {
-      return 1.0/(iecf->Eval(T,ip)*scale);
+      return 1.0/(invEst_cf->Eval(T,ip)*scale);
    }
 }
 
@@ -73,7 +73,7 @@ real_t FFH92Tau::Eval(ElementTransformation &T,
       std::cout<<"  h     = "<<hk <<std::endl;
       std::cout<<"  Ci    = "<<ci<<" "
                <<( (Ci<0) ? "(Computed)" :"(Specified)")<<std::endl;
-      std::cout<<"  1/Ci   = "<<1.0/ci<<std::endl;
+      std::cout<<"  1/Ci  = "<<1.0/ci<<std::endl;
       std::cout<<"  mk    = "<<mk <<std::endl;
       std::cout<<"  |a|_p = "<<ap <<std::endl;
       std::cout<<"  Pe    = "<<pe <<std::endl;
@@ -83,7 +83,7 @@ real_t FFH92Tau::Eval(ElementTransformation &T,
       std::cout<<"==========================\n\n";
       print = false;
    }
-
+    //  std::cout<<"  tau   = "<<tau<<std::endl;
    return tau;
 }
 
@@ -118,7 +118,7 @@ real_t FF91Delta::Eval(ElementTransformation &T,
       std::cout<<"==========================\n\n";
       print = false;
    }
-
+     // std::cout<<"  delta  = "<<delta<<std::endl;
    return delta;
 }
 
