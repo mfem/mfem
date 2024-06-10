@@ -766,8 +766,11 @@ TFunc GetTFun(int prob, real_t t_0, real_t k, real_t c)
       case Problem::SteadyAdvectionDiffusion:
          return [=](const Vector &x, real_t) -> real_t
          {
-            real_t t0 = (t_0 * x(0) * x(1) * (1.0 - exp(c*(x(0)-1.0)) ) * (1.0 - exp(c*(x(1)-1.0))
-                                                                          )) / ((1.0 - exp(-c)) * (1.0 - exp(-c)));
+            constexpr double x0 = 1.;
+            constexpr double y0 = 1.;
+            double denom = ((1. - exp(-c)) * (1. - exp(-c)));
+            real_t t0 = (t_0 * x(0) * x(1) * (1. - exp(c*(x(0)-x0)) ) * (1. - exp(c*(x(1)-y0))
+                                                                        )) / denom;
             return t0;
          };
       case Problem::SteadyAdvection:
@@ -845,13 +848,15 @@ VecTFunc GetQFun(int prob, real_t t_0, real_t k, real_t c)
       case Problem::SteadyAdvectionDiffusion:
          return [=](const Vector &x, real_t, Vector &v)
          {
-            double coef = (1.0 - exp((x(0)-1.0)*c)) * (1.0 - exp((x(1)-1.0)*c));
-            double denom = ((1.0 - exp(-c)) * (1.0 - exp(-c)));
+            constexpr double x0 = 1.;
+            constexpr double y0 = 1.;
+            double cdx = exp((x(0)-x0)*c);
+            double cdy = exp((x(1)-y0)*c);
+            double coef = (1. - cdx) * (1. - cdy);
+            double denom = ((1. - exp(-c)) * (1. - exp(-c)));
 
-            v(0) = (x(1)*coef - x(0)*x(1)*c*exp((x(0)-1.0)*c)*(1.0-exp((x(
-                                                                           1)-1.0)*c)))/denom;
-            v(1) = (x(0)*coef - x(0)*x(1)*c*exp((x(1)-1.0)*c)*(1.0-exp((x(
-                                                                           0)-1.0)*c)))/denom;
+            v(0) = (x(1)*coef - x(0)*x(1)*c*cdx*(1.-cdy))/denom;
+            v(1) = (x(0)*coef - x(0)*x(1)*c*cdy*(1.-cdx))/denom;
             v *= -k*t_0;
          };
       case Problem::SteadyAdvection:
@@ -976,11 +981,11 @@ TFunc GetFFun(int prob, real_t t_0, real_t k, real_t c)
             const int ndim = x.Size();
 
             real_t t0   = t_0 * exp(x.Sum()) * sin(M_PI*x(0)) * sin(M_PI*x(1));
-            real_t diff = -k * exp(x.Sum()) * (sin(M_PI*x(1)) * ((1-M_PI*M_PI) * sin(M_PI*x(0))
-                                                                 + 2 * M_PI * cos(M_PI*x(0)))
-                                               + sin(M_PI*x(0)) * ((1-M_PI*M_PI)
-                                                                   * sin(M_PI*x(1)) + 2 * M_PI
-                                                                   * cos(M_PI*x(1))));
+            real_t diff = -k * t_0 * exp(x.Sum()) * (sin(M_PI*x(1)) * ((1.-M_PI*M_PI) * sin(M_PI*x(0))
+                                                                       + 2. * M_PI * cos(M_PI*x(0)))
+                                                     + sin(M_PI*x(0)) * ((1.-M_PI*M_PI)
+                                                                         * sin(M_PI*x(1)) + 2. * M_PI
+                                                                         * cos(M_PI*x(1))));
             if (ndim > 2)
             {
                t0 *= sin(M_PI*x(2));
@@ -995,17 +1000,19 @@ TFunc GetFFun(int prob, real_t t_0, real_t k, real_t c)
          return [=](const Vector &x, real_t) -> real_t
          {
             // div c*u: (assuming cx and cy are constant)
-            double coef = (1.0 - exp((x(0)-1.0)*c)) * (1.0 - exp((x(1)-1.0)*c));
-            double denom = ((1.0 - exp(-c)) * (1.0 - exp(-c)));
+            constexpr double x0 = 1.;
+            constexpr double y0 = 1.;
+            double cdx = exp((x(0)-x0)*c);
+            double cdy = exp((x(1)-y0)*c);
+            double coef = (1. - cdx) * (1. - cdy);
+            double denom = ((1. - exp(-c)) * (1. - exp(-c)));
 
-            real_t conv = (c*(x(1)*coef - x(0)*x(1)*c*exp((x(0)-1.0)*c)*(1.0-exp((x(1)-1.0)*c))))/denom +
-            (c*(x(0)*coef - x(0)*x(1)*c*exp((x(1)-1.0)*c)*(1.0-exp((x(0)-1.0)*c))))/denom;
+            real_t conv = (c*(x(1)*coef - x(0)*x(1)*c*cdx*(1.-cdy)))/denom +
+            (c*(x(0)*coef - x(0)*x(1)*c*cdy*(1.-cdx)))/denom;
 
             // div q:
-            real_t diff = -k*((-2.0*c*exp(c*(x(1)-1.0))*x(0)*(1-exp(c*(x(0)-1.0)))
-                               -2.0*c*exp(c*(x(0)-1.0))*x(1)*(1-exp(c*(x(1)-1.0)))
-                               -pow(c,2.0)*exp(c*(x(1)-1.0))*(1-exp(c*(x(0)-1.0)))*x(0)*x(1)
-                               -pow(c,2.0)*exp(c*(x(0)-1.0))*(1-exp(c*(x(1)-1.0)))*x(0)*x(1)
+            real_t diff = -k*((-2.*c*cdy*x(0)*(1-cdx) - 2.*c*cdx*x(1)*(1-cdy)
+                               -c*c*cdy*(1-cdx)*x(0)*x(1) - c*c*cdx*(1-cdy)*x(0)*x(1)
                               ))/denom;
 
             return -(conv+diff)*t_0;
