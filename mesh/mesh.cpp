@@ -7132,17 +7132,15 @@ Table *Mesh::GetEdgeVertexTable() const
 
 Table *Mesh::GetVertexToElementTable()
 {
-   int i, j, nv, *v;
-
    Table *vert_elem = new Table;
 
    vert_elem->MakeI(NumOfVertices);
 
-   for (i = 0; i < NumOfElements; i++)
+   for (int i = 0; i < NumOfElements; i++)
    {
-      nv = elements[i]->GetNVertices();
-      v  = elements[i]->GetVertices();
-      for (j = 0; j < nv; j++)
+      const int nv = elements[i]->GetNVertices();
+      const int *v = elements[i]->GetVertices();
+      for (int j = 0; j < nv; j++)
       {
          vert_elem->AddAColumnInRow(v[j]);
       }
@@ -7150,11 +7148,11 @@ Table *Mesh::GetVertexToElementTable()
 
    vert_elem->MakeJ();
 
-   for (i = 0; i < NumOfElements; i++)
+   for (int i = 0; i < NumOfElements; i++)
    {
-      nv = elements[i]->GetNVertices();
-      v  = elements[i]->GetVertices();
-      for (j = 0; j < nv; j++)
+      const int nv = elements[i]->GetNVertices();
+      const int *v = elements[i]->GetVertices();
+      for (int j = 0; j < nv; j++)
       {
          vert_elem->AddConnection(v[j], i);
       }
@@ -7163,6 +7161,39 @@ Table *Mesh::GetVertexToElementTable()
    vert_elem->ShiftUpI();
 
    return vert_elem;
+}
+
+Table *Mesh::GetVertexToBdrElementTable()
+{
+   Table *vert_bdr_elem = new Table;
+
+   vert_bdr_elem->MakeI(NumOfVertices);
+
+   for (int i = 0; i < NumOfBdrElements; i++)
+   {
+      const int nv = boundary[i]->GetNVertices();
+      const int *v = boundary[i]->GetVertices();
+      for (int j = 0; j < nv; j++)
+      {
+         vert_bdr_elem->AddAColumnInRow(v[j]);
+      }
+   }
+
+   vert_bdr_elem->MakeJ();
+
+   for (int i = 0; i < NumOfBdrElements; i++)
+   {
+      const int nv = boundary[i]->GetNVertices();
+      const int *v = boundary[i]->GetVertices();
+      for (int j = 0; j < nv; j++)
+      {
+         vert_bdr_elem->AddConnection(v[j], i);
+      }
+   }
+
+   vert_bdr_elem->ShiftUpI();
+
+   return vert_bdr_elem;
 }
 
 Table *Mesh::GetFaceToElementTable() const
