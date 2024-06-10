@@ -888,7 +888,7 @@ void BilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
 void BilinearForm::RecoverFEMSolution(const Vector &X,
                                       const Vector &b, Vector &x)
 {
-   if (ext)
+   if (ext && !hybridization)
    {
       ext->RecoverFEMSolution(X, b, x);
       return;
