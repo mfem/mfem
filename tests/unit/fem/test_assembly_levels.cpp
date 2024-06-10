@@ -233,9 +233,11 @@ TEST_CASE("H(div) Element Assembly", "[AssemblyLevel][CUDA]")
 {
    const auto fname = GENERATE(
                          "../../data/inline-quad.mesh",
-                         "../../data/star-q3.mesh"
+                         "../../data/star-q3.mesh",
+                         "../../data/inline-hex.mesh",
+                         "../../data/fichera-q3.mesh"
                       );
-   const auto order = GENERATE(1, 2, 3);
+   const auto order = GENERATE(1, 2);
    const auto problem = GENERATE(Problem::Mass, Problem::Diffusion);
 
    CAPTURE(fname, order, getString(problem));
