@@ -79,6 +79,7 @@ class FEOperator : public TimeDependentOperator
    BilinearForm *Mt0{};
 
    Solver *prec{};
+   const char *prec_str{};
    IterativeSolver *solver{};
    SparseMatrix *S{};
 
@@ -1161,6 +1162,7 @@ void FEOperator::ImplicitSolve(const real_t dt, const Vector &x_v, Vector &dx_v)
       if (trace_space)
       {
          prec = new GSSmoother(static_cast<SparseMatrix&>(*op));
+         prec_str = "GS";
 
          solver = new GMRESSolver();
          solver->SetAbsTol(atol);
@@ -1233,8 +1235,10 @@ void FEOperator::ImplicitSolve(const real_t dt, const Vector &x_v, Vector &dx_v)
 
 #ifndef MFEM_USE_SUITESPARSE
             invS = new GSSmoother(*S);
+            prec_str = "GS";
 #else
             invS = new UMFPackSolver(*S);
+            prec_str = "UMFPack";
 #endif
          }
 
@@ -1273,13 +1277,15 @@ void FEOperator::ImplicitSolve(const real_t dt, const Vector &x_v, Vector &dx_v)
 
    if (solver->GetConverged())
    {
-      std::cout << "GMRES converged in " << solver->GetNumIterations()
-                << " iterations with a residual norm of "
-                << solver->GetFinalNorm() << ".\n";
+      std::cout << "GMRES+" << prec_str
+                << " converged in " << solver->GetNumIterations()
+                << " iterations with a residual norm of " << solver->GetFinalNorm()
+                << ".\n";
    }
    else
    {
-      std::cout << "GMRES did not converge in " << solver->GetNumIterations()
+      std::cout << "GMRES+" << prec_str
+                << " did not converge in " << solver->GetNumIterations()
                 << " iterations. Residual norm is " << solver->GetFinalNorm()
                 << ".\n";
    }
