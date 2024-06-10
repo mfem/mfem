@@ -3724,7 +3724,11 @@ void LDGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &tr_fe1,
       T.SetAllIntPoints(&ip);
       const IntegrationPoint &eip1 = T.GetElement1IntPoint();
       const IntegrationPoint &eip2 = T.GetElement2IntPoint();
-      CalcOrtho(T.Jacobian(), ortho);
+      if (dim==1) {
+         ortho(0) = 2*eip1.x - 1.0;
+      } else {
+         CalcOrtho(T.Jacobian(), ortho);         
+      }
       w = ip.weight;
       if (tr_ndof2) { w /= 2; }
       ortho *= w;
