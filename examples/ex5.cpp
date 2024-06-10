@@ -29,9 +29,10 @@
 //               finite elements (velocity u) and piecewise discontinuous
 //               polynomials (pressure p).
 //
-//               The example demonstrates the use of the BlockOperator class, as
-//               well as the collective saving of several grid functions in
-//               VisIt (visit.llnl.gov) and ParaView (paraview.org) formats.
+//               The example demonstrates the use of the DarcyForm class, as
+//               well as hybridization of mixed systems and the collective saving
+//               of several grid functions in VisIt (visit.llnl.gov) and ParaView
+//               (paraview.org) formats.
 //
 //               We recommend viewing examples 1-4 before viewing this example.
 

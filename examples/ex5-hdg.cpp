@@ -27,11 +27,13 @@
 //               Here, we use a given exact solution (u,p) and compute the
 //               corresponding r.h.s. (f,g).  We discretize with Raviart-Thomas
 //               finite elements (velocity u) and piecewise discontinuous
-//               polynomials (pressure p).
+//               polynomials (pressure p). Alternatively, the piecewise discontinuous
+//               polynomials are used for both quantities.
 //
-//               The example demonstrates the use of the BlockOperator class, as
-//               well as the collective saving of several grid functions in
-//               VisIt (visit.llnl.gov) and ParaView (paraview.org) formats.
+//               The example demonstrates the use of the DarcyForm class, as
+//               well as hybridization of mixed systems and the collective saving
+//               of several grid functions in VisIt (visit.llnl.gov) and ParaView
+//               (paraview.org) formats.
 //
 //               We recommend viewing examples 1-4 before viewing this example.
 

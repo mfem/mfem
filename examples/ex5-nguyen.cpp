@@ -17,21 +17,34 @@
 //               ex5 -m ../data/star.mesh -pa -d raja-omp
 //               ex5 -m ../data/beam-hex.mesh -pa -d cuda
 //
-// Description:  This example code solves a simple 2D/3D mixed Darcy problem
-//               corresponding to the saddle point system
+// Description:  This example code solves a simple 2D/3D asymptotic heat diffusion
+//               problem in the mixed formulation corresponding to the system
 //
-//                                 k*q + grad t = f
-//                                 - div q      = g
+//                                 1/k*q +           grad T =  g
+//                                 div q + div(T*c) + dT/dt = -f
 //
-//               with natural boundary condition -t = <given temperature>.
-//               Here, we use a given exact solution (q,t) and compute the
+//               with natural boundary condition -T = <given temperature> and/or
+//               essential (RT) / natural (DG) boundary condition qT.n = (q + T*c).n
+//               = <given total flux>. The scalar k is the heat conductivity and c the
+//               given velocity field. Multiple problems are offered based on the paper:
+//               N.C. Nguyen et al., Journal of Computational Physics 228 (2009) 3232–3254.
+//               In particular, they are (corresponding to the subsections of section 5):
+//               1) steady-state diffusion - with zero Dirichlet temperature BCs
+//               2) steady-state advection-diffusion - with zero Dirichlet temperature BCs
+//               3) steady-state advection  - with Dirichlet temperature inflow BC and
+//                                            Neumann total flux outflow BC
+//               4) non-steady advection(-diffusion) - with Dirichlet temperature BCs
+//               5) Kovasznay flow - with Dirichlet temperature inflow BC and Neumann
+//                                   total flux outflow BCs
+//               Here, we use a given exact solution (q,T) and compute the
 //               corresponding r.h.s. (f,g).  We discretize with Raviart-Thomas
 //               finite elements (heat flux q) and piecewise discontinuous
-//               polynomials (temperature t).
+//               polynomials (temperature T).
 //
-//               The example demonstrates the use of the BlockOperator class, as
-//               well as the collective saving of several grid functions in
-//               VisIt (visit.llnl.gov) and ParaView (paraview.org) formats.
+//               The example demonstrates the use of the DarcyForm class, as
+//               well as hybridization of mixed systems and the collective saving
+//               of several grid functions in VisIt (visit.llnl.gov) and ParaView
+//               (paraview.org) formats.
 //
 //               We recommend viewing examples 1-4 before viewing this example.
 

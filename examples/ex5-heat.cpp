@@ -17,21 +17,28 @@
 //               ex5 -m ../data/star.mesh -pa -d raja-omp
 //               ex5 -m ../data/beam-hex.mesh -pa -d cuda
 //
-// Description:  This example code solves a simple 2D/3D mixed Darcy problem
-//               corresponding to the saddle point system
+// Description:  This example code solves a simple 2D/3D asymptotic heat diffusion
+//               problem in the mixed formulation corresponding to the system
 //
-//                                 k*q + grad t = f
-//                                 - div q      = g
+//                                 k^-1.q + grad T =  f
+//                                  div q +    a*T = -g
 //
-//               with natural boundary condition -t = <given temperature>.
-//               Here, we use a given exact solution (q,t) and compute the
-//               corresponding r.h.s. (f,g).  We discretize with Raviart-Thomas
-//               finite elements (heat flux q) and piecewise discontinuous
-//               polynomials (temperature t).
+//               with natural boundary condition q.n = 0, where n is the outer
+//               normal. The tensor k represents the heat conductivity, where its
+//               symmetric and antisymmetric parts can be adjusted. The scalar a
+//               is then the heat capacity, which can be zero, changing the problem
+//               to steady-state, indefinite, saddle-point. The r.h.s. is f = 0 and
+//               g = -a * <initial temperature> for the definite problem and
+//               g = -<initial temperature> for the indefinite one. As a reference,
+//               we use the exact solution (q,T) for the asymptote a -> infinity.
+//               We discretize with Raviart-Thomas finite elements (heat flux q)
+//               and piecewise discontinuous polynomials (temperature T). Alternatively,
+//               the piecewise discontinuous polynomials are used for both quantities.
 //
-//               The example demonstrates the use of the BlockOperator class, as
-//               well as the collective saving of several grid functions in
-//               VisIt (visit.llnl.gov) and ParaView (paraview.org) formats.
+//               The example demonstrates the use of the DarcyForm class, as
+//               well as hybridization of mixed systems and the collective saving
+//               of several grid functions in VisIt (visit.llnl.gov) and ParaView
+//               (paraview.org) formats.
 //
 //               We recommend viewing examples 1-4 before viewing this example.
 
