@@ -639,7 +639,17 @@ void VectorBoundaryFluxLFIntegrator::AssembleRHSElementVect(
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
       Tr.SetIntPoint (&ip);
-      CalcOrtho(Tr.Jacobian(), nor);
+
+      const IntegrationPoint &eip = Tr.GetElement1IntPoint();
+      if (dim == 1)
+      {
+         nor(0) = 2*eip.x - 1.0;
+      }
+      else
+      {
+         CalcOrtho(Tr.Jacobian(), nor);
+      }
+
       el.CalcPhysShape (*Tr.Elem1, shape);
       nor *= Sign * ip.weight * F -> Eval (Tr, ip);
       for (int j = 0; j < dof; j++)
