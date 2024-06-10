@@ -1814,10 +1814,11 @@ void MixedBilinearForm::ConformingAssemble()
 
 void MixedBilinearForm::ComputeElementMatrix(int i, DenseMatrix &elmat)
 {
+   const FiniteElement &trial_fe = *trial_fes->GetFE(i);
+   const FiniteElement &test_fe = *test_fes->GetFE(i);
+
    if (domain_integs.Size())
    {
-      const FiniteElement &trial_fe = *trial_fes->GetFE(i);
-      const FiniteElement &test_fe = *test_fes->GetFE(i);
       ElementTransformation *eltrans = test_fes->GetElementTransformation(i);
       domain_integs[0]->AssembleElementMatrix2(trial_fe, test_fe, *eltrans,
                                                elmat);
@@ -1830,19 +1831,21 @@ void MixedBilinearForm::ComputeElementMatrix(int i, DenseMatrix &elmat)
    }
    else
    {
-      trial_fes->GetElementVDofs(i, trial_vdofs);
-      test_fes->GetElementVDofs(i, test_vdofs);
-      elmat.SetSize(test_vdofs.Size(), trial_vdofs.Size());
+      const int tr_dofs = trial_fe.GetDof() * trial_fes->GetVDim();
+      const int te_dofs = test_fe.GetDof() * test_fes->GetVDim();
+
+      elmat.SetSize(te_dofs, tr_dofs);
       elmat = 0.0;
    }
 }
 
 void MixedBilinearForm::ComputeBdrElementMatrix(int i, DenseMatrix &elmat)
 {
+   const FiniteElement &trial_be = *trial_fes->GetBE(i);
+   const FiniteElement &test_be = *test_fes->GetBE(i);
+
    if (boundary_integs.Size())
    {
-      const FiniteElement &trial_be = *trial_fes->GetBE(i);
-      const FiniteElement &test_be = *test_fes->GetBE(i);
       ElementTransformation *eltrans = test_fes->GetBdrElementTransformation(i);
       boundary_integs[0]->AssembleElementMatrix2(trial_be, test_be, *eltrans,
                                                  elmat);
@@ -1855,9 +1858,10 @@ void MixedBilinearForm::ComputeBdrElementMatrix(int i, DenseMatrix &elmat)
    }
    else
    {
-      trial_fes->GetBdrElementVDofs(i, trial_vdofs);
-      test_fes->GetBdrElementVDofs(i, test_vdofs);
-      elmat.SetSize(test_vdofs.Size(), trial_vdofs.Size());
+      const int tr_dofs = trial_be.GetDof() * trial_fes->GetVDim();
+      const int te_dofs = test_be.GetDof() * test_fes->GetVDim();
+
+      elmat.SetSize(te_dofs, tr_dofs);
       elmat = 0.0;
    }
 }
@@ -1869,26 +1873,26 @@ void MixedBilinearForm::ComputeFaceMatrix(int i, DenseMatrix &elmat) const
    ftr = mesh->GetFaceElementTransformations(i);
    MFEM_ASSERT(ftr, "No associated face transformations.");
 
+   const FiniteElement *trial_fe1, *trial_fe2, *test_fe1, *test_fe2;
+
+   trial_fe1 = trial_fes->GetFE(ftr->Elem1No);
+   test_fe1 = test_fes->GetFE(ftr->Elem1No);
+   if (ftr->Elem2No >= 0)
+   {
+      trial_fe2 = trial_fes->GetFE(ftr->Elem2No);
+      test_fe2 = test_fes->GetFE(ftr->Elem2No);
+   }
+   else
+   {
+      // The test_fe2 object is really a dummy and not used on the
+      // boundaries, but we can't dereference a NULL pointer, and we don't
+      // want to actually make a fake element.
+      trial_fe2 = trial_fe1;
+      test_fe2 = test_fe1;
+   }
+
    if (interior_face_integs.Size())
    {
-      const FiniteElement *trial_fe1, *trial_fe2, *test_fe1, *test_fe2;
-
-      trial_fe1 = trial_fes->GetFE(ftr->Elem1No);
-      test_fe1 = test_fes->GetFE(ftr->Elem1No);
-      if (ftr->Elem2No >= 0)
-      {
-         trial_fe2 = trial_fes->GetFE(ftr->Elem2No);
-         test_fe2 = test_fes->GetFE(ftr->Elem2No);
-      }
-      else
-      {
-         // The test_fe2 object is really a dummy and not used on the
-         // boundaries, but we can't dereference a NULL pointer, and we don't
-         // want to actually make a fake element.
-         trial_fe2 = trial_fe1;
-         test_fe2 = test_fe1;
-      }
-
       interior_face_integs[0]->AssembleFaceMatrix(*trial_fe1, *test_fe1, *trial_fe2,
                                                   *test_fe2,
                                                   *ftr, elmat);
@@ -1902,18 +1906,15 @@ void MixedBilinearForm::ComputeFaceMatrix(int i, DenseMatrix &elmat) const
    }
    else
    {
-      Array<int> trial_vdofs2, test_vdofs2;
-
-      trial_fes->GetElementVDofs(ftr->Elem1No, trial_vdofs);
-      test_fes->GetElementVDofs(ftr->Elem1No, test_vdofs);
+      int tr_dofs = trial_fe1->GetDof() * trial_fes->GetVDim();
+      int te_dofs = test_fe1->GetDof() * test_fes->GetVDim();
       if (ftr->Elem2No >= 0)
       {
-         trial_fes->GetElementVDofs(ftr->Elem2No, trial_vdofs2);
-         test_fes->GetElementVDofs(ftr->Elem2No, test_vdofs2);
-         trial_vdofs.Append(trial_vdofs2);
-         test_vdofs.Append(test_vdofs2);
+         tr_dofs += trial_fe2->GetDof() * trial_fes->GetVDim();
+         te_dofs += test_fe2->GetDof() * test_fes->GetVDim();
       }
-      elmat.SetSize(test_vdofs.Size(), trial_vdofs.Size());
+
+      elmat.SetSize(te_dofs, tr_dofs);
       elmat = 0.0;
    }
 }
@@ -1925,18 +1926,18 @@ void MixedBilinearForm::ComputeBdrFaceMatrix(int i, DenseMatrix &elmat) const
    ftr = mesh->GetBdrFaceTransformations(i);
    MFEM_ASSERT(ftr, "No associated boundary face.");
 
+   const FiniteElement *trial_fe1, *trial_fe2, *test_fe1, *test_fe2;
+
+   trial_fe1 = trial_fes->GetFE(ftr->Elem1No);
+   test_fe1 = test_fes->GetFE(ftr->Elem1No);
+   // The test_fe2 object is really a dummy and not used on the
+   // boundaries, but we can't dereference a NULL pointer, and we don't
+   // want to actually make a fake element.
+   trial_fe2 = trial_fe1;
+   test_fe2 = test_fe1;
+
    if (boundary_face_integs.Size())
    {
-      const FiniteElement *trial_fe1, *trial_fe2, *test_fe1, *test_fe2;
-
-      trial_fe1 = trial_fes->GetFE(ftr->Elem1No);
-      test_fe1 = test_fes->GetFE(ftr->Elem1No);
-      // The test_fe2 object is really a dummy and not used on the
-      // boundaries, but we can't dereference a NULL pointer, and we don't
-      // want to actually make a fake element.
-      trial_fe2 = trial_fe1;
-      test_fe2 = test_fe1;
-
       boundary_face_integs[0]->AssembleFaceMatrix(*trial_fe1, *test_fe1, *trial_fe2,
                                                   *test_fe2,
                                                   *ftr, elmat);
@@ -1950,9 +1951,10 @@ void MixedBilinearForm::ComputeBdrFaceMatrix(int i, DenseMatrix &elmat) const
    }
    else
    {
-      trial_fes->GetElementVDofs(ftr->Elem1No, trial_vdofs);
-      test_fes->GetElementVDofs(ftr->Elem1No, test_vdofs);
-      elmat.SetSize(test_vdofs.Size(), trial_vdofs.Size());
+      const int tr_dofs = trial_fe1->GetDof() * trial_fes->GetVDim();
+      const int te_dofs = test_fe1->GetDof() * test_fes->GetVDim();
+
+      elmat.SetSize(te_dofs, tr_dofs);
       elmat = 0.0;
    }
 }
