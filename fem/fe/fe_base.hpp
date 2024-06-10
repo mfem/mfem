@@ -299,7 +299,8 @@ public:
       NONE, ///< No derivatives implemented
       GRAD, ///< Implements CalcDShape methods
       DIV,  ///< Implements CalcDivShape methods
-      CURL  ///< Implements CalcCurlShape methods
+      CURL, ///< Implements CalcCurlShape methods
+      HESS  ///< Implements CalcHessian & CalcDShape methods
    };
 
    /** @brief Construct FiniteElement with given
@@ -356,7 +357,7 @@ public:
 
    /** @brief Returns the FiniteElement::DerivType of the element describing the
        spatial derivative method implemented, one of {NONE, GRAD,
-       DIV, CURL}. */
+       DIV, CURL, HESS}. */
    int GetDerivType() const { return deriv_type; }
 
    /** @brief Returns the FiniteElement::DerivType of the element describing how

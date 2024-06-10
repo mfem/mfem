@@ -1434,6 +1434,11 @@ real_t InverseEstimateCoefficient::ElementInverseEstimate(
    const FiniteElement &el,
    ElementTransformation &Trans)
 {
+   if (el.GetDerivType() != (int) FiniteElement::HESS)
+   {
+      return std::numeric_limits<real_t>::min();
+   }
+
    int nd = el.GetDof();
    int dim = el.GetDim();
 
