@@ -983,7 +983,7 @@ void record_cmd_line(int argc, char *argv[]);
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
-   MPI::Init(argc, argv);
+   Mpi::Init(argc, argv);
    if (!Mpi::Root()) { mfem::out.Disable(); mfem::err.Disable(); }
 
    if (Mpi::Root()) { record_cmd_line(argc, argv); }
