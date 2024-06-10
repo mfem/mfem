@@ -231,6 +231,7 @@ int main(int argc, char *argv[])
       ParBilinearForm a(&fes_rt);
       a.AddDomainIntegrator(new DivDivIntegrator(alpha_coeff));
       a.AddDomainIntegrator(new VectorFEMassIntegrator(beta_coeff));
+      a.SetAssemblyLevel(AssemblyLevel::ELEMENT);
       a.EnableHybridization(&fes_hb, new NormalTraceJumpIntegrator, ess_rt_dofs);
       a.Assemble();
 
