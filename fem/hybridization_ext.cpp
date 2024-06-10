@@ -11,6 +11,7 @@
 
 #include "hybridization_ext.hpp"
 #include "hybridization.hpp"
+#include "pfespace.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
 
@@ -70,11 +71,15 @@ void HybridizationExtension::ConstructC()
       const int e  = d_face_to_el(0, ie, f);
       const int fi = d_face_to_el(1, ie, f);
 
-      // Convert to back to native MFEM ordering in the volume
-      const int i_s = d_dof_map[i_lex];
-      const int i = (i_s >= 0) ? i_s : -1 - i_s;
+      // Skip elements belonging to face neighbors of shared faces
+      if (e < ne)
+      {
+         // Convert to back to native MFEM ordering in the volume
+         const int i_s = d_dof_map[i_lex];
+         const int i = (i_s >= 0) ? i_s : -1 - i_s;
 
-      d_Ct_mat(i, j, fi, e) = d_emat(i_lex, j, ie, f);
+         d_Ct_mat(i, j, fi, e) = d_emat(i_lex, j, ie, f);
+      }
    });
 }
 
@@ -131,7 +136,7 @@ void HybridizationExtension::ConstructH()
       for (int ei = 0; ei < 2; ++ei)
       {
          const int e = d_face_to_el(0, ei, fi);
-         if (e < 0) { continue; }
+         if (e < 0 || e >= ne) { continue; }
          const int fi_i = d_face_to_el(1, ei, fi);
          for (int fj_i = 0; fj_i < n_faces_per_el; ++fj_i)
          {
@@ -170,7 +175,7 @@ void HybridizationExtension::ConstructH()
       }
    });
 
-   const int ncdofs = h.c_fes.GetTrueVSize();
+   const int ncdofs = h.c_fes.GetVSize();
    const ElementDofOrdering ordering = ElementDofOrdering::NATIVE;
    const FaceRestriction *face_restr =
       h.c_fes.GetFaceRestriction( ordering, FaceType::Interior);
@@ -297,6 +302,19 @@ void HybridizationExtension::ConstructH()
       }
       I[0] = 0;
    }
+
+#ifdef MFEM_USE_MPI
+   auto *c_pfes = dynamic_cast<ParFiniteElementSpace*>(&h.c_fes);
+   if (c_pfes)
+   {
+      OperatorHandle pP(h.pH.Type()), dH(h.pH.Type());
+      pP.ConvertFrom(c_pfes->Dof_TrueDof_Matrix());
+      dH.MakeSquareBlockDiag(c_pfes->GetComm(),c_pfes->GlobalVSize(),
+                             c_pfes->GetDofOffsets(), h.H.get());
+      h.pH.MakePtAP(dH, pP);
+      h.H.reset();
+   }
+#endif
 }
 
 void HybridizationExtension::MultCt(const Vector &x, Vector &y) const
@@ -369,6 +387,9 @@ void HybridizationExtension::MultC(const Vector &x, Vector &y) const
       {
          const int e = d_face_to_el(0, el_i, f);
          const int fi = d_face_to_el(1, el_i, f);
+
+         // Skip face neighbor elements of shared faces
+         if (e >= ne) { continue; }
 
          for (int i = 0; i < n_hat_dof_per_el; ++i)
          {
@@ -470,11 +491,14 @@ void HybridizationExtension::Init(const Array<int> &ess_tdof_list)
 
          const int el2 = info.element[1].index;
          const int fi2 = info.element[1].local_face_id;
-         el_to_face[el2 * n_faces_per_el + fi2] = face_idx;
+         if (!info.IsShared())
+         {
+            el_to_face[el2 * n_faces_per_el + fi2] = face_idx;
+         }
 
          face_to_el[0 + 4*face_idx] = el1;
          face_to_el[1 + 4*face_idx] = fi1;
-         face_to_el[2 + 4*face_idx] = el2;
+         face_to_el[2 + 4*face_idx] = info.IsShared() ? ne + el2 : el2;
          face_to_el[3 + 4*face_idx] = fi2;
 
          ++face_idx;
@@ -524,16 +548,21 @@ void HybridizationExtension::Init(const Array<int> &ess_tdof_list)
       }
 
       Array<int> free_vdofs_marker;
-      const SparseMatrix *cP = h.fes.GetConformingProlongation();
-      if (!cP)
+#ifdef MFEM_USE_MPI
+      auto *pfes = dynamic_cast<ParFiniteElementSpace*>(&h.fes);
+      if (pfes)
       {
-         free_vdofs_marker.MakeRef(free_tdof_marker);
+         HypreParMatrix *P = pfes->Dof_TrueDof_Matrix();
+         free_vdofs_marker.SetSize(h.fes.GetVSize());
+         P->BooleanMult(1, free_tdof_marker, 0, free_vdofs_marker);
       }
       else
       {
-         free_vdofs_marker.SetSize(h.fes.GetVSize());
-         cP->BooleanMult(free_tdof_marker, free_vdofs_marker);
+         free_vdofs_marker.MakeRef(free_tdof_marker);
       }
+#else
+      free_vdofs_marker.MakeRef(free_tdof_marker);
+#endif
 
       ess_hat_dof_marker.SetSize(num_hat_dofs);
       {
@@ -676,7 +705,18 @@ void HybridizationExtension::ReduceRHS(const Vector &b, Vector &b_r) const
    Vector b_hat(num_hat_dofs);
    MultRt(b, b_hat);
    MultAhatInv(b_hat);
-   MultC(b_hat, b_r);
+   const Operator *P = h.c_fes.GetProlongationMatrix();
+   if (P)
+   {
+      Vector bl(P->Height());
+      b_r.SetSize(P->Width());
+      MultC(b_hat, bl);
+      P->MultTranspose(bl, b_r);
+   }
+   else
+   {
+      MultC(b_hat, b_r);
+   }
 }
 
 void HybridizationExtension::ComputeSolution(
@@ -687,7 +727,17 @@ void HybridizationExtension::ComputeSolution(
    MultRt(b, b_hat);
 
    tmp1.SetSize(num_hat_dofs);
-   MultCt(sol_r, tmp1);
+   const Operator *P = h.c_fes.GetProlongationMatrix();
+   if (P)
+   {
+      Vector sol_l(P->Height());
+      P->Mult(sol_r, sol_l);
+      MultCt(sol_l, tmp1);
+   }
+   else
+   {
+      MultCt(sol_r, tmp1);
+   }
    add(b_hat, -1.0, tmp1, tmp1);
    // Eliminate essential DOFs
    const bool *d_ess_hat_dof_marker = ess_hat_dof_marker.Read();
