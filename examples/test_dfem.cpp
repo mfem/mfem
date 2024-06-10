@@ -1,4 +1,5 @@
 #include "dfem/dfem_refactor.hpp"
+#include "fem/coefficient.hpp"
 
 using namespace mfem;
 using mfem::internal::tensor;
@@ -359,76 +360,155 @@ using mfem::internal::tensor;
 //    return 0;
 // }
 
-// int test_domain_lf_integrator(std::string mesh_file,
-//                               int refinements,
-//                               int polynomial_order)
-// {
-//    Mesh mesh_serial = Mesh(mesh_file);
-//    for (int i = 0; i < refinements; i++)
-//    {
-//       mesh_serial.UniformRefinement();
-//    }
-//    ParMesh mesh(MPI_COMM_WORLD, mesh_serial);
+int test_domain_lf_integrator(std::string mesh_file,
+                              int refinements,
+                              int polynomial_order)
+{
+   Mesh mesh_serial = Mesh(mesh_file);
+   for (int i = 0; i < refinements; i++)
+   {
+      mesh_serial.UniformRefinement();
+   }
+   ParMesh mesh(MPI_COMM_WORLD, mesh_serial);
 
-//    mesh.SetCurvature(1);
-//    const int dim = mesh.Dimension();
-//    mesh_serial.Clear();
+   mesh.SetCurvature(1);
+   const int dim = mesh.Dimension();
+   mesh_serial.Clear();
 
-//    ParGridFunction* mesh_nodes = static_cast<ParGridFunction *>(mesh.GetNodes());
-//    ParFiniteElementSpace &mesh_fes = *mesh_nodes->ParFESpace();
+   ParGridFunction* mesh_nodes = static_cast<ParGridFunction *>(mesh.GetNodes());
+   ParFiniteElementSpace &mesh_fes = *mesh_nodes->ParFESpace();
 
-//    H1_FECollection h1fec(polynomial_order, dim);
-//    ParFiniteElementSpace h1fes(&mesh, &h1fec);
+   H1_FECollection h1fec(polynomial_order, dim);
+   ParFiniteElementSpace h1fes(&mesh, &h1fec);
 
-//    const IntegrationRule &ir =
-//       IntRules.Get(h1fes.GetFE(0)->GetGeomType(), 2 * h1fec.GetOrder());
+   const IntegrationRule &ir =
+      IntRules.Get(h1fes.GetFE(0)->GetGeomType(), 2 * h1fec.GetOrder());
 
-//    ParGridFunction f1_g(&h1fes);
+   ParGridFunction f1_g(&h1fes);
 
-//    auto kernel = [](const double &u, const tensor<double, 2, 2> &J,
-//                     const double &w)
-//    {
-//       return u * det(J) * w;
-//    };
+   auto kernel = [](const double &u, const tensor<double, 2, 2> &J,
+                    const double &w)
+   {
+      return std::tuple{u * det(J) * w};
+   };
 
-//    std::tuple argument_operators = {Value{"potential"}, Gradient{"coordinates"}, Weight{"integration_weights"}};
-//    std::tuple output_operator = {Value{"potential"}};
+   std::tuple argument_operators = {Value{"potential"}, Gradient{"coordinates"}, Weight{"integration_weights"}};
+   std::tuple output_operator = {Value{"potential"}};
 
-//    ElementOperator eop{kernel, argument_operators, output_operator};
-//    auto ops = std::tuple{eop};
+   ElementOperator eop{kernel, argument_operators, output_operator};
+   auto ops = std::tuple{eop};
 
-//    auto solutions = std::array{FieldDescriptor{&h1fes, "potential"}};
-//    auto parameters = std::array{FieldDescriptor{&mesh_fes, "coordinates"}};
+   auto solutions = std::array{FieldDescriptor{&h1fes, "potential"}};
+   auto parameters = std::array{FieldDescriptor{&mesh_fes, "coordinates"}};
 
-//    DifferentiableOperator dop(solutions, parameters, ops, mesh, ir);
+   DifferentiableOperator dop(solutions, parameters, ops, mesh, ir);
 
-//    auto f1 = [](const Vector &coords)
-//    {
-//       const double x = coords(0);
-//       const double y = coords(1);
-//       return 2.345 + x + y;
-//    };
+   auto f1 = [](const Vector &coords)
+   {
+      const double x = coords(0);
+      const double y = coords(1);
+      return 2.345 + x + y;
+   };
 
-//    FunctionCoefficient f1_c(f1);
-//    f1_g.ProjectCoefficient(f1_c);
+   FunctionCoefficient f1_c(f1);
+   f1_g.ProjectCoefficient(f1_c);
 
-//    Vector x(f1_g), y(h1fes.TrueVSize());
-//    dop.SetParameters({mesh_nodes});
-//    dop.Mult(x, y);
+   Vector x(f1_g), y(h1fes.TrueVSize());
+   dop.SetParameters({mesh_nodes});
+   dop.Mult(x, y);
 
-//    ParLinearForm b(&h1fes);
-//    b.AddDomainIntegrator(new DomainLFIntegrator(f1_c));
-//    b.Assemble();
+   ParLinearForm b(&h1fes);
+   b.AddDomainIntegrator(new DomainLFIntegrator(f1_c));
+   b.Assemble();
 
-//    b -= y;
-//    if (b.Norml2() > 1e-10)
-//    {
-//       out << "||u - u_ex||_l2 = " << b.Norml2() << "\n";
-//       return 1;
-//    }
+   b -= y;
+   if (b.Norml2() > 1e-10)
+   {
+      out << "||u - u_ex||_l2 = " << b.Norml2() << "\n";
+      return 1;
+   }
 
-//    return 0;
-// }
+   return 0;
+}
+
+int test_boundary_lf_integrator(std::string mesh_file,
+                                int refinements,
+                                int polynomial_order)
+{
+   Mesh mesh_serial = Mesh(mesh_file);
+   for (int i = 0; i < refinements; i++)
+   {
+      mesh_serial.UniformRefinement();
+   }
+   ParMesh mesh(MPI_COMM_WORLD, mesh_serial);
+
+   mesh.SetCurvature(1);
+   const int dim = mesh.Dimension();
+   mesh_serial.Clear();
+
+   ParGridFunction* mesh_nodes = static_cast<ParGridFunction *>(mesh.GetNodes());
+   ParFiniteElementSpace &mesh_fes = *mesh_nodes->ParFESpace();
+
+   H1_FECollection h1fec(polynomial_order, dim);
+   ParFiniteElementSpace h1fes(&mesh, &h1fec);
+
+   const IntegrationRule &ir_face =
+      IntRules.Get(h1fes.GetBE(0)->GetGeomType(), 2 * h1fec.GetOrder());
+
+   ParGridFunction f1_g(&h1fes);
+
+   auto kernel = [](const double &u,
+                    const tensor<double, 2> &x,
+                    const tensor<double, 2, 1> &J,
+                    const double &w)
+   {
+      tensor<double, 2, 1> normal = ortho(J);
+      out << "(" << x(0) << "," << x(1) << ") = " << normal << "\n";
+      return std::tuple{u * norm(J) * w};
+   };
+
+   std::tuple argument_operators = {Value{"potential"}, Value{"coordinates"}, Gradient{"coordinates"}, Weight{"integration_weights"}};
+   std::tuple output_operator = {Value{"potential"}};
+
+   BoundaryElementOperator eop{kernel, argument_operators, output_operator};
+   auto ops = std::tuple{eop};
+
+   auto solutions = std::array{FieldDescriptor{&h1fes, "potential"}};
+   auto parameters = std::array{FieldDescriptor{&mesh_fes, "coordinates"}};
+
+   DifferentiableOperator dop(solutions, parameters, ops, mesh, ir_face);
+
+   auto f1 = [](const Vector &coords)
+   {
+      const double x = coords(0);
+      const double y = coords(1);
+      return 2.345 + x*x + x*y*y;
+   };
+
+   FunctionCoefficient f1_c(f1);
+   f1_g.ProjectCoefficient(f1_c);
+
+   GridFunctionCoefficient f1_gfc(&f1_g);
+
+   Vector x(f1_g), y(h1fes.TrueVSize());
+   dop.SetParameters({mesh_nodes});
+   dop.Mult(x, y);
+
+   ParLinearForm b(&h1fes);
+   auto integ = new BoundaryLFIntegrator(f1_gfc);
+   integ->SetIntRule(&ir_face);
+   b.AddBoundaryIntegrator(integ);
+   b.Assemble();
+
+   b -= y;
+   if (b.Norml2() > 1e-10)
+   {
+      out << "||u - u_ex||_l2 = " << b.Norml2() << "\n";
+      return 1;
+   }
+
+   return 0;
+}
 
 // int test_diffusion_integrator(std::string mesh_file,
 //                               int refinements,
@@ -593,113 +673,98 @@ using mfem::internal::tensor;
 //    return 0;
 // }
 
-// // int test_qoi(std::string mesh_file,
-// //              int refinements,
-// //              int polynomial_order)
-// // {
-// //    Mesh mesh_serial = Mesh(mesh_file);
-// //    for (int i = 0; i < refinements; i++)
-// //    {
-// //       mesh_serial.UniformRefinement();
-// //    }
-// //    ParMesh mesh(MPI_COMM_WORLD, mesh_serial);
+int test_qoi(std::string mesh_file,
+             int refinements,
+             int polynomial_order)
+{
+   Mesh mesh_serial = Mesh(mesh_file);
+   for (int i = 0; i < refinements; i++)
+   {
+      mesh_serial.UniformRefinement();
+   }
+   ParMesh mesh(MPI_COMM_WORLD, mesh_serial);
 
-// //    mesh.SetCurvature(1);
-// //    const int dim = mesh.Dimension();
-// //    mesh_serial.Clear();
+   mesh.SetCurvature(1);
+   const int dim = mesh.Dimension();
+   mesh_serial.Clear();
 
-// //    ParGridFunction* mesh_nodes = static_cast<ParGridFunction *>(mesh.GetNodes());
-// //    ParFiniteElementSpace &mesh_fes = *mesh_nodes->ParFESpace();
+   ParGridFunction* mesh_nodes = static_cast<ParGridFunction *>(mesh.GetNodes());
+   ParFiniteElementSpace &mesh_fes = *mesh_nodes->ParFESpace();
 
-// //    H1_FECollection h1fec(polynomial_order, dim);
-// //    ParFiniteElementSpace h1fes(&mesh, &h1fec);
+   H1_FECollection h1fec(polynomial_order, dim);
+   ParFiniteElementSpace h1fes(&mesh, &h1fec, dim);
 
-// //    const IntegrationRule &ir =
-// //       IntRules.Get(h1fes.GetFE(0)->GetGeomType(), 2 * h1fec.GetOrder());
+   const IntegrationRule &ir =
+      IntRules.Get(h1fes.GetFE(0)->GetGeomType(), 2 * h1fec.GetOrder());
 
-// //    ParGridFunction rho_g(&h1fes);
+   ParGridFunction rho_g(&h1fes);
 
-// //    auto rho_f = [](const Vector &coords)
-// //    {
-// //       const double x = coords(0);
-// //       const double y = coords(1);
-// //       return x + y;
-// //    };
+   auto rho_f = [](const Vector &coords, Vector &u)
+   {
+      const double x = coords(0);
+      const double y = coords(1);
+      u(0) = x + y;
+      u(1) = x + y;
+   };
 
-// //    FunctionCoefficient rho_c(rho_f);
-// //    rho_g.ProjectCoefficient(rho_c);
+   VectorFunctionCoefficient rho_c(dim, rho_f);
+   rho_g.ProjectCoefficient(rho_c);
 
-// //    auto kernel = [](const double &rho,
-// //                     const tensor<double, 2, 2> &J,
-// //                     const double &w)
-// //    {
-// //       const double eps = 1.2345;
-// //       return 0.5 * eps * rho*rho * det(J) * w;
-// //    };
+   auto kernel = [](const tensor<double, 2> &rho,
+                    const tensor<double, 2, 2> &drhodxi,
+                    const tensor<double, 2, 2> &J,
+                    const double &w)
+   {
+      const double eps = 1.2345;
+      const auto drhodx = drhodxi * inv(J);
+      return std::tuple{(0.5 * eps * dot(rho, rho) + ddot(drhodx, drhodx)) * det(J) * w};
+   };
 
-// //    std::tuple argument_operators = {Value{"density"}, Gradient{"coordinates"}, Weight{"integration_weights"}};
-// //    std::tuple output_operator = {One{"density"}};
+   std::tuple argument_operators = {Value{"density"}, Gradient{"density"}, Gradient{"coordinates"}, Weight{"integration_weights"}};
+   std::tuple output_operator = {One{"density"}};
 
-// //    ElementOperator eop = {kernel, argument_operators, output_operator};
-// //    auto ops = std::tuple{eop};
+   ElementOperator eop = {kernel, argument_operators, output_operator};
+   auto ops = std::tuple{eop};
 
-// //    auto solutions = std::array{FieldDescriptor{&h1fes, "density"}};
-// //    auto parameters = std::array{FieldDescriptor{&mesh_fes, "coordinates"}};
+   auto solutions = std::array{FieldDescriptor{&h1fes, "density"}};
+   auto parameters = std::array{FieldDescriptor{&mesh_fes, "coordinates"}};
 
-// //    DifferentiableOperator dop(solutions, parameters, ops, mesh, ir);
+   DifferentiableOperator dop(solutions, parameters, ops, mesh, ir);
 
-// //    Vector x(rho_g), y(1);
-// //    dop.SetParameters({mesh_nodes});
-// //    dop.Mult(x, y);
+   Vector x(rho_g), y(1);
+   dop.SetParameters({mesh_nodes});
+   dop.Mult(x, y);
 
-// //    out << "#el: " << mesh.GetNE() << " #qp: " << ir.GetNPoints() << "\n";
-// //    // print_vector(y);
+   auto dFdrho = dop.GetDerivativeWrt<0>({&rho_g}, {mesh_nodes});
+   Vector dFdrho_vec;
+   dFdrho->Assemble(dFdrho_vec);
 
-// //    auto dFdrho = dop.GetDerivativeWrt<0>({&rho_g}, {mesh_nodes});
+   // // fd jacobian test
+   // {
+   //    double eps = 1.0e-8;
+   //    Vector v(x), fxpv(1), fxmv(1), dfdx(x.Size());
+   //    for (int i = 0; i < x.Size(); i++)
+   //    {
+   //       v(i) += eps;
+   //       dop.Mult(v, fxpv);
+   //       v(i) -= 2.0 * eps;
+   //       dop.Mult(v, fxmv);
+   //       fxpv -= fxmv;
+   //       fxpv /= (2.0*eps);
+   //       dfdx(i) = fxpv(0);
+   //    }
 
-// //    Vector dx(rho_g.Size());
-// //    dx = 1.0;
-// //    dFdrho->Mult(dx, y);
+   //    // print_vector(dfdx);
+   //    dfdx -= dFdrho_vec;
+   //    if (dfdx.Norml2() > 1e-6)
+   //    {
+   //       out << "||dFdu_FD u^* - ex||_l2 = " << dfdx.Norml2() << "\n";
+   //       return 1;
+   //    }
+   // }
 
-// //    print_vector(y);
-
-// //    Vector dFdrho_vec;
-// //    dFdrho->Assemble(dFdrho_vec);
-
-// //    // print_vector(dFdrho_vec);
-
-// //    double acc = dFdrho_vec.Sum();
-// //    out << acc << "\n";
-
-// //    acc -= y(0);
-// //    if (sqrt(acc*acc) > 1e-12)
-// //    {
-// //       out << "||dFdu_action  - assembled(dFdu)||_l2 = " << sqrt(acc*acc) << "\n";
-// //       return 1;
-// //    }
-
-// //    // fd test
-// //    {
-// //       double eps = 1.0e-6;
-// //       Vector v(rho_g.Size()), rhopv(rho_g), rhomv(rho_g), frhopv(1), frhomv(1);
-// //       v = eps;
-// //       rhopv += v;
-// //       rhomv -= v;
-// //       dop.Mult(rhopv, frhopv);
-// //       dop.Mult(rhomv, frhomv);
-// //       frhopv -= frhomv;
-// //       frhopv /= (2.0*eps);
-
-// //       frhopv -= y;
-// //       if (frhopv.Norml2() > eps)
-// //       {
-// //          out << "||dFdu_FD u^* - ex||_l2 = " << frhopv.Norml2() << "\n";
-// //          return 1;
-// //       }
-// //    }
-
-// //    return 0;
-// // }
+   return 0;
+}
 
 // int test_assemble_mass_hypreparmatrix(std::string mesh_file,
 //                                       int refinements,
@@ -1022,102 +1087,102 @@ using mfem::internal::tensor;
 //    return 0;
 // }
 
-int test_assemble_elasticity_hypreparmatrix(std::string mesh_file,
-                                            int refinements,
-                                            int polynomial_order,
-                                            int ir_order)
-{
-   Mesh mesh_serial = Mesh(mesh_file);
-   for (int i = 0; i < refinements; i++)
-   {
-      mesh_serial.UniformRefinement();
-   }
-   ParMesh mesh(MPI_COMM_WORLD, mesh_serial);
+// int test_assemble_elasticity_hypreparmatrix(std::string mesh_file,
+//                                             int refinements,
+//                                             int polynomial_order,
+//                                             int ir_order)
+// {
+//    Mesh mesh_serial = Mesh(mesh_file);
+//    for (int i = 0; i < refinements; i++)
+//    {
+//       mesh_serial.UniformRefinement();
+//    }
+//    ParMesh mesh(MPI_COMM_WORLD, mesh_serial);
 
-   mesh.SetCurvature(1);
-   const int dim = mesh.Dimension();
-   const int vdim = dim;
-   mesh_serial.Clear();
+//    mesh.SetCurvature(1);
+//    const int dim = mesh.Dimension();
+//    const int vdim = dim;
+//    mesh_serial.Clear();
 
-   ParGridFunction* mesh_nodes = static_cast<ParGridFunction *>(mesh.GetNodes());
-   ParFiniteElementSpace &mesh_fes = *mesh_nodes->ParFESpace();
+//    ParGridFunction* mesh_nodes = static_cast<ParGridFunction *>(mesh.GetNodes());
+//    ParFiniteElementSpace &mesh_fes = *mesh_nodes->ParFESpace();
 
-   H1_FECollection h1fec(polynomial_order, dim);
-   ParFiniteElementSpace h1fes(&mesh, &h1fec, vdim);
+//    H1_FECollection h1fec(polynomial_order, dim);
+//    ParFiniteElementSpace h1fes(&mesh, &h1fec, vdim);
 
-   Array<int> ess_bdr(mesh.bdr_attributes.Max());
-   Array<int> ess_tdof;
-   ess_bdr = 1;
-   h1fes.GetEssentialTrueDofs(ess_bdr, ess_tdof);
+//    Array<int> ess_bdr(mesh.bdr_attributes.Max());
+//    Array<int> ess_tdof;
+//    ess_bdr = 1;
+//    h1fes.GetEssentialTrueDofs(ess_bdr, ess_tdof);
 
-   const IntegrationRule &ir =
-      IntRules.Get(h1fes.GetFE(0)->GetGeomType(), ir_order * h1fec.GetOrder());
+//    const IntegrationRule &ir =
+//       IntRules.Get(h1fes.GetFE(0)->GetGeomType(), ir_order * h1fec.GetOrder());
 
-   ParGridFunction u(&h1fes);
+//    ParGridFunction u(&h1fes);
 
-   ConstantCoefficient l_coeff(1.0), m_coeff(1.0);
+//    ConstantCoefficient l_coeff(1.0), m_coeff(1.0);
 
-   ParBilinearForm A_form(&h1fes);
-   auto A_integ = new ElasticityIntegrator(l_coeff, m_coeff);
-   A_integ->SetIntegrationRule(ir);
-   A_form.AddDomainIntegrator(A_integ);
-   A_form.Assemble();
-   A_form.Finalize();
-   auto A_mat = A_form.ParallelAssemble();
+//    ParBilinearForm A_form(&h1fes);
+//    auto A_integ = new ElasticityIntegrator(l_coeff, m_coeff);
+//    A_integ->SetIntegrationRule(ir);
+//    A_form.AddDomainIntegrator(A_integ);
+//    A_form.Assemble();
+//    A_form.Finalize();
+//    auto A_mat = A_form.ParallelAssemble();
 
-   // A_mat->PrintMatlab(out);
-   std::ofstream amatofs("mfem_mat.dat");
-   A_mat->PrintMatlab(amatofs);
-   amatofs.close();
+//    // A_mat->PrintMatlab(out);
+//    std::ofstream amatofs("mfem_mat.dat");
+//    A_mat->PrintMatlab(amatofs);
+//    amatofs.close();
 
-   auto elasticity_kernel = [](const tensor<double, 2, 2> &dudxi,
-                               const tensor<double, 2, 2> &J,
-                               const double &w)
-   {
-      constexpr double lambda = 1.0;
-      constexpr double mu = 1.0;
-      static constexpr auto I = mfem::internal::IsotropicIdentity<2>();
-      auto eps = sym(dudxi * inv(J));
-      return (lambda * tr(eps) * I + 2.0 * mu * eps) * det(J) * w * transpose(inv(J));
-   };
+//    auto elasticity_kernel = [](const tensor<double, 2, 2> &dudxi,
+//                                const tensor<double, 2, 2> &J,
+//                                const double &w)
+//    {
+//       constexpr double lambda = 1.0;
+//       constexpr double mu = 1.0;
+//       static constexpr auto I = mfem::internal::IsotropicIdentity<2>();
+//       auto eps = sym(dudxi * inv(J));
+//       return (lambda * tr(eps) * I + 2.0 * mu * eps) * det(J) * w * transpose(inv(J));
+//    };
 
-   std::tuple argument_operators{Gradient{"displacement"}, Gradient{"coordinates"}, Weight{"integration_weights"}};
-   std::tuple output_operator{Gradient{"displacement"}};
+//    std::tuple argument_operators{Gradient{"displacement"}, Gradient{"coordinates"}, Weight{"integration_weights"}};
+//    std::tuple output_operator{Gradient{"displacement"}};
 
-   ElementOperator op{elasticity_kernel, argument_operators, output_operator};
+//    ElementOperator op{elasticity_kernel, argument_operators, output_operator};
 
-   std::array solutions{FieldDescriptor{&h1fes, "displacement"}};
-   std::array parameters{FieldDescriptor{&mesh_fes, "coordinates"}};
+//    std::array solutions{FieldDescriptor{&h1fes, "displacement"}};
+//    std::array parameters{FieldDescriptor{&mesh_fes, "coordinates"}};
 
-   DifferentiableOperator dop{solutions, parameters, std::tuple{op}, mesh, ir};
+//    DifferentiableOperator dop{solutions, parameters, std::tuple{op}, mesh, ir};
 
-   Vector x(h1fes.GetTrueVSize()), y1(h1fes.GetTrueVSize()),
-          y2(h1fes.GetTrueVSize());
+//    Vector x(h1fes.GetTrueVSize()), y1(h1fes.GetTrueVSize()),
+//           y2(h1fes.GetTrueVSize());
 
-   u = 1.0;
-   auto dFdU = dop.GetDerivativeWrt<0>({&u}, {mesh_nodes});
+//    u = 1.0;
+//    auto dFdU = dop.GetDerivativeWrt<0>({&u}, {mesh_nodes});
 
-   HypreParMatrix A_mat_dop;
-   dFdU->Assemble(A_mat_dop);
+//    HypreParMatrix A_mat_dop;
+//    dFdU->Assemble(A_mat_dop);
 
-   // A_mat_dop.PrintMatlab(out);
-   std::ofstream amatdopofs("dfem_mat.dat");
-   A_mat_dop.PrintMatlab(amatdopofs);
-   amatdopofs.close();
+//    // A_mat_dop.PrintMatlab(out);
+//    std::ofstream amatdopofs("dfem_mat.dat");
+//    A_mat_dop.PrintMatlab(amatdopofs);
+//    amatdopofs.close();
 
-   auto res = Add(1.0, *A_mat, -1.0, A_mat_dop);
-   SparseMatrix diag;
-   res->GetDiag(diag);
-   if (diag.MaxNorm() > 1e-12)
-   {
-      res->PrintMatlab(out);
-      out << "mfem assembled hypreparmatrix != dfem assembled hypreparmatrix" <<
-          std::endl;
-      return 1;
-   }
+//    auto res = Add(1.0, *A_mat, -1.0, A_mat_dop);
+//    SparseMatrix diag;
+//    res->GetDiag(diag);
+//    if (diag.MaxNorm() > 1e-12)
+//    {
+//       res->PrintMatlab(out);
+//       out << "mfem assembled hypreparmatrix != dfem assembled hypreparmatrix" <<
+//           std::endl;
+//       return 1;
+//    }
 
-   return 0;
-}
+//    return 0;
+// }
 
 // int test_assemble_mixed_gradient_hypreparmatrix(std::string mesh_file,
 //                                                 int refinements,
@@ -1290,87 +1355,87 @@ int test_assemble_elasticity_hypreparmatrix(std::string mesh_file,
 //    return 0;
 // }
 
-int test_assemble_mixed_scalar_curl_hypreparmatrix(std::string mesh_file,
-                                                   int refinements,
-                                                   int polynomial_order,
-                                                   int ir_order)
-{
-   Mesh mesh_serial = Mesh(mesh_file);
-   for (int i = 0; i < refinements; i++)
-   {
-      mesh_serial.UniformRefinement();
-   }
-   ParMesh mesh(MPI_COMM_WORLD, mesh_serial);
+// int test_assemble_mixed_scalar_curl_hypreparmatrix(std::string mesh_file,
+//                                                    int refinements,
+//                                                    int polynomial_order,
+//                                                    int ir_order)
+// {
+//    Mesh mesh_serial = Mesh(mesh_file);
+//    for (int i = 0; i < refinements; i++)
+//    {
+//       mesh_serial.UniformRefinement();
+//    }
+//    ParMesh mesh(MPI_COMM_WORLD, mesh_serial);
 
-   mesh.SetCurvature(1);
-   const int dim = mesh.Dimension();
-   mesh_serial.Clear();
+//    mesh.SetCurvature(1);
+//    const int dim = mesh.Dimension();
+//    mesh_serial.Clear();
 
-   ParGridFunction* mesh_nodes = static_cast<ParGridFunction *>(mesh.GetNodes());
-   ParFiniteElementSpace &mesh_fes = *mesh_nodes->ParFESpace();
+//    ParGridFunction* mesh_nodes = static_cast<ParGridFunction *>(mesh.GetNodes());
+//    ParFiniteElementSpace &mesh_fes = *mesh_nodes->ParFESpace();
 
-   H1_FECollection h1fec(polynomial_order, dim);
-   ParFiniteElementSpace h1fes(&mesh, &h1fec);
+//    H1_FECollection h1fec(polynomial_order, dim);
+//    ParFiniteElementSpace h1fes(&mesh, &h1fec);
 
-   ND_FECollection ndfec(polynomial_order, dim);
-   ParFiniteElementSpace ndfes(&mesh, &ndfec);
+//    ND_FECollection ndfec(polynomial_order, dim);
+//    ParFiniteElementSpace ndfes(&mesh, &ndfec);
 
-   const IntegrationRule &ir =
-      IntRules.Get(h1fes.GetFE(0)->GetGeomType(), ir_order * h1fec.GetOrder());
+//    const IntegrationRule &ir =
+//       IntRules.Get(h1fes.GetFE(0)->GetGeomType(), ir_order * h1fec.GetOrder());
 
-   ParGridFunction u(&ndfes);
-   ParGridFunction v(&h1fes);
+//    ParGridFunction u(&ndfes);
+//    ParGridFunction v(&h1fes);
 
-   auto u_f = [](const Vector &coords, Vector &u)
-   {
-      const double x = coords(0);
-      const double y = coords(1);
-      u(0) = x + y * y;
-      u(1) = y - x;
-   };
-   auto u_coef = VectorFunctionCoefficient(dim, u_f);
+//    auto u_f = [](const Vector &coords, Vector &u)
+//    {
+//       const double x = coords(0);
+//       const double y = coords(1);
+//       u(0) = x + y * y;
+//       u(1) = y - x;
+//    };
+//    auto u_coef = VectorFunctionCoefficient(dim, u_f);
 
-   u.ProjectCoefficient(u_coef);
+//    u.ProjectCoefficient(u_coef);
 
-   ParMixedBilinearForm blf(&ndfes, &h1fes);
-   auto integ = new MixedScalarCurlIntegrator();
-   integ->SetIntRule(&ir);
-   blf.AddDomainIntegrator(integ);
-   blf.Assemble();
-   blf.Finalize();
-   auto A_mat = blf.ParallelAssemble();
+//    ParMixedBilinearForm blf(&ndfes, &h1fes);
+//    auto integ = new MixedScalarCurlIntegrator();
+//    integ->SetIntRule(&ir);
+//    blf.AddDomainIntegrator(integ);
+//    blf.Assemble();
+//    blf.Finalize();
+//    auto A_mat = blf.ParallelAssemble();
 
-   A_mat->PrintMatlab(out);
+//    A_mat->PrintMatlab(out);
 
-   auto mixed_scalar_curl = [](const double &curl_u,
-                               const tensor<double, 2, 2> &J,
-                               const double &w)
-   {
-      return std::tuple{curl_u / det(J) * det(J) * w};
-   };
+//    auto mixed_scalar_curl = [](const double &curl_u,
+//                                const tensor<double, 2, 2> &J,
+//                                const double &w)
+//    {
+//       return std::tuple{curl_u / det(J) * det(J) * w};
+//    };
 
-   std::tuple argument_operators{Curl{"potential_vector"}, Gradient{"coordinates"}, Weight{"integration_weights"}};
-   std::tuple output_operator{Value{"potential_scalar"}};
+//    std::tuple argument_operators{Curl{"potential_vector"}, Gradient{"coordinates"}, Weight{"integration_weights"}};
+//    std::tuple output_operator{Value{"potential_scalar"}};
 
-   ElementOperator op{mixed_scalar_curl, argument_operators, output_operator};
+//    ElementOperator op{mixed_scalar_curl, argument_operators, output_operator};
 
-   std::array solutions{FieldDescriptor{&ndfes, "potential_vector"}};
-   std::array parameters{FieldDescriptor{&h1fes, "potential_scalar"}, FieldDescriptor{&mesh_fes, "coordinates"}};
+//    std::array solutions{FieldDescriptor{&ndfes, "potential_vector"}};
+//    std::array parameters{FieldDescriptor{&h1fes, "potential_scalar"}, FieldDescriptor{&mesh_fes, "coordinates"}};
 
-   DifferentiableOperator dop{solutions, parameters, std::tuple{op}, mesh, ir};
+//    DifferentiableOperator dop{solutions, parameters, std::tuple{op}, mesh, ir};
 
-   Vector x(h1fes.GetTrueVSize()), y1(h1fes.GetTrueVSize()),
-          y2(h1fes.GetTrueVSize());
+//    Vector x(h1fes.GetTrueVSize()), y1(h1fes.GetTrueVSize()),
+//           y2(h1fes.GetTrueVSize());
 
-   auto dFdU = dop.GetDerivativeWrt<0>({&u}, {&v, mesh_nodes});
+//    auto dFdU = dop.GetDerivativeWrt<0>({&u}, {&v, mesh_nodes});
 
-   HypreParMatrix A_mat_dop;
-   dFdU->Assemble(A_mat_dop);
+//    HypreParMatrix A_mat_dop;
+//    dFdU->Assemble(A_mat_dop);
 
-   A_mat_dop.PrintMatlab(out);
+//    A_mat_dop.PrintMatlab(out);
 
-   return 0;
-}
+//    return 0;
+// }
 
 int main(int argc, char *argv[])
 {
@@ -1413,11 +1478,17 @@ int main(int argc, char *argv[])
    // out << "test_interpolate_gradient_vector";
    // ret ? out << " FAILURE\n" : out << " OK\n";
 
-   // ret = test_domain_lf_integrator(mesh_file,
-   //                                 refinements,
-   //                                 polynomial_order);
-   // out << "test_domain_lf_integrator";
-   // ret ? out << " FAILURE\n" : out << " OK\n";
+   ret = test_domain_lf_integrator(mesh_file,
+                                   refinements,
+                                   polynomial_order);
+   out << "test_domain_lf_integrator";
+   ret ? out << " FAILURE\n" : out << " OK\n";
+
+   ret = test_boundary_lf_integrator(mesh_file,
+                                     refinements,
+                                     polynomial_order);
+   out << "test_boundary_lf_integrator";
+   ret ? out << " FAILURE\n" : out << " OK\n";
 
    // ret = test_diffusion_integrator(mesh_file,
    //                                 refinements,
@@ -1425,9 +1496,9 @@ int main(int argc, char *argv[])
    // out << "test_diffusion_integrator";
    // ret ? out << " FAILURE\n" : out << " OK\n";
 
-   // // ret = test_qoi(mesh_file, refinements, polynomial_order);
-   // // out << "test_qoi";
-   // // ret ? out << " FAILURE\n" : out << " OK\n";
+   ret = test_qoi(mesh_file, refinements, polynomial_order);
+   out << "test_qoi";
+   ret ? out << " FAILURE\n" : out << " OK\n";
 
    // ret = test_assemble_mass_hypreparmatrix(mesh_file, refinements,
    //                                         polynomial_order, ir_order);
@@ -1444,10 +1515,10 @@ int main(int argc, char *argv[])
    // out << "test_assemble_vector_diffusion_hypreparmatrix";
    // ret ? out << " FAILURE\n" : out << " OK\n";
 
-   ret = test_assemble_elasticity_hypreparmatrix(mesh_file, refinements,
-                                                 polynomial_order, ir_order);
-   out << "test_assemble_elasticity_hypreparmatrix";
-   ret ? out << " FAILURE\n" : out << " OK\n";
+   // ret = test_assemble_elasticity_hypreparmatrix(mesh_file, refinements,
+   //                                               polynomial_order, ir_order);
+   // out << "test_assemble_elasticity_hypreparmatrix";
+   // ret ? out << " FAILURE\n" : out << " OK\n";
 
    // ret = test_assemble_mixed_gradient_hypreparmatrix(mesh_file, refinements,
    //                                                   polynomial_order, ir_order);

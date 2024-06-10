@@ -19,6 +19,7 @@
 #define MFEM_INTERNAL_TENSOR_HPP
 
 #include "dual.hpp"
+#include "general/backends.hpp"
 #include <type_traits> // for std::false_type
 
 namespace mfem
@@ -1345,6 +1346,12 @@ T det(const tensor<T, 3, 3>& A)
           A[1][0] * A[2][1] -
           A[0][0] * A[1][2] * A[2][1] - A[0][1] * A[1][0] * A[2][2] - A[0][2] * A[1][1] *
           A[2][0];
+}
+
+template <typename T> MFEM_HOST_DEVICE
+tensor<T, 2, 1> ortho(tensor<T, 2, 1> J)
+{
+   return tensor<T, 2, 1> {J(1), -J(0)};
 }
 
 /**

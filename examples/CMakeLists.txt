@@ -57,6 +57,7 @@ if (MFEM_USE_MPI)
     dfem_stokes.cpp
     enzyme_interface_smoketest.cpp
     test_dfem_dual.cpp
+    test_dfem.cpp
     ex0p.cpp
     ex1p.cpp
     ex2p.cpp
@@ -106,6 +107,7 @@ add_mfem_examples(ALL_EXE_SRCS)
 target_link_libraries(dfem_poisson ClangEnzymeFlags)
 target_link_libraries(dfem_stokes ClangEnzymeFlags)
 target_link_libraries(enzyme_interface_smoketest ClangEnzymeFlags)
+target_link_libraries(test_dfem ClangEnzymeFlags)
 
 # Add a test for each example
 if (MFEM_ENABLE_TESTING)

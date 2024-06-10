@@ -18,15 +18,15 @@ void DifferentiableOperator<kernels_tuple,
      num_kernels>::Derivative<derivative_idx>::assemble_vector_impl(
         kernel_t kernel, Vector &v)
 {
-   using OperatesOn = typename kernel_t::OperatesOn;
+   using entity_t = typename kernel_t::entity_t;
 
-   auto kinput_to_field = create_descriptors_to_fields_map(op.fields,
-                                                           kernel.inputs,
-                                                           std::make_index_sequence<kernel.num_kinputs> {});
+   auto kinput_to_field = create_descriptors_to_fields_map<entity_t>(op.fields,
+                                                                     kernel.inputs,
+                                                                     std::make_index_sequence<kernel.num_kinputs> {});
 
-   auto koutput_to_field = create_descriptors_to_fields_map(op.fields,
-                                                            kernel.outputs,
-                                                            std::make_index_sequence<kernel.num_koutputs> {});
+   auto koutput_to_field = create_descriptors_to_fields_map<entity_t>(op.fields,
+                                                                      kernel.outputs,
+                                                                      std::make_index_sequence<kernel.num_koutputs> {});
 
    auto output_fop = std::get<0>(kernel.outputs);
 
@@ -35,33 +35,26 @@ void DifferentiableOperator<kernels_tuple,
    int num_qp = op.integration_rule.GetNPoints();;
    int num_el = 0;
    int dimension = 0;
-   if constexpr (std::is_same_v<OperatesOn, OperatesOnElement>)
+   if constexpr (std::is_same_v<entity_t, Entity::Element>)
    {
       num_el = op.mesh.GetNE();
       dimension = op.dim;
    }
-   else if (std::is_same_v<OperatesOn, OperatesOnFace>)
+   else if (std::is_same_v<entity_t, Entity::Face>)
    {
       num_el = op.mesh.GetNumFacesWithGhost();
       dimension = op.dim - 1;
    }
    else
    {
-      static_assert(always_false<OperatesOn>, "not implemented");
+      static_assert(always_false<entity_t>, "not implemented");
    }
 
    std::vector<const DofToQuad*> dtqmaps;
    for (const auto &field : op.fields)
    {
-      if constexpr (std::is_same_v<OperatesOn, OperatesOnFace>)
-      {
-         dtqmaps.emplace_back(GetDofToQuadFace(field, op.integration_rule,
-                                               doftoquad_mode));
-      }
-      else
-      {
-         dtqmaps.emplace_back(GetDofToQuad(field, op.integration_rule, doftoquad_mode));
-      }
+      dtqmaps.emplace_back(GetDofToQuad<entity_t>(field, op.integration_rule,
+                                                  doftoquad_mode));
    }
 
    // Allocate memory for fields on quadrature points
@@ -114,16 +107,16 @@ void DifferentiableOperator<kernels_tuple,
                                              kernel.inputs,
                                              std::make_index_sequence<kernel.num_kinputs> {});
 
-   auto input_dtq_ops = create_dtq_operators(kernel.inputs, dtqmaps,
-                                             kinput_to_field);
-   auto dependent_input_dtq_ops = create_dtq_operators_conditional(
+   auto input_dtq_ops = create_dtq_operators<entity_t>(kernel.inputs, dtqmaps,
+                                                       kinput_to_field);
+   auto dependent_input_dtq_ops = create_dtq_operators_conditional<entity_t>(
                                      kernel.inputs,
                                      dtqmaps,
                                      kinput_to_field,
                                      kinput_is_dependent, std::make_index_sequence<kernel.num_kinputs> {});
 
-   auto output_dtq_ops = create_dtq_operators(kernel.outputs, dtqmaps,
-                                              koutput_to_field);
+   auto output_dtq_ops = create_dtq_operators<entity_t>(kernel.outputs, dtqmaps,
+                                                        koutput_to_field);
 
    constexpr int fixed_output_idx = 0;
    auto Bv = output_dtq_ops[fixed_output_idx];
@@ -179,10 +172,17 @@ void DifferentiableOperator<kernels_tuple,
                for (int m = 0; m < trial_op_dim; m++)
                {
                   d_qp(j, m, q) = 1.0;
-                  Vector f_qp = apply_kernel_fwddiff_dual(
+                  // Vector f_qp = apply_kernel_fwddiff_dual(
+                  //                  kernel.func,
+                  //                  kernel_args,
+                  //                  input_qp,
+                  //                  directions_qp,
+                  //                  q);
+                  Vector f_qp = apply_kernel_fwddiff_enzyme(
                                    kernel.func,
                                    kernel_args,
                                    input_qp,
+                                   kernel_shadow_args,
                                    directions_qp,
                                    q);
                   d_qp(j, m, q) = 0.0;

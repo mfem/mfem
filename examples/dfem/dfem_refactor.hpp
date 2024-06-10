@@ -11,55 +11,14 @@
 #include <type_traits>
 
 #include "dfem_util.hpp"
-#include "general/error.hpp"
-#include "linalg/densemat.hpp"
-#include "linalg/hypre.hpp"
 #include <linalg/tensor.hpp>
 
 #include <enzyme/enzyme>
-
-// int enzyme_dup;
 
 using std::size_t;
 
 namespace mfem
 {
-
-template <size_t N, size_t M>
-void prolongation(const std::array<FieldDescriptor, N> fields,
-                  const Vector &x,
-                  std::array<Vector, M> &fields_l)
-{
-   int data_offset = 0;
-   for (int i = 0; i < N; i++)
-   {
-      const auto P = get_prolongation(fields[i]);
-      const int width = P->Width();
-      const Vector x_i(x.GetData() + data_offset, width);
-      fields_l[i].SetSize(P->Height());
-
-      P->Mult(x_i, fields_l[i]);
-      data_offset += width;
-   }
-}
-
-template <size_t N, size_t M>
-void element_restriction(const std::array<FieldDescriptor, N> u,
-                         const std::array<Vector, N> &u_l,
-                         std::array<Vector, M> &fields_e,
-                         ElementDofOrdering ordering,
-                         const int offset = 0)
-{
-   for (int i = 0; i < N; i++)
-   {
-      const auto R = get_element_restriction(u[i], ordering);
-      MFEM_ASSERT(R->Width() == u_l[i].Size(),
-                  "element restriction not applicable to given data size");
-      const int height = R->Height();
-      fields_e[i + offset].SetSize(height);
-      R->Mult(u_l[i], fields_e[i + offset]);
-   }
-}
 
 template <size_t num_fields>
 typename std::array<FieldDescriptor, num_fields>::const_iterator find_name(
@@ -88,7 +47,7 @@ int find_name_idx(const std::array<FieldDescriptor, num_fields> &fields,
    return (it - fields.begin());
 }
 
-template <size_t num_fields, typename field_operator_ts, std::size_t... idx>
+template <typename entity_t, size_t num_fields, typename field_operator_ts, std::size_t... idx>
 std::array<int, std::tuple_size_v<field_operator_ts>>
                                                    create_descriptors_to_fields_map(
                                                       std::array<FieldDescriptor, num_fields> &fields,
@@ -110,9 +69,9 @@ std::array<int, std::tuple_size_v<field_operator_ts>>
       }
       else if ((i = find_name_idx(fields, fop.field_label)) != -1)
       {
-         fop.dim = GetDimension(fields[i]);
+         fop.dim = GetDimension<entity_t>(fields[i]);
          fop.vdim = GetVDim(fields[i]);
-         fop.size_on_qp = GetSizeOnQP(fop, fields[i]);
+         fop.size_on_qp = GetSizeOnQP<entity_t>(fop, fields[i]);
          map = i;
       }
       else
@@ -415,6 +374,7 @@ void prepare_kf_args(std::array<DeviceTensor<2>, num_fields> &u,
    (prepare_kf_arg(u[i], std::get<i>(args), qp), ...);
 }
 
+inline
 Vector prepare_kf_result(std::tuple<double> x)
 {
    Vector r(1);
@@ -422,12 +382,13 @@ Vector prepare_kf_result(std::tuple<double> x)
    return r;
 }
 
+inline
 Vector prepare_kf_result(std::tuple<Vector> x)
 {
    return std::get<0>(x);
 }
 
-template <typename T, int length>
+template <typename T, int length> inline
 Vector prepare_kf_result(std::tuple<internal::tensor<double, length>> x)
 {
    Vector r(length);
@@ -438,7 +399,32 @@ Vector prepare_kf_result(std::tuple<internal::tensor<double, length>> x)
    return r;
 }
 
-template <typename T, int length>
+template <typename T, int length> inline
+Vector prepare_kf_result(std::tuple<internal::tensor<T, length>> x)
+{
+   Vector r(length);
+   for (size_t i = 0; i < length; i++)
+   {
+      r(i) = std::get<0>(x)(i);
+   }
+   return r;
+}
+
+template <typename T, int length_1, int length_2> inline
+Vector prepare_kf_result(std::tuple<internal::tensor<T, length_1, length_2>> x)
+{
+   Vector r(length_1 * length_2);
+   for (size_t i = 0; i < length_1; i++)
+   {
+      for (size_t j = 0; j < length_2; j++)
+      {
+         r(j + length_2 * i) = std::get<0>(x)(i, j);
+      }
+   }
+   return r;
+}
+
+template <typename T, int length> inline
 Vector prepare_kf_result(
    std::tuple<internal::tensor<internal::dual<T, T>, length>> x)
 {
@@ -450,7 +436,7 @@ Vector prepare_kf_result(
    return r;
 }
 
-template <typename T>
+template <typename T> inline
 Vector prepare_kf_result(std::tuple<internal::tensor<T, 2, 2>> x)
 {
    Vector r(4);
@@ -465,7 +451,7 @@ Vector prepare_kf_result(std::tuple<internal::tensor<T, 2, 2>> x)
    return r;
 }
 
-template <typename T>
+template <typename T> inline
 Vector prepare_kf_result(std::tuple<internal::dual<T, T>> x)
 {
    Vector r(1);
@@ -473,7 +459,7 @@ Vector prepare_kf_result(std::tuple<internal::dual<T, T>> x)
    return r;
 }
 
-template <typename T>
+template <typename T> inline
 Vector get_derivative_from_dual(std::tuple<internal::dual<T, T>> x)
 {
    Vector r(1);
@@ -481,7 +467,7 @@ Vector get_derivative_from_dual(std::tuple<internal::dual<T, T>> x)
    return r;
 }
 
-template <typename T>
+template <typename T> inline
 Vector get_derivative_from_dual(
    std::tuple<internal::tensor<internal::dual<T, T>, 2, 2>> x)
 {
@@ -497,7 +483,7 @@ Vector get_derivative_from_dual(
    return r;
 }
 
-template <typename T, int length>
+template <typename T, int length> inline
 Vector get_derivative_from_dual(
    std::tuple<internal::tensor<internal::dual<T, T>, length>> x)
 {
@@ -509,7 +495,7 @@ Vector get_derivative_from_dual(
    return r;
 }
 
-template <typename T>
+template <typename T> inline
 Vector prepare_kf_result(T)
 {
    static_assert(always_false<T>,
@@ -517,6 +503,7 @@ Vector prepare_kf_result(T)
 }
 
 template <size_t num_fields, typename kernel_func_t, typename kernel_args>
+inline
 auto apply_kernel(const kernel_func_t &kf, kernel_args &args,
                   std::array<DeviceTensor<2>, num_fields> &u,
                   int qp)
@@ -527,30 +514,30 @@ auto apply_kernel(const kernel_func_t &kf, kernel_args &args,
    return prepare_kf_result(std::apply(kf, args));
 }
 
+template <typename arg_ts, std::size_t... Is> inline
+auto create_enzyme_args(arg_ts &args,
+                        arg_ts &shadow_args,
+                        std::index_sequence<Is...>)
+{
+   // (out << ... << std::get<Is>(shadow_args));
+   return std::tuple_cat(std::tie(enzyme_dup, std::get<Is>(args),
+                                  std::get<Is>(shadow_args))...);
+}
+
 // template <typename arg_ts, std::size_t... Is>
 // auto create_enzyme_args(arg_ts &args,
 //                         arg_ts &shadow_args,
 //                         std::index_sequence<Is...>)
 // {
-//    (out << ... << std::get<Is>(shadow_args));
-//    return std::tuple_cat(std::tie(enzyme_dup, std::get<Is>(args),
-//                                   std::get<Is>(shadow_args))...);
+//    // return std::tuple_cat(std::make_tuple(
+//    //                          enzyme::Duplicated<std::remove_cv_t<std::remove_reference_t<decltype(std::get<Is>(args))>>*> {&std::get<Is>(args), &std::get<Is>(shadow_args)})...);
+//    return std::tuple<enzyme::Duplicated<decltype(std::get<Is>(args))>...>
+//    {
+//       { std::get<Is>(args), std::get<Is>(shadow_args) }...
+//    };
 // }
 
-template <typename arg_ts, std::size_t... Is>
-auto create_enzyme_args(arg_ts &args,
-                        arg_ts &shadow_args,
-                        std::index_sequence<Is...>)
-{
-   // return std::tuple_cat(std::make_tuple(
-   //                          enzyme::Duplicated<std::remove_cv_t<std::remove_reference_t<decltype(std::get<Is>(args))>>*> {&std::get<Is>(args), &std::get<Is>(shadow_args)})...);
-   return std::tuple<enzyme::Duplicated<decltype(std::get<Is>(args))>...>
-   {
-      { std::get<Is>(args), std::get<Is>(shadow_args) }...
-   };
-}
-
-template <typename kernel_t, typename arg_ts>
+template <typename kernel_t, typename arg_ts> inline
 auto fwddiff_apply_enzyme(kernel_t kernel, arg_ts &&args, arg_ts &&shadow_args)
 {
    auto arg_indices =
@@ -569,14 +556,12 @@ auto fwddiff_apply_enzyme(kernel_t kernel, arg_ts &&args, arg_ts &&shadow_args)
 
    return std::apply([&](auto &&...args)
    {
-      // return __enzyme_fwddiff<kf_return_t>(+kernel, args...);
-      return enzyme::get<0>( enzyme::autodiff<enzyme::Forward> (+kernel, args...));
-      // return std::tuple{Vector(0.0)};
-   },
-   enzyme_args);
+      return __enzyme_fwddiff<kf_return_t>((void*)+kernel, &args...);
+      // return enzyme::get<0>( enzyme::autodiff<enzyme::Forward> (+kernel, args...));
+   }, enzyme_args);
 }
 
-template <typename kf_t, typename kernel_arg_ts, size_t num_args>
+template <typename kf_t, typename kernel_arg_ts, size_t num_args> inline
 auto apply_kernel_fwddiff_enzyme(const kf_t &kf,
                                  kernel_arg_ts &args,
                                  std::array<DeviceTensor<2>, num_args> &u,
@@ -593,14 +578,14 @@ auto apply_kernel_fwddiff_enzyme(const kf_t &kf,
    return prepare_kf_result(fwddiff_apply_enzyme(kf, args, shadow_args));
 }
 
-template <typename T>
+template <typename T> inline
 void prepare_kf_arg(const DeviceTensor<1> &u, const DeviceTensor<1> &v,
                     double &arg)
 {
    arg = u(0);
 }
 
-template <typename T, int dim, int vdim>
+template <typename T, int dim, int vdim> inline
 void prepare_kf_arg(const DeviceTensor<1> &u,
                     internal::tensor<internal::dual<T, T>, dim, vdim> &arg)
 {
@@ -613,20 +598,20 @@ void prepare_kf_arg(const DeviceTensor<1> &u,
    }
 }
 
-template <typename T>
+template <typename T> inline
 void prepare_kf_arg(const DeviceTensor<1> &u,
                     internal::dual<T, T> &arg)
 {
    arg.value = u(0);
 }
 
-template <typename T>
+template <typename T> inline
 void prepare_kf_arg(const DeviceTensor<1> &u, const DeviceTensor<1> &v, T &arg)
 {
    arg = u(0);
 }
 
-template <typename T>
+template <typename T> inline
 void prepare_kf_arg(const DeviceTensor<1> &u, const DeviceTensor<1> &v,
                     internal::dual<T, T> &arg)
 {
@@ -634,7 +619,7 @@ void prepare_kf_arg(const DeviceTensor<1> &u, const DeviceTensor<1> &v,
    arg.gradient = v(0);
 }
 
-template <typename T, int length>
+template <typename T, int length> inline
 void prepare_kf_arg(const DeviceTensor<1> &u, const DeviceTensor<1> &v,
                     internal::tensor<internal::dual<T, T>, length> &arg)
 {
@@ -645,8 +630,7 @@ void prepare_kf_arg(const DeviceTensor<1> &u, const DeviceTensor<1> &v,
    }
 }
 
-
-template <int dim, int vdim>
+template <int dim, int vdim> inline
 void prepare_kf_arg(const DeviceTensor<1> &u, const DeviceTensor<1> &v,
                     internal::tensor<double, dim, vdim> &arg)
 {
@@ -659,7 +643,7 @@ void prepare_kf_arg(const DeviceTensor<1> &u, const DeviceTensor<1> &v,
    }
 }
 
-template <typename T, int dim, int vdim>
+template <typename T, int dim, int vdim> inline
 void prepare_kf_arg(const DeviceTensor<1> &u, const DeviceTensor<1> &v,
                     internal::tensor<internal::dual<T, T>, dim, vdim> &arg)
 {
@@ -673,7 +657,7 @@ void prepare_kf_arg(const DeviceTensor<1> &u, const DeviceTensor<1> &v,
    }
 }
 
-template <typename arg_type>
+template <typename arg_type> inline
 void prepare_kf_arg(const DeviceTensor<2> &u, const DeviceTensor<2> &v,
                     arg_type &arg, int qp)
 {
@@ -682,7 +666,7 @@ void prepare_kf_arg(const DeviceTensor<2> &u, const DeviceTensor<2> &v,
    prepare_kf_arg(u_qp, v_qp, arg);
 }
 
-template <size_t num_fields, typename kf_args, std::size_t... i>
+template <size_t num_fields, typename kf_args, std::size_t... i> inline
 void prepare_kf_args(std::array<DeviceTensor<2>, num_fields> &u,
                      std::array<DeviceTensor<2>, num_fields> &v,
                      kf_args &args, int qp, std::index_sequence<i...>)
@@ -690,7 +674,7 @@ void prepare_kf_args(std::array<DeviceTensor<2>, num_fields> &u,
    (prepare_kf_arg(u[i], v[i], std::get<i>(args), qp), ...);
 }
 
-template <typename kernel_t, typename arg_ts>
+template <typename kernel_t, typename arg_ts> inline
 auto fwddiff_apply_dual(kernel_t kernel, arg_ts &&args)
 {
    return std::apply([&](auto &&...args)
@@ -700,7 +684,7 @@ auto fwddiff_apply_dual(kernel_t kernel, arg_ts &&args)
    args);
 }
 
-template <typename kf_t, typename kernel_arg_ts, size_t num_args>
+template <typename kf_t, typename kernel_arg_ts, size_t num_args> inline
 auto apply_kernel_fwddiff_dual(const kf_t &kf,
                                kernel_arg_ts &args,
                                std::array<DeviceTensor<2>, num_args> &u,
@@ -712,7 +696,6 @@ auto apply_kernel_fwddiff_dual(const kf_t &kf,
 
    return get_derivative_from_dual(fwddiff_apply_dual(kf, args));
 }
-
 
 template <typename output_type>
 void map_quadrature_data_to_fields(DeviceTensor<2, double> y,
@@ -777,18 +760,18 @@ void map_quadrature_data_to_fields(DeviceTensor<2, double> y,
    }
 }
 
-template <typename field_operator_ts, size_t N, std::size_t... i>
+template <typename entity_t, typename field_operator_ts, size_t N, std::size_t... i>
 std::vector<DofToQuadOperator> create_dtq_operators_conditional(
    field_operator_ts &fops,
    std::vector<const DofToQuad*> dtqmaps,
    const std::array<int, N> &to_field_map,
-   std::array<bool, N> is_dependent,
+   std::array<bool, N> active,
    std::index_sequence<i...>)
 {
    std::vector<DofToQuadOperator> ops;
    auto f = [&](auto fop, size_t idx)
    {
-      if (is_dependent[idx])
+      if (active[idx])
       {
          if (to_field_map[idx] == -1)
          {
@@ -831,7 +814,7 @@ std::vector<DofToQuadOperator> create_dtq_operators_conditional(
    return ops;
 }
 
-template <typename field_operator_ts, size_t N>
+template <typename entity_t, typename field_operator_ts, size_t N>
 std::vector<DofToQuadOperator> create_dtq_operators(
    field_operator_ts &fops,
    std::vector<const DofToQuad*> dtqmaps,
@@ -839,10 +822,10 @@ std::vector<DofToQuadOperator> create_dtq_operators(
 {
    std::array<bool, N> is_dependent;
    std::fill(is_dependent.begin(), is_dependent.end(), true);
-   return create_dtq_operators_conditional(fops, dtqmaps,
-                                           to_field_map,
-                                           is_dependent,
-                                           std::make_index_sequence<std::tuple_size_v<field_operator_ts>> {});
+   return create_dtq_operators_conditional<entity_t>(fops, dtqmaps,
+                                                     to_field_map,
+                                                     is_dependent,
+                                                     std::make_index_sequence<std::tuple_size_v<field_operator_ts>> {});
 }
 
 template <
@@ -910,7 +893,7 @@ public:
       DifferentiableOperator &op;
       std::array<mult_func_t, num_kernels> funcs;
 
-      std::function<void(Vector &, Vector &)> element_restriction_transpose;
+      std::function<void(Vector &, Vector &)> restriction_transpose;
       std::function<void(Vector &, Vector &)> prolongation_transpose;
 
       mutable std::array<Vector, num_solutions> solutions_l;
@@ -1047,7 +1030,7 @@ public:
       kernels_tuple &ks;
       std::array<mult_func_t, num_kernels> funcs;
 
-      std::function<void(Vector &, Vector &)> element_restriction_transpose;
+      std::function<void(Vector &, Vector &)> restriction_transpose;
       std::function<void(Vector &, Vector &)> prolongation_transpose;
 
       // TODO-multvar: doesn't work for multiple solution variables
@@ -1142,9 +1125,10 @@ public:
    Array<int> ess_tdof_list;
 
    static constexpr ElementDofOrdering element_dof_ordering =
-      ElementDofOrdering::NATIVE;
+      ElementDofOrdering::LEXICOGRAPHIC;
 
-   static constexpr DofToQuad::Mode doftoquad_mode = DofToQuad::Mode::FULL;
+   static constexpr DofToQuad::Mode doftoquad_mode =
+      DofToQuad::Mode::LEXICOGRAPHIC_FULL;
 
    std::unique_ptr<Action> residual;
 };

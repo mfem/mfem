@@ -16,20 +16,21 @@ void DifferentiableOperator<kernels_tuple,
         kernel_t kernel,
         mult_func_t &func)
 {
-   using OperatesOn = typename kernel_t::OperatesOn;
+   using entity_t = typename kernel_t::entity_t;
 
-   auto kinput_to_field = create_descriptors_to_fields_map(op.fields,
-                                                           kernel.inputs, std::make_index_sequence<kernel.num_kinputs> {});
+   auto kinput_to_field = create_descriptors_to_fields_map<entity_t>(op.fields,
+                                                                     kernel.inputs, std::make_index_sequence<kernel.num_kinputs> {});
 
-   auto koutput_to_field = create_descriptors_to_fields_map(op.fields,
-                                                            kernel.outputs, std::make_index_sequence<kernel.num_koutputs> {});
+   auto koutput_to_field = create_descriptors_to_fields_map<entity_t>(op.fields,
+                                                                      kernel.outputs, std::make_index_sequence<kernel.num_koutputs> {});
 
    constexpr int hardcoded_output_idx = 0;
    const int test_space_field_idx = koutput_to_field[hardcoded_output_idx];
 
    auto output_fop = std::get<0>(kernel.outputs);
 
-   const int num_el = op.mesh.GetNE();
+   const int num_elements = mfem::GetNumEntities<Entity::Element>(op.mesh);
+   const int num_entities = mfem::GetNumEntities<entity_t>(op.mesh);
    const int num_qp = op.integration_rule.GetNPoints();
 
    // All solutions T-vector sizes make up the width of the operator, since
@@ -53,67 +54,61 @@ void DifferentiableOperator<kernels_tuple,
    std::vector<const DofToQuad*> dtqmaps;
    for (const auto &field : op.fields)
    {
-      dtqmaps.emplace_back(GetDofToQuad(field, op.integration_rule, doftoquad_mode));
+      dtqmaps.emplace_back(GetDofToQuad<entity_t>(field, op.integration_rule,
+                                                  doftoquad_mode));
    }
 
    if (residual_e.Size() > 0 &&
-       (residual_e.Size() != GetVSize(op.fields[test_space_field_idx]) * num_el))
+       (residual_e.Size() != GetVSize(op.fields[test_space_field_idx]) * num_entities))
    {
       MFEM_ABORT("inconsistent kernels");
    }
    else
    {
-      residual_e.SetSize(GetVSize(op.fields[test_space_field_idx]) * num_el);
+      // TODO-bug: allocate correct size here!!!
+      residual_e.SetSize(GetVSize(op.fields[test_space_field_idx]) * num_entities);
    }
 
-   const int residual_size_on_qp = GetSizeOnQP(std::get<0>(kernel.outputs),
-                                               op.fields[test_space_field_idx]);
+   const int residual_size_on_qp = GetSizeOnQP<entity_t>(std::get<0>
+                                                         (kernel.outputs),
+                                                         op.fields[test_space_field_idx]);
 
    if (residual_qp_mem.Size() > 0 &&
-       (residual_qp_mem.Size() != residual_size_on_qp * num_qp * num_el))
+       (residual_qp_mem.Size() != residual_size_on_qp * num_qp * num_entities))
    {
       MFEM_ABORT("inconsistent kernels");
    }
    else
    {
-      residual_qp_mem.SetSize(residual_size_on_qp * num_qp * num_el);
+      residual_qp_mem.SetSize(residual_size_on_qp * num_qp * num_entities);
    }
 
    // Allocate memory for fields on quadrature points
    auto input_qp_mem = create_input_qp_memory(num_qp, kernel.inputs,
                                               std::make_index_sequence<kernel.num_kinputs> {});
 
-   const Operator *R = nullptr;
-   if constexpr (std::is_same_v<OperatesOn, OperatesOnElement>)
-   {
-      R = get_element_restriction(op.fields[test_space_field_idx],
-                                  element_dof_ordering);
-   }
-   else
-   {
-      MFEM_ABORT("restriction not implemented for OperatesOn");
-   }
+   const Operator *R = get_restriction<entity_t>(op.fields[test_space_field_idx],
+                                                 element_dof_ordering);
 
-   func = [this, kernel, num_el, num_qp, dtqmaps, residual_size_on_qp,
+   auto input_dtq_ops = create_dtq_operators<entity_t>(kernel.inputs, dtqmaps,
+                                                       kinput_to_field);
+   auto output_dtq_ops = create_dtq_operators<entity_t>(kernel.outputs, dtqmaps,
+                                                        koutput_to_field);
+
+   func = [this, kernel, num_entities, num_qp, input_dtq_ops,
+                 output_dtq_ops, residual_size_on_qp,
                  input_qp_mem, kinput_to_field, koutput_to_field,
                  output_fop, R]
    (Vector &ye_mem) mutable
    {
-      if constexpr (std::is_same_v<OperatesOn, OperatesOnElement>)
-      {
-         element_restriction(op.solutions, solutions_l, fields_e,
-                             op.element_dof_ordering);
-         element_restriction(op.parameters, parameters_l, fields_e,
-                             op.element_dof_ordering,
-                             op.solutions.size());
-      }
-      else
-      {
-         MFEM_ABORT("restriction not implemented for OperatesOn");
-      }
+      restriction<entity_t>(op.solutions, solutions_l, fields_e,
+                            op.element_dof_ordering);
+      restriction<entity_t>(op.parameters, parameters_l, fields_e,
+                            op.element_dof_ordering,
+                            op.solutions.size());
 
       auto residual_qp = Reshape(residual_qp_mem.ReadWrite(),
-                                 residual_size_on_qp, num_qp, num_el);
+                                 residual_size_on_qp, num_qp, num_entities);
 
       auto kernel_args = decay_tuple<typename kernel_t::kf_param_ts> {};
 
@@ -126,18 +121,15 @@ void DifferentiableOperator<kernels_tuple,
                                            kernel.inputs,
                                            std::make_index_sequence<kernel.num_kinputs> {});
 
-      auto input_dtq_ops = create_dtq_operators(kernel.inputs, dtqmaps, kinput_to_field);
-      auto output_dtq_ops = create_dtq_operators(kernel.outputs, dtqmaps, koutput_to_field);
-
       constexpr int fixed_output_idx = 0;
       auto Bv = output_dtq_ops[fixed_output_idx];
       auto [num_test_qp, test_op_dim, num_test_dof] = Bv.GetShape();
 
       const int test_vdim = std::get<0>(kernel.outputs).vdim;
 
-      DeviceTensor<3> ye = Reshape(ye_mem.ReadWrite(), num_test_dof, test_vdim, num_el);
+      DeviceTensor<3> ye = Reshape(ye_mem.ReadWrite(), num_test_dof, test_vdim, num_entities);
 
-      for (int e = 0; e < num_el; e++)
+      for (int e = 0; e < num_entities; e++)
       {
          map_fields_to_quadrature_data(
             input_qp, e, this->fields_e,
@@ -148,7 +140,6 @@ void DifferentiableOperator<kernels_tuple,
          for (int q = 0; q < num_qp; q++)
          {
             auto f_qp = apply_kernel(kernel.func, kernel_args, input_qp, q);
-
             auto r_qp = Reshape(&residual_qp(0, q, e), residual_size_on_qp);
             for (int i = 0; i < residual_size_on_qp; i++)
             {
@@ -162,13 +153,14 @@ void DifferentiableOperator<kernels_tuple,
          map_quadrature_data_to_fields(y, fhat,
                                        output_fop,
                                        output_dtq_ops[hardcoded_output_idx]);
+
       }
       R->MultTranspose(ye_mem, residual_l);
    };
 
    if constexpr (std::is_same_v<decltype(output_fop), One>)
    {
-      element_restriction_transpose = [](Vector &r_e, Vector &y)
+      restriction_transpose = [](Vector &r_e, Vector &y)
       {
          y = r_e;
       };

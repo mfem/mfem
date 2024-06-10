@@ -237,8 +237,8 @@ int test_qoi(std::string mesh_file,
    // print_vector(y);
 
    auto dFdrho = dop.GetDerivativeWrt<0>({&rho_g}, {mesh_nodes});
-   Vector dFdrho_vec;
-   dFdrho->Assemble(dFdrho_vec);
+   // Vector dFdrho_vec;
+   // dFdrho->Assemble(dFdrho_vec);
 
    // print_vector(dFdrho_vec);
 

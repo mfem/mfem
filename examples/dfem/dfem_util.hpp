@@ -5,6 +5,8 @@
 #include <general/forall.hpp>
 #include <type_traits>
 #include "dfem_fieldoperator.hpp"
+#include "fem/restriction.hpp"
+#include "mesh/mesh.hpp"
 
 template <typename T>
 constexpr auto get_type_name() -> std::string_view
@@ -110,9 +112,13 @@ struct DofToQuadMaps
 
 template <class... T> constexpr bool always_false = false;
 
-struct OperatesOnElement;
-struct OperatesOnFace;
-struct OperatesOnBoundary;
+namespace Entity
+{
+struct Element;
+struct BoundaryElement;
+struct Face;
+struct BoundaryFace;
+};
 
 template <typename func_t, typename input_t,
           typename output_t>
@@ -123,7 +129,7 @@ template <typename func_t, typename... input_ts,
 struct ElementOperator<func_t, std::tuple<input_ts...>,
           std::tuple<output_ts...>>
 {
-   using OperatesOn = OperatesOnElement;
+   using entity_t = Entity::Element;
    func_t func;
    std::tuple<input_ts...> inputs;
    std::tuple<output_ts...> outputs;
@@ -187,18 +193,18 @@ struct BoundaryElementOperator : public
    ElementOperator<func_t, input_t, output_t>
 {
 public:
-   using OperatesOn = OperatesOnBoundary;
+   using entity_t = Entity::BoundaryElement;
    BoundaryElementOperator(func_t func, input_t inputs, output_t outputs)
       : ElementOperator<func_t, input_t, output_t>(func, inputs, outputs) {}
 };
 
 template <typename func_t, typename input_t, typename output_t>
-struct FaceElementOperator : public
+struct FaceOperator : public
    ElementOperator<func_t, input_t, output_t>
 {
 public:
-   using OperatesOn = OperatesOnFace;
-   FaceElementOperator(func_t func, input_t inputs, output_t outputs)
+   using entity_t = Entity::Face;
+   FaceOperator(func_t func, input_t inputs, output_t outputs)
       : ElementOperator<func_t, input_t, output_t>(func, inputs, outputs) {}
 };
 
@@ -212,11 +218,8 @@ int GetVSize(const FieldDescriptor &f)
       }
 
       using T = std::decay_t<decltype(arg)>;
-      if constexpr (std::is_same_v<T, const FiniteElementSpace *>)
-      {
-         return arg->GetVSize();
-      }
-      else if constexpr (std::is_same_v<T, const ParFiniteElementSpace *>)
+      if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
+                    std::is_same_v<T, const ParFiniteElementSpace *>)
       {
          return arg->GetVSize();
       }
@@ -346,22 +349,23 @@ int GetVectorFECurlDim(const FieldDescriptor &f)
    }, f.data);
 }
 
+template <typename entity_t>
 int GetDimension(const FieldDescriptor &f)
 {
    return std::visit([](auto && arg)
    {
       using T = std::decay_t<decltype(arg)>;
-      if constexpr (std::is_same_v<T, const FiniteElementSpace *>)
+      if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
+                    std::is_same_v<T, const ParFiniteElementSpace *>)
       {
-         return arg->GetMesh()->Dimension();
-      }
-      else if constexpr (std::is_same_v<T, const ParFiniteElementSpace *>)
-      {
-         return arg->GetMesh()->Dimension();
-      }
-      else if constexpr (std::is_same_v<T, const QuadratureSpace *>)
-      {
-         return 1;
+         if constexpr (std::is_same_v<entity_t, Entity::Element>)
+         {
+            return arg->GetMesh()->Dimension();
+         }
+         else if constexpr (std::is_same_v<entity_t, Entity::BoundaryElement>)
+         {
+            return arg->GetMesh()->Dimension() - 1;
+         }
       }
       else
       {
@@ -375,11 +379,8 @@ const Operator *get_prolongation(const FieldDescriptor &f)
    return std::visit([](auto&& arg) -> const Operator*
    {
       using T = std::decay_t<decltype(arg)>;
-      if constexpr (std::is_same_v<T, const FiniteElementSpace *>)
-      {
-         return arg->GetProlongationMatrix();
-      }
-      else if constexpr (std::is_same_v<T, const ParFiniteElementSpace *>)
+      if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
+                    std::is_same_v<T, const ParFiniteElementSpace *>)
       {
          return arg->GetProlongationMatrix();
       }
@@ -396,11 +397,8 @@ const Operator *get_element_restriction(const FieldDescriptor &f,
    return std::visit([&o](auto&& arg) -> const Operator*
    {
       using T = std::decay_t<decltype(arg)>;
-      if constexpr (std::is_same_v<T, const FiniteElementSpace *>)
-      {
-         return arg->GetElementRestriction(o);
-      }
-      else if constexpr (std::is_same_v<T, const ParFiniteElementSpace *>)
+      if constexpr (std::is_same_v<T, const FiniteElementSpace *>
+                    || std::is_same_v<T, const ParFiniteElementSpace *>)
       {
          return arg->GetElementRestriction(o);
       }
@@ -411,6 +409,119 @@ const Operator *get_element_restriction(const FieldDescriptor &f,
    }, f.data);
 }
 
+const Operator *get_face_restriction(const FieldDescriptor &f,
+                                     ElementDofOrdering o,
+                                     FaceType ft,
+                                     L2FaceValues m)
+{
+   return std::visit([&o, &ft, &m](auto&& arg) -> const Operator*
+   {
+      using T = std::decay_t<decltype(arg)>;
+      if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
+                    std::is_same_v<T, const ParFiniteElementSpace *>)
+      {
+         return arg->GetFaceRestriction(o, ft, m);
+      }
+      else
+      {
+         static_assert(always_false<T>, "can't use get_face_restriction on type");
+      }
+   }, f.data);
+}
+
+
+template <typename entity_t>
+inline
+const Operator *get_restriction(const FieldDescriptor &f,
+                                const ElementDofOrdering &o)
+{
+   if constexpr (std::is_same_v<entity_t, Entity::Element>)
+   {
+      return get_element_restriction(f, o);
+   }
+   else if constexpr (std::is_same_v<entity_t, Entity::BoundaryElement>)
+   {
+      return get_face_restriction(f, o, FaceType::Boundary,
+                                  L2FaceValues::SingleValued);
+   }
+   MFEM_ABORT("restriction not implemented for Entity");
+   return nullptr;
+}
+
+template <size_t N, size_t M>
+void prolongation(const std::array<FieldDescriptor, N> fields,
+                  const Vector &x,
+                  std::array<Vector, M> &fields_l)
+{
+   int data_offset = 0;
+   for (int i = 0; i < N; i++)
+   {
+      const auto P = get_prolongation(fields[i]);
+      const int width = P->Width();
+      const Vector x_i(x.GetData() + data_offset, width);
+      fields_l[i].SetSize(P->Height());
+
+      P->Mult(x_i, fields_l[i]);
+      data_offset += width;
+   }
+}
+
+template <typename entity_t, size_t N, size_t M>
+void restriction(const std::array<FieldDescriptor, N> u,
+                 const std::array<Vector, N> &u_l,
+                 std::array<Vector, M> &fields_e,
+                 ElementDofOrdering ordering,
+                 const int offset = 0)
+{
+   for (int i = 0; i < N; i++)
+   {
+      const auto R = get_restriction<entity_t>(u[i], ordering);
+      MFEM_ASSERT(R->Width() == u_l[i].Size(),
+                  "restriction not applicable to given data size");
+      const int height = R->Height();
+      fields_e[i + offset].SetSize(height);
+      R->Mult(u_l[i], fields_e[i + offset]);
+   }
+}
+
+// TODO: keep this temporarily
+template <size_t N, size_t M>
+void element_restriction(const std::array<FieldDescriptor, N> u,
+                         const std::array<Vector, N> &u_l,
+                         std::array<Vector, M> &fields_e,
+                         ElementDofOrdering ordering,
+                         const int offset = 0)
+{
+   for (int i = 0; i < N; i++)
+   {
+      const auto R = get_element_restriction(u[i], ordering);
+      MFEM_ASSERT(R->Width() == u_l[i].Size(),
+                  "element restriction not applicable to given data size");
+      const int height = R->Height();
+      fields_e[i + offset].SetSize(height);
+      R->Mult(u_l[i], fields_e[i + offset]);
+   }
+}
+
+template <typename entity_t>
+int GetNumEntities(mfem::Mesh &mesh)
+{
+   if constexpr (std::is_same_v<entity_t, Entity::Element>)
+   {
+      return mesh.GetNE();
+   }
+   else if constexpr (std::is_same_v<entity_t, Entity::BoundaryElement>)
+   {
+      return mesh.GetNBE();
+   }
+   else
+   {
+      static_assert(always_false<entity_t>, "can't use GetNumEntites on type");
+   }
+}
+
+template <typename entity_t>
+inline
 const DofToQuad *GetDofToQuad(const FieldDescriptor &f,
                               const IntegrationRule &ir,
                               DofToQuad::Mode mode)
@@ -418,41 +529,21 @@ const DofToQuad *GetDofToQuad(const FieldDescriptor &f,
    return std::visit([&ir, &mode](auto&& arg) -> const DofToQuad*
    {
       using T = std::decay_t<decltype(arg)>;
-      if constexpr (std::is_same_v<T, const FiniteElementSpace *>)
+      if constexpr (std::is_same_v<T, const FiniteElementSpace *>
+                    || std::is_same_v<T, const ParFiniteElementSpace *>)
       {
-         return &arg->GetFE(0)->GetDofToQuad(ir, mode);
-      }
-      else if constexpr (std::is_same_v<T, const ParFiniteElementSpace *>)
-      {
-         return &arg->GetFE(0)->GetDofToQuad(ir, mode);
+         if constexpr (std::is_same_v<entity_t, Entity::Element>)
+         {
+            return &arg->GetFE(0)->GetDofToQuad(ir, mode);
+         }
+         else if constexpr (std::is_same_v<entity_t, Entity::BoundaryElement>)
+         {
+            return &arg->GetBE(0)->GetDofToQuad(ir, mode);
+         }
       }
       else
       {
          static_assert(always_false<T>, "can't use GetDofToQuad on type");
-      }
-   }, f.data);
-}
-
-const DofToQuad *GetDofToQuadFace(const FieldDescriptor &f,
-                                  const IntegrationRule &ir,
-                                  DofToQuad::Mode mode)
-{
-   return std::visit([&ir, &mode](auto&& arg) -> const DofToQuad*
-   {
-      using T = std::decay_t<decltype(arg)>;
-      if constexpr (std::is_same_v<T, const FiniteElementSpace *>)
-      {
-         return &arg->GetTraceElement(
-            0, arg->GetMesh()->GetFaceGeometry(0))->GetDofToQuad(ir, mode);
-      }
-      else if constexpr (std::is_same_v<T, const ParFiniteElementSpace *>)
-      {
-         return &arg->GetTraceElement(
-            0, arg->GetMesh()->GetFaceGeometry(0))->GetDofToQuad(ir, mode);
-      }
-      else
-      {
-         static_assert(always_false<T>, "can't use GetDofToQuadFace on type");
       }
    }, f.data);
 }
@@ -507,7 +598,7 @@ void CheckCompatibility(const FieldDescriptor &f)
    }, f.data);
 }
 
-template <typename field_operator_t>
+template <typename entity_t, typename field_operator_t>
 int GetSizeOnQP(const field_operator_t &, const FieldDescriptor &f)
 {
    CheckCompatibility<field_operator_t>(f);
@@ -518,7 +609,7 @@ int GetSizeOnQP(const field_operator_t &, const FieldDescriptor &f)
    }
    else if constexpr (std::is_same_v<field_operator_t, Gradient>)
    {
-      return GetVDim(f) * GetDimension(f);
+      return GetVDim(f) * GetDimension<entity_t>(f);
    }
    else if constexpr (std::is_same_v<field_operator_t, Curl>)
    {
