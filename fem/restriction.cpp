@@ -855,7 +855,7 @@ void ConformingFaceRestriction::SetFaceDofsScatterIndices(
                "This method should not be used on nonconforming coarse faces.");
    MFEM_ASSERT(face.element[0].orientation==0,
                "FaceRestriction used on degenerated mesh.");
-   MFEM_ASSERT(f_ordering == ElementDofOrdering::LEXICOGRAPHIC,
+   MFEM_VERIFY(f_ordering == ElementDofOrdering::LEXICOGRAPHIC,
                "NATIVE ordering is not supported yet");
 
    fes.GetFE(0)->GetFaceMap(face.element[0].local_face_id, face_map);
@@ -884,7 +884,7 @@ void ConformingFaceRestriction::SetFaceDofsGatherIndices(
 {
    MFEM_ASSERT(!(face.IsNonconformingCoarse()),
                "This method should not be used on nonconforming coarse faces.");
-   MFEM_ASSERT(f_ordering == ElementDofOrdering::LEXICOGRAPHIC,
+   MFEM_VERIFY(f_ordering == ElementDofOrdering::LEXICOGRAPHIC,
                "NATIVE ordering is not supported yet");
 
    fes.GetFE(0)->GetFaceMap(face.element[0].local_face_id, face_map);
