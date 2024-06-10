@@ -192,8 +192,6 @@ int main(int argc, char *argv[])
          btime = false;
          break;
       case Problem::SteadyAdvectionDiffusion:
-         bconv = true;
-         btime = false;
       case Problem::SteadyAdvection:
          bconv = true;
          btime = false;
@@ -258,12 +256,12 @@ int main(int argc, char *argv[])
       case Problem::SteadyDiffusion:
          //free
          break;
+      case Problem::SteadyAdvectionDiffusion:
+         //free
+         break;
       case Problem::SteadyAdvection:
          bdr_is_dirichlet[3] = -1;//inflow
          bdr_is_neumann[0] = -1;//outflow
-         break;
-      case SteadyAdvectionDiffusion:
-         //free
          break;
       case Problem::NonsteadyAdvectionDiffusion:
          bdr_is_dirichlet = -1;
