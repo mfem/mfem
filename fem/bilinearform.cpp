@@ -1356,35 +1356,35 @@ void MixedBilinearForm::GetBlocks(Array2D<SparseMatrix *> &blocks) const
    mat->GetBlocks(blocks);
 }
 
-void MixedBilinearForm::AddDomainIntegrator (BilinearFormIntegrator * bfi)
+void MixedBilinearForm::AddDomainIntegrator(BilinearFormIntegrator *bfi)
 {
-   domain_integs.Append (bfi);
+   domain_integs.Append(bfi);
    domain_integs_marker.Append(NULL); // NULL marker means apply everywhere
 }
 
-void MixedBilinearForm::AddDomainIntegrator (BilinearFormIntegrator * bfi,
-                                             Array<int> &elem_marker)
+void MixedBilinearForm::AddDomainIntegrator(BilinearFormIntegrator *bfi,
+                                            Array<int> &elem_marker)
 {
-   domain_integs.Append (bfi);
+   domain_integs.Append(bfi);
    domain_integs_marker.Append(&elem_marker);
 }
 
-void MixedBilinearForm::AddBoundaryIntegrator (BilinearFormIntegrator * bfi)
+void MixedBilinearForm::AddBoundaryIntegrator(BilinearFormIntegrator *bfi)
 {
-   boundary_integs.Append (bfi);
+   boundary_integs.Append(bfi);
    boundary_integs_marker.Append(NULL); // NULL marker means apply everywhere
 }
 
-void MixedBilinearForm::AddBoundaryIntegrator (BilinearFormIntegrator * bfi,
-                                               Array<int> &bdr_marker)
+void MixedBilinearForm::AddBoundaryIntegrator(BilinearFormIntegrator *bfi,
+                                              Array<int> &bdr_marker)
 {
-   boundary_integs.Append (bfi);
+   boundary_integs.Append(bfi);
    boundary_integs_marker.Append(&bdr_marker);
 }
 
-void MixedBilinearForm::AddInteriorFaceIntegrator (BilinearFormIntegrator * bfi)
+void MixedBilinearForm::AddInteriorFaceIntegrator(BilinearFormIntegrator *bfi)
 {
-   interior_face_integs.Append (bfi);
+   interior_face_integs.Append(bfi);
 }
 
 void MixedBilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator *bfi)
