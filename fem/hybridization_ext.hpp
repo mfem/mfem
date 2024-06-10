@@ -78,9 +78,11 @@ public:
    HybridizationExtension(class Hybridization &hybridization_);
    /// Prepare for assembly; form the constraint matrix.
    void Init(const Array<int> &ess_tdof_list);
+
    /// @brief Given a right-hand side on the original space, compute the
    /// corresponding right-hand side for the Lagrange multipliers.
    void ReduceRHS(const Vector &b, Vector &b_r) const;
+
    /// @brief Given Lagrange multipliers @a sol_r and the original right-hand
    /// side @a b, recover the solution @a sol on the original finite element
    /// space.
