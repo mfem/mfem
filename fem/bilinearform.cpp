@@ -289,9 +289,10 @@ void BilinearForm::ComputeElementMatrix(int i, DenseMatrix &elmat)
       return;
    }
 
+   const FiniteElement &fe = *fes->GetFE(i);
+
    if (domain_integs.Size())
    {
-      const FiniteElement &fe = *fes->GetFE(i);
       ElementTransformation *eltrans = fes->GetElementTransformation(i);
       domain_integs[0]->AssembleElementMatrix(fe, *eltrans, elmat);
       for (int k = 1; k < domain_integs.Size(); k++)
@@ -302,17 +303,18 @@ void BilinearForm::ComputeElementMatrix(int i, DenseMatrix &elmat)
    }
    else
    {
-      fes->GetElementVDofs(i, vdofs);
-      elmat.SetSize(vdofs.Size());
+      const int ndof = fe.GetDof() * fes->GetVDim();
+      elmat.SetSize(ndof);
       elmat = 0.0;
    }
 }
 
 void BilinearForm::ComputeBdrElementMatrix(int i, DenseMatrix &elmat)
 {
+   const FiniteElement &be = *fes->GetBE(i);
+
    if (boundary_integs.Size())
    {
-      const FiniteElement &be = *fes->GetBE(i);
       ElementTransformation *eltrans = fes->GetBdrElementTransformation(i);
       boundary_integs[0]->AssembleElementMatrix(be, *eltrans, elmat);
       for (int k = 1; k < boundary_integs.Size(); k++)
@@ -323,8 +325,8 @@ void BilinearForm::ComputeBdrElementMatrix(int i, DenseMatrix &elmat)
    }
    else
    {
-      fes->GetBdrElementVDofs(i, vdofs);
-      elmat.SetSize(vdofs.Size());
+      const int ndof = be.GetDof() * fes->GetVDim();
+      elmat.SetSize(ndof);
       elmat = 0.0;
    }
 }
