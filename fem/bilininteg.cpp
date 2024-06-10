@@ -233,38 +233,38 @@ void TransposeIntegrator::SetIntRule(const IntegrationRule *ir)
    bfi->SetIntRule(ir);
 }
 
-void TransposeIntegrator::AssembleElementMatrix (
+void TransposeIntegrator::AssembleElementMatrix(
    const FiniteElement &el, ElementTransformation &Trans, DenseMatrix &elmat)
 {
-   bfi -> AssembleElementMatrix (el, Trans, bfi_elmat);
+   bfi->AssembleElementMatrix(el, Trans, bfi_elmat);
    // elmat = bfi_elmat^t
    elmat.Transpose (bfi_elmat);
 }
 
-void TransposeIntegrator::AssembleElementMatrix2 (
+void TransposeIntegrator::AssembleElementMatrix2(
    const FiniteElement &trial_fe, const FiniteElement &test_fe,
    ElementTransformation &Trans, DenseMatrix &elmat)
 {
-   bfi -> AssembleElementMatrix2 (test_fe, trial_fe, Trans, bfi_elmat);
+   bfi->AssembleElementMatrix2(test_fe, trial_fe, Trans, bfi_elmat);
    // elmat = bfi_elmat^t
    elmat.Transpose (bfi_elmat);
 }
 
-void TransposeIntegrator::AssembleFaceMatrix (
+void TransposeIntegrator::AssembleFaceMatrix(
    const FiniteElement &el1, const FiniteElement &el2,
    FaceElementTransformations &Trans, DenseMatrix &elmat)
 {
-   bfi -> AssembleFaceMatrix (el1, el2, Trans, bfi_elmat);
+   bfi->AssembleFaceMatrix(el1, el2, Trans, bfi_elmat);
    // elmat = bfi_elmat^t
    elmat.Transpose (bfi_elmat);
 }
 
-void TransposeIntegrator::AssembleFaceMatrix (
+void TransposeIntegrator::AssembleFaceMatrix(
    const FiniteElement &tr_el1, const FiniteElement &te_el1,
    const FiniteElement &tr_el2, const FiniteElement &te_el2,
    FaceElementTransformations &Trans, DenseMatrix &elmat)
 {
-   bfi -> AssembleFaceMatrix (te_el1, tr_el1, te_el2, tr_el2, Trans, bfi_elmat);
+   bfi->AssembleFaceMatrix(te_el1, tr_el1, te_el2, tr_el2, Trans, bfi_elmat);
    // elmat = bfi_elmat^t
    elmat.Transpose (bfi_elmat);
 }
