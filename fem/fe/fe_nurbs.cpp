@@ -349,10 +349,10 @@ void NURBS3DFiniteElement::CalcHessian (const IntegrationPoint &ip,
             d2sum[1] += ( hessian(o,1) = dsx*dsy*sz*weights(o) );
             d2sum[2] += ( hessian(o,2) = dsx*sy*dsz*weights(o) );
 
-            d2sum[3] += ( hessian(o,3) = sx*dsy*dsz*weights(o) );
+            d2sum[3] += ( hessian(o,3) = sx*d2sy*sz*weights(o) );
+            d2sum[4] += ( hessian(o,4) = sx*dsy*dsz*weights(o) );
 
-            d2sum[4] += ( hessian(o,4) = sx*sy*d2sz*weights(o) );
-            d2sum[5] += ( hessian(o,5) = sx*d2sy*sz*weights(o) );
+            d2sum[5] += ( hessian(o,5) = sx*sy*d2sz*weights(o) );
          }
       }
    }
@@ -387,18 +387,17 @@ void NURBS3DFiniteElement::CalcHessian (const IntegrationPoint &ip,
                      + u[o]*sum*(2*dsum[0]*dsum[2] - d2sum[2]);
 
       hessian(o,3) = hessian(o,3)*sum
-                     - du(o,1)*sum*dsum[2]
-                     - du(o,2)*sum*dsum[1]
-                     + u[o]*sum*(2*dsum[1]*dsum[2] - d2sum[3]);
+                     - 2*du(o,1)*sum*dsum[1]
+                     + u[o]*sum*(2*dsum[1]*dsum[1] - d2sum[3]);
 
       hessian(o,4) = hessian(o,4)*sum
-                     - 2*du(o,2)*sum*dsum[2]
-                     + u[o]*sum*(2*dsum[2]*dsum[2] - d2sum[4]);
+                     - du(o,1)*sum*dsum[2]
+                     - du(o,2)*sum*dsum[1]
+                     + u[o]*sum*(2*dsum[1]*dsum[2] - d2sum[4]);
 
       hessian(o,5) = hessian(o,5)*sum
-                     - 2*du(o,1)*sum*dsum[1]
-                     + u[o]*sum*(2*dsum[1]*dsum[1] - d2sum[5]);
-
+                     - 2*du(o,2)*sum*dsum[2]
+                     + u[o]*sum*(2*dsum[2]*dsum[2] - d2sum[5]);
    }
 }
 
