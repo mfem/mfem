@@ -4189,8 +4189,7 @@ DenseMatrixInverse::~DenseMatrixInverse()
 
 
 real_t PowerMethod2(DenseMatrix &a, DenseMatrix &b, Vector& v0,
-                    int numSteps, real_t tolerance,
-                    int seed)
+                    int numSteps, real_t tolerance,int seed)
 {
    MFEM_VERIFY(a.Height() == a.Width(), "a has to be a square matrix");
    MFEM_VERIFY(b.Height() == b.Width(), "b has to be a square matrix");
@@ -4237,15 +4236,15 @@ real_t PowerMethod2(DenseMatrix &a, DenseMatrix &b, Vector& v0, Vector& null,
    MFEM_VERIFY(a.Height() == a.Width(), "a has to be a square matrix");
    MFEM_VERIFY(b.Height() == b.Width(), "b has to be a square matrix");
    MFEM_VERIFY(b.Height() == a.Width(), "a and b dimension mismatch");
-   MFEM_VERIFY(b.Height() == a.Width(), "a and b dimension mismatch");
 
    int n = a.Width();
    DenseMatrixInverse a_inv(a);
    real_t eigenvalue, eigenvalueNew, diff, alpha;
 
-   Vector v1(v0.Size());
-   if (seed != 0)
+   Vector v1(n);
+   if (v0.Size() == 0)
    {
+      v0.SetSize(n);
       v0.Randomize(seed);
    }
 
@@ -4254,7 +4253,8 @@ real_t PowerMethod2(DenseMatrix &a, DenseMatrix &b, Vector& v0, Vector& null,
    a_inv.Mult(v1, v0);
    eigenvalue = v0.Norml2();
    v0 *= 1.0/eigenvalue;
-   for (int iter = 0; iter < numSteps; ++iter)
+   int iter;
+   for (iter = 0; iter < numSteps; ++iter)
    {
       alpha = v0*null;
       v0.Add(-alpha, null);
@@ -4270,10 +4270,13 @@ real_t PowerMethod2(DenseMatrix &a, DenseMatrix &b, Vector& v0, Vector& null,
          break;
       }
    }
-
+   MFEM_VERIFY(diff > tolerance,
+               "Inverse power method did not converge."
+               << "\n\t iter       = " << iter
+               << "\n\t eigenvalue = " << eigenvalue
+               << "\n\t diff       = " << diff);
    return eigenvalue;
 }
-
 
 real_t PowerMethod3(DenseMatrix &a, DenseMatrix &b, Vector& null)
 {

@@ -879,12 +879,12 @@ public:
 
 /// Compute the highest eigenvalue using the iterative powermethod
 real_t PowerMethod2(DenseMatrix &a, DenseMatrix &b, Vector& v0,
-                    int numSteps = 10, real_t tolerance = 1e-8,
+                    int numSteps = 10000, real_t tolerance = 1e-12,
                     int seed = 12345);
 
 /// Compute the highest eigenvalue using the iterative powermethod
 real_t PowerMethod2(DenseMatrix &a, DenseMatrix &b, Vector &null, Vector& v0,
-                    int numSteps = 10, real_t tolerance = 1e-8,
+                    int numSteps = 10000, real_t tolerance = 1e-12,
                     int seed = 12345);
 
 
