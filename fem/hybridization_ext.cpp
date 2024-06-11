@@ -432,6 +432,7 @@ void HybridizationExtension::AssembleMatrix(int el, const DenseMatrix &elmat)
 void HybridizationExtension::AssembleElementMatrices(
    const class DenseTensor &el_mats)
 {
+   Ahat_inv.Write();
    Ahat_inv.GetMemory().CopyFrom(el_mats.GetMemory(), el_mats.TotalSize());
 
    const int ne = h.fes.GetNE();
@@ -554,7 +555,7 @@ void HybridizationExtension::Init(const Array<int> &ess_tdof_list)
       {
          HypreParMatrix *P = pfes->Dof_TrueDof_Matrix();
          free_vdofs_marker.SetSize(h.fes.GetVSize());
-         P->BooleanMult(1, free_tdof_marker, 0, free_vdofs_marker);
+         P->BooleanMult(1, free_tdof_marker.HostRead(), 0, free_vdofs_marker.HostWrite());
       }
       else
       {
