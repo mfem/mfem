@@ -191,23 +191,21 @@ void HybridizationExtension::ConstructH()
 
       mfem::forall(ncdofs, [=] MFEM_HOST_DEVICE (int i) { I[i] = 0; });
 
-      // TODO: to expose more parallelism, should be able to make this forall
-      // loop over nf*n (for indices fi and i)
-      mfem::forall(nf, [=] MFEM_HOST_DEVICE (int fi)
+      mfem::forall(nf*n, [=] MFEM_HOST_DEVICE (int idx_i)
       {
+         const int i = idx_i % n;
+         const int fi = idx_i / n;
+         const int ii = c_gather_map(i, fi);
+
          for (int idx = 0; idx < n_face_connections; ++idx)
          {
             const int fj = d_face_to_face(idx, fi);
             if (fj < 0) { break; }
-            for (int i = 0; i < n; ++ i)
+            for (int j = 0; j < n; ++j)
             {
-               const int ii = c_gather_map(i, fi);
-               for (int j = 0; j < n; ++j)
+               if (d_CAhatInvCt(i, j, idx, fi) != 0)
                {
-                  if (d_CAhatInvCt(i, j, idx, fi) != 0)
-                  {
-                     I[ii]++;
-                  }
+                  I[ii]++;
                }
             }
          }
@@ -255,28 +253,25 @@ void HybridizationExtension::ConstructH()
       int *J = h.H->WriteJ();
       real_t *V = h.H->WriteData();
 
-      // TODO: to expose more parallelism, should be able to make this forall
-      // loop over nf*n (for indices fi and i)
-      mfem::forall(nf, [=] MFEM_HOST_DEVICE (int fi)
+      mfem::forall(nf*n, [=] MFEM_HOST_DEVICE (int idx_i)
       {
+         const int i = idx_i % n;
+         const int fi = idx_i / n;
+         const int ii = c_gather_map[i + fi*n];
          for (int idx = 0; idx < n_face_connections; ++idx)
          {
             const int fj = d_face_to_face(idx, fi);
             if (fj < 0) { break; }
-            for (int i = 0; i < n; ++ i)
+            for (int j = 0; j < n; ++j)
             {
-               const int ii = c_gather_map[i + fi*n];
-               for (int j = 0; j < n; ++j)
+               const real_t val = d_CAhatInvCt(i, j, idx, fi);
+               if (val != 0)
                {
-                  const real_t val = d_CAhatInvCt(i, j, idx, fi);
-                  if (val != 0)
-                  {
-                     const int k = I[ii];
-                     const int jj = c_gather_map(j, fj);
-                     I[ii]++;
-                     J[k] = jj;
-                     V[k] = val;
-                  }
+                  const int k = I[ii];
+                  const int jj = c_gather_map(j, fj);
+                  I[ii]++;
+                  J[k] = jj;
+                  V[k] = val;
                }
             }
          }
@@ -555,7 +550,9 @@ void HybridizationExtension::Init(const Array<int> &ess_tdof_list)
       {
          HypreParMatrix *P = pfes->Dof_TrueDof_Matrix();
          free_vdofs_marker.SetSize(h.fes.GetVSize());
-         P->BooleanMult(1, free_tdof_marker.HostRead(), 0, free_vdofs_marker.HostWrite());
+         // TODO: would be nice to do this on device
+         P->BooleanMult(1, free_tdof_marker.HostRead(),
+                        0, free_vdofs_marker.HostWrite());
       }
       else
       {
