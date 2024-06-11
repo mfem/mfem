@@ -1,4 +1,5 @@
 # This is the regression testing script for ex5-nguygen
+# The reference cases are stored in the regress_test folder
 # Currently, this uses cases 1 and 2
 # Naming convention of the saved output reference files:
 # 1st digit -> Problem number: 1 or 2 (for now)
@@ -48,6 +49,8 @@ for i in range(len(filenames)):
 	precond_ref = p.split()[0]
 
 	# Run test case
+	print("----------------------------------------------------------------")
+	print("Running case: "+filenames[i])
 	command_line = "./ex5-nguyen -no-vis -nx "+str(nx)+" -ny "+str(ny)+" -p "+problem+" -o "+order+dg_com+hb_com
 
 	p = subprocess.getoutput(command_line)
@@ -68,6 +71,7 @@ for i in range(len(filenames)):
 		else:
 			print(bcolors.FAIL + "FAIL: " + bcolors.RESET, end="", flush=True)
 			print(command_line)
+			subprocess.call(command_line, shell=True)
 	else:
-		pass
+		print(bcolors.HEADER + "SKIPPING: "+ bcolors.RESET +filenames[i]+" → incompatible preconditioner")
 
