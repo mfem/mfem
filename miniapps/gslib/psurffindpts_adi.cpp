@@ -27,7 +27,8 @@
 // Compile with: make pfindpts
 //
 // Sample runs:
-//    make psurffindpts_adi -j && mpirun -np 2 psurffindpts_adi -mo 2 -dim 3 -nx 2 -o 1 -vis
+//    make psurffindpts_adi -j && mpirun -np 1 psurffindpts_adi -mo 4 -nx 1 --dim 2 -o 1 -visit
+//    make psurffindpts_adi -j && mpirun -np 2 psurffindpts_adi -mo 2 -dim 3 -nx 2 -o 1 -visit
 
 #include "mfem.hpp"
 #include "general/forall.hpp"
@@ -296,6 +297,7 @@ int main (int argc, char *argv[])
    ParGridFunction field_vals(&sc_fes);
    VectorFunctionCoefficient F(vec_dim, F_exact);
    field_vals.ProjectCoefficient(F);
+
    if (visualization)
    {
       socketstream sock;
@@ -356,6 +358,17 @@ int main (int argc, char *argv[])
       // }
    }
    MPI_Barrier(MPI_COMM_WORLD);
+
+   // Generate random points
+   npt = 1;
+   Vector point_pos(npt*dim);
+   // ordering byNodes
+   for (int i=0; i<npt; i++) {
+      point_pos(i*dim + 0) = 0.98;
+      point_pos(i*dim + 1) = 0.50;
+   }
+
+   finder.FindPointsSurf(point_pos);
 
    delete fec;
 

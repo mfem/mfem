@@ -198,6 +198,14 @@ protected:
                          Array<int> &gsl_newton_dev_l,
                          int npt);
 
+   void FindPointsSurfLocal2(const Vector &point_pos,
+                             int point_pos_ordering,
+                             Array<int> &gsl_code_dev_l,
+                             Array<int> &gsl_elem_dev_l,
+                             Vector &gsl_ref_l,
+                             Vector &gsl_dist_l,
+                             Array<int> &gsl_newton_dev_l,
+                             int npt);
    // Interpolate on device for 3D.
    void InterpolateLocal3(const Vector &field_in,
                           Array<int> &gsl_elem_dev_l,
@@ -265,6 +273,9 @@ public:
                         in physical space. */
    void FindPoints(const Vector &point_pos,
                    int point_pos_ordering = Ordering::byNODES);
+
+   void FindPointsSurf(const Vector &point_pos,
+                       int point_pos_ordering = Ordering::byNODES);
    /// Setup FindPoints and search positions
    void FindPoints(Mesh &m, const Vector &point_pos,
                    int point_pos_ordering = Ordering::byNODES,
@@ -342,8 +353,12 @@ public:
 
    virtual void SetupDevice(MemoryType mt); // probably should be internal
 
+   virtual void SurfSetupDevice(MemoryType mt); // probably should be internal
+
    void FindPointsOnDevice(const Vector &point_pos,
                            int point_pos_ordering = Ordering::byNODES);
+   void FindPointsSurfOnDevice(const Vector &point_pos,
+                               int point_pos_ordering = Ordering::byNODES);
 
    void InterpolateOnDevice(const Vector &field_in, Vector &field_out,
                             const int nel, const int ncomp,
