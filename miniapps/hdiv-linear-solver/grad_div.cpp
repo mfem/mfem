@@ -158,6 +158,8 @@ int main(int argc, char *argv[])
 
    if (use_ams)
    {
+      x.ProjectCoefficient(u_vec_coeff);
+
       if (Mpi::Root()) { cout << "\nAMS solver... " << flush; }
       tic_toc.Clear(); tic_toc.Start();
 
@@ -169,7 +171,6 @@ int main(int argc, char *argv[])
       OperatorHandle A;
       Vector B, X;
       b.Assemble();
-      x.ProjectCoefficient(u_vec_coeff);
       a.FormLinearSystem(ess_rt_dofs, x, b, A, X, B);
       HypreParMatrix &Ah = *A.As<HypreParMatrix>();
 
@@ -189,6 +190,9 @@ int main(int argc, char *argv[])
       RT_FECollection fec_rt_lor(order-1, dim, b1, b2_lor);
       ParFiniteElementSpace fes_rt_lor(&mesh, &fec_rt_lor);
 
+      ParGridFunction x_lor(&fes_rt_lor);
+      x_lor.ProjectCoefficient(u_vec_coeff);
+
       ParLinearForm b_lor(&fes_rt_lor);
       b_lor.AddDomainIntegrator(new VectorFEDomainLFIntegrator(f_vec_coeff));
       b_lor.UseFastAssembly(true);
@@ -202,9 +206,6 @@ int main(int argc, char *argv[])
       a.AddDomainIntegrator(new DivDivIntegrator(alpha_coeff));
       a.AddDomainIntegrator(new VectorFEMassIntegrator(beta_coeff));
       a.Assemble();
-
-      ParGridFunction x_lor(&fes_rt_lor);
-      x_lor.ProjectCoefficient(u_vec_coeff);
 
       OperatorHandle A;
       Vector B, X;
@@ -222,6 +223,8 @@ int main(int argc, char *argv[])
 
    if (use_hybridization)
    {
+      x.ProjectCoefficient(u_vec_coeff);
+
       if (Mpi::Root()) { cout << "\nHybridization solver... " << flush; }
       tic_toc.Clear(); tic_toc.Start();
 
@@ -238,7 +241,6 @@ int main(int argc, char *argv[])
       OperatorHandle A;
       Vector B, X;
       b.Assemble();
-      x.ProjectCoefficient(u_vec_coeff);
       a.FormLinearSystem(ess_rt_dofs, x, b, A, X, B);
 
       HypreBoomerAMG amg_hb(*A.As<HypreParMatrix>());
