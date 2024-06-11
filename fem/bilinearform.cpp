@@ -944,17 +944,17 @@ void BilinearForm::RecoverFEMSolution(const Vector &X,
 void BilinearForm::ComputeElementMatrices()
 {
    if (element_matrices) { return; }
-   if (domain_integs.Size() == 0 || fes->GetNE() == 0)
-   {
-      // Empty tensor for element matrices in this case
-      element_matrices.reset(new DenseTensor);
-      return;
-   }
 
    if (auto *ea_ext = dynamic_cast<EABilinearFormExtension*>(ext.get()))
    {
       element_matrices.reset(new DenseTensor);
-      ea_ext->GetElementMatrices(*element_matrices, ElementDofOrdering::NATIVE);
+      ea_ext->GetElementMatrices(*element_matrices, ElementDofOrdering::NATIVE, true);
+      return;
+   }
+
+   if (domain_integs.Size() == 0 || fes->GetNE() == 0)
+   {
+      element_matrices.reset(new DenseTensor);
       return;
    }
 
