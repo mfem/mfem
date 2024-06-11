@@ -323,18 +323,7 @@ int main(int argc, char *argv[])
 
    DarcyForm *darcy = new DarcyForm(V_space, W_space);
 
-   // 6. Define the BlockStructure of the problem, i.e. define the array of
-   //    offsets for each variable. The last component of the Array is the sum
-   //    of the dimensions of each block.
-   const Array<int> &block_offsets = darcy->GetOffsets();
-
-   std::cout << "***********************************************************\n";
-   std::cout << "dim(V) = " << block_offsets[1] - block_offsets[0] << "\n";
-   std::cout << "dim(W) = " << block_offsets[2] - block_offsets[1] << "\n";
-   std::cout << "dim(V+W) = " << block_offsets.Last() << "\n";
-   std::cout << "***********************************************************\n";
-
-   // 7. Define the coefficients, analytical solution, and rhs of the PDE.
+   // 6. Define the coefficients, analytical solution, and rhs of the PDE.
    const real_t t_0 = 1.; //base temperature
 
    ConstantCoefficient kcoeff(k);
@@ -357,63 +346,7 @@ int main(int argc, char *argv[])
    VectorCoefficient &qtcoeff = (bconv)?((VectorCoefficient&)qtcoeff_)
                                 :((VectorCoefficient&)qcoeff);//<--velocity is undefined
 
-   // 8. Allocate memory (x, rhs) for the analytical solution and the right hand
-   //    side.  Define the GridFunction q,t for the finite element solution and
-   //    linear forms fform and gform for the right hand side.  The data
-   //    allocated by x and rhs are passed as a reference to the grid functions
-   //    (q,t) and the linear forms (fform, gform).
-   MemoryType mt = device.GetMemoryType();
-   BlockVector x(block_offsets, mt), rhs(block_offsets, mt);
-
-   x = 0.;
-   GridFunction q_h, t_h;
-   q_h.MakeRef(V_space, x.GetBlock(0), 0);
-   t_h.MakeRef(W_space, x.GetBlock(1), 0);
-
-   if (btime)
-   {
-      t_h.ProjectCoefficient(tcoeff); //initial condition
-   }
-
-   if (!dg)
-   {
-      q_h.ProjectBdrCoefficientNormal(qcoeff,
-                                      bdr_is_neumann);   //essential Neumann BC
-   }
-
-   LinearForm *gform(new LinearForm);
-   gform->Update(V_space, rhs.GetBlock(0), 0);
-   if (dg)
-   {
-      gform->AddBdrFaceIntegrator(new VectorBoundaryFluxLFIntegrator(gcoeff),
-                                  bdr_is_dirichlet);
-   }
-   else
-   {
-      gform->AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(gcoeff),
-                                   bdr_is_dirichlet);
-   }
-
-   LinearForm *fform(new LinearForm);
-   fform->Update(W_space, rhs.GetBlock(1), 0);
-   fform->AddDomainIntegrator(new DomainLFIntegrator(fcoeff));
-   if (!hybridization)
-   {
-      if (upwinded)
-         fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(one, qtcoeff, +1.),
-                                     bdr_is_neumann);
-      else
-         fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(one, qtcoeff, +1., 0.),
-                                     bdr_is_neumann);
-   }
-   if (bconv)
-   {
-      fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(tcoeff, ccoeff, +1.),
-                                  bdr_is_dirichlet);
-   }
-
-
-   // 9. Assemble the finite element matrices for the Darcy operator
+   // 7. Assemble the finite element matrices for the Darcy operator
    //
    //                            D = [ M  B^T ]
    //                                [ B   0  ]
@@ -505,6 +438,72 @@ int main(int argc, char *argv[])
    }
 
    if (pa) { darcy->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+
+   // 8. Define the BlockStructure of the problem, i.e. define the array of
+   //    offsets for each variable. The last component of the Array is the sum
+   //    of the dimensions of each block.
+   const Array<int> &block_offsets = darcy->GetOffsets();
+
+   std::cout << "***********************************************************\n";
+   std::cout << "dim(V) = " << block_offsets[1] - block_offsets[0] << "\n";
+   std::cout << "dim(W) = " << block_offsets[2] - block_offsets[1] << "\n";
+   std::cout << "dim(V+W) = " << block_offsets.Last() << "\n";
+   std::cout << "***********************************************************\n";
+
+   // 9. Allocate memory (x, rhs) for the analytical solution and the right hand
+   //    side.  Define the GridFunction q,t for the finite element solution and
+   //    linear forms fform and gform for the right hand side.  The data
+   //    allocated by x and rhs are passed as a reference to the grid functions
+   //    (q,t) and the linear forms (fform, gform).
+   MemoryType mt = device.GetMemoryType();
+   BlockVector x(block_offsets, mt), rhs(block_offsets, mt);
+
+   x = 0.;
+   GridFunction q_h, t_h;
+   q_h.MakeRef(V_space, x.GetBlock(0), 0);
+   t_h.MakeRef(W_space, x.GetBlock(1), 0);
+
+   if (btime)
+   {
+      t_h.ProjectCoefficient(tcoeff); //initial condition
+   }
+
+   if (!dg)
+   {
+      q_h.ProjectBdrCoefficientNormal(qcoeff,
+                                      bdr_is_neumann);   //essential Neumann BC
+   }
+
+   LinearForm *gform(new LinearForm);
+   gform->Update(V_space, rhs.GetBlock(0), 0);
+   if (dg)
+   {
+      gform->AddBdrFaceIntegrator(new VectorBoundaryFluxLFIntegrator(gcoeff),
+                                  bdr_is_dirichlet);
+   }
+   else
+   {
+      gform->AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(gcoeff),
+                                   bdr_is_dirichlet);
+   }
+
+   LinearForm *fform(new LinearForm);
+   fform->Update(W_space, rhs.GetBlock(1), 0);
+   fform->AddDomainIntegrator(new DomainLFIntegrator(fcoeff));
+   if (!hybridization)
+   {
+      if (upwinded)
+         fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(one, qtcoeff, +1.),
+                                     bdr_is_neumann);
+      else
+         fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(one, qtcoeff, +1., 0.),
+                                     bdr_is_neumann);
+   }
+   if (bconv)
+   {
+      fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(tcoeff, ccoeff, +1.),
+                                  bdr_is_dirichlet);
+   }
 
    //prepare (reduced) solution and rhs vectors
 
