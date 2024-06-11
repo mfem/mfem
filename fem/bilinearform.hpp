@@ -83,7 +83,7 @@ protected:
    /** @brief Extension for supporting Full Assembly (FA),
        Element Assembly (EA),Partial Assembly (PA),
        or Matrix Free assembly (MF). */
-   BilinearFormExtension *ext;
+   std::unique_ptr<BilinearFormExtension> ext;
 
    /** Indicates if the sparse matrix is sorted after assembly when using
        Full Assembly (FA). */
@@ -153,7 +153,6 @@ protected:
       diag_policy = DIAG_KEEP;
       assembly = AssemblyLevel::LEGACY;
       batch = 1;
-      ext = NULL;
    }
 
 private:

@@ -76,7 +76,6 @@ BilinearForm::BilinearForm(FiniteElementSpace * f)
 
    assembly = AssemblyLevel::LEGACY;
    batch = 1;
-   ext = NULL;
 }
 
 BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
@@ -91,7 +90,6 @@ BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
 
    assembly = AssemblyLevel::LEGACY;
    batch = 1;
-   ext = NULL;
 
    // Copy the pointers to the integrators
    domain_integs = bf->domain_integs;
@@ -121,16 +119,16 @@ void BilinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
          break;
       case AssemblyLevel::FULL:
          SetDiagonalPolicy( DIAG_ONE ); // Only diagonal policy supported on device
-         ext = new FABilinearFormExtension(this);
+         ext.reset(new FABilinearFormExtension(this));
          break;
       case AssemblyLevel::ELEMENT:
-         ext = new EABilinearFormExtension(this);
+         ext.reset(new EABilinearFormExtension(this));
          break;
       case AssemblyLevel::PARTIAL:
-         ext = new PABilinearFormExtension(this);
+         ext.reset(new PABilinearFormExtension(this));
          break;
       case AssemblyLevel::NONE:
-         ext = new MFBilinearFormExtension(this);
+         ext.reset(new MFBilinearFormExtension(this));
          break;
       default:
          MFEM_ABORT("BilinearForm: unknown assembly level");
@@ -953,7 +951,7 @@ void BilinearForm::ComputeElementMatrices()
       return;
    }
 
-   if (auto *ea_ext = dynamic_cast<EABilinearFormExtension*>(ext))
+   if (auto *ea_ext = dynamic_cast<EABilinearFormExtension*>(ext.get()))
    {
       element_matrices.reset(new DenseTensor);
       ea_ext->GetElementMatrices(*element_matrices, ElementDofOrdering::NATIVE);
@@ -1228,8 +1226,6 @@ BilinearForm::~BilinearForm()
       for (k=0; k < boundary_face_integs.Size(); k++)
       { delete boundary_face_integs[k]; }
    }
-
-   delete ext;
 }
 
 
@@ -1256,7 +1252,6 @@ MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
    mat = NULL;
    mat_e = NULL;
    extern_bfs = 1;
-   ext = NULL;
 
    // Copy the pointers to the integrators
    domain_integs = mbf->domain_integs;
@@ -1969,7 +1964,6 @@ MixedBilinearForm::~MixedBilinearForm()
       for (i = 0; i < boundary_trace_face_integs.Size(); i++)
       { delete boundary_trace_face_integs[i]; }
    }
-   delete ext;
 }
 
 void DiscreteLinearOperator::SetAssemblyLevel(AssemblyLevel assembly_level)
