@@ -183,6 +183,12 @@ public:
        un-modified. If that is not the case, a new Hybridization object must be
        created. */
    virtual void Reset();
+
+   /// Return the constraint FE space associated with the Hybridization.
+   FiniteElementSpace *ConstraintFESpace() { return c_fes; }
+
+   /// Read-only access to the associated constraint FE space.
+   const FiniteElementSpace *ConstraintFESpace() const { return c_fes; }
 };
 
 }
