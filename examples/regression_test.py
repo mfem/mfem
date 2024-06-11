@@ -47,7 +47,6 @@ for i in range(len(filenames)):
 
 	# Run test case
 	command_line = "./ex5-nguyen -no-vis -nx "+str(nx)+" -ny "+str(ny)+" -p "+problem+" -o "+order+dg_com+hb_com
-	print(command_line+".....", end="", flush=True)
 
 	p = subprocess.getoutput(command_line)
 	newp = p.splitlines()
@@ -58,8 +57,10 @@ for i in range(len(filenames)):
 	test_L2_q = float(newp[-2][index_q+2::])
 
 	if abs(ref_L2_t - test_L2_t) < tol and abs(ref_L2_q - test_L2_q) < tol:
-		print(bcolors.OKGREEN + "SUCCESS" + bcolors.RESET)
+		print(bcolors.OKGREEN + "SUCCESS: " + bcolors.RESET, end="", flush=True)
+		print(command_line)
 	else:
-		print(bcolors.FAIL + "FAIL" + bcolors.RESET)
+		print(bcolors.FAIL + "FAIL: " + bcolors.RESET, end="", flush=True)
+		print(command_line)
 		subprocess.call(command_line, shell=True)
 
