@@ -114,7 +114,9 @@ namespace mfem {
  * - <a class="el" href="ex37p_8cpp_source.html">Example 37p</a>: parallel topology optimization
  * - <a class="el" href="ex38_8cpp_source.html">Example 38</a>: cut-surface and cut-volume integration
  * - <a class="el" href="ex39_8cpp_source.html">Example 39</a>: named mesh attributes
- * - <a class="el" href="ex39p_8cpp_source.html">Example 39</a>: parallel named mesh attributes
+ * - <a class="el" href="ex39p_8cpp_source.html">Example 39p</a>: parallel named mesh attributes
+ * - <a class="el" href="ex40_8cpp_source.html">Example 40</a>: eikonal equation
+ * - <a class="el" href="ex40p_8cpp_source.html">Example 40p</a>: parallel eikonal equation
  *
  * <H4>AmgX Examples</H4>
  * - Variants of Examples

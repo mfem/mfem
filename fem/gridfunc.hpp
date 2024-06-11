@@ -30,14 +30,14 @@ namespace mfem
 class GridFunction : public Vector
 {
 protected:
-   /// FE space on which the grid function lives. Owned if #fec is not NULL.
+   /// FE space on which the grid function lives. Owned if #fec_owned is not NULL.
    FiniteElementSpace *fes;
 
    /** @brief Used when the grid function is read from a file. It can also be
        set explicitly, see MakeOwner().
 
        If not NULL, this pointer is owned by the GridFunction. */
-   FiniteElementCollection *fec;
+   FiniteElementCollection *fec_owned;
 
    long fes_sequence; // see FiniteElementSpace::sequence, Mesh::sequence
 
@@ -72,16 +72,16 @@ protected:
 
 public:
 
-   GridFunction() { fes = NULL; fec = NULL; fes_sequence = 0; UseDevice(true); }
+   GridFunction() { fes = NULL; fec_owned = NULL; fes_sequence = 0; UseDevice(true); }
 
    /// Copy constructor. The internal true-dof vector #t_vec is not copied.
    GridFunction(const GridFunction &orig)
-      : Vector(orig), fes(orig.fes), fec(NULL), fes_sequence(orig.fes_sequence)
+      : Vector(orig), fes(orig.fes), fec_owned(NULL), fes_sequence(orig.fes_sequence)
    { UseDevice(true); }
 
    /// Construct a GridFunction associated with the FiniteElementSpace @a *f.
    GridFunction(FiniteElementSpace *f) : Vector(f->GetVSize())
-   { fes = f; fec = NULL; fes_sequence = f->GetSequence(); UseDevice(true); }
+   { fes = f; fec_owned = NULL; fes_sequence = f->GetSequence(); UseDevice(true); }
 
    /// Construct a GridFunction using previously allocated array @a data.
    /** The GridFunction does not assume ownership of @a data which is assumed to
@@ -91,13 +91,13 @@ public:
     */
    GridFunction(FiniteElementSpace *f, real_t *data)
       : Vector(data, f->GetVSize())
-   { fes = f; fec = NULL; fes_sequence = f->GetSequence(); UseDevice(true); }
+   { fes = f; fec_owned = NULL; fes_sequence = f->GetSequence(); UseDevice(true); }
 
    /** @brief Construct a GridFunction using previously allocated Vector @a base
        starting at the given offset, @a base_offset. */
    GridFunction(FiniteElementSpace *f, Vector &base, int base_offset = 0)
       : Vector(base, base_offset, f->GetVSize())
-   { fes = f; fec = NULL; fes_sequence = f->GetSequence(); UseDevice(true); }
+   { fes = f; fec_owned = NULL; fes_sequence = f->GetSequence(); UseDevice(true); }
 
    /// Construct a GridFunction on the given Mesh, using the data from @a input.
    /** The content of @a input should be in the format created by the method
@@ -116,12 +116,12 @@ public:
    GridFunction &operator=(const GridFunction &rhs)
    { return operator=((const Vector &)rhs); }
 
-   /// Make the GridFunction the owner of #fec and #fes.
-   /** If the new FiniteElementCollection, @a fec_, is NULL, ownership of #fec
+   /// Make the GridFunction the owner of #fec_owned and #fes.
+   /** If the new FiniteElementCollection, @a fec_, is NULL, ownership of #fec_owned
        and #fes is taken away. */
-   void MakeOwner(FiniteElementCollection *fec_) { fec = fec_; }
+   void MakeOwner(FiniteElementCollection *fec_) { fec_owned = fec_; }
 
-   FiniteElementCollection *OwnFEC() { return fec; }
+   FiniteElementCollection *OwnFEC() { return fec_owned; }
 
    int VectorDim() const;
    int CurlDim() const;
