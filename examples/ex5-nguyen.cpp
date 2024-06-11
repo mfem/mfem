@@ -133,7 +133,6 @@ int main(int argc, char *argv[])
    bool paraview = false;
    bool visualization = true;
    bool analytic = false;
-   bool regression = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
