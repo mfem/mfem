@@ -85,8 +85,9 @@ class FEOperator : public TimeDependentOperator
    DarcyForm *darcy;
    LinearForm *g, *f, *h;
    const Array<Coefficient*> &coeffs;
-   FiniteElementSpace *trace_space;
    bool btime;
+
+   FiniteElementSpace *trace_space{};
 
    real_t idt{};
    Coefficient *idtcoeff{};
@@ -100,7 +101,7 @@ class FEOperator : public TimeDependentOperator
 public:
    FEOperator(const Array<int> &ess_flux_tdofs_list, DarcyForm *darcy,
               LinearForm *g, LinearForm *f, LinearForm *h, const Array<Coefficient*> &coeffs,
-              FiniteElementSpace *trace_space, bool btime = true);
+              bool btime = true);
    ~FEOperator();
 
    static Array<int> ConstructOffsets(const DarcyForm &darcy);
@@ -540,7 +541,7 @@ int main(int argc, char *argv[])
                                (Coefficient*)&qtcoeff});
 
    FEOperator op(ess_flux_tdofs_list, darcy, gform, fform, hform, coeffs,
-                 trace_space, btime);
+                 btime);
 
    //construct the time solver
 
@@ -1055,14 +1056,18 @@ TFunc GetFFun(int prob, real_t t_0, real_t k, real_t c)
 
 FEOperator::FEOperator(const Array<int> &ess_flux_tdofs_list_,
                        DarcyForm *darcy_, LinearForm *g_, LinearForm *f_, LinearForm *h_,
-                       const Array<Coefficient*> &coeffs_, FiniteElementSpace *trace_space_,
-                       bool btime_)
+                       const Array<Coefficient*> &coeffs_, bool btime_)
    : TimeDependentOperator(0, 0., IMPLICIT),
      ess_flux_tdofs_list(ess_flux_tdofs_list_), darcy(darcy_), g(g_), f(f_), h(h_),
-     coeffs(coeffs_), trace_space(trace_space_), btime(btime_)
+     coeffs(coeffs_), btime(btime_)
 {
    offsets = ConstructOffsets(*darcy);
    width = height = offsets.Last();
+
+   if (darcy->GetHybridization())
+   {
+      trace_space = darcy->GetHybridization()->ConstraintFESpace();
+   }
 
    if (btime)
    {
