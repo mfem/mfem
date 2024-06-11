@@ -16,6 +16,7 @@
 #include "bilinearform.hpp"
 #include "pbilinearform.hpp"
 #include "pgridfunc.hpp"
+#include "fe/face_map_utils.hpp"
 #include "ceed/interface/util.hpp"
 
 namespace mfem
@@ -1193,7 +1194,7 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
 }
 
 void EABilinearFormExtension::GetElementMatrices(
-   DenseTensor &element_matrices, ElementDofOrdering ordering)
+   DenseTensor &element_matrices, ElementDofOrdering ordering, bool add_bdr)
 {
    // Ensure the EA data is assembled
    if (ea_data.Size() == 0) { Assemble(); }
@@ -1248,6 +1249,99 @@ void EABilinearFormExtension::GetElementMatrices(
          const int i = idx % ndofs;
          const int j = (idx / ndofs) % ndofs;
          d_element_matrices(i, j, e) = d_ea_data(j, i, e);
+      });
+   }
+
+   if (add_bdr && nf_bdr > 0)
+   {
+      const int ndof_face = faceDofs;
+      const auto d_ea_bdr = Reshape(ea_data_bdr.Read(),
+                                    ndof_face, ndof_face, nf_bdr);
+
+      // Get all the local face maps (mapping from lexicographic face index to
+      // lexicographic volume index, depending on the local face index).
+      const Mesh &mesh = *trial_fes->GetMesh();
+      const int dim = mesh.Dimension();
+      const int d1d = int(floor(pow(ndof_face, 1.0/(dim - 1)) + 0.5));
+      const int n_faces_per_el = 2*dim; // assuming tensor product
+      Array<int> face_maps(ndof_face * n_faces_per_el);
+      for (int lf_i = 0; lf_i < n_faces_per_el; ++lf_i)
+      {
+         Array<int> face_map(ndof_face);
+         trial_fes->GetFE(0)->GetFaceMap(lf_i, face_map);
+         for (int i = 0; i < ndof_face; ++i)
+         {
+            face_maps[i + lf_i*ndof_face] = face_map[i];
+         }
+      }
+
+      Array<int> face_info(nf_bdr * 3);
+      {
+         int fidx = 0;
+         for (int f = 0; f < mesh.GetNumFaces(); ++f)
+         {
+            Mesh::FaceInformation finfo = mesh.GetFaceInformation(f);
+            if (!finfo.IsBoundary()) { continue; }
+            face_info[0 + fidx*3] = finfo.element[0].local_face_id;
+            face_info[1 + fidx*3] = finfo.element[0].orientation;
+            face_info[2 + fidx*3] = finfo.element[0].index;
+            fidx++;
+         }
+      }
+
+      const auto d_face_maps = Reshape(face_maps.Read(), ndof_face, n_faces_per_el);
+      const auto d_face_info = Reshape(face_info.Read(), 3, nf_bdr);
+
+      auto permute_face = [=] MFEM_HOST_DEVICE(int local_face_id, int orient,
+                                               int size1d, int index)
+      {
+         if (dim == 2)
+         {
+            return internal::PermuteFace2D(local_face_id, orient, size1d, index);
+         }
+         else // dim == 3
+         {
+            return internal::PermuteFace3D(local_face_id, orient, size1d, index);
+         }
+      };
+
+      const bool reorder = (ordering == ElementDofOrdering::NATIVE);
+
+      mfem::forall_2D(nf_bdr, ndof_face, ndof_face, [=] MFEM_HOST_DEVICE (int f)
+      {
+         const int lf_i = d_face_info(0, f);
+         const int orient = d_face_info(1, f);
+         const int e = d_face_info(2, f);
+         // Loop over face indices in "native ordering"
+         MFEM_FOREACH_THREAD(i_lex_face, x, ndof_face)
+         {
+            // Convert to lexicographic relative to the face itself
+            const int i_face = permute_face(lf_i, orient, d1d, i_lex_face);
+            // Convert from lexicographic face DOF to volume DOF
+            const int i_lex = d_face_maps(i_lex_face, lf_i);
+
+            const int ii_s = d_dof_map[i_lex];
+            const int ii = (ii_s >= 0) ? ii_s : -1 - ii_s;
+
+            const int i = reorder ? ii : i_lex;
+            const int s_i = (ii_s < 0 && reorder) ? -1 : 1;
+
+            MFEM_FOREACH_THREAD(j_lex_face, y, ndof_face)
+            {
+               // Convert to lexicographic relative to the face itself
+               const int j_face = permute_face(lf_i, orient, d1d, j_lex_face);
+               // Convert from lexicographic face DOF to volume DOF
+               const int j_lex = d_face_maps(j_lex_face, lf_i);
+
+               const int jj_s = d_dof_map[j_lex];
+               const int jj = (jj_s >= 0) ? jj_s : -1 - jj_s;
+
+               const int j = reorder ? jj : j_lex;
+               const int s_j = (jj_s < 0 && reorder) ? -1 : 1;
+
+               d_element_matrices(i, j, e) += s_i*s_j*d_ea_bdr(i_face, j_face, f);
+            }
+         }
       });
    }
 }

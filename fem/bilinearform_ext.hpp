@@ -162,7 +162,8 @@ public:
    /// If @a ordering is ElementDofOrdering::NATIVE, then the matrices are
    /// reordered from the lexicographic ordering used internally.
    void GetElementMatrices(DenseTensor &element_matrices,
-                           ElementDofOrdering ordering);
+                           ElementDofOrdering ordering,
+                           bool add_bdr);
 };
 
 /// Data and methods for fully-assembled bilinear forms
