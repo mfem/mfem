@@ -122,6 +122,10 @@ public:
    /// Assemble diagonal and add it to Vector @a diag.
    virtual void AssembleDiagonalMF(Vector &diag);
 
+   virtual void AssembleEABoundary(const FiniteElementSpace &fes,
+                                   Vector &ea_data_bdr,
+                                   const bool add = true);
+
    virtual void AssembleEAInteriorFaces(const FiniteElementSpace &fes,
                                         Vector &ea_data_int,
                                         Vector &ea_data_ext,
@@ -2318,6 +2322,8 @@ protected:
    const FaceGeometricFactors *face_geom; ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
 
+   void AssembleEA_(Vector &ea, const bool add);
+
 public:
    MassIntegrator(const IntegrationRule *ir = NULL)
       : BilinearFormIntegrator(ir), Q(NULL), maps(NULL), geom(NULL) { }
@@ -2345,6 +2351,9 @@ public:
 
    virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
                            const bool add);
+
+   virtual void AssembleEABoundary(const FiniteElementSpace &fes, Vector &emat,
+                                   const bool add);
 
    virtual void AssembleDiagonalPA(Vector &diag);
 

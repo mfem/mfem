@@ -882,8 +882,18 @@ void EABilinearFormExtension::Assemble()
               GetTraceElement(0, trial_fes->GetMesh()->GetFaceGeometry(0)) ->
               GetDof();
 
-   MFEM_VERIFY(a->GetBBFI()->Size() == 0,
-               "Element assembly does not support AddBoundaryIntegrator yet.");
+   Array<BilinearFormIntegrator*> &bdrIntegrators = *a->GetBBFI();
+   const int bdrIntegratorCount = bdrIntegrators.Size();
+   if (bdrIntegratorCount > 0)
+   {
+      nf_bdr = trial_fes->GetNFbyType(FaceType::Boundary);
+      ea_data_bdr.SetSize(nf_bdr*faceDofs*faceDofs, Device::GetMemoryType());
+   }
+   for (int i = 0; i < bdrIntegratorCount; ++i)
+   {
+      const bool add = (i > 0);
+      bdrIntegrators[i]->AssembleEABoundary(*a->FESpace(), ea_data_bdr, add);
+   }
 
    Array<BilinearFormIntegrator*> &intFaceIntegrators = *a->GetFBFI();
    const int intFaceIntegratorCount = intFaceIntegrators.Size();
@@ -895,10 +905,11 @@ void EABilinearFormExtension::Assemble()
    }
    for (int i = 0; i < intFaceIntegratorCount; ++i)
    {
+      const bool add = (i > 0);
       intFaceIntegrators[i]->AssembleEAInteriorFaces(*a->FESpace(),
                                                      ea_data_int,
                                                      ea_data_ext,
-                                                     i);
+                                                     add);
    }
 
    Array<BilinearFormIntegrator*> &bdrFaceIntegrators = *a->GetBFBFI();
@@ -907,11 +918,12 @@ void EABilinearFormExtension::Assemble()
    {
       nf_bdr = trial_fes->GetNFbyType(FaceType::Boundary);
       ea_data_bdr.SetSize(nf_bdr*faceDofs*faceDofs, Device::GetMemoryType());
-      ea_data_bdr = 0.0;
    }
    for (int i = 0; i < boundFaceIntegratorCount; ++i)
    {
-      bdrFaceIntegrators[i]->AssembleEABoundaryFaces(*a->FESpace(),ea_data_bdr,i);
+      const bool add = (i > 0);
+      bdrFaceIntegrators[i]->AssembleEABoundaryFaces(
+         *a->FESpace(), ea_data_bdr, add);
    }
 
    if (factorize_face_terms && int_face_restrict_lex)
@@ -1024,33 +1036,32 @@ void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 
    // Treatment of boundary faces
    Array<BilinearFormIntegrator*> &bdrFaceIntegrators = *a->GetBFBFI();
-   const int bFISz = bdrFaceIntegrators.Size();
-   if (!factorize_face_terms && bdr_face_restrict_lex && bFISz>0)
+   Array<BilinearFormIntegrator*> &bdrIntegrators = *a->GetBBFI();
+   const int n_bdr_integ = bdrIntegrators.Size() + bdrFaceIntegrators.Size();
+   if (!factorize_face_terms && bdr_face_restrict_lex && n_bdr_integ > 0 &&
+       nf_bdr > 0)
    {
       // Apply the Boundary Face Restriction
       bdr_face_restrict_lex->Mult(x, bdr_face_X);
-      if (bdr_face_X.Size()>0)
+      bdr_face_Y = 0.0;
+      // Apply the boundary face matrices
+      const int NDOFS = faceDofs;
+      auto X = Reshape(bdr_face_X.Read(), NDOFS, nf_bdr);
+      auto Y = Reshape(bdr_face_Y.ReadWrite(), NDOFS, nf_bdr);
+      auto A = Reshape(ea_data_bdr.Read(), NDOFS, NDOFS, nf_bdr);
+      mfem::forall(nf_bdr*NDOFS, [=] MFEM_HOST_DEVICE (int glob_j)
       {
-         bdr_face_Y = 0.0;
-         // Apply the boundary face matrices
-         const int NDOFS = faceDofs;
-         auto X = Reshape(bdr_face_X.Read(), NDOFS, nf_bdr);
-         auto Y = Reshape(bdr_face_Y.ReadWrite(), NDOFS, nf_bdr);
-         auto A = Reshape(ea_data_bdr.Read(), NDOFS, NDOFS, nf_bdr);
-         mfem::forall(nf_bdr*NDOFS, [=] MFEM_HOST_DEVICE (int glob_j)
+         const int f = glob_j/NDOFS;
+         const int j = glob_j%NDOFS;
+         real_t res = 0.0;
+         for (int i = 0; i < NDOFS; i++)
          {
-            const int f = glob_j/NDOFS;
-            const int j = glob_j%NDOFS;
-            real_t res = 0.0;
-            for (int i = 0; i < NDOFS; i++)
-            {
-               res += A(i, j, f)*X(i, f);
-            }
-            Y(j, f) += res;
-         });
-         // Apply the Boundary Face Restriction transposed
-         bdr_face_restrict_lex->AddMultTransposeInPlace(bdr_face_Y, y);
-      }
+            res += A(i, j, f)*X(i, f);
+         }
+         Y(j, f) += res;
+      });
+      // Apply the Boundary Face Restriction transposed
+      bdr_face_restrict_lex->AddMultTransposeInPlace(bdr_face_Y, y);
    }
 }
 
@@ -1151,34 +1162,33 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    }
 
    // Treatment of boundary faces
+   Array<BilinearFormIntegrator*> &bdrIntegrators = *a->GetBBFI();
    Array<BilinearFormIntegrator*> &bdrFaceIntegrators = *a->GetBFBFI();
-   const int bFISz = bdrFaceIntegrators.Size();
-   if (!factorize_face_terms && bdr_face_restrict_lex && bFISz>0)
+   const int n_bdr_integ = bdrFaceIntegrators.Size() + bdrIntegrators.Size();
+   if (!factorize_face_terms && bdr_face_restrict_lex && n_bdr_integ > 0 &&
+       nf_bdr > 0)
    {
       // Apply the Boundary Face Restriction
       bdr_face_restrict_lex->Mult(x, bdr_face_X);
-      if (bdr_face_X.Size()>0)
+      bdr_face_Y = 0.0;
+      // Apply the boundary face matrices transposed
+      const int NDOFS = faceDofs;
+      auto X = Reshape(bdr_face_X.Read(), NDOFS, nf_bdr);
+      auto Y = Reshape(bdr_face_Y.ReadWrite(), NDOFS, nf_bdr);
+      auto A = Reshape(ea_data_bdr.Read(), NDOFS, NDOFS, nf_bdr);
+      mfem::forall(nf_bdr*NDOFS, [=] MFEM_HOST_DEVICE (int glob_j)
       {
-         bdr_face_Y = 0.0;
-         // Apply the boundary face matrices transposed
-         const int NDOFS = faceDofs;
-         auto X = Reshape(bdr_face_X.Read(), NDOFS, nf_bdr);
-         auto Y = Reshape(bdr_face_Y.ReadWrite(), NDOFS, nf_bdr);
-         auto A = Reshape(ea_data_bdr.Read(), NDOFS, NDOFS, nf_bdr);
-         mfem::forall(nf_bdr*NDOFS, [=] MFEM_HOST_DEVICE (int glob_j)
+         const int f = glob_j/NDOFS;
+         const int j = glob_j%NDOFS;
+         real_t res = 0.0;
+         for (int i = 0; i < NDOFS; i++)
          {
-            const int f = glob_j/NDOFS;
-            const int j = glob_j%NDOFS;
-            real_t res = 0.0;
-            for (int i = 0; i < NDOFS; i++)
-            {
-               res += A(j, i, f)*X(i, f);
-            }
-            Y(j, f) += res;
-         });
-         // Apply the Boundary Face Restriction transposed
-         bdr_face_restrict_lex->AddMultTransposeInPlace(bdr_face_Y, y);
-      }
+            res += A(j, i, f)*X(i, f);
+         }
+         Y(j, f) += res;
+      });
+      // Apply the Boundary Face Restriction transposed
+      bdr_face_restrict_lex->AddMultTransposeInPlace(bdr_face_Y, y);
    }
 }
 
