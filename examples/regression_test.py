@@ -61,4 +61,5 @@ for i in range(len(filenames)):
 		print(bcolors.OKGREEN + "SUCCESS" + bcolors.RESET)
 	else:
 		print(bcolors.FAIL + "FAIL" + bcolors.RESET)
+		subprocess.call(command_line, shell=True)
 
