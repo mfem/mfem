@@ -47,8 +47,8 @@ static void EAHdivAssemble2D(const int NE,
    auto M = Reshape(add ? ea_data.ReadWrite() : ea_data.Write(), NDOF, NDOF, NE);
    mfem::forall_2D(NE, NDOF, 1, [=] MFEM_HOST_DEVICE (int e)
    {
-      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::HDIV_MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::HDIV_MAX_Q1D;
       // Load Bo and Bc matrices into registers
       real_t r_Bo[MQ1][MD1];
       real_t r_Bc[MQ1][MD1];
@@ -155,8 +155,8 @@ static void EAHdivAssemble3D(const int NE,
    auto M = Reshape(add ? ea_data.ReadWrite() : ea_data.Write(), NDOF, NDOF, NE);
    mfem::forall_2D(NE, NDOF, 1, [=] MFEM_HOST_DEVICE (int e)
    {
-      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::HDIV_MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::HDIV_MAX_Q1D;
       // Load Bo and Bc matrices into registers
       real_t r_Bo[MQ1][MD1];
       real_t r_Bc[MQ1][MD1];
@@ -291,8 +291,6 @@ void VectorFEMassIntegrator::AssembleEA(const FiniteElementSpace &fes,
          case 0x34: kernel = EAHdivAssemble3D<3,4>; break;
          case 0x45: kernel = EAHdivAssemble3D<4,5>; break;
          case 0x56: kernel = EAHdivAssemble3D<5,6>; break;
-         case 0x67: kernel = EAHdivAssemble3D<6,7>; break;
-         case 0x78: kernel = EAHdivAssemble3D<7,8>; break;
       }
       return kernel(ne,Bo,Bc,coeff_dim,pa_data,ea_data,add,dofs1D,quad1D);
    }
@@ -329,8 +327,6 @@ void DivDivIntegrator::AssembleEA(const FiniteElementSpace &fes,
          case 0x34: kernel = EAHdivAssemble3D<3,4>; break;
          case 0x45: kernel = EAHdivAssemble3D<4,5>; break;
          case 0x56: kernel = EAHdivAssemble3D<5,6>; break;
-         case 0x67: kernel = EAHdivAssemble3D<6,7>; break;
-         case 0x78: kernel = EAHdivAssemble3D<7,8>; break;
       }
       return kernel(ne,Bo,Gc,1,pa_data,ea_data,add,dofs1D,quad1D);
    }
