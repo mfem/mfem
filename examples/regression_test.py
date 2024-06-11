@@ -44,23 +44,30 @@ for i in range(len(filenames)):
 	ref_L2_t = float(p.split()[0])
 	p = subprocess.getoutput("grep '|| q_h - q_ex || / || q_ex || = ' "+path+filenames[i]+"  | cut -d '=' -f 2-")
 	ref_L2_q = float(p.split()[0])
+	p = subprocess.getoutput("grep 'GMRES+' "+path+filenames[i]+"  | cut -d '+' -f 2-")
+	precond_ref = p.split()[0]
 
 	# Run test case
 	command_line = "./ex5-nguyen -no-vis -nx "+str(nx)+" -ny "+str(ny)+" -p "+problem+" -o "+order+dg_com+hb_com
 
 	p = subprocess.getoutput(command_line)
 	newp = p.splitlines()
-	index_t = newp[-1].find('= ')
-	index_q = newp[-2].find('= ')
+	indx_t = newp[-1].find('= ')
+	indx_q = newp[-2].find('= ')
+	precond_test_idx_s = newp[-4].find('+')
+	precond_test_idx_e = newp[-4].find(' ')
 
-	test_L2_t = float(newp[-1][index_t+2::])
-	test_L2_q = float(newp[-2][index_q+2::])
+	test_L2_t = float(newp[-1][indx_t+2::])
+	test_L2_q = float(newp[-2][indx_q+2::])
+	precond_test = newp[-4][precond_test_idx_s+1:precond_test_idx_e]
 
-	if abs(ref_L2_t - test_L2_t) < tol and abs(ref_L2_q - test_L2_q) < tol:
-		print(bcolors.OKGREEN + "SUCCESS: " + bcolors.RESET, end="", flush=True)
-		print(command_line)
+	if precond_test == precond_ref:
+		if abs(ref_L2_t - test_L2_t) < tol and abs(ref_L2_q - test_L2_q) < tol:
+			print(bcolors.OKGREEN + "SUCCESS: " + bcolors.RESET, end="", flush=True)
+			print(command_line)
+		else:
+			print(bcolors.FAIL + "FAIL: " + bcolors.RESET, end="", flush=True)
+			print(command_line)
 	else:
-		print(bcolors.FAIL + "FAIL: " + bcolors.RESET, end="", flush=True)
-		print(command_line)
-		subprocess.call(command_line, shell=True)
+		pass
 
