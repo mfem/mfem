@@ -80,6 +80,7 @@ enum Problem
 
 class FEOperator : public TimeDependentOperator
 {
+   Array<int> offsets;
    const Array<int> &ess_flux_tdofs_list;
    DarcyForm *darcy;
    LinearForm *g, *f, *h;
@@ -101,6 +102,9 @@ public:
               LinearForm *g, LinearForm *f, LinearForm *h, const Array<Coefficient*> &coeffs,
               FiniteElementSpace *trace_space, bool btime = true);
    ~FEOperator();
+
+   static Array<int> ConstructOffsets(const DarcyForm &darcy);
+   inline const Array<int>& GetOffsets() const { return offsets; }
 
    void ImplicitSolve(const real_t dt, const Vector &x, Vector &k) override;
 };
@@ -442,12 +446,20 @@ int main(int argc, char *argv[])
    // 8. Define the BlockStructure of the problem, i.e. define the array of
    //    offsets for each variable. The last component of the Array is the sum
    //    of the dimensions of each block.
-   const Array<int> &block_offsets = darcy->GetOffsets();
+   const Array<int> block_offsets(FEOperator::ConstructOffsets(*darcy));
 
    std::cout << "***********************************************************\n";
    std::cout << "dim(V) = " << block_offsets[1] - block_offsets[0] << "\n";
    std::cout << "dim(W) = " << block_offsets[2] - block_offsets[1] << "\n";
-   std::cout << "dim(V+W) = " << block_offsets.Last() << "\n";
+   if (hybridization)
+   {
+      std::cout << "dim(M) = " << block_offsets[3] - block_offsets[2] << "\n";
+      std::cout << "dim(V+W+M) = " << block_offsets.Last() << "\n";
+   }
+   else
+   {
+      std::cout << "dim(V+W) = " << block_offsets.Last() << "\n";
+   }
    std::cout << "***********************************************************\n";
 
    // 9. Allocate memory (x, rhs) for the analytical solution and the right hand
@@ -513,7 +525,8 @@ int main(int argc, char *argv[])
 
    if (hybridization)
    {
-      hform = new LinearForm(trace_space);
+      hform = new LinearForm();
+      hform->Update(trace_space, rhs.GetBlock(2), 0);
       //note that Neumann BC must be applied only for the heat flux
       //and not the total flux for stability reasons
       hform->AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(qcoeff, 2),
@@ -1044,10 +1057,13 @@ FEOperator::FEOperator(const Array<int> &ess_flux_tdofs_list_,
                        DarcyForm *darcy_, LinearForm *g_, LinearForm *f_, LinearForm *h_,
                        const Array<Coefficient*> &coeffs_, FiniteElementSpace *trace_space_,
                        bool btime_)
-   : TimeDependentOperator(darcy_->GetOffsets()[2], 0., IMPLICIT),
+   : TimeDependentOperator(0, 0., IMPLICIT),
      ess_flux_tdofs_list(ess_flux_tdofs_list_), darcy(darcy_), g(g_), f(f_), h(h_),
      coeffs(coeffs_), trace_space(trace_space_), btime(btime_)
 {
+   offsets = ConstructOffsets(*darcy);
+   width = height = offsets.Last();
+
    if (btime)
    {
       BilinearForm *Mt = darcy->GetPotentialMassForm();
@@ -1067,13 +1083,26 @@ FEOperator::~FEOperator()
    delete idtcoeff;
 }
 
+Array<int> FEOperator::ConstructOffsets(const DarcyForm &darcy)
+{
+   if (!darcy.GetHybridization())
+   {
+      return darcy.GetOffsets();
+   }
+
+   Array<int> offsets(4);
+   offsets[0] = 0;
+   offsets[1] = darcy.FluxFESpace()->GetVSize();
+   offsets[2] = darcy.PotentialFESpace()->GetVSize();
+   offsets[3] = darcy.GetHybridization()->ConstraintFESpace()->GetVSize();
+   offsets.PartialSum();
+
+   return offsets;
+}
+
 void FEOperator::ImplicitSolve(const real_t dt, const Vector &x_v, Vector &dx_v)
 {
    //form the linear system
-
-   OperatorHandle op;
-   Vector X, RHS;
-   if (h) { RHS.MakeRef(*h, 0); }
 
    BlockVector rhs(g->GetData(), darcy->GetOffsets());
    BlockVector x(dx_v.GetData(), darcy->GetOffsets());
@@ -1129,7 +1158,14 @@ void FEOperator::ImplicitSolve(const real_t dt, const Vector &x_v, Vector &dx_v)
 
    //form the reduced system
 
-   OperatorHandle pDarcyOp;
+   OperatorHandle op;
+   Vector X, RHS;
+   if (trace_space)
+   {
+      X.MakeRef(dx_v, offsets[2], trace_space->GetVSize());
+      RHS.MakeRef(*h, 0, trace_space->GetVSize());
+   }
+
    darcy->FormLinearSystem(ess_flux_tdofs_list, x, rhs,
                            op, X, RHS);
 
