@@ -11,6 +11,10 @@
 Version 4.7.1 (development)
 ===========================
 
+Miscellaneous
+-------------
+- Added support for custom interpolation procedure in FindPointsGSLIB.
+
 - Added an MFEM example for the eikonal equation. This new solver is based on
   the proximal Galerkin method introduced by Keith and Surowiec.
 
