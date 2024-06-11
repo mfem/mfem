@@ -73,5 +73,5 @@ for i in range(len(filenames)):
 			print(command_line)
 			print(cmd_out)
 	else:
-		print(bcolors.HEADER + "SKIPPING: "+ bcolors.RESET +filenames[i]+" → incompatible preconditioner")
+		print(bcolors.HEADER + "SKIPPING: "+ bcolors.RESET +command_line+" → incompatible preconditioner")
 
