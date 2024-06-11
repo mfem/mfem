@@ -377,6 +377,7 @@ public:
    virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
                            const bool add);
 
+   using BilinearFormIntegrator::AssembleEAInteriorFaces;
    virtual void AssembleEAInteriorFaces(const FiniteElementSpace &fes,
                                         Vector &ea_data_int,
                                         Vector &ea_data_ext,
@@ -488,6 +489,7 @@ public:
    virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
                            const bool add);
 
+   using BilinearFormIntegrator::AssembleEAInteriorFaces;
    virtual void AssembleEAInteriorFaces(const FiniteElementSpace &fes,
                                         Vector &ea_data_int,
                                         Vector &ea_data_ext,
@@ -3210,6 +3212,7 @@ public:
 
    virtual void AddMultPA(const Vector&, Vector&) const;
 
+   using BilinearFormIntegrator::AssembleEAInteriorFaces;
    virtual void AssembleEAInteriorFaces(const FiniteElementSpace& fes,
                                         Vector &ea_data_int,
                                         Vector &ea_data_ext,
@@ -3519,6 +3522,7 @@ public:
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
 
+   using BilinearFormIntegrator::AssembleEAInteriorFaces;
    virtual void AssembleEAInteriorFaces(const FiniteElementSpace &trial_fes,
                                         const FiniteElementSpace &test_fes,
                                         Vector &emat,
