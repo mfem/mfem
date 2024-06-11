@@ -17,65 +17,78 @@
 namespace mfem
 {
 
-void MassIntegrator::AssembleEA(const FiniteElementSpace &fes,
-                                Vector &ea_data,
-                                const bool add)
+void MassIntegrator::AssembleEA_(Vector &ea_data,
+                                 const bool add)
 {
    using internal::EAMassAssemble1D;
    using internal::EAMassAssemble2D;
    using internal::EAMassAssemble3D;
 
-   AssemblePA(fes);
-   ne = fes.GetMesh()->GetNE();
    const Array<real_t> &B = maps->B;
    if (dim == 1)
    {
+      auto kernel = EAMassAssemble1D<0,0>;
       switch ((dofs1D << 4 ) | quad1D)
       {
-         case 0x22: return EAMassAssemble1D<2,2>(ne,B,pa_data,ea_data,add);
-         case 0x33: return EAMassAssemble1D<3,3>(ne,B,pa_data,ea_data,add);
-         case 0x44: return EAMassAssemble1D<4,4>(ne,B,pa_data,ea_data,add);
-         case 0x55: return EAMassAssemble1D<5,5>(ne,B,pa_data,ea_data,add);
-         case 0x66: return EAMassAssemble1D<6,6>(ne,B,pa_data,ea_data,add);
-         case 0x77: return EAMassAssemble1D<7,7>(ne,B,pa_data,ea_data,add);
-         case 0x88: return EAMassAssemble1D<8,8>(ne,B,pa_data,ea_data,add);
-         case 0x99: return EAMassAssemble1D<9,9>(ne,B,pa_data,ea_data,add);
-         default:   return EAMassAssemble1D(ne,B,pa_data,ea_data,add,
-                                               dofs1D,quad1D);
+         case 0x22: kernel = EAMassAssemble1D<2,2>; break;
+         case 0x33: kernel = EAMassAssemble1D<3,3>; break;
+         case 0x44: kernel = EAMassAssemble1D<4,4>; break;
+         case 0x55: kernel = EAMassAssemble1D<5,5>; break;
+         case 0x66: kernel = EAMassAssemble1D<6,6>; break;
+         case 0x77: kernel = EAMassAssemble1D<7,7>; break;
+         case 0x88: kernel = EAMassAssemble1D<8,8>; break;
+         case 0x99: kernel = EAMassAssemble1D<9,9>; break;
       }
+      return kernel(ne,B,pa_data,ea_data,add,dofs1D,quad1D);
    }
    else if (dim == 2)
    {
+      auto kernel = EAMassAssemble2D<0,0>;
       switch ((dofs1D << 4 ) | quad1D)
       {
-         case 0x22: return EAMassAssemble2D<2,2>(ne,B,pa_data,ea_data,add);
-         case 0x33: return EAMassAssemble2D<3,3>(ne,B,pa_data,ea_data,add);
-         case 0x44: return EAMassAssemble2D<4,4>(ne,B,pa_data,ea_data,add);
-         case 0x55: return EAMassAssemble2D<5,5>(ne,B,pa_data,ea_data,add);
-         case 0x66: return EAMassAssemble2D<6,6>(ne,B,pa_data,ea_data,add);
-         case 0x77: return EAMassAssemble2D<7,7>(ne,B,pa_data,ea_data,add);
-         case 0x88: return EAMassAssemble2D<8,8>(ne,B,pa_data,ea_data,add);
-         case 0x99: return EAMassAssemble2D<9,9>(ne,B,pa_data,ea_data,add);
-         default:   return EAMassAssemble2D(ne,B,pa_data,ea_data,add,
-                                               dofs1D,quad1D);
+         case 0x22: kernel = EAMassAssemble2D<2,2>; break;
+         case 0x33: kernel = EAMassAssemble2D<3,3>; break;
+         case 0x44: kernel = EAMassAssemble2D<4,4>; break;
+         case 0x55: kernel = EAMassAssemble2D<5,5>; break;
+         case 0x66: kernel = EAMassAssemble2D<6,6>; break;
+         case 0x77: kernel = EAMassAssemble2D<7,7>; break;
+         case 0x88: kernel = EAMassAssemble2D<8,8>; break;
+         case 0x99: kernel = EAMassAssemble2D<9,9>; break;
       }
+      return kernel(ne,B,pa_data,ea_data,add,dofs1D,quad1D);
    }
    else if (dim == 3)
    {
+      auto kernel = EAMassAssemble3D<0,0>;
       switch ((dofs1D << 4 ) | quad1D)
       {
-         case 0x23: return EAMassAssemble3D<2,3>(ne,B,pa_data,ea_data,add);
-         case 0x34: return EAMassAssemble3D<3,4>(ne,B,pa_data,ea_data,add);
-         case 0x45: return EAMassAssemble3D<4,5>(ne,B,pa_data,ea_data,add);
-         case 0x56: return EAMassAssemble3D<5,6>(ne,B,pa_data,ea_data,add);
-         case 0x67: return EAMassAssemble3D<6,7>(ne,B,pa_data,ea_data,add);
-         case 0x78: return EAMassAssemble3D<7,8>(ne,B,pa_data,ea_data,add);
-         case 0x89: return EAMassAssemble3D<8,9>(ne,B,pa_data,ea_data,add);
-         default:   return EAMassAssemble3D(ne,B,pa_data,ea_data,add,
-                                               dofs1D,quad1D);
+         case 0x23: kernel = EAMassAssemble3D<2,3>; break;
+         case 0x34: kernel = EAMassAssemble3D<3,4>; break;
+         case 0x45: kernel = EAMassAssemble3D<4,5>; break;
+         case 0x56: kernel = EAMassAssemble3D<5,6>; break;
+         case 0x67: kernel = EAMassAssemble3D<6,7>; break;
+         case 0x78: kernel = EAMassAssemble3D<7,8>; break;
+         case 0x89: kernel = EAMassAssemble3D<8,9>; break;
       }
+      return kernel(ne,B,pa_data,ea_data,add,dofs1D,quad1D);
    }
    MFEM_ABORT("Unknown kernel.");
+}
+
+void MassIntegrator::AssembleEA(const FiniteElementSpace &fes,
+                                Vector &ea_data,
+                                const bool add)
+{
+   AssemblePA(fes);
+   if (ne > 0) { AssembleEA_(ea_data, add); }
+}
+
+void MassIntegrator::AssembleEABoundary(const FiniteElementSpace &fes,
+                                        Vector &ea_data,
+                                        const bool add)
+{
+   AssemblePABoundary(fes);
+   if (ne > 0) { AssembleEA_(ea_data, add); }
 }
 
 }

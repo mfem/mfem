@@ -102,6 +102,7 @@ void test_assembly_level(const char *meshname,
         << ", order=" << order << ", q_order=" << q_order << ", DG=" << dg
         << ", pb=" << getString(pb) << ", assembly=" << getString(assembly));
    Mesh mesh(meshname, 1, 1);
+   mesh.RemoveInternalBoundaries();
    mesh.EnsureNodes();
    int dim = mesh.Dimension();
 
@@ -127,12 +128,19 @@ void test_assembly_level(const char *meshname,
    const bool use_ir = q_order_inc > 0;
    const IntegrationRule *ir =
       use_ir ? &IntRules.Get(mesh.GetElementGeometry(0), q_order) : nullptr;
+   const IntegrationRule &ir_face =
+      IntRules.Get(mesh.GetFaceGeometry(0), q_order);
 
    switch (pb)
    {
       case Problem::Mass:
          k_ref.AddDomainIntegrator(new MassIntegrator(one,ir));
          k_test.AddDomainIntegrator(new MassIntegrator(one,ir));
+         if (!dg && mesh.Conforming() && assembly != AssemblyLevel::FULL)
+         {
+            k_ref.AddBoundaryIntegrator(new MassIntegrator(one, &ir_face));
+            k_test.AddBoundaryIntegrator(new MassIntegrator(one, &ir_face));
+         }
          break;
       case Problem::Convection:
          AddConvectionIntegrators(k_ref, vel_coeff, dg);
