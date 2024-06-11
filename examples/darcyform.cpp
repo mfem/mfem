@@ -141,20 +141,23 @@ void DarcyForm::EnableHybridization(FiniteElementSpace *constr_space,
    }
 
    // Automatically add the boundary potential constraint integrators
-   if (M_p && constr_pot_integ)
+   if (M_p)
    {
+      auto bfbfi = M_p->GetBFBFI();
       auto bfbfi_marker = M_p->GetBFBFI_Marker();
       hybridization->UseExternalBdrPotConstraintIntegrators();
 
-      for (Array<int> *bfi_marker : *bfbfi_marker)
+      for (int i = 0; i < bfbfi->Size(); i++)
       {
+         BilinearFormIntegrator *bfi = (*bfbfi)[i];
+         Array<int> *bfi_marker = (*bfbfi_marker)[i];
          if (bfi_marker)
          {
-            hybridization->AddBdrPotConstraintIntegrator(constr_pot_integ, *bfi_marker);
+            hybridization->AddBdrPotConstraintIntegrator(bfi, *bfi_marker);
          }
          else
          {
-            hybridization->AddBdrPotConstraintIntegrator(constr_pot_integ);
+            hybridization->AddBdrPotConstraintIntegrator(bfi);
          }
       }
    }
