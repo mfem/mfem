@@ -210,6 +210,8 @@ class DarcyHybridization : public Hybridization
    /// Set of constraint boundary face integrators to be applied.
    Array<BilinearFormIntegrator*> boundary_constraint_pot_integs;
    Array<Array<int>*>             boundary_constraint_pot_integs_marker;
+   /// Indicates if the boundary_constraint_pot_integs integrators are owned externally
+   int extern_bdr_constr_pot_integs;
 
    bool bsym, bhdg, bfin;
 
@@ -312,6 +314,14 @@ public:
    /** If no marker was specified when the integrator was added, the
        corresponding pointer (to Array<int>) will be NULL. */
    Array<Array<int>*> *GetPotBCBFI_Marker() { return &boundary_constraint_pot_integs_marker; }
+
+   void UseExternalBdrConstraintIntegrators() = delete;
+
+   /// Indicate that boundary flux constraint integrators are not owned
+   void UseExternalBdrFluxConstraintIntegrators() { Hybridization::UseExternalBdrConstraintIntegrators(); }
+
+   /// Indicate that boundary potential constraint integrators are not owned
+   void UseExternalBdrPotConstraintIntegrators() { extern_bdr_constr_pot_integs = 1; }
 
    /// Prepare the Hybridization object for assembly.
    void Init(const Array<int> &ess_flux_tdof_list) override;

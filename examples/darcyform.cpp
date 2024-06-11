@@ -125,7 +125,7 @@ void DarcyForm::EnableHybridization(FiniteElementSpace *constr_space,
    if (B)
    {
       auto bfbfi_marker = B->GetBFBFI_Marker();
-      hybridization->UseExternalBdrConstraintIntegrators();
+      hybridization->UseExternalBdrFluxConstraintIntegrators();
 
       for (Array<int> *bfi_marker : *bfbfi_marker)
       {
@@ -144,7 +144,7 @@ void DarcyForm::EnableHybridization(FiniteElementSpace *constr_space,
    if (M_p && constr_pot_integ)
    {
       auto bfbfi_marker = M_p->GetBFBFI_Marker();
-      hybridization->UseExternalBdrConstraintIntegrators();
+      hybridization->UseExternalBdrPotConstraintIntegrators();
 
       for (Array<int> *bfi_marker : *bfbfi_marker)
       {
@@ -572,6 +572,11 @@ DarcyHybridization::DarcyHybridization(FiniteElementSpace *fes_u_,
 DarcyHybridization::~DarcyHybridization()
 {
    delete c_bfi_p;
+   if (!extern_bdr_constr_pot_integs)
+   {
+      for (int k=0; k < boundary_constraint_pot_integs.Size(); k++)
+      { delete boundary_constraint_pot_integs[k]; }
+   }
 
    delete Ae_data;
    delete Bf_data;
@@ -590,11 +595,6 @@ void DarcyHybridization::SetConstraintIntegrators(BilinearFormIntegrator
    c_bfi = c_flux_integ;
    delete c_bfi_p;
    c_bfi_p = c_pot_integ;
-   if (!extern_bdr_constr_integs)
-   {
-      for (int k=0; k < boundary_constraint_pot_integs.Size(); k++)
-      { delete boundary_constraint_pot_integs[k]; }
-   }
 }
 
 void DarcyHybridization::Init(const Array<int> &ess_flux_tdof_list)
