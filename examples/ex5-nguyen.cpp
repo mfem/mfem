@@ -440,6 +440,8 @@ int main(int argc, char *argv[])
          if (td > 0. && hybridization)
          {
             Mt->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(ccoeff, kcoeff, td));
+            Mt->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(ccoeff, kcoeff, td),
+                                     bdr_is_neumann);
          }
       }
       else
@@ -451,6 +453,8 @@ int main(int argc, char *argv[])
          if (td > 0.)
          {
             Mt->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td));
+            Mt->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td),
+                                     bdr_is_neumann);
          }
       }
    }
