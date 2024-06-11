@@ -50,19 +50,19 @@ for i in range(len(filenames)):
 
 	# Run test case
 	print("----------------------------------------------------------------")
-	print("Running case: "+filenames[i])
+	print("Case: "+filenames[i])
 	command_line = "./ex5-nguyen -no-vis -nx "+str(nx)+" -ny "+str(ny)+" -p "+problem+" -o "+order+dg_com+hb_com
 
-	p = subprocess.getoutput(command_line)
-	newp = p.splitlines()
-	indx_t = newp[-1].find('= ')
-	indx_q = newp[-2].find('= ')
-	precond_test_idx_s = newp[-4].find('+')
-	precond_test_idx_e = newp[-4].find(' ')
+	cmd_out = subprocess.getoutput(command_line)
+	new_cmd_out = cmd_out.splitlines()
+	indx_t = new_cmd_out[-1].find('= ')
+	indx_q = new_cmd_out[-2].find('= ')
+	precond_test_idx_s = new_cmd_out[-4].find('+')
+	precond_test_idx_e = new_cmd_out[-4].find(' ')
 
-	test_L2_t = float(newp[-1][indx_t+2::])
-	test_L2_q = float(newp[-2][indx_q+2::])
-	precond_test = newp[-4][precond_test_idx_s+1:precond_test_idx_e]
+	test_L2_t = float(new_cmd_out[-1][indx_t+2::])
+	test_L2_q = float(new_cmd_out[-2][indx_q+2::])
+	precond_test = new_cmd_out[-4][precond_test_idx_s+1:precond_test_idx_e]
 
 	if precond_test == precond_ref:
 		if abs(ref_L2_t - test_L2_t) < tol and abs(ref_L2_q - test_L2_q) < tol:
@@ -71,7 +71,7 @@ for i in range(len(filenames)):
 		else:
 			print(bcolors.FAIL + "FAIL: " + bcolors.RESET, end="", flush=True)
 			print(command_line)
-			subprocess.call(command_line, shell=True)
+			print(cmd_out)
 	else:
 		print(bcolors.HEADER + "SKIPPING: "+ bcolors.RESET +filenames[i]+" → incompatible preconditioner")
 
