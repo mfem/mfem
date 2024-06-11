@@ -3575,10 +3575,10 @@ real_t TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
    // Convert parametric coordinates to physical to compute Jpt.
    // Needed as elfun has the surface parameters for some entries.
    Vector convertedX(elfun);
-   if (tan_analytic_surf)
+   if (tan_dof_marker)
    {
       Array<int> vdofs;
-      tan_analytic_surf->pfes_mesh.GetElementVDofs(T.ElementNo, vdofs);
+      fes_mesh->GetElementVDofs(T.ElementNo, vdofs);
       tan_analytic_surf->ConvertParamToPhys(vdofs, elfun, convertedX);
       // Use converted coordinates for PMatI
       PMatI.UseExternalData(convertedX.GetData(), dof, dim);
@@ -3911,9 +3911,9 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
    // Convert parametric coordinates to physical to compute Jpt.
    // Needed as elfun has the surface parameters for some entries.
    Vector convertedX(elfun);
-   MFEM_VERIFY(tan_analytic_surf, "only for analytic surfaces");
+   MFEM_VERIFY(tan_dof_marker, "only for analytic surfaces");
    Array<int> vdofs;
-   tan_analytic_surf->pfes_mesh.GetElementVDofs(T.ElementNo, vdofs);
+   fes_mesh->GetElementVDofs(T.ElementNo, vdofs);
    tan_analytic_surf->ConvertParamToPhys(vdofs, elfun, convertedX);
    // Use converted coordinates for PMatI
    PMatI.UseExternalData(convertedX.GetData(), dof, dim);
@@ -3992,9 +3992,10 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
       double dxy_dt[2];
       for (int i = 0; i < dof; i++)
       {
-         if ((*tan_dof_marker)[vdofs[i]] == true)
+         int i_surf_id = (*tan_dof_marker)[vdofs[i]];
+         if (i_surf_id >= 0)
          {
-            tan_analytic_surf->Deriv_1(&elfun(i), dxy_dt);
+            tan_analytic_surf->GetSurface(i_surf_id)->Deriv_1(&elfun(i), dxy_dt);
          }
          else { dxy_dt[0] = 1.0, dxy_dt[1] = 1.0; }
 
@@ -4056,7 +4057,7 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
    // TODO assumes 2D.
    for (int i = 0; i < dof; i++)
    {
-      if ((*tan_dof_marker)[vdofs[i]] == true)
+      if ((*tan_dof_marker)[vdofs[i]] >= 0)
       {
          PMatO(i, 0) += PMatO(i, 1);
       }
@@ -4088,9 +4089,9 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
    // Convert parametric coordinates to physical to compute Jpt.
    // Needed as elfun has the surface parameters for some entries.
    Vector convertedX(elfun);
-   MFEM_VERIFY(tan_analytic_surf, "only for analytic surfaces");
+   MFEM_VERIFY(tan_dof_marker, "only for analytic surfaces");
    Array<int> vdofs;
-   tan_analytic_surf->pfes_mesh.GetElementVDofs(T.ElementNo, vdofs);
+   fes_mesh->GetElementVDofs(T.ElementNo, vdofs);
    tan_analytic_surf->ConvertParamToPhys(vdofs, elfun, convertedX);
    // Use converted coordinates for PMatI
    PMatI.UseExternalData(convertedX.GetData(), dof, dim);
@@ -4140,10 +4141,11 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
    DenseMatrix dx_dt(dof, dim);
    for (int i = 0; i < dof; i++)
    {
-      if ((*tan_dof_marker)[vdofs[i]] == true)
+      const int i_surf_id = (*tan_dof_marker)[vdofs[i]];
+      if (i_surf_id >= 0)
       {
          double dxy_dt[2];
-         tan_analytic_surf->Deriv_1(&elfun(i), dxy_dt);
+         tan_analytic_surf->GetSurface(i_surf_id)->Deriv_1(&elfun(i), dxy_dt);
          dx_dt(i, 0) = dxy_dt[0];
          dx_dt(i, 1) = dxy_dt[1];
       }
@@ -4206,7 +4208,7 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
    // TODO assumes 2D.
    for (int i = 0; i < dof; i++)
    {
-      if ((*tan_dof_marker)[vdofs[i]] == true)
+      if ((*tan_dof_marker)[vdofs[i]] >= 0)
       {
          elmat(i, i) += elmat(i + dof, i + dof);
          for (int j = 0; j < dof*dim; j++)

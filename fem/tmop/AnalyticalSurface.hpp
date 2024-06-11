@@ -22,58 +22,21 @@
 namespace mfem
 {
 
-class Square
-{
-   protected:
-
-   ParFiniteElementSpace &pfes_mesh;
-   ParGridFunction &distance_gf;
-   const ParMesh &pmesh;
-   const ParGridFunction &coord;
-
-   // attr = 1 ==> top
-   // attr = 2 ==> right
-   // attr = 3 ==> bottom
-   // attr = 4 ==> left
-   double width;
-   double depth;
-   Vector center;
-   Array<int> attr_marker;
-   std::vector<double> cornersX;
-   std::vector<double> cornersY;
-
-   public:
-   Square(ParFiniteElementSpace &pfes_mesh, ParGridFunction &distance_gf,
-          const ParMesh & pmesh, const ParGridFunction & coord);
-
-   virtual void GetTFromX(Vector &coordsT, const Vector &coordsX, const int & j_x, const Vector &dist);
-   virtual void GetXFromT(Vector &coordsX, const Vector &coordsT, const int &j_x, const Vector &dist);
-   virtual void ComputeDistances(const ParGridFunction &coord, const ParMesh & pmesh, const ParFiniteElementSpace &pfes_mesh);
-   virtual void SetScaleMatrix(const Array<int> &vdofs, int i, int a, DenseMatrix &Pmat_scale);
-   virtual void SetScaleMatrixFourthOrder(const Vector &elfun, const Array<int> & vdofs, DenseMatrix &Pmat_scale);
-   virtual void SetHessianScaleMatrix(const Vector &elfun, const Array<int> & vdofs, int i, int idim, int j, int jdim, DenseMatrix &Pmat_hessian);
-   virtual void convertToPhysical(const Array<int> & vdofs,const Vector &elfun, Vector &convertedX);
-};
-
 class AnalyticSurface
 {
 protected:
-   const Array<bool> &surface_dof_marker;
+   const Array<int> &dof_to_surface;
 
 public:
-   Square *geometry;
-   ParFiniteElementSpace &pfes_mesh;
    ParGridFunction distance_gf;
-   const ParMesh &pmesh;
 
-   AnalyticSurface(const Array<bool> &marker, ParFiniteElementSpace &pfes_mesh,
-                   const ParMesh &pmesh);
+   AnalyticSurface(const Array<int> &marker);
 
    // Go from physical to parametric coordinates on the whole mesh.
    // 2D: (x, y)    -> t.
    // 3D: (x, y, z) -> (u, v).
-   virtual void ConvertPhysCoordToParam(const GridFunction &coord_x,
-                                        GridFunction &coord_t) const = 0;
+   virtual void ConvertPhysCoordToParam(const Vector &coord_x,
+                                        Vector &coord_t) const = 0;
 
    // Go from parametric to physical coordinates on the whole mesh:
    // 2D: t      -> (x, y).
@@ -87,32 +50,32 @@ public:
                                    Vector &coord_x) const = 0;
 
    // First derivatives:
-   // 2D: t      -> (dx/dt, dy/dt).
-   // 3D: (u, v) -> (dx/du, dy/du, dz/du, dx/dv, dy/dv, dz/dv).
+   // 2D curve:  t     -> (dx/dt, dy/dt).
+   // 3D curve:  t     -> (dx/dt, dy/dt, dz/dt).
+   // 3D surf:  (u, v) -> (dx/du, dy/du, dz/du, dx/dv, dy/dv, dz/dv).
    virtual void Deriv_1(const double *param, double *deriv) const = 0;
 
-   // Derivative d(x_ai) / dt.
-   // Fills just one entry of the Pmat_scale.
-   void SetScaleMatrix(const Array<int> & vdofs, int i, int a, DenseMatrix & Pmat_scale);
-
-   // First derivatives as a 4th order tensor.
-   void SetScaleMatrixFourthOrder(const Vector &elfun, const Array<int> &vdofs, DenseMatrix & Pmat_scale);
-
-   // Second derivatives.
-   void SetHessianScaleMatrix(const Vector &elfun, const Array<int> & vdofs, int i, int idim, int j, int jdim, DenseMatrix &Pmat_hessian);
-
-   ~AnalyticSurface();
+   // Second derivatives:
+   // 2D curve:  t     -> (dx_dtdt, dy_dtdt).
+   // 3D curve:  t     -> (dx_dtdt, dy_dtdt, dz_dtdt).
+   virtual void Deriv_2(const double *param, double *deriv) const = 0;
 };
 
-class Analytic2DCurve : public AnalyticSurface
+class AnalyticCompositeSurface : public AnalyticSurface
 {
-public:
-   Analytic2DCurve(const Array<bool> &marker, ParFiniteElementSpace &pfes_mesh,
-                   const ParMesh &pmesh)
-    : AnalyticSurface(marker, pfes_mesh, pmesh) { }
+protected:
+   const Array<const AnalyticSurface *> &surfaces;
 
-   void ConvertPhysCoordToParam(const GridFunction &coord_x,
-                                GridFunction &coord_t) const override;
+public:
+   AnalyticCompositeSurface(const Array<int> &dof_surf,
+                            const Array<const AnalyticSurface *> &surf)
+      : AnalyticSurface(dof_surf), surfaces(surf) { }
+
+   const AnalyticSurface *GetSurface(int surf_id) const
+   { return surfaces[surf_id]; }
+
+   void ConvertPhysCoordToParam(const Vector &coord_x,
+                                Vector &coord_t) const override;
 
    void ConvertParamCoordToPhys(const Vector &coord_t,
                                 Vector &coord_x) const override;
@@ -121,7 +84,40 @@ public:
                            const Vector &coord_t,
                            Vector &coord_x) const override;
 
+   void Deriv_1(const double *param, double *deriv) const override
+   { MFEM_ABORT("Use GetSurface(surface_id)->Deriv_1(...);") }
+
+   void Deriv_2(const double *param, double *deriv) const override
+   { MFEM_ABORT("Use GetSurface(surface_id)->Deriv_2(...);") }
+};
+
+class Analytic2DCurve : public AnalyticSurface
+{
+protected:
+   const int surface_id;
+
+public:
+   Analytic2DCurve(const Array<int> &marker, int surf_id)
+    : AnalyticSurface(marker), surface_id(surf_id) { }
+
+   // (x, y) -> t on the whole mesh.
+   void ConvertPhysCoordToParam(const Vector &coord_x,
+                                Vector &coord_t) const override;
+
+   // t -> (x, y) on the whole mesh.
+   void ConvertParamCoordToPhys(const Vector &coord_t,
+                                Vector &coord_x) const override;
+
+   // t -> (x, y) on a single element.
+   void ConvertParamToPhys(const Array<int> &vdofs,
+                           const Vector &coord_t,
+                           Vector &coord_x) const override;
+
+   // t -> (dx_dt, dy_dt).
    void Deriv_1(const double *param, double *deriv) const override;
+
+   // t -> (dx_dtdt, dy_dtdt).
+   void Deriv_2(const double *param, double *deriv) const override;
 
    virtual void xy_of_t(double t, const Vector &dist,
                         double &x, double &y) const = 0;
@@ -130,6 +126,9 @@ public:
 
    virtual double dx_dt(double t) const = 0;
    virtual double dy_dt(double t) const = 0;
+
+   virtual double dx_dtdt(double t) const = 0;
+   virtual double dy_dtdt(double t) const = 0;
 };
 
 }

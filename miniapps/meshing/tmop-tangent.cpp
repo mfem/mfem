@@ -96,6 +96,8 @@ int main (int argc, char *argv[])
       double a = 0.2, d = 0.5;
       coord_x(i)     = x + a * sin(M_PI * x) * sin(M_PI * y) + d * x * y;
       coord_x(i + N) = y + a * sin(M_PI * x) * sin(M_PI * y) + d * x * y;
+      // coord_x(i)     = x + a * sin(M_PI/2 * x) * sin(M_PI * y) + d * x * y;
+      // coord_x(i + N) = y + a * sin(M_PI * x)   * sin(M_PI/2 * y) + d * x * y;
    }
 
    // Compute the minimum det(J) of the starting mesh.
@@ -117,23 +119,82 @@ int main (int argc, char *argv[])
    { cout << "Minimum det(J) of the original mesh is " << min_detJ << endl; }
    MFEM_VERIFY(min_detJ > 0.0, "Inverted initial meshes are not supported.");
 
-   // Mark which nodes to move tangentially (attribute 1).
-   Array<bool> fit_marker(pfes_mesh.GetNDofs());
-   ParGridFunction fit_marker_vis_gf(&pfes_mesh);
-   Array<int> vdofs;
-   fit_marker = false;
+   // Mark which nodes to move tangentially.
+   Array<int> fit_marker_0(pfes_mesh.GetNDofs()),
+              fit_marker_1(pfes_mesh.GetNDofs()),
+              fit_marker_2(pfes_mesh.GetNDofs());
+   ParFiniteElementSpace pfes_scalar(&pmesh, &fec_mesh, 1);
+   ParGridFunction fit_marker_vis_gf(&pfes_scalar);
+   Array<int> vdofs, ess_vdofs;
+   fit_marker_0 = -1;
+   fit_marker_1 = -1;
+   fit_marker_2 = -1;
    fit_marker_vis_gf = 0.0;
    for (int e = 0; e < pmesh.GetNBE(); e++)
    {
       const int attr = pmesh.GetBdrElement(e)->GetAttribute();
-      if (attr != 1) { continue; }
-
       const int nd = pfes_mesh.GetBE(e)->GetDof();
       pfes_mesh.GetBdrElementVDofs(e, vdofs);
+
+      // Top boundary.
+      if (attr == 1)
+      {
+         for (int j = 0; j < nd; j++)
+         {
+            // Eliminate y component.
+            ess_vdofs.Append(vdofs[j+nd]);
+            fit_marker_0[vdofs[j]] = 0;
+         }
+      }
+      // Right boundary.
+      else if (attr == 2)
+      {
+         for (int j = 0; j < nd; j++)
+         {
+            // Eliminate y component.
+            ess_vdofs.Append(vdofs[j+nd]);
+            fit_marker_1[vdofs[j]] = 1;
+         }
+      }
+      else if (attr == 3)
+      {
+         // Fix y components.
+         for (int j = 0; j < nd; j++)
+         {
+            fit_marker_2[vdofs[j]] = 2;
+            ess_vdofs.Append(vdofs[j+nd]);
+         }
+      }
+      else if (attr == 4)
+      {
+         // Fix x components.
+         for (int j = 0; j < nd; j++)
+         {
+            fit_marker_2[vdofs[j]] = 2;
+            ess_vdofs.Append(vdofs[j]);
+         }
+      }
+   }
+
+   Array<int> dof_to_surface(pfes_mesh.GetNDofs());
+   dof_to_surface = -1;
+   for (int e = 0; e < pmesh.GetNBE(); e++)
+   {
+      pfes_mesh.GetBdrElementVDofs(e, vdofs);
+      const int nd = pfes_mesh.GetBE(e)->GetDof();
+
       for (int j = 0; j < nd; j++)
       {
-         fit_marker[vdofs[j]] = true;
-         fit_marker_vis_gf(vdofs[j]) = 1.0;
+         int cnt = 0;
+         if (fit_marker_0[vdofs[j]] >= 0) { cnt++; }
+         if (fit_marker_1[vdofs[j]] >= 0) { cnt++; }
+         if (fit_marker_2[vdofs[j]] >= 0) { cnt++; }
+
+         fit_marker_vis_gf(vdofs[j]) = cnt;
+
+         if (cnt > 1) { ess_vdofs.Append(vdofs[j]); }
+         else if (fit_marker_0[vdofs[j]] >= 0) { dof_to_surface[vdofs[j]] = 0; }
+         else if (fit_marker_1[vdofs[j]] >= 0) { dof_to_surface[vdofs[j]] = 1; }
       }
    }
 
@@ -148,45 +209,14 @@ int main (int argc, char *argv[])
                             400, 0, 400, 400, "me");
    }
 
-   Array<int> ess_vdofs;
-   for (int i = 0; i < pmesh.GetNBE(); i++)
-   {
-      const int nd = pfes_mesh.GetBE(i)->GetDof();
-      const int attr = pmesh.GetBdrElement(i)->GetAttribute();
-      pfes_mesh.GetBdrElementVDofs(i, vdofs);
-      if (attr == 1)
-      {
-         // Eliminate y components.
-         for (int j = 0; j < nd; j++)
-         {
-            ess_vdofs.Append(vdofs[j+nd]);
-         }
-      }
-      else if (attr == 3)
-      {
-         // Fix y components.
-         for (int j = 0; j < nd; j++)
-         { ess_vdofs.Append(vdofs[j+nd]); }
-      }
-      else if (attr == 4)
-      {
-         // Fix x components.
-         for (int j = 0; j < nd; j++)
-         { ess_vdofs.Append(vdofs[j]); }
-      }
-      else if (attr == 2)
-      {
-         // Fix all components.
-         for (int j = 0; j < nd; j++)
-         {
-            ess_vdofs.Append(vdofs[j]);
-            ess_vdofs.Append(vdofs[j+nd]);
-         }
-      }
-   }
+   Array<const AnalyticSurface *> surf_array;
+   Line_Top line_top(dof_to_surface, 0);
+   Line_Right line_right(dof_to_surface, 1);
+   surf_array.Append(&line_top);
+   surf_array.Append(&line_right);
 
-   Line_Top line(fit_marker, pfes_mesh, pmesh);
-   line.ConvertPhysCoordToParam(coord_x, coord_t);
+   AnalyticCompositeSurface surfaces(dof_to_surface, surf_array);
+   surfaces.ConvertPhysCoordToParam(coord_x, coord_t);
 
    // TMOP setup.
    TMOP_QualityMetric *metric;
@@ -196,7 +226,7 @@ int main (int argc, char *argv[])
    TargetConstructor target(TargetConstructor::IDEAL_SHAPE_UNIT_SIZE,
                             pfes_mesh.GetComm());
    auto integ = new TMOP_Integrator(metric, &target, nullptr);
-   integ->EnableTangentialMovement(fit_marker, line);
+   integ->EnableTangentialMovement(dof_to_surface, surfaces, pfes_mesh);
 
    // Linear solver.
    MINRESSolver minres(pfes_mesh.GetComm());
@@ -214,7 +244,7 @@ int main (int argc, char *argv[])
    solver.SetOperator(a);
    solver.SetPreconditioner(minres);
    solver.SetPrintLevel(1);
-   solver.SetMaxIter(10000);
+   solver.SetMaxIter(100);
    solver.SetRelTol(1e-6);
    solver.SetAbsTol(0.0);
 
@@ -223,7 +253,7 @@ int main (int argc, char *argv[])
    coord_t.SetTrueVector();
    solver.Mult(b, coord_t.GetTrueVector());
    coord_t.SetFromTrueVector();
-   line.ConvertParamCoordToPhys(coord_t, coord_x);
+   surfaces.ConvertParamCoordToPhys(coord_t, coord_x);
    if(glvis)
    {
       socketstream vis2;

@@ -22,9 +22,8 @@ using namespace std;
 class Line_Bottom : public Analytic2DCurve
 {
    public:
-   Line_Bottom(const Array<bool> &marker, ParFiniteElementSpace &pfes_mesh,
-               const ParMesh &pmesh)
-       : Analytic2DCurve(marker, pfes_mesh, pmesh) { }
+   Line_Bottom(const Array<int> &marker, int surf_id)
+       : Analytic2DCurve(marker, surf_id) { }
 
    void xy_of_t(double t, const Vector &dist, double &x, double &y) const override
    {
@@ -38,15 +37,16 @@ class Line_Bottom : public Analytic2DCurve
 
    virtual double dx_dt(double t) const override { return 1.0; }
    virtual double dy_dt(double t) const override { return 0.0; }
+   virtual double dx_dtdt(double t) const override { return 0.0; }
+   virtual double dy_dtdt(double t) const override { return 0.0; }
 };
 
 // x = 0, y = t.
 class Line_Left : public Analytic2DCurve
 {
    public:
-   Line_Left(const Array<bool> &marker, ParFiniteElementSpace &pfes_mesh,
-             const ParMesh &pmesh)
-       : Analytic2DCurve(marker, pfes_mesh, pmesh) { }
+   Line_Left(const Array<int> &marker, int surf_id)
+       : Analytic2DCurve(marker, surf_id) { }
 
    void xy_of_t(double t, const Vector &dist, double &x, double &y) const override
    {
@@ -60,15 +60,16 @@ class Line_Left : public Analytic2DCurve
 
    virtual double dx_dt(double t) const override { return 0.0; }
    virtual double dy_dt(double t) const override { return 1.0; }
+   virtual double dx_dtdt(double t) const override { return 0.0; }
+   virtual double dy_dtdt(double t) const override { return 0.0; }
 };
 
-// x = 1.5 * t, y = 1 + 0.5 t
+// x = 1.5 t, y = 1 + 0.5 t
 class Line_Top : public Analytic2DCurve
 {
    public:
-   Line_Top(const Array<bool> &marker, ParFiniteElementSpace &pfes_mesh,
-            const ParMesh &pmesh)
-       : Analytic2DCurve(marker, pfes_mesh, pmesh) { }
+   Line_Top(const Array<int> &marker, int surf_id)
+       : Analytic2DCurve(marker, surf_id) { }
 
    void t_of_xy(double x, double y, const Vector &dist, double &t) const override
    {
@@ -81,15 +82,16 @@ class Line_Top : public Analytic2DCurve
 
    virtual double dx_dt(double t) const override { return 1.5; }
    virtual double dy_dt(double t) const override { return 0.5; }
+   virtual double dx_dtdt(double t) const override { return 0.0; }
+   virtual double dy_dtdt(double t) const override { return 0.0; }
 };
 
 // x = 1 + 0.5 t, y = 1.5 t
 class Line_Right : public Analytic2DCurve
 {
    public:
-   Line_Right(const Array<bool> &marker, ParFiniteElementSpace &pfes_mesh,
-              const ParMesh &pmesh)
-       : Analytic2DCurve(marker, pfes_mesh, pmesh) { }
+   Line_Right(const Array<int> &marker, int surf_id)
+       : Analytic2DCurve(marker, surf_id) { }
 
    void t_of_xy(double x, double y, const Vector &dist, double &t) const override
    {
@@ -102,5 +104,7 @@ class Line_Right : public Analytic2DCurve
 
    virtual double dx_dt(double t) const override { return 0.5; }
    virtual double dy_dt(double t) const override { return 1.5; }
+   virtual double dx_dtdt(double t) const override { return 0.0; }
+   virtual double dy_dtdt(double t) const override { return 0.0; }
 };
 

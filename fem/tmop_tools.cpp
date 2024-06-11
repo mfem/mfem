@@ -432,10 +432,10 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
    auto ti = dynamic_cast<TMOP_Integrator *>(integs[0]);
    MFEM_VERIFY(ti, "Didn't get the integrator.");
-   auto surf = ti->GetAnalyticSurface();
-   MFEM_VERIFY(surf, "Didn't get the surface.");
+   auto surfaces = ti->GetAnalyticSurface();
+   MFEM_VERIFY(surfaces, "There are no surfaces");
    Vector x_out_loc_x(x_out_loc);
-   surf->ConvertParamCoordToPhys(x_out_loc, x_out_loc_x);
+   surfaces->ConvertParamCoordToPhys(x_out_loc, x_out_loc_x);
 
    real_t scale = 1.0;
    bool fitting = IsSurfaceFittingEnabled();
@@ -516,7 +516,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       else { fes->GetProlongationMatrix()->Mult(x_out, x_out_loc); }
 #endif
 
-      surf->ConvertParamCoordToPhys(x_out_loc, x_out_loc_x);
+      surfaces->ConvertParamCoordToPhys(x_out_loc, x_out_loc_x);
 
       // Check the changes in detJ.
       min_detT_out = ComputeMinDet(x_out_loc_x, *fes);
