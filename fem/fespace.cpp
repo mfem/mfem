@@ -2342,6 +2342,7 @@ void FiniteElementSpace::Constructor(Mesh *mesh_, NURBSExtension *NURBSext_,
 
    const NURBSFECollection *nurbs_fec =
       dynamic_cast<const NURBSFECollection *>(fec_);
+
    if (nurbs_fec)
    {
       MFEM_VERIFY(mesh_->NURBSext, "NURBS FE space requires a NURBS mesh.");
@@ -2438,12 +2439,63 @@ void FiniteElementSpace::UpdateNURBS()
    face_dof = NULL;
    face_to_be.DeleteAll();
 
+   // Depending on the element type create the appropriate extensions
+   // for the individual components.
    dynamic_cast<const NURBSFECollection *>(fec)->Reset();
 
-   ndofs = NURBSext->GetNDof();
-   elem_dof = NURBSext->GetElementDofTable();
-   bdr_elem_dof = NURBSext->GetBdrElementDofTable();
+   if (dynamic_cast<const NURBS_HDivFECollection *>(fec))
+   {
+      VNURBSext.SetSize(mesh->Dimension());
+      for (int d = 0; d < mesh->Dimension(); d++)
+      {
+         VNURBSext[d] = NURBSext->GetDivExtension(d);
+      }
+   }
 
+   if (dynamic_cast<const NURBS_HCurlFECollection *>(fec))
+   {
+      VNURBSext.SetSize(mesh->Dimension());
+      for (int d = 0; d < mesh->Dimension(); d++)
+      {
+         VNURBSext[d] = NURBSext->GetCurlExtension(d);
+      }
+   }
+
+   // If required: concatenate the dof tables of the individual components into
+   // one dof table for the vector fespace.
+   if (VNURBSext.Size() == 2)
+   {
+      int offset1 = VNURBSext[0]->GetNDof();
+      ndofs = VNURBSext[0]->GetNDof() + VNURBSext[1]->GetNDof();
+
+      // Merge Tables
+      elem_dof = new Table(*VNURBSext[0]->GetElementDofTable(),
+                           *VNURBSext[1]->GetElementDofTable(),offset1 );
+
+      bdr_elem_dof = new Table(*VNURBSext[0]->GetBdrElementDofTable(),
+                               *VNURBSext[1]->GetBdrElementDofTable(),offset1);
+   }
+   else if (VNURBSext.Size() == 3)
+   {
+      int offset1 = VNURBSext[0]->GetNDof();
+      int offset2 = offset1 + VNURBSext[1]->GetNDof();
+      ndofs = offset2 + VNURBSext[2]->GetNDof();
+
+      // Merge Tables
+      elem_dof = new Table(*VNURBSext[0]->GetElementDofTable(),
+                           *VNURBSext[1]->GetElementDofTable(),offset1,
+                           *VNURBSext[2]->GetElementDofTable(),offset2);
+
+      bdr_elem_dof = new Table(*VNURBSext[0]->GetBdrElementDofTable(),
+                               *VNURBSext[1]->GetBdrElementDofTable(),offset1,
+                               *VNURBSext[2]->GetBdrElementDofTable(),offset2);
+   }
+   else
+   {
+      ndofs = NURBSext->GetNDof();
+      elem_dof = NURBSext->GetElementDofTable();
+      bdr_elem_dof = NURBSext->GetBdrElementDofTable();
+   }
    mesh_sequence = mesh->GetSequence();
    sequence++;
 }
@@ -3445,11 +3497,21 @@ void FiniteElementSpace::Destroy()
    dof_elem_array.DeleteAll();
    dof_ldof_array.DeleteAll();
 
+   for (int i = 0; i < VNURBSext.Size(); i++)
+   {
+      delete VNURBSext[i];
+   }
+
    if (NURBSext)
    {
       if (own_ext) { delete NURBSext; }
       delete face_dof;
       face_to_be.DeleteAll();
+      if (VNURBSext.Size() > 0 )
+      {
+         delete elem_dof;
+         delete bdr_elem_dof;
+      }
    }
    else
    {
@@ -3461,6 +3523,8 @@ void FiniteElementSpace::Destroy()
       delete [] bdofs;
    }
    ceed::RemoveBasisAndRestriction(this);
+
+
 }
 
 void FiniteElementSpace::DestroyDoFTransArray()
@@ -3800,6 +3864,7 @@ FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
    input >> ord;
 
    NURBSFECollection *nurbs_fec = dynamic_cast<NURBSFECollection*>(r_fec);
+   if (nurbs_fec) { nurbs_fec->SetDim(m->Dimension()); }
    NURBSExtension *nurbs_ext = NULL;
    if (fes_format == 90) // original format, v0.9
    {
