@@ -176,7 +176,17 @@ public:
 };
 
 
-/// An arbitrary order H(div)-conforming 2D NURBS element on a square
+/** An arbitrary order H(div)-conforming 2D NURBS element on a square.
+    More details in the following papers:
+
+[1] Annalisa Buffa, Carlo De Falco, Giancarlo Sangalli
+"Isogeometric analysis: stable elements for the 2D Stokes equation."
+International Journal for Numerical Methods in Fluids 65 (11‐12) 1407-1422
+
+[2] John A Evans, Thomas JR Hughes
+"Isogeometric divergence-conforming B-splines for the unsteady Navier–Stokes equations."
+Journal of Computational Physics (241) 141-167
+*/
 class NURBS_HDiv2DFiniteElement : public VectorFiniteElement,
    public NURBSFiniteElement
 {
@@ -188,8 +198,8 @@ protected:
    mutable Array <const KnotVector*> kv1;
 
 public:
-   /// Construct the NURBS_HDiv22DFiniteElement of order @a p
-   NURBS_HDiv2DFiniteElement(int p, int vdim)
+   /// Construct the NURBS_HDiv2DFiniteElement of order @a p
+   NURBS_HDiv2DFiniteElement(int p)
       : VectorFiniteElement(2, Geometry::SQUARE, 2*(p + 1)*(p + 2), p,
                             H_DIV,FunctionSpace::Qk),
         NURBSFiniteElement(2),
@@ -205,8 +215,8 @@ public:
       kv1[1] = nullptr;
    }
 
-   /// Construct the NURBS_HDiv22DFiniteElement with x-order @a px and y-order @a py
-   NURBS_HDiv2DFiniteElement(int px, int py, int vdim)
+   /// Construct the NURBS_HDiv2DFiniteElement with x-order @a px and y-order @a py
+   NURBS_HDiv2DFiniteElement(int px, int py)
       : VectorFiniteElement(2, Geometry::SQUARE,
                             (px + 2)*(py + 1)+(px + 1)*(py + 2),
                             std::max(px, py), H_DIV, FunctionSpace::Qk),
@@ -215,7 +225,7 @@ public:
         dshape_y(py + 1), d2shape_x(px + 1), d2shape_y(py + 1),
         shape1_x(px + 2), shape1_y(py + 2), dshape1_x(px + 2),
         dshape1_y(py + 2), d2shape1_x(px + 2), d2shape1_y(py + 2),
-        u(dof),  du(dof,2)
+        u(dof), du(dof,2)
    {
       orders[0] = px; orders[1] = py;
       kv1.SetSize(dim);
@@ -248,7 +258,17 @@ public:
 };
 
 
-/// An arbitrary order H(div)-conforming 3D NURBS element on a cube
+/** An arbitrary order H(div)-conforming 3D NURBS element on a cube
+    More details in the following papers:
+
+    [1] Annalisa Buffa, Carlo De Falco, Giancarlo Sangalli
+    "Isogeometric analysis: stable elements for the 2D Stokes equation."
+    International Journal for Numerical Methods in Fluids 65 (11‐12) 1407-1422
+
+    [2] John A Evans, Thomas JR Hughes
+    "Isogeometric divergence-conforming B-splines for the unsteady
+    Navier–Stokes equations."
+    Journal of Computational Physics (241) 141-167 */
 class NURBS_HDiv3DFiniteElement : public VectorFiniteElement,
    public NURBSFiniteElement
 {
@@ -264,8 +284,8 @@ protected:
    mutable Array <const KnotVector*> kv1;
 
 public:
-   /// Construct the NURBS_HDiv22DFiniteElement of order @a p
-   NURBS_HDiv3DFiniteElement(int p, int vdim)
+   /// Construct the NURBS_HDiv3DFiniteElement of order @a p
+   NURBS_HDiv3DFiniteElement(int p)
       : VectorFiniteElement(3, Geometry::CUBE, 3*(p + 1)*(p + 1)*(p + 2),
                             p, H_DIV,FunctionSpace::Qk),
         NURBSFiniteElement(3),
@@ -284,8 +304,8 @@ public:
       kv1[2] = nullptr;
    }
 
-   /// Construct the NURBS_HDiv22DFiniteElement with x-order @a px and y-order @a py
-   NURBS_HDiv3DFiniteElement(int px, int py, int pz, int vdim)
+   /// Construct the NURBS_HDiv3DFiniteElement with x-order @a px, y-order @a py and z-order @a pz
+   NURBS_HDiv3DFiniteElement(int px, int py, int pz)
       : VectorFiniteElement(3, Geometry::CUBE,
                             (px + 2)*(py + 1)*(pz + 1) +
                             (px + 1)*(py + 2)*(pz + 1) +
@@ -298,9 +318,9 @@ public:
         shape1_x(px + 2), shape1_y(py + 2), shape1_z(pz + 2),
         dshape1_x(px + 2), dshape1_y(py + 2),dshape1_z(pz + 2),
         d2shape1_x(px + 2), d2shape1_y(py + 2), d2shape1_z(pz + 2),
-        u(dof),  du(dof,3)
+        u(dof), du(dof,3)
    {
-      orders[0] = px; orders[1] = py; orders[1] = pz;
+      orders[0] = px; orders[1] = py; orders[2] = pz;
       kv1.SetSize(dim);
       kv1[0] = nullptr;
       kv1[1] = nullptr;
@@ -332,7 +352,12 @@ public:
 };
 
 
-/// An arbitrary order H(curl)-conforming 2D NURBS element on a square
+/** An arbitrary order H(curl)-conforming 2D NURBS element on a square
+    More details in the following paper:
+
+    [1] Annalisa Buffa, Giancarlo Sangalli, Rafael Vázquez
+    "Isogeometric analysis in electromagnetics: B-splines approximation."
+    Computer Methods in Applied Mechanics and Engineering (199) 1143-1152 */
 class NURBS_HCurl2DFiniteElement : public VectorFiniteElement,
    public NURBSFiniteElement
 {
@@ -344,8 +369,8 @@ protected:
    mutable Array <const KnotVector*> kv1;
 
 public:
-   /// Construct the NURBS_HCurl22DFiniteElement of order @a p
-   NURBS_HCurl2DFiniteElement(int p, int vdim)
+   /// Construct the NURBS_HCurl2DFiniteElement of order @a p
+   NURBS_HCurl2DFiniteElement(int p)
       : VectorFiniteElement(2, Geometry::SQUARE, 2*(p + 1)*(p + 2), p,
                             H_CURL,FunctionSpace::Qk),
         NURBSFiniteElement(2),
@@ -361,8 +386,8 @@ public:
       kv1[1] = nullptr;
    }
 
-   /// Construct the NURBS_HCurl22DFiniteElement with x-order @a px and y-order @a py
-   NURBS_HCurl2DFiniteElement(int px, int py, int vdim)
+   /// Construct the NURBS_HCurl2DFiniteElement with x-order @a px and y-order @a py
+   NURBS_HCurl2DFiniteElement(int px, int py)
       : VectorFiniteElement(2, Geometry::SQUARE,
                             (px + 1)*(py + 2)+(px + 2)*(py + 1),
                             std::max(px, py), H_CURL, FunctionSpace::Qk),
@@ -371,7 +396,7 @@ public:
         dshape_y(py + 1), d2shape_x(px + 1), d2shape_y(py + 1),
         shape1_x(px + 2), shape1_y(py + 2), dshape1_x(px + 2),
         dshape1_y(py + 2), d2shape1_x(px + 2), d2shape1_y(py + 2),
-        u(dof),  du(dof,2)
+        u(dof), du(dof,2)
    {
       orders[0] = px; orders[1] = py;
       kv1.SetSize(dim);
@@ -406,7 +431,12 @@ public:
 };
 
 
-/// An arbitrary order H(curl)-conforming 3D NURBS element on a cube
+/** An arbitrary order H(curl)-conforming 3D NURBS element on a cube
+    More details in the following paper:
+
+    [1] Annalisa Buffa, Giancarlo Sangalli, Rafael Vázquez
+    "Isogeometric analysis in electromagnetics: B-splines approximation."
+    Computer Methods in Applied Mechanics and Engineering (199) 1143-1152 */
 class NURBS_HCurl3DFiniteElement : public VectorFiniteElement,
    public NURBSFiniteElement
 {
@@ -422,8 +452,8 @@ protected:
    mutable Array <const KnotVector*> kv1;
 
 public:
-   /// Construct the NURBS_HCurl22DFiniteElement of order @a p
-   NURBS_HCurl3DFiniteElement(int p, int vdim)
+   /// Construct the NURBS_HCurl3DFiniteElement of order @a p
+   NURBS_HCurl3DFiniteElement(int p)
       : VectorFiniteElement(3, Geometry::CUBE, 3*(p + 1)*(p + 2)*(p + 2), p,
                             H_CURL,FunctionSpace::Qk),
         NURBSFiniteElement(3),
@@ -442,8 +472,8 @@ public:
       kv1[2] = nullptr;
    }
 
-   /// Construct the NURBS_HCurl22DFiniteElement with x-order @a px and y-order @a py
-   NURBS_HCurl3DFiniteElement(int px, int py, int pz, int vdim)
+   /// Construct the NURBS_HCurl3DFiniteElement with x-order @a px, y-order @a py and z-order @a pz
+   NURBS_HCurl3DFiniteElement(int px, int py, int pz)
       : VectorFiniteElement(3, Geometry::CUBE,
                             (px + 1)*(py + 2)*(pz + 2) +
                             (px + 2)*(py + 1)*(pz + 2) +
@@ -456,9 +486,9 @@ public:
         shape1_x(px + 2), shape1_y(py + 2), shape1_z(pz + 2),
         dshape1_x(px + 2), dshape1_y(py + 2),dshape1_z(pz + 2),
         d2shape1_x(px + 2), d2shape1_y(py + 2), d2shape1_z(pz + 2),
-        u(dof),  du(dof,3)
+        u(dof), du(dof,3)
    {
-      orders[0] = px; orders[1] = py; orders[1] = pz;
+      orders[0] = px; orders[1] = py; orders[2] = pz;
       kv1.SetSize(dim);
       kv1[0] = nullptr;
       kv1[1] = nullptr;

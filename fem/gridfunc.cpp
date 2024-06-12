@@ -12,6 +12,8 @@
 // Implementation of GridFunction
 
 #include "gridfunc.hpp"
+#include "linearform.hpp"
+#include "bilinearform.hpp"
 #include "quadinterpolator.hpp"
 #include "../mesh/nurbs.hpp"
 #include "../general/text.hpp"
@@ -39,7 +41,7 @@ GridFunction::GridFunction(Mesh *m, std::istream &input)
    UseDevice(true);
 
    fes = new FiniteElementSpace;
-   fec = fes->Load(m, input);
+   fec_owned = fes->Load(m, input);
 
    skip_comment_lines(input, '#');
    istream::int_type next_char = input.peek();
@@ -81,10 +83,10 @@ GridFunction::GridFunction(Mesh *m, GridFunction *gf_array[], int num_pieces)
    int vdim, ordering;
 
    fes = gf_array[0]->FESpace();
-   fec = FiniteElementCollection::New(fes->FEColl()->Name());
+   fec_owned = FiniteElementCollection::New(fes->FEColl()->Name());
    vdim = fes->GetVDim();
    ordering = fes->GetOrdering();
-   fes = new FiniteElementSpace(m, fec, vdim, ordering);
+   fes = new FiniteElementSpace(m, fec_owned, vdim, ordering);
    SetSize(fes->GetVSize());
 
    if (m->NURBSext)
@@ -153,11 +155,11 @@ GridFunction::GridFunction(Mesh *m, GridFunction *gf_array[], int num_pieces)
 
 void GridFunction::Destroy()
 {
-   if (fec)
+   if (fec_owned)
    {
       delete fes;
-      delete fec;
-      fec = NULL;
+      delete fec_owned;
+      fec_owned = NULL;
    }
 }
 
@@ -325,10 +327,9 @@ int GridFunction::VectorDim() const
    const FiniteElement *fe;
    if (!fes->GetNE())
    {
-      const FiniteElementCollection *fe_coll = fes->FEColl();
       static const Geometry::Type geoms[3] =
       { Geometry::SEGMENT, Geometry::TRIANGLE, Geometry::TETRAHEDRON };
-      fe = fe_coll->
+      fe = fes->FEColl()->
            FiniteElementForGeometry(geoms[fes->GetMesh()->Dimension()-1]);
    }
    else
@@ -350,7 +351,8 @@ int GridFunction::CurlDim() const
    {
       static const Geometry::Type geoms[3] =
       { Geometry::SEGMENT, Geometry::TRIANGLE, Geometry::TETRAHEDRON };
-      fe = fec->FiniteElementForGeometry(geoms[fes->GetMesh()->Dimension()-1]);
+      fe = fes->FEColl()->
+           FiniteElementForGeometry(geoms[fes->GetMesh()->Dimension()-1]);
    }
    else
    {
@@ -2394,16 +2396,19 @@ void GridFunction::ProjectCoefficient(Coefficient &coeff)
          Array<int> vdofs;
          Vector vals;
          real_t signal = std::numeric_limits<real_t>::min();
+
          for (int i = 0; i < fes->GetNE(); i++)
          {
             doftrans = fes->GetElementVDofs(i, vdofs);
             vals.SetSize(vdofs.Size());
             vals = signal;
+
             fes->GetFE(i)->Project(coeff, *fes->GetElementTransformation(i), vals);
             if (doftrans)
             {
                doftrans->TransformPrimal(vals);
             }
+
             // Remove values
             int s = 0;
             for (int ii = 0; ii < vals.Size(); ii++)
@@ -2465,13 +2470,16 @@ void GridFunction::ProjectCoefficient(
 
 void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff)
 {
-   Array<int> vdofs;
-   Vector vals;
-
-   DofTransformation * doftrans = NULL;
    if (fes->GetNURBSext() == NULL)
    {
-      for (int i = 0; i < fes->GetNE(); i++)
+
+      int i;
+      Array<int> vdofs;
+      Vector vals;
+
+      DofTransformation * doftrans = NULL;
+
+      for (i = 0; i < fes->GetNE(); i++)
       {
          doftrans = fes->GetElementVDofs(i, vdofs);
          vals.SetSize(vdofs.Size());
@@ -2482,9 +2490,15 @@ void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff)
          }
          SetSubVector(vdofs, vals);
       }
+
    }
+
    else
    {
+      Array<int> vdofs;
+      Vector vals;
+
+      DofTransformation * doftrans = NULL;
       real_t signal = std::numeric_limits<real_t>::min();
       for (int i = 0; i < fes->GetNE(); i++)
       {
@@ -4002,7 +4016,7 @@ void GridFunction::LegacyNCReorder()
       mesh->GetEdgeVertices(i, ev);
       if (old_vertex[ev[0]] > old_vertex[ev[1]])
       {
-         const int *ind = fec->DofOrderForOrientation(Geometry::SEGMENT, -1);
+         const int *ind = fes->FEColl()->DofOrderForOrientation(Geometry::SEGMENT, -1);
 
          fes->GetEdgeInteriorDofs(i, dofs);
          for (int k = 0; k < dofs.Size(); k++)
