@@ -32,7 +32,7 @@ add_mfem_miniapp(navsto
 if (MFEM_ENABLE_TESTING)
   add_test(NAME ex_condif
     COMMAND $<TARGET_FILE:condif> -no-vis
-    -m ${PROJECT_SOURCE_DIR}/data/segment-nurbs.mesh -r 1 -o 2)
+    -m ${PROJECT_SOURCE_DIR}/data/square-nurbs.mesh -r 1 -o 2)
 endif()
 
 if (MFEM_USE_MPI)
