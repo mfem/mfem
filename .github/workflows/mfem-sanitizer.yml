@@ -44,7 +44,7 @@ jobs:
           path: mfem
 
       - name: MFEM Build
-        uses: mfem/github-actions/build-mfem@v2.4
+        uses: mfem/github-actions/build-mfem@v2.5
         with:
           os: ${{ runner.os }}
           target: opt
