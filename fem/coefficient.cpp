@@ -1434,7 +1434,7 @@ real_t InverseEstimateCoefficient::ElementInverseEstimate(
    const FiniteElement &el,
    ElementTransformation &Trans)
 {
-   if (el.GetDerivType() != (int) FiniteElement::HESS)
+   if (el.GetOrder() < 2)
    {
       return std::numeric_limits<real_t>::min();
    }
@@ -1605,10 +1605,10 @@ real_t ElasticInverseEstimateCoefficient::ElementInverseEstimate(
             AddMult_a_VVt(w*q, Vector(dshape.GetColumn(i),nd), *emat(j,j));
 
             AddMult_a_VWt(w*q, Vector(dshape.GetColumn(i),nd),
-                               Vector(dshape.GetColumn(j),nd), *emat(j,i));
+                          Vector(dshape.GetColumn(j),nd), *emat(j,i));
 
             AddMult_a_VWt(w*q, Vector(dshape.GetColumn(j),nd),
-                               Vector(dshape.GetColumn(i),nd), *emat(i,j));
+                          Vector(dshape.GetColumn(i),nd), *emat(i,j));
 
             AddMult_a_VVt(w*q, Vector(dshape.GetColumn(j),nd), *emat(i,i));
          }
@@ -1621,17 +1621,17 @@ real_t ElasticInverseEstimateCoefficient::ElementInverseEstimate(
          {
             for (int k = 0; k < dim; k++)
             {
-                 AddMult_a_VWt(w*q*q, Vector(hshape.GetColumn(hmap(i,i)),nd),
-                                      Vector(hshape.GetColumn(hmap(k,k)),nd), *divmat(j,j));
+               AddMult_a_VWt(w*q*q, Vector(hshape.GetColumn(hmap(i,i)),nd),
+                             Vector(hshape.GetColumn(hmap(k,k)),nd), *divmat(j,j));
 
-                 AddMult_a_VWt(w*q*q, Vector(hshape.GetColumn(hmap(i,i)),nd),
-                                      Vector(hshape.GetColumn(hmap(k,j)),nd), *divmat(j,k));
+               AddMult_a_VWt(w*q*q, Vector(hshape.GetColumn(hmap(i,i)),nd),
+                             Vector(hshape.GetColumn(hmap(k,j)),nd), *divmat(j,k));
 
-                 AddMult_a_VWt(w*q*q, Vector(hshape.GetColumn(hmap(i,j)),nd),
-                                      Vector(hshape.GetColumn(hmap(k,k)),nd), *divmat(i,j));
+               AddMult_a_VWt(w*q*q, Vector(hshape.GetColumn(hmap(i,j)),nd),
+                             Vector(hshape.GetColumn(hmap(k,k)),nd), *divmat(i,j));
 
-                 AddMult_a_VWt(w*q*q, Vector(hshape.GetColumn(hmap(i,j)),nd),
-                                      Vector(hshape.GetColumn(hmap(k,j)),nd), *divmat(i,k)); 
+               AddMult_a_VWt(w*q*q, Vector(hshape.GetColumn(hmap(i,j)),nd),
+                             Vector(hshape.GetColumn(hmap(k,j)),nd), *divmat(i,k));
             }
          }
       }
@@ -1654,7 +1654,7 @@ real_t ElasticInverseEstimateCoefficient::ElementInverseEstimate(
    emat_tot.NullSpace(ns, 1e-10);
    for (int i = 0; i < ns.Width(); i++)
    {
-       AddMultVVt(Vector(ns.GetColumn(i),nd*dim), emat_tot);
+      AddMultVVt(Vector(ns.GetColumn(i),nd*dim), emat_tot);
    }
 
    // Return largest eigenvalue

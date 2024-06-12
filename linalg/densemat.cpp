@@ -1058,7 +1058,6 @@ void dsyevr_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect,
       {
          if (fabs(data[i+N*j]-data[j+N*i]) > 1e-9)
          {
-         a.Print(cout, 666);
             mfem::err << "dsyevr_Eigensystem(...): matrix not symmetric\n"
                       << " data["<<i<<"+N*"<<j<<"] = " << data[i+N*j]<<endl
                       << " data["<<j<<"+N*"<<i<<"] = " << data[j+N*i]<<endl;
@@ -1108,11 +1107,11 @@ void dsyevr_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect,
             }
             if (u > 0.5)
             {
-                 mfem::err << "dsyevr_Eigensystem(...):"
-                            << " Z^t Z - I deviation = " << u
-                           << "\n W[max] = " << W[N-1] << ", W[min] = "
-                            << W[0] << ", N = " << N << endl;
-                  mfem_error();
+               mfem::err << "dsyevr_Eigensystem(...):"
+                         << " Z^t Z - I deviation = " << u
+                         << "\n W[max] = " << W[N-1] << ", W[min] = "
+                         << W[0] << ", N = " << N << endl;
+               mfem_error();
             }
          }
       }
@@ -1312,7 +1311,7 @@ real_t DenseMatrix::Eigenvalue(int i)
 {
    MFEM_VERIFY(Height() == Width(), "a has to be a square matrix");
 
-   if (i < 0) i = Width() - 1;
+   if (i < 0) { i = Width() - 1; }
 #ifdef MFEM_USE_LAPACK
    Vector ev;
    dsyevr_Eigensystem(*this, ev, NULL, i+1, i+1);
@@ -1361,7 +1360,7 @@ real_t DenseMatrix::Eigenvalue(int i)
 real_t DenseMatrix::Eigenvalue(DenseMatrix &b, int i)
 {
 #ifdef MFEM_USE_LAPACK
-   if (i < 0) i = Width() - 1;
+   if (i < 0) { i = Width() - 1; }
    Vector ev;
    dsygvx_Eigensystem(*this, b, ev, NULL, i+1, i+1);
    return ev[0];
@@ -1679,10 +1678,10 @@ bool DenseMatrix::IsSymmetric(real_t tol)
       real_t L = 0.0;
       for (int j = i+1; j < Width(); j++)
       {
-        if (fabs((*this)(i, j) - (*this)(j, i)) > tol) return false ;
+         if (fabs((*this)(i, j) - (*this)(j, i)) > tol) { return false ; }
       }
    }
-   
+
    return true;
 }
 
