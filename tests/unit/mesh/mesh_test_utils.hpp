@@ -100,7 +100,7 @@ Mesh CylinderMesh(Geometry::Type el_type, bool quadratic, int variant = 0);
 
 
 /**
- * @brief Test GetVectorValue on face neighbor elements for nonconformal meshes
+ * @brief Test GetVectorValue on face neighbor elements for nonconforming meshes
  *
  * @param smesh The serial mesh to start from
  * @param nc_level Depth of refinement on processor boundaries
