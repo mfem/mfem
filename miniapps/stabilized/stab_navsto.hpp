@@ -26,6 +26,8 @@ namespace mfem
     CHECK NUMBERING HESSIAN -> NURBS = WRONG?? 2D = ok --> 3D???   --> DONE NEEDS CHECKING???
     Inverse estimate check order -> done
     Add force                    -> done
+    Parallel -->  done
+
 
     Add supg   -  rhs done, jac conv + press --> ignore diffusion for now
     Add pspg   -  rhs done, jac conv + press --> ignore diffusion for now
@@ -36,7 +38,13 @@ namespace mfem
     Add VMS/GLS
     Add selection option of different stab modes
 
-    Parallel --> almost their??
+    Add Hessian check to inverse estimate
+
+
+    Check
+    - Hessian numbering in 3D
+    - Power method --> Laplack / null-space
+    - Elastic Inverse estimate
 
     Leopoldo P. Franca, Sérgio L. Frey
     Stabilized finite element methods:
@@ -104,6 +112,7 @@ public:
       : prefix(prefix_)
    {
       print_level = print_lvl;
+      rank = 1;
    }
 
    GeneralResidualMonitor(MPI_Comm comm,
@@ -113,7 +122,6 @@ public:
 #ifndef MFEM_USE_MPI
       print_level = print_lvl;
 #else
-      int rank;
       MPI_Comm_rank(comm, &rank);
       if (rank == 0)
       {
@@ -130,7 +138,7 @@ public:
 
 private:
    const std::string prefix;
-   int print_level;
+   int rank, print_level;
    mutable real_t norm0;
 };
 
@@ -146,19 +154,45 @@ public:
       print_level = print_lvl;
       nvar = bOffsets.Size()-1;
       norm0.SetSize(nvar);
+      rank = 1;
    }
 
    SystemResidualMonitor(MPI_Comm comm,
                          const std::string& prefix_,
                          int print_lvl,
-                         Array<int> &offsets,
-                         DataCollection *dc_ = nullptr)
-      : prefix(prefix_), bOffsets(offsets), dc(dc_)
+                         Array<int> &offsets)
+      : prefix(prefix_), bOffsets(offsets), dc(nullptr), xp(nullptr)
    {
 #ifndef MFEM_USE_MPI
       print_level = print_lvl;
+      rank = 1;
 #else
-      int rank;
+      MPI_Comm_rank(comm, &rank);
+      if (rank == 0)
+      {
+         print_level = print_lvl;
+      }
+      else
+      {
+         print_level = -1;
+      }
+#endif
+      nvar = bOffsets.Size()-1;
+      norm0.SetSize(nvar);
+   }
+   SystemResidualMonitor(MPI_Comm comm,
+                         const std::string& prefix_,
+                         int print_lvl,
+                         Array<int> &offsets,
+                         DataCollection *dc_,
+                         BlockVector *x,
+                         Array<ParGridFunction *> pgf_)
+      : prefix(prefix_), bOffsets(offsets), dc(dc_), xp(x), pgf(pgf_)
+   {
+#ifndef MFEM_USE_MPI
+      print_level = print_lvl;
+      rank = 1;
+#else
       MPI_Comm_rank(comm, &rank);
       if (rank == 0)
       {
@@ -178,11 +212,13 @@ public:
 
 private:
    const std::string prefix;
-   int print_level, nvar;
+   int print_level, nvar, rank;
    mutable Vector norm0;
   // Offsets for extracting block vector segments
    Array<int> &bOffsets;
    DataCollection *dc;
+   BlockVector *xp;
+   Array<ParGridFunction *> pgf;
 };
 
 // Custom block preconditioner for the Jacobian

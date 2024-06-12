@@ -71,7 +71,7 @@ real_t StabInNavStoIntegrator::GetElementEnergy(
    sh_u.SetSize(dof_u);
    elf_u.UseExternalData(elfun[0]->GetData(), dof_u, dim);
 
-   int intorder = 2*el[0]->GetOrder() + 3; // <---
+   int intorder = 2*el[0]->GetOrder();
    const IntegrationRule &ir = IntRules.Get(el[0]->GetGeomType(), intorder);
 
    real_t energy = 0.0;
@@ -131,7 +131,7 @@ void StabInNavStoIntegrator::AssembleElementVector(
    sh_p.SetSize(dof_p);
    shg_p.SetSize(dof_p, dim);
 
-   int intorder = 2*el[0]->GetOrder() + 3; // <---
+   int intorder = 2*el[0]->GetOrder();
    const IntegrationRule &ir = IntRules.Get(el[0]->GetGeomType(), intorder);
 
    for (int i = 0; i < ir.GetNPoints(); ++i)
@@ -230,7 +230,7 @@ void StabInNavStoIntegrator::AssembleElementGrad(
    sh_p.SetSize(dof_p);
    shg_p.SetSize(dof_p, dim);
 
-   int intorder = 2*el[0]->GetOrder() + 3; // <---
+   int intorder = 2*el[0]->GetOrder();
    const IntegrationRule &ir = IntRules.Get(el[0]->GetGeomType(), intorder);
 
    for (int i = 0; i < ir.GetNPoints(); ++i)
@@ -309,6 +309,7 @@ void StabInNavStoIntegrator::AssembleElementGrad(
    }
 }
 
+
 void GeneralResidualMonitor::MonitorResidual(int it, real_t norm,
                                              const Vector &r, bool final)
 {
@@ -328,8 +329,15 @@ void GeneralResidualMonitor::MonitorResidual(int it, real_t norm,
 void SystemResidualMonitor::MonitorResidual(int it, real_t norm,
                                             const Vector &r, bool final)
 {
-   if (dc)
+   if (dc && (it > 0))
    {
+      if (rank > 1)
+      {
+         for (int i = 0; i < nvar; ++i)
+         {
+            pgf[i]->Distribute(xp->GetBlock(i));
+         }
+      }
       dc->SetCycle(it);
       dc->Save();
    }
@@ -339,10 +347,16 @@ void SystemResidualMonitor::MonitorResidual(int it, real_t norm,
    for (int i = 0; i < nvar; ++i)
    {
        Vector r_i(r.GetData() + bOffsets[i], bOffsets[i+1] - bOffsets[i]);
-       vnorm[i] = sqrt(InnerProduct(MPI_COMM_WORLD, r_i, r_i));
+       if ( rank == 1 )
+       {
+          vnorm[i] = r_i.Norml2();
+       }
+       else
+       {
+          vnorm[i] = sqrt(InnerProduct(MPI_COMM_WORLD, r_i, r_i));
+       }
        if (it == 0) norm0[i] = vnorm[i];
-    }
-
+   }
 
    bool print = (print_level > 0 &&  it%print_level == 0) || final;
    if (print)
