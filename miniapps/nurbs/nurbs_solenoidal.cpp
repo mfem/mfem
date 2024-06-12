@@ -18,7 +18,6 @@
 //
 // Sample runs:  nurbs_solenoidal -m ../../data/square-nurbs.mesh -o 2
 //               nurbs_solenoidal -m ../../data/cube-nurbs.mesh -o 2
-//               nurbs_solenoidal -m ../../data/pipe-nurbs-2d.mesh -o 2
 //
 // Description:  This code projects a velocity field, and forces this field
 //               to be solenoidal, viz. the divergence is zero. If the correct
@@ -49,8 +48,8 @@ using namespace mfem;
 
 void u_2d(const Vector & x, Vector & u)
 {
-   double xi(x(0));
-   double yi(x(1));
+   real_t xi(x(0));
+   real_t yi(x(1));
 
    int p = 4;
 
@@ -60,15 +59,15 @@ void u_2d(const Vector & x, Vector & u)
 
 void u_3d(const Vector & x, Vector & u)
 {
-   double xi(x(0));
-   double yi(x(1));
-   double zi(x(2));
+   real_t xi(x(0));
+   real_t yi(x(1));
+   real_t zi(x(2));
 
    int p = 4;
 
-   double cx = 3.0/4.0;
-   double cy = 2.0/3.0;
-   double cz = -cx - cy;
+   real_t cx = 3.0/4.0;
+   real_t cy = 2.0/3.0;
+   real_t cz = -cx - cy;
 
    u(0) = cx*pow(xi,p + 1)*pow(yi,p    )*pow(zi,p    );
    u(1) = cy*pow(xi,p    )*pow(yi,p + 1)*pow(zi,p    );
@@ -108,7 +107,7 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly, -1 for auto.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
-   args.AddOption(&div_free, "-df", "--dif-free", "-p","--proj",
+   args.AddOption(&div_free, "-df", "--div-free", "-p","--proj",
                   "Div-free or standard projection.");
    args.AddOption(&NURBS, "-n", "--nurbs", "-nn","--no-nurbs",
                   "NURBS.");
@@ -276,8 +275,8 @@ int main(int argc, char *argv[])
    // 11. Solve the linear system with MINRES.
    //     Check the norm of the unpreconditioned residual.
    int maxIter(10000);
-   double rtol(1.e-16);
-   double atol(1.e-16);
+   real_t rtol(10*std::numeric_limits<real_t>::epsilon());
+   real_t atol(10*std::numeric_limits<real_t>::epsilon());
 
    chrono.Clear();
    chrono.Start();
@@ -368,9 +367,9 @@ int main(int argc, char *argv[])
       irs[i] = &(IntRules.Get(i, order_quad));
    }
 
-   double err_u  = u.ComputeL2Error(ucoeff, irs);
-   double err_p  = p.ComputeL2Error(zero, irs);
-   double err_div  = u.ComputeDivError(&zero, irs);
+   real_t err_u  = u.ComputeL2Error(ucoeff, irs);
+   real_t err_p  = p.ComputeL2Error(zero, irs);
+   real_t err_div  = u.ComputeDivError(&zero, irs);
 
    mfem::out << "|| u_h - u_ex ||  = " << err_u  << "\n";
    mfem::out << "|| div u_h - div u_ex ||  = " << err_div  << "\n";
@@ -391,9 +390,11 @@ int main(int argc, char *argv[])
    delete hdiv_coll;
    delete mesh;
 
-   if (err_div > 1e-12)
+   if (err_div > 1e4*std::numeric_limits<real_t>::epsilon() )
    {
-      mfem_error("Divergence error larger then expected");
+      mfem::out << "std::numeric_limits<real_t>::epsilon() = "
+                << std::numeric_limits<real_t>::epsilon()  << "\n";
+      mfem_error("Divergence error larger than expected");
    }
 
    return 0;

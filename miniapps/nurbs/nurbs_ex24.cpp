@@ -12,8 +12,6 @@
 //               nurbs_ex24 -m ../../data/fichera.mesh
 //               nurbs_ex24 -m ../../data/fichera-q2.vtk
 //               nurbs_ex24 -m ../../data/fichera-q3.mesh
-//               nurbs_ex24 -m ../../data/square-disc-nurbs.mesh
-//               nurbs_ex24 -m ../../data/beam-hex-nurbs.mesh
 //               nurbs_ex24 -m ../../data/amr-quad.mesh -o 2
 //               nurbs_ex24 -m ../../data/amr-hex.mesh
 //
@@ -45,14 +43,14 @@
 using namespace std;
 using namespace mfem;
 
-double p_exact(const Vector &x);
+real_t p_exact(const Vector &x);
 void gradp_exact(const Vector &, Vector &);
-double div_gradp_exact(const Vector &x);
+real_t div_gradp_exact(const Vector &x);
 void v_exact(const Vector &x, Vector &v);
 void curlv_exact(const Vector &x, Vector &cv);
 
 int dim;
-double freq = 1.0, kappa;
+real_t freq = 1.0, kappa;
 
 int main(int argc, char *argv[])
 {
@@ -322,8 +320,8 @@ int main(int argc, char *argv[])
    // 11. Compute and print the L_2 norm of the error.
    if (prob == 0)
    {
-      double errSol = x.ComputeL2Error(gradp_coef);
-      double errProj = exact_proj.ComputeL2Error(gradp_coef);
+      real_t errSol = x.ComputeL2Error(gradp_coef);
+      real_t errProj = exact_proj.ComputeL2Error(gradp_coef);
 
       cout << "\n Solution of (E_h,v) = (grad p_h,v) for E_h and v in H(curl): "
            "|| E_h - grad p ||_{L_2} = " << errSol << '\n' << endl;
@@ -332,8 +330,8 @@ int main(int argc, char *argv[])
    }
    else if (prob == 1)
    {
-      double errSol = x.ComputeL2Error(curlv_coef);
-      double errProj = exact_proj.ComputeL2Error(curlv_coef);
+      real_t errSol = x.ComputeL2Error(curlv_coef);
+      real_t errProj = exact_proj.ComputeL2Error(curlv_coef);
 
       cout << "\n Solution of (E_h,w) = (curl v_h,w) for E_h and w in H(div): "
            "|| E_h - curl v ||_{L_2} = " << errSol << '\n' << endl;
@@ -349,8 +347,8 @@ int main(int argc, char *argv[])
          irs[i] = &(IntRules.Get(i, order_quad));
       }
 
-      double errSol = x.ComputeL2Error(divgradp_coef, irs);
-      double errProj = exact_proj.ComputeL2Error(divgradp_coef, irs);
+      real_t errSol = x.ComputeL2Error(divgradp_coef, irs);
+      real_t errProj = exact_proj.ComputeL2Error(divgradp_coef, irs);
 
       cout << "\n Solution of (f_h,q) = (div v_h,q) for f_h and q in L_2: "
            "|| f_h - div v ||_{L_2} = " << errSol << '\n' << endl;
@@ -386,7 +384,7 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-double p_exact(const Vector &x)
+real_t p_exact(const Vector &x)
 {
    if (dim == 3)
    {
@@ -416,7 +414,7 @@ void gradp_exact(const Vector &x, Vector &f)
    }
 }
 
-double div_gradp_exact(const Vector &x)
+real_t div_gradp_exact(const Vector &x)
 {
    if (dim == 3)
    {

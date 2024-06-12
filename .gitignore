@@ -57,6 +57,8 @@ examples/ex2[0-9]
 examples/ex2[0-9]p
 examples/ex3[0-9]
 examples/ex3[0-9]p
+examples/ex4[0-9]
+examples/ex4[0-9]p
 
 examples/refined.mesh
 examples/displaced.mesh
@@ -232,7 +234,7 @@ miniapps/meshing/mobius-strip.mesh
 miniapps/meshing/klein-bottle.mesh
 miniapps/meshing/toroid-*.mesh
 miniapps/meshing/twist-*.mesh
-miniapps/meshing/mesh-explorer.mesh
+miniapps/meshing/mesh-explorer.mesh*
 miniapps/meshing/partitioning.txt
 miniapps/meshing/mesh-explorer-visit*
 miniapps/meshing/mesh-explorer-paraview/
@@ -363,6 +365,8 @@ miniapps/parelag/MultilevelHcurlHdivSolver
 miniapps/parelag/*.mesh
 
 miniapps/multidomain/multidomain
+miniapps/multidomain/multidomain_nd
+miniapps/multidomain/multidomain_rt
 miniapps/hooke/hooke
 
 miniapps/dpg/diffusion
@@ -377,6 +381,8 @@ miniapps/dpg/ParaView
 
 miniapps/spde/generate_random_field
 miniapps/spde/ParaView
+
+miniapps/tribol/contact-patch-test
 
 # Unit test binary and outputs
 tests/unit/output_meshes

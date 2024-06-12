@@ -3568,8 +3568,8 @@ NURBS_HDivFECollection::NURBS_HDivFECollection(int Order, const int dim)
    SegmentFE       = new NURBS1DFiniteElement(order);
    QuadrilateralFE = new NURBS2DFiniteElement(order);
 
-   QuadrilateralVFE  = new NURBS_HDiv2DFiniteElement(order,dim);
-   ParallelepipedVFE = new NURBS_HDiv3DFiniteElement(order,dim);
+   QuadrilateralVFE  = new NURBS_HDiv2DFiniteElement(order);
+   ParallelepipedVFE = new NURBS_HDiv3DFiniteElement(order);
 
    if (dim != -1) { SetDim(dim); }
    SetOrder(Order);
@@ -3660,8 +3660,8 @@ NURBS_HCurlFECollection::NURBS_HCurlFECollection(int Order, const int dim)
    SegmentFE       = new NURBS1DFiniteElement(order+1);
    QuadrilateralFE = new NURBS2DFiniteElement(order+1);
 
-   QuadrilateralVFE  = new NURBS_HCurl2DFiniteElement(order,dim);
-   ParallelepipedVFE = new NURBS_HCurl3DFiniteElement(order,dim);
+   QuadrilateralVFE  = new NURBS_HCurl2DFiniteElement(order);
+   ParallelepipedVFE = new NURBS_HCurl3DFiniteElement(order);
    if (dim != -1) { SetDim(dim); }
    SetOrder(Order);
 }

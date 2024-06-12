@@ -1352,6 +1352,85 @@ void OversetFindPointsGSLIB::Interpolate(const Vector &point_pos,
    Interpolate(field_in, field_out);
 }
 
+GSOPGSLIB::GSOPGSLIB(Array<long long> &ids)
+{
+   gsl_comm = new gslib::comm;
+   cr       = new gslib::crystal;
+#ifdef MFEM_USE_MPI
+   int initialized;
+   MPI_Initialized(&initialized);
+   if (!initialized) { MPI_Init(NULL, NULL); }
+   MPI_Comm comm = MPI_COMM_WORLD;
+   comm_init(gsl_comm, comm);
+#else
+   comm_init(gsl_comm, 0);
+#endif
+   crystal_init(cr, gsl_comm);
+   UpdateIdentifiers(ids);
+}
+
+#ifdef MFEM_USE_MPI
+GSOPGSLIB::GSOPGSLIB(MPI_Comm comm_, Array<long long> &ids)
+   : cr(NULL), gsl_comm(NULL)
+{
+   gsl_comm = new gslib::comm;
+   cr      = new gslib::crystal;
+   comm_init(gsl_comm, comm_);
+   crystal_init(cr, gsl_comm);
+   UpdateIdentifiers(ids);
+}
+#endif
+
+GSOPGSLIB::~GSOPGSLIB()
+{
+   crystal_free(cr);
+   gslib_gs_free(gsl_data);
+   comm_free(gsl_comm);
+   delete gsl_comm;
+   delete cr;
+}
+
+void GSOPGSLIB::UpdateIdentifiers(const Array<long long> &ids)
+{
+   long long minval = ids.Min();
+#ifdef MFEM_USE_MPI
+   MPI_Allreduce(MPI_IN_PLACE, &minval, 1, MPI_LONG_LONG_INT,
+                 MPI_MIN, gsl_comm->c);
+#endif
+   MFEM_VERIFY(minval >= 0, "Unique identifier cannot be negative.");
+   if (gsl_data != NULL) { gslib_gs_free(gsl_data); }
+   num_ids = ids.Size();
+   gsl_data = gslib_gs_setup(ids.GetData(),
+                             ids.Size(),
+                             gsl_comm, 0,
+                             gslib::gs_crystal_router, 0);
+}
+
+void GSOPGSLIB::GS(Vector &senddata, GSOp op)
+{
+   MFEM_VERIFY(senddata.Size() == num_ids,
+               "Incompatible setup and GOP operation.");
+   if (op == GSOp::ADD)
+   {
+      gslib_gs(senddata.GetData(),gslib::gs_double,gslib::gs_add,0,gsl_data,0);
+   }
+   else if (op == GSOp::MUL)
+   {
+      gslib_gs(senddata.GetData(),gslib::gs_double,gslib::gs_mul,0,gsl_data,0);
+   }
+   else if (op == GSOp::MAX)
+   {
+      gslib_gs(senddata.GetData(),gslib::gs_double,gslib::gs_max,0,gsl_data,0);
+   }
+   else if (op == GSOp::MIN)
+   {
+      gslib_gs(senddata.GetData(),gslib::gs_double,gslib::gs_min,0,gsl_data,0);
+   }
+   else
+   {
+      MFEM_ABORT("Invalid GSOp operation.");
+   }
+}
 
 } // namespace mfem
 
