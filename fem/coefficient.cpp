@@ -1434,10 +1434,10 @@ real_t InverseEstimateCoefficient::ElementInverseEstimate(
    const FiniteElement &el,
    ElementTransformation &Trans)
 {
- //  if (el.GetDerivType() != (int) FiniteElement::HESS)
- //  {
- //     return std::numeric_limits<real_t>::min();
-  // }
+   if (el.GetDerivType() != (int) FiniteElement::HESS)
+   {
+      return std::numeric_limits<real_t>::min();
+   }
 
    int nd = el.GetDof();
    int dim = el.GetDim();
@@ -1479,27 +1479,20 @@ real_t InverseEstimateCoefficient::ElementInverseEstimate(
    // Correct nullspace
    AddMultVVt(ovec, lapmat);
 
-   // Init eigen vector
-   if (evec.Size() != nd)
-   {
-      evec.SetSize(nd);
-      evec.Randomize(696383532);
-   }
-
-   return PowerMethod2(lapmat, bimat, evec);
+   // Return largest eigenvalue
+   return bimat.Eigenvalue(lapmat);
 }
 
-
 ElasticInverseEstimateCoefficient
-   ::ElasticInverseEstimateCoefficient(FiniteElementSpace *f)
+::ElasticInverseEstimateCoefficient(FiniteElementSpace *f)
    : fes(f), Q(NULL), ir(NULL)
 {
    ComputeInverseEstimates();
 }
 
 ElasticInverseEstimateCoefficient
-   ::ElasticInverseEstimateCoefficient(FiniteElementSpace *f,
-                                       Coefficient &q)
+::ElasticInverseEstimateCoefficient(FiniteElementSpace *f,
+                                    Coefficient &q)
    : fes(f), Q(&q), ir(NULL)
 {
    ComputeInverseEstimates();
@@ -1531,29 +1524,29 @@ void ElasticInverseEstimateCoefficient::ComputeInverseEstimates()
          divmat(i,j)= new DenseMatrix();
       }
    }
-   
-     hmap.SetSize(dim,dim);
 
-     if (dim == 2)
-     {
-        hmap(0,0) = 0;
-        hmap(0,1) =  hmap(1,0) =  1;
-        hmap(1,1) = 2; 
-     }
-     else if (dim == 2)
-     {
-        hmap(0,0) = 0;
-        hmap(0,1) = hmap(1,0) = 1;
-        hmap(0,2) = hmap(2,0) = 2;
-        hmap(1,1) = 3;
-        hmap(1,2) = hmap(2,1) = 4;
-        hmap(2,2) = 5;
-     }
-     else
-     {
-        mfem_error("Only implemented for 2D and 3D");
-     }
-     
+   hmap.SetSize(dim,dim);
+
+   if (dim == 2)
+   {
+      hmap(0,0) = 0;
+      hmap(0,1) =  hmap(1,0) =  1;
+      hmap(1,1) = 2;
+   }
+   else if (dim == 2)
+   {
+      hmap(0,0) = 0;
+      hmap(0,1) = hmap(1,0) = 1;
+      hmap(0,2) = hmap(2,0) = 2;
+      hmap(1,1) = 3;
+      hmap(1,2) = hmap(2,1) = 4;
+      hmap(2,2) = 5;
+   }
+   else
+   {
+      mfem_error("Only implemented for 2D and 3D");
+   }
+
    for (int i = 0; i < fes -> GetNE(); i++)
    {
       elemInvEst[i] = ElementInverseEstimate(*fes->GetFE(i),
@@ -1570,10 +1563,10 @@ real_t ElasticInverseEstimateCoefficient::ElementInverseEstimate(
    const FiniteElement &el,
    ElementTransformation &Trans)
 {
-  // if (el.GetDerivType() != (int) FiniteElement::HESS)
-  // {
-   //   return std::numeric_limits<real_t>::min();
-  // }
+   // if (el.GetDerivType() != (int) FiniteElement::HESS)
+   //  {
+   //     return std::numeric_limits<real_t>::min();
+   //  }
 
    int nd = el.GetDof();
    int dim = el.GetDim();
@@ -1593,13 +1586,7 @@ real_t ElasticInverseEstimateCoefficient::ElementInverseEstimate(
       }
    }
 
-   ovec.SetSize(nd);
-
    real_t w,q = 1.0;
-
-   //emat = 0.0;
-   //divmat = 0.0;
-   ovec = 0.0;
    for (int ii = 0; ii < ir->GetNPoints(); ii++)
    {
       const IntegrationPoint &ip = ir->IntPoint(ii);
@@ -1615,11 +1602,15 @@ real_t ElasticInverseEstimateCoefficient::ElementInverseEstimate(
       {
          for (int j = 0; j < dim; j++)
          {
+            AddMult_a_VVt(w*q, Vector(dshape.GetColumn(i),nd), *emat(j,j));
+
             AddMult_a_VWt(w*q, Vector(dshape.GetColumn(i),nd),
-                               Vector(dshape.GetColumn(j),nd), *emat(i,j));
+                               Vector(dshape.GetColumn(j),nd), *emat(j,i));
 
             AddMult_a_VWt(w*q, Vector(dshape.GetColumn(j),nd),
                                Vector(dshape.GetColumn(i),nd), *emat(i,j));
+
+            AddMult_a_VVt(w*q, Vector(dshape.GetColumn(j),nd), *emat(i,i));
          }
       }
 
@@ -1628,27 +1619,22 @@ real_t ElasticInverseEstimateCoefficient::ElementInverseEstimate(
       {
          for (int j = 0; j < dim; j++)
          {
-            AddMult_a_VVt(w*q*q, Vector(hshape.GetColumn(hmap(i,j)),nd), *divmat(i,i));
+            for (int k = 0; k < dim; k++)
+            {
+                 AddMult_a_VWt(w*q*q, Vector(hshape.GetColumn(hmap(i,i)),nd),
+                                      Vector(hshape.GetColumn(hmap(k,k)),nd), *divmat(j,j));
 
-            AddMult_a_VWt(w*q*q, Vector(hshape.GetColumn(hmap(i,j)),nd),
-                                 Vector(hshape.GetColumn(hmap(i,i)),nd), *divmat(i,j));
+                 AddMult_a_VWt(w*q*q, Vector(hshape.GetColumn(hmap(i,i)),nd),
+                                      Vector(hshape.GetColumn(hmap(k,j)),nd), *divmat(j,k));
 
-            AddMult_a_VWt(w*q*q, Vector(hshape.GetColumn(hmap(i,i)),nd),
-                                 Vector(hshape.GetColumn(hmap(i,j)),nd), *divmat(j,i));
+                 AddMult_a_VWt(w*q*q, Vector(hshape.GetColumn(hmap(i,j)),nd),
+                                      Vector(hshape.GetColumn(hmap(k,k)),nd), *divmat(i,j));
 
-            AddMult_a_VVt(w*q*q, Vector(hshape.GetColumn(hmap(i,i)),nd), *divmat(j,j));
+                 AddMult_a_VWt(w*q*q, Vector(hshape.GetColumn(hmap(i,j)),nd),
+                                      Vector(hshape.GetColumn(hmap(k,j)),nd), *divmat(i,k)); 
+            }
          }
       }
-
-      el.CalcPhysShape(Trans, shape);
-      ovec.Add(w, shape);
-   }
-   ovec *= 1.0/ovec.Norml2();
-
-   // Correct nullspace
-   for (int i = 0; i < dim; i++)
-   {
-       AddMultVVt(ovec, *emat(i,i));
    }
 
    // Collect matrices
@@ -1663,14 +1649,16 @@ real_t ElasticInverseEstimateCoefficient::ElementInverseEstimate(
       }
    }
 
-   // Init eigen vector
-   if (evec.Size() != (nd*dim))
+   // Correct nullspace
+   DenseMatrix ns;
+   emat_tot.NullSpace(ns, 1e-10);
+   for (int i = 0; i < ns.Width(); i++)
    {
-      evec.SetSize(nd*dim);
-      evec.Randomize(696383532);
+       AddMultVVt(Vector(ns.GetColumn(i),nd*dim), emat_tot);
    }
 
-   return PowerMethod2(emat_tot, divmat_tot, evec);
+   // Return largest eigenvalue
+   return divmat_tot.Eigenvalue(emat_tot);
 }
 
 ElasticInverseEstimateCoefficient::~ElasticInverseEstimateCoefficient()

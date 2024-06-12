@@ -2333,7 +2333,7 @@ public:
          ComputeInverseEstimates();
       }
    }
-   void SetShearModulus(Coefficient &q){ SetDiffusion(q);}
+   void SetShearModulus(Coefficient &q) { SetDiffusion(q);}
 
    /// Return the scalar factor
    Coefficient * GetDiffusion() const { return Q; }
