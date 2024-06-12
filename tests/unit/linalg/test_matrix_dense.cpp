@@ -534,7 +534,7 @@ TEST_CASE("MatrixInverse", "[DenseMatrix]")
 }
 #ifdef MFEM_USE_LAPACK
 
-enum class TestCase { GenEigSPD, GenEigGE, SVD};
+enum class TestCase { GenEigSPD, GenEigGE, SVD, NULLSPACE};
 std::string TestCaseName(TestCase testcase)
 {
    switch (testcase)
@@ -545,6 +545,8 @@ std::string TestCaseName(TestCase testcase)
          return "Generalized Eigenvalue problem for a general matrix";
       case TestCase::SVD:
          return "Singular Value Decomposition for a general matrix";
+      case TestCase::NULLSPACE:
+         return "NULL space for a general matrix";
    }
    return "";
 }
@@ -553,7 +555,7 @@ TEST_CASE("Eigensystem Problems",
           "[DenseMatrix]")
 {
    auto testcase = GENERATE(TestCase::GenEigSPD, TestCase::GenEigGE,
-                            TestCase::SVD);
+                            TestCase::SVD, TestCase::NULLSPACE);
 
    CAPTURE(TestCaseName(testcase));
 
@@ -686,6 +688,37 @@ TEST_CASE("Eigensystem Problems",
          USVt -= M;
 
          REQUIRE(USVt.MaxMaxNorm() == MFEM_Approx(0.));
+      }
+      break;
+      case TestCase::NULLSPACE:
+      {
+
+         Vector ev, ev2;
+         DenseMatrix evect, evect2;
+         DenseMatrix A(M);
+         A.Symmetrize();
+
+         A.Eigenvalues( ev, evect);
+         mfem::out<<"ev = "; ev.Print(mfem::out,4);
+         int N = M.Width();
+
+         DenseMatrix ns;
+         int nss;
+         for (int i = 0; i < N; i++)
+         {
+            AddMult_a_VVt(-ev[i], Vector(evect.GetColumn(i),N), A);
+
+            A.Eigenvalues( ev2, evect2);
+            mfem::out<<"ev = "; ev2.Print(mfem::out,4);
+            A.NullSpace(ns, 1e-9);
+            mfem::out<<"null = "; ev2.Print(mfem::out,4);
+            REQUIRE(ns.Width() == i+1);
+            REQUIRE(A.Eigenvalue() - ev2(3) == MFEM_Approx(0.));
+            REQUIRE(A.Eigenvalue(0) - ev2(0) == MFEM_Approx(0.));
+            REQUIRE(A.Eigenvalue(1) - ev2(1) == MFEM_Approx(0.));
+            REQUIRE(A.Eigenvalue(2) - ev2(2) == MFEM_Approx(0.));
+            REQUIRE(A.Eigenvalue(3) - ev2(3) == MFEM_Approx(0.));
+         }
       }
       break;
    }
