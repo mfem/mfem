@@ -35,8 +35,8 @@ class ApplyPAKernelsClassTemplate {};
 template<typename... T>
 class DiagonalPAKernelsClassTemplate {};
 
-template<typename Signature, typename... UserParams, typename... KernelParams>
-class ApplyPAKernelsClassTemplate<Signature, internal::KernelTypeList<UserParams...>, internal::KernelTypeList<KernelParams...>>
+template<typename Signature, typename... UserParams, typename... FallbackParams>
+class ApplyPAKernelsClassTemplate<Signature, internal::KernelTypeList<UserParams...>, internal::KernelTypeList<FallbackParams...>>
 {
 private:
    constexpr static int D(int D1D) { return (11 - D1D) / 2; }
@@ -50,35 +50,39 @@ public:
 
    static KernelSignature Kernel1D();
 
-   template<KernelParams... params>
+   template<UserParams... params>
    static KernelSignature Kernel2D();
 
-   template<KernelParams... params>
+   template<UserParams... params>
    static KernelSignature Kernel3D();
 
+   template<FallbackParams... params>
    static KernelSignature Fallback2D();
 
+   template<FallbackParams... params>
    static KernelSignature Fallback3D();
 };
 
-template<typename Signature, typename... UserParams, typename... KernelParams>
-class DiagonalPAKernelsClassTemplate<Signature, internal::KernelTypeList<UserParams...>, internal::KernelTypeList<KernelParams...>>
+template<typename Signature, typename... UserParams, typename... FallbackParams>
+class DiagonalPAKernelsClassTemplate<Signature, internal::KernelTypeList<UserParams...>, internal::KernelTypeList<FallbackParams...>>
 {
 public:
    using KernelSignature = Signature;
    using KernelArgTypes2D = internal::KernelTypeList<UserParams...>;
-   using KernelArgTypes3D = internal::KernelTypeList<KernelParams...>;
+   using KernelArgTypes3D = internal::KernelTypeList<FallbackParams...>;
 
    static KernelSignature Kernel1D();
 
-   template<KernelParams... params>
+   template<UserParams... params>
    static KernelSignature Kernel2D();
 
-   template<KernelParams... params>
+   template<UserParams... params>
    static KernelSignature Kernel3D();
 
+   template<FallbackParams... params>
    static KernelSignature Fallback2D();
 
+   template<FallbackParams... params>
    static KernelSignature Fallback3D();
 };
 
@@ -116,13 +120,10 @@ public:
 };
 
 template<typename... T>
-class KernelDispatchTable
-{
+class KernelDispatchTable {};
 
-};
-
-template <typename ApplyKernelsHelperClass, typename... UserParams, typename... KernelParams>
-class KernelDispatchTable<ApplyKernelsHelperClass, internal::KernelTypeList<UserParams...>, internal::KernelTypeList<KernelParams...>> :
+template <typename ApplyKernelsHelperClass, typename... UserParams, typename... FallbackParams>
+class KernelDispatchTable<ApplyKernelsHelperClass, internal::KernelTypeList<UserParams...>, internal::KernelTypeList<FallbackParams...>> :
          DispatchTable<std::tuple<int, UserParams...>, typename ApplyKernelsHelperClass::KernelSignature, KernelDispatchKeyHash<int, UserParams...>>
 {
 
@@ -229,7 +230,7 @@ public:
 
    }
    using SpecializedTableType =
-      KernelDispatchTable<ApplyKernelsHelperClass, internal::KernelTypeList<UserParams...>, internal::KernelTypeList<KernelParams...>>;
+      KernelDispatchTable<ApplyKernelsHelperClass, internal::KernelTypeList<UserParams...>, internal::KernelTypeList<FallbackParams...>>;
 
    template<UserParams... params>
    struct AddSpecialization1D

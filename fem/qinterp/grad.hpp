@@ -232,6 +232,9 @@ static void Derivatives3D(const int NE,
                           const real_t *j_,
                           const real_t *x_,
                           real_t *y_,
+                          const int =
+                             0,  // Unnamed default arguments make Derivates3D match the signature of Derivatives2D
+                          const int = 0,
                           const int vdim = 0,
                           const int d1d = 0,
                           const int q1d = 0)
@@ -369,5 +372,30 @@ static void Derivatives3D(const int NE,
 } // namespace quadrature_interpolator
 
 } // namespace internal
+
+using KernelType = QuadratureInterpolator::GradKernelType;
+
+template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS>
+inline
+KernelType QuadratureInterpolator::GradKernels::Kernel1D() { return internal::quadrature_interpolator::Derivatives1D<Q_LAYOUT, GRAD_PHYS>; }
+
+template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS,
+         int T_VDIM, int T_D1D, int T_Q1D,
+         int T_NBZ>
+inline
+KernelType QuadratureInterpolator::GradKernels::Kernel2D() { return internal::quadrature_interpolator::Derivatives2D<Q_LAYOUT, GRAD_PHYS, T_VDIM, T_D1D, T_Q1D, T_NBZ>; }
+
+template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS,
+         int T_VDIM, int T_D1D, int T_Q1D>
+inline
+KernelType QuadratureInterpolator::GradKernels::Kernel3D()  { return internal::quadrature_interpolator::Derivatives3D<Q_LAYOUT, GRAD_PHYS, T_VDIM, T_D1D, T_Q1D>; }
+
+template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS>
+inline
+KernelType QuadratureInterpolator::GradKernels::Fallback2D()  { return internal::quadrature_interpolator::Derivatives2D<Q_LAYOUT, GRAD_PHYS>; }
+
+template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS>
+inline
+KernelType QuadratureInterpolator::GradKernels::Fallback3D() { return internal::quadrature_interpolator::Derivatives3D<Q_LAYOUT, GRAD_PHYS>; }
 
 } // namespace mfem

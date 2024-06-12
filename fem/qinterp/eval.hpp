@@ -63,7 +63,7 @@ static void Values1D(const int NE,
 // Template compute kernel for Values in 2D: tensor product version.
 template<QVectorLayout Q_LAYOUT,
          int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0,
-         int T_NBZ = 1, int MAX_D1D = 0, int MAX_Q1D = 0>
+         int T_NBZ = 1>
 static void Values2D(const int NE,
                      const real_t *b_,
                      const real_t *x_,
@@ -192,5 +192,29 @@ static void Values3D(const int NE,
 } // namespace quadrature_interpolator
 
 } // namespace internal
+
+using KernelType = QuadratureInterpolator::EvalKernelType;
+
+template<QVectorLayout Q_LAYOUT>
+inline
+KernelType QuadratureInterpolator::EvalKernels::Kernel1D() { return internal::quadrature_interpolator::Values1D<Q_LAYOUT>; }
+
+template<QVectorLayout Q_LAYOUT,
+         int T_VDIM, int T_D1D, int T_Q1D, int T_NBZ>
+inline
+KernelType QuadratureInterpolator::EvalKernels::Kernel2D() { return internal::quadrature_interpolator::Values2D<Q_LAYOUT, T_VDIM, T_D1D, T_Q1D, T_NBZ>; }
+
+template<QVectorLayout Q_LAYOUT,
+         int T_VDIM, int T_D1D, int T_Q1D>
+inline
+KernelType QuadratureInterpolator::EvalKernels::Kernel3D()  { return internal::quadrature_interpolator::Values3D<Q_LAYOUT, T_VDIM, T_D1D, T_Q1D>; }
+
+template<QVectorLayout Q_LAYOUT>
+inline
+KernelType QuadratureInterpolator::EvalKernels::Fallback2D()  { return internal::quadrature_interpolator::Values2D<Q_LAYOUT>; }
+
+template<QVectorLayout Q_LAYOUT>
+inline
+KernelType QuadratureInterpolator::EvalKernels::Fallback3D() { return internal::quadrature_interpolator::Values3D<Q_LAYOUT>; }
 
 } // namespace mfem
