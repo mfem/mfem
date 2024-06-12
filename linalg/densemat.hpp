@@ -268,34 +268,50 @@ public:
    /// Compute the square of the Frobenius norm of the matrix
    real_t FNorm2() const { real_t s, n2; FNorm(s, n2); return s*s*n2; }
 
-   /// Compute eigenvalues of A x = ev x where A = *this
+   /** Compute eigenvalues of A x = ev x where A = *this
+       A is assumed to be symmetric. */
    void Eigenvalues(Vector &ev)
    { Eigensystem(ev); }
 
-   /// Compute eigenvalues and eigenvectors of A x = ev x where A = *this
+   /** Compute ith eigenvalue of A x = ev x where A = *this
+       A is assumed to be symmetric. */
+   real_t Eigenvalue(int i = -1);
+
+   /** Compute eigenvalues and eigenvectors of A x = ev x where A = *this
+       A is assumed to be symmetric. */
    void Eigenvalues(Vector &ev, DenseMatrix &evect)
    { Eigensystem(ev, &evect); }
 
-   /// Compute eigenvalues and eigenvectors of A x = ev x where A = *this
+   /** Compute eigenvalues and eigenvectors of A x = ev x where A = *this
+       A is assumed to be symmetric. */
    void Eigensystem(Vector &ev, DenseMatrix &evect)
    { Eigensystem(ev, &evect); }
 
-   /** Compute generalized eigenvalues and eigenvectors of A x = ev B x,
-       where A = *this */
+   /** Compute generalized eigenvalues of A x = ev B x, where A = *this
+       A and B are assumed to be symmetric. */
    void Eigenvalues(DenseMatrix &b, Vector &ev)
    { Eigensystem(b, ev); }
 
-   /// Compute generalized eigenvalues of A x = ev B x, where A = *this
+   /** Compute ith eigenvalue of A x = ev B x where A = *this
+       A and B are assumed to be symmetric. */
+   real_t Eigenvalue(DenseMatrix &b, int i = -1);
+
+   /** Compute generalized eigenvalues and eigenvectors of A x = ev B x,
+       where A = *this. A and B are assumed to be symmetric.*/
    void Eigenvalues(DenseMatrix &b, Vector &ev, DenseMatrix &evect)
    { Eigensystem(b, ev, &evect); }
 
    /** Compute generalized eigenvalues and eigenvectors of A x = ev B x,
-       where A = *this */
+       where A = *this. A and B are assumed to be symmetric.*/
    void Eigensystem(DenseMatrix &b, Vector &ev, DenseMatrix &evect)
    { Eigensystem(b, ev, &evect); }
 
    void SingularValues(Vector &sv) const;
    int Rank(real_t tol) const;
+
+   /** Compute the Null Space of the matrix, such that A x = 0,
+       where A = *this* and x is a column of ns */
+   void NullSpace(DenseMatrix &ns, real_t tol);
 
    /// Return the i-th singular value (decreasing order) of NxN matrix, N=1,2,3.
    real_t CalcSingularvalue(const int i) const;
@@ -317,7 +333,6 @@ public:
 
    void SetCol(int c, const real_t* col);
    void SetCol(int c, const Vector &col);
-
 
    /// Set all entries of a row to the specified value.
    void SetRow(int row, real_t value);
@@ -342,6 +357,7 @@ public:
    void Transpose(const DenseMatrix &A);
    /// (*this) = 1/2 ((*this) + (*this)^t)
    void Symmetrize();
+   bool IsSymmetric(real_t tol = 1e-10);
 
    void Lump();
 
@@ -876,19 +892,6 @@ public:
    /// Destroys dense inverse matrix.
    virtual ~DenseMatrixInverse();
 };
-
-/// Compute the highest eigenvalue using the iterative powermethod
-real_t PowerMethod2(DenseMatrix &a, DenseMatrix &b, Vector& v0,
-                    int numSteps = 10000, real_t tolerance = 1e-12,
-                    int seed = 12345);
-
-/// Compute the highest eigenvalue using the iterative powermethod
-real_t PowerMethod2(DenseMatrix &a, DenseMatrix &b, Vector &null, Vector& v0,
-                    int numSteps = 10000, real_t tolerance = 1e-12,
-                    int seed = 12345);
-
-
-real_t PowerMethod3(DenseMatrix &a, DenseMatrix &b, Vector &null);
 
 #ifdef MFEM_USE_LAPACK
 

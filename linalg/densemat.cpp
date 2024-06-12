@@ -56,6 +56,12 @@ extern "C" void
 ssygv_ (int *ITYPE, char *JOBZ, char *UPLO, int * N, float *A, int *LDA,
         float *B, int *LDB, float *W,  float *WORK, int *LWORK, int *INFO);
 extern "C" void
+ssygvx_(int *ITYPE, char *JOBZ, char *RANGE, char *UPLO, int *N,
+        double *A, int *LDA, double *B, int *LDB,
+        double *VL, double *VU, int *IL, int *IU, double *ABSTOL, int *M,
+        double *W, double *Z, int *LDZ, double *WORK, int *LWORK,
+        int *IWORK, int *IFAIL, int *INFO);
+extern "C" void
 sgesvd_(char *JOBU, char *JOBVT, int *M, int *N, float *A, int *LDA,
         float *S, float *U, int *LDU, float *VT, int *LDVT, float *WORK,
         int *LWORK, int *INFO);
@@ -101,6 +107,12 @@ dsyev_(char *JOBZ, char *UPLO, int *N, double *A, int *LDA, double *W,
 extern "C" void
 dsygv_ (int *ITYPE, char *JOBZ, char *UPLO, int * N, double *A, int *LDA,
         double *B, int *LDB, double *W,  double *WORK, int *LWORK, int *INFO);
+extern "C" void
+dsygvx_(int *ITYPE, char *JOBZ, char *RANGE, char *UPLO, int *N,
+        double *A, int *LDA, double *B, int *LDB,
+        double *VL, double *VU, int *IL, int *IU, double *ABSTOL, int *M,
+        double *W, double *Z, int *LDZ, double *WORK, int *LWORK,
+        int *IWORK, int *IFAIL, int *INFO);
 extern "C" void
 dgesvd_(char *JOBU, char *JOBVT, int *M, int *N, double *A, int *LDA,
         double *S, double *U, int *LDU, double *VT, int *LDVT, double *WORK,
@@ -957,21 +969,17 @@ void DenseMatrix::FNorm(real_t &scale_factor, real_t &scaled_fnorm2) const
    scaled_fnorm2 = fnorm2;
 }
 
-void dsyevr_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
+void dsyevr_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect,
+                        char RANGE, real_t VL, real_t VU, int IL, int IU)
 {
 #ifdef MFEM_USE_LAPACK
    ev.SetSize(a.Width());
 
    char      JOBZ     = 'N';
-   char      RANGE    = 'A';
    char      UPLO     = 'U';
    int       N        = a.Width();
    real_t   *A        = new real_t[N*N];
    int       LDA      = N;
-   real_t    VL       = 0.0;
-   real_t    VU       = 1.0;
-   int       IL       = 0;
-   int       IU       = 1;
    real_t    ABSTOL   = 0.0;
    int       M;
    real_t   *W        = ev.GetData();
@@ -1036,91 +1044,130 @@ void dsyevr_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
       mfem_error();
    }
 
+
+   if (evect) // Compute eigenvectors too
+   {
+      evect->SetSize(N,M);
+   }
+
+
 #ifdef MFEM_DEBUG
-   if (M < N)
+   for (int i = 0; i < N; i++)
+   {
+      for (int j = i+1; j < N; j++)
+      {
+         if (fabs(data[i+N*j]-data[j+N*i]) > 1e-9)
+         {
+         a.Print(cout, 666);
+            mfem::err << "dsyevr_Eigensystem(...): matrix not symmetric\n"
+                      << " data["<<i<<"+N*"<<j<<"] = " << data[i+N*j]<<endl
+                      << " data["<<j<<"+N*"<<i<<"] = " << data[j+N*i]<<endl;
+            mfem_error();
+         }
+      }
+   }
+
+   if ((M < N) && (RANGE == 'A'))
    {
       mfem::err << "dsyevr_Eigensystem(...):\n"
                 << " DSYEVR did not find all eigenvalues "
                 << M << "/" << N << endl;
       mfem_error();
    }
-   if (CheckFinite(W, N) > 0)
+
+   // Check eigen vectors
+   if (evect)
+   {
+      if (CheckFinite(Z, N*N) > 0)
+      {
+         mfem_error("dsyevr_Eigensystem(...): inf/nan values in Z");
+      }
+
+      // Check orthogonality of eigenvectors
+      real_t u = 0.0;
+      for (int i = 0; i < M; i++)
+      {
+         for (int j = 0; j <= i; j++)
+         {
+            real_t l = 0.0;
+            for (int k = 0; k < N; k++)
+            {
+               l += Z[k+i*N] * Z[k+j*N];
+            }
+            if (j < i)
+            {
+               l = fabs(l);
+            }
+            else
+            {
+               l = fabs(l-1.0);
+            }
+            if (l > u)
+            {
+               u = l;
+            }
+            if (u > 0.5)
+            {
+                 mfem::err << "dsyevr_Eigensystem(...):"
+                            << " Z^t Z - I deviation = " << u
+                           << "\n W[max] = " << W[N-1] << ", W[min] = "
+                            << W[0] << ", N = " << N << endl;
+                  mfem_error();
+            }
+         }
+      }
+      if (u > 1e-9)
+      {
+         mfem::err << "dsyevr_Eigensystem(...):"
+                   << " Z^t Z - I deviation = " << u
+                   << "\n W[max] = " << W[N-1] << ", W[min] = "
+                   << W[0] << ", N = " << N << endl;
+      }
+      if (u > 1e-5)
+      {
+         mfem_error("dsyevr_Eigensystem(...): ERROR: ...");
+      }
+   }
+
+   // Check eigenvalues
+   if (CheckFinite(W, M) > 0)
    {
       mfem_error("dsyevr_Eigensystem(...): inf/nan values in W");
    }
-   if (CheckFinite(Z, N*N) > 0)
+
+   // Check if eigen decomposition generates original matrix
+   if (evect && (M==N))
    {
-      mfem_error("dsyevr_Eigensystem(...): inf/nan values in Z");
-   }
-   VU = 0.0;
-   for (IL = 0; IL < N; IL++)
-      for (IU = 0; IU <= IL; IU++)
+      real_t u = 0.0;
+      for (int i = 0; i < N; i++)
       {
-         VL = 0.0;
-         for (M = 0; M < N; M++)
+         for (int j = i; j < N; j++)
          {
-            VL += Z[M+IL*N] * Z[M+IU*N];
-         }
-         if (IU < IL)
-         {
-            VL = fabs(VL);
-         }
-         else
-         {
-            VL = fabs(VL-1.0);
-         }
-         if (VL > VU)
-         {
-            VU = VL;
-         }
-         if (VU > 0.5)
-         {
-            mfem::err << "dsyevr_Eigensystem(...):"
-                      << " Z^t Z - I deviation = " << VU
-                      << "\n W[max] = " << W[N-1] << ", W[min] = "
-                      << W[0] << ", N = " << N << endl;
-            mfem_error();
+            real_t l = 0.0;
+            for (int k = 0; k < N; k++)
+            {
+               l += Z[i+k*N] * W[k] * Z[j+k*N];
+            }
+            l = fabs(l-data[i+N*j]);
+            if (l > u)
+            {
+               u = l;
+            }
          }
       }
-   if (VU > 1e-9)
-   {
-      mfem::err << "dsyevr_Eigensystem(...):"
-                << " Z^t Z - I deviation = " << VU
-                << "\n W[max] = " << W[N-1] << ", W[min] = "
-                << W[0] << ", N = " << N << endl;
-   }
-   if (VU > 1e-5)
-   {
-      mfem_error("dsyevr_Eigensystem(...): ERROR: ...");
-   }
-   VU = 0.0;
-   for (IL = 0; IL < N; IL++)
-      for (IU = 0; IU < N; IU++)
+      if (u > 1e-9)
       {
-         VL = 0.0;
-         for (M = 0; M < N; M++)
-         {
-            VL += Z[IL+M*N] * W[M] * Z[IU+M*N];
-         }
-         VL = fabs(VL-data[IL+N*IU]);
-         if (VL > VU)
-         {
-            VU = VL;
-         }
+         mfem::err << "dsyevr_Eigensystem(...):"
+                   << " max matrix deviation = " << u
+                   << "\n W[max] = " << W[N-1] << ", W[min] = "
+                   << W[0] << ", N = " << N << endl;
       }
-   if (VU > 1e-9)
-   {
-      mfem::err << "dsyevr_Eigensystem(...):"
-                << " max matrix deviation = " << VU
-                << "\n W[max] = " << W[N-1] << ", W[min] = "
-                << W[0] << ", N = " << N << endl;
-   }
-   if (VU > 1e-5)
-   {
-      mfem_error("dsyevr_Eigensystem(...): ERROR: ...");
+      if (u > 1e-5)
+      {
+         mfem_error("dsyevr_Eigensystem(...): ERROR: ...");
+      }
    }
 #endif
-
    delete [] IWORK;
    delete [] WORK;
    delete [] ISUPPZ;
@@ -1132,166 +1179,220 @@ void dsyevr_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
 #endif
 }
 
-void dsyev_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
+void dsyevr_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
+{
+   dsyevr_Eigensystem(a, ev, evect, 'A', 0.0, 1.0, 0, 1);
+}
+
+void dsyevr_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect,
+                        real_t VL, real_t VU)
+{
+   dsyevr_Eigensystem(a, ev, evect, 'V', VL, VU, 0, 1);
+}
+
+void dsyevr_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect,
+                        int IL, int IU)
+{
+   dsyevr_Eigensystem(a, ev, evect, 'I', 0.0, 1.0, IL, IU);
+}
+
+
+void dsygvx_Eigensystem(DenseMatrix &a, DenseMatrix &b,
+                        Vector &ev, DenseMatrix *evect,
+                        char RANGE, real_t VL, real_t VU, int IL, int IU)
 {
 #ifdef MFEM_USE_LAPACK
-   int   N      = a.Width();
-   char  JOBZ   = 'N';
-   char  UPLO   = 'U';
-   int   LDA    = N;
-   int   LWORK  = -1; /* query optimal workspace size */
-   int   INFO;
+   ev.SetSize(a.Width());
+   int       ITYPE    = 1;
+   char      JOBZ     = 'N';
+   char      UPLO     = 'U';
+   int       N        = a.Width();
+   real_t   *A        = new real_t[N*N];
+   int       LDA      = N;
+   real_t   *B        = new real_t[N*N];
+   int       LDB      = N;
+   real_t    ABSTOL   = 0.0;
+   int       M;
+   real_t   *W        = ev.GetData();
+   real_t   *Z        = NULL;
+   int       LDZ      = 1;
+   real_t    QWORK;
+   real_t   *WORK     = NULL;
+   int       LWORK    = -1; // query optimal (double) workspace size
+   int      *IWORK    = new int[5*N];
+   int      *IFAIL    = NULL;
+   int       INFO;
 
-   ev.SetSize(N);
-
-   real_t *A    = NULL;
-   real_t *W    = ev.GetData();
-   real_t *WORK = NULL;
-   real_t  QWORK;
-
-   if (evect)
+   if (evect) // Compute eigenvectors too
    {
-      JOBZ = 'V';
       evect->SetSize(N);
-      A = evect->Data();
-   }
-   else
-   {
-      A = new real_t[N*N];
+
+      JOBZ     = 'V';
+      Z        = evect->Data();
+      LDZ      = N;
    }
 
    int hw = a.Height() * a.Width();
-   real_t *data = a.Data();
+   real_t *data_a = a.Data();
+   real_t *data_b = b.Data();
+
    for (int i = 0; i < hw; i++)
    {
-      A[i] = data[i];
+      A[i] = data_a[i];
+      B[i] = data_b[i];
    }
 
 #ifdef MFEM_USE_SINGLE
-   ssyev_(&JOBZ, &UPLO, &N, A, &LDA, W, &QWORK, &LWORK, &INFO);
+   ssygvx_( &ITYPE, &JOBZ, &RANGE, &UPLO, &N, A, &LDA, B, &LDB, &VL, &VU, &IL, &IU,
 #elif defined MFEM_USE_DOUBLE
-   dsyev_(&JOBZ, &UPLO, &N, A, &LDA, W, &QWORK, &LWORK, &INFO);
+   dsygvx_( &ITYPE, &JOBZ, &RANGE, &UPLO, &N, A, &LDA, B, &LDB, &VL, &VU, &IL, &IU,
 #else
    MFEM_ABORT("Floating point type undefined");
 #endif
+            &ABSTOL, &M, W, Z, &LDZ, &QWORK, &LWORK,
+            IWORK, IFAIL, &INFO );
 
-   LWORK = (int) QWORK;
-   WORK = new real_t[LWORK];
+   LWORK  = (int) QWORK;
+   WORK  = new real_t[LWORK];
 
 #ifdef MFEM_USE_SINGLE
-   ssyev_(&JOBZ, &UPLO, &N, A, &LDA, W, WORK, &LWORK, &INFO);
+   ssygvx_( &ITYPE, &JOBZ, &RANGE, &UPLO, &N, A, &LDA, B, &LDB, &VL, &VU, &IL, &IU,
 #elif defined MFEM_USE_DOUBLE
-   dsyev_(&JOBZ, &UPLO, &N, A, &LDA, W, WORK, &LWORK, &INFO);
+   dsygvx_( &ITYPE, &JOBZ, &RANGE, &UPLO, &N, A, &LDA, B, &LDB, &VL, &VU, &IL, &IU,
 #else
    MFEM_ABORT("Floating point type undefined");
 #endif
+            &ABSTOL, &M, W, Z, &LDZ, WORK, &LWORK,
+            IWORK, IFAIL, &INFO );
 
    if (INFO != 0)
    {
-      mfem::err << "dsyev_Eigensystem: DSYEV error code: " << INFO << endl;
+      mfem::err << "dsyevr_Eigensystem(...): DSYEVR error code: "
+                << INFO << endl;
       mfem_error();
    }
 
+   if (evect) // Compute eigenvectors too
+   {
+      evect->SetSize(N,M);
+   }
+
+   delete [] IWORK;
    delete [] WORK;
-   if (evect == NULL) { delete [] A; }
+   delete [] A;
+   delete [] B;
 #else
    MFEM_CONTRACT_VAR(a);
    MFEM_CONTRACT_VAR(ev);
    MFEM_CONTRACT_VAR(evect);
+#endif
+}
+
+void dsygvx_Eigensystem(DenseMatrix &a, DenseMatrix &b,
+                        Vector &ev, DenseMatrix *evect)
+{
+   dsygvx_Eigensystem(a, b, ev, evect, 'A', 0.0, 1.0, 0, 1);
+}
+
+void dsygvx_Eigensystem(DenseMatrix &a, DenseMatrix &b,
+                        Vector &ev, DenseMatrix *evect,
+                        real_t VL, real_t VU)
+{
+   dsygvx_Eigensystem(a, b, ev, evect, 'V', VL, VU, 0, 1);
+}
+
+void dsygvx_Eigensystem(DenseMatrix &a, DenseMatrix &b,
+                        Vector &ev, DenseMatrix *evect,
+                        int IL, int IU)
+{
+   dsygvx_Eigensystem(a, b, ev, evect, 'I', 0.0, 1.0, IL, IU);
+}
+
+real_t DenseMatrix::Eigenvalue(int i)
+{
+   MFEM_VERIFY(Height() == Width(), "a has to be a square matrix");
+
+   if (i < 0) i = Width() - 1;
+#ifdef MFEM_USE_LAPACK
+   Vector ev;
+   dsyevr_Eigensystem(*this, ev, NULL, i+1, i+1);
+   return ev[0];
+#else
+   if (i != Width() - 1)
+   {
+      mfem_error("DenseMatrix::NullSpace: Compiled without LAPACK");
+   }
+   // Use power method
+   int n = a.Width();
+   real_t alpha, eval_i = 0.0, eval_prev = 0.0;
+   int iter = 0;
+
+#ifdef MFEM_USE_SINGLE
+   const real_t rel_tol = 1e-7;
+#elif defined MFEM_USE_DOUBLE
+   const real_t rel_tol = 1e-14;
+#else
+   MFEM_ABORT("Floating point type undefined");
+#endif
+   Vector x_tmp(n), x(n);
+   x.Randomize(696383532);
+   do
+   {
+      a.Mult(x, x_tmp);
+      a.Mult(x_tmp, x);
+      eval_prev = eval_i;
+      eval_i = x.Norml2();
+      x *= 1.0/eval_i;
+      eval_i = sqrt(eval_i);
+      iter += 2;
+   }
+   while ((iter < 10000) && (fabs(eval_i - eval_prev)/fabs(eval_i) > rel_tol));
+   MFEM_VERIFY(fabs(eval_i - eval_prev)/fabs(eval_i) <= rel_tol,
+               "Inverse power method did not converge."
+               << "\n\t iter      = " << iter
+               << "\n\t eval_i    = " << eval_i
+               << "\n\t eval_prev = " << eval_prev
+               << "\n\t fabs(eval_i - eval_prev)/fabs(eval_i) = "
+               << fabs(eval_i - eval_prev)/fabs(eval_i));
+   return eval_i;
+#endif
+}
+
+real_t DenseMatrix::Eigenvalue(DenseMatrix &b, int i)
+{
+#ifdef MFEM_USE_LAPACK
+   if (i < 0) i = Width() - 1;
+   Vector ev;
+   dsygvx_Eigensystem(*this, b, ev, NULL, i+1, i+1);
+   return ev[0];
+#else
+   MFEM_CONTRACT_VAR(ns);
+   MFEM_CONTRACT_VAR(tol);
+   mfem_error("DenseMatrix::Eigenvalue: Compiled without LAPACK");
+   return 0.0;
+#endif
+}
+
+void DenseMatrix::NullSpace(DenseMatrix &ns, real_t tol)
+{
+#ifdef MFEM_USE_LAPACK
+   Vector ev;
+   dsyevr_Eigensystem(*this, ev, &ns, -tol, tol);
+#else
+   MFEM_CONTRACT_VAR(ns);
+   MFEM_CONTRACT_VAR(tol);
+   mfem_error("DenseMatrix::NullSpace: Compiled without LAPACK");
 #endif
 }
 
 void DenseMatrix::Eigensystem(Vector &ev, DenseMatrix *evect)
 {
 #ifdef MFEM_USE_LAPACK
-
-   // dsyevr_Eigensystem(*this, ev, evect);
-
-   dsyev_Eigensystem(*this, ev, evect);
-
+   dsyevr_Eigensystem(*this, ev, evect);
 #else
-
    MFEM_CONTRACT_VAR(ev);
    MFEM_CONTRACT_VAR(evect);
    mfem_error("DenseMatrix::Eigensystem: Compiled without LAPACK");
-
-#endif
-}
-
-void dsygv_Eigensystem(DenseMatrix &a, DenseMatrix &b, Vector &ev,
-                       DenseMatrix *evect)
-{
-#ifdef MFEM_USE_LAPACK
-   int   N      = a.Width();
-   int   ITYPE  = 1;
-   char  JOBZ   = 'N';
-   char  UPLO   = 'U';
-   int   LDA    = N;
-   int   LDB    = N;
-   int   LWORK  = -1; /* query optimal workspace size */
-   int   INFO;
-
-   ev.SetSize(N);
-
-   real_t *A    = NULL;
-   real_t *B    = new real_t[N*N];
-   real_t *W    = ev.GetData();
-   real_t *WORK = NULL;
-   real_t  QWORK;
-
-   if (evect)
-   {
-      JOBZ = 'V';
-      evect->SetSize(N);
-      A = evect->Data();
-   }
-   else
-   {
-      A = new real_t[N*N];
-   }
-
-   int hw = a.Height() * a.Width();
-   real_t *a_data = a.Data();
-   real_t *b_data = b.Data();
-   for (int i = 0; i < hw; i++)
-   {
-      A[i] = a_data[i];
-      B[i] = b_data[i];
-   }
-
-#ifdef MFEM_USE_SINGLE
-   ssygv_(&ITYPE, &JOBZ, &UPLO, &N, A, &LDA, B, &LDB, W, &QWORK, &LWORK, &INFO);
-#elif defined MFEM_USE_DOUBLE
-   dsygv_(&ITYPE, &JOBZ, &UPLO, &N, A, &LDA, B, &LDB, W, &QWORK, &LWORK, &INFO);
-#else
-   MFEM_ABORT("Floating point type undefined");
-#endif
-
-   LWORK = (int) QWORK;
-   WORK = new real_t[LWORK];
-
-#ifdef MFEM_USE_SINGLE
-   ssygv_(&ITYPE, &JOBZ, &UPLO, &N, A, &LDA, B, &LDB, W, WORK, &LWORK, &INFO);
-#elif defined MFEM_USE_DOUBLE
-   dsygv_(&ITYPE, &JOBZ, &UPLO, &N, A, &LDA, B, &LDB, W, WORK, &LWORK, &INFO);
-#else
-   MFEM_ABORT("Floating point type undefined");
-#endif
-
-   if (INFO != 0)
-   {
-      mfem::err << "dsygv_Eigensystem: DSYGV error code: " << INFO << endl;
-      mfem_error();
-   }
-
-   delete [] WORK;
-   delete [] B;
-   if (evect == NULL) { delete [] A; }
-#else
-   MFEM_CONTRACT_VAR(a);
-   MFEM_CONTRACT_VAR(b);
-   MFEM_CONTRACT_VAR(ev);
-   MFEM_CONTRACT_VAR(evect);
 #endif
 }
 
@@ -1299,9 +1400,7 @@ void DenseMatrix::Eigensystem(DenseMatrix &b, Vector &ev,
                               DenseMatrix *evect)
 {
 #ifdef MFEM_USE_LAPACK
-
-   dsygv_Eigensystem(*this, b, ev, evect);
-
+   dsygvx_Eigensystem(*this, b, ev, evect);
 #else
    MFEM_CONTRACT_VAR(b);
    MFEM_CONTRACT_VAR(ev);
@@ -1572,6 +1671,21 @@ void DenseMatrix::Symmetrize()
 #endif
    kernels::Symmetrize(Height(), Data());
 }
+
+bool DenseMatrix::IsSymmetric(real_t tol)
+{
+   for (int i = 0; i < Height(); i++)
+   {
+      real_t L = 0.0;
+      for (int j = i+1; j < Width(); j++)
+      {
+        if (fabs((*this)(i, j) - (*this)(j, i)) > tol) return false ;
+      }
+   }
+   
+   return true;
+}
+
 
 void DenseMatrix::Lump()
 {
@@ -4185,148 +4299,6 @@ DenseMatrixInverse::~DenseMatrixInverse()
    }
    delete factors;
 }
-
-
-
-real_t PowerMethod2(DenseMatrix &a, DenseMatrix &b, Vector& v0,
-                    int numSteps, real_t tolerance,int seed)
-{
-   MFEM_VERIFY(a.Height() == a.Width(), "a has to be a square matrix");
-   MFEM_VERIFY(b.Height() == b.Width(), "b has to be a square matrix");
-   MFEM_VERIFY(b.Height() == a.Width(), "a and b dimension mismatch");
-   MFEM_VERIFY(b.Height() == a.Width(), "a and b dimension mismatch");
-
-   int n = a.Width();
-   DenseMatrixInverse a_inv(a);
-   real_t eigenvalue, eigenvalueNew, diff;
-
-   Vector v1(v0.Size());
-   if (seed != 0)
-   {
-      v0.Randomize(seed);
-   }
-
-   // Power method
-   b.Mult(v0, v1);
-   a_inv.Mult(v1, v0);
-   eigenvalue = v0.Norml2();
-
-   for (int iter = 0; iter < numSteps; ++iter)
-   {
-      b.Mult(v0, v1);
-      a_inv.Mult(v1, v0);
-
-      eigenvalueNew = v0.Norml2();
-      diff = std::abs((eigenvalueNew - eigenvalue) / eigenvalueNew);
-      eigenvalue = eigenvalueNew;
-      v0 *= 1.0/eigenvalue;
-      if (diff < tolerance)
-      {
-         break;
-      }
-   }
-
-   return eigenvalue;
-}
-
-real_t PowerMethod2(DenseMatrix &a, DenseMatrix &b, Vector& v0, Vector& null,
-                    int numSteps, real_t tolerance,
-                    int seed)
-{
-   MFEM_VERIFY(a.Height() == a.Width(), "a has to be a square matrix");
-   MFEM_VERIFY(b.Height() == b.Width(), "b has to be a square matrix");
-   MFEM_VERIFY(b.Height() == a.Width(), "a and b dimension mismatch");
-
-   int n = a.Width();
-   DenseMatrixInverse a_inv(a);
-   real_t eigenvalue, eigenvalueNew, diff, alpha;
-
-   Vector v1(n);
-   if (v0.Size() == 0)
-   {
-      v0.SetSize(n);
-      v0.Randomize(seed);
-   }
-
-   // Power method
-   b.Mult(v0, v1);
-   a_inv.Mult(v1, v0);
-   eigenvalue = v0.Norml2();
-   v0 *= 1.0/eigenvalue;
-   int iter;
-   for (iter = 0; iter < numSteps; ++iter)
-   {
-      alpha = v0*null;
-      v0.Add(-alpha, null);
-      b.Mult(v0, v1);
-      a_inv.Mult(v1, v0);
-
-      eigenvalueNew = v0.Norml2();
-      diff = std::abs((eigenvalueNew - eigenvalue) / eigenvalueNew);
-      eigenvalue = eigenvalueNew;
-      v0 *= 1.0/eigenvalue;
-      if (diff < tolerance)
-      {
-         break;
-      }
-   }
-   MFEM_VERIFY(diff > tolerance,
-               "Inverse power method did not converge."
-               << "\n\t iter       = " << iter
-               << "\n\t eigenvalue = " << eigenvalue
-               << "\n\t diff       = " << diff);
-   return eigenvalue;
-}
-
-real_t PowerMethod3(DenseMatrix &a, DenseMatrix &b, Vector& null)
-{
-   MFEM_VERIFY(a.Height() == a.Width(), "a has to be a square matrix");
-   MFEM_VERIFY(b.Height() == b.Width(), "b has to be a square matrix");
-   MFEM_VERIFY(b.Height() == a.Width(), "a and b dimension mismatch");
-
-   int n = a.Width();
-   DenseMatrixInverse a_inv(a);
-
-   real_t alpha, eval_i = 0.0, eval_prev = 0.0;
-
-   // Inverse power method
-   int iter = 0;
-
-#ifdef MFEM_USE_SINGLE
-   const real_t rel_tol = 1e-7;
-#elif defined MFEM_USE_DOUBLE
-   const real_t rel_tol = 1e-14;
-#else
-   MFEM_ABORT("Floating point type undefined");
-#endif
-
-   Vector x_tmp(n), x(n);
-   x.Randomize(696383532);
-   do
-   {
-      alpha = x*null;
-      x.Add(-alpha, null);
-
-      b.Mult(x, x_tmp);
-      a_inv.Mult(x_tmp, x);
-
-      eval_prev = eval_i;
-      eval_i = x.Norml2();
-      x *= 1.0/eval_i;
-      ++iter;
-   }
-   while ((iter < 10000) && (fabs(eval_i - eval_prev)/fabs(eval_i) > rel_tol));
-   MFEM_VERIFY(fabs(eval_i - eval_prev)/fabs(eval_i) <= rel_tol,
-               "Inverse power method did not converge."
-               << "\n\t iter      = " << iter
-               << "\n\t eval_i    = " << eval_i
-               << "\n\t eval_prev = " << eval_prev
-               << "\n\t fabs(eval_i - eval_prev)/fabs(eval_i) = "
-               << fabs(eval_i - eval_prev)/fabs(eval_i));
-   return eval_i;
-}
-
-
 
 #ifdef MFEM_USE_LAPACK
 
