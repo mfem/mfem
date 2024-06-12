@@ -34,7 +34,7 @@ for i in range(len(filenames)):
 		dg_com = " -dg "
 	hb_com = ''
 	if int(hb) == 1:
-		hb_com = "-hb "
+		hb_com = " -hb "
 
 	ref_out = subprocess.getoutput("grep ' --ncells-x' "+path+filenames[i]+"| cut -d ' ' -f 5")
 	nx = ref_out.split()[0]
