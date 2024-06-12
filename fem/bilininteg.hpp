@@ -2142,10 +2142,10 @@ public:
                                       const int, const int);
 
    using UserParams = internal::KernelTypeList<int, int>;
-   using KernelParams = internal::KernelTypeList<int, int, int>;
+   using FallbackParams = internal::KernelTypeList<>;
 
    class ApplyPAKernels :  public
-      ApplyPAKernelsClassTemplate<KernelType, UserParams, KernelParams>
+      ApplyPAKernelsClassTemplate<KernelType, UserParams, FallbackParams>
    {
    public:
       static KernelSignature Kernel1D();
@@ -2158,7 +2158,7 @@ public:
    };
 
    class DiagonalPAKernels : public
-      DiagonalPAKernelsClassTemplate<DiagonalKernelType, UserParams, KernelParams>
+      DiagonalPAKernelsClassTemplate<DiagonalKernelType, UserParams, FallbackParams>
    {
    public:
       static KernelSignature Kernel1D();
@@ -2171,9 +2171,9 @@ public:
    };
 
    using ApplyKernelsType =
-      KernelDispatchTable<ApplyPAKernels, UserParams, KernelParams>;
+      KernelDispatchTable<ApplyPAKernels, UserParams, FallbackParams>;
    using DiagKernelsType =
-      KernelDispatchTable<DiagonalPAKernels, UserParams, KernelParams>;
+      KernelDispatchTable<DiagonalPAKernels, UserParams, FallbackParams>;
 
    struct Kernels
    {
@@ -2390,10 +2390,10 @@ public:
                                        const Vector&, Vector&, const int, const int);
 
    using UserParams = internal::KernelTypeList<int, int>;
-   using KernelParams = internal::KernelTypeList<int, int, int>;
+   using FallbackParams = internal::KernelTypeList<>;
 
    class ApplyPAKernels :  public
-      ApplyPAKernelsClassTemplate<KernelType, UserParams, KernelParams>
+      ApplyPAKernelsClassTemplate<KernelType, UserParams, FallbackParams>
    {
    public:
       static KernelSignature Kernel1D();
@@ -2406,7 +2406,7 @@ public:
    };
 
    class DiagonalPAKernels : public
-      DiagonalPAKernelsClassTemplate<DiagonalKernelType, UserParams, KernelParams>
+      DiagonalPAKernelsClassTemplate<DiagonalKernelType, UserParams, FallbackParams>
    {
    public:
       static KernelSignature Kernel1D();
@@ -2419,9 +2419,9 @@ public:
    };
 
    using ApplyKernelsType =
-      KernelDispatchTable<ApplyPAKernels, UserParams, KernelParams>;
+      KernelDispatchTable<ApplyPAKernels, UserParams, FallbackParams>;
    using DiagKernelsType =
-      KernelDispatchTable<DiagonalPAKernels, UserParams, KernelParams>;
+      KernelDispatchTable<DiagonalPAKernels, UserParams, FallbackParams>;
 
    struct Kernels
    {

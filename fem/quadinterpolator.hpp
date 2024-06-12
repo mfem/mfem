@@ -13,6 +13,7 @@
 #define MFEM_QUADINTERP
 
 #include "fespace.hpp"
+#include "kernel_dispatch.hpp"
 
 namespace mfem
 {
@@ -40,6 +41,114 @@ protected:
    mutable Vector d_buffer;            ///< Auxiliary device buffer
 
 public:
+   using EvalKernelType = void(*)(const int, const real_t *, const real_t *,
+                                  real_t *, const int, const int, const int);
+   using EvalUserParams = internal::KernelTypeList<QVectorLayout, int, int, int>;
+   using EvalFallbackParams = internal::KernelTypeList<QVectorLayout>;
+
+   using GradKernelType = void(*)(const int, const real_t *, const real_t *,
+                                  const real_t *, const real_t *,
+                                  real_t *, const int, const int, const int, const int );
+   using GradUserParams =
+      internal::KernelTypeList<QVectorLayout, bool, int, int, int>;
+   using GradFallbackParams = internal::KernelTypeList<QVectorLayout>;
+
+   class EvalKernels :  public
+      ApplyPAKernelsClassTemplate<EvalKernelType, EvalUserParams, EvalFallbackParams>
+   {
+   public:
+      template<QVectorLayout>
+      static EvalKernelType Kernel1D();
+      template<QVectorLayout, int, int, int, int>
+      static EvalKernelType Kernel2D();
+      template<QVectorLayout, int, int, int>
+      static EvalKernelType Kernel3D();
+      template<QVectorLayout>
+      static EvalKernelType Fallback2D();
+      template<QVectorLayout>
+      static EvalKernelType Fallback3D();
+
+   };
+
+   class GradKernels :  public
+      ApplyPAKernelsClassTemplate<GradKernelType, GradUserParams, GradFallbackParams>
+   {
+   public:
+      template<QVectorLayout, bool>
+      static GradKernelType Kernel1D();
+      template<QVectorLayout, bool, int, int, int, int>
+      static GradKernelType Kernel2D();
+      template<QVectorLayout, bool, int, int, int>
+      static GradKernelType Kernel3D();
+      template<QVectorLayout, bool>
+      static GradKernelType Fallback2D();
+      template<QVectorLayout, bool>
+      static GradKernelType Fallback3D();
+   };
+
+   using EvalKernelsType =
+      KernelDispatchTable<EvalKernels, EvalUserParams, EvalFallbackParams>;
+   using GradKernelsType =
+      KernelDispatchTable<GradKernels, GradUserParams, GradFallbackParams>;
+
+   struct Kernels
+   {
+      EvalKernelsType eval;
+      GradKernelsType grad;
+      Kernels();
+   };
+   static Kernels kernels;
+
+   template<QVectorLayout Q_LAYOUT, int, int, int>
+   static void AddEvalSpecialization1D()
+   {
+      // VDIM, D1D, and Q1D are unused in the actual implementation.
+      EvalKernelsType:: template AddSpecialization1D<Q_LAYOUT, 0, 0, 0>
+      helper_functor;
+      helper_functor(&kernels.eval);
+   }
+
+   template<QVectorLayout Q_LAYOUT, int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0>
+   static void AddEvalSpecialization2D()
+   {
+      EvalKernelsType:: template AddSpecialization2D<Q_LAYOUT, T_VDIM, T_D1D, T_Q1D>
+      helper_functor;
+      helper_functor(&kernels.eval);
+   }
+
+   template<QVectorLayout Q_LAYOUT, int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0>
+   static void AddEvalSpecialization3D()
+   {
+      EvalKernelsType:: template AddSpecialization3D<Q_LAYOUT, T_VDIM, T_D1D, T_Q1D>
+      helper_functor;
+      helper_functor(&kernels.eval);
+   }
+
+   template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int, int, int>
+   static void AddGradSpecialization1D()
+   {
+      // VDIM, D1D, and Q1D are unused in the actual implementation.
+      GradKernelsType:: template AddSpecialization1D<Q_LAYOUT, GRAD_PHYS, 0, 0, 0>
+      helper_functor;
+      helper_functor(&kernels.eval);
+   }
+
+   template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0>
+   static void AddGradSpecialization2D()
+   {
+      GradKernelsType:: template
+      AddSpecialization2D<Q_LAYOUT, GRAD_PHYS, T_VDIM, T_D1D, T_Q1D>  helper_functor;
+      helper_functor(&kernels.eval);
+   }
+
+   template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0>
+   static void AddGradSpecialization3D()
+   {
+      GradKernelsType:: template
+      AddSpecialization3D<Q_LAYOUT, GRAD_PHYS, T_VDIM, T_D1D, T_Q1D>  helper_functor;
+      helper_functor(&kernels.eval);
+   }
+
    static const int MAX_NQ2D = 100;
    static const int MAX_ND2D = 100;
    static const int MAX_VDIM2D = 3;
