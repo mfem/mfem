@@ -83,7 +83,7 @@ real_t FFH92Tau::Eval(ElementTransformation &T,
       std::cout<<"==========================\n\n";
       print = false;
    }
-    //  std::cout<<"  tau   = "<<tau<<std::endl;
+
    return tau;
 }
 
@@ -118,7 +118,7 @@ real_t FF91Delta::Eval(ElementTransformation &T,
       std::cout<<"==========================\n\n";
       print = false;
    }
-     // std::cout<<"  delta  = "<<delta<<std::endl;
+
    return delta;
 }
 
