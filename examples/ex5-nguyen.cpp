@@ -271,10 +271,10 @@ int main(int argc, char *argv[])
    switch (problem)
    {
       case Problem::SteadyDiffusion:
-         //free
+         //free (zero Dirichlet)
          break;
       case Problem::SteadyAdvectionDiffusion:
-         //free
+         //free (zero Dirichlet)
          break;
       case Problem::SteadyAdvection:
          bdr_is_dirichlet[3] = -1;//inflow
@@ -407,14 +407,22 @@ int main(int argc, char *argv[])
       if (upwinded)
       {
          Mt->AddInteriorFaceIntegrator(new HDGConvectionUpwindedIntegrator(ccoeff));
-         Mt->AddBdrFaceIntegrator(new HDGConvectionUpwindedIntegrator(ccoeff),
-                                  bdr_is_neumann);
+         Mt->AddBdrFaceIntegrator(new HDGConvectionUpwindedIntegrator(ccoeff));
       }
       else
       {
          Mt->AddInteriorFaceIntegrator(new HDGConvectionCenteredIntegrator(ccoeff));
-         Mt->AddBdrFaceIntegrator(new HDGConvectionCenteredIntegrator(ccoeff),
-                                  bdr_is_neumann);
+         if (hybridization)
+         {
+            //centered scheme does not work with Dirichlet when hybridized,
+            //giving an diverging system, we use the full BC flux here
+            Mt->AddBdrFaceIntegrator(new HDGConvectionCenteredIntegrator(ccoeff),
+                                     bdr_is_neumann);
+         }
+         else
+         {
+            Mt->AddBdrFaceIntegrator(new HDGConvectionCenteredIntegrator(ccoeff));
+         }
       }
    }
 
@@ -514,8 +522,18 @@ int main(int argc, char *argv[])
    }
    if (bconv)
    {
-      fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(tcoeff, ccoeff, +1.),
-                                  bdr_is_dirichlet);
+      if (upwinded)
+         fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(tcoeff, ccoeff, +1.),
+                                     bdr_is_dirichlet);
+      else
+      {
+         if (hybridization)
+            fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(tcoeff, ccoeff, +2., 0.),
+                                        bdr_is_dirichlet);//<-- full BC flux, see above
+         else
+            fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(tcoeff, ccoeff, +1., 0.),
+                                        bdr_is_dirichlet);
+      }
    }
 
    //prepare (reduced) solution and rhs vectors
