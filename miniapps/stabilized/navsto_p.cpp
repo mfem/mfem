@@ -186,27 +186,18 @@ int main(int argc, char *argv[])
       mfem::out <<  "\tPressure = ";pdof.Print(mfem::out, num_procs);
    }
 
-   // Determine the list of true (i.e. conforming) essential boundary dofs.
-   // In this example, the boundary conditions are defined by marking all
-   // the boundary attributes from the mesh as essential (Dirichlet) and
-   // converting them to a list of true dofs.
+   // Mark all velocity boundary dofs as essential
    Array<Array<int> *> ess_bdr(2);
-   Array<int> ess_tdof_list;
+  // Array<int> ess_tdof_list;
 
    Array<int> ess_bdr_u(spaces[0]->GetMesh()->bdr_attributes.Max());
    Array<int> ess_bdr_p(spaces[1]->GetMesh()->bdr_attributes.Max());
 
-  // if (ess_bdr_p.Size() > 0)
    ess_bdr_p = 0;
-//   if (ess_bdr_u.Size() > 0) 
    ess_bdr_u = 1;
 
    ess_bdr[0] = &ess_bdr_u;
    ess_bdr[1] = &ess_bdr_p;
-
-   // Set up the linear form b(.) which corresponds to the right-hand side of
-   // the FEM linear system, which in this case is (1,phi_i) where phi_i are
-   // the basis functions in the finite element fespace.
 
    // Define the solution vector xp as a finite element grid function
    Array<int> bOffsets(3);
@@ -227,24 +218,23 @@ int main(int argc, char *argv[])
    x_u.GetTrueDofs(xp.GetBlock(0));
    x_p.GetTrueDofs(xp.GetBlock(1));
 
-   // Define the output
    VisItDataCollection visit_dc("navsto", &pmesh);
    visit_dc.RegisterField("u", &x_u);
    visit_dc.RegisterField("p", &x_p);
-   
-//   x_u.Distribute(xp.GetBlock(0));
-//   x_p.Distribute(xp.GetBlock(1));
-   
+   visit_dc.SetCycle(0);
+   visit_dc.Save();
+
    // Define the problem parameters
    FunctionCoefficient kappa(kappa_fun);
    VectorFunctionCoefficient force(dim, force_fun);
 
    // Define the stabilisation parameters
- //  ParGridFunction adv_gf(spaces[0],xp.GetData());//NULL); //xp.GetBlock(0));   cout<<239<<endl;
    VectorGridFunctionCoefficient adv(&x_u);
    ElasticInverseEstimateCoefficient invEst(spaces[0]);
    FFH92Tau tau(&adv, &kappa, &invEst, 4.0);
    FF91Delta delta(&adv, &kappa, &invEst);
+
+   tau.print = delta.print = (myid == 0);
 
    // Define the block nonlinear form
    ParBlockNonlinearForm Hform(spaces);
@@ -270,7 +260,8 @@ int main(int argc, char *argv[])
    j_gmres.SetPreconditioner(jac_prec);
 
    // Set up the newton solver
-   SystemResidualMonitor newton_monitor(MPI_COMM_WORLD,"Newton", 1, bOffsets, nullptr);
+   SystemResidualMonitor newton_monitor(MPI_COMM_WORLD,"Newton", 1, bOffsets, &visit_dc, &xp,
+                                        Array<ParGridFunction *>({&x_u, &x_p}));
    NewtonSolver newton_solver(MPI_COMM_WORLD);
    newton_solver.iterative_mode = true;
    newton_solver.SetPrintLevel(-1);
@@ -285,11 +276,10 @@ int main(int argc, char *argv[])
    Vector zero;
    newton_solver.Mult(zero, xp);
 
-   x_u.Distribute(xp.GetBlock(0));
-   x_p.Distribute(xp.GetBlock(1));
-
    // Save data in the VisIt format
-   visit_dc.SetCycle(99999);
+   // Define the output
+   // Save data in the VisIt format
+   visit_dc.SetCycle(999999);
    visit_dc.Save();
 
    // Free the used memory.

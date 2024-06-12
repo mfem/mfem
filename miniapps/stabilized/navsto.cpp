@@ -209,6 +209,8 @@ int main(int argc, char *argv[])
    VisItDataCollection visit_dc("navsto", &mesh);
    visit_dc.RegisterField("u", &x_u);
    visit_dc.RegisterField("p", &x_p);
+   visit_dc.SetCycle(0);
+   visit_dc.Save();
 
    // Define the problem parameters
    FunctionCoefficient kappa(kappa_fun);
@@ -219,6 +221,8 @@ int main(int argc, char *argv[])
    ElasticInverseEstimateCoefficient invEst(spaces[0]);
    FFH92Tau tau(&adv, &kappa, &invEst, 4.0);
    FF91Delta delta(&adv, &kappa, &invEst);
+
+   tau.print = delta.print = true;
 
    // Define the block nonlinear form
    BlockNonlinearForm Hform(spaces);
@@ -244,7 +248,7 @@ int main(int argc, char *argv[])
    j_gmres.SetPreconditioner(jac_prec);
 
    // Set up the newton solver
-   SystemResidualMonitor newton_monitor("Newton", 1, bOffsets, nullptr);
+   SystemResidualMonitor newton_monitor("Newton", 1, bOffsets, &visit_dc);
    NewtonSolver newton_solver;
    newton_solver.iterative_mode = true;
    newton_solver.SetPrintLevel(-1);
@@ -260,7 +264,7 @@ int main(int argc, char *argv[])
    newton_solver.Mult(zero, xp);
 
    // Save data in the VisIt format
-   visit_dc.SetCycle(99999);
+   visit_dc.SetCycle(999999);
    visit_dc.Save();
 
    // Free the used memory.
