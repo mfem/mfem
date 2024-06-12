@@ -857,7 +857,9 @@ public:
        vectors using Mesh::CreatePeriodicVertexMapping.
        @note MFEM requires that each edge of the resulting mesh be uniquely
        identifiable by a pair of distinct vertices. As a consequence, periodic
-       boundaries must be connected by at least three edges. */
+       boundaries must be separated by at least two interior vertices.
+       @note The resulting mesh uses a discontinuous nodal function, see
+       SetCurvature() for further details. */
    static Mesh MakePeriodic(const Mesh &orig_mesh, const std::vector<int> &v2v);
 
    ///@}
@@ -1534,6 +1536,9 @@ public:
 
    /// @note The returned Table should be deleted by the caller
    Table *GetVertexToElementTable();
+
+   /// @note The returned Table should be deleted by the caller
+   Table *GetVertexToBdrElementTable();
 
    /// Return the "face"-element Table. Here "face" refers to face (3D),
    /// edge (2D), or vertex (1D).
