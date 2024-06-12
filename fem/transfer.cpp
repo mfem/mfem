@@ -1233,6 +1233,8 @@ void PRefinementTransferOperator::Mult(const Vector& x, Vector& y) const
 
    int vdim = lFESpace.GetVDim();
 
+   y = 0.0;
+
    for (int i = 0; i < mesh->GetNE(); i++)
    {
       DofTransformation * doftrans_h = hFESpace.GetElementDofs(i, h_dofs);
