@@ -1036,11 +1036,7 @@ void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    }
 
    // Treatment of boundary faces
-   Array<BilinearFormIntegrator*> &bdrFaceIntegrators = *a->GetBFBFI();
-   Array<BilinearFormIntegrator*> &bdrIntegrators = *a->GetBBFI();
-   const int n_bdr_integ = bdrIntegrators.Size() + bdrFaceIntegrators.Size();
-   if (!factorize_face_terms && bdr_face_restrict_lex && n_bdr_integ > 0 &&
-       nf_bdr > 0)
+   if (!factorize_face_terms && bdr_face_restrict_lex && ea_data_bdr.Size() > 0)
    {
       // Apply the Boundary Face Restriction
       bdr_face_restrict_lex->Mult(x, bdr_face_X);
@@ -1163,11 +1159,7 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    }
 
    // Treatment of boundary faces
-   Array<BilinearFormIntegrator*> &bdrIntegrators = *a->GetBBFI();
-   Array<BilinearFormIntegrator*> &bdrFaceIntegrators = *a->GetBFBFI();
-   const int n_bdr_integ = bdrFaceIntegrators.Size() + bdrIntegrators.Size();
-   if (!factorize_face_terms && bdr_face_restrict_lex && n_bdr_integ > 0 &&
-       nf_bdr > 0)
+   if (!factorize_face_terms && bdr_face_restrict_lex && ea_data_bdr.Size() > 0)
    {
       // Apply the Boundary Face Restriction
       bdr_face_restrict_lex->Mult(x, bdr_face_X);
@@ -1252,7 +1244,7 @@ void EABilinearFormExtension::GetElementMatrices(
       });
    }
 
-   if (add_bdr && nf_bdr > 0)
+   if (add_bdr && ea_data_bdr.Size() > 0)
    {
       const int ndof_face = faceDofs;
       const auto d_ea_bdr = Reshape(ea_data_bdr.Read(),
