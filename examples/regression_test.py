@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 # This is the regression testing script for ex5-nguygen
 # The reference cases are stored in the regress_test folder
 # Currently, this uses cases 1 and 2
