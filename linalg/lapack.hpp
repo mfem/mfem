@@ -53,6 +53,13 @@ MFEM_LAPACK_PREFIX(sygv_) (int *ITYPE, char *JOBZ, char *UPLO, int * N,
                            real_t *A, int *LDA, real_t *B, int *LDB, real_t *W,
                            real_t *WORK, int *LWORK, int *INFO);
 extern "C" void
+MFEM_LAPACK_PREFIX(sygvx_)(int *ITYPE, char *JOBZ, char *RANGE, char *UPLO,
+                           int *N, double *A, int *LDA, double *B, int *LDB,
+                           double *VL, double *VU, int *IL, int *IU,
+                           double *ABSTOL, int *M, double *W, double *Z,
+                           int *LDZ, double *WORK, int *LWORK,int *IWORK,
+                           int *IFAIL, int *INFO);
+extern "C" void
 MFEM_LAPACK_PREFIX(gesvd_)(char *JOBU, char *JOBVT, int *M, int *N, real_t *A,
                            int *LDA, real_t *S, real_t *U, int *LDU, real_t *VT,
                            int *LDVT, real_t *WORK, int *LWORK, int *INFO);
