@@ -31,6 +31,11 @@
 //
 // Compile with: make mesh-optimizer
 //
+// Sample runs to test AD
+// Default:  mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -bnd -qt 1 -qo 8
+// Old invariants:  mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -bnd -qt 1 -qo 8 -mmode 1
+
+
 // Sample runs:
 //   Adapted analytic shape:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -bnd -qt 1 -qo 8
@@ -154,6 +159,7 @@ int main(int argc, char *argv[])
    int mesh_node_ordering = 0;
    int barrier_type       = 0;
    int worst_case_type    = 0;
+   int metric_mode        = 0;
 
    // 1. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -309,6 +315,11 @@ int main(int argc, char *argv[])
                   "0 - None,"
                   "1 - Beta,"
                   "2 - PMean.");
+   args.AddOption(&metric_mode, "-mmode", "--metric-mode",
+                  "0 - Default,"
+                  "1 - Old invariants based,"
+                  "2 - AD+Enzyme (TBD),"
+                  "3 - AD+Native MFEM (TBD),");
    args.Parse();
    if (!args.Good())
    {
@@ -326,6 +337,7 @@ int main(int argc, char *argv[])
    }
    Device device(devopt);
    device.Print();
+   MFEM_VERIFY(metric_mode <= 1, "Invalid metric mode.");
 
    // 2. Initialize and refine the starting mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
@@ -544,6 +556,9 @@ int main(int argc, char *argv[])
                                                                     btype,
                                                                     wctype);
    }
+
+
+   metric->mode = metric_mode;
 
    if (metric_id < 300 || h_metric_id < 300)
    {

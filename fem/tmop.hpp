@@ -34,6 +34,13 @@ public:
    TMOP_QualityMetric() : Jtr(NULL) { }
    virtual ~TMOP_QualityMetric() { }
 
+   // Mode decides how the metric and its derivatives are evaluated.
+   // 0 - default, optimized with invariants.
+   // 1 - old invariant based code.
+   // 2 - AD + Enzyme
+   // 3 - AD + Native
+   int mode = 0;
+
    /** @brief Specify the reference-element -> target-element Jacobian matrix
        for the point of interest.
 
@@ -73,6 +80,51 @@ public:
        the matrix invariants and their derivatives. */
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const real_t weight, DenseMatrix &A) const = 0;
+
+   virtual void ComputeH(const DenseMatrix &Jpt, DenseTensor &H) const {
+      MFEM_ABORT("ComputeH Not implemented");
+   }
+
+      /// First invariant of the given 2x2 matrix @a M.
+   static double Dim2Invariant1(const DenseMatrix &M);
+   /// Second invariant of the given 2x2 matrix @a M.
+   static double Dim2Invariant2(const DenseMatrix &M);
+
+   /// 1st derivative of the first invariant for the given 2x2 matrix @a M.
+   static void Dim2Invariant1_dM(const DenseMatrix &M, DenseMatrix &dM);
+   /// 1st derivative of the second invariant for the given 2x2 matrix @a M.
+   static void Dim2Invariant2_dM(const DenseMatrix &M, DenseMatrix &dM);
+
+   /// 2nd derivative of the first invariant for the given 2x2 matrix @a M.
+   static void Dim2Invariant1_dMdM(const DenseMatrix &M, int i, int j,
+                                   DenseMatrix &dMdM);
+   /// 2nd derivative of the second invariant for the given 2x2 matrix @a M.
+   static void Dim2Invariant2_dMdM(const DenseMatrix &M, int i, int j,
+                                   DenseMatrix &dMdM);
+
+   /// First invariant of the given 3x3 matrix @a M.
+   static double Dim3Invariant1(const DenseMatrix &M);
+   /// Second invariant of the given 3x3 matrix @a M.
+   static double Dim3Invariant2(const DenseMatrix &M);
+   /// Third invariant of the given 3x3 matrix @a M.
+   static double Dim3Invariant3(const DenseMatrix &M);
+
+   /// 1st derivative of the first invariant for the given 3x3 matrix @a M.
+   static void Dim3Invariant1_dM(const DenseMatrix &M, DenseMatrix &dM);
+   /// 1st derivative of the second invariant for the given 3x3 matrix @a M.
+   static void Dim3Invariant2_dM(const DenseMatrix &M, DenseMatrix &dM);
+   /// 1st derivative of the third invariant for the given 3x3 matrix @a M.
+   static void Dim3Invariant3_dM(const DenseMatrix &M, DenseMatrix &dM);
+
+   /// 2nd derivative of the first invariant for the given 3x3 matrix @a M.
+   static void Dim3Invariant1_dMdM(const DenseMatrix &M, int i, int j,
+                                   DenseMatrix &dMdM);
+   /// 2nd derivative of the second invariant for the given 3x3 matrix @a M.
+   static void Dim3Invariant2_dMdM(const DenseMatrix &M, int i, int j,
+                                   DenseMatrix &dMdM);
+   /// 2nd derivative of the third invariant for the given 3x3 matrix @a M.
+   static void Dim3Invariant3_dMdM(const DenseMatrix &M, int i, int j,
+                                   DenseMatrix &dMdM);
 
    /** @brief Return the metric ID. */
    virtual int Id() const { return 0; }
@@ -232,6 +284,8 @@ public:
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const real_t weight, DenseMatrix &A) const;
 
+   virtual void ComputeH(const DenseMatrix &Jpt, DenseTensor &H) const;
+
    virtual int Id() const { return 1; }
 };
 
@@ -313,6 +367,8 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const real_t weight, DenseMatrix &A) const;
+
+   virtual void ComputeH(const DenseMatrix &Jpt, DenseTensor &H) const;
 
    virtual int Id() const { return 2; }
 };
@@ -443,6 +499,8 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const real_t weight, DenseMatrix &A) const;
+
+   virtual void ComputeH(const DenseMatrix &Jpt, DenseTensor &H) const;
 
 };
 

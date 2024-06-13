@@ -20,6 +20,215 @@ namespace mfem
 
 // Target-matrix optimization paradigm (TMOP) mesh quality metrics.
 
+// I1 = |M|^2 / det(M).
+real_t TMOP_QualityMetric::Dim2Invariant1(const DenseMatrix &M)
+{
+   MFEM_ASSERT(M.Height() == 2 && M.Width() == 2, "Incorrect dimensions!");
+
+   return M.FNorm2() / M.Det();
+}
+
+// I2 = det(M).
+real_t TMOP_QualityMetric::Dim2Invariant2(const DenseMatrix &M)
+{
+   MFEM_ASSERT(M.Height() == 2 && M.Width() == 2, "Incorrect dimensions!");
+
+   return M.Det();
+}
+
+// dI1_dM = [ 2 det(M) M - |M|^2 adj(M)^T ] / det(M)^2.
+void TMOP_QualityMetric::Dim2Invariant1_dM(const DenseMatrix &M,
+                                           DenseMatrix &dM)
+{
+   MFEM_ASSERT(M.Height() == 2 && M.Width() == 2, "Incorrect dimensions!");
+
+   const real_t fnorm2 = M.FNorm2(), det = M.Det();
+
+   Dim2Invariant2_dM(M, dM);
+   dM *= - fnorm2/(det*det);
+   dM.Add(2.0/det, M);
+}
+
+// dI2_dM = d(det(M))_dM = adj(M)^T.
+void TMOP_QualityMetric::Dim2Invariant2_dM(const DenseMatrix &M,
+                                           DenseMatrix &dM)
+{
+   MFEM_ASSERT(M.Height() == 2 && M.Width() == 2, "Incorrect dimensions!");
+
+   dM(0, 0) =  M(1, 1); dM(0, 1) = -M(1, 0);
+   dM(1, 0) = -M(0, 1); dM(1, 1) =  M(0, 0);
+}
+
+// (dI1_dM)_d(Mij) = d[(2 det(M) M - |M|^2 adj(M)^T) / det(M)^2]_d[Mij].
+void TMOP_QualityMetric::Dim2Invariant1_dMdM(const DenseMatrix &M, int i, int j,
+                                             DenseMatrix &dMdM)
+{
+   MFEM_ASSERT(M.Height() == 2 && M.Width() == 2, "Incorrect dimensions!");
+
+   // Compute d(det(M))_d(Mij), d(|M|^2)_d(Mij).
+   DenseMatrix dI(2);
+   Dim2Invariant2_dM(M, dI);
+   const real_t ddet   = dI(i,j);
+   const real_t dfnorm2 = 2.0 * M(i,j);
+
+   const real_t det    = M.Det();
+   const real_t det2   = det * det;
+   const real_t fnorm2 = M.FNorm2();
+
+   DenseMatrix dM(2); dM = 0.0; dM(i, j) = 1.0;
+   DenseMatrix ddI(2);
+   Dim2Invariant2_dMdM(M, i, j, ddI);
+   for (int r = 0; r < 2; r++)
+   {
+      for (int c = 0; c < 2; c++)
+      {
+         dMdM(r,c) =
+            (det2 *
+             (2.0 * ddet * M(r,c) + 2.0 * det * dM(r,c)
+              - dfnorm2 * dI(r,c) - fnorm2 * ddI(r,c))
+             - 2.0 * det * ddet *
+             (2.0 * det * M(r,c) - fnorm2 * dI(r,c)) ) / (det2 * det2);
+      }
+   }
+}
+
+// (dI2_dM)_d(Mij) = ...
+void TMOP_QualityMetric::Dim2Invariant2_dMdM(const DenseMatrix &M, int i, int j,
+                                             DenseMatrix &dMdM)
+{
+   MFEM_ASSERT(M.Height() == 2 && M.Width() == 2, "Incorrect dimensions!");
+
+   dMdM = 0.0;
+   dMdM(1-i,1-j) = (i == j) ? 1.0 : -1.0;
+}
+
+// I1 = |M|^2/ det(M)^(2/3).
+real_t TMOP_QualityMetric::Dim3Invariant1(const DenseMatrix &M)
+{
+   MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
+
+   const real_t fnorm = M.FNorm(), det = M.Det();
+   return fnorm * fnorm / pow(det, 2.0/3.0);
+}
+
+
+// I2 = |adj(M)|^2 / det(M)^(4/3).
+real_t TMOP_QualityMetric::Dim3Invariant2(const DenseMatrix &M)
+{
+   MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
+
+   DenseMatrix Madj(3);
+   CalcAdjugate(M, Madj);
+
+   const real_t fnorm = Madj.FNorm(), det = M.Det();
+   return fnorm * fnorm / pow(det, 4.0/3.0);
+}
+
+
+// I3 = det(M).
+real_t TMOP_QualityMetric::Dim3Invariant3(const DenseMatrix &M)
+{
+   MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
+
+   return M.Det();
+}
+
+// dI1_dM = [ 2 det(M) M - 2/3 |M|^2 det(M)^(-1/3) adj(M)^T ] / det(M)^4/3.
+void TMOP_QualityMetric::Dim3Invariant1_dM(const DenseMatrix &M,
+                                           DenseMatrix &dM)
+{
+   MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
+
+   DenseMatrix Madj(3);
+   CalcAdjugate(M, Madj);
+   const real_t fnorm = M.FNorm(), det = M.Det();
+
+   Dim3Invariant3_dM(M, dM);
+   dM *= -(2./3.)* fnorm * fnorm * pow(det, -1./3.);
+   dM.Add(2.0 * pow(det, 2./3.), M);
+   dM *= 1.0 / pow(det, 4./3.);
+}
+
+// dI2_dM = [ -4/3 |adj(M)|^2  det(M)^(1/3) adj(M)^T ] / det(M)^(8/3).
+void TMOP_QualityMetric::Dim3Invariant2_dM(const DenseMatrix &M,
+                                           DenseMatrix &dM)
+{
+   MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
+
+   DenseMatrix Madj(3);
+   // dM will have Madj^t because it is the third invariant's derivative.
+   CalcAdjugate(M, Madj);
+   const real_t fnorm = Madj.FNorm(), det = M.Det();
+
+   Dim3Invariant3_dM(M, dM);
+   dM *= -(4./3.)* fnorm * fnorm * pow(det, 1./3.);
+   dM *= 1.0 / (pow(det, 8./3.));
+}
+
+// dI3_dM = d(det(M))_dM = adj(M)^T.
+void TMOP_QualityMetric::Dim3Invariant3_dM(const DenseMatrix &M,
+                                           DenseMatrix &dM)
+{
+   MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
+
+   CalcAdjugateTranspose(M, dM);
+}
+
+void TMOP_QualityMetric::Dim3Invariant1_dMdM(const DenseMatrix &M, int i, int j,
+                                             DenseMatrix &dMdM)
+{
+   MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
+
+   DenseMatrix dI(3);
+   Dim3Invariant3_dM(M, dI);
+   const real_t fnorm  = M.FNorm(), det = M.Det();
+
+   DenseMatrix dM(3); dM = 0.0; dM(i, j) = 1.0;
+   for (int r = 0; r < 3; r++)
+   {
+      for (int c = 0; c < 3; c++)
+      {
+         dMdM(r,c) = (2.0 * det * det * dM(r,c)
+                      + dI(i,j) * (10./9.) * fnorm * fnorm * dI(r,c)
+                      - (4./3.) * dI(i,j) * det * M(r,c)
+                      - (4./3.) * det * M(i,j) * dI(r,c))
+                     / pow(det, 8./3.);
+      }
+   }
+}
+
+void TMOP_QualityMetric::Dim3Invariant2_dMdM(const DenseMatrix &M, int i, int j,
+                                             DenseMatrix &dMdM)
+{
+   MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
+
+   DenseMatrix dI(3);
+   Dim3Invariant3_dM(M, dI);
+   DenseMatrix Madj(3);
+   CalcAdjugate(M, Madj);
+   const real_t det   = M.Det();
+   const real_t fnorm = Madj.FNorm();
+
+   DenseMatrix dM(3); dM = 0.0; dM(i, j) = 1.0;
+   for (int r = 0; r < 3; r++)
+   {
+      for (int c = 0; c < 3; c++)
+      {
+         dMdM(r,c) = (28./9.) * fnorm * fnorm *
+                     det * det * dI(i,j) * dI(r,c) / pow(det, 16./3.);
+      }
+   }
+}
+
+// (dI3_dM)_d(Mij) = 0.
+void TMOP_QualityMetric::Dim3Invariant3_dMdM(const DenseMatrix &M, int i, int j,
+                                             DenseMatrix &dMdM)
+{
+   MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
+
+   dMdM(i, j) = 0.0;
+}
+
 real_t TMOP_Combo_QualityMetric::EvalWMatrixForm(const DenseMatrix &Jpt) const
 {
    real_t metric = 0.;
@@ -219,6 +428,62 @@ void TMOP_Metric_001::AssembleH(const DenseMatrix &Jpt,
    ie.Assemble_ddI1(weight, A.GetData());
 }
 
+void TMOP_Metric_001::ComputeH(const DenseMatrix &Jpt,
+                               DenseTensor &H) const
+{
+   const int dim = Jpt.Height();
+   H.SetSize(dim, dim, dim*dim);
+   H = 0.0;
+   // for (int i = 0; i < dim; i++)
+   // {
+   //    for (int j = 0; j < dim; j++)
+   //    {
+   //       for (int k = 0; k < dim; k++)
+   //       {
+   //          for (int l = 0; l < dim; l++)
+   //          {
+   //             if (i + j*dim == k + l*dim) {
+   //                H(i, j, k + l*dim) = 2.0;
+   //             }
+   //             else
+   //             {
+   //                H(i, j, k + l*dim) = 0.0;
+   //             }
+   //          }
+   //       }
+   //    }
+   // }
+
+   const real_t I1 = Dim2Invariant1(Jpt), I2 = Dim2Invariant2(Jpt);
+   DenseMatrix dI1_dM(dim), dI1_dMdM(dim), dI2_dM(dim), dI2_dMdM(dim);
+   Dim2Invariant1_dM(Jpt, dI1_dM);
+   Dim2Invariant2_dM(Jpt, dI2_dM);
+
+      // The first two go over the rows and cols of dP_dJ where P = dW_dJ.
+   for (int r = 0; r < dim; r++)
+   {
+      for (int c = 0; c < dim; c++)
+      {
+         Dim2Invariant1_dMdM(Jpt, r, c, dI1_dMdM);
+         Dim2Invariant2_dMdM(Jpt, r, c, dI2_dMdM);
+         DenseMatrix temp(dim);
+         // Compute each entry of d(Prc)_dJ.
+         for (int rr = 0; rr < dim; rr++)
+         {
+            for (int cc = 0; cc < dim; cc++)
+            {
+               temp(rr, cc) =
+                  dI1_dMdM(rr,cc) * I2 +
+                  dI1_dM(r, c)    * dI2_dM(rr,cc) +
+                  dI2_dMdM(rr,cc) * I1 +
+                  dI2_dM(r, c)    * dI1_dM(rr,cc);
+            }
+         }
+         H(r + c*dim) = temp;
+      }
+   }
+}
+
 real_t TMOP_Metric_skew2D::EvalW(const DenseMatrix &Jpt) const
 {
    MFEM_VERIFY(Jtr != NULL,
@@ -345,12 +610,22 @@ real_t TMOP_Metric_002::EvalWMatrixForm(const DenseMatrix &Jpt) const
 
 real_t TMOP_Metric_002::EvalW(const DenseMatrix &Jpt) const
 {
+   if (mode == 1)
+   {
+      return 0.5 * Dim2Invariant1(Jpt) - 1.0;
+   }
    ie.SetJacobian(Jpt.GetData());
    return 0.5 * ie.Get_I1b() - 1.0;
 }
 
 void TMOP_Metric_002::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
 {
+   if (mode == 1)
+   {
+      Dim2Invariant1_dM(Jpt, P);
+      P *= 0.5;
+      return;
+   }
    ie.SetJacobian(Jpt.GetData());
    P.Set(0.5, ie.Get_dI1b());
 }
@@ -360,9 +635,72 @@ void TMOP_Metric_002::AssembleH(const DenseMatrix &Jpt,
                                 const real_t weight,
                                 DenseMatrix &A) const
 {
+   if (mode == 0)
+   {
+      DenseTensor H;
+      ComputeH(Jpt, H);
+      const int dof = DS.Height(), dim = DS.Width();
+
+      // The first two go over the rows and cols of dP_dJ where P = dW_dJ.
+      for (int r = 0; r < dim; r++)
+      {
+         for (int c = 0; c < dim; c++)
+         {
+            DenseMatrix Hrc = H(r+c*dim);
+
+            // Compute each entry of d(Prc)_dJ.
+            for (int rr = 0; rr < dim; rr++)
+            {
+               for (int cc = 0; cc < dim; cc++)
+               {
+                  const double entry_rr_cc = Hrc(rr, cc);
+
+                  for (int i = 0; i < dof; i++)
+                  {
+                     for (int j = 0; j < dof; j++)
+                     {
+                        A(i+r*dof, j+rr*dof) +=
+                            weight * DS(i, c) * DS(j, cc) * entry_rr_cc;
+                     }
+                  }
+               }
+            }
+         }
+      }
+      return;
+   }
    ie.SetJacobian(Jpt.GetData());
    ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
    ie.Assemble_ddI1b(0.5*weight, A.GetData());
+}
+
+void TMOP_Metric_002::ComputeH(const DenseMatrix &Jpt,
+                               DenseTensor &H) const
+{
+   const int dim = Jpt.Height();
+   H.SetSize(dim, dim, dim*dim);
+   H = 0.0;
+   DenseMatrix dI1_dMdM(dim);
+
+   // The first two go over the rows and cols of dP_dJ where P = dW_dJ.
+   for (int r = 0; r < dim; r++)
+   {
+      for (int c = 0; c < dim; c++)
+      {
+         Dim2Invariant1_dMdM(Jpt, r, c, dI1_dMdM);
+         DenseMatrix temp(dim);
+
+         // Compute each entry of d(Prc)_dJ.
+         for (int rr = 0; rr < dim; rr++)
+         {
+            for (int cc = 0; cc < dim; cc++)
+            {
+               temp(rr, cc) = 0.5 * dI1_dMdM(rr,cc);
+            }
+         }
+         H(r + c*dim) = temp;
+      }
+   }
 }
 
 real_t TMOP_Metric_004::EvalW(const DenseMatrix &Jpt) const
@@ -637,6 +975,38 @@ void TMOP_Metric_055::AssembleH(const DenseMatrix &Jpt,
    ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
    ie.Assemble_TProd(2*weight, ie.Get_dI2b(), A.GetData());
    ie.Assemble_ddI2b(2*weight*(ie.Get_I2b() - 1.0), A.GetData());
+}
+
+void TMOP_Metric_055::ComputeH(const DenseMatrix &Jpt,
+                               DenseTensor &H) const
+{
+   const int dim = Jpt.Height();
+   H.SetSize(dim, dim, dim*dim);
+   H = 0.0;
+   const double I2 = Dim2Invariant2(Jpt);
+   DenseMatrix dI2_dM(dim), dI2_dMdM(dim);
+   Dim2Invariant2_dM(Jpt, dI2_dM);
+
+   // The first two go over the rows and cols of dP_dJ where P = dW_dJ.
+   for (int r = 0; r < dim; r++)
+   {
+      for (int c = 0; c < dim; c++)
+      {
+         Dim2Invariant2_dMdM(Jpt, r, c, dI2_dMdM);
+         DenseMatrix temp(dim);
+         // Compute each entry of d(Prc)_dJ.
+         for (int rr = 0; rr < dim; rr++)
+         {
+            for (int cc = 0; cc < dim; cc++)
+            {
+               const double entry_rr_cc = 2.*dI2_dMdM(rr,cc)*(I2 - 1.)
+                                          + 2.*dI2_dM(rr,cc)*dI2_dM(r,c);
+               temp(rr, cc) = entry_rr_cc;
+            }
+         }
+          H(r + c*dim) = temp;
+      }
+   }
 }
 
 real_t TMOP_Metric_056::EvalWMatrixForm(const DenseMatrix &Jpt) const
