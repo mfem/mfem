@@ -120,7 +120,7 @@ void TensorDerivatives<QVectorLayout::byNODES>(const int NE,
                         << " are not supported!");
             MFEM_VERIFY(Q1D <= MQ, "Quadrature rules with more than "
                         << MQ << " 1D points are not supported!");
-            Derivatives3D<L,P>(NE,B,G,J,X,Y,vdim,D1D,Q1D);
+            Derivatives3D<L,P>(NE,B,G,J,X,Y,0,0,vdim,D1D,Q1D);
             return;
          }
       }
