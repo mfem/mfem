@@ -11,6 +11,8 @@
 Version 4.7.1 (development)
 ===========================
 
+- Added support for custom interpolation procedure in FindPointsGSLIB.
+
 - Added NURBS-based H(div) and H(curl) elements in 2D and 3D. Only on single 
   patch meshes. Only implemented for serial computations.
 
