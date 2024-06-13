@@ -387,7 +387,8 @@ public:
    /** @brief Project @a coeff Coefficient to @a this GridFunction. The
        projection computation depends on the choice of the FiniteElementSpace
        #fes. Note that this is usually interpolation at the degrees of freedom
-       in each element (not L2 projection). */
+       in each element (not L2 projection). For NURBS spaces these degrees of
+       freedom are not available and L2 projection is resorted to as fallback. */
    virtual void ProjectCoefficient(Coefficient &coeff);
 
    /** @brief Project @a coeff Coefficient to @a this GridFunction, using one
@@ -398,7 +399,8 @@ public:
    /** @brief Project @a vcoeff VectorCoefficient to @a this GridFunction. The
        projection computation depends on the choice of the FiniteElementSpace
        #fes. Note that this is usually interpolation at the degrees of freedom
-       in each element (not L2 projection).*/
+       in each element (not L2 projection). For NURBS spaces these degrees of
+       freedom are not available and L2 projection is resorted to as fallback. */
    void ProjectCoefficient(VectorCoefficient &vcoeff);
 
    /** @brief Project @a vcoeff VectorCoefficient to @a this GridFunction, using
