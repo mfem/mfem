@@ -1780,12 +1780,12 @@ void MixedBilinearForm::AssembleBdrElementMatrix(
    mat->AddSubMatrix(test_vdofs_, trial_vdofs_, elmat, skip_zeros);
 }
 
-void MixedBilinearForm::EliminateTrialEssentialBC (
+void MixedBilinearForm::EliminateTrialEssentialBC(
    const Array<int> &bdr_attr_is_ess, const Vector &sol, Vector &rhs )
 {
    Array<int> trial_ess_dofs;
    trial_fes->GetEssentialVDofs(bdr_attr_is_ess, trial_ess_dofs);
-   mat -> EliminateCols (trial_ess_dofs, &sol, &rhs);
+   mat->EliminateCols(trial_ess_dofs, &sol, &rhs);
 }
 
 void MixedBilinearForm::EliminateTrialEssentialBC(const Array<int>
@@ -1826,7 +1826,7 @@ void MixedBilinearForm::EliminateTrialVDofsInRHS(const Array<int> &trial_vdofs,
 void MixedBilinearForm::EliminateEssentialBCFromTrialDofs(
    const Array<int> &marked_vdofs, const Vector &sol, Vector &rhs)
 {
-   mat -> EliminateCols (marked_vdofs, &sol, &rhs);
+   mat->EliminateCols(marked_vdofs, &sol, &rhs);
 }
 
 void MixedBilinearForm::EliminateTestEssentialBC(const Array<int>
