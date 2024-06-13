@@ -426,6 +426,16 @@ class NURBSExtension
    friend class NURBSPatchMap;
 
 protected:
+
+   /// Flag for indicating what type of NURBS fespace this extension is used for.
+   enum class Mode
+   {
+      H_1,    ///> Extension for a standard scalar-valued space
+      H_DIV,  ///> Extension for a divergence conforming vector-valued space
+      H_CURL, ///> Extension for a curl conforming vector-valued space
+   };
+   Mode mode = Mode::H_1;
+
    /// Order of KnotVectors, see GetOrder() for description.
    int mOrder;
 
@@ -655,8 +665,10 @@ public:
    /** @a note If a KnotVector in @a parent already has order greater than or
        equal to the corresponding entry in @a newOrder, it will be used
        unmodified. */
-   NURBSExtension(NURBSExtension *parent, const Array<int> &newOrders);
+   NURBSExtension(NURBSExtension *parent, const Array<int> &newOrders,
+                  Mode mode = Mode::H_1);
    /// Construct a NURBSExtension by merging a partitioned NURBS mesh.
+
    NURBSExtension(Mesh *mesh_array[], int num_pieces);
 
    /// Copy assignment not supported.
@@ -841,12 +853,23 @@ public:
    void KnotInsert(Array<KnotVector *> &kv);
    void KnotInsert(Array<Vector *> &kv);
 
+   /** Returns the NURBSExtension to be used for @a component of
+       an H(div) conforming NURBS space. Caller gets ownership of
+       the returned object, and is responsible for deletion.*/
+   NURBSExtension* GetDivExtension(int component);
+
+   /** Returns the NURBSExtension to be used for @a component of
+       an H(curl) conforming NURBS space. Caller gets ownership of
+       the returned object, and is responsible for deletion.*/
+   NURBSExtension* GetCurlExtension(int component);
+
    void KnotRemove(Array<Vector *> &kv, real_t tol = 1.0e-12);
 
    /** Calls GetCoarseningFactors for each patch and finds the minimum factor
        for each direction that ensures refinement will work in the case of
        non-nested spacing functions. */
    void GetCoarseningFactors(Array<int> & f) const;
+
 
    /// Returns the index of the patch containing element @a elem.
    int GetElementPatch(int elem) const { return el_to_patch[elem]; }
