@@ -152,83 +152,48 @@ private:
    { return GetNBZ_<ApplyKernelsHelperClass>(d1d, q1d, nullptr); }
 
 public:
-
    // TODO(bowen) Force this to use the same signature as the Signature typedef
    // above.
-   template<typename... KernelArgs>
-   void Run1D(UserParams... params, KernelArgs&... args)
-   {
-      std::tuple<int, UserParams...> key;
-      std::get<0>(key) = 1;
-      const auto it = this->table.find(key);
-      if (it != this->table.end())
-      {
-         printf("Specialized.\n");
-         it->second(args...);
-      }
-      else
-      {
-         MFEM_ABORT("1 dimensional kernel not registered.  This is an internal MFEM error.")
-      }
-   }
-
-   // TODO(bowen) Force this to use the same signature as the Signature typedef
-   // above.
-   template<typename... KernelArgs>
-   void Run2D(UserParams... params, KernelArgs&... args)
-   {
-      auto key = std::make_tuple(2, params...);
-      const auto it = this->table.find(key);
-      if (it != this->table.end())
-      {
-         printf("Specialized.\n");
-         it->second(args...);
-      }
-      else
-      {
-         printf("falling back.\n");
-         ApplyKernelsHelperClass::Fallback2D()(args...);
-      }
-   }
-
-   template<typename... KernelArgs>
-   void Run3D(UserParams... params, KernelArgs&... args)
-   {
-      auto key = std::make_tuple(3, params...);
-      const auto it = this->table.find(key);
-      if (it != this->table.end())
-      {
-         printf("Specialized.\n");
-         it->second(args...);
-      }
-      else
-      {
-         printf("falling back.\n");
-         ApplyKernelsHelperClass::Fallback3D()(args...);
-      }
-   }
-
    template<typename... KernelArgs>
    void Run(int dim, UserParams... params, KernelArgs&... args)
    {
-      if (dim == 1)
+      std::tuple<int, UserParams...>  key;
+      if (dim != 1)
       {
-         Run1D(params..., args...);
-      }
-      else if (dim == 2)
-      {
-         Run2D(params..., args...);
-      }
-      else if (dim == 3)
-      {
-         Run3D(params..., args...);
+         key = std::make_tuple(dim, params...);
       }
       else
       {
-         MFEM_ABORT("Only 2 and 3 dimensional kernels exist");
+         // In one dimension, only one kernel exists with all user params set to zero.
+         // In this case, ignore the params... variable pack.
+         std::get<0>(key) = 1;
       }
-
+      const auto it = this->table.find(key);
+      if (it != this->table.end())
+      {
+         printf("Using specialized kernel\n");
+         it->second(args...);
+      }
+      else if (dim == 1)
+      {
+         MFEM_ABORT("1 dimensional kernel not registered.  This is an internal MFEM error.")
+      }
+      else if (dim == 2)
+      {
+         printf("Using non-specialized kernel\n");
+         ApplyKernelsHelperClass::Fallback2D()(args...);
+      }
+      else if (dim == 3)
+      {
+         printf("Using non-specialized kernel\n");
+         ApplyKernelsHelperClass::Fallback3D()(args...);
+      }
+      else
+      {
+         MFEM_ABORT("Kernels only exist for spatial dimensions 3 and less.")
+      }
    }
+
    using SpecializedTableType =
       KernelDispatchTable<ApplyKernelsHelperClass, internal::KernelTypeList<UserParams...>, internal::KernelTypeList<FallbackParams...>>;
 
