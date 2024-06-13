@@ -1796,15 +1796,16 @@ void MixedBilinearForm::EliminateTrialEssentialBC(const Array<int>
    mat->EliminateCols(trial_ess_dofs);
 }
 
-void MixedBilinearForm::EliminateTrialVDofs(const Array<int> &trial_vdofs,
+void MixedBilinearForm::EliminateTrialVDofs(const Array<int> &trial_vdofs_,
                                             const Vector &sol, Vector &rhs)
 {
    Array<int> trial_vdofs_marker;
-   FiniteElementSpace::ListToMarker(trial_vdofs, mat->Width(), trial_vdofs_marker);
+   FiniteElementSpace::ListToMarker(trial_vdofs_, mat->Width(),
+                                    trial_vdofs_marker);
    mat->EliminateCols(trial_vdofs_marker, &sol, &rhs);
 }
 
-void MixedBilinearForm::EliminateTrialVDofs(const Array<int> &trial_vdofs)
+void MixedBilinearForm::EliminateTrialVDofs(const Array<int> &trial_vdofs_)
 {
    if (mat_e == NULL)
    {
@@ -1812,12 +1813,13 @@ void MixedBilinearForm::EliminateTrialVDofs(const Array<int> &trial_vdofs)
    }
 
    Array<int> trial_vdofs_marker;
-   FiniteElementSpace::ListToMarker(trial_vdofs, mat->Width(), trial_vdofs_marker);
+   FiniteElementSpace::ListToMarker(trial_vdofs_, mat->Width(),
+                                    trial_vdofs_marker);
    mat->EliminateCols(trial_vdofs_marker, *mat_e);
    mat_e->Finalize();
 }
 
-void MixedBilinearForm::EliminateTrialVDofsInRHS(const Array<int> &trial_vdofs,
+void MixedBilinearForm::EliminateTrialVDofsInRHS(const Array<int> &trial_vdofs_,
                                                  const Vector &x, Vector &b)
 {
    mat_e->AddMult(x, b, -1.);
@@ -1850,11 +1852,11 @@ void MixedBilinearForm::EliminateTestEssentialBC(const Array<int>
       }
 }
 
-void MixedBilinearForm::EliminateTestVDofs(const Array<int> &test_vdofs)
+void MixedBilinearForm::EliminateTestVDofs(const Array<int> &test_vdofs_)
 {
-   for (int i=0; i<test_vdofs.Size(); ++i)
+   for (int i=0; i<test_vdofs_.Size(); ++i)
    {
-      mat->EliminateRow(test_vdofs[i]);
+      mat->EliminateRow(test_vdofs_[i]);
    }
 }
 
