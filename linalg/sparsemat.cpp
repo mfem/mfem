@@ -3308,7 +3308,7 @@ void SparseMatrix::Print(std::ostream & os, int width_) const
 {
    int i, j;
 
-   if (A == NULL)
+   if (A.Empty())
    {
       RowNode *nd;
       for (i = 0; i < height; i++)
@@ -3362,7 +3362,7 @@ void SparseMatrix::PrintMatlab(std::ostream & os) const
    os.setf(ios::scientific);
    std::streamsize old_prec = os.precision(14);
 
-   if (A == NULL)
+   if (A.Empty())
    {
       RowNode *nd;
       for (i = 0; i < height; i++)
@@ -3405,7 +3405,7 @@ void SparseMatrix::PrintMM(std::ostream & os) const
 
    os << height << " " << width << " " << NumNonZeroElems() << '\n';
 
-   if (A == NULL)
+   if (A.Empty())
    {
       RowNode *nd;
       for (i = 0; i < height; i++)
