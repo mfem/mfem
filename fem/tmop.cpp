@@ -3171,6 +3171,15 @@ void TMOP_Integrator::GetSurfaceFittingErrors(const Vector &pos,
                                               real_t &err_avg, real_t &err_max)
 {
    MFEM_VERIFY(surf_fit_marker, "Surface fitting has not been enabled.");
+   if (surf_fit_gf)
+   {
+      surf_fit_gf->HostRead();
+   }
+   pos.HostRead();
+   if (surf_fit_pos)
+   {
+      surf_fit_pos->HostRead();
+   }
 
    const FiniteElementSpace *fes =
       (surf_fit_gf) ? surf_fit_gf->FESpace() : surf_fit_pos->FESpace();
@@ -4479,6 +4488,7 @@ void TMOP_Integrator::RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
       const int cnt = surf_fit_marker_dof_index.Size();
       const int total_cnt = new_x.Size()/dim;
       Vector new_x_sorted(cnt*dim);
+      new_x.HostRead();
       if (new_x_ordering == 0)
       {
          for (int d = 0; d < dim; d++)

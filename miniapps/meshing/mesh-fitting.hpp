@@ -274,6 +274,7 @@ void ModifyAttributeForMarkingDOFS(ParMesh *pmesh, ParGridFunction &mat,
                                    int attr_to_switch)
 {
    mat.ExchangeFaceNbrData();
+   mat.HostReadWrite();
    // Switch attribute if all but 1 of the faces of an element will be marked?
    Array<int> element_attr(pmesh->GetNE());
    element_attr = 0;
@@ -369,6 +370,7 @@ void OptimizeMeshWithAMRAroundZeroLevelSet(ParMesh &pmesh,
    x.ExchangeFaceNbrData();
 
    IntegrationRules irRules = IntegrationRules(0, Quadrature1D::GaussLobatto);
+   el_to_refine.HostReadWrite();
    for (int iter = 0; iter < amr_iter; iter++)
    {
       el_to_refine = 0.0;

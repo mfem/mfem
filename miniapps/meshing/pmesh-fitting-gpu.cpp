@@ -36,7 +36,7 @@
 // CPU mode
 // make pmesh-fitting-gpu && mpirun -np 4 pmesh-fitting-gpu -o 3 -mid 2 -tid 1 -vl 1 -sfc 5e4 -rtol 1e-5 -d cpu -ls 3 -vis
 // GPU mode
-// make pmesh-fitting-gpu && mpirun -np 4 pmesh-fitting-gpu -o 3 -mid 2 -tid 1 -vl 1 -sfc 5e4 -rtol 1e-5 -d debug -ls 3 -vis
+// make pmesh-fitting-gpu && mpirun -np 4 pmesh-fitting-gpu -o 3 -mid 2 -tid 1 -vl 1 -sfc 5e4 -rtol 1e-5 -d debug -ls 3 -vis -pa
 
 #include "mesh-fitting.hpp"
 
@@ -89,6 +89,8 @@ int main (int argc, char *argv[])
    int mesh_node_ordering = 0;
    int bg_amr_iters       = 0;
    bool conv_residual     = true;
+   real_t jitter         = 0.0;
+   bool pa = false;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -171,6 +173,10 @@ int main (int argc, char *argv[])
    args.AddOption(&conv_residual, "-resid", "--resid", "-no-resid",
                   "--no-resid",
                   "Enable residual based convergence.");
+   args.AddOption(&jitter, "-ji", "--jitter",
+                  "Random perturbation scaling factor.");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Enable Partial Assembly.");
    args.Parse();
    if (!args.Good())
    {
@@ -183,9 +189,9 @@ int main (int argc, char *argv[])
    if (myid == 0) { device.Print();}
    bool cpu_mode = (strcmp(devopt,"cpu")==0);
 
-   MFEM_VERIFY(surface_fit_const > 0.0,
-               "This miniapp is for surface fitting only. See (p)mesh-optimizer"
-               "miniapps for general high-order mesh optimization.");
+   // MFEM_VERIFY(surface_fit_const > 0.0,
+   //             "This miniapp is for surface fitting only. See (p)mesh-optimizer"
+   //             "miniapps for general high-order mesh optimization.");
 
    // Initialize and refine the starting mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
@@ -197,7 +203,12 @@ int main (int argc, char *argv[])
 
    // Define level-set coefficient
    FunctionCoefficient *ls_coeff = NULL;
-   if (surf_ls_type == 1) //Circle
+   if (surface_fit_const == 0.0)
+   {
+      auto zero = [](const Vector &x) { return 0.0; };
+      ls_coeff = new FunctionCoefficient(zero);
+   }
+   else if (surf_ls_type == 1) //Circle
    {
       ls_coeff = new FunctionCoefficient(circle_level_set);
    }
@@ -260,6 +271,53 @@ int main (int argc, char *argv[])
    ParGridFunction x(pfespace);
    pmesh->SetNodalGridFunction(&x);
    x.SetTrueVector();
+
+   // Add some noise to nodes
+   Array<int> vdofs;
+   Vector h0(pfespace->GetNDofs());
+   h0 = infinity();
+   real_t vol_loc = 0.0;
+   Array<int> dofs;
+   for (int i = 0; i < pmesh->GetNE(); i++)
+   {
+      // Get the local scalar element degrees of freedom in dofs.
+      pfespace->GetElementDofs(i, dofs);
+      // Adjust the value of h0 in dofs based on the local mesh size.
+      const real_t hi = pmesh->GetElementSize(i);
+      for (int j = 0; j < dofs.Size(); j++)
+      {
+         h0(dofs[j]) = min(h0(dofs[j]), hi);
+      }
+      vol_loc += pmesh->GetElementVolume(i);
+   }
+   real_t vol_glb;
+   MPI_Allreduce(&vol_loc, &vol_glb, 1, MPITypeMap<real_t>::mpi_type,
+                 MPI_SUM, MPI_COMM_WORLD);
+
+   ParGridFunction rdm(pfespace);
+   rdm.Randomize();
+   rdm -= 0.25; // Shift to random values in [-0.5,0.5].
+   rdm *= jitter;
+   rdm.HostReadWrite();
+   // Scale the random values to be of order of the local mesh size.
+   for (int i = 0; i < pfespace->GetNDofs(); i++)
+   {
+      for (int d = 0; d < dim; d++)
+      {
+         rdm(pfespace->DofToVDof(i,d)) *= h0(i);
+      }
+   }
+   for (int i = 0; i < pfespace->GetNBE(); i++)
+   {
+      // Get the vector degrees of freedom in the boundary element.
+      pfespace->GetBdrElementVDofs(i, vdofs);
+      // Set the boundary values to zero.
+      for (int j = 0; j < vdofs.Size(); j++) { rdm(vdofs[j]) = 0.0; }
+   }
+   x -= rdm;
+   // Set the perturbation of all nodes from the true nodes.
+   x.SetTrueVector();
+   x.SetFromTrueVector();
 
    // Save the starting (prior to the optimization) mesh to a file. This
    // output can be viewed later using GLVis: "glvis -m perturbed -np
@@ -386,6 +444,7 @@ int main (int argc, char *argv[])
       Vector p_min(dim), p_max(dim);
       pmesh->GetBoundingBox(p_min, p_max);
       GridFunction &x_bg = *pmesh_surf_fit_bg->GetNodes();
+      x_bg.HostReadWrite();
       const int num_nodes = x_bg.Size() / dim;
       for (int i = 0; i < num_nodes; i++)
       {
@@ -402,8 +461,7 @@ int main (int argc, char *argv[])
       surf_fit_bg_gf0 = new ParGridFunction(surf_fit_bg_fes);
    }
 
-   Array<int> vdofs;
-   if (surface_fit_const > 0.0)
+   if (surface_fit_const >= 0.0)
    {
       surf_fit_gf0.ProjectCoefficient(*ls_coeff);
       if (surf_bg_mesh)
@@ -471,6 +529,7 @@ int main (int argc, char *argv[])
       }
 
       // Set material gridfunction
+      mat.HostReadWrite();
       for (int i = 0; i < pmesh->GetNE(); i++)
       {
          if (material)
@@ -498,7 +557,7 @@ int main (int argc, char *argv[])
                                              GridFunction::ARITHMETIC);
       surf_fit_mat_gf.SetTrueVector();
       surf_fit_mat_gf.SetFromTrueVector();
-      surf_fit_mat_gf.HostWrite();
+      surf_fit_mat_gf.HostReadWrite();
 
       // Set DOFs for fitting
       // Strategy 1: Choose face between elements of different attributes.
@@ -506,12 +565,13 @@ int main (int argc, char *argv[])
       {
          mat.ExchangeFaceNbrData();
          const Vector &FaceNbrData = mat.FaceNbrData();
+         mat.HostReadWrite();
          for (int j = 0; j < surf_fit_marker.Size(); j++)
          {
             surf_fit_marker[j] = false;
          }
          surf_fit_mat_gf = 0.0;
-         surf_fit_mat_gf.HostWrite();
+         surf_fit_mat_gf.HostReadWrite();
 
          Array<int> dof_list;
          Array<int> dofs;
@@ -570,6 +630,7 @@ int main (int argc, char *argv[])
 
       // Unify marker across processor boundary
       surf_fit_mat_gf.ExchangeFaceNbrData();
+      surf_fit_mat_gf.HostReadWrite();
       {
          GroupCommunicator &gcomm = surf_fit_mat_gf.ParFESpace()->GroupComm();
          Array<real_t> gf_array(surf_fit_mat_gf.GetData(),
@@ -578,6 +639,7 @@ int main (int argc, char *argv[])
          gcomm.Bcast(gf_array);
       }
       surf_fit_mat_gf.ExchangeFaceNbrData();
+      surf_fit_mat_gf.HostReadWrite();
 
       for (int i = 0; i < surf_fit_mat_gf.Size(); i++)
       {
@@ -588,7 +650,9 @@ int main (int argc, char *argv[])
       // mesh to current mesh as it moves during adaptivity.
       if (adapt_eval == 0)
       {
-         adapt_surface = new AdvectorCG;
+         const AssemblyLevel al =
+            pa ? AssemblyLevel::PARTIAL : AssemblyLevel::LEGACY;
+         adapt_surface = new AdvectorCG(al);
          MFEM_VERIFY(!surf_bg_mesh, "Background meshes require GSLIB.");
       }
       else if (adapt_eval == 1)
@@ -639,10 +703,10 @@ int main (int argc, char *argv[])
 
    // Setup the final NonlinearForm.
    ParNonlinearForm a(pfespace);
-   if (!cpu_mode) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    a.AddDomainIntegrator(tmop_integ);
 
-   if (!cpu_mode) { a.Setup(); }
+   if (pa) { a.Setup(); }
 
    // Compute the minimum det(J) of the starting mesh.
    real_t min_detJ = infinity();
@@ -667,7 +731,7 @@ int main (int argc, char *argv[])
 
    const real_t init_energy = a.GetParGridFunctionEnergy(x);
    real_t init_metric_energy = init_energy;
-   if (surface_fit_const > 0.0)
+   if (surface_fit_const >= 0.0)
    {
       surf_fit_coeff.constant   = 0.0;
       init_metric_energy = a.GetParGridFunctionEnergy(x);
@@ -763,7 +827,7 @@ int main (int argc, char *argv[])
       else { minres->SetPrintLevel(verbosity_level == 2 ? 3 : -1); }
       if (lin_solver == 3 || lin_solver == 4)
       {
-         if (!cpu_mode)
+         if (pa)
          {
             MFEM_VERIFY(lin_solver != 4, "PA l1-Jacobi is not implemented");
             auto js = new OperatorJacobiSmoother;
@@ -817,6 +881,7 @@ int main (int argc, char *argv[])
    Vector b(0);
    solver.Mult(b, x.GetTrueVector());
    x.SetFromTrueVector();
+   x.HostReadWrite();
 
    // Save the optimized mesh to a file. This output can be viewed later
    // using GLVis: "glvis -m optimized -np num_mpi_tasks".
@@ -831,7 +896,7 @@ int main (int argc, char *argv[])
    // Compute the final energy of the functional.
    const real_t fin_energy = a.GetParGridFunctionEnergy(x);
    real_t fin_metric_energy = fin_energy;
-   if (surface_fit_const > 0.0)
+   if (surface_fit_const >= 0.0)
    {
       surf_fit_coeff.constant  = 0.0;
       fin_metric_energy  = a.GetParGridFunctionEnergy(x);
@@ -851,7 +916,7 @@ int main (int argc, char *argv[])
            << (init_energy - fin_energy) * 100.0 / init_energy << " %." << endl;
    }
 
-   if (surface_fit_const > 0.0)
+   if (surface_fit_const >= 0.0)
    {
       adapt_surface->ComputeAtNewPosition(x, surf_fit_gf0,
                                           x.FESpace()->GetOrdering());
