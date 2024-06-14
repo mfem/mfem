@@ -953,29 +953,30 @@ void InitialCondition(const Vector &x, Vector &y);
 class DoubleWithUnits
 {
 public:
-  DoubleWithUnits(double val) : value(val) {}
+   DoubleWithUnits(double val) : value(val) {}
 
-  double value;
+   double value;
 
-  friend std::ostream& operator<<(std::ostream& stream,
-				  const DoubleWithUnits& dwu);
+   friend std::ostream& operator<<(std::ostream& stream,
+                                   const DoubleWithUnits& dwu);
 };
 
 std::ostream& operator<<(std::ostream& stream, const DoubleWithUnits& dwu)
 {
-    const char prefix[11] = {' ',
-			     'K', 'M', 'G',
-			     'T', 'P', 'E',
-			     'Z', 'Y', 'R',
-			     'Q'};
-    double d = dwu.value;
-    int p = 0;
-    while (d > 1024. && p < 10)
-    {
+   const char prefix[11] = {' ',
+                            'K', 'M', 'G',
+                            'T', 'P', 'E',
+                            'Z', 'Y', 'R',
+                            'Q'
+                           };
+   double d = dwu.value;
+   int p = 0;
+   while (d > 1024. && p < 10)
+   {
       d /= 1024.;
       p++;
-    }
-    return stream << fixed << setprecision(3) << d << " " << prefix[p] << "B";
+   }
+   return stream << fixed << setprecision(3) << d << " " << prefix[p] << "B";
 }
 
 void record_cmd_line(int argc, char *argv[]);
@@ -1503,7 +1504,7 @@ int main(int argc, char *argv[])
       }
    }
 #endif
-   
+
    // 3. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
    Device device(device_config);
@@ -1716,33 +1717,33 @@ int main(int argc, char *argv[])
    HYPRE_Int glob_size_tot = ffes.GlobalTrueVSize();
    if (Mpi::Root())
    {
-     cout << "Number of unknowns per field: " << glob_size_sca
-	  << " ("  << fixed << setprecision(3)
-	  << DoubleWithUnits(8. * glob_size_sca) << ")" << endl;
+      cout << "Number of unknowns per field: " << glob_size_sca
+           << " ("  << fixed << setprecision(3)
+           << DoubleWithUnits(8. * glob_size_sca) << ")" << endl;
    }
    if (Mpi::Root())
    {
-     cout << "Total number of unknowns:     " << glob_size_tot
-	  << " ("
-	  << DoubleWithUnits(8. * glob_size_tot) << ")" << endl;
+      cout << "Total number of unknowns:     " << glob_size_tot
+           << " ("
+           << DoubleWithUnits(8. * glob_size_tot) << ")" << endl;
    }
    if (Mpi::Root())
    {
-     cout << "Approximate number of nonzeros per mass matrix: "
-	  << pow(order + 1, dim) * glob_size_sca
-	  << " ("
-	  << DoubleWithUnits((12. * pow(order + 1, dim) + 1.) * glob_size_sca)
-	  << ")" << endl;
+      cout << "Approximate number of nonzeros per mass matrix: "
+           << pow(order + 1, dim) * glob_size_sca
+           << " ("
+           << DoubleWithUnits((12. * pow(order + 1, dim) + 1.) * glob_size_sca)
+           << ")" << endl;
    }
    if (Mpi::Root())
    {
-     cout << "Approximate number of nonzeros per stiffness matrix: "
-	  << 5 * pow(order + 1, dim) * glob_size_sca
-	  << " ("
-	  << DoubleWithUnits((60. * pow(order + 1, dim) + 1.) * glob_size_sca)
-	  << ")" << endl;
+      cout << "Approximate number of nonzeros per stiffness matrix: "
+           << 5 * pow(order + 1, dim) * glob_size_sca
+           << " ("
+           << DoubleWithUnits((60. * pow(order + 1, dim) + 1.) * glob_size_sca)
+           << ")" << endl;
    }
-   
+
    // 8. Define the initial conditions, save the corresponding mesh and grid
    //    functions to a file. This can be opened with GLVis with the -gc option.
 

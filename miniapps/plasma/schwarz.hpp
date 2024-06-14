@@ -6,33 +6,6 @@
 using namespace std;
 using namespace mfem;
 
-bool is_a_patch(int iv, Array<int> patch_ids);
-
-bool owned(int tdof, int * offs);
-
-SparseMatrix * GetLocalRestriction(const Array<int> & tdof_i,
-                                   const int * row_start,
-                                   int num_rows, int num_cols);
-
-void GetLocal2GlobalMap(const Array<int> & tdof_i, const int * row_start,
-                        int num_rows, int num_cols, Array<int> & l2gmap);
-
-void GetOffdColumnValues(const Array<int> & tdof_i, const Array<int> & tdof_j,
-                         SparseMatrix & offd, const int * cmap,
-                         const int * row_start, SparseMatrix * PatchMat);
-
-void GetArrayIntersection(const Array<int> & A, const Array<int> & B,
-                          Array<int>  & C);
-
-int GetNumColumns(const int tdof_i, const Array<int> & tdof_j,
-                  SparseMatrix & diag,
-                  SparseMatrix & offd, const int * cmap, const int * row_start);
-
-void GetColumnValues(int tdof_i,const Array<int> & tdof_j, SparseMatrix & diag,
-                     SparseMatrix & offd, const int *cmap, const int * row_start, Array<int> &cols,
-                     Array<double> &vals);
-
-
 class VertexPatchInfo
 {
 private:
@@ -81,8 +54,8 @@ public:
    MPI_Comm comm = MPI_COMM_WORLD;
    int nrpatch;
    Array<int> host_rank;
-   std::vector<Array<int>> patch_tdofs;
-   std::vector<Array<int>> patch_local_tdofs;
+   std::vector<Array<HYPRE_BigInt>> patch_tdofs;
+   std::vector<Array<HYPRE_BigInt>> patch_local_tdofs;
    PatchDofInfo(ParMesh * cpmesh_,
                 VectorCoefficient & BCoef_,
                 int ref_levels_,
@@ -95,16 +68,16 @@ class PatchAssembly
 public:
    MPI_Comm comm;
    int nrpatch;
-   std::vector<int>tdof_offsets;
-   std::vector<Array<int>> patch_other_tdofs;
-   std::vector<Array<int>> patch_owned_other_tdofs;
+   std::vector<HYPRE_BigInt> tdof_offsets;
+   std::vector<Array<HYPRE_BigInt>> patch_other_tdofs;
+   std::vector<Array<HYPRE_BigInt>> patch_owned_other_tdofs;
    std::vector<Array<int>>
                         l2gmaps; // patch to global maps for the dofs owned by the processor
    Array<SparseMatrix* > PatchMat;
    PatchDofInfo *patch_tdof_info=nullptr;
    Array<int> host_rank;
    HypreParMatrix * A = nullptr;
-   int get_rank(int tdof);
+   int get_rank(HYPRE_BigInt tdof);
    // constructor
    PatchAssembly(ParMesh * cpmesh_, VectorCoefficient & BCoef_, int ref_levels_,
                  ParFiniteElementSpace *fespace_, HypreParMatrix * A_);

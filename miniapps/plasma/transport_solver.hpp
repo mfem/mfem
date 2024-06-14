@@ -2707,10 +2707,10 @@ public:
    Array<int> & GetTermFlags() { return eqnTermMasks_; }
 
    int& operator()(int i) { return eqnTermMasks_[i]; }
-   const int operator()(int i) const { return eqnTermMasks_[i]; }
+   int operator()(int i) const { return eqnTermMasks_[i]; }
 
    int& operator[](int i) { return eqnTermMasks_[i]; }
-   const int operator[](int i) const { return eqnTermMasks_[i]; }
+   int operator[](int i) const { return eqnTermMasks_[i]; }
 
 };
 

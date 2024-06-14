@@ -7,15 +7,15 @@ bool is_a_patch(int iv, Array<int> patch_ids)
    return (patch_ids.FindSorted(iv) != -1);
 }
 
-bool owned(int tdof, int * offs)
+bool owned(HYPRE_BigInt tdof, HYPRE_BigInt * offs)
 {
    return  (offs[0] <= tdof && tdof < offs[1]);
 }
 
-void GetColumnValues(const int tdof_i, const Array<int> & tdof_j,
+void GetColumnValues(const int tdof_i, const Array<HYPRE_BigInt> & tdof_j,
                      SparseMatrix & diag,
-                     SparseMatrix & offd, const int * cmap, const int * row_start,  Array<int> &cols,
-                     Array<double> &vals)
+                     SparseMatrix & offd, const HYPRE_BigInt * cmap, const int * row_start,
+                     Array<int> &cols, Array<double> &vals)
 {
    int row = tdof_i - row_start[0];
    int row_size = diag.RowSize(row);
@@ -38,7 +38,7 @@ void GetColumnValues(const int tdof_i, const Array<int> & tdof_j,
    double *ccval = offd.GetRowEntries(row);
    for (int j = 0; j < crow_size; j++)
    {
-      int icol = cmap[ccol[j]];
+      HYPRE_BigInt icol = cmap[ccol[j]];
       int jj = tdof_j.FindSorted(icol);
       if (jj != -1)
       {
@@ -51,7 +51,7 @@ void GetColumnValues(const int tdof_i, const Array<int> & tdof_j,
 
 int GetNumColumns(const int tdof_i, const Array<int> & tdof_j,
                   SparseMatrix & diag,
-                  SparseMatrix & offd, const int * cmap, const int * row_start)
+                  SparseMatrix & offd, const HYPRE_BigInt * cmap, const HYPRE_BigInt * row_start)
 {
    int row = tdof_i - row_start[0];
    int row_size = diag.RowSize(row);
@@ -81,20 +81,21 @@ int GetNumColumns(const int tdof_i, const Array<int> & tdof_j,
    return k;
 }
 
-void GetOffdColumnValues(const Array<int> & tdof_i, const Array<int> & tdof_j,
-                         SparseMatrix & offd, const int * cmap,
-                         const int * row_start, SparseMatrix * PatchMat)
+void GetOffdColumnValues(const Array<HYPRE_BigInt> & tdof_i,
+                         const Array<HYPRE_BigInt> & tdof_j,
+                         SparseMatrix & offd, const HYPRE_BigInt * cmap,
+                         const HYPRE_BigInt * row_start, SparseMatrix * PatchMat)
 {
    int ndof = tdof_i.Size();
    for (int i = 0; i<ndof; i++)
    {
-      int row = tdof_i[i] - row_start[0];
+      int row = (int) (tdof_i[i] - row_start[0]);
       int row_size = offd.RowSize(row);
       int *ccol = offd.GetRowColumns(row);
       double *ccval = offd.GetRowEntries(row);
       for (int j = 0; j < row_size; j++)
       {
-         int icol = cmap[ccol[j]];
+         HYPRE_BigInt icol = cmap[ccol[j]];
          int jj = tdof_j.FindSorted(icol);
          if (jj != -1)
          {
@@ -119,19 +120,21 @@ SparseMatrix * GetLocalRestriction(const Array<int> & tdof_i,
    return R;
 }
 
-void GetLocal2GlobalMap(const Array<int> & tdof_i, const int * row_start,
+void GetLocal2GlobalMap(const Array<HYPRE_BigInt> & tdof_i,
+                        const HYPRE_BigInt * row_start,
                         const int num_rows, const int num_cols, Array<int> & l2gmap)
 {
    l2gmap.SetSize(num_cols);
    for (int i=0; i<num_cols; i++)
    {
-      int ii = tdof_i[i] - row_start[0];
-      l2gmap[i] = ii;
+      HYPRE_BigInt ii = tdof_i[i] - row_start[0];
+      l2gmap[i] = (int) ii;
    }
 }
 
-void GetArrayIntersection(const Array<int> & A, const Array<int> & B,
-                          Array<int>  & C)
+void GetArrayIntersection(const Array<HYPRE_BigInt> & A,
+                          const Array<HYPRE_BigInt> & B,
+                          Array<HYPRE_BigInt> & C)
 {
    int i = 0, j = 0;
    while (i != A.Size() && j != B.Size())
@@ -299,7 +302,7 @@ VertexPatchInfo::VertexPatchInfo(ParMesh *pmesh_, int ref_levels_)
    }
 
    SparseMatrix H1pr_offd;
-   int *cmap;
+   HYPRE_BigInt *cmap;
    B->GetOffd(H1pr_offd, cmap);
    for (int i = 0; i < nvert; i++)
    {
@@ -1593,7 +1596,7 @@ public:
       }
    }
 
-   const int operator[](HYPRE_BigInt i) const
+   int operator[](HYPRE_BigInt i) const
    {
       if (i >= node_start_ && i < node_end_)
       {
@@ -2307,7 +2310,7 @@ LinePatchInfo::LinePatchInfo(ParMesh *pmesh_, VectorCoefficient &BCoef_,
    }
 
    SparseMatrix H1pr_offd;
-   int *cmap;
+   HYPRE_BigInt *cmap;
    B->GetOffd(H1pr_offd, cmap);
    for (int i = 0; i < nvert; i++)
    {
@@ -2408,7 +2411,7 @@ PatchDofInfo::PatchDofInfo(ParMesh *pmesh_, VectorCoefficient &BCoef_,
    host_rank = patch_nodes->host_rank;
 
    patch_local_tdofs.resize(nrpatch);
-   int * offs = fespace->GetTrueDofOffsets();
+   HYPRE_BigInt * offs = fespace->GetTrueDofOffsets();
    int nrvert = fespace->GetNV();
    for (int i = 0; i < nrvert; i++)
    {
@@ -2423,7 +2426,7 @@ PatchDofInfo::PatchDofInfo(ParMesh *pmesh_, VectorCoefficient &BCoef_,
          int kk = patch_nodes->patch_natural_order_idx[k];
          for (int l = 0; l < nv; l++)
          {
-            int m = fespace->GetGlobalTDofNumber(vertex_dofs[l]);
+            HYPRE_BigInt m = fespace->GetGlobalTDofNumber(vertex_dofs[l]);
             if (owned(m,offs)) { patch_local_tdofs[kk].Append(m); }
          }
       }
@@ -2443,7 +2446,7 @@ PatchDofInfo::PatchDofInfo(ParMesh *pmesh_, VectorCoefficient &BCoef_,
          int kk = patch_nodes->patch_natural_order_idx[k];
          for (int l = 0; l < nv; l++)
          {
-            int m = fespace->GetGlobalTDofNumber(edge_dofs[l]);
+            HYPRE_BigInt m = fespace->GetGlobalTDofNumber(edge_dofs[l]);
             if (owned(m,offs)) { patch_local_tdofs[kk].Append(m); }
          }
       }
@@ -2462,7 +2465,7 @@ PatchDofInfo::PatchDofInfo(ParMesh *pmesh_, VectorCoefficient &BCoef_,
          int kk = patch_nodes->patch_natural_order_idx[k];
          for (int l = 0; l < nv; l++)
          {
-            int m = fespace->GetGlobalTDofNumber(face_dofs[l]);
+            HYPRE_BigInt m = fespace->GetGlobalTDofNumber(face_dofs[l]);
             if (owned(m,offs)) { patch_local_tdofs[kk].Append(m); }
          }
       }
@@ -2481,7 +2484,7 @@ PatchDofInfo::PatchDofInfo(ParMesh *pmesh_, VectorCoefficient &BCoef_,
          int kk = patch_nodes->patch_natural_order_idx[k];
          for (int l = 0; l < nv; l++)
          {
-            int m = fespace->GetGlobalTDofNumber(elem_dofs[l]);
+            HYPRE_BigInt m = fespace->GetGlobalTDofNumber(elem_dofs[l]);
             if (owned(m,offs)) { patch_local_tdofs[kk].Append(m); }
          }
       }
@@ -2533,8 +2536,9 @@ PatchDofInfo::PatchDofInfo(ParMesh *pmesh_, VectorCoefficient &BCoef_,
       if (size != 0)
       {
          patch_tdofs[i].SetSize(tot_size);
-         MPI_Allgatherv(&patch_local_tdofs[i][0],size,MPI_INT,
-                        &patch_tdofs[i][0],new_count,new_displs,MPI_INT,new_comm);
+         MPI_Allgatherv(patch_local_tdofs[i].GetData(),size,HYPRE_MPI_BIG_INT,
+                        patch_tdofs[i].GetData(),new_count,new_displs,HYPRE_MPI_BIG_INT,new_comm);
+
       }
       MPI_Group_free(&world_group_id);
       MPI_Group_free(&new_group_id);
@@ -2554,15 +2558,15 @@ PatchAssembly::PatchAssembly(ParMesh *cpmesh_, VectorCoefficient &BCoef_,
    compute_trueoffsets();
    SparseMatrix diag;
    SparseMatrix offd;
-   int *cmap;
+   HYPRE_BigInt *cmap;
    A->GetDiag(diag);
    A->GetOffd(offd,cmap);
-   int *row_start = A->GetRowStarts();
+   HYPRE_BigInt *row_start = A->GetRowStarts();
    SparseMatrix offdT;
-   int *cmapT;
+   HYPRE_BigInt *cmapT;
    HypreParMatrix * At = A->Transpose();
    At->GetOffd(offdT,cmapT);
-   int *row_startT = At->GetRowStarts();
+   HYPRE_BigInt *row_startT = At->GetRowStarts();
    diag.SortColumnIndices();
 
    patch_tdof_info = new PatchDofInfo(cpmesh_, BCoef_, ref_levels_,fespace);
@@ -2583,7 +2587,7 @@ PatchAssembly::PatchAssembly(ParMesh *cpmesh_, VectorCoefficient &BCoef_,
          // host_rank[ip] = get_rank(patch_tdof_info->patch_tdofs[ip][0]);
          for (int i=0; i<ndof; i++)
          {
-            int tdof = patch_tdof_info->patch_tdofs[ip][i];
+            HYPRE_BigInt tdof = patch_tdof_info->patch_tdofs[ip][i];
             int tdof_rank = get_rank(tdof);
             if (tdof_rank != host_rank[ip])
             {
@@ -2623,7 +2627,7 @@ PatchAssembly::PatchAssembly(ParMesh *cpmesh_, VectorCoefficient &BCoef_,
          SparseMatrix Prl(num_rows,num_cols);
          for (int i=0; i<num_cols; ++i)
          {
-            int ii = l2gmaps[ip][i];
+            HYPRE_BigInt ii = l2gmaps[ip][i];
             Prl.Set(ii,i,1.0);
          }
          Prl.Finalize();
@@ -2685,7 +2689,7 @@ PatchAssembly::PatchAssembly(ParMesh *cpmesh_, VectorCoefficient &BCoef_,
       int sendnum_rows = patch_owned_other_tdofs[ip].Size();
       for (int i =0; i<sendnum_rows; i++)
       {
-         int tdof = patch_owned_other_tdofs[ip][i];
+         HYPRE_BigInt tdof = patch_owned_other_tdofs[ip][i];
          int tdof_rank = get_rank(tdof);
          if (myid == tdof_rank)
          {
@@ -2717,7 +2721,7 @@ PatchAssembly::PatchAssembly(ParMesh *cpmesh_, VectorCoefficient &BCoef_,
       int sendnum_rows = patch_owned_other_tdofs[ip].Size();
       for (int i = 0; i<sendnum_rows; i++)
       {
-         int tdof = patch_owned_other_tdofs[ip][i];
+         HYPRE_BigInt tdof = patch_owned_other_tdofs[ip][i];
          // find its rank
          int tdof_rank = get_rank(tdof);
          if (myid == tdof_rank)
@@ -2785,7 +2789,7 @@ PatchAssembly::PatchAssembly(ParMesh *cpmesh_, VectorCoefficient &BCoef_,
          for (int i=0; i<ndof; i++)
          {
             // pick up the dof and find its tdof_rank
-            int tdof = patch_other_tdofs[ip][i];
+            HYPRE_BigInt tdof = patch_other_tdofs[ip][i];
             int tdof_rank= get_rank(tdof);
             // offset
             int k = recv_displ[tdof_rank] + roffs[tdof_rank];
@@ -2866,7 +2870,7 @@ PatchRestriction::PatchRestriction(PatchAssembly * P_) : P(P_)
       int sendnum_rows = P->patch_owned_other_tdofs[ip].Size();
       for (int i =0; i<sendnum_rows; i++)
       {
-         int tdof = P->patch_owned_other_tdofs[ip][i];
+         HYPRE_BigInt tdof = P->patch_owned_other_tdofs[ip][i];
          int tdof_rank = P->get_rank(tdof);
          if (myid == tdof_rank)
          {
@@ -2889,7 +2893,7 @@ PatchRestriction::PatchRestriction(PatchAssembly * P_) : P(P_)
 
 void PatchRestriction::Mult(const Vector & r, Array<BlockVector*> & res)
 {
-   int *row_start = P->A->GetRowStarts();
+   HYPRE_BigInt *row_start = P->A->GetRowStarts();
    std::vector<Vector> res0(nrpatch); // residual on the processor
    std::vector<Vector> res1(nrpatch); // residual off the processor
    //  Part of the residual on the processor
@@ -2909,7 +2913,7 @@ void PatchRestriction::Mult(const Vector & r, Array<BlockVector*> & res)
       int sendnum_rows = P->patch_owned_other_tdofs[ip].Size();
       for (int i = 0; i<sendnum_rows; i++)
       {
-         int tdof = P->patch_owned_other_tdofs[ip][i];
+         HYPRE_BigInt tdof = P->patch_owned_other_tdofs[ip][i];
          // find its rank
          int tdof_rank = P->get_rank(tdof);
          if (myid == tdof_rank)
@@ -2944,7 +2948,7 @@ void PatchRestriction::Mult(const Vector & r, Array<BlockVector*> & res)
          for (int i=0; i<ndof; i++)
          {
             // pick up the dof and find its tdof_rank
-            int tdof = P->patch_other_tdofs[ip][i];
+            HYPRE_BigInt tdof = P->patch_other_tdofs[ip][i];
             int tdof_rank= P->get_rank(tdof);
             // offset
             int k = recv_displ[tdof_rank] + roffs[tdof_rank];
@@ -2975,7 +2979,7 @@ void PatchRestriction::Mult(const Vector & r, Array<BlockVector*> & res)
 void PatchRestriction::MultTranspose(const Array<BlockVector *> & sol,
                                      Vector & z)
 {
-   int *row_start = P->A->GetRowStarts();
+   HYPRE_BigInt *row_start = P->A->GetRowStarts();
    std::vector<Vector> sol0(nrpatch);
    std::vector<Vector> sol1(nrpatch);
    // Step 3: Propagate the information to the global solution vector
@@ -2994,7 +2998,7 @@ void PatchRestriction::MultTranspose(const Array<BlockVector *> & sol,
          for (int i=0; i<ndof; i++)
          {
             //  pick up the dof and find its tdof_rank
-            int tdof = P->patch_other_tdofs[ip][i];
+            HYPRE_BigInt tdof = P->patch_other_tdofs[ip][i];
             int tdof_rank= P->get_rank(tdof);
             // offset
             int k = recv_displ[tdof_rank] + roffs[tdof_rank];
@@ -3018,7 +3022,7 @@ void PatchRestriction::MultTranspose(const Array<BlockVector *> & sol,
       int sendnum_rows = P->patch_owned_other_tdofs[ip].Size();
       for (int i = 0; i<sendnum_rows; i++)
       {
-         int tdof = P->patch_owned_other_tdofs[ip][i];
+         HYPRE_BigInt tdof = P->patch_owned_other_tdofs[ip][i];
          // find its rank
          int tdof_rank = P->get_rank(tdof);
          if (myid == tdof_rank)
@@ -3047,15 +3051,16 @@ void PatchAssembly::compute_trueoffsets()
    MPI_Comm_size(comm, &num_procs);
    MPI_Comm_rank(comm, &myid);
    tdof_offsets.resize(num_procs);
-   int mytoffset = fespace->GetMyTDofOffset();
-   MPI_Allgather(&mytoffset,1,MPI_INT,&tdof_offsets[0],1,MPI_INT,comm);
+   HYPRE_BigInt mytoffset = fespace->GetMyTDofOffset();
+   MPI_Allgather(&mytoffset,1,HYPRE_MPI_BIG_INT,&tdof_offsets[0],1,
+                 HYPRE_MPI_BIG_INT,comm);
 }
 
-int PatchAssembly::get_rank(int tdof)
+int PatchAssembly::get_rank(HYPRE_BigInt tdof)
 {
    int size = tdof_offsets.size();
    if (size == 1) {return 0;}
-   std::vector<int>::iterator up;
+   std::vector<HYPRE_BigInt>::iterator up;
    up=std::upper_bound (tdof_offsets.begin(), tdof_offsets.end(),
                         tdof); //          ^
    return std::distance(tdof_offsets.begin(),up)-1;
