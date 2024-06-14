@@ -35,7 +35,7 @@ struct findptsElementPoint_t
 
 struct findptsElementGEdge_t
 {
-   dfloat *x[sDIM], *dxdn[sDIM];
+   dfloat *x[sDIM];
 };
 
 struct findptsElementGPT_t
