@@ -671,6 +671,38 @@ void FuentesPyramid::CalcScaledJacobi(int p, real_t alpha,
                     dudx.GetData(), dudt.GetData());
 }
 
+void FuentesPyramid::CalcHomogenizedScaJacobi(int p, real_t alpha,
+                                              real_t t0, real_t t1,
+                                              real_t *u,
+                                              real_t *dudt0, real_t *dudt1)
+{
+   MFEM_ASSERT(p >= 0, "Polynomial order must be zero or larger");
+   CalcScaledJacobi(p, alpha, t1, t0+t1, u, dudt1, dudt0);
+   for (int i = 0; i <= p; i++) { dudt1[i] += dudt0[i]; }
+}
+
+void FuentesPyramid::CalcHomogenizedScaJacobi(int p, real_t alpha,
+                                              real_t t0, real_t t1,
+                                              Vector &u)
+{
+   MFEM_ASSERT(p >= 0, "Polynomial order must be zero or larger");
+   MFEM_ASSERT(u.Size() >= p+1, "Size of u is too small");
+   CalcHomogenizedScaJacobi(p, alpha, t0, t1, u.GetData());
+}
+
+void FuentesPyramid::CalcHomogenizedScaJacobi(int p, real_t alpha,
+                                              real_t t0, real_t t1,
+                                              Vector &u,
+                                              Vector &dudt0, Vector &dudt1)
+{
+   MFEM_ASSERT(p >= 0, "Polynomial order must be zero or larger");
+   MFEM_ASSERT(u.Size() >= p+1, "Size of u is too small");
+   MFEM_ASSERT(dudt0.Size() >= p+1, "Size of dudt0 is too small");
+   MFEM_ASSERT(dudt1.Size() >= p+1, "Size of dudt1 is too small");
+   CalcHomogenizedScaJacobi(p, alpha, t0, t1, u.GetData(),
+                            dudt0.GetData(), dudt1.GetData());
+}
+
 void FuentesPyramid::CalcHomogenizedIntJacobi(int p, real_t alpha,
                                               real_t t0, real_t t1,
                                               real_t *u,
@@ -679,6 +711,28 @@ void FuentesPyramid::CalcHomogenizedIntJacobi(int p, real_t alpha,
    MFEM_ASSERT(p >= 0, "Polynomial order must be zero or larger");
    CalcIntegratedJacobi(p, alpha, t1, t0+t1, u, dudt1, dudt0);
    for (int i = 0; i <= p; i++) { dudt1[i] += dudt0[i]; }
+}
+
+void FuentesPyramid::CalcHomogenizedIntJacobi(int p, real_t alpha,
+                                              real_t t0, real_t t1,
+                                              Vector &u)
+{
+   MFEM_ASSERT(p >= 0, "Polynomial order must be zero or larger");
+   MFEM_ASSERT(u.Size() >= p+1, "Size of u is too small");
+   CalcHomogenizedIntJacobi(p, alpha, t0, t1, u.GetData());
+}
+
+void FuentesPyramid::CalcHomogenizedIntJacobi(int p, real_t alpha,
+                                              real_t t0, real_t t1,
+                                              Vector &u,
+                                              Vector &dudt0, Vector &dudt1)
+{
+   MFEM_ASSERT(p >= 0, "Polynomial order must be zero or larger");
+   MFEM_ASSERT(u.Size() >= p+1, "Size of u is too small");
+   MFEM_ASSERT(dudt0.Size() >= p+1, "Size of dudt0 is too small");
+   MFEM_ASSERT(dudt1.Size() >= p+1, "Size of dudt1 is too small");
+   CalcHomogenizedIntJacobi(p, alpha, t0, t1, u.GetData(),
+                            dudt0.GetData(), dudt1.GetData());
 }
 
 void FuentesPyramid::phi_E(int p, real_t s0, real_t s1,

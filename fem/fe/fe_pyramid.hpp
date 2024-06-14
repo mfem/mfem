@@ -328,8 +328,15 @@ public:
    { CalcScaledJacobi(p, alpha, t1, t0 + t1, u); }
    static void CalcHomogenizedScaJacobi(int p, real_t alpha,
                                         real_t t0, real_t t1,
-                                        Vector &u)
-   { CalcHomogenizedScaJacobi(p, alpha, t0, t1, u.GetData()); }
+                                        real_t *u,
+                                        real_t *dudt0, real_t *dudt1);
+   static void CalcHomogenizedScaJacobi(int p, real_t alpha,
+                                        real_t t0, real_t t1,
+                                        Vector &u);
+   static void CalcHomogenizedScaJacobi(int p, real_t alpha,
+                                        real_t t0, real_t t1,
+                                        Vector &u,
+                                        Vector &dudt0, Vector &dudt1);
 
    /** u must be at least p+1 in length */
    static void CalcHomogenizedIntJacobi(int p, real_t alpha,
@@ -342,15 +349,11 @@ public:
                                         real_t *dudt0, real_t *dudt1);
    static void CalcHomogenizedIntJacobi(int p, real_t alpha,
                                         real_t t0, real_t t1,
-                                        Vector &u)
-   { CalcHomogenizedIntJacobi(p, alpha, t0, t1, u.GetData()); }
+                                        Vector &u);
    static void CalcHomogenizedIntJacobi(int p, real_t alpha,
                                         real_t t0, real_t t1,
-                                        Vector &u, Vector &dudt0, Vector &dudt1)
-   {
-      CalcHomogenizedIntJacobi(p, alpha, t0, t1, u.GetData(),
-                               dudt0.GetData(), dudt1.GetData());
-   }
+                                        Vector &u,
+                                        Vector &dudt0, Vector &dudt1);
 
    /** u must be at least p+1 in length */
    static void phi_E(int p, real_t s0, real_t s1, real_t *u);
