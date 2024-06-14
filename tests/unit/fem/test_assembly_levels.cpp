@@ -104,19 +104,33 @@ void test_assembly_level(const char *meshname,
    Mesh mesh(meshname, 1, 1);
    mesh.RemoveInternalBoundaries();
    mesh.EnsureNodes();
-   int dim = mesh.Dimension();
+   const int dim = mesh.Dimension();
 
-   FiniteElementCollection *fec;
+   for (int e = 0; e < mesh.GetNE(); ++e)
+   {
+      mesh.SetAttribute(e, 1 + (e % 2));
+   }
+   for (int be = 0; be < mesh.GetNBE(); ++be)
+   {
+      mesh.SetBdrAttribute(be, 1 + (be % 2));
+   }
+   mesh.SetAttributes();
+
+   Array<int> elem_marker({1, 0}), bdr_marker({1, 0});
+   // Periodic meshes = no boundary attributes, don't use markers
+   if (mesh.bdr_attributes.Size() == 0) { bdr_marker.DeleteAll(); }
+
+   std::unique_ptr<FiniteElementCollection> fec;
    if (dg)
    {
-      fec = new L2_FECollection(order, dim, BasisType::GaussLobatto);
+      fec.reset(new L2_FECollection(order, dim, BasisType::GaussLobatto));
    }
    else
    {
-      fec = new H1_FECollection(order, dim);
+      fec.reset(new H1_FECollection(order, dim));
    }
 
-   FiniteElementSpace fespace(&mesh, fec);
+   FiniteElementSpace fespace(&mesh, fec.get());
 
    BilinearForm k_test(&fespace);
    BilinearForm k_ref(&fespace);
@@ -134,12 +148,12 @@ void test_assembly_level(const char *meshname,
    switch (pb)
    {
       case Problem::Mass:
-         k_ref.AddDomainIntegrator(new MassIntegrator(one,ir));
-         k_test.AddDomainIntegrator(new MassIntegrator(one,ir));
+         k_ref.AddDomainIntegrator(new MassIntegrator(one,ir), elem_marker);
+         k_test.AddDomainIntegrator(new MassIntegrator(one,ir), elem_marker);
          if (!dg && mesh.Conforming() && assembly != AssemblyLevel::FULL)
          {
-            k_ref.AddBoundaryIntegrator(new MassIntegrator(one, &ir_face));
-            k_test.AddBoundaryIntegrator(new MassIntegrator(one, &ir_face));
+            k_ref.AddBoundaryIntegrator(new MassIntegrator(one, &ir_face), bdr_marker);
+            k_test.AddBoundaryIntegrator(new MassIntegrator(one, &ir_face), bdr_marker);
          }
          break;
       case Problem::Convection:
@@ -177,8 +191,6 @@ void test_assembly_level(const char *meshname,
    y_test -= y_ref;
 
    REQUIRE(y_test.Norml2() < 1.e-12);
-
-   delete fec;
 }
 
 TEST_CASE("H1 Assembly Levels", "[AssemblyLevel], [PartialAssembly], [CUDA]")
