@@ -106,10 +106,10 @@ Mesh *read_par_mesh(int np, const char *mesh_prefix, Array<int>& partitioning,
    {
       ostringstream fname;
       fname << mesh_prefix << '.' << setfill('0') << setw(6) << p;
-      ifgzstream meshin(fname.str().c_str());
+      ifgzstream meshin(fname.str());
       if (!meshin)
       {
-         cerr << "Can not open mesh file: " << fname.str().c_str()
+         cerr << "Can not open mesh file: " << fname.str()
               << '!' << endl;
          for (p--; p >= 0; p--)
          {

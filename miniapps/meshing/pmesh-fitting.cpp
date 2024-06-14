@@ -281,7 +281,7 @@ int main (int argc, char *argv[])
    {
       ostringstream mesh_name;
       mesh_name << "perturbed.mesh";
-      ofstream mesh_ofs(mesh_name.str().c_str());
+      ofstream mesh_ofs(mesh_name.str());
       mesh_ofs.precision(8);
       pmesh->PrintAsSerial(mesh_ofs);
    }
@@ -822,7 +822,7 @@ int main (int argc, char *argv[])
    {
       ostringstream mesh_name;
       mesh_name << "optimized.mesh";
-      ofstream mesh_ofs(mesh_name.str().c_str());
+      ofstream mesh_ofs(mesh_name.str());
       mesh_ofs.precision(8);
       pmesh->PrintAsSerial(mesh_ofs);
    }

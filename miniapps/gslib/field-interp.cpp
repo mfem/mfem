@@ -393,7 +393,7 @@ int main (int argc, char *argv[])
    // Output the target mesh with the interpolated solution.
    ostringstream rho_name;
    rho_name  << "interpolated.gf";
-   ofstream rho_ofs(rho_name.str().c_str());
+   ofstream rho_ofs(rho_name.str());
    rho_ofs.precision(8);
    func_target.Save(rho_ofs);
    rho_ofs.close();

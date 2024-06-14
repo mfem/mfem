@@ -4941,7 +4941,7 @@ void ParMesh::Save(const std::string &fname, int precision) const
 {
    ostringstream fname_with_suffix;
    fname_with_suffix << fname << "." << setfill('0') << setw(6) << MyRank;
-   ofstream ofs(fname_with_suffix.str().c_str());
+   ofstream ofs(fname_with_suffix.str());
    ofs.precision(precision);
    Print(ofs);
 }
@@ -6395,7 +6395,7 @@ void ParMesh::ParPrint(ostream &os, const std::string &comments) const
    os << "\nmfem_mesh_end" << endl;
 }
 
-void ParMesh::PrintVTU(std::string pathname,
+void ParMesh::PrintVTU(const std::string &pathname,
                        VTKFormat format,
                        bool high_order_output,
                        int compression_level,
@@ -6516,7 +6516,7 @@ void ParMesh::PrintSharedEntities(const std::string &fname_prefix) const
    stringstream out_name;
    out_name << fname_prefix << '_' << setw(5) << setfill('0') << MyRank
             << ".shared_entities";
-   ofstream os(out_name.str().c_str());
+   ofstream os(out_name.str());
    os.precision(16);
 
    gtopo.Save(out);

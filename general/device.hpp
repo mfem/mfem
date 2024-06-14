@@ -145,9 +145,9 @@ private:
    /// Current Device MemoryClass
    MemoryClass device_mem_class = MemoryClass::HOST;
 
-   char *device_option = NULL;
-   Device(Device const&);
-   void operator=(Device const&);
+   std::string device_option;
+   Device(Device const&) = default;
+   Device &operator=(Device const&) = default;
    static Device& Get() { return device_singleton; }
 
    /// Setup switcher based on configuration settings

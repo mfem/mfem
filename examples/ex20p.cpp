@@ -166,7 +166,7 @@ int main(int argc, char *argv[])
    if (gnuplot)
    {
       oss << "ex20p_" << setfill('0') << setw(5) << myid << ".dat";
-      ofs.open(oss.str().c_str());
+      ofs.open(oss.str());
       ofs << t << "\t" << q(0) << "\t" << p(0) << endl;
    }
 

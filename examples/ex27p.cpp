@@ -379,11 +379,11 @@ int main(int argc, char *argv[])
       mesh_name << "mesh." << setfill('0') << setw(6) << Mpi::WorldRank();
       sol_name << "sol." << setfill('0') << setw(6) << Mpi::WorldRank();
 
-      ofstream mesh_ofs(mesh_name.str().c_str());
+      ofstream mesh_ofs(mesh_name.str());
       mesh_ofs.precision(8);
       pmesh.Print(mesh_ofs);
 
-      ofstream sol_ofs(sol_name.str().c_str());
+      ofstream sol_ofs(sol_name.str());
       sol_ofs.precision(8);
       u.Save(sol_ofs);
    }

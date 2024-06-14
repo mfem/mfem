@@ -389,15 +389,15 @@ int main(int argc, char *argv[])
       pressure_name << "pressure." << setfill('0') << setw(6) << myid;
       deformation_name << "deformation." << setfill('0') << setw(6) << myid;
 
-      ofstream mesh_ofs(mesh_name.str().c_str());
+      ofstream mesh_ofs(mesh_name.str());
       mesh_ofs.precision(8);
       pmesh->Print(mesh_ofs);
 
-      ofstream pressure_ofs(pressure_name.str().c_str());
+      ofstream pressure_ofs(pressure_name.str());
       pressure_ofs.precision(8);
       p_gf.Save(pressure_ofs);
 
-      ofstream deformation_ofs(deformation_name.str().c_str());
+      ofstream deformation_ofs(deformation_name.str());
       deformation_ofs.precision(8);
       x_def.Save(deformation_ofs);
    }

@@ -2264,7 +2264,7 @@ public:
        inserted, 2) the knots inserted as a double. The advantage of this method
        is that it is possible to specifically refine a coarse NURBS mesh without
        changing the mesh file itself. Examples in miniapps/nurbs/meshes. */
-   void RefineNURBSFromFile(std::string ref_file);
+   void RefineNURBSFromFile(const std::string &ref_file);
 
    /// For NURBS meshes, insert the new knots in @a kv, for each direction.
    void KnotInsert(Array<KnotVector*> &kv);
@@ -2322,14 +2322,14 @@ public:
                  int compression_level=0,
                  bool bdr_elements=false);
    /** Print the mesh in VTU format with file name fname. */
-   virtual void PrintVTU(std::string fname,
+   virtual void PrintVTU(const std::string &fname,
                          VTKFormat format=VTKFormat::ASCII,
                          bool high_order_output=false,
                          int compression_level=0,
                          bool bdr=false);
    /** Print the boundary elements of the mesh in VTU format, and output the
        boundary attributes as a data array (useful for boundary conditions). */
-   void PrintBdrVTU(std::string fname,
+   void PrintBdrVTU(const std::string &fname,
                     VTKFormat format=VTKFormat::ASCII,
                     bool high_order_output=false,
                     int compression_level=0);

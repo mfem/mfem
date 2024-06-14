@@ -181,13 +181,13 @@ int main(int argc, char* argv[])
          std::ofstream sout;
 
          // Save the mesh
-         sout.open(mname.c_str(),std::ios::out);
+         sout.open(mname,std::ios::out);
          sout.precision(20);
          pmesh.ParPrint(sout);
          sout.close();
 
          // Save the grid function data
-         sout.open(gname.c_str(),std::ios::out);
+         sout.open(gname,std::ios::out);
          sout.precision(20);
          x.Save(sout);
          sout.close();
@@ -224,11 +224,11 @@ int main(int argc, char* argv[])
 
             // Read the mesh
             Mesh lmesh;
-            in.open(mname.c_str(),std::ios::in);
+            in.open(mname,std::ios::in);
             lmesh.Load(in);
             in.close();
 
-            in.open(gname.c_str(),std::ios::in);
+            in.open(gname,std::ios::in);
             GridFunction gf(&lmesh,in);
             in.close();
 

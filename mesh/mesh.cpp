@@ -5625,7 +5625,7 @@ std::vector<int> Mesh::CreatePeriodicVertexMapping(
    return v2v;
 }
 
-void Mesh::RefineNURBSFromFile(std::string ref_file)
+void Mesh::RefineNURBSFromFile(const std::string &ref_file)
 {
    MFEM_VERIFY(NURBSext,"Mesh::RefineNURBSFromFile: Not a NURBS mesh!");
    mfem::out<<"Refining NURBS from refinement file: "<<ref_file<<endl;
@@ -11690,7 +11690,7 @@ void Mesh::PrintVTK(std::ostream &os)
    os.flush();
 }
 
-void Mesh::PrintVTU(std::string fname,
+void Mesh::PrintVTU(const std::string &fname,
                     VTKFormat format,
                     bool high_order_output,
                     int compression_level,
@@ -11699,8 +11699,7 @@ void Mesh::PrintVTU(std::string fname,
    int ref = (high_order_output && Nodes)
              ? Nodes->FESpace()->GetMaxElementOrder() : 1;
 
-   fname = fname + ".vtu";
-   std::fstream os(fname.c_str(),std::ios::out);
+   std::fstream os(fname + ".vtu", std::ios::out);
    os << "<VTKFile type=\"UnstructuredGrid\" version=\"0.1\"";
    if (compression_level != 0)
    {
@@ -11716,7 +11715,7 @@ void Mesh::PrintVTU(std::string fname,
    os.close();
 }
 
-void Mesh::PrintBdrVTU(std::string fname,
+void Mesh::PrintBdrVTU(const std::string &fname,
                        VTKFormat format,
                        bool high_order_output,
                        int compression_level)

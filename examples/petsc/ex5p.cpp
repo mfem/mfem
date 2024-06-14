@@ -473,15 +473,15 @@ int main(int argc, char *argv[])
       u_name << "sol_u." << setfill('0') << setw(6) << myid;
       p_name << "sol_p." << setfill('0') << setw(6) << myid;
 
-      ofstream mesh_ofs(mesh_name.str().c_str());
+      ofstream mesh_ofs(mesh_name.str());
       mesh_ofs.precision(8);
       pmesh->Print(mesh_ofs);
 
-      ofstream u_ofs(u_name.str().c_str());
+      ofstream u_ofs(u_name.str());
       u_ofs.precision(8);
       u->Save(u_ofs);
 
-      ofstream p_ofs(p_name.str().c_str());
+      ofstream p_ofs(p_name.str());
       p_ofs.precision(8);
       p->Save(p_ofs);
    }

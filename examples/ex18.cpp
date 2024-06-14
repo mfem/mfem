@@ -168,7 +168,7 @@ int main(int argc, char *argv[])
    {
       ostringstream mesh_name;
       mesh_name << "euler-mesh.mesh";
-      ofstream mesh_ofs(mesh_name.str().c_str());
+      ofstream mesh_ofs(mesh_name.str());
       mesh_ofs.precision(precision);
       mesh_ofs << mesh;
 
@@ -177,7 +177,7 @@ int main(int argc, char *argv[])
          GridFunction uk(&fes, sol.GetData() + k * fes.GetNDofs());
          ostringstream sol_name;
          sol_name << "euler-" << k << "-init.gf";
-         ofstream sol_ofs(sol_name.str().c_str());
+         ofstream sol_ofs(sol_name.str());
          sol_ofs.precision(precision);
          sol_ofs << uk;
       }
@@ -285,7 +285,7 @@ int main(int argc, char *argv[])
    {
       ostringstream mesh_name;
       mesh_name << "euler-mesh-final.mesh";
-      ofstream mesh_ofs(mesh_name.str().c_str());
+      ofstream mesh_ofs(mesh_name.str());
       mesh_ofs.precision(precision);
       mesh_ofs << mesh;
 
@@ -294,7 +294,7 @@ int main(int argc, char *argv[])
          GridFunction uk(&fes, sol.GetData() + k * fes.GetNDofs());
          ostringstream sol_name;
          sol_name << "euler-" << k << "-final.gf";
-         ofstream sol_ofs(sol_name.str().c_str());
+         ofstream sol_ofs(sol_name.str());
          sol_ofs.precision(precision);
          sol_ofs << uk;
       }
