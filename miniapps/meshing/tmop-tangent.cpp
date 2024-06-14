@@ -17,8 +17,7 @@
 // positions while maintaining a valid mesh with good quality.
 //
 // Sample runs:
-//   mpirun -np 4 tmop-tangent -rs 1 -m square01.mesh -o 1
-//   mpirun -np 4 tmop-tangent -rs 1 -m rectangle01.mesh -o 1
+// mpirun -np 4 tmop-tangent -rs 2 -m square01.mesh -o 2 -qo 6
 
 #include "../common/mfem-common.hpp"
 #include "tmop-tangent.hpp"
@@ -77,7 +76,6 @@ int main (int argc, char *argv[])
    ParGridFunction x0(coord_x);
 
    // Move the mesh nodes to have non-trivial problem.
-   // Top boundary is (x = t, y = 1 + 0.5 t).
    const int N = coord_x.Size() / 2;
    for (int i = 0; i < N; i++)
    {
@@ -85,19 +83,17 @@ int main (int argc, char *argv[])
       double y = coord_x(i+N);
 
       // Displace all x and y, so that the spacing is non-uniform.
-      coord_x(i)     = x + x*(1-x)*0.8;
-      coord_x(i + N) = y + y*(1-y)*0.8;
-
-      x = coord_x(i);
-      y = coord_x(i+N);
+      x = x + x*(1-x)*0.4;
+      y = y + y*(1-y)*0.4;
 
       // a adds deformation inside.
-      // d pulls the top-right corner out.
-      double a = 0.2, d = 0.5;
-      coord_x(i)     = x + a * sin(M_PI * x) * sin(M_PI * y) + d * x * y;
-      coord_x(i + N) = y + a * sin(M_PI * x) * sin(M_PI * y) + d * x * y;
-      // coord_x(i)     = x + a * sin(M_PI/2 * x) * sin(M_PI * y) + d * x * y;
-      // coord_x(i + N) = y + a * sin(M_PI * x)   * sin(M_PI/2 * y) + d * x * y;
+      // b pulls the top-right corner out.
+      // c adds boundary deformation.
+      double a = 0.2, b = 0.5, c = 1.3;
+      // coord_x(i)     = x + a * sin(M_PI * x) * sin(M_PI * y) + d * x * y;
+      // coord_x(i + N) = y + a * sin(M_PI * x) * sin(M_PI * y) + d * x * y;
+      coord_x(i)     = x + a * sin(0.5 * M_PI * x) * sin(c * M_PI * y)   + b * x * y;
+      coord_x(i + N) = y + a * sin(c * M_PI * x)   * sin(0.5 * M_PI * y) + b * x * y;
    }
 
    // Compute the minimum det(J) of the starting mesh.
@@ -201,7 +197,7 @@ int main (int argc, char *argv[])
    // Visualize the selected nodes and their target positions.
    if (glvis)
    {
-      socketstream vis1, vis2;
+      socketstream vis1, vis2, vis3;
       common::VisualizeField(vis1, "localhost", 19916, fit_marker_vis_gf,
 			     "Target positions (DOFS with value 1)",
 			     0, 0, 400, 400, (dim == 2) ? "Rjm" : "");
@@ -211,12 +207,26 @@ int main (int argc, char *argv[])
 
    Array<const AnalyticSurface *> surf_array;
    Line_Top line_top(dof_to_surface, 0);
+   Curve_Sine_Top curve_top(dof_to_surface, 0);
    Line_Right line_right(dof_to_surface, 1);
-   surf_array.Append(&line_top);
-   surf_array.Append(&line_right);
+   Curve_Sine_Right curve_right(dof_to_surface, 1);
+   //surf_array.Append(&line_top);
+   surf_array.Append(&curve_top);
+   //surf_array.Append(&line_right);
+   surf_array.Append(&curve_right);
 
    AnalyticCompositeSurface surfaces(dof_to_surface, surf_array);
    surfaces.ConvertPhysCoordToParam(coord_x, coord_t);
+
+   if (glvis)
+   {
+      surfaces.ConvertParamCoordToPhys(coord_t, coord_x);
+      socketstream vis1;
+      common::VisualizeMesh(vis1, "localhost", 19916, pmesh, "Mesh x->t->x",
+                            400, 0, 400, 400, "me");
+   }
+
+   // return 0;
 
    // TMOP setup.
    TMOP_QualityMetric *metric;
@@ -244,7 +254,7 @@ int main (int argc, char *argv[])
    solver.SetOperator(a);
    solver.SetPreconditioner(minres);
    solver.SetPrintLevel(1);
-   solver.SetMaxIter(100);
+   solver.SetMaxIter(50);
    solver.SetRelTol(1e-6);
    solver.SetAbsTol(0.0);
 

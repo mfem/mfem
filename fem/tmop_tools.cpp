@@ -580,7 +580,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
             mfem::out << "Scale = " << scale << " Increasing energy: "
                       << energy_in << " --> " << energy_out << '\n';
          }
-         //scale *= 0.5; continue;
+         scale *= 0.5; continue;
       }
 
       // Check the changes in the Newton residual.

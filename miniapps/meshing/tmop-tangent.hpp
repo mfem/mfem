@@ -91,7 +91,7 @@ class Line_Right : public Analytic2DCurve
 {
    public:
    Line_Right(const Array<int> &marker, int surf_id)
-       : Analytic2DCurve(marker, surf_id) { }
+      : Analytic2DCurve(marker, surf_id) { }
 
    void t_of_xy(double x, double y, const Vector &dist, double &t) const override
    {
@@ -106,5 +106,71 @@ class Line_Right : public Analytic2DCurve
    virtual double dy_dt(double t) const override { return 1.5; }
    virtual double dx_dtdt(double t) const override { return 0.0; }
    virtual double dy_dtdt(double t) const override { return 0.0; }
+};
+
+// x = [1.5 + 0.2 sin(s pi)] t
+// y = 1 + 0.2 sin(s pi t) + 0.5 t
+class Curve_Sine_Top : public Analytic2DCurve
+{
+private:
+   const double s_scale = 1.3;
+   const double x_scale = 1.0 + 0.2 * sin(s_scale * M_PI) + 0.5;
+
+public:
+   Curve_Sine_Top(const Array<int> &marker, int surf_id)
+      : Analytic2DCurve(marker, surf_id) { }
+
+   void t_of_xy(double x, double y, const Vector &dist, double &t) const override
+   {
+      t = x / x_scale;
+   }
+   void xy_of_t(double t, const Vector &dist, double &x, double &y) const override
+   {
+      x = x_scale * t;
+      y = 1.0 + 0.2 * sin(s_scale * M_PI * t) + 0.5 * t;
+   }
+
+   virtual double dx_dt(double t) const override
+   { return x_scale; }
+   virtual double dy_dt(double t) const override
+   { return 0.2 * s_scale * M_PI * cos(s_scale * M_PI * t) + 0.5; }
+
+   virtual double dx_dtdt(double t) const override { return 0.0; }
+   virtual double dy_dtdt(double t) const override
+   { return -0.2 * s_scale * s_scale * M_PI * M_PI * sin(s_scale * M_PI * t); }
+};
+
+// x = 1 + 0.2 sin(s pi t) + 0.5 t
+// y = [1.5 + 0.2 sin(s pi)] t
+class Curve_Sine_Right : public Analytic2DCurve
+{
+private:
+   const double s_scale = 1.3;
+   const double y_scale = 1.0 + 0.2 * sin(s_scale * M_PI) + 0.5;
+
+public:
+   Curve_Sine_Right(const Array<int> &marker, int surf_id)
+       : Analytic2DCurve(marker, surf_id) { }
+
+   void t_of_xy(double x, double y, const Vector &dist, double &t) const override
+   {
+      t = y / y_scale;
+   }
+   void xy_of_t(double t, const Vector &dist, double &x, double &y) const override
+   {
+      x = 1.0 + 0.2 * sin(s_scale * M_PI * t) + 0.5 * t;
+      y = y_scale * t;
+   }
+
+   virtual double dx_dt(double t) const override
+   { return 0.2 * s_scale * M_PI * cos(s_scale * M_PI * t) + 0.5; }
+   virtual double dy_dt(double t) const override
+   { return y_scale; }
+
+
+   virtual double dx_dtdt(double t) const override
+   { return -0.2 * s_scale * s_scale * M_PI * M_PI * sin(s_scale * M_PI * t); }
+   virtual double dy_dtdt(double t) const override
+   { return 0.0; }
 };
 

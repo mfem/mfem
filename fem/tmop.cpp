@@ -4138,21 +4138,26 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
    }
 
    // TODO assumes 2D.
-   DenseMatrix dx_dt(dof, dim);
+   DenseMatrix dx_dt(dof, dim), dx_dtdt(dof, dim);
    for (int i = 0; i < dof; i++)
    {
       const int i_surf_id = (*tan_dof_marker)[vdofs[i]];
       if (i_surf_id >= 0)
       {
-         double dxy_dt[2];
+         double dxy_dt[2], dxy_dtdt[2];
          tan_analytic_surf->GetSurface(i_surf_id)->Deriv_1(&elfun(i), dxy_dt);
+         tan_analytic_surf->GetSurface(i_surf_id)->Deriv_2(&elfun(i), dxy_dtdt);
          dx_dt(i, 0) = dxy_dt[0];
          dx_dt(i, 1) = dxy_dt[1];
+         dx_dtdt(i, 0) = dxy_dtdt[0];
+         dx_dtdt(i, 1) = dxy_dtdt[1];
       }
       else
       {
-         dx_dt(i, 0) = 1.0;
-         dx_dt(i, 1) = 1.0;
+         dx_dt(i, 0)   = 1.0;
+         dx_dt(i, 1)   = 1.0;
+         dx_dtdt(i, 0) = 0.0;
+         dx_dtdt(i, 1) = 0.0;
       }
    }
 
@@ -4166,7 +4171,6 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
       real_t weight_m = weights(q) * metric_normal;
 
       el.CalcDShape(ip, DSh);
-      // change comes here for DSh?
       Mult(DSh, Jrt, DS);
       MultAtB(PMatI, DS, Jpt);
 
@@ -4177,6 +4181,22 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
          metric->AssembleH(Jpt, DS, dx_dt, weight_m, elmat);
       }
       else { metric->AssembleH(Jpt, DS, weight_m, elmat); }
+
+      // TODO assumes identity W.
+      metric->EvalP(Jpt, P);
+      P *= weight_m;
+      for (int i = 0; i < dof; i++)
+      {
+         for (int c = 0; c < dim; c++)
+         {
+            real_t d = 0.0;
+            for (int k = 0; k < dim; k++)
+            {
+               d += DS(i, k) * dx_dtdt(i, c) * P(c, k);
+            }
+            elmat(i + c*dof, i + c*dof) += d;
+         }
+      }
 
       // TODO: derivatives of adaptivity-based targets.
 
