@@ -865,66 +865,135 @@ void EABilinearFormExtension::Assemble()
    ne = trial_fes->GetMesh()->GetNE();
    elemDofs = trial_fes->GetFE(0)->GetDof();
 
-   ea_data.SetSize(ne*elemDofs*elemDofs, Device::GetMemoryType());
-   ea_data.UseDevice(true);
+   Vector ea_data_tmp;
 
-   Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
-   const int integratorCount = integrators.Size();
-   if ( integratorCount == 0 )
+   auto add_with_markers = [&](const Vector &ea_1, Vector &ea_2, const int ne,
+                               const Array<int> &markers, const Array<int> &attrs,
+                               const bool add)
    {
-      ea_data = 0.0;
-   }
-   for (int i = 0; i < integratorCount; ++i)
+      const int sz = ea_1.Size() / ne;
+      const int *d_m = markers.Read();
+      const int *d_a = attrs.Read();
+      const auto d_ea_1 = Reshape(ea_1.Read(), sz, ne);
+      auto d_ea_2 = Reshape(add ? ea_2.ReadWrite() : ea_2.Write(), sz, ne);
+
+      mfem::forall(sz*ne, [=] MFEM_HOST_DEVICE (int idx)
+      {
+         const int i = idx % sz;
+         const int e = idx / sz;
+         const real_t val = d_m[d_a[e] - 1] ? d_ea_1(i, e) : 0.0;
+         if (add)
+         {
+            d_ea_2(i, e) += val;
+         }
+         else
+         {
+            d_ea_2(i, e) = val;
+         }
+      });
+   };
+
    {
-      integrators[i]->AssembleEA(*a->FESpace(), ea_data, i);
+      ea_data.SetSize(ne*elemDofs*elemDofs);
+      ea_data.UseDevice(true);
+      Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
+      Array<Array<int>*> &markers_array = *a->GetDBFI_Marker();
+      for (int i = 0; i < integrators.Size(); ++i)
+      {
+         const bool add = (i > 0);
+         const Array<int> *markers = markers_array[i];
+         if (markers == nullptr)
+         {
+            integrators[i]->AssembleEA(*a->FESpace(), ea_data, add);
+         }
+         else
+         {
+            ea_data_tmp.SetSize(ea_data.Size());
+            integrators[i]->AssembleEA(*a->FESpace(), ea_data_tmp, false);
+            add_with_markers(ea_data_tmp, ea_data, ne, *markers,
+                             elem_attributes, add);
+         }
+      }
    }
 
    faceDofs = trial_fes ->
               GetTraceElement(0, trial_fes->GetMesh()->GetFaceGeometry(0)) ->
               GetDof();
 
-   Array<BilinearFormIntegrator*> &bdrIntegrators = *a->GetBBFI();
-   const int bdrIntegratorCount = bdrIntegrators.Size();
-   if (bdrIntegratorCount > 0)
    {
-      nf_bdr = trial_fes->GetNFbyType(FaceType::Boundary);
-      ea_data_bdr.SetSize(nf_bdr*faceDofs*faceDofs, Device::GetMemoryType());
-   }
-   for (int i = 0; i < bdrIntegratorCount; ++i)
-   {
-      const bool add = (i > 0);
-      bdrIntegrators[i]->AssembleEABoundary(*a->FESpace(), ea_data_bdr, add);
-   }
-
-   Array<BilinearFormIntegrator*> &intFaceIntegrators = *a->GetFBFI();
-   const int intFaceIntegratorCount = intFaceIntegrators.Size();
-   if (intFaceIntegratorCount>0)
-   {
-      nf_int = trial_fes->GetNFbyType(FaceType::Interior);
-      ea_data_int.SetSize(2*nf_int*faceDofs*faceDofs, Device::GetMemoryType());
-      ea_data_ext.SetSize(2*nf_int*faceDofs*faceDofs, Device::GetMemoryType());
-   }
-   for (int i = 0; i < intFaceIntegratorCount; ++i)
-   {
-      const bool add = (i > 0);
-      intFaceIntegrators[i]->AssembleEAInteriorFaces(*a->FESpace(),
-                                                     ea_data_int,
-                                                     ea_data_ext,
-                                                     add);
+      Array<BilinearFormIntegrator*> &bdr_integs = *a->GetBBFI();
+      Array<Array<int>*> &markers_array = *a->GetBBFI_Marker();
+      const int n_bdr_integs = bdr_integs.Size();
+      if (n_bdr_integs > 0)
+      {
+         nf_bdr = trial_fes->GetNFbyType(FaceType::Boundary);
+         ea_data_bdr.SetSize(nf_bdr*faceDofs*faceDofs);
+      }
+      for (int i = 0; i < n_bdr_integs; ++i)
+      {
+         const bool add = (i > 0);
+         const Array<int> *markers = markers_array[i];
+         if (markers == nullptr)
+         {
+            bdr_integs[i]->AssembleEABoundary(*a->FESpace(), ea_data_bdr, add);
+         }
+         else
+         {
+            ea_data_tmp.SetSize(ea_data_bdr.Size());
+            bdr_integs[i]->AssembleEABoundary(*a->FESpace(), ea_data_tmp, add);
+            add_with_markers(ea_data_tmp, ea_data_bdr, nf_bdr, *markers,
+                             bdr_attributes, add);
+         }
+      }
    }
 
-   Array<BilinearFormIntegrator*> &bdrFaceIntegrators = *a->GetBFBFI();
-   const int boundFaceIntegratorCount = bdrFaceIntegrators.Size();
-   if (boundFaceIntegratorCount>0)
    {
-      nf_bdr = trial_fes->GetNFbyType(FaceType::Boundary);
-      ea_data_bdr.SetSize(nf_bdr*faceDofs*faceDofs, Device::GetMemoryType());
+      Array<BilinearFormIntegrator*> &intFaceIntegrators = *a->GetFBFI();
+      const int intFaceIntegratorCount = intFaceIntegrators.Size();
+      if (intFaceIntegratorCount>0)
+      {
+         nf_int = trial_fes->GetNFbyType(FaceType::Interior);
+         ea_data_int.SetSize(2*nf_int*faceDofs*faceDofs);
+         ea_data_ext.SetSize(2*nf_int*faceDofs*faceDofs);
+      }
+      for (int i = 0; i < intFaceIntegratorCount; ++i)
+      {
+         const bool add = (i > 0);
+         intFaceIntegrators[i]->AssembleEAInteriorFaces(*a->FESpace(),
+                                                        ea_data_int,
+                                                        ea_data_ext,
+                                                        add);
+      }
    }
-   for (int i = 0; i < boundFaceIntegratorCount; ++i)
+
    {
-      const bool add = (i > 0);
-      bdrFaceIntegrators[i]->AssembleEABoundaryFaces(
-         *a->FESpace(), ea_data_bdr, add);
+      Array<BilinearFormIntegrator*> &bdr_face_integs = *a->GetBFBFI();
+      Array<Array<int>*> &markers_array = *a->GetBFBFI_Marker();
+      const int n_bdr_face_integs = bdr_face_integs.Size();
+      if (n_bdr_face_integs > 0)
+      {
+         nf_bdr = trial_fes->GetNFbyType(FaceType::Boundary);
+         ea_data_bdr.SetSize(nf_bdr*faceDofs*faceDofs);
+      }
+      for (int i = 0; i < n_bdr_face_integs; ++i)
+      {
+         const bool add = (i > 0);
+         const Array<int> *markers = markers_array[i];
+         if (markers == nullptr)
+         {
+            bdr_face_integs[i]->AssembleEABoundaryFaces(
+               *a->FESpace(), ea_data_bdr, add);
+         }
+         else
+         {
+            ea_data_tmp.SetSize(ea_data_bdr.Size());
+            bdr_face_integs[i]->AssembleEABoundaryFaces(*a->FESpace(),
+                                                        ea_data_tmp,
+                                                        add);
+            add_with_markers(ea_data_tmp, ea_data_bdr, nf_bdr, *markers,
+                             bdr_attributes, add);
+         }
+      }
    }
 
    if (factorize_face_terms && int_face_restrict_lex)
