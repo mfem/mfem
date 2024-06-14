@@ -46,7 +46,7 @@ class DarcyForm : public Operator
    const Operator* ConstructBT(const Operator *opB);
 
 public:
-   DarcyForm(FiniteElementSpace *fes_p, FiniteElementSpace *fes_u,
+   DarcyForm(FiniteElementSpace *fes_u, FiniteElementSpace *fes_p,
              bool bsymmetrized = true);
 
    inline const Array<int>& GetOffsets() const { return offsets; }
