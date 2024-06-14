@@ -240,7 +240,7 @@ void ND_DofTransformation::TransformPrimal(const Array<int> & Fo,
             T2.UseExternalData(const_cast<real_t *>(T.GetData(Fo[f])), 2, 2);
             T2.Mult(v2, &v[nedges*nedofs + of + 2*i]);
          }
-
+         of += ntdofs;
       }
       else
       {

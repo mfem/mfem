@@ -268,7 +268,7 @@ protected:
 public:
    explicit H1_FECollection(const int p, const int dim = 3,
                             const int btype = BasisType::GaussLobatto,
-                            const int pyrtype = 0);
+                            const int pyrtype = 1);
 
    const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const override;
