@@ -36,6 +36,7 @@
 #include <memory>
 #include "hdiv_linear_solver.hpp"
 #include "../solvers/lor_mms.hpp"
+#include "../../linalg/batched.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -170,7 +171,6 @@ int main(int argc, char *argv[])
 
       OperatorHandle A;
       Vector B, X;
-      b.Assemble();
       a.FormLinearSystem(ess_rt_dofs, x, b, A, X, B);
       HypreParMatrix &Ah = *A.As<HypreParMatrix>();
 
@@ -223,6 +223,9 @@ int main(int argc, char *argv[])
 
    if (use_hybridization)
    {
+      // Don't include cuBLAS setup time in the hybridization timings
+      BatchSetup();
+
       x.ProjectCoefficient(u_vec_coeff);
 
       if (Mpi::Root()) { cout << "\nHybridization solver... " << flush; }
@@ -240,7 +243,6 @@ int main(int argc, char *argv[])
 
       OperatorHandle A;
       Vector B, X;
-      b.Assemble();
       a.FormLinearSystem(ess_rt_dofs, x, b, A, X, B);
 
       HypreBoomerAMG amg_hb(*A.As<HypreParMatrix>());

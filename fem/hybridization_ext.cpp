@@ -13,6 +13,7 @@
 #include "hybridization.hpp"
 #include "pfespace.hpp"
 #include "../general/forall.hpp"
+#include "../linalg/batched.hpp"
 #include "../linalg/kernels.hpp"
 
 namespace mfem
@@ -92,26 +93,13 @@ void HybridizationExtension::ConstructH()
    const int n = h.c_fes.GetFaceElement(0)->GetDof();
 
    Vector AhatInvCt_mat(Ct_mat);
-   auto d_AhatInvCt = Reshape(AhatInvCt_mat.ReadWrite(), m, n, n_faces_per_el, ne);
    {
-      const auto d_Ahat_inv = Reshape(Ahat_inv.Read(), m, m, ne);
-      const auto d_Ahat_piv = Reshape(Ahat_piv.Read(), m, ne);
-
-      mfem::forall(n*n_faces_per_el*ne, [=] MFEM_HOST_DEVICE (int idx)
-      {
-         const int j = idx % n;
-         const int fi = (idx / n) % n_faces_per_el;
-         const int e = idx / n / n_faces_per_el;
-
-         // Potential optimization: can load lu and ipiv into shared memory, use
-         // one block of n threads per matrix.
-         const real_t *lu = &d_Ahat_inv(0, 0, e);
-         const int *ipiv = &d_Ahat_piv(0, e);
-         real_t *x = &d_AhatInvCt(0, j, fi, e);
-
-         kernels::LUSolve(lu, m, ipiv, x);
-      });
+      DenseTensor Ahat_inv_dt;
+      Ahat_inv_dt.NewMemoryAndSize(Ahat_inv.GetMemory(), m, m, ne, false);
+      BatchLUSolve(Ahat_inv_dt, Ahat_piv, AhatInvCt_mat, n*n_faces_per_el);
    }
+   const auto d_AhatInvCt =
+      Reshape(AhatInvCt_mat.Read(), m, n, n_faces_per_el, ne);
 
    const int nf = h.fes.GetNFbyType(FaceType::Interior);
    const int n_face_connections = 2*n_faces_per_el - 1;
@@ -161,17 +149,45 @@ void HybridizationExtension::ConstructH()
                d_face_to_face(idx, fi) = fj;
                idx++;
             }
-
-            const real_t *Ct_i = &d_Ct(0, 0, fi_i, e);
-            const real_t *AhatInvCt_i = &d_AhatInvCt(0, 0, fj_i, e);
-            real_t *CAhatInvCt_i = &d_CAhatInvCt(0, 0, idx_j, fi);
-            kernels::AddMultAtB(m, n, n, Ct_i, AhatInvCt_i, CAhatInvCt_i);
          }
       }
       // Fill unused entries with -1 to indicate invalid
       for (; idx < n_face_connections; ++idx)
       {
          d_face_to_face(idx, fi) = -1;
+      }
+   });
+
+   mfem::forall(nf*n_face_connections, [=] MFEM_HOST_DEVICE (int idx)
+   {
+      const int idx_j = idx % n_face_connections;
+      const int fi = idx / n_face_connections;
+
+      const int fj = d_face_to_face(idx_j, fi);
+      if (fj < 0) { return; }
+
+      for (int ei = 0; ei < 2; ++ei)
+      {
+         const int e = d_face_to_el(0, ei, fi);
+         if (e < 0 || e >= ne) { continue; }
+         const int fi_i = d_face_to_el(1, ei, fi);
+
+         int fj_i = -1;
+         for (int ej = 0; ej < 2; ++ej)
+         {
+            if (d_face_to_el(0, ej, fj) == e)
+            {
+               fj_i = d_face_to_el(1, ej, fj);
+               break;
+            }
+         }
+         if (fj_i >= 0)
+         {
+            const real_t *Ct_i = &d_Ct(0, 0, fi_i, e);
+            const real_t *AhatInvCt_i = &d_AhatInvCt(0, 0, fj_i, e);
+            real_t *CAhatInvCt_i = &d_CAhatInvCt(0, 0, idx_j, fi);
+            kernels::AddMultAtB(m, n, n, Ct_i, AhatInvCt_i, CAhatInvCt_i);
+         }
       }
    });
 
