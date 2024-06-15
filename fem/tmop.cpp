@@ -18,6 +18,63 @@
 namespace mfem
 {
 
+// Matrix functions assuming input is DenseMatrix `data`.
+// Remember DenseMatrix is column-major.
+real_t fnorm2_2D(real_t *data)
+{
+    return data[0]*data[0] + data[1]*data[1] + data[2]*data[2] + data[3]*data[3];
+}
+real_t fnorm_2D(real_t *data)
+{
+    return sqrt(fnorm2_2D(data));
+}
+real_t det_2D(real_t *data)
+{
+    return data[0]*data[3] - data[1]*data[2];
+}
+// mu_2 = 0.5 |T|^2 / det(T) - 1.
+real_t mu2(real_t *data)
+{
+    return 0.5 * fnorm2_2D(data)/det_2D(data) - 1.0;
+}
+// mu_85 = |T-T'|^2, where T'= |T|*I/sqrt(2)
+real_t mu85(real_t *data)
+{
+   real_t fnorm = fnorm_2D(data);
+   return data[1]*data[1] + data[2]*data[2] +
+          (data[0] - fnorm/sqrt(2))*(data[0] - fnorm/sqrt(2)) +
+          (data[3] - fnorm/sqrt(2))*(data[3] - fnorm/sqrt(2));
+}
+
+#ifdef MFEM_USE_ENZYME
+
+template<auto func>
+void EnzymeTMOPGrad(real_t* in, real_t* out)
+{
+    __enzyme_autodiff<void>((void*)func, in, out);
+}
+
+template<auto func>
+void EnzymeTMOPHessian(const DenseMatrix &in, DenseTensor &out)
+{
+   int dim = in.Height();
+   int matsize = dim*dim;
+   Vector outtmp(matsize);
+   Vector inv(matsize);
+   inv = 0.0;
+   for (int i = 0; i < matsize; i++)
+   {
+      outtmp = 0.0;
+      inv(i) = 1.0;
+      __enzyme_fwddiff<void>((void*)EnzymeTMOPGrad<func>,
+                              enzyme_dup, in.GetData(), inv.GetData(),
+                              enzyme_dup, outtmp.GetData(), out(i).GetData());
+      inv(i) = 0.0;
+   }
+}
+
+#endif
+
 // Target-matrix optimization paradigm (TMOP) mesh quality metrics.
 
 // I1 = |M|^2 / det(M).
@@ -614,6 +671,10 @@ real_t TMOP_Metric_002::EvalW(const DenseMatrix &Jpt) const
    {
       return 0.5 * Dim2Invariant1(Jpt) - 1.0;
    }
+   else if (mode == 2)
+   {
+      return mu2(Jpt.GetData());
+   }
    ie.SetJacobian(Jpt.GetData());
    return 0.5 * ie.Get_I1b() - 1.0;
 }
@@ -626,6 +687,17 @@ void TMOP_Metric_002::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
       P *= 0.5;
       return;
    }
+   else if (mode == 2)
+   {
+#ifdef MFEM_USE_ENZYME
+      P.SetSize(Jpt.Height());
+      P = 0.0;
+      EnzymeTMOPGrad<mu2>(Jpt.GetData(), P.GetData());
+      return;
+#else
+      MFEM_ABORT("Enzyme support is required for metric AD with mode set to 2.");
+#endif
+   }
    ie.SetJacobian(Jpt.GetData());
    P.Set(0.5, ie.Get_dI1b());
 }
@@ -635,7 +707,7 @@ void TMOP_Metric_002::AssembleH(const DenseMatrix &Jpt,
                                 const real_t weight,
                                 DenseMatrix &A) const
 {
-   if (mode == 0)
+   if (mode > 0) // slow assembly manually or using AD
    {
       DenseTensor H;
       ComputeH(Jpt, H);
@@ -680,26 +752,37 @@ void TMOP_Metric_002::ComputeH(const DenseMatrix &Jpt,
    const int dim = Jpt.Height();
    H.SetSize(dim, dim, dim*dim);
    H = 0.0;
-   DenseMatrix dI1_dMdM(dim);
-
-   // The first two go over the rows and cols of dP_dJ where P = dW_dJ.
-   for (int r = 0; r < dim; r++)
+   if (mode == 1)
    {
-      for (int c = 0; c < dim; c++)
-      {
-         Dim2Invariant1_dMdM(Jpt, r, c, dI1_dMdM);
-         DenseMatrix temp(dim);
+      DenseMatrix dI1_dMdM(dim);
 
-         // Compute each entry of d(Prc)_dJ.
-         for (int rr = 0; rr < dim; rr++)
+      // The first two go over the rows and cols of dP_dJ where P = dW_dJ.
+      for (int r = 0; r < dim; r++)
+      {
+         for (int c = 0; c < dim; c++)
          {
-            for (int cc = 0; cc < dim; cc++)
+            Dim2Invariant1_dMdM(Jpt, r, c, dI1_dMdM);
+            DenseMatrix temp(dim);
+
+            // Compute each entry of d(Prc)_dJ.
+            for (int rr = 0; rr < dim; rr++)
             {
-               temp(rr, cc) = 0.5 * dI1_dMdM(rr,cc);
+               for (int cc = 0; cc < dim; cc++)
+               {
+                  temp(rr, cc) = 0.5 * dI1_dMdM(rr,cc);
+               }
             }
+            H(r + c*dim) = temp;
          }
-         H(r + c*dim) = temp;
       }
+   }
+   else if (mode == 2)
+   {
+#ifdef MFEM_USE_ENZYME
+      EnzymeTMOPHessian<mu2>(Jpt, H);
+#else
+      MFEM_ABORT("Enzyme support is required for metric AD with mode set to 2.");
+#endif
    }
 }
 
@@ -1124,9 +1207,11 @@ void TMOP_Metric_077::AssembleH(const DenseMatrix &Jpt,
 // mu_85 = |T-T'|^2, where T'= |T|*I/sqrt(2)
 real_t TMOP_Metric_085::EvalW(const DenseMatrix &Jpt) const
 {
-   MFEM_VERIFY(Jtr != NULL,
-               "Requires a target Jacobian, use SetTargetJacobian().");
-
+   //mode = 1 is basically what we have otherwise
+   if (mode == 2)
+   {
+      return mu85(Jpt.GetData());
+   }
    DenseMatrix Id(2,2);
    DenseMatrix Mat(2,2);
    Mat = Jpt;
@@ -1137,6 +1222,82 @@ real_t TMOP_Metric_085::EvalW(const DenseMatrix &Jpt) const
 
    Mat.Add(-1.,Id);
    return Mat.FNorm2();
+}
+
+void TMOP_Metric_085::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+{
+   if (mode == 2)
+   {
+#ifdef MFEM_USE_ENZYME
+      P.SetSize(Jpt.Height());
+      P = 0.0;
+      EnzymeTMOPGrad<mu85>(Jpt.GetData(), P.GetData());
+      return;
+#else
+      MFEM_ABORT("Enzyme support is required for metric AD with mode set to 2.");
+#endif
+   }
+   MFEM_ABORT("EvalP only supported with Enzyme+AD for metric 85.");
+}
+
+void TMOP_Metric_085::AssembleH(const DenseMatrix &Jpt,
+                                const DenseMatrix &DS,
+                                const real_t weight,
+                                DenseMatrix &A) const
+{
+   if (mode == 2) // slow assembly manually or using AD
+   {
+      DenseTensor H;
+      ComputeH(Jpt, H);
+      const int dof = DS.Height(), dim = DS.Width();
+
+      // The first two go over the rows and cols of dP_dJ where P = dW_dJ.
+      for (int r = 0; r < dim; r++)
+      {
+         for (int c = 0; c < dim; c++)
+         {
+            DenseMatrix Hrc = H(r+c*dim);
+
+            // Compute each entry of d(Prc)_dJ.
+            for (int rr = 0; rr < dim; rr++)
+            {
+               for (int cc = 0; cc < dim; cc++)
+               {
+                  const double entry_rr_cc = Hrc(rr, cc);
+
+                  for (int i = 0; i < dof; i++)
+                  {
+                     for (int j = 0; j < dof; j++)
+                     {
+                        A(i+r*dof, j+rr*dof) +=
+                            weight * DS(i, c) * DS(j, cc) * entry_rr_cc;
+                     }
+                  }
+               }
+            }
+         }
+      }
+      return;
+   }
+   MFEM_ABORT("AssembleH only supported with Enzyme+AD for metric 85.");
+}
+
+void TMOP_Metric_085::ComputeH(const DenseMatrix &Jpt,
+                               DenseTensor &H) const
+{
+   const int dim = Jpt.Height();
+   H.SetSize(dim, dim, dim*dim);
+   H = 0.0;
+   if (mode == 2)
+   {
+#ifdef MFEM_USE_ENZYME
+      EnzymeTMOPHessian<mu85>(Jpt, H);
+      return;
+#else
+      MFEM_ABORT("Enzyme support is required for metric AD with mode set to 2.");
+#endif
+   }
+   MFEM_ABORT("ComputeH only supported with Enzyme+AD for metric 85.");
 }
 
 // mu_98 = 1/(tau)|T-I|^2

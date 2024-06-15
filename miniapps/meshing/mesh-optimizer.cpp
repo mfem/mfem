@@ -34,7 +34,11 @@
 // Sample runs to test AD
 // Default:  mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -bnd -qt 1 -qo 8
 // Old invariants:  mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -bnd -qt 1 -qo 8 -mmode 1
+// Enzyme+AD: make mesh-optimizer -j && ./mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -bnd -qt 1 -qo 8 -mmode 2 -vl 2
 
+// metric 85
+// FD: mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 85 -tid 4 -ni 100 -bnd -qt 1 -qo 8 -fd
+// Enzyme+AD: mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 85 -tid 4 -ni 100 -bnd -qt 1 -qo 8 -mmode 2
 
 // Sample runs:
 //   Adapted analytic shape:
@@ -337,7 +341,7 @@ int main(int argc, char *argv[])
    }
    Device device(devopt);
    device.Print();
-   MFEM_VERIFY(metric_mode <= 1, "Invalid metric mode.");
+   MFEM_VERIFY(metric_mode <= 2, "Invalid metric mode.");
 
    // 2. Initialize and refine the starting mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);

@@ -14,6 +14,8 @@
 
 #include "../linalg/invariants.hpp"
 #include "nonlininteg.hpp"
+// old invariant based implementation is here: https://github.com/mfem/mfem/pull/193/commits/4691ac153908fe50fdac787d08e24c525ce8636c#diff-13ca641038d17e332030075d19933282db198d0f4d2961ef4de3a092a3004ccb
+//
 
 namespace mfem
 {
@@ -617,12 +619,12 @@ public:
    // W = |T-T'|^2, where T'= |T|*I/sqrt(2).
    virtual real_t EvalW(const DenseMatrix &Jpt) const;
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
-   { MFEM_ABORT("Not implemented"); }
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const
-   { MFEM_ABORT("Not implemented"); }
+                          const real_t weight, DenseMatrix &A) const;
+
+   virtual void ComputeH(const DenseMatrix &Jpt, DenseTensor &H) const;
 };
 
 /// 2D compound barrier Shape+Size (VS) metric (balanced).
