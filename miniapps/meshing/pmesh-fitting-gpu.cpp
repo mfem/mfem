@@ -33,10 +33,13 @@
 // Compile with: make pmesh-fitting
 //
 // Sample runs:
-// CPU mode
-// make pmesh-fitting-gpu && mpirun -np 4 pmesh-fitting-gpu -o 3 -mid 2 -tid 1 -vl 1 -sfc 5e4 -rtol 1e-5 -d cpu -ls 3 -vis
-// GPU mode
-// make pmesh-fitting-gpu && mpirun -np 4 pmesh-fitting-gpu -o 3 -mid 2 -tid 1 -vl 1 -sfc 5e4 -rtol 1e-5 -d debug -ls 3 -vis -pa
+// CPU + no partial assembly
+// make pmesh-fitting-gpu && mpirun -np 1 pmesh-fitting-gpu -o 3 -mid 2 -tid 1 -vl 1 -sfc 5e4 -rtol 1e-5 -d cpu -ls 3 -vis -ni 1 -ae 1
+// CPU + partial assembly (does not work yet)
+// make pmesh-fitting-gpu && mpirun -np 1 pmesh-fitting-gpu -o 3 -mid 2 -tid 1 -vl 1 -sfc 5e4 -rtol 1e-5 -d cpu -ls 3 -vis -ni 1 -ae 1 -pa
+// GPU + partial assembly (does not work yet)
+// make pmesh-fitting-gpu && mpirun -np 1 pmesh-fitting-gpu -o 3 -mid 2 -tid 1 -vl 1 -sfc 5e4 -rtol 1e-5 -d debug -ls 3 -vis -ni 1 -ae 1 -pa
+
 
 #include "mesh-fitting.hpp"
 
@@ -91,6 +94,7 @@ int main (int argc, char *argv[])
    bool conv_residual     = true;
    real_t jitter         = 0.0;
    bool pa = false;
+   bool grad_int = false;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -177,6 +181,9 @@ int main (int argc, char *argv[])
                   "Random perturbation scaling factor.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&grad_int, "-gint", "--grad-int", "-no-gint",
+                  "--no-grad-int", "Enable local gradient and hessian"
+                                   "interpolation from background mesh");
    args.Parse();
    if (!args.Good())
    {
@@ -659,8 +666,10 @@ int main (int argc, char *argv[])
       {
 #ifdef MFEM_USE_GSLIB
          adapt_surface = new InterpolatorFP;
-         adapt_grad_surface = new InterpolatorFP;
-         adapt_hess_surface = new InterpolatorFP;
+         if (grad_int) {
+            adapt_grad_surface = new InterpolatorFP;
+            adapt_hess_surface = new InterpolatorFP;
+         }
 #else
          MFEM_ABORT("MFEM is not built with GSLIB support!");
 #endif

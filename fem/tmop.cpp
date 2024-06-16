@@ -3020,7 +3020,6 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
    surf_fit_marker = &smarker;
    surf_fit_coeff = &coeff;
    surf_fit_eval = &ae;
-
    surf_fit_eval->SetParMetaInfo(*pmesh, *s0.ParFESpace());
    surf_fit_eval->SetInitialField
    (*surf_fit_gf->FESpace()->GetMesh()->GetNodes(), *surf_fit_gf);
@@ -3037,12 +3036,15 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
                                                    fec->GetBasisType());
    ParFiniteElementSpace *fes_grad = new ParFiniteElementSpace(pmesh, fec_grad,
                                                                dim);
+
    // Initial gradients.
    surf_fit_grad = new GridFunction(fes_grad);
    surf_fit_grad->MakeOwner(fec_grad);
+   surf_fit_grad->HostReadWrite();
    for (int d = 0; d < dim; d++)
    {
       ParGridFunction surf_fit_grad_comp(fes, surf_fit_grad->GetData()+d*s0.Size());
+      surf_fit_grad_comp.UseDevice(false);
       s0.GetDerivative(1, d, surf_fit_grad_comp);
    }
    surf_fit_eval_grad = aegrad;
@@ -3058,6 +3060,7 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
    // Initial Hessians.
    surf_fit_hess = new GridFunction(fes_hess);
    surf_fit_hess->MakeOwner(fec_hess);
+   surf_fit_hess->HostReadWrite();
    int id = 0;
    for (int d = 0; d < dim; d++)
    {
@@ -3067,6 +3070,8 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
                                             surf_fit_grad->GetData()+d*s0.Size());
          ParGridFunction surf_fit_hess_comp(fes,
                                             surf_fit_hess->GetData()+id*s0.Size());
+         surf_fit_grad_comp.UseDevice(false);
+         surf_fit_hess_comp.UseDevice(false);
          surf_fit_grad_comp.GetDerivative(1, idir, surf_fit_hess_comp);
          id++;
       }
@@ -4511,6 +4516,7 @@ void TMOP_Integrator::RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
             }
          }
       }
+      surf_fit_gf->HostWrite();
 
       // Interpolate values of the LS.
       Vector surf_fit_gf_int, surf_fit_grad_int, surf_fit_hess_int;
@@ -4525,6 +4531,7 @@ void TMOP_Integrator::RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
       // Interpolate gradients of the LS.
       surf_fit_eval_grad->ComputeAtNewPosition(new_x_sorted, surf_fit_grad_int,
                                                new_x_ordering);
+      surf_fit_grad->HostWrite();
       // Assumes surf_fit_grad and surf_fit_gf share the same space
       const int grad_dim = surf_fit_grad->VectorDim();
       const int grad_cnt = surf_fit_grad->Size()/grad_dim;
@@ -4556,6 +4563,7 @@ void TMOP_Integrator::RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
       // Interpolate Hessians of the LS.
       surf_fit_eval_hess->ComputeAtNewPosition(new_x_sorted, surf_fit_hess_int,
                                                new_x_ordering);
+      surf_fit_hess->HostWrite();
       // Assumes surf_fit_hess and surf_fit_gf share the same space
       const int hess_dim = surf_fit_hess->VectorDim();
       const int hess_cnt = surf_fit_hess->Size()/hess_dim;
