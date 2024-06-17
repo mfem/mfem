@@ -936,7 +936,6 @@ void NURBS_HDiv3DFiniteElement::Project(VectorCoefficient &vc,
                                         ElementTransformation &Trans,
                                         Vector &dofs) const
 {
-   cout<<"NURBS_HDIv3DDFiniteElement just a copy past - this!!"<<endl;
    MFEM_ASSERT(dofs.Size() == dof, "");
    MFEM_ASSERT(vc.GetVDim() == 3, "");
    Vector x(2), mx(3);
@@ -980,7 +979,7 @@ void NURBS_HDiv3DFiniteElement::Project(VectorCoefficient &vc,
    for (int k = 0; k <= orders[2]; k++)
    {
       real_t kz = kv[2]->GetDemko(ijk[2] + k);
-      if (!kv1[2]->inSpan(kz, ijk[2]+orders[2]))
+      if (!kv[2]->inSpan(kz, ijk[2]+orders[2]))
       {
          o += (orders[0] + 1)*(orders[1] + 2);
          continue;
@@ -1172,9 +1171,9 @@ void NURBS_HCurl2DFiniteElement::Project(VectorCoefficient &vc,
                                          ElementTransformation &Trans,
                                          Vector &dofs) const
 {
-   cout<<"NURBS_HCurl2DFiniteElement think it is okay--> still need to check!!"<<endl;
    MFEM_ASSERT(dofs.Size() == dof, "");
-   Vector x(vc.GetVDim()), xm(vc.GetVDim());
+   MFEM_ASSERT(vc.GetVDim() == 2, "");
+   Vector x(2), xm(2);
    IntegrationPoint ip;
    int i, j, o;
    for (o = 0, j = 0; j <= orders[1]+1; j++)
@@ -1419,12 +1418,12 @@ void NURBS_HCurl3DFiniteElement::CalcCurlShape(const IntegrationPoint &ip,
 }
 
 void NURBS_HCurl3DFiniteElement::Project(VectorCoefficient &vc,
-                                   ElementTransformation &Trans,
-                                   Vector &dofs) const
+                                         ElementTransformation &Trans,
+                                         Vector &dofs) const
 {
-   cout<<"NURBS_HCurl3DDFiniteElement works??? --> DEF needs checking!!"<<endl;
    MFEM_ASSERT(dofs.Size() == dof, "");
-   Vector x(vc.GetVDim()), xm(vc.GetVDim());
+   MFEM_ASSERT(vc.GetVDim() == 3, "");
+   Vector x(3), xm(3);
    IntegrationPoint ip;
 
    int o = 0;
