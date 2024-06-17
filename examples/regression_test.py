@@ -26,6 +26,7 @@ filenames = os.listdir(path)
 
 for i in range(len(filenames)):
 	# Parcing reference file
+	'''
 	problem = filenames[i][7]
 	order = filenames[i][8]
 	dg = int(filenames[i][9])
@@ -37,6 +38,19 @@ for i in range(len(filenames)):
 	hb_com = ''
 	if int(hb) == 1:
 		hb_com = " -hb "
+	'''
+	problem = filenames[i][1]
+	order = filenames[i][4]
+	dg = False
+	hb = False
+	upwind = False
+
+	if filenames[i].find('dg') != -1:
+		dg = True
+	if filenames[i].find('hb') != -1:
+		hb = True
+	if filenames[i].find('upwind') != -1:
+		upwind = True
 
 	ref_out = subprocess.getoutput("grep ' --ncells-x' "+path+filenames[i]+"| cut -d ' ' -f 5")
 	nx = ref_out.split()[0]
@@ -53,7 +67,13 @@ for i in range(len(filenames)):
 	# Run test case
 	print("----------------------------------------------------------------")
 	print("Case: "+filenames[i])
-	command_line = "./ex5-nguyen -no-vis -nx "+str(nx)+" -ny "+str(ny)+" -p "+problem+" -o "+order+dg_com+hb_com
+	command_line = "./ex5-nguyen -no-vis -nx "+str(nx)+" -ny "+str(ny)+" -p "+problem+" -o "+order
+	if dg:
+		command_line = command_line+' -dg'
+	if hb:
+		command_line = command_line+' -hb'
+	if upwind:
+		command_line = command_line+' -up'
 
 	cmd_out = subprocess.getoutput(command_line)
 	split_cmd_out = cmd_out.splitlines()
