@@ -86,6 +86,10 @@ public:
                            DenseMatrix &dshape) const;
    virtual void CalcHessian (const IntegrationPoint &ip,
                              DenseMatrix &hessian) const;
+   virtual void Project(Coefficient &coeff,
+                        ElementTransformation &Trans, Vector &dofs) const;
+   virtual void Project(VectorCoefficient &vcoeff,
+                        ElementTransformation &Trans, Vector &dofs) const;
 };
 
 /// An arbitrary order 2D NURBS element on a square
@@ -121,6 +125,10 @@ public:
                            DenseMatrix &dshape) const;
    virtual void CalcHessian (const IntegrationPoint &ip,
                              DenseMatrix &hessian) const;
+   virtual void Project(Coefficient &coeff,
+                        ElementTransformation &Trans, Vector &dofs) const;
+   virtual void Project(VectorCoefficient &vcoeff,
+                        ElementTransformation &Trans, Vector &dofs) const;
 };
 
 /// An arbitrary order 3D NURBS element on a cube
@@ -161,6 +169,10 @@ public:
                            DenseMatrix &dshape) const;
    virtual void CalcHessian (const IntegrationPoint &ip,
                              DenseMatrix &hessian) const;
+   virtual void Project(Coefficient &coeff,
+                        ElementTransformation &Trans, Vector &dofs) const;
+   virtual void Project(VectorCoefficient &vcoeff,
+                        ElementTransformation &Trans, Vector &dofs) const;
 };
 
 
@@ -260,6 +272,9 @@ public:
        where SDim >= #dim is the physical space dimension as described
        by @a Trans. */
    void CalcPhysDVShape(ElementTransformation &Trans, DenseTensor &dvshape) const;
+
+   virtual void Project(VectorCoefficient &vcoeff,
+                        ElementTransformation &Trans, Vector &dofs) const;
 
    ~NURBS_HDiv2DFiniteElement();
 };
@@ -374,6 +389,9 @@ public:
        by @a Trans. */
    void CalcPhysDVShape(ElementTransformation &Trans, DenseTensor &dvshape) const;
 
+   virtual void Project(VectorCoefficient &vcoeff,
+                        ElementTransformation &Trans, Vector &dofs) const;
+
    ~NURBS_HDiv3DFiniteElement();
 };
 
@@ -471,6 +489,9 @@ public:
        where SDim >= #dim is the physical space dimension as described
        by @a Trans. */
    void CalcPhysDVShape(ElementTransformation &Trans, DenseTensor &dvshape) const;
+
+   virtual void Project(VectorCoefficient &vcoeff,
+                        ElementTransformation &Trans, Vector &dofs) const;
 
    ~NURBS_HCurl2DFiniteElement();
 };
@@ -581,6 +602,9 @@ public:
        where SDim >= #dim is the physical space dimension as described
        by @a Trans. */
    void CalcPhysDVShape(ElementTransformation &Trans, DenseTensor &dvshape) const;
+
+   virtual void Project(VectorCoefficient &vcoeff,
+                        ElementTransformation &Trans, Vector &dofs) const;
 
    ~NURBS_HCurl3DFiniteElement();
 };

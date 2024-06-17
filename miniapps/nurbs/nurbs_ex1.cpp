@@ -139,10 +139,24 @@ public:
 
 };
 
+real_t sol(const Vector & x)
+{
+   if (x.Size() >= 2)
+   {
+      if ((x[1] - x[0] - 0.5 < 0.0) &&
+          (x[0] + x[1] -0.99 < 0.0))
+      {
+         return 1.0;
+      }
+   }
+
+   return 0.0;
+}
+
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char *mesh_file = "../../data/star.mesh";
+   const char *mesh_file = "../../data/square-nurbs.mesh";
    const char *per_file  = "none";
    const char *ref_file  = "";
    int ref_levels = -1;
@@ -409,7 +423,8 @@ int main(int argc, char *argv[])
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
    GridFunction x(fespace);
-   x = 0.0;
+   FunctionCoefficient  sol_cf(sol);
+   x.ProjectCoefficient(sol_cf);
 
    // 8. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion

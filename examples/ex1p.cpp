@@ -160,11 +160,11 @@ int main(int argc, char *argv[])
    // 7. Define a parallel finite element space on the parallel mesh. Here we
    //    use continuous Lagrange finite elements of the specified order. If
    //    order < 1, we instead use an isoparametric/isogeometric space.
-   FiniteElementCollection *fec;
+   FECollection *fec;
    bool delete_fec;
    if (order > 0)
    {
-      fec = new H1_FECollection(order, dim);
+      fec = FECollection::NewH1(order, dim, pmesh.NURBSext);
       delete_fec = true;
    }
    else if (pmesh.GetNodes())
