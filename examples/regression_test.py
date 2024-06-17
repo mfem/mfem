@@ -56,6 +56,7 @@ for i in range(len(filenames)):
 	nx = ref_out.split()[0]
 	ref_out = subprocess.getoutput("grep ' --ncells-y' "+path+filenames[i]+"| cut -d ' ' -f 5")
 	ny = ref_out.split()[0]
+	kappa = subprocess.getoutput("grep ' --kappa' "+path+filenames[i]+"| cut -d ' ' -f 5")
 
 	ref_out = subprocess.getoutput("grep '|| t_h - t_ex || / || t_ex || = ' "+path+filenames[i]+"  | cut -d '=' -f 2-")
 	ref_L2_t = float(ref_out.split()[0])
@@ -74,6 +75,8 @@ for i in range(len(filenames)):
 		command_line = command_line+' -hb'
 	if upwind:
 		command_line = command_line+' -up'
+	if kappa != str(1):
+		command_line = command_line+' -k '+kappa
 
 	cmd_out = subprocess.getoutput(command_line)
 	split_cmd_out = cmd_out.splitlines()
