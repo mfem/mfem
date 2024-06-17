@@ -21,6 +21,14 @@ add_mfem_miniapp(nurbs_ex5
   MAIN nurbs_ex5.cpp
   LIBRARIES mfem)
 
+add_mfem_miniapp(nurbs_ex5b
+  MAIN nurbs_ex5b.cpp
+  LIBRARIES mfem)
+
+add_mfem_miniapp(nurbs_stokes
+  MAIN nurbs_stokes.cpp
+  LIBRARIES mfem)
+
 add_mfem_miniapp(nurbs_ex24
   MAIN nurbs_ex24.cpp
   LIBRARIES mfem)
