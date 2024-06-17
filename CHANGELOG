@@ -11,6 +11,8 @@
 Version 4.7.1 (development)
 ===========================
 
+- Added support for custom interpolation procedure in FindPointsGSLIB.
+
 - Added NURBS-based H(div) and H(curl) elements in 2D and 3D. Only on single 
   patch meshes. Only implemented for serial computations.
 
@@ -44,6 +46,9 @@ Meshing improvements
   NURBS coarsening and knot removal are also introduced.
 
 - Added support for internal boundary elements in nonconforming meshes.
+
+- Added ExodusII output capability. The writer can handle first-order (Pyramid5, 
+  Wedge6, Hex8, Tet4) and second-order FE types (Pyramid14, Wedge18, Hex27, Tet10).
 
 - The ReadCubit Genesis mesh importer has been rewritten to improve readability.
 
