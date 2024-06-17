@@ -22,9 +22,9 @@ using namespace mfem;
 
 void vfun(const Vector &x, Vector &v)
 {
-      v(0) = sin(6.28 * x(0));
-      v(1) = sin(6.28 * x(1));
-      if (x.Size() == 3) { v(2) = sin(6.28 * x(2)); }
+   v(0) = sin(6.28 * x(0));
+   v(1) = sin(6.28 * x(1));
+   if (x.Size() == 3) { v(2) = sin(6.28 * x(2)); }
 }
 
 
@@ -120,13 +120,15 @@ int main(int argc, char *argv[])
    {
       fec = new NURBS_HDivFECollection(order, dim);
       fes = new FiniteElementSpace(mesh, NURBSext, fec);
-      cout << "Number of H(div) finite element unknowns: " << fes->GetTrueVSize() <<endl;
+      cout << "Number of H(div) finite element unknowns: " << fes->GetTrueVSize()
+           <<endl;
    }
    else
    {
       fec = new NURBS_HCurlFECollection(order, dim);
       fes = new FiniteElementSpace(mesh, NURBSext, fec);
-      cout << "Number of H(curl) finite element unknowns: " << fes->GetTrueVSize() <<endl;
+      cout << "Number of H(curl) finite element unknowns: " << fes->GetTrueVSize()
+           <<endl;
    }
    mfem::out<<"Create NURBS fec and ext"<<std::endl;
 
@@ -144,7 +146,8 @@ int main(int argc, char *argv[])
    // 11. Compute and print the L_2 norm of the error.
    real_t errProj = gf.ComputeL2Error(vcoeff);
 
-   cout << " Interpolation error: || v_h - v ||_{L_2} = " << errProj << '\n' << endl;
+   cout << " Interpolation error: || v_h - v ||_{L_2} = " << errProj << '\n' <<
+        endl;
 
    // 12. Save the solution.
    VisItDataCollection visit_dc("nurbs_int", mesh);
