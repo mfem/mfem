@@ -49,6 +49,10 @@ add_mfem_miniapp(nurbs_solenoidal
   MAIN nurbs_solenoidal.cpp
   LIBRARIES mfem)
 
+add_mfem_miniapp(nurbs_int
+  MAIN nurbs_int.cpp
+  LIBRARIES mfem)
+
 if (MFEM_ENABLE_TESTING)
   add_test(NAME nurbs_ex1_1d_r1_o2_ser
     COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
