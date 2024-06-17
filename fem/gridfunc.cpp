@@ -2409,26 +2409,22 @@ void GridFunction::ProjectCoefficient(Coefficient &coeff)
                doftrans->TransformPrimal(vals);
             }
 
-            // Remove values
+            // Remove undefined dofs
             int s = 0;
-            for (int ii = 0; ii < vals.Size(); ii++)
-            {
-               if (vals[ii] != signal) { s++; }
-            }
-            Array<int> vdofsr(s);
-            Vector valsr(s);
-            s = 0;
             for (int ii = 0; ii < vals.Size(); ii++)
             {
                if (vals[ii] != signal)
                {
-                  vdofsr[s] = vdofs[ii];
-                  valsr(s) = vals(ii);
+                  vdofs[s] = vdofs[ii];
+                  vals(s) = vals(ii);
                   s++;
                }
             }
+            vdofs.SetSize(s);
+            vals.SetSize(s);
 
-            SetSubVector(vdofsr, valsr);
+            // Add reduced dofs to global vector
+            SetSubVector(vdofs, vals);
          }
       }
    }
@@ -2470,16 +2466,13 @@ void GridFunction::ProjectCoefficient(
 
 void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff)
 {
+   Array<int> vdofs;
+   Vector vals;
+   DofTransformation * doftrans = NULL;
+
    if (fes->GetNURBSext() == NULL)
    {
-
-      int i;
-      Array<int> vdofs;
-      Vector vals;
-
-      DofTransformation * doftrans = NULL;
-
-      for (i = 0; i < fes->GetNE(); i++)
+      for (int i = 0; i < fes->GetNE(); i++)
       {
          doftrans = fes->GetElementVDofs(i, vdofs);
          vals.SetSize(vdofs.Size());
@@ -2490,15 +2483,9 @@ void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff)
          }
          SetSubVector(vdofs, vals);
       }
-
    }
-
    else
    {
-      Array<int> vdofs;
-      Vector vals;
-
-      DofTransformation * doftrans = NULL;
       real_t signal = std::numeric_limits<real_t>::min();
       for (int i = 0; i < fes->GetNE(); i++)
       {
@@ -2510,26 +2497,19 @@ void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff)
          {
             doftrans->TransformPrimal(vals);
          }
-         // Remove values
          int s = 0;
-         for (int ii = 0; ii < vals.Size(); ii++)
-         {
-            if (vals[ii] != signal) { s++; }
-         }
-         Array<int> vdofsr(s);
-         Vector valsr(s);
-         s = 0;
          for (int ii = 0; ii < vals.Size(); ii++)
          {
             if (vals[ii] != signal)
             {
-               vdofsr[s] = vdofs[ii];
-               valsr(s) = vals(ii);
+               vdofs[s] = vdofs[ii];
+               vals(s) = vals(ii);
                s++;
             }
          }
-
-         SetSubVector(vdofsr, valsr);
+         vdofs.SetSize(s);
+         vals.SetSize(s);
+         SetSubVector(vdofs, vals);
       }
    }
 }
