@@ -251,6 +251,7 @@ protected:
    IntegrationRule Nodes;
 #ifndef MFEM_THREAD_SAFE
    mutable DenseMatrix vshape; // Dof x Dim
+   mutable DenseTensor tshape; // Dof x Dim x Dim
 #endif
    /// Container for all DofToQuad objects created by the FiniteElement.
    /** Multiple DofToQuad objects may be needed when different quadrature rules
@@ -473,10 +474,6 @@ public:
    virtual void CalcPhysCurlShape(ElementTransformation &Trans,
                                   DenseMatrix &curl_shape) const;
 
-//--------------------------------------------------------------------------------
-//--------------------------------------------------------------------------------
-
-
    /** @brief Evaluate the gradients of all shape functions of a vector finite
        element in reference space at the given point @a ip. */
    /** The 1st index of DenseTensor @a dvshape refers to a vector shapefunction,
@@ -495,10 +492,6 @@ public:
        where SDim >= #dim is the physical space dimension as described
        by @a Trans. */
    void CalcPhysDVShape(ElementTransformation &Trans, DenseTensor &dvshape) const;
-
-//--------------------------------------------------------------------------------
-//--------------------------------------------------------------------------------
-
 
    /** @brief Get the dofs associated with the given @a face.
        @a *dofs is set to an internal array of the local dofc on the
