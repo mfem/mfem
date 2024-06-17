@@ -488,7 +488,7 @@ public:
    /**    /** The 1st index of DenseTensor @a dvshape refers to a vector shapefunction,
        the 2nd index selects the scalar component of this vector, the 3rd
        index selects the direction of the derivative. The size of @a dvshape,
-       which should be (#dof x #dim x #SDim), must be set in advance, 
+       which should be (#dof x #dim x #SDim), must be set in advance,
        where SDim >= #dim is the physical space dimension as described
        by @a Trans. */
    void CalcPhysDVShape(ElementTransformation &Trans, DenseTensor &dvshape) const;
