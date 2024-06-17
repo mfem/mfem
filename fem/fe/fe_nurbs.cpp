@@ -693,6 +693,65 @@ void NURBS_HDiv2DFiniteElement::CalcDivShape(const IntegrationPoint &ip,
    }
 }
 
+void NURBS_HDiv2DFiniteElement::Project(VectorCoefficient &vc,
+                                        ElementTransformation &Trans,
+                                        Vector &dofs) const
+{
+   cout<<"NURBS_HDIvDFiniteElement just a copy past"<<endl;
+
+   MFEM_ASSERT(dofs.Size() == dof, "");
+   MFEM_ASSERT(vc.GetVDim() == 2, "");
+   Vector x(2), mx(2);
+   IntegrationPoint ip;
+   int o = 0;
+
+   for (int j = 0; j <= orders[1]; j++)
+   {
+      real_t ky = kv[1]->GetDemko(ijk[1] + j);
+      if (!kv[1]->inSpan(ky, ijk[1]+orders[1]))
+      {
+         o += orders[0] + 2;
+         continue;
+      }
+      ip.y = kv[1]->GetIp(ky, ijk[1]+orders[1]);
+      for (int i = 0; i <= orders[0]+1; i++, o++)
+      {
+         real_t kx = kv1[0]->GetDemko(ijk[0] + i);
+         if (!kv1[0]->inSpan(kx, ijk[0]+orders[0]+1)) { continue; }
+         ip.x = kv1[0]->GetIp(kx, ijk[0]+orders[0]+1);
+
+         Trans.SetIntPoint(&ip);
+         vc.Eval(x, Trans, ip);
+
+         Trans.AdjugateJacobian().Mult(x,mx);
+         dofs(o) = mx(0);
+      }
+   }
+
+   for (int j = 0; j <= orders[1]+1; j++)
+   {
+      real_t ky = kv1[1]->GetDemko(ijk[1] + j);
+      if (!kv1[1]->inSpan(ky, ijk[1]+orders[1]+1))
+      {
+         o += orders[0] + 1;
+         continue;
+      }
+      ip.y = kv1[1]->GetIp(ky, ijk[1]+orders[1]+1);
+      for (int i = 0; i <= orders[0]; i++, o++)
+      {
+         real_t kx = kv[0]->GetDemko(ijk[0] + i);
+         if (!kv[0]->inSpan(kx, ijk[0]+orders[0])) { continue; }
+         ip.x = kv[0]->GetIp(kx, ijk[0]+orders[0]);
+
+         Trans.SetIntPoint(&ip);
+         vc.Eval(x, Trans, ip);
+
+         Trans.AdjugateJacobian().Mult(x,mx);
+         dofs(o) = mx(1);
+      }
+   }
+}
+
 NURBS_HDiv2DFiniteElement::~NURBS_HDiv2DFiniteElement()
 {
    if (kv1[0]) { delete kv1[0]; }
@@ -872,6 +931,121 @@ void NURBS_HDiv3DFiniteElement::CalcDivShape(const IntegrationPoint &ip,
    }
 }
 
+
+void NURBS_HDiv3DFiniteElement::Project(VectorCoefficient &vc,
+                                        ElementTransformation &Trans,
+                                        Vector &dofs) const
+{
+   cout<<"NURBS_HDIv3DDFiniteElement just a copy past - this!!"<<endl;
+   MFEM_ASSERT(dofs.Size() == dof, "");
+   MFEM_ASSERT(vc.GetVDim() == 3, "");
+   Vector x(2), mx(3);
+   IntegrationPoint ip;
+
+   int o = 0;
+
+   for (int k = 0; k <= orders[2]; k++)
+   {
+      real_t kz = kv[2]->GetDemko(ijk[2] + k);
+      if (!kv[2]->inSpan(kz, ijk[2]+orders[2]))
+      {
+         o += (orders[0] + 2)*(orders[1] + 1);
+         continue;
+      }
+      ip.z = kv[2]->GetIp(kz, ijk[2]+orders[2]);
+      for (int j = 0; j <= orders[1]; j++)
+      {
+         real_t ky = kv[1]->GetDemko(ijk[1] + j);
+         if (!kv[1]->inSpan(ky, ijk[1]+orders[1]))
+         {
+            o += orders[0] + 2;
+            continue;
+         }
+         ip.y = kv[1]->GetIp(ky, ijk[1]+orders[1]);
+         for (int i = 0; i <= orders[0]+1; i++, o++)
+         {
+            real_t kx = kv1[0]->GetDemko(ijk[0] + i);
+            if (!kv1[0]->inSpan(kx, ijk[0]+orders[0]+1)) { continue; }
+            ip.x = kv1[0]->GetIp(kx, ijk[0]+orders[0]+1);
+
+            Trans.SetIntPoint(&ip);
+            vc.Eval(x, Trans, ip);
+
+            Trans.AdjugateJacobian().Mult(x,mx);
+            dofs(o) = mx(0);
+         }
+      }
+   }
+
+   for (int k = 0; k <= orders[2]; k++)
+   {
+      real_t kz = kv[2]->GetDemko(ijk[2] + k);
+      if (!kv1[2]->inSpan(kz, ijk[2]+orders[2]))
+      {
+         o += (orders[0] + 1)*(orders[1] + 2);
+         continue;
+      }
+      ip.z = kv[2]->GetIp(kz, ijk[2]+orders[2]);
+      for (int j = 0; j <= orders[1]+1; j++)
+      {
+         real_t ky = kv1[1]->GetDemko(ijk[1] + j);
+         if (!kv1[1]->inSpan(ky, ijk[1]+orders[1]+1))
+         {
+            o += orders[0] + 1;
+            continue;
+         }
+         ip.y = kv1[1]->GetIp(ky, ijk[1]+orders[1]+1);
+         for (int i = 0; i <= orders[0]; i++, o++)
+         {
+            real_t kx = kv[0]->GetDemko(ijk[0] + i);
+            if (!kv[0]->inSpan(kx, ijk[0]+orders[0])) { continue; }
+            ip.x = kv[0]->GetIp(kx, ijk[0]+orders[0]);
+
+            Trans.SetIntPoint(&ip);
+            vc.Eval(x, Trans, ip);
+
+            Trans.AdjugateJacobian().Mult(x,mx);
+            dofs(o) = mx(1);
+         }
+      }
+   }
+
+   for (int k = 0; k <= orders[2]+1; k++)
+   {
+      real_t kz = kv1[2]->GetDemko(ijk[2] + k);
+      if (!kv1[2]->inSpan(kz, ijk[2]+orders[2]+1))
+      {
+         o += (orders[0] + 1)*(orders[1] + 1);
+         continue;
+      }
+      ip.z = kv1[2]->GetIp(kz, ijk[2]+orders[2]+1);
+      for (int j = 0; j <= orders[1]; j++)
+      {
+         real_t ky = kv[1]->GetDemko(ijk[1] + j);
+         if (!kv[1]->inSpan(ky, ijk[1]+orders[1]))
+         {
+            o += orders[0] + 1;
+            continue;
+         }
+         ip.y = kv[1]->GetIp(ky, ijk[1]+orders[1]);
+         for (int i = 0; i <= orders[0]; i++, o++)
+         {
+            real_t kx = kv[0]->GetDemko(ijk[0] + i);
+            if (!kv[0]->inSpan(kx, ijk[0]+orders[0])) { continue; }
+            ip.x = kv[0]->GetIp(kx, ijk[0]+orders[0]);
+
+            Trans.SetIntPoint(&ip);
+            vc.Eval(x, Trans, ip);
+
+            Trans.AdjugateJacobian().Mult(x,mx);
+            dofs(o) = mx(2);
+         }
+      }
+   }
+
+}
+
+
 NURBS_HDiv3DFiniteElement::~NURBS_HDiv3DFiniteElement()
 {
    if (kv1[0]) { delete kv1[0]; }
@@ -962,6 +1136,7 @@ void NURBS_HCurl2DFiniteElement::CalcVShape(ElementTransformation &Trans,
       shape(i, 0) = sx * JI(0, 0) + sy * JI(1, 0);
       shape(i, 1) = sx * JI(0, 1) + sy * JI(1, 1);
    }
+   //Delete above --> CalcVShape_ND(Trans, shape);
 }
 
 void NURBS_HCurl2DFiniteElement::CalcCurlShape(const IntegrationPoint &ip,
@@ -989,6 +1164,62 @@ void NURBS_HCurl2DFiniteElement::CalcCurlShape(const IntegrationPoint &ip,
       for (int i = 0; i <= orders[0]+1; i++, o++)
       {
          curl_shape(o,0) = dshape1_x(i)*sy;
+      }
+   }
+}
+
+void NURBS_HCurl2DFiniteElement::Project(VectorCoefficient &vc,
+                                         ElementTransformation &Trans,
+                                         Vector &dofs) const
+{
+   cout<<"NURBS_HCurl2DFiniteElement think it is okay--> still need to check!!"<<endl;
+   MFEM_ASSERT(dofs.Size() == dof, "");
+   Vector x(vc.GetVDim()), xm(vc.GetVDim());
+   IntegrationPoint ip;
+   int i, j, o;
+   for (o = 0, j = 0; j <= orders[1]+1; j++)
+   {
+      real_t ky = kv1[1]->GetDemko(ijk[1] + j);
+      if (!kv1[1]->inSpan(ky, ijk[1]+orders[1]+1))
+      {
+         o += orders[0] + 1;
+         continue;
+      }
+      ip.y = kv1[1]->GetIp(ky, ijk[1]+orders[1]+1);
+      for (i = 0; i <= orders[0]; i++, o++)
+      {
+         real_t kx = kv[0]->GetDemko(ijk[0] + i);
+         if (!kv[0]->inSpan(kx, ijk[0]+orders[0])) { continue; }
+         ip.x = kv[0]->GetIp(kx, ijk[0]+orders[0]);
+
+         Trans.SetIntPoint(&ip);
+         vc.Eval(x, Trans, ip);
+
+         Trans.Jacobian().MultTranspose(x,xm);
+         dofs(o) = xm(0);
+      }
+   }
+
+   for (j = 0; j <= orders[1]; j++)
+   {
+      real_t ky = kv[1]->GetDemko(ijk[1] + j);
+      if (!kv[1]->inSpan(ky, ijk[1]+orders[1]))
+      {
+         o += orders[0] + 2;
+         continue;
+      }
+      ip.y = kv[1]->GetIp(ky, ijk[1]+orders[1]);
+      for (i = 0; i <= orders[0]+1; i++, o++)
+      {
+         real_t kx = kv1[0]->GetDemko(ijk[0] + i);
+         if (!kv1[0]->inSpan(kx, ijk[0]+orders[0]+1)) { continue; }
+         ip.x = kv1[0]->GetIp(kx, ijk[0]+orders[0]+1);
+
+         Trans.SetIntPoint(&ip);
+         vc.Eval(x, Trans, ip);
+
+         Trans.Jacobian().MultTranspose(x,xm);
+         dofs(o) = xm(1);
       }
    }
 }
@@ -1102,6 +1333,7 @@ void NURBS_HCurl3DFiniteElement::CalcVShape(const IntegrationPoint &ip,
 void NURBS_HCurl3DFiniteElement::CalcVShape(ElementTransformation &Trans,
                                             DenseMatrix &shape) const
 {
+
    CalcVShape(Trans.GetIntPoint(), shape);
    const DenseMatrix & JI = Trans.InverseJacobian();
    MFEM_ASSERT(JI.Width() == 3 && JI.Height() == 3,
@@ -1116,6 +1348,8 @@ void NURBS_HCurl3DFiniteElement::CalcVShape(ElementTransformation &Trans,
       shape(i, 1) = sx * JI(0, 1) + sy * JI(1, 1) + sz * JI(2, 1);
       shape(i, 2) = sx * JI(0, 2) + sy * JI(1, 2) + sz * JI(2, 2);
    }
+
+   //Delete above --> CalcVShape_ND(Trans, shape);
 }
 
 void NURBS_HCurl3DFiniteElement::CalcCurlShape(const IntegrationPoint &ip,
@@ -1183,6 +1417,118 @@ void NURBS_HCurl3DFiniteElement::CalcCurlShape(const IntegrationPoint &ip,
       }
    }
 }
+
+void NURBS_HCurl3DFiniteElement::Project(VectorCoefficient &vc,
+                                   ElementTransformation &Trans,
+                                   Vector &dofs) const
+{
+   cout<<"NURBS_HCurl3DDFiniteElement works??? --> DEF needs checking!!"<<endl;
+   MFEM_ASSERT(dofs.Size() == dof, "");
+   Vector x(vc.GetVDim()), xm(vc.GetVDim());
+   IntegrationPoint ip;
+
+   int o = 0;
+   for (int k = 0; k <= orders[2]+1; k++)
+   {
+      real_t kz = kv1[2]->GetDemko(ijk[2] + k);
+      if (!kv1[2]->inSpan(kz, ijk[2]+orders[2]+1))
+      {
+         o += (orders[0] + 1)*(orders[1] + 2);
+         continue;
+      }
+      ip.z = kv1[2]->GetIp(kz, ijk[2]+orders[2]+1);
+      for (int j = 0; j <= orders[1]+1; j++)
+      {
+         real_t ky = kv1[1]->GetDemko(ijk[1] + j);
+         if (!kv1[1]->inSpan(ky, ijk[1]+orders[1]+1))
+         {
+            o += orders[0] + 1;
+            continue;
+         }
+         ip.y = kv1[1]->GetIp(ky, ijk[1]+orders[1]+1);
+         for (int i = 0; i <= orders[0]; i++, o++)
+         {
+            real_t kx = kv[0]->GetDemko(ijk[0] + i);
+            if (!kv[0]->inSpan(kx, ijk[0]+orders[0])) { continue; }
+            ip.x = kv[0]->GetIp(kx, ijk[0]+orders[0]);
+
+            Trans.SetIntPoint(&ip);
+            vc.Eval(x, Trans, ip);
+
+            Trans.Jacobian().MultTranspose(x,xm);
+            dofs(o) = xm(0);
+         }
+      }
+   }
+
+   for (int k = 0; k <= orders[2]+1; k++)
+   {
+      real_t kz = kv1[2]->GetDemko(ijk[2] + k);
+      if (!kv1[2]->inSpan(kz, ijk[2]+orders[2]+1))
+      {
+         o += (orders[0] + 2)*(orders[1] + 1);
+         continue;
+      }
+      ip.z = kv1[2]->GetIp(kz, ijk[2]+orders[2]+1);
+      for (int j = 0; j <= orders[1]; j++)
+      {
+         real_t ky = kv[1]->GetDemko(ijk[1] + j);
+         if (!kv[1]->inSpan(ky, ijk[1]+orders[1]))
+         {
+            o += orders[0] + 2;
+            continue;
+         }
+         ip.y = kv[1]->GetIp(ky, ijk[1]+orders[1]);
+         for (int i = 0; i <= orders[0]+1; i++, o++)
+         {
+            real_t kx = kv1[0]->GetDemko(ijk[0] + i);
+            if (!kv1[0]->inSpan(kx, ijk[0]+orders[0]+1)) { continue; }
+            ip.x = kv1[0]->GetIp(kx, ijk[0]+orders[0]+1);
+
+            Trans.SetIntPoint(&ip);
+            vc.Eval(x, Trans, ip);
+
+            Trans.Jacobian().MultTranspose(x,xm);
+            dofs(o) = xm(1);
+         }
+      }
+   }
+
+   for (int k = 0; k <= orders[2]; k++)
+   {
+      real_t kz = kv[2]->GetDemko(ijk[2] + k);
+      if (!kv[2]->inSpan(kz, ijk[2]+orders[2]))
+      {
+         o += (orders[0] + 2)*(orders[1] + 2);
+         continue;
+      }
+      ip.z = kv[2]->GetIp(kz, ijk[2]+orders[2]);
+      for (int j = 0; j <= orders[1]+1; j++)
+      {
+         real_t ky = kv1[1]->GetDemko(ijk[1] + j);
+         if (!kv1[1]->inSpan(ky, ijk[1]+orders[1]+1))
+         {
+            o += orders[0] + 2;
+            continue;
+         }
+         ip.y = kv1[1]->GetIp(ky, ijk[1]+orders[1]+1);
+         for (int i = 0; i <= orders[0]+1; i++, o++)
+         {
+            real_t kx = kv1[0]->GetDemko(ijk[0] + i);
+            if (!kv1[0]->inSpan(kx, ijk[0]+orders[0]+1)) { continue; }
+            ip.x = kv1[0]->GetIp(kx, ijk[0]+orders[0]+1);
+
+            Trans.SetIntPoint(&ip);
+            vc.Eval(x, Trans, ip);
+
+            Trans.Jacobian().MultTranspose(x,xm);
+            dofs(o) = xm(2);
+         }
+      }
+   }
+
+}
+
 
 NURBS_HCurl3DFiniteElement::~NURBS_HCurl3DFiniteElement()
 {

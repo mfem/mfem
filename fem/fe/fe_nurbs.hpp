@@ -254,6 +254,9 @@ public:
    virtual void CalcDivShape(const IntegrationPoint &ip,
                              Vector &divshape) const;
 
+   virtual void Project(VectorCoefficient &vcoeff,
+                        ElementTransformation &Trans, Vector &dofs) const;
+
    ~NURBS_HDiv2DFiniteElement();
 };
 
@@ -348,6 +351,10 @@ public:
    virtual void CalcDivShape(const IntegrationPoint &ip,
                              Vector &divshape) const;
 
+
+   virtual void Project(VectorCoefficient &vcoeff,
+                        ElementTransformation &Trans, Vector &dofs) const;
+
    ~NURBS_HDiv3DFiniteElement();
 };
 
@@ -426,6 +433,10 @@ public:
        CDim = 1 for #dim = 2. */
    virtual void CalcCurlShape(const IntegrationPoint &ip,
                               DenseMatrix &curl_shape) const;
+
+
+   virtual void Project(VectorCoefficient &vcoeff,
+                        ElementTransformation &Trans, Vector &dofs) const;
 
    ~NURBS_HCurl2DFiniteElement();
 };
@@ -517,6 +528,9 @@ public:
        CDim = 1 for #dim = 2. */
    virtual void CalcCurlShape(const IntegrationPoint &ip,
                               DenseMatrix &curl_shape) const;
+
+   virtual void Project(VectorCoefficient &vcoeff,
+                        ElementTransformation &Trans, Vector &dofs) const;
 
    ~NURBS_HCurl3DFiniteElement();
 };
