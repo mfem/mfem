@@ -258,10 +258,10 @@ static MFEM_HOST_DEVICE inline findptsElementGPT_t get_pt(const double *elx[2],
       pt.jac[0] += wtend[3 * r_g_wt_offset * pN + pN + j] * ELX(0, j, kidx);
 
       // dy/dr
-      pt.jac[1] += wtend[3 * r_g_wt_offset * pN + pN + j] * ELX(1, j, kidx);
+      pt.jac[2] += wtend[3 * r_g_wt_offset * pN + pN + j] * ELX(1, j, kidx);
 
       // dx/ds
-      pt.jac[2] += wtend[3 * s_g_wt_offset * pN + pN + j] * ELX(0, kidx, j);
+      pt.jac[1] += wtend[3 * s_g_wt_offset * pN + pN + j] * ELX(0, kidx, j);
 
       // dy/ds
       pt.jac[3] += wtend[3 * s_g_wt_offset * pN + pN + j] * ELX(1, kidx, j);
@@ -916,8 +916,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
                            double *wt = r_workspace_ptr;
                            double *resid = wt + 3 * D1D;
                            double *jac = resid + 2; //jac will be row-major
-                           double *hes_T = jac + 2 * 2;
-                           double *hess = hes_T + 3;
+                           double *hess = jac + 2 * 2;
                            findptsElementGEdge_t edge;
 
                            MFEM_FOREACH_THREAD(j,x,nThreads)
@@ -937,20 +936,20 @@ static void FindPointsLocal2D_Kernel(const int npt,
                            }
                            MFEM_SYNC_THREAD;
 
-                           MFEM_FOREACH_THREAD(j,x,nThreads)
+                           MFEM_FOREACH_THREAD(d,x,nThreads)
                            {
-                              if (j < dim)
+                              if (d < dim)
                               {
-                                 resid[j] = tmp->x[j];
-                                 jac[2*j] = 0.0;
-                                 jac[2*j + 1] = 0.0;
-                                 hess[j] = 0.0;
+                                 resid[d] = tmp->x[d];
+                                 jac[2*d] = 0.0;
+                                 jac[2*d + 1] = 0.0;
+                                 hess[d] = 0.0;
                                  for (int k = 0; k < D1D; ++k)
                                  {
-                                    resid[j] -= wt[k]*edge.x[j][k];
-                                    jac[2*j] += wt[k]*edge.dxdn[j][k];
-                                    jac[2*j+1] += wt[k+D1D]*edge.x[j][k];
-                                    hess[j] += wt[k+2*D1D]*edge.x[j][k];
+                                    resid[d] -= wt[k]*edge.x[d][k];
+                                    jac[2*d] += wt[k]*edge.dxdn[d][k];
+                                    jac[2*d+1] += wt[k+D1D]*edge.x[d][k];
+                                    hess[d] += wt[k+2*D1D]*edge.x[d][k];
                                  }
                               }
                            }
@@ -984,6 +983,13 @@ static void FindPointsLocal2D_Kernel(const int npt,
                                  // check prior step //
                                  if (!reject_prior_step_q(fpt, resid, tmp, tol))
                                  {
+                                    // steep is negative of the gradient of the objective,
+                                    // so steeps tells direction of decrease.
+                                    // since we are only doing in normal direction (in reference space)
+                                    // steep tells whether the objective is decreasing towards
+                                    // the interior of the element or exterior (normal to the edge). If it is interior,
+                                    // we relax the constraint and go search inside the element,
+                                    // otherwise we minimize along the edge.
                                     double steep = resid[0] * jac[  dn]
                                                    + resid[1] * jac[2+dn];
 
@@ -1014,16 +1020,16 @@ static void FindPointsLocal2D_Kernel(const int npt,
                                  const findptsElementGPT_t gpt = get_pt(elx, wtend, pi, D1D);
 
                                  const double *const pt_x = gpt.x,
-                                                     *const jac = gpt.jac,
-                                                            *const hes = gpt.hes;
+                                              *const jac = gpt.jac,
+                                              *const hes = gpt.hes;
 
                                  double resid[dim], steep[dim], sr[dim];
                                  for (int d = 0; d < dim; ++d)
                                  {
                                     resid[d] = fpt->x[d] - pt_x[d];
                                  }
-                                 steep[0] = jac[0]*resid[0] + jac[2]*resid[1],
-                                            steep[1] = jac[1]*resid[0] + jac[3]*resid[1];
+                                 steep[0] = jac[0]*resid[0] + jac[2]*resid[1];
+                                 steep[1] = jac[1]*resid[0] + jac[3]*resid[1];
 
                                  sr[0] = steep[0]*tmp->r[0];
                                  sr[1] = steep[1]*tmp->r[1];
