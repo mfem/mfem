@@ -962,7 +962,7 @@ void FindPointsGSLIB::InterpolateH1(const GridFunction &field_in,
 
    field_out.SetSize(points_cnt*ncomp);
    field_out = default_interp_value;
-   field_out.HostWrite();
+   field_out.HostReadWrite();
 
    for (int i = 0; i < ncomp; i++)
    {
@@ -1022,7 +1022,7 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
 
    field_out.SetSize(points_cnt*ncomp);
    field_out = default_interp_value;
-   field_out.HostWrite();
+   field_out.HostReadWrite();
 
    if (gsl_comm->np == 1) // serial
    {

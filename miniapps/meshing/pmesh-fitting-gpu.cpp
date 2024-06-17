@@ -34,11 +34,9 @@
 //
 // Sample runs:
 // CPU + no partial assembly
-// make pmesh-fitting-gpu && mpirun -np 1 pmesh-fitting-gpu -o 3 -mid 2 -tid 1 -vl 1 -sfc 5e4 -rtol 1e-5 -d cpu -ls 3 -vis -ni 1 -ae 1
-// CPU + partial assembly (does not work yet)
-// make pmesh-fitting-gpu && mpirun -np 1 pmesh-fitting-gpu -o 3 -mid 2 -tid 1 -vl 1 -sfc 5e4 -rtol 1e-5 -d cpu -ls 3 -vis -ni 1 -ae 1 -pa
+// make pmesh-fitting-gpu && mpirun -np 1 pmesh-fitting-gpu -o 3 -d cpu -no-pa
 // GPU + partial assembly (does not work yet)
-// make pmesh-fitting-gpu && mpirun -np 1 pmesh-fitting-gpu -o 3 -mid 2 -tid 1 -vl 1 -sfc 5e4 -rtol 1e-5 -d debug -ls 3 -vis -ni 1 -ae 1 -pa
+// make pmesh-fitting-gpu && mpirun -np 1 pmesh-fitting-gpu -o 3 -d debug -pa
 
 
 #include "mesh-fitting.hpp"
@@ -59,25 +57,25 @@ int main (int argc, char *argv[])
 
    // Set the method's default parameters.
    const char *mesh_file = "square01.mesh";
-   int mesh_poly_deg     = 1;
+   int mesh_poly_deg     = 3;
    int rs_levels         = 1;
    int metric_id         = 2;
    int target_id         = 1;
-   real_t surface_fit_const = 100.0;
+   real_t surface_fit_const = 5000;
    int quad_order        = 8;
    int solver_type       = 0;
-   int solver_iter       = 20;
+   int solver_iter       = 10;
 #ifdef MFEM_USE_SINGLE
    real_t solver_rtol    = 1e-4;
 #else
-   real_t solver_rtol    = 1e-10;
+   real_t solver_rtol    = 1e-5;
 #endif
    int lin_solver        = 3;
    int max_lin_iter      = 100;
    bool move_bnd         = true;
-   bool visualization    = false;
-   int verbosity_level   = 0;
-   int adapt_eval        = 0;
+   bool visualization    = true;
+   int verbosity_level   = 2;
+   int adapt_eval        = 1;
    const char *devopt    = "cpu";
    real_t surface_fit_adapt = 0.0;
    real_t surface_fit_threshold = -10;
@@ -94,7 +92,7 @@ int main (int argc, char *argv[])
    bool conv_residual     = true;
    real_t jitter         = 0.0;
    bool pa = false;
-   bool grad_int = false;
+   bool grad_int = true;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -183,7 +181,7 @@ int main (int argc, char *argv[])
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&grad_int, "-gint", "--grad-int", "-no-gint",
                   "--no-grad-int", "Enable local gradient and hessian"
-                                   "interpolation from background mesh");
+                  "interpolation from background mesh");
    args.Parse();
    if (!args.Good())
    {
@@ -666,7 +664,8 @@ int main (int argc, char *argv[])
       {
 #ifdef MFEM_USE_GSLIB
          adapt_surface = new InterpolatorFP;
-         if (grad_int) {
+         if (grad_int)
+         {
             adapt_grad_surface = new InterpolatorFP;
             adapt_hess_surface = new InterpolatorFP;
          }
