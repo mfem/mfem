@@ -697,8 +697,6 @@ void NURBS_HDiv2DFiniteElement::Project(VectorCoefficient &vc,
                                         ElementTransformation &Trans,
                                         Vector &dofs) const
 {
-   cout<<"NURBS_HDIvDFiniteElement just a copy past"<<endl;
-
    MFEM_ASSERT(dofs.Size() == dof, "");
    MFEM_ASSERT(vc.GetVDim() == 2, "");
    Vector x(2), mx(2);
