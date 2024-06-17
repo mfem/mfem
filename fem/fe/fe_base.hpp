@@ -473,6 +473,33 @@ public:
    virtual void CalcPhysCurlShape(ElementTransformation &Trans,
                                   DenseMatrix &curl_shape) const;
 
+//--------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------
+
+
+   /** @brief Evaluate the gradients of all shape functions of a vector finite
+       element in reference space at the given point @a ip. */
+   /** The 1st index of DenseTensor @a dvshape refers to a vector shapefunction,
+       the 2nd index selects the scalar component of this vector, the 3rd
+       index selects the direction of the derivative. The size of @a dvshape,
+       which should be (#dof x #dim x #dim), must be set in advance. */
+   virtual void CalcDVShape(const IntegrationPoint &ip,
+                            DenseTensor &dvshape) const;
+
+   /** @brief Evaluate the gradients of all shape functions of a vector finite
+       element in physical space at the point described by @a Trans. */
+   /**    /** The 1st index of DenseTensor @a dvshape refers to a vector shapefunction,
+       the 2nd index selects the scalar component of this vector, the 3rd
+       index selects the direction of the derivative. The size of @a dvshape,
+       which should be (#dof x #dim x #SDim), must be set in advance, 
+       where SDim >= #dim is the physical space dimension as described
+       by @a Trans. */
+   void CalcPhysDVShape(ElementTransformation &Trans, DenseTensor &dvshape) const;
+
+//--------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------
+
+
    /** @brief Get the dofs associated with the given @a face.
        @a *dofs is set to an internal array of the local dofc on the
        face, while *ndofs is set to the number of dofs on that face.
