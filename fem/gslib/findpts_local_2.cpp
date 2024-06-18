@@ -1050,7 +1050,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
                                           newton_edge(fpt, jac, rh,
                                                       resid, de,
                                                       dn,
-                                                      tmp->flags & FLAG_MASK,
+                                                      tmp->flags & FLAG_MASK & (3u<<(2*dn)),
                                                       tmp, tol);
                                        }
                                     }
@@ -1063,7 +1063,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
                                        newton_edge(fpt, jac, rh,
                                                    resid, de,
                                                    dn,
-                                                   tmp->flags & FLAG_MASK,
+                                                   tmp->flags & FLAG_MASK & (3u<<(2*dn)),
                                                    tmp, tol);
                                     }
                                     else
