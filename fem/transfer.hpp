@@ -245,17 +245,20 @@ public:
 
       const bool use_device, verify_solution;
       MemoryType d_mt_;
+      Coefficient* coeff;
 
    public:
       L2ProjectionL2Space(const FiniteElementSpace& fes_ho_,
                           const FiniteElementSpace& fes_lor_,
+                          Coefficient* coeff_,
                           const bool use_device_,
                           const bool verify_solution_,
                           MemoryType d_mt_ = MemoryType::DEFAULT);
 
       /*Same as above but assembles and stores R_ea, P_ea */
       void DeviceL2ProjectionL2Space(const FiniteElementSpace& fes_ho_,
-                                     const FiniteElementSpace& fes_lor_);
+                                     const FiniteElementSpace& fes_lor_, 
+                                     Coefficient* coeff_);
 
       /// Maps <tt>x</tt>, primal field coefficients defined on a coarse mesh
       /// with a higher order L2 finite element space, to <tt>y</tt>, primal
@@ -429,12 +432,16 @@ protected:
    bool force_l2_space;
 
 public:
+   // Coefficient for weighted integration in mass matrices; allows for spatial variation
+   Coefficient* coeff; 
+
    L2ProjectionGridTransfer(FiniteElementSpace &coarse_fes_,
                             FiniteElementSpace &fine_fes_,
+                            Coefficient *coeff_,
                             bool force_l2_space_ = false,
                             MemoryType d_mt = MemoryType::DEFAULT)
       : GridTransfer(coarse_fes_, fine_fes_, d_mt),
-        F(NULL), B(NULL), force_l2_space(force_l2_space_)
+        F(NULL), B(NULL), force_l2_space(force_l2_space_), coeff(coeff_)
    { }
    virtual ~L2ProjectionGridTransfer();
 
