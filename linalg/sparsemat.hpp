@@ -216,7 +216,7 @@ public:
    void ClearCuSparse() { ClearGPUSparse(); }
 
    /// Check if the SparseMatrix is empty.
-   bool Empty() const { return (A == NULL) && (Rows == NULL); }
+   bool Empty() const { return A.Empty() && (Rows == NULL); }
 
    /// Return the array #I.
    inline int *GetI() { return I; }
