@@ -139,7 +139,7 @@ int main(int argc, char *argv[])
    FiniteElementSpace *R_space = new FiniteElementSpace(mesh, R_coll);
    FiniteElementSpace *W_space = new FiniteElementSpace(mesh, W_coll);
 
-   DarcyForm *darcy = new DarcyForm(R_space, W_space);
+   DarcyForm *darcy = new DarcyForm(R_space, W_space, false);
 
    // 6. Define the BlockStructure of the problem, i.e. define the array of
    //    offsets for each variable. The last component of the Array is the sum
@@ -208,7 +208,8 @@ int main(int argc, char *argv[])
    //if (!pa) { mVarf->Finalize(); }
 
    //if (pa) { bVarf->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   bVarf->AddDomainIntegrator(new VectorFEDivergenceIntegrator);
+   ConstantCoefficient cdiv(-1.);
+   bVarf->AddDomainIntegrator(new VectorFEDivergenceIntegrator(cdiv));
    //bVarf->Assemble();
    //if (!pa) { bVarf->Finalize(); }
 
