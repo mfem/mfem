@@ -1020,7 +1020,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::MultTranspose(
 
    if (use_device)
    {
-      DeviceMult(x,y);
+      DeviceMultTranspose(x,y);
       if (!verify_solution) {return;}
    }
 
