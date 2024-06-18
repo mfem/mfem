@@ -587,6 +587,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
             const auto W = Reshape(ir->GetWeights().Read(), Q1D);
             const auto J = Reshape(geo_facts->detJ.Read(), Q1D, nel_lor);
             const auto d_D = Reshape(D.Write(), qPts, nref, nel_ho);
+            const auto d_qfunc = Reshape(qfunc.Read(), qPts, nref, nel_ho);
 
             mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int iho)
             {
@@ -597,7 +598,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
                   {
 
                      const real_t detJ = J(qx, lo_el_id);
-                     d_D(qx, iref, iho) = W(qx) * detJ;
+                     d_D(qx, iref, iho) = W(qx) * detJ * d_qfunc(qx, iref, iho);
                   }
                }
             });
@@ -610,6 +611,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
             const auto W = Reshape(ir->GetWeights().Read(), Q1D, Q1D);
             const auto J = Reshape(geo_facts->detJ.Read(), Q1D,Q1D, nel_lor);
             const auto d_D = Reshape(D.Write(), qPts, nref, nel_ho);
+            const auto d_qfunc = Reshape(qfunc.Read(), qPts, nref, nel_ho);
 
             mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int iho)
             {
@@ -623,7 +625,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
                      {
                         const int q = qx + Q1D*qy;
                         const real_t detJ = J(qx, qy, lo_el_id);
-                        d_D(q, iref, iho) = W(qx, qy) * detJ;
+                        d_D(q, iref, iho) = W(qx, qy) * detJ * d_qfunc(q, iref, iho);
                      }
                   }
 
@@ -637,6 +639,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
             const auto W = Reshape(ir->GetWeights().Read(), Q1D, Q1D, Q1D);
             const auto J = Reshape(geo_facts->detJ.Read(), Q1D, Q1D, Q1D, nel_lor);
             const auto d_D = Reshape(D.Write(), qPts, nref, nel_ho);
+            const auto d_qfunc = Reshape(qfunc.Read(), qPts, nref, nel_ho);
 
             mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int iho)
             {
@@ -654,7 +657,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
 
                            const int q = qx + Q1D*qy + Q1D*Q1D*qz;
                            const real_t detJ = J(qx, qy, qz, lo_el_id);
-                           d_D(q, iref, iho) = W(qx, qy, qz) * detJ;
+                           d_D(q, iref, iho) = W(qx, qy, qz) * detJ * d_qfunc(q, iref, iho);
                         }
                      }
                   }

@@ -144,7 +144,8 @@ int main(int argc, char *argv[])
 
    QuadratureSpace qspace(mesh_lor, *ir); 
    QuadratureFunction qfunc(&qspace);
-   qfunc = 1.0;  // set weighted integral coefficient 
+   qfunc = 333.0;  // set weighted integral coefficient: can allow spatial variance at each quad index
+   // qfunc(2) = 7.0;  // e.g. if uncommented, spatial variance will not pass device verification!
    QuadratureFunctionCoefficient coeff(qfunc); 
 
    GridFunction rho(&fespace);
