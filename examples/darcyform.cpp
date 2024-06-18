@@ -558,8 +558,6 @@ DarcyHybridization::DarcyHybridization(FiniteElementSpace *fes_u_,
 {
    c_bfi_p = NULL;
 
-   bhdg = (fes->FEColl()->GetContType() == FiniteElementCollection::DISCONTINUOUS);
-
    bfin = false;
 
    Ae_data = NULL;

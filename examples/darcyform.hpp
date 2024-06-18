@@ -213,7 +213,7 @@ class DarcyHybridization : public Hybridization
    /// Indicates if the boundary_constraint_pot_integs integrators are owned externally
    int extern_bdr_constr_pot_integs;
 
-   bool bsym, bhdg, bfin;
+   bool bsym, bfin;
 
    Array<int> Ae_offsets;
    real_t *Ae_data;
