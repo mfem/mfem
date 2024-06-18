@@ -491,7 +491,8 @@ public:
        which should be (#dof x #dim x #SDim), must be set in advance,
        where SDim >= #dim is the physical space dimension as described
        by @a Trans. */
-   void CalcPhysDVShape(ElementTransformation &Trans, DenseTensor &dvshape) const;
+   virtual void CalcPhysDVShape(ElementTransformation &Trans,
+                                DenseTensor &dvshape) const;
 
    /** @brief Get the dofs associated with the given @a face.
        @a *dofs is set to an internal array of the local dofc on the
