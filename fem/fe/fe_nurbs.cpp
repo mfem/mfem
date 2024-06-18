@@ -701,7 +701,11 @@ void NURBS_HDiv2DFiniteElement::CalcDVShape(const IntegrationPoint &ip,
 
    kv[0]->CalcShape ( shape_x, ijk[0], ip.x);
    kv[1]->CalcShape ( shape_y, ijk[1], ip.y);
+   kv[0]->CalcDShape(dshape_x, ijk[0], ip.x);
+   kv[1]->CalcDShape(dshape_y, ijk[1], ip.y);
 
+   kv1[0]->CalcShape ( shape1_x, ijk[0], ip.x);
+   kv1[1]->CalcShape ( shape1_y, ijk[1], ip.y);
    kv1[0]->CalcDShape(dshape1_x, ijk[0], ip.x);
    kv1[1]->CalcDShape(dshape1_y, ijk[1], ip.y);
 
@@ -732,9 +736,11 @@ void NURBS_HDiv2DFiniteElement::CalcDVShape(const IntegrationPoint &ip,
 void NURBS_HDiv2DFiniteElement::CalcPhysDVShape(ElementTransformation &Trans,
                                                 DenseTensor &dvshape) const
 {
-   MFEM_ASSERT(map_type == VALUE, ""); // ???
+   // MFEM_ASSERT(map_type == VALUE, ""); // ???
 #ifdef MFEM_THREAD_SAFE
    DenseTensor tshape(dof, dim, dim);
+#else
+   tshape.SetSize(dof, dim, dim);
 #endif
    CalcDVShape(Trans.GetIntPoint(), tshape);
    const DenseMatrix & J = Trans.Jacobian();
@@ -743,26 +749,26 @@ void NURBS_HDiv2DFiniteElement::CalcPhysDVShape(ElementTransformation &Trans,
    MFEM_ASSERT(J.Width() == 2 && J.Height() == 2,
                "NURBS_HDiv2DFiniteElement cannot be embedded in "
                "3 dimensional spaces");
+
    for (int i=0; i<dof; i++)
    {
       // Map vector component
-      int sx = tshape(i, 0, 0) * J(0, 0) + tshape(i, 1, 0) * J(0, 1);
-      int sy = tshape(i, 0, 1) * J(0, 0) + tshape(i, 1, 1) * J(0, 1);
+      real_t sx = tshape(i, 0, 0) * J(0, 0) + tshape(i, 1, 0) * J(0, 1);
+      real_t sy = tshape(i, 0, 1) * J(0, 0) + tshape(i, 1, 1) * J(0, 1);
 
       // Map derivative direction
-      dvshape(i, 0, 0) = sx * Jinv(0, 0) + sy * Jinv(0, 1);  // (0,1) flip??
-      dvshape(i, 0, 1) = sx * Jinv(1, 0) + sy * Jinv(1, 1);  // (1,0) flip??
+      dvshape(i, 0, 0) = sx * Jinv(0, 0) + sy * Jinv(1, 0);  // (0,1) flip??
+      dvshape(i, 0, 1) = sx * Jinv(0, 1) + sy * Jinv(1, 1);  // (1,0) flip??
 
       // Map vector component
       sx = tshape(i, 1, 0) * J(1, 0) + tshape(i, 1, 0) * J(1, 1);
       sy = tshape(i, 1, 1) * J(1, 0) + tshape(i, 1, 1) * J(1, 1);
 
       // Map derivative component
-      dvshape(i, 1, 0) = sx * Jinv(0, 0) + sy * Jinv(0, 1); // (0,1) flip??
-      dvshape(i, 1, 1) = sx * Jinv(1, 0) + sy * Jinv(1, 1); // (1,0) flip??
+      dvshape(i, 1, 0) = sx * Jinv(0, 0) + sy * Jinv(1, 0); // (0,1) flip??
+      dvshape(i, 1, 1) = sx * Jinv(0, 1) + sy * Jinv(1, 1); // (1,0) flip??
    }
 }
-
 
 void NURBS_HDiv2DFiniteElement::Project(VectorCoefficient &vc,
                                         ElementTransformation &Trans,
@@ -1011,6 +1017,14 @@ void NURBS_HDiv3DFiniteElement::CalcDVShape(const IntegrationPoint &ip,
    kv[1]->CalcShape ( shape_y, ijk[1], ip.y);
    kv[2]->CalcShape ( shape_z, ijk[2], ip.z);
 
+   kv1[0]->CalcShape(shape1_x, ijk[0], ip.x);
+   kv1[1]->CalcShape(shape1_y, ijk[1], ip.y);
+   kv1[2]->CalcShape(shape1_z, ijk[2], ip.z);
+
+   kv[0]->CalcDShape(dshape_x, ijk[0], ip.x);
+   kv[1]->CalcDShape(dshape_y, ijk[1], ip.y);
+   kv[2]->CalcDShape(dshape_z, ijk[2], ip.z);
+
    kv1[0]->CalcDShape(dshape1_x, ijk[0], ip.x);
    kv1[1]->CalcDShape(dshape1_y, ijk[1], ip.y);
    kv1[2]->CalcDShape(dshape1_z, ijk[2], ip.z);
@@ -1076,7 +1090,7 @@ void NURBS_HDiv3DFiniteElement::CalcDVShape(const IntegrationPoint &ip,
 void NURBS_HDiv3DFiniteElement::CalcPhysDVShape(ElementTransformation &Trans,
                                                 DenseTensor &dvshape) const
 {
-   MFEM_ASSERT(map_type == VALUE, ""); // ???
+   //  MFEM_ASSERT(map_type == VALUE, ""); // ???
 #ifdef MFEM_THREAD_SAFE
    DenseTensor tshape(dof, dim, dim);
 #endif
@@ -1376,6 +1390,12 @@ void NURBS_HCurl2DFiniteElement::CalcDVShape(const IntegrationPoint &ip,
 
    kv[0]->CalcShape ( shape_x, ijk[0], ip.x);
    kv[1]->CalcShape ( shape_y, ijk[1], ip.y);
+
+   kv1[0]->CalcShape(shape1_x, ijk[0], ip.x);
+   kv1[1]->CalcShape(shape1_y, ijk[1], ip.y);
+
+   kv[0]->CalcDShape(dshape_x, ijk[0], ip.x);
+   kv[1]->CalcDShape(dshape_y, ijk[1], ip.y);
 
    kv1[0]->CalcDShape(dshape1_x, ijk[0], ip.x);
    kv1[1]->CalcDShape(dshape1_y, ijk[1], ip.y);
@@ -1678,6 +1698,14 @@ void NURBS_HCurl3DFiniteElement::CalcDVShape(const IntegrationPoint &ip,
    kv[0]->CalcShape ( shape_x, ijk[0], ip.x);
    kv[1]->CalcShape ( shape_y, ijk[1], ip.y);
    kv[2]->CalcShape ( shape_z, ijk[2], ip.z);
+
+   kv1[0]->CalcShape(shape1_x, ijk[0], ip.x);
+   kv1[1]->CalcShape(shape1_y, ijk[1], ip.y);
+   kv1[2]->CalcShape(shape1_z, ijk[2], ip.z);
+
+   kv[0]->CalcDShape(dshape_x, ijk[0], ip.x);
+   kv[1]->CalcDShape(dshape_y, ijk[1], ip.y);
+   kv[2]->CalcDShape(dshape_z, ijk[2], ip.z);
 
    kv1[0]->CalcDShape(dshape1_x, ijk[0], ip.x);
    kv1[1]->CalcDShape(dshape1_y, ijk[1], ip.y);
