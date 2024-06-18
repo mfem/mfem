@@ -133,6 +133,20 @@ int main(int argc, char *argv[])
    FiniteElementSpace fespace(&mesh, fec);
    FiniteElementSpace fespace_lor(&mesh_lor, fec_lor);
 
+   // Build the integration rule that matches with quadrature on mixed mass matrix,  
+   // assuming HO elements are the same, and that all HO are LOR in the same way 
+   Geometry::Type geom = mesh.GetElementBaseGeometry(0); 
+   const FiniteElement &fe = *fespace.GetFE(0);
+   const FiniteElement &fe_lor = *fespace_lor.GetFE(0); 
+   ElementTransformation *el_tr = fespace_lor.GetElementTransformation(0);
+   int qorder = fe_lor.GetOrder() + fe.GetOrder() + el_tr->OrderW(); // 0 + 3 + 1
+   const IntegrationRule* ir = &IntRules.Get(geom, qorder);
+
+   QuadratureSpace qspace(mesh_lor, *ir); 
+   QuadratureFunction qfunc(&qspace);
+   qfunc = 1.0;  // set weighted integral coefficient 
+   QuadratureFunctionCoefficient coeff(qfunc); 
+
    GridFunction rho(&fespace);
    GridFunction rho_lor(&fespace_lor);
 
@@ -170,7 +184,7 @@ int main(int argc, char *argv[])
    }
    else
    {
-      gt = new L2ProjectionGridTransfer(fespace, fespace_lor);
+      gt = new L2ProjectionGridTransfer(fespace, fespace_lor, &coeff);
    }
 
    gt->UseDevice(true);

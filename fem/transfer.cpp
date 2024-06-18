@@ -325,16 +325,16 @@ void L2ProjectionGridTransfer::L2Projection::ElemMixedMass(
 }
 
 L2ProjectionGridTransfer::L2ProjectionL2Space::L2ProjectionL2Space
-(const FiniteElementSpace &fes_ho_, const FiniteElementSpace &fes_lor_,
+(const FiniteElementSpace &fes_ho_, const FiniteElementSpace &fes_lor_, Coefficient *coeff_,
  const bool use_device_, const bool verify_solution_, MemoryType d_mt)
    : L2Projection(fes_ho_, fes_lor_),
      use_device(use_device_), verify_solution(verify_solution_),
-     d_mt_(d_mt)
+     d_mt_(d_mt), coeff(coeff_)
 {
 
    if (use_device)
    {
-      DeviceL2ProjectionL2Space(fes_ho_, fes_lor_);
+      DeviceL2ProjectionL2Space(fes_ho_, fes_lor_, coeff_);
       if (!verify_solution) {return;}
    }
 
@@ -479,8 +479,18 @@ L2ProjectionGridTransfer::L2ProjectionL2Space::L2ProjectionL2Space
 }
 
 void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
-(const FiniteElementSpace &fes_ho_, const FiniteElementSpace &fes_lor_)
+(const FiniteElementSpace &fes_ho_, const FiniteElementSpace &fes_lor_, Coefficient *coeff_) // coeff : coefficient for weighted integration
 {
+   // dynamic_cast to check if QuadFuncCoeff; if yes, continue; if no, return error
+   auto qfunc_coeff = dynamic_cast<QuadratureFunctionCoefficient*>(coeff_);
+   if (qfunc_coeff == NULL)
+   {
+      mfem_error("Not a QuadratureFunctionCoefficient");
+   }
+
+   QuadratureFunction qfunc = qfunc_coeff->GetQuadFunction();
+   // Store the mixed mass matrix integration rule, which is assumed same on all elements
+   const IntegrationRule ir = qfunc.GetIntRule(0); 
 
    Mesh *mesh_ho = fes_ho.GetMesh();
    Mesh *mesh_lor = fes_lor.GetMesh();
@@ -748,7 +758,8 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
 
    //R = inv(M_L) * M_mixed
    //Need to compute M_L
-   MassIntegrator mi;
+   //Note: Using user-inputted M_LH IntegrationRule ir (higher order than needed) in order to re-use coeff
+   MassIntegrator mi(*coeff, &ir);
 
    const bool add = false;
    mi.AssembleEA(fes_lor, M_ea_lor, add);
@@ -1893,8 +1904,8 @@ void L2ProjectionGridTransfer::BuildF()
    }
    else
    {
-      F = new L2ProjectionL2Space(dom_fes, ran_fes, use_device,
-                                  verify_solution);
+      F = new L2ProjectionL2Space(dom_fes, ran_fes, coeff, 
+                                  use_device, verify_solution);
    }
 }
 
