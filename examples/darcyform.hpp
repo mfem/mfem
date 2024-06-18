@@ -47,7 +47,7 @@ class DarcyForm : public Operator
 
 public:
    DarcyForm(FiniteElementSpace *fes_u, FiniteElementSpace *fes_p,
-             bool bsymmetrized = true);
+             bool bsymmetrize = true);
 
    inline const Array<int>& GetOffsets() const { return offsets; }
 
@@ -255,7 +255,7 @@ class DarcyHybridization : public Hybridization
 public:
    /// Constructor
    DarcyHybridization(FiniteElementSpace *fes_u, FiniteElementSpace *fes_p,
-                      FiniteElementSpace *fes_c, bool bsymmetrized = true);
+                      FiniteElementSpace *fes_c, bool bsymmetrize = true);
    /// Destructor
    ~DarcyHybridization();
 

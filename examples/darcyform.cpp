@@ -21,8 +21,8 @@ namespace mfem
 {
 
 DarcyForm::DarcyForm(FiniteElementSpace *fes_u_, FiniteElementSpace *fes_p_,
-                     bool bsymmetrized)
-   : fes_u(fes_u_), fes_p(fes_p_), bsym(bsymmetrized)
+                     bool bsymmetrize)
+   : fes_u(fes_u_), fes_p(fes_p_), bsym(bsymmetrize)
 {
    offsets.SetSize(3);
    offsets[0] = 0;
@@ -260,7 +260,7 @@ void DarcyForm::Finalize(int skip_zeros)
 
          if (!pBt.Ptr()) { ConstructBT(B); }
 
-         block_op->SetBlock(0, 1, pBt.Ptr(), -1.);
+         block_op->SetBlock(0, 1, pBt.Ptr(), (bsym)?(-1.):(+1.));
          block_op->SetBlock(1, 0, B, (bsym)?(-1.):(+1.));
       }
    }
@@ -313,7 +313,7 @@ void DarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
 
          ConstructBT(pB.Ptr());
 
-         block_op->SetBlock(0, 1, pBt.Ptr(), -1.);
+         block_op->SetBlock(0, 1, pBt.Ptr(), (bsym)?(-1.):(+1.));
          block_op->SetBlock(1, 0, pB.Ptr(), (bsym)?(-1.):(+1.));
       }
 
@@ -378,7 +378,7 @@ void DarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
 
          ConstructBT(pB.Ptr());
 
-         block_op->SetBlock(0, 1, pBt.Ptr(), -1.);
+         block_op->SetBlock(0, 1, pBt.Ptr(), (bsym)?(-1.):(+1.));
          block_op->SetBlock(1, 0, pB.Ptr(), (bsym)?(-1.):(+1.));
       }
    }
@@ -553,8 +553,8 @@ const Operator* DarcyForm::ConstructBT(const Operator *opB)
 DarcyHybridization::DarcyHybridization(FiniteElementSpace *fes_u_,
                                        FiniteElementSpace *fes_p_,
                                        FiniteElementSpace *fes_c_,
-                                       bool bsymmetrized)
-   : Hybridization(fes_u_, fes_c_), fes_p(fes_p_), bsym(bsymmetrized)
+                                       bool bsymmetrize)
+   : Hybridization(fes_u_, fes_c_), fes_p(fes_p_), bsym(bsymmetrize)
 {
    c_bfi_p = NULL;
 
@@ -1244,6 +1244,7 @@ void DarcyHybridization::ComputeH()
       AiBt.SetSize(a_dofs_size, d_dofs_size);
 
       AiBt.Transpose(B);
+      if (!bsym) { AiBt.Neg(); }
       LU_A.Solve(AiBt.Height(), AiBt.Width(), AiBt.GetData());
       mfem::AddMult(B, AiBt, D);
 
@@ -1570,7 +1571,8 @@ void DarcyHybridization::MultInv(int el, const Vector &bu, const Vector &bp,
 
    LU_A.Solve(AiBtSiBAibu.Size(), 1, AiBtSiBAibu.GetData());
 
-   u += AiBtSiBAibu;
+   if (bsym) { u += AiBtSiBAibu; }
+   else { u -= AiBtSiBAibu; }
 }
 
 void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
