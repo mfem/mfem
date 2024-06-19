@@ -1107,7 +1107,9 @@ class Table;
 class DenseTensor
 {
 private:
+   mutable DenseMatrix M;
    mutable DenseMatrix Mk;
+   mutable Vector Vk;
    Memory<real_t> tdata;
    int nk;
 
@@ -1118,29 +1120,34 @@ public:
    }
 
    DenseTensor(int i, int j, int k)
-      : Mk(NULL, i, j)
+      : M(NULL, i, j*k), Mk(NULL, i, j), Vk(NULL, i)
    {
       nk = k;
       tdata.New(i*j*k);
+      M.data =  Memory<real_t>(Data(), TotalSize(), false);
    }
 
    DenseTensor(real_t *d, int i, int j, int k)
-      : Mk(NULL, i, j)
+      : M(NULL, i, j*k),  Mk(NULL, i, j), Vk(NULL, i)
    {
       nk = k;
       tdata.Wrap(d, i*j*k, false);
+      M.data =  Memory<real_t>(Data(), TotalSize(), false);
    }
 
    DenseTensor(int i, int j, int k, MemoryType mt)
-      : Mk(NULL, i, j)
+      : M(NULL, i, j*k),  Mk(NULL, i, j), Vk(NULL, i)
    {
       nk = k;
       tdata.New(i*j*k, mt);
+      M.data =  Memory<real_t>(Data(), TotalSize(), false);
    }
 
    /// Copy constructor: deep copy
    DenseTensor(const DenseTensor &other)
-      : Mk(NULL, other.Mk.height, other.Mk.width), nk(other.nk)
+      : M (NULL, other.SizeI(), other.SizeJ()*other.SizeK()),
+        Mk(NULL, other.Mk.height, other.Mk.width),
+        Vk(NULL, other.Mk.height), nk(other.nk)
    {
       const int size = Mk.Height()*Mk.Width()*nk;
       if (size > 0)
@@ -1148,6 +1155,7 @@ public:
          tdata.New(size, other.tdata.GetMemoryType());
          tdata.CopyFrom(other.tdata, size);
       }
+      M.data =  Memory<real_t>(Data(), TotalSize(), false);
    }
 
    int SizeI() const { return Mk.Height(); }
@@ -1161,16 +1169,29 @@ public:
       const MemoryType mt = mt_ == MemoryType::PRESERVE ? tdata.GetMemoryType() : mt_;
       tdata.Delete();
       Mk.UseExternalData(NULL, i, j);
+      M.UseExternalData(NULL, i, j*k);
       nk = k;
       tdata.New(i*j*k, mt);
+      M.data = Memory<real_t>(Data(), TotalSize(), false);
    }
 
    void UseExternalData(real_t *ext_data, int i, int j, int k)
    {
       tdata.Delete();
       Mk.UseExternalData(NULL, i, j);
+      M.UseExternalData(NULL, i, j*k);
       nk = k;
       tdata.Wrap(ext_data, i*j*k, false);
+      M.data = Memory<real_t>(Data(), TotalSize(), false);
+   }
+
+   DenseMatrix &GetDenseMatrix()
+   {
+      return M;
+   }
+   const DenseMatrix &GetDenseMatrix() const
+   {
+      return M;
    }
 
    /// Sets the tensor elements equal to constant c
@@ -1185,12 +1206,21 @@ public:
       Mk.data = Memory<real_t>(GetData(k), SizeI()*SizeJ(), false);
       return Mk;
    }
+
    const DenseMatrix &operator()(int k) const
    {
       MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
       Mk.data = Memory<real_t>(const_cast<real_t*>(GetData(k)), SizeI()*SizeJ(),
                                false);
       return Mk;
+   }
+
+   Vector &operator()(int j, int k)
+   {
+      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
+      MFEM_ASSERT_INDEX_IN_RANGE(j, 0, SizeJ());
+      Vk.SetData(Data());
+      return Vk;
    }
 
    real_t &operator()(int i, int j, int k)
@@ -1207,6 +1237,20 @@ public:
       MFEM_ASSERT_INDEX_IN_RANGE(j, 0, SizeJ());
       MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
       return tdata[i+SizeI()*(j+SizeJ()*k)];
+   }
+
+   real_t *GetData(int j, int k)
+   {
+      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
+      MFEM_ASSERT_INDEX_IN_RANGE(j, 0, SizeJ());
+      return tdata+k*Mk.Height()*Mk.Width() + j*Mk.Height();
+   }
+
+   const real_t *GetData(int j,int k) const
+   {
+      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
+      MFEM_ASSERT_INDEX_IN_RANGE(j, 0, SizeJ());
+      return tdata+k*Mk.Height()*Mk.Width() + j*Mk.Height();;
    }
 
    real_t *GetData(int k)
@@ -1266,7 +1310,10 @@ public:
       mfem::Swap(tdata, t.tdata);
       mfem::Swap(nk, t.nk);
       Mk.Swap(t.Mk);
+      M.data = tdata;
    }
+   /// Prints matrix to stream out.
+   virtual void Print(std::ostream &out = mfem::out, int width_ = 4) const;
 
    ~DenseTensor() { tdata.Delete(); }
 };
