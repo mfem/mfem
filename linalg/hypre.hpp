@@ -762,6 +762,15 @@ public:
        values of the transpose of the matrix A. */
    void AbsMultTranspose(real_t a, const Vector &x, real_t b, Vector &y) const;
 
+   /** @brief Computes y = a * |A|**p * x + b * y, using entry-wise absolute values
+       of the matrix A. */
+   void PowAbsMult(real_t p, real_t a, const Vector &x, real_t b, Vector &y) const;
+
+   /** @brief Computes y = a * |At|**p * x + b * y, using entry-wise absolute
+       values of the transpose of the matrix A. */
+   void PowAbsMultTranspose(real_t p, real_t a, const Vector &x, real_t b,
+                            Vector &y) const;
+
    /** @brief The "Boolean" analog of y = alpha * A * x + beta * y, where
        elements in the sparsity pattern of the matrix are treated as "true". */
    void BooleanMult(int alpha, const int *x, int beta, int *y)

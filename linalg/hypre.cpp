@@ -2010,6 +2010,58 @@ void HypreParMatrix::AbsMultTranspose(real_t a, const Vector &x,
    HypreRead();
 }
 
+void HypreParMatrix::PowAbsMult(real_t p, real_t a, const Vector &x,
+                                real_t b, Vector &y) const
+{
+   MFEM_ASSERT(x.Size() == Width(), "invalid x.Size() = " << x.Size()
+               << ", expected size = " << Width());
+   MFEM_ASSERT(y.Size() == Height(), "invalid y.Size() = " << y.Size()
+               << ", expected size = " << Height());
+   MFEM_ASSERT(p > 0.0, "Non-positive powers not implemented!");
+
+   auto x_data = x.HostRead();
+   auto y_data = (b == 0.0) ? y.HostWrite() : y.HostReadWrite();
+
+   HostRead();
+   if (p == 1.0)
+   {
+      internal::hypre_ParCSRMatrixAbsMatvec(A, a, const_cast<real_t*>(x_data),
+                                            b, y_data);
+   }
+   else
+   {
+      internal::hypre_ParCSRMatrixPowAbsMatvec(A, p, a, const_cast<real_t*>(x_data),
+                                               b, y_data);
+   }
+   HypreRead();
+}
+
+void HypreParMatrix::PowAbsMultTranspose(real_t p, real_t a, const Vector &x,
+                                         real_t b, Vector &y) const
+{
+   MFEM_ASSERT(x.Size() == Height(), "invalid x.Size() = " << x.Size()
+               << ", expected size = " << Height());
+   MFEM_ASSERT(y.Size() == Width(), "invalid y.Size() = " << y.Size()
+               << ", expected size = " << Width());
+   MFEM_ASSERT(p > 0.0, "Non-positive powers not implemented!");
+
+   auto x_data = x.HostRead();
+   auto y_data = (b == 0.0) ? y.HostWrite() : y.HostReadWrite();
+
+   HostRead();
+   if (p == 1.0)
+   {
+      internal::hypre_ParCSRMatrixAbsMatvecT(A, a, const_cast<real_t*>(x_data),
+                                             b, y_data);
+   }
+   else
+   {
+      internal::hypre_ParCSRMatrixPowAbsMatvecT(A, p, a, const_cast<real_t*>(x_data),
+                                                b, y_data);
+   }
+   HypreRead();
+}
+
 HypreParMatrix* HypreParMatrix::LeftDiagMult(const SparseMatrix &D,
                                              HYPRE_BigInt* row_starts) const
 {
