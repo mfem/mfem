@@ -2771,17 +2771,6 @@ void VectorFEDiffusionIntegrator::AssembleElementMatrix(
          AddMult_a_AAt (w, flat_dvs, elmat);
       }
    }
-
-   //   elmat.Print();
-   DenseMatrix tmp_elmat = elmat;
-   //   tmp_elmat.Print();
-   AssembleElementMatrix2(el,el,Trans,elmat);
-
-   // elmat.Print();
-
-   tmp_elmat -= elmat;
-   //  tmp_elmat.Print();
-   cout<< tmp_elmat.MaxMaxNorm()<<endl;
 }
 
 void VectorFEDiffusionIntegrator::AssembleElementMatrix2(
