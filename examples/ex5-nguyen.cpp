@@ -660,15 +660,28 @@ int main(int argc, char *argv[])
       //     sol_t.gf".
       if (mfem)
       {
-         ofstream mesh_ofs("ex5.mesh");
+         stringstream ss;
+         ss.str("");
+         ss << "ex5";
+         if (btime) { ss << "_" << ti; }
+         ss << ".mesh";
+         ofstream mesh_ofs(ss.str());
          mesh_ofs.precision(8);
          mesh->Print(mesh_ofs);
 
-         ofstream q_ofs("sol_q.gf");
+         ss.str("");
+         ss << "sol_q";
+         if (btime) { ss << "_" << ti; }
+         ss << ".gf";
+         ofstream q_ofs(ss.str());
          q_ofs.precision(8);
          q_h.Save(q_ofs);
 
-         ofstream t_ofs("sol_t.gf");
+         ss.str("");
+         ss << "sol_t";
+         if (btime) { ss << "_" << ti; }
+         ss << ".gf";
+         ofstream t_ofs(ss.str());
          t_ofs.precision(8);
          t_h.Save(t_ofs);
       }
