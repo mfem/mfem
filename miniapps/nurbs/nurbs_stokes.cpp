@@ -158,9 +158,9 @@ public:
       ops(1,0)->AddMult(sol.GetBlock(0), tmp1);         // tmp = -g + Du
       ops(1,1)->Mult(tmp1, sol.GetBlock(1));            // p = S^{-1} (-g + Du)
 
-     // tmp1 = rhs.GetBlock(1);
-     // ops(1,0)->AddMult(sol.GetBlock(0), tmp1, -1.0);   // tmp = g - Du
-     // ops(1,1)->Mult(tmp1, sol.GetBlock(1));            // p = S^{-1} (g - Du)
+      // tmp1 = rhs.GetBlock(1);
+      // ops(1,0)->AddMult(sol.GetBlock(0), tmp1, -1.0);   // tmp = g - Du
+      // ops(1,1)->Mult(tmp1, sol.GetBlock(1));            // p = S^{-1} (g - Du)
 
 
 
@@ -290,7 +290,7 @@ int main(int argc, char *argv[])
 
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
    ess_bdr = 1;
-   
+
    MemoryType mt = device.GetMemoryType();
    BlockVector x(block_offsets, mt);
 
@@ -311,6 +311,11 @@ int main(int argc, char *argv[])
    LinearForm *fform(new LinearForm);
    fform->Update(&u_space, rhs.GetBlock(0), 0);
    fform->AddDomainIntegrator(new VectorFEDomainLFIntegrator(f_cf));
+
+   bool weakBC  = false;
+   real_t penalty = 8.0;
+
+   //   if (weakBC) fform->AddBdrFaceIntegrator(new DGDirichletLFIntegrator(u_cf, -1.0, penalty)); Vector extension....
    fform->Assemble();
    fform->SyncAliasMemory(rhs);
 
@@ -327,19 +332,22 @@ int main(int argc, char *argv[])
    //     where:
    //
    //     K = \int_\Omega k u_h \cdot v_h d\Omega   u_h, v_h \in R_h
-   //     D = -\int_\Omega \div u_h q_h d\Omega   u_h \in R_h, q_h \in W_h 
-   //     G = D^t 
+   //     D = -\int_\Omega \div u_h q_h d\Omega   u_h \in R_h, q_h \in W_h
+   //     G = D^t
    BilinearForm kVarf(&u_space);
    kVarf.AddDomainIntegrator(new VectorFEDiffusionIntegrator(k_c));
+   // if (weakBC) kVarf.AddBdrFaceIntegrator(new DGDiffusionIntegrator(k_c, -1.0, penalty)); Vector extension....
    kVarf.Assemble();
-   kVarf.EliminateEssentialBC(ess_bdr, u, *fform);
+   if (!weakBC) { kVarf.EliminateEssentialBC(ess_bdr, u, *fform); }
    kVarf.Finalize();
    SparseMatrix &K(kVarf.SpMat());
 
    MixedBilinearForm bVarf(&u_space, &p_space);
    bVarf.AddDomainIntegrator(new VectorFEDivergenceIntegrator);
+   //  if (weakBC) bVarf.AddBoundaryIntegrator(new NormalTraceIntegrator(-1.0)); Not for mixed???
+
    bVarf.Assemble();
-   bVarf.EliminateTrialDofs(ess_bdr, u, *gform);
+   if (!weakBC) { bVarf.EliminateTrialDofs(ess_bdr, u, *gform); }
    bVarf.Finalize();
    SparseMatrix &D(bVarf.SpMat());
    TransposeOperator G(&D);
@@ -399,7 +407,7 @@ int main(int argc, char *argv[])
    //
    SadlePointLUPreconditioner stokesPrec(block_offsets);
    //BlockLowerTriangularPreconditioner stokesPrec(block_offsets);
-  // BlockLUPreconditioner stokesPrec(block_offsets);
+   // BlockLUPreconditioner stokesPrec(block_offsets);
 
    stokesPrec.SetBlock(0,0, &invK);
    stokesPrec.SetBlock(0,1, &G);
@@ -496,10 +504,10 @@ int main(int argc, char *argv[])
    }
 
    // 17. Free the used memory.
-  // delete fform;
-  // delete gform;
- //  delete invSp;
-  // delete kVarf;
+   // delete fform;
+   // delete gform;
+   //  delete invSp;
+   // delete kVarf;
    //delete bVarf;
    delete l2_coll;
    delete hdiv_coll;
