@@ -1,513 +1,214 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
-// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
-// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//                                MFEM Example 5 -- modified for NURBS FE
 //
-// This file is part of the MFEM library. For more information and source code
-// availability visit https://mfem.org.
+// Compile with: make nurbs_ex5
 //
-// MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license. We welcome feedback and contributions, see file
-// CONTRIBUTING.md for details.
+// Sample runs:  nurbs_ex5 -m ../../data/square-nurbs.mesh -o 3
+//               nurbs_ex5 -m ../../data/cube-nurbs.mesh -r 3
+//               nurbs_ex5 -m ../../data/pipe-nurbs-2d.mesh
+//               nurbs_ex5 -m ../../data/beam-tet.mesh
+//               nurbs_ex5 -m ../../data/beam-hex.mesh
+//               nurbs_ex5 -m ../../data/escher.mesh
+//               nurbs_ex5 -m ../../data/fichera.mesh
 //
-// Stabilized  Navier-Stokes
+// Device sample runs -- do not work for NURBS:
+//               nurbs_ex5 -m ../../data/escher.mesh -pa -d cuda
+//               nurbs_ex5 -m ../../data/escher.mesh -pa -d raja-cuda
+//               nurbs_ex5 -m ../../data/escher.mesh -pa -d raja-omp
+//
+// Description:  This example code solves a simple 2D/3D mixed Darcy problem
+//               corresponding to the saddle point system
+//
+//                                 k*u + grad p = f
+//                                 - div u      = g
+//
+//               with natural boundary condition -p = <given pressure>.
+//               Here, we use a given exact solution (u,p) and compute the
+//               corresponding r.h.s. (f,g).  We discretize with Raviart-Thomas
+//               finite elements (velocity u) and piecewise discontinuous
+//               polynomials (pressure p).
+//
+//               NURBS-based H(div) spaces only implemented for meshes
+//               consisting of a single patch.
+//
+//               The example demonstrates the use of the BlockOperator class, as
+//               well as the collective saving of several grid functions in
+//               VisIt (visit.llnl.gov) and ParaView (paraview.org) formats.
+//
+//               We recommend viewing examples 1-4 before viewing this example.
+
+// Sample runs:  nurbs_ex3 -m ../../data/square-nurbs.mesh
+//               nurbs_ex3 -m ../../data/square-nurbs.mesh -o 2
+//               nurbs_ex3 -m ../../data/cube-nurbs.mesh
 
 
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include <list>
+#include <algorithm>
 
 using namespace std;
 using namespace mfem;
 
-real_t kappa_param = 1.0;
-real_t pi  = (real_t)(M_PI);
-
-using VectorFun = std::function<void(const Vector & x, Vector & a)>;
-using ScalarFun = std::function<real_t(const Vector & x)>;
-
-void sol_fun(const Vector & x, Vector &sol)
-{
-   sol = 0.0;
-   if ((x[1] - 0.99 > 0.0) &&
-       (fabs(x[0] - 0.5) < 0.49) )
-   {
-      sol[0] = 1.0;
-   }
-}
-
-real_t kappa_fun(const Vector & x)
-{
-   return kappa_param;
-}
-
-void force_fun(const Vector & x, Vector &f)
+// Define the analytical solution and forcing terms / boundary conditions
+void f_fun(const Vector & x, Vector & f)
 {
    f = 0.0;
 }
 
-
-class StokesIntegrator : public BlockNonlinearFormIntegrator
+real_t g_fun(const Vector & x)
 {
-private:
-   Coefficient *c_mu;
-   VectorCoefficient *c_force;
-   Vector u, f, grad_p;
-   DenseMatrix flux;
+   return 0;
+}
 
-   DenseMatrix elf_u, elv_u;
-   DenseMatrix elf_p, elv_p;
-   DenseMatrix sh_u;
-   Vector sh_p;
-   DenseMatrix shg_u, shh_u, shg_p, grad_u;
+void u_fun(const Vector & x, Vector & u)
+{
+   u = 0.0;
 
-
-
-   int dim = -1;
-   void SetDim(int dim_)
+   if ((x[1] - 0.99 > 0.0) &&
+       (fabs(x[0] - 0.5) < 0.49) )
    {
-      if (dim_ != dim)
-      {
-         dim = dim_;
-         u.SetSize(dim);
-         f.SetSize(dim);
-         //res.SetSize(dim);
-         //  up.SetSize(dim);
-        // grad_u.SetSize(dim);
-        // grad_p.SetSize(dim);
-      }
+      u[0] = 1.0;
    }
+}
 
-public:
-   StokesIntegrator(Coefficient &mu_,
-                    VectorCoefficient &force_)
-      : c_mu(&mu_), c_force(&force_) { }
-
-   virtual real_t GetElementEnergy(const Array<const FiniteElement *>&el,
-                                   ElementTransformation &Tr,
-                                   const Array<const Vector *> &elfun)
-   { return 0.0; }
-
-   /// Perform the local action of the NonlinearFormIntegrator
-   virtual void AssembleElementVector(const Array<const FiniteElement *> &el,
-                                      ElementTransformation &Tr,
-                                      const Array<const Vector *> &elfun,
-                                      const Array<Vector *> &elvec)
-   {
-      if (el.Size() != 2)
-      {
-         mfem_error("StokesIntegrator::AssembleElementVector"
-                    " has finite element space of incorrect block number");
-      }
-
-      int dof_u = el[0]->GetDof();
-      int dof_p = el[1]->GetDof();
-
-      SetDim(el[0]->GetDim());
-      int spaceDim = Tr.GetSpaceDim();
-      if (dim != spaceDim)
-      {
-         mfem_error("StokesIntegrator::AssembleElementVector"
-                    " is not defined on manifold meshes");
-      }
-      elvec[0]->SetSize(dof_u);
-      elvec[1]->SetSize(dof_p);
-
-      *elvec[0] = 0.0;
-      *elvec[1] = 0.0;
-
-      elf_u.UseExternalData(elfun[0]->GetData(), dof_u, dim);
-      elv_u.UseExternalData(elvec[0]->GetData(), dof_u, dim);
-
-      sh_u.SetSize(dof_u, dim);
-     // shg_u.SetSize(dof_u, dim);
-      sh_p.SetSize(dof_p);
+real_t p_fun(const Vector & x)
+{
+   return 0.0;
+}
 
 
-      int intorder = 2*el[0]->GetOrder();
-      const IntegrationRule &ir = IntRules.Get(el[0]->GetGeomType(), intorder);
-
-      for (int i = 0; i < ir.GetNPoints(); ++i)
-      {
-         const IntegrationPoint &ip = ir.IntPoint(i);
-         Tr.SetIntPoint(&ip);
-         real_t w = ip.weight * Tr.Weight();
-         real_t mu = c_mu->Eval(Tr, ip);
-         c_force->Eval(f, Tr, ip);
-
-         // Compute shape and interpolate
-         el[0]->CalcPhysVShape(Tr, sh_u);
-         sh_u.MultTranspose(*elfun[0], u);
-        // MultAtB(elf_u, sh_u, u);
-       // elf_u.MultTranspose(sh_u, u);
-
-        // el[0]->CalcPhysDVShape(Tr, shg_u);
-        // shg_u.Mult(u, ushg_u);
-       //  MultAtB(elf_u, shg_u, grad_u);
-
-         el[1]->CalcPhysShape(Tr, sh_p);
-         real_t p = sh_p*(*elfun[1]);
-
-        // el[1]->CalcPhysDShape(Tr, shg_p);
-        // shg_p.MultTranspose(*elfun[1], grad_p);
-
-         // Compute momentum weak residual
-         flux.Diag(-p,dim);  // Add pressure  to flux
-       //  grad_u.Symmetrize();                   // Grad to strain
-       //  flux.Add(2*mu,grad_u);                 // Add stress to flux
-
-        // AddMult_a_ABt(w, shg_u, flux, elv_u);  // Add flux term to rhs
-       //  AddMult_a_VVt(w, sh_u, elv_u);  // Add mass term to rhs
-
-        // AddMult_a_VWt(-w, sh_u, f,    elv_u);  // Add force term to rhs
-
-         // Compute momentum weak residual
-         elvec[1]->Add(w*grad_u.Trace(), sh_p); // Add Galerkin term
-      }
-   }
-
-   /// Assemble the local gradient matrix
-   virtual void AssembleElementGrad(const Array<const FiniteElement*> &el,
-                                    ElementTransformation &Tr,
-                                    const Array<const Vector *> &elfun,
-                                    const Array2D<DenseMatrix *> &elmats)
-   {
-    /*  int dof_u = el[0]->GetDof();
-      int dof_p = el[1]->GetDof();
-
-      SetDim(el[0]->GetDim());
-
-      elf_u.UseExternalData(elfun[0]->GetData(), dof_u, dim);
-
-      elmats(0,0)->SetSize(dof_u*dim, dof_u*dim);
-      elmats(0,1)->SetSize(dof_u*dim, dof_p);
-      elmats(1,0)->SetSize(dof_p, dof_u*dim);
-      elmats(1,1)->SetSize(dof_p, dof_p);
-
-      *elmats(0,0) = 0.0;
-      *elmats(0,1) = 0.0;
-      *elmats(1,0) = 0.0;
-      *elmats(1,1) = 0.0;
-
-      sh_u.SetSize(dof_u);
-      shg_u.SetSize(dof_u, dim);
-      ushg_u.SetSize(dof_u);
-      sh_p.SetSize(dof_p);
-      shg_p.SetSize(dof_p, dim);
-
-      int intorder = 2*el[0]->GetOrder();
-      const IntegrationRule &ir = IntRules.Get(el[0]->GetGeomType(), intorder);
-
-      for (int i = 0; i < ir.GetNPoints(); ++i)
-      {
-         const IntegrationPoint &ip = ir.IntPoint(i);
-         Tr.SetIntPoint(&ip);
-         real_t w = ip.weight * Tr.Weight();
-         real_t mu = c_mu->Eval(Tr, ip);
-
-         el[0]->CalcPhysShape(Tr, sh_u);
-         elf_u.MultTranspose(sh_u, u);
-
-         el[0]->CalcPhysDShape(Tr, shg_u);
-         MultAtB(elf_u, shg_u, grad_u);
-
-         shg_u.Mult(u, ushg_u);
-
-         el[1]->CalcPhysShape(Tr, sh_p);
-         real_t p = sh_p*(*elfun[1]);
-
-         el[1]->CalcPhysDShape(Tr, shg_p);
-         shg_p.MultTranspose(*elfun[1], grad_p);
-
-         // u,u block
-         for (int i_u = 0; i_u < dof_u; ++i_u)
-         {
-            for (int j_u = 0; j_u < dof_u; ++j_u)
-            {
-               // Diffusion
-               real_t mat = 0.0;
-               for (int dim_u = 0; dim_u < dim; ++dim_u)
-               {
-                  mat += shg_u(i_u,dim_u)*shg_u(j_u,dim_u);
-               }
-               mat *= mu;
-
-               mat *= w;
-               for (int dim_u = 0; dim_u < dim; ++dim_u)
-               {
-                  (*elmats(0,0))(i_u + dim_u*dof_u, j_u + dim_u*dof_u) += mat;
-               }
-
-               for (int i_dim = 0; i_dim < dim; ++i_dim)
-               {
-                  for (int j_dim = 0; j_dim < dim; ++j_dim)
-                  {
-                     (*elmats(0,0))(i_u + i_dim*dof_u, j_u + j_dim*dof_u) +=
-                        mu*shg_u(i_u,j_dim)*shg_u(j_u,i_dim)*w;
-                  }
-               }
-            }
-         }
-
-         // u,p and p,u blocks
-         for (int i_p = 0; i_p < dof_p; ++i_p)
-         {
-            for (int j_u = 0; j_u < dof_u; ++j_u)
-            {
-               for (int dim_u = 0; dim_u < dim; ++dim_u)
-               {
-                  (*elmats(0,1))(j_u + dof_u * dim_u, i_p) -= shg_u(j_u,dim_u)*sh_p(i_p)*w;
-                  (*elmats(1,0))(i_p, j_u + dof_u * dim_u) += shg_u(j_u,dim_u)*sh_p(i_p)*w;
-               }
-            }
-         }
-
-      }*/
-   }
-
-};
 
 
-class GeneralResidualMonitor : public IterativeSolverMonitor
+//! @class SadlePointLUPreconditioner
+/**
+ * \brief A class to handle Block lower triangular preconditioners in a
+ * matrix-free implementation.
+ *
+ * Usage:
+ * - Use the constructors to define the block structure
+ * - Use SetBlock() to fill the BlockLowerTriangularOperator
+ * - Diagonal blocks of the preconditioner should approximate the inverses of
+ *   the diagonal block of the matrix
+ * - Off-diagonal blocks of the preconditioner should match/approximate those of
+ *   the original matrix
+ * - Use the method Mult() and MultTranspose() to apply the operator to a vector.
+ *
+ * If a diagonal block is not set, it is assumed to be an identity block, if an
+ * off-diagonal block is not set, it is assumed to be a zero block.
+ *
+ */
+class SadlePointLUPreconditioner : public Solver
 {
 public:
-   GeneralResidualMonitor(const std::string& prefix_, int print_lvl)
-      : prefix(prefix_)
+   //! Constructor for BlockLUPreconditioner%s with the same
+   //! block-structure for rows and columns.
+   /**
+    *  @param offsets  Offsets that mark the start of each row/column block
+    *                  (size nBlocks+1).
+    *
+    *  @note BlockLUPreconditioner will not own/copy the data
+    *  contained in @a offsets.
+    */
+   SadlePointLUPreconditioner(const Array<int> & offsets_)
+      : Solver(offsets_.Last()),
+        nBlocks(offsets_.Size() - 1),
+        offsets(0),
+        ops(nBlocks, nBlocks)
    {
-      print_level = print_lvl;
-      rank = 1;
+      MFEM_VERIFY(offsets_.Size() == 3, "Wrong number of offsets");
+
+      ops = static_cast<Operator *>(NULL);
+      offsets.MakeRef(offsets_);
+
+      tmp0.SetSize(offsets[1] - offsets[0]);
+      tmp1.SetSize(offsets[2] - offsets[1]);
    }
 
-   GeneralResidualMonitor(MPI_Comm comm,
-                          const std::string& prefix_, int print_lvl)
-      : prefix(prefix_)
+   //! Add a block opt in the block-entry (iblock, jblock).
+   /**
+    * @param iRow, iCol  The block will be inserted in location (iRow, iCol).
+    * @param op          The Operator to be inserted.
+    */
+   void SetBlock(int iRow, int iCol, Operator *op)
    {
-#ifndef MFEM_USE_MPI
-      print_level = print_lvl;
-#else
-      MPI_Comm_rank(comm, &rank);
-      if (rank == 0)
-      {
-         print_level = print_lvl;
-      }
-      else
-      {
-         print_level = -1;
-      }
-#endif
+      MFEM_VERIFY(offsets[iRow+1] - offsets[iRow] == op->NumRows() &&
+                  offsets[iCol+1] - offsets[iCol] == op->NumCols(),
+                  "incompatible Operator dimensions");
+
+      ops(iRow, iCol) = op;
    }
 
-   virtual void MonitorResidual(int it, real_t norm, const Vector &r, bool final)
-   {
-      if (it == 0)
-      {
-         norm0 = norm;
-      }
+   //! This method is present since required by the abstract base class Solver
+   virtual void SetOperator(const Operator &op) { }
 
-      if ((print_level > 0 &&  it%print_level == 0) || final)
-      {
-         mfem::out << prefix << " iteration " << std::setw(2) << it
-                   << " : ||r|| = " << norm
-                   << ",  ||r||/||r_0|| = " << 100*norm/norm0<<" % \n";
-      }
+   /// Operator application
+   virtual void Mult (const Vector & x, Vector & y) const
+   {
+      MFEM_ASSERT(x.Size() == width, "incorrect input Vector size");
+      MFEM_ASSERT(y.Size() == height, "incorrect output Vector size");
+
+      sol.Update(y.GetData(),offsets);
+      rhs.Update(x.GetData(),offsets);
+
+      y = 0.0;
+      ops(0,0)->Mult(rhs.GetBlock(0), sol.GetBlock(0)); // u = K^-1 f
+
+      tmp1 = rhs.GetBlock(1);
+      tmp1.Neg();
+      ops(1,0)->AddMult(sol.GetBlock(0), tmp1);         // tmp = -g + Du
+      ops(1,1)->Mult(tmp1, sol.GetBlock(1));            // p = S^{-1} (-g + Du)
+
+     // tmp1 = rhs.GetBlock(1);
+     // ops(1,0)->AddMult(sol.GetBlock(0), tmp1, -1.0);   // tmp = g - Du
+     // ops(1,1)->Mult(tmp1, sol.GetBlock(1));            // p = S^{-1} (g - Du)
+
+
+
+      ops(0,1)->Mult(sol.GetBlock(1), tmp0);
+      ops(0,0)->AddMult(tmp0, sol.GetBlock(0), -1.0);    // u = u - K^-1 G p
    }
 
 private:
-   const std::string prefix;
-   int rank, print_level;
-   mutable real_t norm0;
+   //! Number of block rows/columns
+   int nBlocks;
+   //! Offsets for the starting position of each block
+   Array<int> offsets;
+   //! 2D array that stores each block of the operator.
+   Array2D<Operator *> ops;
+
+   //! Temporary Vectors used to efficiently apply the Mult and MultTranspose
+   //! methods.
+   mutable BlockVector sol;
+   mutable BlockVector rhs;
+   mutable Vector tmp0;
+   mutable Vector tmp1;
 };
-
-
-
-
-class SystemResidualMonitor : public IterativeSolverMonitor
-{
-public:
-   SystemResidualMonitor(const std::string& prefix_,
-                         int print_lvl,
-                         Array<int> &offsets,
-                         DataCollection *dc_ = nullptr)
-      : prefix(prefix_), bOffsets(offsets), dc(dc_)
-   {
-      print_level = print_lvl;
-      nvar = bOffsets.Size()-1;
-      norm0.SetSize(nvar);
-      rank = 1;
-   }
-
-   SystemResidualMonitor(MPI_Comm comm,
-                         const std::string& prefix_,
-                         int print_lvl,
-                         Array<int> &offsets)
-      : prefix(prefix_), bOffsets(offsets), dc(nullptr), xp(nullptr)
-   {
-#ifndef MFEM_USE_MPI
-      print_level = print_lvl;
-      rank = 1;
-#else
-      MPI_Comm_rank(comm, &rank);
-      if (rank == 0)
-      {
-         print_level = print_lvl;
-      }
-      else
-      {
-         print_level = -1;
-      }
-#endif
-      nvar = bOffsets.Size()-1;
-      norm0.SetSize(nvar);
-   }
-   SystemResidualMonitor(MPI_Comm comm,
-                         const std::string& prefix_,
-                         int print_lvl,
-                         Array<int> &offsets,
-                         DataCollection *dc_,
-                         BlockVector *x,
-                         Array<ParGridFunction *> pgf_)
-      : prefix(prefix_), bOffsets(offsets), dc(dc_), xp(x), pgf(pgf_)
-   {
-#ifndef MFEM_USE_MPI
-      print_level = print_lvl;
-      rank = 1;
-#else
-      MPI_Comm_rank(comm, &rank);
-      if (rank == 0)
-      {
-         print_level = print_lvl;
-      }
-      else
-      {
-         print_level = -1;
-      }
-#endif
-      nvar = bOffsets.Size()-1;
-      norm0.SetSize(nvar);
-   }
-
-
-   virtual void MonitorResidual(int it, real_t norm, const Vector &r, bool final)
-   {
-      if (dc && (it > 0))
-      {
-         if (rank > 1)
-         {
-            for (int i = 0; i < nvar; ++i)
-            {
-               pgf[i]->Distribute(xp->GetBlock(i));
-            }
-         }
-         dc->SetCycle(it);
-         dc->Save();
-      }
-
-      Vector vnorm(nvar);
-
-      for (int i = 0; i < nvar; ++i)
-      {
-         Vector r_i(r.GetData() + bOffsets[i], bOffsets[i+1] - bOffsets[i]);
-         if ( rank == 1 )
-         {
-            vnorm[i] = r_i.Norml2();
-         }
-         else
-         {
-            vnorm[i] = sqrt(InnerProduct(MPI_COMM_WORLD, r_i, r_i));
-         }
-         if (it == 0) { norm0[i] = vnorm[i]; }
-      }
-
-      bool print = (print_level > 0 &&  it%print_level == 0) || final;
-      if (print)
-      {
-         mfem::out << prefix << " iteration " << std::setw(3) << it <<"\n"
-                   << " ||r||  \t"<< "||r||/||r_0||  \n";
-         for (int i = 0; i < nvar; ++i)
-         {
-            mfem::out <<vnorm[i]<<"\t"<< 100*vnorm[i]/norm0[i]<<" % \n";
-         }
-      }
-   }
-
-private:
-   const std::string prefix;
-   int print_level, nvar, rank;
-   mutable Vector norm0;
-   // Offsets for extracting block vector segments
-   Array<int> &bOffsets;
-   DataCollection *dc;
-   BlockVector *xp;
-   Array<ParGridFunction *> pgf;
-};
-
-
-
-
-// Custom block preconditioner for the Jacobian
-class JacobianPreconditioner : public
-   BlockLowerTriangularPreconditioner //BlockDiagonalPreconditioner
-{
-protected:
-   Array<Solver *> prec;
-public:
-   JacobianPreconditioner(Array<int> &offsets, Array<Solver *> p)
-      : BlockLowerTriangularPreconditioner (offsets), prec(p)
-   { MFEM_VERIFY(offsets.Size()-1 == p.Size(), ""); };
-
-   virtual void SetOperator(const Operator &op)
-   {
-      BlockOperator *jacobian = (BlockOperator *) &op;
-
-      for (int i = 0; i < prec.Size(); ++i)
-      {
-         prec[i]->SetOperator(jacobian->GetBlock(i,i));
-         SetDiagonalBlock(i, prec[i]);
-      }
-
-      SetBlock(1,0, const_cast<Operator*>(&jacobian->GetBlock(1,0)));
-   }
-
-   virtual ~JacobianPreconditioner()
-   {
-      for (int i = 0; i < prec.Size(); ++i)
-      {
-         delete prec[i];
-      }
-   }
-};
-
-
 
 
 int main(int argc, char *argv[])
 {
+   StopWatch chrono;
+
    // Parse command-line options.
    const char *mesh_file = "../../data/square-nurbs.mesh";
-   const char *ref_file  = "";
-   int problem = 0;
-   int sstype = -2;
-   bool static_cond = false;
-   bool visualization = false;
-
-   real_t penalty = -1;
+   int ref_levels = -1;
    int order = 1;
-   int ref_levels = 0;
-
-   bool mono = true;
+   bool pa = false;
+   const char *device_config = "cpu";
+   bool visualization = 1;
+   real_t kappa = 1.0;
 
    OptionsParser args(argc, argv);
-
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
-   args.AddOption(&ref_file, "-rf", "--ref-file",
-                  "File with refinement data");
-   args.AddOption(&order, "-o", "--order",
-                  "Finite element order isoparametric space.");
    args.AddOption(&ref_levels, "-r", "--refine",
-                  "Number of times to refine the mesh.");
-   args.AddOption(&kappa_param, "-k", "--kappa",
-                  "Sets the diffusion parameters, should be positive.");
+                  "Number of times to refine the mesh uniformly, -1 for auto.");
+   args.AddOption(&order, "-o", "--order",
+                  "Finite element order (polynomial degree).");
+   args.AddOption(&kappa, "-k", "--kappa",
+                  "Diffusion parameter.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -515,156 +216,297 @@ int main(int argc, char *argv[])
    if (!args.Good())
    {
       args.PrintUsage(cout);
-
+      return 1;
    }
-   args.PrintOptions(mfem::out);
+   args.PrintOptions(cout);
 
-   // Read the mesh from the given mesh file. We can handle triangular,
-   // quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
-   // the same code.
-   Mesh mesh(mesh_file, 1, 1);
-   int dim = mesh.Dimension();
+   // Enable hardware devices such as GPUs, and programming models such as
+   // CUDA, OCCA, RAJA and OpenMP based on command line options.
+   Device device(device_config);
+   device.Print();
 
-   // Refine the mesh to increase the resolution. In this example we do
-   // 'ref_levels' of uniform refinement and knot insertion of knots defined
-   // in a refinement file. We choose 'ref_levels' to be the largest number
-   // that gives a final mesh with no more than 50,000 elements.
+   // Read the mesh from the given mesh file.
+   Mesh *mesh = new Mesh(mesh_file, 1, 1);
+   int dim = mesh->Dimension();
+
+   // Refine the mesh to increase the resolution.
    {
-      // Mesh refinement as defined in refinement file
-      if (mesh.NURBSext && (strlen(ref_file) != 0))
+      if (ref_levels < 0)
       {
-         mesh.RefineNURBSFromFile(ref_file);
+         ref_levels =
+            (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
       }
-
       for (int l = 0; l < ref_levels; l++)
       {
-         mesh.UniformRefinement();
+         mesh->UniformRefinement();
       }
-      mesh.PrintInfo();
    }
 
-   // Define a finite element space on the mesh. Here we use continuous
-   // Lagrange finite elements of the specified order. If order < 1, we
-   // instead use an isoparametric/isogeometric space.
-   Array<FiniteElementCollection *> fecs(2);
-   fecs[0] = new NURBS_HDivFECollection(order);
-   fecs[1] = new NURBSFECollection(order);
+   // Define a finite element space on the mesh.
+   FiniteElementCollection *hdiv_coll = nullptr;
+   FiniteElementCollection *l2_coll = nullptr;
+   NURBSExtension *NURBSext = nullptr;
 
-   Array<FiniteElementSpace *> spaces(2);
-   spaces[1] = new FiniteElementSpace(&mesh, mesh.NURBSext, fecs[1]);
-   spaces[0] = new FiniteElementSpace(&mesh, spaces[1]->StealNURBSext(), fecs[0]);
-
-
-   mfem::out << "Number of finite element unknowns:\n"
-             << "\tVelocity = "<<spaces[0]->GetTrueVSize() << endl
-             << "\tPressure = "<<spaces[1]->GetTrueVSize() << endl;
-   // Determine the list of true (i.e. conforming) essential boundary dofs.
-   // In this example, the boundary conditions are defined by marking all
-   // the boundary attributes from the mesh as essential (Dirichlet) and
-   // converting them to a list of true dofs.
-   Array<Array<int> *> ess_bdr(2);
-   Array<int> ess_tdof_list;
-
-   Array<int> ess_bdr_u(spaces[0]->GetMesh()->bdr_attributes.Max());
-   Array<int> ess_bdr_p(spaces[1]->GetMesh()->bdr_attributes.Max());
-
-   ess_bdr_p = 0;
-   ess_bdr_u = 1;
-
-   ess_bdr[0] = &ess_bdr_u;
-   ess_bdr[1] = &ess_bdr_p;
-
-   // Set up the linear form b(.) which corresponds to the right-hand side of
-   // the FEM linear system, which in this case is (1,phi_i) where phi_i are
-   // the basis functions in the finite element fespace.
-
-   // Define the solution vector xp as a finite element grid function
-   Array<int> bOffsets(3);
-   bOffsets[0] = 0;
-   bOffsets[1] = spaces[0]->GetTrueVSize();
-   bOffsets[2] = spaces[1]->GetTrueVSize();
-   bOffsets.PartialSum();
-
-   BlockVector xp(bOffsets);
-
-   GridFunction x_u(spaces[0]);
-   GridFunction x_p(spaces[1]);
-
-   x_u.MakeTRef(spaces[0], xp.GetBlock(0), 0);
-   x_p.MakeTRef(spaces[1], xp.GetBlock(1), 0);
-
-   VectorFunctionCoefficient sol(dim, sol_fun);
-
-   x_u = 0.0;//.ProjectCoefficient(sol);
-   x_p = 0.0;
-
-   x_u.SetTrueVector();
-   x_p.SetTrueVector();
-
-   // Define the output
-   //VisItDataCollection visit_dc("stokes", &mesh);
-   //visit_dc.RegisterField("u", &x_u);
-   //visit_dc.RegisterField("p", &x_p);
-   //visit_dc.SetCycle(0);
-   //visit_dc.Save();
-
-   // Define the problem parameters
-   FunctionCoefficient kappa(kappa_fun);
-   VectorFunctionCoefficient force(dim, force_fun);
-
-   // Define the block nonlinear form
-   BlockNonlinearForm Hform(spaces);
-   Hform.AddDomainIntegrator(new StokesIntegrator(kappa, force));
-   Array<Vector *> rhs(2);
-   rhs = nullptr; // Set all entries in the array
-   Hform.SetEssentialBC(ess_bdr, rhs);
-
-   // Set up the preconditioner
-   JacobianPreconditioner jac_prec(bOffsets,
-   Array<Solver *>({new GSSmoother(0,5),
-            new GSSmoother(0,5)}));
-
-   // Set up the Jacobian solver
-   GeneralResidualMonitor j_monitor("\t\t\t\tFGMRES", 25);
-   FGMRESSolver j_gmres;
-   j_gmres.iterative_mode = false;
-   j_gmres.SetRelTol(1e-2);
-   j_gmres.SetAbsTol(1e-12);
-   j_gmres.SetMaxIter(300);
-   j_gmres.SetPrintLevel(-1);
-   j_gmres.SetMonitor(j_monitor);
-  // j_gmres.SetPreconditioner(jac_prec);
-
-   // Set up the newton solver
-   SystemResidualMonitor newton_monitor("Newton", 1, bOffsets, NULL);// &visit_dc);
-   NewtonSolver newton_solver;
-   newton_solver.iterative_mode = true;
-   newton_solver.SetPrintLevel(-1);
-   newton_solver.SetMonitor(newton_monitor);
-   newton_solver.SetRelTol(1e-4);
-   newton_solver.SetAbsTol(1e-8);
-   newton_solver.SetMaxIter(25);
-   newton_solver.SetSolver(j_gmres);
-   newton_solver.SetOperator(Hform);
-
-   // Solve the Newton system
-   Vector zero;
-   newton_solver.Mult(zero, xp);
-
-   // Save data in the VisIt format
-  // visit_dc.SetCycle(999999);
-  // visit_dc.Save();
-
-   // Free the used memory.
-   for (int i = 0; i < fecs.Size(); ++i)
+   if (mesh->NURBSext && !pa)
    {
-      delete fecs[i];
+      hdiv_coll = new NURBS_HDivFECollection(order,dim);
+      l2_coll   = new NURBSFECollection(order);
+      NURBSext  = new NURBSExtension(mesh->NURBSext, order);
+      mfem::out<<"Create NURBS fec and ext"<<std::endl;
    }
-   for (int i = 0; i < spaces.Size(); ++i)
+   else
    {
-      delete spaces[i];
+      hdiv_coll = new RT_FECollection(order, dim);
+      l2_coll   = new L2_FECollection(order, dim);
+      mfem::out<<"Create Normal fec"<<std::endl;
    }
+
+   FiniteElementSpace p_space(mesh, NURBSext, l2_coll);
+   FiniteElementSpace u_space(mesh,
+                              p_space.StealNURBSext(),
+                              hdiv_coll);
+
+   // Define the BlockStructure of the problem
+   Array<int> block_offsets(3); // number of variables + 1
+   block_offsets[0] = 0;
+   block_offsets[1] = u_space.GetVSize();
+   block_offsets[2] = p_space.GetVSize();
+   block_offsets.PartialSum();
+
+   std::cout << "***********************************************************\n";
+   std::cout << "dim(R)   = " << block_offsets[1] - block_offsets[0] << "\n";
+   std::cout << "dim(W)   = " << block_offsets[2] - block_offsets[1] << "\n";
+   std::cout << "dim(R+W) = " << block_offsets.Last() << "\n";
+   std::cout << "***********************************************************\n";
+
+   // 7. Define the coefficients, analytical solution, gridfunctions.
+   ConstantCoefficient k_c(kappa);
+
+   VectorFunctionCoefficient f_cf(dim, f_fun);
+   FunctionCoefficient g_cf(g_fun);
+
+   VectorFunctionCoefficient u_cf(dim, u_fun);
+   FunctionCoefficient p_cf(p_fun);
+
+   Array<int> ess_bdr(mesh->bdr_attributes.Max());
+   ess_bdr = 1;
+   
+   MemoryType mt = device.GetMemoryType();
+   BlockVector x(block_offsets, mt);
+
+   GridFunction u, p;
+   u.MakeRef(&u_space, x.GetBlock(0), 0);
+   p.MakeRef(&p_space, x.GetBlock(1), 0);
+
+   u.ProjectCoefficient(u_cf);
+   p = 0.0;
+
+   VisItDataCollection visit_dc0("Stokes_ic", mesh);
+   visit_dc0.RegisterField("velocity", &u);
+   visit_dc0.RegisterField("pressure", &p);
+   visit_dc0.Save();
+
+   // Assemble the right hand side via the linear forms (fform, gform).
+   BlockVector rhs(block_offsets, mt);
+   LinearForm *fform(new LinearForm);
+   fform->Update(&u_space, rhs.GetBlock(0), 0);
+   fform->AddDomainIntegrator(new VectorFEDomainLFIntegrator(f_cf));
+   fform->Assemble();
+   fform->SyncAliasMemory(rhs);
+
+   LinearForm *gform(new LinearForm);
+   gform->Update(&p_space, rhs.GetBlock(1), 0);
+   gform->AddDomainIntegrator(new DomainLFIntegrator(g_cf));
+   gform->Assemble();
+   gform->SyncAliasMemory(rhs);
+
+   // Assemble the finite element matrices for the Stokes operator
+   //
+   //                            A = [ K   G ]
+   //                                [ D   0 ]
+   //     where:
+   //
+   //     K = \int_\Omega k u_h \cdot v_h d\Omega   u_h, v_h \in R_h
+   //     D = -\int_\Omega \div u_h q_h d\Omega   u_h \in R_h, q_h \in W_h 
+   //     G = D^t 
+   BilinearForm kVarf(&u_space);
+   kVarf.AddDomainIntegrator(new VectorFEDiffusionIntegrator(k_c));
+   kVarf.Assemble();
+   kVarf.EliminateEssentialBC(ess_bdr, u, *fform);
+   kVarf.Finalize();
+   SparseMatrix &K(kVarf.SpMat());
+
+   MixedBilinearForm bVarf(&u_space, &p_space);
+   bVarf.AddDomainIntegrator(new VectorFEDivergenceIntegrator);
+   bVarf.Assemble();
+   bVarf.EliminateTrialDofs(ess_bdr, u, *gform);
+   bVarf.Finalize();
+   SparseMatrix &D(bVarf.SpMat());
+   TransposeOperator G(&D);
+
+   BlockOperator stokesOp(block_offsets);
+   stokesOp.SetBlock(0,0, &K);
+   stokesOp.SetBlock(0,1, &G);
+   stokesOp.SetBlock(1,0, &D);
+
+   // Construct the Schur Complement
+#ifdef MFEM_USE_SUITESPARSE
+   UMFPackSolver invK(K);
+#else
+   DSmoother invK(K);
+#endif
+   invK.iterative_mode = false;
+   ProductOperator KiG(&invK, &G, false, false);
+   ProductOperator S(&D, &KiG, false, false);
+
+   // Construct an approximate Schur Complement
+   real_t h = 1.0/sqrt(real_t(mesh->GetNE()));
+   cout<<"h = "<<h<<endl;
+   ConstantCoefficient tau_c(h*h/kappa);
+   BilinearForm pVarf(&p_space);
+
+   pVarf.AddDomainIntegrator(new DiffusionIntegrator(tau_c));
+   pVarf.Assemble();
+   pVarf.Finalize();
+
+   SparseMatrix &Sp(pVarf.SpMat());
+
+   // Construct an approximate Schur Complement inverse
+#ifdef MFEM_USE_SUITESPARSE
+   UMFPackSolver invSp(Sp);
+#else
+   DSmoother invSp(Sp);
+#endif
+   invSp.iterative_mode = false;
+   int smaxIter(1000);
+   real_t srtol(1.e-3);
+   real_t satol(1.e-3);
+
+   FGMRESSolver invS;
+   invS.SetAbsTol(satol);
+   invS.SetRelTol(srtol);
+   invS.SetMaxIter(smaxIter);
+   invS.SetKDim(smaxIter); // restart!!!
+   invS.SetOperator(S);
+   invS.SetPreconditioner(invSp);
+   invS.SetPrintLevel(0);
+   invS.iterative_mode = false;
+
+   // Construct the operators for preconditioner
+   //
+   //       P = [ K   0        ] [ I   K^-1 G ]
+   //           [ D  -D K^-1 G ] [ 0   I      ]
+   //
+   SadlePointLUPreconditioner stokesPrec(block_offsets);
+   //BlockLowerTriangularPreconditioner stokesPrec(block_offsets);
+  // BlockLUPreconditioner stokesPrec(block_offsets);
+
+   stokesPrec.SetBlock(0,0, &invK);
+   stokesPrec.SetBlock(0,1, &G);
+
+   stokesPrec.SetBlock(1,1, &invS);
+   stokesPrec.SetBlock(1,0, &D);
+
+   // 11. Solve the linear system with a Krylov.
+   //     Check the norm of the unpreconditioned residual.
+   int maxIter(10000);
+   real_t rtol(1.e-10);
+   real_t atol(1.e-10);
+
+   chrono.Clear();
+   chrono.Start();
+   //   MINRESSolver solver;
+   FGMRESSolver solver;
+   solver.SetAbsTol(atol);
+   solver.SetRelTol(rtol);
+   solver.SetMaxIter(maxIter);
+   solver.SetKDim(maxIter); // restart!!!
+   solver.SetOperator(stokesOp);
+   solver.SetPreconditioner(stokesPrec);
+   solver.SetPrintLevel(1);
+   x = 0.0;
+   solver.Mult(rhs, x);
+   if (device.IsEnabled()) { x.HostRead(); }
+   chrono.Stop();
+#ifdef MFEM_USE_SUITESPARSE
+   cout<<"MFEM_USE_SUITESPARSE\n";
+#endif
+   if (solver.GetConverged())
+   {
+      std::cout << "Solver converged in " << solver.GetNumIterations()
+                << " iterations with a residual norm of "
+                << solver.GetFinalNorm() << ".\n";
+   }
+   else
+   {
+      std::cout << "Solver did not converge in " << solver.GetNumIterations()
+                << " iterations. Residual norm is " << solver.GetFinalNorm()
+                << ".\n";
+   }
+   std::cout << " Solver took " << chrono.RealTime() << "s.\n";
+
+   // 13. Save the mesh and the solution. This output can be viewed later using
+   //     GLVis: "glvis -m ex5.mesh -g sol_u.gf" or "glvis -m ex5.mesh -g
+   //     sol_p.gf".
+   {
+      ofstream mesh_ofs("ex5.mesh");
+      mesh_ofs.precision(8);
+      mesh->Print(mesh_ofs);
+
+      ofstream u_ofs("sol_u.gf");
+      u_ofs.precision(8);
+      u.Save(u_ofs);
+
+      ofstream p_ofs("sol_p.gf");
+      p_ofs.precision(8);
+      p.Save(p_ofs);
+   }
+
+   // 14. Save data in the VisIt format
+   VisItDataCollection visit_dc("Stokes", mesh);
+   visit_dc.RegisterField("velocity", &u);
+   visit_dc.RegisterField("pressure", &p);
+   visit_dc.Save();
+
+   // 15. Save data in the ParaView format
+   if (false)
+   {
+      ParaViewDataCollection paraview_dc("Stokes", mesh);
+      paraview_dc.SetPrefixPath("ParaView");
+      paraview_dc.SetLevelsOfDetail(order);
+      paraview_dc.SetCycle(0);
+      paraview_dc.SetDataFormat(VTKFormat::BINARY);
+      paraview_dc.SetHighOrderOutput(true);
+      paraview_dc.SetTime(0.0); // set the time
+      paraview_dc.RegisterField("velocity",&u);
+      paraview_dc.RegisterField("pressure",&p);
+      paraview_dc.Save();
+   }
+   // 16. Send the solution by socket to a GLVis server.
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream u_sock(vishost, visport);
+      u_sock.precision(8);
+      u_sock << "solution\n" << *mesh << u << "window_title 'Velocity'" << endl;
+      socketstream p_sock(vishost, visport);
+      p_sock.precision(8);
+      p_sock << "solution\n" << *mesh << p << "window_title 'Pressure'" << endl;
+   }
+
+   // 17. Free the used memory.
+  // delete fform;
+  // delete gform;
+ //  delete invSp;
+  // delete kVarf;
+   //delete bVarf;
+   delete l2_coll;
+   delete hdiv_coll;
+   delete mesh;
 
    return 0;
 }
+
+
 
