@@ -1107,7 +1107,7 @@ class Table;
 class DenseTensor
 {
 private:
-   mutable DenseMatrix M;
+   mutable DenseMatrix Mi_jk, Mij_k;
    mutable DenseMatrix Mk;
    mutable Vector Vk;
    Memory<real_t> tdata;
@@ -1120,32 +1120,36 @@ public:
    }
 
    DenseTensor(int i, int j, int k)
-      : M(NULL, i, j*k), Mk(NULL, i, j), Vk(NULL, i)
+      : Mi_jk(NULL, i, j*k), Mij_k(NULL, i*j, k), Mk(NULL, i, j), Vk(NULL, i)
    {
       nk = k;
       tdata.New(i*j*k);
-      M.data =  Memory<real_t>(Data(), TotalSize(), false);
+      Mi_jk.data =  Memory<real_t>(Data(), TotalSize(), false);
+      Mij_k.data =  Memory<real_t>(Data(), TotalSize(), false);
    }
 
    DenseTensor(real_t *d, int i, int j, int k)
-      : M(NULL, i, j*k),  Mk(NULL, i, j), Vk(NULL, i)
+      : Mi_jk(NULL, i, j*k), Mij_k(NULL, i*j, k),  Mk(NULL, i, j), Vk(NULL, i)
    {
       nk = k;
       tdata.Wrap(d, i*j*k, false);
-      M.data =  Memory<real_t>(Data(), TotalSize(), false);
+      Mi_jk.data =  Memory<real_t>(Data(), TotalSize(), false);
+      Mij_k.data =  Memory<real_t>(Data(), TotalSize(), false);
    }
 
    DenseTensor(int i, int j, int k, MemoryType mt)
-      : M(NULL, i, j*k),  Mk(NULL, i, j), Vk(NULL, i)
+      : Mi_jk(NULL, i, j*k), Mij_k(NULL, i*j, k),  Mk(NULL, i, j), Vk(NULL, i)
    {
       nk = k;
       tdata.New(i*j*k, mt);
-      M.data =  Memory<real_t>(Data(), TotalSize(), false);
+      Mi_jk.data =  Memory<real_t>(Data(), TotalSize(), false);
+      Mij_k.data =  Memory<real_t>(Data(), TotalSize(), false);
    }
 
    /// Copy constructor: deep copy
    DenseTensor(const DenseTensor &other)
-      : M (NULL, other.SizeI(), other.SizeJ()*other.SizeK()),
+      : Mi_jk(NULL, other.SizeI(), other.SizeJ()*other.SizeK()),
+        Mij_k(NULL, other.SizeI()*other.SizeJ(), other.SizeK()),
         Mk(NULL, other.Mk.height, other.Mk.width),
         Vk(NULL, other.Mk.height), nk(other.nk)
    {
@@ -1155,7 +1159,8 @@ public:
          tdata.New(size, other.tdata.GetMemoryType());
          tdata.CopyFrom(other.tdata, size);
       }
-      M.data =  Memory<real_t>(Data(), TotalSize(), false);
+      Mi_jk.data =  Memory<real_t>(Data(), TotalSize(), false);
+      Mij_k.data =  Memory<real_t>(Data(), TotalSize(), false);
    }
 
    int SizeI() const { return Mk.Height(); }
@@ -1169,29 +1174,42 @@ public:
       const MemoryType mt = mt_ == MemoryType::PRESERVE ? tdata.GetMemoryType() : mt_;
       tdata.Delete();
       Mk.UseExternalData(NULL, i, j);
-      M.UseExternalData(NULL, i, j*k);
+      Mi_jk.UseExternalData(NULL, i, j*k);
+      Mij_k.UseExternalData(NULL, i*j, k);
       nk = k;
       tdata.New(i*j*k, mt);
-      M.data = Memory<real_t>(Data(), TotalSize(), false);
+      Mi_jk.data = Memory<real_t>(Data(), TotalSize(), false);
+      Mij_k.data =  Memory<real_t>(Data(), TotalSize(), false);
    }
 
    void UseExternalData(real_t *ext_data, int i, int j, int k)
    {
       tdata.Delete();
       Mk.UseExternalData(NULL, i, j);
-      M.UseExternalData(NULL, i, j*k);
+      Mi_jk.UseExternalData(NULL, i, j*k);
+      Mij_k.UseExternalData(NULL, i*j, k);
       nk = k;
       tdata.Wrap(ext_data, i*j*k, false);
-      M.data = Memory<real_t>(Data(), TotalSize(), false);
+      Mi_jk.data = Memory<real_t>(Data(), TotalSize(), false);
+      Mij_k.data = Memory<real_t>(Data(), TotalSize(), false);
    }
 
    DenseMatrix &GetDenseMatrix()
    {
-      return M;
+      return Mi_jk;
    }
    const DenseMatrix &GetDenseMatrix() const
    {
-      return M;
+      return Mi_jk;
+   }
+
+   DenseMatrix &GetDenseMatrix2()
+   {
+      return Mij_k;
+   }
+   const DenseMatrix &GetDenseMatrix2() const
+   {
+      return Mij_k;
    }
 
    /// Sets the tensor elements equal to constant c
@@ -1310,7 +1328,8 @@ public:
       mfem::Swap(tdata, t.tdata);
       mfem::Swap(nk, t.nk);
       Mk.Swap(t.Mk);
-      M.data = tdata;
+      Mi_jk.data = tdata;
+      Mij_k.data = tdata;
    }
    /// Prints matrix to stream out.
    virtual void Print(std::ostream &out = mfem::out, int width_ = 4) const;
