@@ -21,22 +21,68 @@
 
 namespace mfem
 {
+
 namespace internal
 {
 template<typename... Types>
 struct KernelTypeList {};
 }
 
+// Expands a variable length macro parameter so that multiple variable length parameters
+// can be passed to the same macro.
+#define MFEM_PARAM_LIST(...)                                                                 \
+__VA_ARGS__                                                                                  \
+
+// Declare the class used to dispatch shared memory kernels when the fallback methods require
+// templateization.  Note that in this case the 1D kernel also uses identical template parameters
+// as the fallback methods.
+#define MFEM_DECLARE_KERNELS_WITH_FALLBACK_PARAMS(KernelClassName, KernelType, UserParams, FallbackParams)        \
+class KernelClassName : public                                                               \
+   KernelsClassTemplate<KernelType,                                                          \
+   internal::KernelTypeList<UserParams>, internal::KernelTypeList<FallbackParams>>           \
+   {                                                                                         \
+   public:                                                                                   \
+      template<FallbackParams>                                                                \
+      static KernelSignature Kernel1D();                                                     \
+      template<UserParams, int>                                                              \
+      static KernelSignature Kernel2D();                                                     \
+      template<UserParams>                                                                   \
+      static KernelSignature Kernel3D();                                                     \
+      template<FallbackParams>                                                               \
+      static KernelSignature Fallback2D();                                                   \
+      template<FallbackParams>                                                               \
+      static KernelSignature Fallback3D();                                                   \
+   };                                                                                        \
+
+// Declare the class used to dispatch shared memory kernels when the fallback methods don't
+// require template parameters.  Note that the 2D kernel always requires an extra integral
+// parameter corresponding to `NBZ`.
+#define MFEM_DECLARE_KERNELS(KernelClassName, KernelType, UserParams, FallbackParams)        \
+class KernelClassName : public                                                               \
+   KernelsClassTemplate<KernelType,                                                          \
+   internal::KernelTypeList<UserParams>, internal::KernelTypeList<FallbackParams>>           \
+   {                                                                                         \
+   public:                                                                                   \
+      static KernelSignature Kernel1D();                                                     \
+      template<UserParams, int>                                                              \
+      static KernelSignature Kernel2D();                                                     \
+      template<UserParams>                                                                   \
+      static KernelSignature Kernel3D();                                                     \
+      static KernelSignature Fallback2D();                                                   \
+      static KernelSignature Fallback3D();                                                   \
+   };
+
 constexpr int ipow(int x, int p) { return p == 0 ? 1 : x*ipow(x, p-1); }
 
+// This forward declaration of KernelClassTemplate allows a specialization accepting multiple variadic parameters.
 template<typename... T>
-class ApplyPAKernelsClassTemplate {};
+class KernelsClassTemplate {};
 
-template<typename... T>
-class DiagonalPAKernelsClassTemplate {};
-
+// KernelsClassTemplate holds the template methods for 2D and 3D kernels.  The class DispatchTable defined below
+// accesses `KernelClassTemplate` when assigning key value pairs, assigning a tuple key of `DIM, UserParams`
+// a specialized kernel.
 template<typename Signature, typename... UserParams, typename... FallbackParams>
-class ApplyPAKernelsClassTemplate<Signature, internal::KernelTypeList<UserParams...>, internal::KernelTypeList<FallbackParams...>>
+class KernelsClassTemplate<Signature, internal::KernelTypeList<UserParams...>, internal::KernelTypeList<FallbackParams...>>
 {
 private:
    constexpr static int D(int D1D) { return (11 - D1D) / 2; }
@@ -63,29 +109,8 @@ public:
    static KernelSignature Fallback3D();
 };
 
-template<typename Signature, typename... UserParams, typename... FallbackParams>
-class DiagonalPAKernelsClassTemplate<Signature, internal::KernelTypeList<UserParams...>, internal::KernelTypeList<FallbackParams...>>
-{
-public:
-   using KernelSignature = Signature;
-   using KernelArgTypes2D = internal::KernelTypeList<UserParams...>;
-   using KernelArgTypes3D = internal::KernelTypeList<FallbackParams...>;
-
-   static KernelSignature Kernel1D();
-
-   template<UserParams... params>
-   static KernelSignature Kernel2D();
-
-   template<UserParams... params>
-   static KernelSignature Kernel3D();
-
-   template<FallbackParams... params>
-   static KernelSignature Fallback2D();
-
-   template<FallbackParams... params>
-   static KernelSignature Fallback3D();
-};
-
+// DispatchTable is the class that stores specialized kernels, assigning a key tuple of `KeyType`
+// a value of type `KernelType`.
 template <typename KeyType, typename KernelType, typename HashFunction>
 class DispatchTable
 {
@@ -93,7 +118,9 @@ protected:
    std::unordered_map<KeyType, KernelType, HashFunction> table;
 };
 
-
+// KernelDispatchKeyHash is a functor that hashes variadic packs for which each type contained in the
+// variadic pack has a specialization of `std::hash` available.  For example, packs containing int,
+// bool, enum values, etc.
 template<typename ...KernelParameters>
 struct KernelDispatchKeyHash
 {
@@ -103,6 +130,8 @@ private:
    template<int N>
    size_t operator()(Tuple value) const { return 0; }
 
+   // The hashing formula here is taken directly from the Boost library, with the magic number 0x9e3779b9
+   // chosen to minimize hashing collisions.
    template<std::size_t N, typename THead, typename... TTail>
    size_t operator()(Tuple value) const
    {
@@ -122,11 +151,12 @@ public:
 template<typename... T>
 class KernelDispatchTable {};
 
+// KernelDispatchTable is derived from `DispatchTable` using the `KernelDispatchKeyHash` functor above
+// to assign specialized kernels with individual keys.
 template <typename ApplyKernelsHelperClass, typename... UserParams, typename... FallbackParams>
 class KernelDispatchTable<ApplyKernelsHelperClass, internal::KernelTypeList<UserParams...>, internal::KernelTypeList<FallbackParams...>> :
          DispatchTable<std::tuple<int, UserParams...>, typename ApplyKernelsHelperClass::KernelSignature, KernelDispatchKeyHash<int, UserParams...>>
 {
-
    // These typedefs prevent AddSpecialization from compiling unless the provided
    // kernel parameters match the kernel parameters specified to ApplyKernelsHelperClass.
    using Signature = typename ApplyKernelsHelperClass::KernelSignature;

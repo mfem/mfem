@@ -53,38 +53,13 @@ public:
       internal::KernelTypeList<QVectorLayout, bool, int, int, int>;
    using GradFallbackParams = internal::KernelTypeList<QVectorLayout>;
 
-   class EvalKernels :  public
-      ApplyPAKernelsClassTemplate<EvalKernelType, EvalUserParams, EvalFallbackParams>
-   {
-   public:
-      template<QVectorLayout>
-      static EvalKernelType Kernel1D();
-      template<QVectorLayout, int, int, int, int>
-      static EvalKernelType Kernel2D();
-      template<QVectorLayout, int, int, int>
-      static EvalKernelType Kernel3D();
-      template<QVectorLayout>
-      static EvalKernelType Fallback2D();
-      template<QVectorLayout>
-      static EvalKernelType Fallback3D();
 
-   };
+   MFEM_DECLARE_KERNELS_WITH_FALLBACK_PARAMS(EvalKernels, EvalKernelType,
+                                             MFEM_PARAM_LIST(QVectorLayout, int, int, int), QVectorLayout)
 
-   class GradKernels :  public
-      ApplyPAKernelsClassTemplate<GradKernelType, GradUserParams, GradFallbackParams>
-   {
-   public:
-      template<QVectorLayout, bool>
-      static GradKernelType Kernel1D();
-      template<QVectorLayout, bool, int, int, int, int>
-      static GradKernelType Kernel2D();
-      template<QVectorLayout, bool, int, int, int>
-      static GradKernelType Kernel3D();
-      template<QVectorLayout, bool>
-      static GradKernelType Fallback2D();
-      template<QVectorLayout, bool>
-      static GradKernelType Fallback3D();
-   };
+   MFEM_DECLARE_KERNELS_WITH_FALLBACK_PARAMS(GradKernels, GradKernelType,
+                                             MFEM_PARAM_LIST(QVectorLayout, bool, int, int, int),
+                                             MFEM_PARAM_LIST(QVectorLayout, bool))
 
    using EvalKernelsType =
       KernelDispatchTable<EvalKernels, EvalUserParams, EvalFallbackParams>;
