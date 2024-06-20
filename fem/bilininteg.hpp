@@ -3324,6 +3324,9 @@ protected:
    Vector shape1, shape2, dshape1dn, dshape2dn, nor, nh, ni;
    DenseMatrix jmat, dshape1, dshape2, mq, adjJ;
 
+   // these are not thread-safe!
+   DenseMatrix vshape1, vshape2, dvshape1dn, dvshape2dn;
+   DenseTensor dvshape1, dvshape2;
 
    // PA extension
    Vector pa_data; // (Q, h, dot(n,J)|el0, dot(n,J)|el1)
@@ -3585,7 +3588,7 @@ public:
                                 DenseMatrix &elmat);
 };
 
-/** Integrator for the form: $ \langle v, w \cdot n \rangle $ over a face (the interface) where
+/** Integrator for the form: $ \alpha \langle v, w \cdot n \rangle $ over a face (the interface) where
     the trial variable $v$ is defined on the interface ($H^{1/2}$, i.e., trace of $H^1$)
     and the test variable $w$ is in an $H(div)$-conforming space. */
 class NormalTraceIntegrator : public BilinearFormIntegrator
@@ -3593,9 +3596,10 @@ class NormalTraceIntegrator : public BilinearFormIntegrator
 private:
    Vector face_shape, normal, shape_n;
    DenseMatrix shape;
+   real_t alpha;
 
 public:
-   NormalTraceIntegrator() { }
+   NormalTraceIntegrator(real_t a = 1.0) : alpha(a) { }
    virtual void AssembleTraceFaceMatrix(int ielem,
                                         const FiniteElement &trial_face_fe,
                                         const FiniteElement &test_fe,
