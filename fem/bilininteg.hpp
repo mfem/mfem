@@ -2144,31 +2144,10 @@ public:
    using UserParams = internal::KernelTypeList<int, int>;
    using FallbackParams = internal::KernelTypeList<>;
 
-   class ApplyPAKernels :  public
-      ApplyPAKernelsClassTemplate<KernelType, UserParams, FallbackParams>
-   {
-   public:
-      static KernelSignature Kernel1D();
-      template<int, int, int>
-      static KernelSignature Kernel2D();
-      template<int, int>
-      static KernelSignature Kernel3D();
-      static KernelSignature Fallback2D();
-      static KernelSignature Fallback3D();
-   };
-
-   class DiagonalPAKernels : public
-      DiagonalPAKernelsClassTemplate<DiagonalKernelType, UserParams, FallbackParams>
-   {
-   public:
-      static KernelSignature Kernel1D();
-      template<int, int, int>
-      static KernelSignature Kernel2D();
-      template<int, int>
-      static KernelSignature Kernel3D();
-      static KernelSignature Fallback2D();
-      static KernelSignature Fallback3D();
-   };
+   MFEM_DECLARE_KERNELS(ApplyPAKernels, KernelType, MFEM_PARAM_LIST(int, int),
+                        MFEM_PARAM_LIST())
+   MFEM_DECLARE_KERNELS(DiagonalPAKernels, DiagonalKernelType, MFEM_PARAM_LIST(int,
+                                                                               int), MFEM_PARAM_LIST())
 
    using ApplyKernelsType =
       KernelDispatchTable<ApplyPAKernels, UserParams, FallbackParams>;
@@ -2392,31 +2371,10 @@ public:
    using UserParams = internal::KernelTypeList<int, int>;
    using FallbackParams = internal::KernelTypeList<>;
 
-   class ApplyPAKernels :  public
-      ApplyPAKernelsClassTemplate<KernelType, UserParams, FallbackParams>
-   {
-   public:
-      static KernelSignature Kernel1D();
-      template<int, int, int>
-      static KernelSignature Kernel2D();
-      template<int, int>
-      static KernelSignature Kernel3D();
-      static KernelSignature Fallback2D();
-      static KernelSignature Fallback3D();
-   };
-
-   class DiagonalPAKernels : public
-      DiagonalPAKernelsClassTemplate<DiagonalKernelType, UserParams, FallbackParams>
-   {
-   public:
-      static KernelSignature Kernel1D();
-      template<int, int, int>
-      static KernelSignature Kernel2D();
-      template<int, int>
-      static KernelSignature Kernel3D();
-      static KernelSignature Fallback2D();
-      static KernelSignature Fallback3D();
-   };
+   MFEM_DECLARE_KERNELS(ApplyPAKernels, KernelType, MFEM_PARAM_LIST(int, int),
+                        MFEM_PARAM_LIST())
+   MFEM_DECLARE_KERNELS(DiagonalPAKernels, DiagonalKernelType, MFEM_PARAM_LIST(int,
+                                                                               int), MFEM_PARAM_LIST())
 
    using ApplyKernelsType =
       KernelDispatchTable<ApplyPAKernels, UserParams, FallbackParams>;
