@@ -151,6 +151,8 @@ protected:
    /// Since GSLIB is designed to work with quads/hexes, we split every
    /// triangle/tet/prism/pyramid element into quads/hexes.
    virtual void SetupSplitMeshes();
+   // Same as above but for surface meshes
+   virtual void SetupSplitMeshesSurf();
 
    /// Setup integration points that will be used to interpolate the nodal
    /// location at points expected by GSLIB.
@@ -169,6 +171,8 @@ protected:
    /// find the original element number (that was split into micro quads/hexes)
    /// during the setup phase.
    virtual void MapRefPosAndElemIndices();
+   // Same as above but for surface meshes
+   virtual void MapRefPosAndElemIndicesSurf();
 
    // FindPoints locally on device for 3D.
    void FindPointsLocal3(const Vector &point_pos,

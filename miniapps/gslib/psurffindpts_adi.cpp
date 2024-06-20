@@ -363,8 +363,8 @@ int main (int argc, char *argv[])
    npt = 1;
    Vector point_pos(npt*dim);
    // ordering byNodes
-   point_pos(0*dim + 0) = -0.02;
-   point_pos(0*dim + 1) = 1.02;
+   point_pos(0*dim + 0) = 0.0;
+   point_pos(0*dim + 1) = 0.1;
 
    finder.FindPointsSurf(point_pos);
 
