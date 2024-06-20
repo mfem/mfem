@@ -268,6 +268,10 @@ protected:
    Array<int> dof_elem_array, dof_ldof_array;
 
    NURBSExtension *NURBSext;
+   /** array of NURBS extension for H(div) and H(curl) vector elements.
+       For each direction an extension is created from the base NURBSext,
+       with an increase in order in the appropriate direction. */
+   Array<NURBSExtension*> VNURBSext;
    int own_ext;
    mutable Array<int> face_to_be; // NURBS FE space only
 
@@ -469,6 +473,11 @@ protected:
                                        const Table *coarse_elem_fos,
                                        const DenseTensor localP[]) const;
 
+   /* This method returns the Refinement matrix (i.e., the embedding)
+      from a coarse variable-order fes to a fine fes (after a geometric refinement) */
+   SparseMatrix *VariableOrderRefinementMatrix(const int coarse_ndofs,
+                                               const Table &coarse_elem_dof) const;
+
    void GetLocalRefinementMatrices(Geometry::Type geom,
                                    DenseTensor &localP) const;
    void GetLocalDerefinementMatrices(Geometry::Type geom,
@@ -517,6 +526,8 @@ protected:
                                                const Array<int> *perm);
 
 public:
+
+
    /** @brief Default constructor: the object is invalid until initialized using
        the method Load(). */
    FiniteElementSpace();

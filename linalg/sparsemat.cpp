@@ -1267,24 +1267,32 @@ real_t SparseMatrix::InnerProduct(const Vector &x, const Vector &y) const
 
 void SparseMatrix::GetRowSums(Vector &x) const
 {
-   for (int i = 0; i < height; i++)
+   if (Finalized())
    {
-      real_t a = 0.0;
-      if (A)
+      auto d_I = ReadI();
+      auto d_A = ReadData();
+      auto d_x = x.Write();
+      mfem::forall(height, [=] MFEM_HOST_DEVICE (int i)
       {
-         for (int j = I[i], end = I[i+1]; j < end; j++)
+         real_t sum = 0.0;
+         for (int j = d_I[i], end = d_I[i+1]; j < end; j++)
          {
-            a += A[j];
+            sum += d_A[j];
          }
-      }
-      else
+         d_x[i] = sum;
+      });
+   }
+   else
+   {
+      for (int i = 0; i < height; i++)
       {
+         real_t a = 0.0;
          for (RowNode *np = Rows[i]; np != NULL; np = np->Prev)
          {
             a += np->Value;
          }
+         x(i) = a;
       }
-      x(i) = a;
    }
 }
 
@@ -3300,7 +3308,7 @@ void SparseMatrix::Print(std::ostream & os, int width_) const
 {
    int i, j;
 
-   if (A == NULL)
+   if (A.Empty())
    {
       RowNode *nd;
       for (i = 0; i < height; i++)
@@ -3354,7 +3362,7 @@ void SparseMatrix::PrintMatlab(std::ostream & os) const
    os.setf(ios::scientific);
    std::streamsize old_prec = os.precision(14);
 
-   if (A == NULL)
+   if (A.Empty())
    {
       RowNode *nd;
       for (i = 0; i < height; i++)
@@ -3397,7 +3405,7 @@ void SparseMatrix::PrintMM(std::ostream & os) const
 
    os << height << " " << width << " " << NumNonZeroElems() << '\n';
 
-   if (A == NULL)
+   if (A.Empty())
    {
       RowNode *nd;
       for (i = 0; i < height; i++)
