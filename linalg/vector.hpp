@@ -345,6 +345,9 @@ public:
    /// (*this)(i) = 1.0 / (*this)(i)
    void Reciprocal();
 
+   /// (*this)(i) = abs((*this)(i))^p
+   void PowerAbs(const real_t p);
+
    /// Swap the contents of two Vectors
    inline void Swap(Vector &other);
 
