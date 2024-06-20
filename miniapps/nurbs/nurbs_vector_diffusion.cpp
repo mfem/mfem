@@ -33,32 +33,18 @@ void uFun_ex(const Vector & x, Vector & u)
       zi = x(2);
    }
 
-   u(0) = sin(xi);
-   u(1) = sin(yi);
+   u(0) = sin(M_PI*xi);
+   u(1) = sin(M_PI*yi);
 
    if (x.Size() == 3)
    {
-      u(2) = sin(zi);
+      u(2) = sin(M_PI*zi);
    }
 }
 
 void fFun(const Vector & x, Vector & f)
 {
-   real_t xi(x(0));
-   real_t yi(x(1));
-   real_t zi(0.0);
-   if (x.Size() == 3)
-   {
-      zi = x(2);
-   }
-
-   f(0) = sin(3.14*xi);
-   f(1) = sin(3.14*yi);
-
-   if (x.Size() == 3)
-   {
-      f(2) = sin(3.14*zi);
-   }
+   f = 8.0;
 }
 
 int main(int argc, char *argv[])
@@ -70,8 +56,11 @@ int main(int argc, char *argv[])
    int ref_levels = -1;
    int order = 1;
    bool weakBC = true;
+   bool hdiv = true;
    const char *device_config = "cpu";
    bool visualization = 1;
+   real_t penalty = -1.0;
+
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -80,8 +69,12 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly, -1 for auto.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
-   args.AddOption(&weakBC, "-w", "--wbc", "-nw", "--no-wbc",
+   args.AddOption(&hdiv, "-div", "--hdiv", "-curl", "--hcurl",
+                  "Select which vector FE to use.");
+   args.AddOption(&weakBC, "-w", "--wbc", "-s", "--sbc",
                   "Weak boundary conditions.");
+   args.AddOption(&penalty, "-p", "--lambda",
+                  "Penalty parameter for enforcing weak Dirichlet boundary conditions.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -95,7 +88,11 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   real_t penalty = 8.0;  /// TBD ---???
+
+   if (penalty < 0)
+   {
+      penalty = (order+2)*(order+2);
+   }
 
    // 2. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
@@ -138,20 +135,39 @@ int main(int argc, char *argv[])
 
    if (mesh->NURBSext)
    {
-      vfe_coll = new NURBS_HDivFECollection(order,dim);
+      if (hdiv)
+      {
+          vfe_coll = new NURBS_HDivFECollection(order,dim);
+      }
+      else
+      {
+          vfe_coll = new NURBS_HCurlFECollection(order,dim);
+      }
+
       NURBSext  = new NURBSExtension(mesh->NURBSext, order);
       mfem::out<<"Create NURBS fec and ext"<<std::endl;
    }
    else
    {
-      vfe_coll = new RT_FECollection(order, dim);
+      if (hdiv)
+      {
+          vfe_coll = new RT_FECollection(order, dim);
+      }
+      else
+      {
+          vfe_coll = new ND_FECollection(order, dim);
+      }
+
       mfem::out<<"Create Normal fec"<<std::endl;
    }
 
    FiniteElementSpace space(mesh, NURBSext, vfe_coll);
+   Array<int> ess_tdof_list;
+   space.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
    std::cout << "***********************************************************\n";
-   std::cout << "Number of dofs:  = " << space.GetVSize() << "\n";
+   std::cout << "Number of dofs       = " << space.GetVSize() << endl;
+   std::cout << "Number boundary dofs = " << ess_tdof_list.Size() << endl;
    std::cout << "***********************************************************\n";
 
    // 7. Define the coefficients, analytical solution.
@@ -176,14 +192,14 @@ int main(int argc, char *argv[])
    LinearForm *fform(new LinearForm);
    fform->Update(&space, rhs, 0);
    fform->AddDomainIntegrator(new VectorFEDomainLFIntegrator(fcoeff));
-   if (weakBC) { fform->AddBdrFaceIntegrator(new DGDirichletLFIntegrator(ucoeff, k_c, -1.0, penalty)); } //Vector extension....
+   if (weakBC) { fform->AddBdrFaceIntegrator(new DGDirichletLFIntegrator(ucoeff, k_c, -1.0, penalty)); }
    fform->Assemble();
    fform->SyncAliasMemory(rhs);
 
    // 9. Assemble the finite element matrix for the diffusion operator
    BilinearForm *kVarf(new BilinearForm(&space));
    kVarf->AddDomainIntegrator(new VectorFEDiffusionIntegrator(k_c));
-   if (weakBC) { kVarf->AddBdrFaceIntegrator(new DGDiffusionIntegrator(k_c, -1.0, penalty)); } //Vector extension....
+   if (weakBC) { kVarf->AddBdrFaceIntegrator(new DGDiffusionIntegrator(k_c, -1.0, penalty)); }
    kVarf->Assemble();
    if (!weakBC) { kVarf->EliminateEssentialBC(ess_bdr, u, *fform); }
    kVarf->Finalize();
@@ -213,8 +229,17 @@ int main(int argc, char *argv[])
    if (device.IsEnabled()) { x.HostRead(); }
    chrono.Stop();
 
+   if (weakBC)
+   {
+      std::cout << "Weak boundary conditions.\n";
+   }
+   else
+   {
+      std::cout << "Strong boundary conditions.\n";
+   }
    if (solver.GetConverged())
    {
+
       std::cout << "MINRES converged in " << solver.GetNumIterations()
                 << " iterations with a residual norm of "
                 << solver.GetFinalNorm() << ".\n";
@@ -239,7 +264,6 @@ int main(int argc, char *argv[])
    real_t norm_u = ComputeLpNorm(2., ucoeff, *mesh, irs);
 
    std::cout << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
-
 
    // 13. Save the mesh and the solution. This output can be viewed later using
    //     GLVis: "glvis -m ex5.mesh -g sol_u.gf" or "glvis -m ex5.mesh -g
