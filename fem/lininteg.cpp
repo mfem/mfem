@@ -811,7 +811,6 @@ void DGDirichletLFIntegrator::AssembleRHSElementVect(
 
    if (el.GetRangeType() == mfem::FiniteElement::SCALAR)
    {
-
       shape.SetSize(ndof);
       dshape.SetSize(ndof, dim);
       dshape_dn.SetSize(ndof);
@@ -895,12 +894,13 @@ void DGDirichletLFIntegrator::AssembleRHSElementVect(
             CalcOrtho(Tr.Jacobian(), nor);
          }
 
-         el.CalcVShape(eip, vshape);
-         el.CalcDVShape(eip, dvshape);
+         el.CalcVShape(*Tr.Elem1, vshape);
+         el.CalcPhysDVShape(*Tr.Elem1, dvshape);
 
          // compute uD through the face transformation
          vD->Eval(val, Tr, ip);
-         w = ip.weight  / Tr.Elem1->Weight();
+         w = ip.weight;
+
          if (!MQ)
          {
             if (Q)
@@ -915,24 +915,16 @@ void DGDirichletLFIntegrator::AssembleRHSElementVect(
             MQ->Eval(mq, *Tr.Elem1, eip);
             mq.MultTranspose(nh, ni);
          }
-         CalcAdjugate(Tr.Elem1->Jacobian(), adjJ);
-         adjJ.Mult(ni, nh);
-
-         dvshape_flat.Mult(nh, dvshape_dn_flat); //???
-
-         dvshape_dn.AddMult(val, elvect, sigma);        // elvect.Add(sigma, dvshape_dn_flat); //???
-
+         dvshape_flat.Mult(nh, dvshape_dn_flat);
+         dvshape_dn.AddMult(val, elvect, sigma);
 
          if (kappa_is_nonzero)
          {
-             std::cout<<elvect.Size()<<std::endl;
-             std::cout<<vshape_flat.Size()<<std::endl;
-             vshape.AddMult(val, elvect, kappa*(ni*nor));   //elvect.Add(kappa*(ni*nor), vshape_flat); //???
+            real_t h = Tr.Elem1->Weight()/Tr.Weight();
+            vshape.AddMult(val, elvect, kappa*(ni*nor)/(Tr.Weight()*h*h));
          }
       }
    }
-
-
 }
 
 void DGElasticityDirichletLFIntegrator::AssembleRHSElementVect(
