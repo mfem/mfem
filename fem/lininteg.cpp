@@ -915,7 +915,7 @@ void DGDirichletLFIntegrator::AssembleRHSElementVect(
             MQ->Eval(mq, *Tr.Elem1, eip);
             mq.MultTranspose(nh, ni);
          }
-         dvshape_flat.Mult(nh, dvshape_dn_flat);
+         dvshape_flat.Mult(ni, dvshape_dn_flat);
          dvshape_dn.AddMult(val, elvect, sigma);
 
          if (kappa_is_nonzero)

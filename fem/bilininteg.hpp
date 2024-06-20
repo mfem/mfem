@@ -3605,6 +3605,13 @@ public:
                                         const FiniteElement &test_fe,
                                         FaceElementTransformations &Trans,
                                         DenseMatrix &elmat);
+
+   /*virtual void AssembleFaceMatrix(const FiniteElement &trial_face_fe,
+                                   const FiniteElement &test_fe1,
+                                   const FiniteElement &test_fe2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);*/
+
 };
 
 

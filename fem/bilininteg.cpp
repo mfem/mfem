@@ -3924,64 +3924,63 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
          // For example: meas(ref. tetrahedron)/meas(ref. triangle) = 1/3, and
          // for any tetrahedron vol(tet)=(1/3)*height*area(base).
          // For interior faces: q_e/h_e=(q1/h1+q2/h2)/2.
+         dvshape1_flat.Mult(ni, dvshape1dn_flat);
 
-         dvshape1_flat.Mult(nh, dvshape1dn_flat);
          for (int i = 0; i < ndof1; i++)
             for (int j = 0; j < ndof1; j++)
                for (int d = 0; d < dim; d++)
                {
                   elmat(i, j) += vshape1(i,d) * dvshape1dn(j,d);
                }
+         /*        if (ndof2)
+                  {
+                     el2.CalcVShape(eip2, vshape2);
+                     el2.CalcDVShape(eip2, dvshape2);
+                     w = ip.weight/2/Trans.Elem2->Weight();
+                     if (!MQ)
+                     {
+                        if (Q)
+                        {
+                           w *= Q->Eval(*Trans.Elem2, eip2);
+                        }
+                        ni.Set(w, nor);
+                     }
+                     else
+                     {
+                        nh.Set(w, nor);
+                        MQ->Eval(mq, *Trans.Elem2, eip2);
+                        mq.MultTranspose(nh, ni);
+                     }
+                     CalcAdjugate(Trans.Elem2->Jacobian(), adjJ);
+                     adjJ.Mult(ni, nh);
+                     if (kappa_is_nonzero)
+                     {
+                        wq += ni * nor;
+                     }
 
-/*        if (ndof2)
-         {
-            el2.CalcVShape(eip2, vshape2);
-            el2.CalcDVShape(eip2, dvshape2);
-            w = ip.weight/2/Trans.Elem2->Weight();
-            if (!MQ)
-            {
-               if (Q)
-               {
-                  w *= Q->Eval(*Trans.Elem2, eip2);
-               }
-               ni.Set(w, nor);
-            }
-            else
-            {
-               nh.Set(w, nor);
-               MQ->Eval(mq, *Trans.Elem2, eip2);
-               mq.MultTranspose(nh, ni);
-            }
-            CalcAdjugate(Trans.Elem2->Jacobian(), adjJ);
-            adjJ.Mult(ni, nh);
-            if (kappa_is_nonzero)
-            {
-               wq += ni * nor;
-            }
+                     dvshape2_flat.Mult(nh, dvshape2dn_flat); // dshape2.Mult(nh, dshape2dn);
 
-            dvshape2_flat.Mult(nh, dvshape2dn_flat); // dshape2.Mult(nh, dshape2dn);
+                     for (int i = 0; i < ndof1; i++)
+                        for (int j = 0; j < ndof2; j++)
+                           for (int d = 0; d < dim; d++)
+                        {
+                           elmat(i, ndof1 + j) += vshape1(i,d) * dvshape2dn(j,d);
+                        }
 
-            for (int i = 0; i < ndof1; i++)
-               for (int j = 0; j < ndof2; j++)
-                  for (int d = 0; d < dim; d++)
-               {
-                  elmat(i, ndof1 + j) += vshape1(i,d) * dvshape2dn(j,d);
-               }
+                     for (int i = 0; i < ndof2; i++)
+                        for (int j = 0; j < ndof1; j++)
+                           for (int d = 0; d < dim; d++)
+                        {
+                           elmat(ndof1 + i, j) -= vshape2(i,d) * dvshape1dn(j,d);
+                        }
 
-            for (int i = 0; i < ndof2; i++)
-               for (int j = 0; j < ndof1; j++)
-                  for (int d = 0; d < dim; d++)
-               {
-                  elmat(ndof1 + i, j) -= vshape2(i,d) * dvshape1dn(j,d);
-               }
-
-            for (int i = 0; i < ndof2; i++)
-               for (int j = 0; j < ndof2; j++)
-                  for (int d = 0; d < dim; d++)
-               {
-                  elmat(ndof1 + i, ndof1 + j) -= vshape2(i,d) * dvshape2dn(j,d);
-               }
-         }*/
+                     for (int i = 0; i < ndof2; i++)
+                        for (int j = 0; j < ndof2; j++)
+                           for (int d = 0; d < dim; d++)
+                        {
+                           elmat(ndof1 + i, ndof1 + j) -= vshape2(i,d) * dvshape2dn(j,d);
+                        }
+                  }*/
 
          if (kappa_is_nonzero)
          {
@@ -3991,32 +3990,31 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
                //const real_t wsi = wq*vshape1(i);
                for (int j = 0; j <= i; j++)
                {
-                              for (int d = 0; d < dim; d++)
-               {
-                  jmat(i, j) += wq*vshape1(i,d) * vshape1(j,d);
+                  for (int d = 0; d < dim; d++)
+                  {
+                     jmat(i, j) += wq*vshape1(i,d) * vshape1(j,d);
                   }
                }
             }
-           /* if (ndof2)
-            {
-               for (int i = 0; i < ndof2; i++)
-               {
-                  const int i2 = ndof1 + i;
-                  const real_t wsi = wq*shape2(i);
-                  for (int j = 0; j < ndof1; j++)
-                  {
-                     jmat(i2, j) -= wsi * shape1(j);
-                  }
-                  for (int j = 0; j <= i; j++)
-                  {
-                     jmat(i2, ndof1 + j) += wsi * shape2(j);
-                  }
-               }
-            }*/
+            /* if (ndof2)
+             {
+                for (int i = 0; i < ndof2; i++)
+                {
+                   const int i2 = ndof1 + i;
+                   const real_t wsi = wq*shape2(i);
+                   for (int j = 0; j < ndof1; j++)
+                   {
+                      jmat(i2, j) -= wsi * shape1(j);
+                   }
+                   for (int j = 0; j <= i; j++)
+                   {
+                      jmat(i2, ndof1 + j) += wsi * shape2(j);
+                   }
+                }
+             }*/
          }
       }
 
-      // elmat := -elmat + sigma*elmat^t + jmat
       if (kappa_is_nonzero)
       {
          for (int i = 0; i < ndofs; i++)
