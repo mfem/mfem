@@ -123,12 +123,14 @@ int main(int argc, char *argv[])
       }
       fec = new H1_FECollection(order, dim);
       fec_lor = new H1_FECollection(lorder, dim);
+      cout << "H1 low order space is continuous == 0 : " << fec_lor->GetContType() << endl;
    }
    else
    {
       space = "L2";
       fec = new L2_FECollection(order, dim);
       fec_lor = new L2_FECollection(lorder, dim);
+      cout << "L2 low order space is discontinuous == 3 : " << fec_lor->GetContType() << endl;
    }
 
    FiniteElementSpace fespace(&mesh, fec);
@@ -145,10 +147,10 @@ int main(int argc, char *argv[])
 
    QuadratureSpace qspace(mesh_lor, *ir); 
    QuadratureFunction qfunc(&qspace);
-   qfunc = 333.0; 
+   qfunc = 1.0; 
    // qfunc(2) = 7; // does not pass verify_solution
    // qfunc(7) = 333.000001; // does not pass verify_solution
-   qfunc(7) = 333.0000001; // passes verify_solution
+   // qfunc(7) = 333.0000001; // passes verify_solution
    QuadratureFunctionCoefficient coeff(qfunc); 
 
    GridFunction rho(&fespace);
@@ -195,6 +197,7 @@ int main(int argc, char *argv[])
    gt->VerifySolution(true);
 
    const Operator &R = gt->ForwardOperator();
+   // printf("Get past forward operator call \n");
 
    // HO->LOR restriction
    direction = "HO -> LOR @ LOR";

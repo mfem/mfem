@@ -315,18 +315,40 @@ protected:
 
    friend class L2ProjectionL2Space;
 
+   //Class below must be public as we now have device code
+public:
+
    /** Projection operator between a H1 high-order finite element space on a
        coarse mesh, and a H1 low-order finite element space on a refined mesh
        (LOR). */
    class L2ProjectionH1Space : public L2Projection
    {
+      const bool use_device, verify_solution;
+      MemoryType d_mt_;
+      Coefficient* coeff;
+      Array<int> offsets;
+
+      const Operator* elem_restrict_h;
+      Vector M_mixed_all_ea;
+      const Operator* elem_restrict_l;
+      Vector ML_inv_ea;
+
+
    public:
       L2ProjectionH1Space(const FiniteElementSpace &fes_ho_,
-                          const FiniteElementSpace &fes_lor_);
-#ifdef MFEM_USE_MPI
-      L2ProjectionH1Space(const ParFiniteElementSpace &pfes_ho_,
-                          const ParFiniteElementSpace &pfes_lor_);
-#endif
+                          const FiniteElementSpace &fes_lor_,
+                          Coefficient *coeff_, 
+                          const bool use_device_,
+                          const bool verify_solution_, 
+                          MemoryType d_mt_ = MemoryType::DEFAULT);
+      #ifdef MFEM_USE_MPI
+            L2ProjectionH1Space(const ParFiniteElementSpace &pfes_ho_,
+                              const ParFiniteElementSpace &pfes_lor_);
+      #endif
+      /* Same as above but assembles action of R through ElementRestrictionOperator */
+      void DeviceL2ProjectionH1Space(const FiniteElementSpace &fes_ho_,
+                                     const FiniteElementSpace &fes_lor_, 
+                                     Coefficient* coeff_);
       /// Maps <tt>x</tt>, primal field coefficients defined on a coarse mesh
       /// with a higher order H1 finite element space, to <tt>y</tt>, primal
       /// field coefficients defined on a refined mesh with a low order H1
@@ -334,6 +356,10 @@ protected:
       /// the coarse mesh. Coefficients are computed through minimization of L2
       /// error between the fields.
       virtual void Mult(const Vector& x, Vector& y) const;
+
+      // Perform mult on the device (same as above)
+      void DeviceMult(const Vector&x, Vector& y) const;
+
       /// Maps <tt>x</tt>, dual field coefficients defined on a refined mesh
       /// with a low order H1 finite element space, to <tt>y</tt>, dual field
       /// coefficients defined on a coarse mesh with a higher order H1 finite
@@ -342,6 +368,9 @@ protected:
       /// error between the primal fields. Note, if the <tt>x</tt>-coefficients
       /// come from ProlongateTranspose, then mass is conserved.
       virtual void MultTranspose(const Vector& x, Vector& y) const;
+
+      void DeviceMultTranspose(const Vector& x, Vector& y) const;
+      
       /// Maps <tt>x</tt>, primal field coefficients defined on a refined mesh
       /// with a low order H1 finite element space, to <tt>y</tt>, primal field
       /// coefficients defined on a coarse mesh with a higher order H1 finite
@@ -407,6 +436,7 @@ protected:
       std::unique_ptr<Operator> RTxM_LH;
    };
 
+protected:
    /** Mass-conservative prolongation operator going in the opposite direction
        as L2Projection. This operator is a left inverse to the L2Projection. */
    class L2Prolongation : public Operator
