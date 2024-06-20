@@ -763,7 +763,7 @@ public:
        @note On input, the values of @a t and @a dt are used to compute desired
        output time for the integration, tout = @a t + @a dt.
    */
-   virtual void Step(Vector &x, double &t, double &dt);
+   virtual void Step(Vector &x, real_t &t, real_t &dt) override;
 
    /** @brief Attach the linear system setup and solve methods from the
        TimeDependentOperator i.e., SUNImplicitSetup() and SUNImplicitSolve() to
