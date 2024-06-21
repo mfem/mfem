@@ -136,11 +136,11 @@ int main(int argc, char *argv[])
    {
       if (hdiv)
       {
-         vfe_coll = new NURBS_HDivFECollection(order,dim);
+         vfe_coll = new NURBS_HDivH1FECollection(order,dim);
       }
       else
       {
-         vfe_coll = new NURBS_HCurlFECollection(order,dim);
+         vfe_coll = new NURBS_HCurlH1FECollection(order,dim);
       }
 
       NURBSext  = new NURBSExtension(mesh->NURBSext, order);
@@ -148,6 +148,7 @@ int main(int argc, char *argv[])
    }
    else
    {
+      mfem_error("Gradient of vector shape functions only defined for NURBS elements.");
       if (hdiv)
       {
          vfe_coll = new RT_FECollection(order, dim);

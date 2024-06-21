@@ -380,7 +380,7 @@ int main(int argc, char *argv[])
 
    if (mesh->NURBSext && !pa)
    {
-      hdiv_coll = new NURBS_HDivFECollection(order,dim);
+      hdiv_coll = new NURBS_HDivH1FECollection(order,dim);
       l2_coll   = new NURBSFECollection(order);
       NURBSext  = new NURBSExtension(mesh->NURBSext, order);
       mfem::out<<"Create NURBS fec and ext"<<std::endl;
