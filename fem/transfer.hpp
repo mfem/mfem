@@ -248,6 +248,7 @@ public:
       Coefficient *coeff;
 
    public:
+      Vector M_mixed_all;
       L2ProjectionL2Space(const FiniteElementSpace& fes_ho_,
                           const FiniteElementSpace& fes_lor_,
                           Coefficient* coeff_,
@@ -328,9 +329,9 @@ public:
       Coefficient* coeff;
       Array<int> offsets;
 
-      const Operator* elem_restrict_h;
+      const ElementRestrictionOperator* elem_restrict_h;
       Vector M_mixed_all_ea;
-      const Operator* elem_restrict_l;
+      const ElementRestrictionOperator* elem_restrict_l;
       Vector ML_inv_ea;
 
 
@@ -389,6 +390,9 @@ public:
       virtual void ProlongateTranspose(const Vector& x, Vector& y) const;
       virtual void SetRelTol(real_t p_rtol_);
       virtual void SetAbsTol(real_t p_atol_);
+
+      virtual Vector PullL2SpaceDeviceM_LH(const FiniteElementSpace& coarse_fes_,
+                        const FiniteElementSpace& fine_fes_);
    protected:
       /// Sets up the PCG solver (sets parameters, operator, and preconditioner)
       void SetupPCG();
@@ -434,6 +438,8 @@ public:
       // Used to compute P = (RT*M_LH)^(-1) M_LH^T
       std::unique_ptr<Operator> M_LH;
       std::unique_ptr<Operator> RTxM_LH;
+
+      friend class L2ProjectionL2Space;
    };
 
 protected:
