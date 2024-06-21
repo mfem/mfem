@@ -912,13 +912,19 @@ public:
 
    /** Returns the NURBSExtension to be used for @a component of
        an H(div) conforming NURBS space. Caller gets ownership of
-       the returned object, and is responsible for deletion.*/
-   NURBSExtension* GetDivExtension(int component);
+       the returned object, and is responsible for deletion.
+       If H1 flag is true then the boundary dofs will also include
+       the tangential component, allowing essential BCs for a vector
+       diffusion problkem to be set.*/
+   NURBSExtension* GetDivExtension(int component, bool H1 = false);
 
    /** Returns the NURBSExtension to be used for @a component of
        an H(curl) conforming NURBS space. Caller gets ownership of
-       the returned object, and is responsible for deletion.*/
-   NURBSExtension* GetCurlExtension(int component);
+       the returned object, and is responsible for deletion.
+       If H1 flag is true then the boundary dofs will also include
+       the normal component, allowing essential BCs for a vector
+       diffusion problkem to be set.*/
+   NURBSExtension* GetCurlExtension(int component, bool H1 = false);
 
    void KnotRemove(Array<Vector *> &kv, real_t tol = 1.0e-12);
 

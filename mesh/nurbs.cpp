@@ -4580,7 +4580,7 @@ void NURBSExtension::DegreeElevate(int rel_degree, int degree)
    }
 }
 
-NURBSExtension* NURBSExtension::GetDivExtension(int component)
+NURBSExtension* NURBSExtension::GetDivExtension(int component, bool H1)
 {
    // Smarter routine
    if (GetNP() > 1)
@@ -4592,10 +4592,12 @@ NURBSExtension* NURBSExtension::GetDivExtension(int component)
    Array<int> newOrders  = GetOrders();
    newOrders[component] += 1;
 
+   if (H1) return new NURBSExtension(this, newOrders, Mode::H_1);
+
    return new NURBSExtension(this, newOrders, Mode::H_DIV);
 }
 
-NURBSExtension* NURBSExtension::GetCurlExtension(int component)
+NURBSExtension* NURBSExtension::GetCurlExtension(int component, bool H1)
 {
    // Smarter routine
    if (GetNP() > 1)
@@ -4607,6 +4609,8 @@ NURBSExtension* NURBSExtension::GetCurlExtension(int component)
    Array<int> newOrders  = GetOrders();
    for (int c = 0; c < newOrders.Size(); c++) { newOrders[c]++; }
    newOrders[component] -= 1;
+
+   if (H1) return new NURBSExtension(this, newOrders, Mode::H_1);
 
    return new NURBSExtension(this, newOrders, Mode::H_CURL);
 }
