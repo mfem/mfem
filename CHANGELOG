@@ -11,9 +11,19 @@
 Version 4.7.1 (development)
 ===========================
 
+- Refactored the `ARKStepSolver` class (ARKODE interface) to use
+  `TimeDependentOperator::Mult` only when the associated ODE operator is
+  expressed in explicit form (i.e., `TimeDependentOperator::isExplicit()`),
+  otherwise `TimeDependentOperator::ExplicitMult` is used. A check has been
+  added to `ARKStepSolver` to verify that the associated ODE operator is not in
+  explicit form when a mass matrix solver is enabled via a call to either the
+  `UseMFEMMassLinearSolver` or `UseSundialsMassLinearSolver` methods. This is
+  because enabling a mass matrix solver assumes that F(u,k,t) = M k in the
+  associated ODE operator.
+
 - Added support for custom interpolation procedure in FindPointsGSLIB.
 
-- Added NURBS-based H(div) and H(curl) elements in 2D and 3D. Only on single 
+- Added NURBS-based H(div) and H(curl) elements in 2D and 3D. Only on single
   patch meshes. Only implemented for serial computations.
 
 - Added miniapps to demonstrate the H(div) and H(curl) NURBS elements.
@@ -47,7 +57,7 @@ Meshing improvements
 
 - Added support for internal boundary elements in nonconforming meshes.
 
-- Added ExodusII output capability. The writer can handle first-order (Pyramid5, 
+- Added ExodusII output capability. The writer can handle first-order (Pyramid5,
   Wedge6, Hex8, Tet4) and second-order FE types (Pyramid14, Wedge18, Hex27, Tet10).
 
 - The ReadCubit Genesis mesh importer has been rewritten to improve readability.
