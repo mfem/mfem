@@ -42,9 +42,9 @@ class KernelClassName : public                                                  
    internal::KernelTypeList<UserParams>, internal::KernelTypeList<FallbackParams>>           \
    {                                                                                         \
    public:                                                                                   \
-      template<FallbackParams>                                                                \
+      template<FallbackParams>                                                               \
       static KernelSignature Kernel1D();                                                     \
-      template<UserParams, int>                                                              \
+      template<UserParams>                                                                   \
       static KernelSignature Kernel2D();                                                     \
       template<UserParams>                                                                   \
       static KernelSignature Kernel3D();                                                     \
@@ -55,8 +55,7 @@ class KernelClassName : public                                                  
    };                                                                                        \
 
 // Declare the class used to dispatch shared memory kernels when the fallback methods don't
-// require template parameters.  Note that the 2D kernel always requires an extra integral
-// parameter corresponding to `NBZ`.
+// require template parameters.
 #define MFEM_DECLARE_KERNELS(KernelClassName, KernelType, UserParams, FallbackParams)        \
 class KernelClassName : public                                                               \
    KernelsClassTemplate<KernelType,                                                          \
@@ -64,7 +63,7 @@ class KernelClassName : public                                                  
    {                                                                                         \
    public:                                                                                   \
       static KernelSignature Kernel1D();                                                     \
-      template<UserParams, int>                                                              \
+      template<UserParams>                                                                   \
       static KernelSignature Kernel2D();                                                     \
       template<UserParams>                                                                   \
       static KernelSignature Kernel3D();                                                     \
@@ -258,14 +257,8 @@ public:
          constexpr int DIM = 2;
          std::tuple<int, UserParams...> param_tuple (DIM, params...);
 
-         // All kernels require at least D1D and Q1D, which are listed first in a
-         // parameter pack.
-         constexpr int D1D = getD1D(params...);
-         constexpr int Q1D = getQ1D(params...);
-         constexpr int NBZ = GetNBZ(D1D, Q1D);
-
          table_ptr->table[param_tuple] = ApplyKernelsHelperClass::template
-                                         Kernel2D<params..., NBZ>();
+                                         Kernel2D<params...>();
       }
    };
 

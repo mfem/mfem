@@ -1208,10 +1208,14 @@ inline void SmemPADiffusionApply3D(const int NE,
 
 } // namespace internal
 
-template<int T_D1D, int T_Q1D, int T_NBZ>
+template<int T_D1D, int T_Q1D>
 inline
 DiffusionIntegrator::ApplyPAKernels::KernelSignature
-DiffusionIntegrator::ApplyPAKernels::Kernel2D() { return internal::SmemPADiffusionApply2D<T_D1D, T_Q1D, T_NBZ>; }
+DiffusionIntegrator::ApplyPAKernels::Kernel2D()
+{
+   constexpr int T_NBZ = NBZ(T_D1D, T_Q1D);
+   return internal::SmemPADiffusionApply2D<T_D1D, T_Q1D, T_NBZ>;
+}
 
 template<int T_D1D, int T_Q1D>
 inline
@@ -1226,10 +1230,14 @@ inline
 DiffusionIntegrator::ApplyPAKernels::KernelSignature
 DiffusionIntegrator::ApplyPAKernels::Fallback3D() { return internal::PADiffusionApply3D<0,0>; }
 
-template<int T_D1D, int T_Q1D, int T_NBZ>
+template<int T_D1D, int T_Q1D>
 inline
 DiffusionIntegrator::DiagonalPAKernels::KernelSignature
-DiffusionIntegrator::DiagonalPAKernels::Kernel2D() { return internal::SmemPADiffusionDiagonal2D<T_D1D, T_Q1D, T_NBZ>; }
+DiffusionIntegrator::DiagonalPAKernels::Kernel2D()
+{
+   constexpr int T_NBZ = NBZ(T_D1D, T_Q1D);
+   return internal::SmemPADiffusionDiagonal2D<T_D1D, T_Q1D, T_NBZ>;
+}
 
 template<int T_D1D, int T_Q1D  >
 inline

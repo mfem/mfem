@@ -12,6 +12,9 @@
 // Internal header, included only by .cpp files.
 // Template function implementations.
 
+#ifndef MFEM_QUADINTERP_EVAL
+#define MFEM_QUADINTERP_EVAL
+
 #include "../quadinterpolator.hpp"
 #include "../../general/forall.hpp"
 #include "../../linalg/dtensor.hpp"
@@ -200,9 +203,13 @@ inline
 KernelType QuadratureInterpolator::EvalKernels::Kernel1D() { return internal::quadrature_interpolator::Values1D<Q_LAYOUT>; }
 
 template<QVectorLayout Q_LAYOUT,
-         int T_VDIM, int T_D1D, int T_Q1D, int T_NBZ>
+         int T_VDIM, int T_D1D, int T_Q1D>
 inline
-KernelType QuadratureInterpolator::EvalKernels::Kernel2D() { return internal::quadrature_interpolator::Values2D<Q_LAYOUT, T_VDIM, T_D1D, T_Q1D, T_NBZ>; }
+KernelType QuadratureInterpolator::EvalKernels::Kernel2D()
+{
+   constexpr int T_NBZ = NBZ(T_D1D, T_Q1D);
+   return internal::quadrature_interpolator::Values2D<Q_LAYOUT, T_VDIM, T_D1D, T_Q1D, T_NBZ>;
+}
 
 template<QVectorLayout Q_LAYOUT,
          int T_VDIM, int T_D1D, int T_Q1D>
@@ -218,3 +225,5 @@ inline
 KernelType QuadratureInterpolator::EvalKernels::Fallback3D() { return internal::quadrature_interpolator::Values3D<Q_LAYOUT>; }
 
 } // namespace mfem
+
+#endif
