@@ -77,7 +77,22 @@ real_t p_fun(const Vector & x)
 }
 
 
+void MeanZero(GridFunction &p_gf)
+{
+   ConstantCoefficient one_cf(1.0);
 
+   LinearForm mass_lf(p_gf.FESpace());
+   mass_lf.AddDomainIntegrator(new DomainLFIntegrator(one_cf));
+   mass_lf.Assemble();
+
+   GridFunction one_gf(p_gf.FESpace());
+   one_gf.ProjectCoefficient(one_cf);
+
+   real_t volume = mass_lf.operator()(one_gf);
+   real_t integ = mass_lf.operator()(p_gf);
+
+   p_gf -= integ / volume;
+}
 
 //! @class SadlePointLUPreconditioner
 /**
@@ -193,10 +208,14 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../../data/square-nurbs.mesh";
    int ref_levels = -1;
    int order = 1;
+   bool weakBC = true;
+   bool weakDiv = false;
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = 1;
-   real_t kappa = 1.0;
+   real_t mu = 1.0;
+   real_t penalty = -1.0;
+   bool UMFPack = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -205,13 +224,25 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly, -1 for auto.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
-   args.AddOption(&kappa, "-k", "--kappa",
+   args.AddOption(&weakBC, "-w", "--wbc", "-s", "--sbc",
+                  "Weak boundary conditions.");
+   args.AddOption(&weakDiv, "-wd", "--wdiv", "-sd", "--sdiv",
+                  "Weak divergence.");
+   args.AddOption(&penalty, "-p", "--lambda",
+                  "Penalty parameter for enforcing weak Dirichlet boundary conditions.");
+   args.AddOption(&mu, "-mu", "--diffusion",
                   "Diffusion parameter.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+#ifdef MFEM_USE_SUITESPARSE
+   UMFPack = true;
+   args.AddOption(&UMFPack, "-umf", "--direct", "-gs", "--gssmoother",
+                  "Type of preconditioner to use.");
+#endif
+
    args.Parse();
    if (!args.Good())
    {
@@ -219,6 +250,11 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
+
+   if (penalty < 0)
+   {
+      penalty = (order+2)*(order+2);
+   }
 
    // Enable hardware devices such as GPUs, and programming models such as
    // CUDA, OCCA, RAJA and OpenMP based on command line options.
@@ -266,6 +302,11 @@ int main(int argc, char *argv[])
                               p_space.StealNURBSext(),
                               hdiv_coll);
 
+   Array<int> ess_bdr(mesh->bdr_attributes.Max());
+   ess_bdr = 1;
+   Array<int> ess_tdof_list;
+   u_space.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+
    // Define the BlockStructure of the problem
    Array<int> block_offsets(3); // number of variables + 1
    block_offsets[0] = 0;
@@ -273,14 +314,25 @@ int main(int argc, char *argv[])
    block_offsets[2] = p_space.GetVSize();
    block_offsets.PartialSum();
 
-   std::cout << "***********************************************************\n";
-   std::cout << "dim(R)   = " << block_offsets[1] - block_offsets[0] << "\n";
-   std::cout << "dim(W)   = " << block_offsets[2] - block_offsets[1] << "\n";
-   std::cout << "dim(R+W) = " << block_offsets.Last() << "\n";
-   std::cout << "***********************************************************\n";
+   std::cout << "===========================================================\n";
+   std::cout << "Velocity dofs     = " << block_offsets[1] - block_offsets[0] <<  endl;
+   std::cout << "Pressure dofs     = " << block_offsets[2] - block_offsets[1] << endl;
+   std::cout << "Total # of dofs   = " << block_offsets.Last() <<  endl;
+   if (!weakBC)
+   {
+      std::cout << "-----------------------------------------------------------\n";
+      Array<int> ess_tdof_list;
+      u_space.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      std::cout << "Velocity BC dofs  = " << ess_tdof_list.Size() << endl;
+      std::cout << "Net Velocity dofs = " << block_offsets[1]- block_offsets[0]
+                                             - ess_tdof_list.Size() << endl;
+      std::cout << "Net # of dofs     = " << block_offsets.Last()
+                                             - ess_tdof_list.Size() << endl;
+   }
+   std::cout << "===========================================================\n";
 
    // 7. Define the coefficients, analytical solution, gridfunctions.
-   ConstantCoefficient k_c(kappa);
+   ConstantCoefficient mu_cf(mu);
 
    VectorFunctionCoefficient f_cf(dim, f_fun);
    FunctionCoefficient g_cf(g_fun);
@@ -288,22 +340,23 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient u_cf(dim, u_fun);
    FunctionCoefficient p_cf(p_fun);
 
-   Array<int> ess_bdr(mesh->bdr_attributes.Max());
-   ess_bdr = 1;
+
 
    MemoryType mt = device.GetMemoryType();
    BlockVector x(block_offsets, mt);
 
-   GridFunction u, p;
-   u.MakeRef(&u_space, x.GetBlock(0), 0);
-   p.MakeRef(&p_space, x.GetBlock(1), 0);
+   GridFunction u_gf, p_gf;
+   u_gf.MakeRef(&u_space, x.GetBlock(0), 0);
+   p_gf.MakeRef(&p_space, x.GetBlock(1), 0);
 
-   u.ProjectCoefficient(u_cf);
-   p = 0.0;
+   u_gf.ProjectCoefficient(u_cf);
+   p_gf = 0.0;
+
+   GridFunctionVectorCoefficient uh_cf(&u_gf, dim);
 
    VisItDataCollection visit_dc0("Stokes_ic", mesh);
-   visit_dc0.RegisterField("velocity", &u);
-   visit_dc0.RegisterField("pressure", &p);
+   visit_dc0.RegisterField("velocity", &u_gf);
+   visit_dc0.RegisterField("pressure", &p_gf);
    visit_dc0.Save();
 
    // Assemble the right hand side via the linear forms (fform, gform).
@@ -311,17 +364,14 @@ int main(int argc, char *argv[])
    LinearForm *fform(new LinearForm);
    fform->Update(&u_space, rhs.GetBlock(0), 0);
    fform->AddDomainIntegrator(new VectorFEDomainLFIntegrator(f_cf));
-
-   bool weakBC  = false;
-   real_t penalty = 8.0;
-
-   //   if (weakBC) fform->AddBdrFaceIntegrator(new DGDirichletLFIntegrator(u_cf, -1.0, penalty)); Vector extension....
+   if (weakBC) { fform->AddBdrFaceIntegrator(new DGDirichletLFIntegrator(uh_cf, mu_cf, -1.0, penalty)); }
    fform->Assemble();
    fform->SyncAliasMemory(rhs);
 
    LinearForm *gform(new LinearForm);
    gform->Update(&p_space, rhs.GetBlock(1), 0);
    gform->AddDomainIntegrator(new DomainLFIntegrator(g_cf));
+   if (weakBC) { gform->AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(u_cf)); }
    gform->Assemble();
    gform->SyncAliasMemory(rhs);
 
@@ -332,45 +382,87 @@ int main(int argc, char *argv[])
    //     where:
    //
    //     K = \int_\Omega k u_h \cdot v_h d\Omega   u_h, v_h \in R_h
-   //     D = -\int_\Omega \div u_h q_h d\Omega   u_h \in R_h, q_h \in W_h
+   //     D = \int_\Omega u_h grad q_h d\Omega   u_h \in R_h, q_h \in W_h
    //     G = D^t
+
    BilinearForm kVarf(&u_space);
-   kVarf.AddDomainIntegrator(new VectorFEDiffusionIntegrator(k_c));
-   // if (weakBC) kVarf.AddBdrFaceIntegrator(new DGDiffusionIntegrator(k_c, -1.0, penalty)); Vector extension....
+   kVarf.AddDomainIntegrator(new VectorFEDiffusionIntegrator(mu_cf));
+   if (weakBC) { kVarf.AddBdrFaceIntegrator(new DGDiffusionIntegrator(mu_cf, -1.0, penalty)); }
    kVarf.Assemble();
-   if (!weakBC) { kVarf.EliminateEssentialBC(ess_bdr, u, *fform); }
+   if (!weakBC) { kVarf.EliminateEssentialBC(ess_bdr, u_gf, *fform); }
    kVarf.Finalize();
    SparseMatrix &K(kVarf.SpMat());
 
-   MixedBilinearForm bVarf(&u_space, &p_space);
-   bVarf.AddDomainIntegrator(new VectorFEDivergenceIntegrator);
-   //  if (weakBC) bVarf.AddBoundaryIntegrator(new NormalTraceIntegrator(-1.0)); Not for mixed???
+   Operator *D, *G;
+   if (weakBC)
+   {
+      MixedBilinearForm gVarf(&p_space, &u_space);
+      if (weakDiv)
+      {
+         cout<<"Formulation = weakBC & weakDiv\n";
+         gVarf.AddDomainIntegrator(new VectorFEGradIntegrator);
+      }
+      else
+      {
+         cout<<"Formulation = weakBC & strongDiv\n";
+         gVarf.AddDomainIntegrator(new TransposeIntegrator(
+                                   new VectorFEDivergenceIntegrator));
+         gVarf.AddBdrTraceFaceIntegrator(new NormalTraceIntegrator(-1.0));
+      }
+      gVarf.Assemble();
+      gVarf.Finalize();
 
-   bVarf.Assemble();
-   if (!weakBC) { bVarf.EliminateTrialDofs(ess_bdr, u, *gform); }
-   bVarf.Finalize();
-   SparseMatrix &D(bVarf.SpMat());
-   TransposeOperator G(&D);
+      G = new SparseMatrix(gVarf.SpMat());
+      D = new TransposeOperator(G);
+   }
+   else
+   {
+      MixedBilinearForm dVarf(&u_space, &p_space);
+      if (weakDiv)
+      {
+         cout<<"Formulation = strongBC & weakDiv\n";
+         dVarf.AddDomainIntegrator(new VectorFEWeakDivergenceIntegrator);
+      }
+      else
+      {
+         cout<<"Formulation = strongBC & strongDiv\n";
+         dVarf.AddDomainIntegrator(new VectorFEDivergenceIntegrator);
+      }
+      dVarf.Assemble();
+      dVarf.EliminateTrialDofs(ess_bdr, u_gf, *gform);
+      dVarf.Finalize();
+
+      D = new SparseMatrix(dVarf.SpMat());
+      G = new TransposeOperator(D);
+   }
 
    BlockOperator stokesOp(block_offsets);
    stokesOp.SetBlock(0,0, &K);
-   stokesOp.SetBlock(0,1, &G);
-   stokesOp.SetBlock(1,0, &D);
+   stokesOp.SetBlock(0,1, G);
+   stokesOp.SetBlock(1,0, D);
 
    // Construct the Schur Complement
+   Solver *invK;
 #ifdef MFEM_USE_SUITESPARSE
-   UMFPackSolver invK(K);
+   if (UMFPack)
+   {
+      invK = new UMFPackSolver(K);
+   }
+   else
+   {
+      invK = new GSSmoother(K);
+   }
 #else
-   DSmoother invK(K);
+   invK = new GSSmoother(K);
 #endif
-   invK.iterative_mode = false;
-   ProductOperator KiG(&invK, &G, false, false);
-   ProductOperator S(&D, &KiG, false, false);
+   invK->iterative_mode = false;
+   ProductOperator KiG(invK, G, false, false);
+   ProductOperator S(D, &KiG, false, false);
 
    // Construct an approximate Schur Complement
    real_t h = 1.0/sqrt(real_t(mesh->GetNE()));
    cout<<"h = "<<h<<endl;
-   ConstantCoefficient tau_c(h*h/kappa);
+   ConstantCoefficient tau_c(h*h/mu);
    BilinearForm pVarf(&p_space);
 
    pVarf.AddDomainIntegrator(new DiffusionIntegrator(tau_c));
@@ -380,23 +472,32 @@ int main(int argc, char *argv[])
    SparseMatrix &Sp(pVarf.SpMat());
 
    // Construct an approximate Schur Complement inverse
+   Solver *invSp;
 #ifdef MFEM_USE_SUITESPARSE
-   UMFPackSolver invSp(Sp);
+   if (UMFPack)
+   {
+      invSp = new UMFPackSolver(Sp);
+   }
+   else
+   {
+      invSp = new GSSmoother(Sp);
+   }
 #else
-   DSmoother invSp(Sp);
+   invSp = new GSSmoother(Sp);
 #endif
-   invSp.iterative_mode = false;
-   int smaxIter(1000);
-   real_t srtol(1.e-3);
-   real_t satol(1.e-3);
+
+   invSp->iterative_mode = false;
+   int smaxIter(10000);
+   real_t srtol(1.e-12);
+   real_t satol(1.e-12);
 
    FGMRESSolver invS;
    invS.SetAbsTol(satol);
    invS.SetRelTol(srtol);
    invS.SetMaxIter(smaxIter);
-   invS.SetKDim(smaxIter); // restart!!!
+   invS.SetKDim(smaxIter+1); // restart!!!
    invS.SetOperator(S);
-   invS.SetPreconditioner(invSp);
+   invS.SetPreconditioner(*invSp);
    invS.SetPrintLevel(0);
    invS.iterative_mode = false;
 
@@ -406,29 +507,26 @@ int main(int argc, char *argv[])
    //           [ D  -D K^-1 G ] [ 0   I      ]
    //
    SadlePointLUPreconditioner stokesPrec(block_offsets);
-   //BlockLowerTriangularPreconditioner stokesPrec(block_offsets);
-   // BlockLUPreconditioner stokesPrec(block_offsets);
 
-   stokesPrec.SetBlock(0,0, &invK);
-   stokesPrec.SetBlock(0,1, &G);
+   stokesPrec.SetBlock(0,0, invK);
+   stokesPrec.SetBlock(0,1, G);
 
    stokesPrec.SetBlock(1,1, &invS);
-   stokesPrec.SetBlock(1,0, &D);
+   stokesPrec.SetBlock(1,0, D);
 
    // 11. Solve the linear system with a Krylov.
    //     Check the norm of the unpreconditioned residual.
-   int maxIter(10000);
+   int maxIter(1000);
    real_t rtol(1.e-10);
    real_t atol(1.e-10);
 
    chrono.Clear();
    chrono.Start();
-   //   MINRESSolver solver;
    FGMRESSolver solver;
    solver.SetAbsTol(atol);
    solver.SetRelTol(rtol);
    solver.SetMaxIter(maxIter);
-   solver.SetKDim(maxIter); // restart!!!
+   solver.SetKDim(maxIter+1); // restart!!!
    solver.SetOperator(stokesOp);
    solver.SetPreconditioner(stokesPrec);
    solver.SetPrintLevel(1);
@@ -436,9 +534,9 @@ int main(int argc, char *argv[])
    solver.Mult(rhs, x);
    if (device.IsEnabled()) { x.HostRead(); }
    chrono.Stop();
-#ifdef MFEM_USE_SUITESPARSE
-   cout<<"MFEM_USE_SUITESPARSE\n";
-#endif
+
+   MeanZero(p_gf);
+
    if (solver.GetConverged())
    {
       std::cout << "Solver converged in " << solver.GetNumIterations()
@@ -463,17 +561,17 @@ int main(int argc, char *argv[])
 
       ofstream u_ofs("sol_u.gf");
       u_ofs.precision(8);
-      u.Save(u_ofs);
+      u_gf.Save(u_ofs);
 
       ofstream p_ofs("sol_p.gf");
       p_ofs.precision(8);
-      p.Save(p_ofs);
+      p_gf.Save(p_ofs);
    }
 
    // 14. Save data in the VisIt format
    VisItDataCollection visit_dc("Stokes", mesh);
-   visit_dc.RegisterField("velocity", &u);
-   visit_dc.RegisterField("pressure", &p);
+   visit_dc.RegisterField("velocity", &u_gf);
+   visit_dc.RegisterField("pressure", &p_gf);
    visit_dc.Save();
 
    // 15. Save data in the ParaView format
@@ -486,8 +584,8 @@ int main(int argc, char *argv[])
       paraview_dc.SetDataFormat(VTKFormat::BINARY);
       paraview_dc.SetHighOrderOutput(true);
       paraview_dc.SetTime(0.0); // set the time
-      paraview_dc.RegisterField("velocity",&u);
-      paraview_dc.RegisterField("pressure",&p);
+      paraview_dc.RegisterField("velocity",&u_gf);
+      paraview_dc.RegisterField("pressure",&p_gf);
       paraview_dc.Save();
    }
    // 16. Send the solution by socket to a GLVis server.
@@ -497,24 +595,21 @@ int main(int argc, char *argv[])
       int  visport   = 19916;
       socketstream u_sock(vishost, visport);
       u_sock.precision(8);
-      u_sock << "solution\n" << *mesh << u << "window_title 'Velocity'" << endl;
+      u_sock << "solution\n" << *mesh << u_gf << "window_title 'Velocity'" << endl;
       socketstream p_sock(vishost, visport);
       p_sock.precision(8);
-      p_sock << "solution\n" << *mesh << p << "window_title 'Pressure'" << endl;
+      p_sock << "solution\n" << *mesh << p_gf << "window_title 'Pressure'" << endl;
    }
 
    // 17. Free the used memory.
-   // delete fform;
-   // delete gform;
-   //  delete invSp;
-   // delete kVarf;
-   //delete bVarf;
    delete l2_coll;
    delete hdiv_coll;
    delete mesh;
+   delete invK;
+   delete invSp;
+   delete G;
+   delete D;
 
    return 0;
 }
-
-
 
