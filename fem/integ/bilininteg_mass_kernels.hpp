@@ -1145,9 +1145,13 @@ using DiagonalKernelType = MassIntegrator::DiagonalKernelType;
 inline
 KernelType MassIntegrator::ApplyPAKernels::Kernel1D() { return internal::PAMassApply1D; }
 
-template<int T_D1D, int T_Q1D, int T_NBZ>
+template<int T_D1D, int T_Q1D>
 inline
-KernelType MassIntegrator::ApplyPAKernels::Kernel2D() { return internal::SmemPAMassApply2D<T_D1D,T_Q1D,T_NBZ>; }
+KernelType MassIntegrator::ApplyPAKernels::Kernel2D()
+{
+   constexpr int T_NBZ = NBZ(T_D1D, T_Q1D);
+   return internal::SmemPAMassApply2D<T_D1D,T_Q1D,T_NBZ>;
+}
 
 template<int T_D1D, int T_Q1D>
 inline
@@ -1162,9 +1166,13 @@ KernelType MassIntegrator::ApplyPAKernels::Fallback3D() { return internal::PAMas
 inline
 DiagonalKernelType MassIntegrator::DiagonalPAKernels::Kernel1D() { return internal::PAMassAssembleDiagonal1D; }
 
-template<int T_D1D, int T_Q1D, int T_NBZ>
+template<int T_D1D, int T_Q1D>
 inline
-DiagonalKernelType MassIntegrator::DiagonalPAKernels::Kernel2D() { return internal::SmemPAMassAssembleDiagonal2D<T_D1D,T_Q1D,T_NBZ>; }
+DiagonalKernelType MassIntegrator::DiagonalPAKernels::Kernel2D()
+{
+   constexpr int T_NBZ = NBZ(T_D1D, T_Q1D);
+   return internal::SmemPAMassAssembleDiagonal2D<T_D1D,T_Q1D,T_NBZ>;
+}
 
 template<int T_D1D, int T_Q1D>
 inline

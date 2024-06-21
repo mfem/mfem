@@ -12,6 +12,9 @@
 // Internal header, included only by .cpp files.
 // Template function implementations.
 
+#ifndef MFEM_QUADINTERP_GRAD
+#define MFEM_QUADINTERP_GRAD
+
 #include "../quadinterpolator.hpp"
 #include "../../general/forall.hpp"
 #include "../../linalg/dtensor.hpp"
@@ -380,10 +383,13 @@ inline
 KernelType QuadratureInterpolator::GradKernels::Kernel1D() { return internal::quadrature_interpolator::Derivatives1D<Q_LAYOUT, GRAD_PHYS>; }
 
 template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS,
-         int T_VDIM, int T_D1D, int T_Q1D,
-         int T_NBZ>
+         int T_VDIM, int T_D1D, int T_Q1D>
 inline
-KernelType QuadratureInterpolator::GradKernels::Kernel2D() { return internal::quadrature_interpolator::Derivatives2D<Q_LAYOUT, GRAD_PHYS, T_VDIM, T_D1D, T_Q1D, T_NBZ>; }
+KernelType QuadratureInterpolator::GradKernels::Kernel2D()
+{
+   constexpr int T_NBZ = NBZ(T_D1D, T_Q1D);
+   return internal::quadrature_interpolator::Derivatives2D<Q_LAYOUT, GRAD_PHYS, T_VDIM, T_D1D, T_Q1D, T_NBZ>;
+}
 
 template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS,
          int T_VDIM, int T_D1D, int T_Q1D>
@@ -399,3 +405,5 @@ inline
 KernelType QuadratureInterpolator::GradKernels::Fallback3D() { return internal::quadrature_interpolator::Derivatives3D<Q_LAYOUT, GRAD_PHYS>; }
 
 } // namespace mfem
+
+#endif
