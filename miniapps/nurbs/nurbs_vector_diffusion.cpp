@@ -61,7 +61,6 @@ int main(int argc, char *argv[])
    bool visualization = 1;
    real_t penalty = -1.0;
 
-
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
@@ -137,11 +136,11 @@ int main(int argc, char *argv[])
    {
       if (hdiv)
       {
-          vfe_coll = new NURBS_HDivFECollection(order,dim);
+         vfe_coll = new NURBS_HDivFECollection(order,dim);
       }
       else
       {
-          vfe_coll = new NURBS_HCurlFECollection(order,dim);
+         vfe_coll = new NURBS_HCurlFECollection(order,dim);
       }
 
       NURBSext  = new NURBSExtension(mesh->NURBSext, order);
@@ -151,11 +150,11 @@ int main(int argc, char *argv[])
    {
       if (hdiv)
       {
-          vfe_coll = new RT_FECollection(order, dim);
+         vfe_coll = new RT_FECollection(order, dim);
       }
       else
       {
-          vfe_coll = new ND_FECollection(order, dim);
+         vfe_coll = new ND_FECollection(order, dim);
       }
 
       mfem::out<<"Create Normal fec"<<std::endl;
@@ -282,17 +281,6 @@ int main(int argc, char *argv[])
    VisItDataCollection visit_dc("VectorDiffusion", mesh);
    visit_dc.RegisterField("solution", &u);
    visit_dc.Save();
-
-   // 15. Save data in the ParaView format
-   ParaViewDataCollection paraview_dc("VectorDiffusion", mesh);
-   paraview_dc.SetPrefixPath("ParaView");
-   paraview_dc.SetLevelsOfDetail(order);
-   paraview_dc.SetCycle(0);
-   paraview_dc.SetDataFormat(VTKFormat::BINARY);
-   paraview_dc.SetHighOrderOutput(true);
-   paraview_dc.SetTime(0.0); // set the time
-   paraview_dc.RegisterField("solution",&u);
-   paraview_dc.Save();
 
    // 16. Send the solution by socket to a GLVis server.
    if (visualization)
