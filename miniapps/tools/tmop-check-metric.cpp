@@ -153,8 +153,8 @@ int main(int argc, char *argv[])
    auto integ = new TMOP_Integrator(metric, &tc, NULL);
    a.AddDomainIntegrator(integ);
 
-   ElementTransformation &Tr = *mesh->GetTypicalElementTransformation();
-   const FiniteElement &fe = *fespace.GetTypicalFE();
+   ElementTransformation &Tr = *mesh->GetElementTransformation(0);
+   const FiniteElement &fe = *fespace.GetFE(0);
    Array<int> vdofs;
    fespace.GetElementVDofs(0, vdofs);
    Vector x_loc(x.Size());
