@@ -50,25 +50,25 @@ using namespace std;
 using namespace mfem;
 
 // Define the analytical solution and forcing terms / boundary conditions
-void f_fun(const Vector & x, Vector & f)
+// Functions that define the problem for a lid driven cavity
+// No forcing, homogenous BC troughout, except the top.
+namespace lidDrivenCavity
 {
-   f = 0.0;
-}
-
-real_t g_fun(const Vector & x)
-{
-   return 0;
-}
 
 void u_fun(const Vector & x, Vector & u)
 {
    u = 0.0;
 
-   if ((x[1] - 0.99 > 0.0) &&
-       (fabs(x[0] - 0.5) < 0.49) )
+   if ((x[1] - 0.9999999 > 0.0) &&
+       (fabs(x[0] - 0.5) < 0.4999999) )
    {
       u[0] = 1.0;
    }
+}
+
+void f_fun(const Vector & x, Vector & f)
+{
+   f = 0.0;
 }
 
 real_t p_fun(const Vector & x)
@@ -76,7 +76,82 @@ real_t p_fun(const Vector & x)
    return 0.0;
 }
 
+real_t g_fun(const Vector & x)
+{
+   return 0;
+}
 
+}
+
+// Functions that define the problem for a rotating domain
+// The domain rotates around x = [0.5, -0.1]
+namespace rotatingDomain
+{
+   real_t omega = 1.0;
+   real_t x0 = 0.5;
+   real_t y0 = -0.1;
+
+//
+void u_fun(const Vector & x, Vector & u)
+{
+   u[0] =  omega*(x[1] - y0);
+   u[1] = -omega*(x[0] - x0);
+}
+
+// f = -omega^2*r
+void f_fun(const Vector & x, Vector & f)
+{
+   f[0] = omega*omega*(x[0] - x0);
+   f[1] = omega*omega*(x[1] - y0);
+}
+
+real_t p_fun(const Vector & x)
+{
+   return 0.0;
+}
+
+real_t g_fun(const Vector & x)
+{
+   return 0.0;
+}
+
+}
+
+
+// Functions that define the problem for a closed rotating box
+// The box rotates around x = [0.5, -0.1]
+namespace rotatingBox
+{
+   real_t omega = 1.0;
+   real_t x0 = 0.5;
+   real_t y0 = -0.1;
+
+// f = -omega^2*r
+
+void u_fun(const Vector & x, Vector & u)
+{
+   u = 0.0;
+}
+
+void f_fun(const Vector & x, Vector & f)
+{
+   f[0] = omega*omega*(x[0] - x0);
+   f[1] = omega*omega*(x[1] - y0);
+}
+
+real_t p_fun(const Vector & x)
+{
+   return 0.0;
+}
+
+real_t g_fun(const Vector & x)
+{
+   return 0.0;
+}
+
+}
+
+/// Function to remove the undetermined pressure mode
 void MeanZero(GridFunction &p_gf)
 {
    ConstantCoefficient one_cf(1.0);
@@ -112,6 +187,26 @@ void MeanZero(GridFunction &p_gf)
  * off-diagonal block is not set, it is assumed to be a zero block.
  *
  */
+ 
+/** Construct an exact LU decomposition of the ubiquitous sadle point problem
+*
+*       P = [ K   0        ] [ I   K^-1 G ]
+*           [ D  -D K^-1 G ] [ 0   I      ]
+*
+* of the ubiquitous sadle point problem
+*
+*       A = [ K   G ]
+*           [ D   0 ]
+*
+*
+* Usage:
+* - Use the constructors to define the block structure 
+* - Use SetBlock() to fill the LU Decomposition
+*       A = [ K^-1   G ]
+*           [ D     -S^-1 ]
+*   where S is the schur complement S = D K^-1 G
+* - Use the method Mult()
+*/
 class SadlePointLUPreconditioner : public Solver
 {
 public:
@@ -173,12 +268,6 @@ public:
       ops(1,0)->AddMult(sol.GetBlock(0), tmp1);         // tmp = -g + Du
       ops(1,1)->Mult(tmp1, sol.GetBlock(1));            // p = S^{-1} (-g + Du)
 
-      // tmp1 = rhs.GetBlock(1);
-      // ops(1,0)->AddMult(sol.GetBlock(0), tmp1, -1.0);   // tmp = g - Du
-      // ops(1,1)->Mult(tmp1, sol.GetBlock(1));            // p = S^{-1} (g - Du)
-
-
-
       ops(0,1)->Mult(sol.GetBlock(1), tmp0);
       ops(0,0)->AddMult(tmp0, sol.GetBlock(0), -1.0);    // u = u - K^-1 G p
    }
@@ -215,6 +304,7 @@ int main(int argc, char *argv[])
    bool visualization = 1;
    real_t mu = 1.0;
    real_t penalty = -1.0;
+   int problem = 0;
    bool UMFPack = false;
 
    OptionsParser args(argc, argv);
@@ -232,6 +322,11 @@ int main(int argc, char *argv[])
                   "Penalty parameter for enforcing weak Dirichlet boundary conditions.");
    args.AddOption(&mu, "-mu", "--diffusion",
                   "Diffusion parameter.");
+   args.AddOption(&problem, "-c", "--problem",
+                  "Problem to solve:\n."
+                  "\t 0 = Lid Driven Cavity (detault)"
+                  "\t 1 = Rotating domain"
+                  "\t 2 = Rotating box");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -331,17 +426,42 @@ int main(int argc, char *argv[])
    }
    std::cout << "===========================================================\n";
 
-   // 7. Define the coefficients, analytical solution, gridfunctions.
+   // Define the viscosity, solution and forcing coefficients
    ConstantCoefficient mu_cf(mu);
 
-   VectorFunctionCoefficient f_cf(dim, f_fun);
-   FunctionCoefficient g_cf(g_fun);
+   VectorFunctionCoefficient *u_cf, *f_cf;
+   FunctionCoefficient *p_cf, *g_cf;
 
-   VectorFunctionCoefficient u_cf(dim, u_fun);
-   FunctionCoefficient p_cf(p_fun);
+   if (problem == 0)
+   {
+      f_cf = new VectorFunctionCoefficient (dim, lidDrivenCavity::f_fun);
+      u_cf = new VectorFunctionCoefficient (dim, lidDrivenCavity::u_fun);
 
+      g_cf = new FunctionCoefficient (lidDrivenCavity::g_fun);
+      p_cf = new FunctionCoefficient (lidDrivenCavity::p_fun);
+   }
+   else if (problem == 1)
+   {
+      f_cf = new VectorFunctionCoefficient (dim, rotatingBox::f_fun);
+      u_cf = new VectorFunctionCoefficient (dim, rotatingBox::u_fun);
 
+      g_cf = new FunctionCoefficient (rotatingBox::g_fun);
+      p_cf = new FunctionCoefficient (rotatingBox::p_fun);
+   }
+   else if (problem == 2)
+   {
+      f_cf = new VectorFunctionCoefficient (dim, rotatingBox::f_fun);
+      u_cf = new VectorFunctionCoefficient (dim, rotatingBox::u_fun);
 
+      g_cf = new FunctionCoefficient (rotatingBox::g_fun);
+      p_cf = new FunctionCoefficient (rotatingBox::p_fun);
+   }
+   else
+   {
+      mfem_error("Incorrect problem selected");
+   }
+
+   // Define the gridfunctions and set the initial/boundary conditions
    MemoryType mt = device.GetMemoryType();
    BlockVector x(block_offsets, mt);
 
@@ -349,7 +469,7 @@ int main(int argc, char *argv[])
    u_gf.MakeRef(&u_space, x.GetBlock(0), 0);
    p_gf.MakeRef(&p_space, x.GetBlock(1), 0);
 
-   u_gf.ProjectCoefficient(u_cf);
+   u_gf.ProjectCoefficient(*u_cf);
    p_gf = 0.0;
 
    GridFunctionVectorCoefficient uh_cf(&u_gf, dim);
@@ -363,15 +483,15 @@ int main(int argc, char *argv[])
    BlockVector rhs(block_offsets, mt);
    LinearForm *fform(new LinearForm);
    fform->Update(&u_space, rhs.GetBlock(0), 0);
-   fform->AddDomainIntegrator(new VectorFEDomainLFIntegrator(f_cf));
+   fform->AddDomainIntegrator(new VectorFEDomainLFIntegrator(*f_cf));
    if (weakBC) { fform->AddBdrFaceIntegrator(new DGDirichletLFIntegrator(uh_cf, mu_cf, -1.0, penalty)); }
    fform->Assemble();
    fform->SyncAliasMemory(rhs);
 
    LinearForm *gform(new LinearForm);
    gform->Update(&p_space, rhs.GetBlock(1), 0);
-   gform->AddDomainIntegrator(new DomainLFIntegrator(g_cf));
-   if (weakBC) { gform->AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(u_cf)); }
+   gform->AddDomainIntegrator(new DomainLFIntegrator(*g_cf));
+   if (weakBC) { gform->AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(uh_cf)); }
    gform->Assemble();
    gform->SyncAliasMemory(rhs);
 
@@ -384,7 +504,8 @@ int main(int argc, char *argv[])
    //     K = \int_\Omega k u_h \cdot v_h d\Omega   u_h, v_h \in R_h
    //     D = \int_\Omega u_h grad q_h d\Omega   u_h \in R_h, q_h \in W_h
    //     G = D^t
-
+   chrono.Clear();
+   chrono.Start();
    BilinearForm kVarf(&u_space);
    kVarf.AddDomainIntegrator(new VectorFEDiffusionIntegrator(mu_cf));
    if (weakBC) { kVarf.AddBdrFaceIntegrator(new DGDiffusionIntegrator(mu_cf, -1.0, penalty)); }
@@ -392,19 +513,23 @@ int main(int argc, char *argv[])
    if (!weakBC) { kVarf.EliminateEssentialBC(ess_bdr, u_gf, *fform); }
    kVarf.Finalize();
    SparseMatrix &K(kVarf.SpMat());
+   chrono.Stop();
+   std::cout << " Assembly of diffusion matrix took " << chrono.RealTime() << "s.\n";
 
+   chrono.Clear();
+   chrono.Start();
    Operator *D, *G;
    if (weakBC)
    {
       MixedBilinearForm gVarf(&p_space, &u_space);
       if (weakDiv)
       {
-         cout<<"Formulation = weakBC & weakDiv\n";
+         cout<<"Formulation = weakBC("<<penalty<<") & weakDiv\n";
          gVarf.AddDomainIntegrator(new VectorFEGradIntegrator);
       }
       else
       {
-         cout<<"Formulation = weakBC & strongDiv\n";
+         cout<<"Formulation = weakBC("<<penalty<<") & strongDiv\n";
          gVarf.AddDomainIntegrator(new TransposeIntegrator(
                                    new VectorFEDivergenceIntegrator));
          gVarf.AddBdrTraceFaceIntegrator(new NormalTraceIntegrator(-1.0));
@@ -435,6 +560,8 @@ int main(int argc, char *argv[])
       D = new SparseMatrix(dVarf.SpMat());
       G = new TransposeOperator(D);
    }
+   chrono.Stop();
+   std::cout << " Assembly of grad and divergence matrices took " << chrono.RealTime() << "s.\n";
 
    BlockOperator stokesOp(block_offsets);
    stokesOp.SetBlock(0,0, &K);
@@ -605,6 +732,10 @@ int main(int argc, char *argv[])
    delete l2_coll;
    delete hdiv_coll;
    delete mesh;
+   delete u_cf;
+   delete f_cf;
+   delete p_cf;
+   delete g_cf;
    delete invK;
    delete invSp;
    delete G;
