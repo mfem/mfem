@@ -2887,6 +2887,41 @@ TEST_CASE("InternalBoundaryProjectBdrCoefficient", "[NCMesh]")
    }
 }
 
+TEST_CASE("FaceBoundaryElementConsistency", "[NCMesh]")
+{
+   auto mesh = Mesh("../../data/ref-cube.mesh");
 
+   mesh.EnsureNCMesh(true);
+
+   auto test_map = [](const Mesh &mesh)
+   {
+      const auto &face_to_be = mesh.GetFaceToBdrElMap();
+      for (int ipe = 0; ipe < mesh.ncmesh->faces.Size(); ipe++)
+      {
+         const auto &f = mesh.ncmesh->faces[ipe];
+         CAPTURE(mesh.GetNE(), ipe, f.index, face_to_be[f.index], f.attribute);
+         if (face_to_be[f.index] >= 0)
+         {
+            CHECK(f.attribute == mesh.GetBdrAttribute(face_to_be[f.index]));
+            if (f.attribute != mesh.GetBdrAttribute(face_to_be[f.index]))
+            {
+               int el, info;
+               mesh.GetBdrElementAdjacentElement(face_to_be[f.index], el, info);
+               std::cout << "el " << el << " local_face " << info / 64 << std::endl;
+            }
+         }
+         else
+         {
+            CHECK(f.attribute == -1);
+         }
+      }
+   };
+
+
+   mesh.UniformRefinement();
+   test_map(mesh);
+   mesh.UniformRefinement();
+   test_map(mesh);
+}
 
 } // namespace mfem

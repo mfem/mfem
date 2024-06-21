@@ -568,7 +568,7 @@ protected: // implementation
 
 
    // primary data
-
+public:
    HashTable<Node> nodes; // associative container holding all Nodes
    HashTable<Face> faces; // associative container holding all Faces
 
