@@ -44,7 +44,21 @@ void uFun_ex(const Vector & x, Vector & u)
 
 void fFun(const Vector & x, Vector & f)
 {
-   f = 8.0;
+
+   real_t xi(x(0));
+   real_t yi(x(1));
+   real_t zi(0.0);
+   if (x.Size() == 3)
+   {
+      zi = x(2);
+   }
+
+   f(0) = M_PI*M_PI*sin(M_PI*xi);
+   f(1) = M_PI*M_PI*sin(M_PI*yi);
+   if (x.Size() == 3)
+   {
+      f(2) = M_PI*M_PI*sin(M_PI*zi);
+   }
 }
 
 int main(int argc, char *argv[])
@@ -181,6 +195,17 @@ int main(int argc, char *argv[])
 
    GridFunction u;
    u.MakeRef(&space, x, 0);
+   u.ProjectCoefficient(ucoeff);
+
+   int order_quad = max(2, 2*order+1);
+   const IntegrationRule *irs[Geometry::NumGeom];
+   for (int i=0; i < Geometry::NumGeom; ++i)
+   {
+      irs[i] = &(IntRules.Get(i, order_quad));
+   }
+
+   real_t err_u  = u.ComputeL2Error(ucoeff, irs);
+   real_t norm_u = ComputeLpNorm(2., ucoeff, *mesh, irs);
 
    // 8. Allocate memory (x, rhs) for the analytical solution and the right hand
    //    side.  Define the GridFunction u,p for the finite element solution and
@@ -229,14 +254,6 @@ int main(int argc, char *argv[])
    if (device.IsEnabled()) { x.HostRead(); }
    chrono.Stop();
 
-   if (weakBC)
-   {
-      std::cout << "Weak boundary conditions.\n";
-   }
-   else
-   {
-      std::cout << "Strong boundary conditions.\n";
-   }
    if (solver.GetConverged())
    {
 
@@ -252,16 +269,21 @@ int main(int argc, char *argv[])
    }
    std::cout << "MINRES solver took " << chrono.RealTime() << "s.\n";
 
-   // 12. Create the grid functions u and p. Compute the L2 error norms.
-   int order_quad = max(2, 2*order+1);
-   const IntegrationRule *irs[Geometry::NumGeom];
-   for (int i=0; i < Geometry::NumGeom; ++i)
+   // 12.  Print the previously computer interpolation errors.
+   //      Compute and print the L2 error norms of the numerical solution.
+   if (weakBC)
    {
-      irs[i] = &(IntRules.Get(i, order_quad));
+      std::cout << "Weak boundary conditions.\n";
+   }
+   else
+   {
+      std::cout << "Strong boundary conditions.\n";
    }
 
-   real_t err_u  = u.ComputeL2Error(ucoeff, irs);
-   real_t norm_u = ComputeLpNorm(2., ucoeff, *mesh, irs);
+   std::cout << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
+
+   err_u  = u.ComputeL2Error(ucoeff, irs);
+   norm_u = ComputeLpNorm(2., ucoeff, *mesh, irs);
 
    std::cout << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
 
