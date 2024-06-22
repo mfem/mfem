@@ -38,11 +38,12 @@ struct Refinement
    enum : char { X = 1, Y = 2, Z = 4, XY = 3, XZ = 5, YZ = 6, XYZ = 7 };
    int index; ///< Mesh element number
    char ref_type; ///< refinement XYZ bit mask (7 = full isotropic)
+   real_t scale;
 
    Refinement() = default;
 
-   Refinement(int index, int type = Refinement::XYZ)
-      : index(index), ref_type(type) {}
+   Refinement(int index, int type = Refinement::XYZ, real_t s = 0.5)
+      : index(index), ref_type(type), scale(s) {}
 };
 
 
@@ -506,8 +507,10 @@ protected: // implementation
    {
       char vert_refc, edge_refc;
       int vert_index, edge_index;
+      real_t scale;
 
-      Node() : vert_refc(0), edge_refc(0), vert_index(-1), edge_index(-1) {}
+      Node() : vert_refc(0), edge_refc(0), vert_index(-1), edge_index(-1),
+         scale(0.5) {}
       ~Node();
 
       bool HasVertex() const { return vert_refc > 0; }
@@ -604,6 +607,7 @@ protected: // implementation
    Array<int> leaf_elements; ///< finest elements, in Mesh ordering (+ ghosts)
    Array<int> leaf_sfc_index; ///< natural tree ordering of leaf elements
    Array<int> vertex_nodeId; ///< vertex-index to node-id map, see UpdateVertices
+   Array<real_t> vertex_scale;
 
    NCList face_list; ///< lazy-initialized list of faces, see GetFaceList
    NCList edge_list; ///< lazy-initialized list of edges, see GetEdgeList
@@ -678,7 +682,7 @@ protected: // implementation
 
    /** Refine the element @a elem with the refinement @a ref_type
        (c.f. Refinement::enum) */
-   void RefineElement(int elem, char ref_type);
+   void RefineElement(int elem, char ref_type, real_t scale = 0.5);
 
    /// Derefine the element @a elem, does nothing on leaf elements.
    void DerefineElement(int elem);

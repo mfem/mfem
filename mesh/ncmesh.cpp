@@ -951,7 +951,7 @@ void NCMesh::CheckIsoFace(int vn1, int vn2, int vn3, int vn4,
 }
 
 
-void NCMesh::RefineElement(int elem, char ref_type)
+void NCMesh::RefineElement(int elem, char ref_type, real_t scale)
 {
    if (!ref_type) { return; }
 
@@ -964,7 +964,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
       // do the remaining splits on the children
       for (int i = 0; i < MaxElemChildren; i++)
       {
-         if (el.child[i] >= 0) { RefineElement(el.child[i], remaining); }
+         if (el.child[i] >= 0) { RefineElement(el.child[i], remaining, scale); }
       }
       return;
    }
@@ -1537,6 +1537,11 @@ void NCMesh::RefineElement(int elem, char ref_type)
          int mid01 = nodes.GetId(no[0], no[1]);
          int mid23 = nodes.GetId(no[2], no[3]);
 
+         Node* node01 = nodes.Find(no[0], no[1]);
+         Node* node23 = nodes.Find(no[2], no[3]);
+         node01->scale = scale;
+         node23->scale = scale;
+
          child[0] = NewQuadrilateral(no[0], mid01, mid23, no[3],
                                      attr, fa[0], -1, fa[2], fa[3]);
 
@@ -1652,7 +1657,7 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
    for (int i = refinements.Size()-1; i >= 0; i--)
    {
       const Refinement& ref = refinements[i];
-      ref_stack.Append(Refinement(leaf_elements[ref.index], ref.ref_type));
+      ref_stack.Append(Refinement(leaf_elements[ref.index], ref.ref_type, ref.scale));
    }
 
    // keep refining as long as the stack contains something
@@ -1663,7 +1668,7 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
       ref_stack.DeleteLast();
 
       int size = ref_stack.Size();
-      RefineElement(ref.index, ref.ref_type);
+      RefineElement(ref.index, ref.ref_type, ref.scale);
       nforced += ref_stack.Size() - size;
    }
 
@@ -2266,6 +2271,8 @@ void NCMesh::UpdateVertices()
    // STEP 4: create the mapping from Mesh vertex index to NCMesh node index
 
    vertex_nodeId.SetSize(NVertices);
+   vertex_scale.SetSize(NVertices);
+   vertex_scale = 0.5;
    for (auto node = nodes.begin(); node != nodes.end(); ++node)
    {
       if (node->HasVertex() && node->vert_index >= 0)
@@ -2454,7 +2461,7 @@ const real_t* NCMesh::CalcVertexPos(int node) const
 
    for (int i = 0; i < 3; i++)
    {
-      tv.pos[i] = (pos1[i] + pos2[i]) * 0.5;
+      tv.pos[i] = ((1.0 - nd.scale) * pos1[i]) + (nd.scale * pos2[i]);
    }
    tv.valid = true;
    return tv.pos;
