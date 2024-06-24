@@ -39,7 +39,7 @@ void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
       // kernels.
       const Vector &Dv = pa_data;
 
-      kernels.diag.Run(dim, D1D, Q1D, NE, symm, B, G, Dv, diag, D1D, Q1D);
+      DiagonalPAKernelTable().Run(dim, D1D, Q1D, NE, symm, B, G, Dv, diag, D1D, Q1D);
    }
 }
 
@@ -79,7 +79,8 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
       }
 #endif // MFEM_USE_OCCA
 
-      kernels.apply.Run(dim, D1D, Q1D, NE, symm, B, G, Bt, Gt, Dv, x, y, D1D, Q1D);
+      ApplyPAKernelTable().Run(dim, D1D, Q1D, NE, symm, B, G, Bt, Gt, Dv, x, y, D1D,
+                               Q1D);
    }
 }
 
