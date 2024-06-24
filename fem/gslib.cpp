@@ -348,7 +348,7 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
                                  int point_pos_ordering)
 {
    MFEM_VERIFY(setupflag, "Use FindPointsGSLIB::Setup before finding points.");
-   bool dev_mode = point_pos.UseDevice();
+   bool dev_mode = (point_pos.UseDevice() && Device::IsEnabled());
    points_cnt = point_pos.Size() / dim;
    gsl_code.SetSize(points_cnt);
    gsl_proc.SetSize(points_cnt);
@@ -2611,6 +2611,7 @@ void FindPointsGSLIB::SetupSplitMeshes()
    NE_split_total = 0;
    split_element_map.SetSize(0);
    split_element_index.SetSize(0);
+   tensor_product = true;
    int NEsplit = 0;
    for (int e = 0; e < mesh->GetNE(); e++)
    {
@@ -2618,14 +2619,17 @@ void FindPointsGSLIB::SetupSplitMeshes()
       if (gt == Geometry::TRIANGLE || gt == Geometry::PRISM)
       {
          NEsplit = 3;
+         tensor_product = false;
       }
       else if (gt == Geometry::TETRAHEDRON)
       {
          NEsplit = 4;
+         tensor_product = false;
       }
       else if (gt == Geometry::PYRAMID)
       {
          NEsplit = 8;
+         tensor_product = false;
       }
       else if (gt == Geometry::SQUARE || gt == Geometry::CUBE)
       {
@@ -2868,7 +2872,7 @@ void FindPointsGSLIB::GetNodalValuesSurf(const GridFunction *gf_in,
 
       for (int j=0; j<dof_cnt_split; j++) // lexicographic dof ID j
       {
-         for (int d=0; d<vdim; d++)     // dof j's dimension d 
+         for (int d=0; d<vdim; d++)     // dof j's dimension d
          {
             node_vals(pts_cnt*d + gsl_mesh_pt_index) = pos(dof_map[j], d);
             if (d<dim)
@@ -3293,16 +3297,20 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
    setupSW.Clear();
    setupSW.Start();
    if (Device::IsEnabled() && field_in.UseDevice() &&
-       mesh->GetNumGeometries(dim) == 1 && mesh->GetNE() > 0 &&
-       (mesh->GetElementType(0) == Element::QUADRILATERAL ||
-        mesh->GetElementType(0) == Element::HEXAHEDRON))
+       mesh->GetNumGeometries(dim) == 1 && mesh->GetNE() > 0 && tensor_product)
    {
       MFEM_VERIFY(fec_h1,"Only h1 functions supported on device right now.");
       MFEM_VERIFY(fec_h1->GetBasisType() == BasisType::GaussLobatto,
                   "basis not supported");
       Vector node_vals;
       node_vals.UseDevice(true);
-      GetNodalValues(&field_in, node_vals);
+
+      const ElementDofOrdering ord = ElementDofOrdering::LEXICOGRAPHIC;
+      const Operator *R = field_in.FESpace()->GetElementRestriction(ord);
+      node_vals.SetSize(R->Height());
+      R->Mult(field_in, node_vals); //orders fields (N^D x VDIM x NEL)
+      // GetNodalValues(&field_in, node_vals); // orders (N^D x NEL x VDIM)
+
 
       const int ncomp  = field_in.FESpace()->GetVDim();
       const int maxOrder = field_in.FESpace()->GetMaxElementOrder();
@@ -3316,21 +3324,22 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
       DEV.lagcoeffsol.HostWrite();
       if (DEV.dof1dsol != DEV.dof1d)
       {
-         Vector temp(DEV.dof1dsol);
-         gslib::lobatto_nodes(temp.GetData(), DEV.dof1dsol);
-         DEV.gll1dsol = temp.GetData();
-         MFEM_DEVICE_SYNC;
+         gslib::lobatto_nodes(DEV.gll1dsol.HostWrite(), DEV.dof1dsol);
+         gslib::gll_lag_setup(DEV.lagcoeffsol.HostWrite(), DEV.dof1dsol);
+         // Vector temp(DEV.dof1dsol);
+         // gslib::lobatto_nodes(temp.GetData(), DEV.dof1dsol);
+         // DEV.gll1dsol = temp.GetData();
+         // MFEM_DEVICE_SYNC;
 
-         gslib::gll_lag_setup(temp.GetData(), DEV.dof1dsol);
-         DEV.lagcoeffsol = temp.GetData();
-         MFEM_DEVICE_SYNC;
+         // gslib::gll_lag_setup(temp.GetData(), DEV.dof1dsol);
+         // DEV.lagcoeffsol = temp.GetData();
+         // MFEM_DEVICE_SYNC;
       }
       else
       {
          DEV.gll1dsol = DEV.gll1d.HostRead();
          DEV.lagcoeffsol = DEV.lagcoeff.HostRead();
       }
-      MFEM_DEVICE_SYNC;
 
       field_out.SetSize(points_cnt*ncomp);
       field_out.UseDevice(true);

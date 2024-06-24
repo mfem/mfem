@@ -20,37 +20,31 @@
 namespace mfem
 {
 
-#define CODE_INTERNAL 0
-#define CODE_BORDER 1
-#define CODE_NOT_FOUND 2
-#define dlong int
-#define dfloat double
-
-static MFEM_HOST_DEVICE void lagrange_eval(dfloat *p0, dfloat x,
-                                           dlong i, dlong p_Nq,
-                                           dfloat *z, dfloat *lagrangeCoeff)
+static MFEM_HOST_DEVICE void lagrange_eval(double *p0, double x,
+                                           int i, int p_Nq,
+                                           double *z, double *lagrangeCoeff)
 {
-   dfloat p_i = (1 << (p_Nq - 1));
-   for (dlong j = 0; j < p_Nq; ++j)
+   double p_i = (1 << (p_Nq - 1));
+   for (int j = 0; j < p_Nq; ++j)
    {
-      dfloat d_j = x - z[j];
+      double d_j = x - z[j];
       p_i *= j == i ? 1 : d_j;
    }
    p0[i] = lagrangeCoeff[i] * p_i;
 }
 
-static void InterpolateLocal2D_Kernel(const dfloat *const gf_in,
-                                      dlong *const el,
-                                      dfloat *const r,
-                                      dfloat *const int_out,
+static void InterpolateLocal2D_Kernel(const double *const gf_in,
+                                      int *const el,
+                                      double *const r,
+                                      double *const int_out,
                                       const int npt,
                                       const int ncomp,
                                       const int nel,
                                       const int dof1Dsol,
                                       const int gf_offset,
-                                      dfloat *gll1D,
+                                      double *gll1D,
                                       double *lagcoeff,
-                                      dfloat *infok)
+                                      double *infok)
 {
    const int p_Nq = dof1Dsol;
    const int Nfields = ncomp;
@@ -59,9 +53,9 @@ static void InterpolateLocal2D_Kernel(const dfloat *const gf_in,
    const int pMax = 12;
    mfem::forall_2D(npt, dof1Dsol, 1, [=] MFEM_HOST_DEVICE (int i)
    {
-      MFEM_SHARED dfloat wtr[pMax];
-      MFEM_SHARED dfloat wts[pMax];
-      MFEM_SHARED dfloat sums[pMax];
+      MFEM_SHARED double wtr[pMax];
+      MFEM_SHARED double wts[pMax];
+      MFEM_SHARED double sums[pMax];
 
       // Evaluate basis functions at the reference space coordinates
       MFEM_FOREACH_THREAD(j,x,p_Nq)
@@ -74,12 +68,15 @@ static void InterpolateLocal2D_Kernel(const dfloat *const gf_in,
       for (int fld = 0; fld < Nfields; ++fld)
       {
 
-         const dlong elemOffset = el[i] * p_Np + fld * fieldOffset;
+         // field is (N^2 X NEL X VDIM)
+         // const int elemOffset = el[i] * p_Np + fld * fieldOffset;
+         // field is (N^2 X VDIM X NEL)
+         const int elemOffset = el[i] * p_Np * Nfields + fld * p_Np;
 
          MFEM_FOREACH_THREAD(j,x,p_Nq)
          {
-            dfloat sum_j = 0;
-            for (dlong k = 0; k < p_Nq; ++k)
+            double sum_j = 0;
+            for (int k = 0; k < p_Nq; ++k)
             {
                sum_j += gf_in[elemOffset + j + k * p_Nq] * wts[k];
             }
@@ -92,7 +89,7 @@ static void InterpolateLocal2D_Kernel(const dfloat *const gf_in,
             if (j == 0)
             {
                double sumv = 0.0;
-               for (dlong jj = 0; jj < p_Nq; ++jj)
+               for (int jj = 0; jj < p_Nq; ++jj)
                {
                   sumv += sums[jj];
                }
@@ -122,13 +119,6 @@ void FindPointsGSLIB::InterpolateLocal2(const Vector &field_in,
                              DEV.lagcoeffsol.ReadWrite(),
                              DEV.info.ReadWrite());
 }
-
-
-#undef CODE_INTERNAL
-#undef CODE_BORDER
-#undef CODE_NOT_FOUND
-#undef dlong
-#undef dfloat
 
 } // namespace mfem
 

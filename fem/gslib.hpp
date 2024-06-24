@@ -99,6 +99,7 @@ protected:
    int        mesh_points_cnt;
    // Tolerance to ignore points just outside elements at the boundary.
    double     bdr_tol;
+   bool       tensor_product = false;
    int        gpu_code = 0;
    int        newton_iter = 0;
 

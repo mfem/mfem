@@ -75,8 +75,10 @@ static void InterpolateLocal3D_Kernel(const dfloat *const gf_in,
 
       for (int fld = 0; fld < Nfields; ++fld)
       {
-
-         const dlong elemOffset = el[i] * p_Np + fld * fieldOffset;
+         // field is (N^2 X NEL X VDIM)
+         // const int elemOffset = el[i] * p_Np + fld * fieldOffset;
+         // field is (N^2 X VDIM X NEL)
+         const int elemOffset = el[i] * p_Np * Nfields + fld * p_Np;
 
          MFEM_FOREACH_THREAD(j,x,p_Nq)
          {
