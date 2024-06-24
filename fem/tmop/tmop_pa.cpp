@@ -134,13 +134,22 @@ void TMOP_Integrator::AssemblePA_Fitting()
    MFEM_VERIFY(PA.enabled, "AssemblePA_Fitting but PA is not enabled!");
    MFEM_VERIFY(surf_fit_gf, "No surface fitting function specification!");
 
-
-   //Same as PA Limiting
-   const FiniteElementSpace *fes = PA.fes;
    const int NE = PA.ne;
    if (NE == 0) { return; }  // Quick return for empty processors
    const IntegrationRule &ir = *PA.ir;
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
+
+   //FE space and mesh setup
+   const FiniteElementSpace *fes = PA.fes;
+   const int dim = fes->GetMesh()->Dimension();
+   Mesh *mesh = fes->GetMesh();
+  
+   MFEM_VERIFY(mesh->GetNodes()->Size() == dim*surf_fit_gf->Size(),
+               "Mesh and level-set polynomial order must be the same.");
+   const H1_FECollection *fec = dynamic_cast<const H1_FECollection *>
+                                (fes->FEColl());
+   MFEM_VERIFY(fec, "Only H1_FECollection is supported for the surface fitting "
+               "grid function.");
 }
 //------------------------------- new function above -------------------------//
 
