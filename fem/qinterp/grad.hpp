@@ -29,6 +29,7 @@ namespace quadrature_interpolator
 
 template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS>
 static void Derivatives1D(const int NE,
+                          const real_t *b_,
                           const real_t *g_,
                           const real_t *j_,
                           const real_t *x_,
@@ -38,6 +39,7 @@ static void Derivatives1D(const int NE,
                           const int d1d,
                           const int q1d)
 {
+   MFEM_CONTRACT_VAR(b_);
    const auto g = Reshape(g_, q1d, d1d);
    const auto j = Reshape(j_, q1d, sdim, NE);
    const auto x = Reshape(x_, d1d, vdim, NE);
@@ -232,9 +234,7 @@ static void Derivatives3D(const int NE,
                           const real_t *j_,
                           const real_t *x_,
                           real_t *y_,
-                          const int =
-                             0,  // Unnamed default arguments make Derivates3D match the signature of Derivatives2D
-                          const int = 0,
+                          const int sdim = 3,
                           const int vdim = 0,
                           const int d1d = 0,
                           const int q1d = 0)
@@ -373,29 +373,42 @@ static void Derivatives3D(const int NE,
 
 } // namespace internal
 
-// using KernelType = QuadratureInterpolator::GradKernelType;
+namespace
+{
+using GradKernel = QuadratureInterpolator::GradKernelType;
 
-// template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS>
-// inline
-// KernelType QuadratureInterpolator::GradKernels::Kernel1D() { return internal::quadrature_interpolator::Derivatives1D<Q_LAYOUT, GRAD_PHYS>; }
+template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS>
+GradKernel GetGradKernel(int DIM)
+{
+   if (DIM == 1) { return internal::quadrature_interpolator::Derivatives1D<Q_LAYOUT, GRAD_PHYS>; }
+   else if (DIM == 2) { return internal::quadrature_interpolator::Derivatives2D<Q_LAYOUT, GRAD_PHYS>; }
+   else if (DIM == 3) { return internal::quadrature_interpolator::Derivatives3D<Q_LAYOUT, GRAD_PHYS>; }
+   else { MFEM_ABORT(""); }
+}
 
-// template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS,
-//          int T_VDIM, int T_D1D, int T_Q1D,
-//          int T_NBZ>
-// inline
-// KernelType QuadratureInterpolator::GradKernels::Kernel2D() { return internal::quadrature_interpolator::Derivatives2D<Q_LAYOUT, GRAD_PHYS, T_VDIM, T_D1D, T_Q1D, T_NBZ>; }
+template<QVectorLayout Q_LAYOUT>
+GradKernel GetGradKernel(int DIM, bool GRAD_PHYS)
+{
+   if (GRAD_PHYS) { return GetGradKernel<Q_LAYOUT, true>(DIM); }
+   else { return GetGradKernel<Q_LAYOUT, false>(DIM); }
+}
+}
 
-// template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS,
-//          int T_VDIM, int T_D1D, int T_Q1D>
-// inline
-// KernelType QuadratureInterpolator::GradKernels::Kernel3D()  { return internal::quadrature_interpolator::Derivatives3D<Q_LAYOUT, GRAD_PHYS, T_VDIM, T_D1D, T_Q1D>; }
+template<int DIM, QVectorLayout Q_LAYOUT, bool GRAD_PHYS,
+         int T_VDIM, int T_D1D, int T_Q1D>
+GradKernel QuadratureInterpolator::GradKernels::Kernel()
+{
+   if (DIM == 1) { return internal::quadrature_interpolator::Derivatives1D<Q_LAYOUT, GRAD_PHYS>; }
+   else if (DIM == 2) { return internal::quadrature_interpolator::Derivatives2D<Q_LAYOUT, GRAD_PHYS, T_VDIM, T_D1D, T_Q1D, 0>; }
+   else if (DIM == 3) { return internal::quadrature_interpolator::Derivatives3D<Q_LAYOUT, GRAD_PHYS, T_VDIM, T_D1D, T_Q1D>; }
+   else { MFEM_ABORT(""); }
+}
 
-// template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS>
-// inline
-// KernelType QuadratureInterpolator::GradKernels::Fallback2D()  { return internal::quadrature_interpolator::Derivatives2D<Q_LAYOUT, GRAD_PHYS>; }
-
-// template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS>
-// inline
-// KernelType QuadratureInterpolator::GradKernels::Fallback3D() { return internal::quadrature_interpolator::Derivatives3D<Q_LAYOUT, GRAD_PHYS>; }
+inline GradKernel QuadratureInterpolator::GradKernels::Fallback(
+   int DIM, QVectorLayout Q_LAYOUT, bool GRAD_PHYS)
+{
+   if (Q_LAYOUT == QVectorLayout::byNODES) { return GetGradKernel<QVectorLayout::byNODES>(DIM, GRAD_PHYS); }
+   else { return GetGradKernel<QVectorLayout::byVDIM>(DIM, GRAD_PHYS); }
+}
 
 } // namespace mfem
