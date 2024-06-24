@@ -2141,25 +2141,10 @@ public:
                                       const Array<real_t>&, const Vector&, Vector&,
                                       const int, const int);
 
-   using UserParams = internal::KernelTypeList<int, int>;
-   using FallbackParams = internal::KernelTypeList<>;
+   MFEM_DECLARE_KERNELS(ApplyPA, KernelType, MFEM_PARAM_LIST(int, int))
+   MFEM_DECLARE_KERNELS(DiagonalPA, DiagonalKernelType, MFEM_PARAM_LIST(int, int))
 
-   MFEM_DECLARE_KERNELS(ApplyPAKernels, KernelType, MFEM_PARAM_LIST(int, int))
-   MFEM_DECLARE_KERNELS(DiagonalPAKernels, DiagonalKernelType,
-                        MFEM_PARAM_LIST(int, int))
-
-   using ApplyKernelsType =
-      KernelDispatchTable<ApplyPAKernels, UserParams, FallbackParams>;
-   using DiagKernelsType =
-      KernelDispatchTable<DiagonalPAKernels, UserParams, FallbackParams>;
-
-   struct Kernels
-   {
-      ApplyKernelsType apply;
-      DiagKernelsType diag;
-      Kernels();
-   };
-   static Kernels kernels;
+   static struct Kernels { Kernels(); } kernels;
 
 protected:
    Coefficient *Q;
@@ -2325,8 +2310,8 @@ public:
    template <int DIM, int D1D, int Q1D>
    static void AddSpecialization()
    {
-      kernels.apply.AddSpecialization<DIM,D1D,Q1D>();
-      kernels.diag.AddSpecialization<DIM,D1D,Q1D>();
+      ApplyPAKernelTable().AddSpecialization<DIM,D1D,Q1D>();
+      DiagonalPAKernelTable().AddSpecialization<DIM,D1D,Q1D>();
    }
 };
 
@@ -2357,26 +2342,9 @@ public:
                                        const Vector&, Vector&, const int,
                                        const int);
 
-   // D1D, Q1D
-   using UserParams = internal::KernelTypeList<int, int>;
-   using FallbackParams = internal::KernelTypeList<>;
-
-   MFEM_DECLARE_KERNELS(ApplyPAKernels, KernelType, MFEM_PARAM_LIST(int, int))
-   MFEM_DECLARE_KERNELS(DiagonalPAKernels, DiagonalKernelType,
-                        MFEM_PARAM_LIST(int, int))
-
-   using ApplyKernelsType =
-      KernelDispatchTable<ApplyPAKernels, UserParams, FallbackParams>;
-   using DiagKernelsType =
-      KernelDispatchTable<DiagonalPAKernels, UserParams, FallbackParams>;
-
-   struct Kernels
-   {
-      ApplyKernelsType apply;
-      DiagKernelsType diag;
-      Kernels();
-   };
-   static Kernels kernels;
+   MFEM_DECLARE_KERNELS(ApplyPA, KernelType, MFEM_PARAM_LIST(int, int))
+   MFEM_DECLARE_KERNELS(DiagonalPA, DiagonalKernelType, MFEM_PARAM_LIST(int, int))
+   static struct Kernels { Kernels(); } kernels;
 
 public:
    MassIntegrator(const IntegrationRule *ir = NULL)
@@ -2427,8 +2395,8 @@ public:
    template <int DIM, int D1D, int Q1D>
    static void AddSpecialization()
    {
-      kernels.apply.AddSpecialization<DIM,D1D,Q1D>();
-      kernels.diag.AddSpecialization<DIM,D1D,Q1D>();
+      ApplyPAKernelTable().AddSpecialization<DIM,D1D,Q1D>();
+      DiagonalPAKernelTable().AddSpecialization<DIM,D1D,Q1D>();
    }
 };
 

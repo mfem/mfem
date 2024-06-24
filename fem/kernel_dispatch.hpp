@@ -34,16 +34,21 @@ struct KernelTypeList { };
 
 // Declare the class used to dispatch shared memory kernels when the fallback
 // methods don't require template parameters.
-#define MFEM_DECLARE_KERNELS(KernelClassName, KernelType, UserParams)        \
-class KernelClassName : public                                               \
-   KernelsClassTemplate<KernelType,                                          \
-   internal::KernelTypeList<UserParams>, internal::KernelTypeList<>>         \
-   {                                                                         \
-   public:                                                                   \
-      template <int DIM, UserParams>                                         \
-      static KernelSignature Kernel();                                       \
-      static KernelSignature Fallback(int dim);                              \
-   };
+#define MFEM_DECLARE_KERNELS(KernelName, KernelType, UserParams)               \
+class KernelName ## Kernels : public                                           \
+   KernelsClassTemplate<KernelType,                                            \
+   internal::KernelTypeList<UserParams>, internal::KernelTypeList<>>           \
+   {                                                                           \
+   public:                                                                     \
+      template <int DIM, UserParams>                                           \
+      static KernelSignature Kernel();                                         \
+      static KernelSignature Fallback(int dim);                                \
+   };                                                                          \
+   using KernelName ## Type = KernelDispatchTable<KernelName ## Kernels,       \
+                              internal::KernelTypeList<UserParams>,            \
+                              internal::KernelTypeList<>>;                     \
+   static KernelName ## Type &KernelName ## KernelTable()                      \
+   { static KernelName ## Type table; return table; }
 
 #define MFEM_DECLARE_KERNELS_2(KernelClassName, KernelType, UserParams, FallbackParams) \
 class KernelClassName : public                                               \

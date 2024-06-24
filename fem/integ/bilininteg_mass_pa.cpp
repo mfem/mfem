@@ -223,7 +223,8 @@ void MassIntegrator::AssembleDiagonalPA(Vector &diag)
    else
    {
       const int D1D = dofs1D, Q1D = quad1D;
-      kernels.diag.Run(dim, D1D, Q1D, ne, maps->B, pa_data, diag, D1D, Q1D);
+      DiagonalPAKernelTable().Run(dim, D1D, Q1D, ne, maps->B, pa_data, diag, D1D,
+                                  Q1D);
    }
 }
 
@@ -254,7 +255,7 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
          MFEM_ABORT("OCCA PA Mass Apply unknown kernel!");
       }
 #endif // MFEM_USE_OCCA
-      kernels.apply.Run(dim, D1D, Q1D, ne, B, Bt, D, x, y, D1D, Q1D);
+      ApplyPAKernelTable().Run(dim, D1D, Q1D, ne, B, Bt, D, x, y, D1D, Q1D);
    }
 }
 
