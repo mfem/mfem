@@ -94,6 +94,7 @@ namespace rotatingDomain
 //
 void u_fun(const Vector & x, Vector & u)
 {
+   u = 0.0;
    u[0] =  omega*(x[1] - y0);
    u[1] = -omega*(x[0] - x0);
 }
@@ -101,6 +102,7 @@ void u_fun(const Vector & x, Vector & u)
 // f = -omega^2*r
 void f_fun(const Vector & x, Vector & f)
 {
+   f = 0.0;
    f[0] = omega*omega*(x[0] - x0);
    f[1] = omega*omega*(x[1] - y0);
 }
@@ -298,7 +300,6 @@ int main(int argc, char *argv[])
    int ref_levels = -1;
    int order = 1;
    bool weakBC = true;
-   bool weakDiv = false;
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = 1;
@@ -316,8 +317,6 @@ int main(int argc, char *argv[])
                   "Finite element order (polynomial degree).");
    args.AddOption(&weakBC, "-w", "--wbc", "-s", "--sbc",
                   "Weak boundary conditions.");
-   args.AddOption(&weakDiv, "-wd", "--wdiv", "-sd", "--sdiv",
-                  "Weak divergence.");
    args.AddOption(&penalty, "-p", "--lambda",
                   "Penalty parameter for enforcing weak Dirichlet boundary conditions.");
    args.AddOption(&mu, "-mu", "--diffusion",
@@ -434,6 +433,7 @@ int main(int argc, char *argv[])
 
    if (problem == 0)
    {
+      cout<<"Lid driven cavity\n";
       f_cf = new VectorFunctionCoefficient (dim, lidDrivenCavity::f_fun);
       u_cf = new VectorFunctionCoefficient (dim, lidDrivenCavity::u_fun);
 
@@ -442,14 +442,16 @@ int main(int argc, char *argv[])
    }
    else if (problem == 1)
    {
-      f_cf = new VectorFunctionCoefficient (dim, rotatingBox::f_fun);
-      u_cf = new VectorFunctionCoefficient (dim, rotatingBox::u_fun);
+      cout<<"Rotating domain\n";
+      f_cf = new VectorFunctionCoefficient (dim, rotatingDomain::f_fun);
+      u_cf = new VectorFunctionCoefficient (dim, rotatingDomain::u_fun);
 
-      g_cf = new FunctionCoefficient (rotatingBox::g_fun);
-      p_cf = new FunctionCoefficient (rotatingBox::p_fun);
+      g_cf = new FunctionCoefficient (rotatingDomain::g_fun);
+      p_cf = new FunctionCoefficient (rotatingDomain::p_fun);
    }
    else if (problem == 2)
    {
+      cout<<"Rotating box\n";
       f_cf = new VectorFunctionCoefficient (dim, rotatingBox::f_fun);
       u_cf = new VectorFunctionCoefficient (dim, rotatingBox::u_fun);
 
@@ -491,7 +493,7 @@ int main(int argc, char *argv[])
    LinearForm *gform(new LinearForm);
    gform->Update(&p_space, rhs.GetBlock(1), 0);
    gform->AddDomainIntegrator(new DomainLFIntegrator(*g_cf));
-   if (weakBC) { gform->AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(uh_cf)); }
+   if (weakBC) { gform->AddBdrFaceIntegrator(new BoundaryNormalLFIntegrator(uh_cf)); }
    gform->Assemble();
    gform->SyncAliasMemory(rhs);
 
@@ -519,44 +521,27 @@ int main(int argc, char *argv[])
    chrono.Clear();
    chrono.Start();
    Operator *D, *G;
+   ConstantCoefficient minus(-1.0);
    if (weakBC)
    {
+      cout<<"Formulation = weakBC("<<penalty<<") n";
       MixedBilinearForm gVarf(&p_space, &u_space);
-      if (weakDiv)
-      {
-         cout<<"Formulation = weakBC("<<penalty<<") & weakDiv\n";
-         gVarf.AddDomainIntegrator(new VectorFEGradIntegrator);
-      }
-      else
-      {
-         cout<<"Formulation = weakBC("<<penalty<<") & strongDiv\n";
-         gVarf.AddDomainIntegrator(new TransposeIntegrator(
-                                   new VectorFEDivergenceIntegrator));
-         gVarf.AddBdrTraceFaceIntegrator(new NormalTraceIntegrator(-1.0));
-      }
+      gVarf.AddDomainIntegrator(new TransposeIntegrator(
+                                new VectorFEDivergenceIntegrator(-1.0)));
+      gVarf.AddBdrTraceFaceIntegrator(new NormalTraceIntegrator(1.0));
       gVarf.Assemble();
       gVarf.Finalize();
-
       G = new SparseMatrix(gVarf.SpMat());
       D = new TransposeOperator(G);
    }
    else
    {
+      cout<<"Formulation = strongBC\n";
       MixedBilinearForm dVarf(&u_space, &p_space);
-      if (weakDiv)
-      {
-         cout<<"Formulation = strongBC & weakDiv\n";
-         dVarf.AddDomainIntegrator(new VectorFEWeakDivergenceIntegrator);
-      }
-      else
-      {
-         cout<<"Formulation = strongBC & strongDiv\n";
-         dVarf.AddDomainIntegrator(new VectorFEDivergenceIntegrator);
-      }
+      dVarf.AddDomainIntegrator(new VectorFEDivergenceIntegrator(-1.0));
       dVarf.Assemble();
       dVarf.EliminateTrialDofs(ess_bdr, u_gf, *gform);
       dVarf.Finalize();
-
       D = new SparseMatrix(dVarf.SpMat());
       G = new TransposeOperator(D);
    }
@@ -615,15 +600,22 @@ int main(int argc, char *argv[])
 
    invSp->iterative_mode = false;
    int smaxIter(10000);
-   real_t srtol(1.e-12);
-   real_t satol(1.e-12);
+   real_t srtol(1.e-16);
+   real_t satol(1.e-16);
 
    FGMRESSolver invS;
    invS.SetAbsTol(satol);
    invS.SetRelTol(srtol);
    invS.SetMaxIter(smaxIter);
    invS.SetKDim(smaxIter+1); // restart!!!
-   invS.SetOperator(S);
+   if (weakBC)
+   {
+      invS.SetOperator(S);
+   }
+   else
+   {
+      invS.SetOperator(Sp);
+   }
    invS.SetPreconditioner(*invSp);
    invS.SetPrintLevel(0);
    invS.iterative_mode = false;
@@ -643,9 +635,9 @@ int main(int argc, char *argv[])
 
    // 11. Solve the linear system with a Krylov.
    //     Check the norm of the unpreconditioned residual.
-   int maxIter(1000);
-   real_t rtol(1.e-10);
-   real_t atol(1.e-10);
+   int maxIter(20);
+   real_t rtol(1.e-14);
+   real_t atol(1.e-14);
 
    chrono.Clear();
    chrono.Start();
