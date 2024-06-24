@@ -2143,7 +2143,6 @@ public:
 
    MFEM_DECLARE_KERNELS(ApplyPA, KernelType, MFEM_PARAM_LIST(int, int))
    MFEM_DECLARE_KERNELS(DiagonalPA, DiagonalKernelType, MFEM_PARAM_LIST(int, int))
-
    static struct Kernels { Kernels(); } kernels;
 
 protected:
@@ -2310,8 +2309,8 @@ public:
    template <int DIM, int D1D, int Q1D>
    static void AddSpecialization()
    {
-      ApplyPAKernelTable().AddSpecialization<DIM,D1D,Q1D>();
-      DiagonalPAKernelTable().AddSpecialization<DIM,D1D,Q1D>();
+      ApplyPAKernels::Get().AddSpecialization<DIM,D1D,Q1D>();
+      DiagonalPAKernels::Get().AddSpecialization<DIM,D1D,Q1D>();
    }
 };
 
@@ -2395,8 +2394,8 @@ public:
    template <int DIM, int D1D, int Q1D>
    static void AddSpecialization()
    {
-      ApplyPAKernelTable().AddSpecialization<DIM,D1D,Q1D>();
-      DiagonalPAKernelTable().AddSpecialization<DIM,D1D,Q1D>();
+      ApplyPAKernels::Get().AddSpecialization<DIM,D1D,Q1D>();
+      DiagonalPAKernels::Get().AddSpecialization<DIM,D1D,Q1D>();
    }
 };
 
