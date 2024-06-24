@@ -147,7 +147,6 @@ void HybridizationExtension::ConstructH()
       {
          const int e = d_face_to_el(0, ei, fi);
          if (e < 0 || e >= ne) { continue; }
-         const int fi_i = d_face_to_el(1, ei, fi);
          for (int fj_i = 0; fj_i < n_faces_per_el; ++fj_i)
          {
             const int fj = d_el_to_face(fj_i, e);
