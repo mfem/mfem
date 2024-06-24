@@ -498,7 +498,11 @@ void Hybridization::AssembleElementMatrices(const class DenseTensor &el_mats)
 
 void Hybridization::AssembleBdrMatrix(int bdr_el, const DenseMatrix &A)
 {
-   MFEM_VERIFY(!ext, "Not implemented yet");
+   if (ext)
+   {
+      ext->AssembleBdrMatrix(bdr_el, A);
+      return;
+   }
 
    // Not tested.
 #ifdef MFEM_DEBUG

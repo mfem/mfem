@@ -59,8 +59,18 @@ public:
    /// Compute the action of C x.
    void MultC(const Vector &x, Vector &y) const;
 
-   /// Assemble the element matrix A into the hybridized system matrix.
-   void AssembleMatrix(int el, const class DenseMatrix &A);
+   /// @brief Assemble the element matrix A into the hybridized system matrix.
+   ///
+   /// @warning Using the interface will be very slow. AssembleElementMatrices()
+   /// should be used instead.
+   void AssembleMatrix(int el, const class DenseMatrix &elmat);
+
+   /// @brief Assemble the boundary element matrix A into the hybridized system
+   /// matrix.
+   ///
+   /// @warning Using the interface will be very slow. AssembleElementMatrices()
+   /// should be used instead.
+   void AssembleBdrMatrix(int bdr_el, const class DenseMatrix &elmat);
 
    /// Invert and store the element matrices Ahat.
    void AssembleElementMatrices(const class DenseTensor &el_mats);
