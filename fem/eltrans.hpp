@@ -52,6 +52,15 @@ protected:
    const DenseMatrix &EvalTransAdjugateJ();
    const DenseMatrix &EvalInverseJ();
 
+   /// @name Tolerance used for point comparisons
+   ///@{
+#ifdef MFEM_USE_DOUBLE
+   static constexpr real_t tol_0 = 1e-15;
+#elif defined(MFEM_USE_SINGLE)
+   static constexpr real_t tol_0 = 1e-7;
+#endif
+   ///@}
+
 public:
 
    /** This enumeration declares the values stored in
@@ -176,7 +185,7 @@ public:
        returned. This method is not 100 percent reliable for non-linear
        transformations. */
    virtual int TransformBack(const Vector &pt, IntegrationPoint &ip,
-                             const real_t phys_tol = 1e-15) = 0;
+                             const real_t phys_tol = tol_0) = 0;
 
    virtual ~ElementTransformation() { }
 };
@@ -281,9 +290,15 @@ public:
         rel_qpts_order(-1),
         solver_type(NewtonElementProject),
         max_iter(16),
+#ifdef MFEM_USE_DOUBLE
         ref_tol(1e-15),
         phys_rtol(1e-15),
         ip_tol(1e-8),
+#elif defined(MFEM_USE_SINGLE)
+        ref_tol(1e-7),
+        phys_rtol(1e-7),
+        ip_tol(1e-4),
+#endif
         print_level(-1)
    { }
 
@@ -449,7 +464,7 @@ public:
        returned. This method is not 100 percent reliable for non-linear
        transformations. */
    virtual int TransformBack(const Vector & v, IntegrationPoint & ip,
-                             const real_t phys_rel_tol = 1e-15)
+                             const real_t phys_rel_tol = tol_0)
    {
       InverseElementTransformation inv_tr(this);
       inv_tr.SetPhysicalRelTol(phys_rel_tol);
