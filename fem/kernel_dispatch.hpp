@@ -35,54 +35,34 @@ struct KernelTypeList { };
 // Declare the class used to dispatch shared memory kernels when the fallback
 // methods don't require template parameters.
 #define MFEM_DECLARE_KERNELS(KernelName, KernelType, UserParams)               \
-class KernelName ## Kernels : public                                           \
-   KernelsClassTemplate<KernelType,                                            \
-   internal::KernelTypeList<UserParams>, internal::KernelTypeList<>>           \
+   class KernelName ## Kernels : public                                        \
+   KernelDispatchTable<KernelName ## Kernels, KernelType,                      \
+      internal::KernelTypeList<UserParams>, internal::KernelTypeList<>>        \
    {                                                                           \
    public:                                                                     \
+      using KernelSignature = KernelType;                                      \
       template <int DIM, UserParams>                                           \
       static KernelSignature Kernel();                                         \
       static KernelSignature Fallback(int dim);                                \
-   };                                                                          \
-   using KernelName ## Type = KernelDispatchTable<KernelName ## Kernels,       \
-                              internal::KernelTypeList<UserParams>,            \
-                              internal::KernelTypeList<>>;                     \
-   static KernelName ## Type &KernelName ## KernelTable()                      \
-   { static KernelName ## Type table; return table; }
-
-#define MFEM_DECLARE_KERNELS_2(KernelClassName, KernelType, UserParams, FallbackParams) \
-class KernelClassName : public                                               \
-   KernelsClassTemplate<KernelType,                                          \
-   internal::KernelTypeList<UserParams>, internal::KernelTypeList<FallbackParams>>         \
-   {                                                                         \
-   public:                                                                   \
-      template <int DIM, FallbackParams, UserParams>                         \
-      static KernelSignature Kernel();                                       \
-      template <FallbackParams>                                              \
-      static KernelSignature Fallback(int dim);                              \
+      static KernelName ## Kernels &Get()                                      \
+      { static KernelName ## Kernels table; return table;}                     \
    };
 
-// This forward declaration of KernelClassTemplate allows a specialization accepting multiple variadic parameters.
-template<typename... T>
-class KernelsClassTemplate { };
-
-// KernelsClassTemplate holds the template methods for kernels. The class
-// DispatchTable defined below accesses `KernelClassTemplate` when assigning key
-// value pairs, assigning a tuple key of `DIM, UserParams` a specialized kernel.
-template<typename Signature, typename... UserParams, typename... FallbackParams>
-class KernelsClassTemplate<Signature, internal::KernelTypeList<UserParams...>, internal::KernelTypeList<FallbackParams...>>
-{
-private:
-   constexpr static int D(int D1D) { return (11 - D1D) / 2; }
-public:
-   using KernelSignature = Signature;
-
-   template<int DIM, UserParams... UPARAMS, FallbackParams... FPARAMS>
-   static KernelSignature Kernel();
-
-   template<FallbackParams... FPARAMS>
-   static KernelSignature Fallback(int dim);
-};
+#define MFEM_DECLARE_KERNELS_2(KernelName, KernelType, UserParams, FallbackParams) \
+   class KernelName ## Kernels : public                                        \
+   KernelDispatchTable<KernelName ## Kernels, KernelType,                      \
+      internal::KernelTypeList<UserParams>,                                    \
+      internal::KernelTypeList<FallbackParams>>                                \
+   {                                                                           \
+   public:                                                                     \
+      using KernelSignature = KernelType;                                      \
+      template <int DIM, FallbackParams, UserParams>                           \
+      static KernelSignature Kernel();                                         \
+      template <FallbackParams>                                                \
+      static KernelSignature Fallback(int dim);                                \
+      static KernelName ## Kernels &Get()                                      \
+      { static KernelName ## Kernels table; return table;}                     \
+   };
 
 // KernelDispatchKeyHash is a functor that hashes variadic packs for which each
 // type contained in the variadic pack has a specialization of `std::hash`
@@ -115,19 +95,15 @@ public:
 };
 
 template<typename... T>
-class KernelDispatchTable {};
+class KernelDispatchTable { };
 
 // KernelDispatchTable is derived from `DispatchTable` using the `KernelDispatchKeyHash` functor above
 // to assign specialized kernels with individual keys.
-template <typename ApplyKernelsHelperClass, typename... UserParams, typename... FallbackParams>
-class KernelDispatchTable<ApplyKernelsHelperClass, internal::KernelTypeList<UserParams...>, internal::KernelTypeList<FallbackParams...>>
+template <typename Kernels, typename Signature, typename... UserParams, typename... FallbackParams>
+class KernelDispatchTable<Kernels, Signature, internal::KernelTypeList<UserParams...>, internal::KernelTypeList<FallbackParams...>>
 {
-   // These typedefs prevent AddSpecialization from compiling unless the provided
-   // kernel parameters match the kernel parameters specified to ApplyKernelsHelperClass.
-   using Signature = typename ApplyKernelsHelperClass::KernelSignature;
-
    std::unordered_map<std::tuple<int, FallbackParams..., UserParams...>,
-       typename ApplyKernelsHelperClass::KernelSignature,
+       Signature,
        KernelDispatchKeyHash<int, FallbackParams..., UserParams...>> table;
 
 public:
@@ -147,7 +123,7 @@ public:
       else
       {
          printf("Using non-specialized kernel\n");
-         ApplyKernelsHelperClass::Fallback(dim)(args...);
+         Kernels::Fallback(dim)(args...);
       }
    }
 
@@ -156,8 +132,7 @@ public:
    {
       std::tuple<int, FallbackParams..., UserParams...>
       param_tuple(DIM, F_PARAMS..., U_PARAMS...);
-      table[param_tuple] = ApplyKernelsHelperClass::template
-                           Kernel<DIM, F_PARAMS..., U_PARAMS...>();
+      table[param_tuple] = Kernels:: template Kernel<DIM, F_PARAMS..., U_PARAMS...>();
    };
 };
 

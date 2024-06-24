@@ -43,47 +43,18 @@ protected:
 public:
    using EvalKernelType = void(*)(const int, const real_t *, const real_t *,
                                   real_t *, const int, const int, const int);
-   using EvalUserParams = internal::KernelTypeList<int, int, int>;
-   using EvalFallbackParams = internal::KernelTypeList<QVectorLayout>;
 
    using GradKernelType = void(*)(const int, const real_t *, const real_t *,
                                   const real_t *, const real_t *,
                                   real_t *, const int, const int, const int, const int );
-   using GradUserParams = internal::KernelTypeList<int, int, int>;
-   using GradFallbackParams = internal::KernelTypeList<QVectorLayout,bool>;
 
-   MFEM_DECLARE_KERNELS_2(EvalKernels, EvalKernelType,
+   MFEM_DECLARE_KERNELS_2(Eval, EvalKernelType,
                           MFEM_PARAM_LIST(int, int, int),
                           MFEM_PARAM_LIST(QVectorLayout))
 
-   MFEM_DECLARE_KERNELS_2(GradKernels, GradKernelType,
+   MFEM_DECLARE_KERNELS_2(Grad, GradKernelType,
                           MFEM_PARAM_LIST(int, int, int),
                           MFEM_PARAM_LIST(QVectorLayout, bool))
-
-   using EvalKernelsType =
-      KernelDispatchTable<EvalKernels, EvalUserParams, EvalFallbackParams>;
-   using GradKernelsType =
-      KernelDispatchTable<GradKernels, GradUserParams, GradFallbackParams>;
-
-   struct Kernels
-   {
-      EvalKernelsType eval;
-      GradKernelsType grad;
-      Kernels();
-   };
-   static Kernels kernels;
-
-   template<int DIM, QVectorLayout Q_LAYOUT, int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0>
-   static void AddEvalSpecialization()
-   {
-      kernels.eval.AddSpecialization<DIM, Q_LAYOUT, T_VDIM, T_D1D, T_Q1D>();
-   }
-
-   template<int DIM, QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0>
-   static void AddGradSpecialization()
-   {
-      kernels.grad.AddSpecialization<DIM, Q_LAYOUT, GRAD_PHYS, T_VDIM, T_D1D, T_Q1D>();
-   }
 
    static const int MAX_NQ2D = 100;
    static const int MAX_ND2D = 100;
