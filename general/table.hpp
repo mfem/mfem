@@ -60,6 +60,14 @@ public:
    /// Creates an empty table
    Table() { size = -1; }
 
+   Table(const Table &table1,
+         const Table &table2, int offset2);
+
+   /// Merge constructor: combine three tables into one table.
+   Table(const Table &table1,
+         const Table &table2, int offset2,
+         const Table &table3, int offset3);
+
    /// Create a table with an upper limit for the number of connections.
    explicit Table(int dim, int connections_per_row = 3);
 

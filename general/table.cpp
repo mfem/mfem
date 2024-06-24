@@ -24,7 +24,79 @@ namespace mfem
 
 using namespace std;
 
-Table::Table(int dim, int connections_per_row)
+Table::Table(const Table &table1,
+             const Table &table2, int offset)
+{
+   MFEM_ASSERT(table1.size == table2.size,
+               "Tables have different sizes can not merge.");
+   size = table1.size;
+
+   const int nnz = table1.I[size] + table2.I[size];
+   I.SetSize(size+1);
+   J.SetSize(nnz);
+
+   I[0] = 0;
+   Array<int> row;
+   for (int i = 0; i < size; i++)
+   {
+      I[i+1] = I[i];
+
+      table1.GetRow(i, row);
+      for (int r = 0; r < row.Size(); r++,  I[i+1] ++)
+      {
+         J[ I[i+1] ] = row[r];
+      }
+
+      table2.GetRow(i, row);
+      for (int r = 0; r < row.Size(); r++,  I[i+1] ++)
+      {
+         J[ I[i+1] ] = (row[r] < 0) ? row[r] - offset : row[r] + offset;
+      }
+
+   }
+}
+
+Table::Table(const Table &table1,
+             const Table &table2, int offset2,
+             const Table &table3, int offset3)
+{
+   MFEM_ASSERT(table1.size == table2.size,
+               "Tables have different sizes can not merge.");
+   MFEM_ASSERT(table1.size == table3.size,
+               "Tables have different sizes can not merge.");
+   size = table1.size;
+
+   const int nnz = table1.I[size] + table2.I[size] + table3.I[size];
+   I.SetSize(size+1);
+   J.SetSize(nnz);
+
+   I[0] = 0;
+   Array<int> row;
+   for (int i = 0; i < size; i++)
+   {
+      I[i+1] = I[i];
+
+      table1.GetRow(i, row);
+      for (int r = 0; r < row.Size(); r++,  I[i+1] ++)
+      {
+         J[ I[i+1] ] = row[r];
+      }
+
+      table2.GetRow(i, row);
+      for (int r = 0; r < row.Size(); r++,  I[i+1] ++)
+      {
+         J[ I[i+1] ] = (row[r] < 0) ? row[r] - offset2 : row[r] + offset2;
+      }
+
+      table3.GetRow(i, row);
+      for (int r = 0; r < row.Size(); r++,  I[i+1] ++)
+      {
+         J[ I[i+1] ] = (row[r] < 0) ? row[r] - offset3 : row[r] + offset3;
+      }
+   }
+}
+
+Table::Table (int dim, int connections_per_row)
 {
    int i, j, sum = dim * connections_per_row;
 

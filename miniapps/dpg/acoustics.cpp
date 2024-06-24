@@ -15,11 +15,11 @@
 //
 // Sample runs
 //
-// acoustics -ref 4 -o 1 -rnum 1.0
-// acoustics -m ../../data/inline-tri.mesh -ref 4 -o 2 -sc -rnum 3.0
-// acoustics -m ../../data/amr-quad.mesh -ref 3 -o 3 -sc -rnum 4.5 -prob 1
-// acoustics -m ../../data/inline-quad.mesh -ref 2 -o 4 -sc -rnum 11.5 -prob 1
-// acoustics -m ../../data/inline-hex.mesh -ref 1 -o 2 -sc -rnum 1.0
+//  acoustics -ref 4 -o 1 -rnum 1.0
+//  acoustics -m ../../data/inline-tri.mesh -ref 4 -o 2 -sc -rnum 3.0
+//  acoustics -m ../../data/amr-quad.mesh -ref 3 -o 3 -sc -rnum 4.5 -prob 1
+//  acoustics -m ../../data/inline-quad.mesh -ref 2 -o 4 -sc -rnum 11.5 -prob 1
+//  acoustics -m ../../data/inline-hex.mesh -ref 1 -o 2 -sc -rnum 1.0
 
 // Description:
 // This example code demonstrates the use of MFEM to define and solve
