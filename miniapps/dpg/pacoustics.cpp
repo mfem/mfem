@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -15,19 +15,19 @@
 //
 // sample runs
 
-// mpirun -np 4 pacoustics -o 3 -m ../../data/star.mesh -sref 1 -pref 2 -rnum 1.9 -sc -prob 0
-// mpirun -np 4 pacoustics -o 3 -m ../../data/inline-quad.mesh -sref 1 -pref 2  -rnum 5.2 -sc -prob 1
-// mpirun -np 4 pacoustics -o 4 -m ../../data/inline-tri.mesh -sref 1 -pref 2  -rnum 7.1 -sc -prob 1
-// mpirun -np 4 pacoustics -o 2 -m ../../data/inline-hex.mesh -sref 0 -pref 1 -rnum 1.9 -sc -prob 0
-// mpirun -np 4 pacoustics -o 3 -m ../../data/inline-quad.mesh -sref 2 -pref 1 -rnum 7.1 -sc -prob 2
-// mpirun -np 4 pacoustics -o 2 -m ../../data/inline-hex.mesh -sref 0 -pref 1  -rnum 4.1 -sc -prob 2
-// mpirun -np 4 pacoustics -o 3 -m meshes/scatter.mesh -sref 1 -pref 1  -rnum 7.1 -sc -prob 3
-// mpirun -np 4 pacoustics -o 4 -m meshes/scatter.mesh -sref 1 -pref 1  -rnum 10.1 -sc -prob 4
-// mpirun -np 4 pacoustics -o 4 -m meshes/scatter.mesh -sref 1 -pref 1  -rnum 12.1 -sc -prob 5
+//  mpirun -np 4 pacoustics -o 3 -m ../../data/star.mesh -sref 1 -pref 2 -rnum 1.9 -sc -prob 0
+//  mpirun -np 4 pacoustics -o 3 -m ../../data/inline-quad.mesh -sref 1 -pref 2  -rnum 5.2 -sc -prob 1
+//  mpirun -np 4 pacoustics -o 4 -m ../../data/inline-tri.mesh -sref 1 -pref 2  -rnum 7.1 -sc -prob 1
+//  mpirun -np 4 pacoustics -o 2 -m ../../data/inline-hex.mesh -sref 0 -pref 1 -rnum 1.9 -sc -prob 0
+//  mpirun -np 4 pacoustics -o 3 -m ../../data/inline-quad.mesh -sref 2 -pref 1 -rnum 7.1 -sc -prob 2
+//  mpirun -np 4 pacoustics -o 2 -m ../../data/inline-hex.mesh -sref 0 -pref 1  -rnum 4.1 -sc -prob 2
+//  mpirun -np 4 pacoustics -o 3 -m meshes/scatter.mesh -sref 1 -pref 1  -rnum 7.1 -sc -prob 3
+//  mpirun -np 4 pacoustics -o 4 -m meshes/scatter.mesh -sref 1 -pref 1  -rnum 10.1 -sc -prob 4
+//  mpirun -np 4 pacoustics -o 4 -m meshes/scatter.mesh -sref 1 -pref 1  -rnum 12.1 -sc -prob 5
 
 // AMR runs
-// mpirun -np 4 pacoustics -o 3 -m meshes/scatter.mesh -sref 0 -pref 10 -theta 0.75 -rnum 10.1 -sc -prob 3
-// mpirun -np 4 pacoustics -o 3 -m meshes/scatter.mesh -sref 0 -pref 12 -theta 0.75 -rnum 20.1 -sc -prob 3
+//  mpirun -np 4 pacoustics -o 3 -m meshes/scatter.mesh -sref 0 -pref 7 -theta 0.75 -rnum 10.1 -sc -prob 3
+//  mpirun -np 4 pacoustics -o 3 -m meshes/scatter.mesh -sref 0 -pref 12 -theta 0.75 -rnum 20.1 -sc -prob 3
 
 // Description:
 // This example code demonstrates the use of MFEM to define and solve
@@ -129,30 +129,30 @@ using namespace std;
 using namespace mfem;
 using namespace mfem::common;
 
-complex<double> acoustics_solution(const Vector & X);
-void acoustics_solution_grad(const Vector & X,vector<complex<double>> &dp);
-complex<double> acoustics_solution_laplacian(const Vector & X);
+complex<real_t> acoustics_solution(const Vector & X);
+void acoustics_solution_grad(const Vector & X,vector<complex<real_t>> &dp);
+complex<real_t> acoustics_solution_laplacian(const Vector & X);
 
-double p_exact_r(const Vector &x);
-double p_exact_i(const Vector &x);
+real_t p_exact_r(const Vector &x);
+real_t p_exact_i(const Vector &x);
 void u_exact_r(const Vector &x, Vector & u);
 void u_exact_i(const Vector &x, Vector & u);
-double rhs_func_r(const Vector &x);
-double rhs_func_i(const Vector &x);
+real_t rhs_func_r(const Vector &x);
+real_t rhs_func_i(const Vector &x);
 void gradp_exact_r(const Vector &x, Vector &gradu);
 void gradp_exact_i(const Vector &x, Vector &gradu);
-double divu_exact_r(const Vector &x);
-double divu_exact_i(const Vector &x);
-double d2_exact_r(const Vector &x);
-double d2_exact_i(const Vector &x);
-double hatp_exact_r(const Vector & X);
-double hatp_exact_i(const Vector & X);
+real_t divu_exact_r(const Vector &x);
+real_t divu_exact_i(const Vector &x);
+real_t d2_exact_r(const Vector &x);
+real_t d2_exact_i(const Vector &x);
+real_t hatp_exact_r(const Vector & X);
+real_t hatp_exact_i(const Vector & X);
 void hatu_exact_r(const Vector & X, Vector & hatu);
 void hatu_exact_i(const Vector & X, Vector & hatu);
-double source_function(const Vector &x);
+real_t source_function(const Vector &x);
 
 int dim;
-double omega;
+real_t omega;
 
 enum prob_type
 {
@@ -186,8 +186,8 @@ int main(int argc, char *argv[])
    int order = 1;
    int delta_order = 1;
    bool visualization = true;
-   double rnum=1.0;
-   double theta = 0.0;
+   real_t rnum=1.0;
+   real_t theta = 0.0;
    bool static_cond = false;
    int iprob = 0;
    int sr = 0;
@@ -264,7 +264,7 @@ int main(int argc, char *argv[])
    CartesianPML * pml = nullptr;
    if (with_pml)
    {
-      Array2D<double> length(dim, 2); length = 0.125;
+      Array2D<real_t> length(dim, 2); length = 0.125;
       pml = new CartesianPML(&mesh,length);
       pml->SetOmega(omega);
    }
@@ -544,8 +544,8 @@ int main(int argc, char *argv[])
                 << endl;
    }
 
-   double res0 = 0.;
-   double err0 = 0.;
+   real_t res0 = 0.;
+   real_t err0 = 0.;
    int dof0 = 0;
 
    ParGridFunction p_r, p_i, u_r, u_i;
@@ -708,11 +708,13 @@ int main(int argc, char *argv[])
 
       Vector & residuals = a->ComputeResidual(x);
 
-      double residual = residuals.Norml2();
-      double maxresidual = residuals.Max();
-      double globalresidual = residual * residual;
-      MPI_Allreduce(MPI_IN_PLACE,&maxresidual,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
-      MPI_Allreduce(MPI_IN_PLACE,&globalresidual,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+      real_t residual = residuals.Norml2();
+      real_t maxresidual = residuals.Max();
+      real_t globalresidual = residual * residual;
+      MPI_Allreduce(MPI_IN_PLACE, &maxresidual, 1, MPITypeMap<real_t>::mpi_type,
+                    MPI_MAX,MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE, &globalresidual, 1,
+                    MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
 
       globalresidual = sqrt(globalresidual);
 
@@ -728,31 +730,31 @@ int main(int argc, char *argv[])
          dofs += trial_fes[i]->GlobalTrueVSize();
       }
 
-      double L2Error = 0.0;
-      double rate_err = 0.0;
+      real_t L2Error = 0.0;
+      real_t rate_err = 0.0;
       if (exact_known)
       {
          FunctionCoefficient p_ex_r(p_exact_r);
          FunctionCoefficient p_ex_i(p_exact_i);
-         double p_err_r = p_r.ComputeL2Error(p_ex_r);
-         double p_err_i = p_i.ComputeL2Error(p_ex_i);
+         real_t p_err_r = p_r.ComputeL2Error(p_ex_r);
+         real_t p_err_i = p_i.ComputeL2Error(p_ex_i);
 
          // Error in velocity
          VectorFunctionCoefficient u_ex_r(dim,u_exact_r);
          VectorFunctionCoefficient u_ex_i(dim,u_exact_i);
 
-         double u_err_r = u_r.ComputeL2Error(u_ex_r);
-         double u_err_i = u_i.ComputeL2Error(u_ex_i);
+         real_t u_err_r = u_r.ComputeL2Error(u_ex_r);
+         real_t u_err_i = u_i.ComputeL2Error(u_ex_i);
 
          L2Error = sqrt(p_err_r*p_err_r + p_err_i*p_err_i
                         +u_err_r*u_err_r + u_err_i*u_err_i);
 
-         rate_err = (it) ? dim*log(err0/L2Error)/log((double)dof0/dofs) : 0.0;
+         rate_err = (it) ? dim*log(err0/L2Error)/log((real_t)dof0/dofs) : 0.0;
          err0 = L2Error;
       }
 
-      double rate_res = (it) ? dim*log(res0/globalresidual)/log((
-                                                                   double)dof0/dofs) : 0.0;
+      real_t rate_res = (it) ? dim*log(res0/globalresidual)/log((
+                                                                   real_t)dof0/dofs) : 0.0;
 
       res0 = globalresidual;
       dof0 = dofs;
@@ -795,7 +797,7 @@ int main(int argc, char *argv[])
       if (paraview)
       {
          paraview_dc->SetCycle(it);
-         paraview_dc->SetTime((double)it);
+         paraview_dc->SetTime((real_t)it);
          paraview_dc->Save();
       }
 
@@ -855,22 +857,22 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-double p_exact_r(const Vector &x)
+real_t p_exact_r(const Vector &x)
 {
    return acoustics_solution(x).real();
 }
 
-double p_exact_i(const Vector &x)
+real_t p_exact_i(const Vector &x)
 {
    return acoustics_solution(x).imag();
 }
 
-double hatp_exact_r(const Vector & X)
+real_t hatp_exact_r(const Vector & X)
 {
    return p_exact_r(X);
 }
 
-double hatp_exact_i(const Vector & X)
+real_t hatp_exact_i(const Vector & X)
 {
    return p_exact_i(X);
 }
@@ -878,7 +880,7 @@ double hatp_exact_i(const Vector & X)
 void gradp_exact_r(const Vector &x, Vector &grad_r)
 {
    grad_r.SetSize(x.Size());
-   vector<complex<double>> grad;
+   vector<complex<real_t>> grad;
    acoustics_solution_grad(x,grad);
    for (unsigned i = 0; i < grad.size(); i++)
    {
@@ -889,7 +891,7 @@ void gradp_exact_r(const Vector &x, Vector &grad_r)
 void gradp_exact_i(const Vector &x, Vector &grad_i)
 {
    grad_i.SetSize(x.Size());
-   vector<complex<double>> grad;
+   vector<complex<real_t>> grad;
    acoustics_solution_grad(x,grad);
    for (unsigned i = 0; i < grad.size(); i++)
    {
@@ -897,12 +899,12 @@ void gradp_exact_i(const Vector &x, Vector &grad_i)
    }
 }
 
-double d2_exact_r(const Vector &x)
+real_t d2_exact_r(const Vector &x)
 {
    return acoustics_solution_laplacian(x).real();
 }
 
-double d2_exact_i(const Vector &x)
+real_t d2_exact_i(const Vector &x)
 {
    return acoustics_solution_laplacian(x).imag();
 }
@@ -935,93 +937,93 @@ void hatu_exact_i(const Vector & X, Vector & hatu)
 //      = i (Δ p_r + i * Δ p_i)  / ω
 //      = - Δ p_i / ω + i Δ p_r / ω
 
-double divu_exact_r(const Vector &x)
+real_t divu_exact_r(const Vector &x)
 {
    return -d2_exact_i(x)/omega;
 }
 
-double divu_exact_i(const Vector &x)
+real_t divu_exact_i(const Vector &x)
 {
    return d2_exact_r(x)/omega;
 }
 
 // f = ∇⋅u + i ω p
 // f_r = ∇⋅u_r - ω p_i
-double rhs_func_r(const Vector &x)
+real_t rhs_func_r(const Vector &x)
 {
-   double p = p_exact_i(x);
-   double divu = divu_exact_r(x);
+   real_t p = p_exact_i(x);
+   real_t divu = divu_exact_r(x);
    return divu - omega * p;
 }
 
 // f_i = ∇⋅u_i + ω p_r
-double rhs_func_i(const Vector &x)
+real_t rhs_func_i(const Vector &x)
 {
-   double p = p_exact_r(x);
-   double divu = divu_exact_i(x);
+   real_t p = p_exact_r(x);
+   real_t divu = divu_exact_i(x);
    return divu + omega * p;
 }
 
-complex<double> acoustics_solution(const Vector & X)
+complex<real_t> acoustics_solution(const Vector & X)
 {
-   complex<double> zi = complex<double>(0., 1.);
+   complex<real_t> zi = complex<real_t>(0., 1.);
    switch (prob)
    {
       case pml_plane_wave_scatter:
       case plane_wave:
       {
-         double beta = omega/std::sqrt((double)X.Size());
-         complex<double> alpha = beta * zi * X.Sum();
+         real_t beta = omega/std::sqrt((real_t)X.Size());
+         complex<real_t> alpha = beta * zi * X.Sum();
          return exp(alpha);
       }
       break;
       case gaussian_beam:
       case pml_beam_scatter:
       {
-         double rk = omega;
-         double degrees = 45;
-         double alpha = (180+degrees) * M_PI/180.;
-         double sina = sin(alpha);
-         double cosa = cos(alpha);
+         real_t rk = omega;
+         real_t degrees = 45;
+         real_t alpha = (180+degrees) * M_PI/180.;
+         real_t sina = sin(alpha);
+         real_t cosa = cos(alpha);
          // shift the origin
-         double shift = 0.1;
-         double xprim=X(0) + shift;
-         double yprim=X(1) + shift;
+         real_t shift = 0.1;
+         real_t xprim=X(0) + shift;
+         real_t yprim=X(1) + shift;
 
-         double x = xprim*sina - yprim*cosa;
-         double y = xprim*cosa + yprim*sina;
+         real_t x = xprim*sina - yprim*cosa;
+         real_t y = xprim*cosa + yprim*sina;
          //wavelength
-         double rl = 2.*M_PI/rk;
+         real_t rl = 2.*M_PI/rk;
 
          // beam waist radius
-         double w0 = 0.05;
+         real_t w0 = 0.05;
 
          // function w
-         double fact = rl/M_PI/(w0*w0);
-         double aux = 1. + (fact*y)*(fact*y);
+         real_t fact = rl/M_PI/(w0*w0);
+         real_t aux = 1. + (fact*y)*(fact*y);
 
-         double w = w0*sqrt(aux);
+         real_t w = w0*sqrt(aux);
 
-         double phi0 = atan(fact*y);
+         real_t phi0 = atan(fact*y);
 
-         double r = y + 1./y/(fact*fact);
+         real_t r = y + 1./y/(fact*fact);
 
          // pressure
-         complex<double> ze = - x*x/(w*w) - zi*rk*y - zi * M_PI * x * x/rl/r +
-                              zi*phi0/2.;
-         double pf = pow(2.0/M_PI/(w*w),0.25);
+         complex<real_t> ze = - x*x/(w*w) - zi*rk*y - zi * real_t(M_PI) * x * x/rl/r +
+                              zi*phi0/2_r;
+         real_t pf = pow(2.0/M_PI/(w*w),0.25);
 
          return pf*exp(ze);
       }
       break;
       case pml_pointsource:
       {
-         double x = X(0)-0.5;
-         double y = X(1)-0.5;
-         double r = sqrt(x*x + y*y);
-         double beta = omega * r;
-         complex<double> Ho = jn(0, beta) + zi * yn(0, beta);
-         return 0.25*zi*Ho;
+         real_t x = X(0)-0.5;
+         real_t y = X(1)-0.5;
+         real_t r = sqrt(x*x + y*y);
+         real_t beta = omega * r;
+         complex<real_t> Ho = real_t(jn(0, beta)) + zi * real_t(yn(0, beta));
+         return 0.25_r*zi*Ho;
       }
       break;
       default:
@@ -1031,10 +1033,10 @@ complex<double> acoustics_solution(const Vector & X)
    }
 }
 
-void acoustics_solution_grad(const Vector & X, vector<complex<double>> & dp)
+void acoustics_solution_grad(const Vector & X, vector<complex<real_t>> & dp)
 {
    dp.resize(X.Size());
-   complex<double> zi = complex<double>(0., 1.);
+   complex<real_t> zi = complex<real_t>(0., 1.);
    // initialize
    for (int i = 0; i<X.Size(); i++) { dp[i] = 0.0; }
    switch (prob)
@@ -1042,9 +1044,9 @@ void acoustics_solution_grad(const Vector & X, vector<complex<double>> & dp)
       case pml_plane_wave_scatter:
       case plane_wave:
       {
-         double beta = omega/std::sqrt((double)X.Size());
-         complex<double> alpha = beta * zi * X.Sum();
-         complex<double> p = exp(alpha);
+         real_t beta = omega/std::sqrt((real_t)X.Size());
+         complex<real_t> alpha = beta * zi * X.Sum();
+         complex<real_t> p = exp(alpha);
          for (int i = 0; i<X.Size(); i++)
          {
             dp[i] = zi * beta * p;
@@ -1054,53 +1056,56 @@ void acoustics_solution_grad(const Vector & X, vector<complex<double>> & dp)
       case gaussian_beam:
       case pml_beam_scatter:
       {
-         double rk = omega;
-         double degrees = 45;
-         double alpha = (180+degrees) * M_PI/180.;
-         double sina = sin(alpha);
-         double cosa = cos(alpha);
+         real_t rk = omega;
+         real_t degrees = 45;
+         real_t alpha = (180+degrees) * M_PI/180.;
+         real_t sina = sin(alpha);
+         real_t cosa = cos(alpha);
          // shift the origin
-         double shift = 0.1;
-         double xprim=X(0) + shift;
-         double yprim=X(1) + shift;
+         real_t shift = 0.1;
+         real_t xprim=X(0) + shift;
+         real_t yprim=X(1) + shift;
 
-         double x = xprim*sina - yprim*cosa;
-         double y = xprim*cosa + yprim*sina;
-         double dxdxprim = sina, dxdyprim = -cosa;
-         double dydxprim = cosa, dydyprim =  sina;
+         real_t x = xprim*sina - yprim*cosa;
+         real_t y = xprim*cosa + yprim*sina;
+         real_t dxdxprim = sina, dxdyprim = -cosa;
+         real_t dydxprim = cosa, dydyprim =  sina;
          //wavelength
-         double rl = 2.*M_PI/rk;
+         real_t rl = 2.*M_PI/rk;
 
          // beam waist radius
-         double w0 = 0.05;
+         real_t w0 = 0.05;
 
          // function w
-         double fact = rl/M_PI/(w0*w0);
-         double aux = 1. + (fact*y)*(fact*y);
+         real_t fact = rl/M_PI/(w0*w0);
+         real_t aux = 1. + (fact*y)*(fact*y);
 
-         double w = w0*sqrt(aux);
-         double dwdy = w0*fact*fact*y/sqrt(aux);
+         real_t w = w0*sqrt(aux);
+         real_t dwdy = w0*fact*fact*y/sqrt(aux);
 
-         double phi0 = atan(fact*y);
-         double dphi0dy = cos(phi0)*cos(phi0)*fact;
+         real_t phi0 = atan(fact*y);
+         real_t dphi0dy = cos(phi0)*cos(phi0)*fact;
 
-         double r = y + 1./y/(fact*fact);
-         double drdy = 1. - 1./(y*y)/(fact*fact);
+         real_t r = y + 1./y/(fact*fact);
+         real_t drdy = 1. - 1./(y*y)/(fact*fact);
+
+         constexpr real_t r2 = 2.0;
+         const real_t rPI = M_PI;
 
          // pressure
-         complex<double> ze = - x*x/(w*w) - zi*rk*y - zi * M_PI * x * x/rl/r +
-                              zi*phi0/2.;
+         complex<real_t> ze = - x*x/(w*w) - zi*rk*y - zi * rPI * x * x/rl/r +
+                              zi*phi0/r2;
 
-         complex<double> zdedx = -2.*x/(w*w) - 2.*zi*M_PI*x/rl/r;
-         complex<double> zdedy = 2.*x*x/(w*w*w)*dwdy - zi*rk + zi*M_PI*x*x/rl/
-                                 (r*r)*drdy + zi*dphi0dy/2.;
+         complex<real_t> zdedx = -r2*x/(w*w) - r2*zi*rPI*x/rl/r;
+         complex<real_t> zdedy = r2*x*x/(w*w*w)*dwdy - zi*rk + zi*rPI*x*x/rl/
+                                 (r*r)*drdy + zi*dphi0dy/r2;
 
-         double pf = pow(2.0/M_PI/(w*w),0.25);
-         double dpfdy = -pow(2./M_PI/(w*w),-0.75)/M_PI/(w*w*w)*dwdy;
+         real_t pf = pow(2.0/M_PI/(w*w),0.25);
+         real_t dpfdy = -pow(2./M_PI/(w*w),-0.75)/M_PI/(w*w*w)*dwdy;
 
-         complex<double> zp = pf*exp(ze);
-         complex<double> zdpdx = zp*zdedx;
-         complex<double> zdpdy = dpfdy*exp(ze)+zp*zdedy;
+         complex<real_t> zp = pf*exp(ze);
+         complex<real_t> zdpdx = zp*zdedx;
+         complex<real_t> zdpdy = dpfdy*exp(ze)+zp*zdedy;
 
          dp[0] = (zdpdx*dxdxprim + zdpdy*dydxprim);
          dp[1] = (zdpdx*dxdyprim + zdpdy*dydyprim);
@@ -1112,85 +1117,90 @@ void acoustics_solution_grad(const Vector & X, vector<complex<double>> & dp)
    }
 }
 
-complex<double> acoustics_solution_laplacian(const Vector & X)
+complex<real_t> acoustics_solution_laplacian(const Vector & X)
 {
-   complex<double> zi = complex<double>(0., 1.);
+   complex<real_t> zi = complex<real_t>(0., 1.);
    switch (prob)
    {
       case pml_plane_wave_scatter:
       case plane_wave:
       {
-         double beta = omega/std::sqrt((double)X.Size());
-         complex<double> alpha = beta * zi * X.Sum();
+         real_t beta = omega/std::sqrt((real_t)X.Size());
+         complex<real_t> alpha = beta * zi * X.Sum();
          return dim * beta * beta * exp(alpha);
       }
       break;
       case gaussian_beam:
       case pml_beam_scatter:
       {
-         double rk = omega;
-         double degrees = 45;
-         double alpha = (180+degrees) * M_PI/180.;
-         double sina = sin(alpha);
-         double cosa = cos(alpha);
+         real_t rk = omega;
+         real_t degrees = 45;
+         real_t alpha = (180+degrees) * M_PI/180.;
+         real_t sina = sin(alpha);
+         real_t cosa = cos(alpha);
          // shift the origin
-         double shift = 0.1;
-         double xprim=X(0) + shift;
-         double yprim=X(1) + shift;
+         real_t shift = 0.1;
+         real_t xprim=X(0) + shift;
+         real_t yprim=X(1) + shift;
 
-         double x = xprim*sina - yprim*cosa;
-         double y = xprim*cosa + yprim*sina;
-         double dxdxprim = sina, dxdyprim = -cosa;
-         double dydxprim = cosa, dydyprim =  sina;
+         real_t x = xprim*sina - yprim*cosa;
+         real_t y = xprim*cosa + yprim*sina;
+         real_t dxdxprim = sina, dxdyprim = -cosa;
+         real_t dydxprim = cosa, dydyprim =  sina;
          //wavelength
-         double rl = 2.*M_PI/rk;
+         real_t rl = 2.*M_PI/rk;
 
          // beam waist radius
-         double w0 = 0.05;
+         real_t w0 = 0.05;
 
          // function w
-         double fact = rl/M_PI/(w0*w0);
-         double aux = 1. + (fact*y)*(fact*y);
+         real_t fact = rl/M_PI/(w0*w0);
+         real_t aux = 1. + (fact*y)*(fact*y);
 
-         double w = w0*sqrt(aux);
-         double dwdy = w0*fact*fact*y/sqrt(aux);
-         double d2wdydy = w0*fact*fact*(1. - (fact*y)*(fact*y)/aux)/sqrt(aux);
+         real_t w = w0*sqrt(aux);
+         real_t dwdy = w0*fact*fact*y/sqrt(aux);
+         real_t d2wdydy = w0*fact*fact*(1. - (fact*y)*(fact*y)/aux)/sqrt(aux);
 
-         double phi0 = atan(fact*y);
-         double dphi0dy = cos(phi0)*cos(phi0)*fact;
-         double d2phi0dydy = -2.*cos(phi0)*sin(phi0)*fact*dphi0dy;
+         real_t phi0 = atan(fact*y);
+         real_t dphi0dy = cos(phi0)*cos(phi0)*fact;
+         real_t d2phi0dydy = -2.*cos(phi0)*sin(phi0)*fact*dphi0dy;
 
-         double r = y + 1./y/(fact*fact);
-         double drdy = 1. - 1./(y*y)/(fact*fact);
-         double d2rdydy = 2./(y*y*y)/(fact*fact);
+         real_t r = y + 1./y/(fact*fact);
+         real_t drdy = 1. - 1./(y*y)/(fact*fact);
+         real_t d2rdydy = 2./(y*y*y)/(fact*fact);
+
+         constexpr real_t r2 = 2.0;
+         const real_t rPI = M_PI;
 
          // pressure
-         complex<double> ze = - x*x/(w*w) - zi*rk*y - zi * M_PI * x * x/rl/r +
-                              zi*phi0/2.;
+         complex<real_t> ze = - x*x/(w*w) - zi*rk*y - zi * rPI * x * x/rl/r +
+                              zi*phi0/r2;
 
-         complex<double> zdedx = -2.*x/(w*w) - 2.*zi*M_PI*x/rl/r;
-         complex<double> zdedy = 2.*x*x/(w*w*w)*dwdy - zi*rk + zi*M_PI*x*x/rl/
-                                 (r*r)*drdy + zi*dphi0dy/2.;
-         complex<double> zd2edxdx = -2./(w*w) - 2.*zi*M_PI/rl/r;
-         complex<double> zd2edxdy = 4.*x/(w*w*w)*dwdy + 2.*zi*M_PI*x/rl/(r*r)*drdy;
-         complex<double> zd2edydx = zd2edxdy;
-         complex<double> zd2edydy = -6.*x*x/(w*w*w*w)*dwdy*dwdy + 2.*x*x/
-                                    (w*w*w)*d2wdydy - 2.*zi*M_PI*x*x/rl/(r*r*r)*drdy*drdy
-                                    + zi*M_PI*x*x/rl/(r*r)*d2rdydy + zi/2.*d2phi0dydy;
+         complex<real_t> zdedx = -r2*x/(w*w) - r2*zi*rPI*x/rl/r;
+         complex<real_t> zdedy = r2*x*x/(w*w*w)*dwdy - zi*rk + zi*rPI*x*x/rl/
+                                 (r*r)*drdy + zi*dphi0dy/r2;
+         complex<real_t> zd2edxdx = -r2/(w*w) - r2*zi*rPI/rl/r;
+         complex<real_t> zd2edxdy = 4_r*x/(w*w*w)*dwdy + zi*r2*rPI*x/rl/(r*r)*drdy;
+         complex<real_t> zd2edydx = zd2edxdy;
+         complex<real_t> zd2edydy = -6_r*x*x/(w*w*w*w)*dwdy*dwdy
+                                    //+ complex<real_t>(2.*x*x/(w*w*w)*d2wdydy)
+                                    + real_t(2.*x*x/(w*w*w)*d2wdydy)
+                                    - zi * real_t(2.*M_PI*x*x/rl/(r*r*r)*drdy*drdy)
+                                    + zi * real_t(M_PI*x*x/rl/(r*r)*d2rdydy) + zi/real_t(2.*d2phi0dydy);
 
-         double pf = pow(2.0/M_PI/(w*w),0.25);
-         double dpfdy = -pow(2./M_PI/(w*w),-0.75)/M_PI/(w*w*w)*dwdy;
-         double d2pfdydy = -1./M_PI*pow(2./M_PI,-0.75)*(-1.5*pow(w,-2.5)
+         real_t pf = pow(2.0/M_PI/(w*w),0.25);
+         real_t dpfdy = -pow(2./M_PI/(w*w),-0.75)/M_PI/(w*w*w)*dwdy;
+         real_t d2pfdydy = -1./M_PI*pow(2./M_PI,-0.75)*(-1.5*pow(w,-2.5)
                                                         *dwdy*dwdy + pow(w,-1.5)*d2wdydy);
 
 
-         complex<double> zp = pf*exp(ze);
-         complex<double> zdpdx = zp*zdedx;
-         complex<double> zdpdy = dpfdy*exp(ze)+zp*zdedy;
-         complex<double> zd2pdxdx = zdpdx*zdedx + zp*zd2edxdx;
-         complex<double> zd2pdxdy = zdpdy*zdedx + zp*zd2edxdy;
-         complex<double> zd2pdydx = dpfdy*exp(ze)*zdedx + zdpdx*zdedy + zp*zd2edydx;
-         complex<double> zd2pdydy = d2pfdydy*exp(ze) + dpfdy*exp(
+         complex<real_t> zp = pf*exp(ze);
+         complex<real_t> zdpdx = zp*zdedx;
+         complex<real_t> zdpdy = dpfdy*exp(ze)+zp*zdedy;
+         complex<real_t> zd2pdxdx = zdpdx*zdedx + zp*zd2edxdx;
+         complex<real_t> zd2pdxdy = zdpdy*zdedx + zp*zd2edxdy;
+         complex<real_t> zd2pdydx = dpfdy*exp(ze)*zdedx + zdpdx*zdedy + zp*zd2edydx;
+         complex<real_t> zd2pdydy = d2pfdydy*exp(ze) + dpfdy*exp(
                                        ze)*zdedy + zdpdy*zdedy + zp*zd2edydy;
 
 
@@ -1207,17 +1217,17 @@ complex<double> acoustics_solution_laplacian(const Vector & X)
    }
 }
 
-double source_function(const Vector &x)
+real_t source_function(const Vector &x)
 {
    Vector center(dim);
    center = 0.5;
-   double r = 0.0;
+   real_t r = 0.0;
    for (int i = 0; i < dim; ++i)
    {
       r += pow(x[i] - center[i], 2.);
    }
-   double n = 5.0 * omega / M_PI;
-   double coeff = pow(n, 2) / M_PI;
-   double alpha = -pow(n, 2) * r;
+   real_t n = 5.0 * omega / M_PI;
+   real_t coeff = pow(n, 2) / M_PI;
+   real_t alpha = -pow(n, 2) * r;
    return -omega * coeff * exp(alpha)/omega;
 }

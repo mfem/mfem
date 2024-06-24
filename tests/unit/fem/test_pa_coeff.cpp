@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -34,7 +34,7 @@ Mesh MakeCartesianNonaligned(const int dim, const int ne)
    // Remap vertices so that the mesh is not aligned with axes.
    for (int i=0; i<mesh.GetNV(); ++i)
    {
-      double *vcrd = mesh.GetVertex(i);
+      real_t *vcrd = mesh.GetVertex(i);
       vcrd[1] += 0.2 * vcrd[0];
       if (dim == 3) { vcrd[2] += 0.3 * vcrd[0]; }
    }
@@ -42,7 +42,7 @@ Mesh MakeCartesianNonaligned(const int dim, const int ne)
    return mesh;
 }
 
-double coeffFunction(const Vector& x)
+real_t coeffFunction(const Vector& x)
 {
    if (dimension == 2)
    {
@@ -70,7 +70,7 @@ void vectorCoeffFunction(const Vector & x, Vector & f)
    }
 }
 
-double linearFunction(const Vector & x)
+real_t linearFunction(const Vector & x)
 {
    if (dimension == 3)
    {
@@ -244,11 +244,11 @@ TEST_CASE("H1 PA Coefficient", "[PartialAssembly][Coefficient]")
                A_explicit.Mult(xin, y_mat);
 
                y_pa -= y_mat;
-               double pa_error = y_pa.Norml2();
+               real_t pa_error = y_pa.Norml2();
                REQUIRE(pa_error < 1.e-12);
 
                y_assembly -= y_mat;
-               double assembly_error = y_assembly.Norml2();
+               real_t assembly_error = y_assembly.Norml2();
                REQUIRE(assembly_error < 1.e-12);
 
                delete coeff;
@@ -512,7 +512,7 @@ TEST_CASE("Hcurl/Hdiv PA Coefficient",
 TEST_CASE("Hcurl/Hdiv Mixed PA Coefficient",
           "[CUDA][PartialAssembly][Coefficient]")
 {
-   const double tol = 4e-12;
+   const real_t tol = 4e-12;
 
    for (dimension = 2; dimension < 4; ++dimension)
    {
@@ -692,11 +692,11 @@ TEST_CASE("Hcurl/Hdiv Mixed PA Coefficient",
                   A_explicit.Mult(xin, y_mat);
 
                   y_pa -= y_mat;
-                  double pa_error = y_pa.Norml2();
+                  real_t pa_error = y_pa.Norml2();
                   REQUIRE(pa_error == MFEM_Approx(0, tol, tol));
 
                   y_assembly -= y_mat;
-                  double assembly_error = y_assembly.Norml2();
+                  real_t assembly_error = y_assembly.Norml2();
                   REQUIRE(assembly_error == MFEM_Approx(0, tol, tol));
 
                   if (spaceType == HdivL2 || spaceType == HdivL2_Integral ||

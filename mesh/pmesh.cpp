@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -145,6 +145,10 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       mesh.attributes.Copy(attributes);
       mesh.bdr_attributes.Copy(bdr_attributes);
 
+      // Copy attribute and bdr_attribute names
+      mesh.attribute_sets.Copy(attribute_sets);
+      mesh.bdr_attribute_sets.Copy(bdr_attribute_sets);
+
       GenerateNCFaceInfo();
    }
    else // mesh.Conforming()
@@ -180,6 +184,10 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
 
       mesh.attributes.Copy(attributes);
       mesh.bdr_attributes.Copy(bdr_attributes);
+
+      // Copy attribute and bdr_attribute names
+      mesh.attribute_sets.Copy(attribute_sets);
+      mesh.bdr_attribute_sets.Copy(bdr_attribute_sets);
 
       NumOfEdges = NumOfFaces = 0;
 
@@ -248,9 +256,6 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       // build svert_lvert mapping
       BuildSharedVertMapping(nsvert, vert_element, vert_global_local);
       delete vert_element;
-
-      SetMeshGen();
-      meshgen = mesh.meshgen; // copy the global 'meshgen'
    }
 
    if (mesh.NURBSext)
@@ -361,11 +366,8 @@ int ParMesh::BuildLocalVertices(const mfem::Mesh &mesh,
 int ParMesh::BuildLocalElements(const Mesh& mesh, const int* partitioning,
                                 const Array<int>& vert_global_local)
 {
-   int nelems = 0;
-   for (int i = 0; i < mesh.GetNE(); i++)
-   {
-      if (partitioning[i] == MyRank) { nelems++; }
-   }
+   const int nelems = std::count_if(partitioning,
+   partitioning + mesh.GetNE(), [this](int i) { return i == MyRank;});
 
    elements.SetSize(nelems);
 
@@ -384,7 +386,7 @@ int ParMesh::BuildLocalElements(const Mesh& mesh, const int* partitioning,
          {
             v[j] = vert_global_local[v[j]];
          }
-         element_counter++;
+         ++element_counter;
       }
    }
 
@@ -397,7 +399,6 @@ int ParMesh::BuildLocalBoundary(const Mesh& mesh, const int* partitioning,
                                 Table*& edge_element)
 {
    int nbdry = 0;
-
    if (mesh.NURBSext)
    {
       activeBdrElem.SetSize(mesh.GetNBE());
@@ -1523,6 +1524,7 @@ ParMesh ParMesh::MakeSimplicial(ParMesh &orig_mesh)
 void ParMesh::Finalize(bool refine, bool fix_orientation)
 {
    const int meshgen_save = meshgen; // Mesh::Finalize() may call SetMeshGen()
+   // 'mesh_geoms' is local, so there's no need to save and restore it.
 
    Mesh::Finalize(refine, fix_orientation);
 
@@ -1787,7 +1789,7 @@ void ParMesh::MarkTetMeshForRefinement(const DSTable &v_to_v)
 
 #ifdef MFEM_DEBUG
    {
-      Array<Pair<int, double> > ilen_len(order.Size());
+      Array<Pair<int, real_t> > ilen_len(order.Size());
 
       for (int i = 0; i < NumOfVertices; i++)
       {
@@ -1799,9 +1801,9 @@ void ParMesh::MarkTetMeshForRefinement(const DSTable &v_to_v)
          }
       }
 
-      SortPairs<int, double>(ilen_len, order.Size());
+      SortPairs<int, real_t>(ilen_len, order.Size());
 
-      double d_max = 0.;
+      real_t d_max = 0.;
       for (int i = 1; i < order.Size(); i++)
       {
          d_max = std::max(d_max, ilen_len[i-1].two-ilen_len[i].two);
@@ -1813,8 +1815,9 @@ void ParMesh::MarkTetMeshForRefinement(const DSTable &v_to_v)
                 << endl;
 #else
       // Debug message just from rank 0.
-      double glob_d_max;
-      MPI_Reduce(&d_max, &glob_d_max, 1, MPI_DOUBLE, MPI_MAX, 0, MyComm);
+      real_t glob_d_max;
+      MPI_Reduce(&d_max, &glob_d_max, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX, 0,
+                 MyComm);
       if (MyRank == 0)
       {
          mfem::out << "glob_d_max = " << glob_d_max << endl;
@@ -1980,65 +1983,6 @@ void ParMesh::GenerateOffsets(int N, HYPRE_BigInt loc_sizes[],
    }
 }
 
-void ParMesh::GetFaceNbrElementTransformation(
-   int i, IsoparametricTransformation *ElTr)
-{
-   DenseMatrix &pointmat = ElTr->GetPointMat();
-   Element *elem = face_nbr_elements[i];
-
-   ElTr->Attribute = elem->GetAttribute();
-   ElTr->ElementNo = NumOfElements + i;
-   ElTr->ElementType = ElementTransformation::ELEMENT;
-   ElTr->mesh = this;
-   ElTr->Reset();
-
-   if (Nodes == NULL)
-   {
-      const int nv = elem->GetNVertices();
-      const int *v = elem->GetVertices();
-
-      pointmat.SetSize(spaceDim, nv);
-      for (int k = 0; k < spaceDim; k++)
-      {
-         for (int j = 0; j < nv; j++)
-         {
-            pointmat(k, j) = face_nbr_vertices[v[j]](k);
-         }
-      }
-
-      ElTr->SetFE(GetTransformationFEforElementType(elem->GetType()));
-   }
-   else
-   {
-      Array<int> vdofs;
-      ParGridFunction *pNodes = dynamic_cast<ParGridFunction *>(Nodes);
-      if (pNodes)
-      {
-         pNodes->ParFESpace()->GetFaceNbrElementVDofs(i, vdofs);
-         int n = vdofs.Size()/spaceDim;
-         pointmat.SetSize(spaceDim, n);
-         for (int k = 0; k < spaceDim; k++)
-         {
-            for (int j = 0; j < n; j++)
-            {
-               pointmat(k,j) = (pNodes->FaceNbrData())(vdofs[n*k+j]);
-            }
-         }
-
-         ElTr->SetFE(pNodes->ParFESpace()->GetFaceNbrFE(i));
-      }
-      else
-      {
-         MFEM_ABORT("Nodes are not ParGridFunction!");
-      }
-   }
-}
-
-double ParMesh::GetFaceNbrElementSize(int i, int type)
-{
-   return GetElementSize(GetFaceNbrElementTransformation(i), type);
-}
-
 void ParMesh::DeleteFaceNbrData()
 {
    if (!have_face_nbr_data)
@@ -2131,7 +2075,7 @@ void ParMesh::ExchangeFaceNbrData()
 
    if (Nonconforming())
    {
-      // with ParNCMesh we can set up face neighbors mostly without communication
+      // With ParNCMesh we can set up face neighbors mostly without communication.
       pncmesh->GetFaceNeighbors(*this);
       have_face_nbr_data = true;
 
@@ -2643,12 +2587,12 @@ void ParMesh::ExchangeFaceNbrNodes()
 
          MPI_Isend(send_vertices[send_face_nbr_vertices.GetI()[fn]](),
                    3*send_face_nbr_vertices.RowSize(fn),
-                   MPI_DOUBLE, nbr_rank, tag, MyComm, &send_requests[fn]);
+                   MPITypeMap<real_t>::mpi_type, nbr_rank, tag, MyComm, &send_requests[fn]);
 
          MPI_Irecv(face_nbr_vertices[face_nbr_vertices_offset[fn]](),
                    3*(face_nbr_vertices_offset[fn+1] -
                       face_nbr_vertices_offset[fn]),
-                   MPI_DOUBLE, nbr_rank, tag, MyComm, &recv_requests[fn]);
+                   MPITypeMap<real_t>::mpi_type, nbr_rank, tag, MyComm, &recv_requests[fn]);
       }
 
       MPI_Waitall(num_face_nbrs, recv_requests, statuses);
@@ -2950,86 +2894,83 @@ Table *ParMesh::GetFaceToAllElementTable() const
    return face_elem;
 }
 
-void ParMesh::GetGhostFaceTransformation(
-   FaceElementTransformations* FETr, Element::Type face_type,
-   Geometry::Type face_geom)
+FaceElementTransformations *ParMesh::GetFaceElementTransformations(int FaceNo,
+                                                                   int mask)
 {
-   // calculate composition of FETr->Loc1 and FETr->Elem1
-   DenseMatrix &face_pm = FETr->GetPointMat();
-   FETr->Reset();
-   if (Nodes == NULL)
-   {
-      FETr->Elem1->Transform(FETr->Loc1.Transf.GetPointMat(), face_pm);
-      FETr->SetFE(GetTransformationFEforElementType(face_type));
-   }
-   else
-   {
-      const FiniteElement* face_el =
-         Nodes->FESpace()->GetTraceElement(FETr->Elem1No, face_geom);
-      MFEM_VERIFY(dynamic_cast<const NodalFiniteElement*>(face_el),
-                  "Mesh requires nodal Finite Element.");
-
-#if 0 // TODO: handle the case of non-interpolatory Nodes
-      DenseMatrix I;
-      face_el->Project(Transformation.GetFE(), FETr->Loc1.Transf, I);
-      MultABt(Transformation.GetPointMat(), I, pm_face);
-#else
-      IntegrationRule eir(face_el->GetDof());
-      FETr->Loc1.Transform(face_el->GetNodes(), eir);
-      Nodes->GetVectorValues(*FETr->Elem1, eir, face_pm);
-#endif
-      FETr->SetFE(face_el);
-   }
+   GetFaceElementTransformations(FaceNo, FaceElemTr, Transformation,
+                                 Transformation2, mask);
+   return &FaceElemTr;
 }
 
-FaceElementTransformations *ParMesh::GetFaceElementTransformations(
-   int FaceNo,
-   int mask)
+void ParMesh::GetFaceElementTransformations(int FaceNo,
+                                            FaceElementTransformations &FElTr,
+                                            IsoparametricTransformation &ElTr1,
+                                            IsoparametricTransformation &ElTr2,
+                                            int mask) const
 {
    if (FaceNo < GetNumFaces())
    {
-      return Mesh::GetFaceElementTransformations(FaceNo, mask);
+      Mesh::GetFaceElementTransformations(FaceNo, FElTr, ElTr1, ElTr2, mask);
    }
    else
    {
       const bool fill2 = mask & 10; // Elem2 and/or Loc2
-      return GetSharedFaceTransformationsByLocalIndex(FaceNo, fill2);
+      GetSharedFaceTransformationsByLocalIndex(FaceNo, FElTr, ElTr1, ElTr2,
+                                               fill2);
    }
 }
 
-FaceElementTransformations *ParMesh::
-GetSharedFaceTransformations(int sf, bool fill2)
+FaceElementTransformations *ParMesh::GetSharedFaceTransformations(int sf,
+                                                                  bool fill2)
 {
-   int FaceNo = GetSharedFace(sf);
-
-   return GetSharedFaceTransformationsByLocalIndex(FaceNo, fill2);
+   GetSharedFaceTransformations(sf, FaceElemTr, Transformation,
+                                Transformation2, fill2);
+   return &FaceElemTr;
 }
 
-FaceElementTransformations *ParMesh::
-GetSharedFaceTransformationsByLocalIndex(int FaceNo, bool fill2)
+void ParMesh::GetSharedFaceTransformations(int sf,
+                                           FaceElementTransformations &FElTr,
+                                           IsoparametricTransformation &ElTr1,
+                                           IsoparametricTransformation &ElTr2,
+                                           bool fill2) const
 {
-   FaceInfo &face_info = faces_info[FaceNo];
+   int FaceNo = GetSharedFace(sf);
+   GetSharedFaceTransformationsByLocalIndex(FaceNo, FElTr, ElTr1, ElTr2, fill2);
+}
+
+FaceElementTransformations *
+ParMesh::GetSharedFaceTransformationsByLocalIndex(int FaceNo, bool fill2)
+{
+   GetSharedFaceTransformationsByLocalIndex(FaceNo, FaceElemTr, Transformation,
+                                            Transformation2, fill2);
+   return &FaceElemTr;
+}
+
+void ParMesh::GetSharedFaceTransformationsByLocalIndex(
+   int FaceNo, FaceElementTransformations &FElTr,
+   IsoparametricTransformation &ElTr1, IsoparametricTransformation &ElTr2,
+   bool fill2) const
+{
+   const FaceInfo &face_info = faces_info[FaceNo];
    MFEM_VERIFY(face_info.Elem2Inf >= 0, "The face must be shared.");
 
    bool is_slave = Nonconforming() && IsSlaveFace(face_info);
    bool is_ghost = Nonconforming() && FaceNo >= GetNumFaces();
 
    int mask = 0;
-   FaceElemTr.SetConfigurationMask(0);
-   FaceElemTr.Elem1 = NULL;
-   FaceElemTr.Elem2 = NULL;
+   FElTr.SetConfigurationMask(0);
+   FElTr.Elem1 = NULL;
+   FElTr.Elem2 = NULL;
 
-   NCFaceInfo* nc_info = NULL;
-   if (is_slave) { nc_info = &nc_faces_info[face_info.NCFace]; }
-
-   int local_face = is_ghost ? nc_info->MasterFace : FaceNo;
+   int local_face =
+      is_ghost ? nc_faces_info[face_info.NCFace].MasterFace : FaceNo;
    Element::Type  face_type = GetFaceElementType(local_face);
    Geometry::Type face_geom = GetFaceGeometry(local_face);
 
    // setup the transformation for the first element
-   FaceElemTr.Elem1No = face_info.Elem1No;
-   GetElementTransformation(FaceElemTr.Elem1No, &Transformation);
-   FaceElemTr.Elem1 = &Transformation;
+   FElTr.Elem1No = face_info.Elem1No;
+   GetElementTransformation(FElTr.Elem1No, &ElTr1);
+   FElTr.Elem1 = &ElTr1;
    mask |= FaceElementTransformations::HAVE_ELEM1;
 
    // setup the transformation for the second (neighbor) element
@@ -3037,42 +2978,42 @@ GetSharedFaceTransformationsByLocalIndex(int FaceNo, bool fill2)
    if (fill2)
    {
       Elem2NbrNo = -1 - face_info.Elem2No;
-      // Store the "shifted index" for element 2 in FaceElemTr.Elem2No.
+      // Store the "shifted index" for element 2 in FElTr.Elem2No.
       // `Elem2NbrNo` is the index of the face neighbor (starting from 0),
-      // and `FaceElemTr.Elem2No` will be offset by the number of (local)
+      // and `FElTr.Elem2No` will be offset by the number of (local)
       // elements in the mesh.
-      FaceElemTr.Elem2No = NumOfElements + Elem2NbrNo;
-      GetFaceNbrElementTransformation(Elem2NbrNo, &Transformation2);
-      FaceElemTr.Elem2 = &Transformation2;
+      FElTr.Elem2No = NumOfElements + Elem2NbrNo;
+      GetFaceNbrElementTransformation(Elem2NbrNo, ElTr2);
+      FElTr.Elem2 = &ElTr2;
       mask |= FaceElementTransformations::HAVE_ELEM2;
    }
    else
    {
-      FaceElemTr.Elem2No = -1;
+      FElTr.Elem2No = -1;
    }
 
    // setup the face transformation if the face is not a ghost
    if (!is_ghost)
    {
-      GetFaceTransformation(FaceNo, &FaceElemTr);
-      // NOTE: The above call overwrites FaceElemTr.Loc1
+      GetFaceTransformation(FaceNo, &FElTr);
+      // NOTE: The above call overwrites FElTr.Loc1
       mask |= FaceElementTransformations::HAVE_FACE;
    }
    else
    {
-      FaceElemTr.SetGeometryType(face_geom);
+      FElTr.SetGeometryType(face_geom);
    }
 
    // setup Loc1 & Loc2
    int elem_type = GetElementType(face_info.Elem1No);
-   GetLocalFaceTransformation(face_type, elem_type, FaceElemTr.Loc1.Transf,
+   GetLocalFaceTransformation(face_type, elem_type, FElTr.Loc1.Transf,
                               face_info.Elem1Inf);
    mask |= FaceElementTransformations::HAVE_LOC1;
 
    if (fill2)
    {
       elem_type = face_nbr_elements[Elem2NbrNo]->GetType();
-      GetLocalFaceTransformation(face_type, elem_type, FaceElemTr.Loc2.Transf,
+      GetLocalFaceTransformation(face_type, elem_type, FElTr.Loc2.Transf,
                                  face_info.Elem2Inf);
       mask |= FaceElementTransformations::HAVE_LOC2;
    }
@@ -3083,35 +3024,130 @@ GetSharedFaceTransformationsByLocalIndex(int FaceNo, bool fill2)
       if (is_ghost || fill2)
       {
          // is_ghost -> modify side 1, otherwise -> modify side 2:
-         ApplyLocalSlaveTransformation(FaceElemTr, face_info, is_ghost);
+         ApplyLocalSlaveTransformation(FElTr, face_info, is_ghost);
       }
    }
 
    // for ghost faces we need a special version of GetFaceTransformation
    if (is_ghost)
    {
-      GetGhostFaceTransformation(&FaceElemTr, face_type, face_geom);
+      GetGhostFaceTransformation(FElTr, face_type, face_geom);
       mask |= FaceElementTransformations::HAVE_FACE;
    }
 
-   FaceElemTr.SetConfigurationMask(mask);
+   FElTr.SetConfigurationMask(mask);
 
    // This check can be useful for internal debugging, however it will fail on
    // periodic boundary faces, so we keep it disabled in general.
 #if 0
 #ifdef MFEM_DEBUG
-   double dist = FaceElemTr.CheckConsistency();
+   real_t dist = FElTr.CheckConsistency();
    if (dist >= 1e-12)
    {
       mfem::out << "\nInternal error: face id = " << FaceNo
                 << ", dist = " << dist << ", rank = " << MyRank << '\n';
-      FaceElemTr.CheckConsistency(1); // print coordinates
+      FElTr.CheckConsistency(1); // print coordinates
       MFEM_ABORT("internal error");
    }
 #endif
 #endif
+}
 
-   return &FaceElemTr;
+void ParMesh::GetGhostFaceTransformation(
+   FaceElementTransformations &FElTr, Element::Type face_type,
+   Geometry::Type face_geom) const
+{
+   // calculate composition of FElTr.Loc1 and FElTr.Elem1
+   DenseMatrix &face_pm = FElTr.GetPointMat();
+   FElTr.Reset();
+   if (Nodes == NULL)
+   {
+      FElTr.Elem1->Transform(FElTr.Loc1.Transf.GetPointMat(), face_pm);
+      FElTr.SetFE(GetTransformationFEforElementType(face_type));
+   }
+   else
+   {
+      const FiniteElement* face_el =
+         Nodes->FESpace()->GetTraceElement(FElTr.Elem1No, face_geom);
+      MFEM_VERIFY(dynamic_cast<const NodalFiniteElement*>(face_el),
+                  "Mesh requires nodal Finite Element.");
+
+#if 0 // TODO: handle the case of non-interpolatory Nodes
+      DenseMatrix I;
+      face_el->Project(Transformation.GetFE(), FElTr.Loc1.Transf, I);
+      MultABt(Transformation.GetPointMat(), I, pm_face);
+#else
+      IntegrationRule eir(face_el->GetDof());
+      FElTr.Loc1.Transform(face_el->GetNodes(), eir);
+      Nodes->GetVectorValues(*FElTr.Elem1, eir, face_pm);
+#endif
+      FElTr.SetFE(face_el);
+   }
+}
+
+ElementTransformation *ParMesh::GetFaceNbrElementTransformation(int FaceNo)
+{
+   GetFaceNbrElementTransformation(FaceNo, Transformation);
+   return &Transformation;
+}
+
+void ParMesh::GetFaceNbrElementTransformation(
+   int FaceNo, IsoparametricTransformation &ElTr) const
+{
+   DenseMatrix &pointmat = ElTr.GetPointMat();
+   Element *elem = face_nbr_elements[FaceNo];
+
+   ElTr.Attribute = elem->GetAttribute();
+   ElTr.ElementNo = NumOfElements + FaceNo;
+   ElTr.ElementType = ElementTransformation::ELEMENT;
+   ElTr.mesh = this;
+   ElTr.Reset();
+
+   if (Nodes == NULL)
+   {
+      const int nv = elem->GetNVertices();
+      const int *v = elem->GetVertices();
+
+      pointmat.SetSize(spaceDim, nv);
+      for (int k = 0; k < spaceDim; k++)
+      {
+         for (int j = 0; j < nv; j++)
+         {
+            pointmat(k, j) = face_nbr_vertices[v[j]](k);
+         }
+      }
+
+      ElTr.SetFE(GetTransformationFEforElementType(elem->GetType()));
+   }
+   else
+   {
+      Array<int> vdofs;
+      ParGridFunction *pNodes = dynamic_cast<ParGridFunction *>(Nodes);
+      if (pNodes)
+      {
+         pNodes->ParFESpace()->GetFaceNbrElementVDofs(FaceNo, vdofs);
+         int n = vdofs.Size()/spaceDim;
+         pointmat.SetSize(spaceDim, n);
+         for (int k = 0; k < spaceDim; k++)
+         {
+            for (int j = 0; j < n; j++)
+            {
+               pointmat(k,j) = (pNodes->FaceNbrData())(vdofs[n*k+j]);
+            }
+         }
+
+         ElTr.SetFE(pNodes->ParFESpace()->GetFaceNbrFE(FaceNo));
+      }
+      else
+      {
+         MFEM_ABORT("Nodes are not ParGridFunction!");
+      }
+   }
+}
+
+real_t ParMesh::GetFaceNbrElementSize(int i, int type)
+{
+   return GetElementSize(GetFaceNbrElementTransformation(i), type);
 }
 
 int ParMesh::GetNSharedFaces() const
@@ -3832,7 +3868,7 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
          CoarseFineTr.embeddings[new_e] = Embedding(i, Geometry::SEGMENT, 2);
       }
 
-      static double seg_children[3*2] = { 0.0,1.0, 0.0,0.5, 0.5,1.0 };
+      static real_t seg_children[3*2] = { 0.0,1.0, 0.0,0.5, 0.5,1.0 };
       CoarseFineTr.point_matrices[Geometry::SEGMENT].
       UseExternalData(seg_children, 1, 2, 3);
 
@@ -3888,6 +3924,10 @@ void ParMesh::NonconformingRefinement(const Array<Refinement> &refinements,
    attributes.Copy(pmesh2->attributes);
    bdr_attributes.Copy(pmesh2->bdr_attributes);
 
+   // Copy attribute and bdr_attribute names
+   attribute_sets.Copy(pmesh2->attribute_sets);
+   bdr_attribute_sets.Copy(pmesh2->bdr_attribute_sets);
+
    // now swap the meshes, the second mesh will become the old coarse mesh
    // and this mesh will be the new fine mesh
    Mesh::Swap(*pmesh2, false);
@@ -3904,8 +3944,8 @@ void ParMesh::NonconformingRefinement(const Array<Refinement> &refinements,
    UpdateNodes();
 }
 
-bool ParMesh::NonconformingDerefinement(Array<double> &elem_error,
-                                        double threshold, int nc_limit, int op)
+bool ParMesh::NonconformingDerefinement(Array<real_t> &elem_error,
+                                        real_t threshold, int nc_limit, int op)
 {
    MFEM_VERIFY(pncmesh, "Only supported for non-conforming meshes.");
    MFEM_VERIFY(!NURBSext, "Derefinement of NURBS meshes is not supported. "
@@ -3926,7 +3966,7 @@ bool ParMesh::NonconformingDerefinement(Array<double> &elem_error,
    {
       if (nc_limit > 0 && !level_ok[i]) { continue; }
 
-      double error =
+      real_t error =
          AggregateError(elem_error, dt.GetRow(i), dt.RowSize(i), op);
 
       if (error < threshold) { derefs.Append(i); }
@@ -3945,6 +3985,10 @@ bool ParMesh::NonconformingDerefinement(Array<double> &elem_error,
 
    attributes.Copy(mesh2->attributes);
    bdr_attributes.Copy(mesh2->bdr_attributes);
+
+   // Copy attribute and bdr_attribute names
+   attribute_sets.Copy(mesh2->attribute_sets);
+   bdr_attribute_sets.Copy(mesh2->bdr_attribute_sets);
 
    Mesh::Swap(*mesh2, false);
    delete mesh2;
@@ -3996,6 +4040,10 @@ void ParMesh::RebalanceImpl(const Array<int> *partition)
 
    attributes.Copy(pmesh2->attributes);
    bdr_attributes.Copy(pmesh2->bdr_attributes);
+
+   // Copy attribute and bdr_attribute names
+   attribute_sets.Copy(pmesh2->attribute_sets);
+   bdr_attribute_sets.Copy(pmesh2->bdr_attribute_sets);
 
    Mesh::Swap(*pmesh2, false);
    delete pmesh2;
@@ -4519,7 +4567,15 @@ void ParMesh::UniformRefinement3D()
    UpdateNodes();
 }
 
-void ParMesh::NURBSUniformRefinement()
+void ParMesh::NURBSUniformRefinement(int rf, real_t tol)
+{
+   if (MyRank == 0)
+   {
+      mfem::out << "\nParMesh::NURBSUniformRefinement : Not supported yet!\n";
+   }
+}
+
+void ParMesh::NURBSUniformRefinement(const Array<int> &rf, real_t tol)
 {
    if (MyRank == 0)
    {
@@ -4742,14 +4798,14 @@ bool ParMesh::WantSkipSharedMaster(const NCMesh::Master &master) const
    return false;
 }
 
-void ParMesh::Print(std::ostream &os) const
+void ParMesh::Print(std::ostream &os, const std::string &comments) const
 {
    int shared_bdr_attr;
    Array<int> nc_shared_faces;
 
    if (NURBSext)
    {
-      Printer(os); // does not print shared boundary
+      Printer(os, "", comments); // does not print shared boundary
       return;
    }
 
@@ -4787,11 +4843,16 @@ void ParMesh::Print(std::ostream &os) const
       }
    }
 
-   os << "MFEM mesh v1.0\n";
+   const bool set_names = attribute_sets.SetsExist() ||
+                          bdr_attribute_sets.SetsExist();
+
+   os << (!set_names ? "MFEM mesh v1.0\n" : "MFEM mesh v1.3\n");
+
+   if (!comments.empty()) { os << '\n' << comments << '\n'; }
 
    // optional
    os <<
-      "\n#\n# MFEM Geometry Types (see mesh/geom.hpp):\n#\n"
+      "\n#\n# MFEM Geometry Types (see fem/geom.hpp):\n#\n"
       "# POINT       = 0\n"
       "# SEGMENT     = 1\n"
       "# TRIANGLE    = 2\n"
@@ -4806,6 +4867,12 @@ void ParMesh::Print(std::ostream &os) const
    for (int i = 0; i < NumOfElements; i++)
    {
       PrintElement(elements[i], os);
+   }
+
+   if (set_names)
+   {
+      os << "\nattribute_sets\n";
+      attribute_sets.Print(os);
    }
 
    int num_bdr_elems = NumOfBdrElements;
@@ -4836,6 +4903,13 @@ void ParMesh::Print(std::ostream &os) const
          PrintElement(faces[(*s2l_face)[i]], os);
       }
    }
+
+   if (set_names)
+   {
+      os << "\nbdr_attribute_sets\n";
+      bdr_attribute_sets.Print(os);
+   }
+
    os << "\nvertices\n" << NumOfVertices << '\n';
    if (Nodes == NULL)
    {
@@ -4855,6 +4929,11 @@ void ParMesh::Print(std::ostream &os) const
    {
       os << "\nnodes\n";
       Nodes->Save(os);
+   }
+
+   if (set_names)
+   {
+      os << "\nmfem_mesh_end" << endl;
    }
 }
 
@@ -4886,21 +4965,23 @@ static void dump_element(const Element* elem, Array<int> &data)
    }
 }
 
-void ParMesh::PrintAsOne(std::ostream &os) const
+void ParMesh::PrintAsOne(std::ostream &os, const std::string &comments) const
 {
    int i, j, k, p, nv_ne[2], &nv = nv_ne[0], &ne = nv_ne[1], vc;
    const int *v;
    MPI_Status status;
-   Array<double> vert;
+   Array<real_t> vert;
    Array<int> ints;
 
    if (MyRank == 0)
    {
       os << "MFEM mesh v1.0\n";
 
+      if (!comments.empty()) { os << '\n' << comments << '\n'; }
+
       // optional
       os <<
-         "\n#\n# MFEM Geometry Types (see mesh/geom.hpp):\n#\n"
+         "\n#\n# MFEM Geometry Types (see fem/geom.hpp):\n#\n"
          "# POINT       = 0\n"
          "# SEGMENT     = 1\n"
          "# TRIANGLE    = 2\n"
@@ -5135,7 +5216,8 @@ void ParMesh::PrintAsOne(std::ostream &os) const
             vert.SetSize(nv*spaceDim);
             if (nv)
             {
-               MPI_Recv(&vert[0], nv*spaceDim, MPI_DOUBLE, p, 449, MyComm, &status);
+               MPI_Recv(&vert[0], nv*spaceDim, MPITypeMap<real_t>::mpi_type, p, 449, MyComm,
+                        &status);
             }
             for (i = 0; i < nv; i++)
             {
@@ -5162,7 +5244,8 @@ void ParMesh::PrintAsOne(std::ostream &os) const
          }
          if (NumOfVertices)
          {
-            MPI_Send(&vert[0], NumOfVertices*spaceDim, MPI_DOUBLE, 0, 449, MyComm);
+            MPI_Send(&vert[0], NumOfVertices*spaceDim, MPITypeMap<real_t>::mpi_type, 0, 449,
+                     MyComm);
          }
       }
    }
@@ -5195,13 +5278,13 @@ void ParMesh::PrintAsOne(std::ostream &os) const
    }
 }
 
-void ParMesh::PrintAsSerial(std::ostream &os) const
+void ParMesh::PrintAsSerial(std::ostream &os, const std::string &comments) const
 {
    int save_rank = 0;
    Mesh serialmesh = GetSerialMesh(save_rank);
    if (MyRank == save_rank)
    {
-      serialmesh.Printer(os);
+      serialmesh.Printer(os, "", comments);
    }
    MPI_Barrier(MyComm);
 }
@@ -5244,7 +5327,7 @@ Mesh ParMesh::GetSerialMesh(int save_rank) const
 
    int n_send_recv;
    MPI_Status status;
-   Array<double> vert;
+   Array<real_t> vert;
    Array<int> ints, dofs;
 
    // First set the connectivity of serial mesh using the True Dofs from
@@ -5427,8 +5510,8 @@ Mesh ParMesh::GetSerialMesh(int save_rank) const
             serialmesh.GetElementVertices(elem_count++, ints_serial);
             for (int i = 0; i < ints.Size(); i++)
             {
-               const double *vdata = GetVertex(ints[i]);
-               double *vdata_serial = serialmesh.GetVertex(ints_serial[i]);
+               const real_t *vdata = GetVertex(ints[i]);
+               real_t *vdata_serial = serialmesh.GetVertex(ints_serial[i]);
                for (int d = 0; d < spaceDim; d++)
                {
                   vdata_serial[d] = vdata[d];
@@ -5444,7 +5527,8 @@ Mesh ParMesh::GetSerialMesh(int save_rank) const
          vert.SetSize(n_send_recv);
          if (n_send_recv)
          {
-            MPI_Recv(&vert[0], n_send_recv, MPI_DOUBLE, p, 449, MyComm, &status);
+            MPI_Recv(&vert[0], n_send_recv, MPITypeMap<real_t>::mpi_type, p, 449, MyComm,
+                     &status);
          }
          for (int i = 0; i < n_send_recv; )
          {
@@ -5459,7 +5543,7 @@ Mesh ParMesh::GetSerialMesh(int save_rank) const
                serialmesh.GetElementVertices(elem_count++, ints_serial);
                for (int j = 0; j < ints_serial.Size(); j++)
                {
-                  double *vdata_serial = serialmesh.GetVertex(ints_serial[j]);
+                  real_t *vdata_serial = serialmesh.GetVertex(ints_serial[j]);
                   for (int d = 0; d < spaceDim; d++)
                   {
                      vdata_serial[d] = vert[i++];
@@ -5503,7 +5587,7 @@ Mesh ParMesh::GetSerialMesh(int save_rank) const
             GetElementVertices(e, ints);
             for (int i = 0; i < ints.Size(); i++)
             {
-               const double *vdata = GetVertex(ints[i]);
+               const real_t *vdata = GetVertex(ints[i]);
                for (int d = 0; d < spaceDim; d++)
                {
                   vert.Append(vdata[d]);
@@ -5513,7 +5597,8 @@ Mesh ParMesh::GetSerialMesh(int save_rank) const
       }
       if (n_send_recv)
       {
-         MPI_Send(&vert[0], n_send_recv, MPI_DOUBLE, save_rank, 449, MyComm);
+         MPI_Send(&vert[0], n_send_recv, MPITypeMap<real_t>::mpi_type, save_rank, 449,
+                  MyComm);
       }
    }
 
@@ -5540,7 +5625,7 @@ void ParMesh::PrintAsOneXG(std::ostream &os)
       int i, j, k, nv, ne, p;
       const int *ind, *v;
       MPI_Status status;
-      Array<double> vert;
+      Array<real_t> vert;
       Array<int> ints;
 
       if (MyRank == 0)
@@ -5562,7 +5647,8 @@ void ParMesh::PrintAsOneXG(std::ostream &os)
          {
             MPI_Recv(&nv, 1, MPI_INT, p, 444, MyComm, &status);
             vert.SetSize(Dim*nv);
-            MPI_Recv(&vert[0], Dim*nv, MPI_DOUBLE, p, 445, MyComm, &status);
+            MPI_Recv(&vert[0], Dim*nv, MPITypeMap<real_t>::mpi_type, p, 445, MyComm,
+                     &status);
             for (i = 0; i < nv; i++)
             {
                for (j = 0; j < Dim; j++)
@@ -5666,7 +5752,7 @@ void ParMesh::PrintAsOneXG(std::ostream &os)
             {
                vert[Dim*i+j] = vertices[i](j);
             }
-         MPI_Send(&vert[0], Dim*NumOfVertices, MPI_DOUBLE,
+         MPI_Send(&vert[0], Dim*NumOfVertices, MPITypeMap<real_t>::mpi_type,
                   0, 445, MyComm);
          // elements
          ne = NumOfElements;
@@ -5715,7 +5801,7 @@ void ParMesh::PrintAsOneXG(std::ostream &os)
       int i, j, k, nv, ne, p;
       const int *ind, *v;
       MPI_Status status;
-      Array<double> vert;
+      Array<real_t> vert;
       Array<int> ints;
 
       int TG_nv, TG_ne, TG_nbe;
@@ -5745,7 +5831,8 @@ void ParMesh::PrintAsOneXG(std::ostream &os)
          {
             MPI_Recv(&nv, 1, MPI_INT, p, 444, MyComm, &status);
             vert.SetSize(Dim*nv);
-            MPI_Recv(&vert[0], Dim*nv, MPI_DOUBLE, p, 445, MyComm, &status);
+            MPI_Recv(&vert[0], Dim*nv, MPITypeMap<real_t>::mpi_type, p, 445, MyComm,
+                     &status);
             for (i = 0; i < nv; i++)
             {
                os << i+1 << " 0.0 " << vert[Dim*i] << " " << vert[Dim*i+1]
@@ -5846,7 +5933,8 @@ void ParMesh::PrintAsOneXG(std::ostream &os)
             {
                vert[Dim*i+j] = vertices[i](j);
             }
-         MPI_Send(&vert[0], Dim*NumOfVertices, MPI_DOUBLE, 0, 445, MyComm);
+         MPI_Send(&vert[0], Dim*NumOfVertices, MPITypeMap<real_t>::mpi_type, 0, 445,
+                  MyComm);
          // elements
          MPI_Send(&NumOfVertices, 1, MPI_INT, 0, 444, MyComm);
          MPI_Send(&NumOfElements, 1, MPI_INT, 0, 446, MyComm);
@@ -5890,7 +5978,7 @@ void ParMesh::PrintAsOneXG(std::ostream &os)
       int i, j, k, attr, nv, ne, p;
       Array<int> v;
       MPI_Status status;
-      Array<double> vert;
+      Array<real_t> vert;
       Array<int> ints;
 
       if (MyRank == 0)
@@ -5994,7 +6082,8 @@ void ParMesh::PrintAsOneXG(std::ostream &os)
          {
             MPI_Recv(&nv, 1, MPI_INT, p, 444, MyComm, &status);
             vert.SetSize(Dim*nv);
-            MPI_Recv(&vert[0], Dim*nv, MPI_DOUBLE, p, 445, MyComm, &status);
+            MPI_Recv(&vert[0], Dim*nv, MPITypeMap<real_t>::mpi_type, p, 445, MyComm,
+                     &status);
             for (i = 0; i < nv; i++)
             {
                for (j = 0; j < Dim; j++)
@@ -6056,7 +6145,7 @@ void ParMesh::PrintAsOneXG(std::ostream &os)
             {
                vert[Dim*i+j] = vertices[i](j);
             }
-         MPI_Send(&vert[0], Dim*NumOfVertices, MPI_DOUBLE,
+         MPI_Send(&vert[0], Dim*NumOfVertices, MPITypeMap<real_t>::mpi_type,
                   0, 445, MyComm);
       }
    }
@@ -6074,30 +6163,36 @@ void ParMesh::GetBoundingBox(Vector &gp_min, Vector &gp_max, int ref)
    gp_min.SetSize(sdim);
    gp_max.SetSize(sdim);
 
-   MPI_Allreduce(p_min.GetData(), gp_min.GetData(), sdim, MPI_DOUBLE,
+   MPI_Allreduce(p_min.GetData(), gp_min.GetData(), sdim,
+                 MPITypeMap<real_t>::mpi_type,
                  MPI_MIN, MyComm);
-   MPI_Allreduce(p_max.GetData(), gp_max.GetData(), sdim, MPI_DOUBLE,
+   MPI_Allreduce(p_max.GetData(), gp_max.GetData(), sdim,
+                 MPITypeMap<real_t>::mpi_type,
                  MPI_MAX, MyComm);
 }
 
-void ParMesh::GetCharacteristics(double &gh_min, double &gh_max,
-                                 double &gk_min, double &gk_max)
+void ParMesh::GetCharacteristics(real_t &gh_min, real_t &gh_max,
+                                 real_t &gk_min, real_t &gk_max)
 {
-   double h_min, h_max, kappa_min, kappa_max;
+   real_t h_min, h_max, kappa_min, kappa_max;
 
    this->Mesh::GetCharacteristics(h_min, h_max, kappa_min, kappa_max);
 
-   MPI_Allreduce(&h_min, &gh_min, 1, MPI_DOUBLE, MPI_MIN, MyComm);
-   MPI_Allreduce(&h_max, &gh_max, 1, MPI_DOUBLE, MPI_MAX, MyComm);
-   MPI_Allreduce(&kappa_min, &gk_min, 1, MPI_DOUBLE, MPI_MIN, MyComm);
-   MPI_Allreduce(&kappa_max, &gk_max, 1, MPI_DOUBLE, MPI_MAX, MyComm);
+   MPI_Allreduce(&h_min, &gh_min, 1, MPITypeMap<real_t>::mpi_type, MPI_MIN,
+                 MyComm);
+   MPI_Allreduce(&h_max, &gh_max, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX,
+                 MyComm);
+   MPI_Allreduce(&kappa_min, &gk_min, 1, MPITypeMap<real_t>::mpi_type, MPI_MIN,
+                 MyComm);
+   MPI_Allreduce(&kappa_max, &gk_max, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX,
+                 MyComm);
 }
 
 void ParMesh::PrintInfo(std::ostream &os)
 {
    int i;
    DenseMatrix J(Dim);
-   double h_min, h_max, kappa_min, kappa_max, h, kappa;
+   real_t h_min, h_max, kappa_min, kappa_max, h, kappa;
 
    if (MyRank == 0)
    {
@@ -6107,7 +6202,7 @@ void ParMesh::PrintInfo(std::ostream &os)
    for (i = 0; i < NumOfElements; i++)
    {
       GetElementJacobian(i, J);
-      h = pow(fabs(J.Weight()), 1.0/double(Dim));
+      h = pow(fabs(J.Weight()), 1.0/real_t(Dim));
       kappa = (Dim == spaceDim) ?
               J.CalcSingularvalue(0) / J.CalcSingularvalue(Dim-1) : -1.0;
       if (i == 0)
@@ -6124,11 +6219,15 @@ void ParMesh::PrintInfo(std::ostream &os)
       }
    }
 
-   double gh_min, gh_max, gk_min, gk_max;
-   MPI_Reduce(&h_min, &gh_min, 1, MPI_DOUBLE, MPI_MIN, 0, MyComm);
-   MPI_Reduce(&h_max, &gh_max, 1, MPI_DOUBLE, MPI_MAX, 0, MyComm);
-   MPI_Reduce(&kappa_min, &gk_min, 1, MPI_DOUBLE, MPI_MIN, 0, MyComm);
-   MPI_Reduce(&kappa_max, &gk_max, 1, MPI_DOUBLE, MPI_MAX, 0, MyComm);
+   real_t gh_min, gh_max, gk_min, gk_max;
+   MPI_Reduce(&h_min, &gh_min, 1, MPITypeMap<real_t>::mpi_type, MPI_MIN, 0,
+              MyComm);
+   MPI_Reduce(&h_max, &gh_max, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX, 0,
+              MyComm);
+   MPI_Reduce(&kappa_min, &gk_min, 1, MPITypeMap<real_t>::mpi_type, MPI_MIN, 0,
+              MyComm);
+   MPI_Reduce(&kappa_max, &gk_max, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX, 0,
+              MyComm);
 
    // TODO: collect and print stats by geometry
 
@@ -6212,26 +6311,26 @@ long long ParMesh::ReduceInt(int value) const
    return global;
 }
 
-void ParMesh::ParPrint(ostream &os) const
+void ParMesh::ParPrint(ostream &os, const std::string &comments) const
 {
    if (NURBSext)
    {
       // TODO: NURBS meshes.
-      Print(os); // use the serial MFEM v1.0 format for now
+      Print(os, comments); // use the serial MFEM v1.0 format for now
       return;
    }
 
    if (Nonconforming())
    {
       // the NC mesh format works both in serial and in parallel
-      Printer(os);
+      Printer(os, "", comments);
       return;
    }
 
-   // Write out serial mesh.  Tell serial mesh to deliniate the end of it's
+   // Write out serial mesh.  Tell serial mesh to delineate the end of its
    // output with 'mfem_serial_mesh_end' instead of 'mfem_mesh_end', as we will
    // be adding additional parallel mesh information.
-   Printer(os, "mfem_serial_mesh_end");
+   Printer(os, "mfem_serial_mesh_end", comments);
 
    // write out group topology info.
    gtopo.Save(os);
@@ -6245,6 +6344,7 @@ void ParMesh::ParPrint(ostream &os) const
    {
       os << "total_shared_faces " << sface_lface.Size() << '\n';
    }
+   os << "\n# group 0 has no shared entities\n";
    for (int gr = 1; gr < GetNGroups(); gr++)
    {
       {

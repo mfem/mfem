@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -134,7 +134,7 @@ int socketbuf::open(const char hostname[], int port)
       {
          closesocket(socket_descriptor);
          socket_descriptor = -2;
-         return -1;
+         continue;
       }
 #endif
 
@@ -148,7 +148,7 @@ int socketbuf::open(const char hostname[], int port)
    }
 
    freeaddrinfo(res);
-   return 0;
+   return (socket_descriptor < 0) ? -1 : 0;
 }
 
 int socketbuf::close()
