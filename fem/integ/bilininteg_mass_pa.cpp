@@ -24,28 +24,26 @@ namespace mfem
 MassIntegrator::Kernels MassIntegrator::kernels;
 MassIntegrator::Kernels::Kernels()
 {
-   // 1D
-   MassIntegrator::AddSpecialization1D();
    // 2D
-   MassIntegrator::AddSpecialization2D<2,2>();
-   MassIntegrator::AddSpecialization2D<3,3>();
-   MassIntegrator::AddSpecialization2D<4,4>();
-   MassIntegrator::AddSpecialization2D<5,5>();
-   MassIntegrator::AddSpecialization2D<6,6>();
-   MassIntegrator::AddSpecialization2D<7,7>();
-   MassIntegrator::AddSpecialization2D<8,8>();
-   MassIntegrator::AddSpecialization2D<9,9>();
+   MassIntegrator::AddSpecialization<2,2,2>();
+   MassIntegrator::AddSpecialization<2,3,3>();
+   MassIntegrator::AddSpecialization<2,4,4>();
+   MassIntegrator::AddSpecialization<2,5,5>();
+   MassIntegrator::AddSpecialization<2,6,6>();
+   MassIntegrator::AddSpecialization<2,7,7>();
+   MassIntegrator::AddSpecialization<2,8,8>();
+   MassIntegrator::AddSpecialization<2,9,9>();
    // 3D
-   MassIntegrator::AddSpecialization3D<2,2>();
-   MassIntegrator::AddSpecialization3D<2,3>();
-   MassIntegrator::AddSpecialization3D<3,4>();
-   MassIntegrator::AddSpecialization3D<4,5>();
-   MassIntegrator::AddSpecialization3D<4,6>();
-   MassIntegrator::AddSpecialization3D<5,6>();
-   MassIntegrator::AddSpecialization3D<5,8>();
-   MassIntegrator::AddSpecialization3D<6,7>();
-   MassIntegrator::AddSpecialization3D<7,8>();
-   MassIntegrator::AddSpecialization3D<8,9>();
+   MassIntegrator::AddSpecialization<3,2,2>();
+   MassIntegrator::AddSpecialization<3,2,3>();
+   MassIntegrator::AddSpecialization<3,3,4>();
+   MassIntegrator::AddSpecialization<3,4,5>();
+   MassIntegrator::AddSpecialization<3,4,6>();
+   MassIntegrator::AddSpecialization<3,5,6>();
+   MassIntegrator::AddSpecialization<3,5,8>();
+   MassIntegrator::AddSpecialization<3,6,7>();
+   MassIntegrator::AddSpecialization<3,7,8>();
+   MassIntegrator::AddSpecialization<3,8,9>();
 }
 
 void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)

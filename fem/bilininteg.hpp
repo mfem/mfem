@@ -2144,10 +2144,9 @@ public:
    using UserParams = internal::KernelTypeList<int, int>;
    using FallbackParams = internal::KernelTypeList<>;
 
-   MFEM_DECLARE_KERNELS(ApplyPAKernels, KernelType, MFEM_PARAM_LIST(int, int),
-                        MFEM_PARAM_LIST())
-   MFEM_DECLARE_KERNELS(DiagonalPAKernels, DiagonalKernelType, MFEM_PARAM_LIST(int,
-                                                                               int), MFEM_PARAM_LIST())
+   MFEM_DECLARE_KERNELS(ApplyPAKernels, KernelType, MFEM_PARAM_LIST(int, int))
+   MFEM_DECLARE_KERNELS(DiagonalPAKernels, DiagonalKernelType,
+                        MFEM_PARAM_LIST(int, int))
 
    using ApplyKernelsType =
       KernelDispatchTable<ApplyPAKernels, UserParams, FallbackParams>;
@@ -2323,22 +2322,11 @@ public:
 
    Coefficient *GetCoefficient() const { return Q; }
 
-   template <int D1D, int Q1D>
-   static void AddSpecialization2D()
+   template <int DIM, int D1D, int Q1D>
+   static void AddSpecialization()
    {
-      ApplyKernelsType:: template AddSpecialization2D<D1D, Q1D>  apply_helper_functor;
-      DiagKernelsType:: template AddSpecialization2D<D1D, Q1D>  diag_helper_functor;
-      apply_helper_functor(&kernels.apply);
-      diag_helper_functor(&kernels.diag);
-   }
-
-   template <int D1D, int Q1D>
-   static void AddSpecialization3D()
-   {
-      ApplyKernelsType:: template AddSpecialization3D<D1D, Q1D>  apply_helper_functor;
-      DiagKernelsType:: template AddSpecialization3D<D1D, Q1D>  diag_helper_functor;
-      apply_helper_functor(&kernels.apply);
-      diag_helper_functor(&kernels.diag);
+      kernels.apply.AddSpecialization<DIM,D1D,Q1D>();
+      kernels.diag.AddSpecialization<DIM,D1D,Q1D>();
    }
 };
 
@@ -2362,19 +2350,20 @@ protected:
 public:
 
    using KernelType = void(*)(const int, const Array<real_t>&,
-                              const Array<real_t>&, const Vector&, const Vector&,
-                              Vector&, const int, const int);
+                              const Array<real_t>&, const Vector&,
+                              const Vector&, Vector&, const int, const int);
 
    using DiagonalKernelType =  void(*)(const int, const Array<real_t>&,
-                                       const Vector&, Vector&, const int, const int);
+                                       const Vector&, Vector&, const int,
+                                       const int);
 
+   // D1D, Q1D
    using UserParams = internal::KernelTypeList<int, int>;
    using FallbackParams = internal::KernelTypeList<>;
 
-   MFEM_DECLARE_KERNELS(ApplyPAKernels, KernelType, MFEM_PARAM_LIST(int, int),
-                        MFEM_PARAM_LIST())
-   MFEM_DECLARE_KERNELS(DiagonalPAKernels, DiagonalKernelType, MFEM_PARAM_LIST(int,
-                                                                               int), MFEM_PARAM_LIST())
+   MFEM_DECLARE_KERNELS(ApplyPAKernels, KernelType, MFEM_PARAM_LIST(int, int))
+   MFEM_DECLARE_KERNELS(DiagonalPAKernels, DiagonalKernelType,
+                        MFEM_PARAM_LIST(int, int))
 
    using ApplyKernelsType =
       KernelDispatchTable<ApplyPAKernels, UserParams, FallbackParams>;
@@ -2435,31 +2424,11 @@ public:
 
    const Coefficient *GetCoefficient() const { return Q; }
 
-   static void AddSpecialization1D()
+   template <int DIM, int D1D, int Q1D>
+   static void AddSpecialization()
    {
-      // D1D and Q1D are unused in the actual implementation.
-      ApplyKernelsType:: template AddSpecialization1D<0, 0>  apply_helper_functor;
-      DiagKernelsType:: template AddSpecialization1D<0, 0>  diag_helper_functor;
-      apply_helper_functor(&kernels.apply);
-      diag_helper_functor(&kernels.diag);
-   }
-
-   template <int D1D, int Q1D>
-   static void AddSpecialization2D()
-   {
-      ApplyKernelsType:: template AddSpecialization2D<D1D, Q1D>  apply_helper_functor;
-      DiagKernelsType:: template AddSpecialization2D<D1D, Q1D>  diag_helper_functor;
-      apply_helper_functor(&kernels.apply);
-      diag_helper_functor(&kernels.diag);
-   }
-
-   template <int D1D, int Q1D>
-   static void AddSpecialization3D()
-   {
-      ApplyKernelsType:: template AddSpecialization3D<D1D, Q1D>  apply_helper_functor;
-      DiagKernelsType:: template AddSpecialization3D<D1D, Q1D>  diag_helper_functor;
-      apply_helper_functor(&kernels.apply);
-      diag_helper_functor(&kernels.diag);
+      kernels.apply.AddSpecialization<DIM,D1D,Q1D>();
+      kernels.diag.AddSpecialization<DIM,D1D,Q1D>();
    }
 };
 

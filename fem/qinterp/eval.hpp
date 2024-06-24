@@ -193,28 +193,28 @@ static void Values3D(const int NE,
 
 } // namespace internal
 
-using KernelType = QuadratureInterpolator::EvalKernelType;
+// using KernelType = QuadratureInterpolator::EvalKernelType;
 
-template<QVectorLayout Q_LAYOUT>
-inline
-KernelType QuadratureInterpolator::EvalKernels::Kernel1D() { return internal::quadrature_interpolator::Values1D<Q_LAYOUT>; }
+// template<QVectorLayout Q_LAYOUT>
+// inline
+// KernelType QuadratureInterpolator::EvalKernels::Kernel1D() { return internal::quadrature_interpolator::Values1D<Q_LAYOUT>; }
 
-template<QVectorLayout Q_LAYOUT,
-         int T_VDIM, int T_D1D, int T_Q1D, int T_NBZ>
-inline
-KernelType QuadratureInterpolator::EvalKernels::Kernel2D() { return internal::quadrature_interpolator::Values2D<Q_LAYOUT, T_VDIM, T_D1D, T_Q1D, T_NBZ>; }
+// template<QVectorLayout Q_LAYOUT,
+//          int T_VDIM, int T_D1D, int T_Q1D, int T_NBZ>
+// inline
+// KernelType QuadratureInterpolator::EvalKernels::Kernel2D() { return internal::quadrature_interpolator::Values2D<Q_LAYOUT, T_VDIM, T_D1D, T_Q1D, T_NBZ>; }
 
-template<QVectorLayout Q_LAYOUT,
-         int T_VDIM, int T_D1D, int T_Q1D>
-inline
-KernelType QuadratureInterpolator::EvalKernels::Kernel3D()  { return internal::quadrature_interpolator::Values3D<Q_LAYOUT, T_VDIM, T_D1D, T_Q1D>; }
+// template<QVectorLayout Q_LAYOUT,
+//          int T_VDIM, int T_D1D, int T_Q1D>
+// inline
+// KernelType QuadratureInterpolator::EvalKernels::Kernel3D()  { return internal::quadrature_interpolator::Values3D<Q_LAYOUT, T_VDIM, T_D1D, T_Q1D>; }
 
-template<QVectorLayout Q_LAYOUT>
-inline
-KernelType QuadratureInterpolator::EvalKernels::Fallback2D()  { return internal::quadrature_interpolator::Values2D<Q_LAYOUT>; }
+// template<QVectorLayout Q_LAYOUT>
+// inline
+// KernelType QuadratureInterpolator::EvalKernels::Fallback2D()  { return internal::quadrature_interpolator::Values2D<Q_LAYOUT>; }
 
-template<QVectorLayout Q_LAYOUT>
-inline
-KernelType QuadratureInterpolator::EvalKernels::Fallback3D() { return internal::quadrature_interpolator::Values3D<Q_LAYOUT>; }
+// template<QVectorLayout Q_LAYOUT>
+// inline
+// KernelType QuadratureInterpolator::EvalKernels::Fallback3D() { return internal::quadrature_interpolator::Values3D<Q_LAYOUT>; }
 
 } // namespace mfem

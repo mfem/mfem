@@ -1208,41 +1208,43 @@ inline void SmemPADiffusionApply3D(const int NE,
 
 } // namespace internal
 
-template<int T_D1D, int T_Q1D, int T_NBZ>
-inline
-DiffusionIntegrator::ApplyPAKernels::KernelSignature
-DiffusionIntegrator::ApplyPAKernels::Kernel2D() { return internal::SmemPADiffusionApply2D<T_D1D, T_Q1D, T_NBZ>; }
+using KernelType = MassIntegrator::KernelType;
+using DiagonalKernelType = MassIntegrator::DiagonalKernelType;
 
-template<int T_D1D, int T_Q1D>
-inline
-DiffusionIntegrator::ApplyPAKernels::KernelSignature
-DiffusionIntegrator::ApplyPAKernels::Kernel3D() { return internal::SmemPADiffusionApply3D<T_D1D, T_Q1D>; }
+template<int DIM, int T_D1D, int T_Q1D>
+inline DiffusionIntegrator::ApplyPAKernels::KernelSignature
+DiffusionIntegrator::ApplyPAKernels::Kernel()
+{
+   if (DIM == 2) { return internal::SmemPADiffusionApply2D<T_D1D,T_Q1D,0>; }
+   else if (DIM == 3) { return internal::SmemPADiffusionApply3D<T_D1D, T_Q1D>; }
+   else { MFEM_ABORT(""); }
+}
 
-inline
-DiffusionIntegrator::ApplyPAKernels::KernelSignature
-DiffusionIntegrator::ApplyPAKernels::Fallback2D() { return internal::PADiffusionApply2D<0,0>; }
+inline DiffusionIntegrator::ApplyPAKernels::KernelSignature
+DiffusionIntegrator::ApplyPAKernels::Fallback(int DIM)
+{
+   if (DIM == 2) { return internal::PADiffusionApply2D<0,0>; }
+   else if (DIM == 3) { return internal::PADiffusionApply3D<0,0>; }
+   else { MFEM_ABORT(""); }
+}
 
-inline
-DiffusionIntegrator::ApplyPAKernels::KernelSignature
-DiffusionIntegrator::ApplyPAKernels::Fallback3D() { return internal::PADiffusionApply3D<0,0>; }
+template<int DIM, int T_D1D, int T_Q1D>
+inline DiffusionIntegrator::DiagonalPAKernels::KernelSignature
+DiffusionIntegrator::DiagonalPAKernels::Kernel()
+{
+   if (DIM == 2) { return internal::SmemPADiffusionDiagonal2D<T_D1D,T_Q1D,0>; }
+   else if (DIM == 3) { return internal::SmemPADiffusionDiagonal2D<T_D1D, T_Q1D>; }
+   else { MFEM_ABORT(""); }
+}
 
-template<int T_D1D, int T_Q1D, int T_NBZ>
-inline
-DiffusionIntegrator::DiagonalPAKernels::KernelSignature
-DiffusionIntegrator::DiagonalPAKernels::Kernel2D() { return internal::SmemPADiffusionDiagonal2D<T_D1D, T_Q1D, T_NBZ>; }
+inline DiffusionIntegrator::DiagonalPAKernels::KernelSignature
+DiffusionIntegrator::DiagonalPAKernels::Fallback(int DIM)
+{
+   if (DIM == 2) { return internal::PADiffusionDiagonal2D<0,0>; }
+   else if (DIM == 3) { return internal::PADiffusionDiagonal3D<0,0>; }
+   else { MFEM_ABORT(""); }
+}
 
-template<int T_D1D, int T_Q1D  >
-inline
-DiffusionIntegrator::DiagonalPAKernels::KernelSignature
-DiffusionIntegrator::DiagonalPAKernels::Kernel3D() { return internal::SmemPADiffusionDiagonal3D<T_D1D, T_Q1D>; }
-
-inline
-DiffusionIntegrator::DiagonalPAKernels::KernelSignature
-DiffusionIntegrator::DiagonalPAKernels::Fallback2D() { return internal::PADiffusionDiagonal2D<0,0>; }
-
-inline
-DiffusionIntegrator::DiagonalPAKernels::KernelSignature
-DiffusionIntegrator::DiagonalPAKernels::Fallback3D() { return internal::PADiffusionDiagonal3D<0,0>; }
 } // namespace mfem
 
 #endif
