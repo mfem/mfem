@@ -32,22 +32,22 @@ if (MFEM_USE_MPI)
   add_mfem_miniapp(distance
     MAIN distance.cpp
     ${DIST_COMMON_FILES}
-    LIBRARIES mfem mfem-common)
+    LIBRARIES mfem-common)
 
   add_mfem_miniapp(diffusion
     MAIN diffusion.cpp
     ${DIST_COMMON_FILES}
-    LIBRARIES mfem mfem-common)
+    LIBRARIES mfem-common)
 
   add_mfem_miniapp(extrapolate
     MAIN extrapolate.cpp
     ${DIST_COMMON_FILES}
-    LIBRARIES mfem mfem-common)
+    LIBRARIES mfem-common)
 
   add_mfem_miniapp(lsf_integral
     MAIN lsf_integral.cpp
     ${DIST_COMMON_FILES}
-    LIBRARIES mfem mfem-common)
+    LIBRARIES mfem-common)
 
   if (MFEM_ENABLE_TESTING)
     set(PARALLEL_TESTS
