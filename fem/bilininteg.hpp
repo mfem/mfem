@@ -2524,6 +2524,7 @@ class VectorFEDivergenceIntegrator : public BilinearFormIntegrator
 {
 protected:
    Coefficient *Q;
+   real_t alpha;
 
    using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
@@ -2545,8 +2546,8 @@ private:
    int dim, ne, dofs1D, L2dofs1D, quad1D;
 
 public:
-   VectorFEDivergenceIntegrator() { Q = NULL; }
-   VectorFEDivergenceIntegrator(Coefficient &q) { Q = &q; }
+   VectorFEDivergenceIntegrator(real_t a = 1.0) { alpha = a; Q = NULL; }
+   VectorFEDivergenceIntegrator(Coefficient &q,real_t a = 1.0) { alpha = a;  Q = &q; }
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
                                       DenseMatrix &elmat) { }
@@ -2585,6 +2586,34 @@ public:
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
 };
+
+
+/** Integrator for $(Q \nabla u, v)$ for ND/RT ($v$) and $H^1$ ($u$) elements. */
+class VectorFEGradIntegrator: public BilinearFormIntegrator
+{
+protected:
+   Coefficient *Q;
+
+private:
+#ifndef MFEM_THREAD_SAFE
+   DenseMatrix dshape;
+   DenseMatrix dshapedxt;
+   DenseMatrix vshape;
+   DenseMatrix invdfdx;
+#endif
+
+public:
+   VectorFEGradIntegrator() { Q = NULL; }
+   VectorFEGradIntegrator(Coefficient &q) { Q = &q; }
+   virtual void AssembleElementMatrix(const FiniteElement &el,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &elmat) { }
+   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                       const FiniteElement &test_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
+};
+
 
 /** Integrator for $(\mathrm{curl}(u), v)$ for Nedelec and Raviart-Thomas elements. If the trial and
     test spaces are switched, assembles the form $(u, \mathrm{curl}(v))$. */
@@ -3606,12 +3635,15 @@ public:
                                         FaceElementTransformations &Trans,
                                         DenseMatrix &elmat);
 
-   /*virtual void AssembleFaceMatrix(const FiniteElement &trial_face_fe,
+   virtual void AssembleFaceMatrix(const FiniteElement &trial_face_fe,
                                    const FiniteElement &test_fe1,
                                    const FiniteElement &test_fe2,
                                    FaceElementTransformations &Trans,
-                                   DenseMatrix &elmat);*/
-
+                                   DenseMatrix &elmat)
+   {
+      AssembleTraceFaceMatrix(Trans.Elem1->ElementNo,
+                              trial_face_fe, test_fe1, Trans,elmat);
+   }
 };
 
 
