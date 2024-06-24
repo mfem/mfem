@@ -231,7 +231,7 @@ public:
    void CountElementsPerVDof(Array<int> &elem_per_vdof) const override;
 
    /// Parallel version of GridFunction::GetDerivative(); see its documentation.
-   void GetDerivative(int comp, int der_comp, ParGridFunction &der);
+   void GetDerivative(int comp, int der_comp, ParGridFunction &der) const;
 
    /** Sets the output vector @a dof_vals to the values of the degrees of
        freedom of element @a el. If @a el is greater than or equal to the number
@@ -262,7 +262,6 @@ public:
                               const Array<int> &attr) override
    { ProjectBdrCoefficient(coeff, NULL, attr); }
 
-   // Only the values in the master are guaranteed to be correct!
    void ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
                                      const Array<int> &bdr_attr) override;
 

@@ -22,6 +22,7 @@ int main(int argc, char *argv[])
 #endif
 
    mfem::Device device("cuda");
+
    // Include only tests labeled with CUDA. Exclude parallel tests.
    return RunCatchSession(argc, argv, {"[CUDA]", "~[Parallel]"});
 }
