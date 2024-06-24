@@ -13,6 +13,9 @@
 # at Lawrence Livermore National Laboratory (LLNL). This entire pipeline is
 # LLNL-specific!
 
+include:
+  - project: 'lc-templates/id_tokens'
+    file: 'id_tokens.yml'
 
 # The pipeline is divided into stages. Usually, jobs in a given stage wait for
 # the preceding stages to complete before to start. However, we sometimes use

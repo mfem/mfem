@@ -10,59 +10,8 @@
 // CONTRIBUTING.md for details.
 
 #include "complex_densemat.hpp"
+#include "lapack.hpp"
 #include <complex>
-
-#ifdef MFEM_USE_LAPACK
-#ifdef MFEM_USE_SINGLE
-extern "C" void
-cgetrf_(int *, int *, std::complex<float> *, int *, int *, int *);
-extern "C" void
-cgetrs_(char *, int *, int *, std::complex<float> *, int *, int *,
-        std::complex<float> *, int *, int *);
-extern "C" void
-cgetri_(int *, std::complex<float> *, int *, int *,
-        std::complex<float> *, int *, int *);
-extern "C" void
-ctrsm_(char *, char *, char *, char *, int *, int *, std::complex<float> *,
-       std::complex<float> *, int *, std::complex<float> *, int *);
-extern "C" void
-cpotrf_(char *, int *, std::complex<float> *, int *, int *);
-
-extern "C" void
-ctrtrs_(char *, char*, char *, int *, int *, std::complex<float> *, int *,
-        std::complex<float> *, int *, int *);
-extern "C" void
-cpotri_(char *, int *, std::complex<float> *, int*, int *);
-
-extern "C" void
-cpotrs_(char *, int *, int *, std::complex<float> *, int *,
-        std::complex<float> *, int *, int *);
-#elif defined MFEM_USE_DOUBLE
-extern "C" void
-zgetrf_(int *, int *, std::complex<double> *, int *, int *, int *);
-extern "C" void
-zgetrs_(char *, int *, int *, std::complex<double> *, int *, int *,
-        std::complex<double> *, int *, int *);
-extern "C" void
-zgetri_(int *, std::complex<double> *, int *, int *,
-        std::complex<double> *, int *, int *);
-extern "C" void
-ztrsm_(char *, char *, char *, char *, int *, int *, std::complex<double> *,
-       std::complex<double> *, int *, std::complex<double> *, int *);
-extern "C" void
-zpotrf_(char *, int *, std::complex<double> *, int *, int *);
-
-extern "C" void
-ztrtrs_(char *, char*, char *, int *, int *, std::complex<double> *, int *,
-        std::complex<double> *, int *, int *);
-extern "C" void
-zpotri_(char *, int *, std::complex<double> *, int*, int *);
-
-extern "C" void
-zpotrs_(char *, int *, int *, std::complex<double> *, int *,
-        std::complex<double> *, int *, int *);
-#endif
-#endif
 
 namespace mfem
 {
@@ -175,35 +124,17 @@ ComplexDenseMatrix * ComplexDenseMatrix::ComputeInverse()
    std::complex<real_t> qwork, *work;
    int    info;
 
-#ifdef MFEM_USE_SINGLE
-   cgetrf_(&w, &w, data, &w, ipiv, &info);
-#elif defined MFEM_USE_DOUBLE
-   zgetrf_(&w, &w, data, &w, ipiv, &info);
-#else
-   MFEM_ABORT("Floating point type undefined");
-#endif
+   MFEM_LAPACK_COMPLEX(getrf_)(&w, &w, data, &w, ipiv, &info);
    if (info)
    {
       mfem_error("DenseMatrix::Invert() : Error in ZGETRF");
    }
 
-#ifdef MFEM_USE_SINGLE
-   cgetri_(&w, data, &w, ipiv, &qwork, &lwork, &info);
-#elif defined MFEM_USE_DOUBLE
-   zgetri_(&w, data, &w, ipiv, &qwork, &lwork, &info);
-#else
-   MFEM_ABORT("Floating point type undefined");
-#endif
+   MFEM_LAPACK_COMPLEX(getri_)(&w, data, &w, ipiv, &qwork, &lwork, &info);
    lwork = (int) qwork.real();
    work = new std::complex<real_t>[lwork];
 
-#ifdef MFEM_USE_SINGLE
-   cgetri_(&w, data, &w, ipiv, work, &lwork, &info);
-#elif defined MFEM_USE_DOUBLE
-   zgetri_(&w, data, &w, ipiv, work, &lwork, &info);
-#else
-   MFEM_ABORT("Floating point type undefined");
-#endif
+   MFEM_LAPACK_COMPLEX(getri_)(&w, data, &w, ipiv, work, &lwork, &info);
    if (info)
    {
       mfem_error("DenseMatrix::Invert() : Error in ZGETRI");
@@ -493,11 +424,7 @@ bool ComplexLUFactors::Factor(int m, real_t TOL)
 #ifdef MFEM_USE_LAPACK
    int info = 0;
    MFEM_VERIFY(data, "Matrix data not set");
-#ifdef MFEM_USE_SINGLE
-   if (m) { cgetrf_(&m, &m, data, &m, ipiv, &info); }
-#elif defined MFEM_USE_DOUBLE
-   if (m) { zgetrf_(&m, &m, data, &m, ipiv, &info); }
-#endif
+   if (m) { MFEM_LAPACK_COMPLEX(getrf_)(&m, &m, data, &m, ipiv, &info); }
    return info == 0;
 #else
    // compiling without LAPACK
@@ -659,13 +586,10 @@ void ComplexLUFactors::Solve(int m, int n, real_t *X_r, real_t * X_i) const
    std::complex<real_t> * x = ComplexFactors::RealToComplex(m*n,X_r,X_i);
    char trans = 'N';
    int  info = 0;
-#ifdef MFEM_USE_SINGLE
-   if (m > 0 && n > 0) { cgetrs_(&trans, &m, &n, data, &m, ipiv, x, &m, &info); }
-#elif defined MFEM_USE_DOUBLE
-   if (m > 0 && n > 0) { zgetrs_(&trans, &m, &n, data, &m, ipiv, x, &m, &info); }
-#else
-   MFEM_ABORT("Floating point type undefined");
-#endif
+   if (m > 0 && n > 0)
+   {
+      MFEM_LAPACK_COMPLEX(getrs_)(&trans, &m, &n, data, &m, ipiv, x, &m, &info);
+   }
    MFEM_VERIFY(!info, "LAPACK: error in ZGETRS");
    ComplexFactors::ComplexToReal(m*n,x,X_r,X_i);
    delete [] x;
@@ -685,15 +609,8 @@ void ComplexLUFactors::RightSolve(int m, int n, real_t *X_r, real_t * X_i) const
    if (m > 0 && n > 0)
    {
       std::complex<real_t> alpha(1.0,0.0);
-#ifdef MFEM_USE_SINGLE
-      ctrsm_(&side,&u_ch,&n_ch,&n_ch,&n,&m,&alpha,data,&m,X,&n);
-      ctrsm_(&side,&l_ch,&n_ch,&u_ch,&n,&m,&alpha,data,&m,X,&n);
-#elif defined MFEM_USE_DOUBLE
-      ztrsm_(&side,&u_ch,&n_ch,&n_ch,&n,&m,&alpha,data,&m,X,&n);
-      ztrsm_(&side,&l_ch,&n_ch,&u_ch,&n,&m,&alpha,data,&m,X,&n);
-#else
-      MFEM_ABORT("Floating point type undefined");
-#endif
+      MFEM_LAPACK_COMPLEX(trsm_)(&side,&u_ch,&n_ch,&n_ch,&n,&m,&alpha,data,&m,X,&n);
+      MFEM_LAPACK_COMPLEX(trsm_)(&side,&l_ch,&n_ch,&u_ch,&n,&m,&alpha,data,&m,X,&n);
    }
 #else
    // compiling without LAPACK
@@ -815,13 +732,7 @@ bool ComplexCholeskyFactors::Factor(int m, real_t TOL)
    int info = 0;
    char uplo = 'L';
    MFEM_VERIFY(data, "Matrix data not set");
-#ifdef MFEM_USE_SINGLE
-   if (m) {cpotrf_(&uplo, &m, data, &m, &info);}
-#elif defined MFEM_USE_DOUBLE
-   if (m) {zpotrf_(&uplo, &m, data, &m, &info);}
-#else
-   MFEM_ABORT("Floating point type undefined");
-#endif
+   if (m) { MFEM_LAPACK_COMPLEX(potrf_)(&uplo, &m, data, &m, &info); }
    return info == 0;
 #else
    // Cholesky–Crout algorithm
@@ -921,13 +832,8 @@ void ComplexCholeskyFactors::LSolve(int m, int n, real_t * X_r,
    char diag = 'N';
    int info = 0;
 
-#ifdef MFEM_USE_SINGLE
-   ctrtrs_(&uplo, &trans, &diag, &m, &n, data, &m, x, &m, &info);
-#elif defined MFEM_USE_DOUBLE
-   ztrtrs_(&uplo, &trans, &diag, &m, &n, data, &m, x, &m, &info);
-#else
-   MFEM_ABORT("Floating point type undefined");
-#endif
+   MFEM_LAPACK_COMPLEX(trtrs_)(&uplo, &trans, &diag, &m, &n, data, &m, x, &m,
+                               &info);
    MFEM_VERIFY(!info, "ComplexCholeskyFactors:LSolve:: info");
 #else
    for (int k = 0; k < n; k++)
@@ -960,13 +866,8 @@ void ComplexCholeskyFactors::USolve(int m, int n, real_t * X_r,
    char diag = 'N';
    int info = 0;
 
-#ifdef MFEM_USE_SINGLE
-   ctrtrs_(&uplo, &trans, &diag, &m, &n, data, &m, x, &m, &info);
-#elif defined MFEM_USE_DOUBLE
-   ztrtrs_(&uplo, &trans, &diag, &m, &n, data, &m, x, &m, &info);
-#else
-   MFEM_ABORT("Floating point type undefined");
-#endif
+   MFEM_LAPACK_COMPLEX(trtrs_)(&uplo, &trans, &diag, &m, &n, data, &m, x, &m,
+                               &info);
    MFEM_VERIFY(!info, "ComplexCholeskyFactors:USolve:: info");
 #else
    // X <- L^{-t} X
@@ -994,13 +895,7 @@ void ComplexCholeskyFactors::Solve(int m, int n, real_t * X_r,
    char uplo = 'L';
    int info = 0;
    std::complex<real_t> *x = ComplexFactors::RealToComplex(m*n,X_r,X_i);
-#ifdef MFEM_USE_SINGLE
-   cpotrs_(&uplo, &m, &n, data, &m, x, &m, &info);
-#elif defined MFEM_USE_DOUBLE
-   zpotrs_(&uplo, &m, &n, data, &m, x, &m, &info);
-#else
-   MFEM_ABORT("Floating point type undefined");
-#endif
+   MFEM_LAPACK_COMPLEX(potrs_)(&uplo, &m, &n, data, &m, x, &m, &info);
    MFEM_VERIFY(!info, "ComplexCholeskyFactors:Solve:: info");
    ComplexFactors::ComplexToReal(m*n,x,X_r,X_i);
    delete x;
@@ -1026,15 +921,8 @@ void ComplexCholeskyFactors::RightSolve(int m, int n, real_t * X_r,
    std::complex<real_t> alpha(1.0,0.0);
    if (m > 0 && n > 0)
    {
-#ifdef MFEM_USE_SINGLE
-      ctrsm_(&side,&uplo,&transt,&diag,&n,&m,&alpha,data,&m,x,&n);
-      ctrsm_(&side,&uplo,&trans,&diag,&n,&m,&alpha,data,&m,x,&n);
-#elif defined MFEM_USE_DOUBLE
-      ztrsm_(&side,&uplo,&transt,&diag,&n,&m,&alpha,data,&m,x,&n);
-      ztrsm_(&side,&uplo,&trans,&diag,&n,&m,&alpha,data,&m,x,&n);
-#else
-      MFEM_ABORT("Floating point type undefined");
-#endif
+      MFEM_LAPACK_COMPLEX(trsm_)(&side,&uplo,&transt,&diag,&n,&m,&alpha,data,&m,x,&n);
+      MFEM_LAPACK_COMPLEX(trsm_)(&side,&uplo,&trans,&diag,&n,&m,&alpha,data,&m,x,&n);
    }
 #else
    // X <- X L^{-H}
@@ -1085,13 +973,7 @@ void ComplexCholeskyFactors::GetInverseMatrix(int m, real_t * X_r,
    }
    char uplo = 'L';
    int info = 0;
-#ifdef MFEM_USE_SINGLE
-   cpotri_(&uplo, &m, X, &m, &info);
-#elif defined MFEM_USE_DOUBLE
-   zpotri_(&uplo, &m, X, &m, &info);
-#else
-   MFEM_ABORT("Floating point type undefined");
-#endif
+   MFEM_LAPACK_COMPLEX(potri_)(&uplo, &m, X, &m, &info);
    MFEM_VERIFY(!info, "ComplexCholeskyFactors:GetInverseMatrix:: info");
    // fill in the upper triangular part
    for (int i = 0; i<m; i++)

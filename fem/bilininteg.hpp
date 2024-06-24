@@ -1741,7 +1741,7 @@ public:
    { vector_fe.CalcPhysDShape(Trans, shape); }
 };
 
-/** Class for integrating the bilinear form $a(u,v) := (-\hat{V} \cdot  \nabla \cdot u, \nabla \cdot v)$ in 2D
+/** Class for integrating the bilinear form $a(u,v) := (-\hat{V} \cdot \nabla u, \nabla \cdot v)$ in 2D
     or 3D and where $\hat{V}$ is a vector coefficient, $u$ is in $H^1$ and $v$ is in $H(div)$. */
 class MixedGradDivIntegrator : public MixedScalarVectorIntegrator
 {
@@ -1780,7 +1780,7 @@ public:
    { scalar_fe.CalcPhysDivShape(Trans, shape); }
 };
 
-/** Class for integrating the bilinear form $a(u,v) := (-\hat{V} \nabla \cdot u, \nabla \cdot v)$ in 2D
+/** Class for integrating the bilinear form $a(u,v) := (-\hat{V} \nabla \cdot u, \nabla v)$ in 2D
     or 3D and where $\hat{V}$ is a vector coefficient, $u$ is in $H(div)$ and $v$ is in $H^1$. */
 class MixedDivGradIntegrator : public MixedScalarVectorIntegrator
 {
@@ -1820,7 +1820,7 @@ public:
    { scalar_fe.CalcPhysDivShape(Trans, shape); }
 };
 
-/** Class for integrating the bilinear form $a(u,v) := (-\hat{V} u, \nabla \cdot v)$ in 2D or 3D
+/** Class for integrating the bilinear form $a(u,v) := (-\hat{V} u, \nabla v)$ in 2D or 3D
     and where $\hat{V}$ is a vector coefficient, $u$ is in $H^1$ or $L_2$ and $v$ is in $H^1$. */
 class MixedScalarWeakDivergenceIntegrator : public MixedScalarVectorIntegrator
 {

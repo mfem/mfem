@@ -206,7 +206,7 @@ int main (int argc, char *argv[])
    solver.SetMaxIter(200);
    solver.SetRelTol(1e-10);
    solver.SetAbsTol(0.0);
-   solver.EnableAdaptiveSurfaceFitting();
+   solver.SetAdaptiveSurfaceFittingScalingFactor(10);
    solver.SetTerminationWithMaxSurfaceFittingError(1e-3);
 
    // Solve.

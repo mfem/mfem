@@ -66,6 +66,7 @@
 #include "../../general/forall.hpp"
 
 using namespace mfem;
+using namespace std;
 
 // Constant variables
 constexpr int DIM = 2;
