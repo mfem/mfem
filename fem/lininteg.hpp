@@ -212,10 +212,12 @@ class BoundaryNormalLFIntegrator : public LinearFormIntegrator
    Vector shape;
    VectorCoefficient &Q;
    int oa, ob;
+   real_t alpha;
+
 public:
    /// Constructs a boundary integrator with a given Coefficient QG
-   BoundaryNormalLFIntegrator(VectorCoefficient &QG, int a = 1, int b = 1)
-      : Q(QG), oa(a), ob(b) { }
+   BoundaryNormalLFIntegrator(VectorCoefficient &QG, real_t al = 1.0, int a = 1, int b = 1)
+      : Q(QG), alpha(al), oa(a), ob(b) { }
 
    virtual bool SupportsDevice() const { return true; }
 
@@ -226,6 +228,10 @@ public:
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
+                                       Vector &elvect);
+
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       FaceElementTransformations &Tr,
                                        Vector &elvect);
 
    using LinearFormIntegrator::AssembleRHSElementVect;
