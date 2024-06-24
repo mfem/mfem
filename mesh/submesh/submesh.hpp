@@ -212,6 +212,10 @@ private:
    Array<int> parent_face_ori_;
 
    Array<int> face_to_be;
+
+   /// Mapping from parent face ids (index of the array), to boundary
+   /// element ids of the parent mesh.
+   Array<int> parent_face_to_be;
 };
 
 } // namespace mfem
