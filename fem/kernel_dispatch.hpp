@@ -58,8 +58,7 @@ struct KernelTypeList { };
       using KernelSignature = KernelType;                                      \
       template <int DIM, FallbackParams, UserParams>                           \
       static KernelSignature Kernel();                                         \
-      template <FallbackParams>                                                \
-      static KernelSignature Fallback(int dim);                                \
+      static KernelSignature Fallback(int dim, FallbackParams);                \
       static KernelName ## Kernels &Get()                                      \
       { static KernelName ## Kernels table; return table;}                     \
    };
@@ -110,20 +109,21 @@ public:
    // TODO(bowen) Force this to use the same signature as the Signature typedef
    // above.
    template<typename... KernelArgs>
-   void Run(int dim, UserParams... params, KernelArgs&... args)
+   void Run(int dim, FallbackParams... f_params, UserParams... u_params,
+            KernelArgs&&... args)
    {
-      std::tuple<int, UserParams...> key;
-      key = std::make_tuple(dim, params...);
+      std::tuple<int, FallbackParams..., UserParams...> key;
+      key = std::make_tuple(dim, f_params..., u_params...);
       const auto it = this->table.find(key);
       if (it != this->table.end())
       {
          printf("Using specialized kernel\n");
-         it->second(args...);
+         it->second(std::forward<KernelArgs>(args)...);
       }
       else
       {
          printf("Using non-specialized kernel\n");
-         Kernels::Fallback(dim)(args...);
+         Kernels::Fallback(dim, f_params...)(std::forward<KernelArgs>(args)...);
       }
    }
 

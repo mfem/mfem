@@ -492,13 +492,15 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
 
    if (use_tensor_eval)
    {
+      if (eval_flags & VALUES)
+      {
+         EvalKernels::Get().Run(dim, q_layout, vdim, maps.ndof, maps.nqpt, ne,
+                                maps.B.Read(), e_vec.Read(), q_val.Write(), vdim,
+                                maps.ndof, maps.nqpt);
+      }
       // TODO: use fused kernels
       if (q_layout == QVectorLayout::byNODES)
       {
-         if (eval_flags & VALUES)
-         {
-            TensorValues<QVectorLayout::byNODES>(ne, vdim, maps, e_vec, q_val);
-         }
          if (eval_flags & DERIVATIVES)
          {
             TensorDerivatives<QVectorLayout::byNODES>(
@@ -513,10 +515,6 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
 
       if (q_layout == QVectorLayout::byVDIM)
       {
-         if (eval_flags & VALUES)
-         {
-            TensorValues<QVectorLayout::byVDIM>(ne, vdim, maps, e_vec, q_val);
-         }
          if (eval_flags & DERIVATIVES)
          {
             TensorDerivatives<QVectorLayout::byVDIM>(
