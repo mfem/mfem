@@ -14,16 +14,16 @@
 // Compile with: make pmaxwell
 //
 // sample run
-// mpirun -np 4 pmaxwell -m ../../data/star.mesh -o 2 -sref 0 -pref 3 -rnum 0.5 -prob 0
-// mpirun -np 4 pmaxwell -m ../../data/inline-quad.mesh -o 3 -sref 0 -pref 3 -rnum 4.8 -sc -prob 0
-// mpirun -np 4 pmaxwell -m ../../data/inline-hex.mesh -o 2 -sref 0 -pref 1 -rnum 0.8 -sc -prob 0
-// mpirun -np 4 pmaxwell -m ../../data/inline-quad.mesh -o 3 -sref 1 -pref 3 -rnum 4.8 -sc -prob 2
-// mpirun -np 4 pmaxwell -o 3 -sref 1 -pref 2 -rnum 11.8 -sc -prob 3
-// mpirun -np 4 pmaxwell -o 3 -sref 1 -pref 2 -rnum 9.8 -sc -prob 4
+//  mpirun -np 4 pmaxwell -m ../../data/star.mesh -o 2 -sref 0 -pref 3 -rnum 0.5 -prob 0
+//  mpirun -np 4 pmaxwell -m ../../data/inline-quad.mesh -o 3 -sref 0 -pref 3 -rnum 4.8 -sc -prob 0
+//  mpirun -np 4 pmaxwell -m ../../data/inline-hex.mesh -o 2 -sref 0 -pref 1 -rnum 0.8 -sc -prob 0
+//  mpirun -np 4 pmaxwell -m ../../data/inline-quad.mesh -o 3 -sref 1 -pref 3 -rnum 4.8 -sc -prob 2
+//  mpirun -np 4 pmaxwell -o 3 -sref 1 -pref 2 -rnum 11.8 -sc -prob 3
+//  mpirun -np 4 pmaxwell -o 3 -sref 1 -pref 2 -rnum 9.8 -sc -prob 4
 
 // AMR run. Note that this is a computationally intensive sample run.
 // We recommend trying it on a large machine with more mpi ranks
-// mpirun -np 4 pmaxwell -o 3 -sref 0 -pref 15 -prob 1 -theta 0.7 -sc
+//  mpirun -np 4 pmaxwell -o 3 -sref 0 -pref 15 -prob 1 -theta 0.7 -sc
 
 // Description:
 // This example code demonstrates the use of MFEM to define and solve

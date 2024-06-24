@@ -308,6 +308,7 @@ int main (int argc, char *argv[])
       partitioning = 0;
       bdr_partitioning.SetSize(mesh->GetNBE());
       bdr_partitioning = 0;
+      np = 1;
    }
    else
    {
@@ -382,8 +383,12 @@ int main (int argc, char *argv[])
            "f) Find physical point in reference space\n"
            "p) Generate a partitioning\n"
            "o) Reorder elements\n"
-           "S) Save in MFEM format\n"
+           "S) Save in MFEM serial format\n"
+           "T) Save in MFEM parallel format using the current partitioning\n"
            "V) Save in VTK format (only linear and quadratic meshes)\n"
+#ifdef MFEM_USE_NETCDF
+           "X) Save in Exodus II format (only linear and quadratic meshes)\n"
+#endif
            "D) Save as a DataCollection\n"
            "q) Quit\n"
 #ifdef MFEM_USE_ZLIB
@@ -1037,7 +1042,7 @@ int main (int argc, char *argv[])
                partitioning.SetSize(mesh->GetNE());
                for (int i = 0; i < mesh->GetNE(); i++)
                {
-                  partitioning[i] = i * np / mesh->GetNE();
+                  partitioning[i] = (long long)i * np / mesh->GetNE();
                }
                recover_bdr_partitioning(mesh, partitioning, bdr_partitioning);
             }
@@ -1250,6 +1255,33 @@ int main (int argc, char *argv[])
          cout << "New mesh file: " << omesh_file << endl;
       }
 
+      if (mk == 'T')
+      {
+         string mesh_prefix("mesh-explorer.mesh."), line;
+         MeshPartitioner partitioner(*mesh, np, partitioning);
+         MeshPart mesh_part;
+         cout << "Enter mesh file prefix or press <enter> to use \""
+              << mesh_prefix << "\": " << flush;
+         // extract and ignore all characters after 'T' up to and including the
+         // new line:
+         cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+         getline(cin, line);
+         if (!line.empty()) { mesh_prefix = line; }
+         int precision;
+         cout << "Enter floating point output precision (num. digits): "
+              << flush;
+         cin >> precision;
+         for (int i = 0; i < np; i++)
+         {
+            partitioner.ExtractPart(i, mesh_part);
+
+            ofstream omesh(MakeParFilename(mesh_prefix, i));
+            omesh.precision(precision);
+            mesh_part.Print(omesh);
+         }
+         cout << "New parallel mesh files: " << mesh_prefix << "<rank>" << endl;
+      }
+
       if (mk == 'V')
       {
          const char omesh_file[] = "mesh-explorer.vtk";
@@ -1258,6 +1290,15 @@ int main (int argc, char *argv[])
          mesh->PrintVTK(omesh);
          cout << "New VTK mesh file: " << omesh_file << endl;
       }
+
+#ifdef MFEM_USE_NETCDF
+      if (mk == 'X')
+      {
+         const char omesh_file[] = "mesh-explorer.e";
+         mesh->PrintExodusII(omesh_file);
+         cout << "New Exodus II mesh file: " << omesh_file << endl;
+      }
+#endif
 
       if (mk == 'D')
       {
