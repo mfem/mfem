@@ -44,7 +44,7 @@ protected:
    BilinearForm *M;
    BilinearForm *K;
 
-   SparseMatrix Mmat, Kmat, Kmat0;
+   SparseMatrix Mmat, Kmat;
    SparseMatrix *T; // T = M + dt K
    real_t current_dt;
 
@@ -83,25 +83,24 @@ WaveOperator::WaveOperator(FiniteElementSpace &f,
    : SecondOrderTimeDependentOperator(f.GetTrueVSize(), (real_t) 0.0),
      fespace(f), M(NULL), K(NULL), T(NULL), current_dt(0.0), z(height)
 {
-   const real_t rel_tol = 1e-8;
-
-   fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-
+   // Assemble Laplace matrix
    c2 = new ConstantCoefficient(speed*speed);
-
    K = new BilinearForm(&fespace);
    K->AddDomainIntegrator(new DiffusionIntegrator(*c2));
    K->Assemble();
 
-   Array<int> dummy;
-   K->FormSystemMatrix(dummy, Kmat0);
-   K->FormSystemMatrix(ess_tdof_list, Kmat);
-
+   // Assemble Mass matrix
    M = new BilinearForm(&fespace);
    M->AddDomainIntegrator(new MassIntegrator());
    M->Assemble();
+
+   // Apply Bcs
+   fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   K->FormSystemMatrix(ess_tdof_list, Kmat);
    M->FormSystemMatrix(ess_tdof_list, Mmat);
 
+   // Configure preconditioner
+   const real_t rel_tol = 1e-8;
    M_solver.iterative_mode = false;
    M_solver.SetRelTol(rel_tol);
    M_solver.SetAbsTol(0.0);
@@ -110,14 +109,13 @@ WaveOperator::WaveOperator(FiniteElementSpace &f,
    M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(Mmat);
 
+   // Configure solver
    T_solver.iterative_mode = false;
    T_solver.SetRelTol(rel_tol);
    T_solver.SetAbsTol(0.0);
    T_solver.SetMaxIter(100);
    T_solver.SetPrintLevel(0);
    T_solver.SetPreconditioner(T_prec);
-
-   T = NULL;
 }
 
 void WaveOperator::Mult(const Vector &u, const Vector &du_dt,
@@ -126,9 +124,11 @@ void WaveOperator::Mult(const Vector &u, const Vector &du_dt,
    // Compute:
    //    d2udt2 = M^{-1}*-K(u)
    // for d2udt2
-   Kmat.Mult(u, z);
+   K->FullMult(u, z);
    z.Neg(); // z = -z
+   z.SetSubVector(ess_tdof_list, 0.0);
    M_solver.Mult(z, d2udt2);
+   d2udt2.SetSubVector(ess_tdof_list, 0.0);
 }
 
 void WaveOperator::ImplicitSolve(const real_t fac0, const real_t fac1,
@@ -142,14 +142,11 @@ void WaveOperator::ImplicitSolve(const real_t fac0, const real_t fac1,
       T = Add(1.0, Mmat, fac0, Kmat);
       T_solver.SetOperator(*T);
    }
-   Kmat0.Mult(u, z);
+   K->FullMult(u, z);
    z.Neg();
-
-   for (int i = 0; i < ess_tdof_list.Size(); i++)
-   {
-      z[ess_tdof_list[i]] = 0.0;
-   }
+   z.SetSubVector(ess_tdof_list, 0.0);
    T_solver.Mult(z, d2udt2);
+   d2udt2.SetSubVector(ess_tdof_list, 0.0);
 }
 
 void WaveOperator::SetParameters(const Vector &u)
@@ -314,7 +311,6 @@ int main(int argc, char *argv[])
          ess_bdr = 0;
       }
    }
-
    WaveOperator oper(fespace, ess_bdr, speed);
 
    u_gf.SetFromTrueDofs(u);
