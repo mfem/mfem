@@ -43,23 +43,22 @@ protected:
 public:
    using EvalKernelType = void(*)(const int, const real_t *, const real_t *,
                                   real_t *, const int, const int, const int);
-   using EvalUserParams = internal::KernelTypeList<QVectorLayout, int, int, int>;
+   using EvalUserParams = internal::KernelTypeList<int, int, int>;
    using EvalFallbackParams = internal::KernelTypeList<QVectorLayout>;
 
    using GradKernelType = void(*)(const int, const real_t *, const real_t *,
                                   const real_t *, const real_t *,
                                   real_t *, const int, const int, const int, const int );
-   using GradUserParams =
-      internal::KernelTypeList<QVectorLayout, bool, int, int, int>;
-   using GradFallbackParams = internal::KernelTypeList<QVectorLayout>;
+   using GradUserParams = internal::KernelTypeList<int, int, int>;
+   using GradFallbackParams = internal::KernelTypeList<QVectorLayout,bool>;
 
+   MFEM_DECLARE_KERNELS_2(EvalKernels, EvalKernelType,
+                          MFEM_PARAM_LIST(int, int, int),
+                          MFEM_PARAM_LIST(QVectorLayout))
 
-   MFEM_DECLARE_KERNELS_WITH_FALLBACK_PARAMS(EvalKernels, EvalKernelType,
-                                             MFEM_PARAM_LIST(QVectorLayout, int, int, int), QVectorLayout)
-
-   MFEM_DECLARE_KERNELS_WITH_FALLBACK_PARAMS(GradKernels, GradKernelType,
-                                             MFEM_PARAM_LIST(QVectorLayout, bool, int, int, int),
-                                             MFEM_PARAM_LIST(QVectorLayout, bool))
+   MFEM_DECLARE_KERNELS_2(GradKernels, GradKernelType,
+                          MFEM_PARAM_LIST(int, int, int),
+                          MFEM_PARAM_LIST(QVectorLayout, bool))
 
    using EvalKernelsType =
       KernelDispatchTable<EvalKernels, EvalUserParams, EvalFallbackParams>;
@@ -74,54 +73,16 @@ public:
    };
    static Kernels kernels;
 
-   template<QVectorLayout Q_LAYOUT, int, int, int>
-   static void AddEvalSpecialization1D()
+   template<int DIM, QVectorLayout Q_LAYOUT, int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0>
+   static void AddEvalSpecialization()
    {
-      // VDIM, D1D, and Q1D are unused in the actual implementation.
-      EvalKernelsType:: template AddSpecialization1D<Q_LAYOUT, 0, 0, 0>
-      helper_functor;
-      helper_functor(&kernels.eval);
+      kernels.eval.AddSpecialization<DIM, Q_LAYOUT, T_VDIM, T_D1D, T_Q1D>();
    }
 
-   template<QVectorLayout Q_LAYOUT, int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0>
-   static void AddEvalSpecialization2D()
+   template<int DIM, QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0>
+   static void AddGradSpecialization()
    {
-      EvalKernelsType:: template AddSpecialization2D<Q_LAYOUT, T_VDIM, T_D1D, T_Q1D>
-      helper_functor;
-      helper_functor(&kernels.eval);
-   }
-
-   template<QVectorLayout Q_LAYOUT, int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0>
-   static void AddEvalSpecialization3D()
-   {
-      EvalKernelsType:: template AddSpecialization3D<Q_LAYOUT, T_VDIM, T_D1D, T_Q1D>
-      helper_functor;
-      helper_functor(&kernels.eval);
-   }
-
-   template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int, int, int>
-   static void AddGradSpecialization1D()
-   {
-      // VDIM, D1D, and Q1D are unused in the actual implementation.
-      GradKernelsType:: template AddSpecialization1D<Q_LAYOUT, GRAD_PHYS, 0, 0, 0>
-      helper_functor;
-      helper_functor(&kernels.eval);
-   }
-
-   template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0>
-   static void AddGradSpecialization2D()
-   {
-      GradKernelsType:: template
-      AddSpecialization2D<Q_LAYOUT, GRAD_PHYS, T_VDIM, T_D1D, T_Q1D>  helper_functor;
-      helper_functor(&kernels.eval);
-   }
-
-   template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0>
-   static void AddGradSpecialization3D()
-   {
-      GradKernelsType:: template
-      AddSpecialization3D<Q_LAYOUT, GRAD_PHYS, T_VDIM, T_D1D, T_Q1D>  helper_functor;
-      helper_functor(&kernels.eval);
+      kernels.grad.AddSpecialization<DIM, Q_LAYOUT, GRAD_PHYS, T_VDIM, T_D1D, T_Q1D>();
    }
 
    static const int MAX_NQ2D = 100;
