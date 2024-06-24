@@ -92,12 +92,34 @@ void HybridizationExtension::ConstructH()
    const int m = h.fes.GetFE(0)->GetDof();
    const int n = h.c_fes.GetFaceElement(0)->GetDof();
 
+   {
+      // Eliminate essential boundary conditions in Ahat matrices.
+      const bool *d_ess_hat_dof_marker = ess_hat_dof_marker.Read();
+      auto d_Ahat_inv = Reshape(Ahat_inv.ReadWrite(), m, m, ne);
+      mfem::forall(ne*m, [=] MFEM_HOST_DEVICE (int idx)
+      {
+         if (d_ess_hat_dof_marker[idx])
+         {
+            const int i = idx % m;
+            const int e = idx / m;
+            for (int j = 0; j < m; ++j)
+            {
+               d_Ahat_inv(i, j, e) = 0.0;
+               d_Ahat_inv(j, i, e) = 0.0;
+            }
+            d_Ahat_inv(i, i, e) = 1.0;
+         }
+      });
+   }
+
    Vector AhatInvCt_mat(Ct_mat);
    {
       DenseTensor Ahat_inv_dt;
       Ahat_inv_dt.NewMemoryAndSize(Ahat_inv.GetMemory(), m, m, ne, false);
+      BatchLUFactor(Ahat_inv_dt, Ahat_piv);
       BatchLUSolve(Ahat_inv_dt, Ahat_piv, AhatInvCt_mat, n*n_faces_per_el);
    }
+
    const auto d_AhatInvCt =
       Reshape(AhatInvCt_mat.Read(), m, n, n_faces_per_el, ne);
 
@@ -416,60 +438,29 @@ void HybridizationExtension::MultC(const Vector &x, Vector &y) const
 void HybridizationExtension::AssembleMatrix(int el, const DenseMatrix &elmat)
 {
    const int n = elmat.Width();
-   real_t *Ainv = Ahat_inv.GetData() + el*n*n;
-   int *ipiv = Ahat_piv.GetData() + el*n;
-
-   std::copy(elmat.GetData(), elmat.GetData() + n*n, Ainv);
-
-   // Eliminate essential DOFs from the local matrix
-   for (int i = 0; i < n; ++i)
+   const real_t *d_elmat = elmat.Read();
+   real_t *d_Ahat = Ahat_inv.ReadWrite();
+   const int offset = el*n*n;
+   mfem::forall(n*n, [=] MFEM_HOST_DEVICE (int i)
    {
-      const int idx = i + el*n;
-      if (ess_hat_dof_marker[idx])
-      {
-         for (int j = 0; j < n; ++j)
-         {
-            Ainv[i + j*n] = 0.0;
-            Ainv[j + i*n] = 0.0;
-         }
-         Ainv[i + i*n] = 1.0;
-      }
-   }
-
-   LUFactors lu(Ainv, ipiv);
-   lu.Factor(n);
+      d_Ahat[offset + i] += d_elmat[i];
+   });
 }
 
-void HybridizationExtension::AssembleElementMatrices(
-   const class DenseTensor &el_mats)
+void HybridizationExtension::AssembleBdrMatrix(int bdr_el,
+                                               const DenseMatrix &elmat)
 {
-   Ahat_inv.Write();
-   Ahat_inv.GetMemory().CopyFrom(el_mats.GetMemory(), el_mats.TotalSize());
+   MFEM_ABORT("Not yet implemented.");
+}
 
-   const int ne = h.fes.GetNE();
-   const int n = el_mats.SizeI();
-
-   const bool *d_ess_hat_dof_marker = ess_hat_dof_marker.Read();
-   auto d_Ahat_inv = Reshape(Ahat_inv.ReadWrite(), n, n, ne);
-   mfem::forall(ne*n, [=] MFEM_HOST_DEVICE (int idx)
+void HybridizationExtension::AssembleElementMatrices(const DenseTensor &elmats)
+{
+   const real_t *d_elmats = elmats.Read();
+   real_t *d_Ahat = Ahat_inv.ReadWrite();
+   mfem::forall(elmats.TotalSize(), [=] MFEM_HOST_DEVICE (int i)
    {
-      if (d_ess_hat_dof_marker[idx])
-      {
-         const int i = idx % n;
-         const int e = idx / n;
-         for (int j = 0; j < n; ++j)
-         {
-            d_Ahat_inv(i, j, e) = 0.0;
-            d_Ahat_inv(j, i, e) = 0.0;
-         }
-         d_Ahat_inv(i, i, e) = 1.0;
-      }
+      d_Ahat[i] += d_elmats[i];
    });
-
-   // TODO: better batched linear algebra (e.g. cuBLAS)
-   DenseTensor Ahat_inv_dt;
-   Ahat_inv_dt.NewMemoryAndSize(Ahat_inv.GetMemory(), n, n, ne, false);
-   BatchLUFactor(Ahat_inv_dt, Ahat_piv);
 }
 
 void HybridizationExtension::Init(const Array<int> &ess_tdof_list)
@@ -531,6 +522,8 @@ void HybridizationExtension::Init(const Array<int> &ess_tdof_list)
 
    Ahat_inv.SetSize(ne*ndof_per_el*ndof_per_el);
    Ahat_piv.SetSize(ne*ndof_per_el);
+   Ahat_inv.UseDevice(true);
+   Ahat_inv = 0.0;
 
    ConstructC();
 
@@ -708,7 +701,6 @@ void HybridizationExtension::MultAhatInv(Vector &x) const
    const int ne = h.fes.GetMesh()->GetNE();
    const int n = h.fes.GetFE(0)->GetDof();
 
-   // TODO: better batched linear algebra (e.g. cuBLAS)
    DenseTensor Ahat_inv_dt;
    Ahat_inv_dt.NewMemoryAndSize(Ahat_inv.GetMemory(), n, n, ne, false);
    BatchLUSolve(Ahat_inv_dt, Ahat_piv, x);
