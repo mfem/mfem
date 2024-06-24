@@ -207,6 +207,10 @@ public:
    /// Replaces the current matrix with its square root inverse
    void SquareRootInverse();
 
+   /// Replaces the current matrix with its exponential
+   /// (currently only supports 2x2 matrices)
+   void Exponential();
+
    /// Calculates the determinant of the matrix
    /// (optimized for 2x2, 3x3, and 4x4 matrices)
    real_t Det() const;
@@ -579,6 +583,13 @@ void AddMult_a_ABt(real_t a, const DenseMatrix &A, const DenseMatrix &B,
 
 /// Multiply the transpose of a matrix A with a matrix B:   At*B
 void MultAtB(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &AtB);
+
+/// AtB += A^t * B
+void AddMultAtB(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &AtB);
+
+/// AtB += a * A^t * B
+void AddMult_a_AtB(real_t a, const DenseMatrix &A, const DenseMatrix &B,
+                   DenseMatrix &AtB);
 
 /// AAt += a * A * A^t
 void AddMult_a_AAt(real_t a, const DenseMatrix &A, DenseMatrix &AAt);
