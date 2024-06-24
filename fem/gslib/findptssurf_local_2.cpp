@@ -90,8 +90,7 @@ static MFEM_HOST_DEVICE inline double obbox_axis_test(const obbox_t *const b,
                                                       const double x[sDIM])
 {
    double test = 1;
-   for (int d=0; d<sDIM; ++d)
-   {
+   for (int d=0; d<sDIM; ++d) {
       double b_d = (x[d] - b->x[d].min) * (b->x[d].max - x[d]);
       test = test<0 ? test : b_d;
    }
@@ -149,103 +148,36 @@ static MFEM_HOST_DEVICE inline void lin_solve_2(double x[2], const double A[4],
 
 static MFEM_HOST_DEVICE inline double norm2(const double x[2]) { return x[0] * x[0] + x[1] * x[1]; }
 
-/* the bit structure of flags is CSSRR
-   the C bit --- 1<<4 --- is set when the point is converged
+/* the bit structure of flags is CRR
+   the C bit --- 1<<2 --- is set when the point is converged
    RR is 0 = 00b if r is unconstrained,
-         1 = 01b if r is constrained at -1
-         2 = 10b if r is constrained at +1
-   SS is similarly for s constraints
-   SSRR = smax,smin,rmax,rmin
+         1 = 01b if r is constrained at -1, i.e., rmin
+         2 = 10b if r is constrained at +1, i.e., rmax
 */
 
-// 1u<<4 = 10000b, i.e., 5th bit is set.
-#define CONVERGED_FLAG (1u<<4)
-// 0x prefix indicates hexadecimal, 1f = 11111b, u suffix indicates unsigned int
-// Used to mask flag to ensure only first 5 bits are used.
-#define FLAG_MASK 0x1fu
+// 1u<<2 = 100b, i.e., 3rd bit is set.
+#define CONVERGED_FLAG (1u<<2)
+// 0x prefix indicates hexadecimal, 07 = 7 in decimal, u suffix indicates unsigned int
+// Used to mask flag variable to ensure only first 3 bits are used.
+#define FLAG_MASK 0x07u // = 111b
 
-/* returns the number of constrained reference directions */
+/* returns 1 if r direction (the only free direction in 2D) is constrained.
+   returns 1 if either 1st or 2nd bit of flags is set.
+*/
 static MFEM_HOST_DEVICE inline int num_constrained(const int flags)
 {
-   // OR the 1st and 3rd bits with the 2nd and 4th bits of flag, respectively.
-   // flag hence will have 1 or (and) 3 set if direction r or (and) s is
-   // constrained.
-   const int y = flags | flags >> 1;
-   // (y & 1u)    = 1 if 1st bit is set, i.e., r is constrained
-   // (y>>2 & 1u) = 1 if 3rd bit is set, i.e., s is constrained.
-   return (y&1u) + (y>>2 & 1u);
+   return ((flags | flags>>1) & 1u);
 }
 
-/* (x>>1)&1u = discards 1st bit, and tests if the result has its 1st bit set.
-               Effectively tests 2nd bit of x.
-   (x>>2)&2u = discards first 2 bits, and tests if the result has its 2nd bit set.
-               Effectively tests 4th bit of x.
-   So, if either 2nd or 4th bit of x is set, return 1, else return 0.
+/* (x>>1)&1u = discards 1st bit, hence tests if the 2nd bit of x is set.
+   (x>>2)&2u = discards first 2 bits, hence tests if the 4th bit of x is set.
+   * So, if either 2nd or 4th bit of x is set, return 1, else return 0. *
+   pi=0, r=-1
+   pi=1, r=+1
 */
 static MFEM_HOST_DEVICE inline int point_index(const int x)
 {
-   return ((x>>1)&1u) | ((x>>2)&2u);
-}
-
-//pi=0, r=-1,s=-1
-//pi=1, r=+1,s=-1
-//pi=2, r=-1,s=+1
-//pi=3, r=+1,s=+1
-static MFEM_HOST_DEVICE inline findptsElementGPT_t get_pt(const double *elx[2],
-                                                          const double *wtend,
-                                                          int pi, int pN)
-{
-   findptsElementGPT_t pt;
-
-#define ELX(d, j, k) elx[d][j + k * pN]
-
-   int r_g_wt_offset = pi % 2 == 0 ? 0 : 1; //wtend offset for gradient
-   int s_g_wt_offset = pi < 2 ? 0 : 1;
-   int jidx = pi % 2 == 0 ? 0 : pN-1;
-   int kidx = pi < 2 ? 0 : pN-1;
-
-   pt.x[0] = ELX(0, jidx, kidx);
-   pt.x[1] = ELX(1, jidx, kidx);
-
-   pt.jac[0] = 0.0;
-   pt.jac[1] = 0.0;
-   pt.jac[2] = 0.0;
-   pt.jac[3] = 0.0;
-   for (int j = 0; j < pN; ++j)
-   {
-      //dx/dr
-      pt.jac[0] += wtend[3 * r_g_wt_offset * pN + pN + j] * ELX(0, j, kidx);
-
-      // dy/dr
-      pt.jac[1] += wtend[3 * r_g_wt_offset * pN + pN + j] * ELX(1, j, kidx);
-
-      // dx/ds
-      pt.jac[2] += wtend[3 * s_g_wt_offset * pN + pN + j] * ELX(0, kidx, j);
-
-      // dy/ds
-      pt.jac[3] += wtend[3 * s_g_wt_offset * pN + pN + j] * ELX(1, kidx, j);
-   }
-
-   pt.hes[0] = 0.0;
-   pt.hes[1] = 0.0;
-   pt.hes[2] = 0.0;
-   pt.hes[3] = 0.0;
-   for (int j = 0; j < pN; ++j)
-   {
-      //d2x/dr2
-      pt.hes[0] += wtend[3 * r_g_wt_offset * pN + 2*pN + j] * ELX(0, j, kidx);
-
-      // d2y/dr2
-      pt.hes[2] += wtend[3 * r_g_wt_offset * pN + 2*pN + j] * ELX(1, j, kidx);
-
-      // d2x/ds2
-      pt.hes[1] += wtend[3 * s_g_wt_offset * pN + 2*pN + j] * ELX(0, kidx, j);
-
-      // d2y/ds2
-      pt.hes[3] += wtend[3 * s_g_wt_offset * pN + 2*pN + j] * ELX(1, kidx, j);
-   }
-#undef ELX
-   return pt;
+   return ((x>>1) & 1u);
 }
 
 /* check reduction in objective against prediction, and adjust
@@ -263,13 +195,13 @@ static MFEM_HOST_DEVICE bool reject_prior_step_q(findptsElementPoint_t *out,
    const double pred = p->dist2p;
    out->x[0] = p->x[0];
    out->x[1] = p->x[1];
-   out->oldr[0] = p->r[0];
+   out->oldr = p->r;
    out->dist2 = dist2;
-   if (decr >= 0.01 * pred) {
-      if (decr >= 0.9 * pred) { // very good iteration
+   if (decr >= 0.01*pred) {
+      if (decr >= 0.9*pred) { // very good iteration
          out->tr = p->tr*2;
       }
-      else {                    // somewhat good iteration
+      else {                  // somewhat good iteration
          out->tr = p->tr;
       }
       return false;
@@ -279,11 +211,11 @@ static MFEM_HOST_DEVICE bool reject_prior_step_q(findptsElementPoint_t *out,
          again, and we set things up here so it gets classed as a
          "very good iteration" --- this doubles the trust radius,
          which is why we divide by 4 below */
-      double v0 = fabs(p->r[0] - p->oldr[0]);
-      out->tr = v0/4;
+      double v0 = fabs(p->r - p->oldr);
+      out->tr = v0/4.0;
       out->dist2 = p->dist2;
-      out->r[0] = p->oldr[0];
-      out->flags = p->flags >> 5;
+      out->r = p->oldr;
+      out->flags = p->flags>>3;
       out->dist2p = -DBL_MAX;
       if (pred < dist2*tol) {
          out->flags |= CONVERGED_FLAG;
@@ -293,50 +225,50 @@ static MFEM_HOST_DEVICE bool reject_prior_step_q(findptsElementPoint_t *out,
 }
 
 static MFEM_HOST_DEVICE inline void newton_edge(findptsElementPoint_t *const out,
-                                                const double jac[4],
-                                                const double rhes,
+                                                const double jac[2],
+                                                const double rhess,
                                                 const double resid[2],
                                                 int flags,
                                                 const findptsElementPoint_t *const p,
                                                 const double tol)
 {
    const double tr = p->tr;
-   const double A = jac[0] * jac[0] + jac[2] * jac[2] - rhes; // A = J^T J - resid_d H_d
-   const double y = jac[0]*resid[0] + jac[2]*resid[1];        // y = J^T resid
+   const double A = jac[0] * jac[0] + jac[1] * jac[1] - rhess; // A = J^T J - resid_d H_d
+   const double y = jac[0]*resid[0] + jac[1]*resid[1];        // y = J^T resid
 
-   const double oldr = p->r[0];
-   double dr, nr, tdr, tnr;
-   double v, tv;
+   const double oldr = p->r;
+   double dr, newr, tdr, tnewr, v, tv;
    int new_flags=0, tnew_flags=0;
 
-#define EVAL(dr) (dr*A - 2*y) * dr
+#define EVAL(dr) ( (dr*A - 2*y) * dr )
    /* if A is not SPD, quadratic model has no minimum */
    if (A>0) {
-      dr = y/A, nr = oldr+dr;
-      if (fabs(dr)<tr && fabs(nr)<1) {
+      dr = y/A, newr = oldr+dr;
+      if (fabs(dr)<tr && fabs(newr)<1) { // test if new dr and r are within bounds for use
          v = EVAL(dr);
          goto newton_edge_fin;
       }
    }
 
-   if ((nr=oldr-tr) > -1) {
+   if ((newr=oldr-tr) > -1) { // if oldr is at least tr distance away from r=-1
       dr = -tr;
-   }
+   }                          // else set newr=-1 and set dr that supports this newr 
    else {
-      nr = -1, dr = -1-oldr, new_flags = flags|1u;
+      newr = -1, dr = -1-oldr, new_flags = flags|1u;
    }
    v = EVAL(dr);
+   std::cout << "oldr: " << oldr << ", tr: " << tr << std::endl;
 
-   if ((tnr=oldr+tr) < 1) {
+   if ((tnewr=oldr+tr) < 1) { // same as above, but for r=1; tdr is a temporary dr
       tdr = tr;
    }
    else {
-      tnr = 1, tdr = 1-oldr, tnew_flags = flags|2u;
+      tnewr = 1, tdr = 1-oldr, tnew_flags = flags|2u;
    }
-   tv = EVAL(tdr);
+   tv = EVAL(tdr);          // new v value if dr is chosen based on r=1
 
-   if (tv<v) {
-      nr = tnr, dr = tdr, v = tv, new_flags = tnew_flags;
+   if (tv<v) {              // compare the two possible dr values, based on r=-1 and r=1
+      newr = tnewr, dr = tdr, v = tv, new_flags = tnew_flags;
    }
 #undef EVAL
 
@@ -345,16 +277,22 @@ newton_edge_fin:
    if (fabs(dr)<tol) {
       new_flags |= CONVERGED_FLAG;
    }
-   out->r[0] = nr;
+   out->r = newr;
    out->dist2p = -v;
-   out->flags = flags | new_flags | (p->flags << 5);
+   out->flags = flags | new_flags | (p->flags<<3);
+   // std::cout << "newr: " << newr
+   //           << ", flags: "  << flags
+   //           << ", new_flags: " << new_flags
+   //           << ", p->flags: " << p->flags
+   //           << ", out->flags:" << out->flags
+   //           << std::endl;
 }
 
 static MFEM_HOST_DEVICE void seed_j( const double *elx[sDIM],
                                      const double x[sDIM],
                                      const double *z, //GLL point locations [-1, 1]
                                      double       *dist2,
-                                     double       *r[rDIM],
+                                     double       *r,
                                      const int    ir,
                                      const int    pN )
 {
@@ -368,9 +306,9 @@ static MFEM_HOST_DEVICE void seed_j( const double *elx[sDIM],
    }
    dist2[ir] = DBL_MAX;
    const double dist2_rs = norm2(dx);
-   if (dist2[ir]>dist2_rs) {  // adi: why this check and not just set dist2[ir] = dist2_rs?
+   if (dist2[ir]>dist2_rs) {
       dist2[ir] = dist2_rs;
-      r[0][ir] = z[ir];
+      r[ir] = z[ir];
    }
 }
 
@@ -402,9 +340,9 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
 {
 #define MAX_CONST(a, b) (((a) > (b)) ? (a) : (b))
    const int sdim2 = sDIM*sDIM;
-   const int   MD1 = T_D1D ? T_D1D : 14;  // max polynomial degree = T_D1D
-   const int   D1D = T_D1D ? T_D1D : pN;  // Polynomial degree = T_D1D
-   const int  p_NE = D1D;
+   const int MD1 = T_D1D ? T_D1D : 14;
+   const int D1D = T_D1D ? T_D1D : pN;
+   const int p_NE = D1D;
    const int p_NEL = nel*p_NE;
 
    MFEM_VERIFY(MD1<=14,"Increase Max allowable polynomial order.");
@@ -421,7 +359,7 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
    }
    std::cout << std::endl;
 
-   /* A macro expansion that
+   /* A macro expansion that for
       1) CPU: expands to a standard for loop
       2) GPU: assigns thread blocks of size nThreads for npt total threads and
               then executes all statements within the loop in parallel.
@@ -455,20 +393,16 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
          Note that all statements outside of MFEM_FOREACH_THREAD are executed by
          all threads too.
       */
-      // MFEM_FOREACH_THREAD(j,x,nThreads)
-      // {
-      // }
-      // MFEM_SYNC_THREAD;
 
       // x and y coord index within point_pos for point i
       int id_x = point_pos_ordering == 0 ? i     : i*sDIM;
       int id_y = point_pos_ordering == 0 ? i+npt : i*sDIM+1;
       double x_i[2] = {x[id_x], x[id_y]};
 
-      int     *code_i = code_base + i;
-      int       *el_i = el_base + i;
-      int   *newton_i = newton + i;
-      double     *r_i = r_base + rDIM*i;  // ref coords. of point i
+      int *code_i = code_base + i;
+      int *el_i = el_base + i;
+      int *newton_i = newton + i;
+      double *r_i = r_base + rDIM*i;  // ref coords. of point i
       double *dist2_i = dist2_base + i;
 
       //---------------- map_points_to_els --------------------
@@ -482,15 +416,15 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
       hash.hash_n = hash_n;
       hash.offset = hashOffset;
       
-      const int         hi = hash_index(&hash, x_i);
-      const int       *elp = hash.offset + hash.offset[hi];    // start of possible elements containing x_i
+      const int hi = hash_index(&hash, x_i);
+      const int *elp = hash.offset + hash.offset[hi];    // start of possible elements containing x_i
       const int *const ele = hash.offset + hash.offset[hi+1];  // end of possible elements containing x_i
       *code_i = CODE_NOT_FOUND;
       *dist2_i = DBL_MAX;
 
       // Search through all elements that could contain x_i
       for (; elp!=ele; ++elp) {
-         // NOTE: elp is a pointer, which is being incremented
+         // NOTE: the pointer elp is being incremented, to the next index
          const int el = *elp;
 
          // construct obbox_t on the fly for element el
@@ -508,12 +442,11 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
          MFEM_FOREACH_THREAD(j,x,nThreads)
          {
             if (j==0) {
-               std::cout << "el | hash_index | obbox_xbnd | obbox_ybnd | threadID: "
-                        << el << " | "
-                        << hi << " | "
-                        << box.x[0].min << ", " << box.x[0].max << " | "
-                        << box.x[1].min << ", " << box.x[1].max << " | "
-                        << j << std::endl;
+               std::cout << "el: " << el
+                         << ", hash_index: " << hi
+                         << ", obbox_xbnd: " << box.x[0].min << ", " << box.x[0].max
+                         << ", obbox_ybnd: "<< box.x[1].min << ", " << box.x[1].max
+                         << ", threadID: " << j << std::endl;
             }
          }
          MFEM_SYNC_THREAD;
@@ -529,8 +462,8 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
 
                //--------------- findpts_el ----------------
                {
-                  // Initialize findptsElementPoint_t struct for point i
                   MFEM_SYNC_THREAD;
+                  // Initialize findptsElementPoint_t struct for point i
                   MFEM_FOREACH_THREAD(j,x,nThreads)
                   {
                      if (j==0) {
@@ -552,12 +485,10 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
                   {
                      // pointers to shared memory for convenience, note r_temp's address
                      double *dist2_temp = r_workspace_ptr;
-                     double *r_temp[rDIM];
-
-                     r_temp[0] = dist2_temp + D1D;
+                     double *r_temp = dist2_temp + D1D;
 
                      // Each thread finds the closest point in the element for a
-                     // specific r and all s.
+                     // specific r values.
                      // Then we minimize the distance across all threads.
                      MFEM_FOREACH_THREAD(j,x,nThreads)
                      {
@@ -568,11 +499,10 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
                      MFEM_FOREACH_THREAD(j,x,nThreads)
                      {
                         if (j==0) {
-                           fpt->dist2 = DBL_MAX;
                            for (int ir=0; ir<D1D; ++ir) {
                               if (dist2_temp[ir]<fpt->dist2) {
                                  fpt->dist2 = dist2_temp[ir];
-                                 fpt->r[0] = r_temp[0][ir];
+                                 fpt->r = r_temp[ir];
                               }
                            }
                         }
@@ -588,46 +518,59 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
                         tmp->dist2p = 0;
                         tmp->tr = 1;
                         tmp->flags = 0;
+                        tmp->r = fpt->r;
                      }
-                     if (j<sDIM) tmp->x[j] = fpt->x[j];
-                     if (j==0)   tmp->r[0] = fpt->r[0];
+                     if (j<sDIM) {
+                        tmp->x[j] = fpt->x[j];
+                     }
                   }
                   MFEM_SYNC_THREAD;
 
                   MFEM_FOREACH_THREAD(j,x,nThreads)
                   {
                      if (j==0) {
-                        std::cout << "el_pass | point | seeddist | seedref | threadID: "
-                                  << el << " | "
-                                  << fpt->x[0] << ", " << fpt->x[1] << " | "
-                                  << fpt->dist2 << " | "
-                                  << fpt->r[0]  << " | "
-                                  << j << std::endl;
+                        std::cout << "el_pass: " << el
+                                  << ", point: " << fpt->x[0] << ", " << fpt->x[1]
+                                  << ", seeddist: "<< fpt->dist2
+                                  << ", seedref: " << fpt->r
+                                  << ", threadID: " << j << std::endl;
+                                  
                      }
                   }
                   MFEM_SYNC_THREAD;
 
-                  for (int step=0; step < 50; step++) {
-                     std::cout << "step: " << step << std::endl;
-                     // number of constrained reference directions
-                     int nc = num_constrained(tmp->flags & FLAG_MASK);
-                     std::cout << "num_constrained: " << nc << std::endl;
-                     nc = 1;
+                  for (int step=0; step<50; step++) {
+                     int nc = num_constrained(tmp->flags & FLAG_MASK); // number of constrained reference directions
+                     MFEM_FOREACH_THREAD(j,x,nThreads)
+                     {
+                        if (j==0) {
+                           std::cout << "step: " << step
+                                     << ", num_constrained: " << nc
+                                     << ", flags: " << fpt->flags << ", " << tmp->flags
+                                     << ", dist2: " << fpt->dist2
+                                     << ", r: " << fpt->r
+                                     << ", threadID: " << j << std::endl;
+                        }
+                     }
+                     MFEM_SYNC_THREAD;
+
                      switch (nc) {
-                        case 1:   // the point is constrained to 1 and only 1 edge
+                        // r is unconstrained
+                        case 0:
                         {
-                           double *wt = r_workspace_ptr;  // 2*D1D, value, derivative and 2nd derivative
-                           double *resid = wt + 3*D1D;    // sdim coord components, so sdim residuals
-                           double *jac = resid + sDIM;    // sdim*sdim, jac will be row-major
-                           double *hess = jac + sDIM*sDIM;// 2, 2nd derivative of two phy. coords in r 
+                           double *wt = r_workspace_ptr;    // 3*D1D: value, derivative and 2nd derivative
+                           double *resid = wt + 3*D1D;      // sdim coord components, so sdim residuals
+                           double *jac = resid + sDIM*rDIM; // sdim, dx/dr, dy/dr
+                           double *hess = jac + sDIM*rDIM;  // 3, 2nd derivative of two phy. coords in r 
 
                            findptsElementGEdge_t edge;
                            MFEM_FOREACH_THREAD(j,x,nThreads)
                            {
                               const int mask = 2u;
                               if ((constraint_init_t[j] & mask) == 0) {
+                                 // pointers to memory where to store the x & y coordinates of DOFS along the edge
                                  for (int d=0; d<sDIM; ++d) {
-                                    edge.x[d] = constraint_workspace + d*D1D; // pointers to memory where to store the x & y coordinates of DOFS along the edge
+                                    edge.x[d] = constraint_workspace + d*D1D;
                                  }
                                  if (j<pN) {
                                     for (int d=0; d<sDIM; ++d) {
@@ -643,7 +586,7 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
                            MFEM_FOREACH_THREAD(j,x,nThreads)
                            {
                               if (j<D1D) {
-                                 lagrange_eval_second_derivative(wt, tmp->r[0], j, gll1D, lagcoeff, D1D);
+                                 lagrange_eval_second_derivative(wt, tmp->r, j, gll1D, lagcoeff, D1D);
                               }
                            }
                            MFEM_SYNC_THREAD;
@@ -652,15 +595,15 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
                            {
                               if (j<sDIM) {
                                  resid[j] = tmp->x[j];
-                                 jac[2*j] = 0.0;
-                                 jac[2*j + 1] = 0.0;
+                                 jac[j] = 0.0;
                                  hess[j] = 0.0;
                                  for (int k=0; k<D1D; ++k) {
-                                    resid[j] -= wt[k]*edge.x[j][k];      // wt[k] = value of the basis function
-                                    jac[2*j] += wt[k+D1D]*edge.x[j][k];  // wt[k+D1D] = derivative of the basis in r
-                                    jac[2*j+1] += 0.0;                   // derivative of basis in s is 0
-                                    hess[j] += wt[k+2*D1D]*edge.x[j][k]; // wt[k+2*D1D] = 2nd derivative of the basis function
+                                    resid[j] -= wt[      k]*edge.x[j][k]; // wt[k] = value of the basis function
+                                    jac[j]   += wt[D1D  +k]*edge.x[j][k]; // wt[k+D1D] = derivative of the basis in r
+                                    hess[j]  += wt[2*D1D+k]*edge.x[j][k]; // wt[k+2*D1D] = 2nd derivative of the basis function
                                  }
+                                 // std::cout << "jac[" << j << "]: " << jac[j]
+                                 //           << ", resid[" << j << "]: " << resid[j] << std::endl;
                               }
                            }
                            MFEM_SYNC_THREAD;
@@ -668,148 +611,122 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
                            MFEM_FOREACH_THREAD(j,x,nThreads)
                            {
                               if (j==0) {
-                                 hess[2] = resid[0]*hess[0] + resid[1]*hess[1];  // adi: what is this?
+                                 hess[2] = resid[0]*hess[0] + resid[1]*hess[1];
                               }
                            }
                            MFEM_SYNC_THREAD;
 
-                           MFEM_FOREACH_THREAD(l,x,nThreads)
+                           MFEM_FOREACH_THREAD(j,x,nThreads)
                            {
-                              if (l==0) {
-                                 // check prior step //
-                                 if (!reject_prior_step_q(fpt, resid, tmp, tol)) {
-                                    newton_edge( fpt,
-                                                 jac,
-                                                 hess[2],
-                                                 resid,
-                                                 tmp->flags & FLAG_MASK,
-                                                 tmp,
-                                                 tol );
+                              if (j==0) {
+                                 if ( !reject_prior_step_q(fpt, resid, tmp, tol) ) {
+                                    newton_edge( fpt, jac, hess[2], resid, tmp->flags&FLAG_MASK, tmp, tol );
                                  }
                               }
                            }
                            MFEM_SYNC_THREAD;
                            break;
                         }
-                        case 2:   // Constrained to 2 edges, i.e., at a corner
+                        // r is constrained to either -1 or 1
+                        case 1:
                         {
-               //             MFEM_FOREACH_THREAD(j,x,nThreads)
-               //             {
-               //                if (j == 0)
-               //                {
-               //                   int de = 0;
-               //                   int dn = 0;
-               //                   const int pi = point_index(tmp->flags & FLAG_MASK);
-               //                   const findptsElementGPT_t gpt = get_pt(elx, wtend, pi, D1D);
+                           double *wt = r_workspace_ptr;  // 3*D1D: basis functions, their derivatives and 2nd derivatives
 
-               //                   const double *const pt_x = gpt.x,
-               //                                       *const jac = gpt.jac,
-               //                                              *const hes = gpt.hes;
+                           // compute basis function info upto 2nd derivative for tangential components
+                           MFEM_FOREACH_THREAD(j,x,nThreads)
+                           {
+                              if (j<D1D) {
+                                 lagrange_eval_second_derivative(wt, tmp->r, j, gll1D, lagcoeff, D1D);
+                              }
+                           }
+                           MFEM_SYNC_THREAD;
 
-               //                   double resid[dim], steep[dim], sr[dim];
-               //                   for (int d = 0; d < dim; ++d)
-               //                   {
-               //                      resid[d] = fpt->x[d] - pt_x[d];
-               //                   }
-               //                   steep[0] = jac[0]*resid[0] + jac[2]*resid[1],
-               //                              steep[1] = jac[1]*resid[0] + jac[3]*resid[1];
+                           MFEM_FOREACH_THREAD(j,x,nThreads)
+                           {
+                              if (j==0) {
+                                 const int pi = point_index(tmp->flags & FLAG_MASK);
+                                 std::cout << "pi: " << pi << std::endl;
+                                 findptsElementGPT_t gpt;
+                                 for (int d=0; d<sDIM; ++d) {
+                                    gpt.x[d] = elx[d][pi*(pN-1)];
+                                    gpt.jac[d] = 0.0;
+                                    gpt.hes[d] = 0.0;
+                                    for (int k=0; k<D1D; ++k) {
+                                       gpt.jac[d] += wt[D1D  +k]*elx[d][k];  // dx_d/dr
+                                       gpt.hes[d] += wt[2*D1D+k]*elx[d][k];  // d2x_d/dr2
+                                    }
+                                 }
 
-               //                   sr[0] = steep[0]*tmp->r[0];
-               //                   sr[1] = steep[1]*tmp->r[1];
-               //                   if (!reject_prior_step_q(fpt, resid, tmp, tol))
-               //                   {
-               //                      if (sr[0]<0)
-               //                      {
-               //                         if (sr[1]<0)
-               //                         {
-               //                            newton_area(fpt, jac, resid, tmp, tol);
-               //                         }
-               //                         else
-               //                         {
-               //                            de=0;
-               //                            dn=1;
-               //                            const double rh = resid[0]*hes[de]+
-               //                                              resid[1]*hes[2+de];
-               //                            newton_edge(fpt, jac, rh,
-               //                                        resid, de,
-               //                                        dn,
-               //                                        tmp->flags & FLAG_MASK,
-               //                                        tmp, tol);
-               //                         }
-               //                      }
-               //                      else if (sr[1]<0)
-               //                      {
-               //                         de=1;
-               //                         dn=0;
-               //                         const double rh = resid[0]*hes[de]+
-               //                                           resid[1]*hes[2+de];
-               //                         newton_edge(fpt, jac, rh,
-               //                                     resid, de,
-               //                                     dn,
-               //                                     tmp->flags & FLAG_MASK,
-               //                                     tmp, tol);
-               //                      }
-               //                      else
-               //                      {
-               //                         fpt->r[0] = tmp->r[0];
-               //                         fpt->r[1] = tmp->r[1];
-               //                         fpt->dist2p = 0;
-               //                         fpt->flags = tmp->flags | CONVERGED_FLAG;
-               //                      }
-               //                   }
-               //                }
-               //             }
-               //             MFEM_SYNC_THREAD;
+                                 const double *const pt_x = gpt.x,
+                                              *const jac = gpt.jac,
+                                              *const hes = gpt.hes;
+                                 double resid[sDIM], steep, sr;
+                                 resid[0] = fpt->x[0] - pt_x[0];
+                                 resid[1] = fpt->x[1] - pt_x[1];
+                                 steep = jac[0]*resid[0] + jac[1]*resid[1];
+                                 sr = steep*tmp->r;
+                                 if ( !reject_prior_step_q(fpt, resid, tmp, tol) ) {
+                                    if (sr<0) {
+                                       // adi: hessian 4 or 3 size? compare to case 0
+                                       const double rhess = resid[0]*hes[0] + resid[1]*hes[1];
+                                       newton_edge( fpt, jac, rhess, resid, 0, tmp, tol );
+                                    }
+                                    else { // sr==0
+                                       std::cout << "sr==0" << std::endl;
+                                       fpt->r = tmp->r;
+                                       fpt->r = tmp->r;
+                                       fpt->dist2p = 0;
+                                       fpt->flags = tmp->flags | CONVERGED_FLAG;
+                                    }
+                                 }
+                              }
+                           }
+                           MFEM_SYNC_THREAD;
                            break;
-                        } // case 2
+                        } // case 1
                      } //switch
+                     MFEM_FOREACH_THREAD(j,x,nThreads)
+                     {
+                        if (j==0) {
+                           std::cout << "stepend: " << step
+                                     << ", num_constrained: " << nc
+                                     << ", flags: " << fpt->flags << ", " << tmp->flags
+                                     << ", dist2: " << fpt->dist2
+                                     << ", r: " << fpt->r
+                                     << ", threadID: " << j << std::endl;
+                        }
+                     }
+                     MFEM_SYNC_THREAD;
                      if (fpt->flags & CONVERGED_FLAG) {
                         *newton_i = step+1;
                         break;
                      }
                      MFEM_SYNC_THREAD;
                      MFEM_FOREACH_THREAD(j,x,nThreads)
-                     if (j == 0) {
+                     if (j==0) {
                         *tmp = *fpt;
                      }
                      MFEM_SYNC_THREAD;
-                  } //for int step < 50
+                  } //for int step<50
+               } //findpts_el
+
+               bool converged_internal = (fpt->flags & FLAG_MASK) == CONVERGED_FLAG;
+               if (*code_i == CODE_NOT_FOUND || converged_internal || fpt->dist2 < *dist2_i)
+               {
                   MFEM_FOREACH_THREAD(j,x,nThreads)
                   {
-                     if (j==0) {
-                        std::cout << "el_conv | truepoint | finaldist | finalref | threadID: "
-                                  << el << " | "
-                                  << fpt->x[0] << ", " << fpt->x[1] << " | "
-                                  << fpt->dist2 << " | "
-                                  << fpt->r[0]  << " | "
-                                  << j << std::endl;
+                     if (j == 0) {
+                        *el_i = el;
+                        *code_i = converged_internal ? CODE_INTERNAL : CODE_BORDER;
+                        *dist2_i = fpt->dist2;
+                        *r_i = fpt->r;
                      }
                   }
                   MFEM_SYNC_THREAD;
-               } //findpts_el
-
-   //             bool converged_internal = (fpt->flags & FLAG_MASK) == CONVERGED_FLAG;
-   //             if (*code_i == CODE_NOT_FOUND || converged_internal || fpt->dist2 < *dist2_i)
-   //             {
-   //                MFEM_FOREACH_THREAD(j,x,nThreads)
-   //                {
-   //                   if (j == 0)
-   //                   {
-   //                      *el_i = el;
-   //                      *code_i = converged_internal ? CODE_INTERNAL : CODE_BORDER;
-   //                      *dist2_i = fpt->dist2;
-   //                   }
-   //                   if (j < dim)
-   //                   {
-   //                      r_i[j] = fpt->r[j];
-   //                   }
-   //                }
-   //                MFEM_SYNC_THREAD;
-   //                if (converged_internal)
-   //                {
-   //                   break;
-   //                }
-   //             }
+                  if (converged_internal) {
+                     break;
+                  }
+               }
             } //findpts_local
          } //obbox_test
       } //elp

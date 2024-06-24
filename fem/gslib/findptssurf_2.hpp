@@ -19,42 +19,38 @@
 
 #include <unordered_map>
 
-namespace mfem
-{
+namespace mfem {
 
 #define sDIM 2
 #define rDIM 1
 #define dlong int
 #define dfloat double
 
-struct findptsElementPoint_t
-{
-   dfloat x[sDIM], r[rDIM], oldr[rDIM], dist2, dist2p, tr;
+struct findptsElementPoint_t {
+   dfloat x[sDIM], r, oldr, dist2, dist2p, tr;
    dlong flags;
 };
 
-struct findptsElementGEdge_t
-{
+struct findptsElementGEdge_t {
    dfloat *x[sDIM];
 };
 
-struct findptsElementGPT_t
-{
-   dfloat x[sDIM], jac[sDIM*sDIM], hes[4];
+/* jac: jacobian matrix Jij = delx_i/delr_j; i=x,y; j=r
+ * hes: hessian matrix  Hij = del^2 x_i/delr_j^2; i=x,y; j=r
+*/
+struct findptsElementGPT_t {
+   dfloat x[sDIM], jac[sDIM*rDIM], hes[sDIM*rDIM];
 };
 
-struct dbl_range_t
-{
+struct dbl_range_t {
    dfloat min, max;
 };
-struct obbox_t
-{
+struct obbox_t {
    dfloat c0[sDIM], A[sDIM*sDIM];
    dbl_range_t x[sDIM];
 };
 
-struct findptsLocalHashData_t
-{
+struct findptsLocalHashData_t {
    dlong hash_n;
    dbl_range_t bnd[sDIM];
    dfloat fac[sDIM];
