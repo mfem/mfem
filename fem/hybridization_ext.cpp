@@ -449,7 +449,47 @@ void HybridizationExtension::AssembleMatrix(int el, const DenseMatrix &elmat)
 void HybridizationExtension::AssembleBdrMatrix(int bdr_el,
                                                const DenseMatrix &elmat)
 {
-   MFEM_ABORT("Not yet implemented.");
+   DenseMatrix B = elmat; // deep copy
+   const int n = h.fes.GetFE(0)->GetDof();
+   // Create mapping e2f from element DOF indices to face DOF indices
+   Array<int> e2f(n);
+   e2f = -1;
+   int el;
+   {
+      Mesh &mesh = *h.fes.GetMesh();
+      int info;
+      mesh.GetBdrElementAdjacentElement(bdr_el, el, info);
+      Array<int> lvdofs;
+      lvdofs.Reserve(elmat.Height());
+      h.fes.FEColl()->SubDofOrder(mesh.GetElementGeometry(el),
+                                  mesh.Dimension() - 1, info, lvdofs);
+      // Convert local element dofs to local element vdofs.
+      const int vdim = h.fes.GetVDim();
+      Ordering::DofsToVDofs<Ordering::byNODES>(n/vdim, vdim, lvdofs);
+      MFEM_ASSERT(lvdofs.Size() == elmat.Height(), "internal error");
+
+      B.AdjustDofDirection(lvdofs);
+      FiniteElementSpace::AdjustVDofs(lvdofs);
+      // Create a map from local element vdofs to local boundary (face) vdofs.
+      for (int i = 0; i < lvdofs.Size(); i++)
+      {
+         e2f[lvdofs[i]] = i;
+      }
+   }
+
+   const int offset = el*n*n;
+   Ahat_inv.HostReadWrite();
+   for (int j = 0; j < n; ++j)
+   {
+      const int j_f = e2f[j];
+      if (j_f < 0) { continue; }
+      for (int i = 0; i < n; ++i)
+      {
+         const int i_f = e2f[i];
+         if (i_f < 0) { continue; }
+         Ahat_inv[offset + i + j*n] += B(i_f, j_f);
+      }
+   }
 }
 
 void HybridizationExtension::AssembleElementMatrices(const DenseTensor &elmats)
