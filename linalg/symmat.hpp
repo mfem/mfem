@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -24,7 +24,7 @@ namespace mfem
 class DenseSymmetricMatrix : public Matrix
 {
 private:
-   Memory<double> data;
+   Memory<real_t> data;
 
 public:
 
@@ -38,14 +38,14 @@ public:
    /// Construct a DenseSymmetricMatrix using an existing data array.
    /** The DenseSymmetricMatrix does not assume ownership of the data array, i.e. it will
        not delete the array. */
-   DenseSymmetricMatrix(double *d, int s)
+   DenseSymmetricMatrix(real_t *d, int s)
       : Matrix(s, s) { UseExternalData(d, s); }
 
    /// Change the data array and the size of the DenseSymmetricMatrix.
    /** The DenseSymmetricMatrix does not assume ownership of the data array, i.e. it will
        not delete the data array @a d. This method should not be used with
        DenseSymmetricMatrix that owns its current data array. */
-   void UseExternalData(double *d, int s)
+   void UseExternalData(real_t *d, int s)
    {
       data.Wrap(d, (s*(s+1))/2, false);
       height = s; width = s;
@@ -55,7 +55,7 @@ public:
    /** The DenseSymmetricMatrix does not assume ownership of the data array, i.e. it will
        not delete the new array @a d. This method will delete the current data
        array, if owned. */
-   void Reset(double *d, int s)
+   void Reset(real_t *d, int s)
    { if (OwnsData()) { data.Delete(); } UseExternalData(d, s); }
 
    /** Clear the data array and the dimensions of the DenseSymmetricMatrix. This method
@@ -73,59 +73,62 @@ public:
    int GetStoredSize() const { return Height()*(Height()+1)/2; }
 
    /// Returns the matrix data array.
-   inline double *Data() const
-   { return const_cast<double*>((const double*)data);}
+   inline real_t *Data() const
+   { return const_cast<real_t*>((const real_t*)data);}
 
    /// Returns the matrix data array.
-   inline double *GetData() const { return Data(); }
+   inline real_t *GetData() const { return Data(); }
 
-   Memory<double> &GetMemory() { return data; }
-   const Memory<double> &GetMemory() const { return data; }
+   Memory<real_t> &GetMemory() { return data; }
+   const Memory<real_t> &GetMemory() const { return data; }
 
    /// Return the DenseSymmetricMatrix data (host pointer) ownership flag.
    inline bool OwnsData() const { return data.OwnsHostPtr(); }
 
    /// Returns reference to a_{ij}.
-   inline double &operator()(int i, int j);
+   inline real_t &operator()(int i, int j);
 
    /// Returns constant reference to a_{ij}.
-   inline const double &operator()(int i, int j) const;
+   inline const real_t &operator()(int i, int j) const;
 
    /// Returns reference to a_{ij}.
-   virtual double &Elem(int i, int j);
+   virtual real_t &Elem(int i, int j);
 
    /// Returns constant reference to a_{ij}.
-   virtual const double &Elem(int i, int j) const;
+   virtual const real_t &Elem(int i, int j) const;
 
    /// Sets the matrix elements equal to constant c
-   DenseSymmetricMatrix &operator=(double c);
+   DenseSymmetricMatrix &operator=(real_t c);
 
-   DenseSymmetricMatrix &operator*=(double c);
+   DenseSymmetricMatrix &operator*=(real_t c);
 
-   std::size_t MemoryUsage() const { return data.Capacity() * sizeof(double); }
+   /// Sets the matrix size and elements equal to those of m
+   DenseSymmetricMatrix &operator=(const DenseSymmetricMatrix &m);
+
+   std::size_t MemoryUsage() const { return data.Capacity() * sizeof(real_t); }
 
    /// Shortcut for mfem::Read( GetMemory(), TotalSize(), on_dev).
-   const double *Read(bool on_dev = true) const
+   const real_t *Read(bool on_dev = true) const
    { return mfem::Read(data, Height()*Width(), on_dev); }
 
    /// Shortcut for mfem::Read(GetMemory(), TotalSize(), false).
-   const double *HostRead() const
+   const real_t *HostRead() const
    { return mfem::Read(data, Height()*Width(), false); }
 
    /// Shortcut for mfem::Write(GetMemory(), TotalSize(), on_dev).
-   double *Write(bool on_dev = true)
+   real_t *Write(bool on_dev = true)
    { return mfem::Write(data, Height()*Width(), on_dev); }
 
    /// Shortcut for mfem::Write(GetMemory(), TotalSize(), false).
-   double *HostWrite()
+   real_t *HostWrite()
    { return mfem::Write(data, Height()*Width(), false); }
 
    /// Shortcut for mfem::ReadWrite(GetMemory(), TotalSize(), on_dev).
-   double *ReadWrite(bool on_dev = true)
+   real_t *ReadWrite(bool on_dev = true)
    { return mfem::ReadWrite(data, Height()*Width(), on_dev); }
 
    /// Shortcut for mfem::ReadWrite(GetMemory(), TotalSize(), false).
-   double *HostReadWrite()
+   real_t *HostReadWrite()
    { return mfem::ReadWrite(data, Height()*Width(), false); }
 
    /// Matrix vector multiplication.
@@ -133,9 +136,6 @@ public:
 
    /// Returns a pointer to (an approximation) of the matrix inverse.
    virtual MatrixInverse *Inverse() const;
-
-   /// Prints matrix to stream out.
-   virtual void Print (std::ostream & out = mfem::out, int width_ = 4) const;
 
    /// Destroys the symmetric matrix.
    virtual ~DenseSymmetricMatrix();
@@ -147,7 +147,7 @@ public:
 // n + n-1 + n-2 + ... + n-k+1, where there are k terms. This equals
 // kn - sum_{i=1}^{k-1} i = kn - (k-1)k/2
 // This formula is used for the offset for each row.
-inline double &DenseSymmetricMatrix::operator()(int i, int j)
+inline real_t &DenseSymmetricMatrix::operator()(int i, int j)
 {
    MFEM_ASSERT(data && i >= 0 && i < height && j >= 0 && j < width, "");
    if (i > j)  // reverse i and j
@@ -160,7 +160,7 @@ inline double &DenseSymmetricMatrix::operator()(int i, int j)
    }
 }
 
-inline const double &DenseSymmetricMatrix::operator()(int i, int j) const
+inline const real_t &DenseSymmetricMatrix::operator()(int i, int j) const
 {
    MFEM_ASSERT(data && i >= 0 && i < height && j >= 0 && j < width, "");
    if (i > j)  // reverse i and j

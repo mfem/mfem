@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -33,14 +33,14 @@
 using namespace std;
 using namespace mfem;
 
-double u_function(const Vector &x);
+real_t u_function(const Vector &x);
 void lissajous_trans_v(const Vector &x, Vector &p);
 void lissajous_trans_h(const Vector &x, Vector &p);
 
 // Default Lissajous curve parameters
-double a = 3.0;
-double b = 2.0;
-double delta = 90;
+real_t a = 3.0;
+real_t b = 2.0;
+real_t delta = 90;
 
 int main(int argc, char *argv[])
 {
@@ -141,23 +141,23 @@ int main(int argc, char *argv[])
 }
 
 // Simple function to project to help identify the spinning
-double u_function(const Vector &x)
+real_t u_function(const Vector &x)
 {
    return x[2];
 }
 
 // Tubular Lissajous curve with the given parameters (a, b, theta)
 void lissajous_trans(const Vector &x, Vector &p,
-                     double a_, double b_, double delta_)
+                     real_t a_, real_t b_, real_t delta_)
 {
    p.SetSize(3);
 
-   double phi = x[0];
-   double theta = x[1];
-   double t = phi;
+   real_t phi = x[0];
+   real_t theta = x[1];
+   real_t t = phi;
 
-   double A = b_; // Scaling of the curve along the x-axis
-   double B = a_; // Scaling of the curve along the y-axis
+   real_t A = b_; // Scaling of the curve along the x-axis
+   real_t B = a_; // Scaling of the curve along the y-axis
 
    // Lissajous curve on a 3D cylinder
    p[0] = B*cos(b_*t);
@@ -167,17 +167,24 @@ void lissajous_trans(const Vector &x, Vector &p,
    // Turn the curve into a tubular surface
    {
       // tubular radius
-      double R = 0.02*(A+B);
+      real_t R = 0.02*(A+B);
 
       // normal to the cylinder at p(t)
-      double normal[3] = { cos(b_*t), sin(b_*t), 0 };
+      real_t normal[3] = { cos(b_*t), sin(b_*t), 0 };
 
       // tangent to the curve, dp/dt(t)
-      // double tangent[3] = { -b_*B*sin(b_*t), b_*B*cos(b_*t), A*a_*cos(a_*t+delta_) };
+      // real_t tangent[3] = { -b_*B*sin(b_*t), b_*B*cos(b_*t), A*a_*cos(a_*t+delta_) };
 
       // normalized cross product of tangent and normal at p(t)
-      double cn = 1e-128;
-      double cross[3] = { A*a_*sin(b_*t)*cos(a_*t+delta_), -A*a_*cos(b_*t)*cos(a_*t+delta_), b_*B };
+#ifdef MFEM_USE_SINGLE
+      real_t cn = 1e-32;
+#elif defined MFEM_USE_DOUBLE
+      real_t cn = 1e-128;
+#else
+      real_t cn = 0;
+      MFEM_ABORT("Floating point type undefined");
+#endif
+      real_t cross[3] = { A*a_*sin(b_*t)*cos(a_*t+delta_), -A*a_*cos(b_*t)*cos(a_*t+delta_), b_*B };
       for (int i = 0; i < 3; i++) { cn += cross[i]*cross[i]; }
       for (int i = 0; i < 3; i++) { cross[i] /= sqrt(cn); }
 

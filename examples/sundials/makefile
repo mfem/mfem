@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -100,6 +100,12 @@ ex10-test-seq: ex10
 	@$(call mfem-test,$<,, $(SERIAL_NAME),$(EX10_ARGS))
 ex10p-test-par: ex10p
 	@$(call mfem-test,$<, $(RUN_MPI), $(PARALLEL_NAME),$(EX10P_ARGS))
+# Example 16: test ARKODE with implicit time stepping using mass form
+EX16_COMMON_ARGS := -s 15
+ex16-test-seq: ex16
+	@$(call mfem-test,$<,, $(SERIAL_NAME),$(EX16_COMMON_ARGS))
+ex16p-test-par: ex16p
+	@$(call mfem-test,$<, $(RUN_MPI), $(PARALLEL_NAME),$(EX16_COMMON_ARGS))
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 

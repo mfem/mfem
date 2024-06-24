@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "linalg.hpp"
+#include "lapack.hpp"
 #include "../general/annotation.hpp"
 #include "../general/forall.hpp"
 #include "../general/globals.hpp"
@@ -52,7 +53,7 @@ IterativeSolver::IterativeSolver(MPI_Comm comm_)
 
 #endif // MFEM_USE_MPI
 
-double IterativeSolver::Dot(const Vector &x, const Vector &y) const
+real_t IterativeSolver::Dot(const Vector &x, const Vector &y) const
 {
 #ifndef MFEM_USE_MPI
    return (x * y);
@@ -187,7 +188,7 @@ void IterativeSolver::SetOperator(const Operator &op)
    }
 }
 
-void IterativeSolver::Monitor(int it, double norm, const Vector& r,
+void IterativeSolver::Monitor(int it, real_t norm, const Vector& r,
                               const Vector& x, bool final) const
 {
    if (monitor != nullptr)
@@ -197,7 +198,7 @@ void IterativeSolver::Monitor(int it, double norm, const Vector& r,
    }
 }
 
-OperatorJacobiSmoother::OperatorJacobiSmoother(const double dmpng)
+OperatorJacobiSmoother::OperatorJacobiSmoother(const real_t dmpng)
    : damping(dmpng),
      ess_tdof_list(nullptr),
      oper(nullptr),
@@ -206,7 +207,7 @@ OperatorJacobiSmoother::OperatorJacobiSmoother(const double dmpng)
 
 OperatorJacobiSmoother::OperatorJacobiSmoother(const BilinearForm &a,
                                                const Array<int> &ess_tdofs,
-                                               const double dmpng)
+                                               const real_t dmpng)
    :
    Solver(a.FESpace()->GetTrueVSize()),
    dinv(height),
@@ -225,7 +226,7 @@ OperatorJacobiSmoother::OperatorJacobiSmoother(const BilinearForm &a,
 
 OperatorJacobiSmoother::OperatorJacobiSmoother(const Vector &d,
                                                const Array<int> &ess_tdofs,
-                                               const double dmpng)
+                                               const real_t dmpng)
    :
    Solver(d.Size()),
    dinv(height),
@@ -277,7 +278,7 @@ void OperatorJacobiSmoother::SetOperator(const Operator &op)
 void OperatorJacobiSmoother::Setup(const Vector &diag)
 {
    residual.UseDevice(true);
-   const double delta = damping;
+   const real_t delta = damping;
    auto D = diag.Read();
    auto DI = dinv.Write();
    const bool use_abs_diag_ = use_abs_diag;
@@ -331,7 +332,7 @@ void OperatorJacobiSmoother::Mult(const Vector &x, Vector &y) const
 OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
                                                      const Vector &d,
                                                      const Array<int>& ess_tdofs,
-                                                     int order_, double max_eig_estimate_)
+                                                     int order_, real_t max_eig_estimate_)
    :
    Solver(d.Size()),
    order(order_),
@@ -348,12 +349,12 @@ OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
 OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
                                                      const Vector &d,
                                                      const Array<int>& ess_tdofs,
-                                                     int order_, MPI_Comm comm, int power_iterations, double power_tolerance)
+                                                     int order_, MPI_Comm comm, int power_iterations, real_t power_tolerance)
 #else
 OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
                                                      const Vector &d,
                                                      const Array<int>& ess_tdofs,
-                                                     int order_, int power_iterations, double power_tolerance)
+                                                     int order_, int power_iterations, real_t power_tolerance)
 #endif
    : Solver(d.Size()),
      order(order_),
@@ -383,21 +384,21 @@ OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
 OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator* oper_,
                                                      const Vector &d,
                                                      const Array<int>& ess_tdofs,
-                                                     int order_, double max_eig_estimate_)
+                                                     int order_, real_t max_eig_estimate_)
    : OperatorChebyshevSmoother(*oper_, d, ess_tdofs, order_, max_eig_estimate_) { }
 
 #ifdef MFEM_USE_MPI
 OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator* oper_,
                                                      const Vector &d,
                                                      const Array<int>& ess_tdofs,
-                                                     int order_, MPI_Comm comm, int power_iterations, double power_tolerance)
+                                                     int order_, MPI_Comm comm, int power_iterations, real_t power_tolerance)
    : OperatorChebyshevSmoother(*oper_, d, ess_tdofs, order_, comm,
                                power_iterations, power_tolerance) { }
 #else
 OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator* oper_,
                                                      const Vector &d,
                                                      const Array<int>& ess_tdofs,
-                                                     int order_, int power_iterations, double power_tolerance)
+                                                     int order_, int power_iterations, real_t power_tolerance)
    : OperatorChebyshevSmoother(*oper_, d, ess_tdofs, order_, power_iterations,
                                power_tolerance) { }
 #endif
@@ -418,10 +419,10 @@ void OperatorChebyshevSmoother::Setup()
    // Set up Chebyshev coefficients
    // For reference, see e.g., Parallel multigrid smoothing: polynomial versus
    // Gauss-Seidel by Adams et al.
-   double upper_bound = 1.2 * max_eig_estimate;
-   double lower_bound = 0.3 * max_eig_estimate;
-   double theta = 0.5 * (upper_bound + lower_bound);
-   double delta = 0.5 * (upper_bound - lower_bound);
+   real_t upper_bound = 1.2 * max_eig_estimate;
+   real_t lower_bound = 0.3 * max_eig_estimate;
+   real_t theta = 0.5 * (upper_bound + lower_bound);
+   real_t delta = 0.5 * (upper_bound - lower_bound);
 
    switch (order-1)
    {
@@ -432,16 +433,16 @@ void OperatorChebyshevSmoother::Setup()
       }
       case 1:
       {
-         double tmp_0 = 1.0/(pow(delta, 2) - 2*pow(theta, 2));
+         real_t tmp_0 = 1.0/(pow(delta, 2) - 2*pow(theta, 2));
          coeffs[0] = -4*theta*tmp_0;
          coeffs[1] = 2*tmp_0;
          break;
       }
       case 2:
       {
-         double tmp_0 = 3*pow(delta, 2);
-         double tmp_1 = pow(theta, 2);
-         double tmp_2 = 1.0/(-4*pow(theta, 3) + theta*tmp_0);
+         real_t tmp_0 = 3*pow(delta, 2);
+         real_t tmp_1 = pow(theta, 2);
+         real_t tmp_2 = 1.0/(-4*pow(theta, 3) + theta*tmp_0);
          coeffs[0] = tmp_2*(tmp_0 - 12*tmp_1);
          coeffs[1] = 12/(tmp_0 - 4*tmp_1);
          coeffs[2] = -4*tmp_2;
@@ -449,10 +450,10 @@ void OperatorChebyshevSmoother::Setup()
       }
       case 3:
       {
-         double tmp_0 = pow(delta, 2);
-         double tmp_1 = pow(theta, 2);
-         double tmp_2 = 8*tmp_0;
-         double tmp_3 = 1.0/(pow(delta, 4) + 8*pow(theta, 4) - tmp_1*tmp_2);
+         real_t tmp_0 = pow(delta, 2);
+         real_t tmp_1 = pow(theta, 2);
+         real_t tmp_2 = 8*tmp_0;
+         real_t tmp_3 = 1.0/(pow(delta, 4) + 8*pow(theta, 4) - tmp_1*tmp_2);
          coeffs[0] = tmp_3*(32*pow(theta, 3) - 16*theta*tmp_0);
          coeffs[1] = tmp_3*(-48*tmp_1 + tmp_2);
          coeffs[2] = 32*theta*tmp_3;
@@ -461,15 +462,15 @@ void OperatorChebyshevSmoother::Setup()
       }
       case 4:
       {
-         double tmp_0 = 5*pow(delta, 4);
-         double tmp_1 = pow(theta, 4);
-         double tmp_2 = pow(theta, 2);
-         double tmp_3 = pow(delta, 2);
-         double tmp_4 = 60*tmp_3;
-         double tmp_5 = 20*tmp_3;
-         double tmp_6 = 1.0/(16*pow(theta, 5) - pow(theta, 3)*tmp_5 + theta*tmp_0);
-         double tmp_7 = 160*tmp_2;
-         double tmp_8 = 1.0/(tmp_0 + 16*tmp_1 - tmp_2*tmp_5);
+         real_t tmp_0 = 5*pow(delta, 4);
+         real_t tmp_1 = pow(theta, 4);
+         real_t tmp_2 = pow(theta, 2);
+         real_t tmp_3 = pow(delta, 2);
+         real_t tmp_4 = 60*tmp_3;
+         real_t tmp_5 = 20*tmp_3;
+         real_t tmp_6 = 1.0/(16*pow(theta, 5) - pow(theta, 3)*tmp_5 + theta*tmp_0);
+         real_t tmp_7 = 160*tmp_2;
+         real_t tmp_8 = 1.0/(tmp_0 + 16*tmp_1 - tmp_2*tmp_5);
          coeffs[0] = tmp_6*(tmp_0 + 80*tmp_1 - tmp_2*tmp_4);
          coeffs[1] = tmp_8*(tmp_4 - tmp_7);
          coeffs[2] = tmp_6*(-tmp_5 + tmp_7);
@@ -567,7 +568,7 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
 
    // General version of SLI with a relative tolerance, optional preconditioner
    // and optional initial guess
-   double r0, nom, nom0, nomold = 1, cf;
+   real_t r0, nom, nom0, nomold = 1, cf;
 
    if (iterative_mode)
    {
@@ -676,7 +677,7 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
 
 void SLI(const Operator &A, const Vector &b, Vector &x,
          int print_iter, int max_num_iter,
-         double RTOLERANCE, double ATOLERANCE)
+         real_t RTOLERANCE, real_t ATOLERANCE)
 {
    MFEM_PERF_FUNCTION;
 
@@ -691,7 +692,7 @@ void SLI(const Operator &A, const Vector &b, Vector &x,
 
 void SLI(const Operator &A, Solver &B, const Vector &b, Vector &x,
          int print_iter, int max_num_iter,
-         double RTOLERANCE, double ATOLERANCE)
+         real_t RTOLERANCE, real_t ATOLERANCE)
 {
    MFEM_PERF_FUNCTION;
 
@@ -718,7 +719,7 @@ void CGSolver::UpdateVectors()
 void CGSolver::Mult(const Vector &b, Vector &x) const
 {
    int i;
-   double r0, den, nom, nom0, betanom, alpha, beta;
+   real_t r0, den, nom, nom0, betanom, alpha, beta;
 
    x.UseDevice(true);
    if (iterative_mode)
@@ -897,7 +898,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
 
 void CG(const Operator &A, const Vector &b, Vector &x,
         int print_iter, int max_num_iter,
-        double RTOLERANCE, double ATOLERANCE)
+        real_t RTOLERANCE, real_t ATOLERANCE)
 {
    MFEM_PERF_FUNCTION;
 
@@ -912,7 +913,7 @@ void CG(const Operator &A, const Vector &b, Vector &x,
 
 void PCG(const Operator &A, Solver &B, const Vector &b, Vector &x,
          int print_iter, int max_num_iter,
-         double RTOLERANCE, double ATOLERANCE)
+         real_t RTOLERANCE, real_t ATOLERANCE)
 {
    MFEM_PERF_FUNCTION;
 
@@ -927,8 +928,8 @@ void PCG(const Operator &A, Solver &B, const Vector &b, Vector &x,
 }
 
 
-inline void GeneratePlaneRotation(double &dx, double &dy,
-                                  double &cs, double &sn)
+inline void GeneratePlaneRotation(real_t &dx, real_t &dy,
+                                  real_t &cs, real_t &sn)
 {
    if (dy == 0.0)
    {
@@ -937,21 +938,21 @@ inline void GeneratePlaneRotation(double &dx, double &dy,
    }
    else if (fabs(dy) > fabs(dx))
    {
-      double temp = dx / dy;
+      real_t temp = dx / dy;
       sn = 1.0 / sqrt( 1.0 + temp*temp );
       cs = temp * sn;
    }
    else
    {
-      double temp = dy / dx;
+      real_t temp = dy / dx;
       cs = 1.0 / sqrt( 1.0 + temp*temp );
       sn = temp * cs;
    }
 }
 
-inline void ApplyPlaneRotation(double &dx, double &dy, double &cs, double &sn)
+inline void ApplyPlaneRotation(real_t &dx, real_t &dy, real_t &cs, real_t &sn)
 {
-   double temp = cs * dx + sn * dy;
+   real_t temp = cs * dx + sn * dy;
    dy = -sn * dx + cs * dy;
    dx = temp;
 }
@@ -1023,7 +1024,7 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
          r = b;
       }
    }
-   double beta = initial_norm = Norm(r);  // beta = ||r||
+   real_t beta = initial_norm = Norm(r);  // beta = ||r||
    MFEM_ASSERT(IsFinite(beta), "beta = " << beta);
 
    final_norm = std::max(rel_tol*beta, abs_tol);
@@ -1087,7 +1088,7 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
          ApplyPlaneRotation(H(i,i), H(i+1,i), cs(i), sn(i));
          ApplyPlaneRotation(s(i), s(i+1), cs(i), sn(i));
 
-         const double resid = fabs(s(i+1));
+         const real_t resid = fabs(s(i+1));
          MFEM_ASSERT(IsFinite(resid), "resid = " << resid);
 
          if (resid <= final_norm)
@@ -1183,10 +1184,12 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
       x = 0.;
       r = b;
    }
-   double beta = initial_norm = Norm(r);  // beta = ||r||
+   real_t beta = initial_norm = Norm(r);  // beta = ||r||
    MFEM_ASSERT(IsFinite(beta), "beta = " << beta);
 
    final_norm = std::max(rel_tol*beta, abs_tol);
+
+   converged = false;
 
    if (beta <= final_norm)
    {
@@ -1258,7 +1261,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
          ApplyPlaneRotation(H(i,i), H(i+1,i), cs(i), sn(i));
          ApplyPlaneRotation(s(i), s(i+1), cs(i), sn(i));
 
-         const double resid = fabs(s(i+1));
+         const real_t resid = fabs(s(i+1));
          MFEM_ASSERT(IsFinite(resid), "resid = " << resid);
          if (print_options.iterations || (print_options.first_and_last &&
                                           resid <= final_norm))
@@ -1303,8 +1306,6 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
       MFEM_ASSERT(IsFinite(beta), "beta = " << beta);
       if (beta <= final_norm)
       {
-         final_norm = beta;
-         final_iter = j;
          converged = true;
 
          break;
@@ -1317,7 +1318,9 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
       if (v[i]) { delete v[i]; }
       if (z[i]) { delete z[i]; }
    }
-   converged = false;
+
+   final_norm = beta;
+   final_iter = converged ? j : max_iter;
 
    // Note: j is off by one when we arrive here
    if (!print_options.iterations && print_options.first_and_last)
@@ -1328,7 +1331,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
    }
    if (print_options.summary || (print_options.warnings && !converged))
    {
-      mfem::out << "FGMRES: Number of iterations: " << j-1 << '\n';
+      mfem::out << "FGMRES: Number of iterations: " << final_iter << '\n';
    }
    if (print_options.warnings && !converged)
    {
@@ -1338,7 +1341,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
 
 
 int GMRES(const Operator &A, Vector &x, const Vector &b, Solver &M,
-          int &max_iter, int m, double &tol, double atol, int printit)
+          int &max_iter, int m, real_t &tol, real_t atol, int printit)
 {
    MFEM_PERF_FUNCTION;
 
@@ -1357,7 +1360,7 @@ int GMRES(const Operator &A, Vector &x, const Vector &b, Solver &M,
 }
 
 void GMRES(const Operator &A, Solver &B, const Vector &b, Vector &x,
-           int print_iter, int max_num_iter, int m, double rtol, double atol)
+           int print_iter, int max_num_iter, int m, real_t rtol, real_t atol)
 {
    GMRES(A, x, b, B, max_num_iter, m, rtol, atol, print_iter);
 }
@@ -1381,8 +1384,8 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
    // on p. 27 of the SIAM Templates book.
 
    int i;
-   double resid, tol_goal;
-   double rho_1, rho_2=1.0, alpha=1.0, beta, omega=1.0;
+   real_t resid, tol_goal;
+   real_t rho_1, rho_2=1.0, alpha=1.0, beta, omega=1.0;
 
    if (iterative_mode)
    {
@@ -1568,7 +1571,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
 }
 
 int BiCGSTAB(const Operator &A, Vector &x, const Vector &b, Solver &M,
-             int &max_iter, double &tol, double atol, int printit)
+             int &max_iter, real_t &tol, real_t atol, int printit)
 {
    BiCGSTABSolver bicgstab;
    bicgstab.SetPrintLevel(printit);
@@ -1584,7 +1587,7 @@ int BiCGSTAB(const Operator &A, Vector &x, const Vector &b, Solver &M,
 }
 
 void BiCGSTAB(const Operator &A, Solver &B, const Vector &b, Vector &x,
-              int print_iter, int max_num_iter, double rtol, double atol)
+              int print_iter, int max_num_iter, real_t rtol, real_t atol)
 {
    BiCGSTAB(A, x, b, B, max_num_iter, rtol, atol, print_iter);
 }
@@ -1622,8 +1625,8 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
    x.UseDevice(true);
 
    int it;
-   double beta, eta, gamma0, gamma1, sigma0, sigma1;
-   double alpha, delta, rho1, rho2, rho3, norm_goal;
+   real_t beta, eta, gamma0, gamma1, sigma0, sigma1;
+   real_t alpha, delta, rho1, rho2, rho3, norm_goal;
    Vector *z = (prec) ? &u1 : &v1;
 
    converged = true;
@@ -1692,7 +1695,7 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
          beta = sqrt(Dot(v0, q));
       }
       MFEM_ASSERT(IsFinite(beta), "beta = " << beta);
-      rho1 = hypot(delta, beta);
+      rho1 = std::hypot(delta, beta);
 
       if (it == 1)
       {
@@ -1778,7 +1781,7 @@ loop_end:
 }
 
 void MINRES(const Operator &A, const Vector &b, Vector &x, int print_it,
-            int max_it, double rtol, double atol)
+            int max_it, real_t rtol, real_t atol)
 {
    MFEM_PERF_FUNCTION;
 
@@ -1792,7 +1795,7 @@ void MINRES(const Operator &A, const Vector &b, Vector &x, int print_it,
 }
 
 void MINRES(const Operator &A, Solver &B, const Vector &b, Vector &x,
-            int print_it, int max_it, double rtol, double atol)
+            int print_it, int max_it, real_t rtol, real_t atol)
 {
    MINRESSolver minres;
    minres.SetPrintLevel(print_it);
@@ -1822,7 +1825,7 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    MFEM_ASSERT(prec != NULL, "the Solver is not set (use SetSolver).");
 
    int it;
-   double norm0, norm, norm_goal;
+   real_t norm0, norm, norm_goal;
    const bool have_b = (b.Size() == Height());
 
    if (!iterative_mode)
@@ -1891,7 +1894,7 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
          AdaptiveLinRtolPostSolve(c, r, it, norm);
       }
 
-      const double c_scale = ComputeScalingFactor(x, b);
+      const real_t c_scale = ComputeScalingFactor(x, b);
       if (c_scale == 0.0)
       {
          converged = false;
@@ -1925,10 +1928,10 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
 }
 
 void NewtonSolver::SetAdaptiveLinRtol(const int type,
-                                      const double rtol0,
-                                      const double rtol_max,
-                                      const double alpha_,
-                                      const double gamma_)
+                                      const real_t rtol0,
+                                      const real_t rtol_max,
+                                      const real_t alpha_,
+                                      const real_t gamma_)
 {
    lin_rtol_type = type;
    lin_rtol0 = rtol0;
@@ -1939,15 +1942,15 @@ void NewtonSolver::SetAdaptiveLinRtol(const int type,
 
 void NewtonSolver::AdaptiveLinRtolPreSolve(const Vector &x,
                                            const int it,
-                                           const double fnorm) const
+                                           const real_t fnorm) const
 {
    // Assume that when adaptive linear solver relative tolerance is activated,
    // we are working with an iterative solver.
    auto iterative_solver = static_cast<IterativeSolver *>(prec);
    // Adaptive linear solver relative tolerance
-   double eta;
+   real_t eta;
    // Safeguard threshold
-   double sg_threshold = 0.1;
+   real_t sg_threshold = 0.1;
 
    if (it == 0)
    {
@@ -1971,7 +1974,7 @@ void NewtonSolver::AdaptiveLinRtolPreSolve(const Vector &x,
       }
 
       // Safeguard rtol from "oversolving" ?!
-      const double sg_eta = gamma * pow(eta_last, alpha);
+      const real_t sg_eta = gamma * pow(eta_last, alpha);
       if (sg_eta > sg_threshold) { eta = std::max(eta, sg_eta); }
    }
 
@@ -1987,7 +1990,7 @@ void NewtonSolver::AdaptiveLinRtolPreSolve(const Vector &x,
 void NewtonSolver::AdaptiveLinRtolPostSolve(const Vector &x,
                                             const Vector &b,
                                             const int it,
-                                            const double fnorm) const
+                                            const real_t fnorm) const
 {
    fnorm_last = fnorm;
 
@@ -2020,7 +2023,7 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
    int last_saved_id = -1;
 
    int it;
-   double norm0, norm, norm_goal;
+   real_t norm0, norm, norm_goal;
    const bool have_b = (b.Size() == Height());
 
    if (!iterative_mode)
@@ -2070,7 +2073,7 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
       }
 
       rk = r;
-      const double c_scale = ComputeScalingFactor(x, b);
+      const real_t c_scale = ComputeScalingFactor(x, b);
       if (c_scale == 0.0)
       {
          converged = false;
@@ -2089,7 +2092,7 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
       // LBFGS - construct descent direction
       subtract(r, rk, yk);   // yk = r_{k+1} - r_{k}
       sk = c; sk *= -c_scale; //sk = x_{k+1} - x_{k} = -c_scale*c
-      const double gamma = Dot(sk, yk)/Dot(yk, yk);
+      const real_t gamma = Dot(sk, yk)/Dot(yk, yk);
 
       // Save last m vectors
       last_saved_id = (last_saved_id == m-1) ? 0 : last_saved_id+1;
@@ -2118,13 +2121,13 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
       {
          for (int i = last_saved_id+1; i < m ; i++)
          {
-            double betai = rho(i)*Dot((*ykArray[i]), c);
+            real_t betai = rho(i)*Dot((*ykArray[i]), c);
             add(c, alpha(i)-betai, (*skArray[i]), c);
          }
       }
       for (int i = 0; i < last_saved_id+1 ; i++)
       {
-         double betai = rho(i)*Dot((*ykArray[i]), c);
+         real_t betai = rho(i)*Dot((*ykArray[i]), c);
          add(c, alpha(i)-betai, (*skArray[i]), c);
       }
 
@@ -2148,8 +2151,8 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
 
 int aGMRES(const Operator &A, Vector &x, const Vector &b,
            const Operator &M, int &max_iter,
-           int m_max, int m_min, int m_step, double cf,
-           double &tol, double &atol, int printit)
+           int m_max, int m_min, int m_step, real_t cf,
+           real_t &tol, real_t &atol, int printit)
 {
    int n = A.Width();
 
@@ -2159,11 +2162,11 @@ int aGMRES(const Operator &A, Vector &x, const Vector &b,
    Vector s(m+1), cs(m+1), sn(m+1);
    Vector w(n), av(n);
 
-   double r1, resid;
+   real_t r1, resid;
    int i, j, k;
 
    M.Mult(b,w);
-   double normb = w.Norml2(); // normb = ||M b||
+   real_t normb = w.Norml2(); // normb = ||M b||
    if (normb == 0.0)
    {
       normb = 1;
@@ -2173,7 +2176,7 @@ int aGMRES(const Operator &A, Vector &x, const Vector &b,
    A.Mult(x, r);
    subtract(b,r,w);
    M.Mult(w, r);           // r = M (b - A x)
-   double beta = r.Norml2();  // beta = ||r||
+   real_t beta = r.Norml2();  // beta = ||r||
 
    resid = beta / normb;
 
@@ -2364,13 +2367,13 @@ void SLBQPOptimizer::SetBounds(const Vector &lo_, const Vector &hi_)
    hi.SetDataAndSize(hi_.GetData(), hi_.Size());
 }
 
-void SLBQPOptimizer::SetLinearConstraint(const Vector &w_, double a_)
+void SLBQPOptimizer::SetLinearConstraint(const Vector &w_, real_t a_)
 {
    w.SetDataAndSize(w_.GetData(), w_.Size());
    a = a_;
 }
 
-inline void SLBQPOptimizer::print_iteration(int it, double r, double l) const
+inline void SLBQPOptimizer::print_iteration(int it, real_t r, real_t l) const
 {
    if (print_options.iterations || (print_options.first_and_last && it == 0))
    {
@@ -2388,19 +2391,19 @@ void SLBQPOptimizer::Mult(const Vector& xt, Vector& x) const
 
    // Set some algorithm-specific constants and temporaries.
    int nclip   = 0;
-   double l    = 0;
-   double llow = 0;
-   double lupp = 0;
-   double lnew = 0;
-   double dl   = 2;
-   double r    = 0;
-   double rlow = 0;
-   double rupp = 0;
-   double s    = 0;
+   real_t l    = 0;
+   real_t llow = 0;
+   real_t lupp = 0;
+   real_t lnew = 0;
+   real_t dl   = 2;
+   real_t r    = 0;
+   real_t rlow = 0;
+   real_t rupp = 0;
+   real_t s    = 0;
 
-   const double smin = 0.1;
+   const real_t smin = 0.1;
 
-   const double tol = max(abs_tol, rel_tol*a);
+   const real_t tol = max(abs_tol, rel_tol*a);
 
    // *** Start bracketing phase of SLBQP ***
    if (print_options.iterations)
@@ -2551,18 +2554,18 @@ slbqp_done:
 
 struct WeightMinHeap
 {
-   const std::vector<double> &w;
+   const std::vector<real_t> &w;
    std::vector<size_t> c;
    std::vector<int> loc;
 
-   WeightMinHeap(const std::vector<double> &w_) : w(w_)
+   WeightMinHeap(const std::vector<real_t> &w_) : w(w_)
    {
       c.reserve(w.size());
       loc.resize(w.size());
       for (size_t i=0; i<w.size(); ++i) { push(i); }
    }
 
-   size_t percolate_up(size_t pos, double val)
+   size_t percolate_up(size_t pos, real_t val)
    {
       for (; pos > 0 && w[c[(pos-1)/2]] > val; pos = (pos-1)/2)
       {
@@ -2572,7 +2575,7 @@ struct WeightMinHeap
       return pos;
    }
 
-   size_t percolate_down(size_t pos, double val)
+   size_t percolate_down(size_t pos, real_t val)
    {
       while (2*pos+1 < c.size())
       {
@@ -2597,7 +2600,7 @@ struct WeightMinHeap
 
    void push(size_t i)
    {
-      double val = w[i];
+      real_t val = w[i];
       c.push_back(0);
       size_t pos = c.size()-1;
       pos = percolate_up(pos, val);
@@ -2613,7 +2616,7 @@ struct WeightMinHeap
       // Mark as removed
       loc[i] = -1;
       if (c.empty()) { return i; }
-      double val = w[j];
+      real_t val = w[j];
       size_t pos = 0;
       pos = percolate_down(pos, val);
       c[pos] = j;
@@ -2624,7 +2627,7 @@ struct WeightMinHeap
    void update(size_t i)
    {
       size_t pos = loc[i];
-      double val = w[i];
+      real_t val = w[i];
       pos = percolate_up(pos, val);
       pos = percolate_down(pos, val);
       c[pos] = i;
@@ -2645,7 +2648,7 @@ void MinimumDiscardedFillOrdering(SparseMatrix &C, Array<int> &p)
    C.GetDiag(D);
    int *I = C.GetI();
    int *J = C.GetJ();
-   double *V = C.GetData();
+   real_t *V = C.GetData();
    for (int i=0; i<n; ++i)
    {
       for (int j=I[i]; j<I[i+1]; ++j)
@@ -2654,7 +2657,7 @@ void MinimumDiscardedFillOrdering(SparseMatrix &C, Array<int> &p)
       }
    }
 
-   std::vector<double> w(n, 0.0);
+   std::vector<real_t> w(n, 0.0);
    for (int k=0; k<n; ++k)
    {
       // Find all neighbors i of k
@@ -2662,7 +2665,7 @@ void MinimumDiscardedFillOrdering(SparseMatrix &C, Array<int> &p)
       {
          int i = J[ii];
          // Find value of (i,k)
-         double C_ik = 0.0;
+         real_t C_ik = 0.0;
          for (int kk=I[i]; kk<I[i+1]; ++kk)
          {
             if (J[kk] == k)
@@ -2675,7 +2678,7 @@ void MinimumDiscardedFillOrdering(SparseMatrix &C, Array<int> &p)
          {
             int j = J[jj];
             if (j == k) { continue; }
-            double C_kj = V[jj];
+            real_t C_kj = V[jj];
             bool ij_exists = false;
             for (int jj2=I[i]; jj2<I[i+1]; ++jj2)
             {
@@ -2712,7 +2715,7 @@ void MinimumDiscardedFillOrdering(SparseMatrix &C, Array<int> &p)
             int i = J[ii2];
             if (w_heap.picked(i)) { continue; }
             // Find value of (i,k)
-            double C_ik = 0.0;
+            real_t C_ik = 0.0;
             for (int kk2=I[i]; kk2<I[i+1]; ++kk2)
             {
                if (J[kk2] == k)
@@ -2725,7 +2728,7 @@ void MinimumDiscardedFillOrdering(SparseMatrix &C, Array<int> &p)
             {
                int j = J[jj];
                if (j == k || w_heap.picked(j)) { continue; }
-               double C_kj = V[jj];
+               real_t C_kj = V[jj];
                bool ij_exists = false;
                for (int jj2=I[i]; jj2<I[i+1]; ++jj2)
                {
@@ -2800,7 +2803,7 @@ void BlockILU::CreateBlockPattern(const SparseMatrix &A)
    int nrows = A.Height();
    const int *I = A.GetI();
    const int *J = A.GetJ();
-   const double *V = A.GetData();
+   const real_t *V = A.GetData();
    int nnz = 0;
    int nblockrows = nrows / block_size;
 
@@ -2841,7 +2844,7 @@ void BlockILU::CreateBlockPattern(const SparseMatrix &A)
          }
       }
       C.Finalize(false);
-      double *CV = C.GetData();
+      real_t *CV = C.GetData();
       for (int i=0; i<C.NumNonZeroElems(); ++i)
       {
          CV[i] = sqrt(CV[i]);
@@ -2916,7 +2919,7 @@ void BlockILU::CreateBlockPattern(const SparseMatrix &A)
                if (j >= jblock_perm*block_size && j < (jblock_perm + 1)*block_size)
                {
                   int bj = j - jblock_perm*block_size;
-                  double val = V[k];
+                  real_t val = V[k];
                   AB(bi, bj, counter) = val;
                   // Extract the diagonal
                   if (iblock == jblock)
@@ -3045,16 +3048,16 @@ void BlockILU::Mult(const Vector &b, Vector &x) const
 
 
 void ResidualBCMonitor::MonitorResidual(
-   int it, double norm, const Vector &r, bool final)
+   int it, real_t norm, const Vector &r, bool final)
 {
    if (!ess_dofs_list) { return; }
 
-   double bc_norm_squared = 0.0;
+   real_t bc_norm_squared = 0.0;
    r.HostRead();
    ess_dofs_list->HostRead();
    for (int i = 0; i < ess_dofs_list->Size(); i++)
    {
-      const double r_entry = r((*ess_dofs_list)[i]);
+      const real_t r_entry = r((*ess_dofs_list)[i]);
       bc_norm_squared += r_entry*r_entry;
    }
    bool print = true;
@@ -3063,7 +3066,8 @@ void ResidualBCMonitor::MonitorResidual(
    if (comm != MPI_COMM_NULL)
    {
       double glob_bc_norm_squared = 0.0;
-      MPI_Reduce(&bc_norm_squared, &glob_bc_norm_squared, 1, MPI_DOUBLE,
+      MPI_Reduce(&bc_norm_squared, &glob_bc_norm_squared, 1,
+                 MPITypeMap<real_t>::mpi_type,
                  MPI_SUM, 0, comm);
       bc_norm_squared = glob_bc_norm_squared;
       int rank;
@@ -3126,7 +3130,7 @@ void UMFPackSolver::SetOperator(const Operator &op)
 
    const int * Ap = mat->HostReadI();
    const int * Ai = mat->HostReadJ();
-   const double * Ax = mat->HostReadData();
+   const real_t * Ax = mat->HostReadData();
 
    if (!use_long_ints)
    {
@@ -3310,7 +3314,7 @@ void KLUSolver::SetOperator(const Operator &op)
 
    int * Ap = mat->GetI();
    int * Ai = mat->GetJ();
-   double * Ax = mat->GetData();
+   real_t * Ax = mat->GetData();
 
    Symbolic = klu_analyze( height, Ap, Ai, &Common);
    Numeric = klu_factor(Ap, Ai, Ax, Symbolic, &Common);
@@ -3486,16 +3490,17 @@ void OrthoSolver::Orthogonalize(const Vector &v, Vector &v_ortho) const
 
    // TODO: GPU/device implementation
 
-   double global_sum = v.Sum();
+   real_t global_sum = v.Sum();
 
 #ifdef MFEM_USE_MPI
    if (parallel)
    {
-      MPI_Allreduce(MPI_IN_PLACE, &global_sum, 1, MPI_DOUBLE, MPI_SUM, mycomm);
+      MPI_Allreduce(MPI_IN_PLACE, &global_sum, 1, MPITypeMap<real_t>::mpi_type,
+                    MPI_SUM, mycomm);
    }
 #endif
 
-   double ratio = global_sum / static_cast<double>(global_size);
+   real_t ratio = global_sum / static_cast<real_t>(global_size);
    v_ortho.SetSize(v.Size());
    v.HostRead();
    v_ortho.HostWrite();
@@ -3539,21 +3544,6 @@ void AuxSpaceSmoother::Mult(const Vector &x, Vector &y, bool transpose) const
 #endif // MFEM_USE_MPI
 
 #ifdef MFEM_USE_LAPACK
-// LAPACK routines for NNLSSolver
-extern "C" void
-dormqr_(char *, char *, int *, int *, int *, double *, int*, double *,
-        double *, int *, double *, int*, int*);
-
-extern "C" void
-dgeqrf_(int *, int *, double *, int *, double *, double *, int *, int *);
-
-extern "C" void
-dgemv_(char *, int *, int *, double *, double *, int *, double *, int *,
-       double *, double *, int *);
-
-extern "C" void
-dtrsm_(char *side, char *uplo, char *transa, char *diag, int *m, int *n,
-       double *alpha, double *a, int *lda, double *b, int *ldb);
 
 NNLSSolver::NNLSSolver()
    : Solver(0), mat(nullptr), const_tol_(1.0e-14), min_nnz_(0),
@@ -3609,7 +3599,7 @@ void NNLSSolver::NormalizeConstraints(Vector& rhs_lb, Vector& rhs_ub) const
 
    for (int i=0; i<m; ++i)
    {
-      const double s = halfgap_target(i) / rhs_halfgap_glob(i);
+      const real_t s = halfgap_target(i) / rhs_halfgap_glob(i);
       row_scaling_[i] = s;
 
       rhs_lb(i) = (rhs_avg(i) * s) - halfgap_target(i);
@@ -3655,11 +3645,11 @@ void NNLSSolver::Mult(const Vector &w, Vector &sol) const
       mat->Mult(sol, res);
       res *= row_scaling_;
 
-      const double normGsol = res.Norml2();
-      const double normRHS = rhs_Gw.Norml2();
+      const real_t normGsol = res.Norml2();
+      const real_t normRHS = rhs_Gw.Norml2();
 
       res -= rhs_Gw;
-      const double relNorm = res.Norml2() / std::max(normGsol, normRHS);
+      const real_t relNorm = res.Norml2() / std::max(normGsol, normRHS);
       mfem::out << "Relative residual norm for NNLSSolver solution of Gs = Gw: "
                 << relNorm << endl;
    }
@@ -3692,7 +3682,7 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
    Vector rhs_halfgap_glob(rhs_halfgap);
 
    int ione = 1;
-   double fone = 1.0;
+   real_t fone = 1.0;
 
    char lside = 'L';
    char trans = 'T';
@@ -3707,7 +3697,7 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
    int m_update;
    int min_nnz_cap = std::min(static_cast<int>(min_nnz_), std::min(m,n));
    int info;
-   std::vector<double> l2_res_hist;
+   std::vector<real_t> l2_res_hist;
    std::vector<unsigned int> stalled_indices;
    int stalledFlag = 0;
    int num_stalled = 0;
@@ -3727,7 +3717,7 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
 
    // Temporary work arrays
    int lwork;
-   std::vector<double> work;
+   std::vector<real_t> work;
    int n_outer_iter = 0;
    int n_total_inner_iter = 0;
    int i_qr_start;
@@ -3742,7 +3732,7 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
    Vector sub_qt = rhs_avg_glob;
 
    // Compute threshold tolerance for the Lagrange multiplier mu
-   double mu_tol = 0.0;
+   real_t mu_tol = 0.0;
 
    {
       Vector rhs_scaled(rhs_halfgap_glob);
@@ -3753,8 +3743,8 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
       mu_tol = 1.0e-15 * tmp.Max();
    }
 
-   double rmax = 0.0;
-   double mumax = 0.0;
+   real_t rmax = 0.0;
+   real_t mumax = 0.0;
 
    for (int oiter = 0; oiter < n_outer_; ++oiter)
    {
@@ -3807,15 +3797,15 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
       // Check for stall after the first nStallCheck iterations
       if (oiter > nStallCheck_)
       {
-         double mean0 = 0.0;
-         double mean1 = 0.0;
+         real_t mean0 = 0.0;
+         real_t mean1 = 0.0;
          for (int i=0; i<nStallCheck_/2; ++i)
          {
             mean0 += l2_res_hist[oiter - i];
             mean1 += l2_res_hist[oiter - (nStallCheck_) - i];
          }
 
-         double mean_res_change = (mean1 / mean0) - 1.0;
+         real_t mean_res_change = (mean1 / mean0) - 1.0;
          if (std::abs(mean_res_change) < res_change_termination_tol_)
          {
             if (verbosity_ > 1)
@@ -3869,7 +3859,7 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
 
       int imax = 0;
       {
-         double tmax = mu(0);
+         real_t tmax = mu(0);
          for (int i=1; i<n; ++i)
          {
             if (mu(i) > tmax)
@@ -3917,17 +3907,19 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
             lwork = -1;
             work.resize(10);
 
-            dormqr_(&lside, &trans, &m, &n_update, &i_qr_start,
-                    mat_qr_data.GetData(), &m, tau.GetData(),
-                    mat_qr_data.GetData() + (i_qr_start * m), &m,
-                    work.data(), &lwork, &info);
+            MFEM_LAPACK_PREFIX(ormqr_)(&lside, &trans, &m, &n_update,
+                                       &i_qr_start, mat_qr_data.GetData(), &m,
+                                       tau.GetData(),
+                                       mat_qr_data.GetData() + (i_qr_start * m),
+                                       &m, work.data(), &lwork, &info);
             MFEM_VERIFY(info == 0, ""); // Q^T A update work calculation failed
             lwork = static_cast<int>(work[0]);
             work.resize(lwork);
-            dormqr_(&lside, &trans, &m, &n_update, &i_qr_start,
-                    mat_qr_data.GetData(), &m, tau.GetData(),
-                    mat_qr_data.GetData() + (i_qr_start * m), &m,
-                    work.data(), &lwork, &info);
+            MFEM_LAPACK_PREFIX(ormqr_)(&lside, &trans, &m, &n_update,
+                                       &i_qr_start, mat_qr_data.GetData(), &m,
+                                       tau.GetData(),
+                                       mat_qr_data.GetData() + (i_qr_start * m),
+                                       &m, work.data(), &lwork, &info);
             MFEM_VERIFY(info == 0, ""); // Q^T A update failed
             // Compute QR factorization of the submatrix
             lwork = -1;
@@ -3948,16 +3940,16 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
                sub_tau[j] = tau[i_qr_start + j];
             }
 
-            dgeqrf_(&m_update, &n_update,
-                    submat_data.GetData(), &m_update, sub_tau.GetData(),
-                    work.data(), &lwork, &info);
+            MFEM_LAPACK_PREFIX(geqrf_)(&m_update, &n_update, submat_data.GetData(),
+                                       &m_update, sub_tau.GetData(), work.data(),
+                                       &lwork, &info);
             MFEM_VERIFY(info == 0, ""); // QR update factorization work calc
             lwork = static_cast<int>(work[0]);
             if (lwork == 0) { lwork = 1; }
             work.resize(lwork);
-            dgeqrf_(&m_update, &n_update,
-                    submat_data.GetData(), &m_update, sub_tau.GetData(),
-                    work.data(), &lwork, &info);
+            MFEM_LAPACK_PREFIX(geqrf_)(&m_update, &n_update, submat_data.GetData(),
+                                       &m_update, sub_tau.GetData(), work.data(),
+                                       &lwork, &info);
             MFEM_VERIFY(info == 0, ""); // QR update factorization failed
 
             // Copy result back
@@ -3986,15 +3978,13 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
             // perform qr)
             lwork = -1;
             work.resize(10);
-            dgeqrf_(&m, &n_glob,
-                    mat_qr_data.GetData(), &m, tau.GetData(),
-                    work.data(), &lwork, &info);
+            MFEM_LAPACK_PREFIX(geqrf_)(&m, &n_glob, mat_qr_data.GetData(), &m,
+                                       tau.GetData(), work.data(), &lwork, &info);
             MFEM_VERIFY(info == 0, ""); // QR factorization work calculation
             lwork = static_cast<int>(work[0]);
             work.resize(lwork);
-            dgeqrf_(&m, &n_glob,
-                    mat_qr_data.GetData(), &m, tau.GetData(),
-                    work.data(), &lwork, &info);
+            MFEM_LAPACK_PREFIX(geqrf_)(&m, &n_glob, mat_qr_data.GetData(), &m,
+                                       tau.GetData(), work.data(), &lwork, &info);
             MFEM_VERIFY(info == 0, ""); // QR factorization failed
          }
 
@@ -4022,17 +4012,17 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
 
             sub_tau[0] = tau[i_qr_start];
 
-            dormqr_(&lside, &trans, &m_update, &ione, &ione,
-                    submat_data.GetData(), &m_update, sub_tau.GetData(),
-                    sub_qt.GetData(), &m_update,
-                    work.data(), &lwork, &info);
+            MFEM_LAPACK_PREFIX(ormqr_)(&lside, &trans, &m_update, &ione, &ione,
+                                       submat_data.GetData(), &m_update,
+                                       sub_tau.GetData(), sub_qt.GetData(),
+                                       &m_update, work.data(), &lwork, &info);
             MFEM_VERIFY(info == 0, ""); // H_last y work calculation failed
             lwork = static_cast<int>(work[0]);
             work.resize(lwork);
-            dormqr_(&lside, &trans, &m_update, &ione, &ione,
-                    submat_data.GetData(), &m_update, sub_tau.GetData(),
-                    sub_qt.GetData(), &m_update,
-                    work.data(), &lwork, &info);
+            MFEM_LAPACK_PREFIX(ormqr_)(&lside, &trans, &m_update, &ione, &ione,
+                                       submat_data.GetData(), &m_update,
+                                       sub_tau.GetData(), sub_qt.GetData(),
+                                       &m_update, work.data(), &lwork, &info);
             MFEM_VERIFY(info == 0, ""); // H_last y failed
             // Copy result back
             for (int i=0; i<m_update; ++i)
@@ -4046,17 +4036,17 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
             qt_rhs_glob = rhs_avg_glob;
             lwork = -1;
             work.resize(10);
-            dormqr_(&lside, &trans, &m, &ione, &n_glob,
-                    mat_qr_data.GetData(), &m, tau.GetData(),
-                    qt_rhs_glob.GetData(), &m,
-                    work.data(), &lwork, &info);
+            MFEM_LAPACK_PREFIX(ormqr_)(&lside, &trans, &m, &ione, &n_glob,
+                                       mat_qr_data.GetData(), &m, tau.GetData(),
+                                       qt_rhs_glob.GetData(), &m,
+                                       work.data(), &lwork, &info);
             MFEM_VERIFY(info == 0, ""); // Q^T b work calculation failed
             lwork = static_cast<int>(work[0]);
             work.resize(lwork);
-            dormqr_(&lside, &trans, &m, &ione, &n_glob,
-                    mat_qr_data.GetData(), &m, tau.GetData(),
-                    qt_rhs_glob.GetData(), &m,
-                    work.data(), &lwork, &info);
+            MFEM_LAPACK_PREFIX(ormqr_)(&lside, &trans, &m, &ione, &n_glob,
+                                       mat_qr_data.GetData(), &m, tau.GetData(),
+                                       qt_rhs_glob.GetData(), &m,
+                                       work.data(), &lwork, &info);
             MFEM_VERIFY(info == 0, ""); // Q^T b failed
          }
 
@@ -4069,10 +4059,10 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
          char upper = 'U';
          char nounit = 'N';
          vec1 = qt_rhs_glob;
-         dtrsm_(&lside, &upper, &notrans, &nounit,
-                &n_glob, &ione, &fone,
-                mat_qr_data.GetData(), &m,
-                vec1.GetData(), &n_glob);
+         MFEM_LAPACK_PREFIX(trsm_)(&lside, &upper, &notrans, &nounit,
+                                   &n_glob, &ione, &fone,
+                                   mat_qr_data.GetData(), &m,
+                                   vec1.GetData(), &n_glob);
 
          if (verbosity_ > 2)
          {
@@ -4081,7 +4071,7 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
 
          // Check if all entries are positive
          int pos_ibool = 0;
-         double smin = n_glob > 0 ? vec1(0) : 0.0;
+         real_t smin = n_glob > 0 ? vec1(0) : 0.0;
          for (int i=0; i<n_glob; ++i)
          {
             soln_nz_glob_up(i) = vec1(i);
@@ -4139,7 +4129,8 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
             break;
          }
 
-         double alpha = 1.0e300;
+         real_t alpha = numeric_limits<real_t>::max();
+
          // Find maximum permissible step
          for (int i = 0; i < n_glob; ++i)
          {
@@ -4293,11 +4284,11 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
       if (!NNLS_qrres_on_)
       {
          res_glob = rhs_avg_glob;
-         double fmone = -1.0;
-         dgemv_(&notrans, &m, &n_glob, &fmone,
-                mat_0_data.GetData(), &m,
-                soln_nz_glob.GetData(), &ione, &fone,
-                res_glob.GetData(), &ione);
+         real_t fmone = -1.0;
+         MFEM_LAPACK_PREFIX(gemv_)(&notrans, &m, &n_glob, &fmone,
+                                   mat_0_data.GetData(), &m,
+                                   soln_nz_glob.GetData(), &ione, &fone,
+                                   res_glob.GetData(), &ione);
       }
       else
       {
@@ -4311,16 +4302,18 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
             qqt_rhs_glob(i) = qt_rhs_glob(i);
          }
 
-         dormqr_(&lside, &notrans, &m, &ione, &n_glob, mat_qr_data.GetData(), &m,
-                 tau.GetData(), qqt_rhs_glob.GetData(), &m,
-                 work.data(), &lwork, &info);
+         MFEM_LAPACK_PREFIX(ormqr_)(&lside, &notrans, &m, &ione, &n_glob,
+                                    mat_qr_data.GetData(), &m,
+                                    tau.GetData(), qqt_rhs_glob.GetData(), &m,
+                                    work.data(), &lwork, &info);
 
          MFEM_VERIFY(info == 0, ""); // Q Q^T b work calculation failed.
          lwork = static_cast<int>(work[0]);
          work.resize(lwork);
-         dormqr_(&lside, &notrans, &m, &ione, &n_glob, mat_qr_data.GetData(), &m,
-                 tau.GetData(), qqt_rhs_glob.GetData(), &m,
-                 work.data(), &lwork, &info);
+         MFEM_LAPACK_PREFIX(ormqr_)(&lside, &notrans, &m, &ione, &n_glob,
+                                    mat_qr_data.GetData(), &m,
+                                    tau.GetData(), qqt_rhs_glob.GetData(), &m,
+                                    work.data(), &lwork, &info);
          MFEM_VERIFY(info == 0, ""); // Q Q^T b calculation failed.
          res_glob = rhs_avg_glob;
          res_glob -= qqt_rhs_glob;
