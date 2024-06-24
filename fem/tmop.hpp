@@ -1972,6 +1972,7 @@ protected:
    void AssembleDiagonalPA_C0_3D(Vector&) const;
 
    void AssemblePA_Limiting();
+   void AssemblePA_Fitting();
    void ComputeAllElementTargets(const Vector &xe = Vector()) const;
    // Updates the Q-vectors for the metric_coeff and lim_coeff, based on the
    // new physical positions of the quadrature points.

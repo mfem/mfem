@@ -121,6 +121,29 @@ void TMOP_Integrator::AssemblePA_Limiting()
    }
 }
 
+
+//------------------------------- new function below -------------------------//
+void TMOP_Integrator::AssemblePA_Fitting()
+{
+   const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
+                         Device::GetDeviceMemoryType() : pa_mt;
+
+
+   // Return immediately if Grid Function is not enabled
+   if (surf_fit_coeff == nullptr) { return; }
+   MFEM_VERIFY(PA.enabled, "AssemblePA_Fitting but PA is not enabled!");
+   MFEM_VERIFY(surf_fit_gf, "No surface fitting function specification!");
+
+
+   //Same as PA Limiting
+   const FiniteElementSpace *fes = PA.fes;
+   const int NE = PA.ne;
+   if (NE == 0) { return; }  // Quick return for empty processors
+   const IntegrationRule &ir = *PA.ir;
+   const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
+}
+//------------------------------- new function above -------------------------//
+
 void TargetConstructor::ComputeAllElementTargets(const FiniteElementSpace &fes,
                                                  const IntegrationRule &ir,
                                                  const Vector &xe,
@@ -285,6 +308,7 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
 
    // Limiting: lim_coeff -> PA.C0, lim_nodes0 -> PA.X0, lim_dist -> PA.LD, PA.H0
    if (lim_coeff) { AssemblePA_Limiting(); }
+   if (surf_fit_coeff) {AssemblePA_Fitting(); }
 }
 
 void TMOP_Integrator::AssembleGradDiagonalPA(Vector &de) const
