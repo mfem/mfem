@@ -1154,8 +1154,8 @@ inline ApplyKernelType MassIntegrator::ApplyPAKernels::Fallback(
    int DIM, int, int)
 {
    if (DIM == 1) { return internal::PAMassApply1D; }
-   else if (DIM == 2) { return internal::PAMassApply2D<0,0>; }
-   else if (DIM == 3) { return internal::PAMassApply3D<0,0>; }
+   else if (DIM == 2) { return internal::PAMassApply2D; }
+   else if (DIM == 3) { return internal::PAMassApply3D; }
    else { MFEM_ABORT(""); }
 }
 
@@ -1172,8 +1172,8 @@ inline DiagonalKernelType MassIntegrator::DiagonalPAKernels::Fallback(
    int DIM, int, int)
 {
    if (DIM == 1) { return internal::PAMassAssembleDiagonal1D; }
-   else if (DIM == 2) { return internal::PAMassAssembleDiagonal2D<0,0>; }
-   else if (DIM == 3) { return internal::PAMassAssembleDiagonal3D<0,0>; }
+   else if (DIM == 2) { return internal::PAMassAssembleDiagonal2D; }
+   else if (DIM == 3) { return internal::PAMassAssembleDiagonal3D; }
    else { MFEM_ABORT(""); }
 }
 

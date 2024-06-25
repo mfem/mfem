@@ -1242,8 +1242,8 @@ ApplyKernelType DiffusionIntegrator::ApplyPAKernels::Kernel()
 inline
 ApplyKernelType DiffusionIntegrator::ApplyPAKernels::Fallback(int DIM, int, int)
 {
-   if (DIM == 2) { return internal::PADiffusionApply2D<0,0>; }
-   else if (DIM == 3) { return internal::PADiffusionApply3D<0,0>; }
+   if (DIM == 2) { return internal::PADiffusionApply2D; }
+   else if (DIM == 3) { return internal::PADiffusionApply3D; }
    else { MFEM_ABORT(""); }
 }
 
@@ -1258,8 +1258,8 @@ DiagonalKernelType DiffusionIntegrator::DiagonalPAKernels::Kernel()
 inline DiagonalKernelType
 DiffusionIntegrator::DiagonalPAKernels::Fallback(int DIM, int, int)
 {
-   if (DIM == 2) { return internal::PADiffusionDiagonal2D<0,0>; }
-   else if (DIM == 3) { return internal::PADiffusionDiagonal3D<0,0>; }
+   if (DIM == 2) { return internal::PADiffusionDiagonal2D; }
+   else if (DIM == 3) { return internal::PADiffusionDiagonal3D; }
    else { MFEM_ABORT(""); }
 }
 

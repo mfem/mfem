@@ -219,7 +219,7 @@ EvalKernel QuadratureInterpolator::EvalKernels::Kernel()
    else { MFEM_ABORT(""); }
 }
 
-EvalKernel QuadratureInterpolator::EvalKernels::Fallback(
+inline EvalKernel QuadratureInterpolator::EvalKernels::Fallback(
    int DIM, QVectorLayout Q_LAYOUT, int, int, int)
 {
    if (Q_LAYOUT == QVectorLayout::byNODES) { return FallbackEvalKernel<QVectorLayout::byNODES>(DIM); }
