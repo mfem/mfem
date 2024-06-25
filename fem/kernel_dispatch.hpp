@@ -9,40 +9,37 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_KERNELDISPATCH_HPP
-#define MFEM_KERNELDISPATCH_HPP
+#ifndef MFEM_KERNEL_DISPATCH_HPP
+#define MFEM_KERNEL_DISPATCH_HPP
 
 #include "../general/error.hpp"
 
-#include <functional>
 #include <unordered_map>
 #include <tuple>
-#include <cmath>
 
 namespace mfem
 {
 
 #define MFEM_REGISTER_KERNELS(KernelName, KernelType, ...) \
    MFEM_REGISTER_KERNELS_N(__VA_ARGS__,2,1)(KernelName, KernelType, __VA_ARGS__)
+
 #define MFEM_REGISTER_KERNELS_N(_1, _2, N, ...) MFEM_REGISTER_KERNELS_##N
 
 // Expands a variable length macro parameter so that multiple variable length
 // parameters can be passed to the same macro.
 #define MFEM_PARAM_LIST(...) __VA_ARGS__
 
-// Declare the class used to dispatch shared memory kernels when the fallback
-// methods don't require template parameters.
-#define MFEM_REGISTER_KERNELS_1(KernelName, KernelType, OptParams)             \
+#define MFEM_REGISTER_KERNELS_1(KernelName, KernelType, Params)                \
    class KernelName : public                                                   \
    KernelDispatchTable<KernelName, KernelType,                                 \
-      internal::KernelTypeList<>,                                              \
-      internal::KernelTypeList<MFEM_PARAM_LIST OptParams>>                     \
+      internal::KernelTypeList<MFEM_PARAM_LIST Params>,                        \
+      internal::KernelTypeList<>>                                              \
    {                                                                           \
    public:                                                                     \
       using KernelSignature = KernelType;                                      \
-      template <int DIM, MFEM_PARAM_LIST OptParams>                            \
+      template <int DIM, MFEM_PARAM_LIST Params>                               \
       static KernelSignature Kernel();                                         \
-      static KernelSignature Fallback(int dim);                                \
+      static KernelSignature Fallback(int dim, MFEM_PARAM_LIST Params);        \
       static KernelName &Get()                                                 \
       { static KernelName table; return table;}                                \
    };
@@ -96,23 +93,25 @@ namespace internal { template<typename... Types> struct KernelTypeList { }; }
 
 template<typename... T> class KernelDispatchTable { };
 
-// KernelDispatchTable is derived from `DispatchTable` using the `KernelDispatchKeyHash` functor above
-// to assign specialized kernels with individual keys.
-template <typename Kernels, typename Signature, typename... Params, typename... OptParams>
-class KernelDispatchTable<Kernels, Signature, internal::KernelTypeList<Params...>, internal::KernelTypeList<OptParams...>>
+template <typename Kernels,
+          typename Signature,
+          typename... Params,
+          typename... OptParams>
+class KernelDispatchTable<Kernels,
+         Signature,
+         internal::KernelTypeList<Params...>,
+         internal::KernelTypeList<OptParams...>>
 {
-   std::unordered_map<std::tuple<int, Params..., OptParams...>,
+   std::unordered_map<std::tuple<int, Params...>,
        Signature,
-       KernelDispatchKeyHash<int, Params..., OptParams...>> table;
+       KernelDispatchKeyHash<int, Params...>> table;
 
 public:
-   // TODO(bowen) Force this to use the same signature as the Signature typedef
-   // above.
    template<typename... Args>
-   void Run(int dim, Params... params, OptParams... opt_params, Args&&... args)
+   void Run(int dim, Params... params, Args&&... args)
    {
-      std::tuple<int, Params..., OptParams...> key;
-      key = std::make_tuple(dim, params..., opt_params...);
+      std::tuple<int, Params...> key;
+      key = std::make_tuple(dim, params...);
       const auto it = this->table.find(key);
       if (it != this->table.end())
       {
@@ -129,8 +128,7 @@ public:
    template <int DIM, Params... PARAMS, OptParams... OPT_PARAMS>
    void AddSpecialization()
    {
-      std::tuple<int, Params..., OptParams...> param_tuple(
-         DIM, PARAMS..., OPT_PARAMS...);
+      std::tuple<int, Params...> param_tuple(DIM, PARAMS...);
       table[param_tuple] = Kernels:: template Kernel<DIM, PARAMS..., OPT_PARAMS...>();
    };
 };

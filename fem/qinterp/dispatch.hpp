@@ -142,7 +142,7 @@ void InitEvalKernels()
    k.AddSpecialization<2,QVectorLayout::byNODES,2,4,6,1>();
    k.AddSpecialization<2,QVectorLayout::byNODES,2,4,7,1>();
 
-   k.AddSpecialization<2,QVectorLayout::byNODES,2,5,6>();
+   k.AddSpecialization<2,QVectorLayout::byNODES,2,5,6,1>();
 
    // 3D
    k.AddSpecialization<3,QVectorLayout::byNODES,1,2,4,1>();
