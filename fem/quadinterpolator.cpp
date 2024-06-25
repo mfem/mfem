@@ -10,7 +10,6 @@
 // CONTRIBUTING.md for details.
 
 #include "quadinterpolator.hpp"
-#include "qinterp/dispatch.hpp"
 #include "qinterp/grad.hpp"
 #include "qinterp/eval.hpp"
 #include "qspace.hpp"
@@ -21,15 +20,30 @@
 namespace mfem
 {
 
+namespace internal
+{
+namespace quadrature_interpolator
+{
+void InitEvalByNodesKernels();
+void InitEvalByVdimKernels();
+template <bool P> void InitGradByNodesKernels();
+template <bool P> void InitGradByVdimKernels();
+}
+}
+
 QuadratureInterpolator::Kernels QuadratureInterpolator::kernels;
 QuadratureInterpolator::Kernels::Kernels()
 {
    using namespace internal::quadrature_interpolator;
 
-   InitEvalKernels();
-   // Phys and non-phys kernels
-   InitDerivativeKernels<true>();
-   InitDerivativeKernels<false>();
+   InitEvalByNodesKernels();
+   InitEvalByVdimKernels();
+   // Non-phys grad kernels
+   InitGradByNodesKernels<false>();
+   InitGradByVdimKernels<false>();
+   // Phys grad kernels
+   InitGradByNodesKernels<true>();
+   InitGradByVdimKernels<true>();
 }
 
 QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
