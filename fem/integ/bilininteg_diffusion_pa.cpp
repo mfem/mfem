@@ -27,19 +27,12 @@ void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
    }
    else
    {
-      if (pa_data.Size()==0) { AssemblePA(*fespace); }
-
-      const int D1D = dofs1D;
-      const int Q1D = quad1D;
-      const int NE = ne;
-      const bool symm = symmetric;
+      if (pa_data.Size() == 0) { AssemblePA(*fespace); }
       const Array<real_t> &B = maps->B;
       const Array<real_t> &G = maps->G;
-      // These two arrays are left empty as they are unused in diagonal diffusion
-      // kernels.
       const Vector &Dv = pa_data;
-
-      DiagonalPAKernels::Get().Run(dim, D1D, Q1D, NE, symm, B, G, Dv, diag, D1D, Q1D);
+      DiagonalPAKernels::Get().Run(dim, dofs1D, quad1D, ne, symmetric, B, G, Dv,
+                                   diag, dofs1D, quad1D);
    }
 }
 
@@ -52,10 +45,6 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
    }
    else
    {
-      const int D1D = dofs1D;
-      const int Q1D = quad1D;
-      const int NE = ne;
-      const bool symm = symmetric;
       const Array<real_t> &B = maps->B;
       const Array<real_t> &G = maps->G;
       const Array<real_t> &Bt = maps->Bt;
@@ -67,20 +56,20 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
       {
          if (dim == 2)
          {
-            OccaPADiffusionApply2D(D1D,Q1D,NE,B,G,Bt,Gt,Dv,x,y);
+            OccaPADiffusionApply2D(dofs1D,quad1D,ne,B,G,Bt,Gt,Dv,x,y);
             return;
          }
          if (dim == 3)
          {
-            OccaPADiffusionApply3D(D1D,Q1D,NE,B,G,Bt,Gt,Dv,x,y);
+            OccaPADiffusionApply3D(dofs1D,quad1D,ne,B,G,Bt,Gt,Dv,x,y);
             return;
          }
          MFEM_ABORT("OCCA PADiffusionApply unknown kernel!");
       }
 #endif // MFEM_USE_OCCA
 
-      ApplyPAKernels::Get().Run(dim, D1D, Q1D, NE, symm, B, G, Bt, Gt, Dv, x, y, D1D,
-                                Q1D);
+      ApplyPAKernels::Get().Run(dim, dofs1D, quad1D, ne, symmetric, B, G, Bt,
+                                Gt, Dv, x, y, dofs1D, quad1D);
    }
 }
 
