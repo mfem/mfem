@@ -398,7 +398,7 @@ public:
       void SetupPCG();
       /// Computes on-rank R and M_LH matrices.
       std::pair<std::unique_ptr<SparseMatrix>,
-          std::unique_ptr<SparseMatrix>> ComputeSparseRAndM_LH();
+          std::unique_ptr<SparseMatrix>> ComputeSparseRAndM_LH(bool GetM_LHError, bool getML_invError);
       /// @brief Recovers vector of tdofs given a vector of dofs and a finite
       /// element space
       void GetTDofs(const FiniteElementSpace& fes, const Vector& x, Vector& X) const;

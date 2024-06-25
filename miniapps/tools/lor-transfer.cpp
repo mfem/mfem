@@ -104,7 +104,6 @@ int main(int argc, char *argv[])
 
    // Read the mesh from the given mesh file.
    Mesh mesh(mesh_file, 1, 1);
-   // cout << "Element type is " << mesh.GetElementType(0) << endl;
    int dim = mesh.Dimension();
 
    // Create the low-order refined mesh
@@ -123,14 +122,12 @@ int main(int argc, char *argv[])
       }
       fec = new H1_FECollection(order, dim);
       fec_lor = new H1_FECollection(lorder, dim);
-      cout << "H1 low order space is continuous == 0 : " << fec_lor->GetContType() << endl;
    }
    else
    {
       space = "L2";
       fec = new L2_FECollection(order, dim);
       fec_lor = new L2_FECollection(lorder, dim);
-      cout << "L2 low order space is discontinuous == 3 : " << fec_lor->GetContType() << endl;
    }
 
    FiniteElementSpace fespace(&mesh, fec);
@@ -202,7 +199,6 @@ int main(int argc, char *argv[])
    // HO->LOR restriction
    direction = "HO -> LOR @ LOR";
    R.Mult(rho, rho_lor);  
-   exit(0);
    compute_mass(&fespace_lor, ho_mass, LOR_dc, "R(HO)    ");
    if (vis) { visualize(LOR_dc, "R(HO)", Wx, Wy); Wx += offx; }
 
