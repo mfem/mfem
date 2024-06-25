@@ -26,13 +26,10 @@ QuadratureInterpolator::Kernels::Kernels()
 {
    using namespace internal::quadrature_interpolator;
 
-   InitDerivativeKernels<QVectorLayout::byNODES, true>();
-   InitDerivativeKernels<QVectorLayout::byNODES, false>();
-   InitDerivativeKernels<QVectorLayout::byVDIM, true>();
-   InitDerivativeKernels<QVectorLayout::byVDIM, false>();
-
-   InitEvalKernels<QVectorLayout::byNODES>();
-   InitEvalKernels<QVectorLayout::byVDIM>();
+   InitEvalKernels();
+   // Phys and non-phys kernels
+   InitDerivativeKernels<true>();
+   InitDerivativeKernels<false>();
 }
 
 QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
