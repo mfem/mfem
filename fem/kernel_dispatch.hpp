@@ -20,6 +20,25 @@
 namespace mfem
 {
 
+/// @brief Registers kernels for runtime dispatch using a dispatch map.
+///
+/// This creates a dispatch table (a static member variable) named @a KernelName
+/// containing function points of type @a KernelType. These are followed by one
+/// or two sets of parenthesized argument types.
+///
+/// The first set of argument types contains the types that are used to dispatch
+/// to either specialized or fallback kernels. The second set of argument types
+/// can be used to further specialize the kernel without participating in
+/// dispatch (a canonical example is NBZ, determining the size of the thread
+/// blocks; this is required to specialize kernels for optimal performance, but
+/// is not relevant for dispatch).
+///
+/// After calling this macro, the user must implement the Kernel and Fallback
+/// static member functions, which return pointers to the appropriate kernel
+/// functions depending on the parameters.
+///
+/// Specialized functions can be registered using the static AddSpecialization
+/// member function.
 #define MFEM_REGISTER_KERNELS(KernelName, KernelType, ...) \
    MFEM_REGISTER_KERNELS_N(__VA_ARGS__,2,1)(KernelName, KernelType, __VA_ARGS__)
 
@@ -29,6 +48,8 @@ namespace mfem
 // parameters can be passed to the same macro.
 #define MFEM_PARAM_LIST(...) __VA_ARGS__
 
+// Version of MFEM_REGISTER_KERNELS without any "optional" (non-dispatch)
+// parameters.
 #define MFEM_REGISTER_KERNELS_1(KernelName, KernelType, Params)                \
    class KernelName : public                                                   \
    KernelDispatchTable<KernelName, KernelType,                                 \
@@ -44,6 +65,8 @@ namespace mfem
       { static KernelName table; return table;}                                \
    };
 
+// Version of MFEM_REGISTER_KERNELS without any optional (non-dispatch)
+// parameters (e.g. NBZ).
 #define MFEM_REGISTER_KERNELS_2(KernelName, KernelType, Params, OptParams)     \
    class KernelName : public                                                   \
    KernelDispatchTable<KernelName, KernelType,                                 \
@@ -59,31 +82,30 @@ namespace mfem
       { static KernelName table; return table;}                                \
    };
 
-// KernelDispatchKeyHash is a functor that hashes variadic packs for which each
-// type contained in the variadic pack has a specialization of `std::hash`
-// available.  For example, packs containing int, bool, enum values, etc.
+/// @brief Hashes variadic packs for which each type contained in the variadic
+/// pack has a specialization of `std::hash` available.
+///
+/// For example, packs containing int, bool, enum values, etc.
 template<typename ...KernelParameters>
 struct KernelDispatchKeyHash
 {
-   using Tuple = std::tuple<KernelParameters...>;
-
 private:
    template<int N>
-   size_t operator()(Tuple value) const { return 0; }
+   size_t operator()(std::tuple<KernelParameters...> value) const { return 0; }
 
    // The hashing formula here is taken directly from the Boost library, with
    // the magic number 0x9e3779b9 chosen to minimize hashing collisions.
    template<std::size_t N, typename THead, typename... TTail>
-   size_t operator()(Tuple value) const
+   size_t operator()(std::tuple<KernelParameters...> value) const
    {
       constexpr int Index = N - sizeof...(TTail) - 1;
       auto lhs_hash = std::hash<THead>()(std::get<Index>(value));
       auto rhs_hash = operator()<N, TTail...>(value);
       return lhs_hash ^(rhs_hash + 0x9e3779b9 + (lhs_hash << 6) + (lhs_hash >> 2));
    }
-
 public:
-   size_t operator()(Tuple value) const
+   /// Returns the hash of the given @a value.
+   size_t operator()(std::tuple<KernelParameters...> value) const
    {
       return operator()<sizeof...(KernelParameters), KernelParameters...>(value);
    }
@@ -107,6 +129,11 @@ class KernelDispatchTable<Kernels,
        KernelDispatchKeyHash<int, Params...>> table;
 
 public:
+   /// @brief Run the kernel with the given dispatch parameters and arguments.
+   ///
+   /// If a compile-time specialized version of the kernel with the given
+   /// parameters has been registered, it will be called. Otherwise, the
+   /// fallback kernel will be called.
    template<typename... Args>
    void Run(int dim, Params... params, Args&&... args)
    {
@@ -125,6 +152,7 @@ public:
       }
    }
 
+   /// Register a specialized kernel for dispatch.
    template <int DIM, Params... PARAMS, OptParams... OPT_PARAMS>
    void AddSpecialization()
    {
