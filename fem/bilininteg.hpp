@@ -2141,8 +2141,8 @@ public:
                                       const Array<real_t>&, const Vector&, Vector&,
                                       const int, const int);
 
-   MFEM_DECLARE_KERNELS(ApplyPA, KernelType, MFEM_PARAM_LIST(int, int));
-   MFEM_DECLARE_KERNELS(DiagonalPA, DiagonalKernelType, MFEM_PARAM_LIST(int, int));
+   MFEM_DECLARE_KERNELS(ApplyPAKernels, KernelType, (int, int));
+   MFEM_DECLARE_KERNELS(DiagonalPAKernels, DiagonalKernelType, (int, int));
    static struct Kernels { Kernels(); } kernels;
 
 protected:
@@ -2341,8 +2341,8 @@ public:
                                        const Vector&, Vector&, const int,
                                        const int);
 
-   MFEM_DECLARE_KERNELS(ApplyPA, KernelType, MFEM_PARAM_LIST(int, int));
-   MFEM_DECLARE_KERNELS(DiagonalPA, DiagonalKernelType, MFEM_PARAM_LIST(int, int));
+   MFEM_DECLARE_KERNELS(ApplyPAKernels, KernelType, (int, int));
+   MFEM_DECLARE_KERNELS(DiagonalPAKernels, DiagonalKernelType, (int, int));
    static struct Kernels { Kernels(); } kernels;
 
 public:
