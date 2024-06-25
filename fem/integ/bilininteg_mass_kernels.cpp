@@ -58,7 +58,9 @@ void PAMassAssembleDiagonal(const int dim, const int D1D,
          case 0x33: return SmemPAMassAssembleDiagonal2D<3,3,16>(NE,B,D,Y);
          case 0x44: return SmemPAMassAssembleDiagonal2D<4,4,8>(NE,B,D,Y);
          case 0x55: return SmemPAMassAssembleDiagonal2D<5,5,8>(NE,B,D,Y);
+         case 0x5A: return SmemPAMassAssembleDiagonal2D<5,10,2>(NE,B,D,Y);
          case 0x66: return SmemPAMassAssembleDiagonal2D<6,6,4>(NE,B,D,Y);
+         case 0x6A: return SmemPAMassAssembleDiagonal2D<6,10,4>(NE,B,D,Y);
          case 0x77: return SmemPAMassAssembleDiagonal2D<7,7,4>(NE,B,D,Y);
          case 0x88: return SmemPAMassAssembleDiagonal2D<8,8,2>(NE,B,D,Y);
          case 0x99: return SmemPAMassAssembleDiagonal2D<9,9,2>(NE,B,D,Y);
@@ -289,7 +291,9 @@ void PAMassApply(const int dim,
          case 0x55: return SmemPAMassApply2D<5,5,8>(NE,B,Bt,D,X,Y);
          case 0x57: return SmemPAMassApply2D<5,7,8>(NE,B,Bt,D,X,Y);
          case 0x58: return SmemPAMassApply2D<5,8,2>(NE,B,Bt,D,X,Y);
+         case 0x5A: return SmemPAMassApply2D<5,10,2>(NE,B,Bt,D,X,Y);
          case 0x66: return SmemPAMassApply2D<6,6,4>(NE,B,Bt,D,X,Y);
+         case 0x6A: return SmemPAMassApply2D<6,10,4>(NE,B,Bt,D,X,Y);
          case 0x77: return SmemPAMassApply2D<7,7,4>(NE,B,Bt,D,X,Y);
          case 0x88: return SmemPAMassApply2D<8,8,2>(NE,B,Bt,D,X,Y);
          case 0x99: return SmemPAMassApply2D<9,9,2>(NE,B,Bt,D,X,Y);
