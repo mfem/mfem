@@ -26,6 +26,7 @@ namespace quadrature_interpolator
 {
 void InitEvalByNodesKernels();
 void InitEvalByVdimKernels();
+void InitDetKernels();
 template <bool P> void InitGradByNodesKernels();
 template <bool P> void InitGradByVdimKernels();
 }
@@ -44,6 +45,8 @@ QuadratureInterpolator::Kernels::Kernels()
    // Phys grad kernels
    InitGradByNodesKernels<true>();
    InitGradByVdimKernels<true>();
+   // Determinants
+   InitDetKernels();
 }
 
 QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
