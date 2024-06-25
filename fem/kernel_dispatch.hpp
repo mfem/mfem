@@ -22,11 +22,9 @@
 namespace mfem
 {
 
-namespace internal
-{
-template<typename... Types>
-struct KernelTypeList { };
-}
+#define MFEM_DECLARE_KERNELS(KernelName, KernelType, ...) \
+   MFEM_DECLARE_KERNELS_N(__VA_ARGS__,2,1)(KernelName, KernelType, __VA_ARGS__)
+#define MFEM_DECLARE_KERNELS_N(_1, _2, N, ...) MFEM_DECLARE_KERNELS_##N
 
 // Expands a variable length macro parameter so that multiple variable length
 // parameters can be passed to the same macro.
@@ -34,33 +32,34 @@ struct KernelTypeList { };
 
 // Declare the class used to dispatch shared memory kernels when the fallback
 // methods don't require template parameters.
-#define MFEM_DECLARE_KERNELS(KernelName, KernelType, OptParams)                \
-   class KernelName ## Kernels : public                                        \
-   KernelDispatchTable<KernelName ## Kernels, KernelType,                      \
-      internal::KernelTypeList<>, internal::KernelTypeList<OptParams>>         \
+#define MFEM_DECLARE_KERNELS_1(KernelName, KernelType, OptParams)              \
+   class KernelName : public                                                   \
+   KernelDispatchTable<KernelName, KernelType,                                 \
+      internal::KernelTypeList<>,                                              \
+      internal::KernelTypeList<MFEM_PARAM_LIST OptParams>>                     \
    {                                                                           \
    public:                                                                     \
       using KernelSignature = KernelType;                                      \
-      template <int DIM, OptParams>                                            \
+      template <int DIM, MFEM_PARAM_LIST OptParams>                            \
       static KernelSignature Kernel();                                         \
       static KernelSignature Fallback(int dim);                                \
-      static KernelName ## Kernels &Get()                                      \
-      { static KernelName ## Kernels table; return table;}                     \
+      static KernelName &Get()                                                 \
+      { static KernelName table; return table;}                                \
    };
 
 #define MFEM_DECLARE_KERNELS_2(KernelName, KernelType, Params, OptParams)      \
-   class KernelName ## Kernels : public                                        \
-   KernelDispatchTable<KernelName ## Kernels, KernelType,                      \
-      internal::KernelTypeList<Params>,                                        \
-   internal::KernelTypeList<OptParams>>                                        \
+   class KernelName : public                                                   \
+   KernelDispatchTable<KernelName, KernelType,                                 \
+      internal::KernelTypeList<MFEM_PARAM_LIST Params>,                        \
+   internal::KernelTypeList<MFEM_PARAM_LIST OptParams>>                        \
    {                                                                           \
    public:                                                                     \
       using KernelSignature = KernelType;                                      \
-      template <int DIM, Params, OptParams>                                    \
+      template <int DIM, MFEM_PARAM_LIST Params, MFEM_PARAM_LIST OptParams>    \
       static KernelSignature Kernel();                                         \
-      static KernelSignature Fallback(int dim, Params);                        \
-      static KernelName ## Kernels &Get()                                      \
-      { static KernelName ## Kernels table; return table;}                     \
+      static KernelSignature Fallback(int dim, MFEM_PARAM_LIST Params);        \
+      static KernelName &Get()                                                 \
+      { static KernelName table; return table;}                                \
    };
 
 // KernelDispatchKeyHash is a functor that hashes variadic packs for which each
@@ -93,8 +92,9 @@ public:
    }
 };
 
-template<typename... T>
-class KernelDispatchTable { };
+namespace internal { template<typename... Types> struct KernelTypeList { }; }
+
+template<typename... T> class KernelDispatchTable { };
 
 // KernelDispatchTable is derived from `DispatchTable` using the `KernelDispatchKeyHash` functor above
 // to assign specialized kernels with individual keys.
