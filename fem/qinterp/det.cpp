@@ -281,6 +281,26 @@ static void Det3D(const int NE,
    });
 }
 
+void InitDetKernels()
+{
+   auto &k = QuadratureInterpolator::DetKernels::Get();
+   // 2D
+   k.AddSpecialization<2,2,2,2>();
+   k.AddSpecialization<2,2,2,3>();
+   k.AddSpecialization<2,2,2,4>();
+   k.AddSpecialization<2,2,2,6>();
+   k.AddSpecialization<2,2,3,4>();
+   k.AddSpecialization<2,2,3,6>();
+   k.AddSpecialization<2,2,4,4>();
+   k.AddSpecialization<2,2,4,6>();
+   k.AddSpecialization<2,2,5,6>();
+   // 3D
+   k.AddSpecialization<3,3,2,4>();
+   k.AddSpecialization<3,3,3,3>();
+   k.AddSpecialization<3,3,3,5>();
+   k.AddSpecialization<3,3,3,6>();
+}
+
 } // namespace quadrature_interpolator
 
 } // namespace internal
