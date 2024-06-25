@@ -127,29 +127,27 @@ void TMOP_Integrator::AssemblePA_Fitting()
 {
    const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
                          Device::GetDeviceMemoryType() : pa_mt;
-
-
    // Return immediately if Grid Function is not enabled
    if (surf_fit_coeff == nullptr) { return; }
    MFEM_VERIFY(PA.enabled, "AssemblePA_Fitting but PA is not enabled!");
    MFEM_VERIFY(surf_fit_gf, "No surface fitting function specification!");
+
+   //Is this right? 
+   const FiniteElementSpace *fes = 
+      (surf_fit_gf) ? surf_fit_gf->FESpace() : surf_fit_pos->FESpace();
+   
 
    const int NE = PA.ne;
    if (NE == 0) { return; }  // Quick return for empty processors
    const IntegrationRule &ir = *PA.ir;
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
 
-   //FE space and mesh setup
-   const FiniteElementSpace *fes = PA.fes;
-   const int dim = fes->GetMesh()->Dimension();
-   Mesh *mesh = fes->GetMesh();
-  
-   MFEM_VERIFY(mesh->GetNodes()->Size() == dim*surf_fit_gf->Size(),
-               "Mesh and level-set polynomial order must be the same.");
-   const H1_FECollection *fec = dynamic_cast<const H1_FECollection *>
-                                (fes->FEColl());
-   MFEM_VERIFY(fec, "Only H1_FECollection is supported for the surface fitting "
-               "grid function.");
+   // surf_fit_gf -> PA.X0 (E-vector)
+   MFEM_VERIFY(surf_fit_gf->FESpace() == fes, "");
+   const Operator *n0_R = fes->GetElementRestriction(ordering);
+   PA.X0.SetSize(n0_R->Height(), Device::GetMemoryType());
+   PA.X0.UseDevice(true);
+   n0_R->Mult(*surf_fit_gf, PA.X0);
 }
 //------------------------------- new function above -------------------------//
 
@@ -317,7 +315,7 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
 
    // Limiting: lim_coeff -> PA.C0, lim_nodes0 -> PA.X0, lim_dist -> PA.LD, PA.H0
    if (lim_coeff) { AssemblePA_Limiting(); }
-   if (surf_fit_coeff) {AssemblePA_Fitting(); }
+   if (surf_fit_gf) {AssemblePA_Fitting(); }
 }
 
 void TMOP_Integrator::AssembleGradDiagonalPA(Vector &de) const
@@ -407,6 +405,7 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA(const Vector &xe) const
    {
       energy = GetLocalStateEnergyPA_2D(xe);
       if (lim_coeff) { energy += GetLocalStateEnergyPA_C0_2D(xe); }
+      if (surf_fit_coeff) { energy += GetLocalStateEnergyPA_Fit_2D(xe); }
    }
 
    if (PA.dim == 3)

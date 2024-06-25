@@ -1953,6 +1953,7 @@ protected:
 
    real_t GetLocalStateEnergyPA_2D(const Vector&) const;
    real_t GetLocalStateEnergyPA_C0_2D(const Vector&) const;
+   real_t GetLocalStateEnergyPA_Fit_2D(const Vector&) const;
    real_t GetLocalStateEnergyPA_3D(const Vector&) const;
    real_t GetLocalStateEnergyPA_C0_3D(const Vector&) const;
 
