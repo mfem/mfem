@@ -22,9 +22,9 @@
 namespace mfem
 {
 
-#define MFEM_DECLARE_KERNELS(KernelName, KernelType, ...) \
-   MFEM_DECLARE_KERNELS_N(__VA_ARGS__,2,1)(KernelName, KernelType, __VA_ARGS__)
-#define MFEM_DECLARE_KERNELS_N(_1, _2, N, ...) MFEM_DECLARE_KERNELS_##N
+#define MFEM_REGISTER_KERNELS(KernelName, KernelType, ...) \
+   MFEM_REGISTER_KERNELS_N(__VA_ARGS__,2,1)(KernelName, KernelType, __VA_ARGS__)
+#define MFEM_REGISTER_KERNELS_N(_1, _2, N, ...) MFEM_REGISTER_KERNELS_##N
 
 // Expands a variable length macro parameter so that multiple variable length
 // parameters can be passed to the same macro.
@@ -32,7 +32,7 @@ namespace mfem
 
 // Declare the class used to dispatch shared memory kernels when the fallback
 // methods don't require template parameters.
-#define MFEM_DECLARE_KERNELS_1(KernelName, KernelType, OptParams)              \
+#define MFEM_REGISTER_KERNELS_1(KernelName, KernelType, OptParams)             \
    class KernelName : public                                                   \
    KernelDispatchTable<KernelName, KernelType,                                 \
       internal::KernelTypeList<>,                                              \
@@ -47,7 +47,7 @@ namespace mfem
       { static KernelName table; return table;}                                \
    };
 
-#define MFEM_DECLARE_KERNELS_2(KernelName, KernelType, Params, OptParams)      \
+#define MFEM_REGISTER_KERNELS_2(KernelName, KernelType, Params, OptParams)     \
    class KernelName : public                                                   \
    KernelDispatchTable<KernelName, KernelType,                                 \
       internal::KernelTypeList<MFEM_PARAM_LIST Params>,                        \
