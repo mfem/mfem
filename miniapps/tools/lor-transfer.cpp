@@ -144,8 +144,10 @@ int main(int argc, char *argv[])
 
    QuadratureSpace qspace(mesh_lor, *ir); 
    QuadratureFunction qfunc(&qspace);
-   qfunc = 333.0;  // set weighted integral coefficient: can allow spatial variance at each quad index
-   // qfunc(2) = 7.0;  // e.g. if uncommented, spatial variance will not pass device verification!
+   qfunc = 1.0; 
+   // qfunc(2) = 7; // does not pass verify_solution
+   // qfunc(7) = 333.000001; // does not pass verify_solution
+   // qfunc(7) = 333.0000001; // passes verify_solution
    QuadratureFunctionCoefficient coeff(qfunc); 
 
    GridFunction rho(&fespace);
@@ -185,17 +187,18 @@ int main(int argc, char *argv[])
    }
    else
    {
-      gt = new L2ProjectionGridTransfer(fespace, fespace_lor, &coeff);
+      gt = new L2ProjectionGridTransfer(fespace, fespace_lor, &coeff); 
    }
 
    gt->UseDevice(true);
    gt->VerifySolution(true);
 
    const Operator &R = gt->ForwardOperator();
+   // printf("Get past forward operator call \n");
 
    // HO->LOR restriction
    direction = "HO -> LOR @ LOR";
-   R.Mult(rho, rho_lor);
+   R.Mult(rho, rho_lor);  
    compute_mass(&fespace_lor, ho_mass, LOR_dc, "R(HO)    ");
    if (vis) { visualize(LOR_dc, "R(HO)", Wx, Wy); Wx += offx; }
 
