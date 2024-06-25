@@ -49,10 +49,10 @@ public:
                                   real_t *, const int, const int, const int, const int );
 
    MFEM_REGISTER_KERNELS(EvalKernels, EvalKernelType,
-                         (QVectorLayout), (int, int, int));
+                         (QVectorLayout), (int, int, int, int));
 
    MFEM_REGISTER_KERNELS(GradKernels, GradKernelType,
-                         (QVectorLayout, bool), (int, int, int));
+                         (QVectorLayout, bool), (int, int, int, int));
 
    static struct Kernels { Kernels(); } kernels;
 

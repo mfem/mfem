@@ -395,11 +395,11 @@ GradKernel GetGradKernel(int DIM, bool GRAD_PHYS)
 }
 
 template<int DIM, QVectorLayout Q_LAYOUT, bool GRAD_PHYS,
-         int T_VDIM, int T_D1D, int T_Q1D>
+         int T_VDIM, int T_D1D, int T_Q1D, int T_NBZ>
 GradKernel QuadratureInterpolator::GradKernels::Kernel()
 {
    if (DIM == 1) { return internal::quadrature_interpolator::Derivatives1D<Q_LAYOUT, GRAD_PHYS>; }
-   else if (DIM == 2) { return internal::quadrature_interpolator::Derivatives2D<Q_LAYOUT, GRAD_PHYS, T_VDIM, T_D1D, T_Q1D, 0>; }
+   else if (DIM == 2) { return internal::quadrature_interpolator::Derivatives2D<Q_LAYOUT, GRAD_PHYS, T_VDIM, T_D1D, T_Q1D, T_NBZ>; }
    else if (DIM == 3) { return internal::quadrature_interpolator::Derivatives3D<Q_LAYOUT, GRAD_PHYS, T_VDIM, T_D1D, T_Q1D>; }
    else { MFEM_ABORT(""); }
 }
