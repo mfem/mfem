@@ -607,7 +607,7 @@ protected: // implementation
    Array<int> leaf_elements; ///< finest elements, in Mesh ordering (+ ghosts)
    Array<int> leaf_sfc_index; ///< natural tree ordering of leaf elements
    Array<int> vertex_nodeId; ///< vertex-index to node-id map, see UpdateVertices
-   Array<real_t> vertex_scale;
+   Array<real_t> vertex_scale;  // TODO: Is this used?
 
    NCList face_list; ///< lazy-initialized list of faces, see GetFaceList
    NCList edge_list; ///< lazy-initialized list of edges, see GetEdgeList

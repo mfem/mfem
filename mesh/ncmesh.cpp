@@ -3320,7 +3320,7 @@ void NCMesh::TraverseEdge(int vn0, int vn1, real_t t0, real_t t1, int flags,
    }
 
    // recurse deeper
-   real_t tmid = (t0 + t1) / 2;
+   const real_t tmid = ((1.0 - nd.scale) * t0) + (nd.scale * t1);
    TraverseEdge(vn0, mid, t0, tmid, flags, level+1, matrix_map);
    TraverseEdge(mid, vn1, tmid, t1, flags, level+1, matrix_map);
 }
@@ -5593,7 +5593,8 @@ int NCMesh::PrintVertexParents(std::ostream *os) const
             MFEM_ASSERT(nodes[node->p1].HasVertex(), "");
             MFEM_ASSERT(nodes[node->p2].HasVertex(), "");
 
-            (*os) << node.index() << " " << node->p1 << " " << node->p2 << "\n";
+            (*os) << node.index() << " " << node->p1 << " " << node->p2
+                  << " " << node->scale << "\n";
          }
       }
       return 0;
@@ -5607,7 +5608,8 @@ void NCMesh::LoadVertexParents(std::istream &input)
    while (nv--)
    {
       int id, p1, p2;
-      input >> id >> p1 >> p2;
+      real_t s;
+      input >> id >> p1 >> p2 >> s;
       MFEM_VERIFY(input, "problem reading vertex parents.");
 
       MFEM_VERIFY(nodes.IdExists(id), "vertex " << id << " not found.");
@@ -5620,6 +5622,8 @@ void NCMesh::LoadVertexParents(std::istream &input)
 
       // assign new parents for the node
       nodes.Reparent(id, p1, p2);
+
+      nodes[id].scale = s;
    }
 }
 
