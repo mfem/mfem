@@ -34,31 +34,31 @@ struct KernelTypeList { };
 
 // Declare the class used to dispatch shared memory kernels when the fallback
 // methods don't require template parameters.
-#define MFEM_DECLARE_KERNELS(KernelName, KernelType, UserParams)               \
+#define MFEM_DECLARE_KERNELS(KernelName, KernelType, OptParams)               \
    class KernelName ## Kernels : public                                        \
    KernelDispatchTable<KernelName ## Kernels, KernelType,                      \
-      internal::KernelTypeList<UserParams>, internal::KernelTypeList<>>        \
+      internal::KernelTypeList<>, internal::KernelTypeList<OptParams>>        \
    {                                                                           \
    public:                                                                     \
       using KernelSignature = KernelType;                                      \
-      template <int DIM, UserParams>                                           \
+      template <int DIM, OptParams>                                           \
       static KernelSignature Kernel();                                         \
       static KernelSignature Fallback(int dim);                                \
       static KernelName ## Kernels &Get()                                      \
       { static KernelName ## Kernels table; return table;}                     \
    };
 
-#define MFEM_DECLARE_KERNELS_2(KernelName, KernelType, UserParams, FallbackParams) \
+#define MFEM_DECLARE_KERNELS_2(KernelName, KernelType, Params, OptParams)     \
    class KernelName ## Kernels : public                                        \
    KernelDispatchTable<KernelName ## Kernels, KernelType,                      \
-      internal::KernelTypeList<UserParams>,                                    \
-      internal::KernelTypeList<FallbackParams>>                                \
+      internal::KernelTypeList<Params>,                                        \
+   internal::KernelTypeList<OptParams>>                                       \
    {                                                                           \
    public:                                                                     \
       using KernelSignature = KernelType;                                      \
-      template <int DIM, FallbackParams, UserParams>                           \
+      template <int DIM, Params, OptParams>                                   \
       static KernelSignature Kernel();                                         \
-      static KernelSignature Fallback(int dim, FallbackParams);                \
+      static KernelSignature Fallback(int dim, Params);                        \
       static KernelName ## Kernels &Get()                                      \
       { static KernelName ## Kernels table; return table;}                     \
    };
@@ -98,22 +98,22 @@ class KernelDispatchTable { };
 
 // KernelDispatchTable is derived from `DispatchTable` using the `KernelDispatchKeyHash` functor above
 // to assign specialized kernels with individual keys.
-template <typename Kernels, typename Signature, typename... UserParams, typename... FallbackParams>
-class KernelDispatchTable<Kernels, Signature, internal::KernelTypeList<UserParams...>, internal::KernelTypeList<FallbackParams...>>
+template <typename Kernels, typename Signature, typename... Params, typename... OptParams>
+class KernelDispatchTable<Kernels, Signature, internal::KernelTypeList<Params...>, internal::KernelTypeList<OptParams...>>
 {
-   std::unordered_map<std::tuple<int, FallbackParams..., UserParams...>,
+   std::unordered_map<std::tuple<int, Params..., OptParams...>,
        Signature,
-       KernelDispatchKeyHash<int, FallbackParams..., UserParams...>> table;
+       KernelDispatchKeyHash<int, Params..., OptParams...>> table;
 
 public:
    // TODO(bowen) Force this to use the same signature as the Signature typedef
    // above.
    template<typename... KernelArgs>
-   void Run(int dim, FallbackParams... f_params, UserParams... u_params,
+   void Run(int dim, Params... params, OptParams... opt_params,
             KernelArgs&&... args)
    {
-      std::tuple<int, FallbackParams..., UserParams...> key;
-      key = std::make_tuple(dim, f_params..., u_params...);
+      std::tuple<int, Params..., OptParams...> key;
+      key = std::make_tuple(dim, params..., opt_params...);
       const auto it = this->table.find(key);
       if (it != this->table.end())
       {
@@ -123,16 +123,16 @@ public:
       else
       {
          printf("Using non-specialized kernel\n");
-         Kernels::Fallback(dim, f_params...)(std::forward<KernelArgs>(args)...);
+         Kernels::Fallback(dim, params...)(std::forward<KernelArgs>(args)...);
       }
    }
 
-   template <int DIM, FallbackParams... F_PARAMS, UserParams... U_PARAMS>
+   template <int DIM, Params... PARAMS, OptParams... OPT_PARAMS>
    void AddSpecialization()
    {
-      std::tuple<int, FallbackParams..., UserParams...>
-      param_tuple(DIM, F_PARAMS..., U_PARAMS...);
-      table[param_tuple] = Kernels:: template Kernel<DIM, F_PARAMS..., U_PARAMS...>();
+      std::tuple<int, Params..., OptParams...> param_tuple(DIM, PARAMS...,
+                                                           OPT_PARAMS...);
+      table[param_tuple] = Kernels:: template Kernel<DIM, PARAMS..., OPT_PARAMS...>();
    };
 };
 

@@ -49,12 +49,14 @@ public:
                                   real_t *, const int, const int, const int, const int );
 
    MFEM_DECLARE_KERNELS_2(Eval, EvalKernelType,
-                          MFEM_PARAM_LIST(int, int, int),
-                          MFEM_PARAM_LIST(QVectorLayout))
+                          MFEM_PARAM_LIST(QVectorLayout),
+                          MFEM_PARAM_LIST(int, int, int));
 
    MFEM_DECLARE_KERNELS_2(Grad, GradKernelType,
-                          MFEM_PARAM_LIST(int, int, int),
-                          MFEM_PARAM_LIST(QVectorLayout, bool))
+                          MFEM_PARAM_LIST(QVectorLayout, bool),
+                          MFEM_PARAM_LIST(int, int, int));
+
+   static struct Kernels { Kernels(); } kernels;
 
    static const int MAX_NQ2D = 100;
    static const int MAX_ND2D = 100;
