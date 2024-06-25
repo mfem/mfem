@@ -245,9 +245,10 @@ public:
 
       const bool use_device, verify_solution;
       MemoryType d_mt_;
-      Coefficient* coeff;
+      Coefficient *coeff;
 
    public:
+      Vector M_mixed_all;
       L2ProjectionL2Space(const FiniteElementSpace& fes_ho_,
                           const FiniteElementSpace& fes_lor_,
                           Coefficient* coeff_,
@@ -257,7 +258,7 @@ public:
 
       /*Same as above but assembles and stores R_ea, P_ea */
       void DeviceL2ProjectionL2Space(const FiniteElementSpace& fes_ho_,
-                                     const FiniteElementSpace& fes_lor_, 
+                                     const FiniteElementSpace& fes_lor_,
                                      Coefficient* coeff_);
 
       /// Maps <tt>x</tt>, primal field coefficients defined on a coarse mesh
@@ -315,18 +316,40 @@ protected:
 
    friend class L2ProjectionL2Space;
 
+   //Class below must be public as we now have device code
+public:
+
    /** Projection operator between a H1 high-order finite element space on a
        coarse mesh, and a H1 low-order finite element space on a refined mesh
        (LOR). */
    class L2ProjectionH1Space : public L2Projection
    {
+      const bool use_device, verify_solution;
+      MemoryType d_mt_;
+      Coefficient* coeff;
+      Array<int> offsets;
+
+      const ElementRestrictionOperator* elem_restrict_h;
+      Vector M_mixed_all_ea;
+      const ElementRestrictionOperator* elem_restrict_l;
+      Vector ML_inv_ea;
+
+
    public:
       L2ProjectionH1Space(const FiniteElementSpace &fes_ho_,
-                          const FiniteElementSpace &fes_lor_);
-#ifdef MFEM_USE_MPI
-      L2ProjectionH1Space(const ParFiniteElementSpace &pfes_ho_,
-                          const ParFiniteElementSpace &pfes_lor_);
-#endif
+                          const FiniteElementSpace &fes_lor_,
+                          Coefficient *coeff_, 
+                          const bool use_device_,
+                          const bool verify_solution_, 
+                          MemoryType d_mt_ = MemoryType::DEFAULT);
+      #ifdef MFEM_USE_MPI
+            L2ProjectionH1Space(const ParFiniteElementSpace &pfes_ho_,
+                              const ParFiniteElementSpace &pfes_lor_);
+      #endif
+      /* Same as above but assembles action of R through ElementRestrictionOperator */
+      void DeviceL2ProjectionH1Space(const FiniteElementSpace &fes_ho_,
+                                     const FiniteElementSpace &fes_lor_, 
+                                     Coefficient* coeff_);
       /// Maps <tt>x</tt>, primal field coefficients defined on a coarse mesh
       /// with a higher order H1 finite element space, to <tt>y</tt>, primal
       /// field coefficients defined on a refined mesh with a low order H1
@@ -334,6 +357,10 @@ protected:
       /// the coarse mesh. Coefficients are computed through minimization of L2
       /// error between the fields.
       virtual void Mult(const Vector& x, Vector& y) const;
+
+      // Perform mult on the device (same as above)
+      void DeviceMult(const Vector&x, Vector& y) const;
+
       /// Maps <tt>x</tt>, dual field coefficients defined on a refined mesh
       /// with a low order H1 finite element space, to <tt>y</tt>, dual field
       /// coefficients defined on a coarse mesh with a higher order H1 finite
@@ -342,6 +369,9 @@ protected:
       /// error between the primal fields. Note, if the <tt>x</tt>-coefficients
       /// come from ProlongateTranspose, then mass is conserved.
       virtual void MultTranspose(const Vector& x, Vector& y) const;
+
+      void DeviceMultTranspose(const Vector& x, Vector& y) const;
+      
       /// Maps <tt>x</tt>, primal field coefficients defined on a refined mesh
       /// with a low order H1 finite element space, to <tt>y</tt>, primal field
       /// coefficients defined on a coarse mesh with a higher order H1 finite
@@ -360,12 +390,15 @@ protected:
       virtual void ProlongateTranspose(const Vector& x, Vector& y) const;
       virtual void SetRelTol(real_t p_rtol_);
       virtual void SetAbsTol(real_t p_atol_);
+
+      virtual Vector PullL2SpaceDeviceM_LH(const FiniteElementSpace& coarse_fes_,
+                        const FiniteElementSpace& fine_fes_);
    protected:
       /// Sets up the PCG solver (sets parameters, operator, and preconditioner)
       void SetupPCG();
       /// Computes on-rank R and M_LH matrices.
       std::pair<std::unique_ptr<SparseMatrix>,
-          std::unique_ptr<SparseMatrix>> ComputeSparseRAndM_LH();
+          std::unique_ptr<SparseMatrix>> ComputeSparseRAndM_LH(bool GetM_LHError, bool getML_invError);
       /// @brief Recovers vector of tdofs given a vector of dofs and a finite
       /// element space
       void GetTDofs(const FiniteElementSpace& fes, const Vector& x, Vector& X) const;
@@ -405,8 +438,11 @@ protected:
       // Used to compute P = (RT*M_LH)^(-1) M_LH^T
       std::unique_ptr<Operator> M_LH;
       std::unique_ptr<Operator> RTxM_LH;
+
+      friend class L2ProjectionL2Space;
    };
 
+protected:
    /** Mass-conservative prolongation operator going in the opposite direction
        as L2Projection. This operator is a left inverse to the L2Projection. */
    class L2Prolongation : public Operator
@@ -433,8 +469,8 @@ protected:
 
 public:
    // Coefficient for weighted integration in mass matrices; allows for spatial variation
-   Coefficient* coeff; 
-
+   Coefficient *coeff; 
+      
    L2ProjectionGridTransfer(FiniteElementSpace &coarse_fes_,
                             FiniteElementSpace &fine_fes_,
                             Coefficient *coeff_,
