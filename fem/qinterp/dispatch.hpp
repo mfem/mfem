@@ -22,31 +22,156 @@ namespace internal
 namespace quadrature_interpolator
 {
 
-// Tensor-product evaluation of quadrature point values: dispatch function.
-template<QVectorLayout VL>
-void TensorValues(const int NE,
-                  const int vdim,
-                  const DofToQuad &maps,
-                  const Vector &e_vec,
-                  Vector &q_val);
+template <QVectorLayout L, bool P>
+void InitDerivativeKernels()
+{
+   auto &k = QuadratureInterpolator::GradKernels::Get();
+   // 2D
+   k.AddSpecialization<2,L,P,1,3,4>();
+   k.AddSpecialization<2,L,P,1,4,6>();
+   k.AddSpecialization<2,L,P,1,5,8>();
+   k.AddSpecialization<2,L,P,2,3,3>();
+   k.AddSpecialization<2,L,P,2,3,4>();
+   k.AddSpecialization<2,L,P,2,4,6>();
+   k.AddSpecialization<2,L,P,2,5,8>();
+   // 3D
+   k.AddSpecialization<3,L,P,1,3,4>();
+   k.AddSpecialization<3,L,P,1,4,6>();
+   k.AddSpecialization<3,L,P,1,5,8>();
+   k.AddSpecialization<3,L,P,3,3,4>();
+   k.AddSpecialization<3,L,P,3,4,6>();
+   k.AddSpecialization<3,L,P,3,5,8>();
 
-// Tensor-product evaluation of quadrature point derivatives: dispatch function.
-template<QVectorLayout VL>
-void TensorDerivatives(const int NE,
-                       const int vdim,
-                       const DofToQuad &maps,
-                       const Vector &e_vec,
-                       Vector &q_der);
+   // 2D
+   k.AddSpecialization<2,L,P,1,3,3>();
+   k.AddSpecialization<2,L,P,1,3,4>();
+   k.AddSpecialization<2,L,P,1,4,3>();
+   k.AddSpecialization<2,L,P,1,4,4>();
 
-// Tensor-product evaluation of quadrature point physical derivatives: dispatch
-// function.
-template<QVectorLayout VL>
-void TensorPhysDerivatives(const int NE,
-                           const int vdim,
-                           const DofToQuad &maps,
-                           const GeometricFactors &geom,
-                           const Vector &e_vec,
-                           Vector &q_der);
+   k.AddSpecialization<2,L,P,2,2,2>();
+   k.AddSpecialization<2,L,P,2,2,3>();
+   k.AddSpecialization<2,L,P,2,2,4>();
+   k.AddSpecialization<2,L,P,2,2,5>();
+   k.AddSpecialization<2,L,P,2,2,6>();
+
+   k.AddSpecialization<2,L,P,2,3,3>();
+   k.AddSpecialization<2,L,P,2,3,4>();
+   k.AddSpecialization<2,L,P,2,4,3>();
+   k.AddSpecialization<2,L,P,2,3,6>();
+
+   k.AddSpecialization<2,L,P,2,4,4>();
+   k.AddSpecialization<2,L,P,2,4,5>();
+   k.AddSpecialization<2,L,P,2,4,6>();
+   k.AddSpecialization<2,L,P,2,4,7>();
+
+   k.AddSpecialization<2,L,P,2,5,6>();
+   // 3D
+   k.AddSpecialization<3,L,P,1,2,4>();
+   k.AddSpecialization<3,L,P,1,3,3>();
+   k.AddSpecialization<3,L,P,1,3,4>();
+   k.AddSpecialization<3,L,P,1,3,6>();
+   k.AddSpecialization<3,L,P,1,4,4>();
+   k.AddSpecialization<3,L,P,1,4,8>();
+
+   k.AddSpecialization<3,L,P,3,2,3>();
+   k.AddSpecialization<3,L,P,3,2,4>();
+   k.AddSpecialization<3,L,P,3,2,5>();
+   k.AddSpecialization<3,L,P,3,2,6>();
+
+   k.AddSpecialization<3,L,P,3,3,3>();
+   k.AddSpecialization<3,L,P,3,3,4>();
+   k.AddSpecialization<3,L,P,3,3,5>();
+   k.AddSpecialization<3,L,P,3,3,6>();
+   k.AddSpecialization<3,L,P,3,4,4>();
+   k.AddSpecialization<3,L,P,3,4,6>();
+   k.AddSpecialization<3,L,P,3,4,7>();
+   k.AddSpecialization<3,L,P,3,4,8>();
+}
+
+template <QVectorLayout L>
+void InitEvalKernels()
+{
+   auto &k = QuadratureInterpolator::EvalKernels::Get();
+   // 2D
+   k.AddSpecialization<2,L,1,2,4>();
+   k.AddSpecialization<2,L,1,3,6>();
+   k.AddSpecialization<2,L,1,4,8>();
+   k.AddSpecialization<2,L,2,2,4>();
+   k.AddSpecialization<2,L,2,3,4>();
+   k.AddSpecialization<2,L,2,3,6>();
+   k.AddSpecialization<2,L,2,4,8>();
+   // 3D
+   k.AddSpecialization<3,L,1,2,4>();
+   k.AddSpecialization<3,L,1,3,6>();
+   k.AddSpecialization<3,L,1,4,8>();
+   k.AddSpecialization<3,L,3,2,4>();
+   k.AddSpecialization<3,L,3,3,6>();
+   k.AddSpecialization<3,L,3,4,8>();
+
+   k.AddSpecialization<3,L,3,2,2>();
+   k.AddSpecialization<3,L,3,3,3>();
+   k.AddSpecialization<3,L,3,4,4>();
+   k.AddSpecialization<3,L,3,5,5>();
+   k.AddSpecialization<3,L,3,6,6>();
+   k.AddSpecialization<3,L,3,7,7>();
+   k.AddSpecialization<3,L,3,8,8>();
+   k.AddSpecialization<3,L,3,9,9>();
+
+   // 2D
+   k.AddSpecialization<2,L,1,3,3>();
+   k.AddSpecialization<2,L,1,2,4>();
+   k.AddSpecialization<2,L,1,3,2>();
+   k.AddSpecialization<2,L,1,3,4>();
+   k.AddSpecialization<2,L,1,4,3>();
+   k.AddSpecialization<2,L,1,4,4>();
+
+   k.AddSpecialization<2,L,2,2,2>();
+   k.AddSpecialization<2,L,2,2,3>();
+   k.AddSpecialization<2,L,2,2,4>();
+   k.AddSpecialization<2,L,2,2,5>();
+   k.AddSpecialization<2,L,2,2,6>();
+
+   k.AddSpecialization<2,L,2,3,3>();
+   k.AddSpecialization<2,L,2,3,4>();
+   k.AddSpecialization<2,L,2,3,6>();
+
+   k.AddSpecialization<2,L,2,4,3>();
+   k.AddSpecialization<2,L,2,4,4>();
+   k.AddSpecialization<2,L,2,4,5>();
+   k.AddSpecialization<2,L,2,4,6>();
+   k.AddSpecialization<2,L,2,4,7>();
+
+   k.AddSpecialization<2,L,2,5,6>();
+
+   // 3D
+   k.AddSpecialization<3,L,1,2,4>();
+   k.AddSpecialization<3,L,1,3,3>();
+   k.AddSpecialization<3,L,1,3,4>();
+   k.AddSpecialization<3,L,1,3,6>();
+   k.AddSpecialization<3,L,1,4,3>();
+   k.AddSpecialization<3,L,1,4,4>();
+   k.AddSpecialization<3,L,1,4,8>();
+
+   k.AddSpecialization<3,L,2,2,2>();
+   k.AddSpecialization<3,L,2,2,3>();
+   k.AddSpecialization<3,L,2,3,4>();
+
+   k.AddSpecialization<3,L,3,2,3>();
+   k.AddSpecialization<3,L,3,2,4>();
+   k.AddSpecialization<3,L,3,2,5>();
+   k.AddSpecialization<3,L,3,2,6>();
+
+   k.AddSpecialization<3,L,3,3,3>();
+   k.AddSpecialization<3,L,3,3,4>();
+   k.AddSpecialization<3,L,3,3,5>();
+   k.AddSpecialization<3,L,3,3,6>();
+
+   k.AddSpecialization<3,L,3,4,3>();
+   k.AddSpecialization<3,L,3,4,4>();
+   k.AddSpecialization<3,L,3,4,6>();
+   k.AddSpecialization<3,L,3,4,7>();
+   k.AddSpecialization<3,L,3,4,8>();
+}
 
 // Tensor-product evaluation of quadrature point determinants: dispatch
 // function.

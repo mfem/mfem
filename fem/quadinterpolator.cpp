@@ -11,6 +11,8 @@
 
 #include "quadinterpolator.hpp"
 #include "qinterp/dispatch.hpp"
+#include "qinterp/grad.hpp"
+#include "qinterp/eval.hpp"
 #include "qspace.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/dtensor.hpp"
@@ -18,6 +20,20 @@
 
 namespace mfem
 {
+
+QuadratureInterpolator::Kernels QuadratureInterpolator::kernels;
+QuadratureInterpolator::Kernels::Kernels()
+{
+   using namespace internal::quadrature_interpolator;
+
+   InitDerivativeKernels<QVectorLayout::byNODES, true>();
+   InitDerivativeKernels<QVectorLayout::byNODES, false>();
+   InitDerivativeKernels<QVectorLayout::byVDIM, true>();
+   InitDerivativeKernels<QVectorLayout::byVDIM, false>();
+
+   InitEvalKernels<QVectorLayout::byNODES>();
+   InitEvalKernels<QVectorLayout::byVDIM>();
+}
 
 QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
                                                const IntegrationRule &ir):
@@ -467,6 +483,7 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
    const int ne = fespace->GetNE();
    if (ne == 0) { return; }
    const int vdim = fespace->GetVDim();
+   const int sdim = fespace->GetMesh()->SpaceDimension();
    const FiniteElement *fe = fespace->GetFE(0);
    const bool use_tensor_eval =
       use_tensor_products &&
@@ -477,6 +494,8 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
       use_tensor_eval ? DofToQuad::TENSOR : DofToQuad::FULL;
    const DofToQuad &maps = fe->GetDofToQuad(*ir, mode);
    const int dim = maps.FE->GetDim();
+   const int nd = maps.ndof;
+   const int nq = maps.nqpt;
    const GeometricFactors *geom = nullptr;
    if (eval_flags & PHYSICAL_DERIVATIVES)
    {
@@ -494,37 +513,17 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
    {
       if (eval_flags & VALUES)
       {
-         EvalKernels::Get().Run(dim, q_layout, vdim, maps.ndof, maps.nqpt, ne,
-                                maps.B.Read(), e_vec.Read(), q_val.Write(), vdim,
-                                maps.ndof, maps.nqpt);
+         EvalKernels::Get().Run(dim, q_layout, vdim, nd, nq, ne, maps.B.Read(),
+                                e_vec.Read(), q_val.Write(), vdim, nd, nq);
       }
-      // TODO: use fused kernels
-      if (q_layout == QVectorLayout::byNODES)
+      if (eval_flags & (DERIVATIVES | PHYSICAL_DERIVATIVES))
       {
-         if (eval_flags & DERIVATIVES)
-         {
-            TensorDerivatives<QVectorLayout::byNODES>(
-               ne, vdim, maps, e_vec, q_der);
-         }
-         if (eval_flags & PHYSICAL_DERIVATIVES)
-         {
-            TensorPhysDerivatives<QVectorLayout::byNODES>(
-               ne, vdim, maps, *geom, e_vec, q_der);
-         }
-      }
-
-      if (q_layout == QVectorLayout::byVDIM)
-      {
-         if (eval_flags & DERIVATIVES)
-         {
-            TensorDerivatives<QVectorLayout::byVDIM>(
-               ne, vdim, maps, e_vec, q_der);
-         }
-         if (eval_flags & PHYSICAL_DERIVATIVES)
-         {
-            TensorPhysDerivatives<QVectorLayout::byVDIM>(
-               ne, vdim, maps, *geom, e_vec, q_der);
-         }
+         const bool phys = (eval_flags & PHYSICAL_DERIVATIVES);
+         const real_t *J = phys ? geom->J.Read() : nullptr;
+         const int s_dim = phys ? sdim : dim;
+         GradKernels::Get().Run(dim, q_layout, phys, vdim, nd, nq, ne,
+                                maps.B.Read(), maps.G.Read(), J, e_vec.Read(),
+                                q_der.Write(), s_dim, vdim, nd, nq);
       }
       if (eval_flags & DETERMINANTS)
       {

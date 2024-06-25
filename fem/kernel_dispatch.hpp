@@ -34,29 +34,29 @@ struct KernelTypeList { };
 
 // Declare the class used to dispatch shared memory kernels when the fallback
 // methods don't require template parameters.
-#define MFEM_DECLARE_KERNELS(KernelName, KernelType, OptParams)               \
+#define MFEM_DECLARE_KERNELS(KernelName, KernelType, OptParams)                \
    class KernelName ## Kernels : public                                        \
    KernelDispatchTable<KernelName ## Kernels, KernelType,                      \
-      internal::KernelTypeList<>, internal::KernelTypeList<OptParams>>        \
+      internal::KernelTypeList<>, internal::KernelTypeList<OptParams>>         \
    {                                                                           \
    public:                                                                     \
       using KernelSignature = KernelType;                                      \
-      template <int DIM, OptParams>                                           \
+      template <int DIM, OptParams>                                            \
       static KernelSignature Kernel();                                         \
       static KernelSignature Fallback(int dim);                                \
       static KernelName ## Kernels &Get()                                      \
       { static KernelName ## Kernels table; return table;}                     \
    };
 
-#define MFEM_DECLARE_KERNELS_2(KernelName, KernelType, Params, OptParams)     \
+#define MFEM_DECLARE_KERNELS_2(KernelName, KernelType, Params, OptParams)      \
    class KernelName ## Kernels : public                                        \
    KernelDispatchTable<KernelName ## Kernels, KernelType,                      \
       internal::KernelTypeList<Params>,                                        \
-   internal::KernelTypeList<OptParams>>                                       \
+   internal::KernelTypeList<OptParams>>                                        \
    {                                                                           \
    public:                                                                     \
       using KernelSignature = KernelType;                                      \
-      template <int DIM, Params, OptParams>                                   \
+      template <int DIM, Params, OptParams>                                    \
       static KernelSignature Kernel();                                         \
       static KernelSignature Fallback(int dim, Params);                        \
       static KernelName ## Kernels &Get()                                      \
@@ -108,9 +108,8 @@ class KernelDispatchTable<Kernels, Signature, internal::KernelTypeList<Params...
 public:
    // TODO(bowen) Force this to use the same signature as the Signature typedef
    // above.
-   template<typename... KernelArgs>
-   void Run(int dim, Params... params, OptParams... opt_params,
-            KernelArgs&&... args)
+   template<typename... Args>
+   void Run(int dim, Params... params, OptParams... opt_params, Args&&... args)
    {
       std::tuple<int, Params..., OptParams...> key;
       key = std::make_tuple(dim, params..., opt_params...);
@@ -118,20 +117,20 @@ public:
       if (it != this->table.end())
       {
          printf("Using specialized kernel\n");
-         it->second(std::forward<KernelArgs>(args)...);
+         it->second(std::forward<Args>(args)...);
       }
       else
       {
          printf("Using non-specialized kernel\n");
-         Kernels::Fallback(dim, params...)(std::forward<KernelArgs>(args)...);
+         Kernels::Fallback(dim, params...)(std::forward<Args>(args)...);
       }
    }
 
    template <int DIM, Params... PARAMS, OptParams... OPT_PARAMS>
    void AddSpecialization()
    {
-      std::tuple<int, Params..., OptParams...> param_tuple(DIM, PARAMS...,
-                                                           OPT_PARAMS...);
+      std::tuple<int, Params..., OptParams...> param_tuple(
+         DIM, PARAMS..., OPT_PARAMS...);
       table[param_tuple] = Kernels:: template Kernel<DIM, PARAMS..., OPT_PARAMS...>();
    };
 };
