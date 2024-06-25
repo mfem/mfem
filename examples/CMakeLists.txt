@@ -90,6 +90,10 @@ if (MFEM_USE_MPI)
     ex39p.cpp
     ex40p.cpp
     ex00p.cpp
+    ex0jac.cpp
+    ex1jac.cpp
+    ex2jac.cpp
+    ex3jac.cpp
   )
 endif()
 
