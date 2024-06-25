@@ -14,6 +14,7 @@
 
 #include "../config/config.hpp"
 #include "../fem/bilinearform.hpp"
+#include "../fem/nonlinearform.hpp"
 
 namespace mfem
 {
@@ -29,6 +30,7 @@ class DarcyForm : public Operator
    bool bsym;
 
    BilinearForm *M_u, *M_p;
+   NonlinearForm *Mn_p;
    MixedBilinearForm *B;
 
    OperatorHandle pM_u, pM_p, pB, pBt;
@@ -56,6 +58,9 @@ public:
 
    BilinearForm *GetPotentialMassForm();
    const BilinearForm *GetPotentialMassForm() const;
+
+   NonlinearForm *GetPotentialMassNonlinearForm();
+   const NonlinearForm *GetPotentialMassNonlinearForm() const;
 
    MixedBilinearForm *GetFluxDivForm();
    const MixedBilinearForm *GetFluxDivForm() const;
