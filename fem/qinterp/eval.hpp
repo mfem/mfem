@@ -208,18 +208,19 @@ EvalKernel FallbackEvalKernel(int DIM)
 
 }
 
+
 template<int DIM, QVectorLayout Q_LAYOUT,
-         int T_VDIM, int T_D1D, int T_Q1D>
+         int VDIM, int D1D, int Q1D, int NBZ>
 EvalKernel QuadratureInterpolator::EvalKernels::Kernel()
 {
    if (DIM == 1) { return internal::quadrature_interpolator::Values1D<Q_LAYOUT>; }
-   else if (DIM == 2) { return internal::quadrature_interpolator::Values2D<Q_LAYOUT, T_VDIM, T_D1D, T_Q1D, 0>; }
-   else if (DIM == 3) { return internal::quadrature_interpolator::Values3D<Q_LAYOUT, T_VDIM, T_D1D, T_Q1D>; }
+   else if (DIM == 2) { return internal::quadrature_interpolator::Values2D<Q_LAYOUT, VDIM, D1D, Q1D, NBZ>; }
+   else if (DIM == 3) { return internal::quadrature_interpolator::Values3D<Q_LAYOUT, VDIM, D1D, Q1D>; }
    else { MFEM_ABORT(""); }
 }
 
 EvalKernel QuadratureInterpolator::EvalKernels::Fallback(
-   int DIM, QVectorLayout Q_LAYOUT)
+   int DIM, QVectorLayout Q_LAYOUT, int, int, int)
 {
    if (Q_LAYOUT == QVectorLayout::byNODES) { return FallbackEvalKernel<QVectorLayout::byNODES>(DIM); }
    else { return FallbackEvalKernel<QVectorLayout::byVDIM>(DIM); }

@@ -1225,37 +1225,38 @@ inline void SmemPADiffusionApply3D(const int NE,
 
 } // namespace internal
 
-using KernelType = MassIntegrator::KernelType;
-using DiagonalKernelType = MassIntegrator::DiagonalKernelType;
+namespace
+{
+using ApplyKernelType = DiffusionIntegrator::ApplyKernelType;
+using DiagonalKernelType = DiffusionIntegrator::DiagonalKernelType;
+}
 
 template<int DIM, int T_D1D, int T_Q1D>
-inline DiffusionIntegrator::ApplyPAKernels::KernelSignature
-DiffusionIntegrator::ApplyPAKernels::Kernel()
+ApplyKernelType DiffusionIntegrator::ApplyPAKernels::Kernel()
 {
    if (DIM == 2) { return internal::SmemPADiffusionApply2D<T_D1D,T_Q1D>; }
    else if (DIM == 3) { return internal::SmemPADiffusionApply3D<T_D1D, T_Q1D>; }
    else { MFEM_ABORT(""); }
 }
 
-inline DiffusionIntegrator::ApplyPAKernels::KernelSignature
-DiffusionIntegrator::ApplyPAKernels::Fallback(int DIM)
+inline
+ApplyKernelType DiffusionIntegrator::ApplyPAKernels::Fallback(int DIM, int, int)
 {
    if (DIM == 2) { return internal::PADiffusionApply2D<0,0>; }
    else if (DIM == 3) { return internal::PADiffusionApply3D<0,0>; }
    else { MFEM_ABORT(""); }
 }
 
-template<int DIM, int T_D1D, int T_Q1D>
-inline DiffusionIntegrator::DiagonalPAKernels::KernelSignature
-DiffusionIntegrator::DiagonalPAKernels::Kernel()
+template<int DIM, int D1D, int Q1D>
+DiagonalKernelType DiffusionIntegrator::DiagonalPAKernels::Kernel()
 {
-   if (DIM == 2) { return internal::SmemPADiffusionDiagonal2D<T_D1D,T_Q1D>; }
-   else if (DIM == 3) { return internal::SmemPADiffusionDiagonal3D<T_D1D, T_Q1D>; }
+   if (DIM == 2) { return internal::SmemPADiffusionDiagonal2D<D1D,Q1D>; }
+   else if (DIM == 3) { return internal::SmemPADiffusionDiagonal3D<D1D, Q1D>; }
    else { MFEM_ABORT(""); }
 }
 
-inline DiffusionIntegrator::DiagonalPAKernels::KernelSignature
-DiffusionIntegrator::DiagonalPAKernels::Fallback(int DIM)
+inline DiagonalKernelType
+DiffusionIntegrator::DiagonalPAKernels::Fallback(int DIM, int, int)
 {
    if (DIM == 2) { return internal::PADiffusionDiagonal2D<0,0>; }
    else if (DIM == 3) { return internal::PADiffusionDiagonal3D<0,0>; }

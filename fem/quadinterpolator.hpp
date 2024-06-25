@@ -48,11 +48,17 @@ public:
                                   const real_t *, const real_t *,
                                   real_t *, const int, const int, const int, const int );
 
+   using DetKernelType = void(*)(const int NE, const real_t *, const real_t *,
+                                 const real_t *, real_t *, const int, const int,
+                                 Vector *d_buff);
+
    MFEM_REGISTER_KERNELS(EvalKernels, EvalKernelType,
-                         (QVectorLayout), (int, int, int, int));
+                         (QVectorLayout, int, int, int), (int));
 
    MFEM_REGISTER_KERNELS(GradKernels, GradKernelType,
-                         (QVectorLayout, bool), (int, int, int, int));
+                         (QVectorLayout, bool, int, int, int), (int));
+
+   MFEM_REGISTER_KERNELS(DetKernels, DetKernelType, (int, int, int));
 
    static struct Kernels { Kernels(); } kernels;
 
