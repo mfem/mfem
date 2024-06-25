@@ -490,6 +490,85 @@ public:
                             DenseMatrix &elmat) override;
 };
 
+/// Integrator defining a sum of multiple non-linear Integrators.
+class SumNLFIntegrator : public NonlinearFormIntegrator
+{
+private:
+   int own_integrators;
+   mutable DenseMatrix elem_mat;
+   mutable Vector elem_vect;
+   Array<NonlinearFormIntegrator*> integrators;
+
+public:
+   SumNLFIntegrator(int own_integs = 1) { own_integrators = own_integs; }
+
+   virtual void SetIntRule(const IntegrationRule *ir);
+
+   void AddIntegrator(NonlinearFormIntegrator *integ)
+   { integrators.Append(integ); }
+
+   virtual void AssembleElementVector(const FiniteElement &el,
+                                      ElementTransformation &Tr,
+                                      const Vector &elfun, Vector &elvect);
+
+   virtual void AssembleElementVector2(const FiniteElement &trial_fe,
+                                       const FiniteElement &test_fe,
+                                       ElementTransformation &Tr,
+                                       const Vector &elfun, Vector &elvect);
+
+   virtual void AssembleFaceVector(const FiniteElement &el1,
+                                   const FiniteElement &el2,
+                                   FaceElementTransformations &Tr,
+                                   const Vector &elfun, Vector &elvect);
+
+   virtual void AssembleFaceVector(const FiniteElement &trial_fe1,
+                                   const FiniteElement &trial_fe2,
+                                   const FiniteElement &test_fe1,
+                                   const FiniteElement &test_fe2,
+                                   FaceElementTransformations &Tr,
+                                   const Vector &elfun, Vector &elvect);
+
+   virtual void AssembleFaceVector(const FiniteElement &trial_face_fe,
+                                   const FiniteElement &test_fe1,
+                                   const FiniteElement &test_fe2,
+                                   FaceElementTransformations &Tr,
+                                   const Vector &elfun, Vector &elvect);
+
+   virtual void AssembleElementGrad(const FiniteElement &el,
+                                    ElementTransformation &Tr,
+                                    const Vector &elfun, DenseMatrix &elmat);
+
+   virtual void AssembleFaceGrad(const FiniteElement &el1,
+                                 const FiniteElement &el2,
+                                 FaceElementTransformations &Tr,
+                                 const Vector &elfun, DenseMatrix &elmat);
+
+   virtual real_t GetElementEnergy(const FiniteElement &el,
+                                   ElementTransformation &Tr,
+                                   const Vector &elfun);
+
+   virtual void AssemblePA(const FiniteElementSpace &fes);
+
+   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes);
+
+   virtual void AssembleGradPA(const Vector &x, const FiniteElementSpace &fes);
+
+   virtual real_t GetLocalStateEnergyPA(const Vector &x) const;
+
+   virtual void AddMultPA(const Vector &x, Vector &y) const;
+
+   virtual void AddMultGradPA(const Vector &x, Vector &y) const;
+
+   virtual void AssembleGradDiagonalPA(Vector &diag) const;
+
+   virtual void AssembleMF(const FiniteElementSpace &fes);
+
+   virtual void AddMultMF(const Vector &x, Vector &y) const;
+
+   virtual ~SumNLFIntegrator();
+};
+
 }
 
 #endif
