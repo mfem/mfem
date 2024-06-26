@@ -3417,12 +3417,16 @@ void DGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
    }
 }
 
+const IntegrationRule &DGTraceIntegrator::GetRule(
+   Geometry::Type geom, int order, const ElementTransformation &T)
+{
+   return IntRules.Get(geom, T.OrderW() + 2*order);
+}
 
 const IntegrationRule &DGTraceIntegrator::GetRule(
-   Geometry::Type geom, int order, FaceElementTransformations &T)
+   Geometry::Type geom, int order, const FaceElementTransformations &T)
 {
-   int int_order = T.Elem1->OrderW() + 2*order;
-   return IntRules.Get(geom, int_order);
+   return GetRule(geom, order, *T.Elem1);
 }
 
 void DGDiffusionIntegrator::AssembleFaceMatrix(
@@ -3658,6 +3662,12 @@ const IntegrationRule &DGDiffusionIntegrator::GetRule(
    // order is typically the maximum of the order of the left and right elements
    // neighboring the given face.
    return IntRules.Get(geom, 2*order);
+}
+
+const IntegrationRule &DGDiffusionIntegrator::GetRule(
+   int order, FaceElementTransformations &T)
+{
+   return GetRule(order, T.GetGeometryType());
 }
 
 // static method
