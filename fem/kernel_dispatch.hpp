@@ -20,25 +20,26 @@
 namespace mfem
 {
 
-/// @brief Registers kernels for runtime dispatch using a dispatch map.
-///
-/// This creates a dispatch table (a static member variable) named @a KernelName
-/// containing function points of type @a KernelType. These are followed by one
-/// or two sets of parenthesized argument types.
-///
-/// The first set of argument types contains the types that are used to dispatch
-/// to either specialized or fallback kernels. The second set of argument types
-/// can be used to further specialize the kernel without participating in
-/// dispatch (a canonical example is NBZ, determining the size of the thread
-/// blocks; this is required to specialize kernels for optimal performance, but
-/// is not relevant for dispatch).
-///
-/// After calling this macro, the user must implement the Kernel and Fallback
-/// static member functions, which return pointers to the appropriate kernel
-/// functions depending on the parameters.
-///
-/// Specialized functions can be registered using the static AddSpecialization
-/// member function.
+// The MFEM_REGISTER_KERNELS macro registers kernels for runtime dispatch using
+// a dispatch map.
+//
+// This creates a dispatch table (a static member variable) named @a KernelName
+// containing function points of type @a KernelType. These are followed by one
+// or two sets of parenthesized argument types.
+//
+// The first set of argument types contains the types that are used to dispatch
+// to either specialized or fallback kernels. The second set of argument types
+// can be used to further specialize the kernel without participating in
+// dispatch (a canonical example is NBZ, determining the size of the thread
+// blocks; this is required to specialize kernels for optimal performance, but
+// is not relevant for dispatch).
+//
+// After calling this macro, the user must implement the Kernel and Fallback
+// static member functions, which return pointers to the appropriate kernel
+// functions depending on the parameters.
+//
+// Specialized functions can be registered using the static AddSpecialization
+// member function.
 #define MFEM_REGISTER_KERNELS(KernelName, KernelType, ...) \
    MFEM_REGISTER_KERNELS_N(__VA_ARGS__,2,1)(KernelName, KernelType, __VA_ARGS__)
 
