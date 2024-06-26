@@ -88,6 +88,15 @@ void NonlinearFormIntegrator::AssembleFaceVector(
               " is not overloaded!");
 }
 
+void NonlinearFormIntegrator::AssembleHDGFaceVector(
+   int type, const FiniteElement &trace_face_fe, const FiniteElement &fe,
+   FaceElementTransformations &Tr, const Vector &trfun, const Vector &elfun,
+   Vector &elvect)
+{
+   mfem_error("NonlinearFormIntegrator::AssembleHDGFaceVector"
+              " is not overloaded!");
+}
+
 void NonlinearFormIntegrator::AssembleElementGrad(
    const FiniteElement &el, ElementTransformation &Tr, const Vector &elfun,
    DenseMatrix &elmat)
@@ -985,6 +994,23 @@ void SumNLFIntegrator::AssembleFaceVector(
    for (int i = 1; i < integrators.Size(); i++)
    {
       integrators[i]->AssembleFaceVector(el1, el2, Trans, elfun, elvect);
+      elvect += elem_vect;
+   }
+}
+
+void SumNLFIntegrator::AssembleHDGFaceVector(
+   int type, const FiniteElement &trace_face_fe, const FiniteElement &fe,
+   FaceElementTransformations &Trans, const Vector &trfun, const Vector &elfun,
+   Vector &elvect)
+{
+   MFEM_ASSERT(integrators.Size() > 0, "empty SumIntegrator.");
+
+   integrators[0]->AssembleHDGFaceVector(type, trace_face_fe, fe, Trans, trfun,
+                                         elfun, elvect);
+   for (int i = 1; i < integrators.Size(); i++)
+   {
+      integrators[i]->AssembleHDGFaceVector(type, trace_face_fe, fe, Trans, trfun,
+                                            elfun, elvect);
       elvect += elem_vect;
    }
 }

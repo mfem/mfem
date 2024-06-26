@@ -35,6 +35,14 @@ public:
                                   reduced integration rules. */
    };
 
+   enum HDGFaceType
+   {
+      ELEM = 0,
+      CONSTR = 2,
+      TRACE = 4,
+      FACE = 8,
+   };
+
 protected:
    const IntegrationRule *IntRule;
 
@@ -85,6 +93,15 @@ public:
                                    const FiniteElement &el2,
                                    FaceElementTransformations &Tr,
                                    const Vector &elfun, Vector &elvect);
+
+   /// @brief Perform the local action of the NonlinearFormIntegrator resulting
+   /// from an HDG face integral term.
+   virtual void AssembleHDGFaceVector(int type,
+                                      const FiniteElement &trace_face_fe,
+                                      const FiniteElement &fe,
+                                      FaceElementTransformations &Tr,
+                                      const Vector &trfun, const Vector &elfun,
+                                      Vector &elvect);
 
    /// Assemble the local gradient matrix
    virtual void AssembleElementGrad(const FiniteElement &el,
@@ -500,6 +517,14 @@ public:
                                    FaceElementTransformations &Tr,
                                    const Vector &elfun,
                                    Vector &elvect) override;
+
+   virtual void AssembleHDGFaceVector(int type,
+                                      const FiniteElement &trace_face_fe,
+                                      const FiniteElement &fe,
+                                      FaceElementTransformations &Tr,
+                                      const Vector &trfun,
+                                      const Vector &elfun,
+                                      Vector &elvect) override;
 
    virtual void AssembleElementGrad(const FiniteElement &el,
                                     ElementTransformation &Tr,
