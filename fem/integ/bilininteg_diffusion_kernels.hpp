@@ -152,8 +152,23 @@ inline void PADiffusionDiagonal2D(const int NE,
    });
 }
 
+namespace diffusion
+{
+constexpr int ipow(int x, int p) { return p == 0 ? 1 : x*ipow(x, p-1); }
+constexpr int D11(int x) { return (11 - x)/2; }
+constexpr int D10(int x) { return (10 - x)/2; }
+constexpr int NBZApply(int D1D)
+{
+   return ipow(2, D11(D1D) >= 0 ? D11(D1D) : 0);
+}
+constexpr int NBZDiagonal(int D1D)
+{
+   return ipow(2, D10(D1D) >= 0 ? D10(D1D) : 0);
+}
+}
+
 // Shared memory PA Diffusion Diagonal 2D kernel
-template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
+template<int T_D1D = 0, int T_Q1D = 0>
 inline void SmemPADiffusionDiagonal2D(const int NE,
                                       const bool symmetric,
                                       const Array<real_t> &b_,
@@ -163,6 +178,7 @@ inline void SmemPADiffusionDiagonal2D(const int NE,
                                       const int d1d = 0,
                                       const int q1d = 0)
 {
+   constexpr int T_NBZ = diffusion::NBZDiagonal(T_D1D);
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
@@ -629,7 +645,7 @@ inline void PADiffusionApply2D(const int NE,
 }
 
 // Shared memory PA Diffusion Apply 2D kernel
-template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
+template<int T_D1D = 0, int T_Q1D = 0>
 inline void SmemPADiffusionApply2D(const int NE,
                                    const bool symmetric,
                                    const Array<real_t> &b_,
@@ -642,6 +658,7 @@ inline void SmemPADiffusionApply2D(const int NE,
                                    const int d1d = 0,
                                    const int q1d = 0)
 {
+   constexpr int T_NBZ = diffusion::NBZApply(T_D1D);
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
@@ -1208,49 +1225,44 @@ inline void SmemPADiffusionApply3D(const int NE,
 
 } // namespace internal
 
-template<int T_D1D, int T_Q1D>
-inline
-DiffusionIntegrator::ApplyPAKernels::KernelSignature
-DiffusionIntegrator::ApplyPAKernels::Kernel2D()
+namespace
 {
-   constexpr int T_NBZ = NBZ(T_D1D, T_Q1D);
-   return internal::SmemPADiffusionApply2D<T_D1D, T_Q1D, T_NBZ>;
+using ApplyKernelType = DiffusionIntegrator::ApplyKernelType;
+using DiagonalKernelType = DiffusionIntegrator::DiagonalKernelType;
 }
 
-template<int T_D1D, int T_Q1D>
-inline
-DiffusionIntegrator::ApplyPAKernels::KernelSignature
-DiffusionIntegrator::ApplyPAKernels::Kernel3D() { return internal::SmemPADiffusionApply3D<T_D1D, T_Q1D>; }
-
-inline
-DiffusionIntegrator::ApplyPAKernels::KernelSignature
-DiffusionIntegrator::ApplyPAKernels::Fallback2D() { return internal::PADiffusionApply2D<0,0>; }
-
-inline
-DiffusionIntegrator::ApplyPAKernels::KernelSignature
-DiffusionIntegrator::ApplyPAKernels::Fallback3D() { return internal::PADiffusionApply3D<0,0>; }
-
-template<int T_D1D, int T_Q1D>
-inline
-DiffusionIntegrator::DiagonalPAKernels::KernelSignature
-DiffusionIntegrator::DiagonalPAKernels::Kernel2D()
+template<int DIM, int T_D1D, int T_Q1D>
+ApplyKernelType DiffusionIntegrator::ApplyPAKernels::Kernel()
 {
-   constexpr int T_NBZ = NBZ(T_D1D, T_Q1D);
-   return internal::SmemPADiffusionDiagonal2D<T_D1D, T_Q1D, T_NBZ>;
+   if (DIM == 2) { return internal::SmemPADiffusionApply2D<T_D1D,T_Q1D>; }
+   else if (DIM == 3) { return internal::SmemPADiffusionApply3D<T_D1D, T_Q1D>; }
+   else { MFEM_ABORT(""); }
 }
 
-template<int T_D1D, int T_Q1D  >
 inline
-DiffusionIntegrator::DiagonalPAKernels::KernelSignature
-DiffusionIntegrator::DiagonalPAKernels::Kernel3D() { return internal::SmemPADiffusionDiagonal3D<T_D1D, T_Q1D>; }
+ApplyKernelType DiffusionIntegrator::ApplyPAKernels::Fallback(int DIM, int, int)
+{
+   if (DIM == 2) { return internal::PADiffusionApply2D; }
+   else if (DIM == 3) { return internal::PADiffusionApply3D; }
+   else { MFEM_ABORT(""); }
+}
 
-inline
-DiffusionIntegrator::DiagonalPAKernels::KernelSignature
-DiffusionIntegrator::DiagonalPAKernels::Fallback2D() { return internal::PADiffusionDiagonal2D<0,0>; }
+template<int DIM, int D1D, int Q1D>
+DiagonalKernelType DiffusionIntegrator::DiagonalPAKernels::Kernel()
+{
+   if (DIM == 2) { return internal::SmemPADiffusionDiagonal2D<D1D,Q1D>; }
+   else if (DIM == 3) { return internal::SmemPADiffusionDiagonal3D<D1D, Q1D>; }
+   else { MFEM_ABORT(""); }
+}
 
-inline
-DiffusionIntegrator::DiagonalPAKernels::KernelSignature
-DiffusionIntegrator::DiagonalPAKernels::Fallback3D() { return internal::PADiffusionDiagonal3D<0,0>; }
+inline DiagonalKernelType
+DiffusionIntegrator::DiagonalPAKernels::Fallback(int DIM, int, int)
+{
+   if (DIM == 2) { return internal::PADiffusionDiagonal2D; }
+   else if (DIM == 3) { return internal::PADiffusionDiagonal3D; }
+   else { MFEM_ABORT(""); }
+}
+
 } // namespace mfem
 
 #endif
