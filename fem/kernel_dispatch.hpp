@@ -41,7 +41,7 @@ namespace mfem
 // Specialized functions can be registered using the static AddSpecialization
 // member function.
 #define MFEM_REGISTER_KERNELS(KernelName, KernelType, ...) \
-   MFEM_REGISTER_KERNELS_N(__VA_ARGS__,2,1)(KernelName, KernelType, __VA_ARGS__)
+   MFEM_REGISTER_KERNELS_N(__VA_ARGS__,2,1,)(KernelName,KernelType,__VA_ARGS__)
 
 #define MFEM_REGISTER_KERNELS_N(_1, _2, N, ...) MFEM_REGISTER_KERNELS_##N
 
@@ -77,7 +77,7 @@ namespace mfem
       static KernelSignature Fallback(int dim, MFEM_PARAM_LIST P1);            \
       static KernelName &Get()                                                 \
       { static KernelName table; return table;}                                \
-   };
+   }
 
 /// @brief Hashes variadic packs for which each type contained in the variadic
 /// pack has a specialization of `std::hash` available.
