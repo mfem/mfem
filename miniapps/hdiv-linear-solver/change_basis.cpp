@@ -108,7 +108,7 @@ void ChangeOfBasis_L2::Mult(const Vector &x, Vector &y) const
    const int dim = dof2quad.FE->GetDim();
    const int nd = dof2quad.ndof;
    const int nq = dof2quad.nqpt;
-   QuadratureInterpolator::TensorEvalKernels::Get().Run(
+   QuadratureInterpolator::TensorEvalKernels::Run(
       dim, QVectorLayout::byVDIM, 1, nd, nq, ne, dof2quad.B.Read(), x.Read(),
       y.Write(), 1, nd, nq);
 }
@@ -120,7 +120,7 @@ void ChangeOfBasis_L2::MultTranspose(const Vector &x, Vector &y) const
    const int dim = dof2quad.FE->GetDim();
    const int nd = dof2quad.ndof;
    const int nq = dof2quad.nqpt;
-   QuadratureInterpolator::TensorEvalKernels::Get().Run(
+   QuadratureInterpolator::TensorEvalKernels::Run(
       dim, QVectorLayout::byVDIM, 1, nd, nq, ne, dof2quad.B.Read(), x.Read(),
       y.Write(), 1, nd, nq);
 }

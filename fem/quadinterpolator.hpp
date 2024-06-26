@@ -147,11 +147,11 @@ public:
                                   const int);
 
    MFEM_REGISTER_KERNELS(TensorEvalKernels, TensorEvalKernelType,
-                         (QVectorLayout, int, int, int), (int));
+                         (int, QVectorLayout, int, int, int), (int));
    MFEM_REGISTER_KERNELS(GradKernels, GradKernelType,
-                         (QVectorLayout, bool, int, int, int), (int));
-   MFEM_REGISTER_KERNELS(DetKernels, DetKernelType, (int, int, int));
-   MFEM_REGISTER_KERNELS(EvalKernels, EvalKernelType, (int, int, int));
+                         (int, QVectorLayout, bool, int, int, int), (int));
+   MFEM_REGISTER_KERNELS(DetKernels, DetKernelType, (int, int, int, int));
+   MFEM_REGISTER_KERNELS(EvalKernels, EvalKernelType, (int, int, int, int));
 
    static struct Kernels { Kernels(); } kernels;
 };

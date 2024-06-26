@@ -178,10 +178,10 @@ inline void SmemPADiffusionDiagonal2D(const int NE,
                                       const int d1d = 0,
                                       const int q1d = 0)
 {
-   constexpr int T_NBZ = diffusion::NBZDiagonal(T_D1D);
+   static constexpr int T_NBZ = diffusion::NBZDiagonal(T_D1D);
+   static constexpr int NBZ = T_NBZ ? T_NBZ : 1;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   constexpr int NBZ = T_NBZ ? T_NBZ : 1;
    const int max_q1d = T_Q1D ? T_Q1D : DeviceDofQuadLimits::Get().MAX_Q1D;
    const int max_d1d = T_D1D ? T_D1D : DeviceDofQuadLimits::Get().MAX_D1D;
    MFEM_VERIFY(D1D <= max_d1d, "");
@@ -195,7 +195,6 @@ inline void SmemPADiffusionDiagonal2D(const int NE,
       const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int NBZ = T_NBZ ? T_NBZ : 1;
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       MFEM_SHARED real_t BG[2][MQ1*MD1];
@@ -658,10 +657,10 @@ inline void SmemPADiffusionApply2D(const int NE,
                                    const int d1d = 0,
                                    const int q1d = 0)
 {
-   constexpr int T_NBZ = diffusion::NBZApply(T_D1D);
+   static constexpr int T_NBZ = diffusion::NBZApply(T_D1D);
+   static constexpr int NBZ = T_NBZ ? T_NBZ : 1;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   constexpr int NBZ = T_NBZ ? T_NBZ : 1;
    const int max_q1d = T_Q1D ? T_Q1D : DeviceDofQuadLimits::Get().MAX_Q1D;
    const int max_d1d = T_D1D ? T_D1D : DeviceDofQuadLimits::Get().MAX_D1D;
    MFEM_VERIFY(D1D <= max_d1d, "");
@@ -676,7 +675,6 @@ inline void SmemPADiffusionApply2D(const int NE,
       const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int NBZ = T_NBZ ? T_NBZ : 1;
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       MFEM_SHARED real_t sBG[2][MQ1*MD1];

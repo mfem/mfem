@@ -530,29 +530,29 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
    {
       if (eval_flags & VALUES)
       {
-         TensorEvalKernels::Get().Run(dim, q_layout, vdim, nd, nq, ne, maps.B.Read(),
-                                      e_vec.Read(), q_val.Write(), vdim, nd, nq);
+         TensorEvalKernels::Run(dim, q_layout, vdim, nd, nq, ne, maps.B.Read(),
+                                e_vec.Read(), q_val.Write(), vdim, nd, nq);
       }
       if (eval_flags & (DERIVATIVES | PHYSICAL_DERIVATIVES))
       {
          const bool phys = (eval_flags & PHYSICAL_DERIVATIVES);
          const real_t *J = phys ? geom->J.Read() : nullptr;
          const int s_dim = phys ? sdim : dim;
-         GradKernels::Get().Run(dim, q_layout, phys, vdim, nd, nq, ne,
-                                maps.B.Read(), maps.G.Read(), J, e_vec.Read(),
-                                q_der.Write(), s_dim, vdim, nd, nq);
+         GradKernels::Run(dim, q_layout, phys, vdim, nd, nq, ne,
+                          maps.B.Read(), maps.G.Read(), J, e_vec.Read(),
+                          q_der.Write(), s_dim, vdim, nd, nq);
       }
       if (eval_flags & DETERMINANTS)
       {
-         DetKernels::Get().Run(dim, vdim, nd, nq, ne, maps.B.Read(),
-                               maps.G.Read(), e_vec.Read(), q_det.Write(), nd,
-                               nq, &d_buffer);
+         DetKernels::Run(dim, vdim, nd, nq, ne, maps.B.Read(),
+                         maps.G.Read(), e_vec.Read(), q_det.Write(), nd,
+                         nq, &d_buffer);
       }
    }
    else // use_tensor_eval == false
    {
-      EvalKernels::Get().Run(dim, vdim, maps.ndof, maps.nqpt, ne,vdim,q_layout,
-                             geom, maps,e_vec, q_val,q_der,q_det,eval_flags);
+      EvalKernels::Run(dim, vdim, maps.ndof, maps.nqpt, ne,vdim,q_layout,
+                       geom, maps,e_vec, q_val,q_der,q_det,eval_flags);
    }
 }
 
@@ -599,7 +599,34 @@ void QuadratureInterpolator::Determinants(const Vector &e_vec,
 namespace
 {
 using EvalKernel = QuadratureInterpolator::EvalKernelType;
+using TensorEvalKernel = QuadratureInterpolator::TensorEvalKernelType;
+using GradKernel = QuadratureInterpolator::GradKernelType;
+
+template <QVectorLayout Q_LAYOUT>
+TensorEvalKernel FallbackTensorEvalKernel(int DIM)
+{
+   if (DIM == 1) { return internal::quadrature_interpolator::Values1D<Q_LAYOUT>; }
+   else if (DIM == 2) { return internal::quadrature_interpolator::Values2D<Q_LAYOUT>; }
+   else if (DIM == 3) { return internal::quadrature_interpolator::Values3D<Q_LAYOUT>; }
+   else { MFEM_ABORT(""); }
 }
+
+template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS>
+GradKernel GetGradKernel(int DIM)
+{
+   if (DIM == 1) { return internal::quadrature_interpolator::Derivatives1D<Q_LAYOUT, GRAD_PHYS>; }
+   else if (DIM == 2) { return internal::quadrature_interpolator::Derivatives2D<Q_LAYOUT, GRAD_PHYS>; }
+   else if (DIM == 3) { return internal::quadrature_interpolator::Derivatives3D<Q_LAYOUT, GRAD_PHYS>; }
+   else { MFEM_ABORT(""); }
+}
+
+template<QVectorLayout Q_LAYOUT>
+GradKernel GetGradKernel(int DIM, bool GRAD_PHYS)
+{
+   if (GRAD_PHYS) { return GetGradKernel<Q_LAYOUT, true>(DIM); }
+   else { return GetGradKernel<Q_LAYOUT, false>(DIM); }
+}
+} // namespace
 
 template <int DIM, int VDIM, int ND, int NQ>
 EvalKernel QuadratureInterpolator::EvalKernels::Kernel()
@@ -628,6 +655,20 @@ EvalKernel QuadratureInterpolator::EvalKernels::Fallback(
    else if (DIM == 2) { return GetEvalKernelVDimFallback<2>(VDIM); }
    else if (DIM == 3) { return GetEvalKernelVDimFallback<3>(VDIM); }
    else { MFEM_ABORT(""); }
+}
+
+TensorEvalKernel QuadratureInterpolator::TensorEvalKernels::Fallback(
+   int DIM, QVectorLayout Q_LAYOUT, int, int, int)
+{
+   if (Q_LAYOUT == QVectorLayout::byNODES) { return FallbackTensorEvalKernel<QVectorLayout::byNODES>(DIM); }
+   else { return FallbackTensorEvalKernel<QVectorLayout::byVDIM>(DIM); }
+}
+
+GradKernel QuadratureInterpolator::GradKernels::Fallback(
+   int DIM, QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int, int, int)
+{
+   if (Q_LAYOUT == QVectorLayout::byNODES) { return GetGradKernel<QVectorLayout::byNODES>(DIM, GRAD_PHYS); }
+   else { return GetGradKernel<QVectorLayout::byVDIM>(DIM, GRAD_PHYS); }
 }
 
 namespace internal

@@ -24,59 +24,59 @@ void InitEvalByNodesKernels()
    using k = QuadratureInterpolator::TensorEvalKernels;
 
    // 2D
-   k::Specialization<2,QVectorLayout::byNODES,1,3,3,1>::Add();
-   k::Specialization<2,QVectorLayout::byNODES,1,2,4,1>::Add();
-   k::Specialization<2,QVectorLayout::byNODES,1,3,2,1>::Add();
-   k::Specialization<2,QVectorLayout::byNODES,1,3,4,1>::Add();
-   k::Specialization<2,QVectorLayout::byNODES,1,4,3,1>::Add();
-   k::Specialization<2,QVectorLayout::byNODES,1,4,4,1>::Add();
+   k::Specialization<2,QVectorLayout::byNODES,1,3,3>::Opt<1>::Add();
+   k::Specialization<2,QVectorLayout::byNODES,1,2,4>::Opt<1>::Add();
+   k::Specialization<2,QVectorLayout::byNODES,1,3,2>::Opt<1>::Add();
+   k::Specialization<2,QVectorLayout::byNODES,1,3,4>::Opt<1>::Add();
+   k::Specialization<2,QVectorLayout::byNODES,1,4,3>::Opt<1>::Add();
+   k::Specialization<2,QVectorLayout::byNODES,1,4,4>::Opt<1>::Add();
 
-   k::Specialization<2,QVectorLayout::byNODES,2,2,2,1>::Add();
-   k::Specialization<2,QVectorLayout::byNODES,2,2,3,1>::Add();
-   k::Specialization<2,QVectorLayout::byNODES,2,2,4,1>::Add();
-   k::Specialization<2,QVectorLayout::byNODES,2,2,5,1>::Add();
-   k::Specialization<2,QVectorLayout::byNODES,2,2,6,1>::Add();
+   k::Specialization<2,QVectorLayout::byNODES,2,2,2>::Opt<1>::Add();
+   k::Specialization<2,QVectorLayout::byNODES,2,2,3>::Opt<1>::Add();
+   k::Specialization<2,QVectorLayout::byNODES,2,2,4>::Opt<1>::Add();
+   k::Specialization<2,QVectorLayout::byNODES,2,2,5>::Opt<1>::Add();
+   k::Specialization<2,QVectorLayout::byNODES,2,2,6>::Opt<1>::Add();
 
-   k::Specialization<2,QVectorLayout::byNODES,2,3,3,1>::Add();
-   k::Specialization<2,QVectorLayout::byNODES,2,3,4,1>::Add();
-   k::Specialization<2,QVectorLayout::byNODES,2,3,6,1>::Add();
+   k::Specialization<2,QVectorLayout::byNODES,2,3,3>::Opt<1>::Add();
+   k::Specialization<2,QVectorLayout::byNODES,2,3,4>::Opt<1>::Add();
+   k::Specialization<2,QVectorLayout::byNODES,2,3,6>::Opt<1>::Add();
 
-   k::Specialization<2,QVectorLayout::byNODES,2,4,3,1>::Add();
-   k::Specialization<2,QVectorLayout::byNODES,2,4,4,1>::Add();
-   k::Specialization<2,QVectorLayout::byNODES,2,4,5,1>::Add();
-   k::Specialization<2,QVectorLayout::byNODES,2,4,6,1>::Add();
-   k::Specialization<2,QVectorLayout::byNODES,2,4,7,1>::Add();
+   k::Specialization<2,QVectorLayout::byNODES,2,4,3>::Opt<1>::Add();
+   k::Specialization<2,QVectorLayout::byNODES,2,4,4>::Opt<1>::Add();
+   k::Specialization<2,QVectorLayout::byNODES,2,4,5>::Opt<1>::Add();
+   k::Specialization<2,QVectorLayout::byNODES,2,4,6>::Opt<1>::Add();
+   k::Specialization<2,QVectorLayout::byNODES,2,4,7>::Opt<1>::Add();
 
-   k::Specialization<2,QVectorLayout::byNODES,2,5,6,1>::Add();
+   k::Specialization<2,QVectorLayout::byNODES,2,5,6>::Opt<1>::Add();
 
    // 3D
-   k::Specialization<3,QVectorLayout::byNODES,1,2,4,1>::Add();
-   k::Specialization<3,QVectorLayout::byNODES,1,3,3,1>::Add();
-   k::Specialization<3,QVectorLayout::byNODES,1,3,4,1>::Add();
-   k::Specialization<3,QVectorLayout::byNODES,1,3,6,1>::Add();
-   k::Specialization<3,QVectorLayout::byNODES,1,4,3,1>::Add();
-   k::Specialization<3,QVectorLayout::byNODES,1,4,4,1>::Add();
-   k::Specialization<3,QVectorLayout::byNODES,1,4,8,1>::Add();
+   k::Specialization<3,QVectorLayout::byNODES,1,2,4>::Opt<1>::Add();
+   k::Specialization<3,QVectorLayout::byNODES,1,3,3>::Opt<1>::Add();
+   k::Specialization<3,QVectorLayout::byNODES,1,3,4>::Opt<1>::Add();
+   k::Specialization<3,QVectorLayout::byNODES,1,3,6>::Opt<1>::Add();
+   k::Specialization<3,QVectorLayout::byNODES,1,4,3>::Opt<1>::Add();
+   k::Specialization<3,QVectorLayout::byNODES,1,4,4>::Opt<1>::Add();
+   k::Specialization<3,QVectorLayout::byNODES,1,4,8>::Opt<1>::Add();
 
-   k::Specialization<3,QVectorLayout::byNODES,2,2,2,1>::Add();
-   k::Specialization<3,QVectorLayout::byNODES,2,2,3,1>::Add();
-   k::Specialization<3,QVectorLayout::byNODES,2,3,4,1>::Add();
+   k::Specialization<3,QVectorLayout::byNODES,2,2,2>::Opt<1>::Add();
+   k::Specialization<3,QVectorLayout::byNODES,2,2,3>::Opt<1>::Add();
+   k::Specialization<3,QVectorLayout::byNODES,2,3,4>::Opt<1>::Add();
 
-   k::Specialization<3,QVectorLayout::byNODES,3,2,3,1>::Add();
-   k::Specialization<3,QVectorLayout::byNODES,3,2,4,1>::Add();
-   k::Specialization<3,QVectorLayout::byNODES,3,2,5,1>::Add();
-   k::Specialization<3,QVectorLayout::byNODES,3,2,6,1>::Add();
+   k::Specialization<3,QVectorLayout::byNODES,3,2,3>::Opt<1>::Add();
+   k::Specialization<3,QVectorLayout::byNODES,3,2,4>::Opt<1>::Add();
+   k::Specialization<3,QVectorLayout::byNODES,3,2,5>::Opt<1>::Add();
+   k::Specialization<3,QVectorLayout::byNODES,3,2,6>::Opt<1>::Add();
 
-   k::Specialization<3,QVectorLayout::byNODES,3,3,3,1>::Add();
-   k::Specialization<3,QVectorLayout::byNODES,3,3,4,1>::Add();
-   k::Specialization<3,QVectorLayout::byNODES,3,3,5,1>::Add();
-   k::Specialization<3,QVectorLayout::byNODES,3,3,6,1>::Add();
+   k::Specialization<3,QVectorLayout::byNODES,3,3,3>::Opt<1>::Add();
+   k::Specialization<3,QVectorLayout::byNODES,3,3,4>::Opt<1>::Add();
+   k::Specialization<3,QVectorLayout::byNODES,3,3,5>::Opt<1>::Add();
+   k::Specialization<3,QVectorLayout::byNODES,3,3,6>::Opt<1>::Add();
 
-   k::Specialization<3,QVectorLayout::byNODES,3,4,3,1>::Add();
-   k::Specialization<3,QVectorLayout::byNODES,3,4,4,1>::Add();
-   k::Specialization<3,QVectorLayout::byNODES,3,4,6,1>::Add();
-   k::Specialization<3,QVectorLayout::byNODES,3,4,7,1>::Add();
-   k::Specialization<3,QVectorLayout::byNODES,3,4,8,1>::Add();
+   k::Specialization<3,QVectorLayout::byNODES,3,4,3>::Opt<1>::Add();
+   k::Specialization<3,QVectorLayout::byNODES,3,4,4>::Opt<1>::Add();
+   k::Specialization<3,QVectorLayout::byNODES,3,4,6>::Opt<1>::Add();
+   k::Specialization<3,QVectorLayout::byNODES,3,4,7>::Opt<1>::Add();
+   k::Specialization<3,QVectorLayout::byNODES,3,4,8>::Opt<1>::Add();
 }
 
 } // namespace quadrature_interpolator
