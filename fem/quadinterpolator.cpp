@@ -545,7 +545,8 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
       if (eval_flags & DETERMINANTS)
       {
          DetKernels::Get().Run(dim, vdim, nd, nq, ne, maps.B.Read(),
-                               maps.G.Read(), e_vec, q_det, nd, nq, &d_buffer);
+                               maps.G.Read(), e_vec.Read(), q_det.Write(), nd,
+                               nq, &d_buffer);
       }
    }
    else // use_tensor_eval == false
