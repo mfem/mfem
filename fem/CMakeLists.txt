@@ -190,6 +190,8 @@ set(HDRS
   hybridization.hpp
   intrules.hpp
   intrules_cut.hpp
+  kernel_dispatch.hpp
+  kernels.hpp
   ceed/interface/basis.hpp
   ceed/interface/integrator.hpp
   ceed/interface/interface.hpp
