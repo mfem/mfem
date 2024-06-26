@@ -16,6 +16,7 @@
 #include "kernel_reporter.hpp"
 #include <unordered_map>
 #include <tuple>
+#include <cstddef>
 
 namespace mfem
 {
@@ -153,7 +154,7 @@ public:
    {
       std::tuple<int, Params...> param_tuple(DIM, PARAMS...);
       table[param_tuple] = Kernels:: template Kernel<DIM, PARAMS..., OPT_PARAMS...>();
-   };
+   }
 };
 
 }
