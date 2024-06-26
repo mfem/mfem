@@ -97,3 +97,14 @@ corona-build-and-test:
   trigger:
     include: .gitlab/corona-build-and-test.yml
     strategy: depend
+
+tioga-build-and-test:
+  stage: sub-pipelines
+  variables:
+    # Explicitly pass down values that we want to be able to set when triggering
+    # pipelines manually or using scheduling
+    AUTOTEST: "${AUTOTEST}"
+    AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
+  trigger:
+    include: .gitlab/tioga-build-and-test.yml
+    strategy: depend
