@@ -975,21 +975,6 @@ void SumNLFIntegrator::AssembleElementVector(
    }
 }
 
-void SumNLFIntegrator::AssembleElementVector2(
-   const FiniteElement &trial_fe, const FiniteElement &test_fe,
-   ElementTransformation &Trans, const Vector &elfun, Vector &elvect)
-{
-   MFEM_ASSERT(integrators.Size() > 0, "empty SumIntegrator.");
-
-   integrators[0]->AssembleElementVector2(trial_fe, test_fe, Trans, elfun, elvect);
-   for (int i = 1; i < integrators.Size(); i++)
-   {
-      integrators[i]->AssembleElementVector2(trial_fe, test_fe, Trans, elfun,
-                                             elem_vect);
-      elvect += elem_vect;
-   }
-}
-
 void SumNLFIntegrator::AssembleFaceVector(
    const FiniteElement &el1, const FiniteElement &el2,
    FaceElementTransformations &Trans, const Vector &elfun, Vector &elvect)
@@ -1000,40 +985,6 @@ void SumNLFIntegrator::AssembleFaceVector(
    for (int i = 1; i < integrators.Size(); i++)
    {
       integrators[i]->AssembleFaceVector(el1, el2, Trans, elfun, elvect);
-      elvect += elem_vect;
-   }
-}
-
-void SumNLFIntegrator::AssembleFaceVector(
-   const FiniteElement &trial_fe1, const FiniteElement &trial_fe2,
-   const FiniteElement &test_el1, const FiniteElement &test_el2,
-   FaceElementTransformations &Trans, const Vector &elfun, Vector &elvect)
-{
-   MFEM_ASSERT(integrators.Size() > 0, "empty SumIntegrator.");
-
-   integrators[0]->AssembleFaceVector(trial_fe1, trial_fe2, test_el1, test_el2,
-                                      Trans, elfun, elvect);
-   for (int i = 1; i < integrators.Size(); i++)
-   {
-      integrators[i]->AssembleFaceVector(trial_fe1, trial_fe2, test_el1, test_el2,
-                                         Trans, elfun, elvect);
-      elvect += elem_vect;
-   }
-}
-
-void SumNLFIntegrator::AssembleFaceVector(
-   const FiniteElement &trial_face_fe, const FiniteElement &test_fe1,
-   const FiniteElement &test_fe2, FaceElementTransformations &Trans,
-   const Vector &elfun, Vector &elvect)
-{
-   MFEM_ASSERT(integrators.Size() > 0, "empty SumIntegrator.");
-
-   integrators[0]->AssembleFaceVector(trial_face_fe, test_fe1, test_fe2,
-                                      Trans, elfun, elvect);
-   for (int i = 1; i < integrators.Size(); i++)
-   {
-      integrators[i]->AssembleFaceVector(trial_face_fe, test_fe1, test_fe2,
-                                         Trans, elfun, elvect);
       elvect += elem_vect;
    }
 }

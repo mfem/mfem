@@ -494,26 +494,8 @@ public:
                                       ElementTransformation &Tr,
                                       const Vector &elfun, Vector &elvect);
 
-   virtual void AssembleElementVector2(const FiniteElement &trial_fe,
-                                       const FiniteElement &test_fe,
-                                       ElementTransformation &Tr,
-                                       const Vector &elfun, Vector &elvect);
-
    virtual void AssembleFaceVector(const FiniteElement &el1,
                                    const FiniteElement &el2,
-                                   FaceElementTransformations &Tr,
-                                   const Vector &elfun, Vector &elvect);
-
-   virtual void AssembleFaceVector(const FiniteElement &trial_fe1,
-                                   const FiniteElement &trial_fe2,
-                                   const FiniteElement &test_fe1,
-                                   const FiniteElement &test_fe2,
-                                   FaceElementTransformations &Tr,
-                                   const Vector &elfun, Vector &elvect);
-
-   virtual void AssembleFaceVector(const FiniteElement &trial_face_fe,
-                                   const FiniteElement &test_fe1,
-                                   const FiniteElement &test_fe2,
                                    FaceElementTransformations &Tr,
                                    const Vector &elfun, Vector &elvect);
 
