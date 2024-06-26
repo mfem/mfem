@@ -266,7 +266,7 @@ static MFEM_HOST_DEVICE inline void newton_edge( findptsElementPoint_t *const ou
 
    if ((newr=oldr-tr) > -1) { // if oldr is at least tr distance away from r=-1
       dr = -tr;
-   }                          // else set newr=-1 and set dr that supports this newr 
+   }                          // else set newr=-1 and set dr that supports this newr
    else {
       newr = -1, dr = -1-oldr, new_flags = flags|1u;
    }
@@ -418,7 +418,7 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
       }
       hash.hash_n = hash_n;
       hash.offset = hashOffset;
-      
+
       const int hi = hash_index(&hash, x_i);
       const int *elp = hash.offset + hash.offset[hi];    // start of possible elements containing x_i
       const int *const ele = hash.offset + hash.offset[hi+1];  // end of possible elements containing x_i
@@ -536,7 +536,7 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
                            double *wt = r_workspace_ptr;    // 3*D1D: value, derivative and 2nd derivative
                            double *resid = wt + 3*D1D;      // sdim coord components, so sdim residuals
                            double *jac = resid + sDIM*rDIM; // sdim, dx/dr, dy/dr
-                           double *hess = jac + sDIM*rDIM;  // 3, 2nd derivative of two phy. coords in r 
+                           double *hess = jac + sDIM*rDIM;  // 3, 2nd derivative of two phy. coords in r
 
                            findptsElementGEdge_t edge;
                            MFEM_FOREACH_THREAD(j,x,nThreads)
@@ -787,7 +787,7 @@ void FindPointsGSLIB::FindPointsSurfLocal2( const Vector &point_pos,
                                                        DEV.gll1d.ReadWrite(),  // GLL points if already calculated
                                                          DEV.lagcoeff.Read(),  // Corresponding Lagrange coefficients
                                                           newton.ReadWrite(),  // Number of Newton iterations
-                                                        DEV.info.ReadWrite(),  
+                                                        DEV.info.ReadWrite(),
                                                                    DEV.dof1d ); // (Max for split meshes) Polynomial order
    }
 }

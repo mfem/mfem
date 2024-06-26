@@ -985,9 +985,9 @@ static void FindPointsLocal3D_Kernel(const int npt,
                                      const int hash_n,
                                      const double *hashMin,
                                      const double *hashFac,
-                                     int *hashOffset,
-                                     int *const code_base,
-                                     int *const el_base,
+                                     unsigned int *hashOffset,
+                                     unsigned int *const code_base,
+                                     unsigned int *const el_base,
                                      double *const r_base,
                                      double *const dist2_base,
                                      const double *gll1D,
@@ -1033,8 +1033,8 @@ static void FindPointsLocal3D_Kernel(const int npt,
       int id_z = point_pos_ordering == 0 ? i+2*npt : i*dim+2;
       double x_i[3] = {x[id_x], x[id_y], x[id_z]};
 
-      int *code_i = code_base + i;
-      int *el_i = el_base + i;
+      unsigned int *code_i = code_base + i;
+      unsigned int *el_i = el_base + i;
       double *r_i = r_base + dim * i;
       double *dist2_i = dist2_base + i;
       int *newton_i = newton + i;
@@ -1048,8 +1048,8 @@ static void FindPointsLocal3D_Kernel(const int npt,
       }
       hash.hash_n = hash_n;
       hash.offset = hashOffset;
-      const int hi = hash_index(&hash, x_i);
-      const int *elp = hash.offset + hash.offset[hi],
+      const unsigned int hi = hash_index(&hash, x_i);
+      const unsigned int *elp = hash.offset + hash.offset[hi],
                  *const ele = hash.offset + hash.offset[hi + 1];
       *code_i = CODE_NOT_FOUND;
       *dist2_i = DBL_MAX;
@@ -1712,8 +1712,8 @@ static void FindPointsLocal3D_Kernel(const int npt,
 
 void FindPointsGSLIB::FindPointsLocal3(const Vector &point_pos,
                                        int point_pos_ordering,
-                                       Array<int> &code,
-                                       Array<int> &elem,
+                                       Array<unsigned int> &code,
+                                       Array<unsigned int> &elem,
                                        Vector &ref,
                                        Vector &dist,
                                        Array<int> &newton,
@@ -1731,7 +1731,7 @@ void FindPointsGSLIB::FindPointsLocal3(const Vector &point_pos,
                                                     DEV.o_min.Read(), DEV.o_max.Read(),
                                                     DEV.hash_n, DEV.o_hashMin.Read(),
                                                     DEV.o_hashFac.Read(),
-                                                    DEV.o_offset.ReadWrite(),
+                                                    DEV.ou_offset.ReadWrite(),
                                                     code.Write(), elem.Write(),
                                                     ref.Write(), dist.Write(),
                                                     DEV.gll1d.ReadWrite(),
@@ -1746,7 +1746,7 @@ void FindPointsGSLIB::FindPointsLocal3(const Vector &point_pos,
                                                     DEV.o_min.Read(), DEV.o_max.Read(),
                                                     DEV.hash_n, DEV.o_hashMin.Read(),
                                                     DEV.o_hashFac.Read(),
-                                                    DEV.o_offset.ReadWrite(),
+                                                    DEV.ou_offset.ReadWrite(),
                                                     code.Write(), elem.Write(),
                                                     ref.Write(), dist.Write(),
                                                     DEV.gll1d.ReadWrite(),
@@ -1761,7 +1761,7 @@ void FindPointsGSLIB::FindPointsLocal3(const Vector &point_pos,
                                                     DEV.o_min.Read(), DEV.o_max.Read(),
                                                     DEV.hash_n, DEV.o_hashMin.Read(),
                                                     DEV.o_hashFac.Read(),
-                                                    DEV.o_offset.ReadWrite(),
+                                                    DEV.ou_offset.ReadWrite(),
                                                     code.Write(), elem.Write(),
                                                     ref.Write(), dist.Write(),
                                                     DEV.gll1d.ReadWrite(),
@@ -1776,7 +1776,7 @@ void FindPointsGSLIB::FindPointsLocal3(const Vector &point_pos,
                                                     DEV.o_min.Read(), DEV.o_max.Read(),
                                                     DEV.hash_n, DEV.o_hashMin.Read(),
                                                     DEV.o_hashFac.Read(),
-                                                    DEV.o_offset.ReadWrite(),
+                                                    DEV.ou_offset.ReadWrite(),
                                                     code.Write(), elem.Write(),
                                                     ref.Write(), dist.Write(),
                                                     DEV.gll1d.ReadWrite(),
@@ -1791,7 +1791,7 @@ void FindPointsGSLIB::FindPointsLocal3(const Vector &point_pos,
                                                   DEV.o_min.Read(), DEV.o_max.Read(),
                                                   DEV.hash_n, DEV.o_hashMin.Read(),
                                                   DEV.o_hashFac.Read(),
-                                                  DEV.o_offset.ReadWrite(),
+                                                  DEV.ou_offset.ReadWrite(),
                                                   code.Write(), elem.Write(),
                                                   ref.Write(), dist.Write(),
                                                   DEV.gll1d.ReadWrite(),

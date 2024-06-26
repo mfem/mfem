@@ -23,53 +23,49 @@ namespace mfem
 {
 
 #define pDIM 3
-#define dlong int
-#define dfloat double
 // 12*8 + 4 = 100 bytes
 struct findptsElementPoint_t
 {
-   dfloat x[pDIM], r[pDIM], oldr[pDIM], dist2, dist2p, tr;
-   dlong flags;
+   double x[pDIM], r[pDIM], oldr[pDIM], dist2, dist2p, tr;
+   int flags;
 };
 
 // 6*8 = 48 bytes
 struct findptsElementGFace_t
 {
-   dfloat *x[pDIM], *dxdn[pDIM];
+   double *x[pDIM], *dxdn[pDIM];
 };
 // 15*8 = 120 bytes
 struct findptsElementGEdge_t
 {
-   dfloat *x[pDIM], *dxdn1[pDIM], *dxdn2[pDIM], *d2xdn1[pDIM], *d2xdn2[pDIM];
+   double *x[pDIM], *dxdn1[pDIM], *dxdn2[pDIM], *d2xdn1[pDIM], *d2xdn2[pDIM];
 };
 // 30*8 = 240 bytes
 struct findptsElementGPT_t
 {
-   dfloat x[pDIM], jac[pDIM * pDIM], hes[18];
+   double x[pDIM], jac[pDIM * pDIM], hes[18];
 };
 // 2*8 = 16 bytes
 struct dbl_range_t
 {
-   dfloat min, max;
+   double min, max;
 };
 // 12*8 + 3*16 = 96+48 = 144 bytes
 struct obbox_t
 {
-   dfloat c0[pDIM], A[pDIM * pDIM];
+   double c0[pDIM], A[pDIM * pDIM];
    dbl_range_t x[pDIM];
 };
 
 // 4 + 3*8 + 3*16 + 4 + xyz = 80 bytes + xyz
 struct findptsLocalHashData_t
 {
-   dlong hash_n;
+   int hash_n;
    dbl_range_t bnd[pDIM];
-   dfloat fac[pDIM];
-   dlong *offset;
-   dlong max;
+   double fac[pDIM];
+   unsigned int *offset;
+   // int max;
 };
-#undef dlong
-#undef dfloat
 #undef pdim
 
 } // namespace mfem

@@ -653,16 +653,17 @@ static void FindPointsLocal2D_Kernel(const int npt,
                                      const int point_pos_ordering,
                                      const double *xElemCoord,
                                      const int nel,
-                                     const double *wtend,                                     const double *c,
+                                     const double *wtend,
+                                     const double *c,
                                      const double *A,
                                      const double *minBound,
                                      const double *maxBound,
                                      const int hash_n,
                                      const double *hashMin,
                                      const double *hashFac,
-                                     int *hashOffset,
-                                     int *const code_base,
-                                     int *const el_base,
+                                     unsigned int *hashOffset,
+                                     unsigned int *const code_base,
+                                     unsigned int *const el_base,
                                      double *const r_base,
                                      double *const dist2_base,
                                      const double *gll1D,
@@ -707,8 +708,8 @@ static void FindPointsLocal2D_Kernel(const int npt,
       int id_y = point_pos_ordering == 0 ? i+npt : i*dim+1;
       double x_i[2] = {x[id_x], x[id_y]};
 
-      int *code_i = code_base + i;
-      int *el_i = el_base + i;
+      unsigned int *code_i = code_base + i;
+      unsigned int *el_i = el_base + i;
       double *r_i = r_base + dim * i;
       double *dist2_i = dist2_base + i;
       int *newton_i = newton + i;
@@ -723,8 +724,8 @@ static void FindPointsLocal2D_Kernel(const int npt,
       hash.hash_n = hash_n;
       hash.offset = hashOffset;
       const int hi = hash_index(&hash, x_i);
-      const int        *elp = hash.offset + hash.offset[hi];
-      const int *const  ele = hash.offset + hash.offset[hi + 1];
+      const unsigned int        *elp = hash.offset + hash.offset[hi];
+      const unsigned int *const  ele = hash.offset + hash.offset[hi + 1];
       *code_i = CODE_NOT_FOUND;
       *dist2_i = DBL_MAX;
 
@@ -732,7 +733,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
       {
          //elp
 
-         const int el = *elp;
+         const unsigned int el = *elp;
 
          // construct obbox_t on the fly from data
          obbox_t box;
@@ -846,8 +847,8 @@ static void FindPointsLocal2D_Kernel(const int npt,
                            {
                               if (j < D1D * 2)
                               {
-                                 const int qp = j / 2;
-                                 const int d = j % 2;
+                                 const int qp = j % D1D;
+                                 const int d = j / D1D;
                                  lagrange_eval_first_derivative(wtr + 2*d*D1D,
                                                                 tmp->r[d], qp,
                                                                 gll1D, lagcoeff,
@@ -860,8 +861,8 @@ static void FindPointsLocal2D_Kernel(const int npt,
                            {
                               if (j < D1D * 2)
                               {
-                                 const int qp = j / 2;
-                                 const int d = j % 2;
+                                 const int qp = j % D1D;
+                                 const int d = j / D1D;
                                  resid_temp[d + qp * 2] = tensor_ig2_j(jac_temp + 2 * d + 4 * qp,
                                                                        wtr,
                                                                        wtr + D1D,
@@ -1125,8 +1126,8 @@ static void FindPointsLocal2D_Kernel(const int npt,
 
 void FindPointsGSLIB::FindPointsLocal2(const Vector &point_pos,
                                        int point_pos_ordering,
-                                       Array<int> &code,
-                                       Array<int> &elem,
+                                       Array<unsigned int> &code,
+                                       Array<unsigned int> &elem,
                                        Vector &ref,
                                        Vector &dist,
                                        Array<int> &newton,
@@ -1144,7 +1145,7 @@ void FindPointsGSLIB::FindPointsLocal2(const Vector &point_pos,
                                                     DEV.o_min.Read(), DEV.o_max.Read(),
                                                     DEV.hash_n, DEV.o_hashMin.Read(),
                                                     DEV.o_hashFac.Read(),
-                                                    DEV.o_offset.ReadWrite(),
+                                                    DEV.ou_offset.ReadWrite(),
                                                     code.Write(),
                                                     elem.Write(),
                                                     ref.Write(),
@@ -1164,7 +1165,7 @@ void FindPointsGSLIB::FindPointsLocal2(const Vector &point_pos,
                                                   DEV.hash_n,
                                                   DEV.o_hashMin.Read(),
                                                   DEV.o_hashFac.Read(),
-                                                  DEV.o_offset.ReadWrite(),
+                                                  DEV.ou_offset.ReadWrite(),
                                                   code.Write(),
                                                   elem.Write(),
                                                   ref.Write(),
@@ -1175,8 +1176,6 @@ void FindPointsGSLIB::FindPointsLocal2(const Vector &point_pos,
                                                   DEV.info.ReadWrite(),
                                                   DEV.dof1d);
    }
-
-
 }
 
 
