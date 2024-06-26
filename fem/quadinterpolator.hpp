@@ -41,89 +41,6 @@ protected:
    mutable Vector d_buffer;            ///< Auxiliary device buffer
 
 public:
-   using EvalKernelType = void(*)(const int, const real_t *, const real_t *,
-                                  real_t *, const int, const int, const int);
-   using EvalUserParams = internal::KernelTypeList<QVectorLayout, int, int, int>;
-   using EvalFallbackParams = internal::KernelTypeList<QVectorLayout>;
-
-   using GradKernelType = void(*)(const int, const real_t *, const real_t *,
-                                  const real_t *, const real_t *,
-                                  real_t *, const int, const int, const int, const int );
-   using GradUserParams =
-      internal::KernelTypeList<QVectorLayout, bool, int, int, int>;
-   using GradFallbackParams = internal::KernelTypeList<QVectorLayout>;
-
-
-   MFEM_DECLARE_KERNELS_WITH_FALLBACK_PARAMS(EvalKernels, EvalKernelType,
-                                             MFEM_PARAM_LIST(QVectorLayout, int, int, int), QVectorLayout)
-
-   MFEM_DECLARE_KERNELS_WITH_FALLBACK_PARAMS(GradKernels, GradKernelType,
-                                             MFEM_PARAM_LIST(QVectorLayout, bool, int, int, int),
-                                             MFEM_PARAM_LIST(QVectorLayout, bool))
-
-   using EvalKernelsType =
-      KernelDispatchTable<EvalKernels, EvalUserParams, EvalFallbackParams>;
-   using GradKernelsType =
-      KernelDispatchTable<GradKernels, GradUserParams, GradFallbackParams>;
-
-   struct Kernels
-   {
-      EvalKernelsType eval;
-      GradKernelsType grad;
-      Kernels();
-   };
-   static Kernels kernels;
-
-   template<QVectorLayout Q_LAYOUT, int, int, int>
-   static void AddEvalSpecialization1D()
-   {
-      // VDIM, D1D, and Q1D are unused in the actual implementation.
-      EvalKernelsType:: template AddSpecialization1D<Q_LAYOUT, 0, 0, 0>
-      helper_functor;
-      helper_functor(&kernels.eval);
-   }
-
-   template<QVectorLayout Q_LAYOUT, int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0>
-   static void AddEvalSpecialization2D()
-   {
-      EvalKernelsType:: template AddSpecialization2D<Q_LAYOUT, T_VDIM, T_D1D, T_Q1D>
-      helper_functor;
-      helper_functor(&kernels.eval);
-   }
-
-   template<QVectorLayout Q_LAYOUT, int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0>
-   static void AddEvalSpecialization3D()
-   {
-      EvalKernelsType:: template AddSpecialization3D<Q_LAYOUT, T_VDIM, T_D1D, T_Q1D>
-      helper_functor;
-      helper_functor(&kernels.eval);
-   }
-
-   template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int, int, int>
-   static void AddGradSpecialization1D()
-   {
-      // VDIM, D1D, and Q1D are unused in the actual implementation.
-      GradKernelsType:: template AddSpecialization1D<Q_LAYOUT, GRAD_PHYS, 0, 0, 0>
-      helper_functor;
-      helper_functor(&kernels.eval);
-   }
-
-   template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0>
-   static void AddGradSpecialization2D()
-   {
-      GradKernelsType:: template
-      AddSpecialization2D<Q_LAYOUT, GRAD_PHYS, T_VDIM, T_D1D, T_Q1D>  helper_functor;
-      helper_functor(&kernels.eval);
-   }
-
-   template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0>
-   static void AddGradSpecialization3D()
-   {
-      GradKernelsType:: template
-      AddSpecialization3D<Q_LAYOUT, GRAD_PHYS, T_VDIM, T_D1D, T_Q1D>  helper_functor;
-      helper_functor(&kernels.eval);
-   }
-
    static const int MAX_NQ2D = 100;
    static const int MAX_ND2D = 100;
    static const int MAX_VDIM2D = 3;
@@ -214,6 +131,29 @@ public:
    /// Perform the transpose operation of Mult(). (TODO)
    void MultTranspose(unsigned eval_flags, const Vector &q_val,
                       const Vector &q_der, Vector &e_vec) const;
+
+
+   using TensorEvalKernelType = void(*)(const int, const real_t *, const real_t *,
+                                        real_t *, const int, const int, const int);
+   using GradKernelType = void(*)(const int, const real_t *, const real_t *,
+                                  const real_t *, const real_t *, real_t *,
+                                  const int, const int, const int, const int);
+   using DetKernelType = void(*)(const int NE, const real_t *, const real_t *,
+                                 const real_t *, real_t *, const int, const int,
+                                 Vector *);
+   using EvalKernelType = void(*)(const int, const int, const QVectorLayout,
+                                  const GeometricFactors *, const DofToQuad &,
+                                  const Vector &, Vector &, Vector &, Vector &,
+                                  const int);
+
+   MFEM_REGISTER_KERNELS(TensorEvalKernels, TensorEvalKernelType,
+                         (QVectorLayout, int, int, int), (int));
+   MFEM_REGISTER_KERNELS(GradKernels, GradKernelType,
+                         (QVectorLayout, bool, int, int, int), (int));
+   MFEM_REGISTER_KERNELS(DetKernels, DetKernelType, (int, int, int));
+   MFEM_REGISTER_KERNELS(EvalKernels, EvalKernelType, (int, int, int));
+
+   static struct Kernels { Kernels(); } kernels;
 };
 
 }

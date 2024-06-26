@@ -21,33 +21,6 @@ namespace mfem
 
 // PA Mass Integrator
 
-MassIntegrator::Kernels MassIntegrator::kernels;
-MassIntegrator::Kernels::Kernels()
-{
-   // 1D
-   MassIntegrator::AddSpecialization1D();
-   // 2D
-   MassIntegrator::AddSpecialization2D<2,2>();
-   MassIntegrator::AddSpecialization2D<3,3>();
-   MassIntegrator::AddSpecialization2D<4,4>();
-   MassIntegrator::AddSpecialization2D<5,5>();
-   MassIntegrator::AddSpecialization2D<6,6>();
-   MassIntegrator::AddSpecialization2D<7,7>();
-   MassIntegrator::AddSpecialization2D<8,8>();
-   MassIntegrator::AddSpecialization2D<9,9>();
-   // 3D
-   MassIntegrator::AddSpecialization3D<2,2>();
-   MassIntegrator::AddSpecialization3D<2,3>();
-   MassIntegrator::AddSpecialization3D<3,4>();
-   MassIntegrator::AddSpecialization3D<4,5>();
-   MassIntegrator::AddSpecialization3D<4,6>();
-   MassIntegrator::AddSpecialization3D<5,6>();
-   MassIntegrator::AddSpecialization3D<5,8>();
-   MassIntegrator::AddSpecialization3D<6,7>();
-   MassIntegrator::AddSpecialization3D<7,8>();
-   MassIntegrator::AddSpecialization3D<8,9>();
-}
-
 void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
    const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
@@ -224,8 +197,8 @@ void MassIntegrator::AssembleDiagonalPA(Vector &diag)
    }
    else
    {
-      const int D1D = dofs1D, Q1D = quad1D;
-      kernels.diag.Run(dim, D1D, Q1D, ne, maps->B, pa_data, diag, D1D, Q1D);
+      DiagonalPAKernels::Get().Run(dim, dofs1D, quad1D, ne, maps->B, pa_data,
+                                   diag, dofs1D, quad1D);
    }
 }
 
@@ -256,7 +229,7 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
          MFEM_ABORT("OCCA PA Mass Apply unknown kernel!");
       }
 #endif // MFEM_USE_OCCA
-      kernels.apply.Run(dim, D1D, Q1D, ne, B, Bt, D, x, y, D1D, Q1D);
+      ApplyPAKernels::Get().Run(dim, D1D, Q1D, ne, B, Bt, D, x, y, D1D, Q1D);
    }
 }
 

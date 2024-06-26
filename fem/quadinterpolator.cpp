@@ -10,7 +10,8 @@
 // CONTRIBUTING.md for details.
 
 #include "quadinterpolator.hpp"
-#include "qinterp/dispatch.hpp"
+#include "qinterp/grad.hpp"
+#include "qinterp/eval.hpp"
 #include "qspace.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/dtensor.hpp"
@@ -18,6 +19,38 @@
 
 namespace mfem
 {
+
+namespace internal
+{
+namespace quadrature_interpolator
+{
+void InitEvalByNodesKernels();
+void InitEvalByVDimKernels();
+void InitEvalKernels();
+void InitDetKernels();
+template <bool P> void InitGradByNodesKernels();
+template <bool P> void InitGradByVDimKernels();
+}
+}
+
+QuadratureInterpolator::Kernels QuadratureInterpolator::kernels;
+QuadratureInterpolator::Kernels::Kernels()
+{
+   using namespace internal::quadrature_interpolator;
+
+   InitEvalByNodesKernels();
+   InitEvalByVDimKernels();
+   // Non-phys grad kernels
+   InitGradByNodesKernels<false>();
+   InitGradByVDimKernels<false>();
+   // Phys grad kernels
+   InitGradByNodesKernels<true>();
+   InitGradByVDimKernels<true>();
+   // Determinants
+   InitDetKernels();
+   // Non-tensor
+   InitEvalKernels();
+}
 
 QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
                                                const IntegrationRule &ir):
@@ -467,6 +500,7 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
    const int ne = fespace->GetNE();
    if (ne == 0) { return; }
    const int vdim = fespace->GetVDim();
+   const int sdim = fespace->GetMesh()->SpaceDimension();
    const FiniteElement *fe = fespace->GetFE(0);
    const bool use_tensor_eval =
       use_tensor_products &&
@@ -477,6 +511,8 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
       use_tensor_eval ? DofToQuad::TENSOR : DofToQuad::FULL;
    const DofToQuad &maps = fe->GetDofToQuad(*ir, mode);
    const int dim = maps.FE->GetDim();
+   const int nd = maps.ndof;
+   const int nq = maps.nqpt;
    const GeometricFactors *geom = nullptr;
    if (eval_flags & PHYSICAL_DERIVATIVES)
    {
@@ -492,202 +528,30 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
 
    if (use_tensor_eval)
    {
-      // TODO: use fused kernels
-      if (q_layout == QVectorLayout::byNODES)
+      if (eval_flags & VALUES)
       {
-         if (eval_flags & VALUES)
-         {
-            TensorValues<QVectorLayout::byNODES>(ne, vdim, maps, e_vec, q_val);
-         }
-         if (eval_flags & DERIVATIVES)
-         {
-            TensorDerivatives<QVectorLayout::byNODES>(
-               ne, vdim, maps, e_vec, q_der);
-         }
-         if (eval_flags & PHYSICAL_DERIVATIVES)
-         {
-            TensorPhysDerivatives<QVectorLayout::byNODES>(
-               ne, vdim, maps, *geom, e_vec, q_der);
-         }
+         TensorEvalKernels::Get().Run(dim, q_layout, vdim, nd, nq, ne, maps.B.Read(),
+                                      e_vec.Read(), q_val.Write(), vdim, nd, nq);
       }
-
-      if (q_layout == QVectorLayout::byVDIM)
+      if (eval_flags & (DERIVATIVES | PHYSICAL_DERIVATIVES))
       {
-         if (eval_flags & VALUES)
-         {
-            TensorValues<QVectorLayout::byVDIM>(ne, vdim, maps, e_vec, q_val);
-         }
-         if (eval_flags & DERIVATIVES)
-         {
-            TensorDerivatives<QVectorLayout::byVDIM>(
-               ne, vdim, maps, e_vec, q_der);
-         }
-         if (eval_flags & PHYSICAL_DERIVATIVES)
-         {
-            TensorPhysDerivatives<QVectorLayout::byVDIM>(
-               ne, vdim, maps, *geom, e_vec, q_der);
-         }
+         const bool phys = (eval_flags & PHYSICAL_DERIVATIVES);
+         const real_t *J = phys ? geom->J.Read() : nullptr;
+         const int s_dim = phys ? sdim : dim;
+         GradKernels::Get().Run(dim, q_layout, phys, vdim, nd, nq, ne,
+                                maps.B.Read(), maps.G.Read(), J, e_vec.Read(),
+                                q_der.Write(), s_dim, vdim, nd, nq);
       }
       if (eval_flags & DETERMINANTS)
       {
-         TensorDeterminants(ne, vdim, maps, e_vec, q_det, d_buffer);
+         DetKernels::Get().Run(dim, vdim, nd, nq, ne, maps.B.Read(),
+                               maps.G.Read(), e_vec, q_det, nd, nq, &d_buffer);
       }
    }
    else // use_tensor_eval == false
    {
-      const int nd = maps.ndof;
-      const int nq = maps.nqpt;
-
-      void (*mult)(const int NE,
-                   const int vdim,
-                   const QVectorLayout q_layout,
-                   const GeometricFactors *geom,
-                   const DofToQuad &maps,
-                   const Vector &e_vec,
-                   Vector &q_val,
-                   Vector &q_der,
-                   Vector &q_det,
-                   const int eval_flags) = NULL;
-
-      if (dim == 1)
-      {
-         mult = &Eval1D;
-      }
-      else if (vdim == 1) // dim == 2 || dim == 3
-      {
-         if (dim == 2)
-         {
-            switch (100*nd + nq)
-            {
-               // Q0
-               case 101: mult = &Eval2D<1,1,1>; break;
-               case 104: mult = &Eval2D<1,1,4>; break;
-               // Q1
-               case 404: mult = &Eval2D<1,4,4>; break;
-               case 409: mult = &Eval2D<1,4,9>; break;
-               // Q2
-               case 909: mult = &Eval2D<1,9,9>; break;
-               case 916: mult = &Eval2D<1,9,16>; break;
-               // Q3
-               case 1616: mult = &Eval2D<1,16,16>; break;
-               case 1625: mult = &Eval2D<1,16,25>; break;
-               case 1636: mult = &Eval2D<1,16,36>; break;
-               // Q4
-               case 2525: mult = &Eval2D<1,25,25>; break;
-               case 2536: mult = &Eval2D<1,25,36>; break;
-               case 2549: mult = &Eval2D<1,25,49>; break;
-               case 2564: mult = &Eval2D<1,25,64>; break;
-            }
-            if (nq >= 100 || !mult)
-            {
-               mult = &Eval2D<1,0,0>;
-            }
-         }
-         else if (dim == 3)
-         {
-            switch (1000*nd + nq)
-            {
-               // Q0
-               case 1001: mult = &Eval3D<1,1,1>; break;
-               case 1008: mult = &Eval3D<1,1,8>; break;
-               // Q1
-               case 8008: mult = &Eval3D<1,8,8>; break;
-               case 8027: mult = &Eval3D<1,8,27>; break;
-               // Q2
-               case 27027: mult = &Eval3D<1,27,27>; break;
-               case 27064: mult = &Eval3D<1,27,64>; break;
-               // Q3
-               case 64064: mult = &Eval3D<1,64,64>; break;
-               case 64125: mult = &Eval3D<1,64,125>; break;
-               case 64216: mult = &Eval3D<1,64,216>; break;
-               // Q4
-               case 125125: mult = &Eval3D<1,125,125>; break;
-               case 125216: mult = &Eval3D<1,125,216>; break;
-            }
-            if (nq >= 1000 || !mult)
-            {
-               mult = &Eval3D<1,0,0>;
-            }
-         }
-      }
-      else if (vdim == 3 && dim == 2)
-      {
-         switch (100*nd + nq)
-         {
-            // Q0
-            case 101: mult = &Eval2D<3,1,1>; break;
-            case 104: mult = &Eval2D<3,1,4>; break;
-            // Q1
-            case 404: mult = &Eval2D<3,4,4>; break;
-            case 409: mult = &Eval2D<3,4,9>; break;
-            // Q2
-            case 904: mult = &Eval2D<3,9,4>; break;
-            case 909: mult = &Eval2D<3,9,9>; break;
-            case 916: mult = &Eval2D<3,9,16>; break;
-            case 925: mult = &Eval2D<3,9,25>; break;
-            // Q3
-            case 1616: mult = &Eval2D<3,16,16>; break;
-            case 1625: mult = &Eval2D<3,16,25>; break;
-            case 1636: mult = &Eval2D<3,16,36>; break;
-            // Q4
-            case 2525: mult = &Eval2D<3,25,25>; break;
-            case 2536: mult = &Eval2D<3,25,36>; break;
-            case 2549: mult = &Eval2D<3,25,49>; break;
-            case 2564: mult = &Eval2D<3,25,64>; break;
-            default:   mult = &Eval2D<3,0,0>;
-         }
-      }
-      else if (vdim == dim)
-      {
-         if (dim == 2)
-         {
-            switch (100*nd + nq)
-            {
-               // Q1
-               case 404: mult = &Eval2D<2,4,4>; break;
-               case 409: mult = &Eval2D<2,4,9>; break;
-               // Q2
-               case 909: mult = &Eval2D<2,9,9>; break;
-               case 916: mult = &Eval2D<2,9,16>; break;
-               // Q3
-               case 1616: mult = &Eval2D<2,16,16>; break;
-               case 1625: mult = &Eval2D<2,16,25>; break;
-               case 1636: mult = &Eval2D<2,16,36>; break;
-               // Q4
-               case 2525: mult = &Eval2D<2,25,25>; break;
-               case 2536: mult = &Eval2D<2,25,36>; break;
-               case 2549: mult = &Eval2D<2,25,49>; break;
-               case 2564: mult = &Eval2D<2,25,64>; break;
-            }
-            if (nq >= 100 || !mult) { mult = &Eval2D<2,0,0>; }
-         }
-         else if (dim == 3)
-         {
-            switch (1000*nd + nq)
-            {
-               // Q1
-               case 8008: mult = &Eval3D<3,8,8>; break;
-               case 8027: mult = &Eval3D<3,8,27>; break;
-               // Q2
-               case 27027: mult = &Eval3D<3,27,27>; break;
-               case 27064: mult = &Eval3D<3,27,64>; break;
-               case 27125: mult = &Eval3D<3,27,125>; break;
-               // Q3
-               case 64064: mult = &Eval3D<3,64,64>; break;
-               case 64125: mult = &Eval3D<3,64,125>; break;
-               case 64216: mult = &Eval3D<3,64,216>; break;
-               // Q4
-               case 125125: mult = &Eval3D<3,125,125>; break;
-               case 125216: mult = &Eval3D<3,125,216>; break;
-            }
-            if (nq >= 1000 || !mult) {  mult = &Eval3D<3,0,0>; }
-         }
-      }
-      if (mult)
-      {
-         mult(ne,vdim,q_layout,geom,maps,e_vec,q_val,q_der,q_det,eval_flags);
-      }
-      else { MFEM_ABORT("case not supported yet"); }
+      EvalKernels::Get().Run(dim, vdim, maps.ndof, maps.nqpt, ne,vdim,q_layout,
+                             geom, maps,e_vec, q_val,q_der,q_det,eval_flags);
    }
 }
 
@@ -730,5 +594,142 @@ void QuadratureInterpolator::Determinants(const Vector &e_vec,
    Vector empty;
    Mult(e_vec, DETERMINANTS, empty, empty, q_det);
 }
+
+namespace
+{
+using EvalKernel = QuadratureInterpolator::EvalKernelType;
+}
+
+template <int DIM, int VDIM, int ND, int NQ>
+EvalKernel QuadratureInterpolator::EvalKernels::Kernel()
+{
+   using namespace internal::quadrature_interpolator;
+   if (DIM == 1) { return Eval1D; }
+   else if (DIM == 2) { return Eval2D<VDIM,ND,NQ>; }
+   else if (DIM == 3) { return Eval3D<VDIM,ND,NQ>; }
+   else { MFEM_ABORT(""); }
+}
+
+template <int DIM>
+EvalKernel GetEvalKernelVDimFallback(int VDIM)
+{
+   using EvalKernels = QuadratureInterpolator::EvalKernels;
+   if (VDIM == 1) { return EvalKernels::Kernel<DIM,1,0,0>(); }
+   else if (VDIM == 2) { return EvalKernels::Kernel<DIM,2,0,0>(); }
+   else if (VDIM == 3) { return EvalKernels::Kernel<DIM,3,0,0>(); }
+   else { MFEM_ABORT(""); }
+}
+
+EvalKernel QuadratureInterpolator::EvalKernels::Fallback(
+   int DIM, int VDIM, int ND, int NQ)
+{
+   if (DIM == 1) { return GetEvalKernelVDimFallback<1>(VDIM); }
+   else if (DIM == 2) { return GetEvalKernelVDimFallback<2>(VDIM); }
+   else if (DIM == 3) { return GetEvalKernelVDimFallback<3>(VDIM); }
+   else { MFEM_ABORT(""); }
+}
+
+namespace internal
+{
+namespace quadrature_interpolator
+{
+void InitEvalKernels()
+{
+   auto &k = QuadratureInterpolator::EvalKernels::Get();
+   // 2D, VDIM = 1
+   k.AddSpecialization<2,1,1,1>();
+   k.AddSpecialization<2,1,1,4>();
+   // Q1
+   k.AddSpecialization<2,1,4,4>();
+   k.AddSpecialization<2,1,4,9>();
+   // Q2
+   k.AddSpecialization<2,1,9,9>();
+   k.AddSpecialization<2,1,9,16>();
+   // Q3
+   k.AddSpecialization<2,1,16,16>();
+   k.AddSpecialization<2,1,16,25>();
+   k.AddSpecialization<2,1,16,36>();
+   // Q4
+   k.AddSpecialization<2,1,25,25>();
+   k.AddSpecialization<2,1,25,36>();
+   k.AddSpecialization<2,1,25,49>();
+   k.AddSpecialization<2,1,25,64>();
+
+   // 3D, VDIM = 1
+   // Q0
+   k.AddSpecialization<3,1,1,1>();
+   k.AddSpecialization<3,1,1,8>();
+   // Q1
+   k.AddSpecialization<3,1,8,8>();
+   k.AddSpecialization<3,1,8,27>();
+   // Q2
+   k.AddSpecialization<3,1,27,27>();
+   k.AddSpecialization<3,1,27,64>();
+   // Q3
+   k.AddSpecialization<3,1,64,64>();
+   k.AddSpecialization<3,1,64,125>();
+   k.AddSpecialization<3,1,64,216>();
+   // Q4
+   k.AddSpecialization<3,1,125,125>();
+   k.AddSpecialization<3,1,125,216>();
+
+   // 2D, VDIM = 3
+   // Q0
+   k.AddSpecialization<2,3,1,1>();
+   k.AddSpecialization<2,3,1,4>();
+   // Q1
+   k.AddSpecialization<2,3,4,4>();
+   k.AddSpecialization<2,3,4,9>();
+   // Q2
+   k.AddSpecialization<2,3,9,4>();
+   k.AddSpecialization<2,3,9,9>();
+   k.AddSpecialization<2,3,9,16>();
+   k.AddSpecialization<2,3,9,25>();
+   // Q3
+   k.AddSpecialization<2,3,16,16>();
+   k.AddSpecialization<2,3,16,25>();
+   k.AddSpecialization<2,3,16,36>();
+   // Q4
+   k.AddSpecialization<2,3,25,25>();
+   k.AddSpecialization<2,3,25,36>();
+   k.AddSpecialization<2,3,25,49>();
+   k.AddSpecialization<2,3,25,64>();
+
+   // 2D, VDIM = 2
+   // Q1
+   k.AddSpecialization<2,2,4,4>();
+   k.AddSpecialization<2,2,4,9>();
+   // Q2
+   k.AddSpecialization<2,2,9,9>();
+   k.AddSpecialization<2,2,9,16>();
+   // Q3
+   k.AddSpecialization<2,2,16,16>();
+   k.AddSpecialization<2,2,16,25>();
+   k.AddSpecialization<2,2,16,36>();
+   // Q4
+   k.AddSpecialization<2,2,25,25>();
+   k.AddSpecialization<2,2,25,36>();
+   k.AddSpecialization<2,2,25,49>();
+   k.AddSpecialization<2,2,25,64>();
+
+   // 3D, VDIM = 3
+   // Q1
+   k.AddSpecialization<3,3,8,8>();
+   k.AddSpecialization<3,3,8,27>();
+   // Q2
+   k.AddSpecialization<3,3,27,27>();
+   k.AddSpecialization<3,3,27,64>();
+   k.AddSpecialization<3,3,27,125>();
+   // Q3
+   k.AddSpecialization<3,3,64,64>();
+   k.AddSpecialization<3,3,64,125>();
+   k.AddSpecialization<3,3,64,216>();
+   // Q4
+   k.AddSpecialization<3,3,125,125>();
+   k.AddSpecialization<3,3,125,216>();
+}
+
+} // namespace quadrature_Interpolator
+} // namespace internal
 
 } // namespace mfem
