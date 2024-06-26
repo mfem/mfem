@@ -1508,14 +1508,14 @@ void FindPointsGSLIB::FindPointsSurfOnDevice( const Vector &point_pos,
                                     points_cnt );
    }
    else {
-      FindPointsLocal32(point_pos_copy,
-                        point_pos_ordering,
-                        gsl_code_dev,
-                        gsl_elem_dev,
-                        gsl_ref,
-                        gsl_dist,
-                        gsl_newton_dev,
-                        points_cnt);   
+      // FindPointsLocal32(point_pos_copy,
+      //                   point_pos_ordering,
+      //                   gsl_code_dev,
+      //                   gsl_elem_dev,
+      //                   gsl_ref,
+      //                   gsl_dist,
+      //                   gsl_newton_dev,
+      //                   points_cnt);   
    }
 
    // TODO: Only transfer information for points found
@@ -3450,14 +3450,14 @@ void FindPointsGSLIB::InterpolateSurfOnDevice(const Vector &field_in,
                                dof1Dsol);
       }
       else {
-         InterpolateLocal3(field_in,
-                           gsl_elem_temp,
-                           gsl_ref_temp,
-                           interp_vals,
-                           nlocal,
-                           ncomp,
-                           nel,
-                           dof1Dsol);
+         // InterpolateLocal3(field_in,
+         //                   gsl_elem_temp,
+         //                   gsl_ref_temp,
+         //                   interp_vals,
+         //                   nlocal,
+         //                   ncomp,
+         //                   nel,
+         //                   dof1Dsol);
 
       }
       MPI_Barrier(gsl_comm->c);
@@ -3510,14 +3510,14 @@ void FindPointsGSLIB::InterpolateSurfOnDevice(const Vector &field_in,
       Vector interp_vals(n*ncomp);
       interp_vals.UseDevice(true);
       if (spacedim==3) {
-         InterpolateLocal3(field_in,
-                           gsl_elem_temp,
-                           gsl_ref_temp,
-                           interp_vals,
-                           n,
-                           ncomp,
-                           nel,
-                           dof1Dsol);
+         // InterpolateLocal3(field_in,
+         //                   gsl_elem_temp,
+         //                   gsl_ref_temp,
+         //                   interp_vals,
+         //                   n,
+         //                   ncomp,
+         //                   nel,
+         //                   dof1Dsol);
       }
       else {
          InterpolateSurfLocal2(field_in,
