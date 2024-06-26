@@ -22,51 +22,51 @@ namespace quadrature_interpolator
 template <bool P>
 void InitGradByNodesKernels()
 {
-   auto &k = QuadratureInterpolator::GradKernels::Get();
+   using k = QuadratureInterpolator::GradKernels;
    // 2D
-   k.AddSpecialization<2,QVectorLayout::byNODES,P,1,3,3,16>();
-   k.AddSpecialization<2,QVectorLayout::byNODES,P,1,3,4,16>();
-   k.AddSpecialization<2,QVectorLayout::byNODES,P,1,4,3,16>();
-   k.AddSpecialization<2,QVectorLayout::byNODES,P,1,4,4,16>();
+   k::Specialization<2,QVectorLayout::byNODES,P,1,3,3,16>::Add();
+   k::Specialization<2,QVectorLayout::byNODES,P,1,3,4,16>::Add();
+   k::Specialization<2,QVectorLayout::byNODES,P,1,4,3,16>::Add();
+   k::Specialization<2,QVectorLayout::byNODES,P,1,4,4,16>::Add();
 
-   k.AddSpecialization<2,QVectorLayout::byNODES,P,2,2,2,16>();
-   k.AddSpecialization<2,QVectorLayout::byNODES,P,2,2,3,8>();
-   k.AddSpecialization<2,QVectorLayout::byNODES,P,2,2,4,4>();
-   k.AddSpecialization<2,QVectorLayout::byNODES,P,2,2,5,4>();
-   k.AddSpecialization<2,QVectorLayout::byNODES,P,2,2,6,2>();
+   k::Specialization<2,QVectorLayout::byNODES,P,2,2,2,16>::Add();
+   k::Specialization<2,QVectorLayout::byNODES,P,2,2,3,8>::Add();
+   k::Specialization<2,QVectorLayout::byNODES,P,2,2,4,4>::Add();
+   k::Specialization<2,QVectorLayout::byNODES,P,2,2,5,4>::Add();
+   k::Specialization<2,QVectorLayout::byNODES,P,2,2,6,2>::Add();
 
-   k.AddSpecialization<2,QVectorLayout::byNODES,P,2,3,3,2>();
-   k.AddSpecialization<2,QVectorLayout::byNODES,P,2,3,4,4>();
-   k.AddSpecialization<2,QVectorLayout::byNODES,P,2,4,3,4>();
-   k.AddSpecialization<2,QVectorLayout::byNODES,P,2,3,6,2>();
+   k::Specialization<2,QVectorLayout::byNODES,P,2,3,3,2>::Add();
+   k::Specialization<2,QVectorLayout::byNODES,P,2,3,4,4>::Add();
+   k::Specialization<2,QVectorLayout::byNODES,P,2,4,3,4>::Add();
+   k::Specialization<2,QVectorLayout::byNODES,P,2,3,6,2>::Add();
 
-   k.AddSpecialization<2,QVectorLayout::byNODES,P,2,4,4,2>();
-   k.AddSpecialization<2,QVectorLayout::byNODES,P,2,4,5,2>();
-   k.AddSpecialization<2,QVectorLayout::byNODES,P,2,4,6,2>();
-   k.AddSpecialization<2,QVectorLayout::byNODES,P,2,4,7,2>();
+   k::Specialization<2,QVectorLayout::byNODES,P,2,4,4,2>::Add();
+   k::Specialization<2,QVectorLayout::byNODES,P,2,4,5,2>::Add();
+   k::Specialization<2,QVectorLayout::byNODES,P,2,4,6,2>::Add();
+   k::Specialization<2,QVectorLayout::byNODES,P,2,4,7,2>::Add();
 
-   k.AddSpecialization<2,QVectorLayout::byNODES,P,2,5,6,2>();
+   k::Specialization<2,QVectorLayout::byNODES,P,2,5,6,2>::Add();
    // 3D
-   k.AddSpecialization<3,QVectorLayout::byNODES,P,1,2,4,1>();
-   k.AddSpecialization<3,QVectorLayout::byNODES,P,1,3,3,1>();
-   k.AddSpecialization<3,QVectorLayout::byNODES,P,1,3,4,1>();
-   k.AddSpecialization<3,QVectorLayout::byNODES,P,1,3,6,1>();
-   k.AddSpecialization<3,QVectorLayout::byNODES,P,1,4,4,1>();
-   k.AddSpecialization<3,QVectorLayout::byNODES,P,1,4,8,1>();
+   k::Specialization<3,QVectorLayout::byNODES,P,1,2,4,1>::Add();
+   k::Specialization<3,QVectorLayout::byNODES,P,1,3,3,1>::Add();
+   k::Specialization<3,QVectorLayout::byNODES,P,1,3,4,1>::Add();
+   k::Specialization<3,QVectorLayout::byNODES,P,1,3,6,1>::Add();
+   k::Specialization<3,QVectorLayout::byNODES,P,1,4,4,1>::Add();
+   k::Specialization<3,QVectorLayout::byNODES,P,1,4,8,1>::Add();
 
-   k.AddSpecialization<3,QVectorLayout::byNODES,P,3,2,3,1>();
-   k.AddSpecialization<3,QVectorLayout::byNODES,P,3,2,4,1>();
-   k.AddSpecialization<3,QVectorLayout::byNODES,P,3,2,5,1>();
-   k.AddSpecialization<3,QVectorLayout::byNODES,P,3,2,6,1>();
+   k::Specialization<3,QVectorLayout::byNODES,P,3,2,3,1>::Add();
+   k::Specialization<3,QVectorLayout::byNODES,P,3,2,4,1>::Add();
+   k::Specialization<3,QVectorLayout::byNODES,P,3,2,5,1>::Add();
+   k::Specialization<3,QVectorLayout::byNODES,P,3,2,6,1>::Add();
 
-   k.AddSpecialization<3,QVectorLayout::byNODES,P,3,3,3,1>();
-   k.AddSpecialization<3,QVectorLayout::byNODES,P,3,3,4,1>();
-   k.AddSpecialization<3,QVectorLayout::byNODES,P,3,3,5,1>();
-   k.AddSpecialization<3,QVectorLayout::byNODES,P,3,3,6,1>();
-   k.AddSpecialization<3,QVectorLayout::byNODES,P,3,4,4,1>();
-   k.AddSpecialization<3,QVectorLayout::byNODES,P,3,4,6,1>();
-   k.AddSpecialization<3,QVectorLayout::byNODES,P,3,4,7,1>();
-   k.AddSpecialization<3,QVectorLayout::byNODES,P,3,4,8,1>();
+   k::Specialization<3,QVectorLayout::byNODES,P,3,3,3,1>::Add();
+   k::Specialization<3,QVectorLayout::byNODES,P,3,3,4,1>::Add();
+   k::Specialization<3,QVectorLayout::byNODES,P,3,3,5,1>::Add();
+   k::Specialization<3,QVectorLayout::byNODES,P,3,3,6,1>::Add();
+   k::Specialization<3,QVectorLayout::byNODES,P,3,4,4,1>::Add();
+   k::Specialization<3,QVectorLayout::byNODES,P,3,4,6,1>::Add();
+   k::Specialization<3,QVectorLayout::byNODES,P,3,4,7,1>::Add();
+   k::Specialization<3,QVectorLayout::byNODES,P,3,4,8,1>::Add();
 }
 
 template void InitGradByNodesKernels<true>();

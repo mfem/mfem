@@ -283,22 +283,22 @@ static void Det3D(const int NE,
 
 void InitDetKernels()
 {
-   auto &k = QuadratureInterpolator::DetKernels::Get();
+   using k = QuadratureInterpolator::DetKernels;
    // 2D
-   k.AddSpecialization<2,2,2,2>();
-   k.AddSpecialization<2,2,2,3>();
-   k.AddSpecialization<2,2,2,4>();
-   k.AddSpecialization<2,2,2,6>();
-   k.AddSpecialization<2,2,3,4>();
-   k.AddSpecialization<2,2,3,6>();
-   k.AddSpecialization<2,2,4,4>();
-   k.AddSpecialization<2,2,4,6>();
-   k.AddSpecialization<2,2,5,6>();
+   k::Specialization<2,2,2,2>::Add();
+   k::Specialization<2,2,2,3>::Add();
+   k::Specialization<2,2,2,4>::Add();
+   k::Specialization<2,2,2,6>::Add();
+   k::Specialization<2,2,3,4>::Add();
+   k::Specialization<2,2,3,6>::Add();
+   k::Specialization<2,2,4,4>::Add();
+   k::Specialization<2,2,4,6>::Add();
+   k::Specialization<2,2,5,6>::Add();
    // 3D
-   k.AddSpecialization<3,3,2,4>();
-   k.AddSpecialization<3,3,3,3>();
-   k.AddSpecialization<3,3,3,5>();
-   k.AddSpecialization<3,3,3,6>();
+   k::Specialization<3,3,2,4>::Add();
+   k::Specialization<3,3,3,3>::Add();
+   k::Specialization<3,3,3,5>::Add();
+   k::Specialization<3,3,3,6>::Add();
 }
 
 } // namespace quadrature_interpolator

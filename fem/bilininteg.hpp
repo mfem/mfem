@@ -2309,8 +2309,8 @@ public:
    template <int DIM, int D1D, int Q1D>
    static void AddSpecialization()
    {
-      ApplyPAKernels::Get().AddSpecialization<DIM,D1D,Q1D>();
-      DiagonalPAKernels::Get().AddSpecialization<DIM,D1D,Q1D>();
+      ApplyPAKernels::Specialization<DIM,D1D,Q1D>::Add();
+      DiagonalPAKernels::Specialization<DIM,D1D,Q1D>::Add();
    }
 };
 
@@ -2394,8 +2394,8 @@ public:
    template <int DIM, int D1D, int Q1D>
    static void AddSpecialization()
    {
-      ApplyPAKernels::Get().AddSpecialization<DIM,D1D,Q1D>();
-      DiagonalPAKernels::Get().AddSpecialization<DIM,D1D,Q1D>();
+      ApplyPAKernels::Specialization<DIM,D1D,Q1D>::Add();
+      DiagonalPAKernels::Specialization<DIM,D1D,Q1D>::Add();
    }
 };
 

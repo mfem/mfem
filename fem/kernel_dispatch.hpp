@@ -150,11 +150,15 @@ public:
 
    /// Register a specialized kernel for dispatch.
    template <int DIM, Params... PARAMS, OptParams... OPT_PARAMS>
-   void AddSpecialization()
+   struct Specialization
    {
-      std::tuple<int, Params...> param_tuple(DIM, PARAMS...);
-      table[param_tuple] = Kernels:: template Kernel<DIM, PARAMS..., OPT_PARAMS...>();
-   }
+      static void Add()
+      {
+         std::tuple<int, Params...> param_tuple(DIM, PARAMS...);
+         Kernels::Get().table[param_tuple] =
+            Kernels:: template Kernel<DIM, PARAMS..., OPT_PARAMS...>();
+      }
+   };
 };
 
 }
