@@ -2141,8 +2141,8 @@ public:
                                       const Array<real_t>&, const Vector&, Vector&,
                                       const int, const int);
 
-   MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int));
-   MFEM_REGISTER_KERNELS(DiagonalPAKernels, DiagonalKernelType, (int, int));
+   MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int, int));
+   MFEM_REGISTER_KERNELS(DiagonalPAKernels, DiagonalKernelType, (int, int, int));
    static struct Kernels { Kernels(); } kernels;
 
 protected:
@@ -2341,8 +2341,8 @@ public:
                                        const Vector&, Vector&, const int,
                                        const int);
 
-   MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int));
-   MFEM_REGISTER_KERNELS(DiagonalPAKernels, DiagonalKernelType, (int, int));
+   MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int, int));
+   MFEM_REGISTER_KERNELS(DiagonalPAKernels, DiagonalKernelType, (int, int, int));
    static struct Kernels { Kernels(); } kernels;
 
 public:

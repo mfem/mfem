@@ -31,8 +31,8 @@ void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
       const Array<real_t> &B = maps->B;
       const Array<real_t> &G = maps->G;
       const Vector &Dv = pa_data;
-      DiagonalPAKernels::Get().Run(dim, dofs1D, quad1D, ne, symmetric, B, G, Dv,
-                                   diag, dofs1D, quad1D);
+      DiagonalPAKernels::Run(dim, dofs1D, quad1D, ne, symmetric, B, G, Dv,
+                             diag, dofs1D, quad1D);
    }
 }
 
@@ -68,8 +68,8 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
       }
 #endif // MFEM_USE_OCCA
 
-      ApplyPAKernels::Get().Run(dim, dofs1D, quad1D, ne, symmetric, B, G, Bt,
-                                Gt, Dv, x, y, dofs1D, quad1D);
+      ApplyPAKernels::Run(dim, dofs1D, quad1D, ne, symmetric, B, G, Bt,
+                          Gt, Dv, x, y, dofs1D, quad1D);
    }
 }
 

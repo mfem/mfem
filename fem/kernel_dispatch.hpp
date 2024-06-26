@@ -41,8 +41,12 @@ namespace mfem
 //
 // Specialized functions can be registered using the static AddSpecialization
 // member function.
-#define MFEM_REGISTER_KERNELS(KernelName, KernelType, ...) \
-   MFEM_REGISTER_KERNELS_N(__VA_ARGS__,2,1,)(KernelName,KernelType,__VA_ARGS__)
+
+#define MFEM_EXPAND(X) X // Workaround needed for MSVC compiler
+
+#define MFEM_REGISTER_KERNELS(KernelName, KernelType, ...)                     \
+   MFEM_EXPAND(MFEM_EXPAND(MFEM_REGISTER_KERNELS_N(__VA_ARGS__,2,1,))          \
+      (KernelName,KernelType,__VA_ARGS__))
 
 #define MFEM_REGISTER_KERNELS_N(_1, _2, N, ...) MFEM_REGISTER_KERNELS_##N
 
@@ -58,7 +62,7 @@ namespace mfem
 // Version of MFEM_REGISTER_KERNELS without any optional (non-dispatch)
 // parameters (e.g. NBZ).
 #define MFEM_REGISTER_KERNELS_2(KernelName, KernelType, Params, OptParams)     \
-   MFEM_REGISTER_KERNELS_(KernelName, KernelType, Params, OptParams, \
+   MFEM_REGISTER_KERNELS_(KernelName, KernelType, Params, OptParams,           \
                           (MFEM_PARAM_LIST Params, MFEM_PARAM_LIST OptParams))
 
 // P1 are the parameters, P2 are the optional (non-dispatch parameters), and P3
@@ -73,9 +77,9 @@ namespace mfem
    public:                                                                     \
       const char *kernel_name = MFEM_KERNEL_NAME(KernelName);                  \
       using KernelSignature = KernelType;                                      \
-      template <int DIM, MFEM_PARAM_LIST P3>                                   \
+      template <MFEM_PARAM_LIST P3>                                            \
       static KernelSignature Kernel();                                         \
-      static KernelSignature Fallback(int dim, MFEM_PARAM_LIST P1);            \
+      static KernelSignature Fallback(MFEM_PARAM_LIST P1);                     \
       static KernelName &Get()                                                 \
       { static KernelName table; return table;}                                \
    }
@@ -99,13 +103,13 @@ private:
       constexpr int Index = N - sizeof...(TTail) - 1;
       auto lhs_hash = std::hash<THead>()(std::get<Index>(value));
       auto rhs_hash = operator()<N, TTail...>(value);
-      return lhs_hash ^(rhs_hash + 0x9e3779b9 + (lhs_hash << 6) + (lhs_hash >> 2));
+      return lhs_hash^(rhs_hash + 0x9e3779b9 + (lhs_hash<<6) + (lhs_hash>>2));
    }
 public:
    /// Returns the hash of the given @a value.
    size_t operator()(std::tuple<KernelParameters...> value) const
    {
-      return operator()<sizeof...(KernelParameters), KernelParameters...>(value);
+      return operator()<sizeof...(KernelParameters),KernelParameters...>(value);
    }
 };
 
@@ -122,9 +126,9 @@ class KernelDispatchTable<Kernels,
          internal::KernelTypeList<Params...>,
          internal::KernelTypeList<OptParams...>>
 {
-   std::unordered_map<std::tuple<int, Params...>,
+   std::unordered_map<std::tuple<Params...>,
        Signature,
-       KernelDispatchKeyHash<int, Params...>> table;
+       KernelDispatchKeyHash<Params...>> table;
 
 public:
    /// @brief Run the kernel with the given dispatch parameters and arguments.
@@ -133,9 +137,10 @@ public:
    /// parameters has been registered, it will be called. Otherwise, the
    /// fallback kernel will be called.
    template<typename... Args>
-   void Run(int dim, Params... params, Args&&... args)
+   static void Run(Params... params, Args&&... args)
    {
-      const std::tuple<int, Params...> key = std::make_tuple(dim, params...);
+      const auto &table = Kernels::Get().table;
+      const std::tuple<Params...> key = std::make_tuple(params...);
       const auto it = table.find(key);
       if (it != table.end())
       {
@@ -144,20 +149,32 @@ public:
       else
       {
          ReportFallback(Kernels::Get().kernel_name, params...);
-         Kernels::Fallback(dim, params...)(std::forward<Args>(args)...);
+         Kernels::Fallback(params...)(std::forward<Args>(args)...);
       }
    }
 
    /// Register a specialized kernel for dispatch.
-   template <int DIM, Params... PARAMS, OptParams... OPT_PARAMS>
+   template <Params... PARAMS>
    struct Specialization
    {
+      // Version without optional parameters
       static void Add()
       {
-         std::tuple<int, Params...> param_tuple(DIM, PARAMS...);
+         std::tuple<Params...> param_tuple(PARAMS...);
          Kernels::Get().table[param_tuple] =
-            Kernels:: template Kernel<DIM, PARAMS..., OPT_PARAMS...>();
-      }
+            Kernels:: template Kernel<PARAMS...>();
+      };
+      // Version with optional parameters
+      template <OptParams... OPT_PARAMS>
+      struct Opt
+      {
+         static void Add()
+         {
+            std::tuple<Params...> param_tuple(PARAMS...);
+            Kernels::Get().table[param_tuple] =
+               Kernels:: template Kernel<PARAMS..., OPT_PARAMS...>();
+         }
+      };
    };
 };
 
