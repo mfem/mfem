@@ -191,6 +191,7 @@ set(HDRS
   intrules.hpp
   intrules_cut.hpp
   kernel_dispatch.hpp
+  kernel_reporter.hpp
   kernels.hpp
   ceed/interface/basis.hpp
   ceed/interface/integrator.hpp
