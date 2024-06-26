@@ -1534,19 +1534,18 @@ Geometry::Type Mesh::GetTypicalElementGeometry() const
    {
       return Geometry::SEGMENT;
    }
-   const int mesh_gen = MeshGenerator();
    Geometry::Type geom = Geometry::INVALID;
    if (dim == 2)
    {
-      geom = ((mesh_gen & 1) ? Geometry::TRIANGLE :
-              ((mesh_gen & 2) ? Geometry::SQUARE : Geometry::INVALID));
+      geom = ((meshgen & 1) ? Geometry::TRIANGLE :
+              ((meshgen & 2) ? Geometry::SQUARE : Geometry::INVALID));
    }
    else if (dim == 3)
    {
-      geom = ((mesh_gen & 1) ? Geometry::TETRAHEDRON :
-              ((mesh_gen & 2) ? Geometry::CUBE :
-               ((mesh_gen & 4) ? Geometry::PRISM :
-                ((mesh_gen & 8) ? Geometry::PYRAMID : Geometry::INVALID))));
+      geom = ((meshgen & 1) ? Geometry::TETRAHEDRON :
+              ((meshgen & 2) ? Geometry::CUBE :
+               ((meshgen & 4) ? Geometry::PRISM :
+                ((meshgen & 8) ? Geometry::PYRAMID : Geometry::INVALID))));
    }
    MFEM_VERIFY(geom != Geometry::INVALID,
                "Could not determine a typical element Geometry!");
