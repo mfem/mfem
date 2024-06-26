@@ -21,7 +21,7 @@ namespace quadrature_interpolator
 
 void InitEvalByNodesKernels()
 {
-   auto &k = QuadratureInterpolator::EvalKernels::Get();
+   auto &k = QuadratureInterpolator::TensorEvalKernels::Get();
 
    // 2D
    k.AddSpecialization<2,QVectorLayout::byNODES,1,3,3,1>();

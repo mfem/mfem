@@ -71,7 +71,7 @@ namespace mfem
    class KernelName : public                                                   \
    KernelDispatchTable<KernelName, KernelType,                                 \
       internal::KernelTypeList<MFEM_PARAM_LIST Params>,                        \
-   internal::KernelTypeList<MFEM_PARAM_LIST OptParams>>                        \
+      internal::KernelTypeList<MFEM_PARAM_LIST OptParams>>                     \
    {                                                                           \
    public:                                                                     \
       using KernelSignature = KernelType;                                      \
@@ -137,10 +137,9 @@ public:
    template<typename... Args>
    void Run(int dim, Params... params, Args&&... args)
    {
-      std::tuple<int, Params...> key;
-      key = std::make_tuple(dim, params...);
-      const auto it = this->table.find(key);
-      if (it != this->table.end())
+      const std::tuple<int, Params...> key = std::make_tuple(dim, params...);
+      const auto it = table.find(key);
+      if (it != table.end())
       {
          printf("Using specialized kernel\n");
          it->second(std::forward<Args>(args)...);
