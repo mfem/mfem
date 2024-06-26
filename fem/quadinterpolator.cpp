@@ -635,98 +635,98 @@ namespace quadrature_interpolator
 {
 void InitEvalKernels()
 {
-   auto &k = QuadratureInterpolator::EvalKernels::Get();
+   using k = QuadratureInterpolator::EvalKernels;
    // 2D, VDIM = 1
-   k.AddSpecialization<2,1,1,1>();
-   k.AddSpecialization<2,1,1,4>();
+   k::Specialization<2,1,1,1>::Add();
+   k::Specialization<2,1,1,4>::Add();
    // Q1
-   k.AddSpecialization<2,1,4,4>();
-   k.AddSpecialization<2,1,4,9>();
+   k::Specialization<2,1,4,4>::Add();
+   k::Specialization<2,1,4,9>::Add();
    // Q2
-   k.AddSpecialization<2,1,9,9>();
-   k.AddSpecialization<2,1,9,16>();
+   k::Specialization<2,1,9,9>::Add();
+   k::Specialization<2,1,9,16>::Add();
    // Q3
-   k.AddSpecialization<2,1,16,16>();
-   k.AddSpecialization<2,1,16,25>();
-   k.AddSpecialization<2,1,16,36>();
+   k::Specialization<2,1,16,16>::Add();
+   k::Specialization<2,1,16,25>::Add();
+   k::Specialization<2,1,16,36>::Add();
    // Q4
-   k.AddSpecialization<2,1,25,25>();
-   k.AddSpecialization<2,1,25,36>();
-   k.AddSpecialization<2,1,25,49>();
-   k.AddSpecialization<2,1,25,64>();
+   k::Specialization<2,1,25,25>::Add();
+   k::Specialization<2,1,25,36>::Add();
+   k::Specialization<2,1,25,49>::Add();
+   k::Specialization<2,1,25,64>::Add();
 
    // 3D, VDIM = 1
    // Q0
-   k.AddSpecialization<3,1,1,1>();
-   k.AddSpecialization<3,1,1,8>();
+   k::Specialization<3,1,1,1>::Add();
+   k::Specialization<3,1,1,8>::Add();
    // Q1
-   k.AddSpecialization<3,1,8,8>();
-   k.AddSpecialization<3,1,8,27>();
+   k::Specialization<3,1,8,8>::Add();
+   k::Specialization<3,1,8,27>::Add();
    // Q2
-   k.AddSpecialization<3,1,27,27>();
-   k.AddSpecialization<3,1,27,64>();
+   k::Specialization<3,1,27,27>::Add();
+   k::Specialization<3,1,27,64>::Add();
    // Q3
-   k.AddSpecialization<3,1,64,64>();
-   k.AddSpecialization<3,1,64,125>();
-   k.AddSpecialization<3,1,64,216>();
+   k::Specialization<3,1,64,64>::Add();
+   k::Specialization<3,1,64,125>::Add();
+   k::Specialization<3,1,64,216>::Add();
    // Q4
-   k.AddSpecialization<3,1,125,125>();
-   k.AddSpecialization<3,1,125,216>();
+   k::Specialization<3,1,125,125>::Add();
+   k::Specialization<3,1,125,216>::Add();
 
    // 2D, VDIM = 3
    // Q0
-   k.AddSpecialization<2,3,1,1>();
-   k.AddSpecialization<2,3,1,4>();
+   k::Specialization<2,3,1,1>::Add();
+   k::Specialization<2,3,1,4>::Add();
    // Q1
-   k.AddSpecialization<2,3,4,4>();
-   k.AddSpecialization<2,3,4,9>();
+   k::Specialization<2,3,4,4>::Add();
+   k::Specialization<2,3,4,9>::Add();
    // Q2
-   k.AddSpecialization<2,3,9,4>();
-   k.AddSpecialization<2,3,9,9>();
-   k.AddSpecialization<2,3,9,16>();
-   k.AddSpecialization<2,3,9,25>();
+   k::Specialization<2,3,9,4>::Add();
+   k::Specialization<2,3,9,9>::Add();
+   k::Specialization<2,3,9,16>::Add();
+   k::Specialization<2,3,9,25>::Add();
    // Q3
-   k.AddSpecialization<2,3,16,16>();
-   k.AddSpecialization<2,3,16,25>();
-   k.AddSpecialization<2,3,16,36>();
+   k::Specialization<2,3,16,16>::Add();
+   k::Specialization<2,3,16,25>::Add();
+   k::Specialization<2,3,16,36>::Add();
    // Q4
-   k.AddSpecialization<2,3,25,25>();
-   k.AddSpecialization<2,3,25,36>();
-   k.AddSpecialization<2,3,25,49>();
-   k.AddSpecialization<2,3,25,64>();
+   k::Specialization<2,3,25,25>::Add();
+   k::Specialization<2,3,25,36>::Add();
+   k::Specialization<2,3,25,49>::Add();
+   k::Specialization<2,3,25,64>::Add();
 
    // 2D, VDIM = 2
    // Q1
-   k.AddSpecialization<2,2,4,4>();
-   k.AddSpecialization<2,2,4,9>();
+   k::Specialization<2,2,4,4>::Add();
+   k::Specialization<2,2,4,9>::Add();
    // Q2
-   k.AddSpecialization<2,2,9,9>();
-   k.AddSpecialization<2,2,9,16>();
+   k::Specialization<2,2,9,9>::Add();
+   k::Specialization<2,2,9,16>::Add();
    // Q3
-   k.AddSpecialization<2,2,16,16>();
-   k.AddSpecialization<2,2,16,25>();
-   k.AddSpecialization<2,2,16,36>();
+   k::Specialization<2,2,16,16>::Add();
+   k::Specialization<2,2,16,25>::Add();
+   k::Specialization<2,2,16,36>::Add();
    // Q4
-   k.AddSpecialization<2,2,25,25>();
-   k.AddSpecialization<2,2,25,36>();
-   k.AddSpecialization<2,2,25,49>();
-   k.AddSpecialization<2,2,25,64>();
+   k::Specialization<2,2,25,25>::Add();
+   k::Specialization<2,2,25,36>::Add();
+   k::Specialization<2,2,25,49>::Add();
+   k::Specialization<2,2,25,64>::Add();
 
    // 3D, VDIM = 3
    // Q1
-   k.AddSpecialization<3,3,8,8>();
-   k.AddSpecialization<3,3,8,27>();
+   k::Specialization<3,3,8,8>::Add();
+   k::Specialization<3,3,8,27>::Add();
    // Q2
-   k.AddSpecialization<3,3,27,27>();
-   k.AddSpecialization<3,3,27,64>();
-   k.AddSpecialization<3,3,27,125>();
+   k::Specialization<3,3,27,27>::Add();
+   k::Specialization<3,3,27,64>::Add();
+   k::Specialization<3,3,27,125>::Add();
    // Q3
-   k.AddSpecialization<3,3,64,64>();
-   k.AddSpecialization<3,3,64,125>();
-   k.AddSpecialization<3,3,64,216>();
+   k::Specialization<3,3,64,64>::Add();
+   k::Specialization<3,3,64,125>::Add();
+   k::Specialization<3,3,64,216>::Add();
    // Q4
-   k.AddSpecialization<3,3,125,125>();
-   k.AddSpecialization<3,3,125,216>();
+   k::Specialization<3,3,125,125>::Add();
+   k::Specialization<3,3,125,216>::Add();
 }
 
 } // namespace quadrature_Interpolator
