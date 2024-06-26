@@ -18,4 +18,5 @@ rm libmfem.a
 make -j12 MFEM_USE_GSLIB=YES
 #
 cd $CURRPATH
-make psurffindpts_adi -j && mpirun -np 1 psurffindpts_adi -mo 4 -nx 1 --dim 2 -o 1 -vis
+# make psurffindpts_adi -j && mpirun -np 2 psurffindpts_adi -mo 4 -nx 2 --dim 2 -o 1 -visit
+make psurffindpts_adi -j && mpirun -np 2 psurffindpts_adi -m ../meshing/blade.mesh -mo 4 -o 4 -eo 2 --npt 100000 -visit

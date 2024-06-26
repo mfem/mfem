@@ -225,6 +225,12 @@ protected:
                           Vector &field_out,
                           int npt, int ncomp,
                           int nel, int dof1dsol);
+   void InterpolateSurfLocal2(const Vector &field_in,
+                              Array<int> &gsl_elem_dev_l,
+                              Vector &gsl_ref_l,
+                              Vector &field_out,
+                              int npt, int ncomp,
+                              int nel, int dof1dsol);
 
 public:
    FindPointsGSLIB();
@@ -295,6 +301,7 @@ public:
        @param[out] field_out  Interpolated values. For points that are not found
                               the value is set to #default_interp_value. */
    virtual void Interpolate(const GridFunction &field_in, Vector &field_out);
+   virtual void InterpolateSurf(const GridFunction &field_in, Vector &field_out);
    /** Search positions and interpolate. The ordering (byNODES or byVDIM) of
        the output values in @a field_out corresponds to the ordering used
        in the input GridFunction @a field_in. */
@@ -369,6 +376,13 @@ public:
                             const int nel, const int ncomp,
                             const int dof1dsol, const int gf_ordering,
                             MemoryType mt);
+   void InterpolateSurfOnDevice(const Vector &field_in,
+                                Vector &field_out,
+                                const int nel,
+                                const int ncomp,
+                                const int dof1dsol,
+                                const int gf_ordering,
+                                MemoryType mt);
 
    // Bounding box mesh.
    // 0 - element-wise axis-aligned bounding box. NE_split_total elem per proc
