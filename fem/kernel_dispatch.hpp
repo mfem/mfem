@@ -12,8 +12,8 @@
 #ifndef MFEM_KERNEL_DISPATCH_HPP
 #define MFEM_KERNEL_DISPATCH_HPP
 
-#include "../general/error.hpp"
-
+#include "../config/config.hpp"
+#include "kernel_reporter.hpp"
 #include <unordered_map>
 #include <tuple>
 
@@ -57,6 +57,7 @@ namespace mfem
       internal::KernelTypeList<>>                                              \
    {                                                                           \
    public:                                                                     \
+      const char *kernel_name = MFEM_KERNEL_NAME(KernelName);                  \
       using KernelSignature = KernelType;                                      \
       template <int DIM, MFEM_PARAM_LIST Params>                               \
       static KernelSignature Kernel();                                         \
@@ -74,6 +75,7 @@ namespace mfem
       internal::KernelTypeList<MFEM_PARAM_LIST OptParams>>                     \
    {                                                                           \
    public:                                                                     \
+      const char *kernel_name = MFEM_KERNEL_NAME(KernelName);                  \
       using KernelSignature = KernelType;                                      \
       template <int DIM, MFEM_PARAM_LIST Params, MFEM_PARAM_LIST OptParams>    \
       static KernelSignature Kernel();                                         \
@@ -141,12 +143,11 @@ public:
       const auto it = table.find(key);
       if (it != table.end())
       {
-         printf("Using specialized kernel\n");
          it->second(std::forward<Args>(args)...);
       }
       else
       {
-         printf("Using non-specialized kernel\n");
+         ReportFallback(Kernels::Get().kernel_name, params...);
          Kernels::Fallback(dim, params...)(std::forward<Args>(args)...);
       }
    }
