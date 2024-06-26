@@ -30,7 +30,7 @@ class DarcyForm : public Operator
    bool bsym;
 
    BilinearForm *M_u, *M_p;
-   NonlinearForm *Mn_p;
+   NonlinearForm *Mnl_p;
    MixedBilinearForm *B;
 
    OperatorHandle pM_u, pM_p, pB, pBt;

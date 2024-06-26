@@ -34,7 +34,7 @@ DarcyForm::DarcyForm(FiniteElementSpace *fes_u_, FiniteElementSpace *fes_p_,
 
    M_u = NULL;
    M_p = NULL;
-   Mn_p = NULL;
+   Mnl_p = NULL;
    B = NULL;
 
    assembly = AssemblyLevel::LEGACY;
@@ -70,14 +70,14 @@ const BilinearForm* DarcyForm::GetPotentialMassForm() const
 
 NonlinearForm* DarcyForm::GetPotentialMassNonlinearForm()
 {
-   if (!Mn_p) { Mn_p = new NonlinearForm(fes_p); }
-   return Mn_p;
+   if (!Mnl_p) { Mnl_p = new NonlinearForm(fes_p); }
+   return Mnl_p;
 }
 
 const NonlinearForm* DarcyForm::GetPotentialMassNonlinearForm() const
 {
-   //MFEM_ASSERT(Mn_p, "Potential mass nonlinear form not allocated!");
-   return Mn_p;
+   //MFEM_ASSERT(Mnl_p, "Potential mass nonlinear form not allocated!");
+   return Mnl_p;
 }
 
 MixedBilinearForm* DarcyForm::GetFluxDivForm()
@@ -98,7 +98,7 @@ void DarcyForm::SetAssemblyLevel(AssemblyLevel assembly_level)
 
    if (M_u) { M_u->SetAssemblyLevel(assembly); }
    if (M_p) { M_p->SetAssemblyLevel(assembly); }
-   if (Mn_p) { Mn_p->SetAssemblyLevel(assembly); }
+   if (Mnl_p) { Mnl_p->SetAssemblyLevel(assembly); }
    if (B) { B->SetAssemblyLevel(assembly); }
 }
 
@@ -248,9 +248,9 @@ void DarcyForm::Assemble(int skip_zeros)
          M_p->Assemble(skip_zeros);
       }
    }
-   else if (Mn_p)
+   else if (Mnl_p)
    {
-      Mn_p->Setup();
+      Mnl_p->Setup();
    }
 }
 
@@ -311,9 +311,9 @@ void DarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
                                B_, copy_interior);
          block_op->SetDiagonalBlock(1, pM_p.Ptr(), (bsym)?(-1.):(+1.));
       }
-      else if (Mn_p)
+      else if (Mnl_p)
       {
-         block_op->SetDiagonalBlock(1, Mn_p, (bsym)?(-1.):(+1.));
+         block_op->SetDiagonalBlock(1, Mnl_p, (bsym)?(-1.):(+1.));
       }
 
       if (B)
@@ -393,9 +393,9 @@ void DarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
          M_p->FormSystemMatrix(ess_pot_tdof_list, pM_p);
          block_op->SetDiagonalBlock(1, pM_p.Ptr(), (bsym)?(-1.):(+1.));
       }
-      else if (Mn_p)
+      else if (Mnl_p)
       {
-         block_op->SetDiagonalBlock(1, Mn_p, (bsym)?(-1.):(+1.));
+         block_op->SetDiagonalBlock(1, Mnl_p, (bsym)?(-1.):(+1.));
       }
 
       if (B)
@@ -477,7 +477,7 @@ void DarcyForm::Update()
 {
    if (M_u) { M_u->Update(); }
    if (M_p) { M_p->Update(); }
-   if (Mn_p) { Mn_p->Update(); }
+   if (Mnl_p) { Mnl_p->Update(); }
    if (B) { B->Update(); }
 
    pBt.Clear();
@@ -489,7 +489,7 @@ DarcyForm::~DarcyForm()
 {
    if (M_u) { delete M_u; }
    if (M_p) { delete M_p; }
-   if (Mn_p) { delete Mn_p; }
+   if (Mnl_p) { delete Mnl_p; }
    if (B) { delete B; }
 
    delete block_op;
