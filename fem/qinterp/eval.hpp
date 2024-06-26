@@ -195,10 +195,10 @@ static void Values3D(const int NE,
 
 namespace
 {
-using EvalKernel = QuadratureInterpolator::EvalKernelType;
+using TensorEvalKernel = QuadratureInterpolator::TensorEvalKernelType;
 
 template <QVectorLayout Q_LAYOUT>
-EvalKernel FallbackEvalKernel(int DIM)
+TensorEvalKernel FallbackTensorEvalKernel(int DIM)
 {
    if (DIM == 1) { return internal::quadrature_interpolator::Values1D<Q_LAYOUT>; }
    else if (DIM == 2) { return internal::quadrature_interpolator::Values2D<Q_LAYOUT>; }
@@ -211,7 +211,7 @@ EvalKernel FallbackEvalKernel(int DIM)
 
 template<int DIM, QVectorLayout Q_LAYOUT,
          int VDIM, int D1D, int Q1D, int NBZ>
-EvalKernel QuadratureInterpolator::EvalKernels::Kernel()
+TensorEvalKernel QuadratureInterpolator::TensorEvalKernels::Kernel()
 {
    if (DIM == 1) { return internal::quadrature_interpolator::Values1D<Q_LAYOUT>; }
    else if (DIM == 2) { return internal::quadrature_interpolator::Values2D<Q_LAYOUT, VDIM, D1D, Q1D, NBZ>; }
@@ -219,11 +219,11 @@ EvalKernel QuadratureInterpolator::EvalKernels::Kernel()
    else { MFEM_ABORT(""); }
 }
 
-inline EvalKernel QuadratureInterpolator::EvalKernels::Fallback(
+inline TensorEvalKernel QuadratureInterpolator::TensorEvalKernels::Fallback(
    int DIM, QVectorLayout Q_LAYOUT, int, int, int)
 {
-   if (Q_LAYOUT == QVectorLayout::byNODES) { return FallbackEvalKernel<QVectorLayout::byNODES>(DIM); }
-   else { return FallbackEvalKernel<QVectorLayout::byVDIM>(DIM); }
+   if (Q_LAYOUT == QVectorLayout::byNODES) { return FallbackTensorEvalKernel<QVectorLayout::byNODES>(DIM); }
+   else { return FallbackTensorEvalKernel<QVectorLayout::byVDIM>(DIM); }
 }
 
 } // namespace mfem

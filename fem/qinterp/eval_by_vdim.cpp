@@ -19,9 +19,9 @@ namespace internal
 namespace quadrature_interpolator
 {
 
-void InitEvalByVdimKernels()
+void InitEvalByVDimKernels()
 {
-   auto &k = QuadratureInterpolator::EvalKernels::Get();
+   auto &k = QuadratureInterpolator::TensorEvalKernels::Get();
    // 2D
    k.AddSpecialization<2,QVectorLayout::byVDIM,1,2,4,8>();
    k.AddSpecialization<2,QVectorLayout::byVDIM,1,3,6,4>();

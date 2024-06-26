@@ -20,7 +20,7 @@ namespace quadrature_interpolator
 {
 
 template <bool P>
-void InitGradByVdimKernels()
+void InitGradByVDimKernels()
 {
    auto &k = QuadratureInterpolator::GradKernels::Get();
    // 2D
@@ -41,8 +41,8 @@ void InitGradByVdimKernels()
    k.AddSpecialization<3,QVectorLayout::byVDIM,P,3,5,8,1>();
 }
 
-template void InitGradByVdimKernels<true>();
-template void InitGradByVdimKernels<false>();
+template void InitGradByVDimKernels<true>();
+template void InitGradByVDimKernels<false>();
 
 } // namespace quadrature_interpolator
 } // namespace internal

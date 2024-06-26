@@ -41,27 +41,6 @@ protected:
    mutable Vector d_buffer;            ///< Auxiliary device buffer
 
 public:
-   using EvalKernelType = void(*)(const int, const real_t *, const real_t *,
-                                  real_t *, const int, const int, const int);
-
-   using GradKernelType = void(*)(const int, const real_t *, const real_t *,
-                                  const real_t *, const real_t *,
-                                  real_t *, const int, const int, const int, const int );
-
-   using DetKernelType = void(*)(const int NE, const real_t *, const real_t *,
-                                 const real_t *, real_t *, const int, const int,
-                                 Vector *d_buff);
-
-   MFEM_REGISTER_KERNELS(EvalKernels, EvalKernelType,
-                         (QVectorLayout, int, int, int), (int));
-
-   MFEM_REGISTER_KERNELS(GradKernels, GradKernelType,
-                         (QVectorLayout, bool, int, int, int), (int));
-
-   MFEM_REGISTER_KERNELS(DetKernels, DetKernelType, (int, int, int));
-
-   static struct Kernels { Kernels(); } kernels;
-
    static const int MAX_NQ2D = 100;
    static const int MAX_ND2D = 100;
    static const int MAX_VDIM2D = 3;
@@ -152,6 +131,29 @@ public:
    /// Perform the transpose operation of Mult(). (TODO)
    void MultTranspose(unsigned eval_flags, const Vector &q_val,
                       const Vector &q_der, Vector &e_vec) const;
+
+
+   using TensorEvalKernelType = void(*)(const int, const real_t *, const real_t *,
+                                        real_t *, const int, const int, const int);
+   using GradKernelType = void(*)(const int, const real_t *, const real_t *,
+                                  const real_t *, const real_t *, real_t *,
+                                  const int, const int, const int, const int);
+   using DetKernelType = void(*)(const int NE, const real_t *, const real_t *,
+                                 const real_t *, real_t *, const int, const int,
+                                 Vector *);
+   using EvalKernelType = void(*)(const int, const int, const QVectorLayout,
+                                  const GeometricFactors *, const DofToQuad &,
+                                  const Vector &, Vector &, Vector &, Vector &,
+                                  const int);
+
+   MFEM_REGISTER_KERNELS(TensorEvalKernels, TensorEvalKernelType,
+                         (QVectorLayout, int, int, int), (int));
+   MFEM_REGISTER_KERNELS(GradKernels, GradKernelType,
+                         (QVectorLayout, bool, int, int, int), (int));
+   MFEM_REGISTER_KERNELS(DetKernels, DetKernelType, (int, int, int));
+   MFEM_REGISTER_KERNELS(EvalKernels, EvalKernelType, (int, int, int));
+
+   static struct Kernels { Kernels(); } kernels;
 };
 
 }
