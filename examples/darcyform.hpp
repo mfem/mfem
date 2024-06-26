@@ -255,6 +255,7 @@ class DarcyHybridization : public Hybridization, public Operator
    void ConstructC();
    void AllocEG();
    void MultNL(int mode, const BlockVector &b, const Vector &x, Vector &y) const;
+   void InvertA();
    void ComputeH();
    FaceElementTransformations * GetCtFaceMatrix(int f, DenseMatrix & Ct_1,
                                                 DenseMatrix & Ct_2, Array<int>& c_dofs) const;

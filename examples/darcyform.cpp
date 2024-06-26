@@ -1341,6 +1341,22 @@ void DarcyHybridization::AllocEG()
    G_data = new real_t[G_offsets[num_faces]]();//init by zeros
 }
 
+void DarcyHybridization::InvertA()
+{
+   const int NE = fes->GetNE();
+
+   for (int el = 0; el < NE; el++)
+   {
+      int a_dofs_size = Af_f_offsets[el+1] - Af_f_offsets[el];
+
+      // Decompose A
+
+      LUFactors LU_A(Af_data + Af_offsets[el], Af_ipiv + Af_f_offsets[el]);
+
+      LU_A.Factor(a_dofs_size);
+   }
+}
+
 void DarcyHybridization::ComputeH()
 {
    MFEM_ASSERT(!bnl, "Cannot assemble H matrix in the non-linear regime");
@@ -1718,7 +1734,6 @@ void DarcyHybridization::MultNL(int mode, const BlockVector &b, const Vector &x,
       u_l.SetSize(u_vdofs.Size());
       p_l.SetSize(p_dofs.Size());
       //initial guess?
-      u_l = 0.;
       p_l = 0.;
       MultInvNL(el, bu_l, bp_l, x, u_l, p_l);
 
@@ -1780,7 +1795,14 @@ void DarcyHybridization::Finalize()
 {
    if (!bfin)
    {
-      if (!bnl) { ComputeH(); }
+      if (bnl)
+      {
+         InvertA();
+      }
+      else
+      {
+         ComputeH();
+      }
       bfin = true;
    }
 }
@@ -1845,10 +1867,10 @@ void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
                bp_l.Size() == d_dofs_size, "Incompatible size");
 
 
-   DenseMatrix A(Af_data + Af_offsets[el], a_dofs_size, a_dofs_size);
+   LUFactors LU_A(Af_data + Af_offsets[el], Af_ipiv + Af_f_offsets[el]);
    DenseMatrix B(Bf_data + Bf_offsets[el], d_dofs_size, a_dofs_size);
 
-   Vector ru(bu_l.Size()), rp(bp_l.Size());
+   Vector rp(bp_l.Size());
 
    const int dim = fes->GetMesh()->Dimension();
    Array<int> faces, oris;
@@ -1867,19 +1889,23 @@ void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
 
    Vector x_l, Dp, DpEx;
    Array<int> c_dofs;
-   real_t norm_u_ref = 1e-6 * bu_l.Norml2();
    real_t norm_p_ref = 1e-6 * bp_l.Norml2();
-   real_t norm_u, norm_p;
+   real_t norm_p = INFINITY;
 
    int it;
    for (it = 0; it < 1000; it++)
    {
-      ru = bu_l;
+      u_l = bu_l;
       rp = bp_l;
 
-      A.AddMult(u_l, ru, -1.);
+      //bu - C^T x + B^T p
+      B.AddMultTranspose(p_l, u_l, (bsym)?(+1.):(-1.));
+
+      //u = A^-1 ru
+      LU_A.Solve(a_dofs_size, 1, u_l.GetData());
+
+      //bp - B u
       B.AddMult(u_l, rp, -1.);
-      B.AddMultTranspose(p_l, ru, (bsym)?(+1.):(-1.));
 
       //D p_l
       if (m_nlfi_p)
@@ -1914,22 +1940,19 @@ void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
       }
 
       //x <- x + r
-      u_l += ru;
       p_l += rp;
 
-      norm_u = ru.Norml2();
       norm_p = rp.Norml2();
-      if ((norm_u < norm_u_ref || norm_u_ref == 0.)
-          && (norm_p < norm_p_ref || norm_p_ref == 0.))
+      if (norm_p <= 1e-6 * norm_p_ref)
       {
          break;
       }
-      std::cout << "el: " << el << " it: " << it << " u: " <<
-                norm_u << " / " << norm_u_ref << " p: " << norm_p << " / " << norm_p_ref
+      std::cout << "el: " << el << " it: " << it
+                << " p: " << norm_p << " / " << norm_p_ref
                 << std::endl;
    }
-   std::cout << "el: " << el << " iters: " << it << " u: " <<
-             (norm_u/norm_u_ref) << " p: " << (norm_p/norm_p_ref) << std::endl;
+   std::cout << "el: " << el << " iters: " << it
+             << " p: " << (norm_p/norm_p_ref) << std::endl;
 }
 
 void DarcyHybridization::MultInv(int el, const Vector &bu, const Vector &bp,
