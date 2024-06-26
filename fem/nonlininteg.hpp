@@ -492,44 +492,49 @@ public:
 
    virtual void AssembleElementVector(const FiniteElement &el,
                                       ElementTransformation &Tr,
-                                      const Vector &elfun, Vector &elvect);
+                                      const Vector &elfun,
+                                      Vector &elvect) override;
 
    virtual void AssembleFaceVector(const FiniteElement &el1,
                                    const FiniteElement &el2,
                                    FaceElementTransformations &Tr,
-                                   const Vector &elfun, Vector &elvect);
+                                   const Vector &elfun,
+                                   Vector &elvect) override;
 
    virtual void AssembleElementGrad(const FiniteElement &el,
                                     ElementTransformation &Tr,
-                                    const Vector &elfun, DenseMatrix &elmat);
+                                    const Vector &elfun,
+                                    DenseMatrix &elmat) override;
 
    virtual void AssembleFaceGrad(const FiniteElement &el1,
                                  const FiniteElement &el2,
                                  FaceElementTransformations &Tr,
-                                 const Vector &elfun, DenseMatrix &elmat);
+                                 const Vector &elfun,
+                                 DenseMatrix &elmat) override;
 
    virtual real_t GetElementEnergy(const FiniteElement &el,
                                    ElementTransformation &Tr,
-                                   const Vector &elfun);
+                                   const Vector &elfun) override;
 
-   virtual void AssemblePA(const FiniteElementSpace &fes);
+   virtual void AssemblePA(const FiniteElementSpace &fes) override;
 
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
-                           const FiniteElementSpace &test_fes);
+                           const FiniteElementSpace &test_fes) override;
 
-   virtual void AssembleGradPA(const Vector &x, const FiniteElementSpace &fes);
+   virtual void AssembleGradPA(const Vector &x,
+                               const FiniteElementSpace &fes) override;
 
-   virtual real_t GetLocalStateEnergyPA(const Vector &x) const;
+   virtual real_t GetLocalStateEnergyPA(const Vector &x) const override;
 
-   virtual void AddMultPA(const Vector &x, Vector &y) const;
+   virtual void AddMultPA(const Vector &x, Vector &y) const override;
 
-   virtual void AddMultGradPA(const Vector &x, Vector &y) const;
+   virtual void AddMultGradPA(const Vector &x, Vector &y) const override;
 
-   virtual void AssembleGradDiagonalPA(Vector &diag) const;
+   virtual void AssembleGradDiagonalPA(Vector &diag) const override;
 
-   virtual void AssembleMF(const FiniteElementSpace &fes);
+   virtual void AssembleMF(const FiniteElementSpace &fes) override;
 
-   virtual void AddMultMF(const Vector &x, Vector &y) const;
+   virtual void AddMultMF(const Vector &x, Vector &y) const override;
 
    virtual ~SumNLFIntegrator();
 };
