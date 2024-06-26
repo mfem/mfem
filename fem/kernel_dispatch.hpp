@@ -51,35 +51,29 @@ namespace mfem
 // Version of MFEM_REGISTER_KERNELS without any "optional" (non-dispatch)
 // parameters.
 #define MFEM_REGISTER_KERNELS_1(KernelName, KernelType, Params)                \
-   class KernelName : public                                                   \
-   KernelDispatchTable<KernelName, KernelType,                                 \
-      internal::KernelTypeList<MFEM_PARAM_LIST Params>,                        \
-      internal::KernelTypeList<>>                                              \
-   {                                                                           \
-   public:                                                                     \
-      const char *kernel_name = MFEM_KERNEL_NAME(KernelName);                  \
-      using KernelSignature = KernelType;                                      \
-      template <int DIM, MFEM_PARAM_LIST Params>                               \
-      static KernelSignature Kernel();                                         \
-      static KernelSignature Fallback(int dim, MFEM_PARAM_LIST Params);        \
-      static KernelName &Get()                                                 \
-      { static KernelName table; return table;}                                \
-   };
+   MFEM_REGISTER_KERNELS_(KernelName, KernelType, Params, (), Params)
 
 // Version of MFEM_REGISTER_KERNELS without any optional (non-dispatch)
 // parameters (e.g. NBZ).
 #define MFEM_REGISTER_KERNELS_2(KernelName, KernelType, Params, OptParams)     \
+   MFEM_REGISTER_KERNELS_(KernelName, KernelType, Params, OptParams, \
+                          (MFEM_PARAM_LIST Params, MFEM_PARAM_LIST OptParams))
+
+// P1 are the parameters, P2 are the optional (non-dispatch parameters), and P3
+// is the concatenation of P1 and P2. We need to pass it as a separate argument
+// to avoid a trailing comma in the case that P2 is empty.
+#define MFEM_REGISTER_KERNELS_(KernelName, KernelType, P1, P2, P3)             \
    class KernelName : public                                                   \
    KernelDispatchTable<KernelName, KernelType,                                 \
-      internal::KernelTypeList<MFEM_PARAM_LIST Params>,                        \
-      internal::KernelTypeList<MFEM_PARAM_LIST OptParams>>                     \
+      internal::KernelTypeList<MFEM_PARAM_LIST P1>,                            \
+      internal::KernelTypeList<MFEM_PARAM_LIST P2>>                            \
    {                                                                           \
    public:                                                                     \
       const char *kernel_name = MFEM_KERNEL_NAME(KernelName);                  \
       using KernelSignature = KernelType;                                      \
-      template <int DIM, MFEM_PARAM_LIST Params, MFEM_PARAM_LIST OptParams>    \
+      template <int DIM, MFEM_PARAM_LIST P3>                                   \
       static KernelSignature Kernel();                                         \
-      static KernelSignature Fallback(int dim, MFEM_PARAM_LIST Params);        \
+      static KernelSignature Fallback(int dim, MFEM_PARAM_LIST P1);            \
       static KernelName &Get()                                                 \
       { static KernelName table; return table;}                                \
    };
