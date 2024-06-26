@@ -207,18 +207,23 @@ public:
    Type GetType() const { return MFEM_Block_Operator; }
 };
 
-class DarcyHybridization : public Hybridization
+class DarcyHybridization : public Hybridization, public Operator
 {
    FiniteElementSpace *fes_p;
    BilinearFormIntegrator *c_bfi_p;
+   NonlinearFormIntegrator *c_nlfi_p;
+   NonlinearFormIntegrator *m_nlfi_p;
+   bool own_m_nlfi_p;
 
    /// Set of constraint boundary face integrators to be applied.
-   Array<BilinearFormIntegrator*> boundary_constraint_pot_integs;
-   Array<Array<int>*>             boundary_constraint_pot_integs_marker;
+   Array<BilinearFormIntegrator*>  boundary_constraint_pot_integs;
+   Array<Array<int>*>              boundary_constraint_pot_integs_marker;
+   Array<NonlinearFormIntegrator*> boundary_constraint_pot_nonlin_integs;
+   Array<Array<int>*>              boundary_constraint_pot_nonlin_integs_marker;
    /// Indicates if the boundary_constraint_pot_integs integrators are owned externally
    int extern_bdr_constr_pot_integs;
 
-   bool bsym, bfin;
+   bool bsym, bnl, bfin;
 
    Array<int> Ae_offsets;
    real_t *Ae_data;
@@ -239,6 +244,9 @@ class DarcyHybridization : public Hybridization
    Array<int> &G_offsets{E_offsets};
    real_t *G_data;
 
+   mutable Array<int> darcy_offsets;
+   mutable BlockVector darcy_rhs;
+
    void GetFDofs(int el, Array<int> &fdofs) const;
    void GetEDofs(int el, Array<int> &edofs) const;
    void AssembleCtFaceMatrix(int face, int el1, int el2, const DenseMatrix &elmat);
@@ -246,6 +254,7 @@ class DarcyHybridization : public Hybridization
                             DenseMatrix &Ct, int ioff=0);
    void ConstructC();
    void AllocEG();
+   void MultNL(int mode, const BlockVector &b, const Vector &x, Vector &y) const;
    void ComputeH();
    FaceElementTransformations * GetCtFaceMatrix(int f, DenseMatrix & Ct_1,
                                                 DenseMatrix & Ct_2, Array<int>& c_dofs) const;
@@ -254,6 +263,8 @@ class DarcyHybridization : public Hybridization
    FaceElementTransformations *GetGFaceMatrix(int f, DenseMatrix &Gt_1,
                                               DenseMatrix &Gt_2, Array<int> &c_dofs) const;
    void GetCtSubMatrix(int el, const Array<int> &c_dofs, DenseMatrix &Ct) const;
+   void MultInvNL(int el, const Vector &bu_l, const Vector &bp_l, const Vector &x,
+                  Vector &u_l, Vector &p_l) const;
    void MultInv(int el, const Vector &bu, const Vector &bp, Vector &u,
                 Vector &p) const;
 
@@ -272,10 +283,21 @@ public:
    void SetConstraintIntegrators(BilinearFormIntegrator *c_flux_integ,
                                  BilinearFormIntegrator *c_pot_integ);
 
+   /** Set the integrator that will be used to construct the constraint matrix
+       C. The Hybridization object assumes ownership of the integrator, i.e. it
+       will delete the integrator when destroyed. */
+   void SetConstraintIntegrators(BilinearFormIntegrator *c_flux_integ,
+                                 NonlinearFormIntegrator *c_pot_integ);
+
+   void SetPotMassNonlinearIntegrator(NonlinearFormIntegrator *pot_integ,
+                                      bool own = true);
 
    BilinearFormIntegrator* GetFluxConstraintIntegrator() const { return c_bfi; }
 
    BilinearFormIntegrator* GetPotConstraintIntegrator() const { return c_bfi_p; }
+   NonlinearFormIntegrator* GetPotConstraintNonlinearIntegrator() const { return c_nlfi_p; }
+
+   NonlinearFormIntegrator* GetPotMassNonlinearIntegrator() const { return m_nlfi_p; }
 
    void AddBdrConstraintIntegrator(BilinearFormIntegrator *c_integ) = delete;
    void AddBdrConstraintIntegrator(BilinearFormIntegrator *c_integ,
@@ -320,6 +342,27 @@ public:
        corresponding pointer (to Array<int>) will be NULL. */
    Array<Array<int>*> *GetPotBCBFI_Marker() { return &boundary_constraint_pot_integs_marker; }
 
+   void AddBdrPotConstraintIntegrator(NonlinearFormIntegrator *c_integ)
+   {
+      boundary_constraint_pot_nonlin_integs.Append(c_integ);
+      boundary_constraint_pot_nonlin_integs_marker.Append(
+         NULL); // NULL marker means apply everywhere
+   }
+   void AddBdrPotConstraintIntegrator(NonlinearFormIntegrator *c_integ,
+                                      Array<int> &bdr_marker)
+   {
+      boundary_constraint_pot_nonlin_integs.Append(c_integ);
+      boundary_constraint_pot_nonlin_integs_marker.Append(&bdr_marker);
+   }
+
+   /// Access all integrators added with AddBdrPotConstraintIntegrator().
+   Array<NonlinearFormIntegrator*> *GetPotBCNLFI() { return &boundary_constraint_pot_nonlin_integs; }
+
+   /// Access all boundary markers added with AddBdrPotConstraintIntegrator().
+   /** If no marker was specified when the integrator was added, the
+       corresponding pointer (to Array<int>) will be NULL. */
+   Array<Array<int>*> *GetPotBCNLFI_Marker() { return &boundary_constraint_pot_nonlin_integs_marker; }
+
    void UseExternalBdrConstraintIntegrators() = delete;
 
    /// Indicate that boundary flux constraint integrators are not owned
@@ -350,6 +393,10 @@ public:
 
    /// Assemble the boundary element matrix A into the hybridized system matrix.
    //void AssembleBdrMatrix(int bdr_el, const DenseMatrix &A);
+
+   /// Operator application: `y=A(x)`.
+   void Mult(const Vector &x, Vector &y) const override;
+
 
    /// Finalize the construction of the hybridized matrix.
    void Finalize() override;

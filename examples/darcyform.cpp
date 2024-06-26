@@ -118,9 +118,9 @@ void DarcyForm::EnableHybridization(FiniteElementSpace *constr_space,
    hybridization = new DarcyHybridization(fes_u, fes_p, constr_space, bsym);
 
    // Automatically load the potential constraint operator from the face integrators
-   BilinearFormIntegrator *constr_pot_integ = NULL;
    if (M_p)
    {
+      BilinearFormIntegrator *constr_pot_integ = NULL;
       auto fbfi = M_p->GetFBFI();
       if (fbfi->Size())
       {
@@ -131,9 +131,45 @@ void DarcyForm::EnableHybridization(FiniteElementSpace *constr_space,
          }
          constr_pot_integ = sbfi;
       }
+      hybridization->SetConstraintIntegrators(constr_flux_integ, constr_pot_integ);
+   }
+   else if (Mnl_p)
+   {
+      NonlinearFormIntegrator *constr_pot_integ = NULL;
+      auto fnlfi = Mnl_p->GetInteriorFaceIntegrators();
+      if (fnlfi.Size())
+      {
+         SumNLFIntegrator *snlfi = new SumNLFIntegrator(false);
+         for (NonlinearFormIntegrator *nlfi : fnlfi)
+         {
+            snlfi->AddIntegrator(nlfi);
+         }
+         constr_pot_integ = snlfi;
+      }
+      hybridization->SetConstraintIntegrators(constr_flux_integ, constr_pot_integ);
+   }
+   else
+   {
+      hybridization->SetConstraintIntegrators(constr_flux_integ,
+                                              (BilinearFormIntegrator*)NULL);
    }
 
-   hybridization->SetConstraintIntegrators(constr_flux_integ, constr_pot_integ);
+   // Automatically load the potential mass integrators
+   if (Mnl_p)
+   {
+      NonlinearFormIntegrator *pot_integ = NULL;
+      auto dnlfi = Mnl_p->GetDNFI();
+      if (dnlfi->Size())
+      {
+         SumNLFIntegrator *snlfi = new SumNLFIntegrator(false);
+         for (NonlinearFormIntegrator *nlfi : *dnlfi)
+         {
+            snlfi->AddIntegrator(nlfi);
+         }
+         pot_integ = snlfi;
+      }
+      hybridization->SetPotMassNonlinearIntegrator(pot_integ);
+   }
 
    // Automatically add the boundary flux constraint integrators
    if (B)
@@ -172,6 +208,26 @@ void DarcyForm::EnableHybridization(FiniteElementSpace *constr_space,
          else
          {
             hybridization->AddBdrPotConstraintIntegrator(bfi);
+         }
+      }
+   }
+   else if (Mnl_p)
+   {
+      auto bfnlfi = Mnl_p->GetBdrFaceIntegrators();
+      auto bfnlfi_marker = Mnl_p->GetBdrFaceIntegratorsMarkers();
+      hybridization->UseExternalBdrPotConstraintIntegrators();
+
+      for (int i = 0; i < bfnlfi.Size(); i++)
+      {
+         NonlinearFormIntegrator *nlfi = bfnlfi[i];
+         Array<int> *nlfi_marker = bfnlfi_marker[i];
+         if (nlfi_marker)
+         {
+            hybridization->AddBdrPotConstraintIntegrator(nlfi, *nlfi_marker);
+         }
+         else
+         {
+            hybridization->AddBdrPotConstraintIntegrator(nlfi);
          }
       }
    }
@@ -412,7 +468,14 @@ void DarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
    if (hybridization)
    {
       hybridization->Finalize();
-      A.Reset(&hybridization->GetMatrix(), false);
+      if (!Mnl_p)
+      {
+         A.Reset(&hybridization->GetMatrix(), false);
+      }
+      else
+      {
+         A.Reset(hybridization, false);
+      }
    }
    else
    {
@@ -582,11 +645,16 @@ DarcyHybridization::DarcyHybridization(FiniteElementSpace *fes_u_,
                                        FiniteElementSpace *fes_p_,
                                        FiniteElementSpace *fes_c_,
                                        bool bsymmetrize)
-   : Hybridization(fes_u_, fes_c_), fes_p(fes_p_), bsym(bsymmetrize)
+   : Hybridization(fes_u_, fes_c_), Operator(c_fes->GetVSize()),
+     fes_p(fes_p_), bsym(bsymmetrize)
 {
    c_bfi_p = NULL;
+   c_nlfi_p = NULL;
+   m_nlfi_p = NULL;
+   own_m_nlfi_p = false;
 
    bfin = false;
+   bnl = false;
 
    Ae_data = NULL;
    Bf_data = NULL;
@@ -601,10 +669,14 @@ DarcyHybridization::DarcyHybridization(FiniteElementSpace *fes_u_,
 DarcyHybridization::~DarcyHybridization()
 {
    delete c_bfi_p;
+   delete c_nlfi_p;
+   if (own_m_nlfi_p) { delete m_nlfi_p; }
    if (!extern_bdr_constr_pot_integs)
    {
       for (int k=0; k < boundary_constraint_pot_integs.Size(); k++)
       { delete boundary_constraint_pot_integs[k]; }
+      for (int k=0; k < boundary_constraint_pot_nonlin_integs.Size(); k++)
+      { delete boundary_constraint_pot_nonlin_integs[k]; }
    }
 
    delete Ae_data;
@@ -617,13 +689,44 @@ DarcyHybridization::~DarcyHybridization()
    delete G_data;
 }
 
-void DarcyHybridization::SetConstraintIntegrators(BilinearFormIntegrator
-                                                  *c_flux_integ, BilinearFormIntegrator *c_pot_integ)
+void DarcyHybridization::SetConstraintIntegrators(
+   BilinearFormIntegrator *c_flux_integ, BilinearFormIntegrator *c_pot_integ)
 {
+   MFEM_VERIFY(!m_nlfi_p, "Linear constraint cannot work with a non-linear mass");
+
    delete c_bfi;
    c_bfi = c_flux_integ;
    delete c_bfi_p;
    c_bfi_p = c_pot_integ;
+   delete c_nlfi_p;
+   c_nlfi_p = NULL;
+
+   bnl = false;
+}
+
+void DarcyHybridization::SetConstraintIntegrators(
+   BilinearFormIntegrator *c_flux_integ, NonlinearFormIntegrator *c_pot_integ)
+{
+   delete c_bfi;
+   c_bfi = c_flux_integ;
+   delete c_bfi_p;
+   c_bfi_p = NULL;
+   delete c_nlfi_p;
+   c_nlfi_p = c_pot_integ;
+
+   bnl = true;
+}
+
+void DarcyHybridization::SetPotMassNonlinearIntegrator(NonlinearFormIntegrator
+                                                       *pot_integ, bool own)
+{
+   MFEM_VERIFY(!c_bfi_p, "Non-linear mass cannot work with a linear constraint");
+
+   if (own_m_nlfi_p) { delete m_nlfi_p; }
+   own_m_nlfi_p = own;
+   m_nlfi_p = pot_integ;
+
+   bnl = true;
 }
 
 void DarcyHybridization::Init(const Array<int> &ess_flux_tdof_list)
@@ -779,8 +882,11 @@ void DarcyHybridization::Init(const Array<int> &ess_flux_tdof_list)
    }
 
    Bf_data = new real_t[Bf_offsets[NE]]();//init by zeros
-   Df_data = new real_t[Df_offsets[NE]]();//init by zeros
-   Df_ipiv = new int[Df_f_offsets[NE]];
+   if (!bnl)
+   {
+      Df_data = new real_t[Df_offsets[NE]]();//init by zeros
+      Df_ipiv = new int[Df_f_offsets[NE]];
+   }
 #ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
    Ae_data = new real_t[Ae_offsets[NE]];
    Be_data = new real_t[Be_offsets[NE]]();//init by zeros
@@ -1237,6 +1343,8 @@ void DarcyHybridization::AllocEG()
 
 void DarcyHybridization::ComputeH()
 {
+   MFEM_ASSERT(!bnl, "Cannot assemble H matrix in the non-linear regime");
+
    const int skip_zeros = 1;
    const int NE = fes->GetNE();
 #ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
@@ -1502,11 +1610,177 @@ void DarcyHybridization::GetCtSubMatrix(int el, const Array<int> &c_dofs,
    }
 }
 
+void DarcyHybridization::Mult(const Vector &x, Vector &y) const
+{
+   MFEM_VERIFY(bfin, "DarcyHybridization must be finalized");
+
+   if (H)
+   {
+      H->Mult(x, y);
+      return;
+   }
+
+   MultNL(0, darcy_rhs, x, y);
+}
+
+void DarcyHybridization::MultNL(int mode, const BlockVector &b, const Vector &x,
+                                Vector &y) const
+{
+   const int NE = fes->GetNE();
+#ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
+   const int dim = fes->GetMesh()->Dimension();
+   DenseMatrix Ct_1, Ct_2, E_1, E_2;
+   Vector x_l;
+   Array<int> c_dofs;
+   Array<int> faces, oris;
+#else //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
+   MFEM_ASSERT(!c_nlfi_p,
+               "Potential constraint is not supported in non-block assembly!");
+   Vector hat_bu(hat_offsets.Last());
+   Vector hat_u;
+   if (mode == 0)
+   {
+      hat_u.SetSize(hat_offsets.Last());
+      hat_u = 0.;//essential vdofs?!
+   }
+#endif //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
+   Vector bu_l, bp_l, u_l, p_l, y_l;
+   Array<int> u_vdofs, p_dofs;
+
+   const Vector &bu = b.GetBlock(0);
+   const Vector &bp = b.GetBlock(1);
+   BlockVector yb;
+   if (mode == 1)
+   {
+      yb.Update(y, darcy_offsets);
+   }
+   else
+   {
+      y = 0.0;
+   }
+
+#ifndef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
+   //C^T sol_r
+   Ct->Mult(x, hat_bu);
+#endif //!MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
+
+   for (int el = 0; el < NE; el++)
+   {
+      //Load RHS
+
+      GetFDofs(el, u_vdofs);
+      bu.GetSubVector(u_vdofs, bu_l);
+
+      fes_p->GetElementDofs(el, p_dofs);
+      bp.GetSubVector(p_dofs, bp_l);
+      if (bsym)
+      {
+         //In the case of the symmetrized system, the sign is oppposite!
+         bp_l.Neg();
+      }
+
+#ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
+      switch (dim)
+      {
+         case 1:
+            fes->GetMesh()->GetElementVertices(el, faces);
+            break;
+         case 2:
+            fes->GetMesh()->GetElementEdges(el, faces, oris);
+            break;
+         case 3:
+            fes->GetMesh()->GetElementFaces(el, faces, oris);
+            break;
+      }
+
+      // bu - C^T x
+      for (int f = 0; f < faces.Size(); f++)
+      {
+         FaceElementTransformations *FTr = GetCtFaceMatrix(faces[f], Ct_1, Ct_2, c_dofs);
+         if (!FTr) { continue; }
+
+         x.GetSubVector(c_dofs, x_l);
+         DenseMatrix &Ct = (FTr->Elem1No == el)?(Ct_1):(Ct_2);
+         Ct.AddMult_a(-1., x_l, bu_l);
+
+         //NOTE: bp - Ex is deferred to MultInvNL
+      }
+#else //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
+      // bu - C^T sol
+      for (int dof = hat_offsets[el], i = 0; dof < hat_offsets[el+1]; dof++)
+      {
+         if (hat_dofs_marker[dof] == 1) { continue; }
+         bu_l[i++] -= hat_bu[dof];
+      }
+#endif //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
+
+      //(A^-1 - A^-1 B^T S^-1 B A^-1) (bu - C^T sol)
+      u_l.SetSize(u_vdofs.Size());
+      p_l.SetSize(p_dofs.Size());
+      //initial guess?
+      u_l = 0.;
+      p_l = 0.;
+      MultInvNL(el, bu_l, bp_l, x, u_l, p_l);
+
+      if (mode == 1)
+      {
+         yb.GetBlock(0).SetSubVector(u_vdofs, u_l);
+         yb.GetBlock(1).SetSubVector(p_dofs, p_l);
+         continue;
+      }
+
+#ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
+      // C u_l
+      for (int f = 0; f < faces.Size(); f++)
+      {
+         FaceElementTransformations *FTr = GetCtFaceMatrix(faces[f], Ct_1, Ct_2, c_dofs);
+         if (!FTr) { continue; }
+
+         DenseMatrix &Ct = (FTr->Elem1No == el)?(Ct_1):(Ct_2);
+         y_l.SetSize(c_dofs.Size());
+         Ct.MultTranspose(u_l, y_l);
+
+         //G p_l + H x_l
+         if (c_nlfi_p)
+         {
+            Vector GpHx_l;
+
+            //G p_l + H x_l
+            int type = NonlinearFormIntegrator::HDGFaceType::CONSTR
+                       | NonlinearFormIntegrator::HDGFaceType::FACE;
+            if (FTr->Elem1No != el) { type &= 1; }
+
+            c_nlfi_p->AssembleHDGFaceVector(type, *c_fes->GetFaceElement(f),
+                                            *fes_p->GetFE(el), *FTr, x_l, p_l, GpHx_l);
+
+            y_l += GpHx_l;
+         }
+
+         y.AddElementVector(c_dofs, y_l);
+      }
+#else //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
+      // hat_u += u_l
+      for (int dof = hat_offsets[el], i = 0; dof < hat_offsets[el+1]; dof++)
+      {
+         if (hat_dofs_marker[dof] == 1) { continue; }
+         hat_u[dof] += u_l[i++];
+      }
+#endif //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
+   }
+#ifndef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
+   if (mode == 0)
+   {
+      //C u
+      Ct->MultTranspose(hat_u, y);
+   }
+#endif //!MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
+}
+
 void DarcyHybridization::Finalize()
 {
    if (!bfin)
    {
-      ComputeH();
+      if (!bnl) { ComputeH(); }
       bfin = true;
    }
 }
@@ -1560,15 +1834,116 @@ void DarcyHybridization::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
    }
 }
 
+void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
+                                   const Vector &bp_l, const Vector &x,
+                                   Vector &u_l, Vector &p_l) const
+{
+   const int a_dofs_size = Af_f_offsets[el+1] - Af_f_offsets[el];
+   const int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
+
+   MFEM_ASSERT(bu_l.Size() == a_dofs_size &&
+               bp_l.Size() == d_dofs_size, "Incompatible size");
+
+
+   DenseMatrix A(Af_data + Af_offsets[el], a_dofs_size, a_dofs_size);
+   DenseMatrix B(Bf_data + Bf_offsets[el], d_dofs_size, a_dofs_size);
+
+   Vector ru(bu_l.Size()), rp(bp_l.Size());
+
+   const int dim = fes->GetMesh()->Dimension();
+   Array<int> faces, oris;
+   switch (dim)
+   {
+      case 1:
+         fes->GetMesh()->GetElementVertices(el, faces);
+         break;
+      case 2:
+         fes->GetMesh()->GetElementEdges(el, faces, oris);
+         break;
+      case 3:
+         fes->GetMesh()->GetElementFaces(el, faces, oris);
+         break;
+   }
+
+   Vector x_l, Dp, DpEx;
+   Array<int> c_dofs;
+   real_t norm_u_ref = 1e-6 * bu_l.Norml2();
+   real_t norm_p_ref = 1e-6 * bp_l.Norml2();
+   real_t norm_u, norm_p;
+
+   int it;
+   for (it = 0; it < 1000; it++)
+   {
+      ru = bu_l;
+      rp = bp_l;
+
+      A.AddMult(u_l, ru, -1.);
+      B.AddMult(u_l, rp, -1.);
+      B.AddMultTranspose(p_l, ru, (bsym)?(+1.):(-1.));
+
+      //D p_l
+      if (m_nlfi_p)
+      {
+         m_nlfi_p->AssembleElementVector(*fes_p->GetFE(el),
+                                         *fes_p->GetElementTransformation(el),
+                                         p_l, Dp);
+         rp -= Dp;
+      }
+
+      if (c_nlfi_p)
+      {
+         // D p_l + E x
+         for (int f = 0; f < faces.Size(); f++)
+         {
+            FaceElementTransformations *FTr =
+               fes->GetMesh()->GetFaceElementTransformations(f);
+            if (!FTr) { continue; }
+
+            int type = NonlinearFormIntegrator::HDGFaceType::ELEM
+                       | NonlinearFormIntegrator::HDGFaceType::TRACE;
+            if (FTr->Elem1No != el) { type &= 1; }
+
+            c_fes->GetFaceVDofs(f, c_dofs);
+            x.GetSubVector(c_dofs, x_l);
+
+            c_nlfi_p->AssembleHDGFaceVector(type, *c_fes->GetFaceElement(f),
+                                            *fes_p->GetFE(el), *FTr, x_l, p_l, DpEx);
+
+            rp -= DpEx;
+         }
+      }
+
+      //x <- x + r
+      u_l += ru;
+      p_l += rp;
+
+      norm_u = ru.Norml2();
+      norm_p = rp.Norml2();
+      if ((norm_u < norm_u_ref || norm_u_ref == 0.)
+          && (norm_p < norm_p_ref || norm_p_ref == 0.))
+      {
+         break;
+      }
+      std::cout << "el: " << el << " it: " << it << " u: " <<
+                norm_u << " / " << norm_u_ref << " p: " << norm_p << " / " << norm_p_ref
+                << std::endl;
+   }
+   std::cout << "el: " << el << " iters: " << it << " u: " <<
+             (norm_u/norm_u_ref) << " p: " << (norm_p/norm_p_ref) << std::endl;
+}
+
 void DarcyHybridization::MultInv(int el, const Vector &bu, const Vector &bp,
                                  Vector &u, Vector &p) const
 {
+   MFEM_ASSERT(!bnl, "Cannot mult the inverse matrix in the non-linear regime");
+
    Vector AiBtSiBAibu, AiBtSibp;
 
    const int a_dofs_size = Af_f_offsets[el+1] - Af_f_offsets[el];
    const int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
 
-   MFEM_ASSERT(bu.Size() == a_dofs_size, "Incompatible size");
+   MFEM_ASSERT(bu.Size() == a_dofs_size &&
+               bp.Size() == d_dofs_size, "Incompatible size");
 
    // Load LU decomposition of A and Schur complement
 
@@ -1605,6 +1980,25 @@ void DarcyHybridization::MultInv(int el, const Vector &bu, const Vector &bp,
 
 void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
 {
+   if (bnl)
+   {
+      //store RHS for Mult
+      if (!darcy_offsets.Size())
+      {
+         darcy_offsets.SetSize(3);
+         darcy_offsets[0] = 0;
+         darcy_offsets[1] = fes->GetVSize();
+         darcy_offsets[2] = fes_p->GetVSize();
+         darcy_offsets.PartialSum();
+
+         darcy_rhs.Update(darcy_offsets);
+      }
+      darcy_rhs = b;
+      b_r.SetSize(Height());
+      b_r = 0.;
+      return;
+   }
+
    const int NE = fes->GetNE();
 #ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
    const int dim = fes->GetMesh()->Dimension();
@@ -1702,6 +2096,12 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
 void DarcyHybridization::ComputeSolution(const BlockVector &b,
                                          const Vector &sol_r, BlockVector &sol) const
 {
+   if (bnl)
+   {
+      MultNL(1, b, sol_r, sol);
+      return;
+   }
+
    const int NE = fes->GetNE();
 #ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
    const int dim = fes->GetMesh()->Dimension();
@@ -1800,7 +2200,7 @@ void DarcyHybridization::Reset()
 
    const int NE = fes->GetMesh()->GetNE();
    memset(Bf_data, 0, Bf_offsets[NE] * sizeof(real_t));
-   memset(Df_data, 0, Df_offsets[NE] * sizeof(real_t));
+   if (Df_data) { memset(Df_data, 0, Df_offsets[NE] * sizeof(real_t)); }
 #ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
    memset(Be_data, 0, Be_offsets[NE] * sizeof(real_t));
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
