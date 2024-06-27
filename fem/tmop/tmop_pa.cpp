@@ -147,15 +147,15 @@ void TMOP_Integrator::AssemblePA_Fitting()
    n1_R->Mult(*surf_fit_gf, PA.X1);
 
    // surf_fit_dof_count -> PA.X2 (E-vector)
-   Vector* temp_vec1;
-   temp_vec1->SetSize(surf_fit_dof_count.Size());
-   for(int i=0; i< temp_vec1->Size(); i++){
+   Vector temp_vec1;
+   temp_vec1.SetSize(surf_fit_dof_count.Size());
+   for(int i=0; i< temp_vec1.Size(); i++){
       temp_vec1[i] = surf_fit_dof_count[i];
    }
    const Operator *n2_R = fes->GetElementRestriction(ordering);
    PA.X2.SetSize(n2_R->Height(), Device::GetMemoryType());
    PA.X2.UseDevice(true);
-   n2_R->Mult(*temp_vec1, PA.X2);
+   n2_R->Mult(temp_vec1, PA.X2);
    //TODO 
 
 
@@ -167,8 +167,8 @@ void TMOP_Integrator::AssemblePA_Fitting()
    PA.C1 = cS;
 
    // surf_fit_marker -> PA.X3
-   Vector* temp_vec2;
-   temp_vec2->SetSize(surf_fit_marker->Size());
+   Vector temp_vec2;
+   temp_vec2.SetSize(surf_fit_marker->Size());
    for (int i = 0; i< surf_fit_marker->Size(); i++){
       if ((*surf_fit_marker)[i] == true){ 
          temp_vec2[i] = 1;
@@ -177,7 +177,7 @@ void TMOP_Integrator::AssemblePA_Fitting()
    const Operator *n3_R = fes->GetElementRestriction(ordering);
    PA.X3.SetSize(surf_fit_marker->Size(), Device::GetMemoryType());
    PA.X3.UseDevice(true);
-   n3_R->Mult(*temp_vec2, PA.X3);
+   n3_R->Mult(temp_vec2, PA.X3);
    //TODO 
 
 
