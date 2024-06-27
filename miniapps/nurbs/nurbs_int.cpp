@@ -39,10 +39,7 @@ int main(int argc, char *argv[])
    int order = 1;
    bool NURBS = true;
    int prob = 0;
-   bool static_cond = false;
-   bool pa = false;
    const char *device_config = "cpu";
-   bool visualization = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&dim, "-d", "--dim",

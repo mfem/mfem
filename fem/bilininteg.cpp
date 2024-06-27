@@ -3956,7 +3956,7 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
          // Access the neighboring elements' integration points
          // Note: eip2 will only contain valid data if Elem2 exists
          const IntegrationPoint &eip1 = Trans.GetElement1IntPoint();
-         const IntegrationPoint &eip2 = Trans.GetElement2IntPoint();
+         //const IntegrationPoint &eip2 = Trans.GetElement2IntPoint();
 
          if (dim == 1)
          {

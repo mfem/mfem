@@ -306,7 +306,6 @@ int main(int argc, char *argv[])
    real_t mu = 1.0;
    real_t penalty = -1.0;
    int problem = 0;
-   bool UMFPack = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -332,7 +331,7 @@ int main(int argc, char *argv[])
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
 #ifdef MFEM_USE_SUITESPARSE
-   UMFPack = true;
+   bool UMFPack = true;
    args.AddOption(&UMFPack, "-umf", "--direct", "-gs", "--gssmoother",
                   "Type of preconditioner to use.");
 #endif

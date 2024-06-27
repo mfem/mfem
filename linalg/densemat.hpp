@@ -1328,13 +1328,13 @@ public:
       mfem::Swap(tdata, t.tdata);
       mfem::Swap(nk, t.nk);
       Mk.Swap(t.Mk);
-      Mi_jk.data = tdata;
-      Mij_k.data = tdata;
+      Mi_jk.Swap(t.Mi_jk);
+      Mij_k.Swap(t.Mij_k);
    }
    /// Prints matrix to stream out.
-   virtual void Print(std::ostream &out = mfem::out, int width_ = 4) const;
+   void Print(std::ostream &out = mfem::out, int width_ = 4) const;
 
-   virtual ~DenseTensor() { tdata.Delete(); }
+   ~DenseTensor() { tdata.Delete(); }
 };
 
 /** @brief Compute the LU factorization of a batch of matrices
