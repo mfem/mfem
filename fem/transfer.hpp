@@ -43,7 +43,7 @@ protected:
    bool use_device;
    bool verify_solution;
 
-   MemoryType d_mt_;
+   MemoryType d_mt;
 
 #ifdef MFEM_USE_MPI
    bool parallel;
@@ -190,10 +190,6 @@ protected:
    class L2Projection : public Operator
    {
    public:
-      Coefficient* coeff;
-      MemoryType d_mt_;
-      Array<int> offsets;
-      
       virtual void Prolongate(const Vector& x, Vector& y) const = 0;
       virtual void ProlongateTranspose(const Vector& x, Vector& y) const = 0;
       /// @brief Sets relative tolerance in preconditioned conjugate gradient
@@ -209,13 +205,16 @@ protected:
    protected:
       const FiniteElementSpace& fes_ho;
       const FiniteElementSpace& fes_lor;
+      Coefficient* coeff;
 
+      MemoryType d_mt;
+      Array<int> offsets;
       Table ho2lor;
 
       L2Projection(const FiniteElementSpace& fes_ho_,
                    const FiniteElementSpace& fes_lor_,
                    Coefficient* coeff_,
-                   MemoryType d_mt);
+                   MemoryType d_mt_);
 
       void BuildHo2Lor(int nel_ho, int nel_lor,
                        const CoarseFineTransformations& cf_tr);
@@ -231,11 +230,11 @@ protected:
                          DenseMatrix& B_L, DenseMatrix& B_H) const;
       
       /*
-      Populates the Mixed Mass M_LH via device element assembly by building the basis functions and 
+      Returns the Mixed Mass M_LH via device element assembly by building the basis functions and 
       data at the quadrature points. 
       */
       Vector MixedMassEA(const FiniteElementSpace& fes_ho_, const FiniteElementSpace& fes_lor_,
-                         Coefficient* coeff_, MemoryType d_mt);
+                         Coefficient* coeff_, MemoryType d_mt_);
    };
 
    //Class below must be public as we now have device code
@@ -254,14 +253,9 @@ public:
       mutable Array<real_t> R, P;
       mutable Array<real_t> R_ea, P_ea;
 
-      // Array<int> offsets;
-
       const bool use_device, verify_solution;
-      // MemoryType d_mt_;
-      // Coefficient *coeff;
 
    public:
-      Vector M_mixed_all;
       L2ProjectionL2Space(const FiniteElementSpace& fes_ho_,
                           const FiniteElementSpace& fes_lor_,
                           Coefficient* coeff_,
@@ -338,13 +332,10 @@ public:
    class L2ProjectionH1Space : public L2Projection
    {
       const bool use_device, verify_solution;
-      // MemoryType d_mt_;
-      // Coefficient* coeff;
-      Array<int> offsets;
 
       const ElementRestrictionOperator* elem_restrict_h;
-      Vector M_mixed_all_ea;
       const ElementRestrictionOperator* elem_restrict_l;
+      Vector M_mixed_all_ea;
       Vector ML_inv_ea;
 
 
@@ -359,7 +350,11 @@ public:
             L2ProjectionH1Space(const ParFiniteElementSpace &pfes_ho_,
                               const ParFiniteElementSpace &pfes_lor_);
       #endif
-      /* Same as above but assembles action of R through ElementRestrictionOperator */
+      /// Same as above but assembles action of R through 4 parts:
+      ///   ( )  inv( lumped(M_L) ), which is a diagonal matrix (essentially a vector) 
+      ///   ( )  ElementRestrictionOperator for LOR space
+      ///   ( )  mixed mass matrix M_{LH}
+      ///   ( )  ElementRestrictionOperator for HO space
       void DeviceL2ProjectionH1Space(const FiniteElementSpace &fes_ho_,
                                      const FiniteElementSpace &fes_lor_, 
                                      Coefficient* coeff_);
@@ -403,13 +398,11 @@ public:
       virtual void ProlongateTranspose(const Vector& x, Vector& y) const;
       virtual void SetRelTol(real_t p_rtol_);
       virtual void SetAbsTol(real_t p_atol_);
-
-      virtual Vector PullL2SpaceDeviceM_LH(const FiniteElementSpace& coarse_fes_,
-                        const FiniteElementSpace& fine_fes_);
    protected:
       /// Sets up the PCG solver (sets parameters, operator, and preconditioner)
       void SetupPCG();
-      /// Computes on-rank R and M_LH matrices.
+      /// @brief Computes on-rank R and M_LH matrices. If true, computes mixed mass and/or
+      /// inverse lumped mass matrix error when compared to device implementation. 
       std::pair<std::unique_ptr<SparseMatrix>,
           std::unique_ptr<SparseMatrix>> ComputeSparseRAndM_LH(bool GetM_LHError, bool getML_invError);
       /// @brief Recovers vector of tdofs given a vector of dofs and a finite
@@ -437,7 +430,6 @@ public:
       /// Returns the inverse of an on-rank lumped mass matrix
       void LumpedMassInverse(Vector& ML_inv) const;
       /// @brief Computes sparsity pattern and initializes R matrix.
-      ///
       /// Based on BilinearForm::AllocMat(), except maps between coarse HO
       /// elements and refined LOR elements.
       std::unique_ptr<SparseMatrix> AllocR();
@@ -488,8 +480,8 @@ public:
                             FiniteElementSpace &fine_fes_,
                             Coefficient *coeff_,
                             bool force_l2_space_ = false,
-                            MemoryType d_mt = MemoryType::DEFAULT)
-      : GridTransfer(coarse_fes_, fine_fes_, d_mt),
+                            MemoryType d_mt_ = MemoryType::DEFAULT)
+      : GridTransfer(coarse_fes_, fine_fes_, d_mt_),
         F(NULL), B(NULL), force_l2_space(force_l2_space_), coeff(coeff_)
    { }
    virtual ~L2ProjectionGridTransfer();
