@@ -246,8 +246,10 @@ void BilinearFormIntegrator::AssembleHDGFaceVector(
    AssembleHDGFaceMatrix(trace_face_fe, fe, fe, Tr, elmat);
 
    const int ndof_el = fe.GetDof();
+   const int ndof_els = (Tr.Elem2No >= 0)?(2*ndof_el):(ndof_el);
    const int ndof_face = trace_face_fe.GetDof();
    int ndof = 0;
+   if (Tr.Elem2No < 0) { type &= ~1; }
    if (type & (NonlinearFormIntegrator::HDGFaceType::ELEM
                | NonlinearFormIntegrator::HDGFaceType::TRACE))
    {
@@ -260,70 +262,65 @@ void BilinearFormIntegrator::AssembleHDGFaceVector(
    }
 
    MFEM_ASSERT(elmat.Width() == elmat.Height() &&
-               elmat.Width() == 2*ndof_el + ndof_face, "Wrong size of the element matrix");
+               elmat.Width() == ndof_els + ndof_face, "Wrong size of the element matrix");
 
    elvect.SetSize(ndof);
    elvect = 0.;
 
    int ioff = 0;
-   if (type & (NonlinearFormIntegrator::HDGFaceType::ELEM
-               | NonlinearFormIntegrator::HDGFaceType::TRACE))
+   const int joff = (type & 1)?(ndof_el):(0);
+   if (type & NonlinearFormIntegrator::HDGFaceType::ELEM)
    {
-      const int joff = (type & 1)?(ndof_el):(0);
-      if (type & NonlinearFormIntegrator::HDGFaceType::ELEM)
+      for (int i = 0; i < ndof_el; i++)
       {
-         for (int i = 0; i < ndof_el; i++)
+         real_t sum = 0.;
+         for (int j = 0; j < ndof_el; j++)
          {
-            real_t sum = 0.;
-            for (int j = 0; j < ndof_el; j++)
-            {
-               sum += elmat(joff + i, joff + j) * elfun(j);
-            }
-            elvect(ioff + i) += sum;
+            sum += elmat(joff + i, joff + j) * elfun(j);
          }
+         elvect(ioff + i) += sum;
       }
-      if (type & NonlinearFormIntegrator::HDGFaceType::TRACE)
+   }
+   if (type & NonlinearFormIntegrator::HDGFaceType::TRACE)
+   {
+      for (int i = 0; i < ndof_el; i++)
       {
-         for (int i = 0; i < ndof_el; i++)
+         real_t sum = 0.;
+         for (int j = 0; j < ndof_face; j++)
          {
-            real_t sum = 0.;
-            for (int j = 0; j < ndof_face; j++)
-            {
-               sum += elmat(joff + i, 2*ndof_el + j) * trfun(j);
-            }
-            elvect(ioff + i) += sum;
+            sum += elmat(joff + i, ndof_els + j) * trfun(j);
          }
+         elvect(ioff + i) += sum;
       }
-      ioff += ndof_el;
    }
 
-   if (type & (NonlinearFormIntegrator::HDGFaceType::CONSTR
-               | NonlinearFormIntegrator::HDGFaceType::FACE))
+   if (type & (NonlinearFormIntegrator::HDGFaceType::ELEM
+               | NonlinearFormIntegrator::HDGFaceType::TRACE))
+   { ioff += ndof_els; }
+
+   if (type & NonlinearFormIntegrator::HDGFaceType::CONSTR)
    {
-      const int joff = (type & 1)?(ndof_el):(0);
-      if (type & NonlinearFormIntegrator::HDGFaceType::CONSTR)
+      for (int i = 0; i < ndof_face; i++)
       {
-         for (int i = 0; i < ndof_face; i++)
+         real_t sum = 0.;
+         for (int j = 0; j < ndof_el; j++)
          {
-            real_t sum = 0.;
-            for (int j = 0; j < ndof_el; j++)
-            {
-               sum += elmat(2*ndof_el + i, joff + j) * elfun(j);
-            }
-            elvect(ioff + i) += sum;
+            sum += elmat(ndof_els + i, joff + j) * elfun(j);
          }
+         elvect(ioff + i) += sum;
       }
-      if (type & NonlinearFormIntegrator::HDGFaceType::FACE)
+   }
+   if (type & NonlinearFormIntegrator::HDGFaceType::FACE)
+   {
+      for (int i = 0; i < ndof_face; i++)
       {
-         for (int i = 0; i < ndof_face; i++)
+         real_t sum = 0.;
+         for (int j = 0; j < ndof_face; j++)
          {
-            real_t sum = 0.;
-            for (int j = 0; j < ndof_face; j++)
-            {
-               sum += elmat(2*ndof_el + i, 2*ndof_el + j) * trfun(j);
-            }
-            elvect(ioff + i) += sum / 2.;//<---double integration, not exact!
+            sum += elmat(ndof_els + i, ndof_els + j) * trfun(j);
          }
+         elvect(ioff + i) += (Tr.Elem2No >= 0)?
+                             (sum / 2.):(sum);//<---double integration, not exact!
       }
    }
 }
