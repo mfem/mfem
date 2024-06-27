@@ -216,7 +216,8 @@ class BoundaryNormalLFIntegrator : public LinearFormIntegrator
 
 public:
    /// Constructs a boundary integrator with a given Coefficient QG
-   BoundaryNormalLFIntegrator(VectorCoefficient &QG, real_t al = 1.0, int a = 1, int b = 1)
+   BoundaryNormalLFIntegrator(VectorCoefficient &QG, real_t al = 1.0, int a = 1,
+                              int b = 1)
       : Q(QG), alpha(al), oa(a), ob(b) { }
 
    virtual bool SupportsDevice() const { return true; }

@@ -87,9 +87,9 @@ real_t g_fun(const Vector & x)
 // The domain rotates around x = [0.5, -0.1]
 namespace rotatingDomain
 {
-   real_t omega = 1.0;
-   real_t x0 = 0.5;
-   real_t y0 = -0.1;
+real_t omega = 1.0;
+real_t x0 = 0.5;
+real_t y0 = -0.1;
 
 //
 void u_fun(const Vector & x, Vector & u)
@@ -124,9 +124,9 @@ real_t g_fun(const Vector & x)
 // The box rotates around x = [0.5, -0.1]
 namespace rotatingBox
 {
-   real_t omega = 1.0;
-   real_t x0 = 0.5;
-   real_t y0 = -0.1;
+real_t omega = 1.0;
+real_t x0 = 0.5;
+real_t y0 = -0.1;
 
 // f = -omega^2*r
 
@@ -189,7 +189,7 @@ void MeanZero(GridFunction &p_gf)
  * off-diagonal block is not set, it is assumed to be a zero block.
  *
  */
- 
+
 /** Construct an exact LU decomposition of the ubiquitous sadle point problem
 *
 *       P = [ K   0        ] [ I   K^-1 G ]
@@ -202,7 +202,7 @@ void MeanZero(GridFunction &p_gf)
 *
 *
 * Usage:
-* - Use the constructors to define the block structure 
+* - Use the constructors to define the block structure
 * - Use SetBlock() to fill the LU Decomposition
 *       A = [ K^-1   G ]
 *           [ D     -S^-1 ]
@@ -402,28 +402,27 @@ int main(int argc, char *argv[])
    u_space.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
    // Define the BlockStructure of the problem
-   Array<int> block_offsets(3); // number of variables + 1
-   block_offsets[0] = 0;
-   block_offsets[1] = u_space.GetVSize();
-   block_offsets[2] = p_space.GetVSize();
-   block_offsets.PartialSum();
+   Array<int> bOffsets(3); // number of variables + 1
+   bOffsets[0] = 0;
+   bOffsets[1] = u_space.GetVSize();
+   bOffsets[2] = p_space.GetVSize();
+   bOffsets.PartialSum();
 
-   std::cout << "===========================================================\n";
-   std::cout << "Velocity dofs     = " << block_offsets[1] - block_offsets[0] <<  endl;
-   std::cout << "Pressure dofs     = " << block_offsets[2] - block_offsets[1] << endl;
-   std::cout << "Total # of dofs   = " << block_offsets.Last() <<  endl;
+   std::cout<<"===========================================================\n";
+   std::cout<<"Velocity dofs     = "<<bOffsets[1] - bOffsets[0]<<endl;
+   std::cout<<"Pressure dofs     = "<<bOffsets[2] - bOffsets[1]<<endl;
+   std::cout<<"Total # of dofs   = "<<bOffsets.Last()<<endl;
    if (!weakBC)
    {
       std::cout << "-----------------------------------------------------------\n";
       Array<int> ess_tdof_list;
       u_space.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-      std::cout << "Velocity BC dofs  = " << ess_tdof_list.Size() << endl;
-      std::cout << "Net Velocity dofs = " << block_offsets[1]- block_offsets[0]
-                                             - ess_tdof_list.Size() << endl;
-      std::cout << "Net # of dofs     = " << block_offsets.Last()
-                                             - ess_tdof_list.Size() << endl;
+      int nbc_dofs = ess_tdof_list.Size();
+      std::cout<<"Velocity BC dofs  = "<<ess_tdof_list.Size()<<endl;
+      std::cout<<"Net Velocity dofs = "<<bOffsets[1]- bOffsets[0]- nbc_dofs<<endl;
+      std::cout<<"Net # of dofs     = "<<bOffsets.Last() - nbc_dofs<<endl;
    }
-   std::cout << "===========================================================\n";
+   std::cout<<"===========================================================\n";
 
    // Define the viscosity, solution and forcing coefficients
    ConstantCoefficient mu_cf(mu);
@@ -465,7 +464,7 @@ int main(int argc, char *argv[])
 
    // Define the gridfunctions and set the initial/boundary conditions
    MemoryType mt = device.GetMemoryType();
-   BlockVector x(block_offsets, mt);
+   BlockVector x(bOffsets, mt);
 
    GridFunction u_gf, p_gf;
    u_gf.MakeRef(&u_space, x.GetBlock(0), 0);
@@ -482,7 +481,7 @@ int main(int argc, char *argv[])
    visit_dc0.Save();
 
    // Assemble the right hand side via the linear forms (fform, gform).
-   BlockVector rhs(block_offsets, mt);
+   BlockVector rhs(bOffsets, mt);
    LinearForm *fform(new LinearForm);
    fform->Update(&u_space, rhs.GetBlock(0), 0);
    fform->AddDomainIntegrator(new VectorFEDomainLFIntegrator(*f_cf));
@@ -516,7 +515,7 @@ int main(int argc, char *argv[])
    kVarf.Finalize();
    SparseMatrix &K(kVarf.SpMat());
    chrono.Stop();
-   std::cout << " Assembly of diffusion matrix took " << chrono.RealTime() << "s.\n";
+   std::cout<<" Assembly of diffusion matrix took "<<chrono.RealTime()<<"s\n";
 
    chrono.Clear();
    chrono.Start();
@@ -524,10 +523,10 @@ int main(int argc, char *argv[])
    ConstantCoefficient minus(-1.0);
    if (weakBC)
    {
-      cout<<"Formulation = weakBC("<<penalty<<") n";
+      cout<<"Weak Dirichlet BCs("<<penalty<<") n";
       MixedBilinearForm gVarf(&p_space, &u_space);
       gVarf.AddDomainIntegrator(new TransposeIntegrator(
-                                new VectorFEDivergenceIntegrator(-1.0)));
+                                   new VectorFEDivergenceIntegrator(-1.0)));
       gVarf.AddBdrTraceFaceIntegrator(new NormalTraceIntegrator(1.0));
       gVarf.Assemble();
       gVarf.Finalize();
@@ -536,7 +535,7 @@ int main(int argc, char *argv[])
    }
    else
    {
-      cout<<"Formulation = strongBC\n";
+      cout<<"Strong Dirichlet BC\n";
       MixedBilinearForm dVarf(&u_space, &p_space);
       dVarf.AddDomainIntegrator(new VectorFEDivergenceIntegrator(-1.0));
       dVarf.Assemble();
@@ -546,9 +545,9 @@ int main(int argc, char *argv[])
       G = new TransposeOperator(D);
    }
    chrono.Stop();
-   std::cout << " Assembly of grad and divergence matrices took " << chrono.RealTime() << "s.\n";
+   std::cout<<" Assembly of grad & div matrices took"<<chrono.RealTime()<<"s\n";
 
-   BlockOperator stokesOp(block_offsets);
+   BlockOperator stokesOp(bOffsets);
    stokesOp.SetBlock(0,0, &K);
    stokesOp.SetBlock(0,1, G);
    stokesOp.SetBlock(1,0, D);
@@ -625,7 +624,7 @@ int main(int argc, char *argv[])
    //       P = [ K   0        ] [ I   K^-1 G ]
    //           [ D  -D K^-1 G ] [ 0   I      ]
    //
-   SadlePointLUPreconditioner stokesPrec(block_offsets);
+   SadlePointLUPreconditioner stokesPrec(bOffsets);
 
    stokesPrec.SetBlock(0,0, invK);
    stokesPrec.SetBlock(0,1, G);

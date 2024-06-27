@@ -821,7 +821,8 @@ public:
 class NURBS_HDivH1FECollection : public NURBS_HDivFECollection
 {
 public:
-   explicit NURBS_HDivH1FECollection(int Order = VariableOrder, const int vdim = -1)
+   explicit NURBS_HDivH1FECollection(int Order = VariableOrder,
+                                     const int vdim = -1)
       : NURBS_HDivFECollection(Order, vdim) {};
 };
 
@@ -886,7 +887,8 @@ public:
 class NURBS_HCurlH1FECollection : public NURBS_HCurlFECollection
 {
 public:
-   explicit NURBS_HCurlH1FECollection(int Order = VariableOrder, const int vdim = -1)
+   explicit NURBS_HCurlH1FECollection(int Order = VariableOrder,
+                                      const int vdim = -1)
       : NURBS_HCurlFECollection(Order, vdim) {};
 };
 
