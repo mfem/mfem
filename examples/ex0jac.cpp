@@ -13,6 +13,7 @@
 //              polynomial degrees can be specified by command line options.
 
 #include "mfem.hpp"
+#include "../miniapps/common/mfem-common.hpp"
 #include <fstream>
 #include <iostream>
 
@@ -32,6 +33,9 @@ int main(int argc, char *argv[])
    int integrator_type = 0;
    double p_order = 1.0;
    double q_order = 0.0;
+   // Kershaw Transformation
+   double eps_y = 0.0;
+   double eps_z = 0.0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
@@ -50,7 +54,14 @@ int main(int argc, char *argv[])
                   "P-order for L(p,q)-Jacobi preconditioner");
    args.AddOption(&q_order, "-q", "--q-order",
                   "Q-order for L(p,q)-Jacobi preconditioner");
+   args.AddOption(&eps_y, "-Ky", "--Kershaw-y",
+                  "Kershaw transform factor, eps_y in (0,1]");
+   args.AddOption(&eps_z, "-Kz", "--Kershaw-z",
+                  "Kershaw transform factor, eps_z in (0,1]");
    args.ParseCheck();
+
+   MFEM_ASSERT(0.0 <= eps_y < 1.0, "eps_y in (0,1]");
+   MFEM_ASSERT(0.0 <= eps_z < 1.0, "eps_z in (0,1]");
 
    // 3. Read the serial mesh from the given mesh file.
    Mesh serial_mesh(mesh_file);
@@ -60,6 +71,14 @@ int main(int argc, char *argv[])
    ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
    serial_mesh.Clear(); // the serial mesh is no longer needed
    mesh.UniformRefinement();
+
+   bool cond_z = (mesh.Dimension() < 3)?true:(eps_z != 0); // lazy check
+   if (eps_y != 0.0 && cond_z)
+   {
+      if (mesh.Dimension() < 3) { eps_z = 0.0; }
+      common::KershawTransformation kershawT(mesh.Dimension(), eps_y, eps_z);
+      mesh.Transform(kershawT);
+   }
 
    // 5. Define a finite element space on the mesh. Here we use H1 continuous
    //    high-order Lagrange finite elements of the given order.

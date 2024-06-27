@@ -90,12 +90,36 @@ if (MFEM_USE_MPI)
     ex39p.cpp
     ex40p.cpp
     ex00p.cpp
-    ex0jac.cpp
-    ex1jac.cpp
-    ex2jac.cpp
-    ex3jac.cpp
   )
+  # TODO
+  # list(APPEND ALL_EXE_JAC_SRCS
+  #   ex0jac.cpp
+  #   ex1jac.cpp
+  #   ex2jac.cpp
+  #   ex3jac.cpp
+  # )
 endif()
+
+# TODO
+set(EX0JAC_SRC ex0jac.cpp)
+mfem_add_executable(ex0jac ${EX0JAC_SRC})
+target_include_directories(ex0jac PRIVATE ${MFEM_SOURCE_DIR}/miniapps/common)
+target_link_libraries(ex0jac PRIVATE mfem ${MFEM_SOURCE_DIR}/miniapps/common/libmfem-common.a)
+
+set(EX1JAC_SRC ex1jac.cpp)
+mfem_add_executable(ex1jac ${EX1JAC_SRC})
+target_include_directories(ex1jac PRIVATE ${MFEM_SOURCE_DIR}/miniapps/common)
+target_link_libraries(ex1jac PRIVATE mfem ${MFEM_SOURCE_DIR}/miniapps/common/libmfem-common.a)
+
+set(EX2JAC_SRC ex2jac.cpp)
+mfem_add_executable(ex2jac ${EX2JAC_SRC})
+target_include_directories(ex2jac PRIVATE ${MFEM_SOURCE_DIR}/miniapps/common)
+target_link_libraries(ex2jac PRIVATE mfem ${MFEM_SOURCE_DIR}/miniapps/common/libmfem-common.a)
+
+set(EX3JAC_SRC ex3jac.cpp)
+mfem_add_executable(ex3jac ${EX3JAC_SRC})
+target_include_directories(ex3jac PRIVATE ${MFEM_SOURCE_DIR}/miniapps/common)
+target_link_libraries(ex3jac PRIVATE mfem ${MFEM_SOURCE_DIR}/miniapps/common/libmfem-common.a)
 
 # Examples that return MFEM_SKIP_RETURN_VALUE in some cases:
 set(SKIP_TESTS)
@@ -114,6 +138,17 @@ include_directories(BEFORE ${PROJECT_BINARY_DIR})
 
 # Add one executable per cpp file
 add_mfem_examples(ALL_EXE_SRCS)
+
+# Jacobi
+add_mfem_examples(ALL_EXE_JAC_SRCS)
+foreach(SRC_FILE IN LISTS ${ALL_EXE_JAC_SRCS})
+  set(EXE_PREFIX "")
+  get_filename_component(SRC_FILENAME ${SRC_FILE} NAME)
+  string(REPLACE ".cpp" "" EXE_NAME "${EXE_PREFIX}${SRC_FILENAME}")
+  target_include_directories(${EXE_NAME} PRIVATE ${MFEM_SOURCE_DIR}/miniapps/common)
+  target_link_libraries(${EXE_NAME} PRIVATE mfem ${MFEM_SOURCE_DIR}/miniapps/common/libmfem-common.a)
+endforeach(SRC_FILE)
+
 
 # Add a test for each example
 if (MFEM_ENABLE_TESTING)

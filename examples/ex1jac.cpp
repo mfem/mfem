@@ -60,6 +60,7 @@
 //               optional connection to the GLVis tool for visualization.
 
 #include "mfem.hpp"
+#include "../miniapps/common/mfem-common.hpp"
 #include <fstream>
 #include <iostream>
 
@@ -81,6 +82,9 @@ int main(int argc, char *argv[])
    int integrator_type = 0;
    double p_order = 1.0;
    double q_order = 0.0;
+   // Kershaw Transformation
+   double eps_y = 0.0;
+   double eps_z = 0.0;
    bool static_cond = false;
    bool pa = false;
    bool fa = false;
@@ -115,6 +119,10 @@ int main(int argc, char *argv[])
                   "P-order for L(p,q)-Jacobi preconditioner");
    args.AddOption(&q_order, "-q", "--q-order",
                   "Q-order for L(p,q)-Jacobi preconditioner");
+   args.AddOption(&eps_y, "-Ky", "--Kershaw-y",
+                  "Kershaw transform factor, eps_y in (0,1]");
+   args.AddOption(&eps_z, "-Kz", "--Kershaw-z",
+                  "Kershaw transform factor, eps_z in (0,1]");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -131,6 +139,9 @@ int main(int argc, char *argv[])
    {
       args.PrintOptions(cout);
    }
+
+   MFEM_ASSERT(0.0 <= eps_y < 1.0, "eps_y in (0,1]");
+   MFEM_ASSERT(0.0 <= eps_z < 1.0, "eps_z in (0,1]");
 
    // 3. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
@@ -167,6 +178,14 @@ int main(int argc, char *argv[])
       {
          pmesh.UniformRefinement();
       }
+   }
+
+   bool cond_z = (pmesh.Dimension() < 3)?true:(eps_z != 0); // lazy check
+   if (eps_y != 0.0 && cond_z)
+   {
+      if (pmesh.Dimension() < 3) { eps_z = 0.0; }
+      common::KershawTransformation kershawT(pmesh.Dimension(), eps_y, eps_z);
+      pmesh.Transform(kershawT);
    }
 
    // 7. Define a parallel finite element space on the parallel mesh. Here we
