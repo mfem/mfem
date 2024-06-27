@@ -196,6 +196,8 @@ static void Values3D(const int NE,
 
 } // namespace internal
 
+/// @cond Suppress_Doxygen_warnings
+
 template<int DIM, QVectorLayout Q_LAYOUT,
          int VDIM, int D1D, int Q1D, int NBZ>
 QuadratureInterpolator::TensorEvalKernelType
@@ -206,6 +208,8 @@ QuadratureInterpolator::TensorEvalKernels::Kernel()
    else if (DIM == 3) { return internal::quadrature_interpolator::Values3D<Q_LAYOUT, VDIM, D1D, Q1D>; }
    else { MFEM_ABORT(""); }
 }
+
+/// @endcond
 
 } // namespace mfem
 

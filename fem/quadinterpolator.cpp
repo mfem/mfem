@@ -596,6 +596,8 @@ void QuadratureInterpolator::Determinants(const Vector &e_vec,
    Mult(e_vec, DETERMINANTS, empty, empty, q_det);
 }
 
+/// @cond Suppress_Doxygen_warnings
+
 namespace
 {
 using EvalKernel = QuadratureInterpolator::EvalKernelType;
@@ -670,6 +672,8 @@ GradKernel QuadratureInterpolator::GradKernels::Fallback(
    if (Q_LAYOUT == QVectorLayout::byNODES) { return GetGradKernel<QVectorLayout::byNODES>(DIM, GRAD_PHYS); }
    else { return GetGradKernel<QVectorLayout::byVDIM>(DIM, GRAD_PHYS); }
 }
+
+/// @endcond
 
 namespace internal
 {
