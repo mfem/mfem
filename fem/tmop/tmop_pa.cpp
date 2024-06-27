@@ -178,11 +178,6 @@ void TMOP_Integrator::AssemblePA_Fitting()
    PA.X3.SetSize(surf_fit_marker->Size(), Device::GetMemoryType());
    PA.X3.UseDevice(true);
    n3_R->Mult(temp_vec2, PA.X3);
-   //TODO 
-
-
-
-
 }
 //------------------------------- new function above -------------------------//
 
