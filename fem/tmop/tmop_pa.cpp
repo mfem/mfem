@@ -156,8 +156,6 @@ void TMOP_Integrator::AssemblePA_Fitting()
    PA.X2.SetSize(n2_R->Height(), Device::GetMemoryType());
    PA.X2.UseDevice(true);
    n2_R->Mult(temp_vec1, PA.X2);
-   //TODO 
-
 
    // surf_fit_normal -> PA.C2 
    PA.C2 = surf_fit_normal;
