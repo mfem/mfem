@@ -505,6 +505,15 @@ int main(int argc, char *argv[])
    //     K = \int_\Omega k u_h \cdot v_h d\Omega   u_h, v_h \in R_h
    //     D = \int_\Omega u_h grad q_h d\Omega   u_h \in R_h, q_h \in W_h
    //     G = D^t
+   if (weakBC)
+   {
+      cout<<"Weak Dirichlet BCs("<<penalty<<")\n";
+   }
+   else
+   {
+      cout<<"Strong Dirichlet BC\n";
+   }
+
    chrono.Clear();
    chrono.Start();
    BilinearForm kVarf(&u_space);
@@ -523,7 +532,6 @@ int main(int argc, char *argv[])
    ConstantCoefficient minus(-1.0);
    if (weakBC)
    {
-      cout<<"Weak Dirichlet BCs("<<penalty<<") n";
       MixedBilinearForm gVarf(&p_space, &u_space);
       gVarf.AddDomainIntegrator(new TransposeIntegrator(
                                    new VectorFEDivergenceIntegrator(-1.0)));
@@ -535,7 +543,6 @@ int main(int argc, char *argv[])
    }
    else
    {
-      cout<<"Strong Dirichlet BC\n";
       MixedBilinearForm dVarf(&u_space, &p_space);
       dVarf.AddDomainIntegrator(new VectorFEDivergenceIntegrator(-1.0));
       dVarf.Assemble();
