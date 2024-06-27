@@ -242,7 +242,7 @@ public:
        element in physical space at the point described by @a Trans. */
    /** Each row of the result DenseMatrix @a shape contains the components of
        one vector shape function. The size (#dof x SDim) of @a shape must be set
-       in advance, where SDim >= #dim is the physical space dimension as
+       in advance, where #vdim >= #dim is the physical space dimension as
        described by @a Trans. */
    virtual void CalcVShape(ElementTransformation &Trans,
                            DenseMatrix &shape) const;
@@ -268,8 +268,8 @@ public:
    /**    /** The 1st index of DenseTensor @a dvshape refers to a vector shapefunction,
        the 2nd index selects the scalar component of this vector, the 3rd
        index selects the direction of the derivative. The size of @a dvshape,
-       which should be (#dof x #dim x #SDim), must be set in advance,
-       where SDim >= #dim is the physical space dimension as described
+       which should be (#dof x #dim x #vdim), must be set in advance,
+       where #vdim >= #dim is the physical space dimension as described
        by @a Trans. */
    virtual void CalcPhysDVShape(ElementTransformation &Trans,
                                 DenseTensor &dvshape) const;
@@ -359,7 +359,7 @@ public:
        element in physical space at the point described by @a Trans. */
    /** Each row of the result DenseMatrix @a shape contains the components of
        one vector shape function. The size (#dof x SDim) of @a shape must be set
-       in advance, where SDim >= #dim is the physical space dimension as
+       in advance, where #vdim >= #dim is the physical space dimension as
        described by @a Trans. */
    virtual void CalcVShape(ElementTransformation &Trans,
                            DenseMatrix &shape) const;
@@ -385,8 +385,8 @@ public:
    /**    /** The 1st index of DenseTensor @a dvshape refers to a vector shapefunction,
        the 2nd index selects the scalar component of this vector, the 3rd
        index selects the direction of the derivative. The size of @a dvshape,
-       which should be (#dof x #dim x #SDim), must be set in advance,
-       where SDim >= #dim is the physical space dimension as described
+       which should be (#dof x #dim x #vdim), must be set in advance,
+       where #vdim >= #dim is the physical space dimension as described
        by @a Trans. */
    virtual void CalcPhysDVShape(ElementTransformation &Trans,
                                 DenseTensor &dvshape) const;
@@ -459,7 +459,7 @@ public:
        element in physical space at the point described by @a Trans. */
    /** Each row of the result DenseMatrix @a shape contains the components of
        one vector shape function. The size (#dof x SDim) of @a shape must be set
-       in advance, where SDim >= #dim is the physical space dimension as
+       in advance, where #vdim >= #dim is the physical space dimension as
        described by @a Trans. */
    virtual void CalcVShape(ElementTransformation &Trans,
                            DenseMatrix &shape) const;
@@ -487,8 +487,8 @@ public:
    /**    /** The 1st index of DenseTensor @a dvshape refers to a vector shapefunction,
        the 2nd index selects the scalar component of this vector, the 3rd
        index selects the direction of the derivative. The size of @a dvshape,
-       which should be (#dof x #dim x #SDim), must be set in advance,
-       where SDim >= #dim is the physical space dimension as described
+       which should be (#dof x #dim x #vdim), must be set in advance,
+       where #vdim >= #dim is the physical space dimension as described
        by @a Trans. */
    virtual void CalcPhysDVShape(ElementTransformation &Trans,
                                 DenseTensor &dvshape) const;
@@ -573,7 +573,7 @@ public:
        element in physical space at the point described by @a Trans. */
    /** Each row of the result DenseMatrix @a shape contains the components of
        one vector shape function. The size (#dof x SDim) of @a shape must be set
-       in advance, where SDim >= #dim is the physical space dimension as
+       in advance, where #vdim >= #dim is the physical space dimension as
        described by @a Trans. */
    virtual void CalcVShape(ElementTransformation &Trans,
                            DenseMatrix &shape) const;
@@ -601,8 +601,8 @@ public:
    /**    /** The 1st index of DenseTensor @a dvshape refers to a vector shapefunction,
        the 2nd index selects the scalar component of this vector, the 3rd
        index selects the direction of the derivative. The size of @a dvshape,
-       which should be (#dof x #dim x #SDim), must be set in advance,
-       where SDim >= #dim is the physical space dimension as described
+       which should be (#dof x #dim x #vdim), must be set in advance,
+       where #vdim >= #dim is the physical space dimension as described
        by @a Trans. */
    virtual void CalcPhysDVShape(ElementTransformation &Trans,
                                 DenseTensor &dvshape) const;

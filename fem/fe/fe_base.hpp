@@ -485,11 +485,11 @@ public:
 
    /** @brief Evaluate the gradients of all shape functions of a vector finite
        element in physical space at the point described by @a Trans. */
-   /**    /** The 1st index of DenseTensor @a dvshape refers to a vector shapefunction,
+   /** The 1st index of DenseTensor @a dvshape refers to a vector shapefunction,
        the 2nd index selects the scalar component of this vector, the 3rd
        index selects the direction of the derivative. The size of @a dvshape,
-       which should be (#dof x #dim x #SDim), must be set in advance,
-       where SDim >= #dim is the physical space dimension as described
+       which should be (#dof x #dim x #vdim), must be set in advance,
+       where #vdim >= #dim is the physical space dimension as described
        by @a Trans. */
    virtual void CalcPhysDVShape(ElementTransformation &Trans,
                                 DenseTensor &dvshape) const;
