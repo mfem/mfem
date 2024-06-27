@@ -1763,7 +1763,7 @@ void DarcyHybridization::MultNL(int mode, const BlockVector &b, const Vector &x,
             //G p_l + H x_l
             int type = NonlinearFormIntegrator::HDGFaceType::CONSTR
                        | NonlinearFormIntegrator::HDGFaceType::FACE;
-            if (FTr->Elem1No != el) { type &= 1; }
+            if (FTr->Elem1No != el) { type |= 1; }
 
             c_nlfi_p->AssembleHDGFaceVector(type, *c_fes->GetFaceElement(f),
                                             *fes_p->GetFE(el), *FTr, x_l, p_l, GpHx_l);
@@ -1889,7 +1889,7 @@ void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
 
    Vector x_l, Dp, DpEx;
    Array<int> c_dofs;
-   real_t norm_p_ref = 1e-6 * bp_l.Norml2();
+   real_t norm_p_ref = bp_l.Norml2();
    real_t norm_p = INFINITY;
 
    int it;
@@ -1927,7 +1927,7 @@ void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
 
             int type = NonlinearFormIntegrator::HDGFaceType::ELEM
                        | NonlinearFormIntegrator::HDGFaceType::TRACE;
-            if (FTr->Elem1No != el) { type &= 1; }
+            if (FTr->Elem1No != el) { type |= 1; }
 
             c_fes->GetFaceVDofs(f, c_dofs);
             x.GetSubVector(c_dofs, x_l);
