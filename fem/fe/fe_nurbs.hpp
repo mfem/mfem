@@ -179,13 +179,13 @@ public:
 /** An arbitrary order H(div)-conforming 2D NURBS element on a square.
     More details in the following papers:
 
-[1] Annalisa Buffa, Carlo De Falco, Giancarlo Sangalli
-"Isogeometric analysis: stable elements for the 2D Stokes equation."
-International Journal for Numerical Methods in Fluids 65 (11‐12) 1407-1422
+   [1] Annalisa Buffa, Carlo De Falco, Giancarlo Sangalli
+   "Isogeometric analysis: stable elements for the 2D Stokes equation."
+   International Journal for Numerical Methods in Fluids 65 (11‐12) 1407-1422
 
-[2] John A Evans, Thomas JR Hughes
-"Isogeometric divergence-conforming B-splines for the unsteady Navier–Stokes equations."
-Journal of Computational Physics (241) 141-167
+   [2] John A Evans, Thomas JR Hughes
+   "Isogeometric divergence-conforming B-splines for the unsteady Navier–Stokes equations."
+   Journal of Computational Physics (241) 141-167
 */
 class NURBS_HDiv2DFiniteElement : public VectorFiniteElement,
    public NURBSFiniteElement
@@ -265,7 +265,7 @@ public:
 
    /** @brief Evaluate the gradients of all shape functions of a vector finite
        element in physical space at the point described by @a Trans. */
-   /**    /** The 1st index of DenseTensor @a dvshape refers to a vector shapefunction,
+   /** The 1st index of DenseTensor @a dvshape refers to a vector shapefunction,
        the 2nd index selects the scalar component of this vector, the 3rd
        index selects the direction of the derivative. The size of @a dvshape,
        which should be (#dof x #dim x #vdim), must be set in advance,
@@ -382,7 +382,7 @@ public:
 
    /** @brief Evaluate the gradients of all shape functions of a vector finite
        element in physical space at the point described by @a Trans. */
-   /**    /** The 1st index of DenseTensor @a dvshape refers to a vector shapefunction,
+   /** The 1st index of DenseTensor @a dvshape refers to a vector shapefunction,
        the 2nd index selects the scalar component of this vector, the 3rd
        index selects the direction of the derivative. The size of @a dvshape,
        which should be (#dof x #dim x #vdim), must be set in advance,
@@ -484,7 +484,7 @@ public:
 
    /** @brief Evaluate the gradients of all shape functions of a vector finite
        element in physical space at the point described by @a Trans. */
-   /**    /** The 1st index of DenseTensor @a dvshape refers to a vector shapefunction,
+   /** The 1st index of DenseTensor @a dvshape refers to a vector shapefunction,
        the 2nd index selects the scalar component of this vector, the 3rd
        index selects the direction of the derivative. The size of @a dvshape,
        which should be (#dof x #dim x #vdim), must be set in advance,
@@ -598,7 +598,7 @@ public:
 
    /** @brief Evaluate the gradients of all shape functions of a vector finite
        element in physical space at the point described by @a Trans. */
-   /**    /** The 1st index of DenseTensor @a dvshape refers to a vector shapefunction,
+   /** The 1st index of DenseTensor @a dvshape refers to a vector shapefunction,
        the 2nd index selects the scalar component of this vector, the 3rd
        index selects the direction of the derivative. The size of @a dvshape,
        which should be (#dof x #dim x #vdim), must be set in advance,
