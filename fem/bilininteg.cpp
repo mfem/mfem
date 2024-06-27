@@ -236,6 +236,98 @@ void BilinearFormIntegrator::AssembleFaceVector(
    elmat.Mult(elfun, elvect);
 }
 
+void BilinearFormIntegrator::AssembleHDGFaceVector(
+   int type, const FiniteElement &trace_face_fe, const FiniteElement &fe,
+   FaceElementTransformations &Tr, const Vector &trfun, const Vector &elfun,
+   Vector &elvect)
+{
+   // Note: This default implementation is general but not efficient
+   DenseMatrix elmat;
+   AssembleHDGFaceMatrix(trace_face_fe, fe, fe, Tr, elmat);
+
+   const int ndof_el = fe.GetDof();
+   const int ndof_face = trace_face_fe.GetDof();
+   int ndof = 0;
+   if (type & (NonlinearFormIntegrator::HDGFaceType::ELEM
+               | NonlinearFormIntegrator::HDGFaceType::TRACE))
+   {
+      ndof += ndof_el;
+   }
+   if (type & (NonlinearFormIntegrator::HDGFaceType::CONSTR
+               | NonlinearFormIntegrator::HDGFaceType::FACE))
+   {
+      ndof += ndof_face;
+   }
+
+   MFEM_ASSERT(elmat.Width() == elmat.Height() &&
+               elmat.Width() == 2*ndof_el + ndof_face, "Wrong size of the element matrix");
+
+   elvect.SetSize(ndof);
+   elvect = 0.;
+
+   int ioff = 0;
+   if (type & (NonlinearFormIntegrator::HDGFaceType::ELEM
+               | NonlinearFormIntegrator::HDGFaceType::TRACE))
+   {
+      const int joff = (type & 1)?(ndof_el):(0);
+      if (type & NonlinearFormIntegrator::HDGFaceType::ELEM)
+      {
+         for (int i = 0; i < ndof_el; i++)
+         {
+            real_t sum = 0.;
+            for (int j = 0; j < ndof_el; j++)
+            {
+               sum += elmat(joff + i, joff + j) * elfun(j);
+            }
+            elvect(ioff + i) += sum;
+         }
+      }
+      if (type & NonlinearFormIntegrator::HDGFaceType::TRACE)
+      {
+         for (int i = 0; i < ndof_el; i++)
+         {
+            real_t sum = 0.;
+            for (int j = 0; j < ndof_face; j++)
+            {
+               sum += elmat(joff + i, 2*ndof_el + j) * trfun(j);
+            }
+            elvect(ioff + i) += sum;
+         }
+      }
+      ioff += ndof_el;
+   }
+
+   if (type & (NonlinearFormIntegrator::HDGFaceType::CONSTR
+               | NonlinearFormIntegrator::HDGFaceType::FACE))
+   {
+      const int joff = (type & 1)?(ndof_el):(0);
+      if (type & NonlinearFormIntegrator::HDGFaceType::CONSTR)
+      {
+         for (int i = 0; i < ndof_face; i++)
+         {
+            real_t sum = 0.;
+            for (int j = 0; j < ndof_el; j++)
+            {
+               sum += elmat(2*ndof_el + i, joff + j) * elfun(j);
+            }
+            elvect(ioff + i) += sum;
+         }
+      }
+      if (type & NonlinearFormIntegrator::HDGFaceType::FACE)
+      {
+         for (int i = 0; i < ndof_face; i++)
+         {
+            real_t sum = 0.;
+            for (int j = 0; j < ndof_face; j++)
+            {
+               sum += elmat(2*ndof_el + i, 2*ndof_el + j) * trfun(j);
+            }
+            elvect(ioff + i) += sum / 2.;//<---double integration, not exact!
+         }
+      }
+   }
+}
+
 void TransposeIntegrator::SetIntRule(const IntegrationRule *ir)
 {
    IntRule = ir;
