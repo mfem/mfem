@@ -305,6 +305,8 @@ void InitDetKernels()
 
 } // namespace internal
 
+/// @cond Suppress_Doxygen_warnings
+
 namespace
 {
 using DetKernel = QuadratureInterpolator::DetKernelType;
@@ -335,5 +337,7 @@ DetKernel QuadratureInterpolator::DetKernels::Fallback(
    }
    else { MFEM_ABORT(""); }
 }
+
+/// @endcond
 
 } // namespace mfem
