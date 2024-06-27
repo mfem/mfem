@@ -642,8 +642,9 @@ private:
    int Component;
 
 public:
-   GridFunctionVectorCoefficient() : GridF(NULL), Component(1),
-      VectorCoefficient(1) { }
+   GridFunctionVectorCoefficient()
+      :  VectorCoefficient(1)
+   { GridF = NULL; Component = 1; }
    /** Construct GridFunctionCoefficient from a given GridFunction, and
        optionally specify a component to use if it is a vector GridFunction. */
    GridFunctionVectorCoefficient(const GridFunction *gf, int comp = 1)
