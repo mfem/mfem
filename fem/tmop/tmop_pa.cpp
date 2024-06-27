@@ -142,12 +142,34 @@ void TMOP_Integrator::AssemblePA_Fitting()
    const IntegrationRule &ir = *PA.ir;
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
 
-   // surf_fit_gf -> PA.X0 (E-vector)
+   // surf_fit_gf -> PA.X1 (E-vector)
    MFEM_VERIFY(surf_fit_gf->FESpace() == fes, "");
-   const Operator *n0_R = fes->GetElementRestriction(ordering);
-   PA.X0.SetSize(n0_R->Height(), Device::GetMemoryType());
-   PA.X0.UseDevice(true);
-   n0_R->Mult(*surf_fit_gf, PA.X0);
+   const Operator *n1_R = fes->GetElementRestriction(ordering);
+   PA.X1.SetSize(n1_R->Height(), Device::GetMemoryType());
+   PA.X1.UseDevice(true);
+   n1_R->Mult(*surf_fit_gf, PA.X1);
+
+   // surf_fit_dof_count -> PA.X2 (E-vector)
+   PA.X2.UseDevice(true);
+   n1_R->Mult(*surf_fit_gf, PA.X2); 
+
+   // surf_fit_normal -> PA.C2 
+   PA.C2 = surf_fit_normal;
+
+   // surf_fit_coeff -> PA.C1 (Constant Coefficient)
+   ConstantCoefficient* cS = dynamic_cast<ConstantCoefficient*>(surf_fit_coeff);
+   PA.C1 = cS;
+
+   // surf_fit_marker -> PA.X3
+   for (int i = 0; i< surf_fit_marker->Size(); i++){
+      if ((*surf_fit_marker)[i] == true){ //this might be redundant usage of *
+         PA.X3.Append(1);
+      } else {PA.X3.Append(0);}
+   }
+
+
+
+
 }
 //------------------------------- new function above -------------------------//
 

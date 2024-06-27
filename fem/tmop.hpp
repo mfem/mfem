@@ -1839,6 +1839,16 @@ protected:
    // MC: Q-Vector for the metric Coefficient.
    //     Updated when the mesh nodes change.
    //
+   // -------------------- new vectors and constants ----------------------
+   // X1: E-Vector for storing the surface fit grid function.
+   // X2: E-Vector for storing the surface fit dof count.
+   // X3: Array<int> for storing the surface fit marker boolean.
+   //
+   // C1: Constant coefficient that stores surf_it_coeff.
+   // C2: Real scalar that stores surf_fit_normal.
+   // ---------------------------------------------------------------------
+   //
+   //
    // maps:     Dof2Quad map for fes associated with the nodal coordinates.
    // maps_lim: Dof2Quad map for fes associated with the limiting dist GridFunc.
    //
@@ -1860,6 +1870,10 @@ protected:
       mutable bool Jtr_needs_update;
       mutable bool Jtr_debug_grad;
       mutable Vector E, O, X0, H, C0, LD, H0, MC;
+      mutable Vector X1, X2; //new here
+      mutable Array<int> X3; //new here
+      mutable ConstantCoefficient* C1; //new here
+      mutable real_t C2; //new here
       const DofToQuad *maps;
       const DofToQuad *maps_lim = nullptr;
       const GeometricFactors *geom;
