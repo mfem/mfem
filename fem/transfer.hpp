@@ -190,6 +190,10 @@ protected:
    class L2Projection : public Operator
    {
    public:
+      Coefficient* coeff;
+      MemoryType d_mt_;
+      Array<int> offsets;
+      
       virtual void Prolongate(const Vector& x, Vector& y) const = 0;
       virtual void ProlongateTranspose(const Vector& x, Vector& y) const = 0;
       /// @brief Sets relative tolerance in preconditioned conjugate gradient
@@ -209,7 +213,9 @@ protected:
       Table ho2lor;
 
       L2Projection(const FiniteElementSpace& fes_ho_,
-                   const FiniteElementSpace& fes_lor_);
+                   const FiniteElementSpace& fes_lor_,
+                   Coefficient* coeff_,
+                   MemoryType d_mt);
 
       void BuildHo2Lor(int nel_ho, int nel_lor,
                        const CoarseFineTransformations& cf_tr);
@@ -223,6 +229,13 @@ protected:
                          const FiniteElement& fe_lor, ElementTransformation* el_tr,
                          IntegrationPointTransformation& ip_tr,
                          DenseMatrix& B_L, DenseMatrix& B_H) const;
+      
+      /*
+      Populates the Mixed Mass M_LH via device element assembly by building the basis functions and 
+      data at the quadrature points. 
+      */
+      Vector MixedMassEA(const FiniteElementSpace& fes_ho_, const FiniteElementSpace& fes_lor_,
+                         Coefficient* coeff_, MemoryType d_mt);
    };
 
    //Class below must be public as we now have device code
@@ -241,11 +254,11 @@ public:
       mutable Array<real_t> R, P;
       mutable Array<real_t> R_ea, P_ea;
 
-      Array<int> offsets;
+      // Array<int> offsets;
 
       const bool use_device, verify_solution;
-      MemoryType d_mt_;
-      Coefficient *coeff;
+      // MemoryType d_mt_;
+      // Coefficient *coeff;
 
    public:
       Vector M_mixed_all;
@@ -325,8 +338,8 @@ public:
    class L2ProjectionH1Space : public L2Projection
    {
       const bool use_device, verify_solution;
-      MemoryType d_mt_;
-      Coefficient* coeff;
+      // MemoryType d_mt_;
+      // Coefficient* coeff;
       Array<int> offsets;
 
       const ElementRestrictionOperator* elem_restrict_h;
