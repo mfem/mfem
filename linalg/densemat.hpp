@@ -1334,7 +1334,7 @@ public:
    /// Prints matrix to stream out.
    virtual void Print(std::ostream &out = mfem::out, int width_ = 4) const;
 
-   ~DenseTensor() { tdata.Delete(); }
+   virtual ~DenseTensor() { tdata.Delete(); }
 };
 
 /** @brief Compute the LU factorization of a batch of matrices
