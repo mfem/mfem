@@ -1756,7 +1756,7 @@ void DarcyHybridization::MultNL(int mode, const BlockVector &b, const Vector &x,
          Ct.MultTranspose(u_l, y_l);
 
          //G p_l + H x_l
-         if (c_nlfi_p)
+         if (c_nlfi_p && FTr->Elem2No >= 0)
          {
             Vector GpHx_l;
 
@@ -1765,8 +1765,11 @@ void DarcyHybridization::MultNL(int mode, const BlockVector &b, const Vector &x,
                        | NonlinearFormIntegrator::HDGFaceType::FACE;
             if (FTr->Elem1No != el) { type |= 1; }
 
-            c_nlfi_p->AssembleHDGFaceVector(type, *c_fes->GetFaceElement(f),
-                                            *fes_p->GetFE(el), *FTr, x_l, p_l, GpHx_l);
+            c_nlfi_p->AssembleHDGFaceVector(type,
+                                            *c_fes->GetFaceElement(faces[f]),
+                                            *fes_p->GetFE(el),
+                                            *fes->GetMesh()->GetInteriorFaceTransformations(faces[f]),
+                                            x_l, p_l, GpHx_l);
 
             y_l += GpHx_l;
          }
@@ -1922,17 +1925,17 @@ void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
          for (int f = 0; f < faces.Size(); f++)
          {
             FaceElementTransformations *FTr =
-               fes->GetMesh()->GetFaceElementTransformations(f);
+               fes->GetMesh()->GetInteriorFaceTransformations(faces[f]);
             if (!FTr) { continue; }
 
             int type = NonlinearFormIntegrator::HDGFaceType::ELEM
                        | NonlinearFormIntegrator::HDGFaceType::TRACE;
             if (FTr->Elem1No != el) { type |= 1; }
 
-            c_fes->GetFaceVDofs(f, c_dofs);
+            c_fes->GetFaceVDofs(faces[f], c_dofs);
             x.GetSubVector(c_dofs, x_l);
 
-            c_nlfi_p->AssembleHDGFaceVector(type, *c_fes->GetFaceElement(f),
+            c_nlfi_p->AssembleHDGFaceVector(type, *c_fes->GetFaceElement(faces[f]),
                                             *fes_p->GetFE(el), *FTr, x_l, p_l, DpEx);
 
             rp -= DpEx;
