@@ -359,48 +359,42 @@ TEST_CASE("LUFactors RightSolve", "[DenseMatrix]")
 }
 
 TEST_CASE("DenseTensor LinearSolve methods",
-          "[DenseMatrix]")
+          "[DenseMatrix][CUDA]")
 {
 
-   int N = 3;
-   DenseMatrix A(N);
+   const int N = 3;
+   DenseMatrix A(N, N);
    A(0,0) = 4; A(0,1) =  5; A(0,2) = -2;
    A(1,0) = 7; A(1,1) = -1; A(1,2) =  2;
    A(2,0) = 3; A(2,1) =  1; A(2,2) =  4;
 
    real_t X[3] = { -14, 42, 28 };
 
-   int NE = 10;
+   const int NE = 10;
    Vector X_batch(N*NE);
-   DenseTensor A_batch(N,N,NE);
+   DenseTensor A_batch(N, N, NE);
 
-   auto a_batch = mfem::Reshape(A_batch.HostWrite(),N,N,NE);
-   auto x_batch = mfem::Reshape(X_batch.HostWrite(),N,NE);
-   // Column major
    for (int e=0; e<NE; ++e)
    {
-
-      for (int r=0; r<N; ++r)
-      {
-         for (int c=0; c<N; ++c)
-         {
-            a_batch(c, r, e) = A.GetData()[c+r*N];
-         }
-         x_batch(r,e) = X[r];
-      }
+      A_batch(e) = A;
+      for (int i=0; i<N; ++i) { X_batch[i + e*N] = X[i]; }
    }
 
    Array<int> P;
    BatchLUFactor(A_batch, P);
    BatchLUSolve(A_batch, P, X_batch);
 
-   auto xans_batch = mfem::Reshape(X_batch.HostRead(),N,NE);
-   REQUIRE(LinearSolve(A,X));
+   P.HostRead();
+   P.Print(std::cout, 3);
+
+   X_batch.HostReadWrite();
+
+   REQUIRE(LinearSolve(A, X));
    for (int e=0; e<NE; ++e)
    {
       for (int r=0; r<N; ++r)
       {
-         REQUIRE(xans_batch(r,e) == MFEM_Approx(X[r]));
+         REQUIRE(X_batch[r + e*N] == MFEM_Approx(X[r]));
       }
    }
 }
