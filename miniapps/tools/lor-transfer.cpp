@@ -70,7 +70,7 @@ real_t compute_mass(FiniteElementSpace *, real_t, VisItDataCollection &,
 int main(int argc, char *argv[])
 {
    // Parse command-line options.
-   const char *mesh_file = "../../data/star.mesh";
+   const char *mesh_file = "../../data/star.mesh";  //inline-quad.mesh";  
    int order = 3;
    int lref = order+1;
    int lorder = 0;
@@ -194,7 +194,7 @@ int main(int argc, char *argv[])
    gt->VerifySolution(true);
 
    const Operator &R = gt->ForwardOperator();
-   // printf("Get past forward operator call \n");
+   printf("Get past forward operator call \n");
 
    // HO->LOR restriction
    direction = "HO -> LOR @ LOR";
