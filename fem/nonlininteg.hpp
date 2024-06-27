@@ -37,10 +37,10 @@ public:
 
    enum HDGFaceType
    {
-      ELEM = 0,
-      CONSTR = 2,
-      TRACE = 4,
-      FACE = 8,
+      ELEM = 0x2,
+      CONSTR = 0x4,
+      TRACE = 0x8,
+      FACE = 0x10,
    };
 
 protected:
