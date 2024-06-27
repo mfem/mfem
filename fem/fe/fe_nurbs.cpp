@@ -92,7 +92,7 @@ void NURBS1DFiniteElement::Project(Coefficient &coeff,
 
    for (int i = 0; i <= order; i++)
    {
-      real_t kx = kv[0]->GetDemko(ijk[0] + i);
+      real_t kx = kv[0]->GetBotella(ijk[0] + i);
       if (!kv[0]->inSpan(kx, ijk[0]+order)) { continue; }
       ip.x = kv[0]->GetIp(kx, ijk[0]+order);
 
@@ -111,7 +111,7 @@ void NURBS1DFiniteElement::Project(VectorCoefficient &vc,
 
    for (int i = 0; i <= order; i++)
    {
-      real_t kx = kv[0]->GetDemko(ijk[0] + i);
+      real_t kx = kv[0]->GetBotella(ijk[0] + i);
       if (!kv[0]->inSpan(kx, ijk[0]+order)) { continue; }
       ip.x = kv[0]->GetIp(kx, ijk[0]+order);
 
@@ -262,7 +262,7 @@ void NURBS2DFiniteElement::Project(Coefficient &coeff,
    IntegrationPoint ip;
    for (int o = 0, j = 0; j <= orders[1]; j++)
    {
-      real_t ky = kv[1]->GetDemko(ijk[1] + j);
+      real_t ky = kv[1]->GetBotella(ijk[1] + j);
       if (!kv[1]->inSpan(ky, ijk[1]+orders[1]))
       {
          o += orders[0] + 1;
@@ -271,7 +271,7 @@ void NURBS2DFiniteElement::Project(Coefficient &coeff,
       ip.y = kv[1]->GetIp(ky, ijk[1]+orders[1]);
       for (int i = 0; i <= orders[0]; i++, o++)
       {
-         real_t kx = kv[0]->GetDemko(ijk[0] + i);
+         real_t kx = kv[0]->GetBotella(ijk[0] + i);
          if (!kv[0]->inSpan(kx, ijk[0]+orders[0])) { continue; }
          ip.x = kv[0]->GetIp(kx, ijk[0]+orders[0]);
 
@@ -290,7 +290,7 @@ void NURBS2DFiniteElement::Project(VectorCoefficient &vc,
    IntegrationPoint ip;
    for (int o = 0, j = 0; j <= orders[1]; j++)
    {
-      real_t ky = kv[1]->GetDemko(ijk[1] + j);
+      real_t ky = kv[1]->GetBotella(ijk[1] + j);
       if (!kv[1]->inSpan(ky, ijk[1]+orders[1]))
       {
          o += orders[0] + 1;
@@ -299,7 +299,7 @@ void NURBS2DFiniteElement::Project(VectorCoefficient &vc,
       ip.y = kv[1]->GetIp(ky, ijk[1]+orders[1]);
       for (int i = 0; i <= orders[0]; i++, o++)
       {
-         real_t kx = kv[0]->GetDemko(ijk[0] + i);
+         real_t kx = kv[0]->GetBotella(ijk[0] + i);
          if (!kv[0]->inSpan(kx, ijk[0]+orders[0])) { continue; }
          ip.x = kv[0]->GetIp(kx, ijk[0]+orders[0]);
 
@@ -506,7 +506,7 @@ void NURBS3DFiniteElement::Project(Coefficient &coeff,
 
    for (int o = 0, k = 0; k <= orders[2]; k++)
    {
-      real_t kz = kv[2]->GetDemko(ijk[2] + k);
+      real_t kz = kv[2]->GetBotella(ijk[2] + k);
       if (!kv[2]->inSpan(kz, ijk[2]+orders[2]))
       {
          o += (orders[0] + 1)*(orders[1] + 1);
@@ -515,7 +515,7 @@ void NURBS3DFiniteElement::Project(Coefficient &coeff,
       ip.z = kv[2]->GetIp(kz, ijk[2]+orders[2]);
       for (int j = 0; j <= orders[1]; j++)
       {
-         real_t ky = kv[1]->GetDemko(ijk[1] + j);
+         real_t ky = kv[1]->GetBotella(ijk[1] + j);
          if (!kv[1]->inSpan(ky, ijk[1]+orders[1]))
          {
             o += orders[0] + 1;
@@ -524,7 +524,7 @@ void NURBS3DFiniteElement::Project(Coefficient &coeff,
          ip.y = kv[1]->GetIp(ky, ijk[1]+orders[1]);
          for (int i = 0; i <= orders[0]; i++, o++)
          {
-            real_t kx = kv[0]->GetDemko(ijk[0] + i);
+            real_t kx = kv[0]->GetBotella(ijk[0] + i);
             if (!kv[0]->inSpan(kx, ijk[0]+orders[0])) { continue; }
             ip.x = kv[0]->GetIp(kx, ijk[0]+orders[0]);
 
@@ -545,7 +545,7 @@ void NURBS3DFiniteElement::Project(VectorCoefficient &vc,
 
    for (int o = 0, k = 0; k <= orders[2]; k++)
    {
-      real_t kz = kv[2]->GetDemko(ijk[2] + k);
+      real_t kz = kv[2]->GetBotella(ijk[2] + k);
       if (!kv[2]->inSpan(kz, ijk[2]+orders[2]))
       {
          o += (orders[0] + 1)*(orders[1] + 1);
@@ -554,7 +554,7 @@ void NURBS3DFiniteElement::Project(VectorCoefficient &vc,
       ip.z = kv[2]->GetIp(kz, ijk[2]+orders[2]);
       for (int j = 0; j <= orders[1]; j++)
       {
-         real_t ky = kv[1]->GetDemko(ijk[1] + j);
+         real_t ky = kv[1]->GetBotella(ijk[1] + j);
          if (!kv[1]->inSpan(ky, ijk[1]+orders[1]))
          {
             o += orders[0] + 1;
@@ -563,7 +563,7 @@ void NURBS3DFiniteElement::Project(VectorCoefficient &vc,
          ip.y = kv[1]->GetIp(ky, ijk[1]+orders[1]);
          for (int i = 0; i <= orders[0]; i++, o++)
          {
-            real_t kx = kv[0]->GetDemko(ijk[0] + i);
+            real_t kx = kv[0]->GetBotella(ijk[0] + i);
             if (!kv[0]->inSpan(kx, ijk[0]+orders[0])) { continue; }
             ip.x = kv[0]->GetIp(kx, ijk[0]+orders[0]);
 
@@ -705,7 +705,7 @@ void NURBS_HDiv2DFiniteElement::Project(VectorCoefficient &vc,
 
    for (int j = 0; j <= orders[1]; j++)
    {
-      real_t ky = kv[1]->GetDemko(ijk[1] + j);
+      real_t ky = kv[1]->GetBotella(ijk[1] + j);
       if (!kv[1]->inSpan(ky, ijk[1]+orders[1]))
       {
          o += orders[0] + 2;
@@ -714,7 +714,7 @@ void NURBS_HDiv2DFiniteElement::Project(VectorCoefficient &vc,
       ip.y = kv[1]->GetIp(ky, ijk[1]+orders[1]);
       for (int i = 0; i <= orders[0]+1; i++, o++)
       {
-         real_t kx = kv1[0]->GetDemko(ijk[0] + i);
+         real_t kx = kv1[0]->GetBotella(ijk[0] + i);
          if (!kv1[0]->inSpan(kx, ijk[0]+orders[0]+1)) { continue; }
          ip.x = kv1[0]->GetIp(kx, ijk[0]+orders[0]+1);
 
@@ -728,7 +728,7 @@ void NURBS_HDiv2DFiniteElement::Project(VectorCoefficient &vc,
 
    for (int j = 0; j <= orders[1]+1; j++)
    {
-      real_t ky = kv1[1]->GetDemko(ijk[1] + j);
+      real_t ky = kv1[1]->GetBotella(ijk[1] + j);
       if (!kv1[1]->inSpan(ky, ijk[1]+orders[1]+1))
       {
          o += orders[0] + 1;
@@ -737,7 +737,7 @@ void NURBS_HDiv2DFiniteElement::Project(VectorCoefficient &vc,
       ip.y = kv1[1]->GetIp(ky, ijk[1]+orders[1]+1);
       for (int i = 0; i <= orders[0]; i++, o++)
       {
-         real_t kx = kv[0]->GetDemko(ijk[0] + i);
+         real_t kx = kv[0]->GetBotella(ijk[0] + i);
          if (!kv[0]->inSpan(kx, ijk[0]+orders[0])) { continue; }
          ip.x = kv[0]->GetIp(kx, ijk[0]+orders[0]);
 
@@ -943,7 +943,7 @@ void NURBS_HDiv3DFiniteElement::Project(VectorCoefficient &vc,
 
    for (int k = 0; k <= orders[2]; k++)
    {
-      real_t kz = kv[2]->GetDemko(ijk[2] + k);
+      real_t kz = kv[2]->GetBotella(ijk[2] + k);
       if (!kv[2]->inSpan(kz, ijk[2]+orders[2]))
       {
          o += (orders[0] + 2)*(orders[1] + 1);
@@ -952,7 +952,7 @@ void NURBS_HDiv3DFiniteElement::Project(VectorCoefficient &vc,
       ip.z = kv[2]->GetIp(kz, ijk[2]+orders[2]);
       for (int j = 0; j <= orders[1]; j++)
       {
-         real_t ky = kv[1]->GetDemko(ijk[1] + j);
+         real_t ky = kv[1]->GetBotella(ijk[1] + j);
          if (!kv[1]->inSpan(ky, ijk[1]+orders[1]))
          {
             o += orders[0] + 2;
@@ -961,7 +961,7 @@ void NURBS_HDiv3DFiniteElement::Project(VectorCoefficient &vc,
          ip.y = kv[1]->GetIp(ky, ijk[1]+orders[1]);
          for (int i = 0; i <= orders[0]+1; i++, o++)
          {
-            real_t kx = kv1[0]->GetDemko(ijk[0] + i);
+            real_t kx = kv1[0]->GetBotella(ijk[0] + i);
             if (!kv1[0]->inSpan(kx, ijk[0]+orders[0]+1)) { continue; }
             ip.x = kv1[0]->GetIp(kx, ijk[0]+orders[0]+1);
 
@@ -976,7 +976,7 @@ void NURBS_HDiv3DFiniteElement::Project(VectorCoefficient &vc,
 
    for (int k = 0; k <= orders[2]; k++)
    {
-      real_t kz = kv[2]->GetDemko(ijk[2] + k);
+      real_t kz = kv[2]->GetBotella(ijk[2] + k);
       if (!kv[2]->inSpan(kz, ijk[2]+orders[2]))
       {
          o += (orders[0] + 1)*(orders[1] + 2);
@@ -985,7 +985,7 @@ void NURBS_HDiv3DFiniteElement::Project(VectorCoefficient &vc,
       ip.z = kv[2]->GetIp(kz, ijk[2]+orders[2]);
       for (int j = 0; j <= orders[1]+1; j++)
       {
-         real_t ky = kv1[1]->GetDemko(ijk[1] + j);
+         real_t ky = kv1[1]->GetBotella(ijk[1] + j);
          if (!kv1[1]->inSpan(ky, ijk[1]+orders[1]+1))
          {
             o += orders[0] + 1;
@@ -994,7 +994,7 @@ void NURBS_HDiv3DFiniteElement::Project(VectorCoefficient &vc,
          ip.y = kv1[1]->GetIp(ky, ijk[1]+orders[1]+1);
          for (int i = 0; i <= orders[0]; i++, o++)
          {
-            real_t kx = kv[0]->GetDemko(ijk[0] + i);
+            real_t kx = kv[0]->GetBotella(ijk[0] + i);
             if (!kv[0]->inSpan(kx, ijk[0]+orders[0])) { continue; }
             ip.x = kv[0]->GetIp(kx, ijk[0]+orders[0]);
 
@@ -1009,7 +1009,7 @@ void NURBS_HDiv3DFiniteElement::Project(VectorCoefficient &vc,
 
    for (int k = 0; k <= orders[2]+1; k++)
    {
-      real_t kz = kv1[2]->GetDemko(ijk[2] + k);
+      real_t kz = kv1[2]->GetBotella(ijk[2] + k);
       if (!kv1[2]->inSpan(kz, ijk[2]+orders[2]+1))
       {
          o += (orders[0] + 1)*(orders[1] + 1);
@@ -1018,7 +1018,7 @@ void NURBS_HDiv3DFiniteElement::Project(VectorCoefficient &vc,
       ip.z = kv1[2]->GetIp(kz, ijk[2]+orders[2]+1);
       for (int j = 0; j <= orders[1]; j++)
       {
-         real_t ky = kv[1]->GetDemko(ijk[1] + j);
+         real_t ky = kv[1]->GetBotella(ijk[1] + j);
          if (!kv[1]->inSpan(ky, ijk[1]+orders[1]))
          {
             o += orders[0] + 1;
@@ -1027,7 +1027,7 @@ void NURBS_HDiv3DFiniteElement::Project(VectorCoefficient &vc,
          ip.y = kv[1]->GetIp(ky, ijk[1]+orders[1]);
          for (int i = 0; i <= orders[0]; i++, o++)
          {
-            real_t kx = kv[0]->GetDemko(ijk[0] + i);
+            real_t kx = kv[0]->GetBotella(ijk[0] + i);
             if (!kv[0]->inSpan(kx, ijk[0]+orders[0])) { continue; }
             ip.x = kv[0]->GetIp(kx, ijk[0]+orders[0]);
 
@@ -1176,7 +1176,7 @@ void NURBS_HCurl2DFiniteElement::Project(VectorCoefficient &vc,
    int i, j, o;
    for (o = 0, j = 0; j <= orders[1]+1; j++)
    {
-      real_t ky = kv1[1]->GetDemko(ijk[1] + j);
+      real_t ky = kv1[1]->GetBotella(ijk[1] + j);
       if (!kv1[1]->inSpan(ky, ijk[1]+orders[1]+1))
       {
          o += orders[0] + 1;
@@ -1185,7 +1185,7 @@ void NURBS_HCurl2DFiniteElement::Project(VectorCoefficient &vc,
       ip.y = kv1[1]->GetIp(ky, ijk[1]+orders[1]+1);
       for (i = 0; i <= orders[0]; i++, o++)
       {
-         real_t kx = kv[0]->GetDemko(ijk[0] + i);
+         real_t kx = kv[0]->GetBotella(ijk[0] + i);
          if (!kv[0]->inSpan(kx, ijk[0]+orders[0])) { continue; }
          ip.x = kv[0]->GetIp(kx, ijk[0]+orders[0]);
 
@@ -1199,7 +1199,7 @@ void NURBS_HCurl2DFiniteElement::Project(VectorCoefficient &vc,
 
    for (j = 0; j <= orders[1]; j++)
    {
-      real_t ky = kv[1]->GetDemko(ijk[1] + j);
+      real_t ky = kv[1]->GetBotella(ijk[1] + j);
       if (!kv[1]->inSpan(ky, ijk[1]+orders[1]))
       {
          o += orders[0] + 2;
@@ -1208,7 +1208,7 @@ void NURBS_HCurl2DFiniteElement::Project(VectorCoefficient &vc,
       ip.y = kv[1]->GetIp(ky, ijk[1]+orders[1]);
       for (i = 0; i <= orders[0]+1; i++, o++)
       {
-         real_t kx = kv1[0]->GetDemko(ijk[0] + i);
+         real_t kx = kv1[0]->GetBotella(ijk[0] + i);
          if (!kv1[0]->inSpan(kx, ijk[0]+orders[0]+1)) { continue; }
          ip.x = kv1[0]->GetIp(kx, ijk[0]+orders[0]+1);
 
@@ -1427,7 +1427,7 @@ void NURBS_HCurl3DFiniteElement::Project(VectorCoefficient &vc,
    int o = 0;
    for (int k = 0; k <= orders[2]+1; k++)
    {
-      real_t kz = kv1[2]->GetDemko(ijk[2] + k);
+      real_t kz = kv1[2]->GetBotella(ijk[2] + k);
       if (!kv1[2]->inSpan(kz, ijk[2]+orders[2]+1))
       {
          o += (orders[0] + 1)*(orders[1] + 2);
@@ -1436,7 +1436,7 @@ void NURBS_HCurl3DFiniteElement::Project(VectorCoefficient &vc,
       ip.z = kv1[2]->GetIp(kz, ijk[2]+orders[2]+1);
       for (int j = 0; j <= orders[1]+1; j++)
       {
-         real_t ky = kv1[1]->GetDemko(ijk[1] + j);
+         real_t ky = kv1[1]->GetBotella(ijk[1] + j);
          if (!kv1[1]->inSpan(ky, ijk[1]+orders[1]+1))
          {
             o += orders[0] + 1;
@@ -1445,7 +1445,7 @@ void NURBS_HCurl3DFiniteElement::Project(VectorCoefficient &vc,
          ip.y = kv1[1]->GetIp(ky, ijk[1]+orders[1]+1);
          for (int i = 0; i <= orders[0]; i++, o++)
          {
-            real_t kx = kv[0]->GetDemko(ijk[0] + i);
+            real_t kx = kv[0]->GetBotella(ijk[0] + i);
             if (!kv[0]->inSpan(kx, ijk[0]+orders[0])) { continue; }
             ip.x = kv[0]->GetIp(kx, ijk[0]+orders[0]);
 
@@ -1460,7 +1460,7 @@ void NURBS_HCurl3DFiniteElement::Project(VectorCoefficient &vc,
 
    for (int k = 0; k <= orders[2]+1; k++)
    {
-      real_t kz = kv1[2]->GetDemko(ijk[2] + k);
+      real_t kz = kv1[2]->GetBotella(ijk[2] + k);
       if (!kv1[2]->inSpan(kz, ijk[2]+orders[2]+1))
       {
          o += (orders[0] + 2)*(orders[1] + 1);
@@ -1469,7 +1469,7 @@ void NURBS_HCurl3DFiniteElement::Project(VectorCoefficient &vc,
       ip.z = kv1[2]->GetIp(kz, ijk[2]+orders[2]+1);
       for (int j = 0; j <= orders[1]; j++)
       {
-         real_t ky = kv[1]->GetDemko(ijk[1] + j);
+         real_t ky = kv[1]->GetBotella(ijk[1] + j);
          if (!kv[1]->inSpan(ky, ijk[1]+orders[1]))
          {
             o += orders[0] + 2;
@@ -1478,7 +1478,7 @@ void NURBS_HCurl3DFiniteElement::Project(VectorCoefficient &vc,
          ip.y = kv[1]->GetIp(ky, ijk[1]+orders[1]);
          for (int i = 0; i <= orders[0]+1; i++, o++)
          {
-            real_t kx = kv1[0]->GetDemko(ijk[0] + i);
+            real_t kx = kv1[0]->GetBotella(ijk[0] + i);
             if (!kv1[0]->inSpan(kx, ijk[0]+orders[0]+1)) { continue; }
             ip.x = kv1[0]->GetIp(kx, ijk[0]+orders[0]+1);
 
@@ -1493,7 +1493,7 @@ void NURBS_HCurl3DFiniteElement::Project(VectorCoefficient &vc,
 
    for (int k = 0; k <= orders[2]; k++)
    {
-      real_t kz = kv[2]->GetDemko(ijk[2] + k);
+      real_t kz = kv[2]->GetBotella(ijk[2] + k);
       if (!kv[2]->inSpan(kz, ijk[2]+orders[2]))
       {
          o += (orders[0] + 2)*(orders[1] + 2);
@@ -1502,7 +1502,7 @@ void NURBS_HCurl3DFiniteElement::Project(VectorCoefficient &vc,
       ip.z = kv[2]->GetIp(kz, ijk[2]+orders[2]);
       for (int j = 0; j <= orders[1]+1; j++)
       {
-         real_t ky = kv1[1]->GetDemko(ijk[1] + j);
+         real_t ky = kv1[1]->GetBotella(ijk[1] + j);
          if (!kv1[1]->inSpan(ky, ijk[1]+orders[1]+1))
          {
             o += orders[0] + 2;
@@ -1511,7 +1511,7 @@ void NURBS_HCurl3DFiniteElement::Project(VectorCoefficient &vc,
          ip.y = kv1[1]->GetIp(ky, ijk[1]+orders[1]+1);
          for (int i = 0; i <= orders[0]+1; i++, o++)
          {
-            real_t kx = kv1[0]->GetDemko(ijk[0] + i);
+            real_t kx = kv1[0]->GetBotella(ijk[0] + i);
             if (!kv1[0]->inSpan(kx, ijk[0]+orders[0]+1)) { continue; }
             ip.x = kv1[0]->GetIp(kx, ijk[0]+orders[0]+1);
 
