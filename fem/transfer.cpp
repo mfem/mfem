@@ -21,11 +21,11 @@ constexpr real_t ho_lor_tol = 1e-10;
 
 GridTransfer::GridTransfer(FiniteElementSpace &dom_fes_,
                            FiniteElementSpace &ran_fes_,
-                           MemoryType d_mt)
+                           MemoryType d_mt_)
    : dom_fes(dom_fes_), ran_fes(ran_fes_),
      oper_type(Operator::ANY_TYPE),
      fw_t_oper(), bw_t_oper(), use_device(false), verify_solution(false),
-     d_mt_(d_mt)
+     d_mt(d_mt_)
 {
 #ifdef MFEM_USE_MPI
    const bool par_dom = dynamic_cast<ParFiniteElementSpace*>(&dom_fes);
@@ -235,9 +235,9 @@ const Operator &InterpolationGridTransfer::BackwardOperator()
 
 L2ProjectionGridTransfer::L2Projection::L2Projection(
    const FiniteElementSpace &fes_ho_, const FiniteElementSpace &fes_lor_,
-   Coefficient* coeff_, MemoryType d_mt)
+   Coefficient* coeff_, MemoryType d_mt_)
    : Operator(fes_lor_.GetVSize(), fes_ho_.GetVSize()),
-     fes_ho(fes_ho_), fes_lor(fes_lor_), coeff(coeff_), d_mt_(d_mt)
+     fes_ho(fes_ho_), fes_lor(fes_lor_), coeff(coeff_), d_mt(d_mt_)
 { }
 
 void L2ProjectionGridTransfer::L2Projection::BuildHo2Lor(
@@ -326,7 +326,7 @@ void L2ProjectionGridTransfer::L2Projection::ElemMixedMass(
 
 Vector L2ProjectionGridTransfer::L2Projection::MixedMassEA(const FiniteElementSpace& fes_ho, 
                                                            const FiniteElementSpace& fes_lor,
-                                                           Coefficient *coeff_, MemoryType d_mt)
+                                                           Coefficient *coeff_, MemoryType d_mt_)
 {
    Vector M_LH;
    // dynamic_cast to check if QuadFuncCoeff; if yes, continue; if no, return error
@@ -336,10 +336,8 @@ Vector L2ProjectionGridTransfer::L2Projection::MixedMassEA(const FiniteElementSp
       mfem_error("Not a QuadratureFunctionCoefficient - inside MixedMassEA");
    }
    QuadratureFunction qfunc = qfunc_coeff->GetQuadFunction();
-   std::cout << "Size of qfunc : " << qfunc.Size() << std::endl;
    // Store the mixed mass matrix integration rule, which is assumed same on all elements
    const IntegrationRule ir = qfunc.GetIntRule(0); 
-   std::cout << "Number of quadrature points : " << ir.GetNPoints() << std::endl;
 
    Mesh* mesh_ho = fes_ho.GetMesh();
    Mesh* mesh_lor = fes_lor.GetMesh();
@@ -347,11 +345,6 @@ Vector L2ProjectionGridTransfer::L2Projection::MixedMassEA(const FiniteElementSp
    int nel_lor = mesh_lor->GetNE();
    int ndof_ho = fes_ho.GetNDofs();
    int ndof_lor = fes_lor.GetNDofs(); 
-
-   std::cout << "Number of HO el : " << nel_ho << std::endl;
-   std::cout << "Number of LOR el : " << nel_lor << std::endl;
-   std::cout << "Number of HO dof : " << ndof_ho << std::endl;
-   std::cout << "Number of LOR dof : " << ndof_lor << std::endl;
 
    const CoarseFineTransformations& cf_tr = mesh_lor->GetRefinementTransforms();
 
@@ -392,9 +385,9 @@ Vector L2ProjectionGridTransfer::L2Projection::MixedMassEA(const FiniteElementSp
 
          //Containers for the basis functions sampled
          //at quadrature points
-         B_L.SetSize(qPts, fe_lor.GetDof(), nref, d_mt_);
-         B_H.SetSize(qPts, fe_ho.GetDof(), nref, d_mt_);
-         D.SetSize(qPts, nref, nel_ho, d_mt_);
+         B_L.SetSize(qPts, fe_lor.GetDof(), nref, d_mt);
+         B_H.SetSize(qPts, fe_ho.GetDof(), nref, d_mt);
+         D.SetSize(qPts, nref, nel_ho, d_mt);
 
          const DofToQuad *maps_lor = &fe_lor.GetDofToQuad(*ir, DofToQuad::TENSOR);
 
@@ -538,9 +531,8 @@ Vector L2ProjectionGridTransfer::L2Projection::MixedMassEA(const FiniteElementSp
 
       const int qPts = D.SizeI();
 
-      M_LH.SetSize(ndof_lor*ndof_ho*nref*nel_ho, d_mt_);
-      // std::cout << "1. M_LH has size : " << ndof_lor*ndof_ho*nref*nel_ho << std::endl;
-      // M_LH = 0.0;
+      M_LH.SetSize(ndof_lor*ndof_ho*nref*nel_ho, d_mt);
+      M_LH = 0.0;
 
       //Rows x columns
       //Recall MFEM is column major
@@ -581,15 +573,14 @@ Vector L2ProjectionGridTransfer::L2Projection::MixedMassEA(const FiniteElementSp
          }
       });
    } // end of mixed assembly mass matrix
-   // std::cout << "2. M_LH has size : " << M_LH.Size() << std::endl;
 
    return M_LH;
 }
 
 L2ProjectionGridTransfer::L2ProjectionL2Space::L2ProjectionL2Space
 (const FiniteElementSpace &fes_ho_, const FiniteElementSpace &fes_lor_, Coefficient *coeff_,
- const bool use_device_, const bool verify_solution_, MemoryType d_mt)
-   : L2Projection(fes_ho_, fes_lor_, coeff_, d_mt), 
+ const bool use_device_, const bool verify_solution_, MemoryType d_mt_)
+   : L2Projection(fes_ho_, fes_lor_, coeff_, d_mt_), 
      use_device(use_device_), verify_solution(verify_solution_)
 {
 
@@ -746,8 +737,6 @@ L2ProjectionGridTransfer::L2ProjectionL2Space::L2ProjectionL2Space
 void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
 (const FiniteElementSpace &fes_ho_, const FiniteElementSpace &fes_lor_, Coefficient *coeff_) // coeff : coefficient for weighted integration
 {
-   printf("Enter L2 Device \n"); 
-
    // dynamic_cast to check if QuadFuncCoeff; if yes, continue; if no, return error
    auto qfunc_coeff = dynamic_cast<QuadratureFunctionCoefficient*>(coeff_);
    if (qfunc_coeff == NULL)
@@ -805,7 +794,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
    }
 
    //Assemble mixed mass matrix
-   M_mixed_all = MixedMassEA(fes_ho, fes_lor, coeff, d_mt_);
+   Vector M_mixed_all = MixedMassEA(fes_ho, fes_lor, coeff, d_mt);
 
 
    //R = inv(M_L) * M_mixed
@@ -828,20 +817,20 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
       ndof_ho = fe_ho.GetDof();
       ndof_lor = fe_lor.GetDof();
 
-      M_ea_lor.SetSize(ndof_lor*ndof_lor*nel_lor, d_mt_);
+      M_ea_lor.SetSize(ndof_lor*ndof_lor*nel_lor, d_mt);
    } 
 
    const bool add = false;
    mi.AssembleEA(fes_lor, M_ea_lor, add);
 
    DenseTensor MLU_ea_lor;
-   MLU_ea_lor.SetSize(ndof_lor, ndof_lor, nel_lor, d_mt_);
+   MLU_ea_lor.SetSize(ndof_lor, ndof_lor, nel_lor, d_mt);
 
    BatchSolver batchSolver(BatchSolver::SolveMode::INVERSE);
    batchSolver.AssignMatrices(M_ea_lor, ndof_lor, nel_lor);
 
    DenseTensor Minv_ear_lor;
-   Minv_ear_lor.SetSize(ndof_lor, ndof_lor, nel_lor, d_mt_);
+   Minv_ear_lor.SetSize(ndof_lor, ndof_lor, nel_lor, d_mt);
    batchSolver.GetInverse(Minv_ear_lor);
 
    {
@@ -895,7 +884,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
       //R^T M_LO is of size nref x ndof_lor
 
       //Compute R^T M_L
-      Vector RtM_L(ndof_ho*nref*ndof_lor*nel_ho, d_mt_);
+      Vector RtM_L(ndof_ho*nref*ndof_lor*nel_ho, d_mt);
       auto v_RtM_L = mfem::Reshape(RtM_L.Write(), ndof_ho, ndof_lor, nref, nel_ho);
 
       mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int e)
@@ -925,7 +914,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
 
       //resulting matrix should be: ndof_ho x ndof_ho
       //R^T M_L x R
-      mfem::Vector RtM_LR(ndof_ho * ndof_ho * nel_ho, d_mt_);
+      mfem::Vector RtM_LR(ndof_ho * ndof_ho * nel_ho, d_mt);
       auto v_RtM_LR = mfem::Reshape(RtM_LR.Write(), ndof_ho, ndof_ho, nel_ho);
 
       mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int e)
@@ -951,7 +940,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
       batchSolver.AssignMatrices(RtM_LR, ndof_ho, nel_ho);
 
       DenseTensor InvRtM_LR_LU;
-      InvRtM_LR_LU.SetSize(ndof_ho, ndof_ho, nel_ho, d_mt_);
+      InvRtM_LR_LU.SetSize(ndof_ho, ndof_ho, nel_ho, d_mt);
       batchSolver.GetInverse(InvRtM_LR_LU);
 
 
@@ -1364,8 +1353,8 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceProlongateTranspose(
 
 L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
    const FiniteElementSpace& fes_ho_, const FiniteElementSpace& fes_lor_, Coefficient* coeff_, 
-   const bool use_device_, const bool verify_solution_, MemoryType d_mt)
-   : L2Projection(fes_ho_, fes_lor_, coeff_, d_mt), 
+   const bool use_device_, const bool verify_solution_, MemoryType d_mt_)
+   : L2Projection(fes_ho_, fes_lor_, coeff_, d_mt_), 
      use_device(use_device_), verify_solution(verify_solution_)
 {
    if (use_device)
@@ -1489,13 +1478,6 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::SetupPCG()
 void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
    const FiniteElementSpace &fes_ho_, const FiniteElementSpace &fes_lor_, Coefficient *coeff_)
 {
-   // TODO: implement matrix-free action of R 
-   // There are 4 parts: 
-   //  ( )  inv( lumped(M_L) ), which is a diagonal matrix (essentially a vector). Need to add QuadCoeffFunction ability.
-   //  (x)  ElementRestrictionOperator for LOR space, need to apply the transpose
-   //  (x)  M_{LH}, with QuadCoeffFunction ability
-   //  (x)  ElementRestrictionOperator for HO space
-
    // dynamic_cast to check if QuadFuncCoeff; if yes, continue; if no, return error
    auto qfunc_coeff = dynamic_cast<QuadratureFunctionCoefficient*>(coeff_);
    if (qfunc_coeff == NULL)
@@ -1503,10 +1485,8 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
       mfem_error("Not a QuadratureFunctionCoefficient - for inside H1");
    }
    QuadratureFunction qfunc = qfunc_coeff->GetQuadFunction();
-   std::cout << "Size of qfunc : " << qfunc.Size() << std::endl;
    // Store the mixed mass matrix integration rule, which is assumed same on all elements
    const IntegrationRule ir = qfunc.GetIntRule(0); 
-   std::cout << "Number of quadrature points : " << ir.GetNPoints() << std::endl;
 
    Mesh* mesh_ho = fes_ho.GetMesh();
    Mesh* mesh_lor = fes_lor.GetMesh();
@@ -1514,11 +1494,6 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
    int nel_lor = mesh_lor->GetNE();
    int ndof_ho = fes_ho.GetNDofs();
    int ndof_lor = fes_lor.GetNDofs(); 
-
-   std::cout << "Number of HO el : " << nel_ho << std::endl;
-   std::cout << "Number of LOR el : " << nel_lor << std::endl;
-   std::cout << "Number of HO dof : " << ndof_ho << std::endl;
-   std::cout << "Number of LOR dof : " << ndof_lor << std::endl;
 
    // If the local mesh is empty, skip all computations
    if (nel_ho == 0)
@@ -1548,12 +1523,10 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
       const FiniteElement &fe_lor = *fes_lor.GetFE(ho2lor.GetRow(iho)[0]);
       offsets[iho+1] = offsets[iho] + fe_ho.GetDof()*fe_lor.GetDof()*nref;
    }
-   // offsets.Print();
 
    // **************************
    // inv lumped M_L 
    // **************************
-   // TODO: need to add quadratureFunctionCoefficient into this M_L assembly - DONE! 
 
    // ML_inv_ea contains the inverse lumped (row sum) mass matrix. Note that the
    // method will also work with a full (consistent) mass matrix, though this is
@@ -1581,22 +1554,18 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
       for (int iref = 0; iref < nref; ++iref)
       {
          int ilor = lor_els[iref];
-         // std::cout << ilor << std::endl;
          ElementTransformation* el_tr = fes_lor.GetElementTransformation(ilor);
 
          // to re-use coeff, use integration rule from coeff (higher than needed) 
          ML_el = 0.0;
          int nqPts = ir.GetNPoints();
-         // std::cout << nqPts << std::endl;
          for (int i = 0; i < nqPts; ++i)
          {
             const IntegrationPoint& ip_lor = ir.IntPoint(i);
             fe_lor.CalcShape(ip_lor, shape_lor);
             el_tr->SetIntPoint(&ip_lor);
             ML_el += (shape_lor *= (el_tr->Weight() * ip_lor.weight * qfunc[ilor*nqPts + i]));
-            // std::cout << ilor*nqPts + i << std::endl;
          }
-         // printf("\n");
          fes_lor.GetElementDofs(ilor, dofs_lor);
          ML_inv_ea.AddElementVector(dofs_lor, ML_el);
       }
@@ -1613,243 +1582,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
    // mixed mass M_LH from L2Space
    // **************************
 
-   // IntegrationPointTransformation ip_tr;
-   // IsoparametricTransformation &emb_tr = ip_tr.Transf;
-
-   // //Gather basis functions (B_L, B_HO)
-   // //and data at quadrature points
-   // DenseTensor B_L, B_H, D;
-   // {
-   //    //Assume all HO elements are LOR in the same way
-   //    const int iho = 0;
-   //    {
-   //       Array<int> lor_els;
-   //       ho2lor.GetRow(iho, lor_els);
-   //       int nref = ho2lor.RowSize(iho);
-
-   //       Geometry::Type geom = mesh_ho->GetElementBaseGeometry(iho);
-   //       const FiniteElement &fe_ho = *fes_ho.GetFE(iho);
-   //       const FiniteElement &fe_lor = *fes_lor.GetFE(lor_els[0]);
-
-   //       //Allocate space for DenseTensors
-   //       ElementTransformation *el_tr = fes_lor.GetElementTransformation(0);
-   //       int order = fe_lor.GetOrder() + fe_ho.GetOrder() + el_tr->OrderW();
-   //       const IntegrationRule* ir = &IntRules.Get(geom, order);
-   //       int qPts = ir->GetNPoints();
-
-   //       //Containers for the basis functions sampled
-   //       //at quadrature points
-   //       B_L.SetSize(qPts, fe_lor.GetDof(), nref, d_mt_);
-   //       B_H.SetSize(qPts, fe_ho.GetDof(), nref, d_mt_);
-   //       D.SetSize(qPts, nref, nel_ho, d_mt_);
-
-   //       const DofToQuad *maps_lor = &fe_lor.GetDofToQuad(*ir, DofToQuad::TENSOR);
-
-   //       const GeometricFactors *geo_facts =
-   //          mesh_lor->GetGeometricFactors(*ir, GeometricFactors::DETERMINANTS);
-
-   //       const int Q1D         = maps_lor->nqpt;
-
-   //       const int dim = mesh_ho->Dimension();
-
-   //       MFEM_ASSERT(nel_ho*nref == nel_lor, "we expect nel_ho*nref == nel_lor");
-   //       MFEM_VERIFY(D.TotalSize() == qfunc.Size(), "Dimensions don't match  "<<D.TotalSize()<<" "<<qfunc.Size()); 
-
-   //       //*********************************
-   //       // Setup data at quadrature points
-   //       //*********************************
-   //       if (dim == 1)
-   //       {
-
-   //          const auto W = Reshape(ir->GetWeights().Read(), Q1D);  // grabbing the weights of the integration rule 
-   //          const auto J = Reshape(geo_facts->detJ.Read(), Q1D, nel_lor);  // 
-   //          const auto d_D = Reshape(D.Write(), qPts, nref, nel_ho);  // diagonal at the quadrature points
-   //          const auto d_qfunc = Reshape(qfunc.Read(), qPts, nref, nel_ho);
-
-   //          mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int iho)
-   //          {
-   //             for (int iref = 0; iref < nref; ++iref)
-   //             {
-   //                const int lo_el_id = iref + nref*iho;
-   //                for (int qx=0; qx<Q1D; ++qx)
-   //                {
-   //                   const real_t detJ = J(qx, lo_el_id);
-   //                   d_D(qx, iref, iho) = W(qx) * detJ * d_qfunc(qx, iref, iho); 
-   //                }
-   //             }
-   //          });
-
-   //       }
-
-   //       if (dim == 2)  
-   //       {
-
-   //          const auto W = Reshape(ir->GetWeights().Read(), Q1D, Q1D);
-   //          const auto J = Reshape(geo_facts->detJ.Read(), Q1D,Q1D, nel_lor);
-   //          const auto d_D = Reshape(D.Write(), qPts, nref, nel_ho);
-   //          const auto d_qfunc = Reshape(qfunc.Read(), qPts, nref, nel_ho);
-
-   //          mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int iho)
-   //          {
-   //             for (int iref = 0; iref < nref; ++iref)
-   //             {
-
-   //                const int lo_el_id = iref + nref*iho;
-   //                for (int qy=0; qy<Q1D; ++qy)
-   //                {
-   //                   for (int qx=0; qx<Q1D; ++qx)
-   //                   {
-   //                      const int q = qx + Q1D*qy;
-   //                      const real_t detJ = J(qx, qy, lo_el_id);
-   //                      d_D(q, iref, iho) = W(qx, qy) * detJ * d_qfunc(q, iref, iho);
-   //                   }
-   //                }
-
-   //             }
-   //          });
-   //       }
-
-   //       if (dim == 3)
-   //       {
-
-   //          const auto W = Reshape(ir->GetWeights().Read(), Q1D, Q1D, Q1D);
-   //          const auto J = Reshape(geo_facts->detJ.Read(), Q1D, Q1D, Q1D, nel_lor);
-   //          const auto d_D = Reshape(D.Write(), qPts, nref, nel_ho);
-   //          const auto d_qfunc = Reshape(qfunc.Read(), qPts, nref, nel_ho);
-
-   //          mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int iho)
-   //          {
-   //             for (int iref = 0; iref < nref; ++iref)
-   //             {
-
-   //                const int lo_el_id = iref + nref*iho;
-
-   //                for (int qz=0; qz<Q1D; qz++)
-   //                {
-   //                   for (int qy=0; qy<Q1D; ++qy)
-   //                   {
-   //                      for (int qx=0; qx<Q1D; ++qx)
-   //                      {
-   //                         const int q = qx + Q1D*qy + Q1D*Q1D*qz;
-   //                         const real_t detJ = J(qx, qy, qz, lo_el_id);
-   //                         d_D(q, iref, iho) = W(qx, qy, qz) * detJ * d_qfunc(q, iref, iho); 
-   //                      }
-   //                   }
-   //                }
-
-   //             }
-   //          });
-   //       }
-
-   //       emb_tr.SetIdentityTransformation(geom);
-   //       const DenseTensor &pmats = cf_tr.point_matrices[geom];
-
-   //       //Collect the basis functions
-   //       for (int iref = 0; iref < nref; ++iref)
-   //       {
-
-   //          int ilor = lor_els[iref];
-
-   //          // Now assemble the block-row of the mixed mass matrix associated
-   //          // with integrating HO functions against LOR functions on the LOR
-   //          // sub-element.
-
-   //          // Create the transformation that embeds the fine low-order element
-   //          // within the coarse high-order element in reference space
-   //          emb_tr.SetPointMat(pmats(cf_tr.embeddings[ilor].matrix));
-
-   //          DenseMatrix &b_lo = B_L(ilor);
-   //          DenseMatrix &b_ho = B_H(ilor);
-
-   //          ElemMixedMass(geom, fe_ho, fe_lor, el_tr, ip_tr, b_lo, b_ho);
-
-   //       }//loop over subcells of ho element
-
-   //       //-------[End of quadrature point setup]-----
-   //    }//
-
-   // } //Competed setup of basis function and quadrature point
-
-   // //Assemble mixed mass matrix
-   // {
-   //    int iho = 0;
-   //    Array<int> lor_els;
-   //    ho2lor.GetRow(iho, lor_els);
-   //    int nref = ho2lor.RowSize(iho);
-
-   //    const FiniteElement &fe_ho = *fes_ho.GetFE(iho);
-   //    const FiniteElement &fe_lor = *fes_lor.GetFE(lor_els[0]);
-   //    ndof_ho = fe_ho.GetDof();
-   //    ndof_lor = fe_lor.GetDof();
-
-   //    const int qPts = D.SizeI();
-
-   //    M_mixed_all_ea.SetSize(ndof_lor*ndof_ho*nref*nel_ho, d_mt_);
-   //    M_mixed_all_ea = 0.0;
-
-   //    //Rows x columns
-   //    //Recall MFEM is column major
-
-   //    //rows x columns is inverted  - matrix is ndof_lor x ndof_ho
-   //    auto v_M_mixed_all_ea = mfem::Reshape(M_mixed_all_ea.Write(), ndof_lor, ndof_ho, nref,
-   //                                       nel_ho);
-
-   //    const int fe_ho_ndof = fe_ho.GetDof();
-   //    const int fe_lor_ndof = fe_lor.GetDof();
-
-   //    auto d_B_L = mfem::Reshape(B_L.Read(), qPts, fe_lor_ndof, nref);
-   //    auto d_B_H = mfem::Reshape(B_H.Read(), qPts, fe_ho_ndof, nref);
-   //    auto d_D   = mfem::Reshape(D.Read(), qPts, nref, nel_ho);
-
-   //    mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int iho)
-   //    {
-
-   //       for (int iref = 0; iref < nref; ++iref)
-   //       {
-   //          // (B_lo_dofs x Q) x (Q x B_ho_dofs)
-   //          for (int bh=0; bh<fe_ho_ndof; ++bh)
-   //          {
-   //             for (int bl=0; bl<fe_lor_ndof; ++bl)
-   //             {
-
-   //                real_t dot = 0.0;
-   //                for (int qi=0; qi<qPts; ++qi)
-   //                {
-   //                   dot += d_B_L(qi, bl, iref) *  d_D(qi, iref, iho) * d_B_H(qi, bh, iref);
-   //                }
-
-   //                //column major storange
-   //                v_M_mixed_all_ea(bl , bh, iref, iho) = dot;
-   //             }
-   //          }
-
-   //       }
-   //    });
-   // } // end of mixed assembly mass matrix
-   // std::cout << "Size of D : " << D.TotalSize() << std::endl;
-   // std::cout << "Size of M_LH : " << M_mixed_all_ea.Size() << std::endl;
-
-   M_mixed_all_ea = MixedMassEA(fes_ho, fes_lor, coeff, d_mt_);
-
-   // M_mixed_all_ea = PullL2SpaceDeviceM_LH(fes_ho, fes_lor);
-   
-   // printf("Successfully build M_LH \n"); 
-   // std::cout << "M_LH has size " << M_mixed_all_ea.Size() << " and is " << std::endl;
-   // int iho = 19;  // 20
-   // int nref = 16;  // 16
-   // int iref = 15;
-   // for (int i = 0; i < ndof_lor; ++i) {
-   //    for (int j = 0; j < ndof_ho; ++j) {
-   //       printf("%+14.6e", M_mixed_all_ea.HostRead()[i+j*ndof_lor+iho*nref*ndof_lor*ndof_ho+iref*ndof_lor*ndof_ho]);
-   //       if (j%4 == 3) {printf("\n");}
-   //    }
-   //    printf("\n");
-   // }
-   // for (int i = 0; i < 100; ++i){
-   //    printf("%9.5f", M_mixed_all_ea.HostRead()[i]);
-   //    if (i%5 == 4) {printf("\n");}
-   // }
-
+   M_mixed_all_ea = MixedMassEA(fes_ho, fes_lor, coeff, d_mt);
 
    // **************************
    // ElementRestrictionOperator for LOR
@@ -1904,7 +1637,6 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::Mult(
 void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceMult(
    const Vector& x, Vector& y) const
 {
-   // printf("Enter H1 Device Mult \n");
    const int vdim = fes_ho.GetVDim();
    const int iho = 0;
    const int nref = ho2lor.RowSize(iho);
@@ -1950,53 +1682,15 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceMult(
    tempy2 = 0.0;
    elem_restrict_l->MultTranspose(tempy, tempy2);
 
+   MFEM_ASSERT(ML_inv_ea.Size() == tempy2.Size(), "sizes not the same");
    auto v_ML_inv_ea  = mfem::Reshape(ML_inv_ea.Read(), ML_inv_ea.Size());
    auto v_tempy2  = mfem::Reshape(tempy2.Read(), tempy2.Size());
    auto v_y   = mfem::Reshape(y.Write(), y.Size());
-   MFEM_ASSERT(ML_inv_ea.Size() == tempy2.Size(), "sizes not the same");
 
    mfem::forall(ML_inv_ea.Size(), [=] MFEM_HOST_DEVICE (int i)
    {
       v_y(i) = v_ML_inv_ea(i) * v_tempy2(i);
    });
-}
-
-Vector L2ProjectionGridTransfer::L2ProjectionH1Space::PullL2SpaceDeviceM_LH(
-                        const FiniteElementSpace& coarse_fes_,
-                        const FiniteElementSpace& fine_fes_)
-{
-   Mesh* mesh_ho = coarse_fes_.GetMesh();
-   int dim = mesh_ho->Dimension();
-   Mesh* mesh_lor = fine_fes_.GetMesh();
-
-   int order = coarse_fes_.FEColl()->GetOrder();
-   int lorder = fine_fes_.FEColl()->GetOrder();
-
-   FiniteElementCollection *fec_l2, *fec_lor_l2;
-   fec_l2 = new L2_FECollection(order, dim);
-   fec_lor_l2 = new L2_FECollection(lorder, dim);
-
-   FiniteElementSpace fespace_l2(mesh_ho, fec_l2);
-   FiniteElementSpace fespace_lor_l2(mesh_lor, fec_lor_l2);
-
-   Geometry::Type geom = mesh_ho->GetElementBaseGeometry(0); 
-   const FiniteElement &fe = *fespace_l2.GetFE(0);
-   const FiniteElement &fe_lor = *fespace_lor_l2.GetFE(0); 
-   ElementTransformation *el_tr = fespace_lor_l2.GetElementTransformation(0);
-   int qorder = fe_lor.GetOrder() + fe.GetOrder() + el_tr->OrderW(); 
-   const IntegrationRule* ir = &IntRules.Get(geom, qorder);
-
-   QuadratureSpace qspace(*mesh_lor, *ir); 
-   QuadratureFunction qfunc(&qspace);
-   qfunc = 1.0; 
-   QuadratureFunctionCoefficient coeff_l2(qfunc); 
-
-   L2ProjectionL2Space *gt_l2;
-   gt_l2 = new L2ProjectionL2Space(fespace_l2, fespace_lor_l2, &coeff_l2, true, true);
-
-   Vector M_LH_l2 = gt_l2->M_mixed_all;
-
-   return M_LH_l2;
 }
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::MultTranspose(
@@ -2045,6 +1739,55 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceMultTranspose(
    const Vector& x, Vector& y) const
 {
    // TODO: Transpose of action of R
+   const int vdim = fes_ho.GetVDim();
+   const int iho = 0;
+   const int nref = ho2lor.RowSize(iho);
+   const int ndof_ho = fes_ho.GetFE(iho)->GetDof();
+   const int ndof_lor = fes_lor.GetFE(ho2lor.GetRow(iho)[0])->GetDof();
+   const Mesh *mesh_ho = fes_ho.GetMesh();
+   const int nel_ho = mesh_ho->GetNE();
+
+   MFEM_ASSERT(x.Size() == ML_inv_ea.Size(), "sizes not the same");
+   Vector tempx(x.Size());
+   tempx = 0.0;
+   auto v_ML_inv_ea  = mfem::Reshape(ML_inv_ea.Read(), ML_inv_ea.Size());
+   auto v_x  = mfem::Reshape(x.Read(), x.Size());
+   auto v_tempx  = mfem::Reshape(tempx.Write(), tempx.Size());
+
+   mfem::forall(ML_inv_ea.Size(), [=] MFEM_HOST_DEVICE (int i)
+   {
+      v_tempx(i) = v_ML_inv_ea(i) * v_x(i);
+   });
+
+   Vector tempx2(elem_restrict_l->Height());
+   elem_restrict_l->Mult(tempx, tempx2);                                                                                                                                                                                            
+
+   Vector tempy(ndof_ho*vdim*nel_ho);
+   auto v_M_mixed_all_ea = mfem::Reshape(M_mixed_all_ea.Read(), ndof_lor, ndof_ho, nref, nel_ho);
+   auto v_tempx2    = mfem::Reshape(tempx2.Read(), ndof_lor, nref, vdim, nel_ho);
+   auto v_tempy    = mfem::Reshape(tempy.Write(), ndof_ho, vdim, nel_ho);
+
+   mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int iho)
+   {
+      for (int v=0; v<vdim; ++v)
+      {
+         for (int k=0; k<ndof_ho; ++k)
+         {
+            real_t dot = 0.0;
+            for (int i=0; i<nref; ++i)
+            {
+               for (int j=0; j<ndof_lor; ++j)
+               {
+                  dot += v_M_mixed_all_ea(j, k, i, iho) * v_tempx2(j, i, v, iho);
+               }
+
+               v_tempy(k, v, iho) = dot;
+            }
+         }
+      }
+   });
+
+   elem_restrict_h->MultTranspose(tempy, y);
 }
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::Prolongate(
@@ -2265,7 +2008,6 @@ std::unique_ptr<SparseMatrix>>
          r_and_mlh.second->AddSubMatrix(dofs_lor, dofs_ho, M_LH_el);
          r_and_mlh.first->AddSubMatrix(dofs_lor, dofs_ho, R_el);
 
-         // M_LH_el.Print();
          if (GetM_LHError == true) {
             real_t mat_error = 0.0;
             for (int i = 0; i < nedof_lor; ++i) {
