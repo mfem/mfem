@@ -1871,8 +1871,7 @@ protected:
       mutable bool Jtr_debug_grad;
       mutable Vector E, O, X0, H, C0, LD, H0, MC;
       mutable Vector X1, X2, X3; //new here
-      mutable ConstantCoefficient *C1; //new here
-      mutable real_t C2; //new here
+      mutable real_t C1, C2; //new here
       const DofToQuad *maps;
       const DofToQuad *maps_lim = nullptr;
       const GeometricFactors *geom;

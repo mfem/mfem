@@ -164,7 +164,7 @@ void TMOP_Integrator::AssemblePA_Fitting()
 
    // surf_fit_coeff -> PA.C1 (Constant Coefficient)
    ConstantCoefficient* cS = dynamic_cast<ConstantCoefficient*>(surf_fit_coeff);
-   PA.C1 = cS;
+   PA.C1 = cS->constant;
 
    // surf_fit_marker -> PA.X3
    Vector temp_vec2;
