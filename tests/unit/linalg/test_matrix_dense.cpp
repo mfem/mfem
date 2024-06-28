@@ -368,48 +368,75 @@ TEST_CASE("DenseTensor LinearSolve methods",
    if (!BatchedLinAlg::IsAvailable(backend)) { return; }
    CAPTURE(backend);
 
-   const int N = 3;
-   DenseMatrix A(N, N);
-   A(0,0) = 4; A(0,1) =  5; A(0,2) = -2;
-   A(1,0) = 7; A(1,1) = -1; A(1,2) =  2;
-   A(2,0) = 3; A(2,1) =  1; A(2,2) =  4;
+   const int n = 3;
+   const int n_mat = 4;
+   const int n_rhs = 2;
 
-   Vector X({-14.0, 42.0, 28.0});
+   DenseTensor A_batch(n, n, n_mat);
+   Vector x_batch(n * n_rhs * n_mat), y_batch(n * n_rhs * n_mat);
+   std::vector<DenseMatrix> As;
+   std::vector<DenseMatrix> xs, ys;
+   As.reserve(n_mat);
 
-   const int NE = 10;
-   Vector X_batch(N*NE);
-   DenseTensor A_batch(N, N, NE);
-
-   for (int e=0; e<NE; ++e)
+   int seed = 1;
+   for (int i = 0; i < n_mat; ++i)
    {
-      A_batch(e) = A;
-      for (int i=0; i<N; ++i) { X_batch[i + e*N] = X[i]; }
+      As.emplace_back(n, n);
+      xs.emplace_back(n, n_rhs);
+      for (int j = 0; j < n_rhs; ++j)
+      {
+         Vector col;
+         xs.back().GetColumnReference(j, col);
+         col.Randomize(seed++);
+         for (int k = 0; k < n; ++k)
+         {
+            x_batch[k + j*n + i*n*n_rhs] = xs.back()(k, j);
+         }
+      }
+      for (int j = 0; j < n; ++j)
+      {
+         Vector col;
+         As.back().GetColumnReference(j, col);
+         col.Randomize(seed++);
+         As.back()(j, j) += n + 1; // Ensure invertible
+      }
+      ys.emplace_back(n, n_rhs);
+      Mult(As.back(), xs.back(), ys.back());
+      A_batch(i) = As.back();
    }
 
-   Vector Y(N), Y_batch(N*NE);
-   A.Mult(X, Y);
-   BatchedLinAlg::Get(backend).Mult(A_batch, X_batch, Y_batch);
-
-   Y_batch.HostReadWrite();
-   for (int e=0; e<NE; ++e)
+   // Test batched matrix-vector products
+   BatchedLinAlg::Get(backend).Mult(A_batch, x_batch, y_batch);
+   y_batch.HostReadWrite();
+   for (int i = 0; i < n_mat; ++i)
    {
-      for (int r=0; r<N; ++r)
+      for (int j = 0; j < n_rhs; ++j)
       {
-         REQUIRE(Y_batch[r + e*N] == MFEM_Approx(Y[r]));
+         for (int k = 0; k < n; ++k)
+         {
+            REQUIRE(y_batch[k + j*n + i*n*n_rhs] == MFEM_Approx(ys[i](k, j)));
+         }
       }
    }
 
+   // Test batched LU factorization and solve
    Array<int> P;
    BatchedLinAlg::Get(backend).LUFactor(A_batch, P);
-   BatchedLinAlg::Get(backend).LUSolve(A_batch, P, X_batch);
-   REQUIRE(LinearSolve(A, X.HostReadWrite()));
-
-   X_batch.HostReadWrite();
-   for (int e=0; e<NE; ++e)
+   BatchedLinAlg::Get(backend).LUSolve(A_batch, P, x_batch);
+   for (int i = 0; i < n_mat; ++i)
    {
-      for (int r=0; r<N; ++r)
+      DenseMatrixInverse Ai_inv(As[i]);
+      Ai_inv.Mult(xs[i]);
+   }
+   x_batch.HostReadWrite();
+   for (int i = 0; i < n_mat; ++i)
+   {
+      for (int j = 0; j < n_rhs; ++j)
       {
-         REQUIRE(X_batch[r + e*N] == MFEM_Approx(X[r]));
+         for (int k = 0; k < n; ++k)
+         {
+            REQUIRE(x_batch[k + j*n + i*n*n_rhs] == MFEM_Approx(xs[i](k, j), 1e-10));
+         }
       }
    }
 }
