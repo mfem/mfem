@@ -17,7 +17,11 @@
 
 #ifdef MFEM_USE_CUDA_OR_HIP
 
+#if defined(MFEM_USE_CUDA)
 #include <cublas.h>
+#elif defined(MFEM_USE_HIP)
+#include <hipblas/hipblas.h>
+#endif
 
 namespace mfem
 {
@@ -35,13 +39,19 @@ public:
 /// Singleton class represented a cuBLAS or hipBLAS handle.
 class GPUBlas
 {
-   cublasHandle_t handle = nullptr; ///< The internal handle.
+#if defined(MFEM_USE_CUDA)
+   using HandleType = cublasHandle_t;
+#elif defined(MFEM_USE_HIP)
+   using HandleType = hipblasHandle_t;
+#endif
+
+   HandleType handle = nullptr; ///< The internal handle.
    GPUBlas(); ///< Create the handle.
    ~GPUBlas(); ///< Destroy the handle.
    static GPUBlas &Instance(); ///< Get the unique instnce.
 public:
    /// Return the handle, creating it if needed.
-   static cublasHandle_t Handle();
+   static HandleType Handle();
    /// Enable atomic operations.
    static void EnableAtomics();
    /// Disable atomic operations.
