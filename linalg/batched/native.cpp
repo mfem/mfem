@@ -31,9 +31,18 @@ void NativeBatchedLinAlg::Mult(
 
    mfem::forall(n_mat, [=] MFEM_HOST_DEVICE (int i)
    {
-      // Alternative approach: thread also over second index?
       kernels::Mult(m, k, n, &d_A(0,0,i), &d_x(0,0,i), &d_y(0,0,i));
    });
+
+   // Alternative approach, threading also over the second index. Which one is
+   // better?
+
+   // mfem::forall(n_mat * k, [=] MFEM_HOST_DEVICE (int idx)
+   // {
+   //    const int i = idx % k;
+   //    const int j = idx / k;
+   //    kernels::Mult(m, n, &d_A(0,0,j), &d_x(0,i,j), &d_y(0,i,j));
+   // });
 }
 
 void NativeBatchedLinAlg::Invert(DenseTensor &A) const
