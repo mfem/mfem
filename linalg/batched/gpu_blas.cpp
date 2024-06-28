@@ -57,15 +57,15 @@ MFEM_cu_or_hip(blasHandle_t) GPUBlas::Handle()
 
 void GPUBlas::EnableAtomics()
 {
-   blasStatus_t status = MFEM_cu_or_hip(blasSetAtomicsMode)(
-                            Handle(), MFEM_CU_or_HIP(BLAS_ATOMICS_ALLOWED));
+   const blasStatus_t status = MFEM_cu_or_hip(blasSetAtomicsMode)(
+                                  Handle(), MFEM_CU_or_HIP(BLAS_ATOMICS_ALLOWED));
    MFEM_VERIFY(status == MFEM_BLAS_SUCCESS, "GPU BLAS error.");
 }
 
 void GPUBlas::DisableAtomics()
 {
-   blasStatus_t status = MFEM_cu_or_hip(blasSetAtomicsMode)(
-                            Handle(), MFEM_CU_or_HIP(BLAS_ATOMICS_NOT_ALLOWED));
+   const blasStatus_t status = MFEM_cu_or_hip(blasSetAtomicsMode)(
+                                  Handle(), MFEM_CU_or_HIP(BLAS_ATOMICS_NOT_ALLOWED));
    MFEM_VERIFY(status == MFEM_BLAS_SUCCESS, "GPU BLAS error.");
 }
 
@@ -87,9 +87,9 @@ void GPUBlasBatchedLinAlg::Mult(
    const auto op = MFEM_CU_or_HIP(BLAS_OP_N);
 
    const blasStatus_t status = MFEM_cu_or_hip(blasDgemmStridedBatched)(
-                                  GPUBlas::Handle(), op, op,
-                                  m, k, n, &alpha, d_A, m, m*n, d_x, n, n*k,
-                                  &beta, d_y, m, m*k, n_mat);
+                                  GPUBlas::Handle(), op, op, m, k, n, &alpha,
+                                  d_A, m, m*n, d_x, n, n*k, &beta, d_y, m, m*k,
+                                  n_mat);
    MFEM_VERIFY(status == MFEM_BLAS_SUCCESS, "GPU BLAS error.");
 }
 
@@ -113,7 +113,6 @@ void GPUBlasBatchedLinAlg::LUFactor(DenseTensor &A, Array<int> &P) const
    const blasStatus_t status = MFEM_cu_or_hip(blasDgetrfBatched)(
                                   GPUBlas::Handle(), n, d_A_ptrs, n, P.Write(),
                                   info_array.Write(), n_mat);
-
    MFEM_VERIFY(status == MFEM_BLAS_SUCCESS, "");
 }
 
@@ -141,9 +140,9 @@ void GPUBlasBatchedLinAlg::LUSolve(
 
    int info = 0;
    const blasStatus_t status = MFEM_cu_or_hip(blasDgetrsBatched)(
-                                  GPUBlas::Handle(), MFEM_CU_or_HIP(BLAS_OP_N), n, n_rhs,
-                                  d_A_ptrs, n, P.Read(), d_B_ptrs, n, &info,
-                                  n_mat);
+                                  GPUBlas::Handle(), MFEM_CU_or_HIP(BLAS_OP_N),
+                                  n, n_rhs, d_A_ptrs, n, P.Read(), d_B_ptrs, n,
+                                  &info, n_mat);
    MFEM_VERIFY(status == MFEM_BLAS_SUCCESS, "");
 }
 
