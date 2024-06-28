@@ -3591,15 +3591,14 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
       MFEM_VERIFY(fec_h1,"Only h1 functions supported on device right now.");
       MFEM_VERIFY(fec_h1->GetBasisType() == BasisType::GaussLobatto,
                   "basis not supported");
-      Vector node_vals;
-      node_vals.UseDevice(true);
 
+      Vector node_vals;
       const ElementDofOrdering ord = ElementDofOrdering::LEXICOGRAPHIC;
       const Operator *R = field_in.FESpace()->GetElementRestriction(ord);
-      node_vals.SetSize(R->Height());
+      node_vals.UseDevice(true);
+      node_vals.SetSize(R->Height(), Device::GetDeviceMemoryType());
       R->Mult(field_in, node_vals); //orders fields (N^D x VDIM x NEL)
       // GetNodalValues(&field_in, node_vals); // orders (N^D x NEL x VDIM)
-
 
       const int ncomp  = field_in.FESpace()->GetVDim();
       const int maxOrder = field_in.FESpace()->GetMaxElementOrder();
@@ -3615,14 +3614,6 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
       {
          gslib::lobatto_nodes(DEV.gll1dsol.HostWrite(), DEV.dof1dsol);
          gslib::gll_lag_setup(DEV.lagcoeffsol.HostWrite(), DEV.dof1dsol);
-         // Vector temp(DEV.dof1dsol);
-         // gslib::lobatto_nodes(temp.GetData(), DEV.dof1dsol);
-         // DEV.gll1dsol = temp.GetData();
-         // MFEM_DEVICE_SYNC;
-
-         // gslib::gll_lag_setup(temp.GetData(), DEV.dof1dsol);
-         // DEV.lagcoeffsol = temp.GetData();
-         // MFEM_DEVICE_SYNC;
       }
       else
       {

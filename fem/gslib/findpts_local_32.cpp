@@ -1139,7 +1139,7 @@ static void FindPointsLocal32D_FastKernel(const int npt,
       MFEM_SHARED double constraint_workspace[size2];
       MFEM_SHARED int constraint_init_t[nThreads];
 
-      MFEM_SHARED double elem_coords[size3];
+      MFEM_SHARED double elem_coords[MD1 <= 6 ? size3 : 1];
 
       double *r_workspace_ptr;
       findptsElementPoint_t *fpt, *tmp;
@@ -1201,30 +1201,34 @@ static void FindPointsLocal32D_FastKernel(const int npt,
             //// findpts_local ////
             {
                // read element coordinates into shared memory
-               MFEM_FOREACH_THREAD(j,x,nThreads)
+               if (MD1 <= 6)
                {
-                  const int qp = j % D1D;
-                  const int d = j / D1D;
-                  if (j < 3*D1D)
+                  MFEM_FOREACH_THREAD(j,x,nThreads)
                   {
-                     for (int l = 0; l < D1D; ++l)
+                     const int qp = j % D1D;
+                     const int d = j / D1D;
+                     if (j < 3*D1D)
                      {
-                        for (int k = 0; k < D1D; ++k)
+                        for (int l = 0; l < D1D; ++l)
                         {
-                           const int jkl = qp + k * D1D + l * D1D * D1D;
-                           elem_coords[jkl + d*p_NE] =
-                                         xElemCoord[jkl + el*p_NE + d*nel*p_NE];
+                           for (int k = 0; k < D1D; ++k)
+                           {
+                              const int jkl = qp + k * D1D + l * D1D * D1D;
+                              elem_coords[jkl + d*p_NE] =
+                                          xElemCoord[jkl + el*p_NE + d*nel*p_NE];
+                           }
                         }
                      }
                   }
+                  MFEM_SYNC_THREAD;
                }
-               MFEM_SYNC_THREAD;
 
                const double *elx[dim];
                for (int d = 0; d < dim; d++)
                {
                   // elx[d] = xElemCoord + d*nel*p_NE + el * p_NE;
-                  elx[d] = &elem_coords[d*p_NE];
+                  elx[d] = MD1<= 6 ? &elem_coords[d*p_NE] :
+                                     xElemCoord + d*nel*p_NE + el * p_NE;
                }
 
                //// findpts_el ////
