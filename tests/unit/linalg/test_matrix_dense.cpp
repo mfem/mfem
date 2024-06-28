@@ -361,6 +361,12 @@ TEST_CASE("LUFactors RightSolve", "[DenseMatrix]")
 TEST_CASE("DenseTensor LinearSolve methods",
           "[DenseMatrix][CUDA]")
 {
+   auto backend = GENERATE(BatchedLinAlg::NATIVE,
+                           BatchedLinAlg::GPU_BLAS,
+                           BatchedLinAlg::MAGMA);
+   // Skip unavailable backends
+   if (!BatchedLinAlg::IsAvailable(backend)) { return; }
+   CAPTURE(backend);
 
    const int N = 3;
    DenseMatrix A(N, N);
@@ -368,7 +374,7 @@ TEST_CASE("DenseTensor LinearSolve methods",
    A(1,0) = 7; A(1,1) = -1; A(1,2) =  2;
    A(2,0) = 3; A(2,1) =  1; A(2,2) =  4;
 
-   real_t X[3] = { -14, 42, 28 };
+   Vector X({-14.0, 42.0, 28.0});
 
    const int NE = 10;
    Vector X_batch(N*NE);
@@ -380,16 +386,25 @@ TEST_CASE("DenseTensor LinearSolve methods",
       for (int i=0; i<N; ++i) { X_batch[i + e*N] = X[i]; }
    }
 
-   Array<int> P;
-   BatchLUFactor(A_batch, P);
-   BatchLUSolve(A_batch, P, X_batch);
+   Vector Y(N), Y_batch(N*NE);
+   A.Mult(X, Y);
+   BatchedLinAlg::Get(backend).Mult(A_batch, X_batch, Y_batch);
 
-   P.HostRead();
-   P.Print(std::cout, 3);
+   Y_batch.HostReadWrite();
+   for (int e=0; e<NE; ++e)
+   {
+      for (int r=0; r<N; ++r)
+      {
+         REQUIRE(Y_batch[r + e*N] == MFEM_Approx(Y[r]));
+      }
+   }
+
+   Array<int> P;
+   BatchedLinAlg::Get(backend).LUFactor(A_batch, P);
+   BatchedLinAlg::Get(backend).LUSolve(A_batch, P, X_batch);
+   REQUIRE(LinearSolve(A, X.HostReadWrite()));
 
    X_batch.HostReadWrite();
-
-   REQUIRE(LinearSolve(A, X));
    for (int e=0; e<NE; ++e)
    {
       for (int r=0; r<N; ++r)
