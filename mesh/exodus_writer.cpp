@@ -11,6 +11,7 @@
 
 #include "mesh_headers.hpp"
 #include <unordered_set>
+#include <cstdarg>
 
 #ifdef MFEM_USE_NETCDF
 #include "netcdf.h"
