@@ -823,6 +823,7 @@ double ComputeIntegrateErrorBG(const FiniteElementSpace* fes,
 {
    double error = 0.0;
    const FiniteElement *fe = fes->GetFaceElement(el);  // Face el
+
    int intorder = 2*ls_bg->FESpace()->GetMaxElementOrder() + 5;
    const IntegrationRule *ir = &(IntRules.Get(fe->GetGeomType(), intorder));
 

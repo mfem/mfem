@@ -358,7 +358,6 @@ int main(int argc, char *argv[])
    const char *mesh_file = "icf.mesh";
    int mesh_poly_deg     = 1;
    int rs_levels         = 0;
-   double jitter         = 0.0;
    int metric_id         = 2;
    int target_id         = 1;
    double surface_fit_const = 0.1;
@@ -392,12 +391,12 @@ int main(int argc, char *argv[])
    int jobid  = 0;
    bool visit    = true;
    int adjeldiff = 1;
-   double pderef = 0.0;
    int bgo = 4;
    int custom_split_mesh = 0;
    bool mod_bndr_attr    = false;
    int exceptions    = 0; //to do some special stuff.
    int error_type = 0;
+   double pderef = 0.0;
    int deref_error_type = 0;
    bool hrefine = false;
    int href_max_depth = 4;
@@ -415,8 +414,6 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&bg_rs_levels, "-bgrs", "--bg-refine-serial",
                   "Number of times to refine the background mesh uniformly in serial.");
-   args.AddOption(&jitter, "-ji", "--jitter",
-                  "Random perturbation scaling factor.");
    args.AddOption(&metric_id, "-mid", "--metric-id",
                   "Mesh optimization metric. See list in mesh-optimizer.");
    args.AddOption(&target_id, "-tid", "--target-id",
@@ -472,9 +469,6 @@ int main(int argc, char *argv[])
                   "Maximum number of iteration");
    args.AddOption(&pref_tol, "-preft", "--preftol",
                   "Error tolerance on a face.");
-   args.AddOption(&pderef, "-pderef", "--pderef",
-                  "If greater than 0, we try to p-derefine based on the deref_error_type "
-                  "crietion");
    args.AddOption(&surf_bg_mesh, "-sbgmesh", "--surf-bg-mesh",
                   "-no-sbgmesh","--no-surf-bg-mesh",
                   "Use background mesh for surface fitting.");
@@ -515,6 +509,9 @@ int main(int argc, char *argv[])
                   "Do some special things for some cases.");
    args.AddOption(&error_type, "-et", "--error_type",
                   "Error type.");
+   args.AddOption(&pderef, "-pderef", "--pderef",
+                  "If greater than 0, we try to p-derefine based on the deref_error_type "
+                  "crietion");
    args.AddOption(&deref_error_type, "-det", "--deref_error_type",
                   "derefinement Error type.");
    args.AddOption(&hrefine, "-href", "--h-ref",
@@ -525,6 +522,9 @@ int main(int argc, char *argv[])
    args.AddOption(&relaxed_hp, "-relax", "--relax-hp",
                   "-no-relax", "--no-relax-hp",
                   "Do relaxed hp.");
+   // if pderef > 0, we check for derefinement based on change in length (deref_error_type = 1),
+   // change in L2 error (deref_error_type = 0), and relative to pref_tol (deref_error_type = 4)
+   // It is best to keep error_type = 0 so that criterion is based on L2 error.
 
    args.Parse();
    if (!args.Good())
@@ -539,6 +539,7 @@ int main(int argc, char *argv[])
                "is negative so that we can set it internally "
                " to max_order - base_order");
    MFEM_VERIFY(pref_tol > 0, "P-refinement tolerance must be positive.\n");
+   MFEM_VERIFY(error_type == 0,"Error type should be 0 for now.\n");
 
    if (pref_order_increase < 0)
    {
@@ -735,57 +736,6 @@ int main(int argc, char *argv[])
    x_max_order = ProlongToMaxOrder(&x, 0);
    delete x_max_order;
 
-   // Define a vector representing the minimal local mesh size in the mesh
-   // nodes. We index the nodes using the scalar version of the degrees of
-   // freedom in fespace. Note: this is partition-dependent.
-   // In addition, compute average mesh size and total volume.
-   Vector h0(fespace->GetNDofs());
-   h0 = infinity();
-   double mesh_volume = 0.0;
-   Array<int> dofs;
-   for (int i = 0; i < mesh->GetNE(); i++)
-   {
-      // Get the local scalar element degrees of freedom in dofs.
-      fespace->GetElementDofs(i, dofs);
-      // Adjust the value of h0 in dofs based on the local mesh size.
-      const double hi = mesh->GetElementSize(i);
-      for (int j = 0; j < dofs.Size(); j++)
-      {
-         h0(dofs[j]) = min(h0(dofs[j]), hi);
-      }
-      mesh_volume += mesh->GetElementVolume(i);
-   }
-
-   // 8. Add a random perturbation to the nodes in the interior of the domain.
-   //    We define a random grid function of fespace and make sure that it is
-   //    zero on the boundary and its values are locally of the order of h0.
-   //    The latter is based on the DofToVDof() method which maps the scalar to
-   //    the vector degrees of freedom in fespace.
-   GridFunction rdm(fespace);
-   if (jitter != 0.0)
-   {
-      rdm.Randomize();
-      rdm -= 0.25; // Shift to random values in [-0.5,0.5].
-      rdm *= jitter;
-      rdm.HostReadWrite();
-      // Scale the random values to be of order of the local mesh size.
-      for (int i = 0; i < fespace->GetNDofs(); i++)
-      {
-         for (int d = 0; d < dim; d++)
-         {
-            rdm(fespace->DofToVDof(i,d)) *= h0(i);
-         }
-      }
-      Array<int> vdofs;
-      for (int i = 0; i < fespace->GetNBE(); i++)
-      {
-         // Get the vector degrees of freedom in the boundary element.
-         fespace->GetBdrElementVDofs(i, vdofs);
-         // Set the boundary values to zero.
-         for (int j = 0; j < vdofs.Size(); j++) { rdm(vdofs[j]) = 0.0; }
-      }
-      x -= rdm;
-   }
 
    // For parallel runs, we define the true-vector. This makes sure the data is
    // consistent across processor boundaries.
@@ -2029,8 +1979,8 @@ int main(int argc, char *argv[])
             // Compute error for all interfaces
             x_max_order_p = ProlongToMaxOrder(x_p, 0);
             surf_fit_gf0_max_order_p = ProlongToMaxOrder(&surf_fit_gf0_p, 0);
-            mesh_p.SetNodalGridFunction(x_max_order_p);
 
+            mesh_p.SetNodalGridFunction(x_max_order_p);
             Vector face_error_p(ifec_p.inter_faces.Size());
             ComputeIntegratedErrorBGonFaces(x_max_order_p->FESpace(),
                                             surf_fit_bg_gf0,
@@ -2592,387 +2542,202 @@ int main(int argc, char *argv[])
       }
 
       // Now we derefine the elements that were unnecessarily p-refined
+      if (iter_pref > 0)
       {
-         if (iter_pref > 0 && true)
+         int compt_updates = 0;
+         x_max_order = ProlongToMaxOrderAndSetMeshNodes(mesh);
+         surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
+
+         for (int i=0; i < ifec0.inter_faces.Size(); i++)
          {
-            int compt_updates = 0;
-            x_max_order = ProlongToMaxOrderAndSetMeshNodes(mesh);
+            int el1 = ifec0.inter_face_el1[i];
+            int el2 = ifec0.inter_face_el2[i];
+            int fnum = ifec0.inter_faces[i];
+
+            Array<int> els;
+            int el_order = fespace->GetElementOrder(el1);
+            int prior_order = previous_order_gf(el1);
+            //  This element was not p-refined if the below is true... so we skip
+            if (el_order == prior_order) { continue; }
+
+            double interface_error = ifec0.face_error_map[fnum];
+            double interface_deref_error = ComputeIntegrateErrorBG(x_max_order->FESpace(),
+                                                                   surf_fit_bg_gf0,
+                                                                   fnum,
+                                                                   surf_fit_gf0_max_order,
+                                                                   finder,
+                                                                   deref_error_type);
+
+            int orig_order = el_order;
+            int target_order = el_order;
+            bool trycoarsening = true;
+            // derefine the element if the error of the element is below threshold.
+            // Criterion 1: the error stays below threshold after derefinement.
+            // Criterion 2: the change in length/error is less than a given %.
+            while (el_order > prior_order+1 && trycoarsening && done_els(el1) == 1)
+            {
+               double coarsened_face_error = InterfaceElementOrderReduction(mesh, fnum,
+                                                                            el_order-1,
+                                                                            surf_el_meshes,
+                                                                            surf_fit_bg_gf0, finder, error_type);
+               trycoarsening = false;
+               if (coarsened_face_error < pref_tol)
+               {
+                  trycoarsening = CheckElementValidityAtOrder(mesh, el1, el_order-1);
+                  if  (trycoarsening)
+                  {
+                     trycoarsening = CheckElementValidityAtOrder(mesh, el2, el_order-1);
+                  }
+                  if (trycoarsening)
+                  {
+                     el_order -= 1;
+                     target_order = el_order;
+                  }
+               }
+            }
+
+            trycoarsening = true;
+            while (done_els(el1) == 1 && el_order > prior_order+1 &&
+                   trycoarsening && pderef > 0 )
+            {
+               double coarsened_face_deref_error = InterfaceElementOrderReduction(mesh, fnum,
+                                                                                  el_order-1, surf_el_meshes,
+                                                                                  surf_fit_bg_gf0, finder, deref_error_type);
+               trycoarsening = false;
+
+               if ( (deref_error_type == 1 &&
+                     coarsened_face_deref_error > (1-pderef)*(interface_deref_error)) ||
+                    //relative to decrease in length due to refinement
+                    (deref_error_type == 4 &&
+                     coarsened_face_deref_error < pderef*pref_tol) || // hysteresis
+                    (deref_error_type == 0 &&
+                     coarsened_face_deref_error < (1+pderef)*
+                     (interface_deref_error)) //relative to increase in L2 error
+                  )
+               {
+                  trycoarsening = CheckElementValidityAtOrder(mesh, el1, el_order-1);
+                  if  (trycoarsening)
+                  {
+                     trycoarsening = CheckElementValidityAtOrder(mesh, el2, el_order-1);
+                  }
+                  if (trycoarsening)
+                  {
+                     el_order -= 1;
+                     target_order = el_order;
+                  }
+               }
+            }
+
+            if (target_order != orig_order)
+            {
+               order_gf(el1) = target_order;
+               order_gf(el2) = target_order;
+               compt_updates++;
+            }
+         } //i < inter_faces.Size()
+
+         std::cout << "=======================================\n";
+         std::cout << "# Derefinements: " << compt_updates << std::endl;
+         std::cout << "=======================================\n";
+
+
+
+         // Update the FES and GridFunctions only if some orders have been changed
+         if (compt_updates > 0)
+         {
+            const Table &eltoelntemp = mesh->ElementToElementTable();
+            PRefinementTransfer preft_fespacetemp = PRefinementTransfer(*fespace);
+            PRefinementTransfer preft_surf_fit_festemp = PRefinementTransfer(surf_fit_fes);
+
+            // Propogate error first
+            Array<int> int_el_list;
+            PropogateOrdersToGroup(order_gf, ifec0, int_el_list);
+            Array<int> new_orders;
+            PropogateOrders(order_gf, int_el_list,
+                            adjacent_el_diff,
+                            eltoelntemp, new_orders, 1);
+
+            for (int e = 0; e < mesh->GetNE(); e++)
+            {
+               bool validity = CheckElementValidityAtOrder(mesh, e, new_orders[e]);
+               if (validity)
+               {
+                  order_gf(e) = new_orders[e];
+                  fespace->SetElementOrder(e, order_gf(e));
+               }
+               else
+               {
+                  std::cout << e << " invalid derefinement\n";
+               }
+            }
+
+            // Updates if we increase the order of at least one element
+            fespace->Update(false);
+            surf_fit_fes.CopySpaceElementOrders(*fespace);
+            surf_fit_fes.SetRelaxedHpConformity(fespace->GetRelaxedHpConformity());
+            preft_fespacetemp.Transfer(x);
+            preft_fespacetemp.Transfer(x0);
+            preft_surf_fit_festemp.Transfer(surf_fit_mat_gf);
+            preft_surf_fit_festemp.Transfer(surf_fit_gf0);
+            surf_fit_marker.SetSize(surf_fit_gf0.Size());
+
+            min_detJ = GetMinDet(mesh, fespace, irules, quad_order);
+            cout << "Minimum det(J) of the mesh after coarsening is " << min_detJ << endl;
+            MFEM_VERIFY(min_detJ > 0, "Mesh has somehow become inverted "
+                        "due to coarsening");
+            {
+               ofstream mesh_ofs("optimized_" +std::to_string(iter_pref)+std::to_string(
+                                    jobid)+ ".mesh");
+               mesh_ofs.precision(14);
+               mesh->Print(mesh_ofs);
+            }
+
+            if (iter_pref == 4) { MFEM_ABORT("done\n");}
+            mesh->NewNodes(x, false);
+
+            x_max_order = ProlongToMaxOrder(&x, 0);
+            delete surf_fit_gf0_max_order;
             surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
 
-            for (int i=0; i < ifec0.inter_faces.Size(); i++)
+            x_max_order = ProlongToMaxOrderAndSetMeshNodes(mesh);
+            ComputeIntegratedErrorBGonFaces(x_max_order->FESpace(),
+                                            surf_fit_bg_gf0,
+                                            ifec0.inter_faces,
+                                            surf_fit_gf0_max_order,
+                                            finder,
+                                            ifec0.face_error_map);
+            double error_sum = 0.0;
+            for (const auto& pair : ifec0.face_error_map)
             {
-               int el1 = ifec0.inter_face_el1[i];
-               int el2 = ifec0.inter_face_el2[i];
-               int fnum = ifec0.inter_faces[i];
+               error_sum += pair.second;
+            }
+            sum_current_face_error = error_sum;
 
-               Array<int> els;
-               int el_order = fespace->GetElementOrder(el1);
-               int prior_order = previous_order_gf(el1);
-               //  This element was not p-refined if the below is true... so we skip
-               if (el_order == prior_order) { continue; }
+            std::cout << "NDofs & Integrated Error Post Derefinement: " <<
+                      fespace->GetVSize() << " " <<
+                      error_sum << " " << std::endl;
+            mesh->NewNodes(x, false);
+            delete surf_fit_gf0_max_order;
 
-               double interface_error = ifec0.face_error_map[fnum];
-
-               // std::cout << el_order << " " << prior_order << " k10order\n";
-
-               double coarsened_face_error;
-               int orig_order = el_order;
-               int target_order = el_order;
-               bool trycoarsening = true;
-               // derefine the element as long as its error stays below threshold.
-               // TODO: If we change the derefinement criterion, we might want to update
-               // the "done" arrays as well. Right now all elements marked as done will
-               // stay done even after derefinement.
-               while (el_order > prior_order+1 && trycoarsening && interface_error < pref_tol)
-               {
-                  coarsened_face_error = InterfaceElementOrderReduction(mesh, fnum, el_order-1,
-                                                                        surf_el_meshes,
-                                                                        surf_fit_bg_gf0, finder, error_type);
-                  trycoarsening = false;
-                  if (coarsened_face_error < pref_tol)
-                  {
-                     trycoarsening = CheckElementValidityAtOrder(mesh, el1, el_order-1);
-                     if  (trycoarsening)
-                     {
-                        trycoarsening = CheckElementValidityAtOrder(mesh, el2, el_order-1);
-                     }
-                     if (trycoarsening)
-                     {
-                        el_order -= 1;
-                        target_order = el_order;
-                     }
-                  }
-               }
-
-               trycoarsening = true;
-               double interface_deref_error = ComputeIntegrateErrorBG(x_max_order->FESpace(),
-                                                                      surf_fit_bg_gf0,
-                                                                      fnum,
-                                                                      surf_fit_gf0_max_order,
-                                                                      finder,
-                                                                      deref_error_type);
-               while (done_els(el1) == 1 && el_order > prior_order+1 &&
-                      trycoarsening && pderef > 0 )
-               {
-                  double coarsened_face_deref_error = InterfaceElementOrderReduction(mesh, fnum,
-                                                                                     el_order-1, surf_el_meshes,
-                                                                                     surf_fit_bg_gf0, finder, deref_error_type);
-                  trycoarsening = false;
-
-                  if ( (deref_error_type == 1 &&
-                        coarsened_face_deref_error > (1-pderef)*(interface_deref_error)) ||
-                       //relative to change in length due to refinement
-                       (deref_error_type == 4 &&
-                        coarsened_face_deref_error < pderef*pref_tol) || // hysteresis
-                       (deref_error_type == 0 &&
-                        coarsened_face_deref_error < (1+pderef)*
-                        (interface_deref_error)) //relative change in L2 error
-                     )
-                  {
-                     trycoarsening = false;
-                     if (coarsened_face_error < pref_tol)
-                     {
-                        trycoarsening = CheckElementValidityAtOrder(mesh, el1, el_order-1);
-                        if  (trycoarsening)
-                        {
-                           trycoarsening = CheckElementValidityAtOrder(mesh, el2, el_order-1);
-                        }
-                        if (trycoarsening)
-                        {
-                           el_order -= 1;
-                           target_order = el_order;
-                        }
-                     }
-                  }
-               }
-
-               if (target_order != orig_order)
-               {
-                  order_gf(el1) = target_order;
-                  order_gf(el2) = target_order;
-                  compt_updates++;
-               }
-            } //i < inter_faces.Size()
-
-            std::cout << "=======================================\n";
-            std::cout << "# Derefinements: " << compt_updates << std::endl;
-            std::cout << "=======================================\n";
-
-
-
-            // Update the FES and GridFunctions only if some orders have been changed
-            if (compt_updates > 0)
+            if (visualization)
             {
-               const Table &eltoelntemp = mesh->ElementToElementTable();
-               PRefinementTransfer preft_fespacetemp = PRefinementTransfer(*fespace);
-               PRefinementTransfer preft_surf_fit_festemp = PRefinementTransfer(surf_fit_fes);
+               x_max_order = ProlongToMaxOrderAndSetMeshNodes(mesh);
+               socketstream vis1, vis2;
+               common::VisualizeField(vis1, "localhost", 19916, order_gf,
+                                      "Orders on optimal mesh after p-deref",
+                                      325*(iter_pref+1), 700, 300, 300, vis_keys);
 
-               // Propogate error first
-               Array<int> int_el_list;
-               PropogateOrdersToGroup(order_gf, ifec0, int_el_list);
-               Array<int> new_orders;
-               PropogateOrders(order_gf, int_el_list,
-                               adjacent_el_diff,
-                               eltoelntemp, new_orders, 1);
 
-               for (int e = 0; e < mesh->GetNE(); e++)
                {
-                  bool validity = CheckElementValidityAtOrder(mesh, e, new_orders[e]);
-                  if (validity)
-                  {
-                     order_gf(e) = new_orders[e];
-                     fespace->SetElementOrder(e, order_gf(e));
-                  }
-                  else
-                  {
-                     std::cout << e << " invalid derefinement\n";
-                  }
-               }
-
-               // Updates if we increase the order of at least one element
-               fespace->Update(false);
-               surf_fit_fes.CopySpaceElementOrders(*fespace);
-               surf_fit_fes.SetRelaxedHpConformity(fespace->GetRelaxedHpConformity());
-               preft_fespacetemp.Transfer(x);
-               preft_fespacetemp.Transfer(x0);
-               preft_surf_fit_festemp.Transfer(surf_fit_mat_gf);
-               preft_surf_fit_festemp.Transfer(surf_fit_gf0);
-               surf_fit_marker.SetSize(surf_fit_gf0.Size());
-
-               min_detJ = GetMinDet(mesh, fespace, irules, quad_order);
-               cout << "Minimum det(J) of the mesh after coarsening is " << min_detJ << endl;
-               MFEM_VERIFY(min_detJ > 0, "Mesh has somehow become inverted "
-                           "due to coarsening");
-               {
-                  ofstream mesh_ofs("optimized_" +std::to_string(iter_pref)+std::to_string(
-                                       jobid)+ ".mesh");
+                  ofstream mesh_ofs("optimized.mesh");
                   mesh_ofs.precision(14);
                   mesh->Print(mesh_ofs);
                }
 
-               if (iter_pref == 4) { MFEM_ABORT("done\n");}
                mesh->NewNodes(x, false);
-
-               x_max_order = ProlongToMaxOrder(&x, 0);
-               delete surf_fit_gf0_max_order;
-               surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
-
-               x_max_order = ProlongToMaxOrderAndSetMeshNodes(mesh);
-               ComputeIntegratedErrorBGonFaces(x_max_order->FESpace(),
-                                               surf_fit_bg_gf0,
-                                               ifec0.inter_faces,
-                                               surf_fit_gf0_max_order,
-                                               finder,
-                                               ifec0.face_error_map);
-               double error_sum = 0.0;
-               for (const auto& pair : ifec0.face_error_map)
-               {
-                  error_sum += pair.second;
-               }
-               sum_current_face_error = error_sum;
-
-               std::cout << "NDofs & Integrated Error Post Derefinement: " <<
-                         fespace->GetVSize() << " " <<
-                         error_sum << " " << std::endl;
-               mesh->NewNodes(x, false);
-               delete surf_fit_gf0_max_order;
-
-               if (visualization)
-               {
-                  x_max_order = ProlongToMaxOrderAndSetMeshNodes(mesh);
-                  socketstream vis1, vis2;
-                  common::VisualizeField(vis1, "localhost", 19916, order_gf,
-                                         "Orders on optimal mesh after p-deref",
-                                         325*(iter_pref+1), 700, 300, 300, vis_keys);
-
-
-                  {
-                     ofstream mesh_ofs("optimized.mesh");
-                     mesh_ofs.precision(14);
-                     mesh->Print(mesh_ofs);
-                  }
-
-                  mesh->NewNodes(x, false);
-               }
-            } //compt_updates
-         }
-      }
-
-      // {
-      //    // Reduce the orders of the elements if needed
-      //    if (reduce_order && iter_pref > 0 && pref_order_increase > 1)
-      //    {
-      //       MFEM_ABORT("trying to derefine in order increase\n");
-      //       int compt_updates(0);
-      //       for (int i=0; i < ifecref.inter_faces.Size(); i++)
-      //       {
-      //          int el1 = ifecref.inter_face_el1[i];
-      //          int el2 = ifecref.inter_face_el2[i];
-
-      //          Array<int> els;
-      //          int el_order = fespace->GetElementOrder(el1);
-      //          double interface_error = ComputeIntegrateErrorBG(x_max_order->FESpace(),
-      //                                                           surf_fit_bg_gf0,
-      //                                                           ifecref.inter_faces[i],
-      //                                                           surf_fit_gf0_max_order,
-      //                                                           finder,
-      //                                                           deref_error_type);
-
-      //          double coarsened_face_error;
-      //          int orig_order = el_order;
-      //          int target_order = el_order;
-      //          bool trycoarsening = true;
-      //          while (el_order >= mesh_poly_deg+1 && trycoarsening &&
-      //                 ( (pref_tol > 0 && pderef > 0 && interface_error < pref_tol) ||
-      //                   (pref_tol < 0 && pderef > 0 &&
-      //                    interface_error < (-pref_tol)*max_initial_face_error) ||
-      //                   (pderef < 0) ) )
-      //          {
-      //             coarsened_face_error = InterfaceElementOrderReduction(mesh,
-      //                                                                   ifecref.inter_faces[i], el_order-1, surf_el_meshes,
-      //                                                                   surf_fit_bg_gf0, finder, deref_error_type);
-      //             trycoarsening = false;
-      //             double ref_threshold = pref_tol > 0 ?
-      //                                    pref_tol :
-      //                                    (-pref_tol)*max_initial_face_error;
-      //             double deref_threshold = pderef*ref_threshold;
-
-      //             // when derefined, the length of the element will decrease and
-      //             // the level set function integral will increase
-      //             if ( (pderef > 0 && coarsened_face_error < deref_threshold) ||
-      //                  (pderef < 0 && deref_error_type == 2 &&
-      //                   coarsened_face_error < (1-pderef)*(interface_error)) ||
-      //                  //relative to change in error due to refinement
-      //                  (pderef < 0 && deref_error_type == 4 &&
-      //                   coarsened_face_error < -pderef*pref_tol) ||
-      //                  (pderef < 0 && deref_error_type == 1 &&
-      //                   coarsened_face_error > (1+pderef)*(interface_error)) //relative change in length
-      //                )
-      //             {
-      //                trycoarsening = CheckElementValidityAtOrder(mesh, el1, el_order);
-      //                if  (trycoarsening)
-      //                {
-      //                   trycoarsening = CheckElementValidityAtOrder(mesh, el2, el_order);
-      //                }
-      //                if (trycoarsening)
-      //                {
-      //                   el_order -= 1;
-      //                   target_order = el_order;
-      //                }
-      //             }
-      //          }
-
-      //          if (target_order != orig_order)
-      //          {
-      //             order_gf(el1) = target_order;
-      //             order_gf(el2) = target_order;
-      //             compt_updates++;
-      //          }
-      //       } //i < inter_faces.Size()
-
-      //       // Update the FES and GridFunctions only if some orders have been changed
-      //       if (compt_updates > 0)
-      //       {
-      //          std::cout << "=======================================\n";
-      //          std::cout << "# Derefinements: " << compt_updates << std::endl;
-      //          std::cout << "=======================================\n";
-      //          // Propogate error first
-      //          Array<int> new_orders;
-      //          PropogateOrders(order_gf, ifecref.inter_face_el_all,
-      //                          adjacent_el_diff,
-      //                          eltoeln, new_orders, 1);
-
-      //          for (int e = 0; e < mesh->GetNE(); e++)
-      //          {
-      //             bool validity = CheckElementValidityAtOrder(mesh, e, new_orders[e]);
-      //             if (validity)
-      //             {
-      //                order_gf(e) = new_orders[e];
-      //                fespace->SetElementOrder(e, order_gf(e));
-      //             }
-      //             else
-      //             {
-      //                std::cout << e << " invalid derefinement\n";
-      //             }
-      //          }
-
-      //          // make consistent for edges in 3D
-      //          if (dim == 3)
-      //          {
-      //             for (int e = 0; e < mesh->GetNE(); e++)
-      //             {
-      //                double max_order = -1.0;
-      //                Array<int> *temp = ifecref.el_to_el_edge[e];
-      //                if (temp)
-      //                {
-
-      //                   for (int ee = 0; ee < temp->Size(); ee++)
-      //                   {
-      //                      max_order = std::max(max_order,
-      //                                           order_gf((*temp)[ee]));
-      //                   }
-      //                }
-      //                if (max_order != -1.0)
-      //                {
-      //                   fespace->SetElementOrder(e, int(max_order));
-      //                }
-      //             }
-      //          }
-
-      //          min_detJ = GetMinDet(mesh, fespace, irules, quad_order);
-      //          cout << "Minimum det(J) of the mesh after coarsening is " << min_detJ << endl;
-      //          MFEM_VERIFY(min_detJ > 0, "Mesh has somehow become inverted "
-      //                      "due to coarsening");
-      //          {
-      //             ofstream mesh_ofs("optimized_" +std::to_string(iter_pref)+std::to_string(
-      //                                  jobid)+ ".mesh");
-      //             mesh_ofs.precision(14);
-      //             mesh->Print(mesh_ofs);
-      //          }
-
-      //          PRefinementTransfer preft_fespace = PRefinementTransfer(*fespace);
-      //          PRefinementTransfer preft_surf_fit_fes = PRefinementTransfer(surf_fit_fes);
-      //          // Updates if we increase the order of at least one element
-      //          fespace->Update(false);
-      //          surf_fit_fes.CopySpaceElementOrders(*fespace);
-      //          surf_fit_fes.SetRelaxedHpConformity(fespace->GetRelaxedHpConformity());
-      //          preft_fespace.Transfer(x);
-      //          preft_fespace.Transfer(x0);
-      //          preft_surf_fit_fes.Transfer(surf_fit_mat_gf);
-      //          preft_surf_fit_fes.Transfer(surf_fit_gf0);
-      //          surf_fit_marker.SetSize(surf_fit_gf0.Size());
-
-      //          x.SetTrueVector();
-      //          x.SetFromTrueVector();
-
-      //          mesh->SetNodalGridFunction(&x);
-
-      //          delete x_max_order;
-      //          x_max_order = ProlongToMaxOrder(&x, 0);
-      //          delete surf_fit_gf0_max_order;
-      //          surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
-
-      //          mesh->SetNodalGridFunction(x_max_order);
-      //          ComputeIntegratedErrorBGonFaces(x_max_order->FESpace(),
-      //                                          surf_fit_bg_gf0,
-      //                                          ifecref.inter_faces,
-      //                                          surf_fit_gf0_max_order,
-      //                                          finder,
-      //                                          ifecref.face_error_map);
-      //          double error_sum = 0.0;
-      //          for (const auto& pair : ifecref.face_error_map)
-      //          {
-      //             error_sum += pair.second;
-      //          }
-      //          sum_current_face_error = error_sum;
-
-      //          std::cout << "NDofs & Integrated Error Post Derefinement: " <<
-      //                    fespace->GetVSize() << " " <<
-      //                    error_sum << " " << std::endl;
-      //          mesh->SetNodalGridFunction(&x);
-      //       } //compt_updates
-      //    } //reduction
-      // } //check error and reduction after fitting
+            }
+         } //compt_updates
+      } //iter_pref > 0 (basically derefinement start)
 
       order_gf = x.FESpace()->GetElementOrdersV();
       if (visit)
