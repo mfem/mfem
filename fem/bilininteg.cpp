@@ -2800,7 +2800,8 @@ void VectorFEDiffusionIntegrator::AssembleElementMatrix(
    K.SetSize(MQ ? MQ->GetVDim() : 0, MQ ? MQ->GetVDim() : 0);
 #endif
 
-   DenseMatrix &flat_dvs = trial_dvshape.GetDenseMatrix();
+   DenseMatrix flat_dvs;
+   trial_dvshape.GetDenseMatrix(flat_dvs);
    DenseMatrix tmp(flat_dvs.Height(), flat_dvs .Width());
 
    elmat.SetSize(dof);
@@ -2876,8 +2877,9 @@ void VectorFEDiffusionIntegrator::AssembleElementMatrix2(
    D.SetSize(DQ ? DQ->GetVDim() : 0);
    K.SetSize(MQ ? MQ->GetVDim() : 0, MQ ? MQ->GetVDim() : 0);
 #endif
-   DenseMatrix &trial_fdvs = trial_dvshape.GetDenseMatrix();
-   DenseMatrix &test_fdvs = test_dvshape.GetDenseMatrix();
+   DenseMatrix trial_fdvs,test_fdvs;
+   trial_dvshape.GetDenseMatrix(trial_fdvs);
+   test_dvshape.GetDenseMatrix(test_fdvs);
 
    DenseMatrix tmp(test_fdvs.Height(), K.Width());
 
@@ -3911,7 +3913,9 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
       dvshape1.SetSize(ndof1, dim, dim);
       dvshape1dn.SetSize(ndof1, dim);
 
-      DenseMatrix &dvshape1_flat = dvshape1.GetDenseMatrix2();
+      DenseMatrix dvshape1_flat;
+      dvshape1.GetDenseMatrix2(dvshape1_flat);
+
       Vector dvshape1dn_flat(dvshape1dn.GetData(),ndof1*dim);
       Vector vshape1_flat(vshape1.GetData(),ndof1*dim);
 

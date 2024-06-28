@@ -1107,9 +1107,7 @@ class Table;
 class DenseTensor
 {
 private:
-   mutable DenseMatrix Mi_jk, Mij_k;
    mutable DenseMatrix Mk;
-   mutable Vector Vk;
    Memory<real_t> tdata;
    int nk;
 
@@ -1120,38 +1118,29 @@ public:
    }
 
    DenseTensor(int i, int j, int k)
-      : Mi_jk(NULL, i, j*k), Mij_k(NULL, i*j, k), Mk(NULL, i, j), Vk(NULL, i)
+      : Mk(NULL, i, j)
    {
       nk = k;
       tdata.New(i*j*k);
-      Mi_jk.data =  Memory<real_t>(Data(), TotalSize(), false);
-      Mij_k.data =  Memory<real_t>(Data(), TotalSize(), false);
    }
 
    DenseTensor(real_t *d, int i, int j, int k)
-      : Mi_jk(NULL, i, j*k), Mij_k(NULL, i*j, k),  Mk(NULL, i, j), Vk(NULL, i)
+      : Mk(NULL, i, j)
    {
       nk = k;
       tdata.Wrap(d, i*j*k, false);
-      Mi_jk.data =  Memory<real_t>(Data(), TotalSize(), false);
-      Mij_k.data =  Memory<real_t>(Data(), TotalSize(), false);
    }
 
    DenseTensor(int i, int j, int k, MemoryType mt)
-      : Mi_jk(NULL, i, j*k), Mij_k(NULL, i*j, k),  Mk(NULL, i, j), Vk(NULL, i)
+      : Mk(NULL, i, j)
    {
       nk = k;
       tdata.New(i*j*k, mt);
-      Mi_jk.data =  Memory<real_t>(Data(), TotalSize(), false);
-      Mij_k.data =  Memory<real_t>(Data(), TotalSize(), false);
    }
 
    /// Copy constructor: deep copy
    DenseTensor(const DenseTensor &other)
-      : Mi_jk(NULL, other.SizeI(), other.SizeJ()*other.SizeK()),
-        Mij_k(NULL, other.SizeI()*other.SizeJ(), other.SizeK()),
-        Mk(NULL, other.Mk.height, other.Mk.width),
-        Vk(NULL, other.Mk.height), nk(other.nk)
+      : Mk(NULL, other.Mk.height, other.Mk.width), nk(other.nk)
    {
       const int size = Mk.Height()*Mk.Width()*nk;
       if (size > 0)
@@ -1159,8 +1148,6 @@ public:
          tdata.New(size, other.tdata.GetMemoryType());
          tdata.CopyFrom(other.tdata, size);
       }
-      Mi_jk.data =  Memory<real_t>(Data(), TotalSize(), false);
-      Mij_k.data =  Memory<real_t>(Data(), TotalSize(), false);
    }
 
    int SizeI() const { return Mk.Height(); }
@@ -1174,42 +1161,26 @@ public:
       const MemoryType mt = mt_ == MemoryType::PRESERVE ? tdata.GetMemoryType() : mt_;
       tdata.Delete();
       Mk.UseExternalData(NULL, i, j);
-      Mi_jk.UseExternalData(NULL, i, j*k);
-      Mij_k.UseExternalData(NULL, i*j, k);
       nk = k;
       tdata.New(i*j*k, mt);
-      Mi_jk.data = Memory<real_t>(Data(), TotalSize(), false);
-      Mij_k.data =  Memory<real_t>(Data(), TotalSize(), false);
    }
 
    void UseExternalData(real_t *ext_data, int i, int j, int k)
    {
       tdata.Delete();
       Mk.UseExternalData(NULL, i, j);
-      Mi_jk.UseExternalData(NULL, i, j*k);
-      Mij_k.UseExternalData(NULL, i*j, k);
       nk = k;
       tdata.Wrap(ext_data, i*j*k, false);
-      Mi_jk.data = Memory<real_t>(Data(), TotalSize(), false);
-      Mij_k.data = Memory<real_t>(Data(), TotalSize(), false);
    }
 
-   DenseMatrix &GetDenseMatrix()
+   void GetDenseMatrix(DenseMatrix &Mi_jk)
    {
-      return Mi_jk;
-   }
-   const DenseMatrix &GetDenseMatrix() const
-   {
-      return Mi_jk;
+      Mi_jk.UseExternalData(Data(), SizeI(), SizeJ()*SizeK());
    }
 
-   DenseMatrix &GetDenseMatrix2()
+   void GetDenseMatrix2(DenseMatrix &Mij_k)
    {
-      return Mij_k;
-   }
-   const DenseMatrix &GetDenseMatrix2() const
-   {
-      return Mij_k;
+      Mij_k.UseExternalData(Data(), SizeI()*SizeJ(),SizeK());
    }
 
    /// Sets the tensor elements equal to constant c
@@ -1224,21 +1195,12 @@ public:
       Mk.data = Memory<real_t>(GetData(k), SizeI()*SizeJ(), false);
       return Mk;
    }
-
    const DenseMatrix &operator()(int k) const
    {
       MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
       Mk.data = Memory<real_t>(const_cast<real_t*>(GetData(k)), SizeI()*SizeJ(),
                                false);
       return Mk;
-   }
-
-   Vector &operator()(int j, int k)
-   {
-      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
-      MFEM_ASSERT_INDEX_IN_RANGE(j, 0, SizeJ());
-      Vk.SetData(Data());
-      return Vk;
    }
 
    real_t &operator()(int i, int j, int k)
@@ -1328,8 +1290,6 @@ public:
       mfem::Swap(tdata, t.tdata);
       mfem::Swap(nk, t.nk);
       Mk.Swap(t.Mk);
-      Mi_jk.Swap(t.Mi_jk);
-      Mij_k.Swap(t.Mij_k);
    }
    /// Prints matrix to stream out.
    void Print(std::ostream &out = mfem::out, int width_ = 4) const;

@@ -911,7 +911,8 @@ void DGDirichletLFIntegrator::AssembleRHSElementVect(
       vshape.SetSize(ndof, dim);
       dvshape.SetSize(ndof, dim, dim);
       dvshape_dn.SetSize(ndof, dim);
-      DenseMatrix &dvshape_flat = dvshape.GetDenseMatrix2();
+      DenseMatrix dvshape_flat;
+      dvshape.GetDenseMatrix2(dvshape_flat);
       Vector dvshape_dn_flat(dvshape_dn.GetData(),ndof*dim);
       Vector vshape_flat(vshape.GetData(),ndof*dim);
 
