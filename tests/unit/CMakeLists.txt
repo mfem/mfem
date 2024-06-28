@@ -57,6 +57,7 @@ set(UNIT_TESTS_SRCS
   mesh/test_submesh.cpp
   mesh/test_vtu.cpp
   mesh/test_nurbs.cpp
+  mesh/test_exodus_writer.cpp
   fem/test_1d_bilininteg.cpp
   fem/test_2d_bilininteg.cpp
   fem/test_3d_bilininteg.cpp
@@ -86,6 +87,7 @@ set(UNIT_TESTS_SRCS
   fem/test_get_value.cpp
   fem/test_getderivative.cpp
   fem/test_getgradient.cpp
+  fem/test_gslib.cpp
   fem/test_intrules.cpp
   fem/test_intruletypes.cpp
   fem/test_inversetransform.cpp
