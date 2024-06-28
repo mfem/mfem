@@ -14,20 +14,34 @@
 
 #ifdef MFEM_USE_CUDA_OR_HIP
 
+#if defined(MFEM_USE_CUDA)
+#define MFEM_cu_or_hip(stub) cu##stub
+#define MFEM_CU_or_HIP(stub) CU##stub
+#elif defined(MFEM_USE_HIP)
+#define MFEM_cu_or_hip(stub) hip##stub
+#define MFEM_CU_or_HIP(stub) HIP##stub
+#endif
+
+#define MFEM_BLAS_SUCCESS MFEM_CU_or_HIP(BLAS_STATUS_SUCCESS)_
+
+#if defined(MFEM_USE_CUDA)
 #include <cublas_v2.h>
+#endif
 
 namespace mfem
 {
 
+using blasStatus_t = MFEM_cu_or_hip(blasStatus_t);
+
 GPUBlas::GPUBlas()
 {
-   cublasStatus_t status = cublasCreate(&handle);
-   MFEM_VERIFY(status == CUBLAS_STATUS_SUCCESS, "Cannot initialize GPU BLAS.");
+   blasStatus_t status = MFEM_cu_or_hip(blasCreate)(&handle);
+   MFEM_VERIFY(status == MFEM_BLAS_SUCCESS, "Cannot initialize GPU BLAS.");
 }
 
 GPUBlas::~GPUBlas()
 {
-   cublasDestroy(handle);
+   MFEM_cu_or_hip(blasDestroy)(handle);
 }
 
 GPUBlas &GPUBlas::Instance()
@@ -36,29 +50,47 @@ GPUBlas &GPUBlas::Instance()
    return instance;
 }
 
-cublasHandle_t GPUBlas::Handle()
+MFEM_cu_or_hip(blasHandle_t) GPUBlas::Handle()
 {
    return Instance().handle;
 }
 
 void GPUBlas::EnableAtomics()
 {
-   cublasStatus_t status = cublasSetAtomicsMode(Handle(),
-                                                CUBLAS_ATOMICS_ALLOWED);
-   MFEM_VERIFY(status == CUBLAS_STATUS_SUCCESS, "cuBLAS error.");
+   blasStatus_t status = MFEM_cu_or_hip(blasSetAtomicsMode)(
+                            Handle(), MFEM_CU_or_HIP(BLAS_ATOMICS_ALLOWED));
+   MFEM_VERIFY(status == MFEM_BLAS_SUCCESS, "GPU BLAS error.");
 }
 
 void GPUBlas::DisableAtomics()
 {
-   cublasStatus_t status = cublasSetAtomicsMode(Handle(),
-                                                CUBLAS_ATOMICS_NOT_ALLOWED);
-   MFEM_VERIFY(status == CUBLAS_STATUS_SUCCESS, "cuBLAS error.");
+   blasStatus_t status = MFEM_cu_or_hip(blasSetAtomicsMode)(
+                            Handle(), MFEM_CU_or_HIP(BLAS_ATOMICS_NOT_ALLOWED));
+   MFEM_VERIFY(status == MFEM_BLAS_SUCCESS, "GPU BLAS error.");
 }
 
 void GPUBlasBatchedLinAlg::Mult(
    const DenseTensor &A, const Vector &x, Vector &y) const
 {
-   MFEM_ABORT("");
+   const int m = A.SizeI();
+   const int n = A.SizeJ();
+   const int n_mat = A.SizeK();
+   const int k = x.Size() / n / n_mat;
+
+   auto d_A = mfem::Reshape(A.Read(), m, n, n_mat);
+   auto d_x = mfem::Reshape(x.Read(), n, k, n_mat);
+   auto d_y = mfem::Reshape(y.Write(), m, k, n_mat);
+
+   real_t alpha = 1.0;
+   real_t beta = 0.0;
+
+   const auto op = MFEM_CU_or_HIP(BLAS_OP_N);
+
+   const blasStatus_t status = MFEM_cu_or_hip(blasDgemmStridedBatched)(
+                                  GPUBlas::Handle(), op, op,
+                                  m, k, n, &alpha, d_A, m, m*n, d_x, n, n*k,
+                                  &beta, d_y, m, m*k, n_mat);
+   MFEM_VERIFY(status == MFEM_BLAS_SUCCESS, "GPU BLAS error.");
 }
 
 void GPUBlasBatchedLinAlg::LUFactor(DenseTensor &A, Array<int> &P) const
@@ -78,16 +110,11 @@ void GPUBlasBatchedLinAlg::LUFactor(DenseTensor &A, Array<int> &P) const
       d_A_ptrs[i] = A_base + i*n*n;
    });
 
-   cublasStatus_t status = cublasDgetrfBatched(
-                              GPUBlas::Handle(),
-                              n,
-                              d_A_ptrs,
-                              n,
-                              P.Write(),
-                              info_array.Write(),
-                              n_mat);
+   const blasStatus_t status = MFEM_cu_or_hip(blasDgetrfBatched)(
+                                  GPUBlas::Handle(), n, d_A_ptrs, n, P.Write(),
+                                  info_array.Write(), n_mat);
 
-   MFEM_VERIFY(status == CUBLAS_STATUS_SUCCESS, "");
+   MFEM_VERIFY(status == MFEM_BLAS_SUCCESS, "");
 }
 
 void GPUBlasBatchedLinAlg::LUSolve(
@@ -97,13 +124,13 @@ void GPUBlasBatchedLinAlg::LUSolve(
    const int n_mat = LU.SizeK();
    const int n_rhs = x.Size() / n / n_mat;
 
-   Array<const real_t*> A_ptrs(n_mat);
-   const real_t **d_A_ptrs = A_ptrs.Write();
+   Array<real_t*> A_ptrs(n_mat);
+   real_t **d_A_ptrs = A_ptrs.Write();
    Array<real_t*> B_ptrs(n_mat);
    real_t **d_B_ptrs = B_ptrs.Write();
 
    {
-      const real_t *A_base = LU.Read();
+      real_t *A_base = const_cast<real_t*>(LU.Read());
       real_t *B_base = x.ReadWrite();
       mfem::forall(n_mat, [=] MFEM_HOST_DEVICE (int i)
       {
@@ -113,19 +140,11 @@ void GPUBlasBatchedLinAlg::LUSolve(
    }
 
    int info = 0;
-
-   cublasStatus_t status = cublasDgetrsBatched(GPUBlas::Handle(),
-                                               CUBLAS_OP_N,
-                                               n,
-                                               n_rhs,
-                                               d_A_ptrs,
-                                               n,
-                                               P.Read(),
-                                               d_B_ptrs,
-                                               n,
-                                               &info,
-                                               n_mat);
-   MFEM_VERIFY(status == CUBLAS_STATUS_SUCCESS, "");
+   const blasStatus_t status = MFEM_cu_or_hip(blasDgetrsBatched)(
+                                  GPUBlas::Handle(), MFEM_CU_or_HIP(BLAS_OP_N), n, n_rhs,
+                                  d_A_ptrs, n, P.Read(), d_B_ptrs, n, &info,
+                                  n_mat);
+   MFEM_VERIFY(status == MFEM_BLAS_SUCCESS, "");
 }
 
 void GPUBlasBatchedLinAlg::Invert(DenseTensor &A) const
@@ -153,27 +172,17 @@ void GPUBlasBatchedLinAlg::Invert(DenseTensor &A) const
 
    Array<int> P(n*n_mat);
    Array<int> info_array(n_mat);
-   cublasStatus_t status;
+   blasStatus_t status;
 
-   status = cublasDgetrfBatched(GPUBlas::Handle(),
-                                n,
-                                d_LU_ptrs,
-                                n,
-                                P.Write(),
-                                info_array.Write(),
-                                n_mat);
-   MFEM_VERIFY(status == CUBLAS_STATUS_SUCCESS, "");
+   status = MFEM_cu_or_hip(blasDgetrfBatched)(
+               GPUBlas::Handle(), n, d_LU_ptrs, n, P.Write(),
+               info_array.Write(), n_mat);
+   MFEM_VERIFY(status == MFEM_BLAS_SUCCESS, "");
 
-   status = cublasDgetriBatched(GPUBlas::Handle(),
-                                n,
-                                d_LU_ptrs,
-                                n,
-                                P.ReadWrite(),
-                                d_A_ptrs,
-                                n,
-                                info_array.Write(),
-                                n_mat);
-   MFEM_VERIFY(status == CUBLAS_STATUS_SUCCESS, "");
+   status = MFEM_cu_or_hip(blasDgetriBatched)(
+               GPUBlas::Handle(), n, d_LU_ptrs, n, P.ReadWrite(), d_A_ptrs, n,
+               info_array.Write(), n_mat);
+   MFEM_VERIFY(status == MFEM_BLAS_SUCCESS, "");
 }
 
 } // namespace mfem
