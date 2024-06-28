@@ -20,40 +20,67 @@
 namespace mfem
 {
 
+/// @brief Class for performing batched linear algebra operations, potentially
+/// using accelerated algorithms (GPU BLAS or MAGMA). Accessed using static
+/// member functions.
 class BatchedLinAlg
 {
 public:
+   /// @brief Available backends for implementations of batched algorithms.
+   ///
+   /// The preferred backend will be the first available backend in this order:
+   /// MAGMA, GPU_BLAS, NATIVE.
    enum Backend
    {
+      /// @brief The standard MFEM backend, implemented using mfem::forall
+      /// kernels. Not as performant as the other kernels.
       NATIVE,
+      /// @brief Either cuBLAS or hipBLAS, depending on whether MFEM is using
+      /// CUDA or HIP. Not available otherwise.
       GPU_BLAS,
+      /// Magma backend, only available if MFEM Is compiled with Magma support.
       MAGMA,
+      /// Counter for the number of backends.
       NUM_BACKENDS
    };
 private:
+   /// All available backends. Unavailble backends will be nullptr.
    std::array<std::unique_ptr<class BatchedLinAlgBase>,
           Backend::NUM_BACKENDS> backends;
    Backend preferred_backend;
+   /// Default constructor. Private.
    BatchedLinAlg();
+   /// Return the singleton instance.
    static BatchedLinAlg &Instance();
 public:
    static void Mult(const DenseTensor &A, const Vector &x, Vector &y);
    static void Invert(DenseTensor &A);
    static void LUFactor(DenseTensor &A, Array<int> &P);
    static void LUSolve(const DenseTensor &A, const Array<int> &P, Vector &x);
-
+   /// Set the default backend for batched linear algebra operations.
    static void SetPreferredBackend(Backend backend);
+   /// @brief Get the BatchedLinAlgBase object associated with a specific
+   /// backend.
+   ///
+   /// This allows the user to perform specific operations with a backend
+   /// different from the preferred backend.
    static const BatchedLinAlgBase &Get(Backend backend);
 };
 
+/// Abstract base clase for batched linear algebra operations.
 class BatchedLinAlgBase
 {
 public:
+   /// See BatchedLinAlg::Mult.
    virtual void Mult(const DenseTensor &A, const Vector &x, Vector &y) const = 0;
+   /// See BatchedLinAlg::Invert.
    virtual void Invert(DenseTensor &A) const = 0;
+   /// See BatchedLinAlg::LUFactor.
    virtual void LUFactor(DenseTensor &A, Array<int> &P) const = 0;
+   /// See BatchedLinAlg::LUSolve.
    virtual void LUSolve(const DenseTensor &LU, const Array<int> &P,
                         Vector &x) const = 0;
+   /// Virtual destructor.
    virtual ~BatchedLinAlgBase() { }
 };
 

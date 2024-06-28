@@ -22,7 +22,7 @@
 #define MFEM_CU_or_HIP(stub) HIP##stub
 #endif
 
-#define MFEM_BLAS_SUCCESS MFEM_CU_or_HIP(BLAS_STATUS_SUCCESS)_
+#define MFEM_BLAS_SUCCESS MFEM_CU_or_HIP(BLAS_STATUS_SUCCESS)
 
 #if defined(MFEM_USE_CUDA)
 #include <cublas_v2.h>
