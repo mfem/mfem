@@ -1589,6 +1589,28 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
    // **************************
    elem_restrict_l = fes_lor.GetElementRestriction(ElementDofOrdering::NATIVE);
 
+
+   // precon_ea.reset(new DSmoother(*RTxM_LH_ea));
+
+   // // Set ownership
+   // RTxM_LH_ea.reset(RTxM_LH_mat);
+   // R_ea = std::move(R_mat);
+   // M_LH_ea = std::move(M_LH_mat);
+
+   // DeviceSetupPCG();
+}
+
+void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceSetupPCG()
+{
+   //  // Basic PCG solver setup
+   //  pcg_ea.SetPrintLevel(0);
+   //  // pcg.SetPrintLevel(IterativeSolver::PrintLevel().Summary());
+   //  pcg_ea.SetMaxIter(1000);
+   //  // initial values for relative and absolute tolerance
+   //  pcg_ea.SetRelTol(1e-13);
+   //  pcg_ea.SetAbsTol(1e-13);
+   //  pcg_ea.SetPreconditioner(*precon_ea);
+   //  pcg_ea.SetOperator(*RTxM_LH_ea);
 }
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::Mult(
@@ -1793,6 +1815,12 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceMultTranspose(
 void L2ProjectionGridTransfer::L2ProjectionH1Space::Prolongate(
    const Vector& x, Vector& y) const
 {
+   if (use_device)
+   {
+      DeviceProlongate(x,y);
+      if (!verify_solution) {return;}
+   }
+
    Vector X(fes_lor.GetTrueVSize());
    Vector X_dim(M_LH->Height());
    Vector Xbar(pcg.Width());
@@ -1817,11 +1845,35 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::Prolongate(
    }
 
    SetFromTDofs(fes_ho, Y, y);
+
+   if (verify_solution)
+   {
+      Vector y_temp(y.Size());
+      DeviceProlongate(x, y_temp);
+      y_temp -= y;
+      real_t error = y_temp.Norml2();
+      if (error > ho_lor_tol)
+      {
+         MFEM_VERIFY(false, "Prolongate difference too high = "<<error);
+      }
+   }
+}
+
+void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceProlongate(
+   const Vector &x, Vector &y) const
+{
+   // TODO: action of P 
 }
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::ProlongateTranspose(
    const Vector& x, Vector& y) const
 {
+   if (use_device)
+   {
+      DeviceProlongateTranspose(x,y);
+      if (!verify_solution) {return;}
+   }
+
    Vector X(fes_ho.GetTrueVSize());
    Vector X_dim(pcg.Width());
    Vector Xbar(pcg.Height());
@@ -1846,6 +1898,24 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::ProlongateTranspose(
    }
 
    SetFromTDofsTranspose(fes_lor, Y, y);
+
+   if (verify_solution)
+   {
+      Vector y_temp(y.Size());
+      DeviceProlongateTranspose(x, y_temp);
+      y_temp -= y;
+      real_t error = y_temp.Norml2();
+      if (error > ho_lor_tol)
+      {
+         MFEM_VERIFY(false, "Prolongate transpose difference too high = "<<error);
+      }
+   }
+}
+
+void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceProlongateTranspose(
+   const Vector &x, Vector &y) const
+{
+   // TODO: action of transpose of P 
 }
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::SetRelTol(real_t p_rtol_)

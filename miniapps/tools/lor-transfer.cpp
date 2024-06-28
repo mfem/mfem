@@ -70,9 +70,9 @@ real_t compute_mass(FiniteElementSpace *, real_t, VisItDataCollection &,
 int main(int argc, char *argv[])
 {
    // Parse command-line options.
-   const char *mesh_file = "../../data/star.mesh"; //inline-quad.mesh
-   int order = 3;
-   int lref = order+1;
+   const char *mesh_file = "../../data/inline-quad.mesh"; //star.mesh";
+   int order = 2; //3;
+   int lref = 2; //order+1;
    int lorder = 0;
    bool vis = true;
    bool useH1 = false;
@@ -107,7 +107,7 @@ int main(int argc, char *argv[])
    int dim = mesh.Dimension();
 
    // Create the low-order refined mesh
-   int basis_lor = BasisType::GaussLobatto; // BasisType::ClosedUniform;
+   int basis_lor = BasisType::ClosedUniform; // BasisType::GaussLobatto;
    Mesh mesh_lor = Mesh::MakeRefined(mesh, lref, basis_lor);
 
    // Create spaces
@@ -158,6 +158,14 @@ int main(int argc, char *argv[])
    HO_dc.RegisterField("density", &rho);
    VisItDataCollection LOR_dc("LOR", &mesh_lor);
    LOR_dc.RegisterField("density", &rho_lor);
+
+   ofstream mesh_ofs("HOmesh.mesh");
+   mesh_ofs.precision(8);
+   mesh.Print(mesh_ofs);
+
+   ofstream mesh_lor_ofs("LORmesh.mesh");
+   mesh_lor_ofs.precision(8);
+   mesh_lor.Print(mesh_lor_ofs);
 
    BilinearForm M_ho(&fespace);
    M_ho.AddDomainIntegrator(new MassIntegrator);

@@ -333,12 +333,6 @@ public:
    {
       const bool use_device, verify_solution;
 
-      const ElementRestrictionOperator* elem_restrict_h;
-      const ElementRestrictionOperator* elem_restrict_l;
-      Vector M_mixed_all_ea;
-      Vector ML_inv_ea;
-
-
    public:
       L2ProjectionH1Space(const FiniteElementSpace &fes_ho_,
                           const FiniteElementSpace &fes_lor_,
@@ -388,6 +382,9 @@ public:
       /// left-inverse prolongation operation. This functionality is also
       /// provided as an Operator by L2Prolongation.
       virtual void Prolongate(const Vector& x, Vector& y) const;
+
+      void DeviceProlongate(const Vector& x, Vector& y) const;
+
       /// Maps <tt>x</tt>, dual field coefficients defined on a coarse mesh with
       /// a higher order H1 finite element space, to <tt>y</tt>, dual field
       /// coefficients defined on a refined mesh with a low order H1 finite
@@ -396,11 +393,16 @@ public:
       /// conservative left-inverse prolongation operation. This functionality
       /// is also provided as an Operator by L2Prolongation.
       virtual void ProlongateTranspose(const Vector& x, Vector& y) const;
+
+      void DeviceProlongateTranspose(const Vector& x, Vector& y) const;
+
       virtual void SetRelTol(real_t p_rtol_);
       virtual void SetAbsTol(real_t p_atol_);
    protected:
       /// Sets up the PCG solver (sets parameters, operator, and preconditioner)
       void SetupPCG();
+      void DeviceSetupPCG();
+
       /// @brief Computes on-rank R and M_LH matrices. If true, computes mixed mass and/or
       /// inverse lumped mass matrix error when compared to device implementation. 
       std::pair<std::unique_ptr<SparseMatrix>,
@@ -443,6 +445,14 @@ public:
       // Used to compute P = (RT*M_LH)^(-1) M_LH^T
       std::unique_ptr<Operator> M_LH;
       std::unique_ptr<Operator> RTxM_LH;
+
+      CGSolver pcg_ea;
+      std::unique_ptr<Solver> precon_ea;
+      std::unique_ptr<Operator> RTxM_LH_ea;
+      const ElementRestrictionOperator* elem_restrict_h;
+      const ElementRestrictionOperator* elem_restrict_l;
+      Vector M_mixed_all_ea;
+      Vector ML_inv_ea;
 
       friend class L2ProjectionL2Space;
    };
