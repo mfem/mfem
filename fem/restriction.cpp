@@ -751,7 +751,8 @@ void ConformingFaceRestriction::CheckFESpace(const ElementDofOrdering
 #ifdef MFEM_DEBUG
    const FiniteElement *fe0 = fes.GetFE(0);
    const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe0);
-   MFEM_VERIFY(tfe != NULL, "ConformingFaceRestriction only supports TensorBasisElements");
+   MFEM_VERIFY(tfe != NULL,
+               "ConformingFaceRestriction only supports TensorBasisElements");
    MFEM_VERIFY(tfe->GetBasisType()==BasisType::GaussLobatto ||
                tfe->GetBasisType()==BasisType::Positive,
                "ConformingFaceRestriction only supports Gauss-Lobatto and Bernstein bases");
