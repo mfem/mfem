@@ -57,6 +57,7 @@ public:
    static void Invert(DenseTensor &A);
    static void LUFactor(DenseTensor &A, Array<int> &P);
    static void LUSolve(const DenseTensor &A, const Array<int> &P, Vector &x);
+   static bool IsAvailable(Backend backend);
    /// Set the default backend for batched linear algebra operations.
    static void SetPreferredBackend(Backend backend);
    /// @brief Get the BatchedLinAlgBase object associated with a specific

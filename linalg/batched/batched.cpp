@@ -72,22 +72,21 @@ void BatchedLinAlg::LUSolve(const DenseTensor &A, const Array<int> &P,
    Get(Instance().preferred_backend).LUSolve(A, P, x);
 }
 
+bool BatchedLinAlg::IsAvailable(BatchedLinAlg::Backend backend)
+{
+   return Instance().backends[backend] != nullptr;
+}
+
 void BatchedLinAlg::SetPreferredBackend(BatchedLinAlg::Backend backend)
 {
-   if (!Instance().backends[backend])
-   {
-      MFEM_ABORT("Requested batched linear algebra backend not supported.");
-   }
+   MFEM_VERIFY(IsAvailable(backend), "Requested backend not supported.");
    Instance().preferred_backend = backend;
 }
 
 const BatchedLinAlgBase &BatchedLinAlg::Get(BatchedLinAlg::Backend backend)
 {
-   auto backend_ptr = Instance().backends[backend].get();
-   if (!backend_ptr)
-   {
-      MFEM_ABORT("Requested batched linear algebra backend not supported.");
-   }
+   auto &backend_ptr = Instance().backends[backend];
+   MFEM_VERIFY(backend_ptr, "Requested backend not supported.")
    return *backend_ptr;
 }
 
