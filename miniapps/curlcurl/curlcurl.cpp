@@ -34,6 +34,7 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    bool visualization = false;
    bool paraview = false;
+   bool reorder_space = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
@@ -50,6 +51,8 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&par_ref_levels, "-rp", "--parallel-ref-levels",
                   "Number of parallel refinement levels.");
+   args.AddOption(&reorder_space, "-nodes", "--by-nodes", "-vdim", "--by-vdim",
+                  "Use byNODES ordering of vector space instead of byVDIM");
 
    args.Parse();
    if (!args.Good())
@@ -121,7 +124,14 @@ int main(int argc, char *argv[])
    }
    else{
        fec = new H1_FECollection(order, dim);
-       fespace = new ParFiniteElementSpace(pmesh, fec, dim);
+       if (reorder_space)
+       {
+          fespace = new ParFiniteElementSpace(pmesh, fec, dim, Ordering::byNODES);
+       }
+       else
+       {
+          fespace = new ParFiniteElementSpace(pmesh, fec, dim, Ordering::byVDIM);
+       }
    }
    fec_s = new H1_FECollection(order);
    fespace_s = new ParFiniteElementSpace(pmesh, fec_s);
@@ -218,8 +228,8 @@ int main(int argc, char *argv[])
      BmatCoeff bmatcoeff(&Bvec);
      ParBilinearForm *a = new ParBilinearForm(fespace);
      a->AddDomainIntegrator(new VectorMassIntegrator(sigma));
-     //a->AddDomainIntegrator(new SpecialVectorCurlCurlIntegrator(*VecCoeff, bmatcoeff));
-     a->AddDomainIntegrator(new VectorGradDivIntegrator(*VecCoeff));
+     a->AddDomainIntegrator(new SpecialVectorCurlCurlIntegrator(*VecCoeff, bmatcoeff));
+     //a->AddDomainIntegrator(new VectorGradDivIntegrator(*VecCoeff));
      //a->AddDomainIntegrator(new SpecialVectorDiffusionIntegrator(*VecCoeff));
      //a->AddDomainIntegrator(new VectorDiffusionIntegrator(visco));
      a->Assemble();
@@ -247,7 +257,7 @@ int main(int argc, char *argv[])
      Solver *prec;
      if (true){ 
          HypreBoomerAMG *prec2 = new HypreBoomerAMG(A);
-         prec2->SetRelaxType(18);
+         prec2->SetSystemsOptions(dim, reorder_space);
          prec = prec2;
      }
      else{

@@ -1,4 +1,5 @@
 #include "mfem.hpp"
+
 #include "CurlCurlIntegrator.hpp"
 #include <fstream>
 #include <iostream>
@@ -29,6 +30,8 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    bool visualization = false;
    bool paraview = false;
+   bool static_cond = false;
+   bool hybridization = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
@@ -42,7 +45,10 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&par_ref_levels, "-rp", "--parallel-ref-levels",
                   "Number of parallel refinement levels.");
-
+   args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
+                  "--no-static-condensation", "Enable static condensation.");
+   args.AddOption(&hybridization, "-hb", "--hybridization", "-no-hb",
+                  "--no-hybridization", "Enable hybridization.");
    args.Parse();
    if (!args.Good())
    {
@@ -76,6 +82,7 @@ int main(int argc, char *argv[])
       {
          mesh->UniformRefinement();
       }
+      if (myid == 0) cout << "serial refine levels = "<<ref_levels<<endl;
    }
 
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
@@ -121,11 +128,25 @@ int main(int argc, char *argv[])
      VectorConstantCoefficient one(onevec);
      x = 0.0;
 
+     FiniteElementCollection *hfec = NULL;
+     ParFiniteElementSpace *hfes = NULL;
+
      ConstantCoefficient sigma(alpha);
      Bvec.ProjectCoefficient(*VecCoeff);
      ParBilinearForm *a = new ParBilinearForm(fespace);
      a->AddDomainIntegrator(new VectorFEMassIntegrator(sigma));
      a->AddDomainIntegrator(new DivDivIntegrator(*B2Coeff));
+     if (static_cond)
+     {
+        a->EnableStaticCondensation();
+     }
+     else if (hybridization)
+     {
+        hfec = new DG_Interface_FECollection(order, dim);
+        hfes = new ParFiniteElementSpace(pmesh, hfec);
+        a->EnableHybridization(hfes, new NormalTraceJumpIntegrator(),
+                               ess_tdof_list);
+     }
      a->Assemble();
 
      ParLinearForm b(fespace);
@@ -148,9 +169,11 @@ int main(int argc, char *argv[])
          HypreBoomerAMG *prec2 = new HypreBoomerAMG(A);
          prec2->SetRelaxType(18);
          prec = prec2;
-     }
+     } 
+     else if (hybridization) { prec = new HypreBoomerAMG(A); }
      else{
-        ParFiniteElementSpace *prec_fespace = fespace;
+        ParFiniteElementSpace *prec_fespace =
+         (a->StaticCondensationIsEnabled() ? a->SCParFESpace() : fespace);
         prec = new HypreADS(A, prec_fespace);
      }
      //HypreSolver *prec = new HypreILU();
@@ -165,6 +188,8 @@ int main(int argc, char *argv[])
      delete pcg;
      delete B2Coeff;
      delete VecCoeff;
+     delete hfec;
+     delete hfes;
    }
 
    if (true)
