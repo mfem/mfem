@@ -121,6 +121,11 @@ mfem_add_executable(ex3jac ${EX3JAC_SRC})
 target_include_directories(ex3jac PRIVATE ${MFEM_SOURCE_DIR}/miniapps/common)
 target_link_libraries(ex3jac PRIVATE mfem ${MFEM_SOURCE_DIR}/miniapps/common/libmfem-common.a)
 
+set(LPQ_SRC lpq_jacobi.cpp)
+mfem_add_executable(lpq ${LPQ_SRC})
+target_include_directories(lpq PRIVATE ${MFEM_SOURCE_DIR}/miniapps/common)
+target_link_libraries(lpq PRIVATE mfem ${MFEM_SOURCE_DIR}/miniapps/common/libmfem-common.a)
+
 # Examples that return MFEM_SKIP_RETURN_VALUE in some cases:
 set(SKIP_TESTS)
 if (HYPRE_USING_CUDA OR HYPRE_USING_HIP)
