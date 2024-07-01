@@ -1133,7 +1133,6 @@ void NURBS_HCurl2DFiniteElement::CalcVShape(ElementTransformation &Trans,
       shape(i, 0) = sx * JI(0, 0) + sy * JI(1, 0);
       shape(i, 1) = sx * JI(0, 1) + sy * JI(1, 1);
    }
-   //Delete above --> CalcVShape_ND(Trans, shape);
 }
 
 void NURBS_HCurl2DFiniteElement::CalcCurlShape(const IntegrationPoint &ip,
@@ -1330,7 +1329,6 @@ void NURBS_HCurl3DFiniteElement::CalcVShape(const IntegrationPoint &ip,
 void NURBS_HCurl3DFiniteElement::CalcVShape(ElementTransformation &Trans,
                                             DenseMatrix &shape) const
 {
-
    CalcVShape(Trans.GetIntPoint(), shape);
    const DenseMatrix & JI = Trans.InverseJacobian();
    MFEM_ASSERT(JI.Width() == 3 && JI.Height() == 3,
@@ -1345,8 +1343,6 @@ void NURBS_HCurl3DFiniteElement::CalcVShape(ElementTransformation &Trans,
       shape(i, 1) = sx * JI(0, 1) + sy * JI(1, 1) + sz * JI(2, 1);
       shape(i, 2) = sx * JI(0, 2) + sy * JI(1, 2) + sz * JI(2, 2);
    }
-
-   //Delete above --> CalcVShape_ND(Trans, shape);
 }
 
 void NURBS_HCurl3DFiniteElement::CalcCurlShape(const IntegrationPoint &ip,

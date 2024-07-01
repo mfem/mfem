@@ -212,8 +212,8 @@ int main(int argc, char *argv[])
 
    // 7. Define the vector finite element space representing the current and the
    //    initial temperature, u_ref.
-   FECollection *fe_coll = FECollection::NewH1(order, dim, pmesh->NURBSext);
-   ParFiniteElementSpace fespace(pmesh, fe_coll);
+   FiniteElementCollection &fe_coll = *FECollection::NewH1(order, dim, pmesh->NURBSext);
+   ParFiniteElementSpace fespace(pmesh, &fe_coll);
 
    HYPRE_BigInt fe_size = fespace.GlobalTrueVSize();
    if (myid == 0)
@@ -377,7 +377,6 @@ int main(int argc, char *argv[])
 
    // 12. Free the used memory.
    delete ode_solver;
-   delete fe_coll;
    delete pmesh;
 
    return 0;

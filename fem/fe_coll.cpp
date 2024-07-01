@@ -438,9 +438,6 @@ FiniteElementCollection *FiniteElementCollection::NewHCurl(const int order,
    return new ND_FECollection(order, dim);
 }
 
-
-
-
 FiniteElementCollection *FiniteElementCollection::Clone(int p) const
 {
    // default implementation for collections that don't care about variable p

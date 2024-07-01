@@ -117,14 +117,12 @@ FiniteElementSpace::FiniteElementSpace(Mesh *mesh,
                      new NURBSExtension(mesh->NURBSext, fec->GetOrder()),
                      fec, vdim, ordering);
       }
-
    }
    else
    {
       MFEM_ABORT("NURBSFECollection requires a NURBS-based mesh.");
    }
 }
-
 
 void FiniteElementSpace::CopyProlongationAndRestriction(
    const FiniteElementSpace &fes, const Array<int> *perm)

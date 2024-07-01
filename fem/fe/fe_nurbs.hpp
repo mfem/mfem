@@ -351,7 +351,6 @@ public:
    virtual void CalcDivShape(const IntegrationPoint &ip,
                              Vector &divshape) const;
 
-
    virtual void Project(VectorCoefficient &vcoeff,
                         ElementTransformation &Trans, Vector &dofs) const;
 
@@ -433,7 +432,6 @@ public:
        CDim = 1 for #dim = 2. */
    virtual void CalcCurlShape(const IntegrationPoint &ip,
                               DenseMatrix &curl_shape) const;
-
 
    virtual void Project(VectorCoefficient &vcoeff,
                         ElementTransformation &Trans, Vector &dofs) const;

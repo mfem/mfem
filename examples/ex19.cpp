@@ -237,11 +237,11 @@ int main(int argc, char *argv[])
    // 5. Define the finite element spaces for displacement and pressure
    //    (Taylor-Hood elements). By default, the displacement (u/x) is a second
    //    order vector field, while the pressure (p) is a linear scalar function.
-   FECollection *quad_coll = FECollection::NewH1(order, dim, mesh->NURBSext);
-   FECollection *lin_coll = FECollection::NewH1(order-1, dim, mesh->NURBSext);
+   FiniteElementCollection &quad_coll = *FECollection::NewH1(order, dim, mesh->NURBSext);
+   FiniteElementCollection &lin_coll = *FECollection::NewH1(order-1, dim, mesh->NURBSext);
 
-   FiniteElementSpace R_space(mesh, quad_coll, dim, Ordering::byVDIM);
-   FiniteElementSpace W_space(mesh, lin_coll);
+   FiniteElementSpace R_space(mesh, &quad_coll, dim, Ordering::byVDIM);
+   FiniteElementSpace W_space(mesh, &lin_coll);
 
    Array<FiniteElementSpace *> spaces(2);
    spaces[0] = &R_space;
@@ -346,8 +346,6 @@ int main(int argc, char *argv[])
    }
 
    // 15. Free the used memory
-   delete quad_coll;
-   delete lin_coll;
    delete mesh;
 
    return 0;
