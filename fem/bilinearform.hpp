@@ -119,8 +119,8 @@ protected:
    Array<BilinearFormIntegrator*> boundary_face_integs;
    Array<Array<int>*> boundary_face_integs_marker; ///< Entries are not owned.
 
-   DenseMatrix elemmat;
-   Array<int>  vdofs;
+   mutable DenseMatrix elemmat;
+   mutable Array<int>  vdofs;
 
    DenseTensor *element_matrices; ///< Owned.
 
@@ -580,10 +580,18 @@ public:
        or the one stored internally by a prior call of ComputeElementMatrices()
        is returned when available.
    */
-   void ComputeElementMatrix(int i, DenseMatrix &elmat);
+   void ComputeElementMatrix(int i, DenseMatrix &elmat) const;
 
    /// Compute the boundary element matrix of the given boundary element
-   void ComputeBdrElementMatrix(int i, DenseMatrix &elmat);
+   /** @note The boundary attribute markers of the integrators are ignored. */
+   void ComputeBdrElementMatrix(int i, DenseMatrix &elmat) const;
+
+   /// Compute the face matrix of the given face element
+   void ComputeFaceMatrix(int i, DenseMatrix &elmat) const;
+
+   /// Compute the boundary face matrix of the given boundary element
+   /** @note The boundary attribute markers of the integrators are ignored. */
+   void ComputeBdrFaceMatrix(int i, DenseMatrix &elmat) const;
 
    /// Assemble the given element matrix
    /** The element matrix @a elmat is assembled for the element @a i, i.e.
@@ -771,8 +779,8 @@ protected:
    /// Entries are not owned.
    Array<Array<int>*> boundary_trace_face_integs_marker;
 
-   DenseMatrix elemmat;
-   Array<int>  trial_vdofs, test_vdofs;
+   mutable DenseMatrix elemmat;
+   mutable Array<int>  trial_vdofs, test_vdofs;
 
 private:
    /// Copy construction is not supported; body is undefined.
@@ -944,10 +952,18 @@ public:
    void ConformingAssemble();
 
    /// Compute the element matrix of the given element
-   void ComputeElementMatrix(int i, DenseMatrix &elmat);
+   void ComputeElementMatrix(int i, DenseMatrix &elmat) const;
 
    /// Compute the boundary element matrix of the given boundary element
-   void ComputeBdrElementMatrix(int i, DenseMatrix &elmat);
+   /** @note The boundary attribute markers of the integrators are ignored. */
+   void ComputeBdrElementMatrix(int i, DenseMatrix &elmat) const;
+
+   /// Compute the trace face matrix of the given face element
+   void ComputeTraceFaceMatrix(int i, DenseMatrix &elmat) const;
+
+   /// Compute the boundary trace face matrix of the given boundary element
+   /** @note The boundary attribute markers of the integrators are ignored. */
+   void ComputeBdrTraceFaceMatrix(int i, DenseMatrix &elmat) const;
 
    /// Assemble the given element matrix
    /** The element matrix @a elmat is assembled for the element @a i, i.e.

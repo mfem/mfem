@@ -651,6 +651,39 @@ void VectorFEBoundaryFluxLFIntegrator::AssembleRHSElementVect(
    }
 }
 
+void VectorFEBoundaryNormalLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+{
+   int dim = el.GetDim()+1;
+   int dof = el.GetDof();
+   Vector nor(dim), Fvec(dim);
+
+   shape.SetSize(dof);
+   elvect.SetSize(dof);
+   elvect = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int intorder = 2 * el.GetOrder() + Tr.OrderW();  // <----------
+      ir = &IntRules.Get(el.GetGeomType(), intorder);
+   }
+
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+
+      Tr.SetIntPoint(&ip);
+      CalcOrtho(Tr.Jacobian(), nor);
+      F.Eval(Fvec, Tr, ip);
+      real_t val = ip.weight * (Fvec*nor) / Tr.Weight();
+
+      el.CalcShape(ip, shape);
+
+      elvect.Add(val, shape);
+   }
+}
+
 void VectorFEBoundaryTangentLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
