@@ -13,6 +13,7 @@
 #define MFEM_QUADINTERP
 
 #include "fespace.hpp"
+#include "kernel_dispatch.hpp"
 
 namespace mfem
 {
@@ -130,6 +131,29 @@ public:
    /// Perform the transpose operation of Mult(). (TODO)
    void MultTranspose(unsigned eval_flags, const Vector &q_val,
                       const Vector &q_der, Vector &e_vec) const;
+
+
+   using TensorEvalKernelType = void(*)(const int, const real_t *, const real_t *,
+                                        real_t *, const int, const int, const int);
+   using GradKernelType = void(*)(const int, const real_t *, const real_t *,
+                                  const real_t *, const real_t *, real_t *,
+                                  const int, const int, const int, const int);
+   using DetKernelType = void(*)(const int NE, const real_t *, const real_t *,
+                                 const real_t *, real_t *, const int, const int,
+                                 Vector *);
+   using EvalKernelType = void(*)(const int, const int, const QVectorLayout,
+                                  const GeometricFactors *, const DofToQuad &,
+                                  const Vector &, Vector &, Vector &, Vector &,
+                                  const int);
+
+   MFEM_REGISTER_KERNELS(TensorEvalKernels, TensorEvalKernelType,
+                         (int, QVectorLayout, int, int, int), (int));
+   MFEM_REGISTER_KERNELS(GradKernels, GradKernelType,
+                         (int, QVectorLayout, bool, int, int, int), (int));
+   MFEM_REGISTER_KERNELS(DetKernels, DetKernelType, (int, int, int, int));
+   MFEM_REGISTER_KERNELS(EvalKernels, EvalKernelType, (int, int, int, int));
+
+   static struct Kernels { Kernels(); } kernels;
 };
 
 }

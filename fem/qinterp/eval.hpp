@@ -12,6 +12,9 @@
 // Internal header, included only by .cpp files.
 // Template function implementations.
 
+#ifndef MFEM_QUADINTERP_EVAL
+#define MFEM_QUADINTERP_EVAL
+
 #include "../quadinterpolator.hpp"
 #include "../../general/forall.hpp"
 #include "../../linalg/dtensor.hpp"
@@ -63,7 +66,7 @@ static void Values1D(const int NE,
 // Template compute kernel for Values in 2D: tensor product version.
 template<QVectorLayout Q_LAYOUT,
          int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0,
-         int T_NBZ = 1, int MAX_D1D = 0, int MAX_Q1D = 0>
+         int T_NBZ = 1>
 static void Values2D(const int NE,
                      const real_t *b_,
                      const real_t *x_,
@@ -193,4 +196,21 @@ static void Values3D(const int NE,
 
 } // namespace internal
 
+/// @cond Suppress_Doxygen_warnings
+
+template<int DIM, QVectorLayout Q_LAYOUT,
+         int VDIM, int D1D, int Q1D, int NBZ>
+QuadratureInterpolator::TensorEvalKernelType
+QuadratureInterpolator::TensorEvalKernels::Kernel()
+{
+   if (DIM == 1) { return internal::quadrature_interpolator::Values1D<Q_LAYOUT>; }
+   else if (DIM == 2) { return internal::quadrature_interpolator::Values2D<Q_LAYOUT, VDIM, D1D, Q1D, NBZ>; }
+   else if (DIM == 3) { return internal::quadrature_interpolator::Values3D<Q_LAYOUT, VDIM, D1D, Q1D>; }
+   else { MFEM_ABORT(""); }
+}
+
+/// @endcond
+
 } // namespace mfem
+
+#endif
