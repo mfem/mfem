@@ -21,7 +21,6 @@ namespace mfem
 
 MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_Fit_2D,
                            const int NE,
-                           const DenseTensor &j_,
                            const real_t &c1_,
                            const real_t &c2_,
                            const Vector &x1_,
@@ -32,7 +31,43 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_Fit_2D,
                            const int d1d,
                            const int q1d)
 {
-   return 0; //TODO
+   constexpr int DIM = 2;
+   constexpr int NBZ = 1;
+
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+   const auto C1 = c1_;
+   const auto C2 = c2_;
+   const auto X1 = Reshape(x1_.Read(), D1D, D1D, DIM, NE);
+   const auto X2 = Reshape(x2_.Read(), D1D, D1D, DIM, NE);
+   const auto X3 = Reshape(x3_.Read(), D1D, D1D, DIM, NE);
+
+   auto E = Reshape(energy.Write(), Q1D, Q1D, NE);
+
+   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
+   {
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      constexpr int NBZ = 1;
+
+      MFEM_FOREACH_THREAD(qy,y,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         {
+            const real_t sigma = X1(qx,qy,0,e);
+            const real_t dof_count = X2(qx,qy,0,e);
+            const real_t marker = X3(qx,qy,0,e); 
+            const real_t coeff = C1;
+            const real_t normal = C2;
+
+            if (marker == 0) {continue;}
+            double w = coeff * normal * 1.0/dof_count;
+            E(qx,qy,e) = w * sigma;   
+         }
+      }
+   });
+   return energy * ones; 
 }
 
 real_t TMOP_Integrator::GetLocalStateEnergyPA_Fit_2D(const Vector &X) const
@@ -41,7 +76,6 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_Fit_2D(const Vector &X) const
    const int D1D = PA.maps->ndof;
    const int Q1D = PA.maps->nqpt;
    const int id = (D1D<< 4) | Q1D;
-   const DenseTensor &J = PA.Jtr;
    MFEM_VERIFY(PA.maps_lim->ndof == D1D, "");
    MFEM_VERIFY(PA.maps_lim->nqpt == Q1D, "");
    const Vector &O = PA.O;
@@ -54,7 +88,7 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_Fit_2D(const Vector &X) const
    const Vector &X2 = PA.X2;
    const Vector &X3 = PA.X3;
 
-   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_Fit_2D,id,N,J,C1,C2,X1,X2,X3,O,E);
+   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_Fit_2D,id,N,C1,C2,X1,X2,X3,O,E);
 }
 
 } // namespace mfem
