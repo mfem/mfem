@@ -193,7 +193,8 @@ endif
 
 # Compile flags used by MFEM: CPPFLAGS, CXXFLAGS, plus library flags
 INCFLAGS =
-# Link flags used by MFEM: library link flags plus LDFLAGS (added last)
+# Link flags used by MFEM: library link flags plus LDFLAGS and LDFLAGS_INTERNAL
+# (added at the end)
 ALL_LIBS =
 
 # Building static and/or shared libraries:
@@ -372,7 +373,7 @@ MFEM_TPLFLAGS  ?= $(INCFLAGS)
 MFEM_INCFLAGS  ?= -I@MFEM_INC_DIR@ @MFEM_TPLFLAGS@
 MFEM_PICFLAG   ?= $(if $(shared),$(PICFLAG))
 MFEM_FLAGS     ?= @MFEM_CPPFLAGS@ @MFEM_CXXFLAGS@ @MFEM_INCFLAGS@
-MFEM_EXT_LIBS  ?= $(ALL_LIBS) $(LDFLAGS)
+MFEM_EXT_LIBS  ?= $(ALL_LIBS) $(LDFLAGS) $(LDFLAGS_INTERNAL)
 MFEM_LIBS      ?= $(if $(shared),$(BUILD_RPATH)) -L@MFEM_LIB_DIR@ -lmfem\
    @MFEM_EXT_LIBS@
 MFEM_LIB_FILE  ?= @MFEM_LIB_DIR@/libmfem.$(if $(shared),$(SO_VER),a)
