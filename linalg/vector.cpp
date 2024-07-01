@@ -971,7 +971,7 @@ static real_t cuVectorMin(const int N, const real_t *X)
    const int blockSize = MFEM_CUDA_BLOCKS;
    const int gridSize = (N+blockSize-1)/blockSize;
    const int min_sz = (N%tpb)==0? (N/tpb) : (1+N/tpb);
-   cuda_reduce_buf.SetSize(min_sz);
+   cuda_reduce_buf.SetSize(min_sz, MemoryType::HOST_PINNED, MemoryType::DEVICE);
    Memory<real_t> &buf = cuda_reduce_buf.GetMemory();
    real_t *d_min = buf.Write(MemoryClass::DEVICE, min_sz);
    cuKernelMin<<<gridSize,blockSize>>>(N, d_min, X);
@@ -1014,7 +1014,7 @@ static real_t cuVectorDot(const int N, const real_t *X, const real_t *Y)
    const int blockSize = MFEM_CUDA_BLOCKS;
    const int gridSize = (N+blockSize-1)/blockSize;
    const int dot_sz = (N%tpb)==0? (N/tpb) : (1+N/tpb);
-   cuda_reduce_buf.SetSize(dot_sz, Device::GetDeviceMemoryType());
+   cuda_reduce_buf.SetSize(dot_sz, MemoryType::HOST_PINNED, MemoryType::DEVICE);
    Memory<real_t> &buf = cuda_reduce_buf.GetMemory();
    real_t *d_dot = buf.Write(MemoryClass::DEVICE, dot_sz);
    cuKernelDot<<<gridSize,blockSize>>>(N, d_dot, X, Y);
@@ -1052,6 +1052,24 @@ static __global__ void hipKernelMin(const int N, real_t *gdsr, const real_t *x)
    if (tid==0) { gdsr[bid] = s_min[0]; }
 }
 
+static bool singleMemorySpace()
+{
+   static bool is_single_memory_space = false;
+   static bool once = true;
+   if (once)
+   {
+      hipDeviceProp_t props;
+      MFEM_GPU_CHECK(hipGetDeviceProperties(&props, 0));
+      // Check for gfx94x APU
+      if (props.major == 9 && props.minor == 4)
+      {
+         is_single_memory_space = true;
+      }
+      once = false;
+   }
+   return is_single_memory_space;
+}
+
 static Array<real_t> hip_reduce_buf;
 
 static real_t hipVectorMin(const int N, const real_t *X)
@@ -1060,12 +1078,16 @@ static real_t hipVectorMin(const int N, const real_t *X)
    const int blockSize = MFEM_HIP_BLOCKS;
    const int gridSize = (N+blockSize-1)/blockSize;
    const int min_sz = (N%tpb)==0 ? (N/tpb) : (1+N/tpb);
-   hip_reduce_buf.SetSize(min_sz);
+   const bool no_copy = singleMemorySpace();
+   hip_reduce_buf.SetSize(min_sz,
+                          no_copy ? MemoryType::HOST : MemoryType::HOST_PINNED,
+                          MemoryType::DEVICE);
    Memory<real_t> &buf = hip_reduce_buf.GetMemory();
    real_t *d_min = buf.Write(MemoryClass::DEVICE, min_sz);
    hipLaunchKernelGGL(hipKernelMin,gridSize,blockSize,0,0,N,d_min,X);
    MFEM_GPU_CHECK(hipGetLastError());
-   const real_t *h_min = buf.Read(MemoryClass::HOST, min_sz);
+   if (no_copy) { MFEM_STREAM_SYNC; }
+   const real_t *h_min = no_copy ? d_min : buf.Read(MemoryClass::HOST, min_sz);
    real_t min = std::numeric_limits<real_t>::infinity();
    for (int i = 0; i < min_sz; i++) { min = std::min(min, h_min[i]); }
    return min;
@@ -1103,12 +1125,16 @@ static real_t hipVectorDot(const int N, const real_t *X, const real_t *Y)
    const int blockSize = MFEM_HIP_BLOCKS;
    const int gridSize = (N+blockSize-1)/blockSize;
    const int dot_sz = (N%tpb)==0 ? (N/tpb) : (1+N/tpb);
-   hip_reduce_buf.SetSize(dot_sz);
+   const bool no_copy = singleMemorySpace();
+   hip_reduce_buf.SetSize(dot_sz,
+                          no_copy ? MemoryType::HOST : MemoryType::HOST_PINNED,
+                          MemoryType::DEVICE);
    Memory<real_t> &buf = hip_reduce_buf.GetMemory();
    real_t *d_dot = buf.Write(MemoryClass::DEVICE, dot_sz);
    hipLaunchKernelGGL(hipKernelDot,gridSize,blockSize,0,0,N,d_dot,X,Y);
    MFEM_GPU_CHECK(hipGetLastError());
-   const real_t *h_dot = buf.Read(MemoryClass::HOST, dot_sz);
+   if (no_copy) { MFEM_STREAM_SYNC; }
+   const real_t *h_dot = no_copy ? d_dot : buf.Read(MemoryClass::HOST, dot_sz);
    real_t dot = 0.0;
    for (int i = 0; i < dot_sz; i++) { dot += h_dot[i]; }
    return dot;
