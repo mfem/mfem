@@ -27,7 +27,7 @@ const int attr_ext = 2000;
 const int num_currents = 11;
 
 
-double gs(const char * mesh_file, const char * data_file, int order, int d_refine,
+double gs(const char * mesh_file, const char * initial_gf, const char * data_file, int order, int d_refine,
           int model,
           double & alpha, double & beta, double & gamma, double & mu, double & Ip,
           double & r0, double & rho_gamma, int max_krylov_iter, int max_newton_iter,

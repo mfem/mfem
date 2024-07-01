@@ -238,18 +238,31 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
   double switch_beta = 0.0;
   double switch_taylor = 1.0;
   double switch_ff = 0.0;
+  double switch_lb = 0.0;
+  double r0 = 6.2;
+  double alpha_0 = 2.0;
+  double beta_0 = 0.5978;
+  double gamma_0 = 1.395;
   if (model_choice == 1) {
     switch_beta = 1.0;
     switch_taylor = 0.0;
     switch_ff = 0.0;
+    switch_lb = 0.0;
   } else if (model_choice == 2) {
     switch_beta = 0.0;
     switch_taylor = - 1.0; // 8/31/22 DAS - sign error...
     switch_ff = 0.0;
+    switch_lb = 0.0;
   } else if (model_choice == 3) {
     switch_beta = 0.0;
     switch_taylor = 0.0;
     switch_ff = 1.0;
+    switch_lb = 0.0;
+  } else if (model_choice == 4) {
+    switch_beta = 0.0;
+    switch_taylor = 0.0;
+    switch_ff = 0.0;
+    switch_lb = 1.0;
   }
 
   if (option == 0) {
@@ -262,30 +275,28 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
     //                       + S_{ff'}(\psi_N) / (\mu r)
     //                       + \bar{S}_{ff'}(\psi)       ) v dr dz
 
-    // double check!!!
-    
     double S_bar_ffprime =
       + switch_beta * alpha * (f_x + alpha * (model->f_bar(psi_N))) * (model->f_bar_prime(psi_N)) / (psi_bdp - psi_max)
-      + switch_taylor * alpha * (f_x + alpha * (psi_bdp - psi_val))
-      + switch_ff * alpha * (model->S_ff_prime(psi_N));
+      + switch_taylor * alpha * (- f_x + alpha * (psi_bdp - psi_val))
+      + switch_ff * alpha * (model->S_ff_prime(psi_N))
+      + (((psi_N > 0.0) & (psi_N < 1.0)) ? switch_lb * alpha * (1.0 - beta_0) * r0 * pow(1.0 - pow(psi_N, alpha_0), gamma_0) : 0.0);
 
-    // if (true) {
-    //   // return (model->S_ff_prime(psi_N)) / ri;
-    //   return (model->S_ff_prime(psi_N));
-    // }
     return
       + beta * ri * (model->S_p_prime(psi_N)) * mu
       + gamma * (model->S_ff_prime(psi_N)) / (ri)
       + S_bar_ffprime / (ri)
-      + coeff_u2 * pow(psi_val, 2.0);
+      + coeff_u2 * pow(psi_val, 2.0)
+      + (((psi_N > 0.0) & (psi_N < 1.0)) ? switch_lb * ri * mu * alpha * beta_0 / r0 * pow(1.0 - pow(psi_N, alpha_0), gamma_0) : 0.0);
   } else if (option == 5) {
     // derivative with respect to alpha
       
     return
       + switch_beta * (f_x + alpha * (model->f_bar(psi_N))) * (model->f_bar_prime(psi_N)) / (psi_bdp - psi_max) / (ri)
       + switch_beta * alpha * (model->f_bar(psi_N)) * (model->f_bar_prime(psi_N)) / (psi_bdp - psi_max) / (ri)
-      + switch_taylor * (f_x + 2.0 * alpha * (psi_bdp - psi_val)) / (ri)
-      + switch_ff * (model->S_ff_prime(psi_N)) / (ri);
+      + switch_taylor * (- f_x + 2.0 * alpha * (psi_bdp - psi_val)) / (ri)
+      + switch_ff * (model->S_ff_prime(psi_N)) / (ri)
+      + (((psi_N > 0.0) & (psi_N < 1.0)) ? switch_lb * (1.0 - beta_0) * r0 * pow(1.0 - pow(psi_N, alpha_0), gamma_0) / ri : 0.0)
+      + (((psi_N > 0.0) & (psi_N < 1.0)) ? switch_lb * ri * mu * beta_0 / r0 * pow(1.0 - pow(psi_N, alpha_0), gamma_0) : 0.0);
 
   } else {
     // integrand of
@@ -307,7 +318,9 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
       + gamma * (model->S_prime_ff_prime(psi_N)) / (ri)
       + switch_beta * alpha * alpha * pow(model->f_bar_prime(psi_N), 2.0) / (psi_bdp - psi_max) / (ri)
       + switch_beta * alpha * (f_x + alpha * (model->f_bar(psi_N))) * (model->f_bar_double_prime(psi_N)) / (psi_bdp - psi_max) / (ri)
-      + switch_ff * alpha * (model->S_prime_ff_prime(psi_N)) / (ri);
+      + switch_ff * alpha * (model->S_prime_ff_prime(psi_N)) / (ri)
+      - (((psi_N > 0.0) & (psi_N < 1.0)) ? switch_lb * alpha * (1.0 - beta_0) * r0 * gamma_0 * pow(1.0 - pow(psi_N, alpha_0), gamma_0 - 1.0) * alpha_0 * pow(psi_N, alpha_0 - 1.0) / ri : 0.0)
+      - (((psi_N > 0.0) & (psi_N < 1.0)) ? switch_lb * alpha * ri * mu * beta_0 / r0 * gamma_0 * pow(1.0 - pow(psi_N, alpha_0), gamma_0 - 1.0) * alpha_0 * pow(psi_N, alpha_0 - 1.0) : 0.0);
 
     double other =
       - switch_beta * alpha * (f_x + alpha * (model->f_bar(psi_N))) * (model->f_bar_prime(psi_N))

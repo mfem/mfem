@@ -16,6 +16,8 @@ psi_true_ = []
 rz_bbs = []
 ffprim = []
 pprim = []
+fpol = []
+pres = []
 with open("../data/separated_file.data", 'r') as fid:
     for line in fid:
         if "rbbbs(i),zbbbs(i)" in line:
@@ -30,10 +32,17 @@ with open("../data/separated_file.data", 'r') as fid:
             out = fid.readline()[:-2].split(" ")
             for num in out:
                 ffprim.append(eval(num))
-        if "pprim" in line:
-            out = fid.readline()[:-2].split(" ")
+        if "fpol" in line:
+            out = fid.readline()[:-1].split(" ")
             for num in out:
-                pprim.append(eval(num))
+                fpol.append(eval(num))
+        if "pres" in line:
+            out = fid.readline()[:-1].split(" ")
+            for num in out:
+                try:
+                    pres.append(eval(num))
+                except:
+                    breakpoint()
 
 rz_bbs = np.array(rz_bbs)
 
@@ -59,7 +68,7 @@ rv = rz_bbs[0::2]
 zv = rz_bbs[1::2]
 
 fig = plt.figure(figsize=(15, 5))
-plt.subplot(1, 3, 1)
+ax = plt.subplot(1, 3, 1)
 plt.contour(RV, ZV, psi_true, 80, alpha=0.5, cmap=plt.jet())
 rbbs = rz_bbs[::2]
 zbbs = rz_bbs[1::2]
@@ -67,7 +76,9 @@ N = len(rbbs)
 dN = N // 100
 plt.plot(rbbs[::dN], zbbs[::dN], '.k')
 plot_structures(lw=2)
-plt.title("Initial $\psi$")
+ax.annotate("Initial $\psi$", xy=(0.5,1.05), xycoords='axes fraction',
+            size=14,
+            bbox=dict(boxstyle="round", fc=(0, 0, 1, .2), ec=(0, 0, 0)), ha='center')
 plt.axis('scaled')
 plt.colorbar()
 plt.xlim((r0, r1))
@@ -76,20 +87,27 @@ plt.xlabel("$r$")
 plt.ylabel("$z$")
 plt.xticks([4, 6, 8, 10])
 
-plt.subplot(1, 3, 2)
-x = np.linspace(0, 1, len(ffprim))
-plt.plot(x, ffprim)
+ax = plt.subplot(1, 3, 2)
+x = np.linspace(0, 1, len(fpol))
+plt.plot(x, fpol)
 plt.xlabel("$\psi_{N}$")
-plt.title("$S_{ff'}(\psi_{N})$")
+ax.annotate("$f(\psi_{N})$", xy=(0.5,1.05), xycoords='axes fraction',
+            size=14,
+            bbox=dict(boxstyle="round", fc=(0, 0, 1, .2), ec=(0, 0, 0)), ha='center')
+ax.annotate("Initial Solution", xy=(0.5,1.2), xycoords='axes fraction',
+            size=18,
+            bbox=dict(boxstyle="round", fc=(0, 0, 1, .0), ec=(0, 0, 0, 0)), ha='center')
 
-plt.subplot(1, 3, 3)
-x = np.linspace(0, 1, len(pprim))
-plt.plot(x, pprim)
+ax = plt.subplot(1, 3, 3)
+x = np.linspace(0, 1, len(pres))
+plt.plot(x, pres)
 plt.xlabel("$\psi_{N}$")
-plt.title("$S_{p'}(\psi_{N})$")
+ax.annotate("$p(\psi_{N})$", xy=(0.5,1.05), xycoords='axes fraction',
+            size=14,
+            bbox=dict(boxstyle="round", fc=(0, 0, 1, .2), ec=(0, 0, 0)), ha='center')
 plt.ticklabel_format(axis='y', style='sci', scilimits=(0,0))
 
-fig.subplots_adjust(wspace=0.3, hspace=.2)
+fig.subplots_adjust(wspace=0.3, hspace=.2, top=.8)
 
 
 plt.savefig("../figs/initial.png", dpi=200)

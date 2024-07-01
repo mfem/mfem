@@ -1,7 +1,7 @@
 # coefficient of ff' term
-alpha=1.0
+alpha=-1.40
 # coefficient of p' term
-beta=1.0
+beta=1
 # unused?
 gamma=0.0
 
@@ -9,7 +9,7 @@ gamma=0.0
 # 1: ff' defined from fpol data
 # 2: Taylor equilibrium
 # 3: ff' defined from ff' data
-model=3
+model=1
 
 # plasma current
 Ip=1.5e+7
@@ -22,6 +22,7 @@ mu=12.5663706144e-7
 mesh_file="meshes/iter_gen.msh"
 # mesh_file="meshes/RegGSTriMeshVeryCoarse0beta.msh"
 data_file="data/separated_file.data"
+initial_gf="initial/initial_model2.gf"
 refinement_factor=2
 
 do_test=0
@@ -45,17 +46,17 @@ gamma_in=1.0
 # 5: upper triangular
 # 6: lower triangular
 # 7: block woodbury
-pc_option=5
-max_levels=0
+pc_option=0
+max_levels=1
 max_dofs=100000
 light_tol=1e-8
 amr_frac_in=0.08
 amr_frac_out=0.3
 
-amg_cycle_type=1
+amg_cycle_type=0
 amg_num_sweeps_a=1
 amg_num_sweeps_b=1
-amg_max_iter=5
+amg_max_iter=1
 
 # poloidal flux coils
 c6=-4.552585e+06
@@ -65,12 +66,12 @@ c9=3.825538e+06
 c10=1.066498e+07
 c11=-2.094771e+07
 
-# c6=-1.585e+04
-# c7=3.149e+06
-# c8=5.370e+06
-# c9=3.559e+06
-# c10=1.119e+07
-# c11=-1.815e+07
+c6=-9.690e+05
+c7=3.101e+06
+c8=5.328e+06
+c9=3.549e+06
+c10=1.109e+07
+c11=-1.883e+07
 
 # center solenoids
 c1=-1.143284e+03
@@ -79,12 +80,12 @@ c3=3.022037e+04
 c4=2.205664e+04
 c5=2.848113e+03
 
-# # center solenoids
-# c1=1.199e+07
-# c2=1.988e+07
-# c3=4.535e+07
-# c4=1.811e+07
-# c5=1.309e+07
+# center solenoids
+c1=8.807e+06
+c2=1.851e+07
+c3=4.156e+07
+c4=1.663e+07
+c5=1.024e+07
 
 ur_coeff=1.0
 
@@ -103,14 +104,21 @@ optimize_alpha=1
 # 2: sum_k (psi_k - psi_x) ^ 2
 obj_option=1
 
-./../gslib/field-interp -m1 initial/initial_mesh_g3.mesh \
-                        -m2 $mesh_file \
-                        -s1 initial/initial_guess_g3.gf \
-                        -r $refinement_factor \
-                        -no-vis
+# ./../gslib/field-interp -m1 initial/initial_mesh_g3.mesh \
+#                         -m2 $mesh_file \
+#                         -s1 initial/initial_guess_g3.gf \
+#                         -r $refinement_factor \
+#                         -no-vis
+# ./../gslib/field-interp -m1 initial/mesh_amr0_model1_pc0_cyc0_it1.mesh \
+#                         -m2 $mesh_file \
+#                         -s1 initial/final_model1_pc0_cyc0_it1.gf \
+#                         -r $refinement_factor \
+#                         -no-vis
+
 
 mpirun -np 1 main.o \
     -m $mesh_file \
+    --initial_gf $initial_gf \
     -o 1 \
     -d $data_file \
     -g $refinement_factor \

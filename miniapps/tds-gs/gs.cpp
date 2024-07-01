@@ -529,6 +529,7 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
       char name_mesh[60];
       sprintf(name_mesh, "gf/mesh_amr%d_model%d_pc%d_cyc%d_it%d.mesh", it_amr, model->get_model_choice(), PC_option, amg_cycle_type, amg_max_iter);
       mesh->Save(name_mesh);
+      mesh->Save("meshes/mesh_refine.mesh");
 
       // *** prepare operators for solver *** //
       // RHS forcing of equation
@@ -806,8 +807,10 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
 
           Solver *inv_SC, *inv_BT, *inv_B;
 
-          HypreParMatrix * B_Hypre = convert_to_hypre(BMat);
-          HypreParMatrix * BT_Hypre = convert_to_hypre(BTMat);
+          // HypreParMatrix * B_Hypre = convert_to_hypre(BMat);
+          // HypreParMatrix * BT_Hypre = convert_to_hypre(BTMat);
+          HypreParMatrix * B_Hypre = convert_to_hypre(ScaleByT);
+          HypreParMatrix * BT_Hypre = convert_to_hypre(ScaleBy);
 
           HypreBoomerAMG *B_AMG = new HypreBoomerAMG(*B_Hypre);
           HypreBoomerAMG *BT_AMG = new HypreBoomerAMG(*BT_Hypre);
@@ -833,7 +836,7 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
           solver.Mult(rhs, dx);
           printf("BlockOperator.BlockSystem iterations:            %d\n", solver.GetNumIterations());
           fprintf(fp, "amr=%d newton=%d iters=%d\n", it_amr, i, solver.GetNumIterations());
-          
+
         } else if (PC_option == 1) {
           /*
             non symmetric system, block AMG, schur complement
@@ -1006,10 +1009,10 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
           // upper triangular AMG
           Solver *inv_SC, *inv_BT, *inv_B;
 
-          HypreParMatrix * B_Hypre = convert_to_hypre(BMat);
-          HypreParMatrix * BT_Hypre = convert_to_hypre(BTMat);
-          // HypreParMatrix * B_Hypre = convert_to_hypre(ScaleByT);
-          // HypreParMatrix * BT_Hypre = convert_to_hypre(ScaleBy);
+          // HypreParMatrix * B_Hypre = convert_to_hypre(BMat);
+          // HypreParMatrix * BT_Hypre = convert_to_hypre(BTMat);
+          HypreParMatrix * B_Hypre = convert_to_hypre(ScaleByT);
+          HypreParMatrix * BT_Hypre = convert_to_hypre(ScaleBy);
 
           HypreBoomerAMG *B_AMG = new HypreBoomerAMG(*B_Hypre);
           HypreBoomerAMG *BT_AMG = new HypreBoomerAMG(*BT_Hypre);
@@ -1027,7 +1030,7 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
           inv_B = B_AMG;
           inv_BT = BT_AMG;
           
-          SchurPC SCPC(AMat, CMat, inv_B, inv_BT, 1);
+          SchurPC SCPC(AMat, CMat, inv_B, inv_BT, &Ba, &Cy, Ca, 1);
           solver.SetPreconditioner(SCPC);
           solver.Mult(rhs, dx);
           printf("BlockOperator.BlockSystem iterations:            %d\n", solver.GetNumIterations());
@@ -1038,8 +1041,10 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
 
           Solver *inv_SC, *inv_BT, *inv_B;
 
-          HypreParMatrix * B_Hypre = convert_to_hypre(BMat);
-          HypreParMatrix * BT_Hypre = convert_to_hypre(BTMat);
+          // HypreParMatrix * B_Hypre = convert_to_hypre(BMat);
+          // HypreParMatrix * BT_Hypre = convert_to_hypre(BTMat);
+          HypreParMatrix * B_Hypre = convert_to_hypre(ScaleByT);
+          HypreParMatrix * BT_Hypre = convert_to_hypre(ScaleBy);
 
           HypreBoomerAMG *B_AMG = new HypreBoomerAMG(*B_Hypre);
           HypreBoomerAMG *BT_AMG = new HypreBoomerAMG(*BT_Hypre);
@@ -1057,7 +1062,7 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
           inv_B = B_AMG;
           inv_BT = BT_AMG;
           
-          SchurPC SCPC(AMat, CMat, inv_B, inv_BT, 2);
+          SchurPC SCPC(AMat, CMat, inv_B, inv_BT, &Ba, &Cy, Ca, 2);
           solver.SetPreconditioner(SCPC);
           solver.Mult(rhs, dx);
           printf("BlockOperator.BlockSystem iterations:            %d\n", solver.GetNumIterations());
@@ -1074,7 +1079,25 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
           HypreBoomerAMG *B_AMG = new HypreBoomerAMG(*B_Hypre);
           HypreBoomerAMG *BT_AMG = new HypreBoomerAMG(*BT_Hypre);
           
-        
+          B_AMG->SetPrintLevel(0);
+          B_AMG->SetCycleType(amg_cycle_type);
+          B_AMG->SetCycleNumSweeps(amg_num_sweeps_a, amg_num_sweeps_b);
+          B_AMG->SetMaxIter(amg_max_iter);
+
+          BT_AMG->SetPrintLevel(0);
+          BT_AMG->SetCycleType(amg_cycle_type);
+          BT_AMG->SetCycleNumSweeps(amg_num_sweeps_a, amg_num_sweeps_b);
+          BT_AMG->SetMaxIter(amg_max_iter);
+
+          inv_B = B_AMG;
+          inv_BT = BT_AMG;
+          
+          SchurPC SCPC(AMat, CMat, inv_B, inv_BT, &Ba, &Cy, Ca, 3);
+          solver.SetPreconditioner(SCPC);
+          solver.Mult(rhs, dx);
+          printf("BlockOperator.BlockSystem iterations:            %d\n", solver.GetNumIterations());
+          fprintf(fp, "amr=%d newton=%d iters=%d\n", it_amr, i, solver.GetNumIterations());
+
         } else if (PC_option == -1) {
           /*
             Symmetric System, Schur Complement
@@ -1155,6 +1178,10 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
           }
         total_gmres += solver.GetNumIterations();
 
+        if (solver.GetNumIterations() == -1) {
+          printf("failure...\n");
+          return;
+        }
         dx.GetBlock(ind_p) *= scale;
 
         // get solution
@@ -1200,7 +1227,9 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         printf("]\n");
 
         // save grid function and magnetic field
-        x.Save("gf/xtmp.gf");
+        char name_[60];
+        sprintf(name_, "gf/xtmp_amr%d.gf", it_amr);
+        x.Save(name_);
         char name[60];
         sprintf(name, "gf/xtmp_amr%d_i%d.gf", it_amr, i);
         x.Save(name);
@@ -1232,7 +1261,6 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
 
       f = op.get_f();
       refiner.ApplyRef(*mesh, 1000, amr_frac_in, amr_frac_out);
-      mesh->Save("meshes/mesh_refine.mesh");
       if (refiner.Stop()) {
         cout << "Stopping criterion satisfied. Stop." << endl;
         break;
@@ -1396,7 +1424,7 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
 }
 
 
-double gs(const char * mesh_file, const char * data_file, int order, int d_refine,
+double gs(const char * mesh_file, const char * initial_gf, const char * data_file, int order, int d_refine,
           int model_choice,
           double & alpha, double & beta, double & gamma, double & mu, double & Ip,
           double & r0, double & rho_gamma, int max_krylov_iter, int max_newton_iter,
@@ -1494,7 +1522,8 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
      u.Save("gf/exact.gf");
    } else {
      if (!do_initial) {
-       ifstream ifs("initial/interpolated.gf");
+       // ifstream ifs("initial/interpolated.gf");
+       ifstream ifs(initial_gf);
        GridFunction lgf(&mesh, ifs);
        u = lgf;
      }

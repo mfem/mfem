@@ -483,7 +483,7 @@ private:
   int option = 1;
   Vector *Ba;
   Vector *Cy;
-  double Ca
+  double Ca;
 
 public:
   // set parameters
@@ -512,14 +512,74 @@ public:
     out1.MakeRef(const_cast<Vector&>(y), 0, N);
     out2.MakeRef(const_cast<Vector&>(y), N, N);
 
-    if (false) {
-      // no PC
-      out1 = vec1;
-      out2 = vec2;
-    } else if (false) {
+    if (option == 0) {
       // block diag
       B_prec->Mult(vec1, out1);
       BT_prec->Mult(vec2, out2);
+
+    } else if (option == 1) {
+      // upper triangular
+      // block GS
+      Vector temp1(N), temp2(N);
+      BT_prec->Mult(vec2, out2);
+
+      // solve B out1 + A out2 = vec1
+      A->Mult(out2, temp2);
+      add(-1.0, temp2, 1.0, vec1, temp2);
+      B_prec->Mult(temp2, out1);
+
+    } else if (option == 2) {
+      // lower triangular
+      // block GS
+      Vector temp1(N), temp2(N);
+      B_prec->Mult(vec1, out1);
+
+      // solve BT out2 + C out1 = vec2
+      C->Mult(out1, temp1);
+      add(-1.0, temp1, 1.0, vec2, temp1);
+      BT_prec->Mult(temp1, out2);
+      
+    } else if (option == 3) {
+      // block diag with woodbury
+      Vector temp1(N), temp2(N);
+      Vector temp3(N), temp4(N);
+      double num, denom;
+
+      // BMat
+      // BT - 1 / Ca Cy BaT
+      B_prec->Mult(vec1, temp1);
+      B_prec->Mult(*Cy, temp2);
+      num = - ((*Ba) * temp1) / Ca;
+      denom = 1 - ((*Ba) * temp2) / Ca;
+      add(1.0, temp1, - num / denom, temp2, out1);
+
+      // BTMat
+      // B - 1 / Ca Ba CyT
+      BT_prec->Mult(vec2, temp3);
+      BT_prec->Mult(*Ba, temp4);
+      num = - ((*Cy) * temp3) / Ca;
+      denom = 1 - ((*Cy) * temp4) / Ca;
+      add(1.0, temp3, - num / denom, temp4, out2);
+      
+    
+    } else if (option == 4) {
+      // gauss seidel
+      // block GS
+      Vector temp1(N), temp2(N);
+      int max_itr = 1;
+
+      out1 = 0.0;
+      for (int i = 0; i < max_itr; ++i) {
+        // solve BT out2  = - C out1_old + vec2
+        C->Mult(out1, temp1);
+        add(-1.0, temp1, 1.0, vec2, temp1);
+        BT_prec->Mult(temp1, out2);
+
+        // solve B out1 + A out2 = vec1
+        A->Mult(out2, temp2);
+        add(-1.0, temp2, 1.0, vec1, temp2);
+        B_prec->Mult(temp2, out1);
+      }
     } else if (false) {
       Vector temp1(N), temp2(N);
       Vector temp3(N), temp4(N);
@@ -542,47 +602,6 @@ public:
       C->Mult(out1, temp3);
       BT_prec->Mult(temp3, temp3);
       add(1.0, temp2, -1.0, temp3, out2);
-    } else if (option == 2) {
-      // lower triangular
-      // block GS
-      Vector temp1(N), temp2(N);
-      B_prec->Mult(vec1, out1);
-
-      // solve BT out2 + C out1 = vec2
-      C->Mult(out1, temp1);
-      add(-1.0, temp1, 1.0, vec2, temp1);
-      BT_prec->Mult(temp1, out2);
-
-    } else if (option == 3) {
-      // upper triangular
-      // block GS
-      Vector temp1(N), temp2(N);
-      BT_prec->Mult(vec2, out2);
-
-      // solve B out1 + A out2 = vec1
-      A->Mult(out2, temp2);
-      add(-1.0, temp2, 1.0, vec1, temp2);
-      B_prec->Mult(temp2, out1);
-    
-    } else if (option == 1) {
-      // upper triangular
-      // block GS
-      Vector temp1(N), temp2(N);
-      int max_itr = 1;
-
-      out1 = 0.0;
-      for (int i = 0; i < max_itr; ++i) {
-        // solve BT out2  = - C out1_old + vec2
-        C->Mult(out1, temp1);
-        add(-1.0, temp1, 1.0, vec2, temp1);
-        BT_prec->Mult(temp1, out2);
-
-        // solve B out1 + A out2 = vec1
-        A->Mult(out2, temp2);
-        add(-1.0, temp2, 1.0, vec1, temp2);
-        B_prec->Mult(temp2, out1);
-      }
-
 
 
     }

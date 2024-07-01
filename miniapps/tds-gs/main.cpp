@@ -87,6 +87,7 @@ int main(int argc, char *argv[])
    // const char *mesh_file = "meshes/square.msh";
    const char *mesh_file = "meshes/iter_gen.msh";
    const char *data_file = "separated_file.data";
+   const char *initial_gf = "initial/interpolated.gf";
    int order = 1;
    int d_refine = 0;
    int do_test = 0;
@@ -149,9 +150,11 @@ int main(int argc, char *argv[])
 
    double amr_frac_in = 0.01;
    double amr_frac_out = 0.3;
+   
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
+   args.AddOption(&initial_gf, "-igf", "--initial_gf", "initial grid function.");
    args.AddOption(&order, "-o", "--order", "Finite element polynomial degree");
    args.AddOption(&data_file, "-d", "--data_file", "Plasma data file");
    args.AddOption(&d_refine, "-g", "--refinement_factor", "Number of grid refinements");
@@ -217,7 +220,7 @@ int main(int argc, char *argv[])
      // unit tests
      test();
    } else {
-     gs(mesh_file, data_file, order, d_refine,
+     gs(mesh_file, initial_gf, data_file, order, d_refine,
         model,
         alpha, beta, gamma, mu,
         Ip, r0, rho_gamma, max_krylov_iter, max_newton_iter,

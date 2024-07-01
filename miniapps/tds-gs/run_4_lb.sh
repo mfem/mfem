@@ -1,7 +1,7 @@
 # coefficient of ff' term
-alpha=1.0
+alpha=-4.2
 # coefficient of p' term
-beta=1.0
+beta=0.0
 # unused?
 gamma=0.0
 
@@ -9,7 +9,8 @@ gamma=0.0
 # 1: ff' defined from fpol data
 # 2: Taylor equilibrium
 # 3: ff' defined from ff' data
-model=3
+# 4: LB
+model=4
 
 # plasma current
 Ip=1.5e+7
@@ -19,81 +20,35 @@ R0=2.4
 rho_gamma=16
 mu=12.5663706144e-7
 # mu=1.0
+
 mesh_file="meshes/iter_gen.msh"
 # mesh_file="meshes/RegGSTriMeshVeryCoarse0beta.msh"
 data_file="data/separated_file.data"
-refinement_factor=2
+initial_gf="initial/initial.gf"
+
+refinement_factor=1
+amr_frac_in=0.08
+# amr_frac_in=0.3
+amr_frac_out=0.3
+max_levels=3
+max_dofs=100000
 
 do_test=0
 do_manufactured_solution=0
 do_initial=0
 
 # linear solver parameters
-max_krylov_iter=200
-max_newton_iter=20
-krylov_tol=1e-6
-newton_tol=1e-6
-
-alpha_in=1.61803398875
-gamma_in=1.0
-
-# 0: block AMG
-# 1: block AMG schur comp
-# 2: AMG on full
-# 3: AMG on partial full block
-# 4: schur complement
-# 5: upper triangular
-# 6: lower triangular
-# 7: block woodbury
-pc_option=5
-max_levels=0
-max_dofs=100000
 light_tol=1e-8
-amr_frac_in=0.08
-amr_frac_out=0.3
-
-amg_cycle_type=1
-amg_num_sweeps_a=1
-amg_num_sweeps_b=1
-amg_max_iter=5
-
-# poloidal flux coils
-c6=-4.552585e+06
-c7=3.180596e+06
-c8=5.678096e+06
-c9=3.825538e+06
-c10=1.066498e+07
-c11=-2.094771e+07
-
-# c6=-1.585e+04
-# c7=3.149e+06
-# c8=5.370e+06
-# c9=3.559e+06
-# c10=1.119e+07
-# c11=-1.815e+07
-
-# center solenoids
-c1=-1.143284e+03
-c2=2.478694e+04
-c3=3.022037e+04
-c4=2.205664e+04
-c5=2.848113e+03
-
-# # center solenoids
-# c1=1.199e+07
-# c2=1.988e+07
-# c3=4.535e+07
-# c4=1.811e+07
-# c5=1.309e+07
-
-ur_coeff=1.0
+max_krylov_iter=10000
+krylov_tol=1e-10
+max_newton_iter=20
+newton_tol=1e-6
 
 # number of control points on plasma
 N_control=100
-
 do_control=1
-weight_coils=1e-14
-weight_solenoids=1e-14
+weight_coils=1e-12
+weight_solenoids=1e-12
 weight_obj=1.0
 optimize_alpha=1
 
@@ -103,14 +58,43 @@ optimize_alpha=1
 # 2: sum_k (psi_k - psi_x) ^ 2
 obj_option=1
 
-./../gslib/field-interp -m1 initial/initial_mesh_g3.mesh \
-                        -m2 $mesh_file \
-                        -s1 initial/initial_guess_g3.gf \
-                        -r $refinement_factor \
-                        -no-vis
+alpha_in=1.61803398875
+gamma_in=1.0
 
+# 0: block AMG
+# 1: block AMG schur comp
+# 2: AMG on full
+# 3: AMG on partial full block
+# 4: schur complement
+# 5: gauss seidel
+pc_option=5
+amg_cycle_type=0
+amg_num_sweeps_a=1
+amg_num_sweeps_b=1
+amg_max_iter=5
+
+# poloidal flux coils
+c6=-1.256e+07
+c7=4.240e+06
+c8=3.942e+06
+c9=3.107e+06
+c10=1.051e+07
+c11=-2.586e+07 
+
+# center solenoids
+c1=-1.435e+07
+c2=3.342e+06
+c3=2.128e+07
+c4=3.737e+06
+c5=-7.914e+06
+
+
+ur_coeff=1.0
+
+# lldb -- main.o \
 mpirun -np 1 main.o \
     -m $mesh_file \
+    --initial_gf $initial_gf \
     -o 1 \
     -d $data_file \
     -g $refinement_factor \

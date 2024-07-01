@@ -65,11 +65,11 @@ gamma_in=1.0
 # 3: AMG on partial full block
 # 4: schur complement
 # 5: gauss seidel
-pc_option=6
-amg_cycle_type=0
+pc_option=5
+amg_cycle_type=1
 amg_num_sweeps_a=1
 amg_num_sweeps_b=1
-amg_max_iter=10
+amg_max_iter=5
 
 # poloidal flux coils
 c6=-4.552585e+06

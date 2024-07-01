@@ -1,7 +1,7 @@
 # coefficient of ff' term
-alpha=1.0
+alpha=-.2
 # coefficient of p' term
-beta=1.0
+beta=0.0
 # unused?
 gamma=0.0
 
@@ -9,7 +9,7 @@ gamma=0.0
 # 1: ff' defined from fpol data
 # 2: Taylor equilibrium
 # 3: ff' defined from ff' data
-model=3
+model=2
 
 # plasma current
 Ip=1.5e+7
@@ -19,20 +19,42 @@ R0=2.4
 rho_gamma=16
 mu=12.5663706144e-7
 # mu=1.0
+
 mesh_file="meshes/iter_gen.msh"
 # mesh_file="meshes/RegGSTriMeshVeryCoarse0beta.msh"
 data_file="data/separated_file.data"
-refinement_factor=2
+
+refinement_factor=1
+amr_frac_in=0.08
+# amr_frac_in=0.3
+amr_frac_out=0.3
+max_levels=4
+max_dofs=100000
 
 do_test=0
 do_manufactured_solution=0
 do_initial=0
 
 # linear solver parameters
-max_krylov_iter=200
-max_newton_iter=20
-krylov_tol=1e-6
+light_tol=1e-8
+max_krylov_iter=10000
+krylov_tol=1e-4
+max_newton_iter=8
 newton_tol=1e-6
+
+# number of control points on plasma
+N_control=100
+do_control=1
+weight_coils=1e-14
+weight_solenoids=1e-14
+weight_obj=1.0
+optimize_alpha=1
+
+# objective function
+# 0: sum_k (psi_k - psi_0) ^ 2
+# 1: sum_k (psi_N_k - 1) ^ 2
+# 2: sum_k (psi_k - psi_x) ^ 2
+obj_option=1
 
 alpha_in=1.61803398875
 gamma_in=1.0
@@ -42,16 +64,8 @@ gamma_in=1.0
 # 2: AMG on full
 # 3: AMG on partial full block
 # 4: schur complement
-# 5: upper triangular
-# 6: lower triangular
-# 7: block woodbury
+# 5: gauss seidel
 pc_option=5
-max_levels=0
-max_dofs=100000
-light_tol=1e-8
-amr_frac_in=0.08
-amr_frac_out=0.3
-
 amg_cycle_type=1
 amg_num_sweeps_a=1
 amg_num_sweeps_b=1
@@ -65,43 +79,21 @@ c9=3.825538e+06
 c10=1.066498e+07
 c11=-2.094771e+07
 
-# c6=-1.585e+04
-# c7=3.149e+06
-# c8=5.370e+06
-# c9=3.559e+06
-# c10=1.119e+07
-# c11=-1.815e+07
-
 # center solenoids
-c1=-1.143284e+03
-c2=2.478694e+04
-c3=3.022037e+04
-c4=2.205664e+04
-c5=2.848113e+03
+c1=1.143284e+03
+c2=-2.478694e+04
+c3=-3.022037e+04
+c4=-2.205664e+04
+c5=-2.848113e+03
 
 # # center solenoids
-# c1=1.199e+07
-# c2=1.988e+07
-# c3=4.535e+07
-# c4=1.811e+07
-# c5=1.309e+07
+# c1=-1.143284e+06
+# c2=2.478694e+07
+# c3=3.022037e+07
+# c4=2.205664e+07
+# c5=2.848113e+06
 
 ur_coeff=1.0
-
-# number of control points on plasma
-N_control=100
-
-do_control=1
-weight_coils=1e-14
-weight_solenoids=1e-14
-weight_obj=1.0
-optimize_alpha=1
-
-# objective function
-# 0: sum_k (psi_k - psi_0) ^ 2
-# 1: sum_k (psi_N_k - 1) ^ 2
-# 2: sum_k (psi_k - psi_x) ^ 2
-obj_option=1
 
 ./../gslib/field-interp -m1 initial/initial_mesh_g3.mesh \
                         -m2 $mesh_file \
@@ -109,6 +101,7 @@ obj_option=1
                         -r $refinement_factor \
                         -no-vis
 
+# lldb -- main.o \
 mpirun -np 1 main.o \
     -m $mesh_file \
     -o 1 \
@@ -161,9 +154,13 @@ mpirun -np 1 main.o \
     --amr_frac_in $amr_frac_in \
     --amr_frac_out $amr_frac_out
 
-    
 
 
-
+cd gf
+for i in 0 1 2 3 4
+do
+    cp xtmp_amr$i.gf ../amr_study/taylor_f_amr$i.gf
+    cp mesh_amr${i}_model2_pc5_cyc1_it5.mesh ../amr_study/taylor_f_amr$i.gf
+done
 
 # ./../gslib/field-interp -m1 mesh.mesh -m2 meshes/geqdsk.msh -s1 final.gf -no-vis

@@ -10,6 +10,7 @@ def get_psi(filename):
     for n in range(5):
         fid.readline()
     out = fid.read().split('\n')[:-1]
+    
     psi = np.array([eval(a) for a in out])
     return psi
     
@@ -99,17 +100,34 @@ def plot_structures(lw=1.5):
     plt.plot(R * np.cos(t), R * np.sin(t), 'k', linewidth=lw, alpha=1)
     
 
-def plot_solution(psi, elements, vertices):
+def plot_solution(psi, elements, vertices, psi_x=None, do_colorbar=True):
     x = vertices[:, 0]
     y = vertices[:, 1]
     triangles = elements[:, 2:]
     jet = plt.cm.get_cmap("jet")
     p = plt.tricontour(x, y, triangles, psi, 100, alpha=.8)
-    # cbar = plt.colorbar()
+    if do_colorbar:
+        cbar = plt.colorbar()
+    if psi_x is not None:
+        p = plt.tricontour(x, y, triangles, psi, [psi_x], colors='k', alpha=.8)
     # cbar.set_alpha(1)
     plt.axis('square')
     # plt.axis('equal')
     return p
+
+def plot_filled_solution(psi, elements, vertices):
+    x = vertices[:, 0]
+    y = vertices[:, 1]
+    triangles = elements[:, 2:]
+    jet = plt.cm.get_cmap("jet")
+    p = plt.tricontourf(x, y, triangles, psi, 1000, alpha=.8)
+    cbar = plt.colorbar()
+    plt.clim((-33.96, -32.77))
+    # cbar.set_alpha(1)
+    plt.axis('square')
+    # plt.axis('equal')
+    return p
+
 
 def plot_mesh(elements, vertices, lw=.6):
     x = vertices[:, 0]
