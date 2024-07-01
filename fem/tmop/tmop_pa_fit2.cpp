@@ -20,22 +20,19 @@ namespace mfem
 {
 
 MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_Fit_2D,
-                           const real_t lim_normal,
-                           const Vector &lim_dist,
-                           const Vector &c0_,
                            const int NE,
                            const DenseTensor &j_,
-                           const Array<real_t> &w_,
-                           const Array<real_t> &b_,
-                           const Array<real_t> &bld_,
-                           const Vector &x0_,
+                           const real_t &c1_,
+                           const real_t &c2_,
                            const Vector &x1_,
+                           const Vector &x2_,
+                           const Vector &x3_,
                            const Vector &ones,
                            Vector &energy,
                            const int d1d,
                            const int q1d)
 {
-   return 0;
+   return 0; //TODO
 }
 
 real_t TMOP_Integrator::GetLocalStateEnergyPA_Fit_2D(const Vector &X) const
@@ -43,21 +40,21 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_Fit_2D(const Vector &X) const
    const int N = PA.ne;
    const int D1D = PA.maps->ndof;
    const int Q1D = PA.maps->nqpt;
-   const int id = (D1D << 4 ) | Q1D;
-   const real_t ln = lim_normal;
-   const Vector &LD = PA.LD;
+   const int id = (D1D<< 4) | Q1D;
    const DenseTensor &J = PA.Jtr;
-   const Array<real_t> &W   = PA.ir->GetWeights();
-   const Array<real_t> &B   = PA.maps->B;
-   const Array<real_t> &BLD = PA.maps_lim->B;
    MFEM_VERIFY(PA.maps_lim->ndof == D1D, "");
    MFEM_VERIFY(PA.maps_lim->nqpt == Q1D, "");
-   const Vector &X0 = PA.X0;
-   const Vector &C0 = PA.C0;
    const Vector &O = PA.O;
    Vector &E = PA.E;
+   
+   
+   const real_t &C1 = PA.C1;
+   const real_t &C2 = PA.C2;
+   const Vector &X1 = PA.X1;
+   const Vector &X2 = PA.X2;
+   const Vector &X3 = PA.X3;
 
-   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_Fit_2D,id,ln,LD,C0,N,J,W,B,BLD,X0,X,O,E);
+   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_Fit_2D,id,N,J,C1,C2,X1,X2,X3,O,E);
 }
 
 } // namespace mfem
