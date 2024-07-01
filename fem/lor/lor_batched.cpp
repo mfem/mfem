@@ -140,7 +140,7 @@ int BatchedLORAssembly::FillI(SparseMatrix &A) const
 
    const int nvdof = fes_ho.GetVSize();
 
-   const int ndof_per_el = fes_ho.GetFE(0)->GetDof();
+   const int ndof_per_el = fes_ho.GetTypicalFE()->GetDof();
    const int nel_ho = fes_ho.GetNE();
    const int nnz_per_row = sparse_mapping.Size()/ndof_per_el;
 
@@ -230,7 +230,7 @@ int BatchedLORAssembly::FillI(SparseMatrix &A) const
 void BatchedLORAssembly::FillJAndData(SparseMatrix &A) const
 {
    const int nvdof = fes_ho.GetVSize();
-   const int ndof_per_el = fes_ho.GetFE(0)->GetDof();
+   const int ndof_per_el = fes_ho.GetTypicalFE()->GetDof();
    const int nel_ho = fes_ho.GetNE();
    const int nnz_per_row = sparse_mapping.Size()/ndof_per_el;
 
@@ -500,7 +500,7 @@ BatchedLORAssembly::BatchedLORAssembly(FiniteElementSpace &fes_ho_)
 IntegrationRule GetCollocatedIntRule(FiniteElementSpace &fes)
 {
    IntegrationRules irs(0, Quadrature1D::GaussLobatto);
-   const Geometry::Type geom = fes.GetMesh()->GetElementGeometry(0);
+   const Geometry::Type geom = fes.GetMesh()->GetTypicalElementGeometry();
    const int nd1d = fes.GetMaxElementOrder() + 1;
    return irs.Get(geom, 2*nd1d - 3);
 }

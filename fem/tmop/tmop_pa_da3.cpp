@@ -150,13 +150,11 @@ void DiscreteAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &pa_fes,
 
    const Mesh *mesh = fes->GetMesh();
    const int NE = mesh->GetNE();
-   // Quick return for empty processors:
-   if (NE == 0) { return; }
    const int dim = mesh->Dimension();
    MFEM_VERIFY(mesh->GetNumGeometries(dim) <= 1,
                "mixed meshes are not supported");
    MFEM_VERIFY(!fes->IsVariableOrder(), "variable orders are not supported");
-   const FiniteElement &fe = *fes->GetFE(0);
+   const FiniteElement &fe = *fes->GetTypicalFE();
    const DenseMatrix &W = Geometries.GetGeomToPerfGeomJac(fe.GetGeomType());
    const DofToQuad::Mode mode = DofToQuad::TENSOR;
    const DofToQuad &maps = fe.GetDofToQuad(ir, mode);

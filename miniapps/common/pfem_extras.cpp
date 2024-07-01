@@ -119,7 +119,7 @@ IrrotationalProjector
    ess_bdr_ = 1;
    H1FESpace_->GetEssentialTrueDofs(ess_bdr_, ess_bdr_tdofs_);
 
-   int geom = H1FESpace_->GetFE(0)->GetGeomType();
+   Geometry::Type geom = H1FESpace_->GetMesh()->GetTypicalElementGeometry();
    const IntegrationRule * ir = &IntRules.Get(geom, irOrder);
 
    if ( s0 == NULL )

@@ -21,14 +21,14 @@ void DivDivIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
    // Assumes tensor-product elements
    Mesh *mesh = fes.GetMesh();
-   const FiniteElement *fel = fes.GetFE(0);
+   const FiniteElement *fel = fes.GetTypicalFE();
 
    const VectorTensorFiniteElement *el =
       dynamic_cast<const VectorTensorFiniteElement*>(fel);
    MFEM_VERIFY(el != NULL, "Only VectorTensorFiniteElement is supported!");
 
    const IntegrationRule *ir = IntRule ? IntRule : &MassIntegrator::GetRule
-                               (*el, *el, *mesh->GetElementTransformation(0));
+                               (*el, *el, *mesh->GetTypicalElementTransformation());
 
    const int dims = el->GetDim();
    MFEM_VERIFY(dims == 2 || dims == 3, "");
