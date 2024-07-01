@@ -257,11 +257,12 @@ void L2ProjectionGridTransfer::L2Projection::BuildHo2Lor(
 
 void L2ProjectionGridTransfer::L2Projection::ElemMixedMass(
    Geometry::Type geom, const FiniteElement& fe_ho,
-   const FiniteElement& fe_lor, ElementTransformation* el_tr,
+   const FiniteElement& fe_lor, ElementTransformation* tr_ho,
+   ElementTransformation* tr_lor,
    IntegrationPointTransformation& ip_tr,
    DenseMatrix& M_mixed_el) const
 {
-   int order = fe_lor.GetOrder() + fe_ho.GetOrder() + el_tr->OrderW();
+   int order = fe_lor.GetOrder() + fe_ho.GetOrder() + tr_lor->OrderW();
    const IntegrationRule* ir = &IntRules.Get(geom, order);
    M_mixed_el = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
@@ -272,11 +273,16 @@ void L2ProjectionGridTransfer::L2Projection::ElemMixedMass(
       Vector shape_lor(fe_lor.GetDof());
       fe_lor.CalcShape(ip_lor, shape_lor);
       Vector shape_ho(fe_ho.GetDof());
-      fe_ho.CalcShape(ip_ho, shape_ho);
-      el_tr->SetIntPoint(&ip_lor);
+      tr_ho->SetIntPoint(&ip_ho);
+      fe_ho.CalcPhysShape(*tr_ho, shape_ho);
+      tr_lor->SetIntPoint(&ip_lor);
       // For now we use the geometry information from the LOR space, which means
       // we won't be mass conservative if the mesh is curved
-      real_t w = el_tr->Weight() * ip_lor.weight;
+      real_t w = ip_lor.weight;
+      if (fe_lor.GetMapType() == FiniteElement::VALUE)
+      {
+         w *= tr_lor->Weight();
+      }
       shape_lor *= w;
       AddMultVWt(shape_lor, shape_ho, M_mixed_el);
    }
@@ -344,6 +350,8 @@ L2ProjectionGridTransfer::L2ProjectionL2Space::L2ProjectionL2Space(
       int ndof_ho = fe_ho.GetDof();
       int ndof_lor = fe_lor.GetDof();
 
+      ElementTransformation *tr_ho = fes_ho.GetElementTransformation(iho);
+
       emb_tr.SetIdentityTransformation(geom);
       const DenseTensor &pmats = cf_tr.point_matrices[geom];
 
@@ -369,8 +377,8 @@ L2ProjectionGridTransfer::L2ProjectionL2Space::L2ProjectionL2Space(
       {
          // Assemble the low-order refined mass matrix and invert locally
          int ilor = lor_els[iref];
-         ElementTransformation *el_tr = fes_lor.GetElementTransformation(ilor);
-         mi.AssembleElementMatrix(fe_lor, *el_tr, M_lor_el);
+         ElementTransformation *tr_lor = fes_lor.GetElementTransformation(ilor);
+         mi.AssembleElementMatrix(fe_lor, *tr_lor, M_lor_el);
          M_lor.CopyMN(M_lor_el, iref*ndof_lor, iref*ndof_lor);
          Minv_lor_el.Factor();
          Minv_lor_el.GetInverseMatrix(M_lor_el);
@@ -385,7 +393,7 @@ L2ProjectionGridTransfer::L2ProjectionL2Space::L2ProjectionL2Space(
          // within the coarse high-order element in reference space
          emb_tr.SetPointMat(pmats(cf_tr.embeddings[ilor].matrix));
 
-         ElemMixedMass(geom, fe_ho, fe_lor, el_tr, ip_tr, M_mixed_el);
+         ElemMixedMass(geom, fe_ho, fe_lor, tr_ho, tr_lor, ip_tr, M_mixed_el);
 
          M_mixed.CopyMN(M_mixed_el, iref*ndof_lor, 0);
       }
@@ -880,6 +888,8 @@ std::unique_ptr<SparseMatrix>>
       const FiniteElement& fe_ho = *fes_ho.GetFE(iho);
       const FiniteElement& fe_lor = *fes_lor.GetFE(lor_els[0]);
 
+      ElementTransformation *tr_ho = fes_ho.GetElementTransformation(iho);
+
       emb_tr.SetIdentityTransformation(geom);
       const DenseTensor& pmats = cf_tr.point_matrices[geom];
 
@@ -891,13 +901,13 @@ std::unique_ptr<SparseMatrix>>
       for (int iref = 0; iref < nref; ++iref)
       {
          int ilor = lor_els[iref];
-         ElementTransformation* el_tr = fes_lor.GetElementTransformation(ilor);
+         ElementTransformation* tr_lor = fes_lor.GetElementTransformation(ilor);
 
          // Create the transformation that embeds the fine low-order element
          // within the coarse high-order element in reference space
          emb_tr.SetPointMat(pmats(cf_tr.embeddings[ilor].matrix));
 
-         ElemMixedMass(geom, fe_ho, fe_lor, el_tr, ip_tr, M_LH_el);
+         ElemMixedMass(geom, fe_ho, fe_lor, tr_ho, tr_lor, ip_tr, M_LH_el);
 
          Array<int> dofs_lor(nedof_lor);
          fes_lor.GetElementDofs(ilor, dofs_lor);
