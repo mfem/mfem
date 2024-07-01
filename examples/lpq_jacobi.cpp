@@ -10,10 +10,24 @@
 #include "../miniapps/common/mfem-common.hpp"
 #include <fstream>
 #include <iostream>
-#include <unistd.h>
 
 using namespace std;
 using namespace mfem;
+
+enum SolverType
+{
+   sli,
+   cg,
+   num_solvers,  // last
+};
+
+enum IntegratorType
+{
+   mass,
+   diffusion,
+   elasticity,
+   num_integrators,  // last
+};
 
 int main(int argc, char *argv[])
 {
@@ -24,8 +38,8 @@ int main(int argc, char *argv[])
    string mesh_file = "../data/star.mesh";
    // System properties
    int order = 1;
-   int solver_type = 0;
-   int integrator_type = 0;
+   SolverType solver_type = sli;
+   IntegratorType integrator_type = mass;
    // Number of refinements
    int refine_serial = 1;
    int refine_parallel = 1;
@@ -42,6 +56,22 @@ int main(int argc, char *argv[])
    // const char *device_config = "cpu";
    // bool visualization = true;
 
+   // Create name for data_file
+   // TODO(Gabriel): To put this on its own scope?
+
+   // Extract the base name from the path
+   // string base_name = mesh_file.substr(mesh_file.find_last_of("/\\") + 1);
+   // base_name = base_name.substr(0, base_name.find_last_of('.'));
+
+   // // Create an output string using ostringstream
+   // std::ostringstream oss;
+   // oss << base_name << "-n" << n;
+
+   // std::string output = oss.str();
+
+   // // Print the result
+   // std::cout << "Output: " << output << std::endl;
+
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
@@ -49,12 +79,12 @@ int main(int argc, char *argv[])
                   "Finite element order (polynomial degree)");
    // TODO(Gabriel): TO be added later
    // " or -1 for isoparametric space.");
-   args.AddOption(&solver_type, "-s", "--solver",
+   args.AddOption((int*)&solver_type, "-s", "--solver",
                   "Solvers to be considered:"
                   "\n\t0: Stationary Linear Iteration"
                   "\n\t1: Preconditioned Conjugate Gradient"
                   "\n\tTODO");
-   args.AddOption(&integrator_type, "-i", "--integrator",
+   args.AddOption((int*)&integrator_type, "-i", "--integrator",
                   "Integrators to be considered:"
                   "\n\t0: MassIntegrator"
                   "\n\t1: DiffusionIntegrator"
@@ -78,6 +108,8 @@ int main(int argc, char *argv[])
    args.ParseCheck();
 
    MFEM_ASSERT(p_order > 0.0, "p needs to be positive");
+   MFEM_ASSERT((0 <= solver_type) && (solver_type < num_solvers), "");
+   MFEM_ASSERT((0 <= integrator_type) && (integrator_type < num_integrators), "");
    MFEM_ASSERT(0.0 < eps_y <= 1.0, "eps_y in (0,1]");
    MFEM_ASSERT(0.0 < eps_z <= 1.0, "eps_z in (0,1]");
 
@@ -103,11 +135,11 @@ int main(int argc, char *argv[])
    int dim = mesh->Dimension();
    switch (integrator_type)
    {
-      case 0: case 1:
+      case mass: case diffusion:
          fec = new H1_FECollection(order, dim);
          fespace = new ParFiniteElementSpace(mesh, fec);
          break;
-      case 2:
+      case elasticity:
          fec = new H1_FECollection(order, dim);
          fespace = new ParFiniteElementSpace(mesh, fec, dim);
          break;
@@ -126,10 +158,10 @@ int main(int argc, char *argv[])
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
    switch (integrator_type)
    {
-      case 0: case 1:
+      case mass: case diffusion:
          ess_bdr = 1;
          break;
-      case 2:
+      case elasticity:
          ess_bdr = 0;
          ess_bdr[0] = 1;
          break;
@@ -143,10 +175,10 @@ int main(int argc, char *argv[])
    VectorArrayCoefficient *f = nullptr;
    switch (integrator_type)
    {
-      case 0: case 1:
+      case mass: case diffusion:
          b->AddDomainIntegrator(new DomainLFIntegrator(one));
          break;
-      case 2:
+      case elasticity:
          f = new VectorArrayCoefficient(dim);
          for (int i = 0; i < dim; i++)
          {
@@ -162,13 +194,13 @@ int main(int argc, char *argv[])
    ParBilinearForm *a = new ParBilinearForm(fespace);
    switch (integrator_type)
    {
-      case 0:
+      case mass:
          a->AddDomainIntegrator(new MassIntegrator);
          break;
-      case 1:
+      case diffusion:
          a->AddDomainIntegrator(new DiffusionIntegrator);
          break;
-      case 2:
+      case elasticity:
          // TODO(Gabriel): Add lambda/mu
          a->AddDomainIntegrator(new ElasticityIntegrator(one, one));
          break;
@@ -217,12 +249,14 @@ int main(int argc, char *argv[])
    Solver *solver = nullptr;
    switch (solver_type)
    {
-      case 0:
+      case sli:
          solver = new SLISolver(MPI_COMM_WORLD);
          break;
-      case 1:
+      case cg:
          solver = new CGSolver(MPI_COMM_WORLD);
          break;
+      default:
+         mfem_error("Invalid solver type!");
    }
    IterativeSolver *it_solver = dynamic_cast<IterativeSolver *>(solver);
    if (it_solver)
