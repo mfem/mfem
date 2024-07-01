@@ -60,6 +60,8 @@ public:
    static bool IsAvailable(Backend backend);
    /// Set the default backend for batched linear algebra operations.
    static void SetPreferredBackend(Backend backend);
+   /// Get the default backend for batched linear algebra operations.
+   static Backend GetPreferredBackend();
    /// @brief Get the BatchedLinAlgBase object associated with a specific
    /// backend.
    ///

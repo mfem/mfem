@@ -83,6 +83,11 @@ void BatchedLinAlg::SetPreferredBackend(BatchedLinAlg::Backend backend)
    Instance().preferred_backend = backend;
 }
 
+BatchedLinAlg::Backend BatchedLinAlg::GetPreferredBackend()
+{
+   return Instance().preferred_backend;
+}
+
 const BatchedLinAlgBase &BatchedLinAlg::Get(BatchedLinAlg::Backend backend)
 {
    auto &backend_ptr = Instance().backends[backend];
