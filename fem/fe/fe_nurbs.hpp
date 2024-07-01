@@ -86,6 +86,10 @@ public:
                            DenseMatrix &dshape) const;
    virtual void CalcHessian (const IntegrationPoint &ip,
                              DenseMatrix &hessian) const;
+   virtual void Project(Coefficient &coeff,
+                        ElementTransformation &Trans, Vector &dofs) const;
+   virtual void Project(VectorCoefficient &vcoeff,
+                        ElementTransformation &Trans, Vector &dofs) const;
 };
 
 /// An arbitrary order 2D NURBS element on a square
@@ -121,6 +125,10 @@ public:
                            DenseMatrix &dshape) const;
    virtual void CalcHessian (const IntegrationPoint &ip,
                              DenseMatrix &hessian) const;
+   virtual void Project(Coefficient &coeff,
+                        ElementTransformation &Trans, Vector &dofs) const;
+   virtual void Project(VectorCoefficient &vcoeff,
+                        ElementTransformation &Trans, Vector &dofs) const;
 };
 
 /// An arbitrary order 3D NURBS element on a cube
@@ -161,6 +169,10 @@ public:
                            DenseMatrix &dshape) const;
    virtual void CalcHessian (const IntegrationPoint &ip,
                              DenseMatrix &hessian) const;
+   virtual void Project(Coefficient &coeff,
+                        ElementTransformation &Trans, Vector &dofs) const;
+   virtual void Project(VectorCoefficient &vcoeff,
+                        ElementTransformation &Trans, Vector &dofs) const;
 };
 
 
@@ -241,6 +253,9 @@ public:
     */
    virtual void CalcDivShape(const IntegrationPoint &ip,
                              Vector &divshape) const;
+
+   virtual void Project(VectorCoefficient &vcoeff,
+                        ElementTransformation &Trans, Vector &dofs) const;
 
    ~NURBS_HDiv2DFiniteElement();
 };
@@ -336,6 +351,9 @@ public:
    virtual void CalcDivShape(const IntegrationPoint &ip,
                              Vector &divshape) const;
 
+   virtual void Project(VectorCoefficient &vcoeff,
+                        ElementTransformation &Trans, Vector &dofs) const;
+
    ~NURBS_HDiv3DFiniteElement();
 };
 
@@ -414,6 +432,9 @@ public:
        CDim = 1 for #dim = 2. */
    virtual void CalcCurlShape(const IntegrationPoint &ip,
                               DenseMatrix &curl_shape) const;
+
+   virtual void Project(VectorCoefficient &vcoeff,
+                        ElementTransformation &Trans, Vector &dofs) const;
 
    ~NURBS_HCurl2DFiniteElement();
 };
@@ -505,6 +526,9 @@ public:
        CDim = 1 for #dim = 2. */
    virtual void CalcCurlShape(const IntegrationPoint &ip,
                               DenseMatrix &curl_shape) const;
+
+   virtual void Project(VectorCoefficient &vcoeff,
+                        ElementTransformation &Trans, Vector &dofs) const;
 
    ~NURBS_HCurl3DFiniteElement();
 };

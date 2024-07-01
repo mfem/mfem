@@ -28,6 +28,16 @@ Version 4.7.1 (development)
 
 - Added miniapps to demonstrate the H(div) and H(curl) NURBS elements.
 
+- Added a nodal "Projection" for H1, H(div) and H(curl) NURBS elements. The
+  coefficient is evaluated at the Bottella point, where the shapefunction
+  attains its maximum, this value is directly injected in the solution vector.
+  NOTE: this is not a true projector in the mathematical sense, applying the 
+  operation a second time might change the solution.
+
+- Initialization of a FESpace in case of a NURBS-based FE_Collection has been modified.
+  This allows using NURBS based discretizations in the examples with minimal changes.
+  See ex1(p), ex10(p), ex11p, ex12p, ex16(p) & ex19(p).
+
 - Added an MFEM example for the eikonal equation. This new solver is based on
   the proximal Galerkin method introduced by Keith and Surowiec.
 
