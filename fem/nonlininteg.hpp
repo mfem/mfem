@@ -35,6 +35,14 @@ public:
                                   reduced integration rules. */
    };
 
+   enum HDGFaceType
+   {
+      ELEM = 0x2,
+      CONSTR = 0x4,
+      TRACE = 0x8,
+      FACE = 0x10,
+   };
+
 protected:
    const IntegrationRule *IntRule;
 
@@ -85,6 +93,15 @@ public:
                                    const FiniteElement &el2,
                                    FaceElementTransformations &Tr,
                                    const Vector &elfun, Vector &elvect);
+
+   /// @brief Perform the local action of the NonlinearFormIntegrator resulting
+   /// from an HDG face integral term.
+   virtual void AssembleHDGFaceVector(int type,
+                                      const FiniteElement &trace_face_fe,
+                                      const FiniteElement &fe,
+                                      FaceElementTransformations &Tr,
+                                      const Vector &trfun, const Vector &elfun,
+                                      Vector &elvect);
 
    /// Assemble the local gradient matrix
    virtual void AssembleElementGrad(const FiniteElement &el,
@@ -471,6 +488,80 @@ public:
                                     ElementTransformation &trans,
                                     const Vector &elfun,
                                     DenseMatrix &elmat);
+};
+
+/// Integrator defining a sum of multiple non-linear Integrators.
+class SumNLFIntegrator : public NonlinearFormIntegrator
+{
+private:
+   int own_integrators;
+   mutable DenseMatrix elem_mat;
+   mutable Vector elem_vect;
+   Array<NonlinearFormIntegrator*> integrators;
+
+public:
+   SumNLFIntegrator(int own_integs = 1) { own_integrators = own_integs; }
+
+   virtual void SetIntRule(const IntegrationRule *ir);
+
+   void AddIntegrator(NonlinearFormIntegrator *integ)
+   { integrators.Append(integ); }
+
+   virtual void AssembleElementVector(const FiniteElement &el,
+                                      ElementTransformation &Tr,
+                                      const Vector &elfun,
+                                      Vector &elvect) override;
+
+   virtual void AssembleFaceVector(const FiniteElement &el1,
+                                   const FiniteElement &el2,
+                                   FaceElementTransformations &Tr,
+                                   const Vector &elfun,
+                                   Vector &elvect) override;
+
+   virtual void AssembleHDGFaceVector(int type,
+                                      const FiniteElement &trace_face_fe,
+                                      const FiniteElement &fe,
+                                      FaceElementTransformations &Tr,
+                                      const Vector &trfun,
+                                      const Vector &elfun,
+                                      Vector &elvect) override;
+
+   virtual void AssembleElementGrad(const FiniteElement &el,
+                                    ElementTransformation &Tr,
+                                    const Vector &elfun,
+                                    DenseMatrix &elmat) override;
+
+   virtual void AssembleFaceGrad(const FiniteElement &el1,
+                                 const FiniteElement &el2,
+                                 FaceElementTransformations &Tr,
+                                 const Vector &elfun,
+                                 DenseMatrix &elmat) override;
+
+   virtual real_t GetElementEnergy(const FiniteElement &el,
+                                   ElementTransformation &Tr,
+                                   const Vector &elfun) override;
+
+   virtual void AssemblePA(const FiniteElementSpace &fes) override;
+
+   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes) override;
+
+   virtual void AssembleGradPA(const Vector &x,
+                               const FiniteElementSpace &fes) override;
+
+   virtual real_t GetLocalStateEnergyPA(const Vector &x) const override;
+
+   virtual void AddMultPA(const Vector &x, Vector &y) const override;
+
+   virtual void AddMultGradPA(const Vector &x, Vector &y) const override;
+
+   virtual void AssembleGradDiagonalPA(Vector &diag) const override;
+
+   virtual void AssembleMF(const FiniteElementSpace &fes) override;
+
+   virtual void AddMultMF(const Vector &x, Vector &y) const override;
+
+   virtual ~SumNLFIntegrator();
 };
 
 }

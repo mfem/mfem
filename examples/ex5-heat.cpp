@@ -17,17 +17,23 @@
 //               ex5 -m ../data/star.mesh -pa -d raja-omp
 //               ex5 -m ../data/beam-hex.mesh -pa -d cuda
 //
-// Description:  This example code solves a simple 2D/3D mixed Darcy problem
-//               corresponding to the saddle point system
+// Description:  This example code solves a simple 2D/3D asymptotic heat diffusion
+//               problem in the mixed formulation corresponding to the system
 //
-//                                 k*u + grad p = f
-//                                 - div u      = g
+//                                 k^-1.q + grad T =  f
+//                                  div q +    a*T = -g
 //
-//               with natural boundary condition -p = <given pressure>.
-//               Here, we use a given exact solution (u,p) and compute the
-//               corresponding r.h.s. (f,g).  We discretize with Raviart-Thomas
-//               finite elements (velocity u) and piecewise discontinuous
-//               polynomials (pressure p).
+//               with natural boundary condition q.n = 0, where n is the outer
+//               normal. The tensor k represents the heat conductivity, where its
+//               symmetric and antisymmetric parts can be adjusted. The scalar a
+//               is then the heat capacity, which can be zero, changing the problem
+//               to steady-state, indefinite, saddle-point. The r.h.s. is f = 0 and
+//               g = -a * <initial temperature> for the definite problem and
+//               g = -<initial temperature> for the indefinite one. As a reference,
+//               we use the exact solution (q,T) for the asymptote a -> infinity.
+//               We discretize with Raviart-Thomas finite elements (heat flux q)
+//               and piecewise discontinuous polynomials (temperature T). Alternatively,
+//               the piecewise discontinuous polynomials are used for both quantities.
 //
 //               The example demonstrates the use of the DarcyForm class, as
 //               well as hybridization of mixed systems and the collective saving
@@ -46,11 +52,13 @@ using namespace std;
 using namespace mfem;
 
 // Define the analytical solution and forcing terms / boundary conditions
-void uFun_ex(const Vector & x, Vector & u);
-real_t pFun_ex(const Vector & x);
-void fFun(const Vector & x, Vector & f);
-real_t gFun(const Vector & x);
-real_t f_natural(const Vector & x);
+typedef std::function<real_t(const Vector &, real_t t)> TDFunc;
+typedef std::function<void(const Vector &, Vector &)> VecFunc;
+typedef std::function<void(const Vector &, DenseMatrix &)> MatFunc;
+
+TDFunc GetTFun(real_t t_0, real_t a, const MatFunc &kFun);
+VecFunc GetQFun(real_t t_0, real_t a, const MatFunc &kFun);
+MatFunc GetKFun(real_t k, real_t ks, real_t ka);
 
 int main(int argc, char *argv[])
 {
@@ -61,6 +69,11 @@ int main(int argc, char *argv[])
    int nx = 0;
    int ny = 0;
    int order = 1;
+   bool dg = false;
+   real_t ks = 1.;
+   real_t ka = 0.;
+   real_t a = 0.;
+   real_t td = 0.5;
    bool hybridization = false;
    bool pa = false;
    const char *device_config = "cpu";
@@ -75,6 +88,16 @@ int main(int argc, char *argv[])
                   "Number of cells in y.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
+   args.AddOption(&dg, "-dg", "--discontinuous", "-no-dg",
+                  "--no-discontinuous", "Enable DG elements for fluxes.");
+   args.AddOption(&ks, "-ks", "--kappa_sym",
+                  "Symmetric anisotropy of the heat conductivity tensor");
+   args.AddOption(&ka, "-ka", "--kappa_anti",
+                  "Antisymmetric anisotropy of the heat conductivity tensor");
+   args.AddOption(&a, "-a", "--heat_capacity",
+                  "Heat capacity coefficient (0=indefinite problem)");
+   args.AddOption(&td, "-td", "--stab_diff",
+                  "Diffusion stabilization factor (1/2=default)");
    args.AddOption(&hybridization, "-hb", "--hybridization", "-no-hb",
                   "--no-hybridization", "Enable hybridization.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
@@ -133,23 +156,30 @@ int main(int argc, char *argv[])
 
    // 5. Define a finite element space on the mesh. Here we use the
    //    Raviart-Thomas finite elements of the specified order.
-   FiniteElementCollection *R_coll(new RT_FECollection(order, dim));
-   FiniteElementCollection *W_coll(new L2_FECollection(order, dim));
+   FiniteElementCollection *V_coll;
+   if (dg)
+   {
+      // In the case of LDG formulation, we chose a closed basis as it
+      // is customary for HDG to match trace DOFs, but an open basis can
+      // be used instead.
+      V_coll = new L2_FECollection(order, dim, BasisType::GaussLobatto);
+   }
+   else
+   {
+      V_coll = new RT_FECollection(order, dim);
+   }
+   FiniteElementCollection *W_coll = new L2_FECollection(order, dim);
 
-   FiniteElementSpace *R_space = new FiniteElementSpace(mesh, R_coll);
+   FiniteElementSpace *V_space = new FiniteElementSpace(mesh, V_coll,
+                                                        (dg)?(dim):(1));
    FiniteElementSpace *W_space = new FiniteElementSpace(mesh, W_coll);
 
-   DarcyForm *darcy = new DarcyForm(R_space, W_space, false);
+   DarcyForm *darcy = new DarcyForm(V_space, W_space);
 
    // 6. Define the BlockStructure of the problem, i.e. define the array of
    //    offsets for each variable. The last component of the Array is the sum
    //    of the dimensions of each block.
    const Array<int> &block_offsets = darcy->GetOffsets();
-   /*(3); // number of variables + 1
-   block_offsets[0] = 0;
-   block_offsets[1] = R_space->GetVSize();
-   block_offsets[2] = W_space->GetVSize();
-   block_offsets.PartialSum();*/
 
    std::cout << "***********************************************************\n";
    std::cout << "dim(R) = " << block_offsets[1] - block_offsets[0] << "\n";
@@ -158,34 +188,43 @@ int main(int argc, char *argv[])
    std::cout << "***********************************************************\n";
 
    // 7. Define the coefficients, analytical solution, and rhs of the PDE.
-   const double k = 1.0;
-   ConstantCoefficient kcoeff(k);
+   const real_t t_0 = 1.; //base temperature
+   const real_t k = 1.; //base heat conductivity
 
-   VectorFunctionCoefficient fcoeff(dim, fFun);
-   FunctionCoefficient fnatcoeff(f_natural);
-   FunctionCoefficient gcoeff(gFun);
+   ConstantCoefficient acoeff(a);
 
-   VectorFunctionCoefficient ucoeff(dim, uFun_ex);
-   FunctionCoefficient pcoeff(pFun_ex);
+   auto kFun = GetKFun(k, ks, ka);
+   MatrixFunctionCoefficient kcoeff(dim, kFun);
+   InverseMatrixCoefficient ikcoeff(kcoeff);
+
+   auto tFun = GetTFun(t_0, a, kFun);
+   FunctionCoefficient tcoeff(tFun);
+   SumCoefficient gcoeff(0, tcoeff, 1.,
+                         -((a>0.)?(a):(1.)));//<-- due to symmetrization, the sign is opposite
+
+   auto qFun = GetQFun(t_0, a, kFun);
+   VectorFunctionCoefficient qcoeff(dim, qFun);
 
    // 8. Allocate memory (x, rhs) for the analytical solution and the right hand
-   //    side.  Define the GridFunction u,p for the finite element solution and
+   //    side.  Define the GridFunction q,t for the finite element solution and
    //    linear forms fform and gform for the right hand side.  The data
    //    allocated by x and rhs are passed as a reference to the grid functions
-   //    (u,p) and the linear forms (fform, gform).
+   //    (q,t) and the linear forms (fform, gform).
    MemoryType mt = device.GetMemoryType();
    BlockVector x(block_offsets, mt), rhs(block_offsets, mt);
 
    LinearForm *fform(new LinearForm);
-   fform->Update(R_space, rhs.GetBlock(0), 0);
-   fform->AddDomainIntegrator(new VectorFEDomainLFIntegrator(fcoeff));
-   fform->AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(fnatcoeff));
+   fform->Update(V_space, rhs.GetBlock(0), 0);
    fform->Assemble();
    fform->SyncAliasMemory(rhs);
 
    LinearForm *gform(new LinearForm);
    gform->Update(W_space, rhs.GetBlock(1), 0);
    gform->AddDomainIntegrator(new DomainLFIntegrator(gcoeff));
+   /*Vector v ({-1., 0.});
+   VectorConstantCoefficient vc(v);
+   ConstantCoefficient one;
+   gform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(one, vc, 1.));*/
    gform->Assemble();
    gform->SyncAliasMemory(rhs);
 
@@ -195,23 +234,33 @@ int main(int argc, char *argv[])
    //                                [ B   0  ]
    //     where:
    //
-   //     M = \int_\Omega k u_h \cdot v_h d\Omega   u_h, v_h \in R_h
-   //     B   = -\int_\Omega \div u_h q_h d\Omega   u_h \in R_h, q_h \in W_h
-   //BilinearForm *mVarf(new BilinearForm(R_space));
-   //MixedBilinearForm *bVarf(new MixedBilinearForm(R_space, W_space));
-   BilinearForm *mVarf = darcy->GetFluxMassForm();
-   MixedBilinearForm *bVarf = darcy->GetFluxDivForm();
+   //     M = \int_\Omega k u_h \cdot v_h d\Omega   q_h, v_h \in V_h
+   //     B   = -\int_\Omega \div u_h q_h d\Omega   q_h \in V_h, w_h \in W_h
+   BilinearForm *Mq = darcy->GetFluxMassForm();
+   MixedBilinearForm *B = darcy->GetFluxDivForm();
+   BilinearForm *Mt = (a > 0. || dg)?(darcy->GetPotentialMassForm()):(NULL);
 
-   //if (pa) { mVarf->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   mVarf->AddDomainIntegrator(new VectorFEMassIntegrator(kcoeff));
-   //mVarf->Assemble();
-   //if (!pa) { mVarf->Finalize(); }
+   if (dg)
+   {
+      Mq->AddDomainIntegrator(new VectorMassIntegrator(ikcoeff));
+      B->AddDomainIntegrator(new VectorDivergenceIntegrator());
+      B->AddInteriorFaceIntegrator(new TransposeIntegrator(
+                                      new DGNormalTraceIntegrator(-1.)));
+      if (td > 0.)
+      {
+         Mt->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td));
+      }
+   }
+   else
+   {
+      Mq->AddDomainIntegrator(new VectorFEMassIntegrator(ikcoeff));
+      B->AddDomainIntegrator(new VectorFEDivergenceIntegrator());
+   }
 
-   //if (pa) { bVarf->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   ConstantCoefficient cdiv(-1.);
-   bVarf->AddDomainIntegrator(new VectorFEDivergenceIntegrator(cdiv));
-   //bVarf->Assemble();
-   //if (!pa) { bVarf->Finalize(); }
+   if (Mt)
+   {
+      Mt->AddDomainIntegrator(new MassIntegrator(acoeff));
+   }
 
    //set hybridization / assembly level
 
@@ -219,7 +268,7 @@ int main(int argc, char *argv[])
    /*Array<int> bdr_is_ess(mesh->bdr_attributes.Max());
    bdr_is_ess = 0;
    bdr_is_ess[3] = -1;
-   R_space->GetEssentialTrueDofs(bdr_is_ess, ess_flux_tdofs_list);*/
+   V_space->GetEssentialTrueDofs(bdr_is_ess, ess_flux_tdofs_list);*/
 
    FiniteElementCollection *trace_coll = NULL;
    FiniteElementSpace *trace_space = NULL;
@@ -230,6 +279,7 @@ int main(int argc, char *argv[])
    if (hybridization)
    {
       trace_coll = new RT_Trace_FECollection(order, dim, 0);
+      //trace_coll = new DG_Interface_FECollection(order, dim, 0);
       trace_space = new FiniteElementSpace(mesh, trace_coll);
       darcy->EnableHybridization(trace_space,
                                  new NormalTraceJumpIntegrator(),
@@ -239,38 +289,12 @@ int main(int argc, char *argv[])
    if (pa) { darcy->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
 
    darcy->Assemble();
-   //if (!pa) { darcy->Finalize(); }
-
-   //BlockOperator darcyOp(block_offsets);
-
-   //TransposeOperator *Bt = NULL;
-
-   /*if (pa)
-   {
-      Bt = new TransposeOperator(bVarf);
-
-      darcyOp.SetBlock(0,0, mVarf);
-      darcyOp.SetBlock(0,1, Bt, -1.0);
-      darcyOp.SetBlock(1,0, bVarf, -1.0);
-   }
-   else
-   {
-      SparseMatrix &M(mVarf->SpMat());
-      SparseMatrix &B(bVarf->SpMat());
-      B *= -1.;
-      Bt = new TransposeOperator(&B);
-
-      darcyOp.SetBlock(0,0, &M);
-      darcyOp.SetBlock(0,1, Bt);
-      darcyOp.SetBlock(1,0, &B);
-   }*/
 
    OperatorHandle pDarcyOp;
-   Vector X, B;
-   x = 0.;
-   //darcy->FormSystemMatrix(ess_flux_tdofs_list, pDarcyOp);
+   Vector X, RHS;
+   //x = 1./ny;
    darcy->FormLinearSystem(ess_flux_tdofs_list, x, rhs,
-                           pDarcyOp, X, B);
+                           pDarcyOp, X, RHS);
 
    chrono.Stop();
    std::cout << "Assembly took " << chrono.RealTime() << "s.\n";
@@ -297,7 +321,7 @@ int main(int argc, char *argv[])
       solver.SetPreconditioner(prec);
       solver.SetPrintLevel(1);
 
-      solver.Mult(B, X);
+      solver.Mult(RHS, X);
       darcy->RecoverFEMSolution(X, rhs, x);
 
       chrono.Stop();
@@ -324,9 +348,9 @@ int main(int argc, char *argv[])
       //                     [  0       B diag(M)^-1 B^T ]
       //
       //     Here we use Symmetric Gauss-Seidel to approximate the inverse of the
-      //     pressure Schur Complement
+      //     temperature Schur Complement
       SparseMatrix *MinvBt = NULL;
-      Vector Md(mVarf->Height());
+      Vector Md(Mq->Height());
 
       BlockDiagonalPreconditioner darcyPrec(block_offsets);
       Solver *invM, *invS;
@@ -334,16 +358,16 @@ int main(int argc, char *argv[])
 
       if (pa)
       {
-         mVarf->AssembleDiagonal(Md);
+         Mq->AssembleDiagonal(Md);
          auto Md_host = Md.HostRead();
-         Vector invMd(mVarf->Height());
-         for (int i=0; i<mVarf->Height(); ++i)
+         Vector invMd(Mq->Height());
+         for (int i=0; i<Mq->Height(); ++i)
          {
             invMd(i) = 1.0 / Md_host[i];
          }
 
-         Vector BMBt_diag(bVarf->Height());
-         bVarf->AssembleDiagonal_ADAt(invMd, BMBt_diag);
+         Vector BMBt_diag(B->Height());
+         B->AssembleDiagonal_ADAt(invMd, BMBt_diag);
 
          Array<int> ess_tdof_list;  // empty
 
@@ -352,21 +376,28 @@ int main(int argc, char *argv[])
       }
       else
       {
-         SparseMatrix &M(mVarf->SpMat());
-         M.GetDiag(Md);
+         SparseMatrix &Mqm(Mq->SpMat());
+         Mqm.GetDiag(Md);
          Md.HostReadWrite();
 
-         SparseMatrix &B(bVarf->SpMat());
-         MinvBt = Transpose(B);
+         SparseMatrix &Bm(B->SpMat());
+         MinvBt = Transpose(Bm);
 
          for (int i = 0; i < Md.Size(); i++)
          {
             MinvBt->ScaleRow(i, 1./Md(i));
          }
 
-         S = Mult(B, *MinvBt);
+         S = Mult(Bm, *MinvBt);
+         if (Mt)
+         {
+            SparseMatrix &Mtm(Mt->SpMat());
+            SparseMatrix *Snew = Add(Mtm, *S);
+            delete S;
+            S = Snew;
+         }
 
-         invM = new DSmoother(M);
+         invM = new DSmoother(Mqm);
 
 #ifndef MFEM_USE_SUITESPARSE
          invS = new GSSmoother(*S);
@@ -394,7 +425,7 @@ int main(int argc, char *argv[])
       solver.SetPreconditioner(darcyPrec);
       solver.SetPrintLevel(1);
 
-      solver.Mult(B, X);
+      solver.Mult(RHS, X);
       darcy->RecoverFEMSolution(X, rhs, x);
 
       if (device.IsEnabled()) { x.HostRead(); }
@@ -421,10 +452,10 @@ int main(int argc, char *argv[])
       delete MinvBt;
    }
 
-   // 12. Create the grid functions u and p. Compute the L2 error norms.
-   GridFunction u, p;
-   u.MakeRef(R_space, x.GetBlock(0), 0);
-   p.MakeRef(W_space, x.GetBlock(1), 0);
+   // 12. Create the grid functions q and t. Compute the L2 error norms.
+   GridFunction q, t;
+   q.MakeRef(V_space, x.GetBlock(0), 0);
+   t.MakeRef(W_space, x.GetBlock(1), 0);
 
    int order_quad = max(2, 2*order+1);
    const IntegrationRule *irs[Geometry::NumGeom];
@@ -433,35 +464,38 @@ int main(int argc, char *argv[])
       irs[i] = &(IntRules.Get(i, order_quad));
    }
 
-   real_t err_u  = u.ComputeL2Error(ucoeff, irs);
-   real_t norm_u = ComputeLpNorm(2., ucoeff, *mesh, irs);
-   real_t err_p  = p.ComputeL2Error(pcoeff, irs);
-   real_t norm_p = ComputeLpNorm(2., pcoeff, *mesh, irs);
+   qcoeff.SetTime(1.);
+   tcoeff.SetTime(1.);
 
-   std::cout << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
-   std::cout << "|| p_h - p_ex || / || p_ex || = " << err_p / norm_p << "\n";
+   real_t err_q  = q.ComputeL2Error(qcoeff, irs);
+   real_t norm_q = ComputeLpNorm(2., qcoeff, *mesh, irs);
+   real_t err_t  = t.ComputeL2Error(tcoeff, irs);
+   real_t norm_t = ComputeLpNorm(2., tcoeff, *mesh, irs);
+
+   std::cout << "|| q_h - q_ex || / || q_ex || = " << err_q / norm_q << "\n";
+   std::cout << "|| t_h - t_ex || / || t_ex || = " << err_t / norm_t << "\n";
 
    // 13. Save the mesh and the solution. This output can be viewed later using
-   //     GLVis: "glvis -m ex5.mesh -g sol_u.gf" or "glvis -m ex5.mesh -g
-   //     sol_p.gf".
+   //     GLVis: "glvis -m ex5.mesh -g sol_q.gf" or "glvis -m ex5.mesh -g
+   //     sol_t.gf".
    {
       ofstream mesh_ofs("ex5.mesh");
       mesh_ofs.precision(8);
       mesh->Print(mesh_ofs);
 
-      ofstream u_ofs("sol_u.gf");
-      u_ofs.precision(8);
-      u.Save(u_ofs);
+      ofstream q_ofs("sol_q.gf");
+      q_ofs.precision(8);
+      q.Save(q_ofs);
 
-      ofstream p_ofs("sol_p.gf");
-      p_ofs.precision(8);
-      p.Save(p_ofs);
+      ofstream t_ofs("sol_t.gf");
+      t_ofs.precision(8);
+      t.Save(t_ofs);
    }
 
    // 14. Save data in the VisIt format
    VisItDataCollection visit_dc("Example5", mesh);
-   visit_dc.RegisterField("velocity", &u);
-   visit_dc.RegisterField("pressure", &p);
+   visit_dc.RegisterField("heat flux", &q);
+   visit_dc.RegisterField("temperature", &t);
    visit_dc.Save();
 
    // 15. Save data in the ParaView format
@@ -472,8 +506,8 @@ int main(int argc, char *argv[])
    paraview_dc.SetDataFormat(VTKFormat::BINARY);
    paraview_dc.SetHighOrderOutput(true);
    paraview_dc.SetTime(0.0); // set the time
-   paraview_dc.RegisterField("velocity",&u);
-   paraview_dc.RegisterField("pressure",&p);
+   paraview_dc.RegisterField("heat flux",&q);
+   paraview_dc.RegisterField("temperature",&t);
    paraview_dc.Save();
 
    // 16. Send the solution by socket to a GLVis server.
@@ -481,86 +515,122 @@ int main(int argc, char *argv[])
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
-      socketstream u_sock(vishost, visport);
-      u_sock.precision(8);
-      u_sock << "solution\n" << *mesh << u << "window_title 'Velocity'" << endl;
-      u_sock << "keys Rljvvvvvmmc" << endl;
-      socketstream p_sock(vishost, visport);
-      p_sock.precision(8);
-      p_sock << "solution\n" << *mesh << p << "window_title 'Pressure'" << endl;
-      p_sock << "keys Rljmmc" << endl;
+      socketstream q_sock(vishost, visport);
+      q_sock.precision(8);
+      q_sock << "solution\n" << *mesh << q << "window_title 'Heat flux'" << endl;
+      q_sock << "keys Rljvvvvvmmc" << endl;
+      socketstream t_sock(vishost, visport);
+      t_sock.precision(8);
+      t_sock << "solution\n" << *mesh << t << "window_title 'Temperature'" << endl;
+      t_sock << "keys Rljmmc" << endl;
    }
 
    // 17. Free the used memory.
    delete fform;
    delete gform;
-   //delete mVarf;
-   //delete bVarf;
+   //delete Mq;
+   //delete B;
    delete darcy;
    delete W_space;
-   delete R_space;
+   delete V_space;
    delete trace_space;
    delete W_coll;
-   delete R_coll;
+   delete V_coll;
    delete trace_coll;
    delete mesh;
 
    return 0;
 }
 
-
-void uFun_ex(const Vector & x, Vector & u)
+TDFunc GetTFun(real_t t_0, real_t a, const MatFunc &kFun)
 {
-   real_t xi(x(0));
-   real_t yi(x(1));
-   real_t zi(0.0);
-   if (x.Size() == 3)
+   return [=](const Vector &x, real_t t) -> real_t
    {
-      zi = x(2);
-   }
+      const int ndim = x.Size();
+      real_t t0 = t_0 * sin(M_PI*x(0)) * sin(M_PI*x(1));
+      if (ndim > 2)
+      {
+         t0 *= sin(M_PI*x(2));
+      }
 
-   u(0) = - exp(xi)*sin(yi)*cos(zi);
-   u(1) = - exp(xi)*cos(yi)*cos(zi);
+      if (a <= 0.) { return t0; }
 
-   if (x.Size() == 3)
-   {
-      u(2) = exp(xi)*sin(yi)*sin(zi);
-   }
+      Vector ddT((ndim<=2)?(2):(4));
+      ddT(0) = -t_0 * M_PI*M_PI * sin(M_PI*x(0)) * sin(M_PI*x(1));//xx,yy
+      ddT(1) = +t_0 * M_PI*M_PI * cos(M_PI*x(0)) * cos(M_PI*x(1));//xy
+      if (ndim > 2)
+      {
+         ddT(0) *= sin(M_PI*x(2));//xx,yy,zz
+         ddT(1) *= sin(M_PI*x(2));//xy
+         ddT(2) = +t_0 * M_PI*M_PI * cos(M_PI*x(0)) * sin(M_PI*x(1)) * cos(M_PI*x(
+                                                                              2));//xz
+         ddT(3) = +t_0 * M_PI*M_PI * sin(M_PI*x(0)) * cos(M_PI*x(1)) * cos(M_PI*x(
+                                                                              2));//yz
+
+      }
+
+      DenseMatrix kappa;
+      kFun(x, kappa);
+
+      real_t div = -(kappa(0,0) + kappa(1,1)) * ddT(0) - (kappa(0,1) + kappa(1,0)) * ddT(1);
+      if (ndim > 2)
+      {
+         div += -kappa(2,2) * ddT(0) - (kappa(0,2) + kappa(2,0)) * ddT(2) - (kappa(1,
+                                                                                   2) + kappa(2,1)) * ddT(3);
+      }
+      return t0 - div / a * t;
+   };
 }
 
-// Change if needed
-real_t pFun_ex(const Vector & x)
+VecFunc GetQFun(real_t t_0, real_t a, const MatFunc &kFun)
 {
-   real_t xi(x(0));
-   real_t yi(x(1));
-   real_t zi(0.0);
-
-   if (x.Size() == 3)
+   return [=](const Vector &x, Vector &v)
    {
-      zi = x(2);
-   }
+      const int vdim = x.Size();
+      v.SetSize(vdim);
 
-   return exp(xi)*sin(yi)*cos(zi);
+      Vector gT(vdim);
+      gT = 0.;
+      gT(0) = t_0 * M_PI * cos(M_PI*x(0)) * sin(M_PI*x(1));
+      gT(1) = t_0 * M_PI * sin(M_PI*x(0)) * cos(M_PI*x(1));
+      if (vdim > 2)
+      {
+         gT(0) *= sin(M_PI*x(2));
+         gT(1) *= sin(M_PI*x(2));
+         gT(2) = t_0 * M_PI * sin(M_PI*x(0)) * sin(M_PI*x(1)) * cos(M_PI*x(2));
+      }
+
+      DenseMatrix kappa;
+      kFun(x, kappa);
+
+      if (vdim <= 2)
+      {
+         v(0) = -kappa(0,0) * gT(0) -kappa(0,1) * gT(1);
+         v(1) = -kappa(1,0) * gT(0) -kappa(1,1) * gT(1);
+      }
+      else
+      {
+         kappa.Mult(gT, v);
+         v.Neg();
+      }
+   };
 }
 
-void fFun(const Vector & x, Vector & f)
+MatFunc GetKFun(real_t k, real_t ks, real_t ka)
 {
-   f = 0.0;
-}
-
-real_t gFun(const Vector & x)
-{
-   if (x.Size() == 3)
+   return [=](const Vector &x, DenseMatrix &kappa)
    {
-      return -pFun_ex(x);
-   }
-   else
-   {
-      return 0;
-   }
+      const int ndim = x.Size();
+      kappa.Diag(k, ndim);
+      kappa(0,0) *= ks;
+      kappa(0,1) = +ka * k;
+      kappa(1,0) = -ka * k;
+      if (ndim > 2)
+      {
+         kappa(0,2) = +ka * k;
+         kappa(2,0) = -ka * k;
+      }
+   };
 }
 
-real_t f_natural(const Vector & x)
-{
-   return (-pFun_ex(x));
-}
+

@@ -1077,37 +1077,41 @@ void Mesh::GetFaceElementTransformations(int FaceNo,
 #endif
 }
 
-FaceElementTransformations *Mesh::GetInteriorFaceTransformations(int FaceNo)
+FaceElementTransformations *Mesh::GetInteriorFaceTransformations(int FaceNo,
+                                                                 int mask)
 {
    GetInteriorFaceTransformations(FaceNo, FaceElemTr, Transformation,
-                                  Transformation2);
+                                  Transformation2, mask);
    return (FaceElemTr.geom == Geometry::INVALID) ? nullptr : &FaceElemTr;
 }
 
 void Mesh::GetInteriorFaceTransformations(int FaceNo,
                                           FaceElementTransformations &FElTr,
                                           IsoparametricTransformation &ElTr1,
-                                          IsoparametricTransformation &ElTr2) const
+                                          IsoparametricTransformation &ElTr2,
+                                          int mask) const
 {
    if (faces_info[FaceNo].Elem2No < 0)
    {
       FElTr.SetGeometryType(Geometry::INVALID);
       return;
    }
-   GetFaceElementTransformations(FaceNo, FElTr, ElTr1, ElTr2);
+   GetFaceElementTransformations(FaceNo, FElTr, ElTr1, ElTr2, mask);
 }
 
-FaceElementTransformations *Mesh::GetBdrFaceTransformations(int BdrElemNo)
+FaceElementTransformations *Mesh::GetBdrFaceTransformations(int BdrElemNo,
+                                                            int mask)
 {
    GetBdrFaceTransformations(BdrElemNo, FaceElemTr, Transformation,
-                             Transformation2);
+                             Transformation2, mask);
    return (FaceElemTr.geom == Geometry::INVALID) ? nullptr : &FaceElemTr;
 }
 
 void Mesh::GetBdrFaceTransformations(int BdrElemNo,
                                      FaceElementTransformations &FElTr,
                                      IsoparametricTransformation &ElTr1,
-                                     IsoparametricTransformation &ElTr2) const
+                                     IsoparametricTransformation &ElTr2,
+                                     int mask) const
 {
    // Check if the face is interior, shared, or nonconforming.
    int fn = GetBdrElementFaceIndex(BdrElemNo);
@@ -1116,7 +1120,7 @@ void Mesh::GetBdrFaceTransformations(int BdrElemNo,
       FElTr.SetGeometryType(Geometry::INVALID);
       return;
    }
-   GetFaceElementTransformations(fn, FElTr, ElTr1, ElTr2, 21);
+   GetFaceElementTransformations(fn, FElTr, ElTr1, ElTr2, mask);
    FElTr.Attribute = boundary[BdrElemNo]->GetAttribute();
    FElTr.ElementNo = BdrElemNo;
    FElTr.ElementType = ElementTransformation::BDR_FACE;

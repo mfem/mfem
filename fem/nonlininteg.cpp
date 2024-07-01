@@ -88,6 +88,15 @@ void NonlinearFormIntegrator::AssembleFaceVector(
               " is not overloaded!");
 }
 
+void NonlinearFormIntegrator::AssembleHDGFaceVector(
+   int type, const FiniteElement &trace_face_fe, const FiniteElement &fe,
+   FaceElementTransformations &Tr, const Vector &trfun, const Vector &elfun,
+   Vector &elvect)
+{
+   mfem_error("NonlinearFormIntegrator::AssembleHDGFaceVector"
+              " is not overloaded!");
+}
+
 void NonlinearFormIntegrator::AssembleElementGrad(
    const FiniteElement &el, ElementTransformation &Tr, const Vector &elfun,
    DenseMatrix &elmat)
@@ -952,4 +961,193 @@ void SkewSymmetricVectorConvectionNLFIntegrator::AssembleElementGrad(
    }
 }
 
+void SumNLFIntegrator::SetIntRule(const IntegrationRule *ir)
+{
+   IntRule = ir;
+   for (int i = 0; i < integrators.Size(); i++)
+   {
+      integrators[i]->SetIntRule(ir);
+   }
+}
+
+void SumNLFIntegrator::AssembleElementVector(
+   const FiniteElement &el, ElementTransformation &Trans, const Vector &elfun,
+   Vector &elvect)
+{
+   MFEM_ASSERT(integrators.Size() > 0, "empty SumIntegrator.");
+
+   integrators[0]->AssembleElementVector(el, Trans, elfun, elvect);
+   for (int i = 1; i < integrators.Size(); i++)
+   {
+      integrators[i]->AssembleElementVector(el, Trans, elfun, elem_vect);
+      elvect += elem_vect;
+   }
+}
+
+void SumNLFIntegrator::AssembleFaceVector(
+   const FiniteElement &el1, const FiniteElement &el2,
+   FaceElementTransformations &Trans, const Vector &elfun, Vector &elvect)
+{
+   MFEM_ASSERT(integrators.Size() > 0, "empty SumIntegrator.");
+
+   integrators[0]->AssembleFaceVector(el1, el2, Trans, elfun, elvect);
+   for (int i = 1; i < integrators.Size(); i++)
+   {
+      integrators[i]->AssembleFaceVector(el1, el2, Trans, elfun, elvect);
+      elvect += elem_vect;
+   }
+}
+
+void SumNLFIntegrator::AssembleHDGFaceVector(
+   int type, const FiniteElement &trace_face_fe, const FiniteElement &fe,
+   FaceElementTransformations &Trans, const Vector &trfun, const Vector &elfun,
+   Vector &elvect)
+{
+   MFEM_ASSERT(integrators.Size() > 0, "empty SumIntegrator.");
+
+   integrators[0]->AssembleHDGFaceVector(type, trace_face_fe, fe, Trans, trfun,
+                                         elfun, elvect);
+   for (int i = 1; i < integrators.Size(); i++)
+   {
+      integrators[i]->AssembleHDGFaceVector(type, trace_face_fe, fe, Trans, trfun,
+                                            elfun, elvect);
+      elvect += elem_vect;
+   }
+}
+
+void SumNLFIntegrator::AssembleElementGrad(
+   const FiniteElement &el, ElementTransformation &Trans, const Vector &elfun,
+   DenseMatrix &elmat)
+{
+   MFEM_ASSERT(integrators.Size() > 0, "empty SumIntegrator.");
+
+   integrators[0]->AssembleElementGrad(el, Trans, elfun, elmat);
+   for (int i = 1; i < integrators.Size(); i++)
+   {
+      integrators[i]->AssembleElementGrad(el, Trans, elfun, elem_mat);
+      elmat += elem_mat;
+   }
+}
+
+void SumNLFIntegrator::AssembleFaceGrad(
+   const FiniteElement &el1, const FiniteElement &el2,
+   FaceElementTransformations &Trans, const Vector &elfun, DenseMatrix &elmat)
+{
+   MFEM_ASSERT(integrators.Size() > 0, "empty SumIntegrator.");
+
+   integrators[0]->AssembleFaceGrad(el1, el2, Trans, elfun, elmat);
+   for (int i = 1; i < integrators.Size(); i++)
+   {
+      integrators[i]->AssembleFaceGrad(el1, el2, Trans, elfun, elem_mat);
+      elmat += elem_mat;
+   }
+}
+
+real_t SumNLFIntegrator::GetElementEnergy(
+   const FiniteElement &el, ElementTransformation &Trans, const Vector &elfun)
+{
+   MFEM_ASSERT(integrators.Size() > 0, "empty SumIntegrator.");
+
+   real_t energy = integrators[0]->GetElementEnergy(el, Trans, elfun);
+   for (int i = 1; i < integrators.Size(); i++)
+   {
+      energy += integrators[i]->GetElementEnergy(el, Trans, elfun);
+   }
+
+   return energy;
+}
+
+void SumNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
+{
+   for (int i = 0; i < integrators.Size(); i++)
+   {
+      integrators[i]->AssemblePA(fes);
+   }
+}
+
+void SumNLFIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
+                                  const FiniteElementSpace &test_fes)
+{
+   for (int i = 0; i < integrators.Size(); i++)
+   {
+      integrators[i]->AssemblePA(trial_fes, test_fes);
+   }
+}
+
+void SumNLFIntegrator::AssembleGradPA(const Vector &x,
+                                      const FiniteElementSpace &fes)
+{
+   for (int i = 0; i < integrators.Size(); i++)
+   {
+      integrators[i]->AssembleGradPA(x, fes);
+   }
+}
+
+real_t SumNLFIntegrator::GetLocalStateEnergyPA(const Vector &x) const
+{
+   MFEM_ASSERT(integrators.Size() > 0, "empty SumIntegrator.");
+
+   real_t energy = integrators[0]->GetLocalStateEnergyPA(x);
+   for (int i = 1; i < integrators.Size(); i++)
+   {
+      energy += integrators[i]->GetLocalStateEnergyPA(x);
+   }
+
+   return energy;
+}
+
+void SumNLFIntegrator::AddMultPA(const Vector &x, Vector &y) const
+{
+   for (int i = 0; i < integrators.Size(); i++)
+   {
+      integrators[i]->AddMultPA(x, y);
+   }
+}
+
+void SumNLFIntegrator::AddMultGradPA(const Vector &x, Vector &y) const
+{
+   for (int i = 0; i < integrators.Size(); i++)
+   {
+      integrators[i]->AddMultGradPA(x, y);
+   }
+}
+
+void SumNLFIntegrator::AssembleGradDiagonalPA(Vector &diag) const
+{
+   MFEM_ASSERT(integrators.Size() > 0, "empty SumIntegrator.");
+
+   integrators[0]->AssembleGradDiagonalPA(diag);
+   for (int i = 1; i < integrators.Size(); i++)
+   {
+      integrators[i]->AssembleGradDiagonalPA(elem_vect);
+      diag += elem_vect;
+   }
+}
+
+void SumNLFIntegrator::AssembleMF(const FiniteElementSpace &fes)
+{
+   for (int i = 0; i < integrators.Size(); i++)
+   {
+      integrators[i]->AssembleMF(fes);
+   }
+}
+
+void SumNLFIntegrator::AddMultMF(const Vector &x, Vector &y) const
+{
+   for (int i = 0; i < integrators.Size(); i++)
+   {
+      integrators[i]->AddMultMF(x, y);
+   }
+}
+
+SumNLFIntegrator::~SumNLFIntegrator()
+{
+   if (own_integrators)
+   {
+      for (int i = 0; i < integrators.Size(); i++)
+      {
+         delete integrators[i];
+      }
+   }
+}
 }

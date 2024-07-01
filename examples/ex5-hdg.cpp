@@ -27,7 +27,8 @@
 //               Here, we use a given exact solution (u,p) and compute the
 //               corresponding r.h.s. (f,g).  We discretize with Raviart-Thomas
 //               finite elements (velocity u) and piecewise discontinuous
-//               polynomials (pressure p).
+//               polynomials (pressure p). Alternatively, the piecewise discontinuous
+//               polynomials are used for both quantities.
 //
 //               The example demonstrates the use of the DarcyForm class, as
 //               well as hybridization of mixed systems and the collective saving
@@ -61,6 +62,7 @@ int main(int argc, char *argv[])
    int nx = 0;
    int ny = 0;
    int order = 1;
+   bool dg = false;
    bool hybridization = false;
    bool pa = false;
    const char *device_config = "cpu";
@@ -75,6 +77,8 @@ int main(int argc, char *argv[])
                   "Number of cells in y.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
+   args.AddOption(&dg, "-dg", "--discontinuous", "-no-dg",
+                  "--no-discontinuous", "Enable DG elements for fluxes.");
    args.AddOption(&hybridization, "-hb", "--hybridization", "-no-hb",
                   "--no-hybridization", "Enable hybridization.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
@@ -133,13 +137,25 @@ int main(int argc, char *argv[])
 
    // 5. Define a finite element space on the mesh. Here we use the
    //    Raviart-Thomas finite elements of the specified order.
-   FiniteElementCollection *R_coll(new RT_FECollection(order, dim));
-   FiniteElementCollection *W_coll(new L2_FECollection(order, dim));
+   FiniteElementCollection *R_coll;
+   if (dg)
+   {
+      // In the case of LDG formulation, we chose a closed basis as it
+      // is customary for HDG to match trace DOFs, but an open basis can
+      // be used instead.
+      R_coll = new L2_FECollection(order, dim, BasisType::GaussLobatto);
+   }
+   else
+   {
+      R_coll = new RT_FECollection(order, dim);
+   }
+   FiniteElementCollection *W_coll = new L2_FECollection(order, dim);
 
-   FiniteElementSpace *R_space = new FiniteElementSpace(mesh, R_coll);
+   FiniteElementSpace *R_space = new FiniteElementSpace(mesh, R_coll,
+                                                        (dg)?(dim):(1));
    FiniteElementSpace *W_space = new FiniteElementSpace(mesh, W_coll);
 
-   DarcyForm *darcy = new DarcyForm(R_space, W_space, false);
+   DarcyForm *darcy = new DarcyForm(R_space, W_space);
 
    // 6. Define the BlockStructure of the problem, i.e. define the array of
    //    offsets for each variable. The last component of the Array is the sum
@@ -160,6 +176,7 @@ int main(int argc, char *argv[])
    // 7. Define the coefficients, analytical solution, and rhs of the PDE.
    const double k = 1.0;
    ConstantCoefficient kcoeff(k);
+   RatioCoefficient ikcoeff(1., kcoeff);
 
    VectorFunctionCoefficient fcoeff(dim, fFun);
    FunctionCoefficient fnatcoeff(f_natural);
@@ -178,8 +195,16 @@ int main(int argc, char *argv[])
 
    LinearForm *fform(new LinearForm);
    fform->Update(R_space, rhs.GetBlock(0), 0);
-   fform->AddDomainIntegrator(new VectorFEDomainLFIntegrator(fcoeff));
-   fform->AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(fnatcoeff));
+   if (dg)
+   {
+      fform->AddDomainIntegrator(new VectorDomainLFIntegrator(fcoeff));
+      fform->AddBdrFaceIntegrator(new VectorBoundaryFluxLFIntegrator(fnatcoeff));
+   }
+   else
+   {
+      fform->AddDomainIntegrator(new VectorFEDomainLFIntegrator(fcoeff));
+      fform->AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(fnatcoeff));
+   }
    fform->Assemble();
    fform->SyncAliasMemory(rhs);
 
@@ -201,17 +226,22 @@ int main(int argc, char *argv[])
    //MixedBilinearForm *bVarf(new MixedBilinearForm(R_space, W_space));
    BilinearForm *mVarf = darcy->GetFluxMassForm();
    MixedBilinearForm *bVarf = darcy->GetFluxDivForm();
+   BilinearForm *mtVarf = (dg)?(darcy->GetPotentialMassForm()):(NULL);
 
-   //if (pa) { mVarf->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   mVarf->AddDomainIntegrator(new VectorFEMassIntegrator(kcoeff));
-   //mVarf->Assemble();
-   //if (!pa) { mVarf->Finalize(); }
-
-   //if (pa) { bVarf->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   ConstantCoefficient cdiv(-1.);
-   bVarf->AddDomainIntegrator(new VectorFEDivergenceIntegrator(cdiv));
-   //bVarf->Assemble();
-   //if (!pa) { bVarf->Finalize(); }
+   if (dg)
+   {
+      mVarf->AddDomainIntegrator(new VectorMassIntegrator(kcoeff));
+      bVarf->AddDomainIntegrator(new VectorDivergenceIntegrator());
+      bVarf->AddInteriorFaceIntegrator(new TransposeIntegrator(
+                                          new DGNormalTraceIntegrator(-1.)));
+      mtVarf->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(ikcoeff));
+   }
+   else
+   {
+      mVarf->AddDomainIntegrator(new VectorFEMassIntegrator(kcoeff));
+      //mVarf->AddBdrFaceIntegrator(new NormalTraceJumpIntegrator(kcoeff), bdr_is_ess);
+      bVarf->AddDomainIntegrator(new VectorFEDivergenceIntegrator);
+   }
 
    //set hybridization / assembly level
 
@@ -365,6 +395,13 @@ int main(int argc, char *argv[])
          }
 
          S = Mult(B, *MinvBt);
+         if (mtVarf)
+         {
+            SparseMatrix &Mtm(mtVarf->SpMat());
+            SparseMatrix *Snew = Add(Mtm, *S);
+            delete S;
+            S = Snew;
+         }
 
          invM = new DSmoother(M);
 
