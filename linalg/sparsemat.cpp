@@ -3393,6 +3393,61 @@ void SparseMatrix::PrintMatlab(std::ostream & os) const
    os.flags(old_fmt);
 }
 
+void SparseMatrix::PrintMathematica(std::ostream & os) const
+{
+   int i, j;
+   ios::fmtflags old_fmt = os.flags();
+   os.setf(ios::scientific);
+   std::streamsize old_prec = os.precision(14);
+
+   os << "(* Read file into Mathematica using: "
+      << "my_mat = Get[\"this_file_name\"] *)\n";
+   os << "SparseArray[";
+
+   if (A == NULL)
+   {
+      RowNode *nd;
+      int c = 0;
+      os << "{\n";
+      for (i = 0; i < height; i++)
+      {
+         for (nd = Rows[i], j = 0; nd != NULL; nd = nd->Prev, j++, c++)
+         {
+            os << "{"<< i+1 << ", " << nd->Column+1
+               << "} -> Internal`StringToMReal[\"" << nd->Value << "\"]";
+            if (c < NumNonZeroElems() - 1) { os << ","; }
+            os << '\n';
+         }
+      }
+      os << "}\n";
+   }
+   else
+   {
+      // HostRead forces synchronization
+      HostReadI();
+      HostReadJ();
+      HostReadData();
+      int c = 0;
+      os << "{\n";
+      for (i = 0; i < height; i++)
+      {
+         for (j = I[i]; j < I[i+1]; j++, c++)
+         {
+            os << "{" << i+1 << ", " << J[j]+1
+               << "} -> Internal`StringToMReal[\"" << A[j] << "\"]";
+            if (c < NumNonZeroElems() - 1) { os << ","; }
+            os << '\n';
+         }
+      }
+      os << "}";
+   }
+
+   os << ",{" << height << "," << width << "}]\n";
+
+   os.precision(old_prec);
+   os.flags(old_fmt);
+}
+
 void SparseMatrix::PrintMM(std::ostream & os) const
 {
    int i, j;
