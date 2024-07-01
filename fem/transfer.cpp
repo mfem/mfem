@@ -1469,8 +1469,8 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::SetupPCG()
     // pcg.SetPrintLevel(IterativeSolver::PrintLevel().Summary());
     pcg.SetMaxIter(1000);
     // initial values for relative and absolute tolerance
-    pcg.SetRelTol(1e-13);
-    pcg.SetAbsTol(1e-13);
+    pcg.SetRelTol(1e-15);
+    pcg.SetAbsTol(1e-15);
     pcg.SetPreconditioner(*precon);
     pcg.SetOperator(*RTxM_LH);
 }
@@ -1535,11 +1535,12 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
    ML_inv_ea = 0.0;
 
    // Compute ML_inv_ea
+   int nref;
    for (int iho = 0; iho < nel_ho; ++iho)
    {
       Array<int> lor_els;
       ho2lor.GetRow(iho, lor_els);
-      int nref = ho2lor.RowSize(iho);
+      nref = ho2lor.RowSize(iho);
 
       Geometry::Type geom = mesh_ho->GetElementBaseGeometry(iho);
       const FiniteElement& fe_lor = *fes_lor.GetFE(lor_els[0]);
@@ -1592,25 +1593,31 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
 
    // precon_ea.reset(new DSmoother(*RTxM_LH_ea));
 
-   // // Set ownership
-   // RTxM_LH_ea.reset(RTxM_LH_mat);
-   // R_ea = std::move(R_mat);
-   // M_LH_ea = std::move(M_LH_mat);
+   // Set ownership
+   R_ea_op = this;
+   TransposeOperator* R_eaT = new TransposeOperator(R_ea_op);
 
-   // DeviceSetupPCG();
+   int vdim = fes_ho.GetVDim();
+   M_LH_ea_op = new MixedMassH1Space(fes_ho, fes_lor, ho2lor, M_mixed_all_ea);
+
+   R_ea.reset(R_ea_op);
+   M_LH_ea.reset(M_LH_ea_op);
+   RTxM_LH_ea.reset(new ProductOperator(R_eaT, M_LH_ea_op, false, false));
+
+   DeviceSetupPCG();
 }
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceSetupPCG()
 {
-   //  // Basic PCG solver setup
-   //  pcg_ea.SetPrintLevel(0);
-   //  // pcg.SetPrintLevel(IterativeSolver::PrintLevel().Summary());
-   //  pcg_ea.SetMaxIter(1000);
-   //  // initial values for relative and absolute tolerance
-   //  pcg_ea.SetRelTol(1e-13);
-   //  pcg_ea.SetAbsTol(1e-13);
+    // Basic PCG solver setup
+    pcg_ea.SetPrintLevel(0);
+    // pcg.SetPrintLevel(IterativeSolver::PrintLevel().Summary());
+    pcg_ea.SetMaxIter(10000);
+    // initial values for relative and absolute tolerance
+    pcg_ea.SetRelTol(1e-15);
+    pcg_ea.SetAbsTol(1e-15);
    //  pcg_ea.SetPreconditioner(*precon_ea);
-   //  pcg_ea.SetOperator(*RTxM_LH_ea);
+    pcg_ea.SetOperator(*RTxM_LH_ea);
 }
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::Mult(
@@ -1666,52 +1673,19 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceMult(
    const int ndof_lor = fes_lor.GetFE(ho2lor.GetRow(iho)[0])->GetDof();
    const Mesh *mesh_ho = fes_ho.GetMesh();
    const int nel_ho = mesh_ho->GetNE();
+   
+   Vector y_temp(y.Size());
 
-   Vector tempx(elem_restrict_h->Height());
-   tempx = 0.0;
-   elem_restrict_h->Mult(x, tempx);
-
-   Vector tempy(ndof_lor*nref*vdim*nel_ho);
-
-   auto v_M_mixed_ea = mfem::Reshape(M_mixed_all_ea.Read(), ndof_lor, ndof_ho, nref, nel_ho); 
-   auto v_tempx    = mfem::Reshape(tempx.Read(), ndof_ho, vdim, nel_ho);
-   auto v_tempy    = mfem::Reshape(tempy.Write(), ndof_lor, nref, vdim, nel_ho);
-
-   mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int iho)
-   {
-
-      for (int v=0; v<vdim; ++v)
-      {
-
-         for (int i=0; i<nref; ++i)
-         {
-            for (int j=0; j<ndof_lor; ++j)
-            {
-
-               real_t dot = 0.0;
-               for (int k=0; k<ndof_ho; ++k)
-               {
-                  dot += v_M_mixed_ea(j, k, i, iho) * v_tempx(k, v, iho);
-               }
-
-               v_tempy(j, i, v, iho) = dot;
-            }
-         }
-      }
-   });
-
-   Vector tempy2(y.Size());
-   tempy2 = 0.0;
-   elem_restrict_l->MultTranspose(tempy, tempy2);
-
-   MFEM_ASSERT(ML_inv_ea.Size() == tempy2.Size(), "sizes not the same");
+   M_LH_ea.get()->Mult(x, y_temp);
+   
+   MFEM_ASSERT(ML_inv_ea.Size() == tempy.Size(), "sizes not the same");
    auto v_ML_inv_ea  = mfem::Reshape(ML_inv_ea.Read(), ML_inv_ea.Size());
-   auto v_tempy2  = mfem::Reshape(tempy2.Read(), tempy2.Size());
+   auto v_y_temp  = mfem::Reshape(y_temp.Read(), y_temp.Size());
    auto v_y   = mfem::Reshape(y.Write(), y.Size());
 
    mfem::forall(ML_inv_ea.Size(), [=] MFEM_HOST_DEVICE (int i)
    {
-      v_y(i) = v_ML_inv_ea(i) * v_tempy2(i);
+      v_y(i) = v_ML_inv_ea(i) * v_y_temp(i);
    });
 }
 
@@ -1863,6 +1837,32 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceProlongate(
    const Vector &x, Vector &y) const
 {
    // TODO: action of P 
+
+   Vector X(fes_lor.GetTrueVSize());
+   Vector X_dim(M_LH_ea->Height());
+   Vector Xbar(pcg_ea.Width());
+
+   Vector Y_dim(pcg_ea.Height());
+   Vector Y(fes_ho.GetTrueVSize());
+
+   Array<int> vdofs_list;
+
+   GetTDofs(fes_lor, x, X);
+
+   for (int d = 0; d < fes_ho.GetVDim(); ++d)
+   {
+      TDofsListByVDim(fes_lor, d, vdofs_list);
+      X.GetSubVector(vdofs_list, X_dim);
+
+      // Compute y = P x = (R^T M_LH)^(-1) M_LH^T X = (R^T M_LH)^(-1) Xbar
+      M_LH_ea->MultTranspose(X_dim, Xbar);
+      Y_dim = 0.0;
+      pcg_ea.Mult(Xbar, Y_dim);
+      TDofsListByVDim(fes_ho, d, vdofs_list);
+      Y.SetSubVector(vdofs_list, Y_dim);
+   }
+
+   SetFromTDofs(fes_ho, Y, y);
 }
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::ProlongateTranspose(
@@ -1916,6 +1916,31 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceProlongateTranspose(
    const Vector &x, Vector &y) const
 {
    // TODO: action of transpose of P 
+
+   Vector X(fes_ho.GetTrueVSize());
+   Vector X_dim(pcg_ea.Width());
+   Vector Xbar(pcg_ea.Height());
+
+   Vector Y_dim(M_LH_ea->Height());
+   Vector Y(fes_lor.GetTrueVSize());
+
+   Array<int> vdofs_list;
+
+   GetTDofsTranspose(fes_ho, x, X);
+
+   for (int d = 0; d < fes_ho.GetVDim(); ++d)
+   {
+      TDofsListByVDim(fes_ho, d, vdofs_list);
+      X.GetSubVector(vdofs_list, X_dim);
+      // Compute y = P^T x = M_LH (R^T M_LH)^(-1) X = M_LH Xbar
+      Xbar = 0.0;
+      pcg_ea.Mult(X_dim, Xbar);
+      M_LH_ea->Mult(Xbar, Y_dim);
+      TDofsListByVDim(fes_lor, d, vdofs_list);
+      Y.SetSubVector(vdofs_list, Y_dim);
+   }
+
+   SetFromTDofsTranspose(fes_lor, Y, y);
 }
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::SetRelTol(real_t p_rtol_)
@@ -2288,6 +2313,113 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::AllocR()
    dof_lor_dof_ho.LoseData();
 
    return R_local;
+}
+
+L2ProjectionGridTransfer::MixedMassH1Space::MixedMassH1Space(
+   const FiniteElementSpace& fes_ho_, const FiniteElementSpace& fes_lor_, 
+   Table ho2lor_, Vector M_mixed_all_ea_) : 
+   Operator(fes_lor_.GetElementRestriction(ElementDofOrdering::NATIVE)->Width(),
+            fes_ho_.GetElementRestriction(ElementDofOrdering::NATIVE)->Width()), 
+   fes_ho(fes_ho_), fes_lor(fes_lor_), ho2lor(ho2lor_),
+   M_mixed_all_ea(M_mixed_all_ea_)
+{ }
+
+void L2ProjectionGridTransfer::MixedMassH1Space::Mult(const Vector &x, Vector &y) const
+{
+   const Operator* elem_restrict_h = fes_ho.GetElementRestriction(ElementDofOrdering::NATIVE);
+   const Operator* elem_restrict_l = fes_lor.GetElementRestriction(ElementDofOrdering::NATIVE);
+
+   const int vdim = fes_ho.GetVDim();
+   const int iho = 0;
+   const int nref = ho2lor.RowSize(iho);
+   const int ndof_ho = fes_ho.GetFE(iho)->GetDof();
+   const int ndof_lor = fes_lor.GetFE(ho2lor.GetRow(iho)[0])->GetDof();
+   const Mesh *mesh_ho = fes_ho.GetMesh();
+   const int nel_ho = mesh_ho->GetNE();
+
+   Vector tempx(elem_restrict_h->Height());
+   tempx = 0.0;
+   elem_restrict_h->Mult(x, tempx);
+
+   Vector tempy(ndof_lor*nref*vdim*nel_ho);
+   tempy = 0.0;
+
+   auto v_M_mixed_ea = mfem::Reshape(M_mixed_all_ea.Read(), ndof_lor, ndof_ho, nref, nel_ho); 
+   auto v_tempx    = mfem::Reshape(tempx.Read(), ndof_ho, vdim, nel_ho);
+   auto v_tempy    = mfem::Reshape(tempy.Write(), ndof_lor, nref, vdim, nel_ho);
+
+
+   mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int iho)
+   {
+
+      for (int v=0; v<vdim; ++v)
+      {
+
+         for (int i=0; i<nref; ++i)
+         {
+            for (int j=0; j<ndof_lor; ++j)
+            {
+
+               real_t dot = 0.0;
+               for (int k=0; k<ndof_ho; ++k)
+               {
+                  dot += v_M_mixed_ea(j, k, i, iho) * v_tempx(k, v, iho);
+               }
+
+               v_tempy(j, i, v, iho) = dot;
+            }
+         }
+      }
+   });
+
+   elem_restrict_l->MultTranspose(tempy, y);
+}
+
+void L2ProjectionGridTransfer::MixedMassH1Space::MultTranspose(const Vector &x, Vector &y) const
+{
+   const Operator* elem_restrict_h = fes_ho.GetElementRestriction(ElementDofOrdering::NATIVE);
+   const Operator* elem_restrict_l = fes_lor.GetElementRestriction(ElementDofOrdering::NATIVE);
+
+   const int vdim = fes_ho.GetVDim();
+   const int iho = 0;
+   const int nref = ho2lor.RowSize(iho);
+   const int ndof_ho = fes_ho.GetFE(iho)->GetDof();
+   const int ndof_lor = fes_lor.GetFE(ho2lor.GetRow(iho)[0])->GetDof();
+   const Mesh *mesh_ho = fes_ho.GetMesh();
+   const int nel_ho = mesh_ho->GetNE();
+
+   Vector tempx(elem_restrict_l->Height());
+   tempx = 0.0;
+   elem_restrict_l->Mult(x, tempx);
+
+   Vector tempy(ndof_ho*vdim*nel_ho);
+   tempy = 0.0;
+
+   auto v_M_mixed_ea = mfem::Reshape(M_mixed_all_ea.Read(), ndof_lor, ndof_ho, nref, nel_ho); 
+   auto v_tempx    = mfem::Reshape(tempx.Read(), ndof_lor, nref, vdim, nel_ho);
+   auto v_tempy    = mfem::Reshape(tempy.Write(), ndof_ho, vdim, nel_ho);
+
+   mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int iho)
+   {
+      for (int v=0; v<vdim; ++v)
+      {
+         for (int k=0; k<ndof_ho; ++k)
+         {
+            real_t dot = 0.0;
+            for (int i=0; i<nref; ++i)
+            {
+               for (int j=0; j<ndof_lor; ++j)
+               {
+                  dot += v_M_mixed_ea(j, k, i, iho) * v_tempx(j, i, v, iho);
+               }
+
+               v_tempy(k, v, iho) = dot;
+            }
+         }
+      }
+   });
+
+   elem_restrict_h->MultTranspose(tempy, y);
 }
 
 L2ProjectionGridTransfer::~L2ProjectionGridTransfer()
