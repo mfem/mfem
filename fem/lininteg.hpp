@@ -212,10 +212,13 @@ class BoundaryNormalLFIntegrator : public LinearFormIntegrator
    Vector shape;
    VectorCoefficient &Q;
    int oa, ob;
+   real_t alpha;
+
 public:
    /// Constructs a boundary integrator with a given Coefficient QG
-   BoundaryNormalLFIntegrator(VectorCoefficient &QG, int a = 1, int b = 1)
-      : Q(QG), oa(a), ob(b) { }
+   BoundaryNormalLFIntegrator(VectorCoefficient &QG, real_t al = 1.0, int a = 1,
+                              int b = 1)
+      : Q(QG), oa(a), ob(b), alpha(al) { }
 
    virtual bool SupportsDevice() const { return true; }
 
@@ -226,6 +229,10 @@ public:
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
+                                       Vector &elvect);
+
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       FaceElementTransformations &Tr,
                                        Vector &elvect);
 
    using LinearFormIntegrator::AssembleRHSElementVect;
@@ -536,7 +543,9 @@ public:
 class DGDirichletLFIntegrator : public LinearFormIntegrator
 {
 protected:
-   Coefficient *uD, *Q;
+   Coefficient *uD;
+   VectorCoefficient *vD;
+   Coefficient *Q;
    MatrixCoefficient *MQ;
    real_t sigma, kappa;
 
@@ -544,15 +553,28 @@ protected:
    Vector shape, dshape_dn, nor, nh, ni;
    DenseMatrix dshape, mq, adjJ;
 
+   DenseMatrix vshape, dvshape_dn;
+   DenseTensor dvshape;
+
 public:
    DGDirichletLFIntegrator(Coefficient &u, const real_t s, const real_t k)
-      : uD(&u), Q(NULL), MQ(NULL), sigma(s), kappa(k) { }
+      : uD(&u), vD(NULL), Q(NULL), MQ(NULL), sigma(s), kappa(k) { }
    DGDirichletLFIntegrator(Coefficient &u, Coefficient &q,
                            const real_t s, const real_t k)
-      : uD(&u), Q(&q), MQ(NULL), sigma(s), kappa(k) { }
+      : uD(&u), vD(NULL), Q(&q), MQ(NULL), sigma(s), kappa(k) { }
    DGDirichletLFIntegrator(Coefficient &u, MatrixCoefficient &q,
                            const real_t s, const real_t k)
-      : uD(&u), Q(NULL), MQ(&q), sigma(s), kappa(k) { }
+      : uD(&u), vD(NULL), Q(NULL), MQ(&q), sigma(s), kappa(k) { }
+
+   DGDirichletLFIntegrator(VectorCoefficient &v, const real_t s, const real_t k)
+      : uD(NULL), vD(&v), Q(NULL), MQ(NULL), sigma(s), kappa(k) { }
+   DGDirichletLFIntegrator(VectorCoefficient &v, Coefficient &q,
+                           const real_t s, const real_t k)
+      : uD(NULL), vD(&v), Q(&q), MQ(NULL), sigma(s), kappa(k) { }
+   DGDirichletLFIntegrator(VectorCoefficient &v, MatrixCoefficient &q,
+                           const real_t s, const real_t k)
+      : uD(NULL), vD(&v), Q(NULL), MQ(&q), sigma(s), kappa(k) { }
+
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,

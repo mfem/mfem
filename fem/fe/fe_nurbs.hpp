@@ -86,6 +86,10 @@ public:
                            DenseMatrix &dshape) const;
    virtual void CalcHessian (const IntegrationPoint &ip,
                              DenseMatrix &hessian) const;
+   virtual void Project(Coefficient &coeff,
+                        ElementTransformation &Trans, Vector &dofs) const;
+   virtual void Project(VectorCoefficient &vcoeff,
+                        ElementTransformation &Trans, Vector &dofs) const;
 };
 
 /// An arbitrary order 2D NURBS element on a square
@@ -121,6 +125,10 @@ public:
                            DenseMatrix &dshape) const;
    virtual void CalcHessian (const IntegrationPoint &ip,
                              DenseMatrix &hessian) const;
+   virtual void Project(Coefficient &coeff,
+                        ElementTransformation &Trans, Vector &dofs) const;
+   virtual void Project(VectorCoefficient &vcoeff,
+                        ElementTransformation &Trans, Vector &dofs) const;
 };
 
 /// An arbitrary order 3D NURBS element on a cube
@@ -161,19 +169,23 @@ public:
                            DenseMatrix &dshape) const;
    virtual void CalcHessian (const IntegrationPoint &ip,
                              DenseMatrix &hessian) const;
+   virtual void Project(Coefficient &coeff,
+                        ElementTransformation &Trans, Vector &dofs) const;
+   virtual void Project(VectorCoefficient &vcoeff,
+                        ElementTransformation &Trans, Vector &dofs) const;
 };
 
 
 /** An arbitrary order H(div)-conforming 2D NURBS element on a square.
     More details in the following papers:
 
-[1] Annalisa Buffa, Carlo De Falco, Giancarlo Sangalli
-"Isogeometric analysis: stable elements for the 2D Stokes equation."
-International Journal for Numerical Methods in Fluids 65 (11‐12) 1407-1422
+   [1] Annalisa Buffa, Carlo De Falco, Giancarlo Sangalli
+   "Isogeometric analysis: stable elements for the 2D Stokes equation."
+   International Journal for Numerical Methods in Fluids 65 (11‐12) 1407-1422
 
-[2] John A Evans, Thomas JR Hughes
-"Isogeometric divergence-conforming B-splines for the unsteady Navier–Stokes equations."
-Journal of Computational Physics (241) 141-167
+   [2] John A Evans, Thomas JR Hughes
+   "Isogeometric divergence-conforming B-splines for the unsteady Navier–Stokes equations."
+   Journal of Computational Physics (241) 141-167
 */
 class NURBS_HDiv2DFiniteElement : public VectorFiniteElement,
    public NURBSFiniteElement
@@ -230,7 +242,7 @@ public:
        element in physical space at the point described by @a Trans. */
    /** Each row of the result DenseMatrix @a shape contains the components of
        one vector shape function. The size (#dof x SDim) of @a shape must be set
-       in advance, where SDim >= #dim is the physical space dimension as
+       in advance, where #vdim >= #dim is the physical space dimension as
        described by @a Trans. */
    virtual void CalcVShape(ElementTransformation &Trans,
                            DenseMatrix &shape) const;
@@ -241,6 +253,29 @@ public:
     */
    virtual void CalcDivShape(const IntegrationPoint &ip,
                              Vector &divshape) const;
+
+   /** @brief Evaluate the gradients of all shape functions of a vector finite
+       element in reference space at the given point @a ip. */
+   /** The 1st index of DenseTensor @a dvshape refers to a vector shapefunction,
+       the 2nd index selects the scalar component of this vector, the 3rd
+       index selects the direction of the derivative. The size of @a dvshape,
+       which should be (#dof x #dim x #dim), must be set in advance. */
+   virtual void CalcDVShape(const IntegrationPoint &ip,
+                            DenseTensor &dvshape) const;
+
+   /** @brief Evaluate the gradients of all shape functions of a vector finite
+       element in physical space at the point described by @a Trans. */
+   /** The 1st index of DenseTensor @a dvshape refers to a vector shapefunction,
+       the 2nd index selects the scalar component of this vector, the 3rd
+       index selects the direction of the derivative. The size of @a dvshape,
+       which should be (#dof x #dim x #vdim), must be set in advance,
+       where #vdim >= #dim is the physical space dimension as described
+       by @a Trans. */
+   virtual void CalcPhysDVShape(ElementTransformation &Trans,
+                                DenseTensor &dvshape) const;
+
+   virtual void Project(VectorCoefficient &vcoeff,
+                        ElementTransformation &Trans, Vector &dofs) const;
 
    ~NURBS_HDiv2DFiniteElement();
 };
@@ -324,7 +359,7 @@ public:
        element in physical space at the point described by @a Trans. */
    /** Each row of the result DenseMatrix @a shape contains the components of
        one vector shape function. The size (#dof x SDim) of @a shape must be set
-       in advance, where SDim >= #dim is the physical space dimension as
+       in advance, where #vdim >= #dim is the physical space dimension as
        described by @a Trans. */
    virtual void CalcVShape(ElementTransformation &Trans,
                            DenseMatrix &shape) const;
@@ -335,6 +370,29 @@ public:
     */
    virtual void CalcDivShape(const IntegrationPoint &ip,
                              Vector &divshape) const;
+
+   /** @brief Evaluate the gradients of all shape functions of a vector finite
+       element in reference space at the given point @a ip. */
+   /** The 1st index of DenseTensor @a dvshape refers to a vector shapefunction,
+       the 2nd index selects the scalar component of this vector, the 3rd
+       index selects the direction of the derivative. The size of @a dvshape,
+       which should be (#dof x #dim x #dim), must be set in advance. */
+   virtual void CalcDVShape(const IntegrationPoint &ip,
+                            DenseTensor &dvshape) const;
+
+   /** @brief Evaluate the gradients of all shape functions of a vector finite
+       element in physical space at the point described by @a Trans. */
+   /** The 1st index of DenseTensor @a dvshape refers to a vector shapefunction,
+       the 2nd index selects the scalar component of this vector, the 3rd
+       index selects the direction of the derivative. The size of @a dvshape,
+       which should be (#dof x #dim x #vdim), must be set in advance,
+       where #vdim >= #dim is the physical space dimension as described
+       by @a Trans. */
+   virtual void CalcPhysDVShape(ElementTransformation &Trans,
+                                DenseTensor &dvshape) const;
+
+   virtual void Project(VectorCoefficient &vcoeff,
+                        ElementTransformation &Trans, Vector &dofs) const;
 
    ~NURBS_HDiv3DFiniteElement();
 };
@@ -401,7 +459,7 @@ public:
        element in physical space at the point described by @a Trans. */
    /** Each row of the result DenseMatrix @a shape contains the components of
        one vector shape function. The size (#dof x SDim) of @a shape must be set
-       in advance, where SDim >= #dim is the physical space dimension as
+       in advance, where #vdim >= #dim is the physical space dimension as
        described by @a Trans. */
    virtual void CalcVShape(ElementTransformation &Trans,
                            DenseMatrix &shape) const;
@@ -414,6 +472,29 @@ public:
        CDim = 1 for #dim = 2. */
    virtual void CalcCurlShape(const IntegrationPoint &ip,
                               DenseMatrix &curl_shape) const;
+
+   /** @brief Evaluate the gradients of all shape functions of a vector finite
+       element in reference space at the given point @a ip. */
+   /** The 1st index of DenseTensor @a dvshape refers to a vector shapefunction,
+       the 2nd index selects the scalar component of this vector, the 3rd
+       index selects the direction of the derivative. The size of @a dvshape,
+       which should be (#dof x #dim x #dim), must be set in advance. */
+   virtual void CalcDVShape(const IntegrationPoint &ip,
+                            DenseTensor &dvshape) const;
+
+   /** @brief Evaluate the gradients of all shape functions of a vector finite
+       element in physical space at the point described by @a Trans. */
+   /** The 1st index of DenseTensor @a dvshape refers to a vector shapefunction,
+       the 2nd index selects the scalar component of this vector, the 3rd
+       index selects the direction of the derivative. The size of @a dvshape,
+       which should be (#dof x #dim x #vdim), must be set in advance,
+       where #vdim >= #dim is the physical space dimension as described
+       by @a Trans. */
+   virtual void CalcPhysDVShape(ElementTransformation &Trans,
+                                DenseTensor &dvshape) const;
+
+   virtual void Project(VectorCoefficient &vcoeff,
+                        ElementTransformation &Trans, Vector &dofs) const;
 
    ~NURBS_HCurl2DFiniteElement();
 };
@@ -492,7 +573,7 @@ public:
        element in physical space at the point described by @a Trans. */
    /** Each row of the result DenseMatrix @a shape contains the components of
        one vector shape function. The size (#dof x SDim) of @a shape must be set
-       in advance, where SDim >= #dim is the physical space dimension as
+       in advance, where #vdim >= #dim is the physical space dimension as
        described by @a Trans. */
    virtual void CalcVShape(ElementTransformation &Trans,
                            DenseMatrix &shape) const;
@@ -505,6 +586,29 @@ public:
        CDim = 1 for #dim = 2. */
    virtual void CalcCurlShape(const IntegrationPoint &ip,
                               DenseMatrix &curl_shape) const;
+
+   /** @brief Evaluate the gradients of all shape functions of a vector finite
+       element in reference space at the given point @a ip. */
+   /** The 1st index of DenseTensor @a dvshape refers to a vector shapefunction,
+       the 2nd index selects the scalar component of this vector, the 3rd
+       index selects the direction of the derivative. The size of @a dvshape,
+       which should be (#dof x #dim x #dim), must be set in advance. */
+   virtual void CalcDVShape(const IntegrationPoint &ip,
+                            DenseTensor &dvshape) const;
+
+   /** @brief Evaluate the gradients of all shape functions of a vector finite
+       element in physical space at the point described by @a Trans. */
+   /** The 1st index of DenseTensor @a dvshape refers to a vector shapefunction,
+       the 2nd index selects the scalar component of this vector, the 3rd
+       index selects the direction of the derivative. The size of @a dvshape,
+       which should be (#dof x #dim x #vdim), must be set in advance,
+       where #vdim >= #dim is the physical space dimension as described
+       by @a Trans. */
+   virtual void CalcPhysDVShape(ElementTransformation &Trans,
+                                DenseTensor &dvshape) const;
+
+   virtual void Project(VectorCoefficient &vcoeff,
+                        ElementTransformation &Trans, Vector &dofs) const;
 
    ~NURBS_HCurl3DFiniteElement();
 };
