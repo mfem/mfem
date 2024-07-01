@@ -70,10 +70,6 @@ protected:
    const FiniteElementSpace *trial_fes, *test_fes; // Not owned
    /// Attributes of all mesh elements.
    Array<int> elem_attributes, bdr_attributes;
-   mutable Vector tmp_evec; // Work array
-   mutable Vector localX, localY;
-   mutable Vector int_face_X, int_face_Y;
-   mutable Vector bdr_face_X, bdr_face_Y;
    mutable Vector int_face_dXdn, int_face_dYdn;
    mutable Vector bdr_face_dXdn, bdr_face_dYdn;
    const Operator *elem_restrict; // Not owned
@@ -160,7 +156,6 @@ class FABilinearFormExtension : public EABilinearFormExtension
 {
 private:
    SparseMatrix *mat;
-   mutable Vector dg_x, dg_y;
 
 public:
    FABilinearFormExtension(BilinearForm *form);
@@ -189,9 +184,6 @@ class MFBilinearFormExtension : public BilinearFormExtension
 {
 protected:
    const FiniteElementSpace *trial_fes, *test_fes; // Not owned
-   mutable Vector localX, localY;
-   mutable Vector int_face_X, int_face_Y;
-   mutable Vector bdr_face_X, bdr_face_Y;
    const Operator *elem_restrict; // Not owned
    const FaceRestriction *int_face_restrict_lex; // Not owned
    const FaceRestriction *bdr_face_restrict_lex; // Not owned
@@ -259,7 +251,6 @@ class PAMixedBilinearFormExtension : public MixedBilinearFormExtension
 {
 protected:
    const FiniteElementSpace *trial_fes, *test_fes; // Not owned
-   mutable Vector localTrial, localTest, tempY;
    const Operator *elem_restrict_trial; // Not owned
    const Operator *elem_restrict_test;  // Not owned
 

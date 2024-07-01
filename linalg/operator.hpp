@@ -994,7 +994,6 @@ protected:
    Array<int> constraint_list;  ///< List of constrained indices/dofs.
    Operator *A;                 ///< The unconstrained Operator.
    bool own_A;                  ///< Ownership flag for A.
-   mutable Vector z, w;         ///< Auxiliary vectors.
    MemoryClass mem_class;
    DiagonalPolicy diag_policy;  ///< Diagonal policy for constrained dofs
 
@@ -1043,9 +1042,9 @@ public:
        the vectors, and "_i" -- the rest of the entries. */
    void Mult(const Vector &x, Vector &y) const override;
 
-   void AddMult(const Vector &x, Vector &y, const real_t a = 1.0) const override;
-
    void MultTranspose(const Vector &x, Vector &y) const override;
+
+   void AddMult(const Vector &x, Vector &y, const real_t a = 1.0) const override;
 
    /** @brief Implementation of Mult or MultTranspose.
     *  TODO - Generalize to allow constraining rows and columns differently.
@@ -1069,7 +1068,6 @@ protected:
    Array<int> trial_constraints, test_constraints;
    Operator *A;
    bool own_A;
-   mutable Vector z, w;
    MemoryClass mem_class;
 
 public:

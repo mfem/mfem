@@ -14,6 +14,7 @@
 #include "../general/annotation.hpp"
 #include "../general/forall.hpp"
 #include "../general/globals.hpp"
+#include "../general/workspace.hpp"
 #include "../fem/bilinearform.hpp"
 #include <iostream>
 #include <iomanip>
@@ -213,10 +214,9 @@ OperatorJacobiSmoother::OperatorJacobiSmoother(const BilinearForm &a,
    dinv(height),
    damping(dmpng),
    ess_tdof_list(&ess_tdofs),
-   residual(height),
    allow_updates(false)
 {
-   Vector &diag(residual);
+   auto diag = Workspace::NewVector(height);
    a.AssembleDiagonal(diag);
    // 'a' cannot be used for iterative_mode == true because its size may be
    // different.
@@ -232,7 +232,6 @@ OperatorJacobiSmoother::OperatorJacobiSmoother(const Vector &d,
    dinv(height),
    damping(dmpng),
    ess_tdof_list(&ess_tdofs),
-   residual(height),
    oper(NULL),
    allow_updates(false)
 {
@@ -269,15 +268,13 @@ void OperatorJacobiSmoother::SetOperator(const Operator &op)
       ess_tdof_list = nullptr;
    }
    dinv.SetSize(height);
-   residual.SetSize(height);
-   Vector &diag(residual);
+   auto diag = Workspace::NewVector(height);
    op.AssembleDiagonal(diag);
    Setup(diag);
 }
 
 void OperatorJacobiSmoother::Setup(const Vector &diag)
 {
-   residual.UseDevice(true);
    const real_t delta = damping;
    auto D = diag.Read();
    auto DI = dinv.Write();
@@ -307,6 +304,8 @@ void OperatorJacobiSmoother::Mult(const Vector &x, Vector &y) const
    // MFEM_VERIFY(Height() > 0, "The diagonal hasn't been computed.");
    MFEM_ASSERT(x.Size() == Width(), "invalid input vector");
    MFEM_ASSERT(y.Size() == Height(), "invalid output vector");
+
+   auto residual = Workspace::NewVector(height);
 
    if (iterative_mode)
    {
@@ -342,7 +341,6 @@ OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
    diag(d),
    coeffs(order),
    ess_tdof_list(ess_tdofs),
-   residual(N),
    oper(&oper_) { Setup(); }
 
 #ifdef MFEM_USE_MPI
@@ -363,7 +361,6 @@ OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
      diag(d),
      coeffs(order),
      ess_tdof_list(ess_tdofs),
-     residual(N),
      oper(&oper_)
 {
    OperatorJacobiSmoother invDiagOperator(diag, ess_tdofs, 1.0);
@@ -406,7 +403,6 @@ OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator* oper_,
 void OperatorChebyshevSmoother::Setup()
 {
    // Invert diagonal
-   residual.UseDevice(true);
    auto D = diag.Read();
    auto X = dinv.Write();
    mfem::forall(N, [=] MFEM_HOST_DEVICE (int i) { X[i] = 1.0 / D[i]; });
@@ -495,8 +491,10 @@ void OperatorChebyshevSmoother::Mult(const Vector& x, Vector &y) const
       MFEM_ABORT("Chebyshev smoother requires operator");
    }
 
+   auto residual = Workspace::NewVector(x.Size());
+   auto helperVector = Workspace::NewVector(x.Size());
+
    residual = x;
-   helperVector.SetSize(x.Size());
 
    y.UseDevice(true);
    y = 0.0;
@@ -3000,7 +2998,7 @@ void BlockILU::Mult(const Vector &b, Vector &x) const
 {
    MFEM_ASSERT(height > 0, "BlockILU(0) preconditioner is not constructed");
    int nblockrows = Height()/block_size;
-   y.SetSize(Height());
+   auto y = Workspace::NewVector(Height());
 
    DenseMatrix B;
    Vector yi, yj, xi, xj;
@@ -3460,6 +3458,8 @@ void OrthoSolver::Mult(const Vector &b, Vector &x) const
                "solver was modified externally! call SetSolver() again!");
    MFEM_VERIFY(height == b.Size(), "incompatible input Vector size!");
    MFEM_VERIFY(height == x.Size(), "incompatible output Vector size!");
+
+   auto b_ortho = Workspace::NewVector(height);
 
    // Orthogonalize input
    Orthogonalize(b, b_ortho);
