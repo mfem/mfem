@@ -239,6 +239,20 @@ protected:
 
    //Class below must be public as we now have device code
 public:
+   class MixedMassH1Space : public Operator
+   {
+   protected: 
+      const FiniteElementSpace& fes_ho;
+      const FiniteElementSpace& fes_lor;
+      Table ho2lor;
+      Vector M_mixed_all_ea;
+   public:
+      MixedMassH1Space(const FiniteElementSpace& fes_ho_, const FiniteElementSpace& fes_lor_, 
+                        Table ho2lor_, Vector M_mixed_all_ea_);
+      void Mult(const Vector& x, Vector& y) const;
+      void MultTranspose(const Vector& x, Vector& y) const;
+   };
+   
 
    /** Class for projection operator between a L2 high-order finite element
        space on a coarse mesh, and a L2 low-order finite element space on a
@@ -361,7 +375,7 @@ public:
       virtual void Mult(const Vector& x, Vector& y) const;
 
       // Perform mult on the device (same as above)
-      void DeviceMult(const Vector&x, Vector& y) const;
+      void DeviceMult(const Vector& x, Vector& y) const;
 
       /// Maps <tt>x</tt>, dual field coefficients defined on a refined mesh
       /// with a low order H1 finite element space, to <tt>y</tt>, dual field
@@ -449,6 +463,10 @@ public:
       CGSolver pcg_ea;
       std::unique_ptr<Solver> precon_ea;
       std::unique_ptr<Operator> RTxM_LH_ea;
+      std::unique_ptr<Operator> R_ea;
+      std::unique_ptr<Operator> M_LH_ea;
+      Operator *R_ea_op;
+      Operator *M_LH_ea_op;
       const ElementRestrictionOperator* elem_restrict_h;
       const ElementRestrictionOperator* elem_restrict_l;
       Vector M_mixed_all_ea;
