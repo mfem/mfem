@@ -559,7 +559,14 @@ void ExodusIIWriter::WriteElementBlockParameters(int block_id)
    // 6. Define the element type.
    std::string element_type;
 
-   bool higher_order = (mesh.GetNodes() != nullptr);
+   const FiniteElementSpace * fespace = mesh.GetNodalFESpace();
+
+   // Safety check: assume that the elements are of the same order.
+   MFEM_ASSERT((!fespace || (fespace &&
+                             !fespace->IsVariableOrder())),
+               "Spaces with varying element orders are not supported.");
+
+   bool higher_order = (fespace && fespace->GetMaxElementOrder() > 1);
 
    switch (front_element->GetType())
    {
