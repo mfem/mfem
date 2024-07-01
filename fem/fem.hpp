@@ -20,6 +20,7 @@
 #include "doftrans.hpp"
 #include "eltrans.hpp"
 #include "coefficient.hpp"
+#include "autodiff.hpp"
 #include "complex_fem.hpp"
 #include "convergence.hpp"
 #include "lininteg.hpp"
