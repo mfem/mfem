@@ -823,9 +823,6 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
    const bool add = false;
    mi.AssembleEA(fes_lor, M_ea_lor, add);
 
-   DenseTensor MLU_ea_lor;
-   MLU_ea_lor.SetSize(ndof_lor, ndof_lor, nel_lor, d_mt);
-
    BatchSolver batchSolver(BatchSolver::SolveMode::INVERSE);
    batchSolver.AssignMatrices(M_ea_lor, ndof_lor, nel_lor);
 
@@ -1590,19 +1587,61 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
    // **************************
    elem_restrict_l = fes_lor.GetElementRestriction(ElementDofOrdering::NATIVE);
 
-
-   // precon_ea.reset(new DSmoother(*RTxM_LH_ea));
-
    // Set ownership
    R_ea_op = this;
    TransposeOperator* R_eaT = new TransposeOperator(R_ea_op);
+   std::cout << "R^T is " << R_eaT->Height() << " by " << R_eaT->Width() << std::endl;
+
 
    int vdim = fes_ho.GetVDim();
    M_LH_ea_op = new MixedMassH1Space(fes_ho, fes_lor, ho2lor, M_mixed_all_ea);
+   std::cout << "M_LH is " << M_LH_ea_op->Height() << " by " << M_LH_ea_op->Width() << std::endl;
 
    R_ea.reset(R_ea_op);
    M_LH_ea.reset(M_LH_ea_op);
    RTxM_LH_ea.reset(new ProductOperator(R_eaT, M_LH_ea_op, false, false));
+
+   // Set up preconditioner 
+   // MassIntegrator mi; //(*coeff);
+
+   // Vector M_ea_ho(ndof_ho*ndof_ho*nel_ho, d_mt);
+   // const bool add = false;
+   // mi.AssembleEA(fes_ho, M_ea_ho, add);
+   // std::cout << "M_H is " << M_ea_ho.Size() << std::endl;
+
+   Vector M_H(ndof_ho);
+   M_H = 0.0;
+   for (int iho = 0; iho < nel_ho; ++iho)
+   {
+      Geometry::Type geom = mesh_ho->GetElementBaseGeometry(iho);
+      const FiniteElement& fe_ho = *fes_ho.GetFE(0);
+      int nedof_ho = fe_ho.GetDof();
+
+      Vector MH_el(nedof_ho);
+      MH_el = 0.0;
+      Vector shape_ho(nedof_ho);
+      Array<int> dofs_ho(nedof_ho);
+
+      ElementTransformation* el_tr = fes_ho.GetElementTransformation(iho);
+      int order = 2 * fe_ho.GetOrder() + el_tr->OrderW();
+      const IntegrationRule* ir = &IntRules.Get(geom, order);
+      for (int i = 0; i < ir->GetNPoints(); ++i)
+      {
+         const IntegrationPoint& ip_ho = ir->IntPoint(i);
+         fe_ho.CalcShape(ip_ho, shape_ho);
+         el_tr->SetIntPoint(&ip_ho);
+         MH_el += (shape_ho *= (el_tr->Weight() * ip_ho.weight));
+      }
+      fes_ho.GetElementDofs(iho, dofs_ho);
+      M_H.AddElementVector(dofs_ho, MH_el);
+   }
+   
+   Array<int> ess_tdof_list;
+   precon_ea.reset(new OperatorJacobiSmoother(M_H, ess_tdof_list));
+
+   // OperatorJacobiSmoother M;
+   // M.SetOperator(*M_LH_ea_op);
+   // precon_ea.reset(&M);
 
    DeviceSetupPCG();
 }
@@ -1612,11 +1651,11 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceSetupPCG()
     // Basic PCG solver setup
     pcg_ea.SetPrintLevel(0);
     // pcg.SetPrintLevel(IterativeSolver::PrintLevel().Summary());
-    pcg_ea.SetMaxIter(10000);
+    pcg_ea.SetMaxIter(1000);
     // initial values for relative and absolute tolerance
     pcg_ea.SetRelTol(1e-15);
     pcg_ea.SetAbsTol(1e-15);
-   //  pcg_ea.SetPreconditioner(*precon_ea);
+    pcg_ea.SetPreconditioner(*precon_ea);
     pcg_ea.SetOperator(*RTxM_LH_ea);
 }
 
