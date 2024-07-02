@@ -655,7 +655,10 @@ public:
    const ElementRestrictionOperator *GetElementRestriction(
       ElementDofOrdering e_ordering) const;
 
-   /// Return an Operator that converts L-vectors to E-vectors on each face.
+   /** @brief Return an Operator that converts L-vectors to E-vectors on each
+       face. */
+   /** @warning only meshes with tensor-product elements are currently
+       supported. */
    virtual const FaceRestriction *GetFaceRestriction(
       ElementDofOrdering f_ordering, FaceType,
       L2FaceValues mul = L2FaceValues::DoubleValued) const;
