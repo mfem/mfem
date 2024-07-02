@@ -11,6 +11,7 @@
 
 #include "mesh_headers.hpp"
 #include <unordered_set>
+#include <cstdarg>
 
 #ifdef MFEM_USE_NETCDF
 #include "netcdf.h"
@@ -558,20 +559,27 @@ void ExodusIIWriter::WriteElementBlockParameters(int block_id)
    // 6. Define the element type.
    std::string element_type;
 
-   bool higher_order = (mesh.GetNodes() != nullptr);
+   const FiniteElementSpace * fespace = mesh.GetNodalFESpace();
+
+   // Safety check: assume that the elements are of the same order.
+   MFEM_ASSERT((!fespace || (fespace &&
+                             !fespace->IsVariableOrder())),
+               "Spaces with varying element orders are not supported.");
+
+   bool higher_order = (fespace && fespace->GetMaxElementOrder() > 1);
 
    switch (front_element->GetType())
    {
-      case Geometry::Type::CUBE:
+      case Element::HEXAHEDRON:
          element_type = higher_order ? "HEX27" : "Hex8";
          break;
-      case Geometry::Type::TETRAHEDRON:
+      case Element::TETRAHEDRON:
          element_type = higher_order ? "TETRA10" : "TETRA4";
          break;
-      case Geometry::Type::PRISM:
+      case Element::WEDGE:
          element_type = higher_order ? "WEDGE18" : "WEDGE6";
          break;
-      case Geometry::Type::PYRAMID:
+      case Element::PYRAMID:
          element_type = higher_order ? "PYRAMID14" : "PYRAMID5";
          break;
       default:
