@@ -18,6 +18,7 @@ BatchedDirectSolver::BatchedDirectSolver(DenseTensor &A_, Mode mode_,
                                          BatchedLinAlg::Backend backend_)
    : A(A_), mode(mode_), backend(backend_)
 {
+   MFEM_VERIFY(A.SizeI() == A.SizeJ(), "Blocks must be square.");
    if (mode == LU)
    {
       BatchedLinAlg::Get(backend).LUFactor(A, P);

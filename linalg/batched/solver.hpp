@@ -26,22 +26,31 @@ namespace mfem
 class BatchedDirectSolver : public Solver
 {
 public:
-   /// Solver mode: whether to use LU factorization or inverses.
+   /// %Solver mode: whether to use LU factorization or inverses.
    enum Mode
    {
       LU, ///< LU factorization.
       INVERSE ///< Inverse matrices.
    };
 protected:
-   DenseTensor A; ///< The diagonal blocks. Overwritten with LU factors/inverse.
+   DenseTensor A; ///< The LU factors/inverses of the input matrices.
    Array<int> P; ///< Pivots (needed only for LU factors).
    Mode mode; ///< Solver mode.
    BatchedLinAlg::Backend backend; ///< Requested batched linear algebra backend.
 public:
-   /// Constructor. A deep copy is made of the input @a A_.
+   /// @brief Constructor.
+   ///
+   /// The DenseTensor @a A_ has dimensions $(m, m, n)$, and represents a block
+   /// diagonal matrix $A$ with $n$ blocks of size $m \times m$.
+   ///
+   /// A deep copy is made of the input @a A_, and so it does not need to be
+   /// retained by the caller.
    BatchedDirectSolver(DenseTensor &A_, Mode mode_,
-                       BatchedLinAlg::Backend backend_ = BatchedLinAlg::GetPreferredBackend());
+                       BatchedLinAlg::Backend backend_ =
+                          BatchedLinAlg::GetPreferredBackend());
+   /// Sets $y = A^{-1} x$.
    void Mult(const Vector &x, Vector &y) const;
+   /// Not implemented.
    void SetOperator(const Operator &op);
 };
 

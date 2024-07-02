@@ -38,7 +38,7 @@ public:
       /// @brief Either cuBLAS or hipBLAS, depending on whether MFEM is using
       /// CUDA or HIP. Not available otherwise.
       GPU_BLAS,
-      /// Magma backend, only available if MFEM Is compiled with Magma support.
+      /// Magma backend, only available if MFEM is compiled with Magma support.
       MAGMA,
       /// Counter for the number of backends.
       NUM_BACKENDS
