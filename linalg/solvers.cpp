@@ -597,6 +597,7 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
       mfem::out << "   Iteration : " << setw(3) << right << 0 << "  ||Br|| = "
                 << nom << (print_options.first_and_last ? " ..." : "") << '\n';
    }
+   Monitor(0, nom, r, x);
 
    r0 = std::max(nom*rel_tol, abs_tol);
    if (nom <= r0)
@@ -645,17 +646,19 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
          done = true;
       }
 
-      if (++i > max_iter)
-      {
-         done = true;
-      }
-
       if (print_options.iterations || (done && print_options.first_and_last))
       {
          mfem::out << "   Iteration : " << setw(3) << right << (i-1)
                    << "  ||Br|| = " << setw(11) << left << nom
                    << "\tConv. rate: " << cf << '\n';
       }
+      Monitor(i, nom, r, x);
+
+      if (++i > max_iter)
+      {
+         done = true;
+      }
+
 
       if (done) { break; }
    }
@@ -673,6 +676,8 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
    }
 
    final_norm = nom;
+
+   Monitor(final_iter, final_norm, r, x, true);
 }
 
 void SLI(const Operator &A, const Vector &b, Vector &x,
@@ -750,7 +755,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       mfem::out << "   Iteration : " << setw(3) << 0 << "  (B r, r) = "
                 << nom << (print_options.first_and_last ? " ...\n" : "\n");
    }
-   Monitor(0, nom, r, x);
+   Monitor(0, sqrt(nom), r, x);
 
    if (nom < 0.0)
    {
@@ -830,7 +835,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
                    << betanom << std::endl;
       }
 
-      Monitor(i, betanom, r, x);
+      Monitor(i, sqrt(betanom), r, x);
 
       if (betanom <= r0)
       {
