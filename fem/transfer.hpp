@@ -465,7 +465,6 @@ public:
       std::unique_ptr<Operator> RTxM_LH_ea;
       std::unique_ptr<Operator> R_ea;
       std::unique_ptr<Operator> M_LH_ea;
-      Operator *R_ea_op;
       Operator *M_LH_ea_op;
       const ElementRestrictionOperator* elem_restrict_h;
       const ElementRestrictionOperator* elem_restrict_l;

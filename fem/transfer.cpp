@@ -1521,10 +1521,15 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
       offsets[iho+1] = offsets[iho] + fe_ho.GetDof()*fe_lor.GetDof()*nref;
    }
 
+
    // **************************
-   // inv lumped M_L 
+   // lumped M_H and inv lumped M_L 
    // **************************
 
+   // M_H contains the lumped (row sum) high order mass matrix. This is built for
+   // preconditioning the inverse needed to build the prolongation operator P
+   Vector M_H(ndof_ho);
+   M_H = 0.0;
    // ML_inv_ea contains the inverse lumped (row sum) mass matrix. Note that the
    // method will also work with a full (consistent) mass matrix, though this is
    // not implemented here. L refers to the low-order refined mesh
@@ -1538,17 +1543,36 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
       Array<int> lor_els;
       ho2lor.GetRow(iho, lor_els);
       nref = ho2lor.RowSize(iho);
-
       Geometry::Type geom = mesh_ho->GetElementBaseGeometry(iho);
-      const FiniteElement& fe_lor = *fes_lor.GetFE(lor_els[0]);
-      int nedof_lor = fe_lor.GetDof();
 
       // Instead of using a MassIntegrator, manually loop over integration
       // points so we can row sum and store the diagonal as a Vector.
+      const FiniteElement& fe_ho = *fes_ho.GetFE(0);
+      int nedof_ho = fe_ho.GetDof();
+      Vector MH_el(nedof_ho);
+      MH_el = 0.0;
+      Vector shape_ho(nedof_ho);
+      Array<int> dofs_ho(nedof_ho);
+
+      ElementTransformation* el_tr_ho = fes_ho.GetElementTransformation(iho);
+      int order = 2 * fe_ho.GetOrder() + el_tr_ho->OrderW();
+      const IntegrationRule* ir_ho = &IntRules.Get(geom, order);
+      for (int i = 0; i < ir_ho->GetNPoints(); ++i)
+      {
+         const IntegrationPoint& ip_ho = ir_ho->IntPoint(i);
+         fe_ho.CalcShape(ip_ho, shape_ho);
+         el_tr_ho->SetIntPoint(&ip_ho);
+         MH_el += (shape_ho *= (el_tr_ho->Weight() * ip_ho.weight));
+      }
+      fes_ho.GetElementDofs(iho, dofs_ho);
+      M_H.AddElementVector(dofs_ho, MH_el);
+
+      // Similarly for LOR mass matrix: loop over every LOR element in each HO element
+      const FiniteElement& fe_lor = *fes_lor.GetFE(lor_els[0]);
+      int nedof_lor = fe_lor.GetDof();
       Vector ML_el(nedof_lor);
       Vector shape_lor(nedof_lor);
       Array<int> dofs_lor(nedof_lor);
-
       for (int iref = 0; iref < nref; ++iref)
       {
          int ilor = lor_els[iref];
@@ -1571,77 +1595,39 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
    // DOF by DOF inverse of non-zero entries
    LumpedMassInverse(ML_inv_ea); 
 
+
    // **************************
    // ElementRestrictionOperator for HO
    // **************************
    elem_restrict_h = fes_ho.GetElementRestriction(ElementDofOrdering::NATIVE);
 
+
    // **************************
    // mixed mass M_LH from L2Space
    // **************************
-
    M_mixed_all_ea = MixedMassEA(fes_ho, fes_lor, coeff, d_mt);
+
 
    // **************************
    // ElementRestrictionOperator for LOR
    // **************************
    elem_restrict_l = fes_lor.GetElementRestriction(ElementDofOrdering::NATIVE);
 
-   // Set ownership
-   R_ea_op = this;
-   TransposeOperator* R_eaT = new TransposeOperator(R_ea_op);
-   std::cout << "R^T is " << R_eaT->Height() << " by " << R_eaT->Width() << std::endl;
 
+   // Set ownership
+   TransposeOperator* R_eaT = new TransposeOperator(this);
+   // std::cout << "R^T is " << R_eaT->Height() << " by " << R_eaT->Width() << std::endl;
 
    int vdim = fes_ho.GetVDim();
    M_LH_ea_op = new MixedMassH1Space(fes_ho, fes_lor, ho2lor, M_mixed_all_ea);
-   std::cout << "M_LH is " << M_LH_ea_op->Height() << " by " << M_LH_ea_op->Width() << std::endl;
+   // std::cout << "M_LH is " << M_LH_ea_op->Height() << " by " << M_LH_ea_op->Width() << std::endl;
 
-   R_ea.reset(R_ea_op);
+   R_ea.reset(this);
    M_LH_ea.reset(M_LH_ea_op);
    RTxM_LH_ea.reset(new ProductOperator(R_eaT, M_LH_ea_op, false, false));
-
-   // Set up preconditioner 
-   // MassIntegrator mi; //(*coeff);
-
-   // Vector M_ea_ho(ndof_ho*ndof_ho*nel_ho, d_mt);
-   // const bool add = false;
-   // mi.AssembleEA(fes_ho, M_ea_ho, add);
-   // std::cout << "M_H is " << M_ea_ho.Size() << std::endl;
-
-   Vector M_H(ndof_ho);
-   M_H = 0.0;
-   for (int iho = 0; iho < nel_ho; ++iho)
-   {
-      Geometry::Type geom = mesh_ho->GetElementBaseGeometry(iho);
-      const FiniteElement& fe_ho = *fes_ho.GetFE(0);
-      int nedof_ho = fe_ho.GetDof();
-
-      Vector MH_el(nedof_ho);
-      MH_el = 0.0;
-      Vector shape_ho(nedof_ho);
-      Array<int> dofs_ho(nedof_ho);
-
-      ElementTransformation* el_tr = fes_ho.GetElementTransformation(iho);
-      int order = 2 * fe_ho.GetOrder() + el_tr->OrderW();
-      const IntegrationRule* ir = &IntRules.Get(geom, order);
-      for (int i = 0; i < ir->GetNPoints(); ++i)
-      {
-         const IntegrationPoint& ip_ho = ir->IntPoint(i);
-         fe_ho.CalcShape(ip_ho, shape_ho);
-         el_tr->SetIntPoint(&ip_ho);
-         MH_el += (shape_ho *= (el_tr->Weight() * ip_ho.weight));
-      }
-      fes_ho.GetElementDofs(iho, dofs_ho);
-      M_H.AddElementVector(dofs_ho, MH_el);
-   }
    
-   Array<int> ess_tdof_list;
+   Array<int> ess_tdof_list;  // leave empty
    precon_ea.reset(new OperatorJacobiSmoother(M_H, ess_tdof_list));
-
-   // OperatorJacobiSmoother M;
-   // M.SetOperator(*M_LH_ea_op);
-   // precon_ea.reset(&M);
 
    DeviceSetupPCG();
 }
