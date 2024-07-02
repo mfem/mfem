@@ -12,12 +12,12 @@
 add_mfem_miniapp(display-basis
   MAIN display-basis.cpp
   ${MFEM_MINIAPPS_COMMON_HEADERS}
-  LIBRARIES mfem mfem-common)
+  LIBRARIES mfem-common)
 
 add_mfem_miniapp(get-values
   MAIN get-values.cpp
   ${MFEM_MINIAPPS_COMMON_HEADERS}
-  LIBRARIES mfem mfem-common)
+  LIBRARIES mfem-common)
 
 add_mfem_miniapp(load-dc
   MAIN load-dc.cpp LIBRARIES mfem)
@@ -39,7 +39,7 @@ add_mfem_miniapp(tmop-check-metric
 add_mfem_miniapp(tmop-metric-magnitude
   MAIN tmop-metric-magnitude.cpp
   ${MFEM_MINIAPPS_COMMON_HEADERS}
-  LIBRARIES mfem mfem-common)
+  LIBRARIES mfem-common)
 
 if (MFEM_USE_MPI)
    add_mfem_miniapp(nodal-transfer
