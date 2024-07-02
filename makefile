@@ -462,7 +462,7 @@ MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
  $(MFEM_TPLFLAGS) $(CONFIG_FILE_DEF)
 
 # Rules for compiling all source files.
-$(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
+$(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp # $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
 
 all: examples miniapps $(TEST_DIRS)

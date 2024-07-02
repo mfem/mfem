@@ -14,10 +14,12 @@
 
 #include "batched.hpp"
 
+#ifdef MFEM_USE_MAGMA
+
+#include <magma_v2.h>
+
 namespace mfem
 {
-
-#ifdef MFEM_USE_MAGMA
 
 class MagmaBatchedLinAlg : public BatchedLinAlgBase
 {
@@ -29,8 +31,20 @@ public:
                 Vector &x) const override;
 };
 
-#endif
+/// Singleton class for interfacing with the MAGMA library.
+class Magma
+{
+   magma_queue_t queue; ///< The default MAGMA queue.
+   Magma(); ///< Initialize the MAGMA library.
+   ~Magma(); ///< Finalize the MAGMA library.
+   static Magma &Instance(); ///< Get the unique instance of this class.
+public:
+   /// Return the queue, creating it if needed.
+   static magma_queue_t Queue();
+};
 
 } // namespace mfem
+
+#endif
 
 #endif
