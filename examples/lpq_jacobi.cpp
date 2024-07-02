@@ -14,6 +14,8 @@
 using namespace std;
 using namespace mfem;
 
+int NDIGITS = 20;
+
 enum SolverType
 {
    sli,
@@ -26,7 +28,33 @@ enum IntegratorType
    mass,
    diffusion,
    elasticity,
+   maxwell,
    num_integrators,  // last
+};
+
+class DataMonitor : public IterativeSolverMonitor
+{
+private:
+   ofstream os;
+   int precision;
+public:
+   DataMonitor(string file_name, int ndigits) : os(file_name), precision(ndigits)
+   {
+      if (Mpi::Root())
+      {
+         mfem::out << "Saving iterations into: " << file_name << endl;
+      }
+      os << "it,res,sol" << endl;
+      os << fixed << setprecision(precision);
+   }
+   void MonitorResidual(int it, real_t norm, const Vector &x, bool final)
+   {
+      os << it << "," << norm << ",";
+   }
+   void MonitorSolution(int it, real_t norm, const Vector &x, bool final)
+   {
+      os << norm << endl;
+   }
 };
 
 int main(int argc, char *argv[])
@@ -34,7 +62,7 @@ int main(int argc, char *argv[])
    Mpi::Init();
    Hypre::Init();
 
-   // TODO(Gabriel): simpler default mesh...
+   // TODO(Gabriel): simpler default mesh to be defined by the type if left blank
    string mesh_file = "../data/star.mesh";
    // System properties
    int order = 1;
@@ -54,31 +82,14 @@ int main(int argc, char *argv[])
    double eps_z = 0.0;
    // TODO(Gabriel): To be added later
    // const char *device_config = "cpu";
-   // bool visualization = true;
-
-   // Create name for data_file
-   // TODO(Gabriel): To put this on its own scope?
-
-   // Extract the base name from the path
-   // string base_name = mesh_file.substr(mesh_file.find_last_of("/\\") + 1);
-   // base_name = base_name.substr(0, base_name.find_last_of('.'));
-
-   // // Create an output string using ostringstream
-   // std::ostringstream oss;
-   // oss << base_name << "-n" << n;
-
-   // std::string output = oss.str();
-
-   // // Print the result
-   // std::cout << "Output: " << output << std::endl;
+   // bool visualization = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree)");
-   // TODO(Gabriel): TO be added later
-   // " or -1 for isoparametric space.");
+   // TODO(Gabriel): To be added later ... " or -1 for isoparametric space.");
    args.AddOption((int*)&solver_type, "-s", "--solver",
                   "Solvers to be considered:"
                   "\n\t0: Stationary Linear Iteration"
@@ -88,6 +99,8 @@ int main(int argc, char *argv[])
                   "Integrators to be considered:"
                   "\n\t0: MassIntegrator"
                   "\n\t1: DiffusionIntegrator"
+                  "\n\t2: ElasticityIntegrator"
+                  "\n\t3: CurlCurlIntegrator + VectorFEMassIntegrator"
                   "\n\tTODO");
    args.AddOption(&refine_serial, "-rs", "--refine-serial",
                   "Number of serial refinements");
@@ -105,6 +118,9 @@ int main(int argc, char *argv[])
                   "Kershaw transform factor, eps_y in (0,1]");
    args.AddOption(&eps_z, "-Kz", "--Kershaw-z",
                   "Kershaw transform factor, eps_z in (0,1]");
+   // args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+   //                "--no-visualization",
+   //                "Enable or disable GLVis visualization.");
    args.ParseCheck();
 
    MFEM_ASSERT(p_order > 0.0, "p needs to be positive");
@@ -112,6 +128,17 @@ int main(int argc, char *argv[])
    MFEM_ASSERT((0 <= integrator_type) && (integrator_type < num_integrators), "");
    MFEM_ASSERT(0.0 < eps_y <= 1.0, "eps_y in (0,1]");
    MFEM_ASSERT(0.0 < eps_z <= 1.0, "eps_z in (0,1]");
+
+   // TODO(Gabriel): To be restructured
+   ostringstream file_name;
+   {
+      string base_name = mesh_file.substr(mesh_file.find_last_of("/\\") + 1);
+      base_name = base_name.substr(0, base_name.find_last_of('.'));
+
+      file_name << base_name << "-o" << order << "-i" << integrator_type <<
+                "-s" << solver_type << fixed << setprecision(4) << "-p" <<
+                (int) (p_order*1000) << "-q" << (int) (q_order*1000) << ".csv";
+   }
 
    // TODO(Gabriel): To be added later...
    // Device device(device_config);
@@ -143,8 +170,12 @@ int main(int argc, char *argv[])
          fec = new H1_FECollection(order, dim);
          fespace = new ParFiniteElementSpace(mesh, fec, dim);
          break;
+      case maxwell:
+         fec = new ND_FECollection(order, dim);
+         fespace = new ParFiniteElementSpace(mesh, fec);
+         break;
       default:
-         mfem_error("Invalid integrator type!");
+         mfem_error("Invalid integrator type! Check FiniteElementCollection");
    }
 
    HYPRE_BigInt sys_size = fespace->GlobalTrueVSize();
@@ -158,7 +189,7 @@ int main(int argc, char *argv[])
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
    switch (integrator_type)
    {
-      case mass: case diffusion:
+      case mass: case diffusion: case maxwell:
          ess_bdr = 1;
          break;
       case elasticity:
@@ -166,7 +197,7 @@ int main(int argc, char *argv[])
          ess_bdr[0] = 1;
          break;
       default:
-         mfem_error("Invalid integrator type!");
+         mfem_error("Invalid integrator type! Check GetEssentialTrueDofs");
    }
    fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
@@ -186,8 +217,16 @@ int main(int argc, char *argv[])
          }
          b->AddBoundaryIntegrator(new VectorBoundaryLFIntegrator(*f));
          break;
+      case maxwell:
+         f = new VectorArrayCoefficient(dim);
+         for (int i = 0; i < dim; i++)
+         {
+            f->Set(i, &one);
+         }
+         b->AddBoundaryIntegrator(new VectorFEDomainLFIntegrator(*f));
+         break;
       default:
-         mfem_error("Invalid integrator type!");
+         mfem_error("Invalid integrator type! Check ParLinearForm");
    }
    b->Assemble();
 
@@ -204,8 +243,13 @@ int main(int argc, char *argv[])
          // TODO(Gabriel): Add lambda/mu
          a->AddDomainIntegrator(new ElasticityIntegrator(one, one));
          break;
+      case maxwell:
+         // TODO(Gabriel): Add muinv/sigma
+         a->AddDomainIntegrator(new CurlCurlIntegrator(one));
+         a->AddDomainIntegrator(new VectorFEMassIntegrator(one));
+         break;
       default:
-         mfem_error("Invalid integrator type!");
+         mfem_error("Invalid integrator type! Check ParBilinearForm");
    }
    a->Assemble();
 
@@ -247,6 +291,7 @@ int main(int argc, char *argv[])
    auto lpq_jacobi = new OperatorJacobiSmoother(left, ess_tdof_list);
 
    Solver *solver = nullptr;
+   DataMonitor monitor(file_name.str(), NDIGITS);
    switch (solver_type)
    {
       case sli:
@@ -265,13 +310,17 @@ int main(int argc, char *argv[])
       it_solver->SetMaxIter(max_iter);
       it_solver->SetPrintLevel(1);
       it_solver->SetPreconditioner(*lpq_jacobi);
+      it_solver->SetMonitor(monitor);
    }
    solver->SetOperator(A);
    solver->Mult(B, X);
 
-   a->RecoverFEMSolution(X, *b, x);
-   x.Save("sol");
-   mesh->Save("mesh");
+   // if (visualization)
+   {
+      a->RecoverFEMSolution(X, *b, x);
+      x.Save("sol");
+      mesh->Save("mesh");
+   }
 
    delete solver;
    delete lpq_jacobi;
@@ -281,4 +330,6 @@ int main(int argc, char *argv[])
    delete fespace;
    delete fec;
    delete mesh;
+
+   return 0;
 }
