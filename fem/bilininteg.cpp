@@ -296,7 +296,7 @@ void BilinearFormIntegrator::AssembleHDGFaceVector(
 
    if (type & (NonlinearFormIntegrator::HDGFaceType::ELEM
                | NonlinearFormIntegrator::HDGFaceType::TRACE))
-   { ioff += ndof_els; }
+   { ioff += ndof_el; }
 
    if (type & NonlinearFormIntegrator::HDGFaceType::CONSTR)
    {
