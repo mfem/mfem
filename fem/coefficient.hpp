@@ -2514,13 +2514,13 @@ real_t ComputeGlobalLpNorm(real_t p, VectorCoefficient &coeff, ParMesh &pmesh,
 
 /* HDG */
 /** Compute the mean of a function f.
-    \f$ | f |_{mean} = ( \int_\Omega f d\Omega) \f$ */
+    $ | f |_{mean} = ( \int_\Omega f d\Omega) $ */
 double ComputeMean(Coefficient &coeff, Mesh &mesh,
                    const IntegrationRule *irs[]);
 
 #ifdef MFEM_USE_MPI
 /** Compute the mean of a function f.
-    \f$ | f |_{mean} = ( \int_\Omega f d\Omega) \f$ */
+    $ | f |_{mean} = ( \int_\Omega f d\Omega) $ */
 double ComputeGlobalMean(Coefficient &coeff, ParMesh &pmesh,
                          const IntegrationRule *irs[]);
 #endif

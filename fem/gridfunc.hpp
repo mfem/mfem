@@ -23,7 +23,7 @@
 #include <ostream>
 #include <string>
 /* HDG */
-#include "lininteg.hpp"
+//#include "lininteg.hpp"
 
 namespace mfem
 {
