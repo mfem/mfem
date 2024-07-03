@@ -511,7 +511,7 @@ CUDA_LIB = -lcusparse
 
 # HIP library configuration
 HIP_OPT =
-HIP_LIB = -L$(HIP_DIR)/lib $(XLINKER)-rpath,$(HIP_DIR)/lib -lhipsparse
+HIP_LIB = -L$(HIP_DIR)/lib $(XLINKER)-rpath,$(HIP_DIR)/lib -lhipsparse -lhipblas
 
 # OCCA library configuration
 OCCA_DIR = @MFEM_DIR@/../occa
