@@ -593,7 +593,7 @@ void ParGridFunction::ProjectCoefficientSkeleton(Coefficient &coeff)
    }
    else
    {
-      double loc_integral, glob_integral;
+      real_t loc_integral, glob_integral;
 
       ProjectDeltaCoefficient(*delta_c, loc_integral);
 
@@ -615,7 +615,7 @@ void ParGridFunction::ProjectCoefficientSkeletonBdr(Coefficient &coeff)
    }
    else
    {
-      double loc_integral, glob_integral;
+      real_t loc_integral, glob_integral;
 
       ProjectDeltaCoefficient(*delta_c, loc_integral);
 
