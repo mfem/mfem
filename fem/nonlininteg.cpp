@@ -993,7 +993,7 @@ void SumNLFIntegrator::AssembleFaceVector(
    integrators[0]->AssembleFaceVector(el1, el2, Trans, elfun, elvect);
    for (int i = 1; i < integrators.Size(); i++)
    {
-      integrators[i]->AssembleFaceVector(el1, el2, Trans, elfun, elvect);
+      integrators[i]->AssembleFaceVector(el1, el2, Trans, elfun, elem_vect);
       elvect += elem_vect;
    }
 }
@@ -1010,7 +1010,7 @@ void SumNLFIntegrator::AssembleHDGFaceVector(
    for (int i = 1; i < integrators.Size(); i++)
    {
       integrators[i]->AssembleHDGFaceVector(type, trace_face_fe, fe, Trans, trfun,
-                                            elfun, elvect);
+                                            elfun, elem_vect);
       elvect += elem_vect;
    }
 }
