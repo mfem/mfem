@@ -657,6 +657,7 @@ DarcyHybridization::DarcyHybridization(FiniteElementSpace *fes_u_,
    bnl = false;
 
    SetLocalNLSolver(LSsolveType::LBFGS);
+   SetLocalNLPreconditioner(LPrecType::GMRES);
 
    Ae_data = NULL;
    Bf_data = NULL;
@@ -1913,23 +1914,42 @@ void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
    //solve the local system
 
    IterativeSolver *lsolver;
-   Solver *prec = NULL;
+   bool use_prec;
    switch (lsolve.type)
    {
       case LSsolveType::LBFGS:
          lsolver = new LBFGSSolver();
+         use_prec = false;
          break;
       case LSsolveType::Newton:
          lsolver = new NewtonSolver();
-         prec = new GMRESSolver();
-         lsolver->SetPreconditioner(*prec);
-         static_cast<NewtonSolver*>(lsolver)->SetAdaptiveLinRtol();
+         use_prec = true;
          break;
       default:
          MFEM_ABORT("Unknown local solver");
    }
 
+   IterativeSolver *prec = NULL;
+   if (use_prec)
+   {
+      switch (lsolve.prec.type)
+      {
+         case LPrecType::GMRES:
+            prec = new GMRESSolver();
+            break;
+         default:
+            MFEM_ABORT("Unknown local preconditioner");
+      }
+
+      prec->SetMaxIter(lsolve.prec.iters);
+      prec->SetRelTol((lsolve.prec.rtol >= 0)?
+                      (lsolve.prec.rtol):(lsolve.rtol));
+      prec->SetAbsTol((lsolve.prec.atol >= 0)?
+                      (lsolve.prec.atol):(lsolve.atol));
+   }
+
    lsolver->SetOperator(lop);
+   if (prec) { lsolver->SetPreconditioner(*prec); }
    lsolver->SetMaxIter(lsolve.iters);
    lsolver->SetRelTol(lsolve.rtol);
    lsolver->SetAbsTol(lsolve.atol);

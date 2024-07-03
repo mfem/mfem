@@ -216,6 +216,11 @@ public:
       Newton,
    };
 
+   enum class LPrecType
+   {
+      GMRES,
+   };
+
 private:
    FiniteElementSpace *fes_p;
    BilinearFormIntegrator *c_bfi_p;
@@ -240,6 +245,13 @@ private:
       real_t rtol;
       real_t atol;
       int print_lvl;
+      struct
+      {
+         LPrecType type;
+         int iters;
+         real_t rtol;
+         real_t atol;
+      } prec;
    } lsolve;
 
    Array<int> Ae_offsets;
@@ -327,6 +339,15 @@ public:
       lsolve.rtol = rtol;
       lsolve.atol = atol;
       lsolve.print_lvl = print_lvl;
+   }
+
+   void SetLocalNLPreconditioner(LPrecType type, int iters = 1000,
+                                 real_t rtol = -1., real_t atol = -1.)
+   {
+      lsolve.prec.type = type;
+      lsolve.prec.iters = iters;
+      lsolve.prec.rtol = rtol;
+      lsolve.prec.atol = atol;
    }
 
    void SetConstraintIntegrator(BilinearFormIntegrator *c_integ) = delete;
