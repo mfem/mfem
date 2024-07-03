@@ -239,16 +239,27 @@ protected:
 
    //Class below must be public as we now have device code
 public:
-   class MixedMassH1Space : public Operator
+   class H1SpaceMixedMassOperator : public Operator
    {
    protected: 
-      const FiniteElementSpace& fes_ho;
-      const FiniteElementSpace& fes_lor;
-      Table ho2lor;
-      Vector M_mixed_all_ea;
+      const FiniteElementSpace* fes_ho;
+      const FiniteElementSpace* fes_lor;
+      Table* ho2lor;
+      Vector* M_mixed_all_ea;
    public:
-      MixedMassH1Space(const FiniteElementSpace& fes_ho_, const FiniteElementSpace& fes_lor_, 
-                        Table ho2lor_, Vector M_mixed_all_ea_);
+      H1SpaceMixedMassOperator(const FiniteElementSpace* fes_ho_, const FiniteElementSpace* fes_lor_, 
+                        Table* ho2lor_, Vector* M_mixed_all_ea_);
+      void Mult(const Vector& x, Vector& y) const;
+      void MultTranspose(const Vector& x, Vector& y) const;
+   };
+
+   class H1SpaceRestrictionOperator : public Operator
+   {
+   protected: 
+      Operator* M_LH_op;
+      Vector* ML_inv; // inverse of lumped M_L
+   public:
+      H1SpaceRestrictionOperator(Operator& M_LH_op_, Vector& ML_inv_);
       void Mult(const Vector& x, Vector& y) const;
       void MultTranspose(const Vector& x, Vector& y) const;
    };
@@ -465,6 +476,7 @@ public:
       std::unique_ptr<Operator> RTxM_LH_ea;
       std::unique_ptr<Operator> R_ea;
       std::unique_ptr<Operator> M_LH_ea;
+      Operator *R_ea_op;
       Operator *M_LH_ea_op;
       const ElementRestrictionOperator* elem_restrict_h;
       const ElementRestrictionOperator* elem_restrict_l;
