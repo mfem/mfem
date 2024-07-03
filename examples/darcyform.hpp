@@ -252,20 +252,20 @@ class DarcyHybridization : public Hybridization, public Operator
    {
       const DarcyHybridization &dh;
       int el;
-      const Vector &x;
       const Vector &bu;
+      const BlockVector &trps;
+      const Array<int> &faces;
+
       const int a_dofs_size, d_dofs_size;
       LUFactors LU_A;
       DenseMatrix B;
       const FiniteElement *fe;
       ElementTransformation *Tr;
-      Array<int> faces, oris;
-      mutable Vector u_l, x_l, Dp, DpEx;
-      mutable Array<int> c_dofs;
+      mutable Vector u_l, Dp, DpEx;
 
    public:
-      LocalNLOperator(const DarcyHybridization &dh, int el, const Vector &x,
-                      const Vector &bu);
+      LocalNLOperator(const DarcyHybridization &dh, int el, const Vector &bu,
+                      const BlockVector &trps, const Array<int> &faces);
 
       void SolveU(const Vector &p_l, Vector &u_l) const;
       void Mult(const Vector &x, Vector &y) const override;

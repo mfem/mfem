@@ -1875,8 +1875,44 @@ void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
    real_t norm_p_ref = bp_l.Norml2();
    real_t norm_p = INFINITY;
 
+   //prepare vector of local traces
 
-   LocalNLOperator lop(*this, el, x, bu_l);
+   Array<int> faces, oris;
+   const int dim = fes->GetMesh()->Dimension();
+   switch (dim)
+   {
+      case 1:
+         fes->GetMesh()->GetElementVertices(el, faces);
+         break;
+      case 2:
+         fes->GetMesh()->GetElementEdges(el, faces, oris);
+         break;
+      case 3:
+         fes->GetMesh()->GetElementFaces(el, faces, oris);
+         break;
+   }
+
+   Array<int> c_offsets(faces.Size()+1);
+   Array<int> c_dofs;
+   c_offsets[0] = 0;
+   for (int f = 0; f < faces.Size(); f++)
+   {
+      c_fes->GetFaceVDofs(faces[f], c_dofs);
+      c_offsets[f+1] = c_offsets[f] + c_dofs.Size();
+   }
+
+   BlockVector x_l(c_offsets);
+   for (int f = 0; f < faces.Size(); f++)
+   {
+      c_fes->GetFaceVDofs(faces[f], c_dofs);
+      x.GetSubVector(c_dofs, x_l.GetBlock(f));
+   }
+
+   //construct the local operator
+
+   LocalNLOperator lop(*this, el, bu_l, x_l, faces);
+
+   //stationary point iterations
 
    int it;
    for (it = 0; it < 1000; it++)
@@ -2178,8 +2214,9 @@ void DarcyHybridization::Reset()
 }
 
 DarcyHybridization::LocalNLOperator::LocalNLOperator(
-   const DarcyHybridization &dh_, int el_, const Vector &x_, const Vector &bu_)
-   : dh(dh_), el(el_), x(x_), bu(bu_),
+   const DarcyHybridization &dh_, int el_, const Vector &bu_,
+   const BlockVector &trps_, const Array<int> &faces_)
+   : dh(dh_), el(el_), bu(bu_), trps(trps_), faces(faces_),
      a_dofs_size(dh.Af_f_offsets[el+1] - dh.Af_f_offsets[el]),
      d_dofs_size(dh.Df_f_offsets[el+1] - dh.Df_f_offsets[el]),
      LU_A(dh.Af_data + dh.Af_offsets[el], dh.Af_ipiv + dh.Af_f_offsets[el]),
@@ -2191,20 +2228,6 @@ DarcyHybridization::LocalNLOperator::LocalNLOperator(
 
    fe = dh.fes_p->GetFE(el);
    Tr = dh.fes_p->GetElementTransformation(el);
-
-   const int dim = dh.fes->GetMesh()->Dimension();
-   switch (dim)
-   {
-      case 1:
-         dh.fes->GetMesh()->GetElementVertices(el, faces);
-         break;
-      case 2:
-         dh.fes->GetMesh()->GetElementEdges(el, faces, oris);
-         break;
-      case 3:
-         dh.fes->GetMesh()->GetElementFaces(el, faces, oris);
-         break;
-   }
 }
 
 void DarcyHybridization::LocalNLOperator::SolveU(const Vector &p_l,
@@ -2249,11 +2272,10 @@ void DarcyHybridization::LocalNLOperator::Mult(const Vector &p_l,
                     | NonlinearFormIntegrator::HDGFaceType::TRACE;
          if (FTr->Elem1No != el) { type |= 1; }
 
-         dh.c_fes->GetFaceVDofs(faces[f], c_dofs);
-         x.GetSubVector(c_dofs, x_l);
+         const Vector &trp_f = trps.GetBlock(f);
 
          dh.c_nlfi_p->AssembleHDGFaceVector(type, *dh.c_fes->GetFaceElement(faces[f]),
-                                            *fe, *FTr, x_l, p_l, DpEx);
+                                            *fe, *FTr, trp_f, p_l, DpEx);
 
          bp += DpEx;
       }
