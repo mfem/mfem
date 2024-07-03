@@ -230,8 +230,16 @@ private:
    /// Indicates if the boundary_constraint_pot_integs integrators are owned externally
    int extern_bdr_constr_pot_integs;
 
-   LSsolveType lsolve_type{LSsolveType::LBFGS};
    bool bsym, bnl, bfin;
+
+   struct
+   {
+      LSsolveType type;
+      int iters;
+      real_t rtol;
+      real_t atol;
+      int print_lvl;
+   } lsolve;
 
    Array<int> Ae_offsets;
    real_t *Ae_data;
@@ -308,7 +316,15 @@ public:
    /// Destructor
    ~DarcyHybridization();
 
-   void SetLocalSolverType(LSsolveType type) { lsolve_type = type; }
+   void SetLocalNLSolver(LSsolveType type, int iters = 1000, real_t rtol = 1e-6,
+                         real_t atol = 0., int print_lvl = 0)
+   {
+      lsolve.type = type;
+      lsolve.iters = iters;
+      lsolve.rtol = rtol;
+      lsolve.atol = atol;
+      lsolve.print_lvl = print_lvl;
+   }
 
    void SetConstraintIntegrator(BilinearFormIntegrator *c_integ) = delete;
 

@@ -656,6 +656,8 @@ DarcyHybridization::DarcyHybridization(FiniteElementSpace *fes_u_,
    bfin = false;
    bnl = false;
 
+   SetLocalNLSolver(LSsolveType::LBFGS);
+
    Ae_data = NULL;
    Bf_data = NULL;
    Be_data = NULL;
@@ -1911,7 +1913,7 @@ void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
    //solve the local system
 
    IterativeSolver *lsolver;
-   switch (lsolve_type)
+   switch (lsolve.type)
    {
       case LSsolveType::LBFGS:
          lsolver = new LBFGSSolver;
@@ -1921,10 +1923,10 @@ void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
    }
 
    lsolver->SetOperator(lop);
-   lsolver->SetMaxIter(1000);
-   lsolver->SetRelTol(1e-6);
-   lsolver->SetAbsTol(0.);
-   lsolver->SetPrintLevel(0);
+   lsolver->SetMaxIter(lsolve.iters);
+   lsolver->SetRelTol(lsolve.rtol);
+   lsolver->SetAbsTol(lsolve.atol);
+   lsolver->SetPrintLevel(lsolve.print_lvl);
 
    lsolver->Mult(bp_l, p_l);
 
