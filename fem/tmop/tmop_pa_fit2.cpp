@@ -28,25 +28,27 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_Fit_2D,
                            const Vector &x3_,
                            const Vector &ones,
                            Vector &energy,
-                           const int q1d,
-                           const int d1d)
+                           const int d1d,
+                           const int q1d)
 {
    constexpr int DIM = 2;
    constexpr int NBZ = 1;
 
    const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
 
    const auto C1 = c1_;
    const auto C2 = c2_;
-   const auto X1 = Reshape(x1_.Read(), D1D, D1D, DIM, NE);
-   const auto X2 = Reshape(x2_.Read(), D1D, D1D, DIM, NE);
-   const auto X3 = Reshape(x3_.Read(), D1D, D1D, DIM, NE);
+   const auto X1 = Reshape(x1_.Read(), D1D, 1, DIM, NE);
+   const auto X2 = Reshape(x2_.Read(), D1D, 1, DIM, NE);
+   const auto X3 = Reshape(x3_.Read(), D1D, 1, DIM, NE);
 
-   auto E = Reshape(energy.Write(), D1D, D1D, NE);
+   auto E = Reshape(energy.Write(), D1D, 1, NE);
 
    mfem::forall_2D_batch(NE, D1D, D1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int NBZ = 1;
 
       MFEM_FOREACH_THREAD(qy,y,D1D)
@@ -65,7 +67,7 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_Fit_2D,
          }
       }
    });
-   cout << energy * ones;
+   out << energy * ones;
    return energy * ones; 
 }
 
@@ -74,8 +76,8 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_Fit_2D(const Vector &X) const
    const int N = PA.ne;
    const int meshOrder = surf_fit_gf->FESpace()->GetMaxElementOrder();
    const int D1D = meshOrder + 1;
-   const int id = (D1D<< 4) | D1D;
-   //MFEM_VERIFY(PA.maps_lim->ndof == D1D, "");
+   const int Q1D = D1D;
+   const int id = (D1D << 4 ) | Q1D;
    const Vector &O = PA.O;
    Vector &E = PA.E;
    

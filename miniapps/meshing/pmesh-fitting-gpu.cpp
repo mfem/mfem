@@ -76,7 +76,7 @@ int main (int argc, char *argv[])
    bool visualization    = true;
    int verbosity_level   = 2;
    int adapt_eval        = 1;
-   const char *devopt    = "cpu";
+   const char *devopt    = "debug";
    real_t surface_fit_adapt = 0.0;
    real_t surface_fit_threshold = -10;
    real_t surf_fit_const_max    = 1e20;
@@ -91,7 +91,7 @@ int main (int argc, char *argv[])
    int bg_amr_iters       = 0;
    bool conv_residual     = true;
    real_t jitter         = 0.0;
-   bool pa = true;
+   bool pa = false;
    bool grad_int = true;
 
    // Parse command-line options.
