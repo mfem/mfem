@@ -2479,7 +2479,7 @@ void GridFunction::ProjectCoefficientSkeleton(Coefficient &coeff)
    }
    else
    {
-      double integral;
+      real_t integral;
 
       ProjectDeltaCoefficient(*delta_c, integral);
 
@@ -2540,7 +2540,7 @@ void GridFunction::ProjectCoefficientSkeletonBdr(Coefficient &coeff)
    }
    else
    {
-      double integral;
+      real_t integral;
 
       ProjectDeltaCoefficient(*delta_c, integral);
 
