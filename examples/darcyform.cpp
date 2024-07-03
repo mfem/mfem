@@ -1765,6 +1765,8 @@ void DarcyHybridization::MultNL(int mode, const BlockVector &b, const Vector &x,
                        | NonlinearFormIntegrator::HDGFaceType::FACE;
             if (FTr->Elem1No != el) { type |= 1; }
 
+            x.GetSubVector(c_dofs, x_l);
+
             c_nlfi_p->AssembleHDGFaceVector(type,
                                             *c_fes->GetFaceElement(faces[f]),
                                             *fes_p->GetFE(el),
