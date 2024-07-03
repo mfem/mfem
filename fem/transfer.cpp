@@ -584,7 +584,7 @@ L2ProjectionGridTransfer::L2ProjectionL2Space::L2ProjectionL2Space
      use_device(use_device_), verify_solution(verify_solution_)
 {
 
-   if (use_device)
+   if (use_device || verify_solution)
    {
       DeviceL2ProjectionL2Space(fes_ho_, fes_lor_, coeff_);
       if (!verify_solution) {return;}
@@ -1354,7 +1354,7 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
    : L2Projection(fes_ho_, fes_lor_, coeff_, d_mt_), 
      use_device(use_device_), verify_solution(verify_solution_)
 {
-   if (use_device)
+   if (use_device || verify_solution)
    {
       DeviceL2ProjectionH1Space(fes_ho_, fes_lor_, coeff_);
       if (!verify_solution) {return;}
@@ -1615,15 +1615,13 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
 
 
    // Set ownership
-   TransposeOperator* R_eaT = new TransposeOperator(this);
-   // std::cout << "R^T is " << R_eaT->Height() << " by " << R_eaT->Width() << std::endl;
+   M_LH_ea_op = new H1SpaceMixedMassOperator(&fes_ho, &fes_lor, &ho2lor, &M_mixed_all_ea);
 
-   int vdim = fes_ho.GetVDim();
-   M_LH_ea_op = new MixedMassH1Space(fes_ho, fes_lor, ho2lor, M_mixed_all_ea);
-   // std::cout << "M_LH is " << M_LH_ea_op->Height() << " by " << M_LH_ea_op->Width() << std::endl;
+   R_ea_op = new H1SpaceRestrictionOperator(*M_LH_ea_op, ML_inv_ea);
+   TransposeOperator* R_eaT = new TransposeOperator(R_ea_op);
 
-   R_ea.reset(this);
    M_LH_ea.reset(M_LH_ea_op);
+   R_ea.reset(R_ea_op);
    RTxM_LH_ea.reset(new ProductOperator(R_eaT, M_LH_ea_op, false, false));
    
    Array<int> ess_tdof_list;  // leave empty
@@ -1681,6 +1679,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::Mult(
       DeviceMult(x, y_temp);
       y_temp -= y;
       real_t error = y_temp.Norml2();
+      // std::cout << "Mult difference error is = " << error << std::endl;
       if (error > ho_lor_tol)
       {
          MFEM_VERIFY(false, "Mult difference too high = "<<error);
@@ -1691,27 +1690,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::Mult(
 void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceMult(
    const Vector& x, Vector& y) const
 {
-   const int vdim = fes_ho.GetVDim();
-   const int iho = 0;
-   const int nref = ho2lor.RowSize(iho);
-   const int ndof_ho = fes_ho.GetFE(iho)->GetDof();
-   const int ndof_lor = fes_lor.GetFE(ho2lor.GetRow(iho)[0])->GetDof();
-   const Mesh *mesh_ho = fes_ho.GetMesh();
-   const int nel_ho = mesh_ho->GetNE();
-   
-   Vector y_temp(y.Size());
-
-   M_LH_ea.get()->Mult(x, y_temp);
-   
-   MFEM_ASSERT(ML_inv_ea.Size() == tempy.Size(), "sizes not the same");
-   auto v_ML_inv_ea  = mfem::Reshape(ML_inv_ea.Read(), ML_inv_ea.Size());
-   auto v_y_temp  = mfem::Reshape(y_temp.Read(), y_temp.Size());
-   auto v_y   = mfem::Reshape(y.Write(), y.Size());
-
-   mfem::forall(ML_inv_ea.Size(), [=] MFEM_HOST_DEVICE (int i)
-   {
-      v_y(i) = v_ML_inv_ea(i) * v_y_temp(i);
-   });
+   R_ea->Mult(x,y);
 }
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::MultTranspose(
@@ -1759,56 +1738,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::MultTranspose(
 void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceMultTranspose(
    const Vector& x, Vector& y) const
 {
-   // TODO: Transpose of action of R
-   const int vdim = fes_ho.GetVDim();
-   const int iho = 0;
-   const int nref = ho2lor.RowSize(iho);
-   const int ndof_ho = fes_ho.GetFE(iho)->GetDof();
-   const int ndof_lor = fes_lor.GetFE(ho2lor.GetRow(iho)[0])->GetDof();
-   const Mesh *mesh_ho = fes_ho.GetMesh();
-   const int nel_ho = mesh_ho->GetNE();
-
-   MFEM_ASSERT(x.Size() == ML_inv_ea.Size(), "sizes not the same");
-   Vector tempx(x.Size());
-   tempx = 0.0;
-   auto v_ML_inv_ea  = mfem::Reshape(ML_inv_ea.Read(), ML_inv_ea.Size());
-   auto v_x  = mfem::Reshape(x.Read(), x.Size());
-   auto v_tempx  = mfem::Reshape(tempx.Write(), tempx.Size());
-
-   mfem::forall(ML_inv_ea.Size(), [=] MFEM_HOST_DEVICE (int i)
-   {
-      v_tempx(i) = v_ML_inv_ea(i) * v_x(i);
-   });
-
-   Vector tempx2(elem_restrict_l->Height());
-   elem_restrict_l->Mult(tempx, tempx2);                                                                                                                                                                                            
-
-   Vector tempy(ndof_ho*vdim*nel_ho);
-   auto v_M_mixed_all_ea = mfem::Reshape(M_mixed_all_ea.Read(), ndof_lor, ndof_ho, nref, nel_ho);
-   auto v_tempx2    = mfem::Reshape(tempx2.Read(), ndof_lor, nref, vdim, nel_ho);
-   auto v_tempy    = mfem::Reshape(tempy.Write(), ndof_ho, vdim, nel_ho);
-
-   mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int iho)
-   {
-      for (int v=0; v<vdim; ++v)
-      {
-         for (int k=0; k<ndof_ho; ++k)
-         {
-            real_t dot = 0.0;
-            for (int i=0; i<nref; ++i)
-            {
-               for (int j=0; j<ndof_lor; ++j)
-               {
-                  dot += v_M_mixed_all_ea(j, k, i, iho) * v_tempx2(j, i, v, iho);
-               }
-
-               v_tempy(k, v, iho) = dot;
-            }
-         }
-      }
-   });
-
-   elem_restrict_h->MultTranspose(tempy, y);
+   R_ea->MultTranspose(x,y);
 }
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::Prolongate(
@@ -1851,6 +1781,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::Prolongate(
       DeviceProlongate(x, y_temp);
       y_temp -= y;
       real_t error = y_temp.Norml2();
+      // std::cout << "Prolongate difference error is = " << error << std::endl;
       if (error > ho_lor_tol)
       {
          MFEM_VERIFY(false, "Prolongate difference too high = "<<error);
@@ -1861,8 +1792,6 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::Prolongate(
 void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceProlongate(
    const Vector &x, Vector &y) const
 {
-   // TODO: action of P 
-
    Vector X(fes_lor.GetTrueVSize());
    Vector X_dim(M_LH_ea->Height());
    Vector Xbar(pcg_ea.Width());
@@ -2340,26 +2269,26 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::AllocR()
    return R_local;
 }
 
-L2ProjectionGridTransfer::MixedMassH1Space::MixedMassH1Space(
-   const FiniteElementSpace& fes_ho_, const FiniteElementSpace& fes_lor_, 
-   Table ho2lor_, Vector M_mixed_all_ea_) : 
-   Operator(fes_lor_.GetElementRestriction(ElementDofOrdering::NATIVE)->Width(),
-            fes_ho_.GetElementRestriction(ElementDofOrdering::NATIVE)->Width()), 
+L2ProjectionGridTransfer::H1SpaceMixedMassOperator::H1SpaceMixedMassOperator(
+   const FiniteElementSpace* fes_ho_, const FiniteElementSpace* fes_lor_, 
+   Table* ho2lor_, Vector* M_mixed_all_ea_) : 
+   Operator(fes_lor_->GetElementRestriction(ElementDofOrdering::NATIVE)->Width(),
+            fes_ho_->GetElementRestriction(ElementDofOrdering::NATIVE)->Width()), 
    fes_ho(fes_ho_), fes_lor(fes_lor_), ho2lor(ho2lor_),
    M_mixed_all_ea(M_mixed_all_ea_)
 { }
 
-void L2ProjectionGridTransfer::MixedMassH1Space::Mult(const Vector &x, Vector &y) const
+void L2ProjectionGridTransfer::H1SpaceMixedMassOperator::Mult(const Vector &x, Vector &y) const
 {
-   const Operator* elem_restrict_h = fes_ho.GetElementRestriction(ElementDofOrdering::NATIVE);
-   const Operator* elem_restrict_l = fes_lor.GetElementRestriction(ElementDofOrdering::NATIVE);
+   const Operator* elem_restrict_h = fes_ho->GetElementRestriction(ElementDofOrdering::NATIVE);
+   const Operator* elem_restrict_l = fes_lor->GetElementRestriction(ElementDofOrdering::NATIVE);
 
-   const int vdim = fes_ho.GetVDim();
+   const int vdim = fes_ho->GetVDim();
    const int iho = 0;
-   const int nref = ho2lor.RowSize(iho);
-   const int ndof_ho = fes_ho.GetFE(iho)->GetDof();
-   const int ndof_lor = fes_lor.GetFE(ho2lor.GetRow(iho)[0])->GetDof();
-   const Mesh *mesh_ho = fes_ho.GetMesh();
+   const int nref = ho2lor->RowSize(iho);
+   const int ndof_ho = fes_ho->GetFE(iho)->GetDof();
+   const int ndof_lor = fes_lor->GetFE(ho2lor->GetRow(iho)[0])->GetDof();
+   const Mesh *mesh_ho = fes_ho->GetMesh();
    const int nel_ho = mesh_ho->GetNE();
 
    Vector tempx(elem_restrict_h->Height());
@@ -2369,7 +2298,7 @@ void L2ProjectionGridTransfer::MixedMassH1Space::Mult(const Vector &x, Vector &y
    Vector tempy(ndof_lor*nref*vdim*nel_ho);
    tempy = 0.0;
 
-   auto v_M_mixed_ea = mfem::Reshape(M_mixed_all_ea.Read(), ndof_lor, ndof_ho, nref, nel_ho); 
+   auto v_M_mixed_ea = mfem::Reshape(M_mixed_all_ea->Read(), ndof_lor, ndof_ho, nref, nel_ho); 
    auto v_tempx    = mfem::Reshape(tempx.Read(), ndof_ho, vdim, nel_ho);
    auto v_tempy    = mfem::Reshape(tempy.Write(), ndof_lor, nref, vdim, nel_ho);
 
@@ -2400,17 +2329,17 @@ void L2ProjectionGridTransfer::MixedMassH1Space::Mult(const Vector &x, Vector &y
    elem_restrict_l->MultTranspose(tempy, y);
 }
 
-void L2ProjectionGridTransfer::MixedMassH1Space::MultTranspose(const Vector &x, Vector &y) const
+void L2ProjectionGridTransfer::H1SpaceMixedMassOperator::MultTranspose(const Vector &x, Vector &y) const
 {
-   const Operator* elem_restrict_h = fes_ho.GetElementRestriction(ElementDofOrdering::NATIVE);
-   const Operator* elem_restrict_l = fes_lor.GetElementRestriction(ElementDofOrdering::NATIVE);
+   const Operator* elem_restrict_h = fes_ho->GetElementRestriction(ElementDofOrdering::NATIVE);
+   const Operator* elem_restrict_l = fes_lor->GetElementRestriction(ElementDofOrdering::NATIVE);
 
-   const int vdim = fes_ho.GetVDim();
+   const int vdim = fes_ho->GetVDim();
    const int iho = 0;
-   const int nref = ho2lor.RowSize(iho);
-   const int ndof_ho = fes_ho.GetFE(iho)->GetDof();
-   const int ndof_lor = fes_lor.GetFE(ho2lor.GetRow(iho)[0])->GetDof();
-   const Mesh *mesh_ho = fes_ho.GetMesh();
+   const int nref = ho2lor->RowSize(iho);
+   const int ndof_ho = fes_ho->GetFE(iho)->GetDof();
+   const int ndof_lor = fes_lor->GetFE(ho2lor->GetRow(iho)[0])->GetDof();
+   const Mesh *mesh_ho = fes_ho->GetMesh();
    const int nel_ho = mesh_ho->GetNE();
 
    Vector tempx(elem_restrict_l->Height());
@@ -2420,7 +2349,7 @@ void L2ProjectionGridTransfer::MixedMassH1Space::MultTranspose(const Vector &x, 
    Vector tempy(ndof_ho*vdim*nel_ho);
    tempy = 0.0;
 
-   auto v_M_mixed_ea = mfem::Reshape(M_mixed_all_ea.Read(), ndof_lor, ndof_ho, nref, nel_ho); 
+   auto v_M_mixed_ea = mfem::Reshape(M_mixed_all_ea->Read(), ndof_lor, ndof_ho, nref, nel_ho); 
    auto v_tempx    = mfem::Reshape(tempx.Read(), ndof_lor, nref, vdim, nel_ho);
    auto v_tempy    = mfem::Reshape(tempy.Write(), ndof_ho, vdim, nel_ho);
 
@@ -2445,6 +2374,43 @@ void L2ProjectionGridTransfer::MixedMassH1Space::MultTranspose(const Vector &x, 
    });
 
    elem_restrict_h->MultTranspose(tempy, y);
+}
+
+L2ProjectionGridTransfer::H1SpaceRestrictionOperator::H1SpaceRestrictionOperator(
+   Operator& M_LH_op_, Vector& ML_inv_) : 
+   Operator(M_LH_op_.Height(), M_LH_op_.Width()), 
+   M_LH_op(&M_LH_op_), ML_inv(&ML_inv_)
+{ }
+
+void L2ProjectionGridTransfer::H1SpaceRestrictionOperator::Mult(const Vector &x, Vector &y) const
+{
+    Vector y_temp(y.Size());
+    M_LH_op->Mult(x, y_temp);
+
+    MFEM_ASSERT(ML_inv.Size() == y_temp.Size(), "sizes not the same");
+    auto v_ML_inv = mfem::Reshape(ML_inv->Read(), ML_inv->Size());
+    auto v_y_temp = mfem::Reshape(y_temp.Read(), y_temp.Size());
+    auto v_y = mfem::Reshape(y.Write(), y.Size());
+
+    mfem::forall(ML_inv->Size(), [=] MFEM_HOST_DEVICE(int i)
+                 { v_y(i) = v_ML_inv(i) * v_y_temp(i); });
+}
+
+void L2ProjectionGridTransfer::H1SpaceRestrictionOperator::MultTranspose(const Vector &x, Vector &y) const
+{
+   Vector x_temp(x.Size());
+
+   MFEM_ASSERT(ML_inv.Size() == x_temp.Size(), "sizes not the same");
+   auto v_ML_inv  = mfem::Reshape(ML_inv->Read(), ML_inv->Size());
+   auto v_x   = mfem::Reshape(x.Read(), x.Size());
+   auto v_x_temp  = mfem::Reshape(x_temp.Write(), x_temp.Size());
+
+   mfem::forall(ML_inv->Size(), [=] MFEM_HOST_DEVICE (int i)
+   {
+      v_x_temp(i) = v_ML_inv(i) * v_x(i);
+   });
+
+   M_LH_op->MultTranspose(x_temp, y);
 }
 
 L2ProjectionGridTransfer::~L2ProjectionGridTransfer()
