@@ -103,6 +103,15 @@ public:
                                       const Vector &trfun, const Vector &elfun,
                                       Vector &elvect);
 
+   /// @brief Perform the local action of the gradient of NonlinearFormIntegrator
+   /// resulting from an HDG face integral term.
+   virtual void AssembleHDGFaceGrad(int type,
+                                    const FiniteElement &trace_face_fe,
+                                    const FiniteElement &fe,
+                                    FaceElementTransformations &Tr,
+                                    const Vector &trfun, const Vector &elfun,
+                                    DenseMatrix &elmat);
+
    /// Assemble the local gradient matrix
    virtual void AssembleElementGrad(const FiniteElement &el,
                                     ElementTransformation &Tr,
@@ -525,6 +534,13 @@ public:
                                       const Vector &trfun,
                                       const Vector &elfun,
                                       Vector &elvect) override;
+
+   virtual void AssembleHDGFaceGrad(int type,
+                                    const FiniteElement &trace_face_fe,
+                                    const FiniteElement &fe,
+                                    FaceElementTransformations &Tr,
+                                    const Vector &trfun, const Vector &elfun,
+                                    DenseMatrix &elmat) override;
 
    virtual void AssembleElementGrad(const FiniteElement &el,
                                     ElementTransformation &Tr,
