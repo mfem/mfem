@@ -322,6 +322,84 @@ void BilinearFormIntegrator::AssembleHDGFaceVector(
    }
 }
 
+void BilinearFormIntegrator::AssembleHDGFaceGrad(
+   int type, const FiniteElement &trace_face_fe, const FiniteElement &fe,
+   FaceElementTransformations &Tr, const Vector &trfun, const Vector &elfun,
+   DenseMatrix &grad)
+{
+   DenseMatrix elmat;
+   AssembleHDGFaceMatrix(trace_face_fe, fe, fe, Tr, elmat);
+
+   const int ndof_el = fe.GetDof();
+   const int ndof_els = (Tr.Elem2No >= 0)?(2*ndof_el):(ndof_el);
+   const int ndof_face = trace_face_fe.GetDof();
+   int w = 0, h = 0;
+   if (Tr.Elem2No < 0) { type &= ~1; }
+   if (type & (HDGFaceType::ELEM | HDGFaceType::TRACE))
+   {
+      h += ndof_el;
+   }
+   if (type & (HDGFaceType::CONSTR | HDGFaceType::FACE))
+   {
+      h += ndof_face;
+   }
+   if (type & (HDGFaceType::ELEM | HDGFaceType::CONSTR))
+   {
+      w += ndof_el;
+   }
+   if (type & (HDGFaceType::TRACE | HDGFaceType::FACE))
+   {
+      w += ndof_face;
+   }
+
+   MFEM_ASSERT(elmat.Width() == elmat.Height() &&
+               elmat.Width() == ndof_els + ndof_face, "Wrong size of the element matrix");
+
+   grad.SetSize(h, w);
+   grad = 0.;
+
+   int ioff = 0;
+   int joff = 0;
+   const int el_off = (type & 1)?(ndof_el):(0);
+   if (type & HDGFaceType::ELEM)
+   {
+      grad.CopyMN(elmat, ndof_el, ndof_el, el_off, el_off, ioff, joff);
+   }
+
+   if (type & (HDGFaceType::ELEM | HDGFaceType::CONSTR))
+   { joff += ndof_el; }
+
+   if (type & HDGFaceType::TRACE)
+   {
+      grad.CopyMN(elmat, ndof_el, ndof_face, el_off, ndof_els, ioff, joff);
+   }
+
+   if (type & (HDGFaceType::ELEM | HDGFaceType::TRACE))
+   { ioff += ndof_el; }
+   joff = 0;
+
+   if (type & HDGFaceType::CONSTR)
+   {
+      grad.CopyMN(elmat, ndof_face, ndof_el, ndof_els, el_off, ioff, joff);
+   }
+
+   if (type & (HDGFaceType::ELEM | HDGFaceType::CONSTR))
+   { joff += ndof_el; }
+
+   if (type & HDGFaceType::FACE)
+   {
+      grad.CopyMN(elmat, ndof_face, ndof_face, ndof_els, ndof_els, ioff, joff);
+      if (Tr.Elem2No >= 0) //<---single-side contribution, not exact!
+      {
+         for (int i = 0; i < ndof_face; i++)
+            for (int j = 0; j < ndof_face; j++)
+            {
+               elmat(ioff+i, joff+j) /= 2.;
+            }
+      }
+   }
+}
+
 void TransposeIntegrator::SetIntRule(const IntegrationRule *ir)
 {
    IntRule = ir;

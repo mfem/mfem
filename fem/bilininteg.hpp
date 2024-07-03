@@ -217,9 +217,20 @@ public:
                               const Vector &trfun, const Vector &elfun,
                               Vector &elvect) override;
 
+   /// @brief Perform the local action of the gradient of the NonlinearFormIntegrator
+   /// resulting from an HDG face integral term.
+   /// @note The HDGFaceType::FACE term is split in two to provide the single-side
+   /// contribution, which does not take into account the possible asymmetry
+   void AssembleHDGFaceGrad(int type,
+                            const FiniteElement &trace_face_fe,
+                            const FiniteElement &fe,
+                            FaceElementTransformations &Tr,
+                            const Vector &trfun, const Vector &elfun,
+                            DenseMatrix &elmat) override;
+
    void AssembleElementGrad(const FiniteElement &el,
                             ElementTransformation &Tr,
-                            const Vector &elfun, DenseMatrix &elmat)
+                            const Vector &elfun, DenseMatrix &elmat) override
    { AssembleElementMatrix(el, Tr, elmat); }
 
    void AssembleFaceGrad(const FiniteElement &el1,
