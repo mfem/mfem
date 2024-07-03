@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -20,7 +20,7 @@ namespace mfem
 
 MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_C0_2D,
                            const int NE,
-                           const Array<double> &b_,
+                           const Array<real_t> &b_,
                            const Vector &h0_,
                            const Vector &r_,
                            Vector &c_,
@@ -48,11 +48,11 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_C0_2D,
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
-      MFEM_SHARED double B[MQ1*MD1];
+      MFEM_SHARED real_t B[MQ1*MD1];
 
-      MFEM_SHARED double XY[2][NBZ][MD1*MD1];
-      MFEM_SHARED double DQ[2][NBZ][MD1*MQ1];
-      MFEM_SHARED double QQ[2][NBZ][MQ1*MQ1];
+      MFEM_SHARED real_t XY[2][NBZ][MD1*MD1];
+      MFEM_SHARED real_t DQ[2][NBZ][MD1*MQ1];
+      MFEM_SHARED real_t QQ[2][NBZ][MQ1*MQ1];
 
       kernels::internal::LoadX<MD1,NBZ>(e,D1D,R,XY);
       kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,b,B);
@@ -65,10 +65,10 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_C0_2D,
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             // Xh = X^T . Sh
-            double Xh[2];
+            real_t Xh[2];
             kernels::internal::PullEval<MQ1,NBZ>(Q1D,qx,qy,QQ,Xh);
 
-            double H_data[4];
+            real_t H_data[4];
             DeviceMatrix H(H_data,2,2);
             for (int i = 0; i < DIM; i++)
             {
@@ -79,7 +79,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_C0_2D,
             }
 
             // p2 = H . Xh
-            double p2[2];
+            real_t p2[2];
             kernels::Mult(2,2,H_data,Xh,p2);
             kernels::internal::PushEval<MQ1,NBZ>(Q1D,qx,qy,p2,QQ);
          }
@@ -97,7 +97,7 @@ void TMOP_Integrator::AddMultGradPA_C0_2D(const Vector &R,Vector &C) const
    const int D1D = PA.maps->ndof;
    const int Q1D = PA.maps->nqpt;
    const int id = (D1D << 4 ) | Q1D;
-   const Array<double> &B = PA.maps->B;
+   const Array<real_t> &B = PA.maps->B;
    const Vector &H0 = PA.H0;
 
    MFEM_LAUNCH_TMOP_KERNEL(AddMultGradPA_Kernel_C0_2D,id,N,B,H0,R,C);

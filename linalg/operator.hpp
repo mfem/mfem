@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -94,11 +94,11 @@ public:
    { mfem_error("Operator::MultTranspose() is not overridden!"); }
 
    /// Operator application: `y+=A(x)` (default) or `y+=a*A(x)`.
-   virtual void AddMult(const Vector &x, Vector &y, const double a = 1.0) const;
+   virtual void AddMult(const Vector &x, Vector &y, const real_t a = 1.0) const;
 
    /// Operator transpose application: `y+=A^t(x)` (default) or `y+=a*A^t(x)`.
    virtual void AddMultTranspose(const Vector &x, Vector &y,
-                                 const double a = 1.0) const;
+                                 const real_t a = 1.0) const;
 
    /// Operator application on a matrix: `Y=A(X)`.
    virtual void ArrayMult(const Array<const Vector *> &X,
@@ -110,12 +110,12 @@ public:
 
    /// Operator application on a matrix: `Y+=A(X)` (default) or `Y+=a*A(X)`.
    virtual void ArrayAddMult(const Array<const Vector *> &X, Array<Vector *> &Y,
-                             const double a = 1.0) const;
+                             const real_t a = 1.0) const;
 
    /** @brief Operator transpose application on a matrix: `Y+=A^t(X)` (default)
        or `Y+=a*A^t(X)`. */
    virtual void ArrayAddMultTranspose(const Array<const Vector *> &X,
-                                      Array<Vector *> &Y, const double a = 1.0) const;
+                                      Array<Vector *> &Y, const real_t a = 1.0) const;
 
    /** @brief Evaluate the gradient operator at the point @a x. The default
        behavior in class Operator is to generate an error. */
@@ -309,18 +309,51 @@ public:
 
 
 /// Base abstract class for first order time dependent operators.
-/** Operator of the form: (x,t) -> f(x,t), where k = f(x,t) generally solves the
-    algebraic equation F(x,k,t) = G(x,t). The functions F and G represent the
-    _implicit_ and _explicit_ parts of the operator, respectively. For explicit
-    operators, F(x,k,t) = k, so f(x,t) = G(x,t). */
+/** Operator of the form: (u,t) -> k(u,t), where k generally solves the
+    algebraic equation F(u,k,t) = G(u,t). The functions F and G represent the
+    _implicit_ and _explicit_ parts of the operator, respectively.
+
+    A common use for this class is representing a differential algebraic
+    equation of the form $ F(y,\frac{dy}{dt},t) = G(y,t) $.
+
+    For example, consider an ordinary differential equation of the form
+    $ M \frac{dy}{dt} = g(y,t) $. There are various ways of expressing this ODE
+    as a TimeDependentOperator depending on the choices for F and G. Here are
+    some common choices:
+
+      1. F(u,k,t) = k and G(u,t) = inv(M) g(u,t),
+      2. F(u,k,t) = M k and G(u,t) = g(u,t),
+      3. F(u,k,t) = M k - g(u,t) and G(u,t) = 0.
+
+    Note that depending on the ODE solver, some of the above choices may be
+    preferable to the others.
+*/
 class TimeDependentOperator : public Operator
 {
 public:
+   /// Enum used to describe the form of the time-dependent operator.
+   /** The type should be set by classes derived from TimeDependentOperator to
+       describe the form, in terms of the functions F and G, used by the
+       specific derived class. This information can be queried by classes or
+       functions (like time stepping algorithms) to make choices about the
+       algorithm to use, or to ensure that the TimeDependentOperator uses the
+       form expected by the class/function.
+
+       For example, assume that a derived class is implementing the ODE
+       $M \frac{dy}{dt} = g(y,t)$ and chooses to define $F(u,k,t) = M k$ and
+       $G(u,t) = g(u,t)$. Then it cannot use type EXPLICIT, unless $M = I$, or
+       type HOMOGENEOUS, unless $g(u,t) = 0$. If, on the other hand, the derived
+       class chooses to define $F(u,k,t) = k$ and $G(u,t) = M^{-1} g(y,t)$, then
+       the natural choice is to set the type to EXPLICIT, even though setting it
+       to IMPLICIT is also not wrong -- doing so will simply fail to inform
+       methods that query this information that it uses a more specific
+       implementation, EXPLICIT, that may allow the use of algorithms that
+       support only the EXPLICIT type. */
    enum Type
    {
-      EXPLICIT,   ///< This type assumes F(x,k,t) = k, i.e. k = f(x,t) = G(x,t).
+      EXPLICIT,   ///< This type assumes F(u,k,t) = k.
       IMPLICIT,   ///< This is the most general type, no assumptions on F and G.
-      HOMOGENEOUS ///< This type assumes that G(x,t) = 0.
+      HOMOGENEOUS ///< This type assumes that G(u,t) = 0.
    };
 
    /// Evaluation mode. See SetEvalMode() for details.
@@ -328,36 +361,37 @@ public:
    {
       /** Normal evaluation. */
       NORMAL,
-      /** Assuming additive split, f(x,t) = f1(x,t) + f2(x,t), evaluate the
-          first term, f1. */
+      /** Assuming additive split, k(u,t) = k1(u,t) + k2(u,t), evaluate the
+          first term, k1. */
       ADDITIVE_TERM_1,
-      /** Assuming additive split, f(x,t) = f1(x,t) + f2(x,t), evaluate the
-          second term, f2. */
+      /** Assuming additive split, k(u,t) = k1(u,t) + k2(u,t), evaluate the
+          second term, k2. */
       ADDITIVE_TERM_2
    };
 
 protected:
-   double t;  ///< Current time.
-   Type type; ///< Describes the form of the TimeDependentOperator.
+   real_t t;  ///< Current time.
+   Type type; /**< @brief Describes the form of the TimeDependentOperator, see
+                   the documentation of #Type. */
    EvalMode eval_mode; ///< Current evaluation mode.
 
 public:
-   /** @brief Construct a "square" TimeDependentOperator y = f(x,t), where x and
-       y have the same dimension @a n. */
-   explicit TimeDependentOperator(int n = 0, double t_ = 0.0,
+   /** @brief Construct a "square" TimeDependentOperator (u,t) -> k(u,t), where
+       u and k have the same dimension @a n. */
+   explicit TimeDependentOperator(int n = 0, real_t t_ = 0.0,
                                   Type type_ = EXPLICIT)
       : Operator(n) { t = t_; type = type_; eval_mode = NORMAL; }
 
-   /** @brief Construct a TimeDependentOperator y = f(x,t), where x and y have
-       dimensions @a w and @a h, respectively. */
+   /** @brief Construct a TimeDependentOperator (u,t) -> k(u,t), where u and k
+       have dimensions @a w and @a h, respectively. */
    TimeDependentOperator(int h, int w, double t_ = 0.0, Type type_ = EXPLICIT)
       : Operator(h, w) { t = t_; type = type_; eval_mode = NORMAL; }
 
    /// Read the currently set time.
-   virtual double GetTime() const { return t; }
+   virtual real_t GetTime() const { return t; }
 
    /// Set the current time.
-   virtual void SetTime(const double t_) { t = t_; }
+   virtual void SetTime(const real_t t_) { t = t_; }
 
    /// True if #type is #EXPLICIT.
    bool isExplicit() const { return (type == EXPLICIT); }
@@ -373,7 +407,7 @@ public:
    /** The evaluation mode is a switch that allows time-stepping methods to
        request evaluation of separate components/terms of the time-dependent
        operator. For example, IMEX methods typically assume additive split of
-       the operator: f(x,t) = f1(x,t) + f2(x,t) and they rely on the ability to
+       the operator: k(u,t) = k1(u,t) + k2(u,t) and they rely on the ability to
        evaluate the two terms separately.
 
        Generally, setting the evaluation mode should affect the behavior of all
@@ -384,62 +418,115 @@ public:
    { eval_mode = new_eval_mode; }
 
    /** @brief Perform the action of the explicit part of the operator, G:
-       @a y = G(@a x, t) where t is the current time.
+       @a v = G(@a u, t) where t is the current time.
 
-       Presently, this method is used by some PETSc ODE solvers, for more
-       details, see the PETSc Manual. */
-   virtual void ExplicitMult(const Vector &x, Vector &y) const;
+       Presently, this method is used by some PETSc ODE solvers and the
+       SUNDIALS ARKStep integrator, for more details, see either the PETSc
+       Manual or the ARKode User Guide, respectively. */
+   virtual void ExplicitMult(const Vector &u, Vector &v) const;
 
    /** @brief Perform the action of the implicit part of the operator, F:
-       @a y = F(@a x, @a k, t) where t is the current time.
+       @a v = F(@a u, @a k, t) where t is the current time.
 
        Presently, this method is used by some PETSc ODE solvers, for more
        details, see the PETSc Manual.*/
-   virtual void ImplicitMult(const Vector &x, const Vector &k, Vector &y) const;
+   virtual void ImplicitMult(const Vector &u, const Vector &k, Vector &v) const;
 
-   /** @brief Perform the action of the operator: @a y = k = f(@a x, t), where
-       k solves the algebraic equation F(@a x, k, t) = G(@a x, t) and t is the
-       current time. */
-   virtual void Mult(const Vector &x, Vector &y) const;
+   /** @brief Perform the action of the operator (u,t) -> k(u,t) where t is the
+       current time set by SetTime() and @a k satisfies
+       F(@a u, @a k, t) = G(@a u, t).
 
-   /** @brief Solve the equation: @a k = f(@a x + @a dt @a k, t), for the
-       unknown @a k at the current time t.
+       For solving an ordinary differential equation of the form
+       $ M \frac{dy}{dt} = g(y,t) $, recall that F and G can be defined in
+       various ways, e.g.:
 
-       For general F and G, the equation for @a k becomes:
-       F(@a x + @a dt @a k, @a k, t) = G(@a x + @a dt @a k, t).
+         1. F(u,k,t) = k and G(u,t) = inv(M) g(u,t)
+         2. F(u,k,t) = M k and G(u,t) = g(u,t)
+         3. F(u,k,t) = M k - g(u,t) and G(u,t) = 0.
 
-       The input vector @a x corresponds to time index (or cycle) n, while the
-       currently set time, #t, and the result vector @a k correspond to time
-       index n+1. The time step @a dt corresponds to the time interval between
-       cycles n and n+1.
+       Regardless of the choice of F and G, this function should always compute
+       @a k = inv(M) g(@a u, t). */
+   virtual void Mult(const Vector &u, Vector &k) const override;
 
-       This method allows for the abstract implementation of some time
-       integration methods, including diagonal implicit Runge-Kutta (DIRK)
-       methods and the backward Euler method in particular.
+   /** @brief Solve for the unknown @a k, at the current time t, the following
+       equation:
+       F(@a u + @a gamma @a k, @a k, t) = G(@a u + @a gamma @a k, t).
+
+       For solving an ordinary differential equation of the form
+       $ M \frac{dy}{dt} = g(y,t) $, recall that F and G can be defined in
+       various ways, e.g.:
+
+         1. F(u,k,t) = k and G(u,t) = inv(M) g(u,t)
+         2. F(u,k,t) = M k and G(u,t) = g(u,t)
+         3. F(u,k,t) = M k - g(u,t) and G(u,t) = 0
+
+       Regardless of the choice of F and G, this function should solve for @a k
+       in M @a k = g(@a u + @a gamma @a k, t).
+
+       To see how @a k can be useful, consider the backward Euler method defined
+       by $ y(t + \Delta t) = y(t) + \Delta t k_0 $ where
+       $ M k_0 = g \big( y(t) + \Delta t k_0, t + \Delta t \big) $. A backward
+       Euler integrator can use @a k from this function for $k_0$, with the call
+       using @a u set to $ y(t) $, @a gamma set to $ \Delta t$, and time set to
+       $t + \Delta t$. See class BackwardEulerSolver.
+
+       Generalizing further, consider a diagonally implicit Runge-Kutta (DIRK)
+       method defined by
+       $ y(t + \Delta t) = y(t) + \Delta t \sum_{i=1}^s b_i k_i $ where
+       $ M k_i = g \big( y(t) + \Delta t \sum_{j=1}^i a_{ij} k_j,
+                         t + c_i \Delta t \big) $.
+       A DIRK integrator can use @a k from this function, with @a u set to
+       $ y(t) + \Delta t \sum_{j=1}^{i-1} a_{ij} k_j $ and @a gamma set to
+       $ a_{ii} \Delta t $, for $ k_i $. For example, see class SDIRK33Solver.
 
        If not re-implemented, this method simply generates an error. */
-   virtual void ImplicitSolve(const double dt, const Vector &x, Vector &k);
+   virtual void ImplicitSolve(const real_t gamma, const Vector &u, Vector &k);
 
-   /** @brief Return an Operator representing (dF/dk @a shift + dF/dx) at the
-       given @a x, @a k, and the currently set time.
+   /** @brief Return an Operator representing (dF/dk @a shift + dF/du) at the
+       given @a u, @a k, and the currently set time.
 
        Presently, this method is used by some PETSc ODE solvers, for more
        details, see the PETSc Manual. */
-   virtual Operator& GetImplicitGradient(const Vector &x, const Vector &k,
-                                         double shift) const;
+   virtual Operator& GetImplicitGradient(const Vector &u, const Vector &k,
+                                         real_t shift) const;
 
-   /** @brief Return an Operator representing dG/dx at the given point @a x and
+   /** @brief Return an Operator representing dG/du at the given point @a u and
        the currently set time.
 
        Presently, this method is used by some PETSc ODE solvers, for more
        details, see the PETSc Manual. */
-   virtual Operator& GetExplicitGradient(const Vector &x) const;
+   virtual Operator& GetExplicitGradient(const Vector &u) const;
 
-   /** @brief Setup the ODE linear system \f$ A(x,t) = (I - gamma J) \f$ or
-       \f$ A = (M - gamma J) \f$, where \f$ J(x,t) = \frac{df}{dt(x,t)} \f$.
+   /** @brief Setup a linear system as needed by some SUNDIALS ODE solvers to
+       perform a similar action to ImplicitSolve, i.e., solve for k, at the
+       current time t, in F(u + gamma k, k, t) = G(u + gamma k, t).
 
-       @param[in]  x     The state at which \f$A(x,t)\f$ should be evaluated.
-       @param[in]  fx    The current value of the ODE rhs function, \f$f(x,t)\f$.
+       The SUNDIALS ODE solvers iteratively solve for k, as knew = kold + dk.
+       The linear system here is for dk, obtained by linearizing the nonlinear
+       system F(u + gamma knew, knew, t) = G(u + gamma knew, t) about dk = 0:
+          F(u + gamma (kold + dk), kold + dk, t) = G(u + gamma (kold + dk), t)
+          => [dF/dk + gamma (dF/du - dG/du)] dk = G - F + O(dk^2)
+       In other words, the linear system to be setup here is A dk = r, where
+       A = [dF/dk + gamma (dF/du - dG/du)] and r = G - F.
+
+       For solving an ordinary differential equation of the form
+       $ M \frac{dy}{dt} = g(y,t) $, recall that F and G can be defined as one
+       of the following:
+
+         1. F(u,k,t) = k and G(u,t) = inv(M) g(u,t)
+         2. F(u,k,t) = M k and G(u,t) = g(u,t)
+         3. F(u,k,t) = M k - g(u,t) and G(u,t) = 0
+
+       This function performs setup to solve $ A dk = r $ where A is either
+
+         1. A(@a y,t) = I - @a gamma inv(M) J(@a y,t)
+         2. A(@a y,t) = M - @a gamma J(@a y,t)
+         3. A(@a y,t) = M - @a gamma J(@a y,t)
+
+       with J = dg/dy (or a reasonable approximation thereof).
+
+       @param[in]  y     The state at which A(@a y,t) should be evaluated.
+       @param[in]  v     The value of inv(M) g(y,t) for 1 or g(y,t) for 2 & 3.
        @param[in]  jok   Flag indicating if the Jacobian should be updated.
        @param[out] jcur  Flag to signal if the Jacobian was updated.
        @param[in]  gamma The scaled time step value.
@@ -448,23 +535,32 @@ public:
 
        Presently, this method is used by SUNDIALS ODE solvers, for more
        details, see the SUNDIALS User Guides. */
-   virtual int SUNImplicitSetup(const Vector &x, const Vector &fx,
-                                int jok, int *jcur, double gamma);
+   virtual int SUNImplicitSetup(const Vector &y, const Vector &v,
+                                int jok, int *jcur, real_t gamma);
 
-   /** @brief Solve the ODE linear system \f$ A x = b \f$ as setup by
-       the method SUNImplicitSetup().
+   /** @brief Solve the ODE linear system A @a dk = @a r , where A and r are
+       defined by the method SUNImplicitSetup().
 
-       @param[in]      b   The linear system right-hand side.
-       @param[in,out]  x   On input, the initial guess. On output, the solution.
+       For solving an ordinary differential equation of the form
+       $ M \frac{dy}{dt} = g(y,t) $, recall that F and G can be defined as one
+       of the following:
+
+         1. F(u,k,t) = k and G(u,t) = inv(M) g(u,t)
+         2. F(u,k,t) = M k and G(u,t) = g(u,t)
+         3. F(u,k,t) = M k - g(u,t) and G(u,t) = 0
+
+       @param[in]      r   inv(M) g(y,t) - k for 1 or g(y,t) - M k for 2 & 3.
+       @param[in,out]  dk  On input, the initial guess. On output, the solution.
        @param[in]      tol Linear solve tolerance.
 
        If not re-implemented, this method simply generates an error.
 
        Presently, this method is used by SUNDIALS ODE solvers, for more
        details, see the SUNDIALS User Guides. */
-   virtual int SUNImplicitSolve(const Vector &b, Vector &x, double tol);
+   virtual int SUNImplicitSolve(const Vector &r, Vector &dk, real_t tol);
 
-   /** @brief Setup the mass matrix in the ODE system \f$ M y' = f(y,t) \f$ .
+   /** @brief Setup the mass matrix in the ODE system
+       $ M \frac{dy}{dt} = g(y,t) $ .
 
        If not re-implemented, this method simply generates an error.
 
@@ -472,8 +568,8 @@ public:
        details, see the ARKode User Guide. */
    virtual int SUNMassSetup();
 
-   /** @brief Solve the mass matrix linear system \f$ M x = b \f$
-       as setup by the method SUNMassSetup().
+   /** @brief Solve the mass matrix linear system  M @a x = @a b, where M is
+       defined by the method SUNMassSetup().
 
        @param[in]      b   The linear system right-hand side.
        @param[in,out]  x   On input, the initial guess. On output, the solution.
@@ -483,9 +579,10 @@ public:
 
        Presently, this method is used by SUNDIALS ARKStep integrator, for more
        details, see the ARKode User Guide. */
-   virtual int SUNMassSolve(const Vector &b, Vector &x, double tol);
+   virtual int SUNMassSolve(const Vector &b, Vector &x, real_t tol);
 
-   /** @brief Compute the mass matrix-vector product \f$ v = M x \f$ .
+   /** @brief Compute the mass matrix-vector product @a v = M @a x, where M is
+       defined by the method SUNMassSetup().
 
        @param[in]   x The vector to multiply.
        @param[out]  v The result of the matrix-vector product.
@@ -535,7 +632,7 @@ public:
       \param[in] t Starting time to set
       \param[in] type The TimeDependentOperator type
    */
-   TimeDependentAdjointOperator(int dim, int adjdim, double t = 0.,
+   TimeDependentAdjointOperator(int dim, int adjdim, real_t t = 0.,
                                 Type type = EXPLICIT) :
       TimeDependentOperator(dim, t, type),
       adjoint_height(adjdim)
@@ -574,13 +671,13 @@ public:
    virtual void QuadratureSensitivityMult(const Vector &y, const Vector &yB,
                                           Vector &qBdot) const {}
 
-   /** @brief Setup the ODE linear system \f$ A(x,t) = (I - gamma J) \f$ or
-       \f$ A = (M - gamma J) \f$, where \f$ J(x,t) = \frac{df}{dt(x,t)} \f$.
+   /** @brief Setup the ODE linear system $ A(x,t) = (I - gamma J) $ or
+       $ A = (M - gamma J) $, where $ J(x,t) = \frac{df}{dt(x,t)} $.
 
        @param[in]  t     The current time
-       @param[in]  x     The state at which \f$A(x,xB,t)\f$ should be evaluated.
-       @param[in]  xB    The state at which \f$A(x,xB,t)\f$ should be evaluated.
-       @param[in]  fxB   The current value of the ODE rhs function, \f$f(x,t)\f$.
+       @param[in]  x     The state at which $A(x,xB,t)$ should be evaluated.
+       @param[in]  xB    The state at which $A(x,xB,t)$ should be evaluated.
+       @param[in]  fxB   The current value of the ODE rhs function, $f(x,t)$.
        @param[in]  jokB   Flag indicating if the Jacobian should be updated.
        @param[out] jcurB  Flag to signal if the Jacobian was updated.
        @param[in]  gammaB The scaled time step value.
@@ -590,16 +687,16 @@ public:
        Presently, this method is used by SUNDIALS ODE solvers, for more details,
        see the SUNDIALS User Guides.
    */
-   virtual int SUNImplicitSetupB(const double t, const Vector &x,
+   virtual int SUNImplicitSetupB(const real_t t, const Vector &x,
                                  const Vector &xB, const Vector &fxB,
-                                 int jokB, int *jcurB, double gammaB)
+                                 int jokB, int *jcurB, real_t gammaB)
    {
       mfem_error("TimeDependentAdjointOperator::SUNImplicitSetupB() is not "
                  "overridden!");
       return (-1);
    }
 
-   /** @brief Solve the ODE linear system \f$ A(x,xB,t) xB = b \f$ as setup by
+   /** @brief Solve the ODE linear system $ A(x,xB,t) xB = b $ as setup by
        the method SUNImplicitSetup().
 
        @param[in]      b   The linear system right-hand side.
@@ -610,7 +707,7 @@ public:
 
        Presently, this method is used by SUNDIALS ODE solvers, for more details,
        see the SUNDIALS User Guides. */
-   virtual int SUNImplicitSolveB(Vector &x, const Vector &b, double tol)
+   virtual int SUNImplicitSolveB(Vector &x, const Vector &b, real_t tol)
    {
       mfem_error("TimeDependentAdjointOperator::SUNImplicitSolveB() is not "
                  "overridden!");
@@ -636,13 +733,13 @@ class SecondOrderTimeDependentOperator : public TimeDependentOperator
 public:
    /** @brief Construct a "square" SecondOrderTimeDependentOperator
        y = f(x,dxdt,t), where x, dxdt and y have the same dimension @a n. */
-   explicit SecondOrderTimeDependentOperator(int n = 0, double t_ = 0.0,
+   explicit SecondOrderTimeDependentOperator(int n = 0, real_t t_ = 0.0,
                                              Type type_ = EXPLICIT)
       : TimeDependentOperator(n, t_,type_) { }
 
    /** @brief Construct a SecondOrderTimeDependentOperator y = f(x,dxdt,t),
        where x, dxdt and y have the same dimension @a n. */
-   SecondOrderTimeDependentOperator(int h, int w, double t_ = 0.0,
+   SecondOrderTimeDependentOperator(int h, int w, real_t t_ = 0.0,
                                     Type type_ = EXPLICIT)
       : TimeDependentOperator(h, w, t_,type_) { }
 
@@ -670,7 +767,7 @@ public:
        integration methods.
 
        If not re-implemented, this method simply generates an error. */
-   virtual void ImplicitSolve(const double fac0, const double fac1,
+   virtual void ImplicitSolve(const real_t fac0, const real_t fac1,
                               const Vector &x, const Vector &dxdt, Vector &k);
 
 
@@ -727,11 +824,11 @@ class ScaledOperator : public Operator
 {
 private:
    const Operator &A_;
-   double a_;
+   real_t a_;
 
 public:
    /// Create an operator which is a scalar multiple of A.
-   explicit ScaledOperator(const Operator *A, double a)
+   explicit ScaledOperator(const Operator *A, real_t a)
       : Operator(A->Height(), A->Width()), A_(*A), a_(a) { }
 
    /// Operator application
@@ -769,6 +866,28 @@ public:
    { A.Mult(x, y); }
 };
 
+/// General linear combination operator: x -> a A(x) + b B(x).
+class SumOperator : public Operator
+{
+   const Operator *A, *B;
+   const real_t alpha, beta;
+   bool ownA, ownB;
+   mutable Vector z;
+
+public:
+   SumOperator(
+      const Operator *A, const real_t alpha,
+      const Operator *B, const real_t beta,
+      bool ownA, bool ownB);
+
+   virtual void Mult(const Vector &x, Vector &y) const
+   { z.SetSize(A->Height()); A->Mult(x, z); B->Mult(x, y); add(alpha, z, beta, y, y); }
+
+   virtual void MultTranspose(const Vector &x, Vector &y) const
+   { z.SetSize(A->Width()); A->MultTranspose(x, z); B->MultTranspose(x, y); add(alpha, z, beta, y, y); }
+
+   virtual ~SumOperator();
+};
 
 /// General product operator: x -> (A*B)(x) = A(B(x)).
 class ProductOperator : public Operator
@@ -892,14 +1011,14 @@ public:
                        DiagonalPolicy diag_policy = DIAG_ONE);
 
    /// Returns the type of memory in which the solution and temporaries are stored.
-   virtual MemoryClass GetMemoryClass() const { return mem_class; }
+   MemoryClass GetMemoryClass() const override { return mem_class; }
 
    /// Set the diagonal policy for the constrained operator.
    void SetDiagonalPolicy(const DiagonalPolicy diag_policy_)
    { diag_policy = diag_policy_; }
 
    /// Diagonal of A, modified according to the used DiagonalPolicy.
-   virtual void AssembleDiagonal(Vector &diag) const;
+   void AssembleDiagonal(Vector &diag) const override;
 
    /** @brief Eliminate "essential boundary condition" values specified in @a x
        from the given right-hand side @a b.
@@ -922,10 +1041,19 @@ public:
 
        where the "_b" subscripts denote the essential (boundary) indices/dofs of
        the vectors, and "_i" -- the rest of the entries. */
-   virtual void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
+
+   void AddMult(const Vector &x, Vector &y, const real_t a = 1.0) const override;
+
+   void MultTranspose(const Vector &x, Vector &y) const override;
+
+   /** @brief Implementation of Mult or MultTranspose.
+    *  TODO - Generalize to allow constraining rows and columns differently.
+   */
+   void ConstrainedMult(const Vector &x, Vector &y, const bool transpose) const;
 
    /// Destructor: destroys the unconstrained Operator, if owned.
-   virtual ~ConstrainedOperator() { if (own_A) { delete A; } }
+   ~ConstrainedOperator() override { if (own_A) { delete A; } }
 };
 
 /** @brief Rectangular Operator for imposing essential boundary conditions on
@@ -1009,8 +1137,8 @@ public:
        The maximum number of iterations may set with \p numSteps, the relative
        tolerance with \p tolerance and the seed of the random initialization of
        \p v0 with \p seed. If \p seed is 0 \p v0 will not be random-initialized. */
-   double EstimateLargestEigenvalue(Operator& opr, Vector& v0,
-                                    int numSteps = 10, double tolerance = 1e-8,
+   real_t EstimateLargestEigenvalue(Operator& opr, Vector& v0,
+                                    int numSteps = 10, real_t tolerance = 1e-8,
                                     int seed = 12345);
 };
 

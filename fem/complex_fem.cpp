@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -268,13 +268,13 @@ ComplexLinearForm::Assemble()
    lfi->SyncAliasMemory(*this);
 }
 
-complex<double>
+complex<real_t>
 ComplexLinearForm::operator()(const ComplexGridFunction &gf) const
 {
-   double s = (conv == ComplexOperator::HERMITIAN) ? 1.0 : -1.0;
+   real_t s = (conv == ComplexOperator::HERMITIAN) ? 1.0 : -1.0;
    lfr->SyncMemory(*this);
    lfi->SyncMemory(*this);
-   return complex<double>((*lfr)(gf.real()) - s * (*lfi)(gf.imag()),
+   return complex<real_t>((*lfr)(gf.real()) - s * (*lfi)(gf.imag()),
                           (*lfr)(gf.imag()) + s * (*lfi)(gf.real()));
 }
 
@@ -1011,13 +1011,13 @@ ParComplexLinearForm::ParallelAssemble()
    return tv;
 }
 
-complex<double>
+complex<real_t>
 ParComplexLinearForm::operator()(const ParComplexGridFunction &gf) const
 {
    plfr->SyncMemory(*this);
    plfi->SyncMemory(*this);
-   double s = (conv == ComplexOperator::HERMITIAN) ? 1.0 : -1.0;
-   return complex<double>((*plfr)(gf.real()) - s * (*plfi)(gf.imag()),
+   real_t s = (conv == ComplexOperator::HERMITIAN) ? 1.0 : -1.0;
+   return complex<real_t>((*plfr)(gf.real()) - s * (*plfi)(gf.imag()),
                           (*plfr)(gf.imag()) + s * (*plfi)(gf.real()));
 }
 
@@ -1243,25 +1243,16 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
          HypreParMatrix * Ah;
          A_i.Get(Ah);
          hypre_ParCSRMatrix *Aih = *Ah;
-#if !defined(HYPRE_USING_GPU)
-         ess_tdof_list.HostRead();
-         for (int k = 0; k < n; k++)
-         {
-            const int j = ess_tdof_list[k];
-            Aih->diag->data[Aih->diag->i[j]] = 0.0;
-         }
-#else
          Ah->HypreReadWrite();
          const int *d_ess_tdof_list =
-            ess_tdof_list.GetMemory().Read(MemoryClass::DEVICE, n);
-         const int *d_diag_i = Aih->diag->i;
-         double *d_diag_data = Aih->diag->data;
-         MFEM_GPU_FORALL(k, n,
+            ess_tdof_list.GetMemory().Read(GetHypreMemoryClass(), n);
+         HYPRE_Int *d_diag_i = Aih->diag->i;
+         real_t *d_diag_data = Aih->diag->data;
+         mfem::hypre_forall(n, [=] MFEM_HOST_DEVICE (int k)
          {
             const int j = d_ess_tdof_list[k];
             d_diag_data[d_diag_i[j]] = 0.0;
          });
-#endif
       }
       else
       {

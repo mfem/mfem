@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -33,6 +33,7 @@ env:
   HYPRE_ARCHIVE: v2.19.0.tar.gz
   HYPRE_TOP_DIR: hypre-2.19.0
   METIS_ARCHIVE: metis-4.0.3.tar.gz
+  METIS_ARCHIVE_MAC: metis-4.0.3-mac.tgz
   METIS_TOP_DIR: metis-4.0.3
   MFEM_TOP_DIR: mfem
 
@@ -52,6 +53,7 @@ jobs:
         mpi: [seq, par]
         build-system: [make, cmake]
         hypre-target: [int32]
+        precision: [fp64]
         exclude:
           - os: ubuntu-latest
             build-system: cmake
@@ -75,6 +77,8 @@ jobs:
           - os: ubuntu-latest
             target: dbg
             config-opts: 'CPPFLAGS+=-Og'
+          - os: macos-latest
+            codecov: NO
           - os: windows-latest
             codecov: NO
           - os: windows-latest
@@ -87,6 +91,7 @@ jobs:
             mpi: par
             build-system: cmake
             hypre-target: int32
+            precision: fp64
             # This option can be set to pass additional configuration options to
             # the MFEM configuration command.
             # config-opts: '-DCMAKE_VERBOSE_MAKEFILE=ON'
@@ -96,7 +101,15 @@ jobs:
             mpi: par
             build-system: make
             hypre-target: int64
-    name: ${{ matrix.os }}-${{ matrix.build-system }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.hypre-target }}
+            precision: fp64
+          - os: ubuntu-latest
+            target: opt
+            codecov: NO
+            mpi: par
+            build-system: make
+            hypre-target: int32
+            precision: fp32
+    name: ${{ matrix.os }}-${{ matrix.build-system }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.hypre-target }}-${{ matrix.precision }}
 
     runs-on: ${{ matrix.os }}
 
@@ -104,7 +117,7 @@ jobs:
       # This external action allows to interrupt a workflow already running on
       # the same branch to save resources.
       - name: Cancel Previous Runs
-        uses: styfle/cancel-workflow-action@0.11.0
+        uses: styfle/cancel-workflow-action@0.12.1
         with:
           access_token: ${{ github.token }}
 
@@ -120,11 +133,22 @@ jobs:
       # /home/runner/work/mfem/mfem/mfem
       # Note: Done now to access "install-hypre" and "install-metis" actions.
       - name: checkout mfem
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           path: ${{ env.MFEM_TOP_DIR }}
           # Fetch the complete history for codecov to access commits ID
           fetch-depth: 0
+
+      - name: Xcode version setup (MacOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          XCODE_PATH="/Applications/Xcode_15.3.app"
+          echo "> sudo xcode-select -s ${XCODE_PATH}"
+          sudo xcode-select -s ${XCODE_PATH}
+          echo "> g++ -v"
+          g++ -v
+          echo "> clang++ -v"
+          clang++ -v
 
       # Only get MPI if defined for the job.
       # TODO: It would be nice to have only one step, e.g. with a dedicated
@@ -166,50 +190,52 @@ jobs:
       - name: cache hypre
         id: hypre-cache
         if: matrix.mpi == 'par'
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ${{ env.HYPRE_TOP_DIR }}
-          key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-${{ matrix.hypre-target }}-v2.2
+          key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-${{ matrix.hypre-target }}-${{ matrix.precision }}-v2.5
 
       - name: get hypre
         if: matrix.mpi == 'par' && steps.hypre-cache.outputs.cache-hit != 'true' && matrix.os != 'windows-latest'
-        uses: mfem/github-actions/build-hypre@v2.4
+        uses: mfem/github-actions/build-hypre@v2.5
         with:
           archive: ${{ env.HYPRE_ARCHIVE }}
           dir: ${{ env.HYPRE_TOP_DIR }}
           target: ${{ matrix.hypre-target }}
           build-system: make
+          precision: ${{ matrix.precision }}
 
       - name: get hypre (Windows)
         if: matrix.mpi == 'par' && steps.hypre-cache.outputs.cache-hit != 'true' && matrix.os == 'windows-latest'
-        uses: mfem/github-actions/build-hypre@v2.4
+        uses: mfem/github-actions/build-hypre@v2.5
         with:
           archive: ${{ env.HYPRE_ARCHIVE }}
           dir: ${{ env.HYPRE_TOP_DIR }}
           target: ${{ matrix.hypre-target }}
           build-system: cmake
+          precision: ${{ matrix.precision }}
 
       # Get Metis through cache, or build it.
       # Install will only run on cache miss.
       - name: cache metis
         id: metis-cache
         if: matrix.mpi == 'par' && matrix.os != 'windows-latest'
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ${{ env.METIS_TOP_DIR }}
-          key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}-v2.2
+          key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}-v2.5
 
       - name: install metis
         if: matrix.mpi == 'par' && matrix.os != 'windows-latest' && steps.metis-cache.outputs.cache-hit != 'true'
-        uses: mfem/github-actions/build-metis@v2.4
+        uses: mfem/github-actions/build-metis@v2.5
         with:
-          archive: ${{ env.METIS_ARCHIVE }}
+          archive: ${{ matrix.os != 'macos-latest' && env.METIS_ARCHIVE || env.METIS_ARCHIVE_MAC }}
           dir: ${{ env.METIS_TOP_DIR }}
 
       - name: cache vcpkg (Windows)
         id: vcpkg-cache
         if: matrix.os == 'windows-latest'
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: vcpkg_cache
           key: ${{ runner.os }}-${{ matrix.mpi }}-vcpkg-v1
@@ -228,7 +254,7 @@ jobs:
 
       # MFEM build and test
       - name: build
-        uses: mfem/github-actions/build-mfem@v2.4
+        uses: mfem/github-actions/build-mfem@v2.5
         env:
           VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg_cache
         with:
@@ -240,6 +266,7 @@ jobs:
           hypre-dir: ${{ env.HYPRE_TOP_DIR }}
           metis-dir: ${{ env.METIS_TOP_DIR }}
           mfem-dir: ${{ env.MFEM_TOP_DIR }}
+          precision: ${{ matrix.precision }}
           config-options: ${{ matrix.config-opts }}
           library-only: ${{ matrix.target == 'dbg' && matrix.os != 'ubuntu-latest' }}
 
@@ -282,7 +309,7 @@ jobs:
       # Code coverage (process and upload reports)
       - name: codecov
         if: matrix.codecov == 'YES'
-        uses: mfem/github-actions/upload-coverage@v2.4
+        uses: mfem/github-actions/upload-coverage@v2.5
         with:
           name: ${{ matrix.os }}-${{ matrix.build-system }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.hypre-target }}
           project_dir: ${{ env.MFEM_TOP_DIR }}
