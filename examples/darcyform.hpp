@@ -213,6 +213,7 @@ public:
    enum class LSsolveType
    {
       LBFGS,
+      Newton,
    };
 
 private:
@@ -278,6 +279,7 @@ private:
       const FiniteElement *fe;
       ElementTransformation *Tr;
       mutable Vector u_l, Dp, DpEx;
+      mutable DenseMatrix grad;
 
    public:
       LocalNLOperator(const DarcyHybridization &dh, int el, const Vector &bu,
@@ -285,6 +287,7 @@ private:
 
       void SolveU(const Vector &p_l, Vector &u_l) const;
       void Mult(const Vector &x, Vector &y) const override;
+      Operator &GetGradient(const Vector &x) const override;
    };
 
    void GetFDofs(int el, Array<int> &fdofs) const;

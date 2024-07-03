@@ -1913,10 +1913,17 @@ void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
    //solve the local system
 
    IterativeSolver *lsolver;
+   Solver *prec = NULL;
    switch (lsolve.type)
    {
       case LSsolveType::LBFGS:
-         lsolver = new LBFGSSolver;
+         lsolver = new LBFGSSolver();
+         break;
+      case LSsolveType::Newton:
+         lsolver = new NewtonSolver();
+         prec = new GMRESSolver();
+         lsolver->SetPreconditioner(*prec);
+         static_cast<NewtonSolver*>(lsolver)->SetAdaptiveLinRtol();
          break;
       default:
          MFEM_ABORT("Unknown local solver");
@@ -1947,6 +1954,7 @@ void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
    }
 
    delete lsolver;
+   delete prec;
 
    //solve the flux
 
@@ -2259,7 +2267,8 @@ void DarcyHybridization::LocalNLOperator::SolveU(const Vector &p_l,
 void DarcyHybridization::LocalNLOperator::Mult(const Vector &p_l,
                                                Vector &bp) const
 {
-   MFEM_ASSERT(bp.Size() == d_dofs_size, "Incompatible size");
+   MFEM_ASSERT(p_l.Size() == d_dofs_size &&
+               bp.Size() == d_dofs_size, "Incompatible size");
 
    SolveU(p_l, u_l);
 
@@ -2294,5 +2303,54 @@ void DarcyHybridization::LocalNLOperator::Mult(const Vector &p_l,
          bp += DpEx;
       }
    }
+}
+
+Operator &DarcyHybridization::LocalNLOperator::GetGradient(
+   const Vector &p_l) const
+{
+   MFEM_ASSERT(p_l.Size() == d_dofs_size, "Incompatible size");
+
+   SolveU(p_l, u_l);
+
+   //grad = B A^-1 B^T
+   DenseMatrix BAi = B;
+
+   LU_A.RightSolve(a_dofs_size, d_dofs_size, BAi.GetData());
+   grad.SetSize(d_dofs_size);
+   MultABt(BAi, B, grad);
+   if (!dh.bsym) { grad.Neg(); }
+
+   //grad += D
+   if (dh.m_nlfi_p)
+   {
+      DenseMatrix grad_D;
+      dh.m_nlfi_p->AssembleElementGrad(*fe, *Tr, p_l, grad_D);
+      grad += grad_D;
+   }
+
+   if (dh.c_nlfi_p)
+   {
+      DenseMatrix grad_Df;
+
+      //grad += D_f
+      for (int f = 0; f < faces.Size(); f++)
+      {
+         FaceElementTransformations *FTr =
+            dh.fes->GetMesh()->GetInteriorFaceTransformations(faces[f]);
+         if (!FTr) { continue; }
+
+         int type = NonlinearFormIntegrator::HDGFaceType::ELEM;
+         if (FTr->Elem1No != el) { type |= 1; }
+
+         const Vector &trp_f = trps.GetBlock(f);
+
+         dh.c_nlfi_p->AssembleHDGFaceGrad(type, *dh.c_fes->GetFaceElement(faces[f]),
+                                          *fe, *FTr, trp_f, p_l, grad_Df);
+
+         grad += grad_Df;
+      }
+   }
+
+   return grad;
 }
 }
