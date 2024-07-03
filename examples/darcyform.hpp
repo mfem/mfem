@@ -332,7 +332,7 @@ public:
    ~DarcyHybridization();
 
    void SetLocalNLSolver(LSsolveType type, int iters = 1000, real_t rtol = 1e-6,
-                         real_t atol = 0., int print_lvl = 0)
+                         real_t atol = 0., int print_lvl = -1)
    {
       lsolve.type = type;
       lsolve.iters = iters;
