@@ -1914,27 +1914,19 @@ void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
 
    //stationary point iterations
 
-   int it;
-   for (it = 0; it < 1000; it++)
-   {
-      rp = bp_l;
+   SLISolver lsolver;
+   lsolver.SetOperator(lop);
+   lsolver.SetMaxIter(1000);
+   lsolver.SetRelTol(1e-6);
+   lsolver.SetAbsTol(0.);
+   lsolver.SetPrintLevel(0);
 
-      lop.AddMult(p_l, rp, -1.);
+   lsolver.Mult(bp_l, p_l);
 
-      //x <- x + r
-      p_l += rp;
-
-      norm_p = rp.Norml2();
-      if (norm_p <= 1e-6 * norm_p_ref)
-      {
-         break;
-      }
-      /*std::cout << "el: " << el << " it: " << it
-                << " p: " << norm_p << " / " << norm_p_ref
-                << std::endl;*/
-   }
-   std::cout << "el: " << el << " iters: " << it
-             << " p: " << (norm_p/norm_p_ref) << std::endl;
+   std::cout << "el: " << el
+             << " iters: " << lsolver.GetNumIterations()
+             << " p: " << lsolver.GetFinalRelNorm()
+             << std::endl;
 
    lop.SolveU(p_l, u_l);
 }
