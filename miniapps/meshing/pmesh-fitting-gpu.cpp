@@ -91,7 +91,7 @@ int main (int argc, char *argv[])
    int bg_amr_iters       = 0;
    bool conv_residual     = true;
    real_t jitter         = 0.0;
-   bool pa = false;
+   bool pa = true;
    bool grad_int = true;
 
    // Parse command-line options.

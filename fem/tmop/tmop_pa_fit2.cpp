@@ -65,6 +65,7 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_Fit_2D,
          }
       }
    });
+   cout << energy * ones;
    return energy * ones; 
 }
 
