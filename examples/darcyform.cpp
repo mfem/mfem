@@ -1930,10 +1930,21 @@ void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
 
    lsolver->Mult(bp_l, p_l);
 
-   std::cout << "el: " << el
-             << " iters: " << lsolver->GetNumIterations()
-             << " p: " << lsolver->GetFinalRelNorm()
-             << std::endl;
+   if (lsolver->GetConverged())
+   {
+      if (lsolve.print_lvl >= 0)
+         std::cout << "el: " << el
+                   << " iters: " << lsolver->GetNumIterations()
+                   << " rel. norm: " << lsolver->GetFinalRelNorm()
+                   << std::endl;
+   }
+   else
+   {
+      std::cout << "el: " << el
+                << " not convered in " << lsolver->GetNumIterations() << " iters"
+                << " rel. norm: " << lsolver->GetFinalRelNorm()
+                << std::endl;
+   }
 
    delete lsolver;
 
