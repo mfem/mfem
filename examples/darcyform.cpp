@@ -1871,10 +1871,6 @@ void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
    MFEM_ASSERT(bu_l.Size() == a_dofs_size &&
                bp_l.Size() == d_dofs_size, "Incompatible size");
 
-   Vector rp(d_dofs_size);
-   real_t norm_p_ref = bp_l.Norml2();
-   real_t norm_p = INFINITY;
-
    //prepare vector of local traces
 
    Array<int> faces, oris;
@@ -1912,21 +1908,34 @@ void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
 
    LocalNLOperator lop(*this, el, bu_l, x_l, faces);
 
-   //stationary point iterations
+   //solve the local system
 
-   SLISolver lsolver;
-   lsolver.SetOperator(lop);
-   lsolver.SetMaxIter(1000);
-   lsolver.SetRelTol(1e-6);
-   lsolver.SetAbsTol(0.);
-   lsolver.SetPrintLevel(0);
+   IterativeSolver *lsolver;
+   switch (lsolve_type)
+   {
+      case LSsolveType::LBFGS:
+         lsolver = new LBFGSSolver;
+         break;
+      default:
+         MFEM_ABORT("Unknown local solver");
+   }
 
-   lsolver.Mult(bp_l, p_l);
+   lsolver->SetOperator(lop);
+   lsolver->SetMaxIter(1000);
+   lsolver->SetRelTol(1e-6);
+   lsolver->SetAbsTol(0.);
+   lsolver->SetPrintLevel(0);
+
+   lsolver->Mult(bp_l, p_l);
 
    std::cout << "el: " << el
-             << " iters: " << lsolver.GetNumIterations()
-             << " p: " << lsolver.GetFinalRelNorm()
+             << " iters: " << lsolver->GetNumIterations()
+             << " p: " << lsolver->GetFinalRelNorm()
              << std::endl;
+
+   delete lsolver;
+
+   //solve the flux
 
    lop.SolveU(p_l, u_l);
 }

@@ -209,6 +209,13 @@ public:
 
 class DarcyHybridization : public Hybridization, public Operator
 {
+public:
+   enum class LSsolveType
+   {
+      LBFGS,
+   };
+
+private:
    FiniteElementSpace *fes_p;
    BilinearFormIntegrator *c_bfi_p;
    NonlinearFormIntegrator *c_nlfi_p;
@@ -223,6 +230,7 @@ class DarcyHybridization : public Hybridization, public Operator
    /// Indicates if the boundary_constraint_pot_integs integrators are owned externally
    int extern_bdr_constr_pot_integs;
 
+   LSsolveType lsolve_type{LSsolveType::LBFGS};
    bool bsym, bnl, bfin;
 
    Array<int> Ae_offsets;
@@ -299,6 +307,8 @@ public:
                       FiniteElementSpace *fes_c, bool bsymmetrize = true);
    /// Destructor
    ~DarcyHybridization();
+
+   void SetLocalSolverType(LSsolveType type) { lsolve_type = type; }
 
    void SetConstraintIntegrator(BilinearFormIntegrator *c_integ) = delete;
 
