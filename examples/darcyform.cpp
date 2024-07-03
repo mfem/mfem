@@ -1871,78 +1871,19 @@ void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
    MFEM_ASSERT(bu_l.Size() == a_dofs_size &&
                bp_l.Size() == d_dofs_size, "Incompatible size");
 
-
-   LUFactors LU_A(Af_data + Af_offsets[el], Af_ipiv + Af_f_offsets[el]);
-   DenseMatrix B(Bf_data + Bf_offsets[el], d_dofs_size, a_dofs_size);
-
-   Vector rp(bp_l.Size());
-
-   const int dim = fes->GetMesh()->Dimension();
-   Array<int> faces, oris;
-   switch (dim)
-   {
-      case 1:
-         fes->GetMesh()->GetElementVertices(el, faces);
-         break;
-      case 2:
-         fes->GetMesh()->GetElementEdges(el, faces, oris);
-         break;
-      case 3:
-         fes->GetMesh()->GetElementFaces(el, faces, oris);
-         break;
-   }
-
-   Vector x_l, Dp, DpEx;
-   Array<int> c_dofs;
+   Vector rp(d_dofs_size);
    real_t norm_p_ref = bp_l.Norml2();
    real_t norm_p = INFINITY;
+
+
+   LocalNLOperator lop(*this, el, x, bu_l);
 
    int it;
    for (it = 0; it < 1000; it++)
    {
-      u_l = bu_l;
       rp = bp_l;
 
-      //bu - C^T x + B^T p
-      B.AddMultTranspose(p_l, u_l, (bsym)?(+1.):(-1.));
-
-      //u = A^-1 ru
-      LU_A.Solve(a_dofs_size, 1, u_l.GetData());
-
-      //bp - B u
-      B.AddMult(u_l, rp, -1.);
-
-      //D p_l
-      if (m_nlfi_p)
-      {
-         m_nlfi_p->AssembleElementVector(*fes_p->GetFE(el),
-                                         *fes_p->GetElementTransformation(el),
-                                         p_l, Dp);
-         rp -= Dp;
-      }
-
-      if (c_nlfi_p)
-      {
-         // D p_l + E x
-         for (int f = 0; f < faces.Size(); f++)
-         {
-            FaceElementTransformations *FTr =
-               fes->GetMesh()->GetInteriorFaceTransformations(faces[f]);
-            if (!FTr) { continue; }
-
-            int type = NonlinearFormIntegrator::HDGFaceType::ELEM
-                       | NonlinearFormIntegrator::HDGFaceType::TRACE;
-            if (FTr->Elem1No != el) { type |= 1; }
-
-            c_fes->GetFaceVDofs(faces[f], c_dofs);
-            x.GetSubVector(c_dofs, x_l);
-
-            c_nlfi_p->AssembleHDGFaceVector(type, *c_fes->GetFaceElement(faces[f]),
-                                            *fes_p->GetFE(el), *FTr, x_l, p_l, DpEx);
-
-            rp -= DpEx;
-         }
-      }
+      lop.AddMult(p_l, rp, -1.);
 
       //x <- x + r
       p_l += rp;
@@ -1952,12 +1893,14 @@ void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
       {
          break;
       }
-      std::cout << "el: " << el << " it: " << it
+      /*std::cout << "el: " << el << " it: " << it
                 << " p: " << norm_p << " / " << norm_p_ref
-                << std::endl;
+                << std::endl;*/
    }
    std::cout << "el: " << el << " iters: " << it
              << " p: " << (norm_p/norm_p_ref) << std::endl;
+
+   lop.SolveU(p_l, u_l);
 }
 
 void DarcyHybridization::MultInv(int el, const Vector &bu, const Vector &bp,
@@ -2232,5 +2175,88 @@ void DarcyHybridization::Reset()
 #ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
    memset(Be_data, 0, Be_offsets[NE] * sizeof(real_t));
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+}
+
+DarcyHybridization::LocalNLOperator::LocalNLOperator(
+   const DarcyHybridization &dh_, int el_, const Vector &x_, const Vector &bu_)
+   : dh(dh_), el(el_), x(x_), bu(bu_),
+     a_dofs_size(dh.Af_f_offsets[el+1] - dh.Af_f_offsets[el]),
+     d_dofs_size(dh.Df_f_offsets[el+1] - dh.Df_f_offsets[el]),
+     LU_A(dh.Af_data + dh.Af_offsets[el], dh.Af_ipiv + dh.Af_f_offsets[el]),
+     B(dh.Bf_data + dh.Bf_offsets[el], d_dofs_size, a_dofs_size)
+{
+   MFEM_ASSERT(bu.Size() == a_dofs_size, "Incompatible size");
+
+   width = height = d_dofs_size;
+
+   fe = dh.fes_p->GetFE(el);
+   Tr = dh.fes_p->GetElementTransformation(el);
+
+   const int dim = dh.fes->GetMesh()->Dimension();
+   switch (dim)
+   {
+      case 1:
+         dh.fes->GetMesh()->GetElementVertices(el, faces);
+         break;
+      case 2:
+         dh.fes->GetMesh()->GetElementEdges(el, faces, oris);
+         break;
+      case 3:
+         dh.fes->GetMesh()->GetElementFaces(el, faces, oris);
+         break;
+   }
+}
+
+void DarcyHybridization::LocalNLOperator::SolveU(const Vector &p_l,
+                                                 Vector &u_l) const
+{
+   u_l = bu;
+
+   //bu - C^T x + B^T p
+   B.AddMultTranspose(p_l, u_l, (dh.bsym)?(+1.):(-1.));
+
+   //u = A^-1 ru
+   LU_A.Solve(a_dofs_size, 1, u_l.GetData());
+}
+
+void DarcyHybridization::LocalNLOperator::Mult(const Vector &p_l,
+                                               Vector &bp) const
+{
+   MFEM_ASSERT(bp.Size() == d_dofs_size, "Incompatible size");
+
+   SolveU(p_l, u_l);
+
+   //bp = B u
+   B.Mult(u_l, bp);
+
+   //bp += D p_l
+   if (dh.m_nlfi_p)
+   {
+      dh.m_nlfi_p->AssembleElementVector(*fe, *Tr, p_l, Dp);
+      bp += Dp;
+   }
+
+   if (dh.c_nlfi_p)
+   {
+      // D p_l + E x
+      for (int f = 0; f < faces.Size(); f++)
+      {
+         FaceElementTransformations *FTr =
+            dh.fes->GetMesh()->GetInteriorFaceTransformations(faces[f]);
+         if (!FTr) { continue; }
+
+         int type = NonlinearFormIntegrator::HDGFaceType::ELEM
+                    | NonlinearFormIntegrator::HDGFaceType::TRACE;
+         if (FTr->Elem1No != el) { type |= 1; }
+
+         dh.c_fes->GetFaceVDofs(faces[f], c_dofs);
+         x.GetSubVector(c_dofs, x_l);
+
+         dh.c_nlfi_p->AssembleHDGFaceVector(type, *dh.c_fes->GetFaceElement(faces[f]),
+                                            *fe, *FTr, x_l, p_l, DpEx);
+
+         bp += DpEx;
+      }
+   }
 }
 }
