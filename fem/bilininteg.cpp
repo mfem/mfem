@@ -250,13 +250,11 @@ void BilinearFormIntegrator::AssembleHDGFaceVector(
    const int ndof_face = trace_face_fe.GetDof();
    int ndof = 0;
    if (Tr.Elem2No < 0) { type &= ~1; }
-   if (type & (NonlinearFormIntegrator::HDGFaceType::ELEM
-               | NonlinearFormIntegrator::HDGFaceType::TRACE))
+   if (type & (HDGFaceType::ELEM | HDGFaceType::TRACE))
    {
       ndof += ndof_el;
    }
-   if (type & (NonlinearFormIntegrator::HDGFaceType::CONSTR
-               | NonlinearFormIntegrator::HDGFaceType::FACE))
+   if (type & (HDGFaceType::CONSTR | HDGFaceType::FACE))
    {
       ndof += ndof_face;
    }
@@ -268,49 +266,48 @@ void BilinearFormIntegrator::AssembleHDGFaceVector(
    elvect = 0.;
 
    int ioff = 0;
-   const int joff = (type & 1)?(ndof_el):(0);
-   if (type & NonlinearFormIntegrator::HDGFaceType::ELEM)
+   const int el_off = (type & 1)?(ndof_el):(0);
+   if (type & HDGFaceType::ELEM)
    {
       for (int i = 0; i < ndof_el; i++)
       {
          real_t sum = 0.;
          for (int j = 0; j < ndof_el; j++)
          {
-            sum += elmat(joff + i, joff + j) * elfun(j);
+            sum += elmat(el_off + i, el_off + j) * elfun(j);
          }
          elvect(ioff + i) += sum;
       }
    }
-   if (type & NonlinearFormIntegrator::HDGFaceType::TRACE)
+   if (type & HDGFaceType::TRACE)
    {
       for (int i = 0; i < ndof_el; i++)
       {
          real_t sum = 0.;
          for (int j = 0; j < ndof_face; j++)
          {
-            sum += elmat(joff + i, ndof_els + j) * trfun(j);
+            sum += elmat(el_off + i, ndof_els + j) * trfun(j);
          }
          elvect(ioff + i) += sum;
       }
    }
 
-   if (type & (NonlinearFormIntegrator::HDGFaceType::ELEM
-               | NonlinearFormIntegrator::HDGFaceType::TRACE))
+   if (type & (HDGFaceType::ELEM | HDGFaceType::TRACE))
    { ioff += ndof_el; }
 
-   if (type & NonlinearFormIntegrator::HDGFaceType::CONSTR)
+   if (type & HDGFaceType::CONSTR)
    {
       for (int i = 0; i < ndof_face; i++)
       {
          real_t sum = 0.;
          for (int j = 0; j < ndof_el; j++)
          {
-            sum += elmat(ndof_els + i, joff + j) * elfun(j);
+            sum += elmat(ndof_els + i, el_off + j) * elfun(j);
          }
          elvect(ioff + i) += sum;
       }
    }
-   if (type & NonlinearFormIntegrator::HDGFaceType::FACE)
+   if (type & HDGFaceType::FACE)
    {
       for (int i = 0; i < ndof_face; i++)
       {
@@ -320,7 +317,7 @@ void BilinearFormIntegrator::AssembleHDGFaceVector(
             sum += elmat(ndof_els + i, ndof_els + j) * trfun(j);
          }
          elvect(ioff + i) += (Tr.Elem2No >= 0)?
-                             (sum / 2.):(sum);//<---double integration, not exact!
+                             (sum / 2.):(sum);//<---single-side contribution, not exact!
       }
    }
 }

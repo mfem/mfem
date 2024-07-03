@@ -206,8 +206,10 @@ public:
 
    /// @brief Perform the local action of the NonlinearFormIntegrator resulting
    /// from an HDG face integral term.
-   /// Note that the default implementation in the base class is general but not
+   /// @note The default implementation in the base class is general but not
    /// efficient.
+   /// @note The HDGFaceType::FACE term is split in two to provide the single-side
+   /// contribution, which does not take into account the possible asymmetry
    void AssembleHDGFaceVector(int type,
                               const FiniteElement &trace_face_fe,
                               const FiniteElement &fe,
