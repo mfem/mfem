@@ -437,17 +437,21 @@ int main(int argc, char *argv[])
    FiniteElementCollection *trace_coll = NULL;
    FiniteElementSpace *trace_space = NULL;
 
-   chrono.Clear();
-   chrono.Start();
 
    if (hybridization)
    {
+      chrono.Clear();
+      chrono.Start();
+
       trace_coll = new RT_Trace_FECollection(order, dim, 0);
       //trace_coll = new DG_Interface_FECollection(order, dim, 0);
       trace_space = new FiniteElementSpace(mesh, trace_coll);
       darcy->EnableHybridization(trace_space,
                                  new NormalTraceJumpIntegrator(),
                                  ess_flux_tdofs_list);
+
+      chrono.Stop();
+      std::cout << "Hybridization init took " << chrono.RealTime() << "s.\n";
    }
 
    if (pa) { darcy->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
