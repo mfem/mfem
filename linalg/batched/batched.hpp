@@ -23,6 +23,11 @@ namespace mfem
 /// @brief Class for performing batched linear algebra operations, potentially
 /// using accelerated algorithms (GPU BLAS or MAGMA). Accessed using static
 /// member functions.
+///
+/// The static member functions will delegate to the preferred backend (which
+/// can be set using SetPreferredBackend(), see BatchedLinAlg::Backend for all
+/// available backends and the order in which they will be chosen by default).
+/// Operations can be performed directly with a specific backend using Get().
 class BatchedLinAlg
 {
 public:
@@ -38,7 +43,7 @@ public:
       /// @brief Either cuBLAS or hipBLAS, depending on whether MFEM is using
       /// CUDA or HIP. Not available otherwise.
       GPU_BLAS,
-      /// Magma backend, only available if MFEM is compiled with Magma support.
+      /// MAGMA backend, only available if MFEM is compiled with MAGMA support.
       MAGMA,
       /// Counter for the number of backends.
       NUM_BACKENDS
@@ -53,12 +58,40 @@ private:
    /// Return the singleton instance.
    static BatchedLinAlg &Instance();
 public:
+   /// @brief Computes $y = \alpha A x + \beta y$.
+   ///
+   /// $A$ is a block diagonal matrix, represented by the DenseTensor @a A with
+   /// shape (m, n, n_mat). $x$ has shape (n, k, n_mat), and $y$ has shape
+   /// (m, k, n_mat).
    static void AddMult(const DenseTensor &A, const Vector &x, Vector &y,
                        real_t alpha = 1.0, real_t beta = 1.0);
+   /// Computes $y = A x$ (e.g. by calling @ref AddMult "AddMult(A,x,y,1,0)").
    static void Mult(const DenseTensor &A, const Vector &x, Vector &y);
+   /// @brief Replaces the block diagonal matrix $A$ with its inverse $A^{-1}$.
+   ///
+   /// $A$ is represented by the DenseTensor @a A with shape (m, m, n_mat).
    static void Invert(DenseTensor &A);
+   /// @brief Replaces the block diagonal matrix $A$ with its LU factors. The
+   /// pivots are stored in @a P.
+   ///
+   /// $A$ is represented by the DenseTensor @a A with shape (n, n, n_mat). On
+   /// output, $P$ has shape (n, n_mat).
    static void LUFactor(DenseTensor &A, Array<int> &P);
+   /// @brief Replaces $x$ with $A^{-1} x$, given the LU factors @a A and pivots
+   /// @a P of the block-diagonal matrix $A$.
+   ///
+   /// The LU factors and pivots of $A$ should be obtained by first calling
+   /// LUFactor(). $A$ has shape (n, n, n_mat) and $x$ has shape (n, n_rhs,
+   /// n_mat).
+   ///
+   /// @warning LUSolve() and LUFactor() should be called using the same backend
+   /// because of potential incompatibilities (e.g. 0-based or 1-based
+   /// indexing).
    static void LUSolve(const DenseTensor &A, const Array<int> &P, Vector &x);
+   /// @brief Returns true if the requested backend is available.
+   ///
+   /// The available backends depend on which third-party libraries MFEM is
+   /// compiled with, and whether the the CUDA/HIP device is enabled.
    static bool IsAvailable(Backend backend);
    /// Set the default backend for batched linear algebra operations.
    static void SetPreferredBackend(Backend backend);
