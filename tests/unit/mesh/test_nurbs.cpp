@@ -10,7 +10,6 @@
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
-#include <fstream> //TBD!!!
 using namespace mfem;
 
 #include "unit_tests.hpp"
@@ -94,17 +93,15 @@ TEST_CASE("Location conversion check", "[NURBS]")
    mfem::out<<"knotvector : ";
    kv.Print(mfem::out);
 
-   const int samples = 101;
-   real_t u,xi,un;
-   int ks;
+   constexpr int samples = 101;
    for (int i = 0; i < samples; i++)
    {
-      u = i/real_t(samples-1);
-      ks = kv.GetSpan (u);
+      const real_t u = i/real_t(samples-1);
+      const int ks = kv.GetSpan (u);
       REQUIRE( ((kv[ks] <= u) && (u <= kv[ks+1])) );
-      xi = kv.GetIp(u, ks);
+      const real_t xi = kv.GetRefPoint(u, ks);
       REQUIRE( ((0.0 <= xi) && (xi <= 1.0)) );
-      un = kv.GetKnot(xi,ks);
+      const real_t un = kv.GetParam(xi,ks);
       REQUIRE((un - u) == MFEM_Approx(0.0));
 
       mfem::out<<i<<" : "<<ks<<" ";

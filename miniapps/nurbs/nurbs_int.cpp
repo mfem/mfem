@@ -8,7 +8,7 @@
 //
 // Description:  This example code illustrates usage of mixed finite element
 //               spaces, with three variants:
-//               0) H(div)
+//               0) H1
 //               1) H(div)
 //               2) H(curl)
 

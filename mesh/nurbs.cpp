@@ -45,7 +45,7 @@ KnotVector::KnotVector(int order, int NCP)
    knot = -1.;
 }
 
-KnotVector::KnotVector(int order, Vector k)
+KnotVector::KnotVector(int order, const Vector &k)
 {
    Order = order;
 
@@ -68,7 +68,6 @@ KnotVector::KnotVector(int order, Vector k)
    if (repeated)
    {
       knot = k;
-      NumOfControlPoints = size - Order - 1;
    }
    else
    {
@@ -150,8 +149,8 @@ real_t KnotVector::GetGreville(int i) const
 
 real_t KnotVector::GetBotella(int i) const
 {
-   const int itermax = 10;
-   const real_t tol = 1e-8;
+   constexpr int itermax = 10;
+   constexpr real_t tol = 1e-8;
 
    Vector grad(Order+1);
    Vector hess(Order+1);
@@ -171,7 +170,7 @@ real_t KnotVector::GetBotella(int i) const
    for (iter = 0; iter < itermax; iter++)
    {
       ks = GetSpan (u);
-      xi = GetIp(u, ks);
+      xi = GetRefPoint(u, ks);
       o = Order - (ks - i);
 
       CalcDShape(grad, ks-Order, xi);
@@ -181,7 +180,11 @@ real_t KnotVector::GetBotella(int i) const
 
       if (fabs(grad[o])< tol) { break; }
    }
-   if (iter >= itermax) { mfem::out<<iter<< " "<< grad[o]<<endl; }
+   if (iter >= itermax)
+   {
+      MFEM_WARNING("KnotVector::GetBotella not converged");
+      mfem::out<<"i = "<<i<<",iter = "<<iter<<", grad = "<< grad[o]<<endl;
+   }
    return u;
 }
 
@@ -233,7 +236,7 @@ void KnotVector::ComputeDemko() const
          for (iter2 = 0; iter2 <itermax2; iter2++)
          {
             ks = GetSpan (u);
-            xi = GetIp(u, ks);
+            xi = GetRefPoint(u, ks);
 
             CalcDShape(shgrad, ks-Order, xi);
             CalcD2Shape(shhess, ks-Order, xi);
@@ -471,7 +474,7 @@ void KnotVector::PrintFunctions(std::ostream &os, int samples) const
       for (int j = 0; j <samples; j++)
       {
          xi =j*dxi;
-         os <<GetKnot(xi, ks+Order)<<"\t";
+         os <<GetParam(xi, ks+Order)<<"\t";
 
          CalcShape(shape, ks, xi);
          for (int d = 0; d < Order+1; d++) { os<<"\t"<<shape[d]; }
@@ -505,7 +508,7 @@ void KnotVector::PrintFunction(std::ostream &os, const Vector &a,
       for (int j = 0; j <samples; j++)
       {
          xi =j*dxi;
-         os <<GetKnot(xi, ks+Order)<<"\t";
+         os <<GetParam(xi, ks+Order)<<"\t";
 
          CalcShape ( shape, ks, xi);
          val = 0.0;
@@ -550,7 +553,7 @@ void KnotVector::CalcShape(Vector &shape, int i, real_t xi) const
 
    int    p = Order;
    int    ip = (i >= 0) ? (i + p) : (-1 - i + p);
-   real_t u = GetKnot((i >= 0) ? xi : 1. - xi, ip), saved, tmp;
+   real_t u = GetParam((i >= 0) ? xi : 1. - xi, ip), saved, tmp;
    real_t left[MaxOrder+1], right[MaxOrder+1];
 
    shape(0) = 1.;
@@ -575,7 +578,7 @@ void KnotVector::CalcDShape(Vector &grad, int i, real_t xi) const
 {
    int    p = Order, rk, pk;
    int    ip = (i >= 0) ? (i + p) : (-1 - i + p);
-   real_t u = GetKnot((i >= 0) ? xi : 1. - xi, ip), temp, saved, d;
+   real_t u = GetParam((i >= 0) ? xi : 1. - xi, ip), temp, saved, d;
    real_t ndu[MaxOrder+1][MaxOrder+1], left[MaxOrder+1], right[MaxOrder+1];
 
 #ifdef MFEM_DEBUG
@@ -633,7 +636,7 @@ void KnotVector::CalcDnShape(Vector &gradn, int n, int i, real_t xi) const
 {
    int    p = Order, rk, pk, j1, j2,r,j,k;
    int    ip = (i >= 0) ? (i + p) : (-1 - i + p);
-   real_t u = GetKnot((i >= 0) ? xi : 1. - xi, ip);
+   real_t u = GetParam((i >= 0) ? xi : 1. - xi, ip);
    real_t temp, saved, d;
    real_t a[2][MaxOrder+1],ndu[MaxOrder+1][MaxOrder+1], left[MaxOrder+1],
           right[MaxOrder+1];
@@ -782,7 +785,7 @@ void KnotVector::FindMaxima(Array<int> &ks, Vector &xi, Vector &u) const
                maxima[j] = max;
                ks[j] = i;
                xi[j] = arg;
-               u[j]  = GetKnot(arg, i+Order);
+               u[j]  = GetParam(arg, i+Order);
             }
          }
       }
@@ -803,7 +806,7 @@ void KnotVector::FindInterpolant(Array<Vector*> &x)
    {
       u_args[i] = GetBotella(i);
       i_args[i] = GetSpan(u_args[i]) - Order;
-      xi_args[i] = GetIp(u_args[i],i_args[i]+Order);
+      xi_args[i] = GetRefPoint(u_args[i],i_args[i]+Order);
    }
 
    // Assemble collocation matrix
@@ -834,18 +837,15 @@ void KnotVector::FindInterpolant(Array<Vector*> &x)
 void KnotVector::GetInterpolant(const Vector &x, const Vector &u,
                                 Vector &a) const
 {
-   int ks;
-   real_t xi;
-
    // Assemble collocation matrix
    Vector shape(Order+1);
-   DenseMatrix A(NumOfControlPoints,NumOfControlPoints);
+   DenseMatrix A(NumOfControlPoints);
    A = 0.0;
 
    for (int i = 0; i < NumOfControlPoints; i++)
    {
-      ks = GetSpan(u[i]);
-      xi = GetIp(u[i], ks);
+      const int ks = GetSpan(u[i]);
+      const real_t xi = GetRefPoint(u[i], ks);
       CalcShape ( shape, ks-Order, xi);
 
       for (int p = 0; p < Order+1; p++)
@@ -854,7 +854,8 @@ void KnotVector::GetInterpolant(const Vector &x, const Vector &u,
       }
    }
 
-   // Solve problems
+   // Solve problem
+   // Note: A is banded, which is not exploited -> future optimization possible
    A.Invert();
    A.Mult(x,a);
 }

@@ -71,8 +71,8 @@ public:
        order @a order and number of control points @a NCP. */
    KnotVector(int order, int NCP);
 
-   /** @brief Create a KnotVector order @a order and knots @a knot. */
-   KnotVector(int order, Vector knots);
+   /** @brief Create a KnotVector with order @a order and knots @a knot. */
+   KnotVector(int order, const Vector &k);
 
    /// Copy constructor.
    KnotVector(const KnotVector &kv) { (*this) = kv; }
@@ -113,14 +113,14 @@ public:
    /// Return the index of the knot span containing parameter @a u.
    int GetSpan(real_t u) const;
 
-   /** @brief Return the reference coordinate in [0,1] for knot
-       for the element beginning at knot @a ni. */
-   real_t GetIp(real_t u, int ni) const
+   /** @brief Return the reference coordinate in [0,1] for parameter @a u
+       in the element beginning at knot @a ni. */
+   real_t GetRefPoint(real_t u, int ni) const
    { return (u-knot(ni))/(knot(ni+1)-knot(ni)); };
 
-   /** @brief Return the knot for element reference coordinate @a xi
+   /** @brief Return the parameter for element reference coordinate @a xi
        in [0,1], for the element beginning at knot @a ni. */
-   real_t GetKnot(real_t xi, int ni) const
+   real_t GetParam(real_t xi, int ni) const
    { return (xi*knot(ni+1) + (1. - xi)*knot(ni)); }
 
    /** @brief Return the parameter for element reference coordinate @a xi
@@ -131,15 +131,15 @@ public:
    /// Return the index of the knot span containing parameter @a u.
    MFEM_DEPRECATED int findKnotSpan(real_t u) const;  // Use GetSpan instead
 
-   /** Gives the @ i average knot location.
-       Average is taken over @ Order number of nodes. */
+   /** Gives the @a i average knot location.
+       Average is taken over @a Order number of nodes. */
    real_t GetGreville(int i) const;
 
-   /** Gives the knot location where the @ i shape function is maximum.
-       Reverts to the Greville point if knot is repeated @ Order +1 times. */
+   /** Gives the knot location where the @a i shape function is maximum.
+       Reverts to the Greville point if knot is repeated @a Order +1 times. */
    real_t GetBotella(int i) const;
 
-   /** Gives the knot location of the @ i extremum of the Chebyshev spline.*/
+   /** Gives the knot location of the @a i extremum of the Chebyshev spline.*/
    real_t GetDemko(int i) const { ComputeDemko(); return demko[i]; };
 
 
@@ -222,13 +222,13 @@ public:
        number of samples of the shape functions per element.*/
    void PrintFunctions(std::ostream &os, int samples=11) const;
 
-   /** Prints the function, parametrized by @a a, and its first and second
-       derivatives associated with the KnotVector per element. Use GetElements()
-       to count the elements before using this function. @a samples is the
-       number of samples of the shape functions per element.*/
+   /** Prints the function with basis function coefficient @a a, and its first
+       and second derivatives associated with the KnotVector per element.
+       Use GetElements() to count the elements before using this function.
+       @a samples is the number of samples of the shape functions per element.*/
    void PrintFunction(std::ostream &os, const Vector &a, int samples=11) const;
 
-   /** Prints the @a i-th functionand its first and second
+   /** Prints the @a i-th function and its first and second
        derivatives associated with the KnotVector per element. Use GetElements()
        to count the elements before using this function. @a samples is the
        number of samples of the shape functions per element.*/

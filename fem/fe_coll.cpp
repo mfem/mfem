@@ -422,7 +422,7 @@ FiniteElementCollection *FiniteElementCollection::NewHDiv(const int order,
 {
    if (NURBS)
    {
-      //return new NURBSFECollection(order);
+      return new NURBS_HDivFECollection(order);
    }
    return new RT_FECollection(order, dim);
 }
@@ -433,7 +433,7 @@ FiniteElementCollection *FiniteElementCollection::NewHCurl(const int order,
 {
    if (NURBS)
    {
-      //return new NURBSFECollection(order);
+      return new NURBS_HCurlFECollection(order);
    }
    return new ND_FECollection(order, dim);
 }

@@ -94,7 +94,7 @@ void NURBS1DFiniteElement::Project(Coefficient &coeff,
    {
       real_t kx = kv[0]->GetBotella(ijk[0] + i);
       if (!kv[0]->inSpan(kx, ijk[0]+order)) { continue; }
-      ip.x = kv[0]->GetIp(kx, ijk[0]+order);
+      ip.x = kv[0]->GetRefPoint(kx, ijk[0]+order);
 
       Trans.SetIntPoint(&ip);
       dofs(i) = coeff.Eval(Trans, ip);
@@ -113,7 +113,7 @@ void NURBS1DFiniteElement::Project(VectorCoefficient &vc,
    {
       real_t kx = kv[0]->GetBotella(ijk[0] + i);
       if (!kv[0]->inSpan(kx, ijk[0]+order)) { continue; }
-      ip.x = kv[0]->GetIp(kx, ijk[0]+order);
+      ip.x = kv[0]->GetRefPoint(kx, ijk[0]+order);
 
       Trans.SetIntPoint(&ip);
       vc.Eval(x, Trans, ip);
@@ -268,12 +268,12 @@ void NURBS2DFiniteElement::Project(Coefficient &coeff,
          o += orders[0] + 1;
          continue;
       }
-      ip.y = kv[1]->GetIp(ky, ijk[1]+orders[1]);
+      ip.y = kv[1]->GetRefPoint(ky, ijk[1]+orders[1]);
       for (int i = 0; i <= orders[0]; i++, o++)
       {
          real_t kx = kv[0]->GetBotella(ijk[0] + i);
          if (!kv[0]->inSpan(kx, ijk[0]+orders[0])) { continue; }
-         ip.x = kv[0]->GetIp(kx, ijk[0]+orders[0]);
+         ip.x = kv[0]->GetRefPoint(kx, ijk[0]+orders[0]);
 
          Trans.SetIntPoint(&ip);
          dofs(o) = coeff.Eval(Trans, ip);
@@ -296,12 +296,12 @@ void NURBS2DFiniteElement::Project(VectorCoefficient &vc,
          o += orders[0] + 1;
          continue;
       }
-      ip.y = kv[1]->GetIp(ky, ijk[1]+orders[1]);
+      ip.y = kv[1]->GetRefPoint(ky, ijk[1]+orders[1]);
       for (int i = 0; i <= orders[0]; i++, o++)
       {
          real_t kx = kv[0]->GetBotella(ijk[0] + i);
          if (!kv[0]->inSpan(kx, ijk[0]+orders[0])) { continue; }
-         ip.x = kv[0]->GetIp(kx, ijk[0]+orders[0]);
+         ip.x = kv[0]->GetRefPoint(kx, ijk[0]+orders[0]);
 
          Trans.SetIntPoint(&ip);
          vc.Eval(x, Trans, ip);
@@ -512,7 +512,7 @@ void NURBS3DFiniteElement::Project(Coefficient &coeff,
          o += (orders[0] + 1)*(orders[1] + 1);
          continue;
       }
-      ip.z = kv[2]->GetIp(kz, ijk[2]+orders[2]);
+      ip.z = kv[2]->GetRefPoint(kz, ijk[2]+orders[2]);
       for (int j = 0; j <= orders[1]; j++)
       {
          real_t ky = kv[1]->GetBotella(ijk[1] + j);
@@ -521,12 +521,12 @@ void NURBS3DFiniteElement::Project(Coefficient &coeff,
             o += orders[0] + 1;
             continue;
          }
-         ip.y = kv[1]->GetIp(ky, ijk[1]+orders[1]);
+         ip.y = kv[1]->GetRefPoint(ky, ijk[1]+orders[1]);
          for (int i = 0; i <= orders[0]; i++, o++)
          {
             real_t kx = kv[0]->GetBotella(ijk[0] + i);
             if (!kv[0]->inSpan(kx, ijk[0]+orders[0])) { continue; }
-            ip.x = kv[0]->GetIp(kx, ijk[0]+orders[0]);
+            ip.x = kv[0]->GetRefPoint(kx, ijk[0]+orders[0]);
 
             Trans.SetIntPoint(&ip);
             dofs(o) = coeff.Eval(Trans, ip);
@@ -551,7 +551,7 @@ void NURBS3DFiniteElement::Project(VectorCoefficient &vc,
          o += (orders[0] + 1)*(orders[1] + 1);
          continue;
       }
-      ip.z = kv[2]->GetIp(kz, ijk[2]+orders[2]);
+      ip.z = kv[2]->GetRefPoint(kz, ijk[2]+orders[2]);
       for (int j = 0; j <= orders[1]; j++)
       {
          real_t ky = kv[1]->GetBotella(ijk[1] + j);
@@ -560,12 +560,12 @@ void NURBS3DFiniteElement::Project(VectorCoefficient &vc,
             o += orders[0] + 1;
             continue;
          }
-         ip.y = kv[1]->GetIp(ky, ijk[1]+orders[1]);
+         ip.y = kv[1]->GetRefPoint(ky, ijk[1]+orders[1]);
          for (int i = 0; i <= orders[0]; i++, o++)
          {
             real_t kx = kv[0]->GetBotella(ijk[0] + i);
             if (!kv[0]->inSpan(kx, ijk[0]+orders[0])) { continue; }
-            ip.x = kv[0]->GetIp(kx, ijk[0]+orders[0]);
+            ip.x = kv[0]->GetRefPoint(kx, ijk[0]+orders[0]);
 
             Trans.SetIntPoint(&ip);
             vc.Eval(x, Trans, ip);
@@ -711,12 +711,12 @@ void NURBS_HDiv2DFiniteElement::Project(VectorCoefficient &vc,
          o += orders[0] + 2;
          continue;
       }
-      ip.y = kv[1]->GetIp(ky, ijk[1]+orders[1]);
+      ip.y = kv[1]->GetRefPoint(ky, ijk[1]+orders[1]);
       for (int i = 0; i <= orders[0]+1; i++, o++)
       {
          real_t kx = kv1[0]->GetBotella(ijk[0] + i);
          if (!kv1[0]->inSpan(kx, ijk[0]+orders[0]+1)) { continue; }
-         ip.x = kv1[0]->GetIp(kx, ijk[0]+orders[0]+1);
+         ip.x = kv1[0]->GetRefPoint(kx, ijk[0]+orders[0]+1);
 
          Trans.SetIntPoint(&ip);
          vc.Eval(x, Trans, ip);
@@ -734,12 +734,12 @@ void NURBS_HDiv2DFiniteElement::Project(VectorCoefficient &vc,
          o += orders[0] + 1;
          continue;
       }
-      ip.y = kv1[1]->GetIp(ky, ijk[1]+orders[1]+1);
+      ip.y = kv1[1]->GetRefPoint(ky, ijk[1]+orders[1]+1);
       for (int i = 0; i <= orders[0]; i++, o++)
       {
          real_t kx = kv[0]->GetBotella(ijk[0] + i);
          if (!kv[0]->inSpan(kx, ijk[0]+orders[0])) { continue; }
-         ip.x = kv[0]->GetIp(kx, ijk[0]+orders[0]);
+         ip.x = kv[0]->GetRefPoint(kx, ijk[0]+orders[0]);
 
          Trans.SetIntPoint(&ip);
          vc.Eval(x, Trans, ip);
@@ -949,7 +949,7 @@ void NURBS_HDiv3DFiniteElement::Project(VectorCoefficient &vc,
          o += (orders[0] + 2)*(orders[1] + 1);
          continue;
       }
-      ip.z = kv[2]->GetIp(kz, ijk[2]+orders[2]);
+      ip.z = kv[2]->GetRefPoint(kz, ijk[2]+orders[2]);
       for (int j = 0; j <= orders[1]; j++)
       {
          real_t ky = kv[1]->GetBotella(ijk[1] + j);
@@ -958,12 +958,12 @@ void NURBS_HDiv3DFiniteElement::Project(VectorCoefficient &vc,
             o += orders[0] + 2;
             continue;
          }
-         ip.y = kv[1]->GetIp(ky, ijk[1]+orders[1]);
+         ip.y = kv[1]->GetRefPoint(ky, ijk[1]+orders[1]);
          for (int i = 0; i <= orders[0]+1; i++, o++)
          {
             real_t kx = kv1[0]->GetBotella(ijk[0] + i);
             if (!kv1[0]->inSpan(kx, ijk[0]+orders[0]+1)) { continue; }
-            ip.x = kv1[0]->GetIp(kx, ijk[0]+orders[0]+1);
+            ip.x = kv1[0]->GetRefPoint(kx, ijk[0]+orders[0]+1);
 
             Trans.SetIntPoint(&ip);
             vc.Eval(x, Trans, ip);
@@ -982,7 +982,7 @@ void NURBS_HDiv3DFiniteElement::Project(VectorCoefficient &vc,
          o += (orders[0] + 1)*(orders[1] + 2);
          continue;
       }
-      ip.z = kv[2]->GetIp(kz, ijk[2]+orders[2]);
+      ip.z = kv[2]->GetRefPoint(kz, ijk[2]+orders[2]);
       for (int j = 0; j <= orders[1]+1; j++)
       {
          real_t ky = kv1[1]->GetBotella(ijk[1] + j);
@@ -991,12 +991,12 @@ void NURBS_HDiv3DFiniteElement::Project(VectorCoefficient &vc,
             o += orders[0] + 1;
             continue;
          }
-         ip.y = kv1[1]->GetIp(ky, ijk[1]+orders[1]+1);
+         ip.y = kv1[1]->GetRefPoint(ky, ijk[1]+orders[1]+1);
          for (int i = 0; i <= orders[0]; i++, o++)
          {
             real_t kx = kv[0]->GetBotella(ijk[0] + i);
             if (!kv[0]->inSpan(kx, ijk[0]+orders[0])) { continue; }
-            ip.x = kv[0]->GetIp(kx, ijk[0]+orders[0]);
+            ip.x = kv[0]->GetRefPoint(kx, ijk[0]+orders[0]);
 
             Trans.SetIntPoint(&ip);
             vc.Eval(x, Trans, ip);
@@ -1015,7 +1015,7 @@ void NURBS_HDiv3DFiniteElement::Project(VectorCoefficient &vc,
          o += (orders[0] + 1)*(orders[1] + 1);
          continue;
       }
-      ip.z = kv1[2]->GetIp(kz, ijk[2]+orders[2]+1);
+      ip.z = kv1[2]->GetRefPoint(kz, ijk[2]+orders[2]+1);
       for (int j = 0; j <= orders[1]; j++)
       {
          real_t ky = kv[1]->GetBotella(ijk[1] + j);
@@ -1024,12 +1024,12 @@ void NURBS_HDiv3DFiniteElement::Project(VectorCoefficient &vc,
             o += orders[0] + 1;
             continue;
          }
-         ip.y = kv[1]->GetIp(ky, ijk[1]+orders[1]);
+         ip.y = kv[1]->GetRefPoint(ky, ijk[1]+orders[1]);
          for (int i = 0; i <= orders[0]; i++, o++)
          {
             real_t kx = kv[0]->GetBotella(ijk[0] + i);
             if (!kv[0]->inSpan(kx, ijk[0]+orders[0])) { continue; }
-            ip.x = kv[0]->GetIp(kx, ijk[0]+orders[0]);
+            ip.x = kv[0]->GetRefPoint(kx, ijk[0]+orders[0]);
 
             Trans.SetIntPoint(&ip);
             vc.Eval(x, Trans, ip);
@@ -1181,12 +1181,12 @@ void NURBS_HCurl2DFiniteElement::Project(VectorCoefficient &vc,
          o += orders[0] + 1;
          continue;
       }
-      ip.y = kv1[1]->GetIp(ky, ijk[1]+orders[1]+1);
+      ip.y = kv1[1]->GetRefPoint(ky, ijk[1]+orders[1]+1);
       for (i = 0; i <= orders[0]; i++, o++)
       {
          real_t kx = kv[0]->GetBotella(ijk[0] + i);
          if (!kv[0]->inSpan(kx, ijk[0]+orders[0])) { continue; }
-         ip.x = kv[0]->GetIp(kx, ijk[0]+orders[0]);
+         ip.x = kv[0]->GetRefPoint(kx, ijk[0]+orders[0]);
 
          Trans.SetIntPoint(&ip);
          vc.Eval(x, Trans, ip);
@@ -1204,12 +1204,12 @@ void NURBS_HCurl2DFiniteElement::Project(VectorCoefficient &vc,
          o += orders[0] + 2;
          continue;
       }
-      ip.y = kv[1]->GetIp(ky, ijk[1]+orders[1]);
+      ip.y = kv[1]->GetRefPoint(ky, ijk[1]+orders[1]);
       for (i = 0; i <= orders[0]+1; i++, o++)
       {
          real_t kx = kv1[0]->GetBotella(ijk[0] + i);
          if (!kv1[0]->inSpan(kx, ijk[0]+orders[0]+1)) { continue; }
-         ip.x = kv1[0]->GetIp(kx, ijk[0]+orders[0]+1);
+         ip.x = kv1[0]->GetRefPoint(kx, ijk[0]+orders[0]+1);
 
          Trans.SetIntPoint(&ip);
          vc.Eval(x, Trans, ip);
@@ -1429,7 +1429,7 @@ void NURBS_HCurl3DFiniteElement::Project(VectorCoefficient &vc,
          o += (orders[0] + 1)*(orders[1] + 2);
          continue;
       }
-      ip.z = kv1[2]->GetIp(kz, ijk[2]+orders[2]+1);
+      ip.z = kv1[2]->GetRefPoint(kz, ijk[2]+orders[2]+1);
       for (int j = 0; j <= orders[1]+1; j++)
       {
          real_t ky = kv1[1]->GetBotella(ijk[1] + j);
@@ -1438,12 +1438,12 @@ void NURBS_HCurl3DFiniteElement::Project(VectorCoefficient &vc,
             o += orders[0] + 1;
             continue;
          }
-         ip.y = kv1[1]->GetIp(ky, ijk[1]+orders[1]+1);
+         ip.y = kv1[1]->GetRefPoint(ky, ijk[1]+orders[1]+1);
          for (int i = 0; i <= orders[0]; i++, o++)
          {
             real_t kx = kv[0]->GetBotella(ijk[0] + i);
             if (!kv[0]->inSpan(kx, ijk[0]+orders[0])) { continue; }
-            ip.x = kv[0]->GetIp(kx, ijk[0]+orders[0]);
+            ip.x = kv[0]->GetRefPoint(kx, ijk[0]+orders[0]);
 
             Trans.SetIntPoint(&ip);
             vc.Eval(x, Trans, ip);
@@ -1462,7 +1462,7 @@ void NURBS_HCurl3DFiniteElement::Project(VectorCoefficient &vc,
          o += (orders[0] + 2)*(orders[1] + 1);
          continue;
       }
-      ip.z = kv1[2]->GetIp(kz, ijk[2]+orders[2]+1);
+      ip.z = kv1[2]->GetRefPoint(kz, ijk[2]+orders[2]+1);
       for (int j = 0; j <= orders[1]; j++)
       {
          real_t ky = kv[1]->GetBotella(ijk[1] + j);
@@ -1471,12 +1471,12 @@ void NURBS_HCurl3DFiniteElement::Project(VectorCoefficient &vc,
             o += orders[0] + 2;
             continue;
          }
-         ip.y = kv[1]->GetIp(ky, ijk[1]+orders[1]);
+         ip.y = kv[1]->GetRefPoint(ky, ijk[1]+orders[1]);
          for (int i = 0; i <= orders[0]+1; i++, o++)
          {
             real_t kx = kv1[0]->GetBotella(ijk[0] + i);
             if (!kv1[0]->inSpan(kx, ijk[0]+orders[0]+1)) { continue; }
-            ip.x = kv1[0]->GetIp(kx, ijk[0]+orders[0]+1);
+            ip.x = kv1[0]->GetRefPoint(kx, ijk[0]+orders[0]+1);
 
             Trans.SetIntPoint(&ip);
             vc.Eval(x, Trans, ip);
@@ -1495,7 +1495,7 @@ void NURBS_HCurl3DFiniteElement::Project(VectorCoefficient &vc,
          o += (orders[0] + 2)*(orders[1] + 2);
          continue;
       }
-      ip.z = kv[2]->GetIp(kz, ijk[2]+orders[2]);
+      ip.z = kv[2]->GetRefPoint(kz, ijk[2]+orders[2]);
       for (int j = 0; j <= orders[1]+1; j++)
       {
          real_t ky = kv1[1]->GetBotella(ijk[1] + j);
@@ -1504,12 +1504,12 @@ void NURBS_HCurl3DFiniteElement::Project(VectorCoefficient &vc,
             o += orders[0] + 2;
             continue;
          }
-         ip.y = kv1[1]->GetIp(ky, ijk[1]+orders[1]+1);
+         ip.y = kv1[1]->GetRefPoint(ky, ijk[1]+orders[1]+1);
          for (int i = 0; i <= orders[0]+1; i++, o++)
          {
             real_t kx = kv1[0]->GetBotella(ijk[0] + i);
             if (!kv1[0]->inSpan(kx, ijk[0]+orders[0]+1)) { continue; }
-            ip.x = kv1[0]->GetIp(kx, ijk[0]+orders[0]+1);
+            ip.x = kv1[0]->GetRefPoint(kx, ijk[0]+orders[0]+1);
 
             Trans.SetIntPoint(&ip);
             vc.Eval(x, Trans, ip);

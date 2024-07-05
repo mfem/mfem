@@ -694,7 +694,7 @@ void GetTipXY(const NACA4 &foil_section, const KnotVector &kv, real_t tf,
    {
       u_args[i] = kv.GetBotella(i);
       i_args[i] = kv.GetSpan(u_args[i]) - kv.GetOrder();
-      xi_args[i] = kv.GetIp(u_args[i],i_args[i]+kv.GetOrder());
+      xi_args[i] = kv.GetRefPoint(u_args[i],i_args[i]+kv.GetOrder());
    }
 
    // We have two cases: one with an odd number of control points and one
