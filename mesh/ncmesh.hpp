@@ -747,8 +747,8 @@ protected: // implementation
     * @param mid optional return of the edge mid points.
     * @return int 0 -- no split, 1 -- "vertical" split, 2 -- "horizontal" split
     */
-   int QuadFaceSplitType(int n1, int n2, int n3, int n4, int mid[5]
-                         = NULL /*optional output of mid-edge nodes*/) const;
+   int QuadFaceSplitType(int n1, int n2, int n3, int n4, real_t & s,
+                         int mid[5] = NULL /*optional output of mid-edge nodes*/) const;
 
    /**
     * @brief Given a tri face defined by three vertices, establish whether the
@@ -806,7 +806,8 @@ protected: // implementation
     */
    inline bool QuadFaceIsMaster(int n1, int n2, int n3, int n4) const
    {
-      return QuadFaceSplitType(n1, n2, n3, n4) != 0;
+      real_t s;
+      return QuadFaceSplitType(n1, n2, n3, n4, s) != 0;
    }
 
    void ForceRefinement(int vn1, int vn2, int vn3, int vn4);
@@ -954,19 +955,21 @@ protected: // implementation
       Point(real_t x, real_t y, real_t z)
       { dim = 3; coord[0] = x; coord[1] = y; coord[2] = z; }
 
-      Point(const Point& p0, const Point& p1)
+      Point(const Point& p0, const Point& p1, real_t s = 0.5)
       {
          dim = p0.dim;
          for (int i = 0; i < dim; i++)
          {
-            coord[i] = (p0.coord[i] + p1.coord[i]) * 0.5;
+            coord[i] = ((1.0 - s) * p0.coord[i]) + (s * p1.coord[i]);
          }
       }
 
-      Point(const Point& p0, const Point& p1, const Point& p2, const Point& p3)
+      Point(const Point& p0, const Point& p1, const Point& p2, const Point& p3,
+            real_t s = 0.5)
       {
          dim = p0.dim;
          MFEM_ASSERT(p1.dim == dim && p2.dim == dim && p3.dim == dim, "");
+         MFEM_ABORT("TODO: s?");
          for (int i = 0; i < dim; i++)
          {
             coord[i] = (p0.coord[i] + p1.coord[i] + p2.coord[i] + p3.coord[i])

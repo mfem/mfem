@@ -71,18 +71,44 @@
 using namespace std;
 using namespace mfem;
 
+
+void Refine31(Mesh & mesh, int elem, int type)
+{
+   // Refinement is in ncmesh.hpp
+   Array<Refinement> refs;
+   refs.Append(Refinement(elem, type, 2.0/3.0));
+   mesh.GeneralRefinement(refs);
+
+   refs.SetSize(0);
+   refs.Append(Refinement(elem, type, 0.5));
+   mesh.GeneralRefinement(refs);
+}
+
 void TestAnisoRef()
 {
    Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
 
-   // Refinement is in ncmesh.hpp
-   Array<Refinement> refs;
-   refs.Append(Refinement(0, Refinement::X, 2.0/3.0));
-   mesh.GeneralRefinement(refs);
+   Refine31(mesh, 0, Refinement::X);
+   Refine31(mesh, 4, Refinement::Y);
 
-   refs.SetSize(0);
-   refs.Append(Refinement(0, Refinement::X, 0.5));
-   mesh.GeneralRefinement(refs);
+   mesh.EnsureNodes();
+
+   ofstream mesh_ofs("ref.mesh");
+   mesh_ofs.precision(8);
+   mesh.Print(mesh_ofs);
+}
+
+void TestAnisoRef3D()
+{
+   Mesh mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON);
+
+   Refine31(mesh, 0, Refinement::X);
+   Refine31(mesh, 4, Refinement::Y);
+
+   // TODO: try more than 1 level of refinement
+   //Refine31(mesh, 6, Refinement::X);
+
+   Refine31(mesh, 10, Refinement::Z);
 
    mesh.EnsureNodes();
 
@@ -102,6 +128,7 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    bool visualization = true;
    bool algebraic_ceed = false;
+   bool makeMesh = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -124,6 +151,8 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&makeMesh, "-mm", "--make-mesh", "-no-mm",
+                  "--no-make-mesh", "Generate 3:1 mesh");
    args.Parse();
    if (!args.Good())
    {
@@ -132,8 +161,12 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   TestAnisoRef();
-   return 0;
+   if (makeMesh)
+   {
+      //TestAnisoRef();
+      TestAnisoRef3D();
+      return 0;
+   }
 
    // 2. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
