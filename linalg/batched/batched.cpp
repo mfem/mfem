@@ -51,6 +51,12 @@ BatchedLinAlg &BatchedLinAlg::Instance()
    return instance;
 }
 
+void BatchedLinAlg::AddMult(const DenseTensor &A, const Vector &x, Vector &y,
+                            real_t alpha, real_t beta)
+{
+   Get(Instance().preferred_backend).AddMult(A, x, y, alpha, beta);
+}
+
 void BatchedLinAlg::Mult(const DenseTensor &A, const Vector &x, Vector &y)
 {
    Get(Instance().preferred_backend).Mult(A, x, y);
@@ -93,6 +99,12 @@ const BatchedLinAlgBase &BatchedLinAlg::Get(BatchedLinAlg::Backend backend)
    auto &backend_ptr = Instance().backends[backend];
    MFEM_VERIFY(backend_ptr, "Requested backend not supported.")
    return *backend_ptr;
+}
+
+void BatchedLinAlgBase::Mult(const DenseTensor &A, const Vector &x,
+                             Vector &y) const
+{
+   AddMult(A, x, y, 1.0, 0.0);
 }
 
 }
