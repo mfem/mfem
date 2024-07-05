@@ -105,7 +105,7 @@ TEST_CASE("Location conversion check", "[NURBS]")
       REQUIRE( ((kv[ks] <= u) && (u <= kv[ks+1])) );
       const real_t xi = kv.GetRefPoint(u, ks);
       REQUIRE( ((0.0 <= xi) && (xi <= 1.0)) );
-      const real_t un = kv.GetParam(xi,ks);
+      const real_t un = kv.GetKnotLocation(xi,ks);
       REQUIRE((un - u) == MFEM_Approx(0.0));
 
       mfem::out<<i<<" : "<<ks<<" ";
@@ -120,7 +120,7 @@ TEST_CASE("Location conversion check", "[NURBS]")
       REQUIRE( ((kv[ks] <= u) && (u <= kv[ks+1])) );
       const real_t xi = kv.GetRefPoint(u, ks);
       REQUIRE( ((0.0 <= xi) && (xi <= 1.0)) );
-      const real_t un = kv.GetParam(xi,ks);
+      const real_t un = kv.GetKnotLocation(xi,ks);
       REQUIRE((un - u) == MFEM_Approx(0.0));
 
       mfem::out<<i<<" : "<<ks<<" ";
@@ -139,7 +139,7 @@ TEST_CASE("Location conversion check", "[NURBS]")
       REQUIRE( ((kv2[ks] <= u) && (u <= kv2[ks+1])) );
       const real_t xi = kv2.GetRefPoint(u, ks);
       REQUIRE( ((0.0 <= xi) && (xi <= 1.0)) );
-      const real_t un = kv2.GetParam(xi,ks);
+      const real_t un = kv2.GetKnotLocation(xi,ks);
       REQUIRE((un - u) == MFEM_Approx(0.0));
 
       mfem::out<<i<<" : "<<ks<<" ";
@@ -154,7 +154,7 @@ TEST_CASE("Location conversion check", "[NURBS]")
       REQUIRE( ((kv2[ks] <= u) && (u <= kv2[ks+1])) );
       const real_t xi = kv2.GetRefPoint(u, ks);
       REQUIRE( ((0.0 <= xi) && (xi <= 1.0)) );
-      const real_t un = kv2.GetParam(xi,ks);
+      const real_t un = kv2.GetKnotLocation(xi,ks);
       REQUIRE((un - u) == MFEM_Approx(0.0));
 
       mfem::out<<i<<" : "<<ks<<" ";

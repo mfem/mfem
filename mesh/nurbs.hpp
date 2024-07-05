@@ -118,9 +118,9 @@ public:
    real_t GetRefPoint(real_t u, int ni) const
    { return (u-knot(ni))/(knot(ni+1)-knot(ni)); };
 
-   /** @brief Return the parameter for element reference coordinate @a xi
+   /** @brief Return the knot location for element reference coordinate @a xi
        in [0,1], for the element beginning at knot @a ni. */
-   real_t GetParam(real_t xi, int ni) const
+   real_t GetKnotLocation(real_t xi, int ni) const
    { return (xi*knot(ni+1) + (1. - xi)*knot(ni)); }
 
    /** @brief Return the parameter for element reference coordinate @a xi
