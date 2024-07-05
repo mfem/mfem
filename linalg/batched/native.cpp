@@ -17,8 +17,8 @@
 namespace mfem
 {
 
-void NativeBatchedLinAlg::Mult(
-   const DenseTensor &A, const Vector &x, Vector &y) const
+void NativeBatchedLinAlg::AddMult(const DenseTensor &A, const Vector &x,
+                                  Vector &y, real_t alpha, real_t beta) const
 {
    const int m = A.SizeI();
    const int n = A.SizeJ();
@@ -27,11 +27,12 @@ void NativeBatchedLinAlg::Mult(
 
    auto d_A = mfem::Reshape(A.Read(), m, n, n_mat);
    auto d_x = mfem::Reshape(x.Read(), n, k, n_mat);
-   auto d_y = mfem::Reshape(y.Write(), m, k, n_mat);
+   auto d_y = mfem::Reshape(beta == 0.0 ? y.Write() : y.ReadWrite(), m, k, n_mat);
 
    mfem::forall(n_mat, [=] MFEM_HOST_DEVICE (int i)
    {
-      kernels::Mult(m, k, n, &d_A(0,0,i), &d_x(0,0,i), &d_y(0,0,i));
+      kernels::AddMult(m, k, n, &d_A(0,0,i), &d_x(0,0,i), &d_y(0,0,i),
+                       alpha, beta);
    });
 
    // Alternative approach, threading also over the second index. Which one is

@@ -53,6 +53,8 @@ private:
    /// Return the singleton instance.
    static BatchedLinAlg &Instance();
 public:
+   static void AddMult(const DenseTensor &A, const Vector &x, Vector &y,
+                       real_t alpha = 1.0, real_t beta = 1.0);
    static void Mult(const DenseTensor &A, const Vector &x, Vector &y);
    static void Invert(DenseTensor &A);
    static void LUFactor(DenseTensor &A, Array<int> &P);
@@ -74,8 +76,11 @@ public:
 class BatchedLinAlgBase
 {
 public:
+   /// See BatchedLinAlg::AddMult.
+   virtual void AddMult(const DenseTensor &A, const Vector &x, Vector &y,
+                        real_t alpha = 1.0, real_t beta = 1.0) const = 0;
    /// See BatchedLinAlg::Mult.
-   virtual void Mult(const DenseTensor &A, const Vector &x, Vector &y) const = 0;
+   virtual void Mult(const DenseTensor &A, const Vector &x, Vector &y) const;
    /// See BatchedLinAlg::Invert.
    virtual void Invert(DenseTensor &A) const = 0;
    /// See BatchedLinAlg::LUFactor.

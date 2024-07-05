@@ -401,12 +401,14 @@ TEST_CASE("DenseTensor LinearSolve methods",
          As.back()(j, j) += n + 1; // Ensure invertible
       }
       ys.emplace_back(n, n_rhs);
-      Mult(As.back(), xs.back(), ys.back());
+      ys.back() = 0.0;
+      AddMult_a(1.5, As.back(), xs.back(), ys.back());
       A_batch(i) = As.back();
    }
 
    // Test batched matrix-vector products
-   BatchedLinAlg::Get(backend).Mult(A_batch, x_batch, y_batch);
+   y_batch = 0.0;
+   BatchedLinAlg::Get(backend).AddMult(A_batch, x_batch, y_batch, 1.5, 1.0);
    y_batch.HostReadWrite();
    for (int i = 0; i < n_mat; ++i)
    {

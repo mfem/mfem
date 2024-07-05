@@ -44,8 +44,8 @@ magma_queue_t Magma::Queue()
    return Instance().queue;
 }
 
-void MagmaBatchedLinAlg::Mult(
-   const DenseTensor &A, const Vector &x, Vector &y) const
+void MagmaBatchedLinAlg::AddMult(const DenseTensor &A, const Vector &x,
+                                 Vector &y, real_t alpha, real_t beta) const
 {
    const int m = A.SizeI();
    const int n = A.SizeJ();
@@ -54,10 +54,7 @@ void MagmaBatchedLinAlg::Mult(
 
    auto d_A = mfem::Reshape(A.Read(), m, n, n_mat);
    auto d_x = mfem::Reshape(x.Read(), n, k, n_mat);
-   auto d_y = mfem::Reshape(y.Write(), m, k, n_mat);
-
-   real_t alpha = 1.0;
-   real_t beta = 0.0;
+   auto d_y = mfem::Reshape(beta == 0.0 ? y.Write() : y.ReadWrite(), m, k, n_mat);
 
    magmablas_dgemm_batched_strided(
       MagmaNoTrans, MagmaNoTrans, m, k, n, alpha, d_A, m, m*n, d_x, n, n*k,

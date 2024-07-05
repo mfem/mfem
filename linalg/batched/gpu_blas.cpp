@@ -69,8 +69,8 @@ void GPUBlas::DisableAtomics()
    MFEM_VERIFY(status == MFEM_BLAS_SUCCESS, "GPU BLAS error.");
 }
 
-void GPUBlasBatchedLinAlg::Mult(
-   const DenseTensor &A, const Vector &x, Vector &y) const
+void GPUBlasBatchedLinAlg::AddMult(const DenseTensor &A, const Vector &x,
+                                   Vector &y, real_t alpha, real_t beta) const
 {
    const int m = A.SizeI();
    const int n = A.SizeJ();
@@ -79,10 +79,7 @@ void GPUBlasBatchedLinAlg::Mult(
 
    auto d_A = mfem::Reshape(A.Read(), m, n, n_mat);
    auto d_x = mfem::Reshape(x.Read(), n, k, n_mat);
-   auto d_y = mfem::Reshape(y.Write(), m, k, n_mat);
-
-   real_t alpha = 1.0;
-   real_t beta = 0.0;
+   auto d_y = mfem::Reshape(beta == 0.0 ? y.Write() : y.ReadWrite(), m, k, n_mat);
 
    const auto op = MFEM_CU_or_HIP(BLAS_OP_N);
 
