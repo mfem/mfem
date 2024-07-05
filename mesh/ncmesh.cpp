@@ -779,7 +779,8 @@ void NCMesh::FindEdgeElements(int vn1, int vn2, int vn3, int vn4,
 
    // follow face refinement towards 'vn1', get an existing face
    int split, mid[5];
-   while ((split = QuadFaceSplitType(vn1, vn2, vn3, vn4, mid)) > 0)
+   real_t scaling;
+   while ((split = QuadFaceSplitType(vn1, vn2, vn3, vn4, scaling, mid)) > 0)
    {
       if (split == 1) // vertical
       {
@@ -1014,6 +1015,15 @@ void NCMesh::RefineElement(int elem, char ref_type, real_t scale)
          int mid45 = GetMidEdgeNode(no[4], no[5]);
          int mid67 = GetMidEdgeNode(no[6], no[7]);
 
+         Node* node01 = nodes.Find(no[0], no[1]);
+         Node* node23 = nodes.Find(no[2], no[3]);
+         Node* node45 = nodes.Find(no[4], no[5]);
+         Node* node67 = nodes.Find(no[6], no[7]);
+         node01->scale = scale;
+         node23->scale = scale;
+         node45->scale = scale;
+         node67->scale = scale;
+
          child[0] = NewHexahedron(no[0], mid01, mid23, no[3],
                                   no[4], mid45, mid67, no[7], attr,
                                   fa[0], fa[1], -1, fa[3], fa[4], fa[5]);
@@ -1034,6 +1044,15 @@ void NCMesh::RefineElement(int elem, char ref_type, real_t scale)
          int mid56 = GetMidEdgeNode(no[5], no[6]);
          int mid74 = GetMidEdgeNode(no[7], no[4]);
 
+         Node* node12 = nodes.Find(no[1], no[2]);
+         Node* node30 = nodes.Find(no[3], no[0]);
+         Node* node56 = nodes.Find(no[5], no[6]);
+         Node* node74 = nodes.Find(no[7], no[4]);
+         node12->scale = scale;
+         node30->scale = scale;
+         node56->scale = scale;
+         node74->scale = scale;
+
          child[0] = NewHexahedron(no[0], no[1], mid12, mid30,
                                   no[4], no[5], mid56, mid74, attr,
                                   fa[0], fa[1], fa[2], -1, fa[4], fa[5]);
@@ -1053,6 +1072,15 @@ void NCMesh::RefineElement(int elem, char ref_type, real_t scale)
          int mid15 = GetMidEdgeNode(no[1], no[5]);
          int mid26 = GetMidEdgeNode(no[2], no[6]);
          int mid37 = GetMidEdgeNode(no[3], no[7]);
+
+         Node* node04 = nodes.Find(no[0], no[4]);
+         Node* node15 = nodes.Find(no[1], no[5]);
+         Node* node26 = nodes.Find(no[2], no[6]);
+         Node* node37 = nodes.Find(no[3], no[7]);
+         node04->scale = scale;
+         node15->scale = scale;
+         node26->scale = scale;
+         node37->scale = scale;
 
          child[0] = NewHexahedron(no[0], no[1], no[2], no[3],
                                   mid04, mid15, mid26, mid37, attr,
@@ -1552,6 +1580,11 @@ void NCMesh::RefineElement(int elem, char ref_type, real_t scale)
       {
          int mid12 = nodes.GetId(no[1], no[2]);
          int mid30 = nodes.GetId(no[3], no[0]);
+
+         Node* node12 = nodes.Find(no[1], no[2]);
+         Node* node30 = nodes.Find(no[3], no[0]);
+         node12->scale = scale;
+         node30->scale = scale;
 
          child[0] = NewQuadrilateral(no[0], no[1], mid12, mid30,
                                      attr, fa[0], fa[1], -1, fa[3]);
@@ -2739,16 +2772,18 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
 
 //// Face/edge lists ///////////////////////////////////////////////////////////
 
-int NCMesh::QuadFaceSplitType(int v1, int v2, int v3, int v4,
+int NCMesh::QuadFaceSplitType(int v1, int v2, int v3, int v4, real_t & s,
                               int mid[5]) const
 {
    MFEM_ASSERT(Dim >= 3, "");
 
    // find edge nodes
-   int e1 = FindMidEdgeNode(v1, v2);
-   int e2 = FindMidEdgeNode(v2, v3);
-   int e3 = (e1 >= 0 && nodes[e1].HasVertex()) ? FindMidEdgeNode(v3, v4) : -1;
-   int e4 = (e2 >= 0 && nodes[e2].HasVertex()) ? FindMidEdgeNode(v4, v1) : -1;
+   const int e1 = FindMidEdgeNode(v1, v2);
+   const int e2 = FindMidEdgeNode(v2, v3);
+   const int e3 = (e1 >= 0 &&
+                   nodes[e1].HasVertex()) ? FindMidEdgeNode(v3, v4) : -1;
+   const int e4 = (e2 >= 0 &&
+                   nodes[e2].HasVertex()) ? FindMidEdgeNode(v4, v1) : -1;
 
    // optional: return the mid-edge nodes if requested
    if (mid) { mid[0] = e1, mid[1] = e2, mid[2] = e3, mid[3] = e4; }
@@ -2757,6 +2792,8 @@ int NCMesh::QuadFaceSplitType(int v1, int v2, int v3, int v4,
    int midf1 = -1, midf2 = -1;
    if (e1 >= 0 && e3 >= 0) { midf1 = FindMidEdgeNode(e1, e3); }
    if (e2 >= 0 && e4 >= 0) { midf2 = FindMidEdgeNode(e2, e4); }
+
+   s = 0.5;
 
    // get proper node if shadow node exists
    if (midf1 >= 0 && midf1 == midf2)
@@ -2777,11 +2814,13 @@ int NCMesh::QuadFaceSplitType(int v1, int v2, int v3, int v4,
    else if (midf1 >= 0) // face split "vertically"
    {
       if (mid) { mid[4] = midf1; }
+      s = nodes[e1].scale;
       return 1;
    }
    else // face split "horizontally"
    {
       if (mid) { mid[4] = midf2; }
+      s = nodes[e2].scale;
       return 2;
    }
 }
@@ -3010,12 +3049,13 @@ void NCMesh::TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
 
    // we need to recurse deeper
    int mid[5];
-   int split = QuadFaceSplitType(vn0, vn1, vn2, vn3, mid);
+   real_t scaling;
+   const int split = QuadFaceSplitType(vn0, vn1, vn2, vn3, scaling, mid);
 
    Face *ef[2][4];
    if (split == 1) // "X" split face
    {
-      Point pmid0(pm(0), pm(1)), pmid2(pm(2), pm(3));
+      Point pmid0(pm(0), pm(1), scaling), pmid2(pm(2), pm(3), 1.0 - scaling);
 
       TraverseQuadFace(vn0, mid[0], mid[2], vn3,
                        PointMatrix(pm(0), pmid0, pmid2, pm(3)),
@@ -3031,7 +3071,7 @@ void NCMesh::TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
    }
    else if (split == 2) // "Y" split face
    {
-      Point pmid1(pm(1), pm(2)), pmid3(pm(3), pm(0));
+      Point pmid1(pm(1), pm(2), scaling), pmid3(pm(3), pm(0), 1.0 - scaling);
 
       TraverseQuadFace(vn0, vn1, mid[1], mid[3],
                        PointMatrix(pm(0), pm(1), pmid1, pmid3),
@@ -3624,7 +3664,8 @@ void NCMesh::CollectQuadFaceVertices(int v0, int v1, int v2, int v3,
                                      Array<int> &indices)
 {
    int mid[5];
-   switch (QuadFaceSplitType(v0, v1, v2, v3, mid))
+   real_t scaling;
+   switch (QuadFaceSplitType(v0, v1, v2, v3, scaling, mid))
    {
       case 1:
          indices.Append(mid[0]);
@@ -5404,8 +5445,9 @@ void NCMesh::QuadFaceSplitLevel(int vn1, int vn2, int vn3, int vn4,
 {
    int hl1, hl2, vl1, vl2;
    int mid[5];
+   real_t scaling;
 
-   switch (QuadFaceSplitType(vn1, vn2, vn3, vn4, mid))
+   switch (QuadFaceSplitType(vn1, vn2, vn3, vn4, scaling, mid))
    {
       case 0: // not split
          h_level = v_level = 0;
