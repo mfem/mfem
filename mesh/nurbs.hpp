@@ -131,17 +131,39 @@ public:
    /// Return the index of the knot span containing parameter @a u.
    MFEM_DEPRECATED int findKnotSpan(real_t u) const;  // Use GetSpan instead
 
-   /** Gives the @a i average knot location.
-       Average is taken over @a Order number of nodes. */
+   /** Gives the @a i average knot location. Average is taken over @a Order
+       number of nodes. For background see:
+
+       G. Farin,
+       Curves and Surfaces for Computer Aided Geometric Design, fourth ed.
+       Academic Press, San Diego, CA, 1997*/
    real_t GetGreville(int i) const;
 
    /** Gives the knot location where the @a i shape function is maximum.
-       Reverts to the Greville point if knot is repeated @a Order +1 times. */
+       Reverts to the Greville point if knot is repeated @a Order +1 times.
+       For background see:
+
+       Botella, Olivier, and Karim Shariff.
+       "B-spline methods in fluid dynamics."
+       International Journal of Computational Fluid Dynamics 17.2 (2003): 133-149.
+
+       Points are found using Newton iteration, with the Greville point as the
+       starting value. */
    real_t GetBotella(int i) const;
 
-   /** Gives the knot location of the @a i extremum of the Chebyshev spline.*/
-   real_t GetDemko(int i) const { ComputeDemko(); return demko[i]; };
+   /** Gives the knot location of the @a i extremum of the Chebyshev spline.
+       For background see:
 
+       Stephen Demko
+       "On the existence of interpolating projections onto spline spaces."
+       Journal of approximation theory 43.2 (1985): 151-156.
+
+       Points are found using Remez iteration:
+        - Find interpolant, given by a, through given points, given by Demko
+        - Find extrema of this polynom and update Demko points
+        - Repeat untill converged
+        - Use the Greville point as starting point */
+   real_t GetDemko(int i) const { ComputeDemko(); return demko[i]; };
 
    // The following functions evaluate shape functions, which are B-spline basis
    // functions.
@@ -168,17 +190,25 @@ public:
    /** @brief Gives the locations of the maxima of the KnotVector in reference
        space. The function gives the knot span @a ks, the coordinate in the
        knot span @a xi, and the coordinate of the maximum in parameter space
-       @a u. */
+       @a u.
+       The main purpose of this function is its use in FindInterpolant.
+       Use GetBotella instead for each shape function seperately, perhaps in
+       conjuction with GetSpan and GetRefPoint.*/
    MFEM_DEPRECATED void FindMaxima(Array<int> &ks, Vector &xi, Vector &u) const;
 
    /** @brief Global curve interpolation through the points @a x (overwritten).
        @a x is an array with the length of the spatial dimension containing
        vectors with spatial coordinates. The control points of the interpolated
-       curve are returned in @a x in the same form. */
+       curve are returned in @a x in the same form.
+       Use GetInterpolant instead. For the knot location one can use either
+       GetBotella, GetDemko or GetGreville. FindInterpolant uses the Botella
+       points, however, the Demko points might be more appropriate. */
    MFEM_DEPRECATED void FindInterpolant(Array<Vector*> &x);
 
    /** @brief Get the control points @a for an interpolating spline that has the
-      values @a x at the knots @a u. */
+      values @a x at the knot location @a u.
+      For the knot location one can use  for instance GetBotella, GetDemko or
+      GetGreville. The Demko points might be most appropriate.*/
    void GetInterpolant(const Vector &x, const Vector &u, Vector &a) const;
 
    /** Set @a diff, comprised of knots in @a kv not contained in this KnotVector.

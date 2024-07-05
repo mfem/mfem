@@ -88,12 +88,16 @@ TEST_CASE("NURBS refinement and coarsening by spacing formulas", "[NURBS]")
 TEST_CASE("Location conversion check", "[NURBS]")
 {
 
-   KnotVector kv(3, Vector({0.0, 0.3, 0.3, 0.3, 0.6, 1.0}));
+   KnotVector kv(3, Vector({0.0,
+                            0.2,0.2,0.2,
+                            0.5,0.5,0.5,
+                            0.8,0.8,0.8,
+                            1.0}));
 
    mfem::out<<"knotvector : ";
    kv.Print(mfem::out);
 
-   constexpr int samples = 101;
+   constexpr int samples = 31;
    for (int i = 0; i < samples; i++)
    {
       const real_t u = i/real_t(samples-1);
@@ -108,6 +112,56 @@ TEST_CASE("Location conversion check", "[NURBS]")
       mfem::out<<kv[ks] <<" "<<u<<" "<<kv[ks+1]<<" : ";
       mfem::out<<u<<" "<<un<<" = "<<un -u<<std::endl;
    }
+
+   for (int i = 0; i < kv.Size(); i++)
+   {
+      const real_t u = kv[i];
+      const int ks = kv.GetSpan (u);
+      REQUIRE( ((kv[ks] <= u) && (u <= kv[ks+1])) );
+      const real_t xi = kv.GetRefPoint(u, ks);
+      REQUIRE( ((0.0 <= xi) && (xi <= 1.0)) );
+      const real_t un = kv.GetParam(xi,ks);
+      REQUIRE((un - u) == MFEM_Approx(0.0));
+
+      mfem::out<<i<<" : "<<ks<<" ";
+      mfem::out<<kv[ks] <<" "<<u<<" "<<kv[ks+1]<<" : ";
+      mfem::out<<u<<" "<<un<<" = "<<un -u<<std::endl;
+   }
+
+   KnotVector kv2(1, Vector({0.0, 1.0/3.0, 2.0/3.0, 1.0}));
+   mfem::out<<"knotvector2 : ";
+   kv2.Print(mfem::out);
+
+   for (int i = 0; i < samples; i++)
+   {
+      const real_t u = i/real_t(samples-1);
+      const int ks = kv2.GetSpan (u);
+      REQUIRE( ((kv2[ks] <= u) && (u <= kv2[ks+1])) );
+      const real_t xi = kv2.GetRefPoint(u, ks);
+      REQUIRE( ((0.0 <= xi) && (xi <= 1.0)) );
+      const real_t un = kv2.GetParam(xi,ks);
+      REQUIRE((un - u) == MFEM_Approx(0.0));
+
+      mfem::out<<i<<" : "<<ks<<" ";
+      mfem::out<<kv2[ks] <<" "<<u<<" "<<kv2[ks+1]<<" : ";
+      mfem::out<<u<<" "<<un<<" = "<<un -u<<std::endl;
+   }
+
+   for (int i = 0; i < kv2.Size(); i++)
+   {
+      const real_t u = kv2[i];
+      const int ks = kv2.GetSpan (u);
+      REQUIRE( ((kv2[ks] <= u) && (u <= kv2[ks+1])) );
+      const real_t xi = kv2.GetRefPoint(u, ks);
+      REQUIRE( ((0.0 <= xi) && (xi <= 1.0)) );
+      const real_t un = kv2.GetParam(xi,ks);
+      REQUIRE((un - u) == MFEM_Approx(0.0));
+
+      mfem::out<<i<<" : "<<ks<<" ";
+      mfem::out<<kv2[ks] <<" "<<u<<" "<<kv2[ks+1]<<" : ";
+      mfem::out<<u<<" "<<un<<" = "<<un -u<<std::endl;
+   }
+
 }
 
 

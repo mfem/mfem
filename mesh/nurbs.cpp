@@ -50,8 +50,8 @@ KnotVector::KnotVector(int order, const Vector &k)
    Order = order;
 
    bool repeated = true;
-   int size = k.Size();
-   int last = size - 1;
+   const int size = k.Size();
+   const int last = size - 1;
    if (k.Size() < 2*Order  + 2)
    {
       repeated = false;
@@ -119,12 +119,12 @@ int KnotVector::GetSpan(real_t u) const
    {
       mid = Order;
    }
-   else
+   else if ((u > knot(0)) && (u < knot(NumOfControlPoints+Order)))
    {
       low = Order;
-      high = NumOfControlPoints + 1;
+      high = NumOfControlPoints;
       mid = (low + high)/2;
-      while ( (u < knot(mid)) || (u > knot(mid+1)) )
+      while ( (u < knot(mid)) || (u >= knot(mid+1)) )
       {
          if (u < knot(mid))
          {
@@ -137,6 +137,11 @@ int KnotVector::GetSpan(real_t u) const
          mid = (low + high)/2;
       }
    }
+   else
+   {
+      mfem_error("Knot location outside of the range of the KnotVector");
+   }
+
    return mid;
 }
 
