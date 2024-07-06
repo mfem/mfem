@@ -105,8 +105,7 @@ void TestAnisoRef3D()
    Refine31(mesh, 0, Refinement::X);
    Refine31(mesh, 4, Refinement::Y);
 
-   // TODO: try more than 1 level of refinement
-   //Refine31(mesh, 6, Refinement::X);
+   Refine31(mesh, 6, Refinement::X);  // 2 levels of 3:1 refinement
 
    Refine31(mesh, 10, Refinement::Z);
 
