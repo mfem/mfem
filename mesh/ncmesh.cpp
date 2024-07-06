@@ -951,7 +951,6 @@ void NCMesh::CheckIsoFace(int vn1, int vn2, int vn3, int vn4,
    }
 }
 
-
 void NCMesh::RefineElement(int elem, char ref_type, real_t scale)
 {
    if (!ref_type) { return; }
@@ -1019,10 +1018,13 @@ void NCMesh::RefineElement(int elem, char ref_type, real_t scale)
          Node* node23 = nodes.Find(no[2], no[3]);
          Node* node45 = nodes.Find(no[4], no[5]);
          Node* node67 = nodes.Find(no[6], no[7]);
-         node01->scale = scale;
-         node23->scale = scale;
-         node45->scale = scale;
-         node67->scale = scale;
+
+         const real_t scaleRev = 1.0 - scale;
+
+         node01->scale = no[0] < no[1] ? scale : scaleRev;
+         node23->scale = no[3] < no[2] ? scale : scaleRev;
+         node45->scale = no[4] < no[5] ? scale : scaleRev;
+         node67->scale = no[7] < no[6] ? scale : scaleRev;
 
          child[0] = NewHexahedron(no[0], mid01, mid23, no[3],
                                   no[4], mid45, mid67, no[7], attr,
@@ -1048,10 +1050,13 @@ void NCMesh::RefineElement(int elem, char ref_type, real_t scale)
          Node* node30 = nodes.Find(no[3], no[0]);
          Node* node56 = nodes.Find(no[5], no[6]);
          Node* node74 = nodes.Find(no[7], no[4]);
-         node12->scale = scale;
-         node30->scale = scale;
-         node56->scale = scale;
-         node74->scale = scale;
+
+         const real_t scaleRev = 1.0 - scale;
+
+         node12->scale = no[1] < no[2] ? scale : scaleRev;
+         node30->scale = no[0] < no[3] ? scale : scaleRev;
+         node56->scale = no[5] < no[6] ? scale : scaleRev;
+         node74->scale = no[4] < no[7] ? scale : scaleRev;
 
          child[0] = NewHexahedron(no[0], no[1], mid12, mid30,
                                   no[4], no[5], mid56, mid74, attr,
@@ -1077,10 +1082,13 @@ void NCMesh::RefineElement(int elem, char ref_type, real_t scale)
          Node* node15 = nodes.Find(no[1], no[5]);
          Node* node26 = nodes.Find(no[2], no[6]);
          Node* node37 = nodes.Find(no[3], no[7]);
-         node04->scale = scale;
-         node15->scale = scale;
-         node26->scale = scale;
-         node37->scale = scale;
+
+         const real_t scaleRev = 1.0 - scale;
+
+         node04->scale = no[0] < no[4] ? scale : scaleRev;
+         node15->scale = no[1] < no[5] ? scale : scaleRev;
+         node26->scale = no[2] < no[6] ? scale : scaleRev;
+         node37->scale = no[3] < no[7] ? scale : scaleRev;
 
          child[0] = NewHexahedron(no[0], no[1], no[2], no[3],
                                   mid04, mid15, mid26, mid37, attr,
