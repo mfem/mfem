@@ -2815,12 +2815,14 @@ int NCMesh::QuadFaceSplitType(int v1, int v2, int v3, int v4, real_t & s,
    {
       if (mid) { mid[4] = midf1; }
       s = nodes[e1].scale;
+      if (v1 > v2) { s = 1.0 - s; }
       return 1;
    }
    else // face split "horizontally"
    {
       if (mid) { mid[4] = midf2; }
       s = nodes[e2].scale;
+      if (v2 > v3) { s = 1.0 - s; }
       return 2;
    }
 }
