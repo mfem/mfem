@@ -388,7 +388,12 @@ public:
        projection computation depends on the choice of the FiniteElementSpace
        #fes. Note that this is usually interpolation at the degrees of freedom
        in each element (not L2 projection). For elements without a projection
-       member function one could use ProjectCoefficientGlobalL2 instead.*/
+       member function one could use ProjectCoefficientGlobalL2 instead.
+       NOTE: For parallel simulations with NURBS elements some dofs might
+       not be defined, if the evaluation point does not reside on this rank.
+       If that is the case it is defined on another rank, and the issue is
+       rectified with the appropriate communcation, see in ParGridFunction.
+       */
    virtual void ProjectCoefficient(Coefficient &coeff);
 
    /** @brief Project @a coeff Coefficient to @a this GridFunction. The
@@ -406,7 +411,11 @@ public:
        projection computation depends on the choice of the FiniteElementSpace
        #fes. Note that this is usually interpolation at the degrees of freedom
        in each element (not L2 projection). For elements without a projection
-       member function one could use ProjectCoefficientGlobalL2 instead.*/
+       member function one could use ProjectCoefficientGlobalL2 instead.
+       NOTE: For parallel simulations with NURBS elements some dofs might
+       not be defined, if the evaluation point does not reside on this rank.
+       If that is the case it is defined on another rank, and the issue is
+       rectified with the appropriate communcation, see in ParGridFunction.*/
    void ProjectCoefficient(VectorCoefficient &vcoeff);
 
    /** @brief Project @a coeff Coefficient to @a this GridFunction. The

@@ -2403,13 +2403,19 @@ void GridFunction::ProjectCoefficient(Coefficient &coeff)
             vals.SetSize(vdofs.Size());
             vals = signal;
 
-            fes->GetFE(i)->Project(coeff, *fes->GetElementTransformation(i), vals);
+            fes->GetFE(i)->Project(coeff,
+                                   *fes->GetElementTransformation(i),
+                                   vals);
             if (doftrans)
             {
                doftrans->TransformPrimal(vals);
             }
 
             // Remove undefined dofs
+            // The knot location (either Botella, Demko or Greville point)
+            // where the NURBS dof are evaluated might fall outside of the
+            // domain of the element. In that case the value is not set, and
+            // the value remains the signal value.
             int s = 0;
             for (int ii = 0; ii < vals.Size(); ii++)
             {
@@ -2514,7 +2520,7 @@ void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff)
    }
    else
    {
-      real_t signal = std::numeric_limits<real_t>::min();
+      constexpr real_t signal = std::numeric_limits<real_t>::min();
       for (int i = 0; i < fes->GetNE(); i++)
       {
          doftrans = fes->GetElementVDofs(i, vdofs);
@@ -2525,6 +2531,11 @@ void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff)
          {
             doftrans->TransformPrimal(vals);
          }
+         // Remove undefined dofs
+         // The knot location (either Botella, Demko or Greville point)
+         // where the NURBS dof are evaluated might fall outside of the
+         // domain of the element. In that case the value is not set, and
+         // the value remains the signal value.
          int s = 0;
          for (int ii = 0; ii < vals.Size(); ii++)
          {
@@ -2537,6 +2548,8 @@ void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff)
          }
          vdofs.SetSize(s);
          vals.SetSize(s);
+
+         // Add reduced dofs to global vector
          SetSubVector(vdofs, vals);
       }
    }
