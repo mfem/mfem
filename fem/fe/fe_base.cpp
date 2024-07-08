@@ -832,7 +832,7 @@ void NodalFiniteElement::Project (
    MFEM_ASSERT(vc.GetVDim() <= 3, "");
 
    double v[3];
-   Vector x (v, vc.GetVDim());
+   Vector x (vc.GetVDim());
 
    for (int i = 0; i < dof; i++)
    {
