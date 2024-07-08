@@ -6,6 +6,7 @@
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <functional>
 
 
 #include "../spde/boundary.hpp"
@@ -13,6 +14,45 @@
 #include "../../linalg/dual.hpp"
 
 namespace mfem {
+
+// return <flag,root, f(root), eps=|a-b|>
+template<typename ftype>
+std::tuple<bool,ftype,ftype,ftype>
+BisectionRootSolver(ftype a, ftype b, std::function< ftype(ftype)> F, ftype eps, int max_iter=100)
+{
+    ftype fa=F(a);
+    ftype fb=F(b);
+    ftype fs;
+    ftype s;
+    ftype tmpv;
+
+    if(fa*fb>0.0){
+        return std::make_tuple(false,a,fa, fabs(a-b)) ;
+    }
+
+    //order the values fa < fb
+    if(fb<fa){
+        tmpv=a;a=b;b=tmpv;
+        tmpv=fa;fa=fb;fb=tmpv;
+    }
+
+    int iter=0;
+    while(fabs(a-b)>eps){
+        s=(a+b)/2.0;
+        fs=F(s);
+        if(fs>0.0){ b=s; fb=fs;}
+        else if(fs<0.0){ a=s; fa=fs;}
+        else {a=s; b=s; break;}
+
+        iter++;
+        if(iter>max_iter){
+            return std::make_tuple(false,s ,fs, fabs(a-b));
+        }
+    }
+
+    return std::make_tuple(true,s ,fs, fabs(a-b));
+}
+
 
 namespace iprtsam{
 //evaluates [ n ]

@@ -4,81 +4,60 @@
 #include <random>
 #include "MMA.hpp"
 
+#include "mtop_coefficients.hpp"
 #include "mtop_solvers.hpp"
 
-class MyMatrixCoefficient:public mfem::MatrixCoefficient
+#include <bitset>
+
+
+class CoeffHoles:public mfem::Coefficient
 {
 public:
-    //constructor
-    MyMatrixCoefficient(int dim, double a_, double b_):mfem::MatrixCoefficient(dim)
+    CoeffHoles(double pr=0.5)
     {
-        a=a_;
-        b=b_;
-    }
-
-
-    virtual
-    void Eval(mfem::DenseMatrix &K, mfem::ElementTransformation &T,
-                        const mfem::IntegrationPoint &ip)
-    {
-        //initialize K to 0.0 everywhere
-        K=0.0;
-
-        //if in domain 1
-        if(T.Attribute==1){
-            for(int i=0;i<mfem::MatrixCoefficient::GetHeight();i++){
-                K(i,i)=a; //set the diagonal to a
-            }
-        }else{
-            //else for all other cases
-            for(int i=0;i<mfem::MatrixCoefficient::GetHeight();i++){
-                K(i,i)=b; //set the diagonal to b
-            }
-        }
-
-    }
-
-private:
-    //add any local data here
-    double a,b;
-};
-
-class MyCoefficient:public mfem::Coefficient
-{
-public:
-    MyCoefficient(mfem::GridFunction* gridf)
-    {
-        gf=gridf;
-    }
-
-    void SetGridFunction(mfem::GridFunction* gridf){
-        gf=gridf;
+        period=pr;
     }
 
     virtual
     double Eval(mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip)
     {
-        double gf_val=gf->GetValue(T,ip);
-        return gf_val*(1.0-gf_val);
+
+        double x[3];
+        mfem::Vector transip(x, T.GetSpaceDim());
+        T.Transform(ip, transip);
+
+        int nx=x[0]/period;
+        int ny=x[1]/period;
+
+        x[0]=x[0]-double(nx)*period-0.5*period;
+        x[1]=x[1]-double(ny)*period-0.5*period;
+
+        double r=sqrt(x[0]*x[0]+x[1]*x[1]);
+        if(r<(0.45*period)){return 0.2;}
+        return 0.8;
     }
 
+
 private:
-    mfem::GridFunction* gf;
+    double period;
 };
 
 class AlcoaBracket
 {
 public:
-    AlcoaBracket(mfem::ParMesh* pmesh, int vorder=1):E(),nu(0.2)
+    AlcoaBracket(mfem::ParMesh* pmesh, int vorder=1,int seed=std::numeric_limits<int>::max()):E(),nu(0.2)
     {
         esolv=new mfem::ElasticitySolver(pmesh,vorder);
         esolv->AddMaterial(new mfem::LinIsoElasticityCoefficient(E,nu));
         esolv->SetNewtonSolver(1e-8,1e-12,1,0);
-        esolv->SetLinearSolver(1e-10,1e-12,200);
+        esolv->SetLinearSolver(1e-10,1e-12,400);
 
         dfes=nullptr;
         cobj=new mfem::ComplianceObjective();
 
+        generator.seed(seed);
+
+        ppmesh=pmesh;
 
     }
 
@@ -96,48 +75,46 @@ public:
 
     }
 
-    void Solve()
+    double Compliance(std::bitset<6>& supp, double eta, mfem::Vector& grad)
     {
-        //solve the problem for the base loads
-        bsolx.resize(5);
-        bsoly.resize(5);
-        bsolz.resize(5);
-
-        /*
-        for(int i=0;i<4;i++){
-            esolv->DelDispBC();
-            //set BC
-            for(int j=0;j<4;j++){if(j!=i){ esolv->AddDispBC(2+j,4,0.0);}}
-            esolv->AddSurfLoad(1,.001,0.0,0.0);
-            esolv->FSolve();
-            esolv->GetSol(bsolx[i]);
-            esolv->AddSurfLoad(1,0.0,.001,0.0);
-            esolv->FSolve();
-            esolv->GetSol(bsoly[i]);
-            esolv->AddSurfLoad(1,0.0,0.0,.001);
-            esolv->FSolve();
-            esolv->GetSol(bsolz[i]);
-        }
-        */
-
+        E.SetProjParam(eta,8.0);
         //set all bc
         esolv->DelDispBC();
-        for(int j=0;j<4;j++){esolv->AddDispBC(2+j,4,0.0);}
-        esolv->AddSurfLoad(1,.001,0.0,0.0);
+        for(int j=0;j<6;j++){
+            if(supp[j]==true){esolv->AddDispBC(2+j,4,0.0);}
+        }
+        esolv->AddSurfLoad(1,0.00,1.00,0.0);
         esolv->FSolve();
-        esolv->GetSol(bsolx[4]);
-        esolv->AddSurfLoad(1,0.0,.001,0.0);
-        esolv->FSolve();
-        esolv->GetSol(bsoly[4]);
-        //esolv->AddSurfLoad(1,0.0,0.0,.001);
-        //esolv->FSolve();
-        esolv->GetSol(bsolz[4]);
+        esolv->GetSol(sol);
 
-        // all solutions are stored in bsolx,bsoly,bsolz
+        cobj->Grad(sol,grad);
+        return cobj->Eval(sol);
     }
 
+    double Compliance(mfem::Vector& grad, double eta=0.5)
+    {
+        std::bitset<6> supp;
+        for(int i=0;i<6;i++){supp[i]=true;}
+        return Compliance(supp,eta,grad);
+    }
+
+
+    double MeanCompl(mfem::Vector& grad)
+    {
+        grad=0.0;
+        mfem::Vector cgrad(grad.Size()); cgrad=0.0;
+
+        double rez=0.0;
+        for(size_t i=0;i<primp.size();i++){
+            rez=rez+primp[i]*Compliance(vsupp[i],thresholds[i],cgrad);
+            grad.Add(primp[i],cgrad);
+        }
+        return rez;
+    }
+
+
     void SetDensity(mfem::Vector& vdens_,
-                    double eta=0.5, double beta=8.0,double pen=1.0){
+                    double eta=0.5, double beta=8.0,double pen=3.0){
 
         vdens=vdens_;
         pdens.SetFromTrueDofs(vdens);
@@ -153,131 +130,168 @@ public:
 
     }
 
-    /// Evaluates the compliance
-    double Compliance(int i, double fx, double fy, double fz){
+    std::vector<double>& GetDualProb(){	return dualq;}
+    std::vector<double>& GetThesholds(){ return thresholds;}
+    std::vector<std::bitset<6>>& GetSupp(){ return vsupp;}
 
-        return cobj->Eval(GetSol(i,fx,fy,fz));
-    }
 
-    void GetComplianceGrad(int i, double fx, double fy, double fz, mfem::Vector& grad){
-        if(dfes==nullptr)
-        {
-             mfem::mfem_error("AlcoaBracket dfes is not defined!");
-        }
-        cobj->Grad(GetSol(i,fx,fy,fz),grad);
-    }
-
-    double MeanCompliance()
+    void ClearCases()
     {
-        int myrank=dfes->GetMyRank();
-        int num_samples=10;
-        int scase[num_samples];
-        double fx[num_samples];
-        double fy[num_samples];
-        double an[num_samples];
-
-        //integer random generator
-        if(myrank==0){
-            std::default_random_engine generator;
-            std::uniform_int_distribution<int> idist(4,4);
-            //std::normal_distribution<double> ndistx(0.0,1.0);
-            //std::normal_distribution<double> ndisty(0.0,1.0);
-            std::uniform_real_distribution<double> adist(-M_PI,M_PI);
-
-            for(int i=0;i<num_samples;i++){
-                scase[i]=idist(generator);
-                //fx[i]=ndistx(generator);
-                //fy[i]=ndisty(generator);
-                an[i]=adist(generator);
-            }
-        }
-
-        MPI_Bcast(scase,num_samples,MPI_INT,0,dfes->GetComm());
-        //MPI_Bcast(fx,num_samples,MPI_DOUBLE,0,dfes->GetComm());
-        //MPI_Bcast(fy,num_samples,MPI_DOUBLE,0,dfes->GetComm());
-        MPI_Bcast(an,num_samples,MPI_DOUBLE,0,dfes->GetComm());
-
-
-
-        double mean=0.0;
-        double var=0.0;
-
-        double cobj;
-        for(int i=0;i<num_samples;i++){
-            fx[i]=sin(an[i]); fy[i]=cos(an[i]);
-            //eval the objective
-            cobj=Compliance(scase[i],fx[i],fy[i],0.0);
-            mean=mean+cobj;
-            var=var+cobj*cobj;
-        }
-
-        mean=mean/(double(num_samples));
-        var=var/(double(num_samples)); var=var-mean*mean;
-        if(myrank==0){
-            std::cout<<"mean="<<mean<<" var="<<var<<std::endl;
-        }
-        return mean;
+        vsupp.clear();
+        dualq.clear();
+        thresholds.clear();
     }
 
-    void MeanCompliance(mfem::Vector& grad)
+    void SetCases(double eta=0.5)
     {
-        int myrank=dfes->GetMyRank();
-        int num_samples=10;
-        int scase[num_samples];
-        double fx[num_samples];
-        double fy[num_samples];
-        double an[num_samples];
-        //integer random generator
-        if(myrank==0){
-            std::default_random_engine generator;
-            std::uniform_int_distribution<int> idist(4,4);
-            std::normal_distribution<double> ndistx(0.0,1.0);
-            std::normal_distribution<double> ndisty(0.0,1.0);
-            std::uniform_real_distribution<double> adist(-M_PI,M_PI);
+       std::bitset<6> bset;
+       for(int j=0;j<6;j++){bset[j]=true;}
+       vsupp.push_back(bset);
+       thresholds.push_back(eta);
+       dualq.push_back(0.1);
 
-            for(int i=0;i<num_samples;i++){
-                scase[i]=idist(generator);
-                //fx[i]=ndistx(generator);
-                //fy[i]=ndisty(generator);
-                an[i]=adist(generator);
-            }
-        }
+       for(int i=0;i<6;i++){
+           for(int j=0;j<6;j++){
+               if(j!=i){ bset[j]=true;}
+               else{bset[j]=false;}
+           }
+           vsupp.push_back(bset);
+           thresholds.push_back(eta);
+           dualq.push_back(0.1);
+       }
 
-        MPI_Bcast(scase,num_samples,MPI_INT,0,dfes->GetComm());
-        //MPI_Bcast(fx,num_samples,MPI_DOUBLE,0,dfes->GetComm());
-        //MPI_Bcast(fy,num_samples,MPI_DOUBLE,0,dfes->GetComm());
-        MPI_Bcast(an,num_samples,MPI_DOUBLE,0,dfes->GetComm());
+       for(int i=0;i<5;i++){
+           for(int j=0;j<6;j++){
+               if((j!=i)&&(j!=(i+1))){bset[j]=true;}
+               else{bset[j]=false;}
+           }
+           vsupp.push_back(bset);
+           thresholds.push_back(eta);
+           dualq.push_back(0.01);
+       }
 
+       for(int i=0;i<4;i++){
+           for(int j=0;j<6;j++){
+               if((j!=i)&&(j!=(i+1))&&(j!=(i+2))){bset[j]=true;}
+               else{bset[j]=false;}
+           }
+           vsupp.push_back(bset);
+           thresholds.push_back(eta);
+           dualq.push_back(0.01);
+       }
+
+       primp.resize(dualq.size());
+       //normalize
+       double sum=0.0;
+       for(size_t i=0;i<dualq.size();i++){sum=sum+dualq[i];}
+       for(size_t i=0;i<dualq.size();i++){
+           dualq[i]=dualq[i]/sum;
+           primp[i]=dualq[i];
+       }
+    }
+
+    double EGDUpdate(mfem::Vector& grad, double eta_rate)
+    {
+        int myrank=ppmesh->GetMyRank();
+        //compute the objective and the gradients
+        std::vector<double> vals; vals.resize(dualq.size());
 
         grad=0.0;
         mfem::Vector cgrad(grad.Size()); cgrad=0.0;
-        for(int i=0;i<num_samples;i++){
-            fx[i]=sin(an[i]); fy[i]=cos(an[i]);
-            //eval the objective
-            GetComplianceGrad(scase[i],fx[i],fy[i],0.0,cgrad);
+
+        double rez=0.0;
+        double nfa=0.0;
+        for(size_t i=0;i<dualq.size();i++){
+            vals[i]=Compliance(vsupp[i],thresholds[i],cgrad);
+            rez=rez+vals[i]*dualq[i];
+            grad.Add(dualq[i],cgrad);
+            nfa=nfa+dualq[i];
+        }
+        grad/=nfa;
+        rez/=nfa;
+
+        std::vector<double> w; w.resize(dualq.size());
+        for(size_t i=0;i<dualq.size();i++){ w[i]=dualq[i]*exp(eta_rate*vals[i]); }
+
+        nfa=0.0;
+        for(size_t i=0;i<w.size();i++){nfa=nfa+w[i];}
+        for(size_t i=0;i<w.size();i++){
+            w[i]/=nfa;
+            dualq[i]=dualq[i]+w[i];
+
+            if(myrank==0){std::cout<<w[i]<<" ";}
+        }
+        if(myrank==0){std::cout<<std::endl;}
+
+        for(size_t i=0;i<w.size();i++){
+            if(myrank==0){std::cout<<dualq[i]<<" ";}
+        }
+        if(myrank==0){std::cout<<std::endl;}
+
+
+        return rez;
+    }
+
+
+    double EGDUpdate(mfem::Vector& grad, double eta_rate, int nsampl)
+    {
+        //construct discrete distribution
+        std::discrete_distribution<int> d(dualq.begin(),dualq.end());
+
+
+        int* tmpv=new int[nsampl];
+
+        //generate nsampl
+        MPI_Comm comm=ppmesh->GetComm();
+        int myrank=ppmesh->GetMyRank();
+        if(myrank==0){
+            for(int i=0;i<nsampl;i++){
+                tmpv[i]=d(generator);
+                std::cout<<tmpv[i]<<" ";
+            }
+            std::cout<<std::endl;
+        }
+        //communicate the center from process zero to all others
+        MPI_Bcast(tmpv, nsampl, MPI_INT, 0, comm);
+
+        //compute the objective and the gradients
+        std::vector<double> vals; vals.resize(nsampl);
+
+        grad=0.0;
+        mfem::Vector cgrad(grad.Size()); cgrad=0.0;
+
+        double rez=0.0;
+        double nfa=double(nsampl);
+        for(int i=0;i<nsampl;i++){
+            vals[i]=Compliance(vsupp[tmpv[i]],thresholds[tmpv[i]],cgrad);
+            rez=rez+vals[i];
             grad.Add(1.0,cgrad);
         }
+        grad/=nfa;
+        rez/=nfa;
 
-        grad/=(double(num_samples));
+        std::vector<double> w; w=dualq;
+        for(int i=0;i<nsampl;i++){ w[tmpv[i]]=0.0;}
+
+        //update the dual probabilities
+        for(int i=0;i<nsampl;i++){
+            w[tmpv[i]]=w[tmpv[i]]+dualq[tmpv[i]]*exp(eta_rate*vals[i]);
+        }
+        //normalize the dual probabilities
+        nfa=0.0;
+        for(size_t i=0;i<w.size();i++){nfa=nfa+w[i];}
+        for(size_t i=0;i<w.size();i++){
+            w[i]/=nfa;
+            dualq[i]=dualq[i]+w[i];
+        }
+
+
+        delete [] tmpv;
+        //return the objective
+        return rez;
     }
 
-    mfem::ParGridFunction& GetSol(int i, double fx, double fy, double fz)
-    {
 
-        sol.SetSpace((esolv->GetDisplacements()).ParFESpace()); sol=0.0;
-        sol.Add(fx,bsolx[i]);
-        sol.Add(fy,bsoly[i]);
-        sol.Add(fz,bsolz[i]);
-        return sol;
-    }
-
-    void GetSol(int i, double fx, double fy, double fz, mfem::ParGridFunction& msol)
-    {
-        msol.SetSpace((esolv->GetDisplacements()).ParFESpace()); msol=0.0;
-        msol.Add(fx,bsolx[i]);
-        msol.Add(fy,bsoly[i]);
-        msol.Add(fz,bsolz[i]);
-    }
 
 private:
     mfem::YoungModulus E;
@@ -290,14 +304,17 @@ private:
     mfem::ElasticitySolver* esolv;
     mfem::ComplianceObjective* cobj;
 
-    //base solution vectors x,y,z direction loads
-    std::vector<mfem::ParGridFunction> bsolx;
-    std::vector<mfem::ParGridFunction> bsoly;
-    std::vector<mfem::ParGridFunction> bsolz;
-
-
     mfem::ParGridFunction sol;
 
+
+    //the following three vectors should have the same size
+    std::vector<double> dualq;
+    std::vector<double> primp;
+    std::vector<std::bitset<6>> vsupp;
+    std::vector<double> thresholds;
+
+    std::default_random_engine generator;
+    mfem::ParMesh* ppmesh;
 };
 
 
@@ -311,7 +328,7 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
 
    // Parse command-line options.
-   const char *mesh_file = "../../data/star.mesh";
+   const char *mesh_file = "./canti_2D_6.msh";
    int order = 1;
    bool static_cond = false;
    int ser_ref_levels = 0;
@@ -440,8 +457,9 @@ int main(int argc, char *argv[])
        std::cout<<"num el="<<pmesh.GetNE()<<std::endl;
    }
 
+
    //allocate the filter
-   mfem::FilterSolver* fsolv=new mfem::FilterSolver(1.0,&pmesh);
+   mfem::FilterSolver* fsolv=new mfem::FilterSolver(0.07,&pmesh);
    fsolv->SetSolver(1e-8,1e-12,100,0);
    fsolv->AddBC(1,1.0);
    fsolv->AddBC(2,1.0);
@@ -449,9 +467,12 @@ int main(int argc, char *argv[])
    fsolv->AddBC(4,1.0);
    fsolv->AddBC(5,1.0);
    fsolv->AddBC(6,1.0);
+   fsolv->AddBC(7,1.0);
+   fsolv->AddBC(8,0.0);
 
    mfem::ParGridFunction pgdens(fsolv->GetFilterFES());
    mfem::ParGridFunction oddens(fsolv->GetDesignFES());
+   mfem::ParGridFunction spdegf(fsolv->GetFilterFES());
    mfem::Vector vdens; vdens.SetSize(fsolv->GetFilterFES()->GetTrueVSize()); vdens=0.0;
    mfem::Vector vtmpv; vtmpv.SetSize(fsolv->GetDesignFES()->GetTrueVSize()); vtmpv=0.5;
 
@@ -462,7 +483,8 @@ int main(int argc, char *argv[])
    AlcoaBracket* alco=new AlcoaBracket(&pmesh,1);
    alco->SetDesignFES(pgdens.ParFESpace());
    alco->SetDensity(vdens);
-   //alco->Solve();
+   alco->SetCases(0.7);
+
    //mfem::ParGridFunction disp;
    //alco->GetSol(4,1,1,1,disp);
 
@@ -507,7 +529,7 @@ int main(int argc, char *argv[])
 
    mfem::PVolumeQoI* vobj=new mfem::PVolumeQoI(fsolv->GetFilterFES());
    //mfem::VolumeQoI* vobj=new mfem::VolumeQoI(fsolv->GetFilterFES());
-   vobj->SetProjection(0.2,8.0);//threshold 0.2
+   vobj->SetProjection(0.5,8.0);//threshold 0.2
 
    //compute the total volume
    double tot_vol;
@@ -515,7 +537,7 @@ int main(int argc, char *argv[])
        vdens=1.0;
        tot_vol=vobj->Eval(vdens);
    }
-   double max_vol=0.5*tot_vol;
+   double max_vol=0.4*tot_vol;
    if(myrank==0){ std::cout<<"tot vol="<<tot_vol<<std::endl;}
 
    //intermediate volume
@@ -541,11 +563,15 @@ int main(int argc, char *argv[])
        mma=new mfem::NativeMMA(MPI_COMM_WORLD,1, ogrado,&a,&c,&d);
    }
 
-   double max_ch=0.02; //max design change
+   double max_ch=0.1; //max design change
 
    double cpl; //compliance
    double vol; //volume
    double ivol; //intermediate volume
+
+
+   mfem::ParGridFunction solx;
+   mfem::ParGridFunction soly;
 
    {
       mfem::ParaViewDataCollection paraview_dc("TopOpt", &pmesh);
@@ -557,27 +583,42 @@ int main(int argc, char *argv[])
       paraview_dc.SetTime(0.0);
 
       paraview_dc.RegisterField("design",&pgdens);
+
+      //alco->GetSol(6,0.0,1.0,0.0,solx);
+      //alco->GetSol(1,0.0,1.0,0.0,soly);
+      //paraview_dc.RegisterField("solx",&solx);
+      //paraview_dc.RegisterField("soly",&soly);
+
+      //spdegf.ProjectCoefficient(spderf);
+      //paraview_dc.RegisterField("reta",&spdegf);
+
       paraview_dc.Save();
 
-      vtmpv=0.2;
+      CoeffHoles holes;
+      oddens.ProjectCoefficient(holes);
+      oddens.GetTrueDofs(vtmpv);
+      vtmpv=0.3;
       fsolv->Mult(vtmpv,vdens);
       pgdens.SetFromTrueDofs(vdens);
 
+
       for(int i=1;i<max_it;i++){
 
-          alco->SetDensity(vdens,0.8);
-          alco->Solve();
+          vobj->SetProjection(0.3,8.0);
+          alco->SetDensity(vdens,0.7,8.0,1.0);
 
-          cpl=alco->MeanCompliance();
+          //cpl=alco->Compliance(ograd);
+          //cpl=alco->MeanCompl(ograd);
+          cpl=alco->EGDUpdate(ograd,0.001);
           vol=vobj->Eval(vdens);
           ivol=ivobj->Eval(vdens);
 
+
           if(myrank==0){
-              std::cout<<"it: "<<i<<" obj="<<cpl<<" vol="<<vol<<" ivol="<<ivol<<std::endl;
+              std::cout<<"it: "<<i<<" obj="<<cpl<<" vol="<<vol<<" cvol="<<max_vol<<" ivol="<<ivol
+                      <<std::endl;
           }
-          //compute the gradients
-          alco->MeanCompliance(ograd);
-          ivobj->Grad(vdens,vgrad);
+          vobj->Grad(vdens,vgrad);
           //compute the original gradients
           fsolv->MultTranspose(ograd,ogrado);
           fsolv->MultTranspose(vgrad,vgrado);
@@ -592,13 +633,20 @@ int main(int argc, char *argv[])
               }
           }
 
-          double con=ivol-max_vol*0.5;
+          double con=vol-max_vol;
           mma->Update(vtmpv,ogrado,&con,&vgrado,xxmin,xxmax);
 
           fsolv->Mult(vtmpv,vdens);
           pgdens.SetFromTrueDofs(vdens);
 
+          //alco->GetSol(1,0.0,1.0,0.0,solx);
+          //alco->GetSol(6,0.0,1.0,0.0,soly);
+
+          //paraview_dc.RegisterField("solx",&solx);
+          //paraview_dc.RegisterField("soly",&soly);
+
           //save the design
+          if(i%4==0)
           {
               paraview_dc.SetCycle(i);
               paraview_dc.SetTime(i*1.0);

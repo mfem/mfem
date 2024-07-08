@@ -157,6 +157,125 @@ public:
         cobj->Grad(GetSol(i,fx,fy,fz),grad);
     }
 
+    double MaxCompliance()
+    {
+        double rez=0.0;
+        double vv;
+        for(int i=0;i<16;i++){
+                vv=Compliance(i,1.0,0.0,0.0); if(vv>rez){rez=vv;}
+                vv=Compliance(i,0.0,1.0,0.0); if(vv>rez){rez=vv;}
+                vv=Compliance(i,0.0,0.0,1.0); if(vv>rez){rez=vv;}
+        }
+
+        return rez;
+    }
+
+
+    double CVarDual(double alpha, double gamma){
+
+        // using lambda expression
+        auto fsigm = [](double x, double p, double alpha)
+        {
+            double tmpv;
+            if(x<1.0){
+                tmpv=exp(x)/(1.0+exp(x));
+                return tmpv*p/(1.0-alpha);
+            }else{
+                tmpv=1.0/(1.0+exp(-x));
+                return tmpv*p/(1.0-alpha);
+            }
+        };
+
+        auto isigm = [](double x, double p, double alpha)
+        {
+            //if(x<0.5){
+                return log(x/(p/(1.0-alpha)-x));
+            //}else{
+            //    return log(p/(x*(1.0-alpha))-1.0);
+            //}
+        };
+
+        std::vector<std::tuple<double,double,int,int>> vals;
+        double prob[16]={1.0, 0.01,0.01,0.01,0.01,0.01,0.01,
+                         0.001,0.001,0.001,0.001,0.001,
+                         0.0001,0.0001,0.0001,0.0001};
+
+        double tprob=(1.0+6*0.01+5*0.001+4*0.0001)*3.0;
+
+        double vv;
+        for(int i=0;i<16;i++){
+                vv=Compliance(i,1.0,0.0,0.0); vals.push_back(std::tuple<double,double,int,int>(vv,prob[i],i,0));
+                vv=Compliance(i,0.0,1.0,0.0); vals.push_back(std::tuple<double,double,int,int>(vv,prob[i],i,1));
+                vv=Compliance(i,0.0,0.0,1.0); vals.push_back(std::tuple<double,double,int,int>(vv,prob[i],i,2));
+        }
+
+
+        //initialize q
+        if(dualq.size()!=48){
+            dualq.resize(48);
+            for(int i=0;i<48;i++){
+                std::get<1>(vals[i])=std::get<1>(vals[i])/tprob; //normalize the probabilities
+                dualq[i]=std::get<1>(vals[i]);
+            }
+        }
+
+
+        std::vector<double> &q=dualq;
+
+        auto projf = [&vals,&q,alpha,gamma, &isigm,&fsigm](double t)
+        {
+            double rez=-1.0;
+            double tmpv;
+            for(size_t i=0;i<q.size();i++){
+                tmpv=isigm(q[i], std::get<1>(vals[i]),alpha) +gamma* std::get<0>(vals[i])-t;
+                rez=rez+fsigm(tmpv,std::get<1>(vals[i]),alpha);
+            }
+            return rez;
+        };
+
+        //find t
+        bool rflag;
+        double t,ft,err;
+        double tmpv;
+
+        int myrank;
+        MPI_Comm_rank(pdens.ParFESpace()->GetComm(),&myrank );
+
+        double rerr=1.0;
+        double rezo=0.0;
+
+        while(rerr>rezo/100.0)
+        {
+            //find t
+            std::tie(rflag,t,ft,err)=mfem::BisectionRootSolver<double>(-30.0,30.0,projf,1e-14);
+            if(myrank==0){
+            std::cout<<"rflag="<<rflag<<" t="<<t<<" ft="<<ft<<" err="<<err<<std::endl;}
+            for(size_t i=0;i<q.size();i++){
+                tmpv=isigm(q[i], std::get<1>(vals[i]),alpha) +gamma* std::get<0>(vals[i])-t;
+                q[i]=fsigm(tmpv,std::get<1>(vals[i]),alpha);
+            }
+            double rez=0.0;
+            for(size_t i=0;i<q.size();i++)
+            {
+                rez=rez+q[i]*std::get<0>(vals[i]);
+            }
+            if(myrank==0){std::cout<<"rez="<<rez<<std::endl;}
+            rerr=fabs(rez-rezo);
+            rezo=rez;
+
+        }
+
+
+        double rez=0.0;
+        for(size_t i=0;i<q.size();i++)
+        {
+            rez=rez+q[i]*std::get<0>(vals[i]);
+        }
+
+        return rez;
+
+    }
+
 
     double CVar(){
         std::vector<std::tuple<double,double,int,int>> vals;
@@ -251,6 +370,7 @@ public:
 
             if(myrank==0){
                 std::cout<<" tt="<<tt
+                         <<" beta="<<beta
                          <<" VaR="<<rmeas.VaR(beta)
                          <<" CVaR="<<rmeas.CVaR(beta)
                          <<" EVaR="<<rmeas.EVaR(beta)
@@ -693,6 +813,9 @@ private:
 
     mfem::ParGridFunction sol;
 
+
+    std::vector<double> dualq;
+
     double flagt=false;
     double tprev;
 
@@ -986,6 +1109,7 @@ int main(int argc, char *argv[])
       double erisk;
       double meanstd;
       double std;
+      double maxcpl;
 
       for(int i=1;i<max_it;i++){
 
@@ -1015,9 +1139,14 @@ int main(int argc, char *argv[])
           vol=vobj->Eval(vdens);
           ivol=ivobj->Eval(vdens);
 
+          maxcpl=alco->MaxCompliance();
+
+          alco->CVarDual(0.98,1.0/maxcpl);
+
           if(myrank==0){
               std::cout<<"it: "<<i<<" obj="<<cpl<<" vol="<<vol<<" cvol="<<max_vol<<" ivol="<<ivol<<
-                      " cvar="<<cvar<<" erisk="<<erisk<<" mstd="<<meanstd<<" std="<<std<<" dcompl="<<dcpl<<std::endl;
+                      " cvar="<<cvar<<" erisk="<<erisk<<" mstd="<<meanstd
+                      <<" std="<<std<<" dcompl="<<dcpl<<" maxcpl="<<maxcpl<<std::endl;
           }
           //compute the gradients
           //alco->MeanCompliance(ograd);
@@ -1026,7 +1155,7 @@ int main(int argc, char *argv[])
           //alco->GetComplianceGrad(0,0.0,0.0,1.0,ograd);
           //alco->CVar(ograd);
           //alco->CVaRe(ograd,0.98,1.0);
-          alco->EVaR(ograd,0.70);
+          alco->EVaR(ograd,0.98);
           vobj->Grad(vdens,vgrad);
           //compute the original gradients
           fsolv->MultTranspose(ograd,ogrado);

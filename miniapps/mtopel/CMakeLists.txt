@@ -141,6 +141,12 @@ add_mfem_miniapp(mtop_bra2D
      ${PARADIFF_COMMON_FILES}
      LIBRARIES mfem)
 
+add_mfem_miniapp(mtop_cvar2D
+     MAIN mtop_cvar2D.cpp
+     ${PARADIFF_COMMON_FILES}
+     LIBRARIES mfem)
+
+
 #add_mfem_miniapp(mtop_bra2DIS
 #     MAIN mtop_bra2DIS.cpp
 #     ${PARADIFF_COMMON_FILES}
