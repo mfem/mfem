@@ -543,8 +543,8 @@ void HDGBilinearForm::Allocate(const Array<int> &bdr_attr_is_ess,
    }
 
    // Create A_data and B_data as a vector with the proper size
-   A_data = new double[A_offsets[elements_A]];
-   B_data = new double[B_offsets[elements_B]];
+   A_data = new real_t[A_offsets[elements_A]];
+   B_data = new real_t[B_offsets[elements_B]];
 
 }
 
