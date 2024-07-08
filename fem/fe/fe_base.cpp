@@ -829,9 +829,8 @@ void NodalFiniteElement::Project (
 void NodalFiniteElement::Project (
    VectorCoefficient &vc, FaceElementTransformations &Trans, Vector &dofs) const
 {
-   MFEM_ASSERT(vc.GetVDim() <= 3, "");
+   MFEM_ASSERT(dofs.Size() == vc.GetVDim()*dof, "");
 
-   double v[3];
    Vector x (vc.GetVDim());
 
    for (int i = 0; i < dof; i++)
@@ -843,11 +842,11 @@ void NodalFiniteElement::Project (
       vc.Eval (x, *Trans.Face, ip);
       if (map_type == INTEGRAL)
       {
-         dofs(i) *= Trans.Face->Weight();
+         x *= Trans.Face->Weight();
       }
       for (int j = 0; j < x.Size(); j++)
       {
-         dofs(dof*j+i) = v[j];
+         dofs(dof*j+i) = x(j);
       }
    }
 }
