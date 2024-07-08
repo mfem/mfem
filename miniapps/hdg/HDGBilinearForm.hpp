@@ -63,7 +63,7 @@ protected:
    /// Vectors to store A and B, the corresponding offsets and the number
    /// of elements on which A and B will be stored
    Array<int> A_offsets, B_offsets;
-   double *A_data, *B_data;
+   real_t *A_data, *B_data;
    int elements_A, elements_B;
 
 
@@ -185,7 +185,7 @@ public:
 
    /// Allocates the vectors for the part of A and B that will be stored
    void Allocate(const Array<int> &bdr_attr_is_ess,
-                 const double memA = 0.0, const double memB = 0.0);
+                 const real_t memA = 0.0, const real_t memB = 0.0);
 
    /// Assembles the Schur complement - general approach, with FES arrays.
    // rhs_F is the volume right hand side gf array
@@ -199,7 +199,7 @@ public:
 
    /// Assembles the Schur complement - for the hdg_advection.cpp and hdg_advectionp.cpp test cases
    void AssembleSC(GridFunction *F,
-                   const double memA = 0.0, const double memB = 0.0,
+                   const real_t memA = 0.0, const real_t memB = 0.0,
                    int skip_zeros = 1);
 
    /// Assembles the Schur complement - for the hdg_poisson.cpp and hdg_poissonp.cpp test cases
@@ -207,7 +207,7 @@ public:
                    GridFunction *F2,
                    Array<int> &bdr_attr_is_ess,
                    GridFunction &sol,
-                   const double memA = 0.0, const double memB = 0.0,
+                   const real_t memA = 0.0, const real_t memB = 0.0,
                    int skip_zeros = 1);
 
    /** Eliminate the boundary condition
@@ -276,7 +276,7 @@ public:
                             const Array<int> &bdr_attr_is_ess,
                             Array<GridFunction*> bdr_sol_sol_GF,
                             bool assemble = true,
-                            const double memA = 0.0, const double memB = 0.0,
+                            const real_t memA = 0.0, const real_t memB = 0.0,
                             int skip_zeros = 1);
 
 

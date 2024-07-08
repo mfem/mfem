@@ -47,8 +47,8 @@ using namespace mfem;
 
 //---------------------------------------------------------------------
 // Exact solution and r.h.s.. See below for implementation.
-double u_exact(const Vector &x);
-double f_rhs  (const Vector &x);
+real_t u_exact(const Vector &x);
+real_t f_rhs  (const Vector &x);
 void advection_function(const Vector &x, Vector &v);
 int dim;
 //---------------------------------------------------------------------
@@ -64,8 +64,8 @@ int main(int argc, char *argv[])
    bool visualization = true;
    bool save = true;
    bool hdg = true;
-   double memA = 0.0;
-   double memB = 0.0;
+   real_t memA = 0.0;
+   real_t memB = 0.0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -259,8 +259,8 @@ int main(int argc, char *argv[])
 
       // 9. Solve the Schur complement system
       const int maxIter(1000);
-      const double rtol(1.e-15);
-      const double atol(0.0);
+      const real_t rtol(1.e-15);
+      const real_t atol(0.0);
       const int PrintLevel = -1;
       GSSmoother M(*SC, 1, 1);
       BiCGSTABSolver solver;
@@ -306,7 +306,7 @@ int main(int argc, char *argv[])
          irs[i] = &(IntRules.Get(i, order_quad));
       }
 
-      const double err_u  = u.ComputeL2Error(ucoeff, irs);
+      const real_t err_u  = u.ComputeL2Error(ucoeff, irs);
       l2errors(ref_levels) = fabs(
                                 err_u); // fabs() to avoid negative values that ComputeL2Error can create
 
@@ -366,7 +366,7 @@ int main(int argc, char *argv[])
       }
       else
       {
-         const double conv_order = log(l2errors(ref_levels)/l2errors(ref_levels-1))/log(
+         const real_t conv_order = log(l2errors(ref_levels)/l2errors(ref_levels-1))/log(
                                       0.5);
          std::cout << "  " << ref_levels << "   "
                    << std::setprecision(2) << std::scientific
@@ -394,18 +394,18 @@ int main(int argc, char *argv[])
 }
 //---------------------------------------------------------------------
 // Exact solution
-double u_exact(const Vector &x)
+real_t u_exact(const Vector &x)
 {
-   double ue = 0.0;
-   const double xx = x(0);
-   const double yy = x(1);
+   real_t ue = 0.0;
+   const real_t xx = x(0);
+   const real_t yy = x(1);
    if (dim == 2)
    {
       ue = 1.0 + sin(0.125 * M_PI * (1.0+xx) * (1.0+yy) * (1.0+yy));
    }
    else if (dim == 3)
    {
-      const double zz = x(2);
+      const real_t zz = x(2);
       ue = 1.0 + sin(0.125 * M_PI * (1.0+xx) * (1.0+yy) * (1.0+zz));
    }
 
@@ -413,21 +413,21 @@ double u_exact(const Vector &x)
 }
 //---------------------------------------------------------------------
 // Rhs function
-double f_rhs(const Vector &x)
+real_t f_rhs(const Vector &x)
 {
-   double rhs = 0.0;
-   const double ax = 0.8;
-   const double ay = 0.6;
-   const double mu = 1.0;
-   const double xx = x(0);
-   const double yy = x(1);
+   real_t rhs = 0.0;
+   const real_t ax = 0.8;
+   const real_t ay = 0.6;
+   const real_t mu = 1.0;
+   const real_t xx = x(0);
+   const real_t yy = x(1);
 
    if (dim == 2)
    {
-      const double uu = 1.0 + sin(0.125 * M_PI * (1.0+xx) * (1.0+yy) * (1.0+yy));
-      const double dudx = 0.125 * M_PI * (1.0+yy) * (1.0+yy)
+      const real_t uu = 1.0 + sin(0.125 * M_PI * (1.0+xx) * (1.0+yy) * (1.0+yy));
+      const real_t dudx = 0.125 * M_PI * (1.0+yy) * (1.0+yy)
                           * cos(0.125 * M_PI * (1.0+xx) * (1.0+yy) * (1.0+yy));
-      const double dudy =  0.25 * M_PI * (1.0+xx) * (1.0+yy)
+      const real_t dudy =  0.25 * M_PI * (1.0+xx) * (1.0+yy)
                            * cos(0.125 * M_PI * (1.0+xx) * (1.0+yy) * (1.0+yy));
 
       rhs = mu * uu + ax * dudx + ay * dudy;
@@ -435,16 +435,16 @@ double f_rhs(const Vector &x)
 
    if (dim == 3)
    {
-      const double az = 0.7;
-      const double zz = x(2);
-      const double uu = 1.0 + sin(0.125 * M_PI * (1.0+xx) * (1.0+yy) * (1.0+zz));
-      const double dudx = 0.125 * M_PI * (1.0+yy) * (1.0+zz)
+      const real_t az = 0.7;
+      const real_t zz = x(2);
+      const real_t uu = 1.0 + sin(0.125 * M_PI * (1.0+xx) * (1.0+yy) * (1.0+zz));
+      const real_t dudx = 0.125 * M_PI * (1.0+yy) * (1.0+zz)
                           * cos(0.125 * M_PI * (1.0+xx) * (1.0+yy) * (1.0+zz));
 
-      const double dudy = 0.125 * M_PI * (1.0+xx) * (1.0+zz)
+      const real_t dudy = 0.125 * M_PI * (1.0+xx) * (1.0+zz)
                           * cos(0.125 * M_PI * (1.0+xx) * (1.0+yy) * (1.0+zz));
 
-      const double dudz = 0.125 * M_PI * (1.0+xx) * (1.0+yy)
+      const real_t dudz = 0.125 * M_PI * (1.0+xx) * (1.0+yy)
                           * cos(0.125 * M_PI * (1.0+xx) * (1.0+yy) * (1.0+zz));
 
       rhs = mu* uu + ax * dudx + ay * dudy + az * dudz;

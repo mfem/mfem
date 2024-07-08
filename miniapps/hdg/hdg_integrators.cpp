@@ -70,7 +70,7 @@ void HDGDomainIntegratorAdvection::AssembleElementMatrix(
       Trans.SetIntPoint (&ip);
       CalcAdjugate(Trans.Jacobian(), Jadj);
 
-      double w = Trans.Weight();
+      real_t w = Trans.Weight();
       w = ip.weight / (square ? w : w*w*w);
       // AdjugateJacobian = / adj(J),         if J is square
       //                    \ adj(J^t.J).J^t, otherwise
@@ -87,7 +87,7 @@ void HDGDomainIntegratorAdvection::AssembleElementMatrix(
       dshape.Mult(vec2, BdFidxT);
       AddMultVWt(shapeu, BdFidxT, elmat);
 
-      double massw = Trans.Weight() * ip.weight;
+      real_t massw = Trans.Weight() * ip.weight;
 
       if (mass_coeff)
       {
@@ -110,7 +110,7 @@ void HDGFaceIntegratorAdvection::AssembleFaceMatrixOneElement1and1FES(
    DenseMatrix &elmat4)
 {
    int dim, ndof, ndof_face;
-   double w;
+   real_t w;
 
    dim = fe_u.GetDim();
    ndof_face = face_fe.GetDof();
@@ -173,10 +173,10 @@ void HDGFaceIntegratorAdvection::AssembleFaceMatrixOneElement1and1FES(
       Trans.Elem1->SetIntPoint(&eip);
 
       avec->Eval(adv, *Trans.Elem1, eip);
-      double an = adv * normal;
-      double an_L = an;
+      real_t an = adv * normal;
+      real_t an_L = an;
 
-      double zeta_R = 0.0, zeta_L = 0.0, zeta = 0.0;
+      real_t zeta_R = 0.0, zeta_L = 0.0, zeta = 0.0;
       if (an < 0.0)
       {
          zeta_L = 1.0;
@@ -265,7 +265,7 @@ void HDGInflowLFIntegrator::AssembleRHSElementVect(
    Vector &favect)
 {
    int dim, ndof_face;
-   double w, uin;
+   real_t w, uin;
 
    dim = face_S.GetDim(); // This is face dimension which is 1 less than
    dim += 1;              // space dimension so add 1 to face dim to
@@ -319,9 +319,9 @@ void HDGInflowLFIntegrator::AssembleRHSElementVect(
             CalcOrtho(Trans.Face->Jacobian(), n_L);
          }
 
-         double an_L = adv * n_L;
+         real_t an_L = adv * n_L;
 
-         double zeta_L = 0.0;
+         real_t zeta_L = 0.0;
          if (an_L < 0.0)
          {
             zeta_L = 1.0;
@@ -329,7 +329,7 @@ void HDGInflowLFIntegrator::AssembleRHSElementVect(
 
          w = ip.weight;
 
-         double gg = -uin * an_L * zeta_L;
+         real_t gg = -uin * an_L * zeta_L;
          for (int i = 0; i < ndof_face; i++)
          {
             favect(i) += w * gg * shape_f(i);
@@ -349,7 +349,7 @@ void HDGDomainIntegratorDiffusion::AssembleElementMatrix2FES(
    int ndof_u = fe_u.GetDof();
    int ndof_q = fe_q.GetDof();
    int dim  = fe_q.GetDim();
-   double norm;
+   real_t norm;
 
    int vdim = dim ;
 
@@ -407,7 +407,7 @@ void HDGDomainIntegratorDiffusion::AssembleElementMatrix2FES(
       norm = ip.weight * Trans.Weight();
       MultVVt(shape, partelmat);
 
-      double c = ip.weight;
+      real_t c = ip.weight;
 
       // transform the the matrix to divergence vector
       gshape.GradToDiv (divshape);
@@ -553,16 +553,16 @@ void HDGFaceIntegratorDiffusion::AssembleFaceMatrixOneElement2and1FES(
 
       // set the coefficients for the different terms
       // if the normal is involved, Trans.Face->Weight() is not required
-      double w1 = ip.weight*(-1.0);
+      real_t w1 = ip.weight*(-1.0);
 
       if (elem1or2 == 2)
       {
          w1 *=-1.0;
       }
 
-      double w2 = tauD*Trans.Face->Weight()* ip.weight;
+      real_t w2 = tauD*Trans.Face->Weight()* ip.weight;
 
-      double w3 = -w2;
+      real_t w3 = -w2;
 
       // local_B1 = < \lambda,\nu v\cdot n>
       for (int i = 0; i < vdim; i++)

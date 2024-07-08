@@ -48,10 +48,10 @@ using namespace std;
 using namespace mfem;
 
 // Define the analytical solution and forcing terms / boundary conditions
-double uFun_ex(const Vector & x);
+real_t uFun_ex(const Vector & x);
 void qFun_ex(const Vector & x, Vector & q);
-double fFun(const Vector & x);
-double diff;
+real_t fFun(const Vector & x);
+real_t diff;
 
 // We can minimize the expression |\nu \nabla u_h^* + q_h |^2 over a single element K,
 // for p+1 degree u_h^*, with the constraint \int_K u_h^* = \int_K u_h, so the mean
@@ -103,8 +103,8 @@ int main(int argc, char *argv[])
    bool post = true;
    bool save = true;
    bool hdg = true;
-   double memA = 0.0;
-   double memB = 0.0;
+   real_t memA = 0.0;
+   real_t memB = 0.0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -220,7 +220,7 @@ int main(int argc, char *argv[])
 
    diff = 1.;
    ConstantCoefficient diffusion(diff); // diffusion constant
-   double tau_D = 5.0;
+   real_t tau_D = 5.0;
 
    // 6. Define the different forms and gridfunctions.
    HDGBilinearForm *AVarf(new HDGBilinearForm(V_space, W_space, M_space));
@@ -282,8 +282,8 @@ int main(int argc, char *argv[])
 
       // 10. Solve the Schur complement system
       int maxIter(4000);
-      double rtol(1.e-13);
-      double atol(0.0);
+      real_t rtol(1.e-13);
+      real_t atol(0.0);
       GSSmoother M(*SC);
       BiCGSTABSolver solver;
       solver.SetAbsTol(atol);
@@ -320,9 +320,9 @@ int main(int argc, char *argv[])
       {
          irs[i] = &(IntRules.Get(i, order_quad));
       }
-      double err_u    = u_variable.ComputeL2Error(ucoeff, irs);
-      double err_q    = q_variable.ComputeL2Error(qcoeff, irs);
-      double err_mean  = u_variable.ComputeMeanLpError(2.0, ucoeff, irs);
+      real_t err_u    = u_variable.ComputeL2Error(ucoeff, irs);
+      real_t err_q    = q_variable.ComputeL2Error(qcoeff, irs);
+      real_t err_mean  = u_variable.ComputeMeanLpError(2.0, ucoeff, irs);
 
       u_l2errors(ref_levels-initial_ref_levels) = fabs(err_u);
       q_l2errors(ref_levels-initial_ref_levels) = fabs(err_q);
@@ -386,7 +386,7 @@ int main(int argc, char *argv[])
          {
             irs[i] = &(IntRules.Get(i, order_quad));
          }
-         double err_u_post   = u_post.ComputeL2Error(ucoeff, irs);
+         real_t err_u_post   = u_post.ComputeL2Error(ucoeff, irs);
 
          u_star_l2errors(ref_levels-initial_ref_levels) = fabs(err_u_post);
 
@@ -451,13 +451,13 @@ int main(int argc, char *argv[])
       }
       else
       {
-         double u_order     = log(u_l2errors(ref_levels)/u_l2errors(ref_levels-1))/log(
+         real_t u_order     = log(u_l2errors(ref_levels)/u_l2errors(ref_levels-1))/log(
                                  0.5);
-         double q_order     = log(q_l2errors(ref_levels)/q_l2errors(ref_levels-1))/log(
+         real_t q_order     = log(q_l2errors(ref_levels)/q_l2errors(ref_levels-1))/log(
                                  0.5);
-         double mean_order   = log(mean_l2errors(ref_levels)/mean_l2errors(
+         real_t mean_order   = log(mean_l2errors(ref_levels)/mean_l2errors(
                                       ref_levels-1))/log(0.5);
-         double u_star_order = log(u_star_l2errors(ref_levels)/u_star_l2errors(
+         real_t u_star_order = log(u_star_l2errors(ref_levels)/u_star_l2errors(
                                       ref_levels-1))/log(0.5);
          std::cout << "  " << ref_levels << "    "
                    << std::setprecision(2) << std::scientific << u_l2errors(ref_levels)
@@ -490,10 +490,10 @@ int main(int argc, char *argv[])
 }
 
 
-double uFun_ex(const Vector & x)
+real_t uFun_ex(const Vector & x)
 {
-   double xi(x(0));
-   double yi(x(1));
+   real_t xi(x(0));
+   real_t yi(x(1));
 
    int dim = x.Size();
 
@@ -506,7 +506,7 @@ double uFun_ex(const Vector & x)
       }
       case 3:
       {
-         double zi(x(2));
+         real_t zi(x(2));
          return xi + sin(2.0*M_PI*xi)*sin(2.0*M_PI*yi)*sin(2.0*M_PI*zi);
          break;
       }
@@ -517,8 +517,8 @@ double uFun_ex(const Vector & x)
 
 void qFun_ex(const Vector & x, Vector & q)
 {
-   double xi(x(0));
-   double yi(x(1));
+   real_t xi(x(0));
+   real_t yi(x(1));
    int dim = x.Size();
 
    switch (dim)
@@ -531,7 +531,7 @@ void qFun_ex(const Vector & x, Vector & q)
       }
       case 3:
       {
-         double zi(x(2));
+         real_t zi(x(2));
          q(0) = -diff*1.0 - diff*2.0*M_PI*cos(2.0*M_PI*xi)*sin(2.0*M_PI*yi)*sin(
                    2.0*M_PI*zi);
          q(1) =  0.0 - diff*2.0*M_PI*sin(2.0*M_PI*xi)*cos(2.0*M_PI*yi)*sin(2.0*M_PI*zi);
@@ -542,10 +542,10 @@ void qFun_ex(const Vector & x, Vector & q)
 }
 
 
-double fFun(const Vector & x)
+real_t fFun(const Vector & x)
 {
-   double xi(x(0));
-   double yi(x(1));
+   real_t xi(x(0));
+   real_t yi(x(1));
    int dim = x.Size();
 
    switch (dim)
@@ -557,7 +557,7 @@ double fFun(const Vector & x)
       }
       case 3:
       {
-         double zi(x(2));
+         real_t zi(x(2));
          return diff*12.0*M_PI*M_PI*sin(2.0*M_PI*xi)*sin(2.0*M_PI*yi)*sin(2.0*M_PI*zi);
          break;
       }
@@ -573,7 +573,7 @@ void HDGPostProcessing::Postprocessing(GridFunction &u_postprocessed)
    Mesh *mesh = fes->GetMesh();
    Array<int>  vdofs;
    Vector      elmat2, shape, RHS, to_RHS, vals, uvals;
-   double      RHS2;
+   real_t      RHS2;
    DenseMatrix elmat, invdfdx, dshape, dshapedxt, qvals;
 
    int  ndofs;
@@ -630,7 +630,7 @@ void HDGPostProcessing::Postprocessing(GridFunction &u_postprocessed)
          // Compute invdfdx = / adj(J),       if J is square
          //               \ adj(J^t.J).J^t, otherwise
          CalcAdjugate(Trans->Jacobian(), invdfdx);
-         double w = Trans->Weight();
+         real_t w = Trans->Weight();
          w = ip.weight / w;
          w *= diffcoeff->Eval(*Trans, ip);
          Mult(dshape, invdfdx, dshapedxt);
@@ -654,7 +654,7 @@ void HDGPostProcessing::Postprocessing(GridFunction &u_postprocessed)
          elmat2 += shape;
 
          // compute (1, u_h)
-         double rhs_weight = (Trans->Weight() * ip.weight);
+         real_t rhs_weight = (Trans->Weight() * ip.weight);
          RHS2  += (uvals(j)*rhs_weight);
 
       }

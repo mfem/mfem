@@ -192,13 +192,13 @@ public:
 class HDGFaceIntegratorDiffusion : public BilinearFormIntegrator
 {
 private:
-   double tauD;
+   real_t tauD;
 
    Vector shapeu, shapeq, normal, shape_face;
    DenseMatrix shape_dot_n;
 
 public:
-   HDGFaceIntegratorDiffusion(double a)
+   HDGFaceIntegratorDiffusion(real_t a)
    {
       tauD = a;
    }

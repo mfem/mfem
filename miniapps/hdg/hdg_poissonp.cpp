@@ -47,10 +47,10 @@ using namespace std;
 using namespace mfem;
 
 // Define the analytical solution and forcing terms / boundary conditions
-double uFun_ex(const Vector & x);
+real_t uFun_ex(const Vector & x);
 void qFun_ex(const Vector & x, Vector & q);
-double fFun(const Vector & x);
-double diff;
+real_t fFun(const Vector & x);
+real_t diff;
 
 // We can minimize the expression |\nu \nabla u_h^* + q_h |^2 over a single element K,
 // for p+1 degree u_h^*, with the constraint \int_K u_h^* = \int_K u_h, so the mean
@@ -98,8 +98,8 @@ int main(int argc, char *argv[])
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
-   double assemblyTime, solveTime, reconstructTime, pprocessTime;
-   double GassemblyTime, GsolveTime, GreconstructTime, GpprocessTime;
+   real_t assemblyTime, solveTime, reconstructTime, pprocessTime;
+   real_t GassemblyTime, GsolveTime, GreconstructTime, GpprocessTime;
 
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/inline-tri.mesh";
@@ -111,8 +111,8 @@ int main(int argc, char *argv[])
    bool post = true;
    bool save = true;
    bool hdg = true;
-   double memA = 0.0;
-   double memB = 0.0;
+   real_t memA = 0.0;
+   real_t memB = 0.0;
    bool petsc = false;
    const char *petscrc_file = "";
 
@@ -266,7 +266,7 @@ int main(int argc, char *argv[])
 
    diff = 1.;
    ConstantCoefficient diffusion(diff); // diffusion constant
-   double tau_D = 5.0;
+   real_t tau_D = 5.0;
 
    // 7. Define the different forms and gridfunctions.
    HDGBilinearForm *AVarf(new HDGBilinearForm(V_space, W_space, M_space, true));
@@ -336,7 +336,7 @@ int main(int argc, char *argv[])
       // Schur complement is  L - C*A^{-1} RF, but L is zero for this case
 
       // 11. Solve the Schur complement system
-      double tol = 1.0e-12;
+      real_t tol = 1.0e-12;
       int maxIter = 1000;
       int PrintLevel = -1;
 
@@ -427,11 +427,11 @@ int main(int argc, char *argv[])
          irs[i] = &(IntRules.Get(i, order_quad));
       }
 
-      double err_u   = u_variable.ComputeL2Error(ucoeff, irs);
-      double norm_u   = ComputeGlobalLpNorm(2., ucoeff, *pmesh, irs);
-      double err_q   = q_variable.ComputeL2Error(qcoeff, irs);
-      double norm_q   = ComputeGlobalLpNorm(2., qcoeff, *pmesh, irs);
-      double err_mean  = u_variable.ComputeMeanLpError(2.0, ucoeff, irs);
+      real_t err_u   = u_variable.ComputeL2Error(ucoeff, irs);
+      real_t norm_u   = ComputeGlobalLpNorm(2., ucoeff, *pmesh, irs);
+      real_t err_q   = q_variable.ComputeL2Error(qcoeff, irs);
+      real_t norm_q   = ComputeGlobalLpNorm(2., qcoeff, *pmesh, irs);
+      real_t err_mean  = u_variable.ComputeMeanLpError(2.0, ucoeff, irs);
 
       if (verbose)
       {
@@ -518,7 +518,7 @@ int main(int argc, char *argv[])
          {
             irs[i] = &(IntRules.Get(i, order_quad));
          }
-         double err_u_post   = u_post.ComputeL2Error(ucoeff, irs);
+         real_t err_u_post   = u_post.ComputeL2Error(ucoeff, irs);
 
          u_star_l2errors(ref_levels-initial_ref_levels) = fabs(err_u_post);
 
@@ -606,13 +606,13 @@ int main(int argc, char *argv[])
          }
          else
          {
-            double u_order    = log(u_l2errors(ref_levels)/u_l2errors(ref_levels-1))/log(
+            real_t u_order    = log(u_l2errors(ref_levels)/u_l2errors(ref_levels-1))/log(
                                    0.5);
-            double q_order    = log(q_l2errors(ref_levels)/q_l2errors(ref_levels-1))/log(
+            real_t q_order    = log(q_l2errors(ref_levels)/q_l2errors(ref_levels-1))/log(
                                    0.5);
-            double mean_order   = log(mean_l2errors(ref_levels)/mean_l2errors(
+            real_t mean_order   = log(mean_l2errors(ref_levels)/mean_l2errors(
                                          ref_levels-1))/log(0.5);
-            double u_star_order = log(u_star_l2errors(ref_levels)/u_star_l2errors(
+            real_t u_star_order = log(u_star_l2errors(ref_levels)/u_star_l2errors(
                                          ref_levels-1))/log(0.5);
             std::cout << "  " << ref_levels << "   "
                       << std::setprecision(2) << std::scientific << u_l2errors(ref_levels)
@@ -651,10 +651,10 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-double uFun_ex(const Vector & x)
+real_t uFun_ex(const Vector & x)
 {
-   double xi(x(0));
-   double yi(x(1));
+   real_t xi(x(0));
+   real_t yi(x(1));
    int dim = x.Size();
 
    switch (dim)
@@ -666,7 +666,7 @@ double uFun_ex(const Vector & x)
       }
       case 3:
       {
-         double zi(x(2));
+         real_t zi(x(2));
          return 1.0*xi + sin(2.0*M_PI*xi)*sin(2.0*M_PI*yi)*sin(2.0*M_PI*zi);
          break;
       }
@@ -677,8 +677,8 @@ double uFun_ex(const Vector & x)
 
 void qFun_ex(const Vector & x, Vector & q)
 {
-   double xi(x(0));
-   double yi(x(1));
+   real_t xi(x(0));
+   real_t yi(x(1));
    int dim = x.Size();
 
    switch (dim)
@@ -691,7 +691,7 @@ void qFun_ex(const Vector & x, Vector & q)
       }
       case 3:
       {
-         double zi(x(2));
+         real_t zi(x(2));
          q(0) = -diff*1.0 - diff*2.0*M_PI*cos(2.0*M_PI*xi)*sin(2.0*M_PI*yi)*sin(
                    2.0*M_PI*zi);
          q(1) = - diff*2.0*M_PI*sin(2.0*M_PI*xi)*cos(2.0*M_PI*yi)*sin(2.0*M_PI*zi);
@@ -702,10 +702,10 @@ void qFun_ex(const Vector & x, Vector & q)
 }
 
 
-double fFun(const Vector & x)
+real_t fFun(const Vector & x)
 {
-   double xi(x(0));
-   double yi(x(1));
+   real_t xi(x(0));
+   real_t yi(x(1));
    int dim = x.Size();
 
    switch (dim)
@@ -717,7 +717,7 @@ double fFun(const Vector & x)
       }
       case 3:
       {
-         double zi(x(2));
+         real_t zi(x(2));
          return diff*12.0*M_PI*M_PI*sin(2.0*M_PI*xi)*sin(2.0*M_PI*yi)*sin(2.0*M_PI*zi);
          break;
       }
@@ -732,7 +732,7 @@ void pHDGPostProcessing::Postprocessing(ParGridFunction &u_postprocessed)
    Mesh *mesh = pfes->GetMesh();
    Array<int>  vdofs;
    Vector      elmat2, shape, RHS, to_RHS, vals, uvals;
-   double      RHS2;
+   real_t      RHS2;
    DenseMatrix elmat, invdfdx, dshape, dshapedxt, qvals;
 
    int  ndofs;
@@ -786,7 +786,7 @@ void pHDGPostProcessing::Postprocessing(ParGridFunction &u_postprocessed)
          // Compute invdfdx = / adj(J),      if J is square
          //            \ adj(J^t.J).J^t, otherwise
          CalcAdjugate(Trans->Jacobian(), invdfdx);
-         double w = Trans->Weight();
+         real_t w = Trans->Weight();
          w = ip.weight / w;
          w *= diffcoeff->Eval(*Trans, ip);
          Mult(dshape, invdfdx, dshapedxt);
@@ -808,10 +808,10 @@ void pHDGPostProcessing::Postprocessing(ParGridFunction &u_postprocessed)
          shape *= (Trans->Weight() * ip.weight);
          elmat2 += shape;
 
-         double uvalsj;
+         real_t uvalsj;
          uvalsj = u->GetValue(i, ip, 1);
 
-         double rhs_weight = (Trans->Weight() * ip.weight);
+         real_t rhs_weight = (Trans->Weight() * ip.weight);
          RHS2  += (uvalsj*rhs_weight);
 
       }

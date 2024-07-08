@@ -418,7 +418,7 @@ void HDGBilinearForm::compute_face_integrals(const int elem, const int edge,
  * el_to_faces has number of element rows and the i-th row contains the faces of the i-th element
  */
 void HDGBilinearForm::Allocate(const Array<int> &bdr_attr_is_ess,
-                               const double memA, const double memB)
+                               const real_t memA, const real_t memB)
 {
    Mesh *mesh = volume_fes[0] -> GetMesh();
 
@@ -550,8 +550,8 @@ void HDGBilinearForm::Allocate(const Array<int> &bdr_attr_is_ess,
 
 /// Assembles the Schur complement - advection-reaction example
 void HDGBilinearForm::AssembleSC(GridFunction *F,
-                                 const double memA,
-                                 const double memB,
+                                 const real_t memA,
+                                 const real_t memB,
                                  int skip_zeros)
 {
    Array<GridFunction*> rhs_F;
@@ -579,8 +579,8 @@ void HDGBilinearForm::AssembleSC(GridFunction *F1,
                                  GridFunction *F2,
                                  Array<int> &bdr_attr_is_ess,
                                  GridFunction &sol,
-                                 const double memA,
-                                 const double memB,
+                                 const real_t memA,
+                                 const real_t memB,
                                  int skip_zeros)
 {
    Array<GridFunction*> rhs_F;
@@ -651,7 +651,7 @@ void HDGBilinearForm::Eliminate_BC(const Array<int> &vdofs_e1,
       }
       // At this point local_vdof contains the dofs for the skeletal FES sk_fes
 
-      double solution;
+      real_t solution;
 
       // loop over the local_vdof and eliminate from C, D, and the rhs if necessary
       for (int j = 0; j < local_size; j++) // j is the column
@@ -959,7 +959,7 @@ void HDGBilinearForm::AssembleReconstruct(Array<GridFunction*> Vol_GF,
                                           const Array<int> &bdr_attr_is_ess,
                                           Array<GridFunction*> bdr_sol_sol_GF,
                                           bool assemble,
-                                          const double memA, const double memB,
+                                          const real_t memA, const real_t memB,
                                           int skip_zeros)
 {
    // Allocate the matrices, right hand sides, and all other necessary objects
@@ -986,7 +986,7 @@ void HDGBilinearForm::AssembleReconstruct(Array<GridFunction*> Vol_GF,
    Vector G_local;
 
    // To save A and B
-   double *A_local_data, *B_local_data;
+   real_t *A_local_data, *B_local_data;
 
    // These are needed for the reconstructions
    Vector B_skeleton_local, skeleton_local, u_local;
