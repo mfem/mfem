@@ -387,9 +387,15 @@ public:
    /** @brief Project @a coeff Coefficient to @a this GridFunction. The
        projection computation depends on the choice of the FiniteElementSpace
        #fes. Note that this is usually interpolation at the degrees of freedom
-       in each element (not L2 projection). For NURBS spaces these degrees of
-       freedom are not available and L2 projection is resorted to as fallback. */
+       in each element (not L2 projection). For elements without a projection
+       member function one could use ProjectCoefficientGlobalL2 instead.*/
    virtual void ProjectCoefficient(Coefficient &coeff);
+
+   /** @brief Project @a coeff Coefficient to @a this GridFunction. The
+       projection is a global L2 projection. This routine can be used a fallback
+       for elements without a projection member function.*/
+   void ProjectCoefficientGlobalL2(Coefficient &coeff,
+                                   real_t rtol = 1e-12, int iter = 1000);
 
    /** @brief Project @a coeff Coefficient to @a this GridFunction, using one
        element for each degree of freedom in @a dofs and nodal interpolation on
@@ -399,9 +405,15 @@ public:
    /** @brief Project @a vcoeff VectorCoefficient to @a this GridFunction. The
        projection computation depends on the choice of the FiniteElementSpace
        #fes. Note that this is usually interpolation at the degrees of freedom
-       in each element (not L2 projection). For NURBS spaces these degrees of
-       freedom are not available and L2 projection is resorted to as fallback. */
+       in each element (not L2 projection). For elements without a projection
+       member function one could use ProjectCoefficientGlobalL2 instead.*/
    void ProjectCoefficient(VectorCoefficient &vcoeff);
+
+   /** @brief Project @a coeff Coefficient to @a this GridFunction. The
+       projection is a global L2 projection. This routine can be used a fallback
+       for elements without a projection member function.*/
+   void ProjectCoefficientGlobalL2(VectorCoefficient &vcoeff,
+                                   real_t rtol = 1e-12, int iter = 1000);
 
    /** @brief Project @a vcoeff VectorCoefficient to @a this GridFunction, using
        one element for each degree of freedom in @a dofs and nodal interpolation

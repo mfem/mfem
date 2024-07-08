@@ -2438,6 +2438,34 @@ void GridFunction::ProjectCoefficient(Coefficient &coeff)
    }
 }
 
+void GridFunction::ProjectCoefficientGlobalL2(Coefficient &coeff, real_t rtol,
+                                              int iter)
+{
+   // Define and assemble linear form
+   LinearForm b(fes);
+   b.AddDomainIntegrator(new DomainLFIntegrator(coeff));
+   b.Assemble();
+
+   // Define and assemble bilinear form
+   BilinearForm a(fes);
+   a.AddDomainIntegrator(new MassIntegrator());
+   a.Assemble();
+
+   // Set solver and preconditioner
+   SparseMatrix A(a.SpMat());
+   GSSmoother  prec(A);
+   CGSolver cg;
+   cg.SetOperator(A);
+   cg.SetPreconditioner(prec);
+   cg.SetRelTol(1e-12);
+   cg.SetMaxIter(1000);
+   cg.SetPrintLevel(0);
+
+   // Solve and get solution
+   *this = 0.0;
+   cg.Mult(b,*this);
+}
+
 void GridFunction::ProjectCoefficient(
    Coefficient &coeff, Array<int> &dofs, int vd)
 {
@@ -2512,6 +2540,34 @@ void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff)
          SetSubVector(vdofs, vals);
       }
    }
+}
+
+void GridFunction::ProjectCoefficientGlobalL2(VectorCoefficient &vcoeff,
+                                              real_t rtol, int iter)
+{
+   // Define and assemble linear form
+   LinearForm b(fes);
+   b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(vcoeff));
+   b.Assemble();
+
+   // Define and assemble bilinear form
+   BilinearForm a(fes);
+   a.AddDomainIntegrator(new VectorFEMassIntegrator());
+   a.Assemble();
+
+   // Set solver and preconditioner
+   SparseMatrix A(a.SpMat());
+   GSSmoother  prec(A);
+   CGSolver cg;
+   cg.SetOperator(A);
+   cg.SetPreconditioner(prec);
+   cg.SetRelTol(1e-12);
+   cg.SetMaxIter(1000);
+   cg.SetPrintLevel(0);
+
+   // Solve and get solution
+   *this = 0.0;
+   cg.Mult(b,*this);
 }
 
 void GridFunction::ProjectCoefficient(
