@@ -10,9 +10,18 @@
 // CONTRIBUTING.md for details.
 
 #include "magma.hpp"
+#include "../lapack.hpp"
 #include "../../general/forall.hpp"
 
 #ifdef MFEM_USE_MAGMA
+
+#ifdef MFEM_USE_SINGLE
+#define MFEM_MAGMA_PREFIX(stub) magma_s ## stub
+#define MFEM_MAGMABLAS_PREFIX(stub) magmablas_s ## stub
+#elif defined(MFEM_USE_DOUBLE)
+#define MFEM_MAGMA_PREFIX(stub) magma_d ## stub
+#define MFEM_MAGMABLAS_PREFIX(stub) magmablas_d ## stub
+#endif
 
 namespace mfem
 {
@@ -56,7 +65,7 @@ void MagmaBatchedLinAlg::AddMult(const DenseTensor &A, const Vector &x,
    auto d_x = mfem::Reshape(x.Read(), n, k, n_mat);
    auto d_y = mfem::Reshape(beta == 0.0 ? y.Write() : y.ReadWrite(), m, k, n_mat);
 
-   magmablas_dgemm_batched_strided(
+   MFEM_MAGMABLAS_PREFIX(gemm_batched_strided)(
       MagmaNoTrans, MagmaNoTrans, m, k, n, alpha, d_A, m, m*n, d_x, n, n*k,
       beta, d_y, m, m*k, n_mat, Magma::Queue());
 }
@@ -82,9 +91,9 @@ void MagmaBatchedLinAlg::LUFactor(DenseTensor &A, Array<int> &P) const
    });
 
    Array<int> info_array(n_mat);
-   const magma_int_t status = magma_dgetrf_batched(n, n, d_A_ptrs, n, d_P_ptrs,
-                                                   info_array.Write(), n_mat,
-                                                   Magma::Queue());
+   const magma_int_t status = MFEM_MAGMA_PREFIX(getrf_batched)(
+                                 n, n, d_A_ptrs, n, d_P_ptrs,
+                                 info_array.Write(), n_mat, Magma::Queue());
    MFEM_VERIFY(status == MAGMA_SUCCESS, "");
 }
 
@@ -114,7 +123,7 @@ void MagmaBatchedLinAlg::LUSolve(
       });
    }
 
-   const magma_int_t status = magma_dgetrs_batched(
+   const magma_int_t status = MFEM_MAGMA_PREFIX(getrs_batched)(
                                  MagmaNoTrans, n, n_rhs, d_A_ptrs, n, d_P_ptrs,
                                  d_B_ptrs, n, n_mat, Magma::Queue());
    MFEM_VERIFY(status == MAGMA_SUCCESS, "");
@@ -152,13 +161,14 @@ void MagmaBatchedLinAlg::Invert(DenseTensor &A) const
    Array<int> info_array(n_mat);
    magma_int_t status;
 
-   status = magma_dgetrf_batched(n, n, d_A_ptrs, n, d_P_ptrs,
-                                 info_array.Write(), n_mat, Magma::Queue());
+   status = MFEM_MAGMA_PREFIX(getrf_batched)(
+               n, n, d_A_ptrs, n, d_P_ptrs, info_array.Write(), n_mat,
+               Magma::Queue());
    MFEM_VERIFY(status == MAGMA_SUCCESS, "");
 
-   status = magma_dgetri_outofplace_batched(n, d_LU_ptrs, n, d_P_ptrs,
-                                            d_A_ptrs, n, info_array.Write(),
-                                            n_mat, Magma::Queue());
+   status = MFEM_MAGMA_PREFIX(getri_outofplace_batched)(
+               n, d_LU_ptrs, n, d_P_ptrs, d_A_ptrs, n, info_array.Write(),
+               n_mat, Magma::Queue());
    MFEM_VERIFY(status == MAGMA_SUCCESS, "");
 }
 

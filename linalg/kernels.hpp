@@ -371,7 +371,7 @@ MFEM_HOST_DEVICE inline
 void Mult(const int Aheight, const int Awidth, const int Bwidth,
           const TB *Bdata, const TC *Cdata, TA *Adata)
 {
-   AddMult(Aheight, Awidth, Bwidth, Bdata, Cdata, Adata, 1.0, 0.0);
+   AddMult(Aheight, Awidth, Bwidth, Bdata, Cdata, Adata, TB(1.0), TA(0.0));
 }
 
 /** @brief Multiply a matrix of size @a Aheight x @a Awidth and data @a Adata

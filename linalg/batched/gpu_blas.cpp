@@ -22,6 +22,15 @@
 #define MFEM_CU_or_HIP(stub) HIP##stub
 #endif
 
+#define MFEM_CONCAT(x, y, z) MFEM_CONCAT_(x, y, z)
+#define MFEM_CONCAT_(x, y, z) x ## y ## z
+
+#ifdef MFEM_USE_SINGLE
+#define MFEM_GPUBLAS_PREFIX(stub) MFEM_CONCAT(MFEM_cu_or_hip(blas), S, stub)
+#elif defined(MFEM_USE_DOUBLE)
+#define MFEM_GPUBLAS_PREFIX(stub) MFEM_CONCAT(MFEM_cu_or_hip(blas), D, stub)
+#endif
+
 #define MFEM_BLAS_SUCCESS MFEM_CU_or_HIP(BLAS_STATUS_SUCCESS)
 
 #if defined(MFEM_USE_CUDA)
@@ -83,7 +92,7 @@ void GPUBlasBatchedLinAlg::AddMult(const DenseTensor &A, const Vector &x,
 
    const auto op = MFEM_CU_or_HIP(BLAS_OP_N);
 
-   const blasStatus_t status = MFEM_cu_or_hip(blasDgemmStridedBatched)(
+   const blasStatus_t status = MFEM_GPUBLAS_PREFIX(gemmStridedBatched)(
                                   GPUBlas::Handle(), op, op, m, k, n, &alpha,
                                   d_A, m, m*n, d_x, n, n*k, &beta, d_y, m, m*k,
                                   n_mat);
@@ -107,7 +116,7 @@ void GPUBlasBatchedLinAlg::LUFactor(DenseTensor &A, Array<int> &P) const
       d_A_ptrs[i] = A_base + i*n*n;
    });
 
-   const blasStatus_t status = MFEM_cu_or_hip(blasDgetrfBatched)(
+   const blasStatus_t status = MFEM_GPUBLAS_PREFIX(getrfBatched)(
                                   GPUBlas::Handle(), n, d_A_ptrs, n, P.Write(),
                                   info_array.Write(), n_mat);
    MFEM_VERIFY(status == MFEM_BLAS_SUCCESS, "");
@@ -136,7 +145,7 @@ void GPUBlasBatchedLinAlg::LUSolve(
    }
 
    int info = 0;
-   const blasStatus_t status = MFEM_cu_or_hip(blasDgetrsBatched)(
+   const blasStatus_t status = MFEM_GPUBLAS_PREFIX(getrsBatched)(
                                   GPUBlas::Handle(), MFEM_CU_or_HIP(BLAS_OP_N),
                                   n, n_rhs, d_A_ptrs, n, P.Read(), d_B_ptrs, n,
                                   &info, n_mat);
@@ -170,12 +179,12 @@ void GPUBlasBatchedLinAlg::Invert(DenseTensor &A) const
    Array<int> info_array(n_mat);
    blasStatus_t status;
 
-   status = MFEM_cu_or_hip(blasDgetrfBatched)(
+   status = MFEM_GPUBLAS_PREFIX(getrfBatched)(
                GPUBlas::Handle(), n, d_LU_ptrs, n, P.Write(),
                info_array.Write(), n_mat);
    MFEM_VERIFY(status == MFEM_BLAS_SUCCESS, "");
 
-   status = MFEM_cu_or_hip(blasDgetriBatched)(
+   status = MFEM_GPUBLAS_PREFIX(getriBatched)(
                GPUBlas::Handle(), n, d_LU_ptrs, n, P.ReadWrite(), d_A_ptrs, n,
                info_array.Write(), n_mat);
    MFEM_VERIFY(status == MFEM_BLAS_SUCCESS, "");
