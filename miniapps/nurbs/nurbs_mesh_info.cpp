@@ -159,5 +159,5 @@ int main(int argc, char *argv[])
       kv.PrintFunction(ofs, a, 201);
       ofs.close();
    }
-
+   delete mesh;
 }
