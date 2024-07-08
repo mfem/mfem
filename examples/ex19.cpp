@@ -238,9 +238,9 @@ int main(int argc, char *argv[])
    //    (Taylor-Hood elements). By default, the displacement (u/x) is a second
    //    order vector field, while the pressure (p) is a linear scalar function.
    FiniteElementCollection *quad_coll = FECollection::NewH1(order, dim,
-                                                            mesh->NURBSext);
+                                                            mesh->IsNURBS());
    FiniteElementCollection *lin_coll = FECollection::NewH1(order-1, dim,
-                                                           mesh->NURBSext);
+                                                           mesh->IsNURBS());
 
    FiniteElementSpace R_space(mesh, quad_coll, dim, Ordering::byVDIM);
    FiniteElementSpace W_space(mesh, lin_coll);

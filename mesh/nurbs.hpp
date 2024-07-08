@@ -103,7 +103,7 @@ public:
        with @a isElement for non-empty knot spans (elements). */
    int GetNKS() const { return NumOfControlPoints - Order; }
 
-   /// Return whether knot @a u is in a given span @a ni.
+   /// Return whether knot location @a u is in a given span @a ni.
    bool inSpan(real_t u, int ni) const
    {
       if ((u < knot(ni)) || (u > knot(ni+1))) { return false; }
@@ -192,7 +192,7 @@ public:
        knot span @a xi, and the coordinate of the maximum in parameter space
        @a u.
        The main purpose of this function is its use in FindInterpolant.
-       Use GetBotella instead for each shape function seperately, perhaps in
+       Use GetBotella instead for each shape function separately, perhaps in
        conjuction with GetSpan and GetRefPoint.*/
    MFEM_DEPRECATED void FindMaxima(Array<int> &ks, Vector &xi, Vector &u) const;
 

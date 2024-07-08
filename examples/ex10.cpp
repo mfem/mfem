@@ -251,7 +251,7 @@ int main(int argc, char *argv[])
    //    we group them together in block vector vx, with offsets given by the
    //    fe_offset array.
    FiniteElementCollection *fe_coll = FECollection::NewH1(order, dim,
-                                                          mesh->NURBSext);
+                                                          mesh->IsNURBS());
    FiniteElementSpace fespace(mesh, fe_coll, dim);
 
    int fe_size = fespace.GetTrueVSize();
@@ -270,7 +270,7 @@ int main(int argc, char *argv[])
    mesh->GetNodes(x_ref);
 
    FiniteElementCollection *w_fec = FECollection::NewL2(order+1, dim,
-                                                        mesh->NURBSext);
+                                                        mesh->IsNURBS());
    FiniteElementSpace w_fespace(mesh, w_fec);
    GridFunction w(&w_fespace);
 

@@ -6,20 +6,13 @@
 // Compile with: make nurbs_mesh_info
 //
 // Sample runs:
-//    nurbs_mesh_info -m ../data/cude_nurbs.mesh -p 0 -r 2
+//    nurbs_mesh_info -m ../../data/cube-nurbs.mesh -o 0 -r 2
 
-// Description:  This example code solves the time-dependent advection equation
-//               du/dt + v.grad(u) = 0, where v is a given fluid velocity, and
-//               u0(x)=u(0,x) is a given initial condition.
+// Description:  This code prints detailed mesh information such as:
+//                - Print separate patch info
+//                - 1D shape functions associated knot vectors
+//                - Give Greville, Botella and Demko points of the knot vectors
 //
-//               The example demonstrates the use of Discontinuous Galerkin (DG)
-//               bilinear forms in MFEM (face integrators), the use of implicit
-//               and explicit ODE time integrators, the definition of periodic
-//               boundary conditions through periodic meshes, as well as the use
-//               of GLVis for persistent visualization of a time-evolving
-//               solution. The saving of time-dependent data files for external
-//               visualization with VisIt (visit.llnl.gov) and ParaView
-//               (paraview.org) is also illustrated.
 
 #include <iostream>
 #include "mfem.hpp"
@@ -34,6 +27,7 @@ int main(int argc, char *argv[])
    const char *ref_file  = "";
    int ref_levels = -1;
    int order = 1;
+   bool visualization = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -44,6 +38,9 @@ int main(int argc, char *argv[])
                   "File with refinement data");
    args.AddOption(&order, "-o", "--order",
                   "NURBS order (polynomial degree) or -1 for");
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
    args.Parse();
    if (!args.Good())
    {

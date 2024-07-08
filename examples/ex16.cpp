@@ -183,7 +183,7 @@ int main(int argc, char *argv[])
    // 5. Define the vector finite element space representing the current and the
    //    initial temperature, u_ref.
    FiniteElementCollection *fe_coll = FECollection::NewH1(order, dim,
-                                                          mesh->NURBSext);
+                                                          mesh->IsNURBS());
    FiniteElementSpace fespace(mesh, fe_coll);
 
    int fe_size = fespace.GetTrueVSize();

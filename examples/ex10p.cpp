@@ -289,7 +289,7 @@ int main(int argc, char *argv[])
    //    as a system, we group them together in block vector vx, on the unique
    //    parallel degrees of freedom, with offsets given by array true_offset.
    FiniteElementCollection *fe_coll = FECollection::NewH1(order, dim,
-                                                          pmesh->NURBSext);
+                                                          pmesh->IsNURBS());
    ParFiniteElementSpace fespace(pmesh, fe_coll, dim);
 
    HYPRE_BigInt glob_size = fespace.GlobalTrueVSize();
@@ -312,7 +312,7 @@ int main(int argc, char *argv[])
    pmesh->GetNodes(x_ref);
 
    FiniteElementCollection *w_fec = FECollection::NewL2(order+1, dim,
-                                                        pmesh->NURBSext);
+                                                        pmesh->IsNURBS());
    ParFiniteElementSpace w_fespace(pmesh, w_fec);
    ParGridFunction w_gf(&w_fespace);
 
