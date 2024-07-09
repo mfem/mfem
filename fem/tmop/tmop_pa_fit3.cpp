@@ -19,7 +19,7 @@
 namespace mfem
 {
 
-MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_Fit_2D,
+MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_Fit_3D,
                            const int NE,
                            const real_t &c1_,
                            const real_t &c2_,
@@ -32,20 +32,19 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_Fit_2D,
                            const int q1d)
 {
    constexpr int DIM = 3;
-   constexpr int NBZ = 1;
 
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
    const auto C1 = c1_;
    const auto C2 = c2_;
-   const auto X1 = Reshape(x1_.Read(), D1D, 1, DIM, NE);
-   const auto X2 = Reshape(x2_.Read(), D1D, 1, DIM, NE);
-   const auto X3 = Reshape(x3_.Read(), D1D, 1, DIM, NE);
+   const auto X1 = Reshape(x1_.Read(), D1D, 1, 1, DIM, NE);
+   const auto X2 = Reshape(x2_.Read(), D1D, 1, 1, DIM, NE);
+   const auto X3 = Reshape(x3_.Read(), D1D, 1, 1, DIM, NE);
 
-   auto E = Reshape(energy.Write(), D1D, 1, NE);
+   auto E = Reshape(energy.Write(), D1D, 1, 1, NE);
 
-   mfem::forall_2D_batch(NE, D1D, D1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_3D(NE, D1D, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -68,7 +67,7 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_Fit_2D,
             double w = coeff * normal * 1.0/dof_count;
             E(qx,qy,qz,e) = w * sigma;   
             }
-      }
+        }
       }  
       
    });
@@ -76,7 +75,7 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_Fit_2D,
    return energy * ones; 
 }
 
-real_t TMOP_Integrator::GetLocalStateEnergyPA_Fit_2D(const Vector &X) const
+real_t TMOP_Integrator::GetLocalStateEnergyPA_Fit_3D(const Vector &X) const
 {
    const int N = PA.ne;
    const int meshOrder = surf_fit_gf->FESpace()->GetMaxElementOrder();
@@ -93,7 +92,7 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_Fit_2D(const Vector &X) const
    const Vector &X2 = PA.X2;
    const Vector &X3 = PA.X3;
 
-   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_Fit_2D,id,N,C1,C2,X1,X2,X3,O,E);
+   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_Fit_3D,id,N,C1,C2,X1,X2,X3,O,E);
 }
 
 } // namespace mfem
