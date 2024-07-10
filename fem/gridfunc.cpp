@@ -2463,8 +2463,8 @@ void GridFunction::ProjectCoefficientGlobalL2(Coefficient &coeff, real_t rtol,
    CGSolver cg;
    cg.SetOperator(A);
    cg.SetPreconditioner(prec);
-   cg.SetRelTol(1e-12);
-   cg.SetMaxIter(1000);
+   cg.SetRelTol(rtol);
+   cg.SetMaxIter(iter);
    cg.SetPrintLevel(0);
 
    // Solve and get solution
@@ -2560,13 +2560,19 @@ void GridFunction::ProjectCoefficientGlobalL2(VectorCoefficient &vcoeff,
 {
    // Define and assemble linear form
    LinearForm b(fes);
-   b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(vcoeff));
-   b.Assemble();
-
-   // Define and assemble bilinear form
    BilinearForm a(fes);
-   a.AddDomainIntegrator(new VectorFEMassIntegrator());
+   if (fes->FEColl()->GetRangeType(3)  == mfem::FiniteElement::VECTOR)
+   {
+      b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(vcoeff));
+      a.AddDomainIntegrator(new VectorFEMassIntegrator());
+   }
+   else
+   {
+      b.AddDomainIntegrator(new VectorDomainLFIntegrator(vcoeff));
+      a.AddDomainIntegrator(new VectorMassIntegrator());
+   }
    a.Assemble();
+   b.Assemble();
 
    // Set solver and preconditioner
    SparseMatrix A(a.SpMat());
@@ -2574,8 +2580,8 @@ void GridFunction::ProjectCoefficientGlobalL2(VectorCoefficient &vcoeff,
    CGSolver cg;
    cg.SetOperator(A);
    cg.SetPreconditioner(prec);
-   cg.SetRelTol(1e-12);
-   cg.SetMaxIter(1000);
+   cg.SetRelTol(rtol);
+   cg.SetMaxIter(iter);
    cg.SetPrintLevel(0);
 
    // Solve and get solution

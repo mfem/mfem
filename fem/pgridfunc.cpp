@@ -588,6 +588,71 @@ void ParGridFunction::ProjectCoefficient(Coefficient &coeff)
    }
 }
 
+
+void ParGridFunction::ProjectCoefficientGlobalL2(Coefficient &coeff, real_t rtol,
+                                              int iter)
+{
+   // Define and assemble linear form
+   ParLinearForm b(pfes);
+   b.AddDomainIntegrator(new DomainLFIntegrator(coeff));
+   b.Assemble();
+
+   // Define and assemble bilinear form
+   ParBilinearForm a(pfes);
+   a.AddDomainIntegrator(new MassIntegrator());
+   a.Assemble();
+
+   // Set solver and preconditioner
+   SparseMatrix A(a.SpMat());
+   GSSmoother  prec(A);
+   CGSolver cg;
+   cg.SetOperator(A);
+   cg.SetPreconditioner(prec);
+   cg.SetRelTol(rtol);
+   cg.SetMaxIter(iter);
+   cg.SetPrintLevel(0);
+
+   // Solve and get solution
+   *this = 0.0;
+   cg.Mult(b,*this);
+}
+
+void ParGridFunction::ProjectCoefficientGlobalL2(VectorCoefficient &vcoeff,
+                                                 real_t rtol, int iter)
+{
+   // Define and assemble linear form
+   ParLinearForm b(pfes);
+   ParBilinearForm a(pfes);
+   if (fes->FEColl()->GetRangeType(3)  == mfem::FiniteElement::VECTOR)
+   {
+      b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(vcoeff));
+      a.AddDomainIntegrator(new VectorFEMassIntegrator());
+   }
+   else
+   {
+      b.AddDomainIntegrator(new VectorDomainLFIntegrator(vcoeff));
+      a.AddDomainIntegrator(new VectorMassIntegrator());
+   }
+   a.Assemble();
+   b.Assemble();
+
+   // Set solver and preconditioner
+   SparseMatrix A(a.SpMat());
+   GSSmoother  prec(A);
+   CGSolver cg;
+   cg.SetOperator(A);
+   cg.SetPreconditioner(prec);
+   cg.SetRelTol(rtol);
+   cg.SetMaxIter(iter);
+   cg.SetPrintLevel(0);
+
+   // Solve and get solution
+   *this = 0.0;
+   cg.Mult(b,*this);
+}
+
+
+
 void ParGridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff)
 {
    // local maximal element attribute for each dof

@@ -184,7 +184,7 @@ public:
        Caller gets ownership. */
    static FiniteElementCollection *NewL2(int order, int dim, bool NURBS = false);
 
-   /** F@brief actory method: return a newly allocated HDiv conforming FiniteElementCollection.
+   /** @brief Factory method: return a newly allocated HDiv conforming FiniteElementCollection.
        The NURBS flag determines if this needs to be a NURBS-based FiniteElementCollection.
        Caller gets ownership. */
    static FiniteElementCollection *NewHDiv(int order, int dim, bool NURBS = false);
