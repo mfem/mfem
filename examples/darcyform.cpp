@@ -327,6 +327,10 @@ void DarcyForm::Finalize(int skip_zeros)
          M_p->Finalize(skip_zeros);
          block_op->SetDiagonalBlock(1, M_p, (bsym)?(-1.):(+1.));
       }
+      else if (Mnl_p)
+      {
+         block_op->SetDiagonalBlock(1, Mnl_p, (bsym)?(-1.):(+1.));
+      }
 
       if (B)
       {
