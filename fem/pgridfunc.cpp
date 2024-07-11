@@ -589,8 +589,9 @@ void ParGridFunction::ProjectCoefficient(Coefficient &coeff)
 }
 
 
-void ParGridFunction::ProjectCoefficientGlobalL2(Coefficient &coeff, real_t rtol,
-                                              int iter)
+void ParGridFunction::ProjectCoefficientGlobalL2(Coefficient &coeff,
+                                                 real_t rtol,
+                                                 int iter)
 {
    // Define and assemble linear form
    ParLinearForm b(pfes);
@@ -602,19 +603,21 @@ void ParGridFunction::ProjectCoefficientGlobalL2(Coefficient &coeff, real_t rtol
    a.AddDomainIntegrator(new MassIntegrator());
    a.Assemble();
 
-   // Set solver and preconditioner
-   SparseMatrix A(a.SpMat());
-   GSSmoother  prec(A);
-   CGSolver cg;
-   cg.SetOperator(A);
-   cg.SetPreconditioner(prec);
+   // Configure solver
+   OperatorPtr A;
+   Vector B, X, x(*this);
+   Array<int> ess_tdof_list;
+   a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+   Solver *prec = new HypreBoomerAMG;
+   CGSolver cg(MPI_COMM_WORLD);
    cg.SetRelTol(rtol);
    cg.SetMaxIter(iter);
    cg.SetPrintLevel(0);
-
-   // Solve and get solution
-   *this = 0.0;
-   cg.Mult(b,*this);
+   cg.SetPreconditioner(*prec);
+   cg.SetOperator(*A);
+   cg.Mult(B, X);
+   a.RecoverFEMSolution(X, b, x);
+   delete prec;
 }
 
 void ParGridFunction::ProjectCoefficientGlobalL2(VectorCoefficient &vcoeff,
@@ -623,6 +626,8 @@ void ParGridFunction::ProjectCoefficientGlobalL2(VectorCoefficient &vcoeff,
    // Define and assemble linear form
    ParLinearForm b(pfes);
    ParBilinearForm a(pfes);
+
+   // Dimension argument to GetRangeType is arbitrary to be 3, could also be 2.
    if (fes->FEColl()->GetRangeType(3)  == mfem::FiniteElement::VECTOR)
    {
       b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(vcoeff));
@@ -633,24 +638,27 @@ void ParGridFunction::ProjectCoefficientGlobalL2(VectorCoefficient &vcoeff,
       b.AddDomainIntegrator(new VectorDomainLFIntegrator(vcoeff));
       a.AddDomainIntegrator(new VectorMassIntegrator());
    }
-   a.Assemble();
    b.Assemble();
+   a.Assemble();
 
-   // Set solver and preconditioner
-   SparseMatrix A(a.SpMat());
-   GSSmoother  prec(A);
-   CGSolver cg;
-   cg.SetOperator(A);
-   cg.SetPreconditioner(prec);
+   // Configure solver
+   OperatorPtr A;
+   Vector B, X, x(*this);
+   x = 0.0;
+   Array<int> ess_tdof_list;
+   a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+   Solver *prec = new HypreBoomerAMG;
+   CGSolver cg(MPI_COMM_WORLD);
    cg.SetRelTol(rtol);
    cg.SetMaxIter(iter);
    cg.SetPrintLevel(0);
-
-   // Solve and get solution
-   *this = 0.0;
-   cg.Mult(b,*this);
+   cg.SetPreconditioner(*prec);
+   cg.SetOperator(*A);
+   cg.Mult(B, X);
+   a.RecoverFEMSolution(X, b, x);
+   x.Print();
+   delete prec;
 }
-
 
 
 void ParGridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff)

@@ -49,8 +49,8 @@ int main(int argc, char *argv[])
    }
 
    // Read the mesh
-   Mesh *mesh = new Mesh(mesh_file, 1, 1);
-   NURBSExtension *ext = mesh->NURBSext;
+   Mesh mesh(mesh_file, 1, 1);
+   NURBSExtension *ext = mesh.NURBSext;
 
    if (!ext)
    {
@@ -58,20 +58,20 @@ int main(int argc, char *argv[])
    }
 
    // Refine the mesh as specified
-   mesh->DegreeElevate(16, order);
+   mesh.DegreeElevate(16, order);
 
-   if (mesh->NURBSext && (strlen(ref_file) != 0))
+   if (mesh.NURBSext && (strlen(ref_file) != 0))
    {
-      mesh->RefineNURBSFromFile(ref_file);
+      mesh.RefineNURBSFromFile(ref_file);
    }
 
    for (int l = 0; l < ref_levels; l++)
    {
-      mesh->UniformRefinement();
+      mesh.UniformRefinement();
    }
 
    // Print mesh info
-   mesh->PrintInfo();
+   mesh.PrintInfo();
 
    // Print patch info
    mfem::out<<"=======================================;"<<endl;
@@ -159,5 +159,5 @@ int main(int argc, char *argv[])
       kv.PrintFunction(ofs, a, 201);
       ofs.close();
    }
-   delete mesh;
+
 }
