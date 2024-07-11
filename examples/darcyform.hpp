@@ -320,8 +320,8 @@ private:
    FaceElementTransformations *GetGFaceMatrix(int f, DenseMatrix &Gt_1,
                                               DenseMatrix &Gt_2, Array<int> &c_dofs) const;
    void GetCtSubMatrix(int el, const Array<int> &c_dofs, DenseMatrix &Ct) const;
-   void MultInvNL(int el, const Vector &bu_l, const Vector &bp_l, const Vector &x,
-                  Vector &u_l, Vector &p_l) const;
+   void MultInvNL(int el, const Vector &bu_l, const Vector &bp_l,
+                  const BlockVector &x_l, Vector &u_l, Vector &p_l) const;
    void MultInv(int el, const Vector &bu, const Vector &bp, Vector &u,
                 Vector &p) const;
 

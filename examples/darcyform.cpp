@@ -1653,8 +1653,9 @@ void DarcyHybridization::MultNL(int mode, const BlockVector &b, const Vector &x,
 #ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
    const int dim = fes->GetMesh()->Dimension();
    DenseMatrix Ct_1, Ct_2, E_1, E_2;
-   Vector x_l;
+   BlockVector x_l;
    Array<int> c_dofs;
+   Array<int> c_offsets;
    Array<int> faces, oris;
 #else //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
    MFEM_ASSERT(!c_nlfi_p,
@@ -1707,7 +1708,6 @@ void DarcyHybridization::MultNL(int mode, const BlockVector &b, const Vector &x,
          bp_l.Neg();
       }
 
-#ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
       switch (dim)
       {
          case 1:
@@ -1721,15 +1721,31 @@ void DarcyHybridization::MultNL(int mode, const BlockVector &b, const Vector &x,
             break;
       }
 
+      c_offsets.SetSize(faces.Size()+1);
+      c_offsets[0] = 0;
+      for (int f = 0; f < faces.Size(); f++)
+      {
+         c_fes->GetFaceVDofs(faces[f], c_dofs);
+         c_offsets[f+1] = c_offsets[f] + c_dofs.Size();
+      }
+
+      x_l.Update(c_offsets);
+      for (int f = 0; f < faces.Size(); f++)
+      {
+         c_fes->GetFaceVDofs(faces[f], c_dofs);
+         x.GetSubVector(c_dofs, x_l.GetBlock(f));
+      }
+
+#ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
       // bu - C^T x
       for (int f = 0; f < faces.Size(); f++)
       {
          FaceElementTransformations *FTr = GetCtFaceMatrix(faces[f], Ct_1, Ct_2, c_dofs);
          if (!FTr) { continue; }
 
-         x.GetSubVector(c_dofs, x_l);
+         const Vector &x_f = x_l.GetBlock(f);
          DenseMatrix &Ct = (FTr->Elem1No == el)?(Ct_1):(Ct_2);
-         Ct.AddMult_a(-1., x_l, bu_l);
+         Ct.AddMult_a(-1., x_f, bu_l);
 
          //NOTE: bp - Ex is deferred to MultInvNL
       }
@@ -1747,7 +1763,7 @@ void DarcyHybridization::MultNL(int mode, const BlockVector &b, const Vector &x,
       p_l.SetSize(p_dofs.Size());
       //initial guess?
       p_l = 0.;
-      MultInvNL(el, bu_l, bp_l, x, u_l, p_l);
+      MultInvNL(el, bu_l, bp_l, x_l, u_l, p_l);
 
       if (mode == 1)
       {
@@ -1768,6 +1784,7 @@ void DarcyHybridization::MultNL(int mode, const BlockVector &b, const Vector &x,
          Ct.MultTranspose(u_l, y_l);
 
          //G p_l + H x_l
+         const Vector &x_f = x_l.GetBlock(f);
          Vector GpHx_l;
          int type = NonlinearFormIntegrator::HDGFaceType::CONSTR
                     | NonlinearFormIntegrator::HDGFaceType::FACE;
@@ -1779,13 +1796,11 @@ void DarcyHybridization::MultNL(int mode, const BlockVector &b, const Vector &x,
             {
                if (FTr->Elem1No != el) { type |= 1; }
 
-               x.GetSubVector(c_dofs, x_l);
-
                c_nlfi_p->AssembleHDGFaceVector(type,
                                                *c_fes->GetFaceElement(faces[f]),
                                                *fes_p->GetFE(el),
                                                *fes->GetMesh()->GetInteriorFaceTransformations(faces[f]),
-                                               x_l, p_l, GpHx_l);
+                                               x_f, p_l, GpHx_l);
 
                y_l += GpHx_l;
             }
@@ -1793,7 +1808,6 @@ void DarcyHybridization::MultNL(int mode, const BlockVector &b, const Vector &x,
          else
          {
             //boundary
-            x.GetSubVector(c_dofs, x_l);
 
             const int bdr_attr = fes->GetMesh()->GetBdrAttribute(f_2_b[faces[f]]);
 
@@ -1806,7 +1820,7 @@ void DarcyHybridization::MultNL(int mode, const BlockVector &b, const Vector &x,
                                                                                *c_fes->GetFaceElement(faces[f]),
                                                                                *fes_p->GetFE(el),
                                                                                *fes->GetMesh()->GetFaceElementTransformations(faces[f]),
-                                                                               x_l, p_l, GpHx_l);
+                                                                               x_f, p_l, GpHx_l);
 
                y_l += GpHx_l;
             }
@@ -1898,7 +1912,7 @@ void DarcyHybridization::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
 }
 
 void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
-                                   const Vector &bp_l, const Vector &x,
+                                   const Vector &bp_l, const BlockVector &x_l,
                                    Vector &u_l, Vector &p_l) const
 {
    const int a_dofs_size = Af_f_offsets[el+1] - Af_f_offsets[el];
@@ -1922,22 +1936,6 @@ void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
       case 3:
          fes->GetMesh()->GetElementFaces(el, faces, oris);
          break;
-   }
-
-   Array<int> c_offsets(faces.Size()+1);
-   Array<int> c_dofs;
-   c_offsets[0] = 0;
-   for (int f = 0; f < faces.Size(); f++)
-   {
-      c_fes->GetFaceVDofs(faces[f], c_dofs);
-      c_offsets[f+1] = c_offsets[f] + c_dofs.Size();
-   }
-
-   BlockVector x_l(c_offsets);
-   for (int f = 0; f < faces.Size(); f++)
-   {
-      c_fes->GetFaceVDofs(faces[f], c_dofs);
-      x.GetSubVector(c_dofs, x_l.GetBlock(f));
    }
 
    //construct the local operator
