@@ -90,8 +90,6 @@ int main (int argc, char *argv[])
       // b pulls the top-right corner out.
       // c adds boundary deformation.
       double a = 0.2, b = 0.5, c = 1.3;
-      // coord_x(i)     = x + a * sin(M_PI * x) * sin(M_PI * y) + d * x * y;
-      // coord_x(i + N) = y + a * sin(M_PI * x) * sin(M_PI * y) + d * x * y;
       coord_x(i)     = x + a * sin(0.5 * M_PI * x) * sin(c * M_PI * y)   + b * x * y;
       coord_x(i + N) = y + a * sin(c * M_PI * x)   * sin(0.5 * M_PI * y) + b * x * y;
    }
@@ -116,14 +114,14 @@ int main (int argc, char *argv[])
    MFEM_VERIFY(min_detJ > 0.0, "Inverted initial meshes are not supported.");
 
    // Mark which nodes to move tangentially.
-   Array<int> fit_marker_0(pfes_mesh.GetNDofs()),
-              fit_marker_1(pfes_mesh.GetNDofs()),
-              fit_marker_2(pfes_mesh.GetNDofs());
+   Array<bool> fit_marker_top(pfes_mesh.GetNDofs());
+   Array<bool> fit_marker_right(pfes_mesh.GetNDofs());
+   Array<int> fit_marker_2(pfes_mesh.GetNDofs());
    ParFiniteElementSpace pfes_scalar(&pmesh, &fec_mesh, 1);
    ParGridFunction fit_marker_vis_gf(&pfes_scalar);
    Array<int> vdofs, ess_vdofs;
-   fit_marker_0 = -1;
-   fit_marker_1 = -1;
+   fit_marker_top   = false;
+   fit_marker_right = false;
    fit_marker_2 = -1;
    fit_marker_vis_gf = 0.0;
    for (int e = 0; e < pmesh.GetNBE(); e++)
@@ -139,7 +137,7 @@ int main (int argc, char *argv[])
          {
             // Eliminate y component.
             ess_vdofs.Append(vdofs[j+nd]);
-            fit_marker_0[vdofs[j]] = 0;
+            fit_marker_top[vdofs[j]] = true;
          }
       }
       // Right boundary.
@@ -149,7 +147,7 @@ int main (int argc, char *argv[])
          {
             // Eliminate y component.
             ess_vdofs.Append(vdofs[j+nd]);
-            fit_marker_1[vdofs[j]] = 1;
+            fit_marker_right[vdofs[j]] = true;
          }
       }
       else if (attr == 3)
@@ -182,15 +180,15 @@ int main (int argc, char *argv[])
       for (int j = 0; j < nd; j++)
       {
          int cnt = 0;
-         if (fit_marker_0[vdofs[j]] >= 0) { cnt++; }
-         if (fit_marker_1[vdofs[j]] >= 0) { cnt++; }
+         if (fit_marker_top[vdofs[j]])   { cnt++; }
+         if (fit_marker_right[vdofs[j]]) { cnt++; }
          if (fit_marker_2[vdofs[j]] >= 0) { cnt++; }
 
          fit_marker_vis_gf(vdofs[j]) = cnt;
 
          if (cnt > 1) { ess_vdofs.Append(vdofs[j]); }
-         else if (fit_marker_0[vdofs[j]] >= 0) { dof_to_surface[vdofs[j]] = 0; }
-         else if (fit_marker_1[vdofs[j]] >= 0) { dof_to_surface[vdofs[j]] = 1; }
+         else if (fit_marker_top[vdofs[j]])   { dof_to_surface[vdofs[j]] = 0; }
+         else if (fit_marker_right[vdofs[j]]) { dof_to_surface[vdofs[j]] = 1; }
       }
    }
 
@@ -226,7 +224,7 @@ int main (int argc, char *argv[])
                             400, 0, 400, 400, "me");
    }
 
-   // return 0;
+   //return 0;
 
    // TMOP setup.
    TMOP_QualityMetric *metric;

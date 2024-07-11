@@ -25,6 +25,8 @@ namespace mfem
 class AnalyticSurface
 {
 protected:
+   friend class AnalyticCompositeSurface;
+
    const Array<int> &dof_to_surface;
 
 public:
@@ -65,11 +67,14 @@ class AnalyticCompositeSurface : public AnalyticSurface
 {
 protected:
    const Array<const AnalyticSurface *> &surfaces;
+   Array<int> d_t_s;
 
 public:
    AnalyticCompositeSurface(const Array<int> &dof_surf,
-                            const Array<const AnalyticSurface *> &surf)
-      : AnalyticSurface(dof_surf), surfaces(surf) { }
+                            const Array<const AnalyticSurface *> &surf);
+
+   /// Must be called after the Array of surfaces is changed.
+   void UpdateDofToSurface();
 
    const AnalyticSurface *GetSurface(int surf_id) const
    { return surfaces[surf_id]; }

@@ -20,10 +20,32 @@ namespace mfem
 {
 
 AnalyticSurface::AnalyticSurface(const Array<int> &marker)
-   : dof_to_surface(marker),
-     distance_gf()
+   : dof_to_surface(marker), distance_gf()
 {
    //geometry->ComputeDistances(coord, pmesh, pfes_mesh);
+}
+
+AnalyticCompositeSurface::AnalyticCompositeSurface
+    (const Array<int> &dof_surf, const Array<const AnalyticSurface *> &surf)
+    : AnalyticSurface(dof_surf), surfaces(surf), d_t_s(dof_to_surface.Size())
+{
+   UpdateDofToSurface();
+}
+
+void AnalyticCompositeSurface::UpdateDofToSurface()
+{
+   d_t_s = -1;
+   for (int s = 0; s < surfaces.Size(); s++)
+   {
+      for (int i = 0; i < d_t_s.Size(); i++)
+      {
+         if (surfaces[s]->dof_to_surface[i] == true)
+         {
+            if (d_t_s[i] == -1)    { d_t_s[i] = s; }
+            else if (d_t_s[i] > 0) { d_t_s[i] = -2; }
+         }
+      }
+   }
 }
 
 void AnalyticCompositeSurface::ConvertPhysCoordToParam(const Vector &coord_x,
