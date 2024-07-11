@@ -38,9 +38,9 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_Fit_3D,
 
    const auto C1 = c1_;
    const auto C2 = c2_;
-   const auto X1 = Reshape(x1_.Read(), D1D, 1, 1, DIM, NE);
-   const auto X2 = Reshape(x2_.Read(), D1D, 1, 1, DIM, NE);
-   const auto X3 = Reshape(x3_.Read(), D1D, 1, 1, DIM, NE);
+   const auto X1 = Reshape(x1_.Read(), D1D, D1D, D1D, NE);
+   const auto X2 = Reshape(x2_.Read(), D1D, D1D, D1D, NE);
+   const auto X3 = Reshape(x3_.Read(), D1D, D1D, D1D, NE);
 
    auto E = Reshape(energy.Write(), D1D, 1, 1, NE);
 
@@ -57,9 +57,9 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_Fit_3D,
         {
             MFEM_FOREACH_THREAD(qx,x,D1D)
             {
-            const real_t sigma = X1(qx,qy,qz,0,e);
-            const real_t dof_count = X2(qx,qy,qz,0,e);
-            const real_t marker = X3(qx,qy,qz,0,e); 
+            const real_t sigma = X1(qx,qy,qz,e);
+            const real_t dof_count = X2(qx,qy,qz,e);
+            const real_t marker = X3(qx,qy,qz,e); 
             const real_t coeff = C1;
             const real_t normal = C2;
 
@@ -71,7 +71,6 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_Fit_3D,
       }  
       
    });
-   out << energy * ones;
    return energy * ones; 
 }
 
