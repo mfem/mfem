@@ -97,6 +97,12 @@ void DifferentiableOperator<kernels_tuple,
    DeviceTensor<1, const double> integration_weights(
       this->op.integration_rule.GetWeights().Read(), num_qp);
 
+   Vector zero;
+   GeometricFactorMaps geometric_factors
+   {
+      DeviceTensor<3, const double>(zero.Read(), 0, 0, 0)
+   };
+
    // fields interpolated to the quadrature points in the order of
    // kernel function arguments
    auto input_qp = map_inputs_to_memory(input_qp_mem, num_qp,
@@ -155,7 +161,7 @@ void DifferentiableOperator<kernels_tuple,
       map_fields_to_quadrature_data(
          input_qp, e, this->fields_e,
          kinput_to_field, input_dtq_ops,
-         integration_weights, kernel.inputs,
+         integration_weights, geometric_factors, kernel.inputs,
          std::make_index_sequence<kernel.num_kinputs> {});
 
       for (int q = 0; q < num_qp; q++)

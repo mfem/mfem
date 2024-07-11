@@ -20,6 +20,7 @@
 
 #include "dual.hpp"
 #include "general/backends.hpp"
+#include <limits>
 #include <type_traits> // for std::false_type
 
 namespace mfem
@@ -437,6 +438,15 @@ tensor<decltype(f(n1, n2, n3, n4)), n1, n2, n3, n4>
    return A;
 }
 
+template <typename T, int n1, int n2> MFEM_HOST_DEVICE
+tensor<T, n2> get_col(tensor<T, n1, n2> A, int j)
+{
+   tensor<T, n2> c{};
+   c(0) = A(0, j);
+   c(1) = A(1, j);
+   return c;
+}
+
 /**
  * @brief return the sum of two tensors
  * @tparam S the underlying type of the lefthand argument
@@ -696,6 +706,20 @@ auto outer(S A, T B) -> decltype(A * B)
    static_assert(std::is_arithmetic<S>::value && std::is_arithmetic<T>::value,
                  "outer product types must be tensor or arithmetic_type");
    return A * B;
+}
+
+template <typename T, int n, int m> MFEM_HOST_DEVICE
+tensor<T, n + m> flatten(tensor<T, n, m> A)
+{
+   tensor<T, n + m> B{};
+   for (int i = 0; i < n; i++)
+   {
+      for (int j = 0; j < m; j++)
+      {
+         B(i + j * m) = A(i, j);
+      }
+   }
+   return B;
 }
 
 /**
@@ -1349,10 +1373,131 @@ T det(const tensor<T, 3, 3>& A)
 }
 
 template <typename T> MFEM_HOST_DEVICE
-tensor<T, 2, 1> ortho(tensor<T, 2, 1> J)
+std::tuple<tensor<T, 2>, tensor<T, 2, 2>> eig(tensor<T, 2, 2> &A)
 {
-   return tensor<T, 2, 1> {J(1), -J(0)};
+   tensor<T, 2> e;
+   tensor<T, 2, 2> v;
+
+   double d0 = A(0, 0);
+   double d2 = A(0, 1);
+   double d3 = A(1, 1);
+   double c, s;
+
+   if (d2 == 0.0)
+   {
+      c = 1.0;
+      s = 0.0;
+   }
+   else
+   {
+      double t;
+      const double zeta = (d3 - d0) / (2.0 * d2);
+      const double azeta = fabs(zeta);
+      if (azeta < std::sqrt(1.0/std::numeric_limits<T>::epsilon()))
+      {
+         t = copysign(1./(azeta + std::sqrt(1. + zeta*zeta)), zeta);
+      }
+      else
+      {
+         t = copysign(0.5/azeta, zeta);
+      }
+      c = std::sqrt(1./(1. + t*t));
+      s = c*t;
+      t *= d2;
+      d0 -= t;
+      d3 += t;
+   }
+
+   if (d0 <= d3)
+   {
+      e(0) = d0;
+      e(1) = d3;
+      v(0, 0) =  c;
+      v(1, 0) = -s;
+      v(0, 1) =  s;
+      v(1, 1) =  c;
+   }
+   else
+   {
+      e(0) = d3;
+      e(1) = d0;
+      v(0, 0) =  s;
+      v(1, 0) =  c;
+      v(0, 1) =  c;
+      v(1, 1) = -s;
+   }
+
+   return {e, v};
 }
+
+template <typename T> MFEM_HOST_DEVICE
+void GetScalingFactor(const T &d_max, T &mult)
+{
+   int d_exp;
+   if (d_max > 0.)
+   {
+      mult = frexp(d_max, &d_exp);
+      if (d_exp == std::numeric_limits<T>::max_exponent)
+      {
+         mult *= std::numeric_limits<T>::radix;
+      }
+      mult = d_max/mult;
+   }
+   else
+   {
+      mult = 1.;
+   }
+}
+
+/**
+ * @brief Compute the i-th singular value of a 2x2 matrix A
+ */
+template <typename T> MFEM_HOST_DEVICE
+T calcsv(const tensor<T, 2, 2> A, const int i)
+{
+   double mult;
+   double d0, d1, d2, d3;
+   d0 = A(0, 0);
+   d1 = A(1, 0);
+   d2 = A(0, 1);
+   d3 = A(1, 1);
+
+   double d_max = fabs(d0);
+   if (d_max < fabs(d1)) { d_max = fabs(d1); }
+   if (d_max < fabs(d2)) { d_max = fabs(d2); }
+   if (d_max < fabs(d3)) { d_max = fabs(d3); }
+
+   GetScalingFactor(d_max, mult);
+
+   d0 /= mult;
+   d1 /= mult;
+   d2 /= mult;
+   d3 /= mult;
+
+   double t = 0.5*((d0+d2)*(d0-d2)+(d1-d3)*(d1+d3));
+   double s = d0*d2 + d1*d3;
+   s = std::sqrt(0.5*(d0*d0 + d1*d1 + d2*d2 + d3*d3) + std::sqrt(t*t + s*s));
+
+   if (s == 0.0)
+   {
+      return 0.0;
+   }
+   t = fabs(d0*d3 - d1*d2) / s;
+   if (t > s)
+   {
+      if (i == 0)
+      {
+         return t*mult;
+      }
+      return s*mult;
+   }
+   if (i == 0)
+   {
+      return s*mult;
+   }
+   return t*mult;
+}
+
 
 /**
  * @brief Return whether a square rank 2 tensor is symmetric

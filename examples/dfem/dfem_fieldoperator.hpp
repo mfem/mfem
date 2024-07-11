@@ -5,7 +5,9 @@
 class FieldOperator
 {
 public:
-   FieldOperator(std::string field_label) : field_label(field_label) {};
+   FieldOperator(std::string field_label = "", int size_on_qp = 0) :
+      field_label(field_label),
+      size_on_qp(size_on_qp) {};
 
    std::string field_label;
 
@@ -19,13 +21,14 @@ public:
 class None : public FieldOperator
 {
 public:
-   None(std::string field_label) : FieldOperator(field_label) {}
+   None(std::string field_label) :
+      FieldOperator(field_label) {}
 };
 
 class Weight : public FieldOperator
 {
 public:
-   Weight(std::string field_label) : FieldOperator(field_label) {};
+   Weight() : FieldOperator("quadrature_weights") {};
 };
 
 class Value : public FieldOperator
@@ -62,6 +65,12 @@ class FaceValueRight : public FieldOperator
 {
 public:
    FaceValueRight(std::string field_label) : FieldOperator(field_label) {};
+};
+
+class FaceNormal : public FieldOperator
+{
+public:
+   FaceNormal(std::string field_label) : FieldOperator(field_label) {};
 };
 
 class One : public FieldOperator

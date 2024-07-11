@@ -490,11 +490,6 @@ if (MFEM_USE_PARELAG)
    find_package(PARELAG REQUIRED)
 endif()
 
-# Enzyme
-if (MFEM_USE_ENZYME)
-    find_package(Enzyme REQUIRED CONFIG)
-endif()
-
 # MFEM_TIMER_TYPE
 if (NOT DEFINED MFEM_TIMER_TYPE)
   if (APPLE)
@@ -622,9 +617,11 @@ if (MFEM_USE_MPI)
   endif()
 endif()
 
+# Enzyme
 if (MFEM_USE_ENZYME)
+    find_package(Enzyme REQUIRED)
+    # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ClangEnzymeFlags")
     target_link_libraries(mfem PUBLIC ClangEnzymeFlags)
-    target_compile_options(mfem PUBLIC -mllvm -enzyme-loose-types)
 endif()
 
 set_target_properties(mfem PROPERTIES VERSION "${mfem_VERSION}")
@@ -655,7 +652,7 @@ if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
 #include \"${PROJECT_SOURCE_DIR}/${Header}\"
 ")
 
-    execute_process(COMMAND ${CMAKE_COMMAND} -E copy_if_different 
+    execute_process(COMMAND ${CMAKE_COMMAND} -E copy_if_different
       "${PROJECT_BINARY_DIR}/${Header}.tmp"
       "${PROJECT_BINARY_DIR}/${Header}"
     )
@@ -669,7 +666,7 @@ if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
 #include \"mfem/${Header}\"
 ")
 
-    execute_process(COMMAND ${CMAKE_COMMAND} -E copy_if_different 
+    execute_process(COMMAND ${CMAKE_COMMAND} -E copy_if_different
       "${PROJECT_BINARY_DIR}/InstallHeaders/${Header}.tmp"
       "${PROJECT_BINARY_DIR}/InstallHeaders/${Header}"
     )

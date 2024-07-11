@@ -9,16 +9,733 @@
 #include <variant>
 #include <vector>
 #include <type_traits>
-
-#include "dfem_util.hpp"
+#include <mfem.hpp>
+#include <general/forall.hpp>
+#include <type_traits>
+#include "dfem_fieldoperator.hpp"
+#include "dfem_parametricspace.hpp"
+#include "fem/qspace.hpp"
+#include "fem/restriction.hpp"
+#include "general/backends.hpp"
+#include "linalg/operator.hpp"
+#include "mesh/mesh.hpp"
 #include <linalg/tensor.hpp>
 
+#include "noisy.hpp"
 #include <enzyme/enzyme>
 
 using std::size_t;
 
 namespace mfem
 {
+
+template <typename T>
+constexpr auto get_type_name() -> std::string_view
+{
+#if defined(__clang__)
+   constexpr auto prefix = std::string_view {"[T = "};
+   constexpr auto suffix = "]";
+   constexpr auto function = std::string_view{__PRETTY_FUNCTION__};
+#elif defined(__GNUC__)
+   constexpr auto prefix = std::string_view {"with T = "};
+   constexpr auto suffix = "; ";
+   constexpr auto function = std::string_view{__PRETTY_FUNCTION__};
+#elif defined(_MSC_VER)
+   constexpr auto prefix = std::string_view {"get_type_name<"};
+   constexpr auto suffix = ">(void)";
+   constexpr auto function = std::string_view{__FUNCSIG__};
+#else
+#error Unsupported compiler
+#endif
+
+   const auto start = function.find(prefix) + prefix.size();
+   const auto end = function.find(suffix);
+   const auto size = end - start;
+
+   return function.substr(start, size);
+}
+
+void print_matrix(const mfem::DenseMatrix m)
+{
+   std::cout << "[";
+   for (int i = 0; i < m.NumRows(); i++)
+   {
+      for (int j = 0; j < m.NumCols(); j++)
+      {
+         std::cout << m(i, j);
+         if (j < m.NumCols() - 1)
+         {
+            std::cout << " ";
+         }
+      }
+      if (i < m.NumRows() - 1)
+      {
+         std::cout << "; ";
+      }
+   }
+   std::cout << "]\n";
+}
+
+void print_vector(const mfem::Vector v)
+{
+   std::cout << "[";
+   for (int i = 0; i < v.Size(); i++)
+   {
+      std::cout << v(i);
+      if (i < v.Size() - 1)
+      {
+         std::cout << " ";
+      }
+   }
+   std::cout << "]\n";
+}
+
+template <typename ... Ts>
+constexpr auto decay_types(std::tuple<Ts...> const &)
+-> std::tuple<std::remove_cv_t<std::remove_reference_t<Ts>>...>;
+
+template <typename T>
+using decay_tuple = decltype(decay_types(std::declval<T>()));
+
+template <class F> struct FunctionSignature;
+
+template <typename output_t, typename... input_ts>
+struct FunctionSignature<output_t(input_ts...)>
+{
+   using return_t = output_t;
+   using parameter_ts = std::tuple<input_ts...>;
+};
+
+template <class T> struct create_function_signature;
+
+template <typename output_t, typename T, typename... input_ts>
+struct create_function_signature<output_t (T::*)(input_ts...) const>
+{
+   using type = FunctionSignature<output_t(input_ts...)>;
+};
+
+struct FieldDescriptor
+{
+   using variant_t = std::variant<const FiniteElementSpace *,
+         const ParFiniteElementSpace *,
+         const ParametricSpace *>;
+
+   variant_t data;
+
+   std::string field_label;
+};
+
+using mult_func_t = std::function<void(Vector &)>;
+
+template <class... T> constexpr bool always_false = false;
+
+struct GeometricFactorMaps
+{
+   DeviceTensor<3, const double> normal;
+};
+
+namespace Entity
+{
+struct Element;
+struct BoundaryElement;
+struct Face;
+struct BoundaryFace;
+};
+
+template <typename entity_t>
+GeometricFactorMaps GetGeometricFactorMaps(Mesh &mesh,
+                                           const IntegrationRule &ir)
+{
+   if constexpr (std::is_same_v<entity_t, Entity::BoundaryElement>)
+   {
+      const FaceGeometricFactors *fg =
+         mesh.GetFaceGeometricFactors(
+            ir,
+            FaceGeometricFactors::FactorFlags::NORMALS,
+            FaceType::Boundary);
+
+      return GeometricFactorMaps
+      {
+         DeviceTensor<3, const double>(
+            fg->normal.Read(), ir.GetNPoints(), mesh.SpaceDimension(), mesh.GetNBE()
+         )
+      };
+   }
+
+   Vector zero;
+   return GeometricFactorMaps{DeviceTensor<3, const double>(zero.Read(), 0, 0, 0)};
+}
+
+template <typename func_t, typename input_t,
+          typename output_t>
+struct ElementOperator;
+
+template <typename func_t, typename... input_ts,
+          typename... output_ts>
+struct ElementOperator<func_t, std::tuple<input_ts...>,
+          std::tuple<output_ts...>>
+{
+   using entity_t = Entity::Element;
+   func_t func;
+   std::tuple<input_ts...> inputs;
+   std::tuple<output_ts...> outputs;
+   using kf_param_ts = typename create_function_signature<
+                       decltype(&decltype(func)::operator())>::type::parameter_ts;
+
+   using kf_output_t = typename create_function_signature<
+                       decltype(&decltype(func)::operator())>::type::return_t;
+
+   using kernel_inputs_t = decltype(inputs);
+   using kernel_outputs_t = decltype(outputs);
+
+   static constexpr size_t num_kinputs = std::tuple_size_v<kernel_inputs_t>;
+   static constexpr size_t num_koutputs = std::tuple_size_v<kernel_outputs_t>;
+
+   Array<int> attributes;
+
+   ElementOperator(func_t func,
+                   std::tuple<input_ts...> inputs,
+                   std::tuple<output_ts...> outputs,
+                   Array<int> *attr = nullptr)
+      : func(func), inputs(inputs), outputs(outputs)
+   {
+      if (attr)
+      {
+         attributes = *attr;
+      }
+      // Properly check all parameter types of the kernel
+      // std::apply([](auto&&... args)
+      // {
+      //    ((out << std::is_reference_v<decltype(args)> << "\n"), ...);
+      // },
+      // kf_param_ts);
+
+      // Consistency checks
+      if constexpr (num_koutputs > 1)
+      {
+         static_assert(always_false<func_t>,
+                       "more than one output per kernel is not supported right now");
+      }
+
+      constexpr size_t num_kfinputs = std::tuple_size_v<kf_param_ts>;
+      static_assert(num_kfinputs == num_kinputs,
+                    "kernel function inputs and descriptor inputs have to match");
+
+      constexpr size_t num_kfoutputs = std::tuple_size_v<kf_output_t>;
+      static_assert(num_kfoutputs == num_koutputs,
+                    "kernel function outputs and descriptor outputs have to match");
+   }
+};
+
+template <typename func_t, typename... input_ts,
+          typename... output_ts>
+ElementOperator(func_t, std::tuple<input_ts...>,
+                std::tuple<output_ts...>)
+-> ElementOperator<func_t, std::tuple<input_ts...>,
+std::tuple<output_ts...>>;
+
+template <typename func_t, typename input_t, typename output_t>
+struct BoundaryElementOperator : public
+   ElementOperator<func_t, input_t, output_t>
+{
+public:
+   using entity_t = Entity::BoundaryElement;
+   BoundaryElementOperator(func_t func, input_t inputs, output_t outputs)
+      : ElementOperator<func_t, input_t, output_t>(func, inputs, outputs) {}
+};
+
+template <typename func_t, typename input_t, typename output_t>
+struct FaceOperator : public
+   ElementOperator<func_t, input_t, output_t>
+{
+public:
+   using entity_t = Entity::Face;
+   FaceOperator(func_t func, input_t inputs, output_t outputs)
+      : ElementOperator<func_t, input_t, output_t>(func, inputs, outputs) {}
+};
+
+int GetVSize(const FieldDescriptor &f)
+{
+   return std::visit([](auto arg)
+   {
+      if (arg == nullptr)
+      {
+         MFEM_ABORT("FieldDescriptor data is nullptr");
+      }
+
+      using T = std::decay_t<decltype(arg)>;
+      if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
+                    std::is_same_v<T, const ParFiniteElementSpace *>)
+      {
+         return arg->GetVSize();
+      }
+      else if constexpr (std::is_same_v<T, const ParametricSpace *>)
+      {
+         return arg->GetTotalSize();
+      }
+      else
+      {
+         static_assert(always_false<T>, "can't use GetVSize on type");
+      }
+   }, f.data);
+}
+
+void GetElementVDofs(const FieldDescriptor &f, int el, Array<int> &vdofs)
+{
+   return std::visit([&](auto arg)
+   {
+      if (arg == nullptr)
+      {
+         MFEM_ABORT("FieldDescriptor data is nullptr");
+      }
+
+      using T = std::decay_t<decltype(arg)>;
+      if constexpr (std::is_same_v<T, const FiniteElementSpace *>)
+      {
+         arg->GetElementVDofs(el, vdofs);
+      }
+      else if constexpr (std::is_same_v<T, const ParFiniteElementSpace *>)
+      {
+         arg->GetElementVDofs(el, vdofs);
+      }
+      else if constexpr (std::is_same_v<T, const ParametricSpace *>)
+      {
+         MFEM_ABORT("internal error");
+      }
+      else
+      {
+         static_assert(always_false<T>, "can't use GetElementVdofs on type");
+      }
+   }, f.data);
+}
+
+int GetTrueVSize(const FieldDescriptor &f)
+{
+   return std::visit([](auto arg)
+   {
+      if (arg == nullptr)
+      {
+         MFEM_ABORT("FieldDescriptor data is nullptr");
+      }
+
+      using T = std::decay_t<decltype(arg)>;
+      if constexpr (std::is_same_v<T, const FiniteElementSpace *>)
+      {
+         return arg->GetTrueVSize();
+      }
+      else if constexpr (std::is_same_v<T, const ParFiniteElementSpace *>)
+      {
+         return arg->GetTrueVSize();
+      }
+      else if constexpr (std::is_same_v<T, const ParametricSpace *>)
+      {
+         return arg->GetTotalSize();
+      }
+      else
+      {
+         static_assert(always_false<T>, "can't use GetTrueVSize on type");
+      }
+   }, f.data);
+}
+
+int GetVDim(const FieldDescriptor &f)
+{
+   return std::visit([](auto && arg)
+   {
+      using T = std::decay_t<decltype(arg)>;
+      if constexpr (std::is_same_v<T, const FiniteElementSpace *>)
+      {
+         return arg->GetVDim();
+      }
+      else if constexpr (std::is_same_v<T, const ParFiniteElementSpace *>)
+      {
+         return arg->GetVDim();
+      }
+      else if constexpr (std::is_same_v<T, const ParametricSpace *>)
+      {
+         return arg->GetLocalSize();
+      }
+      else
+      {
+         static_assert(always_false<T>, "can't use GetVDim on type");
+      }
+   }, f.data);
+}
+
+int GetVectorFEDim(const FieldDescriptor &f)
+{
+   return std::visit([](auto && arg)
+   {
+      using T = std::decay_t<decltype(arg)>;
+      if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
+                    std::is_same_v<T, const ParFiniteElementSpace *>)
+      {
+         if (arg->GetFE(0)->GetMapType() == FiniteElement::MapType::H_CURL ||
+             arg->GetFE(0)->GetMapType() == FiniteElement::MapType::H_DIV)
+         {
+            return arg->GetFE(0)->GetDim();
+         }
+         else
+         {
+            return 1;
+         }
+      }
+      else if constexpr (std::is_same_v<T, const ParametricSpace *>)
+      {
+         return 1;
+      }
+      else
+      {
+         static_assert(always_false<T>, "can't use GetVectorFEDim on type");
+      }
+   }, f.data);
+}
+
+int GetVectorFECurlDim(const FieldDescriptor &f)
+{
+   return std::visit([](auto && arg)
+   {
+      using T = std::decay_t<decltype(arg)>;
+      if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
+                    std::is_same_v<T, const ParFiniteElementSpace *>)
+      {
+         if (arg->GetFE(0)->GetMapType() == FiniteElement::MapType::H_CURL)
+         {
+            return arg->GetFE(0)->GetCurlDim();
+         }
+         else
+         {
+            return 1;
+         }
+      }
+      else if constexpr (std::is_same_v<T, const ParametricSpace *>)
+      {
+         return 1;
+      }
+      else
+      {
+         static_assert(always_false<T>, "can't use GetVectorFECurlDim on type");
+      }
+   }, f.data);
+}
+
+template <typename entity_t>
+int GetDimension(const FieldDescriptor &f)
+{
+   return std::visit([](auto && arg)
+   {
+      using T = std::decay_t<decltype(arg)>;
+      if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
+                    std::is_same_v<T, const ParFiniteElementSpace *>)
+      {
+         if constexpr (std::is_same_v<entity_t, Entity::Element>)
+         {
+            return arg->GetMesh()->Dimension();
+         }
+         else if constexpr (std::is_same_v<entity_t, Entity::BoundaryElement>)
+         {
+            return arg->GetMesh()->Dimension() - 1;
+         }
+      }
+      else if constexpr (std::is_same_v<T, const ParametricSpace *>)
+      {
+         return 1;
+      }
+      else
+      {
+         static_assert(always_false<T>, "can't use GetDimension on type");
+      }
+   }, f.data);
+}
+
+const Operator *get_prolongation(const FieldDescriptor &f)
+{
+   return std::visit([](auto&& arg) -> const Operator*
+   {
+      using T = std::decay_t<decltype(arg)>;
+      if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
+                    std::is_same_v<T, const ParFiniteElementSpace *>)
+      {
+         return arg->GetProlongationMatrix();
+      }
+      else if constexpr (std::is_same_v<T, const ParametricSpace *>)
+      {
+         return arg->GetProlongation();
+      }
+      else
+      {
+         static_assert(always_false<T>, "can't use GetProlongation on type");
+      }
+   }, f.data);
+}
+
+const Operator *get_element_restriction(const FieldDescriptor &f,
+                                        ElementDofOrdering o)
+{
+   return std::visit([&o](auto&& arg) -> const Operator*
+   {
+      using T = std::decay_t<decltype(arg)>;
+      if constexpr (std::is_same_v<T, const FiniteElementSpace *>
+                    || std::is_same_v<T, const ParFiniteElementSpace *>)
+      {
+         return arg->GetElementRestriction(o);
+      }
+      else if constexpr (std::is_same_v<T, const ParametricSpace *>)
+      {
+         return arg->GetRestriction();
+      }
+      else
+      {
+         static_assert(always_false<T>, "can't use GetElementRestriction on type");
+      }
+   }, f.data);
+}
+
+const Operator *get_face_restriction(const FieldDescriptor &f,
+                                     ElementDofOrdering o,
+                                     FaceType ft,
+                                     L2FaceValues m)
+{
+   return std::visit([&o, &ft, &m](auto&& arg) -> const Operator*
+   {
+      using T = std::decay_t<decltype(arg)>;
+      if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
+                    std::is_same_v<T, const ParFiniteElementSpace *>)
+      {
+         return arg->GetFaceRestriction(o, ft, m);
+      }
+      else if constexpr (std::is_same_v<T, const ParametricSpace *>)
+      {
+         return arg->GetRestriction();
+      }
+      else
+      {
+         static_assert(always_false<T>, "can't use get_face_restriction on type");
+      }
+   }, f.data);
+}
+
+
+template <typename entity_t>
+inline
+const Operator *get_restriction(const FieldDescriptor &f,
+                                const ElementDofOrdering &o)
+{
+   if constexpr (std::is_same_v<entity_t, Entity::Element>)
+   {
+      return get_element_restriction(f, o);
+   }
+   else if constexpr (std::is_same_v<entity_t, Entity::BoundaryElement>)
+   {
+      return get_face_restriction(f, o, FaceType::Boundary,
+                                  L2FaceValues::SingleValued);
+   }
+   MFEM_ABORT("restriction not implemented for Entity");
+   return nullptr;
+}
+
+template <size_t N, size_t M>
+void prolongation(const std::array<FieldDescriptor, N> fields,
+                  const Vector &x,
+                  std::array<Vector, M> &fields_l)
+{
+   int data_offset = 0;
+   for (int i = 0; i < N; i++)
+   {
+      const auto P = get_prolongation(fields[i]);
+      const int width = P->Width();
+      const Vector x_i(x.GetData() + data_offset, width);
+      fields_l[i].SetSize(P->Height());
+
+      P->Mult(x_i, fields_l[i]);
+      data_offset += width;
+   }
+}
+
+template <typename entity_t, size_t N, size_t M>
+void restriction(const std::array<FieldDescriptor, N> u,
+                 const std::array<Vector, N> &u_l,
+                 std::array<Vector, M> &fields_e,
+                 ElementDofOrdering ordering,
+                 const int offset = 0)
+{
+   for (int i = 0; i < N; i++)
+   {
+      const auto R = get_restriction<entity_t>(u[i], ordering);
+      MFEM_ASSERT(R->Width() == u_l[i].Size(),
+                  "restriction not applicable to given data size");
+      const int height = R->Height();
+      fields_e[i + offset].SetSize(height);
+      R->Mult(u_l[i], fields_e[i + offset]);
+   }
+}
+
+// TODO: keep this temporarily
+template <size_t N, size_t M>
+void element_restriction(const std::array<FieldDescriptor, N> u,
+                         const std::array<Vector, N> &u_l,
+                         std::array<Vector, M> &fields_e,
+                         ElementDofOrdering ordering,
+                         const int offset = 0)
+{
+   for (int i = 0; i < N; i++)
+   {
+      const auto R = get_element_restriction(u[i], ordering);
+      MFEM_ASSERT(R->Width() == u_l[i].Size(),
+                  "element restriction not applicable to given data size");
+      const int height = R->Height();
+      fields_e[i + offset].SetSize(height);
+      R->Mult(u_l[i], fields_e[i + offset]);
+   }
+}
+
+template <typename entity_t>
+int GetNumEntities(mfem::Mesh &mesh)
+{
+   if constexpr (std::is_same_v<entity_t, Entity::Element>)
+   {
+      return mesh.GetNE();
+   }
+   else if constexpr (std::is_same_v<entity_t, Entity::BoundaryElement>)
+   {
+      return mesh.GetNBE();
+   }
+   else
+   {
+      static_assert(always_false<entity_t>, "can't use GetNumEntites on type");
+   }
+}
+
+template <typename entity_t>
+inline
+const DofToQuad *GetDofToQuad(const FieldDescriptor &f,
+                              const IntegrationRule &ir,
+                              DofToQuad::Mode mode)
+{
+   return std::visit([&ir, &mode](auto&& arg) -> const DofToQuad*
+   {
+      using T = std::decay_t<decltype(arg)>;
+      if constexpr (std::is_same_v<T, const FiniteElementSpace *>
+                    || std::is_same_v<T, const ParFiniteElementSpace *>)
+      {
+         if constexpr (std::is_same_v<entity_t, Entity::Element>)
+         {
+            return &arg->GetFE(0)->GetDofToQuad(ir, mode);
+         }
+         else if constexpr (std::is_same_v<entity_t, Entity::BoundaryElement>)
+         {
+            return &arg->GetBE(0)->GetDofToQuad(ir, mode);
+         }
+      }
+      else if constexpr (std::is_same_v<T, const ParametricSpace *>)
+      {
+         return &arg->GetDofToQuad();
+      }
+      else
+      {
+         static_assert(always_false<T>, "can't use GetDofToQuad on type");
+      }
+   }, f.data);
+}
+
+template <typename field_operator_t>
+void CheckCompatibility(const FieldDescriptor &f)
+{
+   std::visit([](auto && arg)
+   {
+      using T = std::decay_t<decltype(arg)>;
+      if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
+                    std::is_same_v<T, const ParFiniteElementSpace *>)
+      {
+         if constexpr (std::is_same_v<field_operator_t, One>)
+         {
+            // Supported by all FE spaces
+         }
+         else if constexpr (std::is_same_v<field_operator_t, Value>)
+         {
+            // Supported by all FE spaces
+         }
+         else if constexpr (std::is_same_v<field_operator_t, Gradient>)
+         {
+            MFEM_ASSERT(arg->GetFE(0)->GetMapType() == FiniteElement::MapType::VALUE,
+                        "Gradient not compatible with FE");
+         }
+         else if constexpr (std::is_same_v<field_operator_t, Curl>)
+         {
+            MFEM_ASSERT(arg->GetFE(0)->GetMapType() == FiniteElement::MapType::H_CURL,
+                        "Curl not compatible with FE");
+         }
+         else if constexpr (std::is_same_v<field_operator_t, Div>)
+         {
+            MFEM_ASSERT(arg->GetFE(0)->GetMapType() == FiniteElement::MapType::H_DIV,
+                        "Div not compatible with FE");
+         }
+         else if constexpr (std::is_same_v<field_operator_t, FaceValueLeft> ||
+                            std::is_same_v<field_operator_t, FaceValueRight>)
+         {
+            MFEM_ASSERT(arg->GetFE(0)->GetMapType() == FiniteElement::MapType::VALUE,
+                        "FaceValueLeft/FaceValueRight not compatible with FE");
+         }
+         else
+         {
+            static_assert(always_false<T, field_operator_t>,
+                          "FieldOperator not compatible with FiniteElementSpace");
+         }
+      }
+      else if constexpr (std::is_same_v<T, const ParametricSpace *>)
+      {
+         if constexpr (std::is_same_v<field_operator_t, None>)
+         {
+            // Only supported field operation for ParametricSpace
+         }
+         else
+         {
+            static_assert(always_false<T, field_operator_t>,
+                          "FieldOperator not compatible with ParametricSpace");
+         }
+      }
+      else
+      {
+         static_assert(always_false<T, field_operator_t>,
+                       "Operator not compatible with FE");
+      }
+   }, f.data);
+}
+
+template <typename entity_t, typename field_operator_t>
+int GetSizeOnQP(const field_operator_t &, const FieldDescriptor &f)
+{
+   // CheckCompatibility<field_operator_t>(f);
+
+   if constexpr (std::is_same_v<field_operator_t, Value>)
+   {
+      return GetVDim(f) * GetVectorFEDim(f);
+   }
+   else if constexpr (std::is_same_v<field_operator_t, Gradient>)
+   {
+      return GetVDim(f) * GetDimension<entity_t>(f);
+   }
+   else if constexpr (std::is_same_v<field_operator_t, Curl>)
+   {
+      return GetVDim(f) * GetVectorFECurlDim(f);
+   }
+   else if constexpr (std::is_same_v<field_operator_t, Div>)
+   {
+      return GetVDim(f);
+   }
+   else if constexpr (std::is_same_v<field_operator_t, None>)
+   {
+      return GetVDim(f);
+   }
+   else if constexpr (std::is_same_v<field_operator_t, One>)
+   {
+      return 1;
+   }
+   else
+   {
+      MFEM_ABORT("can't get size on quadrature point for field descriptor");
+   }
+}
 
 template <size_t num_fields>
 typename std::array<FieldDescriptor, num_fields>::const_iterator find_name(
@@ -67,6 +784,13 @@ std::array<int, std::tuple_size_v<field_operator_ts>>
          fop.size_on_qp = 1;
          map = -1;
       }
+      else if constexpr (std::is_same_v<decltype(fop), FaceNormal&>)
+      {
+         fop.dim = GetDimension<Entity::Element>(fields[i]);
+         fop.vdim = 1;
+         fop.size_on_qp = fop.dim;
+         map = -1;
+      }
       else if ((i = find_name_idx(fields, fop.field_label)) != -1)
       {
          fop.dim = GetDimension<entity_t>(fields[i]);
@@ -76,7 +800,7 @@ std::array<int, std::tuple_size_v<field_operator_ts>>
       }
       else
       {
-         MFEM_ABORT("can't find field for " << fop.field_label);
+         MFEM_ABORT("can't find field for label: " << fop.field_label);
       }
    };
 
@@ -102,7 +826,7 @@ std::array<Vector, sizeof...(i)> create_input_qp_memory(
    return {Vector(std::get<i>(inputs).size_on_qp * num_qp)...};
 }
 
-struct DofToQuadOperator
+struct DofToQuadMaps
 {
    static constexpr int rank = 3;
    DeviceTensor<rank, const double> B;
@@ -124,18 +848,19 @@ struct DofToQuadOperator
 template <typename field_operator_t>
 void map_field_to_quadrature_data(
    DeviceTensor<2> field_qp,
-   int element_idx,
-   const DofToQuadOperator &B,
+   int entity_idx,
+   const DofToQuadMaps &B,
    const Vector &field_e,
    field_operator_t &input,
-   DeviceTensor<1, const double> integration_weights)
+   DeviceTensor<1, const double> integration_weights,
+   GeometricFactorMaps geometric_factors)
 {
    if constexpr (std::is_same_v<field_operator_t, Value>)
    {
       auto [num_qp, unused, num_dof] = B.GetShape();
       const int vdim = input.vdim;
-      const int element_offset = element_idx * num_dof * vdim;
-      const auto field = Reshape(field_e.Read() + element_offset, num_dof, vdim);
+      const int entity_offset = entity_idx * num_dof * vdim;
+      const auto field = Reshape(field_e.Read() + entity_offset, num_dof, vdim);
 
       for (int vd = 0; vd < vdim; vd++)
       {
@@ -154,8 +879,8 @@ void map_field_to_quadrature_data(
    {
       const auto [num_qp, dim, num_dof] = B.GetShape();
       const int vdim = input.vdim;
-      const int element_offset = element_idx * num_dof * vdim;
-      const auto field = Reshape(field_e.Read() + element_offset, num_dof, vdim);
+      const int entity_offset = entity_idx * num_dof * vdim;
+      const auto field = Reshape(field_e.Read() + entity_offset, num_dof, vdim);
 
       auto f = Reshape(&field_qp[0], vdim, dim, num_qp);
       for (int qp = 0; qp < num_qp; qp++)
@@ -178,8 +903,8 @@ void map_field_to_quadrature_data(
    {
       const auto [num_qp, cdim, num_dof] = B.GetShape();
       const int vdim = input.vdim;
-      const int element_offset = element_idx * num_dof * vdim;
-      const auto field = Reshape(field_e.Read() + element_offset, num_dof, vdim,
+      const int entity_offset = entity_idx * num_dof * vdim;
+      const auto field = Reshape(field_e.Read() + entity_offset, num_dof, vdim,
                                  cdim);
 
       auto f = Reshape(&field_qp[0], vdim, cdim, num_qp);
@@ -203,8 +928,8 @@ void map_field_to_quadrature_data(
    {
       auto [num_qp, unused, num_dof] = B.GetShape();
       const int vdim = input.vdim;
-      const int element_offset = element_idx * num_dof * vdim;
-      const auto field = Reshape(field_e.Read() + element_offset, num_dof, vdim);
+      const int entity_offset = entity_idx * num_dof * vdim;
+      const auto field = Reshape(field_e.Read() + entity_offset, num_dof, vdim);
 
       // for (int vd = 0; vd < vdim; vd++)
       // {
@@ -223,8 +948,8 @@ void map_field_to_quadrature_data(
    {
       auto [num_qp, unused, num_dof] = B.GetShape();
       const int vdim = input.vdim;
-      const int element_offset = element_idx * num_dof * vdim;
-      const auto field = Reshape(field_e.Read() + element_offset, num_dof, vdim);
+      const int entity_offset = entity_idx * num_dof * vdim;
+      const auto field = Reshape(field_e.Read() + entity_offset, num_dof, vdim);
 
       // for (int vd = 0; vd < vdim; vd++)
       // {
@@ -238,6 +963,19 @@ void map_field_to_quadrature_data(
       //       field_qp(vd, qp) = acc;
       //    }
       // }
+   }
+   else if constexpr (std::is_same_v<field_operator_t, FaceNormal>)
+   {
+      auto normal = geometric_factors.normal;
+      auto [num_qp, dim, num_entities] = normal.GetShape();
+      auto f = Reshape(&field_qp[0], dim, num_qp);
+      for (int qp = 0; qp < num_qp; qp++)
+      {
+         for (int d = 0; d < dim; d++)
+         {
+            f(d, qp) = normal(qp, d, entity_idx);
+         }
+      }
    }
    // TODO: Create separate function for clarity
    else if constexpr (std::is_same_v<field_operator_t, Weight>)
@@ -253,8 +991,8 @@ void map_field_to_quadrature_data(
    {
       auto [num_qp, unused, num_dof] = B.GetShape();
       const int size_on_qp = input.size_on_qp;
-      const int element_offset = element_idx * size_on_qp * num_qp;
-      const auto field = Reshape(field_e.Read() + element_offset,
+      const int entity_offset = entity_idx * size_on_qp * num_qp;
+      const auto field = Reshape(field_e.Read() + entity_offset,
                                  size_on_qp * num_qp);
       auto f = Reshape(&field_qp[0], size_on_qp * num_qp);
       for (int i = 0; i < size_on_qp * num_qp; i++)
@@ -275,28 +1013,30 @@ void map_fields_to_quadrature_data(
    int element_idx,
    const std::array<Vector, num_fields> fields_e,
    const std::array<int, num_kinputs> &kfinput_to_field,
-   const std::vector<DofToQuadOperator> &dtqmaps,
+   const std::vector<DofToQuadMaps> &dtqmaps,
    const DeviceTensor<1, const double> &integration_weights,
+   const GeometricFactorMaps &geometric_factors,
    field_operator_tuple_t fops,
    std::index_sequence<i...>)
 {
    (map_field_to_quadrature_data(fields_qp[i], element_idx,
                                  dtqmaps[i], fields_e[kfinput_to_field[i]],
-                                 std::get<i>(fops), integration_weights),
+                                 std::get<i>(fops), integration_weights, geometric_factors),
     ...);
 }
 
 template <typename input_type>
 void map_field_to_quadrature_data_conditional(
-   DeviceTensor<2> field_qp, int element_idx, DofToQuadOperator &dtqmaps,
+   DeviceTensor<2> field_qp, int element_idx, DofToQuadMaps &dtqmaps,
    const Vector &field_e, input_type &input,
    DeviceTensor<1, const double> integration_weights,
+   GeometricFactorMaps geometric_factors,
    const bool condition)
 {
    if (condition)
    {
       map_field_to_quadrature_data(field_qp, element_idx, dtqmaps, field_e, input,
-                                   integration_weights);
+                                   integration_weights, geometric_factors);
    }
 }
 
@@ -305,16 +1045,18 @@ void map_fields_to_quadrature_data_conditional(
    std::array<DeviceTensor<2>, num_kinputs> &fields_qp,
    int element_idx,
    const std::array<Vector, num_fields> &fields_e,
-   const int field_idx,
-   std::vector<DofToQuadOperator> &dtqmaps,
+   const std::array<int, num_kinputs> &kfinput_to_field,
+   std::vector<DofToQuadMaps> &dtqmaps,
    DeviceTensor<1, const double> integration_weights,
+   GeometricFactorMaps geometric_factors,
    std::array<bool, num_kinputs> conditions,
    field_operator_tuple_t fops,
    std::index_sequence<i...>)
 {
    (map_field_to_quadrature_data_conditional(fields_qp[i], element_idx,
-                                             dtqmaps[field_idx], fields_e[field_idx],
-                                             std::get<i>(fops), integration_weights, conditions[i]),
+                                             dtqmaps[i], fields_e[kfinput_to_field[i]],
+                                             std::get<i>(fops), integration_weights, geometric_factors,
+                                             conditions[i]),
     ...);
 }
 
@@ -347,17 +1089,23 @@ void prepare_kf_arg(const DeviceTensor<1> &u,
    }
 }
 
-template <int dim, int vdim>
+template <int n, int m>
 void prepare_kf_arg(const DeviceTensor<1> &u,
-                    internal::tensor<double, dim, vdim> &arg)
+                    internal::tensor<double, n, m> &arg)
 {
-   for (int i = 0; i < vdim; i++)
+   for (int i = 0; i < m; i++)
    {
-      for (int j = 0; j < dim; j++)
+      for (int j = 0; j < n; j++)
       {
-         arg(j, i) = u((i * vdim) + j);
+         arg(j, i) = u((i * m) + j);
       }
    }
+   // assuming col major layout. translating to row major.
+   // i + N_i*j
+   // arg(0, 0) = u(0);
+   // arg(0, 1) = u(0 + 2 * 1);
+   // arg(1, 0) = u(1 + 2 * 0);
+   // arg(1, 1) = u(1 + 2 * 1);
 }
 
 template <typename arg_type>
@@ -389,17 +1137,6 @@ Vector prepare_kf_result(std::tuple<Vector> x)
 }
 
 template <typename T, int length> inline
-Vector prepare_kf_result(std::tuple<internal::tensor<double, length>> x)
-{
-   Vector r(length);
-   for (size_t i = 0; i < length; i++)
-   {
-      r(i) = std::get<0>(x)(i);
-   }
-   return r;
-}
-
-template <typename T, int length> inline
 Vector prepare_kf_result(std::tuple<internal::tensor<T, length>> x)
 {
    Vector r(length);
@@ -410,15 +1147,15 @@ Vector prepare_kf_result(std::tuple<internal::tensor<T, length>> x)
    return r;
 }
 
-template <typename T, int length_1, int length_2> inline
-Vector prepare_kf_result(std::tuple<internal::tensor<T, length_1, length_2>> x)
+template <typename T, int n, int m> inline
+Vector prepare_kf_result(std::tuple<internal::tensor<T, n, m>> x)
 {
-   Vector r(length_1 * length_2);
-   for (size_t i = 0; i < length_1; i++)
+   Vector r(n * m);
+   for (size_t i = 0; i < n; i++)
    {
-      for (size_t j = 0; j < length_2; j++)
+      for (size_t j = 0; j < m; j++)
       {
-         r(j + length_2 * i) = std::get<0>(x)(i, j);
+         r(j + m * i) = std::get<0>(x)(i, j);
       }
    }
    return r;
@@ -436,20 +1173,20 @@ Vector prepare_kf_result(
    return r;
 }
 
-template <typename T> inline
-Vector prepare_kf_result(std::tuple<internal::tensor<T, 2, 2>> x)
-{
-   Vector r(4);
-   for (size_t i = 0; i < 2; i++)
-   {
-      for (size_t j = 0; j < 2; j++)
-      {
-         // TODO: Careful with the indices here!
-         r(j + (i * 2)) = std::get<0>(x)(j, i);
-      }
-   }
-   return r;
-}
+// template <typename T> inline
+// Vector prepare_kf_result(std::tuple<internal::tensor<T, 2, 2>> x)
+// {
+//    Vector r(4);
+//    for (size_t i = 0; i < 2; i++)
+//    {
+//       for (size_t j = 0; j < 2; j++)
+//       {
+//          // TODO: Careful with the indices here!
+//          r(j + (i * 2)) = std::get<0>(x)(j, i);
+//       }
+//    }
+//    return r;
+// }
 
 template <typename T> inline
 Vector prepare_kf_result(std::tuple<internal::dual<T, T>> x)
@@ -467,17 +1204,17 @@ Vector get_derivative_from_dual(std::tuple<internal::dual<T, T>> x)
    return r;
 }
 
-template <typename T> inline
+template <typename T, int n, int m> inline
 Vector get_derivative_from_dual(
-   std::tuple<internal::tensor<internal::dual<T, T>, 2, 2>> x)
+   std::tuple<internal::tensor<internal::dual<T, T>, n, m>> x)
 {
-   Vector r(4);
-   for (size_t i = 0; i < 2; i++)
+   Vector r(n * m);
+   for (size_t i = 0; i < n; i++)
    {
-      for (size_t j = 0; j < 2; j++)
+      for (size_t j = 0; j < m; j++)
       {
          // TODO: Careful with the indices here!
-         r(j + (i * 2)) = std::get<0>(x)(j, i).gradient;
+         r(j + (i * m)) = std::get<0>(x)(j, i).gradient;
       }
    }
    return r;
@@ -504,9 +1241,9 @@ Vector prepare_kf_result(T)
 
 template <size_t num_fields, typename kernel_func_t, typename kernel_args>
 inline
-auto apply_kernel(const kernel_func_t &kf, kernel_args &args,
-                  std::array<DeviceTensor<2>, num_fields> &u,
-                  int qp)
+Vector apply_kernel(const kernel_func_t &kf, kernel_args &args,
+                    std::array<DeviceTensor<2>, num_fields> &u,
+                    int qp)
 {
    prepare_kf_args(u, args, qp,
                    std::make_index_sequence<std::tuple_size_v<kernel_args>> {});
@@ -524,17 +1261,19 @@ auto create_enzyme_args(arg_ts &args,
                                   std::get<Is>(shadow_args))...);
 }
 
-// template <typename arg_ts, std::size_t... Is>
+// template <typename arg_ts, std::size_t... Is> inline
 // auto create_enzyme_args(arg_ts &args,
 //                         arg_ts &shadow_args,
 //                         std::index_sequence<Is...>)
 // {
+//    return std::tuple_cat(std::tie(
+//                             enzyme::Duplicated<std::remove_cv_t<std::remove_reference_t<decltype(std::get<Is>(args))>>*> {&std::get<Is>(args), &std::get<Is>(shadow_args)})...);
 //    // return std::tuple_cat(std::make_tuple(
 //    //                          enzyme::Duplicated<std::remove_cv_t<std::remove_reference_t<decltype(std::get<Is>(args))>>*> {&std::get<Is>(args), &std::get<Is>(shadow_args)})...);
-//    return std::tuple<enzyme::Duplicated<decltype(std::get<Is>(args))>...>
-//    {
-//       { std::get<Is>(args), std::get<Is>(shadow_args) }...
-//    };
+//    // return std::tuple<enzyme::Duplicated<decltype(std::get<Is>(args))>...>
+//    // {
+//    //    { std::get<Is>(args), std::get<Is>(shadow_args) }...
+//    // };
 // }
 
 template <typename kernel_t, typename arg_ts> inline
@@ -548,17 +1287,14 @@ auto fwddiff_apply_enzyme(kernel_t kernel, arg_ts &&args, arg_ts &&shadow_args)
    using kf_return_t = typename create_function_signature<
                        decltype(&kernel_t::operator())>::type::return_t;
 
-   // out << "args is " << get_type_name<decltype(args)>() << "\n\n";
-   // out << "enzyme_args type is " << get_type_name<decltype(enzyme_args)>() <<
-   //     "\n\n";
-   // out << "return type is " << get_type_name<decltype(kf_return_t{})>() <<
-   //     "\n\n";
-
    return std::apply([&](auto &&...args)
    {
       return __enzyme_fwddiff<kf_return_t>((void*)+kernel, &args...);
-      // return enzyme::get<0>( enzyme::autodiff<enzyme::Forward> (+kernel, args...));
+      // return enzyme::get<0>
+      //        (enzyme::autodiff<enzyme::Forward, enzyme::DuplicatedNoNeed<kf_return_t>>
+      //         (+kernel, args...));
    }, enzyme_args);
+   // return kf_return_t{};
 }
 
 template <typename kf_t, typename kernel_arg_ts, size_t num_args> inline
@@ -630,15 +1366,15 @@ void prepare_kf_arg(const DeviceTensor<1> &u, const DeviceTensor<1> &v,
    }
 }
 
-template <int dim, int vdim> inline
+template <int n, int m> inline
 void prepare_kf_arg(const DeviceTensor<1> &u, const DeviceTensor<1> &v,
-                    internal::tensor<double, dim, vdim> &arg)
+                    internal::tensor<double, n, m> &arg)
 {
-   for (int i = 0; i < vdim; i++)
+   for (int i = 0; i < m; i++)
    {
-      for (int j = 0; j < dim; j++)
+      for (int j = 0; j < n; j++)
       {
-         arg(j, i) = u((i * vdim) + j);
+         arg(j, i) = u((i * m) + j);
       }
    }
 }
@@ -701,7 +1437,7 @@ template <typename output_type>
 void map_quadrature_data_to_fields(DeviceTensor<2, double> y,
                                    DeviceTensor<3, double> c,
                                    output_type output,
-                                   DofToQuadOperator &B)
+                                   DofToQuadMaps &B)
 {
    // assuming the quadrature point residual has to "play nice with
    // the test function"
@@ -746,11 +1482,22 @@ void map_quadrature_data_to_fields(DeviceTensor<2, double> y,
    {
       // This is the "integral over all quadrature points type" applying
       // B = 1 s.t. B^T * C \in R^1.
-      auto [__, _, num_qp] = c.GetShape();
+      int num_qp;
+      std::tie(std::ignore, std::ignore, num_qp) = c.GetShape();
       auto cc = Reshape(&c(0, 0, 0), num_qp);
       for (int i = 0; i < num_qp; i++)
       {
          y(0, 0) += cc(i);
+      }
+   }
+   else if constexpr (std::is_same_v<decltype(output), None>)
+   {
+      const auto [vdim, dim, num_qp] = c.GetShape();
+      auto cc = Reshape(&c(0, 0, 0), num_qp * vdim);
+      auto yy = Reshape(&y(0, 0), num_qp * vdim);
+      for (int i = 0; i < num_qp * vdim; i++)
+      {
+         yy(i) = cc(i);
       }
    }
    else
@@ -761,14 +1508,14 @@ void map_quadrature_data_to_fields(DeviceTensor<2, double> y,
 }
 
 template <typename entity_t, typename field_operator_ts, size_t N, std::size_t... i>
-std::vector<DofToQuadOperator> create_dtq_operators_conditional(
+std::vector<DofToQuadMaps> create_dtq_operators_conditional(
    field_operator_ts &fops,
    std::vector<const DofToQuad*> dtqmaps,
    const std::array<int, N> &to_field_map,
    std::array<bool, N> active,
    std::index_sequence<i...>)
 {
-   std::vector<DofToQuadOperator> ops;
+   std::vector<DofToQuadMaps> ops;
    auto f = [&](auto fop, size_t idx)
    {
       if (active[idx])
@@ -808,6 +1555,22 @@ std::vector<DofToQuadOperator> create_dtq_operators_conditional(
          {
             ops.push_back({DeviceTensor<3, const double>(nullptr, 1, 1, 1), static_cast<int>(idx)});
          }
+         else if constexpr(std::is_same_v<decltype(fop), None>)
+         {
+            ops.push_back({DeviceTensor<3, const double>(nullptr, dtqmap->nqpt, 1, dtqmap->ndof), static_cast<int>(idx)});
+         }
+         else if constexpr(std::is_same_v<decltype(fop), Weight>)
+         {
+            // no op
+            // this is handled at runtime by the first condition
+            // to_field_map[idx] == -1.
+            // has to exist at compile time for completeness
+         }
+         else
+         {
+            static_assert(always_false<decltype(fop)>,
+                          "field operator type is not implemented");
+         }
       }
    };
    (f(std::get<i>(fops), i), ...);
@@ -815,7 +1578,7 @@ std::vector<DofToQuadOperator> create_dtq_operators_conditional(
 }
 
 template <typename entity_t, typename field_operator_ts, size_t N>
-std::vector<DofToQuadOperator> create_dtq_operators(
+std::vector<DofToQuadMaps> create_dtq_operators(
    field_operator_ts &fops,
    std::vector<const DofToQuad*> dtqmaps,
    const std::array<int, N> &to_field_map)
@@ -838,6 +1601,9 @@ template <
 class DifferentiableOperator : public Operator
 {
 public:
+   DifferentiableOperator(DifferentiableOperator&) = delete;
+   DifferentiableOperator(DifferentiableOperator&&) = delete;
+
    class Action : public Operator
    {
    public:
@@ -873,13 +1639,13 @@ public:
          y.SetSubVector(op.ess_tdof_list, 0.0);
       }
 
-      void SetParameters(std::vector<Vector *> p)
+      void SetParameters(std::vector<Vector *> p) const
       {
          MFEM_ASSERT(num_parameters == p.size(),
                      "number of parameters doesn't match descriptors");
          for (int i = 0; i < num_parameters; i++)
          {
-            // parameters_local[i].MakeRef(*(p[i]), 0, p[i]->Size());
+            // parameters_l[i].MakeRef(*(p[i]), 0, p[i]->Size());
             parameters_l[i] = *(p[i]);
          }
       }
@@ -1075,7 +1841,7 @@ public:
       residual.reset(new Action(*this, kernels));
    }
 
-   void SetParameters(std::vector<Vector *> p)
+   void SetParameters(std::vector<Vector *> p) const
    {
       residual->SetParameters(p);
    }
@@ -1124,13 +1890,19 @@ public:
 
    Array<int> ess_tdof_list;
 
+   // static constexpr ElementDofOrdering element_dof_ordering =
+   //    ElementDofOrdering::LEXICOGRAPHIC;
+
+   // static constexpr DofToQuad::Mode doftoquad_mode =
+   //    DofToQuad::Mode::LEXICOGRAPHIC_FULL;
+
    static constexpr ElementDofOrdering element_dof_ordering =
-      ElementDofOrdering::LEXICOGRAPHIC;
+      ElementDofOrdering::NATIVE;
 
    static constexpr DofToQuad::Mode doftoquad_mode =
-      DofToQuad::Mode::LEXICOGRAPHIC_FULL;
+      DofToQuad::Mode::FULL;
 
-   std::unique_ptr<Action> residual;
+   std::shared_ptr<Action> residual;
 };
 
 #include "dfem_action_callback.icc"

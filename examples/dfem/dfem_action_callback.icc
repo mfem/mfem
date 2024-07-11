@@ -66,12 +66,15 @@ void DifferentiableOperator<kernels_tuple,
    else
    {
       // TODO-bug: allocate correct size here!!!
-      residual_e.SetSize(GetVSize(op.fields[test_space_field_idx]) * num_entities);
+      // residual_e.SetSize(GetVSize(op.fields[test_space_field_idx]) * num_entities);
+      residual_e.SetSize(dtqmaps[hardcoded_output_idx]->ndof *
+                         GetVDim(op.fields[hardcoded_output_idx]) *
+                         num_entities);
    }
 
-   const int residual_size_on_qp = GetSizeOnQP<entity_t>(std::get<0>
-                                                         (kernel.outputs),
-                                                         op.fields[test_space_field_idx]);
+   const int residual_size_on_qp = GetSizeOnQP<entity_t>(
+                                      std::get<0>(kernel.outputs),
+                                      op.fields[test_space_field_idx]);
 
    if (residual_qp_mem.Size() > 0 &&
        (residual_qp_mem.Size() != residual_size_on_qp * num_qp * num_entities))
@@ -87,18 +90,21 @@ void DifferentiableOperator<kernels_tuple,
    auto input_qp_mem = create_input_qp_memory(num_qp, kernel.inputs,
                                               std::make_index_sequence<kernel.num_kinputs> {});
 
-   const Operator *R = get_restriction<entity_t>(op.fields[test_space_field_idx],
-                                                 element_dof_ordering);
-
    auto input_dtq_ops = create_dtq_operators<entity_t>(kernel.inputs, dtqmaps,
                                                        kinput_to_field);
    auto output_dtq_ops = create_dtq_operators<entity_t>(kernel.outputs, dtqmaps,
                                                         koutput_to_field);
 
+   GeometricFactorMaps geometric_factors =
+      GetGeometricFactorMaps<entity_t>(op.mesh, op.integration_rule);
+
+   const Operator *R = get_restriction<entity_t>(op.fields[test_space_field_idx],
+                                                 element_dof_ordering);
+
    func = [this, kernel, num_entities, num_qp, input_dtq_ops,
                  output_dtq_ops, residual_size_on_qp,
                  input_qp_mem, kinput_to_field, koutput_to_field,
-                 output_fop, R]
+                 output_fop, R, geometric_factors]
    (Vector &ye_mem) mutable
    {
       restriction<entity_t>(op.solutions, solutions_l, fields_e,
@@ -123,10 +129,8 @@ void DifferentiableOperator<kernels_tuple,
 
       constexpr int fixed_output_idx = 0;
       auto Bv = output_dtq_ops[fixed_output_idx];
-      auto [num_test_qp, test_op_dim, num_test_dof] = Bv.GetShape();
-
+      [[maybe_unused]] auto [test_op_qp, test_op_dim, num_test_dof] = Bv.GetShape();
       const int test_vdim = std::get<0>(kernel.outputs).vdim;
-
       DeviceTensor<3> ye = Reshape(ye_mem.ReadWrite(), num_test_dof, test_vdim, num_entities);
 
       for (int e = 0; e < num_entities; e++)
@@ -134,7 +138,7 @@ void DifferentiableOperator<kernels_tuple,
          map_fields_to_quadrature_data(
             input_qp, e, this->fields_e,
             kinput_to_field, input_dtq_ops,
-            integration_weights, kernel.inputs,
+            integration_weights, geometric_factors, kernel.inputs,
             std::make_index_sequence<kernel.num_kinputs> {});
 
          for (int q = 0; q < num_qp; q++)
@@ -153,7 +157,6 @@ void DifferentiableOperator<kernels_tuple,
          map_quadrature_data_to_fields(y, fhat,
                                        output_fop,
                                        output_dtq_ops[hardcoded_output_idx]);
-
       }
       R->MultTranspose(ye_mem, residual_l);
    };

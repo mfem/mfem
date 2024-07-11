@@ -1,4 +1,4 @@
-#include "dfem/dfem_refactor.hpp"
+#include "dfem/dfem.hpp"
 
 using namespace mfem;
 using mfem::internal::tensor;
@@ -200,7 +200,7 @@ int main(int argc, char *argv[])
       return std::tuple{(outer(u, u) - 1.0 / Re * dudx + p * I) * det(J) * w * transpose(invJ)};
    };
 
-   std::tuple argument_operators_0{Value{"velocity"}, Gradient{"velocity"}, Value{"pressure"}, Gradient{"coordinates"}, Weight{"integration_weights"}};
+   std::tuple argument_operators_0{Value{"velocity"}, Gradient{"velocity"}, Value{"pressure"}, Gradient{"coordinates"}, Weight{}};
    std::tuple output_operator_0{Gradient{"velocity"}};
    ElementOperator op_0{momentum_kernel, argument_operators_0, output_operator_0};
 
@@ -212,7 +212,7 @@ int main(int argc, char *argv[])
       return std::tuple{tr(dudxi * inv(J)) * det(J) * w};
    };
 
-   std::tuple argument_operators_1{Gradient{"velocity"}, Gradient{"coordinates"}, Weight{"integration_weights"}};
+   std::tuple argument_operators_1{Gradient{"velocity"}, Gradient{"coordinates"}, Weight{}};
    std::tuple output_operator_1{Value{"pressure"}};
    ElementOperator op_1{mass_conservation_kernel, argument_operators_1, output_operator_1};
 
@@ -229,7 +229,7 @@ int main(int argc, char *argv[])
       return std::tuple{p * det(J) * w};
    };
 
-   std::tuple pms_args{Value{"pressure"}, Gradient{"coordinates"}, Weight{"integration_weights"}};
+   std::tuple pms_args{Value{"pressure"}, Gradient{"coordinates"}, Weight{}};
    std::tuple pms_outs{Value{"pressure"}};
    ElementOperator pressure_mass{pressure_mass_kernel, pms_args, pms_outs};
    std::array pms_sols{FieldDescriptor{&pressure_fes, "pressure"}};
