@@ -367,7 +367,11 @@ public:
                           MemoryType d_mt_ = MemoryType::DEFAULT);
       #ifdef MFEM_USE_MPI
             L2ProjectionH1Space(const ParFiniteElementSpace &pfes_ho_,
-                              const ParFiniteElementSpace &pfes_lor_);
+                                const ParFiniteElementSpace &pfes_lor_, 
+                                Coefficient *coeff_,
+                                const bool use_device_,
+                                const bool verify_solution_, 
+                                MemoryType d_mt_ = MemoryType::DEFAULT);
       #endif
       /// Same as above but assembles action of R through 4 parts:
       ///   ( )  inv( lumped(M_L) ), which is a diagonal matrix (essentially a vector) 
@@ -431,7 +435,7 @@ public:
       /// @brief Computes on-rank R and M_LH matrices. If true, computes mixed mass and/or
       /// inverse lumped mass matrix error when compared to device implementation. 
       std::pair<std::unique_ptr<SparseMatrix>,
-          std::unique_ptr<SparseMatrix>> ComputeSparseRAndM_LH(bool GetM_LHError, bool getML_invError);
+          std::unique_ptr<SparseMatrix>> ComputeSparseRAndM_LH(bool GetM_LHError=false, bool getML_invError=false);
       /// @brief Recovers vector of tdofs given a vector of dofs and a finite
       /// element space
       void GetTDofs(const FiniteElementSpace& fes, const Vector& x, Vector& X) const;

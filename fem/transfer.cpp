@@ -1354,6 +1354,8 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
    : L2Projection(fes_ho_, fes_lor_, coeff_, d_mt_), 
      use_device(use_device_), verify_solution(verify_solution_)
 {
+   printf("enter serial H1space \n");
+
    if (use_device || verify_solution)
    {
       DeviceL2ProjectionH1Space(fes_ho_, fes_lor_, coeff_);
@@ -1412,11 +1414,23 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
 #ifdef MFEM_USE_MPI
 
 L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
-   const ParFiniteElementSpace& pfes_ho, const ParFiniteElementSpace& pfes_lor)
-   : L2Projection(pfes_ho, pfes_lor),
+   const ParFiniteElementSpace& pfes_ho, const ParFiniteElementSpace& pfes_lor, Coefficient* coeff_, 
+   const bool use_device_, const bool verify_solution_, MemoryType d_mt_)
+   : L2Projection(pfes_ho, pfes_lor, coeff_, d_mt_), 
+     use_device(use_device_), verify_solution(verify_solution_),
      pcg(pfes_ho.GetComm())
 {
+   printf("enter hypre mfem_use_mpi \n");
+
+   if (use_device || verify_solution)
+   {
+      printf("enter device h1 under mfem_use_mpi \n");
+      DeviceL2ProjectionH1Space(pfes_ho, pfes_lor, coeff_);
+      if (!verify_solution) {return;}
+   }
+
    std::tie(R, M_LH) = ComputeSparseRAndM_LH();
+
 
    ParFiniteElementSpace pfes_ho_scalar(pfes_ho.GetParMesh(),
                                         pfes_ho.FEColl(), 1);
@@ -1475,6 +1489,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::SetupPCG()
 void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
    const FiniteElementSpace &fes_ho_, const FiniteElementSpace &fes_lor_, Coefficient *coeff_)
 {
+   printf("enter device itself \n");
    // dynamic_cast to check if QuadFuncCoeff; if yes, continue; if no, return error
    auto qfunc_coeff = dynamic_cast<QuadratureFunctionCoefficient*>(coeff_);
    if (qfunc_coeff == NULL)
@@ -1612,7 +1627,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
    // ElementRestrictionOperator for LOR
    // **************************
    elem_restrict_l = fes_lor.GetElementRestriction(ElementDofOrdering::NATIVE);
-
+   printf("Get to here \n");
 
    // Set ownership
    M_LH_ea_op = new H1SpaceMixedMassOperator(&fes_ho, &fes_lor, &ho2lor, &M_mixed_all_ea);
@@ -1683,13 +1698,14 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::Mult(
       if (error > ho_lor_tol)
       {
          MFEM_VERIFY(false, "Mult difference too high = "<<error);
-      }
+      } 
    }
 }
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceMult(
    const Vector& x, Vector& y) const
-{
+{ 
+   // check if L-vector coming in is self-consistent 
    R_ea->Mult(x,y);
 }
 
@@ -2443,23 +2459,26 @@ void L2ProjectionGridTransfer::BuildF()
       if (!Parallel())
       {
          F = new L2ProjectionH1Space(dom_fes, ran_fes, coeff, 
-                                     use_device, verify_solution);
+                                     use_device, verify_solution, d_mt);
       }
       else
       {
 #ifdef MFEM_USE_MPI
+         printf("build F via mfem_use_mpi \n");
          const mfem::ParFiniteElementSpace& dom_pfes =
             static_cast<mfem::ParFiniteElementSpace&>(dom_fes);
          const mfem::ParFiniteElementSpace& ran_pfes =
             static_cast<mfem::ParFiniteElementSpace&>(ran_fes);
-         F = new L2ProjectionH1Space(dom_pfes, ran_pfes);
+         F = new L2ProjectionH1Space(dom_pfes, ran_pfes, coeff, 
+                                     use_device, verify_solution, d_mt);
+         printf("exit Build F \n");
 #endif
       }
    }
    else
    {  
       F = new L2ProjectionL2Space(dom_fes, ran_fes, coeff, 
-                                  use_device, verify_solution);
+                                  use_device, verify_solution, d_mt);
    }
 }
 
