@@ -1725,8 +1725,8 @@ void DarcyHybridization::MultNL(int mode, const BlockVector &b, const Vector &x,
       c_offsets[0] = 0;
       for (int f = 0; f < faces.Size(); f++)
       {
-         c_fes->GetFaceVDofs(faces[f], c_dofs);
-         c_offsets[f+1] = c_offsets[f] + c_dofs.Size();
+         const int c_size = c_fes->GetFaceElement(faces[f])->GetDof() * c_fes->GetVDim();
+         c_offsets[f+1] = c_offsets[f] + c_size;
       }
 
       x_l.Update(c_offsets);
