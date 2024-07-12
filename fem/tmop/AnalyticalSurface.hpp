@@ -27,22 +27,25 @@ class AnalyticSurface
 protected:
    friend class AnalyticCompositeSurface;
 
-   const Array<int> &dof_to_surface;
+   Array<bool> dof_marker;
 
 public:
    ParGridFunction distance_gf;
 
-   AnalyticSurface(const Array<int> &marker);
+   AnalyticSurface() : dof_marker(0) { }
+   AnalyticSurface(const Array<bool> &marker);
 
    // Go from physical to parametric coordinates on the whole mesh.
-   // 2D: (x, y)    -> t.
-   // 3D: (x, y, z) -> (u, v).
+   // 2D curve: (x, y)    -> t.
+   // 3D curve: (x, y, z) -> t.
+   // 3D surf:  (x, y, z) -> (u, v).
    virtual void ConvertPhysCoordToParam(const Vector &coord_x,
                                         Vector &coord_t) const = 0;
 
    // Go from parametric to physical coordinates on the whole mesh:
-   // 2D: t      -> (x, y).
-   // 3D: (u, v) -> (x, y, z).
+   // 2D curve: t      -> (x, y).
+   // 3D curve: t      -> (x, y, z).
+   // 3D surf:  (u, v) -> (x, y, z).
    virtual void ConvertParamCoordToPhys(const Vector &coord_t,
                                         Vector &coord_x) const = 0;
 
@@ -67,17 +70,16 @@ class AnalyticCompositeSurface : public AnalyticSurface
 {
 protected:
    const Array<const AnalyticSurface *> &surfaces;
-   Array<int> d_t_s;
+   Array<int> dof_to_surface;
 
 public:
-   AnalyticCompositeSurface(const Array<int> &dof_surf,
-                            const Array<const AnalyticSurface *> &surf);
+   AnalyticCompositeSurface(const Array<const AnalyticSurface *> &surf);
 
    /// Must be called after the Array of surfaces is changed.
    void UpdateDofToSurface();
 
-   const AnalyticSurface *GetSurface(int surf_id) const
-   { return surfaces[surf_id]; }
+   /// Surface corresponding to dof_id.
+   const AnalyticSurface *GetSurface(int dof_id) const;
 
    void ConvertPhysCoordToParam(const Vector &coord_x,
                                 Vector &coord_t) const override;
@@ -98,12 +100,9 @@ public:
 
 class Analytic2DCurve : public AnalyticSurface
 {
-protected:
-   const int surface_id;
-
 public:
-   Analytic2DCurve(const Array<int> &marker, int surf_id)
-    : AnalyticSurface(marker), surface_id(surf_id) { }
+   Analytic2DCurve(const Array<int> &marker)
+    : AnalyticSurface(marker) { }
 
    // (x, y) -> t on the whole mesh.
    void ConvertPhysCoordToParam(const Vector &coord_x,

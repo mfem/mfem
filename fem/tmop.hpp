@@ -1844,7 +1844,6 @@ protected:
    Array<int> surf_fit_marker_dof_index;     // Indices of nodes to fit.
 
    // Tangential optimization.
-   Array<int> *tan_dof_marker = nullptr;
    AnalyticCompositeSurface *tan_analytic_surf = nullptr;
    FiniteElementSpace *fes_mesh = nullptr;
 
@@ -2063,7 +2062,6 @@ public:
         surf_fit_limiter(NULL), surf_fit_pos(NULL),
         surf_fit_normal(1.0), surf_fit_grad(NULL), surf_fit_hess(NULL),
         surf_fit_eval_grad(NULL), surf_fit_eval_hess(NULL),
-        tan_analytic_surf(0),
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
         fdflag(false), dxscale(1.0e3), fd_call_flag(false), exact_action(false)
    { PA.enabled = false; }
@@ -2230,11 +2228,9 @@ public:
    }
 
    // Tangential movement.
-   void EnableTangentialMovement(Array<int> &dof_marker,
-                                 AnalyticCompositeSurface &surf,
+   void EnableTangentialMovement(AnalyticCompositeSurface &surf,
                                  FiniteElementSpace &mesh_fes)
    {
-      tan_dof_marker    = &dof_marker;
       tan_analytic_surf = &surf;
       fes_mesh = &mesh_fes;
    }

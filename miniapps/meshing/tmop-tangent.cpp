@@ -116,13 +116,13 @@ int main (int argc, char *argv[])
    // Mark which nodes to move tangentially.
    Array<bool> fit_marker_top(pfes_mesh.GetNDofs());
    Array<bool> fit_marker_right(pfes_mesh.GetNDofs());
-   Array<int> fit_marker_2(pfes_mesh.GetNDofs());
+   Array<bool> fit_marker_2(pfes_mesh.GetNDofs());
    ParFiniteElementSpace pfes_scalar(&pmesh, &fec_mesh, 1);
    ParGridFunction fit_marker_vis_gf(&pfes_scalar);
    Array<int> vdofs, ess_vdofs;
    fit_marker_top   = false;
    fit_marker_right = false;
-   fit_marker_2 = -1;
+   fit_marker_2     = false;
    fit_marker_vis_gf = 0.0;
    for (int e = 0; e < pmesh.GetNBE(); e++)
    {
@@ -155,7 +155,7 @@ int main (int argc, char *argv[])
          // Fix y components.
          for (int j = 0; j < nd; j++)
          {
-            fit_marker_2[vdofs[j]] = 2;
+            fit_marker_2[vdofs[j]] = true;
             ess_vdofs.Append(vdofs[j+nd]);
          }
       }
@@ -164,14 +164,12 @@ int main (int argc, char *argv[])
          // Fix x components.
          for (int j = 0; j < nd; j++)
          {
-            fit_marker_2[vdofs[j]] = 2;
+            fit_marker_2[vdofs[j]] = true;
             ess_vdofs.Append(vdofs[j]);
          }
       }
    }
 
-   Array<int> dof_to_surface(pfes_mesh.GetNDofs());
-   dof_to_surface = -1;
    for (int e = 0; e < pmesh.GetNBE(); e++)
    {
       pfes_mesh.GetBdrElementVDofs(e, vdofs);
@@ -182,13 +180,11 @@ int main (int argc, char *argv[])
          int cnt = 0;
          if (fit_marker_top[vdofs[j]])   { cnt++; }
          if (fit_marker_right[vdofs[j]]) { cnt++; }
-         if (fit_marker_2[vdofs[j]] >= 0) { cnt++; }
+         if (fit_marker_2[vdofs[j]])     { cnt++; }
 
          fit_marker_vis_gf(vdofs[j]) = cnt;
 
          if (cnt > 1) { ess_vdofs.Append(vdofs[j]); }
-         else if (fit_marker_top[vdofs[j]])   { dof_to_surface[vdofs[j]] = 0; }
-         else if (fit_marker_right[vdofs[j]]) { dof_to_surface[vdofs[j]] = 1; }
       }
    }
 
@@ -204,16 +200,16 @@ int main (int argc, char *argv[])
    }
 
    Array<const AnalyticSurface *> surf_array;
-   Line_Top line_top(dof_to_surface, 0);
-   Curve_Sine_Top curve_top(dof_to_surface, 0);
-   Line_Right line_right(dof_to_surface, 1);
-   Curve_Sine_Right curve_right(dof_to_surface, 1);
+   Line_Top line_top(fit_marker_top);
+   Curve_Sine_Top curve_top(fit_marker_top);
+   Line_Right line_right(fit_marker_right);
+   Curve_Sine_Right curve_right(fit_marker_right);
    //surf_array.Append(&line_top);
    surf_array.Append(&curve_top);
    //surf_array.Append(&line_right);
    surf_array.Append(&curve_right);
 
-   AnalyticCompositeSurface surfaces(dof_to_surface, surf_array);
+   AnalyticCompositeSurface surfaces(surf_array);
    surfaces.ConvertPhysCoordToParam(coord_x, coord_t);
 
    if (glvis)
@@ -234,7 +230,7 @@ int main (int argc, char *argv[])
    TargetConstructor target(TargetConstructor::IDEAL_SHAPE_UNIT_SIZE,
                             pfes_mesh.GetComm());
    auto integ = new TMOP_Integrator(metric, &target, nullptr);
-   integ->EnableTangentialMovement(dof_to_surface, surfaces, pfes_mesh);
+   integ->EnableTangentialMovement(surfaces, pfes_mesh);
 
    // Linear solver.
    MINRESSolver minres(pfes_mesh.GetComm());

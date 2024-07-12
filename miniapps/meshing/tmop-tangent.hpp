@@ -22,8 +22,7 @@ using namespace std;
 class Line_Bottom : public Analytic2DCurve
 {
    public:
-   Line_Bottom(const Array<int> &marker, int surf_id)
-       : Analytic2DCurve(marker, surf_id) { }
+   Line_Bottom(const Array<int> &marker) : Analytic2DCurve(marker) { }
 
    void xy_of_t(double t, const Vector &dist, double &x, double &y) const override
    {
@@ -45,8 +44,7 @@ class Line_Bottom : public Analytic2DCurve
 class Line_Left : public Analytic2DCurve
 {
    public:
-   Line_Left(const Array<int> &marker, int surf_id)
-       : Analytic2DCurve(marker, surf_id) { }
+   Line_Left(const Array<int> &marker) : Analytic2DCurve(marker) { }
 
    void xy_of_t(double t, const Vector &dist, double &x, double &y) const override
    {
@@ -68,8 +66,7 @@ class Line_Left : public Analytic2DCurve
 class Line_Top : public Analytic2DCurve
 {
    public:
-   Line_Top(const Array<int> &marker, int surf_id)
-       : Analytic2DCurve(marker, surf_id) { }
+   Line_Top(const Array<int> &marker) : Analytic2DCurve(marker) { }
 
    void t_of_xy(double x, double y, const Vector &dist, double &t) const override
    {
@@ -90,8 +87,7 @@ class Line_Top : public Analytic2DCurve
 class Line_Right : public Analytic2DCurve
 {
    public:
-   Line_Right(const Array<int> &marker, int surf_id)
-      : Analytic2DCurve(marker, surf_id) { }
+   Line_Right(const Array<int> &marker) : Analytic2DCurve(marker) { }
 
    void t_of_xy(double x, double y, const Vector &dist, double &t) const override
    {
@@ -117,8 +113,7 @@ private:
    const double x_scale = 1.0 + 0.2 * sin(s_scale * M_PI) + 0.5;
 
 public:
-   Curve_Sine_Top(const Array<int> &marker, int surf_id)
-      : Analytic2DCurve(marker, surf_id) { }
+   Curve_Sine_Top(const Array<int> &marker) : Analytic2DCurve(marker) { }
 
    void t_of_xy(double x, double y, const Vector &dist, double &t) const override
    {
@@ -149,8 +144,7 @@ private:
    const double y_scale = 1.0 + 0.2 * sin(s_scale * M_PI) + 0.5;
 
 public:
-   Curve_Sine_Right(const Array<int> &marker, int surf_id)
-       : Analytic2DCurve(marker, surf_id) { }
+   Curve_Sine_Right(const Array<int> &marker) : Analytic2DCurve(marker) { }
 
    void t_of_xy(double x, double y, const Vector &dist, double &t) const override
    {

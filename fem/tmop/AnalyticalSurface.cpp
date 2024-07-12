@@ -19,34 +19,53 @@
 namespace mfem
 {
 
-AnalyticSurface::AnalyticSurface(const Array<int> &marker)
-   : dof_to_surface(marker), distance_gf()
+AnalyticSurface::AnalyticSurface(const Array<bool> &marker)
+    : dof_marker(marker), distance_gf()
 {
    //geometry->ComputeDistances(coord, pmesh, pfes_mesh);
 }
 
 AnalyticCompositeSurface::AnalyticCompositeSurface
-    (const Array<int> &dof_surf, const Array<const AnalyticSurface *> &surf)
-    : AnalyticSurface(dof_surf), surfaces(surf), d_t_s(dof_to_surface.Size())
+    (const Array<const AnalyticSurface *> &surf)
+    : AnalyticSurface(), surfaces(surf), dof_to_surface(0)
 {
    UpdateDofToSurface();
 }
 
+// For each DOF, the Array dof_to_surface has its corresponding surface index.
+// -1: the DOF is not associated with any surface.
+// -2: the DOF is associated with more than one surface.
 void AnalyticCompositeSurface::UpdateDofToSurface()
 {
-   d_t_s = -1;
+   if (surfaces.Size() == 0)
+   {
+      dof_to_surface.DeleteAll();
+      return;
+   }
+
+   dof_to_surface.SetSize(surfaces[0]->dof_marker.Size());
+   dof_to_surface = -1;
    for (int s = 0; s < surfaces.Size(); s++)
    {
-      for (int i = 0; i < d_t_s.Size(); i++)
+      for (int i = 0; i < dof_to_surface.Size(); i++)
       {
-         if (surfaces[s]->dof_to_surface[i] == true)
+         if (surfaces[s]->dof_marker[i] == true)
          {
-            if (d_t_s[i] == -1)    { d_t_s[i] = s; }
-            else if (d_t_s[i] > 0) { d_t_s[i] = -2; }
+            if (dof_to_surface[i] == -1)    { dof_to_surface[i] =  s; }
+            else if (dof_to_surface[i] > 0) { dof_to_surface[i] = -2; }
          }
       }
    }
 }
+
+const AnalyticSurface *AnalyticCompositeSurface::GetSurface(int dof_id) const
+{
+   if (surfaces.Size() == 0)       { return nullptr; }
+   if (dof_to_surface[dof_id] < 0) { return nullptr; }
+
+   return surfaces[dof_to_surface[dof_id]];
+}
+
 
 void AnalyticCompositeSurface::ConvertPhysCoordToParam(const Vector &coord_x,
                                                        Vector &coord_t) const
@@ -86,7 +105,7 @@ void Analytic2DCurve::ConvertPhysCoordToParam(const Vector &coord_x,
    double t;
    for (int i = 0; i < ndof; i++)
    {
-      if (dof_to_surface[i] == surface_id)
+      if (dof_marker[i])
       {
          t_of_xy(coord_x(i), coord_x(ndof + i), distance_gf, t);
          coord_t(i)        = t;
@@ -102,7 +121,7 @@ void Analytic2DCurve::ConvertParamCoordToPhys(const Vector &coord_t,
    double x, y;
    for (int i = 0; i < ndof; i++)
    {
-      if (dof_to_surface[i] == surface_id)
+      if (dof_marker[i])
       {
          xy_of_t(coord_t(i), distance_gf, x, y);
          coord_x(i)        = x;
@@ -119,7 +138,7 @@ void Analytic2DCurve::ConvertParamToPhys(const Array<int> &vdofs,
    double x, y;
    for (int i = 0; i < ndof; i++)
    {
-      if (dof_to_surface[vdofs[i]] == surface_id)
+      if (dof_marker[vdofs[i]])
       {
          xy_of_t(coord_t(i), distance_gf, x, y);
          coord_x(i)        = x;
