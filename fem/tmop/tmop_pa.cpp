@@ -440,6 +440,7 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA(const Vector &xe) const
    {
       energy = GetLocalStateEnergyPA_3D(xe);
       if (lim_coeff) { energy += GetLocalStateEnergyPA_C0_3D(xe); }
+      if (surf_fit_coeff) { energy += GetLocalStateEnergyPA_Fit_3D(xe); }
    }
 
    return energy;

@@ -42,7 +42,7 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_Fit_3D,
    const auto X2 = Reshape(x2_.Read(), D1D, D1D, D1D, NE);
    const auto X3 = Reshape(x3_.Read(), D1D, D1D, D1D, NE);
 
-   auto E = Reshape(energy.Write(), D1D, 1, 1, NE);
+   auto E = Reshape(energy.Write(), D1D, D1D, D1D, NE);
 
    mfem::forall_3D(NE, D1D, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
    {
@@ -69,8 +69,8 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_Fit_3D,
             }
         }
       }  
-      
    });
+   out << energy * ones << "/n";
    return energy * ones; 
 }
 
