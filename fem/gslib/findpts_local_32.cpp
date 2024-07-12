@@ -1681,9 +1681,9 @@ static void FindPointsLocal32D_FastKernel(const int npt,
                                     for (int d = 0; d < 3; ++d)
                                     {
                                        steep[d] = 0;
-                                       for (int e = 0; d < 3; ++d)
+                                       for (int e = 0; e < 3; ++e)
                                        {
-                                          steep[d] += jac[d + e * 3] * resid[d];
+                                          steep[d] += jac[d + e * 3] * resid[e];
                                        }
                                        steep[d] *= tmp->r[d];
                                     }
@@ -2429,9 +2429,9 @@ static void FindPointsLocal32D_Kernel(const int npt,
                                     for (int d = 0; d < 3; ++d)
                                     {
                                        steep[d] = 0;
-                                       for (int e = 0; d < 3; ++d)
+                                       for (int e = 0; e < 3; ++e)
                                        {
-                                          steep[d] += jac[d + e * 3] * resid[d];
+                                          steep[d] += jac[d + e * 3] * resid[e];
                                        }
                                        steep[d] *= tmp->r[d];
                                     }

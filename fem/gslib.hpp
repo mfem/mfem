@@ -190,6 +190,14 @@ protected:
                           Vector &gsl_dist_l,
                           Array<int> &gsl_newton_dev_l,
                           int npt);
+   void FindPointsSurfLocal32(Vector &point_pos,
+                              int point_pos_ordering,
+                              Array<unsigned int> &gsl_code_dev_l,
+                              Array<unsigned int> &gsl_elem_dev_l,
+                              Vector &gsl_ref_l,
+                              Vector &gsl_dist_l,
+                              Array<int> &gsl_newton_dev_l,
+                              int npt);
    // FindPoints locally on device for 2D.
    void FindPointsLocal2(const Vector &point_pos,
                          int point_pos_ordering,
@@ -202,8 +210,8 @@ protected:
 
    void FindPointsSurfLocal2(const Vector &point_pos,
                              int point_pos_ordering,
-                             Array<int> &gsl_code_dev_l,
-                             Array<int> &gsl_elem_dev_l,
+                             Array<unsigned int> &gsl_code_dev_l,
+                             Array<unsigned int> &gsl_elem_dev_l,
                              Vector &gsl_ref_l,
                              Vector &gsl_dist_l,
                              Array<int> &gsl_newton_dev_l,
@@ -222,12 +230,22 @@ protected:
                           Vector &field_out,
                           int npt, int ncomp,
                           int nel, int dof1dsol);
-   void InterpolateSurfLocal2(const Vector &field_in,
-                              Array<int> &gsl_elem_dev_l,
-                              Vector &gsl_ref_l,
-                              Vector &field_out,
-                              int npt, int ncomp,
-                              int nel, int dof1dsol);
+   void InterpolateSurfLocal2( const Vector &field_in,
+                               Array<int> &gsl_elem_dev_l,
+                               Vector &gsl_ref_l,
+                               Vector &field_out,
+                               int npt,
+                               int ncomp,
+                               int nel,
+                               int dof1dsol );
+   void InterpolateSurfLocal3( const Vector &field_in,
+                               Array<int> &gsl_elem_dev_l,
+                               Vector &gsl_ref_l,
+                               Vector &field_out,
+                               int npt,
+                               int ncomp,
+                               int nel,
+                               int dof1dsol );
 
 public:
    FindPointsGSLIB();
@@ -255,7 +273,8 @@ public:
               const double newt_tol = 1.0e-12,
               const int npt_max = 256);
 
-   void SetupSurf(Mesh &m, const double bb_t = 0.1,
+   void SetupSurf(Mesh &m,
+                  const double bb_t = 0.1,
                   const double newt_tol = 1.0e-12,
                   const int npt_max = 256);
 

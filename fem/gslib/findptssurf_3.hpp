@@ -19,43 +19,55 @@
 
 #include <unordered_map>
 
-namespace mfem {
+namespace mfem
+{
 
-#define sDIM 2
-#define rDIM 1
+#define sDIM 3
+#define rDIM 2
 
-struct findptsElementPoint_t {
-   double x[sDIM], r, oldr, dist2, dist2p, tr;
+// 12*8 + 4 = 100 bytes
+struct findptsElementPoint_t
+{
+   double x[sDIM], r[rDIM], oldr[rDIM], dist2, dist2p, tr;
    int flags;
 };
 
-struct findptsElementGEdge_t {
-   double *x[sDIM];
+// 6*8 = 48 bytes
+struct findptsElementGFace_t
+{
+   double *x[sDIM], *dxdn[sDIM];
 };
-
-/* jac: jacobian matrix Jij = delx_i/delr_j; i=x,y; j=r
- * hes: hessian matrix  Hij = del^2 x_i/delr_j^2; i=x,y; j=r
-*/
-struct findptsElementGPT_t {
-   double x[sDIM], jac[sDIM*rDIM], hes[sDIM*rDIM];
+// 15*8 = 120 bytes
+struct findptsElementGEdge_t
+{
+   double *x[sDIM], *dxdn[sDIM], *d2xdn[sDIM];
 };
-
-struct dbl_range_t {
+// 30*8 = 240 bytes
+struct findptsElementGPT_t
+{
+   double x[sDIM], jac[sDIM*rDIM], hes[sDIM*(rDIM+1)];  // r2,s2,rs for sDIM coordinates
+};
+// 2*8 = 16 bytes
+struct dbl_range_t
+{
    double min, max;
 };
-struct obbox_t {
+// 12*8 + 3*16 = 96+48 = 144 bytes
+struct obbox_t
+{
    double c0[sDIM], A[sDIM*sDIM];
    dbl_range_t x[sDIM];
 };
 
-struct findptsLocalHashData_t {
+// 4 + 3*8 + 3*16 + 4 + xyz = 80 bytes + xyz
+struct findptsLocalHashData_t
+{
    int hash_n;
    dbl_range_t bnd[sDIM];
    double fac[sDIM];
    unsigned int *offset;
-   int max;
+   // int max;
 };
-
 #undef sDIM
 #undef rDIM
 

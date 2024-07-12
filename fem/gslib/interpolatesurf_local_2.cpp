@@ -23,32 +23,30 @@ namespace mfem
 #define CODE_INTERNAL 0
 #define CODE_BORDER 1
 #define CODE_NOT_FOUND 2
-#define dlong int
-#define dfloat double
 
-static MFEM_HOST_DEVICE void lagrange_eval(dfloat *p0, dfloat x,
-                                           dlong i, dlong p_Nq,
-                                           dfloat *z, dfloat *lagrangeCoeff)
+static MFEM_HOST_DEVICE void lagrange_eval(double *p0, double x,
+                                           int i, int p_Nq,
+                                           double *z, double *lagrangeCoeff)
 {
-   dfloat p_i = (1 << (p_Nq - 1));
-   for (dlong j=0; j<p_Nq; ++j) {
+   double p_i = (1 << (p_Nq - 1));
+   for (int j=0; j<p_Nq; ++j) {
       p_i *= j==i ? 1 : x-z[j];
    }
    p0[i] = lagrangeCoeff[i] * p_i;
 }
 
-static void InterpolateSurfLocal2D_Kernel(const dfloat *const gf_in,
-                                          dlong *const el,     // element id containing each point
-                                          dfloat *const r,      // local (ref) coord of each point
-                                          dfloat *const int_out,
-                                          const int npt,      // total number of points
-                                          const int ncomp,    // number of components of the field
+static void InterpolateSurfLocal2D_Kernel(const double *const gf_in,
+                                          int *const el,     // element id containing each point
+                                          double *const r,      // local (ref) coord of each point
+                                          double *const int_out,
+                                          const int npt,       // total number of points
+                                          const int ncomp,     // number of components of the field
                                           const int nel,
-                                          const int dof1Dsol, // number of dofs per element in gf_in
-                                          const int gf_offset,// offset for each field component
-                                          dfloat *gll1D,       // GLL nodes of the dof1Dsol dofs
-                                          double *lagcoeff,   // Lagrange coefficients of the dof1Dsol dofs
-                                          dfloat *infok)
+                                          const int dof1Dsol,  // number of dofs per element in gf_in
+                                          const int gf_offset, // offset for each field component
+                                          double *gll1D,        // GLL nodes of the dof1Dsol dofs
+                                          double *lagcoeff,    // Lagrange coefficients of the dof1Dsol dofs
+                                          double *infok)
 {
    const int p_Nq = dof1Dsol;
    const int Nfields = ncomp;
@@ -57,8 +55,8 @@ static void InterpolateSurfLocal2D_Kernel(const dfloat *const gf_in,
    // for each point of the npt points, create a thread block of size dof1Dsol
    mfem::forall_2D(npt, dof1Dsol, 1, [=] MFEM_HOST_DEVICE (int i)
    {
-      MFEM_SHARED dfloat wtr[pMax];
-      MFEM_SHARED dfloat sums[pMax];
+      MFEM_SHARED double wtr[pMax];
+      MFEM_SHARED double sums[pMax];
 
       // evaluate the Lagrange polynomials at the ref coord r[i]
       MFEM_FOREACH_THREAD(j,x,p_Nq)
@@ -70,7 +68,7 @@ static void InterpolateSurfLocal2D_Kernel(const dfloat *const gf_in,
       // for each field component, sum the contributions of the dofs
       for (int fld=0; fld<Nfields; ++fld) {
          // offset to the nodal values of element el[i] of its component fld
-         const dlong elemOffset = fld*fieldOffset + el[i]*p_Nq;
+         const int elemOffset = el[i]*p_Nq*Nfields + fld*p_Nq;
          // lagrange polynomial j contributes wtr[j]*gf_in[elemOffset + j] to
          // the field value at point i
          MFEM_FOREACH_THREAD(j,x,p_Nq)
@@ -84,7 +82,7 @@ static void InterpolateSurfLocal2D_Kernel(const dfloat *const gf_in,
             if (j==0) {
                double sumv = 0.0;
                // sum the contributions of each lagrange polynomial
-               for (dlong jj=0; jj<p_Nq; ++jj) {
+               for (int jj=0; jj<p_Nq; ++jj) {
                   sumv += sums[jj];
                }
                int_out[fld*npt + i] = sumv;
@@ -122,9 +120,6 @@ void FindPointsGSLIB::InterpolateSurfLocal2(const Vector &field_in,
 #undef CODE_INTERNAL
 #undef CODE_BORDER
 #undef CODE_NOT_FOUND
-#undef dlong
-#undef dfloat
-
 } // namespace mfem
 
 #endif //ifdef MFEM_USE_GSLIB

@@ -32,29 +32,6 @@ namespace mfem
 #define CODE_NOT_FOUND 2
 
 /* p0 is the pointer where the value of the Lagrange polynomial is stored.
-   p1 is the pointer where the value of the derivative of the Lagrange polynomial is stored.
-*/
-static MFEM_HOST_DEVICE inline void lagrange_eval_first_derivative( double *p0,                 // 0 to pN-1: p0, pN to 2*pN-1: p1
-                                                                   double x,                   // ref. coords of the point of interest
-                                                                   int i,                      // index of the Lagrange polynomial
-                                                                   const double *z,            // GLL points
-                                                                   const double *lagrangeCoeff,// Lagrange polynomial denominator term
-                                                                   int pN )                    // number of GLL points
-{
-   double u0 = 1, u1 = 0;
-   for (int j = 0; j < pN; ++j) {
-      if (i != j) {
-         double d_j = 2 * (x-z[j]); // note 2x scaling, also see lagrangecoeff calculation for the same factor
-         u1 = d_j * u1 + u0;
-         u0 = d_j * u0;
-      }
-   }
-   double *p1 = p0 + pN;
-   p0[i] = lagrangeCoeff[i] * u0;
-   p1[i] = 2.0 * lagrangeCoeff[i] * u1;
-}
-
-/* p0 is the pointer where the value of the Lagrange polynomial is stored.
    p1 is the pointer where the value of the first derivative of the Lagrange polynomial is stored.
    p2 is the pointer where the value of the second derivative of the Lagrange polynomial is stored.
    x is the point (reference coords here!) at which the derivatives are evaluated.
@@ -89,12 +66,14 @@ static MFEM_HOST_DEVICE inline void lagrange_eval_second_derivative( double *p0,
 static MFEM_HOST_DEVICE inline double obbox_axis_test(const obbox_t *const b,
                                                       const double x[sDIM])
 {
-   double test = 1;
+   double b_d;
    for (int d=0; d<sDIM; ++d) {
-      double b_d = (x[d] - b->x[d].min) * (b->x[d].max - x[d]);
-      test = test<0 ? test : b_d;
+      b_d = (x[d] - b->x[d].min) * (b->x[d].max - x[d]);
+      if (b_d < 0) { // if outside in any dimension
+         return b_d;
+      }
    }
-   return test;
+   return b_d;       // only positive if inside
 }
 
 /* positive when given point is possibly inside given obbox b */
@@ -123,7 +102,7 @@ static MFEM_HOST_DEVICE inline double obbox_test(const obbox_t *const b,
    // }
 }
 
-/* Hash cell ID that contains the point x */
+/* Hash index in the hash table to the elements that possibly contain the point x */
 static MFEM_HOST_DEVICE inline int hash_index(const findptsLocalHashData_t *p,
                                               const double x[2])
 {
@@ -135,15 +114,6 @@ static MFEM_HOST_DEVICE inline int hash_index(const findptsLocalHashData_t *p,
       sum += i<0 ? 0 : (n-1 < i ? n-1 : i);
    }
    return sum;
-}
-
-/* A is row-major */
-static MFEM_HOST_DEVICE inline void lin_solve_2(double x[2], const double A[4],
-                                                const double y[2])
-{
-   const double idet = 1/(A[0]*A[3] - A[1]*A[2]);
-   x[0] = idet*(A[3]*y[0] - A[1]*y[1]);
-   x[1] = idet*(A[0]*y[1] - A[2]*y[0]);
 }
 
 static MFEM_HOST_DEVICE inline double norm2(const double x[2]) { return x[0] * x[0] + x[1] * x[1]; }
@@ -337,9 +307,9 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
                                           const int     hash_n,
                                           const double  *hashMin,
                                           const double  *hashFac,
-                                          int           *hashOffset,
-                                          int *const    code_base,
-                                          int *const    el_base,
+                                          unsigned int  *hashOffset,
+                                          unsigned int *const code_base,
+                                          unsigned int *const el_base,
                                           double *const r_base,
                                           double *const dist2_base,
                                           const double  *gll1D,
@@ -351,16 +321,14 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
 #define MAX_CONST(a, b) (((a) > (b)) ? (a) : (b))
    const int MD1 = T_D1D ? T_D1D : 14;
    const int D1D = T_D1D ? T_D1D : pN;
-   const int p_NE = D1D;
-   const int p_NEL = nel*p_NE;
+   const int p_NEL = nel*D1D;
 
    MFEM_VERIFY(MD1<=14,"Increase Max allowable polynomial order.");
    MFEM_VERIFY(D1D!=0, "Polynomial order not specified.");
    // const int nThreads = MAX_CONST(2*MD1, 4);
    const int nThreads = 32;  // adi: npoints numbers can be quite big, especially for 3d cases
-   // std::cout << "pN, D1D, MD1, p_NE, p_NEL: " << pN    << ", " << D1D  << ", "
-   //                                            << MD1   << ", " << p_NE << ", "
-   //                                            << p_NEL << "\n";
+   // std::cout << "pN, D1D, MD1, p_NEL: " << pN    << ", " << D1D  << ", "
+   //                                            << MD1   << ", " << p_NEL << "\n";
 
    /* A macro expansion that for
       1) CPU: expands to a standard for loop
@@ -402,14 +370,14 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
       int id_y = point_pos_ordering == 0 ? i+npt : i*sDIM+1;
       double x_i[2] = {x[id_x], x[id_y]};
 
-      int *code_i = code_base + i;
-      int *el_i = el_base + i;
+      unsigned int *code_i = code_base + i;
+      unsigned int *el_i = el_base + i;
       int *newton_i = newton + i;
       double *r_i = r_base + rDIM*i;  // ref coords. of point i
       double *dist2_i = dist2_base + i;
 
       //---------------- map_points_to_els --------------------
-      // adi: why do this before forall? can't we just do it once?
+      // adi: why not do this after forall? can't we just do it once?
       // should these arrays be in shared memory?
       findptsLocalHashData_t hash;
       for (int d=0; d<sDIM; ++d) { // hash data is spacedim dimensional
@@ -419,10 +387,10 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
       hash.hash_n = hash_n;
       hash.offset = hashOffset;
 
-      const int hi = hash_index(&hash, x_i);
-      const int *elp = hash.offset + hash.offset[hi];    // start of possible elements containing x_i
-      const int *const ele = hash.offset + hash.offset[hi+1];  // end of possible elements containing x_i
-      *code_i = CODE_NOT_FOUND;
+      const int hi                  = hash_index(&hash, x_i);
+      const unsigned int *elp       = hash.offset + hash.offset[hi];    // start of possible elements containing x_i
+      const unsigned int *const ele = hash.offset + hash.offset[hi+1];  // end of possible elements containing x_i
+      *code_i  = CODE_NOT_FOUND;
       *dist2_i = DBL_MAX;
 
       // const int sdim2 = sDIM*sDIM;
@@ -430,7 +398,7 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
       // Search through all elements that could contain x_i
       for (; elp!=ele; ++elp) {
          // NOTE: the pointer elp is being incremented, to the next index
-         const int el = *elp;
+         const unsigned int el = *elp;
          // MFEM_FOREACH_THREAD(j,x,nThreads)
          // {
          //    if (j==0) {
@@ -458,7 +426,7 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
                // elx is a pointer to the coordinates of the nodes in element el
                const double *elx[sDIM];
                for (int d=0; d<sDIM; d++) {
-                  elx[d] = xElemCoord + d*p_NEL + el*p_NE;
+                  elx[d] = xElemCoord + d*p_NEL + el*D1D;
                }
 
                //--------------- findpts_el ----------------
@@ -488,7 +456,7 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
                      double *r_temp = dist2_temp + D1D;
 
                      // Each thread finds the closest point in the element for a
-                     // specific r values.
+                     // specific r value.
                      // Then we minimize the distance across all threads.
                      MFEM_FOREACH_THREAD(j,x,nThreads)
                      {
@@ -535,12 +503,11 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
                         {
                            double *wt = r_workspace_ptr;    // 3*D1D: value, derivative and 2nd derivative
                            double *resid = wt + 3*D1D;      // sdim coord components, so sdim residuals
-                           double *jac = resid + sDIM*rDIM; // sdim, dx/dr, dy/dr
+                           double *jac = resid + sDIM;      // sdim, dx/dr, dy/dr
                            double *hess = jac + sDIM*rDIM;  // 3, 2nd derivative of two phy. coords in r
 
                            findptsElementGEdge_t edge;
-                           MFEM_FOREACH_THREAD(j,x,nThreads)
-                           {
+                           MFEM_FOREACH_THREAD(j,x,nThreads) {
                               const int mask = 2u;
                               if ((constraint_init_t[j] & mask) == 0) {
                                  // pointers to memory where to store the x & y coordinates of DOFS along the edge
@@ -558,16 +525,14 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
                            MFEM_SYNC_THREAD;
 
                            // compute basis function info upto 2nd derivative for tangential components
-                           MFEM_FOREACH_THREAD(j,x,nThreads)
-                           {
+                           MFEM_FOREACH_THREAD(j,x,nThreads) {
                               if (j<D1D) {
                                  lagrange_eval_second_derivative(wt, tmp->r, j, gll1D, lagcoeff, D1D);
                               }
                            }
                            MFEM_SYNC_THREAD;
 
-                           MFEM_FOREACH_THREAD(j,x,nThreads)
-                           {
+                           MFEM_FOREACH_THREAD(j,x,nThreads) {
                               if (j<sDIM) {
                                  resid[j] = tmp->x[j];
                                  jac[j] = 0.0;
@@ -583,16 +548,14 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
                            }
                            MFEM_SYNC_THREAD;
 
-                           MFEM_FOREACH_THREAD(j,x,nThreads)
-                           {
+                           MFEM_FOREACH_THREAD(j,x,nThreads) {
                               if (j==0) {
                                  hess[2] = resid[0]*hess[0] + resid[1]*hess[1];
                               }
                            }
                            MFEM_SYNC_THREAD;
 
-                           MFEM_FOREACH_THREAD(j,x,nThreads)
-                           {
+                           MFEM_FOREACH_THREAD(j,x,nThreads) {
                               if (j==0) {
                                  if ( !reject_prior_step_q(fpt, resid, tmp, tol) ) {
                                     newton_edge( fpt, jac, hess[2], resid, tmp->flags & FLAG_MASK, tmp, tol );
@@ -605,21 +568,19 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
                         // r is constrained to either -1 or 1
                         case 1:
                         {
-                           double *wt = r_workspace_ptr;  // 3*D1D: basis functions, their derivatives and 2nd derivatives
-
                            // compute basis function info upto 2nd derivative for tangential components
-                           MFEM_FOREACH_THREAD(j,x,nThreads)
-                           {
-                              if (j<D1D) {
-                                 lagrange_eval_second_derivative(wt, tmp->r, j, gll1D, lagcoeff, D1D);
-                              }
-                           }
-                           MFEM_SYNC_THREAD;
+                           // MFEM_FOREACH_THREAD(j,x,nThreads)
+                           // {
+                           //    if (j<D1D) {
+                           //       lagrange_eval_second_derivative(wt, tmp->r, j, gll1D, lagcoeff, D1D);
+                           //    }
+                           // }
+                           // MFEM_SYNC_THREAD;
 
-                           MFEM_FOREACH_THREAD(j,x,nThreads)
-                           {
+                           MFEM_FOREACH_THREAD(j,x,nThreads) {
                               if (j==0) {
                                  const int pi = point_index(tmp->flags & FLAG_MASK);
+                                 const double *wt   = wtend + pi*3*pN;  // 3*D1D: basis function values, their derivatives and 2nd derivatives
                                  findptsElementGPT_t gpt;
                                  for (int d=0; d<sDIM; ++d) {
                                     gpt.x[d] = elx[d][pi*(pN-1)];
@@ -728,13 +689,13 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
 }
 
 void FindPointsGSLIB::FindPointsSurfLocal2( const Vector &point_pos,
-                                             int point_pos_ordering,
-                                                   Array<int> &code,
-                                                   Array<int> &elem,
-                                                        Vector &ref,
-                                                       Vector &dist,
-                                                 Array<int> &newton,
-                                                            int npt )
+                                            int point_pos_ordering,
+                                            Array<unsigned int> &code,
+                                            Array<unsigned int> &elem,
+                                            Vector &ref,
+                                            Vector &dist,
+                                            Array<int> &newton,
+                                            int npt )
 {
    if (npt == 0) { return; }
    MFEM_VERIFY(spacedim==2,"Function for 2D only");
@@ -755,7 +716,7 @@ void FindPointsGSLIB::FindPointsSurfLocal2( const Vector &point_pos,
                                                                     DEV.hash_n,
                                                           DEV.o_hashMin.Read(),
                                                           DEV.o_hashFac.Read(),
-                                                      DEV.o_offset.ReadWrite(),
+                                                     DEV.ou_offset.ReadWrite(),
                                                                   code.Write(),
                                                                   elem.Write(),
                                                                    ref.Write(),
@@ -779,7 +740,7 @@ void FindPointsGSLIB::FindPointsSurfLocal2( const Vector &point_pos,
                                                                   DEV.hash_n,
                                                         DEV.o_hashMin.Read(),
                                                         DEV.o_hashFac.Read(),
-                                                    DEV.o_offset.ReadWrite(),
+                                                   DEV.ou_offset.ReadWrite(),
                                                                 code.Write(),
                                                                 elem.Write(),  // element ID
                                                                  ref.Write(),  // Final Ref coords.
