@@ -19,10 +19,6 @@ variables:
     - corona
   rules:
     # Don't run corona jobs if...
-    # Note: This makes corona an "opt-in" machine. To activate builds on corona
-    # for a given GitLab clone of MFEM, go to Setting/CI-CD/variables, and set
-    # "ON_CORONA" to "ON". An LC account on for corona is required to trigger a
-    # pipeline there.
     - if: '$CI_COMMIT_BRANCH =~ /_cnone/ || $ON_CORONA == "OFF"'
       when: never
     # Don't run autotest update if...
@@ -51,9 +47,11 @@ variables:
   script:
     # THREADS is used by 'tests/gitlab/build_and_test', run below
     - export THREADS=12
-    - echo ${ALLOC_NAME}
-    - export JOBID=$(squeue -h --name=${ALLOC_NAME} --format=%A)
-    - echo ${JOBID}
-    - echo ${MFEM_DATA_DIR}
-    - echo ${SPEC}
-    - srun $( [[ -n "${JOBID}" ]] && echo "--jobid=${JOBID}" ) -t 15 -N 1 tests/gitlab/build_and_test --spec "${SPEC}" --data-dir "${MFEM_DATA_DIR}" --data
+    - ALLOC_ID=$(flux jobs --name="${ALLOC_NAME}" -n -o "{id}")
+    - |
+      echo -e "[Information]: Shared allocation name = ${ALLOC_NAME}"
+      echo -e "[Information]: Shared allocation ID = ${ALLOC_ID}"
+      echo -e "[Information]: Data directory used = ${MFEM_DATA_DIR}"
+      echo -e "[Information]: Spec to build and test = ${SPEC}"
+    - PROXY="$( [[ -n "${ALLOC_ID}" ]] && echo "flux proxy ${ALLOC_ID}" || echo "" )"
+    - ${PROXY} flux watch $( ${PROXY} flux batch -o output.stdout.type=kvs --nodes=1 --begin-time=+5s tests/gitlab/build_and_test --spec "${SPEC}" --data-dir "${MFEM_DATA_DIR}" --data)

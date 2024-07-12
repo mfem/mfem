@@ -51,7 +51,7 @@ release_resource:
     - |
       set -x
       export URI=$(flux jobs -o "{id} {name}" | grep ${ALLOC_NAME} | awk '{print $1}')
-      ([[ -n "${URI}" ]] && flux job kill ${URI})
+      ([[ -n "${URI}" ]] && flux job kill ${URI} || exit 0)
   needs: [rocm_5_7_1, cce_16_0_1]
 
 # Jobs report
