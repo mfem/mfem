@@ -40,7 +40,7 @@ int main(int argc, char *argv[])
                   "NURBS order (polynomial degree) or -1 for");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
-                  "Enable or disable GLVis visualization.");
+                  "Enable or disable GLVis visualization."); // Dummy arg for `make test`
    args.Parse();
    if (!args.Good())
    {
