@@ -24,6 +24,7 @@ namespace mfem
 #define CODE_BORDER 1
 #define CODE_NOT_FOUND 2
 
+// #define DEBUG_PRINT
 #define sDIM 3
 #define rDIM 2
 #define sDIM2 (sDIM*sDIM)
@@ -354,6 +355,9 @@ static MFEM_HOST_DEVICE void newton_face( findptsElementPoint_t *const out,
                                           const findptsElementPoint_t *const p,
                                           const double tol )
 {
+#ifdef DEBUG_PRINT
+   std::cout << "newton_face" << std::endl;
+#endif
    const double tr = p->tr;
    double bnd[4];
    double r[2], dr[2] = {0, 0};
@@ -418,7 +422,6 @@ static MFEM_HOST_DEVICE void newton_face( findptsElementPoint_t *const out,
       goto newton_face_constrained;
    }
 
-   std::cout << "Before lin_solve_sym_2\n";
    lin_solve_sym_2(dr, A, y);
 
 #define EVAL(r,s) -(y[0]*r + y[1]*s) + (r*A[0]*r + (2*r*A[1] + s*A[2])*s)/2
@@ -429,7 +432,6 @@ static MFEM_HOST_DEVICE void newton_face( findptsElementPoint_t *const out,
    }
 
 newton_face_constrained:
-   std::cout << "In newton_face_constrained\n";
    v  = EVAL(bnd[0], bnd[2]); // bound at r=-1 and s=-1
    i  = 1u|(1u<<2);           // 0101b
    tv = EVAL(bnd[1], bnd[2]); // bound at r=1 and s=-1
@@ -503,7 +505,6 @@ newton_face_fin:
    }
    out->r[0] = r[0], out->r[1] = r[1];
    out->flags = new_flags | (p->flags<<5);
-   std::cout << "flags: " << flags << ", new_flags: " << new_flags << ", out->flags: " << out->flags << ", p->flags<<5: " << (p->flags<<5) << std::endl;
 }
 
 static MFEM_HOST_DEVICE inline void newton_edge(findptsElementPoint_t *const out,
@@ -516,6 +517,9 @@ static MFEM_HOST_DEVICE inline void newton_edge(findptsElementPoint_t *const out
                                                 const findptsElementPoint_t *const p,
                                                 const double tol)
 {
+#ifdef DEBUG_PRINT
+   std::cout << "newton_edge" << std::endl;
+#endif
    const double tr = p->tr;
    /* A = J^T J - resid_d H_d */
    const double A = jac[de]       *jac[de]
@@ -595,7 +599,8 @@ static MFEM_HOST_DEVICE void seed_j(const double *elx[sDIM],
 
    dist2[ir] = DBL_MAX;
    double zr = z[ir];             // r gll coord for ir-th thread, i.e., ir-th dof in r-direction
-   for (int is=0; is<pN; ++is) {  // loop through all "s" gll coords for ir-th dof in s-direction
+   // for (int is=0; is<pN; ++is) {  // loop through all "s" gll coords for ir-th dof in s-direction
+   for (int is=pN/2; is<pN/2+1; ++is) {  // FIXME: A test Loop!! change back to above line!!
       double zs = z[is];
       const int irs = ir + is*pN; // dof index
       double dx[sDIM];
@@ -693,6 +698,7 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
       for (; elp!=ele; ++elp) { // note we are incrementing pointers here!!
          const unsigned int el = *elp;   // element ID in the hash
 
+#ifdef DEBUG_PRINT
          MFEM_FOREACH_THREAD(j,x,nThreads) {
             if (j==0) {
                std::cout << "xknown: " << x_i[0] << ", " << x_i[1] << ", " << x_i[2]
@@ -700,6 +706,7 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
             }
          }
          MFEM_SYNC_THREAD;
+#endif
 
          obbox_t box;
          // construct obbox_t on the fly from data
@@ -758,7 +765,7 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
                      MFEM_FOREACH_THREAD(j,x,nThreads) {
                         if (j==0) {
                            fpt->dist2 = DBL_MAX;
-                           for (int ir=0; ir<D1D; ++ir) {  // loop through all r-th dof data obtained from seed_j
+                           for (int ir=D1D/2; ir<D1D/2+1; ++ir) {  // loop through all r-th dof data obtained from seed_j
                               if (dist2_temp[ir] < fpt->dist2) {
                                  fpt->dist2 = dist2_temp[ir];
                                  for (int d=0; d<rDIM; ++d) {
@@ -770,6 +777,15 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
                      }
                      MFEM_SYNC_THREAD;
                   } //seed done
+
+#ifdef DEBUG_PRINT
+                  MFEM_FOREACH_THREAD(j,x,nThreads) {
+                     if (j==0) {
+                        std::cout << "Seed: fpt->dist2: " << fpt->dist2 << ", fpt->r[0]: " << fpt->r[0] << ", fpt->r[1]: " << fpt->r[1] << std::endl;
+                     }
+                  }
+                  MFEM_SYNC_THREAD;
+#endif
 
                   MFEM_FOREACH_THREAD(j,x,nThreads) {
                      if (j<sDIM) {
@@ -875,7 +891,6 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
                            MFEM_FOREACH_THREAD(l,x,nThreads) {
                               if (l==0) {
                                  if (!reject_prior_step_q(fpt,resid,tmp,tol)) {
-                                    std::cout << "newton_face" << std::endl;
                                     newton_face(fpt,jac,hes,resid,(tmp->flags & CONVERGED_FLAG),tmp,tol);
                                  }
                               }
@@ -1055,6 +1070,7 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
                         } // case 2
                      } // switch
 
+#ifdef DEBUG_PRINT
                      MFEM_FOREACH_THREAD(j,x,nThreads)
                      {
                         if (j==0) {
@@ -1067,6 +1083,7 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
                         }
                      }
                      MFEM_SYNC_THREAD;
+#endif
 
                      if (fpt->flags & CONVERGED_FLAG) {
                         // *newton_i = step+1;
@@ -1080,6 +1097,8 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
                         }
                      }
                      MFEM_SYNC_THREAD;
+
+#ifdef DEBUG_PRINT
                      MFEM_FOREACH_THREAD(j,x,nThreads)
                      {
                         if (j==0) {
@@ -1092,9 +1111,11 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
                         }
                      }
                      MFEM_SYNC_THREAD;
+#endif
 
                   } // for step<50
 
+#ifdef DEBUG_PRINT
                   MFEM_FOREACH_THREAD(j,x,nThreads)
                   {
                      if (j==0) {
@@ -1107,6 +1128,7 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
                      }
                   }
                   MFEM_SYNC_THREAD;
+#endif
 
                } // findpts_el
 
@@ -1123,11 +1145,13 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
                      }
                   }
                   MFEM_SYNC_THREAD;
+#ifdef DEBUG_PRINT
                   std::cout << "converged_internal: " << converged_internal
                             << ", code: " << *code_i
                             << ", dist2: " << *dist2_i
                             << ", r: " << *r_i << " " << *(r_i+1) << "\n"
                             << "--------------------------------------------\n" << std::endl;
+#endif
 
                   if (converged_internal) {
                      break;

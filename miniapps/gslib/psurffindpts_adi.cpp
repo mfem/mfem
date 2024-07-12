@@ -309,27 +309,22 @@ int main (int argc, char *argv[])
 
       ElementTransformation *transf = sm_fes->GetElementTransformation(i);
 
-      Vector pos_ref(npt*rdim);
-      pos_ref.Randomize(myid+1);
-
+      Vector pos_ref1(npt);
+      Vector pos_ref2(npt);
+      pos_ref1.Randomize((myid+1)*17);
+      pos_ref2.Randomize((myid+1)*23);
       for (int j=0; j<npt; j++) {
          IntegrationPoint ip;
-         if (j==0) {
-            ip.x = -0.01;
+         if (j<4) {
+            ip.x = (j%2==0) ? 0.0 : 1.0;
             if (rdim==2) {
-               ip.y = 0.0;
-            }
-         }
-         else if (j==1) {
-            ip.x = 1.0;
-            if (rdim==2) {
-               ip.y = 1.0;
+               ip.y = j/2==0 ? 0.0 : 1.0;
             }
          }
          else {
-            ip.x = pos_ref(j);
+            ip.x = pos_ref1(j);
             if (rdim==2) {
-               ip.y = pos_ref(j);
+               ip.y = pos_ref2(j);
             }
          }
          Vector pos_i(vdim);
@@ -342,9 +337,9 @@ int main (int argc, char *argv[])
          for (int d=0; d<vdim; d++) {
             point_pos(nel_sm*npt*d + i*npt + j) = pos_i(d);
          }
-         std::cout << "point_pos: "
-                   << pos_i(0) << " " << pos_i(1) << " " << pos_i(2) << "; "
-                   << "rank: " << myid << std::endl;
+         // std::cout << "point_pos: "
+         //           << pos_i(0) << " " << pos_i(1) << " " << pos_i(2) << "; "
+         //           << "rank: " << myid << std::endl;
       }
    }
 
@@ -353,74 +348,76 @@ int main (int argc, char *argv[])
    finder.FindPointsSurf(point_pos);
    std::cout << "FindPointsSurf done by rank " << myid << std::endl;
 
-   // // Interpolate the field at the points
-   // Vector field_out(nel_sm*npt*ncomp);
-   // field_out.UseDevice(true);
-   // finder.InterpolateSurf(field_vals, field_out);
-   // std::cout << "InterpolateSurf done by rank " << myid << std::endl;
+   // Interpolate the field at the points
+   Vector field_out(nel_sm*npt*ncomp);
+   field_out.UseDevice(true);
+   finder.InterpolateSurf(field_vals, field_out);
+   std::cout << "InterpolateSurf done by rank " << myid << std::endl;
 
-   // field_out.HostReadWrite();
-   // Array<unsigned int> code_out = finder.GetCode();
-   // Vector              dist     = finder.GetDist();
-   // const int printwidth = 15;
-   // for (int irank=0; irank<num_procs; irank++) {
-   //    if (myid==irank) {
-   //       cout << "rank: " << myid << endl;
+   MPI_Barrier(MPI_COMM_WORLD);
 
-   //       cout << setw(vdim*printwidth)  << "point"           << "  |   "
-   //            << setw(printwidth)       << "code"            << " |   "
-   //            << setw(printwidth)       << "dist"            << " |   "
-   //            << setw(ncomp*printwidth) << "field_exact"      << " |   "
-   //            << setw(ncomp*printwidth) << "field_interp"     << " |   "
-   //            << setw(ncomp*printwidth) << "field_interp_err"
-   //            << endl;
+   field_out.HostReadWrite();
+   Array<unsigned int> code_out = finder.GetCode();
+   Vector              dist     = finder.GetDist();
+   const int printwidth = 15;
+   for (int irank=0; irank<num_procs; irank++) {
+      if (myid==irank) {
+         cout << "rank: " << myid << endl;
 
-   //       for (int i=0; i<nel_sm; i++) {
-   //          for (int j=0; j<npt; j++) {
-   //             int err_flag = 0;
-   //             if (dist[i*npt + j]>1e-15) {
-   //                err_flag = 1;
-   //             }
-   //             for (int d=0; d<ncomp; d++) {
-   //                double Ferr =  fabs(field_exact(i*npt*ncomp + j*ncomp + d) - field_out(nel_sm*npt*d + i*npt + j));
-   //                if (Ferr>1e-6) {
-   //                   err_flag += 1;
-   //                }
-   //             }
-   //             // err_flag = 1;
-   //             if (err_flag) {
-   //                for (int d=0; d<vdim; d++) {
-   //                   cout << setw(printwidth) << point_pos(nel_sm*npt*d + i*npt + j) << " ";
-   //                }
-   //                cout << "|   ";
+         cout << setw(vdim*(printwidth+1))  << "point"           << "|   "
+              << setw(printwidth+1)       << "code"              << "|   "
+              << setw(printwidth+1)       << "dist"              << "|   "
+              << setw(ncomp*(printwidth+1)) << "field_exact"      << "|   "
+              << setw(ncomp*(printwidth+1)) << "field_interp"     << "|   "
+              << setw(ncomp*(printwidth+1)) << "field_interp_err"
+              << endl;
 
-   //                cout << setw(printwidth) << code_out[i*npt + j] << " ";
-   //                cout << "|   ";
+         for (int i=0; i<nel_sm; i++) {
+            for (int j=0; j<npt; j++) {
+               int err_flag = 0;
+               if (dist[i*npt + j]>1e-15) {
+                  err_flag = 1;
+               }
+               for (int d=0; d<ncomp; d++) {
+                  double Ferr =  fabs(field_exact(i*npt*ncomp + j*ncomp + d) - field_out(nel_sm*npt*d + i*npt + j));
+                  if (Ferr>1e-6) {
+                     err_flag += 1;
+                  }
+               }
+               // err_flag = 1;
+               if (err_flag) {
+                  for (int d=0; d<vdim; d++) {
+                     cout << setw(printwidth) << point_pos(nel_sm*npt*d + i*npt + j) << " ";
+                  }
+                  cout << "|   ";
 
-   //                cout << setw(printwidth) << dist[i*npt + j] << " ";
-   //                cout << "|   ";
+                  cout << setw(printwidth) << code_out[i*npt + j] << " ";
+                  cout << "|   ";
 
-   //                for (int d=0; d<ncomp; d++) {
-   //                   cout << setw(printwidth) << field_exact(i*npt*ncomp + j*ncomp + d) << " ";
-   //                }
-   //                cout << "|   ";
+                  cout << setw(printwidth) << dist[i*npt + j] << " ";
+                  cout << "|   ";
 
-   //                for (int d=0; d<ncomp; d++) {
-   //                   cout << setw(printwidth) << field_out(nel_sm*npt*d + i*npt + j) << " ";
-   //                }
-   //                cout << "|   ";
+                  for (int d=0; d<ncomp; d++) {
+                     cout << setw(printwidth) << field_exact(i*npt*ncomp + j*ncomp + d) << " ";
+                  }
+                  cout << "|   ";
 
-   //                for (int d=0; d<ncomp; d++) {
-   //                   double err =  fabs(field_exact(i*npt*ncomp + j*ncomp + d) - field_out(nel_sm*npt*d + i*npt + j));
-   //                   cout << setw(printwidth) << err << " ";
-   //                }
-   //                cout << endl;
-   //             }
-   //          }
-   //       }
-   //    }
-   //    MPI_Barrier(MPI_COMM_WORLD);
-   // }
+                  for (int d=0; d<ncomp; d++) {
+                     cout << setw(printwidth) << field_out(nel_sm*npt*d + i*npt + j) << " ";
+                  }
+                  cout << "|   ";
+
+                  for (int d=0; d<ncomp; d++) {
+                     double err =  fabs(field_exact(i*npt*ncomp + j*ncomp + d) - field_out(nel_sm*npt*d + i*npt + j));
+                     cout << setw(printwidth) << err << " ";
+                  }
+                  cout << endl;
+               }
+            }
+         }
+      }
+      MPI_Barrier(MPI_COMM_WORLD);
+   }
 
    // // delete fec;
 

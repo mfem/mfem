@@ -448,9 +448,10 @@ void FindPointsGSLIB::FindPointsSurf( const Vector &point_pos,
    gsl_dist.SetSize(points_cnt);
    gsl_newton.SetSize(points_cnt);
 
-   std::cout << "Before FindPointsSurfOnDevice" << ", points_cnt: " << points_cnt << std::endl;
+   std::cout << "Before FindPointsSurfOnDevice" << ", points_cnt: " << points_cnt
+             << ", rank: " << gsl_comm->id << std::endl;
    FindPointsSurfOnDevice(point_pos, point_pos_ordering);
-   std::cout << "After FindPointsSurfOnDevice" << std::endl;
+   // std::cout << "After FindPointsSurfOnDevice" << std::endl;
 
    // Set the element number and reference position to 0 for points not found
    for (int i=0; i<points_cnt; i++) {
@@ -1502,7 +1503,7 @@ void FindPointsGSLIB::FindPointsSurfOnDevice( const Vector &point_pos,
    gsl_ref.UseDevice(true);
    gsl_dist.UseDevice(true);
 
-   std::cout << "Before FindPointsSurfLocal\n";
+   std::cout << "Before FindPointsSurfLocal, rank: " << gsl_comm->id << std::endl;
 
    if (spacedim==2) {
       FindPointsSurfLocal2(point_pos,
@@ -1525,7 +1526,7 @@ void FindPointsGSLIB::FindPointsSurfOnDevice( const Vector &point_pos,
                             points_cnt);
    }
 
-   std::cout << "After FindPointsSurfLocal\n";
+   // std::cout << "After FindPointsSurfLocal\n";
 
    // TODO: Only transfer information for points found
    // Transfer information from DEVICE
