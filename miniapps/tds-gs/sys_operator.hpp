@@ -90,7 +90,7 @@ public:
     u_boundary(u_boundary_),
     F(F_), uv_currents(uv_currents_), H(H_), K(K_), g(g_),
     alpha_coeffs(alpha_coeffs_), J_inds(J_inds_),
-    alpha_bar(alpha_bar_),
+    alpha_bar(alpha_bar_), ones(fespace), hat(fespace),
     include_plasma(include_plasma_)
   {
     if (alpha_coeffs != NULL) {
