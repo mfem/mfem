@@ -458,18 +458,18 @@ public:
        conforming prolongation, and |.| denotes the entry-wise absolute value.
        In general, this is just an approximation of the exact diagonal for this
        case. */
-   virtual void AssembleDiagonal(Vector &diag) const;
+   void AssembleDiagonal(Vector &diag) const override;
 
    /// Get the finite element space prolongation operator.
-   virtual const Operator *GetProlongation() const
+   const Operator *GetProlongation() const override
    { return fes->GetConformingProlongation(); }
 
    /// Get the finite element space restriction operator
-   virtual const Operator *GetRestriction() const
+   const Operator *GetRestriction() const override
    { return fes->GetConformingRestriction(); }
 
    /// Get the output finite element space prolongation matrix
-   virtual const Operator *GetOutputProlongation() const
+   const Operator *GetOutputProlongation() const override
    { return GetProlongation(); }
 
    /** @brief Returns the output fe space restriction matrix, transposed
@@ -477,11 +477,11 @@ public:
        Logically, this is the transpose of GetOutputRestriction, but in
        practice it is convenient to have it in transposed form for
        construction of RAP operators in matrix-free methods. */
-   virtual const Operator *GetOutputRestrictionTranspose() const
+   const Operator *GetOutputRestrictionTranspose() const override
    { return fes->GetRestrictionTransposeOperator(); }
 
    /// Get the output finite element space restriction matrix
-   virtual const Operator *GetOutputRestriction() const
+   const Operator *GetOutputRestriction() const override
    { return GetRestriction(); }
 
    /// Compute serial RAP operator and store it in @a A as a SparseMatrix.
@@ -566,7 +566,8 @@ public:
        FormLinearSystem() method to recover the solution as a GridFunction-size
        vector in @a x. Use the same arguments as in the FormLinearSystem() call.
    */
-   virtual void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x);
+   void RecoverFEMSolution(const Vector &X, const Vector &b,
+                           Vector &x) override;
 
    /// Compute and store internally all element matrices.
    void ComputeElementMatrices();

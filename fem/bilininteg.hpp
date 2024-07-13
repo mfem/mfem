@@ -316,7 +316,7 @@ public:
    TransposeIntegrator(BilinearFormIntegrator *bfi_, int own_bfi_ = 1)
    { bfi = bfi_; own_bfi = own_bfi_; }
 
-   virtual void SetIntRule(const IntegrationRule *ir);
+   void SetIntRule(const IntegrationRule *ir) override;
 
    void AssembleElementMatrix(const FiniteElement &el,
                               ElementTransformation &Trans,
@@ -954,30 +954,30 @@ public:
       : MixedScalarIntegrator(q) {}
 
 protected:
-   inline virtual bool VerifyFiniteElementTypes(
+   inline bool VerifyFiniteElementTypes(
       const FiniteElement & trial_fe,
-      const FiniteElement & test_fe) const
+      const FiniteElement & test_fe) const override
    {
       return (trial_fe.GetDim() == 2 && test_fe.GetDim() == 2 &&
               trial_fe.GetDerivType() == mfem::FiniteElement::CURL &&
               test_fe.GetRangeType()  == mfem::FiniteElement::SCALAR);
    }
 
-   inline virtual const char * FiniteElementTypeFailureMessage() const
+   inline const char * FiniteElementTypeFailureMessage() const override
    {
       return "MixedScalarCurlIntegrator:  "
              "Trial must be H(Curl) and the test space must be a "
              "scalar field";
    }
 
-   inline virtual int GetIntegrationOrder(const FiniteElement & trial_fe,
-                                          const FiniteElement & test_fe,
-                                          ElementTransformation &Trans)
+   inline int GetIntegrationOrder(const FiniteElement & trial_fe,
+                                  const FiniteElement & test_fe,
+                                  ElementTransformation &Trans) override
    { return trial_fe.GetOrder() + test_fe.GetOrder() + Trans.OrderW() - 1; }
 
-   inline virtual void CalcTrialShape(const FiniteElement & trial_fe,
-                                      ElementTransformation &Trans,
-                                      Vector & shape)
+   inline void CalcTrialShape(const FiniteElement & trial_fe,
+                              ElementTransformation &Trans,
+                              Vector & shape) override
    {
       DenseMatrix dshape(shape.GetData(), shape.Size(), 1);
       trial_fe.CalcPhysCurlShape(Trans, dshape);
@@ -1870,27 +1870,27 @@ public:
       : MixedVectorIntegrator(mq) {}
 
 protected:
-   inline virtual bool VerifyFiniteElementTypes(
+   inline bool VerifyFiniteElementTypes(
       const FiniteElement & trial_fe,
-      const FiniteElement & test_fe) const
+      const FiniteElement & test_fe) const override
    {
       return (trial_fe.GetDerivType() == mfem::FiniteElement::GRAD &&
               test_fe.GetRangeType()  == mfem::FiniteElement::VECTOR );
    }
 
-   inline virtual const char * FiniteElementTypeFailureMessage() const
+   inline const char * FiniteElementTypeFailureMessage() const override
    {
       return "MixedVectorGradientIntegrator:  "
              "Trial spaces must be $H^1$ and the test space must be a "
              "vector field in 2D or 3D";
    }
 
-   inline virtual int GetTrialVDim(const FiniteElement & trial_fe)
+   inline int GetTrialVDim(const FiniteElement & trial_fe) override
    { return space_dim; }
 
-   inline virtual void CalcTrialShape(const FiniteElement & trial_fe,
-                                      ElementTransformation &Trans,
-                                      DenseMatrix & shape)
+   inline void CalcTrialShape(const FiniteElement & trial_fe,
+                              ElementTransformation &Trans,
+                              DenseMatrix & shape) override
    {
       trial_fe.CalcPhysDShape(Trans, shape);
    }
@@ -1928,28 +1928,28 @@ public:
       : MixedVectorIntegrator(mq) {}
 
 protected:
-   inline virtual bool VerifyFiniteElementTypes(
+   inline bool VerifyFiniteElementTypes(
       const FiniteElement & trial_fe,
-      const FiniteElement & test_fe) const
+      const FiniteElement & test_fe) const override
    {
       return (trial_fe.GetCurlDim() == 3 && test_fe.GetRangeDim() == 3 &&
               trial_fe.GetDerivType() == mfem::FiniteElement::CURL  &&
               test_fe.GetRangeType()  == mfem::FiniteElement::VECTOR );
    }
 
-   inline virtual const char * FiniteElementTypeFailureMessage() const
+   inline const char * FiniteElementTypeFailureMessage() const override
    {
       return "MixedVectorCurlIntegrator:  "
              "Trial space must be H(Curl) and the test space must be a "
              "vector field in 3D";
    }
 
-   inline virtual int GetTrialVDim(const FiniteElement & trial_fe)
+   inline int GetTrialVDim(const FiniteElement & trial_fe) override
    { return trial_fe.GetCurlDim(); }
 
-   inline virtual void CalcTrialShape(const FiniteElement & trial_fe,
-                                      ElementTransformation &Trans,
-                                      DenseMatrix & shape)
+   inline void CalcTrialShape(const FiniteElement & trial_fe,
+                              ElementTransformation &Trans,
+                              DenseMatrix & shape) override
    {
       trial_fe.CalcPhysCurlShape(Trans, shape);
    }
@@ -1987,28 +1987,28 @@ public:
       : MixedVectorIntegrator(mq) {}
 
 protected:
-   inline virtual bool VerifyFiniteElementTypes(
+   inline bool VerifyFiniteElementTypes(
       const FiniteElement & trial_fe,
-      const FiniteElement & test_fe) const
+      const FiniteElement & test_fe) const override
    {
       return (trial_fe.GetRangeDim() == 3 && test_fe.GetCurlDim() == 3 &&
               trial_fe.GetRangeType() == mfem::FiniteElement::VECTOR &&
               test_fe.GetDerivType()  == mfem::FiniteElement::CURL );
    }
 
-   inline virtual const char * FiniteElementTypeFailureMessage() const
+   inline const char * FiniteElementTypeFailureMessage() const override
    {
       return "MixedVectorWeakCurlIntegrator:  "
              "Trial space must be vector field in 3D and the "
              "test space must be H(Curl)";
    }
 
-   inline virtual int GetTestVDim(const FiniteElement & test_fe)
+   inline int GetTestVDim(const FiniteElement & test_fe) override
    { return test_fe.GetCurlDim(); }
 
-   inline virtual void CalcTestShape(const FiniteElement & test_fe,
-                                     ElementTransformation &Trans,
-                                     DenseMatrix & shape)
+   inline void CalcTestShape (const FiniteElement & test_fe,
+                              ElementTransformation &Trans,
+                              DenseMatrix & shape) override
    {
       test_fe.CalcPhysCurlShape(Trans, shape);
    }
@@ -2283,7 +2283,7 @@ public:
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe);
 
-   bool SupportsCeed() const { return DeviceCanUseCeed(); }
+   bool SupportsCeed() const override { return DeviceCanUseCeed(); }
 
    Coefficient *GetCoefficient() const { return Q; }
 };
@@ -2347,7 +2347,7 @@ public:
                                          const FiniteElement &test_fe,
                                          ElementTransformation &Trans);
 
-   bool SupportsCeed() const { return DeviceCanUseCeed(); }
+   bool SupportsCeed() const override { return DeviceCanUseCeed(); }
 
    const Coefficient *GetCoefficient() const { return Q; }
 };
@@ -2416,7 +2416,7 @@ public:
                                          const FiniteElement &test_fe,
                                          ElementTransformation &Trans);
 
-   bool SupportsCeed() const { return DeviceCanUseCeed(); }
+   bool SupportsCeed() const override { return DeviceCanUseCeed(); }
 };
 
 // Alias for @ConvectionIntegrator.
@@ -2507,7 +2507,7 @@ public:
    void AssembleDiagonalMF(Vector &diag) override;
    void AddMultPA(const Vector &x, Vector &y) const override;
    void AddMultMF(const Vector &x, Vector &y) const override;
-   bool SupportsCeed() const { return DeviceCanUseCeed(); }
+   bool SupportsCeed() const override { return DeviceCanUseCeed(); }
 };
 
 
@@ -3002,7 +3002,7 @@ public:
    void AssembleDiagonalMF(Vector &diag) override;
    void AddMultPA(const Vector &x, Vector &y) const override;
    void AddMultMF(const Vector &x, Vector &y) const override;
-   bool SupportsCeed() const { return DeviceCanUseCeed(); }
+   bool SupportsCeed() const override { return DeviceCanUseCeed(); }
 };
 
 /** Integrator for the linear elasticity form:
