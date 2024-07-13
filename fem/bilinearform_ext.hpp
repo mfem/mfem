@@ -37,19 +37,19 @@ protected:
 public:
    BilinearFormExtension(BilinearForm *form);
 
-   virtual MemoryClass GetMemoryClass() const
+   MemoryClass GetMemoryClass() const override
    { return Device::GetDeviceMemoryClass(); }
 
    /// Get the finite element space prolongation matrix
-   virtual const Operator *GetProlongation() const;
+   const Operator *GetProlongation() const override;
 
    /// Get the finite element space restriction matrix
-   virtual const Operator *GetRestriction() const;
+   const Operator *GetRestriction() const override;
 
    /// Assemble at the level given for the BilinearFormExtension subclass
    virtual void Assemble() = 0;
 
-   virtual void AssembleDiagonal(Vector &diag) const
+   void AssembleDiagonal(Vector &diag) const override
    {
       MFEM_ABORT("AssembleDiagonal not implemented for this assembly level!");
    }
@@ -225,20 +225,20 @@ protected:
 public:
    MixedBilinearFormExtension(MixedBilinearForm *form);
 
-   virtual MemoryClass GetMemoryClass() const
+   MemoryClass GetMemoryClass() const override
    { return Device::GetMemoryClass(); }
 
    /// Get the finite element space prolongation matrix
-   virtual const Operator *GetProlongation() const;
+   const Operator *GetProlongation() const override;
 
    /// Get the finite element space restriction matrix
-   virtual const Operator *GetRestriction() const;
+   const Operator *GetRestriction() const override;
 
    /// Get the output finite element space restriction matrix
-   virtual const Operator *GetOutputProlongation() const;
+   const Operator *GetOutputProlongation() const override;
 
    /// Get the output finite element space restriction matrix
-   virtual const Operator *GetOutputRestriction() const;
+   const Operator *GetOutputRestriction() const override;
 
    virtual void Assemble() = 0;
    virtual void FormRectangularSystemOperator(const Array<int> &trial_tdof_list,
