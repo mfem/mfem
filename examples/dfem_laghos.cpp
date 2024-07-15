@@ -15,9 +15,14 @@
 #include "linalg/operator.hpp"
 #include "linalg/solvers.hpp"
 #include "linalg/tensor.hpp"
+#include "mpi.h"
 
 using namespace mfem;
 using mfem::internal::tensor;
+
+int problem = 0;
+double cfl = 0.5;
+bool use_viscosity = false;
 
 void threshold(Vector &v)
 {
@@ -72,10 +77,8 @@ std::tuple<matd, double> qdata_setup(
    const real &order_v,
    const real &w)
 {
-   constexpr bool use_viscosity = true;
    constexpr int dim = 2;
    constexpr real eps = 1e-12;
-   constexpr real cfl = 5.0;
    constexpr real vorticity_coeff = 1.0;
    real p, cs;
    real detJ = det(J);
@@ -361,13 +364,16 @@ public:
 
       Re.Neg();
 
-      // LinearForm e_source(&hydro.L2);
-      // hydro.L2.GetMesh()->DeleteGeometricFactors();
-      // FunctionCoefficient coeff(taylor_source);
-      // DomainLFIntegrator *d = new DomainLFIntegrator(coeff, &hydro.ir);
-      // e_source.AddDomainIntegrator(d);
-      // e_source.Assemble();
-      // Re -= e_source;
+      if (problem == 0)
+      {
+         LinearForm e_source(&hydro.L2);
+         hydro.L2.GetMesh()->DeleteGeometricFactors();
+         FunctionCoefficient coeff(taylor_source);
+         DomainLFIntegrator *d = new DomainLFIntegrator(coeff, &hydro.ir);
+         e_source.AddDomainIntegrator(d);
+         e_source.Assemble();
+         Re -= e_source;
+      }
 
       hydro.Me.TrueAddMult(ke, Re);
 
@@ -466,8 +472,10 @@ public:
       Me(&L2),
       RHSv(H1.GetTrueVSize()),
       rhsv(H1.GetVSize()),
+      X(2*H1.GetTrueVSize()+L2.GetTrueVSize()),
       Xv(H1.GetTrueVSize()),
       Xe(L2.GetTrueVSize()),
+      K(2*H1.GetTrueVSize()+L2.GetTrueVSize()),
       B(H1.GetTrueVSize()),
       dE(L2.GetTrueVSize()),
       RHSe(L2.GetTrueVSize()),
@@ -514,9 +522,10 @@ public:
          dv = 0.0;
 
          momentum_mf->SetParameters({&rho0, &x0, &x, &material, &e, &qdata->h0, &qdata->order_v});
-         momentum_mf->Mult(v, RHSv);
+         H1.GetRestrictionMatrix()->Mult(v, Xv);
+         momentum_mf->Mult(Xv, RHSv);
          RHSv.Neg();
-         H1.GetProlongationMatrix()->Mult(RHSv, rhsv);
+         H1.GetRestrictionMatrix()->MultTranspose(RHSv, rhsv);
 
          HypreParMatrix A;
          Mv.FormLinearSystem(ess_tdof, dv, rhsv, A, Xv, B);
@@ -539,16 +548,20 @@ public:
          de = 0.0;
 
          energy_conservation_mf->SetParameters({&v, &rho0, &x0, &x, &material, &qdata->h0, &qdata->order_v});
-         energy_conservation_mf->Mult(e, RHSe);
-         L2.GetProlongationMatrix()->Mult(RHSe, rhse);
+         L2.GetRestrictionMatrix()->Mult(e, Xe);
+         energy_conservation_mf->Mult(Xe, RHSe);
+         L2.GetRestrictionMatrix()->MultTranspose(RHSe, rhse);
 
-         // LinearForm e_source(&L2);
-         // L2.GetMesh()->DeleteGeometricFactors();
-         // FunctionCoefficient coeff(taylor_source);
-         // DomainLFIntegrator *d = new DomainLFIntegrator(coeff, &ir);
-         // e_source.AddDomainIntegrator(d);
-         // e_source.Assemble();
-         // rhse += e_source;
+         if (problem == 0)
+         {
+            LinearForm e_source(&L2);
+            L2.GetMesh()->DeleteGeometricFactors();
+            FunctionCoefficient coeff(taylor_source);
+            DomainLFIntegrator *d = new DomainLFIntegrator(coeff, &ir);
+            e_source.AddDomainIntegrator(d);
+            e_source.Assemble();
+            rhse += e_source;
+         }
 
          HypreParMatrix A;
          Array<int> empty;
@@ -564,13 +577,29 @@ public:
          cg.SetMaxIter(300);
          cg.SetPrintLevel(-1);
          cg.Mult(rhse, Xe);
-         L2.GetProlongationMatrix()->MultTranspose(Xe, de);
+         L2.GetProlongationMatrix()->Mult(Xe, de);
       }
    }
 
    void ImplicitSolve(const double dt, const Vector &x, Vector &k) override
    {
-      auto residual = LagrangianHydroResidualOperator(*this, dt, x);
+      auto xptr = const_cast<Vector*>(&x);
+
+      Vector xx, xv, xe;
+      xx.MakeRef(*xptr, 0, H1.GetVSize());
+      xv.MakeRef(*xptr, H1.GetVSize(), H1.GetVSize());
+      xe.MakeRef(*xptr, 2*H1.GetVSize(), L2.GetVSize());
+
+      Vector Xx, Xv, Xe;
+      Xx.MakeRef(X, 0, H1.GetTrueVSize());
+      Xv.MakeRef(X, H1.GetTrueVSize(), H1.GetTrueVSize());
+      Xe.MakeRef(X, 2*H1.GetTrueVSize(), L2.GetTrueVSize());
+
+      H1.GetRestrictionMatrix()->Mult(xx, Xx);
+      H1.GetRestrictionMatrix()->Mult(xv, Xv);
+      L2.GetRestrictionMatrix()->Mult(xe, Xe);
+
+      auto residual = LagrangianHydroResidualOperator(*this, dt, X);
 
       GMRESSolver gmres(MPI_COMM_WORLD);
       gmres.SetMaxIter(500);
@@ -589,8 +618,22 @@ public:
       newton.SetAbsTol(1e-12);
 
       Vector zero;
-      k = x;
-      newton.Mult(zero, k);
+      K = X;
+      newton.Mult(zero, K);
+
+      Vector Kx, Kv, Ke;
+      Kx.MakeRef(K, 0, H1.GetTrueVSize());
+      Kv.MakeRef(K, H1.GetTrueVSize(), H1.GetTrueVSize());
+      Ke.MakeRef(K, 2*H1.GetTrueVSize(), L2.GetTrueVSize());
+
+      Vector kx, kv, ke;
+      kx.MakeRef(k, 0, H1.GetVSize());
+      kv.MakeRef(k, H1.GetVSize(), H1.GetVSize());
+      ke.MakeRef(k, 2*H1.GetVSize(), L2.GetVSize());
+
+      H1.GetProlongationMatrix()->Mult(Kx, kx);
+      H1.GetProlongationMatrix()->Mult(Kv, kv);
+      L2.GetProlongationMatrix()->Mult(Ke, ke);
    }
 
    void UpdateMesh(const Vector &S) const
@@ -614,17 +657,21 @@ public:
       auto &dt_est = qdata->dt_est;
       dtest_mf->Mult(dt_est, dt_est);
 
-      double dt_est_out = std::numeric_limits<double>::infinity();
+      double dt_est_local = std::numeric_limits<double>::infinity();
       for (int i = 0; i < dt_est.Size(); i++)
       {
          if (dt_est(i) == 0.0)
          {
             return 0.0;
          }
-         dt_est_out = fmin(dt_est_out, dt_est(i));
+         dt_est_local = fmin(dt_est_local, dt_est(i));
       }
 
-      return dt_est_out;
+      double dt_est_global;
+      MPI_Allreduce(&dt_est_local, &dt_est_global, 1, MPI_DOUBLE, MPI_MIN,
+                    L2.GetComm());
+
+      return dt_est_global;
    }
 
    void ResetQuadratureData() { qdata_is_current = false; }
@@ -632,17 +679,27 @@ public:
    double InternalEnergy(ParGridFunction &e)
    {
       total_internal_energy_mf->SetParameters({&rho0, &x0});
-      Vector y(e.Size());
-      total_internal_energy_mf->Mult(e, y);
-      return y.Sum();
+      Vector E(L2.GetTrueVSize()), Y(L2.GetTrueVSize());
+      L2.GetRestrictionMatrix()->Mult(e, E);
+      total_internal_energy_mf->Mult(E, Y);
+      const double ie_local = Y.Sum();
+      double ie_global = 0.0;
+      MPI_Allreduce(&ie_local, &ie_global, 1, MPI_DOUBLE, MPI_SUM,
+                    L2.GetParMesh()->GetComm());
+      return ie_global;
    }
 
    double KineticEnergy(ParGridFunction &v)
    {
       total_kinetic_energy_mf->SetParameters({&rho0, &x0});
-      Vector y(v.Size());
-      total_kinetic_energy_mf->Mult(v, y);
-      return y.Sum();
+      Vector V(H1.GetTrueVSize()), Y(L2.GetTrueVSize()), y(L2.GetVSize());
+      H1.GetRestrictionMatrix()->Mult(v, V);
+      total_kinetic_energy_mf->Mult(V, Y);
+      const double ke_local = Y.Sum();
+      double ke_global = 0.0;
+      MPI_Allreduce(&ke_local, &ke_global, 1, MPI_DOUBLE, MPI_SUM,
+                    H1.GetParMesh()->GetComm());
+      return ke_global;
    }
 
    void ComputeDensity(ParGridFunction &rho) { }
@@ -665,7 +722,7 @@ public:
    mutable ParGridFunction mesh_nodes;
    mutable ParBilinearForm Mx, Mv, Me;
    mutable FunctionCoefficient rho0_coeff;
-   mutable Vector RHSv, rhsv, Xv, Xe, B, RHSe, rhse, dE;
+   mutable Vector RHSv, rhsv, X, Xx, Xv, Xe, K, Kx, Kv, Ke, B, RHSe, rhse, dE;
    const int nl2dofs;
 };
 
@@ -1047,6 +1104,9 @@ int main(int argc, char *argv[])
    args.AddOption(&order_e, "-oe", "--oe", "");
    args.AddOption(&order_q, "-oq", "--oq", "");
    args.AddOption(&t_final, "-tf", "--tf", "");
+   args.AddOption(&problem, "-p", "--p", "");
+   args.AddOption(&cfl, "-cfl", "--cfl", "");
+   args.AddOption(&use_viscosity, "-av", "--av", "-no-av", "--no-av", "");
    args.ParseCheck();
 
    // Mesh serial_mesh = Mesh(mesh_file, true, true);
@@ -1066,6 +1126,9 @@ int main(int argc, char *argv[])
       serial_mesh.UniformRefinement();
    }
 
+   // serial_mesh.EnsureNCMesh();
+   // serial_mesh.RandomRefinement(0.1);
+
    ParMesh mesh = ParMesh(MPI_COMM_WORLD, serial_mesh);
    const int dim = mesh.Dimension();
 
@@ -1077,9 +1140,16 @@ int main(int argc, char *argv[])
    L2_FECollection L2FEC(order_e, dim, BasisType::Positive);
    ParFiniteElementSpace L2FESpace(&mesh, &L2FEC);
 
-   out << "el: " << mesh.GetGlobalNE() << "\n";
-   out << "kinematic dofs: " << H1FESpace.GlobalTrueVSize() << "\n";
-   out << "thermodynamic dofs: " << L2FESpace.GlobalTrueVSize() << "\n";
+   const int global_ne = mesh.GetGlobalNE();
+   const int global_h1tsize = H1FESpace.GlobalTrueVSize();
+   const int global_l2tsize = L2FESpace.GlobalTrueVSize();
+
+   if (Mpi::Root())
+   {
+      out << "el: " << global_ne << "\n";
+      out << "kinematic dofs: " << global_h1tsize << "\n";
+      out << "thermodynamic dofs: " << global_l2tsize << "\n";
+   }
 
    Array<int> ess_tdof, ess_vdofs;
    {
@@ -1120,12 +1190,25 @@ int main(int argc, char *argv[])
 
    ParGridFunction x0_gf = x_gf;
 
-
    auto v0 = [](const Vector &x, Vector &v)
    {
-      v = 0.0;
-      // v(0) =  sin(M_PI*x(0)) * cos(M_PI*x(1));
-      // v(1) = -cos(M_PI*x(0)) * sin(M_PI*x(1));
+      switch (problem)
+      {
+         case 0:
+            v(0) =  sin(M_PI*x(0)) * cos(M_PI*x(1));
+            v(1) = -cos(M_PI*x(0)) * sin(M_PI*x(1));
+            if (x.Size() == 3)
+            {
+               v(0) *= cos(M_PI*x(2));
+               v(1) *= cos(M_PI*x(2));
+               v(2) = 0.0;
+            }
+            break;
+         case 1: v = 0.0; break;
+         case 2: v = 0.0; break;
+         case 3: v = 0.0; break;
+         default: MFEM_ABORT("error");
+      }
    };
 
    VectorFunctionCoefficient v_coeff(dim, v0);
@@ -1138,10 +1221,15 @@ int main(int argc, char *argv[])
 
    auto rho0 = [&dim](const Vector &x)
    {
-      // return (dim == 2) ? (x(0) > 1.0 && x(1) > 1.5) ? 0.125 : 1.0
-      //        : x(0) > 1.0 && ((x(1) < 1.5 && x(2) < 1.5) ||
-      //                         (x(1) > 1.5 && x(2) > 1.5)) ? 0.125 : 1.0;
-      return 1.0;
+      switch (problem)
+      {
+         case 0: return 1.0;
+         case 1: return 1.0;
+         case 3: return (dim == 2) ? (x(0) > 1.0 && x(1) > 1.5) ? 0.125 : 1.0
+                           : x(0) > 1.0 && ((x(1) < 1.5 && x(2) < 1.5) ||
+                                            (x(1) > 1.5 && x(2) > 1.5)) ? 0.125 : 1.0;
+         default: MFEM_ABORT("error");
+      }
    };
 
    ParGridFunction rho0_gf(&L2FESpace);
@@ -1154,35 +1242,55 @@ int main(int argc, char *argv[])
 
    auto gamma_func = [](const Vector &x)
    {
-      // return (x(0) > 1.0 && x(1) <= 1.5) ? 1.4 : 1.5;
-      // return 5.0 / 3.0;
-      return 1.4;
+      switch (problem)
+      {
+         case 0: return 5.0 / 3.0;
+         case 1: return 1.4;
+         case 3: return (x(0) > 1.0 && x(1) <= 1.5) ? 1.4 : 1.5;
+         default: MFEM_ABORT("error");
+
+      }
    };
 
    auto e0 = [&rho0, &gamma_func](const Vector &x)
    {
-      return (x(0) > 1.0) ? 0.1 / rho0(x) / (gamma_func(x) - 1.0)
-             : 1.0 / rho0(x) / (gamma_func(x) - 1.0);
-      // const double denom = 2.0 / 3.0;  // (5/3 - 1) * density.
-      // double val;
-      // if (x.Size() == 2)
-      // {
-      //    val = 1.0 + (cos(2*M_PI*x(0)) + cos(2*M_PI*x(1))) / 4.0;
-      // }
-      // else
-      // {
-      //    val = 100.0 + ((cos(2*M_PI*x(2)) + 2) *
-      //                   (cos(2*M_PI*x(0)) + cos(2*M_PI*x(1))) - 2) / 16.0;
-      // }
-      // return val/denom;
+      switch (problem)
+      {
+         case 0:
+         {
+            const double denom = 2.0 / 3.0;  // (5/3 - 1) * density.
+            double val;
+            if (x.Size() == 2)
+            {
+               val = 1.0 + (cos(2*M_PI*x(0)) + cos(2*M_PI*x(1))) / 4.0;
+            }
+            else
+            {
+               val = 100.0 + ((cos(2*M_PI*x(2)) + 2) *
+                              (cos(2*M_PI*x(0)) + cos(2*M_PI*x(1))) - 2) / 16.0;
+            }
+            return val/denom;
+         }
+         case 1: return 0.0; // This case in initialized in main().
+         case 2: return (x(0) < 0.5) ? 1.0 / rho0(x) / (gamma_func(x) - 1.0)
+                           : 0.1 / rho0(x) / (gamma_func(x) - 1.0);
+         case 3: return (x(0) > 1.0) ? 0.1 / rho0(x) / (gamma_func(x) - 1.0)
+                           : 1.0 / rho0(x) / (gamma_func(x) - 1.0);
+         default: MFEM_ABORT("error");
+      }
    };
 
-   // FunctionCoefficient e_coeff(e0);
-
-   DeltaCoefficient e_coeff(blast_position[0], blast_position[1],
-                            blast_position[2], blast_energy);
-   l2_e.ProjectCoefficient(e_coeff);
-   l2_e.ProjectCoefficient(e_coeff);
+   if (problem == 1)
+   {
+      DeltaCoefficient e_coeff(blast_position[0], blast_position[1],
+                               blast_position[2], blast_energy);
+      l2_e.ProjectCoefficient(e_coeff);
+   }
+   else
+   {
+      FunctionCoefficient e_coeff(e0);
+      l2_e.ProjectCoefficient(e_coeff);
+   }
 
    e_gf.ProjectGridFunction(l2_e);
    e_gf.SyncAliasMemory(S);
@@ -1207,19 +1315,24 @@ int main(int argc, char *argv[])
                                               material_gf,
                                               ir);
 
-   ImplicitMidpointSolver ode_solver;
+   RK4Solver ode_solver;
    ode_solver.Init(hydro);
 
    hydro.ComputeDensity(rho_gf);
    const double energy_init = hydro.InternalEnergy(e_gf) +
                               hydro.KineticEnergy(v_gf);
 
+   if (Mpi::Root())
+   {
+      out << "energy initial: " << energy_init << "\n";
+   }
+
    out << "IE " << hydro.InternalEnergy(e_gf) << "\n"
        << "KE "<< hydro.KineticEnergy(v_gf) << "\n";
 
+
    double t = 0.0;
    double dt = hydro.GetTimeStepEstimate(S);
-   out << "dt_est: " << dt << "\n";
    double t_old;
    bool last_step = false;
    int steps = 0;
@@ -1293,10 +1406,13 @@ int main(int argc, char *argv[])
       // out << ">>> x_gf outer loop\n";
       // print_vector(x_gf);
 
-      out << "step " << std::setw(5) << ti
-          << ",\tt = " << std::setw(5) << std::setprecision(4) << t
-          << ",\tdt = " << std::setw(5) << std::setprecision(6) << dt;
-      out << std::endl;
+      if (Mpi::Root())
+      {
+         out << "step " << std::setw(5) << ti
+             << ",\tt = " << std::setw(5) << std::setprecision(4) << t
+             << ",\tdt = " << std::setw(5) << std::setprecision(6) << dt;
+         out << std::endl;
+      }
 
       verr_gf.ProjectCoefficient(v_coeff);
       for (int i = 0; i < verr_gf.Size(); i++)
@@ -1304,7 +1420,7 @@ int main(int argc, char *argv[])
          verr_gf(i) = abs(verr_gf(i) - v_gf(i));
       }
 
-      hydro.ComputeDensity(rho_gf);
+      // hydro.ComputeDensity(rho_gf);
 
       paraview_dc.SetCycle(ti);
       paraview_dc.SetTime(t);
@@ -1313,16 +1429,18 @@ int main(int argc, char *argv[])
 
    const double energy_final = hydro.InternalEnergy(e_gf)
                                + hydro.KineticEnergy(v_gf);
+   const real v_err_max = v_gf.ComputeMaxError(v_coeff);
+   const real v_err_l1 = v_gf.ComputeL1Error(v_coeff);
+   const real v_err_l2 = v_gf.ComputeL2Error(v_coeff);
 
-   out << "IE " << hydro.InternalEnergy(e_gf) << "\n"
-       << "KE "<< hydro.KineticEnergy(v_gf) << "\n";
-
-   out << std::scientific << std::setprecision(2)
-       << "Energy diff: " << fabs(energy_init - energy_final) << std::endl
-       << "L_inf  error: " << v_gf.ComputeMaxError(v_coeff) << std::endl
-       << "L_1    error: " << v_gf.ComputeL1Error(v_coeff) << std::endl
-       << "L_2    error: " << v_gf.ComputeL2Error(v_coeff) << std::endl;
-   // mesh.Print();
+   if (Mpi::Root())
+   {
+      out << std::scientific << std::setprecision(2)
+          << "Energy diff: " << fabs(energy_init - energy_final) << std::endl
+          << "L_inf  error: " << v_err_max << std::endl
+          << "L_1    error: " << v_err_l1 << std::endl
+          << "L_2    error: " << v_err_l2 << std::endl;
+   }
 
    return 0;
 }
