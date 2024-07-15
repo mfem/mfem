@@ -592,7 +592,7 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
    }
    initial_norm = nom0;
 
-   if (print_options.iterations | print_options.first_and_last)
+   if (print_options.iterations || print_options.first_and_last)
    {
       mfem::out << "   Iteration : " << setw(3) << right << 0 << "  ||Br|| = "
                 << nom << (print_options.first_and_last ? " ..." : "") << '\n';
