@@ -22,7 +22,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 ifeq ($(MFEM_USE_TRIBOL)$(MFEM_USE_MPI),YESYES)
-   MINIAPPS = contact-patch-test
+   MINIAPPS = contact-patch-test contact-patch-finite-difference-test
 else
    MINIAPPS =
 endif
