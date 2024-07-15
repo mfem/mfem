@@ -102,6 +102,8 @@ int main(int argc, char *argv[])
    // Convert initial angle from degrees to radians
    theta0_ *= M_PI / 180.0;
 
+   std::cout << "111" << std::endl;
+
    // Define an empty mesh
    Mesh *mesh;
    mesh = new Mesh(3, nnode * (nphi_+1), nphi_);
@@ -125,6 +127,7 @@ int main(int argc, char *argv[])
       c[0] = 0.0; c[1] = 1.0;
       mesh->AddVertex(c);
    }
+   std::cout << "112" << std::endl;
 
    // Add Elements of the desired type
    {
@@ -144,6 +147,7 @@ int main(int argc, char *argv[])
       }
    }
    mesh->FinalizeTopology();
+   std::cout << "113" << std::endl;
 
    // Promote to high order mesh and transform into a torus shape
    if (order_ > 1)
@@ -151,6 +155,8 @@ int main(int argc, char *argv[])
       mesh->SetCurvature(order_, true, 3, Ordering::byVDIM);
    }
    mesh->Transform(trans);
+
+   std::cout << "114" << std::endl;
 
    // Stitch the ends of the stack together
    {
@@ -189,6 +195,9 @@ int main(int argc, char *argv[])
       mesh->RemoveUnusedVertices();
       mesh->RemoveInternalBoundaries();
    }
+
+   std::cout << "115" << std::endl;
+
    if (order_ > 1)
    {
       mesh->SetCurvature(order_, dg_mesh, 3, Ordering::byVDIM);
@@ -199,6 +208,8 @@ int main(int argc, char *argv[])
    {
       mesh->UniformRefinement();
    }
+
+   std::cout << "116" << std::endl;
 
    // Output the resulting mesh to a file
    {
@@ -222,6 +233,8 @@ int main(int argc, char *argv[])
       mesh->Print(ofs);
       ofs.close();
    }
+
+   std::cout << "117" << std::endl;
 
    // Output the resulting mesh to GLVis
    if (visualization)

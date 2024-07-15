@@ -36,31 +36,32 @@ static MFEM_HOST_DEVICE void lagrange_eval(double *p0, double x,
 }
 
 static void InterpolateSurfLocal2D_Kernel(const double *const gf_in,
-                                          int *const el,     // element id containing each point
+                                          int *const el,        // element id containing each point
                                           double *const r,      // local (ref) coord of each point
                                           double *const int_out,
-                                          const int npt,       // total number of points
-                                          const int ncomp,     // number of components of the field
+                                          const int npt,        // total number of points
+                                          const int ncomp,      // number of components of the field
                                           const int nel,
-                                          const int dof1Dsol,  // number of dofs per element in gf_in
-                                          const int gf_offset, // offset for each field component
+                                          const int dof1Dsol,   // number of dofs per element in gf_in
+                                          const int gf_offset,  // offset for each field component
                                           double *gll1D,        // GLL nodes of the dof1Dsol dofs
-                                          double *lagcoeff,    // Lagrange coefficients of the dof1Dsol dofs
+                                          double *lagcoeff,     // Lagrange coefficients of the dof1Dsol dofs
                                           double *infok)
 {
    const int p_Nq = dof1Dsol;
    const int Nfields = ncomp;
    const int fieldOffset = gf_offset;
    const int pMax = 12;
+
+   MFEM_VERIFY(p_Nq<=pMax, "Increase Max allowable polynomial order.");
+
    // for each point of the npt points, create a thread block of size dof1Dsol
-   mfem::forall_2D(npt, dof1Dsol, 1, [=] MFEM_HOST_DEVICE (int i)
-   {
+   mfem::forall_2D(npt, dof1Dsol, 1, [=] MFEM_HOST_DEVICE (int i) {
       MFEM_SHARED double wtr[pMax];
       MFEM_SHARED double sums[pMax];
 
       // evaluate the Lagrange polynomials at the ref coord r[i]
-      MFEM_FOREACH_THREAD(j,x,p_Nq)
-      {
+      MFEM_FOREACH_THREAD(j,x,p_Nq) {
          lagrange_eval(wtr, r[i], j, p_Nq, gll1D, lagcoeff);
       }
       MFEM_SYNC_THREAD;
@@ -71,14 +72,12 @@ static void InterpolateSurfLocal2D_Kernel(const double *const gf_in,
          const int elemOffset = el[i]*p_Nq*Nfields + fld*p_Nq;
          // lagrange polynomial j contributes wtr[j]*gf_in[elemOffset + j] to
          // the field value at point i
-         MFEM_FOREACH_THREAD(j,x,p_Nq)
-         {
+         MFEM_FOREACH_THREAD(j,x,p_Nq) {
             sums[j] = wtr[j] * gf_in[elemOffset + j];
          }
          MFEM_SYNC_THREAD;
 
-         MFEM_FOREACH_THREAD(j,x,p_Nq)
-         {
+         MFEM_FOREACH_THREAD(j,x,p_Nq) {
             if (j==0) {
                double sumv = 0.0;
                // sum the contributions of each lagrange polynomial

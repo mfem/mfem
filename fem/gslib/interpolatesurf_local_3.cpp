@@ -53,9 +53,11 @@ static void InterpolateSurfLocal3D_Kernel(const double *const gf_in,
    const int fieldOffset = gf_offset;
    const int p_Np = p_Nq*p_Nq;
    const int pMax = 12;
+
+   MFEM_VERIFY(p_Nq<=pMax, "Increase Max allowable polynomial order.");
+
    // for each point of the npt points, create a thread block of size dof1Dsol
-   mfem::forall_2D(npt, dof1Dsol, 1, [=] MFEM_HOST_DEVICE (int i)
-   {
+   mfem::forall_2D(npt, dof1Dsol, 1, [=] MFEM_HOST_DEVICE (int i) {
       MFEM_SHARED double wtr[pMax];
       MFEM_SHARED double wts[pMax];
       MFEM_SHARED double sums[pMax];

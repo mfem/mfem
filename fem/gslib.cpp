@@ -3827,6 +3827,8 @@ void FindPointsGSLIB::InterpolateSurf(const GridFunction &field_in,
       field_out.SetSize(points_cnt*ncomp);
       field_out.UseDevice(true);
 
+      // std::cout << "InterpolateSurf: calling InterpolateOnDevice: " << gsl_comm->id << std::endl;
+
       // At this point make sure FindPoints was called with device mode?
       // Otherwise copy necessary data?
       InterpolateSurfOnDevice( node_vals,

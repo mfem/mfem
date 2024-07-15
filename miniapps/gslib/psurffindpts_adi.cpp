@@ -174,7 +174,7 @@ int main (int argc, char *argv[])
    }
 
    // restricting max user-defined field function order
-   func_order = std::min(exact_sol_order, 2);
+   func_order = std::min(exact_sol_order, 4);
 
    // Initialize and refine the starting mesh.
    int nex = nx*std::pow(2, rs_levels); // mesh size after refinement
