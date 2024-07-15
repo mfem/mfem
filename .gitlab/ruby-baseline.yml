@@ -32,7 +32,7 @@ baselinecheck_mfem_intel_ruby:
     - echo ${BUILD_ROOT}
     - echo ${TPLS_DIR}
     # Used by the tests in MFEM/tests:
-    - export MFEM_TEST_NP=32
+    - export MFEM_TEST_NP=48
     # The next script uses the following environment variables:
     # * BASELINE_TEST, SYS_TYPE, CI_PROJECT_DIR, ARTIFACTS_DIR,
     # * BUILD_ROOT, TPLS_DIR, MACHINE_NAME
