@@ -282,8 +282,8 @@ int main(int argc, char *argv[])
    {
       lambda[0] = 0.499/(1.499*0.002);
       lambda[1] = 0.0;
-      mu[0] = 1./(2*1.499);
-      mu[1] = 500;
+      mu[0]     = 1. / (2. * 1.499);
+      mu[1]     = 500.;
    }
 
    prob->SetLambda(lambda); prob->SetMu(mu);
@@ -405,9 +405,6 @@ int main(int argc, char *argv[])
    pmesh->GetNodes(new_coords);
    pmesh->GetNodes(ref_coords);
    
-   //ParGridFunction xref(prob->GetFESpace());
-   //      Vector x0 = x_gf.GetTrueVector();
-   //      int ndofs = x0.Size();
    Vector xref(x_gf.GetTrueVector().Size());
 
    HypreParMatrix *dgdu;
@@ -425,9 +422,16 @@ int main(int argc, char *argv[])
 
    bool QPConverged;
 
+   std::ofstream numConstraintsStream;
+   std::ostringstream numConstraints_file_name;
+   numConstraints_file_name << "data/numConstraints_ref" << sref << ".dat";
+   if (Mpi::Root)
+   {
+      numConstraintsStream.open(numConstraints_file_name.str(), ios::out | ios::trunc);
+   }
+
    for (int i = 0; i < nsteps; i++)
    {
-      //pseudotime = ((double) (i) / ((double) SQPrepeat) + 1.) / ((double) nsteps);
       pseudotime = ((double) (i + 1)) / ((double) nsteps);
       for (int j = 0; j < SQPrepeat; j++)
       {
@@ -469,10 +473,9 @@ int main(int argc, char *argv[])
             prob->SetDisplacementDirichletData(ess_values, ess_bdr);
          }
 
-	 //xref.Set(1.0, new_coords.GetTrueVector());
-	 //xref.Add(-1.0, ref_coords.GetTrueVector());
-	 xref.Set(1.0, x_gf.GetTrueVector());
-         ParContactProblem contact(prob, mortar_attr, nonmortar_attr, &new_coords, doublepass);
+	 //xref.Set(1.0, x_gf.GetTrueVector());
+         xref = 0.0;
+	 ParContactProblem contact(prob, mortar_attr, nonmortar_attr, &new_coords, doublepass);
          QPOptParContactProblem qpopt(&contact, xref);
          int numconstr = contact.GetGlobalNumConstraints();
          ParInteriorPointSolver optimizer(&qpopt);
@@ -495,27 +498,36 @@ int main(int argc, char *argv[])
          // Vector x0 = x.GetTrueVector();
 
          x_gf.SetTrueVector();
+	 
+
          Vector x0 = x_gf.GetTrueVector();
          int ndofs = x0.Size();
          Vector xf(ndofs); xf = 0.0;
          optimizer.Mult(x0, xf);
          QPConverged = optimizer.GetConverged();
-         MFEM_VERIFY(QPConverged, "IPM not converged on QP contact problem");
-         //optimizer.SaveLambda(i);
-         //optimizer.SaveZl(i);
-         Vector xf_copy(xf);
-         xf_copy+=x0;
+         
+	 /* exit if not converged */
+	 MFEM_VERIFY(QPConverged, "IPM not converged on QP contact problem");
+         
+	 
          double Einitial = contact.E(x0);
-         // double Efinal = contact.E(xf);
-         double Efinal = contact.E(xf_copy);
+         double Efinal   = contact.E(xf);
          Array<int> & CGiterations = optimizer.GetCGIterNumbers();
          int gndofs = prob->GetGlobalNumDofs();
-         //dgdu = contact.Ddg(xf_copy);
-         //std::ostringstream dgdu_file_name;
-         //dgdu_file_name << "Jacobians/J" << i;
-         //dgdu->Print(dgdu_file_name.str().c_str());
+         int gnconstraints = contact.GetGlobalNumConstraints();
+   
+	 std::ofstream xfStream;
+	 std::ostringstream xf_file_name;
+	 xf_file_name << "data/xf_" << i << ".dat";
+   //if (Mpi::Root)
+   //{
+   //   numConstraintsStream.open(numConstraints_file_name.str(), ios::out | ios::trunc);
+   //}
+
+
          if (Mpi::Root())
          {
+            
             mfem::out << endl;
             mfem::out << " Initial Energy objective        = " << Einitial << endl;
             mfem::out << " Final Energy objective          = " << Efinal << endl;
@@ -540,6 +552,7 @@ int main(int argc, char *argv[])
                file_name << "output/Testno-"<<testNo<<"-ref-"<<sref+pref << "-step-" << i; 
                OutputData(file_name, Einitial, Efinal, gndofs,numconstr, optimizer.GetNumIterations(), CGiterations);
             }
+	    numConstraintsStream << gnconstraints << endl;
          }
 
          // Vector X_new(xf.GetData(),fes->GetTrueVSize());
@@ -597,9 +610,11 @@ int main(int argc, char *argv[])
          }
       }
    }
-
-
-   //delete xref;
+ 
+   if (Mpi::Root)
+   {
+      numConstraintsStream.close();
+   }
    delete prob;
    delete pmesh;
    delete mesh;
