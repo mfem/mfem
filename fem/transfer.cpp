@@ -1839,18 +1839,18 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
          // R_ea.reset(new TripleProductOperator(Pt_lor, M_LH_ea_op, P_ho, false, false, false));
          R_ea.reset(new ProductOperator(ML_inv_eap.get(), M_LH_ea.get(), false, false));
 
-         // RM_H.SetSize(fes_ho.GetTrueVSize());
-         // GetTDofsTranspose(fes_ho, M_H, RM_H);
-         // precon_ea.reset(new OperatorJacobiSmoother(RM_H, ess_tdof_list));
+         RM_H.SetSize(fes_ho.GetTrueVSize());
+         GetTDofs(fes_ho, M_H, RM_H);
+         precon_ea.reset(new OperatorJacobiSmoother(RM_H, ess_tdof_list));
       }
       else if (P_ho)
       {
          R_ea.reset(new ProductOperator(R_ea_op, P_ho, false, false));
          M_LH_ea.reset(new ProductOperator(M_LH_ea_op, P_ho, false, false));
 
-         // RM_H.SetSize(fes_ho.GetTrueVSize());
-         // GetTDofs(fes_ho, M_H, RM_H);
-         // precon_ea.reset(new OperatorJacobiSmoother(RM_H, ess_tdof_list));
+         RM_H.SetSize(fes_ho.GetTrueVSize());
+         GetTDofs(fes_ho, M_H, RM_H);
+         precon_ea.reset(new OperatorJacobiSmoother(RM_H, ess_tdof_list));
       }
       else // P_lor != nullptr
       {
@@ -1861,7 +1861,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
          M_LH_ea.reset(new ProductOperator(Pt_lor, M_LH_ea_op, false, false));
          R_ea.reset(new ProductOperator(ML_inv_eap.get(), M_LH_ea.get(), false, false));
 
-         // precon_ea.reset(new OperatorJacobiSmoother(M_H, ess_tdof_list));
+         precon_ea.reset(new OperatorJacobiSmoother(M_H, ess_tdof_list));
      }
    }
 
@@ -1873,9 +1873,9 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
    TransposeOperator* R_eaT = new TransposeOperator(R_ea.get());
    RTxM_LH_ea.reset(new ProductOperator(R_eaT, M_LH_ea.get(), false, false));
 
-   RM_H.SetSize(fes_ho.GetTrueVSize());
-   GetTDofs(fes_ho, M_H, RM_H);
-   precon_ea.reset(new OperatorJacobiSmoother(RM_H, ess_tdof_list));
+   // RM_H.SetSize(fes_ho.GetTrueVSize());
+   // GetTDofs(fes_ho, M_H, RM_H);
+   // precon_ea.reset(new OperatorJacobiSmoother(RM_H, ess_tdof_list));
 
 
    DeviceSetupPCG();
@@ -2158,6 +2158,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::ProlongateTranspose(
       TDofsListByVDim(fes_ho, d, vdofs_list);
       X.GetSubVector(vdofs_list, X_dim);
       // Compute y = P^T x = M_LH (R^T M_LH)^(-1) X = M_LH Xbar
+      Xbar = 0.0;
       pcg.Mult(X_dim, Xbar);
       M_LH->Mult(Xbar, Y_dim);
       TDofsListByVDim(fes_lor, d, vdofs_list);
@@ -2198,6 +2199,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceProlongateTranspose(
       TDofsListByVDim(fes_ho, d, vdofs_list);
       X.GetSubVector(vdofs_list, X_dim);
       // Compute y = P^T x = M_LH (R^T M_LH)^(-1) X = M_LH Xbar
+      Xbar = 0.0;
       pcg_ea.Mult(X_dim, Xbar);
       M_LH_ea->Mult(Xbar, Y_dim);
       TDofsListByVDim(fes_lor, d, vdofs_list);
