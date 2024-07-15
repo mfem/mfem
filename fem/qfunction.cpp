@@ -208,6 +208,7 @@ void QuadratureFunction::SaveVTU(std::ostream &os, VTKFormat format,
    os << "<PointData>\n";
    os << "<DataArray type=\"" << type_str << "\" Name=\"" << field_name
       << "\" format=\"" << fmt_str << "\" NumberOfComponents=\"" << vdim
+      << VTKComponentLabels(vdim) << " "
       << "\">\n";
    for (int i = 0; i < ne; i++)
    {
