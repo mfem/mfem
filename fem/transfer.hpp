@@ -67,7 +67,7 @@ public:
        range, @a ran_fes_, FE spaces. */
    GridTransfer(FiniteElementSpace &dom_fes_,
                 FiniteElementSpace &ran_fes_,
-                MemoryType d_mt_ = MemoryType::DEFAULT);
+                MemoryType d_mt_ = MemoryType::HOST);
 
    /// Virtual destructor
    virtual ~GridTransfer() { }
@@ -253,6 +253,20 @@ public:
       void MultTranspose(const Vector& x, Vector& y) const;
    };
 
+   class H1SpaceLumpedMassOperator : public Operator
+   {
+   protected: 
+      const FiniteElementSpace* fes_ho;
+      const FiniteElementSpace* fes_lor;
+      Vector* ML_inv; // inverse of lumped M_L
+   public:
+      H1SpaceLumpedMassOperator(const FiniteElementSpace* fes_ho_, 
+                                const FiniteElementSpace* fes_lor_,
+                                Vector& ML_inv_);
+      void Mult(const Vector& x, Vector& y) const;
+      void MultTranspose(const Vector& x, Vector& y) const;
+   };
+
    class H1SpaceRestrictionOperator : public Operator
    {
    protected: 
@@ -286,7 +300,7 @@ public:
                           Coefficient* coeff_,
                           const bool use_device_,
                           const bool verify_solution_,
-                          MemoryType d_mt_ = MemoryType::DEFAULT);
+                          MemoryType d_mt_ = MemoryType::HOST);
 
       /*Same as above but assembles and stores R_ea, P_ea */
       void DeviceL2ProjectionL2Space(const FiniteElementSpace& fes_ho_,
@@ -364,14 +378,14 @@ public:
                           Coefficient *coeff_, 
                           const bool use_device_,
                           const bool verify_solution_, 
-                          MemoryType d_mt_ = MemoryType::DEFAULT);
+                          MemoryType d_mt_ = MemoryType::HOST);
       #ifdef MFEM_USE_MPI
             L2ProjectionH1Space(const ParFiniteElementSpace &pfes_ho_,
                                 const ParFiniteElementSpace &pfes_lor_, 
                                 Coefficient *coeff_,
                                 const bool use_device_,
                                 const bool verify_solution_, 
-                                MemoryType d_mt_ = MemoryType::DEFAULT);
+                                MemoryType d_mt_ = MemoryType::HOST);
       #endif
       /// Same as above but assembles action of R through 4 parts:
       ///   ( )  inv( lumped(M_L) ), which is a diagonal matrix (essentially a vector) 
@@ -381,6 +395,11 @@ public:
       void DeviceL2ProjectionH1Space(const FiniteElementSpace &fes_ho_,
                                      const FiniteElementSpace &fes_lor_, 
                                      Coefficient* coeff_);
+      #ifdef MFEM_USE_MPI
+            void DeviceL2ProjectionH1Space(const ParFiniteElementSpace &pfes_ho_,
+                                     const ParFiniteElementSpace &pfes_lor_, 
+                                     Coefficient* coeff_);
+      #endif
       /// Maps <tt>x</tt>, primal field coefficients defined on a coarse mesh
       /// with a higher order H1 finite element space, to <tt>y</tt>, primal
       /// field coefficients defined on a refined mesh with a low order H1
@@ -480,12 +499,16 @@ public:
       std::unique_ptr<Operator> RTxM_LH_ea;
       std::unique_ptr<Operator> R_ea;
       std::unique_ptr<Operator> M_LH_ea;
+      std::unique_ptr<Operator> ML_inv_eap;
       Operator *R_ea_op;
       Operator *M_LH_ea_op;
+      Operator *ML_inv_ea_op;
       const ElementRestrictionOperator* elem_restrict_h;
       const ElementRestrictionOperator* elem_restrict_l;
       Vector M_mixed_all_ea;
       Vector ML_inv_ea;
+      Vector RML_inv;
+      Vector RM_H;
 
       friend class L2ProjectionL2Space;
    };
@@ -523,7 +546,7 @@ public:
                             FiniteElementSpace &fine_fes_,
                             Coefficient *coeff_,
                             bool force_l2_space_ = false,
-                            MemoryType d_mt_ = MemoryType::DEFAULT)
+                            MemoryType d_mt_ = MemoryType::HOST)
       : GridTransfer(coarse_fes_, fine_fes_, d_mt_),
         F(NULL), B(NULL), force_l2_space(force_l2_space_), coeff(coeff_)
    { }
