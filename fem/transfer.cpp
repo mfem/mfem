@@ -1354,8 +1354,6 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
    : L2Projection(fes_ho_, fes_lor_, coeff_, d_mt_), 
      use_device(use_device_), verify_solution(verify_solution_)
 {
-   // printf("enter serial H1space \n");
-
    if (use_device || verify_solution)
    {
       DeviceL2ProjectionH1Space(fes_ho_, fes_lor_, coeff_);
@@ -1422,7 +1420,6 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
 {
    if (use_device || verify_solution)
    {
-      // printf("enter device h1 under mfem_use_mpi \n");
       DeviceL2ProjectionH1Space(pfes_ho, pfes_lor, coeff_);
       if (!verify_solution) {return;}
    }
@@ -1629,7 +1626,6 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
    // ElementRestrictionOperator for LOR
    // **************************
    elem_restrict_l = fes_lor.GetElementRestriction(ElementDofOrdering::NATIVE);
-   // printf("Get to here \n");
 
    // Set ownership
    M_LH_ea_op = new H1SpaceMixedMassOperator(&fes_ho, &fes_lor, &ho2lor, &M_mixed_all_ea);
@@ -1673,8 +1669,6 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
 void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
    const ParFiniteElementSpace& pfes_ho, const ParFiniteElementSpace& pfes_lor, Coefficient* coeff_)
 {
-   // printf("enter device parallel itself \n");
-
    // dynamic_cast to check if QuadFuncCoeff; if yes, continue; if no, return error
    auto qfunc_coeff = dynamic_cast<QuadratureFunctionCoefficient*>(coeff_);
    if (qfunc_coeff == NULL)
@@ -1817,46 +1811,45 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
    M_LH_ea_op = new H1SpaceMixedMassOperator(&pfes_ho, &pfes_lor, &ho2lor, &M_mixed_all_ea);
    R_ea_op = new H1SpaceRestrictionOperator(*M_LH_ea_op, ML_inv_ea);
 
-   // std::cout << "Vector MLinv size is " << ML_inv_ea.Size() << std::endl;
-   // std::cout << "R rows is " << R_ea_op->Height() << std::endl;
-   // std::cout << "R cols is " << R_ea_op->Width() << std::endl;
+   // need scalar to keep dimensions matching (operators are built to apply individually on each vdim)
+   pfes_ho_scalar = new ParFiniteElementSpace(pfes_ho.GetParMesh(), pfes_ho.FEColl(), 1);
+   pfes_lor_scalar = new ParFiniteElementSpace(pfes_lor.GetParMesh(), pfes_lor.FEColl(), 1);
 
-   // need scalar in general to keep dimensions matching 
-   const Operator *P_ho = pfes_ho.GetProlongationMatrix();
-   const Operator *P_lor = pfes_lor.GetProlongationMatrix();
+   const Operator *P_ho = pfes_ho_scalar->GetProlongationMatrix();
+   const Operator *P_lor = pfes_lor_scalar->GetProlongationMatrix();
 
    Array<int> ess_tdof_list;  // leave empty
 
    if (P_ho || P_lor)
    {
       if (P_ho && P_lor)
-      {
+      {         
          Operator *Pt_lor = new TransposeOperator(P_lor);
-         RML_inv.SetSize(fes_lor.GetTrueVSize());
-         GetTDofs(fes_lor, ML_inv_ea, RML_inv);
+         RML_inv.SetSize(pfes_lor.GetTrueVSize());
+         GetTDofs(pfes_lor, ML_inv_ea, RML_inv);
          ML_inv_eap.reset(new H1SpaceLumpedMassOperator(&pfes_ho, &pfes_lor, RML_inv));
          M_LH_ea.reset(new TripleProductOperator(Pt_lor, M_LH_ea_op, P_ho, false, false, false));
-         // R_ea.reset(new TripleProductOperator(Pt_lor, M_LH_ea_op, P_ho, false, false, false));
          R_ea.reset(new ProductOperator(ML_inv_eap.get(), M_LH_ea.get(), false, false));
 
-         RM_H.SetSize(fes_ho.GetTrueVSize());
-         GetTDofs(fes_ho, M_H, RM_H);
+         RM_H.SetSize(pfes_ho.GetTrueVSize());
+         GetTDofs(pfes_ho, M_H, RM_H);
          precon_ea.reset(new OperatorJacobiSmoother(RM_H, ess_tdof_list));
       }
       else if (P_ho)
       {
-         R_ea.reset(new ProductOperator(R_ea_op, P_ho, false, false));
+         ML_inv_eap.reset(new H1SpaceLumpedMassOperator(&pfes_ho, &pfes_lor, ML_inv_ea));
          M_LH_ea.reset(new ProductOperator(M_LH_ea_op, P_ho, false, false));
+         R_ea.reset(new ProductOperator(ML_inv_eap.get(), M_LH_ea.get(), false, false));
 
-         RM_H.SetSize(fes_ho.GetTrueVSize());
-         GetTDofs(fes_ho, M_H, RM_H);
+         RM_H.SetSize(pfes_ho.GetTrueVSize());
+         GetTDofs(pfes_ho, M_H, RM_H);
          precon_ea.reset(new OperatorJacobiSmoother(RM_H, ess_tdof_list));
       }
       else // P_lor != nullptr
       {
          Operator *Pt_lor = new TransposeOperator(P_lor);
-         RML_inv.SetSize(fes_lor.GetTrueVSize());
-         GetTDofs(fes_lor, ML_inv_ea, RML_inv);
+         RML_inv.SetSize(pfes_lor.GetTrueVSize());
+         GetTDofs(pfes_lor, ML_inv_ea, RML_inv);
          ML_inv_eap.reset(new H1SpaceLumpedMassOperator(&pfes_ho, &pfes_lor, RML_inv));
          M_LH_ea.reset(new ProductOperator(Pt_lor, M_LH_ea_op, false, false));
          R_ea.reset(new ProductOperator(ML_inv_eap.get(), M_LH_ea.get(), false, false));
@@ -1865,18 +1858,8 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
      }
    }
 
-   // std::cout << "MLinv rows is " << ML_inv_eap->Height() << std::endl;
-   // std::cout << "MLinv cols is " << ML_inv_eap->Width() << std::endl;
-   // std::cout << "R rows is " << R_ea->Height() << std::endl;
-   // std::cout << "R cols is " << R_ea->Width() << std::endl;
-
    TransposeOperator* R_eaT = new TransposeOperator(R_ea.get());
    RTxM_LH_ea.reset(new ProductOperator(R_eaT, M_LH_ea.get(), false, false));
-
-   // RM_H.SetSize(fes_ho.GetTrueVSize());
-   // GetTDofs(fes_ho, M_H, RM_H);
-   // precon_ea.reset(new OperatorJacobiSmoother(RM_H, ess_tdof_list));
-
 
    DeviceSetupPCG();
    pcg_ea.SetPreconditioner(*precon_ea);
@@ -1888,7 +1871,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
 void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceSetupPCG()
 {
     // Basic PCG solver setup
-    pcg_ea.SetPrintLevel(3); //intial residual & final 
+    pcg_ea.SetPrintLevel(3); // 3 : intial & final residual 
     // pcg.SetPrintLevel(IterativeSolver::PrintLevel().Summary());
     pcg_ea.SetMaxIter(1e+7);
     // initial values for relative and absolute tolerance
@@ -1927,8 +1910,6 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::Mult(
    }
 
    SetFromTDofs(fes_lor, Y, y);
-   // printf("y is \n"); 
-   // y.Print();
 
    if (verify_solution)
    {
@@ -1947,44 +1928,28 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::Mult(
 void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceMult(
    const Vector& x, Vector& y) const
 { 
-   // printf("start device multiplication \n");
    y = 0.0; 
    Vector X(fes_ho.GetTrueVSize());
 
    Vector X_dim(R_ea->Width());
-   // std::cout << "x size is " << x.Size() << std::endl;
-   // std::cout << "X size is " << X.Size() << std::endl;
 
    Vector Y_dim(R_ea->Height());
    Vector Y(fes_lor.GetTrueVSize());
-   // std::cout << "y size is " << y.Size() << std::endl;
-   // std::cout << "Y size is " << Y.Size() << std::endl;
 
    Array<int> vdofs_list;
 
    GetTDofs(fes_ho, x, X);
-   // printf("X is \n"); 
-   // X.Print();
 
    for (int d = 0; d < fes_ho.GetVDim(); ++d)
    {
-      TDofsListByVDim(fes_ho, d, vdofs_list);
-      
+      TDofsListByVDim(fes_ho, d, vdofs_list);   
       X.GetSubVector(vdofs_list, X_dim);
-      // printf("X_dim is \n"); 
-      // X_dim.Print();
       R_ea->Mult(X_dim, Y_dim);
-      // printf("what is Ydim: \n");
-      // Y_dim.Print();
       TDofsListByVDim(fes_lor, d, vdofs_list);
       Y.SetSubVector(vdofs_list, Y_dim);
    }
 
-   // printf("what is Y: \n");
-   // Y.Print(); 
    SetFromTDofs(fes_lor, Y, y);
-   // printf("device y is \n"); 
-   // y.Print();
 }
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::MultTranspose(
@@ -2742,7 +2707,6 @@ void L2ProjectionGridTransfer::H1SpaceRestrictionOperator::Mult(const Vector &x,
     M_LH_op->Mult(x, y_temp);
 
    #ifndef MFEM_USE_MPI
-      printf("pass through R op application of MLinv \n");
       MFEM_ASSERT(ML_inv.Size() == y_temp.Size(), "sizes not the same");
       auto v_ML_inv = mfem::Reshape(ML_inv->Read(), ML_inv->Size());
       auto v_y_temp = mfem::Reshape(y_temp.Read(), y_temp.Size());
@@ -2812,14 +2776,12 @@ void L2ProjectionGridTransfer::BuildF()
       else
       {
 #ifdef MFEM_USE_MPI
-         // printf("build F via mfem_use_mpi \n");
          const mfem::ParFiniteElementSpace& dom_pfes =
             static_cast<mfem::ParFiniteElementSpace&>(dom_fes);
          const mfem::ParFiniteElementSpace& ran_pfes =
             static_cast<mfem::ParFiniteElementSpace&>(ran_fes);
          F = new L2ProjectionH1Space(dom_pfes, ran_pfes, coeff, 
                                      use_device, verify_solution, d_mt);
-         // printf("exit Build F \n");
 #endif
       }
    }

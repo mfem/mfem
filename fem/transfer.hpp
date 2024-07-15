@@ -510,6 +510,11 @@ public:
       Vector RML_inv;
       Vector RM_H;
 
+#ifdef MFEM_USE_MPI
+      ParFiniteElementSpace* pfes_ho_scalar;
+      ParFiniteElementSpace* pfes_lor_scalar;
+#endif
+
       friend class L2ProjectionL2Space;
    };
 
