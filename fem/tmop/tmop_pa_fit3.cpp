@@ -65,7 +65,7 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_Fit_3D,
 
             if (marker == 0) {continue;}
             double w = coeff * normal * 1.0/dof_count;
-            E(qx,qy,qz,e) = w * sigma;   
+            E(qx,qy,qz,e) = w * sigma * sigma;   
             }
         }
       }  

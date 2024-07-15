@@ -1843,6 +1843,7 @@ protected:
    // X1: E-Vector for storing the surface fit grid function.
    // X2: E-Vector for storing the surface fit dof count.
    // X3: E-Vector for storing the surface fit marker boolean.
+   // X4: E-Vector for storing the surface fit gradients.
    //
    // C1: Constant coefficient that stores surf_it_coeff.
    // C2: Real scalar that stores surf_fit_normal.
@@ -1870,7 +1871,7 @@ protected:
       mutable bool Jtr_needs_update;
       mutable bool Jtr_debug_grad;
       mutable Vector E, O, X0, H, C0, LD, H0, MC;
-      mutable Vector X1, X2, X3; //new here
+      mutable Vector X1, X2, X3, X4; //new here
       mutable real_t C1, C2; //new here
       const DofToQuad *maps;
       const DofToQuad *maps_lim = nullptr;
@@ -1966,6 +1967,7 @@ protected:
    real_t GetLocalStateEnergyPA_2D(const Vector&) const;
    real_t GetLocalStateEnergyPA_C0_2D(const Vector&) const;
    real_t GetLocalStateEnergyPA_Fit_2D(const Vector&) const;
+   real_t GetLocalStateEnergyPA_Fit_Grad_2D(const Vector&) const;
    real_t GetLocalStateEnergyPA_Fit_3D(const Vector&) const;
    real_t GetLocalStateEnergyPA_3D(const Vector&) const;
    real_t GetLocalStateEnergyPA_C0_3D(const Vector&) const;
