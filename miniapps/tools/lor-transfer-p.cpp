@@ -114,12 +114,22 @@ int main(int argc, char *argv[])
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
+   // Make initial refinement on serial mesh. 
+   {
+      int ref_levels = (int)floor(log(30./mesh.GetNE())/log(2.)/dim);
+      for (int l = 0; l < ref_levels; l++)
+      {
+         mesh.UniformRefinement();
+      }
+   }
+
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
 
    // Create the low-order refined mesh
    int basis_lor = BasisType::ClosedUniform; //BasisType::GaussLobatto; // 
    ParMesh pmesh_lor = ParMesh::MakeRefined(pmesh, lref, basis_lor);
+   // printf("successfully make parMesh \n");
 
    // Create spaces
    FiniteElementCollection *fec, *fec_lor;
@@ -142,8 +152,11 @@ int main(int argc, char *argv[])
    }
 
    ParFiniteElementSpace fespace(&pmesh, fec);
+   std::cout << "num DOFs : " << fespace.GetNDofs() << std::endl;
    ParFiniteElementSpace fespace_lor(&pmesh_lor, fec_lor);
    // HYPRE_BigInt size = fespace.GlobalTrueVSize();
+   // printf("successfully make parFES \n");
+
 
    // Build the integration rule that matches with quadrature on mixed mass matrix,  
    // assuming HO elements are the same, and that all HO are LOR in the same way 
@@ -163,6 +176,8 @@ int main(int argc, char *argv[])
    QuadratureFunctionCoefficient coeff(qfunc); 
 
    ParGridFunction rho(&fespace);
+   // std::cout << "size of rho : " << rho.Size() << std::endl;
+   // rho.Print();
    ParGridFunction rho_lor(&fespace_lor);
 
    // Data collections for vis/analysis
@@ -179,12 +194,12 @@ int main(int argc, char *argv[])
    mesh_lor_ofs.precision(8);
    pmesh_lor.Print(mesh_lor_ofs);
 
-   BilinearForm M_ho(&fespace);
+   ParBilinearForm M_ho(&fespace);
    M_ho.AddDomainIntegrator(new MassIntegrator);
    M_ho.Assemble();
    M_ho.Finalize();
 
-   BilinearForm M_lor(&fespace_lor);
+   ParBilinearForm M_lor(&fespace_lor);
    M_lor.AddDomainIntegrator(new MassIntegrator);
    M_lor.Assemble();
    M_lor.Finalize();
@@ -192,10 +207,13 @@ int main(int argc, char *argv[])
    // HO projections
    direction = "HO -> LOR @ HO";
    FunctionCoefficient RHO(RHO_exact);
+   // rho.Print();
    rho.ProjectCoefficient(RHO);
+   // printf("everything before okay \n");
    // Make sure AMR constraints are satisfied
    rho.SetTrueVector();
    rho.SetFromTrueVector();
+   // printf("get rho ParGridFunction \n");
 
    real_t ho_mass = compute_mass(&fespace, -1.0, HO_dc, "HO       ");
    if (vis) { visualize(HO_dc, "HO", Wx, Wy); Wx += offx; }
@@ -210,22 +228,24 @@ int main(int argc, char *argv[])
       gt = new L2ProjectionGridTransfer(fespace, fespace_lor, &coeff); 
    }
 
-   gt->UseDevice(true);
+   gt->UseDevice(false);
    gt->VerifySolution(true);
-   printf("Get past set device and verify \n");
+   // printf("Get past set device and verify \n");
 
    const Operator &R = gt->ForwardOperator();
-   printf("Get past forward operator \n");
+   // printf("Get past forward operator \n");
 
    // HO->LOR restriction
    direction = "HO -> LOR @ LOR";
-   R.Mult(rho, rho_lor);  
+   R.Mult(rho, rho_lor); 
+   // printf("Multiplication passing \n"); 
    // exit(0);
    compute_mass(&fespace_lor, ho_mass, LOR_dc, "R(HO)    ");
    if (vis) { visualize(LOR_dc, "R(HO)", Wx, Wy); Wx += offx; }
 
    if (gt->SupportsBackwardsOperator())
    {
+      // printf("entering P operator build \n");
       const Operator &P = gt->BackwardOperator();
       // LOR->HO prolongation
       direction = "HO -> LOR @ HO";
@@ -238,9 +258,10 @@ int main(int argc, char *argv[])
       cout.precision(12);
       cout << "|HO - P(R(HO))|_∞   = " << rho_prev.Normlinf() << endl;
    }
+   // exit(0);
 
    // HO* to LOR* dual fields
-   LinearForm M_rho(&fespace), M_rho_lor(&fespace_lor);
+   ParLinearForm M_rho(&fespace), M_rho_lor(&fespace_lor);
    if (!use_pointwise_transfer && gt->SupportsBackwardsOperator())
    {
       const Operator &P = gt->BackwardOperator();
