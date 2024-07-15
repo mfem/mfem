@@ -14,6 +14,7 @@
 
 #include "../linalg/invariants.hpp"
 #include "nonlininteg.hpp"
+#include "tmop/AnalyticalSurface.hpp"
 
 namespace mfem
 {
@@ -30,9 +31,52 @@ protected:
        for TMOP_QualityMetric%s, because it is not used. */
    void SetTransformation(ElementTransformation &) { }
 
+   /// First invariant of the given 2x2 matrix @a M.
+   static double Dim2Invariant1(const DenseMatrix &M);
+   /// Second invariant of the given 2x2 matrix @a M.
+   static double Dim2Invariant2(const DenseMatrix &M);
+
+   /// 1st derivative of the first invariant for the given 2x2 matrix @a M.
+   static void Dim2Invariant1_dM(const DenseMatrix &M, DenseMatrix &dM);
+   /// 1st derivative of the second invariant for the given 2x2 matrix @a M.
+   static void Dim2Invariant2_dM(const DenseMatrix &M, DenseMatrix &dM);
+
+   /// 2nd derivative of the first invariant for the given 2x2 matrix @a M.
+   static void Dim2Invariant1_dMdM(const DenseMatrix &M, int i, int j,
+                                   DenseMatrix &dMdM);
+   /// 2nd derivative of the second invariant for the given 2x2 matrix @a M.
+   static void Dim2Invariant2_dMdM(const DenseMatrix &M, int i, int j,
+                                   DenseMatrix &dMdM);
+
+   /// First invariant of the given 3x3 matrix @a M.
+   static double Dim3Invariant1(const DenseMatrix &M);
+   /// Second invariant of the given 3x3 matrix @a M.
+   static double Dim3Invariant2(const DenseMatrix &M);
+   /// Third invariant of the given 3x3 matrix @a M.
+   static double Dim3Invariant3(const DenseMatrix &M);
+
+   /// 1st derivative of the first invariant for the given 3x3 matrix @a M.
+   static void Dim3Invariant1_dM(const DenseMatrix &M, DenseMatrix &dM);
+   /// 1st derivative of the second invariant for the given 3x3 matrix @a M.
+   static void Dim3Invariant2_dM(const DenseMatrix &M, DenseMatrix &dM);
+   /// 1st derivative of the third invariant for the given 3x3 matrix @a M.
+   static void Dim3Invariant3_dM(const DenseMatrix &M, DenseMatrix &dM);
+
+   /// 2nd derivative of the first invariant for the given 3x3 matrix @a M.
+   static void Dim3Invariant1_dMdM(const DenseMatrix &M, int i, int j,
+                                   DenseMatrix &dMdM);
+   /// 2nd derivative of the second invariant for the given 3x3 matrix @a M.
+   static void Dim3Invariant2_dMdM(const DenseMatrix &M, int i, int j,
+                                   DenseMatrix &dMdM);
+   /// 2nd derivative of the third invariant for the given 3x3 matrix @a M.
+   static void Dim3Invariant3_dMdM(const DenseMatrix &M, int i, int j,
+                                   DenseMatrix &dMdM);
+
 public:
    TMOP_QualityMetric() : Jtr(NULL) { }
    virtual ~TMOP_QualityMetric() { }
+
+   bool use_old_invariants_code = false;
 
    /** @brief Specify the reference-element -> target-element Jacobian matrix
        for the point of interest.
@@ -73,6 +117,11 @@ public:
        the matrix invariants and their derivatives. */
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const real_t weight, DenseMatrix &A) const = 0;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const DenseMatrix &dx_dt,
+                          const real_t weight, DenseMatrix &A) const
+   { MFEM_ABORT("not implemented"); }
 
    /** @brief Return the metric ID. */
    virtual int Id() const { return 0; }
@@ -312,6 +361,10 @@ public:
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const real_t weight, DenseMatrix &A) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const DenseMatrix &dx_dt,
                           const real_t weight, DenseMatrix &A) const;
 
    virtual int Id() const { return 2; }
@@ -1790,6 +1843,10 @@ protected:
    Array<int> surf_fit_dof_count;            // Number of dofs per node.
    Array<int> surf_fit_marker_dof_index;     // Indices of nodes to fit.
 
+   // Tangential optimization.
+   AnalyticCompositeSurface *tan_analytic_surf = nullptr;
+   FiniteElementSpace *fes_mesh = nullptr;
+
    DiscreteAdaptTC *discr_tc;
 
    // Parameters for FD-based Gradient & Hessian calculation.
@@ -1871,11 +1928,11 @@ protected:
                                      real_t &metric_energy, real_t &lim_energy,
                                      real_t &surf_fit_gf_energy);
 
-   void AssembleElementVectorExact(const FiniteElement &el,
+   virtual void AssembleElementVectorExact(const FiniteElement &el,
                                    ElementTransformation &T,
                                    const Vector &elfun, Vector &elvect);
 
-   void AssembleElementGradExact(const FiniteElement &el,
+   virtual void AssembleElementGradExact(const FiniteElement &el,
                                  ElementTransformation &T,
                                  const Vector &elfun, DenseMatrix &elmat);
 
@@ -2169,6 +2226,16 @@ public:
    {
       return surf_fit_gf != NULL || surf_fit_pos != NULL;
    }
+
+   // Tangential movement.
+   void EnableTangentialMovement(AnalyticCompositeSurface &surf,
+                                 FiniteElementSpace &mesh_fes)
+   {
+      tan_analytic_surf = &surf;
+      fes_mesh = &mesh_fes;
+   }
+   const AnalyticCompositeSurface *GetAnalyticSurface() const
+   { return tan_analytic_surf; }
 
    /// Update the original/reference nodes used for limiting.
    void SetLimitingNodes(const GridFunction &n0) { lim_nodes0 = &n0; }

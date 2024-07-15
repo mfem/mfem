@@ -1,7 +1,7 @@
 MFEM mesh v1.0
 
 #
-# MFEM Geometry Types (see fem/geom.hpp):
+# MFEM Geometry Types (see mesh/geom.hpp):
 #
 # POINT       = 0
 # SEGMENT     = 1
@@ -63,30 +63,30 @@ VDim: 2
 Ordering: 0
 
 0
-0.25
 0.5
-0.75
-1
+1.0
+1.5
+2
 0
-0.25
 0.5
-0.75
-1
+1.0
+1.5
+2
 0
-0.25
 0.5
-0.75
-1
+1.0
+1.5
+2
 0
-0.25
 0.5
-0.75
-1
+1.0
+1.5
+2
 0
-0.25
 0.5
-0.75
-1
+1.0
+1.5
+2
 0
 0
 0
