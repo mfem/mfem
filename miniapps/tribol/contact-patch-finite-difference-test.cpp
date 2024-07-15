@@ -67,12 +67,16 @@ int main(int argc, char *argv[])
 
    // Define command line options
    int ref_levels = 2;   // number of times to uniformly refine the serial mesh
-   double x0shift = 0.0;
+   double u0shift = 0.0;
+   bool outputfiles = false;
    // Parse command line options
    mfem::OptionsParser args(argc, argv);
    args.AddOption(&ref_levels, "-r", "--refine",
                   "Number of times to refine the mesh uniformly.");
-   args.AddOption(&x0shift, "-x0shift", "--x0shift", "magnitude (inf norm) of random displacement where finite difference test is evaluated"); 
+   args.AddOption(&u0shift, "-u0shift", "--u0shift", "magnitude (inf norm) of random displacement where finite difference test is evaluated"); 
+   args.AddOption(&outputfiles, "-out", "--output", "-no-out",
+                  "--no-ouput",
+                  "Enable or disable ouput to files.");                  
    args.Parse();
    if (!args.Good())
    {
@@ -90,16 +94,13 @@ int main(int argc, char *argv[])
    // Fixed options
    // two block mesh; bottom block = [0,1]^3 and top block = [0,1]x[0,1]x[0.99,1.99]
    std::string mesh_file = "modified-two-hex.mesh";
-   //std::string mesh_file = "Test4.mesh"; 
    // Problem dimension (NOTE: Tribol's mortar only works in 3D)
    constexpr int dim = 3;
    // FE polynomial degree (NOTE: only 1 works for now)
    constexpr int order = 1;
    // z=1 plane of bottom block (contact plane)
-   //std::set<int> mortar_attrs({3});
    std::set<int> mortar_attrs({4});
    // z=0.99 plane of top block (contact plane)
-   //std::set<int> nonmortar_attrs({4});
    std::set<int> nonmortar_attrs({5});
    // per-dimension sets of boundary attributes with homogeneous Dirichlet BCs.
    // allows transverse deformation of the blocks while precluding rigid body
@@ -192,7 +193,7 @@ int main(int argc, char *argv[])
          {
              if (j / 4 == 2)
              {      
-                u0(vdofs[j]) = -1.0 * x0shift;
+                u0(vdofs[j]) = -1.0 * u0shift;
              }
          }
       }
@@ -224,7 +225,7 @@ int main(int argc, char *argv[])
    // to visualize u = u0, u = u0 + eps * udir
    // use linear adjustment for eps here  
    std::ostringstream paraview_file_name;
-   paraview_file_name << "BlockConfigurations_ref_" << ref_levels << "shift" << x0shift;
+   paraview_file_name << "BlockConfigurations_ref_" << ref_levels << "shift" << u0shift;
    ParaViewDataCollection * paraview_dc = new ParaViewDataCollection(paraview_file_name.str(), &mesh_copy);
    paraview_dc->SetPrefixPath("ParaView");
    paraview_dc->SetLevelsOfDetail(1);
@@ -251,69 +252,58 @@ int main(int argc, char *argv[])
    new_coords.GetTrueDofs(config);
    
 
-   std::ofstream configStream;
-   std::ostringstream config_file_name;
-   config_file_name << "data/configuration.dat";
-
-   std::ofstream gap0Stream;
-   std::ostringstream gap0_file_name;
-   gap0_file_name << "data/gap.dat";
-   if (mfem::Mpi::Root())
+   if (mfem::Mpi::Root() && outputfiles)
    {
       fdepsStream.open(fdeps_file_name.str(), std::ios::out | std::ios::trunc);
       fderrStream.open(fderr_file_name.str(), std::ios::out | std::ios::trunc);
-      configStream.open(config_file_name.str(), std::ios::out | std::ios::trunc);
-      for (int i = 0; i < config.Size(); i++)
-      {
-         configStream << config(i) << std::endl;
-      }
-      configStream.close();
-      gap0Stream.open(gap0_file_name.str(), std::ios::out | std::ios::trunc);
-      for (int i = 0; i < g0.Size(); i++)
-      {
-         gap0Stream << g0(i) << std::endl;
-      }
-      gap0Stream.close();
    }
 
    double eps = 1.0;
-   for (int i = 0; i < 30; i++)
+   int   neps = 40;
+   for (int i = 0; i < neps; i++) // eps_min = 0.5^(39) \approx 10^(-12)
    {
+      // compute g1 = g(u1), u1 = u0 + eps * udir
       u1.Set(1.0, u0);
       u1.Add(eps, udir);
       displacement.SetFromTrueDofs(u1);
       add(coords, displacement, new_coords);
       ContactObj contact1(&mesh, mortar_attrs, nonmortar_attrs, &new_coords);
       contact1.GetGap(g1);
+
+      // determine finite difference residual: fdres = (g1 - g0) / eps - J0 * udir
       fdres.Set(1. / eps, g1);
       fdres.Add(-1. / eps, g0);
-      std::cout << "------------ -------------------------------\n\n";
-      double fd_J0udirTJ0udir = InnerProduct(MPI_COMM_WORLD, fdres, J0udir);
-      double fd_J0udir_l2norm = GlobalLpNorm(2, fdres.Norml2(), MPI_COMM_WORLD);
-      double J0udir_l2norm = GlobalLpNorm(2, J0udir.Norml2(), MPI_COMM_WORLD);
       fdres.Add(-1, J0udir);
       double fderr_l2norm = GlobalLpNorm(2, fdres.Norml2(), MPI_COMM_WORLD);
       double udir_l2norm = GlobalLpNorm(2, udir.Norml2(), MPI_COMM_WORLD);
 
       if (mfem::Mpi::Root())
       {
-         //std::cout << "angle between J0duir and fd approx = " << acos(fd_J0udirTJ0udir / (fd_J0udir_l2norm * J0udir_l2norm)) * 180.0 / 3.14159265359 << " (degrees)" << std::endl;
-         //std::cout << "|| (g(u0 + eps * udir) - g(u0)) / eps ||_2 / || J(u0) * udir||_2 = " << fd_J0udir_l2norm / J0udir_l2norm << std::endl;
+         std::cout << "--------------------------------------------\n\n";
          std::cout << "||(g(u0 + eps * udir) - g(u0)) / eps - J(u0) * udir|| = " << fderr_l2norm << ", eps = " << eps << "\n\n";
-	 //std::cout << "||(g(u0 + eps * udir) - g(u0)) / eps - J(u0) * udir||_2 / ||udir||_2 = " << fderr_l2norm / udir_l2norm << std::endl;
+	 std::cout << "||(g(u0 + eps * udir) - g(u0)) / eps - J(u0) * udir||_2 / ||udir||_2 = " << fderr_l2norm / udir_l2norm << std::endl;
+      }
+      if (mfem::Mpi::Root() && outputfiles)
+      {
 	 fdepsStream << eps << std::endl;
 	 fderrStream << fderr_l2norm << std::endl;
       }
       eps /= 2.0;
    }
-   if (mfem::Mpi::Root())
+   if (mfem::Mpi::Root() && outputfiles)
    {
       fdepsStream.close();
       fderrStream.close();
    }
 
+
+   /* What follows we linearly modify epsilon
+    * output the gap, in order to check for discontinuities
+    * and also output the various states u0 + eps * udir to file
+    * in order to visualize the mesh configurations    *
+    * */
    eps  = 1.0;
-   int neps = (int) 1.e2;
+   neps = 100;
    double deps =  eps / ((double) neps);
    std::ofstream epsStream;
    std::ostringstream eps_file_name;
@@ -323,7 +313,7 @@ int main(int argc, char *argv[])
    std::ostringstream gap_file_name;
    gap_file_name << "data/gap_ref_" << ref_levels << ".dat";
    
-   if (mfem::Mpi::Root())
+   if (mfem::Mpi::Root() && outputfiles)
    {
       epsStream.open(eps_file_name.str(), std::ios::out | std::ios::trunc);
       gapStream.open(gap_file_name.str(), std::ios::out | std::ios::trunc);
@@ -334,22 +324,31 @@ int main(int argc, char *argv[])
 
    for (int i = 0; i < neps; i++)
    {
+      // compute g1 = g(u1), u1 = u0 + eps * udir
       u1.Set(1.0, u0);
       u1.Add(eps, udir);
       displacement.SetFromTrueDofs(u1);
       add(coords, displacement, new_coords);
+      ContactObj contact1(&mesh, mortar_attrs, nonmortar_attrs, &new_coords);
+      contact1.GetGap(g1);
+      double gap_l2norm = GlobalLpNorm(2, g1.Norml2(), MPI_COMM_WORLD);
+      if (mfem::Mpi::Root() && outputfiles)
+      {
+         epsStream << eps << std::endl;
+         gapStream << g1.Norml2() << std::endl;
+      } 
+      
+      // update mesh according to u1 and write to Paraview for visualization
       mesh_copy.SetNodes(new_coords);
       paraview_dc->SetCycle(i+1) ;
       paraview_dc->SetTime((double) (i+1));
       paraview_dc->Save();
-      ContactObj contact1(&mesh, mortar_attrs, nonmortar_attrs, &new_coords);
-      contact1.GetGap(g1);
-      epsStream << eps << std::endl;
-      gapStream << g1.Norml2() << std::endl;
+      
+      // linear update to eps: eps = eps - deps
       eps -= deps;
    }
 
-   if (mfem::Mpi::Root())
+   if (mfem::Mpi::Root() && outputfiles)
    {
       epsStream.close();
       gapStream.close();
