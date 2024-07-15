@@ -31,13 +31,13 @@ allocate_resource:
 # Build and test jobs, simply provide a spec
 rocm_5_7_1:
   variables:
-    SPEC: "@develop +rocm amdgpu_target=gfx90a %rocmcc@=5.7.1 ^hip@5.7.1"
+    SPEC: "+rocm amdgpu_target=gfx90a %rocmcc@=5.7.1 ^hip@5.7.1"
   extends: .build_and_test_on_tioga
   needs: [allocate_resource]
 
 cce_16_0_1:
   variables:
-    SPEC: "@develop %cce@=16.0.1"
+    SPEC: "%cce@=16.0.1"
   extends: .build_and_test_on_tioga
   needs: [allocate_resource]
 
