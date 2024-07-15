@@ -1,5 +1,3 @@
-// TODO(Gabriel): To decide if this should be an example or not
-//
 // Compile with: make TODO
 //
 // Sample runs: mpirun -np 4 ...
@@ -7,7 +5,7 @@
 // Description:
 
 #include "mfem.hpp"
-#include "../miniapps/common/mfem-common.hpp"
+#include "miniapps/common/mfem-common.hpp"
 #include <fstream>
 #include <iostream>
 
@@ -63,7 +61,7 @@ int main(int argc, char *argv[])
    Hypre::Init();
 
    // TODO(Gabriel): simpler default mesh to be defined by the type if left blank
-   string mesh_file = "../data/star.mesh";
+   string mesh_file = "meshes/icf.mesh";
    // System properties
    int order = 1;
    SolverType solver_type = sli;
@@ -142,7 +140,7 @@ int main(int argc, char *argv[])
 
    // TODO(Gabriel): To be added later...
    // Device device(device_config);
-   // if (myid == 0) { device.Print(); }
+   // if (Mpi::Root()) { device.Print(); }
 
    Mesh *serial_mesh = new Mesh(mesh_file);
    for (int ls = 0; ls < refine_serial; ls++)
@@ -179,7 +177,6 @@ int main(int argc, char *argv[])
    }
 
    HYPRE_BigInt sys_size = fespace->GlobalTrueVSize();
-   //if (id == 0)
    if (Mpi::Root())
    {
       mfem::out << "Number of unknowns: " << sys_size << endl;
@@ -215,7 +212,7 @@ int main(int argc, char *argv[])
          {
             f->Set(i, &one);
          }
-         b->AddBoundaryIntegrator(new VectorBoundaryLFIntegrator(*f));
+         b->AddDomainIntegrator(new VectorDomainLFIntegrator(*f));
          break;
       case maxwell:
          f = new VectorArrayCoefficient(dim);
@@ -229,6 +226,7 @@ int main(int argc, char *argv[])
          mfem_error("Invalid integrator type! Check ParLinearForm");
    }
    b->Assemble();
+   mfem::out << b->Norml2() << endl;
 
    ParBilinearForm *a = new ParBilinearForm(fespace);
    switch (integrator_type)
@@ -257,11 +255,15 @@ int main(int argc, char *argv[])
    HypreParMatrix A;
    Vector B, X;
 
-   x = -1.0;
+   x = 0.0;
 
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
+   // TODO(DEBUG): Check b form for elasticity!
+   mfem::out << B.Norml2() << endl;
+
    // D_{p,q} = diag( D^{1+q-p} |A|^p D^{-q} 1) , where D = diag(A)
+   // TODO(Chak): Make into one function!
    Vector right(A.Height());
    Vector temp(A.Height());
    Vector left(A.Height());
@@ -289,6 +291,7 @@ int main(int argc, char *argv[])
 
    // diag(...)
    auto lpq_jacobi = new OperatorJacobiSmoother(left, ess_tdof_list);
+   // TODO(Chak): Make into one function! Into a class!
 
    Solver *solver = nullptr;
    DataMonitor monitor(file_name.str(), NDIGITS);
