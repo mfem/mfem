@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -367,6 +367,192 @@ TEST_CASE("GSLIBInterpolateL2ElementBoundary",
    finder.FreeData();
    delete c_fec;
 }
+
+#ifdef MFEM_USE_MPI
+// Custom interpolation procedure with gslib
+TEST_CASE("GSLIBCustomInterpolation",
+          "[GSLIBCustomInterpolation][Parallel][GSLIB]")
+{
+   int myid;
+   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+
+   int dim      = GENERATE(2, 3);
+   bool simplex = GENERATE(true, false);
+
+   CAPTURE(dim, simplex);
+
+   int nex = 4;
+   int mesh_order = 2;
+   Mesh mesh;
+   if (dim == 2)
+   {
+      Element::Type type = simplex ? Element::TRIANGLE : Element::QUADRILATERAL;
+      mesh = Mesh::MakeCartesian2D(nex, nex, type);
+   }
+   else
+   {
+      Element::Type type = simplex ? Element::TETRAHEDRON : Element::HEXAHEDRON;
+      mesh = Mesh::MakeCartesian3D(nex, nex, nex, type);
+   }
+
+   mesh.SetCurvature(mesh_order);
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+
+   // f(x,y,z) = x^2 + y^2 + z^2
+   auto func = [](const Vector &x)
+   {
+      const int dim = x.Size();
+      double res = 0.0;
+      for (int d = 0; d < dim; d++) { res += std::pow(x(d), 2); }
+      return res;
+   };
+
+   // \nabla f(x,y,z) = [2*x,2*y,2*z]
+   auto func_grad = [](const Vector &x, Vector &p)
+   {
+      const int dim = x.Size();
+      p.SetSize(dim);
+      for (int d = 0; d < dim; d++) { p(d) = 2.0*x(d); }
+   };
+
+   // Set GridFunction to be interpolated
+   int func_order = 3;
+   H1_FECollection c_fec(func_order, dim);
+   FiniteElementSpace c_fespace(&pmesh, &c_fec, 1);
+   GridFunction field_vals(&c_fespace);
+
+   FunctionCoefficient f(func);
+   field_vals.ProjectCoefficient(f);
+
+   // Generate randomized points in [0, 1]^D. Assume ordering by VDIM.
+   int npt = 101;
+   Vector xyz(npt*dim);
+   xyz.Randomize(myid + 1);
+
+   // Find points on the ParMesh
+   Vector interp_vals(npt);
+   FindPointsGSLIB finder;
+   finder.Setup(pmesh);
+   finder.FindPoints(xyz, Ordering::byVDIM);
+
+   /** Interpolate gradient using custom interpolation procedure. */
+   // We first send information to MPI ranks that own the element corresponding
+   // to each point.
+   Array<unsigned int> recv_elem, recv_code;
+   Vector recv_rst;
+   finder.DistributePointInfoToOwningMPIRanks(recv_elem, recv_rst, recv_code);
+   int npt_recv = recv_elem.Size();
+   // Compute gradient locally
+   Vector grad(npt_recv*dim);
+   for (int i = 0; i < npt_recv; i++)
+   {
+      const int e = recv_elem[i];
+
+      IntegrationPoint ip;
+      if (dim == 2)
+      {
+         ip.Set2(recv_rst(dim*i + 0),recv_rst(dim*i + 1));
+      }
+      else
+      {
+         ip.Set3(recv_rst(dim*i + 0),recv_rst(dim*i + 1),
+                 recv_rst(dim*i + 2));
+      }
+      ElementTransformation *Tr = c_fespace.GetElementTransformation(e);
+      Tr->SetIntPoint(&ip);
+
+      Vector gradloc(grad.GetData()+i*dim,dim);
+      field_vals.GetGradient(*Tr, gradloc);
+   }
+
+   // Send the computed gradient back to the ranks that requested it.
+   Vector recv_grad;
+   finder.DistributeInterpolatedValues(grad, dim, Ordering::byVDIM, recv_grad);
+
+   // Check if the received gradient matched analytic gradient.
+   for (int i = 0; i < npt && myid == 0; i++)
+   {
+      Vector x(xyz.GetData()+i*dim,dim);
+      Vector grad_exact(dim);
+      func_grad(x, grad_exact);
+
+      Vector recv_grad_i(recv_grad.GetData()+i*dim,dim);
+
+      for (int d = 0; d < dim; d++)
+      {
+         REQUIRE(grad_exact(d) == Approx(recv_grad(i*dim + d)));
+      }
+   }
+
+   finder.FreeData();
+}
+
+TEST_CASE("GSLIBGSOP", "[GSLIBGSOP][Parallel][GSLIB]")
+{
+   int myid;
+   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+
+   int nlen = 5 + rand() % 1000;
+   MPI_Allreduce(MPI_IN_PLACE, &nlen, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+
+   Array<long long> ids(nlen);
+   Vector vals(nlen);
+   vals.Randomize(myid+1);
+
+   // Force minimum values based on the identifier for deterministic behavior
+   // on rank 0 and randomize the identifier on other ranks.
+   if (myid == 0)
+   {
+      for (int i = 0; i < nlen; i++)
+      {
+         ids[i] = i+1;
+         vals(i) = -ids[i];
+      }
+   }
+   else
+   {
+      for (int i = 0; i < nlen; i++)
+      {
+         int num = rand() % nlen + 1;
+         ids[i] = num;
+      }
+   }
+
+   // Test GSOp::MIN
+   GSOPGSLIB gs = GSOPGSLIB(MPI_COMM_WORLD, ids);
+   gs.GS(vals, GSOPGSLIB::GSOp::MIN);
+
+   // Check for minimum value
+   for (int i = 0; i < nlen; i++)
+   {
+      int id = ids[i];
+      REQUIRE(vals(i) == -1.0*id);
+   }
+
+   // Test GSOp::ADD
+   // Set all values to 0 except on rank 0, and then add them.
+   if (myid != 0) { vals = 0.0; }
+   gs.GS(vals, GSOPGSLIB::GSOp::ADD);
+
+   // Check for added value to match what was originally set on rank 0.
+   for (int i = 0; i < nlen; i++)
+   {
+      int id = ids[i];
+      REQUIRE(vals(i) == -1.0*id);
+   }
+
+   // Test GSOp::MUL
+   // Randomize values on all ranks except rank 0 such that they are positive.
+   if (myid != 0) { vals.Randomize(); }
+   gs.GS(vals, GSOPGSLIB::GSOp::MUL);
+
+   // Check for multipled values to be negative
+   for (int i = 0; i < nlen; i++)
+   {
+      REQUIRE(vals(i) < 0);
+   }
+}
+#endif // MFEM_USE_MPI
 
 } //namespace_gslib
 #endif

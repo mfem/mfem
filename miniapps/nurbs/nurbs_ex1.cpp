@@ -6,16 +6,17 @@
 //               nurbs_ex1 -m ../../data/square-nurbs.mesh -o 2 --weak-bc
 //               nurbs_ex1 -m ../../data/cube-nurbs.mesh -o 2 -no-ibp
 //               nurbs_ex1 -m ../../data/pipe-nurbs-2d.mesh -o 2 -no-ibp
+//               nurbs_ex1 -m ../../data/pipe-nurbs-2d.mesh -o 2 -r 2 --neu "3"
 //               nurbs_ex1 -m ../../data/square-disc-nurbs.mesh -o -1
 //               nurbs_ex1 -m ../../data/disc-nurbs.mesh -o -1
 //               nurbs_ex1 -m ../../data/pipe-nurbs.mesh -o -1
 //               nurbs_ex1 -m ../../data/beam-hex-nurbs.mesh -pm 1 -ps 2
-//               nurbs_ex1 -m ../../data/two-squares-nurbs.mesh -o 1 -rf ../../data/two-squares.ref
-//               nurbs_ex1 -m ../../data/two-squares-nurbs-rot.mesh -o 1 -rf ../../data/two-squares.ref
-//               nurbs_ex1 -m ../../data/two-squares-nurbs-autoedge.mesh -o 1 -rf ../../data/two-squares.ref
-//               nurbs_ex1 -m ../../data/two-cubes-nurbs.mesh -o 1 -r 3 -rf ../../data/two-cubes.ref
-//               nurbs_ex1 -m ../../data/two-cubes-nurbs-rot.mesh -o 1 -r 3 -rf ../../data/two-cubes.ref
-//               nurbs_ex1 -m ../../data/two-cubes-nurbs-autoedge.mesh -o 1 -r 3 -rf ../../data/two-cubes.ref
+//               nurbs_ex1 -m meshes/two-squares-nurbs.mesh -o 1 -rf meshes/two-squares.ref
+//               nurbs_ex1 -m meshes/two-squares-nurbs-rot.mesh -o 1 -rf meshes/two-squares.ref
+//               nurbs_ex1 -m meshes/two-squares-nurbs-autoedge.mesh -o 1 -rf meshes/two-squares.ref
+//               nurbs_ex1 -m meshes/two-cubes-nurbs.mesh -o 1 -r 3 -rf meshes/two-cubes.ref
+//               nurbs_ex1 -m meshes/two-cubes-nurbs-rot.mesh -o 1 -r 3 -rf meshes/two-cubes.ref
+//               nurbs_ex1 -m meshes/two-cubes-nurbs-autoedge.mesh -o 1 -r 3 -rf meshes/two-cubes.ref
 //               nurbs_ex1 -m ../../data/segment-nurbs.mesh -r 2 -o 2 -lod 3
 //
 // Description:  This example code demonstrates the use of MFEM to define a
@@ -45,8 +46,8 @@ using namespace mfem;
 class Data
 {
 public:
-   double x,val;
-   Data(double x_, double val_) {x=x_; val=val_;};
+   real_t x,val;
+   Data(real_t x_, real_t val_) {x=x_; val=val_;};
 };
 
 inline bool operator==(const Data& d1,const Data& d2) { return (d1.x == d2.x); }
@@ -77,7 +78,7 @@ public:
    {
       int nd = el.GetDof();
       int dim = el.GetDim();
-      double w;
+      real_t w;
 
 #ifdef MFEM_THREAD_SAFE
       Vector shape(nd);
@@ -147,12 +148,13 @@ int main(int argc, char *argv[])
    int ref_levels = -1;
    Array<int> master(0);
    Array<int> slave(0);
+   Array<int> neu(0);
    bool static_cond = false;
    bool visualization = 1;
    int lod = 0;
    bool ibp = 1;
    bool strongBC = 1;
-   double kappa = -1;
+   real_t kappa = -1;
    Array<int> order(1);
    order[0] = 1;
 
@@ -169,6 +171,8 @@ int main(int argc, char *argv[])
                   "Master boundaries for periodic BCs");
    args.AddOption(&slave, "-ps", "--slave",
                   "Slave boundaries for periodic BCs");
+   args.AddOption(&neu, "-n", "--neu",
+                  "Boundaries with Neumann BCs");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
@@ -266,8 +270,6 @@ int main(int argc, char *argv[])
          slave.Load(in, psize);
          in.close();
       }
-      master.Print();
-      slave.Print();
       NURBSext->ConnectBoundaries(master,slave);
    }
    else if (order[0] == -1) // Isoparametric
@@ -323,39 +325,84 @@ int main(int argc, char *argv[])
    //    In this example, the boundary conditions are defined by marking all
    //    the boundary attributes from the mesh as essential (Dirichlet) and
    //    converting them to a list of true dofs.
-   Array<int> ess_tdof_list;
+   Array<int> ess_bdr(0);
+   Array<int> neu_bdr(0);
+   Array<int> per_bdr(0);
    if (mesh->bdr_attributes.Size())
    {
-      Array<int> ess_bdr(mesh->bdr_attributes.Max());
-      if (strongBC)
+      ess_bdr.SetSize(mesh->bdr_attributes.Max());
+      neu_bdr.SetSize(mesh->bdr_attributes.Max());
+      per_bdr.SetSize(mesh->bdr_attributes.Max());
+
+      ess_bdr = 1;
+      neu_bdr = 0;
+      per_bdr = 0;
+
+      // Apply Neumann BCs
+      for (int i = 0; i < neu.Size(); i++)
       {
-         ess_bdr = 1;
-      }
-      else
-      {
-         ess_bdr = 0;
+         if ( neu[i]-1 >= 0 &&
+              neu[i]-1 < mesh->bdr_attributes.Max())
+         {
+            ess_bdr[neu[i]-1] = 0;
+            neu_bdr[neu[i]-1] = 1;
+         }
+         else
+         {
+            cout <<"Neumann boundary "<<neu[i]<<" out of range -- discarded"<< endl;
+         }
       }
 
-      // Remove periodic BCs
+      // Correct for periodic BCs
       for (int i = 0; i < master.Size(); i++)
       {
-         ess_bdr[master[i]-1] = 0;
-         ess_bdr[slave[i]-1] = 0;
+         if ( master[i]-1 >= 0 &&
+              master[i]-1 < mesh->bdr_attributes.Max())
+         {
+            ess_bdr[master[i]-1] = 0;
+            neu_bdr[master[i]-1] = 0;
+            per_bdr[master[i]-1] = 1;
+         }
+         else
+         {
+            cout <<"Master boundary "<<master[i]<<" out of range -- discarded"<< endl;
+         }
       }
-      fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      for (int i = 0; i < slave.Size(); i++)
+      {
+         if ( slave[i]-1 >= 0 &&
+              slave[i]-1 < mesh->bdr_attributes.Max())
+         {
+            ess_bdr[slave[i]-1] = 0;
+            neu_bdr[slave[i]-1] = 0;
+            per_bdr[slave[i]-1] = 1;
+         }
+         else
+         {
+            cout <<"Slave boundary "<<slave[i]<<" out of range -- discarded"<< endl;
+         }
+      }
    }
+   cout <<"Boundary conditions:"<< endl;
+   cout <<" - Periodic  : "; per_bdr.Print();
+   cout <<" - Essential : "; ess_bdr.Print();
+   cout <<" - Neumann   : "; neu_bdr.Print();
+
 
    // 6. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
    //    the basis functions in the finite element fespace.
    ConstantCoefficient one(1.0);
+   ConstantCoefficient mone(-1.0);
    ConstantCoefficient zero(0.0);
 
    LinearForm *b = new LinearForm(fespace);
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
+   b->AddBoundaryIntegrator( new BoundaryLFIntegrator(one),neu_bdr);
    if (!strongBC)
       b->AddBdrFaceIntegrator(
-         new DGDirichletLFIntegrator(zero, one, -1.0, kappa));
+         new DGDirichletLFIntegrator(zero, one, -1.0, kappa), ess_bdr);
+
    b->Assemble();
 
    // 7. Define the solution vector x as a finite element grid function
@@ -375,11 +422,12 @@ int main(int argc, char *argv[])
    else
    {
       a->AddDomainIntegrator(new Diffusion2Integrator(one));
+      a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(mone, 0.0, 0.0), neu_bdr);
    }
 
    if (!strongBC)
    {
-      a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, -1.0, kappa));
+      a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, -1.0, kappa), ess_bdr);
    }
 
    // 9. Assemble the bilinear form and the corresponding linear system,
@@ -391,6 +439,11 @@ int main(int argc, char *argv[])
 
    SparseMatrix A;
    Vector B, X;
+   Array<int> ess_tdof_list(0);
+   if (strongBC)
+   {
+      fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   }
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
    cout << "Size of linear system: " << A.Height() << endl;

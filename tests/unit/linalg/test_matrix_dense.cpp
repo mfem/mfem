@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -17,7 +17,7 @@ using namespace mfem;
 
 TEST_CASE("DenseMatrix init-list construction", "[DenseMatrix]")
 {
-   double ContigData[6] = {6.0, 5.0, 4.0, 3.0, 2.0, 1.0};
+   real_t ContigData[6] = {6.0, 5.0, 4.0, 3.0, 2.0, 1.0};
    DenseMatrix Contiguous(ContigData, 2, 3);
 
    DenseMatrix Nested(
@@ -47,7 +47,7 @@ TEST_CASE("DenseMatrix LinearSolve methods",
       A.SetRow(1, 0.0);
       A.SetRow(2, 0.0);
 
-      double X[3];
+      real_t X[3];
 
       REQUIRE_FALSE(LinearSolve(A,X));
    }
@@ -58,7 +58,7 @@ TEST_CASE("DenseMatrix LinearSolve methods",
       DenseMatrix A(N);
       A(0,0) = 2;
 
-      double X[1] = { 12 };
+      real_t X[1] = { 12 };
 
       REQUIRE(LinearSolve(A,X));
       REQUIRE(X[0] == MFEM_Approx(6));
@@ -72,7 +72,7 @@ TEST_CASE("DenseMatrix LinearSolve methods",
       A(0,0) = 2.0; A(0,1) = 1.0;
       A(1,0) = 3.0; A(1,1) = 4.0;
 
-      double X[2] = { 1, 14 };
+      real_t X[2] = { 1, 14 };
 
       REQUIRE(LinearSolve(A,X));
       REQUIRE(X[0] == MFEM_Approx(-2));
@@ -88,7 +88,7 @@ TEST_CASE("DenseMatrix LinearSolve methods",
       A(1,0) = 7; A(1,1) = -1; A(1,2) =  2;
       A(2,0) = 3; A(2,1) =  1; A(2,2) =  4;
 
-      double X[3] = { -14, 42, 28 };
+      real_t X[3] = { -14, 42, 28 };
 
       REQUIRE(LinearSolve(A,X));
       REQUIRE(X[0] == MFEM_Approx(4));
@@ -101,13 +101,13 @@ TEST_CASE("DenseMatrix LinearSolve methods",
 TEST_CASE("DenseMatrix A*B^T methods",
           "[DenseMatrix]")
 {
-   double tol = 1e-12;
+   real_t tol = 1e-12;
 
-   double AtData[6] = {6.0, 5.0,
+   real_t AtData[6] = {6.0, 5.0,
                        4.0, 3.0,
                        2.0, 1.0
                       };
-   double BtData[12] = {1.0, 3.0, 5.0, 7.0,
+   real_t BtData[12] = {1.0, 3.0, 5.0, 7.0,
                         2.0, 4.0, 6.0, 8.0,
                         1.0, 2.0, 3.0, 5.0
                        };
@@ -118,14 +118,14 @@ TEST_CASE("DenseMatrix A*B^T methods",
 
    SECTION("MultABt")
    {
-      double BData[12] = {1.0, 2.0, 1.0,
+      real_t BData[12] = {1.0, 2.0, 1.0,
                           3.0, 4.0, 2.0,
                           5.0, 6.0, 3.0,
                           7.0, 8.0, 5.0
                          };
       DenseMatrix Bt(BData, 3, 4);
 
-      double CtData[8] = {16.0, 12.0,
+      real_t CtData[8] = {16.0, 12.0,
                           38.0, 29.0,
                           60.0, 46.0,
                           84.0, 64.0
@@ -145,10 +145,10 @@ TEST_CASE("DenseMatrix A*B^T methods",
    }
    SECTION("MultADBt")
    {
-      double DData[3] = {11.0, 7.0, 5.0};
+      real_t DData[3] = {11.0, 7.0, 5.0};
       Vector D(DData, 3);
 
-      double CtData[8] = {132.0, 102.0,
+      real_t CtData[8] = {132.0, 102.0,
                           330.0, 259.0,
                           528.0, 416.0,
                           736.0, 578.0
@@ -162,7 +162,7 @@ TEST_CASE("DenseMatrix A*B^T methods",
    }
    SECTION("AddMultABt")
    {
-      double CtData[8] = {17.0, 17.0,
+      real_t CtData[8] = {17.0, 17.0,
                           40.0, 35.0,
                           63.0, 53.0,
                           88.0, 72.0
@@ -184,10 +184,10 @@ TEST_CASE("DenseMatrix A*B^T methods",
    }
    SECTION("AddMultADBt")
    {
-      double DData[3] = {11.0, 7.0, 5.0};
+      real_t DData[3] = {11.0, 7.0, 5.0};
       Vector D(DData, 3);
 
-      double CtData[8] = {133.0, 107.0,
+      real_t CtData[8] = {133.0, 107.0,
                           332.0, 265.0,
                           531.0, 423.0,
                           740.0, 586.0
@@ -215,9 +215,9 @@ TEST_CASE("DenseMatrix A*B^T methods",
    }
    SECTION("AddMult_a_ABt")
    {
-      double a = 3.0;
+      real_t a = 3.0;
 
-      double CtData[8] = { 49.0,  41.0,
+      real_t CtData[8] = { 49.0,  41.0,
                            116.0,  93.0,
                            183.0, 145.0,
                            256.0, 200.0
@@ -239,14 +239,105 @@ TEST_CASE("DenseMatrix A*B^T methods",
    }
 }
 
+TEST_CASE("DenseMatrix A^T*B methods",
+          "[DenseMatrix]")
+{
+   real_t tol = 1e-12;
+
+   real_t AtData[6] = {6.0, 4.0, 2.0,
+                       5.0, 3.0, 1.0
+                      };
+   real_t BtData[12] = {1.0, 2.0, 1.0,
+                        3.0, 4.0, 2.0,
+                        5.0, 6.0, 3.0,
+                        7.0, 8.0, 5.0
+                       };
+
+   DenseMatrix A(AtData, 3, 2);
+   DenseMatrix B(BtData, 3, 4);
+   DenseMatrix C(2,4);
+
+   SECTION("MultAtB")
+   {
+      real_t AData[6] = {6.0, 5.0,
+                         4.0, 3.0,
+                         2.0, 1.0
+                        };
+      DenseMatrix At(AData, 2, 3);
+
+      real_t CtData[8] = {16.0, 12.0,
+                          38.0, 29.0,
+                          60.0, 46.0,
+                          84.0, 64.0
+                         };
+      DenseMatrix Cexact(CtData, 2, 4);
+
+      MultAtB(A, B, C);
+      C.Add(-1.0, Cexact);
+
+      REQUIRE(C.MaxMaxNorm() < tol);
+
+      Mult(At, B, Cexact);
+      MultAtB(A, B, C);
+      C.Add(-1.0, Cexact);
+
+      REQUIRE(C.MaxMaxNorm() < tol);
+   }
+   SECTION("AddMultAtB")
+   {
+      real_t CtData[8] = {17.0, 17.0,
+                          40.0, 35.0,
+                          63.0, 53.0,
+                          88.0, 72.0
+                         };
+      DenseMatrix Cexact(CtData, 2, 4);
+
+      C(0, 0) = 1.0; C(0, 1) = 2.0; C(0, 2) = 3.0; C(0, 3) = 4.0;
+      C(1, 0) = 5.0; C(1, 1) = 6.0; C(1, 2) = 7.0; C(1, 3) = 8.0;
+
+      AddMultAtB(A, B, C);
+      C.Add(-1.0, Cexact);
+
+      REQUIRE(C.MaxMaxNorm() < tol);
+
+      MultAtB(A, B, C);
+      C *= -1.0;
+      AddMultAtB(A, B, C);
+      REQUIRE(C.MaxMaxNorm() < tol);
+   }
+   SECTION("AddMult_a_AtB")
+   {
+      real_t a = 3.0;
+
+      real_t CtData[8] = { 49.0,  41.0,
+                           116.0,  93.0,
+                           183.0, 145.0,
+                           256.0, 200.0
+                         };
+      DenseMatrix Cexact(CtData, 2, 4);
+
+      C(0, 0) = 1.0; C(0, 1) = 2.0; C(0, 2) = 3.0; C(0, 3) = 4.0;
+      C(1, 0) = 5.0; C(1, 1) = 6.0; C(1, 2) = 7.0; C(1, 3) = 8.0;
+
+      AddMult_a_AtB(a, A, B, C);
+      C.Add(-1.0, Cexact);
+
+      REQUIRE(C.MaxMaxNorm() < tol);
+
+      MultAtB(A, B, C);
+      AddMult_a_AtB(-1.0, A, B, C);
+
+      REQUIRE(C.MaxMaxNorm() < tol);
+   }
+}
 
 TEST_CASE("LUFactors RightSolve", "[DenseMatrix]")
 {
-   double tol = 1e-12;
+   real_t tol = 1e-12;
 
    // Zero on diagonal forces non-trivial pivot
-   double AData[9] = { 0.0, 0.0, 3.0, 2.0, 2.0, 2.0, 2.0, 0.0, 4.0 };
-   double BData[6] = { 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 };
+   real_t AData[9] = { 0.0, 0.0, 3.0, 2.0, 2.0, 2.0, 2.0, 0.0, 4.0 };
+   real_t BData[6] = { 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 };
    int ipiv[3];
 
    DenseMatrix A(AData, 3, 3);
@@ -277,7 +368,7 @@ TEST_CASE("DenseTensor LinearSolve methods",
    A(1,0) = 7; A(1,1) = -1; A(1,2) =  2;
    A(2,0) = 3; A(2,1) =  1; A(2,2) =  4;
 
-   double X[3] = { -14, 42, 28 };
+   real_t X[3] = { -14, 42, 28 };
 
    int NE = 10;
    Vector X_batch(N*NE);
@@ -344,7 +435,7 @@ TEST_CASE("DenseTensor copy", "[DenseMatrix][DenseTensor]")
 
 TEST_CASE("MatrixInverse", "[DenseMatrix]")
 {
-   double tol = 1e-10;
+   real_t tol = 1e-10;
 
    // Matrix A (SPD)
    DenseMatrix A(
@@ -532,6 +623,67 @@ TEST_CASE("MatrixInverse", "[DenseMatrix]")
    }
 
 }
+
+TEST_CASE("Exponential", "[DenseMatrix]")
+{
+   // case 1
+   DenseMatrix A(2,2);
+   A(0,0) = 5.0;
+   A(0,1) = 3.0;
+   A(1,0) = 0.0;
+   A(1,1) = 5.0;
+   A.Exponential();
+
+   DenseMatrix expA(2,2);
+   expA(0,0) = std::exp(5.0);
+   expA(0,1) = 3.0 * std::exp(5.0);
+   expA(1,0) = 0.0;
+   expA(1,1) = std::exp(5.0);
+
+   A.Print();
+   expA.Print();
+   REQUIRE(A(0,0) == MFEM_Approx(expA(0,0)));
+   REQUIRE(A(0,1) == MFEM_Approx(expA(0,1)));
+   REQUIRE(A(1,0) == MFEM_Approx(expA(1,0)));
+   REQUIRE(A(1,1) == MFEM_Approx(expA(1,1)));
+
+   // case 2
+   A(0,0) = 3.0;
+   A(0,1) = 5.0;
+   A(1,0) = 4.0;
+   A(1,1) = 2.0;
+   A.Exponential();
+
+   expA(0,0) = 4.0 / (9.0 * std::exp(2.0)) + (5.0 * std::exp(7.0)) / 9.0;
+   expA(0,1) = (5.0 * std::exp(7.0)) / 9.0 - 5.0 / (9.0 * std::exp(2.0));
+   expA(1,0) = (4.0 * std::exp(7.0)) / 9.0 - 4.0 / (9.0 * std::exp(2.0));
+   expA(1,1) = 5.0 / (9.0 * std::exp(2.0)) + (4.0 * std::exp(7.0)) / 9.0;
+
+   REQUIRE(A(0,0) == MFEM_Approx(expA(0,0)));
+   REQUIRE(A(0,1) == MFEM_Approx(expA(0,1)));
+   REQUIRE(A(1,0) == MFEM_Approx(expA(1,0)));
+   REQUIRE(A(1,1) == MFEM_Approx(expA(1,1)));
+
+   // case 3
+   A(0,0) = 10.0;
+   A(0,1) = 2.0;
+   A(1,0) = -2.0;
+   A(1,1) = 8.0;
+   A.Exponential();
+
+   expA(0,0) = std::exp(9.0) * (std::sin(std::sqrt(3.0)) / std::sqrt(3.0)
+                                + std::cos(std::sqrt(3.0)));
+   expA(0,1) = 2.0 * std::exp(9.0) * std::sin(std::sqrt(3.0)) / std::sqrt(3.0);
+   expA(1,0) = - 2.0 * std::exp(9.0) * std::sin(std::sqrt(3.0)) / std::sqrt(3.0);
+   expA(1,1) = std::exp(9.0) * (std::cos(std::sqrt(3.0))
+                                - std::sin(std::sqrt(3.0)) / std::sqrt(3.0));
+
+   REQUIRE(A(0,0) == MFEM_Approx(expA(0,0)));
+   REQUIRE(A(0,1) == MFEM_Approx(expA(0,1)));
+   REQUIRE(A(1,0) == MFEM_Approx(expA(1,0)));
+   REQUIRE(A(1,1) == MFEM_Approx(expA(1,1)));
+}
+
 #ifdef MFEM_USE_LAPACK
 
 enum class TestCase { GenEigSPD, GenEigGE, SVD};
@@ -674,7 +826,7 @@ TEST_CASE("Eigensystem Problems",
       break;
       case TestCase::SVD:
       {
-         DenseMatrixSVD svd(M,true,true);
+         DenseMatrixSVD svd(M,'A','A');
          svd.Eval(M);
          Vector &sigma = svd.Singularvalues();
          DenseMatrix &U = svd.LeftSingularvectors();

@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -25,7 +25,7 @@ MULTIDOMAIN_SRC = multidomain.cpp
 MULTIDOMAIN_OBJ = $(MULTIDOMAIN_SRC:.cpp=.o)
 
 SEQ_MINIAPPS =
-PAR_MINIAPPS = multidomain
+PAR_MINIAPPS = multidomain multidomain_nd multidomain_rt
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -55,6 +55,9 @@ MESH_FILES = $(notdir $(wildcard $(SRC)*.mesh))
 $(MESH_FILES): %: $(SRC)%
 	ln -sf $(<) .
 multidomain: | $(MESH_FILES)
+# The target 'copy-data' is used by the makefile in ../../tests/unit
+.PHONY: copy-data
+copy-data: | $(MESH_FILES)
 endif
 
 MFEM_TESTS = MINIAPPS
@@ -63,6 +66,10 @@ include $(MFEM_TEST_MK)
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 multidomain-test-par: multidomain
 	@$(call mfem-test,$<, $(RUN_MPI), Multidomain miniapp,-tf 0.001)
+multidomain_nd-test-par: multidomain_nd
+	@$(call mfem-test,$<, $(RUN_MPI), Multidomain ND miniapp,-tf 0.001)
+multidomain_rt-test-par: multidomain_rt
+	@$(call mfem-test,$<, $(RUN_MPI), Multidomain RT iniapp,-tf 0.001)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):

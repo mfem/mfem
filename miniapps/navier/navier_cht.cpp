@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -53,7 +53,9 @@
 //
 // The one-sided coupling between the two domains is via transfer of the
 // advection velocity (u) from fluid domain to thermal domain at each time step.
-// mpirun -np 4 navier_cht -r1 3 -r2 2 -np1 2 -np2 2
+//
+// Sample run:
+//   mpirun -np 4 navier_cht -r1 3 -r2 2 -np1 2 -np2 2
 
 #include "mfem.hpp"
 #include "navier_solver.hpp"
@@ -67,24 +69,24 @@ using namespace navier;
 struct schwarz_common
 {
    // common
-   double dt = 2e-2;
-   double t_final = 250*dt;
+   real_t dt = 2e-2;
+   real_t t_final = 250*dt;
    // fluid
    int fluid_order = 4;
-   double fluid_kin_vis = 0.001;
+   real_t fluid_kin_vis = 0.001;
    // solid
    int solid_order = 4;
    int ode_solver_type = 3;
-   double alpha = 1.0e-2;
-   double kappa = 0.5;
+   real_t alpha = 1.0e-2;
+   real_t kappa = 0.5;
 } schwarz;
 
 // Dirichlet conditions for velocity
-void vel_dbc(const Vector &x, double t, Vector &u);
+void vel_dbc(const Vector &x, real_t t, Vector &u);
 // solid conductivity
-double kappa_fun(const Vector &x);
+real_t kappa_fun(const Vector &x);
 // initial condition for temperature
-double temp_init(const Vector &x);
+real_t temp_init(const Vector &x);
 
 class ConductionOperator : public TimeDependentOperator
 {
@@ -98,7 +100,7 @@ protected:
    HypreParMatrix Mmat;
    HypreParMatrix Kmat;
    HypreParMatrix *T; // T = M + dt K
-   double current_dt;
+   real_t current_dt;
 
    mutable CGSolver M_solver; // Krylov solver for inverting the mass matrix M
    HypreSmoother M_prec;      // Preconditioner for the mass matrix M
@@ -106,18 +108,18 @@ protected:
    CGSolver T_solver;    // Implicit solver for T = M + dt K
    HypreSmoother T_prec; // Preconditioner for the implicit solver
 
-   double alpha, kappa, udir;
+   real_t alpha, kappa, udir;
 
    mutable Vector z; // auxiliary vector
 
 public:
-   ConductionOperator(ParFiniteElementSpace &f, double alpha, double kappa,
+   ConductionOperator(ParFiniteElementSpace &f, real_t alpha, real_t kappa,
                       VectorGridFunctionCoefficient adv_gf_c);
 
    virtual void Mult(const Vector &u, Vector &du_dt) const;
    /** Solve the Backward-Euler equation: k = f(u + dt*k, t), for the unknown k.
        This is the only requirement for high-order SDIRK implicit integration.*/
-   virtual void ImplicitSolve(const double dt, const Vector &u, Vector &k);
+   virtual void ImplicitSolve(const real_t dt, const Vector &u, Vector &k);
 
    /// Update the diffusion BilinearForm K using the given true-dof vector `u`.
    void SetParameters(VectorGridFunctionCoefficient adv_gf_c);
@@ -218,7 +220,7 @@ int main(int argc, char *argv[])
    ConductionOperator *coper         = NULL; //Temperature solver
    Vector t_tdof;                            //Temperature true-dof vector
 
-   double t       = 0,
+   real_t t       = 0,
           dt      = schwarz.dt,
           t_final = schwarz.t_final;
    bool last_step = false;
@@ -348,7 +350,7 @@ int main(int argc, char *argv[])
          last_step = true;
       }
 
-      double cfl;
+      real_t cfl;
       if (flowsolver)
       {
          flowsolver->Step(t, dt, step);
@@ -406,14 +408,14 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-ConductionOperator::ConductionOperator(ParFiniteElementSpace &f, double al,
-                                       double kap,
+ConductionOperator::ConductionOperator(ParFiniteElementSpace &f, real_t al,
+                                       real_t kap,
                                        VectorGridFunctionCoefficient adv_gf_c)
    : TimeDependentOperator(f.GetTrueVSize(), 0.0), fespace(f), M(NULL), K(NULL),
      T(NULL), current_dt(0.0),
      M_solver(f.GetComm()), T_solver(f.GetComm()), udir(10), z(height)
 {
-   const double rel_tol = 1e-8;
+   const real_t rel_tol = 1e-8;
 
    Array<int> ess_bdr(f.GetParMesh()->bdr_attributes.Max());
    // Dirichlet boundary condition on inlet and isothermal section of wall.
@@ -466,7 +468,7 @@ void ConductionOperator::Mult(const Vector &u, Vector &du_dt) const
    du_dt.SetSubVector(ess_tdof_list, 0.0);
 }
 
-void ConductionOperator::ImplicitSolve(const double dt,
+void ConductionOperator::ImplicitSolve(const real_t dt,
                                        const Vector &u, Vector &du_dt)
 {
    // Solve the equation:
@@ -568,10 +570,10 @@ void VisualizeField(socketstream &sock, const char *vishost, int visport,
 
 /// Fluid data
 // Dirichlet conditions for velocity
-void vel_dbc(const Vector &x, double t, Vector &u)
+void vel_dbc(const Vector &x, real_t t, Vector &u)
 {
-   double xi = x(0);
-   double yi = x(1);
+   real_t xi = x(0);
+   real_t yi = x(1);
 
    u(0) = 0.;
    u(1) = 0.;
@@ -580,22 +582,22 @@ void vel_dbc(const Vector &x, double t, Vector &u)
 
 /// Solid data
 // solid conductivity
-double kappa_fun(const Vector &x)
+real_t kappa_fun(const Vector &x)
 {
    return x(1) <= 1.0 && std::fabs(x(0)) < 0.5 ? 5.: 1.0;
 }
 
 // initial temperature
-double temp_init(const Vector &x)
+real_t temp_init(const Vector &x)
 {
-   double t_init = 1.0;
+   real_t t_init = 1.0;
    if (x(1) < 0.5)
    {
       t_init = 10*(std::exp(-x(1)*x(1)));
    }
    if (std::fabs(x(0)) >= 0.5)
    {
-      double dx = std::fabs(x(0))-0.5;
+      real_t dx = std::fabs(x(0))-0.5;
       t_init *= std::exp(-10*dx*dx);
    }
    return t_init;

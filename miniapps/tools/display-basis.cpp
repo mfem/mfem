@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -22,7 +22,7 @@
 // Compile with: make display-basis
 //
 // Sample runs:  display-basis
-//               display_basis -e 2 -b 3 -o 3
+//               display-basis -e 2 -b 3 -o 3
 //               display-basis -e 5 -b 1 -o 1
 //               display-basis -e 3 -b 7 -o 3
 //               display-basis -e 3 -b 7 -o 5 -only 16
@@ -48,10 +48,10 @@ struct VisWinLayout
 // Data structure used to define simple coordinate transformations
 struct DeformationData
 {
-   double uniformScale;
+   real_t uniformScale;
 
    int    squeezeAxis;
-   double squeezeFactor;
+   real_t squeezeFactor;
 
    int    shearAxis;
    Vector shearVec;
