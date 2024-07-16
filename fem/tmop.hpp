@@ -222,7 +222,7 @@ class TMOP_Metric_000 : public TMOP_QualityMetric
 {
 public:
    // W = 0.
-   virtual double EvalW(const DenseMatrix &Jpt) const {return 0.0;}
+   virtual real_t EvalW(const DenseMatrix &Jpt) const {return 0.0;}
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const {P = 0.0;}
 
