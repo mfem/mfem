@@ -3198,10 +3198,10 @@ public:
    { rho = &rho_; u = &u_; alpha = a; beta = b; }
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
-   virtual void AssembleFaceMatrix(const FiniteElement &el1,
-                                   const FiniteElement &el2,
-                                   FaceElementTransformations &Trans,
-                                   DenseMatrix &elmat);
+   void AssembleFaceMatrix(const FiniteElement &el1,
+                           const FiniteElement &el2,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat) override;
 
    void AssembleFaceMatrix(const FiniteElement &trial_fe1,
                            const FiniteElement &test_fe1,
@@ -3210,22 +3210,22 @@ public:
                            FaceElementTransformations &Trans,
                            DenseMatrix &elmat) override;
 
-   virtual void AssemblePAInteriorFaces(const FiniteElementSpace &fes);
+   void AssemblePAInteriorFaces(const FiniteElementSpace &fes) override;
 
-   virtual void AssemblePABoundaryFaces(const FiniteElementSpace &fes);
+   void AssemblePABoundaryFaces(const FiniteElementSpace &fes) override;
 
-   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
+   void AddMultTransposePA(const Vector &x, Vector &y) const override;
 
-   virtual void AddMultPA(const Vector&, Vector&) const;
+   void AddMultPA(const Vector&, Vector&) const override;
 
-   virtual void AssembleEAInteriorFaces(const FiniteElementSpace& fes,
-                                        Vector &ea_data_int,
-                                        Vector &ea_data_ext,
-                                        const bool add);
+   void AssembleEAInteriorFaces(const FiniteElementSpace& fes,
+                                Vector &ea_data_int,
+                                Vector &ea_data_ext,
+                                const bool add) override;
 
-   virtual void AssembleEABoundaryFaces(const FiniteElementSpace& fes,
-                                        Vector &ea_data_bdr,
-                                        const bool add);
+   void AssembleEABoundaryFaces(const FiniteElementSpace& fes,
+                                Vector &ea_data_bdr,
+                                const bool add) override;
 
    static const IntegrationRule &GetRule(Geometry::Type geom, int order,
                                          FaceElementTransformations &T);
