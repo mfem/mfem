@@ -19,7 +19,7 @@
 namespace mfem
 {
 
-MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_Fit_3D,
+MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_Fit_Grad_3D,
                            const int NE,
                            const real_t &c1_,
                            const real_t &c2_,
@@ -77,7 +77,7 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_Fit_3D,
    return energy * ones; 
 }
 
-real_t TMOP_Integrator::GetLocalStateEnergyPA_Fit_3D(const Vector &X) const
+real_t TMOP_Integrator::GetLocalStateEnergyPA_Fit_Grad_3D(const Vector &X) const
 {
    const int N = PA.ne;
    const int meshOrder = surf_fit_gf->FESpace()->GetMaxElementOrder();
@@ -95,7 +95,7 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_Fit_3D(const Vector &X) const
    const Vector &X3 = PA.X3;
    const Vector &X4 = PA.X4;
 
-   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_Fit_3D,id,N,C1,C2,X1,X2,X3,X4,O,E);
+   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_Fit_Grad_3D,id,N,C1,C2,X1,X2,X3,X4,O,E);
 }
 
 } // namespace mfem
