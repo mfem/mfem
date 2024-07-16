@@ -328,7 +328,12 @@ Vector L2ProjectionGridTransfer::L2Projection::MixedMassEA(const FiniteElementSp
                                                            const FiniteElementSpace& fes_lor,
                                                            Coefficient *coeff_, MemoryType d_mt_)
 {
-   Vector M_LH;
+   Vector M_LH; 
+
+   if (coeff_ == nullptr) 
+   {
+      mfem_error("coeff is a nullptr \n");
+   }
    // dynamic_cast to check if QuadFuncCoeff; if yes, continue; if no, return error
    auto qfunc_coeff = dynamic_cast<QuadratureFunctionCoefficient*>(coeff_);
    if (qfunc_coeff == NULL)
@@ -578,8 +583,8 @@ Vector L2ProjectionGridTransfer::L2Projection::MixedMassEA(const FiniteElementSp
 }
 
 L2ProjectionGridTransfer::L2ProjectionL2Space::L2ProjectionL2Space
-(const FiniteElementSpace &fes_ho_, const FiniteElementSpace &fes_lor_, Coefficient *coeff_,
- const bool use_device_, const bool verify_solution_, MemoryType d_mt_)
+(const FiniteElementSpace &fes_ho_, const FiniteElementSpace &fes_lor_, 
+ const bool use_device_, const bool verify_solution_, Coefficient *coeff_, MemoryType d_mt_)
    : L2Projection(fes_ho_, fes_lor_, coeff_, d_mt_), 
      use_device(use_device_), verify_solution(verify_solution_)
 {
@@ -737,6 +742,10 @@ L2ProjectionGridTransfer::L2ProjectionL2Space::L2ProjectionL2Space
 void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
 (const FiniteElementSpace &fes_ho_, const FiniteElementSpace &fes_lor_, Coefficient *coeff_) // coeff : coefficient for weighted integration
 {
+   if (coeff_ == nullptr) 
+   {
+      mfem_error("coeff is a nullptr \n");
+   }
    // dynamic_cast to check if QuadFuncCoeff; if yes, continue; if no, return error
    auto qfunc_coeff = dynamic_cast<QuadratureFunctionCoefficient*>(coeff_);
    if (qfunc_coeff == NULL)
@@ -1349,8 +1358,8 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceProlongateTranspose(
 }
 
 L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
-   const FiniteElementSpace& fes_ho_, const FiniteElementSpace& fes_lor_, Coefficient* coeff_, 
-   const bool use_device_, const bool verify_solution_, MemoryType d_mt_)
+   const FiniteElementSpace& fes_ho_, const FiniteElementSpace& fes_lor_, 
+   const bool use_device_, const bool verify_solution_, Coefficient* coeff_, MemoryType d_mt_)
    : L2Projection(fes_ho_, fes_lor_, coeff_, d_mt_), 
      use_device(use_device_), verify_solution(verify_solution_)
 {
@@ -1412,11 +1421,11 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
 #ifdef MFEM_USE_MPI
 
 L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
-   const ParFiniteElementSpace& pfes_ho, const ParFiniteElementSpace& pfes_lor, Coefficient* coeff_, 
-   const bool use_device_, const bool verify_solution_, MemoryType d_mt_)
+   const ParFiniteElementSpace& pfes_ho, const ParFiniteElementSpace& pfes_lor, 
+   const bool use_device_, const bool verify_solution_, Coefficient* coeff_, MemoryType d_mt_)
    : L2Projection(pfes_ho, pfes_lor, coeff_, d_mt_), 
      use_device(use_device_), verify_solution(verify_solution_),
-     pcg(pfes_ho.GetComm()), pcg_ea(pfes_ho.GetComm())
+     pcg(pfes_ho.GetComm()), pcg_vea(pfes_ho.GetComm())
 {
    if (use_device || verify_solution)
    {
@@ -1476,12 +1485,12 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
 void L2ProjectionGridTransfer::L2ProjectionH1Space::SetupPCG()
 {
     // Basic PCG solver setup
-    pcg.SetPrintLevel(3);
+    pcg.SetPrintLevel(0);
     // pcg.SetPrintLevel(IterativeSolver::PrintLevel().Summary());
-    pcg.SetMaxIter(1e+7);
+    pcg.SetMaxIter(1000);
     // initial values for relative and absolute tolerance
-    pcg.SetRelTol(1e-12);
-    pcg.SetAbsTol(1e-12);
+    pcg.SetRelTol(1e-13);
+    pcg.SetAbsTol(1e-13);
     pcg.SetPreconditioner(*precon);
     pcg.SetOperator(*RTxM_LH);
 }
@@ -1489,6 +1498,10 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::SetupPCG()
 void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
    const FiniteElementSpace &fes_ho_, const FiniteElementSpace &fes_lor_, Coefficient *coeff_)
 {
+   if (coeff_ == nullptr) 
+   {
+      mfem_error("coeff is a nullptr \n");
+   }
    // dynamic_cast to check if QuadFuncCoeff; if yes, continue; if no, return error
    auto qfunc_coeff = dynamic_cast<QuadratureFunctionCoefficient*>(coeff_);
    if (qfunc_coeff == NULL)
@@ -1611,55 +1624,22 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
 
 
    // **************************
-   // ElementRestrictionOperator for HO
+   // mixed mass M_LH 
    // **************************
-   elem_restrict_h = fes_ho.GetElementRestriction(ElementDofOrdering::NATIVE);
-
-
-   // **************************
-   // mixed mass M_LH from L2Space
-   // **************************
-   M_mixed_all_ea = MixedMassEA(fes_ho, fes_lor, coeff, d_mt);
-
-
-   // **************************
-   // ElementRestrictionOperator for LOR
-   // **************************
-   elem_restrict_l = fes_lor.GetElementRestriction(ElementDofOrdering::NATIVE);
+   M_LH_ea = MixedMassEA(fes_ho, fes_lor, coeff, d_mt);
 
    // Set ownership
-   M_LH_ea_op = new H1SpaceMixedMassOperator(&fes_ho, &fes_lor, &ho2lor, &M_mixed_all_ea);
-   R_ea_op = new H1SpaceRestrictionOperator(*M_LH_ea_op, ML_inv_ea); //no lumped mass inverse
+   M_LH_local_op = new H1SpaceMixedMassOperator(&fes_ho, &fes_lor, &ho2lor, &M_LH_ea);
 
-   const Operator *P_ho = fes_ho.GetProlongationMatrix();
-   const Operator *P_lor = fes_lor.GetProlongationMatrix();
+   ML_inv_vea.reset(new H1SpaceLumpedMassOperator(&fes_ho, &fes_lor, ML_inv_ea));
+   M_LH_vea.reset(M_LH_local_op);
+   R_vea.reset(new ProductOperator(ML_inv_vea.get(), M_LH_vea.get(), false, false));
 
-   if (P_ho || P_lor)
-   {
-      if (P_ho && P_lor)
-      {
-         Operator *Pt_lor = new TransposeOperator(P_lor);
-         R_ea.reset(new TripleProductOperator(Pt_lor, R_ea_op, P_ho, false, false, false));
-         M_LH_ea.reset(new TripleProductOperator(Pt_lor, M_LH_ea_op, P_ho, false, false, false));
-      }
-      else if (P_ho)
-      {
-         R_ea.reset(new ProductOperator(R_ea_op, P_ho, false, false));
-         M_LH_ea.reset(new ProductOperator(M_LH_ea_op, P_ho, false, false));
-      }
-      else // P_lor != nullptr
-      {
-         Operator *Pt_lor = new TransposeOperator(P_lor);
-         R_ea.reset(new ProductOperator(Pt_lor, R_ea_op, false, false));
-         M_LH_ea.reset(new ProductOperator(Pt_lor, M_LH_ea_op, false, false));
-     }
-   }
-
-   TransposeOperator* R_eaT = new TransposeOperator(R_ea.get());
-   RTxM_LH_ea.reset(new ProductOperator(R_eaT, M_LH_ea.get(), false, false));
-   
    Array<int> ess_tdof_list;  // leave empty
-   precon_ea.reset(new OperatorJacobiSmoother(M_H, ess_tdof_list));
+   precon_vea.reset(new OperatorJacobiSmoother(M_H, ess_tdof_list));
+
+   TransposeOperator* R_veaT = new TransposeOperator(R_vea.get());
+   RTxM_LH_vea.reset(new ProductOperator(R_veaT, M_LH_vea.get(), false, false));
 
    DeviceSetupPCG();
 }
@@ -1669,6 +1649,10 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
 void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
    const ParFiniteElementSpace& pfes_ho, const ParFiniteElementSpace& pfes_lor, Coefficient* coeff_)
 {
+   if (coeff_ == nullptr) 
+   {
+      mfem_error("coeff is a nullptr \n");
+   }
    // dynamic_cast to check if QuadFuncCoeff; if yes, continue; if no, return error
    auto qfunc_coeff = dynamic_cast<QuadratureFunctionCoefficient*>(coeff_);
    if (qfunc_coeff == NULL)
@@ -1787,29 +1771,15 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
       }
    }
    // DOF by DOF inverse of non-zero entries
-   LumpedMassInverse(ML_inv_ea); 
-
-
-   // **************************
-   // ElementRestrictionOperator for HO
-   // **************************
-   elem_restrict_h = pfes_ho.GetElementRestriction(ElementDofOrdering::NATIVE);
-
+   LumpedMassInverse(ML_inv_ea);
 
    // **************************
-   // mixed mass M_LH from L2Space
+   // mixed mass M_LH 
    // **************************
-   M_mixed_all_ea = MixedMassEA(pfes_ho, pfes_lor, coeff, d_mt);
-
-
-   // **************************
-   // ElementRestrictionOperator for LOR
-   // **************************
-   elem_restrict_l = pfes_lor.GetElementRestriction(ElementDofOrdering::NATIVE);
+   M_LH_ea = MixedMassEA(pfes_ho, pfes_lor, coeff, d_mt);
 
    // Set ownership
-   M_LH_ea_op = new H1SpaceMixedMassOperator(&pfes_ho, &pfes_lor, &ho2lor, &M_mixed_all_ea);
-   R_ea_op = new H1SpaceRestrictionOperator(*M_LH_ea_op, ML_inv_ea);
+   M_LH_local_op = new H1SpaceMixedMassOperator(&pfes_ho, &pfes_lor, &ho2lor, &M_LH_ea);
 
    // need scalar to keep dimensions matching (operators are built to apply individually on each vdim)
    pfes_ho_scalar = new ParFiniteElementSpace(pfes_ho.GetParMesh(), pfes_ho.FEColl(), 1);
@@ -1827,43 +1797,47 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
          Operator *Pt_lor = new TransposeOperator(P_lor);
          RML_inv.SetSize(pfes_lor.GetTrueVSize());
          GetTDofs(pfes_lor, ML_inv_ea, RML_inv);
-         ML_inv_eap.reset(new H1SpaceLumpedMassOperator(&pfes_ho, &pfes_lor, RML_inv));
-         M_LH_ea.reset(new TripleProductOperator(Pt_lor, M_LH_ea_op, P_ho, false, false, false));
-         R_ea.reset(new ProductOperator(ML_inv_eap.get(), M_LH_ea.get(), false, false));
+         ML_inv_vea.reset(new H1SpaceLumpedMassOperator(&pfes_ho, &pfes_lor, RML_inv));
+         M_LH_vea.reset(new TripleProductOperator(Pt_lor, M_LH_local_op, P_ho, false, false, false));
 
-         RM_H.SetSize(pfes_ho.GetTrueVSize());
+         Vector RM_H(pfes_ho.GetTrueVSize());
          GetTDofs(pfes_ho, M_H, RM_H);
-         precon_ea.reset(new OperatorJacobiSmoother(RM_H, ess_tdof_list));
+         precon_vea.reset(new OperatorJacobiSmoother(RM_H, ess_tdof_list));
       }
       else if (P_ho)
       {
-         ML_inv_eap.reset(new H1SpaceLumpedMassOperator(&pfes_ho, &pfes_lor, ML_inv_ea));
-         M_LH_ea.reset(new ProductOperator(M_LH_ea_op, P_ho, false, false));
-         R_ea.reset(new ProductOperator(ML_inv_eap.get(), M_LH_ea.get(), false, false));
+         ML_inv_vea.reset(new H1SpaceLumpedMassOperator(&pfes_ho, &pfes_lor, ML_inv_ea));
+         M_LH_vea.reset(new ProductOperator(M_LH_local_op, P_ho, false, false));
 
-         RM_H.SetSize(pfes_ho.GetTrueVSize());
+         Vector RM_H(pfes_ho.GetTrueVSize());
          GetTDofs(pfes_ho, M_H, RM_H);
-         precon_ea.reset(new OperatorJacobiSmoother(RM_H, ess_tdof_list));
+         precon_vea.reset(new OperatorJacobiSmoother(RM_H, ess_tdof_list));
       }
-      else // P_lor != nullptr
+      else if (P_lor)
       {
          Operator *Pt_lor = new TransposeOperator(P_lor);
          RML_inv.SetSize(pfes_lor.GetTrueVSize());
          GetTDofs(pfes_lor, ML_inv_ea, RML_inv);
-         ML_inv_eap.reset(new H1SpaceLumpedMassOperator(&pfes_ho, &pfes_lor, RML_inv));
-         M_LH_ea.reset(new ProductOperator(Pt_lor, M_LH_ea_op, false, false));
-         R_ea.reset(new ProductOperator(ML_inv_eap.get(), M_LH_ea.get(), false, false));
+         ML_inv_vea.reset(new H1SpaceLumpedMassOperator(&pfes_ho, &pfes_lor, RML_inv));
+         M_LH_vea.reset(new ProductOperator(Pt_lor, M_LH_local_op, false, false));
+         R_vea.reset(new ProductOperator(ML_inv_vea.get(), M_LH_vea.get(), false, false));
 
-         precon_ea.reset(new OperatorJacobiSmoother(M_H, ess_tdof_list));
+         precon_vea.reset(new OperatorJacobiSmoother(M_H, ess_tdof_list));
+     }
+     else 
+     {
+         ML_inv_vea.reset(new H1SpaceLumpedMassOperator(&fes_ho, &fes_lor, ML_inv_ea));
+         M_LH_vea.reset(M_LH_local_op);
+
+         precon_vea.reset(new OperatorJacobiSmoother(M_H, ess_tdof_list));
      }
    }
+   R_vea.reset(new ProductOperator(ML_inv_vea.get(), M_LH_vea.get(), false, false));
 
-   TransposeOperator* R_eaT = new TransposeOperator(R_ea.get());
-   RTxM_LH_ea.reset(new ProductOperator(R_eaT, M_LH_ea.get(), false, false));
+   TransposeOperator* R_veaT = new TransposeOperator(R_vea.get());
+   RTxM_LH_vea.reset(new ProductOperator(R_veaT, M_LH_vea.get(), false, false));
 
    DeviceSetupPCG();
-   pcg_ea.SetPreconditioner(*precon_ea);
-   pcg_ea.SetOperator(*RTxM_LH_ea);
 }
 
 #endif 
@@ -1871,14 +1845,14 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
 void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceSetupPCG()
 {
     // Basic PCG solver setup
-    pcg_ea.SetPrintLevel(3); // 3 : intial & final residual 
+    pcg_vea.SetPrintLevel(0); // 3 : intial & final residual 
     // pcg.SetPrintLevel(IterativeSolver::PrintLevel().Summary());
-    pcg_ea.SetMaxIter(1e+7);
+    pcg_vea.SetMaxIter(1000);
     // initial values for relative and absolute tolerance
-    pcg_ea.SetRelTol(1e-12);
-    pcg_ea.SetAbsTol(1e-12);
-   //  pcg_ea.SetPreconditioner(*precon_ea);
-    pcg_ea.SetOperator(*RTxM_LH_ea);
+    pcg_vea.SetRelTol(1e-13);
+    pcg_vea.SetAbsTol(1e-13);
+    pcg_vea.SetPreconditioner(*precon_vea);
+    pcg_vea.SetOperator(*RTxM_LH_vea);
 }
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::Mult(
@@ -1927,13 +1901,13 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::Mult(
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceMult(
    const Vector& x, Vector& y) const
-{ 
+{
    y = 0.0; 
    Vector X(fes_ho.GetTrueVSize());
 
-   Vector X_dim(R_ea->Width());
+   Vector X_dim(R_vea->Width());
 
-   Vector Y_dim(R_ea->Height());
+   Vector Y_dim(R_vea->Height());
    Vector Y(fes_lor.GetTrueVSize());
 
    Array<int> vdofs_list;
@@ -1944,7 +1918,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceMult(
    {
       TDofsListByVDim(fes_ho, d, vdofs_list);   
       X.GetSubVector(vdofs_list, X_dim);
-      R_ea->Mult(X_dim, Y_dim);
+      R_vea->Mult(X_dim, Y_dim);
       TDofsListByVDim(fes_lor, d, vdofs_list);
       Y.SetSubVector(vdofs_list, Y_dim);
    }
@@ -1998,9 +1972,9 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceMultTranspose(
    const Vector& x, Vector& y) const
 {
    Vector X(fes_lor.GetTrueVSize());
-   Vector X_dim(R_ea->Height());
+   Vector X_dim(R_vea->Height());
 
-   Vector Y_dim(R_ea->Width());
+   Vector Y_dim(R_vea->Width());
    Vector Y(fes_ho.GetTrueVSize());
 
    Array<int> vdofs_list;
@@ -2011,7 +1985,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceMultTranspose(
    {
       TDofsListByVDim(fes_lor, d, vdofs_list);
       X.GetSubVector(vdofs_list, X_dim);
-      R_ea->MultTranspose(X_dim, Y_dim);
+      R_vea->MultTranspose(X_dim, Y_dim);
       TDofsListByVDim(fes_ho, d, vdofs_list);
       Y.SetSubVector(vdofs_list, Y_dim);
    }
@@ -2071,11 +2045,11 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceProlongate(
    const Vector &x, Vector &y) const
 {
    Vector X(fes_lor.GetTrueVSize());
-   Vector X_dim(M_LH_ea->Height());
-   MFEM_ASSERT(M_LH_ea->Width()==pcg_ea.Width(), "M_LH and PCG dimensions don't match"); 
-   Vector Xbar(pcg_ea.Width());
+   Vector X_dim(M_LH_vea->Height());
+   MFEM_ASSERT(M_LH_vea->Width()==pcg_vea.Width(), "M_LH and PCG dimensions don't match"); 
+   Vector Xbar(pcg_vea.Width());
 
-   Vector Y_dim(pcg_ea.Height());
+   Vector Y_dim(pcg_vea.Height());
    Y_dim = 0.0;
    Vector Y(fes_ho.GetTrueVSize());
 
@@ -2089,8 +2063,8 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceProlongate(
       X.GetSubVector(vdofs_list, X_dim);
 
       // Compute y = P x = (R^T M_LH)^(-1) M_LH^T X = (R^T M_LH)^(-1) Xbar
-      M_LH_ea->MultTranspose(X_dim, Xbar);
-      pcg_ea.Mult(Xbar, Y_dim);
+      M_LH_vea->MultTranspose(X_dim, Xbar);
+      pcg_vea.Mult(Xbar, Y_dim);
       TDofsListByVDim(fes_ho, d, vdofs_list);
       Y.SetSubVector(vdofs_list, Y_dim);
    }
@@ -2149,10 +2123,10 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceProlongateTranspose(
    const Vector &x, Vector &y) const
 {
    Vector X(fes_ho.GetTrueVSize());
-   Vector X_dim(pcg_ea.Width());
-   Vector Xbar(pcg_ea.Height());
+   Vector X_dim(pcg_vea.Width());
+   Vector Xbar(pcg_vea.Height());
 
-   Vector Y_dim(M_LH_ea->Height());
+   Vector Y_dim(M_LH_vea->Height());
    Vector Y(fes_lor.GetTrueVSize());
 
    Array<int> vdofs_list;
@@ -2165,8 +2139,8 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceProlongateTranspose(
       X.GetSubVector(vdofs_list, X_dim);
       // Compute y = P^T x = M_LH (R^T M_LH)^(-1) X = M_LH Xbar
       Xbar = 0.0;
-      pcg_ea.Mult(X_dim, Xbar);
-      M_LH_ea->Mult(Xbar, Y_dim);
+      pcg_vea.Mult(X_dim, Xbar);
+      M_LH_vea->Mult(Xbar, Y_dim);
       TDofsListByVDim(fes_lor, d, vdofs_list);
       Y.SetSubVector(vdofs_list, Y_dim);
    }
@@ -2307,8 +2281,6 @@ std::unique_ptr<SparseMatrix>>
       DenseMatrix M_LH_el(nedof_lor, nedof_ho);
       DenseMatrix R_el(nedof_lor, nedof_ho);
 
-      // auto M_mixed_all_ea_mat = Reshape(M_mixed_all_ea.Read(), nedof_lor, nedof_ho, nref, nel_ho);
-
       for (int iref = 0; iref < nref; ++iref)
       {
          int ilor = lor_els[iref];
@@ -2338,7 +2310,7 @@ std::unique_ptr<SparseMatrix>>
             real_t mat_error = 0.0;
             for (int i = 0; i < nedof_lor; ++i) {
                for (int j = 0; j < nedof_ho; ++j) {
-                  mat_error += (M_mixed_all_ea.Read()[i+j*nedof_lor+offsets[iho]+nedof_lor*nedof_ho*iref] - M_LH_el(i,j))*(M_mixed_all_ea.Read()[i+j*nedof_lor+offsets[iho]+nedof_lor*nedof_ho*iref] - M_LH_el(i,j));
+                  mat_error += (M_LH_ea.Read()[i+j*nedof_lor+offsets[iho]+nedof_lor*nedof_ho*iref] - M_LH_el(i,j))*(M_LH_ea.Read()[i+j*nedof_lor+offsets[iho]+nedof_lor*nedof_ho*iref] - M_LH_el(i,j));
                }
             }
             error += std::sqrt(mat_error);
@@ -2548,17 +2520,17 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::AllocR()
 
 L2ProjectionGridTransfer::H1SpaceMixedMassOperator::H1SpaceMixedMassOperator(
    const FiniteElementSpace* fes_ho_, const FiniteElementSpace* fes_lor_, 
-   Table* ho2lor_, Vector* M_mixed_all_ea_) : 
+   Table* ho2lor_, Vector* M_LH_ea_) : 
    Operator(fes_lor_->GetElementRestriction(ElementDofOrdering::NATIVE)->Width(),
             fes_ho_->GetElementRestriction(ElementDofOrdering::NATIVE)->Width()), 
    fes_ho(fes_ho_), fes_lor(fes_lor_), ho2lor(ho2lor_),
-   M_mixed_all_ea(M_mixed_all_ea_)
+   M_LH_ea(M_LH_ea_)
 { }
 
 void L2ProjectionGridTransfer::H1SpaceMixedMassOperator::Mult(const Vector &x, Vector &y) const
 {
-   const Operator* elem_restrict_h = fes_ho->GetElementRestriction(ElementDofOrdering::NATIVE);
-   const Operator* elem_restrict_l = fes_lor->GetElementRestriction(ElementDofOrdering::NATIVE);
+   const Operator* elem_restrict_ho = fes_ho->GetElementRestriction(ElementDofOrdering::NATIVE);
+   const Operator* elem_restrict_lor = fes_lor->GetElementRestriction(ElementDofOrdering::NATIVE);
 
    const int vdim = fes_ho->GetVDim();
    const int iho = 0;
@@ -2568,14 +2540,14 @@ void L2ProjectionGridTransfer::H1SpaceMixedMassOperator::Mult(const Vector &x, V
    const Mesh *mesh_ho = fes_ho->GetMesh();
    const int nel_ho = mesh_ho->GetNE();
 
-   Vector tempx(elem_restrict_h->Height());
+   Vector tempx(elem_restrict_ho->Height());
    tempx = 0.0;
-   elem_restrict_h->Mult(x, tempx);
+   elem_restrict_ho->Mult(x, tempx);
 
    Vector tempy(ndof_lor*nref*vdim*nel_ho);
    tempy = 0.0;
 
-   auto v_M_mixed_ea = mfem::Reshape(M_mixed_all_ea->Read(), ndof_lor, ndof_ho, nref, nel_ho); 
+   auto v_M_mixed_ea = mfem::Reshape(M_LH_ea->Read(), ndof_lor, ndof_ho, nref, nel_ho); 
    auto v_tempx    = mfem::Reshape(tempx.Read(), ndof_ho, vdim, nel_ho);
    auto v_tempy    = mfem::Reshape(tempy.Write(), ndof_lor, nref, vdim, nel_ho);
 
@@ -2603,13 +2575,13 @@ void L2ProjectionGridTransfer::H1SpaceMixedMassOperator::Mult(const Vector &x, V
       }
    });
 
-   elem_restrict_l->MultTranspose(tempy, y);
+   elem_restrict_lor->MultTranspose(tempy, y);
 }
 
 void L2ProjectionGridTransfer::H1SpaceMixedMassOperator::MultTranspose(const Vector &x, Vector &y) const
 {
-   const Operator* elem_restrict_h = fes_ho->GetElementRestriction(ElementDofOrdering::NATIVE);
-   const Operator* elem_restrict_l = fes_lor->GetElementRestriction(ElementDofOrdering::NATIVE);
+   const Operator* elem_restrict_ho = fes_ho->GetElementRestriction(ElementDofOrdering::NATIVE);
+   const Operator* elem_restrict_lor = fes_lor->GetElementRestriction(ElementDofOrdering::NATIVE);
 
    const int vdim = fes_ho->GetVDim();
    const int iho = 0;
@@ -2619,14 +2591,14 @@ void L2ProjectionGridTransfer::H1SpaceMixedMassOperator::MultTranspose(const Vec
    const Mesh *mesh_ho = fes_ho->GetMesh();
    const int nel_ho = mesh_ho->GetNE();
 
-   Vector tempx(elem_restrict_l->Height());
+   Vector tempx(elem_restrict_lor->Height());
    tempx = 0.0;
-   elem_restrict_l->Mult(x, tempx);
+   elem_restrict_lor->Mult(x, tempx);
 
    Vector tempy(ndof_ho*vdim*nel_ho);
    tempy = 0.0;
 
-   auto v_M_mixed_ea = mfem::Reshape(M_mixed_all_ea->Read(), ndof_lor, ndof_ho, nref, nel_ho); 
+   auto v_M_mixed_ea = mfem::Reshape(M_LH_ea->Read(), ndof_lor, ndof_ho, nref, nel_ho); 
    auto v_tempx    = mfem::Reshape(tempx.Read(), ndof_lor, nref, vdim, nel_ho);
    auto v_tempy    = mfem::Reshape(tempy.Write(), ndof_ho, vdim, nel_ho);
 
@@ -2650,7 +2622,7 @@ void L2ProjectionGridTransfer::H1SpaceMixedMassOperator::MultTranspose(const Vec
       }
    });
 
-   elem_restrict_h->MultTranspose(tempy, y);
+   elem_restrict_ho->MultTranspose(tempy, y);
 }
 
 L2ProjectionGridTransfer::H1SpaceLumpedMassOperator::H1SpaceLumpedMassOperator(
@@ -2664,81 +2636,18 @@ L2ProjectionGridTransfer::H1SpaceLumpedMassOperator::H1SpaceLumpedMassOperator(
 
 void L2ProjectionGridTransfer::H1SpaceLumpedMassOperator::Mult(const Vector &x, Vector &y) const
 {
-   // const Operator *P_lor = fes_lor.GetProlongationMatrix();
+   MFEM_ASSERT(ML_inv.Size() == x.Size(), "sizes not the same");
+   auto v_ML_inv = mfem::Reshape(ML_inv->Read(), ML_inv->Size());
+   auto v_x = mfem::Reshape(x.Read(), x.Size());
+   auto v_y = mfem::Reshape(y.Write(), y.Size());
 
-   // if (P_lor)
-   // {
-   //    Vector RML_inv(P_lor.Width());
-   //    P_lor->MultTranspose(ML_inv, RML_inv);
-   //    MFEM_ASSERT(RML_inv.Size() == x.Size(), "sizes not the same");
-   //    auto v_ML_inv = mfem::Reshape(RML_inv->Read(), RML_inv->Size());
-   //    auto v_x = mfem::Reshape(x.Read(), x.Size());
-   //    auto v_y = mfem::Reshape(y.Write(), y.Size());
-
-   //    mfem::forall(RML_inv->Size(), [=] MFEM_HOST_DEVICE(int i)
-   //                { v_y(i) = v_ML_inv(i) * v_x(i); });
-   // }
-   // else
-   // {
-      MFEM_ASSERT(ML_inv.Size() == x.Size(), "sizes not the same");
-      auto v_ML_inv = mfem::Reshape(ML_inv->Read(), ML_inv->Size());
-      auto v_x = mfem::Reshape(x.Read(), x.Size());
-      auto v_y = mfem::Reshape(y.Write(), y.Size());
-
-      mfem::forall(ML_inv->Size(), [=] MFEM_HOST_DEVICE(int i)
-                  { v_y(i) = v_ML_inv(i) * v_x(i); });
-   // }
+   mfem::forall(ML_inv->Size(), [=] MFEM_HOST_DEVICE(int i)
+               { v_y(i) = v_ML_inv(i) * v_x(i); });
 }
 
 void L2ProjectionGridTransfer::H1SpaceLumpedMassOperator::MultTranspose(const Vector &x, Vector &y) const
 {
    this->Mult(x,y); // lumped diagonal has the same Mult and MultTranspose behavior
-}
-
-L2ProjectionGridTransfer::H1SpaceRestrictionOperator::H1SpaceRestrictionOperator(
-   Operator& M_LH_op_, Vector& ML_inv_) : 
-   Operator(M_LH_op_.Height(), M_LH_op_.Width()), 
-   M_LH_op(&M_LH_op_), ML_inv(&ML_inv_)
-{ }
-
-void L2ProjectionGridTransfer::H1SpaceRestrictionOperator::Mult(const Vector &x, Vector &y) const
-{
-    Vector y_temp(y.Size());
-    M_LH_op->Mult(x, y_temp);
-
-   #ifndef MFEM_USE_MPI
-      MFEM_ASSERT(ML_inv.Size() == y_temp.Size(), "sizes not the same");
-      auto v_ML_inv = mfem::Reshape(ML_inv->Read(), ML_inv->Size());
-      auto v_y_temp = mfem::Reshape(y_temp.Read(), y_temp.Size());
-      auto v_y = mfem::Reshape(y.Write(), y.Size());
-
-      mfem::forall(ML_inv->Size(), [=] MFEM_HOST_DEVICE(int i)
-                  { v_y(i) = v_ML_inv(i) * v_y_temp(i); });
-   #else
-
-      y = y_temp;
-   #endif
-}
-
-void L2ProjectionGridTransfer::H1SpaceRestrictionOperator::MultTranspose(const Vector &x, Vector &y) const
-{
-   Vector x_temp(x.Size());
-
-   #ifndef MFEM_USE_MPI
-      MFEM_ASSERT(ML_inv.Size() == x_temp.Size(), "sizes not the same");
-      auto v_ML_inv  = mfem::Reshape(ML_inv->Read(), ML_inv->Size());
-      auto v_x   = mfem::Reshape(x.Read(), x.Size());
-      auto v_x_temp  = mfem::Reshape(x_temp.Write(), x_temp.Size());
-
-      mfem::forall(ML_inv->Size(), [=] MFEM_HOST_DEVICE (int i)
-      {
-         v_x_temp(i) = v_ML_inv(i) * v_x(i);
-      });
-   #else
-      x_temp = x;
-   #endif
-
-   M_LH_op->MultTranspose(x_temp, y);
 }
 
 L2ProjectionGridTransfer::~L2ProjectionGridTransfer()
@@ -2770,8 +2679,8 @@ void L2ProjectionGridTransfer::BuildF()
    {
       if (!Parallel())
       {
-         F = new L2ProjectionH1Space(dom_fes, ran_fes, coeff, 
-                                     use_device, verify_solution, d_mt);
+         F = new L2ProjectionH1Space(dom_fes, ran_fes, 
+                                     use_device, verify_solution, coeff, d_mt);
       }
       else
       {
@@ -2780,15 +2689,15 @@ void L2ProjectionGridTransfer::BuildF()
             static_cast<mfem::ParFiniteElementSpace&>(dom_fes);
          const mfem::ParFiniteElementSpace& ran_pfes =
             static_cast<mfem::ParFiniteElementSpace&>(ran_fes);
-         F = new L2ProjectionH1Space(dom_pfes, ran_pfes, coeff, 
-                                     use_device, verify_solution, d_mt);
+         F = new L2ProjectionH1Space(dom_pfes, ran_pfes, 
+                                     use_device, verify_solution, coeff, d_mt);
 #endif
       }
    }
    else
    {  
-      F = new L2ProjectionL2Space(dom_fes, ran_fes, coeff, 
-                                  use_device, verify_solution, d_mt);
+      F = new L2ProjectionL2Space(dom_fes, ran_fes, 
+                                  use_device, verify_solution, coeff, d_mt);
    }
 }
 

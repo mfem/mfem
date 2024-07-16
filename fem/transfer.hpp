@@ -214,7 +214,7 @@ protected:
       L2Projection(const FiniteElementSpace& fes_ho_,
                    const FiniteElementSpace& fes_lor_,
                    Coefficient* coeff_,
-                   MemoryType d_mt_);
+                   MemoryType d_mt_ = MemoryType::HOST);
 
       void BuildHo2Lor(int nel_ho, int nel_lor,
                        const CoarseFineTransformations& cf_tr);
@@ -234,7 +234,7 @@ protected:
       data at the quadrature points. 
       */
       Vector MixedMassEA(const FiniteElementSpace& fes_ho_, const FiniteElementSpace& fes_lor_,
-                         Coefficient* coeff_, MemoryType d_mt_);
+                         Coefficient* coeff_, MemoryType d_mt_ = MemoryType::HOST);
    };
 
    //Class below must be public as we now have device code
@@ -245,10 +245,11 @@ public:
       const FiniteElementSpace* fes_ho;
       const FiniteElementSpace* fes_lor;
       Table* ho2lor;
-      Vector* M_mixed_all_ea;
+      Vector* M_LH_ea;
    public:
-      H1SpaceMixedMassOperator(const FiniteElementSpace* fes_ho_, const FiniteElementSpace* fes_lor_, 
-                        Table* ho2lor_, Vector* M_mixed_all_ea_);
+      H1SpaceMixedMassOperator(const FiniteElementSpace* fes_ho_, 
+                               const FiniteElementSpace* fes_lor_, 
+                               Table* ho2lor_, Vector* M_LH_ea_);
       void Mult(const Vector& x, Vector& y) const;
       void MultTranspose(const Vector& x, Vector& y) const;
    };
@@ -266,18 +267,6 @@ public:
       void Mult(const Vector& x, Vector& y) const;
       void MultTranspose(const Vector& x, Vector& y) const;
    };
-
-   class H1SpaceRestrictionOperator : public Operator
-   {
-   protected: 
-      Operator* M_LH_op;
-      Vector* ML_inv; // inverse of lumped M_L
-   public:
-      H1SpaceRestrictionOperator(Operator& M_LH_op_, Vector& ML_inv_);
-      void Mult(const Vector& x, Vector& y) const;
-      void MultTranspose(const Vector& x, Vector& y) const;
-   };
-   
 
    /** Class for projection operator between a L2 high-order finite element
        space on a coarse mesh, and a L2 low-order finite element space on a
@@ -297,9 +286,9 @@ public:
    public:
       L2ProjectionL2Space(const FiniteElementSpace& fes_ho_,
                           const FiniteElementSpace& fes_lor_,
-                          Coefficient* coeff_,
                           const bool use_device_,
                           const bool verify_solution_,
+                          Coefficient* coeff_,
                           MemoryType d_mt_ = MemoryType::HOST);
 
       /*Same as above but assembles and stores R_ea, P_ea */
@@ -375,16 +364,16 @@ public:
    public:
       L2ProjectionH1Space(const FiniteElementSpace &fes_ho_,
                           const FiniteElementSpace &fes_lor_,
-                          Coefficient *coeff_, 
                           const bool use_device_,
                           const bool verify_solution_, 
+                          Coefficient *coeff_, 
                           MemoryType d_mt_ = MemoryType::HOST);
       #ifdef MFEM_USE_MPI
             L2ProjectionH1Space(const ParFiniteElementSpace &pfes_ho_,
                                 const ParFiniteElementSpace &pfes_lor_, 
-                                Coefficient *coeff_,
                                 const bool use_device_,
                                 const bool verify_solution_, 
+                                Coefficient *coeff_,
                                 MemoryType d_mt_ = MemoryType::HOST);
       #endif
       /// Same as above but assembles action of R through 4 parts:
@@ -494,25 +483,36 @@ public:
       std::unique_ptr<Operator> M_LH;
       std::unique_ptr<Operator> RTxM_LH;
 
-      CGSolver pcg_ea;
-      std::unique_ptr<Solver> precon_ea;
-      std::unique_ptr<Operator> RTxM_LH_ea;
-      std::unique_ptr<Operator> R_ea;
-      std::unique_ptr<Operator> M_LH_ea;
-      std::unique_ptr<Operator> ML_inv_eap;
-      Operator *R_ea_op;
-      Operator *M_LH_ea_op;
-      Operator *ML_inv_ea_op;
-      const ElementRestrictionOperator* elem_restrict_h;
-      const ElementRestrictionOperator* elem_restrict_l;
-      Vector M_mixed_all_ea;
+      // "_vea" stands for "via EA"
+      CGSolver pcg_vea;
+      std::unique_ptr<Solver> precon_vea;
+      // Restriction operator built via EA. Wrapped with restriction maps to send 
+      // scalar TDof HO vectors to TDof LOR vectors.
+      std::unique_ptr<Operator> R_vea;
+      // Lumped M_L inverse operator built via EA. Wrapped with restriction maps
+      // to multiply with scalar TDof LOR vectors. 
+      std::unique_ptr<Operator> ML_inv_vea;
+      // TDof Mixed mass operator built via EA. Wrapped with restriction maps to send 
+      // scalar TDof HO vectors to TDof LOR vectors. 
+      // Used to compute P = (RT*M_LH)^(-1) M_LH^T
+      std::unique_ptr<Operator> M_LH_vea;
+      // Inverted operator in P = (RT*M_LH)^(-1) M_LH^T. Used to compute P via PCG. 
+      std::unique_ptr<Operator> RTxM_LH_vea;
+      // LDof Mixed mass operator built via EA. Wrapped with restrition maps to send 
+      // scalar LDof HO vectors to LDof LOR vectors. 
+      Operator *M_LH_local_op;
+      // Scalar finite element spaces for stored Tdof-to-and-from-LDof maps.
+      const FiniteElementSpace* fes_ho_scalar;
+      const FiniteElementSpace* fes_lor_scalar;
+      // Element Assembled mixed mass
+      Vector M_LH_ea;
+      // Element Assembled lumped M_L inverse built via EA. Stores diagonal as a Ldof vector. 
       Vector ML_inv_ea;
-      Vector RML_inv;
-      Vector RM_H;
 
 #ifdef MFEM_USE_MPI
-      ParFiniteElementSpace* pfes_ho_scalar;
-      ParFiniteElementSpace* pfes_lor_scalar;
+      const ParFiniteElementSpace* pfes_ho_scalar;
+      const ParFiniteElementSpace* pfes_lor_scalar;
+      Vector RML_inv;
 #endif
 
       friend class L2ProjectionL2Space;
@@ -549,8 +549,8 @@ public:
       
    L2ProjectionGridTransfer(FiniteElementSpace &coarse_fes_,
                             FiniteElementSpace &fine_fes_,
-                            Coefficient *coeff_,
                             bool force_l2_space_ = false,
+                            Coefficient *coeff_ = nullptr,
                             MemoryType d_mt_ = MemoryType::HOST)
       : GridTransfer(coarse_fes_, fine_fes_, d_mt_),
         F(NULL), B(NULL), force_l2_space(force_l2_space_), coeff(coeff_)

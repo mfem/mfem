@@ -78,7 +78,7 @@ int main(int argc, char *argv[])
    Hypre::Init();
    
    // Parse command-line options.
-   const char *mesh_file = "../../data/inline-quad.mesh";  //star.mesh";  //
+   const char *mesh_file = "../../data/star.mesh";  //inline-quad.mesh";  //
    int order = 3;
    int lref = order+1;
    int lorder = 1;
@@ -152,7 +152,6 @@ int main(int argc, char *argv[])
    }
 
    ParFiniteElementSpace fespace(&pmesh, fec);
-   std::cout << "num DOFs : " << fespace.GetNDofs() << std::endl;
    ParFiniteElementSpace fespace_lor(&pmesh_lor, fec_lor);
    // HYPRE_BigInt size = fespace.GlobalTrueVSize();
    // printf("successfully make parFES \n");
@@ -225,7 +224,7 @@ int main(int argc, char *argv[])
    }
    else
    {
-      gt = new L2ProjectionGridTransfer(fespace, fespace_lor, &coeff); 
+      gt = new L2ProjectionGridTransfer(fespace, fespace_lor, false, &coeff, MemoryType::HOST); 
    }
 
    gt->UseDevice(false);
