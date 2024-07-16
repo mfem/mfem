@@ -726,8 +726,26 @@ void NCMesh::ForceRefinement(int vn1, int vn2, int vn3, int vn4)
    if (el.Geom() == Geometry::CUBE)
    {
       Node* node12 = nodes.Find(vn1, vn2);
-      const bool rev12 = vn1 > vn2;
-      const real_t scale = rev12 ? 1.0 - node12->scale : node12->scale;
+      real_t scale = 0.5;
+
+      if (node12)
+      {
+         const bool rev12 = vn1 > vn2;
+         scale = rev12 ? 1.0 - node12->scale : node12->scale;
+      }
+      else
+      {
+         Node* node34 = nodes.Find(vn3, vn4);
+         if (node34)
+         {
+            const bool rev34 = vn4 > vn3;
+            scale = rev34 ? 1.0 - node34->scale : node34->scale;
+         }
+         else
+         {
+            MFEM_ABORT("Scale not set in NCMesh::ForceRefinement");
+         }
+      }
 
       // schedule the right split depending on face orientation
       if ((CubeFaceLeft(vn1, el_nodes) && CubeFaceRight(vn2, el_nodes)) ||
@@ -885,11 +903,26 @@ void NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
       int midf = nodes.FindId(mid23, mid41);
       if (midf >= 0)
       {
-         Node* node12 = nodes.Find(vn1, vn2);
          Node* midfNode = nodes.Find(mid23, mid41);
 
-         const bool rev = (vn1 < vn2) != (mid41 < mid23);
-         midfNode->scale = rev ? 1.0 - node12->scale : node12->scale;
+         if (midfNode)
+         {
+            Node* node12 = nodes.Find(vn1, vn2);
+            if (node12)
+            {
+               const bool rev = (vn1 < vn2) != (mid41 < mid23);
+               midfNode->scale = rev ? 1.0 - node12->scale : node12->scale;
+            }
+            else
+            {
+               Node* node34 = nodes.Find(vn3, vn4);
+               if (node34)
+               {
+                  const bool rev = (vn4 < vn3) != (mid41 < mid23);
+                  midfNode->scale = rev ? 1.0 - node34->scale : node34->scale;
+               }
+            }
+         }
 
          reparents.Append(Triple<int, int, int>(midf, mid12, mid34));
 
