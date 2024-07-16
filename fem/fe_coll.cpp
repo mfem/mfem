@@ -310,11 +310,11 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
                                           FiniteElement::INTEGRAL,
                                           BasisType::GetType(name[12]));
    }
-   else if (!strncmp(name, "RT_R1D", 3))
+   else if (!strncmp(name, "RT_R1D_", 7))
    {
       fec = new RT_R1D_FECollection(atoi(name + 11), atoi(name + 7));
    }
-   else if (!strncmp(name, "RT_R2D", 3))
+   else if (!strncmp(name, "RT_R2D_", 7))
    {
       fec = new RT_R2D_FECollection(atoi(name + 11), atoi(name + 7));
    }
@@ -338,11 +338,11 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
                                       BasisType::GetType(name[9]),
                                       BasisType::GetType(name[10]));
    }
-   else if (!strncmp(name, "ND_R1D", 3))
+   else if (!strncmp(name, "ND_R1D_", 7))
    {
       fec = new ND_R1D_FECollection(atoi(name + 11), atoi(name + 7));
    }
-   else if (!strncmp(name, "ND_R2D", 3))
+   else if (!strncmp(name, "ND_R2D_", 7))
    {
       fec = new ND_R2D_FECollection(atoi(name + 11), atoi(name + 7));
    }
