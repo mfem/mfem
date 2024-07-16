@@ -880,27 +880,6 @@ void NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
    const int mid23 = FindMidEdgeNode(vn2, vn3);
    const int mid41 = FindMidEdgeNode(vn4, vn1);
 
-   if (mid23 >= 0)
-   {
-      Node* node23 = nodes.Find(vn2, vn3);
-      Node* midfNode = nodes.Find(mid12, mid34);
-      if (midfNode)
-      {
-         const bool rev = (vn2 < vn3) != (mid12 < mid34);
-         midfNode->scale = rev ? 1.0 - node23->scale : node23->scale;
-      }
-   }
-   else if (mid41 >= 0)
-   {
-      Node* node14 = nodes.Find(vn1, vn4);
-      Node* midfNode = nodes.Find(mid12, mid34);
-      if (midfNode)
-      {
-         const bool rev = (vn1 < vn4) != (mid12 < mid34);
-         midfNode->scale = rev ? 1.0 - node14->scale : node14->scale;
-      }
-   }
-
    if (mid23 >= 0 && mid41 >= 0)
    {
       int midf = nodes.FindId(mid23, mid41);
