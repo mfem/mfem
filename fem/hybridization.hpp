@@ -68,7 +68,7 @@ protected:
    Array<BilinearFormIntegrator*> boundary_constraint_integs;
    Array<Array<int>*>             boundary_constraint_integs_marker;
    /// Indicates if the boundary_constraint_integs integrators are owned externally
-   int extern_bdr_constr_integs;
+   bool extern_bdr_constr_integs;
 
    SparseMatrix *Ct, *H;
 
@@ -137,7 +137,7 @@ public:
    Array<Array<int>*> *GetBCBFI_Marker() { return &boundary_constraint_integs_marker; }
 
    /// Indicate that boundary constraint integrators are not owned
-   void UseExternalBdrConstraintIntegrators() { extern_bdr_constr_integs = 1; }
+   void UseExternalBdrConstraintIntegrators() { extern_bdr_constr_integs = true; }
 
    /// Prepare the Hybridization object for assembly.
    void Init(const Array<int> &ess_tdof_list);
