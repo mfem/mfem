@@ -56,7 +56,7 @@ public:
 
        @note Default value is 1e-8
    */
-   void SetTol(double tol);
+   void SetTol(real_t tol);
 
    /** @brief Set maximum number of iterations allowed in the call to
        SlepcEigenSolver::Solve */
@@ -88,7 +88,7 @@ public:
       @note the index @a i must be between 0 and
             SlepcEigenSolver::GetNumConverged - 1
    */
-   void GetEigenvalue(unsigned int i, double & lr) const;
+   void GetEigenvalue(unsigned int i, real_t & lr) const;
 
    /** @brief Get the ith eigenvalue after the system has been solved
       @param[in] i The index for the eigenvalue you want ordered by
@@ -98,7 +98,7 @@ public:
       @note the index @a i must be between 0 and
             SlepcEigenSolver::GetNumConverged - 1
    */
-   void GetEigenvalue(unsigned int i, double & lr, double & lc) const;
+   void GetEigenvalue(unsigned int i, real_t & lr, real_t & lc) const;
 
    /** @brief Get the ith eigenvector after the system has been solved
       @param[in] i The index for the eigenvector you want ordered by
@@ -170,7 +170,7 @@ public:
        SlepcEigenSolver::TARGET_MAGNITUDE or SlepcEigenSolver::TARGET_REAL in
        the SlepcEigenSolver::SetWhichEigenpairs method.
    */
-   void SetTarget(double target);
+   void SetTarget(real_t target);
 
    /** @brief Set the spectral transformation strategy for acceletating
        convergenvce. Both SlepcEigenSolver::SHIFT and

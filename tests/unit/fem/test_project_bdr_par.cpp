@@ -91,17 +91,12 @@ TEST_CASE("ProjectBdrCoefficient", "[Parallel]")
       local_sum += e_sum;
    }
    real_t global_sum = 0.0, global_sum_expected = 0.0;
-#ifdef MFEM_USE_DOUBLE
-   MPI_Allreduce(&local_sum, &global_sum, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-   MPI_Allreduce(&local_sum_expected, &global_sum_expected, 1, MPI_DOUBLE, MPI_MAX,
-                 MPI_COMM_WORLD);
-#else
-   MPI_Allreduce(&local_sum, &global_sum, 1, MPI_FLOAT, MPI_SUM, MPI_COMM_WORLD);
-   MPI_Allreduce(&local_sum_expected, &global_sum_expected, 1, MPI_FLOAT, MPI_MAX,
-                 MPI_COMM_WORLD);
-#endif
+   MPI_Allreduce(&local_sum, &global_sum, 1,
+                 MFEM_MPI_REAL_T, MPI_SUM, MPI_COMM_WORLD);
+   MPI_Allreduce(&local_sum_expected, &global_sum_expected, 1,
+                 MFEM_MPI_REAL_T, MPI_MAX, MPI_COMM_WORLD);
 
-   REQUIRE(global_sum == global_sum_expected);
+   REQUIRE(global_sum == MFEM_Approx(global_sum_expected));
 }
 
 #endif

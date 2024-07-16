@@ -38,8 +38,8 @@ bool Mesh::remove_unused_vertices = true;
 
 void Mesh::ReadMFEMMesh(std::istream &input, int version, int &curved)
 {
-   // Read MFEM mesh v1.0 or v1.2 format
-   MFEM_VERIFY(version == 10 || version == 12,
+   // Read MFEM mesh v1.0, v1.2, or v1.3 format
+   MFEM_VERIFY(version == 10 || version == 12 || version == 13,
                "unknown MFEM mesh version");
 
    string ident;
@@ -62,6 +62,18 @@ void Mesh::ReadMFEMMesh(std::istream &input, int version, int &curved)
       elements[j] = ReadElement(input);
    }
 
+   if (version == 13)
+   {
+      skip_comment_lines(input, '#');
+      input >> ident; // 'attribute_sets'
+
+      MFEM_VERIFY(ident == "attribute_sets", "invalid mesh file");
+
+      attribute_sets.attr_sets.Load(input);
+      attribute_sets.attr_sets.SortAll();
+      attribute_sets.attr_sets.UniqueAll();
+   }
+
    skip_comment_lines(input, '#');
    input >> ident; // 'boundary'
 
@@ -71,6 +83,18 @@ void Mesh::ReadMFEMMesh(std::istream &input, int version, int &curved)
    for (int j = 0; j < NumOfBdrElements; j++)
    {
       boundary[j] = ReadElement(input);
+   }
+
+   if (version == 13)
+   {
+      skip_comment_lines(input, '#');
+      input >> ident; // 'bdr_attribute_sets'
+
+      MFEM_VERIFY(ident == "bdr_attribute_sets", "invalid mesh file");
+
+      bdr_attribute_sets.attr_sets.Load(input);
+      bdr_attribute_sets.attr_sets.SortAll();
+      bdr_attribute_sets.attr_sets.UniqueAll();
    }
 
    skip_comment_lines(input, '#');
@@ -1127,15 +1151,24 @@ void Mesh::ReadXML_VTKMesh(std::istream &input, int &curved, int &read_gf,
    }
    if (cells_xml == NULL) { MFEM_ABORT(erstr); }
 
-   // Read the element attributes, which are stored as CellData named "material"
+   // Read the element attributes, which are stored as CellData named either
+   // "material" or "attribute". We prioritize "material" over "attribute" for
+   // backwards compatibility.
    Array<int> cell_attributes;
+   bool found_attributes = false;
    for (const XMLElement *cell_data_xml = piece->FirstChildElement();
         cell_data_xml != NULL;
         cell_data_xml = cell_data_xml->NextSiblingElement())
    {
-      if (StringCompare(cell_data_xml->Name(), "CellData")
-          && StringCompare(cell_data_xml->Attribute("Scalars"), "material"))
+      const bool is_cell_data =
+         StringCompare(cell_data_xml->Name(), "CellData");
+      const bool is_material =
+         StringCompare(cell_data_xml->Attribute("Scalars"), "material");
+      const bool is_attribute =
+         StringCompare(cell_data_xml->Attribute("Scalars"), "attribute");
+      if (is_cell_data && (is_material || (is_attribute && !found_attributes)))
       {
+         found_attributes = true;
          const XMLElement *data_xml = cell_data_xml->FirstChildElement();
          if (data_xml != NULL && StringCompare(data_xml->Name(), "DataArray"))
          {
@@ -1250,6 +1283,7 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
    // Read the cell materials
    // bool found_material = false;
    Array<int> cell_attributes;
+   bool found_attributes = false;
    while ((input.good()))
    {
       getline(input, buff);
@@ -1257,8 +1291,10 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
       {
          break; // We have entered the POINT_DATA block. Quit.
       }
-      else if (buff.rfind("SCALARS material") == 0)
+      else if (buff.rfind("SCALARS material") == 0 ||
+               (buff.rfind("SCALARS attribute") == 0 && !found_attributes))
       {
+         found_attributes = true;
          getline(input, buff); // LOOKUP_TABLE default
          if (buff.rfind("LOOKUP_TABLE default") != 0)
          {
@@ -1512,6 +1548,12 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
    // (there may be gaps in the numbering, and also Gmsh enumerates vertices
    // starting from 1, not 0)
    map<int, int> vertices_map;
+
+   // A map containing names of physical curves, surfaces, and volumes.
+   // The first index is the dimension of the physical manifold, the second
+   // index is the element attribute number of the set, and the string is
+   // the assigned name.
+   map<int,map<int,std::string> > phys_names_by_dim;
 
    // Gmsh always outputs coordinates in 3D, but MFEM distinguishes between the
    // mesh element dimension (Dim) and the dimension of the space in which the
@@ -2637,6 +2679,38 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          MFEM_CONTRACT_VAR(elem_domain);
 
       } // section '$Elements'
+      else if (buff == "$PhysicalNames") // Named element sets
+      {
+         int num_names = 0;
+         int mdim,num;
+         string name;
+         input >> num_names;
+         for (int i=0; i < num_names; i++)
+         {
+            input >> mdim >> num;
+            getline(input, name);
+
+            // Trim leading white space
+            while (!name.empty() &&
+                   (*name.begin() == ' ' || *name.begin() == '\t'))
+            { name.erase(0,1);}
+
+            // Trim trailing white space
+            while (!name.empty() &&
+                   (*name.rbegin() == ' ' || *name.rbegin() == '\t' ||
+                    *name.rbegin() == '\n' || *name.rbegin() == '\r'))
+            { name.resize(name.length()-1);}
+
+            // Remove enclosing quotes
+            if ( (*name.begin() == '"' || *name.begin() == '\'') &&
+                 (*name.rbegin() == '"' || *name.rbegin() == '\''))
+            {
+               name = name.substr(1,name.length()-2);
+            }
+
+            phys_names_by_dim[mdim][num] = name;
+         }
+      }
       else if (buff == "$Periodic") // Reading master/slave node pairs
       {
          curved = 1;
@@ -2735,6 +2809,30 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          }
       }
    } // we reach the end of the file
+
+   // Process set names
+   if (phys_names_by_dim.size() > 0)
+   {
+      // Process boundary attribute set names
+      for (auto const &bdr_attr : phys_names_by_dim[Dim-1])
+      {
+         if (!bdr_attribute_sets.AttributeSetExists(bdr_attr.second))
+         {
+            bdr_attribute_sets.CreateAttributeSet(bdr_attr.second);
+         }
+         bdr_attribute_sets.AddToAttributeSet(bdr_attr.second, bdr_attr.first);
+      }
+
+      // Process element attribute set names
+      for (auto const &attr : phys_names_by_dim[Dim])
+      {
+         if (!attribute_sets.AttributeSetExists(attr.second))
+         {
+            attribute_sets.CreateAttributeSet(attr.second);
+         }
+         attribute_sets.AddToAttributeSet(attr.second, attr.first);
+      }
+   }
 
    this->RemoveUnusedVertices();
    if (periodic)
