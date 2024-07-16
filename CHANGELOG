@@ -13,6 +13,8 @@ Version 4.7.1 (development)
 
 - Added support for custom interpolation procedure in FindPointsGSLIB.
 
+- Added support for boundary constraints to the hybridization class.
+
 - Refactored the `ARKStepSolver` class (ARKODE interface) to use
   `TimeDependentOperator::Mult` only when the associated ODE operator is
   expressed in explicit form (i.e., `TimeDependentOperator::isExplicit()`),
@@ -38,6 +40,7 @@ Version 4.7.1 (development)
 - The ExodusII reader now handles pyramid and wedge element types. Mixed meshes
   are also supported.
 
+
 Version 4.7, released on May 7, 2024
 ====================================
 
@@ -61,11 +64,7 @@ Meshing improvements
 
 - Added support for internal boundary elements in nonconforming meshes.
 
-<<<<<<< HEAD
-- Added ExodusII output capability. The writer can handle first-order (Pyramid5, 
-=======
 - Added ExodusII output capability. The writer can handle first-order (Pyramid5,
->>>>>>> gh/pr/4049
   Wedge6, Hex8, Tet4) and second-order FE types (Pyramid14, Wedge18, Hex27, Tet10).
 
 - The ReadCubit Genesis mesh importer has been rewritten to improve readability.

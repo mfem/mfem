@@ -1923,6 +1923,89 @@ void VectorFECurlIntegrator::AssembleElementMatrix2(
    }
 }
 
+void VectorFEBoundaryFluxIntegrator::AssembleElementMatrix(
+   const FiniteElement &el, ElementTransformation &Tr,
+   DenseMatrix &elmat)
+{
+   int nd = el.GetDof();
+   real_t w;
+
+#ifdef MFEM_THREAD_SAFE
+   Vector shape;
+#endif
+   elmat.SetSize(nd);
+   shape.SetSize(nd);
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int intorder = 2*el.GetOrder() + Tr.OrderW();  // <----------
+      ir = &IntRules.Get(el.GetGeomType(), intorder);
+   }
+
+   elmat = 0.0;
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      el.CalcShape(ip, shape);
+
+      Tr.SetIntPoint (&ip);
+      w = ip.weight / Tr.Weight();
+
+      if (Q)
+      {
+         w *= Q->Eval(Tr, ip);
+      }
+
+      AddMult_a_VVt(w, shape, elmat);
+   }
+}
+
+void VectorFEBoundaryFluxIntegrator::AssembleElementMatrix2(
+   const FiniteElement &trial_fe,
+   const FiniteElement &test_fe,
+   ElementTransformation &Tr,
+   DenseMatrix &elmat)
+{
+   int tr_nd = trial_fe.GetDof();
+   int te_nd = test_fe.GetDof();
+   real_t w;
+
+#ifdef MFEM_THREAD_SAFE
+   Vector shape, te_shape;
+#endif
+   elmat.SetSize(te_nd, tr_nd);
+   shape.SetSize(tr_nd);
+   te_shape.SetSize(te_nd);
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int order = trial_fe.GetOrder() + test_fe.GetOrder() + Tr.OrderW();
+
+      ir = &IntRules.Get(trial_fe.GetGeomType(), order);
+   }
+
+   elmat = 0.0;
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      trial_fe.CalcShape(ip, shape);
+      test_fe.CalcShape(ip, te_shape);
+
+      Tr.SetIntPoint (&ip);
+      w = ip.weight / Tr.Weight();
+
+      if (Q)
+      {
+         w *= Q->Eval(Tr, ip);
+      }
+
+      te_shape *= w;
+      AddMultVWt(te_shape, shape, elmat);
+   }
+}
+
 void DerivativeIntegrator::AssembleElementMatrix2 (
    const FiniteElement &trial_fe,
    const FiniteElement &test_fe,
