@@ -73,7 +73,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../../data/star.mesh";  //inline-quad.mesh";  //
    int order = 3;
    int lref = order+1;
-   int lorder = 0;
+   int lorder = 1;
    bool vis = true;
    bool useH1 = false;
    bool use_pointwise_transfer = false;
@@ -195,10 +195,10 @@ int main(int argc, char *argv[])
    }
    else
    {
-      gt = new L2ProjectionGridTransfer(fespace, fespace_lor, &coeff); 
+      gt = new L2ProjectionGridTransfer(fespace, fespace_lor, false, &coeff, MemoryType::HOST); 
    }
 
-   gt->UseDevice(true);
+   gt->UseDevice(false);
    gt->VerifySolution(true);
 
    const Operator &R = gt->ForwardOperator();
@@ -206,6 +206,7 @@ int main(int argc, char *argv[])
    // HO->LOR restriction
    direction = "HO -> LOR @ LOR";
    R.Mult(rho, rho_lor);  
+   // exit(0);
    compute_mass(&fespace_lor, ho_mass, LOR_dc, "R(HO)    ");
    if (vis) { visualize(LOR_dc, "R(HO)", Wx, Wy); Wx += offx; }
 
