@@ -3202,12 +3202,13 @@ public:
                                    const FiniteElement &el2,
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
-   virtual void AssembleFaceMatrix(const FiniteElement &trial_fe1,
-                                   const FiniteElement &test_fe1,
-                                   const FiniteElement &trial_fe2,
-                                   const FiniteElement &test_fe2,
-                                   FaceElementTransformations &Trans,
-                                   DenseMatrix &elmat);
+
+   void AssembleFaceMatrix(const FiniteElement &trial_fe1,
+                           const FiniteElement &test_fe1,
+                           const FiniteElement &trial_fe2,
+                           const FiniteElement &test_fe2,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat) override;
 
    virtual void AssemblePAInteriorFaces(const FiniteElementSpace &fes);
 
