@@ -1,15 +1,17 @@
-#include "fem/bilininteg.hpp"
-#include "fem/coefficient.hpp"
-#include "fem/lininteg.hpp"
-#include "fem/pbilinearform.hpp"
-#include "fem/pgridfunc.hpp"
-#include "linalg/operator.hpp"
-#include "mfem.hpp"
-#include <fstream>
-#include <iomanip>
-#include <iostream>
+//                       MFEM Example 41 - Parallel Version
+//
+// Compile with: make ex41p
+//
+// Sample runs:  mpirun -np 4 ./examples/ex41p -ref 1 -kv 0.001 -o 4
+//               mpirun -np 4 ./examples/ex41p -ref 3 -kv 0.001
+//
+// Description:  This example demonstrates the technique of adaptive mesh
+//               refinement using dual-weighted residuals in the context of a
+//               steady state Navier-Stokes benchmark problem. The problem setup
+//               is the flow around cylinder with a laminar flow field at
+//               Reynolds number 20.
 
-#undef DEBUG_TEST
+#include "mfem.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -26,10 +28,10 @@ vector<size_t> sort_indexes(const vector<T> &v)
    return idx;
 }
 
-std::tuple<double, double> DragLift(
+std::tuple<real_t, real_t> DragLift(
    GridFunction &u_gf,
    GridFunction &p_gf,
-   double kinematic_viscosity,
+   real_t kinematic_viscosity,
    Array<int> &marker,
    IntegrationRule &ir_face)
 {
@@ -59,7 +61,7 @@ std::tuple<double, double> DragLift(
          Tr.SetIntPoint(&ip);
          CalcOrtho(Tr.Jacobian(), nor);
 
-         const double scale = nor.Norml2();
+         const real_t scale = nor.Norml2();
          nor /= -scale;
 
          u_gf.GetVectorGradient(Tr, dudx);
@@ -76,7 +78,7 @@ std::tuple<double, double> DragLift(
 
          for (int i = 0; i < dim; i++)
          {
-            double s = 0.0;
+            real_t s = 0.0;
             for (int j = 0; j < dim; j++)
             {
                s -= A(i, j) * nor(j);
@@ -98,7 +100,7 @@ public:
                                ElementTransformation &Tr,
                                Vector &elvect) override
    {
-      MFEM_ABORT("nope");
+      MFEM_ABORT("not implemented");
    }
 
    void AssembleRHSElementVect(const FiniteElement &el,
@@ -131,7 +133,7 @@ public:
 
          CalcOrtho(Tr.Jacobian(), nor);
 
-         const double scale = nor.Norml2();
+         const real_t scale = nor.Norml2();
          nor /= -scale;
 
          auto TrEl1 = Tr.Elem1;
@@ -202,7 +204,7 @@ public:
 
          CalcOrtho(Tr.Jacobian(), nor);
 
-         const double scale = nor.Norml2();
+         const real_t scale = nor.Norml2();
          nor /= scale;
 
          el.CalcPhysShape(Tr.GetElement1Transformation(), psi);
@@ -255,7 +257,7 @@ public:
 
          uhgf.GetVectorValue(Tr, ip, uh);
          zuhgf.GetVectorValue(Tr, ip, zuh);
-         double zph = zphgf.GetValue(Tr);
+         real_t zph = zphgf.GetValue(Tr);
          phgf.GetGradient(Tr, dph);
          uhgf.GetVectorGradient(Tr, duh);
          zuhgf.GetVectorGradient(Tr, dzuh);
@@ -317,7 +319,7 @@ public:
                 ParFiniteElementSpace &pfes,
                 Array<int> &u_ess_tdof,
                 Array<int> &p_ess_tdof,
-                const double kinematic_viscosity) :
+                const real_t kinematic_viscosity) :
       ufes(ufes),
       pfes(pfes),
       u_ess_tdof(u_ess_tdof),
@@ -338,10 +340,10 @@ public:
       this->height = offsets.Last();
       this->width = this->height;
 
-      Array<int> empty;
-
       kinematic_viscosity_coef.constant = kinematic_viscosity;
       inverse_kinematic_viscosity_coef.constant = 1.0 / kinematic_viscosity;
+
+      Array<int> empty;
 
       N.AddDomainIntegrator(new VectorConvectionNLFIntegrator);
       N.AddDomainIntegrator(
@@ -426,11 +428,14 @@ public:
    void RebuildPC() const
    {
       delete a_inv;
-      auto amg = new HypreBoomerAMG(*static_cast<HypreParMatrix*>(&Ae->GetBlock(0,
-                                                                                0)));
-      amg->SetPrintLevel(0);
 
+      auto amg = new HypreBoomerAMG;
+      HYPRE_BoomerAMGSetSmoothType(*amg, 5);
+      amg->SetOperator(*static_cast<HypreParMatrix*>(&Ae->GetBlock(0, 0)));
+      amg->SetSystemsOptions(2, true);
+      amg->SetPrintLevel(0);
       a_inv = amg;
+
       pc->SetBlock(0, 0, a_inv);
    }
 
@@ -438,6 +443,9 @@ public:
    {
       delete R;
       delete Ae;
+      delete mpe_inv;
+      delete a_inv;
+      delete pc;
    }
 
    ParFiniteElementSpace &ufes;
@@ -456,6 +464,126 @@ public:
    OperatorHandle K, Ke;
    OperatorHandle G, Ge;
    OperatorHandle D, De;
+   OperatorHandle PQ, Mpe;
+
+   mutable BlockLowerTriangularPreconditioner *pc = nullptr;
+   ParBilinearForm mp;
+   Solver *mpe_inv = nullptr;
+   mutable Solver *a_inv = nullptr;
+   ConstantCoefficient zero_coeff;
+};
+
+class NavierStokesAdjoint : public Operator
+{
+public:
+   NavierStokesAdjoint(ParFiniteElementSpace &ufes,
+                       ParFiniteElementSpace &pfes,
+                       Array<int> &u_ess_tdof,
+                       Array<int> &p_ess_tdof,
+                       const real_t kinematic_viscosity) :
+      ufes(ufes),
+      pfes(pfes),
+      u_ess_tdof(u_ess_tdof),
+      p_ess_tdof(p_ess_tdof),
+      Ne(&ufes),
+      ge_tr(&ufes, &pfes),
+      de_tr(&pfes, &ufes),
+      offsets({0, ufes.GetTrueVSize(), pfes.GetTrueVSize()}),
+           mp(&pfes),
+           pq(&pfes)
+   {
+      offsets.PartialSum();
+      pc = new BlockLowerTriangularPreconditioner(offsets);
+
+      this->height = offsets.Last();
+      this->width = this->height;
+
+      kinematic_viscosity_coef.constant = kinematic_viscosity;
+      inverse_kinematic_viscosity_coef.constant = 1.0 / kinematic_viscosity;
+
+      Array<int> empty;
+   }
+
+   void Setup(const Vector &x)
+   {
+      Ne.AddDomainIntegrator(new VectorConvectionNLFIntegrator);
+      Ne.AddDomainIntegrator(
+         new VectorDiffusionIntegrator(kinematic_viscosity_coef));
+      Ne.SetEssentialTrueDofs(u_ess_tdof);
+      Ne.Setup();
+
+      ge_tr.AddDomainIntegrator(new TransposeIntegrator(new GradientIntegrator));
+      ge_tr.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      ge_tr.Assemble();
+      ge_tr.Finalize();
+      ge_tr.FormRectangularSystemMatrix(u_ess_tdof, p_ess_tdof, GeTr);
+
+      de_tr.AddDomainIntegrator(new TransposeIntegrator(new
+                                                        VectorDivergenceIntegrator));
+      de_tr.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      de_tr.Assemble();
+      de_tr.Finalize();
+      de_tr.FormRectangularSystemMatrix(p_ess_tdof, u_ess_tdof, DeTr);
+
+      zero_coeff.constant = 0.0;
+      pq.AddDomainIntegrator(new MassIntegrator(zero_coeff));
+      pq.Assemble();
+      pq.Finalize();
+      pq.FormSystemMatrix(p_ess_tdof, PQ);
+
+      auto KeTr = static_cast<HypreParMatrix &>(Ne.GetGradient(x)).Transpose();
+
+      Ae = new BlockOperator(offsets);
+      Ae->SetBlock(0, 0, KeTr);
+      Ae->SetBlock(0, 1, DeTr.Ptr());
+      Ae->SetBlock(1, 0, GeTr.Ptr());
+      Ae->SetBlock(1, 1, PQ.Ptr());
+
+      mp.AddDomainIntegrator(new MassIntegrator(inverse_kinematic_viscosity_coef));
+      mp.Assemble();
+      mp.Finalize();
+      mp.FormSystemMatrix(p_ess_tdof, Mpe);
+
+      mpe_inv = new OperatorJacobiSmoother(mp, p_ess_tdof);
+      pc->SetBlock(1, 1, mpe_inv);
+      pc->SetBlock(1, 0, GeTr.Ptr());
+
+      auto amg = new HypreBoomerAMG;
+      amg->SetOperator(*static_cast<HypreParMatrix*>(KeTr));
+      amg->SetPrintLevel(0);
+      a_inv = amg;
+
+      pc->SetBlock(0, 0, a_inv);
+   }
+
+   void Mult(const Vector &x, Vector &y) const override
+   {
+      Ae->Mult(x, y);
+   }
+
+   ~NavierStokesAdjoint()
+   {
+      delete Ae;
+      delete mpe_inv;
+      delete a_inv;
+      delete pc;
+   }
+
+   ParFiniteElementSpace &ufes;
+   ParFiniteElementSpace &pfes;
+   Array<int> &u_ess_tdof;
+   Array<int> &p_ess_tdof;
+   ConstantCoefficient kinematic_viscosity_coef;
+   ConstantCoefficient inverse_kinematic_viscosity_coef;
+   ParNonlinearForm Ne;
+   ParBilinearForm pq;
+   ParMixedBilinearForm ge_tr, de_tr;
+   Array<int> offsets;
+   mutable BlockOperator *Ae = nullptr;
+
+   OperatorHandle Ke;
+   OperatorHandle GeTr;
+   OperatorHandle DeTr;
    OperatorHandle PQ, Mpe;
 
    mutable BlockLowerTriangularPreconditioner *pc = nullptr;
@@ -484,27 +612,17 @@ SolveForwardProblem(
    Array<int> vel_ess_tdof_list;
    {
       Array<int> ess_bdr(mesh.bdr_attributes.Max());
-#ifndef DEBUG_TEST
       ess_bdr = 1;
       ess_bdr[1] = 0;
       ess_bdr[4] = 0;
-#else
-      ess_bdr = 1;
-      ess_bdr[2] = 0;
-#endif
       h1vfes.GetEssentialTrueDofs(ess_bdr, vel_ess_tdof_list);
    }
 
    Array<int> pres_ess_tdof_list;
    {
       Array<int> ess_bdr(mesh.bdr_attributes.Max());
-#ifndef DEBUG_TEST
       ess_bdr = 0;
       ess_bdr[1] = 1;
-#else
-      ess_bdr = 0;
-      ess_bdr[2] = 1;
-#endif
       h1fes.GetEssentialTrueDofs(ess_bdr, pres_ess_tdof_list);
    }
 
@@ -515,34 +633,13 @@ SolveForwardProblem(
    u = 0.0;
    p = 0.0;
 
-#ifndef DEBUG_TEST
    auto inflow = [](const Vector &coords, Vector &u)
    {
-      const double y = coords(1);
-      const double U = 0.3;
+      const real_t y = coords(1);
+      const real_t U = 0.3;
       u(0) = 4.0 * U * y * (0.41 - y) / pow(0.41, 2.0);
       u(1) = 0.0;
    };
-#else
-   auto inflow = [](const Vector &coords, Vector &u)
-   {
-      const double x = coords(0);
-      const double y = coords(1);
-      u(0) = 0.0;
-      if (abs(y) < 1e-8)
-      {
-         u(1) = 0.1;
-      }
-      else
-      {
-         u(1) = 0.0;
-      }
-      if (x == 0.0 || abs(x - 1.0) < 1e-8)
-      {
-         u(1) = 0.0;
-      }
-   };
-#endif
 
    Array<int> inflow_attr(mesh.bdr_attributes.Max());
    inflow_attr = 0;
@@ -594,32 +691,23 @@ SolveDualProblem(
    Array<int> vel_ess_tdof_list;
    {
       Array<int> ess_bdr(mesh.bdr_attributes.Max());
-#ifndef DEBUG_TEST
       ess_bdr = 1;
       ess_bdr[1] = 0;
       ess_bdr[4] = 0;
-#else
-      ess_bdr = 1;
-      ess_bdr[2] = 0;
-#endif
       h1vfes.GetEssentialTrueDofs(ess_bdr, vel_ess_tdof_list);
    }
 
    Array<int> pres_ess_tdof_list;
    {
       Array<int> ess_bdr(mesh.bdr_attributes.Max());
-#ifndef DEBUG_TEST
       ess_bdr = 0;
       ess_bdr[1] = 1;
-#else
-      ess_bdr = 0;
-      ess_bdr[2] = 1;
-#endif
       h1fes.GetEssentialTrueDofs(ess_bdr, pres_ess_tdof_list);
    }
 
-   NavierStokes ns(h1vfes, h1fes, vel_ess_tdof_list, pres_ess_tdof_list,
-                   kinematic_viscosity);
+   NavierStokesAdjoint adjoint(h1vfes, h1fes, vel_ess_tdof_list,
+                               pres_ess_tdof_list,
+                               kinematic_viscosity);
 
    ParGridFunction u(&h1vfes);
    PRefinementTransferOperator(static_cast<FiniteElementSpace>(*ul.ParFESpace()),
@@ -629,11 +717,13 @@ SolveDualProblem(
    PRefinementTransferOperator(static_cast<FiniteElementSpace>(*pl.ParFESpace()),
                                static_cast<FiniteElementSpace>(h1fes)).Mult(pl, p);
 
-   BlockVector x(ns.offsets);
+   BlockVector x(adjoint.offsets);
    u.GetTrueDofs(x.GetBlock(0));
    p.GetTrueDofs(x.GetBlock(1));
 
-   BlockVector b(ns.offsets);
+   adjoint.Setup(x.GetBlock(0));
+
+   BlockVector b(adjoint.offsets);
 
    Vector v(2);
    v = 1.0;
@@ -648,40 +738,28 @@ SolveDualProblem(
    ParLinearForm dldu(&h1vfes);
    auto lfi1 = new DLiftDuIntegrator(kinematic_viscosity);
    dldu.AddBdrFaceIntegrator(lfi1, qoi_attr);
-   // auto lfi1 = new VectorDomainLFIntegrator(vone);
-   // dldu.AddBoundaryIntegrator(lfi1);
    dldu.Assemble();
    dldu.ParallelAssemble(b.GetBlock(0));
-
-   // dldu.Print(out, dldu.Size());
 
    ParLinearForm dldp(&h1fes);
    auto lfi2 = new DLiftDpIntegrator;
    dldp.AddBdrFaceIntegrator(lfi2, qoi_attr);
-   // auto lfi2 = new DomainLFIntegrator(one);
-   // dldp.AddBoundaryIntegrator(lfi2);
    dldp.Assemble();
    dldp.ParallelAssemble(b.GetBlock(1));
 
-   // dldp.Print(out, dldp.Size());
-   //
    GMRESSolver krylov(MPI_COMM_WORLD);
-   krylov.SetRelTol(1e-12);
-   krylov.SetAbsTol(1e-14);
+   krylov.SetRelTol(1e-8);
+   krylov.SetAbsTol(1e-12);
    krylov.SetKDim(300);
    krylov.SetMaxIter(5000);
-   krylov.SetOperator(ns.GetGradient(x));
-   krylov.SetPreconditioner(*ns.pc);
+   krylov.SetOperator(adjoint);
+   krylov.SetPreconditioner(*adjoint.pc);
    krylov.SetPrintLevel(IterativeSolver::PrintLevel().Summary());
-
-   // b.Print(out, b.Size());
 
    b.GetBlock(0).SetSubVector(vel_ess_tdof_list, 0.0);
    b.GetBlock(1).SetSubVector(pres_ess_tdof_list, 0.0);
 
    krylov.Mult(b, x);
-
-   // x.Print(out, x.Size());
 
    u.SetFromTrueDofs(x.GetBlock(0));
    p.SetFromTrueDofs(x.GetBlock(1));
@@ -689,34 +767,29 @@ SolveDualProblem(
    return {u, p};
 }
 
-std::tuple<double, double>
+std::tuple<real_t, real_t>
 ComputeQoI(ParGridFunction &u, ParGridFunction &p,
-           double kinematic_viscosity)
+           real_t kinematic_viscosity)
 {
    ParFiniteElementSpace &h1vfes = *u.ParFESpace();
    ParMesh &mesh = *h1vfes.GetParMesh();
    const int dim = mesh.Dimension();
    const int polynomial_order = h1vfes.GetOrder(0);
 
-#ifndef DEBUG_TEST
    Array<int> qoi_attr(mesh.bdr_attributes.Max());
    qoi_attr = 0;
    qoi_attr[5] = 1;
    qoi_attr[6] = 1;
-#else
-   Array<int> qoi_attr(mesh.bdr_attributes.Max());
-   qoi_attr = 1;
-#endif
 
    auto ir_face = IntRules.Get(h1vfes.GetMesh()->GetFaceGeometry(0),
                                2 * polynomial_order + 1);
    auto [drag_local, lift_local] = DragLift(u, p, kinematic_viscosity, qoi_attr,
                                             ir_face);
 
-   double drag_global = 0.0, lift_global = 0.0;
-   MPI_Allreduce(&drag_local, &drag_global, 1, MPI_DOUBLE, MPI_SUM,
+   real_t drag_global = 0.0, lift_global = 0.0;
+   MPI_Allreduce(&drag_local, &drag_global, 1, MFEM_MPI_REAL_T, MPI_SUM,
                  MPI_COMM_WORLD);
-   MPI_Allreduce(&lift_local, &lift_global, 1, MPI_DOUBLE, MPI_SUM,
+   MPI_Allreduce(&lift_local, &lift_global, 1, MFEM_MPI_REAL_T, MPI_SUM,
                  MPI_COMM_WORLD);
 
    return {drag_global, lift_global};
@@ -733,9 +806,9 @@ int main(int argc, char *argv[])
    int polynomial_order = 2;
    const char *device_config = "cpu";
    bool visualization = true;
-   double kinematic_viscosity = 1.0;
-   int uniform_refinements = 0;
-   int max_iterations = 1;
+   real_t kinematic_viscosity = 1.0e-3;
+   int uniform_refinements = 3;
+   int max_iterations = 3;
 
    OptionsParser args(argc, argv);
    args.AddOption(&polynomial_order, "-o", "--order",
@@ -751,11 +824,7 @@ int main(int argc, char *argv[])
                   "Device configuration string, see Device::Configure().");
    args.ParseCheck();
 
-#ifndef DEBUG_TEST
    Mesh serial_mesh(mesh_file);
-#else
-   Mesh serial_mesh = Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL);
-#endif
    serial_mesh.EnsureNCMesh();
    const int dim = serial_mesh.Dimension();
 
@@ -770,8 +839,6 @@ int main(int argc, char *argv[])
    ParaViewDataCollection paraview_dc("navier_stokes_dwr", &mesh);
    paraview_dc.SetDataFormat(VTKFormat::BINARY);
    paraview_dc.SetHighOrderOutput(true);
-
-   out << setprecision(8);
 
    for (int iterations = 0; iterations < max_iterations; iterations++)
    {
@@ -790,8 +857,8 @@ int main(int argc, char *argv[])
 
       auto [drag, lift] = ComputeQoI(u, p, kinematic_viscosity);
 
-      const double U_mean = 0.2;
-      const double c0 = 2.0 / (U_mean*U_mean * 0.1);
+      const real_t U_mean = 0.2;
+      const real_t c0 = 2.0 / (U_mean*U_mean * 0.1);
 
       if (Mpi::Root())
       {
@@ -820,8 +887,6 @@ int main(int argc, char *argv[])
       dwr_lf.Assemble();
       eta = dwr_lf;
 
-      // eta.Print(out, eta.Size());
-
       paraview_dc.SetCycle(iterations);
       paraview_dc.SetTime(iterations);
       paraview_dc.SetLevelsOfDetail(polynomial_order);
@@ -834,28 +899,45 @@ int main(int argc, char *argv[])
 
       // Refinement marking
       {
-         Array<int> el_to_refine;
-         std::vector<double> element_ranking(mesh.GetNE());
+         const int num_ranks = Mpi::WorldSize();
+         const int local_ne = mesh.GetNE();
+         const int global_ne = mesh.GetGlobalNE();
+         // Limit refinements to 10% of the global number of elements
+         int element_refinement_limit = std::round(global_ne * 0.1);
+
+         std::vector<real_t> error_indicator(global_ne);
+         std::fill(error_indicator.begin(), error_indicator.end(), 0.0);
          Vector dofs;
-         for (int e = 0; e < mesh.GetNE(); e++)
+         for (int ge = 0; ge < global_ne; ge++)
          {
-            eta.GetElementDofValues(e, dofs);
-            element_ranking[e] = abs(dofs(0));
+            const int e = mesh.GetLocalElementNum(ge);
+            if (e != -1)
+            {
+               eta.GetElementDofValues(e, dofs);
+               error_indicator[ge] = abs(dofs(0));
+            }
          }
 
-         auto v = sort_indexes(element_ranking);
-         std::reverse(v.begin(), v.end());
+         std::vector<real_t> global_error_indicator(global_ne);
+         MPI_Allreduce(error_indicator.data(), global_error_indicator.data(),
+                       global_ne, MFEM_MPI_REAL_T, MPI_SUM, MPI_COMM_WORLD);
 
-         int element_refinement_limit = std::round(v.size() * 0.1);
-         for (auto &i : v)
+         auto ranking = sort_indexes(global_error_indicator);
+         std::reverse(ranking.begin(), ranking.end());
+
+         std::vector<int> ranking_pruned(element_refinement_limit);
+         for (int i = 0; i < element_refinement_limit; i++)
          {
-            if (el_to_refine.Size() <= element_refinement_limit)
+            ranking_pruned[i] = ranking[i];
+         }
+
+         Array<int> el_to_refine;
+         for (auto &ge : ranking_pruned)
+         {
+            const int e = mesh.GetLocalElementNum(ge);
+            if (e != -1)
             {
-               el_to_refine.Append(i);
-            }
-            else
-            {
-               break;
+               el_to_refine.Append(e);
             }
          }
          mesh.GeneralRefinement(el_to_refine, 1, 1);
