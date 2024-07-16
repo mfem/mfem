@@ -51,7 +51,7 @@ int isockstream::establish()
 {
    // char myname[129];
    char   myname[] = "localhost";
-   int    sfd;
+   int    sfd = -1;
    struct addrinfo hints, *res, *rp;
 
    memset(&hints, 0, sizeof(hints));

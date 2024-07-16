@@ -174,8 +174,6 @@ public:
       return dynamic_cast<const SubMesh *>(m) != nullptr;
    }
 
-   ~SubMesh();
-
 private:
    /// Private constructor
    SubMesh(const Mesh &parent, From from, Array<int> attributes);
