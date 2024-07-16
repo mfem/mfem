@@ -12,6 +12,7 @@
 set(SRCS
   attribute_sets.cpp
   element.cpp
+  exodus_writer.cpp
   face_nbr_geom.cpp
   gmsh.cpp
   hexahedron.cpp

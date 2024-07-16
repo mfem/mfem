@@ -13,6 +13,7 @@
 #include <iomanip>
 #include <memory>
 #include "unit_tests.hpp"
+#include "mesh_test_utils.hpp"
 
 using namespace mfem;
 
@@ -445,4 +446,121 @@ TEST_CASE("SubMesh", "[SubMesh]")
       test_3d(element, fec_type, field_type, polynomial_order,
               mesh_polynomial_order, transfer_type, from);
    }
+}
+
+TEST_CASE("InterfaceTransferSolve", "[SubMesh]")
+{
+   // Solve Poisson on a pair of cubes fully coupled, transfer to the interface
+   // then solve on subdomains using the 2D solution as the boundary condition.
+   int polynomial_order = 4;
+   auto fec_type = FECType::H1;
+
+   // 1. Define meshes
+   auto mesh = DividingPlaneMesh(false, true);
+   mesh.UniformRefinement();
+   Array<int> subdomain_attributes(1);
+   subdomain_attributes[0] = 1;
+   auto left_vol = SubMesh::CreateFromDomain(mesh, subdomain_attributes);
+   subdomain_attributes[0] = 2;
+   auto right_vol = SubMesh::CreateFromDomain(mesh, subdomain_attributes);
+
+   subdomain_attributes[0] = mesh.bdr_attributes.Max();
+   auto interface = SubMesh::CreateFromBoundary(mesh, subdomain_attributes);
+
+   // 2. Define fespaces
+   auto vol_fec = std::unique_ptr<FiniteElementCollection>(create_fec(fec_type,
+                                                                      polynomial_order, 3));
+   auto surf_fec = std::unique_ptr<FiniteElementCollection>(create_fec(fec_type,
+                                                                       polynomial_order, 2));
+
+   auto fespace = FiniteElementSpace(&mesh, vol_fec.get());
+   auto left_fespace = FiniteElementSpace(&left_vol, vol_fec.get());
+   auto right_fespace = FiniteElementSpace(&right_vol, vol_fec.get());
+   auto interface_fespace = FiniteElementSpace(&interface, surf_fec.get());
+
+   // 3. Solve full problem with homogeneous boundary conditions and transfer to interface space.
+   ConstantCoefficient one(1.0);
+
+   // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
+   OperatorPtr A;
+   Vector B, X;
+   // Manufactured solution u = sin(pi x) sin(pi y) sin(pi z).
+   // f = - (u_xx + u_yy + u_zz) = d * pi^2 sin(pi x) sin(pi y) sin(pi z)
+   auto f = FunctionCoefficient([](const Vector &x)
+   {
+      double c = M_PI * M_PI * 3;
+      for (int i = 0; i < 3; ++i)
+      {
+         c *= std::sin(M_PI * x(i));
+      }
+      return c;
+   });
+
+   auto SolveHomogeneous = [&](FiniteElementSpace &fespace)
+   {
+      Array<int> ess_tdof_list, ess_bdr;
+      ess_bdr.SetSize(fespace.GetMesh()->bdr_attributes.Max());
+      ess_bdr = 1;
+      if (fespace.GetMesh()->Dimension() > 2)
+      {
+         // The interior of the volume has an extra bc
+         ess_bdr.Last() = 0;
+      }
+
+      fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+
+      LinearForm b(&fespace);
+      b.AddDomainIntegrator(new DomainLFIntegrator(f));
+      b.Assemble();
+      GridFunction x(&fespace);
+      x = 0.0;
+      BilinearForm a(&fespace);
+      a.AddDomainIntegrator(new DiffusionIntegrator(one));
+      a.Assemble();
+      a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+      GSSmoother M((SparseMatrix&)(*A));
+      PCG(*A, M, B, X, 1, 1e3, 1e-16, 0.0);
+      a.RecoverFEMSolution(X, b, x);
+      return x;
+   };
+
+   auto x_vol = SolveHomogeneous(fespace);
+   GridFunction x_int(&interface_fespace);
+   SubMesh::Transfer(x_vol, x_int);
+
+   // 4. Transfer solution to left and right subproblems and solve
+   auto SolveOnSubVolume = [&](FiniteElementSpace &fespace)
+   {
+      Array<int> ess_tdof_list, ess_bdr;
+      ess_bdr.SetSize(fespace.GetMesh()->bdr_attributes.Max());
+      ess_bdr = 1;
+      fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      LinearForm b(&fespace);
+      b.AddDomainIntegrator(new DomainLFIntegrator(f));
+      b.Assemble();
+      GridFunction x(&fespace);
+      x = 0.0;
+      SubMesh::Transfer(x_int, x);
+      BilinearForm a(&fespace);
+      a.AddDomainIntegrator(new DiffusionIntegrator(one));
+      a.Assemble();
+      a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+      GSSmoother M((SparseMatrix&)(*A));
+      PCG(*A, M, B, X, 1, 1e3, 1e-16, 0.0);
+      a.RecoverFEMSolution(X, b, x);
+      return x;
+   };
+
+   auto x_right = SolveOnSubVolume(right_fespace);
+   auto x_left = SolveOnSubVolume(left_fespace);
+
+   // 5. Transfer the left and right solutions onto a duplicate of the full solve
+   // and compare. Given the choice of boundary conditions, should match exactly.
+   auto x_sub = x_vol;
+   x_sub = 0.0;
+   SubMesh::Transfer(x_left, x_sub);
+   SubMesh::Transfer(x_right, x_sub);
+   x_sub -= x_vol;
+
+   CHECK((x_sub.Norml2() / x_sub.Size()) == MFEM_Approx(0.0, 1e-7, 1e-7));
 }

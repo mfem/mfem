@@ -857,7 +857,9 @@ public:
        vectors using Mesh::CreatePeriodicVertexMapping.
        @note MFEM requires that each edge of the resulting mesh be uniquely
        identifiable by a pair of distinct vertices. As a consequence, periodic
-       boundaries must be connected by at least three edges. */
+       boundaries must be separated by at least two interior vertices.
+       @note The resulting mesh uses a discontinuous nodal function, see
+       SetCurvature() for further details. */
    static Mesh MakePeriodic(const Mesh &orig_mesh, const std::vector<int> &v2v);
 
    ///@}
@@ -1534,6 +1536,9 @@ public:
 
    /// @note The returned Table should be deleted by the caller
    Table *GetVertexToElementTable();
+
+   /// @note The returned Table should be deleted by the caller
+   Table *GetVertexToBdrElementTable();
 
    /// Return the "face"-element Table. Here "face" refers to face (3D),
    /// edge (2D), or vertex (1D).
@@ -2329,6 +2334,11 @@ public:
                     bool high_order_output=false,
                     int compression_level=0);
 
+#ifdef MFEM_USE_NETCDF
+   /// @brief Export a mesh to an Exodus II file.
+   void PrintExodusII(const std::string fpath);
+#endif
+
    /** @brief Prints the mesh with boundary elements given by the boundary of
        the subdomains, so that the boundary of subdomain i has boundary
        attribute i+1. */
@@ -2726,8 +2736,8 @@ public:
                                 Mesh::GeneratePartitioning() when the provided
                                 input partitioning is NULL.
    */
-   MeshPartitioner(Mesh &mesh_, int num_parts_, int *partitioning_ = NULL,
-                   int part_method = 1);
+   MeshPartitioner(Mesh &mesh_, int num_parts_,
+                   const int *partitioning_ = nullptr, int part_method = 1);
 
    /** @brief Construct a MeshPart corresponding to the given @a part_id.
 

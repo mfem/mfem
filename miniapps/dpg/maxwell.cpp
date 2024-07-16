@@ -14,10 +14,10 @@
 // Compile with: make maxwell
 //
 // Sample runs
-// maxwell -m ../../data/inline-tri.mesh -ref 4 -o 1 -rnum 1.0
-// maxwell -m ../../data/amr-quad.mesh -ref 3 -o 2 -rnum 1.6 -sc
-// maxwell -m ../../data/inline-quad.mesh -ref 2 -o 3 -rnum 4.2 -sc
-// maxwell -m ../../data/inline-hex.mesh -ref 1 -o 2 -sc -rnum 1.0
+//  maxwell -m ../../data/inline-tri.mesh -ref 4 -o 1 -rnum 1.0
+//  maxwell -m ../../data/amr-quad.mesh -ref 3 -o 2 -rnum 1.6 -sc
+//  maxwell -m ../../data/inline-quad.mesh -ref 2 -o 3 -rnum 4.2 -sc
+//  maxwell -m ../../data/inline-hex.mesh -ref 1 -o 2 -sc -rnum 1.0
 
 // Description:
 // This example code demonstrates the use of MFEM to define and solve
