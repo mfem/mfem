@@ -59,8 +59,16 @@ if(MFEM_USE_MPI)
   add_mfem_miniapp(lpq-jacobi
     MAIN lpq-jacobi.cpp
     ${MFEM_MINIAPPS_COMMON_HEADERS}
+    EXTRA_HEADERS lpq-jacobi.hpp
     LIBRARIES mfem-common mfem)
   add_dependencies(lpq-jacobi copy_meshes)
+
+  #   add_mfem_miniapp(ml-lpq-jacobi
+  #     MAIN ml-lpq-jacobi.cpp
+  #     ${MFEM_MINIAPPS_COMMON_HEADERS}
+  #     EXTRA_HEADERS lpq-jacobi.hpp
+  #     LIBRARIES mfem-common mfem)
+  #   add_dependencies(ml-lpq-jacobi copy_meshes)
 endif()
 
 
