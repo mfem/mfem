@@ -2622,13 +2622,13 @@ class VectorFEBoundaryFluxIntegrator : public BilinearFormIntegrator
 public:
    VectorFEBoundaryFluxIntegrator() { Q = NULL; }
    VectorFEBoundaryFluxIntegrator(Coefficient &q) { Q = &q; }
-   virtual void AssembleElementMatrix(const FiniteElement &el,
-                                      ElementTransformation &Trans,
-                                      DenseMatrix &elmat) override;
-   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
-                                       const FiniteElement &test_fe,
-                                       ElementTransformation &Trans,
-                                       DenseMatrix &elmat) override;
+   void AssembleElementMatrix(const FiniteElement &el,
+                              ElementTransformation &Trans,
+                              DenseMatrix &elmat) override;
+   void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                               const FiniteElement &test_fe,
+                               ElementTransformation &Trans,
+                               DenseMatrix &elmat) override;
 };
 
 /// Class for integrating $ (Q \partial_i(u), v) $ where $u$ and $v$ are scalars
