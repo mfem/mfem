@@ -101,8 +101,8 @@ ur_coeff=1.0
                         -r $refinement_factor \
                         -no-vis
 
-# lldb -- main.o \
-mpirun -np 1 main.o \
+# mpirun -np 1 main.o \
+lldb -- main.o \
     -m $mesh_file \
     -o 1 \
     -d $data_file \

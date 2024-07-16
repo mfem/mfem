@@ -307,13 +307,16 @@ void DefineRHS(PlasmaModelBase & model, double & rho_gamma,
       PWConstCoefficient pw_coeff(pw_vector);
       LinearForm lf(fespace);
       lf.AddDomainIntegrator(new DomainLFIntegrator(pw_coeff));
+      cout << "problem one line below" << endl;
       lf.Assemble();
+      cout << "problem one line above" << endl;
       double area = lf(ones);
       for (int j = 0; j < ndof; ++j) {
         if (lf[j] != 0) {
           F->Set(j, current_counter, lf[j] / area);
         }
       }
+      
       ++current_counter;
     }
   }
@@ -1471,15 +1474,7 @@ double gs(const char * mesh_file, const char * initial_gf, const char * data_fil
       -------------------------------------------------------------------------------------------
    */   
 
-   // Read the mesh from the given mesh file, and refine "d_refine" times uniformly.
    Mesh mesh(mesh_file);
-   for (int i = 0; i < d_refine; ++i) {
-     mesh.UniformRefinement();
-   }
-   mesh.Save("meshes/mesh.mesh");
-   if (do_initial) {
-     mesh.Save("meshes/initial.mesh");
-   }
    
    // save options in model
    // alpha: multiplier in \bar{S}_{ff'} term
@@ -1525,12 +1520,25 @@ double gs(const char * mesh_file, const char * initial_gf, const char * data_fil
        // ifstream ifs("initial/interpolated.gf");
        ifstream ifs(initial_gf);
        GridFunction lgf(&mesh, ifs);
+       lgf.SetSpace(&fespace);
        u = lgf;
      }
 
      u.Save("gf/initial.gf");
 
    }
+
+
+   // Read the mesh from the given mesh file, and refine "d_refine" times uniformly.
+   for (int i = 0; i < d_refine; ++i) {
+     mesh.UniformRefinement();
+   }
+   mesh.Save("meshes/mesh.mesh");
+   if (do_initial) {
+     mesh.Save("meshes/initial.mesh");
+   }
+   // fespace.Update();
+   // u.Update();
 
    GridFunction x(&fespace);
    x = u;

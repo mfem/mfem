@@ -423,7 +423,7 @@ void SysOperator::NonlinearEquationRes(GridFunction &psi, Vector *currents, doub
   f_.ProjectCoefficient(nlgcoeff0);
   f_.Save("gf/f.gf");
   f = f_;
-   
+
   // ------------------------------------------------
   // *** compute res ***
   // contribution from plasma terms

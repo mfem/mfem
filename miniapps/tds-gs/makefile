@@ -1,6 +1,6 @@
 
 make:
-	mpicxx -std=c++11 -I$(MFEM_DIR) -I/Users/dserino/Documents/mfem/../hypre/src/hypre/include \
+	mpicxx -g -std=c++11 -I$(MFEM_DIR) -I/Users/dserino/Documents/mfem/../hypre/src/hypre/include \
 	main.cpp double_integrals.cpp gs.cpp elliptic_integral.cpp test.cpp \
 	initial_coefficient.cpp plasma_model.cpp field.cpp \
 	sys_operator.cpp boundary.cpp diffusion_term.cpp \
