@@ -302,9 +302,12 @@ NCMesh::Node::~Node()
                << (int) edge_refc);
 }
 
-void NCMesh::ReparentNode(int node, int new_p1, int new_p2)
+void NCMesh::ReparentNode(int node, int new_p1, int new_p2, real_t scale)
 {
+   const bool rev = new_p1 > new_p2;
    Node &nd = nodes[node];
+   // TODO: use a function for this reversal of scale.
+   nd.scale = rev ? 1.0 - scale : scale;
    int old_p1 = nd.p1, old_p2 = nd.p2;
 
    // assign new parents
@@ -722,21 +725,28 @@ void NCMesh::ForceRefinement(int vn1, int vn2, int vn3, int vn4)
    int* el_nodes = el.node;
    if (el.Geom() == Geometry::CUBE)
    {
+      Node* node12 = nodes.Find(vn1, vn2);
+      const bool rev12 = vn1 > vn2;
+      const real_t scale = rev12 ? 1.0 - node12->scale : node12->scale;
+
       // schedule the right split depending on face orientation
       if ((CubeFaceLeft(vn1, el_nodes) && CubeFaceRight(vn2, el_nodes)) ||
           (CubeFaceLeft(vn2, el_nodes) && CubeFaceRight(vn1, el_nodes)))
       {
-         ref_stack.Append(Refinement(elem, 1)); // X split
+         const bool rev = CubeFaceLeft(vn2, el_nodes) && CubeFaceRight(vn1, el_nodes);
+         ref_stack.Append(Refinement(elem, 1, rev ? 1.0 - scale : scale)); // X split
       }
       else if ((CubeFaceFront(vn1, el_nodes) && CubeFaceBack(vn2, el_nodes)) ||
                (CubeFaceFront(vn2, el_nodes) && CubeFaceBack(vn1, el_nodes)))
       {
-         ref_stack.Append(Refinement(elem, 2)); // Y split
+         const bool rev = CubeFaceFront(vn2, el_nodes) && CubeFaceBack(vn1, el_nodes);
+         ref_stack.Append(Refinement(elem, 2, rev ? 1.0 - scale : scale)); // Y split
       }
       else if ((CubeFaceBottom(vn1, el_nodes) && CubeFaceTop(vn2, el_nodes)) ||
                (CubeFaceBottom(vn2, el_nodes) && CubeFaceTop(vn1, el_nodes)))
       {
-         ref_stack.Append(Refinement(elem, 4)); // Z split
+         const bool rev = CubeFaceBottom(vn2, el_nodes) && CubeFaceTop(vn1, el_nodes);
+         ref_stack.Append(Refinement(elem, 4, rev ? 1.0 - scale : scale)); // Z split
       }
       else
       {
@@ -867,14 +877,46 @@ void NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
    // the middle vertical edge. The function calls itself again for the bottom
    // and upper half of the above picture.
 
-   int mid23 = FindMidEdgeNode(vn2, vn3);
-   int mid41 = FindMidEdgeNode(vn4, vn1);
+   const int mid23 = FindMidEdgeNode(vn2, vn3);
+   const int mid41 = FindMidEdgeNode(vn4, vn1);
+
+   if (mid23 >= 0)
+   {
+      Node* node23 = nodes.Find(vn2, vn3);
+      Node* midfNode = nodes.Find(mid12, mid34);
+      if (midfNode)
+      {
+         const bool rev = (vn2 < vn3) != (mid12 < mid34);
+         midfNode->scale = rev ? 1.0 - node23->scale : node23->scale;
+      }
+   }
+   else if (mid41 >= 0)
+   {
+      Node* node14 = nodes.Find(vn1, vn4);
+      Node* midfNode = nodes.Find(mid12, mid34);
+      if (midfNode)
+      {
+         const bool rev = (vn1 < vn4) != (mid12 < mid34);
+         midfNode->scale = rev ? 1.0 - node14->scale : node14->scale;
+      }
+   }
+
    if (mid23 >= 0 && mid41 >= 0)
    {
       int midf = nodes.FindId(mid23, mid41);
       if (midf >= 0)
       {
+         Node* node12 = nodes.Find(vn1, vn2);
+         Node* midfNode = nodes.Find(mid23, mid41);
+
+         const bool rev = (vn1 < vn2) != (mid41 < mid23);
+         midfNode->scale = rev ? 1.0 - node12->scale : node12->scale;
+
          reparents.Append(Triple<int, int, int>(midf, mid12, mid34));
+
+         Node* node23 = nodes.Find(vn2, vn3);
+         const bool rev23 = vn2 > vn3;
+         reparentScale.Append(rev23 ? 1.0 - node23->scale : node23->scale);
 
          int rs = ref_stack.Size();
 
@@ -903,9 +945,10 @@ void NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
             for (int i = 0; i < reparents.Size(); i++)
             {
                const Triple<int, int, int> &tr = reparents[i];
-               ReparentNode(tr.one, tr.two, tr.three);
+               ReparentNode(tr.one, tr.two, tr.three, reparentScale[i]);
             }
             reparents.DeleteAll();
+            reparentScale.DeleteAll();
          }
          return;
       }
@@ -1021,10 +1064,10 @@ void NCMesh::RefineElement(int elem, char ref_type, real_t scale)
 
          const real_t scaleRev = 1.0 - scale;
 
-         node01->scale = no[0] < no[1] ? scale : scaleRev;
-         node23->scale = no[3] < no[2] ? scale : scaleRev;
-         node45->scale = no[4] < no[5] ? scale : scaleRev;
-         node67->scale = no[7] < no[6] ? scale : scaleRev;
+         if (node01) { node01->scale = no[0] < no[1] ? scale : scaleRev; }
+         if (node23) { node23->scale = no[3] < no[2] ? scale : scaleRev; }
+         if (node45) { node45->scale = no[4] < no[5] ? scale : scaleRev; }
+         if (node67) { node67->scale = no[7] < no[6] ? scale : scaleRev; }
 
          child[0] = NewHexahedron(no[0], mid01, mid23, no[3],
                                   no[4], mid45, mid67, no[7], attr,
@@ -1053,10 +1096,10 @@ void NCMesh::RefineElement(int elem, char ref_type, real_t scale)
 
          const real_t scaleRev = 1.0 - scale;
 
-         node12->scale = no[1] < no[2] ? scale : scaleRev;
-         node30->scale = no[0] < no[3] ? scale : scaleRev;
-         node56->scale = no[5] < no[6] ? scale : scaleRev;
-         node74->scale = no[4] < no[7] ? scale : scaleRev;
+         if (node12) { node12->scale = no[1] < no[2] ? scale : scaleRev; }
+         if (node30) { node30->scale = no[0] < no[3] ? scale : scaleRev; }
+         if (node56) { node56->scale = no[5] < no[6] ? scale : scaleRev; }
+         if (node74) { node74->scale = no[4] < no[7] ? scale : scaleRev; }
 
          child[0] = NewHexahedron(no[0], no[1], mid12, mid30,
                                   no[4], no[5], mid56, mid74, attr,
@@ -1085,10 +1128,10 @@ void NCMesh::RefineElement(int elem, char ref_type, real_t scale)
 
          const real_t scaleRev = 1.0 - scale;
 
-         node04->scale = no[0] < no[4] ? scale : scaleRev;
-         node15->scale = no[1] < no[5] ? scale : scaleRev;
-         node26->scale = no[2] < no[6] ? scale : scaleRev;
-         node37->scale = no[3] < no[7] ? scale : scaleRev;
+         if (node04) { node04->scale = no[0] < no[4] ? scale : scaleRev; }
+         if (node15) { node15->scale = no[1] < no[5] ? scale : scaleRev; }
+         if (node26) { node26->scale = no[2] < no[6] ? scale : scaleRev; }
+         if (node37) { node37->scale = no[3] < no[7] ? scale : scaleRev; }
 
          child[0] = NewHexahedron(no[0], no[1], no[2], no[3],
                                   mid04, mid15, mid26, mid37, attr,

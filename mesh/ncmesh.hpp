@@ -677,6 +677,7 @@ protected: // implementation
    Array<Refinement> ref_stack; ///< stack of scheduled refinements (temporary)
    HashTable<Node> shadow; ///< temporary storage for reparented nodes
    Array<Triple<int, int, int> > reparents; ///< scheduled node reparents (tmp)
+   Array<real_t> reparentScale;
 
    Table derefinements; ///< possible derefinements, see GetDerefinementTable
 
@@ -824,7 +825,7 @@ protected: // implementation
    void CheckIsoFace(int vn1, int vn2, int vn3, int vn4,
                      int en1, int en2, int en3, int en4, int midf);
 
-   void ReparentNode(int node, int new_p1, int new_p2);
+   void ReparentNode(int node, int new_p1, int new_p2, real_t scale);
 
    int FindMidEdgeNode(int node1, int node2) const;
    int GetMidEdgeNode(int node1, int node2);
