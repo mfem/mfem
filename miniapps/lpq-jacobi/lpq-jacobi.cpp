@@ -215,35 +215,8 @@ int main(int argc, char *argv[])
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
    // D_{p,q} = diag( D^{1+q-p} |A|^p D^{-q} 1) , where D = diag(A)
-   // TODO(Chak): Make into one function!
-   Vector right(A.Height());
-   Vector temp(A.Height());
-   Vector left(A.Height());
-
-   // D^{-q} 1
-   right = 1.0;
-   if (q_order !=0)
-   {
-      A.GetDiag(right);
-      right.PowerAbs(-q_order);
-   }
-
-   // |A|^p D^{-q} 1
-   temp = 0.0;
-   A.PowAbsMult(p_order, 1.0, right, 0.0, temp);
-
-   // D^{1+q-p} |A|^p D^{-q} 1
-   left = temp;
-   if (1.0 + q_order - p_order != 0.0)
-   {
-      A.GetDiag(left);
-      left.PowerAbs(1.0 + q_order - p_order);
-      left *= temp;
-   }
-
-   // diag(...)
-   auto lpq_jacobi = new OperatorJacobiSmoother(left, ess_tdof_list);
-   // TODO(Chak): Make into one function! Into a class!
+   auto lpq_jacobi = new OperatorLpqJacobiSmoother(A, ess_tdof_list, p_order,
+                                                   q_order);
 
    Solver *solver = nullptr;
    DataMonitor monitor(file_name.str(), NDIGITS);

@@ -386,6 +386,40 @@ public:
    void Setup(const Vector &diag);
 };
 
+/// Generalized L(p,q)-Jacobi smoothing for bilinear form or a matrix.
+class OperatorLpqJacobiSmoother : public Solver
+{
+public:
+   OperatorLpqJacobiSmoother(const real_t p_order,
+                             const real_t q_order,
+                             const real_t dmpng = 1.0);
+
+   OperatorLpqJacobiSmoother(const HypreParMatrix &A,
+                             const Array<int> &ess_tdofs,
+                             const real_t p_order,
+                             const real_t q_order,
+                             const real_t dmpng =  1.0);
+
+   ~OperatorLpqJacobiSmoother() {}
+
+   void Mult(const Vector &x, Vector &y) const;
+
+   void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y); }
+
+   void SetOperator(const Operator &op) { oper = &op; Setup(); };
+
+   void Setup();
+private:
+   Vector dinv;
+   const real_t damping;
+   const real_t p_order;
+   const real_t q_order;
+   const Array<int> *ess_tdof_list; // not owned; may be NULL
+   mutable Vector residual;
+   const Operator *oper; // not owned
+   const bool allow_updates;
+};
+
 /// Chebyshev accelerated smoothing with given vector, no matrix necessary
 /** Potentially useful with tensorized operators, for example. This is just a
     very basic Chebyshev iteration, if you want tolerances, iteration control,

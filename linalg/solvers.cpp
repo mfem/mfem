@@ -329,6 +329,120 @@ void OperatorJacobiSmoother::Mult(const Vector &x, Vector &y) const
    });
 }
 
+// TODO(Gabriel): I am working here...
+OperatorLpqJacobiSmoother::OperatorLpqJacobiSmoother(const real_t p_order,
+                                                     const real_t q_order,
+                                                     const real_t dmpng)
+   : damping(dmpng),
+     p_order(p_order),
+     q_order(q_order),
+     ess_tdof_list(nullptr),
+     oper(nullptr),
+     allow_updates(true)
+{ }
+
+OperatorLpqJacobiSmoother::OperatorLpqJacobiSmoother(const HypreParMatrix &A,
+                                                     const Array<int> &ess_tdofs,
+                                                     const real_t p_order,
+                                                     const real_t q_order,
+                                                     const real_t dmpng)
+   : Solver(A.Height()),
+     dinv(height),
+     damping(dmpng),
+     p_order(p_order),
+     q_order(q_order),
+     ess_tdof_list(&ess_tdofs),
+     residual(height),
+     allow_updates(false)
+{
+
+   oper = &A;
+   Setup();
+}
+
+void OperatorLpqJacobiSmoother::Mult(const Vector &x, Vector &y) const
+{
+   // For empty MPI ranks, height may be 0:
+   // MFEM_VERIFY(Height() > 0, "The diagonal hasn't been computed.");
+   MFEM_ASSERT(x.Size() == Width(), "invalid input vector");
+   MFEM_ASSERT(y.Size() == Height(), "invalid output vector");
+
+   if (iterative_mode)
+   {
+      MFEM_VERIFY(oper, "iterative_mode == true requires the forward operator");
+      oper->Mult(y, residual);  // r = A y
+      subtract(x, residual, residual); // r = x - A y
+   }
+   else
+   {
+      residual = x;
+      y.UseDevice(true);
+      y = 0.0;
+   }
+   auto DI = dinv.Read();
+   auto R = residual.Read();
+   auto Y = y.ReadWrite();
+   mfem::forall(height, [=] MFEM_HOST_DEVICE (int i)
+   {
+      Y[i] += DI[i] * R[i];
+   });
+}
+
+void OperatorLpqJacobiSmoother::Setup()
+{
+   auto hypre_mat = dynamic_cast<const HypreParMatrix *>(oper);
+   if (!hypre_mat) { MFEM_ABORT("Only implemented with HypreParMatrix!"); }
+
+   // Make vector
+   Vector right(hypre_mat->Height());
+   Vector temp(hypre_mat->Height());
+   Vector left(hypre_mat->Height());
+
+   // D^{-q} 1
+   right = 1.0;
+   if (q_order !=0)
+   {
+      hypre_mat->GetDiag(right);
+      right.PowerAbs(-q_order);
+   }
+
+   // |A|^p D^{-q} 1
+   temp = 0.0;
+   hypre_mat->PowAbsMult(p_order, 1.0, right, 0.0, temp);
+
+   // D^{1+q-p} |A|^p D^{-q} 1
+   left = temp;
+   if (1.0 + q_order - p_order != 0.0)
+   {
+      hypre_mat->GetDiag(left);
+      left.PowerAbs(1.0 + q_order - p_order);
+      left *= temp;
+   }
+
+   residual.UseDevice(true);
+   const real_t delta = damping;
+   auto D = left.Read();
+   auto DI = dinv.Write();
+
+   mfem::forall(height, [=] MFEM_HOST_DEVICE (int i)
+   {
+      if (D[i] == 0.0)
+      {
+         MFEM_ABORT_KERNEL("Zero diagonal entry in OperatorJacobiSmoother");
+      }
+      DI[i] = delta / D[i];
+   });
+   if (ess_tdof_list && ess_tdof_list->Size() > 0)
+   {
+      auto I = ess_tdof_list->Read();
+      mfem::forall(ess_tdof_list->Size(), [=] MFEM_HOST_DEVICE (int i)
+      {
+         DI[I[i]] = delta;
+      });
+   }
+}
+// TODO(Gabriel): Up to here
+
 OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
                                                      const Vector &d,
                                                      const Array<int>& ess_tdofs,
