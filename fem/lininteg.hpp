@@ -490,6 +490,26 @@ public:
 };
 
 
+/// Class for boundary integration $ L(v) = (n \times (f \times n), v) $
+class VectorFEBoundaryTangentialLFIntegrator : public LinearFormIntegrator
+{
+private:
+   VectorCoefficient &f;
+   int oa, ob;
+
+public:
+   VectorFEBoundaryTangentialLFIntegrator(VectorCoefficient &QG,
+                                          int a = 2, int b = 0)
+      : f(QG), oa(a), ob(b) { }
+
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect);
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
+};
+
+
 /** Class for boundary integration of the linear form:
     $ \frac{\alpha}{2} \langle (u \cdot n) f, w \rangle - \beta \langle |u \cdot n| f, w \rangle $
     where $f$ and $u$ are given scalar and vector coefficients, respectively,
