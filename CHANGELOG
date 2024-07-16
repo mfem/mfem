@@ -11,6 +11,7 @@
 Version 4.7.1 (development)
 ===========================
 
+- Added support for boundary constraints to the hybridization class.
 
 Version 4.7, released on May 7, 2024
 ====================================
