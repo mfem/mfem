@@ -839,20 +839,36 @@ public:
    /** This will segfault if the usual sparse mat is not defined
        like when static condensation is being used or AllocMat() has
        not yet been called. */
-   const SparseMatrix &SpMat() const { return *mat; }
+   const SparseMatrix &SpMat() const
+   {
+      MFEM_VERIFY(mat, "mat is NULL and can't be dereferenced");
+      return *mat;
+   }
 
    /// Returns a reference to the sparse matrix:  $ M $
-   SparseMatrix &SpMat() { return *mat; }
+   SparseMatrix &SpMat()
+   {
+      MFEM_VERIFY(mat, "mat is NULL and can't be dereferenced");
+      return *mat;
+   }
 
    /**  @brief Nullifies the internal matrix $ M $ and returns a pointer
         to it.  Used for transferring ownership. */
    SparseMatrix *LoseMat() { SparseMatrix *tmp = mat; mat = NULL; return tmp; }
 
    /// Returns a const reference to the sparse matrix of eliminated b.c.:  $ M_e $
-   const SparseMatrix &SpMatElim() const { return *mat_e; }
+   const SparseMatrix &SpMatElim() const
+   {
+      MFEM_VERIFY(mat_e, "mat_e is NULL and can't be dereferenced");
+      return *mat_e;
+   }
 
    /// Returns a reference to the sparse matrix of eliminated b.c.:  $ M_e $
-   SparseMatrix &SpMatElim() { return *mat_e; }
+   SparseMatrix &SpMatElim()
+   {
+      MFEM_VERIFY(mat_e, "mat_e is NULL and can't be dereferenced");
+      return *mat_e;
+   }
 
    /// Adds a domain integrator. Assumes ownership of @a bfi.
    void AddDomainIntegrator(BilinearFormIntegrator *bfi);
