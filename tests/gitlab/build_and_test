@@ -119,10 +119,10 @@ then
     fi
 
     upstream_opt=""
-    if [[ ${sys_type} != "" ]]
-    then
-        upstream_opt="--upstream=/usr/workspace/mfem/mfem-dependencies/install"
-    fi
+    #if [[ ${sys_type} != "" ]]
+    #then
+    #    upstream_opt="--upstream=/usr/workspace/mfem/mfem-dependencies/install"
+    #fi
 
     prefix_opt=""
 
