@@ -1704,6 +1704,10 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
       return;
    }
 
+   // need scalar to keep dimensions matching (operators are built to apply individually on each vdim)
+   pfes_ho_scalar = new ParFiniteElementSpace(pfes_ho.GetParMesh(), pfes_ho.FEColl(), 1);
+   pfes_lor_scalar = new ParFiniteElementSpace(pfes_lor.GetParMesh(), pfes_lor.FEColl(), 1);
+
    QuadratureFunction qfunc;
    IntegrationRule ir;
    if (coeff_ == nullptr) 
@@ -1832,14 +1836,10 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
    // **************************
    // mixed mass M_LH 
    // **************************
-   M_LH_ea = MixedMassEA(pfes_ho, pfes_lor, coeff, d_mt);
+   M_LH_ea = MixedMassEA(*pfes_ho_scalar, *pfes_lor_scalar, coeff, d_mt);
 
    // Set ownership
-   M_LH_local_op = new H1SpaceMixedMassOperator(&pfes_ho, &pfes_lor, &ho2lor, &M_LH_ea);
-
-   // need scalar to keep dimensions matching (operators are built to apply individually on each vdim)
-   pfes_ho_scalar = new ParFiniteElementSpace(pfes_ho.GetParMesh(), pfes_ho.FEColl(), 1);
-   pfes_lor_scalar = new ParFiniteElementSpace(pfes_lor.GetParMesh(), pfes_lor.FEColl(), 1);
+   M_LH_local_op = new H1SpaceMixedMassOperator(pfes_ho_scalar, pfes_lor_scalar, &ho2lor, &M_LH_ea);
 
    const Operator *P_ho = pfes_ho_scalar->GetProlongationMatrix();
    const Operator *P_lor = pfes_lor_scalar->GetProlongationMatrix();
