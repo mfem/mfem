@@ -56,7 +56,7 @@ amr_frac_out=0.3
 amg_cycle_type=0
 amg_num_sweeps_a=1
 amg_num_sweeps_b=1
-amg_max_iter=1
+amg_max_iter=5
 
 # poloidal flux coils
 c6=-4.552585e+06
@@ -104,16 +104,12 @@ optimize_alpha=1
 # 2: sum_k (psi_k - psi_x) ^ 2
 obj_option=1
 
-# ./../gslib/field-interp -m1 initial/initial_mesh_g3.mesh \
-#                         -m2 $mesh_file \
-#                         -s1 initial/initial_guess_g3.gf \
-#                         -r $refinement_factor \
-#                         -no-vis
-# ./../gslib/field-interp -m1 initial/mesh_amr0_model1_pc0_cyc0_it1.mesh \
-#                         -m2 $mesh_file \
-#                         -s1 initial/final_model1_pc0_cyc0_it1.gf \
-#                         -r $refinement_factor \
-#                         -no-vis
+./../gslib/field-interp -m1 initial/mesh_amr0_model1_pc0_cyc0_it1.mesh \
+                        -m2 $mesh_file \
+                        -s1 initial/final_model1_pc0_cyc0_it1.gf \
+                        -r $refinement_factor \
+                        -no-vis
+initial_gf="interpolated.gf"
 
 
 # lldb -- main.o \
