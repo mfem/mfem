@@ -19,7 +19,7 @@ R0=2.4
 rho_gamma=16
 mu=12.5663706144e-7
 # mu=1.0
-mesh_file="meshes/iter_gen.msh"
+mesh_file="meshes/iter_gen_fixed.mesh"
 # mesh_file="meshes/RegGSTriMeshVeryCoarse0beta.msh"
 data_file="data/separated_file.data"
 initial_gf="initial/initial_model2.gf"
@@ -112,8 +112,7 @@ obj_option=1
 initial_gf="interpolated.gf"
 
 
-# lldb -- main.o \
-mpirun -np 1 main.o \
+./main \
     -m $mesh_file \
     --initial_gf $initial_gf \
     -o 1 \

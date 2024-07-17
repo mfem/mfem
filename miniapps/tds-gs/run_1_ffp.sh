@@ -19,7 +19,7 @@ R0=2.4
 rho_gamma=16
 mu=12.5663706144e-7
 # mu=1.0
-mesh_file="meshes/iter_gen.msh"
+mesh_file="meshes/iter_gen_fixed.mesh"
 # mesh_file="meshes/RegGSTriMeshVeryCoarse0beta.msh"
 data_file="data/separated_file.data"
 refinement_factor=2
@@ -109,7 +109,7 @@ obj_option=1
                         -r $refinement_factor \
                         -no-vis
 
-mpirun -np 1 main.o \
+./main \
     -m $mesh_file \
     -o 1 \
     -d $data_file \
