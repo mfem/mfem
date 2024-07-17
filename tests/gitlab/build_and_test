@@ -158,7 +158,7 @@ then
     mv -f config/defaults.mk.new config/defaults.mk
 
     echo "Installing dependencies."
-    command -v python > /dev/null && python_cmd=python || python_cmd=python3
+    command -v python3 > /dev/null && python_cmd=python3 || python_cmd=python
     $python_cmd tests/uberenv/uberenv.py --spec="${spec}" "${upstream_opt}" \
         "${prefix_opt}"
 
