@@ -307,6 +307,9 @@ void DefineRHS(PlasmaModelBase & model, double & rho_gamma,
       PWConstCoefficient pw_coeff(pw_vector);
       LinearForm lf(fespace);
       lf.AddDomainIntegrator(new DomainLFIntegrator(pw_coeff));
+      cout << attrib <<" in "<< attribs.Max()<<endl;
+      cout << "number of ele="<<fespace -> GetNE()<<endl;
+      cout << "number of ele in mesh="<<mesh.GetNE()<<endl;
       cout << "problem one line below" << endl;
       lf.Assemble();
       cout << "problem one line above" << endl;
