@@ -219,28 +219,6 @@ int main(int argc, char *argv[])
    }
    b->Assemble();
 
-   // ParBilinearForm *a = new ParBilinearForm(fespace);
-   // switch (integrator_type)
-   // {
-   //    case mass:
-   //       a->AddDomainIntegrator(new MassIntegrator);
-   //       break;
-   //    case diffusion:
-   //       a->AddDomainIntegrator(new DiffusionIntegrator);
-   //       break;
-   //    case elasticity:
-   //       // TODO(Gabriel): Add lambda/mu
-   //       a->AddDomainIntegrator(new ElasticityIntegrator(one, one));
-   //       break;
-   //    case maxwell:
-   //       // TODO(Gabriel): Add muinv/sigma
-   //       a->AddDomainIntegrator(new CurlCurlIntegrator(one));
-   //       a->AddDomainIntegrator(new VectorFEMassIntegrator(one));
-   //       break;
-   //    default:
-   //       mfem_error("Invalid integrator type! Check ParBilinearForm");
-   // }
-   // a->Assemble();
 
    ParGridFunction x(&fes_hierarchy->GetFinestFESpace());
    HypreParMatrix A;
@@ -248,38 +226,6 @@ int main(int argc, char *argv[])
 
    x = 0.0;
 
-   // a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
-
-   // // D_{p,q} = diag( D^{1+q-p} |A|^p D^{-q} 1) , where D = diag(A)
-   // // TODO(Chak): Make into one function!
-   // Vector right(A.Height());
-   // Vector temp(A.Height());
-   // Vector left(A.Height());
-
-   // // D^{-q} 1
-   // right = 1.0;
-   // if (q_order !=0)
-   // {
-   //    A.GetDiag(right);
-   //    right.PowerAbs(-q_order);
-   // }
-
-   // // |A|^p D^{-q} 1
-   // temp = 0.0;
-   // A.PowAbsMult(p_order, 1.0, right, 0.0, temp);
-
-   // // D^{1+q-p} |A|^p D^{-q} 1
-   // left = temp;
-   // if (1.0 + q_order - p_order != 0.0)
-   // {
-   //    A.GetDiag(left);
-   //    left.PowerAbs(1.0 + q_order - p_order);
-   //    left *= temp;
-   // }
-
-   // // diag(...)
-   // auto lpq_jacobi = new OperatorJacobiSmoother(left, ess_tdof_list);
-   // TODO(Chak): Make into one function! Into a class!
 
    // Solver *solver = nullptr;
    // DataMonitor monitor(file_name.str(), NDIGITS);

@@ -26,7 +26,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_MINIAPPS = # lpq-jacobi
-PAR_MINIAPPS = lpq-jacobi
+PAR_MINIAPPS = lpq-jacobi ml-lpq-jacobi
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else

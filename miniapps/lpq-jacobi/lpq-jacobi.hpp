@@ -14,6 +14,8 @@ namespace lpq_jacobi
 {
 
 int NDIGITS = 20;
+int MAX_ITER = 100;
+real_t REL_TOL = 1e-4;
 
 // Enumerator for the different solvers to implement
 enum SolverType
@@ -66,8 +68,18 @@ public:
    // Constructor
    GeneralGeometricMultigrid(ParFiniteElementSpaceHierarchy& fes_hierarchy,
                              Array<int>& ess_bdr,
-                             IntegratorType it)
-      : GeometricMultigrid(fes_hierarchy, ess_bdr), one(1.0), integrator_type(it)
+                             IntegratorType it,
+                             SolverType st,
+                             real_t p_order,
+                             real_t q_order)
+      : GeometricMultigrid(fes_hierarchy, ess_bdr),
+        one(1.0),
+        coarse_solver(nullptr),
+        coarse_pc(nullptr),
+        integrator_type(it),
+        solver_type(st),
+        p_order(p_order),
+        q_order(q_order)
    {
       ConstructCoarseOperatorAndSolver(fes_hierarchy.GetFESpaceAtLevel(0));
       for (int l = 1; l < fes_hierarchy.GetNumLevels(); ++l)
@@ -78,13 +90,16 @@ public:
 
    ~GeneralGeometricMultigrid()
    {
-      delete solver;
+      delete coarse_pc;
    }
 
 private:
+   real_t p_order;
+   real_t q_order;
    ConstantCoefficient one;
-   Solver* solver;
-   HypreBoomerAMG* amg;
+   Solver* coarse_solver;
+   OperatorLpqJacobiSmoother* coarse_pc;
+   SolverType solver_type;
    IntegratorType integrator_type;
 
    void ConstructCoarseOperatorAndSolver(ParFiniteElementSpace& coarse_fespace)
@@ -94,21 +109,37 @@ private:
       HypreParMatrix* coarse_mat = new HypreParMatrix();
       bfs[0]->FormSystemMatrix(*essentialTrueDofs[0], *coarse_mat);
 
-      // Here, AMG comes is a preconditioner as a member
-      amg = new HypreBoomerAMG(*coarse_mat);
-      amg->SetPrintLevel(-1);
+      switch (solver_type)
+      {
+         case sli:
+            coarse_solver = new SLISolver(MPI_COMM_WORLD);
+            break;
+         case cg:
+            coarse_solver = new CGSolver(MPI_COMM_WORLD);
+            break;
+         default:
+            mfem_error("Invalid solver type!");
+      }
 
-      CGSolver* solver = new CGSolver(MPI_COMM_WORLD);
-      solver->SetPrintLevel(-1);
-      solver->SetMaxIter(10);
-      solver->SetRelTol(sqrt(1e-4));
-      solver->SetAbsTol(0.0);
-      solver->SetOperator(*coarse_mat);
-      solver->SetPreconditioner(*amg);
+      coarse_pc = new OperatorLpqJacobiSmoother(*coarse_mat,
+                                                *essentialTrueDofs[0],
+                                                p_order,
+                                                q_order);
+
+      IterativeSolver *it_solver = dynamic_cast<IterativeSolver *>(coarse_solver);
+      if (it_solver)
+      {
+         it_solver->SetRelTol(REL_TOL);
+         it_solver->SetMaxIter(MAX_ITER);
+         it_solver->SetPrintLevel(1);
+         it_solver->SetPreconditioner(*coarse_pc);
+         // it_solver->SetMonitor(monitor);
+      }
+      coarse_solver->SetOperator(*coarse_mat);
 
       // Last two variables transfer ownership of the pointers
       // Operator and solver
-      AddLevel(coarse_mat, solver, true, true);
+      AddLevel(coarse_mat, coarse_solver, true, true);
    }
 
    void ConstructOperatorAndSmoother(ParFiniteElementSpace& fespace, int level)
@@ -117,30 +148,49 @@ private:
       ConstructBilinearForm(fespace, true);
 
       OperatorPtr opr;
-      opr.SetType(Operator::ANY_TYPE);
+      // opr.SetType(Operator::ANY_TYPE);
+      opr.SetType(Operator::Hypre_ParCSR);
       bfs.Last()->FormSystemMatrix(ess_tdof_list, opr);
       opr.SetOperatorOwner(false);
 
-      Vector diag(fespace.GetTrueVSize());
-      bfs.Last()->AssembleDiagonal(diag);
-
-      Solver* smoother = new OperatorChebyshevSmoother(
-         *opr, diag, ess_tdof_list, 2, fespace.GetParMesh()->GetComm());
-
+      // *opr, diag, ess_tdof_list, 2, fespace.GetParMesh()->GetComm());
+      Solver* smoother = new OperatorLpqJacobiSmoother(*opr.As<HypreParMatrix>(),
+                                                       ess_tdof_list,
+                                                       p_order,
+                                                       q_order);
       AddLevel(opr.Ptr(), smoother, true, true);
    }
 
 
-   // PUt later
+   // Put later
    void ConstructBilinearForm(ParFiniteElementSpace& fespace,
-                              bool partial_assembly)
+                              bool partial_assembly = true)
    {
       ParBilinearForm* form = new ParBilinearForm(&fespace);
+
       if (partial_assembly)
       {
          form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
       }
-      form->AddDomainIntegrator(new DiffusionIntegrator(one));
+
+      switch (integrator_type)
+      {
+         case mass:
+            form->AddDomainIntegrator(new MassIntegrator);
+            break;
+         case diffusion:
+            form->AddDomainIntegrator(new DiffusionIntegrator);
+            break;
+         case elasticity:
+            form->AddDomainIntegrator(new ElasticityIntegrator(one, one));
+            break;
+         case maxwell:
+            form->AddDomainIntegrator(new CurlCurlIntegrator(one));
+            form->AddDomainIntegrator(new VectorFEMassIntegrator(one));
+            break;
+         default:
+            mfem_error("Invalid integrator type! Check ParBilinearForm");
+      }
       form->Assemble();
       bfs.Append(form);
    }
