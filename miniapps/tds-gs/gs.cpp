@@ -307,12 +307,7 @@ void DefineRHS(PlasmaModelBase & model, double & rho_gamma,
       PWConstCoefficient pw_coeff(pw_vector);
       LinearForm lf(fespace);
       lf.AddDomainIntegrator(new DomainLFIntegrator(pw_coeff));
-      cout << attrib <<" in "<< attribs.Max()<<endl;
-      cout << "number of ele="<<fespace -> GetNE()<<endl;
-      cout << "number of ele in mesh="<<mesh.GetNE()<<endl;
-      cout << "problem one line below" << endl;
       lf.Assemble();
-      cout << "problem one line above" << endl;
       double area = lf(ones);
       for (int j = 0; j < ndof; ++j) {
         if (lf[j] != 0) {
@@ -1540,8 +1535,9 @@ double gs(const char * mesh_file, const char * initial_gf, const char * data_fil
    if (do_initial) {
      mesh.Save("meshes/initial.mesh");
    }
-   // fespace.Update();
-   // u.Update();
+   // Update the space and interpolate to a new solution
+   fespace.Update();
+   u.Update();
 
    GridFunction x(&fespace);
    x = u;
