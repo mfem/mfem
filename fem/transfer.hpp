@@ -180,7 +180,7 @@ public:
     smaller than the number of coarse dofs. */
 class L2ProjectionGridTransfer : public GridTransfer
 {
-protected:
+public:
 
    /** Abstract class representing projection operator between a high-order
        finite element space on a coarse mesh, and a low-order finite element
@@ -228,7 +228,7 @@ protected:
                          const FiniteElement& fe_lor, ElementTransformation* el_tr,
                          IntegrationPointTransformation& ip_tr,
                          DenseMatrix& B_L, DenseMatrix& B_H) const;
-      
+   public:
       /*
       Returns the Mixed Mass M_LH via device element assembly by building the basis functions and 
       data at the quadrature points. 
@@ -518,7 +518,6 @@ public:
       friend class L2ProjectionL2Space;
    };
 
-protected:
    /** Mass-conservative prolongation operator going in the opposite direction
        as L2Projection. This operator is a left inverse to the L2Projection. */
    class L2Prolongation : public Operator
