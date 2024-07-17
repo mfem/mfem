@@ -102,7 +102,7 @@ do
     do
         for amg_max_iter in 1 3 5 10
         do
-            mpirun -np 1 main.o \
+                    ./main \
                    -m $mesh_file \
                    --initial_gf $initial_gf \
                    -o 1 \

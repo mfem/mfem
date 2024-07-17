@@ -107,7 +107,7 @@ do
     do
         for amg_max_iter in 1 3 5 10
         do
-            mpirun -np 1 main.o \
+                    ./main \
                    -m $mesh_file \
                    -o 1 \
                    -d $data_file \

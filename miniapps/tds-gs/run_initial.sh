@@ -83,7 +83,7 @@ weight_coils=1e-16
 weight_solenoids=1e-16
 
 # lldb -- main.o \
-./main.o \
+./main \
     -m $mesh_file \
     -o 1 \
     -d $data_file \
