@@ -71,17 +71,41 @@
 using namespace std;
 using namespace mfem;
 
+void FindChildren(const Mesh & mesh, int elem, Array<int> & children)
+{
+   const CoarseFineTransformations& cf = mesh.ncmesh->GetRefinementTransforms();
+   MFEM_VERIFY(mesh.GetNE() == cf.embeddings.Size(), "");
 
-void Refine31(Mesh & mesh, int elem, int type)
+   for (int i=0; i<mesh.GetNE(); ++i)
+   {
+      const int p = cf.embeddings[i].parent;
+      if (p == elem)
+      {
+         children.Append(i);
+      }
+   }
+}
+
+void Refine31(Mesh & mesh, int elem, int type, bool full = true)
 {
    // Refinement is in ncmesh.hpp
    Array<Refinement> refs;
    refs.Append(Refinement(elem, type, 2.0/3.0));
    mesh.GeneralRefinement(refs);
 
-   refs.SetSize(0);
-   refs.Append(Refinement(elem, type, 0.5));
-   mesh.GeneralRefinement(refs);
+   if (full)
+   {
+      // Find the elements with parent `elem`
+      Array<int> children;
+      FindChildren(mesh, elem, children);
+      MFEM_VERIFY(children.Size() == 2, "");
+
+      const int elem1 = children[0];
+
+      refs.SetSize(0);
+      refs.Append(Refinement(elem1, type, 0.5));
+      mesh.GeneralRefinement(refs);
+   }
 }
 
 void TestAnisoRef()
@@ -98,7 +122,7 @@ void TestAnisoRef()
    mesh.Print(mesh_ofs);
 }
 
-void TestAnisoRef3D()
+void TestAnisoRef3D(int id)
 {
    Mesh mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON);
 
@@ -107,7 +131,59 @@ void TestAnisoRef3D()
 
    Refine31(mesh, 6, Refinement::X);  // 2 levels of 3:1 refinement
 
-   Refine31(mesh, 10, Refinement::Z);
+   if (id >= 0)
+   {
+      auto type = Refinement::Z;
+      Refine31(mesh, id, Refinement::Z);
+   }
+
+   Refine31(mesh, 12, Refinement::Z);
+
+   mesh.EnsureNodes();
+
+   ofstream mesh_ofs("ref.mesh");
+   mesh_ofs.precision(8);
+   mesh.Print(mesh_ofs);
+}
+
+int myrand(int & s)
+{
+   s++;
+   const double a = 1000 * sin(s * 1.1234 * M_PI);
+   return int(std::abs(a));
+}
+
+void TestAnisoRef3D_A(int idx)
+{
+   Mesh mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON);
+
+   Refine31(mesh, 0, 1);
+   Refine31(mesh, 1, 4);
+   Refine31(mesh, 0, 2);
+
+   Refine31(mesh, 3, 4);
+
+   mesh.EnsureNodes();
+
+   ofstream mesh_ofs("ref.mesh");
+   mesh_ofs.precision(8);
+   mesh.Print(mesh_ofs);
+}
+
+void TestAnisoRef3DRandom(int iter)
+{
+   Mesh mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON);
+
+   int seed = 0;
+
+   for (int i=0; i<iter; ++i)
+   {
+      const int elem = myrand(seed) % mesh.GetNE();
+      const int t = myrand(seed) % 3;
+      auto type = t == 0 ? Refinement::X : (t == 1 ? Refinement::Y : Refinement::Z);
+      cout << "Ref elem " << elem << ", type " << type << endl;
+      Refine31(mesh, elem, type);
+   }
 
    mesh.EnsureNodes();
 
@@ -128,6 +204,8 @@ int main(int argc, char *argv[])
    bool visualization = true;
    bool algebraic_ceed = false;
    bool makeMesh = false;
+   int idx = -1;
+   int numIter = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -152,6 +230,8 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&makeMesh, "-mm", "--make-mesh", "-no-mm",
                   "--no-make-mesh", "Generate 3:1 mesh");
+   args.AddOption(&idx, "-id", "--idx", "");
+   args.AddOption(&numIter, "-iter", "--niter", "");
    args.Parse();
    if (!args.Good())
    {
@@ -163,7 +243,9 @@ int main(int argc, char *argv[])
    if (makeMesh)
    {
       //TestAnisoRef();
-      TestAnisoRef3D();
+      //TestAnisoRef3D(idx);
+      TestAnisoRef3DRandom(numIter);
+      //TestAnisoRef3D_A(numIter);
       return 0;
    }
 
