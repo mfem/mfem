@@ -386,6 +386,9 @@ int main (int argc, char *argv[])
            "S) Save in MFEM serial format\n"
            "T) Save in MFEM parallel format using the current partitioning\n"
            "V) Save in VTK format (only linear and quadratic meshes)\n"
+#ifdef MFEM_USE_NETCDF
+           "X) Save in Exodus II format (only linear and quadratic meshes)\n"
+#endif
            "D) Save as a DataCollection\n"
            "q) Quit\n"
 #ifdef MFEM_USE_ZLIB
@@ -1287,6 +1290,15 @@ int main (int argc, char *argv[])
          mesh->PrintVTK(omesh);
          cout << "New VTK mesh file: " << omesh_file << endl;
       }
+
+#ifdef MFEM_USE_NETCDF
+      if (mk == 'X')
+      {
+         const char omesh_file[] = "mesh-explorer.e";
+         mesh->PrintExodusII(omesh_file);
+         cout << "New Exodus II mesh file: " << omesh_file << endl;
+      }
+#endif
 
       if (mk == 'D')
       {

@@ -46,6 +46,7 @@ list(APPEND HDRS
   handle.hpp
   invariants.hpp
   kernels.hpp
+  lapack.hpp
   linalg.hpp
   matrix.hpp
   ode.hpp

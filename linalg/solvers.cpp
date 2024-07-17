@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "linalg.hpp"
+#include "lapack.hpp"
 #include "../general/annotation.hpp"
 #include "../general/forall.hpp"
 #include "../general/globals.hpp"
@@ -3543,38 +3544,6 @@ void AuxSpaceSmoother::Mult(const Vector &x, Vector &y, bool transpose) const
 #endif // MFEM_USE_MPI
 
 #ifdef MFEM_USE_LAPACK
-// LAPACK routines for NNLSSolver
-#ifdef MFEM_USE_SINGLE
-extern "C" void
-sormqr_(char *, char *, int *, int *, int *, float *, int*, float *,
-        float *, int *, float *, int*, int*);
-
-extern "C" void
-sgeqrf_(int *, int *, float *, int *, float *, float *, int *, int *);
-
-extern "C" void
-sgemv_(char *, int *, int *, float *, float *, int *, float *, int *,
-       float *, float *, int *);
-
-extern "C" void
-strsm_(char *side, char *uplo, char *transa, char *diag, int *m, int *n,
-       float *alpha, float *a, int *lda, float *b, int *ldb);
-#elif defined MFEM_USE_DOUBLE
-extern "C" void
-dormqr_(char *, char *, int *, int *, int *, double *, int*, double *,
-        double *, int *, double *, int*, int*);
-
-extern "C" void
-dgeqrf_(int *, int *, double *, int *, double *, double *, int *, int *);
-
-extern "C" void
-dgemv_(char *, int *, int *, double *, double *, int *, double *, int *,
-       double *, double *, int *);
-
-extern "C" void
-dtrsm_(char *side, char *uplo, char *transa, char *diag, int *m, int *n,
-       double *alpha, double *a, int *lda, double *b, int *ldb);
-#endif
 
 NNLSSolver::NNLSSolver()
    : Solver(0), mat(nullptr), const_tol_(1.0e-14), min_nnz_(0),
@@ -3938,25 +3907,19 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
             lwork = -1;
             work.resize(10);
 
-#ifdef MFEM_USE_SINGLE
-            sormqr_(&lside, &trans, &m, &n_update, &i_qr_start,
-#elif defined MFEM_USE_DOUBLE
-            dormqr_(&lside, &trans, &m, &n_update, &i_qr_start,
-#endif
-                    mat_qr_data.GetData(), &m, tau.GetData(),
-                    mat_qr_data.GetData() + (i_qr_start * m), &m,
-                    work.data(), &lwork, &info);
+            MFEM_LAPACK_PREFIX(ormqr_)(&lside, &trans, &m, &n_update,
+                                       &i_qr_start, mat_qr_data.GetData(), &m,
+                                       tau.GetData(),
+                                       mat_qr_data.GetData() + (i_qr_start * m),
+                                       &m, work.data(), &lwork, &info);
             MFEM_VERIFY(info == 0, ""); // Q^T A update work calculation failed
             lwork = static_cast<int>(work[0]);
             work.resize(lwork);
-#ifdef MFEM_USE_SINGLE
-            sormqr_(&lside, &trans, &m, &n_update, &i_qr_start,
-#elif defined MFEM_USE_DOUBLE
-            dormqr_(&lside, &trans, &m, &n_update, &i_qr_start,
-#endif
-                    mat_qr_data.GetData(), &m, tau.GetData(),
-                    mat_qr_data.GetData() + (i_qr_start * m), &m,
-                    work.data(), &lwork, &info);
+            MFEM_LAPACK_PREFIX(ormqr_)(&lside, &trans, &m, &n_update,
+                                       &i_qr_start, mat_qr_data.GetData(), &m,
+                                       tau.GetData(),
+                                       mat_qr_data.GetData() + (i_qr_start * m),
+                                       &m, work.data(), &lwork, &info);
             MFEM_VERIFY(info == 0, ""); // Q^T A update failed
             // Compute QR factorization of the submatrix
             lwork = -1;
@@ -3977,24 +3940,16 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
                sub_tau[j] = tau[i_qr_start + j];
             }
 
-#ifdef MFEM_USE_SINGLE
-            sgeqrf_(&m_update, &n_update,
-#elif defined MFEM_USE_DOUBLE
-            dgeqrf_(&m_update, &n_update,
-#endif
-                    submat_data.GetData(), &m_update, sub_tau.GetData(),
-                    work.data(), &lwork, &info);
+            MFEM_LAPACK_PREFIX(geqrf_)(&m_update, &n_update, submat_data.GetData(),
+                                       &m_update, sub_tau.GetData(), work.data(),
+                                       &lwork, &info);
             MFEM_VERIFY(info == 0, ""); // QR update factorization work calc
             lwork = static_cast<int>(work[0]);
             if (lwork == 0) { lwork = 1; }
             work.resize(lwork);
-#ifdef MFEM_USE_SINGLE
-            sgeqrf_(&m_update, &n_update,
-#elif defined MFEM_USE_DOUBLE
-            dgeqrf_(&m_update, &n_update,
-#endif
-                    submat_data.GetData(), &m_update, sub_tau.GetData(),
-                    work.data(), &lwork, &info);
+            MFEM_LAPACK_PREFIX(geqrf_)(&m_update, &n_update, submat_data.GetData(),
+                                       &m_update, sub_tau.GetData(), work.data(),
+                                       &lwork, &info);
             MFEM_VERIFY(info == 0, ""); // QR update factorization failed
 
             // Copy result back
@@ -4023,23 +3978,13 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
             // perform qr)
             lwork = -1;
             work.resize(10);
-#ifdef MFEM_USE_SINGLE
-            sgeqrf_(&m, &n_glob,
-#elif defined MFEM_USE_DOUBLE
-            dgeqrf_(&m, &n_glob,
-#endif
-                    mat_qr_data.GetData(), &m, tau.GetData(),
-                    work.data(), &lwork, &info);
+            MFEM_LAPACK_PREFIX(geqrf_)(&m, &n_glob, mat_qr_data.GetData(), &m,
+                                       tau.GetData(), work.data(), &lwork, &info);
             MFEM_VERIFY(info == 0, ""); // QR factorization work calculation
             lwork = static_cast<int>(work[0]);
             work.resize(lwork);
-#ifdef MFEM_USE_SINGLE
-            sgeqrf_(&m, &n_glob,
-#elif defined MFEM_USE_DOUBLE
-            dgeqrf_(&m, &n_glob,
-#endif
-                    mat_qr_data.GetData(), &m, tau.GetData(),
-                    work.data(), &lwork, &info);
+            MFEM_LAPACK_PREFIX(geqrf_)(&m, &n_glob, mat_qr_data.GetData(), &m,
+                                       tau.GetData(), work.data(), &lwork, &info);
             MFEM_VERIFY(info == 0, ""); // QR factorization failed
          }
 
@@ -4067,25 +4012,17 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
 
             sub_tau[0] = tau[i_qr_start];
 
-#ifdef MFEM_USE_SINGLE
-            sormqr_(&lside, &trans, &m_update, &ione, &ione,
-#elif defined MFEM_USE_DOUBLE
-            dormqr_(&lside, &trans, &m_update, &ione, &ione,
-#endif
-                    submat_data.GetData(), &m_update, sub_tau.GetData(),
-                    sub_qt.GetData(), &m_update,
-                    work.data(), &lwork, &info);
+            MFEM_LAPACK_PREFIX(ormqr_)(&lside, &trans, &m_update, &ione, &ione,
+                                       submat_data.GetData(), &m_update,
+                                       sub_tau.GetData(), sub_qt.GetData(),
+                                       &m_update, work.data(), &lwork, &info);
             MFEM_VERIFY(info == 0, ""); // H_last y work calculation failed
             lwork = static_cast<int>(work[0]);
             work.resize(lwork);
-#ifdef MFEM_USE_SINGLE
-            sormqr_(&lside, &trans, &m_update, &ione, &ione,
-#elif defined MFEM_USE_DOUBLE
-            dormqr_(&lside, &trans, &m_update, &ione, &ione,
-#endif
-                    submat_data.GetData(), &m_update, sub_tau.GetData(),
-                    sub_qt.GetData(), &m_update,
-                    work.data(), &lwork, &info);
+            MFEM_LAPACK_PREFIX(ormqr_)(&lside, &trans, &m_update, &ione, &ione,
+                                       submat_data.GetData(), &m_update,
+                                       sub_tau.GetData(), sub_qt.GetData(),
+                                       &m_update, work.data(), &lwork, &info);
             MFEM_VERIFY(info == 0, ""); // H_last y failed
             // Copy result back
             for (int i=0; i<m_update; ++i)
@@ -4099,25 +4036,17 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
             qt_rhs_glob = rhs_avg_glob;
             lwork = -1;
             work.resize(10);
-#ifdef MFEM_USE_SINGLE
-            sormqr_(&lside, &trans, &m, &ione, &n_glob,
-#elif defined MFEM_USE_DOUBLE
-            dormqr_(&lside, &trans, &m, &ione, &n_glob,
-#endif
-                    mat_qr_data.GetData(), &m, tau.GetData(),
-                    qt_rhs_glob.GetData(), &m,
-                    work.data(), &lwork, &info);
+            MFEM_LAPACK_PREFIX(ormqr_)(&lside, &trans, &m, &ione, &n_glob,
+                                       mat_qr_data.GetData(), &m, tau.GetData(),
+                                       qt_rhs_glob.GetData(), &m,
+                                       work.data(), &lwork, &info);
             MFEM_VERIFY(info == 0, ""); // Q^T b work calculation failed
             lwork = static_cast<int>(work[0]);
             work.resize(lwork);
-#ifdef MFEM_USE_SINGLE
-            sormqr_(&lside, &trans, &m, &ione, &n_glob,
-#elif defined MFEM_USE_DOUBLE
-            dormqr_(&lside, &trans, &m, &ione, &n_glob,
-#endif
-                    mat_qr_data.GetData(), &m, tau.GetData(),
-                    qt_rhs_glob.GetData(), &m,
-                    work.data(), &lwork, &info);
+            MFEM_LAPACK_PREFIX(ormqr_)(&lside, &trans, &m, &ione, &n_glob,
+                                       mat_qr_data.GetData(), &m, tau.GetData(),
+                                       qt_rhs_glob.GetData(), &m,
+                                       work.data(), &lwork, &info);
             MFEM_VERIFY(info == 0, ""); // Q^T b failed
          }
 
@@ -4130,14 +4059,10 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
          char upper = 'U';
          char nounit = 'N';
          vec1 = qt_rhs_glob;
-#ifdef MFEM_USE_SINGLE
-         strsm_(&lside, &upper, &notrans, &nounit,
-#elif defined MFEM_USE_DOUBLE
-         dtrsm_(&lside, &upper, &notrans, &nounit,
-#endif
-                &n_glob, &ione, &fone,
-                mat_qr_data.GetData(), &m,
-                vec1.GetData(), &n_glob);
+         MFEM_LAPACK_PREFIX(trsm_)(&lside, &upper, &notrans, &nounit,
+                                   &n_glob, &ione, &fone,
+                                   mat_qr_data.GetData(), &m,
+                                   vec1.GetData(), &n_glob);
 
          if (verbosity_ > 2)
          {
@@ -4360,14 +4285,10 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
       {
          res_glob = rhs_avg_glob;
          real_t fmone = -1.0;
-#ifdef MFEM_USE_SINGLE
-         sgemv_(&notrans, &m, &n_glob, &fmone,
-#elif defined MFEM_USE_DOUBLE
-         dgemv_(&notrans, &m, &n_glob, &fmone,
-#endif
-                mat_0_data.GetData(), &m,
-                soln_nz_glob.GetData(), &ione, &fone,
-                res_glob.GetData(), &ione);
+         MFEM_LAPACK_PREFIX(gemv_)(&notrans, &m, &n_glob, &fmone,
+                                   mat_0_data.GetData(), &m,
+                                   soln_nz_glob.GetData(), &ione, &fone,
+                                   res_glob.GetData(), &ione);
       }
       else
       {
@@ -4381,24 +4302,18 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
             qqt_rhs_glob(i) = qt_rhs_glob(i);
          }
 
-#ifdef MFEM_USE_SINGLE
-         sormqr_(&lside, &notrans, &m, &ione, &n_glob, mat_qr_data.GetData(), &m,
-#elif defined MFEM_USE_DOUBLE
-         dormqr_(&lside, &notrans, &m, &ione, &n_glob, mat_qr_data.GetData(), &m,
-#endif
-                 tau.GetData(), qqt_rhs_glob.GetData(), &m,
-                 work.data(), &lwork, &info);
+         MFEM_LAPACK_PREFIX(ormqr_)(&lside, &notrans, &m, &ione, &n_glob,
+                                    mat_qr_data.GetData(), &m,
+                                    tau.GetData(), qqt_rhs_glob.GetData(), &m,
+                                    work.data(), &lwork, &info);
 
          MFEM_VERIFY(info == 0, ""); // Q Q^T b work calculation failed.
          lwork = static_cast<int>(work[0]);
          work.resize(lwork);
-#ifdef MFEM_USE_SINGLE
-         sormqr_(&lside, &notrans, &m, &ione, &n_glob, mat_qr_data.GetData(), &m,
-#elif defined MFEM_USE_DOUBLE
-         dormqr_(&lside, &notrans, &m, &ione, &n_glob, mat_qr_data.GetData(), &m,
-#endif
-                 tau.GetData(), qqt_rhs_glob.GetData(), &m,
-                 work.data(), &lwork, &info);
+         MFEM_LAPACK_PREFIX(ormqr_)(&lside, &notrans, &m, &ione, &n_glob,
+                                    mat_qr_data.GetData(), &m,
+                                    tau.GetData(), qqt_rhs_glob.GetData(), &m,
+                                    work.data(), &lwork, &info);
          MFEM_VERIFY(info == 0, ""); // Q Q^T b calculation failed.
          res_glob = rhs_avg_glob;
          res_glob -= qqt_rhs_glob;
