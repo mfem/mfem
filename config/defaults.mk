@@ -95,6 +95,10 @@ else
    # Silence unused command line argument warnings when generating dependencies
    # with mpicxx and clang
    DEP_FLAGS := -Wno-unused-command-line-argument $(DEP_FLAGS)
+   # Silence "ignoring duplicate libraries" warnings on new (Xcode 15) linker
+   ifneq (,$(findstring PROJECT:dyld,$(shell ld -v 2>&1)))
+      LDFLAGS_INTERNAL = -Xlinker -no_warn_duplicate_libraries
+   endif
 endif
 
 # Set CXXFLAGS to overwrite the default selection of DEBUG_FLAGS/OPTIM_FLAGS
