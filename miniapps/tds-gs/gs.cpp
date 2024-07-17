@@ -1530,14 +1530,14 @@ double gs(const char * mesh_file, const char * initial_gf, const char * data_fil
    // Read the mesh from the given mesh file, and refine "d_refine" times uniformly.
    for (int i = 0; i < d_refine; ++i) {
      mesh.UniformRefinement();
+     // Update the space and interpolate to a new solution
+     fespace.Update();
+     u.Update();
    }
    mesh.Save("meshes/mesh.mesh");
    if (do_initial) {
      mesh.Save("meshes/initial.mesh");
    }
-   // Update the space and interpolate to a new solution
-   fespace.Update();
-   u.Update();
 
    GridFunction x(&fespace);
    x = u;
