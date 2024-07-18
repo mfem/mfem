@@ -13,6 +13,7 @@
 #define MFEM_TMOP_HPP
 
 #include "../linalg/invariants.hpp"
+#include "../linalg/dual.hpp"
 #include "nonlininteg.hpp"
 // old invariant based implementation is here: https://github.com/mfem/mfem/pull/193/commits/4691ac153908fe50fdac787d08e24c525ce8636c#diff-13ca641038d17e332030075d19933282db198d0f4d2961ef4de3a092a3004ccb
 //

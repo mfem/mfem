@@ -17,6 +17,10 @@
 
 namespace mfem
 {
+   /// MFEM native AD-type for first derivatives
+   typedef internal::dual<real_t, real_t> ADFType;
+   /// MFEM native AD-type for second derivatives
+   typedef internal::dual<ADFType, ADFType> ADSType;
 
 // Matrix functions assuming input is DenseMatrix `data`.
 // Remember DenseMatrix is column-major.
@@ -45,6 +49,54 @@ real_t mu85(real_t *data)
           (data[0] - fnorm/sqrt(2))*(data[0] - fnorm/sqrt(2)) +
           (data[3] - fnorm/sqrt(2))*(data[3] - fnorm/sqrt(2));
 }
+
+void ADGrad(const DenseMatrix &Jpt, std::function<ADFType(std::vector<ADFType>&)> mu_ad, DenseMatrix &P)
+{
+      int dim = Jpt.Height();
+      int matsize = dim*dim;
+
+      std::vector<ADFType> adinp(matsize);
+
+      for(int i=0;i<matsize;i++){ adinp[i] = ADFType{Jpt.GetData()[i], 0.0}; }
+
+      for(int i=0;i<matsize;i++)
+      {
+         adinp[i] = ADFType{Jpt.GetData()[i], 1.0};
+         ADFType rez = mu_ad(adinp);
+         P.GetData()[i] = rez.gradient;
+         adinp[i] = ADFType{Jpt.GetData()[i], 0.0};
+      }
+}
+
+void ADHessian(const DenseMatrix &Jpt, std::function<ADSType(std::vector<ADSType>&)> mu_ad, DenseTensor &H)
+{
+         int dim = Jpt.Height();
+         const int matsize = dim*dim;
+
+         //use forward-forward mode
+         std::vector<ADSType> aduu(matsize);
+         for (int ii = 0; ii < matsize; ii++)
+         {
+            aduu[ii].value = ADFType{Jpt.GetData()[ii], 0.0};
+            aduu[ii].gradient = ADFType{0.0, 0.0};
+         }
+
+         for (int ii = 0; ii < matsize; ii++)
+         {
+            aduu[ii].value = ADFType{Jpt.GetData()[ii], 1.0};
+            for (int jj = 0; jj < (ii + 1); jj++)
+            {
+               aduu[jj].gradient = ADFType{1.0, 0.0};
+               ADSType rez = mu_ad(aduu);
+               H(ii).GetData()[jj] = rez.gradient.gradient;
+               H(jj).GetData()[ii] = rez.gradient.gradient;
+               aduu[jj].gradient = ADFType{0.0, 0.0};
+            }
+            aduu[ii].value = ADFType{Jpt.GetData()[ii], 0.0};
+         }
+         return;
+}
+
 
 #ifdef MFEM_USE_ENZYME
 
@@ -675,6 +727,10 @@ real_t TMOP_Metric_002::EvalW(const DenseMatrix &Jpt) const
    {
       return mu2(Jpt.GetData());
    }
+   else if(mode == 3)
+   {
+
+   }
    ie.SetJacobian(Jpt.GetData());
    return 0.5 * ie.Get_I1b() - 1.0;
 }
@@ -697,6 +753,16 @@ void TMOP_Metric_002::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
 #else
       MFEM_ABORT("Enzyme support is required for metric AD with mode set to 2.");
 #endif
+   }
+   else if(mode == 3)
+   {
+      auto mu2_ad = []( std::vector<ADFType>& u ) 
+      {
+         return (u[0]*u[0] + u[1]*u[1] + u[2]*u[2] + u[3]*u[3])/(2.0*(u[0]*u[3] - u[1]*u[2])) - 1.0;
+      };
+
+      ADGrad(Jpt, mu2_ad, P);
+      return;
    }
    ie.SetJacobian(Jpt.GetData());
    P.Set(0.5, ie.Get_dI1b());
@@ -783,6 +849,16 @@ void TMOP_Metric_002::ComputeH(const DenseMatrix &Jpt,
 #else
       MFEM_ABORT("Enzyme support is required for metric AD with mode set to 2.");
 #endif
+   }
+   else if(mode == 3)
+   {
+      auto mu2_ad = []( std::vector<ADSType>& u ) 
+      {
+         return (u[0]*u[0] + u[1]*u[1] + u[2]*u[2] + u[3]*u[3])/(2.0*(u[0]*u[3] - u[1]*u[2])) - 1.0;
+      };
+
+      ADHessian( Jpt, mu2_ad, H);
+      return;
    }
 }
 
@@ -1237,6 +1313,19 @@ void TMOP_Metric_085::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
       MFEM_ABORT("Enzyme support is required for metric AD with mode set to 2.");
 #endif
    }
+   if (mode == 3)
+   {
+      auto mu85_ad = []( std::vector<ADFType>& u ) 
+      {
+            auto fnorm = sqrt(u[0]*u[0] + u[1]*u[1] + u[2]*u[2] + u[3]*u[3]);
+         return u[1]*u[1] + u[2]*u[2] +
+            (u[0] - fnorm/sqrt(2))*(u[0] - fnorm/sqrt(2)) +
+            (u[3] - fnorm/sqrt(2))*(u[3] - fnorm/sqrt(2));
+      };
+   
+      ADGrad(Jpt, mu85_ad, P);
+      return;
+   }
    MFEM_ABORT("EvalP only supported with Enzyme+AD for metric 85.");
 }
 
@@ -1245,7 +1334,7 @@ void TMOP_Metric_085::AssembleH(const DenseMatrix &Jpt,
                                 const real_t weight,
                                 DenseMatrix &A) const
 {
-   if (mode == 2) // slow assembly manually or using AD
+   if (mode == 2 || mode == 3) // slow assembly manually or using AD
    {
       DenseTensor H;
       ComputeH(Jpt, H);
@@ -1297,6 +1386,20 @@ void TMOP_Metric_085::ComputeH(const DenseMatrix &Jpt,
       MFEM_ABORT("Enzyme support is required for metric AD with mode set to 2.");
 #endif
    }
+   else if (mode == 3)
+   {
+      auto mu85_ad = []( std::vector<ADSType>& u ) 
+      {
+            auto fnorm = sqrt(u[0]*u[0] + u[1]*u[1] + u[2]*u[2] + u[3]*u[3]);
+         return u[1]*u[1] + u[2]*u[2] +
+            (u[0] - fnorm/sqrt(2))*(u[0] - fnorm/sqrt(2)) +
+            (u[3] - fnorm/sqrt(2))*(u[3] - fnorm/sqrt(2));
+      };
+   
+      ADHessian(Jpt, mu85_ad, H);
+      return;
+   }
+
    MFEM_ABORT("ComputeH only supported with Enzyme+AD for metric 85.");
 }
 

@@ -341,7 +341,7 @@ int main(int argc, char *argv[])
    }
    Device device(devopt);
    device.Print();
-   MFEM_VERIFY(metric_mode <= 2, "Invalid metric mode.");
+   MFEM_VERIFY(metric_mode <= 3, "Invalid metric mode.");
 
    // 2. Initialize and refine the starting mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
