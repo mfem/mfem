@@ -1,52 +1,5 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
-// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
-// LICENSE and NOTICE for details. LLNL-CODE-806117.
-//
-// This file is part of the MFEM library. For more information and source code
-// availability visit https://mfem.org.
-//
-// MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license. We welcome feedback and contributions, see file
-// CONTRIBUTING.md for details.
-//
-//       --------------------------------------------------------------
-//       LOR Transfer Miniapp:  Map functions between HO and LOR spaces
-//       --------------------------------------------------------------
-//       --------------------------------------------------------------
-//       PARALLEL VERSION
-//       --------------------------------------------------------------
-//
-// This miniapp visualizes the maps between a high-order (HO) finite element
-// space, typically using high-order functions on a high-order mesh, and a
-// low-order refined (LOR) finite element space, typically defined by 0th or 1st
-// order functions on a low-order refinement of the HO mesh.
-//
-// The grid transfer operators are represented using either
-// InterpolationGridTransfer or L2ProjectionGridTransfer (depending on the
-// options requested by the user). The two transfer operators are then:
-//
-//  1. R: HO -> LOR, defined by GridTransfer::ForwardOperator
-//  2. P: LOR -> HO, defined by GridTransfer::BackwardOperator
-//
-// While defined generally, these operators have some nice properties for
-// particular finite element spaces. For example they satisfy PR=I, plus mass
-// conservation in both directions for L2 fields.
-//
-// Compile with: make lor-transfer
-//
-// Sample runs:  lor-transfer
-//               lor-transfer -h1
-//               lor-transfer -d 'cuda'
-//               lor-transfer -d 'hip'
-//               lor-transfer -t
-//               lor-transfer -m ../../data/star-q2.mesh -lref 5 -p 4
-//               lor-transfer -m ../../data/star-mixed.mesh -lref 3 -p 2
-//               lor-transfer -lref 4 -o 4 -lo 0 -p 1
-//               lor-transfer -lref 5 -o 4 -lo 0 -p 1
-//               lor-transfer -lref 5 -o 4 -lo 3 -p 2
-//               lor-transfer -lref 5 -o 4 -lo 0 -p 3
-
 #include "mfem.hpp"
+#include "../../fem/transfer.hpp"
 #include <fstream>
 #include <iostream>
 
@@ -67,21 +20,16 @@ real_t RHO_exact(const Vector &x);
 
 // Helper functions
 void visualize(VisItDataCollection &, string, int, int);
-real_t compute_mass(ParFiniteElementSpace *, real_t, VisItDataCollection &,
+real_t compute_mass(FiniteElementSpace *, real_t, VisItDataCollection &,
                     string);
 
 int main(int argc, char *argv[])
 {
-   Mpi::Init();
-   int num_procs = Mpi::WorldSize();
-   int myid = Mpi::WorldRank();
-   Hypre::Init();
-
    // Parse command-line options.
-   const char *mesh_file = "../../data/star.mesh";  //inline-quad.mesh";  //
+   const char *mesh_file = "../../data/star.mesh";
    int order = 3;
    int lref = order+1;
-   int lorder = 1;
+   int lorder = 0;
    bool vis = true;
    bool useH1 = false;
    bool use_pointwise_transfer = false;
@@ -112,24 +60,12 @@ int main(int argc, char *argv[])
 
    // Read the mesh from the given mesh file.
    Mesh mesh(mesh_file, 1, 1);
+   // cout << "Element type is " << mesh.GetElementType(0) << endl;
    int dim = mesh.Dimension();
 
-   // Make initial refinement on serial mesh.
-   {
-      int ref_levels = (int)floor(log(30./mesh.GetNE())/log(2.)/dim);
-      for (int l = 0; l < ref_levels; l++)
-      {
-         mesh.UniformRefinement();
-      }
-   }
-
-   ParMesh pmesh(MPI_COMM_WORLD, mesh);
-   mesh.Clear();
-
    // Create the low-order refined mesh
-   int basis_lor = BasisType::ClosedUniform; //BasisType::GaussLobatto; //
-   ParMesh pmesh_lor = ParMesh::MakeRefined(pmesh, lref, basis_lor);
-   // printf("successfully make parMesh \n");
+   int basis_lor = BasisType::GaussLobatto; // BasisType::ClosedUniform;
+   Mesh mesh_lor = Mesh::MakeRefined(mesh, lref, basis_lor);
 
    // Create spaces
    FiniteElementCollection *fec, *fec_lor;
@@ -151,54 +87,41 @@ int main(int argc, char *argv[])
       fec_lor = new L2_FECollection(lorder, dim);
    }
 
-   ParFiniteElementSpace fespace(&pmesh, fec);
-   ParFiniteElementSpace fespace_lor(&pmesh_lor, fec_lor);
-   // HYPRE_BigInt size = fespace.GlobalTrueVSize();
-   // printf("successfully make parFES \n");
-
+   FiniteElementSpace fespace(&mesh, fec);
+   FiniteElementSpace fespace_lor(&mesh_lor, fec_lor);
 
    // Build the integration rule that matches with quadrature on mixed mass matrix,
    // assuming HO elements are the same, and that all HO are LOR in the same way
-   Geometry::Type geom = pmesh.GetElementBaseGeometry(0);
+   Geometry::Type geom = mesh.GetElementBaseGeometry(0);
    const FiniteElement &fe = *fespace.GetFE(0);
    const FiniteElement &fe_lor = *fespace_lor.GetFE(0);
    ElementTransformation *el_tr = fespace_lor.GetElementTransformation(0);
    int qorder = fe_lor.GetOrder() + fe.GetOrder() + el_tr->OrderW(); // 0 + 3 + 1
    const IntegrationRule* ir = &IntRules.Get(geom, qorder);
 
-   QuadratureSpace qspace(pmesh_lor, *ir);
+   QuadratureSpace qspace(mesh_lor, *ir);
    QuadratureFunction qfunc(&qspace);
-   qfunc = 1.0;
+   qfunc = 333.0;
    // qfunc(2) = 7; // does not pass verify_solution
    // qfunc(7) = 333.000001; // does not pass verify_solution
-   // qfunc(7) = 333.0000001; // passes verify_solution
+   qfunc(7) = 333.0000001; // passes verify_solution
    QuadratureFunctionCoefficient coeff(qfunc);
 
-   ParGridFunction rho(&fespace);
-   // std::cout << "size of rho : " << rho.Size() << std::endl;
-   // rho.Print();
-   ParGridFunction rho_lor(&fespace_lor);
+   GridFunction rho(&fespace);
+   GridFunction rho_lor(&fespace_lor);
 
    // Data collections for vis/analysis
-   VisItDataCollection HO_dc("HO", &pmesh);
+   VisItDataCollection HO_dc("HO", &mesh);
    HO_dc.RegisterField("density", &rho);
-   VisItDataCollection LOR_dc("LOR", &pmesh_lor);
+   VisItDataCollection LOR_dc("LOR", &mesh_lor);
    LOR_dc.RegisterField("density", &rho_lor);
 
-   ofstream mesh_ofs("HOmesh.mesh");
-   mesh_ofs.precision(8);
-   pmesh.Print(mesh_ofs);
-
-   ofstream mesh_lor_ofs("LORmesh.mesh");
-   mesh_lor_ofs.precision(8);
-   pmesh_lor.Print(mesh_lor_ofs);
-
-   ParBilinearForm M_ho(&fespace);
+   BilinearForm M_ho(&fespace);
    M_ho.AddDomainIntegrator(new MassIntegrator);
    M_ho.Assemble();
    M_ho.Finalize();
 
-   ParBilinearForm M_lor(&fespace_lor);
+   BilinearForm M_lor(&fespace_lor);
    M_lor.AddDomainIntegrator(new MassIntegrator);
    M_lor.Assemble();
    M_lor.Finalize();
@@ -206,13 +129,10 @@ int main(int argc, char *argv[])
    // HO projections
    direction = "HO -> LOR @ HO";
    FunctionCoefficient RHO(RHO_exact);
-   // rho.Print();
    rho.ProjectCoefficient(RHO);
-   // printf("everything before okay \n");
    // Make sure AMR constraints are satisfied
    rho.SetTrueVector();
    rho.SetFromTrueVector();
-   // printf("get rho ParGridFunction \n");
 
    real_t ho_mass = compute_mass(&fespace, -1.0, HO_dc, "HO       ");
    if (vis) { visualize(HO_dc, "HO", Wx, Wy); Wx += offx; }
@@ -224,33 +144,31 @@ int main(int argc, char *argv[])
    }
    else
    {
-      gt = new L2ProjectionGridTransfer(fespace, fespace_lor, false, &coeff,
-                                        MemoryType::HOST);
+      gt = new L2ProjectionGridTransfer(fespace, fespace_lor, &coeff);
    }
 
-   gt->UseDevice(false);
+   gt->UseDevice(true);
    gt->VerifySolution(true);
-   // printf("Get past set device and verify \n");
 
    const Operator &R = gt->ForwardOperator();
-   // printf("Get past forward operator \n");
+   TransferOperator to(fespace_lor, fespace);
 
    // HO->LOR restriction
    direction = "HO -> LOR @ LOR";
    R.Mult(rho, rho_lor);
-   // printf("Multiplication passing \n");
-   // exit(0);
    compute_mass(&fespace_lor, ho_mass, LOR_dc, "R(HO)    ");
    if (vis) { visualize(LOR_dc, "R(HO)", Wx, Wy); Wx += offx; }
 
+
+
    if (gt->SupportsBackwardsOperator())
    {
-      // printf("entering P operator build \n");
       const Operator &P = gt->BackwardOperator();
       // LOR->HO prolongation
       direction = "HO -> LOR @ HO";
-      ParGridFunction rho_prev = rho;
+      GridFunction rho_prev = rho;
       P.Mult(rho_lor, rho);
+      //   opr->Mult(rho_lor, rho);
       compute_mass(&fespace, ho_mass, HO_dc, "P(R(HO)) ");
       if (vis) { visualize(HO_dc, "P(R(HO))", Wx, Wy); Wx = 0; Wy += offy; }
 
@@ -258,10 +176,9 @@ int main(int argc, char *argv[])
       cout.precision(12);
       cout << "|HO - P(R(HO))|_∞   = " << rho_prev.Normlinf() << endl;
    }
-   // exit(0);
 
    // HO* to LOR* dual fields
-   ParLinearForm M_rho(&fespace), M_rho_lor(&fespace_lor);
+   LinearForm M_rho(&fespace), M_rho_lor(&fespace_lor);
    if (!use_pointwise_transfer && gt->SupportsBackwardsOperator())
    {
       const Operator &P = gt->BackwardOperator();
@@ -273,7 +190,7 @@ int main(int argc, char *argv[])
    // LOR projections
    direction = "LOR -> HO @ LOR";
    rho_lor.ProjectCoefficient(RHO);
-   ParGridFunction rho_lor_prev = rho_lor;
+   GridFunction rho_lor_prev = rho_lor;
    real_t lor_mass = compute_mass(&fespace_lor, -1.0, LOR_dc, "LOR      ");
    if (vis) { visualize(LOR_dc, "LOR", Wx, Wy); Wx += offx; }
 
@@ -308,6 +225,8 @@ int main(int argc, char *argv[])
 
    delete fec;
    delete fec_lor;
+
+   // RandomRefinement(fespace);
 
    return 0;
 }
@@ -347,17 +266,15 @@ void visualize(VisItDataCollection &dc, string prefix, int x, int y)
 }
 
 
-real_t compute_mass(ParFiniteElementSpace *L2, real_t massL2,
+real_t compute_mass(FiniteElementSpace *L2, real_t massL2,
                     VisItDataCollection &dc, string prefix)
 {
    ConstantCoefficient one(1.0);
-   ParLinearForm lf(L2);
+   LinearForm lf(L2);
    lf.AddDomainIntegrator(new DomainLFIntegrator(one));
    lf.Assemble();
 
-   ParGridFunction* pdensity = dynamic_cast<ParGridFunction *>
-                               (dc.GetField("density"));
-   real_t newmass = lf(*pdensity);
+   real_t newmass = lf(*dc.GetField("density"));
    cout.precision(18);
    cout << space << " " << prefix << " mass   = " << newmass;
    if (massL2 >= 0)
