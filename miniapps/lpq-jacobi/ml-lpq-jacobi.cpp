@@ -111,15 +111,6 @@ int main(int argc, char *argv[])
       mesh->UniformRefinement();
    }
 
-   // Create fec
-   // Create coarse_fes
-   // Create array fec_array
-   // append first fec
-   // Create fes_hierarchy (transfer mesh and coarse_fes)
-   // Add mesh refinement in a loop (geom)
-   // Add order refinement in loop (creates)
-   //   Create fec of higher order and same dimension and append to fec_array
-   //   Add order refined level
    int dim = mesh->Dimension();
    FiniteElementCollection *fec;
    ParFiniteElementSpace *coarse_fes;
@@ -144,8 +135,8 @@ int main(int argc, char *argv[])
    fec_array.Append(fec);
    // Transfer ownership of mesh and coarse_fes to fes_hierarchy
    ParFiniteElementSpaceHierarchy* fes_hierarchy = new
-   ParFiniteElementSpaceHierarchy(
-      mesh, coarse_fes, true, true);
+   ParFiniteElementSpaceHierarchy(mesh, coarse_fes, true, true);
+
    for (int lg = 0; lg < geometric_levels; ++lg)
    {
       fes_hierarchy->AddUniformlyRefinedLevel();
@@ -227,34 +218,8 @@ int main(int argc, char *argv[])
    x = 0.0;
 
 
-   // Solver *solver = nullptr;
-   // DataMonitor monitor(file_name.str(), NDIGITS);
-   // IterativeSolver *it_solver = dynamic_cast<IterativeSolver *>(solver);
-   // if (it_solver)
-   // {
-   //    it_solver->SetRelTol(rel_tol);
-   //    it_solver->SetMaxIter(max_iter);
-   //    it_solver->SetPrintLevel(1);
-   //    it_solver->SetPreconditioner(*lpq_jacobi);
-   //    it_solver->SetMonitor(monitor);
-   // }
-   // solver->SetOperator(A);
-   // solver->Mult(B, X);
-
-   // if (visualization)
-   // {
-   //    a->RecoverFEMSolution(X, *b, x);
-   //    x.Save("sol");
-   //    mesh->Save("mesh");
-   // }
-
-   // delete solver;
-   // delete lpq_jacobi;
-   // delete a;
    delete b;
-   // if (f){ delete f; }
    delete fes_hierarchy;
-   delete mesh;
 
    return 0;
 }

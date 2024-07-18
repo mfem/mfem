@@ -73,13 +73,13 @@ public:
                              real_t p_order,
                              real_t q_order)
       : GeometricMultigrid(fes_hierarchy, ess_bdr),
-        one(1.0),
-        coarse_solver(nullptr),
-        coarse_pc(nullptr),
         integrator_type(it),
         solver_type(st),
         p_order(p_order),
-        q_order(q_order)
+        q_order(q_order),
+        coarse_solver(nullptr),
+        coarse_pc(nullptr),
+        one(1.0)
    {
       ConstructCoarseOperatorAndSolver(fes_hierarchy.GetFESpaceAtLevel(0));
       for (int l = 1; l < fes_hierarchy.GetNumLevels(); ++l)
@@ -94,13 +94,13 @@ public:
    }
 
 private:
+   IntegratorType integrator_type;
+   SolverType solver_type;
    real_t p_order;
    real_t q_order;
-   ConstantCoefficient one;
    Solver* coarse_solver;
    OperatorLpqJacobiSmoother* coarse_pc;
-   SolverType solver_type;
-   IntegratorType integrator_type;
+   ConstantCoefficient one;
 
    void ConstructCoarseOperatorAndSolver(ParFiniteElementSpace& coarse_fespace)
    {
