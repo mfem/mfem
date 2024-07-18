@@ -185,13 +185,13 @@ int main(int argc, char *argv[])
    VisItDataCollection LOR_dc("LOR", &pmesh_lor);
    LOR_dc.RegisterField("density", &rho_lor);
 
-   ofstream mesh_ofs("HOmesh.mesh");
-   mesh_ofs.precision(8);
-   pmesh.Print(mesh_ofs);
+   // ofstream mesh_ofs("HOmesh.mesh");
+   // mesh_ofs.precision(8);
+   // pmesh.Print(mesh_ofs);
 
-   ofstream mesh_lor_ofs("LORmesh.mesh");
-   mesh_lor_ofs.precision(8);
-   pmesh_lor.Print(mesh_lor_ofs);
+   // ofstream mesh_lor_ofs("LORmesh.mesh");
+   // mesh_lor_ofs.precision(8);
+   // pmesh_lor.Print(mesh_lor_ofs);
 
    ParBilinearForm M_ho(&fespace);
    M_ho.AddDomainIntegrator(new MassIntegrator);
