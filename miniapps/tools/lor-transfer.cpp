@@ -107,7 +107,7 @@ int main(int argc, char *argv[])
    int dim = mesh.Dimension();
 
    // Create the low-order refined mesh
-   int basis_lor = BasisType::ClosedUniform; //BasisType::GaussLobatto; // 
+   int basis_lor = BasisType::ClosedUniform; //BasisType::GaussLobatto; //
    Mesh mesh_lor = Mesh::MakeRefined(mesh, lref, basis_lor);
 
    // Create spaces
@@ -133,22 +133,22 @@ int main(int argc, char *argv[])
    FiniteElementSpace fespace(&mesh, fec);
    FiniteElementSpace fespace_lor(&mesh_lor, fec_lor);
 
-   // Build the integration rule that matches with quadrature on mixed mass matrix,  
-   // assuming HO elements are the same, and that all HO are LOR in the same way 
-   Geometry::Type geom = mesh.GetElementBaseGeometry(0); 
+   // Build the integration rule that matches with quadrature on mixed mass matrix,
+   // assuming HO elements are the same, and that all HO are LOR in the same way
+   Geometry::Type geom = mesh.GetElementBaseGeometry(0);
    const FiniteElement &fe = *fespace.GetFE(0);
-   const FiniteElement &fe_lor = *fespace_lor.GetFE(0); 
+   const FiniteElement &fe_lor = *fespace_lor.GetFE(0);
    ElementTransformation *el_tr = fespace_lor.GetElementTransformation(0);
    int qorder = fe_lor.GetOrder() + fe.GetOrder() + el_tr->OrderW(); // 0 + 3 + 1
    const IntegrationRule* ir = &IntRules.Get(geom, qorder);
 
-   QuadratureSpace qspace(mesh_lor, *ir); 
+   QuadratureSpace qspace(mesh_lor, *ir);
    QuadratureFunction qfunc(&qspace);
-   qfunc = 1.0; 
+   qfunc = 1.0;
    // qfunc(2) = 7; // does not pass verify_solution
    // qfunc(7) = 333.000001; // does not pass verify_solution
    // qfunc(7) = 333.0000001; // passes verify_solution
-   QuadratureFunctionCoefficient coeff(qfunc); 
+   QuadratureFunctionCoefficient coeff(qfunc);
 
    GridFunction rho(&fespace);
    GridFunction rho_lor(&fespace_lor);
@@ -195,7 +195,8 @@ int main(int argc, char *argv[])
    }
    else
    {
-      gt = new L2ProjectionGridTransfer(fespace, fespace_lor, false, &coeff, MemoryType::HOST); 
+      gt = new L2ProjectionGridTransfer(fespace, fespace_lor, false, &coeff,
+                                        MemoryType::HOST);
    }
 
    gt->UseDevice(false);
@@ -205,7 +206,7 @@ int main(int argc, char *argv[])
 
    // HO->LOR restriction
    direction = "HO -> LOR @ LOR";
-   R.Mult(rho, rho_lor);  
+   R.Mult(rho, rho_lor);
    // exit(0);
    compute_mass(&fespace_lor, ho_mass, LOR_dc, "R(HO)    ");
    if (vis) { visualize(LOR_dc, "R(HO)", Wx, Wy); Wx += offx; }

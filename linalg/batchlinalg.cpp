@@ -270,34 +270,36 @@ void ApplyBlkMult(const DenseTensor &Mat, const Vector &x,
                   Vector &y)
 {
    const int ndof = Mat.SizeI();
-   MFEM_VERIFY(Mat.SizeI() == Mat.SizeJ(), "Batcched matrices are not square: not invertible");
+   MFEM_VERIFY(Mat.SizeI() == Mat.SizeJ(),
+               "Batcched matrices are not square: not invertible");
    const int NE = Mat.SizeK();
-   
+
 #if defined(MFEM_USE_CUDA_OR_HIP)
    if (Device::Allows(Backend::DEVICE_MASK))
    {
-      Array<double *> Mat_ptr(NE); 
+      Array<double *> Mat_ptr(NE);
       Array<double *> x_ptr(NE);
       Array<double *> y_ptr(NE);
-      for (int k = 0; k < NE; k++) {
+      for (int k = 0; k < NE; k++)
+      {
          Mat_ptr[k] = &const_cast<DenseTensor&>(Mat).ReadWrite()[ndof*ndof*k];
          x_ptr[k] = &const_cast<Vector&>(x).ReadWrite()[ndof*k];
          y_ptr[k] = &y.ReadWrite()[ndof*k];
       }
 
       double alpha = 1.0;
-      double beta = 0.0; 
+      double beta = 0.0;
       MFEM_cu_or_hip(blasStatus_t)
-      status = MFEM_cu_or_hip(blasDgemvBatched)(DeviceBlasHandle(), 
-                                                MFEM_CU_or_HIP(BLAS_OP_N), 
+      status = MFEM_cu_or_hip(blasDgemvBatched)(DeviceBlasHandle(),
+                                                MFEM_CU_or_HIP(BLAS_OP_N),
                                                 ndof, ndof,
-                                                &alpha, 
-                                                Mat_ptr.Read(), ndof, 
+                                                &alpha,
+                                                Mat_ptr.Read(), ndof,
                                                 x_ptr.Read(), 1,
-                                                &beta, 
-                                                y_ptr.ReadWrite(), 1, 
+                                                &beta,
+                                                y_ptr.ReadWrite(), 1,
                                                 NE);
-      MFEM_VERIFY(status == MFEM_CU_or_HIP(BLAS_STATUS_SUCCESS), 
+      MFEM_VERIFY(status == MFEM_CU_or_HIP(BLAS_STATUS_SUCCESS),
                   "Failed at blasDgemvBatched");
    }
    else
