@@ -1764,7 +1764,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
 
    BuildHo2Lor(nel_ho, nel_lor, cf_tr);
 
-   offsets.SetSize(nel_ho+1);
+   offsets.SetSize(nel_ho+1);  // TODO: 
    offsets[0] = 0;
    for (int iho = 0; iho < nel_ho; ++iho)
    {
@@ -1789,7 +1789,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
    ML_inv_ea.SetSize(ndof_lor);
    ML_inv_ea = 0.0;
 
-   // Compute ML_inv_ea
+   // Compute M_H_ea  and ML_inv_ea
    int nref;
    for (int iho = 0; iho < nel_ho; ++iho)
    {
@@ -1967,7 +1967,6 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::Mult(
       DeviceMult(x, y_temp);
       y_temp -= y;
       real_t error = y_temp.Norml2();
-      // std::cout << "Mult difference error is = " << error << std::endl;
       if (error > ho_lor_tol)
       {
          MFEM_VERIFY(false, "Mult difference too high = "<<error);
@@ -2109,7 +2108,6 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::Prolongate(
       DeviceProlongate(x, y_temp);
       y_temp -= y;
       real_t error = y_temp.Norml2();
-      // std::cout << "Prolongate difference error is = " << error << std::endl;
       if (error > ho_lor_tol)
       {
          MFEM_VERIFY(false, "Prolongate difference too high = "<<error);
