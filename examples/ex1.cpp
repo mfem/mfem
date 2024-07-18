@@ -108,7 +108,7 @@ void Refine31(Mesh & mesh, int elem, int type, bool full = true)
    }
 }
 
-void TestAnisoRef()
+void TestAnisoRef2D()
 {
    Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
 
@@ -170,16 +170,17 @@ void TestAnisoRef3D_A(int idx)
    mesh.Print(mesh_ofs);
 }
 
-void TestAnisoRef3DRandom(int iter)
+void TestAnisoRefRandom(int iter, int dim)
 {
-   Mesh mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON);
+   Mesh mesh = dim == 3 ? Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON) :
+               Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
 
    int seed = 0;
 
    for (int i=0; i<iter; ++i)
    {
       const int elem = myrand(seed) % mesh.GetNE();
-      const int t = myrand(seed) % 3;
+      const int t = myrand(seed) % dim;
       auto type = t == 0 ? Refinement::X : (t == 1 ? Refinement::Y : Refinement::Z);
       cout << "Ref elem " << elem << ", type " << type << endl;
       Refine31(mesh, elem, type);
@@ -206,6 +207,7 @@ int main(int argc, char *argv[])
    bool makeMesh = false;
    int idx = -1;
    int numIter = 1;
+   int tdim = 2;  // Test dimension
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -230,6 +232,7 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&makeMesh, "-mm", "--make-mesh", "-no-mm",
                   "--no-make-mesh", "Generate 3:1 mesh");
+   args.AddOption(&tdim, "-dim", "--dimension", "");
    args.AddOption(&idx, "-id", "--idx", "");
    args.AddOption(&numIter, "-iter", "--niter", "");
    args.Parse();
@@ -242,9 +245,9 @@ int main(int argc, char *argv[])
 
    if (makeMesh)
    {
-      //TestAnisoRef();
+      //TestAnisoRef2D();
       //TestAnisoRef3D(idx);
-      TestAnisoRef3DRandom(numIter);
+      TestAnisoRefRandom(numIter, tdim);
       //TestAnisoRef3D_A(numIter);
       return 0;
    }
@@ -360,7 +363,7 @@ int main(int argc, char *argv[])
 #ifndef MFEM_USE_SUITESPARSE
       // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
       GSSmoother M((SparseMatrix&)(*A));
-      PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
+      PCG(*A, M, B, X, 1, 2000, 1e-12, 0.0);
 #else
       // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
       UMFPackSolver umf_solver;
