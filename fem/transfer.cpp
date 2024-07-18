@@ -1588,17 +1588,6 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
 
    BuildHo2Lor(nel_ho, nel_lor, cf_tr);
 
-   offsets.SetSize(nel_ho+1);
-   offsets[0] = 0;
-   for (int iho = 0; iho < nel_ho; ++iho)
-   {
-      int nref = ho2lor.RowSize(iho);
-      const FiniteElement &fe_ho = *fes_ho.GetFE(iho);
-      const FiniteElement &fe_lor = *fes_lor.GetFE(ho2lor.GetRow(iho)[0]);
-      offsets[iho+1] = offsets[iho] + fe_ho.GetDof()*fe_lor.GetDof()*nref;
-   }
-
-
    // **************************
    // lumped M_H and inv lumped M_L
    // **************************
@@ -1764,17 +1753,6 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
 
    BuildHo2Lor(nel_ho, nel_lor, cf_tr);
 
-   offsets.SetSize(nel_ho+1);  // TODO: 
-   offsets[0] = 0;
-   for (int iho = 0; iho < nel_ho; ++iho)
-   {
-      int nref = ho2lor.RowSize(iho);
-      const FiniteElement &fe_ho = *pfes_ho.GetFE(iho);
-      const FiniteElement &fe_lor = *pfes_lor.GetFE(ho2lor.GetRow(iho)[0]);
-      offsets[iho+1] = offsets[iho] + fe_ho.GetDof()*fe_lor.GetDof()*nref;
-   }
-
-
    // **************************
    // lumped M_H and inv lumped M_L
    // **************************
@@ -1846,6 +1824,65 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
          ML_inv_ea.AddElementVector(dofs_lor, ML_el);
       }
    }
+
+   // // Compute M_H_ea and ML_inv_ea
+   // MassIntegrator mi_ho;
+   // MassIntegrator mi_lor(*coeff_, &ir);
+
+   // Vector M_H_ea_all;
+   // // int nref;
+   // int nedof_ho;
+   // int nedof_lor;
+   // {
+   //    int iho = 0;
+   //    Array<int> lor_els;
+   //    ho2lor.GetRow(iho, lor_els);
+   //    // nref = ho2lor.RowSize(iho);
+
+   //    const FiniteElement& fe_ho = *pfes_ho.GetFE(0);
+   //    const FiniteElement &fe_lor = *pfes_lor.GetFE(lor_els[0]);
+   //    nedof_ho = fe_ho.GetDof();
+   //    nedof_lor = fe_lor.GetDof();
+   //    std::cout << "nedof_ho = " << nedof_ho << std::endl;
+   //    std::cout << "nedof_lor = " << nedof_lor << std::endl;
+   //    std::cout << "nel_ho = " << nel_ho << std::endl;
+   //    std::cout << "nel_lor = " << nel_lor << std::endl;
+
+   //    M_H_ea_all.SetSize(nedof_ho*nedof_ho*nel_ho, d_mt);
+   //    ML_inv_ea.SetSize(nedof_lor*nedof_lor*nel_lor, d_mt);
+   // }
+
+   // const bool add = false;
+   // mi_ho.AssembleEA(fes_ho, M_H_ea_all, add);
+   // mi_lor.AssembleEA(fes_lor, ML_inv_ea, add);
+
+   // Vector M_H_ea(nedof_ho*nel_ho);
+
+   // auto d_M_H_ea_all = Reshape(M_H_ea_all.Read(), nedof_ho, nedof_ho, nel_ho);
+   // auto d_M_H_ea = Reshape(M_H_ea.Write(), M_H_ea.Size()); 
+   // mfem::forall(M_H_ea.Size(), [=] MFEM_HOST_DEVICE (int i)
+   // {
+   //    real_t dot;
+   //    for (int k=0; k<nel_ho; ++k)
+   //    {
+   //       dot = 0.0;
+   //       for (int j=0; j<nedof_ho; ++j)
+   //       {
+   //          dot += d_M_H_ea_all(i,j,k);
+   //       }
+   //       d_M_H_ea(i) = dot;
+   //    }
+   // });
+   // Vector M_H(pfes_ho_scalar->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC)->Width());
+   // pfes_ho_scalar->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC)->MultTranspose(M_H_ea, M_H);
+
+   
+   // printf("M_H is : \n");
+   // M_H.Print();
+
+   // printf("M_L inv is : \n");
+   // ML_inv_ea.Print();
+
    // DOF by DOF inverse of non-zero entries
    LumpedMassInverse(ML_inv_ea);
 
