@@ -1095,6 +1095,9 @@ protected: // implementation
 
    void FindFaceNodes(int face, int node[4]) const;
 
+   inline real_t GetScale(real_t s, bool reverse) const
+   { return reverse ? 1.0 - s : s; }
+
    /**
     * @brief Return the number of splits of this edge that have occurred in the
     * NCMesh. If zero, this means the segment is not the master of any other segments.
