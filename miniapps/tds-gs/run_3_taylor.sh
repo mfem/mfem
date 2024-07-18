@@ -24,7 +24,7 @@ mesh_file="meshes/iter_gen_fixed.mesh"
 # mesh_file="meshes/RegGSTriMeshVeryCoarse0beta.msh"
 data_file="data/separated_file.data"
 
-refinement_factor=0
+refinement_factor=1
 amr_frac_in=0.08
 # amr_frac_in=0.3
 amr_frac_out=0.3
@@ -95,11 +95,11 @@ c5=-2.848113e+03
 
 ur_coeff=1.0
 
-./../gslib/field-interp -m1 initial/initial_mesh_g3.mesh \
-                        -m2 $mesh_file \
-                        -s1 initial/initial_guess_g3.gf \
-                        -r $refinement_factor \
-                        -no-vis
+#./../gslib/field-interp -m1 initial/initial_mesh_g3.mesh \
+#                        -m2 $mesh_file \
+#                        -s1 initial/initial_guess_g3.gf \
+#                        -r $refinement_factor \
+#                        -no-vis
 
 # lldb -- main.o \
 ./main \

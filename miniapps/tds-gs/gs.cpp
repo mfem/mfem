@@ -1521,9 +1521,7 @@ double gs(const char * mesh_file, const char * initial_gf, const char * data_fil
        lgf.SetSpace(&fespace);
        u = lgf;
      }
-
      u.Save("gf/initial.gf");
-
    }
 
 
@@ -1585,6 +1583,18 @@ double gs(const char * mesh_file, const char * initial_gf, const char * data_fil
      // printf("Saved solution to final.gf\n");
      // printf("Saved mesh to mesh.mesh\n");
      printf("glvis -m meshes/mesh_refine.mesh -g %s\n", name_gf_out);
+
+     if(false){
+        ParaViewDataCollection paraview_dc("gs", &mesh);
+        paraview_dc.SetPrefixPath("ParaView");
+        paraview_dc.SetLevelsOfDetail(order);
+        paraview_dc.SetCycle(0);
+        paraview_dc.SetDataFormat(VTKFormat::BINARY);
+        paraview_dc.SetHighOrderOutput(true);
+        paraview_dc.SetTime(0.0); // set the time
+        paraview_dc.RegisterField("psi",&x);
+        paraview_dc.Save();
+     }
 
    }
    /* 

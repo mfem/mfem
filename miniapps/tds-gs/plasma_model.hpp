@@ -124,8 +124,8 @@ public:
     f_x = fpol_vector[N - 1];
     f_ma = fpol_vector[0];
 
-    cout << "f_x = " << f_x << endl;
-    cout << "f_ma = " << f_ma << endl;
+    printf("f_x = %0.8lf\n",f_x);
+    printf("f_ma = %0.8lf\n",f_ma);
     alpha = f_ma - f_x;
 
     vector<double> f_bar(N);
