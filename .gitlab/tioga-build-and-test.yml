@@ -15,44 +15,6 @@ stages:
   - build_and_test
   - release_resource_and_report
 
-# Flux shared allocation
-allocate_resource:
-  variables:
-    GIT_STRATEGY: none
-  extends: .on_tioga
-  stage: allocate_resource
-  script:
-    - |
-      set -x
-      flux --parent alloc --queue=pci --exclusive --time-limit=45m --nodes=1 --job-name=${ALLOC_NAME} --bg
-  timeout: 6h
-  needs: [setup]
-
-# Build and test jobs, simply provide a spec
-rocm_5_7_1:
-  variables:
-    SPEC: "+rocm amdgpu_target=gfx90a %rocmcc@=5.7.1 ^hip@5.7.1"
-  extends: .build_and_test_on_tioga
-  needs: [allocate_resource]
-
-cce_16_0_1:
-  variables:
-    SPEC: "%cce@=16.0.1"
-  extends: .build_and_test_on_tioga
-  needs: [allocate_resource]
-
-# Release slurm allocation
-release_resource:
-  variables:
-    GIT_STRATEGY: none
-  extends: .on_tioga
-  stage: release_resource_and_report
-  script:
-    - |
-      set -x
-      export URI=$(flux jobs -o "{id} {name}" | grep ${ALLOC_NAME} | awk '{print $1}')
-      ([[ -n "${URI}" ]] && flux job kill ${URI} || exit 0)
-  needs: [rocm_5_7_1, cce_16_0_1]
 
 # Jobs report
 report_job_success:

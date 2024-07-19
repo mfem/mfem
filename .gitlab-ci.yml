@@ -9,63 +9,91 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
+# DESCRIPTION:
+###############################################################################
 # General GitLab pipelines configurations for supercomputers and Linux clusters
-# at Lawrence Livermore National Laboratory (LLNL). This entire pipeline is
-# LLNL-specific!
+# at Lawrence Livermore National Laboratory (LLNL).
+# This entire pipeline is LLNL-specific
+#
+# Important note: This file is a template provided by llnl/radiuss-shared-ci.
+# Remains to set variable values, change the reference to the radiuss-shared-ci
+# repo, opt-in and out optional features. The project can then extend it with
+# additional stages.
+#
+# In addition, each project should copy over and complete:
+# - .gitlab/custom-jobs-and-variables.yml
+# - .gitlab/subscribed-pipelines.yml
+#
+# The jobs should be specified in a file local to the project,
+# - .gitlab/jobs/${CI_MACHINE}.yml
+# or generated (see LLNL/Umpire for an example).
+###############################################################################
 
-include:
-  - project: 'lc-templates/id_tokens'
-    file: 'id_tokens.yml'
-
-# The pipeline is divided into stages. Usually, jobs in a given stage wait for
-# the preceding stages to complete before to start. However, we sometimes use
-# the "needs" keyword and express the DAG of jobs for more efficiency.
-# - We use setup and setup_baseline phases to download content outside of mfem
-#   directory.
-# - Allocate/Release is where ruby resource are allocated/released once for all.
-# - Build and Test is where we build and MFEM for multiple toolchains.
-# - Baseline_checks gathers baseline-type test suites execution
-# - Baseline_publish, only available on master, allows to update baseline
-#   results
-stages:
-  - sub-pipelines
-
+###############################################################################
+# We define the following GitLab pipeline variables:
 variables:
+##### LC GITLAB CONFIGURATION
   CUSTOM_CI_BUILDS_DIR: "/usr/workspace/mfem/gitlab-runner"
+
+##### PROJECT VARIABLES
   USER_CI_TOP_DIR: "${CUSTOM_CI_BUILDS_DIR}/${GITLAB_USER_LOGIN}"
   SHARED_REPOS_DIR: "${USER_CI_TOP_DIR}/repos"
   AUTOTEST_ROOT: "${SHARED_REPOS_DIR}"
-  # MFEM_DATA_DIR is setup in '.gitlab/configs/setup-build-and-test.yml' and
-  # used in '.gitlab/configs/<machine>-config.yml':
+# MFEM_DATA_DIR is setup in '.gitlab/configs/setup-build-and-test.yml' and
+# used in '.gitlab/configs/<machine>-config.yml':
   MFEM_DATA_DIR: "${SHARED_REPOS_DIR}/mfem-data"
-
 # Defines the default choice for updating the saved baseline results. By default
 # the baseline can only be updated from the master branch. This variable offers
 # the option to manually ask for rebaselining from another branch if necessary.
   REBASELINE: "NO"
   AUTOTEST: "NO"
-  # AUTOTEST_COMMIT: used only when AUTOTEST is set to YES.
-  # * If AUTOTEST_COMMIT is NOT set to NO, reporting jobs will commit their
-  #   files to the MFEM/autotest repo.
-  # * If AUTOTEST_COMMIT is set to NO, reporting jobs will NOT commit their
-  #   files to the MFEM/autotest repo. Instead they will just show the contents
-  #   of the report files and remove them.
+# AUTOTEST_COMMIT: used only when AUTOTEST is set to YES.
+# * If AUTOTEST_COMMIT is NOT set to NO, reporting jobs will commit their
+#   files to the MFEM/autotest repo.
+# * If AUTOTEST_COMMIT is set to NO, reporting jobs will NOT commit their
+#   files to the MFEM/autotest repo. Instead they will just show the contents
+#   of the report files and remove them.
   AUTOTEST_COMMIT: "YES"
 
-# Trigger subpipelines:
-ruby-build-and-test:
-  stage: sub-pipelines
-  variables:
-    # Explicitly pass down values that we want to be able to set when triggering
-    # pipelines manually or using scheduling
-    AUTOTEST: "${AUTOTEST}"
-    AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
+##### SHARED_CI CONFIGURATION
+# Required information about GitHub repository
+  GITHUB_PROJECT_NAME: "mfem"
+  GITHUB_PROJECT_ORG: "MFEM"
+# Set the build-and-test command.
+  JOB_CMD: tests/gitlab/build_and_test --spec \"${SPEC}\" --data-dir \"${MFEM_DATA_DIR}\" --data
+# Override the pattern describing branches that will skip the "draft PR filter
+# test".  Add protected branches here. See default value in
+# preliminary-ignore-draft-pr.yml.
+#  ALWAYS_RUN_PATTERN: ""
+
+###############################################################################
+##### High level stages
+# We organize the build-and-test stage with sub-pipelines. Each sub-pipeline
+# corresponds to a test batch on a given machine.
+stages:
+  - prerequisites
+  - build-and-test
+  - baseline #MFEM specific
+
+###############################################################################
+# Template for jobs triggering a build-and-test sub-pipeline:
+.build-and-test:
+  stage: build-and-test
   trigger:
-    include: .gitlab/ruby-build-and-test.yml
+    include:
+      - local: '.gitlab/custom-jobs-and-variables.yml'
+      - project: 'radiuss/radiuss-shared-ci'
+        ref: 'v2024.07.0'
+        file: 'pipelines/${CI_MACHINE}.yml'
+      - artifact: '${CI_MACHINE}-jobs.yml'
+        job: 'generate-job-lists'
     strategy: depend
+    forward:
+      pipeline_variables: true
+
 
 ruby-baseline:
-  stage: sub-pipelines
+  stage: baseline
   variables:
     # Explicitly pass down values that we want to be able to set when triggering
     # pipelines manually or using scheduling
@@ -76,24 +104,14 @@ ruby-baseline:
     include: .gitlab/ruby-baseline.yml
     strategy: depend
 
-lassen-build-and-test:
-  stage: sub-pipelines
-  variables:
-    # Explicitly pass down values that we want to be able to set when triggering
-    # pipelines manually or using scheduling
-    AUTOTEST: "${AUTOTEST}"
-    AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
-  trigger:
-    include: .gitlab/lassen-build-and-test.yml
-    strategy: depend
-
-tioga-build-and-test:
-  stage: sub-pipelines
-  variables:
-    # Explicitly pass down values that we want to be able to set when triggering
-    # pipelines manually or using scheduling
-    AUTOTEST: "${AUTOTEST}"
-    AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
-  trigger:
-    include: .gitlab/tioga-build-and-test.yml
-    strategy: depend
+###############################################################################
+include:
+  # Sets ID tokens for every job using `default:`
+  - project: 'lc-templates/id_tokens'
+    file: 'id_tokens.yml'
+  # [Optional] checks preliminary to running the actual CI test
+  #- project: 'radiuss/radiuss-shared-ci'
+  #  ref: 'v2024.07.0'
+  #  file: 'preliminary-ignore-draft-pr.yml'
+  # pipelines subscribed by the project
+  - local: '.gitlab/subscribed-pipelines.yml'

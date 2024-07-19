@@ -1,0 +1,124 @@
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+
+# Override reproducer section to define UMPIRE specific variables.
+.ruby_reproducer_vars:
+  script:
+    - !reference [.reproducer_vars, script]
+
+#TODO: Setup script should be defined as a bash script (but then GIT_STRATEGY cannot be "none" anymore).
+
+# Setup clones the mfem/data repo in ${SHARED_REPOS_DIR}. The build_and_test
+# script then symlinks the repo to the parent directory of the MFEM source
+# directory. Unit tests that depend on the mfem/data repo will then detect that
+# this directory is present and be enabled.
+setup:
+  stage: jobs-stage-1
+  extends: .job_on_ruby
+  script:
+    - ./tests/gitlab/ci_job_setup
+
+
+########################
+# Overridden shared jobs
+########################
+# When using shared jobs , we can duplicate them here to override description and add necessary changes.
+# We keep ${PROJECT_<MACHINE>_VARIANTS} and ${PROJECT_<MACHINE>_DEPS} So that
+# the comparison with the original job is easier.
+
+
+############
+# Extra jobs
+############
+# We do not recommend using ${PROJECT_<MACHINE>_VARIANTS} and
+# ${PROJECT_<MACHINE>_DEPS} in the extra jobs. There is not reason not to fully
+# describe the spec here.
+
+#TODO: THREADS would be better defined elsewhere since it’s global to ruby.
+
+debug_ser_gcc_10:
+  stage: jobs-stage-2
+  variables:
+    SPEC: "%gcc@10.3.1 +debug~mpi"
+    THREADS: 16
+  extends: .job_on_ruby
+
+debug_par_gcc_10:
+  stage: jobs-stage-2
+  variables:
+    SPEC: "%gcc@10.3.1 +debug+mpi"
+    THREADS: 16
+  extends: .job_on_ruby
+
+opt_ser_gcc_10:
+  stage: jobs-stage-2
+  variables:
+    SPEC: "%gcc@10.3.1 ~mpi"
+    THREADS: 16
+  extends: .job_on_ruby
+
+opt_par_gcc_10:
+  stage: jobs-stage-2
+  variables:
+    SPEC: "%gcc@10.3.1"
+    THREADS: 16
+  extends: .job_on_ruby
+
+opt_par_gcc_10_sundials:
+  stage: jobs-stage-2
+  variables:
+    SPEC: "%gcc@10.3.1 +sundials"
+    THREADS: 16
+  extends: .job_on_ruby
+
+opt_par_gcc_10_petsc:
+  stage: jobs-stage-2
+  variables:
+    SPEC: "%gcc@10.3.1 +petsc ^petsc+mumps~superlu-dist"
+    THREADS: 16
+  extends: .job_on_ruby
+
+opt_par_gcc_10_pumi:
+  stage: jobs-stage-2
+  variables:
+    SPEC: "%gcc@10.3.1 +pumi"
+    THREADS: 16
+  extends: .job_on_ruby
+
+# Jobs report
+.report_job_success:
+  script:
+    - export MACHINE_NAME=${CI_MACHINE}
+    - echo ${MACHINE_NAME}
+    - echo ${AUTOTEST_COMMIT}
+    - echo "AUTOTEST_ROOT ${AUTOTEST_ROOT}"
+    - cd ${AUTOTEST_ROOT}
+    - ${CI_PROJECT_DIR}/.gitlab/scripts/report_build_and_test SUCCESS
+
+.report_job_failure:
+  script:
+    - export MACHINE_NAME=${CI_MACHINE}
+    - echo ${MACHINE_NAME}
+    - echo ${AUTOTEST_COMMIT}
+    - echo "AUTOTEST_ROOT ${AUTOTEST_ROOT}"
+    - cd ${AUTOTEST_ROOT}
+    - ${CI_PROJECT_DIR}/.gitlab/scripts/report_build_and_test FAILURE
+
+# Jobs report
+report_job_success:
+  stage: jobs-stage-3
+  extends: [.job_on_ruby, .report_job_success]
+  when: on_success
+
+report_job_failure:
+  stage: jobs-stage-3
+  extends: [.job_on_ruby, .report_job_failure]
+  when: on_failure
