@@ -48,7 +48,7 @@ public:
       print_level = print_lvl;
    }
 
-   virtual void MonitorResidual(int it, real_t norm, const Vector &r, bool final);
+   void MonitorResidual(int it, real_t norm, const Vector &r, bool final) override;
 
 private:
    const std::string prefix;
@@ -116,8 +116,8 @@ public:
    JacobianPreconditioner(Array<FiniteElementSpace *> &fes,
                           SparseMatrix &mass, Array<int> &offsets);
 
-   virtual void Mult(const Vector &k, Vector &y) const;
-   virtual void SetOperator(const Operator &op);
+   void Mult(const Vector &k, Vector &y) const override;
+   void SetOperator(const Operator &op) override;
 
    virtual ~JacobianPreconditioner();
 };
@@ -161,8 +161,8 @@ public:
                   int iter, Coefficient &mu);
 
    // Required to use the native newton solver
-   virtual Operator &GetGradient(const Vector &xp) const;
-   virtual void Mult(const Vector &k, Vector &y) const;
+   Operator &GetGradient(const Vector &xp) const override;
+   void Mult(const Vector &k, Vector &y) const override;
 
    // Driver for the newton solver
    void Solve(Vector &xp) const;

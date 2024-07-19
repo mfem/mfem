@@ -143,9 +143,9 @@ public:
 
    virtual ~pLaplaceAD() {}
 
-   virtual real_t GetElementEnergy(const FiniteElement &el,
-                                   ElementTransformation &trans,
-                                   const Vector &elfun)
+   real_t GetElementEnergy(const FiniteElement &el,
+                           ElementTransformation &trans,
+                           const Vector &elfun) override
    {
       real_t energy = 0.0;
       const int ndof = el.GetDof();
@@ -217,10 +217,10 @@ public:
       return energy;
    }
 
-   virtual void AssembleElementVector(const FiniteElement &el,
-                                      ElementTransformation &trans,
-                                      const Vector &elfun,
-                                      Vector &elvect)
+   void AssembleElementVector(const FiniteElement &el,
+                              ElementTransformation &trans,
+                              const Vector &elfun,
+                              Vector &elvect) override
    {
       MFEM_PERF_BEGIN("AssembleElementVector");
       const int ndof = el.GetDof();
@@ -287,10 +287,10 @@ public:
       MFEM_PERF_END("AssembleElementVector");
    }
 
-   virtual void AssembleElementGrad(const FiniteElement &el,
-                                    ElementTransformation &trans,
-                                    const Vector &elfun,
-                                    DenseMatrix &elmat)
+   void AssembleElementGrad(const FiniteElement &el,
+                            ElementTransformation &trans,
+                            const Vector &elfun,
+                            DenseMatrix &elmat) override
    {
       MFEM_PERF_BEGIN("AssembleElementGrad");
       const int ndof = el.GetDof();
@@ -389,9 +389,9 @@ public:
 
    virtual ~pLaplace() {}
 
-   virtual real_t GetElementEnergy(const FiniteElement &el,
-                                   ElementTransformation &trans,
-                                   const Vector &elfun)
+   real_t GetElementEnergy(const FiniteElement &el,
+                           ElementTransformation &trans,
+                           const Vector &elfun) override
    {
       real_t energy = 0.0;
       const int ndof = el.GetDof();
@@ -453,10 +453,10 @@ public:
       return energy;
    }
 
-   virtual void AssembleElementVector(const FiniteElement &el,
-                                      ElementTransformation &trans,
-                                      const Vector &elfun,
-                                      Vector &elvect)
+   void AssembleElementVector(const FiniteElement &el,
+                              ElementTransformation &trans,
+                              const Vector &elfun,
+                              Vector &elvect) override
    {
       MFEM_PERF_BEGIN("AssembleElementVector");
       const int ndof = el.GetDof();
@@ -527,10 +527,10 @@ public:
       MFEM_PERF_END("AssembleElementVector");
    }
 
-   virtual void AssembleElementGrad(const FiniteElement &el,
-                                    ElementTransformation &trans,
-                                    const Vector &elfun,
-                                    DenseMatrix &elmat)
+   void AssembleElementGrad(const FiniteElement &el,
+                            ElementTransformation &trans,
+                            const Vector &elfun,
+                            DenseMatrix &elmat) override
    {
       MFEM_PERF_BEGIN("AssembleElementGrad");
       const int ndof = el.GetDof();
@@ -629,9 +629,9 @@ public:
 
    virtual ~pLaplaceSL() {}
 
-   virtual real_t GetElementEnergy(const FiniteElement &el,
-                                   ElementTransformation &trans,
-                                   const Vector &elfun)
+   real_t GetElementEnergy(const FiniteElement &el,
+                           ElementTransformation &trans,
+                           const Vector &elfun) override
    {
       real_t energy = 0.0;
       const int ndof = el.GetDof();
@@ -693,10 +693,10 @@ public:
       return energy;
    }
 
-   virtual void AssembleElementVector(const FiniteElement &el,
-                                      ElementTransformation &trans,
-                                      const Vector &elfun,
-                                      Vector &elvect)
+   void AssembleElementVector(const FiniteElement &el,
+                              ElementTransformation &trans,
+                              const Vector &elfun,
+                              Vector &elvect) override
    {
       MFEM_PERF_BEGIN("AssembleElementVector");
       const int ndof = el.GetDof();
@@ -767,10 +767,10 @@ public:
       MFEM_PERF_END("AssembleElementVector");
    }
 
-   virtual void AssembleElementGrad(const FiniteElement &el,
-                                    ElementTransformation &trans,
-                                    const Vector &elfun,
-                                    DenseMatrix &elmat)
+   void AssembleElementGrad(const FiniteElement &el,
+                            ElementTransformation &trans,
+                            const Vector &elfun,
+                            DenseMatrix &elmat) override
    {
       MFEM_PERF_BEGIN("AssembleElementGrad");
       const int ndof = el.GetDof();
