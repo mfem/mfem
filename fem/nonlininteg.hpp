@@ -267,12 +267,12 @@ protected:
    mutable DenseMatrix G, C; // dof x dim
 
 public:
-   virtual real_t EvalW(const DenseMatrix &J) const;
+   real_t EvalW(const DenseMatrix &J) const override;
 
-   virtual void EvalP(const DenseMatrix &J, DenseMatrix &P) const;
+   void EvalP(const DenseMatrix &J, DenseMatrix &P) const override;
 
-   virtual void AssembleH(const DenseMatrix &J, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const;
+   void AssembleH(const DenseMatrix &J, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 };
 
 
