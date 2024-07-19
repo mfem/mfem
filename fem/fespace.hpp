@@ -1172,7 +1172,7 @@ public:
    /** This method can be called only after setup is performed using the method
        BuildDofToArrays(). */
    int GetElementForDof(int i) const { return dof_elem_array[i]; }
-   /// Return the local dof index in the first element that contains ldof index @a i.
+   /// Return the dof index within the element from GetElementForDof() for ldof index @a i.
    /** This method can be called only after setup is performed using the method
        BuildDofToArrays(). */
    int GetLocalDofForDof(int i) const { return dof_ldof_array[i]; }
@@ -1183,12 +1183,12 @@ public:
 
    /// Return the index of the first boundary element that contains ldof index @a i.
    /** This method can be called only after setup is performed using the method
-       BuildBdrDofToArrays(). */
+       BuildDofToBdrArrays(). */
    int GetBdrElementForDof(int i) const { return dof_bdr_elem_array[i]; }
 
-   /// Return the dof index in the first boundary element that contains ldof index @a i.
+   /// Return the dof index within the boundary element from GetBdrElementForDof() for ldof index @a i.
    /** This method can be called only after setup is performed using the method
-       BuildBdrDofToArrays(). */
+       BuildDofToBdrArrays(). */
    int GetBdrLocalDofForDof(int i) const { return dof_bdr_ldof_array[i]; }
 
 
