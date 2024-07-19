@@ -1,4 +1,3 @@
-
 #ifndef MFEM_LPQ_JACOBI_HPP
 #define MFEM_LPQ_JACOBI_HPP
 
@@ -14,8 +13,8 @@ namespace lpq_jacobi
 {
 
 int NDIGITS = 20;
-int MAX_ITER = 100;
-real_t REL_TOL = 1e-4;
+int MG_MAX_ITER = 100;
+real_t MG_REL_TOL = 1e-4;
 
 // Enumerator for the different solvers to implement
 enum SolverType
@@ -79,7 +78,8 @@ public:
         q_order(q_order),
         coarse_solver(nullptr),
         coarse_pc(nullptr),
-        one(1.0)
+        one(1.0),
+        level_mats()
    {
       ConstructCoarseOperatorAndSolver(fes_hierarchy.GetFESpaceAtLevel(0));
       for (int l = 1; l < fes_hierarchy.GetNumLevels(); ++l)
@@ -90,6 +90,11 @@ public:
 
    ~GeneralGeometricMultigrid()
    {
+      for (int ll = 0; level_mats.Size(); ll++)
+      {
+         delete level_mats.Last();
+         level_mats.DeleteLast();
+      }
       delete coarse_pc;
    }
 
@@ -101,6 +106,7 @@ private:
    Solver* coarse_solver;
    OperatorLpqJacobiSmoother* coarse_pc;
    ConstantCoefficient one;
+   Array<HypreParMatrix*> level_mats;
 
    void ConstructCoarseOperatorAndSolver(ParFiniteElementSpace& coarse_fespace)
    {
@@ -129,8 +135,8 @@ private:
       IterativeSolver *it_solver = dynamic_cast<IterativeSolver *>(coarse_solver);
       if (it_solver)
       {
-         it_solver->SetRelTol(REL_TOL);
-         it_solver->SetMaxIter(MAX_ITER);
+         it_solver->SetRelTol(MG_REL_TOL);
+         it_solver->SetMaxIter(MG_MAX_ITER);
          it_solver->SetPrintLevel(1);
          it_solver->SetPreconditioner(*coarse_pc);
          // it_solver->SetMonitor(monitor);
@@ -145,20 +151,17 @@ private:
    void ConstructOperatorAndSmoother(ParFiniteElementSpace& fespace, int level)
    {
       const Array<int> &ess_tdof_list = *essentialTrueDofs[level];
-      ConstructBilinearForm(fespace, true);
+      ConstructBilinearForm(fespace, false);
 
-      OperatorPtr opr;
-      // opr.SetType(Operator::ANY_TYPE);
-      opr.SetType(Operator::Hypre_ParCSR);
-      bfs.Last()->FormSystemMatrix(ess_tdof_list, opr);
-      opr.SetOperatorOwner(false);
+      level_mats.Append(new HypreParMatrix());
+      bfs.Last()->FormSystemMatrix(ess_tdof_list, *level_mats.Last());
 
-      // *opr, diag, ess_tdof_list, 2, fespace.GetParMesh()->GetComm());
-      Solver* smoother = new OperatorLpqJacobiSmoother(*opr.As<HypreParMatrix>(),
+      Solver* smoother = new OperatorLpqJacobiSmoother(*level_mats.Last(),
                                                        ess_tdof_list,
                                                        p_order,
                                                        q_order);
-      AddLevel(opr.Ptr(), smoother, true, true);
+
+      AddLevel(level_mats.Last(), smoother, false, true);
    }
 
 

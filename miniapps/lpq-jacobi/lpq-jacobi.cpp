@@ -16,7 +16,6 @@ int main(int argc, char *argv[])
    Mpi::Init();
    Hypre::Init();
 
-   // TODO(Gabriel): simpler default mesh to be defined by the type if left blank
    string mesh_file = "meshes/icf.mesh";
    // System properties
    int order = 1;
@@ -210,7 +209,7 @@ int main(int argc, char *argv[])
    HypreParMatrix A;
    Vector B, X;
 
-   x = 0.0;
+   x = -1.0;
 
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 

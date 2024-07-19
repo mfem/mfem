@@ -19,6 +19,7 @@ int main(int argc, char *argv[])
    string mesh_file = "meshes/icf.mesh";
    // System properties
    int num_levels = 1;
+   SolverType solver_type = sli;
    IntegratorType integrator_type = mass;
    // Number of refinements
    int refine_serial = 1;
@@ -47,6 +48,11 @@ int main(int argc, char *argv[])
    args.AddOption(&order_levels, "-ol", "--order-levels",
                   "Number of order refinements (levels). "
                   "Finest level in the hierarchy has order 2^{or}.");
+   args.AddOption((int*)&solver_type, "-s", "--solver",
+                  "Solvers to be considered:"
+                  "\n\t0: Stationary Linear Iteration"
+                  "\n\t1: Preconditioned Conjugate Gradient"
+                  "\n\tTODO");
    args.AddOption((int*)&integrator_type, "-i", "--integrator",
                   "Integrators to be considered:"
                   "\n\t0: MassIntegrator"
@@ -210,14 +216,53 @@ int main(int argc, char *argv[])
    }
    b->Assemble();
 
-
    ParGridFunction x(&fes_hierarchy->GetFinestFESpace());
-   HypreParMatrix A;
+   // x = 0.0;
+   x = -1.0;
+
+   GeneralGeometricMultigrid* mg = new GeneralGeometricMultigrid(*fes_hierarchy,
+                                                                 ess_bdr,
+                                                                 integrator_type,
+                                                                 solver_type,
+                                                                 p_order,
+                                                                 q_order);
+   mg->SetCycleType(Multigrid::CycleType::VCYCLE, 1, 1);
+
+   OperatorPtr A(Operator::Type::Hypre_ParCSR);
    Vector B, X;
 
-   x = 0.0;
+   mg->FormFineLinearSystem(x, *b, A, X, B);
 
+   Solver *solver = nullptr;
+   // auto lpq_jacobi = new OperatorLpqJacobiSmoother(*A.As<HypreParMatrix>(), ess_tdof_list, p_order,
+   //                                                 q_order);
 
+   DataMonitor monitor(file_name.str(), NDIGITS);
+   switch (solver_type)
+   {
+      case sli:
+         solver = new SLISolver(MPI_COMM_WORLD);
+         break;
+      case cg:
+         solver = new CGSolver(MPI_COMM_WORLD);
+         break;
+      default:
+         mfem_error("Invalid solver type!");
+   }
+   IterativeSolver *it_solver = dynamic_cast<IterativeSolver *>(solver);
+   if (it_solver)
+   {
+      it_solver->SetRelTol(rel_tol);
+      it_solver->SetMaxIter(max_iter);
+      it_solver->SetPrintLevel(1);
+      // it_solver->SetPreconditioner(*lpq_jacobi);
+      it_solver->SetMonitor(monitor);
+   }
+   solver->SetOperator(*mg);
+   solver->Mult(B, X);
+
+   delete mg;
+   delete solver;
    delete b;
    delete fes_hierarchy;
 
