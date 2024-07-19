@@ -265,7 +265,8 @@ protected:
    mutable Table *bdr_elem_fos; // bdr face orientations by bdr element index
    mutable Table *face_dof; // owned; in var-order space contains variant 0 DOFs
 
-   Array<int> dof_elem_array, dof_ldof_array, dof_bdr_elem_array, dof_bdr_ldof_array;
+   Array<int> dof_elem_array, dof_ldof_array, dof_bdr_elem_array,
+         dof_bdr_ldof_array;
 
    NURBSExtension *NURBSext;
    /** array of NURBS extension for H(div) and H(curl) vector elements.
@@ -1176,8 +1177,8 @@ public:
        BuildDofToArrays(). */
    int GetLocalDofForDof(int i) const { return dof_ldof_array[i]; }
 
-    /** @brief Initialize internal data that enables the use of the methods
-       GetBdrElementForDof() and GetBdrLocalDofForDof(). */
+   /** @brief Initialize internal data that enables the use of the methods
+      GetBdrElementForDof() and GetBdrLocalDofForDof(). */
    void BuildDofToBdrArrays();
 
    /// Return the index of the first boundary element that contains ldof index @a i.
