@@ -3,31 +3,31 @@
 // Compile with: make linadv
 //
 // Sample runs:
-//    linadv -m ../data/periodic-segment.mesh -p 0 -r 2 -dt 0.005
-//    linadv -m ../data/periodic-square.mesh -p 0 -r 2 -dt 0.01 -tf 10
-//    linadv -m ../data/periodic-hexagon.mesh -p 0 -r 2 -dt 0.01 -tf 10
-//    linadv -m ../data/periodic-square.mesh -p 1 -r 2 -dt 0.005 -tf 9
-//    linadv -m ../data/periodic-hexagon.mesh -p 1 -r 2 -dt 0.005 -tf 9
-//    linadv -m ../data/amr-quad.mesh -p 1 -r 2 -dt 0.002 -tf 9
-//    linadv -m ../data/amr-quad.mesh -p 1 -r 2 -dt 0.02 -s 13 -tf 9
-//    linadv -m ../data/star-q3.mesh -p 1 -r 2 -dt 0.005 -tf 9
-//    linadv -m ../data/star-mixed.mesh -p 1 -r 2 -dt 0.005 -tf 9
-//    linadv -m ../data/disc-nurbs.mesh -p 1 -r 3 -dt 0.005 -tf 9
-//    linadv -m ../data/disc-nurbs.mesh -p 2 -r 3 -dt 0.005 -tf 9
-//    linadv -m ../data/periodic-square.mesh -p 3 -r 4 -dt 0.0025 -tf 9 -vs 20
-//    linadv -m ../data/periodic-cube.mesh -p 0 -r 2 -o 2 -dt 0.02 -tf 8
-//    linadv -m ../data/periodic-square.msh -p 0 -r 2 -dt 0.005 -tf 2
-//    linadv -m ../data/periodic-cube.msh -p 0 -r 1 -o 2 -tf 2
+//    ./linadv -m ../data/periodic-segment.mesh -p 0 -r 2 -dt 0.005
+//    ./linadv -m ../data/periodic-square.mesh -p 0 -r 2 -dt 0.01 -tf 10
+//    ./linadv -m ../data/periodic-hexagon.mesh -p 0 -r 2 -dt 0.01 -tf 10
+//    ./linadv -m ../data/periodic-square.mesh -p 1 -r 2 -dt 0.005 -tf 9
+//    ./linadv -m ../data/periodic-hexagon.mesh -p 1 -r 2 -dt 0.005 -tf 9
+//    ./linadv -m ../data/amr-quad.mesh -p 1 -r 2 -dt 0.002 -tf 9
+//    ./linadv -m ../data/amr-quad.mesh -p 1 -r 2 -dt 0.02 -s 13 -tf 9
+//    ./linadv -m ../data/star-q3.mesh -p 1 -r 2 -dt 0.005 -tf 9
+//    ./linadv -m ../data/star-mixed.mesh -p 1 -r 2 -dt 0.005 -tf 9
+//    ./linadv -m ../data/disc-nurbs.mesh -p 1 -r 3 -dt 0.005 -tf 9
+//    ./linadv -m ../data/disc-nurbs.mesh -p 2 -r 3 -dt 0.005 -tf 9
+//    ./linadv -m ../data/periodic-square.mesh -p 3 -r 4 -dt 0.0025 -tf 9 -vs 20
+//    ./linadv -m ../data/periodic-cube.mesh -p 0 -r 2 -o 2 -dt 0.02 -tf 8
+//    ./linadv -m ../data/periodic-square.msh -p 0 -r 2 -dt 0.005 -tf 2
+//    ./linadv -m ../data/periodic-cube.msh -p 0 -r 1 -o 2 -tf 2
 //
 // Device sample runs:
-//    linadv -pa
-//    linadv -ea
-//    linadv -fa
-//    linadv -pa -m ../data/periodic-cube.mesh
-//    linadv -pa -m ../data/periodic-cube.mesh -d cuda
-//    linadv -ea -m ../data/periodic-cube.mesh -d cuda
-//    linadv -fa -m ../data/periodic-cube.mesh -d cuda
-//    linadv -pa -m ../data/amr-quad.mesh -p 1 -r 2 -dt 0.002 -tf 9 -d cuda
+//    ./linadv -pa
+//    ./linadv -ea
+//    ./linadv -fa
+//    ./linadv -pa -m ../data/periodic-cube.mesh
+//    ./linadv -pa -m ../data/periodic-cube.mesh -d cuda
+//    ./linadv -ea -m ../data/periodic-cube.mesh -d cuda
+//    ./linadv -fa -m ../data/periodic-cube.mesh -d cuda
+//    ./linadv -pa -m ../data/amr-quad.mesh -p 1 -r 2 -dt 0.002 -tf 9 -d cuda
 //
 // Description:  This example code solves the time-dependent advection equation
 //               du/dt + v.grad(u) = 0, where v is a given fluid velocity, and
@@ -147,19 +147,19 @@ int main(int argc, char *argv[])
    problem = 0;
    const char *mesh_file = "../data/periodic-hexagon.mesh";
    int ref_levels = 2;
-   int order = 3;
+   int order = 1;
    bool pa = false;
    bool ea = false;
    bool fa = false;
    const char *device_config = "cpu";
-   int ode_solver_type = 4;
-   real_t t_final = 10.0;
-   real_t dt = 0.01;
+   int ode_solver_type = 2;
+   real_t t_final = 1.0;
+   real_t dt = 0.001;
    bool visualization = true;
    bool visit = false;
    bool paraview = false;
    bool binary = false;
-   int vis_steps = 5;
+   int vis_steps = 10;
 
    int precision = 8;
    cout.precision(precision);
@@ -263,7 +263,7 @@ int main(int argc, char *argv[])
 
    // 5. Define the discontinuous DG finite element space of the given
    //    polynomial order on the refined mesh.
-   DG_FECollection fec(order, dim, BasisType::GaussLobatto);
+   H1_FECollection fec(order, dim, BasisType::Positive);
    FiniteElementSpace fes(&mesh, &fec);
 
    cout << "Number of unknowns: " << fes.GetVSize() << endl;
@@ -295,8 +295,7 @@ int main(int argc, char *argv[])
    m.AddDomainIntegrator(new MassIntegrator);
    constexpr real_t alpha = -1.0;
    k.AddDomainIntegrator(new ConvectionIntegrator(velocity, alpha));
-   k.AddInteriorFaceIntegrator(
-      new NonconservativeDGTraceIntegrator(velocity, alpha));
+   //k.AddInteriorFaceIntegrator(new NonconservativeDGTraceIntegrator(velocity, alpha));
    k.AddBdrFaceIntegrator(
       new NonconservativeDGTraceIntegrator(velocity, alpha));
 
@@ -381,7 +380,15 @@ int main(int argc, char *argv[])
       {
          sout.precision(precision);
          sout << "solution\n" << mesh << u;
-         sout << "pause\n";
+         sout << "keys mclj\n";
+         if(dim == 1)
+         {
+            sout << "keys RR\n"; 
+         }
+         else if(dim == 2)
+         {
+            sout << "keys Rm\n"; 
+         }
          sout << flush;
          cout << "GLVis visualization paused."
               << " Press space (in the GLVis window) to resume it.\n";
