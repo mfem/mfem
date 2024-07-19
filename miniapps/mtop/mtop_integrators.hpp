@@ -76,12 +76,11 @@ public:
 
    }
 
-   virtual std::string GetType() override
+   std::string GetType() override
    {
       return "QLinearDiffusion";
    }
 
-   virtual
    real_t QEnergy(ElementTransformation &T, const IntegrationPoint &ip,
                   Vector &dd, Vector &uu) override
    {
@@ -104,7 +103,6 @@ public:
    }
 
    /// Returns the derivative of QEnergy with respect to the state vector uu.
-   virtual
    void QResidual(ElementTransformation &T, const IntegrationPoint &ip,
                   Vector &dd, Vector &uu, Vector &rr) override
    {
@@ -122,7 +120,6 @@ public:
 
    // Returns the derivative, with respect to the density, of the product of
    // the adjoint field with the residual at the integration point ip.
-   virtual
    void AQResidual(ElementTransformation &T, const IntegrationPoint &ip,
                    Vector &dd, Vector &uu, Vector &aa, Vector &rr) override
    {
@@ -136,7 +133,6 @@ public:
 
    // Returns the gradient of the residual with respect to the state vector at
    // the integration point ip.
-   virtual
    void QGradResidual(ElementTransformation &T, const IntegrationPoint &ip,
                       Vector &dd, Vector &uu, DenseMatrix &hh) override
    {
@@ -173,7 +169,6 @@ public:
    }
 
    /// Computes the local energy.
-   virtual
    real_t GetElementEnergy(const Array<const FiniteElement *> &el,
                            const Array<const FiniteElement *> &pel,
                            ElementTransformation &Tr,
@@ -181,7 +176,6 @@ public:
                            const Array<const Vector *> &pelfun) override;
 
    /// Computes the element's residual.
-   virtual
    void AssembleElementVector(const Array<const FiniteElement *> &el,
                               const Array<const FiniteElement *> &pel,
                               ElementTransformation &Tr,
@@ -190,7 +184,6 @@ public:
                               const Array<Vector *> &elvec) override;
 
    /// Computes the stiffness/tangent matrix.
-   virtual
    void AssembleElementGrad(const Array<const FiniteElement *> &el,
                             const Array<const FiniteElement *> &pel,
                             ElementTransformation &Tr,
@@ -200,7 +193,6 @@ public:
 
    /// Computes the product of the adjoint solution and the derivative of the
    /// residual with respect to the parametric fields.
-   virtual
    void AssemblePrmElementVector(const Array<const FiniteElement *> &el,
                                  const Array<const FiniteElement *> &pel,
                                  ElementTransformation &Tr,
@@ -225,13 +217,11 @@ public:
    }
 
    /// Returns the objective contribution at element level.
-   virtual
    real_t GetElementEnergy(const Array<const FiniteElement *> &el,
                            ElementTransformation &Tr,
                            const Array<const Vector *> &elfun) override;
 
    /// Returns the gradient of the objective contribution at element level.
-   virtual
    void AssembleElementVector(const Array<const FiniteElement *> &el,
                               ElementTransformation &Tr,
                               const Array<const Vector *> &elfun,

@@ -116,10 +116,10 @@ public:
    ConductionOperator(ParFiniteElementSpace &f, real_t alpha, real_t kappa,
                       VectorGridFunctionCoefficient adv_gf_c);
 
-   virtual void Mult(const Vector &u, Vector &du_dt) const;
+   void Mult(const Vector &u, Vector &du_dt) const override;
    /** Solve the Backward-Euler equation: k = f(u + dt*k, t), for the unknown k.
        This is the only requirement for high-order SDIRK implicit integration.*/
-   virtual void ImplicitSolve(const real_t dt, const Vector &u, Vector &k);
+   void ImplicitSolve(const real_t dt, const Vector &u, Vector &k) override;
 
    /// Update the diffusion BilinearForm K using the given true-dof vector `u`.
    void SetParameters(VectorGridFunctionCoefficient adv_gf_c);
