@@ -13,7 +13,7 @@ using namespace lpq_jacobi;
 
 int main(int argc, char *argv[])
 {
-   Mpi::Init();
+   Mpi::Init(argc, argv);
    Hypre::Init();
 
    string mesh_file = "meshes/icf.mesh";
@@ -35,7 +35,7 @@ int main(int argc, char *argv[])
    double eps_z = 0.0;
    // TODO(Gabriel): To be added later
    // const char *device_config = "cpu";
-   // bool visualization = false;
+   bool visualization = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -71,9 +71,11 @@ int main(int argc, char *argv[])
                   "Kershaw transform factor, eps_y in (0,1]");
    args.AddOption(&eps_z, "-Kz", "--Kershaw-z",
                   "Kershaw transform factor, eps_z in (0,1]");
-   // args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
-   //                "--no-visualization",
-   //                "Enable or disable GLVis visualization.");
+   args.AddOption(&freq, "-f", "--frequency", "Set the frequency for the exact"
+                  " solution.");
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
    args.ParseCheck();
 
    MFEM_ASSERT(p_order > 0.0, "p needs to be positive");
@@ -81,6 +83,8 @@ int main(int argc, char *argv[])
    MFEM_ASSERT((0 <= integrator_type) && (integrator_type < num_integrators), "");
    MFEM_ASSERT(0.0 < eps_y <= 1.0, "eps_y in (0,1]");
    MFEM_ASSERT(0.0 < eps_z <= 1.0, "eps_z in (0,1]");
+
+   kappa = freq * M_PI;
 
    // TODO(Gabriel): To be restructured
    ostringstream file_name;
@@ -112,7 +116,8 @@ int main(int argc, char *argv[])
 
    FiniteElementCollection *fec;
    ParFiniteElementSpace *fespace;
-   int dim = mesh->Dimension();
+   dim = mesh->Dimension();
+   space_dim = mesh->SpaceDimension();
    switch (integrator_type)
    {
       case mass: case diffusion:
@@ -137,79 +142,77 @@ int main(int argc, char *argv[])
       mfem::out << "Number of unknowns: " << sys_size << endl;
    }
 
-   Array<int> ess_tdof_list;
+   // Define (all) essential boundary attributes
+   // Get the essential true DoFs list
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
-   switch (integrator_type)
-   {
-      case mass: case diffusion: case maxwell:
-         ess_bdr = 1;
-         break;
-      case elasticity:
-         ess_bdr = 0;
-         ess_bdr[0] = 1;
-         break;
-      default:
-         mfem_error("Invalid integrator type! Check GetEssentialTrueDofs");
-   }
+   Array<int> ess_tdof_list;
+   ess_bdr = 1;
    fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
-   ParLinearForm *b = new ParLinearForm(fespace);
-   ConstantCoefficient one(1.0);
-   VectorArrayCoefficient *f = nullptr;
-   switch (integrator_type)
-   {
-      case mass: case diffusion:
-         b->AddDomainIntegrator(new DomainLFIntegrator(one));
-         break;
-      case elasticity:
-         f = new VectorArrayCoefficient(dim);
-         for (int i = 0; i < dim; i++)
-         {
-            f->Set(i, &one);
-         }
-         b->AddDomainIntegrator(new VectorDomainLFIntegrator(*f));
-         break;
-      case maxwell:
-         f = new VectorArrayCoefficient(dim);
-         for (int i = 0; i < dim; i++)
-         {
-            f->Set(i, &one);
-         }
-         b->AddBoundaryIntegrator(new VectorFEDomainLFIntegrator(*f));
-         break;
-      default:
-         mfem_error("Invalid integrator type! Check ParLinearForm");
-   }
-   b->Assemble();
-
    ParBilinearForm *a = new ParBilinearForm(fespace);
-   switch (integrator_type)
-   {
-      case mass:
-         a->AddDomainIntegrator(new MassIntegrator);
-         break;
-      case diffusion:
-         a->AddDomainIntegrator(new DiffusionIntegrator);
-         break;
-      case elasticity:
-         // TODO(Gabriel): Add lambda/mu
-         a->AddDomainIntegrator(new ElasticityIntegrator(one, one));
-         break;
-      case maxwell:
-         // TODO(Gabriel): Add muinv/sigma
-         a->AddDomainIntegrator(new CurlCurlIntegrator(one));
-         a->AddDomainIntegrator(new VectorFEMassIntegrator(one));
-         break;
-      default:
-         mfem_error("Invalid integrator type! Check ParBilinearForm");
-   }
-   a->Assemble();
+   ParLinearForm *b = new ParLinearForm(fespace);
 
+   // These pointers are owned by the forms
+   LinearFormIntegrator *lfi = nullptr;
+   BilinearFormIntegrator *bfi = nullptr;
+   // Required for a static_cast
+   SumIntegrator *sum_bfi = nullptr;
+
+   // These pointers are not owned by the integrators
+   FunctionCoefficient *scalar_u = nullptr;
+   FunctionCoefficient *scalar_f = nullptr;
+   VectorFunctionCoefficient *vector_u = nullptr;
+   VectorFunctionCoefficient *vector_f = nullptr;
+
+   ConstantCoefficient one(1.0);
+
+   // These variables will define the linear system
    ParGridFunction x(fespace);
    HypreParMatrix A;
    Vector B, X;
 
-   x = -1.0;
+   x = 0.0;
+
+   switch (integrator_type)
+   {
+      case mass:
+         scalar_u = new FunctionCoefficient(diffusion_solution);
+         lfi = new DomainLFIntegrator(*scalar_u);
+         bfi = new MassIntegrator();
+         x.ProjectBdrCoefficient(*scalar_u, ess_bdr);
+         break;
+      case diffusion:
+         scalar_u = new FunctionCoefficient(diffusion_solution);
+         scalar_f = new FunctionCoefficient(diffusion_source);
+         lfi = new DomainLFIntegrator(*scalar_f);
+         bfi = new DiffusionIntegrator();
+         x.ProjectBdrCoefficient(*scalar_u, ess_bdr);
+         break;
+      case elasticity:
+         vector_u = new VectorFunctionCoefficient(space_dim, elasticity_solution);
+         vector_f = new VectorFunctionCoefficient(space_dim, elasticity_source);
+         lfi = new VectorDomainLFIntegrator(*vector_f);
+         bfi = new ElasticityIntegrator(one, one);
+         x.ProjectBdrCoefficient(*vector_u, ess_bdr);
+         break;
+      case maxwell:
+         vector_u = new VectorFunctionCoefficient(space_dim, maxwell_solution);
+         vector_f = new VectorFunctionCoefficient(space_dim, maxwell_source);
+         lfi = new VectorFEDomainLFIntegrator(*vector_f);
+         bfi = new SumIntegrator();
+         sum_bfi = static_cast<SumIntegrator*>(bfi);
+         sum_bfi->AddIntegrator(new CurlCurlIntegrator(one));
+         sum_bfi->AddIntegrator(new VectorFEMassIntegrator(one));
+         x.ProjectBdrCoefficient(*vector_u, ess_bdr);
+         break;
+      default:
+         mfem_error("Invalid integrator type! Check ParLinearForm");
+   }
+
+   a->AddDomainIntegrator(bfi);
+   a->Assemble();
+   b->AddDomainIntegrator(lfi);
+   b->Assemble();
 
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
@@ -218,7 +221,7 @@ int main(int argc, char *argv[])
                                                    q_order);
 
    Solver *solver = nullptr;
-   DataMonitor monitor(file_name.str(), NDIGITS);
+   // DataMonitor monitor(file_name.str(), NDIGITS);
    switch (solver_type)
    {
       case sli:
@@ -230,6 +233,7 @@ int main(int argc, char *argv[])
       default:
          mfem_error("Invalid solver type!");
    }
+
    IterativeSolver *it_solver = dynamic_cast<IterativeSolver *>(solver);
    if (it_solver)
    {
@@ -237,23 +241,31 @@ int main(int argc, char *argv[])
       it_solver->SetMaxIter(max_iter);
       it_solver->SetPrintLevel(1);
       it_solver->SetPreconditioner(*lpq_jacobi);
-      it_solver->SetMonitor(monitor);
+      // it_solver->SetMonitor(monitor);
    }
    solver->SetOperator(A);
    solver->Mult(B, X);
 
-   // if (visualization)
+   a->RecoverFEMSolution(X, *b, x);
+
+   if (visualization)
    {
-      a->RecoverFEMSolution(X, *b, x);
-      x.Save("sol");
-      mesh->Save("mesh");
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream sol_sock(vishost, visport);
+      sol_sock << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank() << "\n";
+      sol_sock.precision(8);
+      sol_sock << "solution\n" << *mesh << x << flush;
    }
 
    delete solver;
    delete lpq_jacobi;
    delete a;
    delete b;
-   // if (f){ delete f; }
+   if (scalar_u) { delete scalar_u; }
+   if (scalar_f) { delete scalar_f; }
+   if (vector_u) { delete vector_u; }
+   if (vector_f) { delete vector_f; }
    delete fespace;
    delete fec;
    delete mesh;

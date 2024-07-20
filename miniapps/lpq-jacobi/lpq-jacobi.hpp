@@ -1,3 +1,6 @@
+// Standard header
+// This needs to be separated into an hpp and a cpp
+
 #ifndef MFEM_LPQ_JACOBI_HPP
 #define MFEM_LPQ_JACOBI_HPP
 
@@ -15,6 +18,11 @@ namespace lpq_jacobi
 int NDIGITS = 20;
 int MG_MAX_ITER = 100;
 real_t MG_REL_TOL = 1e-4;
+
+int dim;
+int space_dim;
+real_t freq = 1.0;
+real_t kappa;
 
 // Enumerator for the different solvers to implement
 enum SolverType
@@ -165,7 +173,6 @@ private:
    }
 
 
-   // Put later
    void ConstructBilinearForm(ParFiniteElementSpace& fespace,
                               bool partial_assembly = true)
    {
@@ -199,5 +206,94 @@ private:
    }
 };
 
+real_t diffusion_solution(const Vector &x)
+{
+   if (dim == 3)
+   {
+      return sin(kappa * x(0)) * sin(kappa * x(1)) * sin(kappa * x(2)) + 1.0;
+   }
+   else
+   {
+      return sin(kappa * x(0)) * sin(kappa * x(1)) + 1.0;
+   }
 }
+
+real_t diffusion_source(const Vector &x)
+{
+   if (dim == 3)
+   {
+      return dim * kappa * kappa * sin(kappa * x(0)) * sin(kappa * x(1)) * sin(
+                kappa * x(2));
+   }
+   else
+   {
+      return dim * kappa * kappa * sin(kappa * x(0)) * sin(kappa * x(1));
+   }
+}
+
+void elasticity_solution(const Vector &x, Vector &u)
+{
+   if (dim == 3)
+   {
+      u(0) = sin(kappa * x(0));
+      u(1) = sin(kappa * x(1));
+      u(2) = sin(kappa * x(2));
+   }
+   else
+   {
+      u(0) = sin(kappa * x(0));
+      u(1) = sin(kappa * x(1));
+      if (x.Size() == 3) { u(2) = 0.0; }
+   }
+}
+
+void elasticity_source(const Vector &x, Vector &f)
+{
+   if (dim == 3)
+   {
+      f(0) = - 3.0 * kappa * kappa * sin(kappa * x(0));
+      f(1) = - 3.0 * kappa * kappa * sin(kappa * x(1));
+      f(2) = - 3.0 * kappa * kappa * sin(kappa * x(2));
+   }
+   else
+   {
+      f(0) = - 3.0 * kappa * kappa * sin(kappa * x(0));
+      f(1) = - 3.0 * kappa * kappa * sin(kappa * x(1));
+      if (x.Size() == 3) { f(2) = 0.0; }
+   }
+}
+
+void maxwell_solution(const Vector &x, Vector &u)
+{
+   if (dim == 3)
+   {
+      u(0) = sin(kappa * x(1));
+      u(1) = sin(kappa * x(2));
+      u(2) = sin(kappa * x(0));
+   }
+   else
+   {
+      u(0) = sin(kappa * x(1));
+      u(1) = sin(kappa * x(0));
+      if (x.Size() == 3) { u(2) = 0.0; }
+   }
+}
+
+void maxwell_source(const Vector &x, Vector &f)
+{
+   if (dim == 3)
+   {
+      f(0) = (1. + kappa * kappa) * sin(kappa * x(1));
+      f(1) = (1. + kappa * kappa) * sin(kappa * x(2));
+      f(2) = (1. + kappa * kappa) * sin(kappa * x(0));
+   }
+   else
+   {
+      f(0) = (1. + kappa * kappa) * sin(kappa * x(1));
+      f(1) = (1. + kappa * kappa) * sin(kappa * x(0));
+      if (x.Size() == 3) { f(2) = 0.0; }
+   }
+}
+
+} // end namespace lpq_jacobi
 #endif // MFEM_LPQ_JACOBI_HPP
