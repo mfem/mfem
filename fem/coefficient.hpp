@@ -531,7 +531,7 @@ public:
    void GetDeltaCenter(Vector& center);
 
    /// The value of the function assuming we are evaluating at the delta center.
-   real_t EvalDelta(ElementTransformation &T, const IntegrationPoint &ip);
+   virtual real_t EvalDelta(ElementTransformation &T, const IntegrationPoint &ip);
    /** @brief A DeltaFunction cannot be evaluated. Calling this method will
        cause an MFEM error, terminating the application. */
    real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
@@ -992,8 +992,8 @@ public:
    /** @brief Return the specified direction vector multiplied by the value
        returned by DeltaCoefficient::EvalDelta() of the associated scalar
        DeltaCoefficient. */
-   void EvalDelta(Vector &V, ElementTransformation &T,
-                  const IntegrationPoint &ip);
+   virtual void EvalDelta(Vector &V, ElementTransformation &T,
+                          const IntegrationPoint &ip);
 
    using VectorCoefficient::Eval;
    /** @brief A VectorDeltaFunction cannot be evaluated. Calling this method
@@ -1484,7 +1484,7 @@ public:
    /// the @a symmetric part of the matrix at each quadrature point.
    ///
    /// The @a vdim of the coefficient should be equal to height*(height+1)/2.
-   void ProjectSymmetric(QuadratureFunction &qf);
+   virtual void ProjectSymmetric(QuadratureFunction &qf);
 
    /** @brief Evaluate the matrix coefficient in the element described by @a T
        at the point @a ip, storing the result as a symmetric matrix @a K. */
