@@ -291,6 +291,7 @@ void DefineRHS(PlasmaModelBase & model, double & rho_gamma,
     int attrib = attribs[i];
     switch(attrib) {
     case attr_ext:
+    case attr_vv:
       // exterior domain
       break;
     case attr_lim:
@@ -606,10 +607,10 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         Vector g = op.compute_grad_obj(x);
 
         // plasma current
-        printf("plasma_current = %e\n", C / op.get_mu());
-        printf("alpha = %f\n", alpha);
-        fprintf(fp, "plasma_current = %e\n", C / op.get_mu());
-        fprintf(fp, "alpha = %f\n", alpha);
+        printf("plasma_current = %10.8e\n", C / op.get_mu());
+        printf("alpha = %10.8e\n", alpha);
+        fprintf(fp, "plasma_current = %10.8e\n", C / op.get_mu());
+        fprintf(fp, "alpha = %10.8e\n", alpha);
 
         // get psi x and magnetic axis points and locations
         double psi_x = op.get_psi_x();
@@ -619,10 +620,10 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         BrCoeff.set_psi_vals(psi_x, psi_ma);
         BpCoeff.set_psi_vals(psi_x, psi_ma);
         BzCoeff.set_psi_vals(psi_x, psi_ma);
-        printf("psi_x = %e; r_x = %e; z_x = %e\n", psi_x, x_x[0], x_x[1]);
-        printf("psi_ma = %e; r_ma = %e; z_ma = %e\n", psi_ma, x_ma[0], x_ma[1]);
-        fprintf(fp, "psi_x = %e; r_x = %e; z_x = %e\n", psi_x, x_x[0], x_x[1]);
-        fprintf(fp, "psi_ma = %e; r_ma = %e; z_ma = %e\n", psi_ma, x_ma[0], x_ma[1]);
+        printf("psi_x = %10.8e; r_x = %10.8e; z_x = %10.8e\n", psi_x, x_x[0], x_x[1]);
+        printf("psi_ma = %10.8e; r_ma = %10.8e; z_ma = %10.8e\n", psi_ma, x_ma[0], x_ma[1]);
+        fprintf(fp, "psi_x = %10.8e; r_x = %10.8e; z_x = %10.8e\n", psi_x, x_x[0], x_x[1]);
+        fprintf(fp, "psi_ma = %10.8e; r_ma = %10.8e; z_ma = %10.8e\n", psi_ma, x_ma[0], x_ma[1]);
 
         // *** compute rhs vectors *** //
         // -b3 = eq_res = B(y^n) - F u^n
@@ -1584,7 +1585,7 @@ double gs(const char * mesh_file, const char * initial_gf, const char * data_fil
      // printf("Saved mesh to mesh.mesh\n");
      printf("glvis -m meshes/mesh_refine.mesh -g %s\n", name_gf_out);
 
-     if(false){
+     if(true){
         ParaViewDataCollection paraview_dc("gs", &mesh);
         paraview_dc.SetPrefixPath("ParaView");
         paraview_dc.SetLevelsOfDetail(order);

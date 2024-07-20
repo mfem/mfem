@@ -18,6 +18,7 @@ MINIAPPS = main
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
 .PHONY: all clean
+.PRECIOUS: %.o
 
 # Remove built-in rules
 %: %.cpp
@@ -47,6 +48,10 @@ field:
 
 test:
 	./main -t 1
+
+# Generate an error message if the MFEM library is not built and exit
+$(MFEM_LIB_FILE):
+	$(error The MFEM library is not built)
 
 clean:
 	rm -f  main

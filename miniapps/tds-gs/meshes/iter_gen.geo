@@ -1,5 +1,6 @@
 SetFactory("OpenCASCADE");
 
+//first wall
 Point(1)={ 6.267000, -3.046000, 0 };
 Point(2)={ 7.283000, -2.257000, 0 };
 Point(3)={ 7.899000, -1.342000, 0 };
@@ -105,8 +106,9 @@ Line Loop(69)={
 66,
 67,
 68 };
-
 Plane Surface(70) = { 69 };
+
+//solenoids
 Point(35) = {0.946000, -5.415000, 0};
 Point(36) = {2.446000, -5.415000, 0};
 Point(37) = {0.946000, -3.606700, 0};
@@ -145,18 +147,22 @@ Curve Loop(73) = {84, 73, -85, 77};
 Plane Surface(74) = {73};
 Curve Loop(74) = {85, 74, 75, 76};
 Plane Surface(75) = {74};
+
+// coils
 Rectangle(76) = {2.943100, 6.824100, 0, 2.000000, 1.500000, 0};
 Rectangle(77) = {7.285100, 5.789800, 0, 2.000000, 1.500000, 0};
 Rectangle(78) = {10.991900, 2.525200, 0, 2.000000, 1.500000, 0};
 Rectangle(79) = {10.963000, -2.983600, 0, 2.000000, 1.500000, 0};
 Rectangle(80) = {7.390800, -7.476900, 0, 2.000000, 1.500000, 0};
 Rectangle(81) = {3.334000, -8.216500, 0, 2.000000, 1.500000, 0};
+
+//outer boundary
 Point(71) = {0.0, 16.000000, 0, 1.0};
 Point(72) = {0.0, 0.000000, 0, 1.0};
 Point(73) = {0.0, -16.000000, 0, 1.0};
 Circle(157) = {71, 72, 73};
-
 Line(158) = {71, 73};
+
 Curve Loop(81) = {158, -157};
 Curve Loop(82) = {70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81};
 Curve Loop(83) = {89, 86, 87, 88};
@@ -167,6 +173,8 @@ Curve Loop(87) = {103, 104, 105, 102};
 Curve Loop(88) = {107, 108, 109, 106};
 Curve Loop(89) = {51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50};
 Plane Surface(82) = {81, 82, 83, 84, 85, 86, 87, 88, 89};
+
+//physical attributes
 Physical Surface("interior", 2000) = {82};
 Physical Surface("coil1", 832) = {71};
 Physical Surface("coil2", 833) = {72};
@@ -180,5 +188,8 @@ Physical Surface("coil9", 840) = {79};
 Physical Surface("coil10", 841) = {80};
 Physical Surface("coil11", 842) = {81};
 Physical Surface("limiter", 1000) = {70};
+
+//physical boundary
 Physical Curve("boundary", 831) = {157};
 Physical Curve("axis", 900) = {158};
+Mesh.MshFileVersion = 2.2;
