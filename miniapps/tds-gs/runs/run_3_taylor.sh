@@ -21,11 +21,11 @@ mu=12.5663706144e-7
 # mu=1.0
 
 #mesh_file="meshes/iter_gen.msh"
-mesh_file="meshes/iter_gen_outervv.msh"
+mesh_file="meshes/iter_gen_backup.msh"
 # mesh_file="meshes/RegGSTriMeshVeryCoarse0beta.msh"
 data_file="data/separated_file.data"
 
-refinement_factor=0
+refinement_factor=1
 amr_frac_in=0.08
 # amr_frac_in=0.3
 amr_frac_out=0.3

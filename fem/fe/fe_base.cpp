@@ -1203,11 +1203,27 @@ void VectorFiniteElement::Project_ND(
    double vk[Geometry::MaxDim];
    Vector xk(vk, vc.GetVDim());
 
+   DenseMatrix M;
+   bool my_project=true;
+   if (my_project)
+   {
+       cout<<"Turn on my Project_ND"<<endl;
+       vc.Eval(M, Trans, Nodes);
+       //cout<<"dof="<<dof<<" Nodes dofs="<<Nodes.GetNPoints()<<endl;
+   }
+
    for (int k = 0; k < dof; k++)
    {
       Trans.SetIntPoint(&Nodes.IntPoint(k));
 
-      vc.Eval(xk, Trans, Nodes.IntPoint(k));
+      if (my_project){
+          Vector Mi;
+          M.GetColumnReference(k, Mi);
+          xk = Mi;
+      }
+      else{
+          vc.Eval(xk, Trans, Nodes.IntPoint(k));
+      }
       // dof_k = xk^t J tk
       dofs(k) = Trans.Jacobian().InnerProduct(tk + d2t[k]*dim, vk);
    }
