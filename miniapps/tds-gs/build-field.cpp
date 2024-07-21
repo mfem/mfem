@@ -13,7 +13,13 @@ using namespace std;
 double  alpha = 1.44525792e-01,
         r_x = 4.91157885e+00,
         z_x = -3.61688204e+00,
-        psi_x = 1.28863812e+00;
+        psi_x = 1.28863812e+00,
+        f_x = -32.86000000;
+//note minimal f = 1.44525792e-01*(-5.64560650e+00-1.28863812)-32.86
+//               = -33.8621771956
+//
+// Paraview B_R = Bvec_X*coordsX/sqrt(coordsX^2+coordsY^2) + Bvec_Y*coordsY/sqrt(coordsX^2+coordsY^2)
+// The maximum of B_R is 1e-4, which is good
 
 // transform matrix:
 // [v_X] = [cos -sin][v_R  ]
@@ -41,13 +47,14 @@ void B_exact(const Vector &x, Vector &B)
    B(2) = B_Z;
 };
 
+// this function compute the toroidal field from the given psi and f
 class GridFunction2DCoefficient : public VectorCoefficient
 {
 private:
    GridFunction *gf;
    Mesh         *mesh;
-
    FindPointsGSLIB finder;
+   double fFun(const double psi){return f_x + alpha*(psi-psi_x);};
  
 public:
    GridFunction2DCoefficient(int dim, GridFunction *gf_, Mesh *mesh_)
@@ -58,6 +65,7 @@ public:
  
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip){
+      MFEM_ABORT("this is for debug only, we should use Eval with DenseMatrix");
       double f, R, Z, cosphi, sinphi;
       double x[3];
       Vector interp_vals(1), vxy(2), transip(x, 3);
@@ -66,7 +74,6 @@ public:
 
       R = sqrt(transip(0)*transip(0)+transip(1)*transip(1));
       Z = transip(2);
-
       vxy(0) = R;
       vxy(1) = Z;
 
@@ -88,24 +95,24 @@ public:
 
       cosphi = transip(0)/R;
       sinphi = transip(1)/R;
-
       V(0) = -f*sinphi;
       V(1) =  f*cosphi;
       V(2) = 0.0;
    };
 
+   // this works but needs to turn on VectorFiniteElement::Project_ND
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                      const IntegrationRule &ir){
-      cout<<"debug"<<endl;
       M.SetSize(vdim, ir.GetNPoints());
 
-      int    pts_cnt=0;
-      double xsave[4][ir.GetNPoints()];     //save R, z, x, y
-      int    isave[ir.GetNPoints()];        //index for searching
-      Vector fout(ir.GetNPoints());
+      int    pts_cnt=0, dof=ir.GetNPoints();
+      double xsave[4][dof];     //save R, z, x, y
+      int    isave[dof];        //index for searching
+      Vector fout(dof);
       fout = 1e10;
 
-      for (int i = 0; i < ir.GetNPoints(); i++)
+      // collect points for search
+      for (int i = 0; i < dof; i++)
       {
          const IntegrationPoint &ip = ir.IntPoint(i);
          T.SetIntPoint(&ip);
@@ -122,8 +129,7 @@ public:
          xsave[3][i]=transip(1);
 
          if (Z>4.12587 || Z<z_x || R<4.046 || R>8.37937){
-            //f = f_x;
-            fout(i) = psi_x;
+            fout(i) = f_x;
             isave[i] = 0;
          }
          else{
@@ -132,45 +138,50 @@ public:
          }
       }
 
+      // search an array of vxy
       if (pts_cnt>0){
-        Vector interp_vals(pts_cnt), vxy(pts_cnt * 2);
-        int j=0;
-        for (int i = 0; i < ir.GetNPoints(); i++)
-        {
-            if (isave[i]==1)
-            {
-                vxy(j)           = xsave[0][i];
-                vxy(pts_cnt + j) = xsave[1][i];
-                j++;
-            }
-        }
-        finder.Interpolate(vxy, *gf, interp_vals, 0);
-        Array<unsigned int> code_out    = finder.GetCode();
-        j=0;
-        for (int i = 0; i < ir.GetNPoints(); i++)
-        {
-            if (isave[i]==1)
-            {
-                if (fout(i)<1e10) MFEM_ABORT("Error in fout!");
-                if (code_out[j] < 2) MFEM_ABORT("Cannot find the point");
-                    
-                fout(i) =  std::min(psi_x, interp_vals[j]);
-                j++;
-            }
-        }
+         Vector interp_vals(pts_cnt), vxy(pts_cnt * 2);
+         int j=0;
+         for (int i = 0; i < dof; i++)
+         {
+             if (isave[i]==1)
+             {
+                 vxy(j)           = xsave[0][i];
+                 vxy(pts_cnt + j) = xsave[1][i];
+                 j++;
+             }
+         }
+         finder.Interpolate(vxy, *gf, interp_vals, 0);
+         Array<unsigned int> code_out    = finder.GetCode();
+         j=0;
+         for (int i = 0; i < dof; i++)
+         {
+             if (isave[i]==1)
+             {
+                 if (fout(i)<1e10) MFEM_ABORT("Error as fout is already set!");
+                 if (code_out[j] >= 2) 
+                 {
+                     cout<<pts_cnt<<endl;
+                     cout<<j<<" "<<vxy(j)<<" "<<vxy(pts_cnt + j)<<endl;
+                     MFEM_ABORT("Cannot find the point");
+                 }
+                 fout(i) =  std::min(f_x, fFun(interp_vals[j]));
+                 j++;
+             }
+         }
       }
 
+      // Set B_φ = f(psi)/R
       Vector Mi;
-      for (int i = 0; i < ir.GetNPoints(); i++)
+      for (int i = 0; i < dof; i++)
       {
          double cosphi, sinphi;
          cosphi = xsave[2][i]/xsave[0][i];
          sinphi = xsave[3][i]/xsave[0][i];
-
          if (fout(i)>9.9e10) MFEM_ABORT("Error in computing fout!");
          M.GetColumnReference(i, Mi);
-         Mi(0) = -fout(i)*sinphi;
-         Mi(1) =  fout(i)*cosphi;
+         Mi(0) = -fout(i)/xsave[0][i]*sinphi;
+         Mi(1) =  fout(i)/xsave[0][i]*cosphi;
          Mi(2) = 0.0;
       }
    };
@@ -259,13 +270,23 @@ int main (int argc, char *argv[])
       sol_sock << "solution\n" << mesh3D << Bvec << flush;
    }
 
-   if (false){
-      ofstream mesh_ofs("findpsi.mesh");
+   if (true){
+      ofstream mesh_ofs("build-field.mesh");
       mesh_ofs.precision(8);
       mesh3D.Print(mesh_ofs);
       ofstream sol_ofs("bvec.gf");
       sol_ofs.precision(8);
       Bvec.Save(sol_ofs);
+
+      ParaViewDataCollection paraview_dc("build-field", &mesh3D);
+      paraview_dc.SetPrefixPath("ParaView");
+      paraview_dc.SetLevelsOfDetail(order);
+      paraview_dc.SetCycle(0);
+      paraview_dc.SetDataFormat(VTKFormat::BINARY);
+      paraview_dc.SetHighOrderOutput(true);
+      paraview_dc.SetTime(0.0); // set the time
+      paraview_dc.RegisterField("Bvec",&Bvec);
+      paraview_dc.Save();
    }
 
    /*
