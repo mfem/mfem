@@ -1123,39 +1123,39 @@ void prepare_kf_args(std::array<DeviceTensor<2>, num_fields> &u,
 }
 
 inline
-Vector prepare_kf_result(std::tuple<double> x)
+Vector prepare_kf_result(double x)
 {
    Vector r(1);
-   r = std::get<0>(x);
+   r = x;
    return r;
 }
 
 inline
-Vector prepare_kf_result(std::tuple<Vector> x)
+Vector prepare_kf_result(Vector x)
 {
-   return std::get<0>(x);
+   return x;
 }
 
 template <typename T, int length> inline
-Vector prepare_kf_result(std::tuple<internal::tensor<T, length>> x)
+Vector prepare_kf_result(internal::tensor<T, length> x)
 {
    Vector r(length);
    for (size_t i = 0; i < length; i++)
    {
-      r(i) = std::get<0>(x)(i);
+      r(i) = x(i);
    }
    return r;
 }
 
 template <typename T, int n, int m> inline
-Vector prepare_kf_result(std::tuple<internal::tensor<T, n, m>> x)
+Vector prepare_kf_result(internal::tensor<T, n, m> x)
 {
    Vector r(n * m);
    for (size_t i = 0; i < n; i++)
    {
       for (size_t j = 0; j < m; j++)
       {
-         r(j + m * i) = std::get<0>(x)(i, j);
+         r(j + m * i) = x(i, j);
       }
    }
    return r;
@@ -1163,18 +1163,18 @@ Vector prepare_kf_result(std::tuple<internal::tensor<T, n, m>> x)
 
 template <typename T, int length> inline
 Vector prepare_kf_result(
-   std::tuple<internal::tensor<internal::dual<T, T>, length>> x)
+   internal::tensor<internal::dual<T, T>, length> x)
 {
    Vector r(length);
    for (size_t i = 0; i < length; i++)
    {
-      r(i) = std::get<0>(x)(i).value;
+      r(i) = x(i).value;
    }
    return r;
 }
 
 // template <typename T> inline
-// Vector prepare_kf_result(std::tuple<internal::tensor<T, 2, 2>> x)
+// Vector prepare_kf_result(internal::tensor<T, 2, 2> x)
 // {
 //    Vector r(4);
 //    for (size_t i = 0; i < 2; i++)
@@ -1189,24 +1189,24 @@ Vector prepare_kf_result(
 // }
 
 template <typename T> inline
-Vector prepare_kf_result(std::tuple<internal::dual<T, T>> x)
+Vector prepare_kf_result(internal::dual<T, T> x)
 {
    Vector r(1);
-   r(0) = std::get<0>(x).value;
+   r(0) = x.value;
    return r;
 }
 
 template <typename T> inline
-Vector get_derivative_from_dual(std::tuple<internal::dual<T, T>> x)
+Vector get_derivative_from_dual(internal::dual<T, T> x)
 {
    Vector r(1);
-   r(0) = std::get<0>(x).gradient;
+   r(0) = x.gradient;
    return r;
 }
 
 template <typename T, int n, int m> inline
 Vector get_derivative_from_dual(
-   std::tuple<internal::tensor<internal::dual<T, T>, n, m>> x)
+   internal::tensor<internal::dual<T, T>, n, m> x)
 {
    Vector r(n * m);
    for (size_t i = 0; i < n; i++)
@@ -1214,7 +1214,7 @@ Vector get_derivative_from_dual(
       for (size_t j = 0; j < m; j++)
       {
          // TODO: Careful with the indices here!
-         r(j + (i * m)) = std::get<0>(x)(j, i).gradient;
+         r(j + (i * m)) = x(j, i).gradient;
       }
    }
    return r;
@@ -1222,12 +1222,12 @@ Vector get_derivative_from_dual(
 
 template <typename T, int length> inline
 Vector get_derivative_from_dual(
-   std::tuple<internal::tensor<internal::dual<T, T>, length>> x)
+   internal::tensor<internal::dual<T, T>, length> x)
 {
    Vector r(length);
    for (size_t i = 0; i < length; i++)
    {
-      r(i) = std::get<0>(x)(i).gradient;
+      r(i) = x(i).gradient;
    }
    return r;
 }
@@ -1248,7 +1248,7 @@ Vector apply_kernel(const kernel_func_t &kf, kernel_args &args,
    prepare_kf_args(u, args, qp,
                    std::make_index_sequence<std::tuple_size_v<kernel_args>> {});
 
-   return prepare_kf_result(std::apply(kf, args));
+   return prepare_kf_result(std::get<0>(std::apply(kf, args)));
 }
 
 template <typename arg_ts, std::size_t... Is> inline
@@ -1289,6 +1289,8 @@ auto fwddiff_apply_enzyme(kernel_t kernel, arg_ts &&args, arg_ts &&shadow_args)
 
    return std::apply([&](auto &&...args)
    {
+      // kernel: f(double &x, vec2d &y) -> std::tuple{ double r }
+      // args: std::tuple{ enzyme_dup, &x, &dx, enzyme_dup, &y, &dy, ... }
       return __enzyme_fwddiff<kf_return_t>((void*)+kernel, &args...);
       // return enzyme::get<0>
       //        (enzyme::autodiff<enzyme::Forward, enzyme::DuplicatedNoNeed<kf_return_t>>
@@ -1311,7 +1313,8 @@ auto apply_kernel_fwddiff_enzyme(const kf_t &kf,
    prepare_kf_args(v, shadow_args, qp,
                    std::make_index_sequence<std::tuple_size_v<kernel_arg_ts>> {});
 
-   return prepare_kf_result(fwddiff_apply_enzyme(kf, args, shadow_args));
+   return prepare_kf_result(std::get<0>(fwddiff_apply_enzyme(kf, args,
+                                                             shadow_args)));
 }
 
 template <typename T> inline
