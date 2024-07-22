@@ -1843,10 +1843,10 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
    //    const FiniteElement &fe_lor = *pfes_lor.GetFE(lor_els[0]);
    //    nedof_ho = fe_ho.GetDof();
    //    nedof_lor = fe_lor.GetDof();
-   //    std::cout << "nedof_ho = " << nedof_ho << std::endl;
-   //    std::cout << "nedof_lor = " << nedof_lor << std::endl;
-   //    std::cout << "nel_ho = " << nel_ho << std::endl;
-   //    std::cout << "nel_lor = " << nel_lor << std::endl;
+   //    mfem::out << "nedof_ho = " << nedof_ho << std::endl;
+   //    mfem::out << "nedof_lor = " << nedof_lor << std::endl;
+   //    mfem::out << "nel_ho = " << nel_ho << std::endl;
+   //    mfem::out << "nel_lor = " << nel_lor << std::endl;
 
    //    M_H_ea_all.SetSize(nedof_ho*nedof_ho*nel_ho, d_mt);
    //    ML_inv_ea.SetSize(nedof_lor*nedof_lor*nel_lor, d_mt);
@@ -1859,7 +1859,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
    // Vector M_H_ea(nedof_ho*nel_ho);
 
    // auto d_M_H_ea_all = Reshape(M_H_ea_all.Read(), nedof_ho, nedof_ho, nel_ho);
-   // auto d_M_H_ea = Reshape(M_H_ea.Write(), M_H_ea.Size()); 
+   // auto d_M_H_ea = Reshape(M_H_ea.Write(), M_H_ea.Size());
    // mfem::forall(M_H_ea.Size(), [=] MFEM_HOST_DEVICE (int i)
    // {
    //    real_t dot;
@@ -1876,7 +1876,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
    // Vector M_H(pfes_ho_scalar->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC)->Width());
    // pfes_ho_scalar->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC)->MultTranspose(M_H_ea, M_H);
 
-   
+
    // printf("M_H is : \n");
    // M_H.Print();
 
