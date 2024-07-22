@@ -13,9 +13,11 @@ using namespace lpq_jacobi;
 
 int main(int argc, char *argv[])
 {
+   /// 1. Initialize MPI and HYPRE.
    Mpi::Init(argc, argv);
    Hypre::Init();
 
+   /// 2. Parse command line options.
    string mesh_file = "meshes/icf.mesh";
    // System properties
    int order = 1;
@@ -33,7 +35,8 @@ int main(int argc, char *argv[])
    // Kershaw Transformation
    double eps_y = 0.0;
    double eps_z = 0.0;
-   // TODO(Gabriel): To be added later
+   // Other options
+   // TODO(Gabriel): To add device support
    // const char *device_config = "cpu";
    bool visualization = false;
 
@@ -42,19 +45,16 @@ int main(int argc, char *argv[])
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree)");
-   // TODO(Gabriel): To be added later ... " or -1 for isoparametric space.");
    args.AddOption((int*)&solver_type, "-s", "--solver",
                   "Solvers to be considered:"
                   "\n\t0: Stationary Linear Iteration"
-                  "\n\t1: Preconditioned Conjugate Gradient"
-                  "\n\tTODO");
+                  "\n\t1: Preconditioned Conjugate Gradient");
    args.AddOption((int*)&integrator_type, "-i", "--integrator",
                   "Integrators to be considered:"
                   "\n\t0: MassIntegrator"
                   "\n\t1: DiffusionIntegrator"
                   "\n\t2: ElasticityIntegrator"
-                  "\n\t3: CurlCurlIntegrator + VectorFEMassIntegrator"
-                  "\n\tTODO");
+                  "\n\t3: CurlCurlIntegrator + VectorFEMassIntegrator");
    args.AddOption(&refine_serial, "-rs", "--refine-serial",
                   "Number of serial refinements");
    args.AddOption(&refine_parallel, "-rp", "--refine-parallel",
@@ -101,12 +101,18 @@ int main(int argc, char *argv[])
    // Device device(device_config);
    // if (Mpi::Root()) { device.Print(); }
 
+   /// 3. Read the serial mesh from the given mesh file.
+   ///    For convinience, the meshes are available in
+   ///    ./meshes, and the number of serial and parallel
+   ///    refinements are user-defined.
    Mesh *serial_mesh = new Mesh(mesh_file);
    for (int ls = 0; ls < refine_serial; ls++)
    {
       serial_mesh->UniformRefinement();
    }
 
+   /// 4. Define a parallel mesh by a partitioning of the serial mesh.
+   ///    Number of parallel refinements given by the user.
    ParMesh *mesh = new ParMesh(MPI_COMM_WORLD, *serial_mesh);
    delete serial_mesh;
    for (int lp = 0; lp < refine_parallel; lp++)
@@ -114,6 +120,12 @@ int main(int argc, char *argv[])
       mesh->UniformRefinement();
    }
 
+   /// 5. Define a finite element space on the mesh. We use different spaces
+   ///    and collections for different systems.
+   ///    - H1-conforming Lagrange elements for the H1-mass matrix and the
+   ///      diffusion problem.
+   ///    - Vector H1-conforming Lagrange elements for the elasticity problem.
+   ///    - H(curl)-conforming Nedelec elements for the definite Maxwell problem.
    FiniteElementCollection *fec;
    ParFiniteElementSpace *fespace;
    dim = mesh->Dimension();
@@ -142,13 +154,22 @@ int main(int argc, char *argv[])
       mfem::out << "Number of unknowns: " << sys_size << endl;
    }
 
-   // Define (all) essential boundary attributes
-   // Get the essential true DoFs list
+   /// 6. Extract the list of the essential boundary DoFs. We mark all boundary
+   ///    attibutes as essential. Then we get the list of essential DoFs.
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
    Array<int> ess_tdof_list;
    ess_bdr = 1;
    fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
+   /// 7. Define the linear system. Set up the bilinear form a(.,.) and the
+   ///    linear form b(.). The current implemented systems are the following:
+   ///    - (u,v), i.e., L2-projection.
+   ///    - (grad(u), grad(v)), i.e., diffusion operator.
+   ///    - (div(u), div(v)) + (e(u),e(v)), i.e., elasticity operator.
+   ///    - (curl(u), curl(v)) + (u,v), i.e., definite Maxwell operator.
+   ///    The linear form has the standar form (f,v).
+   ///    Define the matrices and vectors associated to the forms, and project
+   ///    the required boundary data into the GridFunction solution.
    ParBilinearForm *a = new ParBilinearForm(fespace);
    ParLinearForm *b = new ParLinearForm(fespace);
 
@@ -203,7 +224,7 @@ int main(int argc, char *argv[])
          sum_bfi = static_cast<SumIntegrator*>(bfi);
          sum_bfi->AddIntegrator(new CurlCurlIntegrator(one));
          sum_bfi->AddIntegrator(new VectorFEMassIntegrator(one));
-         x.ProjectBdrCoefficient(*vector_u, ess_bdr);
+         x.ProjectBdrCoefficientTangent(*vector_u, ess_bdr);
          break;
       default:
          mfem_error("Invalid integrator type! Check ParLinearForm");
@@ -216,10 +237,17 @@ int main(int argc, char *argv[])
 
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
+   /// 8. Construct the preconditioner. User-inputs define the p_order and q_order
+   ///    of the L(p,q)-Jacobi type smoother.
    // D_{p,q} = diag( D^{1+q-p} |A|^p D^{-q} 1) , where D = diag(A)
    auto lpq_jacobi = new OperatorLpqJacobiSmoother(A, ess_tdof_list, p_order,
                                                    q_order);
 
+   /// 9. Construct the solver. The implemented solvers are the following:
+   ///    - Stationary Linear Iteration
+   ///    - Preconditioned Conjugate Gradient
+   ///    Then, solve the system with the used-selected solver.
+   ///    TODO(Gabriel): Use data monitor
    Solver *solver = nullptr;
    // DataMonitor monitor(file_name.str(), NDIGITS);
    switch (solver_type)
@@ -246,6 +274,8 @@ int main(int argc, char *argv[])
    solver->SetOperator(A);
    solver->Mult(B, X);
 
+   /// 10. Recover the solution x as a grid function. Send the data by socket
+   ///     to a GLVis server.
    a->RecoverFEMSolution(X, *b, x);
 
    if (visualization)
@@ -258,6 +288,7 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << *mesh << x << flush;
    }
 
+   /// 11. Free the memory used
    delete solver;
    delete lpq_jacobi;
    delete a;
