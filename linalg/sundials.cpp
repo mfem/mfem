@@ -2203,7 +2203,7 @@ void KINSolver::SetDampingAA(real_t beta)
    if (sundials_mem)
    {
       flag = KINSetDampingAA(sundials_mem, beta);
-      MFEM_ASSERT(flag == KIN_SUCCESS, "error in SetDampingAA()");
+      MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetDampingAA()");
    }
 }
 
@@ -2222,7 +2222,7 @@ void KINSolver::SetOrthAA(int orthaa)
    if (sundials_mem)
    {
       flag = KINSetOrthAA(sundials_mem, orthaa);
-      MFEM_ASSERT(flag == KIN_SUCCESS, "error in SetOrthAA()");
+      MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetOrthAA()");
    }
 }
 
