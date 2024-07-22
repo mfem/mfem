@@ -851,6 +851,7 @@ protected:
    mutable SundialsNVector *y_scale, *f_scale; ///< scaling vectors
    const Operator *jacobian;                   ///< stores oper->GetGradient()
    int maa;           ///< number of acceleration vectors
+   int orthaa;        ///< Anderson acceleration QR orthogonalization method
    bool jfnk = false; ///< enable JFNK
    Vector wrk;        ///< Work vector needed for the JFNK PC
    int maxli = 5;     ///< Maximum linear iterations
@@ -947,6 +948,27 @@ public:
        altered after SetOperator() is called but it can't be higher than initial
        maximum. */
    void SetMAA(int maa);
+
+   /// Set the damping parameter for KIN_FP or KIN_PICARD.
+   /** The default is 1.0
+       The value of @beta must be 0 < @beta < 1.0. */
+   void SetDamping(real_t beta);
+
+   /// Set the damping parameter for Anderson acceleration.
+   /** The default is 1.
+       The value of @beta must be 0 < @beta < 1.0. For more details consult
+       the KINSOL documentation */
+   void SetDampingAA(real_t beta);
+
+   /// Specify the number of iterations to delay the start of Anderson acceleration.
+   /** The default is 0 */
+   void SetDelayAA(int delay);
+
+   /// Specify the orthogonalization routine to be used in the QR factorization portion of Anderson acceleration.
+   /** The default is KIN_ORTH_MGS.
+       @note This method must be called before SetOperator().
+       For more details consult the KINSOL documentation. */
+   void SetOrthAA(int orthaa);
 
    /// Set the Jacobian Free Newton Krylov flag. The default is false.
    /** This flag indicates to use JFNK as the linear solver for KINSOL. This
