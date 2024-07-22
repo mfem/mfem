@@ -21,80 +21,10 @@
 # directory. Unit tests that depend on the mfem/data repo will then detect that
 # this directory is present and be enabled.
 setup:
+  extends: .on_tioga
   stage: jobs-stage-1
-  extends: .job_on_tioga
-  variables:
-    GIT_STRATEGY: none
   script:
-    #
-    # Setup MFEM_DATA_DIR=${SHARED_REPOS_DIR}/mfem-data, see '.gitlab-ci.yml'
-    # and '.gitlab/configs/<machine>-config.yml'
-    #
-    - export MACHINE_NAME=${CI_MACHINE}
-    - echo "MACHINE_NAME = ${MACHINE_NAME}"
-    - echo "AUTOTEST = ${AUTOTEST}"
-    - echo "AUTOTEST_COMMIT = ${AUTOTEST_COMMIT}"
-    - echo "SHARED_REPOS_DIR ${SHARED_REPOS_DIR}"
-    - mkdir -p ${SHARED_REPOS_DIR} && cd ${SHARED_REPOS_DIR}
-    - command -v flock || echo "Required command 'flock' not found"
-    - |
-      (
-        date
-        echo "Waiting to acquire lock on '$PWD/mfem-data.lock' ..."
-        # try to get an exclusive lock on fd 9 (mfem-data.lock) repeating the
-        # try every 5 seconds; we may want to add a counter for the number of
-        # retries to interrupt a potential infinite loop
-        while ! flock -n 9; do
-          sleep 5
-        done
-        echo "Acquired lock on '$PWD/mfem-data.lock'"
-        date
-        # clone/update the mfem/data repo while holding the file lock on
-        # 'mfem-data.lock'
-        err=0
-        if [[ ! -d "mfem-data" ]]; then
-          git clone ${MFEM_DATA_REPO} "mfem-data"
-        else
-          cd "mfem-data" && git pull && cd ..
-        fi || err=1
-        # sleep for a period to allow NFS to propagate the above changes;
-        # clearly, there is no guarantee that other NFS clients will see the
-        # changes even after the timeout
-        sleep 10
-        exit $err
-      ) 9> mfem-data.lock
-    #
-    # Setup ${AUTOTEST_ROOT}/autotest:
-    #
-    - echo "AUTOTEST_ROOT ${AUTOTEST_ROOT}"
-    - mkdir -p ${AUTOTEST_ROOT} && cd ${AUTOTEST_ROOT}
-    - |
-      (
-        date
-        echo "Waiting to acquire lock on '$PWD/autotest.lock' ..."
-        # try to get an exclusive lock on fd 9 (autotest.lock) repeating the try
-        # every 5 seconds; we may want to add a counter for the number of
-        # retries to interrupt a potential infinite loop
-        while ! flock -n 9; do
-          sleep 5
-        done
-        echo "Acquired lock on '$PWD/autotest.lock'"
-        date
-        # clone/update the autotest repo while holding the file lock on
-        # 'autotest.lock'
-        err=0
-        if [[ ! -d "autotest" ]]; then
-          git clone ${AUTOTEST_REPO}
-        else
-          cd autotest && git pull && cd ..
-        fi || err=1
-        # sleep for a period to allow NFS to propagate the above changes;
-        # clearly, there is no guarantee that other NFS clients will see the
-        # changes even after the timeout
-        sleep 10
-        exit $err
-      ) 9> autotest.lock
-
+    - ./tests/gitlab/ci_job_setup
 
 ########################
 # Overridden shared jobs
@@ -113,93 +43,25 @@ setup:
 
 # Build and test jobs, simply provide a spec
 rocm_5_7_1:
+  extends: .job_on_tioga
   stage: jobs-stage-2
   variables:
     SPEC: "+rocm amdgpu_target=gfx90a %rocmcc@=5.7.1 ^hip@5.7.1"
-  extends: .job_on_tioga
+    THREADS: 12
 
 cce_16_0_1:
+  extends: .job_on_tioga
   stage: jobs-stage-2
   variables:
     SPEC: "%cce@=16.0.1"
-  extends: .job_on_tioga
-
-
-# Jobs report
-.report_job_success:
-  script:
-    - export MACHINE_NAME=${CI_MACHINE}
-    - echo ${MACHINE_NAME}
-    - echo ${AUTOTEST}
-    - echo ${AUTOTEST_COMMIT}
-    - echo "AUTOTEST_ROOT ${AUTOTEST_ROOT}"
-    - cd ${AUTOTEST_ROOT}
-    - |
-      (
-        date
-        echo "Waiting to acquire lock on '$PWD/autotest.lock' ..."
-        # try to get an exclusive lock on fd 9 (autotest.lock) repeating the try
-        # every 5 seconds; we may want to add a counter for the number of
-        # retries to interrupt a potential infinite loop
-        while ! flock -n 9; do
-          sleep 5
-        done
-        echo "Acquired lock on '$PWD/autotest.lock'"
-        date
-        # Report SUCCESS while holding the file lock on 'autotest.lock'.
-        # The next script uses the following environment variables:
-        # - MACHINE_NAME, AUTOTEST_ROOT, AUTOTEST_COMMIT
-        # - CI_COMMIT_REF_SLUG, CI_PROJECT_DIR, CI_PIPELINE_URL
-        # It also calls the script '.gitlab/scripts/safe_create_rundir'.
-        ${CI_PROJECT_DIR}/.gitlab/scripts/report_build_and_test_success
-        err=$?
-        # sleep for a period to allow NFS to propagate the above changes;
-        # clearly, there is no guarantee that other NFS clients will see the
-        # changes even after the timeout
-        sleep 10
-        exit $err
-      ) 9> autotest.lock
-
-.report_job_failure:
-  script:
-    - export MACHINE_NAME=${CI_MACHINE}
-    - echo ${MACHINE_NAME}
-    - echo ${AUTOTEST}
-    - echo ${AUTOTEST_COMMIT}
-    - echo "AUTOTEST_ROOT ${AUTOTEST_ROOT}"
-    - cd ${AUTOTEST_ROOT}
-    - |
-      (
-        date
-        echo "Waiting to acquire lock on '$PWD/autotest.lock' ..."
-        # try to get an exclusive lock on fd 9 (autotest.lock) repeating the try
-        # every 5 seconds; we may want to add a counter for the number of
-        # retries to interrupt a potential infinite loop
-        while ! flock -n 9; do
-          sleep 5
-        done
-        echo "Acquired lock on '$PWD/autotest.lock'"
-        date
-        # Report FAILURE while holding the file lock on 'autotest.lock'.
-        # The next script uses the following environment variables:
-        # - MACHINE_NAME, AUTOTEST_ROOT, AUTOTEST_COMMIT
-        # - CI_COMMIT_REF_SLUG, CI_PROJECT_DIR, CI_PIPELINE_URL
-        # It also calls the script '.gitlab/scripts/safe_create_rundir'.
-        ${CI_PROJECT_DIR}/.gitlab/scripts/report_build_and_test_failure
-        err=$?
-        # sleep for a period to allow NFS to propagate the above changes;
-        # clearly, there is no guarantee that other NFS clients will see the
-        # changes even after the timeout
-        sleep 10
-        exit $err
-      ) 9> autotest.lock
+    THREADS: 12
 
 # Jobs report
 report_job_success:
-  stage: jobs-stage-3
   extends: [.on_tioga, .report_job_success]
+  stage: jobs-stage-3
 
 report_job_failure:
-  stage: jobs-stage-3
   extends: [.on_tioga, .report_job_failure]
+  stage: jobs-stage-3
 

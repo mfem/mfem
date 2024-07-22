@@ -103,4 +103,8 @@ function report ()
   fi
 }
 
-locked_report ${1} autotest
+export MACHINE_NAME=${CI_MACHINE}
+info_msg "MACHINE_NAME is${MACHINE_NAME}"
+info_msg "AUTOTEST_ROOT is ${AUTOTEST_ROOT}"
+
+cd ${AUTOTEST_ROOT} && locked_report ${1} autotest

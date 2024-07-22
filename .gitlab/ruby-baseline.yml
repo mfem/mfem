@@ -146,6 +146,5 @@ baselinepublish_mfem_ruby:
     - .gitlab/scripts/rebaseline
 
 include:
-  - local: .gitlab/configs/common.yml
-  - local: .gitlab/configs/ruby-config.yml
+  - local: .gitlab/custom-jobs-and-variables.yml
   - local: .gitlab/configs/setup-baseline.yml

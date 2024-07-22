@@ -9,6 +9,10 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
+include:
+  - project: 'lc-templates/id_tokens'
+    file: 'id_tokens.yml'
+
 # We define the following GitLab pipeline variables:
 variables:
 # The path to the shared resource between all jobs. For example, external
@@ -105,3 +109,13 @@ variables:
       # Using the CI build cache is optional and requires a token. Set it like so: \n
       # export REGISTRY_TOKEN=\"<your token here>\" \n"
 
+# Jobs report
+.report_job_success:
+  script:
+    - ${CI_PROJECT_DIR}/.gitlab/scripts/report_build_and_test SUCCESS
+  when: on_success
+
+.report_job_failure:
+  script:
+    - ${CI_PROJECT_DIR}/.gitlab/scripts/report_build_and_test FAILURE
+  when: on_failure

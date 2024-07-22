@@ -21,8 +21,8 @@
 # directory. Unit tests that depend on the mfem/data repo will then detect that
 # this directory is present and be enabled.
 setup:
+  extends: .on_ruby
   stage: jobs-stage-1
-  extends: .job_on_ruby
   script:
     - ./tests/gitlab/ci_job_setup
 
@@ -45,80 +45,59 @@ setup:
 #TODO: THREADS would be better defined elsewhere since it’s global to ruby.
 
 debug_ser_gcc_10:
+  extends: .job_on_ruby
   stage: jobs-stage-2
   variables:
     SPEC: "%gcc@10.3.1 +debug~mpi"
     THREADS: 16
-  extends: .job_on_ruby
 
 debug_par_gcc_10:
+  extends: .job_on_ruby
   stage: jobs-stage-2
   variables:
     SPEC: "%gcc@10.3.1 +debug+mpi"
     THREADS: 16
-  extends: .job_on_ruby
 
 opt_ser_gcc_10:
+  extends: .job_on_ruby
   stage: jobs-stage-2
   variables:
     SPEC: "%gcc@10.3.1 ~mpi"
     THREADS: 16
-  extends: .job_on_ruby
 
 opt_par_gcc_10:
+  extends: .job_on_ruby
   stage: jobs-stage-2
   variables:
     SPEC: "%gcc@10.3.1"
     THREADS: 16
-  extends: .job_on_ruby
 
 opt_par_gcc_10_sundials:
+  extends: .job_on_ruby
   stage: jobs-stage-2
   variables:
     SPEC: "%gcc@10.3.1 +sundials"
     THREADS: 16
-  extends: .job_on_ruby
 
 opt_par_gcc_10_petsc:
+  extends: .job_on_ruby
   stage: jobs-stage-2
   variables:
     SPEC: "%gcc@10.3.1 +petsc ^petsc+mumps~superlu-dist"
     THREADS: 16
-  extends: .job_on_ruby
 
 opt_par_gcc_10_pumi:
+  extends: .job_on_ruby
   stage: jobs-stage-2
   variables:
     SPEC: "%gcc@10.3.1 +pumi"
     THREADS: 16
-  extends: .job_on_ruby
-
-# Jobs report
-.report_job_success:
-  script:
-    - export MACHINE_NAME=${CI_MACHINE}
-    - echo ${MACHINE_NAME}
-    - echo ${AUTOTEST_COMMIT}
-    - echo "AUTOTEST_ROOT ${AUTOTEST_ROOT}"
-    - cd ${AUTOTEST_ROOT}
-    - ${CI_PROJECT_DIR}/.gitlab/scripts/report_build_and_test SUCCESS
-
-.report_job_failure:
-  script:
-    - export MACHINE_NAME=${CI_MACHINE}
-    - echo ${MACHINE_NAME}
-    - echo ${AUTOTEST_COMMIT}
-    - echo "AUTOTEST_ROOT ${AUTOTEST_ROOT}"
-    - cd ${AUTOTEST_ROOT}
-    - ${CI_PROJECT_DIR}/.gitlab/scripts/report_build_and_test FAILURE
 
 # Jobs report
 report_job_success:
+  extends: [.on_ruby, .report_job_success]
   stage: jobs-stage-3
-  extends: [.job_on_ruby, .report_job_success]
-  when: on_success
 
 report_job_failure:
+  extends: [.on_ruby, .report_job_failure]
   stage: jobs-stage-3
-  extends: [.job_on_ruby, .report_job_failure]
-  when: on_failure

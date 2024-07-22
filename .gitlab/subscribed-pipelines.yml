@@ -54,6 +54,7 @@ generate-job-lists:
 #      - corona-jobs.yml
       - tioga-jobs.yml
 
+
 # RUBY
 ruby-up-check:
   variables:
@@ -63,27 +64,12 @@ ruby-up-check:
 ruby-build-and-test:
   variables:
     CI_MACHINE: "ruby"
-  needs: [ruby-up-check, generate-job-lists]
-  extends: [.build-and-test]
-
-
-
-ruby-build-and-test:
-  stage: sub-pipelines
-  variables:
     # Explicitly pass down values that we want to be able to set when triggering
     # pipelines manually or using scheduling
     AUTOTEST: "${AUTOTEST}"
     AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
-  trigger:
-    include: .gitlab/ruby-build-and-test.yml
-    strategy: depend
-
-
-
-
-
-
+  needs: [ruby-up-check, generate-job-lists]
+  extends: [.build-and-test]
 
 
 ## POODLE
@@ -95,8 +81,13 @@ ruby-build-and-test:
 #poodle-build-and-test:
 #  variables:
 #    CI_MACHINE: "poodle"
+#    # Explicitly pass down values that we want to be able to set when triggering
+#    # pipelines manually or using scheduling
+#    AUTOTEST: "${AUTOTEST}"
+#    AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
 #  needs: [poodle-up-check, generate-job-lists]
 #  extends: [.build-and-test]
+
 
 ## CORONA
 #corona-up-check:
@@ -107,8 +98,13 @@ ruby-build-and-test:
 #corona-build-and-test:
 #  variables:
 #    CI_MACHINE: "corona"
+#    # Explicitly pass down values that we want to be able to set when triggering
+#    # pipelines manually or using scheduling
+#    AUTOTEST: "${AUTOTEST}"
+#    AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
 #  needs: [corona-up-check, generate-job-lists]
 #  extends: [.build-and-test]
+
 
 # TIOGA
 tioga-up-check:
@@ -119,25 +115,12 @@ tioga-up-check:
 tioga-build-and-test:
   variables:
     CI_MACHINE: "tioga"
-  needs: [tioga-up-check, generate-job-lists]
-  extends: [.build-and-test]
-
-
-
-tioga-build-and-test:
-  stage: sub-pipelines
-  variables:
     # Explicitly pass down values that we want to be able to set when triggering
     # pipelines manually or using scheduling
     AUTOTEST: "${AUTOTEST}"
     AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
-  trigger:
-    include: .gitlab/tioga-build-and-test.yml
-    strategy: depend
-
-
-
-
+  needs: [tioga-up-check, generate-job-lists]
+  extends: [.build-and-test]
 
 
 # LASSEN
@@ -149,18 +132,9 @@ lassen-up-check:
 lassen-build-and-test:
   variables:
     CI_MACHINE: "lassen"
-  needs: [lassen-up-check, generate-job-lists]
-  extends: [.build-and-test]
-
-
-
-lassen-build-and-test:
-  stage: sub-pipelines
-  variables:
     # Explicitly pass down values that we want to be able to set when triggering
     # pipelines manually or using scheduling
     AUTOTEST: "${AUTOTEST}"
     AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
-  trigger:
-    include: .gitlab/lassen-build-and-test.yml
-    strategy: depend
+  needs: [lassen-up-check, generate-job-lists]
+  extends: [.build-and-test]
