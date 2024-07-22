@@ -47,6 +47,103 @@ void B_exact(const Vector &x, Vector &B)
    B(2) = B_Z;
 };
 
+// this gives a vector coefficient of Psi/R e_φ 
+class PsiOverRCoefficient : public VectorCoefficient
+{
+private:
+   GridFunction *gf;
+   Mesh         *mesh;
+   FindPointsGSLIB finder;
+ 
+public:
+   PsiOverRCoefficient(int dim, GridFunction *gf_, Mesh *mesh_)
+      : VectorCoefficient(dim), gf(gf_), mesh(mesh_){
+      finder.Setup(*mesh);
+      finder.SetL2AvgType(FindPointsGSLIB::NONE); 
+   };
+ 
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip){
+      double psi, R, Z, cosphi, sinphi;
+      double x[3];
+      Vector interp_vals(1), vxy(2), transip(x, 3);
+      T.Transform(ip, transip);
+      V.SetSize(vdim);
+
+      R = sqrt(transip(0)*transip(0)+transip(1)*transip(1));
+      Z = transip(2);
+      vxy(0) = R;
+      vxy(1) = Z;
+
+      finder.Interpolate(vxy, *gf, interp_vals, 0/*point_ordering*/);
+      Array<unsigned int> code_out = finder.GetCode();
+      if (code_out[0] < 2){
+         psi = interp_vals[0];
+         //cout<<R<<" "<<Z<<" interp="<<psi<<endl;
+      }
+      else {MFEM_ABORT("Cannot find the point");}
+
+      cosphi = transip(0)/R;
+      sinphi = transip(1)/R;
+      V(0) = -psi/R*sinphi;
+      V(1) =  psi/R*cosphi;
+      V(2) = 0.0;
+   };
+
+   virtual void Eval(DenseMatrix &M, ElementTransformation &T,
+                     const IntegrationRule &ir){
+      M.SetSize(vdim, ir.GetNPoints());
+
+      int    dof=ir.GetNPoints();
+      double xsave[4][dof];     //save R, z, x, y
+      Vector interp_vals(dof), vxy(dof*2);
+
+      // collect points for search
+      for (int i = 0; i < dof; i++){
+         const IntegrationPoint &ip = ir.IntPoint(i);
+         T.SetIntPoint(&ip);
+
+         double R, Z, x[3];
+         Vector transip(x, 3);
+         T.Transform(ip, transip);
+
+         R = sqrt(transip(0)*transip(0)+transip(1)*transip(1));
+         Z = transip(2);
+         xsave[0][i]=R;
+         xsave[1][i]=Z;
+         xsave[2][i]=transip(0);
+         xsave[3][i]=transip(1);
+
+         vxy(i)       = R;
+         vxy(dof + i) = Z;
+      }
+
+      // search an array of vxy
+      finder.Interpolate(vxy, *gf, interp_vals, 0/*point_ordering*/);
+      Array<unsigned int> code_out = finder.GetCode();
+
+      Vector Mi;
+      for (int i = 0; i < dof; i++){
+         double cosphi, sinphi, psi;
+         if (code_out[i] >= 2){
+             cout<<dof<<endl;
+             cout<<i<<" "<<vxy(i)<<" "<<vxy(dof + i)<<endl;
+             MFEM_ABORT("Cannot find the point");
+         }
+         else
+             psi = interp_vals[i];
+         cosphi = xsave[2][i]/xsave[0][i];
+         sinphi = xsave[3][i]/xsave[0][i];
+         M.GetColumnReference(i, Mi);
+         Mi(0) = -psi/xsave[0][i]*sinphi;
+         Mi(1) =  psi/xsave[0][i]*cosphi;
+         Mi(2) = 0.0;
+      }
+   };
+ 
+   virtual ~PsiOverRCoefficient() {finder.FreeData();};
+};
+
 // this function compute the toroidal field from the given psi and f
 class GridFunction2DCoefficient : public VectorCoefficient
 {
@@ -112,8 +209,7 @@ public:
       fout = 1e10;
 
       // collect points for search
-      for (int i = 0; i < dof; i++)
-      {
+      for (int i = 0; i < dof; i++){
          const IntegrationPoint &ip = ir.IntPoint(i);
          T.SetIntPoint(&ip);
 
@@ -142,8 +238,7 @@ public:
       if (pts_cnt>0){
          Vector interp_vals(pts_cnt), vxy(pts_cnt * 2);
          int j=0;
-         for (int i = 0; i < dof; i++)
-         {
+         for (int i = 0; i < dof; i++){
              if (isave[i]==1)
              {
                  vxy(j)           = xsave[0][i];
@@ -154,8 +249,7 @@ public:
          finder.Interpolate(vxy, *gf, interp_vals, 0);
          Array<unsigned int> code_out    = finder.GetCode();
          j=0;
-         for (int i = 0; i < dof; i++)
-         {
+         for (int i = 0; i < dof; i++){
              if (isave[i]==1)
              {
                  if (fout(i)<1e10) MFEM_ABORT("Error as fout is already set!");
@@ -173,8 +267,7 @@ public:
 
       // Set B_φ = f(psi)/R
       Vector Mi;
-      for (int i = 0; i < dof; i++)
-      {
+      for (int i = 0; i < dof; i++){
          double cosphi, sinphi;
          cosphi = xsave[2][i]/xsave[0][i];
          sinphi = xsave[3][i]/xsave[0][i];
@@ -186,8 +279,7 @@ public:
       }
    };
  
-   virtual ~GridFunction2DCoefficient() 
-   {finder.FreeData();};
+   virtual ~GridFunction2DCoefficient() {finder.FreeData();};
 };
 
 int main (int argc, char *argv[])
@@ -256,12 +348,20 @@ int main (int argc, char *argv[])
    GridFunction Bvec(Bfespace);
    //VectorFunctionCoefficient VecCoeff(sdim3D, B_exact);
    //Bvec.ProjectCoefficient(VecCoeff);
-   GridFunction2DCoefficient PsiCoeff(sdim3D, &psi, &mesh);
-   Bvec.ProjectCoefficient(PsiCoeff);
+   //GridFunction2DCoefficient PsiCoeff(sdim3D, &psi, &mesh);
+   //Bvec.ProjectCoefficient(PsiCoeff);
+
 
    HYPRE_Int size = Bfespace->GetTrueVSize();
    cout << "Number of finite element unknowns: " << size << endl;
 
+   LinearForm rhs(Bfespace);
+   PsiOverRCoefficient PsiOverR(sdim3D, &psi, &mesh);
+   rhs.AddBoundaryIntegrator(new VectorFEBoundaryTangentLFIntegrator(PsiOverR));
+   rhs.Assemble();
+
+
+   /*
    if (visualization){
       char vishost[] = "localhost";
       int  visport   = 19916;
@@ -288,6 +388,7 @@ int main (int argc, char *argv[])
       paraview_dc.RegisterField("Bvec",&Bvec);
       paraview_dc.Save();
    }
+   */
 
    /*
    int pts_cnt = 2;

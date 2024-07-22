@@ -32,7 +32,7 @@ public:
   virtual double f_bar_double_prime(double & psi_N) const {return 0.0;};
   virtual double get_f_ma() const {return 0.0;}
   virtual double get_f_x() const {return 1.0;}
-  virtual double set_alpha_bar(double alpha_) {}
+  virtual void set_alpha_bar(double alpha_) {}
   virtual int get_model_choice() {return 2;}
   // ~PlasmaModel() {}
 };
@@ -185,7 +185,7 @@ public:
   double get_gamma() const {return gamma;}
   double get_f_ma() const {return f_ma;}
   double get_f_x() const {return f_x;}
-  double set_alpha_bar(double alpha_) {alpha = alpha_;}
+  void set_alpha_bar(double alpha_) {alpha = alpha_;}
   int get_model_choice() {return model_choice;}
 
   ~PlasmaModelFile() { }
