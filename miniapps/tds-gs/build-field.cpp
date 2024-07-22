@@ -57,10 +57,8 @@ private:
  
 public:
    PsiOverRCoefficient(int dim, GridFunction *gf_, Mesh *mesh_)
-      : VectorCoefficient(dim), gf(gf_), mesh(mesh_){
-      finder.Setup(*mesh);
-      finder.SetL2AvgType(FindPointsGSLIB::NONE); 
-   };
+      : VectorCoefficient(dim), gf(gf_), mesh(mesh_)
+   { finder.Setup(*mesh); finder.SetL2AvgType(FindPointsGSLIB::NONE); };
  
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip){
@@ -121,7 +119,6 @@ public:
       // search an array of vxy
       finder.Interpolate(vxy, *gf, interp_vals, 0/*point_ordering*/);
       Array<unsigned int> code_out = finder.GetCode();
-
       Vector Mi;
       for (int i = 0; i < dof; i++){
          double cosphi, sinphi, psi;
@@ -352,16 +349,40 @@ int main (int argc, char *argv[])
    //Bvec.ProjectCoefficient(PsiCoeff);
 
 
-   HYPRE_Int size = Bfespace->GetTrueVSize();
+   int size = Bfespace->GetVSize();     //expect VSize and TrueVSize are the same
    cout << "Number of finite element unknowns: " << size << endl;
 
+   // Solve (f, B) = (curl f, psi/R e_φ) + <f, n x psi/R e_φ>
+   // where f is a test function in H(curl)
+   ConstantCoefficient one(1.0);
+   BilinearForm mass(Bfespace);
+   mass.AddDomainIntegrator(new VectorFEMassIntegrator(one));
+   mass.Assemble();
+   mass.Finalize();
+
+   CGSolver M_solver;
+   DSmoother M_prec(mass.SpMat()); 
+   M_solver.iterative_mode = false;
+   M_solver.SetRelTol(1e-8);
+   M_solver.SetAbsTol(0.0);
+   M_solver.SetMaxIter(100);
+   M_solver.SetPrintLevel(1);
+   M_solver.SetPreconditioner(M_prec);
+   M_solver.SetOperator(mass.SpMat());
+
+   cout << "Assemble RHS" <<endl;
    LinearForm rhs(Bfespace);
    PsiOverRCoefficient PsiOverR(sdim3D, &psi, &mesh);
    rhs.AddBoundaryIntegrator(new VectorFEBoundaryTangentLFIntegrator(PsiOverR));
+   rhs.AddDomainIntegrator(new VectorFEDomainLFCurlIntegrator(PsiOverR));
    rhs.Assemble();
 
+   Vector x(size);
+   x = 0.0;
+   M_solver.Mult(rhs, x);
 
-   /*
+   Bvec.SetFromTrueDofs(x);
+
    if (visualization){
       char vishost[] = "localhost";
       int  visport   = 19916;
@@ -388,7 +409,6 @@ int main (int argc, char *argv[])
       paraview_dc.RegisterField("Bvec",&Bvec);
       paraview_dc.Save();
    }
-   */
 
    /*
    int pts_cnt = 2;

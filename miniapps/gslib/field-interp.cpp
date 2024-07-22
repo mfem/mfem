@@ -398,17 +398,17 @@ int main (int argc, char *argv[])
    func_target.Save(rho_ofs);
    rho_ofs.close();
 
-     if(true){
-        ParaViewDataCollection paraview_dc("field-interp", &mesh_2);
-        paraview_dc.SetPrefixPath("ParaView");
-        paraview_dc.SetLevelsOfDetail(order);
-        paraview_dc.SetCycle(0);
-        paraview_dc.SetDataFormat(VTKFormat::BINARY);
-        paraview_dc.SetHighOrderOutput(true);
-        paraview_dc.SetTime(0.0); // set the time
-        paraview_dc.RegisterField("psi",&func_target);
-        paraview_dc.Save();
-     }
+   if(false){
+      ParaViewDataCollection paraview_dc("field-interp", &mesh_2);
+      paraview_dc.SetPrefixPath("ParaView");
+      paraview_dc.SetLevelsOfDetail(order);
+      paraview_dc.SetCycle(0);
+      paraview_dc.SetDataFormat(VTKFormat::BINARY);
+      paraview_dc.SetHighOrderOutput(true);
+      paraview_dc.SetTime(0.0); // set the time
+      paraview_dc.RegisterField("psi",&func_target);
+      paraview_dc.Save();
+   }
 
    // Free the internal gslib data.
    finder.FreeData();
