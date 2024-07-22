@@ -11,15 +11,14 @@
 //
 //                   MFEM Ultraweak DPG Maxwell parallel example
 //
-// Compile with: make pmaxwell
+// Compile with: make pmaxwell-coupled
 //
-// mpirun -np 4 pmaxwell -m ../../data/inline-quad.mesh
+// mpirun -np 4 ./pmaxwell-coupled -sref 1 -pref 2 -o 2 -rnum 0.5 -m ../../data/ref-cube.mesh -sc
 
 //      ∇×(1/μ ∇×E) - ω² ϵ E + J = F̃ ,   in Ω
 //             -ΔJ + α² J + c² E = G ,   in Ω
 //                       E×n = E₀ , on ∂Ω
 //                         J = J₀ , on ∂Ω
-
 // The DPG UW deals with the First Order System
 //  i ω μ H + ∇ × E         = 0,   in Ω
 // -i ω ϵ E + ∇ × H + i/ω J = F,   in Ω
@@ -27,11 +26,36 @@
 //                    E × n = E_0, on ∂Ω
 //                        J = J₀ , on ∂Ω
 
-// E,H ∈ (L^2(Ω))³
-// Ê ∈ H_0^1/2(Ω)(curl, Γₕ), Ĥ ∈ H^-1/2(curl, Γₕ)
+// in 2D
+// E is vector valued and H is scalar.
+//    (∇ × E, δE) = (E, ∇ × δE ) + < n × E , δE >
+// or (∇ ⋅ AE , δE) = (AE, ∇ δE ) + < AE ⋅ n, δE >
+// where A = [0 1; -1 0];
+
+// E ∈ (L²(Ω))² , H ∈ L²(Ω), J ∈ (H¹(Ω))²
+// Ê ∈ H^-1/2(Γₕ), Ĥ ∈ H^1/2(Γₕ), Ĵ ∈ (H^-1/2(Γₕ))²
+//  i ω μ (H,δE) + (E, ∇ × δE) + < AÊ, δE > = 0,      ∀ δE ∈ H¹(Ω)
+// -i ω ϵ (E,δH) + (H,∇ × δH)  + < Ĥ, δH × n > = (J,δH)   ∀ δH ∈ H(curl,Ω)
+// (∇J, ∇δJ) + <Ĵ, δJ> + α² (J,δJ) + c² (E, δJ) = (G,δJ),      ∀ δJ ∈ (H¹(Ω))²
+//
+//                                    Ê = E₀      on ∂Ω
+//                                    J = J₀,      on ∂Ω
+// --------------------------------------------------------------------------------------------------------------------
+// |    |       E        |        H       |      J            |      Ê        |       Ĥ       |    Ĵ     |     RHS    |
+// --------------------------------------------------------------------------------------------------------------------
+// | δE |   (E,∇ × δE)   |  i ω μ (H,δE)  |                   |    < Ê, δE >  |               |          |            |
+// |    |                |                |                   |               |               |          |            |
+// | δH | -i ω ϵ (E,δH)  |   (H,∇ × δH)   |    i/ω (J,δH)     |               | < Ĥ, δH × n > |          |   (F,δH)   |
+// |    |                |                |                   |               |               |          |            |
+// | δJ |   c² (E, δJ)   |                | (∇J,∇δJ)+α²(J,δJ) |               |               |  <Ĵ, δJ> |   (G,δJ)   |
+//
+// where (δE,δH,δJ) ∈  H¹(Ω) × H(curl,Ω) × (H¹(Ω))ᵈ
+
+// E,H ∈ (L^2(Ω))³, J ∈ (H¹(Ω))³
+// Ê ∈ H_0^1/2(curl, Γₕ), Ĥ ∈ H^-1/2(curl, Γₕ), Ĵ ∈ (H^-1/2(Γₕ))³
 //  i ω μ (H,δE) + (E,∇ × δE) + < Ê, δE × n >              = 0,      ∀ δE ∈ H(curl,Ω)
 // -i ω ϵ (E,δH) + (H,∇ × δH) + < Ĥ, δH × n > + i/ω (J,δH) = (F,δH),   ∀ δH ∈ H(curl,Ω)
-//            (∇J, ∇δJ) + <Ĵ, δJ> + α² (J,δJ) + c² (E, δJ) = (G,δJ),      ∀ δJ ∈ (H¹(Ω))ᵈ
+//            (∇J, ∇δJ) + <Ĵ, δJ> + α² (J,δJ) + c² (E, δJ) = (G,δJ),      ∀ δJ ∈ (H¹(Ω))³
 //
 //                                   Ê × n = E₀,      on ∂Ω
 //                                       J = J₀,      on ∂Ω
@@ -159,7 +183,7 @@ int main(int argc, char *argv[])
    dim = mesh.Dimension();
    MFEM_VERIFY(dim > 1, "Dimension = 1 is not supported in this example");
 
-   dimc = 1;
+   dimc = (dim == 3) ? 3 : 1;
 
    for (int i = 0; i<sr; i++)
    {
@@ -185,25 +209,41 @@ int main(int argc, char *argv[])
       dH_space = 1,
       dJ_space = 2
    };
+   int test_order = order+delta_order;
+
    // Vector L2 space for E
    FiniteElementCollection *E_fec = new L2_FECollection(order-1,dim);
    ParFiniteElementSpace *E_fes = new ParFiniteElementSpace(&pmesh,E_fec,dim);
 
    // Vector L2 space for H
    FiniteElementCollection *H_fec = new L2_FECollection(order-1,dim);
-   ParFiniteElementSpace *H_fes = new ParFiniteElementSpace(&pmesh,H_fec, dim);
+   ParFiniteElementSpace *H_fes = new ParFiniteElementSpace(&pmesh,H_fec, dimc);
 
    // Vector H1 space for J
    FiniteElementCollection *J_fec = new H1_FECollection(order,dim);
    ParFiniteElementSpace *J_fes = new ParFiniteElementSpace(&pmesh,J_fec, dim);
 
 
-   // H^-1/2 (curl) space for Ê
-   FiniteElementCollection * hatE_fec = new ND_Trace_FECollection(order,dim);
-   ParFiniteElementSpace *hatE_fes = new ParFiniteElementSpace(&pmesh,hatE_fec);
+   FiniteElementCollection * hatE_fec = nullptr;
+   FiniteElementCollection * hatH_fec = nullptr;
+   FiniteElementCollection * dE_fec = nullptr;
 
-   // H^-1/2 (curl) space for Ĥ
-   FiniteElementCollection * hatH_fec = new ND_Trace_FECollection(order,dim);
+   if (dim == 3)
+   {
+      // H^-1/2 (curl) space for Ê
+      hatE_fec = new ND_Trace_FECollection(order,dim);
+      // H^-1/2 (curl) space for Ĥ
+      hatH_fec = new ND_Trace_FECollection(order,dim);
+      dE_fec = new ND_FECollection(test_order, dim);
+   }
+   else
+   {
+      hatE_fec = new RT_Trace_FECollection(order-1,dim);
+      hatH_fec = new H1_Trace_FECollection(order,dim);
+      dE_fec = new H1_FECollection(test_order, dim);
+   }
+
+   ParFiniteElementSpace *hatE_fes = new ParFiniteElementSpace(&pmesh,hatE_fec);
    ParFiniteElementSpace *hatH_fes = new ParFiniteElementSpace(&pmesh,hatH_fec);
 
    // H^-1/2 space for Ĵ
@@ -211,8 +251,6 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace *hatJ_fes = new ParFiniteElementSpace(&pmesh, hatJ_fec,
                                                                dim);
 
-   int test_order = order+delta_order;
-   FiniteElementCollection * dE_fec = new ND_FECollection(test_order, dim);
    FiniteElementCollection * dH_fec = new ND_FECollection(test_order, dim);
    FiniteElementCollection * dJ_fec = new H1_FECollection(test_order, dim);
 
@@ -236,9 +274,22 @@ int main(int argc, char *argv[])
    ConstantCoefficient one(1.0);
    ConstantCoefficient rec_omega(1.0/omega);
    ConstantCoefficient muomeg_cf(mu*omega);
+   ConstantCoefficient mu2omeg2_cf(mu*mu*omega*omega);
+   ConstantCoefficient eps2omeg2_cf(epsilon*epsilon*omega*omega);
    ConstantCoefficient negepsomeg_cf(-epsilon*omega);
+   ConstantCoefficient epsomeg_cf(epsilon*omega);
+   ConstantCoefficient negmuomeg_cf(-mu*omega);
    ConstantCoefficient c2_cf(c*c);
    ConstantCoefficient a2_cf(alpha*alpha);
+
+   // for the 2D case
+   DenseMatrix rot_mat(2);
+   rot_mat(0,0) = 0.; rot_mat(0,1) = 1.;
+   rot_mat(1,0) = -1.; rot_mat(1,1) = 0.;
+   MatrixConstantCoefficient rot(rot_mat);
+   ScalarMatrixProductCoefficient epsrot_cf(epsomeg_cf,rot);
+   ScalarMatrixProductCoefficient negepsrot_cf(negepsomeg_cf,rot);
+
 
    // (E,∇ × δE)
    a->AddTrialIntegrator(new TransposeIntegrator(new MixedCurlIntegrator(one)),
@@ -251,11 +302,79 @@ int main(int argc, char *argv[])
    a->AddTrialIntegrator(new VectorMassIntegrator(c2_cf), nullptr,
                          TrialSpace::E_space, TestSpace::dJ_space);
 
-   // i ω μ (H, δE)
-   a->AddTrialIntegrator(nullptr,new TransposeIntegrator(
-                            new VectorFEMassIntegrator(muomeg_cf)),
-                         TrialSpace::H_space, TestSpace::dE_space);
+   if (dim == 3)
+   {
+      // i ω μ (H, δE)
+      a->AddTrialIntegrator(nullptr,new TransposeIntegrator(
+                               new VectorFEMassIntegrator(muomeg_cf)),
+                            TrialSpace::H_space, TestSpace::dE_space);
+      // < Ê, δE × n >
+      a->AddTrialIntegrator(new TangentTraceIntegrator,nullptr,
+                            TrialSpace::hatE_space, TestSpace::dE_space);
 
+      // test integrators
+      // (∇×δE ,∇× δE)
+      a->AddTestIntegrator(new CurlCurlIntegrator(one),nullptr,
+                           TestSpace::dE_space,TestSpace::dE_space);
+      // (δE,δE)
+      a->AddTestIntegrator(new VectorFEMassIntegrator(one),nullptr,
+                           TestSpace::dE_space,TestSpace::dE_space);
+      // μ^2 ω^2 (δE ,δE)
+      a->AddTestIntegrator(new VectorFEMassIntegrator(mu2omeg2_cf),nullptr,
+                           TestSpace::dE_space, TestSpace::dE_space);
+      // -i ω μ (δE ,∇ × δH) = i (F, -ω μ ∇ × δ G)
+      a->AddTestIntegrator(nullptr,new MixedVectorWeakCurlIntegrator(negmuomeg_cf),
+                           TestSpace::dE_space, TestSpace::dH_space);
+      // -i ω ϵ (∇ × δE, δH)
+      a->AddTestIntegrator(nullptr,new MixedVectorCurlIntegrator(negepsomeg_cf),
+                           TestSpace::dE_space, TestSpace::dH_space);
+      // i ω μ (∇ × δH ,δE)
+      a->AddTestIntegrator(nullptr,new MixedVectorCurlIntegrator(muomeg_cf),
+                           TestSpace::dH_space, TestSpace::dE_space);
+      // i ω ϵ (δH, ∇ × δE )
+      a->AddTestIntegrator(nullptr,new MixedVectorWeakCurlIntegrator(epsomeg_cf),
+                           TestSpace::dH_space, TestSpace::dE_space);
+      // ϵ^2 ω^2 (δH,δH)
+      a->AddTestIntegrator(new VectorFEMassIntegrator(eps2omeg2_cf),nullptr,
+                           TestSpace::dH_space, TestSpace::dH_space);
+   }
+   else
+   {
+      // i ω μ (H, δE)
+      a->AddTrialIntegrator(nullptr,new MixedScalarMassIntegrator(muomeg_cf),
+                            TrialSpace::H_space, TestSpace::dE_space);
+      // < n×Ê,δE>
+      a->AddTrialIntegrator(new TraceIntegrator,nullptr,
+                            TrialSpace::hatE_space, TestSpace::dE_space);
+      // test integrators
+      // (∇δE,∇δE)
+      a->AddTestIntegrator(new DiffusionIntegrator(one),nullptr,
+                           TestSpace::dE_space, TestSpace::dE_space);
+      // (δE,δE)
+      a->AddTestIntegrator(new MassIntegrator(one),nullptr,
+                           TestSpace::dE_space, TestSpace::dE_space);
+      // μ^2 ω^2 (δE,δE)
+      a->AddTestIntegrator(new MassIntegrator(mu2omeg2_cf),nullptr,
+                           TestSpace::dE_space, TestSpace::dE_space);
+      // -i ω μ (δE,∇ × δH) = i (δE, -ω μ ∇ × δ H)
+      a->AddTestIntegrator(nullptr,
+                           new TransposeIntegrator(new MixedCurlIntegrator(negmuomeg_cf)),
+                           TestSpace::dE_space, TestSpace::dH_space);
+      // -i ω ϵ (∇ × δE, δH) = i (- ω ϵ A ∇ δE,δE), A = [0 1; -1; 0]
+      a->AddTestIntegrator(nullptr,new MixedVectorGradientIntegrator(negepsrot_cf),
+                           TestSpace::dE_space, TestSpace::dH_space);
+      // i ω μ (∇ × δH ,δE) = i (ω μ ∇ × δH, δE )
+      a->AddTestIntegrator(nullptr,new MixedCurlIntegrator(muomeg_cf),
+                           TestSpace::dH_space, TestSpace::dE_space);
+      // i ω ϵ (δH, ∇ × δE ) =  i (ω ϵ δH, A ∇ δE) = i ( δH , ω ϵ A ∇ δE)
+      a->AddTestIntegrator(nullptr,
+                           new TransposeIntegrator(
+                              new MixedVectorGradientIntegrator(epsrot_cf)),
+                           TestSpace::dH_space, TestSpace::dE_space);
+      // ϵ^2 ω^2 (δH, δH)
+      a->AddTestIntegrator(new VectorFEMassIntegrator(eps2omeg2_cf),nullptr,
+                           TestSpace::dH_space, TestSpace::dH_space);
+   }
    // (H,∇ × δH)
    a->AddTrialIntegrator(new TransposeIntegrator(new MixedCurlIntegrator(one)),
                          nullptr,TrialSpace::H_space, TestSpace::dH_space);
@@ -273,9 +392,7 @@ int main(int argc, char *argv[])
    a->AddTrialIntegrator(new VectorMassIntegrator(a2_cf),nullptr,
                          TrialSpace::J_space,TestSpace::dJ_space);
 
-   // < Ê, δE × n >
-   a->AddTrialIntegrator(new TangentTraceIntegrator,nullptr,
-                         TrialSpace::hatE_space, TestSpace::dE_space);
+
 
    // < Ĥ, δH × n >
    a->AddTrialIntegrator(new TangentTraceIntegrator,nullptr,
@@ -286,12 +403,7 @@ int main(int argc, char *argv[])
                          TrialSpace::hatJ_space,TestSpace::dJ_space);
 
    // test integrators
-   // (∇×δE ,∇× δE)
-   a->AddTestIntegrator(new CurlCurlIntegrator(one),nullptr,
-                        TestSpace::dE_space,TestSpace::dE_space);
-   // (δE,δE)
-   a->AddTestIntegrator(new VectorFEMassIntegrator(one),nullptr,
-                        TestSpace::dE_space,TestSpace::dE_space);
+
 
    // (∇×δH ,∇×δH)
    a->AddTestIntegrator(new CurlCurlIntegrator(one),nullptr,
@@ -300,6 +412,9 @@ int main(int argc, char *argv[])
    a->AddTestIntegrator(new VectorFEMassIntegrator(one),nullptr,
                         TestSpace::dH_space,TestSpace::dH_space);
 
+   // ----------------------------------------------------------------
+
+   // ----------------------------------------------------------------
    // (∇δJ,∇δJ)
    a->AddTestIntegrator(new VectorDiffusionIntegrator(one),nullptr,
                         TestSpace::dJ_space,TestSpace::dJ_space);
@@ -395,13 +510,21 @@ int main(int argc, char *argv[])
       ParGridFunction hatE_gf_i(hatE_fes, x, offsets.Last() + offsets[3]);
       VectorFunctionCoefficient hatEex_r(dim,hatE_exact_r);
       VectorFunctionCoefficient hatEex_i(dim,hatE_exact_i);
-      hatE_gf_r.ProjectBdrCoefficientTangent(hatEex_r, ess_bdr);
-      hatE_gf_i.ProjectBdrCoefficientTangent(hatEex_i, ess_bdr);
+      if (dim == 3)
+      {
+         hatE_gf_r.ProjectBdrCoefficientTangent(hatEex_r, ess_bdr);
+         hatE_gf_i.ProjectBdrCoefficientTangent(hatEex_i, ess_bdr);
+      }
+      else
+      {
+         hatE_gf_r.ProjectBdrCoefficientNormal(hatEex_r, ess_bdr);
+         hatE_gf_i.ProjectBdrCoefficientNormal(hatEex_i, ess_bdr);
+      }
 
       VectorFunctionCoefficient Ecf_r(dim,E_exact_r);
       VectorFunctionCoefficient Ecf_i(dim,E_exact_i);
-      VectorFunctionCoefficient Hcf_r(dim,H_exact_r);
-      VectorFunctionCoefficient Hcf_i(dim,H_exact_i);
+      VectorFunctionCoefficient Hcf_r(dimc,H_exact_r);
+      VectorFunctionCoefficient Hcf_i(dimc,H_exact_i);
       VectorFunctionCoefficient Jcf_r(dim,J_exact_r);
       VectorFunctionCoefficient Jcf_i(dim,J_exact_i);
 
@@ -472,10 +595,20 @@ int main(int argc, char *argv[])
                                                skip+1,skip+1),
                                             hatE_fes);
       solver_hatE->SetPrintLevel(0);
-      HypreAMS * solver_hatH = new HypreAMS((HypreParMatrix &)BlockA_r->GetBlock(
-                                               skip+2,skip+2),
-                                            hatH_fes);
-      solver_hatH->SetPrintLevel(0);
+      HypreSolver * solver_hatH = nullptr;
+      if (dim == 2)
+      {
+         solver_hatH = new HypreBoomerAMG((HypreParMatrix &)BlockA_r->GetBlock(skip+2,
+                                                                               skip+2));
+         dynamic_cast<HypreBoomerAMG*>(solver_hatH)->SetPrintLevel(0);
+      }
+      else
+      {
+         solver_hatH = new HypreAMS((HypreParMatrix &)BlockA_r->GetBlock(
+                                       skip+2,skip+2),
+                                    hatH_fes);
+         dynamic_cast<HypreAMS*>(solver_hatH)->SetPrintLevel(0);
+      }
       HypreBoomerAMG * solver_hatJ = new HypreBoomerAMG((HypreParMatrix &)
                                                         BlockA_r->GetBlock(skip+3,skip+3));
       solver_hatJ->SetPrintLevel(0);
@@ -488,7 +621,7 @@ int main(int argc, char *argv[])
       M.SetDiagonalBlock(num_blocks+skip+3,solver_hatJ);
 
       CGSolver cg(MPI_COMM_WORLD);
-      cg.SetRelTol(1e-6);
+      cg.SetRelTol(1e-10);
       cg.SetMaxIter(10000);
       cg.SetPrintLevel(0);
       cg.SetPreconditioner(M);
@@ -660,11 +793,23 @@ void maxwell_solution_curl(const Vector & X,
                            std::vector<complex<double>> &curlE)
 {
    complex<double> zi = complex<double>(0., 1.);
-   curlE.resize(dim);
+   curlE.resize(dimc);
+   for (int i = 0; i < dimc; ++i)
+   {
+      curlE[i] = 0.0;
+   }
+
    std::complex<double> pw = exp(zi * omega * (X.Sum()));
-   curlE[0] = 0.0;
-   curlE[1] = zi * omega * pw;
-   curlE[2] = -zi * omega * pw;
+   if (dim == 3)
+   {
+      curlE[0] = 0.0;
+      curlE[1] = zi * omega * pw;
+      curlE[2] = -zi * omega * pw;
+   }
+   else
+   {
+      curlE[0] = -zi * omega * pw;
+   }
 }
 
 void maxwell_solution_curlcurl(const Vector & X,
@@ -672,10 +817,22 @@ void maxwell_solution_curlcurl(const Vector & X,
 {
    complex<double> zi = complex<double>(0., 1.);
    curlcurlE.resize(dim);
+   for (int i = 0; i < dim; ++i)
+   {
+      curlcurlE[i] = 0.0;;
+   }
    std::complex<double> pw = exp(zi * omega * (X.Sum()));
-   curlcurlE[0] = 2.0 * omega * omega * pw;
-   curlcurlE[1] = - omega * omega * pw;
-   curlcurlE[2] = - omega * omega * pw;
+   if (dim == 3)
+   {
+      curlcurlE[0] = 2.0 * omega * omega * pw;
+      curlcurlE[1] = - omega * omega * pw;
+      curlcurlE[2] = - omega * omega * pw;
+   }
+   else
+   {
+      curlcurlE[0] = omega * omega * pw;
+      curlcurlE[1] = -omega * omega * pw;
+   }
 }
 
 void J_solution(const Vector &x,std::vector<complex<double>> &J)
@@ -742,8 +899,8 @@ void H_exact_r(const Vector &x, Vector & H_r)
    // H_r = - ∇ × E_i / ω μ
    Vector curlE_i;
    curlE_exact_i(x,curlE_i);
-   H_r.SetSize(dim);
-   for (int i = 0; i<dim; i++)
+   H_r.SetSize(dimc);
+   for (int i = 0; i<dimc; i++)
    {
       H_r(i) = - curlE_i(i) / (omega * mu);
    }
@@ -755,8 +912,8 @@ void H_exact_i(const Vector &x, Vector & H_i)
    // H_i =  ∇ × E_r / ω μ
    Vector curlE_r;
    curlE_exact_r(x,curlE_r);
-   H_i.SetSize(dim);
-   for (int i = 0; i<dim; i++)
+   H_i.SetSize(dimc);
+   for (int i = 0; i<dimc; i++)
    {
       H_i(i) = curlE_r(i) / (omega * mu);
    }
@@ -905,12 +1062,36 @@ void LaplaceJ_exact_i(const Vector &x, Vector & d2J_i)
 
 void hatE_exact_r(const Vector & x, Vector & hatE_r)
 {
-   E_exact_r(x,hatE_r);
+   if (dim == 3)
+   {
+      E_exact_r(x,hatE_r);
+   }
+   else
+   {
+      Vector E_r;
+      E_exact_r(x,E_r);
+      hatE_r.SetSize(E_r.Size());
+      // rotate E_hat
+      hatE_r[0] = E_r[1];
+      hatE_r[1] = -E_r[0];
+   }
 }
 
 void hatE_exact_i(const Vector & x, Vector & hatE_i)
 {
-   E_exact_i(x,hatE_i);
+   if (dim == 3)
+   {
+      E_exact_i(x,hatE_i);
+   }
+   else
+   {
+      Vector E_i;
+      E_exact_i(x,E_i);
+      hatE_i.SetSize(E_i.Size());
+      // rotate E_hat
+      hatE_i[0] = E_i[1];
+      hatE_i[1] = -E_i[0];
+   }
 }
 
 // F = -i ω ϵ E + ∇ × H + i/ω J

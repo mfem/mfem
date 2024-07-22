@@ -81,13 +81,11 @@ PMAXWELL_UW_TOKAMAK_OBJ = $(PMAXWELL_UW_TOKAMAK_SRC:.cpp=.o)
 PMAXWELL_UW_COUPLED_SRC = pmaxwell-coupled.cpp $(DPG_COMPLEX_PAR_SRC)
 PMAXWELL_UW_COUPLED_OBJ = $(PMAXWELL_UW_COUPLED_SRC:.cpp=.o)
 
-PMAXWELL_UW_COUPLED2D_SRC = pmaxwell-coupled-2d.cpp $(DPG_COMPLEX_PAR_SRC)
-PMAXWELL_UW_COUPLED2D_OBJ = $(PMAXWELL_UW_COUPLED2D_SRC:.cpp=.o)
 
 SEQ_MINIAPPS = diffusion convection-diffusion acoustics maxwell
 PAR_MINIAPPS = pdiffusion pconvection-diffusion pacoustics pmaxwell pmaxwell-tokamak pmaxwell-fem-tokamak \
  pmaxwell-primal-tokamak pmaxwell-uw-tokamak pacoustics-primal pmaxwell-primal pdiffusion-primal pvectordiffusion-primal \
- pmaxwell-coupled pmaxwell-coupled-2d.cpp
+ pmaxwell-coupled 
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -166,9 +164,6 @@ pmaxwell-uw-tokamak: $(PMAXWELL_UW_TOKAMAK_OBJ)
 
 pmaxwell-coupled: $(PMAXWELL_UW_COUPLED_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(PMAXWELL_UW_COUPLED_OBJ) $(COMMON_LIB) $(MFEM_LIBS)		
-
-pmaxwell-coupled-2d: $(PMAXWELL_UW_COUPLED2D_OBJ)
-	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(PMAXWELL_UW_COUPLED2D_OBJ) $(COMMON_LIB) $(MFEM_LIBS)	
 
 # Rule for building lib-common
 lib-common:

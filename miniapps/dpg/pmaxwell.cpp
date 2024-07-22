@@ -46,7 +46,7 @@
 // where A = [0 1; -1 0];
 
 // E ∈ (L²(Ω))² , H ∈ L²(Ω)
-// Ê ∈ H^-1/2(Ω)(Γₕ), Ĥ ∈ H^1/2(Γₕ)
+// Ê ∈ H^-1/2(Γₕ), Ĥ ∈ H^1/2(Γₕ)
 //  i ω μ (H,F) + (E, ∇ × F) + < AÊ, F > = 0,      ∀ F ∈ H¹
 // -i ω ϵ (E,G) + (H,∇ × G)  + < Ĥ, G × n > = (J,G)   ∀ G ∈ H(curl,Ω)
 //                                        Ê = E₀      on ∂Ω
@@ -1171,7 +1171,7 @@ void hatE_exact_r(const Vector & x, Vector & hatE_r)
    {
       Vector E_r;
       E_exact_r(x,E_r);
-      hatE_r.SetSize(hatE_r.Size());
+      hatE_r.SetSize(E_r.Size());
       // rotate E_hat
       hatE_r[0] = E_r[1];
       hatE_r[1] = -E_r[0];
@@ -1188,7 +1188,7 @@ void hatE_exact_i(const Vector & x, Vector & hatE_i)
    {
       Vector E_i;
       E_exact_i(x,E_i);
-      hatE_i.SetSize(hatE_i.Size());
+      hatE_i.SetSize(E_i.Size());
       // rotate E_hat
       hatE_i[0] = E_i[1];
       hatE_i[1] = -E_i[0];
