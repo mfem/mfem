@@ -139,7 +139,6 @@ void DifferentiableOperator<kernels_tuple,
             integration_weights, geometric_factors, kernel.inputs,
             std::make_index_sequence<kernel.num_kinputs> {});
 
-         constexpr int didx = derivative_idx;
          map_fields_to_quadrature_data_conditional(
             directions_qp, e,
             directions_e, kinput_to_field,
@@ -159,6 +158,7 @@ void DifferentiableOperator<kernels_tuple,
                            kernel_shadow_args,
                            directions_qp,
                            qp);
+
             // f_qp = apply_kernel_fwddiff_dual(
             //           kernel.func,
             //           kernel_args,
