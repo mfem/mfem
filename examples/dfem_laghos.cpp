@@ -1109,16 +1109,20 @@ int main(int argc, char *argv[])
    args.AddOption(&use_viscosity, "-av", "--av", "-no-av", "--no-av", "");
    args.ParseCheck();
 
-   // Mesh serial_mesh = Mesh(mesh_file, true, true);
+   Mesh serial_mesh = Mesh(mesh_file, true, true);
 
-   Mesh serial_mesh = Mesh(Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL,
-                                                 true));
-   const int NBE = serial_mesh.GetNBE();
-   for (int b = 0; b < NBE; b++)
+   if (problem == 0 || problem == 1)
    {
-      Element *bel = serial_mesh.GetBdrElement(b);
-      const int attr = (b < NBE/2) ? 2 : 1;
-      bel->SetAttribute(attr);
+      serial_mesh = Mesh(Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL,
+                                               true));
+
+      const int NBE = serial_mesh.GetNBE();
+      for (int b = 0; b < NBE; b++)
+      {
+         Element *bel = serial_mesh.GetBdrElement(b);
+         const int attr = (b < NBE/2) ? 2 : 1;
+         bel->SetAttribute(attr);
+      }
    }
 
    for (int i = 0; i < refinements; i++)
@@ -1205,7 +1209,6 @@ int main(int argc, char *argv[])
             }
             break;
          case 1: v = 0.0; break;
-         case 2: v = 0.0; break;
          case 3: v = 0.0; break;
          default: MFEM_ABORT("error");
       }
@@ -1315,7 +1318,7 @@ int main(int argc, char *argv[])
                                               material_gf,
                                               ir);
 
-   RK4Solver ode_solver;
+   ImplicitMidpointSolver ode_solver;
    ode_solver.Init(hydro);
 
    hydro.ComputeDensity(rho_gf);
