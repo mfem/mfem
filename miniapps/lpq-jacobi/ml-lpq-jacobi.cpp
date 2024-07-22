@@ -12,10 +12,11 @@ using namespace lpq_jacobi;
 
 int main(int argc, char *argv[])
 {
+   /// 1. Initialize MPI and HYPRE.
    Mpi::Init();
    Hypre::Init();
 
-   // TODO(Gabriel): simpler default mesh to be defined by the type if left blank
+   /// 2. Parse command line options.
    string mesh_file = "meshes/icf.mesh";
    // System properties
    int num_levels = 1;
@@ -36,9 +37,10 @@ int main(int argc, char *argv[])
    // Kershaw Transformation
    double eps_y = 0.0;
    double eps_z = 0.0;
-   // TODO(Gabriel): To be added later
+   // Other options
+   // TODO(Gabriel): To add device support
    // const char *device_config = "cpu";
-   // bool visualization = false;
+   bool visualization = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -51,15 +53,13 @@ int main(int argc, char *argv[])
    args.AddOption((int*)&solver_type, "-s", "--solver",
                   "Solvers to be considered:"
                   "\n\t0: Stationary Linear Iteration"
-                  "\n\t1: Preconditioned Conjugate Gradient"
-                  "\n\tTODO");
+                  "\n\t1: Preconditioned Conjugate Gradient");
    args.AddOption((int*)&integrator_type, "-i", "--integrator",
                   "Integrators to be considered:"
                   "\n\t0: MassIntegrator"
                   "\n\t1: DiffusionIntegrator"
                   "\n\t2: ElasticityIntegrator"
-                  "\n\t3: CurlCurlIntegrator + VectorFEMassIntegrator"
-                  "\n\tTODO");
+                  "\n\t3: CurlCurlIntegrator + VectorFEMassIntegrator");
    args.AddOption(&refine_serial, "-rs", "--refine-serial",
                   "Number of serial refinements");
    args.AddOption(&refine_parallel, "-rp", "--refine-parallel",
@@ -76,18 +76,19 @@ int main(int argc, char *argv[])
                   "Kershaw transform factor, eps_y in (0,1]");
    args.AddOption(&eps_z, "-Kz", "--Kershaw-z",
                   "Kershaw transform factor, eps_z in (0,1]");
-   // args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
-   //                "--no-visualization",
-   //                "Enable or disable GLVis visualization.");
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
    args.ParseCheck();
 
    MFEM_ASSERT(p_order > 0.0, "p needs to be positive");
    MFEM_ASSERT(geometric_levels >= 0, "geometric_level needs to be non-negative");
    MFEM_ASSERT(order_levels >= 0, "order_level needs to be non-negative");
-   // MFEM_ASSERT(geometric_levels + order_levels > 0, ""); // TODO(Gabriel): Do i require this?
    MFEM_ASSERT((0 <= integrator_type) && (integrator_type < num_integrators), "");
    MFEM_ASSERT(0.0 < eps_y <= 1.0, "eps_y in (0,1]");
    MFEM_ASSERT(0.0 < eps_z <= 1.0, "eps_z in (0,1]");
+
+   kappa = freq * M_PI;
 
    // TODO(Gabriel): To be restructured
    ostringstream file_name;
@@ -104,12 +105,18 @@ int main(int argc, char *argv[])
    // Device device(device_config);
    // if (myid == 0) { device.Print(); }
 
+   /// 3. Read the serial mesh from the given mesh file.
+   ///    For convinience, the meshes are available in
+   ///    ./meshes, and the number of serial and parallel
+   ///    refinements are user-defined.
    Mesh *serial_mesh = new Mesh(mesh_file);
    for (int ls = 0; ls < refine_serial; ls++)
    {
       serial_mesh->UniformRefinement();
    }
 
+   /// 4. Define a parallel mesh by a partitioning of the serial mesh.
+   ///    Number of parallel refinements given by the user.
    ParMesh *mesh = new ParMesh(MPI_COMM_WORLD, *serial_mesh);
    delete serial_mesh;
    for (int lp = 0; lp < refine_parallel; lp++)
@@ -117,10 +124,16 @@ int main(int argc, char *argv[])
       mesh->UniformRefinement();
    }
 
-   int dim = mesh->Dimension();
+   /// 5. Define a finite element space on the mesh. We use different spaces
+   ///    and collections for different systems.
+   ///    - H1-conforming Lagrange elements for the H1-mass matrix and the
+   ///      diffusion problem.
+   ///    - Vector H1-conforming Lagrange elements for the elasticity problem.
+   ///    - H(curl)-conforming Nedelec elements for the definite Maxwell problem.
    FiniteElementCollection *fec;
    ParFiniteElementSpace *coarse_fes;
-   Array<FiniteElementCollection*> fec_array;
+   dim = mesh->Dimension();
+   space_dim = mesh->SpaceDimension();
    switch (integrator_type)
    {
       case mass: case diffusion:
@@ -138,6 +151,11 @@ int main(int argc, char *argv[])
       default:
          mfem_error("Invalid integrator type! Check FiniteElementCollection");
    }
+
+   /// 6. Define a finite element space hierarchy for the multigrid solver.
+   ///    Define a FEC array for the order-refinement levels. Add the refinements
+   ///    to the hierarchy.
+   Array<FiniteElementCollection*> fec_array;
    fec_array.Append(fec);
    // Transfer ownership of mesh and coarse_fes to fes_hierarchy
    ParFiniteElementSpaceHierarchy* fes_hierarchy = new
@@ -170,56 +188,68 @@ int main(int argc, char *argv[])
       mfem::out << "Number of unknowns: " << sys_size << endl;
    }
 
-   Array<int> ess_tdof_list;
+   /// 7. Extract the list of the essential boundary DoFs. We mark all boundary
+   ///    attibutes as essential. GeneralGeometricMultigrid will determine
+   ///    the DoFs per level.
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
-   switch (integrator_type)
-   {
-      case mass: case diffusion: case maxwell:
-         ess_bdr = 1;
-         break;
-      case elasticity:
-         ess_bdr = 0;
-         ess_bdr[0] = 1;
-         break;
-      default:
-         mfem_error("Invalid integrator type! Check GetEssentialTrueDofs");
-   }
+   ess_bdr = 1;
 
-   fes_hierarchy->GetFinestFESpace().GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-
+   /// 8. Define the linear system. Set up the linear form b(.).
+   ///    The linear form has the standar form (f,v).
+   ///    Define the matrices and vectors associated to the forms, and project
+   ///    the required boundary data into the GridFunction solution.
    ParLinearForm *b = new ParLinearForm(&fes_hierarchy->GetFinestFESpace());
+   LinearFormIntegrator *lfi = nullptr;
+
+   // These pointers are not owned by the integrators
+   FunctionCoefficient *scalar_u = nullptr;
+   FunctionCoefficient *scalar_f = nullptr;
+   VectorFunctionCoefficient *vector_u = nullptr;
+   VectorFunctionCoefficient *vector_f = nullptr;
+
    ConstantCoefficient one(1.0);
-   VectorArrayCoefficient *f = nullptr;
+
+   // These variables will define the linear system
+   ParGridFunction x(&fes_hierarchy->GetFinestFESpace());
+   OperatorPtr A(Operator::Type::Hypre_ParCSR);
+   Vector B, X;
+
+   x = 0.0;
+
    switch (integrator_type)
    {
-      case mass: case diffusion:
-         b->AddDomainIntegrator(new DomainLFIntegrator(one));
+      case mass:
+         scalar_u = new FunctionCoefficient(diffusion_solution);
+         lfi = new DomainLFIntegrator(*scalar_u);
+         x.ProjectBdrCoefficient(*scalar_u, ess_bdr);
+         break;
+      case diffusion:
+         scalar_u = new FunctionCoefficient(diffusion_solution);
+         scalar_f = new FunctionCoefficient(diffusion_source);
+         lfi = new DomainLFIntegrator(*scalar_f);
+         x.ProjectBdrCoefficient(*scalar_u, ess_bdr);
          break;
       case elasticity:
-         f = new VectorArrayCoefficient(dim);
-         for (int i = 0; i < dim; i++)
-         {
-            f->Set(i, &one);
-         }
-         b->AddDomainIntegrator(new VectorDomainLFIntegrator(*f));
+         vector_u = new VectorFunctionCoefficient(space_dim, elasticity_solution);
+         vector_f = new VectorFunctionCoefficient(space_dim, elasticity_source);
+         lfi = new VectorDomainLFIntegrator(*vector_f);
+         x.ProjectBdrCoefficient(*vector_u, ess_bdr);
          break;
       case maxwell:
-         f = new VectorArrayCoefficient(dim);
-         for (int i = 0; i < dim; i++)
-         {
-            f->Set(i, &one);
-         }
-         b->AddBoundaryIntegrator(new VectorFEDomainLFIntegrator(*f));
+         vector_u = new VectorFunctionCoefficient(space_dim, maxwell_solution);
+         vector_f = new VectorFunctionCoefficient(space_dim, maxwell_source);
+         lfi = new VectorFEDomainLFIntegrator(*vector_f);
+         x.ProjectBdrCoefficientTangent(*vector_u, ess_bdr);
          break;
       default:
          mfem_error("Invalid integrator type! Check ParLinearForm");
    }
+   b->AddDomainIntegrator(lfi);
    b->Assemble();
 
-   ParGridFunction x(&fes_hierarchy->GetFinestFESpace());
-   // x = 0.0;
-   x = -1.0;
-
+   /// 9. Define a geometric multigrid solver. The bilinear form
+   ///    a(.,.) is assembled internally. Set up the type of cycles
+   ///    and form the linear system.
    GeneralGeometricMultigrid* mg = new GeneralGeometricMultigrid(*fes_hierarchy,
                                                                  ess_bdr,
                                                                  integrator_type,
@@ -227,17 +257,10 @@ int main(int argc, char *argv[])
                                                                  p_order,
                                                                  q_order);
    mg->SetCycleType(Multigrid::CycleType::VCYCLE, 1, 1);
-
-   OperatorPtr A(Operator::Type::Hypre_ParCSR);
-   Vector B, X;
-
    mg->FormFineLinearSystem(x, *b, A, X, B);
 
    Solver *solver = nullptr;
-   // auto lpq_jacobi = new OperatorLpqJacobiSmoother(*A.As<HypreParMatrix>(), ess_tdof_list, p_order,
-   //                                                 q_order);
-
-   DataMonitor monitor(file_name.str(), NDIGITS);
+   // DataMonitor monitor(file_name.str(), NDIGITS);
    switch (solver_type)
    {
       case sli:
@@ -255,16 +278,34 @@ int main(int argc, char *argv[])
       it_solver->SetRelTol(rel_tol);
       it_solver->SetMaxIter(max_iter);
       it_solver->SetPrintLevel(1);
-      // it_solver->SetPreconditioner(*lpq_jacobi);
-      it_solver->SetMonitor(monitor);
+      // it_solver->SetMonitor(monitor);
    }
    solver->SetOperator(*mg);
    solver->Mult(B, X);
 
+   /// 10. Recover the solution x as a grid function. Send the data by socket
+   ///     to a GLVis server.
+   mg->RecoverFineFEMSolution(X, *b, x);
+
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream sol_sock(vishost, visport);
+      sol_sock << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank() << "\n";
+      sol_sock.precision(8);
+      sol_sock << "solution\n" << *fes_hierarchy->GetFinestFESpace().GetParMesh()
+               << x << flush;
+   }
+
+   /// 11. Free the memory used
    delete mg;
    delete solver;
    delete b;
+   if (scalar_u) { delete scalar_u; }
+   if (scalar_f) { delete scalar_f; }
+   if (vector_u) { delete vector_u; }
+   if (vector_f) { delete vector_f; }
    delete fes_hierarchy;
-
    return 0;
 }

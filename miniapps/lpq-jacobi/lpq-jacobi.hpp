@@ -16,8 +16,8 @@ namespace lpq_jacobi
 {
 
 int NDIGITS = 20;
-int MG_MAX_ITER = 100;
-real_t MG_REL_TOL = 1e-4;
+int MG_MAX_ITER = 10000;
+real_t MG_REL_TOL = 1e-5;
 
 int dim;
 int space_dim;
@@ -42,7 +42,7 @@ enum IntegratorType
    num_integrators,  // last
 };
 
-// Custom monitor that prints a csv-like file
+// Custom monitor that prints a csv-formatted file
 class DataMonitor : public IterativeSolverMonitor
 {
 private:
@@ -96,15 +96,9 @@ public:
       }
    }
 
-   ~GeneralGeometricMultigrid()
-   {
-      for (int ll = 0; level_mats.Size(); ll++)
-      {
-         delete level_mats.Last();
-         level_mats.DeleteLast();
-      }
-      delete coarse_pc;
-   }
+   const Array<int>* ReturnLastEssentialTrueDofs() { return essentialTrueDofs.Last(); }
+
+   ~GeneralGeometricMultigrid() { delete coarse_pc; }
 
 private:
    IntegratorType integrator_type;
@@ -147,12 +141,10 @@ private:
          it_solver->SetMaxIter(MG_MAX_ITER);
          it_solver->SetPrintLevel(1);
          it_solver->SetPreconditioner(*coarse_pc);
-         // it_solver->SetMonitor(monitor);
       }
       coarse_solver->SetOperator(*coarse_mat);
 
-      // Last two variables transfer ownership of the pointers
-      // Operator and solver
+      // Last two variables transfer ownership of the pointers operator and solver
       AddLevel(coarse_mat, coarse_solver, true, true);
    }
 
@@ -169,7 +161,7 @@ private:
                                                        p_order,
                                                        q_order);
 
-      AddLevel(level_mats.Last(), smoother, false, true);
+      AddLevel(level_mats.Last(), smoother, true, true);
    }
 
 
