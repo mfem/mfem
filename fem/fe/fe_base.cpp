@@ -1204,8 +1204,8 @@ void VectorFiniteElement::Project_ND(
    Vector xk(vk, vc.GetVDim());
 
    DenseMatrix M;
-   bool my_project=true;
-   if (my_project)
+   bool my_assembly=true;
+   if (my_assembly)
    {
        cout<<"Turn on my Project_ND"<<endl;
        vc.Eval(M, Trans, Nodes);
@@ -1216,7 +1216,7 @@ void VectorFiniteElement::Project_ND(
    {
       Trans.SetIntPoint(&Nodes.IntPoint(k));
 
-      if (my_project){
+      if (my_assembly){
           Vector Mi;
           M.GetColumnReference(k, Mi);
           xk = Mi;

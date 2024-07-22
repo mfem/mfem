@@ -519,13 +519,28 @@ void VectorFEDomainLFCurlIntegrator::AssembleRHSElementVect(
       ir = &IntRules.Get(el.GetGeomType(), intorder);
    }
 
+   bool my_assembly=true;
+   DenseMatrix QM;
+   if (my_assembly){
+      //std::cout<<"my assembly in VectorFEDomainLFCurlIntegrator::AssembleRHSElementVect"<<std::endl;
+      QF->Eval(QM, Tr, *ir);
+   }
+
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
 
       Tr.SetIntPoint (&ip);
       el.CalcPhysCurlShape(Tr, curlshape);
-      QF->Eval(vec, Tr, ip);
+
+      if (my_assembly){
+         Vector Mi;
+         QM.GetColumnReference(i,Mi);
+         vec = Mi;
+      }
+      else{
+         QF->Eval(vec, Tr, ip);
+      }
 
       vec *= ip.weight * Tr.Weight();
       curlshape.AddMult (vec, elvect);
