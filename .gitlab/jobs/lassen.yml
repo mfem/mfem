@@ -24,7 +24,7 @@ setup:
   extends: .on_lassen
   stage: jobs-stage-1
   script:
-    - ./tests/gitlab/ci_job_setup
+    - ./tests/gitlab/build_and_test_setup
 
 
 ########################
