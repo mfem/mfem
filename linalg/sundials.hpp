@@ -951,12 +951,12 @@ public:
 
    /// Set the damping parameter for KIN_FP or KIN_PICARD.
    /** The default is 1.0
-       The value of @beta must be 0 < @beta < 1.0. */
+       The value of beta must be 0 < beta < 1.0. */
    void SetDamping(real_t beta);
 
    /// Set the damping parameter for Anderson acceleration.
    /** The default is 1.
-       The value of @beta must be 0 < @beta < 1.0. For more details consult
+       The value of beta must be 0 < beta < 1.0. For more details consult
        the KINSOL documentation */
    void SetDampingAA(real_t beta);
 
