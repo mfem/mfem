@@ -108,11 +108,19 @@ int socketbuf::open(const char hostname[], int port)
    hints.ai_socktype = SOCK_STREAM;
    hints.ai_flags = 0;
    hints.ai_protocol = 0;
+   // On Windows, the following need to be set to 0; also required by POSIX.
+   hints.ai_addrlen = 0;
+   hints.ai_canonname = NULL;
+   hints.ai_addr = NULL;
+   hints.ai_next = NULL;
 
    std::string portStr = std::to_string(port);
    int s = getaddrinfo(hostname, portStr.c_str(), &hints, &res);
    if (s != 0)
    {
+#ifdef MFEM_DEBUG
+      mfem::out << "Error in getaddrinfo(): code = " << s << std::endl;
+#endif
       socket_descriptor = -3;
       return -1;
    }
