@@ -66,6 +66,7 @@ real_t inflow_function(const Vector &x);
 // Mesh bounding box
 Vector bb_min, bb_max;
 
+/*
 class DG_Solver : public Solver
 {
 private:
@@ -114,6 +115,7 @@ public:
       linear_solver.Mult(x, y);
    }
 };
+//*/
 
 /** A time-dependent operator for the right-hand side of the ODE. The DG weak
     form of du/dt = -v.grad(u) is M du/dt = K u + b, where M and K are the mass
@@ -122,23 +124,246 @@ public:
     used to evaluate the right-hand side. */
 class FE_Evolution : public TimeDependentOperator
 {
-private:
-   BilinearForm &M, &K;
-   const Vector &b;
-   Solver *M_prec;
-   CGSolver M_solver;
-   DG_Solver *dg_solver;
+protected:
+   SparseMatrix M, K;
+   const Vector &lumpedmassmatrix;
+   const int nDofs;
+   //Solver *M_prec;
+   //CGSolver M_solver;
+   //DG_Solver *dg_solver;
 
    mutable Vector z;
 
 public:
-   FE_Evolution(BilinearForm &M_, BilinearForm &K_, const Vector &b_);
+   FE_Evolution(BilinearForm &M_, BilinearForm &K_, Vector &lumpedmassmatrix_);
 
-   virtual void Mult(const Vector &x, Vector &y) const;
-   virtual void ImplicitSolve(const real_t dt, const Vector &x, Vector &k);
+   virtual void Mult(const Vector &x, Vector &y) const = 0;
+   virtual double CalcGraphViscosity(const int i, const int j) const;
+   //virtual void ImplicitSolve(const real_t dt, const Vector &x, Vector &k);
 
    virtual ~FE_Evolution();
 };
+
+class LowOrder : public FE_Evolution
+{
+   public:
+   LowOrder(BilinearForm &M_, BilinearForm &K_, Vector &lumpedmassmatrix_);
+   virtual void Mult(const Vector &x, Vector &y) const;
+
+   virtual ~LowOrder();
+};
+
+class HighOrderTargetScheme : public FE_Evolution
+{
+   public:
+   HighOrderTargetScheme(BilinearForm &M_, BilinearForm &K_, Vector &lumpedmassmatrix_);
+   virtual void Mult(const Vector &x, Vector &y) const;
+
+   virtual ~HighOrderTargetScheme();
+};
+
+class MCL : public FE_Evolution
+{
+   private:
+   //mutable Vector fij;
+
+   public:
+   MCL(BilinearForm &M_, BilinearForm &K_, Vector &lumpedmassmatrix_);
+   virtual void Mult(const Vector &x, Vector &y) const;
+
+   virtual ~MCL();
+};
+
+// Implementation of class FE_Evolution
+FE_Evolution::FE_Evolution(BilinearForm &M_, BilinearForm &K_, Vector &lumpedmassmatrix_)
+   : TimeDependentOperator(M_.FESpace()->GetTrueVSize()),
+     M(M_.SpMat()), K(K_.SpMat()), lumpedmassmatrix(lumpedmassmatrix_), z(height), nDofs(lumpedmassmatrix_.Size())
+{ }
+
+double FE_Evolution::CalcGraphViscosity(const int i, const int j) const
+{ 
+   return max(0.0, max(abs(K(i,j)), abs(K(j,i))) );
+}
+
+FE_Evolution::~FE_Evolution()
+{ }
+
+LowOrder::LowOrder(BilinearForm &M_, BilinearForm &K_, Vector &lumpedmassmatrix_) 
+   : FE_Evolution(M_, K_, lumpedmassmatrix_)
+{ }
+
+void LowOrder::Mult(const Vector &x, Vector &y) const
+{  
+   const auto II = K.ReadI();
+   const auto JJ = K.ReadJ();
+   const auto KK = K.ReadData();
+   double dij;
+
+   for(int i = 0; i < nDofs; i++)
+   {
+      const int begin = II[i];
+      const int end = II[i+1];
+
+      y(i) = 0.0;
+      for(int j = begin; j < end; j++)
+      {
+         if( i == JJ[j] ) {continue;}
+
+         dij = CalcGraphViscosity(i,JJ[j]);
+         y(i) += (dij - KK[j]) * (x(JJ[j]) - x(i));
+      }
+      y(i) /= lumpedmassmatrix(i); 
+   }
+}
+
+LowOrder::~LowOrder()
+{ }
+
+HighOrderTargetScheme::HighOrderTargetScheme(BilinearForm &M_, BilinearForm &K_, Vector &lumpedmassmatrix_) 
+   : FE_Evolution(M_, K_, lumpedmassmatrix_)
+{ }
+
+void HighOrderTargetScheme::Mult(const Vector &x, Vector &y) const
+{  
+   const auto II = K.ReadI();
+   const auto JJ = K.ReadJ();
+   const auto KK = K.ReadData();
+   const auto MM = M.ReadData();
+   double dij;
+
+   // compute low order time derivatives
+   for(int i = 0; i < nDofs; i++)
+   {
+      const int begin = II[i];
+      const int end = II[i+1];
+
+      z(i) = 0.0;
+      for(int j = begin; j < end; j++)
+      {
+         if( i == JJ[j] ) {continue;}
+
+         dij = CalcGraphViscosity(i,JJ[j]);
+         z(i) += (dij - KK[j]) * (x(JJ[j]) - x(i));
+      }
+      z(i) /= lumpedmassmatrix(i); 
+   }
+
+   for(int i = 0; i < nDofs; i++)
+   {
+      const int begin = II[i];
+      const int end = II[i+1];
+
+      y(i) = 0.0;
+      for(int j = begin; j < end; j++)
+      {
+         if( i == JJ[j] ) {continue;}
+
+         //dij = CalcGraphViscosity(i,JJ[j]);
+         y(i) += - KK[j] * (x(JJ[j]) - x(i)) + MM[j] * (z(i) - z(JJ[j]));
+      }
+      y(i) /= lumpedmassmatrix(i); 
+   }
+}
+
+HighOrderTargetScheme::~HighOrderTargetScheme()
+{ }
+
+MCL::MCL(BilinearForm &M_, BilinearForm &K_, Vector &lumpedmassmatrix_) 
+   : FE_Evolution(M_, K_, lumpedmassmatrix_)//, fij(height)
+{ }
+
+void MCL::Mult(const Vector &x, Vector &y) const
+{  
+   const auto II = K.ReadI();
+   const auto JJ = K.ReadJ();
+   const auto KK = K.ReadData();
+   const auto MM = M.ReadData();
+   double dij, fij, fij_star, fij_bound, wij, wji;
+
+   // compute low order time derivatives
+   for(int i = 0; i < nDofs; i++)
+   {
+      const int begin = II[i];
+      const int end = II[i+1];
+
+      z(i) = 0.0;
+      for(int j = begin; j < end; j++)
+      {
+         if( i == JJ[j] ) {continue;}
+
+         dij = CalcGraphViscosity(i,JJ[j]);
+         z(i) += (dij - KK[j]) * (x(JJ[j]) - x(i));
+      }
+      z(i) /= lumpedmassmatrix(i); 
+
+   }
+
+   for(int i = 0; i < nDofs; i++)
+   {
+      const int begin = II[i];
+      const int end = II[i+1];
+      
+      // find the local bounds for the i-th node
+      double ui_min = x(i);
+      double ui_max = ui_min;
+      for(int j = begin; j < end; j++)
+      {
+         ui_max = max(ui_max, x(JJ[j]));
+         ui_min = min(ui_min, x(JJ[j]));
+      }
+      
+      y(i) = 0.0;
+      for(int j = begin; j < end; j++)
+      {
+         if( i == JJ[j] ) {continue;}
+         
+         // find the local bounds for the JJ[j]-th node
+         double uj_min = x(JJ[j]);
+         double uj_max = uj_min;
+         const int begin_j = II[JJ[j]];
+         const int end_j = II[JJ[j]+1];
+         for(int k = begin_j; k < end_j; k++)
+         {  
+            uj_max = max(uj_max, x(JJ[k]));
+            uj_min = min(uj_min, x(JJ[k]));
+         }
+          
+         dij = CalcGraphViscosity(i,JJ[j]);
+
+         // compute target flux
+         fij = MM[j] * (z(i) - z(JJ[j])) + dij * (x(i) - x(JJ[j]));
+
+         //limit target flux to enforce local bounds for the bar states (note, that dij = dji)
+         wij = dij * (x(i) + x(JJ[j]))  - KK[j] * (x(JJ[j]) - x(i));
+         wji = dij * (x(i) + x(JJ[j]))  - K(JJ[j], i) * (x(i) - x(JJ[j])); 
+         if(fij > 0)
+         {
+            fij_bound = min(2.0 * dij * ui_max - wij, wji - 2.0 * dij * uj_min);
+            fij_star = min(fij, fij_bound);
+
+            // to get rid of rounding errors wich influence the sign 
+            //fij_star = max(0.0, fij_star);
+         }
+         else
+         {
+            fij_bound = max(2.0 * dij * ui_min - wij, wji - 2.0 * dij * uj_max);
+            fij_star = max(fij, fij_bound);
+
+            // to get rid of rounding errors wich influence the sign
+            //fij_star = min(0.0, fij_star);
+         }
+         y(i) += (dij - KK[j]) * (x(JJ[j]) - x(i) ) + fij_star ;
+      }
+      y(i) /= lumpedmassmatrix(i);  
+
+   }
+   
+}
+
+MCL::~MCL()
+{ }
+
+
 
 
 int main(int argc, char *argv[])
@@ -148,6 +373,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/periodic-hexagon.mesh";
    int ref_levels = 2;
    int order = 1;
+   int scheme = 1;
    bool pa = false;
    bool ea = false;
    bool fa = false;
@@ -169,6 +395,8 @@ int main(int argc, char *argv[])
                   "Mesh file to use.");
    args.AddOption(&problem, "-p", "--problem",
                   "Problem setup to use. See options in velocity_function().");
+   args.AddOption(&scheme, "-sc", "--scheme",
+                  "Finite element scheme to use. 1 for low order scheme, 2 for high order target scheme, 3 for monolithic convex limiting!");
    args.AddOption(&ref_levels, "-r", "--refine",
                   "Number of times to refine the mesh uniformly.");
    args.AddOption(&order, "-o", "--order",
@@ -234,13 +462,13 @@ int main(int argc, char *argv[])
       case 4: ode_solver = new RK4Solver; break;
       case 6: ode_solver = new RK6Solver; break;
       // Implicit (L-stable) methods
-      case 11: ode_solver = new BackwardEulerSolver; break;
-      case 12: ode_solver = new SDIRK23Solver(2); break;
-      case 13: ode_solver = new SDIRK33Solver; break;
+      //case 11: ode_solver = new BackwardEulerSolver; break;
+      //case 12: ode_solver = new SDIRK23Solver(2); break;
+      //case 13: ode_solver = new SDIRK33Solver; break;
       // Implicit A-stable methods (not L-stable)
-      case 22: ode_solver = new ImplicitMidpointSolver; break;
-      case 23: ode_solver = new SDIRK23Solver; break;
-      case 24: ode_solver = new SDIRK34Solver; break;
+      //case 22: ode_solver = new ImplicitMidpointSolver; break;
+      //case 23: ode_solver = new SDIRK23Solver; break;
+      //case 24: ode_solver = new SDIRK34Solver; break;
 
       default:
          cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
@@ -277,6 +505,8 @@ int main(int argc, char *argv[])
 
    BilinearForm m(&fes);
    BilinearForm k(&fes);
+   BilinearForm lumped_m(&fes);
+
    if (pa)
    {
       m.SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -293,22 +523,29 @@ int main(int argc, char *argv[])
       k.SetAssemblyLevel(AssemblyLevel::FULL);
    }
    m.AddDomainIntegrator(new MassIntegrator);
-   constexpr real_t alpha = -1.0;
-   k.AddDomainIntegrator(new ConvectionIntegrator(velocity, alpha));
+   lumped_m.AddDomainIntegrator(new LumpedIntegrator(new MassIntegrator()));
+   constexpr real_t alpha = - 1.0;
+   //k.AddDomainIntegrator(new TransposeIntegrator(new ConvectionIntegrator(velocity, alpha)));
+   k.AddDomainIntegrator(new ConvectionIntegrator(velocity));
    //k.AddInteriorFaceIntegrator(new NonconservativeDGTraceIntegrator(velocity, alpha));
-   k.AddBdrFaceIntegrator(
-      new NonconservativeDGTraceIntegrator(velocity, alpha));
+   //k.AddBdrFaceIntegrator(
+   //   new NonconservativeDGTraceIntegrator(velocity, alpha));
 
-   LinearForm b(&fes);
-   b.AddBdrFaceIntegrator(
-      new BoundaryFlowIntegrator(inflow, velocity, alpha));
+   //LinearForm b(&fes);
+   //b.AddBdrFaceIntegrator(
+   //   new BoundaryFlowIntegrator(inflow, velocity, alpha));
 
    m.Assemble();
+   lumped_m.Assemble();
    int skip_zeros = 0;
    k.Assemble(skip_zeros);
-   b.Assemble();
+   //b.Assemble();
    m.Finalize();
+   lumped_m.Finalize();
    k.Finalize(skip_zeros);
+
+   Vector lumpedmassmatrix(fes.GetVSize());
+   lumped_m.SpMat().GetDiag(lumpedmassmatrix);
 
    // 7. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
@@ -389,6 +626,8 @@ int main(int argc, char *argv[])
          {
             sout << "keys Rm\n"; 
          }
+         sout << "window_geometry "
+            << 0 << " " << 0 << " " << 1080 << " " << 1080 << "\n";
          sout << flush;
          cout << "GLVis visualization paused."
               << " Press space (in the GLVis window) to resume it.\n";
@@ -398,11 +637,19 @@ int main(int argc, char *argv[])
    // 8. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
-   FE_Evolution adv(m, k, b);
+
+   FE_Evolution *adv = NULL;
+   switch(scheme)
+   {
+      case 1: adv = new LowOrder(m, k, lumpedmassmatrix); break;
+      case 2: adv = new HighOrderTargetScheme(m, k, lumpedmassmatrix); break;
+      case 3: adv = new MCL(m, k, lumpedmassmatrix); break;
+      default: MFEM_ABORT("Unknown scheme!");
+   }
 
    real_t t = 0.0;
-   adv.SetTime(t);
-   ode_solver->Init(adv);
+   adv->SetTime(t);
+   ode_solver->Init(*adv);
 
    bool done = false;
    for (int ti = 0; !done; )
@@ -450,15 +697,14 @@ int main(int argc, char *argv[])
    delete ode_solver;
    delete pd;
    delete dc;
+   delete adv;
 
    return 0;
 }
 
 
-// Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(BilinearForm &M_, BilinearForm &K_, const Vector &b_)
-   : TimeDependentOperator(M_.FESpace()->GetTrueVSize()),
-     M(M_), K(K_), b(b_), z(height)
+
+/*
 {
    Array<int> ess_tdof_list;
    if (M.GetAssemblyLevel() == AssemblyLevel::LEGACY)
@@ -480,7 +726,9 @@ FE_Evolution::FE_Evolution(BilinearForm &M_, BilinearForm &K_, const Vector &b_)
    M_solver.SetMaxIter(100);
    M_solver.SetPrintLevel(0);
 }
+//*/
 
+/*
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
    // y = M^{-1} (K x + b)
@@ -488,7 +736,9 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    z += b;
    M_solver.Mult(z, y);
 }
+//*/
 
+/*
 void FE_Evolution::ImplicitSolve(const real_t dt, const Vector &x, Vector &k)
 {
    MFEM_VERIFY(dg_solver != NULL,
@@ -498,12 +748,15 @@ void FE_Evolution::ImplicitSolve(const real_t dt, const Vector &x, Vector &k)
    dg_solver->SetTimeStep(dt);
    dg_solver->Mult(z, k);
 }
+//*/
 
+/*
 FE_Evolution::~FE_Evolution()
 {
    delete M_prec;
    delete dg_solver;
 }
+//*/
 
 // Velocity coefficient
 void velocity_function(const Vector &x, Vector &v)
@@ -578,6 +831,25 @@ real_t u0_function(const Vector &x)
    switch (problem)
    {
       case 0:
+      {
+         if(dim != 1)
+         {
+            MFEM_ABORT("Problem 0 only works in 1D!");
+         }
+         
+         if(x(0) < 0.9 && x(0) > 0.5)
+         {
+            return exp(10) * exp(1.0 / (0.5 - x(0))) * exp(1.0 / (x(0) - 0.9));
+         }
+         if( x(0) < 0.4 && x(0) > 0.2)
+         {
+            return 1.0;
+         }
+         else 
+         {
+            return 0.0;
+         }
+      }
       case 1:
       {
          switch (dim)
