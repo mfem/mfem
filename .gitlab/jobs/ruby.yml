@@ -14,6 +14,10 @@
   script:
     - !reference [.reproducer_vars, script]
 
+.ruby_job_command:
+  script:
+    - srun $( [[ -n "${JOBID}" ]] && echo "--jobid=${JOBID}" ) ${RUBY_JOB_ALLOC} "${JOB_CMD}"
+
 #TODO: Setup script should be defined as a bash script (but then GIT_STRATEGY cannot be "none" anymore).
 
 # Setup clones the mfem/data repo in ${SHARED_REPOS_DIR}. The build_and_test
