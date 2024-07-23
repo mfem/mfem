@@ -435,6 +435,9 @@ public:
 
       void DeviceProlongateTranspose(const Vector& x, Vector& y) const;
 
+      /// Returns the inverse of an on-rank lumped mass matrix
+      void LumpedMassInverse(Vector& ML_inv) const;
+
       virtual void SetRelTol(real_t p_rtol_);
       virtual void SetAbsTol(real_t p_atol_);
    protected:
@@ -469,9 +472,6 @@ public:
       void TDofsListByVDim(const FiniteElementSpace& fes,
                            int vdim,
                            Array<int>& vdofs_list) const;
-
-      /// Returns the inverse of an on-rank lumped mass matrix
-      void LumpedMassInverse(Vector& ML_inv) const;
 
       /// @brief Computes sparsity pattern and initializes R matrix.
       /// Based on BilinearForm::AllocMat(), except maps between coarse HO
