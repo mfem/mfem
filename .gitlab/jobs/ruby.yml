@@ -14,10 +14,6 @@
   script:
     - !reference [.reproducer_vars, script]
 
-.ruby_job_command:
-  script:
-    - srun $( [[ -n "${JOBID}" ]] && echo "--jobid=${JOBID}" ) ${RUBY_JOB_ALLOC} ${JOB_CMD}
-
 #TODO: Setup script should be defined as a bash script (but then GIT_STRATEGY cannot be "none" anymore).
 
 # Setup clones the mfem/data repo in ${SHARED_REPOS_DIR}. The build_and_test
@@ -49,53 +45,53 @@ setup:
 #TODO: THREADS would be better defined elsewhere since it’s global to ruby.
 
 debug_ser_gcc_10:
+  extends: .job_on_ruby
+  stage: jobs-stage-2
   variables:
     SPEC: "%gcc@10.3.1 +debug~mpi"
     THREADS: 16
-  extends: .job_on_ruby
-  stage: jobs-stage-2
 
 debug_par_gcc_10:
+  extends: .job_on_ruby
+  stage: jobs-stage-2
   variables:
     SPEC: "%gcc@10.3.1 +debug+mpi"
     THREADS: 16
-  extends: .job_on_ruby
-  stage: jobs-stage-2
 
 opt_ser_gcc_10:
+  extends: .job_on_ruby
+  stage: jobs-stage-2
   variables:
     SPEC: "%gcc@10.3.1 ~mpi"
     THREADS: 16
-  extends: .job_on_ruby
-  stage: jobs-stage-2
 
 opt_par_gcc_10:
+  extends: .job_on_ruby
+  stage: jobs-stage-2
   variables:
     SPEC: "%gcc@10.3.1"
     THREADS: 16
-  extends: .job_on_ruby
-  stage: jobs-stage-2
 
 opt_par_gcc_10_sundials:
+  extends: .job_on_ruby
+  stage: jobs-stage-2
   variables:
     SPEC: "%gcc@10.3.1 +sundials"
     THREADS: 16
-  extends: .job_on_ruby
-  stage: jobs-stage-2
 
 opt_par_gcc_10_petsc:
+  extends: .job_on_ruby
+  stage: jobs-stage-2
   variables:
     SPEC: "%gcc@10.3.1 +petsc ^petsc+mumps~superlu-dist"
     THREADS: 16
-  extends: .job_on_ruby
-  stage: jobs-stage-2
 
 opt_par_gcc_10_pumi:
+  extends: .job_on_ruby
+  stage: jobs-stage-2
   variables:
     SPEC: "%gcc@10.3.1 +pumi"
     THREADS: 16
-  extends: .job_on_ruby
-  stage: jobs-stage-2
 
 # Jobs report
 report_job_success:

@@ -81,7 +81,7 @@ stages:
     include:
       - local: '.gitlab/custom-jobs-and-variables.yml'
       - project: 'radiuss/radiuss-shared-ci'
-        ref: 'v2024.07.0'
+        ref: 'woptim/improve-job-cmd-handling'
         file: 'pipelines/${CI_MACHINE}.yml'
       - artifact: '${CI_MACHINE}-jobs.yml'
         job: 'generate-job-lists'
@@ -109,7 +109,7 @@ include:
     file: 'id_tokens.yml'
   # [Optional] checks preliminary to running the actual CI test
   #- project: 'radiuss/radiuss-shared-ci'
-  #  ref: 'v2024.07.0'
+  #  ref: 'woptim/improve-job-cmd-handling'
   #  file: 'preliminary-ignore-draft-pr.yml'
   # pipelines subscribed by the project
   - local: '.gitlab/subscribed-pipelines.yml'

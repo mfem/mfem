@@ -14,10 +14,6 @@
   script:
     - !reference [.reproducer_vars, script]
 
-.lassen_job_command:
-  script:
-    - lalloc ${LASSEN_JOB_ALLOC} ${JOB_CMD}
-
 #TODO: Setup script should be defined as a bash script (but then GIT_STRATEGY cannot be "none" anymore).
 
 # Setup clones the mfem/data repo in ${SHARED_REPOS_DIR}. The build_and_test
@@ -47,16 +43,16 @@ setup:
 # describe the spec here.
 
 opt_mpi_cuda_gcc:
+  extends: .job_on_lassen
+  stage: jobs-stage-2
   variables:
     SPEC: "%gcc@8.3.1 +mpi +cuda cuda_arch=70"
-  extends: .job_on_lassen
-  stage: jobs-stage-2
 
 opt_mpi_cuda_hypre_cuda_gcc:
-  variables:
-    SPEC: "%gcc@8.3.1 +mpi +cuda cuda_arch=70 ^hypre+cuda~shared cuda_arch=70"
   extends: .job_on_lassen
   stage: jobs-stage-2
+  variables:
+    SPEC: "%gcc@8.3.1 +mpi +cuda cuda_arch=70 ^hypre+cuda~shared cuda_arch=70"
 
 # Jobs report
 report_job_success:
