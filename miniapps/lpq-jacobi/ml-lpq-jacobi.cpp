@@ -19,7 +19,6 @@ int main(int argc, char *argv[])
    /// 2. Parse command line options.
    string mesh_file = "meshes/icf.mesh";
    // System properties
-   int num_levels = 1;
    SolverType solver_type = sli;
    IntegratorType integrator_type = mass;
    // Number of refinements
@@ -118,12 +117,24 @@ int main(int argc, char *argv[])
    }
 
    /// 4. Define a parallel mesh by a partitioning of the serial mesh.
-   ///    Number of parallel refinements given by the user.
+   ///    Number of parallel refinements given by the user. If defined,
+   ///    apply Kershaw transformation.
    ParMesh *mesh = new ParMesh(MPI_COMM_WORLD, *serial_mesh);
    delete serial_mesh;
    for (int lp = 0; lp < refine_parallel; lp++)
    {
       mesh->UniformRefinement();
+   }
+
+   dim = mesh->Dimension();
+   space_dim = mesh->SpaceDimension();
+
+   bool cond_z = (dim < 3)?true:(eps_z != 0); // lazy check
+   if (eps_y != 0.0 && cond_z)
+   {
+      if (dim < 3) { eps_z = 0.0; }
+      common::KershawTransformation kershawT(dim, eps_y, eps_z);
+      mesh->Transform(kershawT);
    }
 
    /// 5. Define a finite element space on the mesh. We use different spaces
@@ -134,8 +145,6 @@ int main(int argc, char *argv[])
    ///    - H(curl)-conforming Nedelec elements for the definite Maxwell problem.
    FiniteElementCollection *fec;
    ParFiniteElementSpace *coarse_fes;
-   dim = mesh->Dimension();
-   space_dim = mesh->SpaceDimension();
    switch (integrator_type)
    {
       case mass: case diffusion:
