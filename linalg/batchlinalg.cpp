@@ -274,7 +274,8 @@ void ApplyBlkMult(const DenseTensor &Mat, const Vector &x,
                "Batcched matrices are not square: not invertible");
    const int NE = Mat.SizeK();
 
-#if defined(MFEM_USE_CUDA_OR_HIP)
+   //CUDA variant not supported in 11.2 -- need to replace
+#if 0 //defined(MFEM_USE_CUDA_OR_HIP)
    if (Device::Allows(Backend::DEVICE_MASK))
    {
       Array<double *> Mat_ptr(NE);
