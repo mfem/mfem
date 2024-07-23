@@ -128,9 +128,6 @@ protected:
    SparseMatrix M, K;
    const Vector &lumpedmassmatrix;
    const int nDofs;
-   //Solver *M_prec;
-   //CGSolver M_solver;
-   //DG_Solver *dg_solver;
 
    mutable Vector z;
 
@@ -269,7 +266,7 @@ HighOrderTargetScheme::~HighOrderTargetScheme()
 { }
 
 MCL::MCL(BilinearForm &M_, BilinearForm &K_, Vector &lumpedmassmatrix_) 
-   : FE_Evolution(M_, K_, lumpedmassmatrix_)//, fij(height)
+   : FE_Evolution(M_, K_, lumpedmassmatrix_)
 { }
 
 void MCL::Mult(const Vector &x, Vector &y) const
@@ -461,14 +458,6 @@ int main(int argc, char *argv[])
       case 3: ode_solver = new RK3SSPSolver; break;
       case 4: ode_solver = new RK4Solver; break;
       case 6: ode_solver = new RK6Solver; break;
-      // Implicit (L-stable) methods
-      //case 11: ode_solver = new BackwardEulerSolver; break;
-      //case 12: ode_solver = new SDIRK23Solver(2); break;
-      //case 13: ode_solver = new SDIRK33Solver; break;
-      // Implicit A-stable methods (not L-stable)
-      //case 22: ode_solver = new ImplicitMidpointSolver; break;
-      //case 23: ode_solver = new SDIRK23Solver; break;
-      //case 24: ode_solver = new SDIRK34Solver; break;
 
       default:
          cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
@@ -702,62 +691,6 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-
-
-/*
-{
-   Array<int> ess_tdof_list;
-   if (M.GetAssemblyLevel() == AssemblyLevel::LEGACY)
-   {
-      M_prec = new DSmoother(M.SpMat());
-      M_solver.SetOperator(M.SpMat());
-      dg_solver = new DG_Solver(M.SpMat(), K.SpMat(), *M.FESpace());
-   }
-   else
-   {
-      M_prec = new OperatorJacobiSmoother(M, ess_tdof_list);
-      M_solver.SetOperator(M);
-      dg_solver = NULL;
-   }
-   M_solver.SetPreconditioner(*M_prec);
-   M_solver.iterative_mode = false;
-   M_solver.SetRelTol(1e-9);
-   M_solver.SetAbsTol(0.0);
-   M_solver.SetMaxIter(100);
-   M_solver.SetPrintLevel(0);
-}
-//*/
-
-/*
-void FE_Evolution::Mult(const Vector &x, Vector &y) const
-{
-   // y = M^{-1} (K x + b)
-   K.Mult(x, z);
-   z += b;
-   M_solver.Mult(z, y);
-}
-//*/
-
-/*
-void FE_Evolution::ImplicitSolve(const real_t dt, const Vector &x, Vector &k)
-{
-   MFEM_VERIFY(dg_solver != NULL,
-               "Implicit time integration is not supported with partial assembly");
-   K.Mult(x, z);
-   z += b;
-   dg_solver->SetTimeStep(dt);
-   dg_solver->Mult(z, k);
-}
-//*/
-
-/*
-FE_Evolution::~FE_Evolution()
-{
-   delete M_prec;
-   delete dg_solver;
-}
-//*/
-
 // Velocity coefficient
 void velocity_function(const Vector &x, Vector &v)
 {
@@ -786,6 +719,12 @@ void velocity_function(const Vector &x, Vector &v)
          break;
       }
       case 1:
+      {
+         v(0) = 2.0 * M_PI * (- x(1));
+         v(1) = 2.0 * M_PI * (x(0) );
+         break;
+      }
+
       case 2:
       {
          // Clockwise rotation in 2D around the origin
@@ -852,6 +791,30 @@ real_t u0_function(const Vector &x)
       }
       case 1:
       {
+            if (dim != 2) 
+            { 
+                MFEM_ABORT("Solid body rotation does not work in 1D."); 
+            }
+            else 
+            {
+               // Initial condition defined on [0,1]^2
+               Vector y = x;
+               y *= 0.5;
+               y += 0.5;
+               double s = 0.15;
+               double cone = sqrt(pow(y(0) - 0.5, 2.0) + pow(y(1) - 0.25, 2.0));
+               double hump = sqrt(pow(y(0) - 0.25, 2.0) + pow(y(1) - 0.5, 2.0));
+               return (1.0 - cone / s) * (cone <= s) + 0.25 * (1.0 + cos(M_PI*hump / s)) * (hump <= s) +
+                   ((sqrt(pow(y(0) - 0.5, 2.0) + pow(y(1) - 0.75, 2.0)) <= s ) && ( abs(y(0) -0.5) >= 0.025 || (y(1) >= 0.85) ) ? 1.0 : 0.0);
+            }
+            break;
+        }
+
+
+
+
+      case 2:
+      {
          switch (dim)
          {
             case 1:
@@ -871,14 +834,14 @@ real_t u0_function(const Vector &x)
             }
          }
       }
-      case 2:
+      case 3:
       {
          real_t x_ = X(0), y_ = X(1), rho, phi;
          rho = std::hypot(x_, y_);
          phi = atan2(y_, x_);
          return pow(sin(M_PI*rho),2)*sin(3*phi);
       }
-      case 3:
+      case 4:
       {
          const real_t f = M_PI;
          return sin(f*X(0))*sin(f*X(1));
