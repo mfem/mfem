@@ -722,6 +722,7 @@ void velocity_function(const Vector &x, Vector &v)
    switch (problem)
    {
       case 0:
+      case 1:
       {
          // Translations in 1D, 2D, and 3D
          switch (dim)
@@ -733,14 +734,14 @@ void velocity_function(const Vector &x, Vector &v)
          }
          break;
       }
-      case 1:
+      case 2:
       {
          v(0) = 2.0 * M_PI * (- x(1));
          v(1) = 2.0 * M_PI * (x(0) );
          break;
       }
 
-      case 2:
+      case 3:
       {
          // Clockwise rotation in 2D around the origin
          const real_t w = M_PI/2;
@@ -752,7 +753,7 @@ void velocity_function(const Vector &x, Vector &v)
          }
          break;
       }
-      case 3:
+      case 4:
       {
          // Clockwise twisting rotation in 2D around the origin
          const real_t w = M_PI/2;
@@ -787,14 +788,10 @@ void u0_function(const Vector &x, Vector &u)
    {
       case 0:
       {
-         //if(dim != 1)
-         //{
-         //   MFEM_ABORT("Problem 0 only works in 1D!");
-         //}
-         //if(numVar != 1)
-         //{
-         //   MFEM_ABORT("Problem 0 only works for scalar!");
-         //}
+         if(dim != 1)
+         {
+            MFEM_ABORT("Problem 0 only works in 1D!");
+         }
          
          if(x(0) < 0.9 && x(0) > 0.5)
          {
@@ -812,33 +809,70 @@ void u0_function(const Vector &x, Vector &u)
       }
       case 1:
       {
+         if (dim != 1)
+         {
+            MFEM_ABORT("Problem 1 only works in 1D.");
+         }
+         else
+         {
+            double a = 0.5;
+            double z = -0.7;
+            double delta = 0.005;
+            double alpha = 10.0;
+            double beta = log(2) / 36 / delta / delta;
+            if(X(0) >= -0.8 && X(0) <= -0.6)
+            {
+               double G1 = exp(-beta * (X(0) - (z - delta)) * (X(0) - (z - delta) ));
+               double G2 = exp(-beta * (X(0) - (z + delta)) * (X(0) - (z + delta) ));
+               double G3 = exp(-beta * (X(0) - z) * (X(0) - z ));
+               u(0) = 1.0 / 6.0 * ( G1 + G2 + 4.0 * G3);
+            }
+            else if(X(0) >= -0.4 && X(0) <= -0.2)
+            {
+               u(0) = 1.0;
+            }
+            else if(X(0) >= 0.0 && X(0) <= 0.2)
+            {
+               u(0) = 1.0 - abs(10.0 * (X(0) - 0.1));
+            }
+            else if(X(0) >= 0.4 && X(0) <= 0.6)
+            {
+               double F1 = sqrt( max(1.0 - alpha * alpha * (X(0) - (a - delta)) *  (X(0) - (a - delta)), 0.0));
+               double F2 = sqrt( max(1.0 - alpha * alpha * (X(0) - (a + delta)) *  (X(0) - (a + delta)), 0.0));
+               double F3 = sqrt( max(1.0 - alpha * alpha * (X(0) - a) *  (X(0) - a), 0.0));
+               u(0) = 1.0 / 6.0 * ( F1 + F2 + 4.0 * F3);
+
+            }
+            else
+            {
+               u(0) = 0.0;
+            }
+         }
+         break;
+      }
+      case 2:
+      {
          if (dim != 2) 
          { 
             MFEM_ABORT("Solid body rotation does not work in 1D."); 
          }
-         //if(numVar != 1)
-         //{
-         //   MFEM_ABORT("Problem 1 only works for scalar!");
-         //}
-         else 
-         {
-            // Initial condition defined on [0,1]^2
-            Vector y = x;
-            y *= 0.5;
-            y += 0.5;
-            double s = 0.15;
-            double cone = sqrt(pow(y(0) - 0.5, 2.0) + pow(y(1) - 0.25, 2.0));
-            double hump = sqrt(pow(y(0) - 0.25, 2.0) + pow(y(1) - 0.5, 2.0));
-            u(0) = (1.0 - cone / s) * (cone <= s) + 0.25 * (1.0 + cos(M_PI*hump / s)) * (hump <= s) +
-                ((sqrt(pow(y(0) - 0.5, 2.0) + pow(y(1) - 0.75, 2.0)) <= s ) && ( abs(y(0) -0.5) >= 0.025 || (y(1) >= 0.85) ) ? 1.0 : 0.0);
-         }
+         
+         // Initial condition defined on [0,1]^2
+         Vector y = x;
+         y *= 0.5;
+         y += 0.5;
+         double s = 0.15;
+         double cone = sqrt(pow(y(0) - 0.5, 2.0) + pow(y(1) - 0.25, 2.0));
+         double hump = sqrt(pow(y(0) - 0.25, 2.0) + pow(y(1) - 0.5, 2.0));
+         u(0) = (1.0 - cone / s) * (cone <= s) + 0.25 * (1.0 + cos(M_PI*hump / s)) * (hump <= s) +
+            ((sqrt(pow(y(0) - 0.5, 2.0) + pow(y(1) - 0.75, 2.0)) <= s ) && ( abs(y(0) -0.5) >= 0.025 || (y(1) >= 0.85) ) ? 1.0 : 0.0);
          break;
       }
 
 
 
 
-      case 2:
+      case 3:
       {
          switch (dim)
          {
@@ -861,7 +895,7 @@ void u0_function(const Vector &x, Vector &u)
          u(1) = u(0);
          break;
       }
-      case 3:
+      case 4:
       {
          real_t x_ = X(0), y_ = X(1), rho, phi;
          rho = std::hypot(x_, y_);
@@ -869,7 +903,7 @@ void u0_function(const Vector &x, Vector &u)
          u(0) = pow(sin(M_PI*rho),2)*sin(3*phi);
          break;
       }
-      case 4:
+      case 5:
       {
          const real_t f = M_PI;
          u(0) = sin(f*X(0))*sin(f*X(1));
