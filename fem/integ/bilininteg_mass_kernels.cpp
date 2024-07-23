@@ -253,6 +253,7 @@ void PAMassApply(const int dim,
                  const Vector &X,
                  Vector &Y)
 {
+   std::cout<<"D1D / Q1D "<<D1D<<" "<<Q1D<<std::endl;
 #ifdef MFEM_USE_OCCA
    if (DeviceCanUseOcca())
    {

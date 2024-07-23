@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "transfer.hpp"
-#include "bilinearform.hpp"
+#include "pbilinearform.hpp"
 #include "../general/forall.hpp"
 
 namespace mfem
@@ -1534,6 +1534,8 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
    const FiniteElementSpace &fes_ho_, const FiniteElementSpace &fes_lor_,
    Coefficient *coeff_)
 {
+   mfem::out<<"L2ProjectionH1Space::DeviceL2ProjectionH1Space"<<std::endl;
+
    Mesh* mesh_ho = fes_ho.GetMesh();
    Mesh* mesh_lor = fes_lor.GetMesh();
    int nel_ho = mesh_ho->GetNE();
@@ -1692,6 +1694,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
    const ParFiniteElementSpace& pfes_ho, const ParFiniteElementSpace& pfes_lor,
    Coefficient* coeff_)
 {
+   mfem::out<<"running MPI version"<<std::endl;
    Mesh* mesh_ho = pfes_ho.GetParMesh();
    Mesh* mesh_lor = pfes_lor.GetParMesh();
    int nel_ho = mesh_ho->GetNE();
@@ -1767,6 +1770,8 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
    ML_inv_ea.SetSize(ndof_lor);
    ML_inv_ea = 0.0;
 
+   /* ....OLD CPU CODE..... */
+   /*
    // Compute M_H_ea  and ML_inv_ea
    int nref;
    for (int iho = 0; iho < nel_ho; ++iho)
@@ -1824,67 +1829,43 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
          ML_inv_ea.AddElementVector(dofs_lor, ML_el);
       }
    }
+   */
 
-   // // Compute M_H_ea and ML_inv_ea
-   // MassIntegrator mi_ho;
-   // MassIntegrator mi_lor(*coeff_, &ir);
+   //mfem::out<<"using the integrators to build M_H_ea"<<std::endl;
+   //mfem::out<<"Number of elements = "<<nel_ho<<std::endl;
+   //mfem::out<<"number of quad points"<<std::endl;
 
-   // Vector M_H_ea_all;
-   // // int nref;
-   // int nedof_ho;
-   // int nedof_lor;
-   // {
-   //    int iho = 0;
-   //    Array<int> lor_els;
-   //    ho2lor.GetRow(iho, lor_els);
-   //    // nref = ho2lor.RowSize(iho);
+   //ParFiniteElementSpace
+   //ParFiniteElementSpace &my_pfes_ho = const_cast<ParFiniteElementSpace &>(pfes_ho);
 
-   //    const FiniteElement& fe_ho = *pfes_ho.GetFE(0);
-   //    const FiniteElement &fe_lor = *pfes_lor.GetFE(lor_els[0]);
-   //    nedof_ho = fe_ho.GetDof();
-   //    nedof_lor = fe_lor.GetDof();
-   //    mfem::out << "nedof_ho = " << nedof_ho << std::endl;
-   //    mfem::out << "nedof_lor = " << nedof_lor << std::endl;
-   //    mfem::out << "nel_ho = " << nel_ho << std::endl;
-   //    mfem::out << "nel_lor = " << nel_lor << std::endl;
+   const FiniteElement& fe_scalar_ho = *pfes_ho_scalar->GetFE(0);
 
-   //    M_H_ea_all.SetSize(nedof_ho*nedof_ho*nel_ho, d_mt);
-   //    ML_inv_ea.SetSize(nedof_lor*nedof_lor*nel_lor, d_mt);
-   // }
-
-   // const bool add = false;
-   // mi_ho.AssembleEA(fes_ho, M_H_ea_all, add);
-   // mi_lor.AssembleEA(fes_lor, ML_inv_ea, add);
-
-   // Vector M_H_ea(nedof_ho*nel_ho);
-
-   // auto d_M_H_ea_all = Reshape(M_H_ea_all.Read(), nedof_ho, nedof_ho, nel_ho);
-   // auto d_M_H_ea = Reshape(M_H_ea.Write(), M_H_ea.Size());
-   // mfem::forall(M_H_ea.Size(), [=] MFEM_HOST_DEVICE (int i)
-   // {
-   //    real_t dot;
-   //    for (int k=0; k<nel_ho; ++k)
-   //    {
-   //       dot = 0.0;
-   //       for (int j=0; j<nedof_ho; ++j)
-   //       {
-   //          dot += d_M_H_ea_all(i,j,k);
-   //       }
-   //       d_M_H_ea(i) = dot;
-   //    }
-   // });
-   // Vector M_H(pfes_ho_scalar->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC)->Width());
-   // pfes_ho_scalar->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC)->MultTranspose(M_H_ea, M_H);
+   BilinearForm pMho(pfes_ho_scalar);
+   pMho.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   pMho.AddDomainIntegrator(new MassIntegrator);
+   pMho.Assemble();
 
 
-   // printf("M_H is : \n");
-   // M_H.Print();
+   //Processor local ranked local lumped Mass
+   Vector ones_ho(pMho.Width()); ones_ho = 1.0;
+   const FiniteElement& fe_ho = *pfes_ho.GetFE(0);
+   const int nedof_ho = fe_ho.GetDof();
+   M_H = 0.0;
+   pMho.Mult(ones_ho, M_H);
 
-   // printf("M_L inv is : \n");
-   // ML_inv_ea.Print();
+
+   ParBilinearForm pMlor(pfes_lor_scalar);
+   pMlor.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   pMlor.AddDomainIntegrator(new MassIntegrator);
+   pMlor.Assemble();
+
+   Vector ones_lor(pMlor.Width()); ones_lor = 1.0;
+   pMlor.Mult(ones_lor, ML_inv_ea);
+
 
    // DOF by DOF inverse of non-zero entries
    LumpedMassInverse(ML_inv_ea);
+
 
    // **************************
    // mixed mass M_LH
@@ -2524,8 +2505,10 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::LumpedMassInverse(
    Vector& ML_inv) const
 {
    Vector ML_inv_full(fes_lor.GetVSize());
+
    // set ML_inv on dofs for vdim = 0
    Array<int> vdofs_list(fes_lor.GetNDofs());
+
    fes_lor.GetVDofs(0, vdofs_list);
    ML_inv_full.SetSubVector(vdofs_list, ML_inv);
 
@@ -2534,10 +2517,12 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::LumpedMassInverse(
    if (P) { P->MultTranspose(ML_inv_full, ML_inv_true); }
    else { ML_inv_true = ML_inv_full; }
 
-   for (int i = 0; i < ML_inv_true.Size(); ++i)
+   double *d_ML_inv_true = ML_inv_true.ReadWrite();
+
+   mfem::forall(ML_inv_true.Size(), [=] MFEM_HOST_DEVICE (int i)
    {
-      ML_inv_true[i] = 1.0 / ML_inv_true[i];
-   }
+      d_ML_inv_true[i] = 1.0 / d_ML_inv_true[i];
+   });
 
    if (P) { P->Mult(ML_inv_true, ML_inv_full); }
    else { ML_inv_full = ML_inv_true; }

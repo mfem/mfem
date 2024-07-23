@@ -14,6 +14,7 @@
 
 #include "../linalg/linalg.hpp"
 #include "fespace.hpp"
+#include "pbilinearform.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "pfespace.hpp"
@@ -468,8 +469,10 @@ public:
       void TDofsListByVDim(const FiniteElementSpace& fes,
                            int vdim,
                            Array<int>& vdofs_list) const;
+
       /// Returns the inverse of an on-rank lumped mass matrix
       void LumpedMassInverse(Vector& ML_inv) const;
+
       /// @brief Computes sparsity pattern and initializes R matrix.
       /// Based on BilinearForm::AllocMat(), except maps between coarse HO
       /// elements and refined LOR elements.
@@ -512,8 +515,8 @@ public:
       Vector ML_inv_ea;
 
 #ifdef MFEM_USE_MPI
-      const ParFiniteElementSpace* pfes_ho_scalar;
-      const ParFiniteElementSpace* pfes_lor_scalar;
+      ParFiniteElementSpace* pfes_ho_scalar;
+      ParFiniteElementSpace* pfes_lor_scalar;
       Vector RML_inv;
 #endif
 
