@@ -340,19 +340,19 @@ int main (int argc, char *argv[])
    }
    FiniteElementCollection *Bfec=new ND_FECollection(order, dim3D);
    FiniteElementSpace *Bfespace=new FiniteElementSpace(&mesh3D, Bfec);
-   cout << "Number of elements: "<<mesh.GetNE()<<endl;
-
-   GridFunction Bvec(Bfespace);
-   //VectorFunctionCoefficient VecCoeff(sdim3D, B_exact);
-   //Bvec.ProjectCoefficient(VecCoeff);
-   //GridFunction2DCoefficient PsiCoeff(sdim3D, &psi, &mesh);
-   //Bvec.ProjectCoefficient(PsiCoeff);
-
-
    int size = Bfespace->GetVSize();     //expect VSize and TrueVSize are the same
+   cout << "Number of elements: "<<mesh.GetNE()<<endl;
    cout << "Number of finite element unknowns: " << size << endl;
 
-   // Solve (f, B) = (curl f, psi/R e_φ) + <f, n x psi/R e_φ>
+   GridFunction Bperp(Bfespace), Btor(Bfespace);
+
+   // Project B toroidal
+   //VectorFunctionCoefficient VecCoeff(sdim3D, B_exact);
+   //Bvec.ProjectCoefficient(VecCoeff);
+   GridFunction2DCoefficient PsiCoeff(sdim3D, &psi, &mesh);
+   Btor.ProjectCoefficient(PsiCoeff);
+
+   // Solve (f, Bperp) = (curl f, psi/R e_φ) + <f, n x psi/R e_φ>
    // where f is a test function in H(curl)
    ConstantCoefficient one(1.0);
    BilinearForm mass(Bfespace);
@@ -381,23 +381,26 @@ int main (int argc, char *argv[])
    x = 0.0;
    M_solver.Mult(rhs, x);
 
-   Bvec.SetFromTrueDofs(x);
+   Bperp.SetFromTrueDofs(x);
 
    if (visualization){
       char vishost[] = "localhost";
       int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
-      sol_sock << "solution\n" << mesh3D << Bvec << flush;
+      sol_sock << "solution\n" << mesh3D << Bperp << flush;
    }
 
    if (true){
       ofstream mesh_ofs("build-field.mesh");
       mesh_ofs.precision(8);
       mesh3D.Print(mesh_ofs);
-      ofstream sol_ofs("bvec.gf");
+      ofstream sol_ofs("Bperp.gf");
       sol_ofs.precision(8);
-      Bvec.Save(sol_ofs);
+      Bperp.Save(sol_ofs);
+      ofstream sol_ofs1("Btor.gf");
+      sol_ofs1.precision(8);
+      Btor.Save(sol_ofs1);
 
       ParaViewDataCollection paraview_dc("build-field", &mesh3D);
       paraview_dc.SetPrefixPath("ParaView");
@@ -406,7 +409,8 @@ int main (int argc, char *argv[])
       paraview_dc.SetDataFormat(VTKFormat::BINARY);
       paraview_dc.SetHighOrderOutput(true);
       paraview_dc.SetTime(0.0); // set the time
-      paraview_dc.RegisterField("Bvec",&Bvec);
+      paraview_dc.RegisterField("Bperp",&Bperp);
+      paraview_dc.RegisterField("Btor",&Btor);
       paraview_dc.Save();
    }
 
