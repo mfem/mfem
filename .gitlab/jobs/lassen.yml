@@ -16,7 +16,7 @@
 
 .lassen_job_command:
   script:
-    - lalloc ${LASSEN_JOB_ALLOC} "${JOB_CMD}"
+    - lalloc ${LASSEN_JOB_ALLOC} ${JOB_CMD}
 
 #TODO: Setup script should be defined as a bash script (but then GIT_STRATEGY cannot be "none" anymore).
 

@@ -16,7 +16,7 @@
 
 .ruby_job_command:
   script:
-    - srun $( [[ -n "${JOBID}" ]] && echo "--jobid=${JOBID}" ) ${RUBY_JOB_ALLOC} "${JOB_CMD}"
+    - srun $( [[ -n "${JOBID}" ]] && echo "--jobid=${JOBID}" ) ${RUBY_JOB_ALLOC} ${JOB_CMD}
 
 #TODO: Setup script should be defined as a bash script (but then GIT_STRATEGY cannot be "none" anymore).
 
