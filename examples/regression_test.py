@@ -44,6 +44,7 @@ for i in range(len(filenames)):
 	dg = False
 	hb = False
 	upwind = False
+	nonlin = False
 
 	if filenames[i].find('dg') != -1:
 		dg = True
@@ -51,6 +52,8 @@ for i in range(len(filenames)):
 		hb = True
 	if filenames[i].find('upwind') != -1:
 		upwind = True
+	if filenames[i].find('nl') != -1:
+		nonlin = True
 
 	ref_out = subprocess.getoutput("grep ' --ncells-x' "+path+filenames[i]+"| cut -d ' ' -f 5")
 	nx = ref_out.split()[0]
@@ -62,7 +65,10 @@ for i in range(len(filenames)):
 	ref_L2_t = float(ref_out.split()[0])
 	ref_out = subprocess.getoutput("grep '|| q_h - q_ex || / || q_ex || = ' "+path+filenames[i]+"  | cut -d '=' -f 2-")
 	ref_L2_q = float(ref_out.split()[0])
-	ref_out = subprocess.getoutput("grep 'GMRES+' "+path+filenames[i]+"  | cut -d '+' -f 2-")
+	if nonlin:
+		ref_out = subprocess.getoutput("grep 'LBFGS+' "+path+filenames[i]+"  | cut -d '+' -f 2-")
+	else:
+		ref_out = subprocess.getoutput("grep 'GMRES+' "+path+filenames[i]+"  | cut -d '+' -f 2-")
 	precond_ref = ref_out.split()[0]
 
 	# Run test case
@@ -75,6 +81,8 @@ for i in range(len(filenames)):
 		command_line = command_line+' -hb'
 	if upwind:
 		command_line = command_line+' -up'
+	if nonlin:
+		command_line = command_line+' -nl'
 	if kappa != str(1):
 		command_line = command_line+' -k '+kappa
 
