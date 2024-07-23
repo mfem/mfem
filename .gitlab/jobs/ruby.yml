@@ -49,53 +49,53 @@ setup:
 #TODO: THREADS would be better defined elsewhere since it’s global to ruby.
 
 debug_ser_gcc_10:
-  extends: .job_on_ruby
-  stage: jobs-stage-2
   variables:
     SPEC: "%gcc@10.3.1 +debug~mpi"
     THREADS: 16
-
-debug_par_gcc_10:
   extends: .job_on_ruby
   stage: jobs-stage-2
+
+debug_par_gcc_10:
   variables:
     SPEC: "%gcc@10.3.1 +debug+mpi"
     THREADS: 16
-
-opt_ser_gcc_10:
   extends: .job_on_ruby
   stage: jobs-stage-2
+
+opt_ser_gcc_10:
   variables:
     SPEC: "%gcc@10.3.1 ~mpi"
     THREADS: 16
-
-opt_par_gcc_10:
   extends: .job_on_ruby
   stage: jobs-stage-2
+
+opt_par_gcc_10:
   variables:
     SPEC: "%gcc@10.3.1"
     THREADS: 16
-
-opt_par_gcc_10_sundials:
   extends: .job_on_ruby
   stage: jobs-stage-2
+
+opt_par_gcc_10_sundials:
   variables:
     SPEC: "%gcc@10.3.1 +sundials"
     THREADS: 16
-
-opt_par_gcc_10_petsc:
   extends: .job_on_ruby
   stage: jobs-stage-2
+
+opt_par_gcc_10_petsc:
   variables:
     SPEC: "%gcc@10.3.1 +petsc ^petsc+mumps~superlu-dist"
     THREADS: 16
-
-opt_par_gcc_10_pumi:
   extends: .job_on_ruby
   stage: jobs-stage-2
+
+opt_par_gcc_10_pumi:
   variables:
     SPEC: "%gcc@10.3.1 +pumi"
     THREADS: 16
+  extends: .job_on_ruby
+  stage: jobs-stage-2
 
 # Jobs report
 report_job_success:

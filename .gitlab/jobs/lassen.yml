@@ -47,16 +47,16 @@ setup:
 # describe the spec here.
 
 opt_mpi_cuda_gcc:
-  extends: .job_on_lassen
-  stage: jobs-stage-2
   variables:
     SPEC: "%gcc@8.3.1 +mpi +cuda cuda_arch=70"
-
-opt_mpi_cuda_hypre_cuda_gcc:
   extends: .job_on_lassen
   stage: jobs-stage-2
+
+opt_mpi_cuda_hypre_cuda_gcc:
   variables:
     SPEC: "%gcc@8.3.1 +mpi +cuda cuda_arch=70 ^hypre+cuda~shared cuda_arch=70"
+  extends: .job_on_lassen
+  stage: jobs-stage-2
 
 # Jobs report
 report_job_success:
