@@ -62,14 +62,8 @@ variables:
 # Set the build-and-test command.
 # Nested variables are allowed and useful to customize the job command. We
 # prevent variable expansion so that you can define them at job level.
-  SPEC:
-    value: ""
-    expand: false
-  MFEM_DATA_DIR:
-    value: ""
-    expand: false
   JOB_CMD:
-    value: tests/gitlab/build_and_test --spec "${SPEC}" --data-dir "${MFEM_DATA_DIR}" --data
+    value: tests/gitlab/build_and_test --spec \$\{SPEC\} --data-dir \$\{MFEM_DATA_DIR\} --data
 # Override the pattern describing branches that will skip the "draft PR filter
 # test".  Add protected branches here. See default value in
 # preliminary-ignore-draft-pr.yml.
