@@ -132,6 +132,7 @@ int main(int argc, char *argv[])
    real_t c = 1.;
    real_t td = 0.5;
    bool hybridization = false;
+   bool nonlinear = false;
    bool pa = false;
    const char *device_config = "cpu";
    bool mfem = false;
@@ -173,6 +174,8 @@ int main(int argc, char *argv[])
                   "Diffusion stabilization factor (1/2=default)");
    args.AddOption(&hybridization, "-hb", "--hybridization", "-no-hb",
                   "--no-hybridization", "Enable hybridization.");
+   args.AddOption(&nonlinear, "-nl", "--nonlinear", "-no-nl",
+                  "--no-nonlinear", "Enable non-linear regime.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
@@ -362,8 +365,10 @@ int main(int argc, char *argv[])
    //     B   = -\int_\Omega \div u_h q_h d\Omega   q_h \in V_h, w_h \in W_h
    BilinearForm *Mq = darcy->GetFluxMassForm();
    MixedBilinearForm *B = darcy->GetFluxDivForm();
-   BilinearForm *Mt = ((dg && td > 0.) || bconv || btime)?
+   BilinearForm *Mt = (!nonlinear && ((dg && td > 0.) || bconv || btime))?
                       (darcy->GetPotentialMassForm()):(NULL);
+   NonlinearForm *Mtnl = (nonlinear && ((dg && td > 0.) || bconv || btime))?
+                         (darcy->GetPotentialMassNonlinearForm()):(NULL);
    BilinearForm *Mt0 = (btime)?(new BilinearForm(W_space)):(NULL);
 
    if (dg)
@@ -378,9 +383,18 @@ int main(int argc, char *argv[])
                                                             ccoeff, -1.)), bdr_is_neumann);
          if (td > 0. && hybridization)
          {
-            Mt->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(ccoeff, kcoeff, td));
-            Mt->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(ccoeff, kcoeff, td),
-                                     bdr_is_neumann);
+            if (Mt)
+            {
+               Mt->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(ccoeff, kcoeff, td));
+               Mt->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(ccoeff, kcoeff, td),
+                                        bdr_is_neumann);
+            }
+            if (Mtnl)
+            {
+               Mtnl->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(ccoeff, kcoeff, td));
+               Mtnl->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(ccoeff, kcoeff, td),
+                                          bdr_is_neumann);
+            }
          }
       }
       else
@@ -391,9 +405,18 @@ int main(int argc, char *argv[])
                                                             -1.)), bdr_is_neumann);
          if (td > 0.)
          {
-            Mt->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td));
-            Mt->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td),
-                                     bdr_is_neumann);
+            if (Mt)
+            {
+               Mt->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td));
+               Mt->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td),
+                                        bdr_is_neumann);
+            }
+            if (Mtnl)
+            {
+               Mtnl->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td));
+               Mtnl->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td),
+                                          bdr_is_neumann);
+            }
          }
       }
    }
@@ -402,7 +425,8 @@ int main(int argc, char *argv[])
       Mq->AddDomainIntegrator(new VectorFEMassIntegrator(ikcoeff));
       B->AddDomainIntegrator(new VectorFEDivergenceIntegrator());
    }
-   if (bconv)
+
+   if (bconv && Mt)
    {
       Mt->AddDomainIntegrator(new ConservativeConvectionIntegrator(ccoeff));
       if (upwinded)
@@ -423,6 +447,30 @@ int main(int argc, char *argv[])
          else
          {
             Mt->AddBdrFaceIntegrator(new HDGConvectionCenteredIntegrator(ccoeff));
+         }
+      }
+   }
+   if (bconv && Mtnl)
+   {
+      Mtnl->AddDomainIntegrator(new ConservativeConvectionIntegrator(ccoeff));
+      if (upwinded)
+      {
+         Mtnl->AddInteriorFaceIntegrator(new HDGConvectionUpwindedIntegrator(ccoeff));
+         Mtnl->AddBdrFaceIntegrator(new HDGConvectionUpwindedIntegrator(ccoeff));
+      }
+      else
+      {
+         Mtnl->AddInteriorFaceIntegrator(new HDGConvectionCenteredIntegrator(ccoeff));
+         if (hybridization)
+         {
+            //centered scheme does not work with Dirichlet when hybridized,
+            //giving an diverging system, we use the full BC flux here
+            Mtnl->AddBdrFaceIntegrator(new HDGConvectionCenteredIntegrator(ccoeff),
+                                       bdr_is_neumann);
+         }
+         else
+         {
+            Mtnl->AddBdrFaceIntegrator(new HDGConvectionCenteredIntegrator(ccoeff));
          }
       }
    }
@@ -1107,9 +1155,13 @@ FEOperator::FEOperator(const Array<int> &ess_flux_tdofs_list_,
 
    if (btime)
    {
-      BilinearForm *Mt = darcy->GetPotentialMassForm();
+      BilinearForm *Mt = const_cast<BilinearForm*>(
+                            (const_cast<const DarcyForm*>(darcy))->GetPotentialMassForm());
+      NonlinearForm *Mtnl = const_cast<NonlinearForm*>(
+                               (const_cast<const DarcyForm*>(darcy))->GetPotentialMassNonlinearForm());
       idtcoeff = new FunctionCoefficient([&](const Vector &) { return idt; });
-      Mt->AddDomainIntegrator(new MassIntegrator(*idtcoeff));
+      if (Mt) { Mt->AddDomainIntegrator(new MassIntegrator(*idtcoeff)); }
+      if (Mtnl) { Mtnl->AddDomainIntegrator(new MassIntegrator(*idtcoeff)); }
       Mt0 = new BilinearForm(darcy->PotentialFESpace());
       Mt0->AddDomainIntegrator(new MassIntegrator(*idtcoeff));
    }
@@ -1231,19 +1283,33 @@ void FEOperator::ImplicitSolve(const real_t dt, const Vector &x_v, Vector &dx_v)
       const MixedBilinearForm *B = darcy->GetFluxDivForm();
       const BilinearForm *Mt = (const_cast<const DarcyForm*>
                                 (darcy))->GetPotentialMassForm();
+      const NonlinearForm *Mtnl = (const_cast<const DarcyForm*>
+                                   (darcy))->GetPotentialMassNonlinearForm();
 
       if (trace_space)
       {
-         prec = new GSSmoother(static_cast<SparseMatrix&>(*op));
-         prec_str = "GS";
+         if (Mtnl)
+         {
+            prec = NULL;
+            darcy->GetHybridization()->SetLocalNLSolver(
+               DarcyHybridization::LSsolveType::Newton);
+            prec_str = "Newton";
+            solver = new LBFGSSolver();
+            solver_str = "LBFGS";
+         }
+         else
+         {
+            prec = new GSSmoother(static_cast<SparseMatrix&>(*op));
+            prec_str = "GS";
+            solver = new GMRESSolver();
+            solver_str = "GMRES";
+         }
 
-         solver = new GMRESSolver();
-         solver_str = "GMRES";
          solver->SetAbsTol(atol);
          solver->SetRelTol(rtol);
          solver->SetMaxIter(maxIter);
          solver->SetOperator(*op);
-         solver->SetPreconditioner(*prec);
+         if (prec) { solver->SetPreconditioner(*prec); }
          solver->SetPrintLevel(btime?0:1);
       }
       else
