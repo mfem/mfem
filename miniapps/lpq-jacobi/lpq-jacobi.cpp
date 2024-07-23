@@ -38,7 +38,7 @@ int main(int argc, char *argv[])
    // Other options
    // TODO(Gabriel): To add device support
    // const char *device_config = "cpu";
-   bool visualization = false;
+   bool visualization = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",

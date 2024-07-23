@@ -139,7 +139,7 @@ private:
       {
          it_solver->SetRelTol(MG_REL_TOL);
          it_solver->SetMaxIter(MG_MAX_ITER);
-         it_solver->SetPrintLevel(1);
+         it_solver->SetPrintLevel(-1);
          it_solver->SetPreconditioner(*coarse_pc);
       }
       coarse_solver->SetOperator(*coarse_mat);
@@ -153,15 +153,15 @@ private:
       const Array<int> &ess_tdof_list = *essentialTrueDofs[level];
       ConstructBilinearForm(fespace, false);
 
-      level_mats.Append(new HypreParMatrix());
-      bfs.Last()->FormSystemMatrix(ess_tdof_list, *level_mats.Last());
+      auto level_mat = new HypreParMatrix;
+      bfs.Last()->FormSystemMatrix(ess_tdof_list, *level_mat);
 
-      Solver* smoother = new OperatorLpqJacobiSmoother(*level_mats.Last(),
+      Solver* smoother = new OperatorLpqJacobiSmoother(*level_mat,
                                                        ess_tdof_list,
                                                        p_order,
                                                        q_order);
 
-      AddLevel(level_mats.Last(), smoother, true, true);
+      AddLevel(level_mat, smoother, true, true);
    }
 
 

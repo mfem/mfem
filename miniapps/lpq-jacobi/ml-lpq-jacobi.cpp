@@ -76,6 +76,8 @@ int main(int argc, char *argv[])
                   "Kershaw transform factor, eps_y in (0,1]");
    args.AddOption(&eps_z, "-Kz", "--Kershaw-z",
                   "Kershaw transform factor, eps_z in (0,1]");
+   args.AddOption(&freq, "-f", "--frequency", "Set the frequency for the exact"
+                  " solution.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -272,6 +274,8 @@ int main(int argc, char *argv[])
       default:
          mfem_error("Invalid solver type!");
    }
+   solver->SetOperator(*A.Ptr());
+
    IterativeSolver *it_solver = dynamic_cast<IterativeSolver *>(solver);
    if (it_solver)
    {
@@ -279,8 +283,8 @@ int main(int argc, char *argv[])
       it_solver->SetMaxIter(max_iter);
       it_solver->SetPrintLevel(1);
       // it_solver->SetMonitor(monitor);
+      it_solver->SetPreconditioner(*mg);
    }
-   solver->SetOperator(*mg);
    solver->Mult(B, X);
 
    /// 10. Recover the solution x as a grid function. Send the data by socket
