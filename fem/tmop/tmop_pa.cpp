@@ -177,9 +177,10 @@ void TMOP_Integrator::AssemblePA_Fitting()
    PA.X3.UseDevice(true);
    n3_R->Mult(temp_vec2, PA.X3);
 
-   // surf_fit_grad -> PA.X4
+   // surf_fit_grad -> PA.X4 
+   // (The size of this will depend on the dimension of PA i.e. 2 or 3)
    const Operator *n4_R = fes->GetElementRestriction(ordering);
-   PA.X4.SetSize(n4_R->Height(), Device::GetMemoryType());
+   PA.X4.SetSize(n4_R->Height()*PA.dim, Device::GetMemoryType());
    PA.X4.UseDevice(true);
    n4_R->Mult(*surf_fit_grad, PA.X4);
 }
@@ -390,6 +391,7 @@ void TMOP_Integrator::AddMultPA(const Vector &xe, Vector &ye) const
    {
       AddMultPA_2D(xe,ye);
       if (lim_coeff) { AddMultPA_C0_2D(xe,ye); }
+      if (surf_fit_coeff) { GetLocalStateEnergyPA_Fit_Grad_2D(xe,ye); }
    }
 
    if (PA.dim == 3)

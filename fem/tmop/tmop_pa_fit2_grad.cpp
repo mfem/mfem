@@ -19,7 +19,7 @@
 namespace mfem
 {
 
-MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_Fit_Grad_2D,
+MFEM_REGISTER_TMOP_KERNELS(void, EnergyPA_Fit_Grad_2D,
                            const int NE,
                            const real_t &c1_,
                            const real_t &c2_,
@@ -28,7 +28,7 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_Fit_Grad_2D,
                            const Vector &x3_,
                            const Vector &x4_,
                            const Vector &ones,
-                           Vector &energy,
+                           Vector &y_,
                            const int d1d,
                            const int q1d)
 {
@@ -43,9 +43,9 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_Fit_Grad_2D,
    const auto X1 = Reshape(x1_.Read(), D1D, D1D, NE);
    const auto X2 = Reshape(x2_.Read(), D1D, D1D, NE);
    const auto X3 = Reshape(x3_.Read(), D1D, D1D, NE);
-   const auto X4 = Reshape(x4_.Read(), D1D, D1D, NE);
+   const auto X4 = Reshape(x4_.Read(), DIM*D1D, DIM*D1D, NE);
 
-   auto E = Reshape(energy.Write(), D1D, D1D, NE);
+   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, DIM, NE);
 
    mfem::forall_2D_batch(NE, D1D, D1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
@@ -60,20 +60,24 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_Fit_Grad_2D,
             const real_t sigma = X1(qx,qy,e);
             const real_t dof_count = X2(qx,qy,e);
             const real_t marker = X3(qx,qy,e); 
-            const real_t gradient = X4(qx,qy,e);
+
+            const real_t dx = X4(qx,qy,e);
+            const real_t dy = X4(qx+D1D,qy+D1D,e);
+
             const real_t coeff = C1;
             const real_t normal = C2;
 
             if (marker == 0) {continue;}
             double w = coeff * normal * 1.0/dof_count;
-            E(qx,qy,e) = 2 * w * sigma * gradient;   
+            Y(qx,qy,0,e) = 2 * w * sigma * dx;
+            Y(qx,qy,1,e) = 2 * w * sigma * dy;   
          }
       }
-   });
-   return energy * ones; 
-}
 
-real_t TMOP_Integrator::GetLocalStateEnergyPA_Fit_Grad_2D(const Vector &X) const
+   });
+
+}
+void TMOP_Integrator::GetLocalStateEnergyPA_Fit_Grad_2D(const Vector &X, const Vector &Y) const
 {
    const int N = PA.ne;
    const int meshOrder = surf_fit_gf->FESpace()->GetMaxElementOrder();

@@ -79,8 +79,8 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_Fit_2D(const Vector &X) const
    const int id = (D1D << 4 ) | Q1D;
    const Vector &O = PA.O;
    Vector &E = PA.E;
-   
-   
+
+      
    const real_t &C1 = PA.C1;
    const real_t &C2 = PA.C2;
    const Vector &X1 = PA.X1;

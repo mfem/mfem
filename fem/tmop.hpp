@@ -1967,9 +1967,7 @@ protected:
    real_t GetLocalStateEnergyPA_2D(const Vector&) const;
    real_t GetLocalStateEnergyPA_C0_2D(const Vector&) const;
    real_t GetLocalStateEnergyPA_Fit_2D(const Vector&) const;
-   real_t GetLocalStateEnergyPA_Fit_Grad_2D(const Vector&) const;
    real_t GetLocalStateEnergyPA_Fit_3D(const Vector&) const;
-   real_t GetLocalStateEnergyPA_Fit_Grad_3D(const Vector&) const;
    real_t GetLocalStateEnergyPA_3D(const Vector&) const;
    real_t GetLocalStateEnergyPA_C0_3D(const Vector&) const;
 
@@ -1977,6 +1975,10 @@ protected:
    void AddMultPA_3D(const Vector&, Vector&) const;
    void AddMultPA_C0_2D(const Vector&, Vector&) const;
    void AddMultPA_C0_3D(const Vector&, Vector&) const;
+   void GetLocalStateEnergyPA_Fit_Grad_2D(const Vector&, const Vector&) const;
+   //real_t GetLocalStateEnergyPA_Fit_Grad_3D(const Vector&, const Vector&) const;
+
+
 
    void AddMultGradPA_2D(const Vector&, Vector&) const;
    void AddMultGradPA_3D(const Vector&, Vector&) const;
