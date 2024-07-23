@@ -96,6 +96,7 @@ class FEOperator : public TimeDependentOperator
    Solver *prec{};
    const char *prec_str{};
    IterativeSolver *solver{};
+   const char *solver_str{};
    SparseMatrix *S{};
 
 public:
@@ -1237,6 +1238,7 @@ void FEOperator::ImplicitSolve(const real_t dt, const Vector &x_v, Vector &dx_v)
          prec_str = "GS";
 
          solver = new GMRESSolver();
+         solver_str = "GMRES";
          solver->SetAbsTol(atol);
          solver->SetRelTol(rtol);
          solver->SetMaxIter(maxIter);
@@ -1321,6 +1323,7 @@ void FEOperator::ImplicitSolve(const real_t dt, const Vector &x_v, Vector &dx_v)
          darcyPrec->SetDiagonalBlock(1, invS);
 
          solver = new GMRESSolver();
+         solver_str = "GMRES";
          solver->SetAbsTol(atol);
          solver->SetRelTol(rtol);
          solver->SetMaxIter(maxIter);
@@ -1349,19 +1352,19 @@ void FEOperator::ImplicitSolve(const real_t dt, const Vector &x_v, Vector &dx_v)
 
    if (solver->GetConverged())
    {
-      std::cout << "GMRES+" << prec_str
+      std::cout << solver_str << "+" << prec_str
                 << " converged in " << solver->GetNumIterations()
                 << " iterations with a residual norm of " << solver->GetFinalNorm()
                 << ".\n";
    }
    else
    {
-      std::cout << "GMRES+" << prec_str
+      std::cout << solver_str << "+" << prec_str
                 << " did not converge in " << solver->GetNumIterations()
                 << " iterations. Residual norm is " << solver->GetFinalNorm()
                 << ".\n";
    }
-   std::cout << "GMRES solver took " << chrono.RealTime() << "s.\n";
+   std::cout << "solver took " << chrono.RealTime() << "s.\n";
 
    dx_v -= x_v;
    dx_v *= idt;
