@@ -491,7 +491,7 @@ int main(int argc, char *argv[])
    switch(problem)
    {
       case 0:
-      case 1: numVar = 2; break; // scalar
+      case 1: numVar = 1; break; // scalar
       case 2: numVar = 2; break;  
    }
    H1_FECollection fec(order, dim, BasisType::Positive);
@@ -787,10 +787,10 @@ void u0_function(const Vector &x, Vector &u)
    {
       case 0:
       {
-         if(dim != 1)
-         {
-            MFEM_ABORT("Problem 0 only works in 1D!");
-         }
+         //if(dim != 1)
+         //{
+         //   MFEM_ABORT("Problem 0 only works in 1D!");
+         //}
          //if(numVar != 1)
          //{
          //   MFEM_ABORT("Problem 0 only works for scalar!");
@@ -800,7 +800,7 @@ void u0_function(const Vector &x, Vector &u)
          {
             u(0) = exp(10) * exp(1.0 / (0.5 - x(0))) * exp(1.0 / (x(0) - 0.9));
          }
-         if( x(0) < 0.4 && x(0) > 0.2)
+         else if( x(0) < 0.4 && x(0) > 0.2)
          {
             u(0) = 1.0;
          }
