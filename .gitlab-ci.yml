@@ -59,11 +59,6 @@ variables:
 # Required information about GitHub repository
   GITHUB_PROJECT_NAME: "mfem"
   GITHUB_PROJECT_ORG: "MFEM"
-# Set the build-and-test command.
-# Nested variables are allowed and useful to customize the job command. We
-# prevent variable expansion so that you can define them at job level.
-  JOB_CMD:
-    value: tests/gitlab/build_and_test --spec ${SPEC} --data-dir ${MFEM_DATA_DIR} --data
 # Override the pattern describing branches that will skip the "draft PR filter
 # test".  Add protected branches here. See default value in
 # preliminary-ignore-draft-pr.yml.
