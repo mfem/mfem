@@ -948,6 +948,7 @@ inline void PAMassApply2D(const int NE,
                           const int d1d = 0,
                           const int q1d = 0)
 {
+   std::cout<<"d1d/q1d = "<<d1d<<" / "<<q1d<<std::endl;
    MFEM_VERIFY(T_D1D ? T_D1D : d1d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(T_Q1D ? T_Q1D : q1d <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
