@@ -58,10 +58,10 @@ int problem;
 void velocity_function(const Vector &x, Vector &v);
 
 // Initial condition
-real_t u0_function(const Vector &x);
+void u0_function(const Vector &x, Vector &u);
 
 // Inflow boundary condition
-real_t inflow_function(const Vector &x);
+//real_t inflow_function(const Vector &x);
 
 // Mesh bounding box
 Vector bb_min, bb_max;
@@ -128,11 +128,12 @@ protected:
    SparseMatrix M, K;
    const Vector &lumpedmassmatrix;
    const int nDofs;
+   const int numVar;
 
    mutable Vector z;
 
 public:
-   FE_Evolution(BilinearForm &M_, BilinearForm &K_, Vector &lumpedmassmatrix_);
+   FE_Evolution(BilinearForm &M_, BilinearForm &K_, Vector &lumpedmassmatrix_, int numVar_);
 
    virtual void Mult(const Vector &x, Vector &y) const = 0;
    virtual double CalcGraphViscosity(const int i, const int j) const;
@@ -144,7 +145,7 @@ public:
 class LowOrder : public FE_Evolution
 {
    public:
-   LowOrder(BilinearForm &M_, BilinearForm &K_, Vector &lumpedmassmatrix_);
+   LowOrder(BilinearForm &M_, BilinearForm &K_, Vector &lumpedmassmatrix_, int numVar_);
    virtual void Mult(const Vector &x, Vector &y) const;
 
    virtual ~LowOrder();
@@ -153,7 +154,7 @@ class LowOrder : public FE_Evolution
 class HighOrderTargetScheme : public FE_Evolution
 {
    public:
-   HighOrderTargetScheme(BilinearForm &M_, BilinearForm &K_, Vector &lumpedmassmatrix_);
+   HighOrderTargetScheme(BilinearForm &M_, BilinearForm &K_, Vector &lumpedmassmatrix_, int numVar_);
    virtual void Mult(const Vector &x, Vector &y) const;
 
    virtual ~HighOrderTargetScheme();
@@ -161,63 +162,65 @@ class HighOrderTargetScheme : public FE_Evolution
 
 class MCL : public FE_Evolution
 {
-   private:
-   //mutable Vector fij;
-
    public:
-   MCL(BilinearForm &M_, BilinearForm &K_, Vector &lumpedmassmatrix_);
+   MCL(BilinearForm &M_, BilinearForm &K_, Vector &lumpedmassmatrix_, int numVar_);
    virtual void Mult(const Vector &x, Vector &y) const;
 
    virtual ~MCL();
 };
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(BilinearForm &M_, BilinearForm &K_, Vector &lumpedmassmatrix_)
-   : TimeDependentOperator(M_.FESpace()->GetTrueVSize()),
-     M(M_.SpMat()), K(K_.SpMat()), lumpedmassmatrix(lumpedmassmatrix_), z(height), nDofs(lumpedmassmatrix_.Size())
+FE_Evolution::FE_Evolution(BilinearForm &M_, BilinearForm &K_, Vector &lumpedmassmatrix_, int numVar_)
+   : TimeDependentOperator(M_.FESpace()->GetTrueVSize() * numVar_),
+     M(M_.SpMat()), K(K_.SpMat()), lumpedmassmatrix(lumpedmassmatrix_), z(nDofs), nDofs(lumpedmassmatrix_.Size()), numVar(numVar_)
 { }
 
 double FE_Evolution::CalcGraphViscosity(const int i, const int j) const
 { 
-   return max(0.0, max(abs(K(i,j)), abs(K(j,i))) );
+   return max(abs(K(i,j)), abs(K(j,i)));
 }
 
 FE_Evolution::~FE_Evolution()
 { }
 
-LowOrder::LowOrder(BilinearForm &M_, BilinearForm &K_, Vector &lumpedmassmatrix_) 
-   : FE_Evolution(M_, K_, lumpedmassmatrix_)
+LowOrder::LowOrder(BilinearForm &M_, BilinearForm &K_, Vector &lumpedmassmatrix_, int numVar_) 
+   : FE_Evolution(M_, K_, lumpedmassmatrix_, numVar_)
 { }
 
 void LowOrder::Mult(const Vector &x, Vector &y) const
 {  
+   MFEM_VERIFY(numVar * nDofs == x.Size(), "Vector size wrong!");
+   MFEM_VERIFY(y.Size() == numVar * nDofs, "Vector size wrong!");
    const auto II = K.ReadI();
    const auto JJ = K.ReadJ();
    const auto KK = K.ReadData();
    double dij;
 
-   for(int i = 0; i < nDofs; i++)
+   for(int n = 0; n < numVar; n++)
    {
-      const int begin = II[i];
-      const int end = II[i+1];
-
-      y(i) = 0.0;
-      for(int j = begin; j < end; j++)
+      for(int i = 0; i < nDofs; i++)
       {
-         if( i == JJ[j] ) {continue;}
+         const int begin = II[i];
+         const int end = II[i+1];
 
-         dij = CalcGraphViscosity(i,JJ[j]);
-         y(i) += (dij - KK[j]) * (x(JJ[j]) - x(i));
+         y(i + n * nDofs) = 0.0;
+         for(int j = begin; j < end; j++)
+         {
+            if( i == JJ[j] ) {continue;}
+
+            dij = CalcGraphViscosity(i,JJ[j]);
+            y(i + n * nDofs) += (dij - KK[j]) * (x(JJ[j] + n * nDofs) - x(i + n * nDofs));
+         }
+         y(i + n * nDofs) /= lumpedmassmatrix(i); 
       }
-      y(i) /= lumpedmassmatrix(i); 
    }
 }
 
 LowOrder::~LowOrder()
 { }
 
-HighOrderTargetScheme::HighOrderTargetScheme(BilinearForm &M_, BilinearForm &K_, Vector &lumpedmassmatrix_) 
-   : FE_Evolution(M_, K_, lumpedmassmatrix_)
+HighOrderTargetScheme::HighOrderTargetScheme(BilinearForm &M_, BilinearForm &K_, Vector &lumpedmassmatrix_, int numVar_) 
+   : FE_Evolution(M_, K_, lumpedmassmatrix_, numVar_)
 { }
 
 void HighOrderTargetScheme::Mult(const Vector &x, Vector &y) const
@@ -229,44 +232,47 @@ void HighOrderTargetScheme::Mult(const Vector &x, Vector &y) const
    double dij;
 
    // compute low order time derivatives
-   for(int i = 0; i < nDofs; i++)
+   for(int n = 0; n < numVar; n++)
    {
-      const int begin = II[i];
-      const int end = II[i+1];
-
-      z(i) = 0.0;
-      for(int j = begin; j < end; j++)
+      for(int i = 0; i < nDofs; i++)
       {
-         if( i == JJ[j] ) {continue;}
+         const int begin = II[i];
+         const int end = II[i+1];
 
-         dij = CalcGraphViscosity(i,JJ[j]);
-         z(i) += (dij - KK[j]) * (x(JJ[j]) - x(i));
+         z(i) = 0.0;
+         for(int j = begin; j < end; j++)
+         {
+            if( i == JJ[j] ) {continue;}
+
+            dij = CalcGraphViscosity(i,JJ[j]);
+            z(i) += (dij - KK[j]) * (x(JJ[j] + n * nDofs) - x(i + n * nDofs));
+         }
+         z(i) /= lumpedmassmatrix(i); 
       }
-      z(i) /= lumpedmassmatrix(i); 
-   }
 
-   for(int i = 0; i < nDofs; i++)
-   {
-      const int begin = II[i];
-      const int end = II[i+1];
-
-      y(i) = 0.0;
-      for(int j = begin; j < end; j++)
+      for(int i = 0; i < nDofs; i++)
       {
-         if( i == JJ[j] ) {continue;}
+         const int begin = II[i];
+         const int end = II[i+1];
 
-         //dij = CalcGraphViscosity(i,JJ[j]);
-         y(i) += - KK[j] * (x(JJ[j]) - x(i)) + MM[j] * (z(i) - z(JJ[j]));
-      }
-      y(i) /= lumpedmassmatrix(i); 
+         y(i + n * nDofs) = 0.0;
+         for(int j = begin; j < end; j++)
+         {
+            if( i == JJ[j] ) {continue;}
+
+            //dij = CalcGraphViscosity(i,JJ[j]);
+            y(i + n * nDofs) += - KK[j] * (x(JJ[j] + n * nDofs) - x(i + n * nDofs)) + MM[j] * (z(i) - z(JJ[j]));
+         }
+         y(i + n * nDofs) /= lumpedmassmatrix(i); 
+      } 
    }
 }
 
 HighOrderTargetScheme::~HighOrderTargetScheme()
 { }
 
-MCL::MCL(BilinearForm &M_, BilinearForm &K_, Vector &lumpedmassmatrix_) 
-   : FE_Evolution(M_, K_, lumpedmassmatrix_)
+MCL::MCL(BilinearForm &M_, BilinearForm &K_, Vector &lumpedmassmatrix_, int numVar_) 
+   : FE_Evolution(M_, K_, lumpedmassmatrix_, numVar_)
 { }
 
 void MCL::Mult(const Vector &x, Vector &y) const
@@ -277,84 +283,85 @@ void MCL::Mult(const Vector &x, Vector &y) const
    const auto MM = M.ReadData();
    double dij, fij, fij_star, fij_bound, wij, wji;
 
-   // compute low order time derivatives
-   for(int i = 0; i < nDofs; i++)
+   for(int n = 0; n < numVar; n++)
    {
-      const int begin = II[i];
-      const int end = II[i+1];
-
-      z(i) = 0.0;
-      for(int j = begin; j < end; j++)
+      // compute low order time derivatives
+      for(int i = 0; i < nDofs; i++)
       {
-         if( i == JJ[j] ) {continue;}
+         const int begin = II[i];
+         const int end = II[i+1];
 
-         dij = CalcGraphViscosity(i,JJ[j]);
-         z(i) += (dij - KK[j]) * (x(JJ[j]) - x(i));
+         z(i) = 0.0;
+         for(int j = begin; j < end; j++)
+         {
+            if( i == JJ[j] ) {continue;}
+
+            dij = CalcGraphViscosity(i,JJ[j]);
+            z(i) += (dij - KK[j]) * (x(JJ[j] + n * nDofs) - x(i + n * nDofs));
+         }
+         z(i) /= lumpedmassmatrix(i); 
+
       }
-      z(i) /= lumpedmassmatrix(i); 
 
-   }
-
-   for(int i = 0; i < nDofs; i++)
-   {
-      const int begin = II[i];
-      const int end = II[i+1];
-      
-      // find the local bounds for the i-th node
-      double ui_min = x(i);
-      double ui_max = ui_min;
-      for(int j = begin; j < end; j++)
+      for(int i = 0; i < nDofs; i++)
       {
-         ui_max = max(ui_max, x(JJ[j]));
-         ui_min = min(ui_min, x(JJ[j]));
-      }
+         const int begin = II[i];
+         const int end = II[i+1];
       
-      y(i) = 0.0;
-      for(int j = begin; j < end; j++)
-      {
-         if( i == JJ[j] ) {continue;}
+         // find the local bounds for the i-th node
+         double ui_min = x(i + n * nDofs);
+         double ui_max = ui_min;
+         for(int j = begin; j < end; j++)
+         {
+            ui_max = max(ui_max, x(JJ[j] + n * nDofs));
+            ui_min = min(ui_min, x(JJ[j] + n * nDofs));
+         }
+      
+         y(i + n * nDofs) = 0.0;
+         for(int j = begin; j < end; j++)
+         {
+            if( i == JJ[j] ) {continue;}
          
-         // find the local bounds for the JJ[j]-th node
-         double uj_min = x(JJ[j]);
-         double uj_max = uj_min;
-         const int begin_j = II[JJ[j]];
-         const int end_j = II[JJ[j]+1];
-         for(int k = begin_j; k < end_j; k++)
-         {  
-            uj_max = max(uj_max, x(JJ[k]));
-            uj_min = min(uj_min, x(JJ[k]));
-         }
+            // find the local bounds for the JJ[j]-th node
+            double uj_min = x(JJ[j] + n * nDofs);
+            double uj_max = uj_min;
+            const int begin_j = II[JJ[j]];
+            const int end_j = II[JJ[j]+1];
+            for(int k = begin_j; k < end_j; k++)
+            {  
+               uj_max = max(uj_max, x(JJ[k] + n * nDofs));
+               uj_min = min(uj_min, x(JJ[k] + n * nDofs));
+            }
           
-         dij = CalcGraphViscosity(i,JJ[j]);
+            dij = CalcGraphViscosity(i,JJ[j]);
 
-         // compute target flux
-         fij = MM[j] * (z(i) - z(JJ[j])) + dij * (x(i) - x(JJ[j]));
+            // compute target flux
+            fij = MM[j] * (z(i) - z(JJ[j])) + dij * (x(i + n * nDofs) - x(JJ[j] + n * nDofs));
 
-         //limit target flux to enforce local bounds for the bar states (note, that dij = dji)
-         wij = dij * (x(i) + x(JJ[j]))  - KK[j] * (x(JJ[j]) - x(i));
-         wji = dij * (x(i) + x(JJ[j]))  - K(JJ[j], i) * (x(i) - x(JJ[j])); 
-         if(fij > 0)
-         {
-            fij_bound = min(2.0 * dij * ui_max - wij, wji - 2.0 * dij * uj_min);
-            fij_star = min(fij, fij_bound);
+            //limit target flux to enforce local bounds for the bar states (note, that dij = dji)
+            wij = dij * (x(i + n * nDofs) + x(JJ[j] + n * nDofs))  - KK[j] * (x(JJ[j] + n * nDofs) - x(i + n * nDofs));
+            wji = dij * (x(i + n * nDofs) + x(JJ[j] + n * nDofs))  - K(JJ[j], i) * (x(i + n * nDofs) - x(JJ[j] + n * nDofs)); 
+            if(fij > 0)
+            {
+               fij_bound = min(2.0 * dij * ui_max - wij, wji - 2.0 * dij * uj_min);
+               fij_star = min(fij, fij_bound);
 
-            // to get rid of rounding errors wich influence the sign 
-            //fij_star = max(0.0, fij_star);
-         }
-         else
-         {
-            fij_bound = max(2.0 * dij * ui_min - wij, wji - 2.0 * dij * uj_max);
-            fij_star = max(fij, fij_bound);
+               // to get rid of rounding errors wich influence the sign 
+               //fij_star = max(0.0, fij_star);
+            }
+            else
+            {
+               fij_bound = max(2.0 * dij * ui_min - wij, wji - 2.0 * dij * uj_max);
+               fij_star = max(fij, fij_bound);
 
-            // to get rid of rounding errors wich influence the sign
-            //fij_star = min(0.0, fij_star);
-         }
-         y(i) += (dij - KK[j]) * (x(JJ[j]) - x(i) ) + fij_star ;
+               // to get rid of rounding errors wich influence the sign
+               //fij_star = min(0.0, fij_star);
+            }
+            y(i + n * nDofs) += (dij - KK[j]) * (x(JJ[j] + n * nDofs) - x(i + n * nDofs) ) + fij_star ;
+         }  
+         y(i + n * nDofs) /= lumpedmassmatrix(i);  
       }
-      y(i) /= lumpedmassmatrix(i);  
-
    }
-   
 }
 
 MCL::~MCL()
@@ -480,8 +487,16 @@ int main(int argc, char *argv[])
 
    // 5. Define the discontinuous DG finite element space of the given
    //    polynomial order on the refined mesh.
+   int numVar;
+   switch(problem)
+   {
+      case 0:
+      case 1: numVar = 2; break; // scalar
+      case 2: numVar = 2; break;  
+   }
    H1_FECollection fec(order, dim, BasisType::Positive);
    FiniteElementSpace fes(&mesh, &fec);
+   FiniteElementSpace vfes(&mesh, &fec, numVar);
 
    cout << "Number of unknowns: " << fes.GetVSize() << endl;
 
@@ -489,8 +504,8 @@ int main(int argc, char *argv[])
    //    DG discretization. The DGTraceIntegrator involves integrals over mesh
    //    interior faces.
    VectorFunctionCoefficient velocity(dim, velocity_function);
-   FunctionCoefficient inflow(inflow_function);
-   FunctionCoefficient u0(u0_function);
+   //FunctionCoefficient inflow(inflow_function);
+   VectorFunctionCoefficient u0(numVar, u0_function);
 
    BilinearForm m(&fes);
    BilinearForm k(&fes);
@@ -513,7 +528,7 @@ int main(int argc, char *argv[])
    }
    m.AddDomainIntegrator(new MassIntegrator);
    lumped_m.AddDomainIntegrator(new LumpedIntegrator(new MassIntegrator()));
-   constexpr real_t alpha = - 1.0;
+   //constexpr real_t alpha = - 1.0;
    //k.AddDomainIntegrator(new TransposeIntegrator(new ConvectionIntegrator(velocity, alpha)));
    k.AddDomainIntegrator(new ConvectionIntegrator(velocity));
    //k.AddInteriorFaceIntegrator(new NonconservativeDGTraceIntegrator(velocity, alpha));
@@ -539,7 +554,7 @@ int main(int argc, char *argv[])
    // 7. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
    //    GLVis visualization.
-   GridFunction u(&fes);
+   GridFunction u(&vfes);
    u.ProjectCoefficient(u0);
 
    {
@@ -606,7 +621,7 @@ int main(int argc, char *argv[])
       {
          sout.precision(precision);
          sout << "solution\n" << mesh << u;
-         sout << "keys mclj\n";
+         sout << "keys mcljUUUUU\n";
          if(dim == 1)
          {
             sout << "keys RR\n"; 
@@ -630,9 +645,9 @@ int main(int argc, char *argv[])
    FE_Evolution *adv = NULL;
    switch(scheme)
    {
-      case 1: adv = new LowOrder(m, k, lumpedmassmatrix); break;
-      case 2: adv = new HighOrderTargetScheme(m, k, lumpedmassmatrix); break;
-      case 3: adv = new MCL(m, k, lumpedmassmatrix); break;
+      case 1: adv = new LowOrder(m, k, lumpedmassmatrix, numVar); break;
+      case 2: adv = new HighOrderTargetScheme(m, k, lumpedmassmatrix, numVar); break;
+      case 3: adv = new MCL(m, k, lumpedmassmatrix, numVar); break;
       default: MFEM_ABORT("Unknown scheme!");
    }
 
@@ -755,9 +770,10 @@ void velocity_function(const Vector &x, Vector &v)
 }
 
 // Initial condition
-real_t u0_function(const Vector &x)
+void u0_function(const Vector &x, Vector &u)
 {
    int dim = x.Size();
+   int numVar = u.Size();
 
    // map to the reference [-1,1] domain
    Vector X(dim);
@@ -775,40 +791,49 @@ real_t u0_function(const Vector &x)
          {
             MFEM_ABORT("Problem 0 only works in 1D!");
          }
+         //if(numVar != 1)
+         //{
+         //   MFEM_ABORT("Problem 0 only works for scalar!");
+         //}
          
          if(x(0) < 0.9 && x(0) > 0.5)
          {
-            return exp(10) * exp(1.0 / (0.5 - x(0))) * exp(1.0 / (x(0) - 0.9));
+            u(0) = exp(10) * exp(1.0 / (0.5 - x(0))) * exp(1.0 / (x(0) - 0.9));
          }
          if( x(0) < 0.4 && x(0) > 0.2)
          {
-            return 1.0;
+            u(0) = 1.0;
          }
          else 
          {
-            return 0.0;
+            u(0) = 0.0;
          }
+         break;
       }
       case 1:
       {
-            if (dim != 2) 
-            { 
-                MFEM_ABORT("Solid body rotation does not work in 1D."); 
-            }
-            else 
-            {
-               // Initial condition defined on [0,1]^2
-               Vector y = x;
-               y *= 0.5;
-               y += 0.5;
-               double s = 0.15;
-               double cone = sqrt(pow(y(0) - 0.5, 2.0) + pow(y(1) - 0.25, 2.0));
-               double hump = sqrt(pow(y(0) - 0.25, 2.0) + pow(y(1) - 0.5, 2.0));
-               return (1.0 - cone / s) * (cone <= s) + 0.25 * (1.0 + cos(M_PI*hump / s)) * (hump <= s) +
-                   ((sqrt(pow(y(0) - 0.5, 2.0) + pow(y(1) - 0.75, 2.0)) <= s ) && ( abs(y(0) -0.5) >= 0.025 || (y(1) >= 0.85) ) ? 1.0 : 0.0);
-            }
-            break;
-        }
+         if (dim != 2) 
+         { 
+            MFEM_ABORT("Solid body rotation does not work in 1D."); 
+         }
+         //if(numVar != 1)
+         //{
+         //   MFEM_ABORT("Problem 1 only works for scalar!");
+         //}
+         else 
+         {
+            // Initial condition defined on [0,1]^2
+            Vector y = x;
+            y *= 0.5;
+            y += 0.5;
+            double s = 0.15;
+            double cone = sqrt(pow(y(0) - 0.5, 2.0) + pow(y(1) - 0.25, 2.0));
+            double hump = sqrt(pow(y(0) - 0.25, 2.0) + pow(y(1) - 0.5, 2.0));
+            u(0) = (1.0 - cone / s) * (cone <= s) + 0.25 * (1.0 + cos(M_PI*hump / s)) * (hump <= s) +
+                ((sqrt(pow(y(0) - 0.5, 2.0) + pow(y(1) - 0.75, 2.0)) <= s ) && ( abs(y(0) -0.5) >= 0.025 || (y(1) >= 0.85) ) ? 1.0 : 0.0);
+         }
+         break;
+      }
 
 
 
@@ -818,7 +843,7 @@ real_t u0_function(const Vector &x)
          switch (dim)
          {
             case 1:
-               return exp(-40.*pow(X(0)-0.5,2));
+               u(0) = exp(-40.*pow(X(0)-0.5,2));
             case 2:
             case 3:
             {
@@ -829,25 +854,32 @@ real_t u0_function(const Vector &x)
                   rx *= s;
                   ry *= s;
                }
-               return ( std::erfc(w*(X(0)-cx-rx))*std::erfc(-w*(X(0)-cx+rx)) *
+               u(0) = ( std::erfc(w*(X(0)-cx-rx))*std::erfc(-w*(X(0)-cx+rx)) *
                         std::erfc(w*(X(1)-cy-ry))*std::erfc(-w*(X(1)-cy+ry)) )/16;
             }
          }
+         u(1) = u(0);
+         break;
       }
       case 3:
       {
          real_t x_ = X(0), y_ = X(1), rho, phi;
          rho = std::hypot(x_, y_);
          phi = atan2(y_, x_);
-         return pow(sin(M_PI*rho),2)*sin(3*phi);
+         u(0) = pow(sin(M_PI*rho),2)*sin(3*phi);
+         break;
       }
       case 4:
       {
          const real_t f = M_PI;
-         return sin(f*X(0))*sin(f*X(1));
+         u(0) = sin(f*X(0))*sin(f*X(1));
+         break;
       }
    }
-   return 0.0;
+   for(int n = 1; n < numVar; n++)
+   {
+      u(n) = pow(-1.0, double(n)) * u(0);
+   }
 }
 
 // Inflow boundary condition (zero for the problems considered in this example)
