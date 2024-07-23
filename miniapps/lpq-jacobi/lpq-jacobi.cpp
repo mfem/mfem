@@ -120,6 +120,17 @@ int main(int argc, char *argv[])
       mesh->UniformRefinement();
    }
 
+   dim = mesh->Dimension();
+   space_dim = mesh->SpaceDimension();
+
+   bool cond_z = (dim < 3)?true:(eps_z != 0); // lazy check
+   if (eps_y != 0.0 && cond_z)
+   {
+      if (dim < 3) { eps_z = 0.0; }
+      common::KershawTransformation kershawT(dim, eps_y, eps_z);
+      mesh->Transform(kershawT);
+   }
+
    /// 5. Define a finite element space on the mesh. We use different spaces
    ///    and collections for different systems.
    ///    - H1-conforming Lagrange elements for the H1-mass matrix and the
@@ -128,8 +139,6 @@ int main(int argc, char *argv[])
    ///    - H(curl)-conforming Nedelec elements for the definite Maxwell problem.
    FiniteElementCollection *fec;
    ParFiniteElementSpace *fespace;
-   dim = mesh->Dimension();
-   space_dim = mesh->SpaceDimension();
    switch (integrator_type)
    {
       case mass: case diffusion:
