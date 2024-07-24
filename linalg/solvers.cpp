@@ -329,7 +329,6 @@ void OperatorJacobiSmoother::Mult(const Vector &x, Vector &y) const
    });
 }
 
-// TODO(Gabriel): I am working here...
 OperatorLpqJacobiSmoother::OperatorLpqJacobiSmoother(const real_t p_order,
                                                      const real_t q_order,
                                                      const real_t dmpng)
@@ -337,8 +336,7 @@ OperatorLpqJacobiSmoother::OperatorLpqJacobiSmoother(const real_t p_order,
      p_order(p_order),
      q_order(q_order),
      ess_tdof_list(nullptr),
-     oper(nullptr),
-     allow_updates(true)
+     oper(nullptr)
 { }
 
 OperatorLpqJacobiSmoother::OperatorLpqJacobiSmoother(const HypreParMatrix &A,
@@ -352,8 +350,7 @@ OperatorLpqJacobiSmoother::OperatorLpqJacobiSmoother(const HypreParMatrix &A,
      p_order(p_order),
      q_order(q_order),
      ess_tdof_list(&ess_tdofs),
-     residual(height),
-     allow_updates(false)
+     residual(height)
 {
 
    oper = &A;
@@ -441,7 +438,6 @@ void OperatorLpqJacobiSmoother::Setup()
       });
    }
 }
-// TODO(Gabriel): Up to here
 
 OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
                                                      const Vector &d,

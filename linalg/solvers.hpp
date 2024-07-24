@@ -417,7 +417,6 @@ private:
    const Array<int> *ess_tdof_list; // not owned; may be NULL
    mutable Vector residual;
    const Operator *oper; // not owned
-   const bool allow_updates;
 };
 
 /// Chebyshev accelerated smoothing with given vector, no matrix necessary
