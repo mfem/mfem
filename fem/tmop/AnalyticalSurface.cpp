@@ -20,13 +20,13 @@ namespace mfem
 {
 
 AnalyticSurface::AnalyticSurface(const Array<bool> &marker)
-    : dof_marker(marker), distance_gf()
+    : dof_marker(marker), dof_pos_offset(0)
 {
    //geometry->ComputeDistances(coord, pmesh, pfes_mesh);
 }
 
 AnalyticCompositeSurface::AnalyticCompositeSurface
-    (const Array<const AnalyticSurface *> &surf)
+    (const Array<AnalyticSurface *> &surf)
     : AnalyticSurface(), surfaces(surf), dof_to_surface(0)
 {
    UpdateDofToSurface();
@@ -68,7 +68,7 @@ const AnalyticSurface *AnalyticCompositeSurface::GetSurface(int dof_id) const
 
 
 void AnalyticCompositeSurface::ConvertPhysCoordToParam(const Vector &coord_x,
-                                                       Vector &coord_t) const
+                                                       Vector &coord_t)
 {
    coord_t = coord_x;
    for (int s = 0; s < surfaces.Size(); s++)
@@ -99,15 +99,17 @@ void AnalyticCompositeSurface::ConvertParamToPhys(const Array<int> &vdofs,
 }
 
 void Analytic2DCurve::ConvertPhysCoordToParam(const Vector &coord_x,
-                                              Vector &coord_t) const
+                                              Vector &coord_t)
 {
    const int ndof = coord_x.Size() / 2;
    double t;
+   dof_pos_offset.SetSize(ndof);
+   dof_pos_offset = 0.0;
    for (int i = 0; i < ndof; i++)
    {
       if (dof_marker[i])
       {
-         t_of_xy(coord_x(i), coord_x(ndof + i), distance_gf, t);
+         t_of_xy(coord_x(i), coord_x(ndof + i), dof_pos_offset(i), t);
          coord_t(i)        = t;
          coord_t(ndof + i) = 0.0;
       }
@@ -123,7 +125,7 @@ void Analytic2DCurve::ConvertParamCoordToPhys(const Vector &coord_t,
    {
       if (dof_marker[i])
       {
-         xy_of_t(coord_t(i), distance_gf, x, y);
+         xy_of_t(coord_t(i), dof_pos_offset(i), x, y);
          coord_x(i)        = x;
          coord_x(ndof + i) = y;
       }
@@ -140,7 +142,7 @@ void Analytic2DCurve::ConvertParamToPhys(const Array<int> &vdofs,
    {
       if (dof_marker[vdofs[i]])
       {
-         xy_of_t(coord_t(i), distance_gf, x, y);
+         xy_of_t(coord_t(i), dof_pos_offset(vdofs[i]), x, y);
          coord_x(i)        = x;
          coord_x(ndof + i) = y;
       }

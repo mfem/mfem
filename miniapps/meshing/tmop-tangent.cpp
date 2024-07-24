@@ -44,7 +44,7 @@ int main (int argc, char *argv[])
    args.AddOption(&mesh_file, "-m", "--mesh",
 		 "Mesh file to use.");
    args.AddOption(&rs_levels, "-rs", "--refine-serial",
-		 "Number of times to refine the mesh uniformly in serial.");
+       "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&mesh_poly_deg, "-o", "--order",
        "Polynomial degree of mesh finite element space.");
    args.AddOption(&quad_order, "-qo", "--quad_order",
@@ -77,6 +77,7 @@ int main (int argc, char *argv[])
 
    // Move the mesh nodes to have non-trivial problem.
    const int N = coord_x.Size() / 2;
+   double a, b, c;
    for (int i = 0; i < N; i++)
    {
       double x = coord_x(i);
@@ -89,7 +90,9 @@ int main (int argc, char *argv[])
       // a adds deformation inside.
       // b pulls the top-right corner out.
       // c adds boundary deformation.
-      double a = 0.2, b = 0.5, c = 1.3;
+      //a = 0.0, b = 0.5, c = 0.0; // linear.
+      a = 0.2, b = 0.5, c = 1.5; // curved.
+
       coord_x(i)     = x + a * sin(0.5 * M_PI * x) * sin(c * M_PI * y)   + b * x * y;
       coord_x(i + N) = y + a * sin(c * M_PI * x)   * sin(0.5 * M_PI * y) + b * x * y;
    }
@@ -150,6 +153,7 @@ int main (int argc, char *argv[])
             fit_marker_right[vdofs[j]] = true;
          }
       }
+      // Bottom boundary.
       else if (attr == 3)
       {
          // Fix y components.
@@ -159,6 +163,7 @@ int main (int argc, char *argv[])
             ess_vdofs.Append(vdofs[j+nd]);
          }
       }
+      // Left boundary.
       else if (attr == 4)
       {
          // Fix x components.
@@ -199,18 +204,27 @@ int main (int argc, char *argv[])
                             400, 0, 400, 400, "me");
    }
 
-   Array<const AnalyticSurface *> surf_array;
+   Array<AnalyticSurface *> surf_array;
    Line_Top line_top(fit_marker_top);
-   Curve_Sine_Top curve_top(fit_marker_top);
    Line_Right line_right(fit_marker_right);
-   Curve_Sine_Right curve_right(fit_marker_right);
+   Curve_Sine_Top curve_top(fit_marker_top, a, b, c);
+   Curve_Sine_Right curve_right(fit_marker_right, a, b, c);
+
    //surf_array.Append(&line_top);
-   surf_array.Append(&curve_top);
    //surf_array.Append(&line_right);
+   surf_array.Append(&curve_top);
    surf_array.Append(&curve_right);
 
    AnalyticCompositeSurface surfaces(surf_array);
    surfaces.ConvertPhysCoordToParam(coord_x, coord_t);
+
+   // std::ostringstream mesh_name;
+   // mesh_name << "mesh_a02_b05_c15.mesh";
+   // std::ofstream mesh_ofs(mesh_name.str().c_str());
+   // mesh_ofs.precision(8);
+   // pmesh.Print(mesh_ofs);
+   // mesh_ofs.close();
+   // return 0;
 
    if (glvis)
    {
@@ -220,8 +234,6 @@ int main (int argc, char *argv[])
                             400, 0, 400, 400, "me");
    }
 
-   //return 0;
-
    // TMOP setup.
    TMOP_QualityMetric *metric;
    if (dim == 2) { metric = new TMOP_Metric_002; }
@@ -229,6 +241,7 @@ int main (int argc, char *argv[])
    metric->use_old_invariants_code = true;
    TargetConstructor target(TargetConstructor::IDEAL_SHAPE_UNIT_SIZE,
                             pfes_mesh.GetComm());
+   target.SetNodes(coord_x);
    auto integ = new TMOP_Integrator(metric, &target, nullptr);
    integ->EnableTangentialMovement(surfaces, pfes_mesh);
 
@@ -239,13 +252,13 @@ int main (int argc, char *argv[])
    minres.SetAbsTol(0.0);
 
    // Nonlinear solver.
-   ParNonlinearForm a(&pfes_mesh);
-   a.SetEssentialVDofs(ess_vdofs);
-   a.AddDomainIntegrator(integ);
+   ParNonlinearForm nlf(&pfes_mesh);
+   nlf.SetEssentialVDofs(ess_vdofs);
+   nlf.AddDomainIntegrator(integ);
    const IntegrationRule &ir =
     IntRules.Get(pfes_mesh.GetFE(0)->GetGeomType(), quad_order);
    TMOPNewtonSolver solver(pfes_mesh.GetComm(), ir, 0);
-   solver.SetOperator(a);
+   solver.SetOperator(nlf);
    solver.SetPreconditioner(minres);
    solver.SetPrintLevel(1);
    solver.SetMaxIter(50);
@@ -253,9 +266,9 @@ int main (int argc, char *argv[])
    solver.SetAbsTol(0.0);
 
    // Solve.
-   Vector b(0);
+   Vector zero(0);
    coord_t.SetTrueVector();
-   solver.Mult(b, coord_t.GetTrueVector());
+   solver.Mult(zero, coord_t.GetTrueVector());
    coord_t.SetFromTrueVector();
    surfaces.ConvertParamCoordToPhys(coord_t, coord_x);
    if(glvis)

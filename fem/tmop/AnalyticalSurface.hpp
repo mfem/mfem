@@ -28,19 +28,19 @@ protected:
    friend class AnalyticCompositeSurface;
 
    Array<bool> dof_marker;
+   Vector dof_pos_offset;
 
 public:
-   ParGridFunction distance_gf;
-
-   AnalyticSurface() : dof_marker(0) { }
+   AnalyticSurface() : dof_marker(0), dof_pos_offset(0) { }
    AnalyticSurface(const Array<bool> &marker);
 
    // Go from physical to parametric coordinates on the whole mesh.
+   // If the point is not on the curve, computes its offset.
    // 2D curve: (x, y)    -> t.
    // 3D curve: (x, y, z) -> t.
    // 3D surf:  (x, y, z) -> (u, v).
    virtual void ConvertPhysCoordToParam(const Vector &coord_x,
-                                        Vector &coord_t) const = 0;
+                                        Vector &coord_t) = 0;
 
    // Go from parametric to physical coordinates on the whole mesh:
    // 2D curve: t      -> (x, y).
@@ -69,11 +69,11 @@ public:
 class AnalyticCompositeSurface : public AnalyticSurface
 {
 protected:
-   const Array<const AnalyticSurface *> &surfaces;
+   const Array<AnalyticSurface *> &surfaces;
    Array<int> dof_to_surface;
 
 public:
-   AnalyticCompositeSurface(const Array<const AnalyticSurface *> &surf);
+   AnalyticCompositeSurface(const Array<AnalyticSurface *> &surf);
 
    /// Must be called after the Array of surfaces is changed.
    void UpdateDofToSurface();
@@ -82,7 +82,7 @@ public:
    const AnalyticSurface *GetSurface(int dof_id) const;
 
    void ConvertPhysCoordToParam(const Vector &coord_x,
-                                Vector &coord_t) const override;
+                                Vector &coord_t) override;
 
    void ConvertParamCoordToPhys(const Vector &coord_t,
                                 Vector &coord_x) const override;
@@ -106,7 +106,7 @@ public:
 
    // (x, y) -> t on the whole mesh.
    void ConvertPhysCoordToParam(const Vector &coord_x,
-                                Vector &coord_t) const override;
+                                Vector &coord_t) override;
 
    // t -> (x, y) on the whole mesh.
    void ConvertParamCoordToPhys(const Vector &coord_t,
@@ -123,10 +123,10 @@ public:
    // t -> (dx_dtdt, dy_dtdt).
    void Deriv_2(const double *param, double *deriv) const override;
 
-   virtual void xy_of_t(double t, const Vector &dist,
+   virtual void t_of_xy(double x, double y,
+                        double &dist, double &t) const = 0;
+   virtual void xy_of_t(double t, double dist,
                         double &x, double &y) const = 0;
-   virtual void t_of_xy(double x, double y, const Vector &dist,
-                        double &t) const = 0;
 
    virtual double dx_dt(double t) const = 0;
    virtual double dy_dt(double t) const = 0;
