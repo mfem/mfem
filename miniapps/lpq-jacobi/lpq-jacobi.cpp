@@ -287,9 +287,8 @@ int main(int argc, char *argv[])
    ///    - Stationary Linear Iteration
    ///    - Preconditioned Conjugate Gradient
    ///    Then, solve the system with the used-selected solver.
-   ///    TODO(Gabriel): Use data monitor
    Solver *solver = nullptr;
-   // DataMonitor monitor(file_name.str(), NDIGITS);
+   DataMonitor monitor(file_name.str(), NDIGITS);
    switch (solver_type)
    {
       case sli:
@@ -309,7 +308,10 @@ int main(int argc, char *argv[])
       it_solver->SetMaxIter(max_iter);
       it_solver->SetPrintLevel(1);
       it_solver->SetPreconditioner(*lpq_jacobi);
-      // it_solver->SetMonitor(monitor);
+   }
+   if (it_solver && visualization)
+   {
+      it_solver->SetMonitor(monitor);
    }
    solver->SetOperator(A);
    solver->Mult(B, X);
@@ -328,7 +330,27 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << *mesh << x << flush;
    }
 
-   /// 11. Free the memory used
+   /// 11. Compute and print the L^2 norm of the error
+   {
+      real_t error = 0.0;
+      switch (integrator_type)
+      {
+         case mass: case diffusion:
+            error = x.ComputeL2Error(*scalar_u);
+            break;
+         case elasticity: case maxwell:
+            error = x.ComputeL2Error(*vector_u);
+            break;
+         default:
+            mfem_error("Invalid integrator type! Check ComputeL2Error");
+      }
+      if (Mpi::Root())
+      {
+         mfem::out << "\n|| u_h - u ||_{L^2} = " << error << "\n" << endl;
+      }
+   }
+
+   /// 12. Free the memory used
    delete solver;
    delete lpq_jacobi;
    delete a;

@@ -304,7 +304,7 @@ int main(int argc, char *argv[])
    mg->FormFineLinearSystem(x, *b, A, X, B);
 
    Solver *solver = nullptr;
-   // DataMonitor monitor(file_name.str(), NDIGITS);
+   DataMonitor monitor(file_name.str(), NDIGITS);
    switch (solver_type)
    {
       case sli:
@@ -324,8 +324,11 @@ int main(int argc, char *argv[])
       it_solver->SetRelTol(rel_tol);
       it_solver->SetMaxIter(max_iter);
       it_solver->SetPrintLevel(1);
-      // it_solver->SetMonitor(monitor);
       it_solver->SetPreconditioner(*mg);
+   }
+   if (it_solver && visualization)
+   {
+      it_solver->SetMonitor(monitor);
    }
    solver->Mult(B, X);
 
@@ -344,7 +347,27 @@ int main(int argc, char *argv[])
                << x << flush;
    }
 
-   /// 11. Free the memory used
+   /// 11. Compute and print the L^2 norm of the error
+   {
+      real_t error = 0.0;
+      switch (integrator_type)
+      {
+         case mass: case diffusion:
+            error = x.ComputeL2Error(*scalar_u);
+            break;
+         case elasticity: case maxwell:
+            error = x.ComputeL2Error(*vector_u);
+            break;
+         default:
+            mfem_error("Invalid integrator type! Check ComputeL2Error");
+      }
+      if (Mpi::Root())
+      {
+         mfem::out << "\n|| u_h - u ||_{L^2} = " << error << "\n" << endl;
+      }
+   }
+
+   /// 12. Free the memory used
    delete mg;
    delete solver;
    delete b;
