@@ -153,6 +153,7 @@ int main (int argc, char *argv[])
             fit_marker_right[vdofs[j]] = true;
          }
       }
+      // Bottom boundary.
       else if (attr == 3)
       {
          // Fix y components.
@@ -162,6 +163,7 @@ int main (int argc, char *argv[])
             ess_vdofs.Append(vdofs[j+nd]);
          }
       }
+      // Left boundary.
       else if (attr == 4)
       {
          // Fix x components.
@@ -215,6 +217,14 @@ int main (int argc, char *argv[])
 
    AnalyticCompositeSurface surfaces(surf_array);
    surfaces.ConvertPhysCoordToParam(coord_x, coord_t);
+
+   // std::ostringstream mesh_name;
+   // mesh_name << "mesh_a02_b05_c15.mesh";
+   // std::ofstream mesh_ofs(mesh_name.str().c_str());
+   // mesh_ofs.precision(8);
+   // pmesh.Print(mesh_ofs);
+   // mesh_ofs.close();
+   // return 0;
 
    if (glvis)
    {
