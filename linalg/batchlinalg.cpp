@@ -14,7 +14,28 @@
 
 #include "batchlinalg.hpp"
 #include "../general/forall.hpp"
-#include "../general/backends.hpp"
+
+#if defined(MFEM_USE_CUDA)
+#define MFEM_cu_or_hip(stub) cu##stub
+#define MFEM_Cu_or_Hip(stub) Cu##stub
+#define MFEM_CU_or_HIP(stub) CU##stub
+#define MFEM_CUDA_or_HIP(stub) CUDA##stub
+
+#if CUSPARSE_VERSION >=  11400
+#define MFEM_GPUSPARSE_ALG CUSPARSE_SPMV_CSR_ALG1
+#else // CUSPARSE_VERSION >= 11400
+#define MFEM_GPUSPARSE_ALG CUSPARSE_CSRMV_ALG1
+#endif // CUSPARSE_VERSION >= 11400
+
+#elif defined(MFEM_USE_HIP)
+#define MFEM_cu_or_hip(stub) hip##stub
+#define MFEM_Cu_or_Hip(stub) Hip##stub
+#define MFEM_CU_or_HIP(stub) HIP##stub
+#define MFEM_CUDA_or_HIP(stub) HIP##stub
+
+// https://hipsparse.readthedocs.io/en/latest/usermanual.html#hipsparsespmvalg-t
+#define MFEM_GPUSPARSE_ALG HIPSPARSE_CSRMV_ALG1
+#endif // defined(MFEM_USE_CUDA)
 
 namespace mfem
 {
