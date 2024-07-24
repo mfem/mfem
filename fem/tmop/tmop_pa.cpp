@@ -179,10 +179,14 @@ void TMOP_Integrator::AssemblePA_Fitting()
 
    // surf_fit_grad -> PA.X4 
    // (The size of this will depend on the dimension of PA i.e. 2 or 3)
+   
    const Operator *n4_R = fes->GetElementRestriction(ordering);
-   PA.X4.SetSize(n4_R->Height()*PA.dim, Device::GetMemoryType());
+   PA.X4.SetSize(PA.dim*n4_R->Height(), Device::GetMemoryType());
    PA.X4.UseDevice(true);
+   surf_fit_grad->HostWrite();
    n4_R->Mult(*surf_fit_grad, PA.X4);
+
+   surf_fit_grad->Print();
 }
 //------------------------------- new function above -------------------------//
 

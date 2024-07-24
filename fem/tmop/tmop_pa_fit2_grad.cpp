@@ -43,7 +43,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, EnergyPA_Fit_Grad_2D,
    const auto X1 = Reshape(x1_.Read(), D1D, D1D, NE);
    const auto X2 = Reshape(x2_.Read(), D1D, D1D, NE);
    const auto X3 = Reshape(x3_.Read(), D1D, D1D, NE);
-   const auto X4 = Reshape(x4_.Read(), DIM*D1D, DIM*D1D, NE);
+   const auto X4 = Reshape(x4_.Read(), D1D, D1D, DIM, NE);
 
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, DIM, NE);
 
@@ -60,24 +60,28 @@ MFEM_REGISTER_TMOP_KERNELS(void, EnergyPA_Fit_Grad_2D,
             const real_t sigma = X1(qx,qy,e);
             const real_t dof_count = X2(qx,qy,e);
             const real_t marker = X3(qx,qy,e); 
-
-            const real_t dx = X4(qx,qy,e);
-            const real_t dy = X4(qx+D1D,qy+D1D,e);
-
             const real_t coeff = C1;
             const real_t normal = C2;
 
+            const real_t dx = X4(qx,qy,0,e);
+            out<< "dx = ";
+            out<< dx;
+            out<<" , ";
+            const real_t dy = X4(qx,qy,1,e);
+            out<< "dy = ";
+            out<< dy;
+            out<< "\n";
+
             if (marker == 0) {continue;}
             double w = coeff * normal * 1.0/dof_count;
-            Y(qx,qy,0,e) = 2 * w * sigma * dx;
-            Y(qx,qy,1,e) = 2 * w * sigma * dy;   
+            Y(qx,qy,0,e) = 2 * sigma * dx;
+            Y(qx,qy,1,e) = 2 * sigma * dy;
          }
       }
-
    });
 
 }
-void TMOP_Integrator::GetLocalStateEnergyPA_Fit_Grad_2D(const Vector &X, const Vector &Y) const
+void TMOP_Integrator::GetLocalStateEnergyPA_Fit_Grad_2D(const Vector &X, Vector &Y) const
 {
    const int N = PA.ne;
    const int meshOrder = surf_fit_gf->FESpace()->GetMaxElementOrder();
@@ -85,8 +89,6 @@ void TMOP_Integrator::GetLocalStateEnergyPA_Fit_Grad_2D(const Vector &X, const V
    const int Q1D = D1D;
    const int id = (D1D << 4 ) | Q1D;
    const Vector &O = PA.O;
-   Vector &E = PA.E;
-   
    
    const real_t &C1 = PA.C1;
    const real_t &C2 = PA.C2;
@@ -95,7 +97,7 @@ void TMOP_Integrator::GetLocalStateEnergyPA_Fit_Grad_2D(const Vector &X, const V
    const Vector &X3 = PA.X3;
    const Vector &X4 = PA.X4;
 
-   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_Fit_Grad_2D,id,N,C1,C2,X1,X2,X3,X4,O,E);
+   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_Fit_Grad_2D,id,N,C1,C2,X1,X2,X3,X4,O,Y);
 }
 
 } // namespace mfem
