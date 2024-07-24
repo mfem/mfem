@@ -63,27 +63,6 @@
 #define MFEM_FOREACH_THREAD(i,k,N) for(int i=0; i<N; i++)
 #endif
 
-#if defined(MFEM_USE_CUDA)
-#include <cublas_v2.h>
-#include <cusolverDn.h>
-#define MFEM_cu_or_hip(stub) cu##stub
-#define MFEM_Cu_or_Hip(stub) Cu##stub
-#define MFEM_CU_or_HIP(stub) CU##stub
-#define MFEM_CUDA_or_HIP(stub) CUDA##stub
-#elif defined(MFEM_USE_HIP)
-#include <hipblas/hipblas.h>
-#include <hip/hip_runtime.h>
-#include <hip/hip_runtime_api.h>
-#define MFEM_cu_or_hip(stub) hip##stub
-#define MFEM_Cu_or_Hip(stub) Hip##stub
-#define MFEM_CU_or_HIP(stub) HIP##stub
-#define MFEM_CUDA_or_HIP(stub) HIP##stub
-#else
-#define MFEM_cu_or_hip(stub)
-#define MFEM_Cu_or_Hip(stub)
-#define MFEM_CU_or_HIP(stub)
-#define MFEM_CUDA_or_HIP(stub)
-#endif
 // 'double' and 'float' atomicAdd implementation for previous versions of CUDA
 #if defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 600
 MFEM_DEVICE inline mfem::real_t atomicAdd(mfem::real_t *add, mfem::real_t val)
