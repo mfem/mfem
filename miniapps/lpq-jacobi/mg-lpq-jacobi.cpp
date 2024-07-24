@@ -1,14 +1,47 @@
-// Compile with: make TODO
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
-// Sample runs: mpirun -np 4 ...
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
 //
-// Description:
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+//
+//                   --------------------------------------
+//                     MG L(p,q)-Jacobi smoothers miniapp
+//                   --------------------------------------
+//
+// (See lpq-jacobi.cpp first)
+//
+// This miniapp illustrates the use of a family of smoothers and preconditioners
+// of the L(p,q)-Jacobi family. These preconditioners are tested in different
+// settings. We use a multigrid approach (cf. ex26(p)). The global solver and
+// the coarse level solver are user-selected. The current options are SLI and
+// PCG. The intermediate levels are directy smoothed with the L(p,q)-Jacobi
+// preconditioner. The systems to solve correspond to a mass matrix, a difussion
+// system, an elasticity system, and a definite Maxwell system.
+//
+// The preconditioner can be defined at run-time. Similarly, the mesh can be
+// modified by a Kershaw transformation at run-time. Relative tolerance and
+// maximum number of iterations can be modified as well.
+//
+// Compile with: make mg-lpq-jacobi
+//
+// Sample runs: mpirun -np 4 ./mg-lpq-jacobi
+//              mpirun -np 4 ./mg-lpq-jacobi -p 2.0 -q 1.0
+//              mpirun -np 4 ./mg-lpq-jacobi -s 1 -i 3
+//              mpirun -np 4 ./mg-lpq-jacobi -m meshes/icf.mesh -f 0.5
+//              mpirun -np 4 ./mg-lpq-jacobi -rs 2 -rp 0
+//              mpirun -np 4 ./mg-lpq-jacobi -t 1e5 -ni 100 -vis
+//              mpirun -np 4 ./mg-lpq-jacobi -m meshes/beam-tet.mesh -Ky 0.5 -Kz 0.5
 
-#include "lpq-jacobi.hpp"
+#include "lpq-common.hpp"
 
 using namespace std;
 using namespace mfem;
-using namespace lpq_jacobi;
+using namespace lpq_common;
 
 int main(int argc, char *argv[])
 {
@@ -200,7 +233,7 @@ int main(int argc, char *argv[])
    }
 
    /// 7. Extract the list of the essential boundary DoFs. We mark all boundary
-   ///    attibutes as essential. GeneralGeometricMultigrid will determine
+   ///    attibutes as essential. LpqGeometricMultigrid will determine
    ///    the DoFs per level.
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
    ess_bdr = 1;
@@ -261,12 +294,12 @@ int main(int argc, char *argv[])
    /// 9. Define a geometric multigrid solver. The bilinear form
    ///    a(.,.) is assembled internally. Set up the type of cycles
    ///    and form the linear system.
-   GeneralGeometricMultigrid* mg = new GeneralGeometricMultigrid(*fes_hierarchy,
-                                                                 ess_bdr,
-                                                                 integrator_type,
-                                                                 solver_type,
-                                                                 p_order,
-                                                                 q_order);
+   auto mg = new LpqGeometricMultigrid(*fes_hierarchy,
+                                       ess_bdr,
+                                       integrator_type,
+                                       solver_type,
+                                       p_order,
+                                       q_order);
    mg->SetCycleType(Multigrid::CycleType::VCYCLE, 1, 1);
    mg->FormFineLinearSystem(x, *b, A, X, B);
 

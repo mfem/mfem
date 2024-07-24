@@ -1,14 +1,45 @@
-// Compile with: make TODO
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
-// Sample runs: mpirun -np 4 ...
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
 //
-// Description:
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+//
+//                     ---------------------------------
+//                      L(p,q)-Jacobi smoothers miniapp
+//                     ---------------------------------
+//
+// This miniapp illustrates the use of a family of smoothers and preconditioners
+// of the L(p,q)-Jacobi family. These preconditioners are tested in different
+// settings. We use Stationary Linear Iterations and Preconditioned Conjugate
+// Gradient as the main solvers. We consider a H1-mass matrix, a diffusion matrix,
+// a elasticity system, and a definite Maxwell system.
+//
+// The preconditioner can be defined at run-time. Similarly, the mesh can be
+// modified by a Kershaw transformation at run-time. Relative tolerance and
+// maximum number of iterations can be modified as well.
+//
+// There is an analogous driver with a multigrid method implemented (cf. ex26(p)).
+//
+// Compile with: make lpq-jacobi
+//
+// Sample runs: mpirun -np 4 ./lpq-jacobi
+//              mpirun -np 4 ./lpq-jacobi -p 2.0 -q 1.0
+//              mpirun -np 4 ./lpq-jacobi -s 1 -i 3
+//              mpirun -np 4 ./lpq-jacobi -m meshes/icf.mesh -f 0.5
+//              mpirun -np 4 ./lpq-jacobi -rs 2 -rp 0
+//              mpirun -np 4 ./lpq-jacobi -t 1e5 -ni 100 -vis
+//              mpirun -np 4 ./lpq-jacobi -m meshes/beam-tet.mesh -Ky 0.5 -Kz 0.5
 
-#include "lpq-jacobi.hpp"
+#include "lpq-common.hpp"
 
 using namespace std;
 using namespace mfem;
-using namespace lpq_jacobi;
+using namespace lpq_common;
 
 
 int main(int argc, char *argv[])

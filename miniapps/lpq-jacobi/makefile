@@ -12,8 +12,10 @@
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
+
 SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/lpq-jacobi/,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
+
 # Use the MFEM install directory
 # MFEM_INSTALL_DIR = ../../mfem
 # CONFIG_MK = $(MFEM_INSTALL_DIR)/share/mfem/config.mk
@@ -25,8 +27,12 @@ include $(DEFAULTS_MK)
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_MINIAPPS = # lpq-jacobi
-PAR_MINIAPPS = lpq-jacobi ml-lpq-jacobi
+LPQ_COMMON_SRC = lpq-common.cpp
+LPQ_COMMON_OBJ = $(LPQ_COMMON_SRC:.cpp=.o)
+
+SEQ_MINIAPPS = # No serial version
+PAR_MINIAPPS = lpq-jacobi mg-lpq-jacobi
+
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -73,6 +79,12 @@ copy_meshes: $(MESHES_DEST_DIR) $(addprefix $(MESHES_DEST_DIR)/, $(notdir $(SRC_
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(COMMON_LIB) $(MFEM_LIBS)
 
 all: copy_meshes $(MINIAPPS)
+
+lpq-jacobi: lpq-jacobi.cpp lpq-common.cpp lpq-common.hpp
+	$(MFEM_CXX) $(MFEM_FLAGS) lpq-jacobi.cpp lpq-common.cpp -o lpq-jacobi $(COMMON_LIB) $(MFEM_LIBS)
+
+mg-lpq-jacobi: mg-lpq-jacobi.cpp lpq-common.cpp lpq-common.hpp
+	$(MFEM_CXX) $(MFEM_FLAGS) mg-lpq-jacobi.cpp lpq-common.cpp -o mg-lpq-jacobi $(COMMON_LIB) $(MFEM_LIBS)
 
 # Create the destination directory if it doesn't exist
 $(MESHES_DEST_DIR):
