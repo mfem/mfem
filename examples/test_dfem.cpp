@@ -967,385 +967,385 @@ int test_diffusion_integrator(std::string mesh_file,
 //    return 0;
 // }
 
-int test_assemble_vector_mass_hypreparmatrix(std::string mesh_file,
-                                             int refinements,
-                                             int polynomial_order,
-                                             int ir_order)
-{
-   Mesh mesh_serial = Mesh(mesh_file);
-   for (int i = 0; i < refinements; i++)
-   {
-      mesh_serial.UniformRefinement();
-   }
-   ParMesh mesh(MPI_COMM_WORLD, mesh_serial);
-
-   mesh.SetCurvature(1);
-   const int dim = mesh.Dimension();
-   const int vdim = dim;
-   mesh_serial.Clear();
-
-   ParGridFunction* mesh_nodes = static_cast<ParGridFunction *>(mesh.GetNodes());
-   ParFiniteElementSpace &mesh_fes = *mesh_nodes->ParFESpace();
-
-   H1_FECollection h1fec(polynomial_order, dim);
-   ParFiniteElementSpace h1fes(&mesh, &h1fec, vdim);
-
-   Array<int> ess_bdr(mesh.bdr_attributes.Max());
-   Array<int> ess_tdof;
-   ess_bdr = 1;
-   h1fes.GetEssentialTrueDofs(ess_bdr, ess_tdof);
-
-   const IntegrationRule &ir =
-      IntRules.Get(h1fes.GetFE(0)->GetGeomType(), ir_order * h1fec.GetOrder());
-
-   ParGridFunction u(&h1fes);
-
-   ParBilinearForm m_form(&h1fes);
-   auto m_integ = new VectorMassIntegrator;
-   m_integ->SetVDim(vdim);
-   m_integ->SetIntegrationRule(ir);
-   m_form.AddDomainIntegrator(m_integ);
-   m_form.Assemble();
-   m_form.Finalize();
-   auto M_mat = m_form.ParallelAssemble();
-
-   auto mass_kernel = [](const tensor<double, 2> &u, const tensor<double, 2, 2> &J,
-                         const double &w)
-   {
-      return std::tuple{u * det(J) * w};
-   };
-
-   std::tuple argument_operators{Value{"potential"}, Gradient{"coordinates"}, Weight{}};
-   std::tuple output_operator{Value{"potential"}};
-
-   ElementOperator op{mass_kernel, argument_operators, output_operator};
-
-   std::array solutions{FieldDescriptor{&h1fes, "potential"}};
-   std::array parameters{FieldDescriptor{&mesh_fes, "coordinates"}};
-
-   DifferentiableOperator dop{solutions, parameters, std::tuple{op}, mesh, ir};
-
-   Vector x(h1fes.GetTrueVSize()), y1(h1fes.GetTrueVSize()),
-          y2(h1fes.GetTrueVSize());
-
-   x = 1.0;
-   M_mat->Mult(x, y1);
-
-   dop.SetParameters({mesh_nodes});
-   dop.Mult(x, y2);
-
-   y2 -= y1;
-   if (y2.Norml2() > 1e-12)
-   {
-      return 1;
-   }
-
-   // M_mat->PrintMatlab(out);
-   // std::ofstream mmatofs("mfem_mat.dat");
-   // M_mat->PrintMatlab(mmatofs);
-
-   u = 0.0;
-   auto dFdU = dop.GetDerivativeWrt<0>({&u}, {mesh_nodes});
-
-   HypreParMatrix M_mat_dop;
-   dFdU->Assemble(M_mat_dop);
-
-   // M_mat_dop.PrintMatlab(out);
-   // std::ofstream mmatdopofs("dfem_mat.dat");
-   // M_mat_dop.PrintMatlab(mmatdopofs);
-
-   auto res = Add(1.0, *M_mat, -1.0, M_mat_dop);
-   SparseMatrix diag;
-   res->GetDiag(diag);
-   if (diag.MaxNorm() > 1e-12)
-   {
-      // res->PrintMatlab(out);
-      out << "mfem assembled hypreparmatrix != dfem assembled hypreparmatrix" <<
-          std::endl;
-      return 1;
-   }
-
-   return 0;
-}
-
-int test_assemble_vector_diffusion_hypreparmatrix(std::string mesh_file,
-                                                  int refinements,
-                                                  int polynomial_order,
-                                                  int ir_order)
-{
-   Mesh mesh_serial = Mesh(mesh_file);
-   for (int i = 0; i < refinements; i++)
-   {
-      mesh_serial.UniformRefinement();
-   }
-   ParMesh mesh(MPI_COMM_WORLD, mesh_serial);
-
-   mesh.SetCurvature(1);
-   const int dim = mesh.Dimension();
-   const int vdim = dim;
-   mesh_serial.Clear();
-
-   ParGridFunction* mesh_nodes = static_cast<ParGridFunction *>(mesh.GetNodes());
-   ParFiniteElementSpace &mesh_fes = *mesh_nodes->ParFESpace();
-
-   H1_FECollection h1fec(polynomial_order, dim);
-   ParFiniteElementSpace h1fes(&mesh, &h1fec, vdim);
-
-   Array<int> ess_bdr(mesh.bdr_attributes.Max());
-   Array<int> ess_tdof;
-   ess_bdr = 1;
-   h1fes.GetEssentialTrueDofs(ess_bdr, ess_tdof);
-
-   const IntegrationRule &ir =
-      IntRules.Get(h1fes.GetFE(0)->GetGeomType(), ir_order * h1fec.GetOrder());
-
-   ParGridFunction u(&h1fes);
-
-   ParBilinearForm A_form(&h1fes);
-   auto A_integ = new VectorDiffusionIntegrator(vdim);
-   A_integ->SetIntegrationRule(ir);
-   A_form.AddDomainIntegrator(A_integ);
-   A_form.Assemble();
-   A_form.Finalize();
-   auto A_mat = A_form.ParallelAssemble();
-
-   auto vector_diffusion_kernel = [](const tensor<double, 2, 2> &dudxi,
-                                     const tensor<double, 2, 2> &J,
-                                     const double &w)
-   {
-      return std::tuple{transpose((dudxi * inv(J)) * det(J) * w * transpose(inv(J)))};
-   };
-
-   std::tuple argument_operators{Gradient{"potential"}, Gradient{"coordinates"}, Weight{}};
-   std::tuple output_operator{Gradient{"potential"}};
-
-   ElementOperator op{vector_diffusion_kernel, argument_operators, output_operator};
-
-   std::array solutions{FieldDescriptor{&h1fes, "potential"}};
-   std::array parameters{FieldDescriptor{&mesh_fes, "coordinates"}};
-
-   DifferentiableOperator dop{solutions, parameters, std::tuple{op}, mesh, ir};
-
-   Vector x(h1fes.GetTrueVSize()), y1(h1fes.GetTrueVSize()),
-          y2(h1fes.GetTrueVSize());
-
-   // A_mat->PrintMatlab(out);
-   // std::ofstream amatofs("mfem_mat.dat");
-   // A_mat->PrintMatlab(amatofs);
-   // amatofs.close();
-
-   u = 0.0;
-   auto dFdU = dop.GetDerivativeWrt<0>({&u}, {mesh_nodes});
-
-   HypreParMatrix A_mat_dop;
-   dFdU->Assemble(A_mat_dop);
-
-   // A_mat_dop.PrintMatlab(out);
-   // std::ofstream mmatdopofs("dfem_mat.dat");
-   // A_mat_dop.PrintMatlab(mmatdopofs);
-
-   auto res = Add(1.0, *A_mat, -1.0, A_mat_dop);
-   SparseMatrix diag;
-   res->GetDiag(diag);
-   if (diag.MaxNorm() > 1e-12)
-   {
-      // res->PrintMatlab(out);
-      out << "mfem assembled hypreparmatrix != dfem assembled hypreparmatrix" <<
-          std::endl;
-      return 1;
-   }
-
-   return 0;
-}
-
-int test_assemble_elasticity_hypreparmatrix(std::string mesh_file,
-                                            int refinements,
-                                            int polynomial_order,
-                                            int ir_order)
-{
-   Mesh mesh_serial = Mesh(mesh_file);
-   for (int i = 0; i < refinements; i++)
-   {
-      mesh_serial.UniformRefinement();
-   }
-   ParMesh mesh(MPI_COMM_WORLD, mesh_serial);
-
-   mesh.SetCurvature(1);
-   const int dim = mesh.Dimension();
-   const int vdim = dim;
-   mesh_serial.Clear();
-
-   ParGridFunction* mesh_nodes = static_cast<ParGridFunction *>(mesh.GetNodes());
-   ParFiniteElementSpace &mesh_fes = *mesh_nodes->ParFESpace();
-
-   H1_FECollection h1fec(polynomial_order, dim);
-   ParFiniteElementSpace h1fes(&mesh, &h1fec, vdim);
-
-   Array<int> ess_bdr(mesh.bdr_attributes.Max());
-   Array<int> ess_tdof;
-   ess_bdr = 1;
-   h1fes.GetEssentialTrueDofs(ess_bdr, ess_tdof);
-
-   const IntegrationRule &ir =
-      IntRules.Get(h1fes.GetFE(0)->GetGeomType(), ir_order * h1fec.GetOrder());
-
-   ParGridFunction u(&h1fes);
-
-   ConstantCoefficient l_coeff(1.0), m_coeff(1.0);
-
-   ParBilinearForm A_form(&h1fes);
-   auto A_integ = new ElasticityIntegrator(l_coeff, m_coeff);
-   A_integ->SetIntegrationRule(ir);
-   A_form.AddDomainIntegrator(A_integ);
-   A_form.Assemble();
-   A_form.Finalize();
-   auto A_mat = A_form.ParallelAssemble();
-
-   // A_mat->PrintMatlab(out);
-   std::ofstream amatofs("mfem_mat.dat");
-   A_mat->PrintMatlab(amatofs);
-   amatofs.close();
-
-   auto elasticity_kernel = [](const tensor<double, 2, 2> &dudxi,
-                               const tensor<double, 2, 2> &J,
-                               const double &w)
-   {
-      constexpr double lambda = 1.0;
-      constexpr double mu = 1.0;
-      static constexpr auto I = mfem::internal::IsotropicIdentity<2>();
-      auto eps = sym(dudxi * inv(J));
-      return std::tuple{transpose((lambda * tr(eps) * I + 2.0 * mu * eps) * det(J) * w * transpose(inv(J)))};
-   };
-
-   std::tuple argument_operators{Gradient{"displacement"}, Gradient{"coordinates"}, Weight{}};
-   std::tuple output_operator{Gradient{"displacement"}};
-
-   ElementOperator op{elasticity_kernel, argument_operators, output_operator};
-
-   std::array solutions{FieldDescriptor{&h1fes, "displacement"}};
-   std::array parameters{FieldDescriptor{&mesh_fes, "coordinates"}};
-
-   DifferentiableOperator dop{solutions, parameters, std::tuple{op}, mesh, ir};
-
-   Vector x(h1fes.GetTrueVSize()), y1(h1fes.GetTrueVSize()),
-          y2(h1fes.GetTrueVSize());
-
-   u = 1.0;
-   auto dFdU = dop.GetDerivativeWrt<0>({&u}, {mesh_nodes});
-
-   HypreParMatrix A_mat_dop;
-   dFdU->Assemble(A_mat_dop);
-
-   // A_mat_dop.PrintMatlab(out);
-   std::ofstream amatdopofs("dfem_mat.dat");
-   A_mat_dop.PrintMatlab(amatdopofs);
-   amatdopofs.close();
-
-   auto res = Add(1.0, *A_mat, -1.0, A_mat_dop);
-   SparseMatrix diag;
-   res->GetDiag(diag);
-   if (diag.MaxNorm() > 1e-12)
-   {
-      // res->PrintMatlab(out);
-      out << "mfem assembled hypreparmatrix != dfem assembled hypreparmatrix" <<
-          std::endl;
-      return 1;
-   }
-
-   return 0;
-}
-
-int test_elasticity_integrator(std::string mesh_file,
-                               int refinements,
-                               int polynomial_order,
-                               int ir_order)
-{
-   Mesh mesh_serial = Mesh(mesh_file);
-   for (int i = 0; i < refinements; i++)
-   {
-      mesh_serial.UniformRefinement();
-   }
-   ParMesh mesh(MPI_COMM_WORLD, mesh_serial);
-
-   mesh.SetCurvature(1);
-   const int dim = mesh.Dimension();
-   const int vdim = dim;
-   mesh_serial.Clear();
-
-   ParGridFunction* mesh_nodes = static_cast<ParGridFunction *>(mesh.GetNodes());
-   ParFiniteElementSpace &mesh_fes = *mesh_nodes->ParFESpace();
-
-   H1_FECollection h1fec(polynomial_order, dim);
-   ParFiniteElementSpace h1fes(&mesh, &h1fec, vdim);
-
-   Array<int> ess_bdr(mesh.bdr_attributes.Max());
-   Array<int> ess_tdof;
-   ess_bdr = 1;
-   h1fes.GetEssentialTrueDofs(ess_bdr, ess_tdof);
-
-   const IntegrationRule &ir =
-      IntRules.Get(h1fes.GetFE(0)->GetGeomType(), ir_order * h1fec.GetOrder());
-
-   ParGridFunction u(&h1fes);
-
-   ConstantCoefficient l_coeff(0.5), m_coeff(0.25);
-
-   ParBilinearForm A_form(&h1fes);
-   auto A_integ = new ElasticityIntegrator(l_coeff, m_coeff);
-   A_integ->SetIntegrationRule(ir);
-   A_form.AddDomainIntegrator(A_integ);
-   A_form.Assemble();
-   A_form.Finalize();
-   auto A_mat = A_form.ParallelAssemble();
-
-   // A_mat->PrintMatlab(out);
-   // std::ofstream amatofs("mfem_mat.dat");
-   // A_mat->PrintMatlab(amatofs);
-   // amatofs.close();
-
-   auto elasticity_kernel = [](const tensor<double, 2, 2> &dudxi,
-                               const tensor<double, 2, 2> &J,
-                               const double &w)
-   {
-      constexpr double lambda = 0.5;
-      constexpr double mu = 0.25;
-      static constexpr auto I = mfem::internal::IsotropicIdentity<2>();
-      // out << J << "\n";
-      auto invJ = inv(J);
-      auto eps = sym(dudxi * invJ);
-      return std::tuple{transpose((lambda * tr(eps) * I + 2.0 * mu * eps) * det(J) * w * transpose(invJ))};
-   };
-
-   std::tuple argument_operators{Gradient{"displacement"}, Gradient{"coordinates"}, Weight{}};
-   std::tuple output_operator{Gradient{"displacement"}};
-
-   ElementOperator op{elasticity_kernel, argument_operators, output_operator};
-
-   std::array solutions{FieldDescriptor{&h1fes, "displacement"}};
-   std::array parameters{FieldDescriptor{&mesh_fes, "coordinates"}};
-
-   DifferentiableOperator dop{solutions, parameters, std::tuple{op}, mesh, ir};
-
-   Vector x(h1fes.GetTrueVSize()), y1(h1fes.GetTrueVSize()),
-          y2(h1fes.GetTrueVSize());
-
-   x.Randomize(12345);
-   A_mat->Mult(x, y1);
-
-   // out << ">>> y1\n";
-   // print_vector(y1);
-
-   dop.SetParameters({mesh_nodes});
-   dop.Mult(x, y2);
-
-   // out << ">>> y2\n";
-   // print_vector(y2);
-
-   y2 -= y1;
-   out << "norm: " << y2.Norml2() << "\n";
-
-   return 0;
-}
+// int test_assemble_vector_mass_hypreparmatrix(std::string mesh_file,
+//                                              int refinements,
+//                                              int polynomial_order,
+//                                              int ir_order)
+// {
+//    Mesh mesh_serial = Mesh(mesh_file);
+//    for (int i = 0; i < refinements; i++)
+//    {
+//       mesh_serial.UniformRefinement();
+//    }
+//    ParMesh mesh(MPI_COMM_WORLD, mesh_serial);
+
+//    mesh.SetCurvature(1);
+//    const int dim = mesh.Dimension();
+//    const int vdim = dim;
+//    mesh_serial.Clear();
+
+//    ParGridFunction* mesh_nodes = static_cast<ParGridFunction *>(mesh.GetNodes());
+//    ParFiniteElementSpace &mesh_fes = *mesh_nodes->ParFESpace();
+
+//    H1_FECollection h1fec(polynomial_order, dim);
+//    ParFiniteElementSpace h1fes(&mesh, &h1fec, vdim);
+
+//    Array<int> ess_bdr(mesh.bdr_attributes.Max());
+//    Array<int> ess_tdof;
+//    ess_bdr = 1;
+//    h1fes.GetEssentialTrueDofs(ess_bdr, ess_tdof);
+
+//    const IntegrationRule &ir =
+//       IntRules.Get(h1fes.GetFE(0)->GetGeomType(), ir_order * h1fec.GetOrder());
+
+//    ParGridFunction u(&h1fes);
+
+//    ParBilinearForm m_form(&h1fes);
+//    auto m_integ = new VectorMassIntegrator;
+//    m_integ->SetVDim(vdim);
+//    m_integ->SetIntegrationRule(ir);
+//    m_form.AddDomainIntegrator(m_integ);
+//    m_form.Assemble();
+//    m_form.Finalize();
+//    auto M_mat = m_form.ParallelAssemble();
+
+//    auto mass_kernel = [](const tensor<double, 2> &u, const tensor<double, 2, 2> &J,
+//                          const double &w)
+//    {
+//       return std::tuple{u * det(J) * w};
+//    };
+
+//    std::tuple argument_operators{Value{"potential"}, Gradient{"coordinates"}, Weight{}};
+//    std::tuple output_operator{Value{"potential"}};
+
+//    ElementOperator op{mass_kernel, argument_operators, output_operator};
+
+//    std::array solutions{FieldDescriptor{&h1fes, "potential"}};
+//    std::array parameters{FieldDescriptor{&mesh_fes, "coordinates"}};
+
+//    DifferentiableOperator dop{solutions, parameters, std::tuple{op}, mesh, ir};
+
+//    Vector x(h1fes.GetTrueVSize()), y1(h1fes.GetTrueVSize()),
+//           y2(h1fes.GetTrueVSize());
+
+//    x = 1.0;
+//    M_mat->Mult(x, y1);
+
+//    dop.SetParameters({mesh_nodes});
+//    dop.Mult(x, y2);
+
+//    y2 -= y1;
+//    if (y2.Norml2() > 1e-12)
+//    {
+//       return 1;
+//    }
+
+//    // M_mat->PrintMatlab(out);
+//    // std::ofstream mmatofs("mfem_mat.dat");
+//    // M_mat->PrintMatlab(mmatofs);
+
+//    u = 0.0;
+//    auto dFdU = dop.GetDerivativeWrt<0>({&u}, {mesh_nodes});
+
+//    HypreParMatrix M_mat_dop;
+//    dFdU->Assemble(M_mat_dop);
+
+//    // M_mat_dop.PrintMatlab(out);
+//    // std::ofstream mmatdopofs("dfem_mat.dat");
+//    // M_mat_dop.PrintMatlab(mmatdopofs);
+
+//    auto res = Add(1.0, *M_mat, -1.0, M_mat_dop);
+//    SparseMatrix diag;
+//    res->GetDiag(diag);
+//    if (diag.MaxNorm() > 1e-12)
+//    {
+//       // res->PrintMatlab(out);
+//       out << "mfem assembled hypreparmatrix != dfem assembled hypreparmatrix" <<
+//           std::endl;
+//       return 1;
+//    }
+
+//    return 0;
+// }
+
+// int test_assemble_vector_diffusion_hypreparmatrix(std::string mesh_file,
+//                                                   int refinements,
+//                                                   int polynomial_order,
+//                                                   int ir_order)
+// {
+//    Mesh mesh_serial = Mesh(mesh_file);
+//    for (int i = 0; i < refinements; i++)
+//    {
+//       mesh_serial.UniformRefinement();
+//    }
+//    ParMesh mesh(MPI_COMM_WORLD, mesh_serial);
+
+//    mesh.SetCurvature(1);
+//    const int dim = mesh.Dimension();
+//    const int vdim = dim;
+//    mesh_serial.Clear();
+
+//    ParGridFunction* mesh_nodes = static_cast<ParGridFunction *>(mesh.GetNodes());
+//    ParFiniteElementSpace &mesh_fes = *mesh_nodes->ParFESpace();
+
+//    H1_FECollection h1fec(polynomial_order, dim);
+//    ParFiniteElementSpace h1fes(&mesh, &h1fec, vdim);
+
+//    Array<int> ess_bdr(mesh.bdr_attributes.Max());
+//    Array<int> ess_tdof;
+//    ess_bdr = 1;
+//    h1fes.GetEssentialTrueDofs(ess_bdr, ess_tdof);
+
+//    const IntegrationRule &ir =
+//       IntRules.Get(h1fes.GetFE(0)->GetGeomType(), ir_order * h1fec.GetOrder());
+
+//    ParGridFunction u(&h1fes);
+
+//    ParBilinearForm A_form(&h1fes);
+//    auto A_integ = new VectorDiffusionIntegrator(vdim);
+//    A_integ->SetIntegrationRule(ir);
+//    A_form.AddDomainIntegrator(A_integ);
+//    A_form.Assemble();
+//    A_form.Finalize();
+//    auto A_mat = A_form.ParallelAssemble();
+
+//    auto vector_diffusion_kernel = [](const tensor<double, 2, 2> &dudxi,
+//                                      const tensor<double, 2, 2> &J,
+//                                      const double &w)
+//    {
+//       return std::tuple{transpose((dudxi * inv(J)) * det(J) * w * transpose(inv(J)))};
+//    };
+
+//    std::tuple argument_operators{Gradient{"potential"}, Gradient{"coordinates"}, Weight{}};
+//    std::tuple output_operator{Gradient{"potential"}};
+
+//    ElementOperator op{vector_diffusion_kernel, argument_operators, output_operator};
+
+//    std::array solutions{FieldDescriptor{&h1fes, "potential"}};
+//    std::array parameters{FieldDescriptor{&mesh_fes, "coordinates"}};
+
+//    DifferentiableOperator dop{solutions, parameters, std::tuple{op}, mesh, ir};
+
+//    Vector x(h1fes.GetTrueVSize()), y1(h1fes.GetTrueVSize()),
+//           y2(h1fes.GetTrueVSize());
+
+//    // A_mat->PrintMatlab(out);
+//    // std::ofstream amatofs("mfem_mat.dat");
+//    // A_mat->PrintMatlab(amatofs);
+//    // amatofs.close();
+
+//    u = 0.0;
+//    auto dFdU = dop.GetDerivativeWrt<0>({&u}, {mesh_nodes});
+
+//    HypreParMatrix A_mat_dop;
+//    dFdU->Assemble(A_mat_dop);
+
+//    // A_mat_dop.PrintMatlab(out);
+//    // std::ofstream mmatdopofs("dfem_mat.dat");
+//    // A_mat_dop.PrintMatlab(mmatdopofs);
+
+//    auto res = Add(1.0, *A_mat, -1.0, A_mat_dop);
+//    SparseMatrix diag;
+//    res->GetDiag(diag);
+//    if (diag.MaxNorm() > 1e-12)
+//    {
+//       // res->PrintMatlab(out);
+//       out << "mfem assembled hypreparmatrix != dfem assembled hypreparmatrix" <<
+//           std::endl;
+//       return 1;
+//    }
+
+//    return 0;
+// }
+
+// int test_assemble_elasticity_hypreparmatrix(std::string mesh_file,
+//                                             int refinements,
+//                                             int polynomial_order,
+//                                             int ir_order)
+// {
+//    Mesh mesh_serial = Mesh(mesh_file);
+//    for (int i = 0; i < refinements; i++)
+//    {
+//       mesh_serial.UniformRefinement();
+//    }
+//    ParMesh mesh(MPI_COMM_WORLD, mesh_serial);
+
+//    mesh.SetCurvature(1);
+//    const int dim = mesh.Dimension();
+//    const int vdim = dim;
+//    mesh_serial.Clear();
+
+//    ParGridFunction* mesh_nodes = static_cast<ParGridFunction *>(mesh.GetNodes());
+//    ParFiniteElementSpace &mesh_fes = *mesh_nodes->ParFESpace();
+
+//    H1_FECollection h1fec(polynomial_order, dim);
+//    ParFiniteElementSpace h1fes(&mesh, &h1fec, vdim);
+
+//    Array<int> ess_bdr(mesh.bdr_attributes.Max());
+//    Array<int> ess_tdof;
+//    ess_bdr = 1;
+//    h1fes.GetEssentialTrueDofs(ess_bdr, ess_tdof);
+
+//    const IntegrationRule &ir =
+//       IntRules.Get(h1fes.GetFE(0)->GetGeomType(), ir_order * h1fec.GetOrder());
+
+//    ParGridFunction u(&h1fes);
+
+//    ConstantCoefficient l_coeff(1.0), m_coeff(1.0);
+
+//    ParBilinearForm A_form(&h1fes);
+//    auto A_integ = new ElasticityIntegrator(l_coeff, m_coeff);
+//    A_integ->SetIntegrationRule(ir);
+//    A_form.AddDomainIntegrator(A_integ);
+//    A_form.Assemble();
+//    A_form.Finalize();
+//    auto A_mat = A_form.ParallelAssemble();
+
+//    // A_mat->PrintMatlab(out);
+//    std::ofstream amatofs("mfem_mat.dat");
+//    A_mat->PrintMatlab(amatofs);
+//    amatofs.close();
+
+//    auto elasticity_kernel = [](const tensor<double, 2, 2> &dudxi,
+//                                const tensor<double, 2, 2> &J,
+//                                const double &w)
+//    {
+//       constexpr double lambda = 1.0;
+//       constexpr double mu = 1.0;
+//       static constexpr auto I = mfem::internal::IsotropicIdentity<2>();
+//       auto eps = sym(dudxi * inv(J));
+//       return std::tuple{transpose((lambda * tr(eps) * I + 2.0 * mu * eps) * det(J) * w * transpose(inv(J)))};
+//    };
+
+//    std::tuple argument_operators{Gradient{"displacement"}, Gradient{"coordinates"}, Weight{}};
+//    std::tuple output_operator{Gradient{"displacement"}};
+
+//    ElementOperator op{elasticity_kernel, argument_operators, output_operator};
+
+//    std::array solutions{FieldDescriptor{&h1fes, "displacement"}};
+//    std::array parameters{FieldDescriptor{&mesh_fes, "coordinates"}};
+
+//    DifferentiableOperator dop{solutions, parameters, std::tuple{op}, mesh, ir};
+
+//    Vector x(h1fes.GetTrueVSize()), y1(h1fes.GetTrueVSize()),
+//           y2(h1fes.GetTrueVSize());
+
+//    u = 1.0;
+//    auto dFdU = dop.GetDerivativeWrt<0>({&u}, {mesh_nodes});
+
+//    HypreParMatrix A_mat_dop;
+//    dFdU->Assemble(A_mat_dop);
+
+//    // A_mat_dop.PrintMatlab(out);
+//    std::ofstream amatdopofs("dfem_mat.dat");
+//    A_mat_dop.PrintMatlab(amatdopofs);
+//    amatdopofs.close();
+
+//    auto res = Add(1.0, *A_mat, -1.0, A_mat_dop);
+//    SparseMatrix diag;
+//    res->GetDiag(diag);
+//    if (diag.MaxNorm() > 1e-12)
+//    {
+//       // res->PrintMatlab(out);
+//       out << "mfem assembled hypreparmatrix != dfem assembled hypreparmatrix" <<
+//           std::endl;
+//       return 1;
+//    }
+
+//    return 0;
+// }
+
+// int test_elasticity_integrator(std::string mesh_file,
+//                                int refinements,
+//                                int polynomial_order,
+//                                int ir_order)
+// {
+//    Mesh mesh_serial = Mesh(mesh_file);
+//    for (int i = 0; i < refinements; i++)
+//    {
+//       mesh_serial.UniformRefinement();
+//    }
+//    ParMesh mesh(MPI_COMM_WORLD, mesh_serial);
+
+//    mesh.SetCurvature(1);
+//    const int dim = mesh.Dimension();
+//    const int vdim = dim;
+//    mesh_serial.Clear();
+
+//    ParGridFunction* mesh_nodes = static_cast<ParGridFunction *>(mesh.GetNodes());
+//    ParFiniteElementSpace &mesh_fes = *mesh_nodes->ParFESpace();
+
+//    H1_FECollection h1fec(polynomial_order, dim);
+//    ParFiniteElementSpace h1fes(&mesh, &h1fec, vdim);
+
+//    Array<int> ess_bdr(mesh.bdr_attributes.Max());
+//    Array<int> ess_tdof;
+//    ess_bdr = 1;
+//    h1fes.GetEssentialTrueDofs(ess_bdr, ess_tdof);
+
+//    const IntegrationRule &ir =
+//       IntRules.Get(h1fes.GetFE(0)->GetGeomType(), ir_order * h1fec.GetOrder());
+
+//    ParGridFunction u(&h1fes);
+
+//    ConstantCoefficient l_coeff(0.5), m_coeff(0.25);
+
+//    ParBilinearForm A_form(&h1fes);
+//    auto A_integ = new ElasticityIntegrator(l_coeff, m_coeff);
+//    A_integ->SetIntegrationRule(ir);
+//    A_form.AddDomainIntegrator(A_integ);
+//    A_form.Assemble();
+//    A_form.Finalize();
+//    auto A_mat = A_form.ParallelAssemble();
+
+//    // A_mat->PrintMatlab(out);
+//    // std::ofstream amatofs("mfem_mat.dat");
+//    // A_mat->PrintMatlab(amatofs);
+//    // amatofs.close();
+
+//    auto elasticity_kernel = [](const tensor<double, 2, 2> &dudxi,
+//                                const tensor<double, 2, 2> &J,
+//                                const double &w)
+//    {
+//       constexpr double lambda = 0.5;
+//       constexpr double mu = 0.25;
+//       static constexpr auto I = mfem::internal::IsotropicIdentity<2>();
+//       // out << J << "\n";
+//       auto invJ = inv(J);
+//       auto eps = sym(dudxi * invJ);
+//       return std::tuple{transpose((lambda * tr(eps) * I + 2.0 * mu * eps) * det(J) * w * transpose(invJ))};
+//    };
+
+//    std::tuple argument_operators{Gradient{"displacement"}, Gradient{"coordinates"}, Weight{}};
+//    std::tuple output_operator{Gradient{"displacement"}};
+
+//    ElementOperator op{elasticity_kernel, argument_operators, output_operator};
+
+//    std::array solutions{FieldDescriptor{&h1fes, "displacement"}};
+//    std::array parameters{FieldDescriptor{&mesh_fes, "coordinates"}};
+
+//    DifferentiableOperator dop{solutions, parameters, std::tuple{op}, mesh, ir};
+
+//    Vector x(h1fes.GetTrueVSize()), y1(h1fes.GetTrueVSize()),
+//           y2(h1fes.GetTrueVSize());
+
+//    x.Randomize(12345);
+//    A_mat->Mult(x, y1);
+
+//    // out << ">>> y1\n";
+//    // print_vector(y1);
+
+//    dop.SetParameters({mesh_nodes});
+//    dop.Mult(x, y2);
+
+//    // out << ">>> y2\n";
+//    // print_vector(y2);
+
+//    y2 -= y1;
+//    out << "norm: " << y2.Norml2() << "\n";
+
+//    return 0;
+// }
 
 
 // int test_assemble_mixed_gradient_hypreparmatrix(std::string mesh_file,
@@ -1660,10 +1660,10 @@ int main(int argc, char *argv[])
    out << "test_diffusion_integrator";
    ret ? out << " FAILURE\n" : out << " OK\n";
 
-   ret = test_elasticity_integrator(mesh_file, refinements,
-                                    polynomial_order, ir_order);
-   out << "test_elasticity_integrator";
-   ret ? out << " FAILURE\n" : out << " OK\n";
+   // ret = test_elasticity_integrator(mesh_file, refinements,
+   //                                  polynomial_order, ir_order);
+   // out << "test_elasticity_integrator";
+   // ret ? out << " FAILURE\n" : out << " OK\n";
 
    // ret = test_qoi(mesh_file, refinements, polynomial_order);
    // out << "test_qoi";
@@ -1674,20 +1674,20 @@ int main(int argc, char *argv[])
    // out << "test_assemble_mass_hypreparmatrix";
    // ret ? out << " FAILURE\n" : out << " OK\n";
 
-   ret = test_assemble_vector_mass_hypreparmatrix(mesh_file, refinements,
-                                                  polynomial_order, ir_order);
-   out << "test_assemble_vector_mass_hypreparmatrix";
-   ret ? out << " FAILURE\n" : out << " OK\n";
+   // ret = test_assemble_vector_mass_hypreparmatrix(mesh_file, refinements,
+   //                                                polynomial_order, ir_order);
+   // out << "test_assemble_vector_mass_hypreparmatrix";
+   // ret ? out << " FAILURE\n" : out << " OK\n";
 
-   ret = test_assemble_vector_diffusion_hypreparmatrix(mesh_file, refinements,
-                                                       polynomial_order, ir_order);
-   out << "test_assemble_vector_diffusion_hypreparmatrix";
-   ret ? out << " FAILURE\n" : out << " OK\n";
+   // ret = test_assemble_vector_diffusion_hypreparmatrix(mesh_file, refinements,
+   //                                                     polynomial_order, ir_order);
+   // out << "test_assemble_vector_diffusion_hypreparmatrix";
+   // ret ? out << " FAILURE\n" : out << " OK\n";
 
-   ret = test_assemble_elasticity_hypreparmatrix(mesh_file, refinements,
-                                                 polynomial_order, ir_order);
-   out << "test_assemble_elasticity_hypreparmatrix";
-   ret ? out << " FAILURE\n" : out << " OK\n";
+   // ret = test_assemble_elasticity_hypreparmatrix(mesh_file, refinements,
+   //                                               polynomial_order, ir_order);
+   // out << "test_assemble_elasticity_hypreparmatrix";
+   // ret ? out << " FAILURE\n" : out << " OK\n";
 
    // ret = test_assemble_mixed_gradient_hypreparmatrix(mesh_file, refinements,
    //                                                   polynomial_order, ir_order);

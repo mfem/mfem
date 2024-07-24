@@ -1009,7 +1009,7 @@ void map_field_to_quadrature_data(
 
 template <size_t num_fields, size_t num_kinputs, typename field_operator_tuple_t, std::size_t... i>
 void map_fields_to_quadrature_data(
-   std::array<DeviceTensor<2>, num_kinputs> &fields_qp,
+   const std::array<DeviceTensor<2>, num_kinputs> &fields_qp,
    int element_idx,
    const std::array<Vector, num_fields> fields_e,
    const std::array<int, num_kinputs> &kfinput_to_field,
@@ -1027,7 +1027,7 @@ void map_fields_to_quadrature_data(
 
 template <typename input_type>
 void map_field_to_quadrature_data_conditional(
-   DeviceTensor<2> field_qp, int element_idx, DofToQuadMaps &dtqmaps,
+   DeviceTensor<2> field_qp, int element_idx, const DofToQuadMaps &dtqmaps,
    const Vector &field_e, input_type &input,
    DeviceTensor<1, const double> integration_weights,
    GeometricFactorMaps geometric_factors,
@@ -1042,11 +1042,11 @@ void map_field_to_quadrature_data_conditional(
 
 template <size_t num_fields, size_t num_kinputs, typename field_operator_tuple_t, std::size_t... i>
 void map_fields_to_quadrature_data_conditional(
-   std::array<DeviceTensor<2>, num_kinputs> &fields_qp,
+   const std::array<DeviceTensor<2>, num_kinputs> &fields_qp,
    int element_idx,
    const std::array<Vector, num_fields> &fields_e,
    const std::array<int, num_kinputs> &kfinput_to_field,
-   std::vector<DofToQuadMaps> &dtqmaps,
+   const std::vector<DofToQuadMaps> &dtqmaps,
    DeviceTensor<1, const double> integration_weights,
    GeometricFactorMaps geometric_factors,
    std::array<bool, num_kinputs> conditions,
@@ -1116,7 +1116,7 @@ void prepare_kf_arg(const DeviceTensor<2> &u, arg_type &arg, int qp)
 }
 
 template <size_t num_fields, typename kf_args, std::size_t... i>
-void prepare_kf_args(std::array<DeviceTensor<2>, num_fields> &u,
+void prepare_kf_args(const std::array<DeviceTensor<2>, num_fields> &u,
                      kf_args &args, int qp, std::index_sequence<i...>)
 {
    (prepare_kf_arg(u[i], std::get<i>(args), qp), ...);
@@ -1242,7 +1242,7 @@ Vector prepare_kf_result(T)
 template <size_t num_fields, typename kernel_func_t, typename kernel_args>
 inline
 Vector apply_kernel(const kernel_func_t &kf, kernel_args &args,
-                    std::array<DeviceTensor<2>, num_fields> &u,
+                    const std::array<DeviceTensor<2>, num_fields> &u,
                     int qp)
 {
    prepare_kf_args(u, args, qp,
@@ -1251,30 +1251,32 @@ Vector apply_kernel(const kernel_func_t &kf, kernel_args &args,
    return prepare_kf_result(std::get<0>(std::apply(kf, args)));
 }
 
-template <typename arg_ts, std::size_t... Is> inline
-auto create_enzyme_args(arg_ts &args,
-                        arg_ts &shadow_args,
-                        std::index_sequence<Is...>)
-{
-   // (out << ... << std::get<Is>(shadow_args));
-   return std::tuple_cat(std::tie(enzyme_dup, std::get<Is>(args),
-                                  std::get<Is>(shadow_args))...);
-}
-
 // template <typename arg_ts, std::size_t... Is> inline
 // auto create_enzyme_args(arg_ts &args,
 //                         arg_ts &shadow_args,
 //                         std::index_sequence<Is...>)
 // {
-//    return std::tuple_cat(std::tie(
-//                             enzyme::Duplicated<std::remove_cv_t<std::remove_reference_t<decltype(std::get<Is>(args))>>*> {&std::get<Is>(args), &std::get<Is>(shadow_args)})...);
-//    // return std::tuple_cat(std::make_tuple(
-//    //                          enzyme::Duplicated<std::remove_cv_t<std::remove_reference_t<decltype(std::get<Is>(args))>>*> {&std::get<Is>(args), &std::get<Is>(shadow_args)})...);
-//    // return std::tuple<enzyme::Duplicated<decltype(std::get<Is>(args))>...>
-//    // {
-//    //    { std::get<Is>(args), std::get<Is>(shadow_args) }...
-//    // };
+//    // (out << ... << std::get<Is>(shadow_args));
+//    return std::tuple_cat(std::tie(enzyme_dup, std::get<Is>(args),
+//                                   std::get<Is>(shadow_args))...);
 // }
+
+template <typename arg_ts, std::size_t... Is> inline
+auto create_enzyme_args(arg_ts &args,
+                        arg_ts &shadow_args,
+                        std::index_sequence<Is...>)
+{
+   // PURE CPP EVIL
+   return std::tuple<enzyme::Duplicated<
+          std::add_lvalue_reference_t<
+          typename std::add_const<
+          std::remove_reference_t<
+          std::remove_cv_t<
+          decltype(std::get<Is>(args))>>>::type>>...>
+   {
+      { std::get<Is>(args), std::get<Is>(shadow_args) }...
+   };
+}
 
 template <typename kernel_t, typename arg_ts> inline
 auto fwddiff_apply_enzyme(kernel_t kernel, arg_ts &&args, arg_ts &&shadow_args)
@@ -1289,14 +1291,9 @@ auto fwddiff_apply_enzyme(kernel_t kernel, arg_ts &&args, arg_ts &&shadow_args)
 
    return std::apply([&](auto &&...args)
    {
-      // kernel: f(double &x, vec2d &y) -> std::tuple{ double r }
-      // args: std::tuple{ enzyme_dup, &x, &dx, enzyme_dup, &y, &dy, ... }
-      return __enzyme_fwddiff<kf_return_t>((void*)+kernel, &args...);
-      // return enzyme::get<0>
-      //        (enzyme::autodiff<enzyme::Forward, enzyme::DuplicatedNoNeed<kf_return_t>>
-      //         (+kernel, args...));
+      // return __enzyme_fwddiff<kf_return_t>((void*)+kernel, &args...);
+      return enzyme::get<0>(enzyme::autodiff<enzyme::Forward>(+kernel, args...));
    }, enzyme_args);
-   // return kf_return_t{};
 }
 
 template <typename kf_t, typename kernel_arg_ts, size_t num_args> inline
@@ -1440,7 +1437,7 @@ template <typename output_type>
 void map_quadrature_data_to_fields(DeviceTensor<2, double> y,
                                    DeviceTensor<3, double> c,
                                    output_type output,
-                                   DofToQuadMaps &B)
+                                   const DofToQuadMaps &B)
 {
    // assuming the quadrature point residual has to "play nice with
    // the test function"

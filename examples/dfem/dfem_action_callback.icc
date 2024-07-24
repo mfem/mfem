@@ -116,8 +116,6 @@ void DifferentiableOperator<kernels_tuple,
       auto residual_qp = Reshape(residual_qp_mem.ReadWrite(),
                                  residual_size_on_qp, num_qp, num_entities);
 
-      auto kernel_args = decay_tuple<typename kernel_t::kf_param_ts> {};
-
       DeviceTensor<1, const double> integration_weights(
          this->op.integration_rule.GetWeights().Read(), num_qp);
 
@@ -125,16 +123,20 @@ void DifferentiableOperator<kernels_tuple,
       // kernel function arguments
       auto input_qp = map_inputs_to_memory(input_qp_mem, num_qp,
                                            kernel.inputs,
-                                           std::make_index_sequence<kernel.num_kinputs> {});
+      std::make_index_sequence<kernel.num_kinputs> {});
 
       constexpr int fixed_output_idx = 0;
       auto Bv = output_dtq_ops[fixed_output_idx];
-      [[maybe_unused]] auto [test_op_qp, test_op_dim, num_test_dof] = Bv.GetShape();
+      int test_op_qp, test_op_dim, num_test_dof;
+      std::tie(test_op_qp, test_op_dim, num_test_dof) = Bv.GetShape();
       const int test_vdim = std::get<0>(kernel.outputs).vdim;
       DeviceTensor<3> ye = Reshape(ye_mem.ReadWrite(), num_test_dof, test_vdim, num_entities);
 
-      for (int e = 0; e < num_entities; e++)
+      // for (int e = 0; e < num_entities; e++)
+      mfem::forall(num_entities, [=] MFEM_HOST_DEVICE (int e)
       {
+         auto kernel_args = decay_tuple<typename kernel_t::kf_param_ts> {};
+
          map_fields_to_quadrature_data(
             input_qp, e, this->fields_e,
             kinput_to_field, input_dtq_ops,
@@ -158,6 +160,7 @@ void DifferentiableOperator<kernels_tuple,
                                        output_fop,
                                        output_dtq_ops[hardcoded_output_idx]);
       }
+                  );
       R->MultTranspose(ye_mem, residual_l);
    };
 
