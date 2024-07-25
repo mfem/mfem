@@ -1161,7 +1161,18 @@ FEOperator::FEOperator(const Array<int> &ess_flux_tdofs_list_,
                                (const_cast<const DarcyForm*>(darcy))->GetPotentialMassNonlinearForm());
       idtcoeff = new FunctionCoefficient([&](const Vector &) { return idt; });
       if (Mt) { Mt->AddDomainIntegrator(new MassIntegrator(*idtcoeff)); }
-      if (Mtnl) { Mtnl->AddDomainIntegrator(new MassIntegrator(*idtcoeff)); }
+      if (Mtnl)
+      {
+         Mtnl->AddDomainIntegrator(new MassIntegrator(*idtcoeff));
+         if (trace_space)
+         {
+            //hybridization must be reconstructed, since the non-linear
+            //potential mass must be passed to it
+            darcy->EnableHybridization(trace_space,
+                                       new NormalTraceJumpIntegrator(),
+                                       ess_flux_tdofs_list);
+         }
+      }
       Mt0 = new BilinearForm(darcy->PotentialFESpace());
       Mt0->AddDomainIntegrator(new MassIntegrator(*idtcoeff));
    }
