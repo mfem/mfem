@@ -213,6 +213,7 @@ public:
    enum class LSsolveType
    {
       LBFGS,
+      LBB,
       Newton,
    };
 

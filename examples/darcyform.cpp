@@ -1952,6 +1952,10 @@ void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
          lsolver = new LBFGSSolver();
          use_prec = false;
          break;
+      case LSsolveType::LBB:
+         lsolver = new LBBSolver();
+         use_prec = false;
+         break;
       case LSsolveType::Newton:
          lsolver = new NewtonSolver();
          use_prec = true;
