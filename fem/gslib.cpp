@@ -316,9 +316,16 @@ void FindPointsGSLIB::SetupSurf(Mesh &m, const double bb_t, const double newt_to
          mesh_points_cnt == 0 ? nullptr : &gsl_mesh(0),
          mesh_points_cnt == 0 ? nullptr : &gsl_mesh(mesh_points_cnt)
       };
-      fdataD = findptssurf_setup_2(gsl_comm, elx, nr, NE_split_total, mr, bb_t,
+      fdataD = findptssurf_setup_2( gsl_comm,
+                                   elx,
+                                   nr,
+                                   NE_split_total,
+                                   mr,
+                                   bb_t,
                                    DEV.local_hash_size,
-                                   mesh_points_cnt, npt_max, newt_tol);
+                                   mesh_points_cnt,
+                                   npt_max,
+                                   newt_tol );
       setupflag = true;
    }
    if (spacedim == 3) {
@@ -1164,22 +1171,22 @@ Mesh* FindPointsGSLIB::GetBoundingBoxMesh(int type)
             temp += center;
 
             v1(0) = -1.0; v1(1) = -1.0; v1(2) = 1.0;
-            temp.SetDataAndSize(o_xyz.GetData() + e*nve*dim + 0, dim);
+            temp.SetDataAndSize(o_xyz.GetData() + e*nve*dim + 12, dim);
             Amat.Mult(v1, temp);
             temp += center;
 
             v1(0) = 1.0; v1(1) = -1.0; v1(2) = 1.0;
-            temp.SetDataAndSize(o_xyz.GetData() + e*nve*dim + 3, dim);
+            temp.SetDataAndSize(o_xyz.GetData() + e*nve*dim + 15, dim);
             Amat.Mult(v1, temp);
             temp += center;
 
             v1(0) = 1.0; v1(1) = 1.0; v1(2) = 1.0;
-            temp.SetDataAndSize(o_xyz.GetData() + e*nve*dim + 6, dim);
+            temp.SetDataAndSize(o_xyz.GetData() + e*nve*dim + 18, dim);
             Amat.Mult(v1, temp);
             temp += center;
 
             v1(0) = -1.0; v1(1) = 1.0; v1(2) = 1.0;
-            temp.SetDataAndSize(o_xyz.GetData() + e*nve*dim + 9, dim);
+            temp.SetDataAndSize(o_xyz.GetData() + e*nve*dim + 21, dim);
             Amat.Mult(v1, temp);
             temp += center;
          } //type == 1
@@ -1931,41 +1938,40 @@ void FindPointsGSLIB::SurfSetupDevice(MemoryType mt)
 //    }
 //   std::cout << " - hashoffset\n\n";
 
-   Vector temp(DEV.dof1d);
-
-   // Get gll points [-1,1] for the given dof1d
-   DEV.gll1d.UseDevice(true);
-   DEV.gll1d.SetSize(DEV.dof1d);
-   DEV.gll1d.HostWrite();
-   gslib::lobatto_nodes(temp.GetData(), DEV.dof1d);
-   DEV.gll1d = temp.GetData();
-
-   // Get lagrange coefficients at the gll points
-   DEV.lagcoeff.UseDevice(true);
-   DEV.lagcoeff.SetSize(DEV.dof1d);
-   DEV.lagcoeff.HostWrite();
-   gslib::gll_lag_setup(temp.GetData(), DEV.dof1d);
-   DEV.lagcoeff = temp.GetData();
-
-   Vector temp3(6*DEV.dof1d);
+   Vector gll1dtemp(DEV.dof1d),
+          lagcoefftemp(DEV.dof1d),
+          wtendtemp(6*DEV.dof1d);
+   gslib::lobatto_nodes(gll1dtemp.GetData(), DEV.dof1d); // Get gll points [-1,1] for the given dof1d
+   gslib::gll_lag_setup(lagcoefftemp.GetData(), DEV.dof1d); // Get lagrange coefficients at the gll points
    for (int i=0; i<DEV.dof1d; i++) { // loop through all lagrange polynomials
-      lagrange_eval_second_derivative(temp3.GetData(),
+      lagrange_eval_second_derivative(wtendtemp.GetData(),
                                       -1.0,  // evaluate at -1
                                       i,     // for the ith lagrange polynomial
-                                      DEV.gll1d.GetData(),
-                                      DEV.lagcoeff.GetData(),
+                                      gll1dtemp.GetData(),
+                                      lagcoefftemp.GetData(),
                                       DEV.dof1d);
-      lagrange_eval_second_derivative(temp3.GetData()+3*DEV.dof1d,
+      lagrange_eval_second_derivative(wtendtemp.GetData()+3*DEV.dof1d,
                                       1.0,  // evaluate at 1
                                       i,    // for the ith lagrange polynomial
-                                      DEV.gll1d.GetData(),
-                                      DEV.lagcoeff.GetData(),
+                                      gll1dtemp.GetData(),
+                                      lagcoefftemp.GetData(),
                                       DEV.dof1d);
    }
+
    DEV.o_wtend.UseDevice(true);
    DEV.o_wtend.SetSize(6*DEV.dof1d);
    DEV.o_wtend.HostWrite();
-   DEV.o_wtend = temp3;
+   DEV.o_wtend = wtendtemp.GetData();
+
+   DEV.gll1d.UseDevice(true);
+   DEV.gll1d.SetSize(DEV.dof1d);
+   DEV.gll1d.HostWrite();
+   DEV.gll1d = gll1dtemp.GetData();
+
+   DEV.lagcoeff.UseDevice(true);
+   DEV.lagcoeff.SetSize(DEV.dof1d);
+   DEV.lagcoeff.HostWrite();
+   DEV.lagcoeff = lagcoefftemp.GetData();
 
    DEV.info.UseDevice(true);
    DEV.info.SetSize(0*points_cnt);
@@ -2075,6 +2081,61 @@ Mesh* FindPointsGSLIB::GetBoundingBoxMeshSurf(int type)
             o_xyz(e*nve*spacedim + c++) = maxx[1];
             o_xyz(e*nve*spacedim + c++) = maxx[2];
          } // type == 0
+         else if (type==1) {
+            Vector center(spacedim), A(spacedim*spacedim);
+            for (int d=0; d<spacedim; d++) {
+               center[d] = box.c0[d];
+            }
+            for (int d=0; d<spacedim*spacedim; d++) {
+               A[d] = box.A[d];
+            }
+            DenseMatrix Amat(A.GetData(), spacedim, spacedim);
+            Amat.Transpose();
+            Amat.Invert();
+
+            Vector v1(spacedim);
+            Vector temp;
+
+            v1(0) = -1.0; v1(1) = -1.0; v1(2) = -1.0;
+            temp.SetDataAndSize(o_xyz.GetData() + (e*nve+0)*spacedim, spacedim);
+            Amat.Mult(v1, temp);
+            temp += center;
+
+            v1(0) = 1.0; v1(1) = -1.0; v1(2) = -1.0;
+            temp.SetDataAndSize(o_xyz.GetData() + (e*nve+1)*spacedim, spacedim);
+            Amat.Mult(v1, temp);
+            temp += center;
+
+            v1(0) = 1.0; v1(1) = 1.0; v1(2) = -1.0;
+            temp.SetDataAndSize(o_xyz.GetData() + (e*nve+2)*spacedim, spacedim);
+            Amat.Mult(v1, temp);
+            temp += center;
+
+            v1(0) = -1.0; v1(1) = 1.0; v1(2) = -1.0;
+            temp.SetDataAndSize(o_xyz.GetData() + (e*nve+3)*spacedim, spacedim);
+            Amat.Mult(v1, temp);
+            temp += center;
+
+            v1(0) = -1.0; v1(1) = -1.0; v1(2) = 1.0;
+            temp.SetDataAndSize(o_xyz.GetData() + (e*nve+4)*spacedim, spacedim);
+            Amat.Mult(v1, temp);
+            temp += center;
+
+            v1(0) = 1.0; v1(1) = -1.0; v1(2) = 1.0;
+            temp.SetDataAndSize(o_xyz.GetData() + (e*nve+5)*spacedim, spacedim);
+            Amat.Mult(v1, temp);
+            temp += center;
+
+            v1(0) = 1.0; v1(1) = 1.0; v1(2) = 1.0;
+            temp.SetDataAndSize(o_xyz.GetData() + (e*nve+6)*spacedim, spacedim);
+            Amat.Mult(v1, temp);
+            temp += center;
+
+            v1(0) = -1.0; v1(1) = 1.0; v1(2) = 1.0;
+            temp.SetDataAndSize(o_xyz.GetData() + (e*nve+7)*spacedim, spacedim);
+            Amat.Mult(v1, temp);
+            temp += center;
+         } //type == 1
       }
       if (type==2) {  // local hash mesh
          int ec = 0;
@@ -2190,6 +2251,41 @@ Mesh* FindPointsGSLIB::GetBoundingBoxMeshSurf(int type)
             o_xyz(e*nve*spacedim + 6) = minn[0];
             o_xyz(e*nve*spacedim + 7) = maxx[1];
          } // type == 0
+         else if (type==1) {
+            Vector center(spacedim), A(spacedim*spacedim);
+            for (int d=0; d<spacedim; d++) {
+               center[d] = box.c0[d];
+            }
+            for (int d=0; d<spacedim*spacedim; d++) {
+               A[d] = box.A[d];
+            }
+            DenseMatrix Amat(A.GetData(), spacedim, spacedim);
+            Amat.Transpose();
+            Amat.Invert();
+
+            Vector v1(spacedim);
+            Vector temp;
+
+            v1(0) = -1.0; v1(1) = -1.0;
+            temp.SetDataAndSize(o_xyz.GetData() + (e*nve+0)*spacedim, spacedim);
+            Amat.Mult(v1, temp);
+            temp += center;
+
+            v1(0) = 1.0; v1(1) = -1.0;
+            temp.SetDataAndSize(o_xyz.GetData() + (e*nve+1)*spacedim, spacedim);
+            Amat.Mult(v1, temp);
+            temp += center;
+
+            v1(0) = 1.0; v1(1) = 1.0;
+            temp.SetDataAndSize(o_xyz.GetData() + (e*nve+2)*spacedim, spacedim);
+            Amat.Mult(v1, temp);
+            temp += center;
+
+            v1(0) = -1.0; v1(1) = 1.0;
+            temp.SetDataAndSize(o_xyz.GetData() + (e*nve+3)*spacedim, spacedim);
+            Amat.Mult(v1, temp);
+            temp += center;
+         } //type == 1
       }
       if (type==2) {
          int ec = 0;

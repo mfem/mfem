@@ -80,26 +80,24 @@ static MFEM_HOST_DEVICE inline double obbox_axis_test(const obbox_t *const b,
 static MFEM_HOST_DEVICE inline double obbox_test(const obbox_t *const b,
                                                  const double x[sDIM])
 {
-   const double bxyz = obbox_axis_test(b,x);  // test if point is in AABB
-   return bxyz;
-   // if (bxyz<0)
-   //   return bxyz;
-   // else                         // test OBB only if inside AABB
-   // {
-   //    double dxyz[sDIM];
-   //    for (int d=0; d<sDIM; ++d)
-   //      dxyz[d] = x[d] - b->c0[d];
-   //    double test = 1;
-   //    for (int d=0; d<sDIM; ++d)
-   //    {
-   //       double rst = 0;
-   //       for (int e=0; e<2; ++e)
-   //         rst += b->A[d*2 + e] * dxyz[e];
-   //       double brst = (rst + 1) * (1 - rst);
-   //       test = test<0 ? test : brst;
-   //    }
-   //    return test;
-   // }
+   const double bxyz = obbox_axis_test(b,x);
+   if (bxyz<0) { // test if point is in AABB
+     return bxyz;
+   }
+   else { // test OBB only if inside AABB
+      double dxyz[sDIM];
+      for (int d=0; d<sDIM; ++d)
+        dxyz[d] = x[d] - b->c0[d];
+      double test = 1;
+      for (int d=0; d<sDIM; ++d) {
+         double rst = 0;
+         for (int e=0; e<sDIM; ++e)
+           rst += b->A[d*2 + e] * dxyz[e];
+         double brst = (rst+1)*(1-rst);
+         test = test<0 ? test : brst;
+      }
+      return test;
+   }
 }
 
 /* Hash index in the hash table to the elements that possibly contain the point x */
@@ -328,7 +326,7 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
    // const int nThreads = MAX_CONST(2*MD1, 4);
    const int nThreads = 32;  // adi: npoints numbers can be quite big, especially for 3d cases
    // std::cout << "pN, D1D, MD1, p_NEL: " << pN    << ", " << D1D  << ", "
-   //                                            << MD1   << ", " << p_NEL << "\n";
+   //                                      << MD1   << ", " << p_NEL << "\n";
 
    /* A macro expansion that for
       1) CPU: expands to a standard for loop
@@ -393,7 +391,7 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
       *code_i  = CODE_NOT_FOUND;
       *dist2_i = DBL_MAX;
 
-      // const int sdim2 = sDIM*sDIM;
+      const int sdim2 = sDIM*sDIM;
 
       // Search through all elements that could contain x_i
       for (; elp!=ele; ++elp) {
@@ -412,13 +410,13 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
          // construct obbox_t on the fly for element el
          obbox_t box;
          for (int idx=0; idx<sDIM; ++idx) {
-            // box.c0[idx] = c[spacedim*el + idx];
+            box.c0[idx] = c[sDIM*el + idx];
             box.x[idx].min = minBound[sDIM*el + idx];
             box.x[idx].max = maxBound[sDIM*el + idx];
          }
-         // for (int idx = 0; idx<sdim2; ++idx) {
-         //    box.A[idx] = A[sdim2 * el + idx];
-         // }
+         for (int idx = 0; idx<sdim2; ++idx) {
+            box.A[idx] = A[sdim2 * el + idx];
+         }
 
          if (obbox_test(&box,x_i)>=0) {
             //------------ findpts_local ------------------
@@ -428,6 +426,10 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
                for (int d=0; d<sDIM; d++) {
                   elx[d] = xElemCoord + d*p_NEL + el*D1D;
                }
+               // std::cout << "elx: " << elx[0][0] << ", " << elx[1][0]
+               //           << ", "    << elx[0][1] << ", " << elx[1][1]
+               //           << ", "    << elx[0][2] << ", " << elx[1][2]
+               //           << std::endl;
 
                //--------------- findpts_el ----------------
                {
@@ -478,6 +480,8 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
                      MFEM_SYNC_THREAD;
                   } //seed done
 
+                  // std::cout << "seed: fpt->dist2: " << fpt->dist2 << ", fpt->r: " << fpt->r << std::endl;
+
                   // Initialize tmp struct with fpt values before starting Newton iterations
                   MFEM_FOREACH_THREAD(j,x,nThreads)
                   {
@@ -514,7 +518,7 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
                                  for (int d=0; d<sDIM; ++d) {
                                     edge.x[d] = constraint_workspace + d*D1D;
                                  }
-                                 if (j<pN) {
+                                 if (j<D1D) {
                                     for (int d=0; d<sDIM; ++d) {
                                        edge.x[d][j] = elx[d][j];  // copy nodal coordinates along the constrained edge
                                     }
@@ -580,10 +584,10 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
                            MFEM_FOREACH_THREAD(j,x,nThreads) {
                               if (j==0) {
                                  const int pi = point_index(tmp->flags & FLAG_MASK);
-                                 const double *wt   = wtend + pi*3*pN;  // 3*D1D: basis function values, their derivatives and 2nd derivatives
+                                 const double *wt   = wtend + pi*3*D1D;  // 3*D1D: basis function values, their derivatives and 2nd derivatives
                                  findptsElementGPT_t gpt;
                                  for (int d=0; d<sDIM; ++d) {
-                                    gpt.x[d] = elx[d][pi*(pN-1)];
+                                    gpt.x[d] = elx[d][pi*(D1D-1)];
                                     gpt.jac[d] = 0.0;
                                     gpt.hes[d] = 0.0;
                                     for (int k=0; k<D1D; ++k) {

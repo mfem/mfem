@@ -83,30 +83,25 @@ static MFEM_HOST_DEVICE inline double obbox_test(const obbox_t *const b,
 {
    const double bxyz = obbox_axis_test(b, x);
    return bxyz;
-   // if (bxyz < 0)
-   // {
-   //    return bxyz;
-   // }
-   // else
-   // {
-   //    double dxyz[3];
-   //    for (int d = 0; d < 3; ++d)
-   //    {
-   //       dxyz[d] = x[d] - b->c0[d];
-   //    }
-   //    double test = 1;
-   //    for (int d = 0; d < 3; ++d)
-   //    {
-   //       double rst = 0;
-   //       for (int e = 0; e < 3; ++e)
-   //       {
-   //          rst += b->A[d * 3 + e] * dxyz[e];
-   //       }
-   //       double brst = (rst + 1) * (1 - rst);
-   //       test = test < 0 ? test : brst;
-   //    }
-   //    return test;
-   // }
+   if (bxyz<0) {
+      return bxyz;
+   }
+   else {
+      double dxyz[3];
+      for (int d=0; d<sDIM; ++d) {
+         dxyz[d] = x[d] - b->c0[d];
+      }
+      double test = 1;
+      for (int d=0; d<sDIM; ++d) {
+         double rst = 0;
+         for (int e=0; e<sDIM; ++e) {
+            rst += b->A[d*sDIM + e] * dxyz[e];
+         }
+         double brst = (rst+1)*(1-rst);
+         test = test<0 ? test : brst;
+      }
+      return test;
+   }
 }
 
 /* Hash index in the hash table to the elements that possibly contain the point x */
@@ -599,8 +594,7 @@ static MFEM_HOST_DEVICE void seed_j(const double *elx[sDIM],
 
    dist2[ir] = DBL_MAX;
    double zr = z[ir];             // r gll coord for ir-th thread, i.e., ir-th dof in r-direction
-   // for (int is=0; is<pN; ++is) {  // loop through all "s" gll coords for ir-th dof in s-direction
-   for (int is=pN/2; is<pN/2+1; ++is) {  // FIXME: A test Loop!! change back to above line!!
+   for (int is=0; is<pN; ++is) {  // loop through all "s" gll coords for ir-th dof in s-direction
       double zs = z[is];
       const int irs = ir + is*pN; // dof index
       double dx[sDIM];
@@ -720,7 +714,7 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
          //    box.A[d2] = A[sDIM2*el + d2];
          // }
 
-         if (obbox_test(&box, x_i)>=0) {
+         if (obbox_axis_test(&box, x_i)>=0) {
             //// findpts_local ////
             {
                const double *elx[sDIM];
@@ -816,7 +810,6 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
                            double *jac_temp   = resid_temp + sDIM*D1D;
 
                            // size 3 for sDIM=3, d2f/dr2, d2f/drds, and d2f/ds2
-                           // adi: worthwhile to generalize this for good documentation?
                            double *hes      = jac_temp + sDIM*rDIM*D1D;
                            double *hes_temp = hes + 3;
                            MFEM_SYNC_THREAD;
