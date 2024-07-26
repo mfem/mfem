@@ -1364,6 +1364,7 @@ void prepare_kf_args(std::array<DeviceTensor<2>, num_fields> &u,
 }
 
 template <typename output_type>
+MFEM_HOST_DEVICE
 void map_quadrature_data_to_fields(DeviceTensor<2, double> y,
                                    DeviceTensor<3, double> c,
                                    output_type output,
