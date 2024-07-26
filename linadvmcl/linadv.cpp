@@ -372,6 +372,11 @@ MCL::~MCL()
 
 int main(int argc, char *argv[])
 {
+   Mpi::Init();
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
+
    // 1. Parse command-line options.
    problem = 0;
    const char *mesh_file = "../data/periodic-hexagon.mesh";
@@ -490,9 +495,9 @@ int main(int argc, char *argv[])
    int numVar;
    switch(problem)
    {
-      case 0:
-      case 1: numVar = 1; break; // scalar
-      case 2: numVar = 2; break;  
+      case 4: numVar = 2; break; 
+
+      default: numVar = 1; break; // scalar
    }
    H1_FECollection fec(order, dim, BasisType::Positive);
    FiniteElementSpace fes(&mesh, &fec);
@@ -633,8 +638,8 @@ int main(int argc, char *argv[])
          sout << "window_geometry "
             << 0 << " " << 0 << " " << 1080 << " " << 1080 << "\n";
          sout << flush;
-         cout << "GLVis visualization paused."
-              << " Press space (in the GLVis window) to resume it.\n";
+         cout << "GLVis visualization not paused."
+              << " Press space (in the GLVis window) to pause it.\n";
       }
    }
 
