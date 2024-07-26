@@ -108,12 +108,18 @@ variables:
     - |
       echo -e "
       # Required variables \n
-      export MODULE_LIST=\"${MODULE_LIST}\" \n
       export SPEC=\"${SPEC//\"/\\\"}\" \n
-      # Allow to set job script for debugging (only this differs from CI) \n
-      export DEBUG_MODE=true \n
+      export MFEM_DATA_DIR=\"${MFEM_DATA_DIR//\"/\\\"}\" \n
+      export BUILD_ROOT=\"${BUILD_ROOT//\"/\\\"}\" \n
+      export TPLS_REPO=\"${TPLS_REPO//\"/\\\"}\" \n
+      export TESTS_REPO=\"${TESTS_REPO//\"/\\\"}\" \n
+      export AUTOTEST_REPO=\"${AUTOTEST_REPO//\"/\\\"}\" \n
+      export MFEM_DATA_REPO=\"${MFEM_DATA_REPO//\"/\\\"}\" \n
+      # Setup directories \n
+      ./tests/gitlab/build_and_test_setup \n
       # Using the CI build cache is optional and requires a token. Set it like so: \n
       # export REGISTRY_TOKEN=\"<your token here>\" \n"
+      #
 
 # Jobs report
 .report_job_success:
