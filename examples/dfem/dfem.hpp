@@ -828,7 +828,7 @@ std::array<Vector, sizeof...(i)> create_input_qp_memory(
    return {Vector(serac::get<i>(inputs).size_on_qp * num_qp)...};
 }
 
-struct DofToQuadMaps
+struct DofToQuadMap
 {
    static constexpr int rank = 3;
    DeviceTensor<rank, const double> B;
@@ -852,7 +852,7 @@ MFEM_HOST_DEVICE
 void map_field_to_quadrature_data(
    DeviceTensor<2> field_qp,
    int entity_idx,
-   const DofToQuadMaps &B,
+   const DofToQuadMap &B,
    const DeviceTensor<1, const double> &field_e,
    field_operator_t &input,
    DeviceTensor<1, const double> integration_weights,
@@ -1017,7 +1017,7 @@ void map_fields_to_quadrature_data(
    int element_idx,
    const std::array<DeviceTensor<1, const double>, num_fields> &fields_e,
    const std::array<int, num_kinputs> &kfinput_to_field,
-   const std::vector<DofToQuadMaps> &dtqmaps,
+   const std::array<DofToQuadMap, num_kinputs> &dtqmaps,
    const DeviceTensor<1, const double> &integration_weights,
    const GeometricFactorMaps &geometric_factors,
    field_operator_tuple_t fops,
@@ -1032,7 +1032,7 @@ void map_fields_to_quadrature_data(
 template <typename input_type>
 MFEM_HOST_DEVICE
 void map_field_to_quadrature_data_conditional(
-   DeviceTensor<2> field_qp, int element_idx, const DofToQuadMaps &dtqmaps,
+   DeviceTensor<2> field_qp, int element_idx, const DofToQuadMap &dtqmap,
    DeviceTensor<1, const double> &field_e, input_type &input,
    DeviceTensor<1, const double> integration_weights,
    GeometricFactorMaps geometric_factors,
@@ -1040,7 +1040,7 @@ void map_field_to_quadrature_data_conditional(
 {
    if (condition)
    {
-      map_field_to_quadrature_data(field_qp, element_idx, dtqmaps, field_e, input,
+      map_field_to_quadrature_data(field_qp, element_idx, dtqmap, field_e, input,
                                    integration_weights, geometric_factors);
    }
 }
@@ -1052,7 +1052,7 @@ void map_fields_to_quadrature_data_conditional(
    int element_idx,
    const std::array<DeviceTensor<1, const double>, num_fields> &fields_e,
    const std::array<int, num_kinputs> &kfinput_to_field,
-   const std::vector<DofToQuadMaps> &dtqmaps,
+   const std::array<DofToQuadMap, num_kinputs> &dtqmaps,
    DeviceTensor<1, const double> integration_weights,
    GeometricFactorMaps geometric_factors,
    std::array<bool, num_kinputs> conditions,
@@ -1108,11 +1108,11 @@ int accumulate_sizes_on_qp(
 }
 
 MFEM_HOST_DEVICE
-void prepare_kf_arg(const DeviceTensor<1> &u, double &arg) { arg = u(0); }
+void process_kf_arg(const DeviceTensor<1> &u, double &arg) { arg = u(0); }
 
 template <typename T, int length>
 MFEM_HOST_DEVICE
-void prepare_kf_arg(const DeviceTensor<1> &u,
+void process_kf_arg(const DeviceTensor<1> &u,
                     internal::tensor<T, length> &arg)
 {
    for (int i = 0; i < u.GetShape()[0]; i++)
@@ -1123,7 +1123,7 @@ void prepare_kf_arg(const DeviceTensor<1> &u,
 
 template <int n, int m>
 MFEM_HOST_DEVICE
-void prepare_kf_arg(const DeviceTensor<1> &u,
+void process_kf_arg(const DeviceTensor<1> &u,
                     internal::tensor<double, n, m> &arg)
 {
    for (int i = 0; i < m; i++)
@@ -1143,22 +1143,22 @@ void prepare_kf_arg(const DeviceTensor<1> &u,
 
 template <typename arg_type>
 MFEM_HOST_DEVICE
-void prepare_kf_arg(const DeviceTensor<2> &u, arg_type &arg, int qp)
+void process_kf_arg(const DeviceTensor<2> &u, arg_type &arg, int qp)
 {
    const auto u_qp = Reshape(&u(0, qp), u.GetShape()[0]);
-   prepare_kf_arg(u_qp, arg);
+   process_kf_arg(u_qp, arg);
 }
 
 template <size_t num_fields, typename kf_args, std::size_t... i>
 MFEM_HOST_DEVICE
-void prepare_kf_args(const std::array<DeviceTensor<2>, num_fields> &u,
+void process_kf_args(const std::array<DeviceTensor<2>, num_fields> &u,
                      kf_args &args, int qp, std::index_sequence<i...>)
 {
-   (prepare_kf_arg(u[i], serac::get<i>(args), qp), ...);
+   (process_kf_arg(u[i], serac::get<i>(args), qp), ...);
 }
 
 inline
-Vector prepare_kf_result(double x)
+Vector process_kf_result(double x)
 {
    Vector r(1);
    r = x;
@@ -1166,13 +1166,13 @@ Vector prepare_kf_result(double x)
 }
 
 inline
-Vector prepare_kf_result(Vector x)
+Vector process_kf_result(Vector x)
 {
    return x;
 }
 
 template <typename T, int length> inline
-Vector prepare_kf_result(internal::tensor<T, length> x)
+Vector process_kf_result(internal::tensor<T, length> x)
 {
    Vector r(length);
    for (size_t i = 0; i < length; i++)
@@ -1183,7 +1183,7 @@ Vector prepare_kf_result(internal::tensor<T, length> x)
 }
 
 template <typename T, int n, int m> inline
-Vector prepare_kf_result(internal::tensor<T, n, m> x)
+Vector process_kf_result(internal::tensor<T, n, m> x)
 {
    Vector r(n * m);
    for (size_t i = 0; i < n; i++)
@@ -1197,7 +1197,7 @@ Vector prepare_kf_result(internal::tensor<T, n, m> x)
 }
 
 // template <typename T> inline
-// Vector prepare_kf_result(internal::tensor<T, 2, 2> x)
+// Vector process_kf_result(internal::tensor<T, 2, 2> x)
 // {
 //    Vector r(4);
 //    for (size_t i = 0; i < 2; i++)
@@ -1212,22 +1212,24 @@ Vector prepare_kf_result(internal::tensor<T, n, m> x)
 // }
 
 // template <typename T> inline
-// Vector prepare_kf_result(T)
+// Vector process_kf_result(T)
 // {
 //    static_assert(always_false<T>,
-//                  "prepare_kf_result not implemented for result type");
+//                  "process_kf_result not implemented for result type");
 // }
 
 template <typename T0, typename T1> inline
-Vector prepare_kf_result(T0, T1)
+Vector process_kf_result(T0, T1)
 {
-   static_assert(always_false<T0>,
-                 "prepare_kf_result not implemented for result type");
+   static_assert(always_false<T0, T1>,
+                 "process_kf_result not implemented for result type");
 }
 
 template <typename T, int length>
 MFEM_HOST_DEVICE inline
-void prepare_kf_result(DeviceTensor<1, T> r, internal::tensor<T, length> x)
+void process_kf_result(
+   DeviceTensor<1, T> r,
+   const internal::tensor<T, length> &x)
 {
    for (size_t i = 0; i < length; i++)
    {
@@ -1237,7 +1239,9 @@ void prepare_kf_result(DeviceTensor<1, T> r, internal::tensor<T, length> x)
 
 template <typename T, int n, int m>
 MFEM_HOST_DEVICE inline
-void prepare_kf_result(DeviceTensor<1, T> r, internal::tensor<T, n, m> x)
+void process_kf_result(
+   DeviceTensor<1, T> r,
+   const internal::tensor<T, n, m> &x)
 {
    for (size_t i = 0; i < n; i++)
    {
@@ -1256,12 +1260,10 @@ void apply_kernel(
    const std::array<DeviceTensor<2>, num_fields> &u,
    int qp)
 {
-   prepare_kf_args(u, args, qp,
+   process_kf_args(u, args, qp,
                    std::make_index_sequence<serac::tuple_size<kernel_args>::value> {});
 
-   prepare_kf_result(f_qp, serac::get<0>(serac::apply(kf, args)));
-
-   // return prepare_kf_result(serac::get<0>(std::apply(kf, args)));
+   process_kf_result(f_qp, serac::get<0>(serac::apply(kf, args)));
 }
 
 // template <typename arg_ts, std::size_t... Is> inline
@@ -1317,18 +1319,18 @@ auto apply_kernel_fwddiff_enzyme(const kf_t &kf,
                                  std::array<DeviceTensor<2>, num_args> &v,
                                  int qp)
 {
-   prepare_kf_args(u, args, qp,
+   process_kf_args(u, args, qp,
                    std::make_index_sequence<serac::tuple_size<kernel_arg_ts>::value> {});
 
-   prepare_kf_args(v, shadow_args, qp,
+   process_kf_args(v, shadow_args, qp,
                    std::make_index_sequence<serac::tuple_size<kernel_arg_ts>::value> {});
 
-   return prepare_kf_result(serac::get<0>(fwddiff_apply_enzyme(kf, args,
+   return process_kf_result(serac::get<0>(fwddiff_apply_enzyme(kf, args,
                                                                shadow_args)));
 }
 
 template <typename T> inline
-void prepare_kf_arg(const DeviceTensor<1> &u, const DeviceTensor<1> &v,
+void process_kf_arg(const DeviceTensor<1> &u, const DeviceTensor<1> &v,
                     double &arg)
 {
    arg = u(0);
@@ -1336,7 +1338,7 @@ void prepare_kf_arg(const DeviceTensor<1> &u, const DeviceTensor<1> &v,
 
 
 template <int n, int m> inline
-void prepare_kf_arg(const DeviceTensor<1> &u, const DeviceTensor<1> &v,
+void process_kf_arg(const DeviceTensor<1> &u, const DeviceTensor<1> &v,
                     internal::tensor<double, n, m> &arg)
 {
    for (int i = 0; i < m; i++)
@@ -1349,20 +1351,20 @@ void prepare_kf_arg(const DeviceTensor<1> &u, const DeviceTensor<1> &v,
 }
 
 template <typename arg_type> inline
-void prepare_kf_arg(const DeviceTensor<2> &u, const DeviceTensor<2> &v,
+void process_kf_arg(const DeviceTensor<2> &u, const DeviceTensor<2> &v,
                     arg_type &arg, int qp)
 {
    const auto u_qp = Reshape(&u(0, qp), u.GetShape()[0]);
    const auto v_qp = Reshape(&v(0, qp), v.GetShape()[0]);
-   prepare_kf_arg(u_qp, v_qp, arg);
+   process_kf_arg(u_qp, v_qp, arg);
 }
 
 template <size_t num_fields, typename kf_args, std::size_t... i> inline
-void prepare_kf_args(std::array<DeviceTensor<2>, num_fields> &u,
+void process_kf_args(std::array<DeviceTensor<2>, num_fields> &u,
                      std::array<DeviceTensor<2>, num_fields> &v,
                      kf_args &args, int qp, std::index_sequence<i...>)
 {
-   (prepare_kf_arg(u[i], v[i], serac::get<i>(args), qp), ...);
+   (process_kf_arg(u[i], v[i], serac::get<i>(args), qp), ...);
 }
 
 template <typename output_type>
@@ -1370,7 +1372,7 @@ MFEM_HOST_DEVICE
 void map_quadrature_data_to_fields(DeviceTensor<2, double> y,
                                    DeviceTensor<3, double> c,
                                    output_type output,
-                                   const DofToQuadMaps &B)
+                                   const DofToQuadMap &B)
 {
    // assuming the quadrature point residual has to "play nice with
    // the test function"
@@ -1440,63 +1442,76 @@ void map_quadrature_data_to_fields(DeviceTensor<2, double> y,
 }
 
 template <typename entity_t, typename field_operator_ts, size_t N, std::size_t... i>
-std::vector<DofToQuadMaps> create_dtq_operators_conditional(
+std::array<DofToQuadMap, N> create_dtq_operators_conditional(
    field_operator_ts &fops,
    std::vector<const DofToQuad*> dtqmaps,
    const std::array<int, N> &to_field_map,
    std::array<bool, N> active,
    std::index_sequence<i...>)
 {
-   std::vector<DofToQuadMaps> ops;
    auto f = [&](auto fop, size_t idx)
    {
       if (active[idx])
       {
          if (to_field_map[idx] == -1)
          {
-            ops.push_back({DeviceTensor<3, const double>(nullptr, 1, 1, 1), -1});
-            return;
+            return DofToQuadMap{DeviceTensor<3, const double>(nullptr, 1, 1, 1), -1};
          }
+
          auto dtqmap = dtqmaps[to_field_map[idx]];
+
          if constexpr (std::is_same_v<decltype(fop), Value>)
          {
             const int d = dtqmap->FE->GetRangeDim() ? dtqmap->FE->GetRangeDim() : 1;
-            ops.push_back({DeviceTensor<3, const double>(dtqmap->B.Read(), dtqmap->nqpt, d, dtqmap->ndof), static_cast<int>(idx)});
+            return DofToQuadMap
+            {
+               DeviceTensor<3, const double>(dtqmap->B.Read(), dtqmap->nqpt, d, dtqmap->ndof),
+               static_cast<int>(idx)
+            };
          }
          else if constexpr (std::is_same_v<decltype(fop), Gradient>)
          {
             MFEM_ASSERT(dtqmap->FE->GetMapType() == FiniteElement::MapType::VALUE,
                         "trying to compute gradient of non compatible FE type");
             const int d = dtqmap->FE->GetDim();
-            ops.push_back({DeviceTensor<3, const double>(dtqmap->G.Read(), dtqmap->nqpt, d, dtqmap->ndof), static_cast<int>(idx)});
+            return DofToQuadMap
+            {
+               DeviceTensor<3, const double>(dtqmap->G.Read(), dtqmap->nqpt, d, dtqmap->ndof),
+               static_cast<int>(idx)
+            };
          }
-         else if constexpr (std::is_same_v<decltype(fop), Curl>)
-         {
-            MFEM_ASSERT(dtqmap->FE->GetMapType() == FiniteElement::MapType::H_CURL,
-                        "trying to compute gradient of non compatible FE type");
-            const int d = dtqmap->FE->GetCurlDim();
-            ops.push_back({DeviceTensor<3, const double>(dtqmap->G.Read(), dtqmap->nqpt, d, dtqmap->ndof), static_cast<int>(idx)});
-         }
-         else if constexpr (std::is_same_v<decltype(fop), Div>)
-         {
-            MFEM_ASSERT(dtqmap->FE->GetMapType() == FiniteElement::MapType::H_DIV,
-                        "trying to compute gradient of non compatible FE type");
-            ops.push_back({DeviceTensor<3, const double>(dtqmap->G.Read(), dtqmap->nqpt, 1, dtqmap->ndof), static_cast<int>(idx)});
-         }
-         else if constexpr(std::is_same_v<decltype(fop), One>)
-         {
-            ops.push_back({DeviceTensor<3, const double>(nullptr, 1, 1, 1), static_cast<int>(idx)});
-         }
-         else if constexpr(std::is_same_v<decltype(fop), None>)
-         {
-            ops.push_back({DeviceTensor<3, const double>(nullptr, dtqmap->nqpt, 1, dtqmap->ndof), static_cast<int>(idx)});
-         }
+         // else if constexpr (std::is_same_v<decltype(fop), Curl>)
+         // {
+         //    MFEM_ASSERT(dtqmap->FE->GetMapType() == FiniteElement::MapType::H_CURL,
+         //                "trying to compute gradient of non compatible FE type");
+         //    const int d = dtqmap->FE->GetCurlDim();
+         //    return DofToQuadMap
+         //    {
+         //       DeviceTensor<3, const double>(dtqmap->G.Read(), dtqmap->nqpt, d, dtqmap->ndof),
+         //       static_cast<int>(idx)
+         //    };
+         // }
+         // else if constexpr (std::is_same_v<decltype(fop), Div>)
+         // {
+         //    MFEM_ASSERT(dtqmap->FE->GetMapType() == FiniteElement::MapType::H_DIV,
+         //                "trying to compute gradient of non compatible FE type");
+         //    ops.push_back({DeviceTensor<3, const double>(dtqmap->G.Read(), dtqmap->nqpt, 1, dtqmap->ndof), static_cast<int>(idx)});
+         // }
+         // else if constexpr(std::is_same_v<decltype(fop), One>)
+         // {
+         //    ops.push_back({DeviceTensor<3, const double>(nullptr, 1, 1, 1), static_cast<int>(idx)});
+         // }
+         // else if constexpr(std::is_same_v<decltype(fop), None>)
+         // {
+         //    ops.push_back({DeviceTensor<3, const double>(nullptr, dtqmap->nqpt, 1, dtqmap->ndof), static_cast<int>(idx)});
+         // }
          else if constexpr(std::is_same_v<decltype(fop), Weight>)
          {
             // no op
             // this is handled at runtime by the first condition
             // to_field_map[idx] == -1.
             // has to exist at compile time for completeness
+            return DofToQuadMap{DeviceTensor<3, const double>(nullptr, 1, 1, 1), -1};
          }
          else
          {
@@ -1504,13 +1519,20 @@ std::vector<DofToQuadMaps> create_dtq_operators_conditional(
                           "field operator type is not implemented");
          }
       }
+      else
+      {
+         return DofToQuadMap{DeviceTensor<3, const double>(nullptr, 1, 1, 1), -1};
+      }
    };
-   (f(serac::get<i>(fops), i), ...);
-   return ops;
+
+   return std::array<DofToQuadMap, N>
+   {
+      f(serac::get<i>(fops), i)...
+   };
 }
 
 template <typename entity_t, typename field_operator_ts, size_t N>
-std::vector<DofToQuadMaps> create_dtq_operators(
+std::array<DofToQuadMap, N> create_dtq_operators(
    field_operator_ts &fops,
    std::vector<const DofToQuad*> dtqmaps,
    const std::array<int, N> &to_field_map)

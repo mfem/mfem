@@ -101,10 +101,13 @@ void DifferentiableOperator<kernels_tuple,
    const Operator *R = get_restriction<entity_t>(op.fields[test_space_field_idx],
                                                  element_dof_ordering);
 
+   // kernel function output
+   Vector f_qp(residual_size_on_qp);
+
    func = [this, kernel, num_entities, num_qp, input_dtq_ops,
                  output_dtq_ops, residual_size_on_qp,
                  input_qp_mem, kinput_to_field, koutput_to_field,
-                 output_fop, R, geometric_factors]
+                 output_fop, R, geometric_factors, f_qp]
    (Vector &ye_mem) mutable
    {
       restriction<entity_t>(op.solutions, solutions_l, this->fields_e,
@@ -127,6 +130,8 @@ void DifferentiableOperator<kernels_tuple,
 
       constexpr int fixed_output_idx = 0;
       auto Bv = output_dtq_ops[fixed_output_idx];
+      // These values are captured in a lambda later on, therefore we can't
+      // use a structured binding from array like `auto [...] = ...`.
       int test_op_qp = Bv.GetShape()[0];
       int test_op_dim = Bv.GetShape()[1];
       int num_test_dof = Bv.GetShape()[2];
@@ -134,9 +139,6 @@ void DifferentiableOperator<kernels_tuple,
       DeviceTensor<3> ye = Reshape(ye_mem.ReadWrite(), num_test_dof, test_vdim, num_entities);
 
       auto wrapped_fields_e = wrap_vectors(this->fields_e);
-
-      // kernel function output
-      Vector f_qp(residual_size_on_qp);
 
       // for (int e = 0; e < num_entities; e++)
       mfem::forall(num_entities, [=] MFEM_HOST_DEVICE (int e)

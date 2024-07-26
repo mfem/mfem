@@ -616,10 +616,11 @@ int test_diffusion_integrator(std::string mesh_file,
    FunctionCoefficient rho_c(rho_f);
    rho_g.ProjectCoefficient(rho_c);
 
-   auto kernel = [](const double &rho,
-                    const tensor<double, 2, 2> &J,
-                    const double &w,
-                    const tensor<double, 2> &dudxi)
+   auto kernel = [] MFEM_HOST_DEVICE
+                 (const double &rho,
+                  const tensor<double, 2, 2> &J,
+                  const double &w,
+                  const tensor<double, 2> &dudxi)
    {
       auto invJ = inv(J);
       return serac::tuple{rho*rho * dudxi * invJ * transpose(invJ) * det(J) * w};
