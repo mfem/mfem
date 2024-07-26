@@ -3686,11 +3686,11 @@ public:
       }
       DenseMatrix elmat_block;
       ran_fe.Project(dom_fe, Trans, elmat_block);
-      elmat.SetSize(vdim*elmat_block.Height(), vdim*elmat_block.Weight());
+      elmat.SetSize(vdim*elmat_block.Height(), vdim*elmat_block.Width());
       elmat = 0_r;
       for (int i = 0; i < vdim; i++)
       {
-         elmat.SetSubMatrix(i*elmat_block.Height(), i*elmat_block.Weight(),
+         elmat.SetSubMatrix(i*elmat_block.Height(), i*elmat_block.Width(),
                             elmat_block);
       }
    }
