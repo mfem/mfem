@@ -175,12 +175,15 @@ void ArenaHostMemorySpace::ConsolidateAndEnsureAvailable(
 
 void ArenaHostMemorySpace::Alloc(void **ptr, size_t nbytes)
 {
-   ConsolidateAndEnsureAvailable(nbytes);
-   internal::ArenaChunk &front_chunk = chunks.front();
-   void *new_ptr = front_chunk.NewPointer(nbytes);
-   arena_map.emplace(new_ptr, ArenaControlBlock(front_chunk, nbytes));
-   *ptr = new_ptr;
+   // Round up requested size to multiple of alignment.
+   const size_t r = nbytes % alignment;
+   const size_t nbytes_aligned = r ? (nbytes + alignment - r) : nbytes;
 
+   ConsolidateAndEnsureAvailable(nbytes_aligned);
+   *ptr = chunks.front().NewPointer(nbytes_aligned);
+   arena_map.emplace(*ptr, ArenaControlBlock(chunks.front(), nbytes_aligned));
+
+   // Debug output:
    size_t nchunks = std::distance(std::begin(chunks), std::end(chunks));
    mfem::out << "===========================================================\n";
    mfem::out << nchunks << " chunks\n";

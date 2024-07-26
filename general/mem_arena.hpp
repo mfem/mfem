@@ -73,6 +73,8 @@ public:
 
 class ArenaHostMemorySpace : public HostMemorySpace
 {
+   /// Bytes to align allocations.
+   static constexpr size_t alignment = 256;
    /// Chunks of storage.
    std::forward_list<internal::ArenaChunk> chunks;
    /// @brief Consolidate the chunks (merge consecutive empty chunks), and
