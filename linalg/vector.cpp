@@ -316,10 +316,14 @@ void Vector::Reciprocal()
 void Vector::PowerAbs(const real_t p)
 {
    MFEM_ASSERT(p != 0.0, "requires p != 0.0");
-   if (p == 1.0) { return; }
    const bool use_dev = UseDevice();
    const int N = size;
    auto y = ReadWrite(use_dev);
+   if (p == 1.0)
+   {
+      mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] = std::abs(y[i]); });
+      return;
+   }
    mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] = std::pow(std::abs(y[i]), p); });
 }
 
