@@ -107,9 +107,9 @@ void DifferentiableOperator<kernels_tuple,
                  output_fop, R, geometric_factors]
    (Vector &ye_mem) mutable
    {
-      restriction<entity_t>(op.solutions, solutions_l, fields_e,
+      restriction<entity_t>(op.solutions, solutions_l, this->fields_e,
                             op.element_dof_ordering);
-      restriction<entity_t>(op.parameters, parameters_l, fields_e,
+      restriction<entity_t>(op.parameters, parameters_l, this->fields_e,
                             op.element_dof_ordering,
                             op.solutions.size());
 
@@ -132,25 +132,26 @@ void DifferentiableOperator<kernels_tuple,
       const int test_vdim = std::get<0>(kernel.outputs).vdim;
       DeviceTensor<3> ye = Reshape(ye_mem.ReadWrite(), num_test_dof, test_vdim, num_entities);
 
+      auto wrapped_fields_e = wrap_vectors(this->fields_e);
+
+      // kernel function output
+      Vector f_qp(residual_size_on_qp);
+
       // for (int e = 0; e < num_entities; e++)
       mfem::forall(num_entities, [=] MFEM_HOST_DEVICE (int e)
       {
          auto kernel_args = decay_tuple<typename kernel_t::kf_param_ts> {};
 
          map_fields_to_quadrature_data(
-            input_qp, e, this->fields_e,
+            input_qp, e, wrapped_fields_e,
             kinput_to_field, input_dtq_ops,
             integration_weights, geometric_factors, kernel.inputs,
             std::make_index_sequence<kernel.num_kinputs> {});
 
          for (int q = 0; q < num_qp; q++)
          {
-            auto f_qp = apply_kernel(kernel.func, kernel_args, input_qp, q);
-            auto r_qp = Reshape(&residual_qp(0, q, e), residual_size_on_qp);
-            for (int i = 0; i < residual_size_on_qp; i++)
-            {
-               r_qp(i) = f_qp(i);
-            }
+            auto f_qp = Reshape(&residual_qp(0, q, e), residual_size_on_qp);
+            apply_kernel(f_qp, kernel.func, kernel_args, input_qp, q);
          }
 
          DeviceTensor<3> fhat = Reshape(&residual_qp(0, 0, e), test_vdim, test_op_dim,
@@ -159,8 +160,7 @@ void DifferentiableOperator<kernels_tuple,
          map_quadrature_data_to_fields(y, fhat,
                                        output_fop,
                                        output_dtq_ops[hardcoded_output_idx]);
-      }
-                  );
+      });
       R->MultTranspose(ye_mem, residual_l);
    };
 

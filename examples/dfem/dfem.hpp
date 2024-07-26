@@ -846,11 +846,12 @@ struct DofToQuadMaps
 };
 
 template <typename field_operator_t>
+MFEM_HOST_DEVICE
 void map_field_to_quadrature_data(
    DeviceTensor<2> field_qp,
    int entity_idx,
    const DofToQuadMaps &B,
-   const Vector &field_e,
+   const DeviceTensor<1, const double> &field_e,
    field_operator_t &input,
    DeviceTensor<1, const double> integration_weights,
    GeometricFactorMaps geometric_factors)
@@ -860,7 +861,7 @@ void map_field_to_quadrature_data(
       auto [num_qp, unused, num_dof] = B.GetShape();
       const int vdim = input.vdim;
       const int entity_offset = entity_idx * num_dof * vdim;
-      const auto field = Reshape(field_e.Read() + entity_offset, num_dof, vdim);
+      const auto field = Reshape(&field_e(0) + entity_offset, num_dof, vdim);
 
       for (int vd = 0; vd < vdim; vd++)
       {
@@ -880,7 +881,7 @@ void map_field_to_quadrature_data(
       const auto [num_qp, dim, num_dof] = B.GetShape();
       const int vdim = input.vdim;
       const int entity_offset = entity_idx * num_dof * vdim;
-      const auto field = Reshape(field_e.Read() + entity_offset, num_dof, vdim);
+      const auto field = Reshape(&field_e(0) + entity_offset, num_dof, vdim);
 
       auto f = Reshape(&field_qp[0], vdim, dim, num_qp);
       for (int qp = 0; qp < num_qp; qp++)
@@ -904,7 +905,7 @@ void map_field_to_quadrature_data(
       const auto [num_qp, cdim, num_dof] = B.GetShape();
       const int vdim = input.vdim;
       const int entity_offset = entity_idx * num_dof * vdim;
-      const auto field = Reshape(field_e.Read() + entity_offset, num_dof, vdim,
+      const auto field = Reshape(&field_e(0) + entity_offset, num_dof, vdim,
                                  cdim);
 
       auto f = Reshape(&field_qp[0], vdim, cdim, num_qp);
@@ -929,7 +930,7 @@ void map_field_to_quadrature_data(
       auto [num_qp, unused, num_dof] = B.GetShape();
       const int vdim = input.vdim;
       const int entity_offset = entity_idx * num_dof * vdim;
-      const auto field = Reshape(field_e.Read() + entity_offset, num_dof, vdim);
+      const auto field = Reshape(&field_e(0) + entity_offset, num_dof, vdim);
 
       // for (int vd = 0; vd < vdim; vd++)
       // {
@@ -949,7 +950,7 @@ void map_field_to_quadrature_data(
       auto [num_qp, unused, num_dof] = B.GetShape();
       const int vdim = input.vdim;
       const int entity_offset = entity_idx * num_dof * vdim;
-      const auto field = Reshape(field_e.Read() + entity_offset, num_dof, vdim);
+      const auto field = Reshape(&field_e(0) + entity_offset, num_dof, vdim);
 
       // for (int vd = 0; vd < vdim; vd++)
       // {
@@ -992,7 +993,7 @@ void map_field_to_quadrature_data(
       auto [num_qp, unused, num_dof] = B.GetShape();
       const int size_on_qp = input.size_on_qp;
       const int entity_offset = entity_idx * size_on_qp * num_qp;
-      const auto field = Reshape(field_e.Read() + entity_offset,
+      const auto field = Reshape(&field_e(0) + entity_offset,
                                  size_on_qp * num_qp);
       auto f = Reshape(&field_qp[0], size_on_qp * num_qp);
       for (int i = 0; i < size_on_qp * num_qp; i++)
@@ -1008,10 +1009,11 @@ void map_field_to_quadrature_data(
 }
 
 template <size_t num_fields, size_t num_kinputs, typename field_operator_tuple_t, std::size_t... i>
+MFEM_HOST_DEVICE
 void map_fields_to_quadrature_data(
    const std::array<DeviceTensor<2>, num_kinputs> &fields_qp,
    int element_idx,
-   const std::array<Vector, num_fields> fields_e,
+   const std::array<DeviceTensor<1, const double>, num_fields> &fields_e,
    const std::array<int, num_kinputs> &kfinput_to_field,
    const std::vector<DofToQuadMaps> &dtqmaps,
    const DeviceTensor<1, const double> &integration_weights,
@@ -1026,9 +1028,10 @@ void map_fields_to_quadrature_data(
 }
 
 template <typename input_type>
+MFEM_HOST_DEVICE
 void map_field_to_quadrature_data_conditional(
    DeviceTensor<2> field_qp, int element_idx, const DofToQuadMaps &dtqmaps,
-   const Vector &field_e, input_type &input,
+   DeviceTensor<1, const double> &field_e, input_type &input,
    DeviceTensor<1, const double> integration_weights,
    GeometricFactorMaps geometric_factors,
    const bool condition)
@@ -1041,10 +1044,11 @@ void map_field_to_quadrature_data_conditional(
 }
 
 template <size_t num_fields, size_t num_kinputs, typename field_operator_tuple_t, std::size_t... i>
+MFEM_HOST_DEVICE
 void map_fields_to_quadrature_data_conditional(
    const std::array<DeviceTensor<2>, num_kinputs> &fields_qp,
    int element_idx,
-   const std::array<Vector, num_fields> &fields_e,
+   const std::array<DeviceTensor<1, const double>, num_fields> &fields_e,
    const std::array<int, num_kinputs> &kfinput_to_field,
    const std::vector<DofToQuadMaps> &dtqmaps,
    DeviceTensor<1, const double> integration_weights,
@@ -1058,6 +1062,30 @@ void map_fields_to_quadrature_data_conditional(
                                              std::get<i>(fops), integration_weights, geometric_factors,
                                              conditions[i]),
     ...);
+}
+
+template<size_t N, size_t... I>
+MFEM_HOST_DEVICE
+std::array<DeviceTensor<1, const double>, N> wrap_vectors_impl(
+   std::array<Vector, N> &fields,
+   std::index_sequence<I...>)
+{
+   return std::array<DeviceTensor<1, const double>, N>
+   {
+      {
+         DeviceTensor<1, const double>(
+            std::get<I>(fields).Read(),
+            std::get<I>(fields).Size())...
+      }
+   };
+}
+
+template <size_t N>
+MFEM_HOST_DEVICE
+std::array<DeviceTensor<1, const double>, N> wrap_vectors(
+   std::array<Vector, N> &fields)
+{
+   return wrap_vectors_impl(fields, std::make_index_sequence<N> {});
 }
 
 template <typename input_t, size_t num_fields, std::size_t... i>
@@ -1161,18 +1189,6 @@ Vector prepare_kf_result(internal::tensor<T, n, m> x)
    return r;
 }
 
-template <typename T, int length> inline
-Vector prepare_kf_result(
-   internal::tensor<internal::dual<T, T>, length> x)
-{
-   Vector r(length);
-   for (size_t i = 0; i < length; i++)
-   {
-      r(i) = x(i).value;
-   }
-   return r;
-}
-
 // template <typename T> inline
 // Vector prepare_kf_result(internal::tensor<T, 2, 2> x)
 // {
@@ -1188,67 +1204,57 @@ Vector prepare_kf_result(
 //    return r;
 // }
 
-template <typename T> inline
-Vector prepare_kf_result(internal::dual<T, T> x)
+// template <typename T> inline
+// Vector prepare_kf_result(T)
+// {
+//    static_assert(always_false<T>,
+//                  "prepare_kf_result not implemented for result type");
+// }
+
+template <typename T0, typename T1> inline
+Vector prepare_kf_result(T0, T1)
 {
-   Vector r(1);
-   r(0) = x.value;
-   return r;
+   static_assert(always_false<T0>,
+                 "prepare_kf_result not implemented for result type");
 }
 
-template <typename T> inline
-Vector get_derivative_from_dual(internal::dual<T, T> x)
+template <typename T, int length>
+MFEM_HOST_DEVICE inline
+void prepare_kf_result(DeviceTensor<1, T> r, internal::tensor<T, length> x)
 {
-   Vector r(1);
-   r(0) = x.gradient;
-   return r;
+   for (size_t i = 0; i < length; i++)
+   {
+      r(i) = x(i);
+   }
 }
 
-template <typename T, int n, int m> inline
-Vector get_derivative_from_dual(
-   internal::tensor<internal::dual<T, T>, n, m> x)
+template <typename T, int n, int m>
+MFEM_HOST_DEVICE inline
+void prepare_kf_result(DeviceTensor<1, T> r, internal::tensor<T, n, m> x)
 {
-   Vector r(n * m);
    for (size_t i = 0; i < n; i++)
    {
       for (size_t j = 0; j < m; j++)
       {
-         // TODO: Careful with the indices here!
-         r(j + (i * m)) = x(j, i).gradient;
+         r(j + m * i) = x(i, j);
       }
    }
-   return r;
-}
-
-template <typename T, int length> inline
-Vector get_derivative_from_dual(
-   internal::tensor<internal::dual<T, T>, length> x)
-{
-   Vector r(length);
-   for (size_t i = 0; i < length; i++)
-   {
-      r(i) = x(i).gradient;
-   }
-   return r;
-}
-
-template <typename T> inline
-Vector prepare_kf_result(T)
-{
-   static_assert(always_false<T>,
-                 "prepare_kf_result not implemented for result type");
 }
 
 template <size_t num_fields, typename kernel_func_t, typename kernel_args>
-inline
-Vector apply_kernel(const kernel_func_t &kf, kernel_args &args,
-                    const std::array<DeviceTensor<2>, num_fields> &u,
-                    int qp)
+MFEM_HOST_DEVICE inline
+void apply_kernel(
+   DeviceTensor<1, double> f_qp,
+   const kernel_func_t &kf, kernel_args &args,
+   const std::array<DeviceTensor<2>, num_fields> &u,
+   int qp)
 {
    prepare_kf_args(u, args, qp,
                    std::make_index_sequence<std::tuple_size_v<kernel_args>> {});
 
-   return prepare_kf_result(std::get<0>(std::apply(kf, args)));
+   prepare_kf_result(f_qp, std::get<0>(std::apply(kf, args)));
+
+   // return prepare_kf_result(std::get<0>(std::apply(kf, args)));
 }
 
 // template <typename arg_ts, std::size_t... Is> inline
@@ -1321,50 +1327,6 @@ void prepare_kf_arg(const DeviceTensor<1> &u, const DeviceTensor<1> &v,
    arg = u(0);
 }
 
-template <typename T, int dim, int vdim> inline
-void prepare_kf_arg(const DeviceTensor<1> &u,
-                    internal::tensor<internal::dual<T, T>, dim, vdim> &arg)
-{
-   for (int i = 0; i < vdim; i++)
-   {
-      for (int j = 0; j < dim; j++)
-      {
-         arg(j, i).value = u((i * vdim) + j);
-      }
-   }
-}
-
-template <typename T> inline
-void prepare_kf_arg(const DeviceTensor<1> &u,
-                    internal::dual<T, T> &arg)
-{
-   arg.value = u(0);
-}
-
-template <typename T> inline
-void prepare_kf_arg(const DeviceTensor<1> &u, const DeviceTensor<1> &v, T &arg)
-{
-   arg = u(0);
-}
-
-template <typename T> inline
-void prepare_kf_arg(const DeviceTensor<1> &u, const DeviceTensor<1> &v,
-                    internal::dual<T, T> &arg)
-{
-   arg.value = u(0);
-   arg.gradient = v(0);
-}
-
-template <typename T, int length> inline
-void prepare_kf_arg(const DeviceTensor<1> &u, const DeviceTensor<1> &v,
-                    internal::tensor<internal::dual<T, T>, length> &arg)
-{
-   for (int i = 0; i < u.GetShape()[0]; i++)
-   {
-      arg(i).value = u(i);
-      arg(i).gradient = v(i);
-   }
-}
 
 template <int n, int m> inline
 void prepare_kf_arg(const DeviceTensor<1> &u, const DeviceTensor<1> &v,
@@ -1375,20 +1337,6 @@ void prepare_kf_arg(const DeviceTensor<1> &u, const DeviceTensor<1> &v,
       for (int j = 0; j < n; j++)
       {
          arg(j, i) = u((i * m) + j);
-      }
-   }
-}
-
-template <typename T, int dim, int vdim> inline
-void prepare_kf_arg(const DeviceTensor<1> &u, const DeviceTensor<1> &v,
-                    internal::tensor<internal::dual<T, T>, dim, vdim> &arg)
-{
-   for (int i = 0; i < vdim; i++)
-   {
-      for (int j = 0; j < dim; j++)
-      {
-         arg(j, i).value = u((i * vdim) + j);
-         arg(j, i).gradient = v((i * vdim) + j);
       }
    }
 }
@@ -1408,29 +1356,6 @@ void prepare_kf_args(std::array<DeviceTensor<2>, num_fields> &u,
                      kf_args &args, int qp, std::index_sequence<i...>)
 {
    (prepare_kf_arg(u[i], v[i], std::get<i>(args), qp), ...);
-}
-
-template <typename kernel_t, typename arg_ts> inline
-auto fwddiff_apply_dual(kernel_t kernel, arg_ts &&args)
-{
-   return std::apply([&](auto &&...args)
-   {
-      return kernel(args...);
-   },
-   args);
-}
-
-template <typename kf_t, typename kernel_arg_ts, size_t num_args> inline
-auto apply_kernel_fwddiff_dual(const kf_t &kf,
-                               kernel_arg_ts &args,
-                               std::array<DeviceTensor<2>, num_args> &u,
-                               std::array<DeviceTensor<2>, num_args> &v,
-                               int qp)
-{
-   prepare_kf_args(u, v, args, qp,
-                   std::make_index_sequence<std::tuple_size_v<kernel_arg_ts>> {});
-
-   return get_derivative_from_dual(fwddiff_apply_dual(kf, args));
 }
 
 template <typename output_type>
