@@ -13,21 +13,29 @@
 #define MFEM_WORKSPACE_HPP
 
 #include "../linalg/vector.hpp"
-#include <forward_list>
+#include "../general/array.hpp"
 
 namespace mfem
 {
 
-class Workspace
+namespace Workspace
 {
-public:
-   static Vector NewVector(int n)
-   {
-      Vector vec(n, MemoryType::DEVICE_WORKSPACE);
-      vec.UseDevice(true);
-      return vec;
-   }
-};
+
+inline Vector NewVector(int n)
+{
+   Vector vec(n, MemoryType::DEVICE_WORKSPACE);
+   vec.UseDevice(true);
+   return vec;
+}
+
+template <typename T>
+Array<T> NewArray(int n)
+{
+   Array<T> array(n, MemoryType::DEVICE_WORKSPACE);
+   return array;
+}
+
+}
 
 } // namespace mfem
 
