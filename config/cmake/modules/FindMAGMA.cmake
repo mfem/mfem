@@ -19,6 +19,21 @@ set(MAGMA_REQUIRED_LIBRARIES cublas cusparse)
 mfem_find_package(MAGMA MAGMA MAGMA_DIR "include" "magma.h" "lib" "magma"
   "Paths to headers required by MAGMA." "Libraries required by MAGMA.")
 # Make sure the library location is locked down
-foreach(lib ${MAGMA_REQUIRED_LIBRARIES})
-  list(APPEND MAGMA_LIBRARIES ${CUDA_TOOLKIT_ROOT_DIR}/lib64/lib${lib}${CMAKE_SHARED_LIBRARY_SUFFIX})
-endforeach()
+
+if (MAGMA_FOUND AND MFEM_USE_CUDA)
+  get_target_property(CUSPARSE_LIBRARIES CUDA::cusparse LOCATION)
+  get_target_property(CUBLAS_LIBRARIES CUDA::cublas LOCATION)
+  list(APPEND MAGMA_LIBRARIES ${CUSPARSE_LIBRARIES} ${CUBLAS_LIBRARIES})
+  set(MAGMA_LIBRARIES ${MAGMA_LIBRARIES} CACHE STRING
+      "MAGMA libraries + dependencies." FORCE)
+  message(STATUS "Updated MAGMA_LIBRARIES: ${MAGMA_LIBRARIES}")
+endif()
+
+if (MAGMA_FOUND AND MFEM_USE_HIP)
+  find_package(HIPBLAS REQUIRED)
+  find_package(HIPSPARSE REQUIRED)
+  list(APPEND MAGMA_LIBRARIES ${HIPBLAS_LIBRARIES} ${HIPSPARSE_LIBRARIES})
+  set(MAGMA_LIBRARIES ${MAGMA_LIBRARIES} CACHE STRING
+      "MAGMA libraries + dependencies." FORCE)
+  message(STATUS "Updated MAGMA_LIBRARIES: ${MAGMA_LIBRARIES}")
+endif()

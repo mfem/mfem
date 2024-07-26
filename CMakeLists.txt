@@ -147,6 +147,7 @@ if (MFEM_USE_CUDA)
    find_package(CUDAToolkit REQUIRED)
    set(CUSPARSE_FOUND TRUE)
    get_target_property(CUSPARSE_LIBRARIES CUDA::cusparse LOCATION)
+   get_target_property(CUBLAS_LIBRARIES CUDA::cublas LOCATION)
 endif()
 
 if (XSDK_ENABLE_C)

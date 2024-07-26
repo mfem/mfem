@@ -184,6 +184,10 @@ set(Ginkgo_DIR "${MFEM_DIR}/../ginkgo" CACHE PATH "Path to the Ginkgo library.")
 
 set(AMGX_DIR "${MFEM_DIR}/../amgx" CACHE PATH "Path to AmgX")
 
+set(MAGMA_DIR "${MFEM_DIR}/../magma" CACHE PATH "Path to MAGMA")
+set(MAGMA_REQUIRED_PACKAGES "BLAS" "LAPACK" CACHE STRING
+    "Additional packages required by MAGMA.")
+
 set(GNUTLS_DIR "" CACHE PATH "Path to the GnuTLS library.")
 
 set(GSLIB_DIR "" CACHE PATH "Path to the GSLIB library.")
