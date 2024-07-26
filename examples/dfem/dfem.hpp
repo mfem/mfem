@@ -1413,8 +1413,7 @@ void map_quadrature_data_to_fields(DeviceTensor<2, double> y,
    {
       // This is the "integral over all quadrature points type" applying
       // B = 1 s.t. B^T * C \in R^1.
-      int num_qp;
-      std::tie(std::ignore, std::ignore, num_qp) = c.GetShape();
+      const auto [a, b, num_qp] = B.GetShape();
       auto cc = Reshape(&c(0, 0, 0), num_qp);
       for (int i = 0; i < num_qp; i++)
       {

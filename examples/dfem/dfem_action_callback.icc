@@ -127,8 +127,9 @@ void DifferentiableOperator<kernels_tuple,
 
       constexpr int fixed_output_idx = 0;
       auto Bv = output_dtq_ops[fixed_output_idx];
-      int test_op_qp, test_op_dim, num_test_dof;
-      std::tie(test_op_qp, test_op_dim, num_test_dof) = Bv.GetShape();
+      int test_op_qp = Bv.GetShape()[0];
+      int test_op_dim = Bv.GetShape()[1];
+      int num_test_dof = Bv.GetShape()[2];
       const int test_vdim = std::get<0>(kernel.outputs).vdim;
       DeviceTensor<3> ye = Reshape(ye_mem.ReadWrite(), num_test_dof, test_vdim, num_entities);
 
