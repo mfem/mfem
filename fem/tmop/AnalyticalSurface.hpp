@@ -27,12 +27,14 @@ class AnalyticSurface
 protected:
    friend class AnalyticCompositeSurface;
 
-   Array<bool> dof_marker;
+   const Array<bool> dof_marker;
    Vector dof_pos_offset;
 
 public:
    AnalyticSurface() : dof_marker(0), dof_pos_offset(0) { }
    AnalyticSurface(const Array<bool> &marker);
+
+   const Array<bool> &GetMarker() const { return dof_marker; }
 
    // Go from physical to parametric coordinates on the whole mesh.
    // If the point is not on the curve, computes its offset.
@@ -64,6 +66,11 @@ public:
    // 2D curve:  t     -> (dx_dtdt, dy_dtdt).
    // 3D curve:  t     -> (dx_dtdt, dy_dtdt, dz_dtdt).
    virtual void Deriv_2(const double *param, double *deriv) const = 0;
+
+   // 2D curve: (x, y)    -> (n_x, n_y).
+   // 3D curve: (x, y, z) -> (n_x, n_y, n_z).
+   // 3D surf:  error out.
+   virtual void NormalVector(const double *param, double *normal) const = 0;
 };
 
 class AnalyticCompositeSurface : public AnalyticSurface
@@ -77,6 +84,12 @@ public:
 
    /// Must be called after the Array of surfaces is changed.
    void UpdateDofToSurface();
+
+   const AnalyticSurface *GetSurfaceID(int s_id) const
+   {
+      MFEM_VERIFY(s_id < surfaces.Size(), "wrong index");
+      return surfaces[s_id];
+   }
 
    /// Surface corresponding to dof_id.
    const AnalyticSurface *GetSurface(int dof_id) const;
@@ -92,16 +105,19 @@ public:
                            Vector &coord_x) const override;
 
    void Deriv_1(const double *param, double *deriv) const override
-   { MFEM_ABORT("Use GetSurface(surface_id)->Deriv_1(...);") }
+   { MFEM_ABORT("Use GetSurfaceID(surface_id)->Deriv_1(...);") }
 
    void Deriv_2(const double *param, double *deriv) const override
-   { MFEM_ABORT("Use GetSurface(surface_id)->Deriv_2(...);") }
+   { MFEM_ABORT("Use GetSurfaceID(surface_id)->Deriv_2(...);") }
+
+   void NormalVector(const double *param, double *normal) const override
+   { MFEM_ABORT("Use GetSurfaceID(surface_id)->NormalVector(...);") }
 };
 
 class Analytic2DCurve : public AnalyticSurface
 {
 public:
-   Analytic2DCurve(const Array<int> &marker)
+   Analytic2DCurve(const Array<bool> &marker)
     : AnalyticSurface(marker) { }
 
    // (x, y) -> t on the whole mesh.
@@ -122,6 +138,8 @@ public:
 
    // t -> (dx_dtdt, dy_dtdt).
    void Deriv_2(const double *param, double *deriv) const override;
+
+   void NormalVector(const double *param, double *normal) const override;
 
    virtual void t_of_xy(double x, double y,
                         double &dist, double &t) const = 0;

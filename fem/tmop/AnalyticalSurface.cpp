@@ -161,4 +161,16 @@ void Analytic2DCurve::Deriv_2(const double *param, double *deriv) const
    deriv[1] = dy_dtdt(param[0]);
 }
 
+void Analytic2DCurve::NormalVector(const double *param, double *normal) const
+{
+   double offset, t;
+   t_of_xy(param[0], param[1], offset, t);
+
+   normal[0] = -dy_dt(t);
+   normal[1] =  dx_dt(t);
+   const double mag = sqrt(normal[0] * normal[0] + normal[1] * normal[1]);
+   normal[0] /= mag;
+   normal[1] /= mag;
+}
+
 } // namespace mfem
