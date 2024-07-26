@@ -426,10 +426,10 @@ endif
 
 # Source dirs in logical order
 DIRS = general linalg linalg/simd linalg/batched mesh mesh/submesh fem \
-		 fem/ceed/interface fem/ceed/integrators/mass \
-		 fem/ceed/integrators/convection fem/ceed/integrators/diffusion \
-		 fem/ceed/integrators/nlconvection fem/ceed/solvers fem/fe fem/lor \
-		 fem/qinterp fem/integ fem/tmop
+       fem/ceed/interface fem/ceed/integrators/mass \
+       fem/ceed/integrators/convection fem/ceed/integrators/diffusion \
+       fem/ceed/integrators/nlconvection fem/ceed/solvers fem/fe fem/lor \
+       fem/qinterp fem/integ fem/tmop
 
 ifeq ($(MFEM_USE_MOONOLITH),YES)
    MFEM_CXXFLAGS += $(MOONOLITH_CXX_FLAGS)
@@ -462,7 +462,7 @@ MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
  $(MFEM_TPLFLAGS) $(CONFIG_FILE_DEF)
 
 # Rules for compiling all source files.
-$(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp # $(CONFIG_MK)
+$(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
 
 all: examples miniapps $(TEST_DIRS)
