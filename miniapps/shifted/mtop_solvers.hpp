@@ -10,9 +10,6 @@ namespace mfem {
 
 namespace elast {
 
-
-
-
 template<class TFloat, class TMat>
 void IsotropicStiffnessTensor3D(TFloat E, TFloat nu, TMat& CC)
 {

@@ -1210,7 +1210,7 @@ void GhostPenaltyIntegrator::AssembleFaceMatrix(const FiniteElement &fe1,
         fe2.CalcPhysShape(Tr2,sh2);
         Shape(xx,order,shg);
 
-        w = Tr1.Weight();
+        w = Tr2.Weight();
         w = ip.weight * w;
 
         for(int i=0;i<ndofg;i++){

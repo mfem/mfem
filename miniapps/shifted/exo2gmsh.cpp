@@ -38,10 +38,26 @@ int main(int argc, char *argv[])
 
     int exo_id=ex_open(mesh_file,EX_READ,&comp_ws,&io_ws,&version);
 
+    int num_dim, num_nodes, num_elems;
+    int num_elem_blk, num_node_sets, num_side_sets;
+    char title[256];
+
+
+    ex_get_init(exo_id, title, &num_dim, &num_nodes, &num_elems, &num_elem_blk, &num_node_sets,
+                      &num_side_sets);
+
+
+    std::cout<<"num_dim="<<num_dim<<std::endl;
+    std::cout<<"num_nodes="<<num_nodes<<std::endl;
+    std::cout<<"num_elems="<<num_elems<<std::endl;
+    std::cout<<"num_elem_blk="<<num_elem_blk<<std::endl;
+    std::cout<<"num_node_sets="<<num_node_sets<<std::endl;
+    std::cout<<"num_side_sets="<<num_side_sets<<std::endl;
+
     //read the nodes and dump them to a file
     {
-        int numn;
-        ex_inquire(exo_id,EX_INQ_NODES,&numn ,NULL,NULL);
+        int numn=num_nodes;
+        //ex_inquire(exo_id,EX_INQ_NODES,&numn ,NULL,NULL);
         std::cout<<"Num nodes ="<<numn<<std::endl;
 
         double* x=new double[numn];
@@ -64,32 +80,33 @@ int main(int argc, char *argv[])
         delete [] z;
     }
 
+    
     //do the element processing
     {
-        int numel_bl;
-        ex_inquire(exo_id,EX_INQ_ELEM_BLK,&numel_bl,NULL,NULL);
-        int* bl_id=new int[numel_bl];
-        ex_get_elem_blk_ids(exo_id,bl_id);
+        std::cout<<"Num blocks="<<num_elem_blk<<std::endl;
+        int ids[num_elem_blk];
+        ex_get_ids(exo_id, EX_ELEM_BLOCK, ids);
         char el_type[MAX_STR_LENGTH+1];
         int numel;
         int numel_nod;
         int numel_attr;
+
+        gmsh<<"$Elements"<<std::endl;
+        gmsh<<num_elems<<std::endl;
+
         int el_id=0;
 
-
-        int tot_el_num;
-        ex_inquire(exo_id,EX_INQ_ELEM,&tot_el_num,NULL,NULL);
-        gmsh<<"$Elements"<<std::endl;
-        gmsh<<tot_el_num<<std::endl;
-
-
-        for(int bl=0;bl<numel_bl;bl++)
+        for(int bl=0;bl<num_elem_blk;bl++)
         {
+            ex_get_block(exo_id,EX_ELEM_BLOCK,ids[bl],
+                         el_type,&numel,&numel_nod,nullptr,nullptr,&numel_attr);
 
-            ex_get_elem_block(exo_id,bl_id[bl],el_type,
-                                  &numel,&numel_nod,&numel_attr);
+            std::cout<<"bl="<<ids[bl]<<" nel="<<numel;
+            std::cout<<" nod="<<numel_nod<<" natt="<<numel_attr;
+            std::cout<<std::endl;
             int* conn=new int[numel*numel_nod];
-            ex_get_elem_conn(exo_id,bl_id[bl],conn);
+
+            ex_get_conn(exo_id,EX_ELEM_BLOCK,ids[bl],conn,nullptr,nullptr);
 
             for(int i=0;i<numel;i++)
             {
@@ -112,8 +129,8 @@ int main(int argc, char *argv[])
                 }
 
                 //dump the rest of the element data
-                gmsh<<"3 "<<bl_id[bl];
-                gmsh<<" 0 0"; //num tags, geom domain, volume
+                gmsh<<"3 "<<ids[bl]<<" "<<ids[bl];
+                gmsh<<" 0"; //num tags, geom domain, volume
 
                 for(int ii=0;ii<numel_nod;ii++)
                 {
@@ -121,11 +138,12 @@ int main(int argc, char *argv[])
                 }
                 gmsh<<std::endl;
               }
+
               delete [] conn;
         }
-        delete [] bl_id;
         gmsh<<"$EndElements"<<std::endl;
     }
+    
 
     gmsh.close();
     ex_close(exo_id);
