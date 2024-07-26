@@ -13,7 +13,6 @@
 #define MFEM_LAPACK_HPP
 
 #include "../config/config.hpp"
-#include <complex>
 
 #ifdef MFEM_USE_SINGLE
 #define MFEM_LAPACK_PREFIX(stub) s##stub
@@ -24,6 +23,8 @@
 #endif
 
 #ifdef MFEM_USE_LAPACK
+
+#include <complex>
 
 namespace mfem
 {
