@@ -27,7 +27,6 @@ MFEM_REGISTER_TMOP_KERNELS(void, EnergyPA_Fit_Grad_2D,
                            const Vector &x2_,
                            const Vector &x3_,
                            const Vector &x4_,
-                           const Vector &ones,
                            Vector &y_,
                            const int d1d,
                            const int q1d)
@@ -37,6 +36,9 @@ MFEM_REGISTER_TMOP_KERNELS(void, EnergyPA_Fit_Grad_2D,
 
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+   constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
+   constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
    const auto C1 = c1_;
    const auto C2 = c2_;
@@ -65,13 +67,14 @@ MFEM_REGISTER_TMOP_KERNELS(void, EnergyPA_Fit_Grad_2D,
 
             const real_t dx = X4(qx,qy,0,e);
             const real_t dy = X4(qx,qy,1,e);
-            
+
             if (marker == 0) {continue;}
             double w = coeff * normal * 1.0/dof_count;
             Y(qx,qy,0,e) = 2 * w * sigma * dx;
             Y(qx,qy,1,e) = 2 * w * sigma * dy;
          }
       }
+      MFEM_SYNC_THREAD;
    });
 
 }
@@ -91,7 +94,7 @@ void TMOP_Integrator::GetLocalStateEnergyPA_Fit_Grad_2D(const Vector &X, Vector 
    const Vector &X3 = PA.X3;
    const Vector &X4 = PA.X4;
 
-   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_Fit_Grad_2D,id,N,C1,C2,X1,X2,X3,X4,O,Y);
+   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_Fit_Grad_2D,id,N,C1,C2,X1,X2,X3,X4,Y);
 }
 
 } // namespace mfem

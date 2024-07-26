@@ -132,8 +132,7 @@ void TMOP_Integrator::AssemblePA_Fitting()
    MFEM_VERIFY(PA.enabled, "AssemblePA_Fitting but PA is not enabled!");
    MFEM_VERIFY(surf_fit_gf, "No surface fitting function specification!");
 
-   const FiniteElementSpace *fes = 
-      (surf_fit_gf) ? surf_fit_gf->FESpace() : surf_fit_pos->FESpace();
+   const FiniteElementSpace *fes = surf_fit_gf->FESpace();
    const int NE = PA.ne;
    if (NE == 0) { return; }  // Quick return for empty processors
    const IntegrationRule &ir = *PA.ir;
@@ -178,12 +177,12 @@ void TMOP_Integrator::AssemblePA_Fitting()
    n3_R->Mult(temp_vec2, PA.X3);
 
    // surf_fit_grad -> PA.X4 
-   // (The size of this will depend on the dimension of PA i.e. 2 or 3)
    surf_fit_grad->HostWrite();
    const Operator *n4_R = surf_fit_grad->FESpace()->GetElementRestriction(ordering);
    PA.X4.SetSize(n4_R->Height(), Device::GetMemoryType());
    PA.X4.UseDevice(true);
    n4_R->Mult(*surf_fit_grad, PA.X4);
+
 }
 //------------------------------- new function above -------------------------//
 
@@ -253,10 +252,29 @@ void TMOP_Integrator::UpdateCoefficientsPA(const Vector &x_loc)
 
    const IntegrationRule &ir = *PA.ir;
    auto T = new IsoparametricTransformation;
+   const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
+
    for (int e = 0; e < PA.ne; ++e)
    {
       // Uses the node positions in x_loc.
       PA.fes->GetMesh()->GetElementTransformation(e, x_loc, T);
+      const FiniteElementSpace *fes_fit = surf_fit_gf->FESpace();
+      fes_fit->GetMesh()->GetElementTransformation(e, x_loc, T);
+      const FiniteElementSpace *fes_grad = surf_fit_grad->FESpace();
+      fes_grad->GetMesh()->GetElementTransformation(e, x_loc, T);
+
+      ConstantCoefficient* cS = dynamic_cast<ConstantCoefficient*>(surf_fit_coeff);
+      PA.C1 = cS->constant;      
+      
+      const Operator *n1_R = fes_fit->GetElementRestriction(ordering);
+      PA.X1.SetSize(n1_R->Height(), Device::GetMemoryType());
+      PA.X1.UseDevice(true);
+      n1_R->Mult(*surf_fit_gf, PA.X1);
+
+      const Operator *n4_R = fes_grad->GetElementRestriction(ordering);
+      PA.X4.SetSize(n4_R->Height(), Device::GetMemoryType());
+      PA.X4.UseDevice(true);
+      n4_R->Mult(*surf_fit_grad, PA.X4);
 
       if (PA.MC.Size() > 1)
       {
@@ -273,8 +291,8 @@ void TMOP_Integrator::UpdateCoefficientsPA(const Vector &x_loc)
             PA.C0(q + e * PA.nq) = lim_coeff->Eval(*T, ir.IntPoint(q));
          }
       }
+      
    }
-
    delete T;
 }
 
