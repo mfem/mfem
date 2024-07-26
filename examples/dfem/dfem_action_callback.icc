@@ -27,7 +27,7 @@ void DifferentiableOperator<kernels_tuple,
    constexpr int hardcoded_output_idx = 0;
    const int test_space_field_idx = koutput_to_field[hardcoded_output_idx];
 
-   auto output_fop = std::get<0>(kernel.outputs);
+   auto output_fop = serac::get<0>(kernel.outputs);
 
    const int num_elements = mfem::GetNumEntities<Entity::Element>(op.mesh);
    const int num_entities = mfem::GetNumEntities<entity_t>(op.mesh);
@@ -73,7 +73,7 @@ void DifferentiableOperator<kernels_tuple,
    }
 
    const int residual_size_on_qp = GetSizeOnQP<entity_t>(
-                                      std::get<0>(kernel.outputs),
+                                      serac::get<0>(kernel.outputs),
                                       op.fields[test_space_field_idx]);
 
    if (residual_qp_mem.Size() > 0 &&
@@ -130,7 +130,7 @@ void DifferentiableOperator<kernels_tuple,
       int test_op_qp = Bv.GetShape()[0];
       int test_op_dim = Bv.GetShape()[1];
       int num_test_dof = Bv.GetShape()[2];
-      const int test_vdim = std::get<0>(kernel.outputs).vdim;
+      const int test_vdim = serac::get<0>(kernel.outputs).vdim;
       DeviceTensor<3> ye = Reshape(ye_mem.ReadWrite(), num_test_dof, test_vdim, num_entities);
 
       auto wrapped_fields_e = wrap_vectors(this->fields_e);

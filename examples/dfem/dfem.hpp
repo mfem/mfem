@@ -4,7 +4,6 @@
 #include <cstdlib>
 #include <functional>
 #include <iostream>
-#include <tuple>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -14,6 +13,7 @@
 #include <type_traits>
 #include "dfem_fieldoperator.hpp"
 #include "dfem_parametricspace.hpp"
+#include "tuple.hpp"
 #include "fem/qspace.hpp"
 #include "fem/restriction.hpp"
 #include "general/backends.hpp"
@@ -91,8 +91,8 @@ void print_vector(const mfem::Vector v)
 }
 
 template <typename ... Ts>
-constexpr auto decay_types(std::tuple<Ts...> const &)
--> std::tuple<std::remove_cv_t<std::remove_reference_t<Ts>>...>;
+constexpr auto decay_types(serac::tuple<Ts...> const &)
+-> serac::tuple<std::remove_cv_t<std::remove_reference_t<Ts>>...>;
 
 template <typename T>
 using decay_tuple = decltype(decay_types(std::declval<T>()));
@@ -103,7 +103,7 @@ template <typename output_t, typename... input_ts>
 struct FunctionSignature<output_t(input_ts...)>
 {
    using return_t = output_t;
-   using parameter_ts = std::tuple<input_ts...>;
+   using parameter_ts = serac::tuple<input_ts...>;
 };
 
 template <class T> struct create_function_signature;
@@ -172,13 +172,13 @@ struct ElementOperator;
 
 template <typename func_t, typename... input_ts,
           typename... output_ts>
-struct ElementOperator<func_t, std::tuple<input_ts...>,
-          std::tuple<output_ts...>>
+struct ElementOperator<func_t, serac::tuple<input_ts...>,
+          serac::tuple<output_ts...>>
 {
    using entity_t = Entity::Element;
    func_t func;
-   std::tuple<input_ts...> inputs;
-   std::tuple<output_ts...> outputs;
+   serac::tuple<input_ts...> inputs;
+   serac::tuple<output_ts...> outputs;
    using kf_param_ts = typename create_function_signature<
                        decltype(&decltype(func)::operator())>::type::parameter_ts;
 
@@ -188,14 +188,16 @@ struct ElementOperator<func_t, std::tuple<input_ts...>,
    using kernel_inputs_t = decltype(inputs);
    using kernel_outputs_t = decltype(outputs);
 
-   static constexpr size_t num_kinputs = std::tuple_size_v<kernel_inputs_t>;
-   static constexpr size_t num_koutputs = std::tuple_size_v<kernel_outputs_t>;
+   static constexpr size_t num_kinputs =
+      serac::tuple_size<kernel_inputs_t>::value;
+   static constexpr size_t num_koutputs =
+      serac::tuple_size<kernel_outputs_t>::value;
 
    Array<int> attributes;
 
    ElementOperator(func_t func,
-                   std::tuple<input_ts...> inputs,
-                   std::tuple<output_ts...> outputs,
+                   serac::tuple<input_ts...> inputs,
+                   serac::tuple<output_ts...> outputs,
                    Array<int> *attr = nullptr)
       : func(func), inputs(inputs), outputs(outputs)
    {
@@ -217,11 +219,11 @@ struct ElementOperator<func_t, std::tuple<input_ts...>,
                        "more than one output per kernel is not supported right now");
       }
 
-      constexpr size_t num_kfinputs = std::tuple_size_v<kf_param_ts>;
+      constexpr size_t num_kfinputs = serac::tuple_size<kf_param_ts>::value;
       static_assert(num_kfinputs == num_kinputs,
                     "kernel function inputs and descriptor inputs have to match");
 
-      constexpr size_t num_kfoutputs = std::tuple_size_v<kf_output_t>;
+      constexpr size_t num_kfoutputs = serac::tuple_size<kf_output_t>::value;
       static_assert(num_kfoutputs == num_koutputs,
                     "kernel function outputs and descriptor outputs have to match");
    }
@@ -229,10 +231,10 @@ struct ElementOperator<func_t, std::tuple<input_ts...>,
 
 template <typename func_t, typename... input_ts,
           typename... output_ts>
-ElementOperator(func_t, std::tuple<input_ts...>,
-                std::tuple<output_ts...>)
--> ElementOperator<func_t, std::tuple<input_ts...>,
-std::tuple<output_ts...>>;
+ElementOperator(func_t, serac::tuple<input_ts...>,
+                serac::tuple<output_ts...>)
+-> ElementOperator<func_t, serac::tuple<input_ts...>,
+serac::tuple<output_ts...>>;
 
 template <typename func_t, typename input_t, typename output_t>
 struct BoundaryElementOperator : public
@@ -765,13 +767,13 @@ int find_name_idx(const std::array<FieldDescriptor, num_fields> &fields,
 }
 
 template <typename entity_t, size_t num_fields, typename field_operator_ts, std::size_t... idx>
-std::array<int, std::tuple_size_v<field_operator_ts>>
-                                                   create_descriptors_to_fields_map(
-                                                      std::array<FieldDescriptor, num_fields> &fields,
-                                                      field_operator_ts &fops,
-                                                      std::index_sequence<idx...>)
+std::array<int, serac::tuple_size<field_operator_ts>::value>
+create_descriptors_to_fields_map(
+   std::array<FieldDescriptor, num_fields> &fields,
+   field_operator_ts &fops,
+   std::index_sequence<idx...>)
 {
-   std::array<int, std::tuple_size_v<field_operator_ts>> map;
+   std::array<int, serac::tuple_size<field_operator_ts>::value> map;
 
    auto f = [&](auto &fop, auto &map)
    {
@@ -804,7 +806,7 @@ std::array<int, std::tuple_size_v<field_operator_ts>>
       }
    };
 
-   (f(std::get<idx>(fops), map[idx]), ...);
+   (f(serac::get<idx>(fops), map[idx]), ...);
 
    return map;
 }
@@ -814,7 +816,7 @@ std::array<DeviceTensor<2>, sizeof...(i)> map_inputs_to_memory(
    std::array<Vector, sizeof...(i)> &input_qp_mem, int num_qp,
    const input_t &inputs, std::index_sequence<i...>)
 {
-   return {DeviceTensor<2>(input_qp_mem[i].ReadWrite(), std::get<i>(inputs).size_on_qp, num_qp) ...};
+   return {DeviceTensor<2>(input_qp_mem[i].ReadWrite(), serac::get<i>(inputs).size_on_qp, num_qp) ...};
 }
 
 template <typename input_t, std::size_t... i>
@@ -823,7 +825,7 @@ std::array<Vector, sizeof...(i)> create_input_qp_memory(
    input_t &inputs,
    std::index_sequence<i...>)
 {
-   return {Vector(std::get<i>(inputs).size_on_qp * num_qp)...};
+   return {Vector(serac::get<i>(inputs).size_on_qp * num_qp)...};
 }
 
 struct DofToQuadMaps
@@ -1023,7 +1025,7 @@ void map_fields_to_quadrature_data(
 {
    (map_field_to_quadrature_data(fields_qp[i], element_idx,
                                  dtqmaps[i], fields_e[kfinput_to_field[i]],
-                                 std::get<i>(fops), integration_weights, geometric_factors),
+                                 serac::get<i>(fops), integration_weights, geometric_factors),
     ...);
 }
 
@@ -1059,7 +1061,7 @@ void map_fields_to_quadrature_data_conditional(
 {
    (map_field_to_quadrature_data_conditional(fields_qp[i], element_idx,
                                              dtqmaps[i], fields_e[kfinput_to_field[i]],
-                                             std::get<i>(fops), integration_weights, geometric_factors,
+                                             serac::get<i>(fops), integration_weights, geometric_factors,
                                              conditions[i]),
     ...);
 }
@@ -1074,8 +1076,8 @@ std::array<DeviceTensor<1, const double>, N> wrap_vectors_impl(
    {
       {
          DeviceTensor<1, const double>(
-            std::get<I>(fields).Read(),
-            std::get<I>(fields).Size())...
+            fields[I].Read(),
+            fields[I].Size())...
       }
    };
 }
@@ -1100,8 +1102,8 @@ int accumulate_sizes_on_qp(
    {
       if (!is_dependent) { return 0; }
       return GetSizeOnQP(input, field);
-   }(std::get<i>(inputs),
-     std::get<i>(kinput_is_dependent),
+   }(serac::get<i>(inputs),
+     serac::get<i>(kinput_is_dependent),
      fields[kinput_to_field[i]]));
 }
 
@@ -1152,7 +1154,7 @@ MFEM_HOST_DEVICE
 void prepare_kf_args(const std::array<DeviceTensor<2>, num_fields> &u,
                      kf_args &args, int qp, std::index_sequence<i...>)
 {
-   (prepare_kf_arg(u[i], std::get<i>(args), qp), ...);
+   (prepare_kf_arg(u[i], serac::get<i>(args), qp), ...);
 }
 
 inline
@@ -1203,7 +1205,7 @@ Vector prepare_kf_result(internal::tensor<T, n, m> x)
 //       for (size_t j = 0; j < 2; j++)
 //       {
 //          // TODO: Careful with the indices here!
-//          r(j + (i * 2)) = std::get<0>(x)(j, i);
+//          r(j + (i * 2)) = serac::get<0>(x)(j, i);
 //       }
 //    }
 //    return r;
@@ -1255,11 +1257,11 @@ void apply_kernel(
    int qp)
 {
    prepare_kf_args(u, args, qp,
-                   std::make_index_sequence<std::tuple_size_v<kernel_args>> {});
+                   std::make_index_sequence<serac::tuple_size<kernel_args>::value> {});
 
-   prepare_kf_result(f_qp, std::get<0>(std::apply(kf, args)));
+   prepare_kf_result(f_qp, serac::get<0>(serac::apply(kf, args)));
 
-   // return prepare_kf_result(std::get<0>(std::apply(kf, args)));
+   // return prepare_kf_result(serac::get<0>(std::apply(kf, args)));
 }
 
 // template <typename arg_ts, std::size_t... Is> inline
@@ -1267,9 +1269,9 @@ void apply_kernel(
 //                         arg_ts &shadow_args,
 //                         std::index_sequence<Is...>)
 // {
-//    // (out << ... << std::get<Is>(shadow_args));
-//    return std::tuple_cat(std::tie(enzyme_dup, std::get<Is>(args),
-//                                   std::get<Is>(shadow_args))...);
+//    // (out << ... << serac::get<Is>(shadow_args));
+//    return serac::tuple_cat(std::tie(enzyme_dup, serac::get<Is>(args),
+//                                   serac::get<Is>(shadow_args))...);
 // }
 
 template <typename arg_ts, std::size_t... Is> inline
@@ -1278,14 +1280,14 @@ auto create_enzyme_args(arg_ts &args,
                         std::index_sequence<Is...>)
 {
    // PURE CPP EVIL
-   return std::tuple<enzyme::Duplicated<
+   return serac::tuple<enzyme::Duplicated<
           std::add_lvalue_reference_t<
           typename std::add_const<
           std::remove_reference_t<
           std::remove_cv_t<
-          decltype(std::get<Is>(args))>>>::type>>...>
+          decltype(serac::get<Is>(args))>>>::type>>...>
    {
-      { std::get<Is>(args), std::get<Is>(shadow_args) }...
+      { serac::get<Is>(args), serac::get<Is>(shadow_args) }...
    };
 }
 
@@ -1293,7 +1295,7 @@ template <typename kernel_t, typename arg_ts> inline
 auto fwddiff_apply_enzyme(kernel_t kernel, arg_ts &&args, arg_ts &&shadow_args)
 {
    auto arg_indices =
-      std::make_index_sequence<std::tuple_size_v<std::remove_reference_t<arg_ts>>> {};
+      std::make_index_sequence<serac::tuple_size<std::remove_reference_t<arg_ts>>::value> {};
 
    auto enzyme_args = create_enzyme_args(args, shadow_args, arg_indices);
 
@@ -1303,7 +1305,7 @@ auto fwddiff_apply_enzyme(kernel_t kernel, arg_ts &&args, arg_ts &&shadow_args)
    return std::apply([&](auto &&...args)
    {
       // return __enzyme_fwddiff<kf_return_t>((void*)+kernel, &args...);
-      return enzyme::get<0>(enzyme::autodiff<enzyme::Forward>(+kernel, args...));
+      return serac::get<0>(enzyme::autodiff<enzyme::Forward>(+kernel, args...));
    }, enzyme_args);
 }
 
@@ -1316,13 +1318,13 @@ auto apply_kernel_fwddiff_enzyme(const kf_t &kf,
                                  int qp)
 {
    prepare_kf_args(u, args, qp,
-                   std::make_index_sequence<std::tuple_size_v<kernel_arg_ts>> {});
+                   std::make_index_sequence<serac::tuple_size<kernel_arg_ts>::value> {});
 
    prepare_kf_args(v, shadow_args, qp,
-                   std::make_index_sequence<std::tuple_size_v<kernel_arg_ts>> {});
+                   std::make_index_sequence<serac::tuple_size<kernel_arg_ts>::value> {});
 
-   return prepare_kf_result(std::get<0>(fwddiff_apply_enzyme(kf, args,
-                                                             shadow_args)));
+   return prepare_kf_result(serac::get<0>(fwddiff_apply_enzyme(kf, args,
+                                                               shadow_args)));
 }
 
 template <typename T> inline
@@ -1360,7 +1362,7 @@ void prepare_kf_args(std::array<DeviceTensor<2>, num_fields> &u,
                      std::array<DeviceTensor<2>, num_fields> &v,
                      kf_args &args, int qp, std::index_sequence<i...>)
 {
-   (prepare_kf_arg(u[i], v[i], std::get<i>(args), qp), ...);
+   (prepare_kf_arg(u[i], v[i], serac::get<i>(args), qp), ...);
 }
 
 template <typename output_type>
@@ -1503,7 +1505,7 @@ std::vector<DofToQuadMaps> create_dtq_operators_conditional(
          }
       }
    };
-   (f(std::get<i>(fops), i), ...);
+   (f(serac::get<i>(fops), i), ...);
    return ops;
 }
 
@@ -1515,10 +1517,11 @@ std::vector<DofToQuadMaps> create_dtq_operators(
 {
    std::array<bool, N> is_dependent;
    std::fill(is_dependent.begin(), is_dependent.end(), true);
-   return create_dtq_operators_conditional<entity_t>(fops, dtqmaps,
-                                                     to_field_map,
-                                                     is_dependent,
-                                                     std::make_index_sequence<std::tuple_size_v<field_operator_ts>> {});
+   return create_dtq_operators_conditional<entity_t>(
+             fops, dtqmaps,
+             to_field_map,
+             is_dependent,
+             std::make_index_sequence<serac::tuple_size<field_operator_ts>::value> {});
 }
 
 template <
@@ -1526,7 +1529,7 @@ template <
    size_t num_solutions,
    size_t num_parameters,
    size_t num_fields = num_solutions + num_parameters,
-   size_t num_kernels = std::tuple_size_v<kernels_tuple>
+   size_t num_kernels = serac::tuple_size<kernels_tuple>::value
    >
 class DifferentiableOperator : public Operator
 {
@@ -1545,13 +1548,13 @@ public:
                                  std::array<mult_func_t, num_kernels>,
                                  std::index_sequence<idx...> const&)
       {
-         (create_action_callback(std::get<idx>(ks), funcs[idx]), ...);
+         (create_action_callback(serac::get<idx>(ks), funcs[idx]), ...);
       }
 
       Action(DifferentiableOperator &op, kernels_tuple &ks) : op(op)
       {
          materialize_callbacks(ks, funcs,
-                               std::make_index_sequence<std::tuple_size_v<kernels_tuple>>());
+                               std::make_index_sequence<serac::tuple_size<kernels_tuple>::value>());
       }
 
       void Mult(const Vector &x, Vector &y) const
@@ -1613,7 +1616,7 @@ public:
                                  std::array<mult_func_t, num_kernels>,
                                  std::index_sequence<idx...> const&)
       {
-         (create_callback(std::get<idx>(ks), funcs[idx]), ...);
+         (create_callback(serac::get<idx>(ks), funcs[idx]), ...);
       }
 
       Derivative(
@@ -1689,7 +1692,7 @@ public:
          Vector &v,
          std::index_sequence<idx...> const&)
       {
-         (assemble_vector_impl(std::get<idx>(ks), v), ...);
+         (assemble_vector_impl(serac::get<idx>(ks), v), ...);
       }
 
       void Assemble(Vector &v)
@@ -1706,7 +1709,7 @@ public:
          HypreParMatrix &A,
          std::index_sequence<idx...> const&)
       {
-         (assemble_hypreparmatrix_impl(std::get<idx>(ks), A), ...);
+         (assemble_hypreparmatrix_impl(serac::get<idx>(ks), A), ...);
       }
 
       void Assemble(HypreParMatrix &A)
