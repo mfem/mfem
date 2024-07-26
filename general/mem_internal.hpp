@@ -40,8 +40,6 @@ namespace mfem
 namespace internal
 {
 
-struct MemoryControlBlock { };
-
 /// Internal Memory class that holds:
 ///   - the host and the device pointer
 ///   - the size in bytes of this memory region
@@ -54,10 +52,9 @@ struct Memory
    const MemoryType h_mt;
    MemoryType d_mt;
    mutable bool h_rw, d_rw;
-   MemoryControlBlock *control_block;
    Memory(void *p, size_t b, MemoryType h, MemoryType d):
       h_ptr(p), d_ptr(nullptr), bytes(b), h_mt(h), d_mt(d),
-      h_rw(true), d_rw(true), control_block(nullptr) { }
+      h_rw(true), d_rw(true) { }
 };
 
 /// Alias class that holds the base memory region and the offset
@@ -71,26 +68,14 @@ struct Alias
    MemoryType h_mt;
 };
 
-struct WorkspaceControlBlock
-{
-   class WorkspaceChunk &chunk;
-   size_t bytes;
-   bool deallocated;
-   WorkspaceControlBlock(class WorkspaceChunk &chunk_, size_t bytes_)
-      : chunk(chunk_), bytes(bytes_), deallocated(false)
-   { }
-};
-
 /// Maps for the Memory and the Alias classes
 typedef std::unordered_map<const void*, Memory> MemoryMap;
 typedef std::unordered_map<const void*, Alias> AliasMap;
-typedef std::unordered_map<const void*, WorkspaceControlBlock> WorkspaceMap;
 
 struct Maps
 {
    MemoryMap memories;
    AliasMap aliases;
-   WorkspaceMap workspace;
 };
 
 /// The host memory space base abstract class

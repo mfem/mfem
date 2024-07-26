@@ -23,7 +23,7 @@ namespace Workspace
 
 inline Vector NewVector(int n)
 {
-   Vector vec(n, MemoryType::DEVICE_WORKSPACE);
+   Vector vec(n, MemoryType::DEVICE_ARENA);
    vec.UseDevice(true);
    return vec;
 }
@@ -31,7 +31,7 @@ inline Vector NewVector(int n)
 template <typename T>
 Array<T> NewArray(int n)
 {
-   Array<T> array(n, MemoryType::DEVICE_WORKSPACE);
+   Array<T> array(n, MemoryType::DEVICE_ARENA);
    return array;
 }
 

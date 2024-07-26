@@ -24,26 +24,26 @@ namespace mfem
 namespace internal
 {
 
-/// This is an internal class used by Workspace.
-class WorkspaceChunk
+/// Chunk of memory used by the arena memory space.
+class ArenaChunk
 {
    /// The data used as a base pointer.
    Memory data;
    /// The offset (in bytes) of the next available memory in this chunk.
    size_t offset = 0;
    /// How many pointers have been allocated in this chunk.
-   size_t ptr_count = 0; // <- Can remove this?
+   size_t ptr_count = 0;
    /// Is the chunk in the front of the list?
    bool front = true;
    /// Whether the memory has been freed (prevent double-free).
    bool dealloced = false;
-
+   /// Pointers allocated in the chunk. Used to track out-of-order deallocation.
    std::vector<void*> ptr_stack;
 public:
-   /// Create a WorkspaceChunk with the given @a capacity.
-   WorkspaceChunk(size_t capacity);
-   /// Destroy a WorkspaceChunk (free the memory)
-   ~WorkspaceChunk();
+   /// Create a ArenaChunk with the given @a capacity.
+   ArenaChunk(size_t capacity);
+   /// Destroy a ArenaChunk (free the memory).
+   ~ArenaChunk();
    /// @brief Return the available capacity (i.e. the largest vector that will
    /// fit in this chunk).
    size_t GetAvailableCapacity() const { return data.bytes - offset; }
@@ -63,8 +63,6 @@ public:
    bool IsEmpty() const { return ptr_stack.empty(); }
    /// Clear all deallocated pointers from the top of the stack.
    void ClearDeallocated();
-   /// Returns the backing data pointer.
-   // void *GetData() { return data; }
    /// Allocates a buffer of size nbytes, returns the associated pointer.
    void *NewPointer(size_t nbytes)
    {
@@ -75,111 +73,26 @@ public:
       ptr_stack.push_back(ptr);
       return ptr;
    }
-
-   size_t GetPointerCount() const { return ptr_count; }
-
+   /// Return the device pointer associated with host pointer @a h_ptr.
    void *GetDevicePointer(void *h_ptr);
+   /// Return the number of live pointers in the chunk.
+   size_t GetPointerCount() const { return ptr_count; }
 };
 
-class Workspace
+class ArenaHostMemorySpace : public HostMemorySpace
 {
-   friend class WorkspaceHostMemorySpace;
-   friend class WorkspaceDeviceMemorySpace;
-
-   /// Chunks of storage to hold the vectors.
-   std::forward_list<internal::WorkspaceChunk> chunks;
-   /// Map from pointers to chunks
-   std::unordered_map<void*,WorkspaceControlBlock> map;
+   /// Chunks of storage.
+   std::forward_list<internal::ArenaChunk> chunks;
    /// @brief Consolidate the chunks (merge consecutive empty chunks), and
    /// ensure that the front chunk has sufficient available capacity for a
    /// buffer of @a requested_size.
-   void ConsolidateAndEnsureAvailable(size_t requested_size)
-   {
-      size_t n_empty = 0;
-      size_t empty_capacity = 0;
-      // Merge all empty chunks at the beginning of the list
-      auto it = chunks.begin();
-      while (it != chunks.end() && it->IsEmpty())
-      {
-         empty_capacity += it->GetCapacity();
-         ++it;
-         ++n_empty;
-      }
-
-      // If we have multiple empty chunks at the beginning of the list, we need
-      // to merge them. Also, if the front chunk is empty, but not big enough,
-      // we need to replace it, so we remove it here.
-      if (n_empty > 1 || requested_size > empty_capacity)
-      {
-         chunks.erase_after(chunks.before_begin(), it);
-      }
-
-      const size_t min_chunk_size = std::max(requested_size, empty_capacity);
-      bool add_new_chunk = false;
-      if (chunks.empty())
-      {
-         add_new_chunk = true;
-      }
-      else
-      {
-         add_new_chunk = min_chunk_size > chunks.front().GetAvailableCapacity();
-      }
-
-      if (add_new_chunk)
-      {
-         if (!chunks.empty()) { chunks.front().SetFront(false); }
-         chunks.emplace_front(min_chunk_size);
-      }
-   }
-   static Workspace &Instance()
-   {
-      static Workspace ws;
-      return ws;
-   }
-};
-
-class WorkspaceHostMemorySpace : public HostMemorySpace
-{
+   void ConsolidateAndEnsureAvailable(size_t requested_size);
 public:
-   void Alloc(void **ptr, size_t nbytes) override
-   {
-      Workspace &ws = Workspace::Instance();
-      ws.ConsolidateAndEnsureAvailable(nbytes);
-      internal::WorkspaceChunk &front_chunk = ws.chunks.front();
-      void *new_ptr = front_chunk.NewPointer(nbytes);
-      maps->workspace.emplace(new_ptr, WorkspaceControlBlock(front_chunk, nbytes));
-      *ptr = new_ptr;
-
-      size_t nchunks = std::distance(std::begin(ws.chunks), std::end(ws.chunks));
-      mfem::out << "===========================================================\n";
-      mfem::out << nchunks << " chunks\n";
-      int i = 0;
-      for (auto it = ws.chunks.begin(); it != ws.chunks.end(); )
-      {
-         auto &c = *it;
-         mfem::out << "   Chunk " << i << '\n';
-         mfem::out << "   Size:      " << c.GetCapacity() << '\n';
-         mfem::out << "   Vectors:   " << c.GetPointerCount() << '\n';
-         mfem::out << "   Available: " << c.GetAvailableCapacity() << '\n';
-         ++it;
-         ++i;
-         if (it != ws.chunks.end())
-         {
-            mfem::out << "   --------------------------------------------------\n";
-         }
-      }
-   }
-
-   void Dealloc(Memory &mem) override
-   {
-      auto it = maps->workspace.find(mem.h_ptr);
-      auto &control = it->second;
-      control.deallocated = true; // Mark as deallocated
-      control.chunk.ClearDeallocated();
-   }
+   void Alloc(void **ptr, size_t nbytes) override;
+   void Dealloc(Memory &mem) override;
 };
 
-class WorkspaceDeviceMemorySpace : public DeviceMemorySpace
+class ArenaDeviceMemorySpace : public DeviceMemorySpace
 {
 public:
    void Alloc(Memory &base) override;

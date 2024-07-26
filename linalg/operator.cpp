@@ -51,7 +51,7 @@ void Operator::InitTVectors(const Operator *Po, const Operator *Ri,
 
 void Operator::AddMult(const Vector &x, Vector &y, const double a) const
 {
-   Vector z(y.Size(), MemoryType::HOST_WORKSPACE);
+   Vector z(y.Size(), MemoryType::HOST_ARENA);
    z.UseDevice(true);
    Mult(x, z);
    y.Add(a, z);
@@ -60,7 +60,7 @@ void Operator::AddMult(const Vector &x, Vector &y, const double a) const
 void Operator::AddMultTranspose(const Vector &x, Vector &y,
                                 const double a) const
 {
-   Vector z(y.Size(), MemoryType::HOST_WORKSPACE);
+   Vector z(y.Size(), MemoryType::HOST_ARENA);
    z.UseDevice(true);
    MultTranspose(x, z);
    y.Add(a, z);

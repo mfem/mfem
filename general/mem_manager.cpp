@@ -101,7 +101,7 @@ static void MFEM_VERIFY_TYPES(const MemoryType h_mt, const MemoryType d_mt)
       (h_mt == MemoryType::HOST_UMPIRE && d_mt == MemoryType::DEVICE_UMPIRE) ||
       (h_mt == MemoryType::HOST_UMPIRE && d_mt == MemoryType::DEVICE_UMPIRE_2) ||
       (h_mt == MemoryType::HOST_DEBUG && d_mt == MemoryType::DEVICE_DEBUG) ||
-      (h_mt == MemoryType::HOST_WORKSPACE && d_mt == MemoryType::DEVICE_WORKSPACE) ||
+      (h_mt == MemoryType::HOST_ARENA && d_mt == MemoryType::DEVICE_ARENA) ||
       (h_mt == MemoryType::MANAGED && d_mt == MemoryType::MANAGED) ||
       (h_mt == MemoryType::HOST_64 && d_mt == MemoryType::DEVICE) ||
       (h_mt == MemoryType::HOST_32 && d_mt == MemoryType::DEVICE) ||
@@ -392,7 +392,7 @@ bool MemoryManager::MemoryClassCheck_(MemoryClass mc, void *h_ptr,
                      d_mt == MemoryType::DEVICE_DEBUG ||
                      d_mt == MemoryType::DEVICE_UMPIRE ||
                      d_mt == MemoryType::DEVICE_UMPIRE_2 ||
-                     d_mt == MemoryType::DEVICE_WORKSPACE ||
+                     d_mt == MemoryType::DEVICE_ARENA ||
                      d_mt == MemoryType::MANAGED,"");
          return true;
       }
@@ -1111,13 +1111,13 @@ MemoryType MemoryManager::dual_map[MemoryTypeSize] =
    /* HOST_DEBUG       */  MemoryType::DEVICE_DEBUG,
    /* HOST_UMPIRE      */  MemoryType::DEVICE_UMPIRE,
    /* HOST_PINNED      */  MemoryType::DEVICE,
-   /* HOST_WORKSPACE   */  MemoryType::DEVICE_WORKSPACE,
+   /* HOST_ARENA   */  MemoryType::DEVICE_ARENA,
    /* MANAGED          */  MemoryType::MANAGED,
    /* DEVICE           */  MemoryType::HOST,
    /* DEVICE_DEBUG     */  MemoryType::HOST_DEBUG,
    /* DEVICE_UMPIRE    */  MemoryType::HOST_UMPIRE,
    /* DEVICE_UMPIRE_2  */  MemoryType::HOST_UMPIRE,
-   /* DEVICE_WORKSPACE */  MemoryType::HOST_WORKSPACE
+   /* DEVICE_ARENA */  MemoryType::HOST_ARENA
 };
 
 #ifdef MFEM_USE_UMPIRE
@@ -1130,7 +1130,7 @@ const char * MemoryManager::d_umpire_2_name = "MFEM_DEVICE_2";
 const char *MemoryTypeName[MemoryTypeSize] =
 {
    "host-std", "host-32", "host-64", "host-debug", "host-umpire", "host-pinned",
-   "host-workspace",
+   "host-arena",
 #if defined(MFEM_USE_CUDA)
    "cuda-uvm",
    "cuda",
@@ -1152,7 +1152,7 @@ const char *MemoryTypeName[MemoryTypeSize] =
    "device-umpire",
    "device-umpire-2",
 #endif
-   "device-workspace"
+   "device-arena"
 };
 
 } // namespace mfem

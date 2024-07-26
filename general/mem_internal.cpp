@@ -37,7 +37,7 @@ void Ctrl::Configure()
    // HOST_DEBUG is delayed, as it reroutes signals
    host[static_cast<int>(MT::HOST_DEBUG)] = nullptr;
    host[static_cast<int>(MT::HOST_UMPIRE)] = nullptr;
-   host[static_cast<int>(MT::HOST_WORKSPACE)] = new WorkspaceHostMemorySpace();
+   host[static_cast<int>(MT::HOST_ARENA)] = new ArenaHostMemorySpace();
    host[static_cast<int>(MT::MANAGED)] = new UvmHostMemorySpace();
 
    // Filling the device memory backends, shifting with the device size
@@ -111,7 +111,7 @@ DeviceMemorySpace* Ctrl::NewDeviceCtrl(const MemoryType mt)
       case MT::DEVICE_UMPIRE_2: return new NoDeviceMemorySpace();
 #endif
       case MT::DEVICE_DEBUG: return new MmuDeviceMemorySpace();
-      case MT::DEVICE_WORKSPACE: return new WorkspaceDeviceMemorySpace();
+      case MT::DEVICE_ARENA: return new ArenaDeviceMemorySpace();
       case MT::DEVICE:
       {
 #if defined(MFEM_USE_CUDA)

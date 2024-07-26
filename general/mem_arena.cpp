@@ -17,6 +17,18 @@ namespace mfem
 namespace internal
 {
 
+struct ArenaControlBlock
+{
+   class ArenaChunk &chunk;
+   size_t bytes;
+   bool deallocated;
+   ArenaControlBlock(class ArenaChunk &chunk_, size_t bytes_)
+      : chunk(chunk_), bytes(bytes_), deallocated(false)
+   { }
+};
+
+std::unordered_map<void*,ArenaControlBlock> arena_map;
+
 Memory NewMemory(size_t nbytes)
 {
    MFEM_ASSERT(ctrl != nullptr, "");
@@ -27,13 +39,13 @@ Memory NewMemory(size_t nbytes)
    return Memory(h_ptr, nbytes, h_mt, d_mt);
 }
 
-WorkspaceChunk::WorkspaceChunk(size_t capacity)
+ArenaChunk::ArenaChunk(size_t capacity)
    : data(NewMemory(capacity))
 {
    ptr_stack.reserve(16); // <- Can adjust this
 }
 
-WorkspaceChunk::~WorkspaceChunk()
+ArenaChunk::~ArenaChunk()
 {
    // if (!dealloced)
    if (ctrl && !dealloced)
@@ -47,13 +59,13 @@ WorkspaceChunk::~WorkspaceChunk()
    }
 }
 
-void WorkspaceChunk::ClearDeallocated()
+void ArenaChunk::ClearDeallocated()
 {
    ptr_count -= 1;
    if (ptr_count == 0)
    {
       offset = 0;
-      for (void *ptr : ptr_stack) { maps->workspace.erase(ptr); }
+      for (void *ptr : ptr_stack) { arena_map.erase(ptr); }
       ptr_stack.clear();
       // If we are not the front chunk, deallocate the backing memory. This
       // chunk will be consolidated later anyway.
@@ -74,8 +86,8 @@ void WorkspaceChunk::ClearDeallocated()
    auto ptr_it = ptr_stack.rbegin();
    for (; ptr_it != ptr_stack.rend(); ++ptr_it)
    {
-      auto it = maps->workspace.find(*ptr_it);
-      MFEM_ASSERT(it != maps->workspace.end(), "");
+      auto it = arena_map.find(*ptr_it);
+      MFEM_ASSERT(it != arena_map.end(), "");
       auto &control = it->second;
       if (!control.deallocated) { break; }
    }
@@ -89,48 +101,14 @@ void WorkspaceChunk::ClearDeallocated()
 
    for (auto it = begin; it != end; ++it)
    {
-      maps->workspace.erase(*it);
+      arena_map.erase(*it);
    }
    ptr_stack.erase(begin, end);
 
    MFEM_ASSERT(ptr_stack.size() >= ptr_count, "");
 }
 
-// void WorkspaceChunk::FreePointer(void *ptr, size_t capacity)
-// {
-//    MFEM_ASSERT(ptr_count >= 0, "");
-//    ptr_count -= 1;
-//    // If the chunk is completely empty, we can reclaim all of the memory and
-//    // allow new allocations (before it is completely empty, we cannot reclaim
-//    // memory because we don't track the specific regions that are freed).
-//    if (ptr_count == 0)
-//    {
-//       offset = 0;
-//       // If we are not the front chunk, deallocate the backing memory. This
-//       // chunk will be consolidated later anyway.
-//       if (!front)
-//       {
-//          if (data.d_ptr)
-//          {
-//             ctrl->Device(data.d_mt)->Dealloc(data);
-//          }
-//          ctrl->Host(data.h_mt)->Dealloc(data.h_ptr);
-//          dealloced = true;
-//       }
-//    }
-//    else
-//    {
-//       // If the vector being freed is the most recent vector allocated (i.e. if
-//       // the vector is freed in stack/LIFO order), then we can reclaim its
-//       // memory by moving the offset.
-//       if ((char*)ptr + capacity == (char*)data.h_ptr + offset)
-//       {
-//          offset -= capacity;
-//       }
-//    }
-// }
-
-void *WorkspaceChunk::GetDevicePointer(void *h_ptr)
+void *ArenaChunk::GetDevicePointer(void *h_ptr)
 {
    if (data.d_ptr == nullptr)
    {
@@ -140,35 +118,111 @@ void *WorkspaceChunk::GetDevicePointer(void *h_ptr)
    return ((char*)data.d_ptr) + ptr_offset;
 }
 
-void WorkspaceDeviceMemorySpace::Alloc(Memory &base)
+void ArenaHostMemorySpace::ConsolidateAndEnsureAvailable(
+   size_t requested_size)
 {
-   auto &chunk = maps->workspace.find(base.h_ptr)->second.chunk;
+   size_t n_empty = 0;
+   size_t empty_capacity = 0;
+   // Merge all empty chunks at the beginning of the list
+   auto it = chunks.begin();
+   while (it != chunks.end() && it->IsEmpty())
+   {
+      empty_capacity += it->GetCapacity();
+      ++it;
+      ++n_empty;
+   }
+
+   // If we have multiple empty chunks at the beginning of the list, we need
+   // to merge them. Also, if the front chunk is empty, but not big enough,
+   // we need to replace it, so we remove it here.
+   if (n_empty > 1 || requested_size > empty_capacity)
+   {
+      chunks.erase_after(chunks.before_begin(), it);
+   }
+
+   const size_t min_chunk_size = std::max(requested_size, empty_capacity);
+   bool add_new_chunk = false;
+   if (chunks.empty())
+   {
+      add_new_chunk = true;
+   }
+   else
+   {
+      add_new_chunk = min_chunk_size > chunks.front().GetAvailableCapacity();
+   }
+
+   if (add_new_chunk)
+   {
+      if (!chunks.empty()) { chunks.front().SetFront(false); }
+      chunks.emplace_front(min_chunk_size);
+   }
+}
+
+void ArenaHostMemorySpace::Alloc(void **ptr, size_t nbytes)
+{
+   ConsolidateAndEnsureAvailable(nbytes);
+   internal::ArenaChunk &front_chunk = chunks.front();
+   void *new_ptr = front_chunk.NewPointer(nbytes);
+   arena_map.emplace(new_ptr, ArenaControlBlock(front_chunk, nbytes));
+   *ptr = new_ptr;
+
+   size_t nchunks = std::distance(std::begin(chunks), std::end(chunks));
+   mfem::out << "===========================================================\n";
+   mfem::out << nchunks << " chunks\n";
+   int i = 0;
+   for (auto it = chunks.begin(); it != chunks.end(); )
+   {
+      auto &c = *it;
+      mfem::out << "   Chunk " << i << '\n';
+      mfem::out << "   Size:      " << c.GetCapacity() << '\n';
+      mfem::out << "   Vectors:   " << c.GetPointerCount() << '\n';
+      mfem::out << "   Available: " << c.GetAvailableCapacity() << '\n';
+      ++it;
+      ++i;
+      if (it != chunks.end())
+      {
+         mfem::out << "   --------------------------------------------------\n";
+      }
+   }
+}
+
+void ArenaHostMemorySpace::Dealloc(Memory &mem)
+{
+   auto it = arena_map.find(mem.h_ptr);
+   auto &control = it->second;
+   control.deallocated = true; // Mark as deallocated
+   control.chunk.ClearDeallocated();
+}
+
+void ArenaDeviceMemorySpace::Alloc(Memory &base)
+{
+   auto &chunk = arena_map.find(base.h_ptr)->second.chunk;
    base.d_ptr = chunk.GetDevicePointer(base.h_ptr);
 }
 
-void WorkspaceDeviceMemorySpace::Dealloc(Memory &base) { /* no-op */ }
+void ArenaDeviceMemorySpace::Dealloc(Memory &base) { /* no-op */ }
 
-void *WorkspaceDeviceMemorySpace::HtoH(void *dst, const void *src, size_t bytes)
+void *ArenaDeviceMemorySpace::HtoH(void *dst, const void *src, size_t bytes)
 {
    MFEM_ABORT("");
    return std::memcpy(dst, src, bytes);
 }
 
-void *WorkspaceDeviceMemorySpace::HtoD(void *dst, const void *src, size_t bytes)
+void *ArenaDeviceMemorySpace::HtoD(void *dst, const void *src, size_t bytes)
 {
    const MemoryType d_mt = MemoryManager::GetDeviceMemoryType();
    if (IsHostMemory(d_mt)) { return HtoH(dst, src, bytes); }
    return ctrl->Device(d_mt)->HtoD(dst, src, bytes);
 }
 
-void *WorkspaceDeviceMemorySpace::DtoD(void* dst, const void* src, size_t bytes)
+void *ArenaDeviceMemorySpace::DtoD(void* dst, const void* src, size_t bytes)
 {
    const MemoryType d_mt = MemoryManager::GetDeviceMemoryType();
    if (IsHostMemory(d_mt)) { return HtoH(dst, src, bytes); }
    return ctrl->Device(d_mt)->DtoD(dst, src, bytes);
 }
 
-void *WorkspaceDeviceMemorySpace::DtoH(void *dst, const void *src, size_t bytes)
+void *ArenaDeviceMemorySpace::DtoH(void *dst, const void *src, size_t bytes)
 {
    const MemoryType d_mt = MemoryManager::GetDeviceMemoryType();
    if (IsHostMemory(d_mt)) { return HtoH(dst, src, bytes); }
