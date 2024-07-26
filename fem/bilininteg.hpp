@@ -3666,6 +3666,37 @@ private:
 };
 
 
+class VectorIdentityInterpolator : public DiscreteInterpolator
+{
+protected:
+   int vdim;
+
+public:
+   VectorIdentityInterpolator(int vdim_) : vdim(vdim_) { }
+
+   void AssembleElementMatrix2(const FiniteElement &dom_fe,
+                               const FiniteElement &ran_fe,
+                               ElementTransformation &Trans,
+                               DenseMatrix &elmat) override
+   {
+      if (vdim == 1)
+      {
+         ran_fe.Project(dom_fe, Trans, elmat);
+         return;
+      }
+      DenseMatrix elmat_block;
+      ran_fe.Project(dom_fe, Trans, elmat_block);
+      elmat.SetSize(vdim*elmat_block.Height(), vdim*elmat_block.Weight());
+      elmat = 0_r;
+      for (int i = 0; i < vdim; i++)
+      {
+         elmat.SetSubMatrix(i*elmat_block.Height(), i*elmat_block.Weight(),
+                            elmat_block);
+      }
+   }
+};
+
+
 /** Class for constructing the (local) discrete curl matrix which can be used
     as an integrator in a DiscreteLinearOperator object to assemble the global
     discrete curl matrix. */
