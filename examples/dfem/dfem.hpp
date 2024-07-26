@@ -858,7 +858,7 @@ void map_field_to_quadrature_data(
    DeviceTensor<1, const double> integration_weights,
    GeometricFactorMaps geometric_factors)
 {
-   if constexpr (std::is_same_v<field_operator_t, Value>)
+   if constexpr (std::is_same_v<field_operator_t, BareFieldOperator::Value>)
    {
       auto [num_qp, unused, num_dof] = B.GetShape();
       const int vdim = input.vdim;
@@ -878,7 +878,8 @@ void map_field_to_quadrature_data(
          }
       }
    }
-   else if constexpr (std::is_same_v<field_operator_t, Gradient>)
+   else if constexpr (
+      std::is_same_v<field_operator_t, BareFieldOperator::Gradient>)
    {
       const auto [num_qp, dim, num_dof] = B.GetShape();
       const int vdim = input.vdim;
@@ -902,86 +903,86 @@ void map_field_to_quadrature_data(
          }
       }
    }
-   else if constexpr (std::is_same_v<field_operator_t, Curl>)
-   {
-      const auto [num_qp, cdim, num_dof] = B.GetShape();
-      const int vdim = input.vdim;
-      const int entity_offset = entity_idx * num_dof * vdim;
-      const auto field = Reshape(&field_e(0) + entity_offset, num_dof, vdim,
-                                 cdim);
+   // else if constexpr (std::is_same_v<field_operator_t, Curl>)
+   // {
+   //    const auto [num_qp, cdim, num_dof] = B.GetShape();
+   //    const int vdim = input.vdim;
+   //    const int entity_offset = entity_idx * num_dof * vdim;
+   //    const auto field = Reshape(&field_e(0) + entity_offset, num_dof, vdim,
+   //                               cdim);
 
-      auto f = Reshape(&field_qp[0], vdim, cdim, num_qp);
-      for (int qp = 0; qp < num_qp; qp++)
-      {
-         for (int vd = 0; vd < vdim; vd++)
-         {
-            for (int cd = 0; cd < cdim; cd++)
-            {
-               double acc = 0.0;
-               for (int dof = 0; dof < num_dof; dof++)
-               {
-                  acc += B(qp, cd, dof) * field(dof, vd, cd);
-               }
-               f(vd, cd, qp) = acc;
-            }
-         }
-      }
-   }
-   else if constexpr (std::is_same_v<field_operator_t, FaceValueLeft>)
-   {
-      auto [num_qp, unused, num_dof] = B.GetShape();
-      const int vdim = input.vdim;
-      const int entity_offset = entity_idx * num_dof * vdim;
-      const auto field = Reshape(&field_e(0) + entity_offset, num_dof, vdim);
+   //    auto f = Reshape(&field_qp[0], vdim, cdim, num_qp);
+   //    for (int qp = 0; qp < num_qp; qp++)
+   //    {
+   //       for (int vd = 0; vd < vdim; vd++)
+   //       {
+   //          for (int cd = 0; cd < cdim; cd++)
+   //          {
+   //             double acc = 0.0;
+   //             for (int dof = 0; dof < num_dof; dof++)
+   //             {
+   //                acc += B(qp, cd, dof) * field(dof, vd, cd);
+   //             }
+   //             f(vd, cd, qp) = acc;
+   //          }
+   //       }
+   //    }
+   // }
+   // else if constexpr (std::is_same_v<field_operator_t, FaceValueLeft>)
+   // {
+   //    auto [num_qp, unused, num_dof] = B.GetShape();
+   //    const int vdim = input.vdim;
+   //    const int entity_offset = entity_idx * num_dof * vdim;
+   //    const auto field = Reshape(&field_e(0) + entity_offset, num_dof, vdim);
 
-      // for (int vd = 0; vd < vdim; vd++)
-      // {
-      //    for (int qp = 0; qp < num_qp; qp++)
-      //    {
-      //       double acc = 0.0;
-      //       for (int dof = 0; dof < num_dof; dof++)
-      //       {
-      //          acc += B(qp, 0, dof) * field(dof, vd);
-      //       }
-      //       field_qp(vd, qp) = acc;
-      //    }
-      // }
-   }
-   else if constexpr (std::is_same_v<field_operator_t, FaceValueRight>)
-   {
-      auto [num_qp, unused, num_dof] = B.GetShape();
-      const int vdim = input.vdim;
-      const int entity_offset = entity_idx * num_dof * vdim;
-      const auto field = Reshape(&field_e(0) + entity_offset, num_dof, vdim);
+   //    // for (int vd = 0; vd < vdim; vd++)
+   //    // {
+   //    //    for (int qp = 0; qp < num_qp; qp++)
+   //    //    {
+   //    //       double acc = 0.0;
+   //    //       for (int dof = 0; dof < num_dof; dof++)
+   //    //       {
+   //    //          acc += B(qp, 0, dof) * field(dof, vd);
+   //    //       }
+   //    //       field_qp(vd, qp) = acc;
+   //    //    }
+   //    // }
+   // }
+   // else if constexpr (std::is_same_v<field_operator_t, FaceValueRight>)
+   // {
+   //    auto [num_qp, unused, num_dof] = B.GetShape();
+   //    const int vdim = input.vdim;
+   //    const int entity_offset = entity_idx * num_dof * vdim;
+   //    const auto field = Reshape(&field_e(0) + entity_offset, num_dof, vdim);
 
-      // for (int vd = 0; vd < vdim; vd++)
-      // {
-      //    for (int qp = 0; qp < num_qp; qp++)
-      //    {
-      //       double acc = 0.0;
-      //       for (int dof = 0; dof < num_dof; dof++)
-      //       {
-      //          acc += B(qp, 0, dof) * field(dof, vd);
-      //       }
-      //       field_qp(vd, qp) = acc;
-      //    }
-      // }
-   }
-   else if constexpr (std::is_same_v<field_operator_t, FaceNormal>)
-   {
-      auto normal = geometric_factors.normal;
-      auto [num_qp, dim, num_entities] = normal.GetShape();
-      auto f = Reshape(&field_qp[0], dim, num_qp);
-      for (int qp = 0; qp < num_qp; qp++)
-      {
-         for (int d = 0; d < dim; d++)
-         {
-            f(d, qp) = normal(qp, d, entity_idx);
-         }
-      }
-   }
+   //    // for (int vd = 0; vd < vdim; vd++)
+   //    // {
+   //    //    for (int qp = 0; qp < num_qp; qp++)
+   //    //    {
+   //    //       double acc = 0.0;
+   //    //       for (int dof = 0; dof < num_dof; dof++)
+   //    //       {
+   //    //          acc += B(qp, 0, dof) * field(dof, vd);
+   //    //       }
+   //    //       field_qp(vd, qp) = acc;
+   //    //    }
+   //    // }
+   // }
+   // else if constexpr (std::is_same_v<field_operator_t, FaceNormal>)
+   // {
+   //    auto normal = geometric_factors.normal;
+   //    auto [num_qp, dim, num_entities] = normal.GetShape();
+   //    auto f = Reshape(&field_qp[0], dim, num_qp);
+   //    for (int qp = 0; qp < num_qp; qp++)
+   //    {
+   //       for (int d = 0; d < dim; d++)
+   //       {
+   //          f(d, qp) = normal(qp, d, entity_idx);
+   //       }
+   //    }
+   // }
    // TODO: Create separate function for clarity
-   else if constexpr (std::is_same_v<field_operator_t, Weight>)
+   else if constexpr (std::is_same_v<field_operator_t, BareFieldOperator::Weight>)
    {
       const int num_qp = integration_weights.GetShape()[0];
       auto f = Reshape(&field_qp[0], num_qp);
@@ -990,19 +991,19 @@ void map_field_to_quadrature_data(
          f(qp) = integration_weights(qp);
       }
    }
-   else if constexpr (std::is_same_v<field_operator_t, None>)
-   {
-      auto [num_qp, unused, num_dof] = B.GetShape();
-      const int size_on_qp = input.size_on_qp;
-      const int entity_offset = entity_idx * size_on_qp * num_qp;
-      const auto field = Reshape(&field_e(0) + entity_offset,
-                                 size_on_qp * num_qp);
-      auto f = Reshape(&field_qp[0], size_on_qp * num_qp);
-      for (int i = 0; i < size_on_qp * num_qp; i++)
-      {
-         f(i) = field(i);
-      }
-   }
+   // else if constexpr (std::is_same_v<field_operator_t, None>)
+   // {
+   //    auto [num_qp, unused, num_dof] = B.GetShape();
+   //    const int size_on_qp = input.size_on_qp;
+   //    const int entity_offset = entity_idx * size_on_qp * num_qp;
+   //    const auto field = Reshape(&field_e(0) + entity_offset,
+   //                               size_on_qp * num_qp);
+   //    auto f = Reshape(&field_qp[0], size_on_qp * num_qp);
+   //    for (int i = 0; i < size_on_qp * num_qp; i++)
+   //    {
+   //       f(i) = field(i);
+   //    }
+   // }
    else
    {
       static_assert(always_false<field_operator_t>,
@@ -1376,7 +1377,7 @@ void map_quadrature_data_to_fields(DeviceTensor<2, double> y,
 {
    // assuming the quadrature point residual has to "play nice with
    // the test function"
-   if constexpr (std::is_same_v<decltype(output), Value>)
+   if constexpr (std::is_same_v<decltype(output), BareFieldOperator::Value>)
    {
       const auto [num_qp, cdim, num_dof] = B.GetShape();
       const int vdim = output.vdim > 0 ? output.vdim : cdim ;
@@ -1393,7 +1394,8 @@ void map_quadrature_data_to_fields(DeviceTensor<2, double> y,
          }
       }
    }
-   else if constexpr (std::is_same_v<decltype(output), Gradient>)
+   else if constexpr (
+      std::is_same_v<decltype(output), BareFieldOperator::Gradient>)
    {
       const auto [num_qp, dim, num_dof] = B.GetShape();
       const int vdim = output.vdim;
@@ -1413,27 +1415,27 @@ void map_quadrature_data_to_fields(DeviceTensor<2, double> y,
          }
       }
    }
-   else if constexpr (std::is_same_v<decltype(output), One>)
-   {
-      // This is the "integral over all quadrature points type" applying
-      // B = 1 s.t. B^T * C \in R^1.
-      const auto [a, b, num_qp] = B.GetShape();
-      auto cc = Reshape(&c(0, 0, 0), num_qp);
-      for (int i = 0; i < num_qp; i++)
-      {
-         y(0, 0) += cc(i);
-      }
-   }
-   else if constexpr (std::is_same_v<decltype(output), None>)
-   {
-      const auto [vdim, dim, num_qp] = c.GetShape();
-      auto cc = Reshape(&c(0, 0, 0), num_qp * vdim);
-      auto yy = Reshape(&y(0, 0), num_qp * vdim);
-      for (int i = 0; i < num_qp * vdim; i++)
-      {
-         yy(i) = cc(i);
-      }
-   }
+   // else if constexpr (std::is_same_v<decltype(output), One>)
+   // {
+   //    // This is the "integral over all quadrature points type" applying
+   //    // B = 1 s.t. B^T * C \in R^1.
+   //    const auto [a, b, num_qp] = B.GetShape();
+   //    auto cc = Reshape(&c(0, 0, 0), num_qp);
+   //    for (int i = 0; i < num_qp; i++)
+   //    {
+   //       y(0, 0) += cc(i);
+   //    }
+   // }
+   // else if constexpr (std::is_same_v<decltype(output), None>)
+   // {
+   //    const auto [vdim, dim, num_qp] = c.GetShape();
+   //    auto cc = Reshape(&c(0, 0, 0), num_qp * vdim);
+   //    auto yy = Reshape(&y(0, 0), num_qp * vdim);
+   //    for (int i = 0; i < num_qp * vdim; i++)
+   //    {
+   //       yy(i) = cc(i);
+   //    }
+   // }
    else
    {
       MFEM_ABORT("quadrature data mapping to field is not implemented for"
@@ -1543,6 +1545,43 @@ std::array<DofToQuadMap, N> create_dtq_operators(
              fops, dtqmaps,
              to_field_map,
              is_dependent,
+             std::make_index_sequence<serac::tuple_size<field_operator_ts>::value> {});
+}
+
+template <typename field_operator_ts, std::size_t... I>
+auto create_input_operators_impl(
+   const field_operator_ts &fops,
+   std::index_sequence<I...>)
+{
+   auto f = [&](auto fop, size_t idx)
+   {
+      if constexpr (std::is_same_v<decltype(fop), Weight>)
+      {
+         return BareFieldOperator::Weight(fop);
+      }
+      else if constexpr (std::is_same_v<decltype(fop), Value>)
+      {
+         return BareFieldOperator::Value(fop);
+      }
+      else if constexpr (std::is_same_v<decltype(fop), Gradient>)
+      {
+         return BareFieldOperator::Gradient(fop);
+      }
+      else
+      {
+         static_assert(always_false<decltype(fop)>,
+                       "field operator type is not implemented");
+         return BareFieldOperator::Base(fop);
+      }
+   };
+   return serac::make_tuple(f(serac::get<I>(fops), I)...);
+}
+
+template <typename field_operator_ts>
+auto create_input_operators(const field_operator_ts &fops)
+{
+   return create_input_operators_impl(
+             fops,
              std::make_index_sequence<serac::tuple_size<field_operator_ts>::value> {});
 }
 

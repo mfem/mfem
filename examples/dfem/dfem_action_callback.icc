@@ -95,6 +95,9 @@ void DifferentiableOperator<kernels_tuple,
    auto output_dtq_ops = create_dtq_operators<entity_t>(kernel.outputs, dtqmaps,
                                                         koutput_to_field);
 
+   auto input_fops = create_input_operators(kernel.inputs);
+   auto output_fops = create_input_operators(kernel.outputs);
+
    GeometricFactorMaps geometric_factors =
       GetGeometricFactorMaps<entity_t>(op.mesh, op.integration_rule);
 
@@ -107,7 +110,7 @@ void DifferentiableOperator<kernels_tuple,
    func = [this, kernel, num_entities, num_qp, input_dtq_ops,
                  output_dtq_ops, residual_size_on_qp,
                  input_qp_mem, kinput_to_field, koutput_to_field,
-                 output_fop, R, geometric_factors, f_qp]
+                 output_fop, R, geometric_factors, f_qp, input_fops, output_fops]
    (Vector &ye_mem) mutable
    {
       restriction<entity_t>(op.solutions, solutions_l, this->fields_e,
@@ -148,7 +151,7 @@ void DifferentiableOperator<kernels_tuple,
          map_fields_to_quadrature_data(
             input_qp, e, wrapped_fields_e,
             kinput_to_field, input_dtq_ops,
-            integration_weights, geometric_factors, kernel.inputs,
+            integration_weights, geometric_factors, input_fops,
             std::make_index_sequence<kernel.num_kinputs> {});
 
          for (int q = 0; q < num_qp; q++)
@@ -161,7 +164,7 @@ void DifferentiableOperator<kernels_tuple,
                                         num_qp);
          DeviceTensor<2> y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
          map_quadrature_data_to_fields(y, fhat,
-                                       output_fop,
+                                       serac::get<0>(output_fops),
                                        output_dtq_ops[hardcoded_output_idx]);
       });
       R->MultTranspose(ye_mem, residual_l);

@@ -170,6 +170,7 @@ struct tuple<T0, T1, T2, T3, T4, T5, T6, T7>
  * @tparam T The variadic template parameter for tuple types
  */
 template <typename... T>
+MFEM_HOST_DEVICE
 tuple(T...) -> tuple<T...>;
 
 /**

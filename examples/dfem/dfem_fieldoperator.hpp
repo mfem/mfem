@@ -78,3 +78,41 @@ class One : public FieldOperator
 public:
    One(std::string field_label) : FieldOperator(field_label) {};
 };
+
+namespace BareFieldOperator
+{
+
+struct Base
+{
+   Base(FieldOperator &o)
+   {
+      size_on_qp = o.size_on_qp;
+      dim = o.dim;
+      vdim = o.vdim;
+   };
+   int size_on_qp = -1;
+   int dim = -1;
+   int vdim = -1;
+};
+
+struct None : Base
+{
+   None(FieldOperator &o) : Base(o) {}
+};
+
+struct Weight : Base
+{
+   Weight(FieldOperator &o) : Base(o) {}
+};
+
+struct Value : Base
+{
+   Value(FieldOperator &o) : Base(o) {}
+};
+
+struct Gradient : Base
+{
+   Gradient(FieldOperator &o) : Base(o) {}
+};
+
+}
