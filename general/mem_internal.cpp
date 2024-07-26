@@ -73,6 +73,14 @@ Ctrl::~Ctrl()
 {
    constexpr int mt_h = HostMemoryType;
    constexpr int mt_d = DeviceMemoryType;
+
+   // First delete "downstream" memory spaces (arena allocators)
+   delete host[int(MemoryType::HOST_ARENA)];
+   host[int(MemoryType::HOST_ARENA)] = nullptr;
+
+   delete device[int(MemoryType::DEVICE_ARENA) - mt_d];
+   device[int(MemoryType::DEVICE_ARENA) - mt_d] = nullptr;
+
    for (int mt = mt_h; mt < HostMemoryTypeSize; mt++) { delete host[mt]; }
    for (int mt = mt_d; mt < MemoryTypeSize; mt++) { delete device[mt-mt_d]; }
 }

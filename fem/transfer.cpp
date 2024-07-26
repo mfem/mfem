@@ -12,7 +12,6 @@
 #include "transfer.hpp"
 #include "bilinearform.hpp"
 #include "../general/forall.hpp"
-#include "../general/workspace.hpp"
 
 namespace mfem
 {
@@ -1676,8 +1675,10 @@ void TensorProductPRefinementTransferOperator::Mult(const Vector& x,
       return;
    }
 
-   auto localH = Workspace::NewVector(elem_restrict_lex_h->Height());
-   auto localL = Workspace::NewVector(elem_restrict_lex_l->Height());
+   Vector localH(elem_restrict_lex_h->Height(),
+                 Device::GetDeviceTemporaryMemoryType());
+   Vector localL(elem_restrict_lex_l->Height(),
+                 Device::GetDeviceTemporaryMemoryType());
 
    elem_restrict_lex_l->Mult(x, localL);
    if (dim == 2)
@@ -1705,8 +1706,10 @@ void TensorProductPRefinementTransferOperator::MultTranspose(const Vector& x,
       return;
    }
 
-   auto localH = Workspace::NewVector(elem_restrict_lex_h->Height());
-   auto localL = Workspace::NewVector(elem_restrict_lex_l->Height());
+   Vector localH(elem_restrict_lex_h->Height(),
+                 Device::GetDeviceTemporaryMemoryType());
+   Vector localL(elem_restrict_lex_l->Height(),
+                 Device::GetDeviceTemporaryMemoryType());
 
    elem_restrict_lex_h->Mult(x, localH);
    if (dim == 2)
@@ -1749,8 +1752,8 @@ void TrueTransferOperator::Mult(const Vector& x, Vector& y) const
 {
    if (P)
    {
-      auto tmpL = Workspace::NewVector(lFESpace.GetVSize());
-      auto tmpH = Workspace::NewVector(hFESpace.GetVSize());
+      Vector tmpL(lFESpace.GetVSize(), Device::GetDeviceTemporaryMemoryType());
+      Vector tmpH(hFESpace.GetVSize(), Device::GetDeviceTemporaryMemoryType());
 
       P->Mult(x, tmpL);
       localTransferOperator->Mult(tmpL, tmpH);
@@ -1758,7 +1761,7 @@ void TrueTransferOperator::Mult(const Vector& x, Vector& y) const
    }
    else if (R)
    {
-      auto tmpH = Workspace::NewVector(hFESpace.GetVSize());
+      Vector tmpH(hFESpace.GetVSize(), Device::GetDeviceTemporaryMemoryType());
 
       localTransferOperator->Mult(x, tmpH);
       R->Mult(tmpH, y);
@@ -1773,8 +1776,8 @@ void TrueTransferOperator::MultTranspose(const Vector& x, Vector& y) const
 {
    if (P)
    {
-      auto tmpL = Workspace::NewVector(lFESpace.GetVSize());
-      auto tmpH = Workspace::NewVector(hFESpace.GetVSize());
+      Vector tmpL(lFESpace.GetVSize(), Device::GetDeviceTemporaryMemoryType());
+      Vector tmpH(hFESpace.GetVSize(), Device::GetDeviceTemporaryMemoryType());
 
       R->MultTranspose(x, tmpH);
       localTransferOperator->MultTranspose(tmpH, tmpL);
@@ -1782,7 +1785,7 @@ void TrueTransferOperator::MultTranspose(const Vector& x, Vector& y) const
    }
    else if (R)
    {
-      auto tmpH = Workspace::NewVector(hFESpace.GetVSize());
+      Vector tmpH(hFESpace.GetVSize(), Device::GetDeviceTemporaryMemoryType());
 
       R->MultTranspose(x, tmpH);
       localTransferOperator->MultTranspose(tmpH, y);

@@ -47,10 +47,8 @@ ArenaChunk::ArenaChunk(size_t capacity)
 
 ArenaChunk::~ArenaChunk()
 {
-   // if (!dealloced)
-   if (ctrl && !dealloced)
+   if (!dealloced)
    {
-      // data.Delete();
       if (data.d_ptr)
       {
          ctrl->Device(data.d_mt)->Dealloc(data);
@@ -112,7 +110,14 @@ void *ArenaChunk::GetDevicePointer(void *h_ptr)
 {
    if (data.d_ptr == nullptr)
    {
-      ctrl->Device(data.d_mt)->Alloc(data);
+      if (IsDeviceMemory(data.d_mt))
+      {
+         ctrl->Device(data.d_mt)->Alloc(data);
+      }
+      else
+      {
+         return h_ptr;
+      }
    }
    const size_t ptr_offset = ((char*)h_ptr) - ((char*)data.h_ptr);
    return ((char*)data.d_ptr) + ptr_offset;
@@ -202,30 +207,21 @@ void ArenaDeviceMemorySpace::Alloc(Memory &base)
 
 void ArenaDeviceMemorySpace::Dealloc(Memory &base) { /* no-op */ }
 
-void *ArenaDeviceMemorySpace::HtoH(void *dst, const void *src, size_t bytes)
-{
-   MFEM_ABORT("");
-   return std::memcpy(dst, src, bytes);
-}
-
 void *ArenaDeviceMemorySpace::HtoD(void *dst, const void *src, size_t bytes)
 {
    const MemoryType d_mt = MemoryManager::GetDeviceMemoryType();
-   if (IsHostMemory(d_mt)) { return HtoH(dst, src, bytes); }
    return ctrl->Device(d_mt)->HtoD(dst, src, bytes);
 }
 
 void *ArenaDeviceMemorySpace::DtoD(void* dst, const void* src, size_t bytes)
 {
    const MemoryType d_mt = MemoryManager::GetDeviceMemoryType();
-   if (IsHostMemory(d_mt)) { return HtoH(dst, src, bytes); }
    return ctrl->Device(d_mt)->DtoD(dst, src, bytes);
 }
 
 void *ArenaDeviceMemorySpace::DtoH(void *dst, const void *src, size_t bytes)
 {
    const MemoryType d_mt = MemoryManager::GetDeviceMemoryType();
-   if (IsHostMemory(d_mt)) { return HtoH(dst, src, bytes); }
    return ctrl->Device(d_mt)->DtoH(dst, src, bytes);
 }
 

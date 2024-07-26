@@ -11,7 +11,6 @@
 
 #include "../quadinterpolator.hpp"
 #include "../../general/forall.hpp"
-#include "../../general/workspace.hpp"
 #include "../../linalg/dtensor.hpp"
 #include "../../fem/kernels.hpp"
 #include "../../linalg/kernels.hpp"
@@ -137,7 +136,7 @@ static void Det3D(const int NE,
       buffer_size = 2*mem_size*GRID;
    }
    // if SMEM is true, d_buff will be empty (zero size)
-   auto d_buff = Workspace::NewVector(buffer_size);
+   Vector d_buff(buffer_size, Device::GetDeviceTemporaryMemoryType());
    GM = d_buff.Write();
 
    mfem::forall_3D_grid(NE, Q1D, Q1D, Q1D, GRID, [=] MFEM_HOST_DEVICE (int e)

@@ -11,7 +11,6 @@
 
 #include "linearform.hpp"
 #include "../general/forall.hpp"
-#include "../general/workspace.hpp"
 
 namespace mfem
 {
@@ -62,7 +61,7 @@ void LinearFormExtension::Assemble()
       }
 
       // Assemble the linear form
-      auto b = Workspace::NewVector(elem_restrict_lex->Height());
+      Vector b(elem_restrict_lex->Height(), Device::GetDeviceTemporaryMemoryType());
       b = 0.0;
       domain_integs[k]->AssembleDevice(fes, markers, b);
       if (k == 0) { elem_restrict_lex->MultTranspose(b, *lf); }
@@ -106,7 +105,8 @@ void LinearFormExtension::Assemble()
       }
 
       // Assemble the linear form
-      auto bdr_b = Workspace::NewVector(bdr_restrict_lex->Height());
+      Vector bdr_b(bdr_restrict_lex->Height(),
+                   Device::GetDeviceTemporaryMemoryType());
       bdr_b = 0.0;
       boundary_integs[k]->AssembleDevice(fes, bdr_markers, bdr_b);
       bdr_restrict_lex->AddMultTranspose(bdr_b, *lf);

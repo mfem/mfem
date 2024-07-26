@@ -13,7 +13,6 @@
 // PABilinearFormExtension and MFBilinearFormExtension.
 
 #include "../general/forall.hpp"
-#include "../general/workspace.hpp"
 #include "bilinearform.hpp"
 #include "pbilinearform.hpp"
 #include "pgridfunc.hpp"
@@ -69,8 +68,8 @@ void MFBilinearFormExtension::AssembleDiagonal(Vector &y) const
    const int iSz = integrators.Size();
    if (elem_restrict && !DeviceCanUseCeed())
    {
-      auto localX = Workspace::NewVector(elem_restrict->Height());
-      auto localY = Workspace::NewVector(elem_restrict->Height());
+      Vector localX(elem_restrict->Height(), Device::GetDeviceTemporaryMemoryType());
+      Vector localY(elem_restrict->Height(), Device::GetDeviceTemporaryMemoryType());
 
       localY = 0.0;
       for (int i = 0; i < iSz; ++i)
@@ -146,8 +145,8 @@ void MFBilinearFormExtension::Mult(const Vector &x, Vector &y) const
    }
    else
    {
-      auto localX = Workspace::NewVector(elem_restrict->Height());
-      auto localY = Workspace::NewVector(elem_restrict->Height());
+      Vector localX(elem_restrict->Height(), Device::GetDeviceTemporaryMemoryType());
+      Vector localY(elem_restrict->Height(), Device::GetDeviceTemporaryMemoryType());
 
       elem_restrict->Mult(x, localX);
       localY = 0.0;
@@ -162,8 +161,10 @@ void MFBilinearFormExtension::Mult(const Vector &x, Vector &y) const
    const int iFISz = intFaceIntegrators.Size();
    if (int_face_restrict_lex && iFISz>0)
    {
-      auto int_face_X = Workspace::NewVector(int_face_restrict_lex->Height());
-      auto int_face_Y = Workspace::NewVector(int_face_restrict_lex->Height());
+      Vector int_face_X(int_face_restrict_lex->Height(),
+                        Device::GetDeviceTemporaryMemoryType());
+      Vector int_face_Y(int_face_restrict_lex->Height(),
+                        Device::GetDeviceTemporaryMemoryType());
 
       int_face_restrict_lex->Mult(x, int_face_X);
       if (int_face_X.Size()>0)
@@ -181,8 +182,10 @@ void MFBilinearFormExtension::Mult(const Vector &x, Vector &y) const
    const int bFISz = bdrFaceIntegrators.Size();
    if (bdr_face_restrict_lex && bFISz>0)
    {
-      auto bdr_face_X = Workspace::NewVector(bdr_face_restrict_lex->Height());
-      auto bdr_face_Y = Workspace::NewVector(bdr_face_restrict_lex->Height());
+      Vector bdr_face_X(bdr_face_restrict_lex->Height(),
+                        Device::GetDeviceTemporaryMemoryType());
+      Vector bdr_face_Y(bdr_face_restrict_lex->Height(),
+                        Device::GetDeviceTemporaryMemoryType());
 
       bdr_face_restrict_lex->Mult(x, bdr_face_X);
       if (bdr_face_X.Size()>0)
@@ -203,8 +206,8 @@ void MFBilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    const int iSz = integrators.Size();
    if (elem_restrict)
    {
-      auto localX = Workspace::NewVector(elem_restrict->Height());
-      auto localY = Workspace::NewVector(elem_restrict->Height());
+      Vector localX(elem_restrict->Height(), Device::GetDeviceTemporaryMemoryType());
+      Vector localY(elem_restrict->Height(), Device::GetDeviceTemporaryMemoryType());
 
       elem_restrict->Mult(x, localX);
       localY = 0.0;
@@ -228,8 +231,10 @@ void MFBilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    const int iFISz = intFaceIntegrators.Size();
    if (int_face_restrict_lex && iFISz>0)
    {
-      auto int_face_X = Workspace::NewVector(int_face_restrict_lex->Height());
-      auto int_face_Y = Workspace::NewVector(int_face_restrict_lex->Height());
+      Vector int_face_X(int_face_restrict_lex->Height(),
+                        Device::GetDeviceTemporaryMemoryType());
+      Vector int_face_Y(int_face_restrict_lex->Height(),
+                        Device::GetDeviceTemporaryMemoryType());
 
       int_face_restrict_lex->Mult(x, int_face_X);
       if (int_face_X.Size()>0)
@@ -247,8 +252,10 @@ void MFBilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    const int bFISz = bdrFaceIntegrators.Size();
    if (bdr_face_restrict_lex && bFISz>0)
    {
-      auto bdr_face_X = Workspace::NewVector(bdr_face_restrict_lex->Height());
-      auto bdr_face_Y = Workspace::NewVector(bdr_face_restrict_lex->Height());
+      Vector bdr_face_X(bdr_face_restrict_lex->Height(),
+                        Device::GetDeviceTemporaryMemoryType());
+      Vector bdr_face_Y(bdr_face_restrict_lex->Height(),
+                        Device::GetDeviceTemporaryMemoryType());
 
       bdr_face_restrict_lex->Mult(x, bdr_face_X);
       if (bdr_face_X.Size()>0)
@@ -395,7 +402,7 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
    const int iSz = integrators.Size();
    if (elem_restrict && !DeviceCanUseCeed())
    {
-      auto localY = Workspace::NewVector(elem_restrict->Height());
+      Vector localY(elem_restrict->Height(), Device::GetDeviceTemporaryMemoryType());
       if (iSz > 0)
       {
          localY = 0.0;
@@ -433,7 +440,8 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
    const int n_bdr_integs = bdr_integs.Size();
    if (bdr_face_restrict_lex && n_bdr_integs > 0)
    {
-      auto bdr_face_Y = Workspace::NewVector(bdr_face_restrict_lex->Height());
+      Vector bdr_face_Y(bdr_face_restrict_lex->Height(),
+                        Device::GetDeviceTemporaryMemoryType());
       bdr_face_Y = 0.0;
       for (int i = 0; i < n_bdr_integs; ++i)
       {
@@ -518,8 +526,8 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    {
       if (iSz)
       {
-         auto localX = Workspace::NewVector(elem_restrict->Height());
-         auto localY = Workspace::NewVector(elem_restrict->Height());
+         Vector localX(elem_restrict->Height(), Device::GetDeviceTemporaryMemoryType());
+         Vector localY(elem_restrict->Height(), Device::GetDeviceTemporaryMemoryType());
 
          Array<Array<int>*> &elem_markers = *a->GetDBFI_Marker();
          elem_restrict->Mult(x, localX);
@@ -541,8 +549,10 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    const int iFISz = intFaceIntegrators.Size();
    if (int_face_restrict_lex && iFISz>0)
    {
-      auto int_face_X = Workspace::NewVector(int_face_restrict_lex->Height());
-      auto int_face_Y = Workspace::NewVector(int_face_restrict_lex->Height());
+      Vector int_face_X(int_face_restrict_lex->Height(),
+                        Device::GetDeviceTemporaryMemoryType());
+      Vector int_face_Y(int_face_restrict_lex->Height(),
+                        Device::GetDeviceTemporaryMemoryType());
 
       int_face_restrict_lex->Mult(x, int_face_X);
       if (int_face_X.Size()>0)
@@ -563,8 +573,10 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    const bool has_bdr_integs = (n_bdr_face_integs > 0 || n_bdr_integs > 0);
    if (bdr_face_restrict_lex && has_bdr_integs)
    {
-      auto bdr_face_X = Workspace::NewVector(bdr_face_restrict_lex->Height());
-      auto bdr_face_Y = Workspace::NewVector(bdr_face_restrict_lex->Height());
+      Vector bdr_face_X(bdr_face_restrict_lex->Height(),
+                        Device::GetDeviceTemporaryMemoryType());
+      Vector bdr_face_Y(bdr_face_restrict_lex->Height(),
+                        Device::GetDeviceTemporaryMemoryType());
 
       Array<Array<int>*> &bdr_markers = *a->GetBBFI_Marker();
       Array<Array<int>*> &bdr_face_markers = *a->GetBFBFI_Marker();
@@ -593,8 +605,8 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    const int iSz = integrators.Size();
    if (elem_restrict)
    {
-      auto localX = Workspace::NewVector(elem_restrict->Height());
-      auto localY = Workspace::NewVector(elem_restrict->Height());
+      Vector localX(elem_restrict->Height(), Device::GetDeviceTemporaryMemoryType());
+      Vector localY(elem_restrict->Height(), Device::GetDeviceTemporaryMemoryType());
 
       Array<Array<int>*> &elem_markers = *a->GetDBFI_Marker();
       elem_restrict->Mult(x, localX);
@@ -620,8 +632,10 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    const int iFISz = intFaceIntegrators.Size();
    if (int_face_restrict_lex && iFISz>0)
    {
-      auto int_face_X = Workspace::NewVector(int_face_restrict_lex->Height());
-      auto int_face_Y = Workspace::NewVector(int_face_restrict_lex->Height());
+      Vector int_face_X(int_face_restrict_lex->Height(),
+                        Device::GetDeviceTemporaryMemoryType());
+      Vector int_face_Y(int_face_restrict_lex->Height(),
+                        Device::GetDeviceTemporaryMemoryType());
 
       int_face_restrict_lex->Mult(x, int_face_X);
       if (int_face_X.Size()>0)
@@ -642,8 +656,10 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    const bool has_bdr_integs = (n_bdr_face_integs > 0 || n_bdr_integs > 0);
    if (bdr_face_restrict_lex && has_bdr_integs)
    {
-      auto bdr_face_X = Workspace::NewVector(bdr_face_restrict_lex->Height());
-      auto bdr_face_Y = Workspace::NewVector(bdr_face_restrict_lex->Height());
+      Vector bdr_face_X(bdr_face_restrict_lex->Height(),
+                        Device::GetDeviceTemporaryMemoryType());
+      Vector bdr_face_Y(bdr_face_restrict_lex->Height(),
+                        Device::GetDeviceTemporaryMemoryType());
 
       Array<Array<int>*> &bdr_markers = *a->GetBBFI_Marker();
       Array<Array<int>*> &bdr_face_markers = *a->GetBFBFI_Marker();
@@ -702,7 +718,7 @@ void PABilinearFormExtension::AddMultWithMarkers(
 {
    if (markers)
    {
-      auto tmp_evec = Workspace::NewVector(y.Size());
+      Vector tmp_evec(y.Size(), Device::GetDeviceTemporaryMemoryType());
       tmp_evec = 0.0;
       if (transpose) { integ.AddMultTransposePA(x, tmp_evec); }
       else { integ.AddMultPA(x, tmp_evec); }
@@ -802,8 +818,10 @@ void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    // Apply the Element Restriction
    const bool useRestrict = !DeviceCanUseCeed() && elem_restrict;
 
-   auto localX = Workspace::NewVector(useRestrict?elem_restrict->Height():0);
-   auto localY = Workspace::NewVector(useRestrict?elem_restrict->Height():0);
+   Vector localX(useRestrict?elem_restrict->Height():0,
+                 Device::GetDeviceTemporaryMemoryType());
+   Vector localY(useRestrict?elem_restrict->Height():0,
+                 Device::GetDeviceTemporaryMemoryType());
 
    if (!useRestrict)
    {
@@ -844,8 +862,10 @@ void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    const int iFISz = intFaceIntegrators.Size();
    if (int_face_restrict_lex && iFISz>0)
    {
-      auto int_face_X = Workspace::NewVector(int_face_restrict_lex->Height());
-      auto int_face_Y = Workspace::NewVector(int_face_restrict_lex->Height());
+      Vector int_face_X(int_face_restrict_lex->Height(),
+                        Device::GetDeviceTemporaryMemoryType());
+      Vector int_face_Y(int_face_restrict_lex->Height(),
+                        Device::GetDeviceTemporaryMemoryType());
 
       // Apply the Interior Face Restriction
       int_face_restrict_lex->Mult(x, int_face_X);
@@ -905,8 +925,10 @@ void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    const int bFISz = bdrFaceIntegrators.Size();
    if (!factorize_face_terms && bdr_face_restrict_lex && bFISz>0)
    {
-      auto bdr_face_X = Workspace::NewVector(bdr_face_restrict_lex->Height());
-      auto bdr_face_Y = Workspace::NewVector(bdr_face_restrict_lex->Height());
+      Vector bdr_face_X(bdr_face_restrict_lex->Height(),
+                        Device::GetDeviceTemporaryMemoryType());
+      Vector bdr_face_Y(bdr_face_restrict_lex->Height(),
+                        Device::GetDeviceTemporaryMemoryType());
 
       // Apply the Boundary Face Restriction
       bdr_face_restrict_lex->Mult(x, bdr_face_X);
@@ -940,8 +962,10 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    // Apply the Element Restriction
    const bool useRestrict = !DeviceCanUseCeed() && elem_restrict;
 
-   auto localX = Workspace::NewVector(useRestrict?elem_restrict->Height():0);
-   auto localY = Workspace::NewVector(useRestrict?elem_restrict->Height():0);
+   Vector localX(useRestrict?elem_restrict->Height():0,
+                 Device::GetDeviceTemporaryMemoryType());
+   Vector localY(useRestrict?elem_restrict->Height():0,
+                 Device::GetDeviceTemporaryMemoryType());
 
    if (!useRestrict)
    {
@@ -982,8 +1006,10 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    const int iFISz = intFaceIntegrators.Size();
    if (int_face_restrict_lex && iFISz>0)
    {
-      auto int_face_X = Workspace::NewVector(int_face_restrict_lex->Height());
-      auto int_face_Y = Workspace::NewVector(int_face_restrict_lex->Height());
+      Vector int_face_X(int_face_restrict_lex->Height(),
+                        Device::GetDeviceTemporaryMemoryType());
+      Vector int_face_Y(int_face_restrict_lex->Height(),
+                        Device::GetDeviceTemporaryMemoryType());
 
       // Apply the Interior Face Restriction
       int_face_restrict_lex->Mult(x, int_face_X);
@@ -1043,8 +1069,10 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    const int bFISz = bdrFaceIntegrators.Size();
    if (!factorize_face_terms && bdr_face_restrict_lex && bFISz>0)
    {
-      auto bdr_face_X = Workspace::NewVector(bdr_face_restrict_lex->Height());
-      auto bdr_face_Y = Workspace::NewVector(bdr_face_restrict_lex->Height());
+      Vector bdr_face_X(bdr_face_restrict_lex->Height(),
+                        Device::GetDeviceTemporaryMemoryType());
+      Vector bdr_face_Y(bdr_face_restrict_lex->Height(),
+                        Device::GetDeviceTemporaryMemoryType());
 
       // Apply the Boundary Face Restriction
       bdr_face_restrict_lex->Mult(x, bdr_face_X);
@@ -1267,7 +1295,7 @@ void FABilinearFormExtension::DGMult(const Vector &x, Vector &y) const
       x_gf.ExchangeFaceNbrData();
       Vector &shared_x = x_gf.FaceNbrData();
       const int local_size = a->FESpace()->GetVSize();
-      auto dg_x = Workspace::NewVector(width);
+      Vector dg_x(width, Device::GetDeviceTemporaryMemoryType());
       auto dg_x_ptr = dg_x.Write();
       auto x_ptr = x.Read();
       mfem::forall(local_size, [=] MFEM_HOST_DEVICE (int i)
@@ -1283,7 +1311,7 @@ void FABilinearFormExtension::DGMult(const Vector &x, Vector &y) const
       ParBilinearForm *pform = nullptr;
       if ((pform = dynamic_cast<ParBilinearForm*>(a)) && (pform->keep_nbr_block))
       {
-         auto dg_y = Workspace::NewVector(height);
+         Vector dg_y(height, Device::GetDeviceTemporaryMemoryType());
          mat->Mult(dg_x, dg_y);
          // DG Restriction
          auto dg_y_ptr = dg_y.Read();
@@ -1330,7 +1358,7 @@ void FABilinearFormExtension::DGMultTranspose(const Vector &x, Vector &y) const
       x_gf.ExchangeFaceNbrData();
       Vector &shared_x = x_gf.FaceNbrData();
       const int local_size = a->FESpace()->GetVSize();
-      auto dg_x = Workspace::NewVector(width);
+      Vector dg_x(width, Device::GetDeviceTemporaryMemoryType());
       auto dg_x_ptr = dg_x.Write();
       auto x_ptr = x.Read();
       mfem::forall(local_size, [=] MFEM_HOST_DEVICE (int i)
@@ -1346,7 +1374,7 @@ void FABilinearFormExtension::DGMultTranspose(const Vector &x, Vector &y) const
       ParBilinearForm *pb = nullptr;
       if ((pb = dynamic_cast<ParBilinearForm*>(a)) && (pb->keep_nbr_block))
       {
-         auto dg_y = Workspace::NewVector(height);
+         Vector dg_y(height, Device::GetDeviceTemporaryMemoryType());
          mat->MultTranspose(dg_x, dg_y);
          // DG Restriction
          auto dg_y_ptr = dg_y.Read();
@@ -1524,10 +1552,10 @@ void PAMixedBilinearFormExtension::AddMult(const Vector &x, Vector &y,
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int iSz = integrators.Size();
 
-   auto localTrial = Workspace::NewVector(elem_restrict_trial
-                                          ?elem_restrict_trial->Height():0);
-   auto localTest = Workspace::NewVector(elem_restrict_test
-                                         ?elem_restrict_test->Height():0);
+   Vector localTrial(elem_restrict_trial?elem_restrict_trial->Height():0,
+                     Device::GetDeviceTemporaryMemoryType());
+   Vector localTest(elem_restrict_test?elem_restrict_test->Height():0,
+                    Device::GetDeviceTemporaryMemoryType());
 
    // * G operation
    SetupMultInputs(elem_restrict_trial, x, localTrial,
@@ -1559,10 +1587,10 @@ void PAMixedBilinearFormExtension::AddMultTranspose(const Vector &x, Vector &y,
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int iSz = integrators.Size();
 
-   auto localTrial = Workspace::NewVector(elem_restrict_trial
-                                          ?elem_restrict_trial->Height():0);
-   auto localTest = Workspace::NewVector(elem_restrict_test
-                                         ?elem_restrict_test->Height():0);
+   Vector localTrial(elem_restrict_trial?elem_restrict_trial->Height():0,
+                     Device::GetDeviceTemporaryMemoryType());
+   Vector localTest(elem_restrict_test?elem_restrict_test->Height():0,
+                    Device::GetDeviceTemporaryMemoryType());
 
    // * G operation
    SetupMultInputs(elem_restrict_test, x, localTest,
@@ -1588,8 +1616,8 @@ void PAMixedBilinearFormExtension::AssembleDiagonal_ADAt(const Vector &D,
 
    const int iSz = integrators.Size();
 
-   auto localTrial = Workspace::NewVector(elem_restrict_trial
-                                          ?elem_restrict_trial->Height():0);
+   Vector localTrial(elem_restrict_trial?elem_restrict_trial->Height():0,
+                     Device::GetDeviceTemporaryMemoryType());
    if (elem_restrict_trial)
    {
       const ElementRestriction* H1elem_restrict_trial =
@@ -1606,7 +1634,8 @@ void PAMixedBilinearFormExtension::AssembleDiagonal_ADAt(const Vector &D,
 
    if (elem_restrict_test)
    {
-      auto localTest = Workspace::NewVector(elem_restrict_test->Height());
+      Vector localTest(elem_restrict_test->Height(),
+                       Device::GetDeviceTemporaryMemoryType());
 
       localTest = 0.0;
       for (int i = 0; i < iSz; ++i)
@@ -1674,7 +1703,8 @@ void PADiscreteLinearOperatorExtension::Assemble()
    test_multiplicity.UseDevice(true);
    test_multiplicity.SetSize(elem_restrict_test->Width()); // l-vector
 
-   auto ones = Workspace::NewVector(elem_restrict_test->Height()); // e-vector
+   Vector ones(elem_restrict_test->Height(),
+               Device::GetDeviceTemporaryMemoryType()); // e-vector
    ones = 1.0;
 
    const ElementRestriction* elem_restrict =
@@ -1701,10 +1731,10 @@ void PADiscreteLinearOperatorExtension::AddMult(
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int iSz = integrators.Size();
 
-   auto localTrial = Workspace::NewVector(elem_restrict_trial
-                                          ?elem_restrict_trial->Height():0);
-   auto localTest = Workspace::NewVector(elem_restrict_test
-                                         ?elem_restrict_test->Height():0);
+   Vector localTrial(elem_restrict_trial?elem_restrict_trial->Height():0,
+                     Device::GetDeviceTemporaryMemoryType());
+   Vector localTest(elem_restrict_test?elem_restrict_test->Height():0,
+                    Device::GetDeviceTemporaryMemoryType());
 
    // * G operation
    SetupMultInputs(elem_restrict_trial, x, localTrial,
@@ -1723,7 +1753,7 @@ void PADiscreteLinearOperatorExtension::AddMult(
       dynamic_cast<const ElementRestriction*>(elem_restrict_test);
    if (elem_restrict)
    {
-      auto tempY = Workspace::NewVector(y.Size());
+      Vector tempY(y.Size(), Device::GetDeviceTemporaryMemoryType());
       elem_restrict->MultLeftInverse(localTest, tempY);
       y += tempY;
    }
@@ -1751,10 +1781,10 @@ void PADiscreteLinearOperatorExtension::AddMultTranspose(
       xs[i] *= tm[i];
    });
 
-   auto localTrial = Workspace::NewVector(elem_restrict_trial
-                                          ?elem_restrict_trial->Height():0);
-   auto localTest = Workspace::NewVector(elem_restrict_test
-                                         ?elem_restrict_test->Height():0);
+   Vector localTrial(elem_restrict_trial?elem_restrict_trial->Height():0,
+                     Device::GetDeviceTemporaryMemoryType());
+   Vector localTest(elem_restrict_test?elem_restrict_test->Height():0,
+                    Device::GetDeviceTemporaryMemoryType());
 
    SetupMultInputs(elem_restrict_test, xscaled, localTest,
                    elem_restrict_trial, y, localTrial, c);

@@ -97,7 +97,6 @@ class ArenaDeviceMemorySpace : public DeviceMemorySpace
 public:
    void Alloc(Memory &base) override;
    void Dealloc(Memory &base) override;
-   void *HtoH(void *dst, const void *src, size_t bytes);
    void *HtoD(void *dst, const void *src, size_t bytes) override;
    void *DtoD(void* dst, const void* src, size_t bytes) override;
    void *DtoH(void *dst, const void *src, size_t bytes) override;

@@ -12,7 +12,6 @@
 #include "vector.hpp"
 #include "operator.hpp"
 #include "../general/forall.hpp"
-#include "../general/workspace.hpp"
 
 #include <iostream>
 #include <iomanip>
@@ -518,7 +517,7 @@ void ConstrainedOperator::AssembleDiagonal(Vector &diag) const
 
 void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
 {
-   auto w = Workspace::NewVector(height);
+   Vector w(height, Device::GetDeviceTemporaryMemoryType());
    w = 0.0;
    const int csz = constraint_list.Size();
    auto idx = constraint_list.Read();
@@ -532,7 +531,7 @@ void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
    });
 
    // A.AddMult(w, b, -1.0); // if available to all Operators
-   auto z = Workspace::NewVector(height);
+   Vector z(height, Device::GetDeviceTemporaryMemoryType());
    A->Mult(w, z);
    b -= z;
 
@@ -554,7 +553,7 @@ void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
       return;
    }
 
-   auto z = Workspace::NewVector(height);
+   Vector z(height, Device::GetDeviceTemporaryMemoryType());
    z = x;
 
    auto idx = constraint_list.Read();

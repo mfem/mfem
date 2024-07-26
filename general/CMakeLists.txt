@@ -65,7 +65,6 @@ list(APPEND HDRS
   text.hpp
   version.hpp
   hip.hpp
-  workspace.hpp
   )
 
 if (MFEM_USE_MPI)

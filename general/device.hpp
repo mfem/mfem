@@ -272,6 +272,18 @@ public:
    */
    static inline MemoryType GetDeviceMemoryType() { return Get().device_mem_type; }
 
+   static inline MemoryType GetDeviceTemporaryMemoryType()
+   {
+      if (IsDeviceMemory(GetDeviceMemoryType()))
+      {
+         return MemoryType::DEVICE_ARENA;
+      }
+      else
+      {
+         return MemoryType::HOST_ARENA;
+      }
+   }
+
    /// (DEPRECATED) Equivalent to GetDeviceMemoryType().
    /** @deprecated Use GetDeviceMemoryType() instead. */
    static inline MemoryType GetMemoryType() { return Get().device_mem_type; }
