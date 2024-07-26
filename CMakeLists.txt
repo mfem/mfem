@@ -146,7 +146,7 @@ if (MFEM_USE_CUDA)
    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} ${CUDA_FLAGS}")
    find_package(CUDAToolkit REQUIRED)
    set(CUSPARSE_FOUND TRUE)
-   get_target_property(CUSPARSE_LIBRARIES CUDA::cusparse LOCATION)
+   set(CUSPARSE_LIBRARIES CUDA::cusparse)
 endif()
 
 if (XSDK_ENABLE_C)
