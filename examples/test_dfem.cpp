@@ -1608,6 +1608,7 @@ int main(int argc, char *argv[])
 
    std::cout << std::setprecision(9);
 
+   const char *device_config = "cpu";
    const char *mesh_file = "../data/ref-square.mesh";
    int polynomial_order = 1;
    int ir_order = 2;
@@ -1618,7 +1619,12 @@ int main(int argc, char *argv[])
    args.AddOption(&polynomial_order, "-o", "--order", "");
    args.AddOption(&refinements, "-r", "--r", "");
    args.AddOption(&ir_order, "-iro", "--iro", "");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.ParseCheck();
+
+   Device device(device_config);
+   if (Mpi::Root() == 0) { device.Print(); }
 
    out << std::setprecision(12);
 
