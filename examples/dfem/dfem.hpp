@@ -1105,9 +1105,11 @@ int accumulate_sizes_on_qp(
      fields[kinput_to_field[i]]));
 }
 
+MFEM_HOST_DEVICE
 void prepare_kf_arg(const DeviceTensor<1> &u, double &arg) { arg = u(0); }
 
 template <typename T, int length>
+MFEM_HOST_DEVICE
 void prepare_kf_arg(const DeviceTensor<1> &u,
                     internal::tensor<T, length> &arg)
 {
@@ -1118,6 +1120,7 @@ void prepare_kf_arg(const DeviceTensor<1> &u,
 }
 
 template <int n, int m>
+MFEM_HOST_DEVICE
 void prepare_kf_arg(const DeviceTensor<1> &u,
                     internal::tensor<double, n, m> &arg)
 {
@@ -1137,6 +1140,7 @@ void prepare_kf_arg(const DeviceTensor<1> &u,
 }
 
 template <typename arg_type>
+MFEM_HOST_DEVICE
 void prepare_kf_arg(const DeviceTensor<2> &u, arg_type &arg, int qp)
 {
    const auto u_qp = Reshape(&u(0, qp), u.GetShape()[0]);
@@ -1144,6 +1148,7 @@ void prepare_kf_arg(const DeviceTensor<2> &u, arg_type &arg, int qp)
 }
 
 template <size_t num_fields, typename kf_args, std::size_t... i>
+MFEM_HOST_DEVICE
 void prepare_kf_args(const std::array<DeviceTensor<2>, num_fields> &u,
                      kf_args &args, int qp, std::index_sequence<i...>)
 {
