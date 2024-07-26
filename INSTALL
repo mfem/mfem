@@ -710,6 +710,11 @@ The specific libraries and their options are:
   Options: AMGX_OPT, AMGX_LIB.
   Versions: AmgX >= 2.1, older versions may work too.
 
+- MAGMA (optional), used with MFEM_USE_MAGMA = YES.
+  URL: https://icl.utk.edu/magma/
+  Options: MAGMA_OPT, MAGMA_LIB
+  Versions: MAGMA >= 2.8.0
+
 - GnuTLS (optional), used when MFEM_USE_GNUTLS = YES. On most Linux systems,
   GnuTLS is available as a development package, e.g. gnutls-devel. On Mac OS X,
   one can get the library through the Homebrew package manager (http://brew.sh).
