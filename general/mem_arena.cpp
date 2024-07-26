@@ -106,6 +106,16 @@ void ArenaChunk::ClearDeallocated()
    MFEM_ASSERT(ptr_stack.size() >= ptr_count, "");
 }
 
+void *ArenaChunk::NewPointer(size_t nbytes)
+{
+   MFEM_ASSERT(HasCapacityFor(nbytes), "Requested pointer is too large.");
+   void *ptr = (char *)data.h_ptr + offset;
+   offset += nbytes;
+   ptr_count += 1;
+   ptr_stack.push_back(ptr);
+   return ptr;
+}
+
 void *ArenaChunk::GetDevicePointer(void *h_ptr)
 {
    if (data.d_ptr == nullptr)

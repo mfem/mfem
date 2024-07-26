@@ -64,15 +64,7 @@ public:
    /// Clear all deallocated pointers from the top of the stack.
    void ClearDeallocated();
    /// Allocates a buffer of size nbytes, returns the associated pointer.
-   void *NewPointer(size_t nbytes)
-   {
-      MFEM_ASSERT(HasCapacityFor(nbytes), "Requested pointer is too large.");
-      void *ptr = (char *)data.h_ptr + offset;
-      offset += nbytes;
-      ptr_count += 1;
-      ptr_stack.push_back(ptr);
-      return ptr;
-   }
+   void *NewPointer(size_t nbytes);
    /// Return the device pointer associated with host pointer @a h_ptr.
    void *GetDevicePointer(void *h_ptr);
    /// Return the number of live pointers in the chunk.
