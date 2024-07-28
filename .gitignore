@@ -18,6 +18,10 @@ CMakeFiles/
 # QtCreator/clangd folder
 .qtc_clangd
 
+# VSCode/clagd folders
+.vscode 
+.cache
+
 # Backup files
 *~
 

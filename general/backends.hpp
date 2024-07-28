@@ -55,9 +55,10 @@
 
 #define MFEM_SHARED
 
-template <typename T, size_t = 0> T mfem_shared() {
-  T t;
-  return t;
+template <typename T, size_t = 0> T mfem_shared()
+{
+   T t;
+   return t;
 }
 
 #define MFEM_STATIC_SHARED_VAR(var, ...) __VA_ARGS__ var
@@ -75,37 +76,41 @@ template <typename T, size_t = 0> T mfem_shared() {
 
 // 'double' and 'float' atomicAdd implementation for previous versions of CUDA
 #if defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 600
-MFEM_DEVICE inline mfem::real_t atomicAdd(mfem::real_t *add, mfem::real_t val) {
-  unsigned long long int *ptr = (unsigned long long int *)add;
-  unsigned long long int old = *ptr, reg;
-  do {
-    reg = old;
-    old = atomicCAS(ptr, reg,
+MFEM_DEVICE inline mfem::real_t atomicAdd(mfem::real_t *add, mfem::real_t val)
+{
+   unsigned long long int *ptr = (unsigned long long int *)add;
+   unsigned long long int old = *ptr, reg;
+   do
+   {
+      reg = old;
+      old = atomicCAS(ptr, reg,
 #ifdef MFEM_USE_SINGLE
-                    __float_as_int(val + __int_as_float(reg)));
+                      __float_as_int(val + __int_as_float(reg)));
 #else
-                    __double_as_longlong(val + __longlong_as_double(reg)));
+                      __double_as_longlong(val + __longlong_as_double(reg)));
 #endif
-  } while (reg != old);
+   }
+   while (reg != old);
 #ifdef MFEM_USE_SINGLE
-  return __int_as_float(old);
+   return __int_as_float(old);
 #else
-  return __longlong_as_double(old);
+   return __longlong_as_double(old);
 #endif
 }
 #endif
 
-template <typename T> MFEM_HOST_DEVICE T AtomicAdd(T &add, const T val) {
+template <typename T> MFEM_HOST_DEVICE T AtomicAdd(T &add, const T val)
+{
 #if ((defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) ||                     \
      (defined(MFEM_USE_HIP) && defined(__HIP_DEVICE_COMPILE__)))
-  return atomicAdd(&add, val);
+   return atomicAdd(&add, val);
 #else
-  T old = add;
+   T old = add;
 #ifdef MFEM_USE_OPENMP
-#pragma omp atomic
+   #pragma omp atomic
 #endif
-  add += val;
-  return old;
+   add += val;
+   return old;
 #endif
 }
 

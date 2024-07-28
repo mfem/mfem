@@ -25,352 +25,409 @@
 #include <iostream>
 #include <limits>
 
-namespace mfem {
+namespace mfem
+{
 
-Vector::Vector(const Vector &v) {
-  const int s = v.Size();
-  size = s;
-  if (s > 0) {
-    MFEM_ASSERT(!v.data.Empty(), "invalid source vector");
-    data.New(s, v.data.GetMemoryType());
-    data.CopyFrom(v.data, s);
-  }
-  UseDevice(v.UseDevice());
+Vector::Vector(const Vector &v)
+{
+   const int s = v.Size();
+   size = s;
+   if (s > 0)
+   {
+      MFEM_ASSERT(!v.data.Empty(), "invalid source vector");
+      data.New(s, v.data.GetMemoryType());
+      data.CopyFrom(v.data, s);
+   }
+   UseDevice(v.UseDevice());
 }
 
 Vector::Vector(Vector &&v) { *this = std::move(v); }
 
-void Vector::Load(std::istream **in, int np, int *dim) {
-  int i, j, s;
+void Vector::Load(std::istream **in, int np, int *dim)
+{
+   int i, j, s;
 
-  s = 0;
-  for (i = 0; i < np; i++) {
-    s += dim[i];
-  }
+   s = 0;
+   for (i = 0; i < np; i++)
+   {
+      s += dim[i];
+   }
 
-  SetSize(s);
-  HostWrite();
+   SetSize(s);
+   HostWrite();
 
-  int p = 0;
-  for (i = 0; i < np; i++) {
-    for (j = 0; j < dim[i]; j++) {
-      *in[i] >> data[p++];
-      // Clang's libc++ sets the failbit when (correctly) parsing subnormals,
-      // so we reset the failbit here.
-      if (!*in[i] && errno == ERANGE) {
-        in[i]->clear();
+   int p = 0;
+   for (i = 0; i < np; i++)
+   {
+      for (j = 0; j < dim[i]; j++)
+      {
+         *in[i] >> data[p++];
+         // Clang's libc++ sets the failbit when (correctly) parsing subnormals,
+         // so we reset the failbit here.
+         if (!*in[i] && errno == ERANGE)
+         {
+            in[i]->clear();
+         }
       }
-    }
-  }
+   }
 }
 
-void Vector::Load(std::istream &in, int Size) {
-  SetSize(Size);
-  HostWrite();
+void Vector::Load(std::istream &in, int Size)
+{
+   SetSize(Size);
+   HostWrite();
 
-  for (int i = 0; i < size; i++) {
-    in >> data[i];
-    // Clang's libc++ sets the failbit when (correctly) parsing subnormals,
-    // so we reset the failbit here.
-    if (!in && errno == ERANGE) {
-      in.clear();
-    }
-  }
+   for (int i = 0; i < size; i++)
+   {
+      in >> data[i];
+      // Clang's libc++ sets the failbit when (correctly) parsing subnormals,
+      // so we reset the failbit here.
+      if (!in && errno == ERANGE)
+      {
+         in.clear();
+      }
+   }
 }
 
 real_t &Vector::Elem(int i) { return operator()(i); }
 
 const real_t &Vector::Elem(int i) const { return operator()(i); }
 
-real_t Vector::operator*(const real_t *v) const {
-  real_t dot = 0.0;
+real_t Vector::operator*(const real_t *v) const
+{
+   real_t dot = 0.0;
 #ifdef MFEM_USE_LEGACY_OPENMP
-#pragma omp parallel for reduction(+ : dot)
+   #pragma omp parallel for reduction(+ : dot)
 #endif
-  for (int i = 0; i < size; i++) {
-    dot += data[i] * v[i];
-  }
-  return dot;
+   for (int i = 0; i < size; i++)
+   {
+      dot += data[i] * v[i];
+   }
+   return dot;
 }
 
-Vector &Vector::operator=(const real_t *v) {
-  data.CopyFromHost(v, size);
-  return *this;
+Vector &Vector::operator=(const real_t *v)
+{
+   data.CopyFromHost(v, size);
+   return *this;
 }
 
-Vector &Vector::operator=(const Vector &v) {
+Vector &Vector::operator=(const Vector &v)
+{
 #if 0
    SetSize(v.Size(), v.data.GetMemoryType());
    data.CopyFrom(v.data, v.Size());
    UseDevice(v.UseDevice());
 #else
-  SetSize(v.Size());
-  bool vuse = v.UseDevice();
-  const bool use_dev = UseDevice() || vuse;
-  v.UseDevice(use_dev);
-  // keep 'data' where it is, unless 'use_dev' is true
-  if (use_dev) {
-    Write();
-  }
-  data.CopyFrom(v.data, v.Size());
-  v.UseDevice(vuse);
+   SetSize(v.Size());
+   bool vuse = v.UseDevice();
+   const bool use_dev = UseDevice() || vuse;
+   v.UseDevice(use_dev);
+   // keep 'data' where it is, unless 'use_dev' is true
+   if (use_dev)
+   {
+      Write();
+   }
+   data.CopyFrom(v.data, v.Size());
+   v.UseDevice(vuse);
 #endif
-  return *this;
+   return *this;
 }
 
-Vector &Vector::operator=(Vector &&v) {
-  data = std::move(v.data);
-  // Self-assignment-safe way to move v.size to size:
-  const auto size_tmp = v.size;
-  v.size = 0;
-  size = size_tmp;
-  return *this;
+Vector &Vector::operator=(Vector &&v)
+{
+   data = std::move(v.data);
+   // Self-assignment-safe way to move v.size to size:
+   const auto size_tmp = v.size;
+   v.size = 0;
+   size = size_tmp;
+   return *this;
 }
 
-Vector &Vector::operator=(real_t value) {
-  const bool use_dev = UseDevice();
-  const int N = size;
-  auto y = Write(use_dev);
-  mfem::forall_switch(use_dev, N,
-                      [=] MFEM_HOST_DEVICE(int i) { y[i] = value; });
-  return *this;
+Vector &Vector::operator=(real_t value)
+{
+   const bool use_dev = UseDevice();
+   const int N = size;
+   auto y = Write(use_dev);
+   mfem::forall_switch(use_dev, N,
+   [=] MFEM_HOST_DEVICE(int i) { y[i] = value; });
+   return *this;
 }
 
-Vector &Vector::operator*=(real_t c) {
-  const bool use_dev = UseDevice();
-  const int N = size;
-  auto y = ReadWrite(use_dev);
-  mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE(int i) { y[i] *= c; });
-  return *this;
+Vector &Vector::operator*=(real_t c)
+{
+   const bool use_dev = UseDevice();
+   const int N = size;
+   auto y = ReadWrite(use_dev);
+   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE(int i) { y[i] *= c; });
+   return *this;
 }
 
-Vector &Vector::operator*=(const Vector &v) {
-  MFEM_ASSERT(size == v.size, "incompatible Vectors!");
+Vector &Vector::operator*=(const Vector &v)
+{
+   MFEM_ASSERT(size == v.size, "incompatible Vectors!");
 
-  const bool use_dev = UseDevice() || v.UseDevice();
-  const int N = size;
-  auto y = ReadWrite(use_dev);
-  auto x = v.Read(use_dev);
-  mfem::forall_switch(use_dev, N,
-                      [=] MFEM_HOST_DEVICE(int i) { y[i] *= x[i]; });
-  return *this;
+   const bool use_dev = UseDevice() || v.UseDevice();
+   const int N = size;
+   auto y = ReadWrite(use_dev);
+   auto x = v.Read(use_dev);
+   mfem::forall_switch(use_dev, N,
+   [=] MFEM_HOST_DEVICE(int i) { y[i] *= x[i]; });
+   return *this;
 }
 
-Vector &Vector::operator/=(real_t c) {
-  const bool use_dev = UseDevice();
-  const int N = size;
-  const real_t m = 1.0 / c;
-  auto y = ReadWrite(use_dev);
-  mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE(int i) { y[i] *= m; });
-  return *this;
+Vector &Vector::operator/=(real_t c)
+{
+   const bool use_dev = UseDevice();
+   const int N = size;
+   const real_t m = 1.0 / c;
+   auto y = ReadWrite(use_dev);
+   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE(int i) { y[i] *= m; });
+   return *this;
 }
 
-Vector &Vector::operator/=(const Vector &v) {
-  MFEM_ASSERT(size == v.size, "incompatible Vectors!");
+Vector &Vector::operator/=(const Vector &v)
+{
+   MFEM_ASSERT(size == v.size, "incompatible Vectors!");
 
-  const bool use_dev = UseDevice() || v.UseDevice();
-  const int N = size;
-  auto y = ReadWrite(use_dev);
-  auto x = v.Read(use_dev);
-  mfem::forall_switch(use_dev, N,
-                      [=] MFEM_HOST_DEVICE(int i) { y[i] /= x[i]; });
-  return *this;
+   const bool use_dev = UseDevice() || v.UseDevice();
+   const int N = size;
+   auto y = ReadWrite(use_dev);
+   auto x = v.Read(use_dev);
+   mfem::forall_switch(use_dev, N,
+   [=] MFEM_HOST_DEVICE(int i) { y[i] /= x[i]; });
+   return *this;
 }
 
-Vector &Vector::operator-=(real_t c) {
-  const bool use_dev = UseDevice();
-  const int N = size;
-  auto y = ReadWrite(use_dev);
-  mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE(int i) { y[i] -= c; });
-  return *this;
+Vector &Vector::operator-=(real_t c)
+{
+   const bool use_dev = UseDevice();
+   const int N = size;
+   auto y = ReadWrite(use_dev);
+   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE(int i) { y[i] -= c; });
+   return *this;
 }
 
-Vector &Vector::operator-=(const Vector &v) {
-  MFEM_ASSERT(size == v.size, "incompatible Vectors!");
+Vector &Vector::operator-=(const Vector &v)
+{
+   MFEM_ASSERT(size == v.size, "incompatible Vectors!");
 
-  const bool use_dev = UseDevice() || v.UseDevice();
-  const int N = size;
-  auto y = ReadWrite(use_dev);
-  auto x = v.Read(use_dev);
-  mfem::forall_switch(use_dev, N,
-                      [=] MFEM_HOST_DEVICE(int i) { y[i] -= x[i]; });
-  return *this;
+   const bool use_dev = UseDevice() || v.UseDevice();
+   const int N = size;
+   auto y = ReadWrite(use_dev);
+   auto x = v.Read(use_dev);
+   mfem::forall_switch(use_dev, N,
+   [=] MFEM_HOST_DEVICE(int i) { y[i] -= x[i]; });
+   return *this;
 }
 
-Vector &Vector::operator+=(real_t c) {
-  const bool use_dev = UseDevice();
-  const int N = size;
-  auto y = ReadWrite(use_dev);
-  mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE(int i) { y[i] += c; });
-  return *this;
+Vector &Vector::operator+=(real_t c)
+{
+   const bool use_dev = UseDevice();
+   const int N = size;
+   auto y = ReadWrite(use_dev);
+   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE(int i) { y[i] += c; });
+   return *this;
 }
 
-Vector &Vector::operator+=(const Vector &v) {
-  MFEM_ASSERT(size == v.size, "incompatible Vectors!");
+Vector &Vector::operator+=(const Vector &v)
+{
+   MFEM_ASSERT(size == v.size, "incompatible Vectors!");
 
-  const bool use_dev = UseDevice() || v.UseDevice();
-  const int N = size;
-  auto y = ReadWrite(use_dev);
-  auto x = v.Read(use_dev);
-  mfem::forall_switch(use_dev, N,
-                      [=] MFEM_HOST_DEVICE(int i) { y[i] += x[i]; });
-  return *this;
+   const bool use_dev = UseDevice() || v.UseDevice();
+   const int N = size;
+   auto y = ReadWrite(use_dev);
+   auto x = v.Read(use_dev);
+   mfem::forall_switch(use_dev, N,
+   [=] MFEM_HOST_DEVICE(int i) { y[i] += x[i]; });
+   return *this;
 }
 
-Vector &Vector::Add(const real_t a, const Vector &Va) {
-  MFEM_ASSERT(size == Va.size, "incompatible Vectors!");
+Vector &Vector::Add(const real_t a, const Vector &Va)
+{
+   MFEM_ASSERT(size == Va.size, "incompatible Vectors!");
 
-  if (a != 0.0) {
-    const int N = size;
-    const bool use_dev = UseDevice() || Va.UseDevice();
-    auto y = ReadWrite(use_dev);
-    auto x = Va.Read(use_dev);
-    mfem::forall_switch(use_dev, N,
-                        [=] MFEM_HOST_DEVICE(int i) { y[i] += a * x[i]; });
-  }
-  return *this;
+   if (a != 0.0)
+   {
+      const int N = size;
+      const bool use_dev = UseDevice() || Va.UseDevice();
+      auto y = ReadWrite(use_dev);
+      auto x = Va.Read(use_dev);
+      mfem::forall_switch(use_dev, N,
+      [=] MFEM_HOST_DEVICE(int i) { y[i] += a * x[i]; });
+   }
+   return *this;
 }
 
-Vector &Vector::Set(const real_t a, const Vector &Va) {
-  MFEM_ASSERT(size == Va.size, "incompatible Vectors!");
+Vector &Vector::Set(const real_t a, const Vector &Va)
+{
+   MFEM_ASSERT(size == Va.size, "incompatible Vectors!");
 
-  const bool use_dev = UseDevice() || Va.UseDevice();
-  const int N = size;
-  auto x = Va.Read(use_dev);
-  auto y = Write(use_dev);
-  mfem::forall_switch(use_dev, N,
-                      [=] MFEM_HOST_DEVICE(int i) { y[i] = a * x[i]; });
-  return *this;
+   const bool use_dev = UseDevice() || Va.UseDevice();
+   const int N = size;
+   auto x = Va.Read(use_dev);
+   auto y = Write(use_dev);
+   mfem::forall_switch(use_dev, N,
+   [=] MFEM_HOST_DEVICE(int i) { y[i] = a * x[i]; });
+   return *this;
 }
 
-void Vector::SetVector(const Vector &v, int offset) {
-  MFEM_ASSERT(v.Size() + offset <= size, "invalid sub-vector");
+void Vector::SetVector(const Vector &v, int offset)
+{
+   MFEM_ASSERT(v.Size() + offset <= size, "invalid sub-vector");
 
-  const int vs = v.Size();
-  const real_t *vp = v.data;
-  real_t *p = data + offset;
-  for (int i = 0; i < vs; i++) {
-    p[i] = vp[i];
-  }
+   const int vs = v.Size();
+   const real_t *vp = v.data;
+   real_t *p = data + offset;
+   for (int i = 0; i < vs; i++)
+   {
+      p[i] = vp[i];
+   }
 }
 
-void Vector::AddSubVector(const Vector &v, int offset) {
-  MFEM_ASSERT(v.Size() + offset <= size, "invalid sub-vector");
+void Vector::AddSubVector(const Vector &v, int offset)
+{
+   MFEM_ASSERT(v.Size() + offset <= size, "invalid sub-vector");
 
-  const int vs = v.Size();
-  const real_t *vp = v.data;
-  real_t *p = data + offset;
-  for (int i = 0; i < vs; i++) {
-    p[i] += vp[i];
-  }
+   const int vs = v.Size();
+   const real_t *vp = v.data;
+   real_t *p = data + offset;
+   for (int i = 0; i < vs; i++)
+   {
+      p[i] += vp[i];
+   }
 }
 
-void Vector::Neg() {
-  const bool use_dev = UseDevice();
-  const int N = size;
-  auto y = ReadWrite(use_dev);
-  mfem::forall_switch(use_dev, N,
-                      [=] MFEM_HOST_DEVICE(int i) { y[i] = -y[i]; });
+void Vector::Neg()
+{
+   const bool use_dev = UseDevice();
+   const int N = size;
+   auto y = ReadWrite(use_dev);
+   mfem::forall_switch(use_dev, N,
+   [=] MFEM_HOST_DEVICE(int i) { y[i] = -y[i]; });
 }
 
-void Vector::Reciprocal() {
-  const bool use_dev = UseDevice();
-  const int N = size;
-  auto y = ReadWrite(use_dev);
-  mfem::forall_switch(use_dev, N,
-                      [=] MFEM_HOST_DEVICE(int i) { y[i] = 1.0 / y[i]; });
+void Vector::Reciprocal()
+{
+   const bool use_dev = UseDevice();
+   const int N = size;
+   auto y = ReadWrite(use_dev);
+   mfem::forall_switch(use_dev, N,
+   [=] MFEM_HOST_DEVICE(int i) { y[i] = 1.0 / y[i]; });
 }
 
-void add(const Vector &v1, const Vector &v2, Vector &v) {
-  MFEM_ASSERT(v.size == v1.size && v.size == v2.size, "incompatible Vectors!");
+void add(const Vector &v1, const Vector &v2, Vector &v)
+{
+   MFEM_ASSERT(v.size == v1.size && v.size == v2.size, "incompatible Vectors!");
 
 #if !defined(MFEM_USE_LEGACY_OPENMP)
-  const bool use_dev = v1.UseDevice() || v2.UseDevice() || v.UseDevice();
-  const int N = v.size;
-  // Note: get read access first, in case v is the same as v1/v2.
-  auto x1 = v1.Read(use_dev);
-  auto x2 = v2.Read(use_dev);
-  auto y = v.Write(use_dev);
-  mfem::forall_switch(use_dev, N,
-                      [=] MFEM_HOST_DEVICE(int i) { y[i] = x1[i] + x2[i]; });
+   const bool use_dev = v1.UseDevice() || v2.UseDevice() || v.UseDevice();
+   const int N = v.size;
+   // Note: get read access first, in case v is the same as v1/v2.
+   auto x1 = v1.Read(use_dev);
+   auto x2 = v2.Read(use_dev);
+   auto y = v.Write(use_dev);
+   mfem::forall_switch(use_dev, N,
+   [=] MFEM_HOST_DEVICE(int i) { y[i] = x1[i] + x2[i]; });
 #else
-#pragma omp parallel for
-  for (int i = 0; i < v.size; i++) {
-    v.data[i] = v1.data[i] + v2.data[i];
-  }
+   #pragma omp parallel for
+   for (int i = 0; i < v.size; i++)
+   {
+      v.data[i] = v1.data[i] + v2.data[i];
+   }
 #endif
 }
 
-void add(const Vector &v1, real_t alpha, const Vector &v2, Vector &v) {
-  MFEM_ASSERT(v.size == v1.size && v.size == v2.size, "incompatible Vectors!");
+void add(const Vector &v1, real_t alpha, const Vector &v2, Vector &v)
+{
+   MFEM_ASSERT(v.size == v1.size && v.size == v2.size, "incompatible Vectors!");
 
-  if (alpha == 0.0) {
-    v = v1;
-  } else if (alpha == 1.0) {
-    add(v1, v2, v);
-  } else {
+   if (alpha == 0.0)
+   {
+      v = v1;
+   }
+   else if (alpha == 1.0)
+   {
+      add(v1, v2, v);
+   }
+   else
+   {
 #if !defined(MFEM_USE_LEGACY_OPENMP)
-    const bool use_dev = v1.UseDevice() || v2.UseDevice() || v.UseDevice();
-    const int N = v.size;
-    // Note: get read access first, in case v is the same as v1/v2.
-    auto d_x = v1.Read(use_dev);
-    auto d_y = v2.Read(use_dev);
-    auto d_z = v.Write(use_dev);
-    mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE(int i) {
-      d_z[i] = d_x[i] + alpha * d_y[i];
-    });
+      const bool use_dev = v1.UseDevice() || v2.UseDevice() || v.UseDevice();
+      const int N = v.size;
+      // Note: get read access first, in case v is the same as v1/v2.
+      auto d_x = v1.Read(use_dev);
+      auto d_y = v2.Read(use_dev);
+      auto d_z = v.Write(use_dev);
+      mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE(int i)
+      {
+         d_z[i] = d_x[i] + alpha * d_y[i];
+      });
 #else
-    const real_t *v1p = v1.data, *v2p = v2.data;
-    real_t *vp = v.data;
-    const int s = v.size;
-#pragma omp parallel for
-    for (int i = 0; i < s; i++) {
-      vp[i] = v1p[i] + alpha * v2p[i];
-    }
+      const real_t *v1p = v1.data, *v2p = v2.data;
+      real_t *vp = v.data;
+      const int s = v.size;
+      #pragma omp parallel for
+      for (int i = 0; i < s; i++)
+      {
+         vp[i] = v1p[i] + alpha * v2p[i];
+      }
 #endif
-  }
+   }
 }
 
-void add(const real_t a, const Vector &x, const Vector &y, Vector &z) {
-  MFEM_ASSERT(x.size == y.size && x.size == z.size, "incompatible Vectors!");
+void add(const real_t a, const Vector &x, const Vector &y, Vector &z)
+{
+   MFEM_ASSERT(x.size == y.size && x.size == z.size, "incompatible Vectors!");
 
-  if (a == 0.0) {
-    z = 0.0;
-  } else if (a == 1.0) {
-    add(x, y, z);
-  } else {
+   if (a == 0.0)
+   {
+      z = 0.0;
+   }
+   else if (a == 1.0)
+   {
+      add(x, y, z);
+   }
+   else
+   {
 #if !defined(MFEM_USE_LEGACY_OPENMP)
-    const bool use_dev = x.UseDevice() || y.UseDevice() || z.UseDevice();
-    const int N = x.size;
-    // Note: get read access first, in case z is the same as x/y.
-    auto xd = x.Read(use_dev);
-    auto yd = y.Read(use_dev);
-    auto zd = z.Write(use_dev);
-    mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE(int i) {
-      zd[i] = a * (xd[i] + yd[i]);
-    });
+      const bool use_dev = x.UseDevice() || y.UseDevice() || z.UseDevice();
+      const int N = x.size;
+      // Note: get read access first, in case z is the same as x/y.
+      auto xd = x.Read(use_dev);
+      auto yd = y.Read(use_dev);
+      auto zd = z.Write(use_dev);
+      mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE(int i)
+      {
+         zd[i] = a * (xd[i] + yd[i]);
+      });
 #else
-    const real_t *xp = x.data;
-    const real_t *yp = y.data;
-    real_t *zp = z.data;
-    const int s = x.size;
-#pragma omp parallel for
-    for (int i = 0; i < s; i++) {
-      zp[i] = a * (xp[i] + yp[i]);
-    }
+      const real_t *xp = x.data;
+      const real_t *yp = y.data;
+      real_t *zp = z.data;
+      const int s = x.size;
+      #pragma omp parallel for
+      for (int i = 0; i < s; i++)
+      {
+         zp[i] = a * (xp[i] + yp[i]);
+      }
 #endif
-  }
+   }
 }
 
 void add(const real_t a, const Vector &x, const real_t b, const Vector &y,
-         Vector &z) {
-  MFEM_ASSERT(x.size == y.size && x.size == z.size, "incompatible Vectors!");
+         Vector &z)
+{
+   MFEM_ASSERT(x.size == y.size && x.size == z.size, "incompatible Vectors!");
 
-  if (a == 0.0) {
-    z.Set(b, y);
-  } else if (b == 0.0) {
-    z.Set(a, x);
-  }
+   if (a == 0.0)
+   {
+      z.Set(b, y);
+   }
+   else if (b == 0.0)
+   {
+      z.Set(a, x);
+   }
 #if 0
    else if (a == 1.0)
    {
@@ -385,934 +442,1114 @@ void add(const real_t a, const Vector &x, const real_t b, const Vector &y,
       add(a, x, y, z);
    }
 #endif
-  else {
+   else
+   {
 #if !defined(MFEM_USE_LEGACY_OPENMP)
-    const bool use_dev = x.UseDevice() || y.UseDevice() || z.UseDevice();
-    const int N = x.size;
-    // Note: get read access first, in case z is the same as x/y.
-    auto xd = x.Read(use_dev);
-    auto yd = y.Read(use_dev);
-    auto zd = z.Write(use_dev);
-    mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE(int i) {
-      zd[i] = a * xd[i] + b * yd[i];
-    });
+      const bool use_dev = x.UseDevice() || y.UseDevice() || z.UseDevice();
+      const int N = x.size;
+      // Note: get read access first, in case z is the same as x/y.
+      auto xd = x.Read(use_dev);
+      auto yd = y.Read(use_dev);
+      auto zd = z.Write(use_dev);
+      mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE(int i)
+      {
+         zd[i] = a * xd[i] + b * yd[i];
+      });
 #else
-    const real_t *xp = x.data;
-    const real_t *yp = y.data;
-    real_t *zp = z.data;
-    const int s = x.size;
-#pragma omp parallel for
-    for (int i = 0; i < s; i++) {
-      zp[i] = a * xp[i] + b * yp[i];
-    }
+      const real_t *xp = x.data;
+      const real_t *yp = y.data;
+      real_t *zp = z.data;
+      const int s = x.size;
+      #pragma omp parallel for
+      for (int i = 0; i < s; i++)
+      {
+         zp[i] = a * xp[i] + b * yp[i];
+      }
 #endif
-  }
+   }
 }
 
-void subtract(const Vector &x, const Vector &y, Vector &z) {
-  MFEM_ASSERT(x.size == y.size && x.size == z.size, "incompatible Vectors!");
+void subtract(const Vector &x, const Vector &y, Vector &z)
+{
+   MFEM_ASSERT(x.size == y.size && x.size == z.size, "incompatible Vectors!");
 
 #if !defined(MFEM_USE_LEGACY_OPENMP)
-  const bool use_dev = x.UseDevice() || y.UseDevice() || z.UseDevice();
-  const int N = x.size;
-  // Note: get read access first, in case z is the same as x/y.
-  auto xd = x.Read(use_dev);
-  auto yd = y.Read(use_dev);
-  auto zd = z.Write(use_dev);
-  mfem::forall_switch(use_dev, N,
-                      [=] MFEM_HOST_DEVICE(int i) { zd[i] = xd[i] - yd[i]; });
+   const bool use_dev = x.UseDevice() || y.UseDevice() || z.UseDevice();
+   const int N = x.size;
+   // Note: get read access first, in case z is the same as x/y.
+   auto xd = x.Read(use_dev);
+   auto yd = y.Read(use_dev);
+   auto zd = z.Write(use_dev);
+   mfem::forall_switch(use_dev, N,
+   [=] MFEM_HOST_DEVICE(int i) { zd[i] = xd[i] - yd[i]; });
 #else
-  const real_t *xp = x.data;
-  const real_t *yp = y.data;
-  real_t *zp = z.data;
-  const int s = x.size;
-#pragma omp parallel for
-  for (int i = 0; i < s; i++) {
-    zp[i] = xp[i] - yp[i];
-  }
+   const real_t *xp = x.data;
+   const real_t *yp = y.data;
+   real_t *zp = z.data;
+   const int s = x.size;
+   #pragma omp parallel for
+   for (int i = 0; i < s; i++)
+   {
+      zp[i] = xp[i] - yp[i];
+   }
 #endif
 }
 
-void subtract(const real_t a, const Vector &x, const Vector &y, Vector &z) {
-  MFEM_ASSERT(x.size == y.size && x.size == z.size, "incompatible Vectors!");
+void subtract(const real_t a, const Vector &x, const Vector &y, Vector &z)
+{
+   MFEM_ASSERT(x.size == y.size && x.size == z.size, "incompatible Vectors!");
 
-  if (a == 0.) {
-    z = 0.;
-  } else if (a == 1.) {
-    subtract(x, y, z);
-  } else {
+   if (a == 0.)
+   {
+      z = 0.;
+   }
+   else if (a == 1.)
+   {
+      subtract(x, y, z);
+   }
+   else
+   {
 #if !defined(MFEM_USE_LEGACY_OPENMP)
-    const bool use_dev = x.UseDevice() || y.UseDevice() || z.UseDevice();
-    const int N = x.size;
-    // Note: get read access first, in case z is the same as x/y.
-    auto xd = x.Read(use_dev);
-    auto yd = y.Read(use_dev);
-    auto zd = z.Write(use_dev);
-    mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE(int i) {
-      zd[i] = a * (xd[i] - yd[i]);
-    });
+      const bool use_dev = x.UseDevice() || y.UseDevice() || z.UseDevice();
+      const int N = x.size;
+      // Note: get read access first, in case z is the same as x/y.
+      auto xd = x.Read(use_dev);
+      auto yd = y.Read(use_dev);
+      auto zd = z.Write(use_dev);
+      mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE(int i)
+      {
+         zd[i] = a * (xd[i] - yd[i]);
+      });
 #else
-    const real_t *xp = x.data;
-    const real_t *yp = y.data;
-    real_t *zp = z.data;
-    const int s = x.size;
-#pragma omp parallel for
-    for (int i = 0; i < s; i++) {
-      zp[i] = a * (xp[i] - yp[i]);
-    }
+      const real_t *xp = x.data;
+      const real_t *yp = y.data;
+      real_t *zp = z.data;
+      const int s = x.size;
+      #pragma omp parallel for
+      for (int i = 0; i < s; i++)
+      {
+         zp[i] = a * (xp[i] - yp[i]);
+      }
 #endif
-  }
+   }
 }
 
-void Vector::cross3D(const Vector &vin, Vector &vout) const {
-  HostRead();
-  vin.HostRead();
-  vout.HostWrite();
-  MFEM_VERIFY(size == 3, "Only 3D vectors supported in cross.");
-  MFEM_VERIFY(vin.Size() == 3, "Only 3D vectors supported in cross.");
-  vout.SetSize(3);
-  vout(0) = data[1] * vin(2) - data[2] * vin(1);
-  vout(1) = data[2] * vin(0) - data[0] * vin(2);
-  vout(2) = data[0] * vin(1) - data[1] * vin(0);
+void Vector::cross3D(const Vector &vin, Vector &vout) const
+{
+   HostRead();
+   vin.HostRead();
+   vout.HostWrite();
+   MFEM_VERIFY(size == 3, "Only 3D vectors supported in cross.");
+   MFEM_VERIFY(vin.Size() == 3, "Only 3D vectors supported in cross.");
+   vout.SetSize(3);
+   vout(0) = data[1] * vin(2) - data[2] * vin(1);
+   vout(1) = data[2] * vin(0) - data[0] * vin(2);
+   vout(2) = data[0] * vin(1) - data[1] * vin(0);
 }
 
-void Vector::median(const Vector &lo, const Vector &hi) {
-  MFEM_ASSERT(size == lo.size && size == hi.size, "incompatible Vectors!");
+void Vector::median(const Vector &lo, const Vector &hi)
+{
+   MFEM_ASSERT(size == lo.size && size == hi.size, "incompatible Vectors!");
 
-  const bool use_dev = UseDevice() || lo.UseDevice() || hi.UseDevice();
-  const int N = size;
-  // Note: get read access first, in case *this is the same as lo/hi.
-  auto l = lo.Read(use_dev);
-  auto h = hi.Read(use_dev);
-  auto m = Write(use_dev);
-  mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE(int i) {
-    if (m[i] < l[i]) {
-      m[i] = l[i];
-    } else if (m[i] > h[i]) {
-      m[i] = h[i];
-    }
-  });
+   const bool use_dev = UseDevice() || lo.UseDevice() || hi.UseDevice();
+   const int N = size;
+   // Note: get read access first, in case *this is the same as lo/hi.
+   auto l = lo.Read(use_dev);
+   auto h = hi.Read(use_dev);
+   auto m = Write(use_dev);
+   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE(int i)
+   {
+      if (m[i] < l[i])
+      {
+         m[i] = l[i];
+      }
+      else if (m[i] > h[i])
+      {
+         m[i] = h[i];
+      }
+   });
 }
 
-void Vector::GetSubVector(const Array<int> &dofs, Vector &elemvect) const {
-  const int n = dofs.Size();
-  elemvect.SetSize(n);
-  const bool use_dev = dofs.UseDevice() || elemvect.UseDevice();
-  auto d_y = elemvect.Write(use_dev);
-  auto d_X = Read(use_dev);
-  auto d_dofs = dofs.Read(use_dev);
-  mfem::forall_switch(use_dev, n, [=] MFEM_HOST_DEVICE(int i) {
-    const int dof_i = d_dofs[i];
-    d_y[i] = dof_i >= 0 ? d_X[dof_i] : -d_X[-dof_i - 1];
-  });
+void Vector::GetSubVector(const Array<int> &dofs, Vector &elemvect) const
+{
+   const int n = dofs.Size();
+   elemvect.SetSize(n);
+   const bool use_dev = dofs.UseDevice() || elemvect.UseDevice();
+   auto d_y = elemvect.Write(use_dev);
+   auto d_X = Read(use_dev);
+   auto d_dofs = dofs.Read(use_dev);
+   mfem::forall_switch(use_dev, n, [=] MFEM_HOST_DEVICE(int i)
+   {
+      const int dof_i = d_dofs[i];
+      d_y[i] = dof_i >= 0 ? d_X[dof_i] : -d_X[-dof_i - 1];
+   });
 }
 
-void Vector::GetSubVector(const Array<int> &dofs, real_t *elem_data) const {
-  data.Read(MemoryClass::HOST, size);
-  const int n = dofs.Size();
-  for (int i = 0; i < n; i++) {
-    const int j = dofs[i];
-    elem_data[i] = (j >= 0) ? data[j] : -data[-1 - j];
-  }
+void Vector::GetSubVector(const Array<int> &dofs, real_t *elem_data) const
+{
+   data.Read(MemoryClass::HOST, size);
+   const int n = dofs.Size();
+   for (int i = 0; i < n; i++)
+   {
+      const int j = dofs[i];
+      elem_data[i] = (j >= 0) ? data[j] : -data[-1 - j];
+   }
 }
 
-void Vector::SetSubVector(const Array<int> &dofs, const real_t value) {
-  const bool use_dev = dofs.UseDevice();
-  const int n = dofs.Size();
-  // Use read+write access for *this - we only modify some of its entries
-  auto d_X = ReadWrite(use_dev);
-  auto d_dofs = dofs.Read(use_dev);
-  mfem::forall_switch(use_dev, n, [=] MFEM_HOST_DEVICE(int i) {
-    const int j = d_dofs[i];
-    if (j >= 0) {
-      d_X[j] = value;
-    } else {
-      d_X[-1 - j] = -value;
-    }
-  });
+void Vector::SetSubVector(const Array<int> &dofs, const real_t value)
+{
+   const bool use_dev = dofs.UseDevice();
+   const int n = dofs.Size();
+   // Use read+write access for *this - we only modify some of its entries
+   auto d_X = ReadWrite(use_dev);
+   auto d_dofs = dofs.Read(use_dev);
+   mfem::forall_switch(use_dev, n, [=] MFEM_HOST_DEVICE(int i)
+   {
+      const int j = d_dofs[i];
+      if (j >= 0)
+      {
+         d_X[j] = value;
+      }
+      else
+      {
+         d_X[-1 - j] = -value;
+      }
+   });
 }
 
-void Vector::SetSubVector(const Array<int> &dofs, const Vector &elemvect) {
-  MFEM_ASSERT(dofs.Size() <= elemvect.Size(),
-              "Size mismatch: length of dofs is " << dofs.Size()
-                                                  << ", length of elemvect is "
-                                                  << elemvect.Size());
+void Vector::SetSubVector(const Array<int> &dofs, const Vector &elemvect)
+{
+   MFEM_ASSERT(dofs.Size() <= elemvect.Size(),
+               "Size mismatch: length of dofs is " << dofs.Size()
+               << ", length of elemvect is "
+               << elemvect.Size());
 
-  const bool use_dev = dofs.UseDevice() || elemvect.UseDevice();
-  const int n = dofs.Size();
-  // Use read+write access for X - we only modify some of its entries
-  auto d_X = ReadWrite(use_dev);
-  auto d_y = elemvect.Read(use_dev);
-  auto d_dofs = dofs.Read(use_dev);
-  mfem::forall_switch(use_dev, n, [=] MFEM_HOST_DEVICE(int i) {
-    const int dof_i = d_dofs[i];
-    if (dof_i >= 0) {
-      d_X[dof_i] = d_y[i];
-    } else {
-      d_X[-1 - dof_i] = -d_y[i];
-    }
-  });
+   const bool use_dev = dofs.UseDevice() || elemvect.UseDevice();
+   const int n = dofs.Size();
+   // Use read+write access for X - we only modify some of its entries
+   auto d_X = ReadWrite(use_dev);
+   auto d_y = elemvect.Read(use_dev);
+   auto d_dofs = dofs.Read(use_dev);
+   mfem::forall_switch(use_dev, n, [=] MFEM_HOST_DEVICE(int i)
+   {
+      const int dof_i = d_dofs[i];
+      if (dof_i >= 0)
+      {
+         d_X[dof_i] = d_y[i];
+      }
+      else
+      {
+         d_X[-1 - dof_i] = -d_y[i];
+      }
+   });
 }
 
-void Vector::SetSubVector(const Array<int> &dofs, real_t *elem_data) {
-  // Use read+write access because we overwrite only part of the data.
-  data.ReadWrite(MemoryClass::HOST, size);
-  const int n = dofs.Size();
-  for (int i = 0; i < n; i++) {
-    const int j = dofs[i];
-    if (j >= 0) {
-      operator()(j) = elem_data[i];
-    } else {
-      operator()(-1 - j) = -elem_data[i];
-    }
-  }
+void Vector::SetSubVector(const Array<int> &dofs, real_t *elem_data)
+{
+   // Use read+write access because we overwrite only part of the data.
+   data.ReadWrite(MemoryClass::HOST, size);
+   const int n = dofs.Size();
+   for (int i = 0; i < n; i++)
+   {
+      const int j = dofs[i];
+      if (j >= 0)
+      {
+         operator()(j) = elem_data[i];
+      }
+      else
+      {
+         operator()(-1 - j) = -elem_data[i];
+      }
+   }
 }
 
-void Vector::AddElementVector(const Array<int> &dofs, const Vector &elemvect) {
-  MFEM_ASSERT(dofs.Size() <= elemvect.Size(), "Size mismatch: "
-                                              "length of dofs is "
-                                                  << dofs.Size()
-                                                  << ", length of elemvect is "
-                                                  << elemvect.Size());
+void Vector::AddElementVector(const Array<int> &dofs, const Vector &elemvect)
+{
+   MFEM_ASSERT(dofs.Size() <= elemvect.Size(), "Size mismatch: "
+               "length of dofs is "
+               << dofs.Size()
+               << ", length of elemvect is "
+               << elemvect.Size());
 
-  const bool use_dev = dofs.UseDevice() || elemvect.UseDevice();
-  const int n = dofs.Size();
-  auto d_y = elemvect.Read(use_dev);
-  auto d_X = ReadWrite(use_dev);
-  auto d_dofs = dofs.Read(use_dev);
-  mfem::forall_switch(use_dev, n, [=] MFEM_HOST_DEVICE(int i) {
-    const int j = d_dofs[i];
-    if (j >= 0) {
-      d_X[j] += d_y[i];
-    } else {
-      d_X[-1 - j] -= d_y[i];
-    }
-  });
+   const bool use_dev = dofs.UseDevice() || elemvect.UseDevice();
+   const int n = dofs.Size();
+   auto d_y = elemvect.Read(use_dev);
+   auto d_X = ReadWrite(use_dev);
+   auto d_dofs = dofs.Read(use_dev);
+   mfem::forall_switch(use_dev, n, [=] MFEM_HOST_DEVICE(int i)
+   {
+      const int j = d_dofs[i];
+      if (j >= 0)
+      {
+         d_X[j] += d_y[i];
+      }
+      else
+      {
+         d_X[-1 - j] -= d_y[i];
+      }
+   });
 }
 
-void Vector::AddElementVector(const Array<int> &dofs, real_t *elem_data) {
-  data.ReadWrite(MemoryClass::HOST, size);
-  const int n = dofs.Size();
-  for (int i = 0; i < n; i++) {
-    const int j = dofs[i];
-    if (j >= 0) {
-      operator()(j) += elem_data[i];
-    } else {
-      operator()(-1 - j) -= elem_data[i];
-    }
-  }
+void Vector::AddElementVector(const Array<int> &dofs, real_t *elem_data)
+{
+   data.ReadWrite(MemoryClass::HOST, size);
+   const int n = dofs.Size();
+   for (int i = 0; i < n; i++)
+   {
+      const int j = dofs[i];
+      if (j >= 0)
+      {
+         operator()(j) += elem_data[i];
+      }
+      else
+      {
+         operator()(-1 - j) -= elem_data[i];
+      }
+   }
 }
 
 void Vector::AddElementVector(const Array<int> &dofs, const real_t a,
-                              const Vector &elemvect) {
-  MFEM_ASSERT(dofs.Size() <= elemvect.Size(), "Size mismatch: "
-                                              "length of dofs is "
-                                                  << dofs.Size()
-                                                  << ", length of elemvect is "
-                                                  << elemvect.Size());
+                              const Vector &elemvect)
+{
+   MFEM_ASSERT(dofs.Size() <= elemvect.Size(), "Size mismatch: "
+               "length of dofs is "
+               << dofs.Size()
+               << ", length of elemvect is "
+               << elemvect.Size());
 
-  const bool use_dev = dofs.UseDevice() || elemvect.UseDevice();
-  const int n = dofs.Size();
-  auto d_y = ReadWrite(use_dev);
-  auto d_x = elemvect.Read(use_dev);
-  auto d_dofs = dofs.Read(use_dev);
-  mfem::forall_switch(use_dev, n, [=] MFEM_HOST_DEVICE(int i) {
-    const int j = d_dofs[i];
-    if (j >= 0) {
-      d_y[j] += a * d_x[i];
-    } else {
-      d_y[-1 - j] -= a * d_x[i];
-    }
-  });
+   const bool use_dev = dofs.UseDevice() || elemvect.UseDevice();
+   const int n = dofs.Size();
+   auto d_y = ReadWrite(use_dev);
+   auto d_x = elemvect.Read(use_dev);
+   auto d_dofs = dofs.Read(use_dev);
+   mfem::forall_switch(use_dev, n, [=] MFEM_HOST_DEVICE(int i)
+   {
+      const int j = d_dofs[i];
+      if (j >= 0)
+      {
+         d_y[j] += a * d_x[i];
+      }
+      else
+      {
+         d_y[-1 - j] -= a * d_x[i];
+      }
+   });
 }
 
-void Vector::SetSubVectorComplement(const Array<int> &dofs, const real_t val) {
-  const bool use_dev = UseDevice() || dofs.UseDevice();
-  const int n = dofs.Size();
-  const int N = size;
-  Vector dofs_vals(n, use_dev ? Device::GetDeviceMemoryType()
-                              : Device::GetHostMemoryType());
-  auto d_data = ReadWrite(use_dev);
-  auto d_dofs_vals = dofs_vals.Write(use_dev);
-  auto d_dofs = dofs.Read(use_dev);
-  mfem::forall_switch(use_dev, n, [=] MFEM_HOST_DEVICE(int i) {
-    d_dofs_vals[i] = d_data[d_dofs[i]];
-  });
-  mfem::forall_switch(use_dev, N,
-                      [=] MFEM_HOST_DEVICE(int i) { d_data[i] = val; });
-  mfem::forall_switch(use_dev, n, [=] MFEM_HOST_DEVICE(int i) {
-    d_data[d_dofs[i]] = d_dofs_vals[i];
-  });
+void Vector::SetSubVectorComplement(const Array<int> &dofs, const real_t val)
+{
+   const bool use_dev = UseDevice() || dofs.UseDevice();
+   const int n = dofs.Size();
+   const int N = size;
+   Vector dofs_vals(n, use_dev ? Device::GetDeviceMemoryType()
+                    : Device::GetHostMemoryType());
+   auto d_data = ReadWrite(use_dev);
+   auto d_dofs_vals = dofs_vals.Write(use_dev);
+   auto d_dofs = dofs.Read(use_dev);
+   mfem::forall_switch(use_dev, n, [=] MFEM_HOST_DEVICE(int i)
+   {
+      d_dofs_vals[i] = d_data[d_dofs[i]];
+   });
+   mfem::forall_switch(use_dev, N,
+   [=] MFEM_HOST_DEVICE(int i) { d_data[i] = val; });
+   mfem::forall_switch(use_dev, n, [=] MFEM_HOST_DEVICE(int i)
+   {
+      d_data[d_dofs[i]] = d_dofs_vals[i];
+   });
 }
 
-void Vector::Print(std::ostream &os, int width) const {
-  if (!size) {
-    return;
-  }
-  data.Read(MemoryClass::HOST, size);
-  for (int i = 0; 1;) {
-    os << ZeroSubnormal(data[i]);
-    i++;
-    if (i == size) {
-      break;
-    }
-    if (i % width == 0) {
-      os << '\n';
-    } else {
-      os << ' ';
-    }
-  }
-  os << '\n';
+void Vector::Print(std::ostream &os, int width) const
+{
+   if (!size)
+   {
+      return;
+   }
+   data.Read(MemoryClass::HOST, size);
+   for (int i = 0; 1;)
+   {
+      os << ZeroSubnormal(data[i]);
+      i++;
+      if (i == size)
+      {
+         break;
+      }
+      if (i % width == 0)
+      {
+         os << '\n';
+      }
+      else
+      {
+         os << ' ';
+      }
+   }
+   os << '\n';
 }
 
 #ifdef MFEM_USE_ADIOS2
-void Vector::Print(adios2stream &os, const std::string &variable_name) const {
-  if (!size) {
-    return;
-  }
-  data.Read(MemoryClass::HOST, size);
-  os.engine.Put(variable_name, &data[0]);
+void Vector::Print(adios2stream &os, const std::string &variable_name) const
+{
+   if (!size)
+   {
+      return;
+   }
+   data.Read(MemoryClass::HOST, size);
+   os.engine.Put(variable_name, &data[0]);
 }
 #endif
 
-void Vector::Print_HYPRE(std::ostream &os) const {
-  int i;
-  std::ios::fmtflags old_fmt = os.flags();
-  os.setf(std::ios::scientific);
-  std::streamsize old_prec = os.precision(14);
+void Vector::Print_HYPRE(std::ostream &os) const
+{
+   int i;
+   std::ios::fmtflags old_fmt = os.flags();
+   os.setf(std::ios::scientific);
+   std::streamsize old_prec = os.precision(14);
 
-  os << size << '\n'; // number of rows
+   os << size << '\n'; // number of rows
 
-  data.Read(MemoryClass::HOST, size);
-  for (i = 0; i < size; i++) {
-    os << ZeroSubnormal(data[i]) << '\n';
-  }
+   data.Read(MemoryClass::HOST, size);
+   for (i = 0; i < size; i++)
+   {
+      os << ZeroSubnormal(data[i]) << '\n';
+   }
 
-  os.precision(old_prec);
-  os.flags(old_fmt);
+   os.precision(old_prec);
+   os.flags(old_fmt);
 }
 
-void Vector::PrintHash(std::ostream &os) const {
-  os << "size: " << size << '\n';
-  HashFunction hf;
-  hf.AppendDoubles(HostRead(), size);
-  os << "hash: " << hf.GetHash() << '\n';
+void Vector::PrintHash(std::ostream &os) const
+{
+   os << "size: " << size << '\n';
+   HashFunction hf;
+   hf.AppendDoubles(HostRead(), size);
+   os << "hash: " << hf.GetHash() << '\n';
 }
 
-void Vector::Randomize(int seed) {
-  if (seed == 0) {
-    seed = (int)time(0);
-  }
+void Vector::Randomize(int seed)
+{
+   if (seed == 0)
+   {
+      seed = (int)time(0);
+   }
 
-  srand((unsigned)seed);
+   srand((unsigned)seed);
 
-  HostWrite();
-  for (int i = 0; i < size; i++) {
-    data[i] = rand_real();
-  }
+   HostWrite();
+   for (int i = 0; i < size; i++)
+   {
+      data[i] = rand_real();
+   }
 }
 
-real_t Vector::Norml2() const {
-  // Scale entries of Vector on the fly, using algorithms from
-  // std::hypot() and LAPACK's drm2. This scaling ensures that the
-  // argument of each call to std::pow is <= 1 to avoid overflow.
-  if (0 == size) {
-    return 0.0;
-  } // end if 0 == size
-
-  data.Read(MemoryClass::HOST, size);
-  if (1 == size) {
-    return std::abs(data[0]);
-  } // end if 1 == size
-  return kernels::Norml2(size, (const real_t *)data);
-}
-
-real_t Vector::Normlinf() const {
-  HostRead();
-  real_t max = 0.0;
-  for (int i = 0; i < size; i++) {
-    max = std::max(std::abs(data[i]), max);
-  }
-  return max;
-}
-
-real_t Vector::Norml1() const {
-  HostRead();
-  real_t sum = 0.0;
-  for (int i = 0; i < size; i++) {
-    sum += std::abs(data[i]);
-  }
-  return sum;
-}
-
-real_t Vector::Normlp(real_t p) const {
-  MFEM_ASSERT(p > 0.0, "Vector::Normlp");
-
-  if (p == 1.0) {
-    return Norml1();
-  }
-  if (p == 2.0) {
-    return Norml2();
-  }
-  if (p < infinity()) {
-    // Scale entries of Vector on the fly, using algorithms from
-    // std::hypot() and LAPACK's drm2. This scaling ensures that the
-    // argument of each call to std::pow is <= 1 to avoid overflow.
-    if (0 == size) {
+real_t Vector::Norml2() const
+{
+   // Scale entries of Vector on the fly, using algorithms from
+   // std::hypot() and LAPACK's drm2. This scaling ensures that the
+   // argument of each call to std::pow is <= 1 to avoid overflow.
+   if (0 == size)
+   {
       return 0.0;
-    } // end if 0 == size
+   } // end if 0 == size
 
-    if (1 == size) {
+   data.Read(MemoryClass::HOST, size);
+   if (1 == size)
+   {
       return std::abs(data[0]);
-    } // end if 1 == size
-
-    real_t scale = 0.0;
-    real_t sum = 0.0;
-
-    for (int i = 0; i < size; i++) {
-      if (data[i] != 0.0) {
-        const real_t absdata = std::abs(data[i]);
-        if (scale <= absdata) {
-          sum = 1.0 + sum * std::pow(scale / absdata, p);
-          scale = absdata;
-          continue;
-        } // end if scale <= absdata
-        sum += std::pow(absdata / scale, p); // else scale > absdata
-      } // end if data[i] != 0
-    }
-    return scale * std::pow(sum, 1.0 / p);
-  } // end if p < infinity()
-
-  return Normlinf(); // else p >= infinity()
+   } // end if 1 == size
+   return kernels::Norml2(size, (const real_t *)data);
 }
 
-real_t Vector::Max() const {
-  if (size == 0) {
-    return -infinity();
-  }
+real_t Vector::Normlinf() const
+{
+   HostRead();
+   real_t max = 0.0;
+   for (int i = 0; i < size; i++)
+   {
+      max = std::max(std::abs(data[i]), max);
+   }
+   return max;
+}
 
-  HostRead();
-  real_t max = data[0];
+real_t Vector::Norml1() const
+{
+   HostRead();
+   real_t sum = 0.0;
+   for (int i = 0; i < size; i++)
+   {
+      sum += std::abs(data[i]);
+   }
+   return sum;
+}
 
-  for (int i = 1; i < size; i++) {
-    if (data[i] > max) {
-      max = data[i];
-    }
-  }
+real_t Vector::Normlp(real_t p) const
+{
+   MFEM_ASSERT(p > 0.0, "Vector::Normlp");
 
-  return max;
+   if (p == 1.0)
+   {
+      return Norml1();
+   }
+   if (p == 2.0)
+   {
+      return Norml2();
+   }
+   if (p < infinity())
+   {
+      // Scale entries of Vector on the fly, using algorithms from
+      // std::hypot() and LAPACK's drm2. This scaling ensures that the
+      // argument of each call to std::pow is <= 1 to avoid overflow.
+      if (0 == size)
+      {
+         return 0.0;
+      } // end if 0 == size
+
+      if (1 == size)
+      {
+         return std::abs(data[0]);
+      } // end if 1 == size
+
+      real_t scale = 0.0;
+      real_t sum = 0.0;
+
+      for (int i = 0; i < size; i++)
+      {
+         if (data[i] != 0.0)
+         {
+            const real_t absdata = std::abs(data[i]);
+            if (scale <= absdata)
+            {
+               sum = 1.0 + sum * std::pow(scale / absdata, p);
+               scale = absdata;
+               continue;
+            } // end if scale <= absdata
+            sum += std::pow(absdata / scale, p); // else scale > absdata
+         } // end if data[i] != 0
+      }
+      return scale * std::pow(sum, 1.0 / p);
+   } // end if p < infinity()
+
+   return Normlinf(); // else p >= infinity()
+}
+
+real_t Vector::Max() const
+{
+   if (size == 0)
+   {
+      return -infinity();
+   }
+
+   HostRead();
+   real_t max = data[0];
+
+   for (int i = 1; i < size; i++)
+   {
+      if (data[i] > max)
+      {
+         max = data[i];
+      }
+   }
+
+   return max;
 }
 
 #ifdef MFEM_USE_CUDA
-static __global__ void cuKernelMin(const int N, real_t *gdsr, const real_t *x) {
-  __shared__ real_t s_min[MFEM_CUDA_BLOCKS];
-  const int n = blockDim.x * blockIdx.x + threadIdx.x;
-  if (n >= N) {
-    return;
-  }
-  const int bid = blockIdx.x;
-  const int tid = threadIdx.x;
-  const int bbd = bid * blockDim.x;
-  const int rid = bbd + tid;
-  s_min[tid] = x[n];
-  for (int workers = blockDim.x >> 1; workers > 0; workers >>= 1) {
-    __syncthreads();
-    if (tid >= workers) {
-      continue;
-    }
-    if (rid >= N) {
-      continue;
-    }
-    const int dualTid = tid + workers;
-    if (dualTid >= N) {
-      continue;
-    }
-    const int rdd = bbd + dualTid;
-    if (rdd >= N) {
-      continue;
-    }
-    if (dualTid >= blockDim.x) {
-      continue;
-    }
-    s_min[tid] = fmin(s_min[tid], s_min[dualTid]);
-  }
-  if (tid == 0) {
-    gdsr[bid] = s_min[0];
-  }
+static __global__ void cuKernelMin(const int N, real_t *gdsr, const real_t *x)
+{
+   __shared__ real_t s_min[MFEM_CUDA_BLOCKS];
+   const int n = blockDim.x * blockIdx.x + threadIdx.x;
+   if (n >= N)
+   {
+      return;
+   }
+   const int bid = blockIdx.x;
+   const int tid = threadIdx.x;
+   const int bbd = bid * blockDim.x;
+   const int rid = bbd + tid;
+   s_min[tid] = x[n];
+   for (int workers = blockDim.x >> 1; workers > 0; workers >>= 1)
+   {
+      __syncthreads();
+      if (tid >= workers)
+      {
+         continue;
+      }
+      if (rid >= N)
+      {
+         continue;
+      }
+      const int dualTid = tid + workers;
+      if (dualTid >= N)
+      {
+         continue;
+      }
+      const int rdd = bbd + dualTid;
+      if (rdd >= N)
+      {
+         continue;
+      }
+      if (dualTid >= blockDim.x)
+      {
+         continue;
+      }
+      s_min[tid] = fmin(s_min[tid], s_min[dualTid]);
+   }
+   if (tid == 0)
+   {
+      gdsr[bid] = s_min[0];
+   }
 }
 
 static Array<real_t> cuda_reduce_buf;
 
-static real_t cuVectorMin(const int N, const real_t *X) {
-  const int tpb = MFEM_CUDA_BLOCKS;
-  const int blockSize = MFEM_CUDA_BLOCKS;
-  const int gridSize = (N + blockSize - 1) / blockSize;
-  const int min_sz = (N % tpb) == 0 ? (N / tpb) : (1 + N / tpb);
-  cuda_reduce_buf.SetSize(min_sz);
-  Memory<real_t> &buf = cuda_reduce_buf.GetMemory();
-  real_t *d_min = buf.Write(MemoryClass::DEVICE, min_sz);
-  cuKernelMin<<<gridSize, blockSize>>>(N, d_min, X);
-  MFEM_GPU_CHECK(cudaGetLastError());
-  const real_t *h_min = buf.Read(MemoryClass::HOST, min_sz);
-  real_t min = std::numeric_limits<real_t>::infinity();
-  for (int i = 0; i < min_sz; i++) {
-    min = std::min(min, h_min[i]);
-  }
-  return min;
+static real_t cuVectorMin(const int N, const real_t *X)
+{
+   const int tpb = MFEM_CUDA_BLOCKS;
+   const int blockSize = MFEM_CUDA_BLOCKS;
+   const int gridSize = (N + blockSize - 1) / blockSize;
+   const int min_sz = (N % tpb) == 0 ? (N / tpb) : (1 + N / tpb);
+   cuda_reduce_buf.SetSize(min_sz);
+   Memory<real_t> &buf = cuda_reduce_buf.GetMemory();
+   real_t *d_min = buf.Write(MemoryClass::DEVICE, min_sz);
+   cuKernelMin<<<gridSize, blockSize>>>(N, d_min, X);
+   MFEM_GPU_CHECK(cudaGetLastError());
+   const real_t *h_min = buf.Read(MemoryClass::HOST, min_sz);
+   real_t min = std::numeric_limits<real_t>::infinity();
+   for (int i = 0; i < min_sz; i++)
+   {
+      min = std::min(min, h_min[i]);
+   }
+   return min;
 }
 
 static __global__ void cuKernelDot(const int N, real_t *gdsr, const real_t *x,
-                                   const real_t *y) {
-  __shared__ real_t s_dot[MFEM_CUDA_BLOCKS];
-  const int n = blockDim.x * blockIdx.x + threadIdx.x;
-  if (n >= N) {
-    return;
-  }
-  const int bid = blockIdx.x;
-  const int tid = threadIdx.x;
-  const int bbd = bid * blockDim.x;
-  const int rid = bbd + tid;
-  s_dot[tid] = y ? (x[n] * y[n]) : x[n];
-  for (int workers = blockDim.x >> 1; workers > 0; workers >>= 1) {
-    __syncthreads();
-    if (tid >= workers) {
-      continue;
-    }
-    if (rid >= N) {
-      continue;
-    }
-    const int dualTid = tid + workers;
-    if (dualTid >= N) {
-      continue;
-    }
-    const int rdd = bbd + dualTid;
-    if (rdd >= N) {
-      continue;
-    }
-    if (dualTid >= blockDim.x) {
-      continue;
-    }
-    s_dot[tid] += s_dot[dualTid];
-  }
-  if (tid == 0) {
-    gdsr[bid] = s_dot[0];
-  }
+                                   const real_t *y)
+{
+   __shared__ real_t s_dot[MFEM_CUDA_BLOCKS];
+   const int n = blockDim.x * blockIdx.x + threadIdx.x;
+   if (n >= N)
+   {
+      return;
+   }
+   const int bid = blockIdx.x;
+   const int tid = threadIdx.x;
+   const int bbd = bid * blockDim.x;
+   const int rid = bbd + tid;
+   s_dot[tid] = y ? (x[n] * y[n]) : x[n];
+   for (int workers = blockDim.x >> 1; workers > 0; workers >>= 1)
+   {
+      __syncthreads();
+      if (tid >= workers)
+      {
+         continue;
+      }
+      if (rid >= N)
+      {
+         continue;
+      }
+      const int dualTid = tid + workers;
+      if (dualTid >= N)
+      {
+         continue;
+      }
+      const int rdd = bbd + dualTid;
+      if (rdd >= N)
+      {
+         continue;
+      }
+      if (dualTid >= blockDim.x)
+      {
+         continue;
+      }
+      s_dot[tid] += s_dot[dualTid];
+   }
+   if (tid == 0)
+   {
+      gdsr[bid] = s_dot[0];
+   }
 }
 
-static real_t cuVectorDot(const int N, const real_t *X, const real_t *Y) {
-  const int tpb = MFEM_CUDA_BLOCKS;
-  const int blockSize = MFEM_CUDA_BLOCKS;
-  const int gridSize = (N + blockSize - 1) / blockSize;
-  const int dot_sz = (N % tpb) == 0 ? (N / tpb) : (1 + N / tpb);
-  cuda_reduce_buf.SetSize(dot_sz, Device::GetDeviceMemoryType());
-  Memory<real_t> &buf = cuda_reduce_buf.GetMemory();
-  real_t *d_dot = buf.Write(MemoryClass::DEVICE, dot_sz);
-  cuKernelDot<<<gridSize, blockSize>>>(N, d_dot, X, Y);
-  MFEM_GPU_CHECK(cudaGetLastError());
-  const real_t *h_dot = buf.Read(MemoryClass::HOST, dot_sz);
-  real_t dot = 0.0;
-  for (int i = 0; i < dot_sz; i++) {
-    dot += h_dot[i];
-  }
-  return dot;
+static real_t cuVectorDot(const int N, const real_t *X, const real_t *Y)
+{
+   const int tpb = MFEM_CUDA_BLOCKS;
+   const int blockSize = MFEM_CUDA_BLOCKS;
+   const int gridSize = (N + blockSize - 1) / blockSize;
+   const int dot_sz = (N % tpb) == 0 ? (N / tpb) : (1 + N / tpb);
+   cuda_reduce_buf.SetSize(dot_sz, Device::GetDeviceMemoryType());
+   Memory<real_t> &buf = cuda_reduce_buf.GetMemory();
+   real_t *d_dot = buf.Write(MemoryClass::DEVICE, dot_sz);
+   cuKernelDot<<<gridSize, blockSize>>>(N, d_dot, X, Y);
+   MFEM_GPU_CHECK(cudaGetLastError());
+   const real_t *h_dot = buf.Read(MemoryClass::HOST, dot_sz);
+   real_t dot = 0.0;
+   for (int i = 0; i < dot_sz; i++)
+   {
+      dot += h_dot[i];
+   }
+   return dot;
 }
 #endif // MFEM_USE_CUDA
 
 #ifdef MFEM_USE_HIP
 static __global__ void hipKernelMin(const int N, real_t *gdsr,
-                                    const real_t *x) {
-  __shared__ real_t s_min[MFEM_HIP_BLOCKS];
-  const int n = hipBlockDim_x * hipBlockIdx_x + hipThreadIdx_x;
-  if (n >= N) {
-    return;
-  }
-  const int bid = hipBlockIdx_x;
-  const int tid = hipThreadIdx_x;
-  const int bbd = bid * hipBlockDim_x;
-  const int rid = bbd + tid;
-  s_min[tid] = x[n];
-  for (int workers = hipBlockDim_x >> 1; workers > 0; workers >>= 1) {
-    __syncthreads();
-    if (tid >= workers) {
-      continue;
-    }
-    if (rid >= N) {
-      continue;
-    }
-    const int dualTid = tid + workers;
-    if (dualTid >= N) {
-      continue;
-    }
-    const int rdd = bbd + dualTid;
-    if (rdd >= N) {
-      continue;
-    }
-    if (dualTid >= hipBlockDim_x) {
-      continue;
-    }
-    s_min[tid] = std::min(s_min[tid], s_min[dualTid]);
-  }
-  if (tid == 0) {
-    gdsr[bid] = s_min[0];
-  }
+                                    const real_t *x)
+{
+   __shared__ real_t s_min[MFEM_HIP_BLOCKS];
+   const int n = hipBlockDim_x * hipBlockIdx_x + hipThreadIdx_x;
+   if (n >= N)
+   {
+      return;
+   }
+   const int bid = hipBlockIdx_x;
+   const int tid = hipThreadIdx_x;
+   const int bbd = bid * hipBlockDim_x;
+   const int rid = bbd + tid;
+   s_min[tid] = x[n];
+   for (int workers = hipBlockDim_x >> 1; workers > 0; workers >>= 1)
+   {
+      __syncthreads();
+      if (tid >= workers)
+      {
+         continue;
+      }
+      if (rid >= N)
+      {
+         continue;
+      }
+      const int dualTid = tid + workers;
+      if (dualTid >= N)
+      {
+         continue;
+      }
+      const int rdd = bbd + dualTid;
+      if (rdd >= N)
+      {
+         continue;
+      }
+      if (dualTid >= hipBlockDim_x)
+      {
+         continue;
+      }
+      s_min[tid] = std::min(s_min[tid], s_min[dualTid]);
+   }
+   if (tid == 0)
+   {
+      gdsr[bid] = s_min[0];
+   }
 }
 
 static Array<real_t> hip_reduce_buf;
 
-static real_t hipVectorMin(const int N, const real_t *X) {
-  const int tpb = MFEM_HIP_BLOCKS;
-  const int blockSize = MFEM_HIP_BLOCKS;
-  const int gridSize = (N + blockSize - 1) / blockSize;
-  const int min_sz = (N % tpb) == 0 ? (N / tpb) : (1 + N / tpb);
-  hip_reduce_buf.SetSize(min_sz);
-  Memory<real_t> &buf = hip_reduce_buf.GetMemory();
-  real_t *d_min = buf.Write(MemoryClass::DEVICE, min_sz);
-  hipLaunchKernelGGL(hipKernelMin, gridSize, blockSize, 0, 0, N, d_min, X);
-  MFEM_GPU_CHECK(hipGetLastError());
-  const real_t *h_min = buf.Read(MemoryClass::HOST, min_sz);
-  real_t min = std::numeric_limits<real_t>::infinity();
-  for (int i = 0; i < min_sz; i++) {
-    min = std::min(min, h_min[i]);
-  }
-  return min;
+static real_t hipVectorMin(const int N, const real_t *X)
+{
+   const int tpb = MFEM_HIP_BLOCKS;
+   const int blockSize = MFEM_HIP_BLOCKS;
+   const int gridSize = (N + blockSize - 1) / blockSize;
+   const int min_sz = (N % tpb) == 0 ? (N / tpb) : (1 + N / tpb);
+   hip_reduce_buf.SetSize(min_sz);
+   Memory<real_t> &buf = hip_reduce_buf.GetMemory();
+   real_t *d_min = buf.Write(MemoryClass::DEVICE, min_sz);
+   hipLaunchKernelGGL(hipKernelMin, gridSize, blockSize, 0, 0, N, d_min, X);
+   MFEM_GPU_CHECK(hipGetLastError());
+   const real_t *h_min = buf.Read(MemoryClass::HOST, min_sz);
+   real_t min = std::numeric_limits<real_t>::infinity();
+   for (int i = 0; i < min_sz; i++)
+   {
+      min = std::min(min, h_min[i]);
+   }
+   return min;
 }
 
 static __global__ void hipKernelDot(const int N, real_t *gdsr, const real_t *x,
-                                    const real_t *y) {
-  __shared__ real_t s_dot[MFEM_HIP_BLOCKS];
-  const int n = hipBlockDim_x * hipBlockIdx_x + hipThreadIdx_x;
-  if (n >= N) {
-    return;
-  }
-  const int bid = hipBlockIdx_x;
-  const int tid = hipThreadIdx_x;
-  const int bbd = bid * hipBlockDim_x;
-  const int rid = bbd + tid;
-  s_dot[tid] = y ? (x[n] * y[n]) : x[n];
-  for (int workers = hipBlockDim_x >> 1; workers > 0; workers >>= 1) {
-    __syncthreads();
-    if (tid >= workers) {
-      continue;
-    }
-    if (rid >= N) {
-      continue;
-    }
-    const int dualTid = tid + workers;
-    if (dualTid >= N) {
-      continue;
-    }
-    const int rdd = bbd + dualTid;
-    if (rdd >= N) {
-      continue;
-    }
-    if (dualTid >= hipBlockDim_x) {
-      continue;
-    }
-    s_dot[tid] += s_dot[dualTid];
-  }
-  if (tid == 0) {
-    gdsr[bid] = s_dot[0];
-  }
+                                    const real_t *y)
+{
+   __shared__ real_t s_dot[MFEM_HIP_BLOCKS];
+   const int n = hipBlockDim_x * hipBlockIdx_x + hipThreadIdx_x;
+   if (n >= N)
+   {
+      return;
+   }
+   const int bid = hipBlockIdx_x;
+   const int tid = hipThreadIdx_x;
+   const int bbd = bid * hipBlockDim_x;
+   const int rid = bbd + tid;
+   s_dot[tid] = y ? (x[n] * y[n]) : x[n];
+   for (int workers = hipBlockDim_x >> 1; workers > 0; workers >>= 1)
+   {
+      __syncthreads();
+      if (tid >= workers)
+      {
+         continue;
+      }
+      if (rid >= N)
+      {
+         continue;
+      }
+      const int dualTid = tid + workers;
+      if (dualTid >= N)
+      {
+         continue;
+      }
+      const int rdd = bbd + dualTid;
+      if (rdd >= N)
+      {
+         continue;
+      }
+      if (dualTid >= hipBlockDim_x)
+      {
+         continue;
+      }
+      s_dot[tid] += s_dot[dualTid];
+   }
+   if (tid == 0)
+   {
+      gdsr[bid] = s_dot[0];
+   }
 }
 
-static real_t hipVectorDot(const int N, const real_t *X, const real_t *Y) {
-  const int tpb = MFEM_HIP_BLOCKS;
-  const int blockSize = MFEM_HIP_BLOCKS;
-  const int gridSize = (N + blockSize - 1) / blockSize;
-  const int dot_sz = (N % tpb) == 0 ? (N / tpb) : (1 + N / tpb);
-  hip_reduce_buf.SetSize(dot_sz);
-  Memory<real_t> &buf = hip_reduce_buf.GetMemory();
-  real_t *d_dot = buf.Write(MemoryClass::DEVICE, dot_sz);
-  hipLaunchKernelGGL(hipKernelDot, gridSize, blockSize, 0, 0, N, d_dot, X, Y);
-  MFEM_GPU_CHECK(hipGetLastError());
-  const real_t *h_dot = buf.Read(MemoryClass::HOST, dot_sz);
-  real_t dot = 0.0;
-  for (int i = 0; i < dot_sz; i++) {
-    dot += h_dot[i];
-  }
-  return dot;
+static real_t hipVectorDot(const int N, const real_t *X, const real_t *Y)
+{
+   const int tpb = MFEM_HIP_BLOCKS;
+   const int blockSize = MFEM_HIP_BLOCKS;
+   const int gridSize = (N + blockSize - 1) / blockSize;
+   const int dot_sz = (N % tpb) == 0 ? (N / tpb) : (1 + N / tpb);
+   hip_reduce_buf.SetSize(dot_sz);
+   Memory<real_t> &buf = hip_reduce_buf.GetMemory();
+   real_t *d_dot = buf.Write(MemoryClass::DEVICE, dot_sz);
+   hipLaunchKernelGGL(hipKernelDot, gridSize, blockSize, 0, 0, N, d_dot, X, Y);
+   MFEM_GPU_CHECK(hipGetLastError());
+   const real_t *h_dot = buf.Read(MemoryClass::HOST, dot_sz);
+   real_t dot = 0.0;
+   for (int i = 0; i < dot_sz; i++)
+   {
+      dot += h_dot[i];
+   }
+   return dot;
 }
 #endif // MFEM_USE_HIP
 
 #ifdef MFEM_USE_SYCL
 
-double SyclVectorDot(const size_t N, const double *X, const double *Y) {
-  auto Q = Sycl::Queue();
-  constexpr int localSize = 256;
-  const int num_compute_units =
+double SyclVectorDot(const size_t N, const double *X, const double *Y)
+{
+   auto Q = Sycl::Queue();
+   constexpr int localSize = 256;
+   const int num_compute_units =
       Q.get_device().get_info<sycl::info::device::max_compute_units>();
-  const int vector_width =
+   const int vector_width =
       Q.get_device().get_info<sycl::info::device::native_vector_width_int>();
-  const int num_work_units = num_compute_units * vector_width * localSize;
-  sycl::buffer<double> d_buf(num_work_units);
-  const int globalSize =
+   const int num_work_units = num_compute_units * vector_width * localSize;
+   sycl::buffer<double> d_buf(num_work_units);
+   const int globalSize =
       localSize * std::ceil(static_cast<double>(num_work_units) / localSize);
-  assert(globalSize % localSize == 0);
-  Q.submit([&](auto &h) {
-    sycl::accessor d_buf_wo(d_buf, h, sycl::write_only, sycl::no_init);
-    h.parallel_for(sycl::nd_range<1>(globalSize, localSize), [=](auto item) {
-      const size_t glob_id = item.get_global_id(0);
-      for (size_t i = glob_id; i < N; i += num_work_units) {
-        d_buf_wo[glob_id] = 0.0;
-      }
-    });
-  });
-  Q.submit([&](auto &h) {
-    sycl::accessor d_buf_wo(d_buf, h, sycl::write_only, sycl::no_init);
-    h.parallel_for(sycl::nd_range<1>{globalSize, localSize}, [=](auto item) {
-      double dot = 0.0;
-      const size_t glob_id = item.get_global_id(0);
-      for (size_t i = glob_id; i < N; i += num_work_units) {
-        dot += X[i] * Y[i];
-      }
-      d_buf_wo[glob_id] = dot;
-    });
-  });
-  Q.wait();
-  double dot = 0.0;
-  sycl::host_accessor h_buf_ro(d_buf, sycl::read_only);
-  for (int i = 0; i < num_work_units; ++i) {
-    dot += h_buf_ro[i];
-  }
-  return dot;
+   assert(globalSize % localSize == 0);
+   Q.submit([&](auto &h)
+   {
+      sycl::accessor d_buf_wo(d_buf, h, sycl::write_only, sycl::no_init);
+      h.parallel_for(sycl::nd_range<1>(globalSize, localSize), [=](auto item)
+      {
+         const size_t glob_id = item.get_global_id(0);
+         for (size_t i = glob_id; i < N; i += num_work_units)
+         {
+            d_buf_wo[glob_id] = 0.0;
+         }
+      });
+   });
+   Q.submit([&](auto &h)
+   {
+      sycl::accessor d_buf_wo(d_buf, h, sycl::write_only, sycl::no_init);
+      h.parallel_for(sycl::nd_range<1> {globalSize, localSize}, [=](auto item)
+      {
+         double dot = 0.0;
+         const size_t glob_id = item.get_global_id(0);
+         for (size_t i = glob_id; i < N; i += num_work_units)
+         {
+            dot += X[i] * Y[i];
+         }
+         d_buf_wo[glob_id] = dot;
+      });
+   });
+   Q.wait();
+   double dot = 0.0;
+   sycl::host_accessor h_buf_ro(d_buf, sycl::read_only);
+   for (int i = 0; i < num_work_units; ++i)
+   {
+      dot += h_buf_ro[i];
+   }
+   return dot;
 }
 
-double SyclVectorMin(const size_t N, const double *X) {
-  auto Q = Sycl::Queue();
-  constexpr int localSize = 256;
-  const int num_compute_units =
+double SyclVectorMin(const size_t N, const double *X)
+{
+   auto Q = Sycl::Queue();
+   constexpr int localSize = 256;
+   const int num_compute_units =
       Q.get_device().get_info<sycl::info::device::max_compute_units>();
-  const int vector_width =
+   const int vector_width =
       Q.get_device().get_info<sycl::info::device::native_vector_width_int>();
-  const int num_work_units = num_compute_units * vector_width * localSize;
-  sycl::buffer<double> d_buf(num_work_units);
-  const int globalSize =
+   const int num_work_units = num_compute_units * vector_width * localSize;
+   sycl::buffer<double> d_buf(num_work_units);
+   const int globalSize =
       localSize * std::ceil(static_cast<double>(num_work_units) / localSize);
-  assert(globalSize % localSize == 0);
-  Q.submit([&](auto &h) {
-    sycl::accessor d_buf_wo(d_buf, h, sycl::write_only, sycl::no_init);
-    h.parallel_for(sycl::nd_range<1>{globalSize, localSize}, [=](auto item) {
-      double min = std::numeric_limits<double>::infinity();
-      const size_t glob_id = item.get_global_id(0);
-      for (size_t i = glob_id; i < N; i += num_work_units) {
-        min = fmin(min, X[i]);
-      }
-      d_buf_wo[glob_id] = min;
-    });
-  });
-  Q.wait();
-  double dot = std::numeric_limits<double>::infinity();
-  sycl::host_accessor h_buf_ro(d_buf, sycl::read_only);
-  for (int i = 0; i < num_work_units; ++i) {
-    dot += h_buf_ro[i];
-  }
-  return dot;
+   assert(globalSize % localSize == 0);
+   Q.submit([&](auto &h)
+   {
+      sycl::accessor d_buf_wo(d_buf, h, sycl::write_only, sycl::no_init);
+      h.parallel_for(sycl::nd_range<1> {globalSize, localSize}, [=](auto item)
+      {
+         double min = std::numeric_limits<double>::infinity();
+         const size_t glob_id = item.get_global_id(0);
+         for (size_t i = glob_id; i < N; i += num_work_units)
+         {
+            min = fmin(min, X[i]);
+         }
+         d_buf_wo[glob_id] = min;
+      });
+   });
+   Q.wait();
+   double dot = std::numeric_limits<double>::infinity();
+   sycl::host_accessor h_buf_ro(d_buf, sycl::read_only);
+   for (int i = 0; i < num_work_units; ++i)
+   {
+      dot += h_buf_ro[i];
+   }
+   return dot;
 }
 #endif // MFEM_USE_SYCL
 
-real_t Vector::operator*(const Vector &v) const {
-  MFEM_ASSERT(size == v.size, "incompatible Vectors!");
-  if (size == 0) {
-    return 0.0;
-  }
+real_t Vector::operator*(const Vector &v) const
+{
+   MFEM_ASSERT(size == v.size, "incompatible Vectors!");
+   if (size == 0)
+   {
+      return 0.0;
+   }
 
-  const bool use_dev = UseDevice() || v.UseDevice();
+   const bool use_dev = UseDevice() || v.UseDevice();
 #if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP) ||                         \
     defined(MFEM_USE_OPENMP) || defined(MFEM_USE_SYCL)
-  auto m_data = Read(use_dev);
+   auto m_data = Read(use_dev);
 #else
-  Read(use_dev);
+   Read(use_dev);
 #endif
-  auto v_data = v.Read(use_dev);
+   auto v_data = v.Read(use_dev);
 
-  if (!use_dev) {
-    goto vector_dot_cpu;
-  }
+   if (!use_dev)
+   {
+      goto vector_dot_cpu;
+   }
 
 #ifdef MFEM_USE_OCCA
-  if (DeviceCanUseOcca()) {
-    return occa::linalg::dot<real_t, real_t, real_t>(
-        OccaMemoryRead(data, size), OccaMemoryRead(v.data, size));
-  }
+   if (DeviceCanUseOcca())
+   {
+      return occa::linalg::dot<real_t, real_t, real_t>(
+                OccaMemoryRead(data, size), OccaMemoryRead(v.data, size));
+   }
 #endif
 
 #ifdef MFEM_USE_CUDA
-  if (Device::Allows(Backend::CUDA_MASK)) {
-    return cuVectorDot(size, m_data, v_data);
-  }
+   if (Device::Allows(Backend::CUDA_MASK))
+   {
+      return cuVectorDot(size, m_data, v_data);
+   }
 #endif
 
 #ifdef MFEM_USE_HIP
-  if (Device::Allows(Backend::HIP_MASK)) {
-    return hipVectorDot(size, m_data, v_data);
-  }
+   if (Device::Allows(Backend::HIP_MASK))
+   {
+      return hipVectorDot(size, m_data, v_data);
+   }
 #endif
 
 #ifdef MFEM_USE_SYCL
-  if (Device::Allows(Backend::SYCL_MASK)) {
-    return SyclVectorDot(size, m_data, v_data);
-  }
+   if (Device::Allows(Backend::SYCL_MASK))
+   {
+      return SyclVectorDot(size, m_data, v_data);
+   }
 #endif
 
 #ifdef MFEM_USE_OPENMP
-  if (Device::Allows(Backend::OMP_MASK)) {
+   if (Device::Allows(Backend::OMP_MASK))
+   {
 #define MFEM_USE_OPENMP_DETERMINISTIC_DOT
 #ifdef MFEM_USE_OPENMP_DETERMINISTIC_DOT
-    // By default, use a deterministic way of computing the dot product
-    static Vector th_dot;
-#pragma omp parallel
-    {
-      const int nt = omp_get_num_threads();
-#pragma omp master
-      th_dot.SetSize(nt);
-      const int tid = omp_get_thread_num();
-      const int stride = (size + nt - 1) / nt;
-      const int start = tid * stride;
-      const int stop = std::min(start + stride, size);
-      real_t my_dot = 0.0;
-      for (int i = start; i < stop; i++) {
-        my_dot += m_data[i] * v_data[i];
+      // By default, use a deterministic way of computing the dot product
+      static Vector th_dot;
+      #pragma omp parallel
+      {
+         const int nt = omp_get_num_threads();
+         #pragma omp master
+         th_dot.SetSize(nt);
+         const int tid = omp_get_thread_num();
+         const int stride = (size + nt - 1) / nt;
+         const int start = tid * stride;
+         const int stop = std::min(start + stride, size);
+         real_t my_dot = 0.0;
+         for (int i = start; i < stop; i++)
+         {
+            my_dot += m_data[i] * v_data[i];
+         }
+         #pragma omp barrier
+         th_dot(tid) = my_dot;
       }
-#pragma omp barrier
-      th_dot(tid) = my_dot;
-    }
-    return th_dot.Sum();
+      return th_dot.Sum();
 #else
-    // The standard way of computing the dot product is non-deterministic
-    real_t prod = 0.0;
-#pragma omp parallel for reduction(+ : prod)
-    for (int i = 0; i < size; i++) {
-      prod += m_data[i] * v_data[i];
-    }
-    return prod;
+      // The standard way of computing the dot product is non-deterministic
+      real_t prod = 0.0;
+      #pragma omp parallel for reduction(+ : prod)
+      for (int i = 0; i < size; i++)
+      {
+         prod += m_data[i] * v_data[i];
+      }
+      return prod;
 #endif // MFEM_USE_OPENMP_DETERMINISTIC_DOT
-  }
+   }
 #endif // MFEM_USE_OPENMP
-  if (Device::Allows(Backend::DEBUG_DEVICE)) {
-    const int N = size;
-    auto v_data_ = v.Read();
-    auto m_data_ = Read();
-    Vector dot(1);
-    dot.UseDevice(true);
-    auto d_dot = dot.Write();
-    dot = 0.0;
-    mfem::forall(N, [=] MFEM_HOST_DEVICE(int i) {
-      d_dot[0] += m_data_[i] * v_data_[i];
-    });
-    dot.HostReadWrite();
-    return dot[0];
-  }
+   if (Device::Allows(Backend::DEBUG_DEVICE))
+   {
+      const int N = size;
+      auto v_data_ = v.Read();
+      auto m_data_ = Read();
+      Vector dot(1);
+      dot.UseDevice(true);
+      auto d_dot = dot.Write();
+      dot = 0.0;
+      mfem::forall(N, [=] MFEM_HOST_DEVICE(int i)
+      {
+         d_dot[0] += m_data_[i] * v_data_[i];
+      });
+      dot.HostReadWrite();
+      return dot[0];
+   }
 vector_dot_cpu:
-  return operator*(v_data);
+   return operator*(v_data);
 }
 
-real_t Vector::Min() const {
-  if (size == 0) {
-    return infinity();
-  }
+real_t Vector::Min() const
+{
+   if (size == 0)
+   {
+      return infinity();
+   }
 
-  const bool use_dev = UseDevice();
-  auto m_data = Read(use_dev);
+   const bool use_dev = UseDevice();
+   auto m_data = Read(use_dev);
 
-  if (!use_dev) {
-    goto vector_min_cpu;
-  }
+   if (!use_dev)
+   {
+      goto vector_min_cpu;
+   }
 
 #ifdef MFEM_USE_OCCA
-  if (DeviceCanUseOcca()) {
-    return occa::linalg::min<real_t, real_t>(OccaMemoryRead(data, size));
-  }
+   if (DeviceCanUseOcca())
+   {
+      return occa::linalg::min<real_t, real_t>(OccaMemoryRead(data, size));
+   }
 #endif
 
 #ifdef MFEM_USE_CUDA
-  if (Device::Allows(Backend::CUDA_MASK)) {
-    return cuVectorMin(size, m_data);
-  }
+   if (Device::Allows(Backend::CUDA_MASK))
+   {
+      return cuVectorMin(size, m_data);
+   }
 #endif
 
 #ifdef MFEM_USE_HIP
-  if (Device::Allows(Backend::HIP_MASK)) {
-    return hipVectorMin(size, m_data);
-  }
+   if (Device::Allows(Backend::HIP_MASK))
+   {
+      return hipVectorMin(size, m_data);
+   }
 #endif
 
 #ifdef MFEM_USE_SYCL
-  if (Device::Allows(Backend::SYCL_MASK)) {
-    return SyclVectorMin(size, m_data);
-  }
+   if (Device::Allows(Backend::SYCL_MASK))
+   {
+      return SyclVectorMin(size, m_data);
+   }
 #endif
 
 #ifdef MFEM_USE_OPENMP
-  if (Device::Allows(Backend::OMP_MASK)) {
-    real_t minimum = m_data[0];
-#pragma omp parallel for reduction(min : minimum)
-    for (int i = 0; i < size; i++) {
-      minimum = std::min(minimum, m_data[i]);
-    }
-    return minimum;
-  }
+   if (Device::Allows(Backend::OMP_MASK))
+   {
+      real_t minimum = m_data[0];
+      #pragma omp parallel for reduction(min : minimum)
+      for (int i = 0; i < size; i++)
+      {
+         minimum = std::min(minimum, m_data[i]);
+      }
+      return minimum;
+   }
 #endif
 
-  if (Device::Allows(Backend::DEBUG_DEVICE)) {
-    const int N = size;
-    auto m_data_ = Read();
-    Vector min(1);
-    min = infinity();
-    min.UseDevice(true);
-    auto d_min = min.ReadWrite();
-    mfem::forall(N, [=] MFEM_HOST_DEVICE(int i) {
-      d_min[0] = (d_min[0] < m_data_[i]) ? d_min[0] : m_data_[i];
-    });
-    min.HostReadWrite();
-    return min[0];
-  }
+   if (Device::Allows(Backend::DEBUG_DEVICE))
+   {
+      const int N = size;
+      auto m_data_ = Read();
+      Vector min(1);
+      min = infinity();
+      min.UseDevice(true);
+      auto d_min = min.ReadWrite();
+      mfem::forall(N, [=] MFEM_HOST_DEVICE(int i)
+      {
+         d_min[0] = (d_min[0] < m_data_[i]) ? d_min[0] : m_data_[i];
+      });
+      min.HostReadWrite();
+      return min[0];
+   }
 
 vector_min_cpu:
-  real_t minimum = data[0];
-  for (int i = 1; i < size; i++) {
-    if (m_data[i] < minimum) {
-      minimum = m_data[i];
-    }
-  }
-  return minimum;
+   real_t minimum = data[0];
+   for (int i = 1; i < size; i++)
+   {
+      if (m_data[i] < minimum)
+      {
+         minimum = m_data[i];
+      }
+   }
+   return minimum;
 }
 
-real_t Vector::Sum() const {
-  if (size == 0) {
-    return 0.0;
-  }
+real_t Vector::Sum() const
+{
+   if (size == 0)
+   {
+      return 0.0;
+   }
 
-  if (UseDevice()) {
+   if (UseDevice())
+   {
 #ifdef MFEM_USE_CUDA
-    if (Device::Allows(Backend::CUDA_MASK)) {
-      return cuVectorDot(size, Read(), nullptr);
-    }
+      if (Device::Allows(Backend::CUDA_MASK))
+      {
+         return cuVectorDot(size, Read(), nullptr);
+      }
 #endif
 #ifdef MFEM_USE_HIP
-    if (Device::Allows(Backend::HIP_MASK)) {
-      return hipVectorDot(size, Read(), nullptr);
-    }
+      if (Device::Allows(Backend::HIP_MASK))
+      {
+         return hipVectorDot(size, Read(), nullptr);
+      }
 #endif
-    if (Device::Allows(Backend::DEBUG_DEVICE)) {
-      const int N = size;
-      auto d_data = Read();
-      Vector sum(1);
-      sum.UseDevice(true);
-      auto d_sum = sum.Write();
-      d_sum[0] = 0.0;
-      mfem::forall(N, [=] MFEM_HOST_DEVICE(int i) { d_sum[0] += d_data[i]; });
-      sum.HostReadWrite();
-      return sum[0];
-    }
-  }
+      if (Device::Allows(Backend::DEBUG_DEVICE))
+      {
+         const int N = size;
+         auto d_data = Read();
+         Vector sum(1);
+         sum.UseDevice(true);
+         auto d_sum = sum.Write();
+         d_sum[0] = 0.0;
+         mfem::forall(N, [=] MFEM_HOST_DEVICE(int i) { d_sum[0] += d_data[i]; });
+         sum.HostReadWrite();
+         return sum[0];
+      }
+   }
 
-  // CPU fallback
-  const real_t *h_data = HostRead();
-  real_t sum = 0.0;
-  for (int i = 0; i < size; i++) {
-    sum += h_data[i];
-  }
-  return sum;
+   // CPU fallback
+   const real_t *h_data = HostRead();
+   real_t sum = 0.0;
+   for (int i = 0; i < size; i++)
+   {
+      sum += h_data[i];
+   }
+   return sum;
 }
 
 } // namespace mfem

@@ -9,11 +9,11 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include "../../mesh/nurbs.hpp"
 #include "../bilininteg.hpp"
+#include "../ceed/integrators/diffusion/diffusion.hpp"
 #include "../gridfunc.hpp"
 #include "../qfunction.hpp"
-#include "../../mesh/nurbs.hpp"
-#include "../ceed/integrators/diffusion/diffusion.hpp"
 #include "bilininteg_diffusion_kernels.hpp"
 
 namespace mfem
@@ -21,12 +21,15 @@ namespace mfem
 
 void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
-   const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
-                         Device::GetDeviceMemoryType() : pa_mt;
+   const MemoryType mt =
+      (pa_mt == MemoryType::DEFAULT) ? Device::GetDeviceMemoryType() : pa_mt;
    // Assuming the same element type
    fespace = &fes;
    Mesh *mesh = fes.GetMesh();
-   if (mesh->GetNE() == 0) { return; }
+   if (mesh->GetNE() == 0)
+   {
+      return;
+   }
    const FiniteElement &el = *fes.GetFE(0);
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el);
    if (DeviceCanUseCeed())
@@ -35,8 +38,8 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
       MFEM_VERIFY(!VQ && !MQ,
                   "Only scalar coefficient supported for DiffusionIntegrator"
                   " with libCEED");
-      const bool mixed = mesh->GetNumGeometries(mesh->Dimension()) > 1 ||
-                         fes.IsVariableOrder();
+      const bool mixed =
+         mesh->GetNumGeometries(mesh->Dimension()) > 1 || fes.IsVariableOrder();
       if (mixed)
       {
          ceedOp = new ceed::MixedPADiffusionIntegrator(*this, fes, Q);
@@ -61,14 +64,26 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    QuadratureSpace qs(*mesh, *ir);
    CoefficientVector coeff(qs, CoefficientStorage::COMPRESSED);
 
-   if (MQ) { coeff.ProjectTranspose(*MQ); }
-   else if (VQ) { coeff.Project(*VQ); }
-   else if (Q) { coeff.Project(*Q); }
-   else { coeff.SetConstant(1.0); }
+   if (MQ)
+   {
+      coeff.ProjectTranspose(*MQ);
+   }
+   else if (VQ)
+   {
+      coeff.Project(*VQ);
+   }
+   else if (Q)
+   {
+      coeff.Project(*Q);
+   }
+   else
+   {
+      coeff.SetConstant(1.0);
+   }
 
    const int coeff_dim = coeff.GetVDim();
-   symmetric = (coeff_dim != dims*dims);
-   const int pa_size = symmetric ? symmDims : dims*dims;
+   symmetric = (coeff_dim != dims * dims);
+   const int pa_size = symmetric ? symmDims : dims * dims;
 
    pa_data.SetSize(pa_size * nq * ne, mt);
    internal::PADiffusionSetup(dim, sdim, dofs1D, quad1D, coeff_dim, ne,
@@ -83,7 +98,7 @@ void DiffusionIntegrator::AssembleNURBSPA(const FiniteElementSpace &fes)
    MFEM_VERIFY(3 == dim, "Only 3D so far");
 
    numPatches = mesh->NURBSext->GetNP();
-   for (int p=0; p<numPatches; ++p)
+   for (int p = 0; p < numPatches; ++p)
    {
       AssemblePatchPA(p, fes);
    }
@@ -95,7 +110,7 @@ void DiffusionIntegrator::AssemblePatchPA(const int patch,
    Mesh *mesh = fes.GetMesh();
    SetupPatchBasisData(mesh, patch);
 
-   SetupPatchPA(patch, mesh);  // For full quadrature, unitWeights = false
+   SetupPatchPA(patch, mesh); // For full quadrature, unitWeights = false
 }
 
 void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
@@ -106,7 +121,10 @@ void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
    }
    else
    {
-      if (pa_data.Size()==0) { AssemblePA(*fespace); }
+      if (pa_data.Size() == 0)
+      {
+         AssemblePA(*fespace);
+      }
       internal::PADiffusionAssembleDiagonal(dim, dofs1D, quad1D, ne, symmetric,
                                             maps->B, maps->G, pa_data, diag);
    }
@@ -120,9 +138,8 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
    }
    else
    {
-      internal::PADiffusionApply(dim, dofs1D, quad1D, ne, symmetric,
-                                 maps->B, maps->G, maps->Bt, maps->Gt,
-                                 pa_data, x, y);
+      internal::PADiffusionApply(dim, dofs1D, quad1D, ne, symmetric, maps->B,
+                                 maps->G, maps->Bt, maps->Gt, pa_data, x, y);
    }
 }
 
@@ -146,22 +163,22 @@ void DiffusionIntegrator::AddMultPatchPA(const int patch, const Vector &x,
 {
    MFEM_VERIFY(3 == dim, "Only 3D so far");
 
-   const Array<int>& Q1D = pQ1D[patch];
-   const Array<int>& D1D = pD1D[patch];
+   const Array<int> &Q1D = pQ1D[patch];
+   const Array<int> &D1D = pD1D[patch];
 
-   const std::vector<Array2D<real_t>>& B = pB[patch];
-   const std::vector<Array2D<real_t>>& G = pG[patch];
+   const std::vector<Array2D<real_t>> &B = pB[patch];
+   const std::vector<Array2D<real_t>> &G = pG[patch];
 
-   const IntArrayVar2D& minD = pminD[patch];
-   const IntArrayVar2D& maxD = pmaxD[patch];
-   const IntArrayVar2D& minQ = pminQ[patch];
-   const IntArrayVar2D& maxQ = pmaxQ[patch];
+   const IntArrayVar2D &minD = pminD[patch];
+   const IntArrayVar2D &maxD = pmaxD[patch];
+   const IntArrayVar2D &minQ = pminQ[patch];
+   const IntArrayVar2D &maxQ = pmaxQ[patch];
 
    auto X = Reshape(x.Read(), D1D[0], D1D[1], D1D[2]);
    auto Y = Reshape(y.ReadWrite(), D1D[0], D1D[1], D1D[2]);
 
-   const auto qd = Reshape(pa_data.Read(), Q1D[0]*Q1D[1]*Q1D[2],
-                           (symmetric ? 6 : 9));
+   const auto qd =
+      Reshape(pa_data.Read(), Q1D[0] * Q1D[1] * Q1D[2], (symmetric ? 6 : 9));
 
    // NOTE: the following is adapted from AssemblePatchMatrix_fullQuadrature
    std::vector<Array3D<real_t>> grad(dim);
@@ -169,7 +186,7 @@ void DiffusionIntegrator::AddMultPatchPA(const int patch, const Vector &x,
    Array3D<real_t> gradXY(3, std::max(Q1D[0], D1D[0]), std::max(Q1D[1], D1D[1]));
    Array2D<real_t> gradX(3, std::max(Q1D[0], D1D[0]));
 
-   for (int d=0; d<dim; ++d)
+   for (int d = 0; d < dim; ++d)
    {
       grad[d].SetSize(Q1D[0], Q1D[1], Q1D[2]);
 
@@ -179,7 +196,7 @@ void DiffusionIntegrator::AddMultPatchPA(const int patch, const Vector &x,
          {
             for (int qx = 0; qx < Q1D[0]; ++qx)
             {
-               grad[d](qx,qy,qz) = 0.0;
+               grad[d](qx, qy, qz) = 0.0;
             }
          }
       }
@@ -191,9 +208,9 @@ void DiffusionIntegrator::AddMultPatchPA(const int patch, const Vector &x,
       {
          for (int qx = 0; qx < Q1D[0]; ++qx)
          {
-            for (int d=0; d<dim; ++d)
+            for (int d = 0; d < dim; ++d)
             {
-               gradXY(d,qx,qy) = 0.0;
+               gradXY(d, qx, qy) = 0.0;
             }
          }
       }
@@ -201,44 +218,44 @@ void DiffusionIntegrator::AddMultPatchPA(const int patch, const Vector &x,
       {
          for (int qx = 0; qx < Q1D[0]; ++qx)
          {
-            gradX(0,qx) = 0.0;
-            gradX(1,qx) = 0.0;
+            gradX(0, qx) = 0.0;
+            gradX(1, qx) = 0.0;
          }
          for (int dx = 0; dx < D1D[0]; ++dx)
          {
-            const real_t s = X(dx,dy,dz);
+            const real_t s = X(dx, dy, dz);
             for (int qx = minD[0][dx]; qx <= maxD[0][dx]; ++qx)
             {
-               gradX(0,qx) += s * B[0](qx,dx);
-               gradX(1,qx) += s * G[0](qx,dx);
+               gradX(0, qx) += s * B[0](qx, dx);
+               gradX(1, qx) += s * G[0](qx, dx);
             }
          }
          for (int qy = minD[1][dy]; qy <= maxD[1][dy]; ++qy)
          {
-            const real_t wy  = B[1](qy,dy);
-            const real_t wDy = G[1](qy,dy);
+            const real_t wy = B[1](qy, dy);
+            const real_t wDy = G[1](qy, dy);
             // This full range of qx values is generally necessary.
             for (int qx = 0; qx < Q1D[0]; ++qx)
             {
-               const real_t wx  = gradX(0,qx);
-               const real_t wDx = gradX(1,qx);
-               gradXY(0,qx,qy) += wDx * wy;
-               gradXY(1,qx,qy) += wx  * wDy;
-               gradXY(2,qx,qy) += wx  * wy;
+               const real_t wx = gradX(0, qx);
+               const real_t wDx = gradX(1, qx);
+               gradXY(0, qx, qy) += wDx * wy;
+               gradXY(1, qx, qy) += wx * wDy;
+               gradXY(2, qx, qy) += wx * wy;
             }
          }
       }
       for (int qz = minD[2][dz]; qz <= maxD[2][dz]; ++qz)
       {
-         const real_t wz  = B[2](qz,dz);
-         const real_t wDz = G[2](qz,dz);
+         const real_t wz = B[2](qz, dz);
+         const real_t wDz = G[2](qz, dz);
          for (int qy = 0; qy < Q1D[1]; ++qy)
          {
             for (int qx = 0; qx < Q1D[0]; ++qx)
             {
-               grad[0](qx,qy,qz) += gradXY(0,qx,qy) * wz;
-               grad[1](qx,qy,qz) += gradXY(1,qx,qy) * wz;
-               grad[2](qx,qy,qz) += gradXY(2,qx,qy) * wDz;
+               grad[0](qx, qy, qz) += gradXY(0, qx, qy) * wz;
+               grad[1](qx, qy, qz) += gradXY(1, qx, qy) * wz;
+               grad[2](qx, qy, qz) += gradXY(2, qx, qy) * wDz;
             }
          }
       }
@@ -251,23 +268,23 @@ void DiffusionIntegrator::AddMultPatchPA(const int patch, const Vector &x,
          for (int qx = 0; qx < Q1D[0]; ++qx)
          {
             const int q = qx + ((qy + (qz * Q1D[1])) * Q1D[0]);
-            const real_t O00 = qd(q,0);
-            const real_t O01 = qd(q,1);
-            const real_t O02 = qd(q,2);
-            const real_t O10 = symmetric ? O01 : qd(q,3);
-            const real_t O11 = symmetric ? qd(q,3) : qd(q,4);
-            const real_t O12 = symmetric ? qd(q,4) : qd(q,5);
-            const real_t O20 = symmetric ? O02 : qd(q,6);
-            const real_t O21 = symmetric ? O12 : qd(q,7);
-            const real_t O22 = symmetric ? qd(q,5) : qd(q,8);
+            const real_t O00 = qd(q, 0);
+            const real_t O01 = qd(q, 1);
+            const real_t O02 = qd(q, 2);
+            const real_t O10 = symmetric ? O01 : qd(q, 3);
+            const real_t O11 = symmetric ? qd(q, 3) : qd(q, 4);
+            const real_t O12 = symmetric ? qd(q, 4) : qd(q, 5);
+            const real_t O20 = symmetric ? O02 : qd(q, 6);
+            const real_t O21 = symmetric ? O12 : qd(q, 7);
+            const real_t O22 = symmetric ? qd(q, 5) : qd(q, 8);
 
-            const real_t grad0 = grad[0](qx,qy,qz);
-            const real_t grad1 = grad[1](qx,qy,qz);
-            const real_t grad2 = grad[2](qx,qy,qz);
+            const real_t grad0 = grad[0](qx, qy, qz);
+            const real_t grad1 = grad[1](qx, qy, qz);
+            const real_t grad2 = grad[2](qx, qy, qz);
 
-            grad[0](qx,qy,qz) = (O00*grad0)+(O01*grad1)+(O02*grad2);
-            grad[1](qx,qy,qz) = (O10*grad0)+(O11*grad1)+(O12*grad2);
-            grad[2](qx,qy,qz) = (O20*grad0)+(O21*grad1)+(O22*grad2);
+            grad[0](qx, qy, qz) = (O00 * grad0) + (O01 * grad1) + (O02 * grad2);
+            grad[1](qx, qy, qz) = (O10 * grad0) + (O11 * grad1) + (O12 * grad2);
+            grad[2](qx, qy, qz) = (O20 * grad0) + (O21 * grad1) + (O22 * grad2);
          } // qx
       } // qy
    } // qz
@@ -278,9 +295,9 @@ void DiffusionIntegrator::AddMultPatchPA(const int patch, const Vector &x,
       {
          for (int dx = 0; dx < D1D[0]; ++dx)
          {
-            for (int d=0; d<3; ++d)
+            for (int d = 0; d < 3; ++d)
             {
-               gradXY(d,dx,dy) = 0.0;
+               gradXY(d, dx, dy) = 0.0;
             }
          }
       }
@@ -288,49 +305,48 @@ void DiffusionIntegrator::AddMultPatchPA(const int patch, const Vector &x,
       {
          for (int dx = 0; dx < D1D[0]; ++dx)
          {
-            for (int d=0; d<3; ++d)
+            for (int d = 0; d < 3; ++d)
             {
-               gradX(d,dx) = 0.0;
+               gradX(d, dx) = 0.0;
             }
          }
          for (int qx = 0; qx < Q1D[0]; ++qx)
          {
-            const real_t gX = grad[0](qx,qy,qz);
-            const real_t gY = grad[1](qx,qy,qz);
-            const real_t gZ = grad[2](qx,qy,qz);
+            const real_t gX = grad[0](qx, qy, qz);
+            const real_t gY = grad[1](qx, qy, qz);
+            const real_t gZ = grad[2](qx, qy, qz);
             for (int dx = minQ[0][qx]; dx <= maxQ[0][qx]; ++dx)
             {
-               const real_t wx  = B[0](qx,dx);
-               const real_t wDx = G[0](qx,dx);
-               gradX(0,dx) += gX * wDx;
-               gradX(1,dx) += gY * wx;
-               gradX(2,dx) += gZ * wx;
+               const real_t wx = B[0](qx, dx);
+               const real_t wDx = G[0](qx, dx);
+               gradX(0, dx) += gX * wDx;
+               gradX(1, dx) += gY * wx;
+               gradX(2, dx) += gZ * wx;
             }
          }
          for (int dy = minQ[1][qy]; dy <= maxQ[1][qy]; ++dy)
          {
-            const real_t wy  = B[1](qy,dy);
-            const real_t wDy = G[1](qy,dy);
+            const real_t wy = B[1](qy, dy);
+            const real_t wDy = G[1](qy, dy);
             for (int dx = 0; dx < D1D[0]; ++dx)
             {
-               gradXY(0,dx,dy) += gradX(0,dx) * wy;
-               gradXY(1,dx,dy) += gradX(1,dx) * wDy;
-               gradXY(2,dx,dy) += gradX(2,dx) * wy;
+               gradXY(0, dx, dy) += gradX(0, dx) * wy;
+               gradXY(1, dx, dy) += gradX(1, dx) * wDy;
+               gradXY(2, dx, dy) += gradX(2, dx) * wy;
             }
          }
       }
       for (int dz = minQ[2][qz]; dz <= maxQ[2][qz]; ++dz)
       {
-         const real_t wz  = B[2](qz,dz);
-         const real_t wDz = G[2](qz,dz);
+         const real_t wz = B[2](qz, dz);
+         const real_t wDz = G[2](qz, dz);
          for (int dy = 0; dy < D1D[1]; ++dy)
          {
             for (int dx = 0; dx < D1D[0]; ++dx)
             {
-               Y(dx,dy,dz) +=
-                  ((gradXY(0,dx,dy) * wz) +
-                   (gradXY(1,dx,dy) * wz) +
-                   (gradXY(2,dx,dy) * wDz));
+               Y(dx, dy, dz) +=
+                  ((gradXY(0, dx, dy) * wz) + (gradXY(1, dx, dy) * wz) +
+                   (gradXY(2, dx, dy) * wDz));
             }
          }
       } // dz
@@ -341,7 +357,7 @@ void DiffusionIntegrator::AddMultNURBSPA(const Vector &x, Vector &y) const
 {
    Vector xp, yp;
 
-   for (int p=0; p<numPatches; ++p)
+   for (int p = 0; p < numPatches; ++p)
    {
       Array<int> vdofs;
       fespace->GetPatchVDofs(p, vdofs);

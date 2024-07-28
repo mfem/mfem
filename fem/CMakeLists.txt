@@ -22,6 +22,8 @@ set(SRCS
   integ/bilininteg_dgtrace_pa.cpp
   integ/bilininteg_dgtrace_ea.cpp
   integ/bilininteg_diffusion_mf.cpp
+  integ/bilininteg_diffusion_dynamic.cpp
+  integ/bilininteg_diffusion_static.cpp
   integ/bilininteg_diffusion_pa.cpp
   integ/bilininteg_diffusion_ea.cpp
   integ/bilininteg_diffusion_patch.cpp

@@ -48,7 +48,8 @@
   for (int i = threadIdx.k; i < N; i += blockDim.k)
 #endif
 
-namespace mfem {
+namespace mfem
+{
 
 #ifdef MFEM_USE_CUDA
 // Function used by the macro MFEM_GPU_CHECK.
