@@ -1,7 +1,6 @@
 name: "Docker"
 
 on:
-
   # Always have a base image ready to go - this is a nightly build
   schedule:
     - cron: 0 3 * * *
@@ -26,7 +25,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-
         # Dockerfiles to build, a matrix supports future expanded builds
         container: [["config/docker/Dockerfile.base", "ghcr.io/mfem/mfem-ubuntu-base"],
                     ["config/docker/Dockerfile", "ghcr.io/mfem/mfem-ubuntu"]]
@@ -34,15 +32,20 @@ jobs:
     runs-on: ubuntu-latest
     name: Build
     steps:
+      - name: Run Actions Cleaner
+        uses: easimon/maximize-build-space@v8
+        with:
+          overprovision-lvm: 'true'
+          remove-dotnet: 'true'
+          remove-android: 'true'
+          remove-haskell: 'true'
+          remove-codeql: 'true'
+          remove-docker-images: 'true'
+
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Make Space For Build
-        run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghc
-
-       # It's easier to reference named variables than indexes of the matrix
+      # It's easier to reference named variables than indexes of the matrix
       - name: Set Environment
         env:
           dockerfile: ${{ matrix.container[0] }}
@@ -62,7 +65,7 @@ jobs:
 
       - name: GHCR Login
         if: (github.event_name != 'pull_request')
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}

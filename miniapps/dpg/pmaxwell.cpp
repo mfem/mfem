@@ -1,18 +1,29 @@
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+//
 //                   MFEM Ultraweak DPG Maxwell parallel example
 //
 // Compile with: make pmaxwell
 //
 // sample run
-// mpirun -np 4 pmaxwell -m ../../data/star.mesh -o 2 -sref 0 -pref 3 -rnum 0.5 -prob 0
-// mpirun -np 4 pmaxwell -m ../../data/inline-quad.mesh -o 3 -sref 0 -pref 3 -rnum 4.8 -sc -prob 0
-// mpirun -np 4 pmaxwell -m ../../data/inline-hex.mesh -o 2 -sref 0 -pref 1 -rnum 0.8 -sc -prob 0
-// mpirun -np 4 pmaxwell -m ../../data/inline-quad.mesh -o 3 -sref 1 -pref 3 -rnum 4.8 -sc -prob 2
-// mpirun -np 4 pmaxwell -o 3 -sref 1 -pref 2 -rnum 11.8 -sc -prob 3
-// mpirun -np 4 pmaxwell -o 3 -sref 1 -pref 2 -rnum 9.8 -sc -prob 4
+//  mpirun -np 4 pmaxwell -m ../../data/star.mesh -o 2 -sref 0 -pref 3 -rnum 0.5 -prob 0
+//  mpirun -np 4 pmaxwell -m ../../data/inline-quad.mesh -o 3 -sref 0 -pref 3 -rnum 4.8 -sc -prob 0
+//  mpirun -np 4 pmaxwell -m ../../data/inline-hex.mesh -o 2 -sref 0 -pref 1 -rnum 0.8 -sc -prob 0
+//  mpirun -np 4 pmaxwell -m ../../data/inline-quad.mesh -o 3 -sref 1 -pref 3 -rnum 4.8 -sc -prob 2
+//  mpirun -np 4 pmaxwell -o 3 -sref 1 -pref 2 -rnum 11.8 -sc -prob 3
+//  mpirun -np 4 pmaxwell -o 3 -sref 1 -pref 2 -rnum 9.8 -sc -prob 4
 
 // AMR run. Note that this is a computationally intensive sample run.
 // We recommend trying it on a large machine with more mpi ranks
-// mpirun -np 4 pmaxwell -o 3 -sref 0 -pref 15 -prob 1 -theta 0.7 -sc
+//  mpirun -np 4 pmaxwell -o 3 -sref 0 -pref 15 -prob 1 -theta 0.7 -sc
 
 // Description:
 // This example code demonstrates the use of MFEM to define and solve
@@ -159,25 +170,25 @@ void hatE_exact_i(const Vector & X, Vector & hatE_i);
 void hatH_exact_r(const Vector & X, Vector & hatH_r);
 void hatH_exact_i(const Vector & X, Vector & hatH_i);
 
-double hatH_exact_scalar_r(const Vector & X);
-double hatH_exact_scalar_i(const Vector & X);
+real_t hatH_exact_scalar_r(const Vector & X);
+real_t hatH_exact_scalar_i(const Vector & X);
 
 void maxwell_solution(const Vector & X,
-                      std::vector<complex<double>> &E);
+                      std::vector<complex<real_t>> &E);
 
 void maxwell_solution_curl(const Vector & X,
-                           std::vector<complex<double>> &curlE);
+                           std::vector<complex<real_t>> &curlE);
 
 void maxwell_solution_curlcurl(const Vector & X,
-                               std::vector<complex<double>> &curlcurlE);
+                               std::vector<complex<real_t>> &curlcurlE);
 
 void source_function(const Vector &x, Vector & f);
 
 int dim;
 int dimc;
-double omega;
-double mu = 1.0;
-double epsilon = 1.0;
+real_t omega;
+real_t mu = 1.0;
+real_t epsilon = 1.0;
 
 enum prob_type
 {
@@ -208,8 +219,8 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../../data/inline-quad.mesh";
    int order = 1;
    int delta_order = 1;
-   double rnum=1.0;
-   double theta = 0.0;
+   real_t rnum=1.0;
+   real_t theta = 0.0;
    bool static_cond = false;
    int iprob = 0;
    int sr = 0;
@@ -305,7 +316,7 @@ int main(int argc, char *argv[])
    CartesianPML * pml = nullptr;
    if (with_pml)
    {
-      Array2D<double> length(dim, 2); length = 0.25;
+      Array2D<real_t> length(dim, 2); length = 0.25;
       pml = new CartesianPML(&mesh,length);
       pml->SetOmega(omega);
       pml->SetEpsilonAndMu(epsilon,mu);
@@ -726,8 +737,8 @@ int main(int argc, char *argv[])
                 << endl;
    }
 
-   double res0 = 0.;
-   double err0 = 0.;
+   real_t res0 = 0.;
+   real_t err0 = 0.;
    int dof0 = 0; // init to suppress gcc warning
 
    Array<int> elements_to_refine;
@@ -898,11 +909,13 @@ int main(int argc, char *argv[])
 
       Vector & residuals = a->ComputeResidual(x);
 
-      double residual = residuals.Norml2();
-      double maxresidual = residuals.Max();
-      double globalresidual = residual * residual;
-      MPI_Allreduce(MPI_IN_PLACE,&maxresidual,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
-      MPI_Allreduce(MPI_IN_PLACE,&globalresidual,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+      real_t residual = residuals.Norml2();
+      real_t maxresidual = residuals.Max();
+      real_t globalresidual = residual * residual;
+      MPI_Allreduce(MPI_IN_PLACE, &maxresidual, 1, MPITypeMap<real_t>::mpi_type,
+                    MPI_MAX, MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE, &globalresidual, 1,
+                    MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
 
       globalresidual = sqrt(globalresidual);
 
@@ -918,8 +931,8 @@ int main(int argc, char *argv[])
          dofs += trial_fes[i]->GlobalTrueVSize();
       }
 
-      double L2Error = 0.0;
-      double rate_err = 0.0;
+      real_t L2Error = 0.0;
+      real_t rate_err = 0.0;
 
       if (exact_known)
       {
@@ -927,18 +940,18 @@ int main(int argc, char *argv[])
          VectorFunctionCoefficient E_ex_i(dim,E_exact_i);
          VectorFunctionCoefficient H_ex_r(dim,H_exact_r);
          VectorFunctionCoefficient H_ex_i(dim,H_exact_i);
-         double E_err_r = E_r.ComputeL2Error(E_ex_r);
-         double E_err_i = E_i.ComputeL2Error(E_ex_i);
-         double H_err_r = H_r.ComputeL2Error(H_ex_r);
-         double H_err_i = H_i.ComputeL2Error(H_ex_i);
+         real_t E_err_r = E_r.ComputeL2Error(E_ex_r);
+         real_t E_err_i = E_i.ComputeL2Error(E_ex_i);
+         real_t H_err_r = H_r.ComputeL2Error(H_ex_r);
+         real_t H_err_i = H_i.ComputeL2Error(H_ex_i);
          L2Error = sqrt(  E_err_r*E_err_r + E_err_i*E_err_i
                           + H_err_r*H_err_r + H_err_i*H_err_i );
-         rate_err = (it) ? dim*log(err0/L2Error)/log((double)dof0/dofs) : 0.0;
+         rate_err = (it) ? dim*log(err0/L2Error)/log((real_t)dof0/dofs) : 0.0;
          err0 = L2Error;
       }
 
-      double rate_res = (it) ? dim*log(res0/globalresidual)/log((
-                                                                   double)dof0/dofs) : 0.0;
+      real_t rate_res = (it) ? dim*log(res0/globalresidual)/log((
+                                                                   real_t)dof0/dofs) : 0.0;
 
       res0 = globalresidual;
       dof0 = dofs;
@@ -981,7 +994,7 @@ int main(int argc, char *argv[])
       if (paraview)
       {
          paraview_dc->SetCycle(it);
-         paraview_dc->SetTime((double)it);
+         paraview_dc->SetTime((real_t)it);
          paraview_dc->Save();
       }
 
@@ -1046,7 +1059,7 @@ int main(int argc, char *argv[])
 
 void E_exact_r(const Vector &x, Vector & E_r)
 {
-   std::vector<std::complex<double>> E;
+   std::vector<std::complex<real_t>> E;
    maxwell_solution(x,E);
    E_r.SetSize(E.size());
    for (unsigned i = 0; i < E.size(); i++)
@@ -1057,7 +1070,7 @@ void E_exact_r(const Vector &x, Vector & E_r)
 
 void E_exact_i(const Vector &x, Vector & E_i)
 {
-   std::vector<std::complex<double>> E;
+   std::vector<std::complex<real_t>> E;
    maxwell_solution(x, E);
    E_i.SetSize(E.size());
    for (unsigned i = 0; i < E.size(); i++)
@@ -1068,7 +1081,7 @@ void E_exact_i(const Vector &x, Vector & E_i)
 
 void curlE_exact_r(const Vector &x, Vector &curlE_r)
 {
-   std::vector<std::complex<double>> curlE;
+   std::vector<std::complex<real_t>> curlE;
    maxwell_solution_curl(x, curlE);
    curlE_r.SetSize(curlE.size());
    for (unsigned i = 0; i < curlE.size(); i++)
@@ -1079,7 +1092,7 @@ void curlE_exact_r(const Vector &x, Vector &curlE_r)
 
 void curlE_exact_i(const Vector &x, Vector &curlE_i)
 {
-   std::vector<std::complex<double>> curlE;
+   std::vector<std::complex<real_t>> curlE;
    maxwell_solution_curl(x, curlE);
    curlE_i.SetSize(curlE.size());
    for (unsigned i = 0; i < curlE.size(); i++)
@@ -1090,7 +1103,7 @@ void curlE_exact_i(const Vector &x, Vector &curlE_i)
 
 void curlcurlE_exact_r(const Vector &x, Vector & curlcurlE_r)
 {
-   std::vector<std::complex<double>> curlcurlE;
+   std::vector<std::complex<real_t>> curlcurlE;
    maxwell_solution_curlcurl(x, curlcurlE);
    curlcurlE_r.SetSize(curlcurlE.size());
    for (unsigned i = 0; i < curlcurlE.size(); i++)
@@ -1101,7 +1114,7 @@ void curlcurlE_exact_r(const Vector &x, Vector & curlcurlE_r)
 
 void curlcurlE_exact_i(const Vector &x, Vector & curlcurlE_i)
 {
-   std::vector<std::complex<double>> curlcurlE;
+   std::vector<std::complex<real_t>> curlcurlE;
    maxwell_solution_curlcurl(x, curlcurlE);
    curlcurlE_i.SetSize(curlcurlE.size());
    for (unsigned i = 0; i < curlcurlE.size(); i++)
@@ -1205,14 +1218,14 @@ void hatH_exact_i(const Vector & x, Vector & hatH_i)
    H_exact_i(x,hatH_i);
 }
 
-double hatH_exact_scalar_r(const Vector & x)
+real_t hatH_exact_scalar_r(const Vector & x)
 {
    Vector hatH_r;
    H_exact_r(x,hatH_r);
    return hatH_r[0];
 }
 
-double hatH_exact_scalar_i(const Vector & x)
+real_t hatH_exact_scalar_i(const Vector & x)
 {
    Vector hatH_i;
    H_exact_i(x,hatH_i);
@@ -1247,9 +1260,9 @@ void  rhs_func_i(const Vector &x, Vector & J_i)
    }
 }
 
-void maxwell_solution(const Vector & X, std::vector<complex<double>> &E)
+void maxwell_solution(const Vector & X, std::vector<complex<real_t>> &E)
 {
-   complex<double> zi = complex<double>(0., 1.);
+   complex<real_t> zi = complex<real_t>(0., 1.);
    E.resize(dim);
    for (int i = 0; i < dim; ++i)
    {
@@ -1278,62 +1291,62 @@ void maxwell_solution(const Vector & X, std::vector<complex<double>> &E)
       case pml_pointsource:
       {
          Vector shift(dim);
-         double k = omega * sqrt(epsilon * mu);
+         real_t k = omega * sqrt(epsilon * mu);
          shift = -0.5;
 
          if (dim == 2)
          {
-            double x0 = X(0) + shift(0);
-            double x1 = X(1) + shift(1);
-            double r = sqrt(x0 * x0 + x1 * x1);
-            double beta = k * r;
+            real_t x0 = X(0) + shift(0);
+            real_t x1 = X(1) + shift(1);
+            real_t r = sqrt(x0 * x0 + x1 * x1);
+            real_t beta = k * r;
 
             // Bessel functions
-            complex<double> Ho, Ho_r, Ho_rr;
-            Ho = jn(0, beta) + zi * yn(0, beta);
-            Ho_r = -k * (jn(1, beta) + zi * yn(1, beta));
-            Ho_rr = -k * k * (1.0 / beta *
-                              (jn(1, beta) + zi * yn(1, beta)) -
-                              (jn(2, beta) + zi * yn(2, beta)));
+            complex<real_t> Ho, Ho_r, Ho_rr;
+            Ho = real_t(jn(0, beta)) + zi * real_t(yn(0, beta));
+            Ho_r = -k * real_t(jn(1, beta)) + zi * real_t(yn(1, beta));
+            Ho_rr = -k * k * (1_r / beta *
+                              (real_t(jn(1, beta)) + zi * real_t(yn(1, beta))) -
+                              (real_t(jn(2, beta)) + zi * real_t(yn(2, beta))));
 
             // First derivatives
-            double r_x = x0 / r;
-            double r_y = x1 / r;
-            double r_xy = -(r_x / r) * r_y;
-            double r_xx = (1.0 / r) * (1.0 - r_x * r_x);
+            real_t r_x = x0 / r;
+            real_t r_y = x1 / r;
+            real_t r_xy = -(r_x / r) * r_y;
+            real_t r_xx = (1.0 / r) * (1.0 - r_x * r_x);
 
-            complex<double> val, val_xx, val_xy;
-            val = 0.25 * zi * Ho;
-            val_xx = 0.25 * zi * (r_xx * Ho_r + r_x * r_x * Ho_rr);
-            val_xy = 0.25 * zi * (r_xy * Ho_r + r_x * r_y * Ho_rr);
+            complex<real_t> val, val_xx, val_xy;
+            val = 0.25_r * zi * Ho;
+            val_xx = 0.25_r * zi * (r_xx * Ho_r + r_x * r_x * Ho_rr);
+            val_xy = 0.25_r * zi * (r_xy * Ho_r + r_x * r_y * Ho_rr);
             E[0] = zi / k * (k * k * val + val_xx);
             E[1] = zi / k * val_xy;
          }
          else
          {
-            double x0 = X(0) + shift(0);
-            double x1 = X(1) + shift(1);
-            double x2 = X(2) + shift(2);
-            double r = sqrt(x0 * x0 + x1 * x1 + x2 * x2);
+            real_t x0 = X(0) + shift(0);
+            real_t x1 = X(1) + shift(1);
+            real_t x2 = X(2) + shift(2);
+            real_t r = sqrt(x0 * x0 + x1 * x1 + x2 * x2);
 
-            double r_x = x0 / r;
-            double r_y = x1 / r;
-            double r_z = x2 / r;
-            double r_xx = (1.0 / r) * (1.0 - r_x * r_x);
-            double r_yx = -(r_y / r) * r_x;
-            double r_zx = -(r_z / r) * r_x;
+            real_t r_x = x0 / r;
+            real_t r_y = x1 / r;
+            real_t r_z = x2 / r;
+            real_t r_xx = (1.0 / r) * (1.0 - r_x * r_x);
+            real_t r_yx = -(r_y / r) * r_x;
+            real_t r_zx = -(r_z / r) * r_x;
 
-            complex<double> val, val_r, val_rr;
+            complex<real_t> val, val_r, val_rr;
             val = exp(zi * k * r) / r;
-            val_r = val / r * (zi * k * r - 1.0);
+            val_r = val / r * (zi * k * r - 1_r);
             val_rr = val / (r * r) * (-k * k * r * r
-                                      - 2.0 * zi * k * r + 2.0);
+                                      - 2_r * zi * k * r + 2_r);
 
-            complex<double> val_xx, val_yx, val_zx;
+            complex<real_t> val_xx, val_yx, val_zx;
             val_xx = val_rr * r_x * r_x + val_r * r_xx;
             val_yx = val_rr * r_x * r_y + val_r * r_yx;
             val_zx = val_rr * r_x * r_z + val_r * r_zx;
-            complex<double> alpha = zi * k / 4.0 / M_PI / k / k;
+            complex<real_t> alpha = zi * k / 4_r / real_t(M_PI) / k / k;
             E[0] = alpha * (k * k * val + val_xx);
             E[1] = alpha * val_yx;
             E[2] = alpha * val_zx;
@@ -1348,9 +1361,9 @@ void maxwell_solution(const Vector & X, std::vector<complex<double>> &E)
 }
 
 void maxwell_solution_curl(const Vector & X,
-                           std::vector<complex<double>> &curlE)
+                           std::vector<complex<real_t>> &curlE)
 {
-   complex<double> zi = complex<double>(0., 1.);
+   complex<real_t> zi = complex<real_t>(0., 1.);
    curlE.resize(dimc);
    for (int i = 0; i < dimc; ++i)
    {
@@ -1360,7 +1373,7 @@ void maxwell_solution_curl(const Vector & X,
    {
       case plane_wave:
       {
-         std::complex<double> pw = exp(zi * omega * (X.Sum()));
+         std::complex<real_t> pw = exp(zi * omega * (X.Sum()));
          if (dim == 3)
          {
             curlE[0] = 0.0;
@@ -1375,7 +1388,7 @@ void maxwell_solution_curl(const Vector & X,
       break;
       case pml_plane_wave_scatter:
       {
-         std::complex<double> pw = exp(zi * omega * (X(0)));
+         std::complex<real_t> pw = exp(zi * omega * (X(0)));
          curlE[0] = zi * omega * pw;
       }
       break;
@@ -1386,22 +1399,22 @@ void maxwell_solution_curl(const Vector & X,
 }
 
 void maxwell_solution_curlcurl(const Vector & X,
-                               std::vector<complex<double>> &curlcurlE)
+                               std::vector<complex<real_t>> &curlcurlE)
 {
-   complex<double> zi = complex<double>(0., 1.);
+   complex<real_t> zi = complex<real_t>(0., 1.);
    curlcurlE.resize(dim);
    for (int i = 0; i < dim; ++i)
    {
-      curlcurlE[i] = 0.0;;
+      curlcurlE[i] = 0.0;
    }
    switch (prob)
    {
       case plane_wave:
       {
-         std::complex<double> pw = exp(zi * omega * (X.Sum()));
+         std::complex<real_t> pw = exp(zi * omega * (X.Sum()));
          if (dim == 3)
          {
-            curlcurlE[0] = 2.0 * omega * omega * pw;
+            curlcurlE[0] = 2_r * omega * omega * pw;
             curlcurlE[1] = - omega * omega * pw;
             curlcurlE[2] = - omega * omega * pw;
          }
@@ -1414,7 +1427,7 @@ void maxwell_solution_curlcurl(const Vector & X,
       break;
       case pml_plane_wave_scatter:
       {
-         std::complex<double> pw = exp(zi * omega * (X(0)));
+         std::complex<real_t> pw = exp(zi * omega * (X(0)));
          curlcurlE[1] = omega * omega * pw;
       }
       break;
@@ -1428,14 +1441,14 @@ void source_function(const Vector &x, Vector &f)
 {
    Vector center(dim);
    center = 0.5;
-   double r = 0.0;
+   real_t r = 0.0;
    for (int i = 0; i < dim; ++i)
    {
       r += pow(x[i] - center[i], 2.);
    }
-   double n = 5.0 * omega * sqrt(epsilon * mu) / M_PI;
-   double coeff = pow(n, 2) / M_PI;
-   double alpha = -pow(n, 2) * r;
+   real_t n = 5.0 * omega * sqrt(epsilon * mu) / M_PI;
+   real_t coeff = pow(n, 2) / M_PI;
+   real_t alpha = -pow(n, 2) * r;
    f = 0.0;
    f[0] = -omega * coeff * exp(alpha)/omega;
 }

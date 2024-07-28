@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -31,10 +31,20 @@ include_directories(BEFORE ${PROJECT_BINARY_DIR})
 add_custom_target(test_sundials
   ${CMAKE_CTEST_COMMAND} -R sundials USES_TERMINAL)
 
-# Add one executable per cpp file, adding "sundials_" as prefix. Sets
-# "test_sundials" as a target that depends on the given examples.
+# Add one executable per cpp file, adding "sundials_" as prefix so the CMake
+# target is unique from those in the non-SUNDIALS examples. Also sets
+# "test_sundials" as a target that depends on the given SUNDIALS examples.
 set(PFX sundials_)
 add_mfem_examples(SUNDIALS_EXAMPLES_SRCS ${PFX} "" test_sundials)
+
+# Remove "sundials_" prefix from exectuable name for consistency with GNU build
+# system.
+foreach(SRC_FILE ${SUNDIALS_EXAMPLES_SRCS})
+  get_filename_component(SRC_FILENAME ${SRC_FILE} NAME)
+  string(REPLACE ".cpp" "" TARGET_NAME "${PFX}${SRC_FILENAME}")
+  string(REPLACE ${PFX} "" EXE_NAME ${TARGET_NAME})
+  set_target_properties(${TARGET_NAME} PROPERTIES OUTPUT_NAME ${EXE_NAME})
+endforeach()
 
 # Testing.
 # The SUNDIALS tests can be run separately using the target "test_sundials"
@@ -51,7 +61,10 @@ if (MFEM_ENABLE_TESTING)
   set(EX10_COMMON_OPTS -m ../../data/beam-quad.mesh -o 2 -s 5 -dt 0.15 -tf 6 -vs 10)
   set(EX10_TEST_OPTS ${EX10_COMMON_OPTS}  -r  2)
   set(EX10P_TEST_OPTS ${EX10_COMMON_OPTS} -rp 1)
-  # Example 16: use the default options
+  # Example 16: test ARKODE with implicit time stepping using mass form
+  set(EX16_COMMON_OPTS -s 15)
+  set(EX16_TEST_OPTS ${EX16_COMMON_OPTS})
+  set(EX16P_TEST_OPTS ${EX16_COMMON_OPTS})
 
   # Add the tests: one test per source file.
   foreach(SRC_FILE ${SUNDIALS_EXAMPLES_SRCS})

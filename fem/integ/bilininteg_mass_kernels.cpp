@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -19,14 +19,12 @@ namespace internal
 
 // PA Mass Diagonal 1D kernel
 static void PAMassAssembleDiagonal1D(const int NE,
-                                     const Array<double> &b,
+                                     const Array<real_t> &b,
                                      const Vector &d,
                                      Vector &y,
                                      const int D1D,
                                      const int Q1D)
 {
-   MFEM_VERIFY(D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto D = Reshape(d.Read(), Q1D, NE);
    auto Y = Reshape(y.ReadWrite(), D1D, NE);
@@ -34,7 +32,6 @@ static void PAMassAssembleDiagonal1D(const int NE,
    {
       for (int dx = 0; dx < D1D; ++dx)
       {
-         Y(dx, e) = 0.0;
          for (int qx = 0; qx < Q1D; ++qx)
          {
             Y(dx, e) += B(qx, dx) * B(qx, dx) * D(qx, e);
@@ -45,7 +42,7 @@ static void PAMassAssembleDiagonal1D(const int NE,
 
 void PAMassAssembleDiagonal(const int dim, const int D1D,
                             const int Q1D, const int NE,
-                            const Array<double> &B,
+                            const Array<real_t> &B,
                             const Vector &D,
                             Vector &Y)
 {
@@ -93,8 +90,8 @@ void PAMassAssembleDiagonal(const int dim, const int D1D,
 void OccaPAMassApply2D(const int D1D,
                        const int Q1D,
                        const int NE,
-                       const Array<double> &B,
-                       const Array<double> &Bt,
+                       const Array<real_t> &B,
+                       const Array<real_t> &Bt,
                        const Vector &D,
                        const Vector &X,
                        Vector &Y)
@@ -137,8 +134,8 @@ void OccaPAMassApply2D(const int D1D,
 void OccaPAMassApply3D(const int D1D,
                        const int Q1D,
                        const int NE,
-                       const Array<double> &B,
-                       const Array<double> &Bt,
+                       const Array<real_t> &B,
+                       const Array<real_t> &Bt,
                        const Vector &D,
                        const Vector &X,
                        Vector &Y)
@@ -182,11 +179,11 @@ void OccaPAMassApply3D(const int D1D,
 MFEM_HOST_DEVICE inline
 void PAMassApply1D_Element(const int e,
                            const int NE,
-                           const double *b_,
-                           const double *bt_,
-                           const double *d_,
-                           const double *x_,
-                           double *y_,
+                           const real_t *b_,
+                           const real_t *bt_,
+                           const real_t *d_,
+                           const real_t *x_,
+                           real_t *y_,
                            const int d1d = 0,
                            const int q1d = 0)
 {
@@ -198,15 +195,14 @@ void PAMassApply1D_Element(const int e,
    auto X = ConstDeviceMatrix(x_, D1D, NE);
    auto Y = DeviceMatrix(y_, D1D, NE);
 
-   constexpr int max_Q1D = MAX_Q1D;
-   double XQ[max_Q1D];
+   real_t XQ[DofQuadLimits::MAX_Q1D];
    for (int qx = 0; qx < Q1D; ++qx)
    {
       XQ[qx] = 0.0;
    }
    for (int dx = 0; dx < D1D; ++dx)
    {
-      const double s = X(dx,e);
+      const real_t s = X(dx,e);
       for (int qx = 0; qx < Q1D; ++qx)
       {
          XQ[qx] += B(qx,dx)*s;
@@ -214,7 +210,7 @@ void PAMassApply1D_Element(const int e,
    }
    for (int qx = 0; qx < Q1D; ++qx)
    {
-      const double q = XQ[qx]*D(qx,e);
+      const real_t q = XQ[qx]*D(qx,e);
       for (int dx = 0; dx < D1D; ++dx)
       {
          Y(dx,e) += Bt(dx,qx) * q;
@@ -224,16 +220,16 @@ void PAMassApply1D_Element(const int e,
 
 // PA Mass Apply 1D kernel
 static void PAMassApply1D(const int NE,
-                          const Array<double> &b_,
-                          const Array<double> &bt_,
+                          const Array<real_t> &b_,
+                          const Array<real_t> &bt_,
                           const Vector &d_,
                           const Vector &x_,
                           Vector &y_,
                           const int d1d = 0,
                           const int q1d = 0)
 {
-   MFEM_VERIFY(d1d <= MAX_D1D, "");
-   MFEM_VERIFY(q1d <= MAX_Q1D, "");
+   MFEM_VERIFY(d1d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(q1d <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
    const auto B = b_.Read();
    const auto Bt = bt_.Read();
@@ -251,8 +247,8 @@ void PAMassApply(const int dim,
                  const int D1D,
                  const int Q1D,
                  const int NE,
-                 const Array<double> &B,
-                 const Array<double> &Bt,
+                 const Array<real_t> &B,
+                 const Array<real_t> &Bt,
                  const Vector &D,
                  const Vector &X,
                  Vector &Y)

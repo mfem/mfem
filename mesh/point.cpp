@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -21,10 +21,22 @@ Point::Point( const int *ind, int attr ) : Element(Geometry::POINT)
    indices[0] = ind[0];
 }
 
-void Point::GetVertices( Array<int> &v ) const
+void Point::GetVertices(Array<int> &v) const
 {
-   v.SetSize( 1 );
+   v.SetSize(1);
    v[0] = indices[0];
+}
+
+void Point::SetVertices(const Array<int> &v)
+{
+   MFEM_ASSERT(v.Size() == 1, "!");
+   indices[0] = v[0];
+}
+
+
+void Point::SetVertices(const int *ind)
+{
+   indices[0] = ind[0];
 }
 
 PointFiniteElement PointFE;

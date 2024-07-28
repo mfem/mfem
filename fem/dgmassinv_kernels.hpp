@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -26,11 +26,11 @@ template <int DIM, int D1D, int Q1D>
 MFEM_HOST_DEVICE inline
 void DGMassApply(const int e,
                  const int NE,
-                 const double *B,
-                 const double *Bt,
-                 const double *pa_data,
-                 const double *x,
-                 double *y,
+                 const real_t *B,
+                 const real_t *Bt,
+                 const real_t *pa_data,
+                 const real_t *x,
+                 real_t *y,
                  const int d1d = 0,
                  const int q1d = 0)
 {
@@ -77,9 +77,9 @@ MFEM_HOST_DEVICE inline
 void DGMassPreconditioner(const int e,
                           const int NE,
                           const int ND,
-                          const double *dinv,
-                          const double *x,
-                          double *y)
+                          const real_t *dinv,
+                          const real_t *x,
+                          real_t *y)
 {
    const auto X = ConstDeviceMatrix(x, ND, NE);
    const auto D = ConstDeviceMatrix(dinv, ND, NE);
@@ -99,11 +99,11 @@ MFEM_HOST_DEVICE inline
 void DGMassAxpy(const int e,
                 const int NE,
                 const int ND,
-                const double a,
-                const double *x,
-                const double b,
-                const double *y,
-                double *z)
+                const real_t a,
+                const real_t *x,
+                const real_t b,
+                const real_t *y,
+                real_t *z)
 {
    const auto X = ConstDeviceMatrix(x, ND, NE);
    const auto Y = ConstDeviceMatrix(y, ND, NE);
@@ -121,11 +121,11 @@ void DGMassAxpy(const int e,
 
 template <int NB>
 MFEM_HOST_DEVICE inline
-double DGMassDot(const int e,
+real_t DGMassDot(const int e,
                  const int NE,
                  const int ND,
-                 const double *x,
-                 const double *y)
+                 const real_t *x,
+                 const real_t *y)
 {
    const auto X = ConstDeviceMatrix(x, ND, NE);
    const auto Y = ConstDeviceMatrix(y, ND, NE);
@@ -133,7 +133,7 @@ double DGMassDot(const int e,
    const int tid = MFEM_THREAD_ID(x) + MFEM_THREAD_SIZE(x)*MFEM_THREAD_ID(y);
    const int bxy = MFEM_THREAD_SIZE(x)*MFEM_THREAD_SIZE(y);
 
-   MFEM_SHARED double s_dot[NB*NB];
+   MFEM_SHARED real_t s_dot[NB*NB];
    s_dot[tid] = 0.0;
 
    for (int i = tid; i < ND; i += bxy) { s_dot[tid] += X(i,e)*Y(i,e); }
@@ -172,25 +172,25 @@ double DGMassDot(const int e,
    return s_dot[0];
 }
 
-template<int T_D1D = 0, int MAX_D1D = 0>
+template<int T_D1D = 0>
 MFEM_HOST_DEVICE inline
 void DGMassBasis2D(const int e,
                    const int NE,
-                   const double *b_,
-                   const double *x_,
-                   double *y_,
+                   const real_t *b_,
+                   const real_t *x_,
+                   real_t *y_,
                    const int d1d = 0)
 {
-   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+   constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
    const int D1D = T_D1D ? T_D1D : d1d;
 
    const auto b = Reshape(b_, D1D, D1D);
    const auto x = Reshape(x_, D1D, D1D, NE);
    auto y = Reshape(y_, D1D, D1D, NE);
 
-   MFEM_SHARED double sB[MD1*MD1];
-   MFEM_SHARED double sm0[MD1*MD1];
-   MFEM_SHARED double sm1[MD1*MD1];
+   MFEM_SHARED real_t sB[MD1*MD1];
+   MFEM_SHARED real_t sm0[MD1*MD1];
+   MFEM_SHARED real_t sm1[MD1*MD1];
 
    kernels::internal::LoadB<MD1,MD1>(D1D,D1D,b,sB);
 
@@ -213,13 +213,13 @@ void DGMassBasis2D(const int e,
    MFEM_SYNC_THREAD;
 }
 
-template<int T_D1D = 0, int MAX_D1D = 0>
+template<int T_D1D = 0>
 MFEM_HOST_DEVICE inline
 void DGMassBasis3D(const int e,
                    const int NE,
-                   const double *b_,
-                   const double *x_,
-                   double *y_,
+                   const real_t *b_,
+                   const real_t *x_,
+                   real_t *y_,
                    const int d1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -228,11 +228,11 @@ void DGMassBasis3D(const int e,
    const auto x = Reshape(x_, D1D, D1D, D1D, NE);
    auto y = Reshape(y_, D1D, D1D, D1D, NE);
 
-   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+   constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
 
-   MFEM_SHARED double sB[MD1*MD1];
-   MFEM_SHARED double sm0[MD1*MD1*MD1];
-   MFEM_SHARED double sm1[MD1*MD1*MD1];
+   MFEM_SHARED real_t sB[MD1*MD1];
+   MFEM_SHARED real_t sm0[MD1*MD1*MD1];
+   MFEM_SHARED real_t sm1[MD1*MD1*MD1];
 
    kernels::internal::LoadB<MD1,MD1>(D1D,D1D,b,sB);
 
@@ -260,22 +260,22 @@ void DGMassBasis3D(const int e,
    MFEM_SYNC_THREAD;
 }
 
-template<int DIM, int T_D1D = 0, int MAX_D1D = 0>
+template<int DIM, int T_D1D = 0>
 MFEM_HOST_DEVICE inline
 void DGMassBasis(const int e,
                  const int NE,
-                 const double *b_,
-                 const double *x_,
-                 double *y_,
+                 const real_t *b_,
+                 const real_t *x_,
+                 real_t *y_,
                  const int d1d = 0)
 {
    if (DIM == 2)
    {
-      DGMassBasis2D<T_D1D, MAX_D1D>(e, NE, b_, x_, y_, d1d);
+      DGMassBasis2D<T_D1D>(e, NE, b_, x_, y_, d1d);
    }
    else if (DIM == 3)
    {
-      DGMassBasis3D<T_D1D, MAX_D1D>(e, NE, b_, x_, y_, d1d);
+      DGMassBasis3D<T_D1D>(e, NE, b_, x_, y_, d1d);
    }
    else
    {

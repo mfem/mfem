@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -12,16 +12,15 @@
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
+MFEM_INSTALL_DIR ?= ../../mfem
 SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/nurbs/,)
-CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
-# Use the MFEM install directory
-# MFEM_INSTALL_DIR = ../../mfem
-# CONFIG_MK = $(MFEM_INSTALL_DIR)/share/mfem/config.mk
+CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
+   $(wildcard $(MFEM_INSTALL_DIR)/share/mfem/config.mk))
 
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_MINIAPPS = nurbs_ex1 nurbs_patch_ex1 nurbs_curveint
+SEQ_MINIAPPS = nurbs_ex1 nurbs_patch_ex1 nurbs_ex3 nurbs_ex5 nurbs_ex24 nurbs_curveint nurbs_printfunc nurbs_solenoidal nurbs_naca_cmesh
 PAR_MINIAPPS = nurbs_ex1p nurbs_ex11p
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -70,6 +69,7 @@ EX1_ARGS_14 := -m $(MFEM_DIR)/miniapps/nurbs/meshes/two-squares-nurbs-autoedge.m
 EX1_ARGS_15 := -m $(MFEM_DIR)/miniapps/nurbs/meshes/two-cubes-nurbs.mesh -o 1 -r 3 -rf $(MFEM_DIR)/miniapps/nurbs/meshes/two-cubes.ref
 EX1_ARGS_16 := -m $(MFEM_DIR)/miniapps/nurbs/meshes/two-cubes-nurbs-rot.mesh -o 1 -r 3 -rf $(MFEM_DIR)/miniapps/nurbs/meshes/two-cubes.ref
 EX1_ARGS_17 := -m $(MFEM_DIR)/miniapps/nurbs/meshes/two-cubes-nurbs-autoedge.mesh -o 1 -r 3 -rf $(MFEM_DIR)/miniapps/nurbs/meshes/two-cubes.ref
+EX1_ARGS_18 := -m $(MFEM_DIR)/miniapps/nurbs/meshes/cube-nurbs.mesh -pm "1" -ps "2" -rf $(MFEM_DIR)/miniapps/nurbs/meshes/cube.ref
 
 nurbs_ex1-test-seq: nurbs_ex1
 	@$(call mfem-test,$<,, NURBS miniapp)
@@ -89,16 +89,47 @@ nurbs_ex1-test-seq: nurbs_ex1
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_15))
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_16))
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_17))
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_18))
 
-EX1PATCH_ARGS_1 := -incdeg 3 -ref 2 -iro 8 -patcha
-EX1PATCH_ARGS_2 := -incdeg 3 -ref 2 -iro 8 -patcha -pa
-EX1PATCH_ARGS_3 := -incdeg 3 -ref 2 -iro 8 -patcha -fint
+EX1PATCH_ARGS_1 := -incdeg 3 -ref 1 -iro 8 -patcha
+EX1PATCH_ARGS_2 := -incdeg 3 -ref 1 -iro 8 -patcha -pa
+EX1PATCH_ARGS_3 := -incdeg 3 -ref 1 -iro 8 -patcha -fint
 nurbs_patch_ex1-test-seq: nurbs_patch_ex1
 ifeq ($(MFEM_USE_LAPACK),YES)
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1PATCH_ARGS_1))
 endif
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1PATCH_ARGS_2))
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1PATCH_ARGS_3))
+
+EX3_ARGS_1 := -m $(MFEM_DIR)/data/square-nurbs.mesh -r 1 -o 2
+EX3_ARGS_2 := -m $(MFEM_DIR)/data/cube-nurbs.mesh -r 1 -o 2
+nurbs_ex3-test-seq: nurbs_ex3
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX3_ARGS_1))
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX3_ARGS_2))
+
+EX5_ARGS_1 := -m $(MFEM_DIR)/data/square-nurbs.mesh -r 1 -o 2
+EX5_ARGS_2 := -m $(MFEM_DIR)/data/cube-nurbs.mesh -r 1 -o 2
+nurbs_ex5-test-seq: nurbs_ex5
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX5_ARGS_1))
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX5_ARGS_2))
+
+EX24_ARGS_1 := -m $(MFEM_DIR)/data/pipe-nurbs-2d.mesh -r 1 -o 2 -p 0
+EX24_ARGS_2 := -m $(MFEM_DIR)/data/pipe-nurbs-2d.mesh -r 1 -o 2 -p 2
+EX24_ARGS_3 := -m $(MFEM_DIR)/data/cube-nurbs.mesh -r 1 -o 2 -p 0
+EX24_ARGS_4 := -m $(MFEM_DIR)/data/cube-nurbs.mesh -r 1 -o 2 -p 1
+EX24_ARGS_5 := -m $(MFEM_DIR)/data/cube-nurbs.mesh -r 1 -o 2 -p 2
+nurbs_ex24-test-seq: nurbs_ex24
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX24_ARGS_1))
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX24_ARGS_2))
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX24_ARGS_3))
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX24_ARGS_4))
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX24_ARGS_5))
+
+SOL_ARGS_1 := -m $(MFEM_DIR)/data/pipe-nurbs-2d.mesh -r 1 -o 2
+SOL_ARGS_1 := -m $(MFEM_DIR)/data/cube-nurbs.mesh -r 1 -o 2
+nurbs_sol-test-seq: nurbs_solenoidal
+	@$(call mfem-test,$<,, NURBS miniapp,$(SOL_ARGS_1))
+	@$(call mfem-test,$<,, NURBS miniapp,$(SOl_ARGS_2))
 
 CI_ARGS_1 := -uw -n 9 -no-visit
 CI_ARGS_2 := -nw -n 9 -no-visit
@@ -107,11 +138,20 @@ nurbs_curveint-test-seq: nurbs_curveint
 	@$(call mfem-test,$<,, NURBS miniapp,$(CI_ARGS_1))
 	@$(call mfem-test,$<,, NURBS miniapp,$(CI_ARGS_2))
 
+NCT_ARGS_1 := -no-visit -ntail 80 -nbnd 80 -ntip 20 -nwake 40 -sw 2.0 -sbnd 2.5 -stip 1.1 -aoa 3
+
+nurbs_naca_cmesh-test-seq: nurbs_naca_cmesh
+	@$(call mfem-test,$<,, NURBS miniapp,$(NCT_ARGS_1))
+
+nurbs_printfunc-test-seq: nurbs_printfunc
+	@$(call mfem-test,$<,, NURBS miniapp)
+
 EX1P_ARGS_1 :=
 EX1P_ARGS_2 := -m ../../data/pipe-nurbs-2d.mesh -o 2 -no-ibp
 EX1P_ARGS_3 := -m ../../data/ball-nurbs.mesh -o 2 --weak-bc -r 0
 EX1P_ARGS_4 := -m ../../data/square-disc-nurbs-patch.mesh -o 2 --weak-bc -r 0
 EX1P_ARGS_5 := -m ../../data/square-disc-nurbs-patch.mesh -o 2 --weak-bc -r 1
+EX1P_ARGS_6 := -m $(MFEM_DIR)/miniapps/nurbs/meshes/square-nurbs.mesh -r 4  -pm "1" -ps "2"
 
 nurbs_ex1p-test-par: nurbs_ex1p
 	@$(call mfem-test,$<, $(RUN_MPI), NURBS miniapp,$(EX1P_ARGS_1))
@@ -119,6 +159,7 @@ nurbs_ex1p-test-par: nurbs_ex1p
 	@$(call mfem-test,$<, $(RUN_MPI), NURBS miniapp,$(EX1P_ARGS_3))
 	@$(call mfem-test,$<, $(RUN_MPI), NURBS miniapp,$(EX1P_ARGS_4))
 	@$(call mfem-test,$<, $(RUN_MPI), NURBS miniapp,$(EX1P_ARGS_5))
+	@$(call mfem-test,$<, $(RUN_MPI), NURBS miniapp,$(EX1P_ARGS_6))
 
 EX11P_ARGS_1 :=
 
@@ -138,6 +179,6 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -f refined.mesh sin-fit.mesh mesh.* sol.* mode_*
-	@rm -rf Example1*
-	@rm -rf CurveInt
+	@rm -f refined.mesh sin-fit.mesh ex5.mesh exsol.mesh mesh.* sol.* mode_* naca-cmesh.mesh sol_?.gf
+	@rm -rf Example1* Example3* Example5* Solenoidal_* ParaView
+	@rm -rf CurveInt Naca_cmesh glvis_naca-cmesh.mesh

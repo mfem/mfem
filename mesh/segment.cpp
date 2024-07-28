@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -37,13 +37,16 @@ void Segment::SetVertices(const int *ind)
    indices[1] = ind[1];
 }
 
-void Segment::GetVertices( Array<int> &v ) const
+void Segment::GetVertices(Array<int> &v) const
 {
-   v.SetSize( 2 );
-   for (int i=0; i<2; i++)
-   {
-      v[i] = indices[i];
-   }
+   v.SetSize(2);
+   std::copy(indices, indices + 2, v.begin());
+}
+
+void Segment::SetVertices(const Array<int> &v)
+{
+   MFEM_ASSERT(v.Size() == 2, "!");
+   std::copy(v.begin(), v.end(), indices);
 }
 
 Linear1DFiniteElement SegmentFE;

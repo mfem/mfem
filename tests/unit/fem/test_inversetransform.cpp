@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -54,7 +54,7 @@ TEST_CASE("InverseElementTransformation",
 {
    typedef InverseElementTransformation InvTransform;
 
-   const double tol = 2e-14;
+   const real_t tol = 2e-14;
 
    SECTION("{ C-shaped Q2 Quad }")
    {
@@ -91,7 +91,7 @@ TEST_CASE("InverseElementTransformation",
 
       const int npts = intRule.GetNPoints();
       int pts_found = 0;
-      double max_err = 0.0;
+      real_t max_err = 0.0;
       for (int i=0; i<npts; ++i)
       {
          // Transform the integration point into space
@@ -146,7 +146,7 @@ TEST_CASE("InverseElementTransformation",
       Vector pt;
 
       int pts_found = 0;
-      double max_err = 0.0;
+      real_t max_err = 0.0;
       for (int i = 0; i < npts; i++)
       {
          Geometry::GetRandomPoint(T.GetGeometryType(), ip);

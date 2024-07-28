@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -92,10 +92,13 @@ TransferMap::TransferMap(const GridFunction &src,
 
          if (!root_fes_reset)
          {
+            const FiniteElementCollection *src_fec = src.FESpace()->FEColl();
+            const FiniteElementCollection *dst_fec = dst.FESpace()->FEColl();
+            auto *root_fec = src_sm_dim == parent_dim ? src_fec : dst_fec;
+
             root_fes_.reset(new FiniteElementSpace(
-                               *src.FESpace(),
                                const_cast<Mesh *>(
-                                  SubMeshUtils::GetRootParent(*src_sm))));
+                                  SubMeshUtils::GetRootParent(*src_sm)), root_fec));
          }
       }
 
@@ -156,7 +159,7 @@ void TransferMap::Transfer(const GridFunction &src,
       dst.HostWrite(); // dst is fully overwritten
       for (int i = 0; i < sub1_to_parent_map_.Size(); i++)
       {
-         double s = 1.0;
+         real_t s = 1.0;
          int j = FiniteElementSpace::DecodeDof(sub1_to_parent_map_[i], s);
          dst(i) = s * src(j);
       }
@@ -174,7 +177,7 @@ void TransferMap::Transfer(const GridFunction &src,
       dst.HostReadWrite(); // dst is only partially overwritten
       for (int i = 0; i < sub1_to_parent_map_.Size(); i++)
       {
-         double s = 1.0;
+         real_t s = 1.0;
          int j = FiniteElementSpace::DecodeDof(sub1_to_parent_map_[i], s);
          dst(j) = s * src(i);
       }
@@ -195,7 +198,7 @@ void TransferMap::Transfer(const GridFunction &src,
 
       for (int i = 0; i < sub2_to_parent_map_.Size(); i++)
       {
-         double s = 1.0;
+         real_t s = 1.0;
          int j = FiniteElementSpace::DecodeDof(sub2_to_parent_map_[i], s);
          z_(j) = s * dst(i);
       }
@@ -205,7 +208,7 @@ void TransferMap::Transfer(const GridFunction &src,
 
       for (int i = 0; i < sub1_to_parent_map_.Size(); i++)
       {
-         double s = 1.0;
+         real_t s = 1.0;
          int j = FiniteElementSpace::DecodeDof(sub1_to_parent_map_[i], s);
          z_(j) = s * src(i);
       }
@@ -215,7 +218,7 @@ void TransferMap::Transfer(const GridFunction &src,
 
       for (int i = 0; i < sub2_to_parent_map_.Size(); i++)
       {
-         double s = 1.0;
+         real_t s = 1.0;
          int j = FiniteElementSpace::DecodeDof(sub2_to_parent_map_[i], s);
          dst(i) = s * z_(j);
       }
@@ -241,8 +244,7 @@ void TransferMap::CorrectFaceOrientations(const FiniteElementSpace &fes,
 
    if (parent_face_ori.Size() == 0) { return; }
 
-   VDofTransformation vdoftrans(fes.GetVDim(),
-                                fes.GetOrdering());
+   DofTransformation doftrans(fes.GetVDim(), fes.GetOrdering());
 
    int dim = mesh->Dimension();
    bool face = (dim == 3);
@@ -256,17 +258,13 @@ void TransferMap::CorrectFaceOrientations(const FiniteElementSpace &fes,
       if (parent_face_ori[i] == 0) { continue; }
 
       Geometry::Type geom = face ? mesh->GetFaceGeometry(i) :
-                            mesh->GetElementGeometry(i);;
+                            mesh->GetElementGeometry(i);
 
-      StatelessDofTransformation * doftrans =
-         fec->DofTransformationForGeometry(geom);
-
-      if (doftrans == NULL) { continue; }
-
-      vdoftrans.SetDofTransformation(*doftrans);
+      if (!fec->DofTransformationForGeometry(geom)) { continue; }
+      doftrans.SetDofTransformation(*fec->DofTransformationForGeometry(geom));
 
       Fo[0] = parent_face_ori[i];
-      vdoftrans.SetFaceOrientations(Fo);
+      doftrans.SetFaceOrientations(Fo);
 
       if (face)
       {
@@ -280,22 +278,22 @@ void TransferMap::CorrectFaceOrientations(const FiniteElementSpace &fes,
       if (sub_to_parent_map)
       {
          src.GetSubVector(vdofs, face_vector);
-         vdoftrans.TransformPrimal(face_vector);
+         doftrans.TransformPrimal(face_vector);
       }
       else
       {
          dst.GetSubVector(vdofs, face_vector);
-         vdoftrans.InvTransformPrimal(face_vector);
+         doftrans.InvTransformPrimal(face_vector);
       }
 
       for (int j = 0; j < vdofs.Size(); j++)
       {
-         double s = 1.0;
+         real_t s = 1.0;
          int k = FiniteElementSpace::DecodeDof(vdofs[j], s);
 
          if (sub_to_parent_map)
          {
-            double sps = 1.0;
+            real_t sps = 1.0;
             int spk = FiniteElementSpace::DecodeDof((*sub_to_parent_map)[k],
                                                     sps);
             s *= sps;

@@ -60,6 +60,8 @@ examples/ex2[0-9]
 examples/ex2[0-9]p
 examples/ex3[0-9]
 examples/ex3[0-9]p
+examples/ex4[0-9]
+examples/ex4[0-9]p
 
 examples/refined.mesh
 examples/displaced.mesh
@@ -94,10 +96,6 @@ examples/ex16.mesh
 examples/ex16-mesh.*
 examples/ex16-init.*
 examples/ex16-final.*
-examples/vortex-mesh.*
-examples/vortex.mesh
-examples/vortex-?-init.*
-examples/vortex-?-final.*
 examples/deformation.*
 examples/pressure.*
 examples/ex20.dat
@@ -123,6 +121,8 @@ examples/cond_mesh.*
 examples/port_mesh.*
 examples/port_mode.*
 
+examples/euler-*
+
 examples/amgx/ex1
 examples/amgx/ex1p
 examples/amgx/.logamgx
@@ -130,6 +130,13 @@ examples/amgx/refined.mesh
 examples/amgx/sol.gf
 examples/amgx/mesh.*
 examples/amgx/sol.*
+
+examples/caliper/ex1
+examples/caliper/ex1p
+examples/caliper/refined.mesh
+examples/caliper/sol.gf
+examples/caliper/mesh.*
+examples/caliper/sol.*
 
 examples/ginkgo/ex1
 examples/ginkgo/refined.mesh
@@ -230,7 +237,7 @@ miniapps/meshing/mobius-strip.mesh
 miniapps/meshing/klein-bottle.mesh
 miniapps/meshing/toroid-*.mesh
 miniapps/meshing/twist-*.mesh
-miniapps/meshing/mesh-explorer.mesh
+miniapps/meshing/mesh-explorer.mesh*
 miniapps/meshing/partitioning.txt
 miniapps/meshing/mesh-explorer-visit*
 miniapps/meshing/mesh-explorer-paraview/
@@ -268,16 +275,32 @@ miniapps/navier/*_output
 
 miniapps/nurbs/nurbs_ex1
 miniapps/nurbs/nurbs_ex1p
+miniapps/nurbs/nurbs_ex3
+miniapps/nurbs/nurbs_ex5
 miniapps/nurbs/nurbs_ex11p
+miniapps/nurbs/nurbs_ex24
+miniapps/nurbs/nurbs_solenoidal
+miniapps/nurbs/nurbs_printfunc
 miniapps/nurbs/nurbs_patch_ex1
 miniapps/nurbs/nurbs_curveint
 miniapps/nurbs/refined.mesh
 miniapps/nurbs/mesh.*
+miniapps/nurbs/sol_?.gf
 miniapps/nurbs/sol.*
 miniapps/nurbs/mode_*
 miniapps/nurbs/Example1*
+miniapps/nurbs/Example3*
+miniapps/nurbs/Example5*
+miniapps/nurbs/Solenoidal*
+miniapps/nurbs/ParaView
 miniapps/nurbs/sin-fit.mesh
+miniapps/nurbs/ex5.mesh
+miniapps/nurbs/exsol.mesh
 miniapps/nurbs/CurveInt
+miniapps/nurbs/nurbs_naca_cmesh
+miniapps/nurbs/naca-cmesh.mesh
+miniapps/nurbs/glvis_naca-cmesh.mesh
+miniapps/nurbs/Naca_cmesh
 
 miniapps/performance/ex1
 miniapps/performance/ex1p
@@ -302,8 +325,12 @@ miniapps/tools/convert-dc
 miniapps/tools/lor-transfer
 miniapps/tools/plor-transfer
 miniapps/tools/get-values
-miniapps/tools/check-tmop-metric
+miniapps/tools/tmop-check-metric
 miniapps/tools/tmop-metric-magnitude
+miniapps/tools/nodal-transfer
+miniapps/tools/ParaView
+miniapps/tools/gridfunc_*
+miniapps/tools/mesh_*
 
 miniapps/toys/automata
 miniapps/toys/life
@@ -329,6 +356,7 @@ miniapps/toys/mondrian.mesh
 miniapps/solvers/block-solvers
 miniapps/solvers/lor_solvers
 miniapps/solvers/plor_solvers
+miniapps/solvers/lor_elast
 miniapps/solvers/ParaView
 miniapps/solvers/mesh.*
 miniapps/solvers/sol.*
@@ -340,6 +368,8 @@ miniapps/parelag/MultilevelHcurlHdivSolver
 miniapps/parelag/*.mesh
 
 miniapps/multidomain/multidomain
+miniapps/multidomain/multidomain_nd
+miniapps/multidomain/multidomain_rt
 miniapps/hooke/hooke
 
 miniapps/dpg/diffusion
@@ -354,6 +384,8 @@ miniapps/dpg/ParaView
 
 miniapps/spde/generate_random_field
 miniapps/spde/ParaView
+
+miniapps/tribol/contact-patch-test
 
 # Unit test binary and outputs
 tests/unit/output_meshes

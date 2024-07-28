@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -23,17 +23,17 @@ namespace mfem
 class ShiftedFunctionCoefficient : public Coefficient
 {
 protected:
-   std::function<double(const Vector &)> Function;
-   double constant = 0.0;
+   std::function<real_t(const Vector &)> Function;
+   real_t constant = 0.0;
    bool constantcoefficient;
 
 public:
-   ShiftedFunctionCoefficient(std::function<double(const Vector &v)> F)
+   ShiftedFunctionCoefficient(std::function<real_t(const Vector &v)> F)
       : Function(std::move(F)), constantcoefficient(false) { }
-   ShiftedFunctionCoefficient(double constant_)
+   ShiftedFunctionCoefficient(real_t constant_)
       : constant(constant_), constantcoefficient(true) { }
 
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip)
    {
       if (constantcoefficient) { return constant; }
 
@@ -43,7 +43,7 @@ public:
    }
 
    /// Evaluate the coefficient at @a ip + @a D.
-   double Eval(ElementTransformation &T,
+   real_t Eval(ElementTransformation &T,
                const IntegrationPoint &ip,
                const Vector &D);
 };
@@ -76,10 +76,12 @@ public:
 
 /// BilinearFormIntegrator for the high-order extension of shifted boundary
 /// method.
-/// A(u, w) = -<nabla u.n, w>
-///           -<u + nabla u.d + h.o.t, nabla w.n>
-///           +<alpha h^{-1} (u + nabla u.d + h.o.t), w + nabla w.d + h.o.t>
-/// where h.o.t include higher-order derivatives (nabla^k u) due to Taylor
+/// $$
+///  A(u, w) = -\langle \nabla u \cdot n, w \rangle
+///            -\langle u + \nabla u \cdot d + h.o.t, \nabla w.n \rangle
+///            +\langle \alpha h^{-1} (u + \nabla u \cdot d + h.o.t), w + \nabla w \cdot d + h.o.t \rangle
+/// $$
+/// where $h.o.t$ include higher-order derivatives ($\nabla^k u$) due to Taylor
 /// expansion. Since this interior face integrator is applied to the surrogate
 /// boundary (see marking.hpp for notes on how the surrogate faces are
 /// determined and elements are marked), this integrator adds contribution to
@@ -88,10 +90,10 @@ public:
 class SBM2DirichletIntegrator : public BilinearFormIntegrator
 {
 protected:
-   double alpha;
+   real_t alpha;
    VectorCoefficient *vD;     // Distance function coefficient
    Array<int> *elem_marker;   // marker indicating whether element is inside,
-   //cut, or outside the domain.
+   // cut, or outside the domain.
    bool include_cut_cell;     // include element cut by true boundary
    int nterms;                // Number of terms in addition to the gradient
    // term from Taylor expansion that should be included. (0 by default).
@@ -107,7 +109,7 @@ protected:
 
 public:
    SBM2DirichletIntegrator(const ParMesh *pmesh,
-                           const double a,
+                           const real_t a,
                            VectorCoefficient &vD_,
                            Array<int> &elem_marker_,
                            Array<int> &cut_marker_,
@@ -132,27 +134,29 @@ public:
 
 /// LinearFormIntegrator for the high-order extension of shifted boundary
 /// method.
-/// (u, w) = -<u_D, nabla w.n >
-///          +<alpha h^{-1} u_D, w + nabla w.d + h.o.t>
-/// where h.o.t include higher-order derivatives (nabla^k u) due to Taylor
+/// $$
+///   (u, w) = -\langle u_D, \nabla w \cdot n  \rangle
+///            +\langle \alpha h^{-1} u_D, w + \nabla w \cdot d + h.o.t \rangle
+/// $$
+/// where $h.o.t$ include higher-order derivatives ($\nabla^k u$) due to Taylor
 /// expansion. Since this interior face integrator is applied to the surrogate
 /// boundary (see marking.hpp for notes on how the surrogate faces are
 /// determined and elements are marked), this integrator adds contribution to
 /// only the element that is adjacent to that face (Trans.Elem1 or Trans.Elem2)
 /// and is part of the surrogate domain.
-/// Note that u_D is evaluated at the true boundary using the distance function
-/// and ShiftedFunctionCoefficient, i.e. u_D(x_true) = u_D(x_surrogate + D),
-/// where x_surrogate is the location of the integration point on the surrogate
-/// boundary and D is the distance vector from the surrogate boundary to the
+/// Note that $u_D$ is evaluated at the true boundary using the distance function
+/// and ShiftedFunctionCoefficient, i.e. $u_D(x_{true}) = u_D(x_{surrogate} + D)$,
+/// where $x_{surrogate}$ is the location of the integration point on the surrogate
+/// boundary and $D$ is the distance vector from the surrogate boundary to the
 /// true boundary.
 class SBM2DirichletLFIntegrator : public LinearFormIntegrator
 {
 protected:
    ShiftedFunctionCoefficient *uD;
-   double alpha;              // Nitsche parameter
+   real_t alpha;              // Nitsche parameter
    VectorCoefficient *vD;     // Distance function coefficient
    Array<int> *elem_marker;   // marker indicating whether element is inside,
-   //cut, or outside the domain.
+   // cut, or outside the domain.
    bool include_cut_cell;     // include element cut by true boundary
    int nterms;                // Number of terms in addition to the gradient
    // term from Taylor expansion that should be included. (0 by default).
@@ -168,7 +172,7 @@ protected:
 public:
    SBM2DirichletLFIntegrator(const ParMesh *pmesh,
                              ShiftedFunctionCoefficient &u,
-                             const double alpha_,
+                             const real_t alpha_,
                              VectorCoefficient &vD_,
                              Array<int> &elem_marker_,
                              bool include_cut_cell_ = false,
@@ -197,9 +201,11 @@ public:
 
 /// BilinearFormIntegrator for Neumann boundaries using the shifted boundary
 /// method.
-/// A(u,w) = <[nabla u + nabla(nabla u).d + h.o.t.].nhat(n.nhat),w>-<grad u.n,w>
-/// where h.o.t are the high-order terms due to Taylor expansion for nabla u,
-/// nhat is the normal vector at the true boundary, n is the normal vector at
+/// $$
+///   A(u,w) = \langle [\nabla u + \nabla(\nabla u) \cdot d + h.o.t.] \cdot \hat{n} \, (n \cdot \hat{n}),w ⟩ - \langle \nabla u \cdot n,w \rangle
+/// $$
+/// where h.o.t are the high-order terms due to Taylor expansion for $\nabla u$,
+/// $\hat{n}$ is the normal vector at the true boundary, $n$ is the normal vector at
 /// the surrogate boundary. Since this interior face integrator is applied to
 /// the surrogate boundary (see marking.hpp for notes on how the surrogate faces
 /// are determined and elements are marked), this integrator adds contribution
@@ -211,7 +217,7 @@ protected:
    ShiftedVectorFunctionCoefficient *vN; // Normal function coefficient
    VectorCoefficient *vD;     // Distance function coefficient
    Array<int> *elem_marker;   // Marker indicating whether element is inside,
-   //cut, or outside the domain.
+   // cut, or outside the domain.
    bool include_cut_cell;
    int nterms;                // Number of terms in addition to the gradient
    // term from Taylor expansion that should be included. (0 by default).
@@ -254,18 +260,20 @@ public:
 
 /// LinearFormIntegrator for Neumann boundaries using the shifted boundary
 /// method.
-/// (u, w) = <nhat.n t_n, w>
-/// where nhat is the normal vector at the true boundary, n is the normal vector
-/// at the surrogate boundary, and t_n is the traction boundary condition.
+/// $$
+///   (u, w) = \langle \hat{n} \cdot n \, t_n, w \rangle
+/// $$
+/// where $\hat{n}$ is the normal vector at the true boundary, $n$ is the normal vector
+/// at the surrogate boundary, and $t_n$ is the traction boundary condition.
 /// Since this interior face integrator is applied to the surrogate boundary
 /// (see marking.hpp for notes on how the surrogate faces are determined and
 /// elements are marked), this integrator adds contribution to only the element
 /// that is adjacent to that face (Trans.Elem1 or Trans.Elem2) and is part of
 /// the surrogate domain.
-/// Note that t_N is evaluated at the true boundary using the distance function
-/// and ShiftedFunctionCoefficient, i.e. t_N(x_true) = t_N(x_surrogate + D),
-/// where x_surrogate is the location of the integration point on the surrogate
-/// boundary and D is the distance vector from the surrogate boundary to the
+/// Note that $t_n$ is evaluated at the true boundary using the distance function
+/// and ShiftedFunctionCoefficient, i.e. $t_n(x_{true}) = t_N(x_{surrogate} + D)$,
+/// where $x_{surrogate}$ is the location of the integration point on the surrogate
+/// boundary and $D$ is the distance vector from the surrogate boundary to the
 /// true boundary.
 class SBM2NeumannLFIntegrator : public LinearFormIntegrator
 {

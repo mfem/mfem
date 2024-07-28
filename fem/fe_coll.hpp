@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -56,15 +56,14 @@ public:
        @note Repeatedly calls FiniteElementForGeometry in the order defined in
        the Geometry::Type enumeration.
    */
-   virtual const FiniteElement *
-   FiniteElementForDim(int dim) const;
+   virtual const FiniteElement *FiniteElementForDim(int dim) const;
 
    virtual int DofForGeometry(Geometry::Type GeomType) const = 0;
 
    /** @brief Returns a DoF transformation object compatible with this basis
        and geometry type.
    */
-   virtual StatelessDofTransformation *
+   virtual const StatelessDofTransformation *
    DofTransformationForGeometry(Geometry::Type GeomType) const
    { return NULL; }
 
@@ -77,7 +76,7 @@ public:
    virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
                                              int Or) const = 0;
 
-   virtual const char * Name() const { return "Undefined"; }
+   virtual const char *Name() const { return "Undefined"; }
 
    virtual int GetContType() const = 0;
 
@@ -85,11 +84,12 @@ public:
        corresponding methods of the FiniteElement base class.
        @{
    */
-   virtual int GetRangeType(int dim) const;
-   virtual int GetDerivRangeType(int dim) const;
-   virtual int GetMapType(int dim) const;
-   virtual int GetDerivType(int dim) const;
-   virtual int GetDerivMapType(int dim) const;
+   int GetRangeType(int dim) const;
+   int GetDerivRangeType(int dim) const;
+   int GetMapType(int dim) const;
+   int GetDerivType(int dim) const;
+   int GetDerivMapType(int dim) const;
+   int GetRangeDim(int dim) const;
    /** @} */
 
    int HasFaceDofs(Geometry::Type geom, int p) const;
@@ -258,7 +258,6 @@ protected:
 /// Arbitrary order H1-conforming (continuous) finite elements.
 class H1_FECollection : public FiniteElementCollection
 {
-
 protected:
    int dim, b_type;
    char h1_name[32];
@@ -270,25 +269,29 @@ public:
    explicit H1_FECollection(const int p, const int dim = 3,
                             const int btype = BasisType::GaussLobatto);
 
-   virtual const FiniteElement *FiniteElementForGeometry(
-      Geometry::Type GeomType) const;
-   virtual int DofForGeometry(Geometry::Type GeomType) const
-   { return H1_dof[GeomType]; }
-   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
-                                             int Or) const;
+   const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const override;
 
-   virtual const char *Name() const { return h1_name; }
-   virtual int GetContType() const { return CONTINUOUS; }
+   int DofForGeometry(Geometry::Type GeomType) const override
+   { return H1_dof[GeomType]; }
+
+   const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                     int Or) const override;
+
+   const char *Name() const override { return h1_name; }
+
+   int GetContType() const override { return CONTINUOUS; }
+
    int GetBasisType() const { return b_type; }
 
-   FiniteElementCollection *GetTraceCollection() const;
+   FiniteElementCollection *GetTraceCollection() const override;
 
    /// Get the Cartesian to local H1 dof map
    const int *GetDofMap(Geometry::Type GeomType) const;
    /// Variable order version of GetDofMap
    const int *GetDofMap(Geometry::Type GeomType, int p) const;
 
-   FiniteElementCollection* Clone(int p) const
+   FiniteElementCollection *Clone(int p) const override
    { return new H1_FECollection(p, dim, b_type); }
 
    virtual ~H1_FECollection();
@@ -300,9 +303,8 @@ class H1Pos_FECollection : public H1_FECollection
 {
 public:
    explicit H1Pos_FECollection(const int p, const int dim = 3)
-      : H1_FECollection(p, dim, BasisType::Positive) { }
+      : H1_FECollection(p, dim, BasisType::Positive) {}
 };
-
 
 /** Arbitrary order H1-conforming (continuous) serendipity finite elements;
     Current implementation works in 2D only; 3D version is in development. */
@@ -310,7 +312,7 @@ class H1Ser_FECollection : public H1_FECollection
 {
 public:
    explicit H1Ser_FECollection(const int p, const int dim = 2)
-      : H1_FECollection(p, dim, BasisType::Serendipity) { };
+      : H1_FECollection(p, dim, BasisType::Serendipity) {}
 };
 
 /** @brief Arbitrary order "H^{1/2}-conforming" trace finite elements defined on
@@ -343,9 +345,10 @@ public:
                    const int btype = BasisType::GaussLegendre,
                    const int map_type = FiniteElement::VALUE);
 
-   virtual const FiniteElement *FiniteElementForGeometry(
-      Geometry::Type GeomType) const;
-   virtual int DofForGeometry(Geometry::Type GeomType) const
+   const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const override;
+
+   int DofForGeometry(Geometry::Type GeomType) const override
    {
       if (L2_Elements[GeomType])
       {
@@ -353,21 +356,23 @@ public:
       }
       return 0;
    }
-   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
-                                             int Or) const;
-   virtual const char *Name() const { return d_name; }
 
-   virtual int GetContType() const { return DISCONTINUOUS; }
+   const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                     int Or) const override;
 
-   virtual const FiniteElement *TraceFiniteElementForGeometry(
-      Geometry::Type GeomType) const
+   const char *Name() const override { return d_name; }
+
+   int GetContType() const override { return DISCONTINUOUS; }
+
+   const FiniteElement *
+   TraceFiniteElementForGeometry(Geometry::Type GeomType) const override
    {
       return Tr_Elements[GeomType];
    }
 
    int GetBasisType() const { return b_type; }
 
-   FiniteElementCollection* Clone(int p) const
+   FiniteElementCollection *Clone(int p) const override
    { return new L2_FECollection(p, dim, b_type, m_type); }
 
    virtual ~L2_FECollection();
@@ -409,20 +414,25 @@ public:
                    const int cb_type = BasisType::GaussLobatto,
                    const int ob_type = BasisType::GaussLegendre);
 
-   virtual const FiniteElement *FiniteElementForGeometry(
-      Geometry::Type GeomType) const;
-   virtual int DofForGeometry(Geometry::Type GeomType) const
+   const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const override;
+
+   int DofForGeometry(Geometry::Type GeomType) const override
    { return RT_dof[GeomType]; }
-   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
-                                             int Or) const;
-   virtual const char *Name() const { return rt_name; }
-   virtual int GetContType() const { return NORMAL; }
-   FiniteElementCollection *GetTraceCollection() const;
+
+   const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                     int Or) const override;
+
+   const char *Name() const override { return rt_name; }
+
+   int GetContType() const override { return NORMAL; }
+
+   FiniteElementCollection *GetTraceCollection() const override;
 
    int GetClosedBasisType() const { return cb_type; }
    int GetOpenBasisType() const { return ob_type; }
 
-   FiniteElementCollection* Clone(int p) const
+   FiniteElementCollection *Clone(int p) const override
    { return new RT_FECollection(p, dim, cb_type, ob_type); }
 
    virtual ~RT_FECollection();
@@ -467,26 +477,28 @@ public:
                    const int cb_type = BasisType::GaussLobatto,
                    const int ob_type = BasisType::GaussLegendre);
 
-   virtual const FiniteElement *
-   FiniteElementForGeometry(Geometry::Type GeomType) const;
+   const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const override;
 
-   virtual int DofForGeometry(Geometry::Type GeomType) const
+   int DofForGeometry(Geometry::Type GeomType) const override
    { return ND_dof[GeomType]; }
 
-   virtual StatelessDofTransformation *
-   DofTransformationForGeometry(Geometry::Type GeomType) const;
+   const StatelessDofTransformation *
+   DofTransformationForGeometry(Geometry::Type GeomType) const override;
 
-   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
-                                             int Or) const;
+   const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                     int Or) const override;
 
-   virtual const char *Name() const { return nd_name; }
-   virtual int GetContType() const { return TANGENTIAL; }
-   FiniteElementCollection *GetTraceCollection() const;
+   const char *Name() const override { return nd_name; }
+
+   int GetContType() const override { return TANGENTIAL; }
+
+   FiniteElementCollection *GetTraceCollection() const override;
 
    int GetClosedBasisType() const { return cb_type; }
    int GetOpenBasisType() const { return ob_type; }
 
-   FiniteElementCollection* Clone(int p) const
+   FiniteElementCollection *Clone(int p) const override
    { return new ND_FECollection(p, dim, cb_type, ob_type); }
 
    virtual ~ND_FECollection();
@@ -516,16 +528,21 @@ public:
                        const int cb_type = BasisType::GaussLobatto,
                        const int ob_type = BasisType::GaussLegendre);
 
-   virtual const FiniteElement *FiniteElementForGeometry(Geometry::Type GeomType)
-   const
+   const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const override
    { return ND_Elements[GeomType]; }
-   virtual int DofForGeometry(Geometry::Type GeomType) const
+
+   int DofForGeometry(Geometry::Type GeomType) const override
    { return ND_dof[GeomType]; }
-   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
-                                             int Or) const;
-   virtual const char *Name() const { return nd_name; }
-   virtual int GetContType() const { return TANGENTIAL; }
-   FiniteElementCollection *GetTraceCollection() const;
+
+   const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                     int Or) const override;
+
+   const char *Name() const override { return nd_name; }
+
+   int GetContType() const override { return TANGENTIAL; }
+
+   FiniteElementCollection *GetTraceCollection() const override;
 
    virtual ~ND_R1D_FECollection();
 };
@@ -543,16 +560,21 @@ public:
                        const int cb_type = BasisType::GaussLobatto,
                        const int ob_type = BasisType::GaussLegendre);
 
-   virtual const FiniteElement *FiniteElementForGeometry(Geometry::Type GeomType)
-   const
+   const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const override
    { return RT_Elements[GeomType]; }
-   virtual int DofForGeometry(Geometry::Type GeomType) const
+
+   int DofForGeometry(Geometry::Type GeomType) const override
    { return RT_dof[GeomType]; }
-   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
-                                             int Or) const;
-   virtual const char *Name() const { return rt_name; }
-   virtual int GetContType() const { return NORMAL; }
-   FiniteElementCollection *GetTraceCollection() const;
+
+   const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                     int Or) const override;
+
+   const char *Name() const override { return rt_name; }
+
+   int GetContType() const override { return NORMAL; }
+
+   FiniteElementCollection *GetTraceCollection() const override;
 
    virtual ~RT_R1D_FECollection();
 };
@@ -571,16 +593,21 @@ public:
                        const int cb_type = BasisType::GaussLobatto,
                        const int ob_type = BasisType::GaussLegendre);
 
-   virtual const FiniteElement *FiniteElementForGeometry(Geometry::Type GeomType)
-   const
+   const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const override
    { return ND_Elements[GeomType]; }
-   virtual int DofForGeometry(Geometry::Type GeomType) const
+
+   int DofForGeometry(Geometry::Type GeomType) const override
    { return ND_dof[GeomType]; }
-   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
-                                             int Or) const;
-   virtual const char *Name() const { return nd_name; }
-   virtual int GetContType() const { return TANGENTIAL; }
-   FiniteElementCollection *GetTraceCollection() const;
+
+   const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                     int Or) const override;
+
+   const char *Name() const override { return nd_name; }
+
+   int GetContType() const override { return TANGENTIAL; }
+
+   FiniteElementCollection *GetTraceCollection() const override;
 
    virtual ~ND_R2D_FECollection();
 };
@@ -620,16 +647,21 @@ public:
                        const int cb_type = BasisType::GaussLobatto,
                        const int ob_type = BasisType::GaussLegendre);
 
-   virtual const FiniteElement *FiniteElementForGeometry(Geometry::Type GeomType)
-   const
+   const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const override
    { return RT_Elements[GeomType]; }
-   virtual int DofForGeometry(Geometry::Type GeomType) const
+
+   int DofForGeometry(Geometry::Type GeomType) const override
    { return RT_dof[GeomType]; }
-   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
-                                             int Or) const;
-   virtual const char *Name() const { return rt_name; }
-   virtual int GetContType() const { return NORMAL; }
-   FiniteElementCollection *GetTraceCollection() const;
+
+   const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                     int Or) const override;
+
+   const char *Name() const override { return rt_name; }
+
+   int GetContType() const override { return NORMAL; }
+
+   FiniteElementCollection *GetTraceCollection() const override;
 
    virtual ~RT_R2D_FECollection();
 };
@@ -648,8 +680,8 @@ public:
 /// Arbitrary order non-uniform rational B-splines (NURBS) finite elements.
 class NURBSFECollection : public FiniteElementCollection
 {
-private:
-   PointFiniteElement   *PointFE;
+protected:
+   PointFiniteElement *PointFE;
    NURBS1DFiniteElement *SegmentFE;
    NURBS2DFiniteElement *QuadrilateralFE;
    NURBS3DFiniteElement *ParallelepipedFE;
@@ -669,12 +701,14 @@ public:
       order, or VariableOrder (default). */
    explicit NURBSFECollection(int Order = VariableOrder);
 
-   void Reset() const
+   virtual void Reset() const
    {
       SegmentFE->Reset();
       QuadrilateralFE->Reset();
       ParallelepipedFE->Reset();
    }
+
+   virtual void SetDim(const int dim) {};
 
    /** @brief Get the order of the NURBS collection: either a positive number,
        when using fixed order, or VariableOrder. */
@@ -683,25 +717,127 @@ public:
 
    /** @brief Set the order and the name, based on the given @a Order: either a
        positive number for fixed order, or VariableOrder. */
-   void SetOrder(int Order) const;
+   virtual void SetOrder(int Order) const;
 
-   virtual const FiniteElement *
-   FiniteElementForGeometry(Geometry::Type GeomType) const;
+   const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const override;
 
-   virtual int DofForGeometry(Geometry::Type GeomType) const;
+   int DofForGeometry(Geometry::Type GeomType) const override;
 
-   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
-                                             int Or) const;
+   const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                     int Or) const override;
 
-   virtual const char *Name() const { return name; }
+   const char *Name() const override { return name; }
 
-   virtual int GetContType() const { return CONTINUOUS; }
+   int GetContType() const override { return CONTINUOUS; }
 
-   FiniteElementCollection *GetTraceCollection() const;
+   FiniteElementCollection *GetTraceCollection() const override;
 
    virtual ~NURBSFECollection();
 };
 
+/// Arbitrary order H(div) NURBS finite elements.
+class NURBS_HDivFECollection : public NURBSFECollection
+{
+private:
+
+   NURBS1DFiniteElement *SegmentFE;
+   NURBS2DFiniteElement *QuadrilateralFE;
+
+   NURBS_HDiv2DFiniteElement *QuadrilateralVFE;
+   NURBS_HDiv3DFiniteElement *ParallelepipedVFE;
+
+   FiniteElement *sFE;
+   FiniteElement *qFE;
+   FiniteElement *hFE;
+
+public:
+
+   /** @brief The parameter @a Order must be either a positive number, for fixed
+      order, or VariableOrder (default). */
+   explicit NURBS_HDivFECollection(int Order = VariableOrder, const int vdim = -1);
+
+   virtual void Reset() const override
+   {
+      SegmentFE->Reset();
+      QuadrilateralFE->Reset();
+      QuadrilateralVFE->Reset();
+      ParallelepipedVFE->Reset();
+   }
+
+   virtual void SetDim(const int dim) override;
+
+   /** @brief Set the order and the name, based on the given @a Order: either a
+       positive number for fixed order, or VariableOrder. */
+   virtual void SetOrder(int Order) const override;
+
+   const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const override;
+
+   int DofForGeometry(Geometry::Type GeomType) const override;
+
+   const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                     int Or) const override;
+
+   const char *Name() const override { return name; }
+
+   int GetContType() const override { return CONTINUOUS; }
+
+   FiniteElementCollection *GetTraceCollection() const override;
+
+   virtual ~NURBS_HDivFECollection();
+};
+
+/// Arbitrary order H(curl) NURBS finite elements.
+class NURBS_HCurlFECollection : public NURBSFECollection
+{
+private:
+   NURBS1DFiniteElement *SegmentFE;
+   NURBS2DFiniteElement *QuadrilateralFE;
+
+   NURBS_HCurl2DFiniteElement *QuadrilateralVFE;
+   NURBS_HCurl3DFiniteElement *ParallelepipedVFE;
+
+   FiniteElement *sFE;
+   FiniteElement *qFE;
+   FiniteElement *hFE;
+public:
+
+   /** @brief The parameter @a Order must be either a positive number, for fixed
+      order, or VariableOrder (default). */
+   explicit NURBS_HCurlFECollection(int Order = VariableOrder,
+                                    const int vdim = -1);
+
+   virtual void Reset() const override
+   {
+      SegmentFE->Reset();
+      QuadrilateralFE->Reset();
+      QuadrilateralVFE->Reset();
+      ParallelepipedVFE->Reset();
+   }
+
+   virtual void SetDim(const int dim) override;
+
+   /** @brief Set the order and the name, based on the given @a Order: either a
+       positive number for fixed order, or VariableOrder. */
+   virtual void SetOrder(int Order) const override;
+
+   const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const override;
+
+   int DofForGeometry(Geometry::Type GeomType) const override;
+
+   const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                     int Or) const override;
+
+   const char *Name() const override { return name; }
+
+   int GetContType() const override { return CONTINUOUS; }
+
+   FiniteElementCollection *GetTraceCollection() const override;
+
+   virtual ~NURBS_HCurlFECollection();
+};
 
 /// Piecewise-(bi/tri)linear continuous finite elements.
 class LinearFECollection : public FiniteElementCollection
@@ -716,19 +852,19 @@ private:
    const LinearWedgeFiniteElement WedgeFE;
    const LinearPyramidFiniteElement PyramidFE;
 public:
-   LinearFECollection() : FiniteElementCollection(1) { }
+   LinearFECollection() : FiniteElementCollection(1) {}
 
-   virtual const FiniteElement *
-   FiniteElementForGeometry(Geometry::Type GeomType) const;
+   const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const override;
 
-   virtual int DofForGeometry(Geometry::Type GeomType) const;
+   int DofForGeometry(Geometry::Type GeomType) const override;
 
-   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
-                                             int Or) const;
+   const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                     int Or) const override;
 
-   virtual const char * Name() const { return "Linear"; }
+   const char *Name() const override { return "Linear"; }
 
-   virtual int GetContType() const { return CONTINUOUS; }
+   int GetContType() const override { return CONTINUOUS; }
 };
 
 /// Piecewise-(bi)quadratic continuous finite elements.
@@ -745,19 +881,19 @@ private:
 
 public:
    QuadraticFECollection()
-      : FiniteElementCollection(2), ParallelepipedFE(2), WedgeFE(2) { }
+      : FiniteElementCollection(2), ParallelepipedFE(2), WedgeFE(2) {}
 
-   virtual const FiniteElement *
-   FiniteElementForGeometry(Geometry::Type GeomType) const;
+   const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const override;
 
-   virtual int DofForGeometry(Geometry::Type GeomType) const;
+   int DofForGeometry(Geometry::Type GeomType) const override;
 
-   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
-                                             int Or) const;
+   const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                     int Or) const override;
 
-   virtual const char * Name() const { return "Quadratic"; }
+   const char *Name() const override { return "Quadratic"; }
 
-   virtual int GetContType() const { return CONTINUOUS; }
+   int GetContType() const override { return CONTINUOUS; }
 };
 
 /// Version of QuadraticFECollection with positive basis functions.
@@ -768,19 +904,19 @@ private:
    const BiQuadPos2DFiniteElement QuadrilateralFE;
 
 public:
-   QuadraticPosFECollection() : FiniteElementCollection(2) { }
+   QuadraticPosFECollection() : FiniteElementCollection(2) {}
 
-   virtual const FiniteElement *
-   FiniteElementForGeometry(Geometry::Type GeomType) const;
+   const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const override;
 
-   virtual int DofForGeometry(Geometry::Type GeomType) const;
+   int DofForGeometry(Geometry::Type GeomType) const override;
 
-   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
-                                             int Or) const;
+   const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                     int Or) const override;
 
-   virtual const char * Name() const { return "QuadraticPos"; }
+   const char *Name() const override { return "QuadraticPos"; }
 
-   virtual int GetContType() const { return CONTINUOUS; }
+   int GetContType() const override { return CONTINUOUS; }
 };
 
 /// Piecewise-(bi)cubic continuous finite elements.
@@ -799,19 +935,19 @@ public:
    CubicFECollection()
       : FiniteElementCollection(3),
         ParallelepipedFE(3), WedgeFE(3, BasisType::ClosedUniform)
-   { }
+   {}
 
-   virtual const FiniteElement *
-   FiniteElementForGeometry(Geometry::Type GeomType) const;
+   const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const override;
 
-   virtual int DofForGeometry(Geometry::Type GeomType) const;
+   int DofForGeometry(Geometry::Type GeomType) const override;
 
-   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
-                                             int Or) const;
+   const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                     int Or) const override;
 
-   virtual const char * Name() const { return "Cubic"; }
+   const char *Name() const override { return "Cubic"; }
 
-   virtual int GetContType() const { return CONTINUOUS; }
+   int GetContType() const override { return CONTINUOUS; }
 };
 
 /// Crouzeix-Raviart nonconforming elements in 2D.
@@ -822,19 +958,19 @@ private:
    const CrouzeixRaviartFiniteElement TriangleFE;
    const CrouzeixRaviartQuadFiniteElement QuadrilateralFE;
 public:
-   CrouzeixRaviartFECollection() : FiniteElementCollection(1), SegmentFE(1) { }
+   CrouzeixRaviartFECollection() : FiniteElementCollection(1), SegmentFE(1) {}
 
-   virtual const FiniteElement *
-   FiniteElementForGeometry(Geometry::Type GeomType) const;
+   const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const override;
 
-   virtual int DofForGeometry(Geometry::Type GeomType) const;
+   int DofForGeometry(Geometry::Type GeomType) const override;
 
-   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
-                                             int Or) const;
+   const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                     int Or) const override;
 
-   virtual const char * Name() const { return "CrouzeixRaviart"; }
+   const char *Name() const override { return "CrouzeixRaviart"; }
 
-   virtual int GetContType() const { return DISCONTINUOUS; }
+   int GetContType() const override { return DISCONTINUOUS; }
 };
 
 /// Piecewise-linear nonconforming finite elements in 3D.
@@ -847,21 +983,20 @@ private:
    const RotTriLinearHexFiniteElement ParallelepipedFE;
 
 public:
-   LinearNonConf3DFECollection() : FiniteElementCollection(1) { }
+   LinearNonConf3DFECollection() : FiniteElementCollection(1) {}
 
-   virtual const FiniteElement *
-   FiniteElementForGeometry(Geometry::Type GeomType) const;
+   const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const override;
 
-   virtual int DofForGeometry(Geometry::Type GeomType) const;
+   int DofForGeometry(Geometry::Type GeomType) const override;
 
-   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
-                                             int Or) const;
+   const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                     int Or) const override;
 
-   virtual const char * Name() const { return "LinearNonConf3D"; }
+   const char *Name() const override { return "LinearNonConf3D"; }
 
-   virtual int GetContType() const { return DISCONTINUOUS; }
+   int GetContType() const override { return DISCONTINUOUS; }
 };
-
 
 /** @brief First order Raviart-Thomas finite elements in 2D. This class is kept
     only for backward compatibility, consider using RT_FECollection instead. */
@@ -872,19 +1007,19 @@ private:
    const RT0TriangleFiniteElement TriangleFE;
    const RT0QuadFiniteElement QuadrilateralFE;
 public:
-   RT0_2DFECollection() : FiniteElementCollection(1), SegmentFE(0) { }
+   RT0_2DFECollection() : FiniteElementCollection(1), SegmentFE(0) {}
 
-   virtual const FiniteElement *
-   FiniteElementForGeometry(Geometry::Type GeomType) const;
+   const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const override;
 
-   virtual int DofForGeometry(Geometry::Type GeomType) const;
+   int DofForGeometry(Geometry::Type GeomType) const override;
 
-   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
-                                             int Or) const;
+   const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                     int Or) const override;
 
-   virtual const char * Name() const { return "RT0_2D"; }
+   const char *Name() const override { return "RT0_2D"; }
 
-   virtual int GetContType() const { return NORMAL; }
+   int GetContType() const override { return NORMAL; }
 };
 
 /** @brief Second order Raviart-Thomas finite elements in 2D. This class is kept
@@ -896,19 +1031,19 @@ private:
    const RT1TriangleFiniteElement TriangleFE;
    const RT1QuadFiniteElement QuadrilateralFE;
 public:
-   RT1_2DFECollection() : FiniteElementCollection(2) { }
+   RT1_2DFECollection() : FiniteElementCollection(2) {}
 
-   virtual const FiniteElement *
-   FiniteElementForGeometry(Geometry::Type GeomType) const;
+   const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const override;
 
-   virtual int DofForGeometry(Geometry::Type GeomType) const;
+   int DofForGeometry(Geometry::Type GeomType) const override;
 
-   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
-                                             int Or) const;
+   const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                     int Or) const override;
 
-   virtual const char * Name() const { return "RT1_2D"; }
+   const char *Name() const override { return "RT1_2D"; }
 
-   virtual int GetContType() const { return NORMAL; }
+   int GetContType() const override { return NORMAL; }
 };
 
 /** @brief Third order Raviart-Thomas finite elements in 2D. This class is kept
@@ -920,19 +1055,19 @@ private:
    const RT2TriangleFiniteElement TriangleFE;
    const RT2QuadFiniteElement QuadrilateralFE;
 public:
-   RT2_2DFECollection() : FiniteElementCollection(3) { }
+   RT2_2DFECollection() : FiniteElementCollection(3) {}
 
-   virtual const FiniteElement *
-   FiniteElementForGeometry(Geometry::Type GeomType) const;
+   const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const override;
 
-   virtual int DofForGeometry(Geometry::Type GeomType) const;
+   int DofForGeometry(Geometry::Type GeomType) const override;
 
-   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
-                                             int Or) const;
+   const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                     int Or) const override;
 
-   virtual const char * Name() const { return "RT2_2D"; }
+   const char *Name() const override { return "RT2_2D"; }
 
-   virtual int GetContType() const { return NORMAL; }
+   int GetContType() const override { return NORMAL; }
 };
 
 /** @brief Piecewise-constant discontinuous finite elements in 2D. This class is
@@ -944,19 +1079,19 @@ private:
    const P0TriangleFiniteElement TriangleFE;
    const P0QuadFiniteElement QuadrilateralFE;
 public:
-   Const2DFECollection() : FiniteElementCollection(0) { }
+   Const2DFECollection() : FiniteElementCollection(0) {}
 
-   virtual const FiniteElement *
-   FiniteElementForGeometry(Geometry::Type GeomType) const;
+   const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const override;
 
-   virtual int DofForGeometry(Geometry::Type GeomType) const;
+   int DofForGeometry(Geometry::Type GeomType) const override;
 
-   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
-                                             int Or) const;
+   const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                     int Or) const override;
 
-   virtual const char * Name() const { return "Const2D"; }
+   const char *Name() const override { return "Const2D"; }
 
-   virtual int GetContType() const { return DISCONTINUOUS; }
+   int GetContType() const override { return DISCONTINUOUS; }
 };
 
 /** @brief Piecewise-linear discontinuous finite elements in 2D. This class is
@@ -969,19 +1104,19 @@ private:
    const BiLinear2DFiniteElement QuadrilateralFE;
 
 public:
-   LinearDiscont2DFECollection() : FiniteElementCollection(1) { }
+   LinearDiscont2DFECollection() : FiniteElementCollection(1) {}
 
-   virtual const FiniteElement *
-   FiniteElementForGeometry(Geometry::Type GeomType) const;
+   const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const override;
 
-   virtual int DofForGeometry(Geometry::Type GeomType) const;
+   int DofForGeometry(Geometry::Type GeomType) const override;
 
-   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
-                                             int Or) const;
+   const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                     int Or) const override;
 
-   virtual const char * Name() const { return "LinearDiscont2D"; }
+   const char *Name() const override { return "LinearDiscont2D"; }
 
-   virtual int GetContType() const { return DISCONTINUOUS; }
+   int GetContType() const override { return DISCONTINUOUS; }
 };
 
 /// Version of LinearDiscont2DFECollection with dofs in the Gaussian points.
@@ -993,19 +1128,19 @@ private:
    const GaussBiLinear2DFiniteElement QuadrilateralFE;
 
 public:
-   GaussLinearDiscont2DFECollection() : FiniteElementCollection(1) { }
+   GaussLinearDiscont2DFECollection() : FiniteElementCollection(1) {}
 
-   virtual const FiniteElement *
-   FiniteElementForGeometry(Geometry::Type GeomType) const;
+   const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const override;
 
-   virtual int DofForGeometry(Geometry::Type GeomType) const;
+   int DofForGeometry(Geometry::Type GeomType) const override;
 
-   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
-                                             int Or) const;
+   const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                     int Or) const override;
 
-   virtual const char * Name() const { return "GaussLinearDiscont2D"; }
+   const char *Name() const override { return "GaussLinearDiscont2D"; }
 
-   virtual int GetContType() const { return DISCONTINUOUS; }
+   int GetContType() const override { return DISCONTINUOUS; }
 };
 
 /// Linear (P1) finite elements on quadrilaterals.
@@ -1014,14 +1149,19 @@ class P1OnQuadFECollection : public FiniteElementCollection
 private:
    const P1OnQuadFiniteElement QuadrilateralFE;
 public:
-   P1OnQuadFECollection() : FiniteElementCollection(1) { }
-   virtual const FiniteElement *
-   FiniteElementForGeometry(Geometry::Type GeomType) const;
-   virtual int DofForGeometry(Geometry::Type GeomType) const;
-   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
-                                             int Or) const;
-   virtual const char * Name() const { return "P1OnQuad"; }
-   virtual int GetContType() const { return DISCONTINUOUS; }
+   P1OnQuadFECollection() : FiniteElementCollection(1) {}
+
+   const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const override;
+
+   int DofForGeometry(Geometry::Type GeomType) const override;
+
+   const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                     int Or) const override;
+
+   const char *Name() const override { return "P1OnQuad"; }
+
+   int GetContType() const override { return DISCONTINUOUS; }
 };
 
 /** @brief Piecewise-quadratic discontinuous finite elements in 2D. This class
@@ -1034,18 +1174,19 @@ private:
    const BiQuad2DFiniteElement QuadrilateralFE;
 
 public:
-   QuadraticDiscont2DFECollection() : FiniteElementCollection(2) { }
+   QuadraticDiscont2DFECollection() : FiniteElementCollection(2) {}
 
-   virtual const FiniteElement *
-   FiniteElementForGeometry(Geometry::Type GeomType) const;
+   const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const override;
 
-   virtual int DofForGeometry(Geometry::Type GeomType) const;
+   int DofForGeometry(Geometry::Type GeomType) const override;
 
-   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
-                                             int Or) const;
+   const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                     int Or) const override;
 
-   virtual const char * Name() const { return "QuadraticDiscont2D"; }
-   virtual int GetContType() const { return DISCONTINUOUS; }
+   const char *Name() const override { return "QuadraticDiscont2D"; }
+
+   int GetContType() const override { return DISCONTINUOUS; }
 };
 
 /// Version of QuadraticDiscont2DFECollection with positive basis functions.
@@ -1055,15 +1196,20 @@ private:
    const BiQuadPos2DFiniteElement QuadrilateralFE;
 
 public:
-   QuadraticPosDiscont2DFECollection() : FiniteElementCollection(2) { }
-   virtual const FiniteElement *
-   FiniteElementForGeometry(Geometry::Type GeomType) const;
-   virtual int DofForGeometry(Geometry::Type GeomType) const;
-   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
-                                             int Or) const
+   QuadraticPosDiscont2DFECollection() : FiniteElementCollection(2) {}
+
+   const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const override;
+
+   int DofForGeometry(Geometry::Type GeomType) const override;
+
+   const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                     int Or) const override
    { return NULL; }
-   virtual const char * Name() const { return "QuadraticPosDiscont2D"; }
-   virtual int GetContType() const { return DISCONTINUOUS; }
+
+   const char *Name() const override { return "QuadraticPosDiscont2D"; }
+
+   int GetContType() const override { return DISCONTINUOUS; }
 };
 
 /// Version of QuadraticDiscont2DFECollection with dofs in the Gaussian points.
@@ -1075,18 +1221,19 @@ private:
    const GaussBiQuad2DFiniteElement QuadrilateralFE;
 
 public:
-   GaussQuadraticDiscont2DFECollection() : FiniteElementCollection(2) { }
+   GaussQuadraticDiscont2DFECollection() : FiniteElementCollection(2) {}
 
-   virtual const FiniteElement *
-   FiniteElementForGeometry(Geometry::Type GeomType) const;
+   const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const override;
 
-   virtual int DofForGeometry(Geometry::Type GeomType) const;
+   int DofForGeometry(Geometry::Type GeomType) const override;
 
-   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
-                                             int Or) const;
+   const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                     int Or) const override;
 
-   virtual const char * Name() const { return "GaussQuadraticDiscont2D"; }
-   virtual int GetContType() const { return DISCONTINUOUS; }
+   const char *Name() const override { return "GaussQuadraticDiscont2D"; }
+
+   int GetContType() const override { return DISCONTINUOUS; }
 };
 
 /** @brief Piecewise-cubic discontinuous finite elements in 2D. This class is
@@ -1099,18 +1246,19 @@ private:
    const BiCubic2DFiniteElement QuadrilateralFE;
 
 public:
-   CubicDiscont2DFECollection() : FiniteElementCollection(3) { }
+   CubicDiscont2DFECollection() : FiniteElementCollection(3) {}
 
-   virtual const FiniteElement *
-   FiniteElementForGeometry(Geometry::Type GeomType) const;
+   const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const override;
 
-   virtual int DofForGeometry(Geometry::Type GeomType) const;
+   int DofForGeometry(Geometry::Type GeomType) const override;
 
-   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
-                                             int Or) const;
+   const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                     int Or) const override;
 
-   virtual const char * Name() const { return "CubicDiscont2D"; }
-   virtual int GetContType() const { return DISCONTINUOUS; }
+   const char *Name() const override { return "CubicDiscont2D"; }
+
+   int GetContType() const override { return DISCONTINUOUS; }
 };
 
 /** @brief Piecewise-constant discontinuous finite elements in 3D. This class is
@@ -1125,18 +1273,19 @@ private:
    const P0PyrFiniteElement PyramidFE;
 
 public:
-   Const3DFECollection() : FiniteElementCollection(0) { }
+   Const3DFECollection() : FiniteElementCollection(0) {}
 
-   virtual const FiniteElement *
-   FiniteElementForGeometry(Geometry::Type GeomType) const;
+   const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const override;
 
-   virtual int DofForGeometry(Geometry::Type GeomType) const;
+   int DofForGeometry(Geometry::Type GeomType) const override;
 
-   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
-                                             int Or) const;
+   const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                     int Or) const override;
 
-   virtual const char * Name() const { return "Const3D"; }
-   virtual int GetContType() const { return DISCONTINUOUS; }
+   const char *Name() const override { return "Const3D"; }
+
+   int GetContType() const override { return DISCONTINUOUS; }
 };
 
 /** @brief Piecewise-linear discontinuous finite elements in 3D. This class is
@@ -1151,18 +1300,19 @@ private:
    const TriLinear3DFiniteElement ParallelepipedFE;
 
 public:
-   LinearDiscont3DFECollection() : FiniteElementCollection(1) { }
+   LinearDiscont3DFECollection() : FiniteElementCollection(1) {}
 
-   virtual const FiniteElement *
-   FiniteElementForGeometry(Geometry::Type GeomType) const;
+   const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const override;
 
-   virtual int DofForGeometry(Geometry::Type GeomType) const;
+   int DofForGeometry(Geometry::Type GeomType) const override;
 
-   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
-                                             int Or) const;
+   const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                     int Or) const override;
 
-   virtual const char * Name() const { return "LinearDiscont3D"; }
-   virtual int GetContType() const { return DISCONTINUOUS; }
+   const char *Name() const override { return "LinearDiscont3D"; }
+
+   int GetContType() const override { return DISCONTINUOUS; }
 };
 
 /** @brief Piecewise-quadratic discontinuous finite elements in 3D. This class
@@ -1176,18 +1326,19 @@ private:
 
 public:
    QuadraticDiscont3DFECollection()
-      : FiniteElementCollection(2), ParallelepipedFE(2) { }
+      : FiniteElementCollection(2), ParallelepipedFE(2) {}
 
-   virtual const FiniteElement *
-   FiniteElementForGeometry(Geometry::Type GeomType) const;
+   const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const override;
 
-   virtual int DofForGeometry(Geometry::Type GeomType) const;
+   int DofForGeometry(Geometry::Type GeomType) const override;
 
-   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
-                                             int Or) const;
+   const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                     int Or) const override;
 
-   virtual const char * Name() const { return "QuadraticDiscont3D"; }
-   virtual int GetContType() const { return DISCONTINUOUS; }
+   const char *Name() const override { return "QuadraticDiscont3D"; }
+
+   int GetContType() const override { return DISCONTINUOUS; }
 };
 
 /// Finite element collection on a macro-element.
@@ -1202,18 +1353,19 @@ private:
    const RefinedTriLinear3DFiniteElement ParallelepipedFE;
 
 public:
-   RefinedLinearFECollection() : FiniteElementCollection(1) { }
+   RefinedLinearFECollection() : FiniteElementCollection(1) {}
 
-   virtual const FiniteElement *
-   FiniteElementForGeometry(Geometry::Type GeomType) const;
+   const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const override;
 
-   virtual int DofForGeometry(Geometry::Type GeomType) const;
+   int DofForGeometry(Geometry::Type GeomType) const override;
 
-   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
-                                             int Or) const;
+   const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                     int Or) const override;
 
-   virtual const char * Name() const { return "RefinedLinear"; }
-   virtual int GetContType() const { return CONTINUOUS; }
+   const char *Name() const override { return "RefinedLinear"; }
+
+   int GetContType() const override { return CONTINUOUS; }
 };
 
 /** @brief Lowest order Nedelec finite elements in 3D. This class is kept only
@@ -1228,18 +1380,19 @@ private:
    const Nedelec1PyrFiniteElement PyramidFE;
 
 public:
-   ND1_3DFECollection() : FiniteElementCollection(1) { }
+   ND1_3DFECollection() : FiniteElementCollection(1) {}
 
-   virtual const FiniteElement *
-   FiniteElementForGeometry(Geometry::Type GeomType) const;
+   const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const override;
 
-   virtual int DofForGeometry(Geometry::Type GeomType) const;
+   int DofForGeometry(Geometry::Type GeomType) const override;
 
-   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
-                                             int Or) const;
+   const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                     int Or) const override;
 
-   virtual const char * Name() const { return "ND1_3D"; }
-   virtual int GetContType() const { return TANGENTIAL; }
+   const char *Name() const override { return "ND1_3D"; }
+
+   int GetContType() const override { return TANGENTIAL; }
 };
 
 /** @brief First order Raviart-Thomas finite elements in 3D. This class is kept
@@ -1254,18 +1407,19 @@ private:
    const RT0WdgFiniteElement WedgeFE;
    const RT0PyrFiniteElement PyramidFE;
 public:
-   RT0_3DFECollection() : FiniteElementCollection(1) { }
+   RT0_3DFECollection() : FiniteElementCollection(1) {}
 
-   virtual const FiniteElement *
-   FiniteElementForGeometry(Geometry::Type GeomType) const;
+   const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const override;
 
-   virtual int DofForGeometry(Geometry::Type GeomType) const;
+   int DofForGeometry(Geometry::Type GeomType) const override;
 
-   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
-                                             int Or) const;
+   const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                     int Or) const override;
 
-   virtual const char * Name() const { return "RT0_3D"; }
-   virtual int GetContType() const { return NORMAL; }
+   const char *Name() const override { return "RT0_3D"; }
+
+   int GetContType() const override { return NORMAL; }
 };
 
 /** @brief Second order Raviart-Thomas finite elements in 3D. This class is kept
@@ -1277,18 +1431,19 @@ private:
    const BiLinear2DFiniteElement QuadrilateralFE;
    const RT1HexFiniteElement HexahedronFE;
 public:
-   RT1_3DFECollection() : FiniteElementCollection(2) { }
+   RT1_3DFECollection() : FiniteElementCollection(2) {}
 
-   virtual const FiniteElement *
-   FiniteElementForGeometry(Geometry::Type GeomType) const;
+   const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const override;
 
-   virtual int DofForGeometry(Geometry::Type GeomType) const;
+   int DofForGeometry(Geometry::Type GeomType) const override;
 
-   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
-                                             int Or) const;
+   const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                     int Or) const override;
 
-   virtual const char * Name() const { return "RT1_3D"; }
-   virtual int GetContType() const { return NORMAL; }
+   const char *Name() const override { return "RT1_3D"; }
+
+   int GetContType() const override { return NORMAL; }
 };
 
 /// Discontinuous collection defined locally by a given finite element.
@@ -1302,18 +1457,22 @@ private:
 public:
    Local_FECollection(const char *fe_name);
 
-   virtual const FiniteElement *FiniteElementForGeometry(
-      Geometry::Type GeomType_) const
+   const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType_) const override
    { return (GeomType == GeomType_) ? Local_Element : NULL; }
-   virtual int DofForGeometry(Geometry::Type GeomType_) const
+
+   int DofForGeometry(Geometry::Type GeomType_) const override
    { return (GeomType == GeomType_) ? Local_Element->GetDof() : 0; }
-   virtual const int *DofOrderForOrientation(Geometry::Type GeomType_,
-                                             int Or) const
+
+   const int *DofOrderForOrientation(Geometry::Type GeomType_,
+                                     int Or) const override
    { return NULL; }
-   virtual const char *Name() const { return d_name; }
+
+   const char *Name() const override { return d_name; }
+
+   int GetContType() const override { return DISCONTINUOUS; }
 
    virtual ~Local_FECollection() { delete Local_Element; }
-   virtual int GetContType() const { return DISCONTINUOUS; }
 };
 
 }

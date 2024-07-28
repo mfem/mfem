@@ -1,20 +1,31 @@
-//                 MFEM Ultraweal DPG parallel example for diffusion
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+//
+//                 MFEM ultraweak DPG parallel example for diffusion
 //
 // Compile with: make pdiffusion
 //
 // Sample runs
-// mpirun -np 4 pdiffusion -m ../../data/inline-quad.mesh -o 3 -sref 1 -pref 2 -theta 0.0 -prob 0
-// mpirun -np 4 pdiffusion -m ../../data/inline-hex.mesh -o 2 -sref 0 -pref 1 -theta 0.0 -prob 0 -sc
-// mpirun -np 4 pdiffusion -m ../../data/beam-tet.mesh -o 3 -sref 0 -pref 2 -theta 0.0 -prob 0 -sc
+//  mpirun -np 4 pdiffusion -m ../../data/inline-quad.mesh -o 3 -sref 1 -pref 2 -theta 0.0 -prob 0
+//  mpirun -np 4 pdiffusion -m ../../data/inline-hex.mesh -o 2 -sref 0 -pref 1 -theta 0.0 -prob 0 -sc
+//  mpirun -np 4 pdiffusion -m ../../data/beam-tet.mesh -o 3 -sref 0 -pref 2 -theta 0.0 -prob 0 -sc
 
 // L-shape runs
 // Note: uniform ref are expected to give sub-optimal rate for the L-shape problem (rate = 2/3)
-// mpirun -np 4 pdiffusion -o 2 -sref 1 -pref 5 -theta 0.0 -prob 1
+//  mpirun -np 4 pdiffusion -o 2 -sref 1 -pref 5 -theta 0.0 -prob 1
 
 // L-shape AMR runs
-// mpirun -np 4 pdiffusion -o 1 -sref 1 -pref 20 -theta 0.8 -prob 1
-// mpirun -np 4 pdiffusion -o 2 -sref 1 -pref 20 -theta 0.75 -prob 1 -sc
-// mpirun -np 4 pdiffusion -o 3 -sref 1 -pref 20 -theta 0.75 -prob 1 -sc -do 2
+//  mpirun -np 4 pdiffusion -o 1 -sref 1 -pref 10 -theta 0.8 -prob 1
+//  mpirun -np 4 pdiffusion -o 2 -sref 1 -pref 8 -theta 0.75 -prob 1 -sc
+//  mpirun -np 4 pdiffusion -o 3 -sref 1 -pref 6 -theta 0.75 -prob 1 -sc -do 2
 
 // Description:
 // This example code demonstrates the use of MFEM to define and solve
@@ -81,13 +92,13 @@ static const char *enum_str[] =
 
 prob_type prob;
 
-double exact_u(const Vector & X);
+real_t exact_u(const Vector & X);
 void exact_gradu(const Vector & X, Vector &gradu);
-double exact_laplacian_u(const Vector & X);
+real_t exact_laplacian_u(const Vector & X);
 void exact_sigma(const Vector & X, Vector & sigma);
-double exact_hatu(const Vector & X);
+real_t exact_hatu(const Vector & X);
 void exact_hatsigma(const Vector & X, Vector & hatsigma);
-double f_exact(const Vector & X);
+real_t f_exact(const Vector & X);
 
 int main(int argc, char *argv[])
 {
@@ -104,7 +115,7 @@ int main(int argc, char *argv[])
    int pref = 0; // parallel mesh refinements for AMR
    int iprob = 0;
    bool static_cond = false;
-   double theta = 0.7;
+   real_t theta = 0.7;
    bool visualization = true;
    bool paraview = false;
 
@@ -167,7 +178,7 @@ int main(int argc, char *argv[])
       int size = nodes->Size()/2;
       for (int i = 0; i<size; i++)
       {
-         double x = (*nodes)[2*i];
+         real_t x = (*nodes)[2*i];
          (*nodes)[2*i] =  2*(*nodes)[2*i+1]-1;
          (*nodes)[2*i+1] = -2*x+1;
       }
@@ -303,9 +314,9 @@ int main(int argc, char *argv[])
    }
 
    Array<int> elements_to_refine; // for AMR
-   double err0 = 0.;
+   real_t err0 = 0.;
    int dof0=0.;
-   double res0=0.0;
+   real_t res0=0.0;
 
    ParGridFunction u_gf(u_fes);
    ParGridFunction sigma_gf(sigma_fes);
@@ -407,13 +418,15 @@ int main(int argc, char *argv[])
 
       Vector & residuals = a->ComputeResidual(x);
 
-      double residual = residuals.Norml2();
+      real_t residual = residuals.Norml2();
 
-      double maxresidual = residuals.Max();
-      double globalresidual = residual * residual;
+      real_t maxresidual = residuals.Max();
+      real_t globalresidual = residual * residual;
 
-      MPI_Allreduce(MPI_IN_PLACE,&maxresidual,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
-      MPI_Allreduce(MPI_IN_PLACE,&globalresidual,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE, &maxresidual, 1, MPITypeMap<real_t>::mpi_type,
+                    MPI_MAX, MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE, &globalresidual, 1,
+                    MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
 
       globalresidual = sqrt(globalresidual);
 
@@ -423,12 +436,12 @@ int main(int argc, char *argv[])
       int dofs = u_fes->GlobalTrueVSize() + sigma_fes->GlobalTrueVSize()
                  + hatu_fes->GlobalTrueVSize() + hatsigma_fes->GlobalTrueVSize();
 
-      double u_err = u_gf.ComputeL2Error(uex);
-      double sigma_err = sigma_gf.ComputeL2Error(sigmaex);
-      double L2Error = sqrt(u_err*u_err + sigma_err*sigma_err);
-      double rate_err = (it) ? dim*log(err0/L2Error)/log((double)dof0/dofs) : 0.0;
-      double rate_res = (it) ? dim*log(res0/globalresidual)/log((
-                                                                   double)dof0/dofs) : 0.0;
+      real_t u_err = u_gf.ComputeL2Error(uex);
+      real_t sigma_err = sigma_gf.ComputeL2Error(sigmaex);
+      real_t L2Error = sqrt(u_err*u_err + sigma_err*sigma_err);
+      real_t rate_err = (it) ? dim*log(err0/L2Error)/log((real_t)dof0/dofs) : 0.0;
+      real_t rate_res = (it) ? dim*log(res0/globalresidual)/log((
+                                                                   real_t)dof0/dofs) : 0.0;
       err0 = L2Error;
       res0 = globalresidual;
       dof0 = dofs;
@@ -467,7 +480,7 @@ int main(int argc, char *argv[])
       if (paraview)
       {
          paraview_dc->SetCycle(it);
-         paraview_dc->SetTime((double)it);
+         paraview_dc->SetTime((real_t)it);
          paraview_dc->Save();
       }
 
@@ -511,24 +524,24 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-double exact_u(const Vector & X)
+real_t exact_u(const Vector & X)
 {
    switch (prob)
    {
       case prob_type::lshape:
       {
-         double x = X[0];
-         double y = X[1];
-         double r = sqrt(x*x + y*y);
-         double alpha = 2./3.;
-         double phi = atan2(y,x);
+         real_t x = X[0];
+         real_t y = X[1];
+         real_t r = sqrt(x*x + y*y);
+         real_t alpha = 2./3.;
+         real_t phi = atan2(y,x);
          if (phi < 0) { phi += 2*M_PI; }
          return pow(r,alpha) * sin(alpha * phi);
       }
       break;
       default:
       {
-         double alpha = M_PI * (X.Sum());
+         real_t alpha = M_PI * (X.Sum());
          return sin(alpha);
       }
       break;
@@ -542,25 +555,25 @@ void exact_gradu(const Vector & X, Vector & du)
    {
       case prob_type::lshape:
       {
-         double x = X[0];
-         double y = X[1];
-         double r = sqrt(x*x + y*y);
-         double alpha = 2./3.;
-         double phi = atan2(y,x);
+         real_t x = X[0];
+         real_t y = X[1];
+         real_t r = sqrt(x*x + y*y);
+         real_t alpha = 2./3.;
+         real_t phi = atan2(y,x);
          if (phi < 0) { phi += 2*M_PI; }
 
-         double r_x = x/r;
-         double r_y = y/r;
-         double phi_x = - y / (r*r);
-         double phi_y = x / (r*r);
-         double beta = alpha * pow(r,alpha - 1.);
+         real_t r_x = x/r;
+         real_t r_y = y/r;
+         real_t phi_x = - y / (r*r);
+         real_t phi_y = x / (r*r);
+         real_t beta = alpha * pow(r,alpha - 1.);
          du[0] = beta*(r_x * sin(alpha*phi) + r * phi_x * cos(alpha*phi));
          du[1] = beta*(r_y * sin(alpha*phi) + r * phi_y * cos(alpha*phi));
       }
       break;
       default:
       {
-         double alpha = M_PI * (X.Sum());
+         real_t alpha = M_PI * (X.Sum());
          du.SetSize(X.Size());
          for (int i = 0; i<du.Size(); i++)
          {
@@ -571,14 +584,14 @@ void exact_gradu(const Vector & X, Vector & du)
    }
 }
 
-double exact_laplacian_u(const Vector & X)
+real_t exact_laplacian_u(const Vector & X)
 {
    switch (prob)
    {
       case prob_type::manufactured:
       {
-         double alpha = M_PI * (X.Sum());
-         double u = sin(alpha);
+         real_t alpha = M_PI * (X.Sum());
+         real_t u = sin(alpha);
          return - M_PI*M_PI * u * X.Size();
       }
       break;
@@ -595,7 +608,7 @@ void exact_sigma(const Vector & X, Vector & sigma)
    exact_gradu(X,sigma);
 }
 
-double exact_hatu(const Vector & X)
+real_t exact_hatu(const Vector & X)
 {
    return exact_u(X);
 }
@@ -606,7 +619,7 @@ void exact_hatsigma(const Vector & X, Vector & hatsigma)
    hatsigma *= -1.;
 }
 
-double f_exact(const Vector & X)
+real_t f_exact(const Vector & X)
 {
    MFEM_VERIFY(prob!=prob_type::lshape,
                "f_exact should not be called for l-shape benchmark problem, i.e., f = 0")

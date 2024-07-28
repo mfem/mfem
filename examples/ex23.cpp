@@ -26,13 +26,12 @@
 using namespace std;
 using namespace mfem;
 
-/** After spatial discretization, the conduction model can be written as:
+/** After spatial discretization, the wave model can be written as:
  *
  *     d^2u/dt^2 = M^{-1}(-Ku)
  *
- *  where u is the vector representing the temperature, M is the mass matrix,
- *  and K is the diffusion operator with diffusivity depending on u:
- *  (\kappa + \alpha u).
+ *  where u is the vector representing the temperature, M is the mass,
+ *  and K is the stiffness matrix.
  *
  *  Class WaveOperator represents the right-hand side of the above ODE.
  */
@@ -45,9 +44,9 @@ protected:
    BilinearForm *M;
    BilinearForm *K;
 
-   SparseMatrix Mmat, Kmat, Kmat0;
+   SparseMatrix Mmat, Kmat;
    SparseMatrix *T; // T = M + dt K
-   double current_dt;
+   real_t current_dt;
 
    CGSolver M_solver; // Krylov solver for inverting the mass matrix M
    DSmoother M_prec;  // Preconditioner for the mass matrix M
@@ -59,7 +58,7 @@ protected:
    mutable Vector z; // auxiliary vector
 
 public:
-   WaveOperator(FiniteElementSpace &f, Array<int> &ess_bdr,double speed);
+   WaveOperator(FiniteElementSpace &f, Array<int> &ess_bdr, real_t speed);
 
    using SecondOrderTimeDependentOperator::Mult;
    virtual void Mult(const Vector &u, const Vector &du_dt,
@@ -69,7 +68,7 @@ public:
        d2udt2 = f(u + fac0*d2udt2,dudt + fac1*d2udt2, t),
        for the unknown d2udt2. */
    using SecondOrderTimeDependentOperator::ImplicitSolve;
-   virtual void ImplicitSolve(const double fac0, const double fac1,
+   virtual void ImplicitSolve(const real_t fac0, const real_t fac1,
                               const Vector &u, const Vector &dudt, Vector &d2udt2);
 
    ///
@@ -80,30 +79,28 @@ public:
 
 
 WaveOperator::WaveOperator(FiniteElementSpace &f,
-                           Array<int> &ess_bdr, double speed)
-   : SecondOrderTimeDependentOperator(f.GetTrueVSize(), 0.0), fespace(f), M(NULL),
-     K(NULL),
-     T(NULL), current_dt(0.0), z(height)
+                           Array<int> &ess_bdr, real_t speed)
+   : SecondOrderTimeDependentOperator(f.GetTrueVSize(), (real_t) 0.0),
+     fespace(f), M(NULL), K(NULL), T(NULL), current_dt(0.0), z(height)
 {
-   const double rel_tol = 1e-8;
-
-   fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-
+   // Assemble Laplace matrix
    c2 = new ConstantCoefficient(speed*speed);
-
    K = new BilinearForm(&fespace);
    K->AddDomainIntegrator(new DiffusionIntegrator(*c2));
    K->Assemble();
 
-   Array<int> dummy;
-   K->FormSystemMatrix(dummy, Kmat0);
-   K->FormSystemMatrix(ess_tdof_list, Kmat);
-
+   // Assemble Mass matrix
    M = new BilinearForm(&fespace);
    M->AddDomainIntegrator(new MassIntegrator());
    M->Assemble();
+
+   // Apply Bcs
+   fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   K->FormSystemMatrix(ess_tdof_list, Kmat);
    M->FormSystemMatrix(ess_tdof_list, Mmat);
 
+   // Configure preconditioner
+   const real_t rel_tol = 1e-8;
    M_solver.iterative_mode = false;
    M_solver.SetRelTol(rel_tol);
    M_solver.SetAbsTol(0.0);
@@ -112,14 +109,13 @@ WaveOperator::WaveOperator(FiniteElementSpace &f,
    M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(Mmat);
 
+   // Configure solver
    T_solver.iterative_mode = false;
    T_solver.SetRelTol(rel_tol);
    T_solver.SetAbsTol(0.0);
    T_solver.SetMaxIter(100);
    T_solver.SetPrintLevel(0);
    T_solver.SetPreconditioner(T_prec);
-
-   T = NULL;
 }
 
 void WaveOperator::Mult(const Vector &u, const Vector &du_dt,
@@ -128,12 +124,14 @@ void WaveOperator::Mult(const Vector &u, const Vector &du_dt,
    // Compute:
    //    d2udt2 = M^{-1}*-K(u)
    // for d2udt2
-   Kmat.Mult(u, z);
+   K->FullMult(u, z);
    z.Neg(); // z = -z
+   z.SetSubVector(ess_tdof_list, 0.0);
    M_solver.Mult(z, d2udt2);
+   d2udt2.SetSubVector(ess_tdof_list, 0.0);
 }
 
-void WaveOperator::ImplicitSolve(const double fac0, const double fac1,
+void WaveOperator::ImplicitSolve(const real_t fac0, const real_t fac1,
                                  const Vector &u, const Vector &dudt, Vector &d2udt2)
 {
    // Solve the equation:
@@ -144,14 +142,11 @@ void WaveOperator::ImplicitSolve(const double fac0, const double fac1,
       T = Add(1.0, Mmat, fac0, Kmat);
       T_solver.SetOperator(*T);
    }
-   Kmat0.Mult(u, z);
+   K->FullMult(u, z);
    z.Neg();
-
-   for (int i = 0; i < ess_tdof_list.Size(); i++)
-   {
-      z[ess_tdof_list[i]] = 0.0;
-   }
+   z.SetSubVector(ess_tdof_list, 0.0);
    T_solver.Mult(z, d2udt2);
+   d2udt2.SetSubVector(ess_tdof_list, 0.0);
 }
 
 void WaveOperator::SetParameters(const Vector &u)
@@ -168,12 +163,12 @@ WaveOperator::~WaveOperator()
    delete c2;
 }
 
-double InitialSolution(const Vector &x)
+real_t InitialSolution(const Vector &x)
 {
    return exp(-x.Norml2()*x.Norml2()*30);
 }
 
-double InitialRate(const Vector &x)
+real_t InitialRate(const Vector &x)
 {
    return 0.0;
 }
@@ -187,9 +182,9 @@ int main(int argc, char *argv[])
    int ref_levels = 2;
    int order = 2;
    int ode_solver_type = 10;
-   double t_final = 0.5;
-   double dt = 1.0e-2;
-   double speed = 1.0;
+   real_t t_final = 0.5;
+   real_t dt = 1.0e-2;
+   real_t speed = 1.0;
    bool visualization = true;
    bool visit = true;
    bool dirichlet = true;
@@ -301,7 +296,7 @@ int main(int argc, char *argv[])
    Vector dudt;
    dudt_gf.GetTrueDofs(dudt);
 
-   // 7. Initialize the conduction operator and the visualization.
+   // 7. Initialize the wave operator and the visualization.
    Array<int> ess_bdr;
    if (mesh->bdr_attributes.Size())
    {
@@ -316,7 +311,6 @@ int main(int argc, char *argv[])
          ess_bdr = 0;
       }
    }
-
    WaveOperator oper(fespace, ess_bdr, speed);
 
    u_gf.SetFromTrueDofs(u);
@@ -356,7 +350,7 @@ int main(int argc, char *argv[])
       else
       {
          sout.precision(precision);
-         sout << "solution\n" << *mesh << dudt_gf;
+         sout << "solution\n" << *mesh << u_gf;
          sout << "pause\n";
          sout << flush;
          cout << "GLVis visualization paused."
@@ -367,7 +361,7 @@ int main(int argc, char *argv[])
    // 8. Perform time-integration (looping over the time iterations, ti, with a
    //    time-step dt).
    ode_solver->Init(oper);
-   double t = 0.0;
+   real_t t = 0.0;
 
    bool last_step = false;
    for (int ti = 1; !last_step; ti++)

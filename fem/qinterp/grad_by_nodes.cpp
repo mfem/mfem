@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -138,11 +138,11 @@ void TensorDerivatives<QVectorLayout::byNODES>(const int NE,
    const int dim = maps.FE->GetDim();
    const int D1D = maps.ndof;
    const int Q1D = maps.nqpt;
-   const double *B = maps.B.Read();
-   const double *G = maps.G.Read();
-   const double *J = nullptr; // not used in DERIVATIVES (non-GRAD_PHYS) mode
-   const double *X = e_vec.Read();
-   double *Y = q_der.Write();
+   const real_t *B = maps.B.Read();
+   const real_t *G = maps.G.Read();
+   const real_t *J = nullptr; // not used in DERIVATIVES (non-GRAD_PHYS) mode
+   const real_t *X = e_vec.Read();
+   real_t *Y = q_der.Write();
 
    constexpr QVectorLayout L = QVectorLayout::byNODES;
    constexpr bool P = false; // GRAD_PHYS
@@ -151,7 +151,7 @@ void TensorDerivatives<QVectorLayout::byNODES>(const int NE,
 
    if (dim == 1)
    {
-      return Derivatives1D<L,P>(NE,G,J,X,Y,vdim,D1D,Q1D);
+      return Derivatives1D<L,P>(NE,G,J,X,Y,dim,vdim,D1D,Q1D);
    }
    if (dim == 2)
    {
@@ -181,13 +181,13 @@ void TensorDerivatives<QVectorLayout::byNODES>(const int NE,
          case 0x256: return Derivatives2D<L,P,2,5,6,2>(NE,B,G,J,X,Y);
          default:
          {
-            constexpr int MD = MAX_D1D;
-            constexpr int MQ = MAX_Q1D;
+            const int MD = DeviceDofQuadLimits::Get().MAX_D1D;
+            const int MQ = DeviceDofQuadLimits::Get().MAX_Q1D;
             if (D1D > MD || Q1D > MQ)
             {
                MFEM_ABORT("");
             }
-            Derivatives2D<L,P,0,0,0,0,MD,MQ>(NE,B,G,J,X,Y,vdim,D1D,Q1D);
+            Derivatives2D<L,P>(NE,B,G,J,X,Y,dim,vdim,D1D,Q1D);
             return;
          }
       }
@@ -219,13 +219,13 @@ void TensorDerivatives<QVectorLayout::byNODES>(const int NE,
          default:
 #if 0
          {
-            constexpr int MD = 8;
-            constexpr int MQ = 8;
+            const int MD = DeviceDofQuadLimits::Get().MAX_INTERP_1D;
+            const int MQ = DeviceDofQuadLimits::Get().MAX_INTERP_1D;
             MFEM_VERIFY(D1D <= MD, "Orders higher than " << MD-1
                         << " are not supported!");
             MFEM_VERIFY(Q1D <= MQ, "Quadrature rules with more than "
                         << MQ << " 1D points are not supported!");
-            Derivatives3D<L,P,0,0,0,MD,MQ>(NE,B,G,J,X,Y,vdim,D1D,Q1D);
+            Derivatives3D<L,P>(NE,B,G,J,X,Y,vdim,D1D,Q1D);
             return;
          }
 #else

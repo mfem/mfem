@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -174,8 +174,6 @@ public:
       return dynamic_cast<const SubMesh *>(m) != nullptr;
    }
 
-   ~SubMesh();
-
 private:
    /// Private constructor
    SubMesh(const Mesh &parent, From from, Array<int> attributes);
@@ -198,6 +196,10 @@ private:
    /// Mapping from submesh vertex ids (index of the array), to the parent
    /// vertex ids.
    Array<int> parent_vertex_ids_;
+
+   /// Mapping from SubMesh edge ids (index of the array), to the parent Mesh
+   /// face ids.
+   Array<int> parent_edge_ids_;
 
    /// Mapping from SubMesh face ids (index of the array), to the parent Mesh
    /// face ids.

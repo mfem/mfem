@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1341,38 +1341,59 @@ CVODESSolver::~CVODESSolver()
 // ARKStep interface
 // ---------------------------------------------------------------------------
 
-int ARKStepSolver::RHS1(realtype t, const N_Vector y, N_Vector ydot,
+int ARKStepSolver::RHS1(realtype t, const N_Vector y, N_Vector result,
                         void *user_data)
 {
    // Get data from N_Vectors
    const SundialsNVector mfem_y(y);
-   SundialsNVector mfem_ydot(ydot);
+   SundialsNVector mfem_result(result);
    ARKStepSolver *self = static_cast<ARKStepSolver*>(user_data);
 
-   // Compute f(t, y) in y' = f(t, y) or fe(t, y) in y' = fe(t, y) + fi(t, y)
+   // Compute either f(t, y) in one of
+   //   1. y' = f(t, y)
+   //   2. M y' = f(t, y)
+   // or fe(t, y) in one of
+   //   1. y' = fe(t, y) + fi(t, y)
+   //   2. M y' = fe(t, y) + fi(t, y)
    self->f->SetTime(t);
    if (self->rk_type == IMEX)
    {
       self->f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
    }
-   self->f->Mult(mfem_y, mfem_ydot);
+   if (self->f->isExplicit()) // ODE is in form 1
+   {
+      self->f->Mult(mfem_y, mfem_result);
+   }
+   else // ODE is in form 2
+   {
+      self->f->ExplicitMult(mfem_y, mfem_result);
+   }
 
    // Return success
    return (0);
 }
 
-int ARKStepSolver::RHS2(realtype t, const N_Vector y, N_Vector ydot,
+int ARKStepSolver::RHS2(realtype t, const N_Vector y, N_Vector result,
                         void *user_data)
 {
    // Get data from N_Vectors
    const SundialsNVector mfem_y(y);
-   SundialsNVector mfem_ydot(ydot);
+   SundialsNVector mfem_result(result);
    ARKStepSolver *self = static_cast<ARKStepSolver*>(user_data);
 
-   // Compute fi(t, y) in y' = fe(t, y) + fi(t, y)
+   // Compute fi(t, y) in one of
+   //   1. y' = fe(t, y) + fi(t, y)       (ODE is expressed in EXPLICIT form)
+   //   2. M y' = fe(t, y) + fi(y, t)     (ODE is expressed in IMPLICIT form)
    self->f->SetTime(t);
    self->f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
-   self->f->Mult(mfem_y, mfem_ydot);
+   if (self->f->isExplicit())
+   {
+      self->f->Mult(mfem_y, mfem_result);
+   }
+   else
+   {
+      self->f->ExplicitMult(mfem_y, mfem_result);
+   }
 
    // Return success
    return (0);
@@ -1567,7 +1588,7 @@ void ARKStepSolver::Init(TimeDependentOperator &f_)
    reinit = true;
 }
 
-void ARKStepSolver::Step(Vector &x, double &t, double &dt)
+void ARKStepSolver::Step(Vector &x, real_t &t, real_t &dt)
 {
    Y->MakeRef(x, 0, x.Size());
    MFEM_VERIFY(Y->Size() == x.Size(), "size mismatch");
@@ -1666,13 +1687,13 @@ void ARKStepSolver::UseMFEMMassLinearSolver(int tdep)
    LSM->content      = this;
    LSM->ops->gettype = LSGetType;
    LSM->ops->solve   = ARKStepSolver::MassSysSolve;
-   LSA->ops->free    = LSFree;
+   LSM->ops->free    = LSFree;
 
    M = SUNMatNewEmpty(Sundials::GetContext());
    MFEM_VERIFY(M, "error in SUNMatNewEmpty()");
 
    M->content      = this;
-   M->ops->getid   = SUNMatGetID;
+   M->ops->getid   = MatGetID;
    M->ops->matvec  = ARKStepSolver::MassMult1;
    M->ops->destroy = MatDestroy;
 
@@ -1683,6 +1704,9 @@ void ARKStepSolver::UseMFEMMassLinearSolver(int tdep)
    // Set the linear system function
    flag = ARKStepSetMassFn(sundials_mem, ARKStepSolver::MassSysSetup);
    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetMassFn()");
+
+   // Check that the ODE is not expressed in EXPLICIT form
+   MFEM_VERIFY(!f->isExplicit(), "ODE operator is expressed in EXPLICIT form")
 }
 
 void ARKStepSolver::UseSundialsMassLinearSolver(int tdep)
@@ -1703,6 +1727,9 @@ void ARKStepSolver::UseSundialsMassLinearSolver(int tdep)
    flag = ARKStepSetMassTimes(sundials_mem, NULL, ARKStepSolver::MassMult2,
                               this);
    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetMassTimes()");
+
+   // Check that the ODE is not expressed in EXPLICIT form
+   MFEM_VERIFY(!f->isExplicit(), "ODE operator is expressed in EXPLICIT form")
 }
 
 void ARKStepSolver::SetStepMode(int itask)
@@ -2185,7 +2212,7 @@ void KINSolver::Mult(const Vector&, Vector &x) const
       if (Parallel())
       {
          double lnorm = norm;
-         MPI_Allreduce(&lnorm, &norm, 1, MPI_DOUBLE, MPI_MAX,
+         MPI_Allreduce(&lnorm, &norm, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX,
                        Y->GetComm());
       }
 #endif

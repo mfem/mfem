@@ -52,6 +52,7 @@ static bool pa_ = false;
 static bool algebraic_ceed_ = false;
 
 void ComputeCurrentDensityOnSubMesh(int order,
+                                    bool visualization,
                                     const Array<int> &phi0_attr,
                                     const Array<int> &phi1_attr,
                                     const Array<int> &jn_zero_attr,
@@ -69,7 +70,7 @@ int main(int argc, char *argv[])
    Array<int> jn_zero_attr;
    int ref_levels = 1;
    int order = 1;
-   double delta_const = 1e-6;
+   real_t delta_const = 1e-6;
    bool mixed = true;
    bool static_cond = false;
    const char *device_config = "cpu";
@@ -236,8 +237,8 @@ int main(int argc, char *argv[])
    FiniteElementSpace fes_cond_rt(&mesh_cond, &fec_cond_rt);
    GridFunction j_cond(&fes_cond_rt);
 
-   ComputeCurrentDensityOnSubMesh(order, phi0_attr, phi1_attr, jn_zero_attr,
-                                  j_cond);
+   ComputeCurrentDensityOnSubMesh(order, visualization,
+                                  phi0_attr, phi1_attr, jn_zero_attr, j_cond);
 
    // 6a. Save the SubMesh and associated current density in parallel. This
    //     output can be viewed later using GLVis:
@@ -255,6 +256,7 @@ int main(int argc, char *argv[])
       cond_ofs.precision(8);
       j_cond.Save(cond_ofs);
    }
+
    // 6b. Send the current density, computed on the SubMesh, to a GLVis server.
    if (visualization)
    {
@@ -267,9 +269,9 @@ int main(int argc, char *argv[])
                 << "window_geometry 400 0 400 350" << flush;
    }
 
-   // 7. Define a parallel finite element space on the full mesh. Here we
-   //    use the H(curl) finite elements for the vector potential and H(div)
-   //    for the current density.
+   // 7. Define a parallel finite element space on the full mesh. Here we use
+   //    the H(curl) finite elements for the vector potential and H(div) for the
+   //    current density.
    ND_FECollection fec_nd(order, dim);
    RT_FECollection fec_rt(order - 1, dim);
    FiniteElementSpace fespace_nd(&mesh, &fec_nd);
@@ -292,10 +294,10 @@ int main(int argc, char *argv[])
    }
 
    // 8. Determine the list of true (i.e. parallel conforming) essential
-   //    boundary dofs. In this example, the boundary conditions are defined
-   //    by marking all the boundary attributes except for those on a symmetry
-   //    plane as essential (Dirichlet) and converting them to a list of
-   //    true dofs.
+   //    boundary dofs. In this example, the boundary conditions are defined by
+   //    marking all the boundary attributes except for those on a symmetry
+   //    plane as essential (Dirichlet) and converting them to a list of true
+   //    dofs.
    Array<int> ess_tdof_list;
    Array<int> ess_bdr;
    if (mesh.bdr_attributes.Size())
@@ -324,14 +326,13 @@ int main(int argc, char *argv[])
    GridFunction x(&fespace_nd);
    x = 0.0;
 
-   // 11. Set up the parallel bilinear form corresponding to the EM
-   //     diffusion operator curl muinv curl + delta I, by adding the
-   //     curl-curl and the mass domain integrators. For standard
-   //     magnetostatics equations choose delta << 1. Larger values of
-   //     delta should make the linear system easier to solve at the
-   //     expense of resembling a diffusive quasistatic magnetic field.
-   //     A reasonable balance must be found whenever the mesh or problem
-   //     setup is altered.
+   // 11. Set up the parallel bilinear form corresponding to the EM diffusion
+   //     operator curl muinv curl + delta I, by adding the curl-curl and the
+   //     mass domain integrators. For standard magnetostatics equations choose
+   //     delta << 1. Larger values of delta should make the linear system
+   //     easier to solve at the expense of resembling a diffusive quasistatic
+   //     magnetic field.  A reasonable balance must be found whenever the mesh
+   //     or problem setup is altered.
    ConstantCoefficient muinv(1.0);
    ConstantCoefficient delta(delta_const);
    BilinearForm a(&fespace_nd);
@@ -423,8 +424,8 @@ int main(int argc, char *argv[])
    GridFunction dx(&fespace_rt);
    curl.Mult(x, dx);
 
-   // 18. Save the curl of the solution in parallel. This output can
-   //     be viewed later using GLVis: "glvis -np <np> -m mesh -g dsol".
+   // 18. Save the curl of the solution in parallel. This output can be viewed
+   //     later using GLVis: "glvis -np <np> -m mesh -g dsol".
    {
       ostringstream dsol_name;
       dsol_name << "dsol.gf";
@@ -451,23 +452,24 @@ int main(int argc, char *argv[])
 }
 
 void ComputeCurrentDensityOnSubMesh(int order,
+                                    bool visualization,
                                     const Array<int> &phi0_attr,
                                     const Array<int> &phi1_attr,
                                     const Array<int> &jn_zero_attr,
                                     GridFunction &j_cond)
 {
-   // Exract the finite element space and mesh on which j_cond is defined
+   // Extract the finite element space and mesh on which j_cond is defined
    FiniteElementSpace &fes_cond_rt = *j_cond.FESpace();
    Mesh &mesh_cond = *fes_cond_rt.GetMesh();
    int dim  = mesh_cond.Dimension();
 
-   // Define a parallel finite element space on the SubMesh. Here we use the
-   // H1 finite elements for the electrostatic potential.
+   // Define a parallel finite element space on the SubMesh. Here we use the H1
+   // finite elements for the electrostatic potential.
    H1_FECollection fec_h1(order, dim);
    FiniteElementSpace fes_cond_h1(&mesh_cond, &fec_h1);
 
-   // Define the conductivity coefficient and the boundaries associated with
-   // the fixed potentials phi0 and phi1 which will drive the current.
+   // Define the conductivity coefficient and the boundaries associated with the
+   // fixed potentials phi0 and phi1 which will drive the current.
    ConstantCoefficient sigmaCoef(1.0);
    Array<int> ess_bdr_phi(mesh_cond.bdr_attributes.Max());
    Array<int> ess_bdr_j(mesh_cond.bdr_attributes.Max());
@@ -568,6 +570,7 @@ void ComputeCurrentDensityOnSubMesh(int order,
       a_h1.RecoverFEMSolution(X, b_h1, phi_h1);
    }
 
+   if (visualization)
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
@@ -578,9 +581,9 @@ void ComputeCurrentDensityOnSubMesh(int order,
                 << "window_geometry 0 0 400 350" << flush;
    }
 
-   // Solve for the current density J = -sigma Grad phi with boundary
-   // conditions J.n = 0 on the walls of the conductor but not on the
-   // ports where phi=0 and phi=1.
+   // Solve for the current density J = -sigma Grad phi with boundary conditions
+   // J.n = 0 on the walls of the conductor but not on the ports where phi=0 and
+   // phi=1.
 
    // J will be computed in H(div) so we need an RT mass matrix
    BilinearForm m_rt(&fes_cond_rt);

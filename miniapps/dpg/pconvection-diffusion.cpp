@@ -1,16 +1,27 @@
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+//
 //             MFEM Ultraweak DPG parallel example for convection-diffusion
 //
-// Compile with: make  pconvection-diffusion
+// Compile with: make pconvection-diffusion
 //
 // sample runs
-// mpirun -np 4 pconvection-diffusion  -o 2 -ref 3 -prob 0 -eps 1e-1 -beta '4 2' -theta 0.0
-// mpirun -np 4 pconvection-diffusion  -o 3 -ref 3 -prob 0 -eps 1e-2 -beta '2 3' -theta 0.0
-// mpirun -np 4 pconvection-diffusion -m ../../data/inline-hex.mesh -o 2 -ref 1 -prob 0 -sc -eps 1e-1 -theta 0.0
+//  mpirun -np 4 pconvection-diffusion -o 2 -ref 3 -prob 0 -eps 1e-1 -beta '4 2' -theta 0.0
+//  mpirun -np 4 pconvection-diffusion -o 3 -ref 3 -prob 0 -eps 1e-2 -beta '2 3' -theta 0.0
+//  mpirun -np 4 pconvection-diffusion -m ../../data/inline-hex.mesh -o 2 -ref 1 -prob 0 -sc -eps 1e-1 -theta 0.0
 
 // AMR runs
-// mpirun -np 4 pconvection-diffusion  -o 3 -ref 15 -prob 1 -eps 1e-3 -beta '1 0' -theta 0.7 -sc
-// mpirun -np 4 pconvection-diffusion  -o 3 -ref 20 -prob 2 -eps 5e-3 -theta 0.7 -sc
-// mpirun -np 4 pconvection-diffusion  -o 2 -ref 20 -prob 3 -eps 1e-2 -beta '1 2' -theta 0.7 -sc
+//  mpirun -np 4 pconvection-diffusion -o 3 -ref 10 -prob 1 -eps 1e-3 -beta '1 0' -theta 0.7 -sc
+//  mpirun -np 4 pconvection-diffusion -o 3 -ref 15 -prob 2 -eps 5e-3 -theta 0.7 -sc
+//  mpirun -np 4 pconvection-diffusion -o 2 -ref 12 -prob 3 -eps 1e-2 -beta '1 2' -theta 0.7 -sc
 
 // Description:
 // This example code demonstrates the use of MFEM to define and solve a parallel
@@ -81,17 +92,17 @@ static const char *enum_str[] =
 
 prob_type prob;
 Vector beta;
-double epsilon;
+real_t epsilon;
 
-double exact_u(const Vector & X);
+real_t exact_u(const Vector & X);
 void exact_gradu(const Vector & X, Vector & du);
-double exact_laplacian_u(const Vector & X);
-double exact_u(const Vector & X);
+real_t exact_laplacian_u(const Vector & X);
+real_t exact_u(const Vector & X);
 void exact_sigma(const Vector & X, Vector & sigma);
-double exact_hatu(const Vector & X);
+real_t exact_hatu(const Vector & X);
 void exact_hatf(const Vector & X, Vector & hatf);
-double f_exact(const Vector & X);
-double bdr_data(const Vector &X);
+real_t f_exact(const Vector & X);
+real_t bdr_data(const Vector &X);
 void beta_function(const Vector & X, Vector & beta_val);
 void setup_test_norm_coeffs(ParGridFunction & c1_gf, ParGridFunction & c2_gf);
 
@@ -107,7 +118,7 @@ int main(int argc, char *argv[])
    int delta_order = 1;
    int ref = 1;
    int iprob = 0;
-   double theta = 0.7;
+   real_t theta = 0.7;
    bool static_cond = false;
    epsilon = 1e0;
 
@@ -331,8 +342,8 @@ int main(int argc, char *argv[])
    socketstream u_out;
    socketstream sigma_out;
 
-   double res0 = 0.;
-   double err0 = 0.;
+   real_t res0 = 0.;
+   real_t err0 = 0.;
    int dof0 = 0; // init to suppress gcc warning
    if (myid == 0)
    {
@@ -483,13 +494,15 @@ int main(int argc, char *argv[])
       a->RecoverFEMSolution(X,x);
       Vector & residuals = a->ComputeResidual(x);
 
-      double residual = residuals.Norml2();
-      double maxresidual = residuals.Max();
+      real_t residual = residuals.Norml2();
+      real_t maxresidual = residuals.Max();
 
-      double gresidual = residual * residual;
+      real_t gresidual = residual * residual;
 
-      MPI_Allreduce(MPI_IN_PLACE,&maxresidual,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
-      MPI_Allreduce(MPI_IN_PLACE,&gresidual,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE, &maxresidual, 1, MPITypeMap<real_t>::mpi_type,
+                    MPI_MAX, MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE, &gresidual, 1, MPITypeMap<real_t>::mpi_type,
+                    MPI_SUM, MPI_COMM_WORLD);
 
       gresidual = sqrt(gresidual);
 
@@ -510,17 +523,17 @@ int main(int argc, char *argv[])
                  + hatu_fes->GlobalTrueVSize()
                  + hatf_fes->GlobalTrueVSize();
 
-      double L2Error = 0.0;
-      double rate_err = 0.0;
+      real_t L2Error = 0.0;
+      real_t rate_err = 0.0;
       if (exact_known)
       {
-         double u_err = u_gf.ComputeL2Error(uex);
-         double sigma_err = sigma_gf.ComputeL2Error(sigmaex);
+         real_t u_err = u_gf.ComputeL2Error(uex);
+         real_t sigma_err = sigma_gf.ComputeL2Error(sigmaex);
          L2Error = sqrt(u_err*u_err + sigma_err*sigma_err);
-         rate_err = (it) ? dim*log(err0/L2Error)/log((double)dof0/dofs) : 0.0;
+         rate_err = (it) ? dim*log(err0/L2Error)/log((real_t)dof0/dofs) : 0.0;
          err0 = L2Error;
       }
-      double rate_res = (it) ? dim*log(res0/gresidual)/log((double)dof0/dofs) : 0.0;
+      real_t rate_res = (it) ? dim*log(res0/gresidual)/log((real_t)dof0/dofs) : 0.0;
 
       res0 = gresidual;
       dof0 = dofs;
@@ -561,7 +574,7 @@ int main(int argc, char *argv[])
       if (paraview)
       {
          paraview_dc->SetCycle(it);
-         paraview_dc->SetTime((double)it);
+         paraview_dc->SetTime((real_t)it);
          paraview_dc->Save();
       }
 
@@ -605,36 +618,36 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-double exact_u(const Vector & X)
+real_t exact_u(const Vector & X)
 {
-   double x = X[0];
-   double y = X[1];
-   double z = 0.;
+   real_t x = X[0];
+   real_t y = X[1];
+   real_t z = 0.;
    if (X.Size() == 3) { z = X[2]; }
    switch (prob)
    {
       case sinusoidal:
       {
-         double alpha = M_PI * (x + y + z);
+         real_t alpha = M_PI * (x + y + z);
          return sin(alpha);
       }
       break;
       case EJ:
       {
-         double alpha = sqrt(1. + 4. * epsilon * epsilon * M_PI * M_PI);
-         double r1 = (1. + alpha) / (2.*epsilon);
-         double r2 = (1. - alpha) / (2.*epsilon);
-         double denom = exp(-r2) - exp(-r1);
+         real_t alpha = sqrt(1. + 4. * epsilon * epsilon * M_PI * M_PI);
+         real_t r1 = (1. + alpha) / (2.*epsilon);
+         real_t r2 = (1. - alpha) / (2.*epsilon);
+         real_t denom = exp(-r2) - exp(-r1);
 
-         double g1 = exp(r2*(x-1.));
-         double g2 = exp(r1*(x-1.));
-         double g = g1-g2;
+         real_t g1 = exp(r2*(x-1.));
+         real_t g2 = exp(r1*(x-1.));
+         real_t g = g1-g2;
          return g * cos(M_PI * y)/denom;
       }
       break;
       case curved_streamlines:
       {
-         double r = sqrt(x*x+y*y);
+         real_t r = sqrt(x*x+y*y);
          return atan((1.0-r)/epsilon);
       }
       break;
@@ -647,9 +660,9 @@ double exact_u(const Vector & X)
 
 void exact_gradu(const Vector & X, Vector & du)
 {
-   double x = X[0];
-   double y = X[1];
-   double z = 0.;
+   real_t x = X[0];
+   real_t y = X[1];
+   real_t z = 0.;
    if (X.Size() == 3) { z = X[2]; }
    du.SetSize(X.Size());
 
@@ -657,7 +670,7 @@ void exact_gradu(const Vector & X, Vector & du)
    {
       case sinusoidal:
       {
-         double alpha = M_PI * (x + y + z);
+         real_t alpha = M_PI * (x + y + z);
          for (int i = 0; i<du.Size(); i++)
          {
             du[i] = M_PI * cos(alpha);
@@ -666,29 +679,29 @@ void exact_gradu(const Vector & X, Vector & du)
       break;
       case EJ:
       {
-         double alpha = sqrt(1. + 4. * epsilon * epsilon * M_PI * M_PI);
-         double r1 = (1. + alpha) / (2.*epsilon);
-         double r2 = (1. - alpha) / (2.*epsilon);
-         double denom = exp(-r2) - exp(-r1);
+         real_t alpha = sqrt(1. + 4. * epsilon * epsilon * M_PI * M_PI);
+         real_t r1 = (1. + alpha) / (2.*epsilon);
+         real_t r2 = (1. - alpha) / (2.*epsilon);
+         real_t denom = exp(-r2) - exp(-r1);
 
-         double g1 = exp(r2*(x-1.));
-         double g1_x = r2*g1;
-         double g2 = exp(r1*(x-1.));
-         double g2_x = r1*g2;
-         double g = g1-g2;
-         double g_x = g1_x - g2_x;
+         real_t g1 = exp(r2*(x-1.));
+         real_t g1_x = r2*g1;
+         real_t g2 = exp(r1*(x-1.));
+         real_t g2_x = r1*g2;
+         real_t g = g1-g2;
+         real_t g_x = g1_x - g2_x;
 
-         double u_x = g_x * cos(M_PI * y)/denom;
-         double u_y = -M_PI * g * sin(M_PI*y)/denom;
+         real_t u_x = g_x * cos(M_PI * y)/denom;
+         real_t u_y = -M_PI * g * sin(M_PI*y)/denom;
          du[0] = u_x;
          du[1] = u_y;
       }
       break;
       case curved_streamlines:
       {
-         double r = sqrt(x*x+y*y);
-         double alpha = -2.0*r + r*r + epsilon*epsilon + 1;
-         double denom = r*alpha;
+         real_t r = sqrt(x*x+y*y);
+         real_t alpha = -2.0*r + r*r + epsilon*epsilon + 1;
+         real_t denom = r*alpha;
          du[0] = - x* epsilon / denom;
          du[1] = - y* epsilon / denom;
       }
@@ -699,47 +712,47 @@ void exact_gradu(const Vector & X, Vector & du)
    }
 }
 
-double exact_laplacian_u(const Vector & X)
+real_t exact_laplacian_u(const Vector & X)
 {
-   double x = X[0];
-   double y = X[1];
-   double z = 0.;
+   real_t x = X[0];
+   real_t y = X[1];
+   real_t z = 0.;
    if (X.Size() == 3) { z = X[2]; }
    switch (prob)
    {
       case sinusoidal:
       {
-         double alpha = M_PI * (x + y + z);
-         double u = sin(alpha);
+         real_t alpha = M_PI * (x + y + z);
+         real_t u = sin(alpha);
          return - M_PI*M_PI * u * X.Size();
       }
       break;
       case EJ:
       {
-         double alpha = sqrt(1. + 4. * epsilon * epsilon * M_PI * M_PI);
-         double r1 = (1. + alpha) / (2.*epsilon);
-         double r2 = (1. - alpha) / (2.*epsilon);
-         double denom = exp(-r2) - exp(-r1);
+         real_t alpha = sqrt(1. + 4. * epsilon * epsilon * M_PI * M_PI);
+         real_t r1 = (1. + alpha) / (2.*epsilon);
+         real_t r2 = (1. - alpha) / (2.*epsilon);
+         real_t denom = exp(-r2) - exp(-r1);
 
-         double g1 = exp(r2*(x-1.));
-         double g1_x = r2*g1;
-         double g1_xx = r2*g1_x;
-         double g2 = exp(r1*(x-1.));
-         double g2_x = r1*g2;
-         double g2_xx = r1*g2_x;
-         double g = g1-g2;
-         double g_xx = g1_xx - g2_xx;
+         real_t g1 = exp(r2*(x-1.));
+         real_t g1_x = r2*g1;
+         real_t g1_xx = r2*g1_x;
+         real_t g2 = exp(r1*(x-1.));
+         real_t g2_x = r1*g2;
+         real_t g2_xx = r1*g2_x;
+         real_t g = g1-g2;
+         real_t g_xx = g1_xx - g2_xx;
 
-         double u = g * cos(M_PI * y)/denom;
-         double u_xx = g_xx * cos(M_PI * y)/denom;
-         double u_yy = -M_PI * M_PI * u;
+         real_t u = g * cos(M_PI * y)/denom;
+         real_t u_xx = g_xx * cos(M_PI * y)/denom;
+         real_t u_yy = -M_PI * M_PI * u;
          return u_xx + u_yy;
       }
       break;
       case curved_streamlines:
       {
-         double r = sqrt(x*x+y*y);
-         double alpha = -2.0*r + r*r + epsilon*epsilon + 1;
+         real_t r = sqrt(x*x+y*y);
+         real_t alpha = -2.0*r + r*r + epsilon*epsilon + 1;
          return epsilon * (r*r - epsilon*epsilon - 1.0) / (r*alpha*alpha);
       }
       break;
@@ -757,7 +770,7 @@ void exact_sigma(const Vector & X, Vector & sigma)
    sigma *= epsilon;
 }
 
-double exact_hatu(const Vector & X)
+real_t exact_hatu(const Vector & X)
 {
    return -exact_u(X);
 }
@@ -768,7 +781,7 @@ void exact_hatf(const Vector & X, Vector & hatf)
    Vector beta_val;
    beta_function(X,beta_val);
    exact_sigma(X,sigma);
-   double u = exact_u(X);
+   real_t u = exact_u(X);
    hatf.SetSize(X.Size());
    for (int i = 0; i<hatf.Size(); i++)
    {
@@ -776,17 +789,17 @@ void exact_hatf(const Vector & X, Vector & hatf)
    }
 }
 
-double f_exact(const Vector & X)
+real_t f_exact(const Vector & X)
 {
    // f = - εΔu + ∇⋅(βu)
    Vector du;
    exact_gradu(X,du);
-   double d2u = exact_laplacian_u(X);
+   real_t d2u = exact_laplacian_u(X);
 
    Vector beta_val;
    beta_function(X,beta_val);
 
-   double s = 0;
+   real_t s = 0;
    for (int i = 0; i<du.Size(); i++)
    {
       s += beta_val[i] * du[i];
@@ -794,12 +807,12 @@ double f_exact(const Vector & X)
    return -epsilon * d2u + s;
 }
 
-double bdr_data(const Vector &X)
+real_t bdr_data(const Vector &X)
 {
    if (prob == prob_type::bdr_layer)
    {
-      double x = X(0);
-      double y = X(1);
+      real_t x = X(0);
+      real_t y = X(1);
 
       if (y==0.0)
       {
@@ -825,8 +838,8 @@ void beta_function(const Vector & X, Vector & beta_val)
    beta_val.SetSize(2);
    if (prob == prob_type::curved_streamlines)
    {
-      double x = X(0);
-      double y = X(1);
+      real_t x = X(0);
+      real_t y = X(1);
       beta_val(0) = exp(x)*sin(y);
       beta_val(1) = exp(x)*cos(y);
    }
@@ -843,9 +856,9 @@ void setup_test_norm_coeffs(ParGridFunction & c1_gf, ParGridFunction & c2_gf)
    ParMesh * pmesh = fes->GetParMesh();
    for (int i = 0; i < pmesh->GetNE(); i++)
    {
-      double volume = pmesh->GetElementVolume(i);
-      double c1 = min(epsilon/volume, 1.);
-      double c2 = min(1./epsilon, 1./volume);
+      real_t volume = pmesh->GetElementVolume(i);
+      real_t c1 = min(epsilon/volume, (real_t) 1.);
+      real_t c2 = min(1./epsilon, 1./volume);
       fes->GetElementDofs(i,vdofs);
       c1_gf.SetSubVector(vdofs,c1);
       c2_gf.SetSubVector(vdofs,c2);
