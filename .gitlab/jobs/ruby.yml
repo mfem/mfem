@@ -92,12 +92,3 @@ opt_par_gcc_10_pumi:
   variables:
     SPEC: "%gcc@10.3.1 +pumi"
     THREADS: 16
-
-# Jobs report
-report_job_success:
-  extends: [.on_ruby, .report_job_success]
-  stage: jobs-stage-3
-
-report_job_failure:
-  extends: [.on_ruby, .report_job_failure]
-  stage: jobs-stage-3

@@ -55,13 +55,3 @@ cce_16_0_1:
   variables:
     SPEC: "%cce@=16.0.1"
     THREADS: 12
-
-# Jobs report
-report_job_success:
-  extends: [.on_tioga, .report_job_success]
-  stage: jobs-stage-3
-
-report_job_failure:
-  extends: [.on_tioga, .report_job_failure]
-  stage: jobs-stage-3
-

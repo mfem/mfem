@@ -46,9 +46,24 @@ generate-job-lists:
 #    - cat ${RADIUSS_JOBS_PATH}/lassen.yml ${LOCAL_JOBS_PATH}/lassen.yml > lassen-jobs.yml
 #    - cat ${RADIUSS_JOBS_PATH}/corona.yml ${LOCAL_JOBS_PATH}/corona.yml > corona-jobs.yml
 #    - cat ${RADIUSS_JOBS_PATH}/tioga.yml ${LOCAL_JOBS_PATH}/tioga.yml > tioga-jobs.yml
-    - cat ${LOCAL_JOBS_PATH}/ruby.yml > ruby-jobs.yml
-    - cat ${LOCAL_JOBS_PATH}/lassen.yml > lassen-jobs.yml
-    - cat ${LOCAL_JOBS_PATH}/tioga.yml > tioga-jobs.yml
+    - |
+      cat ${LOCAL_JOBS_PATH}/ruby.yml > ruby-jobs.yml
+      if [[ ${AUTOTEST} == "ON" ]]
+      then
+          cat ${LOCAL_JOBS_PATH}/ruby-reports.yml >> ruby-jobs.yml
+      fi
+    - |
+      cat ${LOCAL_JOBS_PATH}/lassen.yml > lassen-jobs.yml
+      if [[ ${AUTOTEST} == "ON" ]]
+      then
+          cat ${LOCAL_JOBS_PATH}/lassen-reports.yml >> lassen-jobs.yml
+      fi
+    - |
+      cat ${LOCAL_JOBS_PATH}/tioga.yml > tioga-jobs.yml
+      if [[ ${AUTOTEST} == "ON" ]]
+      then
+          cat ${LOCAL_JOBS_PATH}/tioga-reports.yml >> tioga-jobs.yml
+      fi
   artifacts:
     paths:
       - ruby-jobs.yml

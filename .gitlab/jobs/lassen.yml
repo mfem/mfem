@@ -53,12 +53,3 @@ opt_mpi_cuda_hypre_cuda_gcc:
   stage: jobs-stage-2
   variables:
     SPEC: "%gcc@8.3.1 +mpi +cuda cuda_arch=70 ^hypre+cuda~shared cuda_arch=70"
-
-# Jobs report
-report_job_success:
-  extends: [.on_lassen, .report_job_success]
-  stage: jobs-stage-3
-
-report_job_failure:
-  extends: [.on_lassen, .report_job_failure]
-  stage: jobs-stage-3
