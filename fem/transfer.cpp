@@ -332,27 +332,27 @@ void L2ProjectionGridTransfer::L2Projection::ElemMixedMass(
 }
 
 Vector L2ProjectionGridTransfer::L2Projection::MixedMassEA(
-   const FiniteElementSpace& fes_ho,
-   const FiniteElementSpace& fes_lor,
+   const FiniteElementSpace& fes_ho_ea,
+   const FiniteElementSpace& fes_lor_ea,
    Coefficient *coeff_, MemoryType d_mt_)
 {
    Vector M_LH;
 
-   Mesh* mesh_ho = fes_ho.GetMesh();
-   Mesh* mesh_lor = fes_lor.GetMesh();
+   Mesh* mesh_ho = fes_ho_ea.GetMesh();
+   Mesh* mesh_lor = fes_lor_ea.GetMesh();
    int nel_ho = mesh_ho->GetNE();
    int nel_lor = mesh_lor->GetNE();
-   int ndof_ho = fes_ho.GetNDofs();
-   int ndof_lor = fes_lor.GetNDofs();
+   int ndof_ho = fes_ho_ea.GetNDofs();
+   int ndof_lor = fes_lor_ea.GetNDofs();
 
    QuadratureFunction qfunc;
    IntegrationRule ir;
    if (coeff_ == nullptr)
    {
       Geometry::Type geom = mesh_ho->GetElementBaseGeometry(0);
-      const FiniteElement &fe = *fes_ho.GetFE(0);
-      const FiniteElement &fe_lor = *fes_lor.GetFE(0);
-      ElementTransformation *el_tr = fes_lor.GetElementTransformation(0);
+      const FiniteElement &fe = *fes_ho_ea.GetFE(0);
+      const FiniteElement &fe_lor = *fes_lor_ea.GetFE(0);
+      ElementTransformation *el_tr = fes_lor_ea.GetElementTransformation(0);
       int qorder = fe_lor.GetOrder() + fe.GetOrder() + el_tr->OrderW();
       ir = IntRules.Get(geom, qorder);
 
@@ -401,11 +401,11 @@ Vector L2ProjectionGridTransfer::L2Projection::MixedMassEA(
          int nref = ho2lor.RowSize(iho);
 
          Geometry::Type geom = mesh_ho->GetElementBaseGeometry(iho);
-         const FiniteElement &fe_ho = *fes_ho.GetFE(iho);
-         const FiniteElement &fe_lor = *fes_lor.GetFE(lor_els[0]);
+         const FiniteElement &fe_ho = *fes_ho_ea.GetFE(iho);
+         const FiniteElement &fe_lor = *fes_lor_ea.GetFE(lor_els[0]);
 
          //Allocate space for DenseTensors
-         ElementTransformation *el_tr = fes_lor.GetElementTransformation(0);
+         ElementTransformation *el_tr = fes_lor_ea.GetElementTransformation(0);
          int order = fe_lor.GetOrder() + fe_ho.GetOrder() + el_tr->OrderW();
          const IntegrationRule* ir = &IntRules.Get(geom, order);
          int qPts = ir->GetNPoints();
@@ -554,8 +554,8 @@ Vector L2ProjectionGridTransfer::L2Projection::MixedMassEA(
       ho2lor.GetRow(iho, lor_els);
       int nref = ho2lor.RowSize(iho);
 
-      const FiniteElement &fe_ho = *fes_ho.GetFE(iho);
-      const FiniteElement &fe_lor = *fes_lor.GetFE(lor_els[0]);
+      const FiniteElement &fe_ho = *fes_ho_ea.GetFE(iho);
+      const FiniteElement &fe_lor = *fes_lor_ea.GetFE(lor_els[0]);
       ndof_ho = fe_ho.GetDof();
       ndof_lor = fe_lor.GetDof();
 
