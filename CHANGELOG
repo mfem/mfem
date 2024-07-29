@@ -33,6 +33,8 @@ Version 4.7.1 (development)
 
 - API change: in class GridFunction, 'fec' was renamed to 'fec_owned'.
 
+- The ExodusII reader now handles pyramid and wedge element types. Mixed meshes
+  are also supported.
 
 Version 4.7, released on May 7, 2024
 ====================================

@@ -221,7 +221,8 @@ public:
                        const CoarseFineTransformations& cf_tr);
 
       void ElemMixedMass(Geometry::Type geom, const FiniteElement& fe_ho,
-                         const FiniteElement& fe_lor, ElementTransformation* el_tr,
+                         const FiniteElement& fe_lor, ElementTransformation* tr_ho,
+                         ElementTransformation* tr_lor,
                          IntegrationPointTransformation& ip_tr,
                          DenseMatrix& M_mixed_el) const;
 
