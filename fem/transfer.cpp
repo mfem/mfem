@@ -2372,6 +2372,8 @@ std::unique_ptr<SparseMatrix>>
 
    // Compute M_LH and R
    real_t error = 0.0;
+   offsets.SetSize(nel_ho+1);
+   offsets[0] = 0;
    for (int iho = 0; iho < nel_ho; ++iho)
    {
       Array<int> lor_els;
@@ -2381,6 +2383,7 @@ std::unique_ptr<SparseMatrix>>
       Geometry::Type geom = mesh_ho->GetElementBaseGeometry(iho);
       const FiniteElement& fe_ho = *fes_ho.GetFE(iho);
       const FiniteElement& fe_lor = *fes_lor.GetFE(lor_els[0]);
+      offsets[iho+1] = offsets[iho] + fe_ho.GetDof()*fe_lor.GetDof()*nref;
 
       ElementTransformation *tr_ho = fes_ho.GetElementTransformation(iho);
 
