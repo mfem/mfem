@@ -129,11 +129,13 @@ protected:
    const Vector &lumpedmassmatrix;
    const int nDofs;
    const int numVar;
+   GroupCommunicator &gcomm;
 
    mutable Vector z;
+   mutable ParGridFunction u_gf, rhs_gf;
 
 public:
-   FE_Evolution(BilinearForm &M_, BilinearForm &K_, Vector &lumpedmassmatrix_, int numVar_);
+   FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, Vector &lumpedmassmatrix_, int numVar_);
 
    virtual void Mult(const Vector &x, Vector &y) const = 0;
    virtual double CalcGraphViscosity(const int i, const int j) const;
@@ -145,7 +147,7 @@ public:
 class LowOrder : public FE_Evolution
 {
    public:
-   LowOrder(BilinearForm &M_, BilinearForm &K_, Vector &lumpedmassmatrix_, int numVar_);
+   LowOrder(ParBilinearForm &M_, ParBilinearForm &K_, Vector &lumpedmassmatrix_, int numVar_);
    virtual void Mult(const Vector &x, Vector &y) const;
 
    virtual ~LowOrder();
@@ -154,7 +156,7 @@ class LowOrder : public FE_Evolution
 class HighOrderTargetScheme : public FE_Evolution
 {
    public:
-   HighOrderTargetScheme(BilinearForm &M_, BilinearForm &K_, Vector &lumpedmassmatrix_, int numVar_);
+   HighOrderTargetScheme(ParBilinearForm &M_, ParBilinearForm &K_, Vector &lumpedmassmatrix_, int numVar_);
    virtual void Mult(const Vector &x, Vector &y) const;
 
    virtual ~HighOrderTargetScheme();
@@ -163,17 +165,22 @@ class HighOrderTargetScheme : public FE_Evolution
 class MCL : public FE_Evolution
 {
    public:
-   MCL(BilinearForm &M_, BilinearForm &K_, Vector &lumpedmassmatrix_, int numVar_);
+   MCL(ParBilinearForm &M_, ParBilinearForm &K_, Vector &lumpedmassmatrix_, int numVar_);
    virtual void Mult(const Vector &x, Vector &y) const;
 
    virtual ~MCL();
 };
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(BilinearForm &M_, BilinearForm &K_, Vector &lumpedmassmatrix_, int numVar_)
-   : TimeDependentOperator(M_.FESpace()->GetTrueVSize() * numVar_),
-     M(M_.SpMat()), K(K_.SpMat()), lumpedmassmatrix(lumpedmassmatrix_), z(nDofs), nDofs(lumpedmassmatrix_.Size()), numVar(numVar_)
-{ }
+FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, Vector &lumpedmassmatrix_, int numVar_)
+   : TimeDependentOperator(M_.Height() * numVar_), u_gf(M_.ParFESpace()), rhs_gf(M_.ParFESpace()), gcomm(M_.ParFESpace()->GroupComm()),
+     M(M_.SpMat()), K(K_.SpMat()), lumpedmassmatrix(lumpedmassmatrix_), z(M_.Height()), nDofs(M_.Height()), numVar(numVar_)
+{ 
+   //cout << (nDofs == M_.ParFESpace()->GetTrueVSize()) << " ?? " << endl;
+   cout << M_.ParFESpace()->GetTrueVSize() << endl;
+   cout << lumpedmassmatrix.Size() << M_.Size() << K_.Size() << endl;
+   cout << "---------------------------------------------------------------------------" << endl;
+}
 
 double FE_Evolution::CalcGraphViscosity(const int i, const int j) const
 { 
@@ -183,14 +190,22 @@ double FE_Evolution::CalcGraphViscosity(const int i, const int j) const
 FE_Evolution::~FE_Evolution()
 { }
 
-LowOrder::LowOrder(BilinearForm &M_, BilinearForm &K_, Vector &lumpedmassmatrix_, int numVar_) 
+LowOrder::LowOrder(ParBilinearForm &M_, ParBilinearForm &K_, Vector &lumpedmassmatrix_, int numVar_) 
    : FE_Evolution(M_, K_, lumpedmassmatrix_, numVar_)
 { }
 
 void LowOrder::Mult(const Vector &x, Vector &y) const
 {  
-   MFEM_VERIFY(numVar * nDofs == x.Size(), "Vector size wrong!");
-   MFEM_VERIFY(y.Size() == numVar * nDofs, "Vector size wrong!");
+   MFEM_VERIFY(x.Size() == y.Size(), "Incompatible size! Wrong size!")
+   const int size = u_gf.ParFESpace()->GetVSize();
+   MFEM_VERIFY(size == x.Size(), "x not equal size");
+   //cout << __LINE__ << endl;
+   //u_gf = x;
+   //u_gf.ExchangeFaceNbrData();
+   //rhs_gf.ExchangeFaceNbrData();
+   //Vector u_ext = u_gf.FaceNbrData(); 
+   //GroupCommunicator &gcomm = fes->GetFESpace().GroupComm();
+
    const auto II = K.ReadI();
    const auto JJ = K.ReadJ();
    const auto KK = K.ReadData();
@@ -203,15 +218,31 @@ void LowOrder::Mult(const Vector &x, Vector &y) const
          const int begin = II[i];
          const int end = II[i+1];
 
-         y(i + n * nDofs) = 0.0;
+         rhs_gf(i) = 0.0;
          for(int j = begin; j < end; j++)
          {
             if( i == JJ[j] ) {continue;}
 
             dij = CalcGraphViscosity(i,JJ[j]);
-            y(i + n * nDofs) += (dij - KK[j]) * (x(JJ[j] + n * nDofs) - x(i + n * nDofs));
+            rhs_gf(i) += (dij - KK[j]) * (x(JJ[j] + n * nDofs) - x(i + n * nDofs));
          }
-         y(i + n * nDofs) /= lumpedmassmatrix(i); 
+      }
+      rhs_gf.ExchangeFaceNbrData();
+      Vector before = rhs_gf;
+      Array<double> rhs_array(rhs_gf.GetData(), rhs_gf.Size());
+      gcomm.Reduce<double>(rhs_array, GroupCommunicator::Sum);
+      gcomm.Bcast(rhs_array);
+      Vector after = rhs_gf;
+      after -= before;
+      if(!Mpi::Root())
+      {
+         cout << "   " << endl;
+         after.Print();
+         cout <<"------------------------------------"<< endl;
+      }
+      for(int i = 0; i < nDofs; i++)
+      {
+         y(i + n * nDofs) = rhs_array[i] / lumpedmassmatrix(i); 
       }
    }
 }
@@ -219,7 +250,7 @@ void LowOrder::Mult(const Vector &x, Vector &y) const
 LowOrder::~LowOrder()
 { }
 
-HighOrderTargetScheme::HighOrderTargetScheme(BilinearForm &M_, BilinearForm &K_, Vector &lumpedmassmatrix_, int numVar_) 
+HighOrderTargetScheme::HighOrderTargetScheme(ParBilinearForm &M_, ParBilinearForm &K_, Vector &lumpedmassmatrix_, int numVar_) 
    : FE_Evolution(M_, K_, lumpedmassmatrix_, numVar_)
 { }
 
@@ -271,7 +302,7 @@ void HighOrderTargetScheme::Mult(const Vector &x, Vector &y) const
 HighOrderTargetScheme::~HighOrderTargetScheme()
 { }
 
-MCL::MCL(BilinearForm &M_, BilinearForm &K_, Vector &lumpedmassmatrix_, int numVar_) 
+MCL::MCL(ParBilinearForm &M_, ParBilinearForm &K_, Vector &lumpedmassmatrix_, int numVar_) 
    : FE_Evolution(M_, K_, lumpedmassmatrix_, numVar_)
 { }
 
@@ -444,20 +475,24 @@ int main(int argc, char *argv[])
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
    args.Parse();
-   if (!args.Good())
+
+   if ( Mpi::Root())
    {
-      args.PrintUsage(cout);
-      return 1;
+      if (!args.Good())
+      {
+         args.PrintUsage(cout);
+         return 1;
+      }
+      args.PrintOptions(cout);
    }
-   args.PrintOptions(cout);
 
    Device device(device_config);
-   device.Print();
+   if (Mpi::Root()) { device.Print(); }
 
    // 2. Read the mesh from the given mesh file. We can handle geometrically
    //    periodic meshes in this code.
-   Mesh mesh(mesh_file, 1, 1);
-   int dim = mesh.Dimension();
+   Mesh *mesh = new Mesh(mesh_file, 1, 1);
+   int dim = mesh->Dimension();
 
    // 3. Define the ODE solver used for time integration. Several explicit
    //    Runge-Kutta methods are available.
@@ -472,7 +507,10 @@ int main(int argc, char *argv[])
       case 6: ode_solver = new RK6Solver; break;
 
       default:
-         cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
+         if (Mpi::Root())
+         {
+            cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
+         }
          return 3;
    }
 
@@ -482,13 +520,20 @@ int main(int argc, char *argv[])
    //    a (piecewise-polynomial) high-order mesh.
    for (int lev = 0; lev < ref_levels; lev++)
    {
-      mesh.UniformRefinement();
+      mesh->UniformRefinement();
    }
-   if (mesh.NURBSext)
+   if (mesh->NURBSext)
    {
-      mesh.SetCurvature(max(order, 1));
+      mesh->SetCurvature(max(order, 1));
    }
-   mesh.GetBoundingBox(bb_min, bb_max, max(order, 1));
+   mesh->GetBoundingBox(bb_min, bb_max, max(order, 1));
+
+   ParMesh pmesh(MPI_COMM_WORLD, *mesh);
+   delete mesh;
+   //for (int lev = 0; lev < par_ref_levels; lev++)
+   //{
+   //   pmesh.UniformRefinement();
+   //}
 
    // 5. Define the discontinuous DG finite element space of the given
    //    polynomial order on the refined mesh.
@@ -499,12 +544,20 @@ int main(int argc, char *argv[])
 
       default: numVar = 1; break; // scalar
    }
+
    H1_FECollection fec(order, dim, BasisType::Positive);
-   FiniteElementSpace fes(&mesh, &fec);
-   FiniteElementSpace vfes(&mesh, &fec, numVar);
+   ParFiniteElementSpace fes(&pmesh, &fec);
+   ParFiniteElementSpace vfes(&pmesh, &fec, numVar);
+   fes.ExchangeFaceNbrData();
+   vfes.ExchangeFaceNbrData();
 
-   cout << "Number of unknowns: " << fes.GetVSize() << endl;
+    
+   auto global_vSize = vfes.GlobalTrueVSize();
 
+   if (Mpi::Root())
+   {
+      cout << "Number of unknowns: " << global_vSize << endl;
+   }
    // 6. Set up and assemble the bilinear and linear forms corresponding to the
    //    DG discretization. The DGTraceIntegrator involves integrals over mesh
    //    interior faces.
@@ -512,9 +565,13 @@ int main(int argc, char *argv[])
    //FunctionCoefficient inflow(inflow_function);
    VectorFunctionCoefficient u0(numVar, u0_function);
 
-   BilinearForm m(&fes);
-   BilinearForm k(&fes);
-   BilinearForm lumped_m(&fes);
+   ParBilinearForm m(&fes);
+   ParBilinearForm k(&fes);
+   ParBilinearForm lumped_m(&fes);
+
+   //m.KeepNbrBlock(true);
+   //k.KeepNbrBlock(true);
+   lumped_m.KeepNbrBlock(true);
 
    if (pa)
    {
@@ -536,7 +593,9 @@ int main(int argc, char *argv[])
    //constexpr real_t alpha = - 1.0;
    //k.AddDomainIntegrator(new TransposeIntegrator(new ConvectionIntegrator(velocity, alpha)));
    k.AddDomainIntegrator(new ConvectionIntegrator(velocity));
-   //k.AddInteriorFaceIntegrator(new NonconservativeDGTraceIntegrator(velocity, alpha));
+   //k.AddInteriorFaceIntegrator(new ConvectionIntegrator(velocity));
+   //k.AddInteriorFaceIntegrator(new NonconservativeDGTraceIntegrator(velocity, 0.0));
+   //m.AddInteriorFaceIntegrator(new NonconservativeDGTraceIntegrator(velocity, 0.0));
    //k.AddBdrFaceIntegrator(
    //   new NonconservativeDGTraceIntegrator(velocity, alpha));
 
@@ -544,31 +603,47 @@ int main(int argc, char *argv[])
    //b.AddBdrFaceIntegrator(
    //   new BoundaryFlowIntegrator(inflow, velocity, alpha));
 
+   //lumped_m.KeepNbrBlock(true);
+
+   //HypreParMatrix* m_par = m.ParallelAssemble(); 
    m.Assemble();
    lumped_m.Assemble();
    int skip_zeros = 0;
    k.Assemble(skip_zeros);
-   //b.Assemble();
+   //HypreParMatrix* k_par = k.ParallelAssemble();
    m.Finalize();
    lumped_m.Finalize();
    k.Finalize(skip_zeros);
 
-   Vector lumpedmassmatrix(fes.GetVSize());
+   //HypreParMatrix* m_par = m.ParallelAssemble(); 
+   //HypreParMatrix* k_par = k.ParallelAssemble();
+
+   Vector lumpedmassmatrix;//(fes.GetTrueVSize());
    lumped_m.SpMat().GetDiag(lumpedmassmatrix);
 
+   //MFEM_ABORT("")
    // 7. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
    //    GLVis visualization.
-   GridFunction u(&vfes);
+   ParGridFunction u(&vfes);
    u.ProjectCoefficient(u0);
-
    {
-      ofstream omesh("output/linadv.mesh");
+      ostringstream mesh_name, sol_name;
+      mesh_name << "ex9-mesh." << setfill('0') << setw(6) << myid;
+      sol_name << "ex9-init." << setfill('0') << setw(6) << myid;
+      ofstream omesh(mesh_name.str().c_str());
       omesh.precision(precision);
-      mesh.Print(omesh);
-      ofstream osol("output/linadv-init.gf");
+      pmesh.Print(omesh);
+      ofstream osol(sol_name.str().c_str());
       osol.precision(precision);
       u.Save(osol);
+
+      //ofstream omesh("output/linadv.mesh");
+      //omesh.precision(precision);
+      //pmesh.Print(omesh);
+      //ofstream osol("output/linadv-init.gf");
+      //osol.precision(precision);
+      //u.Save(osol);
    }
 
    // Create data collection for solution output: either VisItDataCollection for
@@ -579,14 +654,14 @@ int main(int argc, char *argv[])
       if (binary)
       {
 #ifdef MFEM_USE_SIDRE
-         dc = new SidreDataCollection("Example9", &mesh);
+         dc = new SidreDataCollection("Example9", &pmesh);
 #else
          MFEM_ABORT("Must build with MFEM_USE_SIDRE=YES for binary output.");
 #endif
       }
       else
       {
-         dc = new VisItDataCollection("Example9", &mesh);
+         dc = new VisItDataCollection("Example9", &pmesh);
          dc->SetPrecision(precision);
       }
       dc->RegisterField("solution", &u);
@@ -598,7 +673,7 @@ int main(int argc, char *argv[])
    ParaViewDataCollection *pd = NULL;
    if (paraview)
    {
-      pd = new ParaViewDataCollection("Example9", &mesh);
+      pd = new ParaViewDataCollection("Example9", &pmesh);
       pd->SetPrefixPath("ParaView");
       pd->RegisterField("solution", &u);
       pd->SetLevelsOfDetail(order);
@@ -616,16 +691,20 @@ int main(int argc, char *argv[])
       int  visport   = 19916;
       sout.open(vishost, visport);
       if (!sout)
-      {
-         cout << "Unable to connect to GLVis server at "
-              << vishost << ':' << visport << endl;
+      {  
          visualization = false;
-         cout << "GLVis visualization disabled.\n";
+         if(Mpi::Root())
+         {
+            cout << "Unable to connect to GLVis server at "
+              << vishost << ':' << visport << endl;
+              cout << "GLVis visualization disabled.\n";
+         }
       }
       else
       {
+         sout << "parallel " << num_procs << " " << myid << "\n";
          sout.precision(precision);
-         sout << "solution\n" << mesh << u;
+         sout << "solution\n" << pmesh << u;
          sout << "keys mcljUUUUU\n";
          if(dim == 1)
          {
@@ -638,10 +717,15 @@ int main(int argc, char *argv[])
          sout << "window_geometry "
             << 0 << " " << 0 << " " << 1080 << " " << 1080 << "\n";
          sout << flush;
-         cout << "GLVis visualization not paused."
+         if(Mpi::Root())
+         {
+            cout << "GLVis visualization not paused."
               << " Press space (in the GLVis window) to pause it.\n";
+         }
+         
       }
    }
+   
 
    // 8. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
@@ -671,11 +755,15 @@ int main(int argc, char *argv[])
 
       if (done || ti % vis_steps == 0)
       {
-         cout << "time step: " << ti << ", time: " << t << endl;
+         if(Mpi::Root())
+         {
+            cout << "time step: " << ti << ", time: " << t << endl;
+         }
 
          if (visualization)
          {
-            sout << "solution\n" << mesh << u << flush;
+            sout << "parallel " << num_procs << " " << myid << "\n";
+            sout << "solution\n" << pmesh << u << flush;
          }
 
          if (visit)
