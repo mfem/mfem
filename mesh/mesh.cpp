@@ -5112,6 +5112,7 @@ void Mesh::MakeRefined_(Mesh &orig_mesh, const Array<int> &ref_factors,
          }
 
          Embedding &emb = CoarseFineTr.embeddings[el_fine];
+         emb.geom = geom;
          emb.parent = el_coarse;
          emb.matrix = offset + j;
          ++el_fine;
