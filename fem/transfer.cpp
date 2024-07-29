@@ -1888,7 +1888,8 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
          Operator *Pt_lor = new TransposeOperator(P_lor);
          RML_inv.SetSize(pfes_lor_scalar->GetTrueVSize());
          GetTDofs(*pfes_lor_scalar, ML_inv_ea, RML_inv);
-         ML_inv_vea.reset(new H1SpaceLumpedMassOperator(pfes_ho_scalar, pfes_lor_scalar, RML_inv));
+         ML_inv_vea.reset(new H1SpaceLumpedMassOperator(pfes_ho_scalar, pfes_lor_scalar,
+                                                        RML_inv));
          M_LH_vea.reset(new TripleProductOperator(Pt_lor, M_LH_local_op, P_ho, false,
                                                   false, false));
 
@@ -1898,7 +1899,8 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
       }
       else if (P_ho)
       {
-         ML_inv_vea.reset(new H1SpaceLumpedMassOperator(pfes_ho_scalar, pfes_lor_scalar, ML_inv_ea));
+         ML_inv_vea.reset(new H1SpaceLumpedMassOperator(pfes_ho_scalar, pfes_lor_scalar,
+                                                        ML_inv_ea));
          M_LH_vea.reset(new ProductOperator(M_LH_local_op, P_ho, false, false));
 
          Vector RM_H(pfes_ho_scalar->GetTrueVSize());
@@ -1910,7 +1912,8 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
          Operator *Pt_lor = new TransposeOperator(P_lor);
          RML_inv.SetSize(pfes_lor_scalar->GetTrueVSize());
          GetTDofs(*pfes_lor_scalar, ML_inv_ea, RML_inv);
-         ML_inv_vea.reset(new H1SpaceLumpedMassOperator(pfes_ho_scalar, pfes_lor_scalar, RML_inv));
+         ML_inv_vea.reset(new H1SpaceLumpedMassOperator(pfes_ho_scalar, pfes_lor_scalar,
+                                                        RML_inv));
          M_LH_vea.reset(new ProductOperator(Pt_lor, M_LH_local_op, false, false));
          R_vea.reset(new ProductOperator(ML_inv_vea.get(), M_LH_vea.get(), false,
                                          false));
@@ -1919,7 +1922,8 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
       }
       else
       {
-         ML_inv_vea.reset(new H1SpaceLumpedMassOperator(pfes_ho_scalar, pfes_lor_scalar, ML_inv_ea));
+         ML_inv_vea.reset(new H1SpaceLumpedMassOperator(pfes_ho_scalar, pfes_lor_scalar,
+                                                        ML_inv_ea));
          M_LH_vea.reset(M_LH_local_op);
 
          precon_vea.reset(new OperatorJacobiSmoother(M_H, ess_tdof_list));
