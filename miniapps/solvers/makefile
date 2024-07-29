@@ -21,8 +21,9 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-BLOCK_SOLVERS_SRC = block-solvers.cpp darcy_solver.cpp bramble_pasciak.cpp \
- block_hybridization.cpp div_free_solver.cpp
+BLOCK_SOLVERS_SRC = block-solvers.cpp darcy_solver.cpp \
+                    bramble_pasciak.cpp block_hybridization.cpp \
+                    div_free_solver.cpp
 BLOCK_SOLVERS_OBJ = $(BLOCK_SOLVERS_SRC:.cpp=.o)
 
 SEQ_MINIAPPS = lor_solvers
@@ -52,7 +53,7 @@ plor_solvers.o: $(SRC)lor_mms.hpp
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $< -o $@ $(MFEM_LIBS)
 
 block-solvers: $(BLOCK_SOLVERS_OBJ)
-	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(BLOCK_SOLVERS_OBJ) $(MFEM_LIBS)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $^ $(MFEM_LIBS)
 
 %.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
