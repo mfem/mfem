@@ -705,16 +705,16 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
          obbox_t box;
          // construct obbox_t on the fly from data
          for (int d=0; d<sDIM; ++d) {
-            // box.c0[d]    = c[sDIM*el + d];
+            box.c0[d]    = c[sDIM*el + d];
             box.x[d].min = minBound[sDIM*el + d];
             box.x[d].max = maxBound[sDIM*el + d];
          }
 
-         // for (int d2=0; d2<sDIM2; ++d2) {
-         //    box.A[d2] = A[sDIM2*el + d2];
-         // }
+         for (int d2=0; d2<sDIM2; ++d2) {
+            box.A[d2] = A[sDIM2*el + d2];
+         }
 
-         if (obbox_axis_test(&box, x_i)>=0) {
+         if (obbox_test(&box, x_i)>=0) {
             //// findpts_local ////
             {
                const double *elx[sDIM];
