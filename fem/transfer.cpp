@@ -2533,7 +2533,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::LumpedMassInverse(
    if (P) { P->MultTranspose(ML_inv_full, ML_inv_true); }
    else { ML_inv_true = ML_inv_full; }
 
-   double *d_ML_inv_true = ML_inv_true.ReadWrite();
+   real_t *d_ML_inv_true = ML_inv_true.ReadWrite();
 
    mfem::forall(ML_inv_true.Size(), [=] MFEM_HOST_DEVICE (int i)
    {
