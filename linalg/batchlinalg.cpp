@@ -16,6 +16,7 @@
 #include "../general/forall.hpp"
 
 #if defined(MFEM_USE_CUDA)
+#include <cusolverDn.h>
 #define MFEM_cu_or_hip(stub) cu##stub
 #define MFEM_Cu_or_Hip(stub) Cu##stub
 #define MFEM_CU_or_HIP(stub) CU##stub
