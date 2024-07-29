@@ -4634,6 +4634,10 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    {
       ReadNURBSMesh(input, curved, read_gf);
    }
+   else if (mesh_type == "MFEM NURBS NC-patch mesh v1.0")
+   {
+     ReadNURBSMesh(input, curved, read_gf, false, true);  // TODO: spacing option.
+   }
    else if (mesh_type == "MFEM NURBS mesh v1.1")
    {
      ReadNURBSMesh(input, curved, read_gf, true);
@@ -6113,6 +6117,71 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
       // Terminate here upon failure after printing to have an idea of edge_to_knot.
       if (corrections > 0 ) {mfem_error("Mesh::LoadPatchTopo");}
    }
+}
+
+void Mesh::LoadNonconformingPatchTopo(std::istream &input,
+                                      Array<int> &edge_to_knot)
+{
+   SetEmpty();
+
+   // Read MFEM NURBS NC-patch mesh v1.0 format
+   int curved = 0;
+   int is_nc = 1;
+
+   ncmesh = new NCMesh(input, 10, curved, is_nc);
+
+   InitFromNCMesh(*ncmesh);
+
+   skip_comment_lines(input, '#');
+
+   string ident;
+   int inputNumOfEdges = -1;
+
+   input >> ident; // 'edges'
+   input >> inputNumOfEdges;
+
+   MFEM_VERIFY(NumOfEdges == inputNumOfEdges, "");
+
+   edge_to_knot.SetSize(NumOfEdges);
+   for (int j = 0; j < NumOfEdges; j++)
+   {
+      int v[2];
+      int knotID;
+      input >> knotID >> v[0] >> v[1];
+
+      for (int i=0; i<2; ++i)
+      {
+         v[i] = ncmesh->vertex_nodeId[v[i]];
+      }
+
+      // Find the edge that has vertices v[0], v[1].
+      int edge_j = -1;
+      // TODO: use a more efficient look-up.
+      Array<int> vert;
+      for (int i=0; i<NumOfEdges; ++i)
+      {
+         this->GetEdgeVertices(i, vert);
+
+         // TODO: just check the same ordering.
+         if ((vert[0] == v[0] && vert[1] == v[1]) ||
+             (vert[1] == v[0] && vert[0] == v[1]))
+         {
+            MFEM_VERIFY(edge_j == -1, "");
+            edge_j = i;
+         }
+      }
+
+      MFEM_VERIFY(edge_j >= 0, "");
+
+      if (v[0] > v[1])
+      {
+         knotID = -1 - knotID;
+      }
+      edge_to_knot[edge_j] = knotID;
+   }
+
+   FinalizeTopology();
+   CheckBdrElementOrientation(); // check and fix boundary element orientation
 }
 
 void XYZ_VectorFunction(const Vector &p, Vector &v)
@@ -11497,8 +11566,16 @@ void Mesh::PrintTopo(std::ostream &os, const Array<int> &e_to_k,
       PrintElement(boundary[i], os);
    }
 
+   PrintTopoEdges(os, e_to_k);
+}
+
+void Mesh::PrintTopoEdges(std::ostream &os, const Array<int> &e_to_k,
+                          bool vmap) const
+{
+   Array<int> vert;
+
    os << "\nedges\n" << NumOfEdges << '\n';
-   for (i = 0; i < NumOfEdges; i++)
+   for (int i = 0; i < NumOfEdges; i++)
    {
       edge_vertex->GetRow(i, vert);
       int ki = e_to_k[i];
@@ -11506,9 +11583,30 @@ void Mesh::PrintTopo(std::ostream &os, const Array<int> &e_to_k,
       {
          ki = -1 - ki;
       }
+
+      if (vmap)
+      {
+         for (int j=0; j<2; ++j)
+         {
+            vert[j] = ncmesh->vertex_nodeId[vert[j]];
+         }
+
+         if (e_to_k[i] < 0)
+         {
+            // Swap the entries of vert
+            const int s = vert[0];
+            vert[0] = vert[1];
+            vert[1] = s;
+         }
+      }
+
       os << ki << ' ' << vert[0] << ' ' << vert[1] << '\n';
    }
-   os << "\nvertices\n" << NumOfVertices << '\n';
+
+   if (!vmap)
+   {
+      os << "\nvertices\n" << NumOfVertices << '\n';
+   }
 }
 
 void Mesh::Save(const std::string &fname, int precision) const
@@ -14763,6 +14861,18 @@ Mesh *Extrude2D(Mesh *mesh, const int nz, const real_t sz)
       }
    }
    return mesh3d;
+}
+
+bool Mesh::Conforming() const
+{
+   if (NURBSext)
+   {
+      return NURBSext->Conforming();
+   }
+   else
+   {
+      return ncmesh == NULL;
+   }
 }
 
 #ifdef MFEM_DEBUG

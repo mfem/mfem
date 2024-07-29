@@ -341,7 +341,7 @@ protected:
    void ReadXML_VTKMesh(std::istream &input, int &curved, int &read_gf,
                         bool &finalize_topo, const std::string &xml_prefix="");
    void ReadNURBSMesh(std::istream &input, int &curved, int &read_gf,
-                      bool spacing=false);
+                      bool spacing=false, bool nc=false);
    void ReadInlineMesh(std::istream &input, bool generate_edges = false);
    void ReadGmshMesh(std::istream &input, int &curved, int &read_gf);
 
@@ -474,6 +474,9 @@ protected:
    /// Read NURBS patch/macro-element mesh
    void LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot);
 
+   void LoadNonconformingPatchTopo(std::istream &input,
+                                   Array<int> &edge_to_knot);
+
    void UpdateNURBS();
 
    /** @brief Write the beginning of a NURBS mesh to @a os, specifying the NURBS
@@ -487,6 +490,9 @@ protected:
    void PrintTopo(std::ostream &os, const Array<int> &e_to_k,
                   const int version,
                   const std::string &comment = "") const;
+
+   void PrintTopoEdges(std::ostream &out, const Array<int> &e_to_k,
+                       bool vmap=false) const;
 
    /// Used in GetFaceElementTransformations (...)
    void GetLocalPtToSegTransformation(IsoparametricTransformation &,
@@ -2261,8 +2267,8 @@ public:
        (default) or nonconforming. */
    void EnsureNCMesh(bool simplices_nonconforming = false);
 
-   bool Conforming() const { return ncmesh == NULL; }
-   bool Nonconforming() const { return ncmesh != NULL; }
+   bool Conforming() const;
+   bool Nonconforming() const { return !Conforming(); }
 
    /** Return fine element transformations following a mesh refinement.
        Space uses this to construct a global interpolation matrix. */
