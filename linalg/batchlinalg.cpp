@@ -99,8 +99,8 @@ void BatchSolver::AssignMatrices(const Vector &vMatrixBatch,
    const int totalSize = size * size * num_matrices;
    LUMatrixBatch_.SetSize(size, size,
                           num_matrices, d_mt_);
-   double *d_LUMatrixBatch      = LUMatrixBatch_.Write();
-   const double *d_vMatrixBatch = vMatrixBatch.Read();
+   real_t *d_LUMatrixBatch      = LUMatrixBatch_.Write();
+   const real_t *d_vMatrixBatch = vMatrixBatch.Read();
 
    mfem::forall(totalSize, [=] MFEM_HOST_DEVICE (int i) { d_LUMatrixBatch[i] = d_vMatrixBatch[i]; });
 
@@ -129,8 +129,8 @@ void BatchSolver::GetInverse(DenseTensor &InvMatBatch) const
       MFEM_VERIFY(InvMatrixBatch_.TotalSize() == InvMatBatch.TotalSize(),
                   "Internal error, InvMatrixBatch_.TotalSize() != InvMatBatch.TotalSize()");
 
-      const double *d_M_inv = InvMatrixBatch_.Read();
-      double *d_out         = InvMatBatch.Write();
+      const real_t *d_M_inv = InvMatrixBatch_.Read();
+      real_t *d_out         = InvMatBatch.Write();
 
       mfem::forall(InvMatrixBatch_.TotalSize(), [=] MFEM_HOST_DEVICE (int i) { d_out[i] = d_M_inv[i]; });
    }
@@ -189,10 +189,10 @@ void BatchSolver::ComputeInverse(DenseTensor &InvMatBatch) const
    if (Device::Allows(Backend::DEVICE_MASK))
    {
 
-      Array<double *> inv_ptr_array(num_matrices_, d_mt_);
+      Array<real_t *> inv_ptr_array(num_matrices_, d_mt_);
 
-      double *inv_ptr_base = InvMatBatch.Write();
-      double **d_inv_ptr_array = inv_ptr_array.Write();
+      real_t *inv_ptr_base = InvMatBatch.Write();
+      real_t **d_inv_ptr_array = inv_ptr_array.Write();
       const int matrix_size    = matrix_size_;
       mfem::forall(num_matrices_, [=] MFEM_HOST_DEVICE (int i)
       {
@@ -232,13 +232,13 @@ void BatchSolver::SolveLU(const Vector &b, Vector &x) const
 #if defined(MFEM_USE_CUDA_OR_HIP)
    if (Device::Allows(Backend::DEVICE_MASK))
    {
-      Array<double *> vector_array(num_matrices_, d_mt_);
+      Array<real_t *> vector_array(num_matrices_, d_mt_);
 
-      double *x_ptr_base = x.ReadWrite();
+      real_t *x_ptr_base = x.ReadWrite();
 
-      double alpha = 1.0;
+      real_t alpha = 1.0;
 
-      double **d_vector_array = vector_array.Write();
+      real_t **d_vector_array = vector_array.Write();
       const int matrix_size   = matrix_size_;
       mfem::forall(num_matrices_, [=] MFEM_HOST_DEVICE (int i) { d_vector_array[i] = x_ptr_base + i * matrix_size; });
 
@@ -300,9 +300,9 @@ void ApplyBlkMult(const DenseTensor &Mat, const Vector &x,
 #if 0 //defined(MFEM_USE_CUDA_OR_HIP)
    if (Device::Allows(Backend::DEVICE_MASK))
    {
-      Array<double *> Mat_ptr(NE);
-      Array<double *> x_ptr(NE);
-      Array<double *> y_ptr(NE);
+      Array<real_t *> Mat_ptr(NE);
+      Array<real_t *> x_ptr(NE);
+      Array<real_t *> y_ptr(NE);
       for (int k = 0; k < NE; k++)
       {
          Mat_ptr[k] = &const_cast<DenseTensor&>(Mat).ReadWrite()[ndof*ndof*k];
@@ -310,8 +310,8 @@ void ApplyBlkMult(const DenseTensor &Mat, const Vector &x,
          y_ptr[k] = &y.ReadWrite()[ndof*k];
       }
 
-      double alpha = 1.0;
-      double beta = 0.0;
+      real_t alpha = 1.0;
+      real_t beta = 0.0;
       MFEM_cu_or_hip(blasStatus_t)
       status = MFEM_cu_or_hip(blasDgemvBatched)(DeviceBlasHandle(),
                                                 MFEM_CU_or_HIP(BLAS_OP_N),
@@ -341,7 +341,7 @@ void ApplyBlkMult(const DenseTensor &Mat, const Vector &x,
          const int e = tid / ndof;
 
          {
-            double dot = 0;
+            real_t dot = 0;
             for (int r = 0; r < ndof; ++r)
             {
                dot += Me(r, c, e) * X(r, e);
@@ -369,10 +369,10 @@ void BatchSolver::Setup()
    lu_ptr_array_.SetSize(num_matrices_, d_mt_);
 
    // TODO: can this just be a Write?
-   double *lu_ptr_base = LUMatrixBatch_.ReadWrite();
+   real_t *lu_ptr_base = LUMatrixBatch_.ReadWrite();
 
    const int matrix_size   = matrix_size_;
-   double **d_lu_ptr_array = lu_ptr_array_.Write();
+   real_t **d_lu_ptr_array = lu_ptr_array_.Write();
 
    mfem::forall(num_matrices_, [=] MFEM_HOST_DEVICE (int i)
    {
