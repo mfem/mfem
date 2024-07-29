@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "transfer.hpp"
+#include "bilinearform.hpp"
 #include "pbilinearform.hpp"
 #include "../general/forall.hpp"
 
