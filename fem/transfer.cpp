@@ -1425,11 +1425,12 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
    }
    std::tie(R_mat, M_LH_mat) = ComputeSparseRAndM_LH(GetM_LHError, GetML_invError);
 
-   FiniteElementSpace fes_ho_scalar(fes_ho.GetMesh(), fes_ho.FEColl(), 1);
-   FiniteElementSpace fes_lor_scalar(fes_lor.GetMesh(), fes_lor.FEColl(), 1);
+   //Shadows variables
+   FiniteElementSpace fes_ho_scalar_local(fes_ho.GetMesh(), fes_ho.FEColl(), 1);
+   FiniteElementSpace fes_lor_scalar_local(fes_lor.GetMesh(), fes_lor.FEColl(), 1);
 
-   const SparseMatrix *P_ho = fes_ho_scalar.GetConformingProlongation();
-   const SparseMatrix *P_lor = fes_lor_scalar.GetConformingProlongation();
+   const SparseMatrix *P_ho = fes_ho_scalar_local.GetConformingProlongation();
+   const SparseMatrix *P_lor = fes_lor_scalar_local.GetConformingProlongation();
 
    if (P_ho || P_lor)
    {
