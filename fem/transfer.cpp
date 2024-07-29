@@ -1481,28 +1481,29 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
    std::tie(R, M_LH) = ComputeSparseRAndM_LH();
 
 
-   ParFiniteElementSpace pfes_ho_scalar(pfes_ho.GetParMesh(),
-                                        pfes_ho.FEColl(), 1);
-   ParFiniteElementSpace pfes_lor_scalar(pfes_lor.GetParMesh(),
-                                         pfes_lor.FEColl(), 1);
+   //Shadows a variable...
+   ParFiniteElementSpace pfes_ho_scalar_local(pfes_ho.GetParMesh(),
+                                              pfes_ho.FEColl(), 1);
+   ParFiniteElementSpace pfes_lor_scalar_local(pfes_lor.GetParMesh(),
+                                               pfes_lor.FEColl(), 1);
 
    HypreParMatrix R_local = HypreParMatrix(pfes_ho.GetComm(),
-                                           pfes_lor_scalar.GlobalVSize(),
-                                           pfes_ho_scalar.GlobalVSize(),
-                                           pfes_lor_scalar.GetDofOffsets(),
-                                           pfes_ho_scalar.GetDofOffsets(),
+                                           pfes_lor_scalar_local.GlobalVSize(),
+                                           pfes_ho_scalar_local.GlobalVSize(),
+                                           pfes_lor_scalar_local.GetDofOffsets(),
+                                           pfes_ho_scalar_local.GetDofOffsets(),
                                            static_cast<SparseMatrix*>(R.get()));
    HypreParMatrix M_LH_local = HypreParMatrix(pfes_ho.GetComm(),
-                                              pfes_lor_scalar.GlobalVSize(),
-                                              pfes_ho_scalar.GlobalVSize(),
-                                              pfes_lor_scalar.GetDofOffsets(),
-                                              pfes_ho_scalar.GetDofOffsets(),
+                                              pfes_lor_scalar_local.GlobalVSize(),
+                                              pfes_ho_scalar_local.GlobalVSize(),
+                                              pfes_lor_scalar_local.GetDofOffsets(),
+                                              pfes_ho_scalar_local.GetDofOffsets(),
                                               static_cast<SparseMatrix*>(M_LH.get()));
 
-   HypreParMatrix *R_mat = RAP(pfes_lor_scalar.Dof_TrueDof_Matrix(),
-                               &R_local, pfes_ho_scalar.Dof_TrueDof_Matrix());
-   HypreParMatrix *M_LH_mat = RAP(pfes_lor_scalar.Dof_TrueDof_Matrix(),
-                                  &M_LH_local, pfes_ho_scalar.Dof_TrueDof_Matrix());
+   HypreParMatrix *R_mat = RAP(pfes_lor_scalar_local.Dof_TrueDof_Matrix(),
+                               &R_local, pfes_ho_scalar_local.Dof_TrueDof_Matrix());
+   HypreParMatrix *M_LH_mat = RAP(pfes_lor_scalar_local.Dof_TrueDof_Matrix(),
+                                  &M_LH_local, pfes_ho_scalar_local.Dof_TrueDof_Matrix());
 
    std::unique_ptr<HypreParMatrix> R_T(R_mat->Transpose());
    HypreParMatrix *RTxM_LH_mat = ParMult(R_T.get(), M_LH_mat, true);
