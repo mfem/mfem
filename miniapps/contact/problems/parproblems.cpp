@@ -629,10 +629,6 @@ HypreParMatrix * QPOptParContactProblem::lDuuc(const BlockVector & x, const Vect
 }
 
 
-// NOTE the linearization
-// J(ref) * d + g(ref) - slack
-// seems to work better than
-// J(ref) * (d - ref) + g(ref) - slack
 void QPOptParContactProblem::c(const BlockVector &x, Vector & y)
 {
    Vector g0; // g(dref) 
@@ -641,11 +637,11 @@ void QPOptParContactProblem::c(const BlockVector &x, Vector & y)
    // temp = d - xref (expansion)
    Vector temp(x.GetBlock(0).Size()); temp = 0.0;
    temp.Set(1.0, x.GetBlock(0)); 
-   // add or remove temp.Add(-1.0, xref) line to change between linearizations
    temp.Add(-1.0, xref); // displacement at previous time step  
+
    problem->GetJacobian()->Mult(temp, y); // J * (d - xref)
-   y.Add(1.0, g0); 
-   y.Add(-1.0, x.GetBlock(1));
+   y.Add(1.0, g0); // J * (d - xref) + g0 
+   y.Add(-1.0, x.GetBlock(1)); // J * (d - xref) + g0 - s
 }
 
 double QPOptParContactProblem::CalcObjective(const BlockVector & x)

@@ -280,6 +280,10 @@ int main(int argc, char *argv[])
    }
    else
    {
+      //lambda = 57.6923076923;
+      //mu = 38.4615384615;
+      //lambda = 0.499 / (1.499 * 0.002);
+      //mu = 1. / (2. * 1.499);
       lambda[0] = 0.499/(1.499*0.002);
       lambda[1] = 0.0;
       mu[0]     = 1. / (2. * 1.499);
@@ -345,7 +349,8 @@ int main(int argc, char *argv[])
       }
       else
       {
-         ess_values[2] = 1.0/1.4/nsteps;
+         ess_values[2] = 1.0 / 1.4  / nsteps;
+	      //ess_values[2] = 0.25 / nsteps;//1.0/1.4/nsteps;
          // ess_values[0] = -2.0/nsteps;
       }
       essbdr_attr = (testNo == 40) ? 1 : 2;
@@ -451,8 +456,9 @@ int main(int argc, char *argv[])
             ess_bdr[essbdr_attr-1] = 1;
             ess_values = 0.0;
             //ess_values[2] = 4.0 / 7.0 * pseudotime;
-	    ess_values[2] = 1.0/1.4 * pseudotime;
-            prob->SetDisplacementDirichletData(ess_values, ess_bdr);
+	    //ess_values[2] = 0.25 * pseudotime; //1.0/1.4 * pseudotime;
+            ess_values[2] = 1.0 / 1.4 * pseudotime;
+	    prob->SetDisplacementDirichletData(ess_values, ess_bdr);
          }
          else if (testNo == 41)
          {
@@ -516,9 +522,18 @@ int main(int argc, char *argv[])
          int gndofs = prob->GetGlobalNumDofs();
          int gnconstraints = contact.GetGlobalNumConstraints();
    
-	 std::ofstream xfStream;
-	 std::ostringstream xf_file_name;
-	 xf_file_name << "data/xf_" << i << ".dat";
+	 //std::ofstream xfStream;
+	 //std::ostringstream xf_file_name;
+	 //xf_file_name << "data/xf_" << i << ".dat";
+	 //if (Mpi::Root())
+	 //{
+	 //   xfStream.open(xf_file_name.str(), ios::out | ios::trunc);
+	 //   for (int ii = 0; ii < xf.Size(); ii++)
+	 //   {
+	 //      xfStream << xf(ii) << "\n";
+	 //   }
+	 //   xfStream.close();
+	 //}
    //if (Mpi::Root)
    //{
    //   numConstraintsStream.open(numConstraints_file_name.str(), ios::out | ios::trunc);
