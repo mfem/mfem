@@ -228,7 +228,7 @@ int main(int argc, char *argv[])
                                         MemoryType::HOST);
    }
 
-   gt->UseDevice(false);
+   gt->UseDevice(true);
    gt->VerifySolution(true);
    // printf("Get past set device and verify \n");
 
