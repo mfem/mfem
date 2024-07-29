@@ -87,8 +87,9 @@ void DifferentiableOperator<kernels_tuple,
    }
 
    // Allocate memory for fields on quadrature points
-   auto input_qp_mem = create_input_qp_memory(num_qp, kernel.inputs,
-                                              std::make_index_sequence<kernel.num_kinputs> {});
+   auto input_qp_global_mem = create_input_qp_memory(num_qp, num_entities,
+                                                     kernel.inputs,
+                                                     std::make_index_sequence<kernel.num_kinputs> {});
 
    auto input_dtq_ops = create_dtq_operators<entity_t>(kernel.inputs, dtqmaps,
                                                        kinput_to_field);
@@ -109,7 +110,7 @@ void DifferentiableOperator<kernels_tuple,
 
    func = [this, kernel, num_entities, num_qp, input_dtq_ops,
                  output_dtq_ops, residual_size_on_qp,
-                 input_qp_mem, kinput_to_field, koutput_to_field,
+                 input_qp_global_mem, kinput_to_field, koutput_to_field,
                  output_fop, R, geometric_factors, f_qp, input_fops, output_fops]
    (Vector &ye_mem) mutable
    {
@@ -127,8 +128,7 @@ void DifferentiableOperator<kernels_tuple,
 
       // Fields interpolated to the quadrature points in the order of
       // kernel function arguments
-      auto input_qp = map_inputs_to_memory(input_qp_mem, num_qp,
-                                           kernel.inputs,
+      auto input_qp_global = wrap_input_memory(input_qp_global_mem, num_qp, num_entities, kernel.inputs,
       std::make_index_sequence<kernel.num_kinputs> {});
 
       constexpr int fixed_output_idx = 0;
@@ -147,6 +147,9 @@ void DifferentiableOperator<kernels_tuple,
       mfem::forall(num_entities, [=] MFEM_HOST_DEVICE (int e)
       {
          auto kernel_args = decay_tuple<typename kernel_t::kf_param_ts> {};
+
+         auto input_qp = get_local_input_qp(input_qp_global, e,
+                                            std::make_index_sequence<kernel.num_kinputs> {});
 
          map_fields_to_quadrature_data(
             input_qp, e, wrapped_fields_e,

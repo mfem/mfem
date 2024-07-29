@@ -812,20 +812,21 @@ create_descriptors_to_fields_map(
 }
 
 template <typename input_t, std::size_t... i>
-std::array<DeviceTensor<2>, sizeof...(i)> map_inputs_to_memory(
-   std::array<Vector, sizeof...(i)> &input_qp_mem, int num_qp,
+std::array<DeviceTensor<3>, sizeof...(i)> wrap_input_memory(
+   std::array<Vector, sizeof...(i)> &input_qp_mem, int num_qp, int num_entities,
    const input_t &inputs, std::index_sequence<i...>)
 {
-   return {DeviceTensor<2>(input_qp_mem[i].ReadWrite(), serac::get<i>(inputs).size_on_qp, num_qp) ...};
+   return {DeviceTensor<3>(input_qp_mem[i].Write(), serac::get<i>(inputs).size_on_qp, num_qp, num_entities) ...};
 }
 
 template <typename input_t, std::size_t... i>
 std::array<Vector, sizeof...(i)> create_input_qp_memory(
    int num_qp,
+   int num_entities,
    input_t &inputs,
    std::index_sequence<i...>)
 {
-   return {Vector(serac::get<i>(inputs).size_on_qp * num_qp)...};
+   return {Vector(serac::get<i>(inputs).size_on_qp * num_qp * num_entities)...};
 }
 
 struct DofToQuadMap
@@ -1065,6 +1066,21 @@ void map_fields_to_quadrature_data_conditional(
                                              serac::get<i>(fops), integration_weights, geometric_factors,
                                              conditions[i]),
     ...);
+}
+
+template <std::size_t... i>
+MFEM_HOST_DEVICE inline
+std::array<DeviceTensor<2>, sizeof...(i)> get_local_input_qp(
+   const std::array<DeviceTensor<3>, sizeof...(i)> &input_qp_global, int e,
+   std::index_sequence<i...>)
+{
+   return
+   {
+      DeviceTensor<2>(
+         &input_qp_global[i](0, 0, e),
+         input_qp_global[i].GetShape()[0],
+         input_qp_global[i].GetShape()[1]) ...
+   };
 }
 
 template<size_t N, size_t... I>
