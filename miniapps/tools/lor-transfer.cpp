@@ -70,10 +70,10 @@ real_t compute_mass(FiniteElementSpace *, real_t, VisItDataCollection &,
 int main(int argc, char *argv[])
 {
    // Parse command-line options.
-   const char *mesh_file = "../../data/star.mesh";  //inline-quad.mesh";  //
+   const char *mesh_file = "../../data/star.mesh";
    int order = 3;
    int lref = order+1;
-   int lorder = 1;
+   int lorder = 0;
    bool vis = true;
    bool useH1 = false;
    bool use_pointwise_transfer = false;
@@ -107,7 +107,7 @@ int main(int argc, char *argv[])
    int dim = mesh.Dimension();
 
    // Create the low-order refined mesh
-   int basis_lor = BasisType::GaussLobatto;
+   int basis_lor = BasisType::GaussLobatto; // BasisType::ClosedUniform;
    Mesh mesh_lor = Mesh::MakeRefined(mesh, lref, basis_lor);
 
    // Create spaces
