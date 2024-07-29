@@ -1849,7 +1849,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
    //ParFiniteElementSpace
    //ParFiniteElementSpace &my_pfes_ho = const_cast<ParFiniteElementSpace &>(pfes_ho);
 
-   const FiniteElement& fe_scalar_ho = *pfes_ho_scalar->GetFE(0);
+   //const FiniteElement& fe_scalar_ho = *pfes_ho_scalar->GetFE(0);
 
    BilinearForm pMho(pfes_ho_scalar);
    pMho.SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -1859,8 +1859,8 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
 
    //Processor local ranked local lumped Mass
    Vector ones_ho(pMho.Width()); ones_ho = 1.0;
-   const FiniteElement& fe_ho = *pfes_ho.GetFE(0);
-   const int nedof_ho = fe_ho.GetDof();
+   //const FiniteElement& fe_ho = *pfes_ho.GetFE(0);
+   //const int nedof_ho = fe_ho.GetDof();
    M_H = 0.0;
    pMho.Mult(ones_ho, M_H);
 
