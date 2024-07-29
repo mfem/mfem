@@ -22,6 +22,8 @@
 #include <limits>
 #include <ostream>
 #include <string>
+/* HDG */
+//#include "lininteg.hpp"
 
 namespace mfem
 {
@@ -281,6 +283,12 @@ public:
                            DenseMatrix &vals, DenseMatrix &tr) const;
    ///@}
 
+   /* HDG */
+   double GetValueFacet(FaceElementTransformations &T,
+                        const IntegrationPoint &ip,
+                        int vdim = 1,
+                        Vector *tr = NULL) const;
+
    void GetLaplacians(int i, const IntegrationRule &ir, Vector &laps,
                       int vdim = 1) const;
 
@@ -384,6 +392,14 @@ public:
        projection matrix. */
    void ProjectGridFunction(const GridFunction &src);
 
+   /* HDG */
+   void ProjectCoefficientSkeleton(Coefficient &coeff);
+   void ProjectCoefficientSkeleton(VectorCoefficient &vcoeff);
+   //   void ProjectCoefficientSkeletonBdr(Coefficient &coeff,
+   //       Array<int> &bdr_attr_marker);
+   void ProjectCoefficientSkeletonBdr(Coefficient &coeff);
+   void ProjectCoefficientSkeletonBdr(VectorCoefficient &vcoeff);
+
    /** @brief Project @a coeff Coefficient to @a this GridFunction. The
        projection computation depends on the choice of the FiniteElementSpace
        #fes. Note that this is usually interpolation at the degrees of freedom
@@ -456,6 +472,10 @@ protected:
                                            const Array<int> &bdr_attr,
                                            Array<int> &values_counter);
 
+   /* HDG */
+   /* Compute the mean of a GridFunction */
+   double ComputeMean(const IntegrationRule *irs[]) const;
+
    // Complete the computation of averages; called e.g. after
    // AccumulateAndCountZones().
    void ComputeMeans(AvgType type, Array<int> &zones_per_vdof);
@@ -520,6 +540,16 @@ public:
    virtual real_t ComputeL2Error(VectorCoefficient &exsol,
                                  const IntegrationRule *irs[] = NULL,
                                  const Array<int> *elems = NULL) const;
+
+   double ComputeL2ErrorMinusMean(Coefficient &exsol,
+                                  const double mean,
+                                  const IntegrationRule *irs[] = NULL) const
+   { return ComputeLpErrorMinusMean(2.0, exsol, mean, NULL, irs); }
+
+   double ComputeLpErrorMinusMean(const double p, Coefficient &exsol,
+                                  const double mean,
+                                  Coefficient *weight = NULL,
+                                  const IntegrationRule *irs[] = NULL) const;
 
    /// Returns ||grad u_ex - grad u_h||_L2 for H1 or L2 elements
    virtual real_t ComputeGradError(VectorCoefficient *exgrad,
@@ -604,6 +634,10 @@ public:
    virtual real_t ComputeL1Error(VectorCoefficient &exsol,
                                  const IntegrationRule *irs[] = NULL) const
    { return ComputeLpError(1.0, exsol, NULL, NULL, irs); }
+
+   /* HDG */
+   double ComputeMeanLpError(const double p, Coefficient &exsol,
+                             const IntegrationRule *irs[] = NULL) const;
 
    /* The @a elems input variable expects a list of markers:
     an elem marker equal to 1 will compute the L2 error on that element
