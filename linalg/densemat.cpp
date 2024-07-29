@@ -928,7 +928,7 @@ void dsyevr_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
    real_t   *Z        = NULL;
    int       LDZ      = 1;
    int      *ISUPPZ   = new int[2*N];
-   int       LWORK    = -1; // query optimal (double) workspace size
+   int       LWORK    = -1; // query optimal (real_t) workspace size
    real_t    QWORK;
    real_t   *WORK     = NULL;
    int       LIWORK   = -1; // query optimal (int) workspace size
@@ -4434,7 +4434,7 @@ void BatchLUSolve(const DenseTensor &Mlu, const Array<int> &P, Vector &X)
 }
 
 void BatchLUFactor(const int m, const int len,
-                   mfem::Vector &A, mfem::Array<int> &P, const double TOL)
+                   mfem::Vector &A, mfem::Array<int> &P, const real_t TOL)
 {
    P.SetSize(m * len);
    auto data_all = mfem::Reshape(A.ReadWrite(), m, m, len);
@@ -4512,18 +4512,18 @@ void BatchLUSolve(mfem::Vector &Minv, int m, int len, mfem::Array<int> &P,
    {
 
       const int *ipiv = &piv_all(0, e);
-      double *x       = &x_all(0, e);
+      real_t *x       = &x_all(0, e);
 
       // X <- P X
       for (int i = 0; i < m; i++)
       {
-         mfem::kernels::internal::Swap<double>(x[i], x[ipiv[i]]);
+         mfem::kernels::internal::Swap<real_t>(x[i], x[ipiv[i]]);
       }
 
       // X <- L^{-1} X
       for (int j = 0; j < m; j++)
       {
-         const double x_j = x[j];
+         const real_t x_j = x[j];
          for (int i = j + 1; i < m; i++)
          {
             x[i] -= data_all(i, j, e) * x_j;
@@ -4533,7 +4533,7 @@ void BatchLUSolve(mfem::Vector &Minv, int m, int len, mfem::Array<int> &P,
       // X <- U^{-1} X
       for (int j = m - 1; j >= 0; j--)
       {
-         const double x_j = (x[j] /= data_all(j, j, e));
+         const real_t x_j = (x[j] /= data_all(j, j, e));
          for (int i = 0; i < j; i++)
          {
             x[i] -= data_all(i, j, e) * x_j;
@@ -4557,21 +4557,21 @@ void BatchInverseMatrix(const mfem::Vector &LU,
    {
       // A^{-1} = U^{-1} L^{-1} P
       // X <- U^{-1} (set only the upper triangular part of X)
-      double *X          = &inv_all(0, 0, e);
-      double *x          = X;
-      const double *data = &data_all(0, 0, e);
+      real_t *X          = &inv_all(0, 0, e);
+      real_t *x          = X;
+      const real_t *data = &data_all(0, 0, e);
       const int *ipiv    = &piv_all(0, e);
 
       for (int k = 0; k < m; k++)
       {
-         const double minus_x_k = -(x[k] = 1.0 / data[k + k * m]);
+         const real_t minus_x_k = -(x[k] = 1.0 / data[k + k * m]);
          for (int i = 0; i < k; i++)
          {
             x[i] = data[i + k * m] * minus_x_k;
          }
          for (int j = k - 1; j >= 0; j--)
          {
-            const double x_j = (x[j] /= data[j + j * m]);
+            const real_t x_j = (x[j] /= data[j + j * m]);
             for (int i = 0; i < j; i++)
             {
                x[i] -= data[i + j * m] * x_j;
@@ -4585,7 +4585,7 @@ void BatchInverseMatrix(const mfem::Vector &LU,
          int k = m - 1;
          for (int j = 0; j < k; j++)
          {
-            const double minus_L_kj = -data[k + j * m];
+            const real_t minus_L_kj = -data[k + j * m];
             for (int i = 0; i <= j; i++)
             {
                X[i + j * m] += X[i + k * m] * minus_L_kj;
@@ -4600,7 +4600,7 @@ void BatchInverseMatrix(const mfem::Vector &LU,
       {
          for (int j = 0; j < k; j++)
          {
-            const double L_kj = data[k + j * m];
+            const real_t L_kj = data[k + j * m];
             for (int i = 0; i < m; i++)
             {
                X[i + j * m] -= X[i + k * m] * L_kj;
@@ -4616,8 +4616,8 @@ void BatchInverseMatrix(const mfem::Vector &LU,
          {
             for (int i = 0; i < m; i++)
             {
-               //Swap<double>(X[i+k*m], X[i+piv_k*m]);
-               mfem::kernels::internal::Swap<double>(X[i + k * m], X[i + piv_k * m]);
+               //Swap<real_t>(X[i+k*m], X[i+piv_k*m]);
+               mfem::kernels::internal::Swap<real_t>(X[i + k * m], X[i + piv_k * m]);
             }
          }
       }
@@ -4639,21 +4639,21 @@ void BatchInverseMatrix(const DenseTensor &LU,
    {
       // A^{-1} = U^{-1} L^{-1} P
       // X <- U^{-1} (set only the upper triangular part of X)
-      double *X          = &inv_all(0, 0, e);
-      double *x          = X;
-      const double *data = &data_all(0, 0, e);
+      real_t *X          = &inv_all(0, 0, e);
+      real_t *x          = X;
+      const real_t *data = &data_all(0, 0, e);
       const int *ipiv    = &piv_all(0, e);
 
       for (int k = 0; k < m; k++)
       {
-         const double minus_x_k = -(x[k] = 1.0 / data[k + k * m]);
+         const real_t minus_x_k = -(x[k] = 1.0 / data[k + k * m]);
          for (int i = 0; i < k; i++)
          {
             x[i] = data[i + k * m] * minus_x_k;
          }
          for (int j = k - 1; j >= 0; j--)
          {
-            const double x_j = (x[j] /= data[j + j * m]);
+            const real_t x_j = (x[j] /= data[j + j * m]);
             for (int i = 0; i < j; i++)
             {
                x[i] -= data[i + j * m] * x_j;
@@ -4667,7 +4667,7 @@ void BatchInverseMatrix(const DenseTensor &LU,
          int k = m - 1;
          for (int j = 0; j < k; j++)
          {
-            const double minus_L_kj = -data[k + j * m];
+            const real_t minus_L_kj = -data[k + j * m];
             for (int i = 0; i <= j; i++)
             {
                X[i + j * m] += X[i + k * m] * minus_L_kj;
@@ -4682,7 +4682,7 @@ void BatchInverseMatrix(const DenseTensor &LU,
       {
          for (int j = 0; j < k; j++)
          {
-            const double L_kj = data[k + j * m];
+            const real_t L_kj = data[k + j * m];
             for (int i = 0; i < m; i++)
             {
                X[i + j * m] -= X[i + k * m] * L_kj;
@@ -4698,8 +4698,8 @@ void BatchInverseMatrix(const DenseTensor &LU,
          {
             for (int i = 0; i < m; i++)
             {
-               //Swap<double>(X[i+k*m], X[i+piv_k*m]);
-               mfem::kernels::internal::Swap<double>(X[i + k * m], X[i + piv_k * m]);
+               //Swap<real_t>(X[i+k*m], X[i+piv_k*m]);
+               mfem::kernels::internal::Swap<real_t>(X[i + k * m], X[i + piv_k * m]);
             }
          }
       }

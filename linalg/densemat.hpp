@@ -1295,7 +1295,7 @@ void BatchLUSolve(const DenseTensor &Mlu, const Array<int> &P, Vector &X);
 
 
 void BatchLUFactor(const int m, const int len,
-                   mfem::Vector &A, mfem::Array<int> &P, const double TOL = 0.0);
+                   mfem::Vector &A, mfem::Array<int> &P, const real_t TOL = 0.0);
 
 void BatchLUSolve(mfem::Vector &Minv, int m, int len, mfem::Array<int> &P,
                   mfem::Vector &X);
