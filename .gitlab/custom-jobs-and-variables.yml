@@ -110,7 +110,7 @@ variables:
       # Variables \n
       export SPEC=\"${SPEC//\"/\\\"}\" \n
       # Directories \n
-      export BUILD_ROOT=\"${working_dir//\"/\\\"}\" \n
+      export BUILD_ROOT=\"\${working_dir}\" \n
       export SHARED_REPOS_DIR=\"\${BUILD_ROOT}/..\" \n
       export MFEM_DATA_DIR=\"\${SHARED_REPOS_DIR}/mfem-data\" \n
       # Repositories \n
