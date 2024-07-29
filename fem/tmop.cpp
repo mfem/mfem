@@ -4000,7 +4000,7 @@ void TMOP_Integrator::AssembleElemVecSurfFit(const FiniteElement &el_x,
       const IntegrationPoint &ip = ir.IntPoint(s);
       Tpr.SetIntPoint(&ip);
       real_t w = surf_fit_normal * surf_fit_coeff->Eval(Tpr, ip) *
-                 1.0 / surf_fit_dof_count[vdofs[s]];
+                 1.0 / surf_fit_dof_count[vdofs[s]]; 
 
       if (surf_fit_gf) { w *= 2.0 * sigma_e(s); }
       if (surf_fit_pos)

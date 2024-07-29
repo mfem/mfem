@@ -69,7 +69,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, EnergyPA_Fit_Grad_2D,
             const real_t dy = X4(qx,qy,1,e);
 
             if (marker == 0) {continue;}
-            double w = coeff * normal * 1.0/dof_count;
+            double w = coeff * normal * 1.0/dof_count; 
             Y(qx,qy,0,e) = 2 * w * sigma * dx;
             Y(qx,qy,1,e) = 2 * w * sigma * dy;
          }

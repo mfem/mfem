@@ -252,29 +252,30 @@ void TMOP_Integrator::UpdateCoefficientsPA(const Vector &x_loc)
 
    const IntegrationRule &ir = *PA.ir;
    auto T = new IsoparametricTransformation;
+
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
+   const FiniteElementSpace *fes_fit = surf_fit_gf->FESpace();
+   const FiniteElementSpace *fes_grad = surf_fit_grad->FESpace();
+
+   const Operator *n1_R = fes_fit->GetElementRestriction(ordering);
+   PA.X1.SetSize(n1_R->Height(), Device::GetMemoryType());
+   PA.X1.UseDevice(true);
+   n1_R->Mult(*surf_fit_gf, PA.X1);
+
+   ConstantCoefficient* cS = dynamic_cast<ConstantCoefficient*>(surf_fit_coeff);
+   PA.C1 = cS->constant;
+
+   const Operator *n4_R = fes_grad->GetElementRestriction(ordering);
+   PA.X4.SetSize(n4_R->Height(), Device::GetMemoryType());
+   PA.X4.UseDevice(true);
+   n4_R->Mult(*surf_fit_grad, PA.X4);
+
+
 
    for (int e = 0; e < PA.ne; ++e)
    {
       // Uses the node positions in x_loc.
       PA.fes->GetMesh()->GetElementTransformation(e, x_loc, T);
-      const FiniteElementSpace *fes_fit = surf_fit_gf->FESpace();
-      fes_fit->GetMesh()->GetElementTransformation(e, x_loc, T);
-      const FiniteElementSpace *fes_grad = surf_fit_grad->FESpace();
-      fes_grad->GetMesh()->GetElementTransformation(e, x_loc, T);
-
-      ConstantCoefficient* cS = dynamic_cast<ConstantCoefficient*>(surf_fit_coeff);
-      PA.C1 = cS->constant;      
-      
-      const Operator *n1_R = fes_fit->GetElementRestriction(ordering);
-      PA.X1.SetSize(n1_R->Height(), Device::GetMemoryType());
-      PA.X1.UseDevice(true);
-      n1_R->Mult(*surf_fit_gf, PA.X1);
-
-      const Operator *n4_R = fes_grad->GetElementRestriction(ordering);
-      PA.X4.SetSize(n4_R->Height(), Device::GetMemoryType());
-      PA.X4.UseDevice(true);
-      n4_R->Mult(*surf_fit_grad, PA.X4);
 
       if (PA.MC.Size() > 1)
       {
@@ -291,7 +292,7 @@ void TMOP_Integrator::UpdateCoefficientsPA(const Vector &x_loc)
             PA.C0(q + e * PA.nq) = lim_coeff->Eval(*T, ir.IntPoint(q));
          }
       }
-      
+
    }
    delete T;
 }
