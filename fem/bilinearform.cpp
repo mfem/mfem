@@ -280,7 +280,7 @@ void BilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
    boundary_face_integs_marker.Append(&bdr_marker);
 }
 
-void BilinearForm::ComputeElementMatrix(int i, DenseMatrix &elmat)
+void BilinearForm::ComputeElementMatrix(int i, DenseMatrix &elmat) const
 {
    if (element_matrices)
    {
@@ -308,7 +308,7 @@ void BilinearForm::ComputeElementMatrix(int i, DenseMatrix &elmat)
    }
 }
 
-void BilinearForm::ComputeBdrElementMatrix(int i, DenseMatrix &elmat)
+void BilinearForm::ComputeBdrElementMatrix(int i, DenseMatrix &elmat) const
 {
    if (boundary_integs.Size())
    {
@@ -324,6 +324,84 @@ void BilinearForm::ComputeBdrElementMatrix(int i, DenseMatrix &elmat)
    else
    {
       fes->GetBdrElementVDofs(i, vdofs);
+      elmat.SetSize(vdofs.Size());
+      elmat = 0.0;
+   }
+}
+
+void BilinearForm::ComputeFaceMatrix(int i, DenseMatrix &elmat) const
+{
+   FaceElementTransformations *ftr;
+   Mesh *mesh = fes -> GetMesh();
+   ftr = mesh->GetFaceElementTransformations(i);
+   MFEM_ASSERT(ftr, "No associated face transformations.");
+
+   if (interior_face_integs.Size())
+   {
+      const FiniteElement *fe1, *fe2;
+
+      fe1 = fes->GetFE(ftr->Elem1No);
+      if (ftr->Elem2No >= 0)
+      {
+         fe2 = fes->GetFE(ftr->Elem2No);
+      }
+      else
+      {
+         // The test_fe2 object is really a dummy and not used on the
+         // boundaries, but we can't dereference a NULL pointer, and we don't
+         // want to actually make a fake element.
+         fe2 = fe1;
+      }
+
+      interior_face_integs[0]->AssembleFaceMatrix(*fe1, *fe2, *ftr, elmat);
+      for (int k = 1; k < interior_face_integs.Size(); k++)
+      {
+         interior_face_integs[k]->AssembleFaceMatrix(*fe1, *fe2, *ftr, elemmat);
+         elmat += elemmat;
+      }
+   }
+   else
+   {
+      Array<int> vdofs2;
+
+      fes->GetElementVDofs(ftr->Elem1No, vdofs);
+      if (ftr->Elem2No >= 0)
+      {
+         fes->GetElementVDofs(ftr->Elem2No, vdofs2);
+         vdofs.Append(vdofs2);
+      }
+      elmat.SetSize(vdofs.Size());
+      elmat = 0.0;
+   }
+}
+
+void BilinearForm::ComputeBdrFaceMatrix(int i, DenseMatrix &elmat) const
+{
+   FaceElementTransformations *ftr;
+   Mesh *mesh = fes -> GetMesh();
+   ftr = mesh->GetBdrFaceTransformations(i);
+   MFEM_ASSERT(ftr, "No associated boundary face.");
+
+   if (boundary_face_integs.Size())
+   {
+      const FiniteElement *fe1, *fe2;
+
+      fe1 = fes->GetFE(ftr->Elem1No);
+      // The test_fe2 object is really a dummy and not used on the
+      // boundaries, but we can't dereference a NULL pointer, and we don't
+      // want to actually make a fake element.
+      fe2 = fe1;
+
+      boundary_face_integs[0]->AssembleFaceMatrix(*fe1, *fe1, *ftr, elmat);
+      for (int k = 1; k < boundary_face_integs.Size(); k++)
+      {
+         boundary_face_integs[k]->AssembleFaceMatrix(*fe1, *fe2, *ftr, elemmat);
+         elmat += elemmat;
+      }
+   }
+   else
+   {
+      fes->GetElementVDofs(ftr->Elem1No, vdofs);
       elmat.SetSize(vdofs.Size());
       elmat = 0.0;
    }
@@ -1382,6 +1460,24 @@ void MixedBilinearForm::AddBoundaryIntegrator (BilinearFormIntegrator * bfi,
    boundary_integs_marker.Append(&bdr_marker);
 }
 
+void MixedBilinearForm::AddInteriorFaceIntegrator (BilinearFormIntegrator * bfi)
+{
+   interior_face_integs.Append (bfi);
+}
+
+void MixedBilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator *bfi)
+{
+   boundary_face_integs.Append(bfi);
+   boundary_face_integs_marker.Append(NULL); // NULL marker means apply everywhere
+}
+
+void MixedBilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
+                                             Array<int> &bdr_marker)
+{
+   boundary_face_integs.Append(bfi);
+   boundary_face_integs_marker.Append(&bdr_marker);
+}
+
 void MixedBilinearForm::AddTraceFaceIntegrator (BilinearFormIntegrator * bfi)
 {
    trace_face_integs.Append (bfi);
@@ -1511,6 +1607,108 @@ void MixedBilinearForm::Assemble(int skip_zeros)
             TransformDual(ran_dof_trans, dom_dof_trans, elmat);
          }
          mat -> AddSubMatrix (test_vdofs, trial_vdofs, elmat, skip_zeros);
+      }
+   }
+
+   if (interior_face_integs.Size())
+   {
+      FaceElementTransformations *ftr;
+      Array<int> trial_vdofs2, test_vdofs2;
+      const FiniteElement *trial_fe1, *trial_fe2, *test_fe1, *test_fe2;
+
+      int nfaces = mesh->GetNumFaces();
+      for (int i = 0; i < nfaces; i++)
+      {
+         ftr = mesh->GetInteriorFaceTransformations(i);
+         if (ftr != NULL)
+         {
+            trial_fes->GetElementVDofs(ftr->Elem1No, trial_vdofs);
+            test_fes->GetElementVDofs(ftr->Elem1No, test_vdofs);
+            trial_fe1 = trial_fes->GetFE(ftr->Elem1No);
+            test_fe1 = test_fes->GetFE(ftr->Elem1No);
+            if (ftr->Elem2No >= 0)
+            {
+               trial_fes->GetElementVDofs(ftr->Elem2No, trial_vdofs2);
+               test_fes->GetElementVDofs(ftr->Elem2No, test_vdofs2);
+               trial_vdofs.Append(trial_vdofs2);
+               test_vdofs.Append(test_vdofs2);
+               trial_fe2 = trial_fes->GetFE(ftr->Elem2No);
+               test_fe2 = test_fes->GetFE(ftr->Elem2No);
+            }
+            else
+            {
+               // The test_fe2 object is really a dummy and not used on the
+               // boundaries, but we can't dereference a NULL pointer, and we don't
+               // want to actually make a fake element.
+               trial_fe2 = trial_fe1;
+               test_fe2 = test_fe1;
+            }
+            for (int k = 0; k < interior_face_integs.Size(); k++)
+            {
+               interior_face_integs[k]->AssembleFaceMatrix(*trial_fe1, *test_fe1, *trial_fe2,
+                                                           *test_fe2,
+                                                           *ftr, elemmat);
+               mat->AddSubMatrix(test_vdofs, trial_vdofs, elemmat, skip_zeros);
+            }
+         }
+      }
+   }
+
+   if (boundary_face_integs.Size())
+   {
+      FaceElementTransformations *ftr;
+      Array<int> tr_vdofs2, te_vdofs2;
+      const FiniteElement *trial_fe1, *trial_fe2, *test_fe1, *test_fe2;
+
+      // Which boundary attributes need to be processed?
+      Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
+                                 mesh->bdr_attributes.Max() : 0);
+      bdr_attr_marker = 0;
+      for (int k = 0; k < boundary_face_integs.Size(); k++)
+      {
+         if (boundary_face_integs_marker[k] == NULL)
+         {
+            bdr_attr_marker = 1;
+            break;
+         }
+         Array<int> &bdr_marker = *boundary_face_integs_marker[k];
+         MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
+                     "invalid boundary marker for boundary face integrator #"
+                     << k << ", counting from zero");
+         for (int i = 0; i < bdr_attr_marker.Size(); i++)
+         {
+            bdr_attr_marker[i] |= bdr_marker[i];
+         }
+      }
+
+      for (int i = 0; i < trial_fes -> GetNBE(); i++)
+      {
+         const int bdr_attr = mesh->GetBdrAttribute(i);
+         if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
+
+         ftr = mesh -> GetBdrFaceTransformations (i);
+         if (ftr != NULL)
+         {
+            trial_fes->GetElementVDofs(ftr->Elem1No, trial_vdofs);
+            test_fes->GetElementVDofs(ftr->Elem1No, test_vdofs);
+            trial_fe1 = trial_fes->GetFE(ftr->Elem1No);
+            test_fe1 = test_fes->GetFE(ftr->Elem1No);
+            // The test_fe2 object is really a dummy and not used on the
+            // boundaries, but we can't dereference a NULL pointer, and we don't
+            // want to actually make a fake element.
+            trial_fe2 = trial_fe1;
+            test_fe2 = test_fe1;
+            for (int k = 0; k < boundary_face_integs.Size(); k++)
+            {
+               if (boundary_face_integs_marker[k])
+                  if ((*boundary_face_integs_marker[k])[bdr_attr-1] == 0) { continue; }
+
+               boundary_face_integs[k]->AssembleFaceMatrix(*trial_fe1, *test_fe1, *trial_fe2,
+                                                           *test_fe2,
+                                                           *ftr, elemmat);
+               mat->AddSubMatrix(test_vdofs, trial_vdofs, elemmat, skip_zeros);
+            }
+         }
       }
    }
 
@@ -1692,7 +1890,7 @@ void MixedBilinearForm::ConformingAssemble()
 }
 
 
-void MixedBilinearForm::ComputeElementMatrix(int i, DenseMatrix &elmat)
+void MixedBilinearForm::ComputeElementMatrix(int i, DenseMatrix &elmat) const
 {
    if (domain_integs.Size())
    {
@@ -1717,7 +1915,7 @@ void MixedBilinearForm::ComputeElementMatrix(int i, DenseMatrix &elmat)
    }
 }
 
-void MixedBilinearForm::ComputeBdrElementMatrix(int i, DenseMatrix &elmat)
+void MixedBilinearForm::ComputeBdrElementMatrix(int i, DenseMatrix &elmat) const
 {
    if (boundary_integs.Size())
    {
@@ -1737,6 +1935,191 @@ void MixedBilinearForm::ComputeBdrElementMatrix(int i, DenseMatrix &elmat)
    {
       trial_fes->GetBdrElementVDofs(i, trial_vdofs);
       test_fes->GetBdrElementVDofs(i, test_vdofs);
+      elmat.SetSize(test_vdofs.Size(), trial_vdofs.Size());
+      elmat = 0.0;
+   }
+}
+
+void MixedBilinearForm::ComputeTraceFaceMatrix(int i, DenseMatrix &elmat) const
+{
+   FaceElementTransformations *ftr;
+   Mesh *mesh = test_fes -> GetMesh();
+   ftr = mesh->GetFaceElementTransformations(i);
+   MFEM_ASSERT(ftr, "No associated face transformation.");
+
+   if (trace_face_integs.Size())
+   {
+      const FiniteElement *trial_face_fe, *test_fe1, *test_fe2;
+
+      trial_face_fe = trial_fes->GetFaceElement(i);
+      test_fe1 = test_fes->GetFE(ftr->Elem1No);
+      if (ftr->Elem2No >= 0)
+      {
+         test_fe2 = test_fes->GetFE(ftr->Elem2No);
+      }
+      else
+      {
+         // The test_fe2 object is really a dummy and not used on the
+         // boundaries, but we can't dereference a NULL pointer, and we don't
+         // want to actually make a fake element.
+         test_fe2 = test_fe1;
+      }
+
+      trace_face_integs[0]->AssembleFaceMatrix(*trial_face_fe, *test_fe1, *test_fe2,
+                                               *ftr, elmat);
+      for (int k = 1; k < trace_face_integs.Size(); k++)
+      {
+         trace_face_integs[k]->AssembleFaceMatrix(*trial_face_fe, *test_fe1, *test_fe2,
+                                                  *ftr, elemmat);
+         elmat += elemmat;
+      }
+   }
+   else
+   {
+      Array<int> test_vdofs2;
+
+      trial_fes->GetFaceVDofs(i, trial_vdofs);
+      test_fes->GetElementVDofs(ftr->Elem1No, test_vdofs);
+      if (ftr->Elem2No >= 0)
+      {
+         test_fes->GetElementVDofs(ftr->Elem2No, test_vdofs2);
+         test_vdofs.Append(test_vdofs2);
+      }
+      elmat.SetSize(test_vdofs.Size(), trial_vdofs.Size());
+      elmat = 0.0;
+   }
+}
+
+void MixedBilinearForm::ComputeBdrTraceFaceMatrix(int i,
+                                                  DenseMatrix &elmat) const
+{
+   FaceElementTransformations *ftr;
+   Mesh *mesh = test_fes -> GetMesh();
+   ftr = mesh->GetBdrFaceTransformations(i);
+   MFEM_ASSERT(ftr, "No associated boundary face.");
+
+   if (boundary_trace_face_integs.Size())
+   {
+      const FiniteElement *trial_face_fe, *test_fe1, *test_fe2;
+
+      ftr = mesh->GetBdrFaceTransformations(i);
+      int iface = mesh->GetBdrElementFaceIndex(i);
+      trial_face_fe = trial_fes->GetFaceElement(iface);
+      test_fe1 = test_fes->GetFE(ftr->Elem1No);
+      // The test_fe2 object is really a dummy and not used on the
+      // boundaries, but we can't dereference a NULL pointer, and we don't
+      // want to actually make a fake element.
+      test_fe2 = test_fe1;
+      boundary_trace_face_integs[0]->AssembleFaceMatrix(*trial_face_fe, *test_fe1,
+                                                        *test_fe2,
+                                                        *ftr, elmat);
+      for (int k = 1; k < boundary_trace_face_integs.Size(); k++)
+      {
+         boundary_trace_face_integs[k]->AssembleFaceMatrix(*trial_face_fe, *test_fe1,
+                                                           *test_fe2,
+                                                           *ftr, elemmat);
+         elmat += elemmat;
+      }
+   }
+   else
+   {
+      trial_fes->GetFaceVDofs(ftr->Face->ElementNo, trial_vdofs);
+      test_fes->GetElementVDofs(ftr->Elem1No, test_vdofs);
+      elmat.SetSize(test_vdofs.Size(), trial_vdofs.Size());
+      elmat = 0.0;
+   }
+}
+
+void MixedBilinearForm::ComputeFaceMatrix(int i, DenseMatrix &elmat) const
+{
+   FaceElementTransformations *ftr;
+   Mesh *mesh = test_fes -> GetMesh();
+   ftr = mesh->GetFaceElementTransformations(i);
+   MFEM_ASSERT(ftr, "No associated face transformations.");
+
+   if (interior_face_integs.Size())
+   {
+      const FiniteElement *trial_fe1, *trial_fe2, *test_fe1, *test_fe2;
+
+      trial_fe1 = trial_fes->GetFE(ftr->Elem1No);
+      test_fe1 = test_fes->GetFE(ftr->Elem1No);
+      if (ftr->Elem2No >= 0)
+      {
+         trial_fe2 = trial_fes->GetFE(ftr->Elem2No);
+         test_fe2 = test_fes->GetFE(ftr->Elem2No);
+      }
+      else
+      {
+         // The test_fe2 object is really a dummy and not used on the
+         // boundaries, but we can't dereference a NULL pointer, and we don't
+         // want to actually make a fake element.
+         trial_fe2 = trial_fe1;
+         test_fe2 = test_fe1;
+      }
+
+      interior_face_integs[0]->AssembleFaceMatrix(*trial_fe1, *test_fe1, *trial_fe2,
+                                                  *test_fe2,
+                                                  *ftr, elmat);
+      for (int k = 1; k < interior_face_integs.Size(); k++)
+      {
+         interior_face_integs[k]->AssembleFaceMatrix(*trial_fe1, *test_fe1, *trial_fe2,
+                                                     *test_fe2,
+                                                     *ftr, elemmat);
+         elmat += elemmat;
+      }
+   }
+   else
+   {
+      Array<int> trial_vdofs2, test_vdofs2;
+
+      trial_fes->GetElementVDofs(ftr->Elem1No, trial_vdofs);
+      test_fes->GetElementVDofs(ftr->Elem1No, test_vdofs);
+      if (ftr->Elem2No >= 0)
+      {
+         trial_fes->GetElementVDofs(ftr->Elem2No, trial_vdofs2);
+         test_fes->GetElementVDofs(ftr->Elem2No, test_vdofs2);
+         trial_vdofs.Append(trial_vdofs2);
+         test_vdofs.Append(test_vdofs2);
+      }
+      elmat.SetSize(test_vdofs.Size(), trial_vdofs.Size());
+      elmat = 0.0;
+   }
+}
+
+void MixedBilinearForm::ComputeBdrFaceMatrix(int i, DenseMatrix &elmat) const
+{
+   FaceElementTransformations *ftr;
+   Mesh *mesh = test_fes -> GetMesh();
+   ftr = mesh->GetBdrFaceTransformations(i);
+   MFEM_ASSERT(ftr, "No associated boundary face.");
+
+   if (boundary_face_integs.Size())
+   {
+      const FiniteElement *trial_fe1, *trial_fe2, *test_fe1, *test_fe2;
+
+      trial_fe1 = trial_fes->GetFE(ftr->Elem1No);
+      test_fe1 = test_fes->GetFE(ftr->Elem1No);
+      // The test_fe2 object is really a dummy and not used on the
+      // boundaries, but we can't dereference a NULL pointer, and we don't
+      // want to actually make a fake element.
+      trial_fe2 = trial_fe1;
+      test_fe2 = test_fe1;
+
+      boundary_face_integs[0]->AssembleFaceMatrix(*trial_fe1, *test_fe1, *trial_fe2,
+                                                  *test_fe2,
+                                                  *ftr, elmat);
+      for (int k = 1; k < boundary_face_integs.Size(); k++)
+      {
+         boundary_face_integs[k]->AssembleFaceMatrix(*trial_fe1, *test_fe1, *trial_fe2,
+                                                     *test_fe2,
+                                                     *ftr, elemmat);
+         elmat += elemmat;
+      }
+   }
+   else
+   {
+      trial_fes->GetElementVDofs(ftr->Elem1No, trial_vdofs);
+      test_fes->GetElementVDofs(ftr->Elem1No, test_vdofs);
       elmat.SetSize(test_vdofs.Size(), trial_vdofs.Size());
       elmat = 0.0;
    }
@@ -1780,36 +2163,57 @@ void MixedBilinearForm::AssembleBdrElementMatrix(
    mat->AddSubMatrix(test_vdofs_, trial_vdofs_, elmat, skip_zeros);
 }
 
-void MixedBilinearForm::EliminateTrialDofs (
+void MixedBilinearForm::EliminateTrialEssentialBC (
    const Array<int> &bdr_attr_is_ess, const Vector &sol, Vector &rhs )
 {
-   int i, j, k;
-   Array<int> tr_vdofs, cols_marker (trial_fes -> GetVSize());
-
-   cols_marker = 0;
-   for (i = 0; i < trial_fes -> GetNBE(); i++)
-      if (bdr_attr_is_ess[trial_fes -> GetBdrAttribute (i)-1])
-      {
-         trial_fes -> GetBdrElementVDofs (i, tr_vdofs);
-         for (j = 0; j < tr_vdofs.Size(); j++)
-         {
-            if ( (k = tr_vdofs[j]) < 0 )
-            {
-               k = -1-k;
-            }
-            cols_marker[k] = 1;
-         }
-      }
-   mat -> EliminateCols (cols_marker, &sol, &rhs);
+   Array<int> trial_ess_dofs;
+   trial_fes->GetEssentialVDofs(bdr_attr_is_ess, trial_ess_dofs);
+   mat -> EliminateCols (trial_ess_dofs, &sol, &rhs);
 }
 
-void MixedBilinearForm::EliminateEssentialBCFromTrialDofs (
+void MixedBilinearForm::EliminateTrialEssentialBC(const Array<int>
+                                                  &bdr_attr_is_ess)
+{
+   Array<int> trial_ess_dofs;
+   trial_fes->GetEssentialVDofs(bdr_attr_is_ess, trial_ess_dofs);
+   mat->EliminateCols(trial_ess_dofs);
+}
+
+void MixedBilinearForm::EliminateTrialVDofs(const Array<int> &trial_vdofs,
+                                            const Vector &sol, Vector &rhs)
+{
+   Array<int> trial_vdofs_marker;
+   FiniteElementSpace::ListToMarker(trial_vdofs, mat->Width(), trial_vdofs_marker);
+   mat->EliminateCols(trial_vdofs_marker, &sol, &rhs);
+}
+
+void MixedBilinearForm::EliminateTrialVDofs(const Array<int> &trial_vdofs)
+{
+   if (mat_e == NULL)
+   {
+      mat_e = new SparseMatrix(mat->Height(), mat->Width());
+   }
+
+   Array<int> trial_vdofs_marker;
+   FiniteElementSpace::ListToMarker(trial_vdofs, mat->Width(), trial_vdofs_marker);
+   mat->EliminateCols(trial_vdofs_marker, *mat_e);
+   mat_e->Finalize();
+}
+
+void MixedBilinearForm::EliminateTrialVDofsInRHS(const Array<int> &trial_vdofs,
+                                                 const Vector &x, Vector &b)
+{
+   mat_e->AddMult(x, b, -1.);
+}
+
+void MixedBilinearForm::EliminateEssentialBCFromTrialDofs(
    const Array<int> &marked_vdofs, const Vector &sol, Vector &rhs)
 {
    mat -> EliminateCols (marked_vdofs, &sol, &rhs);
 }
 
-void MixedBilinearForm::EliminateTestDofs (const Array<int> &bdr_attr_is_ess)
+void MixedBilinearForm::EliminateTestEssentialBC(const Array<int>
+                                                 &bdr_attr_is_ess)
 {
    int i, j, k;
    Array<int> te_vdofs;
@@ -1827,6 +2231,14 @@ void MixedBilinearForm::EliminateTestDofs (const Array<int> &bdr_attr_is_ess)
             mat -> EliminateRow (k);
          }
       }
+}
+
+void MixedBilinearForm::EliminateTestVDofs(const Array<int> &test_vdofs)
+{
+   for (int i=0; i<test_vdofs.Size(); ++i)
+   {
+      mat->EliminateRow(test_vdofs[i]);
+   }
 }
 
 void MixedBilinearForm::FormRectangularSystemMatrix(
@@ -1865,20 +2277,9 @@ void MixedBilinearForm::FormRectangularSystemMatrix(
       mat = m;
    }
 
-   Array<int> ess_trial_tdof_marker, ess_test_tdof_marker;
-   FiniteElementSpace::ListToMarker(trial_tdof_list, trial_fes->GetTrueVSize(),
-                                    ess_trial_tdof_marker);
-   FiniteElementSpace::ListToMarker(test_tdof_list, test_fes->GetTrueVSize(),
-                                    ess_test_tdof_marker);
+   EliminateTrialVDofs(trial_tdof_list);
+   EliminateTestVDofs(test_tdof_list);
 
-   mat_e = new SparseMatrix(mat->Height(), mat->Width());
-   mat->EliminateCols(ess_trial_tdof_marker, *mat_e);
-
-   for (int i=0; i<test_tdof_list.Size(); ++i)
-   {
-      mat->EliminateRow(test_tdof_list[i]);
-   }
-   mat_e->Finalize();
    A.Reset(mat, false);
 }
 
@@ -1907,7 +2308,7 @@ void MixedBilinearForm::FormRectangularLinearSystem(
                                   A); // Set A = mat_e
    }
    // Eliminate essential BCs with B -= Ab xb
-   mat_e->AddMult(X, B, -1.0);
+   EliminateTrialVDofsInRHS(trial_tdof_list, X, B);
 
    B.SetSubVector(test_tdof_list, 0.0);
 }
@@ -1933,6 +2334,10 @@ MixedBilinearForm::~MixedBilinearForm()
       for (i = 0; i < domain_integs.Size(); i++) { delete domain_integs[i]; }
       for (i = 0; i < boundary_integs.Size(); i++)
       { delete boundary_integs[i]; }
+      for (i = 0; i < interior_face_integs.Size(); i++)
+      { delete interior_face_integs[i]; }
+      for (i = 0; i < boundary_face_integs.Size(); i++)
+      { delete boundary_face_integs[i]; }
       for (i = 0; i < trace_face_integs.Size(); i++)
       { delete trace_face_integs[i]; }
       for (i = 0; i < boundary_trace_face_integs.Size(); i++)

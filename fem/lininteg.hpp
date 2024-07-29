@@ -437,6 +437,9 @@ public:
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
                                        Vector &elvect);
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       FaceElementTransformations &Tr,
+                                       Vector &elvect);
 
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
@@ -468,6 +471,25 @@ public:
    virtual void AssembleDevice(const FiniteElementSpace &fes,
                                const Array<int> &markers,
                                Vector &b);
+};
+
+/** Class for boundary integration of (f.n, v.n) for vector coefficient f and
+    RT vector test function v. This integrator works with RT spaces defined
+    using the RT_FECollection class. */
+class VectorFEBoundaryNormalLFIntegrator : public LinearFormIntegrator
+{
+private:
+   VectorCoefficient &F;
+   Vector shape;
+
+public:
+   VectorFEBoundaryNormalLFIntegrator(VectorCoefficient &f) : F(f) { }
+
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect) override;
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
 /// Class for boundary integration $ L(v) = (n \times f, v) $
@@ -510,6 +532,38 @@ public:
 
    BoundaryFlowIntegrator(Coefficient &f_, VectorCoefficient &u_,
                           real_t a, real_t b)
+   { f = &f_; u = &u_; alpha = a; beta = b; }
+
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect);
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       FaceElementTransformations &Tr,
+                                       Vector &elvect);
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
+};
+
+/** Class for boundary integration of the linear form:
+    $ \frac{\alpha}{2} \langle (u \cdot n) f, w \cdot n \rangle - \beta \langle |u \cdot n| f, w \cdot n \rangle $
+    where $f$ and $u$ are given scalar and vector coefficients, respectively,
+    and $w$ is the scalar test function. */
+class BoundaryNormalFlowIntegrator : public LinearFormIntegrator
+{
+private:
+   Coefficient *f;
+   VectorCoefficient *u;
+   real_t alpha, beta;
+
+   Vector shape;
+
+public:
+   BoundaryNormalFlowIntegrator(Coefficient &f_, VectorCoefficient &u_,
+                                real_t a)
+   { f = &f_; u = &u_; alpha = a; beta = 0.5*a; }
+
+   BoundaryNormalFlowIntegrator(Coefficient &f_, VectorCoefficient &u_,
+                                real_t a, real_t b)
    { f = &f_; u = &u_; alpha = a; beta = b; }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
