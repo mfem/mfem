@@ -107,10 +107,13 @@ variables:
   script:
     - |
       echo -e "
-      # Required variables \n
+      # Variables \n
       export SPEC=\"${SPEC//\"/\\\"}\" \n
-      export MFEM_DATA_DIR=\"${MFEM_DATA_DIR//\"/\\\"}\" \n
-      export BUILD_ROOT=\"${BUILD_ROOT//\"/\\\"}\" \n
+      # Directories \n
+      export BUILD_ROOT=\"${working_dir//\"/\\\"}\" \n
+      export SHARED_REPOS_DIR=\"\${BUILD_ROOT}/..\" \n
+      export MFEM_DATA_DIR=\"\${SHARED_REPOS_DIR}/mfem-data\" \n
+      # Repositories \n
       export TPLS_REPO=\"${TPLS_REPO//\"/\\\"}\" \n
       export TESTS_REPO=\"${TESTS_REPO//\"/\\\"}\" \n
       export AUTOTEST_REPO=\"${AUTOTEST_REPO//\"/\\\"}\" \n
