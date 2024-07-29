@@ -9001,6 +9001,9 @@ void Mesh::MoveNodes(const Vector &displacements)
    {
       MoveVertices(displacements);
    }
+
+   // Invalidate the old geometric factors
+   NodesUpdated();
 }
 
 void Mesh::GetNodes(Vector &node_coord) const
