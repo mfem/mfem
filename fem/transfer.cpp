@@ -407,8 +407,8 @@ Vector L2ProjectionGridTransfer::L2Projection::MixedMassEA(
          //Allocate space for DenseTensors
          ElementTransformation *el_tr = fes_lor_ea.GetElementTransformation(0);
          int order = fe_lor.GetOrder() + fe_ho.GetOrder() + el_tr->OrderW();
-         const IntegrationRule* ir = &IntRules.Get(geom, order);
-         int qPts = ir->GetNPoints();
+         const IntegrationRule* ir_ea = &IntRules.Get(geom, order);
+         int qPts = ir_ea->GetNPoints();
 
          //Containers for the basis functions sampled
          //at quadrature points
@@ -416,10 +416,10 @@ Vector L2ProjectionGridTransfer::L2Projection::MixedMassEA(
          B_H.SetSize(qPts, fe_ho.GetDof(), nref, d_mt);
          D.SetSize(qPts, nref, nel_ho, d_mt);
 
-         const DofToQuad *maps_lor = &fe_lor.GetDofToQuad(*ir, DofToQuad::TENSOR);
+         const DofToQuad *maps_lor = &fe_lor.GetDofToQuad(*ir_ea, DofToQuad::TENSOR);
 
          const GeometricFactors *geo_facts =
-            mesh_lor->GetGeometricFactors(*ir, GeometricFactors::DETERMINANTS);
+            mesh_lor->GetGeometricFactors(*ir_ea, GeometricFactors::DETERMINANTS);
 
          const int Q1D         = maps_lor->nqpt;
 
@@ -435,7 +435,7 @@ Vector L2ProjectionGridTransfer::L2Projection::MixedMassEA(
          if (dim == 1)
          {
 
-            const auto W = Reshape(ir->GetWeights().Read(),
+            const auto W = Reshape(ir_ea->GetWeights().Read(),
                                    Q1D);  // grabbing the weights of the integration rule
             const auto J = Reshape(geo_facts->detJ.Read(), Q1D, nel_lor);  //
             const auto d_D = Reshape(D.Write(), qPts, nref,
@@ -460,7 +460,7 @@ Vector L2ProjectionGridTransfer::L2Projection::MixedMassEA(
          if (dim == 2)
          {
 
-            const auto W = Reshape(ir->GetWeights().Read(), Q1D, Q1D);
+            const auto W = Reshape(ir_ea->GetWeights().Read(), Q1D, Q1D);
             const auto J = Reshape(geo_facts->detJ.Read(), Q1D,Q1D, nel_lor);
             const auto d_D = Reshape(D.Write(), qPts, nref, nel_ho);
             const auto d_qfunc = Reshape(qfunc.Read(), qPts, nref, nel_ho);
@@ -488,7 +488,7 @@ Vector L2ProjectionGridTransfer::L2Projection::MixedMassEA(
          if (dim == 3)
          {
 
-            const auto W = Reshape(ir->GetWeights().Read(), Q1D, Q1D, Q1D);
+            const auto W = Reshape(ir_ea->GetWeights().Read(), Q1D, Q1D, Q1D);
             const auto J = Reshape(geo_facts->detJ.Read(), Q1D, Q1D, Q1D, nel_lor);
             const auto d_D = Reshape(D.Write(), qPts, nref, nel_ho);
             const auto d_qfunc = Reshape(qfunc.Read(), qPts, nref, nel_ho);
