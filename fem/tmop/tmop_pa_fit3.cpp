@@ -70,7 +70,6 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_Fit_3D,
         }
       }  
    });
-   out << energy * ones << "/n";
    return energy * ones; 
 }
 

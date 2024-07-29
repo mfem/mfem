@@ -249,6 +249,10 @@ void TMOP_Integrator::UpdateCoefficientsPA(const Vector &x_loc)
    // Coefficients are always evaluated on the CPU for now.
    PA.MC.HostWrite();
    PA.C0.HostWrite();
+   PA.X1.HostWrite();
+   PA.X2.HostWrite();
+   PA.X3.HostWrite();
+   PA.X4.HostWrite();
 
    const IntegrationRule &ir = *PA.ir;
    auto T = new IsoparametricTransformation;
@@ -262,16 +266,36 @@ void TMOP_Integrator::UpdateCoefficientsPA(const Vector &x_loc)
    PA.X1.UseDevice(true);
    n1_R->Mult(*surf_fit_gf, PA.X1);
 
-   ConstantCoefficient* cS = dynamic_cast<ConstantCoefficient*>(surf_fit_coeff);
-   PA.C1 = cS->constant;
-
    const Operator *n4_R = fes_grad->GetElementRestriction(ordering);
    PA.X4.SetSize(n4_R->Height(), Device::GetMemoryType());
    PA.X4.UseDevice(true);
-   n4_R->Mult(*surf_fit_grad, PA.X4);
+   n4_R->Mult(*surf_fit_grad, PA.X4); 
 
+   ConstantCoefficient* cS = dynamic_cast<ConstantCoefficient*>(surf_fit_coeff);
+   PA.C1 = cS->constant;
 
+   Vector temp_vec1;
+   temp_vec1.SetSize(surf_fit_dof_count.Size());
+   for(int i=0; i< temp_vec1.Size(); i++){
+      temp_vec1[i] = surf_fit_dof_count[i];
+   }
+   const Operator *n2_R = fes_fit->GetElementRestriction(ordering);
+   PA.X2.SetSize(n2_R->Height(), Device::GetMemoryType());
+   PA.X2.UseDevice(true);
+   n2_R->Mult(temp_vec1, PA.X2);
 
+   Vector temp_vec2;
+   temp_vec2.SetSize(surf_fit_marker->Size());
+   for (int i = 0; i< surf_fit_marker->Size(); i++){
+      if ((*surf_fit_marker)[i] == true){ 
+         temp_vec2[i] = 1;
+      } else {temp_vec2[i] = 0.;}
+   }
+   const Operator *n3_R = fes_fit->GetElementRestriction(ordering);
+   PA.X3.SetSize(surf_fit_marker->Size(), Device::GetMemoryType());
+   PA.X3.UseDevice(true);
+   n3_R->Mult(temp_vec2, PA.X3);
+      
    for (int e = 0; e < PA.ne; ++e)
    {
       // Uses the node positions in x_loc.
@@ -411,13 +435,14 @@ void TMOP_Integrator::AddMultPA(const Vector &xe, Vector &ye) const
    {
       AddMultPA_2D(xe,ye);
       if (lim_coeff) { AddMultPA_C0_2D(xe,ye); }
-      if (surf_fit_coeff) { GetLocalStateEnergyPA_Fit_Grad_2D(xe,ye); }
+      if (surf_fit_coeff) {GetLocalStateEnergyPA_Fit_Grad_2D(xe,ye);}
    }
 
    if (PA.dim == 3)
    {
       AddMultPA_3D(xe,ye);
       if (lim_coeff) { AddMultPA_C0_3D(xe,ye); }
+      if (surf_fit_coeff) {GetLocalStateEnergyPA_Fit_Grad_3D(xe,ye);}
    }
 }
 

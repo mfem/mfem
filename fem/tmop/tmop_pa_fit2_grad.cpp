@@ -37,9 +37,6 @@ MFEM_REGISTER_TMOP_KERNELS(void, EnergyPA_Fit_Grad_2D,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-   constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
-   constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
-
    const auto C1 = c1_;
    const auto C2 = c2_;
    const auto X1 = Reshape(x1_.Read(), D1D, D1D, NE);
@@ -69,12 +66,12 @@ MFEM_REGISTER_TMOP_KERNELS(void, EnergyPA_Fit_Grad_2D,
             const real_t dy = X4(qx,qy,1,e);
 
             if (marker == 0) {continue;}
-            double w = coeff * normal * 1.0/dof_count; 
+            double w = normal * coeff * 1.0/dof_count; 
             Y(qx,qy,0,e) = 2 * w * sigma * dx;
             Y(qx,qy,1,e) = 2 * w * sigma * dy;
          }
       }
-      MFEM_SYNC_THREAD;
+      MFEM_SYNC_THREAD; 
    });
 
 }

@@ -1976,7 +1976,7 @@ protected:
    void AddMultPA_C0_2D(const Vector&, Vector&) const;
    void AddMultPA_C0_3D(const Vector&, Vector&) const;
    void GetLocalStateEnergyPA_Fit_Grad_2D(const Vector&, Vector&) const;
-   //real_t GetLocalStateEnergyPA_Fit_Grad_3D(const Vector&, const Vector&) const;
+   void GetLocalStateEnergyPA_Fit_Grad_3D(const Vector&, Vector&) const;
 
 
 
