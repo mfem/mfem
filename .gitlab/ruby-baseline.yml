@@ -29,7 +29,7 @@ stages:
     - if: '$ON_RUBY == "OFF"'
       when: never
     # Don't run autotest update if...
-    - if: '$CI_JOB_NAME =~ /report/ && $AUTOTEST != "YES"'
+    - if: '$CI_JOB_NAME =~ /report/ && $AUTOTEST != "ON"'
       when: never
     # Always cleanup
     - if: '$CI_JOB_NAME =~ /cleanup/'
@@ -107,7 +107,7 @@ report_baseline:
           cp ${rundir}/pipeline.txt ${rundir}/autotest-email.html
         fi
         msg="GitLab CI log for ${BASELINE_TEST} on ${MACHINE_NAME} ($(date +%Y-%m-%d))"
-        if [[ "$AUTOTEST_COMMIT" != "NO" ]]; then
+        if [[ "$AUTOTEST_COMMIT" != "OFF" ]]; then
           git pull && \
           git add ${rundir} && \
           git commit -m "${msg}" && \
@@ -135,8 +135,8 @@ baselinepublish_mfem_ruby:
   extends: [.on_ruby]
   stage: baseline_publish
   rules:
-    # - if: '$CI_COMMIT_BRANCH == "master" || $REBASELINE == "YES"'
-    - if: '$REBASELINE == "YES"'
+    # - if: '$CI_COMMIT_BRANCH == "master" || $REBASELINE == "ON"'
+    - if: '$REBASELINE == "ON"'
       when: manual
   script:
     - echo ${BUILD_ROOT}

@@ -86,7 +86,7 @@ function report ()
     cp ${rundir}/gitlab.err ${rundir}/autotest-email.html
   fi
 
-  if [[ "$AUTOTEST_COMMIT" != "NO" ]]; then
+  if [[ "$AUTOTEST_COMMIT" != "OFF" ]]; then
     git pull && \
     git add ${rundir} && \
     git commit -m "${msg}" && \

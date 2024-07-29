@@ -45,15 +45,15 @@ variables:
 # Defines the default choice for updating the saved baseline results. By default
 # the baseline can only be updated from the master branch. This variable offers
 # the option to manually ask for rebaselining from another branch if necessary.
-  REBASELINE: "NO"
-  AUTOTEST: "NO"
-# AUTOTEST_COMMIT: used only when AUTOTEST is set to YES.
-# * If AUTOTEST_COMMIT is NOT set to NO, reporting jobs will commit their
+  REBASELINE: "OFF"
+  AUTOTEST: "OFF"
+# AUTOTEST_COMMIT: used only when AUTOTEST is set to ON.
+# * If AUTOTEST_COMMIT is NOT set to OFF, reporting jobs will commit their
 #   files to the MFEM/autotest repo.
-# * If AUTOTEST_COMMIT is set to NO, reporting jobs will NOT commit their
+# * If AUTOTEST_COMMIT is set to OFF, reporting jobs will NOT commit their
 #   files to the MFEM/autotest repo. Instead they will just show the contents
 #   of the report files and remove them.
-  AUTOTEST_COMMIT: "YES"
+  AUTOTEST_COMMIT: "ON"
 
 ##### SHARED_CI CONFIGURATION
 # Required information about GitHub repository

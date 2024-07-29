@@ -126,11 +126,15 @@ variables:
 
 # Jobs report
 .report_job_success:
+  variables:
+    ON_RUBY: "${AUTOTEST}"
   script:
     - ${CI_PROJECT_DIR}/.gitlab/scripts/report_build_and_test SUCCESS
   when: on_success
 
 .report_job_failure:
+  variables:
+    ON_RUBY: "${AUTOTEST}"
   script:
     - ${CI_PROJECT_DIR}/.gitlab/scripts/report_build_and_test FAILURE
   when: on_failure
