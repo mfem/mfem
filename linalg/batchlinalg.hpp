@@ -40,7 +40,7 @@ private:
 
    DenseTensor LUMatrixBatch_, InvMatrixBatch_;
    Array<int> P_;
-   Array<double *> lu_ptr_array_;
+   Array<real_t *> lu_ptr_array_;
    MemoryType d_mt_;
 
    int num_matrices_, matrix_size_;
