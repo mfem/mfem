@@ -170,7 +170,7 @@ int main(int argc, char *argv[])
    }
    else
    {
-      gt = new L2ProjectionGridTransfer(fespace, fespace_lor, false);
+      gt = new L2ProjectionGridTransfer(fespace, fespace_lor);
    }
 
    gt->UseDevice(true);
