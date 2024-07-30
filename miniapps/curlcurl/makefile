@@ -26,7 +26,7 @@ include $(DEFAULTS_MK)
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-PAR_MINIAPPS = curlcurl periodic2D
+PAR_MINIAPPS = curlcurl periodic2D alfven
 MINIAPPS = $(PAR_MINIAPPS)
 
 COMMON_LIB = -L$(MFEM_BUILD_DIR)/miniapps/common -lmfem-common
