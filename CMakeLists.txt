@@ -400,9 +400,6 @@ if (MFEM_USE_AMGX)
 endif()
 
 if (MFEM_USE_MAGMA)
-  # MAGMA depends on BLAS and LAPACK
-  find_package(BLAS REQUIRED)
-  find_package(LAPACK REQUIRED)
   find_package(MAGMA REQUIRED)
 endif()
 
