@@ -177,7 +177,6 @@ void TMOP_Integrator::AssemblePA_Fitting()
    n3_R->Mult(temp_vec2, PA.X3);
 
    // surf_fit_grad -> PA.X4 
-   surf_fit_grad->HostWrite();
    const Operator *n4_R = surf_fit_grad->FESpace()->GetElementRestriction(ordering);
    PA.X4.SetSize(n4_R->Height(), Device::GetMemoryType());
    PA.X4.UseDevice(true);
@@ -243,58 +242,55 @@ void TMOP_Integrator::ComputeAllElementTargets(const Vector &xe) const
 
 void TMOP_Integrator::UpdateCoefficientsPA(const Vector &x_loc)
 {
+   // Update surf_fit_gf and its gradients if surface
+   // fitting is enabled.
+   if (surf_fit_gf)
+   {
+      RemapSurfaceFittingLevelSetAtNodes(x_loc, PA.fes->GetOrdering());
+      const FiniteElementSpace *fes_fit = surf_fit_gf->FESpace();
+      const FiniteElementSpace *fes_grad = surf_fit_grad->FESpace();
+      const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
+
+      const Operator *n1_R_int = fes_fit->GetElementRestriction(ordering);
+      n1_R_int->Mult(*surf_fit_gf, PA.X1);
+
+      Vector temp_vec1;
+      temp_vec1.SetSize(surf_fit_dof_count.Size());
+      for(int i=0; i< temp_vec1.Size(); i++){
+         temp_vec1[i] = surf_fit_dof_count[i];
+      }
+      const Operator *n2_R = fes_fit->GetElementRestriction(ordering);
+      n2_R->Mult(temp_vec1, PA.X2);
+
+      Vector temp_vec2;
+      temp_vec2.SetSize(surf_fit_marker->Size());
+      for (int i = 0; i< surf_fit_marker->Size(); i++){
+         if ((*surf_fit_marker)[i] == true){ 
+            temp_vec2[i] = 1;
+         } else {temp_vec2[i] = 0.;}
+      }
+      const Operator *n3_R = fes_fit->GetElementRestriction(ordering);
+      n3_R->Mult(temp_vec2, PA.X3);
+
+      const Operator *n4_R_int = fes_grad->GetElementRestriction(ordering);
+      n4_R_int->Mult(*surf_fit_grad, PA.X4);
+      
+      ConstantCoefficient* cS = dynamic_cast<ConstantCoefficient*>(surf_fit_coeff);
+      PA.C1 = cS->constant;
+   }
+
+   
+   
+   
+   
    // Both are constant or not specified.
    if (PA.MC.Size() == 1 && PA.C0.Size() == 1) { return; }
-
-   // Coefficients are always evaluated on the CPU for now.
+   // Limiting coefficients are always evaluated on the CPU for now.
    PA.MC.HostWrite();
    PA.C0.HostWrite();
-   PA.X1.HostWrite();
-   PA.X2.HostWrite();
-   PA.X3.HostWrite();
-   PA.X4.HostWrite();
 
    const IntegrationRule &ir = *PA.ir;
    auto T = new IsoparametricTransformation;
-
-   const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
-   const FiniteElementSpace *fes_fit = surf_fit_gf->FESpace();
-   const FiniteElementSpace *fes_grad = surf_fit_grad->FESpace();
-
-   const Operator *n1_R = fes_fit->GetElementRestriction(ordering);
-   PA.X1.SetSize(n1_R->Height(), Device::GetMemoryType());
-   PA.X1.UseDevice(true);
-   n1_R->Mult(*surf_fit_gf, PA.X1);
-
-   const Operator *n4_R = fes_grad->GetElementRestriction(ordering);
-   PA.X4.SetSize(n4_R->Height(), Device::GetMemoryType());
-   PA.X4.UseDevice(true);
-   n4_R->Mult(*surf_fit_grad, PA.X4); 
-
-   ConstantCoefficient* cS = dynamic_cast<ConstantCoefficient*>(surf_fit_coeff);
-   PA.C1 = cS->constant;
-
-   Vector temp_vec1;
-   temp_vec1.SetSize(surf_fit_dof_count.Size());
-   for(int i=0; i< temp_vec1.Size(); i++){
-      temp_vec1[i] = surf_fit_dof_count[i];
-   }
-   const Operator *n2_R = fes_fit->GetElementRestriction(ordering);
-   PA.X2.SetSize(n2_R->Height(), Device::GetMemoryType());
-   PA.X2.UseDevice(true);
-   n2_R->Mult(temp_vec1, PA.X2);
-
-   Vector temp_vec2;
-   temp_vec2.SetSize(surf_fit_marker->Size());
-   for (int i = 0; i< surf_fit_marker->Size(); i++){
-      if ((*surf_fit_marker)[i] == true){ 
-         temp_vec2[i] = 1;
-      } else {temp_vec2[i] = 0.;}
-   }
-   const Operator *n3_R = fes_fit->GetElementRestriction(ordering);
-   PA.X3.SetSize(surf_fit_marker->Size(), Device::GetMemoryType());
-   PA.X3.UseDevice(true);
-   n3_R->Mult(temp_vec2, PA.X3);
       
    for (int e = 0; e < PA.ne; ++e)
    {
@@ -394,7 +390,7 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
 
    // Limiting: lim_coeff -> PA.C0, lim_nodes0 -> PA.X0, lim_dist -> PA.LD, PA.H0
    if (lim_coeff) { AssemblePA_Limiting(); }
-   if (surf_fit_gf) {AssemblePA_Fitting(); }
+   if (surf_fit_gf) { AssemblePA_Fitting(); }
 }
 
 void TMOP_Integrator::AssembleGradDiagonalPA(Vector &de) const
