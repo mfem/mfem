@@ -15,10 +15,8 @@
 #   - MAGMA_INCLUDE_DIRS
 
 include(MfemCmakeUtilities)
-set(MAGMA_REQUIRED_LIBRARIES cublas cusparse)
 mfem_find_package(MAGMA MAGMA MAGMA_DIR "include" "magma.h" "lib" "magma"
   "Paths to headers required by MAGMA." "Libraries required by MAGMA.")
-# Make sure the library location is locked down
 
 if (MAGMA_FOUND AND MFEM_USE_CUDA)
   get_target_property(CUSPARSE_LIBRARIES CUDA::cusparse LOCATION)
