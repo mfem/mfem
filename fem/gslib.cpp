@@ -530,28 +530,14 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
    }
    else
    {
-      if (gpu_code == 1)
-      {
-         FindPointsLocal32(point_pos_copy,
-                           point_pos_ordering,
-                           gsl_code,
-                           gsl_elem,
-                           gsl_ref,
-                           gsl_dist,
-                           gsl_newton,
-                           points_cnt);
-      }
-      else
-      {
-         FindPointsLocal3(point_pos,
-                          point_pos_ordering,
-                          gsl_code,
-                          gsl_elem,
-                          gsl_ref,
-                          gsl_dist,
-                          gsl_newton,
-                          points_cnt);
-      }
+      FindPointsLocal32(point_pos_copy,
+                        point_pos_ordering,
+                        gsl_code,
+                        gsl_elem,
+                        gsl_ref,
+                        gsl_dist,
+                        gsl_newton,
+                        points_cnt);
    }
 
    // Sync from device to host
@@ -719,7 +705,7 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
       Vector point_pos_l;
       point_pos_l.UseDevice(true);
       point_pos_l.SetSize(n*dim);
-      point_pos_l.HostWrite();
+      auto pointl = point_pos_l.HostWrite();
       Array<int> gsl_newton_l;
       gsl_newton_l.SetSize(n);
 
@@ -733,7 +719,7 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
          for (int d = 0; d < dim; d++)
          {
             int idx = point_pos_ordering == 0 ? point + d*n : point*dim + d;
-            point_pos_l(idx) = spt[point].x[d];
+            pointl[idx] = spt[point].x[d];
          }
       }
 
@@ -774,24 +760,24 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
          }
       }
 
-      gsl_ref_l.HostRead();
-      gsl_dist_l.HostRead();
-      gsl_code_l.HostRead();
-      gsl_elem_l.HostRead();
-      gsl_newton_l.HostRead();
-      DEV.info.HostRead();
+      auto refl = gsl_ref_l.HostRead();
+      auto distl = gsl_dist_l.HostRead();
+      auto codel = gsl_code_l.HostRead();
+      auto eleml = gsl_elem_l.HostRead();
+      auto newtl = gsl_newton_l.HostRead();
+      // DEV.info.HostRead();
 
       // unpack arrays into opt
       for (int point = 0; point < n; point++)
       {
-         opt[point].code = gsl_code_l[point];
-         opt[point].el = gsl_elem_l[point];
-         opt[point].dist2 = gsl_dist_l(point);
+         opt[point].code = codel[point];
+         opt[point].el   = eleml[point];
+         opt[point].dist2 = distl[point];
          for (int d = 0; d < dim; ++d)
          {
-            opt[point].r[d] = gsl_ref_l(dim * point + d);
+            opt[point].r[d] = refl[dim * point + d];
          }
-         opt->newton = gsl_newton_l[point];
+         opt->newton = newtl[point];
       }
 
       array_free(&src_pt);
@@ -810,9 +796,11 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
    }
    MPI_Barrier(gsl_comm->c);
 
-   gsl_code.HostReadWrite();
-   gsl_elem.HostReadWrite();
-   gsl_proc.HostReadWrite();
+   auto code = gsl_code.HostReadWrite();
+   auto elem = gsl_elem.HostReadWrite();
+   auto proc = gsl_proc.HostReadWrite();
+   auto dist = gsl_dist.HostReadWrite();
+   auto newton = gsl_newton.HostReadWrite();
 
    /* merge remote results with user data */
    int npt_found_on_other_proc = 0;
@@ -822,23 +810,23 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
       for (; n; --n, ++opt)
       {
          const int index = opt->index;
-         if (gsl_code[index] == CODE_INTERNAL)
+         if (code[index] == CODE_INTERNAL)
          {
             continue;
          }
-         if (gsl_code[index] == CODE_NOT_FOUND || opt->code == CODE_INTERNAL ||
-             opt->dist2 < gsl_dist(index))
+         if (code[index] == CODE_NOT_FOUND || opt->code == CODE_INTERNAL ||
+             opt->dist2 < dist[index])
          {
             npt_found_on_other_proc++;
             for (int d = 0; d < dim; ++d)
             {
                gsl_ref(dim * index + d) = opt->r[d];
             }
-            gsl_dist(index) = opt->dist2;
-            gsl_proc[index] = opt->proc;
-            gsl_elem[index] = opt->el;
-            gsl_code[index] = opt->code;
-            gsl_newton[index] = opt->newton;
+            dist[index] = opt->dist2;
+            proc[index] = opt->proc;
+            elem[index] = opt->el;
+            code[index] = opt->code;
+            newton[index] = opt->newton;
          }
       }
       array_free(&out_pt);
