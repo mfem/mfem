@@ -254,24 +254,6 @@ void TMOP_Integrator::UpdateCoefficientsPA(const Vector &x_loc)
       const Operator *n1_R_int = fes_fit->GetElementRestriction(ordering);
       n1_R_int->Mult(*surf_fit_gf, PA.X1);
 
-      Vector temp_vec1;
-      temp_vec1.SetSize(surf_fit_dof_count.Size());
-      for(int i=0; i< temp_vec1.Size(); i++){
-         temp_vec1[i] = surf_fit_dof_count[i];
-      }
-      const Operator *n2_R = fes_fit->GetElementRestriction(ordering);
-      n2_R->Mult(temp_vec1, PA.X2);
-
-      Vector temp_vec2;
-      temp_vec2.SetSize(surf_fit_marker->Size());
-      for (int i = 0; i< surf_fit_marker->Size(); i++){
-         if ((*surf_fit_marker)[i] == true){ 
-            temp_vec2[i] = 1;
-         } else {temp_vec2[i] = 0.;}
-      }
-      const Operator *n3_R = fes_fit->GetElementRestriction(ordering);
-      n3_R->Mult(temp_vec2, PA.X3);
-
       const Operator *n4_R_int = fes_grad->GetElementRestriction(ordering);
       n4_R_int->Mult(*surf_fit_grad, PA.X4);
       
