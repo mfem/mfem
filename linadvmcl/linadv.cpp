@@ -126,20 +126,20 @@ class FE_Evolution : public TimeDependentOperator
 {
 protected:
    SparseMatrix M, K;
-   const Vector &lumpedmassmatrix;
+   Vector &lumpedmassmatrix;
    const int nDofs;
    const int numVar;
    GroupCommunicator &gcomm;
 
    mutable Vector z;
-   mutable ParGridFunction u_gf, rhs_gf;
+   //mutable ParGridFunction u_gf, rhs_gf;
+   mutable Array<double> rhs_array, udot_array;
 
 public:
    FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, Vector &lumpedmassmatrix_, int numVar_);
 
    virtual void Mult(const Vector &x, Vector &y) const = 0;
    virtual double CalcGraphViscosity(const int i, const int j) const;
-   //virtual void ImplicitSolve(const real_t dt, const Vector &x, Vector &k);
 
    virtual ~FE_Evolution();
 };
@@ -173,13 +173,18 @@ class MCL : public FE_Evolution
 
 // Implementation of class FE_Evolution
 FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, Vector &lumpedmassmatrix_, int numVar_)
-   : TimeDependentOperator(M_.Height() * numVar_), u_gf(M_.ParFESpace()), rhs_gf(M_.ParFESpace()), gcomm(M_.ParFESpace()->GroupComm()),
-     M(M_.SpMat()), K(K_.SpMat()), lumpedmassmatrix(lumpedmassmatrix_), z(M_.Height()), nDofs(M_.Height()), numVar(numVar_)
-{ 
-   //cout << (nDofs == M_.ParFESpace()->GetTrueVSize()) << " ?? " << endl;
-   cout << M_.ParFESpace()->GetTrueVSize() << endl;
-   cout << lumpedmassmatrix.Size() << M_.Size() << K_.Size() << endl;
-   cout << "---------------------------------------------------------------------------" << endl;
+   : TimeDependentOperator(M_.Height() * numVar_), gcomm(M_.ParFESpace()->GroupComm()),
+     M(M_.SpMat()), K(K_.SpMat()), z(M_.Height()), nDofs(M_.Height()), numVar(numVar_), lumpedmassmatrix(lumpedmassmatrix_)
+{
+   // collect all contribution for shared nodes
+   Array<double> lumpedmassmatrix_array(lumpedmassmatrix_.GetData(), lumpedmassmatrix_.Size());
+   gcomm.Reduce<double>(lumpedmassmatrix_array, GroupCommunicator::Sum);
+   gcomm.Bcast(lumpedmassmatrix_array);
+   lumpedmassmatrix = lumpedmassmatrix_;
+
+   rhs_array.SetSize(nDofs);
+   udot_array.SetSize(nDofs);
+   
 }
 
 double FE_Evolution::CalcGraphViscosity(const int i, const int j) const
@@ -196,15 +201,7 @@ LowOrder::LowOrder(ParBilinearForm &M_, ParBilinearForm &K_, Vector &lumpedmassm
 
 void LowOrder::Mult(const Vector &x, Vector &y) const
 {  
-   MFEM_VERIFY(x.Size() == y.Size(), "Incompatible size! Wrong size!")
-   const int size = u_gf.ParFESpace()->GetVSize();
-   MFEM_VERIFY(size == x.Size(), "x not equal size");
-   //cout << __LINE__ << endl;
-   //u_gf = x;
-   //u_gf.ExchangeFaceNbrData();
-   //rhs_gf.ExchangeFaceNbrData();
-   //Vector u_ext = u_gf.FaceNbrData(); 
-   //GroupCommunicator &gcomm = fes->GetFESpace().GroupComm();
+   MFEM_VERIFY(x.Size() == y.Size(), "Incompatible size! Wrong size!");
 
    const auto II = K.ReadI();
    const auto JJ = K.ReadJ();
@@ -218,31 +215,23 @@ void LowOrder::Mult(const Vector &x, Vector &y) const
          const int begin = II[i];
          const int end = II[i+1];
 
-         rhs_gf(i) = 0.0;
+         rhs_array[i] = 0.0;
          for(int j = begin; j < end; j++)
          {
             if( i == JJ[j] ) {continue;}
 
             dij = CalcGraphViscosity(i,JJ[j]);
-            rhs_gf(i) += (dij - KK[j]) * (x(JJ[j] + n * nDofs) - x(i + n * nDofs));
+            rhs_array[i] += ( (dij - KK[j]) * (x(JJ[j] + n * nDofs) - x(i + n * nDofs)) );
          }
+         rhs_array[i] /= lumpedmassmatrix(i);
       }
-      rhs_gf.ExchangeFaceNbrData();
-      Vector before = rhs_gf;
-      Array<double> rhs_array(rhs_gf.GetData(), rhs_gf.Size());
+
       gcomm.Reduce<double>(rhs_array, GroupCommunicator::Sum);
       gcomm.Bcast(rhs_array);
-      Vector after = rhs_gf;
-      after -= before;
-      if(!Mpi::Root())
-      {
-         cout << "   " << endl;
-         after.Print();
-         cout <<"------------------------------------"<< endl;
-      }
+
       for(int i = 0; i < nDofs; i++)
       {
-         y(i + n * nDofs) = rhs_array[i] / lumpedmassmatrix(i); 
+         y(i + n * nDofs) = rhs_array[i]; 
       }
    }
 }
@@ -270,32 +259,41 @@ void HighOrderTargetScheme::Mult(const Vector &x, Vector &y) const
          const int begin = II[i];
          const int end = II[i+1];
 
-         z(i) = 0.0;
+         udot_array[i] = 0.0;
          for(int j = begin; j < end; j++)
          {
             if( i == JJ[j] ) {continue;}
 
             dij = CalcGraphViscosity(i,JJ[j]);
-            z(i) += (dij - KK[j]) * (x(JJ[j] + n * nDofs) - x(i + n * nDofs));
+            udot_array[i] += (dij - KK[j]) * (x(JJ[j] + n * nDofs) - x(i + n * nDofs));
          }
-         z(i) /= lumpedmassmatrix(i); 
+         udot_array[i] /= lumpedmassmatrix(i); 
       }
+      gcomm.Reduce<double>(udot_array, GroupCommunicator::Sum);
+      gcomm.Bcast(udot_array);
 
       for(int i = 0; i < nDofs; i++)
       {
          const int begin = II[i];
          const int end = II[i+1];
 
-         y(i + n * nDofs) = 0.0;
+         rhs_array[i] = 0.0;
          for(int j = begin; j < end; j++)
          {
             if( i == JJ[j] ) {continue;}
 
             //dij = CalcGraphViscosity(i,JJ[j]);
-            y(i + n * nDofs) += - KK[j] * (x(JJ[j] + n * nDofs) - x(i + n * nDofs)) + MM[j] * (z(i) - z(JJ[j]));
+           rhs_array[i] += - KK[j] * (x(JJ[j] + n * nDofs) - x(i + n * nDofs)) + MM[j] * (udot_array[i] - udot_array[JJ[j]]);
          }
-         y(i + n * nDofs) /= lumpedmassmatrix(i); 
-      } 
+         rhs_array[i] /= lumpedmassmatrix(i); 
+      }
+      gcomm.Reduce<double>(rhs_array, GroupCommunicator::Sum);
+      gcomm.Bcast(rhs_array);
+
+      for(int i = 0; i < nDofs; i++)
+      {
+         y(i + n * nDofs) = rhs_array[i]; 
+      }
    }
 }
 
@@ -540,7 +538,7 @@ int main(int argc, char *argv[])
    int numVar;
    switch(problem)
    {
-      case 4: numVar = 2; break; 
+      //case 4: numVar = 2; break; 
 
       default: numVar = 1; break; // scalar
    }
@@ -571,7 +569,7 @@ int main(int argc, char *argv[])
 
    //m.KeepNbrBlock(true);
    //k.KeepNbrBlock(true);
-   lumped_m.KeepNbrBlock(true);
+   //lumped_m.KeepNbrBlock(true);
 
    if (pa)
    {
@@ -605,21 +603,17 @@ int main(int argc, char *argv[])
 
    //lumped_m.KeepNbrBlock(true);
 
-   //HypreParMatrix* m_par = m.ParallelAssemble(); 
    m.Assemble();
    lumped_m.Assemble();
    int skip_zeros = 0;
    k.Assemble(skip_zeros);
-   //HypreParMatrix* k_par = k.ParallelAssemble();
    m.Finalize();
    lumped_m.Finalize();
    k.Finalize(skip_zeros);
 
-   //HypreParMatrix* m_par = m.ParallelAssemble(); 
-   //HypreParMatrix* k_par = k.ParallelAssemble();
-
-   Vector lumpedmassmatrix;//(fes.GetTrueVSize());
+   Vector lumpedmassmatrix;
    lumped_m.SpMat().GetDiag(lumpedmassmatrix);
+
 
    //MFEM_ABORT("")
    // 7. Define the initial conditions, save the corresponding grid function to
@@ -744,7 +738,12 @@ int main(int argc, char *argv[])
    adv->SetTime(t);
    ode_solver->Init(*adv);
 
+
    bool done = false;
+
+   tic_toc.Clear();
+   tic_toc.Start();
+
    for (int ti = 0; !done; )
    {
       real_t dt_real = min(dt, t_final - t);
@@ -756,7 +755,7 @@ int main(int argc, char *argv[])
       if (done || ti % vis_steps == 0)
       {
          if(Mpi::Root())
-         {
+         {  
             cout << "time step: " << ti << ", time: " << t << endl;
          }
 
@@ -780,6 +779,27 @@ int main(int argc, char *argv[])
             pd->Save();
          }
       }
+   }
+
+   tic_toc.Stop();
+   Array<double> min(1);
+   min[0] = u.Min();
+   Array<double> max(1);
+   max[0] = u.Max();
+
+   cout << " u in [" << min[0]<< ", " << max[0]<< "].\n\n"; 
+   GroupCommunicator &gcomm = fes.GroupComm();
+   gcomm.Reduce<double>(min, GroupCommunicator::Min);
+   gcomm.Bcast(min);
+
+   gcomm.Reduce<double>(max, GroupCommunicator::Max);
+   gcomm.Bcast(max);
+
+   if(Mpi::Root())
+   {
+      cout << " " << endl;
+      cout << "Time stepping loop done in " << tic_toc.RealTime() << " seconds.\n";
+      cout << " u in [" << min[0]<< ", " << max[0]<< "].\n\n"; 
    }
 
    // 9. Save the final solution. This output can be viewed later using GLVis:
