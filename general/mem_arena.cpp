@@ -27,7 +27,7 @@ struct ArenaControlBlock
    { }
 };
 
-static std::unordered_map<void*,ArenaControlBlock> arena_map;
+static std::unordered_map<void*,ArenaControlBlock> *arena_map;
 
 static Memory NewMemory(size_t nbytes)
 {
@@ -60,7 +60,7 @@ void ArenaChunk::ClearDeallocated()
    if (ptr_count == 0)
    {
       offset = 0;
-      for (void *ptr : ptr_stack) { arena_map.erase(ptr); }
+      for (void *ptr : ptr_stack) { arena_map->erase(ptr); }
       ptr_stack.clear();
       // If this is the front chunk, don't deallocate the backing memory --- it
       // can potentially be reused next time an arena allocation is requested.
@@ -91,8 +91,8 @@ void ArenaChunk::ClearDeallocated()
    auto ptr_it = ptr_stack.rbegin();
    for (; ptr_it != ptr_stack.rend(); ++ptr_it)
    {
-      auto it = arena_map.find(*ptr_it);
-      MFEM_ASSERT(it != arena_map.end(), "");
+      auto it = arena_map->find(*ptr_it);
+      MFEM_ASSERT(it != arena_map->end(), "");
       auto &control = it->second;
       if (!control.deallocated) { break; }
    }
@@ -108,7 +108,7 @@ void ArenaChunk::ClearDeallocated()
 
       for (auto it = begin; it != end; ++it)
       {
-         arena_map.erase(*it);
+         arena_map->erase(*it);
       }
       ptr_stack.erase(begin, end);
    }
@@ -141,6 +141,17 @@ void *ArenaChunk::GetDevicePointer(void *h_ptr)
    }
    const size_t ptr_offset = ((char*)h_ptr) - ((char*)data.h_ptr);
    return ((char*)data.d_ptr) + ptr_offset;
+}
+
+ArenaHostMemorySpace::ArenaHostMemorySpace()
+{
+   arena_map = new std::unordered_map<void*,ArenaControlBlock>;
+}
+
+ArenaHostMemorySpace::~ArenaHostMemorySpace()
+{
+   delete arena_map;
+   arena_map = nullptr;
 }
 
 void ArenaHostMemorySpace::ConsolidateAndEnsureAvailable(
@@ -191,7 +202,7 @@ void ArenaHostMemorySpace::Alloc(void **ptr, size_t nbytes)
 
    ConsolidateAndEnsureAvailable(nbytes_aligned);
    *ptr = chunks.front().NewPointer(nbytes_aligned);
-   arena_map.emplace(*ptr, ArenaControlBlock(chunks.front(), nbytes_aligned));
+   arena_map->emplace(*ptr, ArenaControlBlock(chunks.front(), nbytes_aligned));
 
    // Debug output:
    size_t nchunks = std::distance(std::begin(chunks), std::end(chunks));
@@ -216,7 +227,7 @@ void ArenaHostMemorySpace::Alloc(void **ptr, size_t nbytes)
 
 void ArenaHostMemorySpace::Dealloc(Memory &mem)
 {
-   auto it = arena_map.find(mem.h_ptr);
+   auto it = arena_map->find(mem.h_ptr);
    auto &control = it->second;
    control.deallocated = true; // Mark as deallocated
    control.chunk.ClearDeallocated();
@@ -224,7 +235,7 @@ void ArenaHostMemorySpace::Dealloc(Memory &mem)
 
 void ArenaDeviceMemorySpace::Alloc(Memory &base)
 {
-   auto &chunk = arena_map.find(base.h_ptr)->second.chunk;
+   auto &chunk = arena_map->find(base.h_ptr)->second.chunk;
    base.d_ptr = chunk.GetDevicePointer(base.h_ptr);
 }
 

@@ -80,6 +80,8 @@ class ArenaHostMemorySpace : public HostMemorySpace
    /// buffer of @a requested_size.
    void ConsolidateAndEnsureAvailable(size_t requested_size);
 public:
+   ArenaHostMemorySpace();
+   ~ArenaHostMemorySpace();
    void Alloc(void **ptr, size_t nbytes) override;
    void Dealloc(Memory &mem) override;
 };
