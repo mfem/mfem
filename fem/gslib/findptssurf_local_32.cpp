@@ -88,9 +88,12 @@ static MFEM_HOST_DEVICE inline double obbox_test(const obbox_t *const b,
    }
    else {
       double dxyz[3];
+      // dxyz: distance of the point from the center of the OBB
       for (int d=0; d<sDIM; ++d) {
          dxyz[d] = x[d] - b->c0[d];
       }
+    // tranform dxyz to the local coordinate system of the OBB,
+      // and check if the point is inside the OBB [-1,1]^sDIM
       double test = 1;
       for (int d=0; d<sDIM; ++d) {
          double rst = 0;
@@ -129,7 +132,7 @@ static MFEM_HOST_DEVICE inline void lin_solve_sym_2(double x[2],
 
 static MFEM_HOST_DEVICE inline double norm2(const double x[sDIM])
 {
-   return x[0]*x[0] + x[1]*x[1] + x[2]*x[2];
+   return ( x[0]*x[0] + x[1]*x[1] + x[2]*x[2] );
 }
 
 /* the bit structure of flags is CSSRR
@@ -152,18 +155,25 @@ static MFEM_HOST_DEVICE inline int num_constrained(const int flags)
    return (y & 1u) + (y>>2 & 1u);
 }
 
+/* returns (x+1)%2
+ */
 static MFEM_HOST_DEVICE inline int plus_1_mod_2(const int x)
 {
   return x^1u;
 }
 
-/* assumes x = 1 << i, with i < 4, returns i+1 */
+/* assumes x = 1<<i, with i<4, returns i+1
+ * Gives index of the first bit set in x
+ */
 static MFEM_HOST_DEVICE inline int which_bit(const int x)
 {
    const int y = x & 7u;
    return (y-(y>>2)) | ((x-1)&4u);
 }
 
+/* Returns an index representing the edge:
+ * 0 for rmin, 1 for rmax, 2 for smin, 3 for smax
+ */
 static MFEM_HOST_DEVICE inline int edge_index(const int x)
 {
    return which_bit(x) - 1;
@@ -174,10 +184,9 @@ static MFEM_HOST_DEVICE inline int point_index(const int x)
    return ((x>>1)&1u) | ((x>>2)&2u);
 }
 
-/*
-   Compute (x,y) and (dxdn, dydn) data for all DOFs along the edge based on
-   edge index. ei=0..3 corresponding to rmin, rmax, smin, smax.
-*/
+/* Compute (x,y) and (dxdn, dydn) data for all DOFs along the edge based on
+ * edge index. ei=0..3 corresponding to rmin, rmax, smin, smax.
+ */
 static MFEM_HOST_DEVICE inline findptsElementGEdge_t get_edge( const double *elx[3],
                                                               const double *wtend,
                                                               int ei,
