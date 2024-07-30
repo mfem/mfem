@@ -11,6 +11,8 @@
 Version 4.7.1 (development)
 ===========================
 
+- Added support for boundary constraints to the hybridization class.
+
 - Refactored the `ARKStepSolver` class (ARKODE interface) to use
   `TimeDependentOperator::Mult` only when the associated ODE operator is
   expressed in explicit form (i.e., `TimeDependentOperator::isExplicit()`),
