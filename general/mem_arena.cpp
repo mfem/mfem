@@ -27,11 +27,10 @@ struct ArenaControlBlock
    { }
 };
 
-std::unordered_map<void*,ArenaControlBlock> arena_map;
+static std::unordered_map<void*,ArenaControlBlock> arena_map;
 
-Memory NewMemory(size_t nbytes)
+static Memory NewMemory(size_t nbytes)
 {
-   MFEM_ASSERT(ctrl != nullptr, "");
    const MemoryType h_mt = MemoryManager::GetHostMemoryType();
    const MemoryType d_mt = MemoryManager::GetDeviceMemoryType();
    void *h_ptr;
@@ -47,39 +46,47 @@ ArenaChunk::ArenaChunk(size_t capacity)
 
 ArenaChunk::~ArenaChunk()
 {
-   if (!dealloced)
-   {
-      if (data.d_ptr)
-      {
-         ctrl->Device(data.d_mt)->Dealloc(data);
-      }
-      ctrl->Host(data.h_mt)->Dealloc(data);
-   }
+   if (data.d_ptr) { ctrl->Device(data.d_mt)->Dealloc(data); }
+   if (data.h_ptr) { ctrl->Host(data.h_mt)->Dealloc(data); }
 }
 
 void ArenaChunk::ClearDeallocated()
 {
    ptr_count -= 1;
+
+   // If ptr_count is zero, then every allocation in thus chunk has been
+   // deallocated. We can clear any metadata associated with allocations in this
+   // chunk, and reset the offset to zero.
    if (ptr_count == 0)
    {
       offset = 0;
       for (void *ptr : ptr_stack) { arena_map.erase(ptr); }
       ptr_stack.clear();
-      // If we are not the front chunk, deallocate the backing memory. This
-      // chunk will be consolidated later anyway.
+      // If this is the front chunk, don't deallocate the backing memory --- it
+      // can potentially be reused next time an arena allocation is requested.
+      //
+      // If, on the other hand, this is not the front chunk, the backing memory
+      // cannot be reused (it will first need to be consolidated with the chunks
+      // that come before it), and so we release the memory immediately.
       if (!front)
       {
-         // data.Delete();
+         // The pointers are set to NULL after they are deallocated to prevent
+         // double-free when the ArenaChunk is destroyed.
          if (data.d_ptr)
          {
             ctrl->Device(data.d_mt)->Dealloc(data);
+            data.d_ptr = nullptr;
          }
          ctrl->Host(data.h_mt)->Dealloc(data);
-         dealloced = true;
+         data.h_ptr = nullptr;
       }
       return;
    }
 
+   // We can reclaim all deallocated memory that is at the top of the pointer
+   // stack. We start searching at the top of the stack and find all consecutive
+   // deallocated pointers, and then reclaim this (potentially empty) range of
+   // memory.
    auto end = ptr_stack.end();
    auto ptr_it = ptr_stack.rbegin();
    for (; ptr_it != ptr_stack.rend(); ++ptr_it)
@@ -90,18 +97,21 @@ void ArenaChunk::ClearDeallocated()
       if (!control.deallocated) { break; }
    }
    auto begin = ptr_it.base();
+
+   // If the range is not empty, reclaim the memory by shifting the offset, and
+   // delete the associated pointer metadata.
    if (begin != end)
    {
       std::cout << "Reclaiming " << offset - ((char*)*begin - (char*)data.h_ptr)
                 << " bytes from " << (end - begin) << " pointers.\n";
       offset = (char*)*begin - (char*)data.h_ptr;
-   }
 
-   for (auto it = begin; it != end; ++it)
-   {
-      arena_map.erase(*it);
+      for (auto it = begin; it != end; ++it)
+      {
+         arena_map.erase(*it);
+      }
+      ptr_stack.erase(begin, end);
    }
-   ptr_stack.erase(begin, end);
 
    MFEM_ASSERT(ptr_stack.size() >= ptr_count, "");
 }

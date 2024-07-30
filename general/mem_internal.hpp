@@ -46,7 +46,7 @@ namespace internal
 ///   - the host and device type of this memory region
 struct Memory
 {
-   void *const h_ptr;
+   void *h_ptr;
    void *d_ptr;
    const size_t bytes;
    const MemoryType h_mt;

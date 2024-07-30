@@ -35,8 +35,6 @@ class ArenaChunk
    size_t ptr_count = 0;
    /// Is the chunk in the front of the list?
    bool front = true;
-   /// Whether the memory has been freed (prevent double-free).
-   bool dealloced = false;
    /// Pointers allocated in the chunk. Used to track out-of-order deallocation.
    std::vector<void*> ptr_stack;
 public:
@@ -60,7 +58,7 @@ public:
    /// Returns true if this chunk can fit a new vector of size @a n.
    bool HasCapacityFor(size_t n) const { return n <= GetAvailableCapacity(); }
    /// Returns true if this chunk is empty.
-   bool IsEmpty() const { return ptr_stack.empty(); }
+   bool IsEmpty() const { return ptr_count == 0; }
    /// Clear all deallocated pointers from the top of the stack.
    void ClearDeallocated();
    /// Allocates a buffer of size nbytes, returns the associated pointer.
