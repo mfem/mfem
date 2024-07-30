@@ -38,11 +38,12 @@ struct Refinement
    enum : char { X = 1, Y = 2, Z = 4, XY = 3, XZ = 5, YZ = 6, XYZ = 7 };
    int index; ///< Mesh element number
    char ref_type; ///< refinement XYZ bit mask (7 = full isotropic)
+   real_t scale;
 
    Refinement() = default;
 
-   Refinement(int index, int type = Refinement::XYZ)
-      : index(index), ref_type(type) {}
+   Refinement(int index, int type = Refinement::XYZ, real_t s = 0.5)
+      : index(index), ref_type(type), scale(s) {}
 };
 
 
@@ -506,8 +507,10 @@ protected: // implementation
    {
       char vert_refc, edge_refc;
       int vert_index, edge_index;
+      real_t scale;
 
-      Node() : vert_refc(0), edge_refc(0), vert_index(-1), edge_index(-1) {}
+      Node() : vert_refc(0), edge_refc(0), vert_index(-1), edge_index(-1),
+         scale(0.5) {}
       ~Node();
 
       bool HasVertex() const { return vert_refc > 0; }
@@ -604,6 +607,7 @@ protected: // implementation
    Array<int> leaf_elements; ///< finest elements, in Mesh ordering (+ ghosts)
    Array<int> leaf_sfc_index; ///< natural tree ordering of leaf elements
    Array<int> vertex_nodeId; ///< vertex-index to node-id map, see UpdateVertices
+   Array<real_t> vertex_scale;  // TODO: Is this used?
 
    NCList face_list; ///< lazy-initialized list of faces, see GetFaceList
    NCList edge_list; ///< lazy-initialized list of edges, see GetEdgeList
@@ -673,12 +677,13 @@ protected: // implementation
    Array<Refinement> ref_stack; ///< stack of scheduled refinements (temporary)
    HashTable<Node> shadow; ///< temporary storage for reparented nodes
    Array<Triple<int, int, int> > reparents; ///< scheduled node reparents (tmp)
+   Array<real_t> reparentScale;
 
    Table derefinements; ///< possible derefinements, see GetDerefinementTable
 
    /** Refine the element @a elem with the refinement @a ref_type
        (c.f. Refinement::enum) */
-   void RefineElement(int elem, char ref_type);
+   void RefineElement(int elem, char ref_type, real_t scale = 0.5);
 
    /// Derefine the element @a elem, does nothing on leaf elements.
    void DerefineElement(int elem);
@@ -743,8 +748,8 @@ protected: // implementation
     * @param mid optional return of the edge mid points.
     * @return int 0 -- no split, 1 -- "vertical" split, 2 -- "horizontal" split
     */
-   int QuadFaceSplitType(int n1, int n2, int n3, int n4, int mid[5]
-                         = NULL /*optional output of mid-edge nodes*/) const;
+   int QuadFaceSplitType(int n1, int n2, int n3, int n4, real_t & s,
+                         int mid[5] = NULL /*optional output of mid-edge nodes*/) const;
 
    /**
     * @brief Given a tri face defined by three vertices, establish whether the
@@ -802,7 +807,8 @@ protected: // implementation
     */
    inline bool QuadFaceIsMaster(int n1, int n2, int n3, int n4) const
    {
-      return QuadFaceSplitType(n1, n2, n3, n4) != 0;
+      real_t s;
+      return QuadFaceSplitType(n1, n2, n3, n4, s) != 0;
    }
 
    void ForceRefinement(int vn1, int vn2, int vn3, int vn4);
@@ -819,7 +825,7 @@ protected: // implementation
    void CheckIsoFace(int vn1, int vn2, int vn3, int vn4,
                      int en1, int en2, int en3, int en4, int midf);
 
-   void ReparentNode(int node, int new_p1, int new_p2);
+   void ReparentNode(int node, int new_p1, int new_p2, real_t scale);
 
    int FindMidEdgeNode(int node1, int node2) const;
    int GetMidEdgeNode(int node1, int node2);
@@ -950,19 +956,21 @@ protected: // implementation
       Point(real_t x, real_t y, real_t z)
       { dim = 3; coord[0] = x; coord[1] = y; coord[2] = z; }
 
-      Point(const Point& p0, const Point& p1)
+      Point(const Point& p0, const Point& p1, real_t s = 0.5)
       {
          dim = p0.dim;
          for (int i = 0; i < dim; i++)
          {
-            coord[i] = (p0.coord[i] + p1.coord[i]) * 0.5;
+            coord[i] = ((1.0 - s) * p0.coord[i]) + (s * p1.coord[i]);
          }
       }
 
-      Point(const Point& p0, const Point& p1, const Point& p2, const Point& p3)
+      Point(const Point& p0, const Point& p1, const Point& p2, const Point& p3,
+            real_t s = 0.5)
       {
          dim = p0.dim;
          MFEM_ASSERT(p1.dim == dim && p2.dim == dim && p3.dim == dim, "");
+         MFEM_ABORT("TODO: s?");
          for (int i = 0; i < dim; i++)
          {
             coord[i] = (p0.coord[i] + p1.coord[i] + p2.coord[i] + p3.coord[i])
@@ -1086,6 +1094,9 @@ protected: // implementation
    int GetEdgeMaster(int node) const;
 
    void FindFaceNodes(int face, int node[4]) const;
+
+   inline real_t GetScale(real_t s, bool reverse) const
+   { return reverse ? 1.0 - s : s; }
 
    /**
     * @brief Return the number of splits of this edge that have occurred in the

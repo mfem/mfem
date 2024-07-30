@@ -302,9 +302,10 @@ NCMesh::Node::~Node()
                << (int) edge_refc);
 }
 
-void NCMesh::ReparentNode(int node, int new_p1, int new_p2)
+void NCMesh::ReparentNode(int node, int new_p1, int new_p2, real_t scale)
 {
    Node &nd = nodes[node];
+   nd.scale = GetScale(scale, new_p1 > new_p2);
    int old_p1 = nd.p1, old_p2 = nd.p2;
 
    // assign new parents
@@ -722,21 +723,38 @@ void NCMesh::ForceRefinement(int vn1, int vn2, int vn3, int vn4)
    int* el_nodes = el.node;
    if (el.Geom() == Geometry::CUBE)
    {
+      Node* node12 = nodes.Find(vn1, vn2);
+      real_t scale = 0.5;
+
+      if (node12)
+      {
+         scale = GetScale(node12->scale, vn1 > vn2);
+      }
+      else
+      {
+         Node* node34 = nodes.Find(vn3, vn4);
+         MFEM_ASSERT(node34, "Scale not set in NCMesh::ForceRefinement");
+         scale = GetScale(node34->scale, vn4 > vn3);
+      }
+
       // schedule the right split depending on face orientation
       if ((CubeFaceLeft(vn1, el_nodes) && CubeFaceRight(vn2, el_nodes)) ||
           (CubeFaceLeft(vn2, el_nodes) && CubeFaceRight(vn1, el_nodes)))
       {
-         ref_stack.Append(Refinement(elem, 1)); // X split
+         const bool rev = CubeFaceLeft(vn2, el_nodes) && CubeFaceRight(vn1, el_nodes);
+         ref_stack.Append(Refinement(elem, 1, GetScale(scale, rev))); // X split
       }
       else if ((CubeFaceFront(vn1, el_nodes) && CubeFaceBack(vn2, el_nodes)) ||
                (CubeFaceFront(vn2, el_nodes) && CubeFaceBack(vn1, el_nodes)))
       {
-         ref_stack.Append(Refinement(elem, 2)); // Y split
+         const bool rev = CubeFaceFront(vn2, el_nodes) && CubeFaceBack(vn1, el_nodes);
+         ref_stack.Append(Refinement(elem, 2, GetScale(scale, rev))); // Y split
       }
       else if ((CubeFaceBottom(vn1, el_nodes) && CubeFaceTop(vn2, el_nodes)) ||
                (CubeFaceBottom(vn2, el_nodes) && CubeFaceTop(vn1, el_nodes)))
       {
-         ref_stack.Append(Refinement(elem, 4)); // Z split
+         const bool rev = CubeFaceBottom(vn2, el_nodes) && CubeFaceTop(vn1, el_nodes);
+         ref_stack.Append(Refinement(elem, 4, GetScale(scale, rev))); // Z split
       }
       else
       {
@@ -779,7 +797,8 @@ void NCMesh::FindEdgeElements(int vn1, int vn2, int vn3, int vn4,
 
    // follow face refinement towards 'vn1', get an existing face
    int split, mid[5];
-   while ((split = QuadFaceSplitType(vn1, vn2, vn3, vn4, mid)) > 0)
+   real_t scaling;
+   while ((split = QuadFaceSplitType(vn1, vn2, vn3, vn4, scaling, mid)) > 0)
    {
       if (split == 1) // vertical
       {
@@ -866,14 +885,39 @@ void NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
    // the middle vertical edge. The function calls itself again for the bottom
    // and upper half of the above picture.
 
-   int mid23 = FindMidEdgeNode(vn2, vn3);
-   int mid41 = FindMidEdgeNode(vn4, vn1);
+   const int mid23 = FindMidEdgeNode(vn2, vn3);
+   const int mid41 = FindMidEdgeNode(vn4, vn1);
+
    if (mid23 >= 0 && mid41 >= 0)
    {
       int midf = nodes.FindId(mid23, mid41);
       if (midf >= 0)
       {
+         Node* midfNode = nodes.Find(mid23, mid41);
+
+         if (midfNode)
+         {
+            Node* node12 = nodes.Find(vn1, vn2);
+            if (node12)
+            {
+               const bool rev = (vn1 < vn2) != (mid41 < mid23);
+               midfNode->scale = GetScale(node12->scale, rev);
+            }
+            else
+            {
+               Node* node34 = nodes.Find(vn3, vn4);
+               if (node34)
+               {
+                  const bool rev = (vn4 < vn3) != (mid41 < mid23);
+                  midfNode->scale = GetScale(node34->scale, rev);
+               }
+            }
+         }
+
          reparents.Append(Triple<int, int, int>(midf, mid12, mid34));
+
+         Node* node23 = nodes.Find(vn2, vn3);
+         reparentScale.Append(GetScale(node23->scale, vn2 > vn3));
 
          int rs = ref_stack.Size();
 
@@ -902,9 +946,10 @@ void NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
             for (int i = 0; i < reparents.Size(); i++)
             {
                const Triple<int, int, int> &tr = reparents[i];
-               ReparentNode(tr.one, tr.two, tr.three);
+               ReparentNode(tr.one, tr.two, tr.three, reparentScale[i]);
             }
             reparents.DeleteAll();
+            reparentScale.DeleteAll();
          }
          return;
       }
@@ -950,8 +995,7 @@ void NCMesh::CheckIsoFace(int vn1, int vn2, int vn3, int vn4,
    }
 }
 
-
-void NCMesh::RefineElement(int elem, char ref_type)
+void NCMesh::RefineElement(int elem, char ref_type, real_t scale)
 {
    if (!ref_type) { return; }
 
@@ -964,7 +1008,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
       // do the remaining splits on the children
       for (int i = 0; i < MaxElemChildren; i++)
       {
-         if (el.child[i] >= 0) { RefineElement(el.child[i], remaining); }
+         if (el.child[i] >= 0) { RefineElement(el.child[i], remaining, scale); }
       }
       return;
    }
@@ -1014,6 +1058,16 @@ void NCMesh::RefineElement(int elem, char ref_type)
          int mid45 = GetMidEdgeNode(no[4], no[5]);
          int mid67 = GetMidEdgeNode(no[6], no[7]);
 
+         Node* node01 = nodes.Find(no[0], no[1]);
+         Node* node23 = nodes.Find(no[2], no[3]);
+         Node* node45 = nodes.Find(no[4], no[5]);
+         Node* node67 = nodes.Find(no[6], no[7]);
+
+         if (node01) { node01->scale = GetScale(scale, no[0] > no[1]); }
+         if (node23) { node23->scale = GetScale(scale, no[3] > no[2]); }
+         if (node45) { node45->scale = GetScale(scale, no[4] > no[5]); }
+         if (node67) { node67->scale = GetScale(scale, no[7] > no[6]); }
+
          child[0] = NewHexahedron(no[0], mid01, mid23, no[3],
                                   no[4], mid45, mid67, no[7], attr,
                                   fa[0], fa[1], -1, fa[3], fa[4], fa[5]);
@@ -1034,6 +1088,16 @@ void NCMesh::RefineElement(int elem, char ref_type)
          int mid56 = GetMidEdgeNode(no[5], no[6]);
          int mid74 = GetMidEdgeNode(no[7], no[4]);
 
+         Node* node12 = nodes.Find(no[1], no[2]);
+         Node* node30 = nodes.Find(no[3], no[0]);
+         Node* node56 = nodes.Find(no[5], no[6]);
+         Node* node74 = nodes.Find(no[7], no[4]);
+
+         if (node12) { node12->scale = GetScale(scale, no[1] > no[2]); }
+         if (node30) { node30->scale = GetScale(scale, no[0] > no[3]); }
+         if (node56) { node56->scale = GetScale(scale, no[5] > no[6]); }
+         if (node74) { node74->scale = GetScale(scale, no[4] > no[7]); }
+
          child[0] = NewHexahedron(no[0], no[1], mid12, mid30,
                                   no[4], no[5], mid56, mid74, attr,
                                   fa[0], fa[1], fa[2], -1, fa[4], fa[5]);
@@ -1053,6 +1117,16 @@ void NCMesh::RefineElement(int elem, char ref_type)
          int mid15 = GetMidEdgeNode(no[1], no[5]);
          int mid26 = GetMidEdgeNode(no[2], no[6]);
          int mid37 = GetMidEdgeNode(no[3], no[7]);
+
+         Node* node04 = nodes.Find(no[0], no[4]);
+         Node* node15 = nodes.Find(no[1], no[5]);
+         Node* node26 = nodes.Find(no[2], no[6]);
+         Node* node37 = nodes.Find(no[3], no[7]);
+
+         if (node04) { node04->scale = GetScale(scale, no[0] > no[4]); }
+         if (node15) { node15->scale = GetScale(scale, no[1] > no[5]); }
+         if (node26) { node26->scale = GetScale(scale, no[2] > no[6]); }
+         if (node37) { node37->scale = GetScale(scale, no[3] > no[7]); }
 
          child[0] = NewHexahedron(no[0], no[1], no[2], no[3],
                                   mid04, mid15, mid26, mid37, attr,
@@ -1537,6 +1611,12 @@ void NCMesh::RefineElement(int elem, char ref_type)
          int mid01 = nodes.GetId(no[0], no[1]);
          int mid23 = nodes.GetId(no[2], no[3]);
 
+         Node* node01 = nodes.Find(no[0], no[1]);
+         Node* node23 = nodes.Find(no[2], no[3]);
+
+         node01->scale = GetScale(scale, no[0] > no[1]);
+         node23->scale = GetScale(scale, no[3] > no[2]);
+
          child[0] = NewQuadrilateral(no[0], mid01, mid23, no[3],
                                      attr, fa[0], -1, fa[2], fa[3]);
 
@@ -1547,6 +1627,12 @@ void NCMesh::RefineElement(int elem, char ref_type)
       {
          int mid12 = nodes.GetId(no[1], no[2]);
          int mid30 = nodes.GetId(no[3], no[0]);
+
+         Node* node12 = nodes.Find(no[1], no[2]);
+         Node* node30 = nodes.Find(no[3], no[0]);
+
+         node12->scale = GetScale(scale, no[1] > no[2]);
+         node30->scale = GetScale(scale, no[0] > no[3]);
 
          child[0] = NewQuadrilateral(no[0], no[1], mid12, mid30,
                                      attr, fa[0], fa[1], -1, fa[3]);
@@ -1652,7 +1738,7 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
    for (int i = refinements.Size()-1; i >= 0; i--)
    {
       const Refinement& ref = refinements[i];
-      ref_stack.Append(Refinement(leaf_elements[ref.index], ref.ref_type));
+      ref_stack.Append(Refinement(leaf_elements[ref.index], ref.ref_type, ref.scale));
    }
 
    // keep refining as long as the stack contains something
@@ -1663,7 +1749,7 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
       ref_stack.DeleteLast();
 
       int size = ref_stack.Size();
-      RefineElement(ref.index, ref.ref_type);
+      RefineElement(ref.index, ref.ref_type, ref.scale);
       nforced += ref_stack.Size() - size;
    }
 
@@ -2266,6 +2352,8 @@ void NCMesh::UpdateVertices()
    // STEP 4: create the mapping from Mesh vertex index to NCMesh node index
 
    vertex_nodeId.SetSize(NVertices);
+   vertex_scale.SetSize(NVertices);
+   vertex_scale = 0.5;
    for (auto node = nodes.begin(); node != nodes.end(); ++node)
    {
       if (node->HasVertex() && node->vert_index >= 0)
@@ -2454,7 +2542,7 @@ const real_t* NCMesh::CalcVertexPos(int node) const
 
    for (int i = 0; i < 3; i++)
    {
-      tv.pos[i] = (pos1[i] + pos2[i]) * 0.5;
+      tv.pos[i] = ((1.0 - nd.scale) * pos1[i]) + (nd.scale * pos2[i]);
    }
    tv.valid = true;
    return tv.pos;
@@ -2732,16 +2820,18 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
 
 //// Face/edge lists ///////////////////////////////////////////////////////////
 
-int NCMesh::QuadFaceSplitType(int v1, int v2, int v3, int v4,
+int NCMesh::QuadFaceSplitType(int v1, int v2, int v3, int v4, real_t & s,
                               int mid[5]) const
 {
    MFEM_ASSERT(Dim >= 3, "");
 
    // find edge nodes
-   int e1 = FindMidEdgeNode(v1, v2);
-   int e2 = FindMidEdgeNode(v2, v3);
-   int e3 = (e1 >= 0 && nodes[e1].HasVertex()) ? FindMidEdgeNode(v3, v4) : -1;
-   int e4 = (e2 >= 0 && nodes[e2].HasVertex()) ? FindMidEdgeNode(v4, v1) : -1;
+   const int e1 = FindMidEdgeNode(v1, v2);
+   const int e2 = FindMidEdgeNode(v2, v3);
+   const int e3 = (e1 >= 0 &&
+                   nodes[e1].HasVertex()) ? FindMidEdgeNode(v3, v4) : -1;
+   const int e4 = (e2 >= 0 &&
+                   nodes[e2].HasVertex()) ? FindMidEdgeNode(v4, v1) : -1;
 
    // optional: return the mid-edge nodes if requested
    if (mid) { mid[0] = e1, mid[1] = e2, mid[2] = e3, mid[3] = e4; }
@@ -2750,6 +2840,8 @@ int NCMesh::QuadFaceSplitType(int v1, int v2, int v3, int v4,
    int midf1 = -1, midf2 = -1;
    if (e1 >= 0 && e3 >= 0) { midf1 = FindMidEdgeNode(e1, e3); }
    if (e2 >= 0 && e4 >= 0) { midf2 = FindMidEdgeNode(e2, e4); }
+
+   s = 0.5;
 
    // get proper node if shadow node exists
    if (midf1 >= 0 && midf1 == midf2)
@@ -2770,11 +2862,15 @@ int NCMesh::QuadFaceSplitType(int v1, int v2, int v3, int v4,
    else if (midf1 >= 0) // face split "vertically"
    {
       if (mid) { mid[4] = midf1; }
+      s = nodes[e1].scale;
+      if (v1 > v2) { s = 1.0 - s; }
       return 1;
    }
    else // face split "horizontally"
    {
       if (mid) { mid[4] = midf2; }
+      s = nodes[e2].scale;
+      if (v2 > v3) { s = 1.0 - s; }
       return 2;
    }
 }
@@ -3003,12 +3099,13 @@ void NCMesh::TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
 
    // we need to recurse deeper
    int mid[5];
-   int split = QuadFaceSplitType(vn0, vn1, vn2, vn3, mid);
+   real_t scaling;
+   const int split = QuadFaceSplitType(vn0, vn1, vn2, vn3, scaling, mid);
 
    Face *ef[2][4];
    if (split == 1) // "X" split face
    {
-      Point pmid0(pm(0), pm(1)), pmid2(pm(2), pm(3));
+      Point pmid0(pm(0), pm(1), scaling), pmid2(pm(2), pm(3), 1.0 - scaling);
 
       TraverseQuadFace(vn0, mid[0], mid[2], vn3,
                        PointMatrix(pm(0), pmid0, pmid2, pm(3)),
@@ -3024,7 +3121,7 @@ void NCMesh::TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
    }
    else if (split == 2) // "Y" split face
    {
-      Point pmid1(pm(1), pm(2)), pmid3(pm(3), pm(0));
+      Point pmid1(pm(1), pm(2), scaling), pmid3(pm(3), pm(0), 1.0 - scaling);
 
       TraverseQuadFace(vn0, vn1, mid[1], mid[3],
                        PointMatrix(pm(0), pm(1), pmid1, pmid3),
@@ -3313,7 +3410,8 @@ void NCMesh::TraverseEdge(int vn0, int vn1, real_t t0, real_t t1, int flags,
    }
 
    // recurse deeper
-   real_t tmid = (t0 + t1) / 2;
+   const real_t scale = GetScale(nd.scale, vn0 > vn1);
+   const real_t tmid = ((1.0 - scale) * t0) + (scale * t1);
    TraverseEdge(vn0, mid, t0, tmid, flags, level+1, matrix_map);
    TraverseEdge(mid, vn1, tmid, t1, flags, level+1, matrix_map);
 }
@@ -3617,7 +3715,8 @@ void NCMesh::CollectQuadFaceVertices(int v0, int v1, int v2, int v3,
                                      Array<int> &indices)
 {
    int mid[5];
-   switch (QuadFaceSplitType(v0, v1, v2, v3, mid))
+   real_t scaling;
+   switch (QuadFaceSplitType(v0, v1, v2, v3, scaling, mid))
    {
       case 1:
          indices.Append(mid[0]);
@@ -5397,8 +5496,9 @@ void NCMesh::QuadFaceSplitLevel(int vn1, int vn2, int vn3, int vn4,
 {
    int hl1, hl2, vl1, vl2;
    int mid[5];
+   real_t scaling;
 
-   switch (QuadFaceSplitType(vn1, vn2, vn3, vn4, mid))
+   switch (QuadFaceSplitType(vn1, vn2, vn3, vn4, scaling, mid))
    {
       case 0: // not split
          h_level = v_level = 0;
@@ -5586,7 +5686,8 @@ int NCMesh::PrintVertexParents(std::ostream *os) const
             MFEM_ASSERT(nodes[node->p1].HasVertex(), "");
             MFEM_ASSERT(nodes[node->p2].HasVertex(), "");
 
-            (*os) << node.index() << " " << node->p1 << " " << node->p2 << "\n";
+            (*os) << node.index() << " " << node->p1 << " " << node->p2
+                  << " " << node->scale << "\n";
          }
       }
       return 0;
@@ -5600,7 +5701,8 @@ void NCMesh::LoadVertexParents(std::istream &input)
    while (nv--)
    {
       int id, p1, p2;
-      input >> id >> p1 >> p2;
+      real_t s;
+      input >> id >> p1 >> p2 >> s;
       MFEM_VERIFY(input, "problem reading vertex parents.");
 
       MFEM_VERIFY(nodes.IdExists(id), "vertex " << id << " not found.");
@@ -5613,6 +5715,8 @@ void NCMesh::LoadVertexParents(std::istream &input)
 
       // assign new parents for the node
       nodes.Reparent(id, p1, p2);
+
+      nodes[id].scale = s;
    }
 }
 
