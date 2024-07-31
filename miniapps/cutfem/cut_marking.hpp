@@ -37,7 +37,9 @@ public:
         const int dim=mesh.SpaceDimension();
         elfec=new L2_FECollection(0,dim);
         smesh=&mesh;
+
         elfes=new FiniteElementSpace(smesh,elfec,1);
+        elgf.SetSpace(elfes);
 
         include_cut_elements=include_cut;
         use_cut_marks=use_cut;
@@ -75,7 +77,7 @@ public:
     /// Lists all inactive dofs, i.e.,
     ///  all dofs in the outside region.
     void ListEssentialTDofs(const Array<int> &elem_marker,
-                            ParFiniteElementSpace &lfes,
+                            FiniteElementSpace &lfes,
                             Array<int> &ess_tdof_list) const;
 
 private:

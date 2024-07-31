@@ -39,6 +39,11 @@ add_mfem_miniapp(seqstokes
 	${SEQCUT_COMMON_FILES}
         LIBRARIES mfem)
 
+add_mfem_miniapp(seq_mark_test
+        MAIN seq_mark_test.cpp
+        ${SEQCUT_COMMON_FILES}
+        LIBRARIES mfem)
+
 if(MFEM_USE_MPI)
 
 list(APPEND PARCUT_COMMON_SOURCES)
