@@ -3178,7 +3178,7 @@ void TMOP_Integrator::GetSurfaceFittingErrors(const Vector &pos,
    MFEM_VERIFY(surf_fit_marker, "Surface fitting has not been enabled.");
    if (surf_fit_gf)
    {
-      surf_fit_gf->HostRead();
+      surf_fit_gf->HostReadWrite();
    }
    pos.HostRead();
    if (surf_fit_pos)
@@ -3382,8 +3382,10 @@ real_t TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
 
       energy += weight * val;
    }
+   // std::cout << el_id << " " << energy << " k10-metric-energy\n";
 
    // Contribution from the surface fitting term.
+   double fit_energy = 0.0;
    if (surface_fit)
    {
       // Scalar for surf_fit_gf, vector for surf_fit_pos, but that's ok.
@@ -3410,6 +3412,7 @@ real_t TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
          if (surf_fit_gf)
          {
             energy += w * sigma_e(s) * sigma_e(s);
+            fit_energy += w * sigma_e(s) * sigma_e(s);;
          }
          if (surf_fit_pos)
          {
@@ -3424,6 +3427,7 @@ real_t TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
          }
       }
    }
+   // std::cout << el_id << " " << fit_energy << " k10-el-energy-fitting\n";
 
    delete Tpr;
    return energy;
@@ -4000,7 +4004,7 @@ void TMOP_Integrator::AssembleElemVecSurfFit(const FiniteElement &el_x,
       const IntegrationPoint &ip = ir.IntPoint(s);
       Tpr.SetIntPoint(&ip);
       real_t w = surf_fit_normal * surf_fit_coeff->Eval(Tpr, ip) *
-                 1.0 / surf_fit_dof_count[vdofs[s]]; 
+                 1.0 / surf_fit_dof_count[vdofs[s]];
 
       if (surf_fit_gf) { w *= 2.0 * sigma_e(s); }
       if (surf_fit_pos)
@@ -4615,8 +4619,6 @@ UpdateAfterMeshPositionChange(const Vector &x_new,
 {
    if (discr_tc) { PA.Jtr_needs_update = true; }
 
-   if (PA.enabled) { UpdateCoefficientsPA(x_new); }
-
    Ordering::Type ordering = x_fes.GetOrdering();
 
    // Update the finite difference delta if FD are used.
@@ -4645,6 +4647,8 @@ UpdateAfterMeshPositionChange(const Vector &x_new,
    {
       RemapSurfaceFittingLevelSetAtNodes(x_new, ordering);
    }
+
+   if (PA.enabled) { UpdateCoefficientsPA(x_new); }
 }
 
 void TMOP_Integrator::ComputeFDh(const Vector &x, const FiniteElementSpace &fes)

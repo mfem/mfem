@@ -742,8 +742,10 @@ int main (int argc, char *argv[])
    if (surface_fit_const >= 0.0)
    {
       surf_fit_coeff.constant   = 0.0;
+      if (pa) { tmop_integ->UpdateSurfaceFittingCoefficientsPA(x); }
       init_metric_energy = a.GetParGridFunctionEnergy(x);
       surf_fit_coeff.constant  = surface_fit_const;
+      if (pa) { tmop_integ->UpdateSurfaceFittingCoefficientsPA(x); }
    }
 
    // Fix all boundary nodes, or fix only a given component depending on the
@@ -907,8 +909,10 @@ int main (int argc, char *argv[])
    if (surface_fit_const >= 0.0)
    {
       surf_fit_coeff.constant  = 0.0;
+      if (pa) { tmop_integ->UpdateSurfaceFittingCoefficientsPA(x); }
       fin_metric_energy  = a.GetParGridFunctionEnergy(x);
       surf_fit_coeff.constant  = surface_fit_const;
+      if (pa) { tmop_integ->UpdateSurfaceFittingCoefficientsPA(x); }
    }
 
    if (myid == 0)

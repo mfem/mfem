@@ -1870,7 +1870,7 @@ protected:
       mutable DenseTensor Jtr;
       mutable bool Jtr_needs_update;
       mutable bool Jtr_debug_grad;
-      mutable Vector E, O, X0, H, C0, LD, H0, MC;
+      mutable Vector E, O, X0, H, C0, LD, H0, MC, OFit, EFit;
       mutable Vector X1, X2, X3, X4; //new here
       mutable real_t C1, C2; //new here
       const DofToQuad *maps;
@@ -2033,6 +2033,8 @@ public:
       : TMOP_Integrator(m, tc, m) { }
 
    ~TMOP_Integrator();
+
+   void UpdateSurfaceFittingCoefficientsPA(const Vector &x_loc);
 
    /// Release the device memory of large PA allocations. This will copy device
    /// memory back to the host before releasing.

@@ -58,20 +58,19 @@ MFEM_REGISTER_TMOP_KERNELS(void, EnergyPA_Fit_Grad_2D,
          {
             const real_t sigma = X1(qx,qy,e);
             const real_t dof_count = X2(qx,qy,e);
-            const real_t marker = X3(qx,qy,e); 
+            const real_t marker = X3(qx,qy,e);
             const real_t coeff = C1;
             const real_t normal = C2;
 
             const real_t dx = X4(qx,qy,0,e);
             const real_t dy = X4(qx,qy,1,e);
 
-            if (marker == 0) {continue;}
-            double w = normal * coeff * 1.0/dof_count; 
+            double w = marker * normal * coeff * 1.0/dof_count;
             Y(qx,qy,0,e) += 2 * w * sigma * dx;
             Y(qx,qy,1,e) += 2 * w * sigma * dy;
          }
       }
-      MFEM_SYNC_THREAD; 
+      MFEM_SYNC_THREAD;
    });
 
 }
@@ -83,7 +82,7 @@ void TMOP_Integrator::GetLocalStateEnergyPA_Fit_Grad_2D(const Vector &X, Vector 
    const int Q1D = D1D;
    const int id = (D1D << 4 ) | Q1D;
    const Vector &O = PA.O;
-   
+
    const real_t &C1 = PA.C1;
    const real_t &C2 = PA.C2;
    const Vector &X1 = PA.X1;

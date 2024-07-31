@@ -47,6 +47,7 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_Fit_2D,
 
    mfem::forall_2D_batch(NE, D1D, D1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
+      double el_energy = 0.0;
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int NBZ = 1;
@@ -57,17 +58,17 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_Fit_2D,
          {
             const real_t sigma = X1(qx,qy,e);
             const real_t dof_count = X2(qx,qy,e);
-            const real_t marker = X3(qx,qy,e); 
+            const real_t marker = X3(qx,qy,e);
             const real_t coeff = C1;
             const real_t normal = C2;
 
-            if (marker == 0) {continue;}
-            double w = coeff * normal * 1.0/dof_count;
-            E(qx,qy,e) = w * sigma * sigma;   
+            double w = marker * coeff * normal * 1.0/dof_count;
+            E(qx,qy,e) = w * sigma * sigma;
+            el_energy +=  w * sigma * sigma;
          }
       }
    });
-   return energy * ones; 
+   return energy * ones;
 }
 
 real_t TMOP_Integrator::GetLocalStateEnergyPA_Fit_2D(const Vector &X) const
@@ -77,10 +78,10 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_Fit_2D(const Vector &X) const
    const int D1D = meshOrder + 1;
    const int Q1D = D1D;
    const int id = (D1D << 4 ) | Q1D;
-   const Vector &O = PA.O;
-   Vector &E = PA.E;
+   const Vector &O = PA.OFit;
+   Vector &E = PA.EFit;
 
-      
+
    const real_t &C1 = PA.C1;
    const real_t &C2 = PA.C2;
    const Vector &X1 = PA.X1;
