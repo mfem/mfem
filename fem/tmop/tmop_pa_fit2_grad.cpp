@@ -67,8 +67,8 @@ MFEM_REGISTER_TMOP_KERNELS(void, EnergyPA_Fit_Grad_2D,
 
             if (marker == 0) {continue;}
             double w = normal * coeff * 1.0/dof_count; 
-            Y(qx,qy,0,e) = 2 * w * sigma * dx;
-            Y(qx,qy,1,e) = 2 * w * sigma * dy;
+            Y(qx,qy,0,e) += 2 * w * sigma * dx;
+            Y(qx,qy,1,e) += 2 * w * sigma * dy;
          }
       }
       MFEM_SYNC_THREAD; 
