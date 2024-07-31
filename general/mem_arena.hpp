@@ -45,28 +45,31 @@ public:
    /// @brief Return the available capacity (i.e. the largest vector that will
    /// fit in this chunk).
    size_t GetAvailableCapacity() const { return data.bytes - offset; }
+   /// Returns true if this chunk can fit a new vector of size @a n.
+   bool HasCapacityFor(size_t n) const { return n <= GetAvailableCapacity(); }
    /// @brief Returns the original capacity of the chunk.
    ///
    /// If the chunk is not in the front of the list and all of its vectors are
-   /// freed, it may deallocate its data, so the capacity becomes zero. The
-   /// "original capacity" remains unchained.
+   /// freed, it may deallocate its data, but the "original capacity" remains
+   /// unchanged.
    size_t GetCapacity() const { return data.bytes; }
-   /// Return the data offset.
-   size_t GetOffset() const { return offset; }
-   /// Sets whether the chunk is in the front of the list
-   void SetFront(bool front_) { front = front_; }
-   /// Returns true if this chunk can fit a new vector of size @a n.
-   bool HasCapacityFor(size_t n) const { return n <= GetAvailableCapacity(); }
    /// Returns true if this chunk is empty.
    bool IsEmpty() const { return ptr_count == 0; }
-   /// Clear all deallocated pointers from the top of the stack.
-   void ClearDeallocated();
+   /// @brief Mark the pointer corresponding to @a control as deallocated, and
+   /// reclaim all free memory at the top of the stack.
+   void Dealloc(struct ArenaControlBlock &control);
    /// Allocates a buffer of size nbytes, returns the associated pointer.
    void *NewPointer(size_t nbytes);
    /// Return the device pointer associated with host pointer @a h_ptr.
    void *GetDevicePointer(void *h_ptr);
-   /// Return the number of live pointers in the chunk.
-   size_t GetPointerCount() const { return ptr_count; }
+   /// Sets whether the chunk is in the front of the list
+   void SetFront(bool front_) { front = front_; }
+
+   // For debugging:
+   // /// Return the data offset.
+   // size_t GetOffset() const { return offset; }
+   // /// Return the number of live pointers in the chunk.
+   // size_t GetPointerCount() const { return ptr_count; }
 };
 
 class ArenaHostMemorySpace : public HostMemorySpace

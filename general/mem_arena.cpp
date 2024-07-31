@@ -50,8 +50,9 @@ ArenaChunk::~ArenaChunk()
    if (data.h_ptr) { ctrl->Host(data.h_mt)->Dealloc(data); }
 }
 
-void ArenaChunk::ClearDeallocated()
+void ArenaChunk::Dealloc(ArenaControlBlock &control)
 {
+   control.deallocated = true;
    ptr_count -= 1;
 
    // If ptr_count is zero, then every allocation in thus chunk has been
@@ -83,18 +84,19 @@ void ArenaChunk::ClearDeallocated()
       return;
    }
 
-   // We can reclaim all deallocated memory that is at the top of the pointer
-   // stack. We start searching at the top of the stack and find all consecutive
+   // This chunk is not empty, but we still can reclaim deallocated memory that
+   // is at the top of the pointer stack.
+   //
+   // We start searching at the top of the stack and find all consecutive
    // deallocated pointers, and then reclaim this (potentially empty) range of
    // memory.
    auto end = ptr_stack.end();
    auto ptr_it = ptr_stack.rbegin();
-   for (; ptr_it != ptr_stack.rend(); ++ptr_it)
+   while (ptr_it != ptr_stack.rend())
    {
-      auto it = arena_map->find(*ptr_it);
-      MFEM_ASSERT(it != arena_map->end(), "");
-      auto &control = it->second;
+      const ArenaControlBlock &control = arena_map->at(*ptr_it);
       if (!control.deallocated) { break; }
+      ++ptr_it;
    }
    auto begin = ptr_it.base();
 
@@ -102,8 +104,9 @@ void ArenaChunk::ClearDeallocated()
    // delete the associated pointer metadata.
    if (begin != end)
    {
-      std::cout << "Reclaiming " << offset - ((char*)*begin - (char*)data.h_ptr)
-                << " bytes from " << (end - begin) << " pointers.\n";
+      // Debug output:
+      // std::cout << "Reclaiming " << offset - ((char*)*begin - (char*)data.h_ptr)
+      //           << " bytes from " << (end - begin) << " pointers.\n";
       offset = (char*)*begin - (char*)data.h_ptr;
 
       for (auto it = begin; it != end; ++it)
@@ -205,37 +208,35 @@ void ArenaHostMemorySpace::Alloc(void **ptr, size_t nbytes)
    arena_map->emplace(*ptr, ArenaControlBlock(chunks.front(), nbytes_aligned));
 
    // Debug output:
-   size_t nchunks = std::distance(std::begin(chunks), std::end(chunks));
-   mfem::out << "===========================================================\n";
-   mfem::out << nchunks << " chunks\n";
-   int i = 0;
-   for (auto it = chunks.begin(); it != chunks.end(); )
-   {
-      auto &c = *it;
-      mfem::out << "   Chunk " << i << '\n';
-      mfem::out << "   Size:      " << c.GetCapacity() << '\n';
-      mfem::out << "   Vectors:   " << c.GetPointerCount() << '\n';
-      mfem::out << "   Available: " << c.GetAvailableCapacity() << '\n';
-      ++it;
-      ++i;
-      if (it != chunks.end())
-      {
-         mfem::out << "   --------------------------------------------------\n";
-      }
-   }
+   // size_t nchunks = std::distance(std::begin(chunks), std::end(chunks));
+   // mfem::out << "===========================================================\n";
+   // mfem::out << nchunks << " chunks\n";
+   // int i = 0;
+   // for (auto it = chunks.begin(); it != chunks.end(); )
+   // {
+   //    auto &c = *it;
+   //    mfem::out << "   Chunk " << i << '\n';
+   //    mfem::out << "   Size:      " << c.GetCapacity() << '\n';
+   //    mfem::out << "   Vectors:   " << c.GetPointerCount() << '\n';
+   //    mfem::out << "   Available: " << c.GetAvailableCapacity() << '\n';
+   //    ++it;
+   //    ++i;
+   //    if (it != chunks.end())
+   //    {
+   //       mfem::out << "   --------------------------------------------------\n";
+   //    }
+   // }
 }
 
 void ArenaHostMemorySpace::Dealloc(Memory &mem)
 {
-   auto it = arena_map->find(mem.h_ptr);
-   auto &control = it->second;
-   control.deallocated = true; // Mark as deallocated
-   control.chunk.ClearDeallocated();
+   ArenaControlBlock &control = arena_map->at(mem.h_ptr);
+   control.chunk.Dealloc(control);
 }
 
 void ArenaDeviceMemorySpace::Alloc(Memory &base)
 {
-   auto &chunk = arena_map->find(base.h_ptr)->second.chunk;
+   auto &chunk = arena_map->at(base.h_ptr).chunk;
    base.d_ptr = chunk.GetDevicePointer(base.h_ptr);
 }
 
