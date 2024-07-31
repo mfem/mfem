@@ -182,6 +182,12 @@ void TMOP_Integrator::AssemblePA_Fitting()
    PA.X4.UseDevice(true);
    n4_R->Mult(*surf_fit_grad, PA.X4);
 
+   // surf_fit_hess -> PA.X4 
+   const Operator *n5_R = surf_fit_hess->FESpace()->GetElementRestriction(ordering);
+   PA.X5.SetSize(n5_R->Height(), Device::GetMemoryType());
+   PA.X5.UseDevice(true);
+   n5_R->Mult(*surf_fit_hess, PA.X5);
+
 }
 //------------------------------- new function above -------------------------//
 
@@ -249,6 +255,7 @@ void TMOP_Integrator::UpdateCoefficientsPA(const Vector &x_loc)
       RemapSurfaceFittingLevelSetAtNodes(x_loc, PA.fes->GetOrdering());
       const FiniteElementSpace *fes_fit = surf_fit_gf->FESpace();
       const FiniteElementSpace *fes_grad = surf_fit_grad->FESpace();
+      const FiniteElementSpace *fes_hess = surf_fit_hess->FESpace();
       const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
 
       const Operator *n1_R_int = fes_fit->GetElementRestriction(ordering);
@@ -256,6 +263,9 @@ void TMOP_Integrator::UpdateCoefficientsPA(const Vector &x_loc)
 
       const Operator *n4_R_int = fes_grad->GetElementRestriction(ordering);
       n4_R_int->Mult(*surf_fit_grad, PA.X4);
+
+      const Operator *n5_R = fes_hess->GetElementRestriction(ordering);
+      n5_R->Mult(*surf_fit_hess, PA.X5);
       
       ConstantCoefficient* cS = dynamic_cast<ConstantCoefficient*>(surf_fit_coeff);
       PA.C1 = cS->constant;
