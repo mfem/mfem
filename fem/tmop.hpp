@@ -1871,7 +1871,7 @@ protected:
       mutable DenseTensor Jtr;
       mutable bool Jtr_needs_update;
       mutable bool Jtr_debug_grad;
-      mutable Vector E, O, X0, H, C0, LD, H0, MC, OFit, EFit;
+      mutable Vector E, O, X0, H, C0, LD, H0, MC, OFit, EFit, H0Fit;
       mutable Vector X1, X2, X3, X4, X5; //new here
       mutable real_t C1, C2; //new here
       const DofToQuad *maps;
@@ -1964,6 +1964,8 @@ protected:
    void AssembleGradPA_3D(const Vector&) const;
    void AssembleGradPA_C0_2D(const Vector&) const;
    void AssembleGradPA_C0_3D(const Vector&) const;
+   void AssembleGradPA_Fit_2D(const Vector&) const;
+   void AssembleGradPA_Fit_3D(const Vector&) const;
 
    real_t GetLocalStateEnergyPA_2D(const Vector&) const;
    real_t GetLocalStateEnergyPA_C0_2D(const Vector&) const;

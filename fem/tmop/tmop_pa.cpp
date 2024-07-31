@@ -39,12 +39,14 @@ void TMOP_Integrator::AssembleGradPA(const Vector &xe,
    {
       AssembleGradPA_2D(xe);
       if (lim_coeff) { AssembleGradPA_C0_2D(xe); }
+      if (surf_fit_coeff) { AssembleGradPA_Fit_2D(xe); }
    }
 
    if (PA.dim == 3)
    {
       AssembleGradPA_3D(xe);
       if (lim_coeff) { AssembleGradPA_C0_3D(xe); }
+      if (surf_fit_coeff) { AssembleGradPA_Fit_3D(xe); }
    }
 }
 
@@ -182,7 +184,7 @@ void TMOP_Integrator::AssemblePA_Fitting()
    PA.X4.UseDevice(true);
    n4_R->Mult(*surf_fit_grad, PA.X4);
 
-      // Scalar Q-vector of '1', used to compute sums via dot product
+   // Scalar Q-vector of '1', used to compute sums via dot product
    PA.OFit.SetSize(PA.X1.Size(), Device::GetDeviceMemoryType());
    PA.OFit = 1.0;
 
@@ -190,11 +192,15 @@ void TMOP_Integrator::AssemblePA_Fitting()
    PA.EFit.UseDevice(true);
    PA.EFit.SetSize(PA.X1.Size(), Device::GetDeviceMemoryType());
 
-   // surf_fit_hess -> PA.X4
+   // surf_fit_hess -> PA.X5
    const Operator *n5_R = surf_fit_hess->FESpace()->GetElementRestriction(ordering);
    PA.X5.SetSize(n5_R->Height(), Device::GetMemoryType());
    PA.X5.UseDevice(true);
    n5_R->Mult(*surf_fit_hess, PA.X5);
+
+   // Hessian vector, scalar Q-vector
+   PA.H0Fit.UseDevice(true);
+   PA.H0Fit.SetSize(PA.X5.Size(), Device::GetDeviceMemoryType());
 
 }
 //------------------------------- new function above -------------------------//
