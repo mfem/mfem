@@ -236,6 +236,7 @@ int main (int argc, char *argv[])
 
    Mesh *submesh = NULL;
    if (dim==vdim) {
+      cout<<"dim==vdim"<<endl;
       int nattr = mesh->bdr_attributes.Max();
       mesh->bdr_attributes.Print();
       Array<int> subdomain_attributes(nattr);
@@ -324,12 +325,12 @@ int main (int argc, char *argv[])
 
       Vector pos_ref1(npt);
       Vector pos_ref2(npt);
-      pos_ref1.Randomize((myid+1)*17);
-      pos_ref2.Randomize((myid+1)*23);
+      pos_ref1.Randomize((myid+1)*17.0);
+      pos_ref2.Randomize((myid+1)*53.0);
       for (int j=0; j<npt; j++) {
          IntegrationPoint ip;
          if (j<4) {
-            ip.x = (j%2==0) ? 0.5 : 1.0;
+           ip.x = (j%2==0) ? 0.0 : 1.0;
             if (rdim==2) {
                ip.y = j/2==0 ? 0.0 : 1.0;
             }
