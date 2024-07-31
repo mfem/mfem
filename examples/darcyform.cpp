@@ -1760,9 +1760,17 @@ void DarcyHybridization::MultNL(int mode, const BlockVector &b, const Vector &x,
 
       //(A^-1 - A^-1 B^T S^-1 B A^-1) (bu - C^T sol)
       u_l.SetSize(u_vdofs.Size());
-      p_l.SetSize(p_dofs.Size());
-      //initial guess?
-      p_l = 0.;
+      if (darcy_p.Size() > 0)
+      {
+         //load the initial guess from the non-reduced solution vector
+         darcy_p.GetSubVector(p_dofs, p_l);
+      }
+      else
+      {
+         p_l.SetSize(p_dofs.Size());
+         //initial guess?
+         p_l = 0.;
+      }
       MultInvNL(el, bu_l, bp_l, x_l, u_l, p_l);
 
       if (mode == 1)
@@ -1865,6 +1873,12 @@ void DarcyHybridization::Finalize()
 void DarcyHybridization::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
                                              const BlockVector &x, BlockVector &b)
 {
+   if (bnl)
+   {
+      //save the pressure for initial guess in the iterative local solve
+      darcy_p = x.GetBlock(1);
+   }
+
    const int NE = fes->GetNE();
    Vector u_e, bu_e, bp_e;
    Array<int> u_vdofs, p_dofs, edofs;

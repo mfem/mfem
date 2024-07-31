@@ -276,6 +276,7 @@ private:
 
    mutable Array<int> darcy_offsets;
    mutable BlockVector darcy_rhs;
+   Vector darcy_p;
    mutable Array<int> f_2_b;
 
    friend class LocalNLOperator;
