@@ -80,8 +80,8 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_Fit_3D(const Vector &X) const
    const int D1D = meshOrder + 1;
    const int Q1D = D1D;
    const int id = (D1D << 4 ) | Q1D;
-   const Vector &O = PA.O;
-   Vector &E = PA.E;
+   const Vector &O = PA.OFit;
+   Vector &E = PA.EFit;
    
    
    const real_t &C1 = PA.C1;
