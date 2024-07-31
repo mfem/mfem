@@ -189,6 +189,13 @@ void TMOP_Integrator::AssemblePA_Fitting()
    // Energy vector, scalar Q-vector
    PA.EFit.UseDevice(true);
    PA.EFit.SetSize(PA.X1.Size(), Device::GetDeviceMemoryType());
+
+   // surf_fit_hess -> PA.X4
+   const Operator *n5_R = surf_fit_hess->FESpace()->GetElementRestriction(ordering);
+   PA.X5.SetSize(n5_R->Height(), Device::GetMemoryType());
+   PA.X5.UseDevice(true);
+   n5_R->Mult(*surf_fit_hess, PA.X5);
+
 }
 //------------------------------- new function above -------------------------//
 
