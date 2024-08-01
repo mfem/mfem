@@ -960,6 +960,7 @@ inline void Memory<T>::New(int size, MemoryType mt)
    h_mt = IsHostMemory(mt) ? mt : MemoryManager::GetDualMemoryType(mt);
    T *h_tmp = (h_mt == MemoryType::HOST) ? NewHOST(size) : nullptr;
    h_ptr = (mt_host) ? h_tmp : (T*)MemoryManager::New_(h_tmp, bytes, mt, flags);
+   if (IsDeviceMemory(mt)) { flags |= USE_DEVICE; }
 }
 
 template <typename T>
