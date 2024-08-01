@@ -686,14 +686,14 @@ DarcyHybridization::~DarcyHybridization()
       { delete boundary_constraint_pot_nonlin_integs[k]; }
    }
 
-   delete Ae_data;
-   delete Bf_data;
-   delete Be_data;
-   delete Df_data;
-   delete Df_ipiv;
-   delete Ct_data;
-   delete E_data;
-   delete G_data;
+   delete[] Ae_data;
+   delete[] Bf_data;
+   delete[] Be_data;
+   delete[] Df_data;
+   delete[] Df_ipiv;
+   delete[] Ct_data;
+   delete[] E_data;
+   delete[] G_data;
 }
 
 void DarcyHybridization::SetConstraintIntegrators(
