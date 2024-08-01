@@ -57,7 +57,7 @@ public:
    bool IsEmpty() const { return ptr_count == 0; }
    /// @brief Mark the pointer corresponding to @a control as deallocated, and
    /// reclaim all free memory at the top of the stack.
-   void Dealloc(struct ArenaControlBlock &control);
+   void Dealloc(struct ArenaControlBlock &ptr_control);
    /// Allocates a buffer of size nbytes, returns the associated pointer.
    void *NewPointer(size_t nbytes);
    /// Return the device pointer associated with host pointer @a h_ptr.

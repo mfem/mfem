@@ -50,9 +50,9 @@ ArenaChunk::~ArenaChunk()
    if (data.h_ptr) { ctrl->Host(data.h_mt)->Dealloc(data); }
 }
 
-void ArenaChunk::Dealloc(ArenaControlBlock &control)
+void ArenaChunk::Dealloc(ArenaControlBlock &ptr_control)
 {
-   control.deallocated = true;
+   ptr_control.deallocated = true;
    ptr_count -= 1;
 
    // If ptr_count is zero, then every allocation in thus chunk has been
