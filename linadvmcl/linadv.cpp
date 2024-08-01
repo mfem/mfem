@@ -125,10 +125,12 @@ public:
 class FE_Evolution : public TimeDependentOperator
 {
 protected:
-   SparseMatrix M, K;
-   Vector &lumpedmassmatrix;
+   SparseMatrix M_summed, K, K_summed, M;
+   Vector lumpedmassmatrix;
    const int nDofs;
    const int numVar;
+   Array<bool> is_shared;
+   ParFiniteElementSpace *fes;
    GroupCommunicator &gcomm;
 
    mutable Vector z;
@@ -164,6 +166,9 @@ class HighOrderTargetScheme : public FE_Evolution
 
 class MCL : public FE_Evolution
 {
+   protected:
+   mutable Array <double> u_min, u_max, fij_star;
+
    public:
    MCL(ParBilinearForm &M_, ParBilinearForm &K_, Vector &lumpedmassmatrix_, int numVar_);
    virtual void Mult(const Vector &x, Vector &y) const;
@@ -174,22 +179,128 @@ class MCL : public FE_Evolution
 // Implementation of class FE_Evolution
 FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, Vector &lumpedmassmatrix_, int numVar_)
    : TimeDependentOperator(M_.Height() * numVar_), gcomm(M_.ParFESpace()->GroupComm()),
-     M(M_.SpMat()), K(K_.SpMat()), z(M_.Height()), nDofs(M_.Height()), numVar(numVar_), lumpedmassmatrix(lumpedmassmatrix_)
+     M(M_.SpMat()), K(K_.SpMat()), z(M_.Height()), nDofs(M_.Height()), numVar(numVar_), lumpedmassmatrix(lumpedmassmatrix_), 
+     K_summed(K_.SpMat()), M_summed(K_.SpMat()), fes(M_.ParFESpace())
 {
    // collect all contribution for shared nodes
-   Array<double> lumpedmassmatrix_array(lumpedmassmatrix_.GetData(), lumpedmassmatrix_.Size());
+   Array<double> lumpedmassmatrix_array(lumpedmassmatrix.GetData(), lumpedmassmatrix.Size());
    gcomm.Reduce<double>(lumpedmassmatrix_array, GroupCommunicator::Sum);
    gcomm.Bcast(lumpedmassmatrix_array);
-   lumpedmassmatrix = lumpedmassmatrix_;
+
+   // check for which ldof the massmatrix entry has changed to determin, which ldofs are shared
+   is_shared.SetSize(nDofs);
+   Vector lmm_diff = lumpedmassmatrix_; 
+   lmm_diff -= lumpedmassmatrix;
+   for(int i = 0; i < nDofs; i++)
+   {
+      is_shared[i] = (abs(lmm_diff(i)) > 1.e-15);
+      if(Mpi::Root()){
+         cout << is_shared [i] << endl;
+      }
+      
+   }
+   MFEM_ABORT("")
 
    rhs_array.SetSize(nDofs);
    udot_array.SetSize(nDofs);
+
+   const auto II = K_summed.ReadI();
+   const auto JJ = K_summed.ReadJ();
+   const auto KK = K_summed.ReadWriteData();
+   const auto MM = M_summed.ReadWriteData();
    
+   Array<double> K_array(KK, II[nDofs]);
+   gcomm.Reduce<double>(K_array, GroupCommunicator::Sum);
+   gcomm.Bcast(K_array);
+
+   Array<double> M_array(MM, II[nDofs]);
+   gcomm.Reduce<double>(M_array, GroupCommunicator::Sum);
+   gcomm.Bcast(M_array);
+   
+   /*
+   SparseMatrix K_diff = K_summed;
+   K_diff *= -1.;
+   K_diff += K;
+
+   const auto KK_diff = K_diff.ReadData();
+   const auto KK_org = K.ReadData();
+   if(!Mpi::Root())
+   {
+      for(int i = 0; i < nDofs; i++)
+      {
+         for(int k = II[i]; k < II[i+1]; k++)
+         {  
+            int j = JJ[k];
+            if(abs(KK_diff[k])> 1.e-15)
+            {
+               cout << (fes->GetLocalTDofNumber(j)) << endl; 
+               cout << "kdiff(" << i << "," << j<< ") = "<< KK_diff[k]<< endl;
+               cout << "k(" << i << "," << j<< ")     = "<< KK_org[k]<< endl;
+               cout << "ksumm(" << i << "," << j<< ")     = "<< KK[k]<< "\n\n";
+            }
+            else if(fes->GetLocalTDofNumber(j) == -1)
+            {
+               cout << "This should be summed!\n\n";
+            }
+         }
+      }
+      cout << " DONE with kdiff"<< endl;
+   }
+   //*/
+   Array <int> isbdrdof(nDofs);
+   isbdrdof = 0;
+   cout << "nbrdelement = " << fes->GetNBE() << endl;
+   for(int i = 0; i < nDofs; i++)
+   {
+      for(int b = 0; b < fes->GetNBE(); b++)
+      {  
+         DofTransformation doftrans;
+         Array<int> bdrdofs;
+         fes->GetBdrElementDofs(b, bdrdofs, doftrans);
+         for(int k = 0; k <bdrdofs.Size(); k++)
+         {
+            if(i == bdrdofs[k])
+            {
+               isbdrdof[i] = 1;
+               cout << "jo" << endl;
+               break;
+            }
+         }
+      }
+   }
+   isbdrdof.Print();
+   MFEM_ABORT("")
 }
 
 double FE_Evolution::CalcGraphViscosity(const int i, const int j) const
 { 
-   return max(abs(K(i,j)), abs(K(j,i)));
+   /*
+   const auto II = K_summed.ReadI();
+   const auto JJ = K_summed.ReadJ();
+   const auto KK = K_summed.ReadData();
+
+   double kij;
+   for (int k = II[i]; k < II[i+1]; k++)
+   {
+      if (JJ[k] == j)
+      {
+         kij = KK[k];
+         break;
+      }
+   }
+
+   double kji;
+   for (int k = II[j]; k < II[j+1]; k++)
+   {
+      if (JJ[k] == i)
+      {
+         kji = KK[k];
+         break;
+      }
+   }
+   //*/
+   return max(0.0, max(K(i,j), K(j,i)));
+
 }
 
 FE_Evolution::~FE_Evolution()
@@ -210,22 +321,22 @@ void LowOrder::Mult(const Vector &x, Vector &y) const
 
    for(int n = 0; n < numVar; n++)
    {
+      rhs_array = 0.0;
       for(int i = 0; i < nDofs; i++)
       {
-         const int begin = II[i];
-         const int end = II[i+1];
+         //const int begin = II[i];
+         //const int end = II[i+1];
 
-         rhs_array[i] = 0.0;
-         for(int j = begin; j < end; j++)
-         {
-            if( i == JJ[j] ) {continue;}
+         for(int k = II[i]; k < II[i+1]; k++)
+         {  
+            int j = JJ[k];
+            if( i == j ) {continue;}
 
-            dij = CalcGraphViscosity(i,JJ[j]);
-            rhs_array[i] += ( (dij - KK[j]) * (x(JJ[j] + n * nDofs) - x(i + n * nDofs)) );
+            dij = CalcGraphViscosity(i,j);
+            rhs_array[i] += ( (dij - KK[k]) * (x(j + n * nDofs) - x(i + n * nDofs)) );
          }
          rhs_array[i] /= lumpedmassmatrix(i);
       }
-
       gcomm.Reduce<double>(rhs_array, GroupCommunicator::Sum);
       gcomm.Bcast(rhs_array);
 
@@ -281,9 +392,14 @@ void HighOrderTargetScheme::Mult(const Vector &x, Vector &y) const
          for(int j = begin; j < end; j++)
          {
             if( i == JJ[j] ) {continue;}
+            if(fes->GetLocalTDofNumber(JJ[j]) == -1)
+            {  
+               cout << fes->GetLocalTDofNumber(JJ[j]) << endl;
+               cout << "this should not happen in 1D"<< endl;
+            }
 
-            //dij = CalcGraphViscosity(i,JJ[j]);
-           rhs_array[i] += - KK[j] * (x(JJ[j] + n * nDofs) - x(i + n * nDofs)) + MM[j] * (udot_array[i] - udot_array[JJ[j]]);
+            dij = CalcGraphViscosity(i,JJ[j]);
+            rhs_array[i] += - KK[j] * (x(JJ[j] + n * nDofs) - x(i + n * nDofs)) + MM[j] * (udot_array[i] - udot_array[JJ[j]]);
          }
          rhs_array[i] /= lumpedmassmatrix(i); 
       }
@@ -295,6 +411,7 @@ void HighOrderTargetScheme::Mult(const Vector &x, Vector &y) const
          y(i + n * nDofs) = rhs_array[i]; 
       }
    }
+   MFEM_ABORT("")
 }
 
 HighOrderTargetScheme::~HighOrderTargetScheme()
@@ -302,15 +419,19 @@ HighOrderTargetScheme::~HighOrderTargetScheme()
 
 MCL::MCL(ParBilinearForm &M_, ParBilinearForm &K_, Vector &lumpedmassmatrix_, int numVar_) 
    : FE_Evolution(M_, K_, lumpedmassmatrix_, numVar_)
-{ }
+{
+   u_min = udot_array;
+   u_max = u_min;
+   fij_star = u_max;
+ }
 
 void MCL::Mult(const Vector &x, Vector &y) const
 {  
    const auto II = K.ReadI();
    const auto JJ = K.ReadJ();
    const auto KK = K.ReadData();
-   const auto MM = M.ReadData();
-   double dij, fij, fij_star, fij_bound, wij, wji;
+   const auto MM = M_summed.ReadData();
+   double dij, fij, fij_bound, wij, wji;
 
    for(int n = 0; n < numVar; n++)
    {
@@ -320,17 +441,36 @@ void MCL::Mult(const Vector &x, Vector &y) const
          const int begin = II[i];
          const int end = II[i+1];
 
-         z(i) = 0.0;
+         udot_array[i] = 0.0;
+         u_min[i] = x(i + n * nDofs);
+         u_max[i] = x(i + n * nDofs);
          for(int j = begin; j < end; j++)
          {
             if( i == JJ[j] ) {continue;}
+            u_min[i] = min(u_min[i], x(JJ[j] + n * nDofs));
+            u_max[i] = min(u_max[i], x(JJ[j] + n * nDofs));
 
             dij = CalcGraphViscosity(i,JJ[j]);
-            z(i) += (dij - KK[j]) * (x(JJ[j] + n * nDofs) - x(i + n * nDofs));
+            udot_array[i] += (dij - KK[j]) * (x(JJ[j] + n * nDofs) - x(i + n * nDofs));
          }
-         z(i) /= lumpedmassmatrix(i); 
+         udot_array[i] /= lumpedmassmatrix(i); 
 
+         /*
+         u_min[i] = x(i + n * nDofs);
+         for(int j = begin; j < end; j++)
+         {
+            ui_max = max(ui_max, x(JJ[j] + n * nDofs));
+            ui_min = min(ui_min, x(JJ[j] + n * nDofs));
+         }
+         //*/
       }
+      gcomm.Reduce<double>(udot_array, GroupCommunicator::Sum);
+      gcomm.Bcast(udot_array);
+      gcomm.Reduce<double>(u_min, GroupCommunicator::Min);
+      gcomm.Bcast(u_min);
+      gcomm.Reduce<double>(u_max, GroupCommunicator::Max);
+      gcomm.Bcast(u_max);
+
 
       for(int i = 0; i < nDofs; i++)
       {
@@ -338,6 +478,7 @@ void MCL::Mult(const Vector &x, Vector &y) const
          const int end = II[i+1];
       
          // find the local bounds for the i-th node
+         /*
          double ui_min = x(i + n * nDofs);
          double ui_max = ui_min;
          for(int j = begin; j < end; j++)
@@ -345,13 +486,15 @@ void MCL::Mult(const Vector &x, Vector &y) const
             ui_max = max(ui_max, x(JJ[j] + n * nDofs));
             ui_min = min(ui_min, x(JJ[j] + n * nDofs));
          }
+         //*/
       
-         y(i + n * nDofs) = 0.0;
+         rhs_array[i] = 0.0;
          for(int j = begin; j < end; j++)
          {
             if( i == JJ[j] ) {continue;}
          
             // find the local bounds for the JJ[j]-th node
+            /*
             double uj_min = x(JJ[j] + n * nDofs);
             double uj_max = uj_min;
             const int begin_j = II[JJ[j]];
@@ -361,34 +504,43 @@ void MCL::Mult(const Vector &x, Vector &y) const
                uj_max = max(uj_max, x(JJ[k] + n * nDofs));
                uj_min = min(uj_min, x(JJ[k] + n * nDofs));
             }
+            //*/
           
             dij = CalcGraphViscosity(i,JJ[j]);
 
             // compute target flux
-            fij = MM[j] * (z(i) - z(JJ[j])) + dij * (x(i + n * nDofs) - x(JJ[j] + n * nDofs));
+            fij = MM[j] * (udot_array[i] - udot_array[JJ[j]]) + dij * (x(i + n * nDofs) - x(JJ[j] + n * nDofs));
 
             //limit target flux to enforce local bounds for the bar states (note, that dij = dji)
             wij = dij * (x(i + n * nDofs) + x(JJ[j] + n * nDofs))  - KK[j] * (x(JJ[j] + n * nDofs) - x(i + n * nDofs));
             wji = dij * (x(i + n * nDofs) + x(JJ[j] + n * nDofs))  - K(JJ[j], i) * (x(i + n * nDofs) - x(JJ[j] + n * nDofs)); 
             if(fij > 0)
             {
-               fij_bound = min(2.0 * dij * ui_max - wij, wji - 2.0 * dij * uj_min);
-               fij_star = min(fij, fij_bound);
+               fij_bound = min(2.0 * dij * u_max[i] - wij, wji - 2.0 * dij * u_min[JJ[j]]);
+               fij_star[i] += min(fij, fij_bound);
 
                // to get rid of rounding errors wich influence the sign 
                //fij_star = max(0.0, fij_star);
             }
             else
             {
-               fij_bound = max(2.0 * dij * ui_min - wij, wji - 2.0 * dij * uj_max);
-               fij_star = max(fij, fij_bound);
+               fij_bound = max(2.0 * dij * u_min[i] - wij, wji - 2.0 * dij * u_max[JJ[j]]);
+               fij_star[i] += max(fij, fij_bound);
 
                // to get rid of rounding errors wich influence the sign
                //fij_star = min(0.0, fij_star);
             }
-            y(i + n * nDofs) += (dij - KK[j]) * (x(JJ[j] + n * nDofs) - x(i + n * nDofs) ) + fij_star ;
+            rhs_array[i] += (dij - KK[j]) * (x(JJ[j] + n * nDofs) - x(i + n * nDofs) );// + fij_star ;
          }  
-         y(i + n * nDofs) /= lumpedmassmatrix(i);  
+         rhs_array[i] /= lumpedmassmatrix(i);
+         fij_star[i] /= lumpedmassmatrix(i);
+      }
+      gcomm.Reduce<double>(rhs_array, GroupCommunicator::Sum);
+      gcomm.Bcast(rhs_array);
+
+      for(int i = 0; i < nDofs; i++)
+      {
+         y(i + n * nDofs) = rhs_array[i]; 
       }
    }
 }
@@ -621,10 +773,16 @@ int main(int argc, char *argv[])
    //    GLVis visualization.
    ParGridFunction u(&vfes);
    u.ProjectCoefficient(u0);
+
+   double loc_init_mass = u * lumpedmassmatrix;
+   double glob_init_mass;
+   MPI_Allreduce(&loc_init_mass, &glob_init_mass, 1, MPI_DOUBLE, MPI_SUM,
+              MPI_COMM_WORLD);
+   
    {
       ostringstream mesh_name, sol_name;
-      mesh_name << "ex9-mesh." << setfill('0') << setw(6) << myid;
-      sol_name << "ex9-init." << setfill('0') << setw(6) << myid;
+      mesh_name << "output/ex9-mesh." << setfill('0') << setw(6) << myid;
+      sol_name << "output/ex9-init." << setfill('0') << setw(6) << myid;
       ofstream omesh(mesh_name.str().c_str());
       omesh.precision(precision);
       pmesh.Print(omesh);
@@ -782,24 +940,27 @@ int main(int argc, char *argv[])
    }
 
    tic_toc.Stop();
-   Array<double> min(1);
-   min[0] = u.Min();
-   Array<double> max(1);
-   max[0] = u.Max();
+   double min_loc = u.Min();
+   double max_loc = u.Max();
+   double min_glob, max_glob;
 
-   cout << " u in [" << min[0]<< ", " << max[0]<< "].\n\n"; 
-   GroupCommunicator &gcomm = fes.GroupComm();
-   gcomm.Reduce<double>(min, GroupCommunicator::Min);
-   gcomm.Bcast(min);
+   MPI_Allreduce(&min_loc, &min_glob, 1, MPI_DOUBLE, MPI_MIN,
+              MPI_COMM_WORLD);
+   MPI_Allreduce(&max_loc, &max_glob, 1, MPI_DOUBLE, MPI_MAX,
+              MPI_COMM_WORLD);
 
-   gcomm.Reduce<double>(max, GroupCommunicator::Max);
-   gcomm.Bcast(max);
+   double loc_end_mass = u * lumpedmassmatrix;
+   double glob_end_mass;
+   MPI_Allreduce(&loc_end_mass, &glob_end_mass, 1, MPI_DOUBLE, MPI_SUM,
+              MPI_COMM_WORLD);
 
+   
    if(Mpi::Root())
    {
       cout << " " << endl;
-      cout << "Time stepping loop done in " << tic_toc.RealTime() << " seconds.\n";
-      cout << " u in [" << min[0]<< ", " << max[0]<< "].\n\n"; 
+      cout << "Time stepping loop done in " << tic_toc.RealTime() << " seconds."<< endl;
+      cout << "Difference in solution mass: " << abs(glob_init_mass - glob_end_mass) << endl;
+      cout << "u in [" << min_glob<< ", " << max_glob<< "]\n\n"; 
    }
 
    // 9. Save the final solution. This output can be viewed later using GLVis:
