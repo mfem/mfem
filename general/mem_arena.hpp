@@ -64,7 +64,14 @@ public:
    void *GetDevicePointer(void *h_ptr);
    /// Sets whether the chunk is in the front of the list
    void SetFront(bool front_) { front = front_; }
-
+   /// @brief Sets the device pointer to NULL without freeing the memory.
+   ///
+   /// This will prevent ~ArenaChunk() from freeing the device memory. This
+   /// should be called if the arena memory space is being deleted when there is
+   /// no configured device, which will happen after the end of main. In such
+   /// a situation, CUDA API calls cannot be made, so the memory can no longer
+   /// be freed.
+   void ReleaseDevice();
    // For debugging:
    // /// Return the data offset.
    // size_t GetOffset() const { return offset; }

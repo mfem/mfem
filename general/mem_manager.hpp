@@ -795,13 +795,13 @@ public:
        HOST_DEBUG       | DEVICE_DEBUG
        HOST_UMPIRE      | DEVICE_UMPIRE
        HOST_PINNED      | DEVICE
-       HOST_ARENA   | DEVICE_ARENA
+       HOST_ARENA       | DEVICE_ARENA
        MANAGED          | MANAGED
        DEVICE           | HOST
        DEVICE_DEBUG     | HOST_DEBUG
        DEVICE_UMPIRE    | HOST_UMPIRE
        DEVICE_UMPIRE_2  | HOST_UMPIRE
-       DEVICE_ARENA | HOST_ARENA
+       DEVICE_ARENA     | HOST_ARENA
 
        The dual types can be modified before device configuration using the
        method SetDualMemoryType() or by calling Device::SetMemoryTypes(). */

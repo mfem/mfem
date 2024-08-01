@@ -32,7 +32,8 @@ static std::unordered_map<void*,ArenaControlBlock> *arena_map;
 static Memory NewMemory(size_t nbytes)
 {
    const MemoryType h_mt = MemoryManager::GetHostMemoryType();
-   const MemoryType d_mt = MemoryManager::GetDeviceMemoryType();
+   const MemoryType d_mt = MemoryManager::GetDualMemoryType(
+                              MemoryManager::GetHostMemoryType());
    void *h_ptr;
    ctrl->Host(h_mt)->Alloc(&h_ptr, nbytes);
    return Memory(h_ptr, nbytes, h_mt, d_mt);
@@ -147,6 +148,11 @@ void *ArenaChunk::GetDevicePointer(void *h_ptr)
    return ((char*)data.d_ptr) + ptr_offset;
 }
 
+void ArenaChunk::ReleaseDevice()
+{
+   data.d_ptr = nullptr;
+}
+
 ArenaHostMemorySpace::ArenaHostMemorySpace()
 {
    arena_map = new std::unordered_map<void*,ArenaControlBlock>;
@@ -156,6 +162,10 @@ ArenaHostMemorySpace::~ArenaHostMemorySpace()
 {
    delete arena_map;
    arena_map = nullptr;
+   if (!Device::IsConfigured())
+   {
+      for (auto &chunk : chunks) { chunk.ReleaseDevice(); }
+   }
 }
 
 void ArenaHostMemorySpace::ConsolidateAndEnsureAvailable(
@@ -249,19 +259,22 @@ void ArenaDeviceMemorySpace::Dealloc(Memory &base) { /* no-op */ }
 
 void *ArenaDeviceMemorySpace::HtoD(void *dst, const void *src, size_t bytes)
 {
-   const MemoryType d_mt = MemoryManager::GetDeviceMemoryType();
+   const MemoryType d_mt = MemoryManager::GetDualMemoryType(
+                              MemoryManager::GetHostMemoryType());
    return ctrl->Device(d_mt)->HtoD(dst, src, bytes);
 }
 
 void *ArenaDeviceMemorySpace::DtoD(void* dst, const void* src, size_t bytes)
 {
-   const MemoryType d_mt = MemoryManager::GetDeviceMemoryType();
+   const MemoryType d_mt = MemoryManager::GetDualMemoryType(
+                              MemoryManager::GetHostMemoryType());
    return ctrl->Device(d_mt)->DtoD(dst, src, bytes);
 }
 
 void *ArenaDeviceMemorySpace::DtoH(void *dst, const void *src, size_t bytes)
 {
-   const MemoryType d_mt = MemoryManager::GetDeviceMemoryType();
+   const MemoryType d_mt = MemoryManager::GetDualMemoryType(
+                              MemoryManager::GetHostMemoryType());
    return ctrl->Device(d_mt)->DtoH(dst, src, bytes);
 }
 
