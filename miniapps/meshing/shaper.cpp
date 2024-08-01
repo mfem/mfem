@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -52,7 +52,7 @@ using namespace std;
 // the rescaled coordinates.
 int material(Vector &x, Vector &xmin, Vector &xmax)
 {
-   static double p = 2.0;
+   static real_t p = 2.0;
 
    // Rescaling to [-1,1]^sdim
    for (int i = 0; i < x.Size(); i++)
@@ -130,7 +130,7 @@ int main(int argc, char *argv[])
          // sophisticated logic can be implemented here -- e.g. don't refine
          // the interfaces between certain materials.
          Array<int> mat(ir.GetNPoints());
-         double matsum = 0.0;
+         real_t matsum = 0.0;
          for (int j = 0; j < ir.GetNPoints(); j++)
          {
             T->Transform(ir.IntPoint(j), pt);

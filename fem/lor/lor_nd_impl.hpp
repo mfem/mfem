@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -73,8 +73,8 @@ void BatchedLOR_ND::Assemble2D()
          MFEM_FOREACH_THREAD(kx,x,ORDER)
          {
             // Compute geometric factors at quadrature points
-            double Q_[ngeom*nv];
-            double local_mat_[sz_local_mat];
+            real_t Q_[ngeom*nv];
+            real_t local_mat_[sz_local_mat];
 
             DeviceTensor<3> Q(Q_, ngeom, 2, 2);
             DeviceTensor<2> local_mat(local_mat_, ne, ne);
@@ -88,34 +88,35 @@ void BatchedLOR_ND::Assemble2D()
             {
                for (int iqy=0; iqy<2; ++iqy)
                {
-                  const double mq = const_mq ? MQ(0,0,0) : MQ(kx+iqx, ky+iqy, iel_ho);
-                  const double dq = const_dq ? DQ(0,0,0) : DQ(kx+iqx, ky+iqy, iel_ho);
+                  const real_t mq = const_mq ? MQ(0,0,0) : MQ(kx+iqx, ky+iqy, iel_ho);
+                  const real_t dq = const_dq ? DQ(0,0,0) : DQ(kx+iqx, ky+iqy, iel_ho);
+
                   // Loop over x,y components. c=0 => x, c=1 => y
                   for (int cj=0; cj<dim; ++cj)
                   {
                      for (int bj=0; bj<2; ++bj)
                      {
-                        const double curl_j = ((cj == 0) ? 1 : -1)*((bj == 0) ? 1 : -1);
-                        const double bxj = (cj == 0) ? ((bj == iqy) ? 1 : 0) : 0;
-                        const double byj = (cj == 1) ? ((bj == iqx) ? 1 : 0) : 0;
+                        const real_t curl_j = ((cj == 0) ? 1 : -1)*((bj == 0) ? 1 : -1);
+                        const real_t bxj = (cj == 0) ? ((bj == iqy) ? 1 : 0) : 0;
+                        const real_t byj = (cj == 1) ? ((bj == iqx) ? 1 : 0) : 0;
 
-                        const double jj_loc = bj + 2*cj;
+                        const real_t jj_loc = bj + 2*cj;
 
                         for (int ci=0; ci<dim; ++ci)
                         {
                            for (int bi=0; bi<2; ++bi)
                            {
-                              const double curl_i = ((ci == 0) ? 1 : -1)*((bi == 0) ? 1 : -1);
-                              const double bxi = (ci == 0) ? ((bi == iqy) ? 1 : 0) : 0;
-                              const double byi = (ci == 1) ? ((bi == iqx) ? 1 : 0) : 0;
+                              const real_t curl_i = ((ci == 0) ? 1 : -1)*((bi == 0) ? 1 : -1);
+                              const real_t bxi = (ci == 0) ? ((bi == iqy) ? 1 : 0) : 0;
+                              const real_t byi = (ci == 1) ? ((bi == iqx) ? 1 : 0) : 0;
 
-                              const double ii_loc = bi + 2*ci;
+                              const real_t ii_loc = bi + 2*ci;
 
                               // Only store the lower-triangular part of
                               // the matrix (by symmetry).
                               if (jj_loc > ii_loc) { continue; }
 
-                              double val = 0.0;
+                              real_t val = 0.0;
                               val += bxi*bxj*Q(0,iqy,iqx);
                               val += byi*bxj*Q(1,iqy,iqx);
                               val += bxi*byj*Q(1,iqy,iqx);
@@ -150,7 +151,7 @@ void BatchedLOR_ND::Assemble2D()
                   const int jj_off = (ci == cj) ? (bj - bi + 1) : (3 + bj + (1-bi)*2);
 
                   // Symmetry
-                  const double val = (jj_loc <= ii_loc)
+                  const real_t val = (jj_loc <= ii_loc)
                                      ? local_mat(ii_loc, jj_loc)
                                      : local_mat(jj_loc, ii_loc);
                   AtomicAdd(V(jj_off, ii, ci, iel_ho), val);
@@ -252,14 +253,14 @@ void BatchedLOR_ND::Assemble3D()
             MFEM_FOREACH_THREAD(kx,x,ORDER)
             {
                // Geometric factors at quadrature points (element vertices)
-               double Q_[ngeom*nv];
+               real_t Q_[ngeom*nv];
                DeviceTensor<4> Q(Q_, ngeom, 2, 2, 2);
 
-               double local_mat_[sz_local_mat];
+               real_t local_mat_[sz_local_mat];
                DeviceTensor<2> local_mat(local_mat_, ne, ne);
                for (int i=0; i<sz_local_mat; ++i) { local_mat[i] = 0.0; }
 
-               double vx[8], vy[8], vz[8];
+               real_t vx[8], vy[8], vz[8];
                LORVertexCoordinates3D<ORDER>(X, iel_ho, kx, ky, kz, vx, vy, vz);
 
                for (int iqz=0; iqz<2; ++iqz)
@@ -268,21 +269,21 @@ void BatchedLOR_ND::Assemble3D()
                   {
                      for (int iqx=0; iqx<2; ++iqx)
                      {
-                        const double x = iqx;
-                        const double y = iqy;
-                        const double z = iqz;
-                        const double w = 1.0/8.0;
+                        const real_t x = iqx;
+                        const real_t y = iqy;
+                        const real_t z = iqz;
+                        const real_t w = 1.0/8.0;
 
-                        double J_[3*3];
+                        real_t J_[3*3];
                         DeviceTensor<2> J(J_, 3, 3);
 
                         Jacobian3D(x, y, z, vx, vy, vz, J);
 
-                        const double detJ = Det3D(J);
-                        const double w_detJ = w/detJ;
+                        const real_t detJ = Det3D(J);
+                        const real_t w_detJ = w/detJ;
 
                         // adj(J)
-                        double A_[3*3];
+                        real_t A_[3*3];
                         DeviceTensor<2> A(A_, 3, 3);
                         Adjugate3D(J, A);
 
@@ -309,13 +310,13 @@ void BatchedLOR_ND::Assemble3D()
                   {
                      for (int iqx=0; iqx<2; ++iqx)
                      {
-                        const double mq = const_mq ? MQ(0,0,0,0) : MQ(kx+iqx, ky+iqy, kz+iqz, iel_ho);
-                        const double dq = const_dq ? DQ(0,0,0,0) : DQ(kx+iqx, ky+iqy, kz+iqz, iel_ho);
+                        const real_t mq = const_mq ? MQ(0,0,0,0) : MQ(kx+iqx, ky+iqy, kz+iqz, iel_ho);
+                        const real_t dq = const_dq ? DQ(0,0,0,0) : DQ(kx+iqx, ky+iqy, kz+iqz, iel_ho);
                         // Loop over x,y,z components. 0 => x, 1 => y, 2 => z
                         for (int cj=0; cj<dim; ++cj)
                         {
-                           const double jq1 = (cj == 0) ? iqy : ((cj == 1) ? iqz : iqx);
-                           const double jq2 = (cj == 0) ? iqz : ((cj == 1) ? iqx : iqy);
+                           const real_t jq1 = (cj == 0) ? iqy : ((cj == 1) ? iqz : iqx);
+                           const real_t jq2 = (cj == 0) ? iqz : ((cj == 1) ? iqx : iqy);
 
                            const int jd_0 = cj;
                            const int jd_1 = (cj + 1)%3;
@@ -326,12 +327,12 @@ void BatchedLOR_ND::Assemble3D()
                               const int bj1 = bj%2;
                               const int bj2 = bj/2;
 
-                              double curl_j[3];
+                              real_t curl_j[3];
                               curl_j[jd_0] = 0.0;
                               curl_j[jd_1] = ((bj1 == 0) ? jq1 - 1 : -jq1)*((bj2 == 0) ? 1 : -1);
                               curl_j[jd_2] = ((bj2 == 0) ? 1 - jq2 : jq2)*((bj1 == 0) ? 1 : -1);
 
-                              double basis_j[3];
+                              real_t basis_j[3];
                               basis_j[jd_0] = ((bj1 == 0) ? 1 - jq1 : jq1)*((bj2 == 0) ? 1 - jq2 : jq2);
                               basis_j[jd_1] = 0.0;
                               basis_j[jd_2] = 0.0;
@@ -340,8 +341,8 @@ void BatchedLOR_ND::Assemble3D()
 
                               for (int ci=0; ci<dim; ++ci)
                               {
-                                 const double iq1 = (ci == 0) ? iqy : ((ci == 1) ? iqz : iqx);
-                                 const double iq2 = (ci == 0) ? iqz : ((ci == 1) ? iqx : iqy);
+                                 const real_t iq1 = (ci == 0) ? iqy : ((ci == 1) ? iqz : iqx);
+                                 const real_t iq2 = (ci == 0) ? iqz : ((ci == 1) ? iqx : iqy);
 
                                  const int id_0 = ci;
                                  const int id_1 = (ci + 1)%3;
@@ -352,12 +353,12 @@ void BatchedLOR_ND::Assemble3D()
                                     const int bi1 = bi%2;
                                     const int bi2 = bi/2;
 
-                                    double curl_i[3];
+                                    real_t curl_i[3];
                                     curl_i[id_0] = 0.0;
                                     curl_i[id_1] = ((bi1 == 0) ? iq1 - 1 : -iq1)*((bi2 == 0) ? 1 : -1);
                                     curl_i[id_2] = ((bi2 == 0) ? 1 - iq2 : iq2)*((bi1 == 0) ? 1 : -1);
 
-                                    double basis_i[3];
+                                    real_t basis_i[3];
                                     basis_i[id_0] = ((bi1 == 0) ? 1 - iq1 : iq1)*((bi2 == 0) ? 1 - iq2 : iq2);
                                     basis_i[id_1] = 0.0;
                                     basis_i[id_2] = 0.0;
@@ -368,7 +369,7 @@ void BatchedLOR_ND::Assemble3D()
                                     // the matrix (by symmetry).
                                     if (jj_loc > ii_loc) { continue; }
 
-                                    double curl_curl = 0.0;
+                                    real_t curl_curl = 0.0;
                                     curl_curl += Q(6,iqz,iqy,iqx)*curl_i[0]*curl_j[0];
                                     curl_curl += Q(7,iqz,iqy,iqx)*(curl_i[0]*curl_j[1] + curl_i[1]*curl_j[0]);
                                     curl_curl += Q(8,iqz,iqy,iqx)*(curl_i[0]*curl_j[2] + curl_i[2]*curl_j[0]);
@@ -376,7 +377,7 @@ void BatchedLOR_ND::Assemble3D()
                                     curl_curl += Q(10,iqz,iqy,iqx)*(curl_i[1]*curl_j[2] + curl_i[2]*curl_j[1]);
                                     curl_curl += Q(11,iqz,iqy,iqx)*curl_i[2]*curl_j[2];
 
-                                    double basis_basis = 0.0;
+                                    real_t basis_basis = 0.0;
                                     basis_basis += Q(0,iqz,iqy,iqx)*basis_i[0]*basis_j[0];
                                     basis_basis += Q(1,iqz,iqy,iqx)*(basis_i[0]*basis_j[1] + basis_i[1]*basis_j[0]);
                                     basis_basis += Q(2,iqz,iqy,iqx)*(basis_i[0]*basis_j[2] + basis_i[2]*basis_j[0]);
@@ -384,7 +385,7 @@ void BatchedLOR_ND::Assemble3D()
                                     basis_basis += Q(4,iqz,iqy,iqx)*(basis_i[1]*basis_j[2] + basis_i[2]*basis_j[1]);
                                     basis_basis += Q(5,iqz,iqy,iqx)*basis_i[2]*basis_j[2];
 
-                                    const double val = dq*curl_curl + mq*basis_basis;
+                                    const real_t val = dq*curl_curl + mq*basis_basis;
 
                                     local_mat(ii_loc, jj_loc) += val;
                                  }
@@ -455,7 +456,7 @@ void BatchedLOR_ND::Assemble3D()
                      else /* if (cj_rel == 2) */ { jj_off = 21 + d0 + 2*d1 + 6*d2; }
 
                      // Symmetry
-                     const double val = (jj_loc <= ii_loc)
+                     const real_t val = (jj_loc <= ii_loc)
                                         ? local_mat(ii_loc, jj_loc)
                                         : local_mat(jj_loc, ii_loc);
                      AtomicAdd(V(jj_off, ii, ci, iel_ho), val);

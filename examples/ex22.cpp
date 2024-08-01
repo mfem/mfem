@@ -57,13 +57,13 @@
 using namespace std;
 using namespace mfem;
 
-static double mu_ = 1.0;
-static double epsilon_ = 1.0;
-static double sigma_ = 20.0;
-static double omega_ = 10.0;
+static real_t mu_ = 1.0;
+static real_t epsilon_ = 1.0;
+static real_t sigma_ = 20.0;
+static real_t omega_ = 10.0;
 
-double u0_real_exact(const Vector &);
-double u0_imag_exact(const Vector &);
+real_t u0_real_exact(const Vector &);
+real_t u0_imag_exact(const Vector &);
 
 void u1_real_exact(const Vector &, Vector &);
 void u1_imag_exact(const Vector &, Vector &);
@@ -80,8 +80,8 @@ int main(int argc, char *argv[])
    int ref_levels = 0;
    int order = 1;
    int prob = 0;
-   double freq = -1.0;
-   double a_coef = 0.0;
+   real_t freq = -1.0;
+   real_t a_coef = 0.0;
    bool visualization = 1;
    bool herm_conv = true;
    bool exact_sol = true;
@@ -412,7 +412,7 @@ int main(int argc, char *argv[])
                break; // This should be unreachable
          }
       }
-      double s = (prob != 1) ? 1.0 : -1.0;
+      real_t s = (prob != 1) ? 1.0 : -1.0;
       pc_i = new ScaledOperator(pc_r,
                                 (conv == ComplexOperator::HERMITIAN) ?
                                 s:-s);
@@ -436,8 +436,8 @@ int main(int argc, char *argv[])
 
    if (exact_sol)
    {
-      double err_r = -1.0;
-      double err_i = -1.0;
+      real_t err_r = -1.0;
+      real_t err_i = -1.0;
 
       switch (prob)
       {
@@ -524,7 +524,7 @@ int main(int argc, char *argv[])
       int i = 0;
       while (sol_sock)
       {
-         double t = (double)(i % num_frames) / num_frames;
+         real_t t = (real_t)(i % num_frames) / num_frames;
          ostringstream oss;
          oss << "Harmonic Solution (t = " << t << " T)";
 
@@ -555,21 +555,21 @@ bool check_for_inline_mesh(const char * mesh_file)
    return s0 == "inline-";
 }
 
-complex<double> u0_exact(const Vector &x)
+complex<real_t> u0_exact(const Vector &x)
 {
    int dim = x.Size();
-   complex<double> i(0.0, 1.0);
-   complex<double> alpha = (epsilon_ * omega_ - i * sigma_);
-   complex<double> kappa = std::sqrt(mu_ * omega_* alpha);
+   complex<real_t> i(0.0, 1.0);
+   complex<real_t> alpha = (epsilon_ * omega_ - i * sigma_);
+   complex<real_t> kappa = std::sqrt(mu_ * omega_* alpha);
    return std::exp(-i * kappa * x[dim - 1]);
 }
 
-double u0_real_exact(const Vector &x)
+real_t u0_real_exact(const Vector &x)
 {
    return u0_exact(x).real();
 }
 
-double u0_imag_exact(const Vector &x)
+real_t u0_imag_exact(const Vector &x)
 {
    return u0_exact(x).imag();
 }

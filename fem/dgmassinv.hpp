@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -30,13 +30,13 @@ protected:
    DG_FECollection fec; ///< FE collection in requested basis.
    FiniteElementSpace fes; ///< FE space in requested basis.
    const DofToQuad *d2q; ///< Change of basis. Not owned.
-   Array<double> B_; ///< Inverse of change of basis.
-   Array<double> Bt_; ///< Inverse of change of basis, transposed.
+   Array<real_t> B_; ///< Inverse of change of basis.
+   Array<real_t> Bt_; ///< Inverse of change of basis, transposed.
    class BilinearForm *M; ///< Mass bilinear form, owned.
    class MassIntegrator *m; ///< Mass integrator, owned by the form @ref M.
    Vector diag_inv; ///< Jacobi preconditioner.
-   double rel_tol = 1e-12; ///< Relative CG tolerance.
-   double abs_tol = 1e-12; ///< Absolute CG tolerance.
+   real_t rel_tol = 1e-12; ///< Relative CG tolerance.
+   real_t abs_tol = 1e-12; ///< Absolute CG tolerance.
    int max_iter = 100; ///< Maximum number of CG iterations;
 
    /// @name Intermediate vectors needed for CG three-term recurrence.
@@ -92,11 +92,11 @@ public:
    /// Not implemented. Aborts.
    void SetOperator(const Operator &op);
    /// Set the relative tolerance.
-   void SetRelTol(const double rel_tol_);
+   void SetRelTol(const real_t rel_tol_);
    /// Set the absolute tolerance.
-   void SetAbsTol(const double abs_tol_);
+   void SetAbsTol(const real_t abs_tol_);
    /// Set the maximum number of iterations.
-   void SetMaxIter(const double max_iter_);
+   void SetMaxIter(const int max_iter_);
    /// Recompute operator and preconditioner (when coefficient or mesh changes).
    void Update();
 

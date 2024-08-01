@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,10 +14,10 @@
 // Compile with: make maxwell
 //
 // Sample runs
-// maxwell -m ../../data/inline-tri.mesh -ref 4 -o 1 -rnum 1.0
-// maxwell -m ../../data/amr-quad.mesh -ref 3 -o 2 -rnum 1.6 -sc
-// maxwell -m ../../data/inline-quad.mesh -ref 2 -o 3 -rnum 4.2 -sc
-// maxwell -m ../../data/inline-hex.mesh -ref 1 -o 2 -sc -rnum 1.0
+//  maxwell -m ../../data/inline-tri.mesh -ref 4 -o 1 -rnum 1.0
+//  maxwell -m ../../data/amr-quad.mesh -ref 3 -o 2 -rnum 1.6 -sc
+//  maxwell -m ../../data/inline-quad.mesh -ref 2 -o 3 -rnum 4.2 -sc
+//  maxwell -m ../../data/inline-hex.mesh -ref 1 -o 2 -sc -rnum 1.0
 
 // Description:
 // This example code demonstrates the use of MFEM to define and solve
@@ -85,13 +85,13 @@ using namespace std;
 using namespace mfem;
 using namespace mfem::common;
 
-void maxwell_solution(const Vector & X, std::vector<complex<double>> &E);
+void maxwell_solution(const Vector & X, std::vector<complex<real_t>> &E);
 
 void maxwell_solution_curl(const Vector & X,
-                           std::vector<complex<double>> &curlE);
+                           std::vector<complex<real_t>> &curlE);
 
 void maxwell_solution_curlcurl(const Vector & X,
-                               std::vector<complex<double>> &curlcurlE);
+                               std::vector<complex<real_t>> &curlcurlE);
 
 void E_exact_r(const Vector &x, Vector & E_r);
 void E_exact_i(const Vector &x, Vector & E_i);
@@ -113,17 +113,17 @@ void hatE_exact_i(const Vector & X, Vector & hatE_i);
 void hatH_exact_r(const Vector & X, Vector & hatH_r);
 void hatH_exact_i(const Vector & X, Vector & hatH_i);
 
-double hatH_exact_scalar_r(const Vector & X);
-double hatH_exact_scalar_i(const Vector & X);
+real_t hatH_exact_scalar_r(const Vector & X);
+real_t hatH_exact_scalar_i(const Vector & X);
 
 void rhs_func_r(const Vector &x, Vector & J_r);
 void rhs_func_i(const Vector &x, Vector & J_i);
 
 int dim;
 int dimc;
-double omega;
-double mu = 1.0;
-double epsilon = 1.0;
+real_t omega;
+real_t mu = 1.0;
+real_t epsilon = 1.0;
 
 int main(int argc, char *argv[])
 {
@@ -131,7 +131,7 @@ int main(int argc, char *argv[])
    int order = 1;
    int delta_order = 1;
    bool visualization = true;
-   double rnum=1.0;
+   real_t rnum=1.0;
    int ref = 0;
    bool static_cond = false;
 
@@ -355,7 +355,7 @@ int main(int argc, char *argv[])
    socketstream E_out_r;
    socketstream E_out_i;
 
-   double err0 = 0.;
+   real_t err0 = 0.;
    int dof0 = 0; // init to suppress gcc warning
 
    std::cout << "\n  Ref |"
@@ -479,15 +479,15 @@ int main(int argc, char *argv[])
          dofs += trial_fes[i]->GetTrueVSize();
       }
 
-      double E_err_r = E_r.ComputeL2Error(E_ex_r);
-      double E_err_i = E_i.ComputeL2Error(E_ex_i);
-      double H_err_r = H_r.ComputeL2Error(H_ex_r);
-      double H_err_i = H_i.ComputeL2Error(H_ex_i);
+      real_t E_err_r = E_r.ComputeL2Error(E_ex_r);
+      real_t E_err_i = E_i.ComputeL2Error(E_ex_i);
+      real_t H_err_r = H_r.ComputeL2Error(H_ex_r);
+      real_t H_err_i = H_i.ComputeL2Error(H_ex_i);
 
-      double L2Error = sqrt(E_err_r*E_err_r + E_err_i*E_err_i
+      real_t L2Error = sqrt(E_err_r*E_err_r + E_err_i*E_err_i
                             + H_err_r*H_err_r + H_err_i*H_err_i);
 
-      double rate_err = (it) ? dim*log(err0/L2Error)/log((double)dof0/dofs) : 0.0;
+      real_t rate_err = (it) ? dim*log(err0/L2Error)/log((real_t)dof0/dofs) : 0.0;
 
       err0 = L2Error;
       dof0 = dofs;
@@ -547,7 +547,7 @@ int main(int argc, char *argv[])
 
 void E_exact_r(const Vector &x, Vector & E_r)
 {
-   std::vector<std::complex<double>> E;
+   std::vector<std::complex<real_t>> E;
    maxwell_solution(x, E);
    E_r.SetSize(E.size());
    for (unsigned i = 0; i < E.size(); i++)
@@ -558,7 +558,7 @@ void E_exact_r(const Vector &x, Vector & E_r)
 
 void E_exact_i(const Vector &x, Vector & E_i)
 {
-   std::vector<std::complex<double>> E;
+   std::vector<std::complex<real_t>> E;
    maxwell_solution(x, E);
    E_i.SetSize(E.size());
    for (unsigned i = 0; i < E.size(); i++)
@@ -569,7 +569,7 @@ void E_exact_i(const Vector &x, Vector & E_i)
 
 void curlE_exact_r(const Vector &x, Vector &curlE_r)
 {
-   std::vector<std::complex<double>> curlE;
+   std::vector<std::complex<real_t>> curlE;
    maxwell_solution_curl(x, curlE);
    curlE_r.SetSize(curlE.size());
    for (unsigned i = 0; i < curlE.size(); i++)
@@ -580,7 +580,7 @@ void curlE_exact_r(const Vector &x, Vector &curlE_r)
 
 void curlE_exact_i(const Vector &x, Vector &curlE_i)
 {
-   std::vector<std::complex<double>> curlE;
+   std::vector<std::complex<real_t>> curlE;
    maxwell_solution_curl(x, curlE);
    curlE_i.SetSize(curlE.size());
    for (unsigned i = 0; i < curlE.size(); i++)
@@ -591,7 +591,7 @@ void curlE_exact_i(const Vector &x, Vector &curlE_i)
 
 void curlcurlE_exact_r(const Vector &x, Vector & curlcurlE_r)
 {
-   std::vector<std::complex<double>> curlcurlE;
+   std::vector<std::complex<real_t>> curlcurlE;
    maxwell_solution_curlcurl(x, curlcurlE);
    curlcurlE_r.SetSize(curlcurlE.size());
    for (unsigned i = 0; i < curlcurlE.size(); i++)
@@ -602,7 +602,7 @@ void curlcurlE_exact_r(const Vector &x, Vector & curlcurlE_r)
 
 void curlcurlE_exact_i(const Vector &x, Vector & curlcurlE_i)
 {
-   std::vector<std::complex<double>> curlcurlE;
+   std::vector<std::complex<real_t>> curlcurlE;
    maxwell_solution_curlcurl(x, curlcurlE);
    curlcurlE_i.SetSize(curlcurlE.size());
    for (unsigned i = 0; i < curlcurlE.size(); i++)
@@ -705,14 +705,14 @@ void hatH_exact_i(const Vector & x, Vector & hatH_i)
    H_exact_i(x,hatH_i);
 }
 
-double hatH_exact_scalar_r(const Vector & x)
+real_t hatH_exact_scalar_r(const Vector & x)
 {
    Vector hatH_r;
    H_exact_r(x,hatH_r);
    return hatH_r[0];
 }
 
-double hatH_exact_scalar_i(const Vector & x)
+real_t hatH_exact_scalar_i(const Vector & x)
 {
    Vector hatH_i;
    H_exact_i(x,hatH_i);
@@ -747,22 +747,22 @@ void rhs_func_i(const Vector &x, Vector & J_i)
    }
 }
 
-void maxwell_solution(const Vector & X, std::vector<complex<double>> &E)
+void maxwell_solution(const Vector & X, std::vector<complex<real_t>> &E)
 {
    E.resize(dim);
-   std::complex<double> zi(0,1);
-   std::complex<double> pw = exp(-zi * omega * (X.Sum()));
+   std::complex<real_t> zi(0,1);
+   std::complex<real_t> pw = exp(-zi * omega * (X.Sum()));
    E[0] = pw;
    E[1] = 0.0;
    if (dim == 3) { E[2] = 0.0; }
 }
 
 void maxwell_solution_curl(const Vector & X,
-                           std::vector<complex<double>> &curlE)
+                           std::vector<complex<real_t>> &curlE)
 {
    curlE.resize(dimc);
-   std::complex<double> zi(0,1);
-   std::complex<double> pw = exp(-zi * omega * (X.Sum()));
+   std::complex<real_t> zi(0,1);
+   std::complex<real_t> pw = exp(-zi * omega * (X.Sum()));
    if (dim == 3)
    {
       curlE[0] = 0.0;
@@ -776,14 +776,14 @@ void maxwell_solution_curl(const Vector & X,
 }
 
 void maxwell_solution_curlcurl(const Vector & X,
-                               std::vector<complex<double>> &curlcurlE)
+                               std::vector<complex<real_t>> &curlcurlE)
 {
    curlcurlE.resize(dim);
-   std::complex<double> zi(0,1);
-   std::complex<double> pw = exp(-zi * omega * (X.Sum()));
+   std::complex<real_t> zi(0,1);
+   std::complex<real_t> pw = exp(-zi * omega * (X.Sum()));
    if (dim == 3)
    {
-      curlcurlE[0] = 2.0 * omega * omega * pw;
+      curlcurlE[0] = 2_r * omega * omega * pw;
       curlcurlE[1] = - omega * omega * pw;
       curlcurlE[2] = - omega * omega * pw;
    }

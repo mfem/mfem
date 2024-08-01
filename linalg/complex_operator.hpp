@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -195,8 +195,8 @@ protected:
    void Init();
 
 public:
-   double Control[UMFPACK_CONTROL];
-   mutable double Info[UMFPACK_INFO];
+   real_t Control[UMFPACK_CONTROL];
+   mutable real_t Info[UMFPACK_INFO];
 
    /** @brief For larger matrices, if the solver fails, set the parameter @a
        use_long_ints_ = true. */

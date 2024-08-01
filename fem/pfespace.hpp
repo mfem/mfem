@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -338,7 +338,7 @@ public:
    { return (new HypreParVector(MyComm,GlobalTrueVSize(),GetTrueDofOffsets()));}
 
    /// Scale a vector of true dofs
-   void DivideByGroupSize(double *vec);
+   void DivideByGroupSize(real_t *vec);
 
    /// Return a reference to the internal GroupCommunicator (on VDofs)
    GroupCommunicator &GroupComm() { return *gcomm; }
