@@ -105,7 +105,7 @@ void ArenaChunk::Dealloc(ArenaControlBlock &control)
    if (begin != end)
    {
       // Debug output:
-      // std::cout << "Reclaiming " << offset - ((char*)*begin - (char*)data.h_ptr)
+      // mfem::out << "Reclaiming " << offset - ((char*)*begin - (char*)data.h_ptr)
       //           << " bytes from " << (end - begin) << " pointers.\n";
       offset = (char*)*begin - (char*)data.h_ptr;
 
