@@ -23,7 +23,7 @@ cd $CURRPATH
 # make psurffindpts_adi -j && mpirun -np 1 psurffindpts_adi -m ./star-surf.mesh -mo 2 -o 8 -eo 2 --npt 2 -visit
 # make psurffindpts_adi -j && mpirun -np 10 psurffindpts_adi -m ./mfem-logo.mesh -mo 4 -o 8 -eo 2 --npt 2 -visit
 # make psurffindpts_adi -j && mpirun -np 10 psurffindpts_adi -m ./klein-bottle.mesh -mo 3 -o 8 -eo 2 --npt 10000 -visit
-make psurffindpts_adi -j && mpirun -np 10 psurffindpts_adi -m ./rocker_arm_hex.vtk -mo 3 -o 8 -eo 2 --npt 1000 -visit
+make psurffindpts_adi -j && mpirun -np 10 psurffindpts_adi -m ./rocker_arm_hex.vtk -mo 3 -o 8 -eo 2 --npt 100 -visit
 # make psurffindpts_adi -j && mpirun -np 1 psurffindpts_adi -m ./rhombus.mesh -mo 4 -o 8 -eo 2 --npt 2 -visit
 # make psurffindpts_adi -j && mpirun -np 1 psurffindpts_adi -m ./deformededge2d.mesh -mo 2 -o 8 -eo 2 --npt 2 -visit
 # make psurffindpts_adi -j && mpirun -np 1 psurffindpts_adi -m ./singlesurf3d.mesh -mo 2 -o 8 -eo 2 --npt 2 -visit

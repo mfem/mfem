@@ -161,9 +161,7 @@ protected:
    /// Get GridFunction value at the points expected by GSLIB.
    virtual void GetNodalValues(const GridFunction *gf_in, Vector &node_vals);
 
-   virtual void GetNodalValuesSurf(const GridFunction *gf_in,
-                                   Vector &node_vals,
-                                   Vector &ref_nodal_vals);
+   virtual void GetNodalValuesSurf(const GridFunction *gf_in, Vector &node_vals);
 
    /// Map {r,s,t} coordinates from [-1,1] to [0,1] for MFEM. For simplices,
    /// find the original element number (that was split into micro quads/hexes)

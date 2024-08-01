@@ -225,8 +225,6 @@ static MFEM_HOST_DEVICE inline void newton_edge( findptsElementPoint_t *const ou
       // For such a point, tests on whether the point is on the boundary are not needed.
       // If the point is internal, we send it to newton_edge_fin for convergence checks.
       if (fabs(dr)<tr && fabs(newr)<1) {
-         // std::cout << "oldr: " << oldr << ", dr: " << dr << ", fabs(dr)<tr: " << (fabs(dr)<tr) << ", tr: " << tr
-         //           << ", newr: " << newr << ", fabs(newr)<1: " << (fabs(newr)<1) << std::endl;
          v = EVAL(dr);
          goto newton_edge_fin;
       }
@@ -256,13 +254,11 @@ static MFEM_HOST_DEVICE inline void newton_edge( findptsElementPoint_t *const ou
 newton_edge_fin:
    // check convergence by testing if change in r is less than tol
    if (fabs(dr)<tol) {
-      // std::cout << "newton_edge_fin dr: " << dr << ", tol: " << tol << std::endl;
       new_flags |= CONVERGED_FLAG;
    }
    out->r = newr;
    out->dist2p = -v;
    out->flags = flags | new_flags | (p->flags<<3);
-   // std::cout << "flags: " << flags << ", new_flags: " << new_flags << ", out->flags: " << out->flags << ", p->flags<<3: " << (p->flags<<3) << std::endl;
 }
 
 static MFEM_HOST_DEVICE void seed_j( const double *elx[sDIM],
@@ -325,8 +321,6 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
    MFEM_VERIFY(D1D!=0, "Polynomial order not specified.");
    // const int nThreads = MAX_CONST(2*MD1, 4);
    const int nThreads = 32;  // adi: npoints numbers can be quite big, especially for 3d cases
-   // std::cout << "pN, D1D, MD1, p_NEL: " << pN    << ", " << D1D  << ", "
-   //                                      << MD1   << ", " << p_NEL << "\n";
 
    /* A macro expansion that for
       1) CPU: expands to a standard for loop
@@ -355,28 +349,18 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
       tmp = el_pts + 1;
       r_workspace_ptr = r_workspace;
 
-      /* MFEM_FOREACH_THREAD: a for loop that behaves slightly differently
-         depending on if code is run on GPU or CPU.
-         On GPU, this is a for loop whose every iteration is executed by a different thread.
-         On CPU, this a normal for loop.
-         Note that all statements outside of MFEM_FOREACH_THREAD are executed by
-         all threads too.
-      */
-
       // x and y coord index within point_pos for point i
       int id_x = point_pos_ordering == 0 ? i     : i*sDIM;
       int id_y = point_pos_ordering == 0 ? i+npt : i*sDIM+1;
       double x_i[2] = {x[id_x], x[id_y]};
 
       unsigned int *code_i = code_base + i;
-      unsigned int *el_i = el_base + i;
-      int *newton_i = newton + i;
-      double *r_i = r_base + rDIM*i;  // ref coords. of point i
-      double *dist2_i = dist2_base + i;
+      unsigned int *el_i   = el_base + i;
+      int *newton_i        = newton + i;
+      double *r_i          = r_base + rDIM*i;  // ref coords. of point i
+      double *dist2_i      = dist2_base + i;
 
       //---------------- map_points_to_els --------------------
-      // adi: why not do this after forall? can't we just do it once?
-      // should these arrays be in shared memory?
       findptsLocalHashData_t hash;
       for (int d=0; d<sDIM; ++d) { // hash data is spacedim dimensional
          hash.bnd[d].min = hashMin[d];
@@ -397,15 +381,6 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
       for (; elp!=ele; ++elp) {
          // NOTE: the pointer elp is being incremented, to the next index
          const unsigned int el = *elp;
-         // MFEM_FOREACH_THREAD(j,x,nThreads)
-         // {
-         //    if (j==0) {
-         //       std::cout << "xknown: " << x_i[0] << ", " << x_i[1]
-         //                 << ", hi: " << hi
-         //                 << ", el: " << el << std::endl;
-         //    }
-         // }
-         // MFEM_SYNC_THREAD;
 
          // construct obbox_t on the fly for element el
          obbox_t box;
@@ -426,13 +401,8 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
                for (int d=0; d<sDIM; d++) {
                   elx[d] = xElemCoord + d*p_NEL + el*D1D;
                }
-               // std::cout << "elx: " << elx[0][0] << ", " << elx[1][0]
-               //           << ", "    << elx[0][1] << ", " << elx[1][1]
-               //           << ", "    << elx[0][2] << ", " << elx[1][2]
-               //           << std::endl;
 
-               //--------------- findpts_el ----------------
-               {
+               {  //--------------- findpts_el ----------------
                   MFEM_SYNC_THREAD;
                   // Initialize findptsElementPoint_t struct for point i
                   MFEM_FOREACH_THREAD(j,x,nThreads)
@@ -451,8 +421,8 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
                      constraint_init_t[j] = 0;
                   }
                   MFEM_SYNC_THREAD;
-                  //---------------- seed ------------------
-                  {
+                
+                  {  //---------------- seed ------------------
                      // pointers to shared memory for convenience, note r_temp's address
                      double *dist2_temp = r_workspace_ptr;
                      double *r_temp = dist2_temp + D1D;
@@ -480,11 +450,8 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
                      MFEM_SYNC_THREAD;
                   } //seed done
 
-                  // std::cout << "seed: fpt->dist2: " << fpt->dist2 << ", fpt->r: " << fpt->r << std::endl;
-
                   // Initialize tmp struct with fpt values before starting Newton iterations
-                  MFEM_FOREACH_THREAD(j,x,nThreads)
-                  {
+                  MFEM_FOREACH_THREAD(j,x,nThreads) {
                      if (j==0) {
                         tmp->dist2 = DBL_MAX;
                         tmp->dist2p = 0;
@@ -502,9 +469,7 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
                   for (int step=0; step<50; step++) {
                      int nc = num_constrained(tmp->flags & FLAG_MASK); // number of constrained reference directions
                      switch (nc) {
-                        // r is unconstrained
-                        case 0:
-                        {
+                        case 0: { // r is unconstrained
                            double *wt = r_workspace_ptr;    // 3*D1D: value, derivative and 2nd derivative
                            double *resid = wt + 3*D1D;      // sdim coord components, so sdim residuals
                            double *jac = resid + sDIM;      // sdim, dx/dr, dy/dr
@@ -546,8 +511,6 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
                                     jac[j]   += wt[D1D  +k]*edge.x[j][k]; // wt[k+D1D] = derivative of the basis in r
                                     hess[j]  += wt[2*D1D+k]*edge.x[j][k]; // wt[k+2*D1D] = 2nd derivative of the basis function
                                  }
-                                 // std::cout << "jac[" << j << "]: " << jac[j]
-                                 //           << ", resid[" << j << "]: " << resid[j] << std::endl;
                               }
                            }
                            MFEM_SYNC_THREAD;
@@ -569,18 +532,8 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
                            MFEM_SYNC_THREAD;
                            break;
                         }
-                        // r is constrained to either -1 or 1
-                        case 1:
-                        {
-                           // compute basis function info upto 2nd derivative for tangential components
-                           // MFEM_FOREACH_THREAD(j,x,nThreads)
-                           // {
-                           //    if (j<D1D) {
-                           //       lagrange_eval_second_derivative(wt, tmp->r, j, gll1D, lagcoeff, D1D);
-                           //    }
-                           // }
-                           // MFEM_SYNC_THREAD;
-
+                       
+                        case 1: {  // r is constrained to either -1 or 1
                            MFEM_FOREACH_THREAD(j,x,nThreads) {
                               if (j==0) {
                                  const int pi = point_index(tmp->flags & FLAG_MASK);
@@ -624,7 +577,6 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
                         } // case 1
                      } //switch
                      if (fpt->flags & CONVERGED_FLAG) {
-                        // std::cout << "Newton search converged: " << fpt->flags << std::endl;
                         *newton_i = step+1;
                         break;
                      }
@@ -634,41 +586,15 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
                         *tmp = *fpt;
                      }
                      MFEM_SYNC_THREAD;
-                     // MFEM_FOREACH_THREAD(j,x,nThreads)
-                     // {
-                     //    if (j==0) {
-                     //       std::cout << "step: " << step
-                     //                 << ", num_constrained: " << nc
-                     //                 << ", flags: " << fpt->flags << ", " << tmp->flags
-                     //                 << ", dist2: " << fpt->dist2
-                     //                 << ", r: " << fpt->r
-                     //                 << ", threadID: " << j << std::endl;
-                     //    }
-                     // }
-                     // MFEM_SYNC_THREAD;
                   } //for int step<50
-                  // MFEM_FOREACH_THREAD(j,x,nThreads)
-                  // {
-                  //    if (j==0) {
-                  //       std::cout << "final flags: " << fpt->flags << ", " << tmp->flags
-                  //                 << ", FLAG_MASK: " << FLAG_MASK
-                  //                 << ", CONVERGED_FLAG: " << CONVERGED_FLAG
-                  //                 << ", dist2: " << fpt->dist2
-                  //                 << ", r: " << fpt->r
-                  //                 << ", threadID: " << j << "\n" << std::endl;
-                  //    }
-                  // }
-                  // MFEM_SYNC_THREAD;
                } //findpts_el
 
                // flags has to EXACTLY match CONVERGED_FLAG for the point to be considered converged
                // So cases where flags has 1st or 2nd bit set are not considered converged.
                // Important since newton_point case would lead to flags having 1st or 2nd bit set.
                bool converged_internal = ((fpt->flags&FLAG_MASK) == CONVERGED_FLAG) && (fpt->dist2<dist2tol);
-               if (*code_i == CODE_NOT_FOUND || converged_internal || fpt->dist2 < *dist2_i)
-               {
-                  MFEM_FOREACH_THREAD(j,x,nThreads)
-                  {
+               if (*code_i == CODE_NOT_FOUND || converged_internal || fpt->dist2 < *dist2_i) {
+                  MFEM_FOREACH_THREAD(j,x,nThreads) {
                      if (j == 0) {
                         *el_i = el;
                         *code_i = converged_internal ? CODE_INTERNAL : CODE_BORDER;
@@ -677,10 +603,6 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
                      }
                   }
                   MFEM_SYNC_THREAD;
-                  // std::cout << "converged_internal: " << converged_internal
-                  //           << ", code: " << *code_i
-                  //           << ", dist2: " << *dist2_i
-                  //           << ", r: " << *r_i << "\n\n";
                   if (converged_internal) {
                      break;
                   }
@@ -701,10 +623,11 @@ void FindPointsGSLIB::FindPointsSurfLocal2( const Vector &point_pos,
                                             Array<int> &newton,
                                             int npt )
 {
-   if (npt == 0) { return; }
+   if (npt==0) {
+      return;
+   }
    MFEM_VERIFY(spacedim==2,"Function for 2D only");
-   switch (DEV.dof1d)
-   {
+   switch (DEV.dof1d) {
       case 3: return FindPointsSurfLocal2D_Kernel<3>(                      npt,
                                                                        DEV.tol,
                                                                        DEV.tol,

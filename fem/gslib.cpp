@@ -259,9 +259,9 @@ void FindPointsGSLIB::SetupSurf(Mesh &m, const double bb_t, const double newt_to
    MFEM_VERIFY(m.GetNodes() != NULL, "Mesh nodes are required.");
 
    crystal_init(cr, gsl_comm);     // Crystal Router
-   mesh = &m;
-   dim            = mesh->Dimension();       // This is reference dimension
-   spacedim       = mesh->SpaceDimension();  // This is physical dimension
+   mesh     = &m;
+   dim      = mesh->Dimension();       // This is reference dimension
+   spacedim = mesh->SpaceDimension();  // This is physical dimension
 
    // Max element order since we will ultimately have all elements of the same order
    const int meshOrder = mesh->GetNodes()->FESpace()->GetMaxElementOrder();
@@ -271,45 +271,30 @@ void FindPointsGSLIB::SetupSurf(Mesh &m, const double bb_t, const double newt_to
    // call FreeData if FindPointsGSLIB::Setup has been called already
    if (setupflag)  FreeData();
 
+   setupSW.Clear();
+   setupSW.Start();
+
    SetupSplitMeshesSurf();  // A call to set NE_split_total, _index, _map arrays, NOT PRODUCTION READY
 
-   Vector ref_node_vals;    // debug vector to store reference element nodal values
-   GetNodalValuesSurf(mesh->GetNodes(), gsl_mesh, ref_node_vals);
+   setupSW.Stop();
+   setup_split_time = setupSW.RealTime();
+
+   setupSW.Clear();
+   setupSW.Start();
+
+   GetNodalValuesSurf(mesh->GetNodes(), gsl_mesh);
+
+   setupSW.Stop();
+   setup_nodalmapping_time = setupSW.RealTime();
 
    mesh_points_cnt     = gsl_mesh.Size()/spacedim;
    DEV.local_hash_size = mesh_points_cnt;
    DEV.dof1d           = (int)dof1D;
 
-   // for (int iid=0; iid<num_procs; iid++) {
-   //    if (iid == myid) {
-   //       std::cout << "mesh_points_cnt: " << mesh_points_cnt << " myid"<<myid << std::endl;
-   //       // Print physical element nodal values
-   //       for (int ine=0; ine<NE_split_total; ine++) {
-   //          std::cout << "El " << ine << " phy. coords" << ": ";
-   //          for (int ipt=0; ipt < pts_el; ipt++) {
-   //             for (int d=0; d<spacedim; d++) {
-   //                std::cout << gsl_mesh(d*mesh_points_cnt + ine*pts_el + ipt) << " ";
-   //             }
-   //             std::cout << "; ";
-   //          }
-   //          std::cout << std::endl;
-   //       }
-   //       // Print reference element nodal values
-   //       for (int ine = 0; ine < NE_split_total; ine++) {
-   //          std::cout << "El " << ine << " ref. coords" << ": ";
-   //          for (int ipt = 0; ipt < pts_el; ipt++) {
-   //             for (int d = 0; d < dim; d++) {
-   //                std::cout << ref_node_vals(d*mesh_points_cnt + ine*pts_el + ipt) << " ";
-   //             }
-   //             std::cout << "; ";
-   //          }
-   //          std::cout << std::endl;
-   //       }
-   //    }
-   //    MPI_Barrier(gsl_comm->c);
-   // }
+   setupSW.Clear();
+   setupSW.Start();
 
-   if (spacedim == 2) {
+   if (spacedim==2) {
       unsigned nr[1] = { dof1D };
       unsigned mr[1] = { 2*dof1D };
       double * const elx[2] = {
@@ -328,7 +313,7 @@ void FindPointsGSLIB::SetupSurf(Mesh &m, const double bb_t, const double newt_to
                                    newt_tol );
       setupflag = true;
    }
-   if (spacedim == 3) {
+   else if (spacedim==3) {
       unsigned nr[2] = { dof1D, dof1D };
       unsigned mr[2] = { 2*dof1D, 2*dof1D };
       double * const elx[3] = {
@@ -348,6 +333,8 @@ void FindPointsGSLIB::SetupSurf(Mesh &m, const double bb_t, const double newt_to
                                    newt_tol );
       setupflag = true;
    }
+   setupSW.Stop();
+   setup_findpts_setup_time = setupSW.RealTime();
 }
 
 void FindPointsGSLIB::FindPoints(const Vector &point_pos,
@@ -455,10 +442,16 @@ void FindPointsGSLIB::FindPointsSurf( const Vector &point_pos,
    gsl_dist.SetSize(points_cnt);
    gsl_newton.SetSize(points_cnt);
 
-   std::cout << "Before FindPointsSurfOnDevice" << ", points_cnt: " << points_cnt
-             << ", rank: " << gsl_comm->id << std::endl;
+   setupSW.Clear();
+   setupSW.Start();
+
    FindPointsSurfOnDevice(point_pos, point_pos_ordering);
-   // std::cout << "After FindPointsSurfOnDevice" << std::endl;
+
+   setupSW.Stop();
+   findpts_findpts_time = setupSW.RealTime();
+
+   setupSW.Clear();
+   setupSW.Start();
 
    // Set the element number and reference position to 0 for points not found
    for (int i=0; i<points_cnt; i++) {
@@ -475,6 +468,9 @@ void FindPointsGSLIB::FindPointsSurf( const Vector &point_pos,
    // both simplices and quads. Also sets code to 1 for points found on element
    // faces/edges.
    MapRefPosAndElemIndicesSurf();
+
+   setupSW.Stop();
+   findpts_mapelemrst_time = setupSW.RealTime();
 }
 
 static slong lfloor(dfloat x) { return floor(x); }
@@ -1493,12 +1489,17 @@ void FindPointsGSLIB::FindPointsSurfOnDevice( const Vector &point_pos,
    point_pos_copy.UseDevice(true);
    point_pos_copy.HostReadWrite();
    MemoryType mt = point_pos.GetMemory().GetMemoryType();
+
+   SW2.Clear();
+   SW2.Start();
+
    SurfSetupDevice(mt);
+
+   SW2.Stop();
+   findpts_setup_device_arrays_time = SW2.RealTime();
 
    gsl_ref.UseDevice(true);
    gsl_dist.UseDevice(true);
-
-   std::cout << "Before FindPointsSurfLocal, rank: " << gsl_comm->id << std::endl;
 
    if (spacedim==2) {
       FindPointsSurfLocal2(point_pos,
@@ -1520,11 +1521,6 @@ void FindPointsGSLIB::FindPointsSurfOnDevice( const Vector &point_pos,
                             gsl_newton,
                             points_cnt);
    }
-
-   // std::cout << "After FindPointsSurfLocal\n";
-
-   // TODO: Only transfer information for points found
-   // Transfer information from DEVICE
 
    gsl_ref.HostReadWrite();
    gsl_dist.HostReadWrite();
@@ -1909,27 +1905,10 @@ void FindPointsGSLIB::SurfSetupDevice(MemoryType mt)
                                      findptsData3->local.hd.offset[i];
    }
 
-//    std::cout<<"\n-----------------------\nSurfaceSetupDevice\n-----------------------\n";
-//    std::cout << "\n----------------------\nLocal Hash data\n----------------------\n";
-//    std::cout << DEV.hash_n << " " << DEV.o_hashFac[0] << " " <<  DEV.o_hashFac[1] << " - hashn and hashfac\n";
-//    std::cout << DEV.o_hashMin[0] << " " << DEV.o_hashMax[0] << " " << DEV.o_hashMin[1] << " " << DEV.o_hashMax[1] << " - hashbounds\n";
-//    for (int i = 0; i < DEV.hash_n*DEV.hash_n; i++) {
-//          std::cout << DEV.o_offset[i] << " ";
-//    }
-//    std::cout << " - hashoffset\n\n";
-
-//    std::cout<<"\n----------------------\nGlobal Hash data\n----------------------\n";
-//    std::cout << DEV.hash2->hash_n << " " << DEV.hash2->fac[0] << " " << DEV.hash2->fac[1] << " - hashn and hashfac\n";
-//    std::cout << DEV.hash2->bnd[0].min << " " << DEV.hash2->bnd[0].max << " " << DEV.hash2->bnd[1].min << " " << DEV.hash2->bnd[1].max << " - hashbounds\n";
-//    for (int i = 0; i < DEV.hash2->hash_n * DEV.hash2->hash_n; i++) {
-//        std::cout << DEV.hash2->offset[i] << " ";
-//    }
-//   std::cout << " - hashoffset\n\n";
-
    Vector gll1dtemp(DEV.dof1d),
           lagcoefftemp(DEV.dof1d),
           wtendtemp(6*DEV.dof1d);
-   gslib::lobatto_nodes(gll1dtemp.GetData(), DEV.dof1d); // Get gll points [-1,1] for the given dof1d
+   gslib::lobatto_nodes(gll1dtemp.GetData(), DEV.dof1d);    // Get gll points [-1,1] for the given dof1d
    gslib::gll_lag_setup(lagcoefftemp.GetData(), DEV.dof1d); // Get lagrange coefficients at the gll points
    for (int i=0; i<DEV.dof1d; i++) { // loop through all lagrange polynomials
       lagrange_eval_second_derivative(wtendtemp.GetData(),
@@ -2425,7 +2404,7 @@ void FindPointsGSLIB::FreeData()
 {
    if (!setupflag) { return; }
    crystal_free(cr);
-   if (dim == 2)
+   if (spacedim==2)
    {
       findpts_free_2((gslib::findpts_data_2 *)this->fdataD);
    }
@@ -2859,8 +2838,7 @@ void FindPointsGSLIB::GetNodalValues(const GridFunction *gf_in,
 }
 
 void FindPointsGSLIB::GetNodalValuesSurf(const GridFunction *gf_in,
-                                         Vector &node_vals,
-                                         Vector &ref_node_vals) // ref_node_vals is for debugging
+                                         Vector &node_vals)
 {
    const GridFunction *nodes     = gf_in;
    const FiniteElementSpace *fes = nodes->FESpace();
@@ -2872,17 +2850,10 @@ void FindPointsGSLIB::GetNodalValuesSurf(const GridFunction *gf_in,
    const int pts_el   = std::pow(dof_1D, dim);     // points nos. in one element
    const int pts_cnt  = NE * pts_el;               // total points nos. in all elements
 
-   // const int myid = Mpi::WorldRank();
-   // std::cout << "vdim dim: " << vdim << " " << dim <<" myid"<<myid << std::endl;
-   // std::cout << "pts_el NE pts_cnt: " << pts_el << " " << NE << " " << pts_cnt <<" myid"<<myid << std::endl;
-
    // nodes are vdim ordered, i.e., all dim 0 dofs, then all dim 1 dofs, etc.
    node_vals.SetSize(vdim*pts_cnt);   // node_vals need to store all vdofs in mesh object
    node_vals = 0.0;
    if (node_vals.UseDevice()) node_vals.HostWrite();
-
-   ref_node_vals.SetSize(dim*pts_cnt);
-   ref_node_vals = 0.0;
 
    int gsl_mesh_pt_index = 0; // gsl_mesh_pt_index indexes the point (dof) under consideration
    for (int ie = 0; ie<NE; ie++)
@@ -2893,19 +2864,18 @@ void FindPointsGSLIB::GetNodalValuesSurf(const GridFunction *gf_in,
       const IntegrationRule &ir = fe->GetNodes();
       Array<int> dof_map(dof_cnt_split);
 
-      // std::cout << "Element " << ie << std::endl;
-      // std::cout << "dof_cnt_split " << dof_cnt_split << std::endl;
-
       const TensorBasisElement *tbe = dynamic_cast<const TensorBasisElement *>(fes->GetFE(ie));  // could we use *fe here?
       MFEM_VERIFY(tbe != NULL, "TensorBasis FiniteElement expected.");
-      const Array<int> &dm          = tbe->GetDofMap(); // maps current dof IDs to their lexicographic order
+      const Array<int> &dm = tbe->GetDofMap(); // maps current dof IDs to their lexicographic order
 
       // GetDofMap() returns an empty array if nodes are already lexicographically ordered
-      if (dm.Size()>0) dof_map = dm;
-      else
-      {
-         for (int i = 0; i < dof_cnt_split; i++)
-         { dof_map[i] = i; }
+      if (dm.Size()>0) {
+         dof_map = dm;
+      }
+      else {
+         for (int i = 0; i < dof_cnt_split; i++) {
+            dof_map[i] = i;
+         }
       }
 
       DenseMatrix pos(dof_cnt_split, vdim);
@@ -2917,24 +2887,16 @@ void FindPointsGSLIB::GetNodalValuesSurf(const GridFunction *gf_in,
 
       // We also get the reference element positions for debugging reasons
       DenseMatrix pos_ref(ir.GetNPoints(), dim);
-      // std::cout << "ir.GetNPoints() " << ir.GetNPoints() << std::endl;
-      for (int i=0; i<ir.GetNPoints(); i++)
-      {
+      for (int i=0; i<ir.GetNPoints(); i++) {
          const IntegrationPoint &ip = ir.IntPoint(i);
          pos_ref(i,0) = ip.x;
          if (dim == 2) pos_ref(i,1) = ip.y;
          if (dim == 3) pos_ref(i,2) = ip.z;
       }
 
-      for (int j=0; j<dof_cnt_split; j++) // lexicographic dof ID j
-      {
-         for (int d=0; d<vdim; d++)     // dof j's dimension d
-         {
+      for (int j=0; j<dof_cnt_split; j++) { // lexicographic dof ID j
+         for (int d=0; d<vdim; d++) {   // dof j's dimension d
             node_vals(pts_cnt*d + gsl_mesh_pt_index) = pos(dof_map[j], d);
-            if (d<dim)
-            {
-               ref_node_vals(pts_cnt*d + gsl_mesh_pt_index) = pos_ref(dof_map[j], d);
-            }
          }
          gsl_mesh_pt_index++;
       }
@@ -3515,13 +3477,6 @@ void FindPointsGSLIB::InterpolateSurfOnDevice(const Vector &field_in,
                     gsl_proc[index] == gsl_comm->id);
       }
 
-      // const int myid = Mpi::WorldRank();
-      // std::cout   << "myid: "        << myid
-      //             << " nlocal: "     << nlocal
-      //             << " numSend: "    << numSend
-      //             << " points_cnt: " << points_cnt
-      //             << std::endl;
-
       gsl_elem_temp.SetSize(nlocal);
       gsl_elem_temp.HostWrite();
 
@@ -3609,8 +3564,7 @@ void FindPointsGSLIB::InterpolateSurfOnDevice(const Vector &field_in,
    }
    MPI_Barrier(gsl_comm->c);
 
-   if (gsl_comm->np == 1)
-   {
+   if (gsl_comm->np == 1) {
       array_free(&src);
       return;
    }
@@ -3849,15 +3803,10 @@ void FindPointsGSLIB::InterpolateSurf(const GridFunction &field_in,
 
    const FiniteElementCollection *fec_in =  field_in.FESpace()->FEColl();
    const H1_FECollection         *fec_h1 = dynamic_cast<const H1_FECollection *>(fec_in);
-   const L2_FECollection         *fec_l2 = dynamic_cast<const L2_FECollection *>(fec_in);
+   // const L2_FECollection         *fec_l2 = dynamic_cast<const L2_FECollection *>(fec_in);
 
    setupSW.Clear();
    setupSW.Start();
-   // std::cout << "Device::IsEnabled: " << Device::IsEnabled() << std::endl;
-   // std::cout << "field_in.UseDevice(): " << field_in.UseDevice() << std::endl;
-   // std::cout << "mesh->GetNumGeometries(dim): " << mesh->GetNumGeometries(dim) << std::endl;
-   // std::cout << "mesh->GetNE(): " << mesh->GetNE() << std::endl;
-   // std::cout << "mesh->GetElementType(0): " << mesh->GetElementType(0) << std::endl;
 
    if ( //Device::IsEnabled() &&
         field_in.UseDevice() &&
@@ -3877,10 +3826,6 @@ void FindPointsGSLIB::InterpolateSurf(const GridFunction &field_in,
       const Operator *R            = field_in.FESpace()->GetElementRestriction(ord);
       node_vals.SetSize(R->Height());
       R->Mult(field_in, node_vals); //orders fields (N^D x VDIM x NEL)
-
-      // Vector ref_node_vals;
-      // ref_node_vals.UseDevice(true);
-      // GetNodalValuesSurf(&field_in, node_vals, ref_node_vals);
 
       const int ncomp    = field_in.FESpace()->GetVDim();
       const int maxOrder = field_in.FESpace()->GetMaxElementOrder();
@@ -3911,8 +3856,6 @@ void FindPointsGSLIB::InterpolateSurf(const GridFunction &field_in,
       field_out.SetSize(points_cnt*ncomp);
       field_out.UseDevice(true);
 
-      // std::cout << "InterpolateSurf: calling InterpolateOnDevice: " << gsl_comm->id << std::endl;
-
       // At this point make sure FindPoints was called with device mode?
       // Otherwise copy necessary data?
       InterpolateSurfOnDevice( node_vals,
@@ -3927,87 +3870,9 @@ void FindPointsGSLIB::InterpolateSurf(const GridFunction &field_in,
       interpolate_h1_time = setupSW.RealTime();
       return;
    }
-
    else {
-      std::cout << "InterpolateSurf: in else branch" << std::endl;
+      MFEM_ABORT("In else branch of GSLIB::InterpolateSurf!");
    }
-
-//    if ( fec_h1
-//      && gf_order==mesh_order
-//      && fec_h1->GetBasisType()==BasisType::GaussLobatto
-//      && field_in.FESpace()->IsVariableOrder()== mesh->GetNodalFESpace()->IsVariableOrder() ) {
-//       InterpolateH1(field_in, field_out);
-//       setupSW.Stop();
-//       interpolate_h1_time = setupSW.RealTime();
-//       return;
-//    }
-//    else
-//    {
-//       InterpolateGeneral(field_in, field_out);
-//       setupSW.Stop();
-//       interpolate_general_time = setupSW.RealTime();
-//       if (!fec_l2 || avgtype==AvgType::NONE) {
-//          return;
-//       }
-//    }
-
-//    // For points on element borders, project the L2 GridFunction to H1 and
-//    // re-interpolate.
-//    setupSW.Clear();
-//    setupSW.Start();
-//    if (fec_l2) {
-//       Array<int> indl2;
-//       for (int i=0; i<points_cnt; i++) {
-//          if (gsl_code[i]==1) {
-//             indl2.Append(i);
-//          }
-//       }
-//       int borderPts = indl2.Size();
-// #ifdef MFEM_USE_MPI
-//       MPI_Allreduce(MPI_IN_PLACE, &borderPts, 1, MPI_INT, MPI_SUM, gsl_comm->c);
-// #endif
-//       if (borderPts==0) { // no points on element borders
-//          return;
-//       }
-
-//       Vector field_out_l2(field_out.Size());
-//       VectorGridFunctionCoefficient field_in_dg(&field_in);
-//       int gf_order_h1 = std::max(gf_order, 1); // H1 should be at least order 1
-//       H1_FECollection fec(gf_order_h1, dim);
-//       const int ncomp = field_in.FESpace()->GetVDim();
-//       FiniteElementSpace fes(mesh, &fec, ncomp);
-//       GridFunction field_in_h1(&fes);
-
-//       if (avgtype==AvgType::ARITHMETIC) {
-//          field_in_h1.ProjectDiscCoefficient(field_in_dg, GridFunction::ARITHMETIC);
-//       }
-//       else if (avgtype==AvgType::HARMONIC) {
-//          field_in_h1.ProjectDiscCoefficient(field_in_dg, GridFunction::HARMONIC);
-//       }
-//       else {
-//          MFEM_ABORT("Invalid averaging type.");
-//       }
-
-//       if (gf_order_h1==mesh_order) { // basis is GaussLobatto by default
-//          InterpolateH1(field_in_h1, field_out_l2);
-//       }
-//       else {
-//          InterpolateGeneral(field_in_h1, field_out_l2);
-//       }
-
-//       // Copy interpolated values for the points on element border
-//       for (int j=0; j<ncomp; j++) {
-//          for (int i=0; i<indl2.Size(); i++) {
-//             int idx = field_in.FESpace()->GetOrdering() == Ordering::byNODES ?
-//                                                           indl2[i] + j*points_cnt:
-//                                                           indl2[i]*ncomp + j;
-//             field_out(idx) = field_out_l2(idx);
-//          }
-//       }
-//    }
-//    setupSW.Stop();
-//    interpolate_l2_pass2_time = setupSW.RealTime();
-
 }
 
 void FindPointsGSLIB::InterpolateH1(const GridFunction &field_in,

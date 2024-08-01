@@ -120,7 +120,7 @@ void FindPointsGSLIB::InterpolateSurfLocal3( const Vector &field_in,
                                     DEV.info.ReadWrite());
    }
    else {
-      MFEM_ABORT("Device implementation only for 3D yet.");
+      MFEM_ABORT("Call InterpolateSurfLocal2 for 2D!");
    }
 }
 

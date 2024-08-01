@@ -78,6 +78,7 @@ int main (int argc, char *argv[])
    int rs_levels         = 0;
    int rp_levels         = 0;
    bool visualization    = false;
+   int fieldtype          = 0;
    int ncomp             = 1;
    bool search_on_rank_0 = false;
    bool hrefinement       = false;
@@ -279,7 +280,6 @@ int main (int argc, char *argv[])
    // -----------FindPointsSetup----------------
    FindPointsGSLIB finder(MPI_COMM_WORLD);
    finder.SetupSurf(psubmesh);
-   cout << "SetupSurf done" << endl;
 
    Mesh *mesh_abb, *mesh_obb, *mesh_lhbb, *mesh_ghbb;
    if (visit)
@@ -314,7 +314,10 @@ int main (int argc, char *argv[])
    const int nel_sm = submesh->GetNE();
    Vector point_pos(npt*vdim*nel_sm);
    Vector field_exact(nel_sm*npt*ncomp);
-   cout << "point_pos size/vdim " << point_pos.Size()/vdim << ", nel_sm: " << nel_sm << endl;
+   int npt_per_proc = point_pos.Size()/vdim;
+   if (myid==0) {
+      cout << "points_per_proc: " << npt_per_proc << ", nel_sm: " << nel_sm << endl;
+   }
    // Get element coordinates
    for (int i=0; i<nel_sm; i++) {
       const FiniteElement *fe = sm_fes->GetFE(i);
@@ -342,99 +345,208 @@ int main (int argc, char *argv[])
             }
          }
          Vector pos_i(vdim);
-         Vector F_i(ncomp);
          transf->Transform(ip, pos_i);
-         F_exact(pos_i, F_i);
-         for (int d=0; d<ncomp; d++) {
-            field_exact(i*npt*ncomp + j*ncomp + d) = F_i(d);
-         }
          for (int d=0; d<vdim; d++) {
             point_pos(nel_sm*npt*d + i*npt + j) = pos_i(d);
          }
-         // std::cout << "point_pos: "
-         //           << pos_i(0) << " " << pos_i(1) << "; field_exact: "
-         //           << F_i(0) << "; "
-         //           << "rank: " << myid << std::endl;
       }
    }
 
-   std::cout << "point_pos done by rank " << myid << std::endl;
-
    finder.FindPointsSurf(point_pos);
-   std::cout << "FindPointsSurf done by rank " << myid << std::endl;
-
-   // Interpolate the field at the points
-   Vector field_out(nel_sm*npt*ncomp);
-   field_out.UseDevice(true);
-   finder.InterpolateSurf(field_vals, field_out);
-   std::cout << "InterpolateSurf done by rank " << myid << std::endl;
 
    MPI_Barrier(MPI_COMM_WORLD);
 
-   field_out.HostReadWrite();
-   Array<unsigned int> code_out = finder.GetCode();
-   Vector              dist     = finder.GetDist();
-   const int printwidth = 15;
-   for (int irank=0; irank<num_procs; irank++) {
-      if (myid==irank) {
-         cout << "rank: " << myid << endl;
+   Array<unsigned int> code_out1 = finder.GetCode();
+   Array<unsigned int> el_out1   = finder.GetGSLIBElem();
+   Vector ref_rst1               = finder.GetGSLIBReferencePosition();
+   Vector dist1                  = finder.GetDist();
+   Array<unsigned int> proc_out1 = finder.GetProc();
+   point_pos.HostReadWrite();
 
-         cout << setw(vdim*(printwidth+1))  << "point"           << "|   "
-              << setw(printwidth+1)       << "code"              << "|   "
-              << setw(printwidth+1)       << "dist"              << "|   "
-              << setw(ncomp*(printwidth+1)) << "field_exact"      << "|   "
-              << setw(ncomp*(printwidth+1)) << "field_interp"     << "|   "
-              << setw(ncomp*(printwidth+1)) << "field_interp_err"
-              << endl;
+   int notfound = 0;
+   for (int i=0; i<code_out1.Size(); i++) {
+      int c1 = code_out1[i];
+      int e1 = el_out1[i];
+      Vector ref1(ref_rst1.GetData()+i*dim, dim);
+      Vector dref = ref1;
+      if ( c1==2 || (std::fabs(dist1(i))>1e-10 && myid==0) ) {
+         notfound++;
+         if (point_ordering==0) {
+            std::cout << "Pt xyz: " << point_pos(i) << " "
+                      << point_pos(i + npt_per_proc) <<  " "
+                      << (vdim==3 ? point_pos(i+2*npt_per_proc) : 0)
+                      << " adi\n";
+         }
+         else {
+            std::cout << "Pt xyz: " << point_pos(i*vdim+0) << " "
+                      << point_pos(i*vdim+1) <<  " "
+                      << (vdim==3 ? point_pos(i*vdim+2) : 0)
+                      << " adi\n";
+         }
+         std::cout << "FPT DEV (c1,e1,dist1,r,s,t,proc): "
+                   << c1                    << " "
+                   << e1                    << " "
+                   << dist1(i)              << " "
+                   << ref1(0)               << " "
+                   << (dim==2 ? ref1(1):0 ) << " "
+                   << proc_out1[i]          << " adi\n";
+      }
+   }
 
-         for (int i=0; i<nel_sm; i++) {
-            for (int j=0; j<npt; j++) {
-               int err_flag = 0;
-               if (dist[i*npt + j]>1e-15) {
-                  err_flag = 1;
-               }
-               for (int d=0; d<ncomp; d++) {
-                  double Ferr =  fabs(field_exact(i*npt*ncomp + j*ncomp + d) - field_out(nel_sm*npt*d + i*npt + j));
-                  if (Ferr>1e-6) {
-                     err_flag += 1;
-                  }
-               }
-               // err_flag = 1;
-               if (err_flag) {
-                  for (int d=0; d<vdim; d++) {
-                     cout << setw(printwidth) << point_pos(nel_sm*npt*d + i*npt + j) << " ";
-                  }
-                  cout << "|   ";
+   MPI_Barrier(MPI_COMM_WORLD);
+   Array<int> newton_out = finder.GetNewtonIters();
+   int newton_min = newton_out.Min();
+   int newton_max = newton_out.Max();
+   int newton_mean = newton_out.Sum()/newton_out.Size();
+   if (myid==0) {
+      std::cout << "Newton iteration min/max/mean: "
+                << newton_min  << " "
+                << newton_max  << " "
+                << newton_mean << endl;
+   }
 
-                  cout << setw(printwidth) << code_out[i*npt + j] << " ";
-                  cout << "|   ";
+   MPI_Barrier(MPI_COMM_WORLD);
 
-                  cout << setw(printwidth) << dist[i*npt + j] << " ";
-                  cout << "|   ";
+   // Interpolate the field at the points
+   Vector field_out(npt_per_proc*ncomp);
+   field_out.UseDevice(true);
 
-                  for (int d=0; d<ncomp; d++) {
-                     cout << setw(printwidth) << field_exact(i*npt*ncomp + j*ncomp + d) << " ";
-                  }
-                  cout << "|   ";
+   finder.InterpolateSurf(field_vals, field_out);
 
-                  for (int d=0; d<ncomp; d++) {
-                     cout << setw(printwidth) << field_out(nel_sm*npt*d + i*npt + j) << " ";
-                  }
-                  cout << "|   ";
+   Vector info1 = finder.GetInfo();
+   if (field_out.UseDevice()) {
+      field_out.HostReadWrite();
+   }
+   point_pos.HostReadWrite();
 
-                  for (int d=0; d<ncomp; d++) {
-                     double err = fabs( field_exact(i*npt*ncomp + j*ncomp + d)
-                                      - field_out(nel_sm*npt*d + i*npt + j) );
-                     cout << setw(printwidth) << err << " ";
-                  }
-                  cout << endl;
-               }
+   Array<unsigned int> code_out    = finder.GetCode();
+   Array<unsigned int> task_id_out = finder.GetProc();
+   Vector dist_p_out               = finder.GetDist();
+   Vector rst                      = finder.GetReferencePosition();
+   int face_pts = 0, not_found = 0, found_loc = 0, found_away = 0;
+   double err = 0.0, max_err = 0.0, max_dist = 0.0;
+   Vector pos(vdim);
+   for (int j=0; j<ncomp; j++) {
+      for (int i=0; i<npt_per_proc; i++) {
+         if (j==0) {
+            (task_id_out[i]==(unsigned)myid) ? found_loc++ : found_away++;
+         }
+
+         if (code_out[i]<2) {
+            for (int d=0; d<vdim; d++) {
+               pos(d) = point_ordering==Ordering::byNODES ?
+                        point_pos(d*npt_per_proc + i) :
+                        point_pos(i*vdim + d);
+            }
+
+            Vector exact_val(ncomp);
+            F_exact(pos,exact_val);
+            err = gf_ordering == Ordering::byNODES ?
+                  fabs(exact_val(j) - field_out[i + j*npt_per_proc]) :
+                  fabs(exact_val(j) - field_out[i*ncomp + j]);
+            max_err  = std::max(max_err, err);
+            max_dist = std::max(max_dist, dist_p_out(i));
+
+            if (code_out[i]==1 && j==0) {
+               face_pts++;
+            }
+         }
+         else {
+            if (j==0) {
+               not_found++;
             }
          }
       }
-      MPI_Barrier(MPI_COMM_WORLD);
+   }
+   MPI_Allreduce(MPI_IN_PLACE, &found_loc , 1, MPI_INT   , MPI_SUM, sc_fes.GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, &found_away, 1, MPI_INT   , MPI_SUM, sc_fes.GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, &face_pts  , 1, MPI_INT   , MPI_SUM, sc_fes.GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, &not_found , 1, MPI_INT   , MPI_SUM, sc_fes.GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, &max_err   , 1, MPI_DOUBLE, MPI_MAX, sc_fes.GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, &max_dist  , 1, MPI_DOUBLE, MPI_MAX, sc_fes.GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, &err       , 1, MPI_DOUBLE, MPI_SUM, sc_fes.GetComm());
+
+   if (myid==0) {
+      cout << setprecision(16)
+           <<   "Total number of elements: " << nel_sm
+           << "\nTotal number of procs:    " << num_procs
+           << "\nSearched total points:    " << npt_per_proc*num_procs
+           << "\nFound locally on ranks:   " << found_loc
+           << "\nFound on other tasks:     " << found_away
+           << "\nPoints not found:         " << not_found
+           << "\nPoints on faces:          " << face_pts
+           << "\nMax interp error:         " << max_err
+           << "\nMax dist (of found):      " << max_dist
+           //                    << "\nTotal Time:  " << FindPointsSW.RealTime()
+           << endl;
    }
 
+   if (myid==0) {
+      cout << "FindPointsGSLIB-Timing-info "
+           << "jobid,devid,gpucode,ne,np,dim,spacedim,meshorder,solorder,funcorder,fieldtype,smooth,npts,nptt,"
+           << "foundloc,foundaway,notfound,foundface,maxerr,maxdist,"
+           << "setup_split,setup_nodalmapping,setup_setup,findpts_findpts,findpts_device_setup,findpts_mapelemrst,"
+           << "interpolate_h1,interpolate_general,interpolate_l2_pass2 "
+           << jobid << ","
+           << device.GetId() << ","
+           << gpucode << ","
+           << nel_sm << ","
+           << num_procs << ","
+           << dim << ","
+           << vdim << ","
+           << mesh_poly_deg << "," << order << ","
+           << func_order << "," << fieldtype << ","
+           << smooth << ","
+           << npt_per_proc << ","
+           << npt_per_proc*num_procs << ","
+           << found_loc << ","
+           << found_away << ","
+           << not_found << ","
+           << face_pts << ","
+           << max_err << ","
+           << max_dist << ","
+           << finder.setup_split_time << ","
+           << finder.setup_nodalmapping_time << ","
+           << finder.setup_findpts_setup_time << ","
+           << finder.findpts_findpts_time << ","
+           << finder.findpts_setup_device_arrays_time << ","
+           << finder.findpts_mapelemrst_time << ","
+           << finder.interpolate_h1_time << ","
+           << finder.interpolate_general_time << ","
+           << finder.interpolate_l2_pass2_time << ","
+           << std::endl;
+   }
+
+   int mesh_size = finder.GetGLLMesh().Size();
+
+   if (myid == 0)
+   {
+      cout << "FindPointsGSLIB-KernelTiming-info "
+           << "jobid,devid,gpucode,ne,np,dim,spacedim,meshorder,solorder,funcorder,fieldtype,smooth,npts,nptt,gllsize,"
+           << "mintime,measuredmintime,actualkerneltime,fastkerneltime "
+           << jobid                              << ","
+           << device.GetId()                     << ","
+           << gpucode                            << ","
+           << nel_sm                             << ","
+           << num_procs                          << ","
+           << dim                                << ","
+           << vdim                               << ","
+           << mesh_poly_deg                      << ","
+           << order                              << ","
+           << func_order                         << ","
+           << fieldtype                           << ","
+           << smooth                             << ","
+           << npt_per_proc                       << ","
+           << npt_per_proc*num_procs             << ","
+           << mesh_size                          << ","
+           << finder.min_fpt_kernel_time          << ","
+           << finder.measured_min_fpt_kernel_time << ","
+           << finder.fpt_kernel_time              << ","
+           << finder.fast_fpt_kernel_time         << ","
+           << std::endl;
+   }
+
+   // finder.FreeData();
    delete submesh, mesh;
    // // delete fec;
 
