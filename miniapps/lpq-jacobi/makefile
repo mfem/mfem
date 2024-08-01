@@ -65,7 +65,8 @@ MESHES_DEST_DIR = ./meshes
 
 MESH_FILES_FROM_MESHING = icf.mesh cube.mesh
 MESH_FILES_FROM_GSLIB = triple-pt-1.mesh triple-pt-2.mesh
-MESH_FILES_FROM_DATA = beam-tet.mesh square-disc-p2.mesh fichera-mixed-p2.mesh
+MESH_FILES_FROM_DATA = beam-tet.mesh square-disc-p2.mesh fichera-mixed-p2.mesh \
+					   amr-quad.mesh
 
 SRC_MESH_FILES = $(addprefix $(SRC_MESHING_DIR)/, $(MESH_FILES_FROM_MESHING)) \
                  $(addprefix $(SRC_GSLIB_DIR)/, $(MESH_FILES_FROM_GSLIB)) \
@@ -122,6 +123,7 @@ clean: clean-build clean-exec
 clean-build:
 	@echo "Cleaning build files..."
 	rm -f *.o *~ lpq-jacobi
+	rm -f *.o *~ mg-lpq-jacobi
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:

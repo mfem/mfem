@@ -30,6 +30,7 @@ if(MFEM_USE_MPI)
     beam-tet.mesh
     square-disc-p2.mesh
     fichera-mixed-p2.mesh
+    amr-quad.mesh
   )
   
   # Add a target to copy the mesh files from the source directory; used by sample
