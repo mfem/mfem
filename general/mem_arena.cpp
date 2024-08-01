@@ -100,6 +100,9 @@ void ArenaChunk::Dealloc(ArenaControlBlock &control)
    }
    auto begin = ptr_it.base();
 
+   // Sanity check:
+   MFEM_ASSERT(ptr_stack.size() - (end - begin) >= ptr_count, "");
+
    // If the range is not empty, reclaim the memory by shifting the offset, and
    // delete the associated pointer metadata.
    if (begin != end)
@@ -115,8 +118,6 @@ void ArenaChunk::Dealloc(ArenaControlBlock &control)
       }
       ptr_stack.erase(begin, end);
    }
-
-   MFEM_ASSERT(ptr_stack.size() >= ptr_count, "");
 }
 
 void *ArenaChunk::NewPointer(size_t nbytes)
@@ -199,6 +200,10 @@ void ArenaHostMemorySpace::ConsolidateAndEnsureAvailable(
 
 void ArenaHostMemorySpace::Alloc(void **ptr, size_t nbytes)
 {
+   // If requesting zero-size allocation, allocate the minimum positive number
+   // of bytes (will round up to alignment).
+   if (nbytes == 0) { ++nbytes; }
+
    // Round up requested size to multiple of alignment.
    const size_t r = nbytes % alignment;
    const size_t nbytes_aligned = r ? (nbytes + alignment - r) : nbytes;
