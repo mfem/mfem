@@ -219,6 +219,12 @@ static MFEM_HOST_DEVICE inline void newton_edge( findptsElementPoint_t *const ou
       // roundoff errors could sometimes cause fabs(newr)<1 to succeed.
       // FIXME: This check might be redundant since we check for dist2<dist2tol in
       // newton iterations loop.
+      // Note: if the current guess is already on the boundary, and the actual point is
+      // `normal` to the boundary, the dr should be 0, but it can be negative due to
+      // machine roundoff (because we don't have any information about normal derivatives).
+      // This can cause newr = oldr+dr to be less than 1, send the point to
+      // newton_edge_fin where it can get marked as converged. So we set dr to 0
+      // here, so that newr stays on the boundary.
       if (fabs(dr)<tol) {
          dr=0.0;
          newr = oldr;
@@ -426,7 +432,7 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
                      constraint_init_t[j] = 0;
                   }
                   MFEM_SYNC_THREAD;
-                
+
                   {  //---------------- seed ------------------
                      // pointers to shared memory for convenience, note r_temp's address
                      double *dist2_temp = r_workspace_ptr;
@@ -537,7 +543,7 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
                            MFEM_SYNC_THREAD;
                            break;
                         }
-                       
+
                         case 1: {  // r is constrained to either -1 or 1
                            MFEM_FOREACH_THREAD(j,x,nThreads) {
                               if (j==0) {
@@ -594,19 +600,18 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
                   } //for int step<50
                } //findpts_el
 
-               // flags has to EXACTLY match CONVERGED_FLAG for the point to be
-               // considered converged So cases where flags has 1st or 2nd bit
-               // set are not considered converged.  Important since
-               // newton_point case would lead to flags having 1st or 2nd bit
-               // set.
-               // Also note the fpt->dist2<dist2tol check. It is important since
-               // points that are outside the surface element might be marked
-               // converged if newton search converges to the nearest point on
-               // the element. This check prevents such cases and allows the
-               // search to continue through all possible elements that may
-               // contain the point.
-               bool converged_internal = ((fpt->flags&FLAG_MASK)==CONVERGED_FLAG)
-                                       && (fpt->dist2<dist2tol);
+               // flags has to EXACTLY match CONVERGED_FLAG for the point to be considered converged
+               // So cases where flags has 1st or 2nd bit set are not considered converged.
+               // Important since newton_point case would lead to flags having 1st or 2nd bit set.
+
+               // The check is slightly different from the area mesh because we can have cases
+               // where the point is converged from a Newton perspective on that element,
+               // but it not really converged and might be in another element.
+               // For example, if a point is normally away from an element (but located inside another),
+               // Newton for the first element will converge and we don't want to make it as
+               // converged internal so that it is found on another element.
+               bool converged_internal = ((fpt->flags&FLAG_MASK) == CONVERGED_FLAG) && (fpt->dist2<dist2tol);
+
                if (*code_i == CODE_NOT_FOUND || converged_internal || fpt->dist2 < *dist2_i) {
                   MFEM_FOREACH_THREAD(j,x,nThreads) {
                      if (j == 0) {
@@ -641,10 +646,12 @@ void FindPointsGSLIB::FindPointsSurfLocal2( const Vector &point_pos,
       return;
    }
    MFEM_VERIFY(spacedim==2,"Function for 2D only");
+   // be careful with disttol for now.
+   double dist2tol = 1e-15;
    switch (DEV.dof1d) {
       case 3: return FindPointsSurfLocal2D_Kernel<3>(                      npt,
                                                                        DEV.tol,
-                                                                       DEV.tol,
+                                                                       dist2tol,
                                                               point_pos.Read(),
                                                             point_pos_ordering,
                                                                gsl_mesh.Read(),
@@ -668,7 +675,7 @@ void FindPointsGSLIB::FindPointsSurfLocal2( const Vector &point_pos,
                                                           DEV.info.ReadWrite() );
       default: return FindPointsSurfLocal2D_Kernel(                      npt,
                                                                      DEV.tol,
-                                                                     DEV.tol,
+                                                                     dist2tol,
                                                             point_pos.Read(),
                                                           point_pos_ordering,
                                                              gsl_mesh.Read(),

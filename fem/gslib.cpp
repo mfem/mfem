@@ -3136,7 +3136,8 @@ void FindPointsGSLIB::MapRefPosAndElemIndicesSurf()
    // Map received points
    npt = outpt->n;
    pt = (struct out_pt *)outpt->ptr;
-   for (int index=0; index<npt; index++) {
+   for (int index=0; index<npt; index++)
+   {
       IntegrationPoint ip;
       ip.x = pt->r[0];
       if (dim==2) {
@@ -3149,26 +3150,8 @@ void FindPointsGSLIB::MapRefPosAndElemIndicesSurf()
       // check if the point is on element boundary
       // We always go in currently. So all code after this is if block is redundant.
       const Geometry::Type gt = fe->GetGeomType();
-      // if ( gt==Geometry::SEGMENT || gt==Geometry::SQUARE ) {
-         pt->code = Geometry::CheckPoint(gt, ip, -btol) ? 0 : 1;
-         ++pt;
-      //    continue;
-      // }
-
-      // int local_elem = split_element_index[elem];
-      // Vector mfem_ref(dim);
-      // // map to rst of macro element
-      // gf_rst_map_temp->GetVectorValue(local_elem, ip, mfem_ref); // adi: ask ketan
-      // for (int d=0; d<dim; d++) {
-      //    pt->r[d] = mfem_ref(d);
-      // }
-      // // check if point is on element boundary
-      // ip.x = pt->r[0];
-      // if (dim==2) {
-      //    ip.y = pt->r[1];
-      // }
-      // pt->code = Geometry::CheckPoint(gt, ip, -btol) ? 0 : 1;
-      // ++pt;
+      pt->code = Geometry::CheckPoint(gt, ip, -btol) ? 0 : 1;
+      ++pt;
    }
 
    // Transfer data back to source MPI rank
@@ -3189,8 +3172,10 @@ void FindPointsGSLIB::MapRefPosAndElemIndicesSurf()
    delete outpt;
 
    // Now map information for points on the same proc
-   for (int index=0; index<nptorig; index++) {
-      if (gsl_code[index]!=2 && gsl_proc[index]==gsl_comm->id) {
+   for (int index=0; index<nptorig; index++)
+   {
+      if (gsl_code[index]!=2 && gsl_proc[index]==gsl_comm->id)
+      {
          IntegrationPoint ip;
          Vector mfem_ref(gsl_mfem_ref.GetData()+index*dim, dim);
          real_t *ptemp = mfem_ref.GetData();
@@ -3204,21 +3189,7 @@ void FindPointsGSLIB::MapRefPosAndElemIndicesSurf()
          const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(mesh_elem);
          const Geometry::Type gt = fe->GetGeomType();
          gsl_mfem_elem[index] = mesh_elem;
-         // if ( gt==Geometry::SEGMENT || gt==Geometry::SQUARE) {
-            gsl_code[index] = Geometry::CheckPoint(gt, ip, -btol) ? 0 : 1;
-            // continue;
-         // }
-
-         // int local_elem = split_element_index[elem];
-         // gf_rst_map_temp->GetVectorValue(local_elem, ip, mfem_ref);
-
-         // // Check if the point is on element boundary
-         // ptemp = mfem_ref.GetData();
-         // ip.x = ptemp[0];
-         // if (dim==2) {
-         //    ip.y = ptemp[1];
-         // }
-         // gsl_code[index] = Geometry::CheckPoint(gt, ip, -btol) ? 0 : 1;
+         gsl_code[index] = Geometry::CheckPoint(gt, ip, -btol) ? 0 : 1;
       }
    }
 }
