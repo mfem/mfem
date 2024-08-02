@@ -214,6 +214,11 @@ static MFEM_HOST_DEVICE inline void newton_edge( findptsElementPoint_t *const ou
       dr = y/A;
       // if dr is too small, set it to 0. Required since roundoff dr could cause
       // fabs(newr)<1 to succeed when it shouldn't.
+      // This is a problem in surface meshes, since we lack information of normal
+      // derivatives. This can result in y=0 that might result in a dr=0, which due to
+      // roundoff errors could sometimes cause fabs(newr)<1 to succeed.
+      // FIXME: This check might be redundant since we check for dist2<dist2tol in
+      // newton iterations loop.
       if (fabs(dr)<tol) {
          dr=0.0;
          newr = oldr;
@@ -589,10 +594,19 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
                   } //for int step<50
                } //findpts_el
 
-               // flags has to EXACTLY match CONVERGED_FLAG for the point to be considered converged
-               // So cases where flags has 1st or 2nd bit set are not considered converged.
-               // Important since newton_point case would lead to flags having 1st or 2nd bit set.
-               bool converged_internal = ((fpt->flags&FLAG_MASK) == CONVERGED_FLAG) && (fpt->dist2<dist2tol);
+               // flags has to EXACTLY match CONVERGED_FLAG for the point to be
+               // considered converged So cases where flags has 1st or 2nd bit
+               // set are not considered converged.  Important since
+               // newton_point case would lead to flags having 1st or 2nd bit
+               // set.
+               // Also note the fpt->dist2<dist2tol check. It is important since
+               // points that are outside the surface element might be marked
+               // converged if newton search converges to the nearest point on
+               // the element. This check prevents such cases and allows the
+               // search to continue through all possible elements that may
+               // contain the point.
+               bool converged_internal = ((fpt->flags&FLAG_MASK)==CONVERGED_FLAG)
+                                       && (fpt->dist2<dist2tol);
                if (*code_i == CODE_NOT_FOUND || converged_internal || fpt->dist2 < *dist2_i) {
                   MFEM_FOREACH_THREAD(j,x,nThreads) {
                      if (j == 0) {

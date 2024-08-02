@@ -3808,13 +3808,12 @@ void FindPointsGSLIB::InterpolateSurf(const GridFunction &field_in,
    setupSW.Clear();
    setupSW.Start();
 
-   if ( //Device::IsEnabled() &&
-        field_in.UseDevice() &&
-        mesh->GetNumGeometries(dim)==1 &&
-        mesh->GetNE()>0 &&
-        ( mesh->GetElementType(0) == Element::SEGMENT       ||
-          mesh->GetElementType(0) == Element::QUADRILATERAL ||
-          mesh->GetElementType(0) == Element::HEXAHEDRON      ) )
+   if ( //Device::IsEnabled()
+     && field_in.UseDevice()
+     && mesh->GetNumGeometries(dim)==1
+     && mesh->GetNE()>0
+     && ( mesh->GetElementType(0) == Element::SEGMENT
+       || mesh->GetElementType(0) == Element::QUADRILATERAL ) )
    {
       MFEM_VERIFY(fec_h1,"Only h1 functions supported on device right now.");
       MFEM_VERIFY(fec_h1->GetBasisType() == BasisType::GaussLobatto,

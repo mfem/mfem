@@ -237,7 +237,6 @@ int main (int argc, char *argv[])
 
    Mesh *submesh = NULL;
    if (dim==vdim) {
-      cout<<"dim==vdim"<<endl;
       int nattr = mesh->bdr_attributes.Max();
       mesh->bdr_attributes.Print();
       Array<int> subdomain_attributes(nattr);
@@ -245,7 +244,6 @@ int main (int argc, char *argv[])
          subdomain_attributes[i] = i+1;
       }
       submesh = new Mesh( SubMesh::CreateFromBoundary(*mesh, subdomain_attributes) );
-      cout << "submesh created" << endl;
    }
    else {
       submesh = mesh;

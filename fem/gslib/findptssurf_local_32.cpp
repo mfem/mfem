@@ -539,6 +539,12 @@ static MFEM_HOST_DEVICE inline void newton_edge(findptsElementPoint_t *const out
    /* if A is not SPD, quadratic model has no minimum */
    if (A>0) {
       dr = y/A;
+      // if dr is too small, set it to 0. Required since roundoff dr could cause
+      // fabs(newr)<1 to succeed when it shouldn't.
+      // FIXME: This check might be redundant since for 3d surface meshes, we have 
+      // normal derivatives available and hence dr=0 truly means we are converged.
+      //  we also check for dist2<dist2tol in newton iterations loop, which is a
+      //  sureshot safeguard against false converged flag sets.
       if (fabs(dr)<tol) {
          dr=0.0;
          nr = oldr;
