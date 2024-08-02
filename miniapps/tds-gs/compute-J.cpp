@@ -57,21 +57,22 @@ int main (int argc, char *argv[])
    ifstream Bperp_stream(Bperp_file);
    ifstream Btor_stream(Btor_file);
    GridFunction Bperp(&mesh, Bperp_stream);
-   GridFunction Btotal(&mesh, Btor_stream);
+   GridFunction Btor(&mesh, Btor_stream);
 
    FiniteElementSpace *Bfespace=Bperp.FESpace();
    int size = Bfespace->GetVSize();     //expect VSize and TrueVSize are the same
    cout << "Number of elements: "<<mesh.GetNE()<<endl;
    cout << "Number of finite element unknowns: " << size << endl;
 
-   Btotal+=Bperp;
 
    FiniteElementCollection *Jfec=new RT_FECollection(order-1, dim3D);
    FiniteElementSpace *Jfespace=new FiniteElementSpace(&mesh, Jfec);
    int sizeJ = Jfespace->GetVSize();     //expect VSize and TrueVSize are the same
    cout << "Number of finite element unknowns in J: " << sizeJ << endl;
 
-   GridFunction J(Jfespace);
+   GridFunction Jperp(Jfespace), Btotal(Bfespace), Jtor(Jfespace);
+   Btotal=Bperp;
+   Btotal+=Btor;
 
    ConstantCoefficient one(1.0);
    BilinearForm mass(Jfespace);
@@ -94,18 +95,23 @@ int main (int argc, char *argv[])
    a_mixed.Assemble();
 
    Vector x(sizeJ), rhs(sizeJ);
-   a_mixed.Mult(Btotal, rhs);
+
+   //compute J along two directions
+   a_mixed.Mult(Bperp, rhs);
    x = 0.0;
    M_solver.Mult(rhs, x);
+   Jtor.SetFromTrueDofs(x);
 
-   J.SetFromTrueDofs(x);
+   a_mixed.Mult(Btor, rhs);
+   M_solver.Mult(rhs, x);
+   Jperp.SetFromTrueDofs(x);
 
    if (visualization){
       char vishost[] = "localhost";
       int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
-      sol_sock << "solution\n" << mesh << J << flush;
+      sol_sock << "solution\n" << mesh << Jperp << flush;
    }
 
    if (true){
@@ -113,11 +119,11 @@ int main (int argc, char *argv[])
       sol_ofs.precision(8);
       Btotal.Save(sol_ofs);
 
-      ofstream sol_ofs1("J.gf");
+      ofstream sol_ofs1("Jperp.gf");
       sol_ofs1.precision(8);
-      J.Save(sol_ofs1);
+      Jperp.Save(sol_ofs1);
 
-      ParaViewDataCollection paraview_dc("computeJ", &mesh);
+      ParaViewDataCollection paraview_dc("compute-J", &mesh);
       paraview_dc.SetPrefixPath("ParaView");
       paraview_dc.SetLevelsOfDetail(order);
       paraview_dc.SetCycle(0);
@@ -125,7 +131,10 @@ int main (int argc, char *argv[])
       paraview_dc.SetHighOrderOutput(true);
       paraview_dc.SetTime(0.0); // set the time
       paraview_dc.RegisterField("Btotal",&Btotal);
-      paraview_dc.RegisterField("J",&J);
+      paraview_dc.RegisterField("Bperp",&Bperp);
+      paraview_dc.RegisterField("Jperp",&Jperp);
+      paraview_dc.RegisterField("Btor",&Btor);
+      paraview_dc.RegisterField("Jtor",&Jtor);
       paraview_dc.Save();
    }
 
