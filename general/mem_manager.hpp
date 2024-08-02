@@ -735,6 +735,9 @@ private: // Static methods used by the Memory<T> class
        memory manager. */
    static bool IsAlias_(const void *h_ptr);
 
+   /// Check if the host pointer is potentially a dangling alias.
+   static bool IsDanglingAlias_(const void *h_ptr);
+
    /// Compare the contents of the host and the device memory.
    static int CompareHostAndDevice_(void *h_ptr, size_t size, unsigned flags);
 
@@ -849,6 +852,12 @@ public:
 
    /// Return true if the pointer is known by the memory manager as an alias
    bool IsAlias(const void *h_ptr) { return IsAlias_(h_ptr); }
+
+   /// Returns true if the pointer is a (potentially) dangling alias
+   /** Returns true if the pointer is known by the memory manager as an alias
+       and either: the base pointer is not registered; or, the base pointer has
+       a different memory type than the alias. */
+   bool IsDanglingAlias(const void *h_ptr) { return IsDanglingAlias_(h_ptr); }
 
    /// Check if the host pointer has been registered in the memory manager
    void RegisterCheck(void *h_ptr);
@@ -985,7 +994,7 @@ inline void Memory<T>::Wrap(T *ptr, int size, bool own)
    if (own && MemoryManager::Exists())
    {
       MemoryType h_ptr_mt = MemoryManager::GetHostMemoryType_(h_ptr);
-      MFEM_VERIFY(h_mt == h_ptr_mt,
+      MFEM_VERIFY(h_mt == h_ptr_mt || MemoryManager::IsDanglingAlias_(h_ptr),
                   "h_mt = " << (int)h_mt << ", h_ptr_mt = " << (int)h_ptr_mt);
    }
 #endif

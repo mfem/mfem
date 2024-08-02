@@ -688,6 +688,20 @@ bool MemoryManager::IsAlias_(const void *h_ptr)
    return maps->aliases.find(h_ptr) != maps->aliases.end();
 }
 
+bool MemoryManager::IsDanglingAlias_(const void *h_ptr)
+{
+   const auto alias_it = maps->aliases.find(h_ptr);
+   if (alias_it != maps->aliases.end())
+   {
+      const internal::Alias &alias = alias_it->second;
+      const void *base_h_ptr = static_cast<const char*>(h_ptr) + alias.offset;
+      const auto base_it = maps->memories.find(base_h_ptr);
+      if (base_it == maps->memories.end()) { return true; }
+      if (base_it->second.h_mt != alias.h_mt) { return true; }
+   }
+   return false;
+}
+
 void MemoryManager::Insert(void *h_ptr, size_t bytes,
                            MemoryType h_mt, MemoryType d_mt)
 {
