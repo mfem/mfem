@@ -3779,8 +3779,8 @@ void FindPointsGSLIB::InterpolateSurf(const GridFunction &field_in,
    setupSW.Clear();
    setupSW.Start();
 
-   if ( //Device::IsEnabled()
-     && field_in.UseDevice()
+   if ( //Device::IsEnabled() &&
+        field_in.UseDevice()
      && mesh->GetNumGeometries(dim)==1
      && mesh->GetNE()>0
      && ( mesh->GetElementType(0) == Element::SEGMENT
