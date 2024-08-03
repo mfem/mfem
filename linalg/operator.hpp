@@ -88,10 +88,20 @@ public:
    /// Operator application: `y=A(x)`.
    virtual void Mult(const Vector &x, Vector &y) const = 0;
 
+   /** @brief Action of the absolute-value operator: `y=|A|(x)`. The default
+       behavior in class Operator is to generate an error. */
+   virtual void AbsMult(const Vector &x, Vector &y) const
+   { mfem_error("Operator::AbsMult() is not overridden!"); }
+
    /** @brief Action of the transpose operator: `y=A^t(x)`. The default behavior
        in class Operator is to generate an error. */
    virtual void MultTranspose(const Vector &x, Vector &y) const
    { mfem_error("Operator::MultTranspose() is not overridden!"); }
+
+   /** @brief Action of the transpose absolute-value operator: `y=|A|^t(x)`.
+      The default behavior in class Operator is to generate an error. */
+   virtual void AbsMultTranspose(const Vector &x, Vector &y) const
+   { mfem_error("Operator::AbsMultTranspose() is not overridden!"); }
 
    /// Operator application: `y+=A(x)` (default) or `y+=a*A(x)`.
    virtual void AddMult(const Vector &x, Vector &y, const real_t a = 1.0) const;
@@ -99,6 +109,13 @@ public:
    /// Operator transpose application: `y+=A^t(x)` (default) or `y+=a*A^t(x)`.
    virtual void AddMultTranspose(const Vector &x, Vector &y,
                                  const real_t a = 1.0) const;
+
+   /// Operator application: `y+=|A|(x)` (default) or `y+=a*|A|(x)`.
+   virtual void AddAbsMult(const Vector &x, Vector &y, const real_t a = 1.0) const;
+
+   /// Operator transpose application: `y+=|A|^t(x)` (default) or `y+=a*|A|^t(x)`.
+   virtual void AddAbsMultTranspose(const Vector &x, Vector &y,
+                                    const real_t a = 1.0) const;
 
    /// Operator application on a matrix: `Y=A(X)`.
    virtual void ArrayMult(const Array<const Vector *> &X,
@@ -930,6 +947,10 @@ public:
    virtual void Mult(const Vector & x, Vector & y) const
    { P.Mult(x, Px); A.Mult(Px, APx); Rt.MultTranspose(APx, y); }
 
+   /// Operator-wise absolute-value application.
+   virtual void AbsMult(const Vector & x, Vector & y) const
+   { P.AbsMult(x, Px); A.AbsMult(Px, APx); Rt.AbsMultTranspose(APx, y); }
+
    /// Approximate diagonal of the RAP Operator.
    /** Returns the diagonal of A, as returned by its AssembleDiagonal method,
        multiplied be P^T.
@@ -950,6 +971,10 @@ public:
    /// Application of the transpose.
    virtual void MultTranspose(const Vector & x, Vector & y) const
    { Rt.Mult(x, APx); A.MultTranspose(APx, Px); P.MultTranspose(Px, y); }
+
+   /// Operator-wise absolute-value application of the transpose
+   virtual void AbsMultTranspose(const Vector & x, Vector & y) const
+   { Rt.AbsMult(x, APx); A.AbsMultTranspose(APx, Px); P.AbsMultTranspose(Px, y); }
 };
 
 
@@ -1043,14 +1068,26 @@ public:
        the vectors, and "_i" -- the rest of the entries. */
    void Mult(const Vector &x, Vector &y) const override;
 
+   void AbsMult(const Vector &x, Vector &y) const override;
+
    void AddMult(const Vector &x, Vector &y, const real_t a = 1.0) const override;
 
+   void AddAbsMult(const Vector &x, Vector &y,
+                   const real_t a = 1.0) const override;
+
    void MultTranspose(const Vector &x, Vector &y) const override;
+
+   void AbsMultTranspose(const Vector &x, Vector &y) const override;
 
    /** @brief Implementation of Mult or MultTranspose.
     *  TODO - Generalize to allow constraining rows and columns differently.
    */
    void ConstrainedMult(const Vector &x, Vector &y, const bool transpose) const;
+
+   /** @brief Implementation of AbsMult or AbsMultTranspose.
+    *  TODO - Generalize to allow constraining rows and columns differently.
+   */
+   void ConstrainedAbsMult(const Vector &x, Vector &y, const bool transpose) const;
 
    /// Destructor: destroys the unconstrained Operator, if owned.
    ~ConstrainedOperator() override { if (own_A) { delete A; } }

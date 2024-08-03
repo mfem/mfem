@@ -63,6 +63,21 @@ void Operator::AddMultTranspose(const Vector &x, Vector &y,
    y.Add(a, z);
 }
 
+void Operator::AddAbsMult(const Vector &x, Vector &y, const real_t a) const
+{
+   mfem::Vector z(y.Size());
+   AbsMult(x, z);
+   y.Add(a, z);
+}
+
+void Operator::AddAbsMultTranspose(const Vector &x, Vector &y,
+                                   const real_t a) const
+{
+   mfem::Vector z(y.Size());
+   AbsMultTranspose(x, z);
+   y.Add(a, z);
+}
+
 void Operator::ArrayMult(const Array<const Vector *> &X,
                          Array<Vector *> &Y) const
 {
@@ -645,10 +660,78 @@ void ConstrainedOperator::ConstrainedMult(const Vector &x, Vector &y,
    }
 }
 
+void ConstrainedOperator::ConstrainedAbsMult(const Vector &x, Vector &y,
+                                             const bool transpose) const
+{
+   const int csz = constraint_list.Size();
+   if (csz == 0)
+   {
+      if (transpose)
+      {
+         A->AbsMultTranspose(x, y);
+      }
+      else
+      {
+         A->AbsMult(x, y);
+      }
+      return;
+   }
+
+   z = x;
+
+   auto idx = constraint_list.Read();
+   // Use read+write access - we are modifying sub-vector of z
+   auto d_z = z.ReadWrite();
+   mfem::forall(csz, [=] MFEM_HOST_DEVICE (int i) { d_z[idx[i]] = 0.0; });
+
+   if (transpose)
+   {
+      A->AbsMultTranspose(z, y);
+   }
+   else
+   {
+      A->AbsMult(z, y);
+   }
+
+   auto d_x = x.Read();
+   // Use read+write access - we are modifying sub-vector of y
+   auto d_y = y.ReadWrite();
+   switch (diag_policy)
+   {
+      case DIAG_ONE:
+         mfem::forall(csz, [=] MFEM_HOST_DEVICE (int i)
+         {
+            const int id = idx[i];
+            d_y[id] = d_x[id];
+         });
+         break;
+      case DIAG_ZERO:
+         mfem::forall(csz, [=] MFEM_HOST_DEVICE (int i)
+         {
+            const int id = idx[i];
+            d_y[id] = 0.0;
+         });
+         break;
+      case DIAG_KEEP:
+         // Needs action of the operator diagonal on vector
+         mfem_error("ConstrainedOperator::AbsMult #1");
+         break;
+      default:
+         mfem_error("ConstrainedOperator::AbsMult #2");
+         break;
+   }
+}
+
 void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
 {
    constexpr bool transpose = false;
    ConstrainedMult(x, y, transpose);
+}
+
+void ConstrainedOperator::AbsMult(const Vector &x, Vector &y) const
+{
+   constexpr bool transpose = false;
+   ConstrainedAbsMult(x, y, transpose);
 }
 
 void ConstrainedOperator::MultTranspose(const Vector &x, Vector &y) const
@@ -657,10 +740,23 @@ void ConstrainedOperator::MultTranspose(const Vector &x, Vector &y) const
    ConstrainedMult(x, y, transpose);
 }
 
+void ConstrainedOperator::AbsMultTranspose(const Vector &x, Vector &y) const
+{
+   constexpr bool transpose = true;
+   ConstrainedAbsMult(x, y, transpose);
+}
+
 void ConstrainedOperator::AddMult(const Vector &x, Vector &y,
                                   const real_t a) const
 {
    Mult(x, w);
+   y.Add(a, w);
+}
+
+void ConstrainedOperator::AddAbsMult(const Vector &x, Vector &y,
+                                     const real_t a) const
+{
+   AbsMult(x, w);
    y.Add(a, w);
 }
 
