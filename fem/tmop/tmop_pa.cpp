@@ -306,6 +306,7 @@ void TMOP_Integrator::UpdateSurfaceFittingCoefficientsPA(const Vector &x_loc)
    if (!surf_fit_gf) { return; }
    const FiniteElementSpace *fes_fit = surf_fit_gf->FESpace();
    const FiniteElementSpace *fes_grad = surf_fit_grad->FESpace();
+   const FiniteElementSpace *fes_hess = surf_fit_hess->FESpace();
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
 
    const Operator *n1_R_int = fes_fit->GetElementRestriction(ordering);
@@ -313,6 +314,9 @@ void TMOP_Integrator::UpdateSurfaceFittingCoefficientsPA(const Vector &x_loc)
 
    const Operator *n4_R_int = fes_grad->GetElementRestriction(ordering);
    n4_R_int->Mult(*surf_fit_grad, PA.X4);
+
+   const Operator *n5_R_int = fes_hess->GetElementRestriction(ordering);
+   n5_R_int->Mult(*surf_fit_hess, PA.X5);
 
    ConstantCoefficient* cS = dynamic_cast<ConstantCoefficient*>(surf_fit_coeff);
    PA.C1 = cS->constant;
@@ -459,12 +463,14 @@ void TMOP_Integrator::AddMultGradPA(const Vector &re, Vector &ce) const
    {
       AddMultGradPA_2D(re,ce);
       if (lim_coeff) { AddMultGradPA_C0_2D(re,ce); }
+      if (surf_fit_coeff) { AddMultGradPA_Fit_2D(re,ce); }
    }
 
    if (PA.dim == 3)
    {
       AddMultGradPA_3D(re,ce);
       if (lim_coeff) { AddMultGradPA_C0_3D(re,ce); }
+      if (surf_fit_coeff) { AddMultGradPA_Fit_3D(re,ce); }
    }
 }
 
