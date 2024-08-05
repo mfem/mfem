@@ -10,8 +10,8 @@ int main(int argc, char *argv[])
    Mpi::Init();
    Hypre::Init();
 
-   string mesh_file = "meshes/amr-quad.mesh";
-   // string mesh_file = "meshes/cube.mesh";
+   // string mesh_file = "meshes/amr-quad.mesh";
+   string mesh_file = "meshes/cube.mesh";
 
    Mesh *serial_mesh = new Mesh(mesh_file);
    // serial_mesh->UniformRefinement();
@@ -36,10 +36,8 @@ int main(int argc, char *argv[])
 
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
    Array<int> ess_tdof_list;
-   ess_bdr = 1;
+   ess_bdr = 1; // set this to zero
    fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-
-   // TODO(Gabriel): Here, adding new form
 
    ParBilinearForm *a = new ParBilinearForm(fespace);
 
@@ -52,6 +50,7 @@ int main(int argc, char *argv[])
 
    // These variables will define the linear system
    ParGridFunction x(fespace);
+   OperatorPtr A_legacy;
    OperatorPtr A;
    Vector B, X;
 
@@ -64,20 +63,29 @@ int main(int argc, char *argv[])
    a->AddDomainIntegrator(bfi);
    a->SetAssemblyLevel(AssemblyLevel::PARTIAL);
    a->Assemble();
+   a->FormSystemMatrix(ess_tdof_list, A);
 
-   // TODO(Gabriel): Create different bilinear form
    ParBilinearForm *b = new ParBilinearForm(fespace, a);
    b->SetAssemblyLevel(AssemblyLevel::LEGACY);
    b->Assemble();
-   b->FormSystemMatrix(ess_tdof_list, A); // Necessary if legacy
+   b->FormSystemMatrix(ess_tdof_list, A_legacy);
 
    if (Mpi::Root()) { mfem::out << "\nMesh: " << mesh_file << "\n" << endl; }
+
+   // Set up constant vector of ones
+   Vector ones(fespace->GetTrueVSize());
+   Vector result(fespace->GetTrueVSize());
+   ones = 1.0;
 
    mfem::out << "\n--- Legacy begin ---\n" << endl;
    mfem::out << "Diag:\n" << endl;
    auto diag_b = new Vector(fespace->GetTrueVSize());
    b->AssembleDiagonal(*diag_b);
    diag_b->Print();
+
+   mfem::out << "|A|1:\n" << endl;
+   A_legacy.As<HypreParMatrix>()->AbsMult(1.0, ones, 0.0, result);
+   result.Print();
    mfem::out << "\n---  Legacy end  ---\n" << endl;
 
    mfem::out << "\n--- Partial begin ---\n" << endl;
@@ -85,11 +93,25 @@ int main(int argc, char *argv[])
    auto diag_a = new Vector(fespace->GetTrueVSize());
    a->AssembleDiagonal(*diag_a);
    diag_a->Print();
+
+   mfem::out << "|A|1:\n" << endl;
+   A->AbsMult(ones, result); // ---
+   result.Print();
    mfem::out << "\n--- Partial end ---\n" << endl;
 
-   mfem::out << "\n--- Partial-by-hand begin ---\n" << endl;
-   // Placeholder
-   mfem::out << "\n--- Partial-by-hand end ---\n" << endl;
+   // mfem::out << "\n--- Partial-by-hand begin ---\n" << endl;
+   // auto pro = static_cast<const HypreParMatrix*>(fespace->GetProlongationMatrix());
+   // auto res = fespace->GetRestrictionOperator();
+   // mfem::out << "Size pro: " << pro->Height() << " " << pro->Width() << endl;
+   // mfem::out << "Size res: " << res->Height() << " " << res->Width() << endl;
+   // auto gv = fespace->GlobalVSize();
+   // mfem::out << "GlobalTrueVSize " << sys_size << "   GlobalVSize " << gv << endl;
+
+   // Vector y1(fespace->GlobalVSize());
+   // pro->AbsMult(1.0, ones, 0.0, y1);
+   // y1.Print();
+
+   // mfem::out << "\n--- Partial-by-hand end ---\n" << endl;
 
    delete diag_a;
    delete diag_b;

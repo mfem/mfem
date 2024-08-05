@@ -967,6 +967,29 @@ static void AddWithMarkers_(
    });
 }
 
+// static void AddAbsWithMarkers_(
+//    const int ne,
+//    const int nd,
+//    const Vector &x,
+//    const Array<int> &markers,
+//    const Array<int> &attributes,
+//    Vector &y)
+// {
+//    const auto d_x = Reshape(x.Read(), nd, ne);
+//    const auto d_m = Reshape(markers.Read(), markers.Size());
+//    const auto d_attr = Reshape(attributes.Read(), ne);
+//    auto d_y = Reshape(y.ReadWrite(), nd, ne);
+//    mfem::forall(ne, [=] MFEM_HOST_DEVICE (int e)
+//    {
+//       const int attr = d_attr[e];
+//       if (d_m[attr - 1] == 0) { return; }
+//       for (int i = 0; i < nd; ++i)
+//       {
+//          d_y(i, e) += std::abs(d_x(i, e));
+//       }
+//    });
+// }
+
 void PABilinearFormExtension::AddMultNormalDerivativesWithMarkers(
    const BilinearFormIntegrator &integ,
    const Vector &x,

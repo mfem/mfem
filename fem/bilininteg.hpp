@@ -2279,7 +2279,11 @@ public:
 
    virtual void AddMultPA(const Vector&, Vector&) const;
 
+   virtual void AddAbsMultPA(const Vector&, Vector&) const;
+
    virtual void AddMultTransposePA(const Vector&, Vector&) const;
+
+   virtual void AddAbsMultTransposePA(const Vector&, Vector&) const;
 
    virtual void AddMultNURBSPA(const Vector&, Vector&) const;
 

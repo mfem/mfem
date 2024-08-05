@@ -126,11 +126,42 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
    }
 }
 
+void DiffusionIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
+{
+   if (DeviceCanUseCeed())
+   {
+      MFEM_ABORT("What to do if Ceed?");
+      ceedOp->AddMult(x, y);
+   }
+   else
+   {
+      Vector abs_pa_data(pa_data);
+      abs_pa_data.PowerAbs(1.0);
+      internal::PADiffusionApply(dim, dofs1D, quad1D, ne, symmetric,
+                                 maps->B, maps->G, maps->Bt, maps->Gt,
+                                 abs_pa_data, x, y);
+   }
+}
+
 void DiffusionIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
 {
    if (symmetric)
    {
       AddMultPA(x, y);
+   }
+   else
+   {
+      MFEM_ABORT("DiffusionIntegrator::AddMultTransposePA only implemented in "
+                 "the symmetric case.")
+   }
+}
+
+void DiffusionIntegrator::AddAbsMultTransposePA(const Vector &x,
+                                                Vector &y) const
+{
+   if (symmetric)
+   {
+      AddAbsMultPA(x, y);
    }
    else
    {
