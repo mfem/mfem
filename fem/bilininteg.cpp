@@ -103,6 +103,12 @@ void BilinearFormIntegrator::AddMultPA(const Vector &, Vector &) const
               "   is not implemented for this class.");
 }
 
+void BilinearFormIntegrator::AddAbsMultPA(const Vector &, Vector &) const
+{
+   MFEM_ABORT("BilinearFormIntegrator:AddAbsMultPA:(...)\n"
+              "   is not implemented for this class.");
+}
+
 void BilinearFormIntegrator::AddMultNURBSPA(const Vector &, Vector &) const
 {
    MFEM_ABORT("BilinearFormIntegrator::AddMultNURBSPA(...)\n"
@@ -112,6 +118,13 @@ void BilinearFormIntegrator::AddMultNURBSPA(const Vector &, Vector &) const
 void BilinearFormIntegrator::AddMultTransposePA(const Vector &, Vector &) const
 {
    MFEM_ABORT("BilinearFormIntegrator::AddMultTransposePA(...)\n"
+              "   is not implemented for this class.");
+}
+
+void BilinearFormIntegrator::AddAbsMultTransposePA(const Vector &,
+                                                   Vector &) const
+{
+   MFEM_ABORT("BilinearFormIntegrator::AddAbsMultTransposePA(...)\n"
               "   is not implemented for this class.");
 }
 

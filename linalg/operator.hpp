@@ -89,7 +89,9 @@ public:
    virtual void Mult(const Vector &x, Vector &y) const = 0;
 
    /** @brief Action of the absolute-value operator: `y=|A|(x)`. The default
-       behavior in class Operator is to generate an error. */
+       behavior in class Operator is to generate an error. If the Operator is a
+       composition of several operators, the composition unfold into a product
+       of absolute-value operators too. */
    virtual void AbsMult(const Vector &x, Vector &y) const
    { mfem_error("Operator::AbsMult() is not overridden!"); }
 

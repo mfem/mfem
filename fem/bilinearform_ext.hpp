@@ -54,6 +54,11 @@ public:
       MFEM_ABORT("AssembleDiagonal not implemented for this assembly level!");
    }
 
+   virtual void AbsMult(const Vector &x, Vector &y) const
+   {
+      MFEM_ABORT("AbsMult not implemented for this assembly level!");
+   }
+
    virtual void FormSystemMatrix(const Array<int> &ess_tdof_list,
                                  OperatorHandle &A) = 0;
    virtual void FormLinearSystem(const Array<int> &ess_tdof_list,
@@ -92,6 +97,7 @@ public:
                          int copy_interior = 0);
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
+   void AbsMult(const Vector &x, Vector &y) const;
    void Update();
 
 protected:
@@ -115,6 +121,26 @@ protected:
                            const Array<int> &attributes,
                            const bool transpose,
                            Vector &y) const;
+
+   /// @brief Accumulate the action (or transpose) of the absolute-value of the
+   /// integrator on @a x into @a y, taking into account the (possibly null)
+   /// @a markers array.
+   ///
+   /// If @a markers is non-null, then only those elements or boundary elements
+   /// whose attribute is marked in the markers array will be added to @a y.
+   ///
+   /// @param integ The integrator (domain, boundary, or boundary face).
+   /// @param x Input E-vector.
+   /// @param markers Marked attributes (possibly null, meaning all attributes).
+   /// @param attributes Array of element or boundary element attributes.
+   /// @param transpose Compute the action or transpose of the integrator .
+   /// @param y Output E-vector
+   void AddAbsMultWithMarkers(const BilinearFormIntegrator &integ,
+                              const Vector &x,
+                              const Array<int> *markers,
+                              const Array<int> &attributes,
+                              const bool transpose,
+                              Vector &y) const;
 
    /// @brief Performs the same function as AddMultWithMarkers, but takes as
    /// input and output face normal derivatives.
