@@ -110,7 +110,7 @@ public:
        space-filling sequence of leaf elements (custom_partition == NULL).
        Alternatively, a used-defined element-rank assignment array can be
        passed. */
-   void Rebalance(const Array<int> *custom_partition = NULL);
+   virtual void Rebalance(const Array<int> *custom_partition = NULL);
 
    // interface for ParFiniteElementSpace
    int GetNElements() const { return NElements; }

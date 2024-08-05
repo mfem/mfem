@@ -59,6 +59,12 @@ public:
    {
       return from_;
    }
+
+
+   void Rebalance(const Array<int> *custom_partition = NULL) override
+   {
+      MFEM_ABORT("A ParNCSubMesh cannot be rebalanced!");
+   }
 private:
    /// Private constructor
    ParNCSubMesh(ParSubMesh& submesh, const ParNCMesh &parent, From from,
@@ -97,7 +103,7 @@ private:
 
    /// Mapping from parent NCMesh element ids to submesh NCMesh element ids.
    // Inverse map of parent_element_ids_.
-   Array<int> parent_to_submesh_element_ids_;
+   std::unordered_map<int, int> parent_to_submesh_element_ids_;
 
    /// Mapping from parent NCMesh edge ids to submesh NCMesh edge ids.
    // Inverse map of parent_edge_ids_.

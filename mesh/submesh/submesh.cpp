@@ -178,9 +178,6 @@ SubMesh::SubMesh(const Mesh &parent, From from,
       }
       parent_vertex_ids_ = alt_parent_vertex_ids;
 
-
-
-
       std::cout << __FILE__ << ':' << __LINE__ << " v ";
       for (const auto & v: parent_vertex_ids_)
       {
@@ -361,6 +358,7 @@ SubMesh::SubMesh(const Mesh &parent, From from,
 
       parent_face_ori_.SetSize(NumOfElements);
 
+      std::cout << __FILE__ << ':' << __LINE__ << std::endl;
       for (int i = 0; i < NumOfElements; i++)
       {
          Array<int> sub_vert;
@@ -393,6 +391,11 @@ SubMesh::SubMesh(const Mesh &parent, From from,
          }
          else
          {
+            std::cout << "i " << i << " par_vert ";
+            for (auto x : par_vert) { std::cout << x << ' '; }
+            std::cout << " sub_par_vert ";
+            for (auto x : sub_par_vert) { std::cout << x << ' '; }
+            std::cout << std::endl;
             parent_face_ori_[i] = GetQuadOrientation(par_vert, sub_par_vert);
          }
       }

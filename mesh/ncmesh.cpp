@@ -365,8 +365,8 @@ int NCMesh::GetMidFaceNode(int en1, int en2, int en3, int en4)
 
 void NCMesh::ReferenceElement(int elem)
 {
-   Element &el = elements[elem];
-   int* node = el.node;
+   const Element &el = elements[elem];
+   const int* node = el.node;
    GeomInfo& gi = GI[el.Geom()];
 
    // reference all vertices
@@ -2299,14 +2299,14 @@ void NCMesh::UpdateVertices()
    // std::cout << "Assigning vertex_nodeId\n";
    for (auto node = nodes.begin(); node != nodes.end(); ++node)
    {
-      // std::cout << "Testing node.index() " << node.index() << ": node->vert_index " << node->vert_index ;
+      std::cout << "Testing node.index() " << node.index() << ": node->vert_index " << node->vert_index ;
       if (node->HasVertex() && node->vert_index >= 0)
       {
          MFEM_ASSERT(node->vert_index < vertex_nodeId.Size(), "");
-         // std::cout << " adding vertex_nodeId[" << node->vert_index << "] " << node.index();
+         std::cout << " adding vertex_nodeId[" << node->vert_index << "] " << node.index();
          vertex_nodeId[node->vert_index] = node.index();
       }
-      // std::cout << '\n';
+      std::cout << '\n';
    }
 
    // STEP 5: assign remaining ghost vertices, ignore vertices beyond the ghost
@@ -2694,7 +2694,7 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
    std::cout << __FILE__ << ':' << __LINE__ << std::endl;
    for (int iv = 0; iv < vertex_nodeId.Size(); iv++)
    {
-      std::cout << "iv " << iv << " vertex_nodeId[iv] " << vertex_nodeId[iv] << std::endl;
+      std::cout << "iv " << iv << " vertex_nodeId[" << iv << "] " << vertex_nodeId[iv] << std::endl;
    }
 
 
@@ -2927,8 +2927,177 @@ bool NCMesh::TriFaceSplit(int v1, int v2, int v3, int mid[3]) const
    if (mid) { mid[0] = e1, mid[1] = e2, mid[2] = e3; }
 
    // This is necessary but not sufficient to determine if a face has been
-   // split.
+   // split. All edges might have been split due to edge attached faces being
+   // refined. Need to check for existence of face made up of midpoints.
    return true;
+}
+
+bool contains_node(const std::array<int, 4> &nodes, int n)
+{
+   return std::find(nodes.begin(), nodes.end(), n) != nodes.end();
+};
+
+
+int NCMesh::ParentFaceNodes(std::array<int, 4> &face_nodes) const
+{
+   const bool is_tri = face_nodes[3] == -1;
+   const bool is_segment = (face_nodes[0] == face_nodes[1] && face_nodes[2] == face_nodes[3]);
+   const bool is_quad = *std::min_element(face_nodes.begin(), face_nodes.end()) >= 0;
+
+   MFEM_ASSERT((is_tri && !is_segment && !is_quad)
+      || (!is_tri && is_segment && !is_quad) || (!is_tri && !is_segment && is_quad), "Inconsistent node geometry");
+
+   bool all_nodes_root = true;
+   for (auto x : face_nodes)
+   {
+      all_nodes_root = all_nodes_root && (x < 0 || (nodes[x].p1 == nodes[x].p2));
+   }
+   if (all_nodes_root)
+   {
+      // This face is a root face -> nothing to do.
+      return -1;
+   }
+
+   int child = -1; // The index into parent.child that this face corresponds to.
+   auto parent_nodes = face_nodes;
+   if (is_quad)
+   {
+      // Logic for coarsening anisotropic faces is more complex, needs identification and
+      // handling of multiple "crux" points. Will require inspection of edge nodes.
+      MFEM_VERIFY(Iso, "ParentFaceNodes does not support anisotropic refinement yet!");
+
+      // Finds the first node whose parents aren't in the face_nodes. This is also the index
+      // of the child location in the parent face. Treated separately as ultimately
+      // multiple crux will need to be handled for anisotropic faces.
+      std::cout << "face_nodes " << face_nodes[0] << ' ' << face_nodes[1] << ' ' << face_nodes[2] << ' ' << face_nodes[3] << '\n';
+      const auto crux = [&](){
+         for (int i = 0; i < static_cast<int>(face_nodes.size()); i++)
+         {
+            std::cout << "nodes[face_nodes[" << i << "]] " << nodes[face_nodes[i]].p1 << ' ' << nodes[face_nodes[i]].p2 << std::endl;
+            if ((!contains_node(face_nodes, nodes[face_nodes[i]].p1)
+             && !contains_node(face_nodes, nodes[face_nodes[i]].p2))
+             || (nodes[face_nodes[i]].p1 == nodes[face_nodes[i]].p2) /* top level node */)
+            {
+               return i;
+            }
+         }
+         return -1;
+      }();
+      MFEM_ASSERT(crux != -1, "A root face should have been returned early");
+
+      // Loop over nodes, starting from diagonal to child, wrapping and skipping child. This will visit
+      // the node opposite child twice, thereby coarsening to the diagonally opposite.
+      // NOTE: This assumes that the nodes for a square are numbered (0 -> 1 -> 2 -> 3 -> 0).
+      for (int i = 0; i < static_cast<int>(face_nodes.size()) + 1; i++)
+      {
+         int ind = (crux + i + 2) % 4; // Start and end with coarsening of the diagonally opposite
+         if (ind == crux){ continue; }
+         auto &x = parent_nodes[ind];
+
+         // Check against parent_nodes rather than face_nodes so on second lap the node
+         // opposite crux will coarsen again to the diagonally across in the parent face.
+         // A top level node has p1 == p2, thus these modifications do nothing.
+         if (contains_node(parent_nodes, nodes[x].p1))
+         {
+            MFEM_ASSERT(nodes[x].p2 == nodes[x].p1 || !contains_node(parent_nodes, nodes[x].p2), "!");
+            x = nodes[x].p2;
+         }
+         else if (contains_node(parent_nodes, nodes[x].p2))
+         {
+            MFEM_ASSERT(nodes[x].p2 == nodes[x].p1 || !contains_node(parent_nodes, nodes[x].p1), "!");
+            x = nodes[x].p1;
+         }
+         else
+         {
+            // do nothing
+         }
+      }
+   }
+   else if (is_tri)
+   {
+      for (auto &x : parent_nodes)
+      {
+         if (x == -1) { continue; }
+         if (contains_node(parent_nodes, nodes[x].p1))
+         {
+            MFEM_ASSERT(nodes[x].p2 == nodes[x].p1 || !contains_node(parent_nodes, nodes[x].p2), "!");
+            x = nodes[x].p2;
+         }
+         else if (contains_node(parent_nodes, nodes[x].p2))
+         {
+            MFEM_ASSERT(nodes[x].p2 == nodes[x].p1 || !contains_node(parent_nodes, nodes[x].p1), "!");
+            x = nodes[x].p1;
+         }
+         else
+         {
+            // do nothing
+         }
+      }
+
+      if (std::equal(face_nodes.begin(), face_nodes.end(), parent_nodes.begin()))
+      {
+         // Having excluded root faces, this must be an interior face. We need to handle the
+         // special case of the interior face of the parent face.
+         std::array<std::array<int, 2>, 6> parent_pairs;
+         for (std::size_t i = 0; i < face_nodes.size() - 1; i++)
+         {
+            parent_pairs[i][0] = nodes[face_nodes[i]].p1;
+            parent_pairs[i][1] = nodes[face_nodes[i]].p2;
+         }
+         // Each node gets mapped to the common node from its parents and the predecessor node's parents.
+         for (int i = 0; i < 3; i++)
+         {
+            const auto &current = parent_pairs[i];
+            const auto &prev = parent_pairs[(i - 1 + 3) % 3]; // (0 -> 2, 1 -> 0, 2 -> 1)
+            for (auto x : prev)
+            {
+               if (std::find(current.begin(), current.end(), x)) { parent_nodes[i] = x; }
+            }
+         }
+         child = 3; // The interior face is the final child.
+      }
+   }
+   else if (is_segment)
+   {
+      // Given this isn't a root face, one node must be the parent of the other.
+      if (face_nodes[0] == nodes[face_nodes[1]].p1)
+      {
+         face_nodes[1] = nodes[face_nodes[1]].p2;
+      }
+      else if (face_nodes[0] == nodes[face_nodes[1]].p2)
+      {
+         face_nodes[1] = nodes[face_nodes[1]].p1;
+      }
+      else if (face_nodes[1] == nodes[face_nodes[0]].p1)
+      {
+         face_nodes[0] = nodes[face_nodes[0]].p2;
+      }
+      else if (face_nodes[1] == nodes[face_nodes[0]].p2)
+      {
+         face_nodes[0] = nodes[face_nodes[0]].p1;
+      }
+      else
+      {
+         MFEM_ABORT("Internal logic error!");
+      }
+   }
+   else
+   {
+      MFEM_ABORT("Unrecognized face geometry!");
+   }
+
+   for (int i = 0; i < 4 && face_nodes[i] >= 0; i++)
+   {
+      if (face_nodes[i] == parent_nodes[i])
+      {
+         MFEM_ASSERT(child == -1, "This face cannot be more than one child of the parent face!");
+         child = i;
+      }
+   }
+
+   MFEM_ASSERT(child != -1, "Root elements must have exited early!");
+   std::swap(face_nodes, parent_nodes);
+   return child;
 }
 
 int NCMesh::find_node(const Element &el, int node)
@@ -5393,11 +5562,15 @@ void NCMesh::GetElementFacesAttributes(int leaf_elem,
    }
 }
 
-void NCMesh::FindFaceNodes(int face, int node[4]) const
+std::array<int, 4> NCMesh::FindFaceNodes(int face) const
+{
+   return FindFaceNodes(faces[face]);
+}
+
+std::array<int, 4> NCMesh::FindFaceNodes(const Face &fa) const
 {
    // Obtain face nodes from one of its elements (note that face->p1, p2, p3
    // cannot be used directly since they are not in order and p4 is missing).
-   const Face &fa = faces[face];
    int elem = fa.elem[0];
    if (elem < 0) { elem = fa.elem[1]; }
    MFEM_ASSERT(elem >= 0, "Face has no elements?");
@@ -5409,10 +5582,12 @@ void NCMesh::FindFaceNodes(int face, int node[4]) const
                            find_node(el, fa.p3));
 
    const int* fv = GI[el.Geom()].faces[f];
+   std::array<int, 4> node;
    for (int i = 0; i < 4; i++)
    {
       node[i] = el.node[fv[i]];
    }
+   return node;
 }
 
 void NCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
@@ -5437,8 +5612,7 @@ void NCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
       {
          if (bdr_attr_is_ess[faces[f].attribute - 1])
          {
-            int node[4];
-            FindFaceNodes(f, node);
+            auto node = FindFaceNodes(f);
             int nfv = (node[3] < 0) ? 3 : 4;
 
             for (int j = 0; j < nfv; j++)
@@ -5983,6 +6157,7 @@ void NCMesh::InitRootElements()
             elements[child].parent = i;
          }
       }
+      std::cout << "elements[" << i << "].parent " << el.parent << std::endl;
    }
 
    // count the root elements

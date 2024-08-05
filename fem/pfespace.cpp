@@ -119,16 +119,20 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
       UpdateNURBS();
    }
 
+   std::cout <<__FILE__ << ':' << __LINE__<< std::endl;
    Construct(); // parallel version of Construct().
 
+   std::cout <<__FILE__ << ':' << __LINE__<< std::endl;
    // Apply the ldof_signs to the elem_dof Table
    if (Conforming() && !NURBSext)
    {
       ApplyLDofSigns(*elem_dof);
    }
 
+   std::cout <<__FILE__ << ':' << __LINE__<< std::endl;
    // Check for shared triangular faces with interior Nedelec DoFs
    CheckNDSTriaDofs();
+   std::cout <<__FILE__ << ':' << __LINE__<< std::endl;
 }
 
 void ParFiniteElementSpace::Construct()
@@ -155,26 +159,31 @@ void ParFiniteElementSpace::Construct()
       // space) and used; however, it will be overwritten below with the real
       // true dofs. Also, 'ldof_sign' and 'ldof_group' are constructed for the
       // cut space.
+   std::cout <<__FILE__ << ':' << __LINE__<< std::endl;
       ConstructTrueDofs();
 
       ngedofs = ngfdofs = 0;
 
+   std::cout <<__FILE__ << ':' << __LINE__<< std::endl;
       // calculate number of ghost DOFs
       ngvdofs = pncmesh->GetNGhostVertices()
                 * fec->DofForGeometry(Geometry::Type::POINT);
 
+   std::cout <<__FILE__ << ':' << __LINE__<< std::endl;
       if (pmesh->Dimension() > 1)
       {
          ngedofs = pncmesh->GetNGhostEdges()
                    * fec->DofForGeometry(Geometry::Type::SEGMENT);
       }
 
+   std::cout <<__FILE__ << ':' << __LINE__<< std::endl;
       if (pmesh->Dimension() > 2)
       {
          ngfdofs = pncmesh->GetNGhostFaces()
                    * fec->DofForGeometry(Geometry::Type::SQUARE);
       }
 
+   std::cout <<__FILE__ << ':' << __LINE__<< std::endl;
       // total number of ghost DOFs. Ghost DOFs start at index 'ndofs', i.e.,
       // after all regular DOFs
       ngdofs = ngvdofs + ngedofs + ngfdofs;
@@ -184,6 +193,7 @@ void ParFiniteElementSpace::Construct()
       ltdof_size = BuildParallelConformingInterpolation(
                       &P, &R, dof_offsets, tdof_offsets, &ldof_ltdof, false);
 
+   std::cout <<__FILE__ << ':' << __LINE__<< std::endl;
       // TODO future: split BuildParallelConformingInterpolation into two parts
       // to overlap its communication with processing between this constructor
       // and the point where the P matrix is actually needed.
@@ -2652,6 +2662,7 @@ int ParFiniteElementSpace
 
    while (num_finalized < ndofs)
    {
+      std::cout << "num_finalized " << num_finalized << " ndofs " << ndofs << std::endl;
       // prepare a new round of send buffers
       if (send_msg.back().size())
       {

@@ -204,6 +204,8 @@ public:
    /// Delete the whole array.
    inline void DeleteAll();
 
+   /// Reduces the capacity of the array to exactly match the current size.
+   inline void ShrinkToFit();
 
    ///  Create a copy of the internal array to the provided @a copy.
    inline void Copy(Array &copy) const;
@@ -221,6 +223,17 @@ public:
    /// Make this Array a reference to 'master'.
    inline void MakeRef(const Array &master);
 
+   /**
+    * @brief Permute the array using the provided indices. Algorithm requires destroying the
+    * provided indices array, (it is sorted). The rvalue reference is to be used when this
+    * destruction is allowed, whilst the const reference preserves at the cost of duplication.
+    *
+    * @param indices The indices of the ordering. data[i] = data[indices[i]].
+    */
+   template <typename I>
+   inline void Permute(I &&indices);
+   template <typename I>
+   inline void Permute(const I &indices) { Permute(I(indices)); }
 
    /// Copy sub array starting from @a offset out to the provided @a sa.
    inline void GetSubArray(int offset, int sa_size, Array<T> &sa) const;
@@ -492,6 +505,8 @@ public:
    BlockArray(int block_size = 16*1024);
    BlockArray(const BlockArray<T> &other); // deep copy
    BlockArray& operator=(const BlockArray&) = delete; // not supported
+   BlockArray(BlockArray<T> &&other) = default;
+   BlockArray& operator=(BlockArray<T> &&other) = default;
    ~BlockArray() { Destroy(); }
 
    /// Allocate and construct a new item in the array, return its index.
@@ -685,6 +700,35 @@ inline void Array<T>::GrowSize(int minsize)
    p.UseDevice(data.UseDevice());
    data.Delete();
    data = p;
+}
+
+template <typename T>
+inline void Array<T>::ShrinkToFit()
+{
+   if (Capacity() == size) { return; }
+   Memory<T> p(size, data.GetMemoryType());
+   p.CopyFrom(data, size);
+   p.UseDevice(data.UseDevice());
+   data.Delete();
+   data = p;
+}
+
+template <typename T>
+template <typename I>
+inline void Array<T>::Permute(I &&indices)
+{
+   for (int i = 0; i < size; i++)
+   {
+      auto current = i;
+      while (i != indices[current])
+      {
+         auto next = indices[current];
+         std::swap(data[current], data[next]);
+         indices[current] = current;
+         current = next;
+      }
+      indices[current] = current;
+   }
 }
 
 template <typename T> template <typename CT>

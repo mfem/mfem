@@ -419,15 +419,6 @@ public:
                                    Array<int> &bdr_vertices,
                                    Array<int> &bdr_edges, Array<int> &bdr_faces);
 
-   // const auto &GetElement(int index) const -> decltype(this->elements[index])
-   // {
-   //    return elements[index];
-   // }
-   // const auto &GetLeafElement(int index) const -> decltype(this->elements[leaf_elements[index]])
-   // {
-   //    return GetElement(leaf_elements[index]);
-   // }
-
    /// Return element geometry type. @a index is the Mesh element number.
    Geometry::Type GetElementGeometry(int index) const
    { return elements[leaf_elements[index]].Geom(); }
@@ -573,6 +564,10 @@ public: // implementation
       int parent; ///< parent element, -1 if this is a root element, -2 if free'd
 
       Element(Geometry::Type geom, int attr);
+      Element(const Element &) = default;
+      Element(Element &&) = default;
+      Element& operator=(const Element &) = default;
+      Element& operator=(Element &&) = default;
 
       Geometry::Type Geom() const { return Geometry::Type(geom); }
       bool IsLeaf() const { return !ref_type && (parent != -2); }
@@ -818,6 +813,22 @@ public: // implementation
       return QuadFaceSplitType(n1, n2, n3, n4) != 0;
    }
 
+   /**
+    * @brief Given a set of nodes defining a face, traverse the nodes structure to find the
+    * nodes that make up the parent face and replace them.
+    * Additionally return the child index that the child face would be, relative to the
+    * discovered parent face.
+    * @details This method is concerned with the construction of an NCMesh structure for a
+    * d-1 manifold of an existing NCMesh. It forms a key element in a leaf -> root traversal
+    * of the parent ncmesh elements structure.
+    *
+    * @param[out] nodes The collection of nodes whose parent we are searching for
+    * @return int The child index corresponding to placing the face for the original nodes
+    * within the face defined by the returned parent nodes. If child index is -1, then the
+    * face is made up of root nodes, and nodes is unchanged.
+    */
+   int ParentFaceNodes(std::array<int, 4> &nodes) const;
+
    void ForceRefinement(int vn1, int vn2, int vn3, int vn4);
 
    void FindEdgeElements(int vn1, int vn2, int vn3, int vn4,
@@ -839,6 +850,11 @@ public: // implementation
 
    int GetMidFaceNode(int en1, int en2, int en3, int en4);
 
+   /**
+    * @brief Add references to all nodes, edges and faces of the element
+    *
+    * @param elem index into elements
+    */
    void ReferenceElement(int elem);
    void UnreferenceElement(int elem, Array<int> &elemFaces);
 
@@ -1098,7 +1114,12 @@ public: // implementation
 
    int GetEdgeMaster(int node) const;
 
-   void FindFaceNodes(int face, int node[4]) const;
+   /**
+    * @brief Find the nodes that make up faces[face].
+    * @return Nodes making up the face
+    */
+   std::array<int, 4> FindFaceNodes(int face) const;
+   std::array<int, 4> FindFaceNodes(const Face &fa) const;
 
    /**
     * @brief Return the number of splits of this edge that have occurred in the
