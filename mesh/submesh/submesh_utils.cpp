@@ -369,8 +369,6 @@ void AddBoundaryElements(SubMeshT &mesh)
       }
    }
    mesh.AddBdrElements(boundary, be_to_face);
-
-
 }
 
 // Explicit instantiations

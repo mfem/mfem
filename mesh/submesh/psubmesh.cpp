@@ -188,9 +188,9 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
       ncmesh = pncmesh;
       InitFromNCMesh(*pncmesh);
 
-   // Vertex Values are bad
+      // Vertex Values are bad
+      auto print_elem = [&]()
       {
-         std::cout << __FILE__ << ':' << __LINE__ << std::endl;
          Array<int> verts;
          for (int e = 0; e < GetNE(); e++)
          {
@@ -214,9 +214,13 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
             }
             std::cout << std::endl;
          }
-      }
+      };
+      std::cout << __FILE__ << ':' << __LINE__ << std::endl;
+      print_elem();
 
       pncmesh->OnMeshUpdated(this);
+      std::cout << __FILE__ << ':' << __LINE__ << std::endl;
+      print_elem();
 
       // Update the submesh to parent vertex mapping, NCSubMesh reordered the vertices so
       // the map to parent is no longer valid.
@@ -235,49 +239,32 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
       }
       parent_vertex_ids_ = new_parent_vertex_ids;
       parent_to_submesh_vertex_ids_ = new_parent_to_submesh_vertex_ids;
+      std::cout << __FILE__ << ':' << __LINE__ << std::endl;
+      print_elem();
+
+      std::cout << __FILE__ << ':' << __LINE__ << std::endl;
+      std::cout << "parent_element_ids_ ";
+      for (auto x : parent_element_ids_)
+      {
+         std::cout << x << ' ';
+      }
+      std::cout << '\n';
+
+      // auto new_parent_element_ids = parent_element_ids_;
+      // auto new_parent_to_submesh_element_ids = parent_to_submesh_element_ids_;
+      // new_parent_to_submesh_element_ids = -1;
+      // std::vector<int> reorder = {7,6,5,0,2,1,4,3};
+      // for (int i = 0; i < 8; i++)
+      // {
+      //    new_parent_element_ids[i] = parent_element_ids_[reorder[i]];
+      //    new_parent_to_submesh_element_ids[parent_element_ids_[reorder[i]]] = i;
+      // }
+      // parent_to_submesh_element_ids_ = new_parent_to_submesh_element_ids;
+      // parent_element_ids_ = new_parent_element_ids;
 
       GenerateNCFaceInfo();
       SetAttributes();
    }
-
-   // Vertex Values are bad
-   {
-      std::cout << __FILE__ << ':' << __LINE__ << std::endl;
-      Array<int> verts;
-      for (int e = 0; e < GetNE(); e++)
-      {
-         auto * elem = GetElement(e);
-         elem->GetVertices(verts);
-
-         std::cout << "Element " << e << " : ";
-         for (auto x : verts)
-         {
-            std::cout << x << ' ';
-         }
-         std::cout << std::endl;
-      }
-      for (int v = 0; v < GetNV(); v++)
-      {
-         auto *vv = GetVertex(v);
-         std::cout << "Vertex " << v << " : ";
-         for (int i = 0; i < 3; i++)
-         {
-            std::cout << vv[i] << ' ';
-         }
-         std::cout << std::endl;
-      }
-      if (ncmesh)
-      {
-         ncmesh->GetFaceList();
-
-         std::cout << __FILE__ << ':' << __LINE__ << std::endl;
-         for (int f : ncmesh->boundary_faces)
-         {
-            std::cout << "f " << f << " attribute " << ncmesh->faces[f].attribute << std::endl;
-         }
-      }
-   }
-
 
    DSTable v2v(parent_.GetNV());
    parent_.GetVertexToVertexTable(v2v);
@@ -372,6 +359,12 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
          }
          else
          {
+
+            std::cout << "i " << i << " par_vert ";
+            for (auto x : par_vert) { std::cout << x << ' '; }
+            std::cout << " sub_par_vert ";
+            for (auto x : sub_par_vert) { std::cout << x << ' '; }
+            std::cout << std::endl;
             int se_ori = GetQuadOrientation(par_vert, sub_par_vert);
             parent_face_ori_[i] = ComposeQuadOrientations(be_ori, se_ori);
          }
