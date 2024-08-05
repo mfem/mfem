@@ -56,7 +56,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_Fit_2D,
                Xh[i] = R(qx,qy,i,e);
                for (int j = 0; j < DIM; j++)
                {
-                  H(i,j) = H0(i,j,qx,qy,e);
+                  H(i,j) += H0(i,j,qx,qy,e);
                }
             }
             
@@ -69,7 +69,6 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_Fit_2D,
             }
          }
       }
-      MFEM_SYNC_THREAD;
    });
 }
 

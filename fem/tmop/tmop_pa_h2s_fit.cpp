@@ -76,7 +76,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_Fit_2D,
                     const real_t dxj = X4(qx,qy,j,e);
                     const real_t d2x = X5(qx,qy,i,j,e);
                     
-                    H0(i,j,qx,qy,e) = 2 * w * sigma * (dxi*dxj + d2x);
+                    H0(i,j,qx,qy,e) += 2 * w * sigma * (dxi*dxj + d2x);
                     
                 }
             }
@@ -94,7 +94,6 @@ void TMOP_Integrator::AssembleGradPA_Fit_2D(const Vector &X) const
    const int D1D = meshOrder + 1;
    const int Q1D = D1D;
    const int id = (D1D << 4 ) | Q1D;
-   const Vector &O = PA.O;
 
    const real_t &C1 = PA.C1;
    const real_t &C2 = PA.C2;
