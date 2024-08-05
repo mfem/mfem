@@ -76,8 +76,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_Fit_2D,
                     const real_t dxj = X4(qx,qy,j,e);
                     const real_t d2x = X5(qx,qy,i,j,e);
                     
-                    H0(i,j,qx,qy,e) += 2 * w * sigma * (dxi*dxj + d2x);
-                    
+                    H0(i,j,qx,qy,e) += 2 * w * (dxi*dxj + sigma * d2x);
                 }
             }
             

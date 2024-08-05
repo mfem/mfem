@@ -35,7 +35,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_Fit_2D,
    const auto H0 = Reshape(h0_.Read(), DIM, DIM, D1D, D1D, NE);
    const auto R = Reshape(r_.Read(), D1D, D1D, DIM, NE);
 
-   auto C = Reshape(c_.ReadWrite(), D1D, D1D, DIM, NE);
+   auto Y = Reshape(c_.ReadWrite(), D1D, D1D, DIM, NE);
 
    mfem::forall_2D_batch(NE, D1D, D1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
@@ -65,7 +65,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_Fit_2D,
 
             for (int i = 0; i < DIM; i++)
             {
-               C(qx,qy,i,e) += p2[i];
+               Y(qx,qy,i,e) = p2[i];
             }
          }
       }
