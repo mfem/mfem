@@ -119,7 +119,7 @@ public:
    void Mult(const Vector &k, Vector &y) const override;
    void SetOperator(const Operator &op) override;
 
-   virtual ~JacobianPreconditioner();
+   ~JacobianPreconditioner() override;
 };
 
 // After spatial discretization, the rubber model can be written as:
@@ -167,7 +167,7 @@ public:
    // Driver for the newton solver
    void Solve(Vector &xp) const;
 
-   virtual ~RubberOperator();
+   ~RubberOperator() override;
 };
 
 // Visualization driver

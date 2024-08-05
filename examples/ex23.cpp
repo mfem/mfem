@@ -74,7 +74,7 @@ public:
    ///
    void SetParameters(const Vector &u);
 
-   virtual ~WaveOperator();
+   ~WaveOperator() override;
 };
 
 

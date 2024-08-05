@@ -89,7 +89,7 @@ public:
    void NewWindow();
    void CloseConnection();
    void PositionWindow();
-   virtual ~VisMan();
+   ~VisMan() override;
 };
 
 // Manipulators for the GLVis visualization manager.

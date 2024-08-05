@@ -99,7 +99,7 @@ public:
    void GetElasticEnergyDensity(const ParGridFunction &x,
                                 ParGridFunction &w) const;
 
-   virtual ~HyperelasticOperator();
+   ~HyperelasticOperator() override;
 };
 
 /** Nonlinear operator of the form:
@@ -130,7 +130,7 @@ public:
    /// Compute J = M + dt S + dt^2 grad_H(x + dt (v + dt k)).
    Operator &GetGradient(const Vector &k) const override;
 
-   virtual ~ReducedSystemOperator();
+   ~ReducedSystemOperator() override;
 };
 
 
@@ -147,7 +147,7 @@ public:
    ElasticEnergyCoefficient(HyperelasticModel &m, const ParGridFunction &x_)
       : model(m), x(x_) { }
    real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override;
-   virtual ~ElasticEnergyCoefficient() { }
+   ~ElasticEnergyCoefficient() override { }
 };
 
 void InitialDeformation(const Vector &x, Vector &y);
