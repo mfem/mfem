@@ -84,7 +84,7 @@ public:
    /// Update the diffusion BilinearForm K using the given true-dof vector `u`.
    void SetParameters(const Vector &u);
 
-   virtual ~ConductionOperator();
+   ~ConductionOperator() override;
 };
 
 real_t InitialTemperature(const Vector &x);

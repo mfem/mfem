@@ -137,7 +137,7 @@ public:
    void Mult(const Vector &x, Vector &y) const override;
    void ImplicitSolve(const real_t dt, const Vector &x, Vector &k) override;
 
-   virtual ~FE_Evolution();
+   ~FE_Evolution() override;
 };
 
 
