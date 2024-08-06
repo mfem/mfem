@@ -21,35 +21,29 @@ namespace mfem
 
 MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_Fit_3D,
                            const int NE,
-                           const real_t &c1_,
-                           const real_t &c2_,
-                           const Vector &x1_,
-                           const Vector &x2_,
-                           const Vector &x3_,
+                           const real_t &pw_,
+                           const real_t &n0_,
+                           const Vector &s0_,
+                           const Vector &dc_,
+                           const Vector &m0_,
                            const Vector &ones,
                            Vector &energy,
                            const int d1d,
                            const int q1d)
 {
-   constexpr int DIM = 3;
-
    const int D1D = T_D1D ? T_D1D : d1d;
-   const int Q1D = T_Q1D ? T_Q1D : q1d;
-
-   const auto C1 = c1_;
-   const auto C2 = c2_;
-   const auto X1 = Reshape(x1_.Read(), D1D, D1D, D1D, NE);
-   const auto X2 = Reshape(x2_.Read(), D1D, D1D, D1D, NE);
-   const auto X3 = Reshape(x3_.Read(), D1D, D1D, D1D, NE);
+   
+   const auto PW = pw_;
+   const auto N0 = n0_;
+   const auto S0 = Reshape(s0_.Read(), D1D, D1D, D1D, NE);
+   const auto DC = Reshape(dc_.Read(), D1D, D1D, D1D, NE);
+   const auto M0 = Reshape(m0_.Read(), D1D, D1D, D1D, NE);
 
    auto E = Reshape(energy.Write(), D1D, D1D, D1D, NE);
 
    mfem::forall_3D(NE, D1D, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int NBZ = 1;
-
 
       MFEM_FOREACH_THREAD(qz,z,D1D)
       {
@@ -57,11 +51,11 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_Fit_3D,
         {
             MFEM_FOREACH_THREAD(qx,x,D1D)
             {
-            const real_t sigma = X1(qx,qy,qz,e);
-            const real_t dof_count = X2(qx,qy,qz,e);
-            const real_t marker = X3(qx,qy,qz,e); 
-            const real_t coeff = C1;
-            const real_t normal = C2;
+            const real_t sigma = S0(qx,qy,qz,e);
+            const real_t dof_count = DC(qx,qy,qz,e);
+            const real_t marker = M0(qx,qy,qz,e); 
+            const real_t coeff = PW;
+            const real_t normal = N0;
 
             if (marker == 0) {continue;}
             double w = coeff * normal * 1.0/dof_count;
@@ -84,13 +78,13 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_Fit_3D(const Vector &X) const
    Vector &E = PA.EFit;
    
    
-   const real_t &C1 = PA.C1;
-   const real_t &C2 = PA.C2;
-   const Vector &X1 = PA.X1;
-   const Vector &X2 = PA.X2;
-   const Vector &X3 = PA.X3;
+   const real_t &PW = PA.PW;
+   const real_t &N0 = PA.N0;
+   const Vector &S0 = PA.S0;
+   const Vector &DC = PA.DC;
+   const Vector &M0 = PA.M0;
 
-   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_Fit_3D,id,N,C1,C2,X1,X2,X3,O,E);
+   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_Fit_3D,id,N,PW,N0,S0,DC,M0,O,E);
 }
 
 } // namespace mfem

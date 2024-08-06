@@ -27,9 +27,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_Fit_3D,
                            const int q1d)
 {
    constexpr int DIM = 3;
-
    const int D1D = T_D1D ? T_D1D : d1d;
-   const int Q1D = T_Q1D ? T_Q1D : q1d;
 
    const auto H0 = Reshape(h0_.Read(), DIM, DIM, D1D, D1D, D1D, NE);
    const auto R = Reshape(r_.Read(), D1D, D1D, D1D, DIM, NE);
@@ -40,7 +38,6 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_Fit_3D,
    {
       constexpr int DIM = 3;
       const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
 
       MFEM_FOREACH_THREAD(qz,z,D1D)
       {

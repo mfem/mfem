@@ -1840,14 +1840,17 @@ protected:
    //     Updated when the mesh nodes change.
    //
    // -------------------- new vectors and constants ----------------------
-   // X1: E-Vector for storing the surface fit grid function.
-   // X2: E-Vector for storing the surface fit dof count.
-   // X3: E-Vector for storing the surface fit marker boolean.
-   // X4: E-Vector for storing the surface fit gradients.
-   // X5: E-Vector for storing the surface fit hessians.
-   //
-   // C1: Constant coefficient that stores surf_it_coeff.
-   // C2: Real scalar that stores surf_fit_normal.
+   // EFit: Q-vector for TMOP-energy while surface fitting
+   //       Used as temporary storage when the total energy is computed.
+   // OFit: Q-Vector of 1.0, used to compute sums using the dot product kernel.
+   // H0Fit: Q-Vector for Hessian associated with the limiting term.
+   // S0: E-Vector for storing the surface fit grid function.
+   // DC: E-Vector for storing the surface fit dof count.
+   // M0: E-Vector for storing the surface fit marker boolean.
+   // D1: E-Vector for storing the surface fit gradients.
+   // D2: E-Vector for storing the surface fit hessians.
+   // PW: Constant coefficient that stores surf_fit_coeff.
+   // N0: Real scalar that stores surf_fit_normal.
    // ---------------------------------------------------------------------
    //
    //
@@ -1871,9 +1874,10 @@ protected:
       mutable DenseTensor Jtr;
       mutable bool Jtr_needs_update;
       mutable bool Jtr_debug_grad;
-      mutable Vector E, O, X0, H, C0, LD, H0, MC, OFit, EFit, H0Fit;
-      mutable Vector X1, X2, X3, X4, X5; //new here
-      mutable real_t C1, C2; //new here
+      mutable Vector E, O, X0, H, C0, LD, H0, MC;
+      mutable Vector OFit, EFit, H0Fit; //new here
+      mutable Vector S0, DC, M0, D1, D2; //new here
+      mutable real_t PW, N0; //new here
       const DofToQuad *maps;
       const DofToQuad *maps_lim = nullptr;
       const GeometricFactors *geom;
