@@ -32,11 +32,22 @@
 //
 // Compile with: make pmesh-fitting
 //
-// Sample runs:
+// Sample runs (2D):
 // CPU + no partial assembly
 // make pmesh-fitting-gpu && mpirun -np 1 pmesh-fitting-gpu -o 3 -d cpu -no-pa
-// GPU + partial assembly (does not work yet)
+// CPU + partial assembly
+// make pmesh-fitting-gpu && mpirun -np 1 pmesh-fitting-gpu -o 3 -d cpu -pa
+// GPU + partial assembly 
 // make pmesh-fitting-gpu && mpirun -np 1 pmesh-fitting-gpu -o 3 -d debug -pa
+//
+//
+// Sample runs (3D):
+// CPU + no partial assembly
+// make pmesh-fitting-gpu && mpirun -np 1 pmesh-fitting-gpu -o 3 -m cube.mesh -mid 303 -d cpu -no-pa
+// CPU + partial assembly
+// make pmesh-fitting-gpu && mpirun -np 1 pmesh-fitting-gpu -o 3 -m cube.mesh -mid 303 -d cpu -pa
+// GPU + partial assembly 
+// make pmesh-fitting-gpu && mpirun -np 1 pmesh-fitting-gpu -o 3 -m cube.mesh -mid 303 -d debug -pa
 
 
 #include "mesh-fitting.hpp"
