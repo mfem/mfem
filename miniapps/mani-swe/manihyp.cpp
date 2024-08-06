@@ -3,8 +3,8 @@
 namespace mfem
 {
 
-Mesh sphericalMesh(const double r, Element::Type element_type, int order,
-                   const int level_serial, const int level_parallel, bool parallel)
+Mesh *sphericalMesh(const double r, Element::Type element_type, int order,
+                    const int level_serial, const int level_parallel, bool parallel)
 {
    parallel = parallel || level_parallel > 0;
 #ifndef MFEM_USE_MPI
@@ -19,7 +19,7 @@ Mesh sphericalMesh(const double r, Element::Type element_type, int order,
       Nvert = 6;
       Nelem = 8;
    }
-   Mesh mesh(2, Nvert, Nelem, 0, 3);
+   Mesh *mesh = new Mesh(2, Nvert, Nelem, 0, 3);
 
    switch (element_type)
    {
@@ -38,14 +38,14 @@ Mesh sphericalMesh(const double r, Element::Type element_type, int order,
 
          for (int j = 0; j < Nvert; j++)
          {
-            mesh.AddVertex(tri_v[j]);
+            mesh->AddVertex(tri_v[j]);
          }
          for (int j = 0; j < Nelem; j++)
          {
             int attribute = j + 1;
-            mesh.AddTriangle(tri_e[j], attribute);
+            mesh->AddTriangle(tri_e[j], attribute);
          }
-         mesh.FinalizeTriMesh(1, 1, true);
+         mesh->FinalizeTriMesh(1, 1, true);
          break;
       }
       case Element::Type::QUADRILATERAL:
@@ -63,36 +63,36 @@ Mesh sphericalMesh(const double r, Element::Type element_type, int order,
 
          for (int j = 0; j < Nvert; j++)
          {
-            mesh.AddVertex(quad_v[j]);
+            mesh->AddVertex(quad_v[j]);
          }
          for (int j = 0; j < Nelem; j++)
          {
             int attribute = j + 1;
-            mesh.AddQuad(quad_e[j], attribute);
+            mesh->AddQuad(quad_e[j], attribute);
          }
-         mesh.FinalizeQuadMesh(1, 1, true);
+         mesh->FinalizeQuadMesh(1, 1, true);
          break;
       }
       default:
          mfem_error("Only triangle and quadrilateral are supported.");
    }
-   mesh.SetCurvature(order, false, 3);
-   mesh.GetNodes()->ProjectCoefficient(sphere_cf);
+   mesh->SetCurvature(order, false, 3);
+   mesh->GetNodes()->ProjectCoefficient(sphere_cf);
 
    for (int i=0; i<level_serial; i++)
    {
-      mesh.UniformRefinement();
-      mesh.GetNodes()->ProjectCoefficient(sphere_cf);
+      mesh->UniformRefinement();
+      mesh->GetNodes()->ProjectCoefficient(sphere_cf);
    }
    if (!parallel) { return mesh; }
 
 #ifdef MFEM_USE_MPI
-   ParMesh pmesh(MPI_COMM_WORLD, mesh);
-   mesh.Clear();
+   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+   delete mesh;
    for (int i=0; i<level_parallel; i++)
    {
-      pmesh.UniformRefinement();
-      pmesh.GetNodes()->ProjectCoefficient(sphere_cf);
+      pmesh->UniformRefinement();
+      pmesh->GetNodes()->ProjectCoefficient(sphere_cf);
    }
    return pmesh;
 #endif

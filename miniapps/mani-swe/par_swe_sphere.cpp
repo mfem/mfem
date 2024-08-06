@@ -29,17 +29,25 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
+   // 0. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
    // 1. Parse command-line options.
    int order = 1;
    bool visualization = true;
-   int level = 2;
+   int level_serial = 2;
+   int level_parallel = 2;
 
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
-   args.AddOption(&level, "-r", "--refine",
+   args.AddOption(&level_serial, "-rs", "--refine",
                   "Refinement level");
+   args.AddOption(&level_parallel, "-rp", "--refine-parallel",
+                  "Parallel refinement level");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -51,14 +59,14 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   std::unique_ptr<Mesh> mesh(sphericalMesh(1.0, Element::Type::TRIANGLE, order,
-                                            level));
+   std::unique_ptr<ParMesh> mesh(static_cast<ParMesh*>(sphericalMesh(1.0, Element::Type::TRIANGLE, order,
+                                            level_serial, level_parallel)));
    L2_FECollection fec(order, 2);
-   FiniteElementSpace fes_scalar(mesh.get(), &fec);
-   FiniteElementSpace fes_sdim(mesh.get(), &fec, 2);
-   FiniteElementSpace fes_vdim(mesh.get(), &fec, 2+1);
+   ParFiniteElementSpace fes_scalar(mesh.get(), &fec);
+   ParFiniteElementSpace fes_sdim(mesh.get(), &fec, 2);
+   ParFiniteElementSpace fes_vdim(mesh.get(), &fec, 2+1);
 
-   GridFunction gf(&fes_scalar);
+   ParGridFunction gf(&fes_scalar);
    gf = 1.0;
 
    if (visualization)
@@ -66,6 +74,7 @@ int main(int argc, char *argv[])
       char vishost[] = "localhost";
       int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
+      sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);
       sol_sock << "solution\n" << *mesh << gf << flush;
    }
