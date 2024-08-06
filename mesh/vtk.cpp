@@ -659,4 +659,22 @@ void WriteBase64WithSizeAndClear(std::ostream &os, std::vector<char> &buf,
    buf.clear();
 }
 
+std::string VTKComponentLabels(int vdim)
+{
+   if (vdim == 1)
+   {
+      return "";
+   }
+   else
+   {
+      std::stringstream s;
+      for (int i = 0; i < vdim; ++i)
+      {
+         s << "ComponentName" << i << "=\"" << i << "\"";
+         if (i < vdim - 1) { s << " "; }
+      }
+      return s.str();
+   }
+}
+
 } // namespace mfem
