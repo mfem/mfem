@@ -226,10 +226,11 @@ public:
                            compute gradients and normals. */
     AlgoimIntegrationRules(int order, Coefficient &lvlset,int lsO=2):CutIntegrationRules(order, lvlset,lsO)
     {
-        currentElementNo=-1;
         pe=nullptr;
+        le=nullptr;
         currentLvlSet=nullptr;
-
+        currentGeometry=Geometry::Type::INVALID;
+        currentElementNo=-1;
     }
 
     /// Destructor
@@ -237,7 +238,37 @@ public:
     ~AlgoimIntegrationRules()
     {
         delete pe;
+        delete le;
     }
+
+    virtual
+    void SetOrder(int order) override
+    {
+        MFEM_VERIFY(order > 0, "Invalid input");
+        Order = order;
+        delete pe;
+        delete le;
+        pe=nullptr;
+        le=nullptr;
+        currentLvlSet=nullptr;
+        currentGeometry=Geometry::Type::INVALID;
+        currentElementNo=-1;
+    }
+
+    virtual
+    void SetLevelSetProjectionOrder(int order) override
+    {
+        MFEM_VERIFY(order > 0, "Invalid input");
+        lsOrder = order;
+        delete pe;
+        delete le;
+        pe=nullptr;
+        le=nullptr;
+        currentLvlSet=nullptr;
+        currentGeometry=Geometry::Type::INVALID;
+        currentElementNo=-1;
+    }
+
 
     /**
     @brief Construct a cut-surface IntegrationRule.
@@ -248,6 +279,7 @@ public:
     @param [in]  Tr     Specifies the IntegrationRule's associated mesh element.
     @param [out] result IntegrationRule on the cut-surface
     */
+    virtual
     void GetSurfaceIntegrationRule(ElementTransformation &Tr,
                                    IntegrationRule &result) override;
 
@@ -263,16 +295,35 @@ public:
     @param [in]  sir    Corresponding IntegrationRule for the surface, which can
                                be used to avoid computations.
     */
+    virtual
     void GetVolumeIntegrationRule(ElementTransformation &Tr,
                                   IntegrationRule &result,
                                   const IntegrationRule *sir = nullptr) override;
 
+    virtual
     void GetRefVolumeIntegrationRule(ElementTransformation &Tr,
                                      IntegrationRule &result,
                                      const IntegrationRule *sir = nullptr);
 
+    virtual
     void GetRefSurfaceIntegrationRule(ElementTransformation &Tr,
                                       IntegrationRule &result);
+
+    /**
+    @brief Compute transformation quadrature weights for surface integration.
+
+    Compute the transformation weights for integration over the cut-surface in
+    reference space.
+
+    @param [in]  Tr      Specifies the IntegrationRule's associated element.
+    @param [in]  sir     IntegrationRule defining the IntegrationPoints
+    @param [out] weights Vector containing the transformation weights.
+   */
+    virtual
+    void GetSurfaceWeights(ElementTransformation &Tr,
+                                   const IntegrationRule &sir,
+                                   Vector &weights) override;
+
 
 private:
 
@@ -281,10 +332,15 @@ private:
     void GenerateLSVector(ElementTransformation &Tr, Coefficient* lvlset);
 
 
+    /// Lagrange finite element used for converting coefficients to possitive basis
+    FiniteElement* le;
     PositiveTensorFiniteElement *pe;
-    Vector lsvec; // level-set in Bernstein bases
-    int currentElementNo; // the current element number
+    DenseMatrix T; //Projection matrix from nodal basis to possitive basis
+    Vector lsvec; // level-set in Bernstein basis
+    Vector lsfun; // level-set in nodal basis
+    Geometry::Type currentGeometry; // the current element geometry
     Coefficient* currentLvlSet; //the current level-set coefficient
+    int currentElementNo; //the current element No
 
     /// 3D level-set function object required by Algoim.
     struct LevelSet3D

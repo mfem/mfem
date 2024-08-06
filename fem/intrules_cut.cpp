@@ -32,10 +32,14 @@ void CutIntegrationRules::SetLevelSetProjectionOrder(int order)
 }
 
 #ifdef MFEM_USE_ALGOIM
+
+
+
 void AlgoimIntegrationRules::GetRefSurfaceIntegrationRule(ElementTransformation &Tr,
                                                           IntegrationRule &result)
 {
     GenerateLSVector(Tr,LvlSet);
+
     const int dim=pe->GetDim();
     int np1d=CutIntegrationRules::Order/2+1;
     if (dim==2)
@@ -73,6 +77,7 @@ void AlgoimIntegrationRules::GetRefVolumeIntegrationRule(ElementTransformation &
                                                          const IntegrationRule *sir)
 {
     GenerateLSVector(Tr,LvlSet);
+
     const int dim=pe->GetDim();
     int np1d=CutIntegrationRules::Order/2+1;
     if (dim==2)
@@ -106,7 +111,6 @@ void AlgoimIntegrationRules::GetRefVolumeIntegrationRule(ElementTransformation &
 void AlgoimIntegrationRules::GetSurfaceIntegrationRule(ElementTransformation &Tr,
                                IntegrationRule &result)
 {
-
     GetRefSurfaceIntegrationRule(Tr,result);
     DenseMatrix bmat; // gradients of the shape functions in isoparametric space
     DenseMatrix pmat; // gradients of the shape functions in physical space
@@ -144,40 +148,83 @@ void AlgoimIntegrationRules::GetVolumeIntegrationRule(ElementTransformation &Tr,
     }
 }
 
+void AlgoimIntegrationRules::GetSurfaceWeights(ElementTransformation &Tr,
+                                               const IntegrationRule &sir,
+                                               Vector &weights)
+{
+    GenerateLSVector(Tr,LvlSet);
+
+    DenseMatrix bmat; // gradients of the shape functions in isoparametric space
+    DenseMatrix pmat; // gradients of the shape functions in physical space
+    Vector inormal; // normal to the level set in isoparametric space
+    Vector tnormal; // normal to the level set in physical space
+    bmat.SetSize(pe->GetDof(),pe->GetDim());
+    pmat.SetSize(pe->GetDof(),pe->GetDim());
+    inormal.SetSize(pe->GetDim());
+    tnormal.SetSize(pe->GetDim());
+
+    for (int j = 0; j < sir.GetNPoints(); j++)
+    {
+        const IntegrationPoint &ip = sir.IntPoint(j);
+        Tr.SetIntPoint(&ip);
+        pe->CalcDShape(ip,bmat);
+        Mult(bmat, Tr.AdjugateJacobian(), pmat);
+        // compute the normal to the LS in isoparametric space
+        bmat.MultTranspose(lsvec,inormal);
+        // compute the normal to the LS in physical space
+        pmat.MultTranspose(lsvec,tnormal);
+        weights(j)=ip.weight * tnormal.Norml2() / inormal.Norml2();
+    }
+}
+
 void AlgoimIntegrationRules::GenerateLSVector(ElementTransformation &Tr,
                                               Coefficient* lvlset)
 {
     //check if the coefficient is already projected
-    if(Tr.ElementNo==currentElementNo){
-        if(currentLvlSet==lvlset){
-            return;
-        }
-    }
+    if(currentElementNo==Tr.ElementNo){
+    if(currentLvlSet==lvlset){
+    if(currentGeometry==Tr.GetGeometryType()){
+                return;
+    }}}
 
-    delete pe;
     currentElementNo=Tr.ElementNo;
+
+    if(currentGeometry!=Tr.GetGeometryType()){
+        delete le;
+        delete pe;
+        currentGeometry=Tr.GetGeometryType();
+        if (Tr.GetGeometryType()==Geometry::Type::SQUARE)
+        {
+            pe=new H1Pos_QuadrilateralElement(lsOrder);
+            le=new H1_QuadrilateralElement(lsOrder);
+        }
+        else if (Tr.GetGeometryType()==Geometry::Type::CUBE)
+        {
+            pe=new H1Pos_HexahedronElement(lsOrder);
+            le=new H1_HexahedronElement(lsOrder);
+
+        }
+        else
+        {
+            MFEM_ABORT("Currently MFEM + Algoim supports only quads and hexes.");
+        }
+
+        T.SetSize(pe->GetDof());
+        pe->Project(*le,Tr,T);
+        //The transformation matrix depends only on the geometry
+        // for change of basis
+    }
+
     currentLvlSet=lvlset;
-
-    if (Tr.ElementType==Geometry::Type::SQUARE)
-    {
-       pe=new H1Pos_QuadrilateralElement(lsOrder);
-    }
-    else if (Tr.ElementType==Geometry::Type::CUBE)
-    {
-       pe=new H1Pos_HexahedronElement(lsOrder);
-    }
-    else
-    {
-       MFEM_ABORT("Currently MFEM + Algoim supports only quads and hexes.");
-    }
-
-    const IntegrationRule &ir= pe->GetNodes();
+    const IntegrationRule &ir=le->GetNodes();
     lsvec.SetSize(ir.GetNPoints());
+    lsfun.SetSize(ir.GetNPoints());
     for(int i=0;i<ir.GetNPoints();i++){
         const IntegrationPoint &ip = ir.IntPoint(i);
         Tr.SetIntPoint(&ip);
-        lsvec(i)=lvlset->Eval(Tr,ip);
+        lsfun(i)=lvlset->Eval(Tr,ip);
     }
+    T.Mult(lsfun,lsvec);
 }
 
 #endif

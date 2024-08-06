@@ -183,6 +183,45 @@ int main(int argc, char *argv[])
 
 #ifdef MFEM_USE_ALGOIM
    real_t area=0.0;
+
+   AlgoimIntegrationRules* air=new AlgoimIntegrationRules(aorder,*ls_coeff,order);
+
+   IntegrationRule eir;
+
+   Vector lsfun; // level set function restricted to an element
+   DofTransformation *doftrans;
+   Array<int> vdofs;
+
+   for (int i=0; i<fespace.GetNE(); i++)
+   {
+       // get the element transformation
+       trans = fespace.GetElementTransformation(i);
+
+       air->GetVolumeIntegrationRule(*trans,eir);
+       for (int j = 0; j < eir.GetNPoints(); j++)
+       {
+           const IntegrationPoint &ip = eir.IntPoint(j);
+           trans->SetIntPoint(&ip);
+           vol += ip.weight;
+           //vol += ip.weight * trans->Weight();
+       }
+
+       // compute the perimeter/area contribution from the element
+       air->GetSurfaceIntegrationRule(*trans,eir);
+       for (int j = 0; j < eir.GetNPoints(); j++)
+       {
+           const IntegrationPoint &ip = eir.IntPoint(j);
+           trans->SetIntPoint(&ip);
+           area += ip.weight;
+       }
+
+   }
+
+   delete air;
+
+
+    /*
+
    DenseMatrix bmat; // gradients of the shape functions in isoparametric space
    DenseMatrix pmat; // gradients of the shape functions in physical space
    Vector inormal; // normal to the level set in isoparametric space
@@ -234,6 +273,7 @@ int main(int argc, char *argv[])
          area += ip.weight * tnormal.Norml2() / inormal.Norml2();
       }
    }
+*/
 
    if (exact_volume > 0)
    {
