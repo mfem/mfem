@@ -69,16 +69,18 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_Fit_3D,
 
                 
                 double w = marker * normal * coeff * 1.0/dof_count;
-
                 for (int i = 0; i < DIM; i++)
                 {
-                    for (int j = 0; j < DIM; j++)
+                    for (int j = 0; j <= i; j++)
                     {
                         const real_t dxi = X4(qx,qy,qz,i,e);
                         const real_t dxj = X4(qx,qy,qz,j,e);
                         const real_t d2x = X5(qx,qy,qz,i,j,e);
+
+                        const real_t entry = 2 * w * (dxi*dxj + sigma * d2x);
                         
-                        H0(i,j,qx,qy,qz,e) = 2 * w * sigma * (dxi*dxj + d2x);
+                        H0(i,j,qx,qy,qz,e) = entry;
+                        if (i != j) { H0(j,i,qx,qy,qz,e) = entry;}   
                     }
                 }
                 

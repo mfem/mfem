@@ -34,7 +34,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_Fit_3D,
    const auto H0 = Reshape(h0_.Read(), DIM, DIM, D1D, D1D, D1D, NE);
    const auto R = Reshape(r_.Read(), D1D, D1D, D1D, DIM, NE);
 
-   auto C = Reshape(c_.ReadWrite(), D1D, D1D, D1D, DIM, NE);
+   auto Y = Reshape(c_.ReadWrite(), D1D, D1D, D1D, DIM, NE);
 
    mfem::forall_3D(NE, D1D, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
    {
@@ -65,20 +65,20 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_Fit_3D,
 
                for (int i = 0; i < DIM; i++)
                {
-                  C(qx,qy,qz,i,e) += p2[i];
+                  Y(qx,qy,qz,i,e) += p2[i];
                }
             }
          }
       }
-      MFEM_SYNC_THREAD;
    });
 }
 
 void TMOP_Integrator::AddMultGradPA_Fit_3D(const Vector &R, Vector &C) const
 {
    const int N = PA.ne;
-   const int D1D = PA.maps->ndof;
-   const int Q1D = PA.maps->nqpt;
+   const int meshOrder = surf_fit_gf->FESpace()->GetMaxElementOrder();
+   const int D1D = meshOrder + 1;
+   const int Q1D = D1D;
    const int id = (D1D << 4 ) | D1D;
    const Vector &H0 = PA.H0Fit;
 
