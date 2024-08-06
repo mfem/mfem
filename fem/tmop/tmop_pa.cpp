@@ -439,14 +439,14 @@ void TMOP_Integrator::AddMultPA(const Vector &xe, Vector &ye) const
    {
       AddMultPA_2D(xe,ye);
       if (lim_coeff) { AddMultPA_C0_2D(xe,ye); }
-      if (surf_fit_coeff) { GetLocalStateEnergyPA_Fit_Grad_2D(xe,ye);}
+      if (surf_fit_coeff) { AddMultPA_Fit_2D(xe,ye);}
    }
 
    if (PA.dim == 3)
    {
       AddMultPA_3D(xe,ye);
       if (lim_coeff) { AddMultPA_C0_3D(xe,ye); }
-      if (surf_fit_coeff) {GetLocalStateEnergyPA_Fit_Grad_3D(xe,ye);}
+      if (surf_fit_coeff) {AddMultPA_Fit_3D(xe,ye);}
    }
 }
 
