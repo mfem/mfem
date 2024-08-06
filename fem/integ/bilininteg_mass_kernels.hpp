@@ -25,11 +25,95 @@ namespace mfem
 namespace internal
 {
 
-void PAMassAssembleDiagonal(const int dim, const int D1D,
-                            const int Q1D, const int NE,
-                            const Array<real_t> &B,
-                            const Vector &D,
-                            Vector &Y);
+// PA Mass Diagonal 1D kernel
+static void PAMassAssembleDiagonal1D(const int NE,
+                                     const Array<real_t> &b,
+                                     const Vector &d,
+                                     Vector &y,
+                                     const int D1D,
+                                     const int Q1D)
+{
+   auto B = Reshape(b.Read(), Q1D, D1D);
+   auto D = Reshape(d.Read(), Q1D, NE);
+   auto Y = Reshape(y.ReadWrite(), D1D, NE);
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   {
+      for (int dx = 0; dx < D1D; ++dx)
+      {
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            Y(dx, e) += B(qx, dx) * B(qx, dx) * D(qx, e);
+         }
+      }
+   });
+}
+
+MFEM_HOST_DEVICE inline
+void PAMassApply1D_Element(const int e,
+                           const int NE,
+                           const real_t *b_,
+                           const real_t *bt_,
+                           const real_t *d_,
+                           const real_t *x_,
+                           real_t *y_,
+                           const int d1d = 0,
+                           const int q1d = 0)
+{
+   const int D1D = d1d;
+   const int Q1D = q1d;
+   auto B = ConstDeviceMatrix(b_, Q1D, D1D);
+   auto Bt = ConstDeviceMatrix(bt_, D1D, Q1D);
+   auto D = ConstDeviceMatrix(d_, Q1D, NE);
+   auto X = ConstDeviceMatrix(x_, D1D, NE);
+   auto Y = DeviceMatrix(y_, D1D, NE);
+
+   real_t XQ[DofQuadLimits::MAX_Q1D];
+   for (int qx = 0; qx < Q1D; ++qx)
+   {
+      XQ[qx] = 0.0;
+   }
+   for (int dx = 0; dx < D1D; ++dx)
+   {
+      const real_t s = X(dx,e);
+      for (int qx = 0; qx < Q1D; ++qx)
+      {
+         XQ[qx] += B(qx,dx)*s;
+      }
+   }
+   for (int qx = 0; qx < Q1D; ++qx)
+   {
+      const double q = XQ[qx]*D(qx,e);
+      for (int dx = 0; dx < D1D; ++dx)
+      {
+         Y(dx,e) += Bt(dx,qx) * q;
+      }
+   }
+}
+
+// PA Mass Apply 1D kernel
+static void PAMassApply1D(const int NE,
+                          const Array<real_t> &b_,
+                          const Array<real_t> &bt_,
+                          const Vector &d_,
+                          const Vector &x_,
+                          Vector &y_,
+                          const int d1d = 0,
+                          const int q1d = 0)
+{
+   MFEM_VERIFY(d1d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(q1d <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
+
+   const auto B = b_.Read();
+   const auto Bt = bt_.Read();
+   const auto D = d_.Read();
+   const auto X = x_.Read();
+   auto Y = y_.ReadWrite();
+
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   {
+      internal::PAMassApply1D_Element(e, NE, B, Bt, D, X, Y, d1d, q1d);
+   });
+}
 
 // PA Mass Diagonal 2D kernel
 template<int T_D1D = 0, int T_Q1D = 0>
@@ -78,8 +162,18 @@ inline void PAMassAssembleDiagonal2D(const int NE,
    });
 }
 
+namespace mass
+{
+constexpr int ipow(int x, int p) { return p == 0 ? 1 : x*ipow(x, p-1); }
+constexpr int D(int D1D) { return (11 - D1D) / 2; }
+constexpr int NBZ(int D1D)
+{
+   return ipow(2, D(D1D) >= 0 ? D(D1D) : 0);
+}
+}
+
 // Shared memory PA Mass Diagonal 2D kernel
-template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
+template<int T_D1D = 0, int T_Q1D = 0>
 inline void SmemPAMassAssembleDiagonal2D(const int NE,
                                          const Array<real_t> &b_,
                                          const Vector &d_,
@@ -87,9 +181,10 @@ inline void SmemPAMassAssembleDiagonal2D(const int NE,
                                          const int d1d = 0,
                                          const int q1d = 0)
 {
+   static constexpr int T_NBZ = mass::NBZ(T_D1D);
+   static constexpr int NBZ = T_NBZ ? T_NBZ : 1;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   constexpr int NBZ = T_NBZ ? T_NBZ : 1;
    const int max_q1d = T_Q1D ? T_Q1D : DeviceDofQuadLimits::Get().MAX_Q1D;
    const int max_d1d = T_D1D ? T_D1D : DeviceDofQuadLimits::Get().MAX_D1D;
    MFEM_VERIFY(D1D <= max_d1d, "");
@@ -102,7 +197,6 @@ inline void SmemPAMassAssembleDiagonal2D(const int NE,
       const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int NBZ = T_NBZ ? T_NBZ : 1;
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       MFEM_SHARED real_t B[MQ1][MD1];
@@ -301,16 +395,6 @@ inline void SmemPAMassAssembleDiagonal3D(const int NE,
       }
    });
 }
-
-void PAMassApply(const int dim,
-                 const int D1D,
-                 const int Q1D,
-                 const int NE,
-                 const Array<real_t> &B,
-                 const Array<real_t> &Bt,
-                 const Vector &D,
-                 const Vector &X,
-                 Vector &Y);
 
 #ifdef MFEM_USE_OCCA
 // OCCA PA Mass Apply 2D kernel
@@ -964,7 +1048,7 @@ inline void PAMassApply2D(const int NE,
 }
 
 // Shared memory PA Mass Apply 2D kernel
-template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
+template<int T_D1D = 0, int T_Q1D = 0>
 inline void SmemPAMassApply2D(const int NE,
                               const Array<real_t> &b_,
                               const Array<real_t> &bt_,
@@ -975,9 +1059,10 @@ inline void SmemPAMassApply2D(const int NE,
                               const int q1d = 0)
 {
    MFEM_CONTRACT_VAR(bt_);
+   static constexpr int T_NBZ = mass::NBZ(T_D1D);
+   static constexpr int NBZ = T_NBZ ? T_NBZ : 1;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   constexpr int NBZ = T_NBZ ? T_NBZ : 1;
    const int max_q1d = T_Q1D ? T_Q1D : DeviceDofQuadLimits::Get().MAX_Q1D;
    const int max_d1d = T_D1D ? T_D1D : DeviceDofQuadLimits::Get().MAX_D1D;
    MFEM_VERIFY(D1D <= max_d1d, "");
@@ -988,8 +1073,8 @@ inline void SmemPAMassApply2D(const int NE,
    auto Y = y_.ReadWrite();
    mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
-      internal::SmemPAMassApply2D_Element<T_D1D,T_Q1D,T_NBZ>(e, NE, b, D, x, Y, d1d,
-                                                             q1d);
+      internal::SmemPAMassApply2D_Element<T_D1D,T_Q1D,T_NBZ>(
+         e, NE, b, D, x, Y, d1d, q1d);
    });
 }
 
@@ -1048,6 +1133,48 @@ inline void SmemPAMassApply3D(const int NE,
 }
 
 } // namespace internal
+
+namespace
+{
+using ApplyKernelType = MassIntegrator::ApplyKernelType;
+using DiagonalKernelType = MassIntegrator::DiagonalKernelType;
+}
+
+template<int DIM, int T_D1D, int T_Q1D>
+ApplyKernelType MassIntegrator::ApplyPAKernels::Kernel()
+{
+   if (DIM == 1) { return internal::PAMassApply1D; }
+   else if (DIM == 2) { return internal::SmemPAMassApply2D<T_D1D,T_Q1D>; }
+   else if (DIM == 3) { return internal::SmemPAMassApply3D<T_D1D, T_Q1D>; }
+   else { MFEM_ABORT(""); }
+}
+
+inline ApplyKernelType MassIntegrator::ApplyPAKernels::Fallback(
+   int DIM, int, int)
+{
+   if (DIM == 1) { return internal::PAMassApply1D; }
+   else if (DIM == 2) { return internal::PAMassApply2D; }
+   else if (DIM == 3) { return internal::PAMassApply3D; }
+   else { MFEM_ABORT(""); }
+}
+
+template<int DIM, int T_D1D, int T_Q1D>
+DiagonalKernelType MassIntegrator::DiagonalPAKernels::Kernel()
+{
+   if (DIM == 1) { return internal::PAMassAssembleDiagonal1D; }
+   else if (DIM == 2) { return internal::SmemPAMassAssembleDiagonal2D<T_D1D,T_Q1D>; }
+   else if (DIM == 3) { return internal::SmemPAMassAssembleDiagonal3D<T_D1D, T_Q1D>; }
+   else { MFEM_ABORT(""); }
+}
+
+inline DiagonalKernelType MassIntegrator::DiagonalPAKernels::Fallback(
+   int DIM, int, int)
+{
+   if (DIM == 1) { return internal::PAMassAssembleDiagonal1D; }
+   else if (DIM == 2) { return internal::PAMassAssembleDiagonal2D; }
+   else if (DIM == 3) { return internal::PAMassAssembleDiagonal3D; }
+   else { MFEM_ABORT(""); }
+}
 
 } // namespace mfem
 

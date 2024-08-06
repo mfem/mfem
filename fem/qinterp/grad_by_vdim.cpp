@@ -9,100 +9,41 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "dispatch.hpp"
+#include "../quadinterpolator.hpp"
 #include "grad.hpp"
 
 namespace mfem
 {
-
 namespace internal
 {
-
 namespace quadrature_interpolator
 {
 
-// Tensor-product evaluation of quadrature point derivatives: dispatch function.
-// Instantiation for the case QVectorLayout::byVDIM.
-template<>
-void TensorDerivatives<QVectorLayout::byVDIM>(const int NE,
-                                              const int vdim,
-                                              const DofToQuad &maps,
-                                              const Vector &e_vec,
-                                              Vector &q_der)
+template <bool P>
+void InitGradByVDimKernels()
 {
-   if (NE == 0) { return; }
-   const int dim = maps.FE->GetDim();
-   const int D1D = maps.ndof;
-   const int Q1D = maps.nqpt;
-   const real_t *B = maps.B.Read();
-   const real_t *G = maps.G.Read();
-   const real_t *J = nullptr; // not used in DERIVATIVES (non-GRAD_PHYS) mode
-   const real_t *X = e_vec.Read();
-   real_t *Y = q_der.Write();
+   using k = QuadratureInterpolator::GradKernels;
+   // 2D
+   k::Specialization<2,QVectorLayout::byVDIM,P,1,3,4>::template Opt<8>::Add();
+   k::Specialization<2,QVectorLayout::byVDIM,P,1,4,6>::template Opt<4>::Add();
+   k::Specialization<2,QVectorLayout::byVDIM,P,1,5,8>::template Opt<2>::Add();
 
-   constexpr QVectorLayout L = QVectorLayout::byVDIM;
-   constexpr bool P = false; // GRAD_PHYS
-
-   const int id = (vdim<<8) | (D1D<<4) | Q1D;
-
-   if (dim == 1)
-   {
-      return Derivatives1D<L,P>(NE,G,J,X,Y,dim,vdim,D1D,Q1D);
-   }
-   if (dim == 2)
-   {
-      switch (id)
-      {
-         case 0x134: return Derivatives2D<L,P,1,3,4,8>(NE,B,G,J,X,Y);
-         case 0x146: return Derivatives2D<L,P,1,4,6,4>(NE,B,G,J,X,Y);
-         case 0x158: return Derivatives2D<L,P,1,5,8,2>(NE,B,G,J,X,Y);
-
-         case 0x234: return Derivatives2D<L,P,2,3,4,8>(NE,B,G,J,X,Y);
-         case 0x246: return Derivatives2D<L,P,2,4,6,4>(NE,B,G,J,X,Y);
-         case 0x258: return Derivatives2D<L,P,2,5,8,2>(NE,B,G,J,X,Y);
-         default:
-         {
-            const int MD = DeviceDofQuadLimits::Get().MAX_D1D;
-            const int MQ = DeviceDofQuadLimits::Get().MAX_Q1D;
-            MFEM_VERIFY(D1D <= MD, "Orders higher than " << MD-1
-                        << " are not supported!");
-            MFEM_VERIFY(Q1D <= MQ, "Quadrature rules with more than "
-                        << MQ << " 1D points are not supported!");
-            Derivatives2D<L,P>(NE,B,G,J,X,Y,dim,vdim,D1D,Q1D);
-            return;
-         }
-      }
-   }
-   if (dim == 3)
-   {
-      switch (id)
-      {
-         case 0x134: return Derivatives3D<L,P,1,3,4>(NE,B,G,J,X,Y);
-         case 0x146: return Derivatives3D<L,P,1,4,6>(NE,B,G,J,X,Y);
-         case 0x158: return Derivatives3D<L,P,1,5,8>(NE,B,G,J,X,Y);
-
-         case 0x334: return Derivatives3D<L,P,3,3,4>(NE,B,G,J,X,Y);
-         case 0x346: return Derivatives3D<L,P,3,4,6>(NE,B,G,J,X,Y);
-         case 0x358: return Derivatives3D<L,P,3,5,8>(NE,B,G,J,X,Y);
-         default:
-         {
-            const int MD = DeviceDofQuadLimits::Get().MAX_INTERP_1D;
-            const int MQ = DeviceDofQuadLimits::Get().MAX_INTERP_1D;
-            MFEM_VERIFY(D1D <= MD, "Orders higher than " << MD-1
-                        << " are not supported!");
-            MFEM_VERIFY(Q1D <= MQ, "Quadrature rules with more than "
-                        << MQ << " 1D points are not supported!");
-            Derivatives3D<L,P>(NE,B,G,J,X,Y,vdim,D1D,Q1D);
-            return;
-         }
-      }
-   }
-   mfem::out << "Unknown kernel 0x" << std::hex << id << std::endl;
-   MFEM_ABORT("Kernel not supported yet");
+   k::Specialization<2,QVectorLayout::byVDIM,P,2,3,3>::template Opt<8>::Add();
+   k::Specialization<2,QVectorLayout::byVDIM,P,2,3,4>::template Opt<8>::Add();
+   k::Specialization<2,QVectorLayout::byVDIM,P,2,4,6>::template Opt<4>::Add();
+   k::Specialization<2,QVectorLayout::byVDIM,P,2,5,8>::template Opt<2>::Add();
+   // 3D
+   k::Specialization<3,QVectorLayout::byVDIM,P,1,3,4>::template Opt<1>::Add();
+   k::Specialization<3,QVectorLayout::byVDIM,P,1,4,6>::template Opt<1>::Add();
+   k::Specialization<3,QVectorLayout::byVDIM,P,1,5,8>::template Opt<1>::Add();
+   k::Specialization<3,QVectorLayout::byVDIM,P,3,3,4>::template Opt<1>::Add();
+   k::Specialization<3,QVectorLayout::byVDIM,P,3,4,6>::template Opt<1>::Add();
+   k::Specialization<3,QVectorLayout::byVDIM,P,3,5,8>::template Opt<1>::Add();
 }
 
+template void InitGradByVDimKernels<true>();
+template void InitGradByVDimKernels<false>();
+
 } // namespace quadrature_interpolator
-
 } // namespace internal
-
 } // namespace mfem
