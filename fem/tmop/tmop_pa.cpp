@@ -174,7 +174,7 @@ void TMOP_Integrator::AssemblePA_Fitting()
       } else {temp_vec2[i] = 0.;}
    }
    const Operator *n3_R = fes->GetElementRestriction(ordering);
-   PA.X3.SetSize(surf_fit_marker->Size(), Device::GetMemoryType());
+   PA.X3.SetSize(n3_R->Height(), Device::GetMemoryType());
    PA.X3.UseDevice(true);
    n3_R->Mult(temp_vec2, PA.X3);
 
