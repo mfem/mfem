@@ -78,7 +78,7 @@ void TMOP_Integrator::AddMultGradPA_Fit_2D(const Vector &R,Vector &C) const
    const int meshOrder = surf_fit_gf->FESpace()->GetMaxElementOrder();
    const int D1D = meshOrder + 1;
    const int Q1D = D1D;
-   const int id = (D1D << 4 ) | D1D;
+   const int id = (D1D << 4 ) | Q1D;
    const Vector &H0 = PA.H0Fit; 
 
    MFEM_LAUNCH_TMOP_KERNEL(AddMultGradPA_Kernel_Fit_2D,id,N,H0,R,C);

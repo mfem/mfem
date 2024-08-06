@@ -78,8 +78,8 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_Fit_2D,
 
                     const real_t entry = 2 * w * (dxi*dxj + sigma * d2x);
                     
-                    H0(i,j,qx,qy,e) += entry;
-                    if (i != j) { H0(j,i,qx,qy,e) += entry;}                    
+                    H0(i,j,qx,qy,e) = entry;
+                    if (i != j) { H0(j,i,qx,qy,e) = entry;}                    
                 }
             }
             
@@ -95,7 +95,7 @@ void TMOP_Integrator::AssembleGradPA_Fit_2D(const Vector &X) const
    const int meshOrder = surf_fit_gf->FESpace()->GetMaxElementOrder();
    const int D1D = meshOrder + 1;
    const int Q1D = D1D;
-   const int id = (D1D << 4 ) | Q1D;
+   const int id = (D1D << 4 ) | D1D;
 
    const real_t &C1 = PA.C1;
    const real_t &C2 = PA.C2;
