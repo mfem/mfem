@@ -10,8 +10,8 @@ int main(int argc, char *argv[])
    Mpi::Init();
    Hypre::Init();
 
-   // string mesh_file = "meshes/amr-quad.mesh";
-   string mesh_file = "meshes/cube.mesh";
+   string mesh_file = "meshes/amr-quad.mesh";
+   // string mesh_file = "meshes/cube.mesh";
 
    Mesh *serial_mesh = new Mesh(mesh_file);
    // serial_mesh->UniformRefinement();
@@ -36,7 +36,7 @@ int main(int argc, char *argv[])
 
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
    Array<int> ess_tdof_list;
-   ess_bdr = 1; // set this to zero
+   ess_bdr = 0; // set this to zero
    fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
    ParBilinearForm *a = new ParBilinearForm(fespace);
