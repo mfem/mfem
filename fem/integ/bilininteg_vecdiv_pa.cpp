@@ -124,9 +124,9 @@ void VectorDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    MFEM_ASSERT(trial_fes.GetOrdering() == Ordering::byNODES,
                "PA Only supports Ordering::byNODES!");
    Mesh *mesh = trial_fes.GetMesh();
-   const FiniteElement &trial_fe = *trial_fes.GetFE(0);
-   const FiniteElement &test_fe = *test_fes.GetFE(0);
-   ElementTransformation *trans = mesh->GetElementTransformation(0);
+   const FiniteElement &trial_fe = *trial_fes.GetTypicalFE();
+   const FiniteElement &test_fe = *test_fes.GetTypicalFE();
+   ElementTransformation *trans = mesh->GetTypicalElementTransformation();
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(trial_fe, test_fe,
                                                             *trans);
    const int dims = trial_fe.GetDim();
