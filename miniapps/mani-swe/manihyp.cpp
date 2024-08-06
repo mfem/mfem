@@ -3,7 +3,7 @@
 namespace mfem
 {
 
-Mesh sphericalMesh(const double r, Element::Type element_type,
+Mesh sphericalMesh(const double r, Element::Type element_type, int order,
                    const int level_serial, const int level_parallel, bool parallel)
 {
    parallel = parallel || level_parallel > 0;
@@ -19,7 +19,7 @@ Mesh sphericalMesh(const double r, Element::Type element_type,
       Nvert = 6;
       Nelem = 8;
    }
-   Mesh *mesh = new Mesh(2, Nvert, Nelem, 0, 3);
+   Mesh mesh(2, Nvert, Nelem, 0, 3);
 
    switch (element_type)
    {
@@ -38,14 +38,14 @@ Mesh sphericalMesh(const double r, Element::Type element_type,
 
          for (int j = 0; j < Nvert; j++)
          {
-            mesh->AddVertex(tri_v[j]);
+            mesh.AddVertex(tri_v[j]);
          }
          for (int j = 0; j < Nelem; j++)
          {
             int attribute = j + 1;
-            mesh->AddTriangle(tri_e[j], attribute);
+            mesh.AddTriangle(tri_e[j], attribute);
          }
-         mesh->FinalizeTriMesh(1, 1, true);
+         mesh.FinalizeTriMesh(1, 1, true);
          break;
       }
       case Element::Type::QUADRILATERAL:
@@ -63,19 +63,20 @@ Mesh sphericalMesh(const double r, Element::Type element_type,
 
          for (int j = 0; j < Nvert; j++)
          {
-            mesh->AddVertex(quad_v[j]);
+            mesh.AddVertex(quad_v[j]);
          }
          for (int j = 0; j < Nelem; j++)
          {
             int attribute = j + 1;
-            mesh->AddQuad(quad_e[j], attribute);
+            mesh.AddQuad(quad_e[j], attribute);
          }
-         mesh->FinalizeQuadMesh(1, 1, true);
+         mesh.FinalizeQuadMesh(1, 1, true);
          break;
       }
       default:
          mfem_error("Only triangle and quadrilateral are supported.");
    }
+   mesh.SetCurvature(order, false, 3);
 
    for (int i=0; i<level_serial; i++)
    {
