@@ -318,7 +318,6 @@ int main(int argc, char *argv[])
          prec.owns_blocks = 1;
 
          GMRES(A,prec,rhs,x,0,2000,500,1e-12,0.0);
-         // delete S; 
 #else
          BlockMatrix A(offsets);
          A.SetBlock(0,0,&A00);
