@@ -178,7 +178,9 @@ public:
 
    void Assemble();
    void Mult(const Vector &x, Vector &y) const;
+   void AbsMult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
+   void AbsMultTranspose(const Vector &x, Vector &y) const;
 };
 
 /// Data and methods for fully-assembled bilinear forms

@@ -61,7 +61,7 @@ int main(int argc, char *argv[])
    bfi = new DiffusionIntegrator();
 
    a->AddDomainIntegrator(bfi);
-   a->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   a->SetAssemblyLevel(AssemblyLevel::FULL);
    a->Assemble();
    a->FormSystemMatrix(ess_tdof_list, A);
 
@@ -98,20 +98,6 @@ int main(int argc, char *argv[])
    A->AbsMult(ones, result); // ---
    result.Print();
    mfem::out << "\n--- Partial end ---\n" << endl;
-
-   // mfem::out << "\n--- Partial-by-hand begin ---\n" << endl;
-   // auto pro = static_cast<const HypreParMatrix*>(fespace->GetProlongationMatrix());
-   // auto res = fespace->GetRestrictionOperator();
-   // mfem::out << "Size pro: " << pro->Height() << " " << pro->Width() << endl;
-   // mfem::out << "Size res: " << res->Height() << " " << res->Width() << endl;
-   // auto gv = fespace->GlobalVSize();
-   // mfem::out << "GlobalTrueVSize " << sys_size << "   GlobalVSize " << gv << endl;
-
-   // Vector y1(fespace->GlobalVSize());
-   // pro->AbsMult(1.0, ones, 0.0, y1);
-   // y1.Print();
-
-   // mfem::out << "\n--- Partial-by-hand end ---\n" << endl;
 
    delete diag_a;
    delete diag_b;
