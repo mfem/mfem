@@ -56,13 +56,13 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
-   
+
    Mesh mesh = sphericalMesh(1.0, level);
    L2_FECollection fec(order, 2);
    FiniteElementSpace fes_scalar(&mesh, &fec);
    FiniteElementSpace fes_sdim(&mesh, &fec, 2);
    FiniteElementSpace fes_vdim(&mesh, &fec, 2+1);
-   
+
    GridFunction gf(&fes_scalar);
    gf = 1.0;
 
@@ -74,8 +74,8 @@ int main(int argc, char *argv[])
       sol_sock.precision(8);
       sol_sock << "solution\n" << mesh << gf << flush;
    }
-   
-   
+
+
 
    return 0;
 }
