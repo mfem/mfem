@@ -125,13 +125,15 @@ public:
 class FE_Evolution : public TimeDependentOperator
 {
 protected:
-   SparseMatrix K, K_summed, M, M_summed;
+   SparseMatrix K, K_glb, M, M_glb;
    HypreParMatrix *K_hpm, *M_hpm;
    Vector lumpedmassmatrix;
+   mutable HypreParVector u, udot;
 
    const int nDofs;
    const int numVar;
    Array<bool> is_shared, has_shared_in_stencil;
+   Array<int> global_to_local;
    ParFiniteElementSpace *fes;
    GroupCommunicator &gcomm;
 
@@ -169,7 +171,7 @@ class HighOrderTargetScheme : public FE_Evolution
 class MCL : public FE_Evolution
 {
    protected:
-   mutable Array <double> u_min, u_max;
+   mutable HypreParVector u_min, u_max;
 
    public:
    MCL(ParBilinearForm &M_, ParBilinearForm &K_, Vector &lumpedmassmatrix_, int numVar_);
@@ -182,7 +184,7 @@ class MCL : public FE_Evolution
 FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, Vector &lumpedmassmatrix_, int numVar_)
    : TimeDependentOperator(M_.Height() * numVar_), gcomm(M_.ParFESpace()->GroupComm()),
      M(M_.SpMat()), K(K_.SpMat()), z(M_.Height()), nDofs(M_.Height()), numVar(numVar_), lumpedmassmatrix(lumpedmassmatrix_), 
-     K_summed(K_.SpMat()), M_summed(K_.SpMat()), fes(M_.ParFESpace())
+     K_glb(K_.SpMat()), M_glb(K_.SpMat()), fes(M_.ParFESpace()), u(M_.ParFESpace()), udot(M_.ParFESpace())
 {
    // Set Sizes to the arrays to use
    rhs_array.SetSize(nDofs);
@@ -191,14 +193,13 @@ FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, Vector &lum
    M_hpm = M_.ParallelAssemble();
    K_hpm = K_.ParallelAssemble();
 
-   auto P = M_.GetProlongation();
-
-   M_hpm->MergeDiagAndOffd(M_summed);
-   K_hpm->MergeDiagAndOffd(K_summed);
-
-   //cout << P->Height() <<" x " << P->Width() << endl;
-
+   M_hpm->MergeDiagAndOffd(M_glb);
+   K_hpm->MergeDiagAndOffd(K_glb);
    
+   const auto I_glb = M_glb.ReadI();
+   const auto J_glb = M_glb.ReadJ();
+   const auto K_merged = K_glb.ReadData();
+   const auto M_merged = M_glb.ReadData();
 
    // collect all contribution for shared nodes
    Array<double> lumpedmassmatrix_array(lumpedmassmatrix.GetData(), lumpedmassmatrix.Size());
@@ -207,8 +208,8 @@ FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, Vector &lum
 
    const auto II = K.ReadI();
    const auto JJ = K.ReadJ();
-   const auto KK = K.ReadWriteData();
-   const auto MM = M.ReadWriteData();
+   const auto KK = K.ReadData();
+   const auto MM = M.ReadData();
 
    // check for which ldof the massmatrix entry has changed to determin, which ldofs are shared
    is_shared.SetSize(nDofs);
@@ -228,99 +229,37 @@ FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, Vector &lum
             break;
          }
       }
-
    }
-   //*
 
    /*
-   if(!Mpi::Root())
-   {  
-      K.Print();
-      cout << endl;
-      K_summed.Print();
-      cout << endl;
-      cout << K.Height() <<" x " << K.Width() << endl;
-      cout << K_summed.Height() <<" x " << K_summed.Width() << endl;
-      cout << nDofs<< endl;
-
+   global_to_local.SetSize(fes->GlobalTrueVSize());
+   global_to_local = -1;
+   int counter = 0;
+   for(int g = 0; g < fes->GlobalTrueVSize(); g++)
+   {
       for(int i = 0; i < nDofs; i++)
       {
-         if(is_shared[i])
+         if(fes->GetGlobalTDofNumber(i) == g)
          {
-            cout << i<< endl;
+            global_to_local[g] = i;
+            counter++;
+            break;
          }
       }
-   }
-   MFEM_ABORT("")
-
-   if(!Mpi::Root())
-   {
-      K_summed.Print();
-      cout << endl;
-   }
-
-   //*/
-   SparseMatrix m_end = M;
-   SparseMatrix k_end = K;
-   
-   const auto I_merged = K_summed.ReadI();
-   const auto J_merged = K_summed.ReadJ();
-   const auto K_merged = K_summed.ReadData();
-   const auto M_merged = M_summed.ReadData();
-
-   const auto I = k_end.ReadI();
-   const auto J = k_end.ReadJ();
-   const auto K_end = k_end.ReadWriteData();
-   const auto M_end = m_end.ReadWriteData();
-
-   for(int i = 0; i < nDofs; i++)
-   {
-      // if ldof i is not shared, then mij and kij are fully assembled in local matrix, so nothing to be done. 
-      if(!is_shared[i])
+      if(counter == nDofs)
       {
-         continue;
-      }
-      
-      for(int k = I[i]; k < I[i+1]; k++)
-      {  
-         int j = J[k];
-         // if i is shared, but j is not then kij and mij are also fully assembled in the local matrix, so nothing to be done. 
-         if(!is_shared[j])
-         {
-            continue;
-         }
-
-         const int j_td = fes->GetLocalTDofNumber(j);
-         const int i_td = fes->GetLocalTDofNumber(i);
-         // ignore j, that are not truedofs, since the ij component will be skipped on this core and assembled on the core where j is a truedof
-         if(j_td != -1)
-         {
-            // use the fact that mij = mji and kij = - kji
-            // IMPORTANT: This is only true for problems with no boundary conditions!!!!
-            auto i_global = fes->GetGlobalTDofNumber(i);
-            m_end(i, j) = M_summed(j_td, i_global);
-            k_end(i, j) = - K_summed(j_td, i_global);
-         }
-         else if(i_td != -1)
-         {
-            // just to make sure we don't miss anything
-            auto j_global = fes->GetGlobalTDofNumber(j);
-            m_end(i, j) = M_summed(i_td, j_global);
-            k_end(i, j) = K_summed(i_td, j_global);
-         }
+         break;
       }
    }
-   K = k_end;
-   M = m_end;
-   //MFEM_ABORT("")
+   //*/
 }
 
 double FE_Evolution::CalcGraphViscosity(const int i, const int j) const
 { 
    //*
-   const auto II = K.ReadI();
-   const auto JJ = K.ReadJ();
-   const auto KK = K.ReadData();
+   const auto II = K_glb.ReadI();
+   const auto JJ = K_glb.ReadJ();
+   const auto KK = K_glb.ReadData();
 
    double kij;
    for (int k = II[i]; k < II[i+1]; k++)
@@ -341,10 +280,9 @@ double FE_Evolution::CalcGraphViscosity(const int i, const int j) const
          break;
       }
    }
-   MFEM_VERIFY(abs(kij + kji) < 1e-15, " hmmm");
-   return max(0.0, max(kij, kji));
+   return max(0.0, max(kij, -kij));
    //*/
-   //return max(0.0, max(K_summed(i,j), K_summed(j,i)));
+   //return max(0.0, max(K_glb(i,j), K_glb(j,i)));
 
 }
 
@@ -355,38 +293,43 @@ LowOrder::LowOrder(ParBilinearForm &M_, ParBilinearForm &K_, Vector &lumpedmassm
    : FE_Evolution(M_, K_, lumpedmassmatrix_, numVar_)
 { }
 
-void LowOrder::Mult(const Vector &x, Vector &y) const
-{  
-   MFEM_VERIFY(x.Size() == y.Size(), "Incompatible size! Wrong size!");
 
-   const auto II = K.ReadI();
-   const auto JJ = K.ReadJ();
-   const auto KK = K.ReadData();
+void LowOrder::Mult(const Vector &x, Vector &y) const
+{
+   const auto II = K_glb.ReadI();
+   const auto JJ = K_glb.ReadJ();
+   const auto KK = K_glb.ReadData();
    double dij;
 
    for(int n = 0; n < numVar; n++)
    {
-      rhs_array = 0.0;
       for(int i = 0; i < nDofs; i++)
       {
-         //const int begin = II[i];
-         //const int end = II[i+1];
-         
+         int i_td = fes->GetLocalTDofNumber(i);
+         if(i_td != -1)
+         {
+            u(i_td) = x(i + n * nDofs);
+         }
+      }
+      Vector *u_glb = u.GlobalVector();
+      MFEM_VERIFY(u.Size() == K_glb.Height(), "true dof local vector size weird");
+      MFEM_VERIFY( u_glb->Size() == fes->GlobalTrueVSize(), "glb vector size weird");      
+      
+      for(int i = 0; i < nDofs; i++)
+      {  
          rhs_array[i] = 0.0;
-         for(int k = II[i]; k < II[i+1]; k++)
-         {  
-            int j = JJ[k];
-            if( i == j || (is_shared[i] && fes->GetLocalTDofNumber(j) == -1) ) {continue;}
-            
-            if(is_shared[j] && is_shared[i])
-            {
-               cout << "Rand" << endl;
-               cout << fes->GetLocalTDofNumber(j) << endl;
-               MFEM_VERIFY(fes->GetLocalTDofNumber(j) != -1, "oh boi");
-            }
 
-            dij = CalcGraphViscosity(i,j);
-            rhs_array[i] += ( (dij - KK[k]) * (x(j + n * nDofs) - x(i + n * nDofs)) );
+         int i_td = fes->GetLocalTDofNumber(i);
+         if(i_td == -1) {continue;}
+
+         for(int k = II[i_td]; k < II[i_td+1]; k++)
+         {  
+            int j_gl = JJ[k];
+            int i_gl = fes->GetGlobalTDofNumber(i);
+            if( i_gl == j_gl ) {continue;}
+
+            dij = CalcGraphViscosity(i_td,j_gl);
+            rhs_array[i] += (dij - KK[k]) * ( u_glb->Elem(j_gl) -  u_glb->Elem(i_gl) );
          }
          rhs_array[i] /= lumpedmassmatrix(i);
       }
@@ -397,6 +340,8 @@ void LowOrder::Mult(const Vector &x, Vector &y) const
       {
          y(i + n * nDofs) = rhs_array[i]; 
       }
+
+      delete u_glb;
    }
 }
 
@@ -409,142 +354,63 @@ HighOrderTargetScheme::HighOrderTargetScheme(ParBilinearForm &M_, ParBilinearFor
 
 void HighOrderTargetScheme::Mult(const Vector &x, Vector &y) const
 {  
-   const auto II = K.ReadI();
-   const auto JJ = K.ReadJ();
-   const auto KK = K.ReadData();
-   const auto MM = M.ReadData();
+   const auto II = K_glb.ReadI();
+   const auto JJ = K_glb.ReadJ();
+   const auto KK = K_glb.ReadData();
+   const auto MM = M_glb.ReadData();
    double dij;
-
-   // compute low order time derivatives
-   for(int n = 0; n < numVar; n++)
-   {
-      for(int i = 0; i < nDofs; i++)
-      {
-         udot_array[i] = 0.0;
-         for(int k = II[i]; k < II[i+1]; k++)
-         {  
-            int j = JJ[k];
-            if( i == j || (is_shared[i] && fes->GetLocalTDofNumber(j) == -1) ) {continue;}
-
-            dij = CalcGraphViscosity(i,j);
-            udot_array[i] += (dij - KK[k]) * (x(j + n * nDofs) - x(i + n * nDofs));
-         }
-         udot_array[i] /= lumpedmassmatrix(i); 
-      }
-      gcomm.Reduce<double>(udot_array, GroupCommunicator::Sum);
-      gcomm.Bcast(udot_array);
-
-      for(int i = 0; i < nDofs; i++)
-      {
-         const int begin = II[i];
-         const int end = II[i+1];
-
-         rhs_array[i] = 0.0;
-         for(int k = II[i]; k < II[i+1]; k++)
-         {  
-            int j = JJ[k];
-            if( i == j || (is_shared[i] && fes->GetLocalTDofNumber(j) == -1) ) {continue;}
-
-            dij = CalcGraphViscosity(i,j);
-            rhs_array[i] += - KK[k] * (x(j + n * nDofs) - x(i + n * nDofs)) + MM[k] * (udot_array[i] - udot_array[j]);
-         }
-         rhs_array[i] /= lumpedmassmatrix(i); 
-      }
-      gcomm.Reduce<double>(rhs_array, GroupCommunicator::Sum);
-      gcomm.Bcast(rhs_array);
-
-      for(int i = 0; i < nDofs; i++)
-      {
-         y(i + n * nDofs) = rhs_array[i]; 
-      }
-   }
-   //MFEM_ABORT("")
-}
-
-HighOrderTargetScheme::~HighOrderTargetScheme()
-{ }
-
-MCL::MCL(ParBilinearForm &M_, ParBilinearForm &K_, Vector &lumpedmassmatrix_, int numVar_) 
-   : FE_Evolution(M_, K_, lumpedmassmatrix_, numVar_)
-{
-   u_min = udot_array;
-   u_max = u_min;
- }
-
-void MCL::Mult(const Vector &x, Vector &y) const
-{  
-   const auto II = K.ReadI();
-   const auto JJ = K.ReadJ();
-   const auto KK = K.ReadData();
-   const auto MM = M.ReadData();
-   double dij, fij, fij_bound, fij_star, wij, wji;
 
    for(int n = 0; n < numVar; n++)
    {
       // compute low order time derivatives
       for(int i = 0; i < nDofs; i++)
       {
-         const int begin = II[i];
-         const int end = II[i+1];
-
-         udot_array[i] = 0.0;
-         u_min[i] = x(i + n * nDofs);
-         u_max[i] = x(i + n * nDofs);
-         for(int k = II[i]; k < II[i+1]; k++)
-         {  
-            int j = JJ[k];
-            u_min[i] = min(u_min[i], x(j + n * nDofs));
-            u_max[i] = max(u_max[i], x(j + n * nDofs));
-            
-            if( i == j || (is_shared[i] && fes->GetLocalTDofNumber(j) == -1) ) {continue;}
-
-            dij = CalcGraphViscosity(i,j);
-            udot_array[i] += (dij - KK[k]) * (x(j + n * nDofs) - x(i + n * nDofs));
+         int i_td = fes->GetLocalTDofNumber(i);
+         if(i_td != -1)
+         {
+            u(i_td) = x(i + n * nDofs);
          }
-         udot_array[i] /= lumpedmassmatrix(i); 
       }
+      Vector *u_glb = u.GlobalVector();
+      MFEM_VERIFY(u.Size() == K_glb.Height(), "true dof local vector size weird");
+      MFEM_VERIFY( u_glb->Size() == fes->GlobalTrueVSize(), "glb vector size weird");
 
-      gcomm.Reduce<double>(udot_array, GroupCommunicator::Sum);
-      gcomm.Bcast(udot_array);
-      gcomm.Reduce<double>(u_min, GroupCommunicator::Min);
-      gcomm.Bcast(u_min);
-      gcomm.Reduce<double>(u_max, GroupCommunicator::Max);
-      gcomm.Bcast(u_max);
 
       for(int i = 0; i < nDofs; i++)
-      {      
+      {
+         int i_td = fes->GetLocalTDofNumber(i);
+         if(i_td == -1){continue;}
+         udot(i_td) = 0.0;
+         int i_gl = fes->GetGlobalTDofNumber(i);
+         for(int k = II[i_td]; k < II[i_td+1]; k++)
+         {  
+            int j_gl = JJ[k];
+            if( i_gl == j_gl) {continue;}
+
+            dij = CalcGraphViscosity(i_td,j_gl);
+            udot(i_td) += (dij - KK[k]) * (u_glb->Elem(j_gl) - u_glb->Elem(i_gl));
+         }
+         udot(i_td) /= lumpedmassmatrix(i); 
+      }
+
+      Vector *udot_glb = udot.GlobalVector();
+
+      for(int i = 0; i < nDofs; i++)
+      {  
          rhs_array[i] = 0.0;
-         for(int k = II[i]; k < II[i+1]; k++)
-         {
-            int j = JJ[k];
-            if( i == j || (is_shared[i] && fes->GetLocalTDofNumber(j) == -1) ) {continue;}
-          
-            dij = CalcGraphViscosity(i,j);
 
-            // compute target flux
-            fij = MM[k] * (udot_array[i] - udot_array[j]) + dij * (x(i + n * nDofs) - x(j + n * nDofs));
+         int i_td = fes->GetLocalTDofNumber(i);
+         if(i_td == -1) {continue;}
 
-            //limit target flux to enforce local bounds for the bar states (note, that dij = dji)
-            wij = dij * (x(i + n * nDofs) + x(j + n * nDofs))  - KK[k] * (x(j + n * nDofs) - x(i + n * nDofs));
-            wji = dij * (x(i + n * nDofs) + x(j + n * nDofs))  - K(j, i) * (x(i + n * nDofs) - x(j + n * nDofs)); 
-            if(fij > 0)
-            {
-               fij_bound = min(2.0 * dij * u_max[i] - wij, wji - 2.0 * dij * u_min[j]);
-               fij_star = min(fij, fij_bound);
+         for(int k = II[i_td]; k < II[i_td+1]; k++)
+         {  
+            int j_gl = JJ[k];
+            int i_gl = fes->GetGlobalTDofNumber(i);
+            if( i_gl == j_gl ) {continue;}
 
-               // to get rid of rounding errors wich influence the sign 
-               //fij_star = max(0.0, fij_star);
-            }
-            else
-            {
-               fij_bound = max(2.0 * dij * u_min[i] - wij, wji - 2.0 * dij * u_max[j]);
-               fij_star = max(fij, fij_bound);
-
-               // to get rid of rounding errors wich influence the sign
-               //fij_star = min(0.0, fij_star);
-            }
-            rhs_array[i] += (dij - KK[k]) * (x(j + n * nDofs) - x(i + n * nDofs)) + fij_star;
-         }  
+            dij = CalcGraphViscosity(i_td,j_gl);
+            rhs_array[i] += - KK[k] * ( u_glb->Elem(j_gl) -  u_glb->Elem(i_gl) ) + MM[k] * (udot_glb->Elem(i_gl)- udot_glb->Elem(j_gl));
+         }
          rhs_array[i] /= lumpedmassmatrix(i);
       }
       gcomm.Reduce<double>(rhs_array, GroupCommunicator::Sum);
@@ -554,6 +420,127 @@ void MCL::Mult(const Vector &x, Vector &y) const
       {
          y(i + n * nDofs) = rhs_array[i]; 
       }
+      delete udot_glb;
+      delete u_glb;
+   }
+}
+
+HighOrderTargetScheme::~HighOrderTargetScheme()
+{ }
+
+MCL::MCL(ParBilinearForm &M_, ParBilinearForm &K_, Vector &lumpedmassmatrix_, int numVar_) 
+   : FE_Evolution(M_, K_, lumpedmassmatrix_, numVar_),
+   u_min(M_.ParFESpace()), u_max(M_.ParFESpace())
+{
+   //u_min = u;
+   //u_max = u;
+
+   cout << u_max.Size()<< ", " << u_min.Size() << endl;
+ }
+
+void MCL::Mult(const Vector &x, Vector &y) const
+{  
+   const auto II = K_glb.ReadI();
+   const auto JJ = K_glb.ReadJ();
+   const auto KK = K_glb.ReadData();
+   const auto MM = M_glb.ReadData();
+   double dij, fij, fij_bound, fij_star, wij, wji;
+
+   for(int n = 0; n < numVar; n++)
+   {
+      for(int i = 0; i < nDofs; i++)
+      {
+         int i_td = fes->GetLocalTDofNumber(i);
+         if(i_td != -1)
+         {
+            u(i_td) = x(i + n * nDofs);
+         }
+      }
+      Vector *u_glb = u.GlobalVector();
+      MFEM_VERIFY(u.Size() == K_glb.Height(), "true dof local vector size weird");
+      MFEM_VERIFY( u_glb->Size() == fes->GlobalTrueVSize(), "glb vector size weird");
+
+      // compute low order time derivatives and local min and max
+      for(int i = 0; i < nDofs; i++)
+      {
+         int i_td = fes->GetLocalTDofNumber(i);
+         if(i_td == -1){continue;}
+         udot(i_td) = 0.0;
+         int i_gl = fes->GetGlobalTDofNumber(i);
+
+         u_min(i_td) = u_glb->Elem(i_gl);
+         u_max(i_td) = u_glb->Elem(i_gl);
+         for(int k = II[i_td]; k < II[i_td+1]; k++)
+         {  
+            int j_gl = JJ[k];
+            if( i_gl == j_gl) {continue;}
+            u_min(i_td) = min(u_min(i_td), u_glb->Elem(j_gl));
+            u_max(i_td) = max(u_max(i_td), u_glb->Elem(j_gl));
+            dij = CalcGraphViscosity(i_td,j_gl);
+            udot(i_td) += (dij - KK[k]) * (u_glb->Elem(j_gl) - u_glb->Elem(i_gl));
+         }
+         udot(i_td) /= lumpedmassmatrix(i); 
+      }
+
+      Vector *udot_glb = udot.GlobalVector();
+      Vector *umin_glb = u_min.GlobalVector();
+      Vector *umax_glb = u_max.GlobalVector();
+
+      for(int i = 0; i < nDofs; i++)
+      {  
+         rhs_array[i] = 0.0;
+
+         int i_td = fes->GetLocalTDofNumber(i);
+         if(i_td == -1) {continue;}
+
+         for(int k = II[i_td]; k < II[i_td+1]; k++)
+         {  
+            int j_gl = JJ[k];
+            int i_gl = fes->GetGlobalTDofNumber(i);
+            if( i_gl == j_gl ) {continue;}
+
+            dij = CalcGraphViscosity(i_td,j_gl);
+
+            // compute target flux
+            fij = MM[k] * (udot_glb->Elem(i_gl) - udot_glb->Elem(j_gl)) + dij * (u_glb->Elem(i_gl) - u_glb->Elem(j_gl));
+
+            //limit target flux to enforce local bounds for the bar states (note, that dij = dji, and kji = -kij)
+            wij = dij * (u_glb->Elem(i_gl) + u_glb->Elem(j_gl))  - KK[k] * (u_glb->Elem(j_gl) - u_glb->Elem(i_gl));
+            wji = dij * (u_glb->Elem(i_gl) + u_glb->Elem(j_gl))  + KK[k] * (u_glb->Elem(i_gl) - u_glb->Elem(j_gl)); 
+
+            if(fij > 0)
+            {
+               fij_bound = min(2.0 * dij * umax_glb->Elem(i_gl) - wij, wji - 2.0 * dij * umin_glb->Elem(j_gl));
+               fij_star = min(fij, fij_bound);
+
+               // to get rid of rounding errors wich influence the sign 
+               //fij_star = max(0.0, fij_star);
+            }
+            else
+            {
+               fij_bound = max(2.0 * dij * umin_glb->Elem(i_gl) - wij, wji - 2.0 * dij * umax_glb->Elem(j_gl));
+               fij_star = max(fij, fij_bound);
+
+               // to get rid of rounding errors wich influence the sign
+               //fij_star = min(0.0, fij_star);
+            }
+
+            rhs_array[i] += (dij - KK[k]) * ( u_glb->Elem(j_gl) -  u_glb->Elem(i_gl) ) + fij_star;
+         }
+         rhs_array[i] /= lumpedmassmatrix(i);
+      }
+      gcomm.Reduce<double>(rhs_array, GroupCommunicator::Sum);
+      gcomm.Bcast(rhs_array);
+
+      for(int i = 0; i < nDofs; i++)
+      {
+         y(i + n * nDofs) = rhs_array[i]; 
+      }
+
+      delete umax_glb;
+      delete umin_glb;
+      delete udot_glb;
+      delete u_glb;
    }
 }
 
