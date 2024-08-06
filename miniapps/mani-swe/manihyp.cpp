@@ -77,6 +77,7 @@ Mesh sphericalMesh(const double r, Element::Type element_type, int order,
          mfem_error("Only triangle and quadrilateral are supported.");
    }
    mesh.SetCurvature(order, false, 3);
+   mesh.GetNodes()->ProjectCoefficient(sphere_cf);
 
    for (int i=0; i<level_serial; i++)
    {

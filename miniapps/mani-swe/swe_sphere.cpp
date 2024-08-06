@@ -57,7 +57,7 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   Mesh mesh = sphericalMesh(1.0, level);
+   Mesh mesh = sphericalMesh(1.0, Element::Type::TRIANGLE, order, level);
    L2_FECollection fec(order, 2);
    FiniteElementSpace fes_scalar(&mesh, &fec);
    FiniteElementSpace fes_sdim(&mesh, &fec, 2);
