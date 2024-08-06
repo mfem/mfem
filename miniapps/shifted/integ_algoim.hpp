@@ -20,6 +20,8 @@
 namespace mfem
 {
 
+
+/*
 // define templated element bases
 namespace TmplPoly_1D
 {
@@ -110,6 +112,7 @@ void CalcBernstein(const int p, const float_type x,
 
 
 }
+*/
 
 /// Construct volumetric and surface integration rules for a given element
 /// using the Algoim library. The volume is define as the positive part of
