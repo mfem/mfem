@@ -34,22 +34,22 @@ TEST_CASE("Second order ODE methods", "[ODE]")
          SecondOrderTimeDependentOperator(1, (real_t) 0.0), a(a), b(b) {};
 
       using SecondOrderTimeDependentOperator::Mult;
-      virtual void Mult(const Vector &u, const Vector &dudt,
-                        Vector &d2udt2) const
+      void Mult(const Vector &u, const Vector &dudt,
+                Vector &d2udt2) const override
       {
          d2udt2[0] = -a*u[0] - b*dudt[0];
       }
 
       using SecondOrderTimeDependentOperator::ImplicitSolve;
-      virtual void ImplicitSolve(const real_t fac0, const real_t fac1,
-                                 const Vector &u, const Vector &dudt,
-                                 Vector &d2udt2)
+      void ImplicitSolve(const real_t fac0, const real_t fac1,
+                         const Vector &u, const Vector &dudt,
+                         Vector &d2udt2) override
       {
          real_t T = 1.0 + a*fac0 + fac1*b;
          d2udt2[0] = (-a*u[0] - b*dudt[0])/T;
       }
 
-      virtual ~ODE2() {};
+      ~ODE2() override {};
    };
 
    // Class for checking order of convergence of second order ODE.

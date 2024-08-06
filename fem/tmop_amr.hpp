@@ -99,13 +99,13 @@ public:
 
    /// Get TMOP-based errors for each element in the mesh computed based on the
    /// refinement types being considered.
-   virtual const Vector &GetLocalErrors()
+   const Vector &GetLocalErrors() override
    {
       if (MeshIsModified()) { ComputeEstimates(); }
       return error_estimates;
    }
    /// For anisotropic refinements, get the refinement type (e.g., x or y)
-   virtual const Array<int> &GetAnisotropicFlags()
+   const Array<int> &GetAnisotropicFlags() override
    {
       if (MeshIsModified()) { ComputeEstimates(); }
       return aniso_flags;
@@ -124,7 +124,7 @@ public:
    void SetSpatialIndicatorCritical(real_t val_) { spat_gf_critical = val_; }
 
    /// Reset the error estimator.
-   virtual void Reset() { current_sequence = -1; }
+   void Reset() override { current_sequence = -1; }
 };
 
 class TMOPDeRefinerEstimator : public ErrorEstimator
@@ -174,14 +174,14 @@ public:
 
    ~TMOPDeRefinerEstimator() { }
 
-   virtual const Vector &GetLocalErrors()
+   const Vector &GetLocalErrors() override
    {
       if (MeshIsModified()) { ComputeEstimates(); }
       return error_estimates;
    }
 
    /// Reset the error estimator.
-   virtual void Reset() { current_sequence = -1; }
+   void Reset() override { current_sequence = -1; }
 };
 
 // hr-adaptivity using TMOP.

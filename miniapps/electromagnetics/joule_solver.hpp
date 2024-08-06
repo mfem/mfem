@@ -53,7 +53,7 @@ public:
    MeshDependentCoefficient(const std::map<int, real_t> &inputMap,
                             real_t scale = 1.0);
    MeshDependentCoefficient(const MeshDependentCoefficient &cloneMe);
-   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip);
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override;
    void SetScaleFactor(const real_t &scale) { scaleFactor = scale; }
    virtual ~MeshDependentCoefficient()
    {
@@ -70,7 +70,7 @@ private:
    MeshDependentCoefficient mdc;
 public:
    ScaledGFCoefficient(GridFunction *gf, MeshDependentCoefficient &input_mdc);
-   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip);
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override;
    void SetMDC(const MeshDependentCoefficient &input_mdc) { mdc = input_mdc; }
    virtual ~ScaledGFCoefficient() {}
 };
@@ -196,12 +196,12 @@ public:
    // class TimeDependentOperator is derived from Operator, and class Operator
    // has the virtual function Mult(x,y) which computes y = A x for some matrix
    // A, or more generally a nonlinear operator y = A(x).
-   virtual void Mult(const Vector &vx, Vector &dvx_dt) const;
+   void Mult(const Vector &vx, Vector &dvx_dt) const override;
 
    // Solve the Backward-Euler equation: k = f(x + dt*k, t), for the unknown
    // slope k. This is the only requirement for high-order SDIRK implicit
    // integration. This is a virtual function of class TimeDependentOperator.
-   virtual void ImplicitSolve(const real_t dt, const Vector &x, Vector &k);
+   void ImplicitSolve(const real_t dt, const Vector &x, Vector &k) override;
 
    // Compute B^T M2 B, where M2 is the HDiv mass matrix with permeability
    // coefficient.
@@ -214,7 +214,7 @@ public:
    // E is the input, w is the output which is L2 heating.
    void GetJouleHeating(ParGridFunction &E_gf, ParGridFunction &w_gf) const;
 
-   void SetTime(const real_t t_);
+   void SetTime(const real_t t_) override;
 
    // Write all the hypre matrices and vectors to disk.
    void Debug(const char *basefilename, real_t time);
@@ -235,7 +235,7 @@ public:
    JouleHeatingCoefficient(const MeshDependentCoefficient &sigma_,
                            ParGridFunction &E_gf_)
       : E_gf(E_gf_), sigma(sigma_) {}
-   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip);
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override;
    virtual ~JouleHeatingCoefficient() {}
 };
 

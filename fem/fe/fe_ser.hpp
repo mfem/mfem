@@ -23,11 +23,11 @@ class H1Ser_QuadrilateralElement : public ScalarFiniteElement
 public:
    /// Construct the H1Ser_QuadrilateralElement of order @a p
    H1Ser_QuadrilateralElement(const int p);
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
-   virtual void GetLocalInterpolation(ElementTransformation &Trans,
-                                      DenseMatrix &I) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
+   void GetLocalInterpolation(ElementTransformation &Trans,
+                              DenseMatrix &I) const override;
    using FiniteElement::Project;
 };
 

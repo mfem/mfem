@@ -4390,8 +4390,8 @@ struct ShapeCoefficient : public VectorCoefficient
       : VectorCoefficient(fe_.GetDof()), Q(q), fe(fe_) { }
 
    using VectorCoefficient::Eval;
-   virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip)
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override
    {
       V.SetSize(vdim);
       fe.CalcPhysShape(T, V);
@@ -4433,8 +4433,8 @@ ScalarVectorProductInterpolator::AssembleElementMatrix2(
       VShapeCoefficient(Coefficient &q, const FiniteElement &fe_, int sdim)
          : MatrixCoefficient(fe_.GetDof(), sdim), Q(q), fe(fe_) { }
 
-      virtual void Eval(DenseMatrix &M, ElementTransformation &T,
-                        const IntegrationPoint &ip)
+      void Eval(DenseMatrix &M, ElementTransformation &T,
+                const IntegrationPoint &ip) override
       {
          M.SetSize(height, width);
          fe.CalcPhysVShape(T, M);
@@ -4470,8 +4470,8 @@ VectorScalarProductInterpolator::AssembleElementMatrix2(
          : MatrixCoefficient(fe_.GetDof(), vq.GetVDim()), VQ(vq), fe(fe_),
            vc(width), shape(height) { }
 
-      virtual void Eval(DenseMatrix &M, ElementTransformation &T,
-                        const IntegrationPoint &ip)
+      void Eval(DenseMatrix &M, ElementTransformation &T,
+                const IntegrationPoint &ip) override
       {
          M.SetSize(height, width);
          VQ.Eval(vc, T, ip);
@@ -4510,8 +4510,8 @@ ScalarCrossProductInterpolator::AssembleElementMatrix2(
            vshape(vdim, vq.GetVDim()), vc(vq.GetVDim()) { }
 
       using VectorCoefficient::Eval;
-      virtual void Eval(Vector &V, ElementTransformation &T,
-                        const IntegrationPoint &ip)
+      void Eval(Vector &V, ElementTransformation &T,
+                const IntegrationPoint &ip) override
       {
          V.SetSize(vdim);
          VQ.Eval(vc, T, ip);
@@ -4554,8 +4554,8 @@ VectorCrossProductInterpolator::AssembleElementMatrix2(
          MFEM_ASSERT(width == 3, "");
       }
 
-      virtual void Eval(DenseMatrix &M, ElementTransformation &T,
-                        const IntegrationPoint &ip)
+      void Eval(DenseMatrix &M, ElementTransformation &T,
+                const IntegrationPoint &ip) override
       {
          M.SetSize(height, width);
          VQ.Eval(vc, T, ip);
@@ -4603,8 +4603,8 @@ struct VDotVShapeCoefficient : public VectorCoefficient
         vshape(vdim, vq.GetVDim()), vc(vq.GetVDim()) { }
 
    using VectorCoefficient::Eval;
-   virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip)
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override
    {
       V.SetSize(vdim);
       VQ.Eval(vc, T, ip);

@@ -79,7 +79,8 @@ public:
    Deformation(int dim, DefType dType, const DeformationData & data)
       : VectorCoefficient(dim), dim_(dim), dType_(dType), data_(data) {}
 
-   void Eval(Vector &v, ElementTransformation &T, const IntegrationPoint &ip);
+   void Eval(Vector &v, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
    using VectorCoefficient::Eval;
 private:
    void Def1D(const Vector & u, Vector & v);

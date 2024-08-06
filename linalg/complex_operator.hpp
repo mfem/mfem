@@ -108,8 +108,8 @@ public:
    virtual const Operator & real() const;
    virtual const Operator & imag() const;
 
-   virtual void Mult(const Vector &x, Vector &y) const;
-   virtual void MultTranspose(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
+   void MultTranspose(const Vector &x, Vector &y) const override;
 
    using Operator::Mult;
    using Operator::MultTranspose;
@@ -160,11 +160,11 @@ public:
       : ComplexOperator(A_Real, A_Imag, ownReal, ownImag, convention)
    {}
 
-   virtual SparseMatrix & real();
-   virtual SparseMatrix & imag();
+   SparseMatrix & real() override;
+   SparseMatrix & imag() override;
 
-   virtual const SparseMatrix & real() const;
-   virtual const SparseMatrix & imag() const;
+   const SparseMatrix & real() const override;
+   const SparseMatrix & imag() const override;
 
    /** Combine the blocks making up this complex operator into a single
        SparseMatrix. The resulting matrix can be passed to solvers which require
@@ -174,7 +174,7 @@ public:
        operator. */
    SparseMatrix * GetSystemMatrix() const;
 
-   virtual Type GetType() const { return MFEM_ComplexSparseMat; }
+   Type GetType() const override { return MFEM_ComplexSparseMat; }
 };
 
 #ifdef MFEM_USE_SUITESPARSE
@@ -216,7 +216,7 @@ public:
        @note This method calls SparseMatrix::SortColumnIndices()
        for real and imag parts of the ComplexSparseMatrix,
        modifying the matrices if the column indices are not already sorted. */
-   virtual void SetOperator(const Operator &op);
+   void SetOperator(const Operator &op) override;
 
    // Set the print level field in the #Control data member.
    void SetPrintLevel(int print_lvl) { Control[UMFPACK_PRL] = print_lvl; }
@@ -225,7 +225,7 @@ public:
    void SetTransposeSolve(bool transa_) { transa = transa_; }
 
    /** @brief This is solving the system A x = b */
-   virtual void Mult(const Vector &b, Vector &x) const;
+   void Mult(const Vector &b, Vector &x) const override;
 
    /** @brief
       This is solving the system:
@@ -235,7 +235,7 @@ public:
       A^T x = b (when transa = true)
       This is equivalent to solving the transpose block system for the
       case of Convention = BLOCK_SYMMETRIC */
-   virtual void MultTranspose(const Vector &b, Vector &x) const;
+   void MultTranspose(const Vector &b, Vector &x) const override;
 
    virtual ~ComplexUMFPackSolver();
 };
@@ -262,11 +262,11 @@ public:
                          bool ownReal, bool ownImag,
                          Convention convention = HERMITIAN);
 
-   virtual HypreParMatrix & real();
-   virtual HypreParMatrix & imag();
+   HypreParMatrix & real() override;
+   HypreParMatrix & imag() override;
 
-   virtual const HypreParMatrix & real() const;
-   virtual const HypreParMatrix & imag() const;
+   const HypreParMatrix & real() const override;
+   const HypreParMatrix & imag() const override;
 
    /** Combine the blocks making up this complex operator into a single
        HypreParMatrix. The resulting matrix can be passed to solvers which
@@ -276,7 +276,7 @@ public:
        memory of the block structured operator. */
    HypreParMatrix * GetSystemMatrix() const;
 
-   virtual Type GetType() const { return Complex_Hypre_ParCSR; }
+   Type GetType() const override { return Complex_Hypre_ParCSR; }
 
 private:
    void getColStartStop(const HypreParMatrix * A_r,

@@ -102,8 +102,8 @@ public:
 
    using VectorCoefficient::Eval;
 
-   virtual void Eval(Vector &K, ElementTransformation &T,
-                     const IntegrationPoint &ip)
+   void Eval(Vector &K, ElementTransformation &T,
+             const IntegrationPoint &ip) override
    {
       real_t x[3];
       Vector transip(x, 3);

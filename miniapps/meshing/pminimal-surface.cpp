@@ -176,7 +176,7 @@ public:
       return 0;
    }
 
-   ~Surface()
+   ~Surface() override
    {
       if (opt.vis) { glvis.close(); }
       delete mesh; delete fec; delete fes;
@@ -457,7 +457,7 @@ public:
       ByNodes(Surface &S, Opt &opt): Solver(S, opt)
       { a.AddDomainIntegrator(new VectorDiffusionIntegrator(one)); }
 
-      bool Step()
+      bool Step() override
       {
          x = *S.fes->GetMesh()->GetNodes();
          bool converge = ParAXeqB();
@@ -495,7 +495,7 @@ public:
       ByVDim(Surface &S, Opt &opt): Solver(S, opt)
       { a.AddDomainIntegrator(new DiffusionIntegrator(one)); }
 
-      bool Step()
+      bool Step() override
       {
          bool cvg[SDIM] {false};
          for (int c=0; c < SDIM; ++c)
@@ -522,7 +522,7 @@ struct Catenoid: public Surface
 {
    Catenoid(Opt &opt): Surface((opt.Tptr = Parametrization, opt)) { }
 
-   void Prefix()
+   void Prefix() override
    {
       SetCurvature(opt.order, false, SDIM, Ordering::byNODES);
       Array<int> v2v(GetNV());
@@ -611,7 +611,7 @@ struct Hold: public Surface
 {
    Hold(Opt &opt): Surface((opt.Tptr = Parametrization, opt)) { }
 
-   void Prefix()
+   void Prefix() override
    {
       SetCurvature(opt.order, false, SDIM, Ordering::byNODES);
       Array<int> v2v(GetNV());
@@ -779,7 +779,7 @@ struct Costa: public Surface
 {
    Costa(Opt &opt): Surface((opt.Tptr = Parametrization, opt), false) { }
 
-   void Prefix()
+   void Prefix() override
    {
       ALPHA[3] = opt.tau;
       const int nx = opt.nx, ny = opt.ny;
@@ -861,7 +861,7 @@ struct Costa: public Surface
       ALPHA[2] = std::fmax(p[2], ALPHA[2]);
    }
 
-   void Snap()
+   void Snap() override
    {
       Vector node(SDIM);
       MFEM_VERIFY(ALPHA[0] > 0.0,"");
@@ -925,7 +925,7 @@ struct FullPeach: public Surface
    FullPeach(Opt &opt):
       Surface((opt.niters = std::min(4, opt.niters), opt), NV, NE, 0) { }
 
-   void Prefix()
+   void Prefix() override
    {
       const real_t quad_v[NV][SDIM] =
       {
@@ -947,9 +947,9 @@ struct FullPeach: public Surface
       SetCurvature(opt.order, false, SDIM, Ordering::byNODES);
    }
 
-   void Snap() { SnapNodesToUnitSphere(); }
+   void Snap() override { SnapNodesToUnitSphere(); }
 
-   void BoundaryConditions()
+   void BoundaryConditions() override
    {
       Vector X(SDIM);
       Array<int> dofs;
@@ -1018,7 +1018,7 @@ struct QuarterPeach: public Surface
       p[2] = 1.0 - gamma;
    }
 
-   void Postfix()
+   void Postfix() override
    {
       for (int i = 0; i < GetNBE(); i++)
       {
@@ -1054,7 +1054,7 @@ struct SlottedSphere: public Surface
 {
    SlottedSphere(Opt &opt): Surface((opt.niters = 4, opt), 64, 40, 0) { }
 
-   void Prefix()
+   void Prefix() override
    {
       constexpr real_t delta = 0.15;
       constexpr int NV1D = 4;
@@ -1146,7 +1146,7 @@ struct SlottedSphere: public Surface
       FinalizeTopology();
    }
 
-   void Snap() { SnapNodesToUnitSphere(); }
+   void Snap() override { SnapNodesToUnitSphere(); }
 };
 
 static int Problem0(Opt &opt)

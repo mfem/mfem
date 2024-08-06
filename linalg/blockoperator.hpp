@@ -100,10 +100,10 @@ public:
    const Array<int> & ColOffsets() const { return col_offsets; }
 
    /// Operator application
-   virtual void Mult (const Vector & x, Vector & y) const;
+   void Mult (const Vector & x, Vector & y) const override;
 
    /// Action of the transpose operator
-   virtual void MultTranspose (const Vector & x, Vector & y) const;
+   void MultTranspose (const Vector & x, Vector & y) const override;
 
    ~BlockOperator();
 
@@ -157,7 +157,7 @@ public:
     */
    void SetDiagonalBlock(int iblock, Operator *op);
    //! This method is present since required by the abstract base class Solver
-   virtual void SetOperator(const Operator &op) { }
+   void SetOperator(const Operator &op) override { }
 
    //! Return the number of blocks
    int NumBlocks() const { return nBlocks; }
@@ -177,10 +177,10 @@ public:
    const Array<int> & Offsets() const { return offsets; }
 
    /// Operator application
-   virtual void Mult (const Vector & x, Vector & y) const;
+   void Mult (const Vector & x, Vector & y) const override;
 
    /// Action of the transpose operator
-   virtual void MultTranspose (const Vector & x, Vector & y) const;
+   void MultTranspose (const Vector & x, Vector & y) const override;
 
    ~BlockDiagonalPreconditioner();
 
@@ -247,7 +247,7 @@ public:
     */
    void SetBlock(int iRow, int iCol, Operator *op);
    //! This method is present since required by the abstract base class Solver
-   virtual void SetOperator(const Operator &op) { }
+   void SetOperator(const Operator &op) override { }
 
    //! Return the number of blocks
    int NumBlocks() const { return nBlocks; }
@@ -260,10 +260,10 @@ public:
    Array<int> & Offsets() { return offsets; }
 
    /// Operator application
-   virtual void Mult (const Vector & x, Vector & y) const;
+   void Mult (const Vector & x, Vector & y) const override;
 
    /// Action of the transpose operator
-   virtual void MultTranspose (const Vector & x, Vector & y) const;
+   void MultTranspose (const Vector & x, Vector & y) const override;
 
    ~BlockLowerTriangularPreconditioner();
 

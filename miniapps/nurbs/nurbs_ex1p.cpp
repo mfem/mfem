@@ -68,9 +68,9 @@ public:
 
    /** Given a particular Finite Element
        computes the element stiffness matrix elmat. */
-   virtual void AssembleElementMatrix(const FiniteElement &el,
-                                      ElementTransformation &Trans,
-                                      DenseMatrix &elmat)
+   void AssembleElementMatrix(const FiniteElement &el,
+                              ElementTransformation &Trans,
+                              DenseMatrix &elmat) override
    {
       int nd = el.GetDof();
       int dim = el.GetDim();

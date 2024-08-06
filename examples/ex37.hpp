@@ -52,8 +52,8 @@ public:
        fun(fun_) {}
 
 
-   virtual real_t Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip)
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override
    {
       return fun(GridFunctionCoefficient::Eval(T, ip));
    }
@@ -83,8 +83,8 @@ public:
        OtherGridF_cf(OtherGridF),
        fun(fun_) {}
 
-   virtual real_t Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip)
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override
    {
       const real_t value1 = fun(GridFunctionCoefficient::Eval(T, ip));
       const real_t value2 = fun(OtherGridF_cf.Eval(T, ip));
@@ -108,7 +108,7 @@ public:
       : rho_filter(rho_filter_), min_val(min_val_), max_val(max_val_),
         exponent(exponent_) { }
 
-   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
    {
       real_t val = rho_filter->GetValue(T, ip);
       real_t coeff = min_val + pow(val,exponent)*(max_val-min_val);
@@ -142,7 +142,7 @@ public:
       MFEM_ASSERT(rho_filter, "density field is not set");
    }
 
-   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
    {
       real_t L = lambda->Eval(T, ip);
       real_t M = mu->Eval(T, ip);
@@ -176,8 +176,8 @@ public:
 
    using VectorCoefficient::Eval;
 
-   virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip)
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override
    {
       Vector xx; xx.SetSize(T.GetDimension());
       T.Transform(ip,xx);

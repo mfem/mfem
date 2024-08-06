@@ -157,7 +157,7 @@ public:
       Supports operators based on either an MFEM SparseMatrix or
       HypreParMatrix.
    */
-   virtual void SetOperator(const Operator &op);
+   void SetOperator(const Operator &op) override;
 
    /** @brief Change the input operator that is being solved via AmgX.
       Supports operators based on either an MFEM SparseMatrix or
@@ -172,7 +172,7 @@ public:
        @a x vector will be set to zero, otherwise the value of @a x passed
        in will be used.
    */
-   virtual void Mult(const Vector& b, Vector& x) const;
+   void Mult(const Vector& b, Vector& x) const override;
 
    /** @brief Return the number of iterations that were executed during the
        last solve phase. */

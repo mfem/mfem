@@ -37,19 +37,19 @@ protected:
 public:
    BilinearFormExtension(BilinearForm *form);
 
-   virtual MemoryClass GetMemoryClass() const
+   MemoryClass GetMemoryClass() const override
    { return Device::GetDeviceMemoryClass(); }
 
    /// Get the finite element space prolongation matrix
-   virtual const Operator *GetProlongation() const;
+   const Operator *GetProlongation() const override;
 
    /// Get the finite element space restriction matrix
-   virtual const Operator *GetRestriction() const;
+   const Operator *GetRestriction() const override;
 
    /// Assemble at the level given for the BilinearFormExtension subclass
    virtual void Assemble() = 0;
 
-   virtual void AssembleDiagonal(Vector &diag) const
+   void AssembleDiagonal(Vector &diag) const override
    {
       MFEM_ABORT("AssembleDiagonal not implemented for this assembly level!");
    }
@@ -83,16 +83,17 @@ protected:
 public:
    PABilinearFormExtension(BilinearForm*);
 
-   void Assemble();
-   void AssembleDiagonal(Vector &diag) const;
-   void FormSystemMatrix(const Array<int> &ess_tdof_list, OperatorHandle &A);
+   void Assemble() override;
+   void AssembleDiagonal(Vector &diag) const override;
+   void FormSystemMatrix(const Array<int> &ess_tdof_list,
+                         OperatorHandle &A) override;
    void FormLinearSystem(const Array<int> &ess_tdof_list,
                          Vector &x, Vector &b,
                          OperatorHandle &A, Vector &X, Vector &B,
-                         int copy_interior = 0);
-   void Mult(const Vector &x, Vector &y) const;
-   void MultTranspose(const Vector &x, Vector &y) const;
-   void Update();
+                         int copy_interior = 0) override;
+   void Mult(const Vector &x, Vector &y) const override;
+   void MultTranspose(const Vector &x, Vector &y) const override;
+   void Update() override;
 
 protected:
    void SetupRestrictionOperators(const L2FaceValues m);
@@ -150,9 +151,9 @@ protected:
 public:
    EABilinearFormExtension(BilinearForm *form);
 
-   void Assemble();
-   void Mult(const Vector &x, Vector &y) const;
-   void MultTranspose(const Vector &x, Vector &y) const;
+   void Assemble() override;
+   void Mult(const Vector &x, Vector &y) const override;
+   void MultTranspose(const Vector &x, Vector &y) const override;
 };
 
 /// Data and methods for fully-assembled bilinear forms
@@ -165,18 +166,19 @@ private:
 public:
    FABilinearFormExtension(BilinearForm *form);
 
-   void Assemble();
+   void Assemble() override;
    void RAP(OperatorHandle &A);
    /** @note Always does `DIAG_ONE` policy to be consistent with
        `Operator::FormConstrainedSystemOperator`. */
    void EliminateBC(const Array<int> &ess_dofs, OperatorHandle &A);
-   void FormSystemMatrix(const Array<int> &ess_tdof_list, OperatorHandle &A);
+   void FormSystemMatrix(const Array<int> &ess_tdof_list,
+                         OperatorHandle &A) override;
    void FormLinearSystem(const Array<int> &ess_tdof_list,
                          Vector &x, Vector &b,
                          OperatorHandle &A, Vector &X, Vector &B,
-                         int copy_interior = 0);
-   void Mult(const Vector &x, Vector &y) const;
-   void MultTranspose(const Vector &x, Vector &y) const;
+                         int copy_interior = 0) override;
+   void Mult(const Vector &x, Vector &y) const override;
+   void MultTranspose(const Vector &x, Vector &y) const override;
 
    /** DGMult and DGMultTranspose use the extended L-vector to perform the
        computation. */
@@ -199,16 +201,17 @@ protected:
 public:
    MFBilinearFormExtension(BilinearForm *form);
 
-   void Assemble();
-   void AssembleDiagonal(Vector &diag) const;
-   void FormSystemMatrix(const Array<int> &ess_tdof_list, OperatorHandle &A);
+   void Assemble() override;
+   void AssembleDiagonal(Vector &diag) const override;
+   void FormSystemMatrix(const Array<int> &ess_tdof_list,
+                         OperatorHandle &A) override;
    void FormLinearSystem(const Array<int> &ess_tdof_list,
                          Vector &x, Vector &b,
                          OperatorHandle &A, Vector &X, Vector &B,
-                         int copy_interior = 0);
-   void Mult(const Vector &x, Vector &y) const;
-   void MultTranspose(const Vector &x, Vector &y) const;
-   void Update();
+                         int copy_interior = 0) override;
+   void Mult(const Vector &x, Vector &y) const override;
+   void MultTranspose(const Vector &x, Vector &y) const override;
+   void Update() override;
 };
 
 /// Class extending the MixedBilinearForm class to support different AssemblyLevels.
@@ -225,20 +228,20 @@ protected:
 public:
    MixedBilinearFormExtension(MixedBilinearForm *form);
 
-   virtual MemoryClass GetMemoryClass() const
+   MemoryClass GetMemoryClass() const override
    { return Device::GetMemoryClass(); }
 
    /// Get the finite element space prolongation matrix
-   virtual const Operator *GetProlongation() const;
+   const Operator *GetProlongation() const override;
 
    /// Get the finite element space restriction matrix
-   virtual const Operator *GetRestriction() const;
+   const Operator *GetRestriction() const override;
 
    /// Get the output finite element space restriction matrix
-   virtual const Operator *GetOutputProlongation() const;
+   const Operator *GetOutputProlongation() const override;
 
    /// Get the output finite element space restriction matrix
-   virtual const Operator *GetOutputRestriction() const;
+   const Operator *GetOutputRestriction() const override;
 
    virtual void Assemble() = 0;
    virtual void FormRectangularSystemOperator(const Array<int> &trial_tdof_list,
@@ -273,7 +276,7 @@ public:
    PAMixedBilinearFormExtension(MixedBilinearForm *form);
 
    /// Partial assembly of all internal integrators
-   void Assemble();
+   void Assemble() override;
    /**
       @brief Setup OperatorHandle A to contain constrained linear operator
 
@@ -283,7 +286,7 @@ public:
    */
    void FormRectangularSystemOperator(const Array<int> &trial_tdof_list,
                                       const Array<int> &test_tdof_list,
-                                      OperatorHandle &A);
+                                      OperatorHandle &A) override;
    /**
       Setup OperatorHandle A to contain constrained linear operator and
       eliminate columns corresponding to essential dofs from system,
@@ -292,20 +295,21 @@ public:
    void FormRectangularLinearSystem(const Array<int> &trial_tdof_list,
                                     const Array<int> &test_tdof_list,
                                     Vector &x, Vector &b,
-                                    OperatorHandle &A, Vector &X, Vector &B);
+                                    OperatorHandle &A, Vector &X, Vector &B) override;
    /// y = A*x
-   void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
    /// y += c*A*x
-   void AddMult(const Vector &x, Vector &y, const real_t c=1.0) const;
+   void AddMult(const Vector &x, Vector &y, const real_t c=1.0) const override;
    /// y = A^T*x
-   void MultTranspose(const Vector &x, Vector &y) const;
+   void MultTranspose(const Vector &x, Vector &y) const override;
    /// y += c*A^T*x
-   void AddMultTranspose(const Vector &x, Vector &y, const real_t c=1.0) const;
+   void AddMultTranspose(const Vector &x, Vector &y,
+                         const real_t c=1.0) const override;
    /// Assemble the diagonal of ADA^T for a diagonal vector D.
-   void AssembleDiagonal_ADAt(const Vector &D, Vector &diag) const;
+   void AssembleDiagonal_ADAt(const Vector &D, Vector &diag) const override;
 
    /// Update internals for when a new MixedBilinearForm is given to this class
-   void Update();
+   void Update() override;
 };
 
 
@@ -322,16 +326,17 @@ public:
    PADiscreteLinearOperatorExtension(DiscreteLinearOperator *linop);
 
    /// Partial assembly of all internal integrators
-   void Assemble();
+   void Assemble() override;
 
-   void AddMult(const Vector &x, Vector &y, const real_t c=1.0) const;
+   void AddMult(const Vector &x, Vector &y, const real_t c=1.0) const override;
 
-   void AddMultTranspose(const Vector &x, Vector &y, const real_t c=1.0) const;
+   void AddMultTranspose(const Vector &x, Vector &y,
+                         const real_t c=1.0) const override;
 
    void FormRectangularSystemOperator(const Array<int>&, const Array<int>&,
-                                      OperatorHandle& A);
+                                      OperatorHandle& A) override;
 
-   const Operator * GetOutputRestrictionTranspose() const;
+   const Operator * GetOutputRestrictionTranspose() const override;
 
 private:
    Vector test_multiplicity;

@@ -67,8 +67,8 @@ public:
       meshOrig(mesh), r2o(r2o_), perm(refPerm)
    { }
 
-   virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
 
    using VectorCoefficient::Eval;
 };

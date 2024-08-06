@@ -152,7 +152,7 @@ public:
       du_dt.SetSubVector(ess_tdofs_, 0.0);
    }
 
-   ~ConvectionDiffusionTDO()
+   ~ConvectionDiffusionTDO() override
    {
       delete aq;
       delete q;

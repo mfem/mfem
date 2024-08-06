@@ -138,7 +138,7 @@ public:
    ExactDistSphereLoc(ParGridFunction &d)
       : dist(d), dx(dist.ParFESpace()->GetParMesh()->GetElementSize(0)) { }
 
-   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
    {
       Vector pos(T.GetDimension());
       T.Transform(ip, pos);

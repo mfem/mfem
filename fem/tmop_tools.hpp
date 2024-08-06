@@ -38,12 +38,12 @@ public:
       : AdaptivityEvaluator(),
         ode_solver(), nodes0(), field0(), dt_scale(timestep_scale), al(al) { }
 
-   virtual void SetInitialField(const Vector &init_nodes,
-                                const Vector &init_field);
+   void SetInitialField(const Vector &init_nodes,
+                        const Vector &init_field) override;
 
-   virtual void ComputeAtNewPosition(const Vector &new_nodes,
-                                     Vector &new_field,
-                                     int new_nodes_ordering = Ordering::byNODES);
+   void ComputeAtNewPosition(const Vector &new_nodes,
+                             Vector &new_field,
+                             int new_nodes_ordering = Ordering::byNODES) override;
 
    /// Set the memory type used for large memory allocations. This memory type
    /// is used when constructing the AdvectorCGOper but currently only for the
@@ -61,12 +61,12 @@ private:
 public:
    InterpolatorFP() : finder(NULL) { }
 
-   virtual void SetInitialField(const Vector &init_nodes,
-                                const Vector &init_field);
+   void SetInitialField(const Vector &init_nodes,
+                        const Vector &init_field) override;
 
-   virtual void ComputeAtNewPosition(const Vector &new_nodes,
-                                     Vector &new_field,
-                                     int new_nodes_ordering = Ordering::byNODES);
+   void ComputeAtNewPosition(const Vector &new_nodes,
+                             Vector &new_field,
+                             int new_nodes_ordering = Ordering::byNODES) override;
 
    const FindPointsGSLIB *GetFindPointsGSLIB() const
    {
@@ -99,7 +99,7 @@ public:
                         FiniteElementSpace &fes,
                         AssemblyLevel al = AssemblyLevel::LEGACY);
 
-   virtual void Mult(const Vector &ind, Vector &di_dt) const;
+   void Mult(const Vector &ind, Vector &di_dt) const override;
 };
 
 #ifdef MFEM_USE_MPI
@@ -123,7 +123,7 @@ public:
                      AssemblyLevel al = AssemblyLevel::LEGACY,
                      MemoryType mt = MemoryType::DEFAULT);
 
-   virtual void Mult(const Vector &ind, Vector &di_dt) const;
+   void Mult(const Vector &ind, Vector &di_dt) const override;
 };
 #endif
 
@@ -223,11 +223,11 @@ public:
    /// Compute scaling factor for the node movement direction using line-search.
    /// We impose constraints on TMOP energy, gradient, minimum Jacobian of
    /// the mesh, and (optionally) on the surface fitting error.
-   virtual real_t ComputeScalingFactor(const Vector &x, const Vector &b) const;
+   real_t ComputeScalingFactor(const Vector &x, const Vector &b) const override;
 
    /// Update (i) discrete functions at new nodal positions, and
    /// (ii) surface fitting weight.
-   virtual void ProcessNewState(const Vector &x) const;
+   void ProcessNewState(const Vector &x) const override;
 
    /** @name Methods for adaptive surface fitting.
        \brief These methods control the behavior of the weight and the
@@ -319,7 +319,7 @@ public:
       min_detJ_limit = threshold;
    }
 
-   virtual void Mult(const Vector &b, Vector &x) const
+   void Mult(const Vector &b, Vector &x) const override
    {
       if (solver_type == 0)
       {
@@ -332,7 +332,7 @@ public:
       else { MFEM_ABORT("Invalid type"); }
    }
 
-   virtual void SetSolver(Solver &solver)
+   void SetSolver(Solver &solver) override
    {
       if (solver_type == 0)
       {
@@ -344,7 +344,7 @@ public:
       }
       else { MFEM_ABORT("Invalid type"); }
    }
-   virtual void SetPreconditioner(Solver &pr) { SetSolver(pr); }
+   void SetPreconditioner(Solver &pr) override { SetSolver(pr); }
 };
 
 void vis_tmop_metric_s(int order, TMOP_QualityMetric &qm,

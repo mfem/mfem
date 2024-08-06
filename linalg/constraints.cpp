@@ -505,8 +505,8 @@ class IdentitySolver : public Solver
 {
 public:
    IdentitySolver(int size) : Solver(size) { }
-   void Mult(const Vector& x, Vector& y) const { y = x; }
-   void SetOperator(const Operator& op) { }
+   void Mult(const Vector& x, Vector& y) const override { y = x; }
+   void SetOperator(const Operator& op) override { }
 };
 
 void SchurConstrainedSolver::Initialize()

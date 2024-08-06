@@ -26,10 +26,10 @@ public:
    /// Construct the PointFiniteElement
    PointFiniteElement();
 
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
 
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
 };
 
 /// A 1D linear element with nodes on the endpoints
@@ -42,14 +42,14 @@ public:
    /** virtual function which evaluates the values of all
        shape functions at a given point ip and stores
        them in the vector shape of dimension Dof (2) */
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
 
    /** virtual function which evaluates the derivatives of all
        shape functions at a given point ip and stores them in
        the matrix dshape (Dof x Dim) (2 x 1) so that each row
        contains the derivative of one shape function */
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
 };
 
 /// A 2D linear element on triangle with nodes at the vertices of the triangle
@@ -62,15 +62,15 @@ public:
    /** virtual function which evaluates the values of all
        shape functions at a given point ip and stores
        them in the vector shape of dimension Dof (3) */
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
 
    /** virtual function which evaluates the values of all
        partial derivatives of all shape functions at a given
        point ip and stores them in the matrix dshape (Dof x Dim) (3 x 2)
        so that each row contains the derivatives of one shape function */
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
-   virtual void ProjectDelta(int vertex, Vector &dofs) const
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
+   void ProjectDelta(int vertex, Vector &dofs) const override
    { dofs = 0.0; dofs(vertex) = 1.0; }
 };
 
@@ -84,17 +84,17 @@ public:
    /** virtual function which evaluates the values of all
        shape functions at a given point ip and stores
        them in the vector shape of dimension Dof (4) */
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
 
    /** virtual function which evaluates the values of all
        partial derivatives of all shape functions at a given
        point ip and stores them in the matrix dshape (Dof x Dim) (4 x 2)
        so that each row contains the derivatives of one shape function */
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
-   virtual void CalcHessian (const IntegrationPoint &ip,
-                             DenseMatrix &h) const;
-   virtual void ProjectDelta(int vertex, Vector &dofs) const
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
+   void CalcHessian(const IntegrationPoint &ip,
+                    DenseMatrix &h) const override;
+   void ProjectDelta(int vertex, Vector &dofs) const override
    { dofs = 0.0; dofs(vertex) = 1.0; } // { dofs = 1.0; }
 };
 
@@ -104,10 +104,10 @@ class GaussLinear2DFiniteElement : public NodalFiniteElement
 public:
    /// Construct the GaussLinear2DFiniteElement
    GaussLinear2DFiniteElement();
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
-   virtual void ProjectDelta(int vertex, Vector &dofs) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
+   void ProjectDelta(int vertex, Vector &dofs) const override;
 };
 
 /// A 2D bi-linear element on a square with nodes at the "Gaussian" points
@@ -119,10 +119,10 @@ private:
 public:
    /// Construct the FiniteElement
    GaussBiLinear2DFiniteElement();
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
-   virtual void ProjectDelta(int vertex, Vector &dofs) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
+   void ProjectDelta(int vertex, Vector &dofs) const override;
 };
 
 /** @brief A 2D linear element on a square with 3 nodes at the
@@ -132,10 +132,10 @@ class P1OnQuadFiniteElement : public NodalFiniteElement
 public:
    /// Construct the P1OnQuadFiniteElement
    P1OnQuadFiniteElement();
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
-   virtual void ProjectDelta(int vertex, Vector &dofs) const
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
+   void ProjectDelta(int vertex, Vector &dofs) const override
    { dofs = 1.0; }
 };
 
@@ -149,14 +149,14 @@ public:
    /** virtual function which evaluates the values of all
        shape functions at a given point ip and stores
        them in the vector shape of dimension Dof (3) */
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
 
    /** virtual function which evaluates the derivatives of all
        shape functions at a given point ip and stores them in
        the matrix dshape (Dof x Dim) (3 x 1) so that each row
        contains the derivative of one shape function */
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
 };
 
 /** @brief A 2D quadratic element on triangle with nodes at the
@@ -170,18 +170,18 @@ public:
    /** virtual function which evaluates the values of all
        shape functions at a given point ip and stores
        them in the vector shape of dimension Dof (6) */
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
 
    /** virtual function which evaluates the values of all
        partial derivatives of all shape functions at a given
        point ip and stores them in the matrix dshape (Dof x Dim) (6 x 2)
        so that each row contains the derivatives of one shape function */
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
 
-   virtual void CalcHessian (const IntegrationPoint &ip,
-                             DenseMatrix &h) const;
-   virtual void ProjectDelta(int vertex, Vector &dofs) const;
+   void CalcHessian(const IntegrationPoint &ip,
+                    DenseMatrix &h) const override;
+   void ProjectDelta(int vertex, Vector &dofs) const override;
 };
 
 /// A quadratic element on triangle with nodes at the "Gaussian" points
@@ -195,9 +195,9 @@ private:
 public:
    /// Construct the GaussQuad2DFiniteElement
    GaussQuad2DFiniteElement();
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
    // virtual void ProjectDelta(int vertex, Vector &dofs) const;
 };
 
@@ -211,15 +211,15 @@ public:
    /** virtual function which evaluates the values of all
        shape functions at a given point ip and stores
        them in the vector shape of dimension Dof (9) */
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
 
    /** virtual function which evaluates the values of all
        partial derivatives of all shape functions at a given
        point ip and stores them in the matrix dshape (Dof x Dim) (9 x 2)
        so that each row contains the derivatives of one shape function */
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
-   virtual void ProjectDelta(int vertex, Vector &dofs) const;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
+   void ProjectDelta(int vertex, Vector &dofs) const override;
 };
 
 
@@ -229,9 +229,9 @@ class GaussBiQuad2DFiniteElement : public NodalFiniteElement
 public:
    /// Construct the GaussBiQuad2DFiniteElement
    GaussBiQuad2DFiniteElement();
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
    // virtual void ProjectDelta(int vertex, Vector &dofs) const { dofs = 1.; }
 };
 
@@ -242,13 +242,13 @@ class BiCubic2DFiniteElement : public NodalFiniteElement
 public:
    /// Construct the BiCubic2DFiniteElement
    BiCubic2DFiniteElement();
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
 
    /// Compute the Hessian of second order partial derivatives at @a ip.
-   virtual void CalcHessian (const IntegrationPoint &ip,
-                             DenseMatrix &h) const;
+   void CalcHessian(const IntegrationPoint &ip,
+                    DenseMatrix &h) const override;
 };
 
 /// A 1D cubic element with uniformly spaced nodes
@@ -258,10 +258,10 @@ public:
    /// Construct the Cubic1DFiniteElement
    Cubic1DFiniteElement();
 
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
 
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
 };
 
 /// A 2D cubic element on a triangle with uniformly spaced nodes
@@ -271,13 +271,13 @@ public:
    /// Construct the Cubic2DFiniteElement
    Cubic2DFiniteElement();
 
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
 
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
 
-   virtual void CalcHessian (const IntegrationPoint &ip,
-                             DenseMatrix &h) const;
+   void CalcHessian(const IntegrationPoint &ip,
+                    DenseMatrix &h) const override;
 };
 
 /// A 3D cubic element on a tetrahedron with 20 nodes at the thirds of the
@@ -288,10 +288,10 @@ public:
    /// Construct the Cubic3DFiniteElement
    Cubic3DFiniteElement();
 
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
 
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
 };
 
 /// A linear element defined on a triangular prism
@@ -304,23 +304,23 @@ public:
    /** @brief virtual function which evaluates the values of all
        shape functions at a given point ip and stores
        them in the vector shape of dimension Dof (4) */
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
 
    /** @brief virtual function which evaluates the values of all
        partial derivatives of all shape functions at a given
        point ip and stores them in the matrix dshape (Dof x Dim) (4 x 3)
        so that each row contains the derivatives of one shape function */
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
 
-   virtual void ProjectDelta(int vertex, Vector &dofs) const
+   void ProjectDelta(int vertex, Vector &dofs) const override
    { dofs = 0.0; dofs(vertex) = 1.0; }
 
    /** @brief Get the dofs associated with the given @a face.
        @a *dofs is set to an internal array of the local dofc on the
        face, while *ndofs is set to the number of dofs on that face.
    */
-   virtual void GetFaceDofs(int face, int **dofs, int *ndofs) const;
+   void GetFaceDofs(int face, int **dofs, int *ndofs) const override;
 };
 
 /// A linear element defined on a square pyramid
@@ -333,23 +333,23 @@ public:
    /** @brief virtual function which evaluates the values of all
        shape functions at a given point ip and stores
        them in the vector shape of dimension Dof (4) */
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
 
    /** @brief virtual function which evaluates the values of all
        partial derivatives of all shape functions at a given
        point ip and stores them in the matrix dshape (Dof x Dim) (4 x 3)
        so that each row contains the derivatives of one shape function */
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
 
-   virtual void ProjectDelta(int vertex, Vector &dofs) const
+   void ProjectDelta(int vertex, Vector &dofs) const override
    { dofs = 0.0; dofs(vertex) = 1.0; }
 
    /** @brief Get the dofs associated with the given @a face.
        @a *dofs is set to an internal array of the local dofc on the
        face, while *ndofs is set to the number of dofs on that face.
    */
-   virtual void GetFaceDofs(int face, int **dofs, int *ndofs) const;
+   void GetFaceDofs(int face, int **dofs, int *ndofs) const override;
 };
 
 /// A 2D constant element on a triangle
@@ -360,12 +360,12 @@ public:
    P0TriangleFiniteElement();
 
    /// evaluate shape function - constant 1
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
 
    /// evaluate derivatives of shape function - constant 0
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
-   virtual void ProjectDelta(int vertex, Vector &dofs) const
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
+   void ProjectDelta(int vertex, Vector &dofs) const override
    { dofs(0) = 1.0; }
 };
 
@@ -376,10 +376,10 @@ class P0QuadFiniteElement : public NodalFiniteElement
 public:
    /// Construct the P0QuadFiniteElement
    P0QuadFiniteElement();
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
-   virtual void ProjectDelta(int vertex, Vector &dofs) const
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
+   void ProjectDelta(int vertex, Vector &dofs) const override
    { dofs(0) = 1.0; }
 };
 
@@ -395,23 +395,23 @@ public:
    /** @brief virtual function which evaluates the values of all
        shape functions at a given point ip and stores
        them in the vector shape of dimension Dof (4) */
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
 
    /** @brief virtual function which evaluates the values of all
        partial derivatives of all shape functions at a given
        point ip and stores them in the matrix dshape (Dof x Dim) (4 x 3)
        so that each row contains the derivatives of one shape function */
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
 
-   virtual void ProjectDelta(int vertex, Vector &dofs) const
+   void ProjectDelta(int vertex, Vector &dofs) const override
    { dofs = 0.0; dofs(vertex) = 1.0; }
 
    /** @brief Get the dofs associated with the given @a face.
        @a *dofs is set to an internal array of the local dofc on the
        face, while *ndofs is set to the number of dofs on that face.
    */
-   virtual void GetFaceDofs(int face, int **dofs, int *ndofs) const;
+   void GetFaceDofs(int face, int **dofs, int *ndofs) const override;
 };
 
 /// A 3D quadratic element on a tetrahedron with uniformly spaced nodes
@@ -421,10 +421,10 @@ public:
    /// Construct the Quadratic3DFiniteElement
    Quadratic3DFiniteElement();
 
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
 
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
 };
 
 /// A 3D tri-linear element on a cube with nodes at the vertices of the cube
@@ -437,16 +437,16 @@ public:
    /** virtual function which evaluates the values of all
        shape functions at a given point ip and stores
        them in the vector shape of dimension Dof (8) */
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
 
    /** virtual function which evaluates the values of all
        partial derivatives of all shape functions at a given
        point ip and stores them in the matrix dshape (Dof x Dim) (8 x 3)
        so that each row contains the derivatives of one shape function */
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
 
-   virtual void ProjectDelta(int vertex, Vector &dofs) const
+   void ProjectDelta(int vertex, Vector &dofs) const override
    { dofs = 0.0; dofs(vertex) = 1.0; }
 };
 
@@ -457,10 +457,10 @@ class CrouzeixRaviartFiniteElement : public NodalFiniteElement
 public:
    /// Construct the CrouzeixRaviartFiniteElement
    CrouzeixRaviartFiniteElement();
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
-   virtual void ProjectDelta(int vertex, Vector &dofs) const
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
+   void ProjectDelta(int vertex, Vector &dofs) const override
    { dofs = 1.0; }
 };
 
@@ -470,9 +470,9 @@ class CrouzeixRaviartQuadFiniteElement : public NodalFiniteElement
 public:
    /// Construct the CrouzeixRaviartQuadFiniteElement
    CrouzeixRaviartQuadFiniteElement();
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
 };
 
 
@@ -482,9 +482,9 @@ class P0SegmentFiniteElement : public NodalFiniteElement
 public:
    /// Construct the P0SegmentFiniteElement with dummy order @a Ord
    P0SegmentFiniteElement(int Ord = 0);
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
 };
 
 /** @brief A 2D 1st order Raviart-Thomas vector element on a triangle */
@@ -497,23 +497,23 @@ public:
    /// Construct the RT0TriangleFiniteElement
    RT0TriangleFiniteElement();
 
-   virtual void CalcVShape(const IntegrationPoint &ip,
-                           DenseMatrix &shape) const;
+   void CalcVShape(const IntegrationPoint &ip,
+                   DenseMatrix &shape) const override;
 
-   virtual void CalcVShape(ElementTransformation &Trans,
-                           DenseMatrix &shape) const
+   void CalcVShape(ElementTransformation &Trans,
+                   DenseMatrix &shape) const override
    { CalcVShape_RT(Trans, shape); }
 
-   virtual void CalcDivShape(const IntegrationPoint &ip,
-                             Vector &divshape) const;
+   void CalcDivShape(const IntegrationPoint &ip,
+                     Vector &divshape) const override;
 
-   virtual void GetLocalInterpolation (ElementTransformation &Trans,
-                                       DenseMatrix &I) const;
+   void GetLocalInterpolation(ElementTransformation &Trans,
+                              DenseMatrix &I) const override;
 
    using FiniteElement::Project;
 
-   virtual void Project (VectorCoefficient &vc,
-                         ElementTransformation &Trans, Vector &dofs) const;
+   void Project(VectorCoefficient &vc,
+                ElementTransformation &Trans, Vector &dofs) const override;
 };
 
 /** @brief A 2D 1st order Raviart-Thomas vector element on a square*/
@@ -526,23 +526,23 @@ public:
    /// Construct the RT0QuadFiniteElement
    RT0QuadFiniteElement();
 
-   virtual void CalcVShape(const IntegrationPoint &ip,
-                           DenseMatrix &shape) const;
+   void CalcVShape(const IntegrationPoint &ip,
+                   DenseMatrix &shape) const override;
 
-   virtual void CalcVShape(ElementTransformation &Trans,
-                           DenseMatrix &shape) const
+   void CalcVShape(ElementTransformation &Trans,
+                   DenseMatrix &shape) const override
    { CalcVShape_RT(Trans, shape); }
 
-   virtual void CalcDivShape(const IntegrationPoint &ip,
-                             Vector &divshape) const;
+   void CalcDivShape(const IntegrationPoint &ip,
+                     Vector &divshape) const override;
 
-   virtual void GetLocalInterpolation (ElementTransformation &Trans,
-                                       DenseMatrix &I) const;
+   void GetLocalInterpolation(ElementTransformation &Trans,
+                              DenseMatrix &I) const override;
 
    using FiniteElement::Project;
 
-   virtual void Project (VectorCoefficient &vc,
-                         ElementTransformation &Trans, Vector &dofs) const;
+   void Project(VectorCoefficient &vc,
+                ElementTransformation &Trans, Vector &dofs) const override;
 };
 
 /** @brief A 2D 2nd order Raviart-Thomas vector element on a triangle */
@@ -555,23 +555,23 @@ public:
    /// Construct the RT1TriangleFiniteElement
    RT1TriangleFiniteElement();
 
-   virtual void CalcVShape(const IntegrationPoint &ip,
-                           DenseMatrix &shape) const;
+   void CalcVShape(const IntegrationPoint &ip,
+                   DenseMatrix &shape) const override;
 
-   virtual void CalcVShape(ElementTransformation &Trans,
-                           DenseMatrix &shape) const
+   void CalcVShape(ElementTransformation &Trans,
+                   DenseMatrix &shape) const override
    { CalcVShape_RT(Trans, shape); }
 
-   virtual void CalcDivShape(const IntegrationPoint &ip,
-                             Vector &divshape) const;
+   void CalcDivShape(const IntegrationPoint &ip,
+                     Vector &divshape) const override;
 
-   virtual void GetLocalInterpolation (ElementTransformation &Trans,
-                                       DenseMatrix &I) const;
+   void GetLocalInterpolation(ElementTransformation &Trans,
+                              DenseMatrix &I) const override;
 
    using FiniteElement::Project;
 
-   virtual void Project (VectorCoefficient &vc,
-                         ElementTransformation &Trans, Vector &dofs) const;
+   void Project(VectorCoefficient &vc,
+                ElementTransformation &Trans, Vector &dofs) const override;
 };
 
 /** @brief A 2D 2nd order Raviart-Thomas vector element on a square */
@@ -584,23 +584,23 @@ public:
    /// Construct the RT1QuadFiniteElement
    RT1QuadFiniteElement();
 
-   virtual void CalcVShape(const IntegrationPoint &ip,
-                           DenseMatrix &shape) const;
+   void CalcVShape(const IntegrationPoint &ip,
+                   DenseMatrix &shape) const override;
 
-   virtual void CalcVShape(ElementTransformation &Trans,
-                           DenseMatrix &shape) const
+   void CalcVShape(ElementTransformation &Trans,
+                   DenseMatrix &shape) const override
    { CalcVShape_RT(Trans, shape); }
 
-   virtual void CalcDivShape(const IntegrationPoint &ip,
-                             Vector &divshape) const;
+   void CalcDivShape(const IntegrationPoint &ip,
+                     Vector &divshape) const override;
 
-   virtual void GetLocalInterpolation (ElementTransformation &Trans,
-                                       DenseMatrix &I) const;
+   void GetLocalInterpolation(ElementTransformation &Trans,
+                              DenseMatrix &I) const override;
 
    using FiniteElement::Project;
 
-   virtual void Project (VectorCoefficient &vc,
-                         ElementTransformation &Trans, Vector &dofs) const;
+   void Project(VectorCoefficient &vc,
+                ElementTransformation &Trans, Vector &dofs) const override;
 };
 
 /** @brief A 2D 3rd order Raviart-Thomas vector element on a triangle */
@@ -612,15 +612,15 @@ public:
    /// Construct the RT2TriangleFiniteElement
    RT2TriangleFiniteElement();
 
-   virtual void CalcVShape(const IntegrationPoint &ip,
-                           DenseMatrix &shape) const;
+   void CalcVShape(const IntegrationPoint &ip,
+                   DenseMatrix &shape) const override;
 
-   virtual void CalcVShape(ElementTransformation &Trans,
-                           DenseMatrix &shape) const
+   void CalcVShape(ElementTransformation &Trans,
+                   DenseMatrix &shape) const override
    { CalcVShape_RT(Trans, shape); }
 
-   virtual void CalcDivShape(const IntegrationPoint &ip,
-                             Vector &divshape) const;
+   void CalcDivShape(const IntegrationPoint &ip,
+                     Vector &divshape) const override;
 };
 
 /** @brief A 2D 3rd order Raviart-Thomas vector element on a square */
@@ -635,23 +635,23 @@ public:
    /// Construct the RT2QuadFiniteElement
    RT2QuadFiniteElement();
 
-   virtual void CalcVShape(const IntegrationPoint &ip,
-                           DenseMatrix &shape) const;
+   void CalcVShape(const IntegrationPoint &ip,
+                   DenseMatrix &shape) const override;
 
-   virtual void CalcVShape(ElementTransformation &Trans,
-                           DenseMatrix &shape) const
+   void CalcVShape(ElementTransformation &Trans,
+                   DenseMatrix &shape) const override
    { CalcVShape_RT(Trans, shape); }
 
-   virtual void CalcDivShape(const IntegrationPoint &ip,
-                             Vector &divshape) const;
+   void CalcDivShape(const IntegrationPoint &ip,
+                     Vector &divshape) const override;
 
-   virtual void GetLocalInterpolation (ElementTransformation &Trans,
-                                       DenseMatrix &I) const;
+   void GetLocalInterpolation(ElementTransformation &Trans,
+                              DenseMatrix &I) const override;
 
    using FiniteElement::Project;
 
-   virtual void Project (VectorCoefficient &vc,
-                         ElementTransformation &Trans, Vector &dofs) const;
+   void Project(VectorCoefficient &vc,
+                ElementTransformation &Trans, Vector &dofs) const override;
 };
 
 /// A 1D linear element with nodes at 1/3 and 2/3 (trace of RT1)
@@ -660,9 +660,9 @@ class P1SegmentFiniteElement : public NodalFiniteElement
 public:
    /// Construct the P1SegmentFiniteElement
    P1SegmentFiniteElement();
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
 };
 
 /// A 1D quadratic element with nodes at the Gaussian points (trace of RT2)
@@ -671,9 +671,9 @@ class P2SegmentFiniteElement : public NodalFiniteElement
 public:
    /// Construct the P2SegmentFiniteElement
    P2SegmentFiniteElement();
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
 };
 
 /// A 1D element with uniform nodes
@@ -686,10 +686,10 @@ private:
 #endif
 public:
    /// Construct the Lagrange1DFiniteElement with the provided @a degree
-   Lagrange1DFiniteElement (int degree);
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
+   Lagrange1DFiniteElement(int degree);
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
 };
 
 /// A 3D Crouzeix-Raviart element on the tetrahedron.
@@ -698,9 +698,9 @@ class P1TetNonConfFiniteElement : public NodalFiniteElement
 public:
    /// Construct the P1TetNonConfFiniteElement
    P1TetNonConfFiniteElement();
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
 };
 
 /// A 3D constant element on a tetrahedron
@@ -708,11 +708,11 @@ class P0TetFiniteElement : public NodalFiniteElement
 {
 public:
    /// Construct the P0TetFiniteElement
-   P0TetFiniteElement ();
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
-   virtual void ProjectDelta(int vertex, Vector &dofs) const
+   P0TetFiniteElement();
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
+   void ProjectDelta(int vertex, Vector &dofs) const override
    { dofs(0) = 1.0; }
 };
 
@@ -721,11 +721,11 @@ class P0HexFiniteElement : public NodalFiniteElement
 {
 public:
    /// Construct the P0HexFiniteElement
-   P0HexFiniteElement ();
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
-   virtual void ProjectDelta(int vertex, Vector &dofs) const
+   P0HexFiniteElement();
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
+   void ProjectDelta(int vertex, Vector &dofs) const override
    { dofs(0) = 1.0; }
 };
 
@@ -734,11 +734,11 @@ class P0WdgFiniteElement : public NodalFiniteElement
 {
 public:
    /// Construct the P0WdgFiniteElement
-   P0WdgFiniteElement ();
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
-   virtual void ProjectDelta(int vertex, Vector &dofs) const
+   P0WdgFiniteElement();
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
+   void ProjectDelta(int vertex, Vector &dofs) const override
    { dofs(0) = 1.0; }
 };
 
@@ -747,11 +747,11 @@ class P0PyrFiniteElement : public NodalFiniteElement
 {
 public:
    /// Construct the P0PyrFiniteElement
-   P0PyrFiniteElement ();
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
-   virtual void ProjectDelta(int vertex, Vector &dofs) const
+   P0PyrFiniteElement();
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
+   void ProjectDelta(int vertex, Vector &dofs) const override
    { dofs(0) = 1.0; }
 };
 
@@ -770,11 +770,11 @@ private:
 
 public:
    /// Construct the LagrangeHexFiniteElement with the provided @a degree
-   LagrangeHexFiniteElement (int degree);
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
-   ~LagrangeHexFiniteElement ();
+   LagrangeHexFiniteElement(int degree);
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
+   ~LagrangeHexFiniteElement();
 };
 
 
@@ -788,14 +788,14 @@ public:
    /** virtual function which evaluates the values of all
        shape functions at a given point ip and stores
        them in the vector shape of dimension Dof (3) */
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
 
    /** virtual function which evaluates the derivatives of all
        shape functions at a given point ip and stores them in
        the matrix dshape (Dof x Dim) (3 x 1) so that each row
        contains the derivative of one shape function */
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
 };
 
 /// A 2D refined linear element on a triangle
@@ -808,14 +808,14 @@ public:
    /** virtual function which evaluates the values of all
        shape functions at a given point ip and stores
        them in the vector shape of dimension Dof (6) */
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
 
    /** virtual function which evaluates the values of all
        partial derivatives of all shape functions at a given
        point ip and stores them in the matrix dshape (Dof x Dim) (6 x 2)
        so that each row contains the derivatives of one shape function */
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
 };
 
 /// A 2D refined linear element on a tetrahedron
@@ -825,10 +825,10 @@ public:
    /// Construct the RefinedLinear3DFiniteElement
    RefinedLinear3DFiniteElement();
 
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
 
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
 };
 
 /// A 2D refined bi-linear FE on a square
@@ -841,14 +841,14 @@ public:
    /** virtual function which evaluates the values of all
        shape functions at a given point ip and stores
        them in the vector shape of dimension Dof (9) */
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
 
    /** virtual function which evaluates the values of all
        partial derivatives of all shape functions at a given
        point ip and stores them in the matrix dshape (Dof x Dim) (9 x 2)
        so that each row contains the derivatives of one shape function */
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
 };
 
 /// A 3D refined tri-linear element on a cube
@@ -861,14 +861,14 @@ public:
    /** virtual function which evaluates the values of all
        shape functions at a given point ip and stores
        them in the vector shape of dimension Dof (9) */
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
 
    /** virtual function which evaluates the values of all
        partial derivatives of all shape functions at a given
        point ip and stores them in the matrix dshape (Dof x Dim) (9 x 2)
        so that each row contains the derivatives of one shape function */
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
 };
 
 
@@ -902,7 +902,7 @@ class P0WedgeFiniteElement : public L2_WedgeElement
 {
 public:
    /// Construct the P0WedgeFiniteElement
-   P0WedgeFiniteElement () : L2_WedgeElement(0) {}
+   P0WedgeFiniteElement() : L2_WedgeElement(0) {}
 };
 
 
@@ -915,22 +915,22 @@ private:
 public:
    /// Construct the Nedelec1HexFiniteElement
    Nedelec1HexFiniteElement();
-   virtual void CalcVShape(const IntegrationPoint &ip,
-                           DenseMatrix &shape) const;
-   virtual void CalcVShape(ElementTransformation &Trans,
-                           DenseMatrix &shape) const
+   void CalcVShape(const IntegrationPoint &ip,
+                   DenseMatrix &shape) const override;
+   void CalcVShape(ElementTransformation &Trans,
+                   DenseMatrix &shape) const override
    { CalcVShape_ND(Trans, shape); }
-   virtual void CalcCurlShape(const IntegrationPoint &ip,
-                              DenseMatrix &curl_shape) const;
-   virtual void GetLocalInterpolation (ElementTransformation &Trans,
-                                       DenseMatrix &I) const;
+   void CalcCurlShape(const IntegrationPoint &ip,
+                      DenseMatrix &curl_shape) const override;
+   void GetLocalInterpolation(ElementTransformation &Trans,
+                              DenseMatrix &I) const override;
    using FiniteElement::Project;
-   virtual void Project (VectorCoefficient &vc,
-                         ElementTransformation &Trans, Vector &dofs) const;
+   void Project(VectorCoefficient &vc,
+                ElementTransformation &Trans, Vector &dofs) const override;
 
-   virtual void ProjectGrad(const FiniteElement &fe,
-                            ElementTransformation &Trans,
-                            DenseMatrix &grad) const;
+   void ProjectGrad(const FiniteElement &fe,
+                    ElementTransformation &Trans,
+                    DenseMatrix &grad) const override;
 };
 
 
@@ -943,22 +943,22 @@ private:
 public:
    /// Construct the Nedelec1TetFiniteElement
    Nedelec1TetFiniteElement();
-   virtual void CalcVShape(const IntegrationPoint &ip,
-                           DenseMatrix &shape) const;
-   virtual void CalcVShape(ElementTransformation &Trans,
-                           DenseMatrix &shape) const
+   void CalcVShape(const IntegrationPoint &ip,
+                   DenseMatrix &shape) const override;
+   void CalcVShape(ElementTransformation &Trans,
+                   DenseMatrix &shape) const override
    { CalcVShape_ND(Trans, shape); }
-   virtual void CalcCurlShape(const IntegrationPoint &ip,
-                              DenseMatrix &curl_shape) const;
-   virtual void GetLocalInterpolation (ElementTransformation &Trans,
-                                       DenseMatrix &I) const;
+   void CalcCurlShape(const IntegrationPoint &ip,
+                      DenseMatrix &curl_shape) const override;
+   void GetLocalInterpolation(ElementTransformation &Trans,
+                              DenseMatrix &I) const override;
    using FiniteElement::Project;
-   virtual void Project (VectorCoefficient &vc,
-                         ElementTransformation &Trans, Vector &dofs) const;
+   void Project(VectorCoefficient &vc,
+                ElementTransformation &Trans, Vector &dofs) const override;
 
-   virtual void ProjectGrad(const FiniteElement &fe,
-                            ElementTransformation &Trans,
-                            DenseMatrix &grad) const;
+   void ProjectGrad(const FiniteElement &fe,
+                    ElementTransformation &Trans,
+                    DenseMatrix &grad) const override;
 };
 
 
@@ -971,22 +971,22 @@ private:
 public:
    /// Construct the Nedelec1WdgFiniteElement
    Nedelec1WdgFiniteElement();
-   virtual void CalcVShape(const IntegrationPoint &ip,
-                           DenseMatrix &shape) const;
-   virtual void CalcVShape(ElementTransformation &Trans,
-                           DenseMatrix &shape) const
+   void CalcVShape(const IntegrationPoint &ip,
+                   DenseMatrix &shape) const override;
+   void CalcVShape(ElementTransformation &Trans,
+                   DenseMatrix &shape) const override
    { CalcVShape_ND(Trans, shape); }
-   virtual void CalcCurlShape(const IntegrationPoint &ip,
-                              DenseMatrix &curl_shape) const;
-   virtual void GetLocalInterpolation (ElementTransformation &Trans,
-                                       DenseMatrix &I) const;
+   void CalcCurlShape(const IntegrationPoint &ip,
+                      DenseMatrix &curl_shape) const override;
+   void GetLocalInterpolation(ElementTransformation &Trans,
+                              DenseMatrix &I) const override;
    using FiniteElement::Project;
-   virtual void Project (VectorCoefficient &vc,
-                         ElementTransformation &Trans, Vector &dofs) const;
+   void Project(VectorCoefficient &vc,
+                ElementTransformation &Trans, Vector &dofs) const override;
 
-   virtual void ProjectGrad(const FiniteElement &fe,
-                            ElementTransformation &Trans,
-                            DenseMatrix &grad) const;
+   void ProjectGrad(const FiniteElement &fe,
+                    ElementTransformation &Trans,
+                    DenseMatrix &grad) const override;
 };
 
 
@@ -999,22 +999,22 @@ private:
 public:
    /// Construct the Nedelec1PyrFiniteElement
    Nedelec1PyrFiniteElement();
-   virtual void CalcVShape(const IntegrationPoint &ip,
-                           DenseMatrix &shape) const;
-   virtual void CalcVShape(ElementTransformation &Trans,
-                           DenseMatrix &shape) const
+   void CalcVShape(const IntegrationPoint &ip,
+                   DenseMatrix &shape) const override;
+   void CalcVShape(ElementTransformation &Trans,
+                   DenseMatrix &shape) const override
    { CalcVShape_ND(Trans, shape); }
-   virtual void CalcCurlShape(const IntegrationPoint &ip,
-                              DenseMatrix &curl_shape) const;
-   virtual void GetLocalInterpolation (ElementTransformation &Trans,
-                                       DenseMatrix &I) const;
+   void CalcCurlShape(const IntegrationPoint &ip,
+                      DenseMatrix &curl_shape) const override;
+   void GetLocalInterpolation(ElementTransformation &Trans,
+                              DenseMatrix &I) const override;
    using FiniteElement::Project;
-   virtual void Project (VectorCoefficient &vc,
-                         ElementTransformation &Trans, Vector &dofs) const;
+   void Project(VectorCoefficient &vc,
+                ElementTransformation &Trans, Vector &dofs) const override;
 
-   virtual void ProjectGrad(const FiniteElement &fe,
-                            ElementTransformation &Trans,
-                            DenseMatrix &grad) const;
+   void ProjectGrad(const FiniteElement &fe,
+                    ElementTransformation &Trans,
+                    DenseMatrix &grad) const override;
 };
 
 
@@ -1028,23 +1028,23 @@ public:
    /// Construct the RT0HexFiniteElement
    RT0HexFiniteElement();
 
-   virtual void CalcVShape(const IntegrationPoint &ip,
-                           DenseMatrix &shape) const;
+   void CalcVShape(const IntegrationPoint &ip,
+                   DenseMatrix &shape) const override;
 
-   virtual void CalcVShape(ElementTransformation &Trans,
-                           DenseMatrix &shape) const
+   void CalcVShape(ElementTransformation &Trans,
+                   DenseMatrix &shape) const override
    { CalcVShape_RT(Trans, shape); }
 
-   virtual void CalcDivShape(const IntegrationPoint &ip,
-                             Vector &divshape) const;
+   void CalcDivShape(const IntegrationPoint &ip,
+                     Vector &divshape) const override;
 
-   virtual void GetLocalInterpolation (ElementTransformation &Trans,
-                                       DenseMatrix &I) const;
+   void GetLocalInterpolation(ElementTransformation &Trans,
+                              DenseMatrix &I) const override;
 
    using FiniteElement::Project;
 
-   virtual void Project (VectorCoefficient &vc,
-                         ElementTransformation &Trans, Vector &dofs) const;
+   void Project(VectorCoefficient &vc,
+                ElementTransformation &Trans, Vector &dofs) const override;
 };
 
 
@@ -1058,23 +1058,23 @@ public:
    /// Construct the RT1HexFiniteElement
    RT1HexFiniteElement();
 
-   virtual void CalcVShape(const IntegrationPoint &ip,
-                           DenseMatrix &shape) const;
+   void CalcVShape(const IntegrationPoint &ip,
+                   DenseMatrix &shape) const override;
 
-   virtual void CalcVShape(ElementTransformation &Trans,
-                           DenseMatrix &shape) const
+   void CalcVShape(ElementTransformation &Trans,
+                   DenseMatrix &shape) const override
    { CalcVShape_RT(Trans, shape); }
 
-   virtual void CalcDivShape(const IntegrationPoint &ip,
-                             Vector &divshape) const;
+   void CalcDivShape(const IntegrationPoint &ip,
+                     Vector &divshape) const override;
 
-   virtual void GetLocalInterpolation (ElementTransformation &Trans,
-                                       DenseMatrix &I) const;
+   void GetLocalInterpolation(ElementTransformation &Trans,
+                              DenseMatrix &I) const override;
 
    using FiniteElement::Project;
 
-   virtual void Project (VectorCoefficient &vc,
-                         ElementTransformation &Trans, Vector &dofs) const;
+   void Project(VectorCoefficient &vc,
+                ElementTransformation &Trans, Vector &dofs) const override;
 };
 
 
@@ -1088,23 +1088,23 @@ public:
    /// Construct the RT0TetFiniteElement
    RT0TetFiniteElement();
 
-   virtual void CalcVShape(const IntegrationPoint &ip,
-                           DenseMatrix &shape) const;
+   void CalcVShape(const IntegrationPoint &ip,
+                   DenseMatrix &shape) const override;
 
-   virtual void CalcVShape(ElementTransformation &Trans,
-                           DenseMatrix &shape) const
+   void CalcVShape(ElementTransformation &Trans,
+                   DenseMatrix &shape) const override
    { CalcVShape_RT(Trans, shape); }
 
-   virtual void CalcDivShape(const IntegrationPoint &ip,
-                             Vector &divshape) const;
+   void CalcDivShape(const IntegrationPoint &ip,
+                     Vector &divshape) const override;
 
-   virtual void GetLocalInterpolation (ElementTransformation &Trans,
-                                       DenseMatrix &I) const;
+   void GetLocalInterpolation(ElementTransformation &Trans,
+                              DenseMatrix &I) const override;
 
    using FiniteElement::Project;
 
-   virtual void Project (VectorCoefficient &vc,
-                         ElementTransformation &Trans, Vector &dofs) const;
+   void Project(VectorCoefficient &vc,
+                ElementTransformation &Trans, Vector &dofs) const override;
 };
 
 
@@ -1118,27 +1118,27 @@ public:
    /// Construct the RT0WdgFiniteElement
    RT0WdgFiniteElement();
 
-   virtual void CalcVShape(const IntegrationPoint &ip,
-                           DenseMatrix &shape) const;
+   void CalcVShape(const IntegrationPoint &ip,
+                   DenseMatrix &shape) const override;
 
-   virtual void CalcVShape(ElementTransformation &Trans,
-                           DenseMatrix &shape) const
+   void CalcVShape(ElementTransformation &Trans,
+                   DenseMatrix &shape) const override
    { CalcVShape_RT(Trans, shape); }
 
-   virtual void CalcDivShape(const IntegrationPoint &ip,
-                             Vector &divshape) const;
+   void CalcDivShape(const IntegrationPoint &ip,
+                     Vector &divshape) const override;
 
-   virtual void GetLocalInterpolation (ElementTransformation &Trans,
-                                       DenseMatrix &I) const;
+   void GetLocalInterpolation(ElementTransformation &Trans,
+                              DenseMatrix &I) const override;
 
    using FiniteElement::Project;
 
-   virtual void Project (VectorCoefficient &vc,
-                         ElementTransformation &Trans, Vector &dofs) const;
+   void Project(VectorCoefficient &vc,
+                ElementTransformation &Trans, Vector &dofs) const override;
 
-   virtual void ProjectCurl(const FiniteElement &fe,
-                            ElementTransformation &Trans,
-                            DenseMatrix &curl) const;
+   void ProjectCurl(const FiniteElement &fe,
+                    ElementTransformation &Trans,
+                    DenseMatrix &curl) const override;
 };
 
 
@@ -1155,27 +1155,27 @@ public:
    /// Construct the RT0PyrFiniteElement
    RT0PyrFiniteElement(bool rt0tets = true);
 
-   virtual void CalcVShape(const IntegrationPoint &ip,
-                           DenseMatrix &shape) const;
+   void CalcVShape(const IntegrationPoint &ip,
+                   DenseMatrix &shape) const override;
 
-   virtual void CalcVShape(ElementTransformation &Trans,
-                           DenseMatrix &shape) const
+   void CalcVShape(ElementTransformation &Trans,
+                   DenseMatrix &shape) const override
    { CalcVShape_RT(Trans, shape); }
 
-   virtual void CalcDivShape(const IntegrationPoint &ip,
-                             Vector &divshape) const;
+   void CalcDivShape(const IntegrationPoint &ip,
+                     Vector &divshape) const override;
 
-   virtual void GetLocalInterpolation (ElementTransformation &Trans,
-                                       DenseMatrix &I) const;
+   void GetLocalInterpolation(ElementTransformation &Trans,
+                              DenseMatrix &I) const override;
 
    using FiniteElement::Project;
 
-   virtual void Project (VectorCoefficient &vc,
-                         ElementTransformation &Trans, Vector &dofs) const;
+   void Project(VectorCoefficient &vc,
+                ElementTransformation &Trans, Vector &dofs) const override;
 
-   virtual void ProjectCurl(const FiniteElement &fe,
-                            ElementTransformation &Trans,
-                            DenseMatrix &curl) const;
+   void ProjectCurl(const FiniteElement &fe,
+                    ElementTransformation &Trans,
+                    DenseMatrix &curl) const override;
 };
 
 
@@ -1184,9 +1184,9 @@ class RotTriLinearHexFiniteElement : public NodalFiniteElement
 public:
    /// Construct the RotTriLinearHexFiniteElement
    RotTriLinearHexFiniteElement();
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
 };
 
 

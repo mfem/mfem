@@ -97,8 +97,8 @@ class BBTSolver : public Solver
    CGSolver BBT_solver_;
 public:
    BBTSolver(const HypreParMatrix &B, IterSolveParameters param);
-   virtual void Mult(const Vector &x, Vector &y) const { BBT_solver_.Mult(x, y); }
-   virtual void SetOperator(const Operator &op) { }
+   void Mult(const Vector &x, Vector &y) const override { BBT_solver_.Mult(x, y); }
+   void SetOperator(const Operator &op) override { }
 };
 
 /// Block diagonal solver for symmetric A, each block is inverted by direct solver
@@ -107,7 +107,7 @@ class SymDirectSubBlockSolver : public DirectSubBlockSolver
 public:
    SymDirectSubBlockSolver(const SparseMatrix& A, const SparseMatrix& block_dof)
       : DirectSubBlockSolver(A, block_dof) { }
-   virtual void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y); }
+   void MultTranspose(const Vector &x, Vector &y) const override { Mult(x, y); }
 };
 
 /// non-overlapping additive Schwarz smoother for saddle point systems
@@ -141,9 +141,9 @@ public:
                          const SparseMatrix& agg_l2dof,
                          const HypreParMatrix& P_l2,
                          const HypreParMatrix& Q_l2);
-   virtual void Mult(const Vector &x, Vector &y) const;
-   virtual void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y); }
-   virtual void SetOperator(const Operator &op) { }
+   void Mult(const Vector &x, Vector &y) const override;
+   void MultTranspose(const Vector &x, Vector &y) const override { Mult(x, y); }
+   void SetOperator(const Operator &op) override { }
 };
 
 /// Solver for local problems in SaddleSchwarzSmoother
@@ -154,8 +154,8 @@ class LocalSolver : public Solver
    const int offset_;
 public:
    LocalSolver(const DenseMatrix &M, const DenseMatrix &B);
-   virtual void Mult(const Vector &x, Vector &y) const;
-   virtual void SetOperator(const Operator &op) { }
+   void Mult(const Vector &x, Vector &y) const override;
+   void SetOperator(const Operator &op) override { }
 };
 
 /// Divergence free solver.
@@ -191,9 +191,9 @@ public:
    DivFreeSolver(const HypreParMatrix& M, const HypreParMatrix &B,
                  const DFSData& data);
    ~DivFreeSolver();
-   virtual void Mult(const Vector &x, Vector &y) const;
-   virtual void SetOperator(const Operator &op) { }
-   virtual int GetNumIterations() const;
+   void Mult(const Vector &x, Vector &y) const override;
+   void SetOperator(const Operator &op) override { }
+   int GetNumIterations() const override;
 };
 
 } // namespace blocksolvers

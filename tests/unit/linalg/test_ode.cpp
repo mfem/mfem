@@ -44,13 +44,13 @@ TEST_CASE("First order ODE methods", "[ODE]")
          I(0,0) = I(1,1) = 1.0;
       };
 
-      virtual void Mult(const Vector &u, Vector &dudt)  const
+      void Mult(const Vector &u, Vector &dudt)  const override
       {
          A.Mult(u,dudt);
          dudt.Neg();
       }
 
-      virtual void ImplicitSolve(const real_t dt, const Vector &u, Vector &dudt)
+      void ImplicitSolve(const real_t dt, const Vector &u, Vector &dudt) override
       {
          // Residual
          A.Mult(u,r);
@@ -65,7 +65,7 @@ TEST_CASE("First order ODE methods", "[ODE]")
          T.Mult(r,dudt);
       }
 
-      virtual ~ODE() {};
+      ~ODE() override {};
    };
 
    // Class for checking order of convergence of first order ODE.
