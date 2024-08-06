@@ -2350,7 +2350,11 @@ public:
 
    virtual void AddMultPA(const Vector&, Vector&) const;
 
+   virtual void AddAbsMultPA(const Vector&, Vector&) const;
+
    virtual void AddMultTransposePA(const Vector&, Vector&) const;
+
+   virtual void AddAbsMultTransposePA(const Vector&, Vector&) const;
 
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe,

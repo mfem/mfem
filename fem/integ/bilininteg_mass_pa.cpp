@@ -213,10 +213,31 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    }
 }
 
+void MassIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
+{
+   if (DeviceCanUseCeed())
+   {
+      ceedOp->AddMult(x, y);
+   }
+   else
+   {
+      Vector abs_pa_data(pa_data);
+      abs_pa_data.PowerAbs(1.0);
+      internal::PAMassApply(dim, dofs1D, quad1D, ne, maps->B, maps->Bt, abs_pa_data,
+                            x, y);
+   }
+}
+
 void MassIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
 {
    // Mass integrator is symmetric
    AddMultPA(x, y);
+}
+
+void MassIntegrator::AddAbsMultTransposePA(const Vector &x, Vector &y) const
+{
+   // Mass integrator is symmetric
+   AddAbsMultPA(x, y);
 }
 
 } // namespace mfem
