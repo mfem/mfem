@@ -65,8 +65,13 @@ public:
 
    /// Compute Mult without applying signs based on DOF orientations.
    void MultUnsigned(const Vector &x, Vector &y) const;
+
+   void AbsMult(const Vector &x, Vector &y) const override { MultUnsigned(x,y); };
+
    /// Compute MultTranspose without applying signs based on DOF orientations.
    void MultTransposeUnsigned(const Vector &x, Vector &y) const;
+
+   void AbsMultTranspose(const Vector &x, Vector &y) const override { MultTransposeUnsigned(x,y); };
 
    /// Compute MultTranspose by setting (rather than adding) element
    /// contributions; this is a left inverse of the Mult() operation

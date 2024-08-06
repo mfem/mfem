@@ -814,16 +814,14 @@ void PABilinearFormExtension::AbsMult(const Vector &x, Vector &y) const
          auto el_rest = dynamic_cast<const ElementRestriction*>(elem_restrict);
          MFEM_VERIFY(el_rest, "elem_restrict is not ElementRestriction*!");
 
-         // MultUnsigned instead of AbsMult
-         el_rest->MultUnsigned(x, localX);
+         el_rest->AbsMult(x, localX);
          localY = 0.0;
          for (int i = 0; i < iSz; ++i)
          {
             AddAbsMultWithMarkers(*integrators[i], localX, elem_markers[i],
                                   elem_attributes, false, localY);
          }
-         // MultTransposeUnsigned instead of AbsMultTranspose
-         el_rest->MultTransposeUnsigned(localY, y);
+         el_rest->AbsMultTranspose(localY, y);
       }
       else
       {
@@ -1293,7 +1291,7 @@ void EABilinearFormExtension::AbsMult(const Vector &x, Vector &y) const
    }
    else
    {
-      el_rest->MultUnsigned(x, localX);
+      el_rest->AbsMult(x, localX);
       localY = 0.0;
    }
    // Apply the Element Matrices
@@ -1318,7 +1316,7 @@ void EABilinearFormExtension::AbsMult(const Vector &x, Vector &y) const
       // Apply the Element Restriction transposed
       if (useRestrict)
       {
-         el_rest->MultTransposeUnsigned(localY, y);
+         el_rest->AbsMultTranspose(localY, y);
       }
    }
 
