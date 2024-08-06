@@ -182,6 +182,33 @@ int main(int argc, char *argv[])
       sol_sock.precision(8);
    }
 
+   // solve for eta from - \Delta \eta = 1 with homogeneous 0 Dirichlet BC
+
+   GridFunction eta(&H1fes); 
+   eta = 0.0; 
+
+   Array<int> boundary_dofs;
+   H1fes.GetBoundaryTrueDofs(boundary_dofs);
+
+   LinearForm b_eta(&H1fes); 
+   b_eta.AddDomainIntegrator(new DomainLFIntegrator(one)); 
+   b_eta.Assemble(); 
+
+   BilinearForm a_eta(&H1fes); 
+   a_eta.AddDomainIntegrator(new DiffusionIntegrator); 
+   a_eta.Assemble(); 
+
+   SparseMatrix A_eta; 
+   Vector B_eta, X_eta; 
+   a_eta.FormLinearSystem(boundary_dofs, eta, b_eta, A_eta, X_eta, B_eta); 
+
+   GSSmoother M_eta(A_eta); 
+   PCG(A_eta, M_eta, B_eta, X_eta, 1, 200, 1e-12, 0.0); 
+   
+   a_eta.RecoverFEMSolution(X_eta, b_eta, eta); 
+
+   GridFunctionCoefficient eta_gf(&eta); 
+
    LinearForm b0,b1;
    b0.MakeRef(&L2fes,rhs.GetBlock(0),0);
    b1.MakeRef(&H1fes,rhs.GetBlock(1),0);
@@ -204,8 +231,9 @@ int main(int argc, char *argv[])
    b1.AddDomainIntegrator(new DomainLFGradIntegrator(psi_old_minus_psi));
 
    GradientGridFunctionCoefficient grad_u_old(&u_old_gf); 
-   ScalarVectorProductCoefficient neg_grad_u_old(-1.0 * 1 / alpha, grad_u_old); 
-   b1.AddDomainIntegrator(new DomainLFGradIntegrator(neg_grad_u_old));
+   ScalarVectorProductCoefficient eta_grad_u_old(eta_gf, grad_u_old); 
+   ScalarVectorProductCoefficient neg_eta_grad_u_old(-1.0 * 1 / alpha, eta_grad_u_old); 
+   b1.AddDomainIntegrator(new DomainLFGradIntegrator(neg_eta_grad_u_old));
 
 	GridFunctionCoefficient u_old_cf(&u_old_gf);
 	ProductCoefficient neg_u_old_cf(neg_one, u_old_cf);
@@ -261,7 +289,8 @@ int main(int argc, char *argv[])
          
          BilinearForm a11(&H1fes);
          ConstantCoefficient neg_one_alpha_recip(-1.0 * 1.0 / alpha); 
-         a11.AddDomainIntegrator(new DiffusionIntegrator(neg_one_alpha_recip)); 
+         ProductCoefficient neg_eta_gf(neg_one_alpha_recip, eta_gf); 
+         a11.AddDomainIntegrator(new DiffusionIntegrator(neg_eta_gf)); 
 
          a11.Assemble(false);  // false
          a11.Finalize();
