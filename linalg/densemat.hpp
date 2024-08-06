@@ -26,7 +26,7 @@ class DenseMatrix : public Matrix
    friend class DenseMatrixInverse;
 
 private:
-   Memory<real_t> data;
+   Array<real_t> data;
 
    void Eigensystem(Vector &ev, DenseMatrix *evect = NULL);
 
@@ -39,9 +39,6 @@ public:
    /** Default constructor for DenseMatrix.
        Sets data = NULL and height = width = 0. */
    DenseMatrix();
-
-   /// Copy constructor
-   DenseMatrix(const DenseMatrix &);
 
    /// Creates square matrix of size s.
    explicit DenseMatrix(int s);
@@ -75,11 +72,10 @@ public:
 
    /// Change the data array and the size of the DenseMatrix.
    /** The DenseMatrix does not assume ownership of the data array, i.e. it will
-       not delete the data array @a d. This method should not be used with
-       DenseMatrix that owns its current data array. */
+       not delete the data array @a d. */
    void UseExternalData(real_t *d, int h, int w)
    {
-      data.Wrap(d, h*w, false);
+      data.MakeRef(d, h*w);
       height = h; width = w;
    }
 
@@ -87,16 +83,17 @@ public:
    /** The DenseMatrix does not assume ownership of the data array, i.e. it will
        not delete the new array @a d. This method will delete the current data
        array, if owned. */
+
    void Reset(real_t *d, int h, int w)
-   { if (OwnsData()) { data.Delete(); } UseExternalData(d, h, w); }
+   { UseExternalData(d, h, w); }
 
    /** Clear the data array and the dimensions of the DenseMatrix. This method
        should not be used with DenseMatrix that owns its current data array. */
-   void ClearExternalData() { data.Reset(); height = width = 0; }
+   void ClearExternalData() { data.LoseData(); height = width = 0; }
 
    /// Delete the matrix data array (if owned) and reset the matrix state.
    void Clear()
-   { if (OwnsData()) { data.Delete(); } ClearExternalData(); }
+   { data.DeleteAll(); height = width = 0; }
 
    /// For backward compatibility define Size to be synonym of Width()
    int Size() const { return Width(); }
@@ -114,11 +111,12 @@ public:
    /// Returns the matrix data array.
    inline real_t *GetData() const { return Data(); }
 
-   Memory<real_t> &GetMemory() { return data; }
-   const Memory<real_t> &GetMemory() const { return data; }
+   Memory<real_t> &GetMemory() { return data.GetMemory(); }
+
+   const Memory<real_t> &GetMemory() const { return data.GetMemory(); }
 
    /// Return the DenseMatrix data (host pointer) ownership flag.
-   inline bool OwnsData() const { return data.OwnsHostPtr(); }
+   inline bool OwnsData() const { return data.OwnsData(); }
 
    /// Returns reference to a_{ij}.
    inline real_t &operator()(int i, int j);
@@ -467,33 +465,24 @@ public:
    std::size_t MemoryUsage() const { return data.Capacity() * sizeof(real_t); }
 
    /// Shortcut for mfem::Read( GetMemory(), TotalSize(), on_dev).
-   const real_t *Read(bool on_dev = true) const
-   { return mfem::Read(data, Height()*Width(), on_dev); }
+   const real_t *Read(bool on_dev = true) const { return data.Read(on_dev); }
 
    /// Shortcut for mfem::Read(GetMemory(), TotalSize(), false).
-   const real_t *HostRead() const
-   { return mfem::Read(data, Height()*Width(), false); }
+   const real_t *HostRead() const { return data.HostRead(); }
 
    /// Shortcut for mfem::Write(GetMemory(), TotalSize(), on_dev).
-   real_t *Write(bool on_dev = true)
-   { return mfem::Write(data, Height()*Width(), on_dev); }
+   real_t *Write(bool on_dev = true) { return data.Write(on_dev); }
 
    /// Shortcut for mfem::Write(GetMemory(), TotalSize(), false).
-   real_t *HostWrite()
-   { return mfem::Write(data, Height()*Width(), false); }
+   real_t *HostWrite() { return data.HostWrite(); }
 
    /// Shortcut for mfem::ReadWrite(GetMemory(), TotalSize(), on_dev).
-   real_t *ReadWrite(bool on_dev = true)
-   { return mfem::ReadWrite(data, Height()*Width(), on_dev); }
+   real_t *ReadWrite(bool on_dev = true) { return data.ReadWrite(on_dev); }
 
    /// Shortcut for mfem::ReadWrite(GetMemory(), TotalSize(), false).
-   real_t *HostReadWrite()
-   { return mfem::ReadWrite(data, Height()*Width(), false); }
+   real_t *HostReadWrite() { return data.HostReadWrite(); }
 
    void Swap(DenseMatrix &other);
-
-   /// Destroys dense matrix.
-   virtual ~DenseMatrix();
 };
 
 /// C = A + alpha*B
@@ -1108,88 +1097,59 @@ class DenseTensor
 {
 private:
    mutable DenseMatrix Mk;
-   Memory<real_t> tdata;
-   int nk;
+   Array<real_t> tdata;
+   int ni, nj, nk;
 
 public:
-   DenseTensor()
-   {
-      nk = 0;
-   }
+   DenseTensor() : ni(0), nj(0), nk(0) { }
 
-   DenseTensor(int i, int j, int k)
-      : Mk(NULL, i, j)
-   {
-      nk = k;
-      tdata.New(i*j*k);
-   }
+   DenseTensor(int i, int j, int k) : tdata(i*j*k), ni(i), nj(j), nk(k) { }
 
    DenseTensor(real_t *d, int i, int j, int k)
-      : Mk(NULL, i, j)
-   {
-      nk = k;
-      tdata.Wrap(d, i*j*k, false);
-   }
+      : tdata(d, i*j*k), ni(i), nj(j), nk(k) { }
 
    DenseTensor(int i, int j, int k, MemoryType mt)
-      : Mk(NULL, i, j)
-   {
-      nk = k;
-      tdata.New(i*j*k, mt);
-   }
+      : tdata(i*j*k, mt), ni(i), nj(j), nk(k) { }
 
-   /// Copy constructor: deep copy
-   DenseTensor(const DenseTensor &other)
-      : Mk(NULL, other.Mk.height, other.Mk.width), nk(other.nk)
-   {
-      const int size = Mk.Height()*Mk.Width()*nk;
-      if (size > 0)
-      {
-         tdata.New(size, other.tdata.GetMemoryType());
-         tdata.CopyFrom(other.tdata, size);
-      }
-   }
-
-   int SizeI() const { return Mk.Height(); }
-   int SizeJ() const { return Mk.Width(); }
+   int SizeI() const { return ni; }
+   int SizeJ() const { return nj; }
    int SizeK() const { return nk; }
 
    int TotalSize() const { return SizeI()*SizeJ()*SizeK(); }
 
    void SetSize(int i, int j, int k, MemoryType mt_ = MemoryType::PRESERVE)
    {
-      const MemoryType mt = mt_ == MemoryType::PRESERVE ? tdata.GetMemoryType() : mt_;
-      tdata.Delete();
-      Mk.UseExternalData(NULL, i, j);
+      const MemoryType mt = mt_ == MemoryType::PRESERVE ?
+                            tdata.GetMemory().GetMemoryType() : mt_;
+      ni = i;
+      nj = j;
       nk = k;
-      tdata.New(i*j*k, mt);
+      Mk.ClearExternalData();
+      tdata.SetSize(i*j*k, mt);
    }
 
    void UseExternalData(real_t *ext_data, int i, int j, int k)
    {
-      tdata.Delete();
-      Mk.UseExternalData(NULL, i, j);
+      ni = i;
+      nj = j;
       nk = k;
-      tdata.Wrap(ext_data, i*j*k, false);
+      Mk.ClearExternalData();
+      tdata.MakeRef(ext_data, i*j*k);
    }
 
    /// Sets the tensor elements equal to constant c
    DenseTensor &operator=(real_t c);
 
-   /// Copy assignment operator (performs a deep copy)
-   DenseTensor &operator=(const DenseTensor &other);
-
    DenseMatrix &operator()(int k)
    {
       MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
-      Mk.data = Memory<real_t>(GetData(k), SizeI()*SizeJ(), false);
+      Mk.UseExternalData(GetData(k), SizeI(), SizeJ());
       return Mk;
    }
    const DenseMatrix &operator()(int k) const
    {
       MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
-      Mk.data = Memory<real_t>(const_cast<real_t*>(GetData(k)), SizeI()*SizeJ(),
-                               false);
+      Mk.UseExternalData(const_cast<real_t*>(GetData(k)), SizeI(), SizeJ());
       return Mk;
    }
 
@@ -1212,21 +1172,21 @@ public:
    real_t *GetData(int k)
    {
       MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
-      return tdata+k*Mk.Height()*Mk.Width();
+      return tdata.GetMemory()+k*ni*nj;
    }
 
    const real_t *GetData(int k) const
    {
       MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
-      return tdata+k*Mk.Height()*Mk.Width();
+      return tdata.GetMemory()+k*ni*nj;
    }
 
-   real_t *Data() { return tdata; }
+   real_t *Data() { return tdata.GetData(); }
 
-   const real_t *Data() const { return tdata; }
+   const real_t *Data() const { return tdata.GetData(); }
 
-   Memory<real_t> &GetMemory() { return tdata; }
-   const Memory<real_t> &GetMemory() const { return tdata; }
+   Memory<real_t> &GetMemory() { return tdata.GetMemory(); }
+   const Memory<real_t> &GetMemory() const { return tdata.GetMemory(); }
 
    /** Matrix-vector product from unassembled element matrices, assuming both
        'x' and 'y' use the same elem_dof table. */
@@ -1235,40 +1195,30 @@ public:
    void Clear()
    { UseExternalData(NULL, 0, 0, 0); }
 
-   std::size_t MemoryUsage() const { return nk*Mk.MemoryUsage(); }
+   std::size_t MemoryUsage() const { return tdata.Capacity(); }
 
    /// Shortcut for mfem::Read( GetMemory(), TotalSize(), on_dev).
-   const real_t *Read(bool on_dev = true) const
-   { return mfem::Read(tdata, Mk.Height()*Mk.Width()*nk, on_dev); }
+   const real_t *Read(bool on_dev = true) const { return tdata.Read(on_dev); }
 
    /// Shortcut for mfem::Read(GetMemory(), TotalSize(), false).
-   const real_t *HostRead() const
-   { return mfem::Read(tdata, Mk.Height()*Mk.Width()*nk, false); }
+   const real_t *HostRead() const { return tdata.HostRead(); }
 
    /// Shortcut for mfem::Write(GetMemory(), TotalSize(), on_dev).
-   real_t *Write(bool on_dev = true)
-   { return mfem::Write(tdata, Mk.Height()*Mk.Width()*nk, on_dev); }
+   real_t *Write(bool on_dev = true) { return tdata.Write(on_dev); }
 
    /// Shortcut for mfem::Write(GetMemory(), TotalSize(), false).
-   real_t *HostWrite()
-   { return mfem::Write(tdata, Mk.Height()*Mk.Width()*nk, false); }
+   real_t *HostWrite() { return tdata.HostWrite(); }
 
    /// Shortcut for mfem::ReadWrite(GetMemory(), TotalSize(), on_dev).
-   real_t *ReadWrite(bool on_dev = true)
-   { return mfem::ReadWrite(tdata, Mk.Height()*Mk.Width()*nk, on_dev); }
+   real_t *ReadWrite(bool on_dev = true) { return tdata.ReadWrite(on_dev); }
 
    /// Shortcut for mfem::ReadWrite(GetMemory(), TotalSize(), false).
-   real_t *HostReadWrite()
-   { return mfem::ReadWrite(tdata, Mk.Height()*Mk.Width()*nk, false); }
+   real_t *HostReadWrite() { return tdata.HostReadWrite(); }
 
    void Swap(DenseTensor &t)
    {
-      mfem::Swap(tdata, t.tdata);
-      mfem::Swap(nk, t.nk);
-      Mk.Swap(t.Mk);
+      mfem::Swap(*this, t);
    }
-
-   ~DenseTensor() { tdata.Delete(); }
 };
 
 /** @brief Compute the LU factorization of a batch of matrices

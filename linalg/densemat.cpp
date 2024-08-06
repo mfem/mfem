@@ -40,23 +40,12 @@ using namespace std;
 
 DenseMatrix::DenseMatrix() : Matrix(0) { }
 
-DenseMatrix::DenseMatrix(const DenseMatrix &m) : Matrix(m.height, m.width)
-{
-   const int hw = height * width;
-   if (hw > 0)
-   {
-      MFEM_ASSERT(m.data, "invalid source matrix");
-      data.New(hw);
-      std::memcpy(data, m.data, sizeof(real_t)*hw);
-   }
-}
-
 DenseMatrix::DenseMatrix(int s) : Matrix(s)
 {
    MFEM_ASSERT(s >= 0, "invalid DenseMatrix size: " << s);
    if (s > 0)
    {
-      data.New(s*s);
+      data.SetSize(s*s);
       *this = 0.0; // init with zeroes
    }
 }
@@ -68,7 +57,7 @@ DenseMatrix::DenseMatrix(int m, int n) : Matrix(m, n)
    const int capacity = m*n;
    if (capacity > 0)
    {
-      data.New(capacity);
+      data.SetSize(capacity);
       *this = 0.0; // init with zeroes
    }
 }
@@ -80,7 +69,7 @@ DenseMatrix::DenseMatrix(const DenseMatrix &mat, char ch)
    const int capacity = height*width;
    if (capacity > 0)
    {
-      data.New(capacity);
+      data.SetSize(capacity);
 
       for (int i = 0; i < height; i++)
       {
@@ -103,10 +92,9 @@ void DenseMatrix::SetSize(int h, int w)
    height = h;
    width = w;
    const int hw = h*w;
-   if (hw > data.Capacity())
+   if (hw > data.Size())
    {
-      data.Delete();
-      data.New(hw);
+      data.SetSize(hw);
       *this = 0.0; // init with zeroes
    }
 }
@@ -2322,16 +2310,8 @@ void DenseMatrix::TestInversion()
 
 void DenseMatrix::Swap(DenseMatrix &other)
 {
-   mfem::Swap(width, other.width);
-   mfem::Swap(height, other.height);
-   mfem::Swap(data, other.data);
+   mfem::Swap(*this, other);
 }
-
-DenseMatrix::~DenseMatrix()
-{
-   data.Delete();
-}
-
 
 
 void Add(const DenseMatrix &A, const DenseMatrix &B,
@@ -4340,7 +4320,7 @@ const
 {
    int n = SizeI(), ne = SizeK();
    const int *I = elem_dof.GetI(), *J = elem_dof.GetJ(), *dofs;
-   const real_t *d_col = mfem::HostRead(tdata, n*SizeJ()*ne);
+   const real_t *d_col = tdata.HostRead();
    real_t *yp = y.HostReadWrite();
    real_t x_col;
    const real_t *xp = x.HostRead();
@@ -4397,13 +4377,6 @@ DenseTensor &DenseTensor::operator=(real_t c)
    {
       tdata[i] = c;
    }
-   return *this;
-}
-
-DenseTensor &DenseTensor::operator=(const DenseTensor &other)
-{
-   DenseTensor new_tensor(other);
-   Swap(new_tensor);
    return *this;
 }
 
