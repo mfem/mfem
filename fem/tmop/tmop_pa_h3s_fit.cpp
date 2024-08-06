@@ -78,11 +78,8 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_Fit_3D,
                         const real_t d2x = X5(qx,qy,qz,i,j,e);
 
                         const real_t entry = 2 * w * (dxi*dxj + sigma * d2x);
-                        if (i != j) 
-                        { 
-                            H0(i,j,qx,qy,qz,e) = entry;
-                            H0(j,i,qx,qy,qz,e) = entry;
-                        }   
+                        H0(i,j,qx,qy,qz,e) = entry;
+                        if (i != j) { H0(j,i,qx,qy,qz,e) = entry;}   
                     }
                 }
                 

@@ -21,14 +21,8 @@ namespace mfem
 
 MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_Fit_2D,
                            const int NE,
-                           const real_t &c1_,
-                           const real_t &c2_,
-                           const Vector &x1_,
-                           const Vector &x2_,
-                           const Vector &x3_,
-                           const Vector &x4_,
-                           const Vector &x5_,
-                           Vector &h0_,
+                           const Vector &h0,
+                           Vector &diagonal,
                            const int d1d,
                            const int q1d)
 {
@@ -37,18 +31,10 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_Fit_2D,
 
     const int D1D = T_D1D ? T_D1D : d1d;
     const int Q1D = T_Q1D ? T_Q1D : q1d;
+    
+    const auto H0 = Reshape(h0.Read(), DIM, DIM, D1D, D1D, NE);
 
-    const auto C1 = c1_;
-    const auto C2 = c2_;
-    const auto X1 = Reshape(x1_.Read(), D1D, D1D, NE);
-    const auto X2 = Reshape(x2_.Read(), D1D, D1D, NE);
-    const auto X3 = Reshape(x3_.Read(), D1D, D1D, NE);
-    const auto X4 = Reshape(x4_.Read(), D1D, D1D, DIM, NE);
-    const auto X5 = Reshape(x5_.Read(), D1D, D1D, DIM, DIM, NE);
-
-
-
-    auto H0 = Reshape(h0_.Write(), DIM, DIM, D1D, D1D, NE);
+    auto D = Reshape(diagonal.ReadWrite(), D1D, D1D, DIM, NE);
 
     mfem::forall_2D_batch(NE, D1D, D1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
     {
@@ -60,21 +46,9 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_Fit_2D,
         {
             MFEM_FOREACH_THREAD(qx,x,D1D)
             {
-                const real_t sigma = X1(qx,qy,e);
-                const real_t dof_count = X2(qx,qy,e);
-                const real_t marker = X3(qx,qy,e);
-                const real_t coeff = C1;
-                const real_t normal = C2;
-
-                
-                double w = marker * normal * coeff * 1.0/dof_count;
                 for (int v = 0; v < DIM; v++)
                 {
-                    const real_t dx = X4(qx,qy,v,e);
-                    const real_t d2x = X5(qx,qy,v,v,e);
-
-                    const real_t entry = 2 * w * (dx*dx + sigma * d2x);
-                    H0(v,v,qx,qy,e) = entry;                 
+                    D(qx,qy,v,e) += H0(v,v,qx,qy,e);;                 
                 }
             
             }
@@ -91,17 +65,9 @@ void TMOP_Integrator::AssembleDiagonalPA_Fit_2D(Vector &D) const
    const int Q1D = D1D;
    const int id = (D1D << 4 ) | D1D;
 
-   const real_t &C1 = PA.C1;
-   const real_t &C2 = PA.C2;
-   const Vector &X1 = PA.X1;
-   const Vector &X2 = PA.X2;
-   const Vector &X3 = PA.X3;
-   const Vector &X4 = PA.X4;
-   const Vector &X5 = PA.X5;
+   const Vector &H0 = PA.H0Fit;
 
-   Vector &H0 = PA.H0Fit;
-
-   MFEM_LAUNCH_TMOP_KERNEL(AssembleDiagonalPA_Kernel_Fit_2D,id,N,C1,C2,X1,X2,X3,X4,X5,H0);
+   MFEM_LAUNCH_TMOP_KERNEL(AssembleDiagonalPA_Kernel_Fit_2D,id,N,H0,D);
 }
 
 } // namespace mfem
