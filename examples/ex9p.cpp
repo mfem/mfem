@@ -372,7 +372,7 @@ int main(int argc, char *argv[])
    {
       mesh->UniformRefinement();
    }
-   if (mesh->NURBSext)
+   if (mesh->IsNURBS())
    {
       mesh->SetCurvature(max(order, 1));
    }
