@@ -3521,6 +3521,8 @@ void FiniteElementSpace::Destroy()
 
    dof_elem_array.DeleteAll();
    dof_ldof_array.DeleteAll();
+   dof_bdr_elem_array.DeleteAll();
+   dof_bdr_ldof_array.DeleteAll();
 
    for (int i = 0; i < VNURBSext.Size(); i++)
    {
