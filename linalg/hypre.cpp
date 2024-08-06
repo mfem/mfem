@@ -87,6 +87,9 @@ void Hypre::SetDefaultOptions()
 #elif defined(HYPRE_USING_HIP)
    // Use rocSPARSE instead of hypre's SpGEMM for performance reasons (default)
    // HYPRE_SetSpGemmUseCusparse(1);
+
+   // Use hypre's SpMV instead of rocSPARSE for performance reasons.
+   HYPRE_SetSpMVUseVendor(0);
 #endif
 #endif
 
