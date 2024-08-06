@@ -11,6 +11,8 @@
 Version 4.7.1 (development)
 ===========================
 
+- Added support for boundary constraints to the hybridization class.
+
 - Refactored the `ARKStepSolver` class (ARKODE interface) to use
   `TimeDependentOperator::Mult` only when the associated ODE operator is
   expressed in explicit form (i.e., `TimeDependentOperator::isExplicit()`),
@@ -33,6 +35,8 @@ Version 4.7.1 (development)
 
 - API change: in class GridFunction, 'fec' was renamed to 'fec_owned'.
 
+- The ExodusII reader now handles pyramid and wedge element types. Mixed meshes
+  are also supported.
 
 Version 4.7, released on May 7, 2024
 ====================================
