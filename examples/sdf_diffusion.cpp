@@ -129,22 +129,6 @@ int main(int argc, char *argv[])
       //   << H1fes.GetTrueVSize() << endl;
 
    // 5. Determine the list of true (i.e., conforming) essential boundary dofs.
-   // Array<int> ess_vdof_list;
-   // ess_vdof_list.SetSize(H1fes.GetTrueVSize());
-   // if (mesh.bdr_attributes.Size())
-   // {
-      // Array<int> ess_bdr(mesh.bdr_attributes.Max());
-      // ess_bdr = 1;
-      // H1fes.GetEssentialVDofs(ess_bdr, ess_vdof_list);
-   // }
-	// ess_vdof_list = 0;
-	// ess_vdof_list[16] = -1; 
-	// ess_vdof_list[1] = -1; 
-
-	// ess_vdof_list[2] = 1; 
-
-
-	// ess_vdof_list.Print();
    
    // Array<int> offsets(3);
    // offsets[0] = 0;
@@ -161,11 +145,6 @@ int main(int argc, char *argv[])
 
    BlockVector x(offsets), rhs(offsets);
    x = 0.0; rhs = 0.0; 
-
-   // Vector zeros_L2fes(L2fes.GetVSize()); 
-   // zeros_L2fes = 0.0; 
-   // Vector ones_H1fes(H1fes.GetVSize() - L2fes.GetVSize()); 
-   // ones_H1fes = 1.0; 
 
    // 6. Define an initial guess for the solution.
    ConstantCoefficient one(1.0);
@@ -219,7 +198,7 @@ int main(int argc, char *argv[])
    b0.MakeRef(&L2fes,rhs.GetBlock(0),0);
    b1.MakeRef(&H1fes,rhs.GetBlock(1),0);
 
-   // LinearForm col1s(&L2fes); 
+   // LinearForm col1s(&H1fes); 
    // col1s.AddDomainIntegrator(new DomainLFIntegrator(one)); 
    // col1s.Assemble(); 
  
@@ -229,13 +208,6 @@ int main(int argc, char *argv[])
 
    Vector ones(offsets[1]); // .GetData() on the vector
    ones = 1.0; 
-
-   // Vector zeros(offsets[3]-offsets[1]);
-   // zeros = 0.0;
-
-   // SparseMatrix newcol();
-
-   // SparseMatrix col()
 
    ConstantCoefficient alpha_cf(alpha);
 
@@ -276,35 +248,24 @@ int main(int argc, char *argv[])
    SparseMatrix &A01 = a01.SpMat();
    SparseMatrix *A10 = Transpose(a01.SpMat());
 
-   int col_height = offsets[3];
-   // make n x 1 row vector 
-   Array<int> i_s(col_height+1); Array<int> j_s(offsets[2]-offsets[1]);
+   int col_height = H1fes.GetVSize();
+   // make n x 1 column vector 
+   Array<int> i_s(col_height+1); Array<int> j_s(H1fes.GetVSize());
    j_s = 0; i_s = 0; 
       
-   for (int k=offsets[1]; k<offsets[2]; k++) { 
+   for (int k=0; k<H1fes.GetVSize(); k++) { 
       i_s[k+1] = 1;
    }
 
    i_s.PartialSum();
 
-   Vector column(offsets[2] - offsets[1]); // non-zero values 
+   Vector column(H1fes.GetVSize()); // non-zero values 
    column = 1.0; 
 
    // LinearForm col(&H1fes); 
-
-   // mfem::out << "\n L2 dofs:  " << L2fes.GetTrueVSize() << endl; 
-   // mfem::out << "\n H1 dofs:  " << H1fes.GetTrueVSize()  << endl;
-
-   // A01.PrintInfo(mfem::out);
    
    SparseMatrix col_sp(i_s.begin(), j_s.begin(), column.begin(), col_height, 1, false, false, true);
    SparseMatrix* row_sp(Transpose(col_sp)); 
-
-   // col_sp.Print(mfem::out);
-
-   col_sp.PrintInfo(mfem::out);
-   // return 0; 
-
 
    // 10. Iterate
    int k;
@@ -340,26 +301,20 @@ int main(int argc, char *argv[])
          a00.Finalize(false);
          SparseMatrix &A00 = a00.SpMat();
 
-         A00.PrintInfo(mfem::out);
-         A01.PrintInfo(mfem::out); 
-         A11.PrintInfo(mfem::out); 
-         // Operator zeros_L2fes_col(offsets[1], 1); // ?? 
-
 #ifndef MFEM_USE_SUITESPARSE
          // Schur-complement preconditioner 
 
          BlockOperator A(offsets);
-         // A.PrintMatlab(mfem::out);
+
+         // all the other entries default to 0 values! 
          A.SetBlock(0,0,&A00);
          A.SetBlock(1,0,A10);
-
-         // A.SetBlock(2,0, 0.0);
 
          A.SetBlock(0,1,&A01);
          A.SetBlock(1,1,&A11);
 
-         A.SetBlock(0,2,&col_sp); 
-         A.SetBlock(2,0,row_sp); 
+         A.SetBlock(1,2,&col_sp); 
+         A.SetBlock(2,1,row_sp); 
 
          BlockDiagonalPreconditioner prec(offsets);
 
