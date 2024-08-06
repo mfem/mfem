@@ -228,6 +228,7 @@ public:
     {
         currentElementNo=-1;
         pe=nullptr;
+        currentLvlSet=nullptr;
 
     }
 
