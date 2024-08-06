@@ -265,8 +265,10 @@ protected:
    mutable Table *bdr_elem_fos; // bdr face orientations by bdr element index
    mutable Table *face_dof; // owned; in var-order space contains variant 0 DOFs
 
-   Array<int> dof_elem_array, dof_ldof_array, dof_bdr_elem_array,
-         dof_bdr_ldof_array;
+   mutable Array<int> dof_elem_array;
+   mutable Array<int> dof_ldof_array;
+   mutable Array<int> dof_bdr_elem_array;
+   mutable Array<int> dof_bdr_ldof_array;
 
    NURBSExtension *NURBSext;
    /** array of NURBS extension for H(div) and H(curl) vector elements.
@@ -1166,30 +1168,23 @@ public:
 
    /** @brief Initialize internal data that enables the use of the methods
        GetElementForDof() and GetLocalDofForDof(). */
-   void BuildDofToArrays();
+   void BuildDofToArrays() const;
 
    /// Return the index of the first element that contains ldof index @a i.
-   /** This method can be called only after setup is performed using the method
-       BuildDofToArrays(). */
-   int GetElementForDof(int i) const { return dof_elem_array[i]; }
+   int GetElementForDof(int i) const { BuildDofToArrays(); return dof_elem_array[i]; }
+
    /// Return the dof index within the element from GetElementForDof() for ldof index @a i.
-   /** This method can be called only after setup is performed using the method
-       BuildDofToArrays(). */
-   int GetLocalDofForDof(int i) const { return dof_ldof_array[i]; }
+   int GetLocalDofForDof(int i) const { BuildDofToArrays(); return dof_ldof_array[i]; }
 
    /** @brief Initialize internal data that enables the use of the methods
       GetBdrElementForDof() and GetBdrLocalDofForDof(). */
-   void BuildDofToBdrArrays();
+   void BuildDofToBdrArrays() const;
 
    /// Return the index of the first boundary element that contains ldof index @a i.
-   /** This method can be called only after setup is performed using the method
-       BuildDofToBdrArrays(). */
-   int GetBdrElementForDof(int i) const { return dof_bdr_elem_array[i]; }
+   int GetBdrElementForDof(int i) const { BuildDofToBdrArrays(); return dof_bdr_elem_array[i]; }
 
    /// Return the dof index within the boundary element from GetBdrElementForDof() for ldof index @a i.
-   /** This method can be called only after setup is performed using the method
-       BuildDofToBdrArrays(). */
-   int GetBdrLocalDofForDof(int i) const { return dof_bdr_ldof_array[i]; }
+   int GetBdrLocalDofForDof(int i) const { BuildDofToBdrArrays(); return dof_bdr_ldof_array[i]; }
 
 
    /** @brief Returns pointer to the FiniteElement in the FiniteElementCollection
