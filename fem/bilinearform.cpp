@@ -1941,36 +1941,59 @@ void MixedBilinearForm::AssembleBdrElementMatrix(
    mat->AddSubMatrix(test_vdofs_, trial_vdofs_, elmat, skip_zeros);
 }
 
-void MixedBilinearForm::EliminateTrialDofs (
+void MixedBilinearForm::EliminateTrialEssentialBC(
    const Array<int> &bdr_attr_is_ess, const Vector &sol, Vector &rhs )
 {
-   int i, j, k;
-   Array<int> tr_vdofs, cols_marker (trial_fes -> GetVSize());
-
-   cols_marker = 0;
-   for (i = 0; i < trial_fes -> GetNBE(); i++)
-      if (bdr_attr_is_ess[trial_fes -> GetBdrAttribute (i)-1])
-      {
-         trial_fes -> GetBdrElementVDofs (i, tr_vdofs);
-         for (j = 0; j < tr_vdofs.Size(); j++)
-         {
-            if ( (k = tr_vdofs[j]) < 0 )
-            {
-               k = -1-k;
-            }
-            cols_marker[k] = 1;
-         }
-      }
-   mat -> EliminateCols (cols_marker, &sol, &rhs);
+   Array<int> trial_ess_dofs;
+   trial_fes->GetEssentialVDofs(bdr_attr_is_ess, trial_ess_dofs);
+   mat->EliminateCols(trial_ess_dofs, &sol, &rhs);
 }
 
-void MixedBilinearForm::EliminateEssentialBCFromTrialDofs (
+void MixedBilinearForm::EliminateTrialEssentialBC(const Array<int>
+                                                  &bdr_attr_is_ess)
+{
+   Array<int> trial_ess_dofs;
+   trial_fes->GetEssentialVDofs(bdr_attr_is_ess, trial_ess_dofs);
+   mat->EliminateCols(trial_ess_dofs);
+}
+
+void MixedBilinearForm::EliminateTrialVDofs(const Array<int> &trial_vdofs_,
+                                            const Vector &sol, Vector &rhs)
+{
+   Array<int> trial_vdofs_marker;
+   FiniteElementSpace::ListToMarker(trial_vdofs_, mat->Width(),
+                                    trial_vdofs_marker);
+   mat->EliminateCols(trial_vdofs_marker, &sol, &rhs);
+}
+
+void MixedBilinearForm::EliminateTrialVDofs(const Array<int> &trial_vdofs_)
+{
+   if (mat_e == NULL)
+   {
+      mat_e = new SparseMatrix(mat->Height(), mat->Width());
+   }
+
+   Array<int> trial_vdofs_marker;
+   FiniteElementSpace::ListToMarker(trial_vdofs_, mat->Width(),
+                                    trial_vdofs_marker);
+   mat->EliminateCols(trial_vdofs_marker, *mat_e);
+   mat_e->Finalize();
+}
+
+void MixedBilinearForm::EliminateTrialVDofsInRHS(const Array<int> &trial_vdofs_,
+                                                 const Vector &x, Vector &b)
+{
+   mat_e->AddMult(x, b, -1.);
+}
+
+void MixedBilinearForm::EliminateEssentialBCFromTrialDofs(
    const Array<int> &marked_vdofs, const Vector &sol, Vector &rhs)
 {
-   mat -> EliminateCols (marked_vdofs, &sol, &rhs);
+   mat->EliminateCols(marked_vdofs, &sol, &rhs);
 }
 
-void MixedBilinearForm::EliminateTestDofs (const Array<int> &bdr_attr_is_ess)
+void MixedBilinearForm::EliminateTestEssentialBC(const Array<int>
+                                                 &bdr_attr_is_ess)
 {
    int i, j, k;
    Array<int> te_vdofs;
@@ -1988,6 +2011,14 @@ void MixedBilinearForm::EliminateTestDofs (const Array<int> &bdr_attr_is_ess)
             mat -> EliminateRow (k);
          }
       }
+}
+
+void MixedBilinearForm::EliminateTestVDofs(const Array<int> &test_vdofs_)
+{
+   for (int i=0; i<test_vdofs_.Size(); ++i)
+   {
+      mat->EliminateRow(test_vdofs_[i]);
+   }
 }
 
 void MixedBilinearForm::FormRectangularSystemMatrix(
@@ -2026,20 +2057,9 @@ void MixedBilinearForm::FormRectangularSystemMatrix(
       mat = m;
    }
 
-   Array<int> ess_trial_tdof_marker, ess_test_tdof_marker;
-   FiniteElementSpace::ListToMarker(trial_tdof_list, trial_fes->GetTrueVSize(),
-                                    ess_trial_tdof_marker);
-   FiniteElementSpace::ListToMarker(test_tdof_list, test_fes->GetTrueVSize(),
-                                    ess_test_tdof_marker);
+   EliminateTrialVDofs(trial_tdof_list);
+   EliminateTestVDofs(test_tdof_list);
 
-   mat_e = new SparseMatrix(mat->Height(), mat->Width());
-   mat->EliminateCols(ess_trial_tdof_marker, *mat_e);
-
-   for (int i=0; i<test_tdof_list.Size(); ++i)
-   {
-      mat->EliminateRow(test_tdof_list[i]);
-   }
-   mat_e->Finalize();
    A.Reset(mat, false);
 }
 
@@ -2068,7 +2088,7 @@ void MixedBilinearForm::FormRectangularLinearSystem(
                                   A); // Set A = mat_e
    }
    // Eliminate essential BCs with B -= Ab xb
-   mat_e->AddMult(X, B, -1.0);
+   EliminateTrialVDofsInRHS(trial_tdof_list, X, B);
 
    B.SetSubVector(test_tdof_list, 0.0);
 }
