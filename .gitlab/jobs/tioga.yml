@@ -42,12 +42,13 @@ setup:
 # describe the spec here.
 
 # Build and test jobs, simply provide a spec
-rocm_5_7_1:
-  extends: .job_on_tioga
-  stage: jobs-stage-2
-  variables:
-    SPEC: "+rocm amdgpu_target=gfx90a %rocmcc@=5.7.1 ^hip@5.7.1"
-    THREADS: 12
+
+#rocm_5_7_1:
+#  extends: .job_on_tioga
+#  stage: jobs-stage-2
+#  variables:
+#    SPEC: "+rocm amdgpu_target=gfx90a %rocmcc@=5.7.1 ^hip@5.7.1"
+#    THREADS: 12
 
 cce_16_0_1:
   extends: .job_on_tioga
