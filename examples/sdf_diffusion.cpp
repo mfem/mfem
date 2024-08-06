@@ -146,31 +146,26 @@ int main(int argc, char *argv[])
 
 	// ess_vdof_list.Print();
    
-   Array<int> offsets(3);
-   offsets[0] = 0;
-   offsets[1] = L2fes.GetVSize();
-   offsets[2] = H1fes.GetVSize();
-   offsets.PartialSum();
-
-   // Array<int> offsets(4);
+   // Array<int> offsets(3);
    // offsets[0] = 0;
    // offsets[1] = L2fes.GetVSize();
    // offsets[2] = H1fes.GetVSize();
-   // offsets[3] = H1fes.GetVSize()+1; // extra offset for scalar \lambda
    // offsets.PartialSum();
 
-   BlockVector x(offsets), rhs(offsets), col_3(offsets);
-   x = 0.0; rhs = 0.0; col_3 = 0.0;
+   Array<int> offsets(4);
+   offsets[0] = 0;
+   offsets[1] = L2fes.GetVSize();
+   offsets[2] = H1fes.GetVSize();
+   offsets[3] = 1; // extra offset for scalar \lambda
+   offsets.PartialSum();
 
-   col_3.GetBlock(1) = 1.0; 
+   BlockVector x(offsets), rhs(offsets);
+   x = 0.0; rhs = 0.0; 
 
-   Vector zeros_L2fes(L2fes.GetVSize()); 
-   zeros_L2fes = 0.0; 
-   Vector ones_H1fes(H1fes.GetVSize() - L2fes.GetVSize()); 
-   ones_H1fes = 1.0; 
-   // set the 2,1 block to 1s 
-
-   // col_3.Print();
+   // Vector zeros_L2fes(L2fes.GetVSize()); 
+   // zeros_L2fes = 0.0; 
+   // Vector ones_H1fes(H1fes.GetVSize() - L2fes.GetVSize()); 
+   // ones_H1fes = 1.0; 
 
    // 6. Define an initial guess for the solution.
    ConstantCoefficient one(1.0);
@@ -206,12 +201,8 @@ int main(int argc, char *argv[])
 	{
 		auto x0 = x(0), x1 = x(1); 
 		auto val = x0*x0+x1*x1-1.; 
-		// real_t pi = 3.1415926535; 
-		// real_t area = pi; 
 
 		return (val < 0.) ? -1 : (val > 0.) ? 1. : 0.;  
-		// return (val < 0.) ? -1. / pi : (val > 0.) ? 1. / (16. - pi) : 0.;
-		// return (val < 0.) ? -1. / area : (val > 0.) ? 1. / (16.-area) : 0.;  
 	}; 
 	FunctionCoefficient sgn_varphi(sgn_varphi_is); 
 
@@ -227,6 +218,24 @@ int main(int argc, char *argv[])
    LinearForm b0,b1;
    b0.MakeRef(&L2fes,rhs.GetBlock(0),0);
    b1.MakeRef(&H1fes,rhs.GetBlock(1),0);
+
+   // LinearForm col1s(&L2fes); 
+   // col1s.AddDomainIntegrator(new DomainLFIntegrator(one)); 
+   // col1s.Assemble(); 
+ 
+   // real_t* vals(col1s.data);
+   // pointer with i = [0, 0, ...]
+   // pointer with j = [0, 1, ..., N]
+
+   Vector ones(offsets[1]); // .GetData() on the vector
+   ones = 1.0; 
+
+   // Vector zeros(offsets[3]-offsets[1]);
+   // zeros = 0.0;
+
+   // SparseMatrix newcol();
+
+   // SparseMatrix col()
 
    ConstantCoefficient alpha_cf(alpha);
 
@@ -254,7 +263,6 @@ int main(int argc, char *argv[])
 	ProductCoefficient neg_u_old_cf(neg_one, u_old_cf);
 	b1.AddDomainIntegrator(new DomainLFIntegrator(neg_u_old_cf)); 
 
-//
    BilinearForm a00(&L2fes);
    a00.AddDomainIntegrator(new VectorMassIntegrator(DZ));
 
@@ -266,83 +274,37 @@ int main(int argc, char *argv[])
    a01.Finalize();
 
    SparseMatrix &A01 = a01.SpMat();
-
-   A01.PrintInfo(mfem::out);
-
-   int A01_height = A01.Height(); 
-   int A01_width = A01.Width(); 
-   int np1_height = A01_height+1;
-   int np1_width = A01_width+1;
-
-   // SparseMatrix A01_expanded(np1_height, np1_width); 
-
-   // for (int col_dx=0; col_dx < A01_width; col_dx++) {
-      // for (int row_dx=0; row_dx<A01_height; row_dx++) { 
-         // A01_expanded.Set(row_dx, col_dx, A01.Elem(row_dx, col_dx));
-      // }
-   // }
-   
-   // for (int col_dx=0; col_dx<np1_width; col_dx++) { 
-      // A01_expanded.Set(np1_height, col_dx, 0.0);
-   // }
-
-   // for (int row_dx=0; row_dx<np1_height; row_dx++) { 
-      // A01_expanded.Set(row_dx, np1_width, 0.0);
-   // }
-
-   // A01_expanded.PrintInfo(mfem::out);
-
-
-   // A01.OverrideSize(A01_height, np1_width); // +1
-   // A01.GetMemoryI().New(np1_width); 
-// 
-   // auto I = A01.WriteI(); 
-
-   // A01.PrintInfo(mfem::out);
-// 
-   // for (int row_dx=0; row_dx<A01_height; row_dx++) { 
-      // A01.Set(row_dx, np1_width, 0.0);
-   // }
-
-// 
-   // A01.PrintInfo(mfem::out);
-   // for (int zdx = 0; zdx<np1_height; zdx++) {
-      // A01.Set(np1_height, zdx, 0.0);
-   // }
-// 
-
-   
-   // A01.SetRow()
-   // A01.GetMemoryI().New(A01.Height()+1);
-   // auto I = A01.WriteI();
-   // mfem::forall(i, A01.Height()+1, I[i] = 0.0);
-
-
-   // A01.PrintInfo(mfem::out);
-
-   // return 0;
-
-   // MixedBilinearForm a01_nz(&H1fes,&L2fes);
-   // a01_nz.AddDomainIntegrator(new GradientIntegrator(neg_one)); 
-   // a01_nz.Assemble();
-   // a01_nz.Finalize();
-// 
-   // SparseMatrix &A01_nz = a01_nz.SpMat();
-// 
-   // SparseMatrix *A10 = Transpose(A01);
-
-	// MixedBilinearForm a10(&H1fes, &L2fes); 
-	// a10.AddDomainIntegrator(new MixedScalarWeakDivergenceIntegrator(one));
-	// a10.Assemble();
-	// a10.Finalize(); 
-// 
-	// SparseMatrix &A10 = a10.SpMat();
-
-   // SparseMatrix *A10 = Transpose(A01);
-
    SparseMatrix *A10 = Transpose(a01.SpMat());
 
-   // SparseMatrix &A01 = a01.SpMat();
+   int col_height = offsets[3];
+   // make n x 1 row vector 
+   Array<int> i_s(col_height+1); Array<int> j_s(offsets[2]-offsets[1]);
+   j_s = 0; i_s = 0; 
+      
+   for (int k=offsets[1]; k<offsets[2]; k++) { 
+      i_s[k+1] = 1;
+   }
+
+   i_s.PartialSum();
+
+   Vector column(offsets[2] - offsets[1]); // non-zero values 
+   column = 1.0; 
+
+   // LinearForm col(&H1fes); 
+
+   // mfem::out << "\n L2 dofs:  " << L2fes.GetTrueVSize() << endl; 
+   // mfem::out << "\n H1 dofs:  " << H1fes.GetTrueVSize()  << endl;
+
+   // A01.PrintInfo(mfem::out);
+   
+   SparseMatrix col_sp(i_s.begin(), j_s.begin(), column.begin(), col_height, 1, false, false, true);
+   SparseMatrix* row_sp(Transpose(col_sp)); 
+
+   // col_sp.Print(mfem::out);
+
+   col_sp.PrintInfo(mfem::out);
+   // return 0; 
+
 
    // 10. Iterate
    int k;
@@ -378,12 +340,16 @@ int main(int argc, char *argv[])
          a00.Finalize(false);
          SparseMatrix &A00 = a00.SpMat();
 
+         A00.PrintInfo(mfem::out);
+         A01.PrintInfo(mfem::out); 
+         A11.PrintInfo(mfem::out); 
          // Operator zeros_L2fes_col(offsets[1], 1); // ?? 
 
 #ifndef MFEM_USE_SUITESPARSE
          // Schur-complement preconditioner 
 
          BlockOperator A(offsets);
+         // A.PrintMatlab(mfem::out);
          A.SetBlock(0,0,&A00);
          A.SetBlock(1,0,A10);
 
@@ -392,14 +358,8 @@ int main(int argc, char *argv[])
          A.SetBlock(0,1,&A01);
          A.SetBlock(1,1,&A11);
 
-         // ConstrainedSolver solve_with_lagrange(A);
-
-         // Schur preconditioner is bad for the perturbed system
-         
-         // Vector A00_diag(a00.Height());
-         // A00.GetDiag(A00_diag);
-         // A00_diag.Reciprocal();
-         // SparseMatrix *S = Mult_AtDA(A01, A00_diag);
+         A.SetBlock(0,2,&col_sp); 
+         A.SetBlock(2,0,row_sp); 
 
          BlockDiagonalPreconditioner prec(offsets);
 
