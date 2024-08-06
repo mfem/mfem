@@ -19,7 +19,7 @@
 namespace mfem
 {
 
-MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_Fit_2D,
+MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_Fit_2D,
                            const int NE,
                            const real_t &c1_,
                            const real_t &c2_,
@@ -60,29 +60,22 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_Fit_2D,
         {
             MFEM_FOREACH_THREAD(qx,x,D1D)
             {
-            const real_t sigma = X1(qx,qy,e);
-            const real_t dof_count = X2(qx,qy,e);
-            const real_t marker = X3(qx,qy,e);
-            const real_t coeff = C1;
-            const real_t normal = C2;
+                const real_t sigma = X1(qx,qy,e);
+                const real_t dof_count = X2(qx,qy,e);
+                const real_t marker = X3(qx,qy,e);
+                const real_t coeff = C1;
+                const real_t normal = C2;
 
-            
-            double w = marker * normal * coeff * 1.0/dof_count;
-            for (int i = 0; i < DIM; i++)
-            {
-                for (int j = 0; j <= i; j++)
+                
+                double w = marker * normal * coeff * 1.0/dof_count;
+                for (int v = 0; v < DIM; v++)
                 {
-                    const real_t dxi = X4(qx,qy,i,e);
-                    const real_t dxj = X4(qx,qy,j,e);
-                    const real_t d2x = X5(qx,qy,i,j,e);
+                    const real_t dx = X4(qx,qy,v,e);
+                    const real_t d2x = X5(qx,qy,v,v,e);
 
-                    const real_t entry = 2 * w * (dxi*dxj + sigma * d2x);
-                    if (i != j) { 
-                        H0(i,j,qx,qy,e) = entry;
-                        H0(j,i,qx,qy,e) = entry;
-                    }                    
+                    const real_t entry = 2 * w * (dx*dx + sigma * d2x);
+                    H0(v,v,qx,qy,e) = entry;                 
                 }
-            }
             
             }
         }
@@ -90,7 +83,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_Fit_2D,
     });
 
 }
-void TMOP_Integrator::AssembleGradPA_Fit_2D(const Vector &X) const
+void TMOP_Integrator::AssembleDiagonalPA_Fit_2D(Vector &D) const
 {
    const int N = PA.ne;
    const int meshOrder = surf_fit_gf->FESpace()->GetMaxElementOrder();
@@ -108,7 +101,7 @@ void TMOP_Integrator::AssembleGradPA_Fit_2D(const Vector &X) const
 
    Vector &H0 = PA.H0Fit;
 
-   MFEM_LAUNCH_TMOP_KERNEL(SetupGradPA_Fit_2D,id,N,C1,C2,X1,X2,X3,X4,X5,H0);
+   MFEM_LAUNCH_TMOP_KERNEL(AssembleDiagonalPA_Kernel_Fit_2D,id,N,C1,C2,X1,X2,X3,X4,X5,H0);
 }
 
 } // namespace mfem
