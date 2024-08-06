@@ -129,12 +129,6 @@ int main(int argc, char *argv[])
       //   << H1fes.GetTrueVSize() << endl;
 
    // 5. Determine the list of true (i.e., conforming) essential boundary dofs.
-   
-   // Array<int> offsets(3);
-   // offsets[0] = 0;
-   // offsets[1] = L2fes.GetVSize();
-   // offsets[2] = H1fes.GetVSize();
-   // offsets.PartialSum();
 
    Array<int> offsets(4);
    offsets[0] = 0;
@@ -169,12 +163,6 @@ int main(int argc, char *argv[])
    psi_gf = 0.0;
    psi_old_gf = psi_gf;
    u_old_gf = u_gf;
-
-	// auto varphi_is = [](const Vector &x)
-	// {
-		//  
-		// return x(0)*x(0) + x(1)*x(1) - 1.;
-	// }; 
 	
 	auto sgn_varphi_is = [](const Vector &x)
 	{
@@ -198,17 +186,6 @@ int main(int argc, char *argv[])
    b0.MakeRef(&L2fes,rhs.GetBlock(0),0);
    b1.MakeRef(&H1fes,rhs.GetBlock(1),0);
 
-   // LinearForm col1s(&H1fes); 
-   // col1s.AddDomainIntegrator(new DomainLFIntegrator(one)); 
-   // col1s.Assemble(); 
- 
-   // real_t* vals(col1s.data);
-   // pointer with i = [0, 0, ...]
-   // pointer with j = [0, 1, ..., N]
-
-   Vector ones(offsets[1]); // .GetData() on the vector
-   ones = 1.0; 
-
    ConstantCoefficient alpha_cf(alpha);
 
    ZCoefficient Z(sdim, psi_gf, alpha);
@@ -224,16 +201,14 @@ int main(int argc, char *argv[])
 
    b1.AddDomainIntegrator(new DomainLFIntegrator(neg_sgn_varphi));
 
-   // b1.AddDomainIntegrator(new DomainLFIntegrator(neg_one));
    b1.AddDomainIntegrator(new DomainLFGradIntegrator(psi_old_minus_psi));
 
    GradientGridFunctionCoefficient grad_u_old(&u_old_gf); 
-   ScalarVectorProductCoefficient neg_grad_u_old(-1.0 , grad_u_old); // * 1 / alpha
+   ScalarVectorProductCoefficient neg_grad_u_old(-1.0 * 1 / alpha, grad_u_old); 
    b1.AddDomainIntegrator(new DomainLFGradIntegrator(neg_grad_u_old));
 
 	GridFunctionCoefficient u_old_cf(&u_old_gf);
 	ProductCoefficient neg_u_old_cf(neg_one, u_old_cf);
-	b1.AddDomainIntegrator(new DomainLFIntegrator(neg_u_old_cf)); 
 
    BilinearForm a00(&L2fes);
    a00.AddDomainIntegrator(new VectorMassIntegrator(DZ));
@@ -241,15 +216,13 @@ int main(int argc, char *argv[])
    MixedBilinearForm a01(&H1fes,&L2fes);
    a01.AddDomainIntegrator(new GradientIntegrator(neg_one)); 
    a01.Assemble();
-   // a01.EliminateEssentialBCFromTrialDofs(ess_vdof_list,x.GetBlock(1),rhs.GetBlock(0));
-   // a01.EliminateEssentialBCFromDofs(ess_vdof_list,x.GetBlock(1),rhs.GetBlock(0));
    a01.Finalize();
 
    SparseMatrix &A01 = a01.SpMat();
    SparseMatrix *A10 = Transpose(a01.SpMat());
 
-   int col_height = H1fes.GetVSize();
    // make n x 1 column vector 
+   int col_height = H1fes.GetVSize();
    Array<int> i_s(col_height+1); Array<int> j_s(H1fes.GetVSize());
    j_s = 0; i_s = 0; 
       
@@ -259,12 +232,12 @@ int main(int argc, char *argv[])
 
    i_s.PartialSum();
 
-   Vector column(H1fes.GetVSize()); // non-zero values 
-   column = 1.0; 
+   // mass term
+   LinearForm col1s(&H1fes); 
+   col1s.AddDomainIntegrator(new DomainLFIntegrator(one)); 
+   col1s.Assemble(); 
 
-   // LinearForm col(&H1fes); 
-   
-   SparseMatrix col_sp(i_s.begin(), j_s.begin(), column.begin(), col_height, 1, false, false, true);
+   SparseMatrix col_sp(i_s.begin(), j_s.begin(), col1s.begin(), col_height, 1, false, false, true);
    SparseMatrix* row_sp(Transpose(col_sp)); 
 
    // 10. Iterate
@@ -286,14 +259,11 @@ int main(int argc, char *argv[])
          b0.Assemble();   
          b1.Assemble();
          
-         // TODO - weighting regularization term by 1/alpha here and on the RHS 
          BilinearForm a11(&H1fes);
          ConstantCoefficient neg_one_alpha_recip(-1.0 * 1.0 / alpha); 
-         a11.AddDomainIntegrator(new DiffusionIntegrator(neg_one)); 
-			a11.AddDomainIntegrator(new MassIntegrator(neg_one));
+         a11.AddDomainIntegrator(new DiffusionIntegrator(neg_one_alpha_recip)); 
 
          a11.Assemble(false);  // false
-         // a11.EliminateEssentialBCFromDofs(ess_vdof_list,x.GetBlock(1),rhs.GetBlock(1));
          a11.Finalize();
          SparseMatrix &A11 = a11.SpMat();
 
@@ -302,11 +272,9 @@ int main(int argc, char *argv[])
          SparseMatrix &A00 = a00.SpMat();
 
 #ifndef MFEM_USE_SUITESPARSE
-         // Schur-complement preconditioner 
-
          BlockOperator A(offsets);
 
-         // all the other entries default to 0 values! 
+         // all the other entries default to 0! 
          A.SetBlock(0,0,&A00);
          A.SetBlock(1,0,A10);
 
@@ -318,21 +286,19 @@ int main(int argc, char *argv[])
 
          BlockDiagonalPreconditioner prec(offsets);
 
-         // prec.SetDiagonalBlock(0,new DSmoother(A00));
-         // prec.SetDiagonalBlock(1,new GSSmoother(*S));
-// 
          prec.owns_blocks = 1;
 
          GMRES(A,prec,rhs,x,0,2000,500,1e-12,0.0);
          // delete S; 
 #else
-         // Schur preconditioner is bad for the perturbed system
-
          BlockMatrix A(offsets);
          A.SetBlock(0,0,&A00);
          A.SetBlock(1,0,A10);
          A.SetBlock(0,1,&A01);
          A.SetBlock(1,1,&A11);
+
+         A.SetBlock(1,2,&col_sp); 
+         A.SetBlock(2,1,row_sp); 
 
          SparseMatrix *A_mono = A.CreateMonolithic(); 
          UMFPackSolver umf(*A_mono); 
@@ -368,8 +334,6 @@ int main(int argc, char *argv[])
 
       u_old_gf = u_gf;
       psi_old_gf = psi_gf;
-
-      // a11.Update();
 
       if (increment_u < tol || k == max_it-1)
       {
