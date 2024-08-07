@@ -158,6 +158,8 @@ int main(int argc, char *argv[])
    GridFunction u_old_gf(&H1fes);
    u_old_gf = 0.0;
 
+   GridFunction grad_u_gf(&L2fes);
+
    // 8. Define the function coefficients for the solution and use them to
    //    initialize the initial guess
    psi_gf = 0.0;
@@ -175,11 +177,13 @@ int main(int argc, char *argv[])
 
    char vishost[] = "localhost";
    int  visport   = 19916;
-   socketstream sol_sock;
+   socketstream sol_sock, gradu_sock;
    if (visualization)
    {
       sol_sock.open(vishost,visport);
       sol_sock.precision(8);
+      gradu_sock.open(vishost,visport);
+      gradu_sock.precision(8);
    }
 
    // solve for eta from - \Delta \eta = 1 with homogeneous 0 Dirichlet BC
@@ -343,6 +347,10 @@ int main(int argc, char *argv[])
          if (visualization)
          {
             sol_sock << "solution\n" << mesh << u_gf << "window_title 'Discrete solution'"
+                     << flush;
+            GradientGridFunctionCoefficient grad_u(&u_gf);
+            grad_u_gf.ProjectDiscCoefficient(grad_u);
+            gradu_sock << "solution\n" << mesh << grad_u_gf << "window_title 'Gradient magnitude'"
                      << flush;
             mfem::out << "Newton_update_size = " << Newton_update_size << endl;
          }
