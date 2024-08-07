@@ -2225,14 +2225,15 @@ void NCMesh::UpdateVertices()
       node.vert_index = -4; // assume beyond ghost layer
    }
 
-   // std::cout << "leaf_elements.Size() " << leaf_elements.Size() << '\n';
+   std::cout << "leaf_elements.Size() " << leaf_elements.Size() << '\n';
    for (int i = 0; i < leaf_elements.Size(); i++)
    {
       Element &el = elements[leaf_elements[i]];
+      std::cout << "Element " << leaf_elements[i] << "\n";
       for (int j = 0; j < GI[el.Geom()].nv; j++)
       {
          Node &nd = nodes[el.node[j]];
-         // std::cout << "nd.p1 " << nd.p1 << " nd.p2 " << nd.p2 << '\n';
+         std::cout << "nd.p1 " << nd.p1 << " nd.p2 " << nd.p2 << '\n';
          if (el.rank == MyRank)
          {
             if (nd.p1 == nd.p2) // local top-level vertex
@@ -2260,12 +2261,13 @@ void NCMesh::UpdateVertices()
          node.vert_index = NVertices++;
       }
    }
-   // std::cout << "NVertices : " << NVertices << " - ";
-   // for (const auto &nd : nodes)
-   // {
-   //    std::cout << nd.vert_index << ' ';
-   // }
-   // std::cout << '\n';
+   std::cout << __FILE__ << ':' << __LINE__ << std::endl;
+   std::cout << "NVertices : " << NVertices << " - ";
+   for (const auto &nd : nodes)
+   {
+      std::cout << nd.vert_index << ' ';
+   }
+   std::cout << '\n';
 
    // STEP 3: go over all elements (local and ghost) in SFC order and assign
    // remaining local vertices in that order.
@@ -2286,12 +2288,13 @@ void NCMesh::UpdateVertices()
       }
    }
 
-   // std::cout << "NVertices : " << NVertices << " - ";
-   // for (const auto &nd : nodes)
-   // {
-   //    std::cout << nd.vert_index << ' ';
-   // }
-   // std::cout << '\n';
+   std::cout << __FILE__ << ':' << __LINE__ << std::endl;
+   std::cout << "NVertices : " << NVertices << " - ";
+   for (const auto &nd : nodes)
+   {
+      std::cout << nd.vert_index << ' ';
+   }
+   std::cout << '\n';
 
    // STEP 4: create the mapping from Mesh vertex index to NCMesh node index
 
@@ -2511,7 +2514,7 @@ void NCMesh::GetMeshComponents(Mesh &mesh) const
       }
       delete [] tmp_vertex;
    }
-   // std::cout << __FILE__ << ":" << __LINE__ << " vertex_nodeId.Size() " << vertex_nodeId.Size() << '\n';
+   std::cout << __FILE__ << ":" << __LINE__ << " vertex_nodeId.Size() " << vertex_nodeId.Size() << '\n';
 
    // NOTE: if the mesh is curved ('coordinates' is empty), mesh.vertices are
    // left uninitialized here; they will be initialized later by the Mesh from
@@ -3015,45 +3018,59 @@ int NCMesh::ParentFaceNodes(std::array<int, 4> &face_nodes) const
    }
    else if (is_tri)
    {
-      for (auto &x : parent_nodes)
+      std::cout << "parent_nodes ";
+      for (int i = 0; i < 3; i++)
       {
+         auto x = face_nodes[i];
          if (x == -1) { continue; }
-         if (contains_node(parent_nodes, nodes[x].p1))
+         if (contains_node(face_nodes, nodes[x].p1))
          {
-            MFEM_ASSERT(nodes[x].p2 == nodes[x].p1 || !contains_node(parent_nodes, nodes[x].p2), "!");
-            x = nodes[x].p2;
+            MFEM_ASSERT(nodes[x].p2 == nodes[x].p1 || !contains_node(face_nodes, nodes[x].p2), "!");
+            parent_nodes[i] = nodes[x].p2;
          }
-         else if (contains_node(parent_nodes, nodes[x].p2))
+         else if (contains_node(face_nodes, nodes[x].p2))
          {
-            MFEM_ASSERT(nodes[x].p2 == nodes[x].p1 || !contains_node(parent_nodes, nodes[x].p1), "!");
-            x = nodes[x].p1;
+            MFEM_ASSERT(nodes[x].p2 == nodes[x].p1 || !contains_node(face_nodes, nodes[x].p1), "!");
+            parent_nodes[i] = nodes[x].p1;
          }
          else
          {
             // do nothing
          }
+         std::cout << x << " -> " << parent_nodes[i] << ", ";
+         std::cout << " p1 " << nodes[x].p1 << " p2 " << nodes[x].p2 << '\n';
       }
+      std::cout << '\n';
 
       if (std::equal(face_nodes.begin(), face_nodes.end(), parent_nodes.begin()))
       {
          // Having excluded root faces, this must be an interior face. We need to handle the
          // special case of the interior face of the parent face.
          std::array<std::array<int, 2>, 6> parent_pairs;
+         std::cout << "parent_pairs ";
          for (std::size_t i = 0; i < face_nodes.size() - 1; i++)
          {
             parent_pairs[i][0] = nodes[face_nodes[i]].p1;
             parent_pairs[i][1] = nodes[face_nodes[i]].p2;
+            std::cout << "(" << parent_pairs[i][0] << ", " << parent_pairs[i][1] << ") ";
          }
-         // Each node gets mapped to the common node from its parents and the predecessor node's parents.
+         std::cout << '\n';
+         // Each node gets mapped to the common node from its parents and the predecessor
+         // node's parents.
+         std::cout << "parent_nodes ";
          for (int i = 0; i < 3; i++)
          {
-            const auto &current = parent_pairs[i];
+            const auto &current = parent_pairs[(i + 1 + 3) % 3]; // (0 -> 1, 1 -> 2, 2 -> 0)
             const auto &prev = parent_pairs[(i - 1 + 3) % 3]; // (0 -> 2, 1 -> 0, 2 -> 1)
+            std::cout << "current " << current[0] << ' ' << current[1] << '\n';
+            std::cout << "prev " << prev[0] << ' ' << prev[1] << '\n';
             for (auto x : prev)
             {
-               if (std::find(current.begin(), current.end(), x)) { parent_nodes[i] = x; }
+               if (std::find(current.begin(), current.end(), x) != current.end()) { parent_nodes[i] = x; }
             }
+            std::cout << parent_nodes[i] << '\n';
          }
+         std::cout << '\n';
          child = 3; // The interior face is the final child.
       }
    }
@@ -5572,7 +5589,7 @@ std::array<int, 4> NCMesh::FindFaceNodes(const Face &fa) const
    // Obtain face nodes from one of its elements (note that face->p1, p2, p3
    // cannot be used directly since they are not in order and p4 is missing).
    int elem = fa.elem[0];
-   if (elem < 0) { elem = fa.elem[1]; }
+   if (elem < 0) { elem = fa.elem[1]; std::cout << "Using elem[1]\n"; }
    MFEM_ASSERT(elem >= 0, "Face has no elements?");
 
    const Element &el = elements[elem];
@@ -5601,13 +5618,6 @@ void NCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
    if (Dim == 3)
    {
       GetFaceList(); // make sure 'boundary_faces' is up to date
-
-      // std::cout << __FILE__ << ':' << __LINE__ << std::endl;
-      // for (auto f : boundary_faces)
-      // {
-      //    std::cout << "f " << f << " index " << faces[f].index << " attribute " << faces[f].GetAttribute() << std::endl;
-      // }
-
       for (int f : boundary_faces)
       {
          if (bdr_attr_is_ess[faces[f].attribute - 1])

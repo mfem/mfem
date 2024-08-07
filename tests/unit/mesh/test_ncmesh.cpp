@@ -2955,4 +2955,91 @@ TEST_CASE("NCSubMesh", "[SubMesh], [NCMesh]")
    }
 }
 
+TEST_CASE("ParentToChildLocalFaceMap", "[NCMesh]")
+{
+   // auto mesh_fname = GENERATE({"../../data/ref-tetrahedron.mesh",Geometry::Type::TETRAHEDRON},
+   //                             {"../../data/ref-cube.mesh",Geometry::Type::CUBE},
+   //                             {"../../data/ref-prism.mesh",Geometry::Type::PRISM},
+   //                             {"../../data/ref-pyramid.mesh",Geometry::Type::PYRAMID});
+
+   auto test_geom = [](const std::string &mesh_fname, Geometry::Type geom)
+   {
+      auto mesh = Mesh(mesh_fname);
+      auto &gi = mesh.ncmesh->GI[int(geom)];
+      gi.InitGeom(geom);
+
+      mesh.EnsureNCMesh(true);
+
+      // Loop over faces, pair local face with attribute
+      std::map<int,int> attribute_to_face;
+      for (int f = 0; f < gi.nf; f++)
+      {
+         auto *face = mesh.ncmesh->GetFace(mesh.ncmesh->elements[0], f);
+         std::cout << "face->attribute " << face->attribute << " f " << f << std::endl;
+         attribute_to_face[face->attribute] = f;
+      }
+
+      mesh.UniformRefinement();
+      REQUIRE(mesh.ncmesh);
+      REQUIRE(mesh.ncmesh->elements[0].parent == -1);
+
+      REQUIRE(gi.nf <= 6);
+      std::array<std::array<int, 10>, 6> parent_to_child_face;
+      // parent_to_child_face[i] is for each child, which face is the corresponding child face
+      for (auto &x : parent_to_child_face)
+      {
+         x.fill(-1);
+      }
+
+      auto &ncmesh = *mesh.ncmesh;
+      auto &base_elem = mesh.ncmesh->elements[0];
+
+      for (int c = 0; c < NCMesh::MaxElemChildren && base_elem.child[c] >= 0; c++)
+      {
+         auto &child = ncmesh.elements[base_elem.child[c]];
+         for (int cf = 0; cf < gi.nf; cf++)
+         {
+            auto *face = ncmesh.GetFace(child, cf);
+            REQUIRE(face != nullptr);
+            if (face->attribute > 0)
+            {
+               parent_to_child_face[attribute_to_face[face->attribute]][c] = cf;
+            }
+         }
+      }
+
+      for (const auto &row : parent_to_child_face)
+      {
+         std::cout << "{";
+         for (auto x : row)
+         {
+            std::cout << x << ' ';
+         }
+         std::cout << "}\n";
+      }
+   };
+
+   SECTION("Cube")
+   {
+      test_geom("../../data/ref-cube.mesh",Geometry::Type::CUBE);
+   }
+
+   // SECTION("Tetrahedron")
+   // {
+   //    test_geom("../../data/ref-tetrahedron.mesh",Geometry::Type::TETRAHEDRON);
+   // }
+
+   // SECTION("Prism")
+   // {
+   //    test_geom("../../data/ref-prism.mesh",Geometry::Type::PRISM);
+   // }
+
+   // Pyramids currently aren't supported by EnsureNCMesh
+   // SECTION("Pyramid")
+   // {
+   //    test_geom("../../data/ref-pyramid.mesh",Geometry::Type::PYRAMID);
+   // }
+
+}
+
 } // namespace mfem

@@ -10418,9 +10418,9 @@ void Mesh::InitFromNCMesh(const NCMesh &ncmesh_)
    {
       GetElementToFaceTable();
    }
-   // std::cout << __FILE__<< ':' << __LINE__ << " GetNumFaces() " << GetNumFaces() << std::endl;
+   std::cout << __FILE__<< ':' << __LINE__ << " GetNumFaces() " << GetNumFaces() << std::endl;
    GenerateFaces();
-   // std::cout << __FILE__<< ':' << __LINE__ << " GetNumFaces() " << GetNumFaces() << std::endl;
+   std::cout << __FILE__<< ':' << __LINE__ << " GetNumFaces() " << GetNumFaces() << std::endl;
 #ifdef MFEM_DEBUG
    CheckBdrElementOrientation(false);
 #endif
