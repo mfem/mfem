@@ -293,6 +293,8 @@ private:
       DenseMatrix B;
       const FiniteElement *fe;
       IsoparametricTransformation *Tr;
+      Array<FaceElementTransformations*> FTrs;
+      Array<IsoparametricTransformation*> NbrTrs;
       mutable Vector u_l, Dp, DpEx;
       mutable DenseMatrix grad;
 

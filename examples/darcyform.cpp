@@ -2322,12 +2322,51 @@ DarcyHybridization::LocalNLOperator::LocalNLOperator(
 
    fe = dh.fes_p->GetFE(el);
    Tr = new IsoparametricTransformation();
-   dh.fes_p->GetElementTransformation(el, Tr);
+   if (faces.Size() <= 0)
+   {
+      dh.fes_p->GetElementTransformation(el, Tr);
+   }
+
+   FTrs.SetSize(faces.Size());
+   NbrTrs.SetSize(faces.Size());
+   for (int f = 0; f < faces.Size(); f++)
+   {
+      FaceElementTransformations *&FTr = FTrs[f];
+      FTr = new FaceElementTransformations();
+      dh.fes_p->GetMesh()->GetFaceElementTransformations(faces[f], *FTr, *Tr, *Tr, 0);
+      IsoparametricTransformation *Tr1, *Tr2;
+      if (FTr->Elem2No >= 0)
+      {
+         NbrTrs[f] = new IsoparametricTransformation();
+         if (FTr->Elem1No == el)
+         {
+            Tr1 = Tr;
+            Tr2 = NbrTrs[f];
+         }
+         else
+         {
+            Tr1 = NbrTrs[f];
+            Tr2 = Tr;
+         }
+      }
+      else
+      {
+         NbrTrs[f] = NULL;
+         Tr1 = Tr2 = Tr;
+      }
+
+      dh.fes_p->GetMesh()->GetFaceElementTransformations(faces[f], *FTr, *Tr1, *Tr2);
+   }
 }
 
 DarcyHybridization::LocalNLOperator::~LocalNLOperator()
 {
    delete Tr;
+   for (int f = 0; f < faces.Size(); f++)
+   {
+      delete FTrs[f];
+      delete NbrTrs[f];
+   }
 }
 
 void DarcyHybridization::LocalNLOperator::SolveU(const Vector &p_l,
@@ -2365,8 +2404,7 @@ void DarcyHybridization::LocalNLOperator::Mult(const Vector &p_l,
       // D p_l + E x
       for (int f = 0; f < faces.Size(); f++)
       {
-         FaceElementTransformations *FTr =
-            dh.fes->GetMesh()->GetFaceElementTransformations(faces[f]);
+         FaceElementTransformations *FTr = FTrs[f];
 
          int type = NonlinearFormIntegrator::HDGFaceType::ELEM
                     | NonlinearFormIntegrator::HDGFaceType::TRACE;
@@ -2434,8 +2472,7 @@ Operator &DarcyHybridization::LocalNLOperator::GetGradient(
       //grad += D_f
       for (int f = 0; f < faces.Size(); f++)
       {
-         FaceElementTransformations *FTr =
-            dh.fes->GetMesh()->GetFaceElementTransformations(faces[f]);
+         FaceElementTransformations *FTr = FTrs[f];
 
          int type = NonlinearFormIntegrator::HDGFaceType::ELEM;
 
