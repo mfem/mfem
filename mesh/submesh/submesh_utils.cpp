@@ -86,7 +86,6 @@ AddElementsToMesh(const Mesh& parent,
                            parent.GetBdrElement(i) : parent.GetElement(i);
       if (!ElementHasAttribute(*pel, attributes)) { continue; }
 
-      // std::cout << "Adding element " << i << std::endl;
       pel->GetVertices(vert);
       submesh_vert.SetSize(vert.Size());
 

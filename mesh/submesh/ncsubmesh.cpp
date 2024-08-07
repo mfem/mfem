@@ -326,8 +326,22 @@ NCSubMesh::NCSubMesh(SubMesh& submesh, const NCMesh &parent, From from,
    InitRootState(root_state.Size());
    InitGeomFlags();
 
-   // This remaps the el.index to the new leaf ordering. NEED TO PRESERVE THIS.
-   // parent_element_ids_
+
+   std::cout << __FILE__<< ':' << __LINE__ << std::endl;
+   std::cout << "parent_element_ids_ ";
+   for (auto x : parent_element_ids_)
+   {
+      std::cout << x << ' ';
+   }
+   std::cout << '\n';
+   std::cout << __FILE__<< ':' << __LINE__ << std::endl;
+   std::cout << "submesh.parent_element_ids_ ";
+   for (auto x : submesh.parent_element_ids_)
+   {
+      std::cout << x << ' ';
+   }
+   std::cout << '\n';
+
 
    Update(); // Fills in secondary information based off of elements, nodes and faces.
    if (from == From::Domain)

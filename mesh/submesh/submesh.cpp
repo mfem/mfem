@@ -173,7 +173,9 @@ SubMesh::SubMesh(const Mesh &parent, From from,
          auto node = ncmesh->vertex_nodeId[i];
          auto parent_node = ncsubmesh->parent_node_ids_[node];
          auto parent_vertex = parent.ncmesh->nodes[parent_node].vert_index;
-         std::cout << i << " node " << node << " parent_node " << parent_node << " parent_vertex " << parent_vertex << std::endl;
+         auto *vv = parent.GetVertex(parent_vertex);
+         std::cout << i << " node " << node << " parent_node " << parent_node << " parent_vertex " << parent_vertex
+            << "(" << vv[0] << ", " << vv[1] << ", " << vv[2] << ")" << std::endl;
          alt_parent_vertex_ids[i] = parent_vertex;
       }
       parent_vertex_ids_ = alt_parent_vertex_ids;

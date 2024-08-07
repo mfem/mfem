@@ -180,45 +180,125 @@ int main(int argc, char *argv[])
 
    int dim = mesh.Dimension();
 
-   mesh.EnsureNCMesh();
-   mesh.UniformRefinement();
-   // mesh.UniformRefinement();
+   Array<int> subdomain_attributes(1);
+   subdomain_attributes[0] = 1;
+
+   auto refine_half = [](Mesh &mesh, int vattr, int battr, bool backwards = true)
+   {
+      Array<Refinement> refs(1);
+      std::vector<int> ind(mesh.GetNBE());
+      if (backwards)
+      {
+         std::iota(ind.rbegin(), ind.rend(), 0);
+      }
+      else
+      {
+         std::iota(ind.begin(), ind.end(), 0);
+      }
+      // for (int e = mesh.GetNBE() - 1; e >= 0; e--)
+      for (int e : ind)
+      {
+         std::cout << e << ' ';
+         if (mesh.GetBdrAttribute(e) == battr)
+         {
+            int el, info;
+            mesh.GetBdrElementAdjacentElement(e, el, info);
+            if (mesh.GetAttribute(el) == vattr)
+            {
+               refs[0].index = el;
+               refs[0].ref_type = Refinement::XYZ;
+               break;
+            }
+         }
+      }
+      mesh.GeneralRefinement(refs);
+   };
+
+   int test = 4;
+   mesh.EnsureNCMesh(true);
+   switch (test)
+   {
+      case 0:
+         break;
+      case 1:
+         mesh.UniformRefinement();
+         break;
+      case 2:
+         {
+            Array<Refinement> refs(1);
+            refs[0].index = 0;
+            refs[0].ref_type = Refinement::XYZ;
+            mesh.GeneralRefinement(refs);
+         }
+         break;
+      case 3 :
+         {
+            Array<Refinement> refs(1);
+            refs[0].index = 1;
+            refs[0].ref_type = Refinement::XYZ;
+            mesh.GeneralRefinement(refs);
+         }
+         break;
+      case 4 :
+         {
+            mesh.UniformRefinement();
+            refine_half(mesh,1,subdomain_attributes[0], false);
+            refine_half(mesh,1,subdomain_attributes[0], true);
+            refine_half(mesh,1,subdomain_attributes[0], false);
+         }
+   }
+
+   // std::terminate();
+   // mesh.EnsureNCMesh(true);
    // Array<Refinement> refs(1);
    // refs[0].index = 0;
    // refs[0].ref_type = Refinement::XYZ;
    // mesh.GeneralRefinement(refs);
+   // mesh.UniformRefinement();
+   // // mesh.UniformRefinement();
    // mesh.RandomRefinement(0.5);
+   // mesh.UniformRefinement();
    // delete mesh.ncmesh;
    // mesh.ncmesh = nullptr;
 
+   // mesh.EnsureNCMesh(true);
+
+   /*
+   // breaks interior boundary attribute 7
+   mesh.EnsureNCMesh(true);
+   Array<Refinement> refs(1);
+   refs[0].index = 0;
+   refs[0].ref_type = Refinement::XYZ;
+   mesh.GeneralRefinement(refs);
+   mesh.RandomRefinement(0.5);
+   */
+
+
+
+
+
+   // refine_half(mesh, 1, 7);
+   // refine_half(mesh, 1, 7);
+   // refine_half(mesh, 1, 7);
+   // refine_half(mesh, 1, 7);
+   // mesh.RandomRefinement(0.5);
+
+
+
+
+
+
 
    // mesh.RandomRefinement(0.5);
 
-   // 5. Refine the serial mesh on all processors to increase the resolution. In
-   //    this example we do 'ref_levels' of uniform refinement. We choose
-   //    'ref_levels' to be the largest number that gives a final mesh with no
-   //    more than 10,000 elements.
-   // {
-   //    int ref_levels =
-   //       (int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
-   //    for (int l = 0; l < ref_levels; l++)
-   //    {
-   //       mesh.UniformRefinement();
-   //    }
-   // }
-
-   // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
-   //    this mesh further in parallel to increase the resolution. Once the
-   //    parallel mesh is defined, the serial mesh can be deleted.
-   // std::vector<int> partitioning(mesh.GetNE(), 0);
-   // partitioning[1] = Mpi::WorldSize() > 1 ? 1 : 0;
-   // std::cout << __FILE__ << ':' << __LINE__ << std::endl;
-   // ParMesh pmesh(MPI_COMM_WORLD, mesh, partitioning.data());
-
    std::cout << "\n\n\nIn Ex1p\n\n";
-
-
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
+
+   // for (const auto &e : pmesh.ncmesh->elements)
+   // {
+   //    std::cout << "e.index " << e.index << std::endl;
+   // }
+   // std::terminate();
 
    // pmesh.UniformRefinement();
    // pmesh.UniformRefinement();
@@ -269,11 +349,7 @@ int main(int argc, char *argv[])
    //    }
    // }
 
-   Array<int> subdomain_attributes(1);
-   // subdomain_attributes[0] = 2;
-   // auto psubmesh = ParSubMesh::CreateFromDomain(pmesh, subdomain_attributes);
-
-   subdomain_attributes[0] = 2;
+   std::cout << "\n\n\nSUBMESH\n\n";
    auto psubmesh = ParSubMesh::CreateFromBoundary(pmesh, subdomain_attributes);
 
    // auto &psubmesh = pmesh;

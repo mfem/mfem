@@ -170,46 +170,78 @@ int main(int argc, char *argv[])
    // then coupling the two domains using the 2D solution as the boundary condition.
 
    auto mesh = DividingPlaneMesh(false, true, true);
+   mesh.EnsureNCMesh();
    // auto mesh = Mesh("../../data/ref-cube.mesh");
 
    // mesh.Finalize(true);
    // mesh.UniformRefinement();
    // mesh.EnsureNCMesh(true);
+   Array<int> subdomain_attributes(1);
+   subdomain_attributes[0] = 7;
 
-   Array<Refinement> refs(1);
-   refs[0].index = 0;
-   refs[0].ref_type = Refinement::XYZ;
-   mesh.GeneralRefinement(refs);
+   auto refine_half = [](Mesh &mesh, int vattr, int battr, bool backwards = true)
+   {
+      Array<Refinement> refs(1);
+      std::vector<int> ind(mesh.GetNBE());
+      if (backwards)
+      {
+         std::iota(ind.rbegin(), ind.rend(), 0);
+      }
+      else
+      {
+         std::iota(ind.begin(), ind.end(), 0);
+      }
+      // for (int e = mesh.GetNBE() - 1; e >= 0; e--)
+      for (int e : ind)
+      {
+         std::cout << e << ' ';
+         if (mesh.GetBdrAttribute(e) == battr)
+         {
+            int el, info;
+            mesh.GetBdrElementAdjacentElement(e, el, info);
+            if (mesh.GetAttribute(el) == vattr)
+            {
+               refs[0].index = el;
+               refs[0].ref_type = Refinement::XYZ;
+               break;
+            }
+         }
+      }
+      mesh.GeneralRefinement(refs);
+   };
 
-   // mesh.UniformRefinement();
-
-   // for (int j = 0; j < 2; j++)
-   // {
-   //    Array<int> elem_to_refine;
-   //    for (int i = 0; i < mesh.GetNE(); ++i)
-   //    {
-   //       if (mesh.GetAttribute(i) == 1)
-   //       {
-   //          elem_to_refine.Append(i);
-   //       }
-   //    }
-   //    mesh.GeneralRefinement(elem_to_refine);
-   // }
-
-   // mesh.UniformRefinement();
-   // mesh.Finalize(true);
-   // mesh.RandomRefinement(0.5);
-   // mesh.RandomRefinement(0.5);
-   // mesh.RandomRefinement(0.5);
-
-   // mesh.UniformRefinement();
-   // mesh.UniformRefinement();
-   // mesh.RandomRefinement(0.5);
-
-   std::cout << "\n\n\nChecking Mesh\n\n\n";
-
-   std::vector<int> mismatched;
-   const auto &face_to_be = mesh.GetFaceToBdrElMap();
+   int test = 4;
+   mesh.EnsureNCMesh(true);
+   switch (test)
+   {
+      case 0:
+         break;
+      case 1:
+         mesh.UniformRefinement();
+         break;
+      case 2:
+         {
+            Array<Refinement> refs(1);
+            refs[0].index = 0;
+            refs[0].ref_type = Refinement::XYZ;
+            mesh.GeneralRefinement(refs);
+         }
+         break;
+      case 3 :
+         {
+            Array<Refinement> refs(1);
+            refs[0].index = 1;
+            refs[0].ref_type = Refinement::XYZ;
+            mesh.GeneralRefinement(refs);
+         }
+         break;
+      case 4 :
+         {
+            mesh.UniformRefinement();
+            refine_half(mesh,1,subdomain_attributes[0], false);
+            refine_half(mesh,1,subdomain_attributes[0], true);
+         }
+   }
 
    std::cout << "\n\n\nInEx1\n\n\n";
 
@@ -246,14 +278,7 @@ int main(int argc, char *argv[])
 
    std::cout << "\n\nSubMesh\n\n";
 
-   Array<int> subdomain_attributes(1);
-   // subdomain_attributes[0] = 2;
-   // auto submesh = SubMesh::CreateFromDomain(mesh, subdomain_attributes);
-   subdomain_attributes[0] = 1; //mesh.bdr_attributes.Max();
-   std::cout << "subdomain_attributes[0] " << subdomain_attributes[0] << std::endl;
    auto submesh = SubMesh::CreateFromBoundary(mesh, subdomain_attributes);
-   std::cout << "submesh.GetNumFaces() " << submesh.GetNumFaces() << std::endl;
-   std::cout << "submesh.GetNumEdges() " << submesh.GetNEdges() << std::endl;
 
    int dim = submesh.Dimension();
 
