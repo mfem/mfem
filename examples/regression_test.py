@@ -23,6 +23,7 @@ tol = 1e-7
 print('Running Regression Testing:')
 path = 'regress_test/'
 filenames = os.listdir(path)
+failed = 0
 
 for i in range(len(filenames)):
 	# Parcing reference file
@@ -105,6 +106,12 @@ for i in range(len(filenames)):
 			print(bcolors.FAIL + "FAIL: " + bcolors.RESET, end="", flush=True)
 			print(command_line)
 			print(cmd_out)
+			failed += 1
 	else:
 		print(bcolors.HEADER + "SKIPPING: "+ bcolors.RESET +command_line+" → incompatible preconditioner")
 
+print("----------------------------------------------------------------")
+if failed == 0:
+	print(bcolors.OKGREEN + "SUCCESS: " + bcolors.RESET + "all tests finished succesfully!")
+else:
+	print(bcolors.FAIL + "FAIL: " + bcolors.RESET + str(failed) + " / " + str(len(filenames)) + " tests failed!")
