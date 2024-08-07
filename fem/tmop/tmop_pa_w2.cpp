@@ -130,7 +130,6 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_2D,
 
       kernels::internal::GradX<MD1,MQ1,NBZ>(D1D,Q1D,BG,XY,DQ);
       kernels::internal::GradY<MD1,MQ1,NBZ>(D1D,Q1D,BG,DQ,QQ);
-      double el_energy = 0.0;
 
       MFEM_FOREACH_THREAD(qy,y,Q1D)
       {
@@ -163,10 +162,8 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_2D,
                mid == 94 ? EvalW_094(Jpt, metric_data) : 0.0;
 
             E(qx,qy,e) = weight * EvalW;
-            el_energy += weight * EvalW;
          }
       }
-      // std::cout << e << " " << el_energy << " k10-metric-energy\n";
    });
    return energy * ones;
 }

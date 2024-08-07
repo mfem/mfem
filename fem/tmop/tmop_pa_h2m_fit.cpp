@@ -39,7 +39,6 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_Fit_2D,
    {
       constexpr int DIM = 2;
       const int D1D = T_D1D ? T_D1D : d1d;
-      constexpr int NBZ = 1;
 
       MFEM_FOREACH_THREAD(qy,y,D1D)
       {
@@ -66,6 +65,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_Fit_2D,
             }
          }
       }
+      MFEM_SYNC_THREAD;
    });
 }
 

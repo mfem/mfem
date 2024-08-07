@@ -124,7 +124,6 @@ void TMOP_Integrator::AssemblePA_Limiting()
 }
 
 
-//------------------------------- new function below -------------------------//
 void TMOP_Integrator::AssemblePA_Fitting()
 {   
    // Return immediately if surface fitting is not enabled
@@ -189,7 +188,6 @@ void TMOP_Integrator::AssemblePA_Fitting()
    PA.D2.UseDevice(true);
    n5_R->Mult(*surf_fit_hess, PA.D2);
 
-
    // Scalar Q-vector of '1' for surface fitting, used to compute sums via dot product
    PA.OFit.SetSize(PA.S0.Size(), Device::GetDeviceMemoryType());
    PA.OFit = 1.0;
@@ -201,9 +199,7 @@ void TMOP_Integrator::AssemblePA_Fitting()
    // Hessian vector for surface fitting, scalar Q-vector
    PA.H0Fit.UseDevice(true);
    PA.H0Fit.SetSize(PA.D2.Size(), Device::GetDeviceMemoryType());
-
 }
-//------------------------------- new function above -------------------------//
 
 void TargetConstructor::ComputeAllElementTargets(const FiniteElementSpace &fes,
                                                  const IntegrationRule &ir,

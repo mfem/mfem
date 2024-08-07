@@ -2857,6 +2857,7 @@ void TMOP_Integrator::ReleasePADeviceMemory(bool copy_to_host)
    {
       PA.H.GetMemory().DeleteDevice(copy_to_host);
       PA.H0.GetMemory().DeleteDevice(copy_to_host);
+      PA.H0Fit.GetMemory().DeleteDevice(copy_to_host);
       if (!copy_to_host && !PA.Jtr.GetMemory().HostIsValid())
       {
          PA.Jtr_needs_update = true;
@@ -3382,10 +3383,8 @@ real_t TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
 
       energy += weight * val;
    }
-   // std::cout << el_id << " " << energy << " k10-metric-energy\n";
 
    // Contribution from the surface fitting term.
-   double fit_energy = 0.0;
    if (surface_fit)
    {
       // Scalar for surf_fit_gf, vector for surf_fit_pos, but that's ok.
@@ -3412,7 +3411,6 @@ real_t TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
          if (surf_fit_gf)
          {
             energy += w * sigma_e(s) * sigma_e(s);
-            fit_energy += w * sigma_e(s) * sigma_e(s);;
          }
          if (surf_fit_pos)
          {
@@ -3427,8 +3425,6 @@ real_t TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
          }
       }
    }
-   // std::cout << el_id << " " << fit_energy << " k10-el-energy-fitting\n";
-
    delete Tpr;
    return energy;
 }

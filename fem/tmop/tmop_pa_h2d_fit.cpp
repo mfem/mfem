@@ -27,33 +27,27 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_Fit_2D,
                            const int q1d)
 {
     constexpr int DIM = 2;
-    constexpr int NBZ = 1;
-
     const int D1D = T_D1D ? T_D1D : d1d;
-    const int Q1D = T_Q1D ? T_Q1D : q1d;
     
     const auto H0 = Reshape(h0.Read(), DIM, DIM, D1D, D1D, NE);
-
     auto D = Reshape(diagonal.ReadWrite(), D1D, D1D, DIM, NE);
 
-    mfem::forall_2D_batch(NE, D1D, D1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
+    mfem::forall_2D(NE, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
     {
+        constexpr int DIM = 2;
         const int D1D = T_D1D ? T_D1D : d1d;
-        const int Q1D = T_Q1D ? T_Q1D : q1d;
-        constexpr int NBZ = 1;
-
-        MFEM_FOREACH_THREAD(qy,y,D1D)
+        
+        for (int v = 0; v < DIM; v++)
         {
-            MFEM_FOREACH_THREAD(qx,x,D1D)
+            MFEM_FOREACH_THREAD(qy,y,D1D)
             {
-                for (int v = 0; v < DIM; v++)
+                MFEM_FOREACH_THREAD(qx,x,D1D)
                 {
                     D(qx,qy,v,e) += H0(v,v,qx,qy,e);;                 
                 }
-            
             }
+            MFEM_SYNC_THREAD;
         }
-        MFEM_SYNC_THREAD;
     });
 
 }
@@ -63,7 +57,7 @@ void TMOP_Integrator::AssembleDiagonalPA_Fit_2D(Vector &D) const
    const int meshOrder = surf_fit_gf->FESpace()->GetMaxElementOrder();
    const int D1D = meshOrder + 1;
    const int Q1D = D1D;
-   const int id = (D1D << 4 ) | D1D;
+   const int id = (D1D << 4 ) | Q1D;
 
    const Vector &H0 = PA.H0Fit;
 
