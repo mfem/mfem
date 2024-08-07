@@ -37,16 +37,17 @@ real_t circle_level_set(const Vector &x)
 real_t squircle_level_set(const Vector &x)
 {
    const int dim = x.Size();
+   real_t pv = 4.0;
    if (dim == 2)
    {
       const real_t xc = x(0) - 0.5, yc = x(1) - 0.5;
-      return std::pow(xc, 4.0) + std::pow(yc, 4.0) - std::pow(0.24, 4.0);
+      return std::pow(xc, pv) + std::pow(yc, pv) - std::pow(0.24, pv);
    }
    else
    {
       const double xc = x(0) - 0.5, yc = x(1) - 0.5, zc = x(2) - 0.5;
-      return std::pow(xc, 4.0) + std::pow(yc, 4.0) +
-             std::pow(zc, 4.0) - std::pow(0.24, 4.0);
+      return std::pow(xc, pv) + std::pow(yc, pv) +
+             std::pow(zc, pv) - std::pow(0.24, pv);
    }
 }
 
@@ -124,6 +125,158 @@ real_t reactor(const Vector &x)
    return return_val;
 }
 
+
+
+real_t r_intersect(real_t r1, real_t r2)
+{
+   return r1 + r2 - std::pow(r1*r1 + r2*r2, 0.5);
+}
+
+real_t r_union(real_t r1, real_t r2)
+{
+   return r1 + r2 + std::pow(r1*r1 + r2*r2, 0.5);
+}
+
+real_t r_remove(real_t r1, real_t r2)
+{
+   return r_intersect(r1, -r2);
+}
+
+double smooth_circle_ls(const Vector &x, const Vector &x_center, double radius)
+{
+   Vector x_current = x;
+   real_t dist = x_current.DistanceSquaredTo(x_center);
+   return dist - radius*radius;
+}
+
+real_t smooth_inclined_line(const Vector &x)
+{
+   real_t xv = x(0), yv = x(1);
+   real_t dy = 0.0625*(xv-0.0)/1.0;
+   return yv - 0.05 - dy;
+}
+
+real_t smooth_line(const Vector &x, real_t a, int coord)
+{
+   return x(coord) - a;
+}
+
+real_t smooth_rectangle(const Vector &x, real_t xc, real_t yc, real_t w, real_t h)
+{
+   real_t leftline = -smooth_line(x, xc-w/2, 0);
+   real_t rightline = smooth_line(x, xc+w/2, 0);
+   real_t bottomline = -smooth_line(x, yc-h/2, 1);
+   real_t topline = smooth_line(x, yc+h/2, 1);
+   real_t xdir = r_union(leftline, rightline);
+   // return xdir;
+   real_t ydir = r_union(topline, bottomline);
+   // return ydir;
+   real_t return_val = r_union(xdir, ydir);
+   return return_val;
+}
+
+real_t smooth_parabola(const Vector &x, real_t h, real_t k, real_t t)
+{
+   real_t phi_p1 = k*x(1)*x(1) - (x(0)-h-t/2);
+   real_t phi_p2 = k*x(1)*x(1) - (x(0)-h+t/2);
+   // return phi_p1;
+   // return -phi_p2;
+   return r_union(-phi_p1, phi_p2);
+   // return (phi_p1 <= 0.0 && phi_p2 >= 0.0) ? 1.0 : -1.0;
+}
+
+// Fischer-Tropsch like geometry
+real_t squarewithcorners(const Vector &x)
+{
+   real_t in_rect = smooth_rectangle(x, 0.5, 0.5, 0.28, 0.28);
+   return in_rect;
+}
+
+// Fischer-Tropsch like geometry
+real_t reactoranalytic(const Vector &x)
+{
+   // Circle
+   Vector x_circle1(2);
+   x_circle1(0) = 0.0;
+   x_circle1(1) = 0.0;
+   real_t in_circle1_val = smooth_circle_ls(x, x_circle1, 0.3);
+
+   real_t in_inclined_line = smooth_inclined_line(x);
+   real_t return_val = r_intersect(in_circle1_val, in_inclined_line);
+
+   real_t in_rect = smooth_rectangle(x, 0.99, 0.0, 0.24, 0.4);
+   return_val = r_intersect(return_val, in_rect);
+
+   real_t in_par = smooth_parabola(x, 0.4, 2, 0.3);
+   return_val = r_intersect(return_val, in_par);
+
+   real_t in_rect2 = smooth_rectangle(x, 0.99, 0.5, 0.24, 0.4);
+   return_val = r_intersect(return_val, in_rect2);
+
+   return return_val;
+
+   real_t r1 = 0.2;
+   real_t r2 = 1.0;
+   real_t in_trapezium_val = in_trapezium(x, 0.05, 0.1, r2-r1);
+
+   // real_t return_val = max(in_circle1_val, in_trapezium_val);
+
+   real_t h = 0.4;
+   real_t k = 2;
+   real_t t = 0.15;
+   real_t in_parabola_val = in_parabola(x, h, k, t);
+   return_val = max(return_val, in_parabola_val);
+
+   real_t in_rectangle_val = in_rectangle(x, 0.99, 0.0, 0.12, 0.35);
+   return_val = max(return_val, in_rectangle_val);
+
+   real_t in_rectangle_val2 = in_rectangle(x, 0.99, 0.5, 0.12, 0.28);
+   return_val = max(return_val, in_rectangle_val2);
+   return return_val;
+}
+
+real_t mickymouseanalytic(const Vector &coord)
+{
+   const int num_circ = 3;
+   real_t rad[num_circ] = {0.3, 0.15, 0.2};
+   real_t c[num_circ][2] = { {0.6, 0.6}, {0.3, 0.3}, {0.25, 0.75} };
+
+   const real_t xc = coord(0), yc = coord(1);
+
+   // circle 0
+   Vector xcir(c[0], 2);
+   real_t circ0 = smooth_circle_ls(coord, xcir, rad[0]);
+   real_t return_val = circ0;
+
+   for (int i = 1; i < num_circ; i++)
+   {
+      Vector xcir(c[i], 2);
+      real_t circ = smooth_circle_ls(coord, xcir, rad[i]);
+      return_val = r_intersect(return_val, circ);
+   }
+
+   // remove in center
+   {
+      circ0 = smooth_circle_ls(coord, xcir, 0.125);
+      return_val = r_union(return_val, -circ0);
+   }
+
+   real_t in_rect = smooth_rectangle(coord, 0.75, 0.25, 0.1, 0.3);
+   return_val = r_intersect(return_val, in_rect);
+
+   real_t in_rect2 = smooth_rectangle(coord, 0.55, 0.175, 0.5, 0.05);
+   // return_val = r_intersect(return_val, in_rect2);
+
+   return return_val;
+
+      // rectangle 1
+      if (0.7 <= xc && xc <= 0.8 && 0.1 <= yc && yc <= 0.8) { return 1.0; }
+
+      // // rectangle 2
+      // if (0.3 <= xc && xc <= 0.8 && 0.15 <= yc && yc <= 0.2) { return 1.0; }
+      // return -1.0;
+}
+
 real_t in_cube(const Vector &x, real_t xc, real_t yc, real_t zc, real_t lx,
                real_t ly, real_t lz)
 {
@@ -152,21 +305,6 @@ real_t in_pipe(const Vector &x, int pipedir, Vector x_pipe_center,
    }
 
    return -1.0;
-}
-
-real_t r_intersect(real_t r1, real_t r2)
-{
-   return r1 + r2 - std::pow(r1*r1 + r2*r2, 0.5);
-}
-
-real_t r_union(real_t r1, real_t r2)
-{
-   return r1 + r2 + std::pow(r1*r1 + r2*r2, 0.5);
-}
-
-real_t r_remove(real_t r1, real_t r2)
-{
-   return r_intersect(r1, -r2);
 }
 
 

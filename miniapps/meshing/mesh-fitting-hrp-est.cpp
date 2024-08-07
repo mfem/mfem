@@ -31,12 +31,15 @@
 //
 // Compile with: make mesh-fitting
 //
-// make mesh-fitting-hrp -j && ./mesh-fitting-hrp -m square01-tri.mesh -rs 1 -o 1 -sbgmesh -vl 2 -mo 4 -mi 4 -preft 5e-14 -lsf 1 -bgamr 4 -bgo 6 -det 0 -pderef 1e-4 -href -no-ro -ni 100 -mid 2 -sft 1e-20 -et 0
-// make mesh-fitting-hrp -j && ./mesh-fitting-hrp -m quadsplit.mesh -rs 0 -o 1 -sbgmesh -vl 2 -mo 6 -mi 4 -preft 1e-14 -lsf 1 -bgamr 5 -bgo 6 -det 0 -pderef 1e-4 -href -no-ro -ni 100 -mid 80 -tid 4 -sft 1e-20 -et 0 -cus-mat
+// make mesh-fitting-hrp-est -j && ./mesh-fitting-hrp-est -m square01-tri.mesh -rs 1 -o 1 -sbgmesh -vl 2 -mo 4 -mi 4 -preft 5e-14 -lsf 1 -bgamr 4 -bgo 6 -det 0 -pderef 1e-4 -href -no-ro -ni 100 -mid 2 -sft 1e-20 -et 0
+// make mesh-fitting-hrp-est -j && ./mesh-fitting-hrp-est -m quadsplit.mesh -rs 0 -o 1 -sbgmesh -vl 2 -mo 6 -mi 4 -preft 1e-14 -lsf 1 -bgamr 5 -bgo 6 -det 0 -pderef 1e-4 -href -no-ro -ni 100 -mid 80 -tid 4 -sft 1e-20 -et 0 -cus-mat
 
 // reactor
-// make mesh-fitting-hrp -j && ./mesh-fitting-hrp -m square01-tri.mesh -rs 2 -o 1 -sbgmesh -vl 2 -mo 8 -mi 3  -preft 1e-20 -lsf 5 -bgamr 7 -bgo 4 -det 0 -pderef -1e-4 -href -no-ro -ni 100 -mid 2 -tid 1 -sft 1e-20 -et 0  -sfc 1e2
+// make mesh-fitting-hrp-est -j && ./mesh-fitting-hrp-est -m square01-tri.mesh -rs 2 -o 1 -sbgmesh -vl 2 -mo 4 -mi 3 -preft 1e-10 -lsf 5 -bgamr 0 -bgrs 4 -bgo 4 -det 0 -pderef -1e-4 -href -no-ro -ni 100 -mid 2 -tid 1 -sft 1e-20 -et 0 -sfc 1e1 -exc 5 -hpt 0.001
+// make mesh-fitting-hrp-est -j && ./mesh-fitting-hrp-est -m square01-tri.mesh -rs 2 -o 1 -sbgmesh -vl 2 -mo 4 -mi 5 -preft 1e-10 -lsf 5 -bgamr 4 -bgrs 2 -bgo 4 -det 0 -pderef -1e-4 -href -no-ro -ni 200 -mid 2 -tid 1 -sft 1e-20 -et 0 -sfc 1e3 -sfa 10 -exc 5 -hpt 0.2 -refint 1 -remark -no-vis
 
+// mickey-mouse
+// make mesh-fitting-hrp-est -j && ./mesh-fitting-hrp-est -m square01-tri.mesh -rs 2 -o 1 -sbgmesh -vl 2 -mo 4 -mi 3 -preft 1e-10 -lsf 7 -bgamr 0 -bgrs 4 -bgo 4 -det 0 -pderef -1e-4 -href -no-ro -ni 200 -mid 2 -tid 1 -sft 1e-20 -et 0 -sfc 0.01 -sfa 5 -exc 5 -hpt 0.01 -no-int
 #include "../../mfem.hpp"
 #include "../common/mfem-common.hpp"
 #include <fstream>
@@ -56,6 +59,10 @@
 
 using namespace mfem;
 using namespace std;
+
+char vishost[] = "localhost";
+int  visport   = 19916;
+int  wsize     = 350;
 
 struct InterfaceFaceEdgeConnectivity
 {
@@ -80,6 +87,167 @@ struct InterfaceFaceEdgeConnectivity
    int ngroups;
    int nfaces;
 };
+
+
+
+void GetElementNodalLocations(GridFunction *gf, int el_id, Vector &nodes)
+{
+   const FiniteElementSpace *fes = gf->FESpace();
+   const FiniteElement *fe = fes->GetFE(el_id);
+   const IntegrationRule &ir = fe->GetNodes();
+   ElementTransformation *trans = fes->GetElementTransformation(el_id);
+   Mesh *mesh = gf->FESpace()->GetMesh();
+   const int npts = ir.GetNPoints();
+   const int dim = fes->GetMesh()->SpaceDimension();
+   const int ndofs = fe->GetDof();
+   nodes.SetSize(ndofs*dim);
+   DenseMatrix nodes_mat(nodes.GetData(), ndofs, dim);
+   mesh->GetNodes()->GetVectorValues(*trans, ir, nodes_mat);
+}
+
+void GetElementQuadPointLocations(GridFunction *gf, int el_id,
+                                  IntegrationRule &ir,
+                                  Vector &nodes)
+{
+   const FiniteElementSpace *fes = gf->FESpace();
+   const FiniteElement *fe = fes->GetFE(el_id);
+   ElementTransformation *trans = fes->GetElementTransformation(el_id);
+   Mesh *mesh = gf->FESpace()->GetMesh();
+   const int npts = ir.GetNPoints();
+   const int dim = fes->GetMesh()->SpaceDimension();
+   nodes.SetSize(npts*dim);
+   DenseMatrix nodes_mat(nodes.GetData(), npts, dim);
+   mesh->GetNodes()->GetVectorValues(*trans, ir, nodes_mat);
+}
+
+void MapJumpEstimateFromBackgroundMesh(GridFunction *bg_jump,
+                                       IntegrationRules *irules,
+                                       int quad_order,
+                                       InterfaceFaceEdgeConnectivity &ifec0,
+                                       GridFunction &jump_estimator)
+{
+   Mesh *mesh = jump_estimator.FESpace()->GetMesh();
+   Mesh *mesh_surf_fit_bg = bg_jump->FESpace()->GetMesh();
+   FindPointsGSLIB finder_current;
+   finder_current.Setup(*mesh);
+   // First map jump to all elements
+   for (int i = 0; i < mesh_surf_fit_bg->GetNE(); i++)
+   {
+      Vector elnodes;
+      Vector intvals;
+      Array<int> eldofs;
+      IntegrationRule iruleqp = irules->Get(bg_jump->FESpace()->GetFE(i)->GetGeomType(),
+                                             quad_order);
+      GetElementQuadPointLocations(bg_jump, i, iruleqp, elnodes);
+      const FiniteElement *fe = bg_jump->FESpace()->GetFE(i);
+      bg_jump->GetValues(i, iruleqp, intvals);
+      finder_current.FindPoints(elnodes, Ordering::byVDIM);
+      Array<int> mfem_elem = finder_current.GetElem();
+      for (int e = 0; e < mfem_elem.Size(); e++)
+      {
+         int elem = mfem_elem[e];
+         jump_estimator(elem) = std::max(jump_estimator(elem), intvals(e));
+      }
+   }
+
+   H1_FECollection fec_lin_H1(1, mesh->Dimension());
+   FiniteElementSpace  fes_lin_h1(mesh, &fec_lin_H1);
+   GridFunction lin_h1(&fes_lin_h1);
+   lin_h1 = 0.0;
+
+   // now map jump to all DOFs
+   for (int e = 0; e < mesh->GetNE(); e++)
+   {
+      Array<int> dofs;
+      fes_lin_h1.GetElementDofs(e, dofs);
+      for (int i = 0; i < dofs.Size(); i++)
+      {
+         lin_h1(dofs[i]) = std::max(lin_h1(dofs[i]), jump_estimator(e));
+      }
+   }
+
+   // now map back to all elements
+   for (int e = 0; e < mesh->GetNE(); e++)
+   {
+      Array<int> dofs;
+      fes_lin_h1.GetElementDofs(e, dofs);
+      for (int i = 0; i < dofs.Size(); i++)
+      {
+         jump_estimator(e) = std::max(lin_h1(dofs[i]), jump_estimator(e));
+      }
+   }
+
+   for (int e = 0; e < mesh->GetNE(); e++)
+   {
+      if (ifec0.inter_face_el_all.Find(e) == -1 &&
+         ifec0.intedgels.Find(e) == -1)
+      {
+         jump_estimator(e) = 0.0;
+      }
+   }
+
+
+   // Make error consistent for each group
+   for (int i = 0; i < ifec0.ngroups; i++)
+   {
+      vector<int> els = ifec0.group_to_els[i];
+      double max_group_err = 0.0;
+      for (int e = 0; e < els.size(); e++)
+      {
+         max_group_err = std::max(max_group_err, jump_estimator(els[e]));
+      }
+      for (int e = 0; e < els.size(); e++)
+      {
+         jump_estimator(els[e]) = max_group_err;
+      }
+   }
+
+   finder_current.FreeData();
+}
+
+void ExtendRefinementListToNeighbors(Mesh &mesh, Array<int> &intel)
+{
+   mfem::L2_FECollection l2fec(0, mesh.Dimension());
+   mfem::FiniteElementSpace l2fespace(&mesh, &l2fec);
+   mfem::GridFunction el_to_refine(&l2fespace);
+   const int quad_order = 4;
+
+   el_to_refine = 0.0;
+
+   for (int i = 0; i < intel.Size(); i++)
+   {
+      el_to_refine(intel[i]) = 1.0;
+   }
+
+   mfem::H1_FECollection lhfec(1, mesh.Dimension());
+   mfem::FiniteElementSpace lhfespace(&mesh, &lhfec);
+   mfem::GridFunction lhx(&lhfespace);
+
+   // el_to_refine.ExchangeFaceNbrData();
+   GridFunctionCoefficient field_in_dg(&el_to_refine);
+   lhx.ProjectDiscCoefficient(field_in_dg, GridFunction::ARITHMETIC);
+
+   IntegrationRules irRules = IntegrationRules(0, Quadrature1D::GaussLobatto);
+   for (int e = 0; e < mesh.GetNE(); e++)
+   {
+      Array<int> dofs;
+      Vector x_vals;
+      lhfespace.GetElementDofs(e, dofs);
+      const IntegrationRule &ir =
+         irRules.Get(mesh.GetElementGeometry(e), quad_order);
+      lhx.GetValues(e, ir, x_vals);
+      double max_val = x_vals.Max();
+      if (max_val > 0)
+      {
+         intel.Append(e);
+      }
+   }
+
+   intel.Sort();
+   intel.Unique();
+}
+
+
 
 map<int, double> MapErrorToFaces(Array<int> &inter_faces, Vector &face_error)
 {
@@ -355,6 +523,117 @@ GridFunction* ProlongToMaxOrderAndSetMeshNodes(Mesh *mesh)
    return mesh->GetNodes();
 }
 
+void MeasureJumps(const GridFunction &u, GridFunction &jumps, bool vis)
+{
+   const FiniteElementSpace &pfes_L2 = *(u.FESpace());
+   const int dim   = pfes_L2.GetMesh()->Dimension();
+   const int order = pfes_L2.FEColl()->GetOrder();
+
+
+   // Normalize to [0, 1].
+   GridFunction u_n(u);
+   double u_min = u_n.Min();
+   u_n += fabs(u_min);
+   double u_max = u_n.Max();
+   u_n /= u_max;
+
+   if (vis)
+   {
+      socketstream sock_un;
+      common::VisualizeField(sock_un, vishost, visport, u_n, "u normalized",
+                             wsize, wsize, wsize, wsize, "Rjmc**");
+   }
+
+   // Form min/max at each CG dof, considering element overlaps.
+   const L2_FECollection *fecl2 = dynamic_cast<const L2_FECollection *>(pfes_L2.FEColl());
+   H1_FECollection fec_H1(order, dim);
+
+   FiniteElementSpace pfes_H1(pfes_L2.GetMesh(), &fec_H1);
+
+   // std::cout << fecl2->GetBasisType() << " " << fec_H1.GetBasisType() << " "
+   // << order << " " << dim << " k10-basis-type\n";
+   const IntegrationRule &irulel2 = pfes_L2.GetFE(0)->GetNodes();
+   const IntegrationRule &iruleh1 = pfes_H1.GetFE(0)->GetNodes();
+   // std::cout << irulel2.GetNPoints() << " " << iruleh1.GetNPoints() << " k10np\n";
+   for (int i = 0; i < iruleh1.GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = iruleh1.IntPoint(i);
+      const IntegrationPoint &ip2 = irulel2.IntPoint(i);
+      // std::cout << ip.x << " " << ip.y << " " <<
+      // ip2.x << " " << ip2.y << " k10-ip\n";
+   }
+
+
+   GridFunction u_min_H1(&pfes_H1), u_max_H1(&pfes_H1);
+   u_min_H1 =   std::numeric_limits<double>::infinity();
+   u_max_H1 = - std::numeric_limits<double>::infinity();
+   const int NE = pfes_H1.GetNE();
+   Array<int> dofsCG;
+   Array<int> dofsDCG;
+   const TensorBasisElement *fe_tensor =
+      dynamic_cast<const TensorBasisElement *>(pfes_H1.GetFE(0));
+   const NodalFiniteElement *fe_nodal =
+      dynamic_cast<const NodalFiniteElement *>(pfes_H1.GetFE(0));
+   // std::cout << fe_tensor << " " << fe_nodal << " k10-fetensor-fenodal\n";
+   MFEM_VERIFY(fe_tensor || fe_nodal, "TODO - implement for triangles");
+   const Array<int> &dof_map2 = fe_nodal->GetLexicographicOrdering();
+   const Array<int> &dof_map = fe_tensor->GetDofMap();
+   const int ndofs = dof_map2.Size();
+   // dof_map2.Print();
+   for (int k = 0; k < NE; k++)
+   {
+      pfes_H1.GetElementDofs(k, dofsCG);
+      pfes_L2.GetElementDofs(k, dofsDCG);
+      for (int i = 0; i < ndofs; i++)
+      {
+         // if (k == 0) {
+         //    std::cout << i << " " << dof_map2[i] << " k10map2\n";
+         // }
+         u_min_H1(dofsCG[dof_map2[i]]) = fmin(u_min_H1(dofsCG[dof_map2[i]]),
+                                             u_n(k*ndofs + i));
+         u_max_H1(dofsCG[dof_map2[i]]) = fmax(u_max_H1(dofsCG[dof_map2[i]]),
+                                             u_n(k*ndofs + i));
+      }
+   }
+
+   // Compute jumps (and reuse the min H1 function).
+   GridFunction &u_jump_H1 = u_min_H1;
+   for (int i = 0; i < u_jump_H1.Size(); i++)
+   {
+      u_jump_H1(i) = fabs(u_max_H1(i) - u_min_H1(i));
+   }
+   if (vis)
+   {
+      socketstream sock_j;
+      common::VisualizeField(sock_j, vishost, visport, u_jump_H1, "u jumps HO",
+                             2*wsize, wsize, wsize, wsize, "Rjmc**");
+   }
+
+   // Project the jumps to Q1.
+   jumps.ProjectGridFunction(u_jump_H1);
+   for (int i = 0; i < jumps.Size(); i++) { jumps(i) = fmax(jumps(i), 0.0); }
+}
+
+class GradientCompCoefficient : public Coefficient
+{
+private:
+   const GridFunction &u;
+   const int comp;
+
+public:
+   GradientCompCoefficient(const GridFunction &u_gf, int c)
+      : u(u_gf), comp(c) { }
+
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+};
+
+double GradientCompCoefficient::Eval(ElementTransformation &T,
+                                     const IntegrationPoint &ip)
+{
+   Vector grad_u(T.GetDimension());
+   u.GetGradient(T, grad_u);
+   return grad_u(comp);
+}
 
 int main(int argc, char *argv[])
 {
@@ -405,6 +684,10 @@ int main(int argc, char *argv[])
    bool hrefine = false;
    int href_max_depth = 4;
    bool relaxed_hp = false;
+   double hpthreshold = 0.9;
+   bool integral = false;
+   int ref_int_neighbors = 0;
+   bool amr_remarking = false;
 
    // the error types for ref and deref are: 0 - L2squared, 1 - length, 2 - L2, 3 - L2/length
 
@@ -526,6 +809,16 @@ int main(int argc, char *argv[])
    args.AddOption(&relaxed_hp, "-relax", "--relax-hp",
                   "-no-relax", "--no-relax-hp",
                   "Do relaxed hp.");
+   args.AddOption(&hpthreshold, "-hpt", "--hpt",
+                  "Threshold to choose for h vs p refinement");
+   args.AddOption(&integral, "-int", "--integral",
+                  "-no-int", "--no-integral",
+                  "Use integral term for fitting term.");
+   args.AddOption(&ref_int_neighbors, "-refint", "--refint",
+                  "Layers of neighbors to refine");
+   args.AddOption(&amr_remarking, "-remark", "--re-mark", "-no-remark",
+                  "--no-re-mark",
+                  "Remark after adaptive mesh refinement.");
    // if pderef > 0, we check for derefinement based on change in length (deref_error_type = 1),
    // change in L2 error (deref_error_type = 0), and relative to pref_tol (deref_error_type = 4)
    // It is best to keep error_type = 0 so that criterion is based on L2 error.
@@ -573,6 +866,14 @@ int main(int argc, char *argv[])
    else if (ls_function == 5)
    {
       ls_coeff = FunctionCoefficient(reactoranalytic);
+   }
+   else if (ls_function == 6)
+   {
+      ls_coeff = FunctionCoefficient(squarewithcorners);
+   }
+   else if (ls_function == 7)
+   {
+      ls_coeff = FunctionCoefficient(mickymouseanalytic);
    }
 
    // 2. Initialize and refine the starting mesh.
@@ -703,6 +1004,9 @@ int main(int argc, char *argv[])
    GridFunction fitting_error_gf(&l2zero_fes);
    GridFunction groupnum_gf(&l2zero_fes);
    GridFunction previous_order_gf(&l2zero_fes);
+   GridFunction jump_estimator(&l2zero_fes);
+   GridFunction do_elsp(&l2zero_fes);
+   GridFunction do_elsh(&l2zero_fes);
 
    order_gf = mesh_poly_deg*1.0;
    int_marker = 0.0;
@@ -713,6 +1017,8 @@ int main(int argc, char *argv[])
    NumFaces = 0.0;
    fitting_error_gf = pref_tol/100;
    groupnum_gf = -1.0;
+   do_elsp = 0.0;
+   do_elsh = 0.0;
 
    hrefup.AddFESpaceForUpdate(&l2zero_fes);
    hrefup.AddGridFunctionForUpdate(&order_gf);
@@ -725,6 +1031,9 @@ int main(int argc, char *argv[])
    hrefup.AddGridFunctionForUpdate(&fitting_error_gf);
    hrefup.AddGridFunctionForUpdate(&groupnum_gf);
    hrefup.AddGridFunctionForUpdate(&previous_order_gf);
+   hrefup.AddGridFunctionForUpdate(&jump_estimator);
+   hrefup.AddGridFunctionForUpdate(&do_elsp);
+   hrefup.AddGridFunctionForUpdate(&do_elsh);
 
 
    fespace->SetRelaxedHpConformity(relaxed_hp);
@@ -840,6 +1149,13 @@ int main(int argc, char *argv[])
    FiniteElementSpace *surf_fit_bg_hess_fes = NULL;
    GridFunction *surf_fit_bg_hess = NULL;
 
+
+   H1_FECollection fec_lin_H1(1, dim);
+   FiniteElementSpace *bg_fes_lin_H1 = NULL;
+   GridFunction *bg_grad_jump = NULL;
+   GridFunction *bg_hess_jump = NULL;
+   GridFunction *bg_jump = NULL;
+
    hrefup.AddFESpaceForUpdate(&surf_fit_fes);
    hrefup.AddGridFunctionForUpdate(&surf_fit_mat_gf);
    hrefup.AddGridFunctionForUpdate(&surf_fit_gf0);
@@ -850,6 +1166,8 @@ int main(int argc, char *argv[])
    GridFunction *surf_fit_grad = NULL;
    FiniteElementSpace *surf_fit_hess_fes = NULL;
    GridFunction *surf_fit_hess = NULL;
+   FiniteElementSpace *fes_lin_H1 = NULL;
+   GridFunction *grad_jump_lin_H1 = NULL;
 
    if (surf_bg_mesh)
    {
@@ -876,6 +1194,7 @@ int main(int argc, char *argv[])
          surf_fit_bg_fes = new FiniteElementSpace(mesh_surf_fit_bg, surf_fit_bg_fec);
          surf_fit_bg_gf0 = new GridFunction(surf_fit_bg_fes);
          surf_fit_bg_gf0->ProjectCoefficient(ls_coeff);
+         // DiffuseField(*surf_fit_bg_gf0, 1);
          if (bg_amr_iter > 0)
          {
             std::cout << "Doing AMR on the bg mesh\n";
@@ -885,21 +1204,10 @@ int main(int argc, char *argv[])
                                                   *surf_fit_bg_gf0);
             std::cout << "Done AMR on the bg mesh\n";
          }
+         // DiffuseField(*surf_fit_bg_gf0, 1);
          finder.Setup(*mesh_surf_fit_bg);
          std::cout << "Done finder Setup on the bg mesh\n";
          surf_fit_bg_gf0->ProjectCoefficient(ls_coeff);
-      }
-
-      if (visit)
-      {
-         DataCollection *dc = NULL;
-         dc = new VisItDataCollection("Background_"+std::to_string(jobid),
-                                      mesh_surf_fit_bg);
-         dc->RegisterField("Level-set", surf_fit_bg_gf0);
-         dc->SetCycle(0);
-         dc->SetTime(0.0);
-         dc->Save();
-         delete dc;
       }
 
       surf_fit_bg_grad_fes =
@@ -937,28 +1245,97 @@ int main(int argc, char *argv[])
       }
       std::cout << "Done Setup Hessian on the bg mesh\n";
 
-      if (visualization)
+      // Compute jumps
+      L2_FECollection fec_bg_grad_L2_temp(bgo, dim, BasisType::GaussLobatto);
+      FiniteElementSpace fes_bg_grad_L2_temp(mesh_surf_fit_bg, &fec_bg_grad_L2_temp);
+      GridFunction du_comp(&fes_bg_grad_L2_temp);
+      GridFunction dudu_comp(&fes_bg_grad_L2_temp);
+
+      bg_fes_lin_H1 = new FiniteElementSpace(mesh_surf_fit_bg, &fec_lin_H1);
+      bg_grad_jump = new GridFunction(bg_fes_lin_H1);
+      bg_hess_jump = new GridFunction(bg_fes_lin_H1);
+      bg_jump = new GridFunction(bg_fes_lin_H1);
+      GridFunction comp_jumps(bg_fes_lin_H1);
+      GridFunction comp2_jumps(bg_fes_lin_H1);
+      *bg_grad_jump = 0.0;
+      *bg_hess_jump = 0.0;
+      for (int d = 0; d < dim; d++)
       {
-         socketstream vis1, vis2, vis3;
-         if (surf_bg_mesh)
+         GradientCompCoefficient du_comp_coeff(*surf_fit_bg_gf0, d);
+         du_comp.ProjectCoefficient(du_comp_coeff);
+         for (int c = 0; c < dim; c++)
          {
-            common::VisualizeField(vis2, "localhost", 19916, *surf_fit_bg_grad,
-                                 "Background Mesh - Level Set Gradrient",
-                                 1000, 300, 300, 300, vis_keys);
-            common::VisualizeField(vis3, "localhost", 19916, *surf_fit_bg_gf0,
-                                 "Background Mesh - Level Set",
-                                 1000, 0, 300, 300, vis_keys);
+            GradientCompCoefficient d2u_comp_coeff(du_comp, c);
+            dudu_comp.ProjectCoefficient(d2u_comp_coeff);
+            MeasureJumps(dudu_comp, comp_jumps, false);
+            for (int i = 0; i < bg_hess_jump->Size(); i++)
+            {
+               (*bg_hess_jump)(i) = fmax((*bg_hess_jump)(i), comp_jumps(i));
+            }
+         }
+         MeasureJumps(du_comp, comp_jumps, false);
+         for (int i = 0; i < bg_grad_jump->Size(); i++)
+         {
+            (*bg_grad_jump)(i) = fmax((*bg_grad_jump)(i), comp_jumps(i));
          }
       }
+      DiffuseField(*bg_hess_jump, 4);
+      DiffuseField(*bg_grad_jump, 4);
+
+      if (visualization)
+      {
+         socketstream vis1, vis2, vis3, vis4;
+         if (surf_bg_mesh)
+         {
+            common::VisualizeField(vis1, "localhost", 19916, *surf_fit_bg_gf0,
+                                 "Background Mesh - Level Set",
+                                 1300, 0, 300, 300, vis_keys);
+            common::VisualizeField(vis2, "localhost", 19916, *surf_fit_bg_grad,
+                                 "Background Mesh - Level Set Gradrient",
+                                 1300, 300, 300, 300, vis_keys);
+            common::VisualizeField(vis3, "localhost", 19916, *bg_grad_jump,
+                                 "Background Mesh - Gradient jump",
+                                 1300, 600, 300, 300, vis_keys);
+            common::VisualizeField(vis4, "localhost", 19916, *bg_hess_jump,
+                                 "Background Mesh - Hessian jump",
+                                 1300, 900, 300, 300, vis_keys);
+         }
+      }
+
+      *bg_jump = *bg_grad_jump;
+      *bg_jump += *bg_hess_jump;
+      double jumpmin = bg_jump->Min();
+      double jumpmax = bg_jump->Max();
+      *bg_jump -= jumpmin;
+      *bg_jump /= (jumpmax - jumpmin);
+
+
+      if (visit)
+      {
+         DataCollection *dc = NULL;
+         dc = new VisItDataCollection("Background_"+std::to_string(jobid),
+                                      mesh_surf_fit_bg);
+         dc->RegisterField("Level-set", surf_fit_bg_gf0);
+         dc->RegisterField("LS-Gradient", surf_fit_bg_grad);
+         dc->RegisterField("LS-Gradient-Jump", bg_grad_jump);
+         dc->RegisterField("LS-Hessian-Jump", bg_hess_jump);
+         dc->RegisterField("LS-Final-Jump-Field", bg_jump);
+         dc->SetCycle(0);
+         dc->SetTime(0.0);
+         dc->Save();
+         delete dc;
+      }
+      // MFEM_ABORT(" ");
    }
 
+
+   GridFunction *mat_file = NULL;
    if (surface_fit_const > 0.0)
    {
       finder.Interpolate(x, *surf_fit_bg_gf0, surf_fit_gf0,
                          x.FESpace()->GetOrdering());
       std::cout << "Done remap from bg mesh\n";
 
-      GridFunction *mat_file = NULL;
       if (custom_material && strcmp(custom_material_file, "NULL") != 0)
       {
          ifstream cg_mat_stream(custom_material_file);
@@ -967,80 +1344,24 @@ int main(int argc, char *argv[])
                      "Invalid material file. Not compatible");
       }
 
-      for (int i = 0; i < mesh->GetNE(); i++)
+      // Set the material grid function
       {
-         mat(i) = material_id(i, surf_fit_gf0);
-         if (exceptions == 2 || exceptions == 3)
-         {
-            mat(i) = material_id2(i, surf_fit_gf0);
-         }
-         else if (exceptions == 4)
-         {
-            mat(i) = material_id3(i, surf_fit_gf0);
-            Vector center(mesh->Dimension());
-            mesh->GetElementCenter(i, center);
-            if (center(0) < 0.1 || center(0) > 0.9 || center(1) < 0.1 || center(1) > 0.9)
-            {
-               mat(i) = 1;
-            }
-         }
+         SetMaterialGridFunction(mesh, surf_fit_gf0, mat, custom_material,
+                              custom_split_mesh, exceptions, 1, mat_file);
 
-         if (custom_material)
-         {
-            Vector center(mesh->Dimension());
-            mesh->GetElementCenter(i, center);
-            mat(i) = 1;
-            if (mesh->Dimension() == 2)
-            {
-               if (center(0) > 0.25 && center(0) < 0.75 && center(1) > 0.25 &&
-                   center(1) < 0.75)
-               {
-                  mat(i) = 0;
-               }
-            }
-            else if (mesh->Dimension() == 3)
-            {
-               if (center(0) > 0.25 && center(0) < 0.75
-                   && center(1) > 0.25 && center(1) < 0.75
-                   && center(2) > 0.25 && center(2) < 0.75)
-               {
-                  mat(i) = 0;
-               }
-            }
-            if (mat_file) { mat(i) = (*mat_file)(i); }
-         }
-         mesh->SetAttribute(i, static_cast<int>(mat(i) + 1));
-      }
-      mesh->SetAttributes();
+         surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
 
-      delete mat_file;
-      std::cout << "Done marking\n";
-      if (custom_split_mesh > 0)
-      {
-         MakeMaterialConsistentForElementGroups(mat, 24);
-      }
-      else if (custom_split_mesh < 0 && exceptions != 4)
-      {
-         MakeMaterialConsistentForElementGroups(mat,
-                                                custom_split_mesh == -1 ? 4 : 5);
-      }
-
-      surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
-      // if (prefine)
-      // {
-      //    surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
-      // }
-
-      MakeGridFunctionWithNumberOfInterfaceFaces(mesh, mat, NumFaces);
-      if (adapt_marking && (custom_split_mesh == 0 || exceptions == 4))
-      {
-         ModifyAttributeForMarkingDOFS(mesh, mat, 0);
          MakeGridFunctionWithNumberOfInterfaceFaces(mesh, mat, NumFaces);
-         ModifyAttributeForMarkingDOFS(mesh, mat, 1);
-         MakeGridFunctionWithNumberOfInterfaceFaces(mesh, mat, NumFaces);
-         ModifyAttributeForMarkingDOFS(mesh, mat, 0);
-         MakeGridFunctionWithNumberOfInterfaceFaces(mesh, mat, NumFaces);
-         ModifyAttributeForMarkingDOFS(mesh, mat, 1);
+         if (adapt_marking && (custom_split_mesh == 0 || exceptions == 4))
+         {
+            ModifyAttributeForMarkingDOFS(mesh, mat, 0);
+            MakeGridFunctionWithNumberOfInterfaceFaces(mesh, mat, NumFaces);
+            ModifyAttributeForMarkingDOFS(mesh, mat, 1);
+            MakeGridFunctionWithNumberOfInterfaceFaces(mesh, mat, NumFaces);
+            ModifyAttributeForMarkingDOFS(mesh, mat, 0);
+            MakeGridFunctionWithNumberOfInterfaceFaces(mesh, mat, NumFaces);
+            ModifyAttributeForMarkingDOFS(mesh, mat, 1);
+         }
       }
    }
 
@@ -1195,6 +1516,10 @@ int main(int argc, char *argv[])
          {
             surface_fit_const = 1e-5;
          }
+         else if (exceptions == 5 && iter_pref == 2)
+         {
+            // surface_fit_const = 1e5;
+         }
       }
 
       const Table &eltoeln = mesh->ElementToElementTable();
@@ -1221,6 +1546,9 @@ int main(int argc, char *argv[])
          dc->RegisterField("mat", &mat);
          dc->RegisterField("Level-set", surf_fit_gf0_max_order);
          dc->RegisterField("intmarker", &int_marker);
+         jump_estimator = 0.0;
+         dc->RegisterField("jumpestimator", &jump_estimator);
+         dc->RegisterField("donemarker", &done_els);
          dc->SetCycle(0);
          dc->SetTime(0.0);
          dc->Save();
@@ -1356,6 +1684,51 @@ int main(int argc, char *argv[])
          }
       }
 
+      // Transfer max jump estimate from background mesh to current mesh
+      if (surf_bg_mesh)
+      {
+         delete fes_lin_H1;
+         delete grad_jump_lin_H1;
+         fes_lin_H1 =  new FiniteElementSpace(mesh, &fec_lin_H1);
+         grad_jump_lin_H1 = new GridFunction(fes_lin_H1);
+
+         GridFunction comp_jumps(fes_lin_H1);
+         L2_FECollection fec_grad_L2_temp(bgo, dim, BasisType::GaussLobatto);
+         FiniteElementSpace fes_grad_L2_temp(mesh, &fec_grad_L2_temp);
+         GridFunction du_comp(&fes_grad_L2_temp);
+
+         *grad_jump_lin_H1 = 0.0;
+
+         for (int d = 0; d < dim; d++)
+         {
+            GradientCompCoefficient du_comp_coeff(surf_fit_gf0, d);
+            du_comp.ProjectCoefficient(du_comp_coeff);
+            MeasureJumps(du_comp, comp_jumps, false);
+            for (int i = 0; i < grad_jump_lin_H1->Size(); i++)
+            {
+               (*grad_jump_lin_H1)(i) = fmax((*grad_jump_lin_H1)(i), comp_jumps(i));
+            }
+         }
+
+         MapJumpEstimateFromBackgroundMesh(bg_jump, irules, quad_order, ifec0,
+                                           jump_estimator);
+      }
+
+      double max_jump_error = jump_estimator.Max();
+      std::cout << max_jump_error << " " << hpthreshold << " k10maxjumperror and threshold\n";
+      if (visualization)
+      {
+         socketstream vis1, vis2;
+         x_max_order = ProlongToMaxOrderAndSetMeshNodes(mesh);
+         common::VisualizeField(vis1, "localhost", 19916, jump_estimator,
+                                 "Jump estimator",
+                                 1000, 0, 300, 300, vis_keys);
+         common::VisualizeField(vis2, "localhost", 19916, *grad_jump_lin_H1,
+                              "Jump field",
+                              1000, 300, 300, 300, vis_keys);
+         mesh->NewNodes(x, false);
+      }
+
       // Make list of all elements around the interface that are to be
       // tested for h/p-refinement.
       // Criterion - element should not have been marked done at prior iteration,
@@ -1365,6 +1738,8 @@ int main(int argc, char *argv[])
       int n_pref_count = 0;
       Array<int> h_candidate_els;
       Array<int> p_candidate_els;
+      do_elsp = 0.0;
+      do_elsh = 0.0;
       for (int g = 0; g < ifec0.ngroups; g++)
       {
          vector<int> els = ifec0.group_to_els[g];
@@ -1382,26 +1757,83 @@ int main(int argc, char *argv[])
             {
                if (prefine &&
                    current_order < pref_max_order &&
-                   done_elsp[elnum] == 0.0)
+                   done_elsp[elnum] == 0.0 &&
+                   (jump_estimator(elnum) < hpthreshold*max_jump_error || !hrefine))
                {
                   p_candidate_els.Append(elnum);
                   n_pref_count++;
+                  do_elsp(elnum) = 1.0;
                }
-               if (hrefine &&
+               else if (hrefine &&
                    mesh->ncmesh->GetElementDepth(elnum) < href_max_depth &&
-                   done_elsh[elnum] == 0.0)
+                   done_elsh[elnum] == 0.0 &&
+                   jump_estimator(elnum) >= hpthreshold*max_jump_error)
                {
                   h_candidate_els.Append(elnum);
                   n_href_count++;
+                  do_elsh(elnum) = 1.0;
                }
             }
          }
       }
 
+      if (ref_int_neighbors)
+      {
+         // Refine neighbors of elements that are marked for refinement
+         for (int iter = 0; iter < ref_int_neighbors; iter++)
+         {
+            ExtendRefinementListToNeighbors(*mesh, h_candidate_els);
+         }
+
+         // If an element is marked, mark other elements in its group as well
+         Array<int> h_temp;
+         for (int i = 0; i < h_candidate_els.Size(); i++)
+         {
+            int elem = h_candidate_els[i];
+            int groupnum = ifec0.els_to_group.find(elem) == ifec0.els_to_group.end() ?
+                           -1 : ifec0.els_to_group[elem];
+            if (groupnum >= 0)
+            {
+                  for (int e = 0; e < ifec0.group_to_els[groupnum].size(); e++)
+                  {
+                     int elg = ifec0.group_to_els[groupnum][e];
+                     h_temp.Append(elg);
+                  }
+            }
+         }
+         h_temp.Sort();
+         h_temp.Unique();
+         h_candidate_els.Append(h_temp);
+         h_candidate_els.Sort();
+         h_candidate_els.Unique();
+
+         // Remove elements from p-refinement list if they are marked for h-refinement
+         for (int i = 0; i < h_candidate_els.Size(); i++)
+         {
+            int elem = h_candidate_els[i];
+            if (p_candidate_els.Find(elem) != -1)
+            {
+               int groupnum = ifec0.els_to_group[elem];
+               for (int e = 0; e < ifec0.group_to_els[groupnum].size(); e++)
+               {
+                  int elg = ifec0.group_to_els[groupnum][e];
+                  if (p_candidate_els.Find(elg) != -1)
+                  {
+                     p_candidate_els.DeleteFirst(elg);
+                  }
+               }
+            }
+         }
+      }
+
+      n_href_count = h_candidate_els.Size();
+      n_pref_count = p_candidate_els.Size();
+
       std::cout << "===================================" << endl;
       cout << "Number of elements eligible for h- and p- test refinements: " <<
            n_href_count << " " << n_pref_count << endl;
       std::cout << "===================================" << endl;
+
 
       prior_el_order.SetSize(mesh->GetNE());
       for (int e = 0; e < mesh->GetNE(); e++)
@@ -1412,22 +1844,10 @@ int main(int argc, char *argv[])
 
       InterfaceFaceEdgeConnectivity ifecref = ifec0;
 
-      // If this is not the first iteration, refine both in h- and p-.
+      // If this is not the first iteration, do h/p refinement
       if (iter_pref > 0)
       {
-         {
-            socketstream vis1;
-            x_max_order = ProlongToMaxOrderAndSetMeshNodes(mesh);
-            order_gf = x.FESpace()->GetElementOrdersV();
-            // common::VisualizeField(vis1, "localhost", 19916, order_gf,
-            //                        "Orders just before test p-refined mesh",
-            //                        1000, 0, 300, 300, vis_keys);
-            // common::VisualizeField(vis1, "localhost", 19916, previous_order_gf,
-            //                        "Previous orders",
-            //                        1000, 0, 300, 300, vis_keys);
-            mesh->NewNodes(x, false);
-         }
-         // first we do p-refinement
+         // Do p-refinement
          if (n_pref_count)
          {
             for (int i = 0; i < p_candidate_els.Size(); i++)
@@ -1438,9 +1858,12 @@ int main(int argc, char *argv[])
                // If we we will also be doing h-refinement, then we want to
                // increase so that increase in DOFs due to h-refinement is
                // similar.. otherwise we can increase by user input.
-               int target_order = hrefine && !done_h_status ?
-                                  2*current_order :
-                                  current_order + pref_order_increase;
+               // int target_order = hrefine && !done_h_status ?
+               //                    2*current_order :
+               //                    current_order + pref_order_increase;
+               // int target_order = current_order + pref_order_increase;
+
+               int target_order = current_order + 1;
                int set_order = std::min(pref_max_order, target_order);
                order_gf(elnum) = set_order;
             }
@@ -1494,14 +1917,46 @@ int main(int argc, char *argv[])
          }
          MFEM_VERIFY(min_detJ > 0.0, "Non-positive Jacobian after test p-refinement");
 
-         // Now do h-refinement
+         // Do h-refinement
          if (n_href_count)
          {
             mesh->GeneralRefinement(h_candidate_els, 1, 0);
             hrefup.Update(true);
+
+            GetGroupInfo(mesh, mat, surf_fit_gf0, ifecref);
+            std::cout << ifecref.nfaces << " k10ifecrefsize\n";
+
+            //
+            if (amr_remarking && mat_file == NULL)
+            {
+               finder.Interpolate(x, *surf_fit_bg_gf0, surf_fit_gf0,
+                                  x.FESpace()->GetOrdering());
+               // Set the material grid function
+               {
+                  SetMaterialGridFunction(mesh, surf_fit_gf0, mat, custom_material,
+                                          custom_split_mesh, exceptions,
+                                          iter_pref % 2 + 1, mat_file);
+
+                  MakeGridFunctionWithNumberOfInterfaceFaces(mesh, mat, NumFaces);
+                  if (adapt_marking && (custom_split_mesh == 0 || exceptions == 4))
+                  {
+                     ModifyAttributeForMarkingDOFS(mesh, mat, 0);
+                     MakeGridFunctionWithNumberOfInterfaceFaces(mesh, mat, NumFaces);
+                     ModifyAttributeForMarkingDOFS(mesh, mat, 1);
+                     MakeGridFunctionWithNumberOfInterfaceFaces(mesh, mat, NumFaces);
+                     ModifyAttributeForMarkingDOFS(mesh, mat, 0);
+                     MakeGridFunctionWithNumberOfInterfaceFaces(mesh, mat, NumFaces);
+                     ModifyAttributeForMarkingDOFS(mesh, mat, 1);
+                  }
+               }
+            }
+
             // Also update the face information
             GetGroupInfo(mesh, mat, surf_fit_gf0, ifecref);
+            SetGroupNumGf(ifecref, groupnum_gf);
             surf_fit_marker.SetSize(surf_fit_gf0.Size());
+            std::cout << ifecref.nfaces << " k10ifecrefsize\n";
+            // MFEM_ABORT(" ");
          }
          min_detJ = GetMinDet(mesh, fespace, irules, quad_order);
          cout << "Minimum det(J) of the original mesh after test hp-ref is " << min_detJ
@@ -1558,7 +2013,7 @@ int main(int argc, char *argv[])
             }
             order_gf = x.FESpace()->GetElementOrdersV();
          }
-      } //if (iter_pref > 0) - end of test h/p refinement
+      } //if (iter_pref > 0) - done h/p refinement
 
 
       // Setup things for fitting
@@ -1639,6 +2094,10 @@ int main(int argc, char *argv[])
             *surf_fit_bg_grad, *surf_fit_grad, *adapt_grad_surface,
             *surf_fit_bg_hess, *surf_fit_hess, *adapt_hess_surface);
       }
+      if (integral)
+      {
+         tmop_integ->EnableSurfaceFittingFaceIntegral(mat);
+      }
 
       // if (prefine)
       {
@@ -1654,12 +2113,31 @@ int main(int argc, char *argv[])
                                 "Materials for initial mesh",
                                 325, 0, 300, 300, vis_keys);
       }
+
+      if (visit && iter_pref!=0)
+      {
+         order_gf = x.FESpace()->GetElementOrdersV();
+         DataCollection *dc = NULL;
+         dc = new VisItDataCollection("Optimized_"+std::to_string(jobid), mesh);
+         dc->RegisterField("orders", &order_gf);
+         dc->RegisterField("Level-set", surf_fit_gf0_max_order);
+         dc->RegisterField("mat", &mat);
+         dc->RegisterField("intmarker", surf_fit_mat_gf_max_order);
+         dc->RegisterField("jumpestimator", &jump_estimator);
+         dc->RegisterField("donemarker", &done_els);
+         dc->SetCycle(3*iter_pref+1);
+         dc->SetTime(iter_pref);
+         dc->Save();
+         delete dc;
+      }
+
       mesh->NewNodes(x, false);
       delete surf_fit_gf0_max_order;
 
       // Setup the final NonlinearForm
       NonlinearForm a(fespace);
       a.AddDomainIntegrator(tmop_integ);
+      if (integral) { a.AddInteriorFaceIntegrator(tmop_integ); }
 
       // Compute the minimum det(J) of the starting mesh.
       min_detJ = GetMinDet(mesh, fespace, irules, quad_order);
@@ -1671,6 +2149,8 @@ int main(int argc, char *argv[])
       }
 
       const double init_energy = a.GetGridFunctionEnergy(x);
+      // std::cout << init_energy << " k10init\n";
+      // MFEM_ABORT(" ");
       double init_metric_energy = init_energy;
       if (surface_fit_const > 0.0)
       {
@@ -1718,7 +2198,47 @@ int main(int argc, char *argv[])
             }
          }
          a.SetEssentialVDofs(ess_vdofs);
+
+         // also fix dofs for elements that are done
+         // Array<int> vdofs_surf;
+         // for (int e = 0; e < mesh->GetNE(); e++)
+         // {
+         //    if (done_els[e] == 1)
+         //    {
+         //       surf_fit_gf0.FESpace()->GetElementVDofs(e, vdofs);
+         //       for (int i = 0; i < vdofs.Size(); i++)
+         //       {
+         //          if (surf_fit_marker[vdofs[i]]) {
+         //             vdofs_surf.Append(vdofs[i]);
+         //          }
+         //       }
+         //    }
+         // }
+         // vdofs_surf.Sort();
+         // vdofs_surf.Unique();
+         // // remove corner vertices associated with elements that might not be done
+         // for (int e = 0; e < mesh->GetNE(); e++)
+         // {
+         //    if (done_els[e] == 0 &&
+         //       (ifec0.inter_face_el_all.Find(e) != -1 ||
+         //        ifec0.intedgels.Find(e) != -1))
+         //    {
+         //       surf_fit_gf0.FESpace()->GetElementVDofs(e, vdofs);
+         //       for (int i = 0; i < vdofs.Size(); i++)
+         //       {
+         //          if (surf_fit_marker[vdofs[i]] &&
+         //              vdofs_surf.Find(vdofs[i]) != -1)
+         //          {
+         //             vdofs_surf.DeleteFirst(vdofs[i]);
+         //          }
+         //       }
+         //    }
+         // }
+         // fespace->DofsToVDofs(vdofs_surf);
+         // ess_vdofs.Append(vdofs_surf);
+         // a.SetEssentialVDofs(ess_vdofs);
       }
+
 
       // Setup solver
       Solver *S = NULL, *S_prec = NULL;
@@ -1810,24 +2330,24 @@ int main(int argc, char *argv[])
       // Don't delete x_max_order yet
 
       // Report the final energy of the functional.
-      const double fin_energy = a.GetGridFunctionEnergy(x);
-      double fin_metric_energy = fin_energy;
-      if (surface_fit_const > 0.0)
-      {
-         surf_fit_coeff.constant  = 0.0;
-         fin_metric_energy  = a.GetGridFunctionEnergy(x);
-         surf_fit_coeff.constant  = surface_fit_const;
-      }
+      // const double fin_energy = a.GetGridFunctionEnergy(x);
+      // double fin_metric_energy = fin_energy;
+      // if (surface_fit_const > 0.0)
+      // {
+      //    surf_fit_coeff.constant  = 0.0;
+      //    fin_metric_energy  = a.GetGridFunctionEnergy(x);
+      //    surf_fit_coeff.constant  = surface_fit_const;
+      // }
 
-      std::cout << std::scientific << std::setprecision(4);
-      cout << "Initial strain energy: " << init_energy
-           << " = metrics: " << init_metric_energy
-           << " + extra terms: " << init_energy - init_metric_energy << endl;
-      cout << "  Final strain energy: " << fin_energy
-           << " = metrics: " << fin_metric_energy
-           << " + extra terms: " << fin_energy - fin_metric_energy << endl;
-      cout << "The strain energy decreased by: "
-           << (init_energy - fin_energy) * 100.0 / init_energy << " %." << endl;
+      // std::cout << std::scientific << std::setprecision(4);
+      // cout << "Initial strain energy: " << init_energy
+      //      << " = metrics: " << init_metric_energy
+      //      << " + extra terms: " << init_energy - init_metric_energy << endl;
+      // cout << "  Final strain energy: " << fin_energy
+      //      << " = metrics: " << fin_metric_energy
+      //      << " + extra terms: " << fin_energy - fin_metric_energy << endl;
+      // cout << "The strain energy decreased by: "
+      //      << (init_energy - fin_energy) * 100.0 / init_energy << " %." << endl;
 
       // Set nodal gridfunction for visualization and fitting error computation.
       x_max_order = ProlongToMaxOrderAndSetMeshNodes(mesh);
@@ -1858,9 +2378,12 @@ int main(int argc, char *argv[])
             dc->RegisterField("orders", &order_gf);
             dc->RegisterField("Level-set", surf_fit_gf0_max_order);
             dc->RegisterField("mat", &mat);
-            dc->RegisterField("intmarker", &int_marker);
-            dc->SetCycle(2*iter_pref+1);
-            dc->SetTime(2.0*iter_pref+1.0);
+            dc->RegisterField("intmarker", surf_fit_mat_gf_max_order);
+            jump_estimator = 0.0;
+            dc->RegisterField("jumpestimator", &jump_estimator);
+            dc->RegisterField("donemarker", &done_els);
+            dc->SetCycle(3*iter_pref+2);
+            dc->SetTime(iter_pref);
             dc->Save();
             delete dc;
          }
@@ -1971,556 +2494,6 @@ int main(int argc, char *argv[])
       mesh->NewNodes(x, false);
       delete surf_fit_gf0_max_order;
 
-      // Now we compare h- and p-refinements to keep the better of the two.
-      // If there are no h-refinements, we can skip this step as we will test
-      // for p-derefinements in a separate section.
-      // If there are no p-refinements, we can skip this step since there will
-      // be no testing needed.
-      if (iter_pref > 0 && n_href_count && n_pref_count)
-      {
-         // Let's first test by derefining in h to get the impact
-         // of p-refinements
-         Vector group_error_p = current_group_error;
-         Vector group_dofs_p = current_group_dofs;
-         if (n_pref_count)
-         {
-            GridFunction *x_max_order_p = NULL;
-            GridFunction *surf_fit_gf0_max_order_p = NULL;
-            Mesh mesh_p(*mesh);
-            GridFunction *x_p = mesh_p.GetNodes();
-            FiniteElementSpace *fespace_p = x_p->FESpace();
-            // we turn off ownership for now so that gridfunction, fespace, and fec
-            // are not deleted when we set x_max_order.
-            mesh_p.SetNodesOwner(false);
-
-            FiniteElementSpace l2zero_fes_p(&mesh_p, &l2zero_coll);
-            GridFunction mat_p(&l2zero_fes_p);
-            GridFunction fitting_error_p(&l2zero_fes_p);
-            GridFunction groupnum_gf_p(&l2zero_fes_p);
-            GridFunction done_elsp_p(&l2zero_fes_p);
-            GridFunction done_elsh_p(&l2zero_fes_p);
-            mat_p = mat;
-            groupnum_gf_p = groupnum_gf;
-            done_elsp_p = done_elsp;
-            done_elsh_p = done_elsh;
-
-            FiniteElementSpace surf_fit_fes_p(&mesh_p, &surf_fit_fec);
-            surf_fit_fes_p.CopySpaceElementOrders(*fespace_p);
-            surf_fit_fes_p.SetRelaxedHpConformity(fespace_p->GetRelaxedHpConformity());
-            GridFunction surf_fit_gf0_p(&surf_fit_fes_p);
-            surf_fit_gf0_p = surf_fit_gf0;
-
-            // First derefine all the elements that were most recently refined
-            Vector error_fine_mesh(mesh_p.GetNE());
-            error_fine_mesh = done_els;
-
-            double threshold = 0.5;
-            mesh_p.DerefineByError(error_fine_mesh, threshold, 0, 1);
-
-            // Update
-            surf_fit_gf0_p.FESpace()->Update();
-            surf_fit_gf0_p.Update();
-            l2zero_fes_p.Update();
-            mat_p.Update();
-            groupnum_gf_p.Update();
-            done_elsp_p.Update();
-            done_elsh_p.Update();
-
-            // Get connectivity information
-            InterfaceFaceEdgeConnectivity ifec_p;
-            GetGroupInfo(&mesh_p, mat_p, surf_fit_gf0_p, ifec_p);
-
-            // Compute error for all interfaces
-            x_max_order_p = ProlongToMaxOrder(x_p, 0);
-            surf_fit_gf0_max_order_p = ProlongToMaxOrder(&surf_fit_gf0_p, 0);
-
-            mesh_p.SetNodalGridFunction(x_max_order_p);
-            Vector face_error_p(ifec_p.inter_faces.Size());
-            ComputeIntegratedErrorBGonFaces(x_max_order_p->FESpace(),
-                                            surf_fit_bg_gf0,
-                                            ifec_p.inter_faces,
-                                            surf_fit_gf0_max_order_p,
-                                            finder,
-                                            ifec_p.face_error_map,
-                                            error_type);
-            mesh_p.SetNodalGridFunction(x_p);
-
-            delete x_max_order_p;
-            delete surf_fit_gf0_max_order_p;
-
-            Vector etauval(mesh_p.GetNE());
-            {
-               min_detJ = GetMinDetVector(&mesh_p, fespace_p, irules, quad_order, etauval);
-               cout << "Minimum det(J) after implementing h-derefinements is " << min_detJ <<
-                  endl;
-            }
-
-            if (visualization)
-            {
-               fitting_error_p = pref_tol/100.0;
-               for (int i=0; i < ifec_p.inter_faces.Size(); i++)
-               {
-                  int facenum = ifec_p.inter_faces[i];
-                  double error_bg_face = ifec_p.face_error_map[facenum];
-                  fitting_error_p(ifec_p.inter_face_el1[i]) = std::max(error_bg_face,
-                                                                       fitting_error_p(ifec_p.inter_face_el1[i]));
-                  fitting_error_p(ifec_p.inter_face_el2[i]) = std::max(error_bg_face,
-                                                                       fitting_error_p(ifec_p.inter_face_el2[i]));
-                  // std::cout << i << " " << facenum << " " << error_bg_face << " " <<
-                  // fitting_error_p(ifec_p.inter_face_el1[i]) << " " <<
-                  // fitting_error_p(ifec_p.inter_face_el2[i]) << " " <<
-                  // fitting_error_p(ifec_p.inter_face_el2[i])-fitting_error_p(ifec_p.inter_face_el1[i]) <<
-                  // " K101" << std::endl;
-               } // i = inter_faces.size()
-               // MFEM_ABORT(" ");
-
-               x_max_order_p = ProlongToMaxOrder(x_p, 0);
-               mesh_p.SetNodalGridFunction(x_max_order_p);
-               socketstream vis1, vis2;
-               if (min_detJ < 0)
-               {
-                  common::VisualizeField(vis2, "localhost", 19916, groupnum_gf_p,
-                                       "Mesh inverted after h-deref",
-                                       1000, 400, 300, 300, vis_keys);
-               }
-
-               if (visit)
-               {
-                  DataCollection *dc = NULL;
-                  dc = new VisItDataCollection("base-hderef"+std::to_string(jobid), &mesh_p);
-                  dc->RegisterField("fitting-error", &fitting_error_p);
-                  dc->RegisterField("groupnum", &groupnum_gf_p);
-                  dc->SetCycle(1.0*iter_pref+0.0);
-                  dc->SetTime(1.0*iter_pref+0.0);
-                  dc->Save();
-                  delete dc;
-               }
-
-               mesh_p.SetNodalGridFunction(x_p);
-               delete x_max_order_p;
-            }
-
-            Vector group_max_error_temp, group_error_temp, group_dofs_temp;
-            GetGroupError(&mesh_p, ifec_p, group_max_error_temp,
-                          group_error_temp, group_dofs_temp);
-
-            // map error from this mesh to previous mesh and then to mesh
-            // before that.
-            for (int i = 0; i < group_error_temp.Size(); i++)
-            {
-               double fine_error = group_error_temp(i);
-               double fine_dofs = group_dofs_temp(i);
-               int groupnum = i;
-               int current_element = ifec_p.group_to_els[groupnum][0];
-               int orig_groupnum = groupnum_gf_p(current_element);
-               if (done_elsp_p(current_element) == 0.0)
-               {
-                  // if candidate for p
-                  if (done_elsh_p(current_element) == 0.0)
-                  {
-                     // if candidate for h
-                     group_error_p(orig_groupnum) = fine_error;
-                     group_dofs_p(orig_groupnum) = fine_dofs;
-                  }
-                  else // not a candidate for h. i.e. for p-only
-                  {
-                     // we zero out error to enforce that p-wins here.
-                     group_error_p(orig_groupnum) = fine_error*0.0;
-                     group_dofs_p(orig_groupnum) = fine_dofs;
-                  }
-               }
-            }
-
-            for (int i = 0; i < group_error_temp.Size(); i++)
-            {
-               int groupnum = i;
-               auto group_els = ifec_p.group_to_els[groupnum];
-               // loop over elements in group
-               for (int j = 0; j < group_els.size(); j++)
-               {
-                  int current_element = group_els[j];
-                  int orig_groupnum = groupnum_gf_p(current_element);
-                  if (done_elsp_p(current_element) == 0.0 && etauval(current_element) < 0.0)
-                  {
-                     std::cout << "Negative detJ for element " << current_element << " " <<
-                     orig_groupnum << " k10inv-p" << std::endl;
-                     group_error_p(orig_groupnum) = numeric_limits<double>::max();
-                  }
-               }
-            }
-
-            mesh_p.SetNodesOwner(true);
-         }
-
-         // Now we derefine in p and get numbers for h
-         Vector group_error_h = current_group_error;
-         Vector group_dofs_h = current_group_dofs;
-         if (n_href_count)
-         {
-            GridFunction *x_max_order_h = NULL;
-
-            Mesh mesh_h(*mesh);
-            GridFunction *x_h = mesh_h.GetNodes();
-            FiniteElementSpace *fespace_h = x_h->FESpace();
-            mesh_h.SetNodesOwner(false);
-
-            FiniteElementSpace l2zero_fes_h(&mesh_h, &l2zero_coll);
-            GridFunction mat_h(&l2zero_fes_h);
-            GridFunction fitting_error_h(&l2zero_fes_h);
-            GridFunction groupnum_gf_h(&l2zero_fes_h);
-            GridFunction done_elsp_h(&l2zero_fes_h);
-            GridFunction done_elsh_h(&l2zero_fes_h);
-            GridFunction order_gf_h(&l2zero_fes_h);
-            mat_h = mat;
-            groupnum_gf_h = groupnum_gf;
-            done_elsp_h = done_elsp;
-            done_elsh_h = done_elsh;
-            order_gf_h = order_gf;
-
-            FiniteElementSpace surf_fit_fes_h(&mesh_h, &surf_fit_fec);
-            surf_fit_fes_h.CopySpaceElementOrders(*fespace_h);
-            surf_fit_fes_h.SetRelaxedHpConformity(fespace_h->GetRelaxedHpConformity());
-            GridFunction surf_fit_gf0_h(&surf_fit_fes_h);
-            surf_fit_gf0_h = surf_fit_gf0;
-
-            PRefinementTransfer preft_h = PRefinementTransfer(*fespace_h);
-            PRefinementTransfer preft_surf_h = PRefinementTransfer(surf_fit_fes_h);
-
-            const CoarseFineTransformations &cf_tr =
-               mesh->ncmesh->GetRefinementTransforms();
-            Table coarse_to_fine;
-            cf_tr.MakeCoarseToFineTable(coarse_to_fine);
-            Table fine_to_coarse = MakeFineToCoarseTable(coarse_to_fine);
-            // Numrows = numparents, each row has child elements from current mesh
-
-            // First derefine all the elements that were most recently refined
-            for (int i = 0; i < coarse_to_fine.Size(); i++)
-            {
-               Array<int> tabrow;
-               coarse_to_fine.GetRow(i, tabrow);
-               const int parent = i;
-               // const int parent_order = prior_el_order[parent];
-               // const int parent_order = previous_order_gf(parent);
-               // std::cout << "Parent: " << parent << " Order: " << parent_order << std::endl;
-               for (int j = 0; j < tabrow.Size(); j++)
-               {
-                  int fine_el = tabrow[j];
-                  // fespace_h->SetElementOrder(fine_el, parent_order);
-                  fespace_h->SetElementOrder(fine_el, previous_order_gf(fine_el));
-               }
-            }
-
-            // Update
-            fespace_h->Update(false);
-            surf_fit_fes_h.CopySpaceElementOrders(*fespace_h);
-            surf_fit_fes_h.SetRelaxedHpConformity(fespace_h->GetRelaxedHpConformity());
-            preft_h.Transfer(*x_h);
-            preft_surf_h.Transfer(surf_fit_gf0_h);
-
-            // Get connectivity information
-            InterfaceFaceEdgeConnectivity ifec_h = ifecref;
-
-            // Compute error for all interfaces
-            x_max_order_h = ProlongToMaxOrder(x_h, 0);
-            GridFunction *surf_fit_gf0_max_order_h = NULL;
-            surf_fit_gf0_max_order_h = ProlongToMaxOrder(&surf_fit_gf0_h, 0);
-
-            Vector face_error_h(ifec_h.inter_faces.Size());
-            mesh_h.SetNodalGridFunction(x_max_order_h);
-            ComputeIntegratedErrorBGonFaces(x_max_order_h->FESpace(),
-                                            surf_fit_bg_gf0,
-                                            ifec_h.inter_faces,
-                                            surf_fit_gf0_max_order_h,
-                                            finder,
-                                            ifec_h.face_error_map,
-                                            error_type);
-            mesh_h.SetNodalGridFunction(x_h);
-
-            Vector etauval(mesh_h.GetNE());
-            {
-               min_detJ = GetMinDetVector(&mesh_h, fespace_h, irules, quad_order, etauval);
-               cout << "Minimum det(J) after implementing p-derefinements is " << min_detJ <<
-                  endl;
-               // MFEM_VERIFY(min_detJ > 0.0, "Non-positive Jacobian after test p-derefinements");
-            }
-
-            delete x_max_order_h;
-            delete surf_fit_gf0_max_order_h;
-
-            if (true)
-            {
-               fitting_error_h = pref_tol/100.0;
-               for (int i=0; i < ifec_h.inter_faces.Size(); i++)
-               {
-                  int facenum = ifec_h.inter_faces[i];
-                  double error_bg_face = ifec_h.face_error_map[facenum];
-                  fitting_error_h(ifec_h.inter_face_el1[i]) = std::max(error_bg_face,
-                                                                       fitting_error_h(ifec_h.inter_face_el1[i]));
-                  fitting_error_h(ifec_h.inter_face_el2[i]) = std::max(error_bg_face,
-                                                                       fitting_error_h(ifec_h.inter_face_el2[i]));
-               } // i = inter_faces.size()
-
-               x_max_order_h = ProlongToMaxOrder(x_h, 0);
-               mesh_h.SetNodalGridFunction(x_max_order_h);
-               order_gf_h = x_h->FESpace()->GetElementOrdersV();
-               socketstream vis1;
-               if (min_detJ)
-               {
-                  common::VisualizeField(vis1, "localhost", 19916, order_gf_h,
-                                         "Mesh inverted after p-deref - Orders",
-                                         1000, 800, 300, 300, vis_keys);
-               }
-
-               if (visit)
-               {
-                  DataCollection *dc = NULL;
-                  dc = new VisItDataCollection("base-pderef"+std::to_string(jobid), &mesh_h);
-                  dc->RegisterField("fitting-error", &fitting_error_h);
-                  dc->RegisterField("groupnum", &groupnum_gf_h);
-                  dc->SetCycle(1.0*iter_pref+0.0);
-                  dc->SetTime(1.0*iter_pref+0.0);
-                  dc->Save();
-                  delete dc;
-               }
-
-               mesh_h.SetNodalGridFunction(x_h);
-               delete x_max_order_h;
-            }
-
-            auto group_sibling_dofs = new Array<Array<int> *>;
-
-            Vector group_max_error_temp, group_error_temp, group_dofs_temp;
-            GetGroupError(&mesh_h, ifec_h, group_max_error_temp,
-                          group_error_temp,
-                          group_dofs_temp, group_sibling_dofs);
-
-            // The DOF numbers are inaccurate as we need number of DOFs for the
-            // siblings as well.
-            // Note - group_sibling-dofs has ngroups based on h-refined mesh.
-            Array<Array<int> *> parent_dofs(ifec0.ngroups);
-            for (int i = 0; i < parent_dofs.Size(); i++)
-            {
-               parent_dofs[i] = new Array<int>;
-            }
-            for (int i = 0; i < group_sibling_dofs->Size(); i++)
-            {
-               int groupnum = i;
-               for (int e = 0; e < ifec_h.group_to_els[groupnum].size(); e++)
-               {
-                  int elnum = ifec_h.group_to_els[groupnum][e];
-                  int parent_group = groupnum_gf_h(elnum);
-
-                  Array<int> *eldofs = (*group_sibling_dofs)[groupnum];
-                  parent_dofs[parent_group]->Append(*eldofs);
-               }
-            }
-            for (int i = 0; i < ifec0.ngroups; i++)
-            {
-               parent_dofs[i]->Sort();
-               parent_dofs[i]->Unique();
-               group_dofs_h(i) = parent_dofs[i]->Size();
-            }
-
-            group_error_h = 0.0;
-            // map error from this mesh to previous mesh
-            for (int i = 0; i < group_error_temp.Size(); i++)
-            {
-               double fine_error = group_error_temp(i);
-               // double fine_dofs = group_dofs_temp(i);
-               int groupnum = i;
-               int current_element = ifec_h.group_to_els[groupnum][0];
-               int orig_groupnum = groupnum_gf_h(current_element);
-               // int parent_element = fine_to_coarse.GetRow(current_element)[0];
-               // int orig_groupnum = ifec0.els_to_group[parent_element];
-               if (done_elsh_h(current_element) == 0.0)
-               {
-                  if (done_elsp_h(current_element) == 0.0)
-                  {
-                     group_error_h(orig_groupnum) += fine_error;
-                  }
-                  else
-                  {
-                     group_error_h(orig_groupnum) = 0.0;
-                  }
-               }
-               // std::cout << i << " " << orig_groupnum << " " << group_error_h(
-               //              orig_groupnum) << " " << group_dofs_h(orig_groupnum) << " k10-h-error\n";
-            }
-
-            for (int i = 0; i < group_error_temp.Size(); i++)
-            {
-               int groupnum = i;
-               auto group_els = ifec_h.group_to_els[groupnum];
-               // loop over elements in group
-               for (int j = 0; j < group_els.size(); j++)
-               {
-                  int current_element = group_els[j];
-                  int orig_groupnum = groupnum_gf_h(current_element);
-                  if (done_elsh_h(current_element) == 0.0 && etauval(current_element) < 0.0)
-                  {
-                     std::cout << "Negative detJ for element " << current_element << " " <<
-                     orig_groupnum << " k10inv-h" << std::endl;
-                     group_error_h(orig_groupnum) = numeric_limits<double>::max();
-                  }
-               }
-            }
-         }
-
-         // output errors for current_group_error, group_error_p, group_error_h
-         // output dofs for current_group_dofs, group_dofs_p, group_dofs_h
-         for (int i = 0; i < current_group_error.Size(); i++)
-         {
-            std::cout << "Group " << i << " errors and dofs - orig, p, h\n";
-            std::cout << current_group_error(i) << " " << group_error_p(
-                         i) << " " << group_error_h(i) << std::endl;
-            std::cout << current_group_dofs(i) << " " << group_dofs_p(
-                         i) << " " << group_dofs_h(i) << std::endl;
-         }
-
-         // now we implement the actual derefinements
-         {
-            const CoarseFineTransformations &cf_tr =
-               mesh->ncmesh->GetRefinementTransforms();
-            Table coarse_to_fine;
-            cf_tr.MakeCoarseToFineTable(coarse_to_fine);
-            Table fine_to_coarse = MakeFineToCoarseTable(coarse_to_fine);
-
-            // first derefine in p
-            {
-               preft_fespace.SetSourceFESpace(*fespace);
-               preft_surf_fit_fes.SetSourceFESpace(surf_fit_fes);
-
-               for (int i = 0; i < ifec0.ngroups; i++)
-               {
-                  double p_ref_benefit = (current_group_error(i) - group_error_p(i)) /
-                                         (group_dofs_p(i) - current_group_dofs(i));
-                  double h_ref_benefit = (current_group_error(i) - group_error_h(i)) /
-                                         (group_dofs_h(i)-current_group_dofs(i));
-                  bool valid_p = group_error_p(i) != std::numeric_limits<double>::max();
-                  bool valid_h = group_error_h(i) != std::numeric_limits<double>::max();
-
-                  if ((p_ref_benefit <= h_ref_benefit && valid_h) || (valid_h && !valid_p))
-                  {
-                     vector<int> els = ifec0.group_to_els[i];
-                     for (int j = 0; j < els.size(); j++)
-                     {
-                        int parent_el = els[j];
-                        Array<int> tabrow;
-                        coarse_to_fine.GetRow(parent_el, tabrow);
-                        // int parent_order = prior_el_order[parent_el];
-                        for (int k = 0; k < tabrow.Size(); k++)
-                        {
-                           int fine_el = tabrow[k];
-                           if (done_elsp(fine_el) == 0.0)
-                           {
-                              fespace->SetElementOrder(fine_el, previous_order_gf(fine_el));
-                           }
-                        }
-                     }
-                  }
-               }
-
-               // Update
-               if (fespace->DidOrderChange())
-               {
-                  fespace->Update(false);
-                  surf_fit_fes.CopySpaceElementOrders(*fespace);
-                  surf_fit_fes.SetRelaxedHpConformity(fespace->GetRelaxedHpConformity());
-                  preft_fespace.Transfer(x);
-                  preft_fespace.Transfer(x0);
-                  preft_surf_fit_fes.Transfer(surf_fit_mat_gf);
-                  preft_surf_fit_fes.Transfer(surf_fit_gf0);
-                  surf_fit_marker.SetSize(surf_fit_gf0.Size());
-               }
-            }
-
-            order_gf = x.FESpace()->GetElementOrdersV();
-
-            // visualize
-            if (visualization)
-            {
-               x_max_order = ProlongToMaxOrderAndSetMeshNodes(mesh);
-               socketstream vis1;
-               // common::VisualizeField(vis1, "localhost", 19916, surf_fit_gf0,
-               //                      "Gridfunction on optimal mesh",
-               //                      325*(iter_pref+1), 650, 300, 300, vis_keys);
-
-               // common::VisualizeField(vis1, "localhost", 19916, order_gf,
-               //                        "Orders on p-derefined mesh",
-               //                        325*(iter_pref+1), 650, 300, 300, vis_keys);
-
-               mesh->NewNodes(x, false);
-            }
-
-            // Now derefine in h
-            {
-               Vector error_fine_mesh(mesh->GetNE());
-               error_fine_mesh = 1.0;
-
-               for (int i = 0; i < ifec0.ngroups; i++)
-               {
-                  double p_ref_benefit = (current_group_error(i) - group_error_p(i)) /
-                                         (group_dofs_p(i) - current_group_dofs(i));
-                  double h_ref_benefit = (current_group_error(i) - group_error_h(i)) /
-                                         (group_dofs_h(i)-current_group_dofs(i));
-
-                  bool valid_p = group_error_p(i) != std::numeric_limits<double>::max();
-                  bool valid_h = group_error_h(i) != std::numeric_limits<double>::max();
-
-                  if ((p_ref_benefit >= h_ref_benefit && valid_p) || (valid_p && !valid_h))
-                  {
-                     vector<int> els = ifec0.group_to_els[i];
-                     for (int j = 0; j < els.size(); j++)
-                     {
-                        int el = els[j];
-                        Array<int> tabrow;
-                        coarse_to_fine.GetRow(el, tabrow);
-                        for (int k = 0; k < tabrow.Size(); k++)
-                        {
-                           int fine_el = tabrow[k];
-                           if (done_elsh(fine_el) == 0.0)
-                           {
-                              error_fine_mesh(fine_el) = 0.0;
-                           }
-                        }
-                     }
-                  }
-               }
-
-               double threshold = 0.5;
-               mesh->DerefineByError(error_fine_mesh, threshold, 0, 1);
-
-               // Update
-               hrefup.Update(true);
-            }
-
-            min_detJ = GetMinDet(mesh, fespace, irules, quad_order);
-            cout << "Minimum det(J) after implementing hp-derefinements is " << min_detJ <<
-              endl;
-
-            if (visualization)
-            {
-               x_max_order = ProlongToMaxOrderAndSetMeshNodes(mesh);
-               socketstream vis1;
-               if (min_detJ < 0)
-               {
-                  // common::VisualizeField(vis1, "localhost", 19916, surf_fit_gf0,
-                  //                      "Gridfunction on optimal mesh",
-                  //                      325*(iter_pref+1), 650, 300, 300, vis_keys);
-
-                  common::VisualizeField(vis1, "localhost", 19916, order_gf,
-                                         "Mesh inverted Orders on hp-derefined mesh",
-                                         325*(iter_pref+1), 650, 300, 300, vis_keys);
-               }
-               mesh->NewNodes(x, false);
-            }
-
-            order_gf = x.FESpace()->GetElementOrdersV();
-         }
-
-         MFEM_VERIFY(min_detJ > 0.0, "Non-positive Jacobian after hp-derefinements");
-      }
-
       // Now we mark elements as done if there error is below threshold
       {
          GetGroupInfo(mesh, mat, surf_fit_gf0, ifec0);
@@ -2554,9 +2527,9 @@ int main(int argc, char *argv[])
                        current_group_error, current_group_dofs);
 
          // mark all elements as done
-         // done_els = 1.0;
-         // done_elsh = 1.0;
-         // done_elsp = 1.0;
+         done_els = 1.0;
+         done_elsh = 1.0;
+         done_elsp = 1.0;
 
          // now mark all elements at interface as done with error below threshold
          for (int i = 0; i < ifec0.ngroups; i++)
@@ -2572,31 +2545,19 @@ int main(int argc, char *argv[])
             for (int j = 0; j < els.size(); j++)
             {
                int elnum = els[j];
-               // std::cout << elnum << " "  << max_face_error << " " << pref_tol << " k101\n";
-               if (max_face_error < pref_tol)
-               {
-                  done_els[elnum] = 1.0;
-                  done_elsp[elnum] = 1.0;
-                  done_elsh[elnum] = 1.0;
-               }
-               else
-               {
-                  // done_els[elnum] = 0.0;
-                  // done_elsp[elnum] = 0.0;
-                  // done_elsh[elnum] = 0.0;
-               }
-               // mark an element done for p-refinement if it is at max order
                int current_order = fespace->GetElementOrder(elnum);
                int current_depth = mesh->ncmesh->GetElementDepth(elnum);
-               if (current_order == pref_max_order || !prefine)
+               if (max_face_error > pref_tol)
                {
-                  done_elsp(elnum) = 1.0;
+                  if (current_order < pref_max_order && prefine) {
+                     done_elsp[elnum] = 0.0;
+                  }
+                  if (current_depth < href_max_depth && hrefine)
+                  {
+                     done_elsh(elnum) = 0.0;
+                  }
+                  done_els(elnum) = min(done_elsp(elnum), done_elsh(elnum));
                }
-               if (current_depth == href_max_depth || !hrefine)
-               {
-                  done_elsh(elnum) = 1.0;
-               }
-               done_els(elnum) = min(done_elsp(elnum), done_elsh(elnum));
             }
          }
          mesh->NewNodes(x, false);
@@ -2737,7 +2698,7 @@ int main(int argc, char *argv[])
                }
             }
 
-            trycoarsening = true;
+            trycoarsening = false;
             while (done_els(el1) == 1 && el_order > prior_order+1 &&
                    trycoarsening && pderef > 0 )
             {
@@ -2781,8 +2742,6 @@ int main(int argc, char *argv[])
          std::cout << "# Derefinements: " << compt_updates << std::endl;
          std::cout << "=======================================\n";
 
-
-
          // Update the FES and GridFunctions only if some orders have been changed
          if (compt_updates > 0)
          {
@@ -2822,19 +2781,17 @@ int main(int argc, char *argv[])
             preft_surf_fit_festemp.Transfer(surf_fit_gf0);
             surf_fit_marker.SetSize(surf_fit_gf0.Size());
 
-            min_detJ = GetMinDet(mesh, fespace, irules, quad_order);
-            cout << "Minimum det(J) of the mesh after coarsening is " << min_detJ << endl;
-            MFEM_VERIFY(min_detJ > 0, "Mesh has somehow become inverted "
-                        "due to coarsening");
             {
                ofstream mesh_ofs("optimized_" +std::to_string(iter_pref)+std::to_string(
                                     jobid)+ ".mesh");
                mesh_ofs.precision(14);
                mesh->Print(mesh_ofs);
             }
-
-            if (iter_pref == 4) { MFEM_ABORT("done\n");}
             mesh->NewNodes(x, false);
+            min_detJ = GetMinDet(mesh, fespace, irules, quad_order);
+            cout << "Minimum det(J) of the mesh after coarsening is " << min_detJ << endl;
+            MFEM_VERIFY(min_detJ > 0, "Mesh has somehow become inverted "
+                        "due to coarsening");
 
             x_max_order = ProlongToMaxOrder(&x, 0);
             delete surf_fit_gf0_max_order;
@@ -2878,6 +2835,38 @@ int main(int argc, char *argv[])
                mesh->NewNodes(x, false);
             }
          } //compt_updates
+
+         // Report the final energy of the functional.
+         const double fin_energy = a.GetGridFunctionEnergy(x);
+         double fin_metric_energy = fin_energy;
+         if (surface_fit_const > 0.0)
+         {
+            surf_fit_coeff.constant  = 0.0;
+            fin_metric_energy  = a.GetGridFunctionEnergy(x);
+            surf_fit_coeff.constant  = surface_fit_const;
+         }
+
+         std::cout << std::scientific << std::setprecision(4);
+         cout << "Initial strain energy: " << init_energy
+            << " = metrics: " << init_metric_energy
+            << " + extra terms: " << init_energy - init_metric_energy << endl;
+         cout << "  Final strain energy: " << fin_energy
+            << " = metrics: " << fin_metric_energy
+            << " + extra terms: " << fin_energy - fin_metric_energy << endl;
+         cout << "The strain energy decreased by: "
+            << (init_energy - fin_energy) * 100.0 / init_energy << " %." << endl;
+
+         // Set nodal gridfunction for visualization and fitting error computation.
+         x_max_order = ProlongToMaxOrderAndSetMeshNodes(mesh);
+
+         // Visualize the final mesh and metric values.
+         if (visualization && iter_pref==pref_max_iter-1)
+         {
+            char title[] = "Final metric values";
+            vis_tmop_metric_s(mesh_poly_deg, *metric, *target_c, *mesh, title, 325, 0, 300,
+                              300);
+         }
+         mesh->NewNodes(x, false);
       } //iter_pref > 0 (basically derefinement start)
 
       order_gf = x.FESpace()->GetElementOrdersV();
@@ -2892,9 +2881,12 @@ int main(int argc, char *argv[])
          dc->RegisterField("orders", &order_gf);
          dc->RegisterField("Level-set", surf_fit_gf0_max_order);
          dc->RegisterField("mat", &mat);
-         dc->RegisterField("intmarker", &int_marker);
-         dc->SetCycle(2*iter_pref+2);
-         dc->SetTime(2.0*iter_pref+2.0);
+         dc->RegisterField("intmarker", surf_fit_mat_gf_max_order);
+         jump_estimator = 0.0;
+         dc->RegisterField("jumpestimator", &jump_estimator);
+         dc->RegisterField("donemarker", &done_els);
+         dc->SetCycle(3*iter_pref+3);
+         dc->SetTime(iter_pref);
          dc->Save();
          delete dc;
       }

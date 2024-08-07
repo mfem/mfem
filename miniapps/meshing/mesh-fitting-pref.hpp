@@ -345,6 +345,37 @@ double GetMinDet(Mesh *mesh, FiniteElementSpace *fespace,
    return tauval;
 }
 
+double GetMinDetVector(Mesh *mesh, FiniteElementSpace *fespace,
+                        IntegrationRules *irules, int quad_order, Vector &etauval)
+{
+   etauval.SetSize(mesh->GetNE());
+   const int NE = mesh->GetNE();
+   for (int i = 0; i < NE; i++)
+   {
+      double tauval = infinity();
+
+      const IntegrationRule &ir =
+         irules->Get(fespace->GetFE(i)->GetGeomType(), quad_order);
+      ElementTransformation *transf = mesh->GetElementTransformation(i);
+
+      for (int j = 0; j < ir.GetNPoints(); j++)
+      {
+         transf->SetIntPoint(&ir.IntPoint(j));
+         tauval = min(tauval, transf->Jacobian().Det());
+      }
+
+      const IntegrationRule &ir2 = fespace->GetFE(i)->GetNodes();
+      for (int j = 0; j < ir2.GetNPoints(); j++)
+      {
+         transf->SetIntPoint(&ir2.IntPoint(j));
+         tauval = min(tauval, transf->Jacobian().Det());
+      }
+      etauval(i) = tauval;
+      // std::cout << i << "  " << ir.GetNPoints() << " " << ir2.GetNPoints() << " k102\n";
+   }
+   return etauval.Min();
+}
+
 // Propogates orders from interface elements given by @int_el_list to
 // face neighbors. The current orders must be provided by @ordergf, and the
 // allowed different either needs to be an integer.
@@ -1209,4 +1240,78 @@ double InterfaceElementOrderReduction2(const Mesh *mesh,
    delete fecInt2;
 
    return error;
+}
+
+
+void SetMaterialGridFunction(Mesh *mesh,
+                             GridFunction &surf_fit_gf0,
+                             GridFunction &mat,
+                             bool custom_material,
+                             int custom_split_mesh,
+                             int exceptions,
+                             int mat_approach = 1,
+                             GridFunction *mat_file = NULL)
+{
+   const int dim = mesh->Dimension();
+   for (int i = 0; i < mesh->GetNE(); i++)
+   {
+      if (custom_material)
+      {
+         Vector center(mesh->Dimension());
+         mesh->GetElementCenter(i, center);
+         mat(i) = 1;
+         if (mesh->Dimension() == 2)
+         {
+            if (center(0) > 0.25 && center(0) < 0.75 && center(1) > 0.25 &&
+                  center(1) < 0.75)
+            {
+               mat(i) = 0;
+            }
+         }
+         else if (mesh->Dimension() == 3)
+         {
+            if (center(0) > 0.25 && center(0) < 0.75
+                  && center(1) > 0.25 && center(1) < 0.75
+                  && center(2) > 0.25 && center(2) < 0.75)
+            {
+               mat(i) = 0;
+            }
+         }
+         if (mat_file) { mat(i) = (*mat_file)(i); }
+      }
+      else
+      {
+         double mato = mat(i);
+         mat(i) = material_id(i, surf_fit_gf0, mat_approach);
+         // std::cout << i << " " << mat_approach << " " << exceptions << " " <<
+         //  mato << " " << mat(i) << " " << mato - mat(i) << " k10m\n";
+         if (exceptions == 2 || exceptions == 3)
+         {
+            mat(i) = material_id2(i, surf_fit_gf0);
+         }
+         else if (exceptions == 4)
+         {
+            mat(i) = material_id3(i, surf_fit_gf0);
+            Vector center(mesh->Dimension());
+            mesh->GetElementCenter(i, center);
+            if (center(0) < 0.1 || center(0) > 0.9 || center(1) < 0.1 || center(1) > 0.9)
+            {
+               mat(i) = 1;
+            }
+         }
+      }
+      mesh->SetAttribute(i, static_cast<int>(mat(i) + 1));
+   }
+   mesh->SetAttributes();
+
+
+   if (custom_split_mesh > 0)
+   {
+      MakeMaterialConsistentForElementGroups(mat, 12*custom_split_mesh);
+   }
+   else if (custom_split_mesh < 0)
+   {
+      MakeMaterialConsistentForElementGroups(mat, custom_split_mesh == -1 ? 4 : 5);
+   }
+   mesh->SetAttributes();
 }

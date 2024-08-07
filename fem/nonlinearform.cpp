@@ -189,7 +189,45 @@ real_t NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
 
    if (fnfi.Size())
    {
-      MFEM_ABORT("TODO: add energy contribution from interior face terms");
+      FaceElementTransformations *tr;
+      const FiniteElement *fe1, *fe2;
+      Array<int> vdofs2;
+      Mesh *mesh = fes->GetMesh();
+
+      for (int i = 0; i < mesh->GetNumFaces(); i++)
+      {
+         {
+            Array<int> elems;
+            mesh->GetFaceAdjacentElements(i, elems);
+            if (elems.Size() != 2)
+            {
+               continue;
+            }
+            // std::cout << elems[0] << " " << elems[1] << std::endl;
+            // std::cout << fes->GetElementOrder(elems[0]) << " " << fes->GetElementOrder(elems[1]) << std::endl;
+            if (fes->GetElementOrder(elems[0]) != fes->GetElementOrder(elems[1]))
+            {
+               continue;
+            }
+         }
+         tr = mesh->GetInteriorFaceTransformations(i);
+         if (tr != NULL)
+         {
+            fes->GetElementVDofs(tr->Elem1No, vdofs);
+            fes->GetElementVDofs(tr->Elem2No, vdofs2);
+            vdofs.Append (vdofs2);
+
+            x.GetSubVector(vdofs, el_x);
+
+            fe1 = fes->GetFE(tr->Elem1No);
+            fe2 = fes->GetFE(tr->Elem2No);
+
+            for (int k = 0; k < fnfi.Size(); k++)
+            {
+               energy += fnfi[k]->GetFaceEnergy(*fe1, *fe2, *tr, el_x);
+            }
+         }
+      }
    }
 
    if (bfnfi.Size())
@@ -343,6 +381,18 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
 
       for (int i = 0; i < mesh->GetNumFaces(); i++)
       {
+         {
+            Array<int> elems;
+            mesh->GetFaceAdjacentElements(i, elems);
+            if (elems.Size() != 2)
+            {
+               continue;
+            }
+            if (fes->GetElementOrder(elems[0]) != fes->GetElementOrder(elems[1]))
+            {
+               continue;
+            }
+         }
          tr = mesh->GetInteriorFaceTransformations(i);
          if (tr != NULL)
          {
@@ -563,6 +613,20 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
 
       for (int i = 0; i < mesh->GetNumFaces(); i++)
       {
+         {
+            Array<int> elems;
+            mesh->GetFaceAdjacentElements(i, elems);
+            if (elems.Size() != 2)
+            {
+               continue;
+            }
+            // std::cout << elems[0] << " " << elems[1] << std::endl;
+            // std::cout << fes->GetElementOrder(elems[0]) << " " << fes->GetElementOrder(elems[1]) << std::endl;
+            if (fes->GetElementOrder(elems[0]) != fes->GetElementOrder(elems[1]))
+            {
+               continue;
+            }
+         }
          tr = mesh->GetInteriorFaceTransformations(i);
          if (tr != NULL)
          {
@@ -689,10 +753,10 @@ NonlinearForm::~NonlinearForm()
    delete Grad;
    if (!extern_bfs)
    {
-      for (int i = 0; i <  dnfi.Size(); i++) { delete  dnfi[i]; }
-      for (int i = 0; i <  bnfi.Size(); i++) { delete  bnfi[i]; }
-      for (int i = 0; i <  fnfi.Size(); i++) { delete  fnfi[i]; }
-      for (int i = 0; i < bfnfi.Size(); i++) { delete bfnfi[i]; }
+      for (int i = 0; i <  dnfi.Size(); i++) { delete  dnfi[i]; dnfi[i] = NULL; }
+      for (int i = 0; i <  bnfi.Size(); i++) { if (bnfi[i]) { delete  bnfi[i]; bnfi[i] = NULL; } }
+      // for (int i = 0; i <  fnfi.Size(); i++) { if (fnfi[i]) { delete  fnfi[i]; fnfi[i] = NULL; } }
+      for (int i = 0; i < bfnfi.Size(); i++) { if (bfnfi[i]) { delete bfnfi[i]; bfnfi[i] = NULL;} }
    }
    delete ext;
 }

@@ -241,7 +241,7 @@ int main (int argc, char *argv[])
    pmesh_surf_fit_bg = new ParMesh(MPI_COMM_WORLD, *mesh_surf_fit_bg);
    delete mesh_surf_fit_bg;
 
-   FiniteElementCollection *fec = new H1_FECollection(mesh_poly_deg, dim);
+   FiniteElementCollection *fec = new H1_FECollection(1, dim); //mesh is always linear
    ParFiniteElementSpace *pfespace =
       new ParFiniteElementSpace(pmesh, fec, dim, 0);
    pmesh->SetNodalFESpace(pfespace);

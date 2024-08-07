@@ -1790,6 +1790,8 @@ protected:
    AdaptivityEvaluator *surf_fit_eval_bg_grad, *surf_fit_eval_bg_hess;
    Array<int> surf_fit_dof_count;
    Array<int> surf_fit_marker_dof_index;
+   bool surf_fit_face_integ = false;
+   Vector surf_fit_mat;
 
    DiscreteAdaptTC *discr_tc;
 
@@ -2113,6 +2115,7 @@ public:
                                        GridFunction &s0_hess,
                                        AdaptivityEvaluator &ahe);
 
+   void EnableSurfaceFittingFaceIntegral(const GridFunction &mat_);
 
 #ifdef MFEM_USE_MPI
    /// Parallel support for surface fitting to the zero level set of a function.
@@ -2186,6 +2189,12 @@ public:
                                    ElementTransformation &T,
                                    const Vector &elfun);
 
+
+   virtual double GetFaceEnergy(const FiniteElement &el1,
+                                const FiniteElement &el2,
+                                FaceElementTransformations &Tr,
+                                const Vector &elfun);
+
    /** @brief Computes the mean of the energies of the given element's children.
 
        In addition to the inputs for GetElementEnergy, this function requires an
@@ -2209,6 +2218,14 @@ public:
    virtual void AssembleElementGrad(const FiniteElement &el,
                                     ElementTransformation &T,
                                     const Vector &elfun, DenseMatrix &elmat);
+
+   virtual void AssembleFaceVector(const FiniteElement &el1, const FiniteElement &el2,
+                                   FaceElementTransformations &Tr, const Vector &elfun, Vector &elvect);
+
+   virtual void AssembleFaceGrad(const FiniteElement &el1, const FiniteElement &el2,
+                                 FaceElementTransformations &Tr, const Vector &elfun,
+                                 DenseMatrix &elmat);
+
 
    TMOP_QualityMetric &GetAMRQualityMetric() { return *h_metric; }
 

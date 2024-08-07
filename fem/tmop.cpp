@@ -3045,6 +3045,9 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
          surf_fit_marker_dof_index.Append(i);
       }
    }
+
+   UpdateAfterMeshPositionChange(*(s0.FESpace()->GetMesh()->GetNodes()),
+                                 *(s0.FESpace()));
 }
 
 void TMOP_Integrator::EnableSurfaceFitting(const GridFunction &pos,
@@ -3066,6 +3069,25 @@ void TMOP_Integrator::EnableSurfaceFitting(const GridFunction &pos,
    surf_fit_coeff   = &coeff;
    delete surf_fit_limiter;
    surf_fit_limiter = new TMOP_QuadraticLimiter;
+}
+
+void TMOP_Integrator::EnableSurfaceFittingFaceIntegral(const GridFunction &mat)
+{
+    const FiniteElementSpace *fespace = mat.FESpace();
+    Mesh *mesh = fespace->GetMesh();
+    int nelems = mesh->GetNE();
+    surf_fit_mat.SetSize(nelems);
+    for (int i = 0; i < nelems; i++)
+    {
+        surf_fit_mat(i) = mat(i);
+    }
+    surf_fit_face_integ = true;
+
+    surf_fit_marker_dof_index.SetSize(0);
+   for (int i = 0; i < surf_fit_marker->Size(); i++)
+   {
+      surf_fit_marker_dof_index.Append(i);
+   }
 }
 
 #ifdef MFEM_USE_MPI
@@ -3367,7 +3389,7 @@ real_t TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
    }
 
    // Contribution from the surface fitting term.
-   if (surface_fit)
+   if (surface_fit && !surf_fit_face_integ)
    {
       // Scalar for surf_fit_gf, vector for surf_fit_pos, but that's ok.
       const FiniteElementSpace *fes_fit =
@@ -3410,6 +3432,64 @@ real_t TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
 
    delete Tpr;
    return energy;
+}
+
+double TMOP_Integrator::GetFaceEnergy(const FiniteElement &el1,
+                                              const FiniteElement &el2,
+                                              FaceElementTransformations &Tr,
+                                              const Vector &elfun)
+{
+    double energy = 0.0;
+    const int elem1no = Tr.Elem1No,
+              elem2no = Tr.Elem2No;
+    int ndof1 = el1.GetDof();
+    int ndof2 = 0;
+
+    int marker1 = surf_fit_mat(Tr.Elem1No);
+    int marker2 = marker1;
+    if (elem2no >= 0)
+    {
+       marker2 = surf_fit_mat(elem2no);
+       ndof2 = el2.GetDof();
+    }
+    else if (Tr.ElementType == ElementTransformation::BDR_FACE)
+    {
+       marker2 = marker1;
+    }
+    else
+    {
+       MFEM_ABORT("Contact TMOP Developers about GetFaceEnergy");
+    }
+
+    if (marker1 == marker2 && Tr.ElementType != ElementTransformation::BDR_FACE)
+    {
+        return 0.0;
+    }
+
+    MFEM_VERIFY(IntegRules, "IntegrationRules not set");
+   //  const IntegrationRule &ir = EnergyIntegrationRule(Tr.Face);
+    const IntegrationRule &ir = (IntegRules->Get(Tr.FaceGeom, integ_order));
+
+    // int_f surf_weight * sigma^2 dx
+    // sum_q w_q surf_weight * sigma^2 * tr.weight
+    Vector shape1(ndof1), shape2(ndof2);
+    int dummy;
+    for (int q= 0; q < ir.GetNPoints(); q++)
+    {
+       const IntegrationPoint &ip = ir.IntPoint(q);
+       Tr.SetAllIntPoints(&ip);
+
+       const IntegrationPoint &eip1 = Tr.Elem1->GetIntPoint();
+       el1.CalcShape(eip1, shape1);
+
+       double surf_fit_coeff_weight = surf_fit_coeff->Eval(Tr, ip);
+       double sigma_val = surf_fit_gf->GetValue(elem1no, eip1);
+
+       double energy_loc = ip.weight*Tr.Weight()*surf_fit_coeff_weight*sigma_val*sigma_val;
+       energy += energy_loc;
+    }
+
+    return energy;
 }
 
 real_t TMOP_Integrator::GetRefinementElementEnergy(const FiniteElement &el,
@@ -4004,6 +4084,201 @@ void TMOP_Integrator::AssembleElemVecSurfFit(const FiniteElement &el_x,
          mat(s, d) += w * surf_fit_grad_e(s, d);
       }
    }
+}
+
+void TMOP_Integrator::AssembleFaceVector(const FiniteElement &el1,
+                                         const FiniteElement &el2,
+                                         FaceElementTransformations &Tr,
+                                         const Vector &elfun, Vector &elvect)
+{
+    const int elem1no = Tr.Elem1No,
+              elem2no = Tr.Elem2No;
+    int ndof1 = el1.GetDof();
+    int ndof2 = 0;
+    const int dim = el1.GetDim();
+
+    int marker1 = surf_fit_mat(Tr.Elem1No);
+    int marker2 = marker1;
+    if (Tr.Elem2No >= 0)
+    {
+       marker2 = surf_fit_mat(elem2no);
+       ndof2 = el2.GetDof();
+    }
+    else if (Tr.ElementType == ElementTransformation::BDR_FACE)
+    {
+       marker2 = marker1;
+    }
+    else
+    {
+       MFEM_ABORT("Contact TMOP Developers about GetFaceEnergy");
+    }
+
+    elvect.SetSize((ndof1+ndof2)*dim);
+    elvect = 0.0;
+
+    if (marker1 == marker2 && Tr.ElementType != ElementTransformation::BDR_FACE)
+    {
+        return;
+    }
+
+    PMatO.UseExternalData(elvect.GetData(), ndof1 + ndof2, dim);
+    DenseMatrix Y1(ndof1, dim);
+    DenseMatrix Y2(ndof2, dim);
+
+    MFEM_VERIFY(IntegRules, "IntegrationRules not set");
+    const IntegrationRule *ir = &(IntegRules->Get(Tr.FaceGeom, integ_order));
+
+    Vector shape1(ndof1), shape2(ndof2);
+    for (int q= 0; q < ir->GetNPoints(); q++)
+    {
+       const IntegrationPoint &ip = ir->IntPoint(q);
+       Tr.SetAllIntPoints(&ip);
+
+       const IntegrationPoint &eip1 = Tr.Elem1->GetIntPoint();
+       el1.CalcShape(eip1, shape1);
+       // a * sigma^2 dx
+       // sum_q  w_q a 2 sigma d(sigma(x_q)/dx_{a,i} dx
+
+       double surf_fit_coeff_weight = surf_fit_coeff->Eval(Tr, ip);
+       double sigma_val = surf_fit_gf->GetValue(elem1no, eip1);
+       double w1 = 2.0*sigma_val*surf_fit_coeff_weight; //a*2*sigma
+       double w2 = ip.weight*Tr.Weight(); //w_q * Tr.weight
+       if (ndof2 > 0) {
+           w2 *= 0.5;
+       }
+
+       // el1
+       Vector vals(dim);
+       surf_fit_grad->GetVectorValue(elem1no, eip1, vals);
+
+       vals *= w1*w2;
+       AddMultVWt(shape1, vals, Y1);
+       PMatO.CopyMN(Y1, 0, 0);
+
+       if (ndof2 > 0) {
+           const IntegrationPoint &eip2 = Tr.Elem2->GetIntPoint();
+           el2.CalcShape(eip2, shape2);
+           //handles ghost element as val
+           surf_fit_grad->GetVectorValue(elem2no, eip2, vals);
+           w2 = ip.weight*Tr.Weight();
+           w2 *= 0.5;
+           vals *= w1*w2;
+           AddMultVWt(shape2, vals, Y2);
+           PMatO.CopyMN(Y2, ndof1, 0);
+       }
+    }
+}
+
+void TMOP_Integrator::AssembleFaceGrad(const FiniteElement &el1,
+                                       const FiniteElement &el2,
+                                       FaceElementTransformations &Tr,
+                                       const Vector &elfun,
+                                       DenseMatrix &elmat)
+{
+    const int elem1no = Tr.Elem1No,
+              elem2no = Tr.Elem2No;
+    int ndof1 = el1.GetDof();
+    int ndof2 = 0;
+    const int dim = el1.GetDim();
+
+    int marker1 = surf_fit_mat(Tr.Elem1No);
+    int marker2 = marker1;
+    if (Tr.Elem2No >= 0)
+    {
+       marker2 = surf_fit_mat(elem2no);
+       ndof2 = el2.GetDof();
+    }
+    else if (Tr.ElementType == ElementTransformation::BDR_FACE)
+    {
+       marker2 = marker1;
+    }
+    else
+    {
+       MFEM_ABORT("Contact TMOP Developers about GetFaceEnergy");
+    }
+
+    elmat.SetSize((ndof1+ndof2)*dim);
+    elmat = 0.0;
+
+    if (marker1 == marker2 && Tr.ElementType != ElementTransformation::BDR_FACE)
+    {
+        return;
+    }
+
+//    PMatO.UseExternalData(elvect.GetData(), ndof1 + ndof2, dim);
+    DenseMatrix Y1(ndof1, dim);
+    DenseMatrix Y2(ndof2, dim);
+
+    MFEM_VERIFY(IntegRules, "IntegrationRules not set");
+    const IntegrationRule *ir = &(IntegRules->Get(Tr.FaceGeom, integ_order));
+
+    Vector shape1(ndof1), shape2(ndof2);
+    for (int q= 0; q < ir->GetNPoints(); q++)
+    {
+       const IntegrationPoint &ip = ir->IntPoint(q);
+       Tr.SetAllIntPoints(&ip);
+
+       const IntegrationPoint &eip1 = Tr.Elem1->GetIntPoint();
+       el1.CalcShape(eip1, shape1);
+       // a * sigma^2 dx
+       // sum_q  w_q a 2 sigma d(sigma(x_q)/dx_{a,i} dx
+
+       double surf_fit_coeff_weight = surf_fit_coeff->Eval(Tr, ip);
+       double sigma_val = surf_fit_gf->GetValue(elem1no, eip1);
+       double w1 = surf_fit_coeff_weight; //a*2*sigma
+       double w2 = ip.weight*Tr.Weight(); //w_q * Tr.weight
+       if (ndof2 > 0) {
+           w2 *= 0.5;
+       }
+       DenseMatrix Hess(dim);
+       Vector hessv(Hess.GetData(), dim*dim);
+
+       // el1
+       Vector vals(dim);
+       surf_fit_grad->GetVectorValue(elem1no, eip1, vals);
+       surf_fit_hess->GetVectorValue(elem1no, eip1, hessv);
+
+       for (int i = 0; i < ndof1 * dim; i++)
+       {
+          const int idof = i % ndof1, idim = i / ndof1;
+          for (int j = 0; j <= i; j++)
+          {
+             const int jdof = j % ndof1, jdim = j / ndof1;
+             double entry =
+                w1 * w2 * ( 2.0 * vals(idim) * shape1(idof) *
+                      /* */ vals(jdim) * shape1(jdof) +
+                      2.0 * sigma_val * Hess(idim, jdim) *
+                      /* */ shape1(idof) * shape1(jdof));
+             entry *= 0.5; //TODO: Par/Boundary
+             elmat(i, j) += entry;
+             if (i != j) { elmat(j, i) += entry; }
+          }
+       }
+
+       if (ndof2 > 0) {
+           const IntegrationPoint &eip2 = Tr.Elem2->GetIntPoint();
+           el2.CalcShape(eip2, shape2);
+           surf_fit_grad->GetVectorValue(elem2no, eip2, vals);
+           surf_fit_hess->GetVectorValue(elem2no, eip2, hessv);
+
+           for (int i = 0; i < ndof2 * dim; i++)
+           {
+              const int idof = i % ndof2, idim = i / ndof2;
+              for (int j = 0; j <= i; j++)
+              {
+                 const int jdof = j % ndof2, jdim = j / ndof2;
+                 double entry =
+                    w1 * w2 * ( 2.0 * vals(idim) * shape2(idof) *
+                          /* */ vals(jdim) * shape2(jdof) +
+                          2.0 * sigma_val * Hess(idim, jdim) *
+                          /* */ shape2(idof) * shape2(jdof));
+                 entry *= 0.5;
+                 elmat(ndof1*dim+i, ndof1*dim+j) += entry;
+                 if (i != j) { elmat(ndof1*dim+j,ndof1*dim+i) += entry; }
+              }
+           }
+       }
+    }
 }
 
 void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,

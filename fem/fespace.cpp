@@ -3398,20 +3398,32 @@ const FiniteElement *FiniteElementSpace::GetBE(int i) const
 
 const FiniteElement *FiniteElementSpace::GetFaceElement(int i) const
 {
-   MFEM_VERIFY(!IsVariableOrder(), "not implemented");
+   // MFEM_VERIFY(!IsVariableOrder(), "not implemented");
+   int order = fec->GetOrder();
+   if (IsVariableOrder())
+   {
+      Array<int> elems;
+      mesh->GetFaceAdjacentElements(i, elems);
+      // elems.Print();
+      MFEM_VERIFY(elems.Size() == 2, "Face has to be shared by two elements");
+      // std::cout << int(elem_order[elems[0]]) << " " << int(elem_order[elems[1]]) << " k10elemorder\n";
+      MFEM_VERIFY(elem_order[elems[0]] == elem_order[elems[1]],
+                  "Face element order mismatch");
+      order = elem_order[elems[0 ]];
+   }
 
    const FiniteElement *fe;
    switch (mesh->Dimension())
    {
       case 1:
-         fe = fec->FiniteElementForGeometry(Geometry::POINT);
+         fe = fec->GetFE(Geometry::POINT, order);
          break;
       case 2:
-         fe = fec->FiniteElementForGeometry(Geometry::SEGMENT);
+         fe = fec->GetFE(Geometry::SEGMENT, order);
          break;
       case 3:
       default:
-         fe = fec->FiniteElementForGeometry(mesh->GetFaceGeometry(i));
+         fe = fec->GetFE(mesh->GetFaceGeometry(i), order);
    }
 
    if (NURBSext)

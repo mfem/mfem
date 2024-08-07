@@ -426,18 +426,18 @@ real_t surface_level_set(const Vector &x)
    }
 }
 
-int material_id(int el_id, const GridFunction &g)
+int material_id(int el_id, const GridFunction &g, int approach = 1)
 {
    const FiniteElementSpace *fes = g.FESpace();
    const FiniteElement *fe = fes->GetFE(el_id);
    Vector g_vals;
    const IntegrationRule &ir =
-      IntRules.Get(fe->GetGeomType(), fes->GetOrder(el_id) + 2);
+      IntRulesLo.Get(fe->GetGeomType(), fes->GetOrder(el_id) + 2);
 
    real_t integral = 0.0;
    g.GetValues(el_id, ir, g_vals);
    ElementTransformation *Tr = fes->GetMesh()->GetElementTransformation(el_id);
-   int approach = 1;
+   // int approach = 1;
    if (approach == 0)   // integral based
    {
       for (int q = 0; q < ir.GetNPoints(); q++)
@@ -448,12 +448,23 @@ int material_id(int el_id, const GridFunction &g)
       }
       return (integral > 0.0) ? 1.0 : 0.0;
    }
-   else if (approach == 1)   // minimum value based
+   else if (approach == 1)   // maximum value based
+   // if intersected, set material to 1
    {
       real_t minval = g_vals.Min();
       real_t maxval = g_vals.Max();
-      return maxval > 0.0 ? 1.0 : 0.0;
-      return minval > 0.0 ? 1.0 : 0.0;
+      // if (minval*maxval < 0) { std::cout << " k10---------\n"; }
+      return maxval >= 0.0 ? 1.0 : 0.0;
+   }
+   else if (approach == 2)
+   {
+      // if intersected, set material to 0
+      real_t minval = g_vals.Min();
+      real_t maxval = g_vals.Max();
+      // std::cout << minval << " " << maxval << " k10minvmax\n";
+      // if (minval*maxval < 0) { std::cout << " k10---------\n"; }
+      return minval >= 0.0 ? 1.0 : 0.0; // minimum value based
+
    }
    return 0.0;
 }
