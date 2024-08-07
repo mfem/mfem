@@ -2321,7 +2321,13 @@ DarcyHybridization::LocalNLOperator::LocalNLOperator(
    width = height = d_dofs_size;
 
    fe = dh.fes_p->GetFE(el);
-   Tr = dh.fes_p->GetElementTransformation(el);
+   Tr = new IsoparametricTransformation();
+   dh.fes_p->GetElementTransformation(el, Tr);
+}
+
+DarcyHybridization::LocalNLOperator::~LocalNLOperator()
+{
+   delete Tr;
 }
 
 void DarcyHybridization::LocalNLOperator::SolveU(const Vector &p_l,

@@ -292,13 +292,14 @@ private:
       LUFactors LU_A;
       DenseMatrix B;
       const FiniteElement *fe;
-      ElementTransformation *Tr;
+      IsoparametricTransformation *Tr;
       mutable Vector u_l, Dp, DpEx;
       mutable DenseMatrix grad;
 
    public:
       LocalNLOperator(const DarcyHybridization &dh, int el, const Vector &bu,
                       const BlockVector &trps, const Array<int> &faces);
+      ~LocalNLOperator();
 
       void SolveU(const Vector &p_l, Vector &u_l) const;
       void Mult(const Vector &x, Vector &y) const override;
