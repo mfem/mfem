@@ -41,10 +41,7 @@ int main(int argc, char *argv[])
 
    ParBilinearForm *a = new ParBilinearForm(fespace);
 
-   LinearFormIntegrator *lfi = nullptr;
    BilinearFormIntegrator *bfi = nullptr;
-   FunctionCoefficient *scalar_u = nullptr;
-   FunctionCoefficient *scalar_f = nullptr;
 
    ConstantCoefficient one(1.0);
 
@@ -52,11 +49,6 @@ int main(int argc, char *argv[])
    ParGridFunction x(fespace);
    OperatorPtr A_legacy;
    OperatorPtr A;
-   Vector B, X;
-
-   x = 0.0;
-   scalar_u = new FunctionCoefficient(diffusion_solution);
-   x.ProjectBdrCoefficient(*scalar_u, ess_bdr);
 
    bfi = new DiffusionIntegrator();
 
@@ -95,7 +87,7 @@ int main(int argc, char *argv[])
    diag_a->Print();
 
    mfem::out << "|A|1:\n" << endl;
-   A->AbsMult(ones, result); // ---
+   A->AbsMult(ones, result);
    result.Print();
    mfem::out << "\n--- Partial end ---\n" << endl;
 
@@ -103,7 +95,6 @@ int main(int argc, char *argv[])
    delete diag_b;
    delete a;
    delete b;
-   if (scalar_u) { delete scalar_u; }
    delete fespace;
    delete fec;
    delete mesh;
