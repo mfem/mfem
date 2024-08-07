@@ -28,16 +28,14 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_Fit_2D,
 {
    constexpr int DIM = 2;
    const int D1D = T_D1D ? T_D1D : d1d;
-   constexpr int NBZ = 1;
 
    const auto H0 = Reshape(h0_.Read(), DIM, DIM, D1D, D1D, NE);
    const auto R = Reshape(r_.Read(), D1D, D1D, DIM, NE);
 
    auto Y = Reshape(c_.ReadWrite(), D1D, D1D, DIM, NE);
 
-   mfem::forall_2D_batch(NE, D1D, D1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_2D(NE, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
    {
-      constexpr int DIM = 2;
       const int D1D = T_D1D ? T_D1D : d1d;
 
       MFEM_FOREACH_THREAD(qy,y,D1D)

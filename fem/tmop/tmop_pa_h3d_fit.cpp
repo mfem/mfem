@@ -30,7 +30,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_Fit_3D,
    const int D1D = T_D1D ? T_D1D : d1d;
 
    const auto H0 = Reshape(h0.Read(), DIM, DIM, D1D, D1D, D1D, NE);
-   auto D = Reshape(diagonal.ReadWrite(), D1D, D1D, D1D, DIM,NE);
+   auto D = Reshape(diagonal.ReadWrite(), D1D, D1D, D1D, DIM, NE);
 
    mfem::forall_3D(NE, D1D, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
    {

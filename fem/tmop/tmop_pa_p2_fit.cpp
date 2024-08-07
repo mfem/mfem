@@ -32,7 +32,6 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_Fit_2D,
                            const int q1d)
 {
    constexpr int DIM = 2;
-   constexpr int NBZ = 1;
    const int D1D = T_D1D ? T_D1D : d1d;
 
    const auto PW = pw_;
@@ -44,7 +43,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_Fit_2D,
 
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, DIM, NE);
 
-   mfem::forall_2D_batch(NE, D1D, D1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_2D(NE, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
 

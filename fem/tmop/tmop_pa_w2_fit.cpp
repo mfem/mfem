@@ -31,7 +31,6 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_Fit_2D,
                            const int d1d,
                            const int q1d)
 {
-   constexpr int NBZ = 1;
    const int D1D = T_D1D ? T_D1D : d1d;
 
    const auto PW = pw_;
@@ -42,7 +41,7 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_Fit_2D,
 
    auto E = Reshape(energy.Write(), D1D, D1D, NE);
 
-   mfem::forall_2D_batch(NE, D1D, D1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_2D(NE, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
 

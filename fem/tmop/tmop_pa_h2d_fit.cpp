@@ -34,14 +34,13 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_Fit_2D,
 
     mfem::forall_2D(NE, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
     {
-        constexpr int DIM = 2;
         const int D1D = T_D1D ? T_D1D : d1d;
         
-        for (int v = 0; v < DIM; v++)
+        MFEM_FOREACH_THREAD(qy,y,D1D)
         {
-            MFEM_FOREACH_THREAD(qy,y,D1D)
+            MFEM_FOREACH_THREAD(qx,x,D1D)
             {
-                MFEM_FOREACH_THREAD(qx,x,D1D)
+                for (int v = 0; v < DIM; v++)
                 {
                     D(qx,qy,v,e) += H0(v,v,qx,qy,e);;                 
                 }
