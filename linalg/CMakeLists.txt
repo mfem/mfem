@@ -11,6 +11,7 @@
 
 list(APPEND SRCS
   auxiliary.cpp
+  batchlinalg.cpp
   blockmatrix.cpp
   blockoperator.cpp
   blockvector.cpp
@@ -31,6 +32,7 @@ list(APPEND SRCS
 
 list(APPEND HDRS
   auxiliary.hpp
+  batchlinalg.hpp
   blockmatrix.hpp
   blockoperator.hpp
   blockvector.hpp

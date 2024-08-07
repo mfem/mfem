@@ -954,7 +954,7 @@ void MemoryManager::Delete_(void *h_ptr, MemoryType h_mt, unsigned flags)
    }
 }
 
-void MemoryManager::DeleteDevice_(void *h_ptr, unsigned & flags)
+void MemoryManager::ReleaseDeviceMemory_(void *h_ptr, unsigned & flags)
 {
    const bool owns_device = flags & Mem::OWNS_DEVICE;
    if (owns_device)
