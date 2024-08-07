@@ -84,6 +84,46 @@ void NURBS1DFiniteElement::CalcHessian (const IntegrationPoint &ip,
    add(1.0, hess, (-d2sum + 2*dsum*dsum*sum)*sum*sum, shape_x, hess);
 }
 
+void NURBS1DFiniteElement::Project(Coefficient &coeff,
+                                   ElementTransformation &Trans,
+                                   Vector &dofs) const
+{
+   IntegrationPoint ip;
+
+   for (int i = 0; i <= order; i++)
+   {
+      real_t kx = kv[0]->GetDemko(ijk[0] + i);
+      if (!kv[0]->inSpan(kx, ijk[0]+order)) { continue; }
+      ip.x = kv[0]->GetIp(kx, ijk[0]+order);
+
+      Trans.SetIntPoint(&ip);
+      dofs(i) = coeff.Eval(Trans, ip);
+   }
+}
+
+void NURBS1DFiniteElement::Project(VectorCoefficient &vc,
+                                   ElementTransformation &Trans,
+                                   Vector &dofs) const
+{
+   MFEM_ASSERT(dofs.Size() == vc.GetVDim()*dof, "");
+   Vector x(vc.GetVDim());
+   IntegrationPoint ip;
+
+   for (int i = 0; i <= order; i++)
+   {
+      real_t kx = kv[0]->GetDemko(ijk[0] + i);
+      if (!kv[0]->inSpan(kx, ijk[0]+order)) { continue; }
+      ip.x = kv[0]->GetIp(kx, ijk[0]+order);
+
+      Trans.SetIntPoint(&ip);
+      vc.Eval(x, Trans, ip);
+      for (int j = 0; j < x.Size(); j++)
+      {
+         dofs(dof*j+i) = x(j);
+      }
+   }
+}
+
 
 void NURBS2DFiniteElement::SetOrder() const
 {
@@ -215,6 +255,63 @@ void NURBS2DFiniteElement::CalcHessian (const IntegrationPoint &ip,
    }
 }
 
+void NURBS2DFiniteElement::Project(Coefficient &coeff,
+                                   ElementTransformation &Trans,
+                                   Vector &dofs) const
+{
+   IntegrationPoint ip;
+   for (int o = 0, j = 0; j <= orders[1]; j++)
+   {
+      real_t ky = kv[1]->GetDemko(ijk[1] + j);
+      if (!kv[1]->inSpan(ky, ijk[1]+orders[1]))
+      {
+         o += orders[0] + 1;
+         continue;
+      }
+      ip.y = kv[1]->GetIp(ky, ijk[1]+orders[1]);
+      for (int i = 0; i <= orders[0]; i++, o++)
+      {
+         real_t kx = kv[0]->GetDemko(ijk[0] + i);
+         if (!kv[0]->inSpan(kx, ijk[0]+orders[0])) { continue; }
+         ip.x = kv[0]->GetIp(kx, ijk[0]+orders[0]);
+
+         Trans.SetIntPoint(&ip);
+         dofs(o) = coeff.Eval(Trans, ip);
+      }
+   }
+}
+
+void NURBS2DFiniteElement::Project(VectorCoefficient &vc,
+                                   ElementTransformation &Trans,
+                                   Vector &dofs) const
+{
+   MFEM_ASSERT(dofs.Size() == vc.GetVDim()*dof, "");
+   Vector x(vc.GetVDim());
+   IntegrationPoint ip;
+   for (int o = 0, j = 0; j <= orders[1]; j++)
+   {
+      real_t ky = kv[1]->GetDemko(ijk[1] + j);
+      if (!kv[1]->inSpan(ky, ijk[1]+orders[1]))
+      {
+         o += orders[0] + 1;
+         continue;
+      }
+      ip.y = kv[1]->GetIp(ky, ijk[1]+orders[1]);
+      for (int i = 0; i <= orders[0]; i++, o++)
+      {
+         real_t kx = kv[0]->GetDemko(ijk[0] + i);
+         if (!kv[0]->inSpan(kx, ijk[0]+orders[0])) { continue; }
+         ip.x = kv[0]->GetIp(kx, ijk[0]+orders[0]);
+
+         Trans.SetIntPoint(&ip);
+         vc.Eval(x, Trans, ip);
+         for (int v = 0; v < x.Size(); v++)
+         {
+            dofs(dof*v+o) = x(v);
+         }
+      }
+   }
+}
 
 void NURBS3DFiniteElement::SetOrder() const
 {
@@ -401,6 +498,85 @@ void NURBS3DFiniteElement::CalcHessian (const IntegrationPoint &ip,
    }
 }
 
+void NURBS3DFiniteElement::Project(Coefficient &coeff,
+                                   ElementTransformation &Trans,
+                                   Vector &dofs) const
+{
+   IntegrationPoint ip;
+
+   for (int o = 0, k = 0; k <= orders[2]; k++)
+   {
+      real_t kz = kv[2]->GetDemko(ijk[2] + k);
+      if (!kv[2]->inSpan(kz, ijk[2]+orders[2]))
+      {
+         o += (orders[0] + 1)*(orders[1] + 1);
+         continue;
+      }
+      ip.z = kv[2]->GetIp(kz, ijk[2]+orders[2]);
+      for (int j = 0; j <= orders[1]; j++)
+      {
+         real_t ky = kv[1]->GetDemko(ijk[1] + j);
+         if (!kv[1]->inSpan(ky, ijk[1]+orders[1]))
+         {
+            o += orders[0] + 1;
+            continue;
+         }
+         ip.y = kv[1]->GetIp(ky, ijk[1]+orders[1]);
+         for (int i = 0; i <= orders[0]; i++, o++)
+         {
+            real_t kx = kv[0]->GetDemko(ijk[0] + i);
+            if (!kv[0]->inSpan(kx, ijk[0]+orders[0])) { continue; }
+            ip.x = kv[0]->GetIp(kx, ijk[0]+orders[0]);
+
+            Trans.SetIntPoint(&ip);
+            dofs(o) = coeff.Eval(Trans, ip);
+         }
+      }
+   }
+}
+
+void NURBS3DFiniteElement::Project(VectorCoefficient &vc,
+                                   ElementTransformation &Trans,
+                                   Vector &dofs) const
+{
+   MFEM_ASSERT(dofs.Size() == vc.GetVDim()*dof, "");
+   Vector x(vc.GetVDim());
+   IntegrationPoint ip;
+
+   for (int o = 0, k = 0; k <= orders[2]; k++)
+   {
+      real_t kz = kv[2]->GetDemko(ijk[2] + k);
+      if (!kv[2]->inSpan(kz, ijk[2]+orders[2]))
+      {
+         o += (orders[0] + 1)*(orders[1] + 1);
+         continue;
+      }
+      ip.z = kv[2]->GetIp(kz, ijk[2]+orders[2]);
+      for (int j = 0; j <= orders[1]; j++)
+      {
+         real_t ky = kv[1]->GetDemko(ijk[1] + j);
+         if (!kv[1]->inSpan(ky, ijk[1]+orders[1]))
+         {
+            o += orders[0] + 1;
+            continue;
+         }
+         ip.y = kv[1]->GetIp(ky, ijk[1]+orders[1]);
+         for (int i = 0; i <= orders[0]; i++, o++)
+         {
+            real_t kx = kv[0]->GetDemko(ijk[0] + i);
+            if (!kv[0]->inSpan(kx, ijk[0]+orders[0])) { continue; }
+            ip.x = kv[0]->GetIp(kx, ijk[0]+orders[0]);
+
+            Trans.SetIntPoint(&ip);
+            vc.Eval(x, Trans, ip);
+            for (int v = 0; v < x.Size(); v++)
+            {
+               dofs(dof*v+o) = x(v);
+            }
+         }
+      }
+   }
+}
 
 void NURBS_HDiv2DFiniteElement::SetOrder() const
 {
@@ -516,6 +692,141 @@ void NURBS_HDiv2DFiniteElement::CalcDivShape(const IntegrationPoint &ip,
       }
    }
 }
+
+
+void NURBS_HDiv2DFiniteElement::CalcDVShape(const IntegrationPoint &ip,
+                                            DenseTensor &dvshape) const
+{
+   dvshape = 0.0;
+
+   kv[0]->CalcShape ( shape_x, ijk[0], ip.x);
+   kv[1]->CalcShape ( shape_y, ijk[1], ip.y);
+   kv[0]->CalcDShape(dshape_x, ijk[0], ip.x);
+   kv[1]->CalcDShape(dshape_y, ijk[1], ip.y);
+
+   kv1[0]->CalcShape ( shape1_x, ijk[0], ip.x);
+   kv1[1]->CalcShape ( shape1_y, ijk[1], ip.y);
+   kv1[0]->CalcDShape(dshape1_x, ijk[0], ip.x);
+   kv1[1]->CalcDShape(dshape1_y, ijk[1], ip.y);
+
+   int o = 0;
+   for (int j = 0; j <= orders[1]; j++)
+   {
+      const real_t sy = shape_y(j);
+      const real_t dsy = dshape_y(j);
+      for (int i = 0; i <= orders[0]+1; i++, o++)
+      {
+         dvshape(o,0,0) = dshape1_x(i)*sy;
+         dvshape(o,0,1) = shape1_x(i)*dsy;
+      }
+   }
+
+   for (int j = 0; j <= orders[1]+1; j++)
+   {
+      const real_t sy1 = shape1_y(j);
+      const real_t dsy1 = dshape1_y(j);
+      for (int i = 0; i <= orders[0]; i++, o++)
+      {
+         dvshape(o,1,0) = dshape_x(i)*sy1;
+         dvshape(o,1,1) = shape_x(i)*dsy1;
+      }
+   }
+}
+
+void NURBS_HDiv2DFiniteElement::CalcPhysDVShape(ElementTransformation &Trans,
+                                                DenseTensor &dvshape) const
+{
+   // MFEM_ASSERT(map_type == VALUE, ""); // ???
+#ifdef MFEM_THREAD_SAFE
+   DenseTensor tshape(dof, dim, dim);
+#else
+   tshape.SetSize(dof, dim, dim);
+#endif
+   CalcDVShape(Trans.GetIntPoint(), tshape);
+   const DenseMatrix & J = Trans.Jacobian();
+   DenseMatrix Jinv = Trans.InverseJacobian();
+   Jinv *= (1.0 / Trans.Weight());
+   MFEM_ASSERT(J.Width() == 2 && J.Height() == 2,
+               "NURBS_HDiv2DFiniteElement cannot be embedded in "
+               "3 dimensional spaces");
+
+   for (int i=0; i<dof; i++)
+   {
+      // Map vector component
+      real_t sx = tshape(i, 0, 0) * J(0, 0) + tshape(i, 1, 0) * J(0, 1);
+      real_t sy = tshape(i, 0, 1) * J(0, 0) + tshape(i, 1, 1) * J(0, 1);
+
+      // Map derivative direction
+      dvshape(i, 0, 0) = sx * Jinv(0, 0) + sy * Jinv(1, 0);  // (0,1) flip??
+      dvshape(i, 0, 1) = sx * Jinv(0, 1) + sy * Jinv(1, 1);  // (1,0) flip??
+
+      // Map vector component
+      sx = tshape(i, 1, 0) * J(1, 0) + tshape(i, 1, 0) * J(1, 1);
+      sy = tshape(i, 1, 1) * J(1, 0) + tshape(i, 1, 1) * J(1, 1);
+
+      // Map derivative component
+      dvshape(i, 1, 0) = sx * Jinv(0, 0) + sy * Jinv(1, 0); // (0,1) flip??
+      dvshape(i, 1, 1) = sx * Jinv(0, 1) + sy * Jinv(1, 1); // (1,0) flip??
+   }
+}
+
+void NURBS_HDiv2DFiniteElement::Project(VectorCoefficient &vc,
+                                        ElementTransformation &Trans,
+                                        Vector &dofs) const
+{
+   MFEM_ASSERT(dofs.Size() == dof, "");
+   MFEM_ASSERT(vc.GetVDim() == 2, "");
+   Vector x(2), mx(2);
+   IntegrationPoint ip;
+   int o = 0;
+
+   for (int j = 0; j <= orders[1]; j++)
+   {
+      real_t ky = kv[1]->GetDemko(ijk[1] + j);
+      if (!kv[1]->inSpan(ky, ijk[1]+orders[1]))
+      {
+         o += orders[0] + 2;
+         continue;
+      }
+      ip.y = kv[1]->GetIp(ky, ijk[1]+orders[1]);
+      for (int i = 0; i <= orders[0]+1; i++, o++)
+      {
+         real_t kx = kv1[0]->GetDemko(ijk[0] + i);
+         if (!kv1[0]->inSpan(kx, ijk[0]+orders[0]+1)) { continue; }
+         ip.x = kv1[0]->GetIp(kx, ijk[0]+orders[0]+1);
+
+         Trans.SetIntPoint(&ip);
+         vc.Eval(x, Trans, ip);
+
+         Trans.AdjugateJacobian().Mult(x,mx);
+         dofs(o) = mx(0);
+      }
+   }
+
+   for (int j = 0; j <= orders[1]+1; j++)
+   {
+      real_t ky = kv1[1]->GetDemko(ijk[1] + j);
+      if (!kv1[1]->inSpan(ky, ijk[1]+orders[1]+1))
+      {
+         o += orders[0] + 1;
+         continue;
+      }
+      ip.y = kv1[1]->GetIp(ky, ijk[1]+orders[1]+1);
+      for (int i = 0; i <= orders[0]; i++, o++)
+      {
+         real_t kx = kv[0]->GetDemko(ijk[0] + i);
+         if (!kv[0]->inSpan(kx, ijk[0]+orders[0])) { continue; }
+         ip.x = kv[0]->GetIp(kx, ijk[0]+orders[0]);
+
+         Trans.SetIntPoint(&ip);
+         vc.Eval(x, Trans, ip);
+
+         Trans.AdjugateJacobian().Mult(x,mx);
+         dofs(o) = mx(1);
+      }
+   }
+}
+
 
 NURBS_HDiv2DFiniteElement::~NURBS_HDiv2DFiniteElement()
 {
@@ -696,6 +1007,259 @@ void NURBS_HDiv3DFiniteElement::CalcDivShape(const IntegrationPoint &ip,
    }
 }
 
+
+void NURBS_HDiv3DFiniteElement::CalcDVShape(const IntegrationPoint &ip,
+                                            DenseTensor &dvshape) const
+{
+   dvshape = 0.0;
+
+   kv[0]->CalcShape ( shape_x, ijk[0], ip.x);
+   kv[1]->CalcShape ( shape_y, ijk[1], ip.y);
+   kv[2]->CalcShape ( shape_z, ijk[2], ip.z);
+
+   kv1[0]->CalcShape(shape1_x, ijk[0], ip.x);
+   kv1[1]->CalcShape(shape1_y, ijk[1], ip.y);
+   kv1[2]->CalcShape(shape1_z, ijk[2], ip.z);
+
+   kv[0]->CalcDShape(dshape_x, ijk[0], ip.x);
+   kv[1]->CalcDShape(dshape_y, ijk[1], ip.y);
+   kv[2]->CalcDShape(dshape_z, ijk[2], ip.z);
+
+   kv1[0]->CalcDShape(dshape1_x, ijk[0], ip.x);
+   kv1[1]->CalcDShape(dshape1_y, ijk[1], ip.y);
+   kv1[2]->CalcDShape(dshape1_z, ijk[2], ip.z);
+
+   int o = 0;
+   for (int  k = 0; k <= orders[2]; k++)
+   {
+      const real_t sz = shape_z(k);
+      const real_t dsz = dshape_z(k);
+      for (int j = 0; j <= orders[1]; j++)
+      {
+         const real_t sy_sz = shape_y(j)*sz;
+         const real_t dsy_sz = dshape_y(j)*sz;
+         const real_t sy_dsz = shape_y(j)*dsz;
+         for (int i = 0; i <= orders[0]+1; i++, o++)
+         {
+            dvshape(o,0,0) = dshape1_x(i)*sy_sz;
+            dvshape(o,0,1) = shape1_x(i)*dsy_sz;
+            dvshape(o,0,2) = shape1_x(i)*sy_dsz;
+         }
+      }
+   }
+
+
+   for (int  k = 0; k <= orders[2]; k++)
+   {
+      const real_t sz = shape_z(k);
+      const real_t dsz = dshape_z(k);
+      for (int j = 0; j <= orders[1]+1; j++)
+      {
+         const real_t sy1_sz = shape1_y(j)*sz;
+         const real_t dsy1_sz = dshape1_y(j)*sz;
+         const real_t sy1_dsz = shape1_y(j)*dsz;
+         for (int i = 0; i <= orders[0]; i++, o++)
+         {
+            dvshape(o,1,0) = dshape_x(i)*sy1_sz;
+            dvshape(o,1,1) = shape_x(i)*dsy1_sz;
+            dvshape(o,1,2) = shape_x(i)*sy1_dsz;
+
+         }
+      }
+   }
+
+   for (int  k = 0; k <= orders[2]+1; k++)
+   {
+      const real_t sz1 = shape1_z(k);
+      const real_t dsz1 = dshape1_z(k);
+      for (int j = 0; j <= orders[1]; j++)
+      {
+         const real_t sy_sz1 = shape_y(j)*sz1;
+         const real_t dsy_sz1 = dshape_y(j)*sz1;
+         const real_t sy_dsz1 = shape_y(j)*dsz1;
+         for (int i = 0; i <= orders[0]; i++, o++)
+         {
+            dvshape(o,2,0) = dshape_x(i)*sy_sz1;
+            dvshape(o,2,1) = shape_x(i)*dsy_sz1;
+            dvshape(o,2,2) = shape_x(i)*sy_dsz1;
+         }
+      }
+   }
+}
+
+void NURBS_HDiv3DFiniteElement::CalcPhysDVShape(ElementTransformation &Trans,
+                                                DenseTensor &dvshape) const
+{
+   //  MFEM_ASSERT(map_type == VALUE, ""); // ???
+#ifdef MFEM_THREAD_SAFE
+   DenseTensor tshape(dof, dim, dim);
+#endif
+   CalcDVShape(Trans.GetIntPoint(), tshape);
+   const DenseMatrix & J = Trans.Jacobian();
+   DenseMatrix Jinv = Trans.InverseJacobian();
+   Jinv *= (1.0 / Trans.Weight());
+   MFEM_ASSERT(J.Width() == 3 && J.Height() == 3,
+               "NURBS_HDiv3DFiniteElement cannot be embedded in "
+               "4 dimensional spaces");
+   for (int i=0; i<dof; i++)
+   {
+      // Map vector component
+      int sx = tshape(i, 0, 0) * J(0, 0) + tshape(i, 1, 0) * J(0, 1) + tshape(i, 2,
+                                                                              0) * J(0, 2);
+      int sy = tshape(i, 0, 1) * J(0, 0) + tshape(i, 1, 1) * J(0, 1) + tshape(i, 2,
+                                                                              1) * J(0, 2);
+      int sz = tshape(i, 0, 2) * J(0, 0) + tshape(i, 1, 2) * J(0, 1) + tshape(i, 2,
+                                                                              2) * J(0, 2);
+
+      // Map derivative direction
+      dvshape(i, 0, 0) = sx * Jinv(0, 0) + sy * Jinv(0, 1) + sz * Jinv(0,
+                                                                       2); // Transpose?
+      dvshape(i, 0, 1) = sx * Jinv(1, 0) + sy * Jinv(1, 1) + sz * Jinv(1, 2);
+      dvshape(i, 0, 2) = sx * Jinv(2, 0) + sy * Jinv(2, 1) + sz * Jinv(2, 2);
+
+      // Map vector component
+      sx = tshape(i, 1, 0) * J(1, 0) + tshape(i, 1, 0) * J(1, 1) + tshape(i, 2,
+                                                                          0) * J(1, 2);
+      sy = tshape(i, 1, 1) * J(1, 0) + tshape(i, 1, 1) * J(1, 1) + tshape(i, 2,
+                                                                          1) * J(1, 2);
+      sy = tshape(i, 1, 2) * J(1, 0) + tshape(i, 1, 2) * J(1, 1) + tshape(i, 2,
+                                                                          2) * J(1, 2);
+
+      // Map derivative component
+      dvshape(i, 1, 0) = sx * Jinv(0, 0) + sy * Jinv(0, 1) + sz * Jinv(0,
+                                                                       2); // Transpose?
+      dvshape(i, 1, 1) = sx * Jinv(1, 0) + sy * Jinv(1, 1) + sz * Jinv(1, 2);
+      dvshape(i, 1, 2) = sx * Jinv(1, 0) + sy * Jinv(1, 1) + sz * Jinv(2, 2);
+
+      // Map vector component
+      sx = tshape(i, 2, 0) * J(1, 0) + tshape(i, 2, 0) * J(1, 1) + tshape(i, 2,
+                                                                          0) * J(2, 2);
+      sy = tshape(i, 2, 1) * J(1, 0) + tshape(i, 2, 1) * J(1, 1) + tshape(i, 2,
+                                                                          1) * J(2, 2);
+      sy = tshape(i, 2, 2) * J(1, 0) + tshape(i, 2, 2) * J(1, 1) + tshape(i, 2,
+                                                                          2) * J(2, 2);
+
+      // Map derivative component
+      dvshape(i, 2, 0) = sx * Jinv(0, 0) + sy * Jinv(0, 1) + sz * Jinv(0,
+                                                                       2); // Transpose?
+      dvshape(i, 2, 1) = sx * Jinv(1, 0) + sy * Jinv(1, 1) + sz * Jinv(1, 2);
+      dvshape(i, 2, 2) = sx * Jinv(1, 0) + sy * Jinv(1, 1) + sz * Jinv(2, 2);
+   }
+}
+
+void NURBS_HDiv3DFiniteElement::Project(VectorCoefficient &vc,
+                                        ElementTransformation &Trans,
+                                        Vector &dofs) const
+{
+   MFEM_ASSERT(dofs.Size() == dof, "");
+   MFEM_ASSERT(vc.GetVDim() == 3, "");
+   Vector x(2), mx(3);
+   IntegrationPoint ip;
+
+   int o = 0;
+
+   for (int k = 0; k <= orders[2]; k++)
+   {
+      real_t kz = kv[2]->GetDemko(ijk[2] + k);
+      if (!kv[2]->inSpan(kz, ijk[2]+orders[2]))
+      {
+         o += (orders[0] + 2)*(orders[1] + 1);
+         continue;
+      }
+      ip.z = kv[2]->GetIp(kz, ijk[2]+orders[2]);
+      for (int j = 0; j <= orders[1]; j++)
+      {
+         real_t ky = kv[1]->GetDemko(ijk[1] + j);
+         if (!kv[1]->inSpan(ky, ijk[1]+orders[1]))
+         {
+            o += orders[0] + 2;
+            continue;
+         }
+         ip.y = kv[1]->GetIp(ky, ijk[1]+orders[1]);
+         for (int i = 0; i <= orders[0]+1; i++, o++)
+         {
+            real_t kx = kv1[0]->GetDemko(ijk[0] + i);
+            if (!kv1[0]->inSpan(kx, ijk[0]+orders[0]+1)) { continue; }
+            ip.x = kv1[0]->GetIp(kx, ijk[0]+orders[0]+1);
+
+            Trans.SetIntPoint(&ip);
+            vc.Eval(x, Trans, ip);
+
+            Trans.AdjugateJacobian().Mult(x,mx);
+            dofs(o) = mx(0);
+         }
+      }
+   }
+
+   for (int k = 0; k <= orders[2]; k++)
+   {
+      real_t kz = kv[2]->GetDemko(ijk[2] + k);
+      if (!kv[2]->inSpan(kz, ijk[2]+orders[2]))
+      {
+         o += (orders[0] + 1)*(orders[1] + 2);
+         continue;
+      }
+      ip.z = kv[2]->GetIp(kz, ijk[2]+orders[2]);
+      for (int j = 0; j <= orders[1]+1; j++)
+      {
+         real_t ky = kv1[1]->GetDemko(ijk[1] + j);
+         if (!kv1[1]->inSpan(ky, ijk[1]+orders[1]+1))
+         {
+            o += orders[0] + 1;
+            continue;
+         }
+         ip.y = kv1[1]->GetIp(ky, ijk[1]+orders[1]+1);
+         for (int i = 0; i <= orders[0]; i++, o++)
+         {
+            real_t kx = kv[0]->GetDemko(ijk[0] + i);
+            if (!kv[0]->inSpan(kx, ijk[0]+orders[0])) { continue; }
+            ip.x = kv[0]->GetIp(kx, ijk[0]+orders[0]);
+
+            Trans.SetIntPoint(&ip);
+            vc.Eval(x, Trans, ip);
+
+            Trans.AdjugateJacobian().Mult(x,mx);
+            dofs(o) = mx(1);
+         }
+      }
+   }
+
+
+   for (int k = 0; k <= orders[2]+1; k++)
+   {
+      real_t kz = kv1[2]->GetDemko(ijk[2] + k);
+      if (!kv1[2]->inSpan(kz, ijk[2]+orders[2]+1))
+      {
+         o += (orders[0] + 1)*(orders[1] + 1);
+         continue;
+      }
+      ip.z = kv1[2]->GetIp(kz, ijk[2]+orders[2]+1);
+      for (int j = 0; j <= orders[1]; j++)
+      {
+         real_t ky = kv[1]->GetDemko(ijk[1] + j);
+         if (!kv[1]->inSpan(ky, ijk[1]+orders[1]))
+         {
+            o += orders[0] + 1;
+            continue;
+         }
+         ip.y = kv[1]->GetIp(ky, ijk[1]+orders[1]);
+         for (int i = 0; i <= orders[0]; i++, o++)
+         {
+            real_t kx = kv[0]->GetDemko(ijk[0] + i);
+            if (!kv[0]->inSpan(kx, ijk[0]+orders[0])) { continue; }
+            ip.x = kv[0]->GetIp(kx, ijk[0]+orders[0]);
+
+            Trans.SetIntPoint(&ip);
+            vc.Eval(x, Trans, ip);
+
+            Trans.AdjugateJacobian().Mult(x,mx);
+            dofs(o) = mx(2);
+         }
+      }
+   }
+}
+
+
 NURBS_HDiv3DFiniteElement::~NURBS_HDiv3DFiniteElement()
 {
    if (kv1[0]) { delete kv1[0]; }
@@ -786,6 +1350,7 @@ void NURBS_HCurl2DFiniteElement::CalcVShape(ElementTransformation &Trans,
       shape(i, 0) = sx * JI(0, 0) + sy * JI(1, 0);
       shape(i, 1) = sx * JI(0, 1) + sy * JI(1, 1);
    }
+   //Delete above --> CalcVShape_ND(Trans, shape);
 }
 
 void NURBS_HCurl2DFiniteElement::CalcCurlShape(const IntegrationPoint &ip,
@@ -817,12 +1382,123 @@ void NURBS_HCurl2DFiniteElement::CalcCurlShape(const IntegrationPoint &ip,
    }
 }
 
+
+void NURBS_HCurl2DFiniteElement::CalcDVShape(const IntegrationPoint &ip,
+                                             DenseTensor &dvshape) const
+{
+   dvshape = 0.0;
+
+   kv[0]->CalcShape ( shape_x, ijk[0], ip.x);
+   kv[1]->CalcShape ( shape_y, ijk[1], ip.y);
+
+   kv1[0]->CalcShape(shape1_x, ijk[0], ip.x);
+   kv1[1]->CalcShape(shape1_y, ijk[1], ip.y);
+
+   kv[0]->CalcDShape(dshape_x, ijk[0], ip.x);
+   kv[1]->CalcDShape(dshape_y, ijk[1], ip.y);
+
+   kv1[0]->CalcDShape(dshape1_x, ijk[0], ip.x);
+   kv1[1]->CalcDShape(dshape1_y, ijk[1], ip.y);
+
+   int o = 0;
+   for (int j = 0; j <= orders[1]+1; j++)
+   {
+      const real_t sy1 = shape1_y(j);
+      const real_t dsy1 = dshape1_y(j);
+      for (int i = 0; i <= orders[0]; i++, o++)
+      {
+         dvshape(o,0,0) = dshape_x(i)*sy1;
+         dvshape(o,0,1) = shape_x(i)*dsy1;
+      }
+   }
+
+   for (int j = 0; j <= orders[1]; j++)
+   {
+      const real_t sy = shape_y(j);
+      const real_t dsy = dshape_y(j);
+      for (int i = 0; i <= orders[0]+1; i++, o++)
+      {
+         dvshape(o,1,0) = dshape1_x(i)*sy;
+         dvshape(o,1,1) = shape1_x(i)*dsy;
+      }
+   }
+}
+
+void NURBS_HCurl2DFiniteElement::CalcPhysDVShape(ElementTransformation &Trans,
+                                                 DenseTensor &dvsthape) const
+{
+   /*   MFEM_ASSERT(map_type == VALUE, "");
+   #ifdef MFEM_THREAD_SAFE
+      DenseTensor tshape(dof, dim, dim);
+   #endif
+      CalcDVShape(Trans.GetIntPoint(), tshape);
+      Mult(tshape, Trans.InverseJacobian(), dvshape);
+   }*/
+
+   MFEM_ABORT("method is not implemented for this class");
+}
+
+void NURBS_HCurl2DFiniteElement::Project(VectorCoefficient &vc,
+                                         ElementTransformation &Trans,
+                                         Vector &dofs) const
+{
+   MFEM_ASSERT(dofs.Size() == dof, "");
+   MFEM_ASSERT(vc.GetVDim() == 2, "");
+   Vector x(2), xm(2);
+   IntegrationPoint ip;
+   int i, j, o;
+   for (o = 0, j = 0; j <= orders[1]+1; j++)
+   {
+      real_t ky = kv1[1]->GetDemko(ijk[1] + j);
+      if (!kv1[1]->inSpan(ky, ijk[1]+orders[1]+1))
+      {
+         o += orders[0] + 1;
+         continue;
+      }
+      ip.y = kv1[1]->GetIp(ky, ijk[1]+orders[1]+1);
+      for (i = 0; i <= orders[0]; i++, o++)
+      {
+         real_t kx = kv[0]->GetDemko(ijk[0] + i);
+         if (!kv[0]->inSpan(kx, ijk[0]+orders[0])) { continue; }
+         ip.x = kv[0]->GetIp(kx, ijk[0]+orders[0]);
+
+         Trans.SetIntPoint(&ip);
+         vc.Eval(x, Trans, ip);
+
+         Trans.Jacobian().MultTranspose(x,xm);
+         dofs(o) = xm(0);
+      }
+   }
+
+   for (j = 0; j <= orders[1]; j++)
+   {
+      real_t ky = kv[1]->GetDemko(ijk[1] + j);
+      if (!kv[1]->inSpan(ky, ijk[1]+orders[1]))
+      {
+         o += orders[0] + 2;
+         continue;
+      }
+      ip.y = kv[1]->GetIp(ky, ijk[1]+orders[1]);
+      for (i = 0; i <= orders[0]+1; i++, o++)
+      {
+         real_t kx = kv1[0]->GetDemko(ijk[0] + i);
+         if (!kv1[0]->inSpan(kx, ijk[0]+orders[0]+1)) { continue; }
+         ip.x = kv1[0]->GetIp(kx, ijk[0]+orders[0]+1);
+
+         Trans.SetIntPoint(&ip);
+         vc.Eval(x, Trans, ip);
+
+         Trans.Jacobian().MultTranspose(x,xm);
+         dofs(o) = xm(1);
+      }
+   }
+}
+
 NURBS_HCurl2DFiniteElement::~NURBS_HCurl2DFiniteElement()
 {
    if (kv1[0]) { delete kv1[0]; }
    if (kv1[1]) { delete kv1[1]; }
 }
-
 
 void NURBS_HCurl3DFiniteElement::SetOrder() const
 {
@@ -927,6 +1603,7 @@ void NURBS_HCurl3DFiniteElement::CalcVShape(const IntegrationPoint &ip,
 void NURBS_HCurl3DFiniteElement::CalcVShape(ElementTransformation &Trans,
                                             DenseMatrix &shape) const
 {
+
    CalcVShape(Trans.GetIntPoint(), shape);
    const DenseMatrix & JI = Trans.InverseJacobian();
    MFEM_ASSERT(JI.Width() == 3 && JI.Height() == 3,
@@ -941,6 +1618,8 @@ void NURBS_HCurl3DFiniteElement::CalcVShape(ElementTransformation &Trans,
       shape(i, 1) = sx * JI(0, 1) + sy * JI(1, 1) + sz * JI(2, 1);
       shape(i, 2) = sx * JI(0, 2) + sy * JI(1, 2) + sz * JI(2, 2);
    }
+
+   //Delete above --> CalcVShape_ND(Trans, shape);
 }
 
 void NURBS_HCurl3DFiniteElement::CalcCurlShape(const IntegrationPoint &ip,
@@ -1003,11 +1682,218 @@ void NURBS_HCurl3DFiniteElement::CalcCurlShape(const IntegrationPoint &ip,
             curl_shape(o,0) = shape1_x(i)*dsy1_sz;
             curl_shape(o,1) = -dshape1_x(i)*sy1_sz;
             curl_shape(o,2) = 0.0;
+
          }
       }
    }
 }
 
+
+
+void NURBS_HCurl3DFiniteElement::CalcDVShape(const IntegrationPoint &ip,
+                                             DenseTensor &dvshape) const
+{
+   dvshape = 0.0;
+
+   kv[0]->CalcShape ( shape_x, ijk[0], ip.x);
+   kv[1]->CalcShape ( shape_y, ijk[1], ip.y);
+   kv[2]->CalcShape ( shape_z, ijk[2], ip.z);
+
+   kv1[0]->CalcShape(shape1_x, ijk[0], ip.x);
+   kv1[1]->CalcShape(shape1_y, ijk[1], ip.y);
+   kv1[2]->CalcShape(shape1_z, ijk[2], ip.z);
+
+   kv[0]->CalcDShape(dshape_x, ijk[0], ip.x);
+   kv[1]->CalcDShape(dshape_y, ijk[1], ip.y);
+   kv[2]->CalcDShape(dshape_z, ijk[2], ip.z);
+
+   kv1[0]->CalcDShape(dshape1_x, ijk[0], ip.x);
+   kv1[1]->CalcDShape(dshape1_y, ijk[1], ip.y);
+   kv1[2]->CalcDShape(dshape1_z, ijk[2], ip.z);
+
+   int o = 0;
+   for (int  k = 0; k <= orders[2]+1; k++)
+   {
+      const real_t sz1 = shape1_z(k);
+      const real_t dsz1 = dshape1_z(k);
+      for (int j = 0; j <= orders[1]+1; j++)
+      {
+         const real_t sy1_sz1 = shape1_y(j)*sz1;
+         const real_t dsy1_sz1 = dshape1_y(j)*sz1;
+         const real_t sy1_dsz1 = shape1_y(j)*dsz1;
+         for (int i = 0; i <= orders[0]; i++, o++)
+         {
+            dvshape(o,0,0) = dshape_x(i)*sy1_sz1;
+            dvshape(o,0,1) = shape_x(i)*dsy1_sz1;
+            dvshape(o,0,2) = shape_x(i)*sy1_dsz1;
+         }
+      }
+   }
+
+
+   for (int  k = 0; k <= orders[2]+1; k++)
+   {
+      const real_t sz1 = shape1_z(k);
+      const real_t dsz1 = dshape1_z(k);
+      for (int j = 0; j <= orders[1]; j++)
+      {
+         const real_t sy_sz1 = shape_y(j)*sz1;
+         const real_t dsy_sz1 = dshape_y(j)*sz1;
+         const real_t sy_dsz1 = shape_y(j)*dsz1;
+         for (int i = 0; i <= orders[0]+1; i++, o++)
+         {
+            dvshape(o,1,0) = dshape1_x(i)*sy_sz1;
+            dvshape(o,1,1) = shape1_x(i)*dsy_sz1;
+            dvshape(o,1,2) = shape1_x(i)*sy_dsz1;
+         }
+      }
+   }
+
+   for (int  k = 0; k <= orders[2]; k++)
+   {
+      const real_t sz = shape_z(k);
+      const real_t dsz = dshape_z(k);
+      for (int j = 0; j <= orders[1]+1; j++)
+      {
+         const real_t sy1_sz = shape1_y(j)*sz;
+         const real_t dsy1_sz = dshape1_y(j)*sz;
+         const real_t sy1_dsz = shape1_y(j)*dsz;
+         for (int i = 0; i <= orders[0]+1; i++, o++)
+         {
+            dvshape(o,2,0) = dshape1_x(i)*sy1_sz;
+            dvshape(o,2,1) = shape1_x(i)*dsy1_sz;
+            dvshape(o,2,2) = shape1_x(i)*sy1_dsz;
+         }
+      }
+   }
+
+
+}
+
+void NURBS_HCurl3DFiniteElement::CalcPhysDVShape(ElementTransformation &Trans,
+                                                 DenseTensor &dvsthape) const
+{
+   /*   MFEM_ASSERT(map_type == VALUE, "");
+   #ifdef MFEM_THREAD_SAFE
+      DenseTensor tshape(dof, dim, dim);
+   #endif
+      CalcDVShape(Trans.GetIntPoint(), tshape);
+      Mult(tshape, Trans.InverseJacobian(), dvshape);
+   }*/
+
+   MFEM_ABORT("method is not implemented for this class");
+}
+
+void NURBS_HCurl3DFiniteElement::Project(VectorCoefficient &vc,
+                                         ElementTransformation &Trans,
+                                         Vector &dofs) const
+{
+   MFEM_ASSERT(dofs.Size() == dof, "");
+   MFEM_ASSERT(vc.GetVDim() == 3, "");
+   Vector x(3), xm(3);
+   IntegrationPoint ip;
+
+   int o = 0;
+   for (int k = 0; k <= orders[2]+1; k++)
+   {
+      real_t kz = kv1[2]->GetDemko(ijk[2] + k);
+      if (!kv1[2]->inSpan(kz, ijk[2]+orders[2]+1))
+      {
+         o += (orders[0] + 1)*(orders[1] + 2);
+         continue;
+      }
+      ip.z = kv1[2]->GetIp(kz, ijk[2]+orders[2]+1);
+      for (int j = 0; j <= orders[1]+1; j++)
+      {
+         real_t ky = kv1[1]->GetDemko(ijk[1] + j);
+         if (!kv1[1]->inSpan(ky, ijk[1]+orders[1]+1))
+         {
+            o += orders[0] + 1;
+            continue;
+         }
+         ip.y = kv1[1]->GetIp(ky, ijk[1]+orders[1]+1);
+         for (int i = 0; i <= orders[0]; i++, o++)
+         {
+            real_t kx = kv[0]->GetDemko(ijk[0] + i);
+            if (!kv[0]->inSpan(kx, ijk[0]+orders[0])) { continue; }
+            ip.x = kv[0]->GetIp(kx, ijk[0]+orders[0]);
+
+            Trans.SetIntPoint(&ip);
+            vc.Eval(x, Trans, ip);
+
+            Trans.Jacobian().MultTranspose(x,xm);
+            dofs(o) = xm(0);
+         }
+      }
+   }
+
+   for (int k = 0; k <= orders[2]+1; k++)
+   {
+      real_t kz = kv1[2]->GetDemko(ijk[2] + k);
+      if (!kv1[2]->inSpan(kz, ijk[2]+orders[2]+1))
+      {
+         o += (orders[0] + 2)*(orders[1] + 1);
+         continue;
+      }
+      ip.z = kv1[2]->GetIp(kz, ijk[2]+orders[2]+1);
+      for (int j = 0; j <= orders[1]; j++)
+      {
+         real_t ky = kv[1]->GetDemko(ijk[1] + j);
+         if (!kv[1]->inSpan(ky, ijk[1]+orders[1]))
+         {
+            o += orders[0] + 2;
+            continue;
+         }
+         ip.y = kv[1]->GetIp(ky, ijk[1]+orders[1]);
+         for (int i = 0; i <= orders[0]+1; i++, o++)
+         {
+            real_t kx = kv1[0]->GetDemko(ijk[0] + i);
+            if (!kv1[0]->inSpan(kx, ijk[0]+orders[0]+1)) { continue; }
+            ip.x = kv1[0]->GetIp(kx, ijk[0]+orders[0]+1);
+
+            Trans.SetIntPoint(&ip);
+            vc.Eval(x, Trans, ip);
+
+            Trans.Jacobian().MultTranspose(x,xm);
+            dofs(o) = xm(1);
+         }
+      }
+   }
+
+   for (int k = 0; k <= orders[2]; k++)
+   {
+      real_t kz = kv[2]->GetDemko(ijk[2] + k);
+      if (!kv[2]->inSpan(kz, ijk[2]+orders[2]))
+      {
+         o += (orders[0] + 2)*(orders[1] + 2);
+         continue;
+      }
+      ip.z = kv[2]->GetIp(kz, ijk[2]+orders[2]);
+      for (int j = 0; j <= orders[1]+1; j++)
+      {
+         real_t ky = kv1[1]->GetDemko(ijk[1] + j);
+         if (!kv1[1]->inSpan(ky, ijk[1]+orders[1]+1))
+         {
+            o += orders[0] + 2;
+            continue;
+         }
+         ip.y = kv1[1]->GetIp(ky, ijk[1]+orders[1]+1);
+         for (int i = 0; i <= orders[0]+1; i++, o++)
+         {
+            real_t kx = kv1[0]->GetDemko(ijk[0] + i);
+            if (!kv1[0]->inSpan(kx, ijk[0]+orders[0]+1)) { continue; }
+            ip.x = kv1[0]->GetIp(kx, ijk[0]+orders[0]+1);
+
+            Trans.SetIntPoint(&ip);
+            vc.Eval(x, Trans, ip);
+
+            Trans.Jacobian().MultTranspose(x,xm);
+            dofs(o) = xm(2);
+         }
+      }
+   }
+
+}
 NURBS_HCurl3DFiniteElement::~NURBS_HCurl3DFiniteElement()
 {
    if (kv1[0]) { delete kv1[0]; }
