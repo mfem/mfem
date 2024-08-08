@@ -110,8 +110,6 @@ TEST_CASE("Build Dof To Arrays",
             FiniteElementSpace fespace(mesh, fec);
             int size = fespace.GetTrueVSize();
 
-            fespace.BuildDofToArrays();
-
             for (int i = 0; i<size; i++)
             {
                int e = fespace.GetElementForDof(i);
@@ -211,8 +209,6 @@ TEST_CASE("Build Dof To Arrays (Parallel)",
             }
             ParFiniteElementSpace fespace(&pmesh, fec);
             HYPRE_Int size = fespace.GetTrueVSize();
-
-            fespace.BuildDofToArrays();
 
             for (int i = 0; i<size; i++)
             {
