@@ -14,7 +14,7 @@
 namespace mfem
 {
 
-BatchedDirectSolver::BatchedDirectSolver(DenseTensor &A_, Mode mode_,
+BatchedDirectSolver::BatchedDirectSolver(const DenseTensor &A_, Mode mode_,
                                          BatchedLinAlg::Backend backend_)
    : A(A_), mode(mode_), backend(backend_)
 {
