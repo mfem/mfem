@@ -50,7 +50,7 @@ public:
                           BatchedLinAlg::GetPreferredBackend());
    /// Sets $y = A^{-1} x$.
    void Mult(const Vector &x, Vector &y) const;
-   /// Not implemented.
+   /// Not supported (aborts).
    void SetOperator(const Operator &op);
 };
 

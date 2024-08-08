@@ -44,7 +44,7 @@ void BatchedDirectSolver::Mult(const Vector &x, Vector &y) const
 
 void BatchedDirectSolver::SetOperator(const Operator &op)
 {
-   MFEM_ABORT("Not implemented.");
+   MFEM_ABORT("Not supported.");
 }
 
 } // namespace mfem
