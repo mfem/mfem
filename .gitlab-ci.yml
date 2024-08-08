@@ -89,19 +89,6 @@ stages:
     forward:
       pipeline_variables: true
 
-
-ruby-baseline:
-  stage: baseline
-  variables:
-    # Explicitly pass down values that we want to be able to set when triggering
-    # pipelines manually or using scheduling
-    REBASELINE: "${REBASELINE}"
-    AUTOTEST: "${AUTOTEST}"
-    AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
-  trigger:
-    include: .gitlab/ruby-baseline.yml
-    strategy: depend
-
 ###############################################################################
 include:
   # Sets ID tokens for every job using `default:`

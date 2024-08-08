@@ -89,6 +89,19 @@ ruby-build-and-test:
   needs: [ruby-up-check, generate-job-lists]
   extends: [.build-and-test]
 
+# MFEM Specific
+ruby-baseline:
+  stage: baseline
+  variables:
+    # Explicitly pass down values that we want to be able to set when triggering
+    # pipelines manually or using scheduling
+    REBASELINE: "${REBASELINE}"
+    AUTOTEST: "${AUTOTEST}"
+    AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
+  trigger:
+    include: .gitlab/ruby-baseline.yml
+    strategy: depend
+  needs: [ruby-up-check]
 
 ## POODLE
 #poodle-up-check:
