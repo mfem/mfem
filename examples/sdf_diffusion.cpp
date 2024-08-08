@@ -46,7 +46,9 @@ int main(int argc, char *argv[])
    // const char *mesh_file = "../data/star.mesh";
 
    // unit square, vertices (0, 0), (0, 1), (1, 1), (1, 0)
-   const char *mesh_file = "../data/square-nurbs.mesh"; 
+   // const char *mesh_file = "../data/square-nurbs.mesh"; 
+
+   const char *mesh_file = "../data/periodic-square.mesh"; 
 
    int order = 1;
    int max_it = 5;
@@ -109,12 +111,15 @@ int main(int argc, char *argv[])
    mesh.SetCurvature(curvature_order);
 
 	// rescale domain to square with vertices 
+   // (this is for ordinary square mesh)
 	// (-2, -2), (-2, 2), (2, 2), (2, -2)
 	GridFunction *nodes = mesh.GetNodes();
-   real_t scale = 4.;
-	*nodes *= scale; 
-	real_t shift = 2.; 
-	*nodes -= shift; 
+   // real_t scale = 4.;
+	// *nodes *= scale; 
+	// real_t shift = 2.; 
+	// *nodes -= shift; 
+   *nodes *= 2.; 
+
 
    // 4. Define the necessary finite element spaces on the mesh.
    L2_FECollection L2fec(order, dim);
@@ -289,7 +294,6 @@ int main(int argc, char *argv[])
          prec.owns_blocks = 1;
 
          GMRES(A,prec,rhs,x,0,2000,500,1e-12,0.0);
-         // delete S; 
 #else
          BlockMatrix A(offsets);
          A.SetBlock(0,0,&A00);
