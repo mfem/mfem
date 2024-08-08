@@ -169,6 +169,7 @@ void FindPointsGSLIB::Setup(Mesh &m, const double bb_t, const double newt_tol,
    crystal_init(cr, gsl_comm);
    mesh = &m;
    dim  = mesh->Dimension();
+   spacedim = mesh->SpaceDimension();
    unsigned dof1D = meshOrder + 1;
 
    setupSW.Clear();

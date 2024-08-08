@@ -215,6 +215,9 @@ int main (int argc, char *argv[])
       }
    }
 
+   Vector xmin, xmax;
+   mesh->GetBoundingBox(xmin, xmax);
+
    if (myid == 0)
    {
       cout << "Mesh curvature of the original mesh: ";
@@ -392,6 +395,22 @@ int main (int argc, char *argv[])
    vxyz.UseDevice(!cpu_mode);
    vxyz.SetSize(pts_cnt * dim);
    vxyz.Randomize(myid+1);
+
+   // Scale based on min/max dimensions
+   for (int i = 0; i < pts_cnt; i++)
+   {
+      for (int d = 0; d < dim; d++)
+      {
+         if (point_ordering == Ordering::byNODES)
+         {
+            vxyz(i + d*pts_cnt) = pos_min(d) + vxyz(i + d*pts_cnt)*(pos_max(d) - pos_min(d));
+         }
+         else
+         {
+            vxyz(i*dim + d) = pos_min(d) + vxyz(i*dim + d)*(pos_max(d) - pos_min(d));
+         }
+      }
+   }
 
    if ( (myid != 0) && (search_on_rank_0) )
    {
