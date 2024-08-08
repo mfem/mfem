@@ -10,6 +10,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include <algorithm>
 
 using namespace std;
 using namespace mfem;
@@ -38,6 +39,46 @@ public:
       : MatrixCoefficient(height, true),  psi(&psi_), alpha(alpha_) { }
 
    virtual void Eval(DenseMatrix &K, ElementTransformation &T, const IntegrationPoint &ip);
+};
+
+// class MaxFC : public FunctionCoefficient 
+// {
+// protected: 
+//    GridFunction *u; 
+
+// public: 
+//    MaxFC(GridFunction &u, real_t c) : GridFunctionCoefficient(u), u(&u), c(c) { } // ?? what constructor works here? 
+
+//    virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip); 
+
+// private: 
+//    mutable real_t c;  
+// };
+
+/// @brief Returns f(u(x)) where u is a scalar GridFunction and f:R → R
+class MappedGridFunctionCoefficient : public GridFunctionCoefficient
+{
+protected:
+   std::function<real_t(const real_t)> fun; // f:R → R
+public:
+   MappedGridFunctionCoefficient()
+      :GridFunctionCoefficient(),
+       fun([](real_t x) {return x;}) {}
+   MappedGridFunctionCoefficient(const GridFunction *gf,
+                                 std::function<real_t(const real_t)> fun_,
+                                 int comp=1)
+      :GridFunctionCoefficient(gf, comp),
+       fun(fun_) {}
+
+   virtual real_t Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip)
+   {
+      return fun(GridFunctionCoefficient::Eval(T, ip) + c);
+   }
+   void SetFunction(std::function<real_t(const real_t)> fun_) { fun = fun_; }
+   void SetConstant(real_t new_c) { c = new_c; }
+private: 
+   mutable real_t c; 
 };
 
 int main(int argc, char *argv[])
@@ -246,13 +287,15 @@ int main(int argc, char *argv[])
 
    b1.AddDomainIntegrator(new DomainLFGradIntegrator(psi_old_minus_psi));
 
+	GridFunctionCoefficient u_old_cf(&u_old_gf);
    GradientGridFunctionCoefficient grad_u_old(&u_old_gf); 
    ScalarVectorProductCoefficient eta_grad_u_old(eta_gf, grad_u_old); 
    ScalarVectorProductCoefficient neg_eta_grad_u_old(-1.0 * 1 / alpha, eta_grad_u_old); 
    b1.AddDomainIntegrator(new DomainLFGradIntegrator(neg_eta_grad_u_old));
 
-	GridFunctionCoefficient u_old_cf(&u_old_gf);
-	ProductCoefficient neg_u_old_cf(neg_one, u_old_cf);
+	// ProductCoefficient neg_u_old_cf(neg_one, u_old_cf);
+	// b1.AddDomainIntegrator(new DomainLFIntegrator(neg_u_old_cf)); 
+
 
    BilinearForm a00(&L2fes);
    
@@ -310,6 +353,8 @@ int main(int argc, char *argv[])
          ConstantCoefficient neg_one_alpha_recip(-1.0 * 1.0 / alpha); 
          ProductCoefficient neg_eta_gf(neg_one_alpha_recip, eta_gf); 
          a11.AddDomainIntegrator(new DiffusionIntegrator(neg_eta_gf)); 
+
+         // a11.AddDomainIntegrator(new MassIntegrator(neg_one));
 
          a11.Assemble(false);  // false
          a11.Finalize();
@@ -401,6 +446,103 @@ int main(int argc, char *argv[])
 
    delete A10;
 
+   // defines true sdf for square and unit circle case
+   auto true_sdf = [](const Vector &x)
+      {
+         auto x0 = x(0), x1 = x(1); 
+         
+         return sqrt(x0*x0 + x1*x1)-1.;
+      }; 
+   
+   FunctionCoefficient sdf_fc(true_sdf); 
+   real_t error = u_gf.ComputeMaxError(sdf_fc);
+   // u_gf.ComputeLpError(mfem::infinity, sdf_fc);
+   
+   mfem::out << "\nMax Error from true SDF = " << error << endl;
+
+   auto varphi_is = [](const Vector &x) 
+   {
+      auto x0=x(0), x1=x(1); 
+
+      return x0*x0+x1*x1-1.; 
+   };
+
+   // solve for c satisfying
+   //  int_Omega max(0, - (u + c)) = int_Omega max(0, - varphi) = pi
+
+   auto f = [](double x){return std::max(0., -x); }; 
+   MappedGridFunctionCoefficient curr_coeff(&u_gf, f); 
+   // MappedGridFunctionCoefficient curr_coeff_a(&u_gf, f); 
+   
+   // real_t c_temp(0.639187);
+   // endpoints for bisection method to search
+   real_t endpoint_a = -1., endpoint_b = 1.;  
+
+   real_t midpoint_c; 
+
+   real_t bisection_tol = 1e-6; 
+   const int N_MAX = 100; 
+   
+   int n_iter = 0; 
+
+   real_t pi = 3.1415926535;
+
+   while (n_iter <= N_MAX) { 
+      midpoint_c = (endpoint_a + endpoint_b) / 2; 
+
+      curr_coeff.SetConstant(midpoint_c); 
+
+      LinearForm coeff_opt_c(&H1fes); 
+      coeff_opt_c.AddDomainIntegrator(new DomainLFIntegrator(curr_coeff)); 
+      coeff_opt_c.Assemble();
+
+      real_t soln_c = coeff_opt_c.Sum() - pi; 
+
+      if (soln_c == 0.) {
+         break; 
+      }
+
+      // decide the next direction of search, need to recompute
+      curr_coeff.SetConstant(endpoint_a); 
+      LinearForm coeff_opt_a(&H1fes); 
+      coeff_opt_a.AddDomainIntegrator(new DomainLFIntegrator(curr_coeff)); 
+      coeff_opt_a.Assemble();
+
+      real_t soln_a = coeff_opt_a.Sum() - pi; 
+
+      if (soln_c * soln_a < 0) {
+         endpoint_b = midpoint_c;
+      }
+      else { 
+         endpoint_a = midpoint_c;
+      }
+
+      mfem::out << "\ncurrent midpoint  = " << midpoint_c << endl;
+
+      n_iter++; 
+   }
+
+   mfem::out << "\n concluded bisection method with c = " << midpoint_c << endl;
+
+   // how to properly evaluate u_bar + c_opt and compute error?
+   ConstantCoefficient c_opt(-1.0*midpoint_c); 
+   GridFunctionCoefficient u_coeff(&u_gf);
+   SumCoefficient u_fin(c_opt, u_coeff); 
+   
+   // GridFunction u_fin_gf(u_fin.Project()); 
+
+   SumCoefficient sdf_fc_minus_c_opt(sdf_fc, c_opt); 
+   real_t error_final = u_gf.ComputeMaxError(sdf_fc_minus_c_opt);
+   
+
+   mfem::out << "\nMax Error from true SDF initial = " << error << endl;
+
+   mfem::out << "\nMax Error from true SDF final = " << error_final << endl;
+
+   // mfem::out << coeff_opt.Sum() << endl;    
+
+   // coeff_opt.Print(mfem::out); 
+
    return 0;
 }
 
@@ -440,3 +582,5 @@ void DZCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
       }
    }
 }
+
+// void MaxFC::Eval(real_t &val, ElementTransformation&T, const IntegrationPoint &ip, )
