@@ -1174,7 +1174,7 @@ public:
    const Table &GetFaceToDofTable() const
    { if (!face_dof) { BuildFaceToDofTable(); } return *face_dof; }
 
-   /** @brief Deprecated. See @a BuildDofToArrays_. */
+   /// Deprecated. This function is not required to be called by the user.
    MFEM_DEPRECATED void BuildDofToArrays() const { BuildDofToArrays_();};
 
    /// Return the index of the first element that contains ldof index @a i.
