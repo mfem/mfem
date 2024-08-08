@@ -45,7 +45,7 @@ public:
    ///
    /// A deep copy is made of the input @a A_, and so it does not need to be
    /// retained by the caller.
-   BatchedDirectSolver(DenseTensor &A_, Mode mode_,
+   BatchedDirectSolver(const DenseTensor &A_, Mode mode_,
                        BatchedLinAlg::Backend backend_ =
                           BatchedLinAlg::GetPreferredBackend());
    /// Sets $y = A^{-1} x$.
