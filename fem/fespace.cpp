@@ -478,7 +478,7 @@ void FiniteElementSpace::ReorderElementToDofTable()
    }
 }
 
-void FiniteElementSpace::BuildDofToArrays() const
+void FiniteElementSpace::BuildDofToArrays_() const
 {
    if (dof_elem_array.Size()) { return; }
 

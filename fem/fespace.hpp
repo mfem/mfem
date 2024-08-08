@@ -342,6 +342,14 @@ protected:
    void BuildBdrElementToDofTable() const;
    void BuildFaceToDofTable() const;
 
+   /** @brief Initialize internal data that enables the use of the methods
+    GetElementForDof() and GetLocalDofForDof(). */
+   void BuildDofToArrays_() const;
+
+   /** @brief Initialize internal data that enables the use of the methods
+      GetBdrElementForDof() and GetBdrLocalDofForDof(). */
+   void BuildDofToBdrArrays() const;
+
    /** @brief  Generates partial face_dof table for a NURBS space.
 
        The table is only defined for exterior faces that coincide with a
@@ -1166,19 +1174,14 @@ public:
    const Table &GetFaceToDofTable() const
    { if (!face_dof) { BuildFaceToDofTable(); } return *face_dof; }
 
-   /** @brief Initialize internal data that enables the use of the methods
-       GetElementForDof() and GetLocalDofForDof(). */
-   void BuildDofToArrays() const;
+   /** @brief Deprecated. See @a BuildDofToArrays_. */
+   MFEM_DEPRECATED void BuildDofToArrays() const { BuildDofToArrays_();};
 
    /// Return the index of the first element that contains ldof index @a i.
-   int GetElementForDof(int i) const { BuildDofToArrays(); return dof_elem_array[i]; }
+   int GetElementForDof(int i) const { BuildDofToArrays_(); return dof_elem_array[i]; }
 
    /// Return the dof index within the element from GetElementForDof() for ldof index @a i.
-   int GetLocalDofForDof(int i) const { BuildDofToArrays(); return dof_ldof_array[i]; }
-
-   /** @brief Initialize internal data that enables the use of the methods
-      GetBdrElementForDof() and GetBdrLocalDofForDof(). */
-   void BuildDofToBdrArrays() const;
+   int GetLocalDofForDof(int i) const { BuildDofToArrays_(); return dof_ldof_array[i]; }
 
    /// Return the index of the first boundary element that contains ldof index @a i.
    int GetBdrElementForDof(int i) const { BuildDofToBdrArrays(); return dof_bdr_elem_array[i]; }
