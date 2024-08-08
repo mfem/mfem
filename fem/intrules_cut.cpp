@@ -220,8 +220,8 @@ void MomentFittingIntRules::ComputeSurfaceWeights1D(ElementTransformation& Tr)
    {
       IntegrationPoint ip2;
       ip2.x = .5;
-      while (LvlSet->Eval(Tr, ip2) > 1e-12
-             || LvlSet->Eval(Tr, ip2) < -1e-12)
+      while (LvlSet->Eval(Tr, ip2) > tol_1
+             || LvlSet->Eval(Tr, ip2) < -tol_1)
       {
          if (LvlSet->Eval(Tr, ip0) * LvlSet->Eval(Tr, ip2) < 0.)
          {
@@ -237,12 +237,12 @@ void MomentFittingIntRules::ComputeSurfaceWeights1D(ElementTransformation& Tr)
       intp.x = ip2.x;
       intp.weight = 1. / Tr.Weight();
    }
-   else if (LvlSet->Eval(Tr, ip0) > 0. && LvlSet->Eval(Tr, ip1) <= 1e-12)
+   else if (LvlSet->Eval(Tr, ip0) > 0. && LvlSet->Eval(Tr, ip1) <= tol_1)
    {
       intp.x = 1.;
       intp.weight = 1. / Tr.Weight();
    }
-   else if (LvlSet->Eval(Tr, ip1) > 0. && LvlSet->Eval(Tr, ip0) <= 1e-12)
+   else if (LvlSet->Eval(Tr, ip1) > 0. && LvlSet->Eval(Tr, ip0) <= tol_1)
    {
       intp.x = 0.;
       intp.weight = 1. / Tr.Weight();
@@ -290,8 +290,8 @@ void MomentFittingIntRules::ComputeVolumeWeights1D(ElementTransformation& Tr,
          }
       }
    }
-   else if (LvlSet->Eval(Tr, ip0) <= -1e-12
-            || LvlSet->Eval(Tr, ip1) <= -1e-12)
+   else if (LvlSet->Eval(Tr, ip0) <= -tol_1
+            || LvlSet->Eval(Tr, ip1) <= -tol_1)
    {
       for (int ip = 0; ip < ir.GetNPoints(); ip++)
       {
@@ -356,24 +356,24 @@ void MomentFittingIntRules::ComputeSurfaceWeights2D(ElementTransformation& Tr)
       IntegrationPoint ipB;
       Trafo.TransformBack(pointB, ipB);
 
-      if (LvlSet->Eval(Trafo, ipA) < -1e-12
-          || LvlSet->Eval(Trafo, ipB) < -1e-12)
+      if (LvlSet->Eval(Trafo, ipA) < -tol_1
+          || LvlSet->Eval(Trafo, ipB) < -tol_1)
       {
          interior = false;
       }
 
-      if (LvlSet->Eval(Trafo, ipA) > -1e-12
-          && LvlSet->Eval(Trafo, ipB) > -1e-12)
+      if (LvlSet->Eval(Trafo, ipA) > -tol_1
+          && LvlSet->Eval(Trafo, ipB) > -tol_1)
       {
          layout = Layout::inside;
       }
-      else if (LvlSet->Eval(Trafo, ipA) > 1e-15
+      else if (LvlSet->Eval(Trafo, ipA) > tol_2
                && LvlSet->Eval(Trafo, ipB) <= 0.)
       {
          layout = Layout::intersected;
       }
       else if (LvlSet->Eval(Trafo, ipA) <= 0.
-               && LvlSet->Eval(Trafo, ipB) > 1e-15)
+               && LvlSet->Eval(Trafo, ipB) > tol_2)
       {
          layout = Layout::intersected;
          Vector temp(pointA.Size());
@@ -399,10 +399,10 @@ void MomentFittingIntRules::ComputeSurfaceWeights2D(ElementTransformation& Tr)
          IntegrationPoint ip;
          Trafo.TransformBack(mid, ip);
 
-         while (LvlSet->Eval(Trafo, ip) > 1e-12
-                || LvlSet->Eval(Trafo, ip) < -1e-12)
+         while (LvlSet->Eval(Trafo, ip) > tol_1
+                || LvlSet->Eval(Trafo, ip) < -tol_1)
          {
-            if (LvlSet->Eval(Trafo, ip) > 1e-12)
+            if (LvlSet->Eval(Trafo, ip) > tol_1)
             {
                pointC = mid;
             }
@@ -539,7 +539,7 @@ void MomentFittingIntRules::ComputeSurfaceWeights2D(ElementTransformation& Tr)
       temp2 = 0.;
       for (int i = 0; i < nBasis; i++)
       {
-         if (SVD.Singularvalue(i) > 1e-12)
+         if (SVD.Singularvalue(i) > tol_1)
          {
             temp2(i) = temp(i) / SVD.Singularvalue(i);
          }
@@ -606,24 +606,24 @@ void MomentFittingIntRules::ComputeVolumeWeights2D(ElementTransformation& Tr,
       IntegrationPoint ipB;
       Trafo.TransformBack(pointB, ipB);
 
-      if (LvlSet->Eval(Trafo, ipA) < -1e-12
-          || LvlSet->Eval(Trafo, ipB) < -1e-12)
+      if (LvlSet->Eval(Trafo, ipA) < -tol_1
+          || LvlSet->Eval(Trafo, ipB) < -tol_1)
       {
          interior = false;
       }
 
-      if (LvlSet->Eval(Trafo, ipA) > -1e-12
-          && LvlSet->Eval(Trafo, ipB) > -1e-12)
+      if (LvlSet->Eval(Trafo, ipA) > -tol_1
+          && LvlSet->Eval(Trafo, ipB) > -tol_1)
       {
          layout = Layout::inside;
       }
-      else if (LvlSet->Eval(Trafo, ipA) > 1e-15
+      else if (LvlSet->Eval(Trafo, ipA) > tol_2
                && LvlSet->Eval(Trafo, ipB) <= 0.)
       {
          layout = Layout::intersected;
       }
       else if (LvlSet->Eval(Trafo, ipA) <= 0.
-               && LvlSet->Eval(Trafo, ipB) > 1e-15)
+               && LvlSet->Eval(Trafo, ipB) > tol_2)
       {
          layout = Layout::intersected;
          Vector temp(pointA.Size());
@@ -648,10 +648,10 @@ void MomentFittingIntRules::ComputeVolumeWeights2D(ElementTransformation& Tr,
          IntegrationPoint ip;
          Trafo.TransformBack(mid, ip);
 
-         while (LvlSet->Eval(Trafo, ip) > 1e-12
-                || LvlSet->Eval(Trafo, ip) < -1e-12)
+         while (LvlSet->Eval(Trafo, ip) > tol_1
+                || LvlSet->Eval(Trafo, ip) < -tol_1)
          {
-            if (LvlSet->Eval(Trafo, ip) > 1e-12)
+            if (LvlSet->Eval(Trafo, ip) > tol_1)
             {
                pointC = mid;
             }
@@ -786,7 +786,7 @@ void MomentFittingIntRules::ComputeVolumeWeights2D(ElementTransformation& Tr,
       VolumeSVD->LeftSingularvectors().MultTranspose(RHS, temp);
       for (int i = 0; i < nBasisVolume; i++)
       {
-         if (VolumeSVD->Singularvalue(i) > 1e-12)
+         if (VolumeSVD->Singularvalue(i) > tol_1)
          {
             temp2(i) = temp(i) / VolumeSVD->Singularvalue(i);
          }
@@ -865,18 +865,18 @@ void MomentFittingIntRules::ComputeSurfaceWeights3D(ElementTransformation& Tr)
       IntegrationPoint ipD;
       Trafo.TransformBack(pointD, ipD);
 
-      if (LvlSet->Eval(Trafo, ipA) < -1e-12
-          || LvlSet->Eval(Trafo, ipB) < -1e-12
-          || LvlSet->Eval(Trafo, ipC) < -1e-12
-          || LvlSet->Eval(Trafo, ipD) < -1e-12)
+      if (LvlSet->Eval(Trafo, ipA) < -tol_1
+          || LvlSet->Eval(Trafo, ipB) < -tol_1
+          || LvlSet->Eval(Trafo, ipC) < -tol_1
+          || LvlSet->Eval(Trafo, ipD) < -tol_1)
       {
          interior = false;
       }
 
-      if (LvlSet->Eval(Trafo, ipA) > -1e-12
-          || LvlSet->Eval(Trafo, ipB) > -1e-12
-          || LvlSet->Eval(Trafo, ipC) > -1e-12
-          || LvlSet->Eval(Trafo, ipD) > -1e-12)
+      if (LvlSet->Eval(Trafo, ipA) > -tol_1
+          || LvlSet->Eval(Trafo, ipB) > -tol_1
+          || LvlSet->Eval(Trafo, ipC) > -tol_1
+          || LvlSet->Eval(Trafo, ipD) > -tol_1)
       {
          element_int = true;
       }
@@ -978,7 +978,7 @@ void MomentFittingIntRules::ComputeSurfaceWeights3D(ElementTransformation& Tr)
       temp2 = 0.;
       for (int i = 0; i < nBasis; i++)
       {
-         if (SVD.Singularvalue(i) > 1e-12)
+         if (SVD.Singularvalue(i) > tol_1)
          {
             temp2(i) = temp(i) / SVD.Singularvalue(i);
          }
@@ -1047,18 +1047,18 @@ void MomentFittingIntRules::ComputeVolumeWeights3D(ElementTransformation& Tr,
       IntegrationPoint ipD;
       Trafo.TransformBack(pointD, ipD);
 
-      if (LvlSet->Eval(Trafo, ipA) < -1e-12
-          || LvlSet->Eval(Trafo, ipB) < -1e-12
-          || LvlSet->Eval(Trafo, ipC) < -1e-12
-          || LvlSet->Eval(Trafo, ipD) < -1e-12)
+      if (LvlSet->Eval(Trafo, ipA) < -tol_1
+          || LvlSet->Eval(Trafo, ipB) < -tol_1
+          || LvlSet->Eval(Trafo, ipC) < -tol_1
+          || LvlSet->Eval(Trafo, ipD) < -tol_1)
       {
          interior = false;
       }
 
-      if (LvlSet->Eval(Trafo, ipA) > -1e-12
-          || LvlSet->Eval(Trafo, ipB) > -1e-12
-          || LvlSet->Eval(Trafo, ipC) > -1e-12
-          || LvlSet->Eval(Trafo, ipD) > -1e-12)
+      if (LvlSet->Eval(Trafo, ipA) > -tol_1
+          || LvlSet->Eval(Trafo, ipB) > -tol_1
+          || LvlSet->Eval(Trafo, ipC) > -tol_1
+          || LvlSet->Eval(Trafo, ipD) > -tol_1)
       {
          element_int = true;
       }
@@ -1159,7 +1159,7 @@ void MomentFittingIntRules::ComputeVolumeWeights3D(ElementTransformation& Tr,
       VolumeSVD->LeftSingularvectors().MultTranspose(RHS, temp);
       temp2 = 0.;
       for (int i = 0; i < nBasisVolume; i++)
-         if (VolumeSVD->Singularvalue(i) > 1e-12)
+         if (VolumeSVD->Singularvalue(i) > tol_1)
          {
             temp2(i) = temp(i) / VolumeSVD->Singularvalue(i);
          }
