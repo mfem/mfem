@@ -938,6 +938,7 @@ INPUT                  = @MFEM_SOURCE_DIR@/doc/CodeDocumentation.dox \
                          @MFEM_SOURCE_DIR@/config \
                          @MFEM_SOURCE_DIR@/general \
                          @MFEM_SOURCE_DIR@/linalg \
+                         @MFEM_SOURCE_DIR@/linalg/batched \
                          @MFEM_SOURCE_DIR@/linalg/simd \
                          @MFEM_SOURCE_DIR@/mesh \
                          @MFEM_SOURCE_DIR@/mesh/submesh \

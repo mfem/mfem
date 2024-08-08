@@ -394,6 +394,11 @@ MFEM_USE_AMGX = YES/NO
    Allows the user to use SparseMatrices and HypreParMatrices to solve linear
    systems with the routines from the AmgX library.
 
+MFEM_USE_MAGMA = YES/NO
+   Enable MFEM functionality based on the MAGMA high-performance linear algebra
+   library. The MAGMA library provides a BLAS/LAPACK interface, with
+   implementations that have been optimized for Nvidia and AMD GPUs.
+
 MFEM_USE_GNUTLS = YES/NO
    Enable secure socket support in class socketstream, using the auxiliary
    GnuTLS_* classes, based on the GnuTLS library. This option may be useful in
@@ -704,6 +709,11 @@ The specific libraries and their options are:
   URL: https://github.com/NVIDIA/AMGX
   Options: AMGX_OPT, AMGX_LIB.
   Versions: AmgX >= 2.1, older versions may work too.
+
+- MAGMA (optional), used with MFEM_USE_MAGMA = YES.
+  URL: https://icl.utk.edu/magma/
+  Options: MAGMA_OPT, MAGMA_LIB
+  Versions: MAGMA >= 2.8.0
 
 - GnuTLS (optional), used when MFEM_USE_GNUTLS = YES. On most Linux systems,
   GnuTLS is available as a development package, e.g. gnutls-devel. On Mac OS X,

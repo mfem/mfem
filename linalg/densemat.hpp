@@ -1271,7 +1271,8 @@ public:
    ~DenseTensor() { tdata.Delete(); }
 };
 
-/** @brief Compute the LU factorization of a batch of matrices
+/** @brief Compute the LU factorization of a batch of matrices. Calls
+    BatchedLinAlg::LUFactor.
 
     Factorize n matrices of size (m x m) stored in a dense tensor overwriting it
     with the LU factors. The factorization is such that L.U = Piv.A, where A is
@@ -1282,7 +1283,7 @@ public:
     @param [in] TOL optional fuzzy comparison tolerance. Defaults to 0.0. */
 void BatchLUFactor(DenseTensor &Mlu, Array<int> &P, const real_t TOL = 0.0);
 
-/** @brief Solve batch linear systems
+/** @brief Solve batch linear systems. Calls BatchedLinAlg::LUSolve.
 
     Assuming L.U = P.A for n factored matrices (m x m), compute x <- A x, for n
     companion vectors.
