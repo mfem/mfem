@@ -48,6 +48,8 @@ int main(int argc, char *argv[])
    // unit square, vertices (0, 0), (0, 1), (1, 1), (1, 0)
    // const char *mesh_file = "../data/square-nurbs.mesh"; 
 
+   // this square has vertices (-1, -1), (-1, 1), (1, -1), (1, 1)
+   // which changes the scaling lower in the file 
    const char *mesh_file = "../data/periodic-square.mesh"; 
 
    int order = 1;
@@ -114,15 +116,16 @@ int main(int argc, char *argv[])
    // (this is for ordinary square mesh)
 	// (-2, -2), (-2, 2), (2, 2), (2, -2)
 	GridFunction *nodes = mesh.GetNodes();
-   // real_t scale = 4.;
-	// *nodes *= scale; 
-	// real_t shift = 2.; 
-	// *nodes -= shift; 
+   // *nodes *= 4.; 
+   // *nodes -= 2.;
+
+   // this is the scaling if the periodic square domain is used, which 
+   // has different vertices (noted above when loading) 
    *nodes *= 2.; 
 
 
    // 4. Define the necessary finite element spaces on the mesh.
-   L2_FECollection L2fec(order, dim);
+   L2_FECollection L2fec(order-1, dim);
    FiniteElementSpace L2fes(&mesh, &L2fec, sdim);
 
    H1_FECollection H1fec(order, dim);
@@ -163,6 +166,8 @@ int main(int argc, char *argv[])
    GridFunction u_old_gf(&H1fes);
    u_old_gf = 0.0;
 
+   GridFunction grad_u_gf(&L2fes);  
+
    // 8. Define the function coefficients for the solution and use them to
    //    initialize the initial guess
    psi_gf = 0.0;
@@ -180,11 +185,13 @@ int main(int argc, char *argv[])
 
    char vishost[] = "localhost";
    int  visport   = 19916;
-   socketstream sol_sock;
+   socketstream sol_sock, gradu_sock;
    if (visualization)
    {
       sol_sock.open(vishost,visport);
       sol_sock.precision(8);
+      gradu_sock.open(vishost, visport); 
+      gradu_sock.precision(8); 
    }
 
    LinearForm b0,b1;
@@ -321,6 +328,11 @@ int main(int argc, char *argv[])
             sol_sock << "solution\n" << mesh << u_gf << "window_title 'Discrete solution'"
                      << flush;
             mfem::out << "Newton_update_size = " << Newton_update_size << endl;
+
+            GradientGridFunctionCoefficient grad_u(&u_gf);
+            grad_u_gf.ProjectDiscCoefficient(grad_u);
+            gradu_sock << "solution\n" << mesh << grad_u_gf << "window_title 'Gradient magnitude'"
+                     << flush;
          }
 
          if (Newton_update_size < increment_u)
