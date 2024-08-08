@@ -175,7 +175,7 @@ mkdir -p ${prefix}
 spack_cmd="${prefix}/spack/bin/spack"
 spack_env_path="${prefix}/spack_env"
 command -v python3 > /dev/null && python_cmd=python3 || python_cmd=python
-uberenv_cmd="${python_cmd} test/uberenv/uberenv.py"
+uberenv_cmd="${python_cmd} tests/uberenv/uberenv.py"
 if [[ ${spack_debug} == true ]]
 then
     spack_cmd="${spack_cmd} --debug --stacktrace"
