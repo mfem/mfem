@@ -225,9 +225,8 @@ int main (int argc, char *argv[])
          cout << mesh->GetNodes()->OwnFEC()->Name() << endl;
       }
       else {
-         cout << "(NONE)";
+         cout << "(NONE)" << endl;
       }
-      cout << endl;
 
       if (visit) {
          VisItDataCollection dc("inputmesh", mesh);
@@ -251,7 +250,7 @@ int main (int argc, char *argv[])
    Mesh *submesh = NULL;
    if (dim==vdim) {
       int nattr = mesh->bdr_attributes.Max();
-      mesh->bdr_attributes.Print();
+      // mesh->bdr_attributes.Print();
       Array<int> subdomain_attributes(nattr);
       for (int i=0; i<nattr; i++) {
          subdomain_attributes[i] = i+1;
@@ -381,6 +380,7 @@ int main (int argc, char *argv[])
          }
       }
    }
+
    finder.FindPointsSurf(point_pos);
 
    MPI_Barrier(MPI_COMM_WORLD);
