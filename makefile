@@ -10,7 +10,7 @@
 # CONTRIBUTING.md for details.
 
 # The current MFEM version as an integer, see also `CMakeLists.txt`.
-MFEM_VERSION = 40700
+MFEM_VERSION = 40701
 MFEM_VERSION_STRING = $(shell printf "%06d" $(MFEM_VERSION) | \
   sed -e 's/^0*\(.*.\)\(..\)\(..\)$$/\1.\2.\3/' -e 's/\.0/./g' -e 's/\.0$$//')
 
@@ -193,7 +193,8 @@ endif
 
 # Compile flags used by MFEM: CPPFLAGS, CXXFLAGS, plus library flags
 INCFLAGS =
-# Link flags used by MFEM: library link flags plus LDFLAGS (added last)
+# Link flags used by MFEM: library link flags plus LDFLAGS and LDFLAGS_INTERNAL
+# (added at the end)
 ALL_LIBS =
 
 # Building static and/or shared libraries:
@@ -285,7 +286,7 @@ endif
 
 # List of MFEM dependencies, that require the *_LIB variable to be non-empty
 MFEM_REQ_LIB_DEPS = ENZYME SUPERLU MUMPS METIS FMS CONDUIT SIDRE LAPACK SUNDIALS\
- SUITESPARSE STRUMPACK GINKGO GNUTLS NETCDF PETSC SLEPC MPFR PUMI HIOP\
+ SUITESPARSE STRUMPACK GINKGO GNUTLS NETCDF SLEPC PETSC MPFR PUMI HIOP\
  GSLIB OCCA CEED RAJA UMPIRE MKL_CPARDISO MKL_PARDISO AMGX CALIPER PARELAG TRIBOL\
  BENCHMARK MOONOLITH ALGOIM
 
@@ -372,7 +373,7 @@ MFEM_TPLFLAGS  ?= $(INCFLAGS)
 MFEM_INCFLAGS  ?= -I@MFEM_INC_DIR@ @MFEM_TPLFLAGS@
 MFEM_PICFLAG   ?= $(if $(shared),$(PICFLAG))
 MFEM_FLAGS     ?= @MFEM_CPPFLAGS@ @MFEM_CXXFLAGS@ @MFEM_INCFLAGS@
-MFEM_EXT_LIBS  ?= $(ALL_LIBS) $(LDFLAGS)
+MFEM_EXT_LIBS  ?= $(ALL_LIBS) $(LDFLAGS) $(LDFLAGS_INTERNAL)
 MFEM_LIBS      ?= $(if $(shared),$(BUILD_RPATH)) -L@MFEM_LIB_DIR@ -lmfem\
    @MFEM_EXT_LIBS@
 MFEM_LIB_FILE  ?= @MFEM_LIB_DIR@/libmfem.$(if $(shared),$(SO_VER),a)
@@ -581,53 +582,77 @@ clean: $(addsuffix /clean,$(EM_DIRS) $(TEST_DIRS))
 distclean: clean config/clean doc/clean
 	rm -rf mfem/
 
+# User-definable install permissions.
+# Install permissions for everything except directories and binaries:
+INSTALL_DEF_PERM ?= 644
+# Install permissions for binaries:
+INSTALL_BIN_PERM ?= 755
+# Install permissions for directories (and symlinks on macOS/BSD):
+INSTALL_DIR_PERM ?= 755
+
+# Shortcuts, not to be modified by the user on the command line.
+# We use 'umask' because 'mkdir -p' (and 'install -d') do not use the mode
+# specified with the '-m' flag when creating non-existent parent directories.
+# WARNING: $(MKINSTALLDIR) changes the umask for commands following it as part
+#          of the same shell expression unless it is placed inside '()' to be
+#          executed in a sub-shell.
+override INSTALLDEF   = $(INSTALL) -m $(INSTALL_DEF_PERM)
+override INSTALLMASK  = $(shell printf "%o" $$((~0$(INSTALL_DIR_PERM) & 0777)))
+override MKINSTALLDIR = umask $(INSTALLMASK) && mkdir -p
+
 INSTALL_SHARED_LIB = $(MFEM_CXX) $(MFEM_LINK_FLAGS) $(INSTALL_SOFLAGS)\
    $(OBJECT_FILES) $(EXT_LIBS) -o $(PREFIX_LIB)/libmfem.$(SO_VER) && \
-   cd $(PREFIX_LIB) && ln -sf libmfem.$(SO_VER) libmfem.$(SO_EXT)
+   cd $(PREFIX_LIB) && chmod $(INSTALL_BIN_PERM) libmfem.$(SO_VER) && \
+   ( umask $(INSTALLMASK) && ln -sf libmfem.$(SO_VER) libmfem.$(SO_EXT) )
 
 install: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
-	mkdir -p $(PREFIX_LIB)
+	$(MKINSTALLDIR) $(PREFIX_LIB)
 # install static and/or shared library
-	$(if $(static),$(INSTALL) -m 640 $(BLD)libmfem.a $(PREFIX_LIB))
+	$(if $(static),$(INSTALLDEF) $(BLD)libmfem.a $(PREFIX_LIB))
 	$(if $(shared),$(INSTALL_SHARED_LIB))
 # install top level includes
-	mkdir -p $(PREFIX_INC)/mfem
-	$(INSTALL) -m 640 $(SRC)mfem.hpp $(SRC)mfem-performance.hpp \
+	$(MKINSTALLDIR) $(PREFIX_INC)/mfem
+	$(INSTALLDEF) $(SRC)mfem.hpp $(SRC)mfem-performance.hpp \
 	   $(PREFIX_INC)/mfem
 	for hdr in mfem.hpp mfem-performance.hpp; do \
 	   printf '// Auto-generated file.\n#include "mfem/'$$hdr'"\n' \
-	      > $(PREFIX_INC)/$$hdr && chmod 640 $(PREFIX_INC)/$$hdr; done
+	      > $(PREFIX_INC)/$$hdr && \
+	   chmod $(INSTALL_DEF_PERM) $(PREFIX_INC)/$$hdr; done
 # install config include
-	mkdir -p $(PREFIX_INC)/mfem/config
-	$(INSTALL) -m 640 $(BLD)config/_config.hpp $(PREFIX_INC)/mfem/config/_config.hpp
-	$(INSTALL) -m 640 $(SRC)config/config.hpp $(PREFIX_INC)/mfem/config/config.hpp
-	$(INSTALL) -m 640 $(SRC)config/tconfig.hpp $(PREFIX_INC)/mfem/config
+	$(MKINSTALLDIR) $(PREFIX_INC)/mfem/config
+	$(INSTALLDEF) $(BLD)config/_config.hpp $(PREFIX_INC)/mfem/config
+	$(INSTALLDEF) $(SRC)config/config.hpp $(PREFIX_INC)/mfem/config
+	$(INSTALLDEF) $(SRC)config/tconfig.hpp $(PREFIX_INC)/mfem/config
 # install remaining includes in each subdirectory
 	for dir in $(DIRS); do \
-	   mkdir -p $(PREFIX_INC)/mfem/$$dir && \
-	   $(INSTALL) -m 640 $(SRC)$$dir/*.hpp $(PREFIX_INC)/mfem/$$dir; \
+	   ( $(MKINSTALLDIR) $(PREFIX_INC)/mfem/$$dir ) && \
+	   $(INSTALLDEF) $(SRC)$$dir/*.hpp $(PREFIX_INC)/mfem/$$dir; \
 	done
 # install *.okl files
 	for dir in $(OKL_DIRS); do \
-	   mkdir -p $(PREFIX_INC)/mfem/$$dir && \
-	   $(INSTALL) -m 640 $(SRC)$$dir/*.okl $(PREFIX_INC)/mfem/$$dir; \
+	   ( $(MKINSTALLDIR) $(PREFIX_INC)/mfem/$$dir ) && \
+	   $(INSTALLDEF) $(SRC)$$dir/*.okl $(PREFIX_INC)/mfem/$$dir; \
 	done
 # install libCEED q-function headers
-	mkdir -p $(PREFIX_INC)/mfem/fem/ceed/integrators/mass
-	$(INSTALL) -m 640 $(SRC)fem/ceed/integrators/mass/*.h $(PREFIX_INC)/mfem/fem/ceed/integrators/mass
-	mkdir -p $(PREFIX_INC)/mfem/fem/ceed/integrators/convection
-	$(INSTALL) -m 640 $(SRC)fem/ceed/integrators/convection/*.h $(PREFIX_INC)/mfem/fem/ceed/integrators/convection
-	mkdir -p $(PREFIX_INC)/mfem/fem/ceed/integrators/diffusion
-	$(INSTALL) -m 640 $(SRC)fem/ceed/integrators/diffusion/*.h $(PREFIX_INC)/mfem/fem/ceed/integrators/diffusion
-	mkdir -p $(PREFIX_INC)/mfem/fem/ceed/integrators/nlconvection
-	$(INSTALL) -m 640 $(SRC)fem/ceed/integrators/nlconvection/*.h $(PREFIX_INC)/mfem/fem/ceed/integrators/nlconvection
+	$(MKINSTALLDIR) $(PREFIX_INC)/mfem/fem/ceed/integrators/mass
+	$(INSTALLDEF) $(SRC)fem/ceed/integrators/mass/*.h \
+	   $(PREFIX_INC)/mfem/fem/ceed/integrators/mass
+	$(MKINSTALLDIR) $(PREFIX_INC)/mfem/fem/ceed/integrators/convection
+	$(INSTALLDEF) $(SRC)fem/ceed/integrators/convection/*.h \
+	   $(PREFIX_INC)/mfem/fem/ceed/integrators/convection
+	$(MKINSTALLDIR) $(PREFIX_INC)/mfem/fem/ceed/integrators/diffusion
+	$(INSTALLDEF) $(SRC)fem/ceed/integrators/diffusion/*.h \
+	   $(PREFIX_INC)/mfem/fem/ceed/integrators/diffusion
+	$(MKINSTALLDIR) $(PREFIX_INC)/mfem/fem/ceed/integrators/nlconvection
+	$(INSTALLDEF) $(SRC)fem/ceed/integrators/nlconvection/*.h \
+	   $(PREFIX_INC)/mfem/fem/ceed/integrators/nlconvection
 # install config.mk in $(PREFIX_SHARE)
-	mkdir -p $(PREFIX_SHARE)
+	$(MKINSTALLDIR) $(PREFIX_SHARE)
 	$(MAKE) -C $(BLD)config config-mk CONFIG_MK=config-install.mk
-	$(INSTALL) -m 640 $(BLD)config/config-install.mk $(PREFIX_SHARE)/config.mk
+	$(INSTALLDEF) $(BLD)config/config-install.mk $(PREFIX_SHARE)/config.mk
 	rm -f $(BLD)config/config-install.mk
 # install test.mk in $(PREFIX_SHARE)
-	$(INSTALL) -m 640 $(SRC)config/test.mk $(PREFIX_SHARE)/test.mk
+	$(INSTALLDEF) $(SRC)config/test.mk $(PREFIX_SHARE)
 
 $(CONFIG_MK):
 # Skip the error message when '-B' make flag is used (unconditionally
