@@ -101,6 +101,10 @@ public:
    /// Destructor
    inline ~Array() { TypeAssert(); data.Delete(); }
 
+   /// Apply function
+   template <typename Function>
+   void Apply(Function &&function);
+
    /// Assignment operator: deep copy from 'src'.
    Array<T> &operator=(const Array<T> &src) { src.Copy(*this); return *this; }
 

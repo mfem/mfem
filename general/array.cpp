@@ -140,6 +140,17 @@ int Array<T>::IsSorted() const
    return 1;
 }
 
+template <class T>
+template <typename Function>
+void Array<T>::Apply(Function&& function)
+{
+   static_assert(std::is_arithmetic<T>::value, "Apply to arithmetric types!");
+   // TODO(Gabriel/Chak): Verify function is related to T
+   const bool use_device = UseDevice();
+   const int N = size;
+   auto y = ReadWrite(use_device);
+   mfem::forall_switch(use_device, N, [=] MFEM_HOST_DEVICE (int i) { y[i] = function(y[i]); });
+}
 
 template <class T>
 void Array2D<T>::Load(const char *filename, int fmt)
@@ -175,11 +186,14 @@ void Array2D<T>::Print(std::ostream &os, int width_)
    }
 }
 
+
 template class Array<char>;
 template class Array<int>;
 template class Array<long long>;
 template class Array<real_t>;
 template class Array2D<int>;
 template class Array2D<real_t>;
+
+template void Array<int>::Apply<int(&)(int)>(int (&)(int));
 
 } // namespace mfem
