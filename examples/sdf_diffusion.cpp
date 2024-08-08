@@ -87,14 +87,20 @@ int main(int argc, char *argv[])
    // args.PrintOptions(cout);
 
    // 2. Read the mesh from the mesh file.
-   Mesh mesh(mesh_file, 1, 1);
+   // Mesh mesh(mesh_file, 1, 1);
+   Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::Type::QUADRILATERAL);
+   // mesh.Transform([](const Vector &x, Vector &y){y = x; y -= .5; y *= 2.0;});
    int dim = mesh.Dimension();
    int sdim = mesh.SpaceDimension();
 
    MFEM_ASSERT(mesh.bdr_attributes.Size(),
       "This example does not currently support meshes"
       " without boundary attributes."
-   )
+   )  // cout << "Number of L2 finite element unknowns: "
+      //   << L2fes.GetTrueVSize() << endl;
+   // cout << "Number of H1 finite element unknowns: "
+      //   << H1fes.GetTrueVSize() << endl;
+
 
    // 3. Postprocess the mesh.
    // 3A. Refine the mesh to increase the resolution.
@@ -107,6 +113,10 @@ int main(int argc, char *argv[])
    // NOTE: Minimum second-order interpolation is used to improve the accuracy.
    int curvature_order = max(order,2);
    mesh.SetCurvature(curvature_order);
+  // cout << "Number of L2 finite element unknowns: "
+      //   << L2fes.GetTrueVSize() << endl;
+   // cout << "Number of H1 finite element unknowns: "
+      //   << H1fes.GetTrueVSize() << endl;
 
 	// rescale domain to square with vertices 
 	// (-2, -2), (-2, 2), (2, 2), (2, -2)
@@ -123,10 +133,10 @@ int main(int argc, char *argv[])
    H1_FECollection H1fec(order, dim);
    FiniteElementSpace H1fes(&mesh, &H1fec);
 
-   // cout << "Number of L2 finite element unknowns: "
-      //   << L2fes.GetTrueVSize() << endl;
-   // cout << "Number of H1 finite element unknowns: "
-      //   << H1fes.GetTrueVSize() << endl;
+   cout << "Number of L2 finite element unknowns: "
+        << L2fes.GetTrueVSize() << endl;
+   cout << "Number of H1 finite element unknowns: "
+        << H1fes.GetTrueVSize() << endl;
 
    // 5. Determine the list of true (i.e., conforming) essential boundary dofs.
 
@@ -211,7 +221,7 @@ int main(int argc, char *argv[])
    
    a_eta.RecoverFEMSolution(X_eta, b_eta, eta); 
 
-   GridFunctionCoefficient eta_gf(&eta); 
+   GridFunctionCoefficient eta_gf(&eta);  // rename to gfc
 
    LinearForm b0,b1;
    b0.MakeRef(&L2fes,rhs.GetBlock(0),0);
@@ -222,7 +232,9 @@ int main(int argc, char *argv[])
    ZCoefficient Z(sdim, psi_gf, alpha);
    DZCoefficient DZ(sdim, psi_gf, alpha);
 
-   ScalarVectorProductCoefficient neg_Z(-1.0, Z);
+   ProductCoefficient neg_eta(neg_one, eta_gf); 
+   ScalarVectorProductCoefficient neg_Z(neg_eta, Z);
+   
    b0.AddDomainIntegrator(new VectorDomainLFIntegrator(neg_Z));
 
    VectorGridFunctionCoefficient psi_cf(&psi_gf);
@@ -243,7 +255,10 @@ int main(int argc, char *argv[])
 	ProductCoefficient neg_u_old_cf(neg_one, u_old_cf);
 
    BilinearForm a00(&L2fes);
-   a00.AddDomainIntegrator(new VectorMassIntegrator(DZ));
+   
+   ScalarMatrixProductCoefficient eta_DZ(eta_gf, DZ); 
+   // MatrixScalarProductCoefficient eta_DZ(eta_gf, DZ); 
+   a00.AddDomainIntegrator(new VectorMassIntegrator(eta_DZ));
 
    MixedBilinearForm a01(&H1fes,&L2fes);
    a01.AddDomainIntegrator(new GradientIntegrator(neg_one)); 
