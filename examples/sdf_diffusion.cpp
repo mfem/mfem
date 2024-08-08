@@ -4,8 +4,8 @@
 // Sample runs: sdf_diffusion -o 2
 //              sdf_diffusion -o 1 -r 4
 //
-// Description: This code is based on Example 40 from MFEM but implements the method for computing the signed distance function of an implicit surface from a modified eikonal equation. Here, the formulation is taken with a sgn() and the full H1 norm as regularization of the divergence. 
-// The problem being solved involves \Omega = [-2, 2]^2 and M being defined by the unit circle. 
+// Description: This code is based on Example 40 from MFEM but implements the method for computing the signed distance function of an implicit surface from a modified eikonal equation. Here, the formulation is taken with a sgn() and the full H1 norm as regularization of the divergence.
+// The problem being solved involves \Omega = [-2, 2]^2 and M being defined by the unit circle.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -24,7 +24,8 @@ public:
    ZCoefficient(int vdim, GridFunction &psi_, real_t alpha_ = 1.0)
       : VectorCoefficient(vdim), psi(&psi_), alpha(alpha_) { }
 
-   virtual void Eval(Vector &V, ElementTransformation &T, const IntegrationPoint &ip);
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip);
 };
 
 class DZCoefficient : public MatrixCoefficient
@@ -37,7 +38,8 @@ public:
    DZCoefficient(int height, GridFunction &psi_, real_t alpha_ = 1.0)
       : MatrixCoefficient(height, true),  psi(&psi_), alpha(alpha_) { }
 
-   virtual void Eval(DenseMatrix &K, ElementTransformation &T, const IntegrationPoint &ip);
+   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
+                     const IntegrationPoint &ip);
 };
 
 int main(int argc, char *argv[])
@@ -46,7 +48,7 @@ int main(int argc, char *argv[])
    // const char *mesh_file = "../data/star.mesh";
 
    // unit square, vertices (0, 0), (0, 1), (1, 1), (1, 0)
-   const char *mesh_file = "../data/square-nurbs.mesh"; 
+   const char *mesh_file = "../data/square-nurbs.mesh";
 
    int order = 1;
    int max_it = 5;
@@ -79,22 +81,28 @@ int main(int argc, char *argv[])
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.Parse();
-   // if (!args.Good())
-   // {
-      // args.PrintUsage(cout);
-      // return 1;
-   // }
-   // args.PrintOptions(cout);
+   if (!args.Good())
+   {
+      args.PrintUsage(cout);
+      return 1;
+   }
+   args.PrintOptions(cout);
 
    // 2. Read the mesh from the mesh file.
-   Mesh mesh(mesh_file, 1, 1);
+   // Mesh mesh(mesh_file);
+
+   // Mesh mesh = Mesh::MakeCartesian2D(1, 1, Element::Type::QUADRILATERAL);
+   // mesh.Transform([](const Vector &x, Vector &y){y=x; y*=2.0; y-=1.0;});
+
+   Mesh mesh("../data/periodic-square.mesh");
+
    int dim = mesh.Dimension();
    int sdim = mesh.SpaceDimension();
 
    MFEM_ASSERT(mesh.bdr_attributes.Size(),
-      "This example does not currently support meshes"
-      " without boundary attributes."
-   )
+               "This example does not currently support meshes"
+               " without boundary attributes."
+              )
 
    // 3. Postprocess the mesh.
    // 3A. Refine the mesh to increase the resolution.
@@ -108,13 +116,6 @@ int main(int argc, char *argv[])
    int curvature_order = max(order,2);
    mesh.SetCurvature(curvature_order);
 
-	// rescale domain to square with vertices 
-	// (-2, -2), (-2, 2), (2, 2), (2, -2)
-	GridFunction *nodes = mesh.GetNodes();
-   real_t scale = 4.;
-	*nodes *= scale; 
-	real_t shift = 2.; 
-	*nodes -= shift; 
 
    // 4. Define the necessary finite element spaces on the mesh.
    L2_FECollection L2fec(order, dim);
@@ -124,9 +125,9 @@ int main(int argc, char *argv[])
    FiniteElementSpace H1fes(&mesh, &H1fec);
 
    // cout << "Number of L2 finite element unknowns: "
-      //   << L2fes.GetTrueVSize() << endl;
+   //   << L2fes.GetTrueVSize() << endl;
    // cout << "Number of H1 finite element unknowns: "
-      //   << H1fes.GetTrueVSize() << endl;
+   //   << H1fes.GetTrueVSize() << endl;
 
    // 5. Determine the list of true (i.e., conforming) essential boundary dofs.
 
@@ -138,7 +139,7 @@ int main(int argc, char *argv[])
    offsets.PartialSum();
 
    BlockVector x(offsets), rhs(offsets);
-   x = 0.0; rhs = 0.0; 
+   x = 0.0; rhs = 0.0;
 
    // 6. Define an initial guess for the solution.
    ConstantCoefficient one(1.0);
@@ -163,15 +164,11 @@ int main(int argc, char *argv[])
    psi_gf = 0.0;
    psi_old_gf = psi_gf;
    u_old_gf = u_gf;
-	
-	auto sgn_varphi_is = [](const Vector &x)
-	{
-		auto x0 = x(0), x1 = x(1); 
-		auto val = x0*x0+x1*x1-1.; 
-
-		return (val < 0.) ? -1 : (val > 0.) ? 1. : 0.;  
-	}; 
-	FunctionCoefficient sgn_varphi(sgn_varphi_is); 
+   Vector center(2); center = 0.0;
+   const double radius = 0.2;
+   auto varphi([center, radius](const Vector &x) {return center.DistanceTo(x) - radius; });
+   auto sgn_varphi_is([&varphi](const Vector &x) {const double val = varphi(x); return val > 0 ? 1.0 : val < 0 ? -1.0 : 0.0;});
+   FunctionCoefficient sgn_varphi(sgn_varphi_is);
 
    char vishost[] = "localhost";
    int  visport   = 19916;
@@ -197,48 +194,50 @@ int main(int argc, char *argv[])
    VectorGridFunctionCoefficient psi_cf(&psi_gf);
    VectorGridFunctionCoefficient psi_old_cf(&psi_old_gf);
    VectorSumCoefficient psi_old_minus_psi(psi_old_cf, psi_cf, 1.0, -1.0);
-	ProductCoefficient neg_sgn_varphi(neg_one, sgn_varphi); 
+   ProductCoefficient neg_sgn_varphi(neg_one, sgn_varphi);
 
    b1.AddDomainIntegrator(new DomainLFIntegrator(neg_sgn_varphi));
 
    b1.AddDomainIntegrator(new DomainLFGradIntegrator(psi_old_minus_psi));
 
-   GradientGridFunctionCoefficient grad_u_old(&u_old_gf); 
-   ScalarVectorProductCoefficient neg_grad_u_old(-1.0 * 1 / alpha, grad_u_old); 
+   GradientGridFunctionCoefficient grad_u_old(&u_old_gf);
+   ScalarVectorProductCoefficient neg_grad_u_old(-1.0 * 1 / alpha, grad_u_old);
    b1.AddDomainIntegrator(new DomainLFGradIntegrator(neg_grad_u_old));
 
-	GridFunctionCoefficient u_old_cf(&u_old_gf);
-	ProductCoefficient neg_u_old_cf(neg_one, u_old_cf);
+   GridFunctionCoefficient u_old_cf(&u_old_gf);
+   ProductCoefficient neg_u_old_cf(neg_one, u_old_cf);
 
    BilinearForm a00(&L2fes);
    a00.AddDomainIntegrator(new VectorMassIntegrator(DZ));
 
    MixedBilinearForm a01(&H1fes,&L2fes);
-   a01.AddDomainIntegrator(new GradientIntegrator(neg_one)); 
+   a01.AddDomainIntegrator(new GradientIntegrator(neg_one));
    a01.Assemble();
    a01.Finalize();
 
    SparseMatrix &A01 = a01.SpMat();
    SparseMatrix *A10 = Transpose(a01.SpMat());
 
-   // make n x 1 column vector 
+   // make n x 1 column vector
    int col_height = H1fes.GetVSize();
    Array<int> i_s(col_height+1); Array<int> j_s(H1fes.GetVSize());
-   j_s = 0; i_s = 0; 
-      
-   for (int k=0; k<H1fes.GetVSize(); k++) { 
+   j_s = 0; i_s = 0;
+
+   for (int k=0; k<H1fes.GetVSize(); k++)
+   {
       i_s[k+1] = 1;
    }
 
    i_s.PartialSum();
 
    // mass term
-   LinearForm col1s(&H1fes); 
-   col1s.AddDomainIntegrator(new DomainLFIntegrator(one)); 
-   col1s.Assemble(); 
+   LinearForm col1s(&H1fes);
+   col1s.AddDomainIntegrator(new DomainLFIntegrator(one));
+   col1s.Assemble();
 
-   SparseMatrix col_sp(i_s.begin(), j_s.begin(), col1s.begin(), col_height, 1, false, false, true);
-   SparseMatrix* row_sp(Transpose(col_sp)); 
+   SparseMatrix col_sp(i_s.begin(), j_s.begin(), col1s.begin(), col_height, 1,
+                       false, false, true);
+   SparseMatrix* row_sp(Transpose(col_sp));
 
    // 10. Iterate
    int k;
@@ -256,12 +255,12 @@ int main(int argc, char *argv[])
       {
          total_iterations++;
 
-         b0.Assemble();   
+         b0.Assemble();
          b1.Assemble();
-         
+
          BilinearForm a11(&H1fes);
-         ConstantCoefficient neg_one_alpha_recip(-1.0 * 1.0 / alpha); 
-         a11.AddDomainIntegrator(new DiffusionIntegrator(neg_one_alpha_recip)); 
+         ConstantCoefficient neg_one_alpha_recip(-1.0 * 1.0 / alpha);
+         a11.AddDomainIntegrator(new DiffusionIntegrator(neg_one_alpha_recip));
 
          a11.Assemble(false);  // false
          a11.Finalize();
@@ -271,46 +270,46 @@ int main(int argc, char *argv[])
          a00.Finalize(false);
          SparseMatrix &A00 = a00.SpMat();
 
-#ifndef MFEM_USE_SUITESPARSE
+         // #ifndef MFEM_USE_SUITESPARSE
          BlockOperator A(offsets);
 
-         // all the other entries default to 0! 
+         // all the other entries default to 0!
          A.SetBlock(0,0,&A00);
          A.SetBlock(1,0,A10);
 
          A.SetBlock(0,1,&A01);
          A.SetBlock(1,1,&A11);
 
-         A.SetBlock(1,2,&col_sp); 
-         A.SetBlock(2,1,row_sp); 
+         A.SetBlock(1,2,&col_sp);
+         A.SetBlock(2,1,row_sp);
 
          BlockDiagonalPreconditioner prec(offsets);
 
          prec.owns_blocks = 1;
 
          GMRES(A,prec,rhs,x,0,2000,500,1e-12,0.0);
-         // delete S; 
-#else
-         BlockMatrix A(offsets);
-         A.SetBlock(0,0,&A00);
-         A.SetBlock(1,0,A10);
-         A.SetBlock(0,1,&A01);
-         A.SetBlock(1,1,&A11);
-
-         A.SetBlock(1,2,&col_sp); 
-         A.SetBlock(2,1,row_sp); 
-
-         SparseMatrix *A_mono = A.CreateMonolithic(); 
-         UMFPackSolver umf(*A_mono); 
-         umf.Mult(rhs, x);
-#endif         
+         // delete S;
+         // #else
+         //          BlockMatrix A(offsets);
+         //          A.SetBlock(0,0,&A00);
+         //          A.SetBlock(1,0,A10);
+         //          A.SetBlock(0,1,&A01);
+         //          A.SetBlock(1,1,&A11);
+         //
+         //          A.SetBlock(1,2,&col_sp);
+         //          A.SetBlock(2,1,row_sp);
+         //
+         //          SparseMatrix *A_mono = A.CreateMonolithic();
+         //          UMFPackSolver umf(*A_mono);
+         //          umf.Mult(rhs, x);
+         // #endif
 
          u_tmp -= u_gf;
          real_t Newton_update_size = u_tmp.ComputeL2Error(zero);
          u_tmp = u_gf;
 
-         psi_gf.Add(newton_scaling, delta_psi_gf); 
-         a00.Update(); 
+         psi_gf.Add(newton_scaling, delta_psi_gf);
+         a00.Update();
 
          if (visualization)
          {
@@ -340,13 +339,13 @@ int main(int argc, char *argv[])
          break;
       }
 
-      alpha *= max(growth_rate, 1.0); 
+      alpha *= max(growth_rate, 1.0);
    }
 
    // mfem::out << "\n Outer iterations: " << k+1
-            //  << "\n Total iterations: " << total_iterations
-            //  << "\n Total dofs:       " << L2fes.GetTrueVSize() + H1fes.GetTrueVSize()
-            //  << endl;
+   //  << "\n Total iterations: " << total_iterations
+   //  << "\n Total dofs:       " << L2fes.GetTrueVSize() + H1fes.GetTrueVSize()
+   //  << endl;
 
    delete A10;
 
@@ -354,7 +353,7 @@ int main(int argc, char *argv[])
 }
 
 void ZCoefficient::Eval(Vector &V, ElementTransformation &T,
-                                              const IntegrationPoint &ip)
+                        const IntegrationPoint &ip)
 {
    MFEM_ASSERT(psi != NULL, "grid function is not set");
    MFEM_ASSERT(alpha > 0, "alpha is not positive");
@@ -369,7 +368,7 @@ void ZCoefficient::Eval(Vector &V, ElementTransformation &T,
 }
 
 void DZCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
-                                                const IntegrationPoint &ip)
+                         const IntegrationPoint &ip)
 {
    MFEM_ASSERT(psi != NULL, "grid function is not set");
    MFEM_ASSERT(alpha > 0, "alpha is not positive");
@@ -382,10 +381,10 @@ void DZCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
    K = 0.0;
    for (int i = 0; i < height; i++)
    {
-    K(i,i) = phi;
-    for (int j = 0; j < height; j++)
+      K(i,i) = phi;
+      for (int j = 0; j < height; j++)
       {
-        K(i,j) -= psi_vals(i) * psi_vals(j) * pow(phi, 3);
+         K(i,j) -= psi_vals(i) * psi_vals(j) * pow(phi, 3);
       }
    }
 }
