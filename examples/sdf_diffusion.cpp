@@ -40,17 +40,42 @@ public:
    virtual void Eval(DenseMatrix &K, ElementTransformation &T, const IntegrationPoint &ip);
 };
 
+class MappedGridFunctionCoefficient : public GridFunctionCoefficient
+{
+protected:
+   std::function<real_t(const real_t)> fun; // f:R → R
+public:
+   MappedGridFunctionCoefficient()
+      :GridFunctionCoefficient(),
+       fun([](real_t x) {return x;}) {}
+   MappedGridFunctionCoefficient(const GridFunction *gf,
+                                 std::function<real_t(const real_t)> fun_,
+                                 int comp=1)
+      :GridFunctionCoefficient(gf, comp),
+       fun(fun_) {}
+
+   virtual real_t Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip)
+   {
+      return fun(GridFunctionCoefficient::Eval(T, ip) + c);
+   }
+   void SetFunction(std::function<real_t(const real_t)> fun_) { fun = fun_; }
+   void SetConstant(real_t new_c) { c = new_c; }
+private: 
+   mutable real_t c; 
+};
+
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    // const char *mesh_file = "../data/star.mesh";
 
    // unit square, vertices (0, 0), (0, 1), (1, 1), (1, 0)
-   // const char *mesh_file = "../data/square-nurbs.mesh"; 
+   const char *mesh_file = "../data/square-nurbs.mesh"; 
 
    // this square has vertices (-1, -1), (-1, 1), (1, -1), (1, 1)
    // which changes the scaling lower in the file 
-   const char *mesh_file = "../data/periodic-square.mesh"; 
+   // const char *mesh_file = "../data/periodic-square.mesh"; 
 
    int order = 1;
    int max_it = 5;
@@ -116,12 +141,12 @@ int main(int argc, char *argv[])
    // (this is for ordinary square mesh)
 	// (-2, -2), (-2, 2), (2, 2), (2, -2)
 	GridFunction *nodes = mesh.GetNodes();
-   // *nodes *= 4.; 
-   // *nodes -= 2.;
+   *nodes *= 4.; 
+   *nodes -= 2.;
 
    // this is the scaling if the periodic square domain is used, which 
    // has different vertices (noted above when loading) 
-   *nodes *= 2.; 
+   // *nodes *= 2.; 
 
 
    // 4. Define the necessary finite element spaces on the mesh.
@@ -190,6 +215,7 @@ int main(int argc, char *argv[])
    {
       sol_sock.open(vishost,visport);
       sol_sock.precision(8);
+      
       gradu_sock.open(vishost, visport); 
       gradu_sock.precision(8); 
    }
@@ -365,6 +391,92 @@ int main(int argc, char *argv[])
             //  << endl;
 
    delete A10;
+
+   // bisection method to find the optimal c for translation 
+   // this is obtained by solving 
+   // int f(x) dx = int g(x) dx 
+   // where f(x) is the indicator function for the region {u + c <= 0}
+   // and g(x) is the indicator function for the region {varphi <= 0}
+
+   auto f = [](double x){return (x <= 0.) ? 1. : 0.;  }; // indicator function for x <= 0
+   MappedGridFunctionCoefficient curr_coeff(&u_gf, f); 
+   // MappedGridFunctionCoefficient curr_coeff_a(&u_gf, f); 
+   
+   // endpoints for bisection search
+   real_t endpoint_a = -1., endpoint_b = 1.;  
+
+   real_t midpoint_c; 
+
+   real_t bisection_tol = 1e-6; 
+   const int N_MAX = 100; 
+   
+   int n_iter = 0; 
+
+   real_t pi = 3.1415926535;
+
+   while (n_iter <= N_MAX) { 
+      midpoint_c = (endpoint_a + endpoint_b) / 2; 
+
+      curr_coeff.SetConstant(midpoint_c); 
+
+      LinearForm coeff_opt_c(&H1fes); 
+      coeff_opt_c.AddDomainIntegrator(new DomainLFIntegrator(curr_coeff)); 
+      coeff_opt_c.Assemble();
+
+      real_t soln_c = coeff_opt_c.Sum() - pi; 
+
+      if (soln_c == 0.) {
+         break; 
+      }
+
+      // decide the next direction of search, need to recompute
+      curr_coeff.SetConstant(endpoint_a); 
+      LinearForm coeff_opt_a(&H1fes); 
+      coeff_opt_a.AddDomainIntegrator(new DomainLFIntegrator(curr_coeff)); 
+      coeff_opt_a.Assemble();
+
+      real_t soln_a = coeff_opt_a.Sum() - pi; 
+
+      if (soln_c * soln_a < 0) {
+         endpoint_b = midpoint_c;
+      }
+      else { 
+         endpoint_a = midpoint_c;
+      }
+
+      mfem::out << "\ncurrent midpoint  = " << midpoint_c << endl;
+
+      n_iter++; 
+   }
+
+   mfem::out << "\n concluded bisection method with c = " << midpoint_c << endl;
+
+   // how to properly evaluate u_bar + c_opt and compute error?
+   ConstantCoefficient c_opt(-1.0*midpoint_c); 
+   GridFunctionCoefficient u_coeff(&u_gf);
+   SumCoefficient u_fin(c_opt, u_coeff); 
+   
+   // GridFunction u_fin_gf(u_fin.Project()); 
+
+   // defines true sdf for square and unit circle case
+   auto true_sdf = [](const Vector &x)
+      {
+         auto x0 = x(0), x1 = x(1); 
+         
+         return sqrt(x0*x0 + x1*x1)-1.;
+      }; 
+   
+   FunctionCoefficient sdf_fc(true_sdf); 
+   real_t error = u_gf.ComputeMaxError(sdf_fc);
+
+   SumCoefficient sdf_fc_minus_c_opt(sdf_fc, c_opt); 
+   real_t error_final = u_gf.ComputeMaxError(sdf_fc_minus_c_opt);
+   
+
+   mfem::out << "\nMax Error from true SDF initial = " << error << endl;
+
+   mfem::out << "\nMax Error from true SDF final = " << error_final << endl;
+
 
    return 0;
 }
