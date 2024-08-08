@@ -76,6 +76,8 @@ enum Problem
    SteadyAdvection,
    NonsteadyAdvectionDiffusion,
    KovasznayFlow,
+   SteadyBurgers,
+   NonsteadyBurgers,
 };
 
 class FEOperator : public TimeDependentOperator
@@ -205,21 +207,25 @@ int main(int argc, char *argv[])
    args.PrintOptions(cout);
 
    // Set the problem options
-   bool bconv, btime;
+   bool bconv = false, bnlconv = false, btime = false;
    switch (problem)
    {
       case Problem::SteadyDiffusion:
-         bconv = false;
-         btime = false;
          break;
       case Problem::SteadyAdvectionDiffusion:
       case Problem::SteadyAdvection:
          bconv = true;
-         btime = false;
          break;
       case Problem::NonsteadyAdvectionDiffusion:
       case Problem::KovasznayFlow:
          bconv = true;
+         btime = true;
+         break;
+      case Problem::SteadyBurgers:
+         bnlconv = true;
+         break;
+      case Problem::NonsteadyBurgers:
+         bnlconv = true;
          btime = true;
          break;
       default:
@@ -275,9 +281,8 @@ int main(int argc, char *argv[])
    switch (problem)
    {
       case Problem::SteadyDiffusion:
-         //free (zero Dirichlet)
-         break;
       case Problem::SteadyAdvectionDiffusion:
+      case Problem::SteadyBurgers:
          //free (zero Dirichlet)
          break;
       case Problem::SteadyAdvection:
@@ -929,6 +934,16 @@ TFunc GetTFun(int prob, real_t t_0, real_t k, real_t c)
             }
             return w0;
          };
+      case Problem::SteadyBurgers:
+      case Problem::NonsteadyBurgers:
+         return [=](const Vector &x, real_t t) -> real_t
+         {
+            const real_t ux = x(0) * tanh((1.-x(0))/k);
+            const real_t uy = x(1) * tanh((1.-x(1))/k);
+            const real_t ut = (prob == Problem::SteadyBurgers)?(1.):(exp(t) - 1.);
+            const real_t u = ut * ux * uy;
+            return u;
+         };
    }
    return TFunc();
 }
@@ -1015,6 +1030,26 @@ VecTFunc GetQFun(int prob, real_t t_0, real_t k, real_t c)
          {
             v.SetSize(x.Size());
             v = 0.;
+         };
+      case Problem::SteadyBurgers:
+      case Problem::NonsteadyBurgers:
+         return [=](const Vector &x, real_t t, Vector &v)
+         {
+            v.SetSize(x.Size());
+            const real_t argx = (1. - x(0)) / k;
+            const real_t argy = (1. - x(1)) / k;
+            const real_t ux = x(0) * tanh(argx);
+            const real_t uy = x(1) * tanh(argy);
+            const real_t ut = (prob == Problem::SteadyBurgers)?(1.):(exp(t) - 1.);
+            const real_t u = ut * ux * uy;
+            const real_t chx = cosh(argx);
+            const real_t chy = cosh(argy);
+            const real_t u_x = (x(0) == 0.)?(0.):
+                               (u / x(0) - ut * uy * x(0) / (k * chx*chx));
+            const real_t u_y = (x(1) == 0.)?(0.):
+                               (u / x(1) - ut * ux * x(1) / (k * chy*chy));
+            v(0) = -k * u_x;
+            v(1) = -k * u_y;
          };
    }
    return VecTFunc();
@@ -1134,6 +1169,31 @@ TFunc GetFFun(int prob, real_t t_0, real_t k, real_t c)
       case Problem::NonsteadyAdvectionDiffusion:
       case Problem::KovasznayFlow:
          return [](const Vector &x, real_t) -> real_t { return 0.; };
+      case Problem::SteadyBurgers:
+      case Problem::NonsteadyBurgers:
+         return [=](const Vector &x, real_t t) -> real_t
+         {
+            const real_t argx = (1. - x(0)) / k;
+            const real_t argy = (1. - x(1)) / k;
+            const real_t ux = x(0) * tanh(argx);
+            const real_t uy = x(1) * tanh(argy);
+            const real_t shx = sinh(argx);
+            const real_t shy = sinh(argy);
+            const real_t chx = cosh(argx);
+            const real_t chy = cosh(argy);
+            const real_t ut = (prob == Problem::SteadyBurgers)?(1.):(exp(t) - 1.);
+            const real_t u = ut * ux * uy;
+            const real_t u_x = (x(0) != 0.)?(u / x(0) - ut * uy * x(0) / (k * chx*chx)):(0.);
+            const real_t u_y = (x(1) != 0.)?(u / x(1) - ut * ux * x(1) / (k * chy*chy)):(0.);
+            const real_t divqx = (x(0) == 0. || u == 0.)?(0.):
+            (-k * ((u_x*u_x) / u - u / (x(0)*x(0))) + u / k * (1. / (chx*chx) + 1. / (shx*shx)));
+            const real_t divqy = (x(1) == 0. || u == 0.)?(0.):
+            (-k * ((u_y*u_y) / u - u / (x(1)*x(1))) + u / k * (1. / (chy*chy) + 1. / (shy*shy)));
+            const real_t divF = u * (u_x + u_y);
+            const real_t ft = ((prob == Problem::SteadyBurgers)?(0.):(t*exp(t)  * ux * uy));
+            const real_t f = divqx + divqy + divF + ft;
+            return f;
+         };
    }
    return TFunc();
 }
