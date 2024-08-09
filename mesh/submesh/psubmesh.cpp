@@ -186,70 +186,68 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
       std::cout << std::endl;
    };
 
-   std::cout << __FILE__ << ':' << __LINE__ << std::endl;
-   print_details();
+   // Vertex Values are bad
+   auto print_elem = [&]()
+   {
+      std::cout << "parent_element_ids_ ";
+      for (auto x : parent_element_ids_)
+      {
+         std::cout << x << ' ';
+      }
+      std::cout << "\nparent_vertex_ids_ ";
+      for (const auto & v: parent_vertex_ids_)
+      {
+         std::cout << v << ' ';
+      }
 
+      std::cout << "\nparent_to_submesh_element_ids_ ";
+      for (auto x : parent_to_submesh_element_ids_)
+      {
+         std::cout << x << ' ';
+      }
+      std::cout << "\nparent_to_submesh_vertex_ids_ ";
+      for (const auto & v: parent_to_submesh_vertex_ids_)
+      {
+         std::cout << v << ' ';
+      }
+      std::cout << std::endl;
+      Array<int> verts;
+      for (int e = 0; e < GetNE(); e++)
+      {
+         auto * elem = GetElement(e);
+         elem->GetVertices(verts);
+
+         std::cout << "Element " << e << " : ";
+         for (auto x : verts)
+         {
+            std::cout << x << ' ';
+         }
+         std::cout << std::endl;
+      }
+      for (int v = 0; v < GetNV(); v++)
+      {
+         auto *vv = GetVertex(v);
+         std::cout << "Vertex " << v << " : ";
+         for (int i = 0; i < 3; i++)
+         {
+            std::cout << vv[i] << ' ';
+         }
+         std::cout << std::endl;
+      }
+   };
+   std::cout << __FILE__ << ':' << __LINE__ << std::endl;
+   print_elem();
 
    if (parent.Nonconforming())
    {
-      // Vertex Values are bad
-      auto print_elem = [&]()
-      {
-         std::cout << "parent_element_ids_ ";
-         for (auto x : parent_element_ids_)
-         {
-            std::cout << x << ' ';
-         }
-         std::cout << "\nparent_vertex_ids_ ";
-         for (const auto & v: parent_vertex_ids_)
-         {
-            std::cout << v << ' ';
-         }
 
-         std::cout << "\nparent_to_submesh_element_ids_ ";
-         for (auto x : parent_to_submesh_element_ids_)
-         {
-            std::cout << x << ' ';
-         }
-         std::cout << "\nparent_to_submesh_vertex_ids_ ";
-         for (const auto & v: parent_to_submesh_vertex_ids_)
-         {
-            std::cout << v << ' ';
-         }
-         std::cout << std::endl;
-         Array<int> verts;
-         for (int e = 0; e < GetNE(); e++)
-         {
-            auto * elem = GetElement(e);
-            elem->GetVertices(verts);
-
-            std::cout << "Element " << e << " : ";
-            for (auto x : verts)
-            {
-               std::cout << x << ' ';
-            }
-            std::cout << std::endl;
-         }
-         for (int v = 0; v < GetNV(); v++)
-         {
-            auto *vv = GetVertex(v);
-            std::cout << "Vertex " << v << " : ";
-            for (int i = 0; i < 3; i++)
-            {
-               std::cout << vv[i] << ' ';
-            }
-            std::cout << std::endl;
-         }
-      };
-      std::cout << __FILE__ << ':' << __LINE__ << std::endl;
-      print_elem();
 
       pncmesh = new ParNCSubMesh(*this, *parent.pncmesh, from, attributes);
       auto pncsubmesh = dynamic_cast<ParNCSubMesh*>(pncmesh);
       ncmesh = pncmesh;
       InitFromNCMesh(*pncmesh);
-      std::cout << __FILE__ << ':' << __LINE__ << std::endl;
-      print_elem();
+      // std::cout << __FILE__ << ':' << __LINE__ << std::endl;
+      // print_elem();
 
       pncmesh->OnMeshUpdated(this);
       std::cout << __FILE__ << ':' << __LINE__ << std::endl;
@@ -267,15 +265,15 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
          auto parent_node = pncsubmesh->parent_node_ids_[node];
          auto parent_vertex =  parent.ncmesh->nodes[parent_node].vert_index;
          auto *vv = parent.GetVertex(parent_vertex);
-         std::cout << i << " node " << node << " parent_node " << parent_node << " parent_vertex " << parent_vertex
-            << " (" << vv[0] << ", " << vv[1] << ", " << vv[2] << ")" << std::endl;
+         // std::cout << i << " node " << node << " parent_node " << parent_node << " parent_vertex " << parent_vertex
+         //    << " (" << vv[0] << ", " << vv[1] << ", " << vv[2] << ")" << std::endl;
          new_parent_vertex_ids[i] = parent_vertex;
          new_parent_to_submesh_vertex_ids[parent_vertex] = i;
       }
       parent_vertex_ids_ = new_parent_vertex_ids;
       parent_to_submesh_vertex_ids_ = new_parent_to_submesh_vertex_ids;
-      std::cout << __FILE__ << ':' << __LINE__ << std::endl;
-      print_elem();
+      // std::cout << __FILE__ << ':' << __LINE__ << std::endl;
+      // print_elem();
 
       GenerateNCFaceInfo();
       SetAttributes();
@@ -375,11 +373,11 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
          else
          {
 
-            std::cout << "i " << i << " par_vert ";
-            for (auto x : par_vert) { std::cout << x << ' '; }
-            std::cout << " sub_par_vert ";
-            for (auto x : sub_par_vert) { std::cout << x << ' '; }
-            std::cout << std::endl;
+            // std::cout << "i " << i << " par_vert ";
+            // for (auto x : par_vert) { std::cout << x << ' '; }
+            // std::cout << " sub_par_vert ";
+            // for (auto x : sub_par_vert) { std::cout << x << ' '; }
+            // std::cout << std::endl;
             int se_ori = GetQuadOrientation(par_vert, sub_par_vert);
             parent_face_ori_[i] = ComposeQuadOrientations(be_ori, se_ori);
          }
@@ -491,15 +489,15 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
          auto fi = GetBdrElementFaceIndex(i);
          auto pfi = Dim == 3 ? parent_face_ids_[fi] : parent_edge_ids_[fi];
          auto pbe = parent_face_to_be[pfi];
-         std::cout << "Dim " << Dim << " i " << i << " fi " << fi << " pfi " << pfi << " pbe " << pbe << std::endl;
+         // std::cout << "Dim " << Dim << " i " << i << " fi " << fi << " pfi " << pfi << " pbe " << pbe << std::endl;
          // This case happens when a domain is extracted, but the root parent
          // mesh didn't have a boundary element on the trace that defined
          // it's boundary. It still creates a valid mesh, so we allow it.
          SetBdrAttribute(i, pbe != -1 ? parent.GetBdrAttribute(pbe) : max_bdr_attr + 1);
       }
    }
-   std::cout << __FILE__ << ':' << __LINE__ << std::endl;
-   print_details();
+   // std::cout << __FILE__ << ':' << __LINE__ << std::endl;
+   // print_elem();
 
    SetAttributes();
    Finalize();

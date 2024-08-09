@@ -340,10 +340,6 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
                return std::lexicographical_compare(t1.begin(), t1.end(),
                   t2.nodes.begin(), t2.nodes.end());
             };
-            // auto begin() -> decltype(nodes.begin()) { return nodes.begin(); }
-            // auto end() -> decltype(nodes.end()) { return nodes.end(); }
-            // auto begin() -> decltype(nodes.begin()) const { return nodes.begin(); }
-            // auto end() -> decltype(nodes.end()) const { return nodes.end(); }
          };
 
 
@@ -379,15 +375,6 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
 
             auto mesh_id_type = face_list.GetMeshIdType(face.index);
 
-            if (mesh_id_type == NCList::MeshIdType::CONFORMING)
-               std::cout << "CONFORMING\n";
-            if (mesh_id_type == NCList::MeshIdType::MASTER)
-               std::cout << "MASTER\n";
-            if (mesh_id_type == NCList::MeshIdType::SLAVE)
-               std::cout << "SLAVE\n";
-            if (mesh_id_type == NCList::MeshIdType::UNRECOGNIZED)
-               std::cout << "UNRECOGNIZED\n";
-
             std::cout << "face.elem " << face.elem[0] << ' ' << face.elem[1] << std::endl;
             if (face.elem[0] >= 0)
             { std::cout << " elem 0 IsLeaf " << parent.elements[face.elem[0]].IsLeaf() << std::endl; }
@@ -395,18 +382,24 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
             if (face.elem[1] >= 0)
             { std::cout << " elem 1 IsLeaf " << parent.elements[face.elem[1]].IsLeaf() << std::endl; }
 
-            std::cout << " face.index " << face.index << " parent.IsGhost(2, face.index) " << parent.IsGhost(2, face.index) << std::endl;
+            MFEM_ASSERT(face.elem[0] < 0 || face.elem[1] < 0, "Internal nonconforming boundaries are not supported yet.");
 
             auto face_geom = face_geom_from_nodes(fn.nodes);
             int new_elem_id = AddElement(NCMesh::Element(face_geom, face.attribute));
-            elements[new_elem_id].rank = [&parent, &face]()
-            {
-               // Assign rank from lowest index element attached.
-               if (face.elem[0] < 0) { return parent.elements[face.elem[1]].rank; }
-               if (face.elem[1] < 0) { return parent.elements[face.elem[0]].rank; }
-               return parent.elements[face.elem[0] < face.elem[1] ? face.elem[0] : face.elem[1]].rank;
-            }();
 
+            // Rank needs to be established by presence (or lack of) in the submesh.
+            elements[new_elem_id].rank = [&parent, &face, &submesh, &face_to_be]()
+            {
+               auto rank0 = face.elem[0] > 0 ? parent.elements[face.elem[0]].rank : -1;
+               auto rank1 = face.elem[1] > 0 ? parent.elements[face.elem[1]].rank : -1;
+
+               if (rank0 < 0) { return rank1; }
+               if (rank1 < 0) { return rank0; }
+
+               // A left and right element are present, need to establish which side
+               // received the boundary element.
+               return rank0 < rank1 ? rank0 : rank1;
+            }();
             auto orientation = [&]()
             {
                int f, o;
@@ -422,10 +415,6 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
             }();
             ReorientFaceNodesByOrientation(fn.nodes, face_geom, orientation);
 
-
-            // // Hack to manually fix the orientation
-            // std::swap(fn[0], fn[1]);
-            // std::swap(fn[2], fn[3]);
             pnodes_new_elem[fn] = new_elem_id;
             parent_element_ids_.Append(i);
             parent_to_submesh_element_ids_[i] = new_elem_id;
@@ -899,7 +888,8 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
             int new_elem_id = AddElement(NCMesh::Element(face_geom_from_parent(elem.Geom()), f.attribute));
             NCMesh::Element &new_elem = elements[new_elem_id];
             new_elem.index = submesh.GetSubMeshElementFromParent(parent_be);
-            new_elem.rank = elem.rank; // Inherit rank from the controlling element
+            new_elem.rank = new_elem.index < submesh.NumOfElements ? submesh.GetMyRank() : -1;
+            // elem.rank; // Inherit rank from the controlling element
             new_elem.attribute = f.attribute;
             new_elem.ref_type = elem.ref_type;
             std::cout << "parent_be " << parent_be << " new_elem.index " << new_elem.index << " elem.ref_type " << int(elem.ref_type) << std::endl;
@@ -1153,6 +1143,22 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
       submesh.parent_to_submesh_element_ids_ = -1;
       // parent elements are BOUNDARY elements, need to map face index to be.
       const auto &parent_face_to_be = submesh.GetParent()->GetFaceToBdrElMap();
+
+      std::cout << "submesh.parent_element_ids_.Size() " << submesh.parent_element_ids_.Size() << std::endl;
+      for (auto x : submesh.parent_element_ids_)
+      {
+         std::cout << x << ' ';
+      }
+      std::cout << "\nNElements " << NElements << " NGhostElements " << NGhostElements << std::endl;
+      std::cout << "GetNE() " << submesh.GetNE() << std::endl;
+
+      MFEM_ASSERT(NElements == submesh.GetNE(), "!");
+
+      // auto new_parent_element_ids = submesh.parent_element_ids_;
+      auto new_parent_to_submesh_element_ids = submesh.parent_to_submesh_element_ids_;
+      // new_parent_element_ids = -1;
+      Array<int> new_parent_element_ids;
+      new_parent_element_ids.Reserve(submesh.parent_element_ids_.Size());
       for (int i = 0; i < submesh.parent_element_ids_.Size(); i++)
       {
          auto leaf = leaf_elements[i];
@@ -1160,11 +1166,27 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
          auto pfi = parent.faces[pe].index;
          auto pbe = parent_face_to_be[pfi];
          std::cout << i << ' ' << leaf << ' ' << pe << ' ' << pfi << ' ' << pbe << '\n';
-         submesh.parent_element_ids_[i] =
-            parent_face_to_be[parent.faces[parent_element_ids_[leaf_elements[i]]].index];
-         submesh.parent_to_submesh_element_ids_[submesh.parent_element_ids_[i]] = i;
+         new_parent_element_ids.Append(
+            parent_face_to_be[parent.faces[parent_element_ids_[leaf_elements[i]]].index]);
+         new_parent_to_submesh_element_ids[new_parent_element_ids[i]] = i;
       }
 
+      MFEM_ASSERT(new_parent_element_ids.Size() == submesh.parent_element_ids_.Size(), "!");
+      for (auto x : new_parent_element_ids)
+      {
+         MFEM_ASSERT(std::find(submesh.parent_element_ids_.begin(), submesh.parent_element_ids_.end(), x) != submesh.parent_element_ids_.end(), "!");
+      }
+
+      for (auto x : submesh.parent_element_ids_)
+      {
+         MFEM_ASSERT(std::find(new_parent_element_ids.begin(), new_parent_element_ids.end(), x) != new_parent_element_ids.end(), "!");
+      }
+
+
+      submesh.parent_element_ids_ = new_parent_element_ids;
+      submesh.parent_to_submesh_element_ids_ = new_parent_to_submesh_element_ids;
+
+      // throw std::logic_error("!");
       // auto new_parent_element_ids = parent_element_ids_;
       // auto new_parent_to_submesh_element_ids = parent_to_submesh_element_ids_;
       // new_parent_to_submesh_element_ids = -1;
