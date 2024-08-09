@@ -32,16 +32,16 @@ BatchedLinAlg::BatchedLinAlg()
 #endif
 
 #if defined(MFEM_USE_MAGMA)
-      preferred_backend = MAGMA;
+      active_backend = MAGMA;
 #elif defined(MFEM_USE_CUDA_OR_HIP)
-      preferred_backend = GPU_BLAS;
+      active_backend = GPU_BLAS;
 #else
-      preferred_backend = NATIVE;
+      active_backend = NATIVE;
 #endif
    }
    else
    {
-      preferred_backend = NATIVE;
+      active_backend = NATIVE;
    }
 }
 
@@ -54,28 +54,28 @@ BatchedLinAlg &BatchedLinAlg::Instance()
 void BatchedLinAlg::AddMult(const DenseTensor &A, const Vector &x, Vector &y,
                             real_t alpha, real_t beta)
 {
-   Get(Instance().preferred_backend).AddMult(A, x, y, alpha, beta);
+   Get(Instance().active_backend).AddMult(A, x, y, alpha, beta);
 }
 
 void BatchedLinAlg::Mult(const DenseTensor &A, const Vector &x, Vector &y)
 {
-   Get(Instance().preferred_backend).Mult(A, x, y);
+   Get(Instance().active_backend).Mult(A, x, y);
 }
 
 void BatchedLinAlg::Invert(DenseTensor &A)
 {
-   Get(Instance().preferred_backend).Invert(A);
+   Get(Instance().active_backend).Invert(A);
 }
 
 void BatchedLinAlg::LUFactor(DenseTensor &A, Array<int> &P)
 {
-   Get(Instance().preferred_backend).LUFactor(A, P);
+   Get(Instance().active_backend).LUFactor(A, P);
 }
 
 void BatchedLinAlg::LUSolve(const DenseTensor &A, const Array<int> &P,
                             Vector &x)
 {
-   Get(Instance().preferred_backend).LUSolve(A, P, x);
+   Get(Instance().active_backend).LUSolve(A, P, x);
 }
 
 bool BatchedLinAlg::IsAvailable(BatchedLinAlg::Backend backend)
@@ -83,15 +83,15 @@ bool BatchedLinAlg::IsAvailable(BatchedLinAlg::Backend backend)
    return Instance().backends[backend] != nullptr;
 }
 
-void BatchedLinAlg::SetPreferredBackend(BatchedLinAlg::Backend backend)
+void BatchedLinAlg::SetActiveBackend(BatchedLinAlg::Backend backend)
 {
    MFEM_VERIFY(IsAvailable(backend), "Requested backend not supported.");
-   Instance().preferred_backend = backend;
+   Instance().active_backend = backend;
 }
 
-BatchedLinAlg::Backend BatchedLinAlg::GetPreferredBackend()
+BatchedLinAlg::Backend BatchedLinAlg::GetActiveBackend()
 {
-   return Instance().preferred_backend;
+   return Instance().active_backend;
 }
 
 const BatchedLinAlgBase &BatchedLinAlg::Get(BatchedLinAlg::Backend backend)
