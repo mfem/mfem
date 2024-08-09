@@ -24,17 +24,17 @@ namespace mfem
 /// using accelerated algorithms (GPU BLAS or MAGMA). Accessed using static
 /// member functions.
 ///
-/// The static member functions will delegate to the preferred backend (which
-/// can be set using SetPreferredBackend(), see BatchedLinAlg::Backend for all
-/// available backends and the order in which they will be chosen by default).
+/// The static member functions will delegate to the active backend (which can
+/// be set using SetActiveBackend(), see BatchedLinAlg::Backend for all
+/// available backends and the order in which they will be chosen initially).
 /// Operations can be performed directly with a specific backend using Get().
 class BatchedLinAlg
 {
 public:
    /// @brief Available backends for implementations of batched algorithms.
    ///
-   /// The preferred backend will be the first available backend in this order:
-   /// MAGMA, GPU_BLAS, NATIVE.
+   /// The initially active backend will be the first available backend in this
+   /// order: MAGMA, GPU_BLAS, NATIVE.
    enum Backend
    {
       /// @brief The standard MFEM backend, implemented using mfem::forall
@@ -52,7 +52,7 @@ private:
    /// All available backends. Unavailble backends will be nullptr.
    std::array<std::unique_ptr<class BatchedLinAlgBase>,
           Backend::NUM_BACKENDS> backends;
-   Backend preferred_backend;
+   Backend active_backend;
    /// Default constructor. Private.
    BatchedLinAlg();
    /// Return the singleton instance.
@@ -94,14 +94,14 @@ public:
    /// compiled with, and whether the the CUDA/HIP device is enabled.
    static bool IsAvailable(Backend backend);
    /// Set the default backend for batched linear algebra operations.
-   static void SetPreferredBackend(Backend backend);
+   static void SetActiveBackend(Backend backend);
    /// Get the default backend for batched linear algebra operations.
-   static Backend GetPreferredBackend();
+   static Backend GetActiveBackend();
    /// @brief Get the BatchedLinAlgBase object associated with a specific
    /// backend.
    ///
    /// This allows the user to perform specific operations with a backend
-   /// different from the preferred backend.
+   /// different from the active backend.
    static const BatchedLinAlgBase &Get(Backend backend);
 };
 

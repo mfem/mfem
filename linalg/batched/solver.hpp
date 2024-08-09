@@ -47,7 +47,7 @@ public:
    /// retained by the caller.
    BatchedDirectSolver(const DenseTensor &A_, Mode mode_,
                        BatchedLinAlg::Backend backend_ =
-                          BatchedLinAlg::GetPreferredBackend());
+                          BatchedLinAlg::GetActiveBackend());
    /// Sets $y = A^{-1} x$.
    void Mult(const Vector &x, Vector &y) const;
    /// Not supported (aborts).
