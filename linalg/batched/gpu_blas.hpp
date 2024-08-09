@@ -15,8 +15,6 @@
 #include "batched.hpp"
 #include "../../general/backends.hpp"
 
-#ifdef MFEM_USE_CUDA_OR_HIP
-
 #if defined(MFEM_USE_CUDA)
 #include <cublas.h>
 #elif defined(MFEM_USE_HIP)
@@ -26,24 +24,17 @@
 namespace mfem
 {
 
-class GPUBlasBatchedLinAlg : public BatchedLinAlgBase
-{
-public:
-   void AddMult(const DenseTensor &A, const Vector &x, Vector &y,
-                real_t alpha = 1.0, real_t beta = 1.0) const override;
-   void Invert(DenseTensor &A) const override;
-   void LUFactor(DenseTensor &A, Array<int> &P) const override;
-   void LUSolve(const DenseTensor &LU, const Array<int> &P,
-                Vector &x) const override;
-};
-
-/// Singleton class represented a cuBLAS or hipBLAS handle.
+/// @brief Singleton class represented a cuBLAS or hipBLAS handle.
+///
+/// If MFEM is compiled without CUDA or HIP, then this class has no effect.
 class GPUBlas
 {
 #if defined(MFEM_USE_CUDA)
    using HandleType = cublasHandle_t;
 #elif defined(MFEM_USE_HIP)
    using HandleType = hipblasHandle_t;
+#else
+   using HandleType = nullptr_t;
 #endif
 
    HandleType handle = nullptr; ///< The internal handle.
@@ -59,8 +50,21 @@ public:
    static void DisableAtomics();
 };
 
-} // namespace mfem
+#ifdef MFEM_USE_CUDA_OR_HIP
+
+class GPUBlasBatchedLinAlg : public BatchedLinAlgBase
+{
+public:
+   void AddMult(const DenseTensor &A, const Vector &x, Vector &y,
+                real_t alpha = 1.0, real_t beta = 1.0) const override;
+   void Invert(DenseTensor &A) const override;
+   void LUFactor(DenseTensor &A, Array<int> &P) const override;
+   void LUSolve(const DenseTensor &LU, const Array<int> &P,
+                Vector &x) const override;
+};
 
 #endif // MFEM_USE_CUDA_OR_HIP
 
-#endif
+} // namespace mfem
+
+#endif // MFEM_GPU_BLAS_LINALG
