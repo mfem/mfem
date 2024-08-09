@@ -14,6 +14,7 @@
 
 #include "batched.hpp"
 #include "../../general/backends.hpp"
+#include <cstddef> // std::nullptr_t
 
 #if defined(MFEM_USE_CUDA)
 #include <cublas.h>
@@ -34,7 +35,7 @@ class GPUBlas
 #elif defined(MFEM_USE_HIP)
    using HandleType = hipblasHandle_t;
 #else
-   using HandleType = nullptr_t;
+   using HandleType = std::nullptr_t;
 #endif
 
    HandleType handle = nullptr; ///< The internal handle.
