@@ -37,39 +37,37 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_Fit_2D,
 
    auto Y = Reshape(c_.ReadWrite(), D1D, D1D, DIM, NE);
 
-   mfem::forall_2D(NE, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_2D(FE.Size(), D1D, D1D, [=] MFEM_HOST_DEVICE (int i)
    {
-      if (FE.Find(e) != -1)
+      const int e = FE[i];
+      const int D1D = T_D1D ? T_D1D : d1d;
+
+      MFEM_FOREACH_THREAD(qy,y,D1D)
       {
-         const int D1D = T_D1D ? T_D1D : d1d;
-
-         MFEM_FOREACH_THREAD(qy,y,D1D)
+         MFEM_FOREACH_THREAD(qx,x,D1D)
          {
-            MFEM_FOREACH_THREAD(qx,x,D1D)
+            real_t Xh[2];
+            real_t H_data[4];
+            DeviceMatrix H(H_data,2,2);
+            for (int i = 0; i < DIM; i++)
             {
-               real_t Xh[2];
-               real_t H_data[4];
-               DeviceMatrix H(H_data,2,2);
-               for (int i = 0; i < DIM; i++)
+               Xh[i] = R(qx,qy,i,e);
+               for (int j = 0; j < DIM; j++)
                {
-                  Xh[i] = R(qx,qy,i,e);
-                  for (int j = 0; j < DIM; j++)
-                  {
-                     H(i,j) = H0(i,j,qx,qy,e);
-                  }
+                  H(i,j) = H0(i,j,qx,qy,e);
                }
-               
-               real_t p2[2];
-               kernels::Mult(2,2,H_data,Xh,p2);
+            }
+            
+            real_t p2[2];
+            kernels::Mult(2,2,H_data,Xh,p2);
 
-               for (int i = 0; i < DIM; i++)
-               {
-                  Y(qx,qy,i,e) += p2[i];
-               }
+            for (int i = 0; i < DIM; i++)
+            {
+               Y(qx,qy,i,e) += p2[i];
             }
          }
       }
-      MFEM_SYNC_THREAD;
+   MFEM_SYNC_THREAD;
    });
 }
 

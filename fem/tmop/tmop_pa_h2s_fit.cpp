@@ -47,35 +47,32 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_Fit_2D,
 
     auto H0 = Reshape(h0_.Write(), DIM, DIM, D1D, D1D, NE);
 
-    mfem::forall_2D(NE, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
+    mfem::forall_2D(FE.Size(), D1D, D1D, [=] MFEM_HOST_DEVICE (int i)
     {
-        if (FE.Find(e) != -1)
+        const int e = FE[i];
+        const int D1D = T_D1D ? T_D1D : d1d;
+        MFEM_FOREACH_THREAD(qy,y,D1D)
         {
-
-            const int D1D = T_D1D ? T_D1D : d1d;
-            MFEM_FOREACH_THREAD(qy,y,D1D)
+            MFEM_FOREACH_THREAD(qx,x,D1D)
             {
-                MFEM_FOREACH_THREAD(qx,x,D1D)
+                const real_t sigma = S0(qx,qy,e);
+                const real_t dof_count = DC(qx,qy,e);
+                const real_t marker = M0(qx,qy,e);
+                const real_t coeff = PW;
+                const real_t normal = N0;
+                
+                double w = marker * normal * coeff * 1.0/dof_count;
+                for (int i = 0; i < DIM; i++)
                 {
-                    const real_t sigma = S0(qx,qy,e);
-                    const real_t dof_count = DC(qx,qy,e);
-                    const real_t marker = M0(qx,qy,e);
-                    const real_t coeff = PW;
-                    const real_t normal = N0;
-                    
-                    double w = marker * normal * coeff * 1.0/dof_count;
-                    for (int i = 0; i < DIM; i++)
+                    for (int j = 0; j <= i; j++)
                     {
-                        for (int j = 0; j <= i; j++)
-                        {
-                            const real_t dxi = D1(qx,qy,i,e);
-                            const real_t dxj = D1(qx,qy,j,e);
-                            const real_t d2x = D2(qx,qy,i,j,e);
+                        const real_t dxi = D1(qx,qy,i,e);
+                        const real_t dxj = D1(qx,qy,j,e);
+                        const real_t d2x = D2(qx,qy,i,j,e);
 
-                            const real_t entry = 2 * w * (dxi*dxj + sigma * d2x);
-                            H0(i,j,qx,qy,e) = entry;
-                            if (i != j) { H0(j,i,qx,qy,e) = entry;}                    
-                        }
+                        const real_t entry = 2 * w * (dxi*dxj + sigma * d2x);
+                        H0(i,j,qx,qy,e) = entry;
+                        if (i != j) { H0(j,i,qx,qy,e) = entry;}                    
                     }
                 }
             }

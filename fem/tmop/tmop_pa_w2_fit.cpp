@@ -43,24 +43,23 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_Fit_2D,
 
    auto E = Reshape(energy.Write(), D1D, D1D, NE);
 
-   mfem::forall_2D(NE, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
+   
+   mfem::forall_2D(FE.Size(), D1D, D1D, [=] MFEM_HOST_DEVICE (int i)
    {
-      if (FE.Find(e) != -1)
+      const int e = FE[i];
+      const int D1D = T_D1D ? T_D1D : d1d;
+      MFEM_FOREACH_THREAD(qy,y,D1D)
       {
-         const int D1D = T_D1D ? T_D1D : d1d;
-         MFEM_FOREACH_THREAD(qy,y,D1D)
+         MFEM_FOREACH_THREAD(qx,x,D1D)
          {
-            MFEM_FOREACH_THREAD(qx,x,D1D)
-            {
-               const real_t sigma = S0(qx,qy,e);
-               const real_t dof_count = DC(qx,qy,e);
-               const real_t marker = M0(qx,qy,e);
-               const real_t coeff = PW;
-               const real_t normal = N0;
+            const real_t sigma = S0(qx,qy,e);
+            const real_t dof_count = DC(qx,qy,e);
+            const real_t marker = M0(qx,qy,e);
+            const real_t coeff = PW;
+            const real_t normal = N0;
 
-               double w = marker * coeff * normal * 1.0/dof_count;
-               E(qx,qy,e) = w * sigma * sigma;
-            }
+            double w = marker * coeff * normal * 1.0/dof_count;
+            E(qx,qy,e) = w * sigma * sigma;
          }
       }
    });

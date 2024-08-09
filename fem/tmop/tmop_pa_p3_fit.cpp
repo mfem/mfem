@@ -45,35 +45,33 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_Fit_3D,
 
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, DIM, NE);
 
-   mfem::forall_3D(NE, D1D, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_3D(FE.Size(), D1D, D1D, D1D, [=] MFEM_HOST_DEVICE (int i)
    {
-      if (FE.Find(e) != -1)
+      const int e = FE[i];
+      const int D1D = T_D1D ? T_D1D : d1d;
+
+      MFEM_FOREACH_THREAD(qz,z,D1D)
       {
-         const int D1D = T_D1D ? T_D1D : d1d;
-
-         MFEM_FOREACH_THREAD(qz,z,D1D)
+         MFEM_FOREACH_THREAD(qy,y,D1D)
          {
-            MFEM_FOREACH_THREAD(qy,y,D1D)
+            MFEM_FOREACH_THREAD(qx,x,D1D)
             {
-               MFEM_FOREACH_THREAD(qx,x,D1D)
-               {
-                  const real_t sigma = S0(qx,qy,qz,e);
-                  const real_t dof_count = DC(qx,qy,qz,e);
-                  const real_t marker = M0(qx,qy,qz,e); 
-                  const real_t coeff = PW;
-                  const real_t normal = N0;
+               const real_t sigma = S0(qx,qy,qz,e);
+               const real_t dof_count = DC(qx,qy,qz,e);
+               const real_t marker = M0(qx,qy,qz,e); 
+               const real_t coeff = PW;
+               const real_t normal = N0;
 
-                  const real_t dx = D1(qx,qy,qz,0,e);
-                  const real_t dy = D1(qx,qy,qz,1,e);
-                  const real_t dz = D1(qx,qy,qz,2,e);
+               const real_t dx = D1(qx,qy,qz,0,e);
+               const real_t dy = D1(qx,qy,qz,1,e);
+               const real_t dz = D1(qx,qy,qz,2,e);
 
-                  if (marker == 0) {continue;}
-                  double w = normal * coeff * 1.0/dof_count; 
-                  Y(qx,qy,qz,0,e) += 2 * w * sigma * dx;
-                  Y(qx,qy,qz,1,e) += 2 * w * sigma * dy;
-                  Y(qx,qy,qz,2,e) += 2 * w * sigma * dz;
+               if (marker == 0) {continue;}
+               double w = normal * coeff * 1.0/dof_count; 
+               Y(qx,qy,qz,0,e) += 2 * w * sigma * dx;
+               Y(qx,qy,qz,1,e) += 2 * w * sigma * dy;
+               Y(qx,qy,qz,2,e) += 2 * w * sigma * dz;
 
-               }
             }
          }
       }

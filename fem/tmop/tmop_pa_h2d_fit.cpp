@@ -34,23 +34,21 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_Fit_2D,
     const auto H0 = Reshape(h0.Read(), DIM, DIM, D1D, D1D, NE);
     auto D = Reshape(diagonal.ReadWrite(), D1D, D1D, DIM, NE);
 
-    mfem::forall_2D(NE, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
+    mfem::forall_2D(FE.Size(), D1D, D1D, [=] MFEM_HOST_DEVICE (int i)
     {
-        if (FE.Find(e) != -1)
+        const int e = FE[i];
+        const int D1D = T_D1D ? T_D1D : d1d;
+        MFEM_FOREACH_THREAD(qy,y,D1D)
         {
-            const int D1D = T_D1D ? T_D1D : d1d;
-            MFEM_FOREACH_THREAD(qy,y,D1D)
+            MFEM_FOREACH_THREAD(qx,x,D1D)
             {
-                MFEM_FOREACH_THREAD(qx,x,D1D)
+                for (int v = 0; v < DIM; v++)
                 {
-                    for (int v = 0; v < DIM; v++)
-                    {
-                        D(qx,qy,v,e) += H0(v,v,qx,qy,e);;                 
-                    }
+                    D(qx,qy,v,e) += H0(v,v,qx,qy,e);;                 
                 }
             }
-            MFEM_SYNC_THREAD;
         }
+        MFEM_SYNC_THREAD;
     });
 
 }

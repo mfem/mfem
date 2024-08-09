@@ -34,10 +34,9 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_Fit_3D,
    auto D = Reshape(diagonal.ReadWrite(), D1D, D1D, D1D, DIM, NE);
    const Array<int> FE = fe_;
 
-   mfem::forall_3D(NE, D1D, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_3D(FE.Size(), D1D, D1D, D1D, [=] MFEM_HOST_DEVICE (int i)
    {
-      if (FE.Find(e) != -1)
-      {
+      const int e = FE[i];
       const int D1D = T_D1D ? T_D1D : d1d;
 
       MFEM_FOREACH_THREAD(qz,z,D1D)
@@ -52,7 +51,6 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_Fit_3D,
                 }
             }
         }
-      }
       }
       MFEM_SYNC_THREAD;
    });
