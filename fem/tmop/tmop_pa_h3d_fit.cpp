@@ -21,6 +21,7 @@ namespace mfem
 
 MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_Fit_3D,
                            const int NE,
+                           const Array<int> &fe_,
                            const Vector &h0,
                            Vector &diagonal,
                            const int d1d,
@@ -31,9 +32,12 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_Fit_3D,
 
    const auto H0 = Reshape(h0.Read(), DIM, DIM, D1D, D1D, D1D, NE);
    auto D = Reshape(diagonal.ReadWrite(), D1D, D1D, D1D, DIM, NE);
+   const Array<int> FE = fe_;
 
    mfem::forall_3D(NE, D1D, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
    {
+      if (FE.Find(e) != -1)
+      {
       const int D1D = T_D1D ? T_D1D : d1d;
 
       MFEM_FOREACH_THREAD(qz,z,D1D)
@@ -49,6 +53,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_Fit_3D,
             }
         }
       }
+      }
       MFEM_SYNC_THREAD;
    });
 
@@ -60,10 +65,12 @@ void TMOP_Integrator::AssembleDiagonalPA_Fit_3D(Vector &D) const
    const int D1D = meshOrder + 1;
    const int Q1D = D1D;
    const int id = (D1D << 4 ) | Q1D;
+   const Array<int> &FE = PA.FE;
+
 
    Vector &H0 = PA.H0Fit;
 
-   MFEM_LAUNCH_TMOP_KERNEL(AssembleDiagonalPA_Kernel_Fit_3D,id,N,H0,D);
+   MFEM_LAUNCH_TMOP_KERNEL(AssembleDiagonalPA_Kernel_Fit_3D,id,N,FE,H0,D);
 }
 
 } // namespace mfem

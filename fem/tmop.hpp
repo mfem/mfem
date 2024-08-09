@@ -1883,6 +1883,8 @@ protected:
       const GeometricFactors *geom;
       const FiniteElementSpace *fes;
       const IntegrationRule *ir;
+      Array<int> FE;
+
    } PA;
 
    void ComputeNormalizationEnergies(const GridFunction &x,

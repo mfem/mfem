@@ -20,6 +20,7 @@ namespace mfem
 
 MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_Fit_3D,
                            const int NE,
+                           const Array<int> &fe_,
                            const Vector &h0_,
                            const Vector &r_,
                            Vector &c_,
@@ -28,6 +29,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_Fit_3D,
 {
    constexpr int DIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
+   const Array<int> FE = fe_;
 
    const auto H0 = Reshape(h0_.Read(), DIM, DIM, D1D, D1D, D1D, NE);
    const auto R = Reshape(r_.Read(), D1D, D1D, D1D, DIM, NE);
@@ -36,7 +38,8 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_Fit_3D,
 
    mfem::forall_3D(NE, D1D, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
    {
-      constexpr int DIM = 3;
+      if (FE.Find(e) != -1)
+      {
       const int D1D = T_D1D ? T_D1D : d1d;
 
       MFEM_FOREACH_THREAD(qz,z,D1D)
@@ -67,6 +70,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_Fit_3D,
             }
          }
       }
+      }
    });
 }
 
@@ -79,7 +83,9 @@ void TMOP_Integrator::AddMultGradPA_Fit_3D(const Vector &R, Vector &C) const
    const int id = (D1D << 4 ) | Q1D;
    const Vector &H0 = PA.H0Fit;
 
-   MFEM_LAUNCH_TMOP_KERNEL(AddMultGradPA_Kernel_Fit_3D,id,N,H0,R,C);
+   const Array<int> &FE = PA.FE;
+
+   MFEM_LAUNCH_TMOP_KERNEL(AddMultGradPA_Kernel_Fit_3D,id,N,FE,H0,R,C);
 }
 
 } // namespace mfem

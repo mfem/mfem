@@ -28,6 +28,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_Fit_2D,
                            const Vector &m0_,
                            const Vector &d1_,
                            const Vector &d2_,
+                           const Array<int> &fe_,
                            Vector &h0_,
                            const int d1d,
                            const int q1d)
@@ -42,35 +43,39 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_Fit_2D,
     const auto M0 = Reshape(m0_.Read(), D1D, D1D, NE);
     const auto D1 = Reshape(d1_.Read(), D1D, D1D, DIM, NE);
     const auto D2 = Reshape(d2_.Read(), D1D, D1D, DIM, DIM, NE);
+    const Array<int> FE = fe_;
 
     auto H0 = Reshape(h0_.Write(), DIM, DIM, D1D, D1D, NE);
 
     mfem::forall_2D(NE, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
     {
-        const int D1D = T_D1D ? T_D1D : d1d;
-
-        MFEM_FOREACH_THREAD(qy,y,D1D)
+        if (FE.Find(e) != -1)
         {
-            MFEM_FOREACH_THREAD(qx,x,D1D)
-            {
-                const real_t sigma = S0(qx,qy,e);
-                const real_t dof_count = DC(qx,qy,e);
-                const real_t marker = M0(qx,qy,e);
-                const real_t coeff = PW;
-                const real_t normal = N0;
-                
-                double w = marker * normal * coeff * 1.0/dof_count;
-                for (int i = 0; i < DIM; i++)
-                {
-                    for (int j = 0; j <= i; j++)
-                    {
-                        const real_t dxi = D1(qx,qy,i,e);
-                        const real_t dxj = D1(qx,qy,j,e);
-                        const real_t d2x = D2(qx,qy,i,j,e);
 
-                        const real_t entry = 2 * w * (dxi*dxj + sigma * d2x);
-                        H0(i,j,qx,qy,e) = entry;
-                        if (i != j) { H0(j,i,qx,qy,e) = entry;}                    
+            const int D1D = T_D1D ? T_D1D : d1d;
+            MFEM_FOREACH_THREAD(qy,y,D1D)
+            {
+                MFEM_FOREACH_THREAD(qx,x,D1D)
+                {
+                    const real_t sigma = S0(qx,qy,e);
+                    const real_t dof_count = DC(qx,qy,e);
+                    const real_t marker = M0(qx,qy,e);
+                    const real_t coeff = PW;
+                    const real_t normal = N0;
+                    
+                    double w = marker * normal * coeff * 1.0/dof_count;
+                    for (int i = 0; i < DIM; i++)
+                    {
+                        for (int j = 0; j <= i; j++)
+                        {
+                            const real_t dxi = D1(qx,qy,i,e);
+                            const real_t dxj = D1(qx,qy,j,e);
+                            const real_t d2x = D2(qx,qy,i,j,e);
+
+                            const real_t entry = 2 * w * (dxi*dxj + sigma * d2x);
+                            H0(i,j,qx,qy,e) = entry;
+                            if (i != j) { H0(j,i,qx,qy,e) = entry;}                    
+                        }
                     }
                 }
             }
@@ -93,9 +98,11 @@ void TMOP_Integrator::AssembleGradPA_Fit_2D(const Vector &X) const
    const Vector &D1 = PA.D1;
    const Vector &D2 = PA.D2;
 
+   const Array<int> &FE = PA.FE;
+
    Vector &H0 = PA.H0Fit;
 
-   MFEM_LAUNCH_TMOP_KERNEL(SetupGradPA_Fit_2D,id,N,PW,N0,S0,DC,M0,D1,D2,H0);
+   MFEM_LAUNCH_TMOP_KERNEL(SetupGradPA_Fit_2D,id,N,PW,N0,S0,DC,M0,D1,D2,FE,H0);
 }
 
 } // namespace mfem

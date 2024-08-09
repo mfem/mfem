@@ -176,6 +176,19 @@ void TMOP_Integrator::AssemblePA_Fitting()
    PA.M0.UseDevice(true);
    n3_R->Mult(temp2, PA.M0);
 
+   for (int el_id = 0; el_id < NE; el_id++){
+      Array<int> dofs, vdofs;
+      fes_fit->GetElementVDofs(el_id, vdofs);
+      int count = 0;
+      const FiniteElement &el_s = *fes_fit->GetFE(el_id);
+      const int dof_s = el_s.GetDof();
+      for (int s = 0; s < dof_s; s++)
+      {
+         const int scalar_dof_id = fes_fit->VDofToDof(vdofs[s]);
+         count += ((*surf_fit_marker)[scalar_dof_id]) ? 1 : 0;
+      }
+      if (count != 0) { PA.FE.Append(el_id);}
+   }
    // surf_fit_grad -> PA.D1
    const Operator *n4_R = fes_grad->GetElementRestriction(ordering);
    PA.D1.SetSize(n4_R->Height(), Device::GetMemoryType());

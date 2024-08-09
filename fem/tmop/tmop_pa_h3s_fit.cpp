@@ -28,6 +28,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_Fit_3D,
                            const Vector &m0_,
                            const Vector &d1_,
                            const Vector &d2_,
+                           const Array<int> &fe_,
                            Vector &h0_,
                            const int d1d,
                            const int q1d)
@@ -42,12 +43,14 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_Fit_3D,
    const auto M0 = Reshape(m0_.Read(), D1D, D1D, D1D, NE);
    const auto D1 = Reshape(d1_.Read(), D1D, D1D, D1D, DIM, NE);
    const auto D2 = Reshape(d2_.Read(), D1D, D1D, D1D, DIM, DIM, NE);
-
+   const Array<int> FE = fe_;
 
    auto H0 = Reshape(h0_.Write(), DIM, DIM, D1D, D1D, D1D, NE);
 
    mfem::forall_3D(NE, D1D, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
    {
+      if (FE.Find(e) != -1)
+      {
       const int D1D = T_D1D ? T_D1D : d1d;
 
       MFEM_FOREACH_THREAD(qz,z,D1D)
@@ -81,6 +84,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_Fit_3D,
             }
         }
       }
+      }
       MFEM_SYNC_THREAD;
    });
 
@@ -102,8 +106,9 @@ void TMOP_Integrator::AssembleGradPA_Fit_3D(const Vector &X) const
    const Vector &D2 = PA.D2;
 
    Vector &H0 = PA.H0Fit;
+   const Array<int> &FE = PA.FE;
 
-   MFEM_LAUNCH_TMOP_KERNEL(SetupGradPA_Fit_3D,id,N,PW,N0,S0,DC,M0,D1,D2,H0);
+   MFEM_LAUNCH_TMOP_KERNEL(SetupGradPA_Fit_3D,id,N,PW,N0,S0,DC,M0,D1,D2,FE,H0);
 }
 
 } // namespace mfem

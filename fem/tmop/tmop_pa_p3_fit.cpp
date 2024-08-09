@@ -27,6 +27,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_Fit_3D,
                            const Vector &dc_,
                            const Vector &m0_,
                            const Vector &d1_,
+                           const Array<int> &fe_,
                            Vector &y_,
                            const int d1d,
                            const int q1d)
@@ -40,37 +41,41 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_Fit_3D,
    const auto DC = Reshape(dc_.Read(), D1D, D1D, D1D, NE);
    const auto M0 = Reshape(m0_.Read(), D1D, D1D, D1D, NE);
    const auto D1 = Reshape(d1_.Read(), D1D, D1D, D1D, DIM, NE);
+   const Array<int> FE = fe_;
 
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, DIM, NE);
 
    mfem::forall_3D(NE, D1D, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
    {
-      const int D1D = T_D1D ? T_D1D : d1d;
-
-      MFEM_FOREACH_THREAD(qz,z,D1D)
+      if (FE.Find(e) != -1)
       {
-        MFEM_FOREACH_THREAD(qy,y,D1D)
-        {
-            MFEM_FOREACH_THREAD(qx,x,D1D)
+         const int D1D = T_D1D ? T_D1D : d1d;
+
+         MFEM_FOREACH_THREAD(qz,z,D1D)
+         {
+            MFEM_FOREACH_THREAD(qy,y,D1D)
             {
-                const real_t sigma = S0(qx,qy,qz,e);
-                const real_t dof_count = DC(qx,qy,qz,e);
-                const real_t marker = M0(qx,qy,qz,e); 
-                const real_t coeff = PW;
-                const real_t normal = N0;
+               MFEM_FOREACH_THREAD(qx,x,D1D)
+               {
+                  const real_t sigma = S0(qx,qy,qz,e);
+                  const real_t dof_count = DC(qx,qy,qz,e);
+                  const real_t marker = M0(qx,qy,qz,e); 
+                  const real_t coeff = PW;
+                  const real_t normal = N0;
 
-                const real_t dx = D1(qx,qy,qz,0,e);
-                const real_t dy = D1(qx,qy,qz,1,e);
-                const real_t dz = D1(qx,qy,qz,2,e);
+                  const real_t dx = D1(qx,qy,qz,0,e);
+                  const real_t dy = D1(qx,qy,qz,1,e);
+                  const real_t dz = D1(qx,qy,qz,2,e);
 
-                if (marker == 0) {continue;}
-                double w = normal * coeff * 1.0/dof_count; 
-                Y(qx,qy,qz,0,e) += 2 * w * sigma * dx;
-                Y(qx,qy,qz,1,e) += 2 * w * sigma * dy;
-                Y(qx,qy,qz,2,e) += 2 * w * sigma * dz;
+                  if (marker == 0) {continue;}
+                  double w = normal * coeff * 1.0/dof_count; 
+                  Y(qx,qy,qz,0,e) += 2 * w * sigma * dx;
+                  Y(qx,qy,qz,1,e) += 2 * w * sigma * dy;
+                  Y(qx,qy,qz,2,e) += 2 * w * sigma * dz;
 
+               }
             }
-        }
+         }
       }
       MFEM_SYNC_THREAD; 
    });
@@ -91,7 +96,10 @@ void TMOP_Integrator::AddMultPA_Fit_3D(const Vector &X, Vector &Y) const
    const Vector &M0 = PA.M0;
    const Vector &D1 = PA.D1;
 
-   MFEM_LAUNCH_TMOP_KERNEL(AddMultPA_Kernel_Fit_3D,id,N,PW,N0,S0,DC,M0,D1,Y);
+   const Array<int> &FE = PA.FE;
+
+
+   MFEM_LAUNCH_TMOP_KERNEL(AddMultPA_Kernel_Fit_3D,id,N,PW,N0,S0,DC,M0,D1,FE,Y);
 }
 
 } // namespace mfem
