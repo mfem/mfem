@@ -518,17 +518,33 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
       surfaces->ConvertParamCoordToPhys(x_out_loc, x_out_loc_x);
 
-      // Check the changes in detJ.
+      // Check the changes in detJ (volumetric points).
       min_detT_out = ComputeMinDet(x_out_loc_x, *fes);
       if (untangling == false && min_detT_out <= min_detJ_limit)
       {
          // No untangling, and detJ got negative (or small) -- no good.
          if (print_options.iterations)
          {
-            mfem::out << "Scale = " << scale << " Neg det(J) found.\n";
+            mfem::out << "Scale = " << scale << " Neg det(J) found (vol).\n";
          }
          scale *= detJ_factor; continue;
       }
+      // Check the changes in detJ (boundary points).
+      if (ir_bdr && untangling == false)
+      {
+         double min_detJ_bdr = ComputeMinDetBdr(x_out_loc_x, *fes);
+         if (min_detJ_bdr <= min_detJ_limit)
+         {
+            // No untangling, and detJ got negative (or small) -- no good.
+            if (print_options.iterations)
+            {
+               mfem::out << "Scale = " << scale
+                         << " Neg det(J) found (bdr). " << min_detJ_bdr << "\n";
+            }
+            scale *= detJ_factor; continue;
+         }
+      }
+
       if (untangling == true && min_detT_out < *min_det_ptr)
       {
          // Untangling, and detJ got even more negative -- no good.
@@ -946,6 +962,51 @@ real_t TMOPNewtonSolver::ComputeMinDet(const Vector &x_loc,
    const DenseMatrix &Wideal =
       Geometries.GetGeomToPerfGeomJac(fes.GetFE(0)->GetGeomType());
    min_detT_all /= Wideal.Det();
+
+   return min_detT_all;
+}
+
+real_t TMOPNewtonSolver::ComputeMinDetBdr(const Vector &x_loc,
+                                          const FiniteElementSpace &fes) const
+{
+   real_t min_detJ = infinity();
+   const int dim = fes.GetMesh()->Dimension();
+   Array<int> xdofs;
+   DenseMatrix Jpr(dim);
+   for (int be = 0; be < fes.GetNBE(); be++)
+   {
+      auto b_face_tr = fes.GetMesh()->GetBdrFaceTransformations(be);
+      if (b_face_tr == nullptr) { continue; }
+
+      const int dof = fes.GetFE(b_face_tr->Elem1No)->GetDof();
+      DenseMatrix dshape(dof, dim), pos(dof, dim);
+      Vector posV(pos.Data(), dof * dim);
+
+      fes.GetElementVDofs(b_face_tr->Elem1No, xdofs);
+      x_loc.GetSubVector(xdofs, posV);
+
+      const int nsp = ir_bdr->GetNPoints();
+      for (int q = 0; q < nsp; q++)
+      {
+         const IntegrationPoint &ip_f = ir_bdr->IntPoint(q);
+         b_face_tr->SetAllIntPoints(&ip_f);
+         ElementTransformation &tr_el = b_face_tr->GetElement1Transformation();
+         const IntegrationPoint &ip_e = b_face_tr->GetElement1IntPoint();
+
+         fes.GetFE(b_face_tr->Elem1No)->CalcDShape(ip_e, dshape);
+         MultAtB(pos, dshape, Jpr);
+         min_detJ = std::min(min_detJ, Jpr.Det());
+      }
+   }
+   real_t min_detT_all = min_detJ;
+#ifdef MFEM_USE_MPI
+   if (parallel)
+   {
+      auto p_nlf = dynamic_cast<const ParNonlinearForm *>(oper);
+      MPI_Allreduce(&min_detJ, &min_detT_all, 1, MPITypeMap<real_t>::mpi_type,
+                    MPI_MIN, p_nlf->ParFESpace()->GetComm());
+   }
+#endif
 
    return min_detT_all;
 }
