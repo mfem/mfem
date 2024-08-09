@@ -13,6 +13,7 @@
 #define MYINTEGRATORS_HPP
 
 #include "mfem.hpp"
+#include "cut_marking.hpp"
 
 #include <map>
 
@@ -235,7 +236,56 @@ private:
 };
 
 
+class CutDiffusionIntegrator: public BilinearFormIntegrator
+{
+public:
+    CutDiffusionIntegrator(Coefficient& q,
+                           Array<int>* marks,
+                           CutIntegrationRules* cut_int)
+    {
+        el_marks=marks;
+        irules=cut_int;
+        dint=new DiffusionIntegrator(q);
+    }
 
+    ~CutDiffusionIntegrator()
+    {
+        delete dint;
+    }
+
+    virtual void AssembleElementMatrix(const FiniteElement &el,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat) override
+    {
+
+        if((*el_marks)[Trans.ElementNo]==ElementMarker::OUTSIDE)
+        {
+            elmat.SetSize(el.GetDof());
+            elmat=0.0;
+        }
+        else if((*el_marks)[Trans.ElementNo]==ElementMarker::INSIDE)
+        {
+            //use standard integration rule
+            dint->SetIntRule(nullptr);
+            dint->AssembleElementMatrix(el,Trans,elmat);
+        }
+        else
+        {
+            //use cut integration
+            IntegrationRule ir;
+            irules->GetVolumeIntegrationRule(Trans,ir);
+            dint->SetIntRule(&ir);
+            dint->AssembleElementMatrix(el,Trans,elmat);
+        }
+    }
+
+private:
+    DiffusionIntegrator* dint;
+
+    Array<int>* el_marks;
+    CutIntegrationRules* irules;
+
+};
 
 
 }
