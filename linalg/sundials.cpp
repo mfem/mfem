@@ -1953,7 +1953,7 @@ int KINSolver::PrecSolve(N_Vector uu,
 
 KINSolver::KINSolver(int strategy, bool oper_grad)
    : global_strategy(strategy), use_oper_grad(oper_grad), y_scale(NULL),
-     f_scale(NULL), jacobian(NULL), maa(0)
+     f_scale(NULL), jacobian(NULL), maa(0), orthaa(KIN_ORTH_MGS)
 {
    Y = new SundialsNVector();
    y_scale = new SundialsNVector();
@@ -1967,7 +1967,7 @@ KINSolver::KINSolver(int strategy, bool oper_grad)
 #ifdef MFEM_USE_MPI
 KINSolver::KINSolver(MPI_Comm comm, int strategy, bool oper_grad)
    : global_strategy(strategy), use_oper_grad(oper_grad), y_scale(NULL),
-     f_scale(NULL), jacobian(NULL), maa(0)
+     f_scale(NULL), jacobian(NULL), maa(0), orthaa(KIN_ORTH_MGS)
 {
    Y = new SundialsNVector(comm);
    y_scale = new SundialsNVector(comm);
@@ -2052,6 +2052,10 @@ void KINSolver::SetOperator(const Operator &op)
          flag = KINSetMAA(sundials_mem, maa);
          MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetMAA()");
       }
+
+      // Set Anderson acceleration QR orthogonalization method
+      flag = KINSetOrthAA(sundials_mem, orthaa);
+      MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetOrthAA()");
 
       // Initialize KINSOL
       flag = KINInit(sundials_mem, KINSolver::Mult, *Y);
@@ -2181,6 +2185,43 @@ void KINSolver::SetMAA(int m_aa)
    {
       flag = KINSetMAA(sundials_mem, maa);
       MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetMAA()");
+   }
+}
+
+void KINSolver::SetDamping(real_t beta)
+{
+   if (sundials_mem)
+   {
+      flag = KINSetDamping(sundials_mem, beta);
+      MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetDamping()");
+   }
+}
+
+void KINSolver::SetDampingAA(real_t beta)
+{
+   if (sundials_mem)
+   {
+      flag = KINSetDampingAA(sundials_mem, beta);
+      MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetDampingAA()");
+   }
+}
+
+void KINSolver::SetDelayAA(int delay)
+{
+   if (sundials_mem)
+   {
+      flag = KINSetDelayAA(sundials_mem, delay);
+      MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetDelayAA()");
+   }
+}
+
+void KINSolver::SetOrthAA(int orthaa)
+{
+   this->orthaa = orthaa;
+   if (sundials_mem)
+   {
+      flag = KINSetOrthAA(sundials_mem, orthaa);
+      MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetOrthAA()");
    }
 }
 
