@@ -12,8 +12,6 @@
 #include "gpu_blas.hpp"
 #include "../../general/forall.hpp"
 
-#ifdef MFEM_USE_CUDA_OR_HIP
-
 #if defined(MFEM_USE_CUDA)
 #define MFEM_cu_or_hip(stub) cu##stub
 #define MFEM_CU_or_HIP(stub) CU##stub
@@ -40,6 +38,26 @@
 namespace mfem
 {
 
+GPUBlas &GPUBlas::Instance()
+{
+   static GPUBlas instance;
+   return instance;
+}
+
+GPUBlas::HandleType GPUBlas::Handle()
+{
+   return Instance().handle;
+}
+
+#ifndef MFEM_USE_CUDA_OR_HIP
+
+GPUBlas::GPUBlas() { }
+GPUBlas::~GPUBlas() { }
+void GPUBlas::EnableAtomics() { }
+void GPUBlas::DisableAtomics() { }
+
+#else
+
 using blasStatus_t = MFEM_cu_or_hip(blasStatus_t);
 
 GPUBlas::GPUBlas()
@@ -51,17 +69,6 @@ GPUBlas::GPUBlas()
 GPUBlas::~GPUBlas()
 {
    MFEM_cu_or_hip(blasDestroy)(handle);
-}
-
-GPUBlas &GPUBlas::Instance()
-{
-   static GPUBlas instance;
-   return instance;
-}
-
-MFEM_cu_or_hip(blasHandle_t) GPUBlas::Handle()
-{
-   return Instance().handle;
 }
 
 void GPUBlas::EnableAtomics()
@@ -190,6 +197,6 @@ void GPUBlasBatchedLinAlg::Invert(DenseTensor &A) const
    MFEM_VERIFY(status == MFEM_BLAS_SUCCESS, "");
 }
 
-} // namespace mfem
-
 #endif
+
+} // namespace mfem
