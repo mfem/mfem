@@ -71,11 +71,11 @@ int main(int argc, char *argv[])
    // const char *mesh_file = "../data/star.mesh";
 
    // unit square, vertices (0, 0), (0, 1), (1, 1), (1, 0)
-   const char *mesh_file = "../data/square-nurbs.mesh"; 
+   // const char *mesh_file = "../data/square-nurbs.mesh"; 
 
    // this square has vertices (-1, -1), (-1, 1), (1, -1), (1, 1)
    // which changes the scaling lower in the file 
-   // const char *mesh_file = "../data/periodic-square.mesh"; 
+   const char *mesh_file = "../data/periodic-square.mesh"; 
 
    int order = 1;
    int max_it = 5;
@@ -117,6 +117,7 @@ int main(int argc, char *argv[])
 
    // 2. Read the mesh from the mesh file.
    Mesh mesh(mesh_file, 1, 1);
+   // mesh.Transform([](const Vector &x, Vector &y){y = x; y *= 2.0; });
    int dim = mesh.Dimension();
    int sdim = mesh.SpaceDimension();
 
@@ -134,20 +135,19 @@ int main(int argc, char *argv[])
 
    // 3B. Interpolate the geometry after refinement to control geometry error.
    // NOTE: Minimum second-order interpolation is used to improve the accuracy.
-   int curvature_order = max(order,2);
-   mesh.SetCurvature(curvature_order);
+   // int curvature_order = max(order,2);
+   // mesh.SetCurvature(curvature_order);
 
 	// rescale domain to square with vertices 
    // (this is for ordinary square mesh)
 	// (-2, -2), (-2, 2), (2, 2), (2, -2)
 	GridFunction *nodes = mesh.GetNodes();
-   *nodes *= 4.; 
-   *nodes -= 2.;
+   // *nodes *= 4.; 
+   // *nodes -= 2.;
 
    // this is the scaling if the periodic square domain is used, which 
    // has different vertices (noted above when loading) 
-   // *nodes *= 2.; 
-
+   *nodes *= 2.; 
 
    // 4. Define the necessary finite element spaces on the mesh.
    L2_FECollection L2fec(order-1, dim);
@@ -201,24 +201,36 @@ int main(int argc, char *argv[])
 	
 	auto sgn_varphi_is = [](const Vector &x)
 	{
-		auto x0 = x(0), x1 = x(1); 
-		auto val = x0*x0+x1*x1-1.; 
-
-		return (val < 0.) ? -1 : (val > 0.) ? 1. : 0.;  
+		auto val = x*x-1.; 
+		return (val < 0.) ? -1. : (val > 0.) ? 1. : 0.;  
 	}; 
+
 	FunctionCoefficient sgn_varphi(sgn_varphi_is); 
 
    char vishost[] = "localhost";
    int  visport   = 19916;
-   socketstream sol_sock, gradu_sock;
+   socketstream sol_sock, gradu_sock, true_sdf_sock;
    if (visualization)
    {
       sol_sock.open(vishost,visport);
       sol_sock.precision(8);
-      
+
       gradu_sock.open(vishost, visport); 
       gradu_sock.precision(8); 
+
+      true_sdf_sock.open(vishost, visport); 
+      true_sdf_sock.precision(8); 
    }
+
+   // plot out the true sdf  
+   // defines true sdf for square and unit circle case
+   auto true_sdf = [](const Vector &x){ return sqrt(x*x)-1.; }; 
+   
+   FunctionCoefficient sdf_fc(true_sdf); 
+   GridFunction sdf_gf(&H1fes); 
+   sdf_gf.ProjectCoefficient(sdf_fc); 
+
+   true_sdf_sock << "solution\n" << mesh << sdf_gf << "window_title 'True SDF'" << flush;
 
    LinearForm b0,b1;
    b0.MakeRef(&L2fes,rhs.GetBlock(0),0);
@@ -349,14 +361,15 @@ int main(int argc, char *argv[])
          psi_gf.Add(newton_scaling, delta_psi_gf); 
          a00.Update(); 
 
+         GradientGridFunctionCoefficient grad_u(&u_gf);
+         grad_u_gf.ProjectDiscCoefficient(grad_u);
+
          if (visualization)
          {
             sol_sock << "solution\n" << mesh << u_gf << "window_title 'Discrete solution'"
                      << flush;
             mfem::out << "Newton_update_size = " << Newton_update_size << endl;
 
-            GradientGridFunctionCoefficient grad_u(&u_gf);
-            grad_u_gf.ProjectDiscCoefficient(grad_u);
             gradu_sock << "solution\n" << mesh << grad_u_gf << "window_title 'Gradient magnitude'"
                      << flush;
          }
@@ -400,7 +413,6 @@ int main(int argc, char *argv[])
 
    auto f = [](double x){return (x <= 0.) ? 1. : 0.;  }; // indicator function for x <= 0
    MappedGridFunctionCoefficient curr_coeff(&u_gf, f); 
-   // MappedGridFunctionCoefficient curr_coeff_a(&u_gf, f); 
    
    // endpoints for bisection search
    real_t endpoint_a = -1., endpoint_b = 1.;  
@@ -444,39 +456,34 @@ int main(int argc, char *argv[])
          endpoint_a = midpoint_c;
       }
 
-      mfem::out << "\ncurrent midpoint  = " << midpoint_c << endl;
-
+      // mfem::out << "\ncurrent midpoint  = " << midpoint_c << endl;
       n_iter++; 
    }
 
    mfem::out << "\n concluded bisection method with c = " << midpoint_c << endl;
 
-   // how to properly evaluate u_bar + c_opt and compute error?
-   ConstantCoefficient c_opt(-1.0*midpoint_c); 
-   GridFunctionCoefficient u_coeff(&u_gf);
-   SumCoefficient u_fin(c_opt, u_coeff); 
+   real_t error_initial = u_gf.ComputeL2Error(sdf_fc);
+
+   u_gf += midpoint_c;
+   real_t error_final = u_gf.ComputeL2Error(sdf_fc);
+
+   auto u_grad_exact = [](const Vector &x, Vector &u)
+   {
+      auto norm = sqrt(x*x);
+
+      u(0) = x(0) / norm; 
+      u(1) = x(1) / norm;  
+   }; 
    
-   // GridFunction u_fin_gf(u_fin.Project()); 
+   VectorFunctionCoefficient ex_grad(dim, u_grad_exact);
 
-   // defines true sdf for square and unit circle case
-   auto true_sdf = [](const Vector &x)
-      {
-         auto x0 = x(0), x1 = x(1); 
-         
-         return sqrt(x0*x0 + x1*x1)-1.;
-      }; 
-   
-   FunctionCoefficient sdf_fc(true_sdf); 
-   real_t error = u_gf.ComputeMaxError(sdf_fc);
+   real_t error_final_h1 = u_gf.ComputeH1Error(&sdf_fc, &ex_grad);
 
-   SumCoefficient sdf_fc_minus_c_opt(sdf_fc, c_opt); 
-   real_t error_final = u_gf.ComputeMaxError(sdf_fc_minus_c_opt);
-   
+   mfem::out << "\nL2 Error from true SDF initial = " << error_initial << endl;
 
-   mfem::out << "\nMax Error from true SDF initial = " << error << endl;
+   mfem::out << "\nL2 Error from true SDF final = " << error_final << endl;
 
-   mfem::out << "\nMax Error from true SDF final = " << error_final << endl;
-
+   mfem::out << "\nH1 Error from true SDF final = " << error_final_h1 << endl;
 
    return 0;
 }
