@@ -69,7 +69,7 @@ ParFiniteElementSpace::ParFiniteElementSpace(
    ParMesh *pm, NURBSExtension *ext, const FiniteElementCollection *f,
    int dim, int ordering)
    : FiniteElementSpace(pm, ext, f, dim, ordering)
-{
+{  //mfem::out<<"pfespace.cpp: test row 72"<<std::endl;
    ParInit(pm);
 }
 
@@ -104,23 +104,27 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
    Rconf = nullptr;
    R = nullptr;
    num_face_nbr_dofs = -1;
-
-   if (NURBSext && !pNURBSext())
-   {
+   if (VNURBSext.Size()!=0)
+   { 
+      MFEM_ASSERT(own_ext, "internal error");
+      ParNURBSExtension *pNe = new ParNURBSExtension(NURBSext, VNURBSext, 
+                     dynamic_cast<ParNURBSExtension *>(pmesh->NURBSext));
+      NURBSext = pNe;
+      UpdateNURBS();
+   }
+   else if(NURBSext && !pNURBSext())
+   {  
       // This is necessary in some cases: e.g. when the FiniteElementSpace
       // constructor creates a serial NURBSExtension of higher order than the
       // mesh NURBSExtension.
       MFEM_ASSERT(own_ext, "internal error");
-
       ParNURBSExtension *pNe = new ParNURBSExtension(
          NURBSext, dynamic_cast<ParNURBSExtension *>(pmesh->NURBSext));
       // serial NURBSext is destroyed by the above constructor
       NURBSext = pNe;
       UpdateNURBS();
    }
-
    Construct(); // parallel version of Construct().
-
    // Apply the ldof_signs to the elem_dof Table
    if (Conforming() && !NURBSext)
    {
@@ -137,10 +141,16 @@ void ParFiniteElementSpace::Construct()
                " for ParFiniteElementSpace yet.");
 
    if (NURBSext)
-   {
-      ConstructTrueNURBSDofs();
-      GenerateGlobalOffsets();
+   {  //mfem::out<<"pfespace.cpp: test row 141"<<std::endl;
+      ConstructTrueNURBSDofs();//mfem::out<<"pfespace.cpp: test row 142"<<std::endl;
+      GenerateGlobalOffsets();//mfem::out<<"pfespace.cpp: test row 143"<<std::endl;
    }
+   // else if (NURBSext && (VNURBSext.Size()!=0))//Hcurl tested only, now
+   // {  mfem::out<<"pfespace.cpp: test row 146"<<std::endl;
+   //    BuildGroupsforHcurlNURBS();mfem::out<<"pfespace.cpp: test row 147"<<std::endl;
+   //    ConstructTrueVNURBSDofs();mfem::out<<"pfespace.cpp: test row 148"<<std::endl;
+   //    GenerateGlobalOffsets();mfem::out<<"pfespace.cpp: test row 149"<<std::endl;     
+   // }
    else if (Conforming())
    {
       ConstructTrueDofs();
@@ -735,11 +745,11 @@ void ParFiniteElementSpace::CheckNDSTriaDofs()
 void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
 {
    MFEM_ASSERT(Conforming(), "wrong code path");
-
+   //mfem::out<<"pfespace.cpp: test row 751#############################"<<std::endl;
    if (P) { return; }
-
+   //mfem::out<<"pfespace.cpp: test row 753"<<std::endl;
    if (!nd_strias)
-   {
+   {  //mfem::out<<"pfespace.cpp: test row 749"<<std::endl;
       // Safe to assume 1-1 correspondence between shared dofs
       int ldof  = GetVSize();
       int ltdof = TrueVSize();
@@ -791,7 +801,7 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
                              cmap, offd_counter);
    }
    else
-   {
+   {  //mfem::out<<"pfespace.cpp: test row 801"<<std::endl;
       // Some shared dofs will be linear combinations of others
       HYPRE_BigInt ldof  = GetVSize();
       HYPRE_BigInt ltdof = TrueVSize();
@@ -1162,7 +1172,7 @@ HYPRE_BigInt ParFiniteElementSpace::GetMyTDofOffset() const
 const Operator *ParFiniteElementSpace::GetProlongationMatrix() const
 {
    if (Conforming())
-   {
+   {  
       if (Pconf) { return Pconf; }
 
       if (nd_strias) { return Dof_TrueDof_Matrix(); }
@@ -1174,11 +1184,12 @@ const Operator *ParFiniteElementSpace::GetProlongationMatrix() const
       else
       {
          if (!Device::Allows(Backend::DEVICE_MASK))
-         {
+         {  
             Pconf = new ConformingProlongationOperator(*this);
+            
          }
          else
-         {
+         {  
             Pconf = new DeviceConformingProlongationOperator(*this);
          }
       }
@@ -1608,18 +1619,18 @@ void ParFiniteElementSpace::ConstructTrueDofs()
 }
 
 void ParFiniteElementSpace::ConstructTrueNURBSDofs()
-{
+{  
    int n = GetVSize();
    GroupTopology &gt = pNURBSext()->gtopo;
    gcomm = new GroupCommunicator(gt);
 
    // pNURBSext()->ldof_group is for scalar space!
    if (vdim == 1)
-   {
+   {  
       ldof_group.MakeRef(pNURBSext()->ldof_group);
    }
    else
-   {
+   {  
       const int *scalar_ldof_group = pNURBSext()->ldof_group;
       ldof_group.SetSize(n);
       for (int i = 0; i < n; i++)
@@ -1627,7 +1638,6 @@ void ParFiniteElementSpace::ConstructTrueNURBSDofs()
          ldof_group[i] = scalar_ldof_group[VDofToDof(i)];
       }
    }
-
    gcomm->Create(ldof_group);
 
    // ldof_sign.SetSize(n);
@@ -1648,9 +1658,8 @@ void ParFiniteElementSpace::ConstructTrueNURBSDofs()
          ldof_ltdof[i] = -2;
       }
    }
-   gcomm->SetLTDofTable(ldof_ltdof);
 
-   // have the group masters broadcast their ltdofs to the rest of the group
+   gcomm->SetLTDofTable(ldof_ltdof);
    gcomm->Bcast(ldof_ltdof);
 }
 
@@ -3604,17 +3613,17 @@ void ConformingProlongationOperator::Mult(const Vector &x, Vector &y) const
    const real_t *xdata = x.HostRead();
    real_t *ydata = y.HostWrite();
    const int m = external_ldofs.Size();
-
+   //mfem::out<<"pfespace.cpp: test row 3771 "<<m<<std::endl;
    const int in_layout = 2; // 2 - input is ltdofs array
    if (local)
-   {
+   {  
       y = 0.0;
    }
    else
-   {
+   {  
       gc.BcastBegin(const_cast<real_t*>(xdata), in_layout);
    }
-
+  
    int j = 0;
    for (int i = 0; i < m; i++)
    {
@@ -3623,10 +3632,10 @@ void ConformingProlongationOperator::Mult(const Vector &x, Vector &y) const
       j = end+1;
    }
    std::copy(xdata+j-m, xdata+Width(), ydata+j);
-
+   
    const int out_layout = 0; // 0 - output is ldofs array
    if (!local)
-   {
+   {  
       gc.BcastEnd(ydata, out_layout);
    }
 }
