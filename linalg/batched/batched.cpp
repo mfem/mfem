@@ -21,7 +21,7 @@ BatchedLinAlg::BatchedLinAlg()
 {
    backends[NATIVE].reset(new NativeBatchedLinAlg);
 
-   if (Device::Allows(~mfem::Backend::CPU_MASK))
+   if (Device::Allows(mfem::Backend::CUDA_MASK | mfem::Backend::HIP_MASK))
    {
 #ifdef MFEM_USE_CUDA_OR_HIP
       backends[GPU_BLAS].reset(new GPUBlasBatchedLinAlg);
