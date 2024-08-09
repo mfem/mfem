@@ -355,9 +355,10 @@ void AddMult(const int Aheight, const int Awidth, const int Bwidth,
    {
       for (int k = 0; k < Bwidth; k++)
       {
+         const real_t val = alpha * Cdata[k+j*Bwidth];
          for (int i = 0; i < Aheight; i++)
          {
-            Adata[i+j*Aheight] += alpha * Bdata[i+k*Aheight] * Cdata[k+j*Bwidth];
+            Adata[i+j*Aheight] += val * Bdata[i+k*Aheight];
          }
       }
    }
