@@ -372,7 +372,10 @@ void AddBoundaryElements(SubMeshT &mesh)
 
 // Explicit instantiations
 template void AddBoundaryElements(SubMesh &mesh);
+
+#ifdef MFEM_USE_MPI
 template void AddBoundaryElements(ParSubMesh &mesh);
+#endif
 
 } // namespace SubMeshUtils
 } // namespace mfem

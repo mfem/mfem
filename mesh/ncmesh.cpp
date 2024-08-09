@@ -2174,7 +2174,6 @@ void NCMesh::UpdateLeafElements()
    {
       CollectLeafElements(i, root_state[i], ghosts, counter);
    }
-   // leaf_elements.Sort();
 
    NElements = leaf_elements.Size();
    NGhostElements = ghosts.Size();
