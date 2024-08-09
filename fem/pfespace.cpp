@@ -141,16 +141,10 @@ void ParFiniteElementSpace::Construct()
                " for ParFiniteElementSpace yet.");
 
    if (NURBSext)
-   {  //mfem::out<<"pfespace.cpp: test row 141"<<std::endl;
+   {  
       ConstructTrueNURBSDofs();//mfem::out<<"pfespace.cpp: test row 142"<<std::endl;
       GenerateGlobalOffsets();//mfem::out<<"pfespace.cpp: test row 143"<<std::endl;
    }
-   // else if (NURBSext && (VNURBSext.Size()!=0))//Hcurl tested only, now
-   // {  mfem::out<<"pfespace.cpp: test row 146"<<std::endl;
-   //    BuildGroupsforHcurlNURBS();mfem::out<<"pfespace.cpp: test row 147"<<std::endl;
-   //    ConstructTrueVNURBSDofs();mfem::out<<"pfespace.cpp: test row 148"<<std::endl;
-   //    GenerateGlobalOffsets();mfem::out<<"pfespace.cpp: test row 149"<<std::endl;     
-   // }
    else if (Conforming())
    {
       ConstructTrueDofs();
