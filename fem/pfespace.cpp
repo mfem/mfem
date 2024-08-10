@@ -105,11 +105,10 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
    R = nullptr;
    num_face_nbr_dofs = -1;
 
-   if (VNURBSext.Size()!=0)
+   if (VNURBSext.Size() != 0)
    {
       MFEM_ASSERT(own_ext, "internal error");
-      ParNURBSExtension *pNe = new ParNURBSExtension(NURBSext, VNURBSext,
-                                                     dynamic_cast<ParNURBSExtension *>(pmesh->NURBSext));
+      ParNURBSExtension *pNe = new ParNURBSExtension(NURBSext, VNURBSext, dynamic_cast<ParNURBSExtension *>(pmesh->NURBSext));
       NURBSext = pNe;
       UpdateNURBS();
    }
