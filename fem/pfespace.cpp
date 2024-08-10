@@ -106,14 +106,14 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
    num_face_nbr_dofs = -1;
 
    if (VNURBSext.Size()!=0)
-   { 
+   {
       MFEM_ASSERT(own_ext, "internal error");
-      ParNURBSExtension *pNe = new ParNURBSExtension(NURBSext, VNURBSext, 
-                     dynamic_cast<ParNURBSExtension *>(pmesh->NURBSext));
+      ParNURBSExtension *pNe = new ParNURBSExtension(NURBSext, VNURBSext,
+                                                     dynamic_cast<ParNURBSExtension *>(pmesh->NURBSext));
       NURBSext = pNe;
       UpdateNURBS();
    }
-   else if(NURBSext && !pNURBSext())
+   else if (NURBSext && !pNURBSext())
    {
       // This is necessary in some cases: e.g. when the FiniteElementSpace
       // constructor creates a serial NURBSExtension of higher order than the
