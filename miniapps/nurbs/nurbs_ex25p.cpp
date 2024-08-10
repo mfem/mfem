@@ -653,7 +653,7 @@ void detJ_inv_JT_J_abs(const Vector &x, PML * pml, Vector & D)
    }
 }
 
-PML::PML(Mesh *mesh_, Array2D<double> length_) : mesh(mesh_), length(length_)
+PML::PML(Mesh *mesh_, Array2D<real_t> length_) : mesh(mesh_), length(length_)
 {
    dim = mesh->Dimension();
    SetBoundaries();
