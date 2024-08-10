@@ -21,7 +21,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_MINIAPPS = nurbs_ex1 nurbs_patch_ex1 nurbs_ex3 nurbs_ex5 nurbs_ex24 nurbs_curveint nurbs_printfunc nurbs_solenoidal nurbs_naca_cmesh
-PAR_MINIAPPS = nurbs_ex1p nurbs_ex11p
+PAR_MINIAPPS = nurbs_ex1p nurbs_ex11p nurbs_ex25p
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -165,6 +165,11 @@ EX11P_ARGS_1 :=
 
 nurbs_ex11p-test-par: nurbs_ex11p
 	@$(call mfem-test,$<, $(RUN_MPI), NURBS miniapp,$(EX11P_ARGS_1))
+
+EX25P_ARGS_1 :=
+
+nurbs_ex25p-test-par: nurbs_ex25p
+	@$(call mfem-test,$<, $(RUN_MPI), NURBS miniapp,$(EX25P_ARGS_1))
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 
