@@ -5000,7 +5000,8 @@ ParNURBSExtension::ParNURBSExtension(NURBSExtension *parent,
    delete glob_elem_dof;
 }
 
-ParNURBSExtension::ParNURBSExtension(NURBSExtension *parent, Array<NURBSExtension *> VNURBSExt,
+ParNURBSExtension::ParNURBSExtension(NURBSExtension *parent,
+                                     Array<NURBSExtension *> VNURBSExt,
                                      const ParNURBSExtension *par_parent)
    : gtopo(par_parent->gtopo.GetComm())
 {
@@ -5079,7 +5080,7 @@ ParNURBSExtension::ParNURBSExtension(NURBSExtension *parent, Array<NURBSExtensio
 
       // Merge Tables
       global_elem_dof = new Table(*VNURBSExt[0]->GetGlobalElementDofTable(),
-                               *VNURBSExt[1]->GetGlobalElementDofTable(),offset1 );
+                                  *VNURBSExt[1]->GetGlobalElementDofTable(),offset1 );
 
    }
    else if (VNURBSExt.Size() == 3)
@@ -5090,8 +5091,8 @@ ParNURBSExtension::ParNURBSExtension(NURBSExtension *parent, Array<NURBSExtensio
 
       // Merge Tables
       global_elem_dof = new Table(*VNURBSExt[0]->GetGlobalElementDofTable(),
-                           *VNURBSExt[1]->GetGlobalElementDofTable(),offset1,
-                           *VNURBSExt[2]->GetGlobalElementDofTable(),offset2);
+                                  *VNURBSExt[1]->GetGlobalElementDofTable(),offset1,
+                                  *VNURBSExt[2]->GetGlobalElementDofTable(),offset2);
    }
 
    Table dof_proc;
@@ -5105,17 +5106,17 @@ ParNURBSExtension::ParNURBSExtension(NURBSExtension *parent, Array<NURBSExtensio
 
    if (VNURBSExt.Size() == 2)
    {
-      for(int i = 0; i < VNURBSExt[0]->GetNTotalDof(); i++)
+      for (int i = 0; i < VNURBSExt[0]->GetNTotalDof(); i++)
       {
-         if(VNURBSExt[0]->GetActiveDof(i))
+         if (VNURBSExt[0]->GetActiveDof(i))
          {
             NumOfvnurbsActiveDofs++;
             vnurbsactiveDof[i] = NumOfvnurbsActiveDofs;
          }
       }
-      for(int i = 0; i < VNURBSExt[1]->GetNTotalDof(); i++)
+      for (int i = 0; i < VNURBSExt[1]->GetNTotalDof(); i++)
       {
-         if(VNURBSExt[1]->GetActiveDof(i))
+         if (VNURBSExt[1]->GetActiveDof(i))
          {
             NumOfvnurbsActiveDofs++;
             vnurbsactiveDof[i+offset1] = NumOfvnurbsActiveDofs;
@@ -5124,25 +5125,25 @@ ParNURBSExtension::ParNURBSExtension(NURBSExtension *parent, Array<NURBSExtensio
    }
    else if (VNURBSExt.Size() == 3)
    {
-      for(int i = 0; i < VNURBSExt[0]->GetNTotalDof(); i++)
+      for (int i = 0; i < VNURBSExt[0]->GetNTotalDof(); i++)
       {
-         if(VNURBSExt[0]->GetActiveDof(i))
+         if (VNURBSExt[0]->GetActiveDof(i))
          {
             NumOfvnurbsActiveDofs++;
             vnurbsactiveDof[i] = NumOfvnurbsActiveDofs;
          }
       }
-      for(int i = 0; i < VNURBSExt[1]->GetNTotalDof(); i++)
+      for (int i = 0; i < VNURBSExt[1]->GetNTotalDof(); i++)
       {
-         if(VNURBSExt[1]->GetActiveDof(i))
+         if (VNURBSExt[1]->GetActiveDof(i))
          {
             NumOfvnurbsActiveDofs++;
             vnurbsactiveDof[i+offset1] = NumOfvnurbsActiveDofs;
          }
       }
-      for(int i = 0; i < VNURBSExt[2]->GetNTotalDof(); i++)
+      for (int i = 0; i < VNURBSExt[2]->GetNTotalDof(); i++)
       {
-         if(VNURBSExt[2]->GetActiveDof(i))
+         if (VNURBSExt[2]->GetActiveDof(i))
          {
             NumOfvnurbsActiveDofs++;
             vnurbsactiveDof[i+offset2] = NumOfvnurbsActiveDofs;
@@ -5150,7 +5151,7 @@ ParNURBSExtension::ParNURBSExtension(NURBSExtension *parent, Array<NURBSExtensio
       }
    }
 
-   Transpose(*global_elem_dof, dof_proc); 
+   Transpose(*global_elem_dof, dof_proc);
    // convert elements to processors
    for (int i = 0; i < dof_proc.Size_of_connections(); i++)
    {
