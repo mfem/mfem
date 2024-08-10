@@ -20,14 +20,9 @@
 //
 //               We recommend viewing Example 25p before viewing this example.
 
-#pragma GCC push_options
-#pragma GCC optimize ("O0")
-
-
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include <unistd.h>
 
 using namespace std;
 using namespace mfem;
@@ -220,7 +215,7 @@ int main(int argc, char *argv[])
 
    fec = new NURBS_HCurlFECollection(order,dim);
    NURBSext  = new NURBSExtension(pmesh->NURBSext, order);                                                                              
-   mfem::out<<"ID "<<myid<<" "<<getpid()<<" Create NURBS fec and ext"<<std::endl;
+   mfem::out<<" Create NURBS fec and ext"<<std::endl;
 
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, NURBSext, fec);
    cout << "Number of finite element unknowns: "
@@ -412,7 +407,7 @@ int main(int argc, char *argv[])
    delete fespace;
    delete fec;
    delete pmesh;
-   //delete NURBSext;// NURBSext have been destoryed when construct the ParNURBSext!!!
+   // NURBSext have been destoryed when construct the ParNURBSext!!!
    if(myid == 0)
    {
       mfem::out<<"****** FINISH ******"<<std::endl;
@@ -756,5 +751,3 @@ void PML::StretchFunction(const Vector &x,
       }
    }
 }
-
-#pragma GCC pop_options
