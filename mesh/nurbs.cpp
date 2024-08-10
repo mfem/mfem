@@ -5067,7 +5067,7 @@ ParNURBSExtension::ParNURBSExtension(NURBSExtension *parent, Array<NURBSExtensio
    // Only Support for the case when 'parent' is a local NURBSExtension.
    // Construct the gtopo and ldof_group
    MFEM_ASSERT(VNURBSExt.Size()!=0,"No VNURBSext !!! from pfespace.cpp row 5069");
-   Table *global_elem_dof;
+   Table *global_elem_dof = nullptr;
 
    int offset1 = 0;
    int offset2 = 0;
