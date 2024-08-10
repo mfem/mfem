@@ -5000,6 +5000,180 @@ ParNURBSExtension::ParNURBSExtension(NURBSExtension *parent,
    delete glob_elem_dof;
 }
 
+ParNURBSExtension::ParNURBSExtension(NURBSExtension *parent, Array<NURBSExtension *> VNURBSExt,
+                                     const ParNURBSExtension *par_parent)
+   : gtopo(par_parent->gtopo.GetComm())
+{
+   // steal all data from parent
+   mOrder = parent->mOrder;
+   Swap(mOrders, parent->mOrders);
+
+   patchTopo = parent->patchTopo;
+   own_topo = parent->own_topo;
+   parent->own_topo = false;
+
+   Swap(edge_to_knot, parent->edge_to_knot);
+
+   NumOfKnotVectors = parent->NumOfKnotVectors;
+   Swap(knotVectors, parent->knotVectors);
+   Swap(knotVectorsCompr, parent->knotVectorsCompr);
+
+   NumOfVertices    = parent->NumOfVertices;
+   NumOfElements    = parent->NumOfElements;
+   NumOfBdrElements = parent->NumOfBdrElements;
+   NumOfDofs        = parent->NumOfDofs;
+
+   Swap(v_meshOffsets, parent->v_meshOffsets);
+   Swap(e_meshOffsets, parent->e_meshOffsets);
+   Swap(f_meshOffsets, parent->f_meshOffsets);
+   Swap(p_meshOffsets, parent->p_meshOffsets);
+
+   Swap(v_spaceOffsets, parent->v_spaceOffsets);
+   Swap(e_spaceOffsets, parent->e_spaceOffsets);
+   Swap(f_spaceOffsets, parent->f_spaceOffsets);
+   Swap(p_spaceOffsets, parent->p_spaceOffsets);
+
+   Swap(d_to_d, parent->d_to_d);
+   Swap(master, parent->master);
+   Swap(slave,  parent->slave);
+
+   NumOfActiveVertices = parent->NumOfActiveVertices;
+   NumOfActiveElems    = parent->NumOfActiveElems;
+   NumOfActiveBdrElems = parent->NumOfActiveBdrElems;
+   NumOfActiveDofs     = parent->NumOfActiveDofs;
+
+   Swap(activeVert, parent->activeVert);
+   Swap(activeElem, parent->activeElem);
+   Swap(activeBdrElem, parent->activeBdrElem);
+   Swap(activeDof, parent->activeDof);
+
+   el_dof  = parent->el_dof;
+   bel_dof = parent->bel_dof;
+   parent->el_dof = parent->bel_dof = NULL;
+
+   Swap(el_to_patch, parent->el_to_patch);
+   Swap(bel_to_patch, parent->bel_to_patch);
+   Swap(el_to_IJK, parent->el_to_IJK);
+   Swap(bel_to_IJK, parent->bel_to_IJK);
+
+   Swap(weights, parent->weights);
+   MFEM_VERIFY(!parent->HavePatches(), "");
+
+   delete parent;//delete series (may be series)
+
+   MFEM_VERIFY(par_parent->partitioning,
+               "parent ParNURBSExtension has no partitioning!");
+
+   // Only Support for the case when 'parent' is a local NURBSExtension.
+   // Construct the gtopo and ldof_group
+   MFEM_ASSERT(VNURBSExt.Size()!=0,"No VNURBSext !!! from pfespace.cpp row 5069");
+   Table *global_elem_dof;
+
+   int offset1 = 0;
+   int offset2 = 0;
+   int gndofs = 0;
+   if (VNURBSExt.Size() == 2)
+   {
+      offset1 = VNURBSExt[0]->GetNTotalDof();
+      gndofs = VNURBSExt[0]->GetNTotalDof() + VNURBSExt[1]->GetNTotalDof();
+
+      // Merge Tables
+      global_elem_dof = new Table(*VNURBSExt[0]->GetGlobalElementDofTable(),
+                               *VNURBSExt[1]->GetGlobalElementDofTable(),offset1 );
+
+   }
+   else if (VNURBSExt.Size() == 3)
+   {
+      offset1 = VNURBSExt[0]->GetNTotalDof();
+      offset2 = offset1 + VNURBSExt[1]->GetNTotalDof();
+      gndofs = offset2 + VNURBSExt[2]->GetNTotalDof();
+
+      // Merge Tables
+      global_elem_dof = new Table(*VNURBSExt[0]->GetGlobalElementDofTable(),
+                           *VNURBSExt[1]->GetGlobalElementDofTable(),offset1,
+                           *VNURBSExt[2]->GetGlobalElementDofTable(),offset2);
+   }
+
+   Table dof_proc;
+   mfem::Array<int> partition = par_parent->partitioning;
+   ListOfIntegerSets  groups;
+   IntegerSet         group;
+   Array<int>  vnurbsactiveDof;
+   vnurbsactiveDof.SetSize(gndofs);
+   vnurbsactiveDof = 0;
+   int NumOfvnurbsActiveDofs = 0;
+
+   if (VNURBSExt.Size() == 2)
+   {
+      for(int i = 0; i < VNURBSExt[0]->GetNTotalDof(); i++)
+      {
+         if(VNURBSExt[0]->GetActiveDof(i))
+         {
+            NumOfvnurbsActiveDofs++;
+            vnurbsactiveDof[i] = NumOfvnurbsActiveDofs;
+         }
+      }
+      for(int i = 0; i < VNURBSExt[1]->GetNTotalDof(); i++)
+      {
+         if(VNURBSExt[1]->GetActiveDof(i))
+         {
+            NumOfvnurbsActiveDofs++;
+            vnurbsactiveDof[i+offset1] = NumOfvnurbsActiveDofs;
+         }
+      }
+   }
+   else if (VNURBSExt.Size() == 3)
+   {
+      for(int i = 0; i < VNURBSExt[0]->GetNTotalDof(); i++)
+      {
+         if(VNURBSExt[0]->GetActiveDof(i))
+         {
+            NumOfvnurbsActiveDofs++;
+            vnurbsactiveDof[i] = NumOfvnurbsActiveDofs;
+         }
+      }
+      for(int i = 0; i < VNURBSExt[1]->GetNTotalDof(); i++)
+      {
+         if(VNURBSExt[1]->GetActiveDof(i))
+         {
+            NumOfvnurbsActiveDofs++;
+            vnurbsactiveDof[i+offset1] = NumOfvnurbsActiveDofs;
+         }
+      }
+      for(int i = 0; i < VNURBSExt[2]->GetNTotalDof(); i++)
+      {
+         if(VNURBSExt[2]->GetActiveDof(i))
+         {
+            NumOfvnurbsActiveDofs++;
+            vnurbsactiveDof[i+offset2] = NumOfvnurbsActiveDofs;
+         }
+      }
+   }
+
+   Transpose(*global_elem_dof, dof_proc); 
+   // convert elements to processors
+   for (int i = 0; i < dof_proc.Size_of_connections(); i++)
+   {
+      dof_proc.GetJ()[i] = partition[dof_proc.GetJ()[i]];
+   }
+
+   // the first group is the local one
+   int MyRank = gtopo.MyRank();
+   group.Recreate(1, &MyRank);
+   groups.Insert(group);
+   int dof = 0;
+   ldof_group.SetSize(NumOfvnurbsActiveDofs);
+   for (int d = 0; d < gndofs; d++)
+      if (vnurbsactiveDof[d])
+      {
+         group.Recreate(dof_proc.RowSize(d), dof_proc.GetRow(d));
+         ldof_group[dof] = groups.Insert(group);
+         dof++;
+      }
+   gtopo.Create(groups, 1822);
+   delete global_elem_dof;
+}
+
 Table *ParNURBSExtension::GetGlobalElementDofTable()
 {
    if (Dimension() == 1)
