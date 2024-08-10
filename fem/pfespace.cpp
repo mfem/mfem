@@ -69,7 +69,7 @@ ParFiniteElementSpace::ParFiniteElementSpace(
    ParMesh *pm, NURBSExtension *ext, const FiniteElementCollection *f,
    int dim, int ordering)
    : FiniteElementSpace(pm, ext, f, dim, ordering)
-{  //mfem::out<<"pfespace.cpp: test row 72"<<std::endl;
+{
    ParInit(pm);
 }
 
@@ -142,8 +142,8 @@ void ParFiniteElementSpace::Construct()
 
    if (NURBSext)
    {  
-      ConstructTrueNURBSDofs();//mfem::out<<"pfespace.cpp: test row 142"<<std::endl;
-      GenerateGlobalOffsets();//mfem::out<<"pfespace.cpp: test row 143"<<std::endl;
+      ConstructTrueNURBSDofs();
+      GenerateGlobalOffsets();
    }
    else if (Conforming())
    {
@@ -739,11 +739,9 @@ void ParFiniteElementSpace::CheckNDSTriaDofs()
 void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
 {
    MFEM_ASSERT(Conforming(), "wrong code path");
-   //mfem::out<<"pfespace.cpp: test row 751#############################"<<std::endl;
    if (P) { return; }
-   //mfem::out<<"pfespace.cpp: test row 753"<<std::endl;
    if (!nd_strias)
-   {  //mfem::out<<"pfespace.cpp: test row 749"<<std::endl;
+   {
       // Safe to assume 1-1 correspondence between shared dofs
       int ldof  = GetVSize();
       int ltdof = TrueVSize();
@@ -795,7 +793,7 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
                              cmap, offd_counter);
    }
    else
-   {  //mfem::out<<"pfespace.cpp: test row 801"<<std::endl;
+   {
       // Some shared dofs will be linear combinations of others
       HYPRE_BigInt ldof  = GetVSize();
       HYPRE_BigInt ltdof = TrueVSize();
@@ -3607,7 +3605,6 @@ void ConformingProlongationOperator::Mult(const Vector &x, Vector &y) const
    const real_t *xdata = x.HostRead();
    real_t *ydata = y.HostWrite();
    const int m = external_ldofs.Size();
-   //mfem::out<<"pfespace.cpp: test row 3771 "<<m<<std::endl;
    const int in_layout = 2; // 2 - input is ltdofs array
    if (local)
    {  
