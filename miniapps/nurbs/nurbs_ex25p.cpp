@@ -5,7 +5,7 @@
 // Sample runs:  mpirun -np 4 nurbs_ex25p -m ../../data/square-nurbs.mesh
 //               mpirun -np 4 nurbs_ex25p -m ../../data/square-nurbs.mesh -o 2
 //               mpirun -np 4 nurbs_ex25p -m ../../data/cube-nurbs.mesh
-
+//
 // Description:  This example code solves a simple electromagnetic wave parallel IGA(NURBS)
 //               propagation problem corresponding to the second order
 //               indefinite Maxwell equation
