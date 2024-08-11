@@ -129,7 +129,7 @@ void CollocatedTensorPhysDerivatives<QVectorLayout::byVDIM>(const int NE,
    const real_t *X = e_vec.Read();
    real_t *Y = q_der.Write();
 
-   constexpr QVectorLayout L = QVectorLayout::byNODES;
+   constexpr QVectorLayout L = QVectorLayout::byVDIM;
    constexpr bool P = true; // GRAD_PHYS
 
    const int id = (vdim<<4) | D1D;
