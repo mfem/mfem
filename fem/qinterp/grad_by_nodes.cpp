@@ -129,6 +129,87 @@ void TensorDerivatives<QVectorLayout::byNODES>(const int NE,
    MFEM_ABORT("Kernel not supported yet");
 }
 
+template<>
+void CollocatedTensorDerivatives<QVectorLayout::byNODES>(const int NE,
+                                                         const int vdim,
+                                                         const DofToQuad &maps,
+                                                         const Vector &e_vec,
+                                                         Vector &q_der)
+{
+   if (NE == 0) { return; }
+   MFEM_VERIFY(maps.mode == DofToQuad::Mode::TENSOR,
+               "CollocatedTensorDerivatives only supports tensor-product"
+               " elements.");
+   const int dim = maps.FE->GetDim();
+   const int D1D = maps.ndof;
+   const real_t *G = maps.G.Read();
+   const real_t *J = nullptr; // not used in DERIVATIVES (non-GRAD_PHYS) mode
+   const real_t *X = e_vec.Read();
+   real_t *Y = q_der.Write();
+
+   constexpr QVectorLayout L = QVectorLayout::byNODES;
+   constexpr bool P = false; // GRAD_PHYS
+
+   const int id = (vdim<<4) | D1D;
+
+   if (dim == 1)
+   {
+      return CollocatedDerivatives1D<L,P>(NE,G,J,X,Y,dim,vdim,D1D);
+   }
+   if (dim == 2)
+   {
+      switch (id)
+      {
+         case 0x12: return CollocatedDerivatives2D<L,P,1,2,16>(NE,G,J,X,Y);
+         case 0x13: return CollocatedDerivatives2D<L,P,1,3,16>(NE,G,J,X,Y);
+         case 0x14: return CollocatedDerivatives2D<L,P,1,4,16>(NE,G,J,X,Y);
+
+         case 0x22: return CollocatedDerivatives2D<L,P,2,2,16>(NE,G,J,X,Y);
+         case 0x23: return CollocatedDerivatives2D<L,P,2,3,4>(NE,G,J,X,Y);
+         case 0x24: return CollocatedDerivatives2D<L,P,2,4,2>(NE,G,J,X,Y);
+
+         default:
+         {
+            const int MD = DeviceDofQuadLimits::Get().MAX_D1D;
+            MFEM_VERIFY(D1D <= MD, "Orders higher than " << MD-1
+                        << " are not supported!");
+            CollocatedDerivatives2D<L,P>(NE,G,J,X,Y,dim,vdim,D1D);
+            return;
+         }
+      }
+   }
+   if (dim == 3)
+   {
+      switch (id)
+      {
+         case 0x12: return CollocatedDerivatives3D<L,P,1,2>(NE,G,J,X,Y);
+         case 0x13: return CollocatedDerivatives3D<L,P,1,3>(NE,G,J,X,Y);
+         case 0x14: return CollocatedDerivatives3D<L,P,1,4>(NE,G,J,X,Y);
+
+
+         case 0x22: return CollocatedDerivatives3D<L,P,2,2>(NE,G,J,X,Y);
+         case 0x23: return CollocatedDerivatives3D<L,P,2,3>(NE,G,J,X,Y);
+         case 0x24: return CollocatedDerivatives3D<L,P,2,4>(NE,G,J,X,Y);
+
+
+         case 0x32: return CollocatedDerivatives3D<L,P,3,2>(NE,G,J,X,Y);
+         case 0x33: return CollocatedDerivatives3D<L,P,3,3>(NE,G,J,X,Y);
+         case 0x34: return CollocatedDerivatives3D<L,P,3,4>(NE,G,J,X,Y);
+
+         default:
+         {
+            const int MD = DeviceDofQuadLimits::Get().MAX_INTERP_1D;
+            MFEM_VERIFY(D1D <= MD, "Orders higher than " << MD-1
+                        << " are not supported!");
+            CollocatedDerivatives3D<L,P>(NE,G,J,X,Y,vdim,D1D);
+            return;
+         }
+      }
+   }
+   mfem::out << "Unknown kernel 0x" << std::hex << id << std::endl;
+   MFEM_ABORT("Kernel not supported yet");
+}
+
 } // namespace quadrature_interpolator
 
 } // namespace internal
