@@ -28,6 +28,9 @@
 //   square into circle 2
 //   mpirun -np 1 fit-node-position -m icf.mesh -rs 1 -o 2 -s 3
 
+//   concentric circles.
+//   ./fit-node-position -s 4 -rs 4 -m circles.mesh
+
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
 
