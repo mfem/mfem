@@ -125,7 +125,7 @@ void TMOP_Integrator::AssemblePA_Limiting()
 
 
 void TMOP_Integrator::AssemblePA_Fitting()
-{   
+{
    // Return immediately if surface fitting is not enabled
    if (surf_fit_coeff == nullptr) { return; }
    MFEM_VERIFY(PA.enabled, "AssemblePA_Fitting but PA is not enabled!");

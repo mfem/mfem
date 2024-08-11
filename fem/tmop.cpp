@@ -4336,6 +4336,7 @@ void TMOP_Integrator::UpdateSurfaceFittingWeight(real_t factor)
       auto cf = dynamic_cast<ConstantCoefficient *>(surf_fit_coeff);
       MFEM_VERIFY(cf, "Dynamic weight works only with a ConstantCoefficient.");
       cf->constant *= factor;
+      if (PA.enabled) { PA.PW = cf->constant; }
    }
 }
 
