@@ -270,6 +270,9 @@ public:
    /// applying this rule on each knot interval.
    IntegrationRule* ApplyToKnotIntervals(KnotVector const& kv) const;
 
+   /// Return a permutation of the integration rule.
+   IntegrationRule Permute(const Array<int> &perm) const;
+
    /// Destroys an IntegrationRule object
    ~IntegrationRule() { }
 };
