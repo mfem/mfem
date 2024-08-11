@@ -44,9 +44,8 @@ TEST_CASE("CollocatedLagrangeDerivatives", "[CollocatedLagrangeDerivatives]")
                               "../../data/star-surf.mesh" // surface mesh
                            );
    int p = GENERATE(range(1,7)); // element order, 1 <= p < 7
+   // int p = GENERATE(range(1,2)); // element order, 1 <= p < 7
    int vdim = GENERATE(1,2,3); // vector dimension for grid-function
-   // auto qlayout = GENERATE(QVectorLayout::byNODES, QVectorLayout::byVDIM);
-   QVectorLayout qlt = QVectorLayout::byNODES;
 
    const int seed = 0x100001b3;
    Mesh mesh = Mesh::LoadFromFile(mesh_fname);
@@ -61,8 +60,6 @@ TEST_CASE("CollocatedLagrangeDerivatives", "[CollocatedLagrangeDerivatives]")
                 << ",sdim=" << sdim
                 << ",p=" << p
                 << ",vdim=" << vdim
-                << ",l=" << (qlt == QVectorLayout::byNODES ?
-                             "by_nodes" : "by_vdim")
                 << ")" << std::endl;
    }
 
@@ -149,9 +146,25 @@ TEST_CASE("CollocatedLagrangeDerivatives", "[CollocatedLagrangeDerivatives]")
 
    /// Use collocated point kernels
    Vector col_phys_der(nelem*vdim*nqp*sdim);
-   CollocatedTensorPhysDerivatives</*qlt*/QVectorLayout::byNODES>(nelem, vdim, maps,
-                                        *geom, evec_values,
-                                        col_phys_der);
+   CollocatedTensorPhysDerivatives<QVectorLayout::byNODES>(nelem, vdim, maps,
+                                        *geom, evec_values, col_phys_der);
+   qp_phys_der -= col_phys_der;
+   REQUIRE(qp_phys_der.Normlinf() == MFEM_Approx(0.0, 1e-10, 1e-10));
+
+   /// Check but now use byVDIM layout
+   /// Gradient
+   TensorDerivatives<QVectorLayout::byVDIM>(nelem, vdim, maps, evec_values,
+                                             qp_der);
+   CollocatedTensorDerivatives<QVectorLayout::byVDIM>(nelem, vdim, maps,
+                                                       evec_values, col_der);
+   qp_der -= col_der;
+   REQUIRE(qp_der.Normlinf() == MFEM_Approx(0.0, 1e-10, 1e-10));
+
+   /// Physical gradient
+   TensorPhysDerivatives<QVectorLayout::byVDIM>(nelem, vdim, maps, *geom,
+                                                 evec_values, qp_phys_der);
+   CollocatedTensorPhysDerivatives<QVectorLayout::byVDIM>(nelem, vdim, maps,
+                                        *geom, evec_values, col_phys_der);
    qp_phys_der -= col_phys_der;
    REQUIRE(qp_phys_der.Normlinf() == MFEM_Approx(0.0, 1e-10, 1e-10));
 }
