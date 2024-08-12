@@ -9,6 +9,110 @@
 
 #include <bitset>
 
+namespace adsampl {
+
+double inv_sigmoid(double x, double p=1.0, double a=0.0)
+{
+    double tol = 1e-12;
+    double c=p/(1.0-a);
+    x = std::min(std::max(tol,x), c-tol);
+    return std::log(x/(c-x));
+}
+
+/// @brief Sigmoid function
+double sigmoid(double x,double p=1.0, double a=0.0)
+{
+    double s=p/(1.0-a);
+    if (x >= 0)
+    {
+        return s/(1.0+std::exp(-x));
+    }
+    else
+    {
+        return s*std::exp(x)/(1.0+std::exp(x));
+    }
+}
+
+/// @brief Derivative of sigmoid function
+double der_sigmoid(double x,double p=1.0, double a=0.0)
+{
+    double s=p/(1.0-a);
+    double tmp = sigmoid(-x);
+    return s*(tmp - std::pow(tmp,2));
+}
+
+
+double Find_t(std::vector<double>& p, std::vector<double>& q,
+              double alpha, double gamma,
+              std::vector<double>& f,
+              std::vector<int>& ind,
+              double tol=1e-12, int max_it=100
+              )
+{
+
+    double cval=-1.0;
+    {
+        std::vector<bool> pv; pv.resize(p.size());
+        for(size_t i=0;i<p.size();i++){
+            pv[i]=true;
+        }
+        for(size_t i=0;i<ind.size();i++){
+            pv[ind[i]]=false;
+        }
+        for(size_t i=0;i<p.size();i++){
+            if(pv[i]){	cval=cval+q[i]; }
+        }
+    }
+
+    std::vector<double> g; g.resize(f.size());
+    {
+        for(size_t i=0;i<ind.size();i++){
+            g[i]=inv_sigmoid(q[ind[i]],p[ind[i]],alpha)+gamma*f[i];
+        }
+    }
+
+
+
+
+    bool flag=false; //iteration flag
+    int iter=0;
+
+    double ff;
+    double df;
+    double tt=0.0;
+    double dc=0.0;
+
+    for(int k=0;k<max_it;k++)
+    {
+        iter++;
+
+        ff=cval;
+        df=0.0;
+
+        for(size_t i=0;i<ind.size();i++){
+            ff=ff+sigmoid(g[i]-tt,p[ind[i]],alpha);
+            df=df-der_sigmoid(g[i]-tt,p[ind[i]],alpha);
+        }
+
+        if(fabs(df)<tol){break;}
+        dc=-ff/df;
+        tt=tt-dc;
+        if(fabs(dc)<tol){flag=true; break;}
+    }
+
+    if(!flag){
+        mfem::mfem_warning("Projection reached maximum iteration without converging. "
+                     "Result may not be accurate.");
+    }
+
+    return tt;
+}
+
+
+
+
+
+}
 
 class CoeffHoles:public mfem::Coefficient
 {
