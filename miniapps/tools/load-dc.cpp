@@ -43,9 +43,11 @@ int main(int argc, char *argv[])
    int cycle = 0;
    int pad_digits_cycle = 6;
    int pad_digits_rank = 6;
+   int visport = 19916;
    bool visualization = true;
 
    OptionsParser args(argc, argv);
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&coll_name, "-r", "--root-file",
                   "Set the VisIt data collection root file prefix.", true);
    args.AddOption(&cycle, "-c", "--cycle", "Set the cycle index to read.");
@@ -93,7 +95,6 @@ int main(int argc, char *argv[])
    if (!visualization) { return 0; }
 
    char vishost[] = "localhost";
-   int  visport   = 19916;
 
    // Visualize all fields. If there are no fields, visualize the mesh.
    for (fields_t::const_iterator it = fields.begin();

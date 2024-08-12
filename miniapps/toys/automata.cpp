@@ -44,9 +44,11 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    int ns = 16;
    int  r = 90;
+   int visport = 19916;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&ns, "-ns", "--num-steps",
                   "Number of steps of the 1D cellular automaton.");
    args.AddOption(&r, "-r", "--rule",
@@ -103,7 +105,6 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       sol_sock.open(vishost, visport);
    }
 

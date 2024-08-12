@@ -117,9 +117,11 @@ int main(int argc, char *argv[])
    bool static_cond = false;
    real_t theta = 0.7;
    bool visualization = true;
+   int visport = 19916;
    bool paraview = false;
 
    OptionsParser args(argc, argv);
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
@@ -469,7 +471,6 @@ int main(int argc, char *argv[])
       {
          const char * keys = (it == 0 && dim == 2) ? "jRcm\n" : nullptr;
          char vishost[] = "localhost";
-         int  visport   = 19916;
 
          VisualizeField(u_out,vishost,visport,u_gf,
                         "Numerical u", 0,0,500,500,keys);

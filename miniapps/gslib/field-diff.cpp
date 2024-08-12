@@ -42,9 +42,11 @@ int main (int argc, char *argv[])
    const char *sltn_file_2 = "triple-pt-2.gf";
    bool visualization    = true;
    int pts_cnt_1D = 100;
+   int visport = 19916;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&mesh_file_1, "-m1", "--mesh1",
                   "Mesh file for solution 1.");
    args.AddOption(&mesh_file_2, "-m2", "--mesh2",
@@ -105,7 +107,6 @@ int main (int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       socketstream sout1, sout2;
       sout1.open(vishost, visport);
       sout2.open(vishost, visport);
@@ -225,7 +226,6 @@ int main (int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       socketstream sout3;
       sout3.open(vishost, visport);
       sout3.precision(8);

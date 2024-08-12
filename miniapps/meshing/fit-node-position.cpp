@@ -29,7 +29,6 @@ using namespace mfem;
 using namespace std;
 
 char vishost[] = "localhost";
-int  visport   = 19916;
 int  wsize     = 350;
 
 int main (int argc, char *argv[])
@@ -43,9 +42,11 @@ int main (int argc, char *argv[])
    int mesh_poly_deg = 2;
    int quad_order    = 5;
    bool glvis        = true;
+   int visport = 19916;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&rs_levels, "-rs", "--refine-serial",

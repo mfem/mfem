@@ -56,9 +56,11 @@ int main(int argc, char *argv[])
    bool visualization        = true;
    int r1_levels             = 0;
    int r2_levels             = 0;
+   int visport = 19916;
    double rel_tol            = 1.e-8;
 
    OptionsParser args(argc, argv);
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&mesh_file_1, "-m1", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&mesh_file_2, "-m2", "--mesh",
@@ -310,7 +312,6 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       for (int ip = 0; ip<mesharr.Size(); ++ip)
       {
          socketstream sol_sock(vishost, visport);

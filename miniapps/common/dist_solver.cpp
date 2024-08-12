@@ -264,7 +264,7 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
    if (vis_glvis)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
+      int visport = 19916;
 
       ParFiniteElementSpace fespace_vec(&pmesh, pfes.FEColl(),
                                         pmesh.Dimension());

@@ -133,9 +133,11 @@ int main(int argc, char *argv[])
    bool user = false;
    bool visualization = true;
 
+   int visport = 19916;
    Array<int> myConf(0);
 
    OptionsParser args(argc, argv);
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&cfg, "-c", "--configuration",
                   "Select one of 13 pre-programmed configurations: 0-12");
    args.AddOption(&myConf, "-u", "--user-cfg",
@@ -256,7 +258,6 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "solution\n" << mesh << color << "keys Am\n"

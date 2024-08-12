@@ -213,9 +213,11 @@ int main(int argc, char *argv[])
    real_t t_final = 5.0;
    real_t dt = 1.0e-5;
    bool visualization = true;
+   int visport = 19916;
    int vis_steps = 10;
 
    OptionsParser args(argc, argv);
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    args.AddOption(&t_final, "-tf", "--t-final",
@@ -320,7 +322,6 @@ int main(int argc, char *argv[])
       ParSubMesh::CreateFromBoundary(parent_mesh, cylinder_surface_attributes);
 
    char vishost[] = "localhost";
-   int  visport   = 19916;
    socketstream cyl_sol_sock;
    if (visualization)
    {

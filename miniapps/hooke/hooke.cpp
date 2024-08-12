@@ -49,10 +49,10 @@ void display_banner(ostream& os)
    os << R"(
          ___ ___ ________   ________   ____  __.___________
         /   |   \\_____  \  \_____  \ |    |/ _|\_   _____/
-       /    ~    \/   |   \  /   |   \|      <   |    __)_ 
+       /    ~    \/   |   \  /   |   \|      <   |    __)_
        \    Y    /    |    \/    |    \    |  \  |        \
         \___|_  /\_______  /\_______  /____|__ \/_______  /
-              \/         \/         \/        \/        \/ 
+              \/         \/         \/        \/        \/
       )"
       << endl << flush;
 }
@@ -74,8 +74,10 @@ int main(int argc, char *argv[])
    {
       display_banner(out);
    }
+   int visport = 19916;
 
    OptionsParser args(argc, argv);
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    args.AddOption(&device_config, "-d", "--device",
@@ -194,7 +196,6 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);

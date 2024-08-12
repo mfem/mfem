@@ -142,6 +142,7 @@ int main(int argc, char *argv[])
    int tOrder = 1;
    int serial_ref_levels = 0;
    int parallel_ref_levels = 0;
+   int visport = 19916;
    bool visualization = true;
    bool visit = true;
    real_t dt = 1.0e-12;
@@ -154,6 +155,7 @@ int main(int argc, char *argv[])
    Array<int> dbcs;
 
    OptionsParser args(argc, argv);
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&sOrder, "-so", "--spatial-order",
@@ -329,7 +331,7 @@ int main(int argc, char *argv[])
    // Send the initial condition by socket to a GLVis server.
    if (visualization)
    {
-      Maxwell.DisplayToGLVis();
+      Maxwell.DisplayToGLVis(visport);
    }
 
    // The main time evolution loop.
@@ -359,7 +361,7 @@ int main(int argc, char *argv[])
       // Send the solution by socket to a GLVis server.
       if (visualization)
       {
-         Maxwell.DisplayToGLVis();
+         Maxwell.DisplayToGLVis(visport);
       }
 
       it++;

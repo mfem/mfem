@@ -80,7 +80,6 @@ constexpr real_t NL_DMAX = std::numeric_limits<real_t>::max();
 // Static variables for GLVis
 constexpr int GLVIZ_W = 1024;
 constexpr int GLVIZ_H = 1024;
-constexpr int  visport = 19916;
 constexpr char vishost[] = "localhost";
 
 // Context/Options for the solver
@@ -94,6 +93,8 @@ struct Opt
    int refine = 2;
    int niters = 8;
    int surface = 5;
+   // Socket to send visualization data
+   int visport   = 19916;
    bool pa = true;
    bool vis = true;
    bool amr = false;
@@ -1309,6 +1310,7 @@ int main(int argc, char *argv[])
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
+   args.AddOption(&opt.visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&opt.pb, "-p", "--problem", "Problem to solve.");
    args.AddOption(&opt.mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&opt.wait, "-w", "--wait", "-no-w", "--no-wait",

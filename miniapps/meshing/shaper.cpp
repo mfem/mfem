@@ -72,9 +72,11 @@ int main(int argc, char *argv[])
    int nclimit = 1;
    const char *mesh_file = "../../data/inline-quad.mesh";
    bool aniso = false;
+   int visport = 19916;
 
    // Parse command line
    OptionsParser args(argc, argv);
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Input mesh file to shape materials in.");
    args.AddOption(&sd, "-sd", "--sub-divisions",
@@ -107,7 +109,6 @@ int main(int argc, char *argv[])
 
    // GLVis server to visualize to
    char vishost[] = "localhost";
-   int  visport   = 19916;
    socketstream sol_sock(vishost, visport);
    sol_sock.precision(8);
 
