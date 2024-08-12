@@ -108,7 +108,6 @@ int main(int argc, char *argv[])
    bool include_cut_cell = false;
 
    OptionsParser args(argc, argv);
-   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
@@ -133,6 +132,7 @@ int main(int argc, char *argv[])
    args.AddOption(&include_cut_cell, "-cut", "--cut", "-no-cut-cell",
                   "--no-cut-cell",
                   "Include or not include elements cut by true boundary.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {

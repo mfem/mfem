@@ -135,7 +135,6 @@ int main(int argc, char *argv[])
    vector<socketstream*> sock;
 
    OptionsParser args(argc, argv);
-   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&eInt, "-e", "--elem-type",
                   "Element Type: (1-Segment, 2-Triangle, 3-Quadrilateral, "
                   "4-Tetrahedron, 5-Hexahedron, 6-Wedge)");
@@ -157,6 +156,7 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&onlySome, "-only", "--onlySome",
                   "Only view 10 dofs, starting with the specified one.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {

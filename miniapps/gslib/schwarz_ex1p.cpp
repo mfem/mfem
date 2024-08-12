@@ -97,7 +97,6 @@ int main(int argc, char *argv[])
    int nmeshes               = 3;
 
    OptionsParser args(argc, argv);
-   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&mesh_file_list[0], "-m1", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&mesh_file_list[1], "-m2", "--mesh",
@@ -133,6 +132,7 @@ int main(int argc, char *argv[])
    args.AddOption(&rel_tol, "-rt", "--relative tolerance",
                   "Tolerance for Schwarz iteration convergence criterion.");
 
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {

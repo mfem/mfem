@@ -201,6 +201,7 @@ int main(int argc, char *argv[])
                   "Hypre print level");
    args.AddOption(&problem, "-p", "--problem",
                   "Name of problem to run");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {

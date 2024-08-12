@@ -47,7 +47,6 @@ int main(int argc, char *argv[])
    bool visualization = true;
 
    OptionsParser args(argc, argv);
-   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&coll_name, "-r", "--root-file",
                   "Set the VisIt data collection root file prefix.", true);
    args.AddOption(&cycle, "-c", "--cycle", "Set the cycle index to read.");
@@ -58,6 +57,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {

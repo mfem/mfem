@@ -198,11 +198,10 @@ int main(int argc, char *argv[])
    bool paraview = false;
 
    OptionsParser args(argc, argv);
-   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
+   "Mesh file to use.");
    args.AddOption(&mesh_file, "-m", "--mesh",
-                  "Mesh file to use.");
-   args.AddOption(&order, "-o", "--order",
-                  "Finite element order (polynomial degree)");
+                  args.AddOption(&order, "-o", "--order",
+                                 "Finite element order (polynomial degree)");
    args.AddOption(&rnum, "-rnum", "--number-of-wavelengths",
                   "Number of wavelengths");
    args.AddOption(&iprob, "-prob", "--problem", "Problem case"
@@ -225,6 +224,7 @@ int main(int argc, char *argv[])
    args.AddOption(&paraview, "-paraview", "--paraview", "-no-paraview",
                   "--no-paraview",
                   "Enable or disable ParaView visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {

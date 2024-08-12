@@ -90,7 +90,6 @@ int main(int argc, char *argv[])
    Hypre::Init();
 
    OptionsParser args(argc, argv);
-   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&ctx.ser_ref_levels,
                   "-rs",
                   "--refine-serial",
@@ -126,6 +125,7 @@ int main(int argc, char *argv[])
       "-no-cr",
       "--no-checkresult",
       "Enable or disable checking of the result. Returns -1 on failure.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {

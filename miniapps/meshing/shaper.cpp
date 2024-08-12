@@ -76,7 +76,6 @@ int main(int argc, char *argv[])
 
    // Parse command line
    OptionsParser args(argc, argv);
-   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Input mesh file to shape materials in.");
    args.AddOption(&sd, "-sd", "--sub-divisions",
@@ -85,6 +84,7 @@ int main(int argc, char *argv[])
                   "Level of hanging nodes allowed (-1 = unlimited).");
    args.AddOption(&aniso, "-a", "--aniso", "-i", "--iso",
                   "Enable anisotropic refinement of quads and hexes.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good()) { args.PrintUsage(cout); return 1; }
    args.PrintOptions(cout);

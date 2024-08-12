@@ -70,7 +70,6 @@ int main (int argc, char *argv[])
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
-   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&src_mesh_file, "-m1", "--mesh1",
                   "Mesh file for the starting solution.");
    args.AddOption(&tar_mesh_file, "-m2", "--mesh2",
@@ -95,6 +94,7 @@ int main (int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {

@@ -216,7 +216,6 @@ int main(int argc, char *argv[])
    int vis_steps = 10;
 
    OptionsParser args(argc, argv);
-   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    args.AddOption(&t_final, "-tf", "--t-final",
