@@ -260,8 +260,15 @@ void ElementMarker::ListEssentialTDofs(const Array<int> &elem_marker,
     }
 
     Array<int> tdof_mark; tdof_mark.SetSize(lfes.GetTrueVSize());
-    Vector vtdof; vtdof.SetSize(lfes.GetTrueVSize()); vtdof=0.0;
-    lfes.GetProlongationMatrix()->MultTranspose(vvdof,vtdof);
+
+    Vector vtdof;
+    if(lfes.GetProlongationMatrix()!=nullptr){
+        vtdof.SetSize(lfes.GetTrueVSize()); vtdof=0.0;
+        lfes.GetProlongationMatrix()->MultTranspose(vvdof,vtdof);
+    }else{
+        vtdof=vvdof;
+    }
+
     for(int i=0;i<vtdof.Size();i++){
         if(vtdof[i]<1.0){tdof_mark[i]=1;}
         else{tdof_mark[i]=0;}
