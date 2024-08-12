@@ -121,7 +121,6 @@ int main(int argc, char *argv[])
    int iprob = 0;
 
    OptionsParser args(argc, argv);
-   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
@@ -139,6 +138,7 @@ int main(int argc, char *argv[])
                   "Number of serial refinements.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {

@@ -58,7 +58,6 @@ int main(int argc, char *argv[])
    bool visualization = true;
 
    OptionsParser args(argc, argv);
-   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&nz_, "-nz", "--num-elements-z",
                   "Number of elements in z-direction.");
    args.AddOption(&nt_, "-nt", "--num-twists",
@@ -84,6 +83,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {

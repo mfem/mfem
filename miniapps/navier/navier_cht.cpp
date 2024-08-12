@@ -150,7 +150,6 @@ int main(int argc, char *argv[])
    bool visualization        = true;
 
    OptionsParser args(argc, argv);
-   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&np_list[0], "-np1", "--np1",
                   "number of MPI ranks for mesh 1");
    args.AddOption(&np_list[1], "-np2", "--np2",
@@ -163,6 +162,7 @@ int main(int argc, char *argv[])
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
 
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {

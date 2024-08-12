@@ -269,13 +269,13 @@ int main (int argc, char *argv[])
    bool refine = true;
 
    OptionsParser args(argc, argv);
-   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to visualize.");
    args.AddOption(&np, "-np", "--num-proc",
                   "Load mesh from multiple processors.");
    args.AddOption(&refine, "-ref", "--refinement", "-no-ref", "--no-refinement",
                   "Prepare the mesh for refinement or not.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {

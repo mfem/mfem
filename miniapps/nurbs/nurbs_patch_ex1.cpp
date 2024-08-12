@@ -48,7 +48,6 @@ int main(int argc, char *argv[])
    int ir_order = -1;
 
    OptionsParser args(argc, argv);
-   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
@@ -75,6 +74,7 @@ int main(int argc, char *argv[])
    args.AddOption(&compareToElementWise, "-cew", "--compare-element",
                   "-no-compare", "-no-compare-element",
                   "Compute element-wise solution for comparison");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
