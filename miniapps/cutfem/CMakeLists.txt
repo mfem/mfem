@@ -44,6 +44,12 @@ add_mfem_miniapp(seq_mark_test
         ${SEQCUT_COMMON_FILES}
         LIBRARIES mfem)
 
+add_mfem_miniapp(seq_diffusion_cut
+        MAIN diffusion_cut.cpp
+        ${SEQCUT_COMMON_FILES}
+        LIBRARIES mfem)
+
+
 if(MFEM_USE_MPI)
 
 list(APPEND PARCUT_COMMON_SOURCES)
