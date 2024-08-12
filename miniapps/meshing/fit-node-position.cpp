@@ -295,15 +295,17 @@ int main (int argc, char *argv[])
             const real_t x = coord(j_x), y = coord(j_y);
 
             fit_marker[pfes_mesh.VDofToDof(j_x)] = true;
-            fit_marker_vis_gf(j_x) = attr;
 
             double r_new;
             if (attr == 5) { r_new = 1.0; }
-            if (attr == 7) { r_new = 0.2; }
+            if (attr == 7) { r_new = 0.4; }
 
-            const double r_now = x*x + y*y;
-            coord_target(j_x) = x * sqrt(r_new / r_now);
-            coord_target(j_y) = y * sqrt(r_new / r_now);
+            const double r_now = sqrt(x*x + y*y);
+            coord_target(j_x) = x * r_new / r_now;
+            coord_target(j_y) = y * r_new / r_now;
+
+            fit_marker_vis_gf(j_x) = sqrt(coord_target(j_x)*coord_target(j_x) +
+                                          coord_target(j_y)*coord_target(j_y));
          }
 
          if (attr == 4)
