@@ -17,7 +17,7 @@
 #include <cstddef> // std::nullptr_t
 
 #if defined(MFEM_USE_CUDA)
-#include <cublas.h>
+#include <cublas_v2.h>
 #elif defined(MFEM_USE_HIP)
 #include <hipblas/hipblas.h>
 #endif
