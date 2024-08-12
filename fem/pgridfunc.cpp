@@ -574,9 +574,10 @@ void ParGridFunction::ProjectCoefficient(Coefficient &coeff)
 
       ProjectDeltaCoefficient(*delta_c, loc_integral);
 
-      MPI_Allreduce(&loc_integral, &glob_integral, 1, MPITypeMap<real_t>::mpi_type,
-                    MPI_SUM,
-                    pfes->GetComm());
+      MPI_Allreduce(&loc_integral, &glob_integral, 1,
+                    MPITypeMap<real_t>::mpi_type, MPI_SUM, pfes->GetComm());
+
+      MFEM_VERIFY(glob_integral > 1e-16, "Delta center not found!");
 
       (*this) *= (delta_c->Scale() / glob_integral);
    }

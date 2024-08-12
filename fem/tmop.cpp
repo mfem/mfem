@@ -581,40 +581,6 @@ void TMOP_Metric_002::AssembleH(const DenseMatrix &Jpt,
                                 const real_t weight,
                                 DenseMatrix &A) const
 {
-   if (use_old_invariants_code)
-   {
-      const int dof = DS.Height(), dim = DS.Width();
-      DenseMatrix dI1_dMdM(dim);
-
-      // The first two go over the rows and cols of dP_dJ where P = dW_dJ.
-      for (int r = 0; r < dim; r++)
-      {
-         for (int c = 0; c < dim; c++)
-         {
-            Dim2Invariant1_dMdM(Jpt, r, c, dI1_dMdM);
-
-            // Compute each entry of d(Prc)_dJ.
-            for (int rr = 0; rr < dim; rr++)
-            {
-               for (int cc = 0; cc < dim; cc++)
-               {
-                  const double entry_rr_cc = 0.5 * dI1_dMdM(rr,cc);
-
-                  for (int i = 0; i < dof; i++)
-                  {
-                     for (int j = 0; j < dof; j++)
-                     {
-                        A(i+r*dof, j+rr*dof) +=
-                            weight * DS(i, c) * DS(j, cc) * entry_rr_cc;
-                     }
-                  }
-               }
-            }
-         }
-      }
-      return;
-   }
-
    ie.SetJacobian(Jpt.GetData());
    ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
    ie.Assemble_ddI1b(0.5*weight, A.GetData());

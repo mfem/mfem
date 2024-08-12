@@ -82,6 +82,8 @@ protected:
 public:
    AnalyticCompositeSurface(const Array<AnalyticSurface *> &surf);
 
+   int GetNumSurfaces() const { return surfaces.Size(); }
+
    /// Must be called after the Array of surfaces is changed.
    void UpdateDofToSurface();
 
