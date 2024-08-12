@@ -128,8 +128,6 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&visport, "-p", "--send-port",
-                  "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
