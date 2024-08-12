@@ -42,7 +42,7 @@ int main (int argc, char *argv[])
    int mesh_poly_deg = 2;
    int quad_order    = 5;
    bool glvis        = true;
-   int visport = 19916;
+   int visport       = 19916;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);

@@ -94,7 +94,7 @@ struct Opt
    int niters = 8;
    int surface = 5;
    // Socket to send visualization data
-   int visport   = 19916;
+   int visport = 19916;
    bool pa = true;
    bool vis = true;
    bool amr = false;

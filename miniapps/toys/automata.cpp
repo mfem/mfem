@@ -42,8 +42,8 @@ void ProjectStep(const vector<bool> & b, GridFunction & x, int ns, int s);
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   int ns = 16;
-   int  r = 90;
+   int      ns = 16;
+   int       r = 90;
    int visport = 19916;
    bool visualization = 1;
 

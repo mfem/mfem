@@ -86,8 +86,8 @@ void accel(const Vector &x, real_t t, Vector &u)
 int main(int argc, char *argv[])
 {
    Mpi::Init(argc, argv);
-   int visport   = 19916;
    Hypre::Init();
+   int visport = 19916;
 
    OptionsParser args(argc, argv);
    args.AddOption(&ctx.ser_ref_levels,

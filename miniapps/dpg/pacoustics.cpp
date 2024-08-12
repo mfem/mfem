@@ -192,16 +192,16 @@ int main(int argc, char *argv[])
    int iprob = 0;
    int sr = 0;
    int pr = 0;
+   int visport = 19916;
    bool exact_known = false;
    bool with_pml = false;
-   int visport = 19916;
    bool paraview = false;
 
    OptionsParser args(argc, argv);
-   "Mesh file to use.");
    args.AddOption(&mesh_file, "-m", "--mesh",
-                  args.AddOption(&order, "-o", "--order",
-                                 "Finite element order (polynomial degree)");
+                  "Mesh file to use.");
+   args.AddOption(&order, "-o", "--order",
+                  "Finite element order (polynomial degree)");
    args.AddOption(&rnum, "-rnum", "--number-of-wavelengths",
                   "Number of wavelengths");
    args.AddOption(&iprob, "-prob", "--problem", "Problem case"

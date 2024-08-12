@@ -89,7 +89,7 @@ int main (int argc, char *argv[])
    bool hrefinement      = false;
    int point_ordering    = 0;
    int gf_ordering       = 0;
-   int visport = 19916;
+   int visport           = 19916;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -122,8 +122,8 @@ int main (int argc, char *argv[])
    args.AddOption(&gf_ordering, "-gfo", "--gridfunc-ordering",
                   "Ordering of fespace that will be used for gridfunction to be interpolated."
                   "0 (default): byNodes, 1: byVDIM");
-
    args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
+
    args.Parse();
    if (!args.Good())
    {

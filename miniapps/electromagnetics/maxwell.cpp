@@ -155,7 +155,6 @@ int main(int argc, char *argv[])
    Array<int> dbcs;
 
    OptionsParser args(argc, argv);
-   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&sOrder, "-so", "--spatial-order",
@@ -194,6 +193,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visit, "-visit", "--visit", "-no-visit",
                   "--no-visualization",
                   "Enable or disable VisIt visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
