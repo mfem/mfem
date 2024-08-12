@@ -156,9 +156,11 @@ int main(int argc, char *argv[])
    bool strongBC = 1;
    real_t kappa = -1;
    Array<int> order(1);
+   int visport = 19916;
    order[0] = 1;
 
    OptionsParser args(argc, argv);
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&ref_levels, "-r", "--refine",
@@ -480,7 +482,6 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "solution\n" << *mesh << x << flush;

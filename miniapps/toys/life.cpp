@@ -59,9 +59,11 @@ int main(int argc, char *argv[])
    Array<int> sketch_pad_params(0);
    Array<int> blinker_params(0);
    Array<int> glider_params(0);
+   int visport = 19916;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&nx, "-nx", "--num-elems-x",
                   "Number of elements in the x direction.");
    args.AddOption(&ny, "-ny", "--num-elems-y",
@@ -178,7 +180,6 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       sol_sock.open(vishost, visport);
    }
 

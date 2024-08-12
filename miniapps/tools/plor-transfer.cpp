@@ -78,9 +78,11 @@ int main(int argc, char *argv[])
    int lorder = 0;
    bool vis = true;
    bool useH1 = false;
+   int visport = 19916;
    bool use_pointwise_transfer = false;
 
    OptionsParser args(argc, argv);
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&problem, "-p", "--problem",
@@ -325,7 +327,6 @@ void visualize(VisItDataCollection &dc, string prefix, int x, int y)
    int w = Ww, h = Wh;
 
    char vishost[] = "localhost";
-   int  visport   = 19916;
 
    socketstream sol_sockL2(vishost, visport);
    sol_sockL2 << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank() <<

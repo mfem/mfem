@@ -47,9 +47,11 @@ int main(int argc, char *argv[])
    int nx = 32;
    int ny = 3;
    int order = 2;
+   int visport = 19916;
    bool visualization = true;
 
    OptionsParser args(argc, argv);
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&nx, "-nx", "--num-elements-x",
                   "Number of elements in x-direction.");
    args.AddOption(&ny, "-ny", "--num-elements-y",
@@ -76,7 +78,6 @@ int main(int argc, char *argv[])
    delta *= M_PI / 180.0; // convert to radians
 
    char vishost[] = "localhost";
-   int  visport   = 19916;
    socketstream soutv, south;
 
    {

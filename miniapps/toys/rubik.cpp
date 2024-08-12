@@ -187,9 +187,11 @@ void solve(Mesh & mesh, GridFunction & color, socketstream & sock);
 int main(int argc, char *argv[])
 {
    bool anim = true;
+   int visport = 19916;
    bool visualization = true;
 
    OptionsParser args(argc, argv);
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&anim, "-anim", "--animation", "-no-anim",
                   "--no-animation",
                   "Enable or disable GLVis animation.");
@@ -240,7 +242,6 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       socketstream sock(vishost, visport);
       sock.precision(8);
       sock << "solution\n" << mesh << color << "keys Amaa\n"

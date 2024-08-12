@@ -111,6 +111,7 @@ int main(int argc, char *argv[])
    int maxit = 100;
    int serial_ref_levels = 0;
    int parallel_ref_levels = 0;
+   int visport = 19916;
    bool visualization = true;
    bool visit = true;
 
@@ -123,6 +124,7 @@ int main(int argc, char *argv[])
    bool dbcg = false;
 
    OptionsParser args(argc, argv);
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
@@ -305,7 +307,7 @@ int main(int argc, char *argv[])
       // Send the solution by socket to a GLVis server.
       if (visualization)
       {
-         Volta.DisplayToGLVis();
+         Volta.DisplayToGLVis(visport);
       }
 
       if (Mpi::Root())

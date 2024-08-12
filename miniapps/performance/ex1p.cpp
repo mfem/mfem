@@ -106,9 +106,11 @@ int main(int argc, char *argv[])
    const char *pc = "lor";
    bool perf = true;
    bool matrix_free = true;
+   int visport = 19916;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
@@ -546,7 +548,6 @@ int ex1_t<dim>::run(Mesh *mesh, int ser_ref_levels, int par_ref_levels,
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);

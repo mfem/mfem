@@ -80,9 +80,11 @@ int main(int argc, char *argv[])
    int ncolors = 3;
    bool aniso = false;
    bool visualization = 1;
+   int visport = 19916;
 
    // Parse command line
    OptionsParser args(argc, argv);
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Input mesh file to shape materials in.");
    args.AddOption(&img_file, "-i", "--img",
@@ -128,7 +130,6 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       sol_sock.open(vishost, visport);
       sol_sock.precision(8);
    }

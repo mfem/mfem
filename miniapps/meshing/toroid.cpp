@@ -55,9 +55,11 @@ int main(int argc, char *argv[])
    int ser_ref_levels = 0;
    int el_type = 0;
    bool dg_mesh = false;
+   int visport = 19916;
    bool visualization = true;
 
    OptionsParser args(argc, argv);
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&nphi_, "-nphi", "--num-elements-phi",
                   "Number of elements in phi-direction.");
    args.AddOption(&ns_, "-ns", "--num-shifts",
@@ -227,7 +229,6 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "mesh\n" << *mesh << flush;

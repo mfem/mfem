@@ -146,9 +146,11 @@ int main(int argc, char *argv[])
          rs_levels(lim_meshes);
    rs_levels                 = 0;
    np_list                   = 1;
+   int visport = 19916;
    bool visualization        = true;
 
    OptionsParser args(argc, argv);
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&np_list[0], "-np1", "--np1",
                   "number of MPI ranks for mesh 1");
    args.AddOption(&np_list[1], "-np2", "--np2",
@@ -323,7 +325,6 @@ int main(int argc, char *argv[])
 
    // Visualize the solution.
    char vishost[] = "localhost";
-   int visport = 19916;
    socketstream vis_sol;
    int Ww = 350, Wh = 350; // window size
    int Wx = color*Ww+10, Wy = 0; // window position

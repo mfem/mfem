@@ -81,9 +81,11 @@ real_t pres_kovasznay(const Vector &x, real_t t)
 int main(int argc, char *argv[])
 {
    Mpi::Init(argc, argv);
+   int visport = 19916;
    Hypre::Init();
 
    OptionsParser args(argc, argv);
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&ctx.ser_ref_levels,
                   "-rs",
                   "--refine-serial",
@@ -234,7 +236,6 @@ int main(int argc, char *argv[])
    if (ctx.visualization)
    {
       char vishost[] = "localhost";
-      int visport = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "parallel " << Mpi::WorldSize() << " "

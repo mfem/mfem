@@ -107,7 +107,7 @@ public:
    const Vector& GetEssentialBC() { return ess_data_; }
    const DFSData& GetDFSData() const { return dfs_spaces_.GetDFSData(); }
    void ShowError(const Vector &sol, bool verbose);
-   void VisualizeSolution(const Vector &sol, std::string tag);
+   void VisualizeSolution(const Vector &sol, std::string tag, int visport = 19916);
    ParBilinearForm* GetMform() const { return mVarf_; }
    ParMixedBilinearForm* GetBform() const { return bVarf_; }
 };
@@ -205,7 +205,8 @@ void DarcyProblem::ShowError(const Vector& sol, bool verbose)
    mfem::out << "|| p_h - p_ex || / || p_ex || = " << err_p / norm_p << "\n";
 }
 
-void DarcyProblem::VisualizeSolution(const Vector& sol, string tag)
+void DarcyProblem::VisualizeSolution(const Vector& sol, string tag,
+                                     int visport = 19916)
 {
    int num_procs, myid;
    MPI_Comm_size(mesh_.GetComm(), &num_procs);
@@ -215,7 +216,6 @@ void DarcyProblem::VisualizeSolution(const Vector& sol, string tag)
    p_.Distribute(Vector(sol.GetData()+M_->NumRows(), B_->NumRows()));
 
    const char vishost[] = "localhost";
-   const int  visport   = 19916;
    socketstream u_sock(vishost, visport);
    u_sock << "parallel " << num_procs << " " << myid << "\n";
    u_sock.precision(8);
@@ -260,9 +260,11 @@ int main(int argc, char *argv[])
    bool visualization = false;
 
    DFSParameters param;
+   int visport = 19916;
    BPSParameters bps_param;
 
    OptionsParser args(argc, argv);
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
@@ -417,7 +419,7 @@ int main(int argc, char *argv[])
                    << "'.\nApproximation error is computed in this case!\n\n";
       }
 
-      if (visualization) { darcy.VisualizeSolution(sol, name); }
+      if (visualization) { darcy.VisualizeSolution(sol, name, visport); }
 
    }
 

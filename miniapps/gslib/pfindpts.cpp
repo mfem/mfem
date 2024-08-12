@@ -89,9 +89,11 @@ int main (int argc, char *argv[])
    bool hrefinement      = false;
    int point_ordering    = 0;
    int gf_ordering       = 0;
+   int visport = 19916;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
@@ -219,7 +221,6 @@ int main (int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       socketstream sout;
       sout.open(vishost, visport);
       if (!sout)

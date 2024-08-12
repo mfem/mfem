@@ -93,9 +93,11 @@ int main(int argc, char *argv[])
    rp_levels                 = 0;
    np_list                   = 0;
    double rel_tol            = 1.e-8;
+   int visport = 19916;
    int nmeshes               = 3;
 
    OptionsParser args(argc, argv);
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&mesh_file_list[0], "-m1", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&mesh_file_list[1], "-m2", "--mesh",
@@ -423,7 +425,6 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);

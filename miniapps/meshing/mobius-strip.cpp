@@ -44,9 +44,11 @@ int main(int argc, char *argv[])
    int order = 3;
    int close_strip = 2;
    bool dg_mesh = false;
+   int visport = 19916;
    bool visualization = true;
 
    OptionsParser args(argc, argv);
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&new_mesh_file, "-m", "--mesh-out-file",
                   "Output Mesh file to write.");
    args.AddOption(&nx, "-nx", "--num-elements-x",
@@ -143,7 +145,6 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "mesh\n" << mesh << flush;
