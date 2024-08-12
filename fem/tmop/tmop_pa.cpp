@@ -190,13 +190,19 @@ void TMOP_Integrator::AssemblePA_Fitting()
       }
       if (count != 0) { PA.FE.Append(el_id);}
    }
-   // surf_fit_grad -> PA.D1
+   
    if(surf_fit_grad)
    {
+      // surf_fit_grad -> PA.D1
       const Operator *n4_R = fes_grad->GetElementRestriction(ordering);
       PA.D1.SetSize(n4_R->Height(), Device::GetMemoryType());
       PA.D1.UseDevice(true);
       n4_R->Mult(*surf_fit_grad, PA.D1);
+      // surf_fit_hess -> PA.D2
+      const Operator *n5_R = fes_hess->GetElementRestriction(ordering);
+      PA.D2.SetSize(n5_R->Height(), Device::GetMemoryType());
+      PA.D2.UseDevice(true);
+      n5_R->Mult(*surf_fit_hess, PA.D2);
    }
    else
    {
@@ -206,18 +212,15 @@ void TMOP_Integrator::AssemblePA_Fitting()
       const DofToQuad maps = fe.GetDofToQuad(*PA.ir, DofToQuad::TENSOR);
       auto geom = PA.fes->GetMesh()->GetGeometricFactors(*PA.ir, GeometricFactors::JACOBIANS);
       Vector col_der(PA.ne*1*nqp*dim);
-      constexpr QVectorLayout L = QVectorLayout::byNODES;
-      internal::quadrature_interpolator::CollocatedTensorPhysDerivatives<L>(PA.ne, 1, maps, *geom, PA.S0,col_der);
+      Vector col_der2(PA.ne*1*nqp*dim);
+      constexpr QVectorLayout L1 = QVectorLayout::byNODES;
+      constexpr QVectorLayout L2 = QVectorLayout::byVDIM;
+      internal::quadrature_interpolator::CollocatedTensorPhysDerivatives<L1>(PA.ne, 1, maps, *geom, PA.S0, col_der);
+      PA.D1 = col_der;
+      internal::quadrature_interpolator::CollocatedTensorPhysDerivatives<L2>(PA.ne, 1, maps, *geom, col_der, col_der2);
+      PA.D2 = col_der2;
    }
-
-
-
-   // surf_fit_hess -> PA.D2
-   const Operator *n5_R = fes_hess->GetElementRestriction(ordering);
-   PA.D2.SetSize(n5_R->Height(), Device::GetMemoryType());
-   PA.D2.UseDevice(true);
-   n5_R->Mult(*surf_fit_hess, PA.D2);
-
+   
    // Scalar Q-vector of '1' for surface fitting, used to compute sums via dot product
    PA.OFit.SetSize(PA.S0.Size(), Device::GetDeviceMemoryType());
    PA.OFit = 1.0;
@@ -338,11 +341,31 @@ void TMOP_Integrator::UpdateSurfaceFittingCoefficientsPA(const Vector &x_loc)
    const Operator *n1_R_int = fes_fit->GetElementRestriction(ordering);
    n1_R_int->Mult(*surf_fit_gf, PA.S0);
 
-   const Operator *n4_R_int = fes_grad->GetElementRestriction(ordering);
-   n4_R_int->Mult(*surf_fit_grad, PA.D1);
+   if(surf_fit_grad)
+   {
+      const Operator *n4_R_int = fes_grad->GetElementRestriction(ordering);
+      n4_R_int->Mult(*surf_fit_grad, PA.D1);
 
-   const Operator *n5_R_int = fes_hess->GetElementRestriction(ordering);
-   n5_R_int->Mult(*surf_fit_hess, PA.D2);
+      const Operator *n5_R_int = fes_hess->GetElementRestriction(ordering);
+      n5_R_int->Mult(*surf_fit_hess, PA.D2);
+   }
+
+   else
+   {
+      int nqp = PA.ir->GetNPoints();
+      const int dim = PA.fes->GetMesh()->Dimension();
+      const FiniteElement &fe = *(PA.fes->GetFE(0));
+      const DofToQuad maps = fe.GetDofToQuad(*PA.ir, DofToQuad::TENSOR);
+      auto geom = PA.fes->GetMesh()->GetGeometricFactors(*PA.ir, GeometricFactors::JACOBIANS);
+      Vector col_der(PA.ne*1*nqp*dim);
+      Vector col_der2(PA.ne*1*nqp*dim);
+      constexpr QVectorLayout L1 = QVectorLayout::byNODES;
+      constexpr QVectorLayout L2 = QVectorLayout::byVDIM;
+      internal::quadrature_interpolator::CollocatedTensorPhysDerivatives<L1>(PA.ne, 1, maps, *geom, PA.S0, col_der);
+      PA.D1 = col_der;
+      internal::quadrature_interpolator::CollocatedTensorPhysDerivatives<L2>(PA.ne, 1, maps, *geom, col_der, col_der2);
+      PA.D2 = col_der2;
+   }
 
    ConstantCoefficient* cS = dynamic_cast<ConstantCoefficient*>(surf_fit_coeff);
    PA.PW = cS->constant;
