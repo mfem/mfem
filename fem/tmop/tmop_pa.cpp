@@ -16,6 +16,7 @@
 #include "../quadinterpolator.hpp"
 #include "../../general/forall.hpp"
 #include "../../linalg/kernels.hpp"
+#include "../qinterp/dispatch.hpp"
 
 namespace mfem
 {
@@ -190,10 +191,26 @@ void TMOP_Integrator::AssemblePA_Fitting()
       if (count != 0) { PA.FE.Append(el_id);}
    }
    // surf_fit_grad -> PA.D1
-   const Operator *n4_R = fes_grad->GetElementRestriction(ordering);
-   PA.D1.SetSize(n4_R->Height(), Device::GetMemoryType());
-   PA.D1.UseDevice(true);
-   n4_R->Mult(*surf_fit_grad, PA.D1);
+   if(surf_fit_grad)
+   {
+      const Operator *n4_R = fes_grad->GetElementRestriction(ordering);
+      PA.D1.SetSize(n4_R->Height(), Device::GetMemoryType());
+      PA.D1.UseDevice(true);
+      n4_R->Mult(*surf_fit_grad, PA.D1);
+   }
+   else
+   {
+      int nqp = PA.ir->GetNPoints();
+      const int dim = PA.fes->GetMesh()->Dimension();
+      const FiniteElement &fe = *(PA.fes->GetFE(0));
+      const DofToQuad maps = fe.GetDofToQuad(*PA.ir, DofToQuad::TENSOR);
+      auto geom = PA.fes->GetMesh()->GetGeometricFactors(*PA.ir, GeometricFactors::JACOBIANS);
+      Vector col_der(PA.ne*1*nqp*dim);
+      constexpr QVectorLayout L = QVectorLayout::byNODES;
+      internal::quadrature_interpolator::CollocatedTensorPhysDerivatives<L>(PA.ne, 1, maps, *geom, PA.S0,col_der);
+   }
+
+
 
    // surf_fit_hess -> PA.D2
    const Operator *n5_R = fes_hess->GetElementRestriction(ordering);
