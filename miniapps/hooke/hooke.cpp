@@ -69,12 +69,12 @@ int main(int argc, char *argv[])
    int serial_refinement_levels = 0;
    bool visualization = true;
    bool paraview = false;
+   int visport = 19916;
 
    if (Mpi::Root())
    {
       display_banner(out);
    }
-   int visport = 19916;
 
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",

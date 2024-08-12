@@ -66,7 +66,7 @@ int main (int argc, char *argv[])
    int fieldtype       = -1;
    int order           = 3;
    bool visualization  = true;
-   int visport = 19916;
+   int visport         = 19916;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);

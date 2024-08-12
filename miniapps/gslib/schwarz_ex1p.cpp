@@ -93,7 +93,7 @@ int main(int argc, char *argv[])
    rp_levels                 = 0;
    np_list                   = 0;
    double rel_tol            = 1.e-8;
-   int visport = 19916;
+   int visport               = 19916;
    int nmeshes               = 3;
 
    OptionsParser args(argc, argv);

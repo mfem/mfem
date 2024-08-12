@@ -56,7 +56,7 @@ int main(int argc, char *argv[])
    bool visualization        = true;
    int r1_levels             = 0;
    int r2_levels             = 0;
-   int visport = 19916;
+   int visport               = 19916;
    double rel_tol            = 1.e-8;
 
    OptionsParser args(argc, argv);
