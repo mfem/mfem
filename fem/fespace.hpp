@@ -1175,7 +1175,7 @@ public:
    { if (!face_dof) { BuildFaceToDofTable(); } return *face_dof; }
 
    /// Deprecated. This function is not required to be called by the user.
-   MFEM_DEPRECATED void BuildDofToArrays() const { BuildDofToArrays_();};
+   MFEM_DEPRECATED void BuildDofToArrays() const { BuildDofToArrays_(); }
 
    /// Return the index of the first element that contains ldof index @a i.
    int GetElementForDof(int i) const { BuildDofToArrays_(); return dof_elem_array[i]; }
