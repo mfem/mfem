@@ -17,18 +17,18 @@
 
 using namespace mfem;
 
-enum FECType
+enum class FECType
 {
    H1,
    ND,
    L2
 };
-enum FieldType
+enum class FieldType
 {
    SCALAR,
    VECTOR
 };
-enum TransferType
+enum class TransferType
 {
    ParentToSub,
    SubToParent
@@ -38,17 +38,13 @@ FiniteElementCollection *create_fec(FECType fec_type, int p, int dim)
 {
    switch (fec_type)
    {
-      case H1:
+      case FECType::H1:
          return new H1_FECollection(p, dim);
-         break;
-      case ND:
+      case FECType::ND:
          return new ND_FECollection(p, dim);
-         break;
-      case L2:
+      case FECType::L2:
          return new L2_FECollection(p, dim, BasisType::GaussLobatto);
-         break;
    }
-
    return nullptr;
 }
 
@@ -62,7 +58,7 @@ void test_2d(Element::Type element_type,
 {
    constexpr int dim = 2;
    const int vdim = (field_type == FieldType::SCALAR ||
-                     fec_type == ND) ? 1 : dim;
+                     fec_type == FECType::ND) ? 1 : dim;
    real_t Hy = 1.0;
    Mesh mesh = Mesh::MakeCartesian2D(5, 5, element_type, true, 1.0, Hy, false);
 
@@ -178,11 +174,11 @@ void test_2d(Element::Type element_type,
    GridFunction sub_gf(&sub_fes);
    sub_gf = 0.0;
 
-   if (transfer_type == ParentToSub)
+   if (transfer_type == TransferType::ParentToSub)
    {
       GridFunction sub_ex_gf(&sub_fes);
 
-      if (vdim == 1 && (fec_type == H1 || fec_type == L2))
+      if (vdim == 1 && (fec_type == FECType::H1 || fec_type == FECType::L2))
       {
          parent_gf.ProjectCoefficient(coeff);
          sub_ex_gf.ProjectCoefficient(coeff);
@@ -199,11 +195,11 @@ void test_2d(Element::Type element_type,
       sub_gf -= sub_ex_gf;
       REQUIRE(sub_gf.Norml2() < 1e-10);
    }
-   else if (transfer_type == SubToParent)
+   else if (transfer_type == TransferType::SubToParent)
    {
       GridFunction parent_ex_gf(&parent_fes);
 
-      if (vdim == 1 && (fec_type == H1 || fec_type == L2))
+      if (vdim == 1 && (fec_type == FECType::H1 || fec_type == FECType::L2))
       {
          parent_gf.ProjectCoefficient(coeff);
          sub_gf.ProjectCoefficient(coeff);
@@ -238,7 +234,7 @@ void test_3d(Element::Type element_type,
 {
    constexpr int dim = 3;
    const int vdim = (field_type == FieldType::SCALAR ||
-                     fec_type == ND) ? 1 : dim;
+                     fec_type == FECType::ND) ? 1 : dim;
    real_t Hy = 1.0;
    Mesh mesh = Mesh::MakeCartesian3D(5, 5, 5, element_type, 1.0, Hy, 1.0, false);
 
@@ -358,11 +354,11 @@ void test_3d(Element::Type element_type,
    GridFunction sub_gf(&sub_fes);
    sub_gf = 0.0;
 
-   if (transfer_type == ParentToSub)
+   if (transfer_type == TransferType::ParentToSub)
    {
       GridFunction sub_ex_gf(&sub_fes);
 
-      if (vdim == 1 && (fec_type == H1 || fec_type == L2))
+      if (vdim == 1 && (fec_type == FECType::H1 || fec_type == FECType::L2))
       {
          parent_gf.ProjectCoefficient(coeff);
          sub_ex_gf.ProjectCoefficient(coeff);
@@ -379,11 +375,11 @@ void test_3d(Element::Type element_type,
       sub_gf -= sub_ex_gf;
       REQUIRE(sub_gf.Norml2() < 1e-10);
    }
-   else if (transfer_type == SubToParent)
+   else if (transfer_type == TransferType::SubToParent)
    {
       GridFunction parent_ex_gf(&parent_fes);
 
-      if (vdim == 1 && (fec_type == H1 || fec_type == L2))
+      if (vdim == 1 && (fec_type == FECType::H1 || fec_type == FECType::L2))
       {
          parent_gf.ProjectCoefficient(coeff);
          sub_gf.ProjectCoefficient(coeff);
@@ -567,4 +563,112 @@ TEST_CASE("InterfaceTransferSolve", "[SubMesh]")
    x_sub -= x_vol;
 
    CHECK((x_sub.Norml2() / x_sub.Size()) == MFEM_Approx(0.0, 1e-7, 1e-7));
+}
+
+/**
+ * @brief Helper function to generate DividingPlaneMesh with combinations of refinement
+ *
+ * @param test_case
+ * @param battr
+ * @param use_tet
+ * @param three_dimensional
+ * @return Mesh
+ */
+Mesh GenerateTestMesh(int test_case, int battr, bool use_tet, bool three_dimensional)
+{
+   auto mesh = DividingPlaneMesh(use_tet, true, three_dimensional);
+
+   auto refine_half = [](Mesh &mesh, int vattr, int battr, bool backwards = true)
+   {
+      Array<Refinement> refs(1);
+      std::vector<int> ind(mesh.GetNBE());
+      if (backwards)
+      {
+         std::iota(ind.rbegin(), ind.rend(), 0);
+      }
+      else
+      {
+         std::iota(ind.begin(), ind.end(), 0);
+      }
+      // for (int e = mesh.GetNBE() - 1; e >= 0; e--)
+      for (int e : ind)
+      {
+         std::cout << e << ' ';
+         if (mesh.GetBdrAttribute(e) == battr)
+         {
+            int el, info;
+            mesh.GetBdrElementAdjacentElement(e, el, info);
+            if (mesh.GetAttribute(el) == vattr)
+            {
+               refs[0].index = el;
+               refs[0].ref_type = Refinement::XYZ;
+               break;
+            }
+         }
+      }
+      mesh.GeneralRefinement(refs);
+   };
+
+   Array<Refinement> refs(1);
+   refs[0].ref_type = three_dimensional ? Refinement::XYZ : Refinement::XY;
+
+   switch (test_case)
+   {
+      case 0:
+         break;
+      case 1:
+         mesh.UniformRefinement();
+         break;
+      case 2:
+            refs[0].index = 0;
+            mesh.GeneralRefinement(refs);
+         break;
+      case 3 :
+            refs[0].index = 1;
+            mesh.GeneralRefinement(refs);
+         break;
+      case 4 :
+            mesh.UniformRefinement();
+            refine_half(mesh,1,battr, false);
+            refine_half(mesh,1,battr, true);
+            refine_half(mesh,1,battr, false);
+            break;
+   }
+   return mesh;
+}
+
+struct NCSubMeshExposed : public NCSubMesh
+{
+   NCSubMeshExposed(NCSubMesh &&ncsubmesh) : NCSubMesh(std::move(ncsubmesh)) {}
+
+   using NCSubMesh::elements;
+   using NCSubMesh::leaf_elements;
+};
+
+TEST_CASE("ExteriorSurfaceSubMesh", "[SubMesh]")
+{
+   SECTION("Hex")
+   {
+      auto mesh = Mesh("../../data/ref-cube.mesh", 1, 1);
+
+      mesh.EnsureNCMesh(true);
+      mesh.UniformRefinement();
+
+      SECTION("UniformRefineSingleAttribute")
+      {
+         auto bdr_attr = GENERATE(1,2,3,4,5,6);
+         Array<int> subdomain_attributes(1);
+         subdomain_attributes[0] = GENERATE(1,2,3,4,5,6);
+         auto submesh = SubMesh::CreateFromBoundary(mesh, subdomain_attributes);
+
+         // Replace with an exposed variant to explore the internals.
+         auto ncmesh_exposed = new NCSubMeshExposed(std::move(*dynamic_cast<NCSubMesh*>(submesh.ncmesh)));
+         delete submesh.ncmesh;
+         submesh.ncmesh = ncmesh_exposed;
+
+         CHECK(ncmesh_exposed->GetNumRootElements() == 1);
+         CHECK(ncmesh_exposed->leaf_elements.Size() == 4);
+      }
+   }
+
 }

@@ -166,129 +166,138 @@ NCSubMesh::NCSubMesh(SubMesh& submesh, const NCMesh &parent, From from,
    }
    else if (from == From::Boundary)
    {
-      // Loop over faces, and check for attributes.
-      // If matching attribute, then go to submesh, and get face vertices. The nodes were
-      // added matching the vertex ordering, so can use the face vertex numbers as the node
-      // numbers.
-      // Initialize similarly to a mesh with hanging nodes directly, thus do not construct
-      // the root elements, effectively not recognizing coarsening opportunities?
-      parent_to_submesh_element_ids_.SetSize(parent.faces.Size());
-      parent_to_submesh_element_ids_ = -1;
-      const auto &parent_face_to_be = submesh.GetParent()->GetFaceToBdrElMap();
 
-      const auto &mesh_parent = *submesh.GetParent();
-      // Loop over parent nc faces, and find those that match the boundary attribute. Add these
-      // as elements in the ncsubmesh, use the identity map between node and vertex indices
-      // right now.
-      Array<int> vertices; // storage for vertices extracted
-      std::cout << "parent.faces.Size() " << parent.faces.Size() << std::endl;
-      for (int i = 0, ipe = 0; ipe < parent.faces.Size(); /* nothing */)
+      if constexpr (false)
       {
-         const auto &f = parent.faces[i++];
-         std::cout << "i " << i << " ipe " << ipe << " f.index " << f.index << " f.attribute " << f.attribute;
-         std::cout << std::boolalpha << " f.Unused() " << f.Unused() << std::endl;
 
-         // TODO: To allow for coarsening, need to use unused faces and those with
-         // attribute, but f.index == -1 (internal master faces) to construct elements with
-         // children.
+      }
+      else
+      {
 
-         if (f.Unused())
+         // Loop over faces, and check for attributes.
+         // If matching attribute, then go to submesh, and get face vertices. The nodes were
+         // added matching the vertex ordering, so can use the face vertex numbers as the node
+         // numbers.
+         // Initialize similarly to a mesh with hanging nodes directly, thus do not construct
+         // the root elements, effectively not recognizing coarsening opportunities?
+         parent_to_submesh_element_ids_.SetSize(parent.faces.Size());
+         parent_to_submesh_element_ids_ = -1;
+         const auto &parent_face_to_be = submesh.GetParent()->GetFaceToBdrElMap();
+
+         const auto &mesh_parent = *submesh.GetParent();
+         // Loop over parent nc faces, and find those that match the boundary attribute. Add these
+         // as elements in the ncsubmesh, use the identity map between node and vertex indices
+         // right now.
+         Array<int> vertices; // storage for vertices extracted
+         std::cout << "parent.faces.Size() " << parent.faces.Size() << std::endl;
+         for (int i = 0, ipe = 0; ipe < parent.faces.Size(); /* nothing */)
          {
-            // Do not increment ipe counter, this isn't a face in the actual mesh.
-            continue;
-         }
+            const auto &f = parent.faces[i++];
+            std::cout << "i " << i << " ipe " << ipe << " f.index " << f.index << " f.attribute " << f.attribute;
+            std::cout << std::boolalpha << " f.Unused() " << f.Unused() << std::endl;
 
-         // Face that maps to a face in the actual mesh
-         int parent_be = parent_face_to_be[f.index];
-         if (!ElementHasAttribute(f, attributes) || parent_be < 0)
-         {
-            ipe++; continue;
-         }
+            // TODO: To allow for coarsening, need to use unused faces and those with
+            // attribute, but f.index == -1 (internal master faces) to construct elements with
+            // children.
 
-         std::cout << "Adding boundary face " << i << std::endl;
-
-         // face index -> submesh element
-         auto submesh_elem_id = submesh.GetSubMeshElementFromParent(parent_be);
-         const auto & elem = *submesh.GetElement(submesh_elem_id);
-         elem.GetVertices(vertices);
-
-         // Use the implicit vertex -> node identity map. TODO: Can we build a face
-         // refinement tree? This would be needed for non-root elements.
-         NCMesh::Element new_elem(elem.GetGeometryType(), f.attribute);
-         for (int n = 0; n < vertices.Size(); n++)
-         {
-            new_elem.node[n] = vertices[n];
-            nodes[new_elem.node[n]].vert_refc++;
-            std::cout << "nodes[" << new_elem.node[n] << "].vert_refc " << nodes[new_elem.node[n]].vert_refc << std::endl;
-         }
-         new_elem.index = submesh_elem_id;
-         new_elem.rank = MyRank;
-         auto new_elem_id = AddElement(new_elem);
-         parent_element_ids_.Append(ipe); // submesh nc element -> parent nc face
-         parent_to_submesh_element_ids_[ipe] = new_elem_id; // parent nc face -> submesh nc element
-
-         // Loop over the edges and register
-         auto &gi = GI[elem.GetGeometryType()];
-         gi.InitGeom(elem.GetGeometryType());
-         bool new_id = false;
-         for (int e = 0; e < elem.GetNEdges(); e++)
-         {
-            const int pid = parent.nodes.FindId(
-               parent_node_ids_[new_elem.node[gi.edges[e][0]]],
-               parent_node_ids_[new_elem.node[gi.edges[e][1]]]
-            );
-            MFEM_ASSERT(pid >= 0, "Edge not found");
-            auto submesh_node_id = node_ids.Get(pid, new_id);
-            if (new_id)
+            if (f.Unused())
             {
-               std::cout << "Adding edge node " << pid << " parents " << parent.nodes[pid].p1 << " " << parent.nodes[pid].p2 << std::endl;
-               nodes.Alloc(submesh_node_id, submesh_node_id, submesh_node_id);
-               parent_node_ids_.Append(pid);
-               parent_to_submesh_node_ids_[pid] = submesh_node_id;
+               // Do not increment ipe counter, this isn't a face in the actual mesh.
+               continue;
             }
-            nodes[submesh_node_id].edge_refc++;
+
+            // Face that maps to a face in the actual mesh
+            int parent_be = parent_face_to_be[f.index];
+            if (!ElementHasAttribute(f, attributes) || parent_be < 0)
+            {
+               ipe++; continue;
+            }
+
+            std::cout << "Adding boundary face " << i << std::endl;
+
+            // face index -> submesh element
+            auto submesh_elem_id = submesh.GetSubMeshElementFromParent(parent_be);
+            const auto & elem = *submesh.GetElement(submesh_elem_id);
+            elem.GetVertices(vertices);
+
+            // Use the implicit vertex -> node identity map. TODO: Can we build a face
+            // refinement tree? This would be needed for non-root elements.
+            NCMesh::Element new_elem(elem.GetGeometryType(), f.attribute);
+            for (int n = 0; n < vertices.Size(); n++)
+            {
+               new_elem.node[n] = vertices[n];
+               nodes[new_elem.node[n]].vert_refc++;
+               std::cout << "nodes[" << new_elem.node[n] << "].vert_refc " << nodes[new_elem.node[n]].vert_refc << std::endl;
+            }
+            new_elem.index = submesh_elem_id;
+            new_elem.rank = MyRank;
+            auto new_elem_id = AddElement(new_elem);
+            parent_element_ids_.Append(ipe); // submesh nc element -> parent nc face
+            parent_to_submesh_element_ids_[ipe] = new_elem_id; // parent nc face -> submesh nc element
+
+            // Loop over the edges and register
+            auto &gi = GI[elem.GetGeometryType()];
+            gi.InitGeom(elem.GetGeometryType());
+            bool new_id = false;
+            for (int e = 0; e < elem.GetNEdges(); e++)
+            {
+               const int pid = parent.nodes.FindId(
+                  parent_node_ids_[new_elem.node[gi.edges[e][0]]],
+                  parent_node_ids_[new_elem.node[gi.edges[e][1]]]
+               );
+               MFEM_ASSERT(pid >= 0, "Edge not found");
+               auto submesh_node_id = node_ids.Get(pid, new_id);
+               if (new_id)
+               {
+                  std::cout << "Adding edge node " << pid << " parents " << parent.nodes[pid].p1 << " " << parent.nodes[pid].p2 << std::endl;
+                  nodes.Alloc(submesh_node_id, submesh_node_id, submesh_node_id);
+                  parent_node_ids_.Append(pid);
+                  parent_to_submesh_node_ids_[pid] = submesh_node_id;
+               }
+               nodes[submesh_node_id].edge_refc++;
+            }
+            ipe++;
          }
-         ipe++;
-      }
 
-      // TODO: How to register faces? Do we need to?
-      // Loop over the faces of the submesh -> use the attribute assigned there, and set
-      // the faces to be equal to the faces from there. Basically equivalent to
-      // initialization from a Mesh as usual.
-      const auto &face_to_be = submesh.GetFaceToBdrElMap();
-      for (int i = 0; i < submesh.GetNumFaces(); i++)
-      {
-         const auto &sf = *submesh.GetFace(i);
-         auto &gi = GI[sf.GetGeometryType()];
-         gi.InitGeom(sf.GetGeometryType());
-
-         const int * v = sf.GetVertices();
-         const int nv = sf.GetNVertices();
-         int nc_v[4];
-         if (nv == 2)
+         // TODO: How to register faces? Do we need to?
+         // Loop over the faces of the submesh -> use the attribute assigned there, and set
+         // the faces to be equal to the faces from there. Basically equivalent to
+         // initialization from a Mesh as usual.
+         const auto &face_to_be = submesh.GetFaceToBdrElMap();
+         for (int i = 0; i < submesh.GetNumFaces(); i++)
          {
-            // NCMesh uses the convention that edges are keyed (a a b b) for (a, b).
-            // Additionally it orders key entries.
-            int v0 = std::min(v[0], v[1]);
-            int v1 = std::max(v[0], v[1]);
-            nc_v[0] = v0; nc_v[1] = v0;
-            nc_v[2] = v1; nc_v[3] = v1;
-         }
-         else
-         {
-            std::copy(v, v + nv, nc_v);
+            const auto &sf = *submesh.GetFace(i);
+            auto &gi = GI[sf.GetGeometryType()];
+            gi.InitGeom(sf.GetGeometryType());
+
+            const int * v = sf.GetVertices();
+            const int nv = sf.GetNVertices();
+            int nc_v[4];
+            if (nv == 2)
+            {
+               // NCMesh uses the convention that edges are keyed (a a b b) for (a, b).
+               // Additionally it orders key entries.
+               int v0 = std::min(v[0], v[1]);
+               int v1 = std::max(v[0], v[1]);
+               nc_v[0] = v0; nc_v[1] = v0;
+               nc_v[2] = v1; nc_v[3] = v1;
+            }
+            else
+            {
+               std::copy(v, v + nv, nc_v);
+            }
+
+            // instantiate face and bind attribute.
+            auto face_id = faces.GetId(nc_v[0], nc_v[1], nc_v[2], nv > 3 ? nc_v[3]: -1);
+            faces[face_id].attribute = face_to_be[i] < 0 ? -1 : submesh.GetBdrAttribute(face_to_be[i]);
+            faces[face_id].index = i;
          }
 
-         // instantiate face and bind attribute.
-         auto face_id = faces.GetId(nc_v[0], nc_v[1], nc_v[2], nv > 3 ? nc_v[3]: -1);
-         faces[face_id].attribute = face_to_be[i] < 0 ? -1 : submesh.GetBdrAttribute(face_to_be[i]);
-         faces[face_id].index = i;
+         // NOTE: All surface submesh elements are leaves. There is no possibility of
+         // coarsening, as updating the relationship to the parent mesh would be very
+         // complicated. As a consequence, marking for coarsening based on the submesh is not
+         // supported.
       }
-
-      // NOTE: All surface submesh elements are leaves. There is no possibility of
-      // coarsening, as updating the relationship to the parent mesh would be very
-      // complicated. As a consequence, marking for coarsening based on the submesh is not
-      // supported.
    }
 
    // Loop over all nodes, and reparent based on the node relations of the parent

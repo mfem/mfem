@@ -224,6 +224,7 @@ void ParNCMesh::BuildEdgeList()
    if (Dim < 2 || !leaf_elements.Size()) { return; }
 
    int nedges = NEdges + NGhostEdges;
+   std::cout << "NEdges " << NEdges << " NGhostEdges " << NGhostEdges << std::endl;
 
    tmp_owner.SetSize(nedges);
    tmp_owner = INT_MAX;
@@ -236,6 +237,7 @@ void ParNCMesh::BuildEdgeList()
 
    entity_elem_local[1].SetSize(nedges);
    entity_elem_local[1] = -1;
+
 
    NCMesh::BuildEdgeList();
 
