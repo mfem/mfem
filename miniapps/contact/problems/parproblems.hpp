@@ -141,7 +141,6 @@ public:
          a = new ParBilinearForm(fes);
          a->AddDomainIntegrator(new ElasticityIntegrator(lambda_cf,mu_cf));
 
-
          // a->Update();
          formsystem = false;
       }
@@ -224,8 +223,6 @@ private:
    ParElasticityProblem * prob = nullptr;
    ParFiniteElementSpace * vfes = nullptr;
    int dim;
-   GridFunction nodes0;
-   GridFunction *nodes1 = nullptr;
    std::set<int> contact_vertices;
    std::vector<int> dof_offsets;
    std::vector<int> vertex_offsets; 
@@ -301,8 +298,9 @@ private:
    int dimU, dimM, dimC;
    Vector ml;
    HypreParMatrix * NegId = nullptr;
+   const Vector xref;
 public:
-   QPOptParContactProblem(ParContactProblem * problem_);
+   QPOptParContactProblem(ParContactProblem * problem_, const Vector & xref_);
    int GetDimU();
    int GetDimM();
    int GetDimC();

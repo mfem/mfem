@@ -276,8 +276,10 @@ int main(int argc, char *argv[])
    else
    {
       lambda[0] = 0.499/(1.499*0.002);
+      // lambda[0] = 0.3/0.52;
       lambda[1] = 0.0;
       mu[0] = 1./(2*1.499);
+      // mu[0] = 1./2.6;
       mu[1] = 500;
    }
 
@@ -289,12 +291,6 @@ int main(int argc, char *argv[])
    Array<int> ess_bdr(pmesh->bdr_attributes.Max());
 
    ess_values = 0.0;
-
-
-   double area = GetBdrArea(3,*mesh);
-
-   // ConstantCoefficient one(-area);
-   ConstantCoefficient one(-1.0);
 
    std::set<int> mortar_attr;
    std::set<int> nonmortar_attr;
@@ -310,7 +306,6 @@ int main(int argc, char *argv[])
       prob->SetDisplacementDirichletData(ess_values, ess_bdr);
       ess_bdr = 0;
       ess_bdr[2] = 1;
-      // prob->SetNeumanPressureData(one,ess_bdr);
       mortar_attr.insert(6);
       mortar_attr.insert(9);
       nonmortar_attr.insert(7);
@@ -325,7 +320,6 @@ int main(int argc, char *argv[])
       prob->SetDisplacementDirichletData(ess_values, ess_bdr);
       ess_bdr = 0;
       ess_bdr[2] = 1;
-      // prob->SetNeumanPressureData(one,ess_bdr);
       prob->SetNeumanData(0,3,-2.0);
       mortar_attr.insert(6);
       mortar_attr.insert(9);
@@ -345,10 +339,8 @@ int main(int argc, char *argv[])
       }
       essbdr_attr = (testNo == 40) ? 1 : 2;
       ess_bdr = 0; ess_bdr[essbdr_attr - 1] = 1;
-      // prob->SetDisplacementDirichletData(ess_values, ess_bdr);
       essbdr_attr = (testNo == 40) ? 10 : 6;
       ess_values = 0.0; ess_bdr = 0; ess_bdr[essbdr_attr - 1] = 1;
-      // prob->SetDisplacementDirichletData(ess_values, ess_bdr);
       if (testNo == 40)
       {
          mortar_attr.insert(4);
@@ -394,14 +386,14 @@ int main(int argc, char *argv[])
       sol_sock.open(vishost, visport);
       sol_sock.precision(8);
    }
-   // ParGridFunction coords(prob->GetFESpace()); 
    ParGridFunction ref_coords(prob->GetFESpace()); 
    ParGridFunction new_coords(prob->GetFESpace()); 
    pmesh->GetNodes(new_coords);
    pmesh->GetNodes(ref_coords);
    
+   Vector xref(x_gf.GetTrueVector().Size());
 
-   double p = 1;
+   double p = 50;
    ConstantCoefficient f(p);
    for (int i = 0; i<nsteps; i++)
    {
@@ -411,7 +403,6 @@ int main(int argc, char *argv[])
          ess_bdr[2] = 1;
          f.constant = -p*(i+1)/nsteps;
          prob->SetNeumanPressureData(f,ess_bdr);
-         // prob->SetNeumanData(0,3,-p*(i+1)/nsteps);
       }
       else if (testNo == 4 || testNo == 40 || testNo == 5 || testNo == 51)
       {
@@ -421,30 +412,30 @@ int main(int argc, char *argv[])
          ess_values = 0.0;
          ess_values[2] = 1.0/1.4*(i+1)/nsteps;
          prob->SetDisplacementDirichletData(ess_values, ess_bdr);
+         // ess_bdr = 0;
+         // ess_bdr[10-1] = 1;
+         // ess_values = 0.0;
+         // ess_values[2] = (1.0/1.4+0.01)*(i+1)/nsteps;
+         // prob->SetDisplacementDirichletData(ess_values, ess_bdr);
       }
       else if (testNo == 41)
       {
          ess_values = 0.0;
-         ess_values[0] = 0.5/nsteps*(i+1);
-         // ess_values[0] = 0.0;
+         ess_values[0] = 1.0/1.4*nsteps*(i+1);
          essbdr_attr =  2;
          ess_bdr[essbdr_attr-1] = 1;
          prob->SetDisplacementDirichletData(ess_values, ess_bdr);
          essbdr_attr = 6;
          ess_values = 0.0; 
-         // ess_values[0] = -0.5/nsteps*(i+1);
-         if (myid == 0)
-         {
-            mfem::out << "ess_values[0] = " << ess_values[0] << endl;
-         }
          ess_bdr = 0; ess_bdr[essbdr_attr - 1] = 1;
          prob->SetDisplacementDirichletData(ess_values, ess_bdr);
       }
 
-      // add(ref_coords,x_gf,coords);
-      // coords += xnew;
+      x_gf.SetTrueVector();
+      xref.Set(1.0, x_gf.GetTrueVector());
       ParContactProblem contact(prob, mortar_attr, nonmortar_attr, &new_coords, doublepass);
-      QPOptParContactProblem qpopt(&contact);
+      QPOptParContactProblem qpopt(&contact,xref);
+   
       int numconstr = contact.GetGlobalNumConstraints();
       ParInteriorPointSolver optimizer(&qpopt);
       optimizer.SetTol(optimizer_tol);
@@ -461,21 +452,19 @@ int main(int argc, char *argv[])
       {
          optimizer.SetElasticityOptions(prob->GetFESpace());
       }
-      // ParGridFunction x = prob->GetDisplacementGridFunction();
-      // x.SetTrueVector();
-      // Vector x0 = x.GetTrueVector();
 
       x_gf.SetTrueVector();
       Vector x0 = x_gf.GetTrueVector();
-      int ndofs = x0.Size();
+      int ndofs = prob->GetFESpace()->GetTrueVSize();
+      // Vector x0(ndofs); x0 = 0.0;
       Vector xf(ndofs); xf = 0.0;
       optimizer.Mult(x0, xf);
 
-      Vector xf_copy(xf);
-      xf_copy+=x0;
+      // Vector xf_copy(xf);
+      // xf_copy+=x0;
       double Einitial = contact.E(x0);
-      // double Efinal = contact.E(xf);
-      double Efinal = contact.E(xf_copy);
+      double Efinal = contact.E(xf);
+      // double Efinal = contact.E(xf_copy);
       Array<int> & CGiterations = optimizer.GetCGIterNumbers();
       int gndofs = prob->GetGlobalNumDofs();
       if (Mpi::Root())
@@ -506,24 +495,10 @@ int main(int argc, char *argv[])
          }
       }
 
-      // Vector X_new(xf.GetData(),fes->GetTrueVSize());
-      // xnew.SetFromTrueDofs(X_new);
-      // x_gf = xnew;
       x_gf.SetFromTrueDofs(xf);
-      // mfem::out << "x_gf norm = " << x_gf.Norml2() << endl;
-      // cin.get();
-      // pmesh->MoveNodes(xnew);
-      // pmesh_copy.MoveNodes(xnew);
-      // pmesh_copy.MoveNodes(xnew);
       add(ref_coords,x_gf,new_coords);
-      // mfem::out << " ref_coords norm " << ref_coords.Norml2() << endl;
-      // mfem::out << " x_gf norm " << x_gf.Norml2() << endl;
-      // mfem::out << " new_coords norm " << new_coords.Norml2() << endl;
-      // pmesh_copy.SetNodes(new_coords);
       pmesh_copy.SetNodes(new_coords);
       xcopy_gf = x_gf;
-      // pmesh_copy.MoveNodes(x_gf);
-      // pmesh_copy.SetNodes(x_gf);
       if (paraview)
       {
          paraview_dc->SetCycle(i+1);
@@ -548,16 +523,8 @@ int main(int argc, char *argv[])
          }
       }
       if (i == nsteps-1) break;
-
+      // cin.get();
       prob->UpdateStep();
-      if (testNo == 6 )
-      {
-         double area_new = GetBdrArea(3,*pmesh);
-         if (myid == 0)
-         {
-            mfem::out << "New area = " << area_new << endl;
-         }
-      }
    }
 
    delete prob;

@@ -72,12 +72,8 @@ ParContactProblem::ParContactProblem(ParElasticityProblem * prob_,
    MPI_Comm_size(comm, &numprocs);
  
    dim = pmesh->Dimension();
-   nodes0.SetSpace(pmesh->GetNodes()->FESpace());
-   nodes0 = *pmesh->GetNodes();
-   nodes1 = pmesh->GetNodes();
-   
    prob->FormLinearSystem();
-   K= new HypreParMatrix(prob->GetOperator());
+   K = new HypreParMatrix(prob->GetOperator());
    B = new Vector(prob->GetRHS());
    if (doublepass)
    {
@@ -565,8 +561,8 @@ HypreParMatrix* ParContactProblem::lDddg(const Vector &d, const Vector &l)
 }
 
 
-QPOptParContactProblem::QPOptParContactProblem(ParContactProblem * problem_)
-: problem(problem_)
+QPOptParContactProblem::QPOptParContactProblem(ParContactProblem * problem_, const Vector & xref_)
+: problem(problem_), xref(xref_)
 {
    dimU = problem->GetNumDofs();
    dimM = problem->GetNumContraints();
@@ -625,13 +621,22 @@ HypreParMatrix * QPOptParContactProblem::lDuuc(const BlockVector & x, const Vect
    return nullptr;
 }
 
+// J * d + g0 - slack
+// J(dref) * (d - dref) + g(dref) - slack
 void QPOptParContactProblem::c(const BlockVector &x, Vector & y)
 {
-   Vector g0;
-   problem->g(x.GetBlock(0),g0); // gap function
-   g0.Add(-1.0, x.GetBlock(1));  
-   problem->GetJacobian()->Mult(x.GetBlock(0),y);
-   y.Add(1.0, g0);
+   Vector g0; // g(dref) 
+   problem->g(x.GetBlock(0), g0); // gap function
+   Vector temp(x.GetBlock(0).Size()); temp = 0.0;
+   temp.Set(1.0, x.GetBlock(0));  
+   temp.Add(-1.0, xref); // displacement at previous time step  
+   problem->GetJacobian()->Mult(temp, y); // J * (d - xref)
+   y.Add(1.0, g0); // J * (d - xref) + g0 
+   y.Add(-1.0, x.GetBlock(1)); // J * (d - xref) + g0 - s
+
+   // Instead of the above we can do 
+   // problem->GetJacobian()->Mult(x.GetBlock(0), y); // J * (d - xref)
+   // y.Add(-1.0, x.GetBlock(1));
 }
 
 double QPOptParContactProblem::CalcObjective(const BlockVector & x)
