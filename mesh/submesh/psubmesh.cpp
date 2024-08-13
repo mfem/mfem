@@ -80,38 +80,38 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
       parent_to_submesh_element_ids_[parent_element_ids_[i]] = i;
    }
 
-   std::cout << __FILE__ << ':' << __LINE__ << std::endl;
-   std::cout << "parent_element_ids_: ";
-   for (auto x : parent_element_ids_)
-   {
-      std::cout << x << ' ';
-   }
-   std::cout << "\n";
+   // std::cout << __FILE__ << ':' << __LINE__ << std::endl;
+   // std::cout << "parent_element_ids_: ";
+   // for (auto x : parent_element_ids_)
+   // {
+   //    std::cout << x << ' ';
+   // }
+   // std::cout << "\n";
 
-   std::cout << __FILE__ << ':' << __LINE__ << std::endl;
-   std::cout << "parent_to_submesh_element_ids_: ";
-   for (auto x : parent_to_submesh_element_ids_)
-   {
-      std::cout << x << ' ';
-   }
-   std::cout << "\n";
+   // std::cout << __FILE__ << ':' << __LINE__ << std::endl;
+   // std::cout << "parent_to_submesh_element_ids_: ";
+   // for (auto x : parent_to_submesh_element_ids_)
+   // {
+   //    std::cout << x << ' ';
+   // }
+   // std::cout << "\n";
 
 
-   std::cout << __FILE__ << ':' << __LINE__ << std::endl;
-   std::cout << "parent_vertex_ids_: ";
-   for (auto x : parent_vertex_ids_)
-   {
-      std::cout << x << ' ';
-   }
-   std::cout << "\n";
+   // std::cout << __FILE__ << ':' << __LINE__ << std::endl;
+   // std::cout << "parent_vertex_ids_: ";
+   // for (auto x : parent_vertex_ids_)
+   // {
+   //    std::cout << x << ' ';
+   // }
+   // std::cout << "\n";
 
-   std::cout << __FILE__ << ':' << __LINE__ << std::endl;
-   std::cout << "parent_to_submesh_vertex_ids_: ";
-   for (auto x : parent_to_submesh_vertex_ids_)
-   {
-      std::cout << x << ' ';
-   }
-   std::cout << "\n";
+   // std::cout << __FILE__ << ':' << __LINE__ << std::endl;
+   // std::cout << "parent_to_submesh_vertex_ids_: ";
+   // for (auto x : parent_to_submesh_vertex_ids_)
+   // {
+   //    std::cout << x << ' ';
+   // }
+   // std::cout << "\n";
 
    // std::cout << "parent.GetNE() " << parent.GetNE() << std::endl;
    // for (int i = 0; i < parent.GetNE(); i++)
@@ -143,48 +143,6 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
    // generate boundary elements on each rank locally, which is topologically
    // wrong for the distributed SubMesh.
    FinalizeTopology(false);
-
-   auto print_details = [&]()
-   {
-      Array<int> verts;
-      for (int e = 0; e < GetNE(); e++)
-      {
-         auto * elem = GetElement(e);
-         elem->GetVertices(verts);
-
-         std::cout << "Element " << e << " : ";
-         for (auto x : verts)
-         {
-            std::cout << x << ' ';
-         }
-         std::cout << std::endl;
-      }
-      for (int v = 0; v < GetNV(); v++)
-      {
-         auto *vv = GetVertex(v);
-         std::cout << "Vertex " << v << " : ";
-         for (int i = 0; i < 3; i++)
-         {
-            std::cout << vv[i] << ' ';
-         }
-         std::cout << std::endl;
-      }
-
-      std::cout << "parent_element_ids_ ";
-      for (auto e: parent_element_ids_)
-      {
-         std::cout << "Parent Element " << e << " : \n";
-         auto * pelem = from == SubMesh::From::Domain
-            ? parent.GetElement(e) : parent.GetBdrElement(e);
-         pelem->GetVertices(verts);
-         for (auto x : verts)
-         {
-            auto *vv = parent.GetVertex(x);
-            std::cout << x << ": (" << vv[0] << ' ' << vv[1] << ' ' << vv[2] << ")\n";
-         }
-      }
-      std::cout << std::endl;
-   };
 
    // Vertex Values are bad
    auto print_elem = [&]()

@@ -262,6 +262,8 @@ NCMesh::NCMesh(const NCMesh &other)
    , nodes(other.nodes)
    , faces(other.faces)
    , elements(other.elements)
+   , NEdges(other.NEdges)
+   , NGhostEdges(other.NGhostEdges)
    , shadow(1024, 2048)
 {
    other.free_element_ids.Copy(free_element_ids);
@@ -2170,8 +2172,10 @@ void NCMesh::UpdateLeafElements()
    // collect leaf elements in leaf_elements and ghosts elements in ghosts from
    // all roots
    leaf_elements.SetSize(0);
+   std::cout << "root_state.Size() " << root_state.Size() << '\n';
    for (int i = 0, counter = 0; i < root_state.Size(); i++)
    {
+      std::cout << "i " << i << " counter " << counter << '\n';
       CollectLeafElements(i, root_state[i], ghosts, counter);
    }
 
@@ -2224,15 +2228,15 @@ void NCMesh::UpdateVertices()
       node.vert_index = -4; // assume beyond ghost layer
    }
 
-   std::cout << "leaf_elements.Size() " << leaf_elements.Size() << '\n';
+   // std::cout << "leaf_elements.Size() " << leaf_elements.Size() << '\n';
    for (int i = 0; i < leaf_elements.Size(); i++)
    {
       Element &el = elements[leaf_elements[i]];
-      std::cout << "Element " << leaf_elements[i] << "\n";
+      // std::cout << "Element " << leaf_elements[i] << "\n";
       for (int j = 0; j < GI[el.Geom()].nv; j++)
       {
          Node &nd = nodes[el.node[j]];
-         std::cout << "nd.p1 " << nd.p1 << " nd.p2 " << nd.p2 << '\n';
+         // std::cout << "nd.p1 " << nd.p1 << " nd.p2 " << nd.p2 << '\n';
          if (el.rank == MyRank)
          {
             if (nd.p1 == nd.p2) // local top-level vertex
@@ -2260,13 +2264,13 @@ void NCMesh::UpdateVertices()
          node.vert_index = NVertices++;
       }
    }
-   std::cout << __FILE__ << ':' << __LINE__ << std::endl;
-   std::cout << "NVertices : " << NVertices << " - ";
-   for (const auto &nd : nodes)
-   {
-      std::cout << nd.vert_index << ' ';
-   }
-   std::cout << '\n';
+   // std::cout << __FILE__ << ':' << __LINE__ << std::endl;
+   // std::cout << "NVertices : " << NVertices << " - ";
+   // for (const auto &nd : nodes)
+   // {
+   //    std::cout << nd.vert_index << ' ';
+   // }
+   // std::cout << '\n';
 
    // STEP 3: go over all elements (local and ghost) in SFC order and assign
    // remaining local vertices in that order.
@@ -2287,13 +2291,13 @@ void NCMesh::UpdateVertices()
       }
    }
 
-   std::cout << __FILE__ << ':' << __LINE__ << std::endl;
-   std::cout << "NVertices : " << NVertices << " - ";
-   for (const auto &nd : nodes)
-   {
-      std::cout << nd.vert_index << ' ';
-   }
-   std::cout << '\n';
+   // std::cout << __FILE__ << ':' << __LINE__ << std::endl;
+   // std::cout << "NVertices : " << NVertices << " - ";
+   // for (const auto &nd : nodes)
+   // {
+   //    std::cout << nd.vert_index << ' ';
+   // }
+   // std::cout << '\n';
 
    // STEP 4: create the mapping from Mesh vertex index to NCMesh node index
 
@@ -2301,14 +2305,14 @@ void NCMesh::UpdateVertices()
    // std::cout << "Assigning vertex_nodeId\n";
    for (auto node = nodes.begin(); node != nodes.end(); ++node)
    {
-      std::cout << "Testing node.index() " << node.index() << ": node->vert_index " << node->vert_index ;
+      // std::cout << "Testing node.index() " << node.index() << ": node->vert_index " << node->vert_index ;
       if (node->HasVertex() && node->vert_index >= 0)
       {
          MFEM_ASSERT(node->vert_index < vertex_nodeId.Size(), "");
-         std::cout << " adding vertex_nodeId[" << node->vert_index << "] " << node.index();
+         // std::cout << " adding vertex_nodeId[" << node->vert_index << "] " << node.index();
          vertex_nodeId[node->vert_index] = node.index();
       }
-      std::cout << '\n';
+      // std::cout << '\n';
    }
 
    // STEP 5: assign remaining ghost vertices, ignore vertices beyond the ghost
@@ -3017,7 +3021,6 @@ int NCMesh::ParentFaceNodes(std::array<int, 4> &face_nodes) const
    }
    else if (is_tri)
    {
-      std::cout << "parent_nodes ";
       for (int i = 0; i < 3; i++)
       {
          auto x = face_nodes[i];
@@ -3059,13 +3062,17 @@ int NCMesh::ParentFaceNodes(std::array<int, 4> &face_nodes) const
          std::cout << "parent_nodes ";
          for (int i = 0; i < 3; i++)
          {
-            const auto &current = parent_pairs[(i + 1 + 3) % 3]; // (0 -> 1, 1 -> 2, 2 -> 0)
+            // Parenting convention here assumes parent face has the SAME orientation as the
+            // original. This is true on exterior boundaries, but for an interior boundary
+            // the master face will have an opposing orientation.
+            // const auto &prev = parent_pairs[(i - 1 + 3) % 3]; // (0 -> 1, 1 -> 2, 2 -> 0)
             const auto &prev = parent_pairs[(i - 1 + 3) % 3]; // (0 -> 2, 1 -> 0, 2 -> 1)
-            std::cout << "current " << current[0] << ' ' << current[1] << '\n';
+            const auto &next = parent_pairs[(i + 1 + 3) % 3]; // (0 -> 1, 1 -> 2, 2 -> 0)
             std::cout << "prev " << prev[0] << ' ' << prev[1] << '\n';
-            for (auto x : prev)
+            std::cout << "next " << next[0] << ' ' << next[1] << '\n';
+            for (auto x : next)
             {
-               if (std::find(current.begin(), current.end(), x) != current.end()) { parent_nodes[i] = x; }
+               if (std::find(prev.begin(), prev.end(), x) != prev.end()) { parent_nodes[i] = x; }
             }
             std::cout << parent_nodes[i] << '\n';
          }
@@ -3516,6 +3523,7 @@ NCMesh::TriFaceTraverseResults NCMesh::TraverseTriFace(int vn0, int vn1,
 
 void NCMesh::BuildFaceList()
 {
+   std::cout << "R" << MyRank << ' ' << __FILE__ << ':' << __LINE__<< '\n';
    face_list.Clear();
    if (Dim < 3) { return; }
 
@@ -3639,6 +3647,7 @@ void NCMesh::TraverseEdge(int vn0, int vn1, real_t t0, real_t t1, int flags,
 
 void NCMesh::BuildEdgeList()
 {
+   // std::cout << "R" << MyRank << ' ' << __FILE__ << ':' << __LINE__<< '\n';
    edge_list.Clear();
    if (Dim < 3) { boundary_faces.SetSize(0); }
 
@@ -3751,6 +3760,7 @@ void NCMesh::BuildEdgeList()
 
 void NCMesh::BuildVertexList()
 {
+   std::cout << "R" << MyRank << ' ' << __FILE__ << ':' << __LINE__<< '\n';
    int total = NVertices + NGhostVertices;
 
    vertex_list.Clear();

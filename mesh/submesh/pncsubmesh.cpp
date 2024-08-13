@@ -375,13 +375,13 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
 
             auto mesh_id_type = face_list.GetMeshIdType(face.index);
 
-            std::cout << "face.elem " << face.elem[0] << ' ' << face.elem[1] << std::endl;
+            std::cout << "face.elem " << face.elem[0] << ' ' << face.elem[1];
             if (face.elem[0] >= 0)
-            { std::cout << " elem 0 IsLeaf " << parent.elements[face.elem[0]].IsLeaf() << std::endl; }
+            { std::cout << " elem 0 IsLeaf " << parent.elements[face.elem[0]].IsLeaf(); }
 
             if (face.elem[1] >= 0)
-            { std::cout << " elem 1 IsLeaf " << parent.elements[face.elem[1]].IsLeaf() << std::endl; }
-
+            { std::cout << " elem 1 IsLeaf " << parent.elements[face.elem[1]].IsLeaf() ; }
+            std::cout << '\n';
             MFEM_ASSERT(face.elem[0] < 0 || face.elem[1] < 0, "Internal nonconforming boundaries are not supported yet.");
 
             auto face_geom = face_geom_from_nodes(fn.nodes);
@@ -390,8 +390,8 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
             // Rank needs to be established by presence (or lack of) in the submesh.
             elements[new_elem_id].rank = [&parent, &face, &submesh, &face_to_be]()
             {
-               auto rank0 = face.elem[0] > 0 ? parent.elements[face.elem[0]].rank : -1;
-               auto rank1 = face.elem[1] > 0 ? parent.elements[face.elem[1]].rank : -1;
+               auto rank0 = face.elem[0] >= 0 ? parent.elements[face.elem[0]].rank : -1;
+               auto rank1 = face.elem[1] >= 0 ? parent.elements[face.elem[1]].rank : -1;
 
                if (rank0 < 0) { return rank1; }
                if (rank1 < 0) { return rank0; }
@@ -403,23 +403,23 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
             auto orientation = [&]()
             {
                int f, o;
-               std::cout << "i " << i << " ipe " << ipe << " face.index " << face.index << std::endl;
+               // std::cout << "i " << i << " ipe " << ipe << " face.index " << face.index << std::endl;
                if (face.index >= face_to_be.Size() || face_to_be[face.index] < 0)
                { o = 0; std::cout << " face.index >= face_to_be.Size() " << (face.index >= face_to_be.Size()); }
                else
                {
                submesh.GetParent()->GetBdrElementFace(face_to_be[face.index], &f, &o);
                }
-               std::cout << " o " << o << '\n';
+               // std::cout << " o " << o << '\n';
                return o;
             }();
-            ReorientFaceNodesByOrientation(fn.nodes, face_geom, orientation);
+            // ReorientFaceNodesByOrientation(fn.nodes, face_geom, orientation);
 
             pnodes_new_elem[fn] = new_elem_id;
             parent_element_ids_.Append(i);
             parent_to_submesh_element_ids_[i] = new_elem_id;
 
-            std::cout << " new_elem_id " << new_elem_id << " fn ";
+            std::cout << "\nNew_elem_id " << new_elem_id << " fn ";
 
             // Copy in the parent nodes. These will be relabeled once the tree is built.
             std::copy(fn.nodes.begin(), fn.nodes.end(), elements[new_elem_id].node);
@@ -481,8 +481,10 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
                      std::cout << x << ' ';
                   }
                   std::cout << '\n';
-                  // Check that the parent face nodes ordering matches the ParentFaceNodes ordering.
-                  if (!std::equal(fn.nodes.begin(), fn.nodes.end(), pelem->first.nodes.begin()))
+                  // If a parent triangle face was discovered by the internal face, the
+                  // orientation can be inconsistent with the other children, this will fix that.
+                  if (elem.Geom() == Geometry::Type::TRIANGLE &&
+                     child != 3 && !std::equal(fn.nodes.begin(), fn.nodes.end(), pelem->first.nodes.begin()))
                   {
                      fix_parent = true;
                      auto pelem_id = pelem->second;
@@ -1068,7 +1070,6 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
          << p[0] << " max " << -p[1] << " local " << root_state.Size() << " MyRank " << submesh.GetMyRank());
    }
 
-
    Update(); // Fills in secondary information based off of elements, nodes and faces.
 
    // copy top-level vertex coordinates (leave empty if the mesh is curved)
@@ -1172,14 +1173,27 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
       }
 
       MFEM_ASSERT(new_parent_element_ids.Size() == submesh.parent_element_ids_.Size(), "!");
+      std::cout << "new_parent_element_ids.Size() " << new_parent_element_ids.Size() << " : ";
       for (auto x : new_parent_element_ids)
       {
+         std::cout << x << ' ';
          MFEM_ASSERT(std::find(submesh.parent_element_ids_.begin(), submesh.parent_element_ids_.end(), x) != submesh.parent_element_ids_.end(), "!");
+      }
+      std::cout << std::endl;
+      auto tmp = new_parent_element_ids;
+      tmp.Sort();
+      tmp.Unique();
+      std::cout << "sorted and unique new_parent_element_ids.Size() " << tmp.Size() << " : ";
+      for (auto x : tmp)
+      {
+         std::cout << x << ' ';
       }
 
       for (auto x : submesh.parent_element_ids_)
       {
-         MFEM_ASSERT(std::find(new_parent_element_ids.begin(), new_parent_element_ids.end(), x) != new_parent_element_ids.end(), "!");
+         MFEM_ASSERT(std::find(new_parent_element_ids.begin(),
+                               new_parent_element_ids.end(), x)
+                     != new_parent_element_ids.end(), x << " not found in new parent_element_ids_");
       }
 
 

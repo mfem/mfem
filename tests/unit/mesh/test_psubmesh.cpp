@@ -18,7 +18,7 @@ using namespace mfem;
 
 namespace ParSubMeshTests
 {
-enum FECType
+enum class FECType
 {
    H1,
    ND,
@@ -26,17 +26,25 @@ enum FECType
    L2
 };
 
+void CHECK_GLOBAL_NORM(Vector &v)
+{
+   real_t norm_local = v.Norml2(), norm_global = 0.0;
+   MPI_Allreduce(&norm_local, &norm_global, 1, MPITypeMap<real_t>::mpi_type,
+                  MPI_SUM, MPI_COMM_WORLD);
+   REQUIRE(norm_global < 1e-8);
+};
+
 FiniteElementCollection *create_fec(FECType fectype, int p, int dim)
 {
    switch (fectype)
    {
-      case H1:
+      case FECType::H1:
          return new H1_FECollection(p, dim);
-      case ND:
+      case FECType::ND:
          return new ND_FECollection(p, dim);
-      case RT:
+      case FECType::RT:
          return new RT_FECollection(p - 1, dim);
-      case L2:
+      case FECType::L2:
          return new L2_FECollection(p, dim, BasisType::GaussLobatto);
    }
 
@@ -47,14 +55,14 @@ FiniteElementCollection *create_surf_fec(FECType fectype, int p, int dim)
 {
    switch (fectype)
    {
-      case H1:
+      case FECType::H1:
          return new H1_FECollection(p, dim);
-      case ND:
+      case FECType::ND:
          return new ND_FECollection(p, dim);
-      case RT:
+      case FECType::RT:
          return new L2_FECollection(p - 1, dim, BasisType::GaussLegendre,
                                     FiniteElement::INTEGRAL);
-      case L2:
+      case FECType::L2:
          return new L2_FECollection(p, dim, BasisType::GaussLobatto);
    }
 
@@ -199,14 +207,14 @@ void multidomain_test_2d(FECType fec_type)
    SurfaceNormalCoef normalcoeff(dim);
    InnerProductCoefficient nvcoeff(normalcoeff, vcoeff);
 
-   if (fec_type == H1 || fec_type == L2)
+   if (fec_type == FECType::H1 || fec_type == FECType::L2)
    {
       parent_gf.ProjectCoefficient(coeff);
       parent_gf_ex.ProjectCoefficient(coeff);
       domain1_gf_ex.ProjectCoefficient(coeff);
       boundary1_gf_ex.ProjectCoefficient(coeff);
    }
-   else if (fec_type == ND)
+   else if (fec_type == FECType::ND)
    {
       parent_gf.ProjectCoefficient(vcoeff);
       parent_gf_ex.ProjectCoefficient(vcoeff);
@@ -223,13 +231,6 @@ void multidomain_test_2d(FECType fec_type)
 
    Vector tmp;
 
-   auto CHECK_GLOBAL_NORM = [](Vector &v)
-   {
-      real_t norm_local = v.Norml2(), norm_global = 0.0;
-      MPI_Allreduce(&norm_local, &norm_global, 1, MPITypeMap<real_t>::mpi_type,
-                    MPI_SUM, MPI_COMM_WORLD);
-      REQUIRE(norm_global < 1e-8);
-   };
 
    SECTION("ParentToSubMesh")
    {
@@ -252,7 +253,7 @@ void multidomain_test_2d(FECType fec_type)
    {
       SECTION("Volume to matching volume")
       {
-         if (fec_type == H1 || fec_type == L2)
+         if (fec_type == FECType::H1 || fec_type == FECType::L2)
          {
             parent_gf.ProjectCoefficient(coeff);
             domain1_gf.ProjectCoefficient(coeff);
@@ -269,11 +270,11 @@ void multidomain_test_2d(FECType fec_type)
       }
       SECTION("Surface to matching surface in volume")
       {
-         if (fec_type == H1 || fec_type == L2)
+         if (fec_type == FECType::H1 || fec_type == FECType::L2)
          {
             boundary1_gf.ProjectCoefficient(coeff);
          }
-         else if (fec_type == ND)
+         else if (fec_type == FECType::ND)
          {
             boundary1_gf.ProjectCoefficient(vcoeff);
          }
@@ -388,7 +389,7 @@ void multidomain_test_3d(FECType fec_type)
    SurfaceNormalCoef normalcoeff(dim);
    InnerProductCoefficient nvcoeff(normalcoeff, vcoeff);
 
-   if (fec_type == H1 || fec_type == L2)
+   if (fec_type == FECType::H1 || fec_type == FECType::L2)
    {
       parent_gf.ProjectCoefficient(coeff);
       parent_gf_ex.ProjectCoefficient(coeff);
@@ -396,7 +397,7 @@ void multidomain_test_3d(FECType fec_type)
       cylinder_surface_gf_ex.ProjectCoefficient(coeff);
       outer_gf_ex.ProjectCoefficient(coeff);
    }
-   else if (fec_type == ND)
+   else if (fec_type == FECType::ND)
    {
       parent_gf.ProjectCoefficient(vcoeff);
       parent_gf_ex.ProjectCoefficient(vcoeff);
@@ -415,13 +416,13 @@ void multidomain_test_3d(FECType fec_type)
 
    Vector tmp;
 
-   auto CHECK_GLOBAL_NORM = [](Vector &v)
-   {
-      real_t norm_local = v.Norml2(), norm_global = 0.0;
-      MPI_Allreduce(&norm_local, &norm_global, 1, MPITypeMap<real_t>::mpi_type,
-                    MPI_SUM, MPI_COMM_WORLD);
-      REQUIRE(norm_global < 1e-8);
-   };
+   // auto CHECK_GLOBAL_NORM = [](Vector &v)
+   // {
+   //    real_t norm_local = v.Norml2(), norm_global = 0.0;
+   //    MPI_Allreduce(&norm_local, &norm_global, 1, MPITypeMap<real_t>::mpi_type,
+   //                  MPI_SUM, MPI_COMM_WORLD);
+   //    REQUIRE(norm_global < 1e-8);
+   // };
 
    SECTION("ParentToSubMesh")
    {
@@ -444,7 +445,7 @@ void multidomain_test_3d(FECType fec_type)
    {
       SECTION("Volume to matching volume")
       {
-         if (fec_type == H1 || fec_type == L2)
+         if (fec_type == FECType::H1 || fec_type == FECType::L2)
          {
             parent_gf.ProjectCoefficient(coeff);
             cylinder_gf.ProjectCoefficient(coeff);
@@ -461,7 +462,7 @@ void multidomain_test_3d(FECType fec_type)
       }
       SECTION("Volume to matching volume")
       {
-         if (fec_type == H1 || fec_type == L2)
+         if (fec_type == FECType::H1 || fec_type == FECType::L2)
          {
             outer_gf.ProjectCoefficient(coeff);
          }
@@ -476,11 +477,11 @@ void multidomain_test_3d(FECType fec_type)
       }
       SECTION("Surface to matching surface in volume")
       {
-         if (fec_type == H1 || fec_type == L2)
+         if (fec_type == FECType::H1 || fec_type == FECType::L2)
          {
             cylinder_surface_gf.ProjectCoefficient(coeff);
          }
-         else if (fec_type == ND)
+         else if (fec_type == FECType::ND)
          {
             cylinder_surface_gf.ProjectCoefficient(vcoeff);
          }
@@ -498,7 +499,7 @@ void multidomain_test_3d(FECType fec_type)
    {
       SECTION("Volume to matching volume")
       {
-         if (fec_type == H1 || fec_type == L2)
+         if (fec_type == FECType::H1 || fec_type == FECType::L2)
          {
             cylinder_gf.ProjectCoefficient(coeff);
             outer_gf.ProjectCoefficient(coeff);
@@ -519,7 +520,7 @@ void multidomain_test_3d(FECType fec_type)
       }
       SECTION("Volume to matching volume (reversed)")
       {
-         if (fec_type == H1 || fec_type == L2)
+         if (fec_type == FECType::H1 || fec_type == FECType::L2)
          {
             cylinder_gf.ProjectCoefficient(coeff);
             outer_gf.ProjectCoefficient(coeff);
@@ -540,7 +541,7 @@ void multidomain_test_3d(FECType fec_type)
       }
       SECTION("Volume to matching surface on volume")
       {
-         if (fec_type == H1 || fec_type == L2)
+         if (fec_type == FECType::H1 || fec_type == FECType::L2)
          {
             cylinder_gf.ProjectCoefficient(coeff);
             outer_gf.ProjectCoefficient(coeff);
@@ -560,12 +561,12 @@ void multidomain_test_3d(FECType fec_type)
 
       SECTION("Volume to matching surface")
       {
-         if (fec_type == H1 || fec_type == L2)
+         if (fec_type == FECType::H1 || fec_type == FECType::L2)
          {
             cylinder_gf.ProjectCoefficient(coeff);
             cylinder_surface_gf_ex.ProjectCoefficient(coeff);
          }
-         else if (fec_type == ND)
+         else if (fec_type == FECType::ND)
          {
             cylinder_gf.ProjectCoefficient(vcoeff);
             cylinder_surface_gf_ex.ProjectCoefficient(vcoeff);
@@ -696,6 +697,333 @@ TEST_CASE("ParSubMesh Interior Boundaries", "[Parallel],[ParSubMesh]")
       }
    }
 }
+
+struct ParNCSubMeshExposed : public ParNCSubMesh
+{
+   ParNCSubMeshExposed(const ParNCSubMesh &ncsubmesh) : ParNCSubMesh(ncsubmesh) {}
+
+   using ParNCSubMesh::elements;
+   using ParNCSubMesh::leaf_elements;
+
+   int CountUniqueLeafElements() const
+   {
+      int local = 0;
+      for (auto i : leaf_elements)
+      {
+         if (elements[i].rank == MyRank)
+         {
+            local++;
+         }
+      }
+      int global = 0;
+      MPI_Allreduce(&local, &global, 1, MPI_INT, MPI_SUM, GetGlobalMPI_Comm());
+      return global;
+   }
+};
+
+void RefineSingleAttachedElement(Mesh &mesh, int battr, bool backwards = true)
+{
+   Array<Refinement> refs(1);
+   std::vector<int> ind(mesh.GetNBE());
+   if (backwards)
+   {
+      std::iota(ind.rbegin(), ind.rend(), 0);
+   }
+   else
+   {
+      std::iota(ind.begin(), ind.end(), 0);
+   }
+   for (int e : ind)
+   {
+      std::cout << e << ' ';
+      if (mesh.GetBdrAttribute(e) == battr)
+      {
+         int el, info;
+         mesh.GetBdrElementAdjacentElement(e, el, info);
+         refs[0].index = el;
+         refs[0].ref_type = Refinement::XYZ;
+         break;
+      }
+   }
+   mesh.GeneralRefinement(refs);
+};
+
+void CheckProjectMatch(ParMesh &mesh, ParSubMesh &submesh, FECType fec_type)
+{
+   int p = 3;
+   auto fec = std::unique_ptr<FiniteElementCollection>(create_fec(fec_type, p, mesh.Dimension()));
+   auto sub_fec = std::unique_ptr<FiniteElementCollection>(create_fec(fec_type, p, submesh.Dimension()));
+
+   ParFiniteElementSpace fes(&mesh, fec.get());
+   ParFiniteElementSpace sub_fes(&submesh, sub_fec.get());
+
+   ParGridFunction gf(&fes), gf_ext(&fes);
+   ParGridFunction sub_gf(&sub_fes), sub_gf_ext(&sub_fes);
+
+   auto coeff = FunctionCoefficient([](const Vector &coords)
+   {
+      real_t x = coords(0);
+      real_t y = coords(1);
+      real_t z = coords(2);
+      return y + 0.05 * sin(x * 2.0 * M_PI) + z;
+   });
+
+   auto vcoeff = VectorFunctionCoefficient(mesh.SpaceDimension(),
+      [](const Vector &coords, Vector &V)
+   {
+      V.SetSize(3);
+      real_t x = coords(0);
+      real_t y = coords(1);
+      real_t z = coords(2);
+
+      V(0) = y + 0.05 * sin(x * 2.0 * M_PI) + z;
+      V(1) = z + 0.05 * sin(y * 2.0 * M_PI) + x;
+      V(2) = x + 0.05 * sin(z * 2.0 * M_PI) + y;
+   });
+
+   if (fec_type == FECType::H1 || fec_type == FECType::L2)
+   {
+      gf.ProjectCoefficient(coeff);
+      sub_gf.ProjectCoefficient(coeff);
+   }
+   else
+   {
+      gf.ProjectCoefficient(vcoeff);
+      sub_gf.ProjectCoefficient(vcoeff);
+   }
+   gf_ext = gf;
+   sub_gf_ext = sub_gf;
+
+   SECTION("ParentToSubMesh")
+   {
+      // Direct transfer should be identical
+      ParSubMesh::Transfer(gf, sub_gf);
+      auto tmp = sub_gf_ext;
+      tmp -= sub_gf;
+      CHECK_GLOBAL_NORM(tmp);
+
+      // Application of PR should be identical in mesh and submesh for an external boundary.
+      if (mesh.Nonconforming())
+      {
+         {
+            const auto *P = fes.GetProlongationMatrix();
+            const auto *R = fes.GetRestrictionMatrix();
+            tmp.SetSize(R->Height());
+            R->Mult(gf, tmp);
+            P->Mult(tmp, gf);
+         }
+         {
+            const auto *P = sub_fes.GetProlongationMatrix();
+            const auto *R = sub_fes.GetRestrictionMatrix();
+            tmp.SetSize(R->Height());
+            R->Mult(sub_gf_ext, tmp);
+            P->Mult(tmp, sub_gf_ext);
+         }
+         ParSubMesh::Transfer(gf, sub_gf);
+         tmp = sub_gf_ext;
+         tmp -= sub_gf;
+         CHECK_GLOBAL_NORM(tmp);
+      }
+   }
+}
+
+TEST_CASE("ExteriorSurfaceParSubMesh", "[Parallel], [ParSubMesh]")
+{
+
+   SECTION("Hex")
+   {
+      auto mesh = Mesh("../../data/ref-cube.mesh", 1, 1);
+      mesh.EnsureNCMesh(true);
+      SECTION("UniformRefinement2")
+      {
+         mesh.UniformRefinement();
+         mesh.UniformRefinement();
+         ParMesh pmesh(MPI_COMM_WORLD, mesh);
+         SECTION("SingleAttribute")
+         {
+            Array<int> subdomain_attributes(1);
+            subdomain_attributes[0] = GENERATE(range(1,6));
+            auto submesh = ParSubMesh::CreateFromBoundary(pmesh, subdomain_attributes);
+
+            // Replace with an exposed variant to explore the internals.
+            auto pncmesh_exposed = new ParNCSubMeshExposed(*dynamic_cast<ParNCSubMesh*>(submesh.ncmesh));
+            delete submesh.ncmesh;
+            submesh.ncmesh = submesh.pncmesh = pncmesh_exposed;
+
+            CHECK(pncmesh_exposed->GetNumRootElements() == 1);
+            CHECK(pncmesh_exposed->CountUniqueLeafElements() == 4*4);
+            CheckProjectMatch(pmesh, submesh, FECType::H1);
+            CheckProjectMatch(pmesh, submesh, FECType::L2);
+            CheckProjectMatch(pmesh, submesh, FECType::ND);
+            CheckProjectMatch(pmesh, submesh, FECType::RT);
+         }
+
+         SECTION("UniformRefineTwoAttribute")
+         {
+            Array<int> subdomain_attributes(2);
+            subdomain_attributes[0] = GENERATE(range(1,6));
+            subdomain_attributes[1] = 1 + (subdomain_attributes[0] % 6);
+            auto submesh = ParSubMesh::CreateFromBoundary(pmesh, subdomain_attributes);
+
+            // Replace with an exposed variant to explore the internals.
+            auto pncmesh_exposed = new ParNCSubMeshExposed(*dynamic_cast<ParNCSubMesh*>(submesh.ncmesh));
+            delete submesh.ncmesh;
+            submesh.ncmesh = submesh.pncmesh = pncmesh_exposed;
+
+            CHECK(pncmesh_exposed->GetNumRootElements() == 2);
+            CHECK(pncmesh_exposed->CountUniqueLeafElements() == 2*4*4);
+            CheckProjectMatch(pmesh, submesh, FECType::H1);
+            CheckProjectMatch(pmesh, submesh, FECType::L2);
+            CheckProjectMatch(pmesh, submesh, FECType::ND);
+            CheckProjectMatch(pmesh, submesh, FECType::RT);
+         }
+      }
+
+      SECTION("NonconformalRefine")
+      {
+         Array<int> subdomain_attributes(1);
+         subdomain_attributes[0] = GENERATE(range(1,6));
+         mesh.UniformRefinement();
+         RefineSingleAttachedElement(mesh, subdomain_attributes[0], true);
+         SECTION("Single")
+         {
+            ParMesh pmesh(MPI_COMM_WORLD, mesh);
+            auto submesh = ParSubMesh::CreateFromBoundary(pmesh, subdomain_attributes);
+
+            // Replace with an exposed variant to explore the internals.
+            auto pncmesh_exposed = new ParNCSubMeshExposed(*dynamic_cast<ParNCSubMesh*>(submesh.ncmesh));
+            delete submesh.ncmesh;
+            submesh.ncmesh = submesh.pncmesh = pncmesh_exposed;
+
+            CHECK(pncmesh_exposed->GetNumRootElements() == 1);
+            CHECK(pncmesh_exposed->CountUniqueLeafElements() == 4 - 1 + 4);
+            for (auto fec_type : {FECType::H1, FECType::L2, FECType::ND, FECType::RT})
+            {
+               CAPTURE(fec_type);
+               CheckProjectMatch(pmesh, submesh, fec_type);
+            }
+
+         }
+         SECTION("Double")
+         {
+            RefineSingleAttachedElement(mesh, subdomain_attributes[0], false);
+            ParMesh pmesh(MPI_COMM_WORLD, mesh);
+            auto submesh = ParSubMesh::CreateFromBoundary(pmesh, subdomain_attributes);
+
+            // Replace with an exposed variant to explore the internals.
+            auto pncmesh_exposed = new ParNCSubMeshExposed(*dynamic_cast<ParNCSubMesh*>(submesh.ncmesh));
+            delete submesh.ncmesh;
+            submesh.ncmesh = submesh.pncmesh = pncmesh_exposed;
+
+            CHECK(pncmesh_exposed->GetNumRootElements() == 1);
+            CHECK(pncmesh_exposed->CountUniqueLeafElements() == 4 - 1 + 4 - 1 + 4);
+            for (auto fec_type : {FECType::H1, FECType::L2, FECType::ND, FECType::RT})
+            {
+               CAPTURE(fec_type);
+               CheckProjectMatch(pmesh, submesh, fec_type);
+            }
+         }
+      }
+   }
+
+   SECTION("Tet")
+   {
+      auto mesh = Mesh("../../data/ref-tetrahedron.mesh");
+      mesh.EnsureNCMesh(true);
+      SECTION("UniformRefinement2")
+      {
+         mesh.UniformRefinement();
+         mesh.UniformRefinement();
+         ParMesh pmesh(MPI_COMM_WORLD, mesh);
+         SECTION("SingleAttribute")
+         {
+            Array<int> subdomain_attributes(1);
+            subdomain_attributes[0] = GENERATE(range(1,4));
+            auto submesh = ParSubMesh::CreateFromBoundary(pmesh, subdomain_attributes);
+
+            // Replace with an exposed variant to explore the internals.
+            auto pncmesh_exposed = new ParNCSubMeshExposed(*dynamic_cast<ParNCSubMesh*>(submesh.ncmesh));
+            delete submesh.ncmesh;
+            submesh.ncmesh = submesh.pncmesh = pncmesh_exposed;
+
+            CHECK(pncmesh_exposed->GetNumRootElements() == 1);
+            CHECK(pncmesh_exposed->CountUniqueLeafElements() == 4*4);
+            CheckProjectMatch(pmesh, submesh, FECType::H1);
+            CheckProjectMatch(pmesh, submesh, FECType::L2);
+            CheckProjectMatch(pmesh, submesh, FECType::ND);
+            CheckProjectMatch(pmesh, submesh, FECType::RT);
+         }
+
+         SECTION("UniformRefineTwoAttribute")
+         {
+            Array<int> subdomain_attributes(2);
+            subdomain_attributes[0] = GENERATE(range(1,4));
+            subdomain_attributes[1] = 1 + (subdomain_attributes[0] % 4);
+            auto submesh = ParSubMesh::CreateFromBoundary(pmesh, subdomain_attributes);
+
+            // Replace with an exposed variant to explore the internals.
+            auto pncmesh_exposed = new ParNCSubMeshExposed(*dynamic_cast<ParNCSubMesh*>(submesh.ncmesh));
+            delete submesh.ncmesh;
+            submesh.ncmesh = submesh.pncmesh = pncmesh_exposed;
+
+            CHECK(pncmesh_exposed->GetNumRootElements() == 2);
+            CHECK(pncmesh_exposed->CountUniqueLeafElements() == 2*4*4);
+            CheckProjectMatch(pmesh, submesh, FECType::H1);
+            CheckProjectMatch(pmesh, submesh, FECType::L2);
+            CheckProjectMatch(pmesh, submesh, FECType::ND);
+            CheckProjectMatch(pmesh, submesh, FECType::RT);
+         }
+      }
+
+      SECTION("NonconformalRefine")
+      {
+         Array<int> subdomain_attributes(1);
+         subdomain_attributes[0] = GENERATE(range(1,4));
+         mesh.UniformRefinement();
+         RefineSingleAttachedElement(mesh, subdomain_attributes[0], true);
+         SECTION("Single")
+         {
+            ParMesh pmesh(MPI_COMM_WORLD, mesh);
+            auto submesh = ParSubMesh::CreateFromBoundary(pmesh, subdomain_attributes);
+
+            // Replace with an exposed variant to explore the internals.
+            auto pncmesh_exposed = new ParNCSubMeshExposed(*dynamic_cast<ParNCSubMesh*>(submesh.ncmesh));
+            delete submesh.ncmesh;
+            submesh.ncmesh = submesh.pncmesh = pncmesh_exposed;
+
+            CHECK(pncmesh_exposed->GetNumRootElements() == 1);
+            CHECK(pncmesh_exposed->CountUniqueLeafElements() == 4 - 1 + 4);
+            for (auto fec_type : {FECType::H1, FECType::L2, FECType::ND, FECType::RT})
+            {
+               CAPTURE(fec_type);
+               CheckProjectMatch(pmesh, submesh, fec_type);
+            }
+
+         }
+         SECTION("Double")
+         {
+            RefineSingleAttachedElement(mesh, subdomain_attributes[0], false);
+            ParMesh pmesh(MPI_COMM_WORLD, mesh);
+            auto submesh = ParSubMesh::CreateFromBoundary(pmesh, subdomain_attributes);
+
+            // Replace with an exposed variant to explore the internals.
+            auto pncmesh_exposed = new ParNCSubMeshExposed(*dynamic_cast<ParNCSubMesh*>(submesh.ncmesh));
+            delete submesh.ncmesh;
+            submesh.ncmesh = submesh.pncmesh = pncmesh_exposed;
+
+            CHECK(pncmesh_exposed->GetNumRootElements() == 1);
+            CHECK(pncmesh_exposed->CountUniqueLeafElements() == 4 - 1 + 4 - 1 + 4);
+            for (auto fec_type : {FECType::H1, FECType::L2, FECType::ND, FECType::RT})
+            {
+               CAPTURE(fec_type);
+               CheckProjectMatch(pmesh, submesh, fec_type);
+            }
+         }
+      }
+   }
+
+}
+
 
 } // namespace ParSubMeshTests
 
