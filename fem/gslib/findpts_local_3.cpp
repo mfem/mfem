@@ -975,26 +975,26 @@ static MFEM_HOST_DEVICE double tensor_ig3_j(double *g_partials,
 
 template<int T_D1D = 0>
 static void FindPointsLocal3DKernel(const int npt,
-                                      const double tol,
-                                      const double *x,
-                                      const int point_pos_ordering,
-                                      const double *xElemCoord,
-                                      const int nel,
-                                      const double *wtend,
-                                      const double *boxinfo,
-                                      const int hash_n,
-                                      const double *hashMin,
-                                      const double *hashFac,
-                                      unsigned int *hashOffset,
-                                      unsigned int *const code_base,
-                                      unsigned int *const el_base,
-                                      double *const r_base,
-                                      double *const dist2_base,
-                                      const double *gll1D,
-                                      const double *lagcoeff,
-                                      //   int *newton,
-                                      double *infok,
-                                      const int pN = 0)
+                                    const double tol,
+                                    const double *x,
+                                    const int point_pos_ordering,
+                                    const double *xElemCoord,
+                                    const int nel,
+                                    const double *wtend,
+                                    const double *boxinfo,
+                                    const int hash_n,
+                                    const double *hashMin,
+                                    const double *hashFac,
+                                    unsigned int *hashOffset,
+                                    unsigned int *const code_base,
+                                    unsigned int *const el_base,
+                                    double *const r_base,
+                                    double *const dist2_base,
+                                    const double *gll1D,
+                                    const double *lagcoeff,
+                                    //   int *newton,
+                                    double *infok,
+                                    const int pN = 0)
 {
 #define MAX_CONST(a, b) (((a) > (b)) ? (a) : (b))
    const int MD1 = T_D1D ? T_D1D : pMax;
@@ -1007,14 +1007,14 @@ static void FindPointsLocal3DKernel(const int npt,
    {
       constexpr int size1 = MAX_CONST(4, MD1 + 1) *
                             (3 * 3 + 2 * 3) + 3 * 2 * MD1 + 5;
-                            // face -
-                            // 3*D1D + 3*D1D for basis function and derivatives at 2 face coordinates
-                            // 3 for residual, 9 for jacobian, 3*D1D for resid_temp,
-                            // 9*D1D for jac_temp, 3 for hess. 3*D1D for hess_temp
-                            // edge -
-                            // 3*D1D for basis functions at 1 edge coordinate
-                            // 3 for resid, 9 for Jacobian, 15 for hessian_temp,
-                            // 5 for hess
+      // face -
+      // 3*D1D + 3*D1D for basis function and derivatives at 2 face coordinates
+      // 3 for residual, 9 for jacobian, 3*D1D for resid_temp,
+      // 9*D1D for jac_temp, 3 for hess. 3*D1D for hess_temp
+      // edge -
+      // 3*D1D for basis functions at 1 edge coordinate
+      // 3 for resid, 9 for Jacobian, 15 for hessian_temp,
+      // 5 for hess
       constexpr int size2 = MAX_CONST(MD1*MD1 * 6,
                                       MD1 * 3 * 5);
       //size depends on max of info for faces and edges
@@ -1057,7 +1057,7 @@ static void FindPointsLocal3DKernel(const int npt,
       hash.offset = hashOffset;
       const unsigned int hi = hash_index(&hash, x_i);
       const unsigned int *elp = hash.offset + hash.offset[hi],
-                 *const ele = hash.offset + hash.offset[hi + 1];
+                          *const ele = hash.offset + hash.offset[hi + 1];
       *code_i = CODE_NOT_FOUND;
       *dist2_i = DBL_MAX;
 
@@ -1102,7 +1102,7 @@ static void FindPointsLocal3DKernel(const int npt,
                            {
                               const int jkl = qp + k * D1D + l * D1D * D1D;
                               elem_coords[jkl + d*p_NE] =
-                                          xElemCoord[jkl + el*p_NE + d*nel*p_NE];
+                                 xElemCoord[jkl + el*p_NE + d*nel*p_NE];
                            }
                         }
                      }
@@ -1114,7 +1114,7 @@ static void FindPointsLocal3DKernel(const int npt,
                for (int d = 0; d < dim; d++)
                {
                   elx[d] = MD1<= 6 ? &elem_coords[d*p_NE] :
-                                     xElemCoord + d*nel*p_NE + el * p_NE;
+                           xElemCoord + d*nel*p_NE + el * p_NE;
                }
 
                //// findpts_el ////
@@ -1292,7 +1292,8 @@ static void FindPointsLocal3DKernel(const int npt,
                               {
                                  const int d = j / D1D;
                                  const int qp = j % D1D;
-                                 lagrange_eval_second_derivative(wt1 + 3*d*D1D, tmp->r[dd[d]], qp, gll1D, lagcoeff, D1D);
+                                 lagrange_eval_second_derivative(wt1 + 3*d*D1D, tmp->r[dd[d]], qp, gll1D,
+                                                                 lagcoeff, D1D);
                               }
                            }
                            MFEM_SYNC_THREAD;
@@ -1749,94 +1750,19 @@ static void FindPointsLocal3DKernel(const int npt,
 }
 
 void FindPointsGSLIB::FindPointsLocal3(const Vector &point_pos,
-                                        int point_pos_ordering,
-                                        Array<unsigned int> &code,
-                                        Array<unsigned int> &elem,
-                                        Vector &ref,
-                                        Vector &dist,
-                                        Array<int> &newton,
-                                        int npt)
+                                       int point_pos_ordering,
+                                       Array<unsigned int> &code,
+                                       Array<unsigned int> &elem,
+                                       Vector &ref,
+                                       Vector &dist,
+                                       Array<int> &newton,
+                                       int npt)
 {
    SWkernel.Clear();
    SWkernel.Start();
    switch (DEV.dof1d)
    {
       case 2: FindPointsLocal3DKernel<2>(npt, DEV.tol,
-                                              point_pos.Read(), point_pos_ordering,
-                                              gsl_mesh.Read(), NE_split_total,
-                                              DEV.o_wtend.Read(),
-                                              DEV.o_box.Read(),
-                                              DEV.hash_n, DEV.o_hashMin.Read(),
-                                              DEV.o_hashFac.Read(),
-                                              DEV.o_offset.ReadWrite(),
-                                              code.Write(), elem.Write(),
-                                              ref.Write(), dist.Write(),
-                                              DEV.gll1d.Read(),
-                                              DEV.lagcoeff.Read(),
-                                              //   newton.ReadWrite(),
-                                              DEV.info.ReadWrite());
-         break;
-      case 3: FindPointsLocal3DKernel<3>(npt, DEV.tol,
-                                              point_pos.Read(), point_pos_ordering,
-                                              gsl_mesh.Read(), NE_split_total,
-                                              DEV.o_wtend.Read(),
-                                              DEV.o_box.Read(),
-                                              DEV.hash_n, DEV.o_hashMin.Read(),
-                                              DEV.o_hashFac.Read(),
-                                              DEV.o_offset.ReadWrite(),
-                                              code.Write(), elem.Write(),
-                                              ref.Write(), dist.Write(),
-                                              DEV.gll1d.Read(),
-                                              DEV.lagcoeff.Read(),
-                                              //   newton.ReadWrite(),
-                                              DEV.info.ReadWrite());
-         break;
-      case 4: FindPointsLocal3DKernel<4>(npt, DEV.tol,
-                                              point_pos.Read(), point_pos_ordering,
-                                              gsl_mesh.Read(), NE_split_total,
-                                              DEV.o_wtend.Read(),
-                                              DEV.o_box.Read(),
-                                              DEV.hash_n, DEV.o_hashMin.Read(),
-                                              DEV.o_hashFac.Read(),
-                                              DEV.o_offset.ReadWrite(),
-                                              code.Write(), elem.Write(),
-                                              ref.Write(), dist.Write(),
-                                              DEV.gll1d.Read(),
-                                              DEV.lagcoeff.Read(),
-                                              //   newton.ReadWrite(),
-                                              DEV.info.ReadWrite());
-         break;
-      case 5: FindPointsLocal3DKernel<5>(npt, DEV.tol,
-                                              point_pos.Read(), point_pos_ordering,
-                                              gsl_mesh.Read(), NE_split_total,
-                                              DEV.o_wtend.Read(),
-                                              DEV.o_box.Read(),
-                                              DEV.hash_n, DEV.o_hashMin.Read(),
-                                              DEV.o_hashFac.Read(),
-                                              DEV.o_offset.ReadWrite(),
-                                              code.Write(), elem.Write(),
-                                              ref.Write(), dist.Write(),
-                                              DEV.gll1d.Read(),
-                                              DEV.lagcoeff.Read(),
-                                              //   newton.ReadWrite(),
-                                              DEV.info.ReadWrite());
-         break;
-      case 6: FindPointsLocal3DKernel<6>(npt, DEV.tol,
-                                              point_pos.Read(), point_pos_ordering,
-                                              gsl_mesh.Read(), NE_split_total,
-                                              DEV.o_wtend.Read(),
-                                              DEV.o_box.Read(),
-                                              DEV.hash_n, DEV.o_hashMin.Read(),
-                                              DEV.o_hashFac.Read(),
-                                              DEV.o_offset.ReadWrite(),
-                                              code.Write(), elem.Write(),
-                                              ref.Write(), dist.Write(),
-                                              DEV.gll1d.Read(),
-                                              DEV.lagcoeff.Read(),
-                                              //   newton.ReadWrite(),
-                                              DEV.info.ReadWrite());
-         break;
-      default: FindPointsLocal3DKernel(npt, DEV.tol,
                                             point_pos.Read(), point_pos_ordering,
                                             gsl_mesh.Read(), NE_split_total,
                                             DEV.o_wtend.Read(),
@@ -1848,9 +1774,84 @@ void FindPointsGSLIB::FindPointsLocal3(const Vector &point_pos,
                                             ref.Write(), dist.Write(),
                                             DEV.gll1d.Read(),
                                             DEV.lagcoeff.Read(),
-                                            // newton.ReadWrite(),
-                                            DEV.info.ReadWrite(),
-                                            DEV.dof1d);
+                                            //   newton.ReadWrite(),
+                                            DEV.info.ReadWrite());
+         break;
+      case 3: FindPointsLocal3DKernel<3>(npt, DEV.tol,
+                                            point_pos.Read(), point_pos_ordering,
+                                            gsl_mesh.Read(), NE_split_total,
+                                            DEV.o_wtend.Read(),
+                                            DEV.o_box.Read(),
+                                            DEV.hash_n, DEV.o_hashMin.Read(),
+                                            DEV.o_hashFac.Read(),
+                                            DEV.o_offset.ReadWrite(),
+                                            code.Write(), elem.Write(),
+                                            ref.Write(), dist.Write(),
+                                            DEV.gll1d.Read(),
+                                            DEV.lagcoeff.Read(),
+                                            //   newton.ReadWrite(),
+                                            DEV.info.ReadWrite());
+         break;
+      case 4: FindPointsLocal3DKernel<4>(npt, DEV.tol,
+                                            point_pos.Read(), point_pos_ordering,
+                                            gsl_mesh.Read(), NE_split_total,
+                                            DEV.o_wtend.Read(),
+                                            DEV.o_box.Read(),
+                                            DEV.hash_n, DEV.o_hashMin.Read(),
+                                            DEV.o_hashFac.Read(),
+                                            DEV.o_offset.ReadWrite(),
+                                            code.Write(), elem.Write(),
+                                            ref.Write(), dist.Write(),
+                                            DEV.gll1d.Read(),
+                                            DEV.lagcoeff.Read(),
+                                            //   newton.ReadWrite(),
+                                            DEV.info.ReadWrite());
+         break;
+      case 5: FindPointsLocal3DKernel<5>(npt, DEV.tol,
+                                            point_pos.Read(), point_pos_ordering,
+                                            gsl_mesh.Read(), NE_split_total,
+                                            DEV.o_wtend.Read(),
+                                            DEV.o_box.Read(),
+                                            DEV.hash_n, DEV.o_hashMin.Read(),
+                                            DEV.o_hashFac.Read(),
+                                            DEV.o_offset.ReadWrite(),
+                                            code.Write(), elem.Write(),
+                                            ref.Write(), dist.Write(),
+                                            DEV.gll1d.Read(),
+                                            DEV.lagcoeff.Read(),
+                                            //   newton.ReadWrite(),
+                                            DEV.info.ReadWrite());
+         break;
+      case 6: FindPointsLocal3DKernel<6>(npt, DEV.tol,
+                                            point_pos.Read(), point_pos_ordering,
+                                            gsl_mesh.Read(), NE_split_total,
+                                            DEV.o_wtend.Read(),
+                                            DEV.o_box.Read(),
+                                            DEV.hash_n, DEV.o_hashMin.Read(),
+                                            DEV.o_hashFac.Read(),
+                                            DEV.o_offset.ReadWrite(),
+                                            code.Write(), elem.Write(),
+                                            ref.Write(), dist.Write(),
+                                            DEV.gll1d.Read(),
+                                            DEV.lagcoeff.Read(),
+                                            //   newton.ReadWrite(),
+                                            DEV.info.ReadWrite());
+         break;
+      default: FindPointsLocal3DKernel(npt, DEV.tol,
+                                          point_pos.Read(), point_pos_ordering,
+                                          gsl_mesh.Read(), NE_split_total,
+                                          DEV.o_wtend.Read(),
+                                          DEV.o_box.Read(),
+                                          DEV.hash_n, DEV.o_hashMin.Read(),
+                                          DEV.o_hashFac.Read(),
+                                          DEV.o_offset.ReadWrite(),
+                                          code.Write(), elem.Write(),
+                                          ref.Write(), dist.Write(),
+                                          DEV.gll1d.Read(),
+                                          DEV.lagcoeff.Read(),
+                                          // newton.ReadWrite(),
+                                          DEV.info.ReadWrite(),
+                                          DEV.dof1d);
    }
    SWkernel.Stop();
    fpt_kernel_time = SWkernel.RealTime();

@@ -393,13 +393,13 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
    else
    {
       FindPointsLocal3(point_pos,
-                        point_pos_ordering,
-                        gsl_code,
-                        gsl_elem,
-                        gsl_ref,
-                        gsl_dist,
-                        gsl_newton,
-                        points_cnt);
+                       point_pos_ordering,
+                       gsl_code,
+                       gsl_elem,
+                       gsl_ref,
+                       gsl_dist,
+                       gsl_newton,
+                       points_cnt);
    }
 
    // Sync from device to host
@@ -600,14 +600,14 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
       }
       else
       {
-            FindPointsLocal3(point_pos_l,
-                             point_pos_ordering,
-                             gsl_code_l,
-                             gsl_elem_l,
-                             gsl_ref_l,
-                             gsl_dist_l,
-                             gsl_newton_l,
-                             n);
+         FindPointsLocal3(point_pos_l,
+                          point_pos_ordering,
+                          gsl_code_l,
+                          gsl_elem_l,
+                          gsl_ref_l,
+                          gsl_dist_l,
+                          gsl_newton_l,
+                          n);
       }
 
       auto refl = gsl_ref_l.HostRead();
@@ -790,7 +790,7 @@ void FindPointsGSLIB::SetupDevice(MemoryType mt)
    for (int i = 0; i < DEV.hd_d_size; i++)
    {
       p_ou_offset[i] = dim == 2 ? findptsData2->local.hd.offset[i] :
-                      findptsData3->local.hd.offset[i];
+                       findptsData3->local.hd.offset[i];
    }
 
    DEV.o_wtend.UseDevice(true);
