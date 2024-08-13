@@ -665,8 +665,6 @@ static void FindPointsLocal2D_Kernel(const int npt,
                                      double *const dist2_base,
                                      const double *gll1D,
                                      const double *lagcoeff,
-                                     int *newton,
-                                     double *infok,
                                      const int pN = 0)
 {
 #define MAX_CONST(a, b) (((a) > (b)) ? (a) : (b))
@@ -709,7 +707,6 @@ static void FindPointsLocal2D_Kernel(const int npt,
       unsigned int *el_i = el_base + i;
       double *r_i = r_base + dim * i;
       double *dist2_i = dist2_base + i;
-      int *newton_i = newton + i;
 
       //// map_points_to_els ////
       findptsLocalHashData_t hash;
@@ -1081,7 +1078,6 @@ static void FindPointsLocal2D_Kernel(const int npt,
                      } //switch
                      if (fpt->flags & CONVERGED_FLAG)
                      {
-                        *newton_i = step+1;
                         break;
                      }
                      MFEM_SYNC_THREAD;
@@ -1128,7 +1124,6 @@ void FindPointsGSLIB::FindPointsLocal2(const Vector &point_pos,
                                        Array<unsigned int> &elem,
                                        Vector &ref,
                                        Vector &dist,
-                                       Array<int> &newton,
                                        int npt)
 {
    if (npt == 0) { return; }
@@ -1138,36 +1133,32 @@ void FindPointsGSLIB::FindPointsLocal2(const Vector &point_pos,
       case 3: return FindPointsLocal2D_Kernel<3>(npt, DEV.tol,
                                                     point_pos.Read(), point_pos_ordering,
                                                     gsl_mesh.Read(), NE_split_total,
-                                                    DEV.o_wtend.Read(),
-                                                    DEV.o_box.Read(),
-                                                    DEV.hash_n, DEV.o_hashMin.Read(),
-                                                    DEV.o_hashFac.Read(),
-                                                    DEV.o_offset.ReadWrite(),
+                                                    DEV.wtend.Read(),
+                                                    DEV.bb.Read(),
+                                                    DEV.loc_hash_nx, DEV.loc_hash_min.Read(),
+                                                    DEV.loc_hash_fac.Read(),
+                                                    DEV.loc_hash_offset.ReadWrite(),
                                                     code.Write(),
                                                     elem.Write(),
                                                     ref.Write(),
                                                     dist.Write(),
                                                     DEV.gll1d.ReadWrite(),
-                                                    DEV.lagcoeff.Read(),
-                                                    newton.ReadWrite(),
-                                                    DEV.info.ReadWrite());
+                                                    DEV.lagcoeff.Read());
       default: return FindPointsLocal2D_Kernel(npt, DEV.tol,
                                                   point_pos.Read(), point_pos_ordering,
                                                   gsl_mesh.Read(), NE_split_total,
-                                                  DEV.o_wtend.Read(),
-                                                  DEV.o_box.Read(),
-                                                  DEV.hash_n,
-                                                  DEV.o_hashMin.Read(),
-                                                  DEV.o_hashFac.Read(),
-                                                  DEV.o_offset.ReadWrite(),
+                                                  DEV.wtend.Read(),
+                                                  DEV.bb.Read(),
+                                                  DEV.loc_hash_nx,
+                                                  DEV.loc_hash_min.Read(),
+                                                  DEV.loc_hash_fac.Read(),
+                                                  DEV.loc_hash_offset.ReadWrite(),
                                                   code.Write(),
                                                   elem.Write(),
                                                   ref.Write(),
                                                   dist.Write(),
                                                   DEV.gll1d.ReadWrite(),
                                                   DEV.lagcoeff.Read(),
-                                                  newton.ReadWrite(),
-                                                  DEV.info.ReadWrite(),
                                                   DEV.dof1d);
    }
 }
