@@ -133,8 +133,6 @@ void TMOP_Integrator::AssemblePA_Fitting()
    MFEM_VERIFY(surf_fit_gf, "No surface fitting function specification!");
 
    const FiniteElementSpace *fes_fit = surf_fit_gf->FESpace();
-   const FiniteElementSpace *fes_grad = surf_fit_grad->FESpace();
-   const FiniteElementSpace *fes_hess = surf_fit_hess->FESpace();
 
    const int NE = PA.ne; if (NE == 0) { return; }  // Quick return for empty processors
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
@@ -193,6 +191,9 @@ void TMOP_Integrator::AssemblePA_Fitting()
    
    if(surf_fit_grad)
    {
+      const FiniteElementSpace *fes_grad = surf_fit_grad->FESpace();
+      const FiniteElementSpace *fes_hess = surf_fit_hess->FESpace();
+
       // surf_fit_grad -> PA.D1
       const Operator *n4_R = fes_grad->GetElementRestriction(ordering);
       PA.D1.SetSize(n4_R->Height(), Device::GetMemoryType());
@@ -206,26 +207,32 @@ void TMOP_Integrator::AssemblePA_Fitting()
    }
    else
    {
-      int nqp = PA.ir->GetNPoints();
-      const int dim = PA.fes->GetMesh()->Dimension();
-      const FiniteElement &fe = *(PA.fes->GetFE(0));
-      const DofToQuad maps = fe.GetDofToQuad(*PA.ir, DofToQuad::TENSOR);
-      auto geom = PA.fes->GetMesh()->GetGeometricFactors(*PA.ir, GeometricFactors::JACOBIANS);
+      
+      const int dim = fes_fit->GetMesh()->Dimension();
+      const FiniteElement &fe = *(fes_fit->GetFE(0));
+      const IntegrationRule irnodes = fe.GetNodes();
+      const NodalFiniteElement *nfe = dynamic_cast<const NodalFiniteElement*>(&fe);
+      const Array<int> &irordering = nfe->GetLexicographicOrdering();
+      IntegrationRule ir = irnodes.Permute(irordering);
+      int nqp = ir.GetNPoints(); 
+      const DofToQuad maps = fe.GetDofToQuad(ir, DofToQuad::TENSOR);
+      auto geom = fes_fit->GetMesh()->GetGeometricFactors(ir, GeometricFactors::JACOBIANS);
+      int nelem = fes_fit->GetMesh()->GetNE();
 
-      Vector col_der(PA.ne*1*nqp*dim);
-      Vector col_der2(PA.ne*1*nqp*dim);
-      constexpr QVectorLayout L1 = QVectorLayout::byNODES;
-      constexpr QVectorLayout L2 = QVectorLayout::byVDIM;
+      Vector col_der(nelem*1*nqp*dim);
+      constexpr QVectorLayout L = QVectorLayout::byVDIM;
 
-      internal::quadrature_interpolator::CollocatedTensorPhysDerivatives<L1>(PA.ne, 1, maps, *geom, PA.S0, col_der);
+      internal::quadrature_interpolator::CollocatedTensorPhysDerivatives<L>(nelem, 1, maps, *geom, PA.S0, col_der);
       PA.D1.SetSize(col_der.Size(), Device::GetMemoryType());
       PA.D1.UseDevice(true);
       PA.D1 = col_der;
 
-      internal::quadrature_interpolator::CollocatedTensorPhysDerivatives<L2>(PA.ne, 1, maps, *geom, col_der, col_der2);
-      PA.D2.SetSize(col_der2.Size(), Device::GetMemoryType());
-      PA.D2.UseDevice(true);
-      PA.D2 = col_der2;
+      /////// THESE ARE NOT CORRECT ///////////////////////
+      //Vector col_der2(PA.ne*1*nqp*dim);
+      // internal::quadrature_interpolator::CollocatedTensorPhysDerivatives<L>(PA.ne, 1, maps, *geom, PA.S0, col_der2);
+      // PA.D2.SetSize(col_der2.Size(), Device::GetMemoryType());
+      // PA.D2.UseDevice(true);
+      // PA.D2 = col_der2;
    }
    
    // Scalar Q-vector of '1' for surface fitting, used to compute sums via dot product
@@ -341,8 +348,6 @@ void TMOP_Integrator::UpdateSurfaceFittingCoefficientsPA(const Vector &x_loc)
    // fitting is enabled.
    if (!surf_fit_gf) { return; }
    const FiniteElementSpace *fes_fit = surf_fit_gf->FESpace();
-   const FiniteElementSpace *fes_grad = surf_fit_grad->FESpace();
-   const FiniteElementSpace *fes_hess = surf_fit_hess->FESpace();
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
 
    const Operator *n1_R_int = fes_fit->GetElementRestriction(ordering);
@@ -350,6 +355,9 @@ void TMOP_Integrator::UpdateSurfaceFittingCoefficientsPA(const Vector &x_loc)
 
    if(surf_fit_grad)
    {
+      const FiniteElementSpace *fes_grad = surf_fit_grad->FESpace();
+      const FiniteElementSpace *fes_hess = surf_fit_hess->FESpace();
+
       const Operator *n4_R_int = fes_grad->GetElementRestriction(ordering);
       n4_R_int->Mult(*surf_fit_grad, PA.D1);
 
@@ -359,23 +367,25 @@ void TMOP_Integrator::UpdateSurfaceFittingCoefficientsPA(const Vector &x_loc)
 
    else
    {
-      int nqp = PA.ir->GetNPoints();
-      const int dim = PA.fes->GetMesh()->Dimension();
-      const FiniteElement &fe = *(PA.fes->GetFE(0));
-      const DofToQuad maps = fe.GetDofToQuad(*PA.ir, DofToQuad::TENSOR);
-      auto geom = PA.fes->GetMesh()->GetGeometricFactors(*PA.ir, GeometricFactors::JACOBIANS);
-      Vector col_der(PA.ne*1*nqp*dim);
-      Vector col_der2(PA.ne*1*nqp*dim);
-      constexpr QVectorLayout L1 = QVectorLayout::byNODES;
-      constexpr QVectorLayout L2 = QVectorLayout::byVDIM;
-      internal::quadrature_interpolator::CollocatedTensorPhysDerivatives<L1>(PA.ne, 1, maps, *geom, PA.S0, col_der);
+      const int dim = fes_fit->GetMesh()->Dimension();
+      const FiniteElement &fe = *(fes_fit->GetFE(0));
+      const IntegrationRule irnodes = fe.GetNodes();
+      const NodalFiniteElement *nfe = dynamic_cast<const NodalFiniteElement*>(&fe);
+      const Array<int> &irordering = nfe->GetLexicographicOrdering();
+      IntegrationRule ir = irnodes.Permute(irordering);
+      int nqp = ir.GetNPoints(); 
+      const DofToQuad maps = fe.GetDofToQuad(ir, DofToQuad::TENSOR);
+      auto geom = fes_fit->GetMesh()->GetGeometricFactors(ir, GeometricFactors::JACOBIANS);
+      int nelem = fes_fit->GetMesh()->GetNE();
+
+      Vector col_der(nelem*1*nqp*dim);
+      constexpr QVectorLayout L = QVectorLayout::byVDIM;
+
+      internal::quadrature_interpolator::CollocatedTensorPhysDerivatives<L>(nelem, 1, maps, *geom, PA.S0, col_der);
       PA.D1.SetSize(col_der.Size(), Device::GetMemoryType());
       PA.D1.UseDevice(true);
       PA.D1 = col_der;
-      internal::quadrature_interpolator::CollocatedTensorPhysDerivatives<L2>(PA.ne, 1, maps, *geom, col_der, col_der2);
-      PA.D2.SetSize(col_der2.Size(), Device::GetMemoryType());
-      PA.D2.UseDevice(true);
-      PA.D2 = col_der2;
+
    }
 
    ConstantCoefficient* cS = dynamic_cast<ConstantCoefficient*>(surf_fit_coeff);
