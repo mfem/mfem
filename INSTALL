@@ -273,7 +273,13 @@ Installation options:
    PREFIX  - Specify the installation directory. The library (libmfem.a) will be
              installed in $(PREFIX)/lib, the headers in $(PREFIX)/include, and
              the configuration makefile (config.mk) in $(PREFIX)/share/mfem.
-   INSTALL - Specify the install program, e.g /usr/bin/install
+   INSTALL - Specify the install program, default = /usr/bin/install
+   INSTALL_DEF_PERM - Specify the default install permissions. This affects
+                      headers and configuration makefiles, default = 644
+   INSTALL_BIN_PERM - Specify the install permissions for binaries. This only
+                      affects the shared version of the library, default = 755
+   INSTALL_DIR_PERM - Specify the install permissions for directories and,
+                      on macOS/BSD, for symlinks as well, default = 755
 
 MFEM library features/options (GNU make)
 ----------------------------------------
