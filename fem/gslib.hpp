@@ -84,8 +84,6 @@ protected:
    struct gslib::comm *gsl_comm;          // gslib's internal data
    int dim, points_cnt;
    Array<unsigned int> gsl_code, gsl_proc, gsl_elem, gsl_mfem_elem;
-   Array<int> gsl_newton;
-   Array<int> gsl_code_dev, gsl_elem_dev, gsl_newton_dev;
    Vector gsl_mesh, gsl_ref, gsl_dist, gsl_mfem_ref;
    bool setupflag;              // flag to indicate whether gslib data has been setup
    double default_interp_value; // used for points that are not found in the mesh
@@ -103,31 +101,15 @@ protected:
 
    struct
    {
-      int local_hash_size;
-      int dof1d;
-      int dof1dsol;
+      int local_hash_size, dof1d, dof1d_sol, hd_d_size, loc_hash_nx;
       double tol;
-      int hd_d_size; //local hash data size
       struct gslib::crystal *cr;
       struct gslib::hash_data_3 *hash3;
       struct gslib::hash_data_2 *hash2;
-      mutable Vector o_xyz;
-      mutable Vector o_box;
-      mutable Vector o_wtend;
-      mutable Vector gll1d;
-      mutable Vector lagcoeff;
-      mutable Vector gll1dsol;
-      mutable Vector lagcoeffsol;
+      mutable Vector bb, wtend, gll1d, lagcoeff, gll1d_sol, lagcoeff_sol;
 
-      mutable Array<unsigned int> o_code, o_proc, o_el;
-      mutable DenseTensor o_r;
-
-      mutable Array<unsigned int> o_offset;
-      mutable int hash_n;
-      mutable Vector o_hashMin;
-      mutable Vector o_hashMax;
-      mutable Vector o_hashFac;
-      mutable Vector info;
+      mutable Array<unsigned int> loc_hash_offset;
+      mutable Vector loc_hash_min, loc_hash_fac;
    } DEV;
 
    // Stopwatches
@@ -165,7 +147,6 @@ protected:
                          Array<unsigned int> &gsl_elem_dev_l,
                          Vector &gsl_ref_l,
                          Vector &gsl_dist_l,
-                         Array<int> &gsl_newton_dev_l,
                          int npt);
 
    // FindPoints locally on device for 2D.
@@ -175,7 +156,6 @@ protected:
                          Array<unsigned int> &gsl_elem_dev_l,
                          Vector &gsl_ref_l,
                          Vector &gsl_dist_l,
-                         Array<int> &gsl_newton_dev_l,
                          int npt);
 
    // Interpolate on device for 3D.
@@ -304,8 +284,6 @@ public:
    /// for each point found by FindPoints.
    virtual const Vector &GetDist()              const { return gsl_dist; }
 
-   virtual const Vector &GetInfo()              const { return DEV.info; }
-
    /// Return element number for each point found by FindPoints corresponding to
    /// GSLIB mesh. gsl_mfem_elem != gsl_elem for mesh with simplices.
    virtual const Array<unsigned int> &GetGSLIBElem() const { return gsl_elem; }
@@ -313,7 +291,7 @@ public:
    /// point found by FindPoints.
    virtual const Vector &GetGSLIBReferencePosition() const { return gsl_ref; }
 
-   virtual void SetupDevice(MemoryType mt); // probably should be internal
+   virtual void SetupDevice(); // probably should be internal
 
    void FindPointsOnDevice(const Vector &point_pos,
                            int point_pos_ordering = Ordering::byNODES);
@@ -329,8 +307,6 @@ public:
    // 2 - proc-wise    axis-aligned bounding box. size depends on setup parameters
    // 3 - global hash mesh.                       depends on setup parameters.
    virtual Mesh* GetBoundingBoxMesh(int type = 0);
-
-   virtual const Array<int> &GetNewtonIters() const { return gsl_newton; }
 };
 
 /** \brief OversetFindPointsGSLIB enables use of findpts for arbitrary number of

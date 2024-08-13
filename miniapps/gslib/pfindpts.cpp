@@ -275,7 +275,6 @@ int main (int argc, char *argv[])
 
    Vector h0(pfespace.GetNDofs());
    h0 = infinity();
-   double vol_loc = 0.0;
    Array<int> dofs;
    for (int i = 0; i < pmesh.GetNE(); i++)
    {
@@ -287,7 +286,6 @@ int main (int argc, char *argv[])
       {
          h0(dofs[j]) = min(h0(dofs[j]), hi);
       }
-      vol_loc += pmesh.GetElementVolume(i);
    }
 
    ParGridFunction rdm(&pfespace);
@@ -432,51 +430,8 @@ int main (int argc, char *argv[])
    Vector ref_rst0   = finder.GetReferencePosition();
    Vector dist1    = finder.GetDist();
    Array<unsigned int> proc_out1    = finder.GetProc();
-   vxyz.HostReadWrite();
 
-   int notfound = 0;
-   for (int i = 0; i < code_out1.Size(); i++)
-   {
-      int c1 = code_out1[i];
-      int e1 = el_out1[i];
-      Vector ref1(ref_rst1.GetData()+i*dim, dim);
-      Vector dref = ref1;
-      if (c1 == 2 || (std::fabs(dist1(i)) > 1e-10 && myid == 0))
-      {
-         notfound++;
-         if (point_ordering == 0)
-         {
-            std::cout << "Pt xyz: " << vxyz(i) << " " <<
-                      vxyz(i + pts_cnt) <<  " " <<
-                      (dim == 3 ? vxyz(i+2*pts_cnt) : 0) << " k10\n";
-         }
-         else
-         {
-            std::cout << "Pt xyz: " << vxyz(i*dim+0) << " " <<
-                      vxyz(i*dim+1) <<  " " <<
-                      (dim == 3 ?  vxyz(i*dim+2)  : 0) << " k10\n";
-         }
-         std::cout << "FPT DEV (c1,e1,dist1,r,s,t,proc): " << c1 << " " << e1 << " " <<
-                   dist1(i) << " " <<
-                   ref1(0) << " " << ref1(1) << " " <<
-                   (dim == 3 ? ref1(2) : 0) << " " <<
-                   proc_out1[i] << " k10\n";
-      }
-   }
-
-   MPI_Barrier(MPI_COMM_WORLD);
-   Array<int> newton_out = finder.GetNewtonIters();
-   int newton_min = newton_out.Min();
-   int newton_max = newton_out.Max();
-   int newton_mean = newton_out.Sum()/newton_out.Size();
-   if (myid == 0)
-   {
-      std::cout << "Newton iteration min/max/mean: " << newton_min << " "
-                << newton_max << " "
-                << newton_mean << endl;
-   }
    finder.Interpolate(field_vals, interp_vals);
-   Vector info1    = finder.GetInfo();
    if (interp_vals.UseDevice())
    {
       interp_vals.HostReadWrite();
@@ -487,9 +442,6 @@ int main (int argc, char *argv[])
    Array<unsigned int> task_id_out = finder.GetProc();
    Vector dist_p_out = finder.GetDist();
    Vector rst = finder.GetReferencePosition();
-   //    vxyz.Print();
-   //    rst.Print();
-   //    interp_vals.Print();
 
    int face_pts = 0, not_found = 0, found_loc = 0, found_away = 0;
    double err = 0.0, max_err = 0.0, max_dist = 0.0;

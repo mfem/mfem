@@ -49,8 +49,7 @@ static void InterpolateLocal2D_Kernel(const dfloat *const gf_in,
                                       const int dof1Dsol,
                                       const int gf_offset,
                                       dfloat *gll1D,
-                                      double *lagcoeff,
-                                      dfloat *infok)
+                                      double *lagcoeff)
 {
    const int p_Nq = dof1Dsol;
    const int Nfields = ncomp;
@@ -118,9 +117,8 @@ void FindPointsGSLIB::InterpolateLocal2(const Vector &field_in,
                              gsl_ref_l.ReadWrite(),
                              field_out.Write(),
                              npt, ncomp, nel, dof1Dsol, gf_offset,
-                             DEV.gll1dsol.ReadWrite(),
-                             DEV.lagcoeffsol.ReadWrite(),
-                             DEV.info.ReadWrite());
+                             DEV.gll1d_sol.ReadWrite(),
+                             DEV.lagcoeff_sol.ReadWrite());
 }
 
 
