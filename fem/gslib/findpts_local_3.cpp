@@ -1003,16 +1003,15 @@ static void FindPointsLocal3DKernel(const int npt,
 
    mfem::forall_2D(npt, nThreads, 1, [=] MFEM_HOST_DEVICE (int i)
    {
-      constexpr int size1 = MAX_CONST(4, MD1 + 1) *
-                            (3 * 3 + 2 * 3) + 3 * 2 * MD1 + 5;
-      // face -
-      // 3*D1D + 3*D1D for basis function and derivatives at 2 face coordinates
-      // 3 for residual, 9 for jacobian, 3*D1D for resid_temp,
-      // 9*D1D for jac_temp, 3 for hess. 3*D1D for hess_temp
-      // edge -
-      // 3*D1D for basis functions at 1 edge coordinate
-      // 3 for resid, 9 for Jacobian, 15 for hessian_temp,
-      // 5 for hess
+      // seed = 4D1D
+      // vol = 6D1D+3+3+9+3D1D+9D1D=18D1D+12
+      // face = 6D1D+3+3+9+3D1D+9D1D+3+9=21D1D+15
+      // edge = 3D1D+3+9+15+5=3D1D+32
+      // constexpr int size1 = MAX_CONST(4, MD1 + 1) *
+      //                       (3 * 3 + 2 * 3) + 3 * 2 * MD1 + 5;
+      constexpr int size1 = 21*MD1+15;
+      // face - 6D1D^2
+      // edge = 15 D1D for first and second derivatives
       constexpr int size2 = MAX_CONST(MD1*MD1 * 6,
                                       MD1 * 3 * 5);
       //size depends on max of info for faces and edges
