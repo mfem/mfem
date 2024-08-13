@@ -676,18 +676,24 @@ static void FindPointsLocal2D_Kernel(const int npt,
    const int p_NEL = nel*p_NE;
    MFEM_VERIFY(MD1 <= 14,"Increase Max allowable polynomial order.");
    MFEM_VERIFY(D1D != 0, "Polynomial order not specified.");
-   const int nThreads = MAX_CONST(2*MD1, 4);
+   const int nThreads = 32;
 
    mfem::forall_2D(npt, nThreads, 1, [=] MFEM_HOST_DEVICE (int i)
    {
-      constexpr int size1 = MAX_CONST(4, MD1 + 1) *
-                            (3 * 3 + 2 * 3) + 3 * 2 * MD1 + 5;
-      constexpr int size2 = MAX_CONST(MD1 *MD1 * 6, MD1 * 3 * 3);
+      constexpr int size1 = 10*MD1 + 6;
+      // seed = 3D1D
+      // area = 4D1D + 2 + 4 + 2D1D + 4D1D = 10D1D + 6
+      // edge = 3D1D + 2 + 4 + 3 = = 3D1D + 9
+      constexpr int size2 = MD1*4;
+      constexpr int size3 = MD1*MD1*MD1*dim;  // local element coordinates
+
       MFEM_SHARED double r_workspace[size1];
       MFEM_SHARED findptsElementPoint_t el_pts[2];
 
       MFEM_SHARED double constraint_workspace[size2];
       MFEM_SHARED int constraint_init_t[nThreads];
+
+      MFEM_SHARED double elem_coords[MD1 <= 6 ? size3 : 1];
 
       double *r_workspace_ptr;
       findptsElementPoint_t *fpt, *tmp;
@@ -749,11 +755,34 @@ static void FindPointsLocal2D_Kernel(const int npt,
          {
             //// findpts_local ////
             {
-               const double *elx[dim];
+               // read element coordinates into shared memory
+               if (MD1 <= 6)
+               {
+                  MFEM_FOREACH_THREAD(j,x,nThreads)
+                  {
+                     const int qp = j % D1D;
+                     const int d = j / D1D;
+                     if (j < 3*D1D)
+                     {
+                        for (int l = 0; l < D1D; ++l)
+                        {
+                           for (int k = 0; k < D1D; ++k)
+                           {
+                              const int jkl = qp + k * D1D + l * D1D * D1D;
+                              elem_coords[jkl + d*p_NE] =
+                                 xElemCoord[jkl + el*p_NE + d*nel*p_NE];
+                           }
+                        }
+                     }
+                  }
+                  MFEM_SYNC_THREAD;
+               }
 
+               const double *elx[dim];
                for (int d = 0; d < dim; d++)
                {
-                  elx[d] = xElemCoord + d*p_NEL + el * p_NE;
+                  elx[d] = MD1<= 6 ? &elem_coords[d*p_NE] :
+                           xElemCoord + d*nel*p_NE + el * p_NE;
                }
 
                //// findpts_el ////
@@ -831,9 +860,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
                         case 0:   // findpt_area
                         {
                            double *wtr = r_workspace_ptr;
-                           double *wts = wtr + 2 * D1D;
-
-                           double *resid = wts + 2 * D1D;
+                           double *resid = wtr + 4 * D1D;
                            double *jac = resid + 2;
                            double *resid_temp = jac + 4;
                            double *jac_temp = resid_temp + 2 * D1D;
@@ -861,8 +888,8 @@ static void FindPointsLocal2D_Kernel(const int npt,
                                  resid_temp[d + qp * 2] = tensor_ig2_j(jac_temp + 2 * d + 4 * qp,
                                                                        wtr,
                                                                        wtr + D1D,
-                                                                       wts,
-                                                                       wts + D1D,
+                                                                       wtr + 2*D1D,
+                                                                       wtr + 3*D1D,
                                                                        elx[d],
                                                                        qp,
                                                                        D1D);
@@ -1130,7 +1157,35 @@ void FindPointsGSLIB::FindPointsLocal2(const Vector &point_pos,
    MFEM_VERIFY(dim == 2,"Function for 2D only");
    switch (DEV.dof1d)
    {
+      case 2: return FindPointsLocal2D_Kernel<2>(npt, DEV.tol,
+                                                    point_pos.Read(), point_pos_ordering,
+                                                    gsl_mesh.Read(), NE_split_total,
+                                                    DEV.wtend.Read(),
+                                                    DEV.bb.Read(),
+                                                    DEV.loc_hash_nx, DEV.loc_hash_min.Read(),
+                                                    DEV.loc_hash_fac.Read(),
+                                                    DEV.loc_hash_offset.ReadWrite(),
+                                                    code.Write(),
+                                                    elem.Write(),
+                                                    ref.Write(),
+                                                    dist.Write(),
+                                                    DEV.gll1d.ReadWrite(),
+                                                    DEV.lagcoeff.Read());
       case 3: return FindPointsLocal2D_Kernel<3>(npt, DEV.tol,
+                                                    point_pos.Read(), point_pos_ordering,
+                                                    gsl_mesh.Read(), NE_split_total,
+                                                    DEV.wtend.Read(),
+                                                    DEV.bb.Read(),
+                                                    DEV.loc_hash_nx, DEV.loc_hash_min.Read(),
+                                                    DEV.loc_hash_fac.Read(),
+                                                    DEV.loc_hash_offset.ReadWrite(),
+                                                    code.Write(),
+                                                    elem.Write(),
+                                                    ref.Write(),
+                                                    dist.Write(),
+                                                    DEV.gll1d.ReadWrite(),
+                                                    DEV.lagcoeff.Read());
+      case 4: return FindPointsLocal2D_Kernel<4>(npt, DEV.tol,
                                                     point_pos.Read(), point_pos_ordering,
                                                     gsl_mesh.Read(), NE_split_total,
                                                     DEV.wtend.Read(),
