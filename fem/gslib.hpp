@@ -65,9 +65,7 @@ public:
    double interpolate_h1_time = 0.0,
           interpolate_general_time = 0.0,
           interpolate_l2_pass2_time = 0.0;
-   double min_fpt_kernel_time = 0.0,
-          measured_min_fpt_kernel_time = 0.0,
-          fpt_kernel_time = 0.0;
+   double fpt_kernel_time = 0.0;
 
 protected:
    Mesh *mesh;
@@ -98,14 +96,11 @@ protected:
    int        mesh_points_cnt;
    // Tolerance to ignore points just outside elements at the boundary.
    double     bdr_tol;
-   int        gpu_code = 0;
    int        newton_iter = 0;
 
    void * findptsData2;
    void * findptsData3;
 
-#define dlong int
-#define dfloat double
    struct
    {
       int local_hash_size;
@@ -117,7 +112,7 @@ protected:
       struct gslib::hash_data_3 *hash3;
       struct gslib::hash_data_2 *hash2;
       mutable Vector o_xyz;
-      mutable Vector o_c, o_A, o_min, o_max;
+      mutable Vector o_box;
       mutable Vector o_wtend;
       mutable Vector gll1d;
       mutable Vector lagcoeff;
@@ -127,15 +122,13 @@ protected:
       mutable Array<unsigned int> o_code, o_proc, o_el;
       mutable DenseTensor o_r;
 
-      mutable Array<dlong> o_offset;
-      mutable dlong hash_n;
+      mutable Array<unsigned int> o_offset;
+      mutable int hash_n;
       mutable Vector o_hashMin;
       mutable Vector o_hashMax;
       mutable Vector o_hashFac;
       mutable Vector info;
    } DEV;
-#undef dlong
-#undef dfloat
 
    // Stopwatches
    StopWatch setupSW, SW2, SWkernel;
@@ -168,26 +161,18 @@ protected:
    // FindPoints locally on device for 3D.
    void FindPointsLocal3(const Vector &point_pos,
                          int point_pos_ordering,
-                         Array<int> &gsl_code_dev_l,
-                         Array<int> &gsl_elem_dev_l,
+                         Array<unsigned int> &gsl_code_dev_l,
+                         Array<unsigned int> &gsl_elem_dev_l,
                          Vector &gsl_ref_l,
                          Vector &gsl_dist_l,
                          Array<int> &gsl_newton_dev_l,
                          int npt);
-   // Faster version of FindPointsLocal3.
-   void FindPointsLocal32(Vector &point_pos,
-                          int point_pos_ordering,
-                          Array<int> &gsl_code_dev_l,
-                          Array<int> &gsl_elem_dev_l,
-                          Vector &gsl_ref_l,
-                          Vector &gsl_dist_l,
-                          Array<int> &gsl_newton_dev_l,
-                          int npt);
+
    // FindPoints locally on device for 2D.
    void FindPointsLocal2(const Vector &point_pos,
                          int point_pos_ordering,
-                         Array<int> &gsl_code_dev_l,
-                         Array<int> &gsl_elem_dev_l,
+                         Array<unsigned int> &gsl_code_dev_l,
+                         Array<unsigned int> &gsl_elem_dev_l,
                          Vector &gsl_ref_l,
                          Vector &gsl_dist_l,
                          Array<int> &gsl_newton_dev_l,
@@ -344,8 +329,6 @@ public:
    // 2 - proc-wise    axis-aligned bounding box. size depends on setup parameters
    // 3 - global hash mesh.                       depends on setup parameters.
    virtual Mesh* GetBoundingBoxMesh(int type = 0);
-
-   void SetGPUCode(int code_) { gpu_code = code_; }
 
    virtual const Array<int> &GetNewtonIters() const { return gsl_newton; }
 };

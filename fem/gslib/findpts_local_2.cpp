@@ -258,10 +258,10 @@ static MFEM_HOST_DEVICE inline findptsElementGPT_t get_pt(const double *elx[2],
       pt.jac[0] += wtend[3 * r_g_wt_offset * pN + pN + j] * ELX(0, j, kidx);
 
       // dy/dr
-      pt.jac[1] += wtend[3 * r_g_wt_offset * pN + pN + j] * ELX(1, j, kidx);
+      pt.jac[2] += wtend[3 * r_g_wt_offset * pN + pN + j] * ELX(1, j, kidx);
 
       // dx/ds
-      pt.jac[2] += wtend[3 * s_g_wt_offset * pN + pN + j] * ELX(0, kidx, j);
+      pt.jac[1] += wtend[3 * s_g_wt_offset * pN + pN + j] * ELX(0, kidx, j);
 
       // dy/ds
       pt.jac[3] += wtend[3 * s_g_wt_offset * pN + pN + j] * ELX(1, kidx, j);
@@ -653,16 +653,14 @@ static void FindPointsLocal2D_Kernel(const int npt,
                                      const int point_pos_ordering,
                                      const double *xElemCoord,
                                      const int nel,
-                                     const double *wtend,                                     const double *c,
-                                     const double *A,
-                                     const double *minBound,
-                                     const double *maxBound,
+                                     const double *wtend,
+                                     const double *boxinfo,
                                      const int hash_n,
                                      const double *hashMin,
                                      const double *hashFac,
-                                     int *hashOffset,
-                                     int *const code_base,
-                                     int *const el_base,
+                                     unsigned int *hashOffset,
+                                     unsigned int *const code_base,
+                                     unsigned int *const el_base,
                                      double *const r_base,
                                      double *const dist2_base,
                                      const double *gll1D,
@@ -707,8 +705,8 @@ static void FindPointsLocal2D_Kernel(const int npt,
       int id_y = point_pos_ordering == 0 ? i+npt : i*dim+1;
       double x_i[2] = {x[id_x], x[id_y]};
 
-      int *code_i = code_base + i;
-      int *el_i = el_base + i;
+      unsigned int *code_i = code_base + i;
+      unsigned int *el_i = el_base + i;
       double *r_i = r_base + dim * i;
       double *dist2_i = dist2_base + i;
       int *newton_i = newton + i;
@@ -723,8 +721,8 @@ static void FindPointsLocal2D_Kernel(const int npt,
       hash.hash_n = hash_n;
       hash.offset = hashOffset;
       const int hi = hash_index(&hash, x_i);
-      const int        *elp = hash.offset + hash.offset[hi];
-      const int *const  ele = hash.offset + hash.offset[hi + 1];
+      const unsigned int        *elp = hash.offset + hash.offset[hi];
+      const unsigned int *const  ele = hash.offset + hash.offset[hi + 1];
       *code_i = CODE_NOT_FOUND;
       *dist2_i = DBL_MAX;
 
@@ -732,21 +730,22 @@ static void FindPointsLocal2D_Kernel(const int npt,
       {
          //elp
 
-         const int el = *elp;
+         const unsigned int el = *elp;
 
          // construct obbox_t on the fly from data
          obbox_t box;
+         int n_box_ents = 3*dim + dim2;
 
          for (int idx = 0; idx < dim; ++idx)
          {
-            box.c0[idx] = c[dim * el + idx];
-            box.x[idx].min = minBound[dim * el + idx];
-            box.x[idx].max = maxBound[dim * el + idx];
+            box.c0[idx] = boxinfo[n_box_ents*el + idx];
+            box.x[idx].min = boxinfo[n_box_ents*el + dim + idx];
+            box.x[idx].max = boxinfo[n_box_ents*el + 2*dim + idx];
          }
 
          for (int idx = 0; idx < dim2; ++idx)
          {
-            box.A[idx] = A[dim2 * el + idx];
+            box.A[idx] = boxinfo[n_box_ents*el + 3*dim + idx];
          }
 
          if (obbox_test(&box, x_i) >= 0)
@@ -846,8 +845,8 @@ static void FindPointsLocal2D_Kernel(const int npt,
                            {
                               if (j < D1D * 2)
                               {
-                                 const int qp = j / 2;
-                                 const int d = j % 2;
+                                 const int qp = j % D1D;
+                                 const int d = j / D1D;
                                  lagrange_eval_first_derivative(wtr + 2*d*D1D,
                                                                 tmp->r[d], qp,
                                                                 gll1D, lagcoeff,
@@ -860,8 +859,8 @@ static void FindPointsLocal2D_Kernel(const int npt,
                            {
                               if (j < D1D * 2)
                               {
-                                 const int qp = j / 2;
-                                 const int d = j % 2;
+                                 const int qp = j % D1D;
+                                 const int d = j / D1D;
                                  resid_temp[d + qp * 2] = tensor_ig2_j(jac_temp + 2 * d + 4 * qp,
                                                                        wtr,
                                                                        wtr + D1D,
@@ -916,8 +915,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
                            double *wt = r_workspace_ptr;
                            double *resid = wt + 3 * D1D;
                            double *jac = resid + 2; //jac will be row-major
-                           double *hes_T = jac + 2 * 2;
-                           double *hess = hes_T + 3;
+                           double *hess = jac + 2 * 2;
                            findptsElementGEdge_t edge;
 
                            MFEM_FOREACH_THREAD(j,x,nThreads)
@@ -937,20 +935,20 @@ static void FindPointsLocal2D_Kernel(const int npt,
                            }
                            MFEM_SYNC_THREAD;
 
-                           MFEM_FOREACH_THREAD(j,x,nThreads)
+                           MFEM_FOREACH_THREAD(d,x,nThreads)
                            {
-                              if (j < dim)
+                              if (d < dim)
                               {
-                                 resid[j] = tmp->x[j];
-                                 jac[2*j] = 0.0;
-                                 jac[2*j + 1] = 0.0;
-                                 hess[j] = 0.0;
+                                 resid[d] = tmp->x[d];
+                                 jac[2*d] = 0.0;
+                                 jac[2*d + 1] = 0.0;
+                                 hess[d] = 0.0;
                                  for (int k = 0; k < D1D; ++k)
                                  {
-                                    resid[j] -= wt[k]*edge.x[j][k];
-                                    jac[2*j] += wt[k]*edge.dxdn[j][k];
-                                    jac[2*j+1] += wt[k+D1D]*edge.x[j][k];
-                                    hess[j] += wt[k+2*D1D]*edge.x[j][k];
+                                    resid[d] -= wt[k]*edge.x[d][k];
+                                    jac[2*d] += wt[k]*edge.dxdn[d][k];
+                                    jac[2*d+1] += wt[k+D1D]*edge.x[d][k];
+                                    hess[d] += wt[k+2*D1D]*edge.x[d][k];
                                  }
                               }
                            }
@@ -984,6 +982,13 @@ static void FindPointsLocal2D_Kernel(const int npt,
                                  // check prior step //
                                  if (!reject_prior_step_q(fpt, resid, tmp, tol))
                                  {
+                                    // steep is negative of the gradient of the objective,
+                                    // so steeps tells direction of decrease.
+                                    // since we are only doing in normal direction (in reference space)
+                                    // steep tells whether the objective is decreasing towards
+                                    // the interior of the element or exterior (normal to the edge). If it is interior,
+                                    // we relax the constraint and go search inside the element,
+                                    // otherwise we minimize along the edge.
                                     double steep = resid[0] * jac[  dn]
                                                    + resid[1] * jac[2+dn];
 
@@ -1014,16 +1019,16 @@ static void FindPointsLocal2D_Kernel(const int npt,
                                  const findptsElementGPT_t gpt = get_pt(elx, wtend, pi, D1D);
 
                                  const double *const pt_x = gpt.x,
-                                                     *const jac = gpt.jac,
-                                                            *const hes = gpt.hes;
+                                              *const jac = gpt.jac,
+                                              *const hes = gpt.hes;
 
                                  double resid[dim], steep[dim], sr[dim];
                                  for (int d = 0; d < dim; ++d)
                                  {
                                     resid[d] = fpt->x[d] - pt_x[d];
                                  }
-                                 steep[0] = jac[0]*resid[0] + jac[2]*resid[1],
-                                            steep[1] = jac[1]*resid[0] + jac[3]*resid[1];
+                                 steep[0] = jac[0]*resid[0] + jac[2]*resid[1];
+                                 steep[1] = jac[1]*resid[0] + jac[3]*resid[1];
 
                                  sr[0] = steep[0]*tmp->r[0];
                                  sr[1] = steep[1]*tmp->r[1];
@@ -1044,7 +1049,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
                                           newton_edge(fpt, jac, rh,
                                                       resid, de,
                                                       dn,
-                                                      tmp->flags & FLAG_MASK,
+                                                      tmp->flags & FLAG_MASK & (3u<<(2*dn)),
                                                       tmp, tol);
                                        }
                                     }
@@ -1057,7 +1062,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
                                        newton_edge(fpt, jac, rh,
                                                    resid, de,
                                                    dn,
-                                                   tmp->flags & FLAG_MASK,
+                                                   tmp->flags & FLAG_MASK & (3u<<(2*dn)),
                                                    tmp, tol);
                                     }
                                     else
@@ -1119,8 +1124,8 @@ static void FindPointsLocal2D_Kernel(const int npt,
 
 void FindPointsGSLIB::FindPointsLocal2(const Vector &point_pos,
                                        int point_pos_ordering,
-                                       Array<int> &code,
-                                       Array<int> &elem,
+                                       Array<unsigned int> &code,
+                                       Array<unsigned int> &elem,
                                        Vector &ref,
                                        Vector &dist,
                                        Array<int> &newton,
@@ -1134,8 +1139,7 @@ void FindPointsGSLIB::FindPointsLocal2(const Vector &point_pos,
                                                     point_pos.Read(), point_pos_ordering,
                                                     gsl_mesh.Read(), NE_split_total,
                                                     DEV.o_wtend.Read(),
-                                                    DEV.o_c.Read(), DEV.o_A.Read(),
-                                                    DEV.o_min.Read(), DEV.o_max.Read(),
+                                                    DEV.o_box.Read(),
                                                     DEV.hash_n, DEV.o_hashMin.Read(),
                                                     DEV.o_hashFac.Read(),
                                                     DEV.o_offset.ReadWrite(),
@@ -1151,10 +1155,7 @@ void FindPointsGSLIB::FindPointsLocal2(const Vector &point_pos,
                                                   point_pos.Read(), point_pos_ordering,
                                                   gsl_mesh.Read(), NE_split_total,
                                                   DEV.o_wtend.Read(),
-                                                  DEV.o_c.Read(),
-                                                  DEV.o_A.Read(),
-                                                  DEV.o_min.Read(),
-                                                  DEV.o_max.Read(),
+                                                  DEV.o_box.Read(),
                                                   DEV.hash_n,
                                                   DEV.o_hashMin.Read(),
                                                   DEV.o_hashFac.Read(),
@@ -1169,8 +1170,6 @@ void FindPointsGSLIB::FindPointsLocal2(const Vector &point_pos,
                                                   DEV.info.ReadWrite(),
                                                   DEV.dof1d);
    }
-
-
 }
 
 

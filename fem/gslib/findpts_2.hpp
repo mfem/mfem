@@ -22,46 +22,42 @@
 namespace mfem
 {
 
-#define pDIM 2
-#define dlong int
-#define dfloat double
+#define sDim 2
 struct findptsElementPoint_t
 {
-   dfloat x[pDIM], r[pDIM], oldr[pDIM], dist2, dist2p, tr;
-   dlong flags;
+   double x[sDim], r[sDim], oldr[sDim], dist2, dist2p, tr;
+   int flags;
 };
 
 struct findptsElementGEdge_t
 {
-   dfloat *x[pDIM], *dxdn[2];
+   double *x[sDim], *dxdn[2];
 };
 
 struct findptsElementGPT_t
 {
-   dfloat x[pDIM], jac[pDIM * pDIM], hes[4];
+   double x[sDim], jac[sDim * sDim], hes[4];
 };
 
 struct dbl_range_t
 {
-   dfloat min, max;
+   double min, max;
 };
 struct obbox_t
 {
-   dfloat c0[pDIM], A[pDIM * pDIM];
-   dbl_range_t x[pDIM];
+   double c0[sDim], A[sDim * sDim];
+   dbl_range_t x[sDim];
 };
 
 struct findptsLocalHashData_t
 {
-   dlong hash_n;
-   dbl_range_t bnd[pDIM];
-   dfloat fac[pDIM];
-   dlong *offset;
-   dlong max;
+   int hash_n;
+   dbl_range_t bnd[sDim];
+   double fac[sDim];
+   unsigned int *offset;
+   int max;
 };
-#undef dlong
-#undef dfloat
-#undef pdim
+#undef sDim
 
 } // namespace mfem
 
