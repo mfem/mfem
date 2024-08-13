@@ -211,13 +211,20 @@ void TMOP_Integrator::AssemblePA_Fitting()
       const FiniteElement &fe = *(PA.fes->GetFE(0));
       const DofToQuad maps = fe.GetDofToQuad(*PA.ir, DofToQuad::TENSOR);
       auto geom = PA.fes->GetMesh()->GetGeometricFactors(*PA.ir, GeometricFactors::JACOBIANS);
+
       Vector col_der(PA.ne*1*nqp*dim);
       Vector col_der2(PA.ne*1*nqp*dim);
       constexpr QVectorLayout L1 = QVectorLayout::byNODES;
       constexpr QVectorLayout L2 = QVectorLayout::byVDIM;
+
       internal::quadrature_interpolator::CollocatedTensorPhysDerivatives<L1>(PA.ne, 1, maps, *geom, PA.S0, col_der);
+      PA.D1.SetSize(col_der.Size(), Device::GetMemoryType());
+      PA.D1.UseDevice(true);
       PA.D1 = col_der;
+
       internal::quadrature_interpolator::CollocatedTensorPhysDerivatives<L2>(PA.ne, 1, maps, *geom, col_der, col_der2);
+      PA.D2.SetSize(col_der2.Size(), Device::GetMemoryType());
+      PA.D2.UseDevice(true);
       PA.D2 = col_der2;
    }
    
@@ -362,8 +369,12 @@ void TMOP_Integrator::UpdateSurfaceFittingCoefficientsPA(const Vector &x_loc)
       constexpr QVectorLayout L1 = QVectorLayout::byNODES;
       constexpr QVectorLayout L2 = QVectorLayout::byVDIM;
       internal::quadrature_interpolator::CollocatedTensorPhysDerivatives<L1>(PA.ne, 1, maps, *geom, PA.S0, col_der);
+      PA.D1.SetSize(col_der.Size(), Device::GetMemoryType());
+      PA.D1.UseDevice(true);
       PA.D1 = col_der;
       internal::quadrature_interpolator::CollocatedTensorPhysDerivatives<L2>(PA.ne, 1, maps, *geom, col_der, col_der2);
+      PA.D2.SetSize(col_der2.Size(), Device::GetMemoryType());
+      PA.D2.UseDevice(true);
       PA.D2 = col_der2;
    }
 

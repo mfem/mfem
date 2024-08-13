@@ -15,6 +15,8 @@
 #include "../../general/forall.hpp"
 #include "../../linalg/kernels.hpp"
 #include "../../linalg/dinvariants.hpp"
+#include "../qinterp/dispatch.hpp"
+
 
 namespace mfem
 {
