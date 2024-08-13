@@ -207,7 +207,6 @@ void TMOP_Integrator::AssemblePA_Fitting()
    }
    else
    {
-      
       const int dim = fes_fit->GetMesh()->Dimension();
       const FiniteElement &fe = *(fes_fit->GetFE(0));
       const IntegrationRule irnodes = fe.GetNodes();
@@ -220,7 +219,7 @@ void TMOP_Integrator::AssemblePA_Fitting()
       int nelem = fes_fit->GetMesh()->GetNE();
 
       Vector col_der(nelem*1*nqp*dim);
-      constexpr QVectorLayout L = QVectorLayout::byVDIM;
+      constexpr QVectorLayout L = QVectorLayout::byNODES;
 
       internal::quadrature_interpolator::CollocatedTensorPhysDerivatives<L>(nelem, 1, maps, *geom, PA.S0, col_der);
       PA.D1.SetSize(col_der.Size(), Device::GetMemoryType());
@@ -364,28 +363,24 @@ void TMOP_Integrator::UpdateSurfaceFittingCoefficientsPA(const Vector &x_loc)
       const Operator *n5_R_int = fes_hess->GetElementRestriction(ordering);
       n5_R_int->Mult(*surf_fit_hess, PA.D2);
    }
-
    else
    {
-      const int dim = fes_fit->GetMesh()->Dimension();
-      const FiniteElement &fe = *(fes_fit->GetFE(0));
-      const IntegrationRule irnodes = fe.GetNodes();
-      const NodalFiniteElement *nfe = dynamic_cast<const NodalFiniteElement*>(&fe);
-      const Array<int> &irordering = nfe->GetLexicographicOrdering();
-      IntegrationRule ir = irnodes.Permute(irordering);
-      int nqp = ir.GetNPoints(); 
-      const DofToQuad maps = fe.GetDofToQuad(ir, DofToQuad::TENSOR);
-      auto geom = fes_fit->GetMesh()->GetGeometricFactors(ir, GeometricFactors::JACOBIANS);
-      int nelem = fes_fit->GetMesh()->GetNE();
+      // const int dim = fes_fit->GetMesh()->Dimension();
+      // const FiniteElement &fe = *(fes_fit->GetFE(0));
+      // const IntegrationRule irnodes = fe.GetNodes();
+      // const NodalFiniteElement *nfe = dynamic_cast<const NodalFiniteElement*>(&fe);
+      // const Array<int> &irordering = nfe->GetLexicographicOrdering();
+      // IntegrationRule ir = irnodes.Permute(irordering);
+      // int nqp = ir.GetNPoints(); 
+      // const DofToQuad maps = fe.GetDofToQuad(ir, DofToQuad::TENSOR);
+      // auto geom = fes_fit->GetMesh()->GetGeometricFactors(ir, GeometricFactors::JACOBIANS);
+      // int nelem = fes_fit->GetMesh()->GetNE();
 
-      Vector col_der(nelem*1*nqp*dim);
-      constexpr QVectorLayout L = QVectorLayout::byVDIM;
+      // Vector col_der(nelem*1*nqp*dim);
+      // constexpr QVectorLayout L = QVectorLayout::byNODES;
 
-      internal::quadrature_interpolator::CollocatedTensorPhysDerivatives<L>(nelem, 1, maps, *geom, PA.S0, col_der);
-      PA.D1.SetSize(col_der.Size(), Device::GetMemoryType());
-      PA.D1.UseDevice(true);
-      PA.D1 = col_der;
-
+      // internal::quadrature_interpolator::CollocatedTensorPhysDerivatives<L>(nelem, 1, maps, *geom, PA.S0, col_der);
+      // PA.D1 = col_der;  
    }
 
    ConstantCoefficient* cS = dynamic_cast<ConstantCoefficient*>(surf_fit_coeff);
