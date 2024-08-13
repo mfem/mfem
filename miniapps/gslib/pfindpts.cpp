@@ -400,7 +400,8 @@ int main (int argc, char *argv[])
       {
          if (point_ordering == Ordering::byNODES)
          {
-            vxyz(i + d*pts_cnt) = pos_min(d) + vxyz(i + d*pts_cnt)*(pos_max(d) - pos_min(d));
+            vxyz(i + d*pts_cnt) = pos_min(d) + vxyz(i + d*pts_cnt)*(pos_max(d) - pos_min(
+                                                                       d));
          }
          else
          {
