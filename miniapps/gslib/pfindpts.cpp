@@ -109,7 +109,6 @@ int main (int argc, char *argv[])
    int dim               = 3;
    int etype             = 0;
    bool visit            = false;
-   int gpucode           = 1;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -163,8 +162,6 @@ int main (int argc, char *argv[])
    args.AddOption(&visit, "-visit", "--visit", "-no-visit",
                   "--no-visit",
                   "Enable or disable VISIT output");
-   args.AddOption(&gpucode, "-gpucode", "--gpucode",
-                  "code for custom gpu kernels");
    args.Parse();
    if (!args.Good())
    {
@@ -214,6 +211,9 @@ int main (int argc, char *argv[])
          MFEM_ABORT("Only 2D and 3D supported at the moment.");
       }
    }
+
+   Vector xmin, xmax;
+   mesh->GetBoundingBox(xmin, xmax);
 
    if (myid == 0)
    {
@@ -393,6 +393,23 @@ int main (int argc, char *argv[])
    vxyz.SetSize(pts_cnt * dim);
    vxyz.Randomize(myid+1);
 
+   // Scale based on min/max dimensions
+   for (int i = 0; i < pts_cnt; i++)
+   {
+      for (int d = 0; d < dim; d++)
+      {
+         if (point_ordering == Ordering::byNODES)
+         {
+            vxyz(i + d*pts_cnt) = pos_min(d) + vxyz(i + d*pts_cnt)*(pos_max(d) - pos_min(d));
+         }
+         else
+         {
+            vxyz(i*dim + d) = pos_min(d) + vxyz(i*dim + d)*(pos_max(d) - pos_min(d));
+         }
+      }
+   }
+
+
    if ( (myid != 0) && (search_on_rank_0) )
    {
       pts_cnt = 0;
@@ -404,7 +421,6 @@ int main (int argc, char *argv[])
 
    FindPointsGSLIB finder(MPI_COMM_WORLD);
    finder.Setup(pmesh);
-   finder.SetGPUCode(gpucode);
    finder.SetDistanceToleranceForPointsFoundOnBoundary(10);
    finder.FindPoints(vxyz, point_ordering);
    MPI_Barrier(MPI_COMM_WORLD);
@@ -541,7 +557,7 @@ int main (int argc, char *argv[])
    if (myid == 0)
    {
       cout << "FindPointsGSLIB-Timing-info " <<
-           "jobid,devid,gpucode,ne,np,dim,meshorder,solorder,funcorder,fieldtype,smooth,npts,nptt,"
+           "jobid,devid,ne,np,dim,meshorder,solorder,funcorder,fieldtype,smooth,npts,nptt,"
            <<
            "foundloc,foundaway,notfound,foundface,maxerr,maxdist,"<<
            "setup_split,setup_nodalmapping,setup_setup,findpts_findpts,findpts_device_setup,findpts_mapelemrst,"
@@ -549,7 +565,6 @@ int main (int argc, char *argv[])
            "interpolate_h1,interpolate_general,interpolate_l2_pass2 " <<
            jobid << "," <<
            device.GetId() << "," <<
-           gpucode << "," <<
            nelemglob << "," <<
            num_procs << "," <<
            dim << "," <<
@@ -575,34 +590,6 @@ int main (int argc, char *argv[])
            finder.interpolate_l2_pass2_time << "," <<
            std::endl;
    }
-
-   // Info for timings of kernel read-write
-   double min_kernel_fpt_time = finder.min_fpt_kernel_time;
-   double measure_min_kernel_fpt_time = finder.measured_min_fpt_kernel_time;
-   double kernel_fpt_time = finder.fpt_kernel_time;
-
-   if (myid == 0)
-   {
-      cout << "FindPointsGSLIB-KernelTiming-info " <<
-           "jobid,devid,gpucode,ne,np,dim,meshorder,solorder,funcorder,fieldtype,smooth,npts,nptt,"
-           "mintime,measuredmintime,actualkerneltime " <<
-           jobid << "," <<
-           device.GetId() << "," <<
-           gpucode << "," <<
-           nelemglob << "," <<
-           num_procs << "," <<
-           dim << "," <<
-           mesh_poly_deg << "," << order << "," <<
-           func_order << "," << fieldtype << "," <<
-           smooth << "," <<
-           pts_cnt << "," <<
-           pts_cnt*num_procs << "," <<
-           finder.min_fpt_kernel_time << "," <<
-           finder.measured_min_fpt_kernel_time << "," <<
-           finder.fpt_kernel_time << "," <<
-           std::endl;
-   }
-
 
    Mesh *mesh_abb, *mesh_obb, *mesh_lhbb, *mesh_ghbb;
    if (visit)
