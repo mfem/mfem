@@ -185,6 +185,7 @@ private:
    Vector shape;              // shape function value at an integration point
    Vector state;              // state value at an integration point
    DenseMatrix flux;          // flux value at an integration point
+   DenseTensor J;             // Jacobian matrix at an integration point
    DenseMatrix dshape;  // derivative of shape function at an integration point
 
    Vector shape1;  // shape function value at an integration point - first elem
@@ -235,6 +236,18 @@ public:
    void AssembleElementVector(const FiniteElement &el,
                               ElementTransformation &Tr,
                               const Vector &elfun, Vector &elvect) override;
+
+   /**
+    * @brief implement (J(u), grad v) with abstract J computed by ComputeFluxJacobian
+    *
+    * @param[in] el local finite element
+    * @param[in] Tr element transformation
+    * @param[in] elfun local coefficient of basis
+    * @param[out] grad evaluated Jacobian
+    */
+   void AssembleElementGrad(const FiniteElement &el,
+                            ElementTransformation &Tr,
+                            const Vector &elfun, DenseMatrix &grad) override;
 
    /**
     * @brief implement <-hat(F)(u,x) n, [[v]]> with abstract hat(F) computed by
