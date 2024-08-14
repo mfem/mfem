@@ -107,9 +107,24 @@ public:
       MFEM_ABORT("Not Implemented.");
    }
 
+   /**
+    * @brief Compute normal flux Jacobian. Optionally overloaded in the derived
+    * class to avoid creating full dense matrix for flux.
+    *
+    * @param[in] state state at the current integration point
+    * @param[in] normal normal vector, @see CalcOrtho
+    * @param[in] Tr element information
+    * @param[out] JDotN flux Jacobian, J(i,j,d) = dF_{id}.n_d / u_j
+    */
+   virtual void ComputeFluxJacobianDotN(const Vector &state,
+                                        const Vector &normal,
+                                        ElementTransformation &Tr,
+                                        DenseMatrix &JDotN) const;
+
 private:
 #ifndef MFEM_THREAD_SAFE
    mutable DenseMatrix flux;
+   mutable DenseTensor J;
 #endif
 };
 
