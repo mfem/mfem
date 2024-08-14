@@ -61,12 +61,9 @@ public:
    const int dim;
 
    FluxFunction(const int num_equations, const int dim)
-      : num_equations(num_equations), dim(dim)
-   {
-#ifndef MFEM_THREAD_SAFE
-      flux.SetSize(num_equations, dim);
-#endif
-   }
+      : num_equations(num_equations), dim(dim) { }
+
+   virtual ~FluxFunction() {}
 
    /**
     * @brief Compute flux F(u, x) for given state u and physical point x
