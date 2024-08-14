@@ -177,15 +177,18 @@ int main(int argc, char *argv[])
    // Mesh mesh(mesh_file, 1, 1);
 
    auto mesh = DividingPlaneMesh(false, true, true, 1.0);
+   // auto mesh = Mesh("../../data/ref-cube.mesh");
+   // auto mesh = Mesh("../../data/ref-tetrahedron.mesh");
 
    int dim = mesh.Dimension();
 
-   Array<int> subdomain_attributes(1);
-   subdomain_attributes[0] = 1;
+   Array<int> subdomain_attributes{1};
+   // subdomain_attributes[0] = 1;
+   // subdomain_attributes[1] = 2;
 
    auto refine_half = [](Mesh &mesh, int vattr, int battr, bool backwards = true)
    {
-      Array<Refinement> refs(1);
+      Array<Refinement> refs;
       std::vector<int> ind(mesh.GetNBE());
       if (backwards)
       {
@@ -195,32 +198,38 @@ int main(int argc, char *argv[])
       {
          std::iota(ind.begin(), ind.end(), 0);
       }
-      // for (int e = mesh.GetNBE() - 1; e >= 0; e--)
       for (int e : ind)
       {
          std::cout << e << ' ';
          if (mesh.GetBdrAttribute(e) == battr)
          {
-            int el, info;
-            mesh.GetBdrElementAdjacentElement(e, el, info);
-            if (mesh.GetAttribute(el) == vattr)
-            {
-               refs[0].index = el;
-               refs[0].ref_type = Refinement::XYZ;
-               break;
-            }
+            int el1, el2;
+            mesh.GetBdrElementFaceIndex(e);
+            mesh.GetFaceElements(mesh.GetBdrElementFaceIndex(e), &el1, &el2);
+            // if (mesh.GetAttribute(el1) == vattr)
+            // {
+               Refinement ref(el1, Refinement::XYZ);
+               refs.Append(ref);
+            // }
+            // if (mesh.GetAttribute(el2) == vattr)
+            // {
+               // refs.Append(Refinement(el2, Refinement::XYZ));
+            // }
+            break;
          }
       }
-      mesh.GeneralRefinement(refs);
+      mesh.GeneralRefinement(refs,1,1);
    };
 
-   int test = 4;
+   int test = 6;
+   mesh.EnsureNodes();
    mesh.EnsureNCMesh(true);
    switch (test)
    {
       case 0:
          break;
       case 1:
+         mesh.UniformRefinement();
          mesh.UniformRefinement();
          break;
       case 2:
@@ -229,6 +238,7 @@ int main(int argc, char *argv[])
             refs[0].index = 0;
             refs[0].ref_type = Refinement::XYZ;
             mesh.GeneralRefinement(refs);
+            mesh.UniformRefinement();
          }
          break;
       case 3 :
@@ -237,15 +247,55 @@ int main(int argc, char *argv[])
             refs[0].index = 1;
             refs[0].ref_type = Refinement::XYZ;
             mesh.GeneralRefinement(refs);
+            mesh.UniformRefinement();
          }
          break;
       case 4 :
          {
             mesh.UniformRefinement();
-            refine_half(mesh,1,subdomain_attributes[0], false);
+            // mesh.UniformRefinement();
+            // mesh.UniformRefinement();
             refine_half(mesh,1,subdomain_attributes[0], true);
-            refine_half(mesh,1,subdomain_attributes[0], false);
+            refine_half(mesh,1,subdomain_attributes[0], true);
+            refine_half(mesh,1,subdomain_attributes[0], true);
+            refine_half(mesh,1,subdomain_attributes[0], true);
+            refine_half(mesh,1,subdomain_attributes[0], true);
+            // refine_half(mesh,2,subdomain_attributes[0], true);
+            // refine_half(mesh,1,subdomain_attributes[0], false);
+            // refine_half(mesh,2,subdomain_attributes[0], false);
+            // refine_half(mesh,2,subdomain_attributes[0], true);
          }
+         break;
+      case 5 :
+         // mesh.UniformRefinement();
+         mesh.RandomRefinement(0.1, false, 1, 1);
+         std::cout << "mesh.GetNE() " << mesh.GetNE() << '\n';
+         mesh.RandomRefinement(0.1, false, 1, 1);
+         std::cout << "mesh.GetNE() " << mesh.GetNE() << '\n';
+         mesh.RandomRefinement(0.1, false, 1, 1);
+         std::cout << "mesh.GetNE() " << mesh.GetNE() << '\n';
+         // mesh.RandomRefinement(0.5, false, 1, 1);
+         // mesh.RandomRefinement(0.5, false, 1, 1);
+         break;
+      case 6 :
+         {
+            // Array<int> refs = {1,2,3};
+         //    refs.Append(0);
+            mesh.GeneralRefinement(Array<int>{0});
+            mesh.GeneralRefinement(Array<int>{4});
+            mesh.GeneralRefinement(Array<int>{15});
+            mesh.GeneralRefinement(Array<int>{2,3,6,8,15});
+            // mesh.GeneralRefinement(Array<int>{0,40,41,42,54});
+            mesh.GeneralRefinement(Array<int>{42});
+            // mesh.GeneralRefinement(Array<int>{2,3,6,8,15,22,0,40,41,42,54}, 1, 1);
+         }
+         break;
+      case 7:
+      {
+         // mesh.GeneralRefinement(Array<int>{})
+         mesh.UniformRefinement();
+         mesh.GeneralRefinement(Array<int>{0});
+      }
    }
 
    // std::terminate();
@@ -256,7 +306,10 @@ int main(int argc, char *argv[])
    // mesh.GeneralRefinement(refs);
    // mesh.UniformRefinement();
    // // mesh.UniformRefinement();
-   // mesh.RandomRefinement(0.5);
+   // mesh.RandomRefinement(0.5, false, 1, 1);
+   // mesh.RandomRefinement(0.5, false, 1, 1);
+   // mesh.RandomRefinement(0.5, false, 1, 1);
+   // mesh.RandomRefinement(0.5, false, 1, 1);
    // mesh.UniformRefinement();
    // delete mesh.ncmesh;
    // mesh.ncmesh = nullptr;
@@ -294,9 +347,10 @@ int main(int argc, char *argv[])
    std::cout << "\n\n\nIn Ex1p\n\n";
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
 
+
    // for (const auto &e : pmesh.ncmesh->elements)
    // {
-   //    std::cout << "e.index " << e.index << std::endl;
+   //    std::cout << "e.rank " << e.rank << std::endl;
    // }
    // std::terminate();
 
@@ -351,6 +405,7 @@ int main(int argc, char *argv[])
 
    std::cout << "\n\n\nSUBMESH\n\n";
    auto psubmesh = ParSubMesh::CreateFromBoundary(pmesh, subdomain_attributes);
+   // auto psubmesh = ParSubMesh::CreateFromDomain(pmesh, subdomain_attributes);
 
    // auto &psubmesh = pmesh;
 
@@ -401,6 +456,7 @@ int main(int argc, char *argv[])
       std::cout << "psubmesh.bdr_attributes.Max() " << psubmesh.bdr_attributes.Max() << std::endl;
       std::cout << "ess_bdr.Size() " << ess_bdr.Size() << std::endl;
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      std::cout << "ess_tdof_list.Size() " << ess_tdof_list.Size() << std::endl;
    }
 
    // 9. Set up the parallel linear form b(.) which corresponds to the
@@ -408,7 +464,14 @@ int main(int argc, char *argv[])
    //    (1,phi_i) where phi_i are the basis functions in fespace.
    ParLinearForm b(&fespace);
    ConstantCoefficient one(1.0);
-   b.AddDomainIntegrator(new DomainLFIntegrator(one));
+
+   auto coeff = FunctionCoefficient([](const Vector &coords)
+   {
+      real_t x = coords(0);
+      real_t y = coords(1);
+      return y + 0.05 * sin(x * 2.0 * M_PI);
+   });
+   b.AddDomainIntegrator(new DomainLFIntegrator(coeff));
    b.Assemble();
 
    // 10. Define the solution vector x as a parallel finite element grid
@@ -478,13 +541,29 @@ int main(int argc, char *argv[])
    //     local finite element solution on each processor.
    a.RecoverFEMSolution(X, b, x);
 
+   // x.ProjectCoefficient(coeff);
+
    // Transfer the solution back to the original mesh.
    auto bk_fec = std::unique_ptr<H1_FECollection>(new H1_FECollection(order, pmesh.Dimension()));
    ParFiniteElementSpace bk_fespace(&pmesh, bk_fec.get());
    ParGridFunction bk_x(&bk_fespace);
    bk_x = 0.0;
 
+   x.ProjectCoefficient(coeff);
+   // bk_x.ProjectCoefficient(coeff);
+
    psubmesh.Transfer(x, bk_x);
+
+   auto transfer_x = x;
+   transfer_x = 0;
+   ParSubMesh::Transfer(bk_x, transfer_x);
+
+   auto smooth_x = bk_x;
+   const auto * P = bk_fespace.GetProlongationMatrix();
+   const auto * R = bk_fespace.GetRestrictionMatrix();
+   Vector tmp(R->Height());
+   R->Mult(smooth_x, tmp);
+   P->Mult(tmp, smooth_x);
 
    // 15. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
@@ -517,7 +596,24 @@ int main(int argc, char *argv[])
       sol_sock2.precision(8);
       sol_sock2 << "solution\n" << pmesh << bk_x << flush;
 
+      socketstream sol_sock3(vishost, visport);
+      sol_sock3 << "parallel " << num_procs << " " << myid << "\n";
+      sol_sock3.precision(8);
+      sol_sock3 << "solution\n" << pmesh << smooth_x << flush;
+
+      socketstream sol_sock4(vishost, visport);
+      sol_sock4 << "parallel " << num_procs << " " << myid << "\n";
+      sol_sock4.precision(8);
+      sol_sock4 << "solution\n" << psubmesh << transfer_x << flush;
    }
+   transfer_x -= x;
+   {
+      real_t norm_local = transfer_x.Norml2(), norm_global = 0.0;
+      MPI_Allreduce(&norm_local, &norm_global, 1, MPITypeMap<real_t>::mpi_type,
+                     MPI_SUM, MPI_COMM_WORLD);
+      std::cout << "norm_global " << norm_global << std::endl;
+   }
+
 
    // 17. Free the used memory.
    if (delete_fec)

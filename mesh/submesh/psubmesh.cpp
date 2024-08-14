@@ -199,7 +199,6 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
    if (parent.Nonconforming())
    {
 
-
       pncmesh = new ParNCSubMesh(*this, *parent.pncmesh, from, attributes);
       auto pncsubmesh = dynamic_cast<ParNCSubMesh*>(pncmesh);
       ncmesh = pncmesh;

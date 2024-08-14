@@ -21,25 +21,6 @@ namespace mfem
 
 using namespace SubMeshUtils;
 
-namespace
-{
-
-template <typename T>
-bool ElementHasAttribute(const T &el, const Array<int> &attributes)
-{
-   for (int a = 0; a < attributes.Size(); a++)
-   {
-      if (el.GetAttribute() == attributes[a])
-      {
-         return true;
-      }
-   }
-   return false;
-}
-
-}
-
-
 NCSubMesh::NCSubMesh(SubMesh& submesh, const NCMesh &parent, From from,
                      const Array<int> &attributes)
 : NCMesh(), parent_(&parent), from_(from), attributes_(attributes)
@@ -93,7 +74,7 @@ NCSubMesh::NCSubMesh(SubMesh& submesh, const NCMesh &parent, From from,
       for (int ipe = 0; ipe < parent.elements.Size(); ipe++)
       {
          const auto& pe = parent.elements[ipe];
-         if (!ElementHasAttribute(pe, attributes)) { continue; }
+         if (!HasAttribute(pe, attributes)) { continue; }
 
          const int elem_id = AddElement(pe);
          NCMesh::Element &el = elements[elem_id];
@@ -208,7 +189,7 @@ NCSubMesh::NCSubMesh(SubMesh& submesh, const NCMesh &parent, From from,
 
             // Face that maps to a face in the actual mesh
             int parent_be = parent_face_to_be[f.index];
-            if (!ElementHasAttribute(f, attributes) || parent_be < 0)
+            if (!HasAttribute(f, attributes) || parent_be < 0)
             {
                ipe++; continue;
             }
@@ -364,8 +345,8 @@ NCSubMesh::NCSubMesh(SubMesh& submesh, const NCMesh &parent, From from,
       }
    }
 
-   // copy top-level vertex coordinates (leave empty if the mesh is curved)
-   if (!submesh.GetNodes())
+   // If parent has coordinates defined, copy the relevant portion
+   if (parent.coordinates.Size() > 0)
    {
       // // Map parent coordinates to submesh coordinates
       // int nroot = 0;
