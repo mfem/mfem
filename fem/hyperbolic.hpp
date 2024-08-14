@@ -96,9 +96,9 @@ public:
     * @brief Compute flux Jacobian. Optionally overloaded in the derived class
     * when Jacobian is necessary (e.g. Newton iteration, flux limiter)
     *
-    * @param state state at the current integration point
-    * @param Tr element information
-    * @param J flux Jacobian, J(i,j,d) = dF_{id} / u_j
+    * @param[in] state state at the current integration point
+    * @param[in] Tr element information
+    * @param[out] J flux Jacobian, J(i,j,d) = dF_{id} / u_j
     */
    virtual void ComputeFluxJacobian(const Vector &state,
                                     ElementTransformation &Tr,
@@ -136,6 +136,7 @@ public:
     * @param[in] nor scaled normal vector, see mfem::CalcOrtho() (dim)
     * @param[in] Tr face information
     * @param[out] flux numerical flux (num_equations)
+    * @return real_t maximum characteristic speed
     */
    virtual real_t Eval(const Vector &state1, const Vector &state2,
                        const Vector &nor, FaceElementTransformations &Tr,
@@ -264,6 +265,7 @@ public:
     * @param[in] nor normal vector (not a unit vector) (dim)
     * @param[in] Tr face element transformation
     * @param[out] flux ½(F(u⁺,x)n + F(u⁻,x)n) - ½λ(u⁺ - u⁻)
+    * @return max(F(u⁺,x)n, F(u⁻,x)n)
     */
    real_t Eval(const Vector &state1, const Vector &state2,
                const Vector &nor, FaceElementTransformations &Tr,
