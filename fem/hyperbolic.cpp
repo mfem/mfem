@@ -77,7 +77,7 @@ void HyperbolicFormIntegrator::AssembleElementVector(const FiniteElement &el,
       // update maximum characteristic speed
       max_char_speed = std::max(mcs, max_char_speed);
       // integrate (F(u,x), grad v)
-      AddMult_a_ABt(ip.weight * Tr.Weight(), dshape, flux, elvect_mat);
+      AddMult_a_ABt(ip.weight * Tr.Weight() * sign, dshape, flux, elvect_mat);
    }
 }
 
@@ -163,18 +163,20 @@ void HyperbolicFormIntegrator::AssembleFaceVector(
       max_char_speed = std::max(speed, max_char_speed);
 
       // pre-multiply integration weight to flux
-      AddMult_a_VWt(-ip.weight, shape1, fluxN, elvect1_mat);
-      AddMult_a_VWt(+ip.weight, shape2, fluxN, elvect2_mat);
+      AddMult_a_VWt(-ip.weight*sign, shape1, fluxN, elvect1_mat);
+      AddMult_a_VWt(+ip.weight*sign, shape2, fluxN, elvect2_mat);
    }
 }
 
 HyperbolicFormIntegrator::HyperbolicFormIntegrator(
    const RiemannSolver &rsolver,
-   const int IntOrderOffset)
+   const int IntOrderOffset,
+   real_t sign)
    : NonlinearFormIntegrator(),
      rsolver(rsolver),
      fluxFunction(rsolver.GetFluxFunction()),
      IntOrderOffset(IntOrderOffset),
+     sign(sign),
      num_equations(fluxFunction.num_equations)
 {
 #ifndef MFEM_THREAD_SAFE
