@@ -262,6 +262,17 @@ real_t BurgersFlux::ComputeFlux(const Vector &U,
    return std::fabs(U(0));
 }
 
+void BurgersFlux::ComputeFluxJacobian(const Vector &U,
+                                      ElementTransformation &Tr,
+                                      DenseTensor &J) const
+{
+   J = 0.;
+   for (int i = 0; i < num_equations; i++)
+      for (int d = 0; d < dim; d++)
+      {
+         J(i, i, d) = U(i);
+      }
+}
 
 real_t ShallowWaterFlux::ComputeFlux(const Vector &U,
                                      ElementTransformation &Tr,

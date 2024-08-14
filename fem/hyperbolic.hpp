@@ -350,6 +350,10 @@ public:
     */
    real_t ComputeFlux(const Vector &state, ElementTransformation &Tr,
                       DenseMatrix &flux) const override;
+
+   void ComputeFluxJacobian(const Vector &state,
+                            ElementTransformation &Tr,
+                            DenseTensor &J) const;
 };
 
 class ShallowWaterFlux : public FluxFunction
