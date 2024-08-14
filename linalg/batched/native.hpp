@@ -9,19 +9,25 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "mfem.hpp"
-#include "unit_tests.hpp"
+#ifndef MFEM_NATIVE_LINALG
+#define MFEM_NATIVE_LINALG
 
-using namespace mfem;
+#include "batched.hpp"
 
-TEST_CASE("MFEM_ABORT noreturn", "[General]")
+namespace mfem
 {
-   // Make sure that the compiler does not complain here, since MFEM_ABORT
-   // calls mfem_error, which is marked [[noreturn]].
-   auto lambda = []() -> int
-   {
-      MFEM_ABORT("");
-   };
-   MFEM_CONTRACT_VAR(lambda);
-   if (false) { lambda(); }
-}
+
+class NativeBatchedLinAlg : public BatchedLinAlgBase
+{
+public:
+   void AddMult(const DenseTensor &A, const Vector &x, Vector &y,
+                real_t alpha, real_t beta) const override;
+   void Invert(DenseTensor &A) const override;
+   void LUFactor(DenseTensor &A, Array<int> &P) const override;
+   void LUSolve(const DenseTensor &LU, const Array<int> &P,
+                Vector &x) const override;
+};
+
+} // namespace mfem
+
+#endif
