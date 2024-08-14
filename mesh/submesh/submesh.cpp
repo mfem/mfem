@@ -113,8 +113,7 @@ SubMesh::SubMesh(const Mesh &parent, From from,
          parent_edge_ids_ = SubMeshUtils::BuildFaceMap(parent, *this,
                                                        parent_element_ids_);
          Array<int> parent_face_to_be = parent.GetFaceToBdrElMap();
-         int max_bdr_attr = parent.bdr_attributes.Size() ? parent.bdr_attributes.Max() :
-                            1;
+         int max_bdr_attr = parent.bdr_attributes.Max();
 
          for (int i = 0; i < NumOfBdrElements; i++)
          {
