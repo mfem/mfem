@@ -2172,10 +2172,8 @@ void NCMesh::UpdateLeafElements()
    // collect leaf elements in leaf_elements and ghosts elements in ghosts from
    // all roots
    leaf_elements.SetSize(0);
-   std::cout << "root_state.Size() " << root_state.Size() << '\n';
    for (int i = 0, counter = 0; i < root_state.Size(); i++)
    {
-      std::cout << "i " << i << " counter " << counter << '\n';
       CollectLeafElements(i, root_state[i], ghosts, counter);
    }
 
@@ -2504,7 +2502,7 @@ void NCMesh::GetMeshComponents(Mesh &mesh) const
 {
    mesh.vertices.SetSize(vertex_nodeId.Size());
 
-   std::cout << "coordinates.Size() " << coordinates.Size() << '\n';
+   // std::cout << "coordinates.Size() " << coordinates.Size() << '\n';
    if (coordinates.Size())
    {
       // calculate vertex positions from stored top-level vertex coordinates
@@ -2512,12 +2510,12 @@ void NCMesh::GetMeshComponents(Mesh &mesh) const
       for (int i = 0; i < mesh.vertices.Size(); i++)
       {
          mesh.vertices[i].SetCoords(spaceDim, CalcVertexPos(vertex_nodeId[i]));
-         std::cout << "vert " << i << " node " << vertex_nodeId[i] << " p1==p2 " << std::boolalpha << (nodes[vertex_nodeId[i]].p1 == nodes[vertex_nodeId[i]].p2)
-            << ' ' << mesh.vertices[i](0) << ' ' << mesh.vertices[i](1) << ' ' << mesh.vertices[i](2) << '\n';
+         // std::cout << "vert " << i << " node " << vertex_nodeId[i] << " p1==p2 " << std::boolalpha << (nodes[vertex_nodeId[i]].p1 == nodes[vertex_nodeId[i]].p2)
+         //    << ' ' << mesh.vertices[i](0) << ' ' << mesh.vertices[i](1) << ' ' << mesh.vertices[i](2) << '\n';
       }
       delete [] tmp_vertex;
    }
-   std::cout << __FILE__ << ":" << __LINE__ << " vertex_nodeId.Size() " << vertex_nodeId.Size() << '\n';
+   // std::cout << __FILE__ << ":" << __LINE__ << " vertex_nodeId.Size() " << vertex_nodeId.Size() << '\n';
 
    // NOTE: if the mesh is curved ('coordinates' is empty), mesh.vertices are
    // left uninitialized here; they will be initialized later by the Mesh from
@@ -2675,49 +2673,48 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
 
    std::map<int, std::vector<int>> n_to_n;
 
-   std::cout << __FILE__ << ':' << __LINE__ << std::endl;
    for (const auto &n : nodes)
    {
       const int id = nodes.FindId(n.p1, n.p2);
-      std::cout << "id " << id << " n.p1 " << n.p1 << " n.p2 " << n.p2 << " edge_index " << n.edge_index << " vert_index " << n.vert_index << std::endl;
+      // std::cout << "id " << id << " n.p1 " << n.p1 << " n.p2 " << n.p2 << " edge_index " << n.edge_index << " vert_index " << n.vert_index << std::endl;
       if (n.p1 != n.p2){
          n_to_n[n.p1].push_back(n.p2);
          n_to_n[n.p2].push_back(n.p1);
       }
    }
 
-   for (auto& kv : n_to_n)
-   {
-      std::cout << kv.first << " -> (";
-      std::sort(kv.second.begin(), kv.second.end());
-      for (auto v : kv.second)
-      {
-         std::cout << v << " ";
-      }
-      std::cout << ")" << std::endl;
-   }
+   // for (auto& kv : n_to_n)
+   // {
+   //    std::cout << kv.first << " -> (";
+   //    std::sort(kv.second.begin(), kv.second.end());
+   //    for (auto v : kv.second)
+   //    {
+   //       std::cout << v << " ";
+   //    }
+   //    std::cout << ")" << std::endl;
+   // }
 
-   std::cout << __FILE__ << ':' << __LINE__ << std::endl;
-   for (int iv = 0; iv < vertex_nodeId.Size(); iv++)
-   {
-      std::cout << "iv " << iv << " vertex_nodeId[" << iv << "] " << vertex_nodeId[iv] << std::endl;
-   }
+   // std::cout << __FILE__ << ':' << __LINE__ << std::endl;
+   // for (int iv = 0; iv < vertex_nodeId.Size(); iv++)
+   // {
+   //    std::cout << "iv " << iv << " vertex_nodeId[" << iv << "] " << vertex_nodeId[iv] << std::endl;
+   // }
 
 
-   std::cout << "edge_vertex->Size() " << edge_vertex->Size() << std::endl;
-   for (int i = 0; i < edge_vertex->Size(); i++)
-   {
-      const int *ev = edge_vertex->GetRow(i);
-      Node* node = nodes.Find(vertex_nodeId[ev[0]], vertex_nodeId[ev[1]]);
-      int node_id = nodes.FindId(vertex_nodeId[ev[0]], vertex_nodeId[ev[1]]);
-      std::cout << "edge " << i << " w/ node " << node_id;
-      std::cout << " vertex_nodeId[" << ev[0] << "] " << vertex_nodeId[ev[0]];
-      std::cout << " vertex_nodeId[" << ev[1] << "] " << vertex_nodeId[ev[1]];
-      std::cout << " node==nullptr " << std::boolalpha << (node == nullptr);
-      if (!node) { std::cout << std::endl; continue; }
-      std::cout << " edge_index " << node->edge_index << " vert_index " << node->vert_index;
-      std::cout << " edge_refc " << int(node->edge_refc) << " vert_refc " << int(node->vert_refc) << '\n';
-   }
+   // std::cout << "edge_vertex->Size() " << edge_vertex->Size() << std::endl;
+   // for (int i = 0; i < edge_vertex->Size(); i++)
+   // {
+   //    const int *ev = edge_vertex->GetRow(i);
+   //    Node* node = nodes.Find(vertex_nodeId[ev[0]], vertex_nodeId[ev[1]]);
+   //    int node_id = nodes.FindId(vertex_nodeId[ev[0]], vertex_nodeId[ev[1]]);
+   //    std::cout << "edge " << i << " w/ node " << node_id;
+   //    std::cout << " vertex_nodeId[" << ev[0] << "] " << vertex_nodeId[ev[0]];
+   //    std::cout << " vertex_nodeId[" << ev[1] << "] " << vertex_nodeId[ev[1]];
+   //    std::cout << " node==nullptr " << std::boolalpha << (node == nullptr);
+   //    if (!node) { std::cout << std::endl; continue; }
+   //    std::cout << " edge_index " << node->edge_index << " vert_index " << node->vert_index;
+   //    std::cout << " edge_refc " << int(node->edge_refc) << " vert_refc " << int(node->vert_refc) << '\n';
+   // }
 
    for (int i = 0; i < edge_vertex->Size(); i++)
    {
@@ -2834,7 +2831,7 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
          if (face.index < 0)
          {
             face.index = NFaces + (nghosts++);
-            std::cout << "face.index " << face.index << " face.attribute " << face.attribute << std::endl;
+            // std::cout << "face.index " << face.index << " face.attribute " << face.attribute << std::endl;
 
             // store the face geometry
             static const Geometry::Type types[5] =
@@ -2975,11 +2972,11 @@ int NCMesh::ParentFaceNodes(std::array<int, 4> &face_nodes) const
       // Finds the first node whose parents aren't in the face_nodes. This is also the index
       // of the child location in the parent face. Treated separately as ultimately
       // multiple crux will need to be handled for anisotropic faces.
-      std::cout << "face_nodes " << face_nodes[0] << ' ' << face_nodes[1] << ' ' << face_nodes[2] << ' ' << face_nodes[3] << '\n';
+      // std::cout << "face_nodes " << face_nodes[0] << ' ' << face_nodes[1] << ' ' << face_nodes[2] << ' ' << face_nodes[3] << '\n';
       const auto crux = [&](){
          for (int i = 0; i < static_cast<int>(face_nodes.size()); i++)
          {
-            std::cout << "nodes[face_nodes[" << i << "]] " << nodes[face_nodes[i]].p1 << ' ' << nodes[face_nodes[i]].p2 << std::endl;
+            // std::cout << "nodes[face_nodes[" << i << "]] " << nodes[face_nodes[i]].p1 << ' ' << nodes[face_nodes[i]].p2 << std::endl;
             if ((!contains_node(face_nodes, nodes[face_nodes[i]].p1)
              && !contains_node(face_nodes, nodes[face_nodes[i]].p2))
              || (nodes[face_nodes[i]].p1 == nodes[face_nodes[i]].p2) /* top level node */)
@@ -3039,27 +3036,27 @@ int NCMesh::ParentFaceNodes(std::array<int, 4> &face_nodes) const
          {
             // do nothing
          }
-         std::cout << x << " -> " << parent_nodes[i] << ", ";
-         std::cout << " p1 " << nodes[x].p1 << " p2 " << nodes[x].p2 << '\n';
+         // std::cout << x << " -> " << parent_nodes[i] << ", ";
+         // std::cout << " p1 " << nodes[x].p1 << " p2 " << nodes[x].p2 << '\n';
       }
-      std::cout << '\n';
+      // std::cout << '\n';
 
       if (std::equal(face_nodes.begin(), face_nodes.end(), parent_nodes.begin()))
       {
          // Having excluded root faces, this must be an interior face. We need to handle the
          // special case of the interior face of the parent face.
          std::array<std::array<int, 2>, 6> parent_pairs;
-         std::cout << "parent_pairs ";
+         // std::cout << "parent_pairs ";
          for (std::size_t i = 0; i < face_nodes.size() - 1; i++)
          {
             parent_pairs[i][0] = nodes[face_nodes[i]].p1;
             parent_pairs[i][1] = nodes[face_nodes[i]].p2;
-            std::cout << "(" << parent_pairs[i][0] << ", " << parent_pairs[i][1] << ") ";
+            // std::cout << "(" << parent_pairs[i][0] << ", " << parent_pairs[i][1] << ") ";
          }
-         std::cout << '\n';
+         // std::cout << '\n';
          // Each node gets mapped to the common node from its parents and the predecessor
          // node's parents.
-         std::cout << "parent_nodes ";
+         // std::cout << "parent_nodes ";
          for (int i = 0; i < 3; i++)
          {
             // Parenting convention here assumes parent face has the SAME orientation as the
@@ -3068,15 +3065,15 @@ int NCMesh::ParentFaceNodes(std::array<int, 4> &face_nodes) const
             // const auto &prev = parent_pairs[(i - 1 + 3) % 3]; // (0 -> 1, 1 -> 2, 2 -> 0)
             const auto &prev = parent_pairs[(i - 1 + 3) % 3]; // (0 -> 2, 1 -> 0, 2 -> 1)
             const auto &next = parent_pairs[(i + 1 + 3) % 3]; // (0 -> 1, 1 -> 2, 2 -> 0)
-            std::cout << "prev " << prev[0] << ' ' << prev[1] << '\n';
-            std::cout << "next " << next[0] << ' ' << next[1] << '\n';
+            // std::cout << "prev " << prev[0] << ' ' << prev[1] << '\n';
+            // std::cout << "next " << next[0] << ' ' << next[1] << '\n';
             for (auto x : next)
             {
                if (std::find(prev.begin(), prev.end(), x) != prev.end()) { parent_nodes[i] = x; }
             }
-            std::cout << parent_nodes[i] << '\n';
+            // std::cout << parent_nodes[i] << '\n';
          }
-         std::cout << '\n';
+         // std::cout << '\n';
          child = 3; // The interior face is the final child.
       }
    }
@@ -3523,7 +3520,6 @@ NCMesh::TriFaceTraverseResults NCMesh::TraverseTriFace(int vn0, int vn1,
 
 void NCMesh::BuildFaceList()
 {
-   std::cout << "R" << MyRank << ' ' << __FILE__ << ':' << __LINE__<< '\n';
    face_list.Clear();
    if (Dim < 3) { return; }
 
@@ -5882,10 +5878,16 @@ void NCMesh::LimitNCLevel(int max_nc_level)
 {
    MFEM_VERIFY(max_nc_level >= 1, "'max_nc_level' must be 1 or greater.");
 
+   // std::cout << "nc limit extra refines: \n";
    while (1)
    {
       Array<Refinement> refinements;
       GetLimitRefinements(refinements, max_nc_level);
+      for (auto x : refinements)
+      {
+         // std::cout << x.index << ' ';
+      }
+      // std::cout << '\n';
 
       if (!refinements.Size()) { break; }
 
@@ -6176,7 +6178,6 @@ void NCMesh::InitRootElements()
             elements[child].parent = i;
          }
       }
-      std::cout << "elements[" << i << "].parent " << el.parent << std::endl;
    }
 
    // count the root elements
@@ -6188,7 +6189,6 @@ void NCMesh::InitRootElements()
    }
    MFEM_VERIFY(nroots, "invalid mesh file: no root elements found.");
 
-   std::cout << "nroots " << nroots << std::endl;
 
    // check that only the first 'nroot' elements are roots (have no parent)
    for (int i = nroots; i < elements.Size(); i++)

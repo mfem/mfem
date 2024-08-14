@@ -10418,9 +10418,7 @@ void Mesh::InitFromNCMesh(const NCMesh &ncmesh_)
    {
       GetElementToFaceTable();
    }
-   std::cout << __FILE__<< ':' << __LINE__ << " GetNumFaces() " << GetNumFaces() << std::endl;
    GenerateFaces();
-   std::cout << __FILE__<< ':' << __LINE__ << " GetNumFaces() " << GetNumFaces() << std::endl;
 #ifdef MFEM_DEBUG
    CheckBdrElementOrientation(false);
 #endif
@@ -10714,6 +10712,7 @@ void Mesh::RandomRefinement(real_t prob, bool aniso, int nonconforming,
                             int nc_limit)
 {
    Array<Refinement> refs;
+   std::cout << "refs ";
    for (int i = 0; i < GetNE(); i++)
    {
       if ((real_t) rand() / real_t(RAND_MAX) < prob)
@@ -10723,9 +10722,11 @@ void Mesh::RandomRefinement(real_t prob, bool aniso, int nonconforming,
          {
             type = (Dim == 3) ? (rand() % 7 + 1) : (rand() % 3 + 1);
          }
+         std::cout << i << ' ';
          refs.Append(Refinement(i, type));
       }
    }
+   std::cout << '\n';
    GeneralRefinement(refs, nonconforming, nc_limit);
 }
 

@@ -95,6 +95,16 @@ public:
    template <typename CT, int N>
    explicit inline Array(const CT (&values)[N]);
 
+    // Initializer list constructor
+    Array(std::initializer_list<T> init_list)
+      : Array(static_cast<int>(init_list.size()))
+   {
+        auto * it = GetData();
+        for (int value : init_list) {
+            *it++ = value;
+        }
+    }
+
    /// Move constructor ("steals" data from 'src')
    inline Array(Array<T> &&src) { Swap(src, *this); }
 

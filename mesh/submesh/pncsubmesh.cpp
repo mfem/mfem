@@ -156,7 +156,6 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
    // get global rank
    int rank;
    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-   std::cout << "MyRank " << MyRank << " rank " << rank << std::endl;
 
    Dim = submesh.Dimension();
    spaceDim = submesh.SpaceDimension();
@@ -185,13 +184,8 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
          NCMesh::Element &el = elements[elem_id];
          parent_element_ids_.Append(ipe); // submesh -> parent
          parent_to_submesh_element_ids_[ipe] = elem_id; // parent -> submesh
-
-         std::cout << "el.rank " << el.rank << std::endl;
-
          el.index = submesh.GetSubMeshElementFromParent(el.index);
-
          if (!pe.IsLeaf()) { continue; }
-
          const auto gi = GI[pe.geom];
          bool new_id = false;
          for (int n = 0; n < gi.nv; n++)
@@ -202,10 +196,8 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
          {
             new_nodes.insert(parent.nodes.FindId(el.node[gi.edges[e][0]],
                                                  el.node[gi.edges[e][1]]));
-
          }
       }
-      // std::cout << "new_nodes.size() " << new_nodes.size() << std::endl;
 
       parent_node_ids_.Reserve(static_cast<int>(new_nodes.size()));
       parent_to_submesh_node_ids_.reserve(new_nodes.size());
@@ -240,7 +232,6 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
          MFEM_ASSERT(!new_node, "Each vertex's node should have already been added");
          nodes[new_node_id].vert_index = iv;
       }
-      std::cout << "node_ids.counter " << node_ids.counter << std::endl;
 
       // Loop over elements and reference edges and faces (creating any nodes on first encounter).
       for (auto &el : elements)
@@ -367,6 +358,7 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
             || face_list.GetMeshIdType(face.index) == NCList::MeshIdType::MASTER
             ) { continue; }
 
+            auto face_type = face_list.GetMeshIdType(face.index);
             auto fn = FaceNodes{parent.FindFaceNodes(face)};
             if (pnodes_new_elem.find(fn) != pnodes_new_elem.end())
             {
@@ -382,7 +374,7 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
             if (face.elem[1] >= 0)
             { std::cout << " elem 1 IsLeaf " << parent.elements[face.elem[1]].IsLeaf() ; }
             std::cout << '\n';
-            MFEM_ASSERT(face.elem[0] < 0 || face.elem[1] < 0, "Internal nonconforming boundaries are not supported yet.");
+            // MFEM_ASSERT(face.elem[0] < 0 || face.elem[1] < 0, "Internal nonconforming boundaries are not supported yet.");
 
             auto face_geom = face_geom_from_nodes(fn.nodes);
             int new_elem_id = AddElement(NCMesh::Element(face_geom, face.attribute));
@@ -403,17 +395,23 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
             auto orientation = [&]()
             {
                int f, o;
-               // std::cout << "i " << i << " ipe " << ipe << " face.index " << face.index << std::endl;
+               std::cout << "i " << i << " ipe " << ipe << " face.index " << face.index << std::endl;
                if (face.index >= face_to_be.Size() || face_to_be[face.index] < 0)
-               { o = 0; std::cout << " face.index >= face_to_be.Size() " << (face.index >= face_to_be.Size()); }
+               {
+                  o = 0; std::cout << " face.index >= face_to_be.Size() " << (face.index >= face_to_be.Size());
+               }
                else
                {
-               submesh.GetParent()->GetBdrElementFace(face_to_be[face.index], &f, &o);
+                  submesh.GetParent()->GetBdrElementFace(face_to_be[face.index], &f, &o);
                }
-               // std::cout << " o " << o << '\n';
+               // Compose orientation with that from elem to face ?
+               int inf1, inf2;
+               submesh.GetParent()->GetFaceInfos(face.index, &inf1, &inf2);
+               int o2 = submesh.GetParent()->DecodeFaceInfoOrientation(inf1);
+               std::cout << " o " << o << " o2 " << o2 << '\n';
                return o;
             }();
-            // ReorientFaceNodesByOrientation(fn.nodes, face_geom, orientation);
+            ReorientFaceNodesByOrientation(fn.nodes, face_geom, orientation);
 
             pnodes_new_elem[fn] = new_elem_id;
             parent_element_ids_.Append(i);
@@ -481,10 +479,16 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
                      std::cout << x << ' ';
                   }
                   std::cout << '\n';
-                  // If a parent triangle face was discovered by the internal face, the
-                  // orientation can be inconsistent with the other children, this will fix that.
-                  if (elem.Geom() == Geometry::Type::TRIANGLE &&
-                     child != 3 && !std::equal(fn.nodes.begin(), fn.nodes.end(), pelem->first.nodes.begin()))
+                  // There are two scenarios where the parent nodes should be rearranged:
+                  // 1. The found face is a slave, then the master might have been added in
+                  //    reverse orientation
+                  // 2. The parent face was added from the central face of a triangle, the
+                  //    orientation of the parent face is only fixed relative to the outer
+                  //    child faces not the interior.
+                  //    If either of these scenarios, and there's a mismatch, then reorder
+                  //    the parent and all ancestors if necessary.
+                  if (((elem.Geom() == Geometry::Type::TRIANGLE && child != 3) || face_type != NCList::MeshIdType::UNRECOGNIZED)
+                  && !std::equal(fn.nodes.begin(), fn.nodes.end(), pelem->first.nodes.begin()))
                   {
                      fix_parent = true;
                      auto pelem_id = pelem->second;
@@ -1042,6 +1046,7 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
       {
          std::cout << " (root)";
       }
+      std::cout << " pn " << parent_node_ids_[it.index()];
       std::cout << std::endl;
    }
 
@@ -1155,9 +1160,7 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
 
       MFEM_ASSERT(NElements == submesh.GetNE(), "!");
 
-      // auto new_parent_element_ids = submesh.parent_element_ids_;
       auto new_parent_to_submesh_element_ids = submesh.parent_to_submesh_element_ids_;
-      // new_parent_element_ids = -1;
       Array<int> new_parent_element_ids;
       new_parent_element_ids.Reserve(submesh.parent_element_ids_.Size());
       for (int i = 0; i < submesh.parent_element_ids_.Size(); i++)
