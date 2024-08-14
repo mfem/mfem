@@ -173,7 +173,7 @@ protected:
  */
 class HyperbolicFormIntegrator : public NonlinearFormIntegrator
 {
-private:
+protected:
    // The maximum characteristic speed, updated during element/face vector assembly
    real_t max_char_speed;
    const RiemannSolver &rsolver;   // Numerical flux that maps F(u±,x) to hat(F)
@@ -263,7 +263,49 @@ public:
                            const FiniteElement &el2,
                            FaceElementTransformations &Tr,
                            const Vector &elfun, Vector &elvect) override;
+};
 
+class HDGHyperbolicFormIntegrator : public HyperbolicFormIntegrator
+{
+public:
+   enum class HDGScheme
+   {
+      HDG_1,
+      HDG_2,
+   };
+
+private:
+   HDGScheme scheme;
+   real_t Ctau;
+
+   DenseMatrix JDotN;
+
+public:
+   HDGHyperbolicFormIntegrator(
+      HDGScheme scheme,
+      const RiemannSolver &rsolver,
+      real_t Ctau=1.,
+      const int IntOrderOffset=0,
+      const real_t sign=1.)
+      : HyperbolicFormIntegrator(rsolver, IntOrderOffset, sign),
+        scheme(scheme), Ctau(Ctau)
+   {
+      JDotN.SetSize(num_equations);
+   }
+
+   void AssembleHDGFaceVector(int type,
+                              const FiniteElement &trace_face_fe,
+                              const FiniteElement &fe,
+                              FaceElementTransformations &Tr,
+                              const Vector &trfun, const Vector &elfun,
+                              Vector &elvect) override;
+
+   void AssembleHDGFaceGrad(int type,
+                            const FiniteElement &trace_face_fe,
+                            const FiniteElement &fe,
+                            FaceElementTransformations &Tr,
+                            const Vector &trfun, const Vector &elfun,
+                            DenseMatrix &elmat) override;
 };
 
 
