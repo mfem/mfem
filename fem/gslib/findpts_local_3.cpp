@@ -1755,86 +1755,70 @@ void FindPointsGSLIB::FindPointsLocal3(const Vector &point_pos,
 {
    SWkernel.Clear();
    SWkernel.Start();
+   if (npt == 0) { return; }
+   MFEM_VERIFY(dim == 3,"Function for 3D only");
+   auto pp = point_pos.Read();
+   auto pgslm = gsl_mesh.Read();
+   auto pwt = DEV.wtend.Read();
+   auto pbb = DEV.bb.Read();
+   auto plhm = DEV.loc_hash_min.Read();
+   auto plhf = DEV.loc_hash_fac.Read();
+   auto plho = DEV.loc_hash_offset.ReadWrite();
+   auto pcode = code.Write();
+   auto pelem = elem.Write();
+   auto pref = ref.Write();
+   auto pdist = dist.Write();
+   auto pgll1d = DEV.gll1d.ReadWrite();
+   auto plc = DEV.lagcoeff.Read();
    switch (DEV.dof1d)
    {
       case 2: FindPointsLocal3DKernel<2>(npt, DEV.tol,
-                                            point_pos.Read(), point_pos_ordering,
-                                            gsl_mesh.Read(), NE_split_total,
-                                            DEV.wtend.Read(),
-                                            DEV.bb.Read(),
-                                            DEV.loc_hash_nx, DEV.loc_hash_min.Read(),
-                                            DEV.loc_hash_fac.Read(),
-                                            DEV.loc_hash_offset.ReadWrite(),
-                                            code.Write(), elem.Write(),
-                                            ref.Write(), dist.Write(),
-                                            DEV.gll1d.Read(),
-                                            DEV.lagcoeff.Read());
+                                            pp, point_pos_ordering,
+                                            pgslm, NE_split_total,
+                                            pwt, pbb,
+                                            DEV.loc_hash_nx, plhm, plhf, plho,
+                                            pcode, pelem, pref, pdist,
+                                            pgll1d, plc);
          break;
       case 3: FindPointsLocal3DKernel<3>(npt, DEV.tol,
-                                            point_pos.Read(), point_pos_ordering,
-                                            gsl_mesh.Read(), NE_split_total,
-                                            DEV.wtend.Read(),
-                                            DEV.bb.Read(),
-                                            DEV.loc_hash_nx, DEV.loc_hash_min.Read(),
-                                            DEV.loc_hash_fac.Read(),
-                                            DEV.loc_hash_offset.ReadWrite(),
-                                            code.Write(), elem.Write(),
-                                            ref.Write(), dist.Write(),
-                                            DEV.gll1d.Read(),
-                                            DEV.lagcoeff.Read());
+                                            pp, point_pos_ordering,
+                                            pgslm, NE_split_total,
+                                            pwt, pbb,
+                                            DEV.loc_hash_nx, plhm, plhf, plho,
+                                            pcode, pelem, pref, pdist,
+                                            pgll1d, plc);
          break;
       case 4: FindPointsLocal3DKernel<4>(npt, DEV.tol,
-                                            point_pos.Read(), point_pos_ordering,
-                                            gsl_mesh.Read(), NE_split_total,
-                                            DEV.wtend.Read(),
-                                            DEV.bb.Read(),
-                                            DEV.loc_hash_nx, DEV.loc_hash_min.Read(),
-                                            DEV.loc_hash_fac.Read(),
-                                            DEV.loc_hash_offset.ReadWrite(),
-                                            code.Write(), elem.Write(),
-                                            ref.Write(), dist.Write(),
-                                            DEV.gll1d.Read(),
-                                            DEV.lagcoeff.Read());
+                                            pp, point_pos_ordering,
+                                            pgslm, NE_split_total,
+                                            pwt, pbb,
+                                            DEV.loc_hash_nx, plhm, plhf, plho,
+                                            pcode, pelem, pref, pdist,
+                                            pgll1d, plc);
          break;
       case 5: FindPointsLocal3DKernel<5>(npt, DEV.tol,
-                                            point_pos.Read(), point_pos_ordering,
-                                            gsl_mesh.Read(), NE_split_total,
-                                            DEV.wtend.Read(),
-                                            DEV.bb.Read(),
-                                            DEV.loc_hash_nx, DEV.loc_hash_min.Read(),
-                                            DEV.loc_hash_fac.Read(),
-                                            DEV.loc_hash_offset.ReadWrite(),
-                                            code.Write(), elem.Write(),
-                                            ref.Write(), dist.Write(),
-                                            DEV.gll1d.Read(),
-                                            DEV.lagcoeff.Read());
+                                            pp, point_pos_ordering,
+                                            pgslm, NE_split_total,
+                                            pwt, pbb,
+                                            DEV.loc_hash_nx, plhm, plhf, plho,
+                                            pcode, pelem, pref, pdist,
+                                            pgll1d, plc);
          break;
       case 6: FindPointsLocal3DKernel<6>(npt, DEV.tol,
-                                            point_pos.Read(), point_pos_ordering,
-                                            gsl_mesh.Read(), NE_split_total,
-                                            DEV.wtend.Read(),
-                                            DEV.bb.Read(),
-                                            DEV.loc_hash_nx, DEV.loc_hash_min.Read(),
-                                            DEV.loc_hash_fac.Read(),
-                                            DEV.loc_hash_offset.ReadWrite(),
-                                            code.Write(), elem.Write(),
-                                            ref.Write(), dist.Write(),
-                                            DEV.gll1d.Read(),
-                                            DEV.lagcoeff.Read());
+                                            pp, point_pos_ordering,
+                                            pgslm, NE_split_total,
+                                            pwt, pbb,
+                                            DEV.loc_hash_nx, plhm, plhf, plho,
+                                            pcode, pelem, pref, pdist,
+                                            pgll1d, plc);
          break;
       default: FindPointsLocal3DKernel(npt, DEV.tol,
-                                          point_pos.Read(), point_pos_ordering,
-                                          gsl_mesh.Read(), NE_split_total,
-                                          DEV.wtend.Read(),
-                                          DEV.bb.Read(),
-                                          DEV.loc_hash_nx, DEV.loc_hash_min.Read(),
-                                          DEV.loc_hash_fac.Read(),
-                                          DEV.loc_hash_offset.ReadWrite(),
-                                          code.Write(), elem.Write(),
-                                          ref.Write(), dist.Write(),
-                                          DEV.gll1d.Read(),
-                                          DEV.lagcoeff.Read(),
-                                          DEV.dof1d);
+                                          pp, point_pos_ordering,
+                                          pgslm, NE_split_total,
+                                          pwt, pbb,
+                                          DEV.loc_hash_nx, plhm, plhf, plho,
+                                          pcode, pelem, pref, pdist,
+                                          pgll1d, plc, DEV.dof1d);
    }
    SWkernel.Stop();
    fpt_kernel_time = SWkernel.RealTime();

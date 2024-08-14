@@ -762,16 +762,13 @@ static void FindPointsLocal2D_Kernel(const int npt,
                   {
                      const int qp = j % D1D;
                      const int d = j / D1D;
-                     if (j < 3*D1D)
+                     if (j < 2*D1D)
                      {
-                        for (int l = 0; l < D1D; ++l)
+                        for (int k = 0; k < D1D; ++k)
                         {
-                           for (int k = 0; k < D1D; ++k)
-                           {
-                              const int jkl = qp + k * D1D + l * D1D * D1D;
-                              elem_coords[jkl + d*p_NE] =
-                                 xElemCoord[jkl + el*p_NE + d*nel*p_NE];
-                           }
+                           const int jk = qp + k * D1D;
+                           elem_coords[jk + d*p_NE] =
+                              xElemCoord[jk + el*p_NE + d*p_NEL];
                         }
                      }
                   }
@@ -782,7 +779,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
                for (int d = 0; d < dim; d++)
                {
                   elx[d] = MD1<= 6 ? &elem_coords[d*p_NE] :
-                           xElemCoord + d*nel*p_NE + el * p_NE;
+                           xElemCoord + d*p_NEL + el * p_NE;
                }
 
                //// findpts_el ////
@@ -1155,66 +1152,50 @@ void FindPointsGSLIB::FindPointsLocal2(const Vector &point_pos,
 {
    if (npt == 0) { return; }
    MFEM_VERIFY(dim == 2,"Function for 2D only");
+   auto pp = point_pos.Read();
+   auto pgslm = gsl_mesh.Read();
+   auto pwt = DEV.wtend.Read();
+   auto pbb = DEV.bb.Read();
+   auto plhm = DEV.loc_hash_min.Read();
+   auto plhf = DEV.loc_hash_fac.Read();
+   auto plho = DEV.loc_hash_offset.ReadWrite();
+   auto pcode = code.Write();
+   auto pelem = elem.Write();
+   auto pref = ref.Write();
+   auto pdist = dist.Write();
+   auto pgll1d = DEV.gll1d.ReadWrite();
+   auto plc = DEV.lagcoeff.Read();
+
    switch (DEV.dof1d)
    {
       case 2: return FindPointsLocal2D_Kernel<2>(npt, DEV.tol,
-                                                    point_pos.Read(), point_pos_ordering,
-                                                    gsl_mesh.Read(), NE_split_total,
-                                                    DEV.wtend.Read(),
-                                                    DEV.bb.Read(),
-                                                    DEV.loc_hash_nx, DEV.loc_hash_min.Read(),
-                                                    DEV.loc_hash_fac.Read(),
-                                                    DEV.loc_hash_offset.ReadWrite(),
-                                                    code.Write(),
-                                                    elem.Write(),
-                                                    ref.Write(),
-                                                    dist.Write(),
-                                                    DEV.gll1d.ReadWrite(),
-                                                    DEV.lagcoeff.Read());
+                                                    pp, point_pos_ordering,
+                                                    pgslm, NE_split_total,
+                                                    pwt, pbb,
+                                                    DEV.loc_hash_nx, plhm, plhf, plho,
+                                                    pcode, pelem, pref, pdist,
+                                                    pgll1d, plc);
       case 3: return FindPointsLocal2D_Kernel<3>(npt, DEV.tol,
-                                                    point_pos.Read(), point_pos_ordering,
-                                                    gsl_mesh.Read(), NE_split_total,
-                                                    DEV.wtend.Read(),
-                                                    DEV.bb.Read(),
-                                                    DEV.loc_hash_nx, DEV.loc_hash_min.Read(),
-                                                    DEV.loc_hash_fac.Read(),
-                                                    DEV.loc_hash_offset.ReadWrite(),
-                                                    code.Write(),
-                                                    elem.Write(),
-                                                    ref.Write(),
-                                                    dist.Write(),
-                                                    DEV.gll1d.ReadWrite(),
-                                                    DEV.lagcoeff.Read());
+                                                    pp, point_pos_ordering,
+                                                    pgslm, NE_split_total,
+                                                    pwt, pbb,
+                                                    DEV.loc_hash_nx, plhm, plhf, plho,
+                                                    pcode, pelem, pref, pdist,
+                                                    pgll1d, plc);
       case 4: return FindPointsLocal2D_Kernel<4>(npt, DEV.tol,
-                                                    point_pos.Read(), point_pos_ordering,
-                                                    gsl_mesh.Read(), NE_split_total,
-                                                    DEV.wtend.Read(),
-                                                    DEV.bb.Read(),
-                                                    DEV.loc_hash_nx, DEV.loc_hash_min.Read(),
-                                                    DEV.loc_hash_fac.Read(),
-                                                    DEV.loc_hash_offset.ReadWrite(),
-                                                    code.Write(),
-                                                    elem.Write(),
-                                                    ref.Write(),
-                                                    dist.Write(),
-                                                    DEV.gll1d.ReadWrite(),
-                                                    DEV.lagcoeff.Read());
+                                                    pp, point_pos_ordering,
+                                                    pgslm, NE_split_total,
+                                                    pwt, pbb,
+                                                    DEV.loc_hash_nx, plhm, plhf, plho,
+                                                    pcode, pelem, pref, pdist,
+                                                    pgll1d, plc);
       default: return FindPointsLocal2D_Kernel(npt, DEV.tol,
-                                                  point_pos.Read(), point_pos_ordering,
-                                                  gsl_mesh.Read(), NE_split_total,
-                                                  DEV.wtend.Read(),
-                                                  DEV.bb.Read(),
-                                                  DEV.loc_hash_nx,
-                                                  DEV.loc_hash_min.Read(),
-                                                  DEV.loc_hash_fac.Read(),
-                                                  DEV.loc_hash_offset.ReadWrite(),
-                                                  code.Write(),
-                                                  elem.Write(),
-                                                  ref.Write(),
-                                                  dist.Write(),
-                                                  DEV.gll1d.ReadWrite(),
-                                                  DEV.lagcoeff.Read(),
-                                                  DEV.dof1d);
+                                                  pp, point_pos_ordering,
+                                                  pgslm, NE_split_total,
+                                                  pwt, pbb,
+                                                  DEV.loc_hash_nx, plhm, plhf, plho,
+                                                  pcode, pelem, pref, pdist,
+                                                  pgll1d, plc, DEV.dof1d);
    }
 }
 
