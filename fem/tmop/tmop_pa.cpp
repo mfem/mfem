@@ -223,14 +223,14 @@ void TMOP_Integrator::AssemblePA_Fitting()
       Vector col_der(nelem*1*nqp*dim);
       internal::quadrature_interpolator::CollocatedTensorPhysDerivatives<L>(nelem, 1, maps, *geom, PA.S0, col_der);
       PA.D1.SetSize(col_der.Size(), Device::GetMemoryType());
-      PA.D1.UseDevice(true);
       PA.D1 = col_der;
+      PA.D1.HostRead();
 
-      // Vector col_der2(PA.ne*2*nqp*dim);
-      // internal::quadrature_interpolator::CollocatedTensorPhysDerivatives<L>(PA.ne, 2, maps, *geom, PA.D1, col_der2);
-      // PA.D2.SetSize(col_der2.Size(), Device::GetMemoryType());
-      // PA.D2.UseDevice(true);
-      // PA.D2 = col_der2;
+      Vector col_der2(nelem*2*nqp*dim);
+      internal::quadrature_interpolator::CollocatedTensorPhysDerivatives<L>(nelem, 2, maps, *geom, PA.D1, col_der2);
+      PA.D2.SetSize(col_der2.Size(), Device::GetMemoryType());
+      PA.D2 = col_der2;
+      PA.D2.HostRead();
    }
 
    // Scalar Q-vector of '1' for surface fitting, used to compute sums via dot product
@@ -390,16 +390,15 @@ void TMOP_Integrator::UpdateSurfaceFittingCoefficientsPA(const Vector &x_loc)
          constexpr bool P = true;
          const int sdim = 2; // spatial dimension = 2
          const int vdim = 1; // level-set field is a scalar function, so vdim = 1
+         
          internal::quadrature_interpolator::CollocatedDerivatives2D<L, P>
          (nelem,maps.G.Read(),Jacobians.Read(),PA.S0.Read(),PA.D1.Write(),sdim,vdim,maps.ndof);
          PA.D1.HostRead();
-      }
 
-      // constexpr QVectorLayout L = QVectorLayout::byNODES;
-      // internal::quadrature_interpolator::CollocatedTensorPhysDerivatives<L>(nelem, 1, maps, *geom, PA.S0, PA.D1);
-      // internal::quadrature_interpolator::CollocatedTensorPhysDerivatives<L>(nelem, 1, maps, *geom, PA.S0, PA.D1);
-      // PA.D1.Print();
-      // internal::quadrature_interpolator::CollocatedTensorPhysDerivatives<L>(nelem, 1, maps, *geom, PA.D1, PA.D2);
+         internal::quadrature_interpolator::CollocatedDerivatives2D<L, P>
+         (nelem,maps.G.Read(),Jacobians.Read(),PA.D1.Read(),PA.D2.Write(),sdim,vdim,maps.ndof);
+         PA.D2.HostRead();
+      }
    }
 
    ConstantCoefficient* cS = dynamic_cast<ConstantCoefficient*>(surf_fit_coeff);
