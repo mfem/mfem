@@ -476,11 +476,14 @@ static void CollocatedDerivatives2D(const int NE,
                real_t u = 0.0;
                real_t v = 0.0;
                real_t w = 0.0;
+               // std::cout << e << " " << X(dx,dy) << " " <<  " k10e-X\n";
                for (int dxy = 0; dxy < D1D; ++dxy)
                {
                   u += X(dxy, dy) * g(dx,dxy);
                   v += X(dx, dxy) * g(dy,dxy);
                }
+               // std::cout << e << " " << GRAD_PHYS << " " <<
+               // u << " " << v << " " <<  " k10e-u-v\n";
 
                if (GRAD_PHYS)
                {
@@ -491,6 +494,7 @@ static void CollocatedDerivatives2D(const int NE,
                      Jloc[1] = j(dx,dy,1,0,e);
                      Jloc[2] = j(dx,dy,0,1,e);
                      Jloc[3] = j(dx,dy,1,1,e);
+                     // std::cout << Jloc[0] << " " << Jloc[1] << " " << Jloc[2] << " " << Jloc[3] << " k10jloc\n";
                      kernels::CalcInverse<2>(Jloc, Jinv);
                      const real_t U = Jinv[0]*u + Jinv[1]*v;
                      const real_t V = Jinv[2]*u + Jinv[3]*v;
@@ -526,6 +530,7 @@ static void CollocatedDerivatives2D(const int NE,
                {
                   y(dx,dy,c,0,e) = u;
                   y(dx,dy,c,1,e) = v;
+                  // std::cout << e << " " <<  dx << " " << dy << " " << u << " " << v << " k10e-gradvals\n";
                   if (SDIM == 3) { y(dx,dy,c,2,e) = w; }
                }
             }

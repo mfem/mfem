@@ -17,6 +17,7 @@
 #include "../../general/forall.hpp"
 #include "../../linalg/kernels.hpp"
 #include "../qinterp/dispatch.hpp"
+#include "../qinterp/grad.hpp"
 
 namespace mfem
 {
@@ -188,7 +189,7 @@ void TMOP_Integrator::AssemblePA_Fitting()
       }
       if (count != 0) { PA.FE.Append(el_id);}
    }
-   
+
    if(surf_fit_grad)
    {
       const FiniteElementSpace *fes_grad = surf_fit_grad->FESpace();
@@ -213,7 +214,7 @@ void TMOP_Integrator::AssemblePA_Fitting()
       const NodalFiniteElement *nfe = dynamic_cast<const NodalFiniteElement*>(&fe);
       const Array<int> &irordering = nfe->GetLexicographicOrdering();
       IntegrationRule ir = irnodes.Permute(irordering);
-      int nqp = ir.GetNPoints(); 
+      int nqp = ir.GetNPoints();
       const DofToQuad maps = fe.GetDofToQuad(ir, DofToQuad::TENSOR);
       auto geom = fes_fit->GetMesh()->GetGeometricFactors(ir, GeometricFactors::JACOBIANS);
       int nelem = fes_fit->GetMesh()->GetNE();
@@ -225,13 +226,13 @@ void TMOP_Integrator::AssemblePA_Fitting()
       PA.D1.UseDevice(true);
       PA.D1 = col_der;
 
-      Vector col_der2(PA.ne*2*nqp*dim);
-      internal::quadrature_interpolator::CollocatedTensorPhysDerivatives<L>(PA.ne, 2, maps, *geom, PA.D1, col_der2);
-      PA.D2.SetSize(col_der2.Size(), Device::GetMemoryType());
-      PA.D2.UseDevice(true);
-      PA.D2 = col_der2;
+      // Vector col_der2(PA.ne*2*nqp*dim);
+      // internal::quadrature_interpolator::CollocatedTensorPhysDerivatives<L>(PA.ne, 2, maps, *geom, PA.D1, col_der2);
+      // PA.D2.SetSize(col_der2.Size(), Device::GetMemoryType());
+      // PA.D2.UseDevice(true);
+      // PA.D2 = col_der2;
    }
-   
+
    // Scalar Q-vector of '1' for surface fitting, used to compute sums via dot product
    PA.OFit.SetSize(PA.S0.Size(), Device::GetDeviceMemoryType());
    PA.OFit = 1.0;
@@ -340,7 +341,6 @@ void TMOP_Integrator::UpdateCoefficientsPA(const Vector &x_loc)
 
 void TMOP_Integrator::UpdateSurfaceFittingCoefficientsPA(const Vector &x_loc)
 {
-
    // Update surf_fit_gf and its gradients if surface
    // fitting is enabled.
    if (!surf_fit_gf) { return; }
@@ -363,18 +363,42 @@ void TMOP_Integrator::UpdateSurfaceFittingCoefficientsPA(const Vector &x_loc)
    }
    else
    {
-      // const FiniteElement &fe = *(fes_fit->GetFE(0));
-      // const IntegrationRule irnodes = fe.GetNodes();
-      // const NodalFiniteElement *nfe = dynamic_cast<const NodalFiniteElement*>(&fe);
-      // const Array<int> &irordering = nfe->GetLexicographicOrdering();
-      // IntegrationRule ir = irnodes.Permute(irordering);
-    
-      // int nelem = fes_fit->GetMesh()->GetNE();
-      // const DofToQuad maps = fe.GetDofToQuad(ir, DofToQuad::TENSOR);
-      // auto geom = fes_fit->GetMesh()->GetGeometricFactors(ir, GeometricFactors::JACOBIANS);
+      const FiniteElement &fe = *(fes_fit->GetFE(0));
+      const IntegrationRule irnodes = fe.GetNodes();
+      const NodalFiniteElement *nfe = dynamic_cast<const NodalFiniteElement*>(&fe);
+      const Array<int> &irordering = nfe->GetLexicographicOrdering();
+      IntegrationRule ir = irnodes.Permute(irordering);
+
+      int nelem = fes_fit->GetMesh()->GetNE();
+      const DofToQuad maps = fe.GetDofToQuad(ir, DofToQuad::TENSOR);
+
+      const Operator *R_nodes = PA.fes->GetElementRestriction(ordering);
+      Vector xelem;
+      xelem.SetSize(R_nodes->Height(), Device::GetMemoryType());
+      xelem.UseDevice(true);
+      R_nodes->Mult(x_loc, xelem);
+
+      Vector Jacobians;
+      Jacobians.SetSize(xelem.Size()*PA.dim, Device::GetMemoryType());
+      Jacobians.UseDevice(true);
+      constexpr QVectorLayout L = QVectorLayout::byNODES;
+
+      // Compute Jacobians since mesh might not know about coordinate change
+      internal::quadrature_interpolator::CollocatedTensorDerivatives<L>(nelem, PA.dim, maps, xelem, Jacobians);
+      if (PA.dim == 2)
+      {
+         constexpr bool P = true;
+         const int sdim = 2; // spatial dimension = 2
+         const int vdim = 1; // level-set field is a scalar function, so vdim = 1
+         internal::quadrature_interpolator::CollocatedDerivatives2D<L, P>
+         (nelem,maps.G.Read(),Jacobians.Read(),PA.S0.Read(),PA.D1.Write(),sdim,vdim,maps.ndof);
+         PA.D1.HostRead();
+      }
 
       // constexpr QVectorLayout L = QVectorLayout::byNODES;
       // internal::quadrature_interpolator::CollocatedTensorPhysDerivatives<L>(nelem, 1, maps, *geom, PA.S0, PA.D1);
+      // internal::quadrature_interpolator::CollocatedTensorPhysDerivatives<L>(nelem, 1, maps, *geom, PA.S0, PA.D1);
+      // PA.D1.Print();
       // internal::quadrature_interpolator::CollocatedTensorPhysDerivatives<L>(nelem, 1, maps, *geom, PA.D1, PA.D2);
    }
 

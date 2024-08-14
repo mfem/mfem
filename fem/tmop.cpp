@@ -4597,6 +4597,7 @@ void TMOP_Integrator::RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
    else
    {
       surf_fit_eval->ComputeAtNewPosition(new_x, *surf_fit_gf, new_x_ordering);
+      // std::cout << surf_fit_gf->Norml2() << " k10sgfnorm1\n";
       if (surf_fit_eval_grad)
       {
          surf_fit_eval_grad->ComputeAtNewPosition(new_x, *surf_fit_grad,

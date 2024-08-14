@@ -186,7 +186,7 @@ void FindPointsGSLIB::Setup(Mesh &m, const double bb_t, const double newt_tol,
 void FindPointsGSLIB::FindPoints(const Vector &point_pos,
                                  int point_pos_ordering)
 {
-   point_pos.HostRead();
+   auto pp = point_pos.HostRead();
    MFEM_VERIFY(setupflag, "Use FindPointsGSLIB::Setup before finding points.");
    points_cnt = point_pos.Size() / dim;
    gsl_code.SetSize(points_cnt);
@@ -201,12 +201,12 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
       {
          if (point_pos_ordering == Ordering::byNODES)
          {
-            xv_base[d] = point_pos.GetData() + d*points_cnt;
+            xv_base[d] = pp + d*points_cnt;
             xv_stride[d] = sizeof(double);
          }
          else
          {
-            xv_base[d] = point_pos.GetData() + d;
+            xv_base[d] = pp + d;
             xv_stride[d] = dim*sizeof(double);
          }
       }

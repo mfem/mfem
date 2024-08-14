@@ -65,6 +65,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_Fit_2D,
 
             const real_t dx = D1(qx,qy,0,e);
             const real_t dy = D1(qx,qy,1,e);
+            // std::cout << e << " " << " " << sigma << " " << dx << " " << dy << " k10-e-dx-dy\n";
 
             double w = marker * normal * coeff * 1.0/dof_count;
             Y(qx,qy,0,e) += 2 * w * sigma * dx;
@@ -91,6 +92,7 @@ void TMOP_Integrator::AddMultPA_Fit_2D(const Vector &X, Vector &Y) const
    const Vector &D1 = PA.D1;
 
    const Array<int> &FE = PA.FE;
+   // D1.Print();
 
    MFEM_LAUNCH_TMOP_KERNEL(AddMultPA_Kernel_Fit_2D,id,N,PW,N0,S0,DC,M0,D1,FE,Y);
 }
