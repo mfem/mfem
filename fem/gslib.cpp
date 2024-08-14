@@ -721,7 +721,7 @@ void FindPointsGSLIB::SetupDevice()
          p_loc_hash_min[d] = hash.bnd[d].min;
          p_loc_hash_fac[d] = hash.fac[d];
       }
-      DEV.loc_hash_nx = hash.hash_n;
+      DEV.h_nx = hash.hash_n;
    }
    else
    {
@@ -734,16 +734,16 @@ void FindPointsGSLIB::SetupDevice()
          p_loc_hash_min[d] = hash.bnd[d].min;
          p_loc_hash_fac[d] = hash.fac[d];
       }
-      DEV.loc_hash_nx = hash.hash_n;
+      DEV.h_nx = hash.hash_n;
    }
 
-   DEV.hd_d_size = dim == 2 ?
-                   findptsData2->local.hd.offset[(int)std::pow(DEV.loc_hash_nx, dim)] :
-                   findptsData3->local.hd.offset[(int)std::pow(DEV.loc_hash_nx, dim)];
+   DEV.h_o_size = dim == 2 ?
+                  findptsData2->local.hd.offset[(int)std::pow(DEV.h_nx, dim)] :
+                  findptsData3->local.hd.offset[(int)std::pow(DEV.h_nx, dim)];
 
-   DEV.loc_hash_offset.SetSize(DEV.hd_d_size);
+   DEV.loc_hash_offset.SetSize(DEV.h_o_size);
    auto p_ou_offset = DEV.loc_hash_offset.HostWrite();
-   for (int i = 0; i < DEV.hd_d_size; i++)
+   for (int i = 0; i < DEV.h_o_size; i++)
    {
       p_ou_offset[i] = dim == 2 ? findptsData2->local.hd.offset[i] :
                        findptsData3->local.hd.offset[i];
@@ -1054,7 +1054,7 @@ Mesh* FindPointsGSLIB::GetBoundingBoxMesh(int type)
          }
       }
    }
-   else
+   else // dim = 2
    {
       for (int e = 0; e < nel; e++)
       {

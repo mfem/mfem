@@ -135,10 +135,6 @@ void FindPointsGSLIB::InterpolateLocal3(const Vector &field_in,
    switch (dof1Dsol)
    {
       case 2: return InterpolateLocal3D_Kernel<2>(pfin, pgsl, pgslr, pfout,
-                                                     // field_in.Read(),
-                                                     // gsl_elem_dev_l.ReadWrite(),
-                                                     // gsl_ref_l.ReadWrite(),
-                                                     // field_out.Write(),
                                                      npt, ncomp, nel, gf_offset,
                                                      pgll, plcf);
       // DEV.gll1d_sol.ReadWrite(),

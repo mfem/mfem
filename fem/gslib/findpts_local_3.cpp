@@ -1776,7 +1776,7 @@ void FindPointsGSLIB::FindPointsLocal3(const Vector &point_pos,
                                             pp, point_pos_ordering,
                                             pgslm, NE_split_total,
                                             pwt, pbb,
-                                            DEV.loc_hash_nx, plhm, plhf, plho,
+                                            DEV.h_nx, plhm, plhf, plho,
                                             pcode, pelem, pref, pdist,
                                             pgll1d, plc);
          break;
@@ -1784,7 +1784,7 @@ void FindPointsGSLIB::FindPointsLocal3(const Vector &point_pos,
                                             pp, point_pos_ordering,
                                             pgslm, NE_split_total,
                                             pwt, pbb,
-                                            DEV.loc_hash_nx, plhm, plhf, plho,
+                                            DEV.h_nx, plhm, plhf, plho,
                                             pcode, pelem, pref, pdist,
                                             pgll1d, plc);
          break;
@@ -1792,7 +1792,7 @@ void FindPointsGSLIB::FindPointsLocal3(const Vector &point_pos,
                                             pp, point_pos_ordering,
                                             pgslm, NE_split_total,
                                             pwt, pbb,
-                                            DEV.loc_hash_nx, plhm, plhf, plho,
+                                            DEV.h_nx, plhm, plhf, plho,
                                             pcode, pelem, pref, pdist,
                                             pgll1d, plc);
          break;
@@ -1800,7 +1800,7 @@ void FindPointsGSLIB::FindPointsLocal3(const Vector &point_pos,
                                             pp, point_pos_ordering,
                                             pgslm, NE_split_total,
                                             pwt, pbb,
-                                            DEV.loc_hash_nx, plhm, plhf, plho,
+                                            DEV.h_nx, plhm, plhf, plho,
                                             pcode, pelem, pref, pdist,
                                             pgll1d, plc);
          break;
@@ -1808,7 +1808,7 @@ void FindPointsGSLIB::FindPointsLocal3(const Vector &point_pos,
                                             pp, point_pos_ordering,
                                             pgslm, NE_split_total,
                                             pwt, pbb,
-                                            DEV.loc_hash_nx, plhm, plhf, plho,
+                                            DEV.h_nx, plhm, plhf, plho,
                                             pcode, pelem, pref, pdist,
                                             pgll1d, plc);
          break;
@@ -1816,7 +1816,7 @@ void FindPointsGSLIB::FindPointsLocal3(const Vector &point_pos,
                                           pp, point_pos_ordering,
                                           pgslm, NE_split_total,
                                           pwt, pbb,
-                                          DEV.loc_hash_nx, plhm, plhf, plho,
+                                          DEV.h_nx, plhm, plhf, plho,
                                           pcode, pelem, pref, pdist,
                                           pgll1d, plc, DEV.dof1d);
    }

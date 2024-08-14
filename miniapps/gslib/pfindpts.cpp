@@ -595,7 +595,6 @@ int main (int argc, char *argv[])
 
    if (visit && myid == 0)
    {
-      std::cout << mesh_lhbb->GetNE() << " k10localmeshhashbounding\n";
       VisItDataCollection dc("finderlhbb", mesh_lhbb);
       dc.SetFormat(DataCollection::SERIAL_FORMAT);
       dc.Save();
