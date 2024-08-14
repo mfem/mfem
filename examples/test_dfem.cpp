@@ -362,76 +362,78 @@ using mfem::internal::tensor;
 //    return 0;
 // }
 
-// int test_domain_lf_integrator(std::string mesh_file,
-//                               int refinements,
-//                               int polynomial_order)
-// {
-//    Mesh mesh_serial = Mesh(mesh_file);
-//    for (int i = 0; i < refinements; i++)
-//    {
-//       mesh_serial.UniformRefinement();
-//    }
-//    ParMesh mesh(MPI_COMM_WORLD, mesh_serial);
+int test_domain_lf_integrator(std::string mesh_file,
+                              int refinements,
+                              int polynomial_order)
+{
+   Mesh mesh_serial = Mesh(mesh_file);
+   for (int i = 0; i < refinements; i++)
+   {
+      mesh_serial.UniformRefinement();
+   }
+   ParMesh mesh(MPI_COMM_WORLD, mesh_serial);
 
-//    mesh.SetCurvature(1);
-//    const int dim = mesh.Dimension();
-//    mesh_serial.Clear();
+   mesh.SetCurvature(1);
+   const int dim = mesh.Dimension();
+   mesh_serial.Clear();
 
-//    ParGridFunction* mesh_nodes = static_cast<ParGridFunction *>(mesh.GetNodes());
-//    ParFiniteElementSpace &mesh_fes = *mesh_nodes->ParFESpace();
+   ParGridFunction* mesh_nodes = static_cast<ParGridFunction *>(mesh.GetNodes());
+   ParFiniteElementSpace &mesh_fes = *mesh_nodes->ParFESpace();
 
-//    H1_FECollection h1fec(polynomial_order, dim);
-//    ParFiniteElementSpace h1fes(&mesh, &h1fec);
+   H1_FECollection h1fec(polynomial_order, dim);
+   ParFiniteElementSpace h1fes(&mesh, &h1fec);
 
-//    const IntegrationRule &ir =
-//       IntRules.Get(h1fes.GetFE(0)->GetGeomType(), 2 * h1fec.GetOrder());
+   const IntegrationRule &ir =
+      IntRules.Get(h1fes.GetFE(0)->GetGeomType(), 2 * h1fec.GetOrder());
 
-//    ParGridFunction f1_g(&h1fes);
+   ParGridFunction f1_g(&h1fes);
 
-//    auto kernel = [](const double &u, const tensor<double, 2, 2> &J,
-//                     const double &w)
-//    {
-//       return std::tuple{u * det(J) * w};
-//    };
+   auto kernel = [](const double &u, const tensor<double, 2, 2> &J,
+                    const double &w)
+   {
+      // out << "u: " << u << "\n";
+      // out << "J: " << J << "\n";
+      return serac::tuple{u * det(J) * w};
+   };
 
-//    std::tuple argument_operators = {Value{"potential"}, Gradient{"coordinates"}, Weight{}};
-//    std::tuple output_operator = {Value{"potential"}};
+   serac::tuple argument_operators = {Value{"potential"}, Gradient{"coordinates"}, Weight{}};
+   serac::tuple output_operator = {Value{"potential"}};
 
-//    ElementOperator eop{kernel, argument_operators, output_operator};
-//    auto ops = std::tuple{eop};
+   ElementOperator eop{kernel, argument_operators, output_operator};
+   auto ops = serac::tuple{eop};
 
-//    auto solutions = std::array{FieldDescriptor{&h1fes, "potential"}};
-//    auto parameters = std::array{FieldDescriptor{&mesh_fes, "coordinates"}};
+   auto solutions = std::array{FieldDescriptor{&h1fes, "potential"}};
+   auto parameters = std::array{FieldDescriptor{&mesh_fes, "coordinates"}};
 
-//    DifferentiableOperator dop(solutions, parameters, ops, mesh, ir);
+   DifferentiableOperator dop(solutions, parameters, ops, mesh, ir);
 
-//    auto f1 = [](const Vector &coords)
-//    {
-//       const double x = coords(0);
-//       const double y = coords(1);
-//       return 2.345 + x + y;
-//    };
+   auto f1 = [](const Vector &coords)
+   {
+      const double x = coords(0);
+      const double y = coords(1);
+      return 2.345 + x + y;
+   };
 
-//    FunctionCoefficient f1_c(f1);
-//    f1_g.ProjectCoefficient(f1_c);
+   FunctionCoefficient f1_c(f1);
+   f1_g.ProjectCoefficient(f1_c);
 
-//    Vector x(f1_g), y(h1fes.TrueVSize());
-//    dop.SetParameters({mesh_nodes});
-//    dop.Mult(x, y);
+   Vector x(f1_g), y(h1fes.TrueVSize());
+   dop.SetParameters({mesh_nodes});
+   dop.Mult(x, y);
 
-//    ParLinearForm b(&h1fes);
-//    b.AddDomainIntegrator(new DomainLFIntegrator(f1_c));
-//    b.Assemble();
+   ParLinearForm b(&h1fes);
+   b.AddDomainIntegrator(new DomainLFIntegrator(f1_c));
+   b.Assemble();
 
-//    b -= y;
-//    if (b.Norml2() > 1e-10)
-//    {
-//       out << "||u - u_ex||_l2 = " << b.Norml2() << "\n";
-//       return 1;
-//    }
+   b -= y;
+   if (b.Norml2() > 1e-10)
+   {
+      out << "||u - u_ex||_l2 = " << b.Norml2() << "\n";
+      return 1;
+   }
 
-//    return 0;
-// }
+   return 0;
+}
 
 // int test_boundary_lf_integrator(std::string mesh_file,
 //                                 int refinements,
@@ -664,9 +666,9 @@ int test_diffusion_integrator(std::string mesh_file,
    Vector y2(h1fes.TrueVSize());
    a.Mult(x, y2);
    y2 -= y;
-   out << "||F(u) - ex||_l2 = " << y2.Norml2() << "\n";
    if (y2.Norml2() > 1e-10)
    {
+      out << "||F(u) - ex||_l2 = " << y2.Norml2() << "\n";
       return 1;
    }
 
@@ -1256,97 +1258,104 @@ int test_diffusion_integrator(std::string mesh_file,
 //    return 0;
 // }
 
-// int test_elasticity_integrator(std::string mesh_file,
-//                                int refinements,
-//                                int polynomial_order,
-//                                int ir_order)
-// {
-//    Mesh mesh_serial = Mesh(mesh_file);
-//    for (int i = 0; i < refinements; i++)
-//    {
-//       mesh_serial.UniformRefinement();
-//    }
-//    ParMesh mesh(MPI_COMM_WORLD, mesh_serial);
+int test_elasticity_integrator(std::string mesh_file,
+                               int refinements,
+                               int polynomial_order,
+                               int ir_order)
+{
+   Mesh mesh_serial = Mesh(mesh_file);
+   for (int i = 0; i < refinements; i++)
+   {
+      mesh_serial.UniformRefinement();
+   }
+   ParMesh mesh(MPI_COMM_WORLD, mesh_serial);
 
-//    mesh.SetCurvature(1);
-//    const int dim = mesh.Dimension();
-//    const int vdim = dim;
-//    mesh_serial.Clear();
+   mesh.SetCurvature(1);
+   const int dim = mesh.Dimension();
+   const int vdim = dim;
+   mesh_serial.Clear();
 
-//    ParGridFunction* mesh_nodes = static_cast<ParGridFunction *>(mesh.GetNodes());
-//    ParFiniteElementSpace &mesh_fes = *mesh_nodes->ParFESpace();
+   ParGridFunction* mesh_nodes = static_cast<ParGridFunction *>(mesh.GetNodes());
+   ParFiniteElementSpace &mesh_fes = *mesh_nodes->ParFESpace();
 
-//    H1_FECollection h1fec(polynomial_order, dim);
-//    ParFiniteElementSpace h1fes(&mesh, &h1fec, vdim);
+   H1_FECollection h1fec(polynomial_order, dim);
+   ParFiniteElementSpace h1fes(&mesh, &h1fec, vdim);
 
-//    Array<int> ess_bdr(mesh.bdr_attributes.Max());
-//    Array<int> ess_tdof;
-//    ess_bdr = 1;
-//    h1fes.GetEssentialTrueDofs(ess_bdr, ess_tdof);
+   Array<int> ess_bdr(mesh.bdr_attributes.Max());
+   Array<int> ess_tdof;
+   ess_bdr = 1;
+   h1fes.GetEssentialTrueDofs(ess_bdr, ess_tdof);
 
-//    const IntegrationRule &ir =
-//       IntRules.Get(h1fes.GetFE(0)->GetGeomType(), ir_order * h1fec.GetOrder());
+   const IntegrationRule &ir =
+      IntRules.Get(h1fes.GetFE(0)->GetGeomType(), ir_order * h1fec.GetOrder());
 
-//    ParGridFunction u(&h1fes);
+   out << "#qp: " << ir.GetNPoints() << "\n";
+   out << "#dof_el: " << h1fes.GetRestrictionMatrix()->Height() / mesh.GetNE() <<
+       "\n";
 
-//    ConstantCoefficient l_coeff(0.5), m_coeff(0.25);
+   ParGridFunction u(&h1fes);
 
-//    ParBilinearForm A_form(&h1fes);
-//    auto A_integ = new ElasticityIntegrator(l_coeff, m_coeff);
-//    A_integ->SetIntegrationRule(ir);
-//    A_form.AddDomainIntegrator(A_integ);
-//    A_form.Assemble();
-//    A_form.Finalize();
-//    auto A_mat = A_form.ParallelAssemble();
+   ConstantCoefficient l_coeff(0.5), m_coeff(0.25);
 
-//    // A_mat->PrintMatlab(out);
-//    // std::ofstream amatofs("mfem_mat.dat");
-//    // A_mat->PrintMatlab(amatofs);
-//    // amatofs.close();
+   ParBilinearForm A_form(&h1fes);
+   auto A_integ = new ElasticityIntegrator(l_coeff, m_coeff);
+   A_integ->SetIntegrationRule(ir);
+   A_form.AddDomainIntegrator(A_integ);
+   A_form.Assemble();
+   A_form.Finalize();
+   auto A_mat = A_form.ParallelAssemble();
 
-//    auto elasticity_kernel = [](const tensor<double, 2, 2> &dudxi,
-//                                const tensor<double, 2, 2> &J,
-//                                const double &w)
-//    {
-//       constexpr double lambda = 0.5;
-//       constexpr double mu = 0.25;
-//       static constexpr auto I = mfem::internal::IsotropicIdentity<2>();
-//       // out << J << "\n";
-//       auto invJ = inv(J);
-//       auto eps = sym(dudxi * invJ);
-//       return std::tuple{transpose((lambda * tr(eps) * I + 2.0 * mu * eps) * det(J) * w * transpose(invJ))};
-//    };
+   // A_mat->PrintMatlab(out);
+   // std::ofstream amatofs("mfem_mat.dat");
+   // A_mat->PrintMatlab(amatofs);
+   // amatofs.close();
 
-//    std::tuple argument_operators{Gradient{"displacement"}, Gradient{"coordinates"}, Weight{}};
-//    std::tuple output_operator{Gradient{"displacement"}};
+   auto elasticity_kernel = [](const tensor<double, 2, 2> &dudxi,
+                               const tensor<double, 2, 2> &J,
+                               const double &w)
+   {
+      constexpr double lambda = 0.5;
+      constexpr double mu = 0.25;
+      static constexpr auto I = mfem::internal::IsotropicIdentity<2>();
+      auto invJ = inv(J);
+      auto eps = sym(dudxi * invJ);
+      return serac::tuple{transpose((lambda * tr(eps) * I + 2.0 * mu * eps) * det(J) * w * transpose(invJ))};
+   };
 
-//    ElementOperator op{elasticity_kernel, argument_operators, output_operator};
+   serac::tuple argument_operators{Gradient{"displacement"}, Gradient{"coordinates"}, Weight{}};
+   serac::tuple output_operator{Gradient{"displacement"}};
 
-//    std::array solutions{FieldDescriptor{&h1fes, "displacement"}};
-//    std::array parameters{FieldDescriptor{&mesh_fes, "coordinates"}};
+   ElementOperator op{elasticity_kernel, argument_operators, output_operator};
 
-//    DifferentiableOperator dop{solutions, parameters, std::tuple{op}, mesh, ir};
+   std::array solutions{FieldDescriptor{&h1fes, "displacement"}};
+   std::array parameters{FieldDescriptor{&mesh_fes, "coordinates"}};
 
-//    Vector x(h1fes.GetTrueVSize()), y1(h1fes.GetTrueVSize()),
-//           y2(h1fes.GetTrueVSize());
+   DifferentiableOperator dop{solutions, parameters, serac::tuple{op}, mesh, ir};
 
-//    x.Randomize(12345);
-//    A_mat->Mult(x, y1);
+   Vector x(h1fes.GetTrueVSize()), y1(h1fes.GetTrueVSize()),
+          y2(h1fes.GetTrueVSize());
 
-//    // out << ">>> y1\n";
-//    // print_vector(y1);
+   x.Randomize(12345);
+   A_mat->Mult(x, y1);
 
-//    dop.SetParameters({mesh_nodes});
-//    dop.Mult(x, y2);
+   // out << ">>> y1\n";
+   // print_vector(y1);
 
-//    // out << ">>> y2\n";
-//    // print_vector(y2);
+   dop.SetParameters({mesh_nodes});
+   dop.Mult(x, y2);
 
-//    y2 -= y1;
-//    out << "norm: " << y2.Norml2() << "\n";
+   // out << ">>> y2\n";
+   // print_vector(y2);
 
-//    return 0;
-// }
+   y2 -= y1;
+   if (y2.Norml2() > 1e-10)
+   {
+      out << "||u - u_ex||_l2 = " << y2.Norml2() << "\n";
+      return 1;
+   }
+
+   return 0;
+}
 
 
 // int test_assemble_mixed_gradient_hypreparmatrix(std::string mesh_file,
@@ -1649,11 +1658,11 @@ int main(int argc, char *argv[])
    // out << "test_interpolate_gradient_vector";
    // ret ? out << " FAILURE\n" : out << " OK\n";
 
-   // ret = test_domain_lf_integrator(mesh_file,
-   //                                 refinements,
-   //                                 polynomial_order);
-   // out << "test_domain_lf_integrator";
-   // ret ? out << " FAILURE\n" : out << " OK\n";
+   ret = test_domain_lf_integrator(mesh_file,
+                                   refinements,
+                                   polynomial_order);
+   out << "test_domain_lf_integrator";
+   ret ? out << " FAILURE\n" : out << " OK\n";
 
    // ret = test_boundary_lf_integrator(mesh_file,
    //                                   refinements,
@@ -1667,10 +1676,10 @@ int main(int argc, char *argv[])
    out << "test_diffusion_integrator";
    ret ? out << " FAILURE\n" : out << " OK\n";
 
-   // ret = test_elasticity_integrator(mesh_file, refinements,
-   //                                  polynomial_order, ir_order);
-   // out << "test_elasticity_integrator";
-   // ret ? out << " FAILURE\n" : out << " OK\n";
+   ret = test_elasticity_integrator(mesh_file, refinements,
+                                    polynomial_order, ir_order);
+   out << "test_elasticity_integrator";
+   ret ? out << " FAILURE\n" : out << " OK\n";
 
    // ret = test_qoi(mesh_file, refinements, polynomial_order);
    // out << "test_qoi";

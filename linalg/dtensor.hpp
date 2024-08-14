@@ -87,7 +87,9 @@ protected:
 
 public:
    /// Default constructor
-   DeviceTensor() = delete;
+   // DeviceTensor() = delete;
+   MFEM_HOST_DEVICE
+   DeviceTensor() {}
 
    /// Constructor to initialize a tensor from the Scalar array data_
    template <typename... Args> MFEM_HOST_DEVICE

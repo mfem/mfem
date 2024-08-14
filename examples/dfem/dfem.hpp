@@ -55,7 +55,7 @@ constexpr auto get_type_name() -> std::string_view
    return function.substr(start, size);
 }
 
-void print_matrix(const mfem::DenseMatrix m)
+void print_matrix(const mfem::DenseMatrix& m)
 {
    std::cout << "[";
    for (int i = 0; i < m.NumRows(); i++)
@@ -76,12 +76,27 @@ void print_matrix(const mfem::DenseMatrix m)
    std::cout << "]\n";
 }
 
-void print_vector(const mfem::Vector v)
+void print_vector(const mfem::Vector& v)
 {
    std::cout << "[";
    for (int i = 0; i < v.Size(); i++)
    {
       std::cout << v(i);
+      if (i < v.Size() - 1)
+      {
+         std::cout << " ";
+      }
+   }
+   std::cout << "]\n";
+}
+
+template <typename T>
+void print_array(const mfem::Array<T>& v)
+{
+   std::cout << "[";
+   for (int i = 0; i < v.Size(); i++)
+   {
+      std::cout << v[i];
       if (i < v.Size() - 1)
       {
          std::cout << " ";
@@ -141,6 +156,44 @@ struct BoundaryElement;
 struct Face;
 struct BoundaryFace;
 };
+
+struct TensorProduct;
+struct NonTensorProduct;
+
+#if (defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
+template <typename func_t>
+__global__ void forall_kernel_shmem(func_t f, int n)
+{
+   int i = threadIdx.x + blockIdx.x * blockDim.x;
+   extern __shared__ double shmem[];
+   if (i < n) { f(i, shmem); }
+}
+#endif
+
+template <typename func_t>
+void forall(func_t f,
+            int n,
+            int blocksize = 128,
+            int num_shmem = 0,
+            double *shmem = nullptr)
+{
+   if (Device::Allows(Backend::CPU_MASK))
+   {
+      MFEM_ASSERT(!((bool)num_shmem != (bool)shmem),
+                  "Device::CPU needs a pre-allocated shared memory block");
+      for (int i = 0; i < n; i++) { f(i, shmem); }
+   }
+   else if (Device::Allows(Backend::CUDA_MASK) ||
+            Device::Allows(Backend::HIP_MASK))
+   {
+#if (defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
+      int gridsize = (n + blocksize - 1) / blocksize;
+      int num_bytes = num_shmem * sizeof(decltype(shmem));
+      forall_kernel_shmem<<<gridsize,blocksize,shmem>>>(f, n, num_bytes);
+      MFEM_DEVICE_SYNC;
+#endif
+   }
+}
 
 template <typename entity_t>
 GeometricFactorMaps GetGeometricFactorMaps(Mesh &mesh,
@@ -833,35 +886,151 @@ struct DofToQuadMap
 {
    static constexpr int rank = 3;
    DeviceTensor<rank, const double> B;
+   DeviceTensor<rank, const double> G;
    const int which_input = -1;
-
-   MFEM_HOST_DEVICE inline
-   const double& operator()(int qp, int d, int dof) const
-   {
-      return B(qp, d, dof);
-   }
-
-   MFEM_HOST_DEVICE inline
-   std::array<int, rank> GetShape() const
-   {
-      return B.GetShape();
-   }
 };
+
+template <typename field_operator_t>
+MFEM_HOST_DEVICE
+void map_field_to_quadrature_data_tensor_product(
+   DeviceTensor<2> field_qp,
+   int entity_idx,
+   const DofToQuadMap &dtq,
+   const DeviceTensor<1, const double> &field_e,
+   field_operator_t &input,
+   DeviceTensor<1, const double> integration_weights,
+   GeometricFactorMaps geometric_factors)
+{
+   auto B = dtq.B;
+   auto G = dtq.G;
+
+   if constexpr (std::is_same_v<field_operator_t, BareFieldOperator::Value>)
+   {
+      auto [q1d, unused, d1d] = B.GetShape();
+      const int vdim = input.vdim;
+      const int entity_offset = entity_idx * d1d * d1d * vdim;
+      const auto field = Reshape(&field_e[0] + entity_offset, d1d, d1d, vdim);
+      auto fqp = Reshape(&field_qp[0], q1d, q1d, vdim);
+
+      // TODO-bug: make this shared memory
+      Vector S1mem(q1d*d1d);
+      auto S1 = Reshape(S1mem.Write(), q1d, d1d);
+
+      for (int vd = 0; vd < vdim; vd++)
+      {
+         for (int dy = 0; dy < d1d; dy++)
+         {
+            for (int qx = 0; qx < q1d; qx++)
+            {
+               double acc = 0.0;
+               for (int dx = 0; dx < d1d; dx++)
+               {
+                  acc += B(qx, 0, dx) * field(dx, dy, vd);
+               }
+               S1(qx, dy) = acc;
+            }
+         }
+         for (int qx = 0; qx < q1d; qx++)
+         {
+            for (int qy = 0; qy < q1d; qy++)
+            {
+               double acc = 0.0;
+               for (int dy = 0; dy < d1d; dy++)
+               {
+                  acc += B(qy, 0, dy) * S1(qx, dy);
+               }
+               fqp(qx, qy, vd) = acc;
+            }
+         }
+      }
+   }
+   else if constexpr (
+      std::is_same_v<field_operator_t, BareFieldOperator::Gradient>)
+   {
+      const auto [q1d, unused, d1d] = B.GetShape();
+      const int vdim = input.vdim;
+      const int dim = input.dim;
+      const int entity_offset = entity_idx * d1d * d1d * vdim;
+      const auto field = Reshape(&field_e[0] + entity_offset, d1d, d1d, vdim);
+      auto fqp = Reshape(&field_qp[0], vdim, dim, q1d, q1d);
+
+      // TODO-bug: make this shared memory
+      Vector dq0mem(q1d*d1d);
+      Vector dq1mem(q1d*d1d);
+      auto dq0 = Reshape(dq0mem.Write(), d1d, q1d);
+      auto dq1 = Reshape(dq1mem.Write(), d1d, q1d);
+
+      for (int vd = 0; vd < vdim; vd++)
+      {
+         for (int dy = 0; dy < d1d; dy++)
+         {
+            for (int qx = 0; qx < q1d; qx++)
+            {
+               double u = 0.0;
+               double v = 0.0;
+               for (int dx = 0; dx < d1d; dx++)
+               {
+                  u += B(qx, 0, dx) * field(dx, dy, vd);
+                  v += G(qx, 0, dx) * field(dx, dy, vd);
+               }
+               dq0(dy, qx) = u;
+               dq1(dy, qx) = v;
+            }
+         }
+
+         for (int qy = 0; qy < q1d; qy++)
+         {
+            for (int qx = 0; qx < q1d; qx++)
+            {
+               double du[3] = {0.0, 0.0, 0.0};
+               for (int dy = 0; dy < d1d; dy++)
+               {
+                  du[0] += dq1(dy, qx) * B(qy, 0, dy);
+                  du[1] += dq0(dy, qx) * G(qy, 0, dy);
+               }
+
+               for (int s = 0; s < dim; s++)
+               {
+                  fqp(vd, s, qx, qy) = du[s];
+               }
+            }
+         }
+      }
+   }
+   // TODO: Create separate function for clarity
+   else if constexpr (std::is_same_v<field_operator_t, BareFieldOperator::Weight>)
+   {
+      const int num_qp = integration_weights.GetShape()[0];
+      auto f = Reshape(&field_qp[0], num_qp);
+      for (int qp = 0; qp < num_qp; qp++)
+      {
+         f(qp) = integration_weights(qp);
+      }
+   }
+   else
+   {
+      static_assert(always_false<field_operator_t>,
+                    "can't map field to quadrature data");
+   }
+}
+
 
 template <typename field_operator_t>
 MFEM_HOST_DEVICE
 void map_field_to_quadrature_data(
    DeviceTensor<2> field_qp,
    int entity_idx,
-   const DofToQuadMap &B,
+   const DofToQuadMap &dtq,
    const DeviceTensor<1, const double> &field_e,
    field_operator_t &input,
    DeviceTensor<1, const double> integration_weights,
    GeometricFactorMaps geometric_factors)
 {
+   auto B = dtq.B;
+   auto G = dtq.G;
    if constexpr (std::is_same_v<field_operator_t, BareFieldOperator::Value>)
    {
-      auto [num_qp, unused, num_dof] = B.GetShape();
+      auto [num_qp, dim, num_dof] = B.GetShape();
       const int vdim = input.vdim;
       const int entity_offset = entity_idx * num_dof * vdim;
       const auto field = Reshape(&field_e(0) + entity_offset, num_dof, vdim);
@@ -882,7 +1051,7 @@ void map_field_to_quadrature_data(
    else if constexpr (
       std::is_same_v<field_operator_t, BareFieldOperator::Gradient>)
    {
-      const auto [num_qp, dim, num_dof] = B.GetShape();
+      const auto [num_qp, dim, num_dof] = G.GetShape();
       const int vdim = input.vdim;
       const int entity_offset = entity_idx * num_dof * vdim;
       const auto field = Reshape(&field_e(0) + entity_offset, num_dof, vdim);
@@ -897,78 +1066,13 @@ void map_field_to_quadrature_data(
                double acc = 0.0;
                for (int dof = 0; dof < num_dof; dof++)
                {
-                  acc += B(qp, d, dof) * field(dof, vd);
+                  acc += G(qp, d, dof) * field(dof, vd);
                }
                f(vd, d, qp) = acc;
             }
          }
       }
    }
-   // else if constexpr (std::is_same_v<field_operator_t, Curl>)
-   // {
-   //    const auto [num_qp, cdim, num_dof] = B.GetShape();
-   //    const int vdim = input.vdim;
-   //    const int entity_offset = entity_idx * num_dof * vdim;
-   //    const auto field = Reshape(&field_e(0) + entity_offset, num_dof, vdim,
-   //                               cdim);
-
-   //    auto f = Reshape(&field_qp[0], vdim, cdim, num_qp);
-   //    for (int qp = 0; qp < num_qp; qp++)
-   //    {
-   //       for (int vd = 0; vd < vdim; vd++)
-   //       {
-   //          for (int cd = 0; cd < cdim; cd++)
-   //          {
-   //             double acc = 0.0;
-   //             for (int dof = 0; dof < num_dof; dof++)
-   //             {
-   //                acc += B(qp, cd, dof) * field(dof, vd, cd);
-   //             }
-   //             f(vd, cd, qp) = acc;
-   //          }
-   //       }
-   //    }
-   // }
-   // else if constexpr (std::is_same_v<field_operator_t, FaceValueLeft>)
-   // {
-   //    auto [num_qp, unused, num_dof] = B.GetShape();
-   //    const int vdim = input.vdim;
-   //    const int entity_offset = entity_idx * num_dof * vdim;
-   //    const auto field = Reshape(&field_e(0) + entity_offset, num_dof, vdim);
-
-   //    // for (int vd = 0; vd < vdim; vd++)
-   //    // {
-   //    //    for (int qp = 0; qp < num_qp; qp++)
-   //    //    {
-   //    //       double acc = 0.0;
-   //    //       for (int dof = 0; dof < num_dof; dof++)
-   //    //       {
-   //    //          acc += B(qp, 0, dof) * field(dof, vd);
-   //    //       }
-   //    //       field_qp(vd, qp) = acc;
-   //    //    }
-   //    // }
-   // }
-   // else if constexpr (std::is_same_v<field_operator_t, FaceValueRight>)
-   // {
-   //    auto [num_qp, unused, num_dof] = B.GetShape();
-   //    const int vdim = input.vdim;
-   //    const int entity_offset = entity_idx * num_dof * vdim;
-   //    const auto field = Reshape(&field_e(0) + entity_offset, num_dof, vdim);
-
-   //    // for (int vd = 0; vd < vdim; vd++)
-   //    // {
-   //    //    for (int qp = 0; qp < num_qp; qp++)
-   //    //    {
-   //    //       double acc = 0.0;
-   //    //       for (int dof = 0; dof < num_dof; dof++)
-   //    //       {
-   //    //          acc += B(qp, 0, dof) * field(dof, vd);
-   //    //       }
-   //    //       field_qp(vd, qp) = acc;
-   //    //    }
-   //    // }
-   // }
    // else if constexpr (std::is_same_v<field_operator_t, FaceNormal>)
    // {
    //    auto normal = geometric_factors.normal;
@@ -1012,7 +1116,7 @@ void map_field_to_quadrature_data(
    }
 }
 
-template <size_t num_fields, size_t num_kinputs, typename field_operator_tuple_t, std::size_t... i>
+template <typename T = NonTensorProduct, size_t num_fields, size_t num_kinputs, typename field_operator_tuple_t, std::size_t... i>
 MFEM_HOST_DEVICE
 void map_fields_to_quadrature_data(
    const std::array<DeviceTensor<2>, num_kinputs> &fields_qp,
@@ -1025,13 +1129,23 @@ void map_fields_to_quadrature_data(
    field_operator_tuple_t fops,
    std::index_sequence<i...>)
 {
-   (map_field_to_quadrature_data(fields_qp[i], element_idx,
-                                 dtqmaps[i], fields_e[kfinput_to_field[i]],
-                                 serac::get<i>(fops), integration_weights, geometric_factors),
-    ...);
+   if constexpr (std::is_same_v<T, TensorProduct>)
+   {
+      (map_field_to_quadrature_data_tensor_product(fields_qp[i], element_idx,
+                                                   dtqmaps[i], fields_e[kfinput_to_field[i]],
+                                                   serac::get<i>(fops), integration_weights, geometric_factors),
+       ...);
+   }
+   else
+   {
+      (map_field_to_quadrature_data(fields_qp[i], element_idx,
+                                    dtqmaps[i], fields_e[kfinput_to_field[i]],
+                                    serac::get<i>(fops), integration_weights, geometric_factors),
+       ...);
+   }
 }
 
-template <typename input_type>
+template <typename T, typename input_type>
 MFEM_HOST_DEVICE
 void map_field_to_quadrature_data_conditional(
    DeviceTensor<2> field_qp, int element_idx, const DofToQuadMap &dtqmap,
@@ -1042,12 +1156,21 @@ void map_field_to_quadrature_data_conditional(
 {
    if (condition)
    {
-      map_field_to_quadrature_data(field_qp, element_idx, dtqmap, field_e, input,
-                                   integration_weights, geometric_factors);
+      if constexpr (std::is_same_v<T, TensorProduct>)
+      {
+         map_field_to_quadrature_data_tensor_product(field_qp, element_idx, dtqmap,
+                                                     field_e, input,
+                                                     integration_weights, geometric_factors);
+      }
+      else
+      {
+         map_field_to_quadrature_data(field_qp, element_idx, dtqmap, field_e, input,
+                                      integration_weights, geometric_factors);
+      }
    }
 }
 
-template <size_t num_fields, size_t num_kinputs, typename field_operator_tuple_t, std::size_t... i>
+template <typename T = NonTensorProduct, size_t num_fields, size_t num_kinputs, typename field_operator_tuple_t, std::size_t... i>
 MFEM_HOST_DEVICE
 void map_fields_to_quadrature_data_conditional(
    const std::array<DeviceTensor<2>, num_kinputs> &fields_qp,
@@ -1061,11 +1184,169 @@ void map_fields_to_quadrature_data_conditional(
    field_operator_tuple_t fops,
    std::index_sequence<i...>)
 {
-   (map_field_to_quadrature_data_conditional(fields_qp[i], element_idx,
-                                             dtqmaps[i], fields_e[kfinput_to_field[i]],
-                                             serac::get<i>(fops), integration_weights, geometric_factors,
-                                             conditions[i]),
+   (map_field_to_quadrature_data_conditional<T>(fields_qp[i], element_idx,
+                                                dtqmaps[i], fields_e[kfinput_to_field[i]],
+                                                serac::get<i>(fops), integration_weights, geometric_factors,
+                                                conditions[i]),
     ...);
+}
+
+template <typename input_t, std::size_t... i>
+std::array<int, sizeof...(i)> get_input_size_on_qp(
+   const input_t &inputs,
+   std::index_sequence<i...>)
+{
+   return {serac::get<i>(inputs).size_on_qp...};
+}
+
+namespace SharedMemory
+{
+enum Index
+{
+   DTQ,
+   FIELD,
+   INPUT,
+   TEMP
+};
+}
+
+template <size_t num_fields, size_t num_inputs>
+struct SharedMemoryInfo
+{
+   int total_size;
+   std::array<int, 4> offsets;
+   std::array<int, 2> dtq_sizes;
+   std::array<int, num_fields> field_sizes;
+   std::array<int, num_inputs> input_sizes;
+   std::array<int, 6> temp_sizes;
+};
+
+template <typename entity_t, typename input_t, size_t num_fields, size_t num_outputs, size_t num_inputs>
+SharedMemoryInfo<num_fields, num_inputs>
+get_shmem_info(
+   std::array<DofToQuadMap, num_inputs> input_dtq_maps,
+   std::array<DofToQuadMap, num_outputs> output_dtq_maps,
+   int num_entities,
+   const std::array<FieldDescriptor, num_fields> &fields,
+   int num_qp,
+   const input_t &inputs,
+   const std::array<int, num_inputs> &input_size_on_qp)
+{
+   std::array<int, 4> offsets = {0};
+   int total_size = 0;
+
+   std::array<int, 2> dtq_sizes;
+   // Find the largest B/G
+   int max_dtq_idx = 0;
+   int max_dtq_capacity = 0;
+   for (int i = 1; i < num_fields; i++)
+   {
+      auto a = input_dtq_maps[max_dtq_idx].B.GetShape();
+      auto b = input_dtq_maps[i].B.GetShape();
+      auto capacity_a = std::accumulate(std::begin(a), std::end(a), 1,
+                                        std::multiplies<double>());
+      auto capacity_b = std::accumulate(std::begin(b), std::end(b), 1,
+                                        std::multiplies<double>());
+      if (capacity_a < capacity_b)
+      {
+         max_dtq_idx = i;
+      }
+   }
+   {
+      auto a = input_dtq_maps[max_dtq_idx].B.GetShape();
+      auto capacity_a = std::accumulate(std::begin(a), std::end(a), 1,
+                                        std::multiplies<double>());
+      auto b = input_dtq_maps[max_dtq_idx].G.GetShape();
+      auto capacity_c = std::accumulate(std::begin(a), std::end(a), 1,
+                                        std::multiplies<double>());
+      max_dtq_capacity = capacity_a + capacity_c;
+      dtq_sizes[1] = capacity_c;
+      dtq_sizes[0] = capacity_a;
+   }
+   total_size += std::accumulate(std::begin(dtq_sizes), std::end(dtq_sizes), 0);
+
+   offsets[SharedMemory::Index::FIELD] = total_size;
+   int field_size = 0;
+   std::array<int, num_fields> field_sizes;
+   for (int i = 0; i < num_fields; i++)
+   {
+      field_sizes[i] = get_restriction<entity_t>(fields[i],
+                                                 ElementDofOrdering::LEXICOGRAPHIC)->Height() / num_entities;
+   }
+   total_size += std::accumulate(
+                    std::begin(field_sizes), std::end(field_sizes), 0);
+
+   offsets[SharedMemory::Index::INPUT] = total_size;
+   std::array<int, num_inputs> input_sizes;
+   for (int i = 0; i < num_inputs; i++)
+   {
+      input_sizes[i] = input_size_on_qp[i] * num_qp;
+   }
+   total_size += std::accumulate(
+                    std::begin(input_sizes), std::end(input_sizes), 0);
+
+   std::array<int, 6> temp_sizes;
+
+   return SharedMemoryInfo<num_fields, num_inputs>
+   {
+      total_size,
+      offsets,
+      dtq_sizes,
+      field_sizes,
+      input_sizes,
+      temp_sizes
+   };
+}
+
+template <size_t N, std::size_t... i>
+MFEM_HOST_DEVICE inline
+std::array<DeviceTensor<2>, N> load_dtq_mem(
+   double *mem,
+   int offset,
+   const std::array<int, N> &sizes,
+   int M,
+   std::index_sequence<i...>)
+{
+   return {DeviceTensor<2>(&mem[offset += (i == 0) ? 0 : sizes[i-1]], sizes[i] / M, M)...};
+}
+
+template <size_t N>
+MFEM_HOST_DEVICE inline
+std::array<DeviceTensor<1, const double>, N> load_field_mem(
+   double *mem,
+   int offset,
+   const std::array<int, N> &sizes,
+   std::array<DeviceTensor<1, const double>, N> fields_e)
+{
+   std::array<DeviceTensor<1, const double>, N> f;
+   for (int i = 0; i < N; i++)
+   {
+      // TODO-performance: loop could be parallelized over d1d^dim
+      for (int k = 0; k < sizes[i]; k++)
+      {
+         mem[offset + k] = fields_e[i](k);
+      }
+      f[i] = DeviceTensor<1, const double>(&mem[offset], sizes[i]);
+      offset += sizes[i];
+   }
+   return f;
+}
+
+template <size_t N>
+MFEM_HOST_DEVICE inline
+std::array<DeviceTensor<2>, N> load_input_mem(
+   double *mem,
+   int offset,
+   const std::array<int, N> &sizes,
+   int M)
+{
+   std::array<DeviceTensor<2>, N> f;
+   for (int i = 0; i < N; i++)
+   {
+      f[i] = DeviceTensor<2>(&mem[offset], sizes[i] / M, M);
+      offset += sizes[i];
+   }
+   return f;
 }
 
 template <std::size_t... i>
@@ -1242,6 +1523,15 @@ Vector process_kf_result(T0, T1)
                  "process_kf_result not implemented for result type");
 }
 
+template <typename T>
+MFEM_HOST_DEVICE inline
+void process_kf_result(
+   DeviceTensor<1, T> r,
+   const double &x)
+{
+   r(0) = x;
+}
+
 template <typename T, int length>
 MFEM_HOST_DEVICE inline
 void process_kf_result(
@@ -1386,11 +1676,13 @@ void process_kf_args(std::array<DeviceTensor<2>, num_fields> &u,
 
 template <typename output_type>
 MFEM_HOST_DEVICE
-void map_quadrature_data_to_fields(DeviceTensor<2, double> y,
-                                   DeviceTensor<3, double> c,
-                                   output_type output,
-                                   const DofToQuadMap &B)
+void map_quadrature_data_to_fields_impl(DeviceTensor<2, double> y,
+                                        DeviceTensor<3, double> f,
+                                        output_type output,
+                                        const DofToQuadMap &dtq)
 {
+   auto B = dtq.B;
+   auto G = dtq.G;
    // assuming the quadrature point residual has to "play nice with
    // the test function"
    if constexpr (std::is_same_v<decltype(output), BareFieldOperator::Value>)
@@ -1404,7 +1696,7 @@ void map_quadrature_data_to_fields(DeviceTensor<2, double> y,
             double acc = 0.0;
             for (int qp = 0; qp < num_qp; qp++)
             {
-               acc += B(qp, 0, dof) * c(vd, 0, qp);
+               acc += B(qp, 0, dof) * f(vd, 0, qp);
             }
             y(dof, vd) += acc;
          }
@@ -1413,7 +1705,7 @@ void map_quadrature_data_to_fields(DeviceTensor<2, double> y,
    else if constexpr (
       std::is_same_v<decltype(output), BareFieldOperator::Gradient>)
    {
-      const auto [num_qp, dim, num_dof] = B.GetShape();
+      const auto [num_qp, dim, num_dof] = G.GetShape();
       const int vdim = output.vdim;
       for (int dof = 0; dof < num_dof; dof++)
       {
@@ -1424,7 +1716,7 @@ void map_quadrature_data_to_fields(DeviceTensor<2, double> y,
             {
                for (int qp = 0; qp < num_qp; qp++)
                {
-                  acc += B(qp, d, dof) * c(vd, d, qp);
+                  acc += G(qp, d, dof) * f(vd, d, qp);
                }
             }
             y(dof, vd) += acc;
@@ -1459,90 +1751,192 @@ void map_quadrature_data_to_fields(DeviceTensor<2, double> y,
    }
 }
 
+template <typename output_type>
+MFEM_HOST_DEVICE
+void map_quadrature_data_to_fields_tensor_impl(DeviceTensor<2, double> y,
+                                               DeviceTensor<3, double> f,
+                                               output_type output,
+                                               const DofToQuadMap &dtq)
+{
+   auto B = dtq.B;
+   auto G = dtq.G;
+
+   if constexpr (std::is_same_v<decltype(output), BareFieldOperator::Value>)
+   {
+      const auto [q1d, unused, d1d] = B.GetShape();
+      const int vdim = output.vdim;
+      const int test_dim = output.size_on_qp / vdim;
+
+      auto fqp = Reshape(&f[0], vdim, test_dim, q1d, q1d);
+      auto yd = Reshape(&y[0], d1d, d1d, vdim);
+
+      // TODO-bug: make this shared memory
+      Vector s0mem(d1d*q1d);
+      auto s0 = Reshape(s0mem.Write(), d1d, q1d);
+
+      for (int vd = 0; vd < vdim; vd++)
+      {
+         for (int qy = 0; qy < q1d; qy++)
+         {
+            for (int dx = 0; dx < d1d; dx++)
+            {
+               double a = 0.0;
+               for (int qx = 0; qx < q1d; qx++)
+               {
+                  a += B(qx, 0, dx) * fqp(vd, 0, qx, qy);
+               }
+               s0(dx, qy) = a;
+            }
+         }
+
+         for (int dy = 0; dy < d1d; dy++)
+         {
+            for (int dx = 0; dx < d1d; dx++)
+            {
+               double a = 0.0;
+               for (int qy = 0; qy < q1d; qy++)
+               {
+                  a += s0(dx, qy) * B(qy, 0, dy);
+               }
+               yd(dx, dy, vd) += a;
+            }
+         }
+      }
+   }
+   else if constexpr (
+      std::is_same_v<decltype(output), BareFieldOperator::Gradient>)
+   {
+      const auto [q1d, unused, d1d] = G.GetShape();
+      const int vdim = output.vdim;
+      const int test_dim = output.size_on_qp / vdim;
+      auto fqp = Reshape(&f[0], vdim, test_dim, q1d, q1d);
+      auto yd = Reshape(&y[0], d1d, d1d, vdim);
+
+      // TODO-bug: make this shared memory
+      Vector s0mem(q1d*d1d);
+      Vector s1mem(q1d*d1d);
+      auto s0 = Reshape(s0mem.Write(), d1d, q1d);
+      auto s1 = Reshape(s1mem.Write(), d1d, q1d);
+
+      for (int vd = 0; vd < vdim; vd++)
+      {
+         for (int qy = 0; qy < q1d; qy++)
+         {
+            for (int dx = 0; dx < d1d; dx++)
+            {
+               double u = 0.0;
+               double v = 0.0;
+               for (int qx = 0; qx < q1d; qx++)
+               {
+                  u += G(qx, 0, dx) * fqp(vd, 0, qx, qy);
+                  v += B(qx, 0, dx) * fqp(vd, 1, qx, qy);
+               }
+               s0(dx, qy) = u;
+               s1(dx, qy) = v;
+            }
+         }
+
+         {
+            for (int dy = 0; dy < d1d; dy++)
+            {
+               for (int dx = 0; dx < d1d; dx++)
+               {
+                  double u = 0.0;
+                  double v = 0.0;
+                  for (int qy = 0; qy < q1d; qy++)
+                  {
+                     u += s0(dx, qy) * B(qy, 0, dy);
+                     v += s1(dx, qy) * G(qy, 0, dy);
+                  }
+                  yd(dx, dy, vd) += u + v;
+               }
+            }
+         }
+      }
+   }
+   else
+   {
+      MFEM_ABORT("quadrature data mapping to field is not implemented for"
+                 " this field descriptor with sum factorization on tensor product elements");
+   }
+}
+
+template <typename T = NonTensorProduct, typename output_type>
+MFEM_HOST_DEVICE
+void map_quadrature_data_to_fields(DeviceTensor<2, double> y,
+                                   DeviceTensor<3, double> f,
+                                   output_type output,
+                                   const DofToQuadMap &dtq)
+{
+   if constexpr (std::is_same_v<T, NonTensorProduct>)
+   {
+      map_quadrature_data_to_fields_impl(y, f, output, dtq);
+   }
+   else if constexpr (std::is_same_v<T, TensorProduct>)
+   {
+      map_quadrature_data_to_fields_tensor_impl(y, f, output, dtq);
+   }
+}
+
+
 template <typename entity_t, typename field_operator_ts, size_t N, std::size_t... i>
-std::array<DofToQuadMap, N> create_dtq_operators_conditional(
+std::array<DofToQuadMap, N> create_dtq_maps_impl(
    field_operator_ts &fops,
-   std::vector<const DofToQuad*> dtqmaps,
-   const std::array<int, N> &to_field_map,
-   std::array<bool, N> active,
+   std::vector<const DofToQuad*> dtqs,
+   const std::array<int, N> &field_map,
    std::index_sequence<i...>)
 {
    auto f = [&](auto fop, size_t idx)
    {
-      if (active[idx])
+      auto g = [&](int idx)
       {
-         if (to_field_map[idx] == -1)
+         auto dtq = dtqs[field_map[idx]];
+
+         int value_dim = 1;
+         int grad_dim = 1;
+
+         if (dtq->mode != DofToQuad::Mode::TENSOR)
          {
-            return DofToQuadMap{DeviceTensor<3, const double>(nullptr, 1, 1, 1), -1};
+            value_dim = dtq->FE->GetRangeDim() ?
+                        dtq->FE->GetRangeDim() :
+                        fop.vdim;
+
+            grad_dim = dtq->FE->GetDim();
          }
 
-         auto dtqmap = dtqmaps[to_field_map[idx]];
+         return std::tuple{dtq, value_dim, grad_dim};
+      };
 
-         if constexpr (std::is_same_v<decltype(fop), Value>)
+      if constexpr (std::is_same_v<decltype(fop), Value> ||
+                    std::is_same_v<decltype(fop), Gradient>)
+      {
+         auto [dtq, value_dim, grad_dim] = g(idx);
+         return DofToQuadMap
          {
-            const int d = dtqmap->FE->GetRangeDim() ? dtqmap->FE->GetRangeDim() : 1;
-            return DofToQuadMap
-            {
-               DeviceTensor<3, const double>(dtqmap->B.Read(), dtqmap->nqpt, d, dtqmap->ndof),
-               static_cast<int>(idx)
-            };
-         }
-         else if constexpr (std::is_same_v<decltype(fop), Gradient>)
+            DeviceTensor<3, const double>(dtq->B.Read(), dtq->nqpt, value_dim, dtq->ndof),
+            DeviceTensor<3, const double>(dtq->G.Read(), dtq->nqpt, grad_dim, dtq->ndof),
+            static_cast<int>(idx)
+         };
+      }
+      else if constexpr (std::is_same_v<decltype(fop), Weight>)
+      {
+         // no op
+         // this is handled at runtime by the first condition
+         // to_field_map[idx] == -1.
+         // has to exist at compile time for completeness
+         return DofToQuadMap
          {
-            MFEM_ASSERT(dtqmap->FE->GetMapType() == FiniteElement::MapType::VALUE,
-                        "trying to compute gradient of non compatible FE type");
-            const int d = dtqmap->FE->GetDim();
-            return DofToQuadMap
-            {
-               DeviceTensor<3, const double>(dtqmap->G.Read(), dtqmap->nqpt, d, dtqmap->ndof),
-               static_cast<int>(idx)
-            };
-         }
-         // else if constexpr (std::is_same_v<decltype(fop), Curl>)
-         // {
-         //    MFEM_ASSERT(dtqmap->FE->GetMapType() == FiniteElement::MapType::H_CURL,
-         //                "trying to compute gradient of non compatible FE type");
-         //    const int d = dtqmap->FE->GetCurlDim();
-         //    return DofToQuadMap
-         //    {
-         //       DeviceTensor<3, const double>(dtqmap->G.Read(), dtqmap->nqpt, d, dtqmap->ndof),
-         //       static_cast<int>(idx)
-         //    };
-         // }
-         // else if constexpr (std::is_same_v<decltype(fop), Div>)
-         // {
-         //    MFEM_ASSERT(dtqmap->FE->GetMapType() == FiniteElement::MapType::H_DIV,
-         //                "trying to compute gradient of non compatible FE type");
-         //    ops.push_back({DeviceTensor<3, const double>(dtqmap->G.Read(), dtqmap->nqpt, 1, dtqmap->ndof), static_cast<int>(idx)});
-         // }
-         // else if constexpr(std::is_same_v<decltype(fop), One>)
-         // {
-         //    ops.push_back({DeviceTensor<3, const double>(nullptr, 1, 1, 1), static_cast<int>(idx)});
-         // }
-         // else if constexpr(std::is_same_v<decltype(fop), None>)
-         // {
-         //    ops.push_back({DeviceTensor<3, const double>(nullptr, dtqmap->nqpt, 1, dtqmap->ndof), static_cast<int>(idx)});
-         // }
-         else if constexpr(std::is_same_v<decltype(fop), Weight>)
-         {
-            // no op
-            // this is handled at runtime by the first condition
-            // to_field_map[idx] == -1.
-            // has to exist at compile time for completeness
-            return DofToQuadMap{DeviceTensor<3, const double>(nullptr, 1, 1, 1), -1};
-         }
-         else
-         {
-            static_assert(always_false<decltype(fop)>,
-                          "field operator type is not implemented");
-         }
+            DeviceTensor<3, const double>(nullptr, 1, 1, 1),
+            DeviceTensor<3, const double>(nullptr, 1, 1, 1),
+            -1
+         };
       }
       else
       {
-         return DofToQuadMap{DeviceTensor<3, const double>(nullptr, 1, 1, 1), -1};
+         static_assert(always_false<decltype(fop)>,
+                       "field operator type is not implemented");
       }
    };
-
    return std::array<DofToQuadMap, N>
    {
       f(serac::get<i>(fops), i)...
@@ -1550,22 +1944,19 @@ std::array<DofToQuadMap, N> create_dtq_operators_conditional(
 }
 
 template <typename entity_t, typename field_operator_ts, size_t N>
-std::array<DofToQuadMap, N> create_dtq_operators(
+std::array<DofToQuadMap, N> create_dtq_maps(
    field_operator_ts &fops,
    std::vector<const DofToQuad*> dtqmaps,
    const std::array<int, N> &to_field_map)
 {
-   std::array<bool, N> is_dependent;
-   std::fill(is_dependent.begin(), is_dependent.end(), true);
-   return create_dtq_operators_conditional<entity_t>(
+   return create_dtq_maps_impl<entity_t>(
              fops, dtqmaps,
              to_field_map,
-             is_dependent,
              std::make_index_sequence<serac::tuple_size<field_operator_ts>::value> {});
 }
 
 template <typename field_operator_ts, std::size_t... I>
-auto create_input_operators_impl(
+auto create_bare_fops_impl(
    const field_operator_ts &fops,
    std::index_sequence<I...>)
 {
@@ -1594,9 +1985,9 @@ auto create_input_operators_impl(
 }
 
 template <typename field_operator_ts>
-auto create_input_operators(const field_operator_ts &fops)
+auto create_bare_fops(const field_operator_ts &fops)
 {
-   return create_input_operators_impl(
+   return create_bare_fops_impl(
              fops,
              std::make_index_sequence<serac::tuple_size<field_operator_ts>::value> {});
 }
@@ -1900,24 +2291,24 @@ public:
 
    Array<int> ess_tdof_list;
 
-   // static constexpr ElementDofOrdering element_dof_ordering =
-   //    ElementDofOrdering::LEXICOGRAPHIC;
-
-   // static constexpr DofToQuad::Mode doftoquad_mode =
-   //    DofToQuad::Mode::LEXICOGRAPHIC_FULL;
-
    static constexpr ElementDofOrdering element_dof_ordering =
-      ElementDofOrdering::NATIVE;
+      ElementDofOrdering::LEXICOGRAPHIC;
 
    static constexpr DofToQuad::Mode doftoquad_mode =
-      DofToQuad::Mode::FULL;
+      DofToQuad::Mode::TENSOR;
+
+   // static constexpr ElementDofOrdering element_dof_ordering =
+   //    ElementDofOrdering::NATIVE;
+
+   // static constexpr DofToQuad::Mode doftoquad_mode =
+   //    DofToQuad::Mode::FULL;
 
    std::shared_ptr<Action> residual;
 };
 
 #include "dfem_action_callback.icc"
 #include "dfem_derivative_callback.icc"
-#include "dfem_assemble_vector.icc"
-#include "dfem_assemble_hypreparmatrix.icc"
+// #include "dfem_assemble_vector.icc"
+// #include "dfem_assemble_hypreparmatrix.icc"
 
 }
