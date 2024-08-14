@@ -221,14 +221,12 @@ void TMOP_Integrator::AssemblePA_Fitting()
 
       constexpr QVectorLayout L = QVectorLayout::byNODES;
 
-      Vector col_der(nelem*1*nqp*dim);
-      PA.D1.SetSize(col_der.Size(), Device::GetMemoryType());
+      PA.D1.SetSize(dim*PA.S0.Size(), Device::GetMemoryType());
       internal::quadrature_interpolator::CollocatedTensorPhysDerivatives<L>(nelem, 1, maps, *geom, PA.S0, PA.D1);
       PA.D1.UseDevice(true);
 
-      Vector col_der2(nelem*2*nqp*dim);
-      PA.D2.SetSize(col_der2.Size(), Device::GetMemoryType());
-      internal::quadrature_interpolator::CollocatedTensorPhysDerivatives<L>(nelem, 2, maps, *geom, PA.D1, PA.D2);
+      PA.D2.SetSize(dim*dim*PA.S0.Size(), Device::GetMemoryType());
+      internal::quadrature_interpolator::CollocatedTensorPhysDerivatives<L>(nelem, dim, maps, *geom, PA.D1, PA.D2);
       PA.D2.UseDevice(true);
    }
 
@@ -384,7 +382,6 @@ void TMOP_Integrator::UpdateSurfaceFittingCoefficientsPA(const Vector &x_loc)
 
       // Compute Jacobians since mesh might not know about coordinate change
       internal::quadrature_interpolator::CollocatedTensorDerivatives<L>(nelem, PA.dim, maps, xelem, Jacobians);
-      Jacobians.HostRead();
       if (PA.dim == 2)
       {
          constexpr bool P = true;
@@ -396,7 +393,7 @@ void TMOP_Integrator::UpdateSurfaceFittingCoefficientsPA(const Vector &x_loc)
          PA.D1.HostRead();
 
          internal::quadrature_interpolator::CollocatedDerivatives2D<L, P>
-         (nelem,maps.G.Read(),Jacobians.Read(),PA.D1.Read(),PA.D2.Write(),sdim,vdim+1,maps.ndof);
+         (nelem,maps.G.Read(),Jacobians.Read(),PA.D1.Read(),PA.D2.Write(),sdim,vdim*2,maps.ndof);
          PA.D2.HostRead();
       }
       if (PA.dim == 3)
@@ -409,7 +406,7 @@ void TMOP_Integrator::UpdateSurfaceFittingCoefficientsPA(const Vector &x_loc)
          PA.D1.HostRead();
 
          internal::quadrature_interpolator::CollocatedDerivatives3D<L, P>
-         (nelem,maps.G.Read(),Jacobians.Read(),PA.D1.Read(),PA.D2.Write(),vdim+1,maps.ndof);
+         (nelem,maps.G.Read(),Jacobians.Read(),PA.D1.Read(),PA.D2.Write(),vdim*3,maps.ndof);
          PA.D2.HostRead();
       }
    }
