@@ -66,6 +66,7 @@ TFunc GetTFun(int prob, real_t t_0, real_t k, real_t c);
 VecTFunc GetQFun(int prob, real_t t_0, real_t k, real_t c);
 VecFunc GetCFun(int prob, real_t c);
 TFunc GetFFun(int prob, real_t t_0, real_t k, real_t c);
+FluxFunction* GetFluxFun(int prob, VectorCoefficient &ccoeff);
 
 constexpr real_t epsilon = numeric_limits<real_t>::epsilon();
 
@@ -233,7 +234,7 @@ int main(int argc, char *argv[])
          return 1;
    }
 
-   if (!bconv && upwinded)
+   if (!bconv && !bnlconv && upwinded)
    {
       cerr << "Upwinded scheme cannot work without advection" << endl;
       return 1;
@@ -372,9 +373,12 @@ int main(int argc, char *argv[])
    MixedBilinearForm *B = darcy->GetFluxDivForm();
    BilinearForm *Mt = (!nonlinear && ((dg && td > 0.) || bconv || btime))?
                       (darcy->GetPotentialMassForm()):(NULL);
-   NonlinearForm *Mtnl = (nonlinear && ((dg && td > 0.) || bconv || btime))?
+   NonlinearForm *Mtnl = (nonlinear && ((dg && td > 0.) || bconv || bnlconv ||
+                                        btime))?
                          (darcy->GetPotentialMassNonlinearForm()):(NULL);
    BilinearForm *Mt0 = (btime)?(new BilinearForm(W_space)):(NULL);
+   FluxFunction *FluxFun = NULL;
+   RiemannSolver *FluxSolver = NULL;
 
    if (dg)
    {
@@ -478,6 +482,18 @@ int main(int argc, char *argv[])
             Mtnl->AddBdrFaceIntegrator(new HDGConvectionCenteredIntegrator(ccoeff));
          }
       }
+   }
+   if (bnlconv && Mtnl)
+   {
+      FluxFun = GetFluxFun(problem, ccoeff);
+      FluxSolver = new RusanovFlux(*FluxFun);
+      constexpr HDGHyperbolicFormIntegrator::HDGScheme scheme =
+         HDGHyperbolicFormIntegrator::HDGScheme::HDG_1;
+      Mtnl->AddDomainIntegrator(new HyperbolicFormIntegrator(*FluxSolver, 0, -1.));
+      Mtnl->AddInteriorFaceIntegrator(new HDGHyperbolicFormIntegrator(
+                                         scheme, *FluxSolver, 1., 0, -1.));
+      Mtnl->AddBdrFaceIntegrator(new HDGHyperbolicFormIntegrator(
+                                    scheme, *FluxSolver, 1., 0, -1.));
    }
 
    //set hybridization / assembly level
@@ -849,6 +865,8 @@ int main(int argc, char *argv[])
    }
 
    // 17. Free the used memory.
+   delete FluxFun;
+   delete FluxSolver;
    delete fform;
    delete gform;
    delete hform;
@@ -1196,6 +1214,23 @@ TFunc GetFFun(int prob, real_t t_0, real_t k, real_t c)
          };
    }
    return TFunc();
+}
+
+FluxFunction* GetFluxFun(int prob, VectorCoefficient &ccoef)
+{
+   switch (prob)
+   {
+      case Problem::SteadyAdvectionDiffusion:
+      case Problem::SteadyAdvection:
+      case Problem::NonsteadyAdvectionDiffusion:
+      case Problem::KovasznayFlow:
+         return new AdvectionFlux(ccoef);
+      case Problem::SteadyBurgers:
+      case Problem::NonsteadyBurgers:
+         return new BurgersFlux(ccoef.GetVDim());
+   }
+
+   return NULL;
 }
 
 FEOperator::FEOperator(const Array<int> &ess_flux_tdofs_list_,
