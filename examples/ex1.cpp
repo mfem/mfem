@@ -169,7 +169,7 @@ int main(int argc, char *argv[])
    // Solve Poisson on a pair of cubes fully coupled, then compare to solving the interface
    // then coupling the two domains using the 2D solution as the boundary condition.
 
-   auto mesh = DividingPlaneMesh(false, true, true);
+   auto mesh = DividingPlaneMesh(true, true, true);
    mesh.EnsureNCMesh();
    // auto mesh = Mesh("../../data/ref-cube.mesh");
 
@@ -191,7 +191,6 @@ int main(int argc, char *argv[])
       {
          std::iota(ind.begin(), ind.end(), 0);
       }
-      // for (int e = mesh.GetNBE() - 1; e >= 0; e--)
       for (int e : ind)
       {
          std::cout << e << ' ';
@@ -210,7 +209,7 @@ int main(int argc, char *argv[])
       mesh.GeneralRefinement(refs);
    };
 
-   int test = 4;
+   int test = 5;
    mesh.EnsureNCMesh(true);
    switch (test)
    {
@@ -239,8 +238,16 @@ int main(int argc, char *argv[])
          {
             mesh.UniformRefinement();
             refine_half(mesh,1,subdomain_attributes[0], false);
-            refine_half(mesh,1,subdomain_attributes[0], true);
+            // refine_half(mesh,1,subdomain_attributes[0], true);
+            // refine_half(mesh,1,subdomain_attributes[0], false);
          }
+         break;
+      case 5 :
+         mesh.RandomRefinement(0.5, false, 1, 1);
+         mesh.RandomRefinement(0.5, false, 1, 1);
+         mesh.RandomRefinement(0.5, false, 1, 1);
+         // mesh.RandomRefinement(0.5, false, 1, 1);
+         break;
    }
 
    std::cout << "\n\n\nInEx1\n\n\n";

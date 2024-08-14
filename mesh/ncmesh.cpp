@@ -264,6 +264,9 @@ NCMesh::NCMesh(const NCMesh &other)
    , elements(other.elements)
    , NEdges(other.NEdges)
    , NGhostEdges(other.NGhostEdges)
+   , NFaces(other.NFaces)
+   , NGhostFaces(other.NGhostFaces)
+   , face_geom(other.face_geom)
    , shadow(1024, 2048)
 {
    other.free_element_ids.Copy(free_element_ids);
