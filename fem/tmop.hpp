@@ -227,7 +227,7 @@ public:
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const {P = 0.0;}
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const {A = 0.0;}
+                          const real_t weight, DenseMatrix &A) const {A = 0.0;}
 
    virtual int Id() const { return 0; }
 };
