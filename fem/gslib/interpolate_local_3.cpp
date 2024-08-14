@@ -39,6 +39,7 @@ static MFEM_HOST_DEVICE void lagrange_eval(dfloat *p0, dfloat x,
    p0[i] = lagrangeCoeff[i] * p_i;
 }
 
+template<int T_D1D = 0>
 static void InterpolateLocal3D_Kernel(const dfloat *const gf_in,
                                       dlong *const el,
                                       dfloat *const r,
@@ -46,59 +47,64 @@ static void InterpolateLocal3D_Kernel(const dfloat *const gf_in,
                                       const int npt,
                                       const int ncomp,
                                       const int nel,
-                                      const int dof1Dsol,
                                       const int gf_offset,
                                       dfloat *gll1D,
-                                      double *lagcoeff)
+                                      double *lagcoeff,
+                                      const int pN = 0)
 {
-   const int p_Nq = dof1Dsol;
    const int Nfields = ncomp;
    const int fieldOffset = gf_offset;
-   const int p_Np = p_Nq*p_Nq*p_Nq;
-   const int pMax = 12;
-   mfem::forall_2D(npt, dof1Dsol, 1, [=] MFEM_HOST_DEVICE (int i)
+   const int MD1 = T_D1D ? T_D1D : 10;
+   const int D1D = T_D1D ? T_D1D : pN;
+   const int p_Np = D1D*D1D*D1D;
+   MFEM_VERIFY(MD1 <= 10,"Increase Max allowable polynomial order.");
+   MFEM_VERIFY(D1D != 0, "Polynomial order not specified.");
+   const int nThreads = 32;
+   mfem::forall_2D(npt, nThreads, 1, [=] MFEM_HOST_DEVICE (int i)
    {
-      MFEM_SHARED dfloat wtr[pMax];
-      MFEM_SHARED dfloat wts[pMax];
-      MFEM_SHARED dfloat wtt[pMax];
-      MFEM_SHARED dfloat sums[pMax];
+      MFEM_SHARED dfloat wtr[3*MD1];
+      MFEM_SHARED dfloat sums[MD1];
 
       // Evaluate basis functions at the reference space coordinates
-      MFEM_FOREACH_THREAD(j,x,p_Nq)
+      MFEM_FOREACH_THREAD(j,x,nThreads)
       {
-         lagrange_eval(wtr, r[3 * i + 0], j, p_Nq, gll1D, lagcoeff);
-         lagrange_eval(wts, r[3 * i + 1], j, p_Nq, gll1D, lagcoeff);
-         lagrange_eval(wtt, r[3 * i + 2], j, p_Nq, gll1D, lagcoeff);
+         if (j < 3*D1D)
+         {
+            const int qp = j % D1D;
+            const int d = j / D1D;
+            lagrange_eval(wtr + d*D1D, r[3 * i + d], qp, D1D, gll1D, lagcoeff);
+         }
       }
       MFEM_SYNC_THREAD;
 
       for (int fld = 0; fld < Nfields; ++fld)
       {
-
          const dlong elemOffset = el[i] * p_Np + fld * fieldOffset;
-
-         MFEM_FOREACH_THREAD(j,x,p_Nq)
+         MFEM_FOREACH_THREAD(j,x,nThreads)
          {
-            dfloat sum_j = 0;
-            for (dlong k = 0; k < p_Nq; ++k)
+            if (j < D1D)
             {
-               dfloat sum_k = 0;
-               for (dlong l = 0; l < p_Nq; ++l)
+               dfloat sum_j = 0;
+               for (dlong k = 0; k < D1D; ++k)
                {
-                  sum_k += gf_in[elemOffset + j + k * p_Nq + l * p_Nq * p_Nq] * wtt[l];
+                  dfloat sum_k = 0;
+                  for (dlong l = 0; l < D1D; ++l)
+                  {
+                     sum_k += gf_in[elemOffset + j + k * D1D + l * D1D * D1D] * wtr[2*D1D+l];
+                  }
+                  sum_j += wtr[D1D+k] * sum_k;
                }
-               sum_j += wts[k] * sum_k;
+               sums[j] = wtr[j] * sum_j;
             }
-            sums[j] = wtr[j] * sum_j;
          }
          MFEM_SYNC_THREAD;
 
-         MFEM_FOREACH_THREAD(j,x,p_Nq)
+         MFEM_FOREACH_THREAD(j,x,nThreads)
          {
             if (j == 0)
             {
                double sumv = 0.0;
-               for (dlong jj = 0; jj < p_Nq; ++jj)
+               for (dlong jj = 0; jj < D1D; ++jj)
                {
                   sumv += sums[jj];
                }
@@ -117,20 +123,38 @@ void FindPointsGSLIB::InterpolateLocal3(const Vector &field_in,
                                         int npt, int ncomp,
                                         int nel, int dof1Dsol)
 {
+   if (npt == 0) { return; }
    const int gf_offset = field_in.Size()/ncomp;
-   if (dim == 3)
+   MFEM_VERIFY(dim == 3,"Kernel for 3D only.");
+   auto pfin = field_in.Read();
+   auto pgsl = gsl_elem_dev_l.ReadWrite();
+   auto pgslr = gsl_ref_l.ReadWrite();
+   auto pfout = field_out.Write();
+   auto pgll = DEV.gll1d_sol.ReadWrite();
+   auto plcf = DEV.lagcoeff_sol.ReadWrite();
+   switch (dof1Dsol)
    {
-      InterpolateLocal3D_Kernel(field_in.Read(),
-                                gsl_elem_dev_l.ReadWrite(),
-                                gsl_ref_l.ReadWrite(),
-                                field_out.Write(),
-                                npt, ncomp, nel, dof1Dsol, gf_offset,
-                                DEV.gll1d_sol.ReadWrite(),
-                                DEV.lagcoeff_sol.ReadWrite());
-   }
-   else
-   {
-      MFEM_ABORT("Device implementation only for 3D yet.");
+      case 2: return InterpolateLocal3D_Kernel<2>(pfin, pgsl, pgslr, pfout,
+                                                     // field_in.Read(),
+                                                     // gsl_elem_dev_l.ReadWrite(),
+                                                     // gsl_ref_l.ReadWrite(),
+                                                     // field_out.Write(),
+                                                     npt, ncomp, nel, gf_offset,
+                                                     pgll, plcf);
+      // DEV.gll1d_sol.ReadWrite(),
+      // DEV.lagcoeff_sol.ReadWrite());
+      case 3: return InterpolateLocal3D_Kernel<3>(pfin, pgsl, pgslr, pfout,
+                                                     npt, ncomp, nel, gf_offset,
+                                                     pgll, plcf);
+      case 4: return InterpolateLocal3D_Kernel<4>(pfin, pgsl, pgslr, pfout,
+                                                     npt, ncomp, nel, gf_offset,
+                                                     pgll, plcf);
+      case 5: return InterpolateLocal3D_Kernel<5>(pfin, pgsl, pgslr, pfout,
+                                                     npt, ncomp, nel, gf_offset,
+                                                     pgll, plcf);
+      default: return InterpolateLocal3D_Kernel(pfin, pgsl, pgslr, pfout,
+                                                   npt, ncomp, nel, gf_offset,
+                                                   pgll, plcf, dof1Dsol);
    }
 }
 
