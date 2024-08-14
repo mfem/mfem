@@ -33,7 +33,7 @@ void HyperbolicFormIntegrator::AssembleElementVector(const FiniteElement &el,
    // shape function value at an integration point
    Vector shape(dof);
    // derivative of shape function at an integration point
-   DenseMatrix dshape(dof, el.GetDim());
+   DenseMatrix dshape(dof, Tr.GetSpaceDim());
    // state value at an integration point
    Vector state(num_equations);
    // flux value at an integration point
@@ -41,7 +41,7 @@ void HyperbolicFormIntegrator::AssembleElementVector(const FiniteElement &el,
 #else
    // resize shape and gradient shape storage
    shape.SetSize(dof);
-   dshape.SetSize(dof, el.GetDim());
+   dshape.SetSize(dof, Tr.GetSpaceDim());
 #endif
 
    // setDegree-up output vector
@@ -95,7 +95,7 @@ void HyperbolicFormIntegrator::AssembleElementGrad(
    // shape function value at an integration point
    Vector shape(dof);
    // derivative of shape function at an integration point
-   DenseMatrix dshape(dof, el.GetDim());
+   DenseMatrix dshape(dof, Tr.GetSpaceDim());
    // state value at an integration point
    Vector state(num_equations);
    // Jacobian value at an integration point
@@ -103,7 +103,7 @@ void HyperbolicFormIntegrator::AssembleElementGrad(
 #else
    // resize shape, gradient shape and Jacobian storage
    shape.SetSize(dof);
-   dshape.SetSize(dof, el.GetDim());
+   dshape.SetSize(dof, Tr.GetSpaceDim());
    J.SetSize(num_equations, num_equations, fluxFunction.dim);
 #endif
 
