@@ -194,6 +194,8 @@ real_t FluxFunction::ComputeFluxDotN(const Vector &U,
 {
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix flux(num_equations, dim);
+#else
+   flux.SetSize(num_equations, dim);
 #endif
    real_t val = ComputeFlux(U, Tr, flux);
    flux.Mult(normal, FUdotN);
