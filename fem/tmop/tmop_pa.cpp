@@ -222,15 +222,13 @@ void TMOP_Integrator::AssemblePA_Fitting()
       constexpr QVectorLayout L = QVectorLayout::byNODES;
 
       Vector col_der(nelem*1*nqp*dim);
-      internal::quadrature_interpolator::CollocatedTensorPhysDerivatives<L>(nelem, 1, maps, *geom, PA.S0, col_der);
       PA.D1.SetSize(col_der.Size(), Device::GetMemoryType());
-      PA.D1 = col_der;
+      internal::quadrature_interpolator::CollocatedTensorPhysDerivatives<L>(nelem, 1, maps, *geom, PA.S0, PA.D1);
       PA.D1.UseDevice(true);
 
       Vector col_der2(nelem*2*nqp*dim);
-      internal::quadrature_interpolator::CollocatedTensorPhysDerivatives<L>(nelem, 2, maps, *geom, col_der, col_der2);
       PA.D2.SetSize(col_der2.Size(), Device::GetMemoryType());
-      PA.D2 = col_der2;
+      internal::quadrature_interpolator::CollocatedTensorPhysDerivatives<L>(nelem, 2, maps, *geom, PA.D1, PA.D2);
       PA.D2.UseDevice(true);
    }
 
