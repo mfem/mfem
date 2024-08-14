@@ -202,6 +202,23 @@ real_t FluxFunction::ComputeFluxDotN(const Vector &U,
    return val;
 }
 
+void FluxFunction::ComputeFluxJacobianDotN(const Vector &U,
+                                           const Vector &normal,
+                                           ElementTransformation &Tr,
+                                           DenseMatrix &JDotN) const
+{
+#ifdef MFEM_THREAD_SAFE
+   DenseTensor J(num_equations, num_equations, dim);
+#else
+   J.SetSize(num_equations, num_equations, dim);
+#endif
+   ComputeFluxJacobian(U, Tr, J);
+   JDotN.Set(normal(0), J(0));
+   for (int d = 1; d < dim; d++)
+   {
+      JDotN.AddMatrix(normal(d), J(d), 0, 0);
+   }
+}
 
 real_t RusanovFlux::Eval(const Vector &state1, const Vector &state2,
                          const Vector &nor, FaceElementTransformations &Tr,
