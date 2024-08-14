@@ -101,7 +101,7 @@ protected:
 
    struct
    {
-      int local_hash_size, dof1d, dof1d_sol, hd_d_size, loc_hash_nx;
+      int local_hash_size, dof1d, dof1d_sol, h_o_size, h_nx;
       double tol;
       struct gslib::crystal *cr;
       struct gslib::hash_data_3 *hash3;
