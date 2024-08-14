@@ -81,6 +81,76 @@ void HyperbolicFormIntegrator::AssembleElementVector(const FiniteElement &el,
    }
 }
 
+void HyperbolicFormIntegrator::AssembleElementGrad(
+   const FiniteElement &el, ElementTransformation &Tr, const Vector &elfun,
+   DenseMatrix &grad)
+{
+   // current element's the number of degrees of freedom
+   // does not consider the number of equations
+   const int dof = el.GetDof();
+
+#ifdef MFEM_THREAD_SAFE
+   // Local storage for element integration
+
+   // shape function value at an integration point
+   Vector shape(dof);
+   // derivative of shape function at an integration point
+   DenseMatrix dshape(dof, el.GetDim());
+   // state value at an integration point
+   Vector state(num_equations);
+   // Jacobian value at an integration point
+   DenseTensor J(num_equations, num_equations, fluxFunction.dim);
+#else
+   // resize shape, gradient shape and Jacobian storage
+   shape.SetSize(dof);
+   dshape.SetSize(dof, el.GetDim());
+   J.SetSize(num_equations, num_equations, fluxFunction.dim);
+#endif
+
+   // setup output gradient matrix
+   grad.SetSize(dof * num_equations);
+   grad = 0.0;
+
+   // make state variable and output dual vector matrix form.
+   const DenseMatrix elfun_mat(elfun.GetData(), dof, num_equations);
+   //DenseMatrix elvect_mat(elvect.GetData(), dof, num_equations);
+
+   // obtain integration rule. If integration is rule is given, then use it.
+   // Otherwise, get (2*p + IntOrderOffset) order integration rule
+   const IntegrationRule *ir = IntRule;
+   if (!ir)
+   {
+      const int order = el.GetOrder()*2 + IntOrderOffset;
+      ir = &IntRules.Get(Tr.GetGeometryType(), order);
+   }
+
+   // loop over integration points
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      Tr.SetIntPoint(&ip);
+
+      el.CalcShape(ip, shape);
+      el.CalcPhysDShape(Tr, dshape);
+      // compute current state value with given shape function values
+      elfun_mat.MultTranspose(shape, state);
+
+      // compute J(u,x)
+      fluxFunction.ComputeFluxJacobian(state, Tr, J);
+
+      // integrate (J(u,x), grad v)
+      const real_t w = ip.weight * Tr.Weight() * sign;
+      for (int di = 0; di < num_equations; di++)
+         for (int dj = 0; dj < num_equations; dj++)
+            for (int i = 0; i < dof; i++)
+               for (int j = 0; j < dof; j++)
+                  for (int d = 0; d < fluxFunction.dim; d++)
+                  {
+                     grad(di*dof+i, dj*dof+j) += w * dshape(i,d) * shape(j) * J(di,dj,d);
+                  }
+   }
+}
+
 void HyperbolicFormIntegrator::AssembleFaceVector(
    const FiniteElement &el1, const FiniteElement &el2,
    FaceElementTransformations &Tr, const Vector &elfun, Vector &elvect)
