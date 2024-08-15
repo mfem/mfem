@@ -21,8 +21,8 @@
 #include "mesh/mesh.hpp"
 #include <linalg/tensor.hpp>
 
-#include "noisy.hpp"
-#include <enzyme/enzyme>
+// #include "noisy.hpp"
+// #include <enzyme/enzyme>
 
 using std::size_t;
 
@@ -899,7 +899,8 @@ void map_field_to_quadrature_data_tensor_product(
    const DeviceTensor<1, const double> &field_e,
    field_operator_t &input,
    DeviceTensor<1, const double> integration_weights,
-   GeometricFactorMaps geometric_factors)
+   GeometricFactorMaps geometric_factors,
+   const std::array<DeviceTensor<1>, 6> &scratch_mem)
 {
    auto B = dtq.B;
    auto G = dtq.G;
@@ -912,9 +913,7 @@ void map_field_to_quadrature_data_tensor_product(
       const auto field = Reshape(&field_e[0] + entity_offset, d1d, d1d, vdim);
       auto fqp = Reshape(&field_qp[0], q1d, q1d, vdim);
 
-      // TODO-bug: make this shared memory
-      Vector S1mem(q1d*d1d);
-      auto S1 = Reshape(S1mem.Write(), q1d, d1d);
+      auto S1 = Reshape(&scratch_mem[0](0), q1d, d1d);
 
       for (int vd = 0; vd < vdim; vd++)
       {
@@ -955,10 +954,12 @@ void map_field_to_quadrature_data_tensor_product(
       auto fqp = Reshape(&field_qp[0], vdim, dim, q1d, q1d);
 
       // TODO-bug: make this shared memory
-      Vector dq0mem(q1d*d1d);
-      Vector dq1mem(q1d*d1d);
-      auto dq0 = Reshape(dq0mem.Write(), d1d, q1d);
-      auto dq1 = Reshape(dq1mem.Write(), d1d, q1d);
+      // Vector dq0mem(q1d*d1d);
+      // Vector dq1mem(q1d*d1d);
+      // auto dq0 = Reshape(dq0mem.Write(), d1d, q1d);
+      // auto dq1 = Reshape(dq1mem.Write(), d1d, q1d);
+      auto dq0 = Reshape(&scratch_mem[0](0), d1d, q1d);
+      auto dq1 = Reshape(&scratch_mem[1](0), d1d, q1d);
 
       for (int vd = 0; vd < vdim; vd++)
       {
@@ -1127,13 +1128,14 @@ void map_fields_to_quadrature_data(
    const DeviceTensor<1, const double> &integration_weights,
    const GeometricFactorMaps &geometric_factors,
    field_operator_tuple_t fops,
+   const std::array<DeviceTensor<1>, 6> &scratch_mem,
    std::index_sequence<i...>)
 {
    if constexpr (std::is_same_v<T, TensorProduct>)
    {
       (map_field_to_quadrature_data_tensor_product(fields_qp[i], element_idx,
                                                    dtqmaps[i], fields_e[kfinput_to_field[i]],
-                                                   serac::get<i>(fops), integration_weights, geometric_factors),
+                                                   serac::get<i>(fops), integration_weights, geometric_factors, scratch_mem),
        ...);
    }
    else
@@ -1152,6 +1154,7 @@ void map_field_to_quadrature_data_conditional(
    DeviceTensor<1, const double> &field_e, input_type &input,
    DeviceTensor<1, const double> integration_weights,
    GeometricFactorMaps geometric_factors,
+   const std::array<DeviceTensor<1>, 6> &scratch_mem,
    const bool condition)
 {
    if (condition)
@@ -1160,7 +1163,8 @@ void map_field_to_quadrature_data_conditional(
       {
          map_field_to_quadrature_data_tensor_product(field_qp, element_idx, dtqmap,
                                                      field_e, input,
-                                                     integration_weights, geometric_factors);
+                                                     integration_weights, geometric_factors,
+                                                     scratch_mem);
       }
       else
       {
@@ -1182,11 +1186,13 @@ void map_fields_to_quadrature_data_conditional(
    GeometricFactorMaps geometric_factors,
    std::array<bool, num_kinputs> conditions,
    field_operator_tuple_t fops,
+   const std::array<DeviceTensor<1>, 6> &scratch_mem,
    std::index_sequence<i...>)
 {
    (map_field_to_quadrature_data_conditional<T>(fields_qp[i], element_idx,
                                                 dtqmaps[i], fields_e[kfinput_to_field[i]],
-                                                serac::get<i>(fops), integration_weights, geometric_factors,
+                                                serac::get<i>(fops), integration_weights,
+                                                geometric_factors, scratch_mem,
                                                 conditions[i]),
     ...);
 }
@@ -1285,7 +1291,18 @@ get_shmem_info(
    total_size += std::accumulate(
                     std::begin(input_sizes), std::end(input_sizes), 0);
 
-   std::array<int, 6> temp_sizes;
+   offsets[SharedMemory::Index::TEMP] = total_size;
+   constexpr int num_temp = 6;
+   std::array<int, num_temp> temp_sizes = {0};
+   // TODO-bug: this assumes q1d >= d1d
+   const int q1d = dtq_sizes[0];
+   const int d1d = dtq_sizes[1];
+   for (int i = 0; i < 2; i++)
+   {
+      temp_sizes[i] = q1d * d1d;
+   }
+   total_size += std::accumulate(
+                    std::begin(temp_sizes), std::end(temp_sizes), 0);
 
    return SharedMemoryInfo<num_fields, num_inputs>
    {
@@ -1296,18 +1313,6 @@ get_shmem_info(
       input_sizes,
       temp_sizes
    };
-}
-
-template <size_t N, std::size_t... i>
-MFEM_HOST_DEVICE inline
-std::array<DeviceTensor<2>, N> load_dtq_mem(
-   double *mem,
-   int offset,
-   const std::array<int, N> &sizes,
-   int M,
-   std::index_sequence<i...>)
-{
-   return {DeviceTensor<2>(&mem[offset += (i == 0) ? 0 : sizes[i-1]], sizes[i] / M, M)...};
 }
 
 template <size_t N>
@@ -1344,6 +1349,22 @@ std::array<DeviceTensor<2>, N> load_input_mem(
    for (int i = 0; i < N; i++)
    {
       f[i] = DeviceTensor<2>(&mem[offset], sizes[i] / M, M);
+      offset += sizes[i];
+   }
+   return f;
+}
+
+template <size_t N>
+MFEM_HOST_DEVICE inline
+std::array<DeviceTensor<1>, 6> load_scratch_mem(
+   double *mem,
+   int offset,
+   const std::array<int, N> &sizes)
+{
+   std::array<DeviceTensor<1>, N> f;
+   for (int i = 0; i < N; i++)
+   {
+      f[i] = DeviceTensor<1>(&mem[offset], sizes[i]);
       offset += sizes[i];
    }
    return f;
@@ -1583,58 +1604,58 @@ void apply_kernel(
 //                                   serac::get<Is>(shadow_args))...);
 // }
 
-template <typename arg_ts, std::size_t... Is> inline
-auto create_enzyme_args(arg_ts &args,
-                        arg_ts &shadow_args,
-                        std::index_sequence<Is...>)
-{
-   // PURE CPP EVIL
-   return serac::tuple<enzyme::Duplicated<
-          std::add_lvalue_reference_t<
-          typename std::add_const<
-          std::remove_reference_t<
-          std::remove_cv_t<
-          decltype(serac::get<Is>(args))>>>::type>>...>
-   {
-      { serac::get<Is>(args), serac::get<Is>(shadow_args) }...
-   };
-}
+// template <typename arg_ts, std::size_t... Is> inline
+// auto create_enzyme_args(arg_ts &args,
+//                         arg_ts &shadow_args,
+//                         std::index_sequence<Is...>)
+// {
+//    // PURE CPP EVIL
+//    return serac::tuple<enzyme::Duplicated<
+//           std::add_lvalue_reference_t<
+//           typename std::add_const<
+//           std::remove_reference_t<
+//           std::remove_cv_t<
+//           decltype(serac::get<Is>(args))>>>::type>>...>
+//    {
+//       { serac::get<Is>(args), serac::get<Is>(shadow_args) }...
+//    };
+// }
 
-template <typename kernel_t, typename arg_ts> inline
-auto fwddiff_apply_enzyme(kernel_t kernel, arg_ts &&args, arg_ts &&shadow_args)
-{
-   auto arg_indices =
-      std::make_index_sequence<serac::tuple_size<std::remove_reference_t<arg_ts>>::value> {};
+// template <typename kernel_t, typename arg_ts> inline
+// auto fwddiff_apply_enzyme(kernel_t kernel, arg_ts &&args, arg_ts &&shadow_args)
+// {
+//    auto arg_indices =
+//       std::make_index_sequence<serac::tuple_size<std::remove_reference_t<arg_ts>>::value> {};
 
-   auto enzyme_args = create_enzyme_args(args, shadow_args, arg_indices);
+//    auto enzyme_args = create_enzyme_args(args, shadow_args, arg_indices);
 
-   using kf_return_t = typename create_function_signature<
-                       decltype(&kernel_t::operator())>::type::return_t;
+//    using kf_return_t = typename create_function_signature<
+//                        decltype(&kernel_t::operator())>::type::return_t;
 
-   return std::apply([&](auto &&...args)
-   {
-      // return __enzyme_fwddiff<kf_return_t>((void*)+kernel, &args...);
-      return serac::get<0>(enzyme::autodiff<enzyme::Forward>(+kernel, args...));
-   }, enzyme_args);
-}
+//    return std::apply([&](auto &&...args)
+//    {
+//       // return __enzyme_fwddiff<kf_return_t>((void*)+kernel, &args...);
+//       return serac::get<0>(enzyme::autodiff<enzyme::Forward>(+kernel, args...));
+//    }, enzyme_args);
+// }
 
-template <typename kf_t, typename kernel_arg_ts, size_t num_args> inline
-auto apply_kernel_fwddiff_enzyme(const kf_t &kf,
-                                 kernel_arg_ts &args,
-                                 std::array<DeviceTensor<2>, num_args> &u,
-                                 kernel_arg_ts &shadow_args,
-                                 std::array<DeviceTensor<2>, num_args> &v,
-                                 int qp)
-{
-   process_kf_args(u, args, qp,
-                   std::make_index_sequence<serac::tuple_size<kernel_arg_ts>::value> {});
+// template <typename kf_t, typename kernel_arg_ts, size_t num_args> inline
+// auto apply_kernel_fwddiff_enzyme(const kf_t &kf,
+//                                  kernel_arg_ts &args,
+//                                  std::array<DeviceTensor<2>, num_args> &u,
+//                                  kernel_arg_ts &shadow_args,
+//                                  std::array<DeviceTensor<2>, num_args> &v,
+//                                  int qp)
+// {
+//    process_kf_args(u, args, qp,
+//                    std::make_index_sequence<serac::tuple_size<kernel_arg_ts>::value> {});
 
-   process_kf_args(v, shadow_args, qp,
-                   std::make_index_sequence<serac::tuple_size<kernel_arg_ts>::value> {});
+//    process_kf_args(v, shadow_args, qp,
+//                    std::make_index_sequence<serac::tuple_size<kernel_arg_ts>::value> {});
 
-   return process_kf_result(serac::get<0>(fwddiff_apply_enzyme(kf, args,
-                                                               shadow_args)));
-}
+//    return process_kf_result(serac::get<0>(fwddiff_apply_enzyme(kf, args,
+//                                                                shadow_args)));
+// }
 
 template <typename T> inline
 void process_kf_arg(const DeviceTensor<1> &u, const DeviceTensor<1> &v,
@@ -1756,7 +1777,8 @@ MFEM_HOST_DEVICE
 void map_quadrature_data_to_fields_tensor_impl(DeviceTensor<2, double> y,
                                                DeviceTensor<3, double> f,
                                                output_type output,
-                                               const DofToQuadMap &dtq)
+                                               const DofToQuadMap &dtq,
+                                               std::array<DeviceTensor<1>, 6> &scratch_mem)
 {
    auto B = dtq.B;
    auto G = dtq.G;
@@ -1771,8 +1793,9 @@ void map_quadrature_data_to_fields_tensor_impl(DeviceTensor<2, double> y,
       auto yd = Reshape(&y[0], d1d, d1d, vdim);
 
       // TODO-bug: make this shared memory
-      Vector s0mem(d1d*q1d);
-      auto s0 = Reshape(s0mem.Write(), d1d, q1d);
+      // Vector s0mem(d1d*q1d);
+      // auto s0 = Reshape(s0mem.Write(), d1d, q1d);
+      auto s0 = Reshape(&scratch_mem[0](0), d1d, q1d);
 
       for (int vd = 0; vd < vdim; vd++)
       {
@@ -1813,10 +1836,12 @@ void map_quadrature_data_to_fields_tensor_impl(DeviceTensor<2, double> y,
       auto yd = Reshape(&y[0], d1d, d1d, vdim);
 
       // TODO-bug: make this shared memory
-      Vector s0mem(q1d*d1d);
-      Vector s1mem(q1d*d1d);
-      auto s0 = Reshape(s0mem.Write(), d1d, q1d);
-      auto s1 = Reshape(s1mem.Write(), d1d, q1d);
+      // Vector s0mem(q1d*d1d);
+      // Vector s1mem(q1d*d1d);
+      // auto s0 = Reshape(s0mem.Write(), d1d, q1d);
+      // auto s1 = Reshape(s1mem.Write(), d1d, q1d);
+      auto s0 = Reshape(&scratch_mem[0](0), d1d, q1d);
+      auto s1 = Reshape(&scratch_mem[1](0), d1d, q1d);
 
       for (int vd = 0; vd < vdim; vd++)
       {
@@ -1866,7 +1891,8 @@ MFEM_HOST_DEVICE
 void map_quadrature_data_to_fields(DeviceTensor<2, double> y,
                                    DeviceTensor<3, double> f,
                                    output_type output,
-                                   const DofToQuadMap &dtq)
+                                   const DofToQuadMap &dtq,
+                                   std::array<DeviceTensor<1>, 6> &scratch_mem)
 {
    if constexpr (std::is_same_v<T, NonTensorProduct>)
    {
@@ -1874,7 +1900,7 @@ void map_quadrature_data_to_fields(DeviceTensor<2, double> y,
    }
    else if constexpr (std::is_same_v<T, TensorProduct>)
    {
-      map_quadrature_data_to_fields_tensor_impl(y, f, output, dtq);
+      map_quadrature_data_to_fields_tensor_impl(y, f, output, dtq, scratch_mem);
    }
 }
 

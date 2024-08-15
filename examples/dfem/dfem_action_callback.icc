@@ -136,6 +136,12 @@ void DifferentiableOperator<kernels_tuple,
       out << i << " ";
    }
    out << "\n";
+   out << "temp sizes: ";
+   for (auto &i : shmem_info.temp_sizes)
+   {
+      out << i << " ";
+   }
+   out << "\n";
    out << "offsets: ";
    for (auto &i : shmem_info.offsets)
    {
@@ -179,10 +185,14 @@ void DifferentiableOperator<kernels_tuple,
                                         shmem_info.input_sizes,
                                         num_qp);
 
+         auto scratch_mem = load_scratch_mem(shmem,
+                                             shmem_info.offsets[SharedMemory::Index::TEMP],
+                                             shmem_info.temp_sizes);
+
          map_fields_to_quadrature_data<mfem::TensorProduct>(
             input_qp, e, fields,
             kinput_to_field, input_dtq_maps,
-            ir_weights, geometric_factors, input_fops,
+            ir_weights, geometric_factors, input_fops, scratch_mem,
          std::make_index_sequence<kernel.num_kinputs> {});
 
          for (int q = 0; q < num_qp; q++)
@@ -196,7 +206,8 @@ void DifferentiableOperator<kernels_tuple,
          auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
          map_quadrature_data_to_fields<mfem::TensorProduct>(y, fhat,
                                                             serac::get<0>(output_fops),
-                                                            output_dtq_maps[hardcoded_output_idx]);
+                                                            output_dtq_maps[hardcoded_output_idx],
+                                                            scratch_mem);
       }, num_entities, 1, shmem_info.total_size, shmem_cache.GetData());
 
       R->MultTranspose(ye_mem, residual_l);
