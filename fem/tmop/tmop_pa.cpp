@@ -221,10 +221,12 @@ void TMOP_Integrator::AssemblePA_Fitting()
 
       constexpr QVectorLayout L = QVectorLayout::byNODES;
 
+      //Gradient using Collocated Derivatives
       PA.D1.SetSize(dim*PA.S0.Size(), Device::GetMemoryType());
       internal::quadrature_interpolator::CollocatedTensorPhysDerivatives<L>(nelem, 1, maps, *geom, PA.S0, PA.D1);
       PA.D1.UseDevice(true);
 
+      //Hessian using Collocated Derivatives
       PA.D2.SetSize(dim*dim*PA.S0.Size(), Device::GetMemoryType());
       internal::quadrature_interpolator::CollocatedTensorPhysDerivatives<L>(nelem, dim, maps, *geom, PA.D1, PA.D2);
       PA.D2.UseDevice(true);

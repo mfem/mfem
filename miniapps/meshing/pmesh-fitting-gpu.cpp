@@ -32,7 +32,7 @@
 //
 // Compile with: make pmesh-fitting
 //
-// Sample runs (2D):
+// Sample runs (2D, Configuration 1):
 // CPU + no partial assembly
 // make pmesh-fitting-gpu && mpirun -np 1 pmesh-fitting-gpu -o 3 -d cpu -no-pa
 // CPU + partial assembly
@@ -41,13 +41,30 @@
 // make pmesh-fitting-gpu && mpirun -np 1 pmesh-fitting-gpu -o 3 -d debug -pa
 //
 //
-// Sample runs (3D):
+// Sample runs (3D, Configuration 1):
 // CPU + no partial assembly
 // make pmesh-fitting-gpu && mpirun -np 1 pmesh-fitting-gpu -o 3 -m cube.mesh -mid 303 -d cpu -no-pa
 // CPU + partial assembly
 // make pmesh-fitting-gpu && mpirun -np 1 pmesh-fitting-gpu -o 3 -m cube.mesh -mid 303 -d cpu -pa
 // GPU + partial assembly
 // make pmesh-fitting-gpu && mpirun -np 1 pmesh-fitting-gpu -o 3 -m cube.mesh -mid 303 -d debug -pa
+
+// Sample runs (2D, Configuration 2):
+// CPU + no partial assembly
+// make pmesh-fitting-gpu && mpirun -np 1 pmesh-fitting-gpu -o 3 -d cpu -no-pa -no-gint
+// CPU + partial assembly
+// make pmesh-fitting-gpu && mpirun -np 1 pmesh-fitting-gpu -o 3 -d cpu -pa -no-gint
+// GPU + partial assembly
+// make pmesh-fitting-gpu && mpirun -np 1 pmesh-fitting-gpu -o 3 -d debug -pa -no-gint
+//
+//
+// Sample runs (3D, Configuration 2):
+// CPU + no partial assembly
+// make pmesh-fitting-gpu && mpirun -np 1 pmesh-fitting-gpu -o 3 -m cube.mesh -mid 303 -d cpu -no-pa -no-gint
+// CPU + partial assembly
+// make pmesh-fitting-gpu && mpirun -np 1 pmesh-fitting-gpu -o 3 -m cube.mesh -mid 303 -d cpu -pa -no-gint
+// GPU + partial assembly
+// make pmesh-fitting-gpu && mpirun -np 1 pmesh-fitting-gpu -o 3 -m cube.mesh -mid 303 -d debug -pa -no-gint
 
 
 #include "mesh-fitting.hpp"
