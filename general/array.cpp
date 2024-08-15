@@ -141,11 +141,9 @@ int Array<T>::IsSorted() const
 }
 
 template <class T>
-template <typename Function>
-void Array<T>::Apply(Function&& function)
+void Array<T>::Apply(std::function<T(T)> function)
 {
    static_assert(std::is_arithmetic<T>::value, "Apply to arithmetric types!");
-   // TODO(Gabriel/Chak): Verify function is related to T
    const bool use_device = UseDevice();
    const int N = size;
    auto y = ReadWrite(use_device);
@@ -193,7 +191,5 @@ template class Array<long long>;
 template class Array<real_t>;
 template class Array2D<int>;
 template class Array2D<real_t>;
-
-template void Array<int>::Apply<int(&)(int)>(int (&)(int));
 
 } // namespace mfem
