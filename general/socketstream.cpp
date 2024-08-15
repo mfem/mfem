@@ -329,7 +329,7 @@ socketserver::socketserver(int port, int backlog)
    sa.sin_family = AF_INET;
    sa.sin_port = htons(port);
    sa.sin_addr.s_addr = INADDR_ANY;
-   if (bind(listen_socket, (const struct sockaddr *)&sa, sizeof(sa)))
+   if (::bind(listen_socket, (const struct sockaddr *)&sa, sizeof(sa)))
    {
       closesocket(listen_socket);
       listen_socket = -3;

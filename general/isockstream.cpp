@@ -87,9 +87,9 @@ int isockstream::establish()
       }
 
 #if defined(__APPLE__)
-      if (bind(sfd, (const struct sockaddr *)rp->ai_addr, rp->ai_addrlen) < 0)
+      if (::bind(sfd, (const struct sockaddr *)rp->ai_addr, rp->ai_addrlen) < 0)
 #else
-      if (bind(sfd, rp->ai_addr, rp->ai_addrlen) < 0)
+      if (::bind(sfd, rp->ai_addr, rp->ai_addrlen) < 0)
 #endif
       {
          mfem::err << "isockstream::establish(): bind() failed!" << endl;
