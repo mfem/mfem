@@ -238,6 +238,11 @@ private:
 
 class CutDiffusionIntegrator: public BilinearFormIntegrator
 {
+private:
+    DiffusionIntegrator* dint;
+
+    Array<int>* el_marks;
+    CutIntegrationRules* irules;
 public:
     CutDiffusionIntegrator(Coefficient& q,
                            Array<int>* marks,
@@ -278,14 +283,162 @@ public:
             dint->AssembleElementMatrix(el,Trans,elmat);
         }
     }
+};
 
+
+
+class CutGhostPenaltyIntegrator:public BilinearFormIntegrator
+{
+private:    
+    GhostPenaltyIntegrator* dint;
+    Array<int>* el_marks;
+
+public:
+    CutGhostPenaltyIntegrator(double penal_, Array<int>* marks)
+    {
+        el_marks=marks;
+        dint=new GhostPenaltyIntegrator(penal_);
+    }
+    virtual
+        ~CutGhostPenaltyIntegrator()
+    {
+        delete dint;
+    }
+
+
+    virtual void AssembleFaceMatrix(const FiniteElement &fe1,
+                                    const FiniteElement &fe2,
+                                    FaceElementTransformations &Trans,
+                                    DenseMatrix &elmat) override
+    {
+
+        if(((*el_marks)[Trans.Elem1No]==ElementMarker::CUT) &&  ((*el_marks)[Trans.Elem2No]==ElementMarker::CUT))
+         {
+            //use standard integration rule
+            dint->AssembleFaceMatrix(fe1,fe2,Trans,elmat);
+
+        }
+
+        else if(((*el_marks)[Trans.Elem1No]==ElementMarker::INSIDE) &&  ((*el_marks)[Trans.Elem2No]==ElementMarker::CUT))
+         {
+            //use standard integration rule
+            dint->AssembleFaceMatrix(fe1,fe2,Trans,elmat);
+        }
+
+        else if(((*el_marks)[Trans.Elem1No]==ElementMarker::CUT) &&  ((*el_marks)[Trans.Elem2No]==ElementMarker::INSIDE))
+         {
+            //use standard integration rule
+            dint->AssembleFaceMatrix(fe1,fe2,Trans,elmat);
+        }
+
+    }
+
+};
+
+
+class CutMassIntegrator: public BilinearFormIntegrator
+{
 private:
-    DiffusionIntegrator* dint;
+    MassIntegrator* dint;
 
     Array<int>* el_marks;
     CutIntegrationRules* irules;
+public:
+    CutMassIntegrator(Coefficient& q,
+                           Array<int>* marks,
+                           CutIntegrationRules* cut_int)
+    {
+        el_marks=marks;
+        irules=cut_int;
+        dint=new MassIntegrator();
+    }
+
+    ~CutMassIntegrator()
+    {
+        delete dint;
+    }
+
+    virtual void AssembleElementMatrix(const FiniteElement &el,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat) override
+    {
+
+        if((*el_marks)[Trans.ElementNo]==ElementMarker::OUTSIDE)
+        {
+            
+        }
+        else if((*el_marks)[Trans.ElementNo]==ElementMarker::INSIDE)
+        {
+            //use standard integration rule
+            dint->SetIntRule(nullptr);
+            dint->AssembleElementMatrix(el,Trans,elmat);
+        }
+        else
+        {
+            //use cut integration
+            IntegrationRule ir;
+            irules->GetVolumeIntegrationRule(Trans,ir);
+            dint->SetIntRule(&ir);
+            dint->AssembleElementMatrix(el,Trans,elmat);
+
+        }
+    }
+};
+
+// TODO: move this to other file to not mix bilinar and linear integrator
+class CutDomainLFIntegrator : public LinearFormIntegrator
+{
+    private:
+    DomainLFIntegrator* dint;
+    Array<int>* el_marks;
+    CutIntegrationRules* irules;
+public:
+   /// Constructs a domain integrator with a given Coefficient
+    CutDomainLFIntegrator(Coefficient& q,
+                           Array<int>* marks,
+                           CutIntegrationRules* cut_int)
+    {
+        el_marks=marks;
+        irules=cut_int;
+        dint=new DomainLFIntegrator(q);
+    }
+    ~CutDomainLFIntegrator()
+    {
+        delete dint;
+    }
+
+    virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Trans,
+                                       Vector &elvect) override
+    {
+
+        if((*el_marks)[Trans.ElementNo]==ElementMarker::OUTSIDE)
+        {
+            elvect.SetSize(el.GetDof());
+            elvect=0.0;
+        }
+        else if((*el_marks)[Trans.ElementNo]==ElementMarker::INSIDE)
+        {
+            //use standard integration rule
+            dint->SetIntRule(nullptr);
+            dint->AssembleRHSElementVect(el,Trans,elvect);
+
+        }
+        else
+        {
+            //use cut integration
+            IntegrationRule ir;
+            irules->GetVolumeIntegrationRule(Trans,ir);
+            dint->SetIntRule(&ir);
+            dint->AssembleRHSElementVect(el,Trans,elvect);
+        }
+    }
+
 
 };
+
+
+
 
 
 }

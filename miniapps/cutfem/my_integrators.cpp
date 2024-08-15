@@ -305,9 +305,8 @@ void GhostPenaltyIntegrator::AssembleFaceMatrix(const FiniteElement &fe1,
             }
         }
     }
+
 }
-
-
 
 
 
