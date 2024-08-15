@@ -1264,7 +1264,6 @@ get_shmem_info(
    total_size += std::accumulate(std::begin(dtq_sizes), std::end(dtq_sizes), 0);
 
    offsets[SharedMemory::Index::FIELD] = total_size;
-   int field_size = 0;
    std::array<int, num_fields> field_sizes;
    for (int i = 0; i < num_fields; i++)
    {
@@ -1313,7 +1312,7 @@ std::array<DeviceTensor<1, const double>, num_fields> load_field_mem(
    double *mem,
    int offset,
    const std::array<int, num_fields> &sizes,
-   std::array<DeviceTensor<2, const double>, num_fields> fields_e,
+   const std::array<DeviceTensor<2, const double>, num_fields> &fields_e,
    int entity_idx)
 {
    std::array<DeviceTensor<1, const double>, num_fields> f;
