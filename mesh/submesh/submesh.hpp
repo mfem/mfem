@@ -230,6 +230,8 @@ private:
    /// The parent Mesh. Not owned.
    const Mesh *parent_;
 
+   NCSubMesh *ncsubmesh_;
+
    /// Indicator from which part of the parent ParMesh the ParSubMesh is going
    /// to be created.
    From from_;

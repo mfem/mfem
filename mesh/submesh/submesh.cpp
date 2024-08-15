@@ -98,28 +98,22 @@ SubMesh::SubMesh(const Mesh &parent, From from,
    if (parent.Nonconforming())
    {
       ncmesh = new NCSubMesh(*this, *parent.ncmesh, from, attributes);
-      auto ncsubmesh = dynamic_cast<NCSubMesh*>(ncmesh);
+      ncsubmesh_ = dynamic_cast<NCSubMesh*>(ncmesh);
 
-      std::cout << __FILE__ << ':' << __LINE__ << std::endl;
-      for (const auto & n : ncmesh->nodes)
-      {
-         std::cout << n.vert_index << ' ';
-      }
-      std::cout << std::endl;
       auto old_parent_vertex_ids = parent_vertex_ids_;
 
       std::unordered_map<int,int> nodeId_old_vertex;
-      nodeId_old_vertex.reserve(ncmesh->vertex_nodeId.Size());
-      for (int i = 0; i < ncmesh->vertex_nodeId.Size(); i++)
+      nodeId_old_vertex.reserve(ncsubmesh_->vertex_nodeId.Size());
+      for (int i = 0; i < ncsubmesh_->vertex_nodeId.Size(); i++)
       {
-         nodeId_old_vertex[ncmesh->vertex_nodeId[i]] = i;
+         nodeId_old_vertex[ncsubmesh_->vertex_nodeId[i]] = i;
       }
 
-      InitFromNCMesh(*ncmesh);
-      ncmesh->OnMeshUpdated(this);
+      InitFromNCMesh(*ncsubmesh_);
+      ncsubmesh_->OnMeshUpdated(this);
 
       std::cout << __FILE__ << ':' << __LINE__ << std::endl;
-      for (const auto & n : ncmesh->nodes)
+      for (const auto & n : ncsubmesh_->nodes)
       {
          std::cout << n.vert_index << ' ';
       }
@@ -151,13 +145,13 @@ SubMesh::SubMesh(const Mesh &parent, From from,
       // parent_vertex_ids_ = new_parent_vertex_ids;
 
 
-      // Update the submesh to parent vertex mapping, NCSubMesh reordered the vertices so
+      // Update the submesh to parent vertex mapping, ncsubmesh_ reordered the vertices so
       // the map to parent is no longer valid.
-      const auto &new_to_old_vertex = ncmesh->vertex_nodeId; // newmesh vert -> oldmesh vert
+      const auto &new_to_old_vertex = ncsubmesh_->vertex_nodeId; // newmesh vert -> oldmesh vert
       auto new_parent_vertex_ids = parent_vertex_ids_;
       for (int i = 0; i < new_parent_vertex_ids.Size(); i++)
       {
-         // auto j = ncmesh->vertex_nodeId[i];
+         // auto j = ncsubmesh_->vertex_nodeId[i];
          // auto k = nodeId_old_vertex[j];
          // auto l = old_parent_vertex_ids[k];
          // new_parent_vertex_ids[i] = l;
@@ -170,9 +164,9 @@ SubMesh::SubMesh(const Mesh &parent, From from,
       for (int i = 0; i < parent_vertex_ids_.Size(); i++)
       {
          // vertex -> node -> parent node -> parent vertex
-         auto node = ncmesh->vertex_nodeId[i];
-         auto parent_node = ncsubmesh->parent_node_ids_[node];
-         auto parent_vertex = parent.ncmesh->nodes[parent_node].vert_index;
+         auto node = ncsubmesh_->vertex_nodeId[i];
+         auto parent_node = ncsubmesh_->parent_node_ids_[node];
+         auto parent_vertex = parent.ncmesh->GetNodeVertex(parent_node);
          auto *vv = parent.GetVertex(parent_vertex);
          std::cout << i << " node " << node << " parent_node " << parent_node << " parent_vertex " << parent_vertex
             << "(" << vv[0] << ", " << vv[1] << ", " << vv[2] << ")" << std::endl;
@@ -429,9 +423,9 @@ SubMesh::SubMesh(const Mesh &parent, From from,
       }
 
       std::cout << __FILE__ << ':' << __LINE__ << std::endl;
-      if (ncmesh)
+      if (Nonconforming())
       {
-         for (int f : ncmesh->boundary_faces)
+         for (int f : ncsubmesh_->boundary_faces)
          {
             std::cout << "f " << f << " attribute " << faces[f]->GetAttribute() << std::endl;
          }
