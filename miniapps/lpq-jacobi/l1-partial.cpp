@@ -131,7 +131,6 @@ int main(int argc, char *argv[])
       // Assemble Diagonal with AssembleDiagonalPA(vec)
       // Define vectors
       Vector d(el_rest->Height());
-      Vector ones(el_rest->Height());
       Vector Gd(el_rest->Width());
       Vector PGd(cp->Width());
 
@@ -148,19 +147,18 @@ int main(int argc, char *argv[])
          PGd.Print();
       }
 
-      ones = 1.0;
-      d = 0.0;
-      Gd = 0.0;
-      PGd = 0.0;
-      auto diff = static_cast<DiffusionIntegrator*>(bfi);
-      diff->AddAbsMultPA(ones,d); // Gets |Bt|D|B|1, might be wrong
-      el_rest->AbsMultTranspose(d, Gd);
-      cp->AbsMultTranspose(Gd, PGd);
-      if (Mpi::Root())
-      {
-         mfem::out << "PGBtDB1" << std::endl;
-         PGd.Print();
-      }
+      // d = 0.0;
+      // Gd = 0.0;
+      // PGd = 0.0;
+      // auto diff = static_cast<DiffusionIntegrator*>(bfi);
+      // // diff->Debug(d); // Gets |Bt|^2d, might be wrong
+      // el_rest->AbsMultTranspose(d, Gd);
+      // cp->AbsMultTranspose(Gd, PGd);
+      // if (Mpi::Root())
+      // {
+      //    mfem::out << "PG|Bt|^2d" << std::endl;
+      //    PGd.Print();
+      // }
 
       delete cp;
    }
