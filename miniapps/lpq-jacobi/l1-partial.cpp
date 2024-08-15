@@ -69,29 +69,101 @@ int main(int argc, char *argv[])
    // Set up constant vector of ones
    Vector ones(fespace->GetTrueVSize());
    Vector result(fespace->GetTrueVSize());
-   ones = 1.0;
+   // ones = 1.0;
+   // ones[0] = 2.0;
+   ones.Randomize();
 
-   mfem::out << "\n--- Legacy begin ---\n" << endl;
-   mfem::out << "Diag:\n" << endl;
+   if (Mpi::Root())
+   {
+      mfem::out << "\n--- Legacy begin ---\n" << endl;
+      mfem::out << "Diag:\n" << endl;
+   }
    auto diag_b = new Vector(fespace->GetTrueVSize());
    b->AssembleDiagonal(*diag_b);
-   diag_b->Print();
+   if (Mpi::Root())
+   {
+      diag_b->Print();
+   }
 
-   mfem::out << "|A|1:\n" << endl;
-   A_legacy.As<HypreParMatrix>()->AbsMult(1.0, ones, 0.0, result);
-   result.Print();
-   mfem::out << "\n---  Legacy end  ---\n" << endl;
+   if (Mpi::Root())
+   {
+      mfem::out << "|A|1:\n" << endl;
+   }
+   A_legacy->AbsMult(ones, result);
+   if (Mpi::Root())
+   {
+      result.Print();
+      mfem::out << "\n---  Legacy end  ---\n" << endl;
+   }
 
-   mfem::out << "\n--- Partial begin ---\n" << endl;
-   mfem::out << "Diag:\n" << endl;
+   if (Mpi::Root())
+   {
+      mfem::out << "\n--- Partial begin ---\n" << endl;
+      mfem::out << "Diag:\n" << endl;
+   }
    auto diag_a = new Vector(fespace->GetTrueVSize());
    a->AssembleDiagonal(*diag_a);
-   diag_a->Print();
+   if (Mpi::Root())
+   {
+      diag_a->Print();
+   }
 
-   mfem::out << "|A|1:\n" << endl;
+   if (Mpi::Root())
+   {
+      mfem::out << "|A|1:\n" << endl;
+   }
+
    A->AbsMult(ones, result);
-   result.Print();
-   mfem::out << "\n--- Partial end ---\n" << endl;
+   if (Mpi::Root())
+   {
+      result.Print();
+      mfem::out << "\n--- Partial end ---\n" << endl;
+   }
+
+   {
+      // Get (conforming) prolongation
+      auto cp = new ConformingProlongationOperator(*fespace);
+      // Get element restriction
+      auto dof_order = GetEVectorOrdering(*fespace);
+      auto el_rest = fespace->GetElementRestriction(dof_order);
+      // Apply integrator...
+      // use integ.AddMultPA(x,y), bfi->AddMultPA(x,y)
+      // Assemble Diagonal with AssembleDiagonalPA(vec)
+      // Define vectors
+      Vector d(el_rest->Height());
+      Vector ones(el_rest->Height());
+      Vector Gd(el_rest->Width());
+      Vector PGd(cp->Width());
+
+      d = 0.0;
+      Gd = 0.0;
+      PGd = 0.0;
+
+      bfi->AssembleDiagonalPA(d); // Gets diag(BtDB)
+      el_rest->AbsMultTranspose(d, Gd);
+      cp->AbsMultTranspose(Gd, PGd);
+      if (Mpi::Root())
+      {
+         mfem::out << "PGd" << std::endl;
+         PGd.Print();
+      }
+
+      ones = 1.0;
+      d = 0.0;
+      Gd = 0.0;
+      PGd = 0.0;
+      auto diff = static_cast<DiffusionIntegrator*>(bfi);
+      diff->AddAbsMultPA(ones,d); // Gets |Bt|D|B|1, might be wrong
+      el_rest->AbsMultTranspose(d, Gd);
+      cp->AbsMultTranspose(Gd, PGd);
+      if (Mpi::Root())
+      {
+         mfem::out << "PGBtDB1" << std::endl;
+         PGd.Print();
+      }
+
+      delete cp;
+   }
 
    delete diag_a;
    delete diag_b;
