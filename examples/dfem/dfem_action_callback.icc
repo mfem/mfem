@@ -166,7 +166,7 @@ void DifferentiableOperator<kernels_tuple,
                           residual_size_on_qp, num_qp, num_entities);
       auto ir_weights = Reshape(this->op.integration_rule.GetWeights().Read(), num_qp);
       auto ye = Reshape(ye_mem.ReadWrite(), num_test_dof, test_vdim, num_entities);
-      auto wrapped_fields_e = wrap_vectors(this->fields_e);
+      auto wrapped_fields_e = wrap_fields(this->fields_e, shmem_info.field_sizes, num_entities);
 
       forall([=] MFEM_HOST_DEVICE (int e, double *shmem)
       {
@@ -178,7 +178,8 @@ void DifferentiableOperator<kernels_tuple,
          auto fields = load_field_mem(shmem,
                                       shmem_info.offsets[SharedMemory::Index::FIELD],
                                       shmem_info.field_sizes,
-                                      wrapped_fields_e);
+                                      wrapped_fields_e,
+                                      e);
 
          auto input_qp = load_input_mem(shmem,
                                         shmem_info.offsets[SharedMemory::Index::INPUT],
@@ -190,7 +191,7 @@ void DifferentiableOperator<kernels_tuple,
                                              shmem_info.temp_sizes);
 
          map_fields_to_quadrature_data<mfem::TensorProduct>(
-            input_qp, e, fields,
+            input_qp, fields,
             kinput_to_field, input_dtq_maps,
             ir_weights, geometric_factors, input_fops, scratch_mem,
          std::make_index_sequence<kernel.num_kinputs> {});

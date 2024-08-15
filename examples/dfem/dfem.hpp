@@ -894,7 +894,6 @@ template <typename field_operator_t>
 MFEM_HOST_DEVICE
 void map_field_to_quadrature_data_tensor_product(
    DeviceTensor<2> field_qp,
-   int entity_idx,
    const DofToQuadMap &dtq,
    const DeviceTensor<1, const double> &field_e,
    field_operator_t &input,
@@ -909,8 +908,7 @@ void map_field_to_quadrature_data_tensor_product(
    {
       auto [q1d, unused, d1d] = B.GetShape();
       const int vdim = input.vdim;
-      const int entity_offset = entity_idx * d1d * d1d * vdim;
-      const auto field = Reshape(&field_e[0] + entity_offset, d1d, d1d, vdim);
+      const auto field = Reshape(&field_e[0], d1d, d1d, vdim);
       auto fqp = Reshape(&field_qp[0], q1d, q1d, vdim);
 
       auto S1 = Reshape(&scratch_mem[0](0), q1d, d1d);
@@ -949,8 +947,7 @@ void map_field_to_quadrature_data_tensor_product(
       const auto [q1d, unused, d1d] = B.GetShape();
       const int vdim = input.vdim;
       const int dim = input.dim;
-      const int entity_offset = entity_idx * d1d * d1d * vdim;
-      const auto field = Reshape(&field_e[0] + entity_offset, d1d, d1d, vdim);
+      const auto field = Reshape(&field_e[0], d1d, d1d, vdim);
       auto fqp = Reshape(&field_qp[0], vdim, dim, q1d, q1d);
 
       // TODO-bug: make this shared memory
@@ -1020,7 +1017,6 @@ template <typename field_operator_t>
 MFEM_HOST_DEVICE
 void map_field_to_quadrature_data(
    DeviceTensor<2> field_qp,
-   int entity_idx,
    const DofToQuadMap &dtq,
    const DeviceTensor<1, const double> &field_e,
    field_operator_t &input,
@@ -1033,8 +1029,7 @@ void map_field_to_quadrature_data(
    {
       auto [num_qp, dim, num_dof] = B.GetShape();
       const int vdim = input.vdim;
-      const int entity_offset = entity_idx * num_dof * vdim;
-      const auto field = Reshape(&field_e(0) + entity_offset, num_dof, vdim);
+      const auto field = Reshape(&field_e(0), num_dof, vdim);
 
       for (int vd = 0; vd < vdim; vd++)
       {
@@ -1054,8 +1049,7 @@ void map_field_to_quadrature_data(
    {
       const auto [num_qp, dim, num_dof] = G.GetShape();
       const int vdim = input.vdim;
-      const int entity_offset = entity_idx * num_dof * vdim;
-      const auto field = Reshape(&field_e(0) + entity_offset, num_dof, vdim);
+      const auto field = Reshape(&field_e(0), num_dof, vdim);
 
       auto f = Reshape(&field_qp[0], vdim, dim, num_qp);
       for (int qp = 0; qp < num_qp; qp++)
@@ -1121,7 +1115,6 @@ template <typename T = NonTensorProduct, size_t num_fields, size_t num_kinputs, 
 MFEM_HOST_DEVICE
 void map_fields_to_quadrature_data(
    const std::array<DeviceTensor<2>, num_kinputs> &fields_qp,
-   int element_idx,
    const std::array<DeviceTensor<1, const double>, num_fields> &fields_e,
    const std::array<int, num_kinputs> &kfinput_to_field,
    const std::array<DofToQuadMap, num_kinputs> &dtqmaps,
@@ -1133,14 +1126,14 @@ void map_fields_to_quadrature_data(
 {
    if constexpr (std::is_same_v<T, TensorProduct>)
    {
-      (map_field_to_quadrature_data_tensor_product(fields_qp[i], element_idx,
+      (map_field_to_quadrature_data_tensor_product(fields_qp[i],
                                                    dtqmaps[i], fields_e[kfinput_to_field[i]],
                                                    serac::get<i>(fops), integration_weights, geometric_factors, scratch_mem),
        ...);
    }
    else
    {
-      (map_field_to_quadrature_data(fields_qp[i], element_idx,
+      (map_field_to_quadrature_data(fields_qp[i],
                                     dtqmaps[i], fields_e[kfinput_to_field[i]],
                                     serac::get<i>(fops), integration_weights, geometric_factors),
        ...);
@@ -1150,7 +1143,7 @@ void map_fields_to_quadrature_data(
 template <typename T, typename input_type>
 MFEM_HOST_DEVICE
 void map_field_to_quadrature_data_conditional(
-   DeviceTensor<2> field_qp, int element_idx, const DofToQuadMap &dtqmap,
+   DeviceTensor<2> field_qp, const DofToQuadMap &dtqmap,
    DeviceTensor<1, const double> &field_e, input_type &input,
    DeviceTensor<1, const double> integration_weights,
    GeometricFactorMaps geometric_factors,
@@ -1161,14 +1154,14 @@ void map_field_to_quadrature_data_conditional(
    {
       if constexpr (std::is_same_v<T, TensorProduct>)
       {
-         map_field_to_quadrature_data_tensor_product(field_qp, element_idx, dtqmap,
+         map_field_to_quadrature_data_tensor_product(field_qp, dtqmap,
                                                      field_e, input,
                                                      integration_weights, geometric_factors,
                                                      scratch_mem);
       }
       else
       {
-         map_field_to_quadrature_data(field_qp, element_idx, dtqmap, field_e, input,
+         map_field_to_quadrature_data(field_qp, dtqmap, field_e, input,
                                       integration_weights, geometric_factors);
       }
    }
@@ -1178,7 +1171,6 @@ template <typename T = NonTensorProduct, size_t num_fields, size_t num_kinputs, 
 MFEM_HOST_DEVICE
 void map_fields_to_quadrature_data_conditional(
    const std::array<DeviceTensor<2>, num_kinputs> &fields_qp,
-   int element_idx,
    const std::array<DeviceTensor<1, const double>, num_fields> &fields_e,
    const std::array<int, num_kinputs> &kfinput_to_field,
    const std::array<DofToQuadMap, num_kinputs> &dtqmaps,
@@ -1189,7 +1181,7 @@ void map_fields_to_quadrature_data_conditional(
    const std::array<DeviceTensor<1>, 6> &scratch_mem,
    std::index_sequence<i...>)
 {
-   (map_field_to_quadrature_data_conditional<T>(fields_qp[i], element_idx,
+   (map_field_to_quadrature_data_conditional<T>(fields_qp[i],
                                                 dtqmaps[i], fields_e[kfinput_to_field[i]],
                                                 serac::get<i>(fops), integration_weights,
                                                 geometric_factors, scratch_mem,
@@ -1277,7 +1269,7 @@ get_shmem_info(
    for (int i = 0; i < num_fields; i++)
    {
       field_sizes[i] = get_restriction<entity_t>(fields[i],
-                                                 ElementDofOrdering::LEXICOGRAPHIC)->Height();
+                                                 ElementDofOrdering::LEXICOGRAPHIC)->Height() / num_entities;
    }
    total_size += std::accumulate(
                     std::begin(field_sizes), std::end(field_sizes), 0);
@@ -1315,21 +1307,23 @@ get_shmem_info(
    };
 }
 
-template <size_t N>
+template <size_t num_fields>
 MFEM_HOST_DEVICE inline
-std::array<DeviceTensor<1, const double>, N> load_field_mem(
+std::array<DeviceTensor<1, const double>, num_fields> load_field_mem(
    double *mem,
    int offset,
-   const std::array<int, N> &sizes,
-   std::array<DeviceTensor<1, const double>, N> fields_e)
+   const std::array<int, num_fields> &sizes,
+   std::array<DeviceTensor<2, const double>, num_fields> fields_e,
+   int entity_idx)
 {
-   std::array<DeviceTensor<1, const double>, N> f;
-   for (int i = 0; i < N; i++)
+   std::array<DeviceTensor<1, const double>, num_fields> f;
+   for (int i = 0; i < num_fields; i++)
    {
+      auto fe_i = Reshape(&fields_e[i](0, entity_idx), sizes[i]);
       // TODO-performance: loop could be parallelized over d1d^dim
       for (int k = 0; k < sizes[i]; k++)
       {
-         mem[offset + k] = fields_e[i](k);
+         mem[offset + k] = fe_i(k);
       }
       f[i] = DeviceTensor<1, const double>(&mem[offset], sizes[i]);
       offset += sizes[i];
@@ -1385,26 +1379,32 @@ std::array<DeviceTensor<2>, sizeof...(i)> get_local_input_qp(
    };
 }
 
-template<size_t N, size_t... I>
-std::array<DeviceTensor<1, const double>, N> wrap_vectors_impl(
+template<size_t N, size_t... i>
+std::array<DeviceTensor<2, const double>, N> wrap_fields_impl(
    std::array<Vector, N> &fields,
-   std::index_sequence<I...>)
+   std::array<int, N> &field_sizes,
+   int num_entities,
+   std::index_sequence<i...>)
 {
-   return std::array<DeviceTensor<1, const double>, N>
+   return std::array<DeviceTensor<2, const double>, N>
    {
       {
-         DeviceTensor<1, const double>(
-            fields[I].Read(),
-            fields[I].Size())...
+         DeviceTensor<2, const double>(
+            fields[i].Read(),
+            field_sizes[i],
+            num_entities)...
       }
    };
 }
 
 template <size_t N>
-std::array<DeviceTensor<1, const double>, N> wrap_vectors(
-   std::array<Vector, N> &fields)
+std::array<DeviceTensor<2, const double>, N> wrap_fields(
+   std::array<Vector, N> &fields,
+   std::array<int, N> &field_sizes,
+   int num_entities)
 {
-   return wrap_vectors_impl(fields, std::make_index_sequence<N> {});
+   return wrap_fields_impl(fields, field_sizes, num_entities,
+                           std::make_index_sequence<N> {});
 }
 
 template <typename input_t, size_t num_fields, std::size_t... i>
