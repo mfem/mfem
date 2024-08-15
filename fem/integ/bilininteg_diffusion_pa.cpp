@@ -70,6 +70,7 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    symmetric = (coeff_dim != dims*dims);
    const int pa_size = symmetric ? symmDims : dims*dims;
 
+   PrecomputeBasis();
    pa_data.SetSize(pa_size * nq * ne, mt);
    internal::PADiffusionSetup(dim, sdim, dofs1D, quad1D, coeff_dim, ne,
                               ir->GetWeights(), geom->J, coeff, pa_data);

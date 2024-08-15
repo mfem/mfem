@@ -5,16 +5,18 @@ using namespace std;
 using namespace mfem;
 using namespace lpq_common;
 
+//int wrap_abs(int x) { return std::abs(x); }
+
 int main(int argc, char *argv[])
 {
    Mpi::Init();
    Hypre::Init();
 
-   string mesh_file = "meshes/amr-quad.mesh";
-   // string mesh_file = "meshes/cube.mesh";
+   // string mesh_file = "meshes/amr-quad.mesh";
+   string mesh_file = "meshes/ref-square.mesh";
 
    Mesh *serial_mesh = new Mesh(mesh_file);
-   // serial_mesh->UniformRefinement();
+   serial_mesh->UniformRefinement();
    ParMesh *mesh = new ParMesh(MPI_COMM_WORLD, *serial_mesh);
    // mesh->UniformRefinement();
    delete serial_mesh;
@@ -53,7 +55,7 @@ int main(int argc, char *argv[])
    bfi = new DiffusionIntegrator();
 
    a->AddDomainIntegrator(bfi);
-   a->SetAssemblyLevel(AssemblyLevel::FULL);
+   a->SetAssemblyLevel(AssemblyLevel::PARTIAL);
    a->Assemble();
    a->FormSystemMatrix(ess_tdof_list, A);
 
