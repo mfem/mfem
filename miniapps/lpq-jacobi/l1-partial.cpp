@@ -27,7 +27,8 @@ int main(int argc, char *argv[])
 
    FiniteElementCollection *fec;
    ParFiniteElementSpace *fespace;
-   fec = new H1_FECollection(order, dim);
+   // fec = new H1_FECollection(order, dim);
+   fec = new ND_FECollection(order, dim);
    fespace = new ParFiniteElementSpace(mesh, fec);
 
    HYPRE_BigInt sys_size = fespace->GlobalTrueVSize();
@@ -52,7 +53,8 @@ int main(int argc, char *argv[])
    OperatorPtr A_legacy;
    OperatorPtr A;
 
-   bfi = new DiffusionIntegrator();
+   bfi = new VectorFEMassIntegrator();
+   //DiffusionIntegrator();
 
    a->AddDomainIntegrator(bfi);
    a->SetAssemblyLevel(AssemblyLevel::PARTIAL);
