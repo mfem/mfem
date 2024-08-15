@@ -193,8 +193,8 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
          std::cout << std::endl;
       }
    };
-   std::cout << __FILE__ << ':' << __LINE__ << std::endl;
-   print_elem();
+   // std::cout << __FILE__ << ':' << __LINE__ << std::endl;
+   // print_elem();
 
    if (parent.Nonconforming())
    {
@@ -207,8 +207,8 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
       // print_elem();
 
       pncmesh->OnMeshUpdated(this);
-      std::cout << __FILE__ << ':' << __LINE__ << std::endl;
-      print_elem();
+      // std::cout << __FILE__ << ':' << __LINE__ << std::endl;
+      // print_elem();
 
       // Update the submesh to parent vertex mapping, NCSubMesh reordered the vertices so
       // the map to parent is no longer valid.
@@ -229,8 +229,6 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
       }
       parent_vertex_ids_ = new_parent_vertex_ids;
       parent_to_submesh_vertex_ids_ = new_parent_to_submesh_vertex_ids;
-      // std::cout << __FILE__ << ':' << __LINE__ << std::endl;
-      // print_elem();
 
       GenerateNCFaceInfo();
       SetAttributes();

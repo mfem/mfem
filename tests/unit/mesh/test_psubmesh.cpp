@@ -729,7 +729,15 @@ struct ParNCSubMeshExposed : public ParNCSubMesh
    }
 };
 
-void RefineSingleAttachedElement(Mesh &mesh, int battr, bool backwards = true)
+/**
+ * @brief Helper to refine a single element attached to a boundary attributes
+ *
+ * @param mesh Mesh to refine
+ * @param vattr Volume attribute to check the attached element for
+ * @param battr Boundary attribute to loop over faces
+ * @param backwards Whether to iterate over the faces forwards or backwards.
+ */
+void RefineSingleAttachedElement(Mesh &mesh, int vattr, int battr, bool backwards = true)
 {
    Array<Refinement> refs(1);
    std::vector<int> ind(mesh.GetNBE());
@@ -743,18 +751,61 @@ void RefineSingleAttachedElement(Mesh &mesh, int battr, bool backwards = true)
    }
    for (int e : ind)
    {
-      std::cout << e << ' ';
       if (mesh.GetBdrAttribute(e) == battr)
       {
-         int el, info;
-         mesh.GetBdrElementAdjacentElement(e, el, info);
-         refs[0].index = el;
-         refs[0].ref_type = Refinement::XYZ;
-         break;
+         int f, o, el1, el2;
+         mesh.GetBdrElementFace(e, &f, &o);
+         mesh.GetFaceElements(f, &el1, &el2);
+         if (mesh.GetAttribute(el1) == vattr)
+         { mesh.GeneralRefinement(Array<int>{el1}); return; }
+         if (mesh.GetAttribute(el2) == vattr)
+         { mesh.GeneralRefinement(Array<int>{el2}); return; }
       }
    }
-   mesh.GeneralRefinement(refs);
 };
+
+/**
+ * @brief Helper to refine a single element not attached to a boundary
+ *
+ * @param mesh Mesh to refine
+ * @param vattr Volume
+ * @param battr
+ * @param backwards
+ */
+void RefineSingleUnattachedElement(Mesh &mesh, int vattr, int battr, bool backwards = true)
+{
+   std::set<int> attached_elements;
+   for (int e = 0; e < mesh.GetNBE(); e++)
+   {
+      if (mesh.GetBdrAttribute(e) == battr)
+      {
+         int f, o, el1, el2;
+         mesh.GetBdrElementFace(e, &f, &o);
+         mesh.GetFaceElements(f, &el1, &el2);
+         if (mesh.GetAttribute(el1) == vattr) { attached_elements.insert(el1); }
+         if (el2 >= 0 && mesh.GetAttribute(el2) == vattr) { attached_elements.insert(el2); }
+      }
+   }
+   if (backwards)
+   {
+      for (int i = mesh.GetNE() - 1; i >= 0; i--)
+         if (mesh.GetAttribute(i) == vattr && attached_elements.count(i) == 0)
+         {
+            mesh.GeneralRefinement(Array<int>{i});
+            return;
+         }
+   }
+   else
+   {
+      for (int i = 0; i < mesh.GetNE(); i++)
+         if (mesh.GetAttribute(i) == vattr && attached_elements.count(i) == 0)
+         {
+            mesh.GeneralRefinement(Array<int>{i});
+            return;
+         }
+   }
+};
+
 
 void CheckProjectMatch(ParMesh &mesh, ParSubMesh &submesh, FECType fec_type, bool check_pr = true)
 {
@@ -848,285 +899,125 @@ void CheckProjectMatch(ParMesh &mesh, ParSubMesh &submesh, FECType fec_type, boo
 
 TEST_CASE("VolumeParSubMesh", "[Parallel], [ParSubMesh]")
 {
-   SECTION("Hex")
+   bool use_tet = GENERATE(false,true);
+
+   auto mesh = use_tet ? OrientedTriFaceMesh(1, true) : DividingPlaneMesh(false, true);
+   mesh.EnsureNCMesh(true);
+   SECTION("UniformRefinement2")
    {
-      auto mesh = DividingPlaneMesh(false, true);
-      mesh.EnsureNCMesh(true);
-      SECTION("UniformRefinement2")
+      mesh.UniformRefinement();
+      mesh.UniformRefinement();
+      ParMesh pmesh(MPI_COMM_WORLD, mesh);
+      SECTION("SingleAttribute")
       {
-         mesh.UniformRefinement();
-         mesh.UniformRefinement();
-         ParMesh pmesh(MPI_COMM_WORLD, mesh);
-         SECTION("SingleAttribute")
+         Array<int> subdomain_attributes(1);
+         subdomain_attributes[0] = GENERATE(range(1,2));
+         auto submesh = ParSubMesh::CreateFromDomain(pmesh, subdomain_attributes);
+
+         // Cast to an exposed variant to explore the internals.
+         auto &pncmesh_exposed = static_cast<ParNCSubMeshExposed&>(*submesh.pncmesh);
+         CHECK(pncmesh_exposed.GetNumRootElements() == 1);
+         CHECK(pncmesh_exposed.CountUniqueLeafElements() == 8*8);
+         for (auto fec_type : {FECType::H1, FECType::L2, FECType::ND, FECType::RT})
          {
-            Array<int> subdomain_attributes(1);
-            subdomain_attributes[0] = GENERATE(range(1,2));
+            CAPTURE(fec_type);
+            CheckProjectMatch(pmesh, submesh, fec_type);
+         }
+      }
+
+      SECTION("UniformRefineTwoAttribute")
+      {
+         Array<int> subdomain_attributes(2);
+         subdomain_attributes[0] = 1;
+         subdomain_attributes[1] = 2;
+         auto submesh = ParSubMesh::CreateFromDomain(pmesh, subdomain_attributes);
+
+         // Cast to an exposed variant to explore the internals.
+         auto &pncmesh_exposed = static_cast<ParNCSubMeshExposed&>(*submesh.pncmesh);
+         CHECK(pncmesh_exposed.GetNumRootElements() == pmesh.ncmesh->GetNumRootElements());
+         CHECK(pncmesh_exposed.CountUniqueLeafElements() == 2*8*8);
+         for (auto fec_type : {FECType::H1, FECType::L2, FECType::ND, FECType::RT})
+         {
+            CAPTURE(fec_type);
+            CheckProjectMatch(pmesh, submesh, fec_type);
+         }
+      }
+   }
+
+   SECTION("Nonconformal")
+   {
+      mesh.UniformRefinement();
+      Array<int> subdomain_attributes{GENERATE(1,2)};
+      auto backwards = GENERATE(false, true);
+      SECTION("ConsistentWithParent")
+      {
+         RefineSingleUnattachedElement(mesh, subdomain_attributes[0], mesh.bdr_attributes.Max(), backwards);
+         {
+            ParMesh pmesh(MPI_COMM_WORLD, mesh);
             auto submesh = ParSubMesh::CreateFromDomain(pmesh, subdomain_attributes);
 
             // Cast to an exposed variant to explore the internals.
             auto &pncmesh_exposed = static_cast<ParNCSubMeshExposed&>(*submesh.pncmesh);
             CHECK(pncmesh_exposed.GetNumRootElements() == 1);
-            CHECK(pncmesh_exposed.CountUniqueLeafElements() == 8*8);
+            CHECK(pncmesh_exposed.CountUniqueLeafElements() == 8 - 1 + 8);
+            CAPTURE(subdomain_attributes[0], backwards);
             for (auto fec_type : {FECType::H1, FECType::L2, FECType::ND, FECType::RT})
             {
                CAPTURE(fec_type);
-               CheckProjectMatch(pmesh, submesh, fec_type);
+               CheckProjectMatch(pmesh, submesh, fec_type, true);
             }
          }
-
-         SECTION("UniformRefineTwoAttribute")
-         {
-            Array<int> subdomain_attributes(2);
-            subdomain_attributes[0] = 1;
-            subdomain_attributes[1] = 2;
-            auto submesh = ParSubMesh::CreateFromDomain(pmesh, subdomain_attributes);
-
-            // Cast to an exposed variant to explore the internals.
-            auto &pncmesh_exposed = static_cast<ParNCSubMeshExposed&>(*submesh.pncmesh);
-            CHECK(pncmesh_exposed.GetNumRootElements() == pmesh.ncmesh->GetNumRootElements());
-            CHECK(pncmesh_exposed.CountUniqueLeafElements() == 2*8*8);
-            for (auto fec_type : {FECType::H1, FECType::L2, FECType::ND, FECType::RT})
-            {
-               CAPTURE(fec_type);
-               CheckProjectMatch(pmesh, submesh, fec_type);
-            }
-         }
-      }
-
-      SECTION("NonconformalRefine")
-      {
-         mesh.UniformRefinement();
-         SECTION("LeftAttribute")
-         {
-            Array<int> subdomain_attributes{1};
-            SECTION("ConsistentWithParent")
-            {
-               mesh.GeneralRefinement(Array<int>{0});
-               {
-                  ParMesh pmesh(MPI_COMM_WORLD, mesh);
-                  auto submesh = ParSubMesh::CreateFromDomain(pmesh, subdomain_attributes);
-
-                  // Cast to an exposed variant to explore the internals.
-                  auto &pncmesh_exposed = static_cast<ParNCSubMeshExposed&>(*submesh.pncmesh);
-                  CHECK(pncmesh_exposed.GetNumRootElements() == 1);
-                  CHECK(pncmesh_exposed.CountUniqueLeafElements() == 8 - 1 + 8);
-                  for (auto fec_type : {FECType::H1, FECType::L2, FECType::ND, FECType::RT})
-                  {
-                     CAPTURE(fec_type);
-                     CheckProjectMatch(pmesh, submesh, fec_type, true);
-                  }
-               }
-               mesh.GeneralRefinement(Array<int>{0});
-               {
-                  ParMesh pmesh(MPI_COMM_WORLD, mesh);
-                  auto submesh = ParSubMesh::CreateFromDomain(pmesh, subdomain_attributes);
-
-                  // Cast to an exposed variant to explore the internals.
-                  auto &pncmesh_exposed = static_cast<ParNCSubMeshExposed&>(*submesh.pncmesh);
-                  CHECK(pncmesh_exposed.GetNumRootElements() == 1);
-                  CHECK(pncmesh_exposed.CountUniqueLeafElements() == 8 - 1 + 8 - 1 + 8);
-                  for (auto fec_type : {FECType::H1, FECType::L2, FECType::ND, FECType::RT})
-                  {
-                     CAPTURE(fec_type);
-                     CheckProjectMatch(pmesh, submesh, fec_type, true);
-                  }
-               }
-            }
-
-            SECTION("InconsistentWithParent")
-            {
-               mesh.GeneralRefinement(Array<int>{7});
-               {
-                  ParMesh pmesh(MPI_COMM_WORLD, mesh);
-                  auto submesh = ParSubMesh::CreateFromDomain(pmesh, subdomain_attributes);
-
-                  // Cast to an exposed variant to explore the internals.
-                  auto &pncmesh_exposed = static_cast<ParNCSubMeshExposed&>(*submesh.pncmesh);
-                  CHECK(pncmesh_exposed.GetNumRootElements() == 1);
-                  CHECK(pncmesh_exposed.CountUniqueLeafElements() == 8 - 1 + 8);
-                  for (auto fec_type : {FECType::H1, FECType::L2, FECType::ND, FECType::RT})
-                  {
-                     CAPTURE(fec_type);
-                     CheckProjectMatch(pmesh, submesh, fec_type, false);
-                  }
-               }
-               mesh.GeneralRefinement(Array<int>{7});
-               {
-                  ParMesh pmesh(MPI_COMM_WORLD, mesh);
-                  auto submesh = ParSubMesh::CreateFromDomain(pmesh, subdomain_attributes);
-
-                  // Cast to an exposed variant to explore the internals.
-                  auto &pncmesh_exposed = static_cast<ParNCSubMeshExposed&>(*submesh.pncmesh);
-                  CHECK(pncmesh_exposed.GetNumRootElements() == 1);
-                  CHECK(pncmesh_exposed.CountUniqueLeafElements() == 8 - 1 + 8 - 1 + 8);
-                  for (auto fec_type : {FECType::H1, FECType::L2, FECType::ND, FECType::RT})
-                  {
-                     CAPTURE(fec_type);
-                     CheckProjectMatch(pmesh, submesh, fec_type, false);
-                  }
-               }
-            }
-         }
-
-         SECTION("RightAttribute")
-         {
-            Array<int> subdomain_attributes{2};
-            SECTION("ConsistentWithParent")
-            {
-               mesh.GeneralRefinement(Array<int>{9});
-               {
-                  ParMesh pmesh(MPI_COMM_WORLD, mesh);
-                  auto submesh = ParSubMesh::CreateFromDomain(pmesh, subdomain_attributes);
-
-                  // Cast to an exposed variant to explore the internals.
-                  auto &pncmesh_exposed = static_cast<ParNCSubMeshExposed&>(*submesh.pncmesh);
-                  CHECK(pncmesh_exposed.GetNumRootElements() == 1);
-                  CHECK(pncmesh_exposed.CountUniqueLeafElements() == 8 - 1 + 8);
-                  for (auto fec_type : {FECType::H1, FECType::L2, FECType::ND, FECType::RT})
-                  {
-                     CAPTURE(fec_type);
-                     CheckProjectMatch(pmesh, submesh, fec_type, true);
-                  }
-               }
-               mesh.GeneralRefinement(Array<int>{9});
-               {
-                  ParMesh pmesh(MPI_COMM_WORLD, mesh);
-                  auto submesh = ParSubMesh::CreateFromDomain(pmesh, subdomain_attributes);
-
-                  // Cast to an exposed variant to explore the internals.
-                  auto &pncmesh_exposed = static_cast<ParNCSubMeshExposed&>(*submesh.pncmesh);
-                  CHECK(pncmesh_exposed.GetNumRootElements() == 1);
-                  CHECK(pncmesh_exposed.CountUniqueLeafElements() == 8 - 1 + 8 - 1 + 8);
-                  for (auto fec_type : {FECType::H1, FECType::L2, FECType::ND, FECType::RT})
-                  {
-                     CAPTURE(fec_type);
-                     CheckProjectMatch(pmesh, submesh, fec_type, true);
-                  }
-               }
-            }
-
-            SECTION("InconsistentWithParent")
-            {
-               mesh.GeneralRefinement(Array<int>{15});
-               {
-                  ParMesh pmesh(MPI_COMM_WORLD, mesh);
-                  auto submesh = ParSubMesh::CreateFromDomain(pmesh, subdomain_attributes);
-
-                  // Cast to an exposed variant to explore the internals.
-                  auto &pncmesh_exposed = static_cast<ParNCSubMeshExposed&>(*submesh.pncmesh);
-                  CHECK(pncmesh_exposed.GetNumRootElements() == 1);
-                  CHECK(pncmesh_exposed.CountUniqueLeafElements() == 8 - 1 + 8);
-                  for (auto fec_type : {FECType::H1, FECType::L2, FECType::ND, FECType::RT})
-                  {
-                     CAPTURE(fec_type);
-                     CheckProjectMatch(pmesh, submesh, fec_type, false);
-                  }
-               }
-               mesh.GeneralRefinement(Array<int>{19});
-               {
-                  ParMesh pmesh(MPI_COMM_WORLD, mesh);
-                  auto submesh = ParSubMesh::CreateFromDomain(pmesh, subdomain_attributes);
-
-                  // Cast to an exposed variant to explore the internals.
-                  auto &pncmesh_exposed = static_cast<ParNCSubMeshExposed&>(*submesh.pncmesh);
-                  CHECK(pncmesh_exposed.GetNumRootElements() == 1);
-                  CHECK(pncmesh_exposed.CountUniqueLeafElements() == 8 - 1 + 8 - 1 + 8);
-                  for (auto fec_type : {FECType::H1, FECType::L2, FECType::ND, FECType::RT})
-                  {
-                     CAPTURE(fec_type);
-                     CheckProjectMatch(pmesh, submesh, fec_type, false);
-                  }
-               }
-            }
-         }
-      }
-   }
-
-   SECTION("Tet")
-   {
-      auto mesh = DividingPlaneMesh(true, true);
-      mesh.EnsureNCMesh(true);
-      SECTION("UniformRefinement2")
-      {
-         mesh.UniformRefinement();
-         mesh.UniformRefinement();
-         ParMesh pmesh(MPI_COMM_WORLD, mesh);
-         SECTION("SingleAttribute")
-         {
-            Array<int> subdomain_attributes(1);
-            subdomain_attributes[0] = GENERATE(range(1,2));
-            auto submesh = ParSubMesh::CreateFromDomain(pmesh, subdomain_attributes);
-
-            // Cast to an exposed variant to explore the internals.
-            auto &pncmesh_exposed = static_cast<ParNCSubMeshExposed&>(*submesh.pncmesh);
-            CHECK(pncmesh_exposed.GetNumRootElements() == 6);
-            CHECK(pncmesh_exposed.CountUniqueLeafElements() == 6*8*8);
-            for (auto fec_type : {FECType::H1, FECType::L2, FECType::ND, FECType::RT})
-            {
-               CAPTURE(fec_type);
-               CheckProjectMatch(pmesh, submesh, fec_type);
-            }
-         }
-
-         SECTION("DoubleAttribute")
-         {
-            Array<int> subdomain_attributes(2);
-            subdomain_attributes[0] = 1;
-            subdomain_attributes[1] = 2;
-            auto submesh = ParSubMesh::CreateFromDomain(pmesh, subdomain_attributes);
-
-            // Cast to an exposed variant to explore the internals.
-            auto &pncmesh_exposed = static_cast<ParNCSubMeshExposed&>(*submesh.pncmesh);
-            CHECK(pncmesh_exposed.GetNumRootElements() == pmesh.ncmesh->GetNumRootElements());
-            CHECK(pncmesh_exposed.CountUniqueLeafElements() == 12*8*8);
-            for (auto fec_type : {FECType::H1, FECType::L2, FECType::ND, FECType::RT})
-            {
-               CAPTURE(fec_type);
-               CheckProjectMatch(pmesh, submesh, fec_type);
-            }
-         }
-      }
-
-      SECTION("NonconformalRefine")
-      {
-         Array<int> subdomain_attributes(1);
-         subdomain_attributes[0] = GENERATE(range(1,2));
-         mesh.UniformRefinement();
-         mesh.GeneralRefinement(Array<int>{GENERATE(range(0,7))});
-         SECTION("SingleRefine")
+         RefineSingleUnattachedElement(mesh, subdomain_attributes[0], mesh.bdr_attributes.Max(), backwards);
          {
             ParMesh pmesh(MPI_COMM_WORLD, mesh);
             auto submesh = ParSubMesh::CreateFromDomain(pmesh, subdomain_attributes);
 
             // Cast to an exposed variant to explore the internals.
             auto &pncmesh_exposed = static_cast<ParNCSubMeshExposed&>(*submesh.pncmesh);
-            CHECK(pncmesh_exposed.GetNumRootElements() == 6);
-            CHECK(pncmesh_exposed.CountUniqueLeafElements() == 6*8 - 1 + 8);
+            CHECK(pncmesh_exposed.GetNumRootElements() == 1);
+            CHECK(pncmesh_exposed.CountUniqueLeafElements() == 8 - 1 + 8 - 1 + 8);
             for (auto fec_type : {FECType::H1, FECType::L2, FECType::ND, FECType::RT})
             {
                CAPTURE(fec_type);
-               CheckProjectMatch(pmesh, submesh, fec_type);
+               CheckProjectMatch(pmesh, submesh, fec_type, true);
             }
          }
-         SECTION("DoubleRefine")
+      }
+
+      SECTION("InconsistentWithParent")
+      {
+         RefineSingleAttachedElement(mesh, subdomain_attributes[0], mesh.bdr_attributes.Max(), backwards);
          {
-            mesh.GeneralRefinement(Array<int>{GENERATE(range(0,14))});
             ParMesh pmesh(MPI_COMM_WORLD, mesh);
             auto submesh = ParSubMesh::CreateFromDomain(pmesh, subdomain_attributes);
 
             // Cast to an exposed variant to explore the internals.
             auto &pncmesh_exposed = static_cast<ParNCSubMeshExposed&>(*submesh.pncmesh);
-            CHECK(pncmesh_exposed.GetNumRootElements() == 6);
-            CHECK(pncmesh_exposed.CountUniqueLeafElements() == 6*8 - 1 + 8 - 1 + 8);
+            CHECK(pncmesh_exposed.GetNumRootElements() == 1);
+            CHECK(pncmesh_exposed.CountUniqueLeafElements() == 8 - 1 + 8);
             for (auto fec_type : {FECType::H1, FECType::L2, FECType::ND, FECType::RT})
             {
                CAPTURE(fec_type);
-               CheckProjectMatch(pmesh, submesh, fec_type);
+               CheckProjectMatch(pmesh, submesh, fec_type, false);
+            }
+         }
+         RefineSingleAttachedElement(mesh, subdomain_attributes[0], mesh.bdr_attributes.Max(), backwards);
+         {
+            ParMesh pmesh(MPI_COMM_WORLD, mesh);
+            auto submesh = ParSubMesh::CreateFromDomain(pmesh, subdomain_attributes);
+
+            // Cast to an exposed variant to explore the internals.
+            auto &pncmesh_exposed = static_cast<ParNCSubMeshExposed&>(*submesh.pncmesh);
+            CHECK(pncmesh_exposed.GetNumRootElements() == 1);
+            CHECK(pncmesh_exposed.CountUniqueLeafElements() == 8 - 1 + 8 - 1 + 8);
+            for (auto fec_type : {FECType::H1, FECType::L2, FECType::ND, FECType::RT})
+            {
+               CAPTURE(fec_type);
+               CheckProjectMatch(pmesh, submesh, fec_type, false);
             }
          }
       }
    }
-
 }
 
 TEST_CASE("ExteriorSurfaceParSubMesh", "[Parallel], [ParSubMesh]")
@@ -1181,7 +1072,7 @@ TEST_CASE("ExteriorSurfaceParSubMesh", "[Parallel], [ParSubMesh]")
          Array<int> subdomain_attributes(1);
          subdomain_attributes[0] = GENERATE(range(1,6));
          mesh.UniformRefinement();
-         RefineSingleAttachedElement(mesh, subdomain_attributes[0], true);
+         RefineSingleAttachedElement(mesh, 1, subdomain_attributes[0], true);
          SECTION("Single")
          {
             ParMesh pmesh(MPI_COMM_WORLD, mesh);
@@ -1200,7 +1091,7 @@ TEST_CASE("ExteriorSurfaceParSubMesh", "[Parallel], [ParSubMesh]")
          }
          SECTION("Double")
          {
-            RefineSingleAttachedElement(mesh, subdomain_attributes[0], false);
+            RefineSingleAttachedElement(mesh, 1, subdomain_attributes[0], false);
             ParMesh pmesh(MPI_COMM_WORLD, mesh);
             auto submesh = ParSubMesh::CreateFromBoundary(pmesh, subdomain_attributes);
 
@@ -1267,7 +1158,7 @@ TEST_CASE("ExteriorSurfaceParSubMesh", "[Parallel], [ParSubMesh]")
          Array<int> subdomain_attributes(1);
          subdomain_attributes[0] = GENERATE(range(1,4));
          mesh.UniformRefinement();
-         RefineSingleAttachedElement(mesh, subdomain_attributes[0], true);
+         RefineSingleAttachedElement(mesh, 1, subdomain_attributes[0], true);
          SECTION("Single")
          {
             ParMesh pmesh(MPI_COMM_WORLD, mesh);
@@ -1285,7 +1176,7 @@ TEST_CASE("ExteriorSurfaceParSubMesh", "[Parallel], [ParSubMesh]")
          }
          SECTION("Double")
          {
-            RefineSingleAttachedElement(mesh, subdomain_attributes[0], false);
+            RefineSingleAttachedElement(mesh, 1, subdomain_attributes[0], false);
             ParMesh pmesh(MPI_COMM_WORLD, mesh);
             auto submesh = ParSubMesh::CreateFromBoundary(pmesh, subdomain_attributes);
 

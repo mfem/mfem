@@ -211,17 +211,17 @@ void BuildVdofToVdofMap(const FiniteElementSpace& subfes,
          real_t parent_sign = 1.0;
          int parent_vdof = parentfes.DecodeDof(parent_vdofs[j], parent_sign);
 
-         for (auto x : {4,6,9,11})
-            if (sub_vdof == x)
-            {
-               std::cout << "element " << i << " maps " << x << " to " << parent_vdof << '\n';
-            }
-         for (auto x : {114, 119})
-            if (parent_vdof == x)
-            {
-               std::cout << "element " << i << " maps " << sub_vdof << " to " << x << std::endl;
-               // std::cout << "parent element " << parent_element_ids[i] << " parent contains " << x << std::endl;
-            }
+         // for (auto x : {4,6,9,11})
+         //    if (sub_vdof == x)
+         //    {
+         //       std::cout << "element " << i << " maps " << x << " to " << parent_vdof << '\n';
+         //    }
+         // for (auto x : {114, 119})
+         //    if (parent_vdof == x)
+         //    {
+         //       std::cout << "element " << i << " maps " << sub_vdof << " to " << x << std::endl;
+         //       // std::cout << "parent element " << parent_element_ids[i] << " parent contains " << x << std::endl;
+         //    }
 
          vdof_to_vdof_map[sub_vdof] =
             (sub_sign * parent_sign > 0.0) ? parent_vdof : (-1-parent_vdof);

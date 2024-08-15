@@ -870,33 +870,33 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
    }
 
    // for (const auto &e : elements)
-   for (int i = 0; i < elements.Size(); i++)
-   {
-      const auto &e = elements[i];
-      std::cout << std::boolalpha;
-      std::cout << "elem " << i << " e.attribute " << e.attribute
-      << " e.IsLeaf() " << e.IsLeaf()
-      << " e.parent " << e.parent
-      << " e.ref_type " << int(e.ref_type)
-      << " e.rank " << e.rank;
-      if (e.IsLeaf())
-      {
-         std::cout << " node ";
-         for (int n = 0; n < 8; n++)
-         {
-            std::cout << e.node[n] << ' ';
-         }
-      }
-      else
-      {
-         std::cout << " child ";
-         for (int n = 0; n < 10; n++)
-         {
-            std::cout << e.child[n] << ' ';
-         }
-      }
-      std::cout << std::endl;
-   }
+   // for (int i = 0; i < elements.Size(); i++)
+   // {
+   //    const auto &e = elements[i];
+   //    std::cout << std::boolalpha;
+   //    std::cout << "elem " << i << " e.attribute " << e.attribute
+   //    << " e.IsLeaf() " << e.IsLeaf()
+   //    << " e.parent " << e.parent
+   //    << " e.ref_type " << int(e.ref_type)
+   //    << " e.rank " << e.rank;
+   //    if (e.IsLeaf())
+   //    {
+   //       std::cout << " node ";
+   //       for (int n = 0; n < 8; n++)
+   //       {
+   //          std::cout << e.node[n] << ' ';
+   //       }
+   //    }
+   //    else
+   //    {
+   //       std::cout << " child ";
+   //       for (int n = 0; n < 10; n++)
+   //       {
+   //          std::cout << e.child[n] << ' ';
+   //       }
+   //    }
+   //    std::cout << std::endl;
+   // }
 
 
    // std::cout << __FILE__ << ':' << __LINE__ << std::endl;
@@ -907,23 +907,23 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
       const int submesh_p1 = parent_to_submesh_node_ids_[parent_node.p1];
       const int submesh_p2 = parent_to_submesh_node_ids_[parent_node.p2];
 
-      std::cout << "Reparenting " << i << " with " << submesh_p1 << ' ' << submesh_p2;
-      std::cout << " vert_index " << nodes[i].vert_index << std::endl;
+      // std::cout << "Reparenting " << i << " with " << submesh_p1 << ' ' << submesh_p2;
+      // std::cout << " vert_index " << nodes[i].vert_index << std::endl;
       nodes.Reparent(i, submesh_p1, submesh_p2);
    }
 
-   std::cout << __FILE__ << ':' << __LINE__ << std::endl;
-   std::cout << "nodes.Size() " << nodes.Size() << std::endl;
-   for (auto it = nodes.begin(); it != nodes.end(); ++it)
-   {
-      std::cout << it.index() << ' ' << it->p1 << ' ' << it->p2;
-      if (it->p1 == it->p2)
-      {
-         std::cout << " (root)";
-      }
-      std::cout << " pn " << parent_node_ids_[it.index()];
-      std::cout << std::endl;
-   }
+   // std::cout << __FILE__ << ':' << __LINE__ << std::endl;
+   // std::cout << "nodes.Size() " << nodes.Size() << std::endl;
+   // for (auto it = nodes.begin(); it != nodes.end(); ++it)
+   // {
+   //    std::cout << it.index() << ' ' << it->p1 << ' ' << it->p2;
+   //    if (it->p1 == it->p2)
+   //    {
+   //       std::cout << " (root)";
+   //    }
+   //    std::cout << " pn " << parent_node_ids_[it.index()];
+   //    std::cout << std::endl;
+   // }
 
    // std::cout << __FILE__ << ':' << __LINE__ << std::endl;
    nodes.UpdateUnused();
@@ -977,14 +977,14 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
          MFEM_ASSERT(!new_node, "Should not be new");
          std::memcpy(&coordinates[3*n], parent.CalcVertexPos(pn), 3*sizeof(real_t));
       }
-      std::cout << __FILE__ << ':' << __LINE__ << std::endl;
-      for (int i = 0; i < coordinates.Size() / 3; i++)
-      {
-         std::cout << "node " << i
-         << '\t' << coordinates[3*i + 0]
-         << '\t' << coordinates[3*i + 1]
-         << '\t' << coordinates[3*i + 2] << '\n';
-      }
+      // std::cout << __FILE__ << ':' << __LINE__ << std::endl;
+      // for (int i = 0; i < coordinates.Size() / 3; i++)
+      // {
+      //    std::cout << "node " << i
+      //    << '\t' << coordinates[3*i + 0]
+      //    << '\t' << coordinates[3*i + 1]
+      //    << '\t' << coordinates[3*i + 2] << '\n';
+      // }
 
    }
 
@@ -994,7 +994,7 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
    {
       // The element indexing was changed as part of generation of leaf elements. We need to
       // update the map.
-      std::cout << "leaf_elements.Size() " << leaf_elements.Size() << std::endl;
+      // std::cout << "leaf_elements.Size() " << leaf_elements.Size() << std::endl;
       submesh.parent_to_submesh_element_ids_ = -1;
       for (int i = 0; i < submesh.parent_element_ids_.Size(); i++)
       {
@@ -1005,22 +1005,22 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
    }
    else
    {
-      std::cout << __FILE__<< ':' << __LINE__ << std::endl;
-      std::cout << "parent_element_ids_ ";
-      for (auto x : parent_element_ids_)
-      {
-         std::cout << x << ' ';
-      }
-      std::cout << '\n';
-      std::cout << __FILE__<< ':' << __LINE__ << std::endl;
-      std::cout << "submesh.parent_element_ids_ ";
-      for (auto x : submesh.parent_element_ids_)
-      {
-         std::cout << x << ' ';
-      }
-      std::cout << '\n';
+      // std::cout << __FILE__<< ':' << __LINE__ << std::endl;
+      // std::cout << "parent_element_ids_ ";
+      // for (auto x : parent_element_ids_)
+      // {
+      //    std::cout << x << ' ';
+      // }
+      // std::cout << '\n';
+      // std::cout << __FILE__<< ':' << __LINE__ << std::endl;
+      // std::cout << "submesh.parent_element_ids_ ";
+      // for (auto x : submesh.parent_element_ids_)
+      // {
+      //    std::cout << x << ' ';
+      // }
+      // std::cout << '\n';
 
-      std::cout << "leaf_elements.Size() " << leaf_elements.Size() << std::endl;
+      // std::cout << "leaf_elements.Size() " << leaf_elements.Size() << std::endl;
       submesh.parent_to_submesh_element_ids_ = -1;
       // parent elements are BOUNDARY elements, need to map face index to be.
       const auto &parent_face_to_be = submesh.GetParent()->GetFaceToBdrElMap();
