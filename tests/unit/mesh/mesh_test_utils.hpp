@@ -23,6 +23,21 @@ namespace mfem
 {
 
 /**
+ * @brief Testing class for making members of NCMesh visible for testing purposes only.
+ * @details DO NOT ADD ANY NEW MEMBER VARIABLES TO THIS CLASS. To do will make static
+ * casting pointers or references from an NCMesh to this class invalid. If an additional
+ * field or method needs to be exposed, just add using `using::XXX` and the containing
+ * public permission of NCMeshExposed will be granted.
+ */
+struct NCMeshExposed : public NCMesh
+{
+  using NCMesh::NCMesh;
+  using NCMesh::GetFace;
+  using NCMesh::faces;
+};
+
+
+/**
  * @brief Helper function for performing an H1 Poisson solve on a serial mesh,
  * with homogeneous essential boundary conditions. Optionally can disable a
  * boundary.
@@ -99,7 +114,6 @@ Mesh OrientedTriFaceMesh(int orientation, bool add_extbdr = false);
 Mesh CylinderMesh(Geometry::Type el_type, bool quadratic, int variant = 0);
 
 #ifdef MFEM_USE_MPI
-
 
 /**
  * @brief Test GetVectorValue on face neighbor elements for nonconforming meshes

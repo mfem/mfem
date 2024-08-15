@@ -467,6 +467,25 @@ public:
        Face::index) after a new mesh was created from us. */
    void OnMeshUpdated(Mesh *mesh);
 
+   static constexpr int MaxElemNodes =
+      8;       ///< Number of nodes an element can have
+   static constexpr int MaxElemEdges =
+      12;      ///< Number of edges an element can have
+   static constexpr int MaxElemFaces =
+      6;       ///< Number of faces an element can have
+   static constexpr int MaxElemChildren =
+      10;      ///< Number of children an element can have
+   static constexpr int MaxFaceNodes =
+      4;      ///< Number of faces an element can have
+
+   /**
+    * @brief Given a node index, return the vertex index associated
+    *
+    * @param node
+    * @return int
+    */
+   int GetNodeVertex(int node) { return nodes[node].vert_index; }
+
 protected: // non-public interface for the Mesh class
 
    friend class Mesh;
@@ -479,7 +498,7 @@ protected: // non-public interface for the Mesh class
        by calling Mesh::SetCurvature or otherwise setting the Nodes. */
    void MakeTopologyOnly() { coordinates.DeleteAll(); }
 
-public: // implementation
+protected: // implementation
 
    int Dim, spaceDim; ///< dimensions of the elements and the vertex coordinates
    int MyRank; ///< used in parallel, or when loading a parallel file in serial
@@ -487,16 +506,6 @@ public: // implementation
    int Geoms; ///< bit mask of element geometries present, see InitGeomFlags()
    bool Legacy; ///< true if the mesh was loaded from the legacy v1.1 format
 
-   static constexpr int MaxElemNodes =
-      8;       ///< Number of nodes an element can have
-   static constexpr int MaxElemEdges =
-      12;      ///< Number of edges an element can have
-   static constexpr int MaxElemFaces =
-      6;       ///< Number of faces an element can have
-   static constexpr int MaxElemChildren =
-      10;      ///< Number of children an element can have
-   static constexpr int MaxFaceNodes =
-      4;      ///< Number of nodes an element can have
 
    /** A Node can hold a vertex, an edge, or both. Elements directly point to
        their corner nodes, but edge nodes also exist and can be accessed using
@@ -1247,6 +1256,8 @@ public:
    friend class ParNCMesh; // for ParNCMesh::ElementSet
    friend struct MatrixMap;
    friend struct PointMatrixHash;
+   friend class NCSubMesh;
+   friend class ParNCSubMesh;
 };
 
 }

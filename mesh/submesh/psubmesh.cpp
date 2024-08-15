@@ -200,7 +200,7 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
    {
 
       pncmesh = new ParNCSubMesh(*this, *parent.pncmesh, from, attributes);
-      auto pncsubmesh = dynamic_cast<ParNCSubMesh*>(pncmesh);
+      pncsubmesh_ = dynamic_cast<ParNCSubMesh*>(pncmesh);
       ncmesh = pncmesh;
       InitFromNCMesh(*pncmesh);
       // std::cout << __FILE__ << ':' << __LINE__ << std::endl;
@@ -218,9 +218,9 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
       for (int i = 0; i < parent_vertex_ids_.Size(); i++)
       {
          // vertex -> node -> parent node -> parent vertex
-         auto node = ncmesh->vertex_nodeId[i];
-         auto parent_node = pncsubmesh->parent_node_ids_[node];
-         auto parent_vertex =  parent.ncmesh->nodes[parent_node].vert_index;
+         auto node = pncsubmesh_->vertex_nodeId[i];
+         auto parent_node = pncsubmesh_->parent_node_ids_[node];
+         auto parent_vertex =  parent.pncmesh->GetNodeVertex(parent_node);
          auto *vv = parent.GetVertex(parent_vertex);
          // std::cout << i << " node " << node << " parent_node " << parent_node << " parent_vertex " << parent_vertex
          //    << " (" << vv[0] << ", " << vv[1] << ", " << vv[2] << ")" << std::endl;

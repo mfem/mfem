@@ -262,16 +262,22 @@ NCMesh::NCMesh(const NCMesh &other)
    , nodes(other.nodes)
    , faces(other.faces)
    , elements(other.elements)
+   , free_element_ids(other.free_element_ids)
+   , root_state(other.root_state)
+   , coordinates(other.coordinates)
    , NEdges(other.NEdges)
    , NGhostEdges(other.NGhostEdges)
    , NFaces(other.NFaces)
    , NGhostFaces(other.NGhostFaces)
+   , boundary_faces(other.boundary_faces)
    , face_geom(other.face_geom)
+   , element_vertex(other.element_vertex)
    , shadow(1024, 2048)
 {
-   other.free_element_ids.Copy(free_element_ids);
-   other.root_state.Copy(root_state);
-   other.coordinates.Copy(coordinates);
+   // other.free_element_ids.Copy(free_element_ids);
+   // other.root_state.Copy(root_state);
+   // other.coordinates.Copy(coordinates);
+
    Update();
 }
 
@@ -3759,7 +3765,7 @@ void NCMesh::BuildEdgeList()
 
 void NCMesh::BuildVertexList()
 {
-   std::cout << "R" << MyRank << ' ' << __FILE__ << ':' << __LINE__<< '\n';
+   // std::cout << "R" << MyRank << ' ' << __FILE__ << ':' << __LINE__<< '\n';
    int total = NVertices + NGhostVertices;
 
    vertex_list.Clear();

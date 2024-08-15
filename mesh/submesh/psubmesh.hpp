@@ -393,6 +393,9 @@ public:
    /// The parent Mesh
    const ParMesh &parent_;
 
+   /// Optional nonconformal submesh. Managed via ncmesh pointer in base class.
+   ParNCSubMesh *pncsubmesh_;
+
    /// Indicator from which part of the parent ParMesh the ParSubMesh is going to
    /// be created.
    SubMesh::From from_;
