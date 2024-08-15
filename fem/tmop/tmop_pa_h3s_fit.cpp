@@ -43,11 +43,12 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_Fit_3D,
    const auto M0 = Reshape(m0_.Read(), D1D, D1D, D1D, NE);
    const auto D1 = Reshape(d1_.Read(), D1D, D1D, D1D, DIM, NE);
    const auto D2 = Reshape(d2_.Read(), D1D, D1D, D1D, DIM, DIM, NE);
-   const Array<int> FE = fe_;
+   const auto FE = fe_.Read();
+   const auto nel_fit = fe_.Size();
 
    auto H0 = Reshape(h0_.Write(), DIM, DIM, D1D, D1D, D1D, NE);
 
-   mfem::forall_3D(FE.Size(), D1D, D1D, D1D, [=] MFEM_HOST_DEVICE (int i)
+   mfem::forall_3D(nel_fit, D1D, D1D, D1D, [=] MFEM_HOST_DEVICE (int i)
    {
       const int e = FE[i];
       const int D1D = T_D1D ? T_D1D : d1d;

@@ -29,14 +29,15 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_Fit_3D,
 {
    constexpr int DIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
-   const Array<int> FE = fe_;
+   const auto FE = fe_.Read();
+   const auto nel_fit = fe_.Size();
 
    const auto H0 = Reshape(h0_.Read(), DIM, DIM, D1D, D1D, D1D, NE);
    const auto R = Reshape(r_.Read(), D1D, D1D, D1D, DIM, NE);
 
    auto Y = Reshape(c_.ReadWrite(), D1D, D1D, D1D, DIM, NE);
 
-   mfem::forall_3D(FE.Size(), D1D, D1D, D1D, [=] MFEM_HOST_DEVICE (int i)
+   mfem::forall_3D(nel_fit, D1D, D1D, D1D, [=] MFEM_HOST_DEVICE (int i)
    {
       const int e = FE[i];
       const int D1D = T_D1D ? T_D1D : d1d;

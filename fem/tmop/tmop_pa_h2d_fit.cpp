@@ -29,12 +29,13 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_Fit_2D,
 {
     constexpr int DIM = 2;
     const int D1D = T_D1D ? T_D1D : d1d;
-    const Array<int> FE = fe_;
+    const auto FE = fe_.Read();
+    const auto nel_fit = fe_.Size();
     
     const auto H0 = Reshape(h0.Read(), DIM, DIM, D1D, D1D, NE);
     auto D = Reshape(diagonal.ReadWrite(), D1D, D1D, DIM, NE);
 
-    mfem::forall_2D(FE.Size(), D1D, D1D, [=] MFEM_HOST_DEVICE (int i)
+    mfem::forall_2D(nel_fit, D1D, D1D, [=] MFEM_HOST_DEVICE (int i)
     {
         const int e = FE[i];
         const int D1D = T_D1D ? T_D1D : d1d;

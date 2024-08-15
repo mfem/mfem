@@ -43,12 +43,13 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_Fit_2D,
    const auto DC = Reshape(dc_.Read(), D1D, D1D, NE);
    const auto M0 = Reshape(m0_.Read(), D1D, D1D, NE);
    const auto D1 = Reshape(d1_.Read(), D1D, D1D, DIM, NE);
-   const Array<int> FE = fe_;
+   const auto FE = fe_.Read();
+   const auto nel_fit = fe_.Size();
 
 
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, DIM, NE);
 
-   mfem::forall_2D(FE.Size(), D1D, D1D, [=] MFEM_HOST_DEVICE (int i)
+   mfem::forall_2D(nel_fit, D1D, D1D, [=] MFEM_HOST_DEVICE (int i)
    {
       const int e = FE[i];
       const int D1D = T_D1D ? T_D1D : d1d;
