@@ -1180,12 +1180,13 @@ public:
    // (1/alpha) | A - W |^2
    virtual real_t EvalW(const DenseMatrix &Jpt) const;
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
-   { MFEM_ABORT("Not implemented"); }
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const
-   { MFEM_ABORT("Not implemented"); }
+                          const real_t weight, DenseMatrix &A) const;
+
+   void ComputeH(const DenseMatrix &Jpt,
+                  DenseTensor &H) const;
 };
 
 /// 2D barrier Shape+Orientation (OS) metric (polyconvex).
