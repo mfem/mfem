@@ -189,7 +189,7 @@ void forall(func_t f,
 #if (defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
       int gridsize = (n + blocksize - 1) / blocksize;
       int num_bytes = num_shmem * sizeof(decltype(shmem));
-      forall_kernel_shmem<<<gridsize,blocksize,shmem>>>(f, n, num_bytes);
+      forall_kernel_shmem<<<gridsize,blocksize,num_bytes>>>(f, n);
       MFEM_DEVICE_SYNC;
 #endif
    }
@@ -1386,7 +1386,6 @@ std::array<DeviceTensor<2>, sizeof...(i)> get_local_input_qp(
 }
 
 template<size_t N, size_t... I>
-MFEM_HOST_DEVICE
 std::array<DeviceTensor<1, const double>, N> wrap_vectors_impl(
    std::array<Vector, N> &fields,
    std::index_sequence<I...>)
@@ -1402,7 +1401,6 @@ std::array<DeviceTensor<1, const double>, N> wrap_vectors_impl(
 }
 
 template <size_t N>
-MFEM_HOST_DEVICE
 std::array<DeviceTensor<1, const double>, N> wrap_vectors(
    std::array<Vector, N> &fields)
 {
