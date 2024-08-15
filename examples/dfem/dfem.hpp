@@ -1232,10 +1232,10 @@ SharedMemoryInfo<num_fields, num_inputs>
 get_shmem_info(
    std::array<DofToQuadMap, num_inputs> input_dtq_maps,
    std::array<DofToQuadMap, num_outputs> output_dtq_maps,
-   int num_entities,
    const std::array<FieldDescriptor, num_fields> &fields,
-   int num_qp,
+   int num_entities,
    const input_t &inputs,
+   int num_qp,
    const std::array<int, num_inputs> &input_size_on_qp)
 {
    std::array<int, 4> offsets = {0};
@@ -1277,7 +1277,7 @@ get_shmem_info(
    for (int i = 0; i < num_fields; i++)
    {
       field_sizes[i] = get_restriction<entity_t>(fields[i],
-                                                 ElementDofOrdering::LEXICOGRAPHIC)->Height() / num_entities;
+                                                 ElementDofOrdering::LEXICOGRAPHIC)->Height();
    }
    total_size += std::accumulate(
                     std::begin(field_sizes), std::end(field_sizes), 0);

@@ -108,10 +108,10 @@ void DifferentiableOperator<kernels_tuple,
 
    auto shmem_info = get_shmem_info<entity_t>(input_dtq_maps,
                                               output_dtq_maps,
-                                              num_entities,
                                               op.fields,
-                                              num_qp,
+                                              num_entities,
                                               kernel.inputs,
+                                              num_qp,
                                               input_size_on_qp);
 
    Vector shmem_cache(shmem_info.total_size);
