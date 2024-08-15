@@ -1284,43 +1284,6 @@ real_t DiffusionIntegrator::ComputeFluxEnergy
    return energy;
 }
 
-void DiffusionIntegrator::PrecomputeBasis()
-{
-   const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
-                         Device::GetDeviceMemoryType() : pa_mt;
-   const int Q1D = quad1D;
-   const int D1D = dofs1D;
-
-   // TODO(Gabriel): Make internal and use templates on-device
-   // TODO(Gabriel): 3D...
-   const int tsize = Q1D * Q1D * D1D * D1D;
-   tgrad.SetSize(tsize, mt);
-   tgradt.SetSize(tsize, mt);
-
-   auto TGrad = Reshape(tgrad.Write(), Q1D, D1D, Q1D, D1D);
-   auto TGradT = Reshape(tgradt.Write(), D1D, Q1D, D1D, Q1D);
-   auto B = Reshape(maps->B.Read(), Q1D, D1D);
-   auto G = Reshape(maps->G.Read(), Q1D, D1D);
-   auto Bt = Reshape(maps->Bt.Read(), D1D, Q1D);
-   auto Gt = Reshape(maps->Gt.Read(), D1D, Q1D);
-
-   // Bruteforce, naive
-   mfem::forall_3D(Q1D, Q1D, D1D, D1D, [=] MFEM_HOST_DEVICE (int qx)
-   {
-      MFEM_FOREACH_THREAD(qy,x,Q1D)
-      {
-         MFEM_FOREACH_THREAD(dx,y,D1D)
-         {
-            MFEM_FOREACH_THREAD(dy,z,D1D)
-            {
-               TGrad(qx, dx, qy, dy) = B(qx, dx) * G(qy, dy);
-               TGradT(dx, qx, dy, qy) = Bt(dx, qx) * Gt(dy, qy);
-            }
-         }
-      }
-   });
-}
-
 const IntegrationRule &DiffusionIntegrator::GetRule(
    const FiniteElement &trial_fe, const FiniteElement &test_fe)
 {

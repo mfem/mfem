@@ -2150,8 +2150,6 @@ private:
    const GeometricFactors *geom;  ///< Not owned
    int dim, ne, dofs1D, quad1D;
    Vector pa_data;
-   Vector tgrad;
-   Vector tgradt;
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
 
    // Data for NURBS patch PA
@@ -2264,9 +2262,6 @@ public:
    virtual real_t ComputeFluxEnergy(const FiniteElement &fluxelem,
                                     ElementTransformation &Trans,
                                     Vector &flux, Vector *d_energy = NULL);
-
-   // Precomputes basis coefficients from DofToQuads and stores them
-   void PrecomputeBasis();
 
    virtual void AssembleMF(const FiniteElementSpace &fes);
 

@@ -70,7 +70,6 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    symmetric = (coeff_dim != dims*dims);
    const int pa_size = symmetric ? symmDims : dims*dims;
 
-   PrecomputeBasis();
    pa_data.SetSize(pa_size * nq * ne, mt);
    internal::PADiffusionSetup(dim, sdim, dofs1D, quad1D, coeff_dim, ne,
                               ir->GetWeights(), geom->J, coeff, pa_data);
@@ -138,8 +137,17 @@ void DiffusionIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
    {
       Vector abs_pa_data(pa_data);
       abs_pa_data.PowerAbs(1.0);
+      Array<real_t> absB(maps->B);
+      Array<real_t> absG(maps->G);
+      Array<real_t> absBt(maps->Bt);
+      Array<real_t> absGt(maps->Gt);
+      auto abs_val = static_cast<real_t(*)(real_t)>(std::abs);
+      absB.Apply(abs_val);
+      absG.Apply(abs_val);
+      absBt.Apply(abs_val);
+      absGt.Apply(abs_val);
       internal::PADiffusionApply(dim, dofs1D, quad1D, ne, symmetric,
-                                 maps->B, maps->G, maps->Bt, maps->Gt,
+                                 absB, absG, absBt, absGt,
                                  abs_pa_data, x, y);
    }
 }
