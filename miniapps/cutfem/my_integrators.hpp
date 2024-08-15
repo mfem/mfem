@@ -313,24 +313,27 @@ public:
     {
 
         if(((*el_marks)[Trans.Elem1No]==ElementMarker::CUT) &&  ((*el_marks)[Trans.Elem2No]==ElementMarker::CUT))
-         {
+        {
             //use standard integration rule
             dint->AssembleFaceMatrix(fe1,fe2,Trans,elmat);
 
         }
-
         else if(((*el_marks)[Trans.Elem1No]==ElementMarker::INSIDE) &&  ((*el_marks)[Trans.Elem2No]==ElementMarker::CUT))
-         {
+        {
             //use standard integration rule
             dint->AssembleFaceMatrix(fe1,fe2,Trans,elmat);
         }
-
         else if(((*el_marks)[Trans.Elem1No]==ElementMarker::CUT) &&  ((*el_marks)[Trans.Elem2No]==ElementMarker::INSIDE))
-         {
+        {
             //use standard integration rule
             dint->AssembleFaceMatrix(fe1,fe2,Trans,elmat);
         }
-
+        else{
+            const int ndofs1=fe1.GetDof();
+            const int ndofs2=fe2.GetDof();
+            int ndofs=ndofs1+ndofs2;
+            elmat.SetSize(ndofs); elmat=0.0;
+        }
     }
 
 };
