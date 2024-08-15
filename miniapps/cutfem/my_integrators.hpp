@@ -240,22 +240,26 @@ class CutDiffusionIntegrator: public BilinearFormIntegrator
 {
 private:
     DiffusionIntegrator* dint;
+    DiffusionIntegrator* dint2;
 
     Array<int>* el_marks;
     CutIntegrationRules* irules;
+    ConstantCoefficient epsilon; 
 public:
     CutDiffusionIntegrator(Coefficient& q,
                            Array<int>* marks,
-                           CutIntegrationRules* cut_int)
+                           CutIntegrationRules* cut_int): epsilon{{1e-6}}
     {
         el_marks=marks;
         irules=cut_int;
         dint=new DiffusionIntegrator(q);
+        dint2 = new DiffusionIntegrator(epsilon);
     }
 
     ~CutDiffusionIntegrator()
     {
         delete dint;
+        delete dint2;
     }
 
     virtual void AssembleElementMatrix(const FiniteElement &el,
@@ -281,6 +285,18 @@ public:
             irules->GetVolumeIntegrationRule(Trans,ir);
             dint->SetIntRule(&ir);
             dint->AssembleElementMatrix(el,Trans,elmat);
+
+            DenseMatrix elmat2;
+            dint2->SetIntRule(&ir);
+            dint2->AssembleElementMatrix(el,Trans,elmat2);
+
+            elmat.Add(-1,elmat2);
+
+            dint2->SetIntRule(nullptr);
+            dint2->AssembleElementMatrix(el,Trans,elmat2);
+
+
+            elmat.Add(1,elmat2);
         }
     }
 };

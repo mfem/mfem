@@ -19,7 +19,7 @@ int main(int argc, char *argv[])
 {
    string mesh_file = "../../data/inline-quad.mesh";;
 
-   int order = 1;
+   int order = 2;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
@@ -27,7 +27,7 @@ int main(int argc, char *argv[])
    args.ParseCheck();
 
    Mesh mesh(mesh_file);
-   int rs_levels= 3;
+   int rs_levels= 5;
    for (int lev = 0; lev < rs_levels; lev++) { mesh.UniformRefinement(); }
 
    double h_min, h_max, kappa_min, kappa_max;
@@ -45,31 +45,37 @@ int main(int argc, char *argv[])
 
    GridFunction x(&fespace);
    FunctionCoefficient bc (u_ex);
-   x.ProjectCoefficient(bc);
+   FunctionCoefficient f (f_rhs);
+   x.ProjectCoefficient(zero);
 
    // leve set function 
    GridFunction cgf(&fespace);
-   FunctionCoefficient circle(circle_func);
+   FunctionCoefficient circle(ellipsoide_func);
    cgf.ProjectCoefficient(circle);
 
    // mark elements and outside DOFs
 
    Array<int> boundary_dofs; 
+   fespace.GetBoundaryTrueDofs(boundary_dofs);
    ElementMarker* elmark=new ElementMarker(mesh,true,true); // should the last argument be true or false 
    elmark->SetLevelSetFunction(cgf);
    Array<int> marks;
    elmark->MarkElements(marks);
-   elmark->ListEssentialTDofs(marks,fespace,boundary_dofs);
+   Array<int> outside_dofs; 
+    elmark->ListEssentialTDofs(marks,fespace,outside_dofs);
    delete elmark;
 
-   // setup Algoim 
+   outside_dofs.Append(boundary_dofs);
+   outside_dofs.Sort();
+   outside_dofs.Unique();
+
    int otherorder = 2;
    int aorder = 2; // Algoim integration points
    AlgoimIntegrationRules* air=new AlgoimIntegrationRules(aorder,circle,otherorder);
-   real_t gp = 1/(h_min*h_min);
+   real_t gp = 0.1/(h_min*h_min);
 
    // 6. Set up the linear form b(.) corresponding to the right-hand side.
-   FunctionCoefficient f (f_rhs);
+
    LinearForm b(&fespace);
 
    b.AddDomainIntegrator(new CutDomainLFIntegrator(f,&marks,air));
@@ -78,7 +84,7 @@ int main(int argc, char *argv[])
    // 7. Set up the bilinear form a(.,.) corresponding to the -Delta operator.
    BilinearForm a(&fespace);
    a.AddDomainIntegrator(new CutDiffusionIntegrator(one,&marks,air));
-   a.AddInteriorFaceIntegrator(new CutGhostPenaltyIntegrator(gp,&marks));
+   // a.AddInteriorFaceIntegrator(new CutGhostPenaltyIntegrator(gp,&marks));
    a.Assemble();
 
 
