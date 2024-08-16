@@ -15,13 +15,13 @@
 namespace mfem
 {
 
-static double exact_sln(const Vector &p);
+static real_t exact_sln(const Vector &p);
 static void TestSolve(FiniteElementSpace &fespace);
 static void TestSolveVec(FiniteElementSpace &fespace);
 #ifdef MFEM_USE_MPI
 static void TestSolvePar(ParFiniteElementSpace &fespace);
-static void TestRandomPRefinement(Mesh & mesh);
 static void TestSolveParVec(ParFiniteElementSpace &fespace);
+static void TestRandomPRefinement(Mesh & mesh);
 #endif
 
 namespace var_order_test { enum class SpaceType {RT, ND}; }
@@ -151,7 +151,7 @@ TEST_CASE("Variable Order FiniteElementSpace",
          R->Mult(x, y);
          P->Mult(y, x);
 
-         const double error = x.ComputeL2Error(exsol);
+         const real_t error = x.ComputeL2Error(exsol);
          REQUIRE(error == MFEM_Approx(0.0));
       }
    }
@@ -590,12 +590,12 @@ TEST_CASE("Serial-parallel Comparison for Variable Order FiniteElementSpace",
 #endif  // MFEM_USE_MPI
 
 // Exact solution: x^2 + y^2 + z^2
-static double exact_sln(const Vector &p)
+static real_t exact_sln(const Vector &p)
 {
-   double x = p(0), y = p(1);
+   real_t x = p(0), y = p(1);
    if (p.Size() == 3)
    {
-      double z = p(2);
+      real_t z = p(2);
       return x*x + y*y + z*z;
    }
    else
@@ -604,7 +604,7 @@ static double exact_sln(const Vector &p)
    }
 }
 
-static double exact_rhs(const Vector &p)
+static real_t exact_rhs(const Vector &p)
 {
    return (p.Size() == 3) ? -6.0 : -4.0;
 }
@@ -649,7 +649,7 @@ static void TestSolve(FiniteElementSpace &fespace)
    bf.RecoverFEMSolution(X, lf, x);
 
    // compute L2 error from the exact solution
-   const double error = x.ComputeL2Error(exsol);
+   const real_t error = x.ComputeL2Error(exsol);
    REQUIRE(error == MFEM_Approx(0.0));
 
    // visualize
@@ -719,7 +719,7 @@ static void TestSolveVec(FiniteElementSpace &fespace)
    bf.RecoverFEMSolution(X, lf, x);
 
    // Compute L2 error from the exact solution
-   const double error = x.ComputeL2Error(exsol);
+   const real_t error = x.ComputeL2Error(exsol);
 
    REQUIRE(error == MFEM_Approx(0.0));
 }
@@ -771,7 +771,7 @@ static void TestSolvePar(ParFiniteElementSpace &fespace)
    bf.RecoverFEMSolution(X, lf, x);
 
    // compute L2 error from the exact solution
-   const double error = x.ComputeL2Error(exsol);
+   const real_t error = x.ComputeL2Error(exsol);
    REQUIRE(error == MFEM_Approx(0.0));
 }
 
@@ -891,7 +891,7 @@ ParGridFunction *TestRandomPRefinement_parallel(Mesh & mesh)
 // This function is based on the assumption that each element has attribute
 // equal to its index in the serial mesh. This assumption enables easily
 // identifying serial and parallel elements, for element-wise comparisons.
-double ErrorSerialParallel(const GridFunction & xser,
+real_t ErrorSerialParallel(const GridFunction & xser,
                            const ParGridFunction & xpar)
 {
    const FiniteElementSpace *fespace = xser.FESpace();
@@ -916,7 +916,7 @@ double ErrorSerialParallel(const GridFunction & xser,
    }
 
    bool elemsMatch = true;
-   double error = 0.0;
+   real_t error = 0.0;
 
    // Loop over only the local elements in the parallel mesh.
    for (int e=0; e<pmesh->GetNE(); ++e)
@@ -938,15 +938,108 @@ double ErrorSerialParallel(const GridFunction & xser,
 
       for (int i=0; i<sdofs.Size(); ++i)
       {
-         const double d = xser[sdofs[i]] - xpar[pdofs[i]];
+         const real_t d = xser[sdofs[i]] - xpar[pdofs[i]];
          error += d * d;
       }
    }
 
    REQUIRE(elemsMatch);
 
-   MPI_Allreduce(MPI_IN_PLACE, &error, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+   MPI_Allreduce(MPI_IN_PLACE, &error, 1, MPITypeMap<real_t>::mpi_type,
+                 MPI_SUM, MPI_COMM_WORLD);
    return error;
+}
+
+real_t CheckH1Continuity(ParGridFunction & x)
+{
+   x.ExchangeFaceNbrData();
+
+   const ParFiniteElementSpace *fes = x.ParFESpace();
+   ParMesh *mesh = fes->GetParMesh();
+
+   const int dim = mesh->Dimension();
+
+   // Following the example of KellyErrorEstimator::ComputeEstimates(),
+   // we loop over interior faces and then shared faces.
+
+   const int nfaces = mesh->GetNumFaces();
+   int numInterior = 0;
+   int numBoundary = 0;
+
+   // Compute error contribution from local interior faces
+   real_t errorMax = 0.0;
+   for (int f = 0; f < mesh->GetNumFaces(); f++)
+   {
+      if (mesh->FaceIsInterior(f))
+      {
+         int Inf1, Inf2, NCFace;
+         mesh->GetFaceInfos(f, &Inf1, &Inf2, &NCFace);
+
+         auto FT = mesh->GetFaceElementTransformations(f);
+
+         const int faceOrder = dim == 3 ? fes->GetFaceOrder(f) :
+                               fes->GetEdgeOrder(f);
+         auto &int_rule = IntRules.Get(FT->FaceGeom, 2 * faceOrder);
+         const auto nip = int_rule.GetNPoints();
+
+         // Convention
+         // * Conforming face: Face side with smaller element id handles
+         // the integration
+         // * Non-conforming face: The slave handles the integration.
+         // See FaceInfo documentation for details.
+         bool isNCSlave    = FT->Elem2No >= 0 && NCFace >= 0;
+         bool isConforming = FT->Elem2No >= 0 && NCFace == -1;
+         if ((FT->Elem1No < FT->Elem2No && isConforming) || isNCSlave)
+         {
+            numInterior++;
+
+            for (int i = 0; i < nip; i++)
+            {
+               const auto &fip = int_rule.IntPoint(i);
+               IntegrationPoint ip;
+
+               FT->Loc1.Transform(fip, ip);
+               const real_t v1 = x.GetValue(FT->Elem1No, ip);
+
+               FT->Loc2.Transform(fip, ip);
+               const real_t v2 = x.GetValue(FT->Elem2No, ip);
+
+               const real_t err_i = std::abs(v1 - v2);
+               errorMax = std::max(errorMax, err_i);
+            }
+         }
+      }
+   }
+
+   // Compute error contribution from shared interior faces
+   for (int sf = 0; sf < mesh->GetNSharedFaces(); sf++)
+   {
+      const int f = mesh->GetSharedFace(sf);
+      const bool trueInterior = mesh->FaceIsTrueInterior(f);
+      if (!trueInterior) { continue; }
+
+      auto FT = mesh->GetSharedFaceTransformations(sf, true);
+      const int faceOrder = dim == 3 ? fes->GetFaceOrder(f) : fes->GetEdgeOrder(f);
+      const auto &int_rule = IntRules.Get(FT->FaceGeom, 2 * faceOrder);
+      const auto nip = int_rule.GetNPoints();
+
+      for (int i = 0; i < nip; i++)
+      {
+         const auto &fip = int_rule.IntPoint(i);
+         IntegrationPoint ip;
+
+         FT->Loc1.Transform(fip, ip);
+         const real_t v1 = x.GetValue(FT->Elem1No, ip);
+
+         FT->Loc2.Transform(fip, ip);
+         const real_t v2 = x.GetValue(FT->Elem2No, ip);
+
+         const real_t err_i = std::abs(v1 - v2);
+         errorMax = std::max(errorMax, err_i);
+      }
+   }
+
+   return errorMax;
 }
 
 static void TestRandomPRefinement(Mesh & mesh)
@@ -959,8 +1052,12 @@ static void TestRandomPRefinement(Mesh & mesh)
 
    GridFunction *solSerial = TestRandomPRefinement_serial(mesh);
    ParGridFunction *solParallel = TestRandomPRefinement_parallel(mesh);
-   const double error = ErrorSerialParallel(*solSerial, *solParallel);
+   const real_t error = ErrorSerialParallel(*solSerial, *solParallel);
    REQUIRE(error == MFEM_Approx(0.0));
+
+   // Check H1 continuity for the parallel solution.
+   const real_t discontinuity = CheckH1Continuity(*solParallel);
+   REQUIRE(discontinuity == MFEM_Approx(0.0));
 
    FiniteElementSpace *fespace = solSerial->FESpace();
    ParFiniteElementSpace *pfespace = solParallel->ParFESpace();
@@ -1016,8 +1113,7 @@ static void TestSolveParVec(ParFiniteElementSpace &fespace)
    bf.RecoverFEMSolution(X, lf, x);
 
    // Compute L2 error from the exact solution
-   const double error = x.ComputeL2Error(exsol);
-
+   const real_t error = x.ComputeL2Error(exsol);
    REQUIRE(error == MFEM_Approx(0.0));
 }
 

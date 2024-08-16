@@ -574,8 +574,8 @@ public:
                                       int mask = 31) const override;
 
    /// @brief Get the FaceElementTransformations for the given shared face
-   /// (edge 2D) using the shared face index @a sf. @a fill2 specify if the
-   /// information for elem2 of the face should be computed or not.
+   /// (edge 2D) using the shared face index @a sf. @a fill2 specifies whether
+   /// information for elem2 of the face should be computed.
    /// In the returned object, 1 and 2 refer to the local and the neighbor
    /// elements, respectively.
    ///
@@ -594,8 +594,8 @@ public:
                                      bool fill2 = true) const;
 
    /// @brief Get the FaceElementTransformations for the given shared face
-   /// (edge 2D) using the face index @a FaceNo. @a fill2 specify if the
-   /// information for elem2 of the face should be computed or not.
+   /// (edge 2D) using the face index @a FaceNo. @a fill2 specifies whether
+   /// information for elem2 of the face should be computed.
    /// In the returned object, 1 and 2 refer to the local and the neighbor
    /// elements, respectively.
    ///

@@ -231,7 +231,7 @@ void ParGridFunction::ExchangeFaceNbrData()
    int *recv_offset = pfes->face_nbr_ldof.GetI();
    MPI_Comm MyComm = pfes->GetComm();
 
-   int num_face_nbrs = pmesh->GetNFaceNeighbors();
+   const int num_face_nbrs = pmesh->GetNFaceNeighbors();
    MPI_Request *requests = new MPI_Request[2*num_face_nbrs];
    MPI_Request *send_requests = requests;
    MPI_Request *recv_requests = requests + num_face_nbrs;
@@ -245,7 +245,7 @@ void ParGridFunction::ExchangeFaceNbrData()
       d_send_data[i] = d_data[ldof >= 0 ? ldof : -1-ldof];
    });
 
-   bool mpi_gpu_aware = Device::GetGPUAwareMPI();
+   const bool mpi_gpu_aware = Device::GetGPUAwareMPI();
    auto send_data_ptr = mpi_gpu_aware ? send_data.Read() : send_data.HostRead();
    auto face_nbr_data_ptr = mpi_gpu_aware ? face_nbr_data.Write() :
                             face_nbr_data.HostWrite();
@@ -277,13 +277,14 @@ const
 {
    Array<int> dofs;
    Vector DofVal, LocVec;
-   int nbr_el_no = i - pfes->GetParMesh()->GetNE();
+   const int nbr_el_no = i - pfes->GetParMesh()->GetNE();
    if (nbr_el_no >= 0)
    {
       int fes_vdim = pfes->GetVDim();
       const DofTransformation* const doftrans = pfes->GetFaceNbrElementVDofs(
                                                    nbr_el_no, dofs);
-      const FiniteElement *fe = pfes->GetFaceNbrFE(nbr_el_no);
+      // Choose fe to be of the order whose number of DOFs matches dofs.Size().
+      const FiniteElement *fe = pfes->GetFaceNbrFE(nbr_el_no, dofs.Size());
       if (fes_vdim > 1)
       {
          int s = dofs.Size()/fes_vdim;
@@ -343,7 +344,7 @@ const
 void ParGridFunction::GetVectorValue(int i, const IntegrationPoint &ip,
                                      Vector &val) const
 {
-   int nbr_el_no = i - pfes->GetParMesh()->GetNE();
+   const int nbr_el_no = i - pfes->GetParMesh()->GetNE();
    if (nbr_el_no >= 0)
    {
       Array<int> dofs;
@@ -408,7 +409,7 @@ real_t ParGridFunction::GetValue(ElementTransformation &T,
    }
 
    // Check for evaluation in a local element
-   int nbr_el_no = T.ElementNo - pfes->GetParMesh()->GetNE();
+   const int nbr_el_no = T.ElementNo - pfes->GetParMesh()->GetNE();
    if (nbr_el_no < 0)
    {
       return GridFunction::GetValue(T, ip, comp, tr);
@@ -457,7 +458,7 @@ void ParGridFunction::GetVectorValue(ElementTransformation &T,
    }
 
    // Check for evaluation in a local element
-   int nbr_el_no = T.ElementNo - pfes->GetParMesh()->GetNE();
+   const int nbr_el_no = T.ElementNo - pfes->GetParMesh()->GetNE();
    if (nbr_el_no < 0)
    {
       return GridFunction::GetVectorValue(T, ip, val, tr);

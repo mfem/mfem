@@ -422,7 +422,7 @@ public:
                                DofTransformation &doftrans) const;
    DofTransformation *GetFaceNbrElementVDofs(int i, Array<int> &vdofs) const;
    void GetFaceNbrFaceVDofs(int i, Array<int> &vdofs) const;
-   const FiniteElement *GetFaceNbrFE(int i) const;
+   const FiniteElement *GetFaceNbrFE(int i, int ndofs = 0) const;
    const FiniteElement *GetFaceNbrFaceFE(int i) const;
    const HYPRE_BigInt *GetFaceNbrGlobalDofMap() { return face_nbr_glob_dof_map; }
    ElementTransformation *GetFaceNbrElementTransformation(int i) const
@@ -476,10 +476,10 @@ protected:
    void GhostMasterFaceOrderToEdges(const Array<VarOrderBits> &face_orders,
                                     Array<VarOrderBits> &edge_orders) const override;
 
-   bool ParallelOrderPropagation(bool sdone, const std::set<int> &edges,
-                                 const std::set<int> &faces,
-                                 Array<VarOrderBits> &edge_orders,
-                                 Array<VarOrderBits> &face_orders) const override;
+   bool OrderPropagation(const std::set<int> &edges,
+                         const std::set<int> &faces,
+                         Array<VarOrderBits> &edge_orders,
+                         Array<VarOrderBits> &face_orders) const override;
 
    int NumGhostEdges() const override { return pncmesh->GetNGhostEdges(); }
    int NumGhostFaces() const override { return pncmesh->GetNGhostFaces(); }
