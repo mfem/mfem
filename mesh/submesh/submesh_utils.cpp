@@ -174,7 +174,8 @@ void BuildVdofToVdofMap(const FiniteElementSpace& subfes,
       Array<int> sub_vdofs;
       subfes.GetElementVDofs(i, sub_vdofs);
 
-      MFEM_ASSERT(parent_vdofs.Size() == sub_vdofs.Size(), "internal error");
+      MFEM_ASSERT(parent_vdofs.Size() == sub_vdofs.Size(),
+                  "elem " << i << ' ' << parent_vdofs.Size() << ' ' << sub_vdofs.Size());
       for (int j = 0; j < parent_vdofs.Size(); j++)
       {
          real_t sub_sign = 1.0;

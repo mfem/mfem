@@ -751,11 +751,11 @@ void ConformingFaceRestriction::CheckFESpace(const ElementDofOrdering
 #ifdef MFEM_DEBUG
    const FiniteElement *fe0 = fes.GetFE(0);
    const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe0);
-   MFEM_VERIFY(tfe != NULL &&
-               (tfe->GetBasisType()==BasisType::GaussLobatto ||
-                tfe->GetBasisType()==BasisType::Positive),
-               "Only Gauss-Lobatto and Bernstein basis are supported in "
-               "ConformingFaceRestriction.");
+   MFEM_VERIFY(tfe != NULL,
+               "ConformingFaceRestriction only supports TensorBasisElements");
+   MFEM_VERIFY(tfe->GetBasisType()==BasisType::GaussLobatto ||
+               tfe->GetBasisType()==BasisType::Positive,
+               "ConformingFaceRestriction only supports Gauss-Lobatto and Bernstein bases");
 
    // Assuming all finite elements are using Gauss-Lobatto.
    const bool dof_reorder = (f_ordering == ElementDofOrdering::LEXICOGRAPHIC);
@@ -855,7 +855,8 @@ void ConformingFaceRestriction::SetFaceDofsScatterIndices(
                "This method should not be used on nonconforming coarse faces.");
    MFEM_ASSERT(face.element[0].orientation==0,
                "FaceRestriction used on degenerated mesh.");
-   MFEM_CONTRACT_VAR(f_ordering); // not supported yet
+   MFEM_VERIFY(f_ordering == ElementDofOrdering::LEXICOGRAPHIC,
+               "NATIVE ordering is not supported yet");
 
    fes.GetFE(0)->GetFaceMap(face.element[0].local_face_id, face_map);
 
@@ -883,7 +884,8 @@ void ConformingFaceRestriction::SetFaceDofsGatherIndices(
 {
    MFEM_ASSERT(!(face.IsNonconformingCoarse()),
                "This method should not be used on nonconforming coarse faces.");
-   MFEM_CONTRACT_VAR(f_ordering); // not supported yet
+   MFEM_VERIFY(f_ordering == ElementDofOrdering::LEXICOGRAPHIC,
+               "NATIVE ordering is not supported yet");
 
    fes.GetFE(0)->GetFaceMap(face.element[0].local_face_id, face_map);
 

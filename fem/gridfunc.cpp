@@ -12,6 +12,8 @@
 // Implementation of GridFunction
 
 #include "gridfunc.hpp"
+#include "linearform.hpp"
+#include "bilinearform.hpp"
 #include "quadinterpolator.hpp"
 #include "../mesh/nurbs.hpp"
 #include "../general/text.hpp"
@@ -2372,19 +2374,48 @@ void GridFunction::ProjectCoefficient(Coefficient &coeff)
 
    if (delta_c == NULL)
    {
-      Array<int> vdofs;
-      Vector vals;
-
-      for (int i = 0; i < fes->GetNE(); i++)
+      if (fes->GetNURBSext() == NULL)
       {
-         doftrans = fes->GetElementVDofs(i, vdofs);
-         vals.SetSize(vdofs.Size());
-         fes->GetFE(i)->Project(coeff, *fes->GetElementTransformation(i), vals);
-         if (doftrans)
+         Array<int> vdofs;
+         Vector vals;
+
+         for (int i = 0; i < fes->GetNE(); i++)
          {
-            doftrans->TransformPrimal(vals);
+            doftrans = fes->GetElementVDofs(i, vdofs);
+            vals.SetSize(vdofs.Size());
+            fes->GetFE(i)->Project(coeff, *fes->GetElementTransformation(i), vals);
+            if (doftrans)
+            {
+               doftrans->TransformPrimal(vals);
+            }
+            SetSubVector(vdofs, vals);
          }
-         SetSubVector(vdofs, vals);
+      }
+      else
+      {
+         // Define and assemble linear form
+         LinearForm b(fes);
+         b.AddDomainIntegrator(new DomainLFIntegrator(coeff));
+         b.Assemble();
+
+         // Define and assemble bilinear form
+         BilinearForm a(fes);
+         a.AddDomainIntegrator(new MassIntegrator());
+         a.Assemble();
+
+         // Set solver and preconditioner
+         SparseMatrix A(a.SpMat());
+         GSSmoother  prec(A);
+         CGSolver cg;
+         cg.SetOperator(A);
+         cg.SetPreconditioner(prec);
+         cg.SetRelTol(1e-12);
+         cg.SetMaxIter(1000);
+         cg.SetPrintLevel(0);
+
+         // Solve and get solution
+         *this = 0.0;
+         cg.Mult(b,*this);
       }
    }
    else
@@ -2425,22 +2456,54 @@ void GridFunction::ProjectCoefficient(
 
 void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff)
 {
-   int i;
-   Array<int> vdofs;
-   Vector vals;
-
-   DofTransformation * doftrans = NULL;
-
-   for (i = 0; i < fes->GetNE(); i++)
+   if (fes->GetNURBSext() == NULL)
    {
-      doftrans = fes->GetElementVDofs(i, vdofs);
-      vals.SetSize(vdofs.Size());
-      fes->GetFE(i)->Project(vcoeff, *fes->GetElementTransformation(i), vals);
-      if (doftrans)
+
+      int i;
+      Array<int> vdofs;
+      Vector vals;
+
+      DofTransformation * doftrans = NULL;
+
+      for (i = 0; i < fes->GetNE(); i++)
       {
-         doftrans->TransformPrimal(vals);
+         doftrans = fes->GetElementVDofs(i, vdofs);
+         vals.SetSize(vdofs.Size());
+         fes->GetFE(i)->Project(vcoeff, *fes->GetElementTransformation(i), vals);
+         if (doftrans)
+         {
+            doftrans->TransformPrimal(vals);
+         }
+         SetSubVector(vdofs, vals);
       }
-      SetSubVector(vdofs, vals);
+
+   }
+
+   else
+   {
+      // Define and assemble linear form
+      LinearForm b(fes);
+      b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(vcoeff));
+      b.Assemble();
+
+      // Define and assemble bilinear form
+      BilinearForm a(fes);
+      a.AddDomainIntegrator(new VectorFEMassIntegrator());
+      a.Assemble();
+
+      // Set solver and preconditioner
+      SparseMatrix A(a.SpMat());
+      GSSmoother  prec(A);
+      CGSolver cg;
+      cg.SetOperator(A);
+      cg.SetPreconditioner(prec);
+      cg.SetRelTol(1e-12);
+      cg.SetMaxIter(1000);
+      cg.SetPrintLevel(0);
+
+      // Solve and get solution
+      *this = 0.0;
+      cg.Mult(b,*this);
    }
 }
 
@@ -4517,6 +4580,11 @@ GridFunction *Extrude1DGridFunction(Mesh *mesh, Mesh *mesh2d,
    else if (!strncmp(name, "L2_", 3))
    {
       solfec2d = new L2_FECollection(atoi(name + 7), 2);
+   }
+   else if (!strncmp(name, "L2Int_", 6))
+   {
+      solfec2d = new L2_FECollection(atoi(name + 7), 2, BasisType::GaussLegendre,
+                                     FiniteElement::INTEGRAL);
    }
    else
    {
