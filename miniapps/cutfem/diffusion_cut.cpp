@@ -11,26 +11,25 @@ using namespace mfem;
 
 real_t f_rhs(const Vector &x);
 real_t u_ex(const Vector &x);
+real_t g_neuman(const Vector &x);
 void u_grad_exact(const Vector &x, Vector &u);
 real_t circle_func(const Vector &x);
 real_t ellipsoide_func(const Vector &x);
+real_t neg_circle_func(const Vector &x);
+
 
 int main(int argc, char *argv[])
 {
-   string mesh_file = "../../data/inline-quad.mesh";;
 
-   int order = 2;
-   int rs_levels= 5;
+   int n = 40;
+   Mesh mesh = Mesh::MakeCartesian2D( n*2, n , mfem::Element::Type::QUADRILATERAL, true, 1.0, 0.5);
+
+   int order = 1;
 
    OptionsParser args(argc, argv);
-   args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&order, "-o", "--order", "Finite element polynomial degree");
-   args.AddOption(&rs_levels, "-rs", "--refine-serial",
-                  "Number of times to refine the mesh uniformly in serial.");
    args.ParseCheck();
 
-   Mesh mesh(mesh_file);
-   for (int lev = 0; lev < rs_levels; lev++) { mesh.UniformRefinement(); }
 
    double h_min, h_max, kappa_min, kappa_max;
 
@@ -45,14 +44,14 @@ int main(int argc, char *argv[])
    ConstantCoefficient zero(0.0);
 
 
-   GridFunction x(&fespace);
+   MyGridFunction x(&fespace);
    FunctionCoefficient bc (u_ex);
    FunctionCoefficient f (f_rhs);
-   x.ProjectCoefficient(zero);
+   x.ProjectCoefficient(bc);
 
    // leve set function 
    GridFunction cgf(&fespace);
-   FunctionCoefficient circle(ellipsoide_func);
+   FunctionCoefficient circle(circle_func);
    cgf.ProjectCoefficient(circle);
 
    // mark elements and outside DOFs
@@ -62,13 +61,13 @@ int main(int argc, char *argv[])
    Array<int> marks;
    {
        Array<int> outside_dofs;
-       ElementMarker* elmark=new ElementMarker(mesh,true,true); // should the last argument be true or false
+       ElementMarker* elmark=new ElementMarker(mesh,true,true); 
        elmark->SetLevelSetFunction(cgf);
        elmark->MarkElements(marks);
        elmark->ListEssentialTDofs(marks,fespace,outside_dofs);
        delete elmark;
    }
-
+   FunctionCoefficient neumann(g_neuman);
 
    outside_dofs.Append(boundary_dofs);
    outside_dofs.Sort();
@@ -77,19 +76,20 @@ int main(int argc, char *argv[])
    int otherorder = 2;
    int aorder = 2; // Algoim integration points
    AlgoimIntegrationRules* air=new AlgoimIntegrationRules(aorder,circle,otherorder);
-   real_t gp = 0.1/(h_min*h_min);
+   real_t gp = 1/(h_min*h_min);
 
    // 6. Set up the linear form b(.) corresponding to the right-hand side.
 
    LinearForm b(&fespace);
 
    b.AddDomainIntegrator(new CutDomainLFIntegrator(f,&marks,air));
+   b.AddDomainIntegrator(new CutUnfittedBoundaryLFIntegrator(neumann,&marks,air));
    b.Assemble();
 
    // 7. Set up the bilinear form a(.,.) corresponding to the -Delta operator.
    BilinearForm a(&fespace);
    a.AddDomainIntegrator(new CutDiffusionIntegrator(one,&marks,air));
-   // a.AddInteriorFaceIntegrator(new CutGhostPenaltyIntegrator(gp,&marks));
+   a.AddInteriorFaceIntegrator(new CutGhostPenaltyIntegrator(gp,&marks));
    a.Assemble();
 
 
@@ -99,10 +99,27 @@ int main(int argc, char *argv[])
 
    // 9. Solve the system using PCG with symmetric Gauss-Seidel preconditioner.
    GSSmoother M(A);
-   CG(A, B, X, 1, 50, 1e-12, 0.0);
+   PCG(A,M, B, X, 1, 1000, 1e-16, 0.0);
 
    // 10. Recover the solution x as a grid function and save to file
    a.RecoverFEMSolution(X, b, x);
+
+   
+   GridFunction cgf_opposite(&fespace);
+   FunctionCoefficient circle_opposite(neg_circle_func);
+   cgf_opposite.ProjectCoefficient(circle_opposite);
+
+   // error function has opposite definition of element marks 
+   Array<int> marks_error;
+   ElementMarker* elmark=new ElementMarker(mesh,true,true); 
+   elmark->SetLevelSetFunction(cgf_opposite);
+   elmark->MarkElements(marks_error);
+   delete elmark;
+
+
+   const IntegrationRule *irs = NULL;
+   // computing only on the inner domains
+   cout << "\n|| u_h - u ||_{L^2} = " << x.myComputeL2Error(bc,&marks_error) << '\n' << endl;
 
    // to visualize level set and markings
    L2_FECollection* l2fec= new L2_FECollection(0,mesh.Dimension());
@@ -111,7 +128,17 @@ int main(int argc, char *argv[])
    for(int i=0;i<marks.Size();i++){
       mgf[i]=marks[i];
    }
+   GridFunction exact_sol(&fespace);
+   exact_sol.ProjectCoefficient(bc);
 
+   GridFunction mgf_error(l2fes);
+
+   for(int i=0;i<marks_error.Size();i++){
+      mgf_error[i]=marks_error[i];
+   }
+   GridFunction error(&fespace);
+   error = x;
+   error -= exact_sol;
 
    char vishost[] = "localhost";
    int  visport   = 19916;
@@ -128,7 +155,12 @@ int main(int argc, char *argv[])
    paraview_dc.SetTime(0.0); // set the time
    paraview_dc.RegisterField("velocity",&x);
    paraview_dc.RegisterField("marks", &mgf);
+      paraview_dc.RegisterField("marks_errer", &mgf_error);
+
    paraview_dc.RegisterField("level_set",&cgf);
+      paraview_dc.RegisterField("exact_sol",&exact_sol);
+            paraview_dc.RegisterField("error",&error);
+
    paraview_dc.Save();
 
 
@@ -136,6 +168,7 @@ int main(int argc, char *argv[])
    delete l2fes;
    delete air;
 
+   cout << "h " << h_min<<endl;
 
    cout << "finished " << endl;
    return 0;
@@ -149,6 +182,13 @@ real_t f_rhs(const Vector &x)
    return -8*M_PI*cos(2*M_PI*((x(0)-x0)*(x(0)-x0)+(x(1)-y0)*(x(1)-y0))) + 16*M_PI*M_PI*((x(0)-x0)*(x(0)-x0)+(x(1)-y0)*(x(1)-y0))*sin(2*M_PI*((x(0)-x0)*(x(0)-x0)+(x(1)-y0)*(x(1)-y0)));
 }
 
+real_t g_neuman(const Vector &x)
+{
+    real_t x0 = 0.5;
+    real_t y0 = 0.5;
+    real_t r = 0.4;
+   return 4*M_PI*r*cos(2*M_PI*r*r);
+}
 
 real_t u_ex(const Vector &x)
 {
@@ -163,7 +203,7 @@ real_t circle_func(const Vector &x)
 {
     real_t x0 = 0.5;
     real_t y0 = 0.5;
-    real_t r = 0.35;
+    real_t r = 0.4;
     return -(x(0)-x0)*(x(0)-x0) - (x(1)-y0)*(x(1)-y0) + r*r;  
 }
 
@@ -173,4 +213,13 @@ real_t ellipsoide_func(const Vector &x)
     real_t y0 = 0.5;
     real_t r = 0.35;
     return -(x(0)-x0)*(x(0)-x0)/(1.5*1.5) - (x(1)-y0)*(x(1)-y0)/(0.5*0.5)+ r*r;  
+}
+
+
+real_t neg_circle_func(const Vector &x)
+{
+    real_t x0 = 0.5;
+    real_t y0 = 0.5;
+    real_t r = 0.4;
+    return (x(0)-x0)*(x(0)-x0) + (x(1)-y0)*(x(1)-y0) - r*r;  
 }

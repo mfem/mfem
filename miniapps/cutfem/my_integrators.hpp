@@ -286,20 +286,21 @@ public:
             dint->SetIntRule(&ir);
             dint->AssembleElementMatrix(el,Trans,elmat);
 
-            DenseMatrix elmat2;
-            dint2->SetIntRule(&ir);
-            dint2->AssembleElementMatrix(el,Trans,elmat2);
+            // DenseMatrix elmat2;
+            // dint2->SetIntRule(&ir);
+            // dint2->AssembleElementMatrix(el,Trans,elmat2);
 
-            elmat.Add(-1,elmat2);
+            // elmat.Add(-1,elmat2);
 
-            dint2->SetIntRule(nullptr);
-            dint2->AssembleElementMatrix(el,Trans,elmat2);
+            // dint2->SetIntRule(nullptr);
+            // dint2->AssembleElementMatrix(el,Trans,elmat2);
 
 
-            elmat.Add(1,elmat2);
+            // elmat.Add(1,elmat2);
         }
     }
 };
+
 
 
 
@@ -452,13 +453,94 @@ public:
             dint->AssembleRHSElementVect(el,Trans,elvect);
         }
     }
+};
 
+class UnfittedBoundaryLFIntegrator : public LinearFormIntegrator
+{
+   Vector shape;
+   Coefficient &Q;
+   Vector sweights;
+public:
+   UnfittedBoundaryLFIntegrator(Coefficient &QG)
+      : Q(QG) { }
+
+
+   /** Given a particular boundary Finite Element and a transformation (Tr)
+       computes the element boundary vector, elvect. */
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect);
+
+
+   virtual void SetSurfaceWeights(Vector surface_weights) { sweights = surface_weights; }
 
 };
 
+class CutUnfittedBoundaryLFIntegrator: public LinearFormIntegrator
+{
+    private:
+    UnfittedBoundaryLFIntegrator * dint;
+    Array<int>* el_marks;
+    CutIntegrationRules* irules;
+public:
+   /// Constructs a domain integrator with a given Coefficient
+    CutUnfittedBoundaryLFIntegrator(Coefficient& q,
+                           Array<int>* marks,
+                           CutIntegrationRules* cut_int)
+    {
+        el_marks=marks;
+        irules=cut_int;
+        dint=new UnfittedBoundaryLFIntegrator(q);
+    }
+    ~CutUnfittedBoundaryLFIntegrator()
+    {
+        delete dint;
+    }
+
+    virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Trans,
+                                       Vector &elvect) override
+    {
+
+        if((*el_marks)[Trans.ElementNo]==ElementMarker::OUTSIDE)
+        {
+            elvect.SetSize(el.GetDof());
+            elvect=0.0;
+        }
+        else if((*el_marks)[Trans.ElementNo]==ElementMarker::INSIDE)
+        {
+            elvect.SetSize(el.GetDof());
+            elvect=0.0;
+        }
+        else
+        {
+            Vector sweights;
+            //use cut integration
+            IntegrationRule ir;
+            irules->GetSurfaceIntegrationRule(Trans,ir);
+            irules->GetSurfaceWeights(Trans,ir,sweights);
+            dint->SetIntRule(&ir);
+            dint->SetSurfaceWeights(sweights);
+            dint->AssembleRHSElementVect(el,Trans,elvect);
+        }
+    }
+};
 
 
+class MyGridFunction : public GridFunction
+{
 
+    public:
+
+    MyGridFunction(FiniteElementSpace *f) : GridFunction(f)
+   { }
+   virtual real_t myComputeL2Error(Coefficient &exsol,
+                                 const Array<int> *elems = NULL
+                                 ,const IntegrationRule *irs[] = NULL
+                                 ) const
+   { return GridFunction::ComputeLpError(2.0, exsol, NULL, irs, elems); }
+
+};
 
 }
 #endif

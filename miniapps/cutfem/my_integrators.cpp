@@ -308,7 +308,29 @@ void GhostPenaltyIntegrator::AssembleFaceMatrix(const FiniteElement &fe1,
 
 }
 
+void UnfittedBoundaryLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+{
+   int dof = el.GetDof();
 
+   shape.SetSize(dof);        // vector of size dof
+   elvect.SetSize(dof);
+   elvect = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+
+      Tr.SetIntPoint (&ip);
+      real_t val = Tr.Weight() * Q.Eval(Tr, ip);
+
+      el.CalcShape(ip, shape);
+
+      add(elvect, ip.weight * val*sweights(i), shape, elvect);
+   }
+}
 
 
 } // end mfem namespace
