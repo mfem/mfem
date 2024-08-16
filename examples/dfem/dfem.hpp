@@ -13,6 +13,7 @@
 #include <type_traits>
 #include "dfem_fieldoperator.hpp"
 #include "dfem_parametricspace.hpp"
+#include "general/error.hpp"
 #include "tuple.hpp"
 #include "fem/qspace.hpp"
 #include "fem/restriction.hpp"
@@ -173,18 +174,12 @@ __global__ void forall_kernel_shmem(func_t f, int n)
 template <typename func_t>
 void forall(func_t f,
             int n,
-            int blocksize = 128,
+            int blocksize = 1,
             int num_shmem = 0,
             double *shmem = nullptr)
 {
-   if (Device::Allows(Backend::CPU_MASK))
-   {
-      MFEM_ASSERT(!((bool)num_shmem != (bool)shmem),
-                  "Device::CPU needs a pre-allocated shared memory block");
-      for (int i = 0; i < n; i++) { f(i, shmem); }
-   }
-   else if (Device::Allows(Backend::CUDA_MASK) ||
-            Device::Allows(Backend::HIP_MASK))
+   if (Device::Allows(Backend::CUDA_MASK) ||
+       Device::Allows(Backend::HIP_MASK))
    {
 #if (defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
       int gridsize = (n + blocksize - 1) / blocksize;
@@ -192,6 +187,16 @@ void forall(func_t f,
       forall_kernel_shmem<<<gridsize,blocksize,num_bytes>>>(f, n);
       MFEM_DEVICE_SYNC;
 #endif
+   }
+   else if (Device::Allows(Backend::CPU_MASK))
+   {
+      MFEM_ASSERT(!((bool)num_shmem != (bool)shmem),
+                  "Backend::CPU needs a pre-allocated shared memory block");
+      for (int i = 0; i < n; i++) { f(i, shmem); }
+   }
+   else
+   {
+      MFEM_ABORT("no compute backend available");
    }
 }
 
@@ -1318,11 +1323,10 @@ std::array<DeviceTensor<1, const double>, num_fields> load_field_mem(
    std::array<DeviceTensor<1, const double>, num_fields> f;
    for (int i = 0; i < num_fields; i++)
    {
-      auto fe_i = Reshape(&fields_e[i](0, entity_idx), sizes[i]);
       // TODO-performance: loop could be parallelized over d1d^dim
       for (int k = 0; k < sizes[i]; k++)
       {
-         mem[offset + k] = fe_i(k);
+         mem[offset + k] = fields_e[i](k, entity_idx);
       }
       f[i] = DeviceTensor<1, const double>(&mem[offset], sizes[i]);
       offset += sizes[i];

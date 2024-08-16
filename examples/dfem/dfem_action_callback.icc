@@ -166,32 +166,28 @@ void DifferentiableOperator<kernels_tuple,
                           residual_size_on_qp, num_qp, num_entities);
       auto ir_weights = Reshape(this->op.integration_rule.GetWeights().Read(), num_qp);
       auto ye = Reshape(ye_mem.ReadWrite(), num_test_dof, test_vdim, num_entities);
+
       auto wrapped_fields_e = wrap_fields(this->fields_e, shmem_info.field_sizes, num_entities);
 
       forall([=] MFEM_HOST_DEVICE (int e, double *shmem)
       {
-         // auto dtq = load_dtq_mem(shmem,
-         //                         shmem_info.offsets[SharedMemory::Index::DTQ],
-         //                         shmem_info.dtq_sizes,
-         //                         input_dtq_maps);
+         // auto fields = load_field_mem(shmem,
+         //                              shmem_info.offsets[SharedMemory::Index::FIELD],
+         //                              shmem_info.field_sizes,
+         //                              wrapped_fields_e,
+         //                              e);
 
-         auto fields = load_field_mem(shmem,
-                                      shmem_info.offsets[SharedMemory::Index::FIELD],
-                                      shmem_info.field_sizes,
-                                      wrapped_fields_e,
-                                      e);
-
-         auto input_qp = load_input_mem(shmem,
-                                        shmem_info.offsets[SharedMemory::Index::INPUT],
-                                        shmem_info.input_sizes,
-                                        num_qp);
+         auto input = load_input_mem(shmem,
+                                     shmem_info.offsets[SharedMemory::Index::INPUT],
+                                     shmem_info.input_sizes,
+                                     num_qp);
 
          auto scratch_mem = load_scratch_mem(shmem,
                                              shmem_info.offsets[SharedMemory::Index::TEMP],
                                              shmem_info.temp_sizes);
 
          map_fields_to_quadrature_data<mfem::TensorProduct>(
-            input_qp, fields,
+            input, wrapped_fields_e,
             kinput_to_field, input_dtq_maps,
             ir_weights, geometric_factors, input_fops, scratch_mem,
          std::make_index_sequence<kernel.num_kinputs> {});
@@ -200,7 +196,7 @@ void DifferentiableOperator<kernels_tuple,
          {
             auto kernel_args = decay_tuple<typename kernel_t::kf_param_ts> {};
             auto r = Reshape(&r_qp(0, q, e), residual_size_on_qp);
-            apply_kernel(r, kernel.func, kernel_args, input_qp, q);
+            apply_kernel(r, kernel.func, kernel_args, input, q);
          }
 
          auto fhat = Reshape(&r_qp(0, 0, e), test_vdim, test_op_dim, num_qp);
