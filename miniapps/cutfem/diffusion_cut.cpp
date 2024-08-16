@@ -99,7 +99,7 @@ int main(int argc, char *argv[])
 
    // 9. Solve the system using PCG with symmetric Gauss-Seidel preconditioner.
    GSSmoother M(A);
-   CG(A, B, X, 1, 500, 1e-12, 0.0);
+   CG(A, B, X, 1, 50, 1e-12, 0.0);
 
    // 10. Recover the solution x as a grid function and save to file
    a.RecoverFEMSolution(X, b, x);
@@ -130,6 +130,12 @@ int main(int argc, char *argv[])
    paraview_dc.RegisterField("marks", &mgf);
    paraview_dc.RegisterField("level_set",&cgf);
    paraview_dc.Save();
+
+
+   delete l2fec;
+   delete l2fes;
+   delete air;
+
 
    cout << "finished " << endl;
    return 0;
