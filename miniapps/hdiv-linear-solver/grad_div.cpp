@@ -36,7 +36,6 @@
 #include <memory>
 #include "hdiv_linear_solver.hpp"
 #include "../solvers/lor_mms.hpp"
-#include "../../linalg/batched.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -224,7 +223,7 @@ int main(int argc, char *argv[])
    if (use_hybridization)
    {
       // Don't include cuBLAS setup time in the hybridization timings
-      BatchSetup();
+      GPUBlas::Handle();
 
       x.ProjectCoefficient(u_vec_coeff);
 
