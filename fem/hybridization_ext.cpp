@@ -13,7 +13,7 @@
 #include "hybridization.hpp"
 #include "pfespace.hpp"
 #include "../general/forall.hpp"
-#include "../linalg/batched.hpp"
+#include "../linalg/batched/batched.hpp"
 #include "../linalg/kernels.hpp"
 
 namespace mfem
@@ -116,8 +116,8 @@ void HybridizationExtension::ConstructH()
    {
       DenseTensor Ahat_inv_dt;
       Ahat_inv_dt.NewMemoryAndSize(Ahat_inv.GetMemory(), m, m, ne, false);
-      BatchLUFactor(Ahat_inv_dt, Ahat_piv);
-      BatchLUSolve(Ahat_inv_dt, Ahat_piv, AhatInvCt_mat, n*n_faces_per_el);
+      BatchedLinAlg::LUFactor(Ahat_inv_dt, Ahat_piv);
+      BatchedLinAlg::LUSolve(Ahat_inv_dt, Ahat_piv, AhatInvCt_mat);
    }
 
    const auto d_AhatInvCt =
@@ -742,7 +742,7 @@ void HybridizationExtension::MultAhatInv(Vector &x) const
 
    DenseTensor Ahat_inv_dt;
    Ahat_inv_dt.NewMemoryAndSize(Ahat_inv.GetMemory(), n, n, ne, false);
-   BatchLUSolve(Ahat_inv_dt, Ahat_piv, x);
+   BatchedLinAlg::LUSolve(Ahat_inv_dt, Ahat_piv, x);
 }
 
 void HybridizationExtension::ReduceRHS(const Vector &b, Vector &b_r) const
