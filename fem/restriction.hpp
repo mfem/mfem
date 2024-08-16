@@ -181,6 +181,13 @@ public:
    */
    void Mult(const Vector &x, Vector &y) const override = 0;
 
+   virtual void MultUnsigned(const Vector &x, Vector &y) const
+   {
+      MFEM_ABORT("MultUnsigned not implemented yet...");
+   }
+
+   void AbsMult(const Vector &x, Vector &y) const override { MultUnsigned(x,y); }
+
    /** @brief Add the face degrees of freedom @a x to the element degrees of
        freedom @a y.
 
@@ -227,6 +234,12 @@ public:
    {
       y = 0.0;
       AddMultTranspose(x, y);
+   }
+
+   void AbsMultTranspose(const Vector &x, Vector &y) const override
+   {
+      y = 0.0;
+      AddMultTransposeUnsigned(x,y);
    }
 
    /** @brief For each face, sets @a y to the partial derivative of @a x with
@@ -325,6 +338,8 @@ public:
                      ElementDofOrdering. */
    void Mult(const Vector &x, Vector &y) const override;
 
+   void MultUnsigned(const Vector &x, Vector &y) const override;
+
    using FaceRestriction::AddMultTransposeInPlace;
 
    /** @brief Gather the degrees of freedom, i.e. goes from face E-Vector to
@@ -347,6 +362,12 @@ public:
        @sa AddMultTranspose(). */
    void AddMultTransposeUnsigned(const Vector &x, Vector &y,
                                  const real_t a = 1.0) const override;
+
+   void AddAbsMultTranspose(const Vector &x, Vector &y) const
+   {
+      y = 0.0;
+      AddMultTransposeUnsigned(x,y);
+   }
 
 private:
    /** @brief Compute the scatter indices: L-vector to E-vector, and the offsets

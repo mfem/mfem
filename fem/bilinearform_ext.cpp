@@ -798,11 +798,11 @@ void PABilinearFormExtension::AbsMult(const Vector &x, Vector &y) const
       {
          if (integrators[i]->Patchwise())
          {
-            integrators[i]->AddMultNURBSPA(x, y);
+            integrators[i]->AddAbsMultNURBSPA(x, y);
          }
          else
          {
-            integrators[i]->AddMultPA(x, y);
+            integrators[i]->AddAbsMultPA(x, y);
          }
       }
    }
@@ -811,17 +811,32 @@ void PABilinearFormExtension::AbsMult(const Vector &x, Vector &y) const
       if (iSz)
       {
          Array<Array<int>*> &elem_markers = *a->GetDBFI_Marker();
-         auto el_rest = dynamic_cast<const ElementRestriction*>(elem_restrict);
-         MFEM_VERIFY(el_rest, "elem_restrict is not ElementRestriction*!");
 
-         el_rest->AbsMult(x, localX);
+         auto H1elem_restrict = dynamic_cast<const ElementRestriction*>(elem_restrict);
+         if (H1elem_restrict)
+         {
+            H1elem_restrict->AbsMult(x, localX);
+         }
+         else
+         {
+            elem_restrict->Mult(x,localX);
+         }
+
          localY = 0.0;
          for (int i = 0; i < iSz; ++i)
          {
             AddAbsMultWithMarkers(*integrators[i], localX, elem_markers[i],
                                   elem_attributes, false, localY);
          }
-         el_rest->AbsMultTranspose(localY, y);
+
+         if (H1elem_restrict)
+         {
+            H1elem_restrict->AbsMultTranspose(x, localX);
+         }
+         else
+         {
+            elem_restrict->MultTranspose(x,localX);
+         }
       }
       else
       {
@@ -854,6 +869,7 @@ void PABilinearFormExtension::AbsMult(const Vector &x, Vector &y) const
       int_face_restrict_lex->Mult(*x_dg, int_face_X);
       if (int_face_dXdn.Size() > 0)
       {
+         MFEM_ABORT("NormalDerivativeAbsMult is not implemented...");
          int_face_restrict_lex->NormalDerivativeMult(*x_dg, int_face_dXdn);
       }
       if (int_face_X.Size() > 0)
