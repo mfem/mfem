@@ -398,11 +398,11 @@ protected:
                                                 Array<VarOrderBits> &artificial_edge_orders,
                                                 Array<VarOrderBits> &artificial_face_orders) const { };
 
-   virtual bool ParallelOrderPropagation(bool sdone, const std::set<int> &edges,
-                                         const std::set<int> &faces,
-                                         Array<VarOrderBits> &edge_orders,
-                                         Array<VarOrderBits> &face_orders) const
-   { return sdone; };
+   virtual bool OrderPropagation(const std::set<int> &edges,
+                                 const std::set<int> &faces,
+                                 Array<VarOrderBits> &edge_orders,
+                                 Array<VarOrderBits> &face_orders) const
+   { return edges.size() == 0 && faces.size() == 0; };
 
    virtual int NumGhostEdges() const { return 0; }
    virtual int NumGhostFaces() const { return 0; }

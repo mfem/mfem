@@ -1077,7 +1077,9 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    // as a linear combination of the highest order set of DOFs.
    SparseMatrix inv_deps(ndofs);
 
-   // collect local face/edge dependencies, starting with faces
+   VariableOrderMinimumRule(deps);
+
+   // Collect local face/edge dependencies, starting with faces
    for (int entity = 2; entity >= 1; entity--)
    {
       const NCMesh::NCList &list = mesh->ncmesh->GetNCList(entity);
@@ -1154,7 +1156,6 @@ void FiniteElementSpace::BuildConformingInterpolation() const
       }
    }
 
-   VariableOrderMinimumRule(deps);
    deps.Finalize();
    inv_deps.Finalize();
 
@@ -2693,9 +2694,9 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(
    Array<int> E, F, ori;
    for (int i = 0; i < mesh->GetNE(); i++)
    {
-      int order = localVar ? elem_order[i] : baseOrder;
+      const int order = localVar ? elem_order[i] : baseOrder;
       MFEM_ASSERT(order <= MaxVarOrder, "");
-      VarOrderBits mask = (VarOrderBits(1) << order);
+      const VarOrderBits mask = (VarOrderBits(1) << order);
 
       mesh->GetElementEdges(i, E, ori);
       for (int j = 0; j < E.Size(); j++)
@@ -2727,10 +2728,10 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(
    bool done;
    do
    {
-      done = true;
-
       std::set<int> changedEdges;
       std::set<int> changedFaces;
+
+      const int numEdges = mesh->GetNEdges();
 
       // propagate from slave edges to master edges
       const NCMesh::NCList &edge_list = mesh->ncmesh->GetEdgeList();
@@ -2747,14 +2748,30 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(
             continue;
          }
 
-         int min_order = MinOrder(slave_orders);
+         const int min_order = MinOrder(slave_orders);
+         const VarOrderBits min_mask = VarOrderBits(1) << min_order;
          if (edge_orders[master.index] == 0 ||
              min_order < MinOrder(edge_orders[master.index]))
          {
-            edge_orders[master.index] |= (VarOrderBits(1) << min_order);
-            done = false;
-
+            edge_orders[master.index] |= min_mask;
             changedEdges.insert(master.index);
+         }
+
+         // Also apply the minimum order to all the slave edges, since they must
+         // interpolate the master edge, which has the minimum order.
+         for (int i = master.slaves_begin; i < master.slaves_end; i++)
+         {
+            if (edge_list.slaves[i].index >= numEdges)
+            {
+               continue;   // Skip ghost edges
+            }
+
+            const VarOrderBits eo0 = edge_orders[edge_list.slaves[i].index];
+            edge_orders[edge_list.slaves[i].index] |= min_mask;
+            if (eo0 != edge_orders[edge_list.slaves[i].index])
+            {
+               changedEdges.insert(edge_list.slaves[i].index);
+            }
          }
       }
 
@@ -2773,6 +2790,8 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(
 
             if (slave.index >= 0)
             {
+               // Note that master.index >= numFaces occurs for ghost master faces.
+
                slave_orders |= face_orders[slave.index];
 
                if (slave.index >= numFaces)
@@ -2798,14 +2817,30 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(
             continue;
          }
 
-         int min_order = MinOrder(slave_orders);
+         const int min_order = MinOrder(slave_orders);
+         const VarOrderBits min_mask = VarOrderBits(1) << min_order;
          if (face_orders[master.index] == 0 ||
              min_order < MinOrder(face_orders[master.index]))
          {
-            face_orders[master.index] |= (VarOrderBits(1) << min_order);
-            done = false;
-
+            face_orders[master.index] |= min_mask;
             changedFaces.insert(master.index);
+         }
+
+         // Also apply the minimum order to all the slave faces, since they must
+         // interpolate the master face, which has the minimum order.
+         for (int i = master.slaves_begin; i < master.slaves_end; i++)
+         {
+            const NCMesh::Slave &slave = face_list.slaves[i];
+
+            if (slave.index >= 0 && slave.index < numFaces)  // Skip ghost faces
+            {
+               const VarOrderBits fo0 = face_orders[slave.index];
+               face_orders[slave.index] |= min_mask;
+               if (fo0 != face_orders[slave.index])
+               {
+                  changedFaces.insert(slave.index);
+               }
+            }
          }
       }
 
@@ -2819,16 +2854,15 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(
             edge_orders[E[j]] |= face_orders[i];
             if (eo0 != edge_orders[E[j]])
             {
-               done = false;
                changedEdges.insert(E[j]);
             }
          }
       }
 
-      // In the parallel case, ParallelOrderPropagation communicates orders on
-      // updated edges and faces.
-      done = ParallelOrderPropagation(done, changedEdges, changedFaces,
-                                      edge_orders, face_orders);
+      // In the parallel case, OrderPropagation communicates orders on updated
+      // edges and faces.
+      done = OrderPropagation(changedEdges, changedFaces,
+                              edge_orders, face_orders);
    }
    while (!done);
 

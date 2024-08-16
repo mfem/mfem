@@ -166,9 +166,12 @@ void ParFiniteElementSpace::CommunicateGhostOrder(
    Array<VarOrderElemInfo> localOrders(mesh->GetNE());
    for (int i=0; i<mesh->GetNE(); ++i)
    {
+      // TODO: why pass i in entry i? Can this be assumed?
       localOrders[i].element = i;
       localOrders[i].order = elem_order[i];
    }
+
+   MFEM_VERIFY(mesh->GetNE() == pncmesh->GetNElements(), "");
 
    pncmesh->CommunicateGhostData(localOrders, pref_data);
 }
@@ -1146,8 +1149,12 @@ void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int>
    MFEM_ASSERT(R->Height() == P->Width(), "!");
    MFEM_ASSERT(R->Width() == P->Height(), "!");
    MFEM_ASSERT(R->Width() == ess_dofs.Size(), "!");
-   MFEM_VERIFY(counter == 0, "internal MFEM error: counter = " << counter
-               << ", rank = " << MyRank << ", " << error_msg);
+
+   if (!IsVariableOrder())
+   {
+      MFEM_VERIFY(counter == 0, "internal MFEM error: counter = " << counter
+                  << ", rank = " << MyRank << ", " << error_msg);
+   }
 #endif
 
    MarkerToList(true_ess_dofs, ess_tdof_list);
@@ -1601,18 +1608,33 @@ void ParFiniteElementSpace::GetFaceNbrFaceVDofs(int i, Array<int> &vdofs) const
    }
 }
 
-const FiniteElement *ParFiniteElementSpace::GetFaceNbrFE(int i) const
+const FiniteElement *ParFiniteElementSpace::GetFaceNbrFE(int i, int ndofs) const
 {
-   const FiniteElement *FE =
-      fec->FiniteElementForGeometry(
-         pmesh->face_nbr_elements[i]->GetGeometryType());
-
    if (NURBSext)
    {
       mfem_error("ParFiniteElementSpace::GetFaceNbrFE"
                  " does not support NURBS!");
    }
-   return FE;
+
+   if (ndofs > 0)
+   {
+      // TODO: set upper limit using GetMaxElementOrder but without calling that
+      // MPI function on every call to this function?
+      for (int order = fec->GetOrder(); ; ++order)
+      {
+         const FiniteElement *FE =
+            fec->GetFE(pmesh->face_nbr_elements[i]->GetGeometryType(), order);
+         if (FE->GetDof() == ndofs)
+         {
+            return FE;
+         }
+      }
+   }
+   else
+   {
+      return fec->FiniteElementForGeometry(
+                pmesh->face_nbr_elements[i]->GetGeometryType());
+   }
 }
 
 const FiniteElement *ParFiniteElementSpace::GetFaceNbrFaceFE(int i) const
@@ -2083,7 +2105,7 @@ int ParFiniteElementSpace::PackDofVar(int entity, int index, int edof,
          }
          else // ghost face
          {
-            return ndofs + ngvdofs + ngedofs + FirstFaceDof(index) - nfdofs + edof;
+            return ndofs + ngvdofs + ngedofs + FirstFaceDof(index, var) - nfdofs + edof;
          }
    }
 }
@@ -3145,11 +3167,12 @@ void ParFiniteElementSpace::ScheduleSendOrder(
    }
 }
 
-bool ParFiniteElementSpace::ParallelOrderPropagation(
-   bool sdone, const std::set<int> &edges, const std::set<int> &faces,
+bool ParFiniteElementSpace::OrderPropagation(
+   const std::set<int> &edges, const std::set<int> &faces,
    Array<VarOrderBits> &edge_orders, Array<VarOrderBits> &face_orders) const
 {
-   bool changed = !sdone;  // Initialized to serial version
+   // Initialize `changed` flag, based on serial changes to edges and faces.
+   bool changed = edges.size() > 0 || faces.size() > 0;
 
    // If no rank has changes, exit.
    int orders_changed = (int) changed;
@@ -3320,6 +3343,8 @@ int ParFiniteElementSpace
 
    if (!dg && !partial)
    {
+      VariableOrderMinimumRule(deps);
+
       Array<int> master_dofs, slave_dofs;
 
       // loop through *all* master edges/faces, constrain their slaves
@@ -3403,7 +3428,6 @@ int ParFiniteElementSpace
          }
       }
 
-      VariableOrderMinimumRule(deps);
       deps.Finalize();
    }
 
@@ -3644,11 +3668,10 @@ int ParFiniteElementSpace
             {
                const int* dep_col = deps.GetRowColumns(dof);
                const real_t* dep_coef = deps.GetRowEntries(dof);
-               int num_dep = deps.RowSize(dof);
 
                // form linear combination of rows
                buffer.elems.clear();
-               for (int j = 0; j < num_dep; j++)
+               for (int j = 0; j < deps.RowSize(dof); j++)
                {
                   buffer.AddRow(pmatrix[dep_col[j]], dep_coef[j]);
                }
@@ -4535,7 +4558,6 @@ void ParFiniteElementSpace::ApplyGhostElementOrdersToEdgesAndFaces(
    {
       const int elem = (*pref_data)[i].element; // Mesh element index
       const int order = (*pref_data)[i].order;
-
       const VarOrderBits mask = (VarOrderBits(1) << order);
 
       Array<int> edges;
