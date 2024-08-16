@@ -60,6 +60,7 @@ void DifferentiableOperator<kernels_tuple,
       dtq.emplace_back(GetDofToQuad<entity_t>(field, op.integration_rule,
                                               doftoquad_mode));
    }
+   const int q1d = dtq[0]->nqpt;
 
    residual_e.SetSize(R->Height());
 
@@ -82,7 +83,7 @@ void DifferentiableOperator<kernels_tuple,
    auto input_fops = create_bare_fops(kernel.inputs);
    auto output_fops = create_bare_fops(kernel.outputs);
 
-   const int test_vdim = serac::get<hardcoded_output_idx>(input_fops).vdim;
+   const int test_vdim = serac::get<hardcoded_output_idx>(output_fops).vdim;
    const int test_op_dim =
       serac::get<hardcoded_output_idx>(output_fops).size_on_qp /
       serac::get<hardcoded_output_idx>(output_fops).vdim;
@@ -153,7 +154,7 @@ void DifferentiableOperator<kernels_tuple,
                  output_dtq_maps, residual_size_on_qp,
                  input_size_on_qp, kinput_to_field, koutput_to_field,
                  output_fop, R, geometric_factors, f_qp, input_fops, output_fops, test_vdim,
-                 test_op_dim, num_test_dof, shmem_info, shmem_cache]
+                 test_op_dim, num_test_dof, shmem_info, shmem_cache, q1d]
    (Vector &ye_mem) mutable
    {
       restriction<entity_t>(op.solutions, solutions_l, this->fields_e,
@@ -165,17 +166,17 @@ void DifferentiableOperator<kernels_tuple,
       auto r_qp = Reshape(residual_qp_mem.ReadWrite(),
                           residual_size_on_qp, num_qp, num_entities);
       auto ir_weights = Reshape(this->op.integration_rule.GetWeights().Read(), num_qp);
-      auto ye = Reshape(ye_mem.ReadWrite(), num_test_dof, test_vdim, num_entities);
+      auto ye = Reshape(ye_mem.Write(), num_test_dof, test_vdim, num_entities);
 
       auto wrapped_fields_e = wrap_fields(this->fields_e, shmem_info.field_sizes, num_entities);
 
       forall([=] MFEM_HOST_DEVICE (int e, double *shmem)
       {
-         // auto fields = load_field_mem(shmem,
-         //                              shmem_info.offsets[SharedMemory::Index::FIELD],
-         //                              shmem_info.field_sizes,
-         //                              wrapped_fields_e,
-         //                              e);
+         auto fields = load_field_mem(shmem,
+                                      shmem_info.offsets[SharedMemory::Index::FIELD],
+                                      shmem_info.field_sizes,
+                                      wrapped_fields_e,
+                                      e);
 
          auto input = load_input_mem(shmem,
                                      shmem_info.offsets[SharedMemory::Index::INPUT],
@@ -187,17 +188,23 @@ void DifferentiableOperator<kernels_tuple,
                                              shmem_info.temp_sizes);
 
          map_fields_to_quadrature_data<mfem::TensorProduct>(
-            input, wrapped_fields_e,
+            input, fields,
             kinput_to_field, input_dtq_maps,
             ir_weights, geometric_factors, input_fops, scratch_mem,
          std::make_index_sequence<kernel.num_kinputs> {});
 
-         for (int q = 0; q < num_qp; q++)
+         MFEM_FOREACH_THREAD(qx, x, q1d)
          {
-            auto kernel_args = decay_tuple<typename kernel_t::kf_param_ts> {};
-            auto r = Reshape(&r_qp(0, q, e), residual_size_on_qp);
-            apply_kernel(r, kernel.func, kernel_args, input, q);
+            MFEM_FOREACH_THREAD(qy, y, q1d)
+            {
+               const int q = qx + qy * q1d;
+
+               auto kernel_args = decay_tuple<typename kernel_t::kf_param_ts> {};
+               auto r = Reshape(&r_qp(0, q, e), residual_size_on_qp);
+               apply_kernel(r, kernel.func, kernel_args, input, q);
+            }
          }
+         MFEM_SYNC_THREAD;
 
          auto fhat = Reshape(&r_qp(0, 0, e), test_vdim, test_op_dim, num_qp);
          auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);

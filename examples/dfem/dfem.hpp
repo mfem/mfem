@@ -1242,7 +1242,7 @@ get_shmem_info(
    // Find the largest B/G
    int max_dtq_idx = 0;
    int max_dtq_capacity = 0;
-   for (int i = 1; i < num_fields; i++)
+   for (int i = 0; i < num_fields; i++)
    {
       auto a = input_dtq_maps[max_dtq_idx].B.GetShape();
       auto b = input_dtq_maps[i].B.GetShape();
@@ -1698,8 +1698,8 @@ void process_kf_args(std::array<DeviceTensor<2>, num_fields> &u,
 
 template <typename output_type>
 MFEM_HOST_DEVICE
-void map_quadrature_data_to_fields_impl(DeviceTensor<2, double> y,
-                                        DeviceTensor<3, double> f,
+void map_quadrature_data_to_fields_impl(DeviceTensor<2, double> &y,
+                                        const DeviceTensor<3, double> &f,
                                         output_type output,
                                         const DofToQuadMap &dtq)
 {
@@ -1775,8 +1775,8 @@ void map_quadrature_data_to_fields_impl(DeviceTensor<2, double> y,
 
 template <typename output_type>
 MFEM_HOST_DEVICE
-void map_quadrature_data_to_fields_tensor_impl(DeviceTensor<2, double> y,
-                                               DeviceTensor<3, double> f,
+void map_quadrature_data_to_fields_tensor_impl(DeviceTensor<2, double> &y,
+                                               const DeviceTensor<3, double> &f,
                                                output_type output,
                                                const DofToQuadMap &dtq,
                                                std::array<DeviceTensor<1>, 6> &scratch_mem)
@@ -1790,8 +1790,8 @@ void map_quadrature_data_to_fields_tensor_impl(DeviceTensor<2, double> y,
       const int vdim = output.vdim;
       const int test_dim = output.size_on_qp / vdim;
 
-      auto fqp = Reshape(&f[0], vdim, test_dim, q1d, q1d);
-      auto yd = Reshape(&y[0], d1d, d1d, vdim);
+      auto fqp = Reshape(&f(0, 0, 0), vdim, test_dim, q1d, q1d);
+      auto yd = Reshape(&y(0, 0), d1d, d1d, vdim);
 
       // TODO-bug: make this shared memory
       // Vector s0mem(d1d*q1d);
@@ -1800,9 +1800,11 @@ void map_quadrature_data_to_fields_tensor_impl(DeviceTensor<2, double> y,
 
       for (int vd = 0; vd < vdim; vd++)
       {
-         for (int qy = 0; qy < q1d; qy++)
+         MFEM_FOREACH_THREAD(qy, y, q1d)
+         // for (int qy = 0; qy < q1d; qy++)
          {
-            for (int dx = 0; dx < d1d; dx++)
+            MFEM_FOREACH_THREAD(dx, x, d1d)
+            // for (int dx = 0; dx < d1d; dx++)
             {
                double a = 0.0;
                for (int qx = 0; qx < q1d; qx++)
@@ -1812,10 +1814,13 @@ void map_quadrature_data_to_fields_tensor_impl(DeviceTensor<2, double> y,
                s0(dx, qy) = a;
             }
          }
+         MFEM_SYNC_THREAD;
 
-         for (int dy = 0; dy < d1d; dy++)
+         MFEM_FOREACH_THREAD(dy, y, d1d)
+         // for (int dy = 0; dy < d1d; dy++)
          {
-            for (int dx = 0; dx < d1d; dx++)
+            MFEM_FOREACH_THREAD(dx, x, d1d)
+            // for (int dx = 0; dx < d1d; dx++)
             {
                double a = 0.0;
                for (int qy = 0; qy < q1d; qy++)
@@ -1825,6 +1830,7 @@ void map_quadrature_data_to_fields_tensor_impl(DeviceTensor<2, double> y,
                yd(dx, dy, vd) += a;
             }
          }
+         MFEM_SYNC_THREAD;
       }
    }
    else if constexpr (
@@ -1833,8 +1839,8 @@ void map_quadrature_data_to_fields_tensor_impl(DeviceTensor<2, double> y,
       const auto [q1d, unused, d1d] = G.GetShape();
       const int vdim = output.vdim;
       const int test_dim = output.size_on_qp / vdim;
-      auto fqp = Reshape(&f[0], vdim, test_dim, q1d, q1d);
-      auto yd = Reshape(&y[0], d1d, d1d, vdim);
+      auto fqp = Reshape(&f(0, 0, 0), vdim, test_dim, q1d, q1d);
+      auto yd = Reshape(&y(0, 0), d1d, d1d, vdim);
 
       // TODO-bug: make this shared memory
       // Vector s0mem(q1d*d1d);
@@ -1846,9 +1852,11 @@ void map_quadrature_data_to_fields_tensor_impl(DeviceTensor<2, double> y,
 
       for (int vd = 0; vd < vdim; vd++)
       {
-         for (int qy = 0; qy < q1d; qy++)
+         MFEM_FOREACH_THREAD(qy, y, q1d)
+         // for (int qy = 0; qy < q1d; qy++)
          {
-            for (int dx = 0; dx < d1d; dx++)
+            MFEM_FOREACH_THREAD(dx, x, d1d)
+            // for (int dx = 0; dx < d1d; dx++)
             {
                double u = 0.0;
                double v = 0.0;
@@ -1861,23 +1869,25 @@ void map_quadrature_data_to_fields_tensor_impl(DeviceTensor<2, double> y,
                s1(dx, qy) = v;
             }
          }
+         MFEM_SYNC_THREAD;
 
+         MFEM_FOREACH_THREAD(dy, y, d1d)
+         // for (int dy = 0; dy < d1d; dy++)
          {
-            for (int dy = 0; dy < d1d; dy++)
+            MFEM_FOREACH_THREAD(dx, x, d1d)
+            // for (int dx = 0; dx < d1d; dx++)
             {
-               for (int dx = 0; dx < d1d; dx++)
+               double u = 0.0;
+               double v = 0.0;
+               for (int qy = 0; qy < q1d; qy++)
                {
-                  double u = 0.0;
-                  double v = 0.0;
-                  for (int qy = 0; qy < q1d; qy++)
-                  {
-                     u += s0(dx, qy) * B(qy, 0, dy);
-                     v += s1(dx, qy) * G(qy, 0, dy);
-                  }
-                  yd(dx, dy, vd) += u + v;
+                  u += s0(dx, qy) * B(qy, 0, dy);
+                  v += s1(dx, qy) * G(qy, 0, dy);
                }
+               yd(dx, dy, vd) += u + v;
             }
          }
+         MFEM_SYNC_THREAD;
       }
    }
    else
@@ -1889,8 +1899,8 @@ void map_quadrature_data_to_fields_tensor_impl(DeviceTensor<2, double> y,
 
 template <typename T = NonTensorProduct, typename output_type>
 MFEM_HOST_DEVICE
-void map_quadrature_data_to_fields(DeviceTensor<2, double> y,
-                                   DeviceTensor<3, double> f,
+void map_quadrature_data_to_fields(DeviceTensor<2, double> &y,
+                                   const DeviceTensor<3, double> &f,
                                    output_type output,
                                    const DofToQuadMap &dtq,
                                    std::array<DeviceTensor<1>, 6> &scratch_mem)

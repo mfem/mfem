@@ -1,5 +1,6 @@
 #include "dfem/dfem.hpp"
 #include "examples/dfem/dfem_util.hpp"
+#include "fem/bilinearform.hpp"
 #include "fem/coefficient.hpp"
 #include "fem/lininteg.hpp"
 
@@ -625,16 +626,15 @@ int test_diffusion_integrator(std::string mesh_file,
    rho_g.ProjectCoefficient(rho_c);
 
    auto kernel = [] MFEM_HOST_DEVICE
-                 (const double &rho,
-                  const tensor<double, 2, 2> &J,
+                 (const tensor<double, 2, 2> &J,
                   const double &w,
                   const tensor<double, 2> &dudxi)
    {
       auto invJ = inv(J);
-      return serac::tuple{rho*rho * dudxi * invJ * transpose(invJ) * det(J) * w};
+      return serac::tuple{dudxi * invJ * transpose(invJ) * det(J) * w};
    };
 
-   serac::tuple argument_operators = {Value{"density"}, Gradient{"coordinates"}, Weight{}, Gradient{"potential"}};
+   serac::tuple argument_operators = {Gradient{"coordinates"}, Weight{}, Gradient{"potential"}};
    serac::tuple output_operator = {Gradient{"potential"}};
 
    ElementOperator eop = {kernel, argument_operators, output_operator};
@@ -643,7 +643,6 @@ int test_diffusion_integrator(std::string mesh_file,
    auto solutions = std::array{FieldDescriptor{&h1fes, "potential"}};
    auto parameters = std::array
    {
-      FieldDescriptor{&h1fes, "density"},
       FieldDescriptor{&mesh_fes, "coordinates"}
    };
 
@@ -660,12 +659,12 @@ int test_diffusion_integrator(std::string mesh_file,
    f1_g.ProjectCoefficient(f1_c);
 
    Vector x(f1_g), y(h1fes.TrueVSize());
-   dop.SetParameters({&rho_g, mesh_nodes});
+   dop.SetParameters({mesh_nodes});
    dop.Mult(x, y);
 
    ParBilinearForm a(&h1fes);
-   TransformedCoefficient rho_c2(&rho_c, [](double c) {return c*c;});
-   a.AddDomainIntegrator(new DiffusionIntegrator(rho_c2));
+   a.AddDomainIntegrator(new DiffusionIntegrator);
+   a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
    a.Assemble();
    a.Finalize();
 
