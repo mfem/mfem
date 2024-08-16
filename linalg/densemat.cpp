@@ -18,6 +18,7 @@
 #include "matrix.hpp"
 #include "densemat.hpp"
 #include "lapack.hpp"
+#include "batched/batched.hpp"
 #include "../general/forall.hpp"
 #include "../general/table.hpp"
 #include "../general/globals.hpp"
@@ -4405,6 +4406,16 @@ DenseTensor &DenseTensor::operator=(const DenseTensor &other)
    DenseTensor new_tensor(other);
    Swap(new_tensor);
    return *this;
+}
+
+void BatchLUFactor(DenseTensor &Mlu, Array<int> &P, const real_t TOL)
+{
+   BatchedLinAlg::LUFactor(Mlu, P);
+}
+
+void BatchLUSolve(const DenseTensor &Mlu, const Array<int> &P, Vector &X)
+{
+   BatchedLinAlg::LUSolve(Mlu, P, X);
 }
 
 } // namespace mfem

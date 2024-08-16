@@ -48,6 +48,15 @@ void Hybridization::ConstructC()
    int num_hat_dofs = hat_offsets[NE];
    Array<int> vdofs, c_vdofs;
 
+#if defined(MFEM_USE_DOUBLE)
+   constexpr real_t mtol = 1e-12;
+#elif defined(MFEM_USE_SINGLE)
+   constexpr real_t mtol = 4e-6;
+#else
+#error "Only single and double precision are supported!"
+   constexpr real_t mtol = 1.;
+#endif
+
    int c_num_face_nbr_dofs = 0;
 #ifdef MFEM_USE_MPI
    ParFiniteElementSpace *c_pfes = dynamic_cast<ParFiniteElementSpace*>(&c_fes);
@@ -116,8 +125,72 @@ void Hybridization::ConstructC()
                                    *fes.GetFE(FTr->Elem2No),
                                    *FTr, elmat);
          // zero-out small elements in elmat
-         elmat.Threshold(1e-12 * elmat.MaxMaxNorm());
+         elmat.Threshold(mtol * elmat.MaxMaxNorm());
          Ct->AddSubMatrix(vdofs, c_vdofs, elmat, skip_zeros);
+      }
+
+      if (!boundary_constraint_integs.empty())
+      {
+         const FiniteElement *fe1, *fe2;
+         const FiniteElement *face_el;
+
+         // Which boundary attributes need to be processed?
+         Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
+                                    mesh->bdr_attributes.Max() : 0);
+         bdr_attr_marker = 0;
+         for (int k = 0; k < boundary_constraint_integs.size(); k++)
+         {
+            if (boundary_constraint_integs_marker[k] == NULL)
+            {
+               bdr_attr_marker = 1;
+               break;
+            }
+            Array<int> &bdr_marker = *boundary_constraint_integs_marker[k];
+            MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
+                        "invalid boundary marker for boundary face integrator #"
+                        << k << ", counting from zero");
+            for (int i = 0; i < bdr_attr_marker.Size(); i++)
+            {
+               bdr_attr_marker[i] |= bdr_marker[i];
+            }
+         }
+
+         for (int i = 0; i < fes.GetNBE(); i++)
+         {
+            const int bdr_attr = mesh->GetBdrAttribute(i);
+            if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
+
+            FTr = mesh->GetBdrFaceTransformations(i);
+            if (!FTr) { continue; }
+
+            int o1 = hat_offsets[FTr->Elem1No];
+            int s1 = hat_offsets[FTr->Elem1No+1] - o1;
+
+            vdofs.SetSize(s1);
+            for (int j = 0; j < s1; j++)
+            {
+               vdofs[j] = o1 + j;
+            }
+            int iface = mesh->GetBdrElementFaceIndex(i);
+            c_fes.GetFaceVDofs(iface, c_vdofs);
+            face_el = c_fes.GetFaceElement(iface);
+            fe1 = fes.GetFE(FTr -> Elem1No);
+            // The fe2 object is really a dummy and not used on the boundaries,
+            // but we can't dereference a NULL pointer, and we don't want to
+            // actually make a fake element.
+            fe2 = fe1;
+            for (int k = 0; k < boundary_constraint_integs.size(); k++)
+            {
+               if (boundary_constraint_integs_marker[k] &&
+                   (*boundary_constraint_integs_marker[k])[bdr_attr-1] == 0) { continue; }
+
+               boundary_constraint_integs[k]->AssembleFaceMatrix(*face_el, *fe1, *fe2, *FTr,
+                                                                 elmat);
+               // zero-out small elements in elmat
+               elmat.Threshold(mtol * elmat.MaxMaxNorm());
+               Ct->AddSubMatrix(vdofs, c_vdofs, elmat, skip_zeros);
+            }
+         }
       }
 #ifdef MFEM_USE_MPI
       if (pmesh)
@@ -158,7 +231,7 @@ void Hybridization::ConstructC()
             fe = fes.GetFE(FTr->Elem1No);
             c_bfi->AssembleFaceMatrix(*face_fe, *fe, *fe, *FTr, elmat);
             // zero-out small elements in elmat
-            elmat.Threshold(1e-12 * elmat.MaxMaxNorm());
+            elmat.Threshold(mtol * elmat.MaxMaxNorm());
             Ct->AddSubMatrix(vdofs, c_vdofs, elmat, skip_zeros);
          }
          if (glob_num_shared_slave_faces)

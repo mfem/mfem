@@ -268,6 +268,10 @@ protected:
    Array<int> dof_elem_array, dof_ldof_array;
 
    NURBSExtension *NURBSext;
+   /** array of NURBS extension for H(div) and H(curl) vector elements.
+       For each direction an extension is created from the base NURBSext,
+       with an increase in order in the appropriate direction. */
+   Array<NURBSExtension*> VNURBSext;
    int own_ext;
    mutable Array<int> face_to_be; // NURBS FE space only
 
@@ -522,6 +526,8 @@ protected:
                                                const Array<int> *perm);
 
 public:
+
+
    /** @brief Default constructor: the object is invalid until initialized using
        the method Load(). */
    FiniteElementSpace();
@@ -649,7 +655,10 @@ public:
    const ElementRestrictionOperator *GetElementRestriction(
       ElementDofOrdering e_ordering) const;
 
-   /// Return an Operator that converts L-vectors to E-vectors on each face.
+   /** @brief Return an Operator that converts L-vectors to E-vectors on each
+       face. */
+   /** @warning only meshes with tensor-product elements are currently
+       supported. */
    virtual const FaceRestriction *GetFaceRestriction(
       ElementDofOrdering f_ordering, FaceType,
       L2FaceValues mul = L2FaceValues::DoubleValued) const;

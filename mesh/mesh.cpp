@@ -466,7 +466,8 @@ void Mesh::GetBdrElementTransformation(int i,
          {
             for (int j = 0; j < n; j++)
             {
-               pm(k,j) = nodes(vdofs[n*k+j]);
+               int idx = vdofs[n*k+j];
+               pm(k,j) = nodes((idx<0)? -1-idx:idx);
             }
          }
          ElTr->SetFE(bdr_el);
@@ -5111,6 +5112,7 @@ void Mesh::MakeRefined_(Mesh &orig_mesh, const Array<int> &ref_factors,
          }
 
          Embedding &emb = CoarseFineTr.embeddings[el_fine];
+         emb.geom = geom;
          emb.parent = el_coarse;
          emb.matrix = offset + j;
          ++el_fine;
@@ -8999,6 +9001,9 @@ void Mesh::MoveNodes(const Vector &displacements)
    {
       MoveVertices(displacements);
    }
+
+   // Invalidate the old geometric factors
+   NodesUpdated();
 }
 
 void Mesh::GetNodes(Vector &node_coord) const
@@ -13631,22 +13636,23 @@ Mesh &MeshPart::GetMesh()
 
 MeshPartitioner::MeshPartitioner(Mesh &mesh_,
                                  int num_parts_,
-                                 int *partitioning_,
+                                 const int *partitioning_,
                                  int part_method)
    : mesh(mesh_)
 {
    if (partitioning_)
    {
-      partitioning.MakeRef(partitioning_, mesh.GetNE(), false);
+      partitioning.MakeRef(const_cast<int *>(partitioning_), mesh.GetNE(),
+                           false);
    }
    else
    {
-      partitioning_ = mesh.GeneratePartitioning(num_parts_, part_method);
       // Mesh::GeneratePartitioning always uses new[] to allocate the,
       // partitioning, so we need to tell the memory manager to free it with
       // delete[] (even if a different host memory type has been selected).
-      const MemoryType mt = MemoryType::HOST;
-      partitioning.MakeRef(partitioning_, mesh.GetNE(), mt, true);
+      constexpr MemoryType mt = MemoryType::HOST;
+      partitioning.MakeRef(mesh.GeneratePartitioning(num_parts_, part_method),
+                           mesh.GetNE(), mt, true);
    }
 
    Transpose(partitioning, part_to_element, num_parts_);

@@ -69,6 +69,10 @@ protected:
    std::unique_ptr<class HybridizationExtension> ext;
    /// The constraint integrator.
    std::unique_ptr<BilinearFormIntegrator> c_bfi;
+   /// The constraint boundary face integrators
+   std::vector<std::unique_ptr<BilinearFormIntegrator>> boundary_constraint_integs;
+   /// Boundary markers for constraint face integrators
+   std::vector<Array<int>*> boundary_constraint_integs_marker;
    /// The constraint matrix.
    std::unique_ptr<SparseMatrix> Ct;
    /// The Schur complement system for the Lagrange multiplier.
@@ -123,6 +127,31 @@ public:
    /// will delete the integrator when destroyed.
    void SetConstraintIntegrator(BilinearFormIntegrator *c_integ)
    { c_bfi.reset(c_integ); }
+
+   /** Add the boundary face integrator that will be used to construct the
+       constraint matrix C. The Hybridization object assumes ownership of the
+       integrator, i.e. it will delete the integrator when destroyed. */
+   void AddBdrConstraintIntegrator(BilinearFormIntegrator *c_integ)
+   {
+      boundary_constraint_integs.emplace_back(c_integ);
+      boundary_constraint_integs_marker.push_back(nullptr);
+   }
+   void AddBdrConstraintIntegrator(BilinearFormIntegrator *c_integ,
+                                   Array<int> &bdr_marker)
+   {
+      boundary_constraint_integs.emplace_back(c_integ);
+      boundary_constraint_integs_marker.push_back(&bdr_marker);
+   }
+
+   /// Access all integrators added with AddBdrConstraintIntegrator().
+   BilinearFormIntegrator& GetBdrConstraintIntegrator(int i)
+   { return *boundary_constraint_integs[i]; }
+
+   /// Access all boundary markers added with AddBdrConstraintIntegrator().
+   /** If no marker was specified when the integrator was added, the
+       corresponding pointer (to Array<int>) will be NULL. */
+   Array<int>* GetBdrConstraintIntegratorMarker(int i)
+   { return boundary_constraint_integs_marker[i]; }
 
    /// Prepare the Hybridization object for assembly.
    void Init(const Array<int> &ess_tdof_list);
