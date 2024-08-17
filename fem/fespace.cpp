@@ -176,7 +176,6 @@ void FiniteElementSpace::SetElementOrder(int i, int p)
    {
       elem_order[i] = p;
       orders_changed = true;
-      elems_pref.insert(i);  // TODO: is this still used?
    }
 
    variableOrder = true;
@@ -3772,22 +3771,15 @@ void FiniteElementSpace::GetTrueTransferOperator(
 
 void FiniteElementSpace::UpdateElementOrders()
 {
-   const int baseOrder = fec->GetOrder();
-
    Array<char> new_order(mesh->GetNE());
    switch (mesh->GetLastOperation())
    {
       case Mesh::REFINE:
       {
-         elems_pref.clear();
          const CoarseFineTransformations &cf_tr = mesh->GetRefinementTransforms();
          for (int i = 0; i < mesh->GetNE(); i++)
          {
             new_order[i] = elem_order[cf_tr.embeddings[i].parent];
-            if (new_order[i] > baseOrder)
-            {
-               elems_pref.insert(i);
-            }
          }
          break;
       }

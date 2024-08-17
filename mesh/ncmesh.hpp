@@ -459,10 +459,6 @@ public:
 
    int PrintMemoryDetail() const;
 
-   // TODO: is this necessary? It is used in this function which may change:
-   // ParFiniteElementSpace::ApplyGhostElementOrdersToEdgesAndFaces
-   int TotalNumElements() const { return elements.Size(); }
-
    typedef std::int64_t RefCoord;
 
 

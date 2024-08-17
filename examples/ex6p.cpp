@@ -69,8 +69,8 @@ int main(int argc, char *argv[])
    bool smooth_rt = true;
    bool restart = false;
    bool visualization = true;
-   bool rebalance = false;
-   bool usePRefinement = true;
+   bool rebalance = true;
+   bool usePRefinement = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -92,6 +92,10 @@ int main(int argc, char *argv[])
                   "Stop after reaching this many degrees of freedom.");
    args.AddOption(&smooth_rt, "-rt", "--smooth-rt", "-h1", "--smooth-h1",
                   "Represent the smooth flux in RT or vector H1 space.");
+   args.AddOption(&usePRefinement, "-pref", "--prefine", "-no-pref",
+                  "--no-prefine", "Alternate between h- and p-refinement.");
+   args.AddOption(&rebalance, "-reb", "--rebalance", "-no-reb",
+                  "--no-rebalance", "Load balance the nonconforming mesh.");
    args.AddOption(&restart, "-res", "--restart", "-no-res", "--no-restart",
                   "Restart computation from the last checkpoint.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -109,6 +113,15 @@ int main(int argc, char *argv[])
    if (myid == 0)
    {
       args.PrintOptions(cout);
+   }
+
+   if (usePRefinement && rebalance)
+   {
+      rebalance = false;
+      if (myid == 0)
+      {
+         cout << "Load balancing is not performed with p-refinements.\n";
+      }
    }
 
    // 3. Enable hardware devices such as GPUs, and programming models such as
