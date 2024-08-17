@@ -12,17 +12,15 @@
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
+MFEM_INSTALL_DIR ?= ../../mfem
 SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/nurbs/,)
-CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
-# Use the MFEM install directory
-# MFEM_INSTALL_DIR = ../../mfem
-# CONFIG_MK = $(MFEM_INSTALL_DIR)/share/mfem/config.mk
+CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
+   $(wildcard $(MFEM_INSTALL_DIR)/share/mfem/config.mk))
 
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_MINIAPPS = nurbs_ex1 nurbs_patch_ex1 nurbs_curveint nurbs_printfunc nurbs_naca_cmesh
-
+SEQ_MINIAPPS = nurbs_ex1 nurbs_patch_ex1 nurbs_ex3 nurbs_ex5 nurbs_ex24 nurbs_curveint nurbs_printfunc nurbs_solenoidal nurbs_naca_cmesh
 PAR_MINIAPPS = nurbs_ex1p nurbs_ex11p
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -103,6 +101,36 @@ endif
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1PATCH_ARGS_2))
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1PATCH_ARGS_3))
 
+EX3_ARGS_1 := -m $(MFEM_DIR)/data/square-nurbs.mesh -r 1 -o 2
+EX3_ARGS_2 := -m $(MFEM_DIR)/data/cube-nurbs.mesh -r 1 -o 2
+nurbs_ex3-test-seq: nurbs_ex3
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX3_ARGS_1))
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX3_ARGS_2))
+
+EX5_ARGS_1 := -m $(MFEM_DIR)/data/square-nurbs.mesh -r 1 -o 2
+EX5_ARGS_2 := -m $(MFEM_DIR)/data/cube-nurbs.mesh -r 1 -o 2
+nurbs_ex5-test-seq: nurbs_ex5
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX5_ARGS_1))
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX5_ARGS_2))
+
+EX24_ARGS_1 := -m $(MFEM_DIR)/data/pipe-nurbs-2d.mesh -r 1 -o 2 -p 0
+EX24_ARGS_2 := -m $(MFEM_DIR)/data/pipe-nurbs-2d.mesh -r 1 -o 2 -p 2
+EX24_ARGS_3 := -m $(MFEM_DIR)/data/cube-nurbs.mesh -r 1 -o 2 -p 0
+EX24_ARGS_4 := -m $(MFEM_DIR)/data/cube-nurbs.mesh -r 1 -o 2 -p 1
+EX24_ARGS_5 := -m $(MFEM_DIR)/data/cube-nurbs.mesh -r 1 -o 2 -p 2
+nurbs_ex24-test-seq: nurbs_ex24
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX24_ARGS_1))
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX24_ARGS_2))
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX24_ARGS_3))
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX24_ARGS_4))
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX24_ARGS_5))
+
+SOL_ARGS_1 := -m $(MFEM_DIR)/data/pipe-nurbs-2d.mesh -r 1 -o 2
+SOL_ARGS_1 := -m $(MFEM_DIR)/data/cube-nurbs.mesh -r 1 -o 2
+nurbs_sol-test-seq: nurbs_solenoidal
+	@$(call mfem-test,$<,, NURBS miniapp,$(SOL_ARGS_1))
+	@$(call mfem-test,$<,, NURBS miniapp,$(SOl_ARGS_2))
+
 CI_ARGS_1 := -uw -n 9 -no-visit
 CI_ARGS_2 := -nw -n 9 -no-visit
 
@@ -151,6 +179,6 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -f refined.mesh sin-fit.mesh mesh.* sol.* mode_* naca-cmesh.mesh
-	@rm -rf Example1*
+	@rm -f refined.mesh sin-fit.mesh ex5.mesh exsol.mesh mesh.* sol.* mode_* naca-cmesh.mesh sol_?.gf
+	@rm -rf Example1* Example3* Example5* Solenoidal_* ParaView
 	@rm -rf CurveInt Naca_cmesh glvis_naca-cmesh.mesh

@@ -12,25 +12,24 @@
 # Use the MFEM build directory
 MFEM_DIR ?= ..
 MFEM_BUILD_DIR ?= ..
+MFEM_INSTALL_DIR ?= ../mfem
 SRC = $(if $(MFEM_DIR:..=),$(MFEM_DIR)/examples/,)
-CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
-# Use the MFEM install directory
-# MFEM_INSTALL_DIR = ../mfem
-# CONFIG_MK = $(MFEM_INSTALL_DIR)/share/mfem/config.mk
+CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
+   $(wildcard $(MFEM_INSTALL_DIR)/share/mfem/config.mk))
 
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_EXAMPLES = ex0 ex1 ex2 ex3 ex4 ex5 ex6 ex7 ex8 ex9 ex10 ex14 ex15 ex16 \
    ex17 ex18 ex19 ex20 ex21 ex22 ex23 ex24 ex25 ex26 ex27 ex28 ex29 ex30 \
-   ex31 ex33 ex34 ex36 ex37 ex38 ex39
+   ex31 ex33 ex34 ex36 ex37 ex38 ex39 ex40
 PAR_EXAMPLES = ex0p ex1p ex2p ex3p ex4p ex5p ex6p ex7p ex8p ex9p ex10p ex11p \
    ex12p ex13p ex14p ex15p ex16p ex17p ex18p ex19p ex20p ex21p ex22p ex24p \
    ex25p ex26p ex27p ex28p ex29p ex30p ex31p ex32p ex33p ex34p ex35p ex36p \
-   ex37p ex39p
-SEQ_DEVICE_EXAMPLES = ex1 ex3 ex4 ex5 ex6 ex9 ex22 ex24 ex25 ex26 ex34
-PAR_DEVICE_EXAMPLES = ex1p ex2p ex3p ex4p ex5p ex6p ex7p ex9p ex13p ex22p \
-   ex24p ex25p ex26p ex34p ex35p
+   ex37p ex39p ex40p
+SEQ_DEVICE_EXAMPLES = ex1 ex3 ex4 ex5 ex6 ex9 ex14 ex22 ex24 ex25 ex26 ex34
+PAR_DEVICE_EXAMPLES = ex1p ex2p ex3p ex4p ex5p ex6p ex7p ex9p ex13p ex14p \
+   ex22p ex24p ex25p ex26p ex34p ex35p
 
 ifeq ($(MFEM_USE_LAPACK),YES)
    SEQ_EXAMPLES += ex38
@@ -138,6 +137,14 @@ ex10-test-seq: ex10
 	@$(call mfem-test,$<,, Serial example,-tf 5)
 ex10p-test-par: ex10p
 	@$(call mfem-test,$<, $(RUN_MPI), Parallel example,-tf 5)
+ex14-test-seq-cuda: ex14
+	@$(call mfem-test,$<,, Serial CUDA example,-r 2 -pa -d cuda)
+ex14p-test-par-cuda: ex14p
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel CUDA example,-rs 2 -rp 0 -pa -d cuda)
+ex14-test-seq-hip: ex14
+	@$(call mfem-test,$<,, Serial HIP example,-r 2 -pa -d hip)
+ex14p-test-par-hip: ex14p
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel HIP example,-rs 2 -rp 0 -pa -d hip)
 ex15-test-seq: ex15
 	@$(call mfem-test,$<,, Serial example,-e 1)
 ex15p-test-par: ex15p
