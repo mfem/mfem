@@ -167,7 +167,7 @@ void ParFiniteElementSpace::CommunicateGhostOrder(
    // Note that all orders, including the base order, are communicated here. It
    // may be possible to optimize by eliminating the base orders.
    Array<VarOrderElemInfo> localOrders(mesh->GetNE());
-   for (unsigned int i=0; i<mesh->GetNE(); ++i)
+   for (int i=0; i<mesh->GetNE(); ++i)
    {
       localOrders[i].element = i;
       localOrders[i].order = elem_order[i];
@@ -1618,15 +1618,18 @@ const FiniteElement *ParFiniteElementSpace::GetFaceNbrFE(int i, int ndofs) const
 
    if (ndofs > 0)
    {
-      // TODO: set upper limit using GetMaxElementOrder but without calling that
-      // MPI function on every call to this function?
       for (int order = fec->GetOrder(); ; ++order)
       {
          const FiniteElement *FE =
             fec->GetFE(pmesh->face_nbr_elements[i]->GetGeometryType(), order);
-         if (FE->GetDof() == ndofs)
+         const int ndofs_order = FE->GetDof();
+         if (ndofs_order == ndofs)
          {
             return FE;
+         }
+         else if (ndofs_order > ndofs)
+         {
+            MFEM_ABORT("Finite element order not found in GetFaceNbrFE");
          }
       }
    }
