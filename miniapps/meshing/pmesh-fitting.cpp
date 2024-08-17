@@ -580,6 +580,22 @@ int main (int argc, char *argv[])
          }
       }
 
+      // Unify marker across processor boundary
+      surf_fit_mat_gf.ExchangeFaceNbrData();
+      {
+         GroupCommunicator &gcomm = surf_fit_mat_gf.ParFESpace()->GroupComm();
+         Array<real_t> gf_array(surf_fit_mat_gf.GetData(),
+                                surf_fit_mat_gf.Size());
+         gcomm.Reduce<real_t>(gf_array, GroupCommunicator::Max);
+         gcomm.Bcast(gf_array);
+      }
+      surf_fit_mat_gf.ExchangeFaceNbrData();
+
+      for (int i = 0; i < surf_fit_mat_gf.Size(); i++)
+      {
+         surf_fit_marker[i] = surf_fit_mat_gf(i) == 1.0;
+      }
+
       // Set AdaptivityEvaluators for transferring information from initial
       // mesh to current mesh as it moves during adaptivity.
       if (adapt_eval == 0)
@@ -591,11 +607,8 @@ int main (int argc, char *argv[])
       {
 #ifdef MFEM_USE_GSLIB
          adapt_surface = new InterpolatorFP;
-         if (surf_bg_mesh)
-         {
-            adapt_grad_surface = new InterpolatorFP;
-            adapt_hess_surface = new InterpolatorFP;
-         }
+         adapt_grad_surface = new InterpolatorFP;
+         adapt_hess_surface = new InterpolatorFP;
 #else
          MFEM_ABORT("MFEM is not built with GSLIB support!");
 #endif
@@ -605,7 +618,9 @@ int main (int argc, char *argv[])
       if (!surf_bg_mesh)
       {
          tmop_integ->EnableSurfaceFitting(surf_fit_gf0, surf_fit_marker,
-                                          surf_fit_coeff, *adapt_surface);
+                                          surf_fit_coeff, *adapt_surface,
+                                          adapt_grad_surface,
+                                          adapt_hess_surface);
       }
       else
       {
@@ -837,9 +852,13 @@ int main (int argc, char *argv[])
 
    if (surface_fit_const > 0.0)
    {
+      adapt_surface->ComputeAtNewPosition(x, surf_fit_gf0,
+                                          x.FESpace()->GetOrdering());
       if (visualization)
       {
-         socketstream vis2, vis3;
+         socketstream vis1, vis2, vis3;
+         common::VisualizeField(vis1, "localhost", 19916, surf_fit_gf0,
+                                "Level Set", 000, 400, 300, 300);
          common::VisualizeField(vis2, "localhost", 19916, mat,
                                 "Materials", 300, 400, 300, 300);
          common::VisualizeField(vis3, "localhost", 19916, surf_fit_mat_gf,

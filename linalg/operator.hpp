@@ -420,8 +420,9 @@ public:
    /** @brief Perform the action of the explicit part of the operator, G:
        @a v = G(@a u, t) where t is the current time.
 
-       Presently, this method is used by some PETSc ODE solvers, for more
-       details, see the PETSc Manual. */
+       Presently, this method is used by some PETSc ODE solvers and the
+       SUNDIALS ARKStep integrator, for more details, see either the PETSc
+       Manual or the ARKode User Guide, respectively. */
    virtual void ExplicitMult(const Vector &u, Vector &v) const;
 
    /** @brief Perform the action of the implicit part of the operator, F:
@@ -445,7 +446,7 @@ public:
 
        Regardless of the choice of F and G, this function should always compute
        @a k = inv(M) g(@a u, t). */
-   virtual void Mult(const Vector &u, Vector &v) const override;
+   virtual void Mult(const Vector &u, Vector &k) const override;
 
    /** @brief Solve for the unknown @a k, at the current time t, the following
        equation:
@@ -496,7 +497,17 @@ public:
        details, see the PETSc Manual. */
    virtual Operator& GetExplicitGradient(const Vector &u) const;
 
-   /** @brief Setup a linear system as needed by some SUNDIALS ODE solvers.
+   /** @brief Setup a linear system as needed by some SUNDIALS ODE solvers to
+       perform a similar action to ImplicitSolve, i.e., solve for k, at the
+       current time t, in F(u + gamma k, k, t) = G(u + gamma k, t).
+
+       The SUNDIALS ODE solvers iteratively solve for k, as knew = kold + dk.
+       The linear system here is for dk, obtained by linearizing the nonlinear
+       system F(u + gamma knew, knew, t) = G(u + gamma knew, t) about dk = 0:
+          F(u + gamma (kold + dk), kold + dk, t) = G(u + gamma (kold + dk), t)
+          => [dF/dk + gamma (dF/du - dG/du)] dk = G - F + O(dk^2)
+       In other words, the linear system to be setup here is A dk = r, where
+       A = [dF/dk + gamma (dF/du - dG/du)] and r = G - F.
 
        For solving an ordinary differential equation of the form
        $ M \frac{dy}{dt} = g(y,t) $, recall that F and G can be defined as one
@@ -506,7 +517,7 @@ public:
          2. F(u,k,t) = M k and G(u,t) = g(u,t)
          3. F(u,k,t) = M k - g(u,t) and G(u,t) = 0
 
-       This function performs setup to solve $ A x = b $ where A is either
+       This function performs setup to solve $ A dk = r $ where A is either
 
          1. A(@a y,t) = I - @a gamma inv(M) J(@a y,t)
          2. A(@a y,t) = M - @a gamma J(@a y,t)
@@ -527,18 +538,26 @@ public:
    virtual int SUNImplicitSetup(const Vector &y, const Vector &v,
                                 int jok, int *jcur, real_t gamma);
 
-   /** @brief Solve the ODE linear system A @a x = @a b, where A is defined by
-       the method SUNImplicitSetup().
+   /** @brief Solve the ODE linear system A @a dk = @a r , where A and r are
+       defined by the method SUNImplicitSetup().
 
-       @param[in]      b   The linear system right-hand side.
-       @param[in,out]  x   On input, the initial guess. On output, the solution.
+       For solving an ordinary differential equation of the form
+       $ M \frac{dy}{dt} = g(y,t) $, recall that F and G can be defined as one
+       of the following:
+
+         1. F(u,k,t) = k and G(u,t) = inv(M) g(u,t)
+         2. F(u,k,t) = M k and G(u,t) = g(u,t)
+         3. F(u,k,t) = M k - g(u,t) and G(u,t) = 0
+
+       @param[in]      r   inv(M) g(y,t) - k for 1 or g(y,t) - M k for 2 & 3.
+       @param[in,out]  dk  On input, the initial guess. On output, the solution.
        @param[in]      tol Linear solve tolerance.
 
        If not re-implemented, this method simply generates an error.
 
        Presently, this method is used by SUNDIALS ODE solvers, for more
        details, see the SUNDIALS User Guides. */
-   virtual int SUNImplicitSolve(const Vector &b, Vector &x, real_t tol);
+   virtual int SUNImplicitSolve(const Vector &r, Vector &dk, real_t tol);
 
    /** @brief Setup the mass matrix in the ODE system
        $ M \frac{dy}{dt} = g(y,t) $ .
