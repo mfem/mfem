@@ -162,16 +162,16 @@ void ParFiniteElementSpace::CommunicateGhostOrder(
       return;
    }
 
-   // TODO: is it necessary to communicate elements with base order?
+   MFEM_ASSERT(mesh->GetNE() == pncmesh->GetNElements(), "");
+
+   // Note that all orders, including the base order, are communicated here. It
+   // may be possible to optimize by eliminating the base orders.
    Array<VarOrderElemInfo> localOrders(mesh->GetNE());
-   for (int i=0; i<mesh->GetNE(); ++i)
+   for (unsigned int i=0; i<mesh->GetNE(); ++i)
    {
-      // TODO: why pass i in entry i? Can this be assumed?
       localOrders[i].element = i;
       localOrders[i].order = elem_order[i];
    }
-
-   MFEM_VERIFY(mesh->GetNE() == pncmesh->GetNElements(), "");
 
    pncmesh->CommunicateGhostData(localOrders, pref_data);
 }
@@ -4429,7 +4429,7 @@ void ParFiniteElementSpace::Update(bool want_transform)
       Swap(dof_offsets, old_dof_offsets);
    }
 
-   Destroy();  // Does not clear elems_pref or elem_order
+   Destroy();  // Does not clear elem_order
    FiniteElementSpace::Destroy(); // calls Th.Clear()
 
    // In the variable order case, we call CommunicateGhostOrder whether h-

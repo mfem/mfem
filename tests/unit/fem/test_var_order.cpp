@@ -962,10 +962,6 @@ real_t CheckH1Continuity(ParGridFunction & x)
    // Following the example of KellyErrorEstimator::ComputeEstimates(),
    // we loop over interior faces and then shared faces.
 
-   const int nfaces = mesh->GetNumFaces();
-   int numInterior = 0;
-   int numBoundary = 0;
-
    // Compute error contribution from local interior faces
    real_t errorMax = 0.0;
    for (int f = 0; f < mesh->GetNumFaces(); f++)
@@ -991,8 +987,6 @@ real_t CheckH1Continuity(ParGridFunction & x)
          bool isConforming = FT->Elem2No >= 0 && NCFace == -1;
          if ((FT->Elem1No < FT->Elem2No && isConforming) || isNCSlave)
          {
-            numInterior++;
-
             for (int i = 0; i < nip; i++)
             {
                const auto &fip = int_rule.IntPoint(i);

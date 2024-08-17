@@ -261,8 +261,6 @@ protected:
        to be of the default order (fec->GetOrder()). */
    Array<char> elem_order;
 
-   std::set<int> elems_pref;  // TODO: is this still used?
-
    int nvdofs, nedofs, nfdofs, nbdofs;
    int uni_fdof; ///< # of single face DOFs if all faces uniform; -1 otherwise
    int *bdofs; ///< internal DOFs of elements if mixed/var-order; NULL otherwise
@@ -279,8 +277,6 @@ protected:
    /** Additional data for the var_*_dofs tables: individual variant orders
        (these are basically alternate J arrays for var_edge/face_dofs). */
    Array<char> var_edge_orders, var_face_orders;
-
-   // TODO: pass into CalcEdgeFaceVarOrders to avoid mutable?
 
    /// Marker arrays for ghost master entities to be skipped in conforming
    /// interpolation constraints.
@@ -389,18 +385,18 @@ protected:
       const Array<VarOrderElemInfo> * pref_data=nullptr) const;
 
    virtual void ApplyGhostElementOrdersToEdgesAndFaces(
-      Array<VarOrderBits> &edge_orders,
-      Array<VarOrderBits> &face_orders,
+      Array<VarOrderBits> &edge_orders, Array<VarOrderBits> &face_orders,
       const Array<VarOrderElemInfo> * pref_data=nullptr) const;
 
-   virtual void GhostMasterFaceOrderToEdges(const Array<VarOrderBits> &face_orders,
-                                            Array<VarOrderBits> &edge_orders) const { }
+   virtual void GhostMasterFaceOrderToEdges(
+      const Array<VarOrderBits> &face_orders,
+      Array<VarOrderBits> &edge_orders) const { }
 
-   virtual void GhostMasterArtificialFaceOrders(const Array<VarOrderBits>
-                                                &face_orders,
-                                                const Array<VarOrderBits> &edge_orders,
-                                                Array<VarOrderBits> &artificial_edge_orders,
-                                                Array<VarOrderBits> &artificial_face_orders) const { };
+   virtual void GhostMasterArtificialFaceOrders(
+      const Array<VarOrderBits> &face_orders,
+      const Array<VarOrderBits> &edge_orders,
+      Array<VarOrderBits> &artificial_edge_orders,
+      Array<VarOrderBits> &artificial_face_orders) const { };
 
    virtual bool OrderPropagation(const std::set<int> &edges,
                                  const std::set<int> &faces,
