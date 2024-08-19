@@ -165,7 +165,7 @@ struct NonTensorProduct;
 template <typename func_t>
 __global__ void forall_kernel_shmem(func_t f, int n)
 {
-   int i = threadIdx.x + blockIdx.x * blockDim.x;
+   int i = blockIdx.x;
    extern __shared__ double shmem[];
    if (i < n) { f(i, shmem); }
 }
@@ -173,8 +173,10 @@ __global__ void forall_kernel_shmem(func_t f, int n)
 
 template <typename func_t>
 void forall(func_t f,
-            int n,
-            int blocksize = 1,
+            int N,
+            int X,
+            int Y,
+            int Z,
             int num_shmem = 0,
             double *shmem = nullptr)
 {
@@ -182,9 +184,10 @@ void forall(func_t f,
        Device::Allows(Backend::HIP_MASK))
    {
 #if (defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
-      int gridsize = (n + blocksize - 1) / blocksize;
+      // int gridsize = (N + Z - 1) / Z;
       int num_bytes = num_shmem * sizeof(decltype(shmem));
-      forall_kernel_shmem<<<gridsize,blocksize,num_bytes>>>(f, n);
+      dim3 block_size(X, Y);
+      forall_kernel_shmem<<<N, block_size, num_bytes>>>(f, N);
       MFEM_DEVICE_SYNC;
 #endif
    }
@@ -192,7 +195,7 @@ void forall(func_t f,
    {
       MFEM_ASSERT(!((bool)num_shmem != (bool)shmem),
                   "Backend::CPU needs a pre-allocated shared memory block");
-      for (int i = 0; i < n; i++) { f(i, shmem); }
+      for (int i = 0; i < N; i++) { f(i, shmem); }
    }
    else
    {
@@ -889,10 +892,15 @@ std::array<Vector, sizeof...(i)> create_input_qp_memory(
 
 struct DofToQuadMap
 {
-   static constexpr int rank = 3;
-   DeviceTensor<rank, const double> B;
-   DeviceTensor<rank, const double> G;
-   const int which_input = -1;
+   enum Index
+   {
+      QP,
+      DIM,
+      DOF
+   };
+   DeviceTensor<3, const double> B;
+   DeviceTensor<3, const double> G;
+   int which_input = -1;
 };
 
 template <typename field_operator_t>
@@ -903,7 +911,6 @@ void map_field_to_quadrature_data_tensor_product(
    const DeviceTensor<1, const double> &field_e,
    field_operator_t &input,
    DeviceTensor<1, const double> integration_weights,
-   GeometricFactorMaps geometric_factors,
    const std::array<DeviceTensor<1>, 6> &scratch_mem)
 {
    auto B = dtq.B;
@@ -1025,8 +1032,7 @@ void map_field_to_quadrature_data(
    const DofToQuadMap &dtq,
    const DeviceTensor<1, const double> &field_e,
    field_operator_t &input,
-   DeviceTensor<1, const double> integration_weights,
-   GeometricFactorMaps geometric_factors)
+   DeviceTensor<1, const double> integration_weights)
 {
    auto B = dtq.B;
    auto G = dtq.G;
@@ -1133,14 +1139,15 @@ void map_fields_to_quadrature_data(
    {
       (map_field_to_quadrature_data_tensor_product(fields_qp[i],
                                                    dtqmaps[i], fields_e[kfinput_to_field[i]],
-                                                   serac::get<i>(fops), integration_weights, geometric_factors, scratch_mem),
+                                                   serac::get<i>(fops), integration_weights,
+                                                   scratch_mem),
        ...);
    }
    else
    {
       (map_field_to_quadrature_data(fields_qp[i],
                                     dtqmaps[i], fields_e[kfinput_to_field[i]],
-                                    serac::get<i>(fops), integration_weights, geometric_factors),
+                                    serac::get<i>(fops), integration_weights),
        ...);
    }
 }
@@ -1151,7 +1158,6 @@ void map_field_to_quadrature_data_conditional(
    DeviceTensor<2> field_qp, const DofToQuadMap &dtqmap,
    DeviceTensor<1, const double> &field_e, input_type &input,
    DeviceTensor<1, const double> integration_weights,
-   GeometricFactorMaps geometric_factors,
    const std::array<DeviceTensor<1>, 6> &scratch_mem,
    const bool condition)
 {
@@ -1161,13 +1167,13 @@ void map_field_to_quadrature_data_conditional(
       {
          map_field_to_quadrature_data_tensor_product(field_qp, dtqmap,
                                                      field_e, input,
-                                                     integration_weights, geometric_factors,
+                                                     integration_weights,
                                                      scratch_mem);
       }
       else
       {
          map_field_to_quadrature_data(field_qp, dtqmap, field_e, input,
-                                      integration_weights, geometric_factors);
+                                      integration_weights);
       }
    }
 }
@@ -1180,7 +1186,6 @@ void map_fields_to_quadrature_data_conditional(
    const std::array<int, num_kinputs> &kfinput_to_field,
    const std::array<DofToQuadMap, num_kinputs> &dtqmaps,
    DeviceTensor<1, const double> integration_weights,
-   GeometricFactorMaps geometric_factors,
    std::array<bool, num_kinputs> conditions,
    field_operator_tuple_t fops,
    const std::array<DeviceTensor<1>, 6> &scratch_mem,
@@ -1189,7 +1194,7 @@ void map_fields_to_quadrature_data_conditional(
    (map_field_to_quadrature_data_conditional<T>(fields_qp[i],
                                                 dtqmaps[i], fields_e[kfinput_to_field[i]],
                                                 serac::get<i>(fops), integration_weights,
-                                                geometric_factors, scratch_mem,
+                                                scratch_mem,
                                                 conditions[i]),
     ...);
 }
@@ -1218,7 +1223,7 @@ struct SharedMemoryInfo
 {
    int total_size;
    std::array<int, 4> offsets;
-   std::array<int, 2> dtq_sizes;
+   std::array<std::array<int, 2>, num_inputs> dtq_sizes;
    std::array<int, num_fields> field_sizes;
    std::array<int, num_inputs> input_sizes;
    std::array<int, 6> temp_sizes;
@@ -1238,35 +1243,22 @@ get_shmem_info(
    std::array<int, 4> offsets = {0};
    int total_size = 0;
 
-   std::array<int, 2> dtq_sizes;
-   // Find the largest B/G
-   int max_dtq_idx = 0;
-   int max_dtq_capacity = 0;
-   for (int i = 0; i < num_fields; i++)
+   std::array<std::array<int, 2>, num_inputs> dtq_sizes;
+   int max_dtq_qps = 0;
+   int max_dtq_dofs = 0;
+   for (int i = 0; i < num_inputs; i++)
    {
-      auto a = input_dtq_maps[max_dtq_idx].B.GetShape();
-      auto b = input_dtq_maps[i].B.GetShape();
-      auto capacity_a = std::accumulate(std::begin(a), std::end(a), 1,
-                                        std::multiplies<double>());
-      auto capacity_b = std::accumulate(std::begin(b), std::end(b), 1,
-                                        std::multiplies<double>());
-      if (capacity_a < capacity_b)
-      {
-         max_dtq_idx = i;
-      }
+      auto a = input_dtq_maps[i].B.GetShape();
+      dtq_sizes[i][0] = a[0] * a[1] * a[2];
+      auto b = input_dtq_maps[i].G.GetShape();
+      dtq_sizes[i][1] = b[0] * b[1] * b[2];
+
+      max_dtq_qps = std::max(max_dtq_qps, a[DofToQuadMap::Index::QP]);
+      max_dtq_dofs = std::max(max_dtq_dofs, a[DofToQuadMap::Index::DOF]);
+
+      total_size += std::accumulate(std::begin(dtq_sizes[i]), std::end(dtq_sizes[i]),
+                                    0);
    }
-   {
-      auto a = input_dtq_maps[max_dtq_idx].B.GetShape();
-      auto capacity_a = std::accumulate(std::begin(a), std::end(a), 1,
-                                        std::multiplies<double>());
-      auto b = input_dtq_maps[max_dtq_idx].G.GetShape();
-      auto capacity_c = std::accumulate(std::begin(a), std::end(a), 1,
-                                        std::multiplies<double>());
-      max_dtq_capacity = capacity_a + capacity_c;
-      dtq_sizes[1] = capacity_c;
-      dtq_sizes[0] = capacity_a;
-   }
-   total_size += std::accumulate(std::begin(dtq_sizes), std::end(dtq_sizes), 0);
 
    offsets[SharedMemory::Index::FIELD] = total_size;
    std::array<int, num_fields> field_sizes;
@@ -1291,9 +1283,12 @@ get_shmem_info(
    constexpr int num_temp = 6;
    std::array<int, num_temp> temp_sizes = {0};
    // TODO-bug: this assumes q1d >= d1d
-   const int q1d = dtq_sizes[0];
-   const int d1d = dtq_sizes[1];
-   for (int i = 0; i < 2; i++)
+   const int q1d = max_dtq_qps;
+   const int d1d = max_dtq_dofs;
+
+   // TODO-bug: this depends on the dimension
+   constexpr int hardcoded_spatial_dimension = 2;
+   for (int i = 0; i < hardcoded_spatial_dimension; i++)
    {
       temp_sizes[i] = q1d * d1d;
    }
@@ -1309,6 +1304,53 @@ get_shmem_info(
       input_sizes,
       temp_sizes
    };
+}
+
+template <size_t num_inputs>
+MFEM_HOST_DEVICE inline
+std::array<DofToQuadMap, num_inputs> load_input_dtq_mem(
+   double *mem,
+   int offset,
+   const std::array<std::array<int, 2>, num_inputs> &sizes,
+   const std::array<DofToQuadMap, num_inputs> &input_dtq_maps)
+{
+   std::array<DofToQuadMap, num_inputs> f;
+   for (int i = 0; i < num_inputs; i++)
+   {
+      // TODO-performance
+      const int total_size_Bi = sizes[i][0];
+      const auto B = Reshape(&input_dtq_maps[i].B[0], total_size_Bi);
+      auto mem_Bi = Reshape(mem + offset, total_size_Bi);
+      if (input_dtq_maps[i].which_input != -1)
+      {
+         for (int k = 0; k < total_size_Bi; k++)
+         {
+            mem_Bi(k) = B(k);
+         }
+      }
+      offset += total_size_Bi;
+
+      const int total_size_Gi = sizes[i][1];
+      const auto G = Reshape(&input_dtq_maps[i].G[0], total_size_Gi);
+      auto mem_Gi = Reshape(mem + offset, total_size_Gi);
+      if (input_dtq_maps[i].which_input != -1)
+      {
+
+         for (int k = 0; k < total_size_Gi; k++)
+         {
+            mem_Gi(k) = G(k);
+         }
+      }
+
+      offset += total_size_Gi;
+
+      const auto [nqp, ndim_B, ndof] = input_dtq_maps[i].B.GetShape();
+      const auto [unused0, ndim_G, unused1] = input_dtq_maps[i].G.GetShape();
+      f[i] = DofToQuadMap{DeviceTensor<3, const double>(&mem_Bi[0], nqp, ndim_B, ndof),
+                          DeviceTensor<3, const double>(&mem_Gi[0], nqp, ndim_G, ndof),
+                          input_dtq_maps[i].which_input};
+   }
+   return f;
 }
 
 template <size_t num_fields>
