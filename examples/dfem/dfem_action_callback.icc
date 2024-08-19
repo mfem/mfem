@@ -94,11 +94,8 @@ void DifferentiableOperator<kernels_tuple,
    GeometricFactorMaps geometric_factors =
       GetGeometricFactorMaps<entity_t>(op.mesh, op.integration_rule);
 
-   // kernel function output
-   Vector f_qp(residual_size_on_qp);
-
    auto r_qp = Reshape(residual_qp_mem.ReadWrite(),
-                       residual_size_on_qp, num_qp, num_entities);
+                       residual_size_on_qp, num_qp);
    auto ir_weights = Reshape(this->op.integration_rule.GetWeights().Read(),
                              num_qp);
 
@@ -118,14 +115,23 @@ void DifferentiableOperator<kernels_tuple,
                                               num_entities,
                                               kernel.inputs,
                                               num_qp,
-                                              input_size_on_qp);
+                                              input_size_on_qp,
+                                              residual_size_on_qp);
 
    Vector shmem_cache(shmem_info.total_size);
 
    out << "Shared Memory Info\n"
        << "total size: " << shmem_info.total_size;
-   out << "\ndtq sizes: ";
-   for (auto &i : shmem_info.dtq_sizes)
+   out << "\ninput dtq sizes: ";
+   for (auto &i : shmem_info.input_dtq_sizes)
+   {
+      for (auto &j : i)
+      {
+         out << j << " ";
+      }
+   }
+   out << "\noutput dtq sizes: ";
+   for (auto &i : shmem_info.output_dtq_sizes)
    {
       for (auto &j : i)
       {
@@ -167,31 +173,46 @@ void DifferentiableOperator<kernels_tuple,
 
       forall([=] MFEM_HOST_DEVICE (int e, double *shmem)
       {
-         auto input_dtq_shmem = load_input_dtq_mem(shmem,
-                                                   shmem_info.offsets[SharedMemory::Index::DTQ],
-                                                   shmem_info.dtq_sizes,
-                                                   input_dtq_maps);
+         auto input_dtq_shmem = load_dtq_mem(
+            shmem,
+            shmem_info.offsets[SharedMemory::Index::INPUT_DTQ],
+            shmem_info.input_dtq_sizes,
+            input_dtq_maps);
 
-         auto fields_shmem = load_field_mem(shmem,
-                                            shmem_info.offsets[SharedMemory::Index::FIELD],
-                                            shmem_info.field_sizes,
-                                            wrapped_fields_e,
-                                            e);
+         auto output_dtq_shmem = load_dtq_mem(
+            shmem,
+            shmem_info.offsets[SharedMemory::Index::OUTPUT_DTQ],
+            shmem_info.output_dtq_sizes,
+            output_dtq_maps);
 
-         auto input_shmem = load_input_mem(shmem,
-                                           shmem_info.offsets[SharedMemory::Index::INPUT],
-                                           shmem_info.input_sizes,
-                                           num_qp);
+         auto fields_shmem = load_field_mem(
+            shmem,
+            shmem_info.offsets[SharedMemory::Index::FIELD],
+            shmem_info.field_sizes,
+            wrapped_fields_e,
+            e);
 
-         auto scratch_mem = load_scratch_mem(shmem,
-                                             shmem_info.offsets[SharedMemory::Index::TEMP],
-                                             shmem_info.temp_sizes);
+         auto input_shmem = load_input_mem(
+            shmem,
+            shmem_info.offsets[SharedMemory::Index::INPUT],
+            shmem_info.input_sizes,
+            num_qp);
 
+         auto residual_shmem = load_residual_mem(
+            shmem,
+            shmem_info.offsets[SharedMemory::Index::RESIDUAL],
+            shmem_info.residual_size,
+            num_qp);
+
+         auto scratch_mem = load_scratch_mem(
+            shmem,
+            shmem_info.offsets[SharedMemory::Index::TEMP],
+            shmem_info.temp_sizes);
 
          map_fields_to_quadrature_data<mfem::TensorProduct>(
             input_shmem, fields_shmem,
             kinput_to_field, input_dtq_shmem,
-            ir_weights, geometric_factors, input_fops, scratch_mem,
+            ir_weights, input_fops, scratch_mem,
          std::make_index_sequence<kernel.num_kinputs> {});
 
          MFEM_FOREACH_THREAD(qx, x, q1d)
@@ -201,17 +222,17 @@ void DifferentiableOperator<kernels_tuple,
                const int q = qx + qy * q1d;
 
                auto kernel_args = decay_tuple<typename kernel_t::kf_param_ts> {};
-               auto r = Reshape(&r_qp(0, q, e), residual_size_on_qp);
+               auto r = Reshape(&residual_shmem(0, q), residual_size_on_qp);
                apply_kernel(r, kernel.func, kernel_args, input_shmem, q);
             }
          }
          MFEM_SYNC_THREAD;
 
-         auto fhat = Reshape(&r_qp(0, 0, e), test_vdim, test_op_dim, num_qp);
+         auto fhat = Reshape(&residual_shmem(0, 0), test_vdim, test_op_dim, num_qp);
          auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
          map_quadrature_data_to_fields<mfem::TensorProduct>(y, fhat,
                                                             serac::get<0>(output_fops),
-                                                            output_dtq_maps[hardcoded_output_idx],
+                                                            output_dtq_shmem[hardcoded_output_idx],
                                                             scratch_mem);
       }, num_entities, q1d, q1d, 1, shmem_info.total_size, shmem_cache.GetData());
 

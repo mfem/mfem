@@ -1135,7 +1135,6 @@ void map_fields_to_quadrature_data(
    const std::array<int, num_kinputs> &kfinput_to_field,
    const std::array<DofToQuadMap, num_kinputs> &dtqmaps,
    const DeviceTensor<1, const double> &integration_weights,
-   const GeometricFactorMaps &geometric_factors,
    field_operator_tuple_t fops,
    const std::array<DeviceTensor<1>, 6> &scratch_mem,
    std::index_sequence<i...>)
@@ -1216,52 +1215,76 @@ namespace SharedMemory
 {
 enum Index
 {
-   DTQ,
+   INPUT_DTQ,
+   OUTPUT_DTQ,
    FIELD,
    INPUT,
+   RESIDUAL,
    TEMP
 };
 }
 
-template <size_t num_fields, size_t num_inputs>
+template <size_t num_fields, size_t num_inputs, size_t num_outputs>
 struct SharedMemoryInfo
 {
    int total_size;
-   std::array<int, 4> offsets;
-   std::array<std::array<int, 2>, num_inputs> dtq_sizes;
+   std::array<int, 6> offsets;
+   std::array<std::array<int, 2>, num_inputs> input_dtq_sizes;
+   std::array<std::array<int, 2>, num_outputs> output_dtq_sizes;
    std::array<int, num_fields> field_sizes;
    std::array<int, num_inputs> input_sizes;
+   int residual_size;
    std::array<int, 6> temp_sizes;
 };
 
-template <typename entity_t, typename input_t, size_t num_fields, size_t num_outputs, size_t num_inputs>
-SharedMemoryInfo<num_fields, num_inputs>
+template <typename entity_t, typename input_t, size_t num_fields, size_t num_inputs, size_t num_outputs>
+SharedMemoryInfo<num_fields, num_inputs, num_outputs>
 get_shmem_info(
-   std::array<DofToQuadMap, num_inputs> input_dtq_maps,
-   std::array<DofToQuadMap, num_outputs> output_dtq_maps,
+   std::array<DofToQuadMap, num_inputs> &input_dtq_maps,
+   std::array<DofToQuadMap, num_outputs> &output_dtq_maps,
    const std::array<FieldDescriptor, num_fields> &fields,
    int num_entities,
    const input_t &inputs,
    int num_qp,
-   const std::array<int, num_inputs> &input_size_on_qp)
+   const std::array<int, num_inputs> &input_size_on_qp,
+   int residual_size_on_qp)
 {
-   std::array<int, 4> offsets = {0};
+   std::array<int, 6> offsets = {0};
    int total_size = 0;
 
-   std::array<std::array<int, 2>, num_inputs> dtq_sizes;
+   offsets[SharedMemory::Index::INPUT_DTQ] = total_size;
+   std::array<std::array<int, 2>, num_inputs> input_dtq_sizes;
    int max_dtq_qps = 0;
    int max_dtq_dofs = 0;
    for (int i = 0; i < num_inputs; i++)
    {
       auto a = input_dtq_maps[i].B.GetShape();
-      dtq_sizes[i][0] = a[0] * a[1] * a[2];
+      input_dtq_sizes[i][0] = a[0] * a[1] * a[2];
       auto b = input_dtq_maps[i].G.GetShape();
-      dtq_sizes[i][1] = b[0] * b[1] * b[2];
+      input_dtq_sizes[i][1] = b[0] * b[1] * b[2];
 
       max_dtq_qps = std::max(max_dtq_qps, a[DofToQuadMap::Index::QP]);
       max_dtq_dofs = std::max(max_dtq_dofs, a[DofToQuadMap::Index::DOF]);
 
-      total_size += std::accumulate(std::begin(dtq_sizes[i]), std::end(dtq_sizes[i]),
+      total_size += std::accumulate(std::begin(input_dtq_sizes[i]),
+                                    std::end(input_dtq_sizes[i]),
+                                    0);
+   }
+
+   offsets[SharedMemory::Index::OUTPUT_DTQ] = total_size;
+   std::array<std::array<int, 2>, num_outputs> output_dtq_sizes;
+   for (int i = 0; i < num_outputs; i++)
+   {
+      auto a = output_dtq_maps[i].B.GetShape();
+      output_dtq_sizes[i][0] = a[0] * a[1] * a[2];
+      auto b = output_dtq_maps[i].G.GetShape();
+      output_dtq_sizes[i][1] = b[0] * b[1] * b[2];
+
+      max_dtq_qps = std::max(max_dtq_qps, a[DofToQuadMap::Index::QP]);
+      max_dtq_dofs = std::max(max_dtq_dofs, a[DofToQuadMap::Index::DOF]);
+
+      total_size += std::accumulate(std::begin(output_dtq_sizes[i]),
+                                    std::end(output_dtq_sizes[i]),
                                     0);
    }
 
@@ -1284,6 +1307,10 @@ get_shmem_info(
    total_size += std::accumulate(
                     std::begin(input_sizes), std::end(input_sizes), 0);
 
+   offsets[SharedMemory::Index::RESIDUAL] = total_size;
+   const int residual_size = residual_size_on_qp;
+   total_size += residual_size * num_qp;
+
    offsets[SharedMemory::Index::TEMP] = total_size;
    constexpr int num_temp = 6;
    std::array<int, num_temp> temp_sizes = {0};
@@ -1300,33 +1327,35 @@ get_shmem_info(
    total_size += std::accumulate(
                     std::begin(temp_sizes), std::end(temp_sizes), 0);
 
-   return SharedMemoryInfo<num_fields, num_inputs>
+   return SharedMemoryInfo<num_fields, num_inputs, num_outputs>
    {
       total_size,
       offsets,
-      dtq_sizes,
+      input_dtq_sizes,
+      output_dtq_sizes,
       field_sizes,
       input_sizes,
+      residual_size,
       temp_sizes
    };
 }
 
-template <size_t num_inputs>
+template <size_t N>
 MFEM_HOST_DEVICE inline
-std::array<DofToQuadMap, num_inputs> load_input_dtq_mem(
+std::array<DofToQuadMap, N> load_dtq_mem(
    double *mem,
    int offset,
-   const std::array<std::array<int, 2>, num_inputs> &sizes,
-   const std::array<DofToQuadMap, num_inputs> &input_dtq_maps)
+   const std::array<std::array<int, 2>, N> &sizes,
+   const std::array<DofToQuadMap, N> &dtq)
 {
-   std::array<DofToQuadMap, num_inputs> f;
-   for (int i = 0; i < num_inputs; i++)
+   std::array<DofToQuadMap, N> f;
+   for (int i = 0; i < N; i++)
    {
       // TODO-performance
       const int total_size_Bi = sizes[i][0];
-      const auto B = Reshape(&input_dtq_maps[i].B[0], total_size_Bi);
+      const auto B = Reshape(&dtq[i].B[0], total_size_Bi);
       auto mem_Bi = Reshape(mem + offset, total_size_Bi);
-      if (input_dtq_maps[i].which_input != -1)
+      if (dtq[i].which_input != -1)
       {
          for (int k = 0; k < total_size_Bi; k++)
          {
@@ -1336,9 +1365,9 @@ std::array<DofToQuadMap, num_inputs> load_input_dtq_mem(
       offset += total_size_Bi;
 
       const int total_size_Gi = sizes[i][1];
-      const auto G = Reshape(&input_dtq_maps[i].G[0], total_size_Gi);
+      const auto G = Reshape(&dtq[i].G[0], total_size_Gi);
       auto mem_Gi = Reshape(mem + offset, total_size_Gi);
-      if (input_dtq_maps[i].which_input != -1)
+      if (dtq[i].which_input != -1)
       {
 
          for (int k = 0; k < total_size_Gi; k++)
@@ -1349,11 +1378,11 @@ std::array<DofToQuadMap, num_inputs> load_input_dtq_mem(
 
       offset += total_size_Gi;
 
-      const auto [nqp, ndim_B, ndof] = input_dtq_maps[i].B.GetShape();
-      const auto [unused0, ndim_G, unused1] = input_dtq_maps[i].G.GetShape();
+      const auto [nqp, ndim_B, ndof] = dtq[i].B.GetShape();
+      const auto [unused0, ndim_G, unused1] = dtq[i].G.GetShape();
       f[i] = DofToQuadMap{DeviceTensor<3, const double>(&mem_Bi[0], nqp, ndim_B, ndof),
                           DeviceTensor<3, const double>(&mem_Gi[0], nqp, ndim_G, ndof),
-                          input_dtq_maps[i].which_input};
+                          dtq[i].which_input};
    }
    return f;
 }
@@ -1396,6 +1425,16 @@ std::array<DeviceTensor<2>, N> load_input_mem(
       offset += sizes[i];
    }
    return f;
+}
+
+MFEM_HOST_DEVICE inline
+DeviceTensor<2> load_residual_mem(
+   double *mem,
+   int offset,
+   int residual_size,
+   int num_qp)
+{
+   return DeviceTensor<2>(mem + offset, residual_size, num_qp);
 }
 
 template <size_t N>
