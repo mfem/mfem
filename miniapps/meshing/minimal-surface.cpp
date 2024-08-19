@@ -1332,7 +1332,6 @@ int main(int argc, char *argv[])
                   "Enable or disable result output (files in mfem format).");
    args.AddOption(&opt.snapshot, "-ss", "--snapshot", "-no-ss", "--no-snapshot",
                   "Enable or disable GLVis snapshot.");
-   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good()) { args.PrintUsage(mfem::out); return 1; }
    MFEM_VERIFY(opt.lambda >= 0.0 && opt.lambda <= 1.0,"");
