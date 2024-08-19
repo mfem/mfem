@@ -927,9 +927,9 @@ void map_field_to_quadrature_data_tensor_product(
 
       for (int vd = 0; vd < vdim; vd++)
       {
-         for (int dy = 0; dy < d1d; dy++)
+         MFEM_FOREACH_THREAD(dy, y, d1d)
          {
-            for (int qx = 0; qx < q1d; qx++)
+            MFEM_FOREACH_THREAD(qx, x, q1d)
             {
                double acc = 0.0;
                for (int dx = 0; dx < d1d; dx++)
@@ -939,9 +939,11 @@ void map_field_to_quadrature_data_tensor_product(
                S1(qx, dy) = acc;
             }
          }
-         for (int qx = 0; qx < q1d; qx++)
+         MFEM_SYNC_THREAD;
+
+         MFEM_FOREACH_THREAD(qx, x, q1d)
          {
-            for (int qy = 0; qy < q1d; qy++)
+            MFEM_FOREACH_THREAD(qy, y, q1d)
             {
                double acc = 0.0;
                for (int dy = 0; dy < d1d; dy++)
@@ -951,6 +953,7 @@ void map_field_to_quadrature_data_tensor_product(
                fqp(qx, qy, vd) = acc;
             }
          }
+         MFEM_SYNC_THREAD;
       }
    }
    else if constexpr (
@@ -972,9 +975,9 @@ void map_field_to_quadrature_data_tensor_product(
 
       for (int vd = 0; vd < vdim; vd++)
       {
-         for (int dy = 0; dy < d1d; dy++)
+         MFEM_FOREACH_THREAD(dy, y, d1d)
          {
-            for (int qx = 0; qx < q1d; qx++)
+            MFEM_FOREACH_THREAD(qx, x, q1d)
             {
                double u = 0.0;
                double v = 0.0;
@@ -987,10 +990,11 @@ void map_field_to_quadrature_data_tensor_product(
                dq1(dy, qx) = v;
             }
          }
+         MFEM_SYNC_THREAD;
 
-         for (int qy = 0; qy < q1d; qy++)
+         MFEM_FOREACH_THREAD(qy, y, q1d)
          {
-            for (int qx = 0; qx < q1d; qx++)
+            MFEM_FOREACH_THREAD(qx, x, q1d)
             {
                double du[3] = {0.0, 0.0, 0.0};
                for (int dy = 0; dy < d1d; dy++)
@@ -1005,6 +1009,7 @@ void map_field_to_quadrature_data_tensor_product(
                }
             }
          }
+         MFEM_SYNC_THREAD;
       }
    }
    // TODO: Create separate function for clarity
@@ -1843,10 +1848,8 @@ void map_quadrature_data_to_fields_tensor_impl(DeviceTensor<2, double> &y,
       for (int vd = 0; vd < vdim; vd++)
       {
          MFEM_FOREACH_THREAD(qy, y, q1d)
-         // for (int qy = 0; qy < q1d; qy++)
          {
             MFEM_FOREACH_THREAD(dx, x, d1d)
-            // for (int dx = 0; dx < d1d; dx++)
             {
                double a = 0.0;
                for (int qx = 0; qx < q1d; qx++)
@@ -1859,10 +1862,8 @@ void map_quadrature_data_to_fields_tensor_impl(DeviceTensor<2, double> &y,
          MFEM_SYNC_THREAD;
 
          MFEM_FOREACH_THREAD(dy, y, d1d)
-         // for (int dy = 0; dy < d1d; dy++)
          {
             MFEM_FOREACH_THREAD(dx, x, d1d)
-            // for (int dx = 0; dx < d1d; dx++)
             {
                double a = 0.0;
                for (int qy = 0; qy < q1d; qy++)
@@ -1895,10 +1896,8 @@ void map_quadrature_data_to_fields_tensor_impl(DeviceTensor<2, double> &y,
       for (int vd = 0; vd < vdim; vd++)
       {
          MFEM_FOREACH_THREAD(qy, y, q1d)
-         // for (int qy = 0; qy < q1d; qy++)
          {
             MFEM_FOREACH_THREAD(dx, x, d1d)
-            // for (int dx = 0; dx < d1d; dx++)
             {
                double u = 0.0;
                double v = 0.0;
@@ -1914,10 +1913,8 @@ void map_quadrature_data_to_fields_tensor_impl(DeviceTensor<2, double> &y,
          MFEM_SYNC_THREAD;
 
          MFEM_FOREACH_THREAD(dy, y, d1d)
-         // for (int dy = 0; dy < d1d; dy++)
          {
             MFEM_FOREACH_THREAD(dx, x, d1d)
-            // for (int dx = 0; dx < d1d; dx++)
             {
                double u = 0.0;
                double v = 0.0;
