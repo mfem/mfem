@@ -831,11 +831,11 @@ void PABilinearFormExtension::AbsMult(const Vector &x, Vector &y) const
 
          if (H1elem_restrict)
          {
-            H1elem_restrict->AbsMultTranspose(x, localX);
+            H1elem_restrict->AbsMultTranspose(localY, y);
          }
          else
          {
-            elem_restrict->MultTranspose(x,localX);
+            elem_restrict->MultTranspose(localY,y);
          }
       }
       else
