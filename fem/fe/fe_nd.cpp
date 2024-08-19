@@ -1581,19 +1581,20 @@ void ND_WedgeElement::CalcCurlShape(const IntegrationPoint &ip,
    }
 }
 
-
-const real_t ND_FuentesPyramidElement::tk[24] =
+const real_t ND_FuentesPyramidElement::tk[27] =
 {
    1., 0., 0.,   0., 1., 0.,  0., 0., 1.,
    -1., 0., 1.,  -1.,-1., 1.,  0.,-1., 1.,
-   -1., 0., 0.,   0.,-1., 0.
+   -1., 0., 0.,   0.,-1., 0.,
+   -0.7071067811865475, -0.7071067811865475, 1.4142135623730951
 };
 
 ND_FuentesPyramidElement::ND_FuentesPyramidElement(const int p,
                                                    const int cb_type,
                                                    const int ob_type)
    : VectorFiniteElement(3, Geometry::PYRAMID, p * (3 * p * p + 5), p,
-                         H_CURL, FunctionSpace::Pk), dof2tk(dof), doftrans(p)
+                         H_CURL, FunctionSpace::Pk),
+     dof2tk(dof), doftrans(p)
 {
    const real_t *eop = poly1d.OpenPoints(p - 1);
    const real_t *top = (p > 1) ? poly1d.OpenPoints(p - 2) : NULL;
@@ -1762,7 +1763,7 @@ ND_FuentesPyramidElement::ND_FuentesPyramidElement(const int p,
          {
             real_t w = 1.0 - qop[k];
             Nodes.IntPoint(o).Set3(qcp[i]*w, qcp[j]*w, qop[k]);
-            dof2tk[o++] = 2;
+            dof2tk[o++] = 8;
          }
 
    DenseMatrix T(dof);
@@ -1770,12 +1771,12 @@ ND_FuentesPyramidElement::ND_FuentesPyramidElement(const int p,
    for (int m = 0; m < dof; m++)
    {
       const IntegrationPoint &ip = Nodes.IntPoint(m);
-      const Vector tm({tk[3*dof2tk[m]], tk[3*dof2tk[m]+1], tk[3*dof2tk[m]+2]});
       calcBasis(p, ip, tmp_E_E_ij, tmp_E_Q1_ijk, tmp_E_Q2_ijk, tmp_E_T_ijk,
                 tmp_phi_Q1_ij, tmp_dphi_Q1_ij, tmp_phi_Q2_ij,
                 tmp_phi_E_i, tmp_dphi_E_i, u);
+
+      const Vector tm({tk[3*dof2tk[m]], tk[3*dof2tk[m]+1], tk[3*dof2tk[m]+2]});
       u.Mult(tm, T.GetColumn(m));
-      std::cout << m << " " << ip.x << " " << ip.y << " " << ip.z << std::endl;
    }
 
    Ti.Factor(T);
