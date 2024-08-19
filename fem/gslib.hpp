@@ -275,7 +275,10 @@ public:
    /// element boundary (1), or not found (2).
    virtual const Array<unsigned int> &GetCode() const { return gsl_code; }
    /// Return element number for each point found by FindPoints.
-   virtual const Array<unsigned int> &GetElem() const { return gsl_mfem_elem; }
+   virtual const Array<unsigned int> &GetElem() const
+   {
+      return gsl_mfem_elem.Size() ? gsl_mfem_elem : gsl_elem;
+   }
    /// Return MPI rank on which each point was found by FindPoints.
    virtual const Array<unsigned int> &GetProc() const { return gsl_proc; }
    /// Return reference coordinates for each point found by FindPoints.

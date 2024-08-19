@@ -128,16 +128,16 @@ static void InterpolateLocal3DKernel(const double *const gf_in,
                                      const int pN = 0)
 {
    const int Nfields = ncomp;
-   const int fieldOffset = gf_offset;
+   // const int fieldOffset = gf_offset;
    const int MD1 = T_D1D ? T_D1D : 10;
    const int D1D = T_D1D ? T_D1D : pN;
    const int p_Np = D1D*D1D*D1D;
    MFEM_VERIFY(MD1 <= 10,"Increase Max allowable polynomial order.");
    MFEM_VERIFY(D1D != 0, "Polynomial order not specified.");
-   mfem::forall_3D(npt, D1D, D1D, D1D, [=] MFEM_HOST_DEVICE (int i)
+   mfem::forall_2D(npt, D1D, D1D, [=] MFEM_HOST_DEVICE (int i)
    {
       MFEM_SHARED double wtr[3*MD1];
-      MFEM_SHARED double sums[MD1*MD1*MD1];
+      MFEM_SHARED double sums[MD1*MD1];
 
       // Evaluate basis functions at the reference space coordinates
       MFEM_FOREACH_THREAD(j,x,D1D)
@@ -161,10 +161,11 @@ static void InterpolateLocal3DKernel(const double *const gf_in,
          {
             MFEM_FOREACH_THREAD(k,y,D1D)
             {
-               MFEM_FOREACH_THREAD(l,z,D1D)
+               sums[j + k*D1D] = 0.0;
+               for (int l = 0; l < D1D; ++l)
                {
-                  sums[j + k*D1D + l*D1D*D1D] = gf_in[elemOffset + j + k * D1D + l * D1D * D1D] *
-                                                wtr[2*D1D+l]*wtr[D1D+k]*wtr[j];
+                  sums[j + k*D1D] += gf_in[elemOffset + j + k*D1D + l*D1D*D1D] *
+                                     wtr[2*D1D+l]*wtr[D1D+k]*wtr[j];
                }
             }
          }
@@ -175,7 +176,7 @@ static void InterpolateLocal3DKernel(const double *const gf_in,
             if (j == 0)
             {
                double sumv = 0.0;
-               for (int jj = 0; jj < D1D*D1D*D1D; ++jj)
+               for (int jj = 0; jj < D1D*D1D; ++jj)
                {
                   sumv += sums[jj];
                }

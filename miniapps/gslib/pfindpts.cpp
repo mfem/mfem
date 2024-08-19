@@ -171,6 +171,11 @@ int main (int argc, char *argv[])
    if (myid == 0) { args.PrintOptions(cout); }
    bool cpu_mode = strcmp(devopt,"cpu")==0;
 
+   if (npt < 0)
+   {
+      npt = -npt/num_procs;
+   }
+
    if (hrefinement)
    {
       MFEM_VERIFY(strcmp(devopt,"cpu")==0, "HR-adaptivity is currently only"
