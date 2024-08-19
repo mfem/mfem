@@ -121,6 +121,17 @@ int main(int argc, char *argv[])
    // computing only on the inner domains
    cout << "\n|| u_h - u ||_{L^2} = " << x.myComputeL2Error(bc,&marks_error) << '\n' << endl;
 
+   //compute the error
+   {
+       NonlinearForm* nf=new NonlinearForm(&fespace);
+       nf->AddDomainIntegrator(new CutScalarErrorIntegrator(bc,&marks,air));
+
+       cout << "\n|| u_h - u ||_{L^2} = " << nf->GetEnergy(x.GetTrueVector())<< std::endl;
+
+
+       delete nf;
+   }
+
    // to visualize level set and markings
    L2_FECollection* l2fec= new L2_FECollection(0,mesh.Dimension());
    FiniteElementSpace* l2fes= new FiniteElementSpace(&mesh,l2fec,1);

@@ -20,6 +20,112 @@
 namespace mfem
 {
 
+
+class ScalarErrorIntegrator: public NonlinearFormIntegrator
+{
+private:
+    Coefficient* coeff;
+public:
+    ScalarErrorIntegrator(Coefficient& coef_)
+    {
+        coeff=&coef_;
+    }
+    virtual real_t GetElementEnergy(const FiniteElement &el,
+                                    ElementTransformation &Tr,
+                                    const Vector &elfun) override
+    {
+        real_t rez=0.0;
+        real_t r1;
+        real_t r2;
+        const int dof = el.GetDof();
+        Vector sh(dof);
+
+        const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el);
+
+
+        for (int i = 0; i < ir -> GetNPoints(); i++)
+        {
+            const IntegrationPoint &ip = ir->IntPoint(i);
+            Tr.SetIntPoint(&ip);
+            el.CalcPhysShape(Tr,sh);
+
+            r1=0.0;
+            for(int j=0;j<dof;j++){
+                r1=r1+elfun[j]*sh[j];
+            }
+
+            r2=coeff->Eval(Tr,ip);
+
+            rez=rez+ip.weight*Tr.Weight()*fabs(r1-r2);
+        }
+
+        return rez;
+    }
+
+    const IntegrationRule& GetRule(const FiniteElement &trial_fe,
+                                   const FiniteElement &test_fe)
+    {
+        int order;
+        if (trial_fe.Space() == FunctionSpace::Pk)
+        {
+            order = trial_fe.GetOrder() + test_fe.GetOrder() - 2;
+        }
+        else
+        {
+            // order = 2*el.GetOrder() - 2;  // <-- this seems to work fine too
+            order = trial_fe.GetOrder() + test_fe.GetOrder() + trial_fe.GetDim() - 1;
+        }
+
+        if (trial_fe.Space() == FunctionSpace::rQk)
+        {
+            return RefinedIntRules.Get(trial_fe.GetGeomType(), order);
+        }
+        return IntRules.Get(trial_fe.GetGeomType(), order);
+    }
+};
+
+class CutScalarErrorIntegrator: public ScalarErrorIntegrator
+{
+private:
+    Array<int>* el_marks;
+    CutIntegrationRules* irules;
+public:
+    CutScalarErrorIntegrator(Coefficient& coef_,
+                             Array<int>* marks,
+                             CutIntegrationRules* cut_int):ScalarErrorIntegrator(coef_)
+    {
+        el_marks=marks;
+        irules=cut_int;
+    }
+
+    virtual real_t GetElementEnergy(const FiniteElement &el,
+                                    ElementTransformation &Tr,
+                                    const Vector &elfun) override
+    {
+        if((*el_marks)[Tr.ElementNo]==ElementMarker::OUTSIDE)
+        {
+            return real_t(0.0);
+        }
+        else if((*el_marks)[Tr.ElementNo]==ElementMarker::INSIDE)
+        {
+
+            //use standard integration rule
+            SetIntRule(nullptr);
+            return ScalarErrorIntegrator::GetElementEnergy(el,Tr,elfun);
+        }
+        else
+        {
+            //cut integration
+            IntegrationRule ir;
+            irules->GetVolumeIntegrationRule(Tr,ir);
+            SetIntRule(&ir);
+            return ScalarErrorIntegrator::GetElementEnergy(el,Tr,elfun);
+        }
+    }
+};
+
+
+
 class MySimpleDiffusionIntegrator: public BilinearFormIntegrator
 {
 protected:
