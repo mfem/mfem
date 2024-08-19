@@ -23,34 +23,32 @@ namespace mfem
 #define CODE_INTERNAL 0
 #define CODE_BORDER 1
 #define CODE_NOT_FOUND 2
-#define dlong int
-#define dfloat double
 
-static MFEM_HOST_DEVICE void lagrange_eval(dfloat *p0, dfloat x,
-                                           dlong i, dlong p_Nq,
-                                           dfloat *z, dfloat *lagrangeCoeff)
+static MFEM_HOST_DEVICE void lagrange_eval(double *p0, double x,
+                                           int i, int p_Nq,
+                                           double *z, double *lagrangeCoeff)
 {
-   dfloat p_i = (1 << (p_Nq - 1));
-   for (dlong j = 0; j < p_Nq; ++j)
+   double p_i = (1 << (p_Nq - 1));
+   for (int j = 0; j < p_Nq; ++j)
    {
-      dfloat d_j = x - z[j];
+      double d_j = x - z[j];
       p_i *= j == i ? 1 : d_j;
    }
    p0[i] = lagrangeCoeff[i] * p_i;
 }
 
 template<int T_D1D = 0>
-static void InterpolateLocal2D_Kernel(const dfloat *const gf_in,
-                                      dlong *const el,
-                                      dfloat *const r,
-                                      dfloat *const int_out,
-                                      const int npt,
-                                      const int ncomp,
-                                      const int nel,
-                                      const int gf_offset,
-                                      dfloat *gll1D,
-                                      double *lagcoeff,
-                                      const int pN = 0)
+static void InterpolateLocal2DKernelOld(const double *const gf_in,
+                                        int *const el,
+                                        double *const r,
+                                        double *const int_out,
+                                        const int npt,
+                                        const int ncomp,
+                                        const int nel,
+                                        const int gf_offset,
+                                        double *gll1D,
+                                        double *lagcoeff,
+                                        const int pN = 0)
 {
    const int Nfields = ncomp;
    const int fieldOffset = gf_offset;
@@ -62,8 +60,8 @@ static void InterpolateLocal2D_Kernel(const dfloat *const gf_in,
    const int nThreads = 32;
    mfem::forall_2D(npt, nThreads, 1, [=] MFEM_HOST_DEVICE (int i)
    {
-      MFEM_SHARED dfloat wtr[2*MD1];
-      MFEM_SHARED dfloat sums[MD1];
+      MFEM_SHARED double wtr[2*MD1];
+      MFEM_SHARED double sums[MD1];
 
       // Evaluate basis functions at the reference space coordinates
       MFEM_FOREACH_THREAD(j,x,nThreads)
@@ -80,14 +78,14 @@ static void InterpolateLocal2D_Kernel(const dfloat *const gf_in,
       for (int fld = 0; fld < Nfields; ++fld)
       {
 
-         const dlong elemOffset = el[i] * p_Np + fld * fieldOffset;
+         const int elemOffset = el[i] * p_Np + fld * fieldOffset;
 
          MFEM_FOREACH_THREAD(j,x,nThreads)
          {
             if (j < D1D)
             {
-               dfloat sum_j = 0;
-               for (dlong k = 0; k < D1D; ++k)
+               double sum_j = 0;
+               for (int k = 0; k < D1D; ++k)
                {
                   sum_j += gf_in[elemOffset + j + k * D1D] * wtr[D1D+k];
                }
@@ -101,7 +99,77 @@ static void InterpolateLocal2D_Kernel(const dfloat *const gf_in,
             if (j == 0)
             {
                double sumv = 0.0;
-               for (dlong jj = 0; jj < D1D; ++jj)
+               for (int jj = 0; jj < D1D; ++jj)
+               {
+                  sumv += sums[jj];
+               }
+               int_out[i + fld * npt] = sumv;
+            }
+         }
+         MFEM_SYNC_THREAD;
+      }
+   });
+}
+
+template<int T_D1D = 0>
+static void InterpolateLocal2DKernel(const double *const gf_in,
+                                     int *const el,
+                                     double *const r,
+                                     double *const int_out,
+                                     const int npt,
+                                     const int ncomp,
+                                     const int nel,
+                                     const int gf_offset,
+                                     double *gll1D,
+                                     double *lagcoeff,
+                                     const int pN = 0)
+{
+   const int Nfields = ncomp;
+   const int fieldOffset = gf_offset;
+   const int MD1 = T_D1D ? T_D1D : 14;
+   const int D1D = T_D1D ? T_D1D : pN;
+   const int p_Np = D1D*D1D;
+   MFEM_VERIFY(MD1 <= 14,"Increase Max allowable polynomial order.");
+   MFEM_VERIFY(D1D != 0, "Polynomial order not specified.");
+   mfem::forall_2D(npt, D1D, D1D, [=] MFEM_HOST_DEVICE (int i)
+   {
+      MFEM_SHARED double wtr[2*MD1];
+      MFEM_SHARED double sums[MD1*MD1];
+
+      // Evaluate basis functions at the reference space coordinates
+      MFEM_FOREACH_THREAD(j,x,D1D)
+      {
+         MFEM_FOREACH_THREAD(k,y,D1D)
+         {
+            if (k <= 1)
+            {
+               lagrange_eval(wtr + k*D1D, r[2 * i + k], j, D1D, gll1D, lagcoeff);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      for (int fld = 0; fld < Nfields; ++fld)
+      {
+         //if using R->Mult for L -> E-Vec use below: NDOFSxVDIMxNEL
+         const int elemOffset = el[i] * p_Np * Nfields + fld * p_Np;
+         MFEM_FOREACH_THREAD(j,x,D1D)
+         {
+            MFEM_FOREACH_THREAD(k,y,D1D)
+            {
+               sums[j + k*D1D] = gf_in[elemOffset + j + k * D1D] *
+                                 wtr[D1D+k] *
+                                 wtr[j];
+            }
+         }
+         MFEM_SYNC_THREAD;
+
+         MFEM_FOREACH_THREAD(j,x,D1D)
+         {
+            if (j == 0)
+            {
+               double sumv = 0.0;
+               for (int jj = 0; jj < D1D*D1D; ++jj)
                {
                   sumv += sums[jj];
                }
@@ -131,21 +199,21 @@ void FindPointsGSLIB::InterpolateLocal2(const Vector &field_in,
    auto plcf = DEV.lagcoeff_sol.ReadWrite();
    switch (dof1Dsol)
    {
-      case 2: return InterpolateLocal2D_Kernel<2>(pfin, pgsl, pgslr, pfout,
-                                                     npt, ncomp, nel, gf_offset,
-                                                     pgll, plcf);
-      case 3: return InterpolateLocal2D_Kernel<3>(pfin, pgsl, pgslr, pfout,
-                                                     npt, ncomp, nel, gf_offset,
-                                                     pgll, plcf);
-      case 4: return InterpolateLocal2D_Kernel<4>(pfin, pgsl, pgslr, pfout,
-                                                     npt, ncomp, nel, gf_offset,
-                                                     pgll, plcf);
-      case 5: return InterpolateLocal2D_Kernel<5>(pfin, pgsl, pgslr, pfout,
-                                                     npt, ncomp, nel, gf_offset,
-                                                     pgll, plcf);
-      default: return InterpolateLocal2D_Kernel(pfin, pgsl, pgslr, pfout,
-                                                   npt, ncomp, nel, gf_offset,
-                                                   pgll, plcf, dof1Dsol);
+      case 2: return InterpolateLocal2DKernel<2>(pfin, pgsl, pgslr, pfout,
+                                                    npt, ncomp, nel, gf_offset,
+                                                    pgll, plcf);
+      case 3: return InterpolateLocal2DKernel<3>(pfin, pgsl, pgslr, pfout,
+                                                    npt, ncomp, nel, gf_offset,
+                                                    pgll, plcf);
+      case 4: return InterpolateLocal2DKernel<4>(pfin, pgsl, pgslr, pfout,
+                                                    npt, ncomp, nel, gf_offset,
+                                                    pgll, plcf);
+      case 5: return InterpolateLocal2DKernel<5>(pfin, pgsl, pgslr, pfout,
+                                                    npt, ncomp, nel, gf_offset,
+                                                    pgll, plcf);
+      default: return InterpolateLocal2DKernel(pfin, pgsl, pgslr, pfout,
+                                                  npt, ncomp, nel, gf_offset,
+                                                  pgll, plcf, dof1Dsol);
    }
 }
 
@@ -153,8 +221,6 @@ void FindPointsGSLIB::InterpolateLocal2(const Vector &field_in,
 #undef CODE_INTERNAL
 #undef CODE_BORDER
 #undef CODE_NOT_FOUND
-#undef dlong
-#undef dfloat
 
 } // namespace mfem
 
