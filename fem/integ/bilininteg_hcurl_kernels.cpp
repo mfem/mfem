@@ -653,6 +653,7 @@ void PACurlCurlAssembleDiagonal2D(const int D1D,
    }); // end of element loop
 }
 
+template<bool ABS>
 void PACurlCurlApply2D(const int D1D,
                        const int Q1D,
                        const int NE,
@@ -717,7 +718,8 @@ void PACurlCurlApply2D(const int D1D,
 
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               const real_t wy = (c == 0) ? -Gc(qy,dy) : Bo(qy,dy);
+               const int sign = ABS ? 1 : -1;
+               const real_t wy = (c == 0) ? (sign*Gc(qy,dy)) : Bo(qy,dy);
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   curl[qy][qx] += gradX[qx] * wy;
@@ -760,7 +762,8 @@ void PACurlCurlApply2D(const int D1D,
             }
             for (int dy = 0; dy < D1Dy; ++dy)
             {
-               const real_t wy = (c == 0) ? -Gct(dy,qy) : Bot(dy,qy);
+               const int sign = ABS ? 1 : -1;
+               const real_t wy = (c == 0) ? sign*Gct(dy,qy) : Bot(dy,qy);
 
                for (int dx = 0; dx < D1Dx; ++dx)
                {
@@ -1044,6 +1047,20 @@ void PAHcurlL2ApplyTranspose2D(const int D1D,
       }  // loop qy
    }); // end of element loop
 }
+
+template void PACurlCurlApply2D<false>(const int, const int, const int,
+                                       const Array<real_t> &,
+                                       const Array<real_t> &,
+                                       const Array<real_t> &,
+                                       const Array<real_t> &,
+                                       const Vector &, const Vector &, Vector &);
+
+template void PACurlCurlApply2D<true>(const int, const int, const int,
+                                      const Array<real_t> &,
+                                      const Array<real_t> &,
+                                      const Array<real_t> &,
+                                      const Array<real_t> &,
+                                      const Vector &, const Vector &, Vector &);
 
 } // namespace internal
 

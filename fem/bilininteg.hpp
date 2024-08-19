@@ -2713,6 +2713,7 @@ public:
    using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &fes);
    virtual void AddMultPA(const Vector &x, Vector &y) const;
+   virtual void AddAbsMultPA(const Vector &x, Vector &y) const;
    virtual void AssembleDiagonalPA(Vector& diag);
 
    const Coefficient *GetCoefficient() const { return Q; }

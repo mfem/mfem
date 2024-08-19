@@ -5,18 +5,17 @@ using namespace std;
 using namespace mfem;
 using namespace lpq_common;
 
-//int wrap_abs(int x) { return std::abs(x); }
-
 int main(int argc, char *argv[])
 {
    Mpi::Init();
    Hypre::Init();
 
    // string mesh_file = "meshes/amr-quad.mesh";
-   string mesh_file = "meshes/ref-square.mesh";
+   // string mesh_file = "meshes/ref-square.mesh";
+   string mesh_file = "meshes/cube.mesh";
 
    Mesh *serial_mesh = new Mesh(mesh_file);
-   serial_mesh->UniformRefinement();
+   // serial_mesh->UniformRefinement();
    ParMesh *mesh = new ParMesh(MPI_COMM_WORLD, *serial_mesh);
    // mesh->UniformRefinement();
    delete serial_mesh;
@@ -28,7 +27,7 @@ int main(int argc, char *argv[])
    FiniteElementCollection *fec;
    ParFiniteElementSpace *fespace;
    // fec = new H1_FECollection(order, dim);
-   fec = new ND_FECollection(order, dim);
+   fec = new ND_FECollection(order, dim); // maxwell
    fespace = new ParFiniteElementSpace(mesh, fec);
 
    HYPRE_BigInt sys_size = fespace->GlobalTrueVSize();
@@ -48,13 +47,13 @@ int main(int argc, char *argv[])
 
    ConstantCoefficient one(1.0);
 
-   // These variables will define the linear system
-   ParGridFunction x(fespace);
    OperatorPtr A_legacy;
    OperatorPtr A;
 
-   bfi = new VectorFEMassIntegrator();
-   //DiffusionIntegrator();
+   bfi = new CurlCurlIntegrator(one);
+   // VectorFEMassIntegrator();
+   // DiffusionIntegrator();
+   // MassIntegrator();
 
    a->AddDomainIntegrator(bfi);
    a->SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -71,9 +70,8 @@ int main(int argc, char *argv[])
    // Set up constant vector of ones
    Vector ones(fespace->GetTrueVSize());
    Vector result(fespace->GetTrueVSize());
-   // ones = 1.0;
-   // ones[0] = 2.0;
-   ones.Randomize();
+   ones = 1.0;
+   // ones.Randomize();
 
    if (Mpi::Root())
    {
