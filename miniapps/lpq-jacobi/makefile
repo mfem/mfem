@@ -66,7 +66,7 @@ MESHES_DEST_DIR = ./meshes
 MESH_FILES_FROM_MESHING = icf.mesh cube.mesh
 MESH_FILES_FROM_GSLIB = triple-pt-1.mesh triple-pt-2.mesh
 MESH_FILES_FROM_DATA = beam-tet.mesh square-disc-p2.mesh fichera-mixed-p2.mesh \
-					   amr-quad.mesh
+					   amr-quad.mesh ref-cube.mesh ref-square.mesh
 
 SRC_MESH_FILES = $(addprefix $(SRC_MESHING_DIR)/, $(MESH_FILES_FROM_MESHING)) \
                  $(addprefix $(SRC_GSLIB_DIR)/, $(MESH_FILES_FROM_GSLIB)) \
@@ -86,6 +86,9 @@ lpq-jacobi: lpq-jacobi.cpp lpq-common.cpp lpq-common.hpp
 
 mg-lpq-jacobi: mg-lpq-jacobi.cpp lpq-common.cpp lpq-common.hpp
 	$(MFEM_CXX) $(MFEM_FLAGS) mg-lpq-jacobi.cpp lpq-common.cpp -o mg-lpq-jacobi $(COMMON_LIB) $(MFEM_LIBS)
+
+l1-partial: l1-partial.cpp lpq-common.cpp lpq-common.hpp
+	$(MFEM_CXX) $(MFEM_FLAGS) l1-partial.cpp lpq-common.cpp -o l1-partial $(COMMON_LIB) $(MFEM_LIBS)
 
 # Create the destination directory if it doesn't exist
 $(MESHES_DEST_DIR):
