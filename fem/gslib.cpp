@@ -2120,7 +2120,12 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
                   "basis not supported");
       Vector node_vals;
       node_vals.UseDevice(true);
-      GetNodalValues(&field_in, node_vals);
+      const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
+      const Operator *R = field_in.FESpace()->GetElementRestriction(ordering);
+      node_vals.SetSize(R->Height(), Device::GetMemoryType());
+      node_vals.UseDevice(true);
+      // GetNodalValues(&field_in, node_vals);
+      R->Mult(field_in, node_vals);
 
       const int ncomp  = field_in.FESpace()->GetVDim();
       const int maxOrder = field_in.FESpace()->GetMaxElementOrder();
