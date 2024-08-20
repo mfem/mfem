@@ -73,7 +73,7 @@ TEST_CASE("Build Dof To Arrays",
       {
          mesh->UniformRefinement();
       }
-      
+
       for (int bt = (int)BasisType::H1; bt <= (int)BasisType::L2; bt++)
       {
          if (dim == 1 && bt == (int)BasisType::ND) { continue; }
@@ -118,7 +118,7 @@ TEST_CASE("Build Dof To Arrays",
             Array<int> bdr(1); bdr = 1;
             fespace.GetEssentialVDofs(bdr, all_bdr_ldofs_marked);
             FiniteElementSpace::MarkerToList(all_bdr_ldofs_marked, all_bdr_ldofs);
-            
+
             for (int i = 0; i<size; i++)
             {
                int e = fespace.GetElementForDof(i);
@@ -136,9 +136,9 @@ TEST_CASE("Build Dof To Arrays",
 
                int bdr_e = fespace.GetBdrElementForDof(i);
                int bdr_l = fespace.GetBdrLocalDofForDof(i);
-               
+
                if (all_bdr_ldofs.Find(i) >= 0) // if this is a bdr ldof
-               {  
+               {
                   if (bdr_e < 0 || bdr_e >= mesh->GetNBE()) { num_bdr_elem_fails++; }
 
                   fespace.GetBdrElementDofs(bdr_e, dofs);
@@ -524,8 +524,8 @@ Mesh * GetMesh(MeshType type)
    }
    mesh->GenerateBoundaryElements();
    mesh->FinalizeTopology();
-   for (int i = 0; i < mesh->GetNBE(); i++) mesh->SetBdrAttribute(i, 1);
-   
+   for (int i = 0; i < mesh->GetNBE(); i++) { mesh->SetBdrAttribute(i, 1); }
+
    return mesh;
 }
 
