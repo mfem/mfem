@@ -154,6 +154,47 @@ private:
    }
 };
 
+class DynamicSharedMemory
+{
+   int host_capacity = 0;
+   void *host_data = nullptr;
+   DynamicSharedMemory() = default;
+   ~DynamicSharedMemory()
+   {
+      std::free(host_data); // no-op if host_data is nullptr
+   }
+   static DynamicSharedMemory &Instance()
+   {
+      static DynamicSharedMemory instance;
+      return instance;
+   }
+public:
+   template <typename T>
+   static MFEM_HOST_DEVICE inline T* Get()
+   {
+#if defined(__CUDA_ARCH__)
+      extern __shared__ T shared_mem[];
+      return shared_mem;
+#elif defined(__HIP_DEVICE_COMPILE__)
+      extern __shared__ T shared_mem[];
+      return shared_mem;
+#else
+      return (T*)Instance().host_data;
+#endif
+   }
+
+   static void EnsureHostCapacity(const int nbytes)
+   {
+      DynamicSharedMemory &instance = Instance();
+      if (instance.host_capacity < nbytes)
+      {
+         std::free(instance.host_data);
+         instance.host_data = std::malloc(nbytes);
+         instance.host_capacity = nbytes;
+      }
+   }
+};
+
 // MFEM pragma macros that can be used inside MFEM_FORALL macros.
 #define MFEM_PRAGMA(X) _Pragma(#X)
 
@@ -251,7 +292,8 @@ void RajaCuWrap1D(const int N, DBODY &&d_body)
 
 template <typename DBODY>
 void RajaCuWrap2D(const int N, DBODY &&d_body,
-                  const int X, const int Y, const int BZ)
+                  const int X, const int Y, const int BZ,
+                  const int shared_nbytes)
 {
    MFEM_VERIFY(N>0, "");
    MFEM_VERIFY(BZ>0, "");
@@ -261,7 +303,7 @@ void RajaCuWrap2D(const int N, DBODY &&d_body,
    using RAJA::RangeSegment;
 
    launch<cuda_launch_policy>
-   (LaunchParams(Teams(G), Threads(X, Y, BZ)),
+   (LaunchParams(Teams(G), Threads(X, Y, BZ), shared_nbytes),
     [=] RAJA_DEVICE (LaunchContext ctx)
    {
 
@@ -286,7 +328,8 @@ void RajaCuWrap2D(const int N, DBODY &&d_body,
 
 template <typename DBODY>
 void RajaCuWrap3D(const int N, DBODY &&d_body,
-                  const int X, const int Y, const int Z, const int G)
+                  const int X, const int Y, const int Z, const int G,
+                  const int shared_nbytes)
 {
    MFEM_VERIFY(N>0, "");
    const int GRID = G == 0 ? N : G;
@@ -294,7 +337,7 @@ void RajaCuWrap3D(const int N, DBODY &&d_body,
    using RAJA::RangeSegment;
 
    launch<cuda_launch_policy>
-   (LaunchParams(Teams(GRID), Threads(X, Y, Z)),
+   (LaunchParams(Teams(GRID), Threads(X, Y, Z), shared_nbytes),
     [=] RAJA_DEVICE (LaunchContext ctx)
    {
 
@@ -324,9 +367,10 @@ struct RajaCuWrap<2>
 {
    template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
    static void run(const int N, DBODY &&d_body,
-                   const int X, const int Y, const int Z, const int G)
+                   const int X, const int Y, const int Z, const int G,
+                   const int shared_nbytes)
    {
-      RajaCuWrap2D(N, d_body, X, Y, Z);
+      RajaCuWrap2D(N, d_body, X, Y, Z, shared_nbytes);
    }
 };
 
@@ -335,9 +379,10 @@ struct RajaCuWrap<3>
 {
    template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
    static void run(const int N, DBODY &&d_body,
-                   const int X, const int Y, const int Z, const int G)
+                   const int X, const int Y, const int Z, const int G,
+                   const int shared_nbytes)
    {
-      RajaCuWrap3D(N, d_body, X, Y, Z, G);
+      RajaCuWrap3D(N, d_body, X, Y, Z, G, shared_nbytes);
    }
 };
 
@@ -353,7 +398,8 @@ void RajaHipWrap1D(const int N, DBODY &&d_body)
 
 template <typename DBODY>
 void RajaHipWrap2D(const int N, DBODY &&d_body,
-                   const int X, const int Y, const int BZ)
+                   const int X, const int Y, const int BZ,
+                   const int shared_nbytes)
 {
    MFEM_VERIFY(N>0, "");
    MFEM_VERIFY(BZ>0, "");
@@ -363,7 +409,7 @@ void RajaHipWrap2D(const int N, DBODY &&d_body,
    using RAJA::RangeSegment;
 
    launch<hip_launch_policy>
-   (LaunchParams(Teams(G), Threads(X, Y, BZ)),
+   (LaunchParams(Teams(G), Threads(X, Y, BZ), shared_nbytes),
     [=] RAJA_DEVICE (LaunchContext ctx)
    {
 
@@ -388,7 +434,8 @@ void RajaHipWrap2D(const int N, DBODY &&d_body,
 
 template <typename DBODY>
 void RajaHipWrap3D(const int N, DBODY &&d_body,
-                   const int X, const int Y, const int Z, const int G)
+                   const int X, const int Y, const int Z, const int G,
+                   const int shared_nbytes)
 {
    MFEM_VERIFY(N>0, "");
    const int GRID = G == 0 ? N : G;
@@ -396,7 +443,7 @@ void RajaHipWrap3D(const int N, DBODY &&d_body,
    using RAJA::RangeSegment;
 
    launch<hip_launch_policy>
-   (LaunchParams(Teams(GRID), Threads(X, Y, Z)),
+   (LaunchParams(Teams(GRID), Threads(X, Y, Z), shared_nbytes),
     [=] RAJA_DEVICE (LaunchContext ctx)
    {
 
@@ -426,9 +473,10 @@ struct RajaHipWrap<2>
 {
    template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
    static void run(const int N, DBODY &&d_body,
-                   const int X, const int Y, const int Z, const int G)
+                   const int X, const int Y, const int Z, const int G,
+                   const int shared_nbytes)
    {
-      RajaHipWrap2D(N, d_body, X, Y, Z);
+      RajaHipWrap2D(N, d_body, X, Y, Z, shared_nbytes);
    }
 };
 
@@ -437,9 +485,10 @@ struct RajaHipWrap<3>
 {
    template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
    static void run(const int N, DBODY &&d_body,
-                   const int X, const int Y, const int Z, const int G)
+                   const int X, const int Y, const int Z, const int G,
+                   const int shared_nbytes)
    {
-      RajaHipWrap3D(N, d_body, X, Y, Z, G);
+      RajaHipWrap3D(N, d_body, X, Y, Z, G, shared_nbytes);
    }
 };
 
@@ -516,24 +565,25 @@ void CuWrap1D(const int N, DBODY &&d_body)
 
 template <typename DBODY>
 void CuWrap2D(const int N, DBODY &&d_body,
-              const int X, const int Y, const int BZ)
+              const int X, const int Y, const int BZ, const int shared_nbytes)
 {
    if (N==0) { return; }
    MFEM_VERIFY(BZ>0, "");
    const int GRID = (N+BZ-1)/BZ;
    const dim3 BLCK(X,Y,BZ);
-   CuKernel2D<<<GRID,BLCK>>>(N,d_body);
+   CuKernel2D<<<GRID,BLCK,shared_nbytes>>>(N,d_body);
    MFEM_GPU_CHECK(cudaGetLastError());
 }
 
 template <typename DBODY>
 void CuWrap3D(const int N, DBODY &&d_body,
-              const int X, const int Y, const int Z, const int G)
+              const int X, const int Y, const int Z, const int G,
+              const int shared_nbytes)
 {
    if (N==0) { return; }
    const int GRID = G == 0 ? N : G;
    const dim3 BLCK(X,Y,Z);
-   CuKernel3D<<<GRID,BLCK>>>(N,d_body);
+   CuKernel3D<<<GRID,BLCK,shared_nbytes>>>(N,d_body);
    MFEM_GPU_CHECK(cudaGetLastError());
 }
 
@@ -545,9 +595,10 @@ struct CuWrap<1>
 {
    template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
    static void run(const int N, DBODY &&d_body,
-                   const int X, const int Y, const int Z, const int G)
+                   const int X, const int Y, const int Z, const int G,
+                   const int shared_nbytes)
    {
-      CuWrap1D<BLCK>(N, d_body);
+      CuWrap1D<BLCK>(N, d_body, shared_nbytes);
    }
 };
 
@@ -556,9 +607,10 @@ struct CuWrap<2>
 {
    template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
    static void run(const int N, DBODY &&d_body,
-                   const int X, const int Y, const int Z, const int G)
+                   const int X, const int Y, const int Z, const int G,
+                   const int shared_nbytes)
    {
-      CuWrap2D(N, d_body, X, Y, Z);
+      CuWrap2D(N, d_body, X, Y, Z, shared_nbytes);
    }
 };
 
@@ -567,9 +619,10 @@ struct CuWrap<3>
 {
    template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
    static void run(const int N, DBODY &&d_body,
-                   const int X, const int Y, const int Z, const int G)
+                   const int X, const int Y, const int Z, const int G,
+                   const int shared_nbytes)
    {
-      CuWrap3D(N, d_body, X, Y, Z, G);
+      CuWrap3D(N, d_body, X, Y, Z, G, shared_nbytes);
    }
 };
 
@@ -612,23 +665,24 @@ void HipWrap1D(const int N, DBODY &&d_body)
 
 template <typename DBODY>
 void HipWrap2D(const int N, DBODY &&d_body,
-               const int X, const int Y, const int BZ)
+               const int X, const int Y, const int BZ, const int shared)
 {
    if (N==0) { return; }
    const int GRID = (N+BZ-1)/BZ;
    const dim3 BLCK(X,Y,BZ);
-   hipLaunchKernelGGL(HipKernel2D,GRID,BLCK,0,0,N,d_body);
+   hipLaunchKernelGGL(HipKernel2D,GRID,BLCK,shared,0,N,d_body);
    MFEM_GPU_CHECK(hipGetLastError());
 }
 
 template <typename DBODY>
 void HipWrap3D(const int N, DBODY &&d_body,
-               const int X, const int Y, const int Z, const int G)
+               const int X, const int Y, const int Z, const int G,
+               const int shared)
 {
    if (N==0) { return; }
    const int GRID = G == 0 ? N : G;
    const dim3 BLCK(X,Y,Z);
-   hipLaunchKernelGGL(HipKernel3D,GRID,BLCK,0,0,N,d_body);
+   hipLaunchKernelGGL(HipKernel3D,GRID,BLCK,shared,0,N,d_body);
    MFEM_GPU_CHECK(hipGetLastError());
 }
 
@@ -651,9 +705,10 @@ struct HipWrap<2>
 {
    template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
    static void run(const int N, DBODY &&d_body,
-                   const int X, const int Y, const int Z, const int G)
+                   const int X, const int Y, const int Z, const int G,
+                   int shared_nbytes)
    {
-      HipWrap2D(N, d_body, X, Y, Z);
+      HipWrap2D(N, d_body, X, Y, Z, shared_nbytes);
    }
 };
 
@@ -662,9 +717,10 @@ struct HipWrap<3>
 {
    template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
    static void run(const int N, DBODY &&d_body,
-                   const int X, const int Y, const int Z, const int G)
+                   const int X, const int Y, const int Z, const int G,
+                   int shared_nbytes)
    {
-      HipWrap3D(N, d_body, X, Y, Z, G);
+      HipWrap3D(N, d_body, X, Y, Z, G, shared_nbytes);
    }
 };
 
@@ -676,7 +732,7 @@ template <const int DIM, typename d_lambda, typename h_lambda>
 inline void ForallWrap(const bool use_dev, const int N,
                        d_lambda &&d_body, h_lambda &&h_body,
                        const int X=0, const int Y=0, const int Z=0,
-                       const int G=0)
+                       const int G=0, const int shared_nbytes=0)
 {
    MFEM_CONTRACT_VAR(X);
    MFEM_CONTRACT_VAR(Y);
@@ -689,7 +745,7 @@ inline void ForallWrap(const bool use_dev, const int N,
    // If Backend::RAJA_CUDA is allowed, use it
    if (Device::Allows(Backend::RAJA_CUDA))
    {
-      return RajaCuWrap<DIM>::run(N, d_body, X, Y, Z, G);
+      return RajaCuWrap<DIM>::run(N, d_body, X, Y, Z, G, shared_nbytes);
    }
 #endif
 
@@ -697,7 +753,7 @@ inline void ForallWrap(const bool use_dev, const int N,
    // If Backend::RAJA_HIP is allowed, use it
    if (Device::Allows(Backend::RAJA_HIP))
    {
-      return RajaHipWrap<DIM>::run(N, d_body, X, Y, Z, G);
+      return RajaHipWrap<DIM>::run(N, d_body, X, Y, Z, G, shared_nbytes);
    }
 #endif
 
@@ -705,7 +761,7 @@ inline void ForallWrap(const bool use_dev, const int N,
    // If Backend::CUDA is allowed, use it
    if (Device::Allows(Backend::CUDA))
    {
-      return CuWrap<DIM>::run(N, d_body, X, Y, Z, G);
+      return CuWrap<DIM>::run(N, d_body, X, Y, Z, G, shared_nbytes);
    }
 #endif
 
@@ -713,9 +769,13 @@ inline void ForallWrap(const bool use_dev, const int N,
    // If Backend::HIP is allowed, use it
    if (Device::Allows(Backend::HIP))
    {
-      return HipWrap<DIM>::run(N, d_body, X, Y, Z, G);
+      return HipWrap<DIM>::run(N, d_body, X, Y, Z, G, shared_nbytes);
    }
 #endif
+
+   // The remaining backends run on host. Ensure there is enough host shared
+   // memory available.
+   DynamicSharedMemory::EnsureHostCapacity(shared_nbytes);
 
    // If Backend::DEBUG_DEVICE is allowed, use it
    if (Device::Allows(Backend::DEBUG_DEVICE)) { goto backend_cpu; }
@@ -745,42 +805,49 @@ backend_cpu:
 template <const int DIM, typename lambda>
 inline void ForallWrap(const bool use_dev, const int N, lambda &&body,
                        const int X=0, const int Y=0, const int Z=0,
-                       const int G=0)
+                       const int G=0, const int shared_nbytes=0)
 {
-   ForallWrap<DIM>(use_dev, N, body, body, X, Y, Z, G);
+   ForallWrap<DIM>(use_dev, N, body, body, X, Y, Z, G, shared_nbytes);
 }
 
 template<typename lambda>
-inline void forall(int N, lambda &&body) { ForallWrap<1>(true, N, body); }
-
-template<typename lambda>
-inline void forall_switch(bool use_dev, int N, lambda &&body)
+inline void forall(int N, lambda &&body)
 {
-   ForallWrap<1>(use_dev, N, body);
+   ForallWrap<1>(true, N, body);
 }
 
 template<typename lambda>
-inline void forall_2D(int N, int X, int Y, lambda &&body)
+inline void forall_switch(bool use_dev, int N, lambda &&body,
+                          int shared_nbytes=0)
 {
-   ForallWrap<2>(true, N, body, X, Y, 1);
+   ForallWrap<1>(use_dev, N, body, 0, 0, 0, 0, shared_nbytes);
 }
 
 template<typename lambda>
-inline void forall_2D_batch(int N, int X, int Y, int BZ, lambda &&body)
+inline void forall_2D(int N, int X, int Y, lambda &&body, int shared_nbytes=0)
 {
-   ForallWrap<2>(true, N, body, X, Y, BZ);
+   ForallWrap<2>(true, N, body, X, Y, 1, 0, shared_nbytes);
 }
 
 template<typename lambda>
-inline void forall_3D(int N, int X, int Y, int Z, lambda &&body)
+inline void forall_2D_batch(int N, int X, int Y, int BZ, lambda &&body,
+                            int shared_nbytes=0)
 {
-   ForallWrap<3>(true, N, body, X, Y, Z, 0);
+   ForallWrap<2>(true, N, body, X, Y, BZ, 0, shared_nbytes);
 }
 
 template<typename lambda>
-inline void forall_3D_grid(int N, int X, int Y, int Z, int G, lambda &&body)
+inline void forall_3D(int N, int X, int Y, int Z, lambda &&body,
+                      int shared_nbytes=0)
 {
-   ForallWrap<3>(true, N, body, X, Y, Z, G);
+   ForallWrap<3>(true, N, body, X, Y, Z, 0, shared_nbytes);
+}
+
+template<typename lambda>
+inline void forall_3D_grid(int N, int X, int Y, int Z, int G, lambda &&body,
+                           int shared_nbytes=0)
+{
+   ForallWrap<3>(true, N, body, X, Y, Z, G, shared_nbytes);
 }
 
 #ifdef MFEM_USE_MPI
@@ -801,12 +868,12 @@ inline void hypre_forall_cpu(int N, lambda &&body)
 // executes on the GPU device that hypre was configured with at build time.
 #if defined(HYPRE_USING_GPU)
 template<typename lambda>
-inline void hypre_forall_gpu(int N, lambda &&body)
+inline void hypre_forall_gpu(int N, lambda &&body, int shared=0)
 {
 #if defined(HYPRE_USING_CUDA)
-   CuWrap1D(N, body);
+   CuWrap1D(N, body, shared);
 #elif defined(HYPRE_USING_HIP)
-   HipWrap1D(N, body);
+   HipWrap1D(N, body, shared);
 #else
 #error Unknown HYPRE GPU backend!
 #endif
