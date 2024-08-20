@@ -38,6 +38,7 @@ int main (int argc, char *argv[])
    int rs_levels     = 1;
    int mesh_poly_deg = 2;
    int quad_order    = 5;
+   real_t d          = 100;
    bool glvis        = true;
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -49,6 +50,8 @@ int main (int argc, char *argv[])
        "Polynomial degree of mesh finite element space.");
    args.AddOption(&quad_order, "-qo", "--quad_order",
 		 "Order of the quadrature rule.");
+   args.AddOption(&d, "-dist", "--distance",
+                  "Physical distance for limiting.");
    args.AddOption(&glvis, "-vis", "--visualization", "-no-vis",
 		 "--no-visualization",
 		 "Enable or disable GLVis visualization.");
@@ -73,7 +76,6 @@ int main (int argc, char *argv[])
    pmesh.SetNodalFESpace(&pfes_mesh);
    ParGridFunction coord_x(&pfes_mesh), coord_t(&pfes_mesh);
    pmesh.SetNodalGridFunction(&coord_x);
-   ParGridFunction x0(coord_x);
 
    // Move the mesh nodes to have non-trivial problem.
    const int N = coord_x.Size() / 2;
@@ -96,6 +98,8 @@ int main (int argc, char *argv[])
       coord_x(i)     = x + a * sin(0.5 * M_PI * x) * sin(c * M_PI * y)   + b * x * y;
       coord_x(i + N) = y + a * sin(c * M_PI * x)   * sin(0.5 * M_PI * y) + b * x * y;
    }
+
+   ParGridFunction x0(coord_x);
 
    // Compute the minimum det(J) of the starting mesh.
    double min_detJ = infinity();
@@ -244,6 +248,12 @@ int main (int argc, char *argv[])
    target.SetNodes(coord_x);
    auto integ = new TMOP_Integrator(metric, &target, nullptr);
    integ->EnableTangentialMovement(surfaces, pfes_mesh);
+
+   ParFiniteElementSpace pfes_dist(&pmesh, pfes_mesh.FEColl(), 1);
+   ParGridFunction dist(&pfes_dist);
+   dist = d;
+   ConstantCoefficient limit_coeff(1.0);
+   integ->EnableLimiting(x0, dist, limit_coeff);
 
    // Linear solver.
    MINRESSolver minres(pfes_mesh.GetComm());
