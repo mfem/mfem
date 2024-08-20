@@ -189,7 +189,7 @@ void HyperbolicFormIntegrator::AssembleFaceVector(
    // shape function value at an integration point - second elem
    Vector shape2(dof2);
    // normal vector (usually not a unit vector)
-   Vector nor(el1.GetDim());
+   Vector nor(Tr.GetSpaceDim());
    // state value at an integration point - first elem
    Vector state1(num_equations);
    // state value at an integration point - second elem
@@ -259,6 +259,17 @@ void HyperbolicFormIntegrator::AssembleFaceVector(
    }
 }
 
+HDGHyperbolicFormIntegrator::HDGHyperbolicFormIntegrator(
+   HDGScheme scheme, const RiemannSolver &rsolver, real_t Ctau,
+   const int IntOrderOffset, const real_t sign)
+   : HyperbolicFormIntegrator(rsolver, IntOrderOffset, sign),
+     scheme(scheme), Ctau(Ctau)
+{
+#ifndef MFEM_THREAD_SAFE
+   JDotN.SetSize(num_equations);
+#endif
+}
+
 void HDGHyperbolicFormIntegrator::AssembleHDGFaceVector(
    int type, const FiniteElement &trace_face_fe, const FiniteElement &fe,
    FaceElementTransformations &Tr, const Vector &trfun, const Vector &elfun,
@@ -276,13 +287,29 @@ void HDGHyperbolicFormIntegrator::AssembleHDGFaceVector(
    const int dof_dual_tr = (type & (HDGFaceType::CONSTR | HDGFaceType::FACE))?
                            (dof_tr):(0);
 
-   Vector &shape_el = shape1;
-   Vector &shape_tr = shape2;
+#ifdef MFEM_THREAD_SAFE
+   // Local storage for element integration
+
+   // normal vector (usually not a unit vector)
+   Vector nor(Tr.GetSpaceDim());
+   // shape function value at an integration point - elem
+   Vector shape_el(dof_el);
+   // shape function value at an integration point - trace
+   Vector shape_tr(dof_tr);
+   // state value at an integration point - elem
+   Vector state_el(num_equations);
+   // state value at an integration point - trace
+   Vector state_tr(num_equations);
+   // hat(F)(u,x)
+   Vector fluxN(num_equations);
+#else
+   Vector &shape_el(shape1);
+   Vector &shape_tr(shape2);
+   Vector &state_el(state1);
+   Vector &state_tr(state2);
    shape_el.SetSize(dof_el);
    shape_tr.SetSize(dof_tr);
-
-   Vector &state_el = state1;
-   Vector &state_tr = state2;
+#endif
 
    elvect.SetSize((dof_dual_el + dof_dual_tr) * num_equations);
    elvect = 0.0;
@@ -380,13 +407,29 @@ void HDGHyperbolicFormIntegrator::AssembleHDGFaceGrad(
    const int dof_prim = dof_prim_el + dof_prim_tr;
    const int dof_dual = dof_dual_el + dof_dual_tr;
 
-   Vector &shape_el = shape1;
-   Vector &shape_tr = shape2;
+#ifdef MFEM_THREAD_SAFE
+   // Local storage for element integration
+
+   // normal vector (usually not a unit vector)
+   Vector nor(Tr.GetSpaceDim());
+   // shape function value at an integration point - elem
+   Vector shape_el(dof_el);
+   // shape function value at an integration point - trace
+   Vector shape_tr(dof_tr);
+   // state value at an integration point - elem
+   Vector state_el(num_equations);
+   // state value at an integration point - trace
+   Vector state_tr(num_equations);
+   // J(F)(u,x)
+   DenseMatrix JDotN(num_equations);
+#else
+   Vector &shape_el(shape1);
+   Vector &shape_tr(shape2);
+   Vector &state_el(state1);
+   Vector &state_tr(state2);
    shape_el.SetSize(dof_el);
    shape_tr.SetSize(dof_tr);
-
-   Vector &state_el = state1;
-   Vector &state_tr = state2;
+#endif
 
    elmat.SetSize(dof_dual * num_equations,
                  dof_prim * num_equations);

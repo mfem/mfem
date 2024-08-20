@@ -278,7 +278,9 @@ private:
    HDGScheme scheme;
    real_t Ctau;
 
+#ifndef MFEM_THREAD_SAFE
    DenseMatrix JDotN;
+#endif
 
 public:
    HDGHyperbolicFormIntegrator(
@@ -286,12 +288,7 @@ public:
       const RiemannSolver &rsolver,
       real_t Ctau=1.,
       const int IntOrderOffset=0,
-      const real_t sign=1.)
-      : HyperbolicFormIntegrator(rsolver, IntOrderOffset, sign),
-        scheme(scheme), Ctau(Ctau)
-   {
-      JDotN.SetSize(num_equations);
-   }
+      const real_t sign=1.);
 
    void AssembleHDGFaceVector(int type,
                               const FiniteElement &trace_face_fe,
