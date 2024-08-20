@@ -475,7 +475,11 @@ public:
 
    virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
 
+   virtual void AddAbsMultTransposePA(const Vector &x, Vector &y) const;
+
    virtual void AddMultPA(const Vector& x, Vector& y) const;
+
+   virtual void AddAbsMultPA(const Vector& x, Vector& y) const;
 
    virtual void AssembleMF(const FiniteElementSpace &fes);
 

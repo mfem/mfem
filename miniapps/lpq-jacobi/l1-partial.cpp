@@ -107,10 +107,9 @@ int main(int argc, char *argv[])
                   "Kershaw transform factor, eps_z in (0,1]");
    args.AddOption(&freq, "-f", "--frequency", "Set the frequency for the exact"
                   " solution.");
-   // TODO(Gabriel): To add visualization
-   // args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
-   //                "--no-visualization",
-   //                "Enable or disable GLVis visualization.");
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
    args.ParseCheck();
 
    MFEM_ASSERT((0 <= solver_type) && (solver_type < num_solvers), "");
@@ -293,12 +292,10 @@ int main(int argc, char *argv[])
          vector_u = new VectorFunctionCoefficient(space_dim, maxwell_solution);
          vector_f = new VectorFunctionCoefficient(space_dim, maxwell_source);
          lfi = new VectorFEDomainLFIntegrator(*vector_f);
-         bfi = new CurlCurlIntegrator(one);
-         // TODO(Gabriel): Check this...
-         // bfi = new SumIntegrator();
-         // sum_bfi = static_cast<SumIntegrator*>(bfi);
-         // sum_bfi->AddIntegrator(new CurlCurlIntegrator(one));
-         // sum_bfi->AddIntegrator(new VectorFEMassIntegrator(one));
+         bfi = new SumIntegrator();
+         sum_bfi = static_cast<SumIntegrator*>(bfi);
+         sum_bfi->AddIntegrator(new CurlCurlIntegrator(one));
+         sum_bfi->AddIntegrator(new VectorFEMassIntegrator(one));
          x.ProjectBdrCoefficientTangent(*vector_u, ess_bdr);
          break;
       default:
