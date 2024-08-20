@@ -256,6 +256,7 @@ public:
    /// Reset the associated estimator.
    virtual void Reset();
 
+   /// Set the array @a refinements of elements to refine, without refining.
    int MarkWithoutRefining(Mesh & mesh, Array<Refinement> & refinements);
 };
 

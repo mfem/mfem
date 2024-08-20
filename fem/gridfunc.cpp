@@ -4031,7 +4031,7 @@ void GridFunction::LegacyNCReorder()
    Vector::Swap(tmp);
 }
 
-std::unique_ptr<GridFunction> GridFunction::ProlongToMaxOrder() const
+std::unique_ptr<GridFunction> GridFunction::ProlongateToMaxOrder() const
 {
    Mesh *mesh = fes->GetMesh();
    const FiniteElementCollection *fesc = fes->FEColl();

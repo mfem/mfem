@@ -430,7 +430,9 @@ public:
    */
    virtual void ProjectDiscCoefficient(VectorCoefficient &coeff, AvgType type);
 
-   std::unique_ptr<GridFunction> ProlongToMaxOrder() const;
+   /** @brief Return a GridFunction with the values of this, prolongated to the
+       maximum order of all elements in the mesh. */
+   std::unique_ptr<GridFunction> ProlongateToMaxOrder() const;
 
 protected:
    /** @brief Accumulates (depending on @a type) the values of @a coeff at all

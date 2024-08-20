@@ -253,7 +253,6 @@ void ParNCMesh::BuildEdgeList()
 void ParNCMesh::FindEdgesOfGhostFace(int face, Array<int> & edges)
 {
    const NCList &faceList = GetFaceList();
-
    NCList::MeshIdAndType midt = faceList.GetMeshIdAndType(face);
    if (!midt.id)
    {
@@ -298,25 +297,16 @@ void ParNCMesh::FindEdgesOfGhostElement(int elem, Array<int> & edges)
    }
 }
 
-// TODO: use NCMesh::GetFace?
-void ParNCMesh::FindFacesOfGhostElement(int elem, Array<int> & ge_faces)
+void ParNCMesh::FindFacesOfGhostElement(int elem, Array<int> & faces)
 {
    NCMesh::Element &el = elements[elem]; // ghost element
    MFEM_ASSERT(el.rank != MyRank, "");
-
    MFEM_ASSERT(!el.ref_type, "not a leaf element.");
 
-   GeomInfo& gi = GI[el.Geom()];
-   ge_faces.SetSize(gi.nf);
-
-   for (int j = 0; j < gi.nf; j++)
+   faces.SetSize(GI[el.Geom()].nf);
+   for (int j = 0; j < faces.Size(); j++)
    {
-      // get node for this edge
-      const int* fv = gi.faces[j];
-      const Face *face = faces.Find(el.node[fv[0]], el.node[fv[1]],
-                                    el.node[fv[2]], el.node[fv[3]]);
-      MFEM_ASSERT(face, "face not found");
-      ge_faces[j] = face->index;
+      faces[j] = GetFace(el, j)->index;
    }
 }
 

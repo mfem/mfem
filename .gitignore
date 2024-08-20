@@ -231,6 +231,7 @@ miniapps/meshing/minimal-surface
 miniapps/meshing/pminimal-surface
 miniapps/meshing/polar-nc
 miniapps/meshing/mesh-quality
+miniapps/meshing/hpref
 miniapps/meshing/mobius-strip.mesh
 miniapps/meshing/klein-bottle.mesh
 miniapps/meshing/toroid-*.mesh
@@ -246,6 +247,9 @@ miniapps/meshing/reflected.mesh
 miniapps/meshing/optimized*
 miniapps/meshing/perturbed*
 miniapps/meshing/polar-nc.mesh
+miniapps/meshing/mesh.*
+miniapps/meshing/order.*
+miniapps/meshing/sol.*
 
 miniapps/mtop/parheat
 miniapps/mtop/ParHeat*

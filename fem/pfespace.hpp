@@ -447,7 +447,7 @@ public:
        /rebalance matrices, unless want_transform is false. */
    void Update(bool want_transform = true) override;
 
-   void UpdatePRef(const Array<PRefinement> & pref);
+   void UpdatePRef(const Array<VarOrderElemInfo> & pref);
 
    /// Free ParGridFunction transformation matrix (if any), to save memory.
    void UpdatesFinished() override

@@ -4498,7 +4498,7 @@ void ParFiniteElementSpace::Update(bool want_transform)
 }
 
 // TODO: serial version of this.
-void ParFiniteElementSpace::UpdatePRef(const Array<PRefinement> & pref)
+void ParFiniteElementSpace::UpdatePRef(const Array<VarOrderElemInfo> & pref)
 {
    fesPrev.reset(new ParFiniteElementSpace(pmesh, fec));
    for (int i = 0; i<pmesh->GetNE(); i++)
