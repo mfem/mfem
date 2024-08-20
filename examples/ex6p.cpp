@@ -354,7 +354,7 @@ int main(int argc, char *argv[])
       //     used to determine if a stopping criterion was met.
       const bool pRefinement = usePRefinement && ((it % 2) == 1);
       bool stop = false;
-      Array<PRefinement> prefinements;
+      Array<FiniteElementSpace::VarOrderElemInfo> prefinements;
       if (pRefinement)
       {
          Array<Refinement> refinements;
@@ -462,7 +462,7 @@ int main(int argc, char *argv[])
       ofstream sol_ofs(sol_name.str().c_str());
       sol_ofs.precision(8);
 
-      std::unique_ptr<ParGridFunction> vis_x = x.ProlongToMaxOrder();
+      std::unique_ptr<ParGridFunction> vis_x = x.ProlongateToMaxOrder();
       vis_x->Save(sol_ofs);
 
       ofstream order_ofs(order_name.str().c_str());
