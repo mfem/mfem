@@ -1,0 +1,434 @@
+//                       Parallel hp-refinement example
+//
+// Compile with: make hpref
+//
+// Sample runs:  mpirun -np 4 hpref -dim 2 -n 1000
+//               mpirun -np 8 hpref -dim 3 -n 200
+//
+// Description:  This example demonstrates h- and p-refinement in a parallel
+//               finite element discretization of the Laplace problem (cf. ex1p)
+//               -Delta u = 1 with homogeneous Dirichlet boundary conditions.
+//               Refinements are performed iteratively, each iteration having h-
+//               p-refinements on all MPI processes. For simplicity, we randomly
+//               choose the elements and the type of refinement, for each
+//               iteration. In practice, these choices may be made in a problem-
+//               dependent way, but this example serves only to illustrate the
+//               capabilities of hp-refinement in parallel.
+
+//               We recommend viewing Example 1 before viewing this example.
+
+#include "mfem.hpp"
+#include <fstream>
+#include <iostream>
+
+using namespace std;
+using namespace mfem;
+
+real_t CheckH1Continuity(ParGridFunction & x);
+
+// Deterministic function for "random" integers.
+int MyRand(int & seed)
+{
+   seed++;
+   return int(std::abs(1.0e5 * sin(seed * 1.1234 * M_PI)));
+}
+
+int main(int argc, char *argv[])
+{
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init();
+   const int num_procs = Mpi::WorldSize();
+   const int myid = Mpi::WorldRank();
+   Hypre::Init();
+
+   // 2. Parse command-line options.
+   const char *mesh_file = "../data/star.mesh";
+   int order = 1;
+   bool static_cond = false;
+   bool pa = false;
+   bool fa = false;
+   const char *device_config = "cpu";
+   bool visualization = true;
+   bool algebraic_ceed = false;
+   int numIter = 0;
+   int dim = 2;
+   bool deterministic = true;
+
+   OptionsParser args(argc, argv);
+   args.AddOption(&mesh_file, "-m", "--mesh",
+                  "Mesh file to use.");
+   args.AddOption(&order, "-o", "--order",
+                  "Finite element order (polynomial degree) or -1 for"
+                  " isoparametric space.");
+   args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
+                  "--no-static-condensation", "Enable static condensation.");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&fa, "-fa", "--full-assembly", "-no-fa",
+                  "--no-full-assembly", "Enable Full Assembly.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
+#ifdef MFEM_USE_CEED
+   args.AddOption(&algebraic_ceed, "-a", "--algebraic",
+                  "-no-a", "--no-algebraic",
+                  "Use algebraic Ceed solver");
+#endif
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
+   args.AddOption(&numIter, "-n", "--num-iter", "Number of hp-ref iterations");
+   args.AddOption(&dim, "-dim", "--dim", "Mesh dimension (2 or 3)");
+   args.AddOption(&deterministic, "-det", "--deterministic", "-not-det",
+                  "--not-deterministic",
+                  "Whether to use deterministic random refinements");
+   args.Parse();
+   if (!args.Good())
+   {
+      if (myid == 0)
+      {
+         args.PrintUsage(cout);
+      }
+      return 1;
+   }
+   if (myid == 0)
+   {
+      args.PrintOptions(cout);
+   }
+
+   // 3. Enable hardware devices such as GPUs, and programming models such as
+   //    CUDA, OCCA, RAJA and OpenMP based on command line options.
+   Device device(device_config);
+   if (myid == 0) { device.Print(); }
+
+   // 4. Construct a uniform coarse mesh on all processors.
+   Mesh mesh;
+   if (dim == 3)
+   {
+      mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON);
+   }
+   else
+   {
+      mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL, true);
+   }
+
+   mesh.EnsureNCMesh();
+
+   // 5. Define a parallel mesh by a partitioning of the serial mesh. Refine
+   //    this mesh further in parallel to increase the resolution. Once the
+   //    parallel mesh is defined, the serial mesh can be deleted.
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+   mesh.Clear();
+   {
+      int par_ref_levels = 0;
+      for (int l = 0; l < par_ref_levels; l++)
+      {
+         pmesh.UniformRefinement();
+      }
+   }
+
+   // 6. Define a parallel finite element space on the parallel mesh. Here we
+   //    use continuous Lagrange finite elements of the specified order. If
+   //    order < 1, we instead use an isoparametric/isogeometric space.
+   FiniteElementCollection *fec;
+   bool delete_fec;
+   if (order > 0)
+   {
+      fec = new H1_FECollection(order, dim);
+      delete_fec = true;
+   }
+   else if (pmesh.GetNodes())
+   {
+      fec = pmesh.GetNodes()->OwnFEC();
+      delete_fec = false;
+      if (myid == 0)
+      {
+         cout << "Using isoparametric FEs: " << fec->Name() << endl;
+      }
+   }
+   else
+   {
+      fec = new H1_FECollection(order = 1, dim);
+      delete_fec = true;
+   }
+   ParFiniteElementSpace fespace(&pmesh, fec);
+
+   // 7. Iteratively perform h- and p-refinements.
+
+   int numH = 0;
+   int numP = 0;
+   int seed = 0;
+
+   for (int iter=0; iter<numIter; ++iter)
+   {
+      if (myid == 0) { cout << "hp-refinement iteration " << iter << endl; }
+      const int r1 = deterministic ? MyRand(seed) : rand();
+      const int r2 = deterministic ? MyRand(seed) : rand();
+      const int elem = r1 % pmesh.GetNE();
+      int hp = r2 % 2;
+
+      MPI_Bcast(&hp, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+      if (hp == 1)
+      {
+         // p-ref
+         fespace.SetElementOrder(elem, fespace.GetElementOrder(elem) + 1);
+         numP++;
+      }
+      else
+      {
+         // h-ref
+         Array<Refinement> refs;
+         refs.Append(Refinement(elem));
+         pmesh.GeneralRefinement(refs);
+         numH++;
+      }
+
+      fespace.Update(false);
+   }
+
+   HYPRE_BigInt size = fespace.GlobalTrueVSize();
+   if (myid == 0)
+   {
+      cout << "Number of finite element unknowns: " << size << endl;
+   }
+
+   // 8. Determine the list of true (i.e. parallel conforming) essential
+   //    boundary dofs. In this example, the boundary conditions are defined
+   //    by marking all the boundary attributes from the mesh as essential
+   //    (Dirichlet) and converting them to a list of true dofs.
+   Array<int> ess_tdof_list;
+   if (pmesh.bdr_attributes.Size())
+   {
+      Array<int> ess_bdr(pmesh.bdr_attributes.Max());
+      ess_bdr = 1;
+      fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   }
+
+   // 9. Set up the parallel linear form b(.) which corresponds to the
+   //    right-hand side of the FEM linear system, which in this case is
+   //    (1,phi_i) where phi_i are the basis functions in fespace.
+   ParLinearForm b(&fespace);
+   ConstantCoefficient one(1.0);
+   b.AddDomainIntegrator(new DomainLFIntegrator(one));
+   b.Assemble();
+
+   // 10. Define the solution vector x as a parallel finite element grid
+   //     function corresponding to fespace. Initialize x with initial guess of
+   //     zero, which satisfies the boundary conditions.
+   ParGridFunction x(&fespace);
+   x = 0.0;
+
+   // 11. Set up the parallel bilinear form a(.,.) on the finite element space
+   //     corresponding to the Laplacian operator -Delta, by adding the
+   //     Diffusion domain integrator.
+   ParBilinearForm a(&fespace);
+   if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   if (fa)
+   {
+      a.SetAssemblyLevel(AssemblyLevel::FULL);
+      // Sort the matrix column indices when running on GPU or with OpenMP (i.e.
+      // when Device::IsEnabled() returns true). This makes the results
+      // bit-for-bit deterministic at the cost of somewhat longer run time.
+      a.EnableSparseMatrixSorting(Device::IsEnabled());
+   }
+   a.AddDomainIntegrator(new DiffusionIntegrator(one));
+
+   // 12. Assemble the parallel bilinear form and the corresponding linear
+   //     system, applying any necessary transformations such as: parallel
+   //     assembly, eliminating boundary conditions, applying conforming
+   //     constraints for non-conforming AMR, static condensation, etc.
+   if (static_cond) { a.EnableStaticCondensation(); }
+   a.Assemble();
+
+   OperatorPtr A;
+   Vector B, X;
+   a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+
+   // 13. Solve the linear system A X = B.
+   //     * With full assembly, use the BoomerAMG preconditioner from hypre.
+   //     * With partial assembly, use Jacobi smoothing, for now.
+   Solver *prec = NULL;
+   if (pa)
+   {
+      if (UsesTensorBasis(fespace))
+      {
+         if (algebraic_ceed)
+         {
+            prec = new ceed::AlgebraicSolver(a, ess_tdof_list);
+         }
+         else
+         {
+            prec = new OperatorJacobiSmoother(a, ess_tdof_list);
+         }
+      }
+   }
+   else
+   {
+      prec = new HypreBoomerAMG;
+   }
+   CGSolver cg(MPI_COMM_WORLD);
+   cg.SetRelTol(1e-12);
+   cg.SetMaxIter(2000);
+   cg.SetPrintLevel(1);
+   if (prec) { cg.SetPreconditioner(*prec); }
+   cg.SetOperator(*A);
+   cg.Mult(B, X);
+   delete prec;
+
+   // 14. Recover the parallel grid function corresponding to X. This is the
+   //     local finite element solution on each processor.
+   a.RecoverFEMSolution(X, b, x);
+
+   const real_t h1error = CheckH1Continuity(x);
+   MFEM_VERIFY(h1error < 1.0e-15, "H1 continuity is not satisfied");
+
+   L2_FECollection fecL2(0, dim);
+   ParFiniteElementSpace l2fespace(&pmesh, &fecL2);
+   ParGridFunction xo(&l2fespace);
+   xo = 0.0;
+
+   for (int e=0; e<pmesh.GetNE(); ++e)
+   {
+      const int p_elem = fespace.GetElementOrder(e);
+      Array<int> dofs;
+      l2fespace.GetElementDofs(e, dofs);
+      MFEM_VERIFY(dofs.Size() == 1, "");
+      xo[dofs[0]] = p_elem;
+   }
+
+   // 15. Save the refined mesh and the solution in parallel. This output can
+   //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
+   {
+      ostringstream mesh_name, sol_name, order_name;
+      mesh_name << "mesh." << setfill('0') << setw(6) << myid;
+      sol_name << "sol." << setfill('0') << setw(6) << myid;
+      order_name << "order." << setfill('0') << setw(6) << myid;
+
+      ofstream mesh_ofs(mesh_name.str().c_str());
+      mesh_ofs.precision(8);
+      pmesh.Print(mesh_ofs);
+
+      ofstream sol_ofs(sol_name.str().c_str());
+      sol_ofs.precision(8);
+
+      std::unique_ptr<GridFunction> vis_x = x.ProlongateToMaxOrder();
+      vis_x->Save(sol_ofs);
+
+      ofstream order_ofs(order_name.str().c_str());
+      order_ofs.precision(8);
+      xo.Save(order_ofs);
+   }
+
+   // 16. Send the solution by socket to a GLVis server.
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream sol_sock(vishost, visport);
+      sol_sock << "parallel " << num_procs << " " << myid << "\n";
+      sol_sock.precision(8);
+      sol_sock << "solution\n" << pmesh << x << flush;
+   }
+
+   // 17. Free the used memory.
+   if (delete_fec)
+   {
+      delete fec;
+   }
+
+   const int maxP = fespace.GetMaxElementOrder();
+   if (myid == 0)
+   {
+      cout << "Total number of h-refinements: " << numH
+           << "\nTotal number of p-refinements: " << numP
+           << "\nMaximum order " << maxP << "\n";
+   }
+
+   return 0;
+}
+
+real_t CheckH1Continuity(ParGridFunction & x)
+{
+   x.ExchangeFaceNbrData();
+
+   const ParFiniteElementSpace *fes = x.ParFESpace();
+   ParMesh *mesh = fes->GetParMesh();
+
+   const int dim = mesh->Dimension();
+
+   // Following the example of KellyErrorEstimator::ComputeEstimates(),
+   // we loop over interior faces and then shared faces.
+
+   // Compute error contribution from local interior faces
+   real_t errorMax = 0.0;
+   for (int f = 0; f < mesh->GetNumFaces(); f++)
+   {
+      if (mesh->FaceIsInterior(f))
+      {
+         int Inf1, Inf2, NCFace;
+         mesh->GetFaceInfos(f, &Inf1, &Inf2, &NCFace);
+
+         auto FT = mesh->GetFaceElementTransformations(f);
+
+         const int faceOrder = dim == 3 ? fes->GetFaceOrder(f) :
+                               fes->GetEdgeOrder(f);
+         auto &int_rule = IntRules.Get(FT->FaceGeom, 2 * faceOrder);
+         const auto nip = int_rule.GetNPoints();
+
+         // Convention
+         // * Conforming face: Face side with smaller element id handles
+         // the integration
+         // * Non-conforming face: The slave handles the integration.
+         // See FaceInfo documentation for details.
+         bool isNCSlave    = FT->Elem2No >= 0 && NCFace >= 0;
+         bool isConforming = FT->Elem2No >= 0 && NCFace == -1;
+         if ((FT->Elem1No < FT->Elem2No && isConforming) || isNCSlave)
+         {
+            for (int i = 0; i < nip; i++)
+            {
+               const auto &fip = int_rule.IntPoint(i);
+               IntegrationPoint ip;
+
+               FT->Loc1.Transform(fip, ip);
+               const real_t v1 = x.GetValue(FT->Elem1No, ip);
+
+               FT->Loc2.Transform(fip, ip);
+               const real_t v2 = x.GetValue(FT->Elem2No, ip);
+
+               const real_t err_i = std::abs(v1 - v2);
+               errorMax = std::max(errorMax, err_i);
+            }
+         }
+      }
+   }
+
+   // Compute error contribution from shared interior faces
+   for (int sf = 0; sf < mesh->GetNSharedFaces(); sf++)
+   {
+      const int f = mesh->GetSharedFace(sf);
+      const bool trueInterior = mesh->FaceIsTrueInterior(f);
+      if (!trueInterior) { continue; }
+
+      auto FT = mesh->GetSharedFaceTransformations(sf, true);
+      const int faceOrder = dim == 3 ? fes->GetFaceOrder(f) : fes->GetEdgeOrder(f);
+      const auto &int_rule = IntRules.Get(FT->FaceGeom, 2 * faceOrder);
+      const auto nip = int_rule.GetNPoints();
+
+      for (int i = 0; i < nip; i++)
+      {
+         const auto &fip = int_rule.IntPoint(i);
+         IntegrationPoint ip;
+
+         FT->Loc1.Transform(fip, ip);
+         const real_t v1 = x.GetValue(FT->Elem1No, ip);
+
+         FT->Loc2.Transform(fip, ip);
+         const real_t v2 = x.GetValue(FT->Elem2No, ip);
+
+         const real_t err_i = std::abs(v1 - v2);
+         errorMax = std::max(errorMax, err_i);
+      }
+   }
+
+   return errorMax;
+}

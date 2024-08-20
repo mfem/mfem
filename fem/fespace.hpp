@@ -19,7 +19,6 @@
 #include "doftrans.hpp"
 #include "restriction.hpp"
 #include <iostream>
-#include <set>
 #include <unordered_map>
 
 namespace mfem
@@ -69,12 +68,6 @@ Ordering::Map<Ordering::byVDIM>(int ndofs, int vdim, int dof, int vd)
    MFEM_ASSERT(dof < ndofs && -1-dof < ndofs && 0 <= vd && vd < vdim, "");
    return (dof >= 0) ? vd+vdim*dof : -1-(vd+vdim*(-1-dof));
 }
-
-struct PRefinement
-{
-   int element;
-   char order;
-};
 
 /// Constants describing the possible orderings of the DOFs in one element.
 enum class ElementDofOrdering

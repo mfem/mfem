@@ -255,12 +255,16 @@ public:
       const Array<FiniteElementSpace::VarOrderElemInfo> & sendData,
       Array<FiniteElementSpace::VarOrderElemInfo> & recvData);
 
-   /** @a elem is a global element index, required to be for a ghost element of
-       this processor. The indices of this ghost element's edges are returned. */
+   /** For a ghost element with index @a elem, the edge indices are returned in
+       @a edges. */
    void FindEdgesOfGhostElement(int elem, Array<int> & edges);
 
-   void FindFacesOfGhostElement(int elem, Array<int> & ge_faces);
+   /** For a ghost element with index @a elem, the face indices are returned in
+       @a faces. */
+   void FindFacesOfGhostElement(int elem, Array<int> & faces);
 
+   /** For a ghost face with index @a face, the edge indices are returned in
+       @a edges. */
    void FindEdgesOfGhostFace(int face, Array<int> & edges);
 
 protected: // interface for ParMesh

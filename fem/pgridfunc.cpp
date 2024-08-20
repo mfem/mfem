@@ -1296,14 +1296,14 @@ void ParGridFunction::ComputeFlux(
    }
 }
 
-std::unique_ptr<ParGridFunction> ParGridFunction::ProlongToMaxOrder() const
+std::unique_ptr<ParGridFunction> ParGridFunction::ProlongateToMaxOrder() const
 {
    ParMesh *mesh = pfes->GetParMesh();
    const FiniteElementCollection *pfesc = pfes->FEColl();
    const int vdim = pfes->GetVDim();
 
    // Find the max order in the space
-   int maxOrder = pfes->GetMaxElementOrder();
+   const int maxOrder = pfes->GetMaxElementOrder();
 
    // Create a visualization space of max order for all elements
    FiniteElementCollection *fecMax = pfesc->Clone(maxOrder);
