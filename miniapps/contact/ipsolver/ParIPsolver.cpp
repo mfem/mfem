@@ -434,7 +434,7 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
 
       delete Ah;
    }
-   else if(linSolver == 1 || linSolver == 2 || linSolver == 3 || linSolver == 4 )
+   else if(linSolver >= 1 || linSolver == 2 || linSolver == 3 || linSolver == 4 || linSolver == 5)
    {
       // form A = Huu + Ju^T D Ju, Wmm = D for contact
       HypreParMatrix * Wmmloc = dynamic_cast<HypreParMatrix *>(&(A.GetBlock(1, 1)));
@@ -445,8 +445,6 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
       HypreParMatrix *JuTDJu   = RAP(Wmmloc, Juloc);     // Ju^T D Ju
       HypreParMatrix *Areduced = ParAdd(Huuloc, JuTDJu);  // Huu + Ju^T D Ju
 
-      Areduced->DropSmallEntries(1e-16);
-
       /* prepare the reduced rhs */
       // breduced = bu + Ju^T (bm + Wmm bl)
       Vector breduced(dimU); breduced = 0.0;
@@ -456,13 +454,14 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
       JuTloc->Mult(tempVec, breduced);
       breduced.Add(1.0, b.GetBlock(0));
       
-      if(linSolver == 1)
+      // Direct solver on the reduced system
+      if(linSolver == 1) 
       {
          // setup the solver for the reduced linear system
 #ifdef MFEM_USE_MUMPS
 	      MUMPSSolver AreducedSolver(*Areduced);   
          AreducedSolver.SetPrintLevel(0);
-         AreducedSolver.SetMatrixSymType(MUMPSSolver::MatType::SYMMETRIC_INDEFINITE);
+         AreducedSolver.SetMatrixSymType(MUMPSSolver::MatType::SYMMETRIC_POSITIVE_DEFINITE);
 	      AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
 #else 
 #ifdef MFEM_USE_MKL_CPARDISO
@@ -474,10 +473,13 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
 #endif
 #endif
       }
-      else if (linSolver == 2)
+      // PCG-AMG solver on the reduced system
+      else if (linSolver == 2 || linSolver == 5)
       {
-         HypreBoomerAMG amg;
+         HypreBoomerAMG amg(*Areduced);
+         // HypreBoomerAMG amg(*Huu);
          amg.SetPrintLevel(0);
+         amg.SetRelaxType(relax_type);
          if (pfes)
          {
             amg.SetElasticityOptions(pfes);
@@ -486,10 +488,6 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
          {
             amg.SetSystemsOptions(3,false);
          }
-
-
-         amg.SetSystemsOptions(3,false);
-         amg.SetRelaxType(relax_type);
          int n;
 
          if (iAmRoot)
@@ -499,99 +497,44 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
             std::cout << std::string(50,'-') << endl;
          }
 
-         CGSolver AreducedSolver(MPI_COMM_WORLD);
-         AreducedSolver.SetRelTol(linSolveRelTol);
-         AreducedSolver.SetMaxIter(5000);
-	      AreducedSolver.SetPrintLevel(3);
-         AreducedSolver.SetPreconditioner(amg);
+         IterativeSolver * AreducedSolver = nullptr;
 
-         Vector x_nocontact;
+         if (linSolver == 2) 
          {
-            x_nocontact.SetSize(Xhat.GetBlock(0).Size());
-            x_nocontact = Xhat.GetBlock(0);
-         }
-
-         bool diagscale = false;
-
-         if (diagscale)
-         {
-            // Ax = b
-            // D^-1/2 A D^-1/2 y = D^-1/2 b, where x = D^-1/2 y
-            Vector diag;
-            Areduced->GetDiag(diag);
-            for (int i = 0; i<diag.Size(); i++)
-            {
-               diag(i) = 1./sqrt(diag(i));
-            }
-            SparseMatrix Sd(diag);
-            HypreParMatrix Hd(Areduced->GetComm(),Areduced->GetGlobalNumRows(),Areduced->RowPart(), &Sd);
-            HypreParMatrix *DAD = RAP(Areduced, &Hd);
-            Vector Db(breduced.Size());
-            Vector Dx(Xhat.GetBlock(0));
-            Hd.Mult(breduced,Db);
-            AreducedSolver.SetPreconditioner(amg);
-   	      AreducedSolver.SetOperator(*DAD);
-            AreducedSolver.Mult(Db, Dx );
-            Hd.Mult(Dx,Xhat.GetBlock(0));
-            delete DAD;
+            AreducedSolver = new CGSolver(MPI_COMM_WORLD);
          }
          else
          {
-   	      AreducedSolver.SetOperator(*Areduced);
-            AreducedSolver.SetPreconditioner(amg);
-            AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
+            AreducedSolver = new SLISolver(MPI_COMM_WORLD);
          }
+         AreducedSolver->SetRelTol(linSolveRelTol);
+         AreducedSolver->SetMaxIter(50000);
+         AreducedSolver->SetPrintLevel(3);
+         AreducedSolver->SetOperator(*Areduced);
+         AreducedSolver->SetPreconditioner(amg);
+         AreducedSolver->Mult(breduced, Xhat.GetBlock(0));
 
-         n = AreducedSolver.GetNumIterations();
-         // Check how AMG performs without contact
-         if (nocontact)
-         {
-            HypreBoomerAMG amg_nocontact(*Huuloc);
-            amg_nocontact.SetPrintLevel(0);
-            if (pfes)
-            {
-               amg_nocontact.SetElasticityOptions(pfes);
-            }
-            else
-            {
-               amg_nocontact.SetSystemsOptions(3,false);
-            }
-            amg_nocontact.SetRelaxType(relax_type);
-            CGSolver ElasticitySolver(MPI_COMM_WORLD);
-            ElasticitySolver.SetRelTol(linSolveRelTol);
-            ElasticitySolver.SetMaxIter(5000);
-	         ElasticitySolver.SetPrintLevel(3);
-   	      ElasticitySolver.SetOperator(*Huuloc);
-            ElasticitySolver.SetPreconditioner(amg_nocontact);
-            ElasticitySolver.Mult(breduced, x_nocontact);
-            int m = ElasticitySolver.GetNumIterations();
-            cgnum_iterations_nocontact.Append(m);
-         }
+
+         n = AreducedSolver->GetNumIterations();
+
          if (iAmRoot)
          {
             std::cout << std::string(50,'-') << "\n" << endl;
-         }
-         if (!AreducedSolver.GetConverged())
-         {
-            if (iAmRoot)
+            if (!AreducedSolver->GetConverged())
             {
-               cgnum_iterations.Print(mfem::out, cgnum_iterations.Size());
+               if (iAmRoot)
+               {
+                  mfem::out << "CG interagtions = "; 
+                  cgnum_iterations.Print(mfem::out, cgnum_iterations.Size());
+               }
             }
          }
-         MFEM_VERIFY(AreducedSolver.GetConverged(), "PCG solver did not converge");
-
-         // HyprePCG AreducedSolver(*Areduced);
-         // AreducedSolver.SetTol(linSolveTol);
-         // AreducedSolver.SetMaxIter(1000);
-         // AreducedSolver.SetPreconditioner(amg);
-	      // AreducedSolver.SetPrintLevel(1);
-         // // AreducedSolver.SetResidualConvergenceOptions();
-         // AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
-         // AreducedSolver.GetNumIterations(n);
-
+         MFEM_VERIFY(AreducedSolver->GetConverged(), "PCG solver did not converge");
          cgnum_iterations.Append(n);
+         delete AreducedSolver;
       }
 #ifdef MFEM_USE_MUMPS
+      // BlockDiagonalPrecoditioner [amg(Aᵢᵢ) 0; 0 A⁻¹ⱼⱼ]
       else // if linsolver == 3
       {
          // Extract interior and contact dofs
@@ -640,8 +583,13 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
             mumps_b.SetMatrixSymType(MUMPSSolver::MatType::SYMMETRIC_POSITIVE_DEFINITE);
             mumps_b.SetOperator(*PbtAPb);
 
+            TripleProductOperator S(&mumps_b,PbtAPi,&amg_i,false,false,false);
+            ScaledOperator S1(&S,-1.0);
+
             BlockDiagonalPreconditioner prec(blkoffs);
+            // BlockLowerTriangularPreconditioner prec(blkoffs);
             prec.SetDiagonalBlock(0,&amg_i);
+            // prec.SetBlock(1,0,&S1);
             prec.SetDiagonalBlock(1,&mumps_b);
 
             CGSolver BlockSolver(MPI_COMM_WORLD);

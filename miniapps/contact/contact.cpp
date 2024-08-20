@@ -70,6 +70,40 @@ void OutputData(ostringstream & file_name, double E0, double Ef, int dofs, int c
    std::cout << " Data has been written to " << file_name.str().c_str() << endl;
 }
 
+void OutputFinalData(ostringstream & file_name, double E0, double Ef, int dofs, int constr, const std::vector<Array<int>> & iters)
+{
+   file_name << ".csv";
+   std::ofstream outputfile(file_name.str().c_str());
+   if (!outputfile.is_open()) 
+   {
+      MFEM_ABORT("Failed to open file for writing.\n");
+   }
+   outputfile << "Initial Energy objective        = " << E0 << endl;
+   outputfile << "Final Energy objective          = " << Ef << endl;
+   outputfile << "Global number of dofs           = " << dofs << endl;
+   outputfile << "Global number of constraints    = " << constr << endl;
+   outputfile << "TimeStep, OptimizerIterations" << endl;
+   for (int i = 0; i< iters.size(); i++)
+   {
+      outputfile << i+1 <<","<< iters[i].Size() << endl;
+   }
+   outputfile << "CGIterations" << endl;
+   for (int i = 0; i< iters.size(); i++)
+   {
+      for (int j = 0; j < iters[i].Size(); j++)
+      {
+         outputfile << iters[i][j] ;
+         if (j < iters[i].Size()-1)
+         {
+            outputfile << ", ";
+         }
+      }
+      outputfile << endl;
+   }
+   outputfile.close();   
+   std::cout << " Data has been written to " << file_name.str().c_str() << endl;
+}
+
 int main(int argc, char *argv[])
 {
    Mpi::Init();
@@ -91,7 +125,6 @@ int main(int argc, char *argv[])
    int optimizer_maxit = 20;
    int linsolver = 2; // PCG  - AMG
    bool elast = false;
-   bool nocontact = false;
    int testNo = -1; // 0-6
    int nsteps = 1;
    bool outputfiles = false;
@@ -125,9 +158,6 @@ int main(int argc, char *argv[])
    args.AddOption(&elast, "-elast", "--elast", "-no-elast",
                   "--no-elast",
                   "Enable or disable AMG Elasticity options.");
-   args.AddOption(&nocontact, "-nocontact", "--nocontact", "-no-nocontact",
-                  "--no-nocontact",
-                  "Enable or disable AMG solve with no contact for testing.");
    args.AddOption(&doublepass, "-doublepass", "--double-pass", "-singlepass",
                   "--single-pass",
                   "Enable or disable double pass for contact constraints.");                  
@@ -393,8 +423,9 @@ int main(int argc, char *argv[])
    
    Vector xref(x_gf.GetTrueVector().Size());
 
-   double p = 50;
+   double p = 200;
    ConstantCoefficient f(p);
+   std::vector<Array<int>> CGiter;
    for (int i = 0; i<nsteps; i++)
    {
       if (testNo == 6)
@@ -444,19 +475,15 @@ int main(int argc, char *argv[])
       optimizer.SetLinearSolveRelTol(linsolverrtol);
       optimizer.SetLinearSolveAbsTol(linsolveratol);
       optimizer.SetLinearSolveRelaxType(relax_type);
-      if (nocontact)
-      {
-         optimizer.EnableNoContactSolve();
-      }
       if (elast)
       {
          optimizer.SetElasticityOptions(prob->GetFESpace());
       }
 
       x_gf.SetTrueVector();
-      Vector x0 = x_gf.GetTrueVector();
+      // Vector x0 = x_gf.GetTrueVector();
       int ndofs = prob->GetFESpace()->GetTrueVSize();
-      // Vector x0(ndofs); x0 = 0.0;
+      Vector x0(ndofs); x0 = 0.0;
       Vector xf(ndofs); xf = 0.0;
       optimizer.Mult(x0, xf);
 
@@ -466,6 +493,7 @@ int main(int argc, char *argv[])
       double Efinal = contact.E(xf);
       // double Efinal = contact.E(xf_copy);
       Array<int> & CGiterations = optimizer.GetCGIterNumbers();
+      CGiter.push_back(CGiterations);
       int gndofs = prob->GetGlobalNumDofs();
       if (Mpi::Root())
       {
@@ -481,17 +509,17 @@ int main(int argc, char *argv[])
             mfem::out << " CG iteration numbers            = " ;
             CGiterations.Print(mfem::out, CGiterations.Size());
          }
-         if (nocontact)
-         {
-            Array<int> & CGNoContactIterations = optimizer.GetCGNoContactIterNumbers();
-            mfem::out << " CG no Contact iteration numbers = " ;
-            CGNoContactIterations.Print(mfem::out, CGNoContactIterations.Size());
-         }
          if (outputfiles)
          {
             ostringstream file_name;
-            file_name << "output/Testno-"<<testNo<<"-ref-"<<sref+pref << "-step-" << i; 
+            file_name << "output/test"<<testNo<<"/ref"<<sref+pref <<"/nsteps-" << nsteps << "-step-" << i; 
             OutputData(file_name, Einitial, Efinal, gndofs,numconstr, optimizer.GetNumIterations(), CGiterations);
+            if (i == nsteps-1)
+            {
+               ostringstream final_file_name;
+               final_file_name << "output/test"<<testNo<<"/ref"<<sref+pref <<"/nsteps-" << nsteps << "-final"; 
+               OutputFinalData(final_file_name, Einitial, Efinal, gndofs, numconstr, CGiter);
+            }
          }
       }
 

@@ -65,7 +65,6 @@ protected:
     double linSolveAbsTol = 1e-12;
     double linSolveRelTol = 1e-6;
     int relax_type = 8;
-    bool nocontact = false;
 public:
     ParInteriorPointSolver(QPOptParContactProblem*);
     double MaxStepSize(Vector& , Vector& , Vector& , double);
@@ -100,10 +99,6 @@ public:
     void SetElasticityOptions(ParFiniteElementSpace * pfes_)
     {
         pfes = pfes_;
-    }
-    void EnableNoContactSolve()
-    {
-        nocontact = true;
     }
     virtual ~ParInteriorPointSolver();
 };
