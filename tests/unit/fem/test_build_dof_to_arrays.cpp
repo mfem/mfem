@@ -145,9 +145,9 @@ TEST_CASE("Build Dof To Arrays",
 
                   if (bdr_l < 0 || bdr_l >= dofs.Size()) { num_bdr_rang_fails++; }
 
-                  int elemdof = (dofs[bdr_l] >= 0) ? dofs[bdr_l] : (-1 - dofs[bdr_l]);
+                  int bdr_elemdof = (dofs[bdr_l] >= 0) ? dofs[bdr_l] : (-1 - dofs[bdr_l]);
 
-                  if (i != elemdof) { num_bdr_elemdof_fails++; }
+                  if (i != bdr_elemdof) { num_bdr_elemdof_fails++; }
 
                }
             }
@@ -260,9 +260,9 @@ TEST_CASE("Build Dof To Arrays (Parallel)",
 
                if (l < 0 || l >= dofs.Size()) { num_rang_fails++; }
 
-               int ldof = (dofs[l] >= 0) ? dofs[l] : (-1 - dofs[l]);
+               int elemdof = (dofs[l] >= 0) ? dofs[l] : (-1 - dofs[l]);
 
-               if (i != ldof) { num_ldof_fails++; }
+               if (i != elemdof) { num_ldof_fails++; }
 
                int bdr_e = fespace.GetBdrElementForDof(i);
                int bdr_l = fespace.GetBdrLocalDofForDof(i);
@@ -275,9 +275,9 @@ TEST_CASE("Build Dof To Arrays (Parallel)",
 
                   if (bdr_l < 0 || bdr_l >= dofs.Size()) { num_bdr_rang_fails++; }
 
-                  int elemdof = (dofs[bdr_l] >= 0) ? dofs[bdr_l] : (-1 - dofs[bdr_l]);
+                  int bdr_elemdof = (dofs[bdr_l] >= 0) ? dofs[bdr_l] : (-1 - dofs[bdr_l]);
 
-                  if (i != elemdof) { num_bdr_elemdof_fails++; }
+                  if (i != bdr_elemdof) { num_bdr_elemdof_fails++; }
                }
 
             }
