@@ -167,11 +167,11 @@ void ParFiniteElementSpace::CommunicateGhostOrder(
    // Only orders greater than baseOrder are communicated.
    const int baseOrder = fec->GetOrder();
    Array<VarOrderElemInfo> localOrders;
-   for (unsigned int i=0; i<mesh->GetNE(); ++i)
+   for (int i=0; i<mesh->GetNE(); ++i)
    {
       if (elem_order[i] > baseOrder)
       {
-         VarOrderElemInfo order_i{i, elem_order[i]};
+         VarOrderElemInfo order_i{(unsigned int) i, elem_order[i]};
          localOrders.Append(order_i);
       }
    }
