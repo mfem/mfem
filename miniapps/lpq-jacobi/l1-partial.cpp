@@ -358,11 +358,25 @@ int main(int argc, char *argv[])
       it_solver->SetRelTol(rel_tol);
       it_solver->SetMaxIter(max_iter);
       it_solver->SetPrintLevel(1);
-      it_solver->SetPreconditioner(*abs_jacobi);
    }
 
    solver->SetOperator(*A);
+
+   StopWatch tictoc;
+
+   tictoc.Restart();
    solver->Mult(B, X);
+   if (Mpi::Root()) { mfem::out << "Time elapsed with/o PC: " << tictoc.RealTime() << endl; }
+
+
+   a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+
+   solver->SetOperator(*A);
+   if (it_solver) { it_solver->SetPreconditioner(*abs_jacobi); }
+
+   tictoc.Restart();
+   solver->Mult(B,X);
+   if (Mpi::Root()) { mfem::out << "Time elapsed with PC: " << tictoc.RealTime() << endl; }
 
    /// 10. Recover the solution x as a grid function. Send the data by socket
    ///     to a GLVis server.
