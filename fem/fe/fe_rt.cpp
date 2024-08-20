@@ -1264,8 +1264,11 @@ void RT_WedgeElement::CalcDivShape(const IntegrationPoint &ip,
    }
 }
 
-const real_t RT_FuentesPyramidElement::nk[15] =
-{ 0,0,-1,  0,-1,0,  1,0,1,  0,1,1,  -1,0,0 };
+const real_t RT_FuentesPyramidElement::nk[24] =
+{
+   0,0,-1,  0,-1,0,  1,0,1,  0,1,1,  -1,0,0,
+   M_SQRT2,0,M_SQRT1_2, 0,M_SQRT2,M_SQRT1_2, 0,0,1
+};
 
 RT_FuentesPyramidElement::RT_FuentesPyramidElement(const int p)
    : VectorFiniteElement(3, Geometry::PYRAMID, (p + 1)*(3*p*(p + 2) + 5),
@@ -1309,11 +1312,12 @@ RT_FuentesPyramidElement::RT_FuentesPyramidElement(const int p)
 #endif
 
    int o = 0;
+
    // quadrilateral face
    for (int j = 0; j <= p; j++)
       for (int i = 0; i <= p; i++)  // (3,2,1,0)
       {
-         Nodes.IntPoint(o).Set3(bop[i], bop[p-j], 0.);
+         Nodes.IntPoint(o).Set3(bop[i], bop[j], 0.);
          dof2nk[o++] = 0;
       }
    // triangular faces
@@ -1354,7 +1358,7 @@ RT_FuentesPyramidElement::RT_FuentesPyramidElement(const int p)
          {
             real_t w = 1.0 - iop[k];
             Nodes.IntPoint(o).Set3(icp[i]*w, iop[j]*w, iop[k]);
-            dof2nk[o++] = 4;
+            dof2nk[o++] = 5;
          }
    // y-components
    for (int k = 0; k <= p; k++)
@@ -1363,7 +1367,7 @@ RT_FuentesPyramidElement::RT_FuentesPyramidElement(const int p)
          {
             real_t w = 1.0 - iop[k];
             Nodes.IntPoint(o).Set3(iop[i]*w, icp[j]*w, iop[k]);
-            dof2nk[o++] = 1;
+            dof2nk[o++] = 6;
          }
    // z-components
    for (int k = 1; k <= p; k++)
@@ -1372,7 +1376,7 @@ RT_FuentesPyramidElement::RT_FuentesPyramidElement(const int p)
          {
             real_t w = 1.0 - icp[k];
             Nodes.IntPoint(o).Set3(iop[i]*w, iop[j]*w, icp[k]);
-            dof2nk[o++] = 0;
+            dof2nk[o++] = 7;
          }
 
    DenseMatrix T(dof);
@@ -1394,9 +1398,9 @@ RT_FuentesPyramidElement::RT_FuentesPyramidElement(const int p)
 void RT_FuentesPyramidElement::CalcVShape(const IntegrationPoint &ip,
                                           DenseMatrix &shape) const
 {
+#ifdef MFEM_THREAD_SAFE
    const int p = order - 1;
 
-#ifdef MFEM_THREAD_SAFE
    Vector      tmp1_i(p + 2);
    DenseMatrix tmp1_ij(p + 2, p + 2);
    DenseMatrix tmp2_ij(p + 2, dim);
@@ -1421,9 +1425,9 @@ void RT_FuentesPyramidElement::CalcVShape(const IntegrationPoint &ip,
 void RT_FuentesPyramidElement::CalcRawVShape(const IntegrationPoint &ip,
                                              DenseMatrix &shape) const
 {
+#ifdef MFEM_THREAD_SAFE
    const int p = order - 1;
 
-#ifdef MFEM_THREAD_SAFE
    Vector      tmp1_i(p + 2);
    DenseMatrix tmp1_ij(p + 2, p + 2);
    DenseMatrix tmp2_ij(p + 2, dim);
@@ -1445,8 +1449,9 @@ void RT_FuentesPyramidElement::CalcRawVShape(const IntegrationPoint &ip,
 void RT_FuentesPyramidElement::CalcDivShape(const IntegrationPoint &ip,
                                             Vector &divshape) const
 {
-   const int p = order - 1;
 #ifdef MFEM_THREAD_SAFE
+   const int p = order - 1;
+
    Vector      tmp1_i(p + 2);
    DenseMatrix tmp1_ij(p + 2, p + 2);
    DenseMatrix tmp2_ij(p + 2, dim);
@@ -1473,9 +1478,9 @@ void RT_FuentesPyramidElement::CalcDivShape(const IntegrationPoint &ip,
 void RT_FuentesPyramidElement::CalcRawDivShape(const IntegrationPoint &ip,
                                                Vector &dshape) const
 {
+#ifdef MFEM_THREAD_SAFE
    const int p = order - 1;
 
-#ifdef MFEM_THREAD_SAFE
    Vector      tmp1_i(p + 2);
    DenseMatrix tmp1_ij(p + 2, p + 2);
    DenseMatrix tmp2_ij(p + 2, dim);
@@ -1514,7 +1519,7 @@ void RT_FuentesPyramidElement::calcBasis(const int p,
    real_t y = ip.y;
    real_t z = ip.z;
    Vector xy({x,y}), dmuz(3);
-   real_t mu, muInv;
+   real_t mu;
 
    if (std::fabs(1.0 - z) < 1e-4)
    {
@@ -1772,7 +1777,7 @@ void RT_FuentesPyramidElement::calcDivBasis(const int p,
    real_t y = ip.y;
    real_t z = ip.z;
    Vector xy({x,y}), dmuz(3);
-   real_t mu, muInv, mu2Inv;
+   real_t mu;
 
    if (std::fabs(1.0 - z) < 1e-4)
    {
