@@ -312,36 +312,98 @@ int main(int argc, char *argv[])
    b->AddDomainIntegrator(lfi);
    b->Assemble();
 
-   a->FormSystemMatrix(ess_tdof_list, A);
-   // TODO(Gabriel): Still debugging....
-   // a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
-   //
+   a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+
    /// 8. Construct the preconditioner. User-inputs define the p_order and q_order
    ///    of the L(p,q)-Jacobi type smoother.
    // D_{p,q} = diag( D^{1+q-p} |A|^p D^{-q} 1) , where D = diag(A)
 
-
-   // Set up constant vector of ones
    Vector ones(fespace->GetTrueVSize());
    Vector result(fespace->GetTrueVSize());
-   Vector diag_a(fespace->GetTrueVSize());
 
-   // ones.Randomize();
    ones = 1.0;
-
-   a->AssembleDiagonal(diag_a);
    A->AbsMult(ones, result);
 
-   if (Mpi::Root())
+   // TODO(Gabriel): Debug...
    {
-      mfem::out << "Printing results: " << endl;
-      mfem::out << "Diag:\n" << endl;
-      diag_a.Print(mfem::out,1);
-      mfem::out << "|A|1:\n" << endl;
-      result.Print(mfem::out,1);
-      mfem::out << "\nThank you\n" << endl;
+      Vector diag_a(fespace->GetTrueVSize());
+      a->AssembleDiagonal(diag_a);
+      if (Mpi::Root())
+      {
+         mfem::out << "Printing results: " << endl;
+         mfem::out << "Diag:\n" << endl;
+         diag_a.Print(mfem::out,1);
+         mfem::out << "|A|1:\n" << endl;
+         result.Print(mfem::out,1);
+         mfem::out << "\nThank you\n" << endl;
+      }
+   }
+   // TODO(Gabriel): End debug
+
+   auto abs_jacobi = new OperatorJacobiSmoother(result, ess_tdof_list);
+
+   Solver *solver = nullptr;
+   switch (solver_type)
+   {
+      case sli:
+         solver = new SLISolver(MPI_COMM_WORLD);
+         break;
+      case cg:
+         solver = new CGSolver(MPI_COMM_WORLD);
+         break;
+      default:
+         mfem_error("Invalid solver type!");
    }
 
+   IterativeSolver *it_solver = dynamic_cast<IterativeSolver *>(solver);
+   if (it_solver)
+   {
+      it_solver->SetRelTol(rel_tol);
+      it_solver->SetMaxIter(max_iter);
+      it_solver->SetPrintLevel(1);
+      it_solver->SetPreconditioner(*abs_jacobi);
+   }
+
+   solver->SetOperator(*A);
+   solver->Mult(B, X);
+
+   /// 10. Recover the solution x as a grid function. Send the data by socket
+   ///     to a GLVis server.
+   a->RecoverFEMSolution(X, *b, x);
+
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream sol_sock(vishost, visport);
+      sol_sock << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank() << "\n";
+      sol_sock.precision(8);
+      sol_sock << "solution\n" << *mesh << x << flush;
+   }
+
+   /// 11. Compute and print the L^2 norm of the error
+   {
+      real_t error = 0.0;
+      switch (integrator_type)
+      {
+         case mass: case diffusion:
+            error = x.ComputeL2Error(*scalar_u);
+            break;
+         case elasticity: case maxwell:
+            error = x.ComputeL2Error(*vector_u);
+            break;
+         default:
+            mfem_error("Invalid integrator type! Check ComputeL2Error");
+      }
+      if (Mpi::Root())
+      {
+         mfem::out << "\n|| u_h - u ||_{L^2} = " << error << "\n" << endl;
+      }
+   }
+
+   /// 12. Free the memory used
+   delete solver;
+   delete abs_jacobi;
    delete a;
    delete b;
    if (scalar_u) { delete scalar_u; }
