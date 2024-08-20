@@ -4040,7 +4040,7 @@ std::unique_ptr<GridFunction> GridFunction::ProlongateToMaxOrder() const
    // Find the max order in the space
    int maxOrder = fes->GetMaxElementOrder();
 
-   // Create a visualization space of max order for all elements
+   // Create a space of maximum order over all elements for output
    FiniteElementCollection *fecMax = fesc->Clone(maxOrder);
    FiniteElementSpace *fesMax = new FiniteElementSpace(mesh, fecMax, vdim,
                                                        fes->GetOrdering());

@@ -247,7 +247,6 @@ void ParFiniteElementSpace::Construct()
                for (int var=0; var<nvar; ++var)
                {
                   const int fo = GetFaceOrder(ghostFace, var);
-
                   const int dofs = fec->GetNumDof(Geometry::SQUARE, fo);
                   ngfdofs += dofs;
                }
@@ -1880,7 +1879,6 @@ void ParFiniteElementSpace::GetGhostFaceDofs(const MeshId &face_id,
 
          const int* ebeg = var_edge_dofs.GetRow(E[i]);
          const int ne_i = ebeg[evar[i] + 1] - ebeg[evar[i]];
-         // TODO: isn't ne_i constant, so allne can be computed by multiplication?
          allne += ne_i;
       }
 
@@ -2543,9 +2541,8 @@ void NeighborOrderMessage::Decode(int rank)
    msgs.clear();
    msgs.reserve(nrows);
 
-   // TODO: eliminate ent 0?
    // Read messages. ent = {0,1,2} means vertex, edge and face entity
-   for (int ent = 0, gi = 0; ent < 3; ent++)
+   for (int ent = 1, gi = 0; ent < 3; ent++)
    {
       // extract the vertex list, edge list or face list.
       const Array<MeshId> &ids = ent_ids[ent];
@@ -2813,8 +2810,7 @@ void NeighborRowMessage::Decode(int rank)
          // read the particular element dof value off the stream.
          int edof = bin_io::read<int>(stream);
          int order_i = bin_io::read<int>(stream);
-
-         MFEM_VERIFY(order_i >= 0, "");
+         MFEM_ASSERT(order_i >= 0, "");
 
          // Handle orientation and sign change. This flips the sign on dofs
          // where necessary, and for edges and faces also reorders if flipped,

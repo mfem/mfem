@@ -119,7 +119,7 @@ clean: clean-build clean-exec
 clean-build:
 	rm -f *.o *~ mobius-strip klein-bottle toroid twist
 	rm -f mesh-explorer shaper extruder trimmer reflector
-	rm -f mesh-optimizer pmesh-optimizer pmesh-fitting polar-nc
+	rm -f mesh-optimizer pmesh-optimizer pmesh-fitting polar-nc hpref
 	rm -f minimal-surface pminimal-surface mesh-quality fit-node-position
 	rm -rf *.dSYM *.TVD.*breakpoints
 

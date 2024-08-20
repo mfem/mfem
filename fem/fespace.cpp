@@ -1598,9 +1598,7 @@ SparseMatrix *FiniteElementSpace::VariableOrderRefinementMatrix(
       }
    }
 
-   // TODO: Not sure if this check makes sense in the variable order case
    MFEM_VERIFY(mark.Sum() == P->Height(), "Not all rows of P set.");
-   //if (elem_geoms.Size() != 1) { P->Finalize(); }
    P->Finalize();
    return P;
 }
