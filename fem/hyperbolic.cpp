@@ -657,6 +657,19 @@ void BurgersFlux::ComputeFluxJacobian(const Vector &U,
       }
 }
 
+void BurgersFlux::ComputeFluxJacobianDotN(const Vector &U,
+                                          const Vector &normal,
+                                          ElementTransformation &Tr,
+                                          DenseMatrix &JDotN) const
+{
+   JDotN = 0.;
+   const real_t ns = normal.Sum();
+   for (int i = 0; i < num_equations; i++)
+   {
+      JDotN(i,i) = U(i) * ns;
+   }
+}
+
 real_t ShallowWaterFlux::ComputeFlux(const Vector &U,
                                      ElementTransformation &Tr,
                                      DenseMatrix &FU) const

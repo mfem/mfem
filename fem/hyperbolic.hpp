@@ -407,7 +407,12 @@ public:
 
    void ComputeFluxJacobian(const Vector &state,
                             ElementTransformation &Tr,
-                            DenseTensor &J) const;
+                            DenseTensor &J) const override;
+
+   void ComputeFluxJacobianDotN(const Vector &state,
+                                const Vector &normal,
+                                ElementTransformation &Tr,
+                                DenseMatrix &JDotN) const override;
 };
 
 class ShallowWaterFlux : public FluxFunction
