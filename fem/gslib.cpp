@@ -37,7 +37,7 @@ FindPointsGSLIB::FindPointsGSLIB()
    : mesh(NULL),
      fec_map_lin(NULL),
      fdata2D(NULL), fdata3D(NULL), cr(NULL), gsl_comm(NULL),
-     dim(-1), points_cnt(0), setupflag(false), default_interp_value(0),
+     dim(-1), points_cnt(-1), setupflag(false), default_interp_value(0),
      avgtype(AvgType::ARITHMETIC), bdr_tol(1e-8)
 {
    mesh_split.SetSize(4);
@@ -85,7 +85,7 @@ FindPointsGSLIB::FindPointsGSLIB(MPI_Comm comm_)
    : mesh(NULL),
      fec_map_lin(NULL),
      fdata2D(NULL), fdata3D(NULL), cr(NULL), gsl_comm(NULL),
-     dim(-1), points_cnt(0), setupflag(false), default_interp_value(0),
+     dim(-1), points_cnt(-1), setupflag(false), default_interp_value(0),
      avgtype(AvgType::ARITHMETIC), bdr_tol(1e-8)
 {
    mesh_split.SetSize(4);
@@ -307,6 +307,7 @@ void FindPointsGSLIB::FreeData()
    }
    if (fec_map_lin) { delete fec_map_lin; fec_map_lin = NULL; }
    setupflag = false;
+   points_cnt = -1;
 }
 
 void FindPointsGSLIB::SetupSplitMeshes()
@@ -1172,7 +1173,7 @@ void FindPointsGSLIB::DistributePointInfoToOwningMPIRanks(
    Array<unsigned int> &recv_elem, Vector &recv_ref,
    Array<unsigned int> &recv_code)
 {
-   MFEM_VERIFY(points_cnt,
+   MFEM_VERIFY(points_cnt >= 0,
                "Invalid size. Please make sure to call FindPoints method "
                "before calling this function.");
 
