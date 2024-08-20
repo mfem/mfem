@@ -19,6 +19,8 @@
 #include "qfunction.hpp"
 #include <memory>
 
+#include "kernel_dispatch.hpp"
+
 namespace mfem
 {
 
@@ -2127,6 +2129,22 @@ public:
     can be a scalar or a matrix coefficient. */
 class DiffusionIntegrator: public BilinearFormIntegrator
 {
+public:
+
+   using ApplyKernelType = void(*)(const int, const bool, const Array<real_t>&,
+                                   const Array<real_t>&, const Array<real_t>&,
+                                   const Array<real_t>&,
+                                   const Vector&, const Vector&,
+                                   Vector&, const int, const int);
+
+   using DiagonalKernelType = void(*)(const int, const bool, const Array<real_t>&,
+                                      const Array<real_t>&, const Vector&, Vector&,
+                                      const int, const int);
+
+   MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int, int));
+   MFEM_REGISTER_KERNELS(DiagonalPAKernels, DiagonalKernelType, (int, int, int));
+   static struct Kernels { Kernels(); } kernels;
+
 protected:
    Coefficient *Q;
    VectorCoefficient *VQ;
@@ -2287,6 +2305,13 @@ public:
    bool SupportsCeed() const { return DeviceCanUseCeed(); }
 
    Coefficient *GetCoefficient() const { return Q; }
+
+   template <int DIM, int D1D, int Q1D>
+   static void AddSpecialization()
+   {
+      ApplyPAKernels::Specialization<DIM,D1D,Q1D>::Add();
+      DiagonalPAKernels::Specialization<DIM,D1D,Q1D>::Add();
+   }
 };
 
 /** Class for local mass matrix assembling $a(u,v) := (Q u, v)$ */
@@ -2305,6 +2330,20 @@ protected:
    const GeometricFactors *geom;          ///< Not owned
    const FaceGeometricFactors *face_geom; ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
+
+public:
+
+   using ApplyKernelType = void(*)(const int, const Array<real_t>&,
+                                   const Array<real_t>&, const Vector&,
+                                   const Vector&, Vector&, const int, const int);
+
+   using DiagonalKernelType =  void(*)(const int, const Array<real_t>&,
+                                       const Vector&, Vector&, const int,
+                                       const int);
+
+   MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int, int));
+   MFEM_REGISTER_KERNELS(DiagonalPAKernels, DiagonalKernelType, (int, int, int));
+   static struct Kernels { Kernels(); } kernels;
 
 public:
    MassIntegrator(const IntegrationRule *ir = NULL)
@@ -2351,6 +2390,13 @@ public:
    bool SupportsCeed() const { return DeviceCanUseCeed(); }
 
    const Coefficient *GetCoefficient() const { return Q; }
+
+   template <int DIM, int D1D, int Q1D>
+   static void AddSpecialization()
+   {
+      ApplyPAKernels::Specialization<DIM,D1D,Q1D>::Add();
+      DiagonalPAKernels::Specialization<DIM,D1D,Q1D>::Add();
+   }
 };
 
 /** Mass integrator $(u, v)$ restricted to the boundary of a domain */
