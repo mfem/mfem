@@ -85,18 +85,19 @@ int main (int argc, char *argv[])
 
    // Set the method's default parameters.
    const char *mesh_file = "square01.mesh";
-   int mesh_poly_deg     = 3;
+   int mesh_poly_deg     = 2;
    int rs_levels         = 1;
+   int rp_levels         = 0;
    int metric_id         = 2;
    int target_id         = 1;
-   real_t surface_fit_const = 5000;
+   real_t surface_fit_const = 100;
    int quad_order        = 8;
    int solver_type       = 0;
-   int solver_iter       = 10;
+   int solver_iter       = 100;
 #ifdef MFEM_USE_SINGLE
    real_t solver_rtol    = 1e-4;
 #else
-   real_t solver_rtol    = 1e-5;
+   real_t solver_rtol    = 1e-10;
 #endif
    int lin_solver        = 3;
    int max_lin_iter      = 100;
@@ -104,9 +105,9 @@ int main (int argc, char *argv[])
    bool visualization    = true;
    int verbosity_level   = 2;
    int adapt_eval        = 1;
-   const char *devopt    = "debug";
-   real_t surface_fit_adapt = 0.0;
-   real_t surface_fit_threshold = -10;
+   const char *devopt    = "cuda";
+   real_t surface_fit_adapt = 2.0;
+   real_t surface_fit_threshold = 1e-7;
    real_t surf_fit_const_max    = 1e20;
    bool adapt_marking     = false;
    bool surf_bg_mesh      = false;
@@ -130,6 +131,8 @@ int main (int argc, char *argv[])
                   "Polynomial degree of mesh finite element space.");
    args.AddOption(&rs_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
+   args.AddOption(&rp_levels, "-rp", "--refine-parallel",
+                  "Number of times to refine the mesh uniformly in parallel.");
    args.AddOption(&metric_id, "-mid", "--metric-id",
                   "Mesh optimization metric. See list in mesh-optimizer.");
    args.AddOption(&target_id, "-tid", "--target-id",
@@ -264,6 +267,10 @@ int main (int argc, char *argv[])
 
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
+   for (int lev = 0; lev < rp_levels; lev++)
+   {
+      pmesh->UniformRefinement();
+   }
 
    // Setup background mesh for surface fitting
    ParMesh *pmesh_surf_fit_bg = NULL;
@@ -360,7 +367,7 @@ int main (int argc, char *argv[])
       mesh_name << "perturbed.mesh";
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-      pmesh->PrintAsSerial(mesh_ofs);
+      // pmesh->PrintAsSerial(mesh_ofs);
    }
 
    // 11. Store the starting (prior to the optimization) positions.
@@ -928,7 +935,7 @@ int main (int argc, char *argv[])
       mesh_name << "optimized.mesh";
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-      pmesh->PrintAsSerial(mesh_ofs);
+      // pmesh->PrintAsSerial(mesh_ofs);
    }
 
    // Compute the final energy of the functional.
@@ -956,6 +963,8 @@ int main (int argc, char *argv[])
            << (init_energy - fin_energy) * 100.0 / init_energy << " %." << endl;
    }
 
+   int nel_glob = pmesh->GetGlobalNE();
+
    if (surface_fit_const >= 0.0)
    {
       adapt_surface->ComputeAtNewPosition(x, surf_fit_gf0,
@@ -976,6 +985,24 @@ int main (int argc, char *argv[])
       {
          std::cout << "Avg fitting error: " << err_avg << std::endl
                    << "Max fitting error: " << err_max << std::endl;
+         std::cout << setprecision(7);
+         std::cout << "k10fitinfo " <<
+                      "mesh,metric,rs,rp,order,grad-int,nel,sfc,sfa,initenergy,"
+                      "finenergy,finmetricenergy,avgfiterr,finalfiterr " <<
+                      mesh_file << "," <<
+                      metric_id << "," <<
+                      rs_levels << "," <<
+                      rp_levels << "," <<
+                      mesh_poly_deg << "," <<
+                      grad_int << "," <<
+                      nel_glob << "," <<
+                      surf_fit_const << "," <<
+                      surf_fit_adapt << "," <<
+                      init_energy << "," <<
+                      fin_energy << "," <<
+                      fin_metric_energy << "," <<
+                      err_avg << "," <<
+                      err_max << std::endl;
       }
    }
 

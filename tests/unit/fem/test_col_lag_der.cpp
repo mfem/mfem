@@ -29,6 +29,24 @@ static void dummyfunction(const Vector &x, Vector &p)
    }
 }
 
+static IntegrationRule PermuteIR(const IntegrationRule *irule,
+                                 const Array<int> &perm)
+{
+   const int np = irule->GetNPoints();
+   MFEM_VERIFY(np == perm.Size(), "Invalid permutation size");
+   IntegrationRule ir(np);
+   ir.SetOrder(irule->GetOrder());
+
+   for (int i = 0; i < np; i++)
+   {
+      IntegrationPoint &ip_new = ir.IntPoint(i);
+      const IntegrationPoint &ip_old = irule->IntPoint(perm[i]);
+      ip_new.Set(ip_old.x, ip_old.y, ip_old.z, ip_old.weight);
+   }
+
+   return ir;
+}
+
 TEST_CASE("CollocatedLagrangeDerivatives", "[CollocatedLagrangeDerivatives]")
 {
    const auto mesh_fname = GENERATE(
@@ -113,7 +131,7 @@ TEST_CASE("CollocatedLagrangeDerivatives", "[CollocatedLagrangeDerivatives]")
    const NodalFiniteElement *nfe = dynamic_cast<const NodalFiniteElement*>
                                    (&fe);
    const Array<int> &irordering = nfe->GetLexicographicOrdering();
-   IntegrationRule ir = irnodes.Permute(irordering);
+   IntegrationRule ir = PermuteIR(&irnodes, irordering);
 
    int nqp = ir.GetNPoints();
    const DofToQuad maps = fe.GetDofToQuad(ir, DofToQuad::TENSOR);
@@ -147,7 +165,7 @@ TEST_CASE("CollocatedLagrangeDerivatives", "[CollocatedLagrangeDerivatives]")
    /// Use collocated point kernels
    Vector col_phys_der(nelem*vdim*nqp*sdim);
    CollocatedTensorPhysDerivatives<QVectorLayout::byNODES>(nelem, vdim, maps,
-                                        *geom, evec_values, col_phys_der);
+                                           *geom, evec_values, col_phys_der);
    qp_phys_der -= col_phys_der;
    REQUIRE(qp_phys_der.Normlinf() == MFEM_Approx(0.0, 1e-10, 1e-10));
 

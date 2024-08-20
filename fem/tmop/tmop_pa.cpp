@@ -125,6 +125,23 @@ void TMOP_Integrator::AssemblePA_Limiting()
    }
 }
 
+static IntegrationRule PermuteIR(const IntegrationRule *irule,
+                                 const Array<int> &perm)
+{
+   const int np = irule->GetNPoints();
+   MFEM_VERIFY(np == perm.Size(), "Invalid permutation size");
+   IntegrationRule ir(np);
+   ir.SetOrder(irule->GetOrder());
+
+   for (int i = 0; i < np; i++)
+   {
+      IntegrationPoint &ip_new = ir.IntPoint(i);
+      const IntegrationPoint &ip_old = irule->IntPoint(perm[i]);
+      ip_new.Set(ip_old.x, ip_old.y, ip_old.z, ip_old.weight);
+   }
+
+   return ir;
+}
 
 void TMOP_Integrator::AssemblePA_Fitting()
 {
@@ -146,7 +163,6 @@ void TMOP_Integrator::AssemblePA_Fitting()
    PA.N0 = surf_fit_normal;
 
    // surf_fit_gf -> PA.S0 (E-vector)
-   MFEM_VERIFY(surf_fit_gf->FESpace() == fes_fit, "");
    const Operator *n1_R = fes_fit->GetElementRestriction(ordering);
    PA.S0.SetSize(n1_R->Height(), Device::GetMemoryType());
    PA.S0.UseDevice(true);
@@ -155,27 +171,33 @@ void TMOP_Integrator::AssemblePA_Fitting()
    // surf_fit_dof_count -> PA.DC (E-vector)
    Vector temp1;
    temp1.SetSize(surf_fit_dof_count.Size());
-   for(int i=0; i< temp1.Size(); i++){
+   for(int i=0; i< temp1.Size(); i++)
+   {
       temp1[i] = surf_fit_dof_count[i];
    }
-   const Operator *n2_R = fes_fit->GetElementRestriction(ordering);
-   PA.DC.SetSize(n2_R->Height(), Device::GetMemoryType());
+   PA.DC.SetSize(n1_R->Height(), Device::GetMemoryType());
    PA.DC.UseDevice(true);
-   n2_R->Mult(temp1, PA.DC);
+   n1_R->Mult(temp1, PA.DC);
 
    // surf_fit_marker -> PA.M0
    Vector temp2;
-   temp2.SetSize(surf_fit_marker->Size());
-   for (int i = 0; i< surf_fit_marker->Size(); i++){
-      if ((*surf_fit_marker)[i] == true){
-         temp2[i] = 1;
-      } else {temp2[i] = 0.;}
+   temp2.SetSize(surf_fit_dof_count.Size());
+   for (int i = 0; i< surf_fit_marker->Size(); i++)
+   {
+      if ((*surf_fit_marker)[i] == true)
+      {
+         temp2[i] = 1.0;
+      }
+      else
+      {
+         temp2[i] = 0.0;
+      }
    }
-   const Operator *n3_R = fes_fit->GetElementRestriction(ordering);
-   PA.M0.SetSize(n3_R->Height(), Device::GetMemoryType());
+   PA.M0.SetSize(n1_R->Height(), Device::GetMemoryType());
    PA.M0.UseDevice(true);
-   n3_R->Mult(temp2, PA.M0);
+   n1_R->Mult(temp2, PA.M0);
 
+   PA.FE.SetSize(0);
    for (int el_id = 0; el_id < NE; el_id++){
       Array<int> dofs, vdofs;
       fes_fit->GetElementVDofs(el_id, vdofs);
@@ -189,6 +211,7 @@ void TMOP_Integrator::AssemblePA_Fitting()
       }
       if (count != 0) { PA.FE.Append(el_id);}
    }
+   PA.nefit = PA.FE.Size();
 
    if(surf_fit_grad)
    {
@@ -213,7 +236,7 @@ void TMOP_Integrator::AssemblePA_Fitting()
       const IntegrationRule irnodes = fe.GetNodes();
       const NodalFiniteElement *nfe = dynamic_cast<const NodalFiniteElement*>(&fe);
       const Array<int> &irordering = nfe->GetLexicographicOrdering();
-      IntegrationRule ir = irnodes.Permute(irordering);
+      IntegrationRule ir = PermuteIR(&irnodes, irordering);
       int nqp = ir.GetNPoints();
       const DofToQuad maps = fe.GetDofToQuad(ir, DofToQuad::TENSOR);
       auto geom = fes_fit->GetMesh()->GetGeometricFactors(ir, GeometricFactors::JACOBIANS);
@@ -239,6 +262,7 @@ void TMOP_Integrator::AssemblePA_Fitting()
    // Energy vector for surface fitting, scalar Q-vector
    PA.EFit.UseDevice(true);
    PA.EFit.SetSize(PA.S0.Size(), Device::GetDeviceMemoryType());
+   PA.EFit = 0.0;
 
    // Hessian vector for surface fitting, scalar Q-vector
    PA.H0Fit.UseDevice(true);
@@ -366,7 +390,7 @@ void TMOP_Integrator::UpdateSurfaceFittingCoefficientsPA(const Vector &x_loc)
       const IntegrationRule irnodes = fe.GetNodes();
       const NodalFiniteElement *nfe = dynamic_cast<const NodalFiniteElement*>(&fe);
       const Array<int> &irordering = nfe->GetLexicographicOrdering();
-      IntegrationRule ir = irnodes.Permute(irordering);
+      IntegrationRule ir = PermuteIR(&irnodes, irordering);
 
       int nelem = fes_fit->GetMesh()->GetNE();
       const DofToQuad maps = fe.GetDofToQuad(ir, DofToQuad::TENSOR);
@@ -392,11 +416,9 @@ void TMOP_Integrator::UpdateSurfaceFittingCoefficientsPA(const Vector &x_loc)
 
          internal::quadrature_interpolator::CollocatedDerivatives2D<L, P>
          (nelem,maps.G.Read(),Jacobians.Read(),PA.S0.Read(),PA.D1.Write(),sdim,vdim,maps.ndof);
-         PA.D1.HostRead();
 
          internal::quadrature_interpolator::CollocatedDerivatives2D<L, P>
          (nelem,maps.G.Read(),Jacobians.Read(),PA.D1.Read(),PA.D2.Write(),sdim,vdim*2,maps.ndof);
-         PA.D2.HostRead();
       }
       if (PA.dim == 3)
       {
@@ -405,11 +427,9 @@ void TMOP_Integrator::UpdateSurfaceFittingCoefficientsPA(const Vector &x_loc)
 
          internal::quadrature_interpolator::CollocatedDerivatives3D<L, P>
          (nelem,maps.G.Read(),Jacobians.Read(),PA.S0.Read(),PA.D1.Write(),vdim,maps.ndof);
-         PA.D1.HostRead();
 
          internal::quadrature_interpolator::CollocatedDerivatives3D<L, P>
          (nelem,maps.G.Read(),Jacobians.Read(),PA.D1.Read(),PA.D2.Write(),vdim*3,maps.ndof);
-         PA.D2.HostRead();
       }
    }
 

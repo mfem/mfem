@@ -1839,7 +1839,7 @@ protected:
    // MC: Q-Vector for the metric Coefficient.
    //     Updated when the mesh nodes change.
    //
-   // 
+   //
    // EFit: Q-vector for TMOP-energy while surface fitting
    //       Used as temporary storage when the total energy is computed.
    // OFit: Q-Vector of 1.0, used to compute sums using the dot product kernel.
@@ -1851,7 +1851,7 @@ protected:
    // D2: E-Vector for storing the surface fit hessians.
    // PW: Constant coefficient that stores surf_fit_coeff.
    // N0: Real scalar that stores surf_fit_normal.
-   // 
+   //
    //
    //
    // maps:     Dof2Quad map for fes associated with the nodal coordinates.
@@ -1870,14 +1870,14 @@ protected:
    struct
    {
       bool enabled;
-      int dim, ne, nq;
+      int dim, ne, nq, nefit;
       mutable DenseTensor Jtr;
       mutable bool Jtr_needs_update;
       mutable bool Jtr_debug_grad;
       mutable Vector E, O, X0, H, C0, LD, H0, MC;
-      mutable Vector OFit, EFit, H0Fit; 
-      mutable Vector S0, DC, M0, D1, D2; 
-      mutable real_t PW, N0; 
+      mutable Vector OFit, EFit, H0Fit;
+      mutable Vector S0, DC, M0, D1, D2;
+      mutable real_t PW, N0;
       const DofToQuad *maps;
       const DofToQuad *maps_lim = nullptr;
       const GeometricFactors *geom;

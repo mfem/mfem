@@ -33,7 +33,7 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_Fit_3D,
                            const int q1d)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
-   
+
    const auto PW = pw_;
    const auto N0 = n0_;
    const auto S0 = Reshape(s0_.Read(), D1D, D1D, D1D, NE);
@@ -42,12 +42,11 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_Fit_3D,
    const auto FE = fe_.Read();
    const auto nel_fit = fe_.Size();
 
-
    auto E = Reshape(energy.Write(), D1D, D1D, D1D, NE);
 
    mfem::forall_3D(nel_fit, D1D, D1D, D1D, [=] MFEM_HOST_DEVICE (int i)
    {
-      const int e = FE[i];  
+      const int e = FE[i];
       const int D1D = T_D1D ? T_D1D : d1d;
       MFEM_FOREACH_THREAD(qz,z,D1D)
       {
@@ -55,20 +54,19 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_Fit_3D,
          {
             MFEM_FOREACH_THREAD(qx,x,D1D)
             {
-            const real_t sigma = S0(qx,qy,qz,e);
-            const real_t dof_count = DC(qx,qy,qz,e);
-            const real_t marker = M0(qx,qy,qz,e); 
-            const real_t coeff = PW;
-            const real_t normal = N0;
+               const real_t sigma = S0(qx,qy,qz,e);
+               const real_t dof_count = DC(qx,qy,qz,e);
+               const real_t marker = M0(qx,qy,qz,e);
+               const real_t coeff = PW;
+               const real_t normal = N0;
 
-            if (marker == 0) {continue;}
-            double w = coeff * normal * 1.0/dof_count;
-            E(qx,qy,qz,e) = w * sigma * sigma;   
+               double w = marker * coeff * normal * 1.0/dof_count;
+               E(qx,qy,qz,e) = w * sigma * sigma;
             }
          }
       }
    });
-   return energy * ones; 
+   return energy * ones;
 }
 
 real_t TMOP_Integrator::GetLocalStateEnergyPA_Fit_3D(const Vector &X) const
@@ -80,8 +78,7 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_Fit_3D(const Vector &X) const
    const int id = (D1D << 4 ) | Q1D;
    const Vector &O = PA.OFit;
    Vector &E = PA.EFit;
-   
-   
+
    const real_t &PW = PA.PW;
    const real_t &N0 = PA.N0;
    const Vector &S0 = PA.S0;
