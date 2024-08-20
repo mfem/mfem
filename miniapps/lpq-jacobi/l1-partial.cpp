@@ -228,9 +228,7 @@ int main(int argc, char *argv[])
    ///    attibutes as essential. Then we get the list of essential DoFs.
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
    Array<int> ess_tdof_list;
-   // TODO(Gabriel): Make boundary zero until fully debuged
-   // ess_bdr = 1;
-   ess_bdr = 0;
+   ess_bdr = 1;
    fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
    /// 7. Define the linear system. Set up the bilinear form a(.,.) and the
