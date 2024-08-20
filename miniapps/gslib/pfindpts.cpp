@@ -109,6 +109,7 @@ int main (int argc, char *argv[])
    int dim               = 3;
    int etype             = 0;
    bool visit            = false;
+   int randomization     = 0;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -152,7 +153,7 @@ int main (int argc, char *argv[])
    args.AddOption(&jobid, "-jid", "--jid",
                   "job id used for visit  save files");
    args.AddOption(&npt, "-npt", "--npt",
-                  "# points per proc");
+                  "# points per proc or element");
    args.AddOption(&nx, "-nx", "--nx",
                   "# of elements in x(is multipled by rs)");
    args.AddOption(&dim, "-dim", "--dim",
@@ -162,6 +163,9 @@ int main (int argc, char *argv[])
    args.AddOption(&visit, "-visit", "--visit", "-no-visit",
                   "--no-visit",
                   "Enable or disable VISIT output");
+   args.AddOption(&randomization, "-random", "--random",
+                  "0: generate points randomly in the bounding box of domain,"
+                  "1: generate points randomly inside each element in mesh.");
    args.Parse();
    if (!args.Good())
    {
@@ -246,7 +250,11 @@ int main (int argc, char *argv[])
    // Distribute the mesh.
    if (hrefinement) { mesh->EnsureNCMesh(); }
    ParMesh pmesh(MPI_COMM_WORLD, *mesh);
-   delete mesh;
+   if (randomization == 0) { delete mesh; }
+   if (randomization == 1)
+   {
+      if (mesh->GetNodes() == NULL) { mesh->SetCurvature(1); }
+   }
    for (int lev = 0; lev < rp_levels; lev++) { pmesh.UniformRefinement(); }
 
    // Random h-refinements to mesh
@@ -393,26 +401,65 @@ int main (int argc, char *argv[])
    int pts_cnt = npt;
    Vector vxyz;
    vxyz.UseDevice(!cpu_mode);
-   vxyz.SetSize(pts_cnt * dim);
-   vxyz.Randomize(myid+1);
-
-   // Scale based on min/max dimensions
-   for (int i = 0; i < pts_cnt; i++)
+   if (randomization == 0)
    {
-      for (int d = 0; d < dim; d++)
+      vxyz.SetSize(pts_cnt * dim);
+      vxyz.Randomize(myid+1);
+
+      // Scale based on min/max dimensions
+      for (int i = 0; i < pts_cnt; i++)
       {
-         if (point_ordering == Ordering::byNODES)
+         for (int d = 0; d < dim; d++)
          {
-            vxyz(i + d*pts_cnt) = pos_min(d) + vxyz(i + d*pts_cnt)*(pos_max(d) - pos_min(
-                                                                       d));
-         }
-         else
-         {
-            vxyz(i*dim + d) = pos_min(d) + vxyz(i*dim + d)*(pos_max(d) - pos_min(d));
+            if (point_ordering == Ordering::byNODES)
+            {
+               vxyz(i + d*pts_cnt) = pos_min(d) + vxyz(i + d*pts_cnt)*(pos_max(d) - pos_min(
+                                                                          d));
+            }
+            else
+            {
+               vxyz(i*dim + d) = pos_min(d) + vxyz(i*dim + d)*(pos_max(d) - pos_min(d));
+            }
          }
       }
    }
+   else if (randomization == 1)
+   {
+      pts_cnt = npt*nelemglob;
+      vxyz.SetSize(pts_cnt * dim);
+      for (int i=0; i<mesh->GetNE(); i++)
+      {
+         const FiniteElementSpace *s_fespace = mesh->GetNodalFESpace();
+         const FiniteElement *fe = s_fespace->GetFE(i);
+         ElementTransformation *transf = s_fespace->GetElementTransformation(i);
 
+         Vector pos_ref1(npt*dim);
+         pos_ref1.Randomize((myid+1)*17.0);
+         for (int j=0; j<npt; j++)
+         {
+            IntegrationPoint ip;
+            ip.x = pos_ref1(j*dim + 0);
+            ip.y = pos_ref1(j*dim + 1);
+            if (dim == 3)
+            {
+               ip.z = pos_ref1(j*dim + 2);
+            }
+            Vector pos_i(dim);
+            transf->Transform(ip, pos_i);
+            for (int d=0; d<dim; d++)
+            {
+               if (point_ordering == Ordering::byNODES)
+               {
+                  vxyz(j + npt*i + d*npt*nelemglob) = pos_i(d);
+               }
+               else
+               {
+                  vxyz((j + npt*i)*dim + d) = pos_i(d);
+               }
+            }
+         }
+      }
+   }
 
    if ( (myid != 0) && (search_on_rank_0) )
    {
@@ -652,6 +699,7 @@ int main (int argc, char *argv[])
    finder.FreeData();
 
    delete fec;
+   if (randomization == 1) { delete mesh; }
 
    return 0;
 }

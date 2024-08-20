@@ -103,15 +103,15 @@ static void InterpolateLocal3DKernel(const double *const gf_in,
          {
             MFEM_FOREACH_THREAD(k,y,D1D)
             {
-              if (j == 0 && k == 0)
-              {
-                 double sumv = 0.0;
-                 for (int jj = 0; jj < D1D*D1D; ++jj)
-                 {
-                    sumv += sums[jj];
-                 }
-                 int_out[i + fld * npt] = sumv;
-              }
+               if (j == 0 && k == 0)
+               {
+                  double sumv = 0.0;
+                  for (int jj = 0; jj < D1D*D1D; ++jj)
+                  {
+                     sumv += sums[jj];
+                  }
+                  int_out[i + fld * npt] = sumv;
+               }
             }
          }
          MFEM_SYNC_THREAD;
@@ -149,8 +149,8 @@ void FindPointsGSLIB::InterpolateLocal3(const Vector &field_in,
                                                     npt, ncomp, nel, gf_offset,
                                                     pgll, plcf);
       default: return InterpolateLocal3DKernel(pfin, pgsle, pgslr, pfout,
-                                                npt, ncomp, nel, gf_offset,
-                                                pgll, plcf, dof1Dsol);
+                                                  npt, ncomp, nel, gf_offset,
+                                                  pgll, plcf, dof1Dsol);
    }
 }
 
