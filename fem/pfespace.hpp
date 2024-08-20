@@ -456,6 +456,7 @@ public:
       old_dof_offsets.DeleteAll();
    }
 
+   /// Returns the maximum polynomial order over all elements globally.
    int GetMaxElementOrder() const override;
 
    virtual ~ParFiniteElementSpace() { Destroy(); }
@@ -465,16 +466,17 @@ public:
    /// Obsolete, kept for backward compatibility
    int TrueVSize() const { return ltdof_size; }
 
+protected:
    void MarkIntermediateEntityDofs(int entity, Array<bool> & intermediate) const;
 
-protected:
    void ApplyGhostElementOrdersToEdgesAndFaces(
       Array<VarOrderBits> &edge_orders,
       Array<VarOrderBits> &face_orders,
       const Array<VarOrderElemInfo> * pref_data=nullptr) const override;
 
    void GhostMasterFaceOrderToEdges(const Array<VarOrderBits> &face_orders,
-                                    Array<VarOrderBits> &edge_orders) const override;
+                                    Array<VarOrderBits> &edge_orders)
+   const override;
 
    bool OrderPropagation(const std::set<int> &edges,
                          const std::set<int> &faces,

@@ -624,7 +624,7 @@ public:
    /// Returns the order of the i'th finite element.
    int GetElementOrder(int i) const;
 
-   /// Return the maximum polynomial order.
+   /// Return the maximum polynomial order over all elements.
    virtual int GetMaxElementOrder() const
    { return IsVariableOrder() ? elem_order.Max() : fec->GetOrder(); }
 
