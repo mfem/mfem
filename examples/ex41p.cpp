@@ -28,12 +28,23 @@ vector<size_t> sort_indexes(const vector<T> &v)
    return idx;
 }
 
-/** Given veloity (u_gf) and pressure (p_gf), compute 
- *  the drag and lift forces F = (f_d, f_l) on marked 
- *  boundary attributes (marker) with
- *  F =  integral ( \sigma \cdot \nhat )
- *  and \sigma = -p * I + nu*grad(u)
-*/
+
+/**
+ * @brief Compute the drag and lift forces F = ( f_d, f_l)
+ *        on marked boundary attributes
+ *
+ *        F = ∫_Γ σ⃗ ⋅ n̂ dΓ
+ *        with σ = -pI + ν∇u⃗
+ *
+ * @param u_gf velocity grid function
+ * @param p_gf pressure grid function
+ * @param kinematic_viscosity viscosity coefficient
+ * @param marker boundary attributes over which to compute
+ *               lift and drag forces
+ * @param ir_face integration rule for surface integrals
+ *
+ * @return std::tuple<real_t, real_t> tuple of lift and drag
+ */
 std::tuple<real_t, real_t> DragLift(
    GridFunction &u_gf,
    GridFunction &p_gf,
@@ -73,7 +84,7 @@ std::tuple<real_t, real_t> DragLift(
          u_gf.GetVectorGradient(Tr, dudx);
          auto p = p_gf.GetValue(Tr, ip);
 
-         // sigma = (-p * I + nu (grad(u)))
+         // σ = (-pI + ν∇u⃗)
          for (int i = 0; i < dim; i++)
          {
             for (int j = 0; j < dim; j++)
@@ -82,7 +93,7 @@ std::tuple<real_t, real_t> DragLift(
             }
          }
 
-         // F = integral(\sigma \dot \nhat)
+         // F = ∫ σ⋅n̂ dΓ
          for (int i = 0; i < dim; i++)
          {
             real_t s = 0.0;
@@ -98,30 +109,28 @@ std::tuple<real_t, real_t> DragLift(
    return {draglift(0), draglift(1)};
 }
 
-/*
-   Integrator for computing the dC(u,p)/du on the right
-   hand side of the dual problem, with 
-   
-   C(u,p) = integral( (-p * I + nu (grad(u))) \dot \nhat)
 
-      and 
 
-   dC(u,p)/du =  integral(  nu d/du (grad(u)) \dot \nhat)
-
-      since 
-
-   u = sum(u_i * psi_i), where psi_i are FE basis functions, 
-   d/du (grad(u)) = grad(psi).
-   
-   Note: we use integrate the since our goal/cost function is 
-         lift (force in the y-direction)
-*/
+/**
+ * @brief Integrator for computing dC(u⃗,p)/du⃗ on the right
+ *        hand side of the dual problem, with
+ *
+ *        C(u⃗,p) = ∫_Γ (-pI + ν∇u⃗) ⋅ n̂ dΓ, and
+ *
+ *        dC(u⃗,p)/du⃗ = ∫_Γ d(ν∇u⃗)/du ⋅ n̂ dΓ, since
+ *
+ *        u⃗ = ∑u⃗ᵢψᵢ, where ψᵢ are the FE basis functions,
+ *        d(∇u⃗)/du⃗ = ∇ψ
+ *
+ *        Note: we integrate the y-component, since our
+ *        goal/cost function is lift.
+ */
 class DLiftDuIntegrator : public LinearFormIntegrator
 {
 public:
    DLiftDuIntegrator(real_t nu) : nu(nu) {}
 
-   // Goal function is a face integration, hence volume integration is not needed
+   // Goal function is a face integral, hence volume integration is not needed
    void AssembleRHSElementVect(const FiniteElement &el,
                                ElementTransformation &Tr,
                                Vector &elvect) override
@@ -160,8 +169,10 @@ public:
 
          CalcOrtho(Tr.Jacobian(), nor);
 
+         // Also note the (-) negative scaling to get the correct
+         // sign on the rhs of the adjoint
          const real_t scale = nor.Norml2();
-         nor /= -scale; // Also note the (-) negative scaling to get the correct sign on the rhs of the adjoint
+         nor /= -scale;
 
          el.CalcPhysDShape(Tr.GetElement1Transformation(), dpsi);
 
@@ -185,30 +196,27 @@ public:
    const real_t nu;
 };
 
-/*
-   Integrator for computing the dC(u,p)/du on the right
-   hand side of the dual problem, with 
-   
-   C(u,p) = integral( (-p * I + nu (grad(u))) \dot \nhat)
 
-      and 
-
-   dC(u,p)/dp =  integral( -p*I \dot \nhat)
-
-      since 
-
-   p = sum(p_i * psi_i), where psi_i are FE basis functions, 
-   d/dp (-p*I) = -psi * I.
-   
-   Note: we use integrate the since our goal/cost function is 
-         lift (force in the y-direction).
-*/
+/**
+ * @brief Integrator for computing dC(u⃗,p)/dp on the right
+ *        hand side of the dual problem, with
+ *
+ *        C(u⃗,p) = ∫_Γ (-pI + ν∇u⃗) ⋅ n̂ dΓ, and
+ *
+ *        dC(u⃗,p)/dp = ∫_Γ -pI ⋅ n̂ dΓ, since
+ *
+ *        p = ∑pᵢψᵢ, where ψᵢ are the FE basis functions,
+ *        d(-pI)/dp = -ψ
+ *
+ *        Note: we integrate the y-component, since our
+ *        goal/cost function is lift.
+ */
 class DLiftDpIntegrator : public LinearFormIntegrator
 {
 public:
    DLiftDpIntegrator() {}
 
-   // Goal function is a face integration, hence volume integration is not needed
+   // Goal function is a face integral, hence volume integration is not needed
    void AssembleRHSElementVect(const FiniteElement &el,
                                ElementTransformation &Tr,
                                Vector &elvect) override
@@ -247,8 +255,10 @@ public:
 
          CalcOrtho(Tr.Jacobian(), nor);
 
+         // Note the (+) positive scaling to get the correct sign
+         // on the rhs of the adjoint
          const real_t scale = nor.Norml2();
-         nor /= scale; // Also note the (+) positive scaling to get the correct sign on the rhs of the adjoint
+         nor /= scale;
 
          el.CalcPhysShape(Tr.GetElement1Transformation(), psi);
 
@@ -262,22 +272,21 @@ public:
    Vector psi;
 };
 
-
 /**
- * Compute the dual-weighted residual (DWR). The momentum residual, R_1(u,p), and
- * continuity residual, R_2(u), is computed using the velocity and pressure (u,p) 
- * from the forward problem. Then, given the dual variables z=(zu,zp), the 
- * dual-weighted residual, R_z, is computed as
- * 
- *       R_z = (R_1(u,p),zu) + (R_2(u),zp)
- *  with 
- *       R_1 = (u \dot grad(u)) + grad(p) - \nu lap(u)
- *       R_2 =  div(u)
- * 
- *  The primal and dual solutions (u,p) and (zu,zp) (and therefore R_z) live in 
- *  a higher-order space and are projected to a space of piecewise-constant basis, psi.
- *  
- *    R_{z,0} = (R_z,psi)
+ * @brief Compute the dual-weighted residual (DWR). The momentum residual, R₁(u⃗,p), and
+ *        continuity residual, R₂(u⃗), are computed using the velocity and pressure (u⃗,p)
+ *        from the forward problem. Then, given the dual variables z⃗=(z⃗ᵤ,zₚ), the
+ *        dual-weighted residual, R_z, is computed as
+ *
+ *        R_z = (R₁(u⃗,p),z⃗ᵤ) + (R₂(u⃗),zₚ) with
+ *
+ *        R₁ = (u⃗ ⋅ ∇)u⃗ + ∇p  - ν∇²u⃗
+ *        R₂ = ∇⋅u⃗
+ *
+ *        The primal and dual solutions (u⃗,p) and (z⃗ᵤ,zₚ) (and therefore R_z) live in a
+ *        higher-order space and are projected to a space of piecewise-constant basis, ψ.
+ *
+ *        R_{z,0} = (R_z,ψ)
  */
 class DWRIntegrator : public LinearFormIntegrator
 {
@@ -369,17 +378,20 @@ public:
    ParGridFunction uhgf, phgf, zuhgf, zphgf;
 };
 
-/** Constructs the operators in steady-state, incompressible
- *  Navier-Stokes equations (NSE)
- *       (u \dot grad(u)) + grad(p) - \nu lap(u) = 0
- *       div(u) = 0
- *  in block form
- * 
- *  [ N(u) + L    G ] [u] = [0]
- *  [ D           0 ] [p] = [0]
- *  
- *  with the (L)aplacian, (G)radient, (D)ivergence and 
- *  (N)onliner convection operator. 
+/**
+ * @brief Constructs the operators in steady-state, incompressible
+ *        Navier-Stokes equations (NSE)
+ *
+ *        (u⃗ ⋅ ∇)u⃗ + ∇p - ν∇²u⃗ = 0
+ *        ∇⋅u⃗ = 0
+ *
+ *        in block form
+ *
+ *        [ N(u) + L    G ] [u⃗] = [0]
+ *        [ D           0 ] [p] = [0]
+ *
+ *        with the (L)aplacian, (G)radient, (D)ivergence and
+ *        (N)onliner convection operator.
  */
 class NavierStokes : public Operator
 {
@@ -472,7 +484,7 @@ public:
       // Form the block operator representing the gradient of the
       // Navier-Stokes equations (i.e. linearized) with-respect-to the velocity and pressure
       // (0,1) and (1,0) blocks are linear and do not change, while the
-      // (0,0) is the nonlinear convection operator, hence the gradient 
+      // (0,0) is the nonlinear convection operator, hence the gradient
       // is computed when needed (below). The (1,1) block is used to enforce
       // pressure dirichlet BC
       Ae = new BlockOperator(offsets);
@@ -486,8 +498,8 @@ public:
       mp.FormSystemMatrix(p_ess_tdof, Mpe);
 
       // Construct block lower triangular preconditioner
-      // [N(u)       0  ]
-      // [Div    nu^-1 M]
+      // [N(u⃗)       0  ]
+      // [Div    ν⁻¹ M]
       // where M is the mass matrix on the pressure space
       mpe_inv = new OperatorJacobiSmoother(mp, p_ess_tdof);
       pc->SetBlock(1, 1, mpe_inv);
@@ -563,15 +575,16 @@ public:
    ConstantCoefficient zero_coeff;
 };
 
-/** Constructs the linearized dual/adjoint of the steady-state, 
- *  incompressible Navier-Stokes equations (NSE) in block form
- * 
- *  [ N'(u) + L   G^T ] [zu] = [ N'(u) + L   D ] 
- *  [ D^T          0  ] [zp] = [ G          0  ]
- *  
- *  with the (L)aplacian, (G)radient, (D)ivergence and 
- *  linearized (N')onliner convection operator. Note that the bilinear
- *  form corresponding to the diffusion/Laplacian term is self-adjoint
+/**
+ * @brief Constructs the linearized dual/adjoint of the steady-state,
+ *        incompressible Navier-Stokes equations (NSE) in block form
+ *
+ *        [ N'(u⃗) + L   G^T ] [z⃗ᵤ] = [ N'(u⃗) + L  D ][z⃗ᵤ]
+ *        [ D^T          0  ] [zₚ] = [ G          0 ][zₚ]
+ *
+ *        with the (L)aplacian, (G)radient, (D)ivergence and linearized
+ *        (N')onliner convection operator. Note that the bilinear form
+ *        corresponding to the diffusion/Laplacian term is self-adjoint
  */
 class NavierStokesAdjoint : public Operator
 {
@@ -607,7 +620,7 @@ public:
    void Setup(const Vector &x)
    {
 
-      // Build the nonlinear form with the convection integrator and 
+      // Build the nonlinear form with the convection integrator and
       // vector diffusion (Laplacian) terms. Note that the bilinear
       // form corresponding to the Laplacian term is self-adjoint
       Ne.AddDomainIntegrator(new VectorConvectionNLFIntegrator);
@@ -620,7 +633,7 @@ public:
       auto KeTr = static_cast<HypreParMatrix &>(Ne.GetGradient(x)).Transpose();
 
       // Build the dual of the pressure gradient term
-      // Note that dual is weak divergence operator which equivalent to the 
+      // Note that dual is weak divergence operator which equivalent to the
       // transpose of the gradient
       ge_tr.AddDomainIntegrator(new TransposeIntegrator(new GradientIntegrator));
       ge_tr.SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -629,7 +642,7 @@ public:
       ge_tr.FormRectangularSystemMatrix(u_ess_tdof, p_ess_tdof, GeTr);
 
       // Build the dual of the velocity divergence term in the continuity eq.
-      // Note that dual is the gradiant operator which equivalent to the 
+      // Note that dual is the gradiant operator which equivalent to the
       // transpose of the divergence operator
       de_tr.AddDomainIntegrator(new TransposeIntegrator(new
                                                         VectorDivergenceIntegrator));
@@ -661,8 +674,8 @@ public:
       mp.FormSystemMatrix(p_ess_tdof, Mpe);
 
       // Construct block lower triangular preconditioner
-      // [N'(u)      0  ]
-      // [Div    nu^-1 M]
+      // [N'(u⃗)      0  ]
+      // [Div    ν⁻¹ M]
       // where N' is the linearzed convection term,
       // M is the mass matrix on the dual pressure space
       mpe_inv = new OperatorJacobiSmoother(mp, p_ess_tdof);
@@ -716,8 +729,13 @@ public:
 
 
 /**
- * Solve the steady-state, incompressible Navier-Stokes equations
- * and return velocity and pressure fields
+ * @brief Solve the steady-state, incompressible Navier-Stokes equations
+ *        and return velocity and pressure fields
+ *
+ * @param h1vfes FESpace for velocity
+ * @param h1fes  FESpace for pressure
+ * @param kinematic_viscosity viscosity coefficient
+ * @return std::tuple<ParGridFunction, ParGridFunction> tuple for (velocity, pressure) grid functions
  */
 std::tuple<ParGridFunction, ParGridFunction>
 SolveForwardProblem(
@@ -770,7 +788,7 @@ SolveForwardProblem(
    };
 
    // Set initial guess for the Newton solve. The initial guess
-   // at essential BC dofs also sets the boundary condition 
+   // at essential BC dofs also sets the boundary condition
    // at those dofs.
    Array<int> inflow_attr(mesh.bdr_attributes.Max());
    inflow_attr = 0;
@@ -807,24 +825,33 @@ SolveForwardProblem(
    return {u, p};
 }
 
+
 /**
- * Solve the linearized dual problem. Given state variables q=(u,p), 
- * a goal/cost function C(q) (e.g. lift) and equality constraints of
- * a governing equation F(q) = 0 (e.g. Navier-Stokes) the Lagrangian L is
- * 
- *   L = C(q) + z F(q)
- * 
- *  where z = (z_u,z_p) is the dual of the velocity and pressure. The linerized dual 
- *  formulation is obtained from the first order optimality condition dL/dq=0
- * 
- *    dL/dq = (dC(q)/dq)^T + z^T dF(q)/dq = 0
- *         -> (dF(q)/dq)^T z = -dC(q)/dq
- * 
- *         -> dC(q)/dq = [ dC(u,p)/du, dC(u,p)/dp ] in block form
- *    
- *  which is solved for the dual variables z. Here, (dF(q)/dq)^T is the adjoint of the
- *  linearized Navier-Stokes operator, and dC(q)/dq are the derivatives of the goal (lift)
- *  with-respect-to the state q=(u,p) computed by the forward solve.
+ * @brief Solve the linearized dual problem. Given state variables q=(u⃗,p),
+ *        a goal/cost function C(q) (e.g. lift) and equality constraints of
+ *        a governing equation F(q) = 0 (e.g. Navier-Stokes) the Lagrangian ℒ is
+ *
+ *        ℒ = C(q) + z F(q)
+ *
+ *        where z = (z⃗ᵤ,zₚ) is the dual of the velocity and pressure. The linerized dual
+ *        formulation is obtained from the first order optimality condition dℒ/dq=0
+ *
+ *        dℒ/dq = (dC(q)/dq)ᵀ + zᵀ dF(q)/dq = 0
+ *              → (dF(q)/dq)ᵀ z = -dC(q)/dq
+ *
+ *              → dC(q)/dq = [ dC(u⃗,p)/du⃗, dC(u⃗,p)/dp ] in block form
+ *
+ *        which is solved for the dual variables z. Here, (dF(q)/dq)ᵀ is the adjoint of the
+ *        linearized Navier-Stokes operator, and dC(q)/dq are the derivatives of the goal (lift)
+ *        with-respect-to the state q=(u⃗,p) computed by the forward solve.
+ *
+ * @param h1vfes FESpace for dual of velocity
+ * @param h1fes  FESpace for dual of pressure
+ * @param ul grid function for velocity computed from the forward problem
+ * @param pl grid function for pressure computed from the forward problem
+ * @param kinematic_viscosity coefficient of viscosity
+ * @return std::tuple<ParGridFunction, ParGridFunction> tuple of grid functions for
+ *                                                      velocity, pressure duals
  */
 std::tuple<ParGridFunction, ParGridFunction>
 SolveDualProblem(
@@ -861,7 +888,7 @@ SolveDualProblem(
                                pres_ess_tdof_list,
                                kinematic_viscosity);
 
-   // Project ul and pl from the forward problem defined on a coarse finite element 
+   // Project ul and pl from the forward problem defined on a coarse finite element
    // space to the finer space of the dual variables
    ParGridFunction u(&h1vfes);
    PRefinementTransferOperator(static_cast<FiniteElementSpace>(*ul.ParFESpace()),
@@ -929,7 +956,14 @@ SolveDualProblem(
    return {u, p};
 }
 
-// Compute the quantity of interst (QoI) for use in DWR
+/**
+ * @brief Compute the quantity of interst (QoI) for use in DWR based AMR
+ *
+ * @param u velocity grid function
+ * @param p pressure grid function
+ * @param kinematic_viscosity coefficient of viscosity
+ * @return std::tuple<real_t, real_t> tuple containing QoIs
+ */
 std::tuple<real_t, real_t>
 ComputeQoI(ParGridFunction &u, ParGridFunction &p,
            real_t kinematic_viscosity)
@@ -1015,7 +1049,7 @@ int main(int argc, char *argv[])
       // to compute velocity and pressure
       auto [u, p] = SolveForwardProblem(h1vfes, h1fes, kinematic_viscosity);
 
-      // Compute the quantity of interest (lift and drag forces) over the boundary 
+      // Compute the quantity of interest (lift and drag forces) over the boundary
       auto [drag, lift] = ComputeQoI(u, p, kinematic_viscosity);
 
       const real_t U_mean = 0.2;
@@ -1026,7 +1060,7 @@ int main(int argc, char *argv[])
          printf("CD = %1.8E CL = %1.8E\n", -c0*drag, -c0*lift);
       }
 
-      // Solve the dual problem in an enriched space for velocity 
+      // Solve the dual problem in an enriched space for velocity
       // and pressure dual variables, zu and zp, respectively.
       H1_FECollection fecstar(polynomial_order + 1, dim);
       ParFiniteElementSpace h1vfesstar(&mesh, &fecstar, dim, Ordering::byNODES);
@@ -1039,7 +1073,7 @@ int main(int argc, char *argv[])
 
       // Compute the dual-weighted residual (DWR) given both the primal, (u,p), and
       // dual, (zu,zp), solutions. The error indicator is constructed per-element, hence
-      // piecewise-constant basis are used. 
+      // piecewise-constant basis are used.
       L2_FECollection l2fec(0, mesh.Dimension());
       ParFiniteElementSpace marker_fes(&mesh, &l2fec);
 
