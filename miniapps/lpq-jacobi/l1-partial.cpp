@@ -49,7 +49,6 @@ int main(int argc, char *argv[])
 
    /// 2. Parse command line options.
    string mesh_file = "meshes/cube.mesh";
-   string assembly_description;
    // System properties
    int order = 1;
    SolverType solver_type = sli;
@@ -57,8 +56,8 @@ int main(int argc, char *argv[])
    int assembly_type_int = 4;
    AssemblyLevel assembly_type;
    // Number of refinements
-   int refine_serial = 1;
-   int refine_parallel = 1;
+   int refine_serial = 0;
+   int refine_parallel = 0;
    // Solver parameters
    double rel_tol = 1e-10;
    double max_iter = 3000;
@@ -119,6 +118,7 @@ int main(int argc, char *argv[])
    MFEM_ASSERT(0.0 < eps_y <= 1.0, "eps_y in (0,1]");
    MFEM_ASSERT(0.0 < eps_z <= 1.0, "eps_z in (0,1]");
 
+   string assembly_description;
    switch (assembly_type_int)
    {
       case 0:
@@ -195,19 +195,23 @@ int main(int argc, char *argv[])
    ///    - H(curl)-conforming Nedelec elements for the definite Maxwell problem.
    FiniteElementCollection *fec;
    ParFiniteElementSpace *fespace;
+   string integrator_description;
    switch (integrator_type)
    {
       case mass: case diffusion:
          fec = new H1_FECollection(order, dim);
          fespace = new ParFiniteElementSpace(mesh, fec);
+         integrator_description = "Using scalar H1-elements...";
          break;
       case elasticity:
          fec = new H1_FECollection(order, dim);
          fespace = new ParFiniteElementSpace(mesh, fec, dim);
+         integrator_description = "Using vector H1-elements...";
          break;
       case maxwell:
          fec = new ND_FECollection(order, dim);
          fespace = new ParFiniteElementSpace(mesh, fec);
+         integrator_description = "Using H(curl)-elements...";
          break;
       default:
          mfem_error("Invalid integrator type! Check FiniteElementCollection");
@@ -218,6 +222,7 @@ int main(int argc, char *argv[])
    {
       mfem::out << "Number of unknowns: " << sys_size << endl;
       mfem::out << assembly_description << endl;
+      mfem::out << integrator_description << endl;
    }
 
    /// 6. Extract the list of the essential boundary DoFs. We mark all boundary
@@ -288,10 +293,12 @@ int main(int argc, char *argv[])
          vector_u = new VectorFunctionCoefficient(space_dim, maxwell_solution);
          vector_f = new VectorFunctionCoefficient(space_dim, maxwell_source);
          lfi = new VectorFEDomainLFIntegrator(*vector_f);
-         bfi = new SumIntegrator();
-         sum_bfi = static_cast<SumIntegrator*>(bfi);
-         sum_bfi->AddIntegrator(new CurlCurlIntegrator(one));
-         sum_bfi->AddIntegrator(new VectorFEMassIntegrator(one));
+         bfi = new CurlCurlIntegrator(one);
+         // TODO(Gabriel): Check this...
+         // bfi = new SumIntegrator();
+         // sum_bfi = static_cast<SumIntegrator*>(bfi);
+         // sum_bfi->AddIntegrator(new CurlCurlIntegrator(one));
+         // sum_bfi->AddIntegrator(new VectorFEMassIntegrator(one));
          x.ProjectBdrCoefficientTangent(*vector_u, ess_bdr);
          break;
       default:
