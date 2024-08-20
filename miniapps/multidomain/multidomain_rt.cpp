@@ -10,11 +10,11 @@
 // CONTRIBUTING.md for details.
 
 // This miniapp is a variant of the multidomain miniapp which aims to extend
-// the demonstration given therein to PDEs involving H(div) fininte elements.
+// the demonstration given therein to PDEs involving H(div) finite elements.
 //
 // A 3D domain comprised of an outer box with a cylinder shaped inside is used.
 //
-// A pressure wave diffiusion equation is described on the outer box domain
+// A pressure wave diffusion equation is described on the outer box domain
 //
 //                  dp/dt = ∇(κ∇•p)     in outer box
 //                    n•p = n•p_wall    on outside wall

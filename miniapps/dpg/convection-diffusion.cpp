@@ -14,14 +14,14 @@
 // Compile with: make convection-diffusion
 //
 // sample runs
-// convection-diffusion -m ../../data/star.mesh -o 2 -ref 2 -theta 0.0 -eps 1e-1 -beta '2 3'
-// convection-diffusion -m ../../data/beam-hex.mesh -o 2 -ref 2 -theta 0.0 -eps 1e0 -beta '1 0 2'
-// convection-diffusion -m ../../data/inline-tri.mesh -o 3 -ref 2 -theta 0.0 -eps 1e-2 -beta '4 2' -sc
+//  convection-diffusion -m ../../data/star.mesh -o 2 -ref 2 -theta 0.0 -eps 1e-1 -beta '2 3'
+//  convection-diffusion -m ../../data/beam-hex.mesh -o 2 -ref 2 -theta 0.0 -eps 1e0 -beta '1 0 2'
+//  convection-diffusion -m ../../data/inline-tri.mesh -o 3 -ref 2 -theta 0.0 -eps 1e-2 -beta '4 2' -sc
 
 // AMR runs
-// convection-diffusion  -o 3 -ref 5 -prob 1 -eps 1e-1 -theta 0.75
-// convection-diffusion  -o 2 -ref 9 -prob 1 -eps 1e-2 -theta 0.75
-// convection-diffusion  -o 3 -ref 9 -prob 1 -eps 1e-3 -theta 0.75 -sc
+//  convection-diffusion -o 3 -ref 5 -prob 1 -eps 1e-1 -theta 0.75
+//  convection-diffusion -o 2 -ref 9 -prob 1 -eps 1e-2 -theta 0.75
+//  convection-diffusion -o 3 -ref 9 -prob 1 -eps 1e-3 -theta 0.75 -sc
 
 // Description:
 // This example code demonstrates the use of MFEM to define and solve

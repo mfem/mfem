@@ -68,10 +68,12 @@ Mesh TetStarMesh();
  * with different volume attributes.
  *
  * @param tet_mesh Whether or not to split the generated mesh into tetrahedra.
- * @param split Whether to introduce the internal boundary,
+ * @param split Whether to introduce the internal boundary.
+ * @param three_dim Whether to generate a 3D mesh.
  * @return Mesh
  */
-Mesh DividingPlaneMesh(bool tet_mesh = true, bool split = true);
+Mesh DividingPlaneMesh(bool tet_mesh = true, bool split = true,
+                       bool three_dim = true);
 
 /**
  * @brief Create a mesh of two tetrahedra that share one triangular face at x=0.
@@ -100,7 +102,7 @@ Mesh CylinderMesh(Geometry::Type el_type, bool quadratic, int variant = 0);
 
 
 /**
- * @brief Test GetVectorValue on face neighbor elements for nonconformal meshes
+ * @brief Test GetVectorValue on face neighbor elements for nonconforming meshes
  *
  * @param smesh The serial mesh to start from
  * @param nc_level Depth of refinement on processor boundaries

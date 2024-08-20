@@ -39,9 +39,10 @@ ParGridFunction::ParGridFunction(ParMesh *pmesh, const GridFunction *gf,
 {
    const FiniteElementSpace *glob_fes = gf->FESpace();
    // duplicate the FiniteElementCollection from 'gf'
-   fec = FiniteElementCollection::New(glob_fes->FEColl()->Name());
+   fec_owned = FiniteElementCollection::New(glob_fes->FEColl()->Name());
    // create a local ParFiniteElementSpace from the global one:
-   fes = pfes = new ParFiniteElementSpace(pmesh, glob_fes, partitioning, fec);
+   fes = pfes = new ParFiniteElementSpace(pmesh, glob_fes, partitioning,
+                                          fec_owned);
    SetSize(pfes->GetVSize());
 
    if (partitioning)
@@ -81,7 +82,7 @@ ParGridFunction::ParGridFunction(ParMesh *pmesh, std::istream &input)
    : GridFunction(pmesh, input)
 {
    // Convert the FiniteElementSpace, fes, to a ParFiniteElementSpace:
-   pfes = new ParFiniteElementSpace(pmesh, fec, fes->GetVDim(),
+   pfes = new ParFiniteElementSpace(pmesh, fec_owned, fes->GetVDim(),
                                     fes->GetOrdering());
    delete fes;
    fes = pfes;
@@ -249,6 +250,8 @@ void ParGridFunction::ExchangeFaceNbrData()
    auto send_data_ptr = mpi_gpu_aware ? send_data.Read() : send_data.HostRead();
    auto face_nbr_data_ptr = mpi_gpu_aware ? face_nbr_data.Write() :
                             face_nbr_data.HostWrite();
+   // Wait for the kernel to be done since it updates what's sent and it may be async
+   if (mpi_gpu_aware) { MFEM_STREAM_SYNC; }
    for (int fn = 0; fn < num_face_nbrs; fn++)
    {
       int nbr_rank = pmesh->GetFaceNbrRank(fn);
@@ -518,7 +521,7 @@ void ParGridFunction::CountElementsPerVDof(Array<int> &elem_per_vdof) const
 }
 
 void ParGridFunction::GetDerivative(int comp, int der_comp,
-                                    ParGridFunction &der)
+                                    ParGridFunction &der) const
 {
    Array<int> overlap;
    AccumulateAndCountDerivativeValues(comp, der_comp, der, overlap);
@@ -713,10 +716,10 @@ void ParGridFunction::ProjectBdrCoefficient(
          }
       }
    }
+   gcomm.Bcast<int>(values_counter.HostReadWrite());
    for (int i = 0; i < values_counter.Size(); i++)
    {
-      MFEM_ASSERT(pfes->GetLocalTDofNumber(i) == -1 ||
-                  bool(values_counter[i]) == bool(ess_vdofs_marker[i]),
+      MFEM_ASSERT(bool(values_counter[i]) == bool(ess_vdofs_marker[i]),
                   "internal error");
    }
 #endif
@@ -753,10 +756,10 @@ void ParGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
 #ifdef MFEM_DEBUG
    Array<int> ess_vdofs_marker;
    pfes->GetEssentialVDofs(bdr_attr, ess_vdofs_marker);
+   gcomm.Bcast<int>(values_counter.HostReadWrite());
    for (int i = 0; i < values_counter.Size(); i++)
    {
-      MFEM_ASSERT(pfes->GetLocalTDofNumber(i) == -1 ||
-                  bool(values_counter[i]) == bool(ess_vdofs_marker[i]),
+      MFEM_ASSERT(bool(values_counter[i]) == bool(ess_vdofs_marker[i]),
                   "internal error: " << pfes->GetLocalTDofNumber(i) << ' ' << bool(
                      values_counter[i]));
    }
