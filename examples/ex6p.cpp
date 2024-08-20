@@ -41,6 +41,12 @@
 //               from coarse to fine meshes, restarting from a checkpoint, as
 //               well as persistent GLVis visualization are also illustrated.
 //
+//               There is also the option to use hp-refinement. Real
+//               applications should use some problem-dependent criteria for
+//               selecting between h- and p-refinement, but in this example, we
+//               simply alternate between refinement types to demonstrate the
+//               capabilities.
+//
 //               We recommend viewing Example 1 before viewing this example.
 
 #include "mfem.hpp"
@@ -352,6 +358,8 @@ int main(int argc, char *argv[])
       //     estimator to obtain element errors, then it selects elements to be
       //     refined and finally it modifies the mesh. The Stop() method can be
       //     used to determine if a stopping criterion was met.
+
+      // Simply alternate between h- and p-refinement.
       const bool pRefinement = usePRefinement && ((it % 2) == 1);
       bool stop = false;
       Array<FiniteElementSpace::VarOrderElemInfo> prefinements;

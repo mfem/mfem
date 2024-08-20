@@ -164,16 +164,41 @@ void ParFiniteElementSpace::CommunicateGhostOrder(
 
    MFEM_ASSERT(mesh->GetNE() == pncmesh->GetNElements(), "");
 
-   // Note that all orders, including the base order, are communicated here. It
-   // may be possible to optimize by eliminating the base orders.
-   Array<VarOrderElemInfo> localOrders(mesh->GetNE());
+   // Only orders greater than baseOrder are communicated.
+   const int baseOrder = fec->GetOrder();
+   Array<VarOrderElemInfo> localOrders;
    for (int i=0; i<mesh->GetNE(); ++i)
    {
-      localOrders[i].element = i;
-      localOrders[i].order = elem_order[i];
+      if (elem_order[i] > baseOrder)
+      {
+         VarOrderElemInfo order_i{i, elem_order[i]};
+         localOrders.Append(order_i);
+      }
    }
 
    pncmesh->CommunicateGhostData(localOrders, pref_data);
+
+   // Now pref_data only contains communicated orders greater than baseOrder.
+   // Next, fill in the remaining ghost elements with baseOrder.
+   {
+      Array<int> gelem;
+      pncmesh->GetGhostElements(gelem);
+
+      std::set<unsigned int> elems;
+      for (auto pref : pref_data)
+      {
+         elems.insert(pref.element);
+      }
+
+      for (auto g : gelem)
+      {
+         if (elems.count(g) == 0)
+         {
+            VarOrderElemInfo order_g{g, baseOrder};
+            pref_data.Append(order_g);
+         }
+      }
+   }
 }
 
 void ParFiniteElementSpace::Construct()
