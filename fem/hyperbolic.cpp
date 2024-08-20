@@ -18,6 +18,27 @@
 namespace mfem
 {
 
+HyperbolicFormIntegrator::HyperbolicFormIntegrator(
+   const RiemannSolver &rsolver,
+   const int IntOrderOffset,
+   real_t sign)
+   : NonlinearFormIntegrator(),
+     rsolver(rsolver),
+     fluxFunction(rsolver.GetFluxFunction()),
+     IntOrderOffset(IntOrderOffset),
+     sign(sign),
+     num_equations(fluxFunction.num_equations)
+{
+#ifndef MFEM_THREAD_SAFE
+   state.SetSize(num_equations);
+   flux.SetSize(num_equations, fluxFunction.dim);
+   state1.SetSize(num_equations);
+   state2.SetSize(num_equations);
+   fluxN.SetSize(num_equations);
+   nor.SetSize(fluxFunction.dim);
+#endif
+}
+
 void HyperbolicFormIntegrator::AssembleElementVector(const FiniteElement &el,
                                                      ElementTransformation &Tr,
                                                      const Vector &elfun,
@@ -504,27 +525,6 @@ void HDGHyperbolicFormIntegrator::AssembleHDGFaceGrad(
          }
       }
    }
-}
-
-HyperbolicFormIntegrator::HyperbolicFormIntegrator(
-   const RiemannSolver &rsolver,
-   const int IntOrderOffset,
-   real_t sign)
-   : NonlinearFormIntegrator(),
-     rsolver(rsolver),
-     fluxFunction(rsolver.GetFluxFunction()),
-     IntOrderOffset(IntOrderOffset),
-     sign(sign),
-     num_equations(fluxFunction.num_equations)
-{
-#ifndef MFEM_THREAD_SAFE
-   state.SetSize(num_equations);
-   flux.SetSize(num_equations, fluxFunction.dim);
-   state1.SetSize(num_equations);
-   state2.SetSize(num_equations);
-   fluxN.SetSize(num_equations);
-   nor.SetSize(fluxFunction.dim);
-#endif
 }
 
 real_t FluxFunction::ComputeFluxDotN(const Vector &U,
