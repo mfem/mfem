@@ -189,6 +189,12 @@ void BilinearFormIntegrator::AssembleTraceFaceMatrix (int elem,
               " Integrator class.");
 }
 
+void BilinearFormIntegrator::AddMultPAFaceNormalDerivatives(
+   const Vector &x, const Vector &dxdn, Vector &y, Vector &dydn) const
+{
+   MFEM_ABORT("Not implemented.");
+}
+
 void BilinearFormIntegrator::AssembleElementVector(
    const FiniteElement &el, ElementTransformation &Tr, const Vector &elfun,
    Vector &elvect)
@@ -1216,7 +1222,8 @@ real_t DiffusionIntegrator::ComputeFluxEnergy
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
-      fluxelem.CalcShape(ip, shape);
+      Trans.SetIntPoint(&ip);
+      fluxelem.CalcPhysShape(Trans, shape);
 
       pointflux = 0.0;
       for (int k = 0; k < spaceDim; k++)
@@ -1227,7 +1234,6 @@ real_t DiffusionIntegrator::ComputeFluxEnergy
          }
       }
 
-      Trans.SetIntPoint(&ip);
       real_t w = Trans.Weight() * ip.weight;
 
       if (MQ)
@@ -1404,9 +1410,7 @@ void BoundaryMassIntegrator::AssembleFaceMatrix(
       // Set the integration point in the face and the neighboring element
       Trans.SetAllIntPoints(&ip);
 
-      // Access the neighboring element's integration point
-      const IntegrationPoint &eip = Trans.GetElement1IntPoint();
-      el1.CalcShape(eip, shape);
+      el1.CalcPhysShape(*Trans.Elem1, shape);
 
       w = Trans.Weight() * ip.weight;
       if (Q)
@@ -1576,9 +1580,9 @@ void VectorMassIntegrator::AssembleElementMatrix
    for (int s = 0; s < ir->GetNPoints(); s++)
    {
       const IntegrationPoint &ip = ir->IntPoint(s);
-      el.CalcShape(ip, shape);
-
       Trans.SetIntPoint (&ip);
+      el.CalcPhysShape(Trans, shape);
+
       norm = ip.weight * Trans.Weight();
 
       MultVVt(shape, partelmat);
@@ -1660,10 +1664,10 @@ void VectorMassIntegrator::AssembleElementMatrix2(
    for (int s = 0; s < ir->GetNPoints(); s++)
    {
       const IntegrationPoint &ip = ir->IntPoint(s);
-      trial_fe.CalcShape(ip, shape);
-      test_fe.CalcShape(ip, te_shape);
-
       Trans.SetIntPoint(&ip);
+      trial_fe.CalcPhysShape(Trans, shape);
+      test_fe.CalcPhysShape(Trans, te_shape);
+
       norm = ip.weight * Trans.Weight();
 
       MultVWt(te_shape, shape, partelmat);
@@ -1891,12 +1895,12 @@ void VectorFECurlIntegrator::AssembleElementMatrix2(
          if ( trial_fe.GetMapType() == mfem::FiniteElement::H_CURL )
          {
             trial_fe.CalcCurlShape(ip, curlshapeTrial_dFT);
-            test_fe.CalcShape(ip, shapeTest);
+            test_fe.CalcPhysShape(Trans, shapeTest);
          }
          else
          {
             test_fe.CalcCurlShape(ip, curlshapeTrial_dFT);
-            trial_fe.CalcShape(ip, shapeTest);
+            trial_fe.CalcPhysShape(Trans, shapeTest);
          }
       }
 
@@ -1916,6 +1920,89 @@ void VectorFECurlIntegrator::AssembleElementMatrix2(
       {
          AddMultABt(curlshapeTrial_dFT, vshapeTest, elmat);
       }
+   }
+}
+
+void VectorFEBoundaryFluxIntegrator::AssembleElementMatrix(
+   const FiniteElement &el, ElementTransformation &Tr,
+   DenseMatrix &elmat)
+{
+   int nd = el.GetDof();
+   real_t w;
+
+#ifdef MFEM_THREAD_SAFE
+   Vector shape;
+#endif
+   elmat.SetSize(nd);
+   shape.SetSize(nd);
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int intorder = 2*el.GetOrder() + Tr.OrderW();  // <----------
+      ir = &IntRules.Get(el.GetGeomType(), intorder);
+   }
+
+   elmat = 0.0;
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      el.CalcShape(ip, shape);
+
+      Tr.SetIntPoint (&ip);
+      w = ip.weight / Tr.Weight();
+
+      if (Q)
+      {
+         w *= Q->Eval(Tr, ip);
+      }
+
+      AddMult_a_VVt(w, shape, elmat);
+   }
+}
+
+void VectorFEBoundaryFluxIntegrator::AssembleElementMatrix2(
+   const FiniteElement &trial_fe,
+   const FiniteElement &test_fe,
+   ElementTransformation &Tr,
+   DenseMatrix &elmat)
+{
+   int tr_nd = trial_fe.GetDof();
+   int te_nd = test_fe.GetDof();
+   real_t w;
+
+#ifdef MFEM_THREAD_SAFE
+   Vector shape, te_shape;
+#endif
+   elmat.SetSize(te_nd, tr_nd);
+   shape.SetSize(tr_nd);
+   te_shape.SetSize(te_nd);
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int order = trial_fe.GetOrder() + test_fe.GetOrder() + Tr.OrderW();
+
+      ir = &IntRules.Get(trial_fe.GetGeomType(), order);
+   }
+
+   elmat = 0.0;
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      trial_fe.CalcShape(ip, shape);
+      test_fe.CalcShape(ip, te_shape);
+
+      Tr.SetIntPoint (&ip);
+      w = ip.weight / Tr.Weight();
+
+      if (Q)
+      {
+         w *= Q->Eval(Tr, ip);
+      }
+
+      te_shape *= w;
+      AddMultVWt(te_shape, shape, elmat);
    }
 }
 
@@ -1975,7 +2062,7 @@ void DerivativeIntegrator::AssembleElementMatrix2 (
       det = Trans.Weight();
       Mult (dshape, invdfdx, dshapedxt);
 
-      test_fe.CalcShape(ip, shape);
+      test_fe.CalcPhysShape(Trans, shape);
 
       for (l = 0; l < trial_nd; l++)
       {
@@ -2560,7 +2647,7 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
          Trans.SetIntPoint (&ip);
 
          trial_fe.CalcVShape(Trans, trial_vshape);
-         test_fe.CalcShape(ip, shape);
+         test_fe.CalcPhysShape(Trans, shape);
 
          w = ip.weight * Trans.Weight();
          if (DQ)
@@ -2720,11 +2807,11 @@ void VectorDivergenceIntegrator::AssembleElementMatrix2(
    for (int i = 0; i < ir -> GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
+      Trans.SetIntPoint (&ip);
 
       trial_fe.CalcDShape (ip, dshape);
-      test_fe.CalcShape (ip, shape);
+      test_fe.CalcPhysShape (Trans, shape);
 
-      Trans.SetIntPoint (&ip);
       CalcAdjugate(Trans.Jacobian(), Jadj);
 
       Mult (dshape, Jadj, gshape);
@@ -3225,11 +3312,11 @@ real_t ElasticityIntegrator::ComputeFluxEnergy(const FiniteElement &fluxelem,
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
-      fluxelem.CalcShape(ip, shape);
+      Trans.SetIntPoint(&ip);
+      fluxelem.CalcPhysShape(Trans, shape);
 
       flux_mat.MultTranspose(shape, pointstress);
 
-      Trans.SetIntPoint(&ip);
       real_t w = Trans.Weight() * ip.weight;
 
       M = mu->Eval(Trans, ip);
@@ -3336,7 +3423,7 @@ void DGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
       const IntegrationPoint &eip1 = Trans.GetElement1IntPoint();
       const IntegrationPoint &eip2 = Trans.GetElement2IntPoint();
 
-      el1.CalcShape(eip1, shape1);
+      el1.CalcPhysShape(*Trans.Elem1, shape1);
 
       u->Eval(vu, *Trans.Elem1, eip1);
 
@@ -3383,7 +3470,7 @@ void DGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
 
       if (ndof2)
       {
-         el2.CalcShape(eip2, shape2);
+         el2.CalcPhysShape(*Trans.Elem2, shape2);
 
          if (w != 0.0)
             for (int i = 0; i < ndof2; i++)
@@ -3423,7 +3510,7 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
    const FiniteElement &el1, const FiniteElement &el2,
    FaceElementTransformations &Trans, DenseMatrix &elmat)
 {
-   int dim, ndof1, ndof2, ndofs;
+   int ndof1, ndof2, ndofs;
    bool kappa_is_nonzero = (kappa != 0.);
    real_t w, wq = 0.0;
 
@@ -3466,17 +3553,9 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      // a simple choice for the integration order; is this OK?
-      int order;
-      if (ndof2)
-      {
-         order = 2*max(el1.GetOrder(), el2.GetOrder());
-      }
-      else
-      {
-         order = 2*el1.GetOrder();
-      }
-      ir = &IntRules.Get(Trans.GetGeometryType(), order);
+      const int order = (ndof2) ? max(el1.GetOrder(),
+                                      el2.GetOrder()) : el1.GetOrder();
+      ir = &GetRule(order, Trans);
    }
 
    // assemble: < {(Q \nabla u).n},[v] >      --> elmat
@@ -3654,6 +3733,13 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
    }
 }
 
+const IntegrationRule &DGDiffusionIntegrator::GetRule(
+   int order, FaceElementTransformations &T)
+{
+   // order is typically the maximum of the order of the left and right elements
+   // neighboring the given face.
+   return IntRules.Get(T.GetGeometryType(), 2*order);
+}
 
 // static method
 void DGElasticityIntegrator::AssembleBlock(
@@ -3934,19 +4020,14 @@ void TraceJumpIntegrator::AssembleFaceMatrix(
       // Set the integration point in the face and the neighboring elements
       Trans.SetAllIntPoints(&ip);
 
-      // Access the neighboring elements' integration points
-      // Note: eip2 will only contain valid data if Elem2 exists
-      const IntegrationPoint &eip1 = Trans.GetElement1IntPoint();
-      const IntegrationPoint &eip2 = Trans.GetElement2IntPoint();
-
       // Trace finite element shape function
       trial_face_fe.CalcShape(ip, face_shape);
       // Side 1 finite element shape function
-      test_fe1.CalcShape(eip1, shape1);
+      test_fe1.CalcPhysShape(*Trans.Elem1, shape1);
       if (ndof2)
       {
          // Side 2 finite element shape function
-         test_fe2.CalcShape(eip2, shape2);
+         test_fe2.CalcPhysShape(*Trans.Elem2, shape2);
       }
       w = ip.weight;
       if (trial_face_fe.GetMapType() == FiniteElement::VALUE)

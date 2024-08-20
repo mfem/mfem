@@ -11,17 +11,17 @@
 //
 //             MFEM Ultraweak DPG parallel example for convection-diffusion
 //
-// Compile with: make  pconvection-diffusion
+// Compile with: make pconvection-diffusion
 //
 // sample runs
-// mpirun -np 4 pconvection-diffusion  -o 2 -ref 3 -prob 0 -eps 1e-1 -beta '4 2' -theta 0.0
-// mpirun -np 4 pconvection-diffusion  -o 3 -ref 3 -prob 0 -eps 1e-2 -beta '2 3' -theta 0.0
-// mpirun -np 4 pconvection-diffusion -m ../../data/inline-hex.mesh -o 2 -ref 1 -prob 0 -sc -eps 1e-1 -theta 0.0
+//  mpirun -np 4 pconvection-diffusion -o 2 -ref 3 -prob 0 -eps 1e-1 -beta '4 2' -theta 0.0
+//  mpirun -np 4 pconvection-diffusion -o 3 -ref 3 -prob 0 -eps 1e-2 -beta '2 3' -theta 0.0
+//  mpirun -np 4 pconvection-diffusion -m ../../data/inline-hex.mesh -o 2 -ref 1 -prob 0 -sc -eps 1e-1 -theta 0.0
 
 // AMR runs
-// mpirun -np 4 pconvection-diffusion  -o 3 -ref 10 -prob 1 -eps 1e-3 -beta '1 0' -theta 0.7 -sc
-// mpirun -np 4 pconvection-diffusion  -o 3 -ref 15 -prob 2 -eps 5e-3 -theta 0.7 -sc
-// mpirun -np 4 pconvection-diffusion  -o 2 -ref 12 -prob 3 -eps 1e-2 -beta '1 2' -theta 0.7 -sc
+//  mpirun -np 4 pconvection-diffusion -o 3 -ref 10 -prob 1 -eps 1e-3 -beta '1 0' -theta 0.7 -sc
+//  mpirun -np 4 pconvection-diffusion -o 3 -ref 15 -prob 2 -eps 5e-3 -theta 0.7 -sc
+//  mpirun -np 4 pconvection-diffusion -o 2 -ref 12 -prob 3 -eps 1e-2 -beta '1 2' -theta 0.7 -sc
 
 // Description:
 // This example code demonstrates the use of MFEM to define and solve a parallel

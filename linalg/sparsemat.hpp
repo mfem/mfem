@@ -216,7 +216,7 @@ public:
    void ClearCuSparse() { ClearGPUSparse(); }
 
    /// Check if the SparseMatrix is empty.
-   bool Empty() const { return (A == NULL) && (Rows == NULL); }
+   bool Empty() const { return A.Empty() && (Rows == NULL); }
 
    /// Return the array #I.
    inline int *GetI() { return I; }
@@ -656,6 +656,19 @@ public:
    /// Prints matrix in matlab format.
    /** @note The host in synchronized when the finalized matrix is on the device. */
    virtual void PrintMatlab(std::ostream &out = mfem::out) const;
+
+   /// Prints matrix as a SparseArray for importing into Mathematica.
+   /** The resulting file can be read into Mathematica using an expression such
+       as: my_mat = Get["output_file_name"]
+       The Mathematica variable "my_mat" will then be assigned to a new
+       SparseArray object containing the data from this MFEM SparseMatrix.
+
+       @note Mathematica uses 1-based indexing so the MFEM row and column
+       indices will be sifted up by one in the Mathematica output.
+
+       @note The host in synchronized when the finalized matrix is on the
+       device. */
+   virtual void PrintMathematica(std::ostream &out = mfem::out) const;
 
    /// Prints matrix in Matrix Market sparse format.
    /** @note The host in synchronized when the finalized matrix is on the device. */
