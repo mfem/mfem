@@ -38,80 +38,6 @@ static MFEM_HOST_DEVICE void lagrange_eval(double *p0, double x,
 }
 
 template<int T_D1D = 0>
-static void InterpolateLocal2DKernelOld(const double *const gf_in,
-                                        int *const el,
-                                        double *const r,
-                                        double *const int_out,
-                                        const int npt,
-                                        const int ncomp,
-                                        const int nel,
-                                        const int gf_offset,
-                                        double *gll1D,
-                                        double *lagcoeff,
-                                        const int pN = 0)
-{
-   const int Nfields = ncomp;
-   const int fieldOffset = gf_offset;
-   const int MD1 = T_D1D ? T_D1D : 14;
-   const int D1D = T_D1D ? T_D1D : pN;
-   const int p_Np = D1D*D1D;
-   MFEM_VERIFY(MD1 <= 14,"Increase Max allowable polynomial order.");
-   MFEM_VERIFY(D1D != 0, "Polynomial order not specified.");
-   const int nThreads = 32;
-   mfem::forall_2D(npt, nThreads, 1, [=] MFEM_HOST_DEVICE (int i)
-   {
-      MFEM_SHARED double wtr[2*MD1];
-      MFEM_SHARED double sums[MD1];
-
-      // Evaluate basis functions at the reference space coordinates
-      MFEM_FOREACH_THREAD(j,x,nThreads)
-      {
-         if (j < 2*D1D)
-         {
-            const int qp = j % D1D;
-            const int d = j / D1D;
-            lagrange_eval(wtr + d*D1D, r[2 * i + d], qp, D1D, gll1D, lagcoeff);
-         }
-      }
-      MFEM_SYNC_THREAD;
-
-      for (int fld = 0; fld < Nfields; ++fld)
-      {
-
-         const int elemOffset = el[i] * p_Np + fld * fieldOffset;
-
-         MFEM_FOREACH_THREAD(j,x,nThreads)
-         {
-            if (j < D1D)
-            {
-               double sum_j = 0;
-               for (int k = 0; k < D1D; ++k)
-               {
-                  sum_j += gf_in[elemOffset + j + k * D1D] * wtr[D1D+k];
-               }
-               sums[j] = wtr[j] * sum_j;
-            }
-         }
-         MFEM_SYNC_THREAD;
-
-         MFEM_FOREACH_THREAD(j,x,nThreads)
-         {
-            if (j == 0)
-            {
-               double sumv = 0.0;
-               for (int jj = 0; jj < D1D; ++jj)
-               {
-                  sumv += sums[jj];
-               }
-               int_out[i + fld * npt] = sumv;
-            }
-         }
-         MFEM_SYNC_THREAD;
-      }
-   });
-}
-
-template<int T_D1D = 0>
 static void InterpolateLocal2DKernel(const double *const gf_in,
                                      int *const el,
                                      double *const r,
@@ -125,11 +51,11 @@ static void InterpolateLocal2DKernel(const double *const gf_in,
                                      const int pN = 0)
 {
    const int Nfields = ncomp;
-   const int fieldOffset = gf_offset;
-   const int MD1 = T_D1D ? T_D1D : 14;
+   // const int fieldOffset = gf_offset;
+   const int MD1 = T_D1D ? T_D1D : 10;
    const int D1D = T_D1D ? T_D1D : pN;
    const int p_Np = D1D*D1D;
-   MFEM_VERIFY(MD1 <= 14,"Increase Max allowable polynomial order.");
+   MFEM_VERIFY(MD1 <= 10,"Increase Max allowable polynomial order.");
    MFEM_VERIFY(D1D != 0, "Polynomial order not specified.");
    mfem::forall_2D(npt, D1D, D1D, [=] MFEM_HOST_DEVICE (int i)
    {
@@ -190,7 +116,6 @@ void FindPointsGSLIB::InterpolateLocal2(const Vector &field_in,
 {
    if (npt == 0) { return; }
    const int gf_offset = field_in.Size()/ncomp;
-   MFEM_VERIFY(dim == 2,"Kernel for 2D only.");
    auto pfin = field_in.Read();
    auto pgsl = gsl_elem_dev_l.ReadWrite();
    auto pgslr = gsl_ref_l.ReadWrite();
