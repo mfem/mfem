@@ -412,26 +412,8 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
    // gsl_mfem_elem = gsl_elem;
    gsl_mfem_ref += 1.;  // map  [-1, 1] to [0, 2] to [0, 1]
    gsl_mfem_ref *= 0.5;
-
    // tolerance for point to be marked as on element edge/face
    double btol = 1e-12; // must match MapRefPosAndElemIndices
-   for (int index = 0; index < points_cnt; index++)
-   {
-      if (gsl_code[index] == CODE_NOT_FOUND)
-      {
-         continue;
-      }
-      IntegrationPoint ip;
-      ip.Set3(gsl_mfem_ref.GetData() + index + dim*points_cnt);
-      const int elem = gsl_elem[index];
-      // const int mesh_elem = split_element_map[elem];
-      const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(elem);
-      const Geometry::Type gt = fe->GetGeomType();
-      if (gt == Geometry::SQUARE || gt == Geometry::CUBE)
-      {
-         gsl_code[index] = Geometry::CheckPoint(gt, ip, -btol) ? 0 : 1;
-      }
-   }
 
    const int id = gsl_comm->id,
              np = gsl_comm->np;
@@ -442,6 +424,23 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
 
    if (np == 1)
    {
+      for (int index = 0; index < points_cnt; index++)
+      {
+         if (gsl_code[index] == CODE_NOT_FOUND)
+         {
+            continue;
+         }
+         IntegrationPoint ip;
+         ip.Set3(gsl_mfem_ref.GetData() + index*dim);
+         const int elem = gsl_elem[index];
+         // const int mesh_elem = split_element_map[elem];
+         const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(elem);
+         const Geometry::Type gt = fe->GetGeomType();
+         if (gt == Geometry::SQUARE || gt == Geometry::CUBE)
+         {
+            gsl_code[index] = Geometry::CheckPoint(gt, ip, -btol) ? 0 : 1;
+         }
+      }
       return;
    }
 
@@ -684,6 +683,25 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
       }
       array_free(&out_pt);
    }
+
+   // Set code for local points
+   for (int index = 0; index < points_cnt; index++)
+   {
+      if (gsl_code[index] == CODE_NOT_FOUND || gsl_proc[index] != id)
+      {
+         continue;
+      }
+      IntegrationPoint ip;
+      ip.Set3(gsl_mfem_ref.GetData() + index*dim);
+      const int elem = gsl_elem[index];
+      const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(elem);
+      const Geometry::Type gt = fe->GetGeomType();
+      if (gt == Geometry::SQUARE || gt == Geometry::CUBE)
+      {
+         gsl_code[index] = Geometry::CheckPoint(gt, ip, -btol) ? 0 : 1;
+      }
+   }
+
    MPI_Barrier(gsl_comm->c);
 }
 
