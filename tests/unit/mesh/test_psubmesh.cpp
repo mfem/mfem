@@ -699,8 +699,9 @@ TEST_CASE("ParSubMesh Interior Boundaries", "[Parallel],[ParSubMesh]")
          if (serial_mesh.FaceIsInterior(i))
          {
             const int attr = bdr_max + i + 1;
-            REQUIRE(be1[attr] == 1);
-            REQUIRE(be2[attr] == 1);
+            CAPTURE(i, attr, bdr_max, be1[attr], be2[attr]);
+            CHECK(be1[attr] == 1);
+            CHECK(be2[attr] == 1);
          }
       }
    }
@@ -726,83 +727,6 @@ struct ParNCSubMeshExposed : public ParNCSubMesh
       int global = 0;
       MPI_Allreduce(&local, &global, 1, MPI_INT, MPI_SUM, GetGlobalMPI_Comm());
       return global;
-   }
-};
-
-/**
- * @brief Helper to refine a single element attached to a boundary attributes
- *
- * @param mesh Mesh to refine
- * @param vattr Volume attribute to check the attached element for
- * @param battr Boundary attribute to loop over faces
- * @param backwards Whether to iterate over the faces forwards or backwards.
- */
-void RefineSingleAttachedElement(Mesh &mesh, int vattr, int battr, bool backwards = true)
-{
-   Array<Refinement> refs(1);
-   std::vector<int> ind(mesh.GetNBE());
-   if (backwards)
-   {
-      std::iota(ind.rbegin(), ind.rend(), 0);
-   }
-   else
-   {
-      std::iota(ind.begin(), ind.end(), 0);
-   }
-   for (int e : ind)
-   {
-      if (mesh.GetBdrAttribute(e) == battr)
-      {
-         int f, o, el1, el2;
-         mesh.GetBdrElementFace(e, &f, &o);
-         mesh.GetFaceElements(f, &el1, &el2);
-         if (mesh.GetAttribute(el1) == vattr)
-         { mesh.GeneralRefinement(Array<int>{el1}); return; }
-         if (mesh.GetAttribute(el2) == vattr)
-         { mesh.GeneralRefinement(Array<int>{el2}); return; }
-      }
-   }
-};
-
-/**
- * @brief Helper to refine a single element not attached to a boundary
- *
- * @param mesh Mesh to refine
- * @param vattr Volume
- * @param battr
- * @param backwards
- */
-void RefineSingleUnattachedElement(Mesh &mesh, int vattr, int battr, bool backwards = true)
-{
-   std::set<int> attached_elements;
-   for (int e = 0; e < mesh.GetNBE(); e++)
-   {
-      if (mesh.GetBdrAttribute(e) == battr)
-      {
-         int f, o, el1, el2;
-         mesh.GetBdrElementFace(e, &f, &o);
-         mesh.GetFaceElements(f, &el1, &el2);
-         if (mesh.GetAttribute(el1) == vattr) { attached_elements.insert(el1); }
-         if (el2 >= 0 && mesh.GetAttribute(el2) == vattr) { attached_elements.insert(el2); }
-      }
-   }
-   if (backwards)
-   {
-      for (int i = mesh.GetNE() - 1; i >= 0; i--)
-         if (mesh.GetAttribute(i) == vattr && attached_elements.count(i) == 0)
-         {
-            mesh.GeneralRefinement(Array<int>{i});
-            return;
-         }
-   }
-   else
-   {
-      for (int i = 0; i < mesh.GetNE(); i++)
-         if (mesh.GetAttribute(i) == vattr && attached_elements.count(i) == 0)
-         {
-            mesh.GeneralRefinement(Array<int>{i});
-            return;
-         }
    }
 };
 
@@ -897,7 +821,7 @@ void CheckProjectMatch(ParMesh &mesh, ParSubMesh &submesh, FECType fec_type, boo
    }
 }
 
-TEST_CASE("VolumeParSubMesh", "[Parallel], [ParSubMesh]")
+TEST_CASE("VolumeParNCSubMesh", "[Parallel], [ParSubMesh]")
 {
    bool use_tet = GENERATE(false,true);
 
@@ -1020,7 +944,7 @@ TEST_CASE("VolumeParSubMesh", "[Parallel], [ParSubMesh]")
    }
 }
 
-TEST_CASE("ExteriorSurfaceParSubMesh", "[Parallel], [ParSubMesh]")
+TEST_CASE("ExteriorSurfaceParNCSubMesh", "[Parallel], [ParSubMesh]")
 {
    SECTION("Hex")
    {

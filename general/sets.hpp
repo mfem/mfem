@@ -24,30 +24,15 @@ class IntegerSet : public Array<int>
 {
 public:
    using Array<int>::Array;
-   // IntegerSet() = default;
-   // IntegerSet(const IntegerSet&) = default;
-   // IntegerSet& operator=(const IntegerSet&) = default;
-   // IntegerSet(IntegerSet&&) = default;
-   // IntegerSet& operator=(IntegerSet&&) = default;
 
    /// Create an integer set from C-array 'p' of 'n' integers.
    IntegerSet(const int n, const int *p) { Recreate(n, p); }
-
-   // /// Return the size of the set.
-   // int Size() const { return me.Size(); }
-
-   // /// Return a reference to the sorted array of all the set entries.
-   // operator Array<int>& () { return me; }
-   // operator const Array<int>& () const { return me; }
 
    /// Return the value of the lowest element of the set.
    int PickElement() const { return data[0]; }
 
    /// Return the value of a random element of the set.
    int PickRandomElement() const;
-
-   // /// Return 1 if the sets are equal and 0 otherwise.
-   // int operator==(const IntegerSet &s) const;
 
    /** @brief Create an integer set from C-array 'p' of 'n' integers.
        Overwrites any existing set data. */

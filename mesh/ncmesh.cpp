@@ -2809,10 +2809,6 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
 
    if (Dim == 2)
    {
-      std::cout << "NFaces " << NFaces << std::endl;
-      std::cout << "NGhostFaces " << NGhostFaces << std::endl;
-      std::cout << "NEdges " << NEdges << std::endl;
-      std::cout << "NGhostEdges " << NGhostEdges << std::endl;
       // in 2D we have fake faces because of DG
       MFEM_ASSERT(NFaces == NEdges, "");
       MFEM_ASSERT(NGhostFaces == NGhostEdges, "");

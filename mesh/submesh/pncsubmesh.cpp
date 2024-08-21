@@ -697,9 +697,6 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
          parent_to_submesh_element_ids_.reserve(parent.faces.Size());
          // parent_to_submesh_element_ids_ = -1;
          std::set<int> new_nodes;
-         std::cout << "elements.Size " << elements.Size() << std::endl;
-         std::cout << "parent_face_to_be.Size() " << parent_face_to_be.Size() << std::endl;
-         std::cout << "NFaces " << NFaces << std::endl;
          for (int i = 0, ipe = 0; ipe < parent.faces.Size(); /* nothing */)
          {
             const auto &f = parent.faces[i++];

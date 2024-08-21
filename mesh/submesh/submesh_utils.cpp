@@ -210,18 +210,6 @@ void BuildVdofToVdofMap(const FiniteElementSpace& subfes,
          real_t parent_sign = 1.0;
          int parent_vdof = parentfes.DecodeDof(parent_vdofs[j], parent_sign);
 
-         // for (auto x : {4,6,9,11})
-         //    if (sub_vdof == x)
-         //    {
-         //       std::cout << "element " << i << " maps " << x << " to " << parent_vdof << '\n';
-         //    }
-         // for (auto x : {114, 119})
-         //    if (parent_vdof == x)
-         //    {
-         //       std::cout << "element " << i << " maps " << sub_vdof << " to " << x << std::endl;
-         //       // std::cout << "parent element " << parent_element_ids[i] << " parent contains " << x << std::endl;
-         //    }
-
          vdof_to_vdof_map[sub_vdof] =
             (sub_sign * parent_sign > 0.0) ? parent_vdof : (-1-parent_vdof);
       }
@@ -235,7 +223,6 @@ void BuildVdofToVdofMap(const FiniteElementSpace& subfes,
    if (tmp.Size() != vdof_to_vdof_map.Size())
    {
       std::stringstream msg;
-      std::cout << "duplicates found in dof map\n";
       for (int i = 0; i < vdof_to_vdof_map.Size(); i++)
          for (int j = i + 1; j < vdof_to_vdof_map.Size(); j++)
          {
@@ -327,6 +314,7 @@ void AddBoundaryElements(SubMeshT &mesh, const std::unordered_map<int,int> &lfac
    const auto &parent = *mesh.GetParent();
    const auto &parent_face_ids = mesh.GetParentFaceIDMap();
    const auto &parent_edge_ids = mesh.GetParentEdgeIDMap();
+   const auto &parent_vertex_ids = mesh.GetParentVertexIDMap();
 
    const auto &parent_face_to_be = parent.GetFaceToBdrElMap();
    int max_bdr_attr = parent.bdr_attributes.Max();
@@ -337,42 +325,37 @@ void AddBoundaryElements(SubMeshT &mesh, const std::unordered_map<int,int> &lfac
       {
          auto * be = mesh.GetFace(i)->Duplicate(&mesh);
 
+         auto pfid = [&](int i)
+         {
+            switch (mesh.Dimension())
+            {
+               case 3: return parent_face_ids[i];
+               case 2: return parent_edge_ids[i];
+               case 1: return parent_vertex_ids[i];
+            }
+            MFEM_ABORT("!");
+            return -1;
+         };
+
          if (mesh.GetFrom() == SubMesh::From::Domain && mesh.Dimension() >= 2)
          {
-            int pbeid = mesh.Dimension() == 3 ? parent_face_to_be[parent_face_ids[i]] :
-                        parent_face_to_be[parent_edge_ids[i]];
+            int pbeid = parent_face_to_be[pfid(i)];
             if (pbeid != -1)
             {
                be->SetAttribute(parent.GetBdrAttribute(pbeid));
-               std::cout << "face " << i << " attr " << parent.GetBdrAttribute(pbeid) << '\n';
             }
             else
             {
-               std::cout << "face " << i << " parent_face_id " << parent_face_ids[i] << '\n';
-               auto ghost_attr = lface_to_boundary_attribute.find(parent_face_ids[i]);
+               auto ghost_attr = lface_to_boundary_attribute.find(mesh.Dimension() == 3 ? parent_face_ids[i] : parent_edge_ids[i]);
                int battr = ghost_attr != lface_to_boundary_attribute.end() ? ghost_attr->second : max_bdr_attr + 1;
-               std::cout << __FILE__ << ':' <<__LINE__ << '\n';
-               std::cout << "ghost? " << std::boolalpha << (ghost_attr != lface_to_boundary_attribute.end());
-               std::cout << " battr " << battr << " vs " << max_bdr_attr + 1 << std::endl;
                be->SetAttribute(battr);
-
-               // auto ghost_attr = lface_to_boundary_attribute.find(i);
-               // int battr = ghost_attr != lface_to_boundary_attribute.end() ? ghost_attr->second : max_bdr_attr + 1;
-               // std::cout << __FILE__ << ':' <<__LINE__ << '\n';
-               // std::cout << "ghost? " << std::boolalpha << (ghost_attr != lface_to_boundary_attribute.end());
-               // std::cout << " battr " << battr << " vs " << max_bdr_attr + 1 << std::endl;
-               // be->SetAttribute(max_bdr_attr + 1);
             }
          }
          else
          {
-            auto ghost_attr = lface_to_boundary_attribute.find(parent_face_ids[i]);
+            auto ghost_attr = lface_to_boundary_attribute.find(pfid(i));
             int battr = ghost_attr != lface_to_boundary_attribute.end() ? ghost_attr->second : max_bdr_attr + 1;
-               std::cout << __FILE__ << ':' <<__LINE__ << '\n';
-            std::cout << "ghost? " << std::boolalpha << (ghost_attr != lface_to_boundary_attribute.end());
-            std::cout << " battr " << battr << " vs " << max_bdr_attr + 1 << std::endl;
             be->SetAttribute(battr);
-            // be->SetAttribute(max_bdr_attr + 1);
          }
          be_to_face.Append(i);
          boundary.Append(be);
@@ -391,15 +374,11 @@ void AddBoundaryElements(SubMeshT &mesh, const std::unordered_map<int,int> &lfac
             mesh.GetSubMeshFaceFromParent(parentFaceIdx) :
             mesh.GetSubMeshEdgeFromParent(parentFaceIdx);
 
-         std::cout << "parent be " << i << " attr " << parent.GetBdrAttribute(i) << '\n';
-
          if (submeshFaceIdx == -1) { continue; }
          if (mesh.GetFaceInformation(submeshFaceIdx).IsBoundary()) { continue; }
 
          InteriorBdrElems++;
       }
-      std::cout << __FILE__ << ':' << __LINE__ << '\n';
-      std::cout << "InteriorBdrElems " << InteriorBdrElems << '\n';
 
       if (InteriorBdrElems > 0)
       {
@@ -421,7 +400,6 @@ void AddBoundaryElements(SubMeshT &mesh, const std::unordered_map<int,int> &lfac
 
             auto * be = mesh.GetFace(submeshFaceIdx)->Duplicate(&mesh);
             be->SetAttribute(parent.GetBdrAttribute(i));
-            std::cout << "parentFaceIdx " << parentFaceIdx << " submeshFaceIdx " << submeshFaceIdx << " attribute " << parent.GetBdrAttribute(i) << std::endl;
 
             boundary.Append(be);
             be_to_face.Append(submeshFaceIdx);
