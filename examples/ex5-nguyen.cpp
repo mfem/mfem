@@ -1215,7 +1215,7 @@ TFunc GetFFun(int prob, real_t t_0, real_t k, real_t c)
             const real_t u_yy = -2. * (u + k * ut * ux) / (k*k * chy*chy);
             const real_t divq = -k * (u_xx + u_yy);
             const real_t divF = u * (u_x + u_y);
-            const real_t ft = ((prob == Problem::SteadyBurgers)?(0.):(t*exp(t)  * ux * uy));
+            const real_t ft = ((prob == Problem::SteadyBurgers)?(0.):(exp(t)  * ux * uy));
             const real_t f = divq + divF + ft;
             return -f;
          };
