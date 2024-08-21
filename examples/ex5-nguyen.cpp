@@ -136,6 +136,7 @@ int main(int argc, char *argv[])
    real_t td = 0.5;
    bool hybridization = false;
    bool nonlinear = false;
+   int hdg_scheme = 1;
    bool pa = false;
    const char *device_config = "cpu";
    bool mfem = false;
@@ -179,6 +180,8 @@ int main(int argc, char *argv[])
                   "--no-hybridization", "Enable hybridization.");
    args.AddOption(&nonlinear, "-nl", "--nonlinear", "-no-nl",
                   "--no-nonlinear", "Enable non-linear regime.");
+   args.AddOption(&hdg_scheme, "-hdg", "--hdg_scheme",
+                  "HDG scheme (1=HDG-I, 2=HDG-II).");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
@@ -487,8 +490,15 @@ int main(int argc, char *argv[])
    {
       FluxFun = GetFluxFun(problem, ccoeff);
       FluxSolver = new RusanovFlux(*FluxFun);
-      constexpr HDGHyperbolicFormIntegrator::HDGScheme scheme =
-         HDGHyperbolicFormIntegrator::HDGScheme::HDG_1;
+      HDGHyperbolicFormIntegrator::HDGScheme scheme;
+      switch (hdg_scheme)
+      {
+         case 1: scheme = HDGHyperbolicFormIntegrator::HDGScheme::HDG_1; break;
+         case 2: scheme = HDGHyperbolicFormIntegrator::HDGScheme::HDG_2; break;
+         default:
+            cerr << "Unknown HDG scheme" << endl;
+            exit(1);
+      }
       Mtnl->AddDomainIntegrator(new HyperbolicFormIntegrator(*FluxSolver, 0, -1.));
       Mtnl->AddInteriorFaceIntegrator(new HDGHyperbolicFormIntegrator(
                                          scheme, *FluxSolver, 1., 0, -1.));
