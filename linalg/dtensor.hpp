@@ -25,9 +25,7 @@ public:
    MFEM_HOST_DEVICE
    static inline int result(const int* sizes, T first, Args... args)
    {
-#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
-      MFEM_ASSERT(first<sizes[N-1],"Trying to access out of boundary.");
-#endif
+      MFEM_ASSERT_KERNEL(first<sizes[N-1],"Trying to access out of boundary.");
       return static_cast<int>(first + sizes[N - 1] * TensorInd < N + 1, Dim, Args... >
                               ::result(sizes, args...));
    }
@@ -41,9 +39,7 @@ public:
    MFEM_HOST_DEVICE
    static inline int result(const int* sizes, T first, Args... args)
    {
-#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
-      MFEM_ASSERT(first<sizes[Dim-1],"Trying to access out of boundary.");
-#endif
+      MFEM_ASSERT_KERNEL(first<sizes[Dim-1],"Trying to access out of boundary.");
       return static_cast<int>(first);
    }
 };
