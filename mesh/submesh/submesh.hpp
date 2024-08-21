@@ -230,6 +230,7 @@ private:
    /// The parent Mesh. Not owned.
    const Mesh *parent_;
 
+   /// Optional nonconformal submesh. Managed via ncmesh pointer in base class.
    NCSubMesh *ncsubmesh_;
 
    /// Indicator from which part of the parent ParMesh the ParSubMesh is going

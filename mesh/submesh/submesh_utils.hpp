@@ -132,8 +132,7 @@ auto GetRootParent(const T &m) -> decltype(std::declval<T>().GetParent())
  * @tparam MeshT The SubMesh type, options SubMesh and ParSubMesh.
  */
 template <typename SubMeshT>
-void AddBoundaryElements(SubMeshT &mesh);
-
+void AddBoundaryElements(SubMeshT &mesh, const std::unordered_map<int,int> &lface_to_boundary_attribute = {});
 
 /**
  * @brief Helper for checking if an object's attributes match a list

@@ -137,7 +137,6 @@ void BuildVdofToVdofMap(const FiniteElementSpace& subfes,
       {
          if (parentfes.IsDGSpace())
          {
-            std::cout << __FILE__ << ':' << __LINE__ << std::endl;
             MFEM_ASSERT(static_cast<const L2_FECollection*>
                         (parentfes.FEColl())->GetBasisType() == BasisType::GaussLobatto,
                         "Only BasisType::GaussLobatto is supported for L2 spaces");
@@ -291,7 +290,7 @@ Array<int> BuildFaceMap(const Mesh& pm, const Mesh& sm,
 }
 
 template <typename SubMeshT>
-void AddBoundaryElements(SubMeshT &mesh)
+void AddBoundaryElements(SubMeshT &mesh, const std::unordered_map<int,int> &lface_to_boundary_attribute)
 {
    mesh.Dimension();
    // TODO: Check if the mesh is a SubMesh or ParSubMesh.
@@ -345,15 +344,35 @@ void AddBoundaryElements(SubMeshT &mesh)
             if (pbeid != -1)
             {
                be->SetAttribute(parent.GetBdrAttribute(pbeid));
+               std::cout << "face " << i << " attr " << parent.GetBdrAttribute(pbeid) << '\n';
             }
             else
             {
-               be->SetAttribute(max_bdr_attr + 1);
+               std::cout << "face " << i << " parent_face_id " << parent_face_ids[i] << '\n';
+               auto ghost_attr = lface_to_boundary_attribute.find(parent_face_ids[i]);
+               int battr = ghost_attr != lface_to_boundary_attribute.end() ? ghost_attr->second : max_bdr_attr + 1;
+               std::cout << __FILE__ << ':' <<__LINE__ << '\n';
+               std::cout << "ghost? " << std::boolalpha << (ghost_attr != lface_to_boundary_attribute.end());
+               std::cout << " battr " << battr << " vs " << max_bdr_attr + 1 << std::endl;
+               be->SetAttribute(battr);
+
+               // auto ghost_attr = lface_to_boundary_attribute.find(i);
+               // int battr = ghost_attr != lface_to_boundary_attribute.end() ? ghost_attr->second : max_bdr_attr + 1;
+               // std::cout << __FILE__ << ':' <<__LINE__ << '\n';
+               // std::cout << "ghost? " << std::boolalpha << (ghost_attr != lface_to_boundary_attribute.end());
+               // std::cout << " battr " << battr << " vs " << max_bdr_attr + 1 << std::endl;
+               // be->SetAttribute(max_bdr_attr + 1);
             }
          }
          else
          {
-            be->SetAttribute(max_bdr_attr + 1);
+            auto ghost_attr = lface_to_boundary_attribute.find(parent_face_ids[i]);
+            int battr = ghost_attr != lface_to_boundary_attribute.end() ? ghost_attr->second : max_bdr_attr + 1;
+               std::cout << __FILE__ << ':' <<__LINE__ << '\n';
+            std::cout << "ghost? " << std::boolalpha << (ghost_attr != lface_to_boundary_attribute.end());
+            std::cout << " battr " << battr << " vs " << max_bdr_attr + 1 << std::endl;
+            be->SetAttribute(battr);
+            // be->SetAttribute(max_bdr_attr + 1);
          }
          be_to_face.Append(i);
          boundary.Append(be);
@@ -372,11 +391,15 @@ void AddBoundaryElements(SubMeshT &mesh)
             mesh.GetSubMeshFaceFromParent(parentFaceIdx) :
             mesh.GetSubMeshEdgeFromParent(parentFaceIdx);
 
+         std::cout << "parent be " << i << " attr " << parent.GetBdrAttribute(i) << '\n';
+
          if (submeshFaceIdx == -1) { continue; }
          if (mesh.GetFaceInformation(submeshFaceIdx).IsBoundary()) { continue; }
 
          InteriorBdrElems++;
       }
+      std::cout << __FILE__ << ':' << __LINE__ << '\n';
+      std::cout << "InteriorBdrElems " << InteriorBdrElems << '\n';
 
       if (InteriorBdrElems > 0)
       {
@@ -398,6 +421,7 @@ void AddBoundaryElements(SubMeshT &mesh)
 
             auto * be = mesh.GetFace(submeshFaceIdx)->Duplicate(&mesh);
             be->SetAttribute(parent.GetBdrAttribute(i));
+            std::cout << "parentFaceIdx " << parentFaceIdx << " submeshFaceIdx " << submeshFaceIdx << " attribute " << parent.GetBdrAttribute(i) << std::endl;
 
             boundary.Append(be);
             be_to_face.Append(submeshFaceIdx);
@@ -408,10 +432,10 @@ void AddBoundaryElements(SubMeshT &mesh)
 }
 
 // Explicit instantiations
-template void AddBoundaryElements(SubMesh &mesh);
+template void AddBoundaryElements(SubMesh &mesh, const std::unordered_map<int,int> &);
 
 #ifdef MFEM_USE_MPI
-template void AddBoundaryElements(ParSubMesh &mesh);
+template void AddBoundaryElements(ParSubMesh &mesh, const std::unordered_map<int,int> &);
 #endif
 
 } // namespace SubMeshUtils
