@@ -45,6 +45,7 @@ for i in range(len(filenames)):
 	nx = get_ref_param(filename, '--ncells-x')
 	ny = get_ref_param(filename, '--ncells-y')
 	kappa = get_ref_param(filename, '--kappa', "1")
+	hdg = get_ref_param(filename, '--hdg_scheme', "1")
 
 	ref_out = subprocess.getoutput("grep '|| t_h - t_ex || / || t_ex || = ' "+filename+"  | cut -d '=' -f 2-")
 	ref_L2_t = float(ref_out.split()[0])
@@ -70,6 +71,8 @@ for i in range(len(filenames)):
 		command_line = command_line+' -nl'
 	if kappa != str(1):
 		command_line = command_line+' -k '+kappa
+	if hdg != str(1):
+		command_line = command_line+' -hdg '+hdg
 
 	cmd_out = subprocess.getoutput(command_line)
 	split_cmd_out = cmd_out.splitlines()
