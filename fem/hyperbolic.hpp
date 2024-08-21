@@ -109,12 +109,12 @@ public:
 
    /**
     * @brief Compute normal flux Jacobian. Optionally overloaded in the derived
-    * class to avoid creating full dense matrix for flux.
+    * class to avoid creating full dense matrix for Jacobian.
     *
     * @param[in] state state at the current integration point
     * @param[in] normal normal vector, @see CalcOrtho
     * @param[in] Tr element information
-    * @param[out] JDotN flux Jacobian, J(i,j,d) = dF_{id}.n_d / u_j
+    * @param[out] JDotN normal flux Jacobian, JDotN(i,j) = dF_{id} n_d / u_j
     */
    virtual void ComputeFluxJacobianDotN(const Vector &state,
                                         const Vector &normal,
@@ -279,7 +279,7 @@ private:
    real_t Ctau;
 
 #ifndef MFEM_THREAD_SAFE
-   DenseMatrix JDotN;
+   DenseMatrix JDotN;   // hat(J)(u,x) n
 #endif
 
 public:
@@ -405,10 +405,25 @@ public:
    real_t ComputeFlux(const Vector &state, ElementTransformation &Tr,
                       DenseMatrix &flux) const override;
 
+   /**
+    * @brief Compute J(u)
+    *
+    * @param state state (u) at current integration point
+    * @param Tr current element transformation with integration point
+    * @param J J(u) = diag(u*1ᵀ) where 1 is (dim) vector
+    */
    void ComputeFluxJacobian(const Vector &state,
                             ElementTransformation &Tr,
                             DenseTensor &J) const override;
 
+   /**
+    * @brief Compute J(u) n
+    *
+    * @param state state (u) at current integration point
+    * @param normal normal vector, usually not a unit vector
+    * @param Tr current element transformation with integration point
+    * @param JDotN J(u) = diag(u*(1ᵀn)) where 1 is (dim) vector
+    */
    void ComputeFluxJacobianDotN(const Vector &state,
                                 const Vector &normal,
                                 ElementTransformation &Tr,
