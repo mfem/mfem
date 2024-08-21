@@ -491,9 +491,8 @@ void HDGHyperbolicFormIntegrator::AssembleHDGFaceGrad(
          // Compute stabilization
          for (int d = 0; d < num_equations; d++)
          {
-            JDotN(d,d) += Ctau * state_el(d) * nor.Norml2();
+            JDotN(d,d) += Ctau * nor.Norml2();
          }
-
 
          // pre-multiply integration weight to Jacobians
          const real_t w = -ip.weight*sign;
@@ -537,7 +536,7 @@ void HDGHyperbolicFormIntegrator::AssembleHDGFaceGrad(
          // Compute stabilization
          for (int d = 0; d < num_equations; d++)
          {
-            JDotN(d,d) -= Ctau * state_tr(d) * nor.Norml2();
+            JDotN(d,d) -= Ctau * nor.Norml2();
          }
 
          // pre-multiply integration weight to Jacobians
