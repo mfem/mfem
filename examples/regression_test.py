@@ -26,35 +26,18 @@ filenames = os.listdir(path)
 failed = 0
 
 for i in range(len(filenames)):
-	# Parcing reference file
-	'''
-	problem = filenames[i][7]
-	order = filenames[i][8]
-	dg = int(filenames[i][9])
-	hb = int(filenames[i][10])
-
-	dg_com = ''
-	if int(dg) == 1:
-		dg_com = " -dg "
-	hb_com = ''
-	if int(hb) == 1:
-		hb_com = " -hb "
-	'''
-	dg = False
-	hb = False
-	upwind = False
-	nonlin = False
+	# Parsing reference file
 
 	filename = path + filenames[i]
 
-	if filenames[i].find('dg') != -1:
-		dg = True
-	if filenames[i].find('hb') != -1:
-		hb = True
-	if filenames[i].find('upwind') != -1:
-		upwind = True
-	if filenames[i].find('nl') != -1:
-		nonlin = True
+	def get_ref_option(file, option):
+		ref_out = subprocess.getoutput("grep ' "+option+"' "+file)
+		return len(ref_out) > 0
+
+	dg = get_ref_option(filename, '--discontinuous')
+	hb = get_ref_option(filename, '--hybridization')
+	upwind = get_ref_option(filename, '--upwinded')
+	nonlin = get_ref_option(filename, '--nonlinear')
 
 	def get_ref_param(file, param):
 		ref_out = subprocess.getoutput("grep ' "+param+"' "+file+"| cut -d ' ' -f 5")
