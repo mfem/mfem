@@ -2,12 +2,6 @@
 
 # This is the regression testing script for ex5-nguygen
 # The reference cases are stored in the regress_test folder
-# Currently, this uses cases 1 and 2
-# Naming convention of the saved output reference files:
-# 1st digit -> Problem number: 1 or 2 (for now)
-# 2nd digit -> Polynomial order
-# 3rd digit -> DG: 0 == False and 1 == True
-# 4th digit -> Hybridization: 0 == False and 1 == True
 
 import os
 import subprocess
