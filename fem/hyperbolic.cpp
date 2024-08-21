@@ -640,7 +640,7 @@ real_t BurgersFlux::ComputeFlux(const Vector &U,
                                 ElementTransformation &Tr,
                                 DenseMatrix &FU) const
 {
-   FU = U * U * 0.5;
+   FU = U(0) * U(0) * 0.5;
    return std::fabs(U(0));
 }
 
@@ -649,11 +649,10 @@ void BurgersFlux::ComputeFluxJacobian(const Vector &U,
                                       DenseTensor &J) const
 {
    J = 0.;
-   for (int i = 0; i < num_equations; i++)
-      for (int d = 0; d < dim; d++)
-      {
-         J(i, i, d) = U(i);
-      }
+   for (int d = 0; d < dim; d++)
+   {
+      J(0,0,d) = U(0);
+   }
 }
 
 void BurgersFlux::ComputeFluxJacobianDotN(const Vector &U,
@@ -661,12 +660,7 @@ void BurgersFlux::ComputeFluxJacobianDotN(const Vector &U,
                                           ElementTransformation &Tr,
                                           DenseMatrix &JDotN) const
 {
-   JDotN = 0.;
-   const real_t ns = normal.Sum();
-   for (int i = 0; i < num_equations; i++)
-   {
-      JDotN(i,i) = U(i) * ns;
-   }
+   JDotN(0,0) = U(0) * normal.Sum();
 }
 
 real_t ShallowWaterFlux::ComputeFlux(const Vector &U,
