@@ -204,7 +204,6 @@ Mesh DividingPlaneMesh(bool tet_mesh, bool split, bool three_dim)
    return mesh;
 }
 
-
 Mesh OrientedTriFaceMesh(int orientation, bool add_extbdr)
 {
    REQUIRE((orientation == 1 || orientation == 3 || orientation == 5));
@@ -405,6 +404,67 @@ Mesh CylinderMesh(Geometry::Type el_type, bool quadratic, int variant)
    }
    mesh.Finalize(true);
    return mesh;
+}
+
+void RefineSingleAttachedElement(Mesh &mesh, int vattr, int battr, bool backwards)
+{
+   Array<Refinement> refs(1);
+   std::vector<int> ind(mesh.GetNBE());
+   if (backwards)
+   {
+      std::iota(ind.rbegin(), ind.rend(), 0);
+   }
+   else
+   {
+      std::iota(ind.begin(), ind.end(), 0);
+   }
+   for (int e : ind)
+   {
+      if (mesh.GetBdrAttribute(e) == battr)
+      {
+         int f, o, el1, el2;
+         mesh.GetBdrElementFace(e, &f, &o);
+         mesh.GetFaceElements(f, &el1, &el2);
+         if (mesh.GetAttribute(el1) == vattr)
+         { mesh.GeneralRefinement(Array<int>{el1}); return; }
+         if (mesh.GetAttribute(el2) == vattr)
+         { mesh.GeneralRefinement(Array<int>{el2}); return; }
+      }
+   }
+}
+
+void RefineSingleUnattachedElement(Mesh &mesh, int vattr, int battr, bool backwards)
+{
+   std::set<int> attached_elements;
+   for (int e = 0; e < mesh.GetNBE(); e++)
+   {
+      if (mesh.GetBdrAttribute(e) == battr)
+      {
+         int f, o, el1, el2;
+         mesh.GetBdrElementFace(e, &f, &o);
+         mesh.GetFaceElements(f, &el1, &el2);
+         if (mesh.GetAttribute(el1) == vattr) { attached_elements.insert(el1); }
+         if (el2 >= 0 && mesh.GetAttribute(el2) == vattr) { attached_elements.insert(el2); }
+      }
+   }
+   if (backwards)
+   {
+      for (int i = mesh.GetNE() - 1; i >= 0; i--)
+         if (mesh.GetAttribute(i) == vattr && attached_elements.count(i) == 0)
+         {
+            mesh.GeneralRefinement(Array<int>{i});
+            return;
+         }
+   }
+   else
+   {
+      for (int i = 0; i < mesh.GetNE(); i++)
+         if (mesh.GetAttribute(i) == vattr && attached_elements.count(i) == 0)
+         {
+            mesh.GeneralRefinement(Array<int>{i});
+            return;
+         }
+   }
 }
 
 #ifdef MFEM_USE_MPI

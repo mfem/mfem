@@ -446,11 +446,41 @@ public:
    int GroupNTriangles(int group) const { return group_stria.RowSize(group-1); }
    int GroupNQuadrilaterals(int group) const { return group_squad.RowSize(group-1); }
 
+   /**
+    * @brief Accessors group entities within a shared group structure.
+    * @details For all vertex/edge/face the two argument version returns the local index,
+    * for those entities with an orientation, the two out parameter version additionally
+    * returns an orientation to use in manipulating the entity.
+    *
+    * @param group The communicator group's indices
+    * @param i the index within the group
+    * @return int The local index of the entity
+    */
    int GroupVertex(int group, int i) const
    { return svert_lvert[group_svert.GetRow(group-1)[i]]; }
    void GroupEdge(int group, int i, int &edge, int &o) const;
    void GroupTriangle(int group, int i, int &face, int &o) const;
    void GroupQuadrilateral(int group, int i, int &face, int &o) const;
+   int GroupEdge(int group, int i) const
+   {
+     int e, o;
+     GroupEdge(group, i, e, o);
+     return e;
+   }
+   int GroupTriangle(int group, int i) const
+   {
+     int f, o;
+     GroupTriangle(group, i, f, o);
+     return f;
+   }
+   int GroupQuadrilateral(int group, int i) const
+   {
+     int f, o;
+     GroupQuadrilateral(group, i, f, o);
+     return f;
+   }
+
+
    ///@}
 
    /**

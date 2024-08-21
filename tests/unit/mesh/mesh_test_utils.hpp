@@ -113,6 +113,29 @@ Mesh OrientedTriFaceMesh(int orientation, bool add_extbdr = false);
  */
 Mesh CylinderMesh(Geometry::Type el_type, bool quadratic, int variant = 0);
 
+
+
+/**
+ * @brief Helper to refine a single element attached to a boundary attributes
+ *
+ * @param mesh Mesh to refine
+ * @param vattr Volume attribute to check for elements
+ * @param battr Boundary attribute refined element should be attached to
+ * @param backwards Whether to iterate over the faces in reverse order
+ */
+void RefineSingleAttachedElement(Mesh &mesh, int vattr, int battr, bool backwards = true);
+
+/**
+ * @brief Helper to refine a single element not attached to a boundary
+ *
+ * @param mesh Mesh to refine
+ * @param vattr Volume attribute to check for elements
+ * @param battr Boundary attribute refined element should not be attached to
+ * @param backwards Whether to iterate over the elements in reverse order
+ */
+void RefineSingleUnattachedElement(Mesh &mesh, int vattr, int battr, bool backwards = true);
+
+
 #ifdef MFEM_USE_MPI
 
 /**
