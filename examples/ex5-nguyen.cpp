@@ -1195,22 +1195,19 @@ TFunc GetFFun(int prob, real_t t_0, real_t k, real_t c)
             const real_t argy = (1. - x(1)) / k;
             const real_t ux = x(0) * tanh(argx);
             const real_t uy = x(1) * tanh(argy);
-            const real_t shx = sinh(argx);
-            const real_t shy = sinh(argy);
             const real_t chx = cosh(argx);
             const real_t chy = cosh(argy);
             const real_t ut = (prob == Problem::SteadyBurgers)?(1.):(exp(t) - 1.);
             const real_t u = ut * ux * uy;
             const real_t u_x = (x(0) != 0.)?(u / x(0) - ut * uy * x(0) / (k * chx*chx)):(0.);
             const real_t u_y = (x(1) != 0.)?(u / x(1) - ut * ux * x(1) / (k * chy*chy)):(0.);
-            const real_t divqx = (x(0) == 0. || u == 0.)?(0.):
-            (-k * ((u_x*u_x) / u - u / (x(0)*x(0))) + u / k * (1. / (chx*chx) + 1. / (shx*shx)));
-            const real_t divqy = (x(1) == 0. || u == 0.)?(0.):
-            (-k * ((u_y*u_y) / u - u / (x(1)*x(1))) + u / k * (1. / (chy*chy) + 1. / (shy*shy)));
+            const real_t u_xx = -2. * (u + k * ut * uy) / (k*k * chx*chx);
+            const real_t u_yy = -2. * (u + k * ut * ux) / (k*k * chy*chy);
+            const real_t divq = -k * (u_xx + u_yy);
             const real_t divF = u * (u_x + u_y);
             const real_t ft = ((prob == Problem::SteadyBurgers)?(0.):(t*exp(t)  * ux * uy));
-            const real_t f = divqx + divqy + divF + ft;
-            return f;
+            const real_t f = divq + divF + ft;
+            return -f;
          };
    }
    return TFunc();
