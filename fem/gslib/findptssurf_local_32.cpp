@@ -82,7 +82,6 @@ static MFEM_HOST_DEVICE inline double obbox_test(const obbox_t *const b,
                                                  const double x[sDIM])
 {
    const double bxyz = obbox_axis_test(b, x);
-   return bxyz;
    if (bxyz<0) {
       return bxyz;
    }
@@ -326,6 +325,7 @@ static MFEM_HOST_DEVICE bool reject_prior_step_q(findptsElementPoint_t *out,
       else { // good iteration
          out->tr = p->tr;
       }
+      out->tr = std::min(out->tr, 0.5);
       return false;
    }
    else { // if the iteration in not good
@@ -541,7 +541,7 @@ static MFEM_HOST_DEVICE inline void newton_edge(findptsElementPoint_t *const out
       dr = y/A;
       // if dr is too small, set it to 0. Required since roundoff dr could cause
       // fabs(newr)<1 to succeed when it shouldn't.
-      // FIXME: This check might be redundant since for 3d surface meshes, we have 
+      // FIXME: This check might be redundant since for 3d surface meshes, we have
       // normal derivatives available and hence dr=0 truly means we are converged.
       //  we also check for dist2<dist2tol in newton iterations loop, which is a
       //  sureshot safeguard against false converged flag sets.
@@ -655,6 +655,7 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
    const int p_NEL = p_NE*nel; // total nos. points in all elements
    MFEM_VERIFY(MD1<=pMax, "Increase Max allowable polynomial order.");
    MFEM_VERIFY(D1D!=0   , "Polynomial order not specified.");
+   std::cout << std::setprecision(9);
 
    mfem::forall_2D(npt, nThreads, 1, [=] MFEM_HOST_DEVICE (int i)
    {
@@ -727,7 +728,7 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
                      if (j==0) {
                         fpt->dist2 = DBL_MAX;
                         fpt->dist2p = 0;
-                        fpt->tr = 1;
+                        fpt->tr = 0.25;
                      }
                      if (j<sDIM) {
                         fpt->x[j] = x_i[j];
@@ -757,7 +758,7 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
                      MFEM_FOREACH_THREAD(j,x,nThreads) {
                         if (j==0) {
                            fpt->dist2 = DBL_MAX;
-                           for (int ir=D1D/2; ir<D1D/2+1; ++ir) {  // loop through all r-th dof data obtained from seed_j
+                           for (int ir=0; ir<D1D; ++ir) {  // loop through all r-th dof data obtained from seed_j
                               if (dist2_temp[ir] < fpt->dist2) {
                                  fpt->dist2 = dist2_temp[ir];
                                  for (int d=0; d<rDIM; ++d) {
@@ -817,7 +818,7 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
                            double *J2 = wt2, *D2 = wt2+D1D, *DD2 = wt2+2*D1D; // for s ref coord, value, 1st, and 2nd derivative
 
                            MFEM_FOREACH_THREAD(j,x,nThreads) {
-                              // Each thread works on a specific sDIM physical direction and all s in s 
+                              // Each thread works on a specific sDIM physical direction and all s in s
                               // direction for a specific r among D1D r's in r direction
                               // Hence we need to utilize sDIM*D1D theads for this task
                               if (j<D1D*sDIM) {
@@ -833,7 +834,7 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
                                     sums_k[1] += u[qp + k*D1D] * D2[k];  // coefficient*lagfunc1stderivative in s direction
                                     sums_k[2] += u[qp + k*D1D] * DD2[k]; // coefficient*lagfunc2ndderivative in s direction
                                  }
-                               
+
                                  resid_temp[sDIM*qp + d]             = sums_k[0] * J1[qp]; // (coefficient*lagfuncvalue in s direction) * (lagfuncvalue in r direction)
                                  jac_temp[sDIM*rDIM*qp + rDIM*d + 0] = sums_k[0] * D1[qp]; // (coefficient*lagfuncvalue in s direction) * (lagfunc1stderivative in r direction)
                                  jac_temp[sDIM*rDIM*qp + rDIM*d + 1] = sums_k[1] * J1[qp]; // (coefficient*lagfunc1stderivative in s direction) * (lagfuncval in r direction)
@@ -966,7 +967,7 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
                                     }
                                     steep *= tmp->r[dn];
                                     if (steep<0) {
-                                       // no constraints on ref-dims anymore! Flags sent to 
+                                       // no constraints on ref-dims anymore! Flags sent to
                                        // newton_face reflects this.
                                        newton_face( fpt,jac,hes,resid,tmp->flags&CONVERGED_FLAG,tmp,tol);
                                     }
@@ -1015,7 +1016,7 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
                                                 rh[rd] += resid[d] * hes[hes_count*d + rd];
                                              }
                                           }
-                                          // no constraints on ref-dims anymore! Flags sent to 
+                                          // no constraints on ref-dims anymore! Flags sent to
                                           // newton_face reflect this.
                                           newton_face(fpt,jac,rh,resid,(tmp->flags & CONVERGED_FLAG),tmp,tol);
                                        }
@@ -1114,6 +1115,8 @@ void FindPointsGSLIB::FindPointsSurfLocal32(Vector &point_pos,
    DEV.lagcoeff.HostReadWrite();
    DEV.info.HostReadWrite();
 
+   double dist_tol = 1e-14;
+
    if (npt == 0) {
       return;
    }
@@ -1121,7 +1124,7 @@ void FindPointsGSLIB::FindPointsSurfLocal32(Vector &point_pos,
    switch (DEV.dof1d) {
       case 1: FindPointsSurfLocal32D_Kernel<1>(npt,
                                                DEV.tol,
-                                               DEV.tol,
+                                               dist_tol,
                                                point_pos.Read(),
                                                point_pos_ordering,
                                                gsl_mesh.Read(),
@@ -1144,7 +1147,7 @@ void FindPointsGSLIB::FindPointsSurfLocal32(Vector &point_pos,
          break;
       case 2: FindPointsSurfLocal32D_Kernel<2>(npt,
                                                DEV.tol,
-                                               DEV.tol,
+                                               dist_tol,
                                                point_pos.Read(),
                                                point_pos_ordering,
                                                gsl_mesh.Read(),
@@ -1168,7 +1171,7 @@ void FindPointsGSLIB::FindPointsSurfLocal32(Vector &point_pos,
          break;
       case 3: FindPointsSurfLocal32D_Kernel<3>(npt,
                                                DEV.tol,
-                                               DEV.tol,
+                                               dist_tol,
                                                point_pos.Read(),
                                                point_pos_ordering,
                                                gsl_mesh.Read(),
@@ -1192,7 +1195,7 @@ void FindPointsGSLIB::FindPointsSurfLocal32(Vector &point_pos,
          break;
       case 4: FindPointsSurfLocal32D_Kernel<4>(npt,
                                                DEV.tol,
-                                               DEV.tol,
+                                               dist_tol,
                                                point_pos.Read(),
                                                point_pos_ordering,
                                                gsl_mesh.Read(),
@@ -1217,7 +1220,7 @@ void FindPointsGSLIB::FindPointsSurfLocal32(Vector &point_pos,
          break;
       case 5: FindPointsSurfLocal32D_Kernel<5>(npt,
                                                DEV.tol,
-                                               DEV.tol,
+                                               dist_tol,
                                                point_pos.Read(),
                                                point_pos_ordering,
                                                gsl_mesh.Read(),
@@ -1242,7 +1245,7 @@ void FindPointsGSLIB::FindPointsSurfLocal32(Vector &point_pos,
          break;
       case 6: FindPointsSurfLocal32D_Kernel<6>(npt,
                                                DEV.tol,
-                                               DEV.tol,
+                                               dist_tol,
                                                point_pos.Read(),
                                                point_pos_ordering,
                                                gsl_mesh.Read(),

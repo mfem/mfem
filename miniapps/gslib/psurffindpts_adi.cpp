@@ -319,19 +319,48 @@ int main (int argc, char *argv[])
       mesh_ghbb = finder.GetBoundingBoxMeshSurf(3);  // Global Hash bounding box
       if (myid==0)
       {
-         VisItDataCollection dc0("finderabb", mesh_abb);
+         VisItDataCollection dc0("findersurfabb", mesh_abb);
          dc0.SetFormat(DataCollection::SERIAL_FORMAT);
          dc0.Save();
 
-         VisItDataCollection dc1("finderobb", mesh_obb);
+         {
+            Array<int> attrlist(1);
+            for (int i = 0; i < mesh_abb->GetNE(); i++)
+            {
+               attrlist[0] = i+1;
+               auto mesh_abbt = SubMesh::CreateFromDomain(*mesh_abb, attrlist);
+               VisItDataCollection dct("findersurfabbt", &mesh_abbt);
+               dct.SetFormat(DataCollection::SERIAL_FORMAT);
+               dct.SetCycle(i);
+               dct.SetTime(i*1.0);
+               dct.Save();
+            }
+         }
+
+         VisItDataCollection dc1("findersurfobb", mesh_obb);
          dc1.SetFormat(DataCollection::SERIAL_FORMAT);
          dc1.Save();
+         {
+            {
+               Array<int> attrlist(1);
+               for (int i = 0; i < mesh_obb->GetNE(); i++)
+               {
+                  attrlist[0] = i+1;
+                  auto mesh_obbt = SubMesh::CreateFromDomain(*mesh_obb, attrlist);
+                  VisItDataCollection dct("findersurfobbt", &mesh_obbt);
+                  dct.SetFormat(DataCollection::SERIAL_FORMAT);
+                  dct.SetCycle(i);
+                  dct.SetTime(i*1.0);
+                  dct.Save();
+               }
+            }
+         }
 
-         VisItDataCollection dc2("finderlhbb", mesh_lhbb);
+         VisItDataCollection dc2("findersurflhbb", mesh_lhbb);
          dc2.SetFormat(DataCollection::SERIAL_FORMAT);
          dc2.Save();
 
-         VisItDataCollection dc3("finderghbb", mesh_ghbb);
+         VisItDataCollection dc3("findersurfghbb", mesh_ghbb);
          dc3.SetFormat(DataCollection::SERIAL_FORMAT);
          dc3.Save();
       }
@@ -340,7 +369,7 @@ int main (int argc, char *argv[])
    // -----------FindPointsSetup----------------
 
    // const int vdim   = sm_fes->GetVDim();
-   const int nel_sm = submesh->GetNE();
+   int nel_sm = submesh->GetNE();
    Vector point_pos(npt*vdim*nel_sm);
    Vector field_exact(nel_sm*npt*ncomp);
    int npt_per_proc = point_pos.Size()/vdim;
