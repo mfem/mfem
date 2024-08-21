@@ -33,15 +33,18 @@ for i in range(len(filenames)):
 	upwind = get_ref_option(filename, '--upwinded')
 	nonlin = get_ref_option(filename, '--nonlinear')
 
-	def get_ref_param(file, param):
+	def get_ref_param(file, param, default=""):
 		ref_out = subprocess.getoutput("grep ' "+param+"' "+file+"| cut -d ' ' -f 5")
-		return ref_out.split()[0]
+		if len(ref_out) > 0:
+			return ref_out.split()[0]
+		else:
+			return default
 
 	problem = get_ref_param(filename, '--problem')
 	order = get_ref_param(filename, '--order')
 	nx = get_ref_param(filename, '--ncells-x')
 	ny = get_ref_param(filename, '--ncells-y')
-	kappa = get_ref_param(filename, '--kappa')
+	kappa = get_ref_param(filename, '--kappa', "1")
 
 	ref_out = subprocess.getoutput("grep '|| t_h - t_ex || / || t_ex || = ' "+filename+"  | cut -d '=' -f 2-")
 	ref_L2_t = float(ref_out.split()[0])
