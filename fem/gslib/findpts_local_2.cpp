@@ -1021,8 +1021,8 @@ static void FindPointsLocal2D_Kernel(const int npt,
                                  const findptsElementGPT_t gpt = get_pt(elx, wtend, pi, D1D);
 
                                  const double *const pt_x = gpt.x,
-                                              *const jac = gpt.jac,
-                                              *const hes = gpt.hes;
+                                                     *const jac = gpt.jac,
+                                                            *const hes = gpt.hes;
 
                                  double resid[dim], steep[dim], sr[dim];
                                  for (int d = 0; d < dim; ++d)

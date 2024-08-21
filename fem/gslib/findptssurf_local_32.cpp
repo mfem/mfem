@@ -41,16 +41,19 @@ namespace mfem
    lagrangeCoeff: the denominator term in the Lagrange polynomial.
    pN is the number of GLL points, i.e., the number of Lagrange polynomials.
 */
-static MFEM_HOST_DEVICE inline void lagrange_eval_second_derivative( double *p0,                  // 0 to pN-1: p0, pN to 2*pN-1: p1, 2*pN to 3*pN-1: p2
-                                                                     double x,                    // ref. coords of the point of interest
-                                                                     int i,                       // index of the Lagrange polynomial
-                                                                     const double *z,             // GLL points
-                                                                     const double *lagrangeCoeff, // Lagrange polynomial denominator term
-                                                                     int pN)                      // number of GLL points
+static MFEM_HOST_DEVICE inline void lagrange_eval_second_derivative(
+   double *p0,                  // 0 to pN-1: p0, pN to 2*pN-1: p1, 2*pN to 3*pN-1: p2
+   double x,                    // ref. coords of the point of interest
+   int i,                       // index of the Lagrange polynomial
+   const double *z,             // GLL points
+   const double *lagrangeCoeff, // Lagrange polynomial denominator term
+   int pN)                      // number of GLL points
 {
    double u0 = 1, u1 = 0, u2 = 0;
-   for (int j=0; j<pN; ++j) {
-      if (i!=j) {
+   for (int j=0; j<pN; ++j)
+   {
+      if (i!=j)
+      {
          double d_j = 2 * (x-z[j]);
          u2 = d_j * u2 + u1;
          u1 = d_j * u1 + u0;
@@ -68,9 +71,11 @@ static MFEM_HOST_DEVICE inline double obbox_axis_test(const obbox_t *const b,
                                                       const double x[sDIM])
 {
    double b_d;
-   for (int d=0; d<sDIM; ++d) {
+   for (int d=0; d<sDIM; ++d)
+   {
       b_d = (x[d] - b->x[d].min) * (b->x[d].max - x[d]);
-      if (b_d < 0) { // if outside in any dimension
+      if (b_d < 0)   // if outside in any dimension
+      {
          return b_d;
       }
    }
@@ -82,21 +87,26 @@ static MFEM_HOST_DEVICE inline double obbox_test(const obbox_t *const b,
                                                  const double x[sDIM])
 {
    const double bxyz = obbox_axis_test(b, x);
-   if (bxyz<0) {
+   if (bxyz<0)
+   {
       return bxyz;
    }
-   else {
+   else
+   {
       double dxyz[3];
       // dxyz: distance of the point from the center of the OBB
-      for (int d=0; d<sDIM; ++d) {
+      for (int d=0; d<sDIM; ++d)
+      {
          dxyz[d] = x[d] - b->c0[d];
       }
-    // tranform dxyz to the local coordinate system of the OBB,
+      // tranform dxyz to the local coordinate system of the OBB,
       // and check if the point is inside the OBB [-1,1]^sDIM
       double test = 1;
-      for (int d=0; d<sDIM; ++d) {
+      for (int d=0; d<sDIM; ++d)
+      {
          double rst = 0;
-         for (int e=0; e<sDIM; ++e) {
+         for (int e=0; e<sDIM; ++e)
+         {
             rst += b->A[d*sDIM + e] * dxyz[e];
          }
          double brst = (rst+1)*(1-rst);
@@ -112,7 +122,8 @@ static MFEM_HOST_DEVICE inline int hash_index(const findptsLocalHashData_t *p,
 {
    const int n = p->hash_n;
    int sum = 0;
-   for (int d=sDIM-1; d>=0; --d) {
+   for (int d=sDIM-1; d>=0; --d)
+   {
       sum *= n;
       int i = (int)floor((x[d] - p->bnd[d].min) * p->fac[d]);
       sum += i<0 ? 0 : (n-1 < i ? n-1 : i);
@@ -158,7 +169,7 @@ static MFEM_HOST_DEVICE inline int num_constrained(const int flags)
  */
 static MFEM_HOST_DEVICE inline int plus_1_mod_2(const int x)
 {
-  return x^1u;
+   return x^1u;
 }
 
 /* assumes x = 1<<i, with i<4, returns i+1
@@ -186,16 +197,18 @@ static MFEM_HOST_DEVICE inline int point_index(const int x)
 /* Compute (x,y) and (dxdn, dydn) data for all DOFs along the edge based on
  * edge index. ei=0..3 corresponding to rmin, rmax, smin, smax.
  */
-static MFEM_HOST_DEVICE inline findptsElementGEdge_t get_edge( const double *elx[3],
-                                                              const double *wtend,
-                                                              int ei,
-                                                              double *workspace,
-                                                              int &side_init,
-                                                              int jidx,
-                                                              int pN )
+static MFEM_HOST_DEVICE inline findptsElementGEdge_t get_edge(
+   const double *elx[3],
+   const double *wtend,
+   int ei,
+   double *workspace,
+   int &side_init,
+   int jidx,
+   int pN )
 {
    findptsElementGEdge_t edge;
-   for (int d=0; d<sDIM; ++d) {
+   for (int d=0; d<sDIM; ++d)
+   {
       edge.x[d]     = workspace             + d*pN;
       edge.dxdn[d]  = workspace +   sDIM*pN + d*pN;
       edge.d2xdn[d] = workspace + 2*sDIM*pN + d*pN;
@@ -213,7 +226,8 @@ static MFEM_HOST_DEVICE inline findptsElementGEdge_t get_edge( const double *elx
    const int jj = jidx%pN;
    const int dd = jidx/pN;
    const int mask = 8u<<(ei/2);  // adi: why this specific mask?
-   if ((side_init&mask) == 0) {
+   if ((side_init&mask) == 0)
+   {
       /* As j runs from 0 to 3*pN - 1
          jj = 0,1,...,pN-1, 0,1,...,pN-1, 0,1,......,pN-1
          dd = 0,0,......,0, 1,1,......,1, 1,1,......,1
@@ -221,12 +235,13 @@ static MFEM_HOST_DEVICE inline findptsElementGEdge_t get_edge( const double *elx
          so on. dd here means the spatial dimension and is used to access
          corresponding memory in elx, x, dxdn.
       */
-      if (jidx<3*pN) {
+      if (jidx<3*pN)
+      {
          // If de=0, then nodes along the edge follow contiguously and hence are strided by 1.
          // If de=1, then nodes along the edge are separated by pN nodes, and hence are strided by pN.
          const int elx_stride[2] = {1,pN};
 
-// This macro only works for lexico-graphically ordered nodes!
+         // This macro only works for lexico-graphically ordered nodes!
 #define ELX(d,j,k) elx[d][j*elx_stride[de] + k*elx_stride[dn]]
 
          // copy first/last entries in normal directions; note side_n_offset is
@@ -239,7 +254,8 @@ static MFEM_HOST_DEVICE inline findptsElementGEdge_t get_edge( const double *elx
 
          // note how k replaces side_n_offset in the following loop (compared to edge.x assignment);
          // allows us to loop through all nodes in the normal direction.
-         for (int k=0; k<pN; ++k) {
+         for (int k=0; k<pN; ++k)
+         {
             sums_k[0] += wt1[pN+k]   * ELX(dd,jj,k); // 1st derivative times nodal position
             sums_k[1] += wt1[2*pN+k] * ELX(dd,jj,k); // 2nd derivative times nodal position
          }
@@ -267,26 +283,31 @@ static MFEM_HOST_DEVICE inline findptsElementGPT_t get_pt(const double *elx[3],
    findptsElementGPT_t pt;
 
 #define ELX(d,j,k) elx[d][j + k*pN]
-   for (int d=0; d<sDIM; ++d) {
+   for (int d=0; d<sDIM; ++d)
+   {
       pt.x[d] = ELX(d,in1,in2);
 
       // point to the start of 1st derivatives corresponding to whether r/s is constrained at -1 or 1.
       const double *wt1 = wtend + pN + side_n1*3*pN;
       const double *wt2 = wtend + pN + side_n2*3*pN;
 
-      for (int i=0; i<rDIM; ++i) {
+      for (int i=0; i<rDIM; ++i)
+      {
          pt.jac[rDIM*d + i] = 0;
       }
-      for (int i=0; i<hes_stride; ++i) {
+      for (int i=0; i<hes_stride; ++i)
+      {
          pt.hes[hes_stride*d + i] = 0;
       }
 
-      for (int j=0; j<pN; ++j) {
+      for (int j=0; j<pN; ++j)
+      {
          pt.jac[rDIM*d+0] += wt1[j] * ELX(d,j,in2);
          pt.jac[rDIM*d+1] += wt2[j] * ELX(d,in1,j);
 
          double sum_k = 0;
-         for (int k=0; k<pN; ++k) {
+         for (int k=0; k<pN; ++k)
+         {
             sum_k += wt1[k] * ELX(d,k,j);
          }
          pt.hes[hes_stride*d+0] += wt1[pN+j] * ELX(d,j,in2);
@@ -311,24 +332,30 @@ static MFEM_HOST_DEVICE bool reject_prior_step_q(findptsElementPoint_t *out,
    const double dist2 = norm2(resid);
    const double decr  = p->dist2 - dist2;
    const double pred  = p->dist2p;
-   for (int d=0; d<sDIM; ++d) {
+   for (int d=0; d<sDIM; ++d)
+   {
       out->x[d] = p->x[d];
    }
-   for (int d=0; d<rDIM; ++d) {
+   for (int d=0; d<rDIM; ++d)
+   {
       out->oldr[d] = p->r[d];
    }
    out->dist2 = dist2;
-   if (decr>=0.01*pred) {
-      if (decr>=0.9*pred) { // very good iteration
+   if (decr>=0.01*pred)
+   {
+      if (decr>=0.9*pred)   // very good iteration
+      {
          out->tr = 2*p->tr;
       }
-      else { // good iteration
+      else   // good iteration
+      {
          out->tr = p->tr;
       }
       out->tr = std::min(out->tr, 0.5);
       return false;
    }
-   else { // if the iteration in not good
+   else   // if the iteration in not good
+   {
       /* reject step; note: the point will pass through this routine
          again, and we set things up here so it gets classed as a
          "very good iteration" --- this doubles the trust radius,
@@ -339,10 +366,12 @@ static MFEM_HOST_DEVICE bool reject_prior_step_q(findptsElementPoint_t *out,
       out->dist2  = p->dist2;
       out->flags   = p->flags >> 5;
       out->dist2p = -DBL_MAX;
-      for (int d=0; d<rDIM; ++d) {
+      for (int d=0; d<rDIM; ++d)
+      {
          out->r[d] = p->oldr[d];
       }
-      if (pred<dist2*tol) {
+      if (pred<dist2*tol)
+      {
          out->flags |= CONVERGED_FLAG;
       }
       return true;
@@ -391,42 +420,52 @@ static MFEM_HOST_DEVICE void newton_face( findptsElementPoint_t *const out,
    // In this case the bounding box will be set to -0.8 for r=-1 edge of the face
    // and the bit corresponding to rmin will be changed.
 
-   if (r0[0]-tr > -1) { // unconstrained at r=-1, mask's 1st bit is set to 0
+   if (r0[0]-tr > -1)   // unconstrained at r=-1, mask's 1st bit is set to 0
+   {
       bnd[0] = -tr, mask ^= 1u;
    }
-   else {
+   else
+   {
       bnd[0] = -1-r0[0];
    }
-   if (r0[0]+tr < 1) { // unconstrained at r=1, mask's 2nd bit is set to 0
+   if (r0[0]+tr < 1)   // unconstrained at r=1, mask's 2nd bit is set to 0
+   {
       bnd[1] = tr, mask ^= 2u;
    }
-   else {
+   else
+   {
       bnd[1] = 1-r0[0];
    }
-   if (r0[1]-tr > -1) { // unconstrained at s=-1, mask's 3rd bit is set to 0
+   if (r0[1]-tr > -1)   // unconstrained at s=-1, mask's 3rd bit is set to 0
+   {
       bnd[2] = -tr, mask ^= 1u<<2;
    }
-   else {
+   else
+   {
       bnd[2] = -1-r0[1];
    }
-   if (r0[1]+tr < 1) { // unconstrained at s=1, mask's 4th bit is set to 0
+   if (r0[1]+tr < 1)   // unconstrained at s=1, mask's 4th bit is set to 0
+   {
       bnd[3] = tr, mask ^= 2u << 2;
    }
-   else {
+   else
+   {
       bnd[3] = 1 - r0[1];
    }
    // At this stage, mask has information on if the search space is constrained,
    // and the specific edge of the face it is constrained to.
    // bnd has the corresponding limits of the search space.
 
-   if (A[0]+A[2]<=0 || A[0]*A[2]<=A[1]*A[1]) {
+   if (A[0]+A[2]<=0 || A[0]*A[2]<=A[1]*A[1])
+   {
       goto newton_face_constrained;
    }
 
    lin_solve_sym_2(dr, A, y);
 
 #define EVAL(r,s) -(y[0]*r + y[1]*s) + (r*A[0]*r + (2*r*A[1] + s*A[2])*s)/2
-   if ((dr[0]-bnd[0])*(bnd[1]-dr[0])>=0 && (dr[1]-bnd[2])*(bnd[3]-dr[1])>=0) {
+   if ((dr[0]-bnd[0])*(bnd[1]-dr[0])>=0 && (dr[1]-bnd[2])*(bnd[3]-dr[1])>=0)
+   {
       r[0] = r0[0] + dr[0], r[1] = r0[1] + dr[1];
       v = EVAL(dr[0], dr[1]);
       goto newton_face_fin;
@@ -436,61 +475,75 @@ newton_face_constrained:
    v  = EVAL(bnd[0], bnd[2]); // bound at r=-1 and s=-1
    i  = 1u|(1u<<2);           // 0101b
    tv = EVAL(bnd[1], bnd[2]); // bound at r=1 and s=-1
-   if (tv<v) {
+   if (tv<v)
+   {
       v = tv, i = 2u|(1u<<2); // i = 0110b
    }
    tv = EVAL(bnd[0], bnd[3]); // bound at r=-1 and s=1
-   if (tv<v) {
+   if (tv<v)
+   {
       v = tv, i = 1u|(2u<<2); // i = 1001b
    }
    tv = EVAL(bnd[1], bnd[3]); // bound at r=1 and s=1
-   if (tv<v) {
+   if (tv<v)
+   {
       v = tv, i = 2u|(2u<<2); // i = 1010b
    }
 
-   if (A[0]>0) { // for r[0] (i.e., r) ref coord
+   if (A[0]>0)   // for r[0] (i.e., r) ref coord
+   {
       double drc;
       drc = (y[0] - A[1]*bnd[2])/A[0];
       if ( (drc-bnd[0])*(bnd[1]-drc)>=0 && // if drc lies within r=-1 and r=1
-           (tv=EVAL(drc,bnd[2]))<v ) {
+           (tv=EVAL(drc,bnd[2]))<v )
+      {
          // i = 0100b, relieve constrainsts at r=-1 or 1, and set constraints at s=-1
          v = tv, i = 1u<<2, dr[0] = drc;
       }
       drc = (y[0] - A[1]*bnd[3])/A[0];
       if ( (drc-bnd[0])*(bnd[1]-drc)>=0 && // if drc lies within r=-1 and r=1
-           (tv=EVAL(drc,bnd[3]))<v ) {
+           (tv=EVAL(drc,bnd[3]))<v )
+      {
          // i = 1000b, relieve constraints at r=-1 or 1, and set constraints at s=1
          v = tv, i = 2u<<2, dr[0] = drc;
       }
    }
-   if (A[2]>0) { // for r[1] (i.e., s) ref coord
+   if (A[2]>0)   // for r[1] (i.e., s) ref coord
+   {
       double drc;
       drc = (y[1] - A[1]*bnd[0])/A[2];
       if ( (drc-bnd[2])*(bnd[3]-drc)>=0 && // if drc lies within s=-1 and s=1
-           (tv = EVAL(bnd[0], drc)) < v) {
+           (tv = EVAL(bnd[0], drc)) < v)
+      {
          v = tv, i = 1u, dr[1] = drc;      // i = 0001b, set constraints at r=-1
       }
       drc = (y[1] - A[1]*bnd[1])/A[2];
       if ((drc-bnd[2])*(bnd[3]-drc)>=0 &&  // if drc lies within s=-1 and s=1
-          (tv = EVAL(bnd[1], drc))<v) {
+          (tv = EVAL(bnd[1], drc))<v)
+      {
          v = tv, i = 2u, dr[1] = drc;      // i = 0010b, set constraints at r=1
       }
    }
 #undef EVAL
 
    {
-      for (int d=0; d<rDIM; ++d) {
+      for (int d=0; d<rDIM; ++d)
+      {
          // For d=0, f=0 if r is unconstrained; f=1 if r is constrained at -1; f=2 if r is constrained at 1
          // For d=1, f=0 if s is unconstrained; f=1 if s is constrained at -1; f=2 if s is constrained at 1
          const int f = (i>>2*d) & 3u;
-         if (f==0) {  // if r (or s) is unconstrained
+         if (f==0)    // if r (or s) is unconstrained
+         {
             r[d] = r0[d] + dr[d];
          }
-         else {       // if r (or s) is constrained
-            if ( ( f&(mask>>(2*d)) ) == 0 ) {
+         else         // if r (or s) is constrained
+         {
+            if ( ( f&(mask>>(2*d)) ) == 0 )
+            {
                r[d] = r0[d] + (f==1 ? -tr : tr);
             }
-            else {
+            else
+            {
                r[d] = (f==1 ? -1 : 1), new_flags |= f<<(2*d);
             }
          }
@@ -501,14 +554,16 @@ newton_face_fin:
    out->dist2p = -2*v;
    dr[0] = r[0] - p->r[0];
    dr[1] = r[1] - p->r[1];
-   if ( fabs(dr[0])+fabs(dr[1]) < tol) {
+   if ( fabs(dr[0])+fabs(dr[1]) < tol)
+   {
       new_flags |= CONVERGED_FLAG;
    }
    out->r[0] = r[0], out->r[1] = r[1];
    out->flags = new_flags | (p->flags<<5);
 }
 
-static MFEM_HOST_DEVICE inline void newton_edge(findptsElementPoint_t *const out,
+static MFEM_HOST_DEVICE inline void newton_edge(findptsElementPoint_t *const
+                                                out,
                                                 const double jac[sDIM*rDIM],
                                                 const double rhes,
                                                 const double resid[sDIM],
@@ -521,13 +576,13 @@ static MFEM_HOST_DEVICE inline void newton_edge(findptsElementPoint_t *const out
    const double tr = p->tr;
    /* A = J^T J - resid_d H_d */
    const double A = jac[de]       *jac[de]
-                  + jac[de+rDIM]  *jac[de+rDIM]
-                  + jac[de+2*rDIM]*jac[de+2*rDIM]
-                  - rhes;
+                    + jac[de+rDIM]  *jac[de+rDIM]
+                    + jac[de+2*rDIM]*jac[de+2*rDIM]
+                    - rhes;
    /* y = J^T r */
    const double y = jac[de]       *resid[0]
-                  + jac[de+rDIM]  *resid[1]
-                  + jac[de+2*rDIM]*resid[2];
+                    + jac[de+rDIM]  *resid[1]
+                    + jac[de+2*rDIM]*resid[2];
 
    const double oldr = p->r[de];
    double dr, nr, tdr, tnr;
@@ -537,7 +592,8 @@ static MFEM_HOST_DEVICE inline void newton_edge(findptsElementPoint_t *const out
 #define EVAL(dr) (dr*A - 2*y)*dr
 
    /* if A is not SPD, quadratic model has no minimum */
-   if (A>0) {
+   if (A>0)
+   {
       dr = y/A;
       // if dr is too small, set it to 0. Required since roundoff dr could cause
       // fabs(newr)<1 to succeed when it shouldn't.
@@ -545,42 +601,51 @@ static MFEM_HOST_DEVICE inline void newton_edge(findptsElementPoint_t *const out
       // normal derivatives available and hence dr=0 truly means we are converged.
       //  we also check for dist2<dist2tol in newton iterations loop, which is a
       //  sureshot safeguard against false converged flag sets.
-      if (fabs(dr)<tol) {
+      if (fabs(dr)<tol)
+      {
          dr=0.0;
          nr = oldr;
       }
-      else {
+      else
+      {
          nr = oldr+dr;
       }
-      if ( fabs(dr)<tr && fabs(nr)<1 ) {
+      if ( fabs(dr)<tr && fabs(nr)<1 )
+      {
          v = EVAL(dr);
          goto newton_edge_fin;
       }
    }
 
-   if ( (nr=oldr-tr)>-1 ) {
+   if ( (nr=oldr-tr)>-1 )
+   {
       dr = -tr;
    }
-   else {
+   else
+   {
       nr = -1, dr = -1-oldr, new_flags = flags | 1u<<2*de;
    }
    v = EVAL(dr);
 
-   if ( (tnr = oldr+tr)<1 ) {
+   if ( (tnr = oldr+tr)<1 )
+   {
       tdr = tr;
    }
-   else {
+   else
+   {
       tnr = 1, tdr = 1-oldr, tnew_flags = flags | 2u<<2*de;
    }
    tv = EVAL(tdr);
 
-   if (tv<v) {
+   if (tv<v)
+   {
       nr = tnr, dr = tdr, v = tv, new_flags = tnew_flags;
    }
 
 newton_edge_fin:
    /* check convergence */
-   if ( fabs(dr)<tol ) {
+   if ( fabs(dr)<tol )
+   {
       new_flags |= CONVERGED_FLAG;
    }
    out->r[de] = nr;
@@ -597,21 +662,27 @@ static MFEM_HOST_DEVICE void seed_j(const double *elx[sDIM],
                                     const int ir,
                                     const int pN)
 {
-   if (ir>=pN) {
+   if (ir>=pN)
+   {
       return;
    }
 
    dist2[ir] = DBL_MAX;
-   double zr = z[ir];             // r gll coord for ir-th thread, i.e., ir-th dof in r-direction
-   for (int is=0; is<pN; ++is) {  // loop through all "s" gll coords for ir-th dof in s-direction
+   double zr =
+      z[ir];             // r gll coord for ir-th thread, i.e., ir-th dof in r-direction
+   for (int is=0; is<pN;
+        ++is)    // loop through all "s" gll coords for ir-th dof in s-direction
+   {
       double zs = z[is];
       const int irs = ir + is*pN; // dof index
       double dx[sDIM];
-      for (int d=0; d<sDIM; ++d) {
+      for (int d=0; d<sDIM; ++d)
+      {
          dx[d] = x[d] - elx[d][irs];
       }
       const double dist2_rs = norm2(dx);
-      if (dist2[ir]>dist2_rs) {
+      if (dist2[ir]>dist2_rs)
+      {
          dist2[ir] = dist2_rs;
          r[0][ir] = zr;
          r[1][ir] = zs;
@@ -654,7 +725,7 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
    const int p_NE  = D1D*D1D;  // total nos. points in an element
    const int p_NEL = p_NE*nel; // total nos. points in all elements
    MFEM_VERIFY(MD1<=pMax, "Increase Max allowable polynomial order.");
-   MFEM_VERIFY(D1D!=0   , "Polynomial order not specified.");
+   MFEM_VERIFY(D1D!=0, "Polynomial order not specified.");
    std::cout << std::setprecision(9);
 
    mfem::forall_2D(npt, nThreads, 1, [=] MFEM_HOST_DEVICE (int i)
@@ -662,10 +733,12 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
       // adi: understand the sizes! and how that changes when 1 ref dim is removed.
       //size depends on max of info for faces and edges
       constexpr int size1 = MAX_CONST(4,MD1+1) * (3*3 + 2*3) + 3*2*MD1 + 5;
-      constexpr int size2 = MAX_CONST(MD1*MD1*6, 3*sDIM*MD1); // 2nd 3 for storing x, dxdn, d2xdn
+      constexpr int size2 = MAX_CONST(MD1*MD1*6,
+                                      3*sDIM*MD1); // 2nd 3 for storing x, dxdn, d2xdn
 
       MFEM_SHARED double r_workspace[size1];
-      MFEM_SHARED findptsElementPoint_t el_pts[2];  // two pts structs for saving previous iteration pts data
+      MFEM_SHARED findptsElementPoint_t
+      el_pts[2];  // two pts structs for saving previous iteration pts data
       MFEM_SHARED double constraint_workspace[size2];
       MFEM_SHARED int constraint_init_t[nThreads];
 
@@ -687,7 +760,8 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
 
       //// map_points_to_els ////
       findptsLocalHashData_t hash;
-      for (int d=0; d<sDIM; ++d) {
+      for (int d=0; d<sDIM; ++d)
+      {
          hash.bnd[d].min = hashMin[d];
          hash.fac[d]     = hashFac[d];
       }
@@ -695,42 +769,50 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
       hash.offset = hashOffset;
       const unsigned int hi   = hash_index(&hash, x_i);
       const unsigned int *elp = hash.offset + hash.offset[hi],
-                   *const ele = hash.offset + hash.offset[hi+1];
+                          *const ele = hash.offset + hash.offset[hi+1];
       *code_i  = CODE_NOT_FOUND;
       *dist2_i = DBL_MAX;
 
-      for (; elp!=ele; ++elp) { // note we are incrementing pointers here!!
+      for (; elp!=ele; ++elp)   // note we are incrementing pointers here!!
+      {
          const unsigned int el = *elp;   // element ID in the hash
          obbox_t box;
          // construct obbox_t on the fly from data
-         for (int d=0; d<sDIM; ++d) {
+         for (int d=0; d<sDIM; ++d)
+         {
             box.c0[d]    = c[sDIM*el + d];
             box.x[d].min = minBound[sDIM*el + d];
             box.x[d].max = maxBound[sDIM*el + d];
          }
 
-         for (int d2=0; d2<sDIM2; ++d2) {
+         for (int d2=0; d2<sDIM2; ++d2)
+         {
             box.A[d2] = A[sDIM2*el + d2];
          }
 
-         if (obbox_test(&box, x_i)>=0) {
+         if (obbox_test(&box, x_i)>=0)
+         {
             //// findpts_local ////
             {
                const double *elx[sDIM];
-               for (int d=0; d<sDIM; d++) {
+               for (int d=0; d<sDIM; d++)
+               {
                   elx[d] = xElemCoord + d*p_NEL + el*p_NE;
                }
 
                MFEM_SYNC_THREAD;
                //// findpts_el ////
                {
-                  MFEM_FOREACH_THREAD(j,x,nThreads) {
-                     if (j==0) {
+                  MFEM_FOREACH_THREAD(j,x,nThreads)
+                  {
+                     if (j==0)
+                     {
                         fpt->dist2 = DBL_MAX;
                         fpt->dist2p = 0;
                         fpt->tr = 0.25;
                      }
-                     if (j<sDIM) {
+                     if (j<sDIM)
+                     {
                         fpt->x[j] = x_i[j];
                      }
                      constraint_init_t[j] = 0;
@@ -741,7 +823,8 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
                   {
                      double *dist2_temp = r_workspace_ptr; // size: D1D
                      double *r_temp[rDIM];
-                     for (int d=0; d<rDIM; ++d) {
+                     for (int d=0; d<rDIM; ++d)
+                     {
                         r_temp[d] = r_workspace_ptr + D1D + d*D1D;
                      }
 
@@ -749,19 +832,26 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
                      // all nodes with r-coord = ir-th GLL point.
                      // r_temp stores the r,s coords of the closest node.
                      // dist2_temp stores the distance^2 of the closest node.
-                     MFEM_FOREACH_THREAD(j,x,nThreads) {
+                     MFEM_FOREACH_THREAD(j,x,nThreads)
+                     {
                         seed_j(elx, x_i, gll1D, dist2_temp, r_temp, j, D1D);
                      }
                      MFEM_SYNC_THREAD;
 
                      // The closest node (smallest dist2_temp) found across all threads is stored in fpt.
-                     MFEM_FOREACH_THREAD(j,x,nThreads) {
-                        if (j==0) {
+                     MFEM_FOREACH_THREAD(j,x,nThreads)
+                     {
+                        if (j==0)
+                        {
                            fpt->dist2 = DBL_MAX;
-                           for (int ir=0; ir<D1D; ++ir) {  // loop through all r-th dof data obtained from seed_j
-                              if (dist2_temp[ir] < fpt->dist2) {
+                           for (int ir=0; ir<D1D;
+                                ++ir)    // loop through all r-th dof data obtained from seed_j
+                           {
+                              if (dist2_temp[ir] < fpt->dist2)
+                              {
                                  fpt->dist2 = dist2_temp[ir];
-                                 for (int d=0; d<rDIM; ++d) {
+                                 for (int d=0; d<rDIM; ++d)
+                                 {
                                     fpt->r[d] = r_temp[d][ir];
                                  }
                               }
@@ -771,11 +861,14 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
                      MFEM_SYNC_THREAD;
                   } //seed done
 
-                  MFEM_FOREACH_THREAD(j,x,nThreads) {
-                     if (j<sDIM) {
+                  MFEM_FOREACH_THREAD(j,x,nThreads)
+                  {
+                     if (j<sDIM)
+                     {
                         tmp->x[j] = fpt->x[j];
                      }
-                     else if (j==sDIM) {
+                     else if (j==sDIM)
+                     {
                         tmp->dist2  = DBL_MAX;
                         tmp->dist2p = 0;
                         tmp->tr     = 1;
@@ -786,14 +879,21 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
                   }
                   MFEM_SYNC_THREAD;
 
-                  for (int step=0; step<50; step++) {
-                     int nc = num_constrained(tmp->flags & FLAG_MASK); // number of constrained reference directions
-                     switch (nc) {
-                        case 0: {  // findpt_area
-                           double *wt1   = r_workspace_ptr; // value, 1st, and 2nd derivative at r ref coord
-                           double *wt2   = wt1 + 3*D1D;     // value, 1st, and 2nd derivative at s ref coord
+                  for (int step=0; step<50; step++)
+                  {
+                     int nc = num_constrained(tmp->flags &
+                                              FLAG_MASK); // number of constrained reference directions
+                     switch (nc)
+                     {
+                        case 0:    // findpt_area
+                        {
+                           double *wt1   =
+                              r_workspace_ptr; // value, 1st, and 2nd derivative at r ref coord
+                           double *wt2   = wt1 +
+                                           3*D1D;     // value, 1st, and 2nd derivative at s ref coord
                            double *resid = wt2 + 3*D1D;     // 3 residuals for 3 phy. coords
-                           double *jac   = resid + sDIM;    // sDIM*rDIM elements in jacobian matrix dimensions
+                           double *jac   = resid +
+                                           sDIM;    // sDIM*rDIM elements in jacobian matrix dimensions
 
                            // see their calculation loops to understand their sizes!
                            double *resid_temp = jac + sDIM*rDIM;
@@ -804,24 +904,31 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
                            double *hes_temp = hes + 3;
                            MFEM_SYNC_THREAD;
 
-                           MFEM_FOREACH_THREAD(j,x,nThreads) {
-                              if (j<D1D) {
+                           MFEM_FOREACH_THREAD(j,x,nThreads)
+                           {
+                              if (j<D1D)
+                              {
                                  lagrange_eval_second_derivative(wt1, tmp->r[0], j, gll1D, lagcoeff, D1D);
                               }
-                              else if (j<2*D1D) {
+                              else if (j<2*D1D)
+                              {
                                  lagrange_eval_second_derivative(wt2, tmp->r[1], j-D1D, gll1D, lagcoeff, D1D);
                               }
                            }
                            MFEM_SYNC_THREAD;
 
-                           double *J1 = wt1, *D1 = wt1+D1D, *DD1 = wt1+2*D1D; // for r ref coord, value, 1st, and 2nd derivative
-                           double *J2 = wt2, *D2 = wt2+D1D, *DD2 = wt2+2*D1D; // for s ref coord, value, 1st, and 2nd derivative
+                           double *J1 = wt1, *D1 = wt1+D1D,
+                                   *DD1 = wt1+2*D1D; // for r ref coord, value, 1st, and 2nd derivative
+                           double *J2 = wt2, *D2 = wt2+D1D,
+                                   *DD2 = wt2+2*D1D; // for s ref coord, value, 1st, and 2nd derivative
 
-                           MFEM_FOREACH_THREAD(j,x,nThreads) {
+                           MFEM_FOREACH_THREAD(j,x,nThreads)
+                           {
                               // Each thread works on a specific sDIM physical direction and all s in s
                               // direction for a specific r among D1D r's in r direction
                               // Hence we need to utilize sDIM*D1D theads for this task
-                              if (j<D1D*sDIM) {
+                              if (j<D1D*sDIM)
+                              {
                                  const int d      = j%sDIM; // phy.coord index
                                  const int qp     = j/sDIM; // dof id qp, remains constant for all d=0 to sDIM-1
                                  const double *u  = elx[d]; // one of the phy. coord. components, depending on d
@@ -829,41 +936,58 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
 
                                  // loop through all nodes in s direction for the qp-th dof in r,
                                  // and sum their contributions to jacobians and hessians
-                                 for (int k=0; k<D1D; ++k) {
+                                 for (int k=0; k<D1D; ++k)
+                                 {
                                     sums_k[0] += u[qp + k*D1D] * J2[k];  // coefficient*lagfuncvalue in s direction
-                                    sums_k[1] += u[qp + k*D1D] * D2[k];  // coefficient*lagfunc1stderivative in s direction
-                                    sums_k[2] += u[qp + k*D1D] * DD2[k]; // coefficient*lagfunc2ndderivative in s direction
+                                    sums_k[1] += u[qp + k*D1D] *
+                                                 D2[k];  // coefficient*lagfunc1stderivative in s direction
+                                    sums_k[2] += u[qp + k*D1D] *
+                                                 DD2[k]; // coefficient*lagfunc2ndderivative in s direction
                                  }
 
-                                 resid_temp[sDIM*qp + d]             = sums_k[0] * J1[qp]; // (coefficient*lagfuncvalue in s direction) * (lagfuncvalue in r direction)
-                                 jac_temp[sDIM*rDIM*qp + rDIM*d + 0] = sums_k[0] * D1[qp]; // (coefficient*lagfuncvalue in s direction) * (lagfunc1stderivative in r direction)
-                                 jac_temp[sDIM*rDIM*qp + rDIM*d + 1] = sums_k[1] * J1[qp]; // (coefficient*lagfunc1stderivative in s direction) * (lagfuncval in r direction)
+                                 resid_temp[sDIM*qp + d]             = sums_k[0] *
+                                                                       J1[qp]; // (coefficient*lagfuncvalue in s direction) * (lagfuncvalue in r direction)
+                                 jac_temp[sDIM*rDIM*qp + rDIM*d + 0] = sums_k[0] *
+                                                                       D1[qp]; // (coefficient*lagfuncvalue in s direction) * (lagfunc1stderivative in r direction)
+                                 jac_temp[sDIM*rDIM*qp + rDIM*d + 1] = sums_k[1] *
+                                                                       J1[qp]; // (coefficient*lagfunc1stderivative in s direction) * (lagfuncval in r direction)
 
-                                 if (d==0) {
-                                    hes_temp[3*qp]     = sums_k[0] * DD1[qp]; // (coefficient*lagfuncvalue in s direction) * (lagfunc2ndderivative in r direction)
-                                    hes_temp[3*qp + 1] = sums_k[1] * D1[qp];  // (coefficient*lagfunc1stderivative in s direction) * (lagfunc1stderivative in r direction)
-                                    hes_temp[3*qp + 2] = sums_k[2] * J1[qp];  // (coefficient*lagfunc2ndderivative in s direction) * (lagfuncval in r direction)
+                                 if (d==0)
+                                 {
+                                    hes_temp[3*qp]     = sums_k[0] *
+                                                         DD1[qp]; // (coefficient*lagfuncvalue in s direction) * (lagfunc2ndderivative in r direction)
+                                    hes_temp[3*qp + 1] = sums_k[1] *
+                                                         D1[qp];  // (coefficient*lagfunc1stderivative in s direction) * (lagfunc1stderivative in r direction)
+                                    hes_temp[3*qp + 2] = sums_k[2] *
+                                                         J1[qp];  // (coefficient*lagfunc2ndderivative in s direction) * (lagfuncval in r direction)
                                  }
                               }
                            }
                            MFEM_SYNC_THREAD;
 
-                           MFEM_FOREACH_THREAD(l,x,nThreads) {
-                              if (l<sDIM) {
+                           MFEM_FOREACH_THREAD(l,x,nThreads)
+                           {
+                              if (l<sDIM)
+                              {
                                  resid[l] = fpt->x[l];
-                                 for (int j=0; j<D1D; ++j) {
+                                 for (int j=0; j<D1D; ++j)
+                                 {
                                     resid[l] -= resid_temp[l + j*sDIM];
                                  }
                               }
-                              if (l<sDIM*rDIM) {
+                              if (l<sDIM*rDIM)
+                              {
                                  jac[l] = 0;
-                                 for (int j=0; j<D1D; ++j) {
+                                 for (int j=0; j<D1D; ++j)
+                                 {
                                     jac[l] += jac_temp[l + j*sDIM*rDIM];
                                  }
                               }
-                              if (l<3) { // d2f/dr2, d2f/ds2, and d2f/drds
+                              if (l<3)   // d2f/dr2, d2f/ds2, and d2f/drds
+                              {
                                  hes[l] = 0;
-                                 for (int j=0; j<D1D; ++j) {
+                                 for (int j=0; j<D1D; ++j)
+                                 {
                                     hes[l] += hes_temp[l + 3*j];
                                  }
                                  hes[l] *= resid[l];
@@ -871,9 +995,12 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
                            }
                            MFEM_SYNC_THREAD;
 
-                           MFEM_FOREACH_THREAD(l,x,nThreads) {
-                              if (l==0) {
-                                 if (!reject_prior_step_q(fpt,resid,tmp,tol)) {
+                           MFEM_FOREACH_THREAD(l,x,nThreads)
+                           {
+                              if (l==0)
+                              {
+                                 if (!reject_prior_step_q(fpt,resid,tmp,tol))
+                                 {
                                     newton_face(fpt,jac,hes,resid,(tmp->flags & CONVERGED_FLAG),tmp,tol);
                                  }
                               }
@@ -881,41 +1008,51 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
                            MFEM_SYNC_THREAD;
                            break;
                         }
-                        case 1: {  // findpt_edge
+                        case 1:    // findpt_edge
+                        {
                            const int ei        = edge_index(tmp->flags & FLAG_MASK);
                            const int dn        = ei>>1;
                            const int de        = plus_1_mod_2(dn);
                            const int d_j[2]    = {de,dn};
                            const int hes_count = 3; // phi''.edge.x, phi'.edge.dxdn, phi.edge.d2xdn
 
-                           double *wt    = r_workspace_ptr;       // 3*D1D to store lagrange values, 1st and 2nd derivatives
+                           double *wt    =
+                              r_workspace_ptr;       // 3*D1D to store lagrange values, 1st and 2nd derivatives
                            double *resid = wt + 3*D1D;            // sDIM residuals for sDIM phy. coords
-                           double *jac   = resid + sDIM;          // sDIM*rDIM elements in jacobian for an edge
+                           double *jac   = resid +
+                                           sDIM;          // sDIM*rDIM elements in jacobian for an edge
                            double *hes_T = jac + sDIM*rDIM;       // hes_count*3
-                           double *hes   = hes_T + hes_count*sDIM;// <hes_count> stuff for each of the sDIM dimensions
+                           double *hes   = hes_T +
+                                           hes_count*sDIM;// <hes_count> stuff for each of the sDIM dimensions
                            findptsElementGEdge_t edge;
 
-                           MFEM_FOREACH_THREAD(j,x,nThreads) {
+                           MFEM_FOREACH_THREAD(j,x,nThreads)
+                           {
                               // utilized first 3*D1D threads
-                              edge = get_edge(elx, wtend, ei, constraint_workspace, constraint_init_t[j], j, D1D);
+                              edge = get_edge(elx, wtend, ei, constraint_workspace, constraint_init_t[j], j,
+                                              D1D);
                            }
                            MFEM_SYNC_THREAD;
 
                            // Now, edge points to all edge related data (nodal values, derivatives,
                            // 2nd derivatives, etc) that has been stored in constraint_workspace.
 
-                           MFEM_FOREACH_THREAD(j,x,nThreads) {
-                              if (j<D1D) {
+                           MFEM_FOREACH_THREAD(j,x,nThreads)
+                           {
+                              if (j<D1D)
+                              {
                                  lagrange_eval_second_derivative(wt,tmp->r[de],j,gll1D,lagcoeff,D1D);
                               }
                            }
                            MFEM_SYNC_THREAD;
 
                            const double *const *e_x[4] = {edge.x, edge.x, edge.dxdn, edge.d2xdn};
-                           MFEM_FOREACH_THREAD(j,x,nThreads) {
+                           MFEM_FOREACH_THREAD(j,x,nThreads)
+                           {
                               const int d           = j%sDIM;
                               const int iactive_e_x = j/sDIM;
-                              if ( j<(sDIM*rDIM + sDIM) ) {  // sDIM*rDIM(jac) + sDIM(resid)
+                              if ( j<(sDIM*rDIM + sDIM) )    // sDIM*rDIM(jac) + sDIM(resid)
+                              {
                                  // wt     = [vals, 1st derivatives, 2nd derivatives]
                                  // wt+0   = vals,            for iactive_e_x!=1
                                  // wt+D1D = 1st derivatives, for iactive_e_x==1
@@ -925,22 +1062,27 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
                                  // for iactive_e_x=0, sum = lagfuncvals     * edge.x
                                  // for iactive_e_x=1, sum = lagfunc1stderiv * edge.x
                                  // for iactive_e_x=2, sum = lagfuncvals     * edge.dxdn = actual dxdn
-                                 for (int k=0; k<D1D; ++k) {
+                                 for (int k=0; k<D1D; ++k)
+                                 {
                                     sum += wt_j[k]*x[k];
                                  }
-                                 if (iactive_e_x==0) { // j<sDIM
+                                 if (iactive_e_x==0)   // j<sDIM
+                                 {
                                     resid[j] = tmp->x[j] - sum;
                                  }
-                                 else { // iactive_e_x = 1, 2
+                                 else   // iactive_e_x = 1, 2
+                                 {
                                     jac[ d*rDIM + d_j[iactive_e_x-1] ] = sum;
                                  }
                               }
 
-                              if (j<hes_count*sDIM) {
+                              if (j<hes_count*sDIM)
+                              {
                                  // Hes_T is transposed version (i.e. in col major)
                                  double *wt_j  = wt + (2-iactive_e_x)*D1D; // 2ndderiv,1stderiv,val
                                  hes_T[j] = 0.0;
-                                 for (int k=0; k<D1D; ++k) {
+                                 for (int k=0; k<D1D; ++k)
+                                 {
                                     // iactive_e_x+1 to start at the second edge.x in e_x array
                                     hes_T[j] += wt_j[k] * e_x[iactive_e_x+1][d][k];
                                  }
@@ -948,30 +1090,39 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
                            }
                            MFEM_SYNC_THREAD;
 
-                           MFEM_FOREACH_THREAD(j,x,nThreads) {
-                              if (j<hes_count) {
+                           MFEM_FOREACH_THREAD(j,x,nThreads)
+                           {
+                              if (j<hes_count)
+                              {
                                  hes[j] = 0.0;
-                                 for (int d=0; d<sDIM; ++d) {
+                                 for (int d=0; d<sDIM; ++d)
+                                 {
                                     hes[j] += resid[d] * hes_T[hes_count*j + d];
                                  }
                               }
                            }
                            MFEM_SYNC_THREAD;
 
-                           MFEM_FOREACH_THREAD(l,x,nThreads) {
-                              if (l==0) { // check prior step
-                                 if ( !reject_prior_step_q(fpt,resid,tmp,tol) ) { // check constraint
+                           MFEM_FOREACH_THREAD(l,x,nThreads)
+                           {
+                              if (l==0)   // check prior step
+                              {
+                                 if ( !reject_prior_step_q(fpt,resid,tmp,tol) )   // check constraint
+                                 {
                                     double steep = 0;
-                                    for (int d=0; d<sDIM; ++d) {
+                                    for (int d=0; d<sDIM; ++d)
+                                    {
                                        steep += jac[d*rDIM + dn] * resid[d];
                                     }
                                     steep *= tmp->r[dn];
-                                    if (steep<0) {
+                                    if (steep<0)
+                                    {
                                        // no constraints on ref-dims anymore! Flags sent to
                                        // newton_face reflects this.
                                        newton_face( fpt,jac,hes,resid,tmp->flags&CONVERGED_FLAG,tmp,tol);
                                     }
-                                    else {
+                                    else
+                                    {
                                        newton_edge(fpt,jac,hes[0],resid,de,dn,tmp->flags&FLAG_MASK,tmp,tol);
                                     }
                                  }
@@ -980,39 +1131,50 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
                            MFEM_SYNC_THREAD;
                            break;
                         }
-                        case 2: { // findpts_pt
-                           MFEM_FOREACH_THREAD(j,x,nThreads) {
-                              if (j==0) {
+                        case 2:   // findpts_pt
+                        {
+                           MFEM_FOREACH_THREAD(j,x,nThreads)
+                           {
+                              if (j==0)
+                              {
                                  // 0,1,2,3 for (-1,-1), (1,-1), (-1,1), (1,1)
                                  const int pi                 = point_index(tmp->flags & FLAG_MASK);
                                  const findptsElementGPT_t gpt = get_pt(elx,wtend,pi,D1D);
                                  const double *const pt_x     = gpt.x,
-                                              *const jac      = gpt.jac,
-                                              *const hes      = gpt.hes;
+                                                     *const jac      = gpt.jac,
+                                                            *const hes      = gpt.hes;
                                  const int hes_count = 3;
 
                                  double resid[sDIM],
                                         steep[rDIM];
-                                 for (int d=0; d<sDIM; ++d) {
+                                 for (int d=0; d<sDIM; ++d)
+                                 {
                                     resid[d] = fpt->x[d]-pt_x[d];
                                  }
 
-                                 if (!reject_prior_step_q(fpt,resid,tmp,tol)) {
-                                    for (int d=0; d<rDIM; ++d) {
+                                 if (!reject_prior_step_q(fpt,resid,tmp,tol))
+                                 {
+                                    for (int d=0; d<rDIM; ++d)
+                                    {
                                        steep[d] = 0;
-                                       for (int e=0; e<sDIM; ++e) {
+                                       for (int e=0; e<sDIM; ++e)
+                                       {
                                           steep[d] += jac[e*rDIM+d] * resid[e];
                                        }
                                        steep[d] *= tmp->r[d];
                                     }
 
                                     int de, dn;
-                                    if (steep[0]<0) {
-                                       if (steep[1]<0) {
+                                    if (steep[0]<0)
+                                    {
+                                       if (steep[1]<0)
+                                       {
                                           double rh[3];
-                                          for (int rd=0; rd<hes_count; ++rd) {
+                                          for (int rd=0; rd<hes_count; ++rd)
+                                          {
                                              rh[rd] = 0;
-                                             for (int d=0; d<sDIM; ++d) {
+                                             for (int d=0; d<sDIM; ++d)
+                                             {
                                                 rh[rd] += resid[d] * hes[hes_count*d + rd];
                                              }
                                           }
@@ -1020,7 +1182,8 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
                                           // newton_face reflect this.
                                           newton_face(fpt,jac,rh,resid,(tmp->flags & CONVERGED_FLAG),tmp,tol);
                                        }
-                                       else {
+                                       else
+                                       {
                                           de = 0, dn = 1;
                                           // hes index 0 is for d2x/dr2
                                           const double rh = resid[0] * hes[              0] +
@@ -1029,8 +1192,10 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
                                           newton_edge(fpt,jac,rh,resid,de,dn,(tmp->flags & ~(3u<<2*de)),tmp,tol);
                                        }
                                     }
-                                    else {
-                                       if (steep[1]<0) {
+                                    else
+                                    {
+                                       if (steep[1]<0)
+                                       {
                                           de = 1, dn = 0;
                                           // hes index 2 is for d2x/ds2
                                           const double rh = resid[0] * hes[              2] +
@@ -1038,7 +1203,8 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
                                                             resid[2] * hes[hes_count*2 + 2];
                                           newton_edge(fpt,jac,rh,resid,de,dn,(tmp->flags & ~(3u<<2*de)),tmp,tol);
                                        }
-                                       else {
+                                       else
+                                       {
                                           fpt->r[0] = tmp->r[0];
                                           fpt->r[1] = tmp->r[1];
                                           fpt->dist2p = 0;
@@ -1053,14 +1219,17 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
                         } // case 2
                      } // switch
 
-                     if (fpt->flags & CONVERGED_FLAG) {
+                     if (fpt->flags & CONVERGED_FLAG)
+                     {
                         // *newton_i = step+1;
                         break;
                      }
                      MFEM_SYNC_THREAD;
 
-                     MFEM_FOREACH_THREAD(j,x,nThreads) {
-                        if (j==0) {
+                     MFEM_FOREACH_THREAD(j,x,nThreads)
+                     {
+                        if (j==0)
+                        {
                            *tmp = *fpt;
                         }
                      }
@@ -1068,21 +1237,27 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
                   } // for step<50
                } // findpts_el
 
-               bool converged_internal = ( (fpt->flags&FLAG_MASK)==CONVERGED_FLAG ) && fpt->dist2<dist2tol;
-               if (*code_i==CODE_NOT_FOUND || converged_internal || fpt->dist2<*dist2_i) {
-                  MFEM_FOREACH_THREAD(j,x,nThreads) {
-                     if (j==0) {
+               bool converged_internal = ( (fpt->flags&FLAG_MASK)==CONVERGED_FLAG ) &&
+                                         fpt->dist2<dist2tol;
+               if (*code_i==CODE_NOT_FOUND || converged_internal || fpt->dist2<*dist2_i)
+               {
+                  MFEM_FOREACH_THREAD(j,x,nThreads)
+                  {
+                     if (j==0)
+                     {
                         *el_i    = el;
                         *code_i  = converged_internal ? CODE_INTERNAL : CODE_BORDER;
                         *dist2_i = fpt->dist2;
                      }
-                     if (j<rDIM) {
+                     if (j<rDIM)
+                     {
                         r_i[j] = fpt->r[j];
                      }
                   }
                   MFEM_SYNC_THREAD;
 
-                  if (converged_internal) {
+                  if (converged_internal)
+                  {
                      break;
                   }
                }
@@ -1117,182 +1292,184 @@ void FindPointsGSLIB::FindPointsSurfLocal32(Vector &point_pos,
 
    double dist_tol = 1e-14;
 
-   if (npt == 0) {
+   if (npt == 0)
+   {
       return;
    }
    MFEM_VERIFY(spacedim==3,"Function for 3D only");
-   switch (DEV.dof1d) {
+   switch (DEV.dof1d)
+   {
       case 1: FindPointsSurfLocal32D_Kernel<1>(npt,
-                                               DEV.tol,
-                                               dist_tol,
-                                               point_pos.Read(),
-                                               point_pos_ordering,
-                                               gsl_mesh.Read(),
-                                               NE_split_total,
-                                               DEV.o_wtend.Read(),
-                                               DEV.o_c.Read(),
-                                               DEV.o_A.Read(),
-                                               DEV.o_min.Read(),
-                                               DEV.o_max.Read(),
-                                               DEV.hash_n,
-                                               DEV.o_hashMin.Read(),
-                                               DEV.o_hashFac.Read(),
-                                               DEV.ou_offset.ReadWrite(),
-                                               code.Write(), elem.Write(),
-                                               ref.Write(), dist.Write(),
-                                               DEV.gll1d.Read(),
-                                               DEV.lagcoeff.Read(),
-                                               //   newton.ReadWrite(),
-                                               DEV.info.ReadWrite());
+                                                  DEV.tol,
+                                                  dist_tol,
+                                                  point_pos.Read(),
+                                                  point_pos_ordering,
+                                                  gsl_mesh.Read(),
+                                                  NE_split_total,
+                                                  DEV.o_wtend.Read(),
+                                                  DEV.o_c.Read(),
+                                                  DEV.o_A.Read(),
+                                                  DEV.o_min.Read(),
+                                                  DEV.o_max.Read(),
+                                                  DEV.hash_n,
+                                                  DEV.o_hashMin.Read(),
+                                                  DEV.o_hashFac.Read(),
+                                                  DEV.ou_offset.ReadWrite(),
+                                                  code.Write(), elem.Write(),
+                                                  ref.Write(), dist.Write(),
+                                                  DEV.gll1d.Read(),
+                                                  DEV.lagcoeff.Read(),
+                                                  //   newton.ReadWrite(),
+                                                  DEV.info.ReadWrite());
          break;
       case 2: FindPointsSurfLocal32D_Kernel<2>(npt,
-                                               DEV.tol,
-                                               dist_tol,
-                                               point_pos.Read(),
-                                               point_pos_ordering,
-                                               gsl_mesh.Read(),
-                                               NE_split_total,
-                                               DEV.o_wtend.Read(),
-                                               DEV.o_c.Read(),
-                                               DEV.o_A.Read(),
-                                               DEV.o_min.Read(),
-                                               DEV.o_max.Read(),
-                                               DEV.hash_n, DEV.o_hashMin.Read(),
-                                               DEV.o_hashFac.Read(),
-                                               DEV.ou_offset.ReadWrite(),
-                                               code.Write(),
-                                               elem.Write(),
-                                               ref.Write(),
-                                               dist.Write(),
-                                               DEV.gll1d.Read(),
-                                               DEV.lagcoeff.Read(),
-                                               //   newton.ReadWrite(),
-                                               DEV.info.ReadWrite());
+                                                  DEV.tol,
+                                                  dist_tol,
+                                                  point_pos.Read(),
+                                                  point_pos_ordering,
+                                                  gsl_mesh.Read(),
+                                                  NE_split_total,
+                                                  DEV.o_wtend.Read(),
+                                                  DEV.o_c.Read(),
+                                                  DEV.o_A.Read(),
+                                                  DEV.o_min.Read(),
+                                                  DEV.o_max.Read(),
+                                                  DEV.hash_n, DEV.o_hashMin.Read(),
+                                                  DEV.o_hashFac.Read(),
+                                                  DEV.ou_offset.ReadWrite(),
+                                                  code.Write(),
+                                                  elem.Write(),
+                                                  ref.Write(),
+                                                  dist.Write(),
+                                                  DEV.gll1d.Read(),
+                                                  DEV.lagcoeff.Read(),
+                                                  //   newton.ReadWrite(),
+                                                  DEV.info.ReadWrite());
          break;
       case 3: FindPointsSurfLocal32D_Kernel<3>(npt,
-                                               DEV.tol,
-                                               dist_tol,
-                                               point_pos.Read(),
-                                               point_pos_ordering,
-                                               gsl_mesh.Read(),
-                                               NE_split_total,
-                                               DEV.o_wtend.Read(),
-                                               DEV.o_c.Read(),
-                                               DEV.o_A.Read(),
-                                               DEV.o_min.Read(),
-                                               DEV.o_max.Read(),
-                                               DEV.hash_n, DEV.o_hashMin.Read(),
-                                               DEV.o_hashFac.Read(),
-                                               DEV.ou_offset.ReadWrite(),
-                                               code.Write(),
-                                               elem.Write(),
-                                               ref.Write(),
-                                               dist.Write(),
-                                               DEV.gll1d.Read(),
-                                               DEV.lagcoeff.Read(),
-                                               //   newton.ReadWrite(),
-                                               DEV.info.ReadWrite());
+                                                  DEV.tol,
+                                                  dist_tol,
+                                                  point_pos.Read(),
+                                                  point_pos_ordering,
+                                                  gsl_mesh.Read(),
+                                                  NE_split_total,
+                                                  DEV.o_wtend.Read(),
+                                                  DEV.o_c.Read(),
+                                                  DEV.o_A.Read(),
+                                                  DEV.o_min.Read(),
+                                                  DEV.o_max.Read(),
+                                                  DEV.hash_n, DEV.o_hashMin.Read(),
+                                                  DEV.o_hashFac.Read(),
+                                                  DEV.ou_offset.ReadWrite(),
+                                                  code.Write(),
+                                                  elem.Write(),
+                                                  ref.Write(),
+                                                  dist.Write(),
+                                                  DEV.gll1d.Read(),
+                                                  DEV.lagcoeff.Read(),
+                                                  //   newton.ReadWrite(),
+                                                  DEV.info.ReadWrite());
          break;
       case 4: FindPointsSurfLocal32D_Kernel<4>(npt,
-                                               DEV.tol,
-                                               dist_tol,
-                                               point_pos.Read(),
-                                               point_pos_ordering,
-                                               gsl_mesh.Read(),
-                                               NE_split_total,
-                                               DEV.o_wtend.Read(),
-                                               DEV.o_c.Read(),
-                                               DEV.o_A.Read(),
-                                               DEV.o_min.Read(),
-                                               DEV.o_max.Read(),
-                                               DEV.hash_n,
-                                               DEV.o_hashMin.Read(),
-                                               DEV.o_hashFac.Read(),
-                                               DEV.ou_offset.ReadWrite(),
-                                               code.Write(),
-                                               elem.Write(),
-                                               ref.Write(),
-                                               dist.Write(),
-                                               DEV.gll1d.Read(),
-                                               DEV.lagcoeff.Read(),
-                                               //   newton.ReadWrite(),
-                                               DEV.info.ReadWrite());
+                                                  DEV.tol,
+                                                  dist_tol,
+                                                  point_pos.Read(),
+                                                  point_pos_ordering,
+                                                  gsl_mesh.Read(),
+                                                  NE_split_total,
+                                                  DEV.o_wtend.Read(),
+                                                  DEV.o_c.Read(),
+                                                  DEV.o_A.Read(),
+                                                  DEV.o_min.Read(),
+                                                  DEV.o_max.Read(),
+                                                  DEV.hash_n,
+                                                  DEV.o_hashMin.Read(),
+                                                  DEV.o_hashFac.Read(),
+                                                  DEV.ou_offset.ReadWrite(),
+                                                  code.Write(),
+                                                  elem.Write(),
+                                                  ref.Write(),
+                                                  dist.Write(),
+                                                  DEV.gll1d.Read(),
+                                                  DEV.lagcoeff.Read(),
+                                                  //   newton.ReadWrite(),
+                                                  DEV.info.ReadWrite());
          break;
       case 5: FindPointsSurfLocal32D_Kernel<5>(npt,
-                                               DEV.tol,
-                                               dist_tol,
-                                               point_pos.Read(),
-                                               point_pos_ordering,
-                                               gsl_mesh.Read(),
-                                               NE_split_total,
-                                               DEV.o_wtend.Read(),
-                                               DEV.o_c.Read(),
-                                               DEV.o_A.Read(),
-                                               DEV.o_min.Read(),
-                                               DEV.o_max.Read(),
-                                               DEV.hash_n,
-                                               DEV.o_hashMin.Read(),
-                                               DEV.o_hashFac.Read(),
-                                               DEV.ou_offset.ReadWrite(),
-                                               code.Write(),
-                                               elem.Write(),
-                                               ref.Write(),
-                                               dist.Write(),
-                                               DEV.gll1d.Read(),
-                                               DEV.lagcoeff.Read(),
-                                               //   newton.ReadWrite(),
-                                               DEV.info.ReadWrite());
+                                                  DEV.tol,
+                                                  dist_tol,
+                                                  point_pos.Read(),
+                                                  point_pos_ordering,
+                                                  gsl_mesh.Read(),
+                                                  NE_split_total,
+                                                  DEV.o_wtend.Read(),
+                                                  DEV.o_c.Read(),
+                                                  DEV.o_A.Read(),
+                                                  DEV.o_min.Read(),
+                                                  DEV.o_max.Read(),
+                                                  DEV.hash_n,
+                                                  DEV.o_hashMin.Read(),
+                                                  DEV.o_hashFac.Read(),
+                                                  DEV.ou_offset.ReadWrite(),
+                                                  code.Write(),
+                                                  elem.Write(),
+                                                  ref.Write(),
+                                                  dist.Write(),
+                                                  DEV.gll1d.Read(),
+                                                  DEV.lagcoeff.Read(),
+                                                  //   newton.ReadWrite(),
+                                                  DEV.info.ReadWrite());
          break;
       case 6: FindPointsSurfLocal32D_Kernel<6>(npt,
-                                               DEV.tol,
-                                               dist_tol,
-                                               point_pos.Read(),
-                                               point_pos_ordering,
-                                               gsl_mesh.Read(),
-                                               NE_split_total,
-                                               DEV.o_wtend.Read(),
-                                               DEV.o_c.Read(),
-                                               DEV.o_A.Read(),
-                                               DEV.o_min.Read(),
-                                               DEV.o_max.Read(),
-                                               DEV.hash_n,
-                                               DEV.o_hashMin.Read(),
-                                               DEV.o_hashFac.Read(),
-                                               DEV.ou_offset.ReadWrite(),
-                                               code.Write(),
-                                               elem.Write(),
-                                               ref.Write(),
-                                               dist.Write(),
-                                               DEV.gll1d.Read(),
-                                               DEV.lagcoeff.Read(),
-                                               // newton.ReadWrite(),
-                                               DEV.info.ReadWrite());
+                                                  DEV.tol,
+                                                  dist_tol,
+                                                  point_pos.Read(),
+                                                  point_pos_ordering,
+                                                  gsl_mesh.Read(),
+                                                  NE_split_total,
+                                                  DEV.o_wtend.Read(),
+                                                  DEV.o_c.Read(),
+                                                  DEV.o_A.Read(),
+                                                  DEV.o_min.Read(),
+                                                  DEV.o_max.Read(),
+                                                  DEV.hash_n,
+                                                  DEV.o_hashMin.Read(),
+                                                  DEV.o_hashFac.Read(),
+                                                  DEV.ou_offset.ReadWrite(),
+                                                  code.Write(),
+                                                  elem.Write(),
+                                                  ref.Write(),
+                                                  dist.Write(),
+                                                  DEV.gll1d.Read(),
+                                                  DEV.lagcoeff.Read(),
+                                                  // newton.ReadWrite(),
+                                                  DEV.info.ReadWrite());
          break;
       default: FindPointsSurfLocal32D_Kernel(npt,
-                                             DEV.tol,
-                                             DEV.tol,
-                                             point_pos.Read(),
-                                             point_pos_ordering,
-                                             gsl_mesh.Read(),
-                                             NE_split_total,
-                                             DEV.o_wtend.Read(),
-                                             DEV.o_c.Read(),
-                                             DEV.o_A.Read(),
-                                             DEV.o_min.Read(),
-                                             DEV.o_max.Read(),
-                                             DEV.hash_n,
-                                             DEV.o_hashMin.Read(),
-                                             DEV.o_hashFac.Read(),
-                                             DEV.ou_offset.ReadWrite(),
-                                             code.Write(),
-                                             elem.Write(),
-                                             ref.Write(),
-                                             dist.Write(),
-                                             DEV.gll1d.Read(),
-                                             DEV.lagcoeff.Read(),
-                                             // newton.ReadWrite(),
-                                             DEV.info.ReadWrite(),
-                                             DEV.dof1d);
+                                                DEV.tol,
+                                                DEV.tol,
+                                                point_pos.Read(),
+                                                point_pos_ordering,
+                                                gsl_mesh.Read(),
+                                                NE_split_total,
+                                                DEV.o_wtend.Read(),
+                                                DEV.o_c.Read(),
+                                                DEV.o_A.Read(),
+                                                DEV.o_min.Read(),
+                                                DEV.o_max.Read(),
+                                                DEV.hash_n,
+                                                DEV.o_hashMin.Read(),
+                                                DEV.o_hashFac.Read(),
+                                                DEV.ou_offset.ReadWrite(),
+                                                code.Write(),
+                                                elem.Write(),
+                                                ref.Write(),
+                                                dist.Write(),
+                                                DEV.gll1d.Read(),
+                                                DEV.lagcoeff.Read(),
+                                                // newton.ReadWrite(),
+                                                DEV.info.ReadWrite(),
+                                                DEV.dof1d);
    }
 }
 

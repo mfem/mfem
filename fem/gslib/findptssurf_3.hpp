@@ -45,7 +45,8 @@ struct findptsElementGEdge_t
 // 30*8 = 240 bytes
 struct findptsElementGPT_t
 {
-   double x[sDIM], jac[sDIM*rDIM], hes[sDIM*(rDIM+1)];  // r2,s2,rs for sDIM coordinates
+   double x[sDIM], jac[sDIM*rDIM],
+          hes[sDIM*(rDIM+1)];  // r2,s2,rs for sDIM coordinates
 };
 // 2*8 = 16 bytes
 struct dbl_range_t

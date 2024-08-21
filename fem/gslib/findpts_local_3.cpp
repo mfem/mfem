@@ -1050,7 +1050,7 @@ static void FindPointsLocal3D_Kernel(const int npt,
       hash.offset = hashOffset;
       const unsigned int hi = hash_index(&hash, x_i);
       const unsigned int *elp = hash.offset + hash.offset[hi],
-                 *const ele = hash.offset + hash.offset[hi + 1];
+                          *const ele = hash.offset + hash.offset[hi + 1];
       *code_i = CODE_NOT_FOUND;
       *dist2_i = DBL_MAX;
 

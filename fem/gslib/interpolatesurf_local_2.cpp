@@ -29,7 +29,8 @@ static MFEM_HOST_DEVICE void lagrange_eval(double *p0, double x,
                                            double *z, double *lagrangeCoeff)
 {
    double p_i = (1 << (p_Nq - 1));
-   for (int j=0; j<p_Nq; ++j) {
+   for (int j=0; j<p_Nq; ++j)
+   {
       p_i *= j==i ? 1 : x-z[j];
    }
    p0[i] = lagrangeCoeff[i] * p_i;
@@ -56,32 +57,39 @@ static void InterpolateSurfLocal2D_Kernel(const double *const gf_in,
    MFEM_VERIFY(p_Nq<=pMax, "Increase Max allowable polynomial order.");
 
    // for each point of the npt points, create a thread block of size dof1Dsol
-   mfem::forall_2D(npt, dof1Dsol, 1, [=] MFEM_HOST_DEVICE (int i) {
+   mfem::forall_2D(npt, dof1Dsol, 1, [=] MFEM_HOST_DEVICE (int i)
+   {
       MFEM_SHARED double wtr[pMax];
       MFEM_SHARED double sums[pMax];
 
       // evaluate the Lagrange polynomials at the ref coord r[i]
-      MFEM_FOREACH_THREAD(j,x,p_Nq) {
+      MFEM_FOREACH_THREAD(j,x,p_Nq)
+      {
          lagrange_eval(wtr, r[i], j, p_Nq, gll1D, lagcoeff);
       }
       MFEM_SYNC_THREAD;
 
       // for each field component, sum the contributions of the dofs
-      for (int fld=0; fld<Nfields; ++fld) {
+      for (int fld=0; fld<Nfields; ++fld)
+      {
          // offset to the nodal values of element el[i] of its component fld
          const int elemOffset = el[i]*p_Nq*Nfields + fld*p_Nq;
          // lagrange polynomial j contributes wtr[j]*gf_in[elemOffset + j] to
          // the field value at point i
-         MFEM_FOREACH_THREAD(j,x,p_Nq) {
+         MFEM_FOREACH_THREAD(j,x,p_Nq)
+         {
             sums[j] = wtr[j] * gf_in[elemOffset + j];
          }
          MFEM_SYNC_THREAD;
 
-         MFEM_FOREACH_THREAD(j,x,p_Nq) {
-            if (j==0) {
+         MFEM_FOREACH_THREAD(j,x,p_Nq)
+         {
+            if (j==0)
+            {
                double sumv = 0.0;
                // sum the contributions of each lagrange polynomial
-               for (int jj=0; jj<p_Nq; ++jj) {
+               for (int jj=0; jj<p_Nq; ++jj)
+               {
                   sumv += sums[jj];
                }
                int_out[fld*npt + i] = sumv;

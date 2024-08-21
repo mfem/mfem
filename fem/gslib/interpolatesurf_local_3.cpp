@@ -29,7 +29,8 @@ static MFEM_HOST_DEVICE void lagrange_eval(double *p0, double x,
                                            double *z, double *lagrangeCoeff)
 {
    double p_i = (1 << (p_Nq - 1));
-   for (int j=0; j<p_Nq; ++j) {
+   for (int j=0; j<p_Nq; ++j)
+   {
       p_i *= j==i ? 1 : x-z[j];
    }
    p0[i] = lagrangeCoeff[i] * p_i;
@@ -41,7 +42,7 @@ static void InterpolateSurfLocal3D_Kernel(const double *const gf_in,
                                           double *const int_out,
                                           const int npt,           // total number of points
                                           const int ncomp,         // number of components of the field
-                                          const int nel,              
+                                          const int nel,
                                           const int dof1Dsol,      // number of dofs per element in gf_in
                                           const int gf_offset,     // offset for each field component
                                           double *gll1D,            // GLL nodes of the dof1Dsol dofs
@@ -57,34 +58,44 @@ static void InterpolateSurfLocal3D_Kernel(const double *const gf_in,
    MFEM_VERIFY(p_Nq<=pMax, "Increase Max allowable polynomial order.");
 
    // for each point of the npt points, create a thread block of size dof1Dsol
-   mfem::forall_2D(npt, dof1Dsol, 1, [=] MFEM_HOST_DEVICE (int i) {
+   mfem::forall_2D(npt, dof1Dsol, 1, [=] MFEM_HOST_DEVICE (int i)
+   {
       MFEM_SHARED double wtr[pMax];
       MFEM_SHARED double wts[pMax];
       MFEM_SHARED double sums[pMax];
 
       // Evaluate basis functions at the reference space coordinates
-      MFEM_FOREACH_THREAD(j,x,p_Nq) {
+      MFEM_FOREACH_THREAD(j,x,p_Nq)
+      {
          lagrange_eval(wtr, r[2*i + 0], j, p_Nq, gll1D, lagcoeff);
          lagrange_eval(wts, r[2*i + 1], j, p_Nq, gll1D, lagcoeff);
       }
       MFEM_SYNC_THREAD;
 
-      for (int fld=0; fld<Nfields; ++fld) {
-         const int elemOffset = el[i]*Nfields*p_Np + fld*p_Np; // field is (dof1Dsol^2 x FIELDDIM x NEL)
+      for (int fld=0; fld<Nfields; ++fld)
+      {
+         const int elemOffset = el[i]*Nfields*p_Np +
+                                fld*p_Np; // field is (dof1Dsol^2 x FIELDDIM x NEL)
 
-         MFEM_FOREACH_THREAD(j,x,p_Nq) {
+         MFEM_FOREACH_THREAD(j,x,p_Nq)
+         {
             double sum_j = 0;
-            for (int k=0; k<p_Nq; ++k) {
-               sum_j += wts[k] * gf_in[elemOffset + k*p_Nq + j];  // r-index j, s-index k, in lexicographic order
+            for (int k=0; k<p_Nq; ++k)
+            {
+               sum_j += wts[k] * gf_in[elemOffset + k*p_Nq +
+                                       j];  // r-index j, s-index k, in lexicographic order
             }
             sums[j] = wtr[j] * sum_j;
          }
          MFEM_SYNC_THREAD;
 
-         MFEM_FOREACH_THREAD(j,x,p_Nq) {
-            if (j==0) {
+         MFEM_FOREACH_THREAD(j,x,p_Nq)
+         {
+            if (j==0)
+            {
                double sumv = 0.0;
-               for (int jj=0; jj<p_Nq; ++jj) {
+               for (int jj=0; jj<p_Nq; ++jj)
+               {
                   sumv += sums[jj];
                }
                int_out[fld*npt + i] = sumv;
@@ -105,7 +116,8 @@ void FindPointsGSLIB::InterpolateSurfLocal3( const Vector &field_in,
                                              int dof1Dsol )
 {
    const int gf_offset = field_in.Size()/ncomp;
-   if (spacedim==3) {
+   if (spacedim==3)
+   {
       InterpolateSurfLocal3D_Kernel(field_in.Read(),
                                     gsl_elem_dev_l.ReadWrite(),
                                     gsl_ref_l.ReadWrite(),
@@ -119,7 +131,8 @@ void FindPointsGSLIB::InterpolateSurfLocal3( const Vector &field_in,
                                     DEV.lagcoeffsol.ReadWrite(),
                                     DEV.info.ReadWrite());
    }
-   else {
+   else
+   {
       MFEM_ABORT("Call InterpolateSurfLocal2 for 2D!");
    }
 }
