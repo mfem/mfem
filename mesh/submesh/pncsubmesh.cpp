@@ -267,26 +267,28 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
                // received the boundary element.
                return rank0 < rank1 ? rank0 : rank1;
             }();
-            auto orientation = [&]()
-            {
-               int f, o;
-               std::cout << "i " << i << " ipe " << ipe << " face.index " << face.index << std::endl;
-               if (face.index >= face_to_be.Size() || face_to_be[face.index] < 0)
-               {
-                  o = 0; std::cout << " face.index >= face_to_be.Size() " << (face.index >= face_to_be.Size());
-               }
-               else
-               {
-                  submesh.GetParent()->GetBdrElementFace(face_to_be[face.index], &f, &o);
-               }
-               // Compose orientation with that from elem to face ?
-               int inf1, inf2;
-               submesh.GetParent()->GetFaceInfos(face.index, &inf1, &inf2);
-               int o2 = submesh.GetParent()->DecodeFaceInfoOrientation(inf1);
-               std::cout << " o " << o << " o2 " << o2 << '\n';
-               return o;
-            }();
-            ReorientFaceNodesByOrientation(fn.nodes, face_geom, orientation);
+
+            // auto orientation = 0;
+            // [&]()
+            // {
+            //    int f, o;
+            //    std::cout << "i " << i << " ipe " << ipe << " face.index " << face.index << std::endl;
+            //    if (face.index >= face_to_be.Size() || face_to_be[face.index] < 0)
+            //    {
+            //       o = 0; std::cout << " face.index >= face_to_be.Size() " << (face.index >= face_to_be.Size());
+            //    }
+            //    else
+            //    {
+            //       submesh.GetParent()->GetBdrElementFace(face_to_be[face.index], &f, &o);
+            //    }
+            //    // Compose orientation with that from elem to face ?
+            //    int inf1, inf2;
+            //    submesh.GetParent()->GetFaceInfos(face.index, &inf1, &inf2);
+            //    int o2 = submesh.GetParent()->DecodeFaceInfoOrientation(inf1);
+            //    std::cout << " o " << o << " o2 " << o2 << '\n';
+            //    return o;
+            // }();
+            // ReorientFaceNodesByOrientation(fn.nodes, face_geom, orientation);
 
             pnodes_new_elem[fn] = new_elem_id;
             parent_element_ids_.Append(i);
@@ -912,20 +914,6 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
       nodes.Reparent(i, submesh_p1, submesh_p2);
    }
 
-   // std::cout << __FILE__ << ':' << __LINE__ << std::endl;
-   // std::cout << "nodes.Size() " << nodes.Size() << std::endl;
-   // for (auto it = nodes.begin(); it != nodes.end(); ++it)
-   // {
-   //    std::cout << it.index() << ' ' << it->p1 << ' ' << it->p2;
-   //    if (it->p1 == it->p2)
-   //    {
-   //       std::cout << " (root)";
-   //    }
-   //    std::cout << " pn " << parent_node_ids_[it.index()];
-   //    std::cout << std::endl;
-   // }
-
-   // std::cout << __FILE__ << ':' << __LINE__ << std::endl;
    nodes.UpdateUnused();
    for (int i = 0; i < elements.Size(); i++)
    {
@@ -936,12 +924,11 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
       }
    }
 
-   // std::cout << "faces.Size() " << faces.Size() << std::endl;
-
    InitRootElements();
    InitRootState(root_state.Size());
    InitGeomFlags();
 
+#ifdef MFEM_DEBUG
    // Check all processors have the same number of roots
    {
       int p[2] = {root_state.Size(), -root_state.Size()};
@@ -949,6 +936,7 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
       MFEM_ASSERT(p[0] == -p[1], "Ranks must agree on number of root elements: min "
          << p[0] << " max " << -p[1] << " local " << root_state.Size() << " MyRank " << submesh.GetMyRank());
    }
+#endif
 
    Update(); // Fills in secondary information based off of elements, nodes and faces.
 
@@ -1025,14 +1013,6 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
       // parent elements are BOUNDARY elements, need to map face index to be.
       const auto &parent_face_to_be = submesh.GetParent()->GetFaceToBdrElMap();
 
-      std::cout << "submesh.parent_element_ids_.Size() " << submesh.parent_element_ids_.Size() << std::endl;
-      for (auto x : submesh.parent_element_ids_)
-      {
-         std::cout << x << ' ';
-      }
-      std::cout << "\nNElements " << NElements << " NGhostElements " << NGhostElements << std::endl;
-      std::cout << "GetNE() " << submesh.GetNE() << std::endl;
-
       MFEM_ASSERT(NElements == submesh.GetNE(), "!");
 
       auto new_parent_to_submesh_element_ids = submesh.parent_to_submesh_element_ids_;
@@ -1051,46 +1031,23 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
       }
 
       MFEM_ASSERT(new_parent_element_ids.Size() == submesh.parent_element_ids_.Size(), "!");
-      std::cout << "new_parent_element_ids.Size() " << new_parent_element_ids.Size() << " : ";
+#ifdef MFEM_DEBUG
       for (auto x : new_parent_element_ids)
       {
-         std::cout << x << ' ';
-         MFEM_ASSERT(std::find(submesh.parent_element_ids_.begin(), submesh.parent_element_ids_.end(), x) != submesh.parent_element_ids_.end(), "!");
+         MFEM_ASSERT(std::find(submesh.parent_element_ids_.begin(),
+                               submesh.parent_element_ids_.end(), x)
+                     != submesh.parent_element_ids_.end(), x << " not found in submesh.parent_element_ids_");
       }
-      std::cout << std::endl;
-      auto tmp = new_parent_element_ids;
-      tmp.Sort();
-      tmp.Unique();
-      std::cout << "sorted and unique new_parent_element_ids.Size() " << tmp.Size() << " : ";
-      for (auto x : tmp)
-      {
-         std::cout << x << ' ';
-      }
-
       for (auto x : submesh.parent_element_ids_)
       {
          MFEM_ASSERT(std::find(new_parent_element_ids.begin(),
                                new_parent_element_ids.end(), x)
-                     != new_parent_element_ids.end(), x << " not found in new parent_element_ids_");
+                     != new_parent_element_ids.end(), x << " not found in new_parent_element_ids_");
       }
-
-
+#endif
       submesh.parent_element_ids_ = new_parent_element_ids;
       submesh.parent_to_submesh_element_ids_ = new_parent_to_submesh_element_ids;
-
-      // throw std::logic_error("!");
-      // auto new_parent_element_ids = parent_element_ids_;
-      // auto new_parent_to_submesh_element_ids = parent_to_submesh_element_ids_;
-      // new_parent_to_submesh_element_ids = -1;
-      // std::vector<int> reorder{7,6,5,0,2,1,4,3};
-      // submesh.parent_element_ids_.Permute(std::move(reorder));
-      // parent_to_submesh_element_ids_ = -1;
-      // for (int i = 0; i < submesh.parent_element_ids_.Size(); i++)
-      // {
-      //    parent_to_submesh_element_ids_[submesh.parent_element_ids_[i]] = i;
-      // }
    }
-
 }
 
 } // namespace mfem

@@ -1939,6 +1939,15 @@ bool ParMesh::DecodeFaceSplittings(HashTable<Hashed2> &v_to_v, const int *v,
    return need_refinement;
 }
 
+
+std::unordered_map<int,int> ParMesh::BuildGhostBoundaryElementMap()
+{
+   // Within each group, the owner of any shared faces will collect up any boundary
+   // attributes they may have, then send this array to the neighboring rank.
+
+   return {};
+}
+
 void ParMesh::GenerateOffsets(int N, HYPRE_BigInt loc_sizes[],
                               Array<HYPRE_BigInt> *offsets[]) const
 {

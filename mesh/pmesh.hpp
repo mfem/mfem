@@ -493,6 +493,21 @@ public:
       GetSharedTriCommunicator(1, stria_comm);
    }
 
+    /**
+     * @brief Build a map from local face index to a ghost boundary attribute
+     * @details Ghost boundary attributes are attributes that are stored on the face
+     * neighbour processor when a processor boundary intersects with an internal boundary.
+     * The local faces used as keys are NOT actual boundary elements on this rank,
+     * integration over them would result in double counting of the boundaries. This map is
+     * used solely for the purposes of furnishing meta data about these faces. This is
+     * particularly useful in the case of a ParSubMesh, where a volume subdomain's boundary
+     * must be labelled with the appropriate boundary attribute once the boundary element
+     * owning element has been removed. This is possible by interrogating this map for any
+     * additional missing attributes.
+     */
+    std::unordered_map<int,int> BuildGhostBoundaryElementMap();
+
+
    void GenerateOffsets(int N, HYPRE_BigInt loc_sizes[],
                         Array<HYPRE_BigInt> *offsets[]) const;
 

@@ -230,7 +230,7 @@ public:
       return dynamic_cast<const ParSubMesh *>(m) != nullptr;
    }
 
-// private:
+private:
    ParSubMesh(const ParMesh &parent, SubMesh::From from, const Array<int> &attributes);
 
    /**
@@ -294,6 +294,7 @@ public:
     * 2: Face is contained in the ParSubMesh and shared by two ranks. This
     * is the only feasible entity of a shared face in a ParSubMesh.
     *
+    * @param[out] rht Encoding of which rank contains which face triangle.
     * @param[out] rhq Encoding of which rank contains which face quadrilateral.
     */
    void FindSharedFacesRanks(Array<int>& rht, Array<int> &rhq);
@@ -323,10 +324,10 @@ public:
     * @param[in,out] groups
     * @param[in,out] rht Encoding of which rank contains which face triangle.
     * The output is reused s.t. the array index i (the face triangle id) is the
-    * associated group.
+    * associated group. "Rank Has Triangle"
     * @param[in,out] rhq Encoding of which rank contains which face
     * quadrilateral. The output is reused s.t. the array index i (the face
-    * quadrilateral id) is the associated group.
+    * quadrilateral id) is the associated group. "Rank Has Quad"
     */
    void AppendSharedFacesGroups(ListOfIntegerSets &groups, Array<int>& rht,
                                 Array<int> &rhq);
@@ -389,6 +390,10 @@ public:
     */
    void BuildSharedFacesMapping(const int nstrias, const Array<int>& rht,
                                 const int nsquads, const Array<int>& rhq);
+
+
+   std::unordered_map<int, int>
+   FindGhostBoundaryElementAttributes() const;
 
    /// The parent Mesh
    const ParMesh &parent_;
